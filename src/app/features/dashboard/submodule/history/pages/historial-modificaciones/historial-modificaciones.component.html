@@ -1,0 +1,57 @@
+<mat-card>
+  <mat-card-content>
+    <div class="tabla">
+      <h1 class="title">
+        Historial de modificaciones de datos base o comercializadora
+      </h1>
+      <mat-form-field class="filtro">
+        <mat-label>Filter</mat-label>
+        <input
+          matInput
+          (keyup)="applyFilter($event)"
+          placeholder="Filter"
+          #input
+        />
+      </mat-form-field>
+      <div class="table-container">
+        <table mat-table [dataSource]="dataSource" class="mat-elevation-z8">
+          <!-- Concepto -->
+          <ng-container matColumnDef="concepto">
+            <th mat-header-cell *matHeaderCellDef>Concepto</th>
+            <td mat-cell *matCellDef="let element">{{ element.concepto }}</td>
+          </ng-container>
+
+          <!-- Fecha Efectuado -->
+          <ng-container matColumnDef="fechaEfectuado">
+            <th mat-header-cell *matHeaderCellDef>Fecha Efectuado</th>
+            <td mat-cell *matCellDef="let element">
+              {{ element.fechaEfectuado }}
+            </td>
+          </ng-container>
+
+          <!-- Hora Efectuado -->
+          <ng-container matColumnDef="horaEfectuado">
+            <th mat-header-cell *matHeaderCellDef>Hora Efectuado</th>
+            <td mat-cell *matCellDef="let element">
+              {{ element.horaEfectuado }}
+            </td>
+          </ng-container>
+
+          <!-- Nombre de usuario -->
+          <ng-container matColumnDef="username">
+            <th mat-header-cell *matHeaderCellDef>Nombre de usuario</th>
+            <td mat-cell *matCellDef="let element">{{ element.username }}</td>
+          </ng-container>
+
+          <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+          <tr mat-row *matRowDef="let row; columns: displayedColumns"></tr>
+          <tr class="mat-row" *matNoDataRow>
+            <td class="mat-cell" colspan="4">
+              No hay datos "{{ input.value }}"
+            </td>
+          </tr>
+        </table>
+      </div>
+    </div>
+  </mat-card-content>
+</mat-card>

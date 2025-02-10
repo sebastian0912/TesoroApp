@@ -1,0 +1,18 @@
+<mat-dialog-content>
+  <div class="dialog-content">
+    <mat-form-field appearance="fill" class="date-range-field">
+      <mat-label>Seleccione un rango de fechas</mat-label>
+      <mat-date-range-input [rangePicker]="picker">
+        <input matStartDate [formControl]="range.controls.start" placeholder="Comienzo">
+        <input matEndDate [formControl]="range.controls.end" placeholder="Fin">
+      </mat-date-range-input>
+      <mat-datepicker-toggle matSuffix [for]="picker"></mat-datepicker-toggle>
+      <mat-date-range-picker #picker></mat-date-range-picker>
+    </mat-form-field>
+  </div>
+</mat-dialog-content>
+
+<mat-dialog-actions align="end">
+  <button mat-flat-button (click)="onCancel()" style="background-color: red;">Cancel</button>
+  <button mat-flat-button class="dialog-button" (click)="onSave()">Save</button>
+</mat-dialog-actions>

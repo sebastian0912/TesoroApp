@@ -1,0 +1,77 @@
+<mat-card>
+  <mat-card-content>
+    <form [formGroup]="myForm" (ngSubmit)="onSubmit()">
+      <h1 class="titulo">
+        Digite el número de identificación del empleado a validar:
+      </h1>
+
+      <ng-container *ngIf="!datosOperario">
+        <mat-form-field class="example-full-width">
+          <mat-label>Número de identificación</mat-label>
+          <input matInput formControlName="cedula" />
+          <mat-error *ngIf="myForm.get('cedula')?.hasError('required')">
+            El número de identificación es requerido
+          </mat-error>
+        </mat-form-field>
+
+        <button mat-flat-button type="button" (click)="buscarOperario()">
+          Buscar
+        </button>
+      </ng-container>
+
+      <ng-container *ngIf="datosOperario">
+        <mat-form-field class="example-full-width">
+          <mat-label>Valor</mat-label>
+          <input
+            matInput
+            formControlName="valor"
+            (input)="formatCurrency($event)"
+          />
+          <mat-error *ngIf="myForm.get('valor')?.hasError('required')">
+            El valor es requerido
+          </mat-error>
+        </mat-form-field>
+
+        <mat-form-field class="example-full-width">
+          <mat-label>Seleccione una Forma Pago</mat-label>
+          <mat-select
+            formControlName="formaPago"
+            (selectionChange)="onFormaPagoChange($event)"
+          >
+            <mat-option value="Daviplata">Daviplata</mat-option>
+            <mat-option value="Efectivo">Efectivo</mat-option>
+            <mat-option value="Master">Mastercard</mat-option>
+            <mat-option value="Otro">Otro</mat-option>
+          </mat-select>
+          <mat-error *ngIf="myForm.get('formaPago')?.hasError('required')">
+            Seleccione una forma de pago
+          </mat-error>
+        </mat-form-field>
+
+        <mat-form-field class="example-full-width">
+          <mat-label>{{ celularLabel }}</mat-label>
+          <input matInput formControlName="celular" />
+          <mat-error *ngIf="myForm.get('celular')?.hasError('required')">
+            El número de celular es requerido
+          </mat-error>
+          <mat-error *ngIf="myForm.get('celular')?.hasError('pattern')">
+            El número de celular debe tener 10 dígitos
+          </mat-error>
+        </mat-form-field>
+
+        <button
+          mat-flat-button
+          type="submit"
+          class="boton"
+          [disabled]="myForm.invalid"
+        >
+          Cargar
+        </button>
+
+        <h1 class="nombre">
+          <strong> Nombre Operario : </strong> {{ nombreOperario }}
+        </h1>
+      </ng-container>
+    </form>
+  </mat-card-content>
+</mat-card>

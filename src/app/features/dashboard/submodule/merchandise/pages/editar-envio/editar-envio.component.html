@@ -1,0 +1,89 @@
+<mat-card>
+  <mat-card-content>
+    <form [formGroup]="myForm" (ngSubmit)="onSubmit()">
+      <h1 class="titulo">Digite los campos del cargamento a enviar:</h1>
+
+      <ng-container *ngIf="!datosEnvio">
+        <mat-form-field class="example-full-width">
+          <mat-label>Código de envio</mat-label>
+          <input matInput formControlName="codigoEnvio" />
+          <mat-error *ngIf="myForm.get('codigoEnvio')?.hasError('required')">
+            El codigo de envio es requerido
+          </mat-error>
+        </mat-form-field>
+
+        <button mat-flat-button type="button" (click)="buscarEnvio()">
+          Buscar
+        </button>
+      </ng-container>
+
+      <ng-container *ngIf="datosEnvio">
+        <mat-form-field class="example-full-width">
+          <mat-label>Cantidad</mat-label>
+          <input matInput formControlName="cantidad" type="number" />
+          <mat-error *ngIf="myForm.get('cantidad')?.hasError('required')">
+            La cantidad es requerida
+          </mat-error>
+        </mat-form-field>
+
+        <mat-form-field class="example-full-width">
+          <mat-label>Valor</mat-label>
+          <input
+            matInput
+            formControlName="valor"
+            (input)="formatCurrency($event)"
+          />
+          <mat-error *ngIf="myForm.get('valor')?.hasError('required')">
+            El valor es requerido
+          </mat-error>
+        </mat-form-field>
+
+        <mat-form-field class="example-full-width">
+          <mat-label>Seleccione un Concepto</mat-label>
+          <mat-select
+            formControlName="concepto"
+            (selectionChange)="updateOtroConceptoValidator($event.value)"
+          >
+            <mat-option *ngFor="let concepto of conceptos" [value]="concepto">
+              {{ concepto }}
+            </mat-option>
+          </mat-select>
+          <mat-error *ngIf="myForm.get('concepto')?.hasError('required')">
+            Seleccione un concepto
+          </mat-error>
+        </mat-form-field>
+
+        <div *ngIf="myForm.get('concepto')?.value === 'Otro'">
+          <mat-form-field class="example-full-width">
+            <mat-label>Otro Concepto</mat-label>
+            <input matInput formControlName="otroConcepto" />
+            <mat-error *ngIf="myForm.get('otroConcepto')?.hasError('required')">
+              El concepto es requerido
+            </mat-error>
+          </mat-form-field>
+        </div>
+
+        <mat-form-field class="example-full-width">
+          <mat-label>Seleccione una Sede</mat-label>
+          <mat-select formControlName="sede">
+            <mat-option *ngFor="let sede of sedes" [value]="sede">
+              {{ sede }}
+            </mat-option>
+          </mat-select>
+          <mat-error *ngIf="myForm.get('sede')?.hasError('required')">
+            Seleccione una sede
+          </mat-error>
+        </mat-form-field>
+
+        <button
+          mat-flat-button
+          type="submit"
+          class="boton"
+          [disabled]="myForm.invalid"
+        >
+          Cargar
+        </button>
+      </ng-container>
+    </form>
+  </mat-card-content>
+</mat-card>

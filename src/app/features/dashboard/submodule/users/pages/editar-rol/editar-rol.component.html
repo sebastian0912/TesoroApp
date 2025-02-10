@@ -1,0 +1,30 @@
+<mat-card>
+  <mat-card-content>
+    <form [formGroup]="editRoleForm" (ngSubmit)="onSubmit()">
+      <h1 class="titulo">Seleccione el usuario y rol a cambiar:</h1>
+
+      <mat-form-field appearance="fill" class="example-full-width">
+        <mat-label>Usuario</mat-label>
+        <mat-select
+          formControlName="selectedUser"
+          (selectionChange)="onUserChange($event.value)"
+        >
+          <mat-option *ngFor="let user of users" [value]="user">
+            {{ user.primer_nombre }} {{ user.primer_apellido }}
+          </mat-option>
+        </mat-select>
+      </mat-form-field>
+
+      <mat-form-field appearance="fill" class="example-full-width">
+        <mat-label>Rol</mat-label>
+        <mat-select formControlName="selectedRole">
+          <mat-option *ngFor="let role of roles" [value]="role">
+            {{ role.Rol }}
+          </mat-option>
+        </mat-select>
+      </mat-form-field>
+
+      <button mat-flat-button color="primary" type="submit">Editar</button>
+    </form>
+  </mat-card-content>
+</mat-card>

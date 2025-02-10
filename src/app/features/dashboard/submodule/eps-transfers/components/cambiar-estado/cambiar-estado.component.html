@@ -1,0 +1,44 @@
+<div mat-dialog-content class="contenido" [formGroup]="form">
+  <h1 mat-dialog-title class="titulo">Estados</h1>
+  <mat-form-field class="example-full-width2">
+    <mat-label>Estado</mat-label>
+    <mat-select formControlName="estado">
+      <mat-option *ngFor="let estado of estados" [value]="estado">{{ estado }}</mat-option>
+    </mat-select>
+  </mat-form-field>
+
+  <!-- Campos adicionales para "Aceptado" -->
+  <div *ngIf="form.get('estado')?.value === 'Aceptado'" class="contenido">
+    <mat-form-field class="example-full-width2">
+      <mat-label>Fecha de confirmación</mat-label>
+      <input matInput [matDatepicker]="picker" formControlName="fechaConfirmacion">
+      <mat-datepicker-toggle matSuffix [for]="picker"></mat-datepicker-toggle>
+      <mat-datepicker #picker></mat-datepicker>
+    </mat-form-field>
+    <mat-form-field class="example-full-width2">
+      <mat-label>Número de radicado</mat-label>
+      <input matInput formControlName="numeroRadicado" type="text">
+    </mat-form-field>
+    <mat-form-field class="example-full-width2">
+      <mat-label>Número de beneficiarios</mat-label>
+      <input matInput formControlName="numeroBeneficiarios" type="number">
+    </mat-form-field>
+    <mat-form-field class="example-full-width2">
+      <mat-label>EPS Traslado</mat-label>
+      <mat-select formControlName="epsTraslado">
+        <mat-option value="SALUD TOTAL">Salud Total</mat-option>
+        <mat-option value="NUEVA EPS">Nueva Eps</mat-option>
+        <mat-option value="FAMISANAR">Famisanar</mat-option>
+      </mat-select>
+    </mat-form-field>
+  </div>
+
+  <mat-form-field class="example-full-width2">
+    <mat-label>Observaciones</mat-label>
+    <input matInput formControlName="observaciones" type="text">
+  </mat-form-field>
+  <div mat-dialog-actions>
+    <button mat-button (click)="onNoClick()">Cerrar</button>
+    <button mat-button (click)="onSaveClick()">Guardar</button>
+  </div>
+</div>

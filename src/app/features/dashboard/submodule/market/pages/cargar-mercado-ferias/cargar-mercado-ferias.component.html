@@ -1,0 +1,230 @@
+<mat-card>
+  <mat-card-content>
+    <form [formGroup]="myForm" (ngSubmit)="onSubmit()">
+      <h1 class="titulo">
+        Digite el número de identificación del empleado a validar:
+      </h1>
+
+      <ng-container *ngIf="!datosOperario">
+        <mat-form-field class="example-full-width">
+          <mat-label>Número de identificación</mat-label>
+          <input matInput formControlName="cedula" />
+          <mat-error *ngIf="myForm.get('cedula')?.hasError('required')">
+            El número de identificación es requerido
+          </mat-error>
+        </mat-form-field>
+
+        <button mat-flat-button type="button" (click)="buscarOperario()">
+          Buscar
+        </button>
+      </ng-container>
+
+      <ng-container *ngIf="datosOperario">
+        <mat-form-field class="example-full-width" *ngIf="comercio !== 'si'">
+          <mat-label>Valor</mat-label>
+          <input
+            matInput
+            formControlName="valor"
+            (input)="formatCurrency($event)"
+          />
+          <mat-error *ngIf="myForm.get('valor')?.hasError('required')">
+            El valor es requerido
+          </mat-error>
+        </mat-form-field>
+
+        <mat-form-field class="example-full-width">
+          <mat-label>Número de cuotas</mat-label>
+          <input matInput formControlName="cuotas" type="number" />
+          <mat-error *ngIf="myForm.get('cuotas')?.hasError('max')">
+            El número de cuotas no puede ser mayor a 2
+          </mat-error>
+          <mat-error *ngIf="myForm.get('cuotas')?.hasError('min')">
+            El número de cuotas no puede ser menor a 1
+          </mat-error>
+        </mat-form-field>
+
+        <mat-form-field class="example-full-width" *ngIf="comercio !== 'si'">
+          <mat-label>Seleccione un concepto</mat-label>
+          <mat-select formControlName="concepto">
+            <mat-option *ngFor="let dato of datos2" [value]="dato">{{
+              dato
+            }}</mat-option>
+          </mat-select>
+          <mat-error *ngIf="myForm.get('concepto')?.hasError('required')">
+            Seleccione una forma de pago
+          </mat-error>
+        </mat-form-field>
+
+        <mat-form-field class="example-full-width" *ngIf="concepto === 'Otro'">
+          <mat-label>Otro concepto</mat-label>
+          <input matInput formControlName="otroConcepto" required />
+          <mat-error *ngIf="myForm.get('otroConcepto')?.hasError('required')">
+            Ingrese otro concepto
+          </mat-error>
+        </mat-form-field>
+
+        <mat-form-field class="example-full-width">
+          <mat-label>Seleccione una Forma Pago</mat-label>
+          <mat-select
+            formControlName="formaPago"
+            (selectionChange)="onFormaPagoChange($event)"
+          >
+            <mat-option value="Daviplata">Daviplata</mat-option>
+            <mat-option value="Efectivo">Efectivo</mat-option>
+            <mat-option value="Master">Mastercard</mat-option>
+            <mat-option value="Otro">Otro</mat-option>
+          </mat-select>
+          <mat-error *ngIf="myForm.get('formaPago')?.hasError('required')">
+            Seleccione una forma de pago
+          </mat-error>
+        </mat-form-field>
+
+        <mat-form-field class="example-full-width">
+          <mat-label>{{ celularLabel }}</mat-label>
+          <input matInput formControlName="celular" />
+          <mat-error *ngIf="myForm.get('celular')?.hasError('required')">
+            El número de celular es requerido
+          </mat-error>
+          <mat-error *ngIf="myForm.get('celular')?.hasError('pattern')">
+            El número de celular debe tener 10 dígitos
+          </mat-error>
+        </mat-form-field>
+
+        <mat-form-field class="example-full-width">
+          <mat-label>Ingresará productos comercializadora?</mat-label>
+          <mat-select formControlName="comercio">
+            <mat-option value="si">Si</mat-option>
+            <mat-option value="no">No</mat-option>
+          </mat-select>
+        </mat-form-field>
+
+        <mat-form-field class="example-full-width" *ngIf="comercio === 'si'">
+          <mat-label>Codigo comercializadora</mat-label>
+          <input matInput formControlName="codigoComercio" required />
+          <mat-error *ngIf="myForm.get('codigoComercio')?.hasError('required')">
+            Ingrese el codigo de la comercializadora
+          </mat-error>
+        </mat-form-field>
+
+        <mat-form-field class="example-full-width" *ngIf="comercio === 'si'">
+          <mat-label>Cantidad</mat-label>
+          <input matInput formControlName="cantidad" required type="number" />
+          <mat-error *ngIf="myForm.get('cantidad')?.hasError('required')">
+            Ingrese la cantidad
+          </mat-error>
+        </mat-form-field>
+
+        <button
+          mat-flat-button
+          type="submit"
+          class="boton"
+          [disabled]="myForm.invalid"
+          style="margin-top: 2pt; margin-bottom: 15pt;"
+        >
+          Cargar
+        </button>
+
+        <h1 class="nombre">
+          <strong> Nombre Operario : </strong> {{ nombreOperario }}
+        </h1>
+      </ng-container>
+    </form>
+
+    <div class="tabla" *ngIf="comercio === 'si'">
+      <h1 class="title">Tabla de Inventario de Productos Comercializados</h1>
+      <mat-form-field class="filtro">
+        <mat-label>Filter</mat-label>
+        <input
+          matInput
+          (keyup)="applyFilterInventario($event)"
+          placeholder="Filter"
+          #inputInventario
+        />
+      </mat-form-field>
+      <div class="table-container">
+        <table
+          mat-table
+          [dataSource]="dataSourceInventario"
+          class="mat-elevation-z8"
+        >
+          <ng-container matColumnDef="codigo">
+            <th mat-header-cell *matHeaderCellDef>Código</th>
+            <td mat-cell *matCellDef="let element">{{ element.codigo }}</td>
+          </ng-container>
+          <ng-container matColumnDef="concepto">
+            <th mat-header-cell *matHeaderCellDef>Concepto</th>
+            <td mat-cell *matCellDef="let element">{{ element.concepto }}</td>
+          </ng-container>
+          <ng-container matColumnDef="destino">
+            <th mat-header-cell *matHeaderCellDef>Destino</th>
+            <td mat-cell *matCellDef="let element">{{ element.destino }}</td>
+          </ng-container>
+          <ng-container matColumnDef="cantidadEnvio">
+            <th mat-header-cell *matHeaderCellDef>Cantidad Enviada</th>
+            <td mat-cell *matCellDef="let element">
+              {{ element.cantidadEnvio }}
+            </td>
+          </ng-container>
+          <ng-container matColumnDef="cantidadRecibida">
+            <th mat-header-cell *matHeaderCellDef>Cantidad Recibida</th>
+            <td mat-cell *matCellDef="let element">
+              {{ element.cantidadRecibida }}
+            </td>
+          </ng-container>
+          <ng-container matColumnDef="valorUnidad">
+            <th mat-header-cell *matHeaderCellDef>Valor Unidad</th>
+            <td mat-cell *matCellDef="let element">
+              {{ element.valorUnidad }}
+            </td>
+          </ng-container>
+          <ng-container matColumnDef="cantidadTotalVendida">
+            <th mat-header-cell *matHeaderCellDef>Cantidad Vendida</th>
+            <td mat-cell *matCellDef="let element">
+              {{ element.cantidadTotalVendida }}
+            </td>
+          </ng-container>
+          <ng-container matColumnDef="PersonaEnvia">
+            <th mat-header-cell *matHeaderCellDef>Persona quien lo envió</th>
+            <td mat-cell *matCellDef="let element">
+              {{ element.PersonaEnvia }}
+            </td>
+          </ng-container>
+          <ng-container matColumnDef="PersonaRecibe">
+            <th mat-header-cell *matHeaderCellDef>Persona quien recibe</th>
+            <td mat-cell *matCellDef="let element">
+              {{ element.PersonaRecibe }}
+            </td>
+          </ng-container>
+          <ng-container matColumnDef="fechaEnviada">
+            <th mat-header-cell *matHeaderCellDef>Fecha de envío</th>
+            <td mat-cell *matCellDef="let element">
+              {{ element.fechaEnviada }}
+            </td>
+          </ng-container>
+          <ng-container matColumnDef="fechaRecibida">
+            <th mat-header-cell *matHeaderCellDef>Fecha de recibido</th>
+            <td mat-cell *matCellDef="let element">
+              {{ element.fechaRecibida || "" }}
+            </td>
+          </ng-container>
+          <ng-container matColumnDef="comentariosEnvio">
+            <th mat-header-cell *matHeaderCellDef>Comentario</th>
+            <td mat-cell *matCellDef="let element">
+              {{ element.comentariosEnvio }}
+            </td>
+          </ng-container>
+          <tr mat-header-row *matHeaderRowDef="displayedColumnsInventario"></tr>
+          <tr
+            mat-row
+            *matRowDef="let row; columns: displayedColumnsInventario"
+          ></tr>
+          <tr class="mat-row" *matNoDataRow>
+            <td class="mat-cell" colspan="12">
+              No hay datos "{{ inputInventario.value }}"
+            </td>
+          </tr>
+        </table>
+      </div>
+    </div>
+  </mat-card-content>
+</mat-card>

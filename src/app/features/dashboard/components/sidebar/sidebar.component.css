@@ -1,0 +1,148 @@
+.cajaHeader {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    height: auto;
+    padding: 0 10pt;
+    margin-bottom: 20pt;
+}
+
+h1,
+span {
+    margin: 0;
+    padding: 0;
+}
+
+.cajontitulo {
+    display: flex;
+    align-items: center;
+    width: 40%;
+    margin-bottom: 0;
+    padding-bottom: 0;
+    height: 30pt;
+    margin: 0;
+}
+
+.cajontitulo .titulo {
+    font-size: 25pt !important;
+    font-weight: 600 !important;
+}
+
+.perfil {
+    width: 60%;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: flex-end;
+    height: 100%;
+    padding-right: 10pt;
+}
+
+.informacion {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    justify-content: center;
+    line-height: 1.3;
+}
+
+.informacion .titulo {
+    color: #000000;
+    font-weight: normal !important;
+    font-size: 14pt !important;
+}
+
+
+.perfil .titulo {
+    color: #000000;
+    font-size: 14pt !important;
+    line-height: 1.3 !important;
+}
+
+span {
+    font-weight: 600;
+    font-size: 14pt;
+}
+
+.spanAux {
+    font-size: 14pt;
+    font-weight: 400;
+
+}
+
+.perfil .titulo:nth-of-type(2) {
+    font-size: 10pt !important;
+    font-weight: 500 !important;
+    margin-top: -5pt !important;
+}
+
+.perfil .titulo:nth-of-type(3) {
+    font-size: 11pt !important;
+    font-weight: 500 !important;
+    font-style: italic !important;
+    margin-top: -2pt !important;
+}
+
+.opciones {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.botonConfig {
+    height: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 0 10pt;
+}
+
+.icono {
+    margin-top: 0pt;
+    border: none;
+}
+
+button{
+    border: none;
+    background-color: transparent;
+    cursor: pointer; 
+}
+
+@media (max-width: 768px) {
+    .cajaHeader {
+        width: 95vw;
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .perfil {
+        width: 100%;
+        margin-top: -10px;
+    }
+
+    .opciones {
+        width: 100%;
+    }
+
+    .cajontitulo .titulo:nth-child(1) {
+        font-size: 20pt;
+        width: 100%;
+        margin-bottom: 25px;
+
+    }
+
+    .informacion {
+        width: 100%;
+        align-items: flex-start;
+    }
+
+    .botonConfig {
+        position: absolute;
+        right: 0;
+        margin-top: -160pt;
+        z-index: 5;
+    }
+
+
+}

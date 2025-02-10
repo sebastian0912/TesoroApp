@@ -1,0 +1,76 @@
+:host {
+    display: block;
+    max-width: 600px;
+}
+
+.contenido {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    width: 100%;
+}
+
+.example-full-width {
+    width: 80% !important;
+}
+.example-full-width2 {
+    width: 80% !important;
+}
+
+mat-dialog-title {
+    font-size: 24px;
+    font-weight: 600;
+    margin-bottom: 20px;
+}
+
+
+
+mat-dialog-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    /* Center items horizontally */
+    gap: 16px;
+    padding: 0px;
+}
+
+mat-dialog-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 20px;
+}
+
+button[mat-button] {
+    min-width: 80px;
+}
+
+button[mat-button]:first-child {
+    background-color: #f1f1f1;
+}
+
+button[mat-button]:last-child {
+    background-color: #007bff;
+    color: white;
+}
+
+button[mat-button]:last-child:hover {
+    background-color: #0056b3;
+}
+
+mat-select {
+    width: 100%;
+}
+
+
+input[type="date"] {
+    padding: 8px 0;
+}
+
+@media (max-width: 600px) {
+    .contenido {
+        padding: 0 16px;
+    }
+}

@@ -1,0 +1,59 @@
+.title {
+    margin-top: 10px;
+    margin-bottom: 10px;
+    font-size: 14pt;
+    font-weight: bold;
+    width: 20%;
+    display: flex;
+}
+
+button {
+    margin-top: 5px;
+    margin-bottom: 5px;
+    z-index: 0;
+    width: 70%;
+}
+
+.link-style {
+    color: blue;          /* Cambia el color a azul */
+    text-decoration: underline; /* Añade subrayado */
+    cursor: pointer;      /* Cambia el cursor a mano al pasar por encima */
+}
+
+.menu {
+    width: 15vw;
+}
+
+.filtro {
+    width: 15vw;
+}
+
+.div{
+    display: flex;
+    gap: 10px;
+}
+
+a {
+  color: #007bff;
+  text-decoration: none;
+}
+
+
+@media (max-width: 933px) {
+
+    .filtro, .filter-container {
+        width: 100%;
+    }
+
+    .filter-container{
+        margin-top: -25pt;
+    }
+
+    .div {
+        flex-direction: column;
+    }
+
+    .menu {
+        width: 45vw;
+    }
+}

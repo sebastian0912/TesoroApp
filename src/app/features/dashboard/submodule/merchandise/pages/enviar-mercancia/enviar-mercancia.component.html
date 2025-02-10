@@ -1,0 +1,105 @@
+<mat-card>
+  <mat-card-content>
+    <form [formGroup]="myForm" (ngSubmit)="onSubmit()">
+      <h1 class="titulo">Digite los campos del cargamento a enviar:</h1>
+
+      <ng-container>
+        <mat-form-field class="example-full-width">
+          <mat-label>Cantidad</mat-label>
+          <input matInput formControlName="cantidad" type="number" />
+          <mat-error *ngIf="myForm.get('cantidad')?.hasError('required')">
+            La cantidad es requerida
+          </mat-error>
+        </mat-form-field>
+
+        <mat-form-field class="example-full-width">
+          <mat-label>Valor</mat-label>
+          <input
+            matInput
+            formControlName="valor"
+            (input)="formatCurrency($event)"
+          />
+          <mat-error *ngIf="myForm.get('valor')?.hasError('required')">
+            El valor es requerido
+          </mat-error>
+        </mat-form-field>
+
+        <mat-form-field class="example-full-width">
+          <mat-label>Seleccione un Concepto</mat-label>
+          <mat-select
+            formControlName="concepto"
+            (selectionChange)="updateOtroConceptoValidator($event.value)"
+          >
+            <mat-option *ngFor="let concepto of conceptos" [value]="concepto.valor">
+              {{ concepto.valor }}
+            </mat-option>
+          </mat-select>
+          <mat-error *ngIf="myForm.get('concepto')?.hasError('required')">
+            Seleccione un concepto
+          </mat-error>
+        </mat-form-field>
+
+        <div *ngIf="myForm.get('concepto')?.value === 'Otro'">
+          <mat-form-field class="example-full-width">
+            <mat-label>Otro Concepto</mat-label>
+            <input matInput formControlName="otroConcepto" />
+            <mat-error *ngIf="myForm.get('otroConcepto')?.hasError('required')">
+              El concepto es requerido
+            </mat-error>
+          </mat-form-field>
+        </div>
+
+        <mat-form-field class="example-full-width">
+          <mat-label>Seleccione una Sede</mat-label>
+          <mat-select formControlName="sede">
+            <mat-option *ngFor="let sede of sedes" [value]="sede.nombre">
+              {{ sede.nombre }}
+            </mat-option>
+          </mat-select>
+          <mat-error *ngIf="myForm.get('sede')?.hasError('required')">
+            Seleccione una sede
+          </mat-error>
+        </mat-form-field>
+
+        <div *ngIf="myForm.get('concepto')?.value === 'Otro'">
+          <mat-form-field class="example-full-width">
+            <mat-label>Otro Concepto</mat-label>
+            <input matInput formControlName="otroConcepto" />
+            <mat-error *ngIf="myForm.get('otroConcepto')?.hasError('required')">
+              El concepto es requerido
+            </mat-error>
+          </mat-form-field>
+        </div>
+
+        <mat-form-field class="example-full-width">
+          <mat-label>Nombre de la persona que envía</mat-label>
+          <input matInput formControlName="nombrePersonaEnvio" />
+          <mat-error
+            *ngIf="myForm.get('nombrePersonaEnvio')?.hasError('required')"
+          >
+            El nombre es requerido
+          </mat-error>
+        </mat-form-field>
+
+        <mat-form-field class="example-full-width">
+          <mat-label>Comentario de envío</mat-label>
+          <input matInput formControlName="comentarioEnvio" />
+          <mat-error
+            *ngIf="myForm.get('comentarioEnvio')?.hasError('required')"
+          >
+            El comentario es requerido
+          </mat-error>
+        </mat-form-field>
+
+        <button
+          mat-flat-button
+          type="submit"
+          class="boton"
+          [disabled]="myForm.invalid"
+        >
+          Cargar
+        </button>
+      </ng-container>
+    </form>
+  </mat-card-content>
+</mat-card>

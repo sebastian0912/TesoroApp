@@ -1,0 +1,65 @@
+<!-- Botón de menú para dispositivos móviles -->
+<button class="sidebar-toggle" (click)="toggleSidebar()">
+  <mat-icon>menu</mat-icon>
+</button>
+
+<!-- Barra lateral -->
+<aside class="sidebar" [ngClass]="{ 'sidebar-hidden': isSidebarHidden }">
+  <div class="sidebar-header titulo-header">
+    <h3>Tesorería</h3>
+  </div>
+
+  <div class="sidebar-header servicios-header">
+    <h3>Menú</h3>
+  </div>
+
+  <ul>
+    <li class="blockLink">
+      <a routerLink="/dashboard" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }"
+        (click)="closeSidebar()">
+        <img src="icons/navbar/home-button.png" alt="Dashboard" class="icon" />
+        <p>Home</p>
+      </a>
+    </li>
+
+
+
+
+    <ng-container *ngFor="let menu of dynamicMenus">
+      <li *ngIf="menuHasSubMenus(menu)" class="label-menu">
+        <a (click)="toggleMenu(menu.key)" [ngClass]="{ active: menuState[menu.key] }">
+          <img [src]="menu.icon" [alt]="menu.label" class="icon" />
+          <p>{{ menu.label }}</p>
+          <mat-icon class="expand">
+            {{ menuState[menu.key] ? "expand_less" : "expand_more" }}
+          </mat-icon>
+        </a>
+        <div class="sub-menu" [ngClass]="{ open: menuState[menu.key] }">
+          <ul>
+            <li *ngFor="let subMenu of menu.subMenus">
+              <ng-container *ngIf="hasPermission(subMenu.permission)">
+                <a *ngIf="subMenu.route; else actionTemplate" [routerLink]="subMenu.route"
+                  [ngClass]="{ active: isActive(subMenu.route) }" (click)="closeSidebar()" class="sub-menu-link">
+                  {{ subMenu.label }}
+                </a>
+                <ng-template #actionTemplate>
+                  <a *ngIf="subMenu.action" (click)="executeAction(subMenu.action)" class="sub-menu-link">
+                    {{ subMenu.label }}
+                  </a>
+                </ng-template>
+              </ng-container>
+            </li>
+          </ul>
+        </div>
+      </li>
+    </ng-container>
+
+    <li class="blockLink">
+      <a (click)="cerrarSesion()" (click)="closeSidebar()">
+        <img src="icons/navbar/cerrar-sesion.png" alt="Cerrar Sesión" class="icon" />
+        <p>Cerrar Sesión</p>
+      </a>
+    </li>
+
+  </ul>
+</aside>

@@ -1,0 +1,15 @@
+import { NgModule } from '@angular/core';
+import { RouterModule, Routes } from '@angular/router';
+import { AutorizacionMercadoComponent } from './pages/autorizacion-mercado/autorizacion-mercado.component';
+import { AutorizacionPrestamoComponent } from './pages/autorizacion-prestamo/autorizacion-prestamo.component';
+
+const routes: Routes = [
+  { path: 'market-bonus', component: AutorizacionMercadoComponent },
+  { path: 'money-loan', component: AutorizacionPrestamoComponent }
+];
+
+@NgModule({
+  imports: [RouterModule.forChild(routes)],
+  exports: [RouterModule]
+})
+export class AuthorizationsRoutingModule { }

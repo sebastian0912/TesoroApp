@@ -1,0 +1,18 @@
+<mat-card>
+  <mat-card-content>
+    <form [formGroup]="deleteForm" (ngSubmit)="onSubmit()">
+      <h1 class="titulo">Seleccione el usuario a eliminar:</h1>
+
+      <mat-form-field appearance="fill" class="example-full-width">
+        <mat-label>Usuario</mat-label>
+        <mat-select formControlName="selectedUser">
+          <mat-option *ngFor="let user of users" [value]="user">
+            {{ user.primer_nombre }} {{ user.primer_apellido }}
+          </mat-option>
+        </mat-select>
+      </mat-form-field>
+
+      <button mat-flat-button color="primary" type="submit">Eliminar</button>
+    </form>
+  </mat-card-content>
+</mat-card>

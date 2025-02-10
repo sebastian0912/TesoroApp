@@ -1,0 +1,165 @@
+<div class="tabla">
+  <div class="cards">
+    <app-info-card
+      title="Cupo de traslados"
+      imageUrl="icons/cards/comprobado.png"
+      [value]="numTraslados"
+    ></app-info-card>
+    <app-info-card
+      title="Auto asignar traslados disponibles"
+      imageUrl="icons/cards/delegar.png"
+      style="cursor: pointer"
+      [value]="numTrasladosResponsableNull"
+      (cardClicked)="autoAsignar()"
+    ></app-info-card>
+    <app-info-card
+      title="Recargar traslados disponibles"
+      imageUrl="icons/cards/loading-arrow.png"
+      style="cursor: pointer"
+      (cardClicked)="cuantosTraslados()"
+      *ngIf="istraslados18"
+    ></app-info-card>
+  </div>
+
+  <mat-card>
+    <mat-card-content>
+      <div class="div">
+        <mat-form-field class="filtro">
+          <mat-label>Filter</mat-label>
+          <input
+            matInput
+            (keyup)="applyFilter($event)"
+            placeholder="Filter"
+            #input
+          />
+        </mat-form-field>
+
+        <div class="filter-container">
+          <mat-form-field appearance="fill">
+            <mat-label>Filtrar por estado</mat-label>
+            <mat-select (selectionChange)="applyFilterByEstado($event.value)">
+              <mat-option
+                *ngFor="let estado of estadosCount | keyvalue"
+                [value]="estado.key"
+              >
+                {{ estado.key }} ({{ estado.value }})
+              </mat-option>
+            </mat-select>
+          </mat-form-field>
+        </div>
+      </div>
+      <div class="table-container">
+        <table mat-table [dataSource]="dataSource" class="mat-elevation-z8">
+          <!-- codigo -->
+          <ng-container matColumnDef="codigo_traslado">
+            <th mat-header-cell *matHeaderCellDef>Código Traslado</th>
+            <td mat-cell *matCellDef="let element">
+              {{ element.codigo_traslado }}
+            </td>
+          </ng-container>
+
+          <ng-container matColumnDef="estado_del_traslado">
+            <th mat-header-cell *matHeaderCellDef>Estado del Traslado</th>
+            <td mat-cell *matCellDef="let element">
+              {{ element.estado_del_traslado }}
+            </td>
+          </ng-container>
+
+          <!-- cedula -->
+          <ng-container matColumnDef="numero_cedula">
+            <th mat-header-cell *matHeaderCellDef>Número de Cédula</th>
+            <td mat-cell *matCellDef="let element">
+              {{ element.numero_cedula }}
+            </td>
+          </ng-container>
+
+          <!-- solicitud -->
+          <ng-container matColumnDef="solicitud_traslado">
+            <th mat-header-cell *matHeaderCellDef> Solicitud de Traslado </th>
+            <td mat-cell *matCellDef="let element">
+              <ng-container *ngIf="element.solicitud_disponible === 1; else noDisponibleSolicitud">
+                <a (click)="imprimirSolicitudTraslado(element.codigo_traslado)" style="cursor: pointer; text-decoration: underline;">
+                  Ver Solicitud
+                </a>
+              </ng-container>
+              <ng-template #noDisponibleSolicitud>
+                <span>No disponible</span>
+              </ng-template>
+            </td>
+          </ng-container>
+
+          <!-- cedula scaneada -->
+          <ng-container matColumnDef="cedulas">
+            <th mat-header-cell *matHeaderCellDef> Cédulas </th>
+            <td mat-cell *matCellDef="let element">
+              <ng-container *ngIf="element.cedula_disponible === 1; else noDisponibleCedula">
+                <a (click)="imprimirCedula(element.numero_cedula)" style="cursor: pointer; text-decoration: underline;">
+                  Ver Cédula
+                </a>
+              </ng-container>
+              <ng-template #noDisponibleCedula>
+                <span>No disponible</span>
+              </ng-template>
+            </td>
+          </ng-container>
+
+          <ng-container matColumnDef="eps_a_trasladar">
+            <th mat-header-cell *matHeaderCellDef>EPS a Trasladar</th>
+            <td mat-cell *matCellDef="let element">
+              {{ element.eps_a_trasladar }}
+            </td>
+          </ng-container>
+
+          <!-- Actions -->
+          <ng-container matColumnDef="actions">
+            <th mat-header-cell *matHeaderCellDef>Acciones</th>
+            <td mat-cell *matCellDef="let element">
+              <!-- Botón de menú desplegable -->
+              <button mat-icon-button [matMenuTriggerFor]="menu">
+                <mat-icon>more_vert</mat-icon>
+                <!-- Icono de 3 puntos -->
+              </button>
+
+              <!-- Menú desplegable -->
+              <mat-menu #menu="matMenu" class="menu">
+                <button
+                  mat-menu-item
+                  (click)="cambiarEstado(element)"
+                  class="menu"
+                >
+                  <mat-icon>swap_horiz</mat-icon> Cambiar Estado
+                </button>
+                <button
+                  mat-menu-item
+                  (click)="verTrabajador(element)"
+                  class="menu"
+                >
+                  <mat-icon>person</mat-icon> Ver Trabajador
+                </button>
+                <button mat-menu-item (click)="verEstado(element)" class="menu">
+                  <mat-icon>visibility</mat-icon> Ver Estado
+                </button>
+
+                <button
+                  mat-menu-item
+                  (click)="verAfiliacion(element)"
+                  class="menu"
+                >
+                  <mat-icon>assignment</mat-icon> Ver Adres
+                </button>
+              </mat-menu>
+            </td>
+          </ng-container>
+
+          <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+          <tr mat-row *matRowDef="let row; columns: displayedColumns"></tr>
+          <tr class="mat-row" *matNoDataRow>
+            <td class="mat-cell" colspan="4">
+              No hay datos "{{ input.value }}"
+            </td>
+          </tr>
+        </table>
+      </div>
+    </mat-card-content>
+  </mat-card>
+</div>

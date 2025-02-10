@@ -1,0 +1,19 @@
+<!-- Contenedor principal -->
+<div class="dashboard-container">
+  <!-- Barra superior visible solo en pantallas pequeñas -->
+  <div class="navbar">
+    <!-- Botón hamburguesa, título, lo que necesites -->
+    <button class="sidebar-toggle" (click)="toggleSidebar()">
+    </button>
+  </div>
+
+  <!-- Menú lateral principal -->
+  <app-navbar [class.sidebar-hidden]="isSidebarHidden"></app-navbar>
+
+  <!-- Contenido del dashboard (resto de la app) -->
+  <div class="dashboard-content">
+    <!-- Si <app-sidebar> es un panel extra, lo conservas -->
+    <app-sidebar></app-sidebar>
+    <router-outlet></router-outlet>
+  </div>
+</div>

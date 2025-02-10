@@ -1,0 +1,274 @@
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap');
+
+
+
+button,
+a {
+  background: transparent;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  text-align: left;
+  text-decoration: none;
+}
+
+.expand {
+  font-size: 24px;
+  color: #ffffff;
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.label-menu p {
+  margin-left: 5pt;
+}
+
+
+p {
+  line-height: 1;
+}
+
+.sidebar header {
+  display: flex;
+  align-items: center;
+  height: 72px;
+  padding-top: 10px;
+  border-bottom: 1px solid rgb(255 255 255 / 8%);
+}
+
+.sidebar header img {
+  height: 44px;
+}
+
+.sidebar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 260px;
+  padding: 16px;
+  background-color: #404040;
+  transition: transform 0.4s ease-in-out, opacity 0.4s ease-in-out;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #febb2e #404040;
+  z-index: 3;
+  font-family: 'Poppins', sans-serif;
+}
+
+.sidebar-header {
+  width: 100%;
+  color: #414141;
+  text-align: left;
+}
+
+.titulo-header h3 {
+  font-size: 18pt;
+  width: 100%;
+  color: #febb2e;
+  font-style: italic;
+  border-bottom: 2px solid #febb2e;
+  padding-bottom: 0px;
+  font-weight: 600;
+
+}
+
+.servicios-header {
+  margin-top: 20px;
+}
+
+.sidebar-header h3 {
+  font-size: 14pt;
+}
+
+.servicios-header h3 {
+  font-size: 14pt;
+  color: #fff;
+}
+
+
+.sidebar-hidden {
+  transform: translateX(-100%);
+  opacity: 0;
+}
+
+.sidebar::-webkit-scrollbar {
+  width: 8px;
+}
+
+.sidebar::-webkit-scrollbar-thumb {
+  background-color: #febb2e;
+  border-radius: 10px;
+}
+
+.sidebar::-webkit-scrollbar-track {
+  background-color: #404040;
+}
+
+.sidebar-toggle {
+  display: none;
+  position: fixed;
+  top: 16px;
+  left: 16px;
+  background-color: #404040;
+  border: none;
+  font-size: 24px;
+  padding: 8px;
+  border-radius: 8px;
+  z-index: 4;
+  transition: background-color 0.3s ease;
+}
+
+.sub-menu-link{
+  line-height: 0.8;
+  font-size: 12pt !important;
+}
+
+li {
+  cursor: pointer;
+}
+
+.blockLink{
+  min-width: 100%;
+}
+
+.sidebar :is(button, a) {
+  position: relative;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: flex-start;
+  height: 48px;
+  width: 100%;
+  border-radius: 8px;
+  font-family: 'Poppins', sans-serif;
+  font-size: 16px;
+  font-weight: 500;
+  padding: 0 16px;
+  color: #F2F2F2;
+  transition: background-color 0.3s ease, color 0.3s ease;
+  margin-top: 2px;
+}
+
+.blockLink img.icon {
+  width: 24px;
+  height: 24px;
+  object-fit: cover;
+  margin-right: 8px;
+}
+
+.sidebar a:hover,
+.blockLink:hover {
+  background-color: #febb2e;
+  border-radius: 8pt;
+}
+
+
+
+.sidebar ul {
+  display: grid;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  width: 100%;
+}
+
+.sub-menu {
+  max-height: 0;
+  overflow: hidden;
+  background-color: #D9CEB0;
+  border-radius: 8px;
+  box-shadow: 0px 2px 8px rgba(0, 0, 0, 0.15);
+  margin-top: 8px;
+  transition: max-height 1.2s ease-in-out, padding 1.2s ease-in-out;
+}
+
+.sub-menu.open {
+  max-height: 400px;
+  padding: 0;
+}
+
+.sub-menu ul {
+  display: grid;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.sub-menu a {
+  padding: 8px 24px;
+  background-color: transparent;
+  font-size: 14px;
+  font-weight: 500 !important;
+  transition: background-color 0.3s ease;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #000 !important;
+}
+
+.sidebar > ul > li > a.active {
+  background-color: #febb2e;
+  color: #000;
+}
+
+.sub-menu > ul > li > a.active {
+  background-color: #febb2e;
+  color: #fff;
+}
+
+.sidebar img.icon {
+  width: 24px;
+  height: 24px;
+  object-fit: contain;
+  display: block;
+}
+
+.cerrar-sesion:hover {
+  background-color: #FF4D4D;
+  color: #fff;
+}
+
+@media (max-width: 768px) {
+  .sidebar {
+    transform: translateX(-100%);
+    padding-top: 64px;
+  }
+
+  .sidebar.sidebar-hidden {
+    transform: translateX(0);
+    opacity: 1;
+    transition: transform 0.4s ease-in-out, opacity 0.4s ease-in-out;
+  }
+
+  .sidebar-toggle {
+    display: block;
+  }
+
+  .dashboard-content {
+    margin-left: 0;
+    padding-top: 64px;
+  }
+}
+
+@media (min-width: 769px) {
+  .sidebar-toggle {
+    display: none;
+  }
+
+  .sidebar {
+    transform: translateX(0);
+    opacity: 1;
+    padding-top: 80px;
+  }
+
+  .dashboard-content {
+    margin-left: 260px;
+  }
+}
+

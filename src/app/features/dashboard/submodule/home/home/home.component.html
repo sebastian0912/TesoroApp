@@ -1,0 +1,18 @@
+<div class="cards">
+  <app-info-card *ngIf="general" title="Número total de empleados" imageUrl="icons/cards/empleados.png"    [value]="numeroempleados" />
+  <app-info-card *ngIf="general" title="Numero de coordinadores" imageUrl="icons/cards/coordinador.png"    [value]="numeroCoordinadores" />
+  <app-info-card *ngIf="general" title="Numero de tiendas" imageUrl="icons/navbar/mercado.png"    [value]="numeroTiendas" />
+</div>
+
+<app-active-authorizations *ngIf="general"></app-active-authorizations> <br>
+<app-merchandising-merchandise *ngIf="comercializadora"></app-merchandising-merchandise><br>
+<app-terminated-transfers *ngIf="traslado"></app-terminated-transfers>
+
+<!--
+  <app-info-card title="Extraer total tiendas" imageUrl="comun/excel.png" [value]="" />
+  <app-info-card title="Historial actividades roles" imageUrl="comun/excel.png" [value]=""
+  (cardClicked)="openDateRangeDialog2()" style="cursor: pointer;"  />
+
+  <app-info-card title="Mercado Andrea" imageUrl="comun/excel.png" [value]=""
+  (cardClicked)="reporteMercadoAndrea()" style="cursor: pointer;" />
+-->

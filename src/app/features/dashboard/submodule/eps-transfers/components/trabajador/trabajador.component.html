@@ -1,0 +1,98 @@
+<h1 mat-dialog-title>Detalles del Operario </h1>
+<div mat-dialog-content>
+  <div class="table-container">
+    <table mat-table [dataSource]="data">
+      <ng-container matColumnDef="numerodeceduladepersona">
+        <th mat-header-cell *matHeaderCellDef> Cedula </th>
+        <td mat-cell *matCellDef="let element"> {{element.numerodeceduladepersona}} </td>
+      </ng-container>
+      <ng-container matColumnDef="primer_apellido">
+        <th mat-header-cell *matHeaderCellDef> Primer Apellido </th>
+        <td mat-cell *matCellDef="let element"> {{element.primer_apellido}} </td>
+      </ng-container>
+      <ng-container matColumnDef="segundo_apellido">
+        <th mat-header-cell *matHeaderCellDef> Segundo Apellido </th>
+        <td mat-cell *matCellDef="let element"> {{element.segundo_apellido}} </td>
+      </ng-container>
+      <ng-container matColumnDef="primer_nombre">
+        <th mat-header-cell *matHeaderCellDef> Primer Nombre </th>
+        <td mat-cell *matCellDef="let element"> {{element.primer_nombre}} </td>
+      </ng-container>
+      <ng-container matColumnDef="segundo_nombre">
+        <th mat-header-cell *matHeaderCellDef> Segundo Nombre </th>
+        <td mat-cell *matCellDef="let element"> {{element.segundo_nombre}} </td>
+      </ng-container>
+      <ng-container matColumnDef="fecha_nacimiento">
+        <th mat-header-cell *matHeaderCellDef> Fecha Nacimiento </th>
+        <td mat-cell *matCellDef="let element"> {{element.fecha_nacimiento}} </td>
+      </ng-container>
+      <ng-container matColumnDef="genero">
+        <th mat-header-cell *matHeaderCellDef> Genero </th>
+        <td mat-cell *matCellDef="let element"> {{element.genero}} </td>
+      </ng-container>
+      <ng-container matColumnDef="estado_civil">
+        <th mat-header-cell *matHeaderCellDef> Estado Civil </th>
+        <td mat-cell *matCellDef="let element"> {{element.estado_civil}} </td>
+      </ng-container>
+      <ng-container matColumnDef="direccion_residencia">
+        <th mat-header-cell *matHeaderCellDef> Direccion Residencia </th>
+        <td mat-cell *matCellDef="let element"> {{element.direccion_residencia}} </td>
+      </ng-container>
+      <ng-container matColumnDef="barrio">
+        <th mat-header-cell *matHeaderCellDef> Barrio </th>
+        <td mat-cell *matCellDef="let element"> {{element.barrio}} </td>
+      </ng-container>
+      <ng-container matColumnDef="celular">
+        <th mat-header-cell *matHeaderCellDef> Celular </th>
+        <td mat-cell *matCellDef="let element"> {{element.celular}} </td>
+      </ng-container>
+      <ng-container matColumnDef="primercorreoelectronico">
+        <th mat-header-cell *matHeaderCellDef> Correo Electronico </th>
+        <td mat-cell *matCellDef="let element"> {{element.primercorreoelectronico}} </td>
+      </ng-container>
+      <ng-container matColumnDef="municipio">
+        <th mat-header-cell *matHeaderCellDef> Municipio </th>
+        <td mat-cell *matCellDef="let element"> {{element.municipio}} </td>
+      </ng-container>
+      <ng-container matColumnDef="fecha_expedicion_cc">
+        <th mat-header-cell *matHeaderCellDef> Fecha Expedicion CC </th>
+        <td mat-cell *matCellDef="let element"> {{element.fecha_expedicion_cc}} </td>
+      </ng-container>
+      <ng-container matColumnDef="municipio_expedicion_cc">
+        <th mat-header-cell *matHeaderCellDef> Municipio Expedicion CC </th>
+        <td mat-cell *matCellDef="let element"> {{element.municipio_expedicion_cc}} </td>
+      </ng-container>
+      <ng-container matColumnDef="departamento_expedicion_cc">
+        <th mat-header-cell *matHeaderCellDef> Departamento Expedicion CC </th>
+        <td mat-cell *matCellDef="let element"> {{element.departamento_expedicion_cc}} </td>
+      </ng-container>
+      <ng-container matColumnDef="lugar_nacimiento_municipio">
+        <th mat-header-cell *matHeaderCellDef> Lugar Nacimiento Municipio </th>
+        <td mat-cell *matCellDef="let element"> {{element.lugar_nacimiento_municipio}} </td>
+      </ng-container>
+      <ng-container matColumnDef="lugar_nacimiento_departamento">
+        <th mat-header-cell *matHeaderCellDef> Lugar Nacimiento Departamento </th>
+        <td mat-cell *matCellDef="let element"> {{element.lugar_nacimiento_departamento}} </td>
+      </ng-container>
+      <ng-container matColumnDef="rh">
+        <th mat-header-cell *matHeaderCellDef> RH </th>
+        <td mat-cell *matCellDef="let element"> {{element.rh}} </td>
+      </ng-container>
+      <ng-container matColumnDef="zurdo_diestro">
+        <th mat-header-cell *matHeaderCellDef> Zurdo/Diestro </th>
+        <td mat-cell *matCellDef="let element"> {{element.zurdo_diestro}} </td>
+      </ng-container>
+      <ng-container matColumnDef="eps13">
+        <th mat-header-cell *matHeaderCellDef> EPS </th>
+        <td mat-cell *matCellDef="let element"> {{element.eps13 || "---"}} </td>
+      </ng-container>
+
+      <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+      <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
+    </table>
+  </div>
+
+</div>
+<div mat-dialog-actions>
+  <button mat-button mat-dialog-close>Cerrar</button>
+</div>

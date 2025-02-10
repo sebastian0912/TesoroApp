@@ -1,0 +1,55 @@
+<mat-card>
+  <mat-card-content>
+    <form [formGroup]="myForm" (ngSubmit)="onSubmit()">
+      <h1 class="titulo">Digite cuantos usuarios de traslados vas a crear:</h1>
+      <mat-form-field appearance="fill" class="example-full-width">
+        <mat-label>Número de usuarios a crear</mat-label>
+        <input
+          matInput
+          type="number"
+          formControlName="numUsuarios"
+          (input)="onNumUsuariosChange()"
+        />
+      </mat-form-field>
+
+      <div formArrayName="usuarios" class="usuarios-container">
+        <div
+          *ngFor="let user of usuarios.controls; let i = index"
+          class="usuario-item"
+          [ngClass]="{ 'hidden-user': i === usuarios.controls.length - 1 }"
+        >
+          <ng-container [formGroupName]="i">
+            <mat-form-field appearance="fill" class="example-full-width">
+              <mat-label>Usuario</mat-label>
+              <input
+                matInput
+                [matAutocomplete]="auto"
+                formControlName="usuario"
+              />
+              <mat-autocomplete
+                #auto="matAutocomplete"
+                [displayWith]="displayUser"
+              >
+                <mat-option
+                  *ngFor="let user of filteredUsers[i]"
+                  [value]="user"
+                >
+                  {{ user.primer_nombre }} {{ user.primer_apellido }}
+                </mat-option>
+              </mat-autocomplete>
+            </mat-form-field>
+          </ng-container>
+        </div>
+      </div>
+
+      <button
+        mat-flat-button
+        type="submit"
+        class="boton"
+        [disabled]="myForm.invalid"
+      >
+        Registrar Usuarios y Generar Excel
+      </button>
+    </form>
+  </mat-card-content>
+</mat-card>
