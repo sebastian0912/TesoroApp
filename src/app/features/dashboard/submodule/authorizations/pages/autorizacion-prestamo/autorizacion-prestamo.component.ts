@@ -170,7 +170,7 @@ export class AutorizacionPrestamoComponent implements OnInit {
         icon: 'success',
         title: '¡Éxito!',
         text: 'El préstamo ha sido autorizado, se ha generado el código ' + codigoOH,
-        confirmButtonText: 'Aceptar'
+        confirmButtonText: 'Acepta'
       }).then(() => {
         this.router.navigateByUrl('/dashboard', { skipLocationChange: true }).then(() => {
           this.router.navigate(["/dashboard/authorizations/money-loan"]);

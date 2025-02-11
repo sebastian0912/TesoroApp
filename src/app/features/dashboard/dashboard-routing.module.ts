@@ -1,13 +1,6 @@
 import { NgModule } from '@angular/core';
 import { RouterModule, Routes } from '@angular/router';
 import { DashboardComponent } from './pages/dashboard/dashboard.component';
-import { AuthorizationsModule } from './submodule/authorizations/authorizations.module';
-import { EpsTransfersModule } from './submodule/eps-transfers/eps-transfers.module';
-import { HistoryModule } from './submodule/history/history.module';
-import { MarketModule } from './submodule/market/market.module';
-import { MerchandiseModule } from './submodule/merchandise/merchandise.module';
-import { MoneyLoanModule } from './submodule/money-loan/money-loan.module';
-import { UsersModule } from './submodule/users/users.module';
 import { HomeComponent } from './submodule/home/home/home.component';
 
 const routes: Routes = [
@@ -15,45 +8,21 @@ const routes: Routes = [
     path: '',
     component: DashboardComponent,
     children: [
-      {
-        path: '',
-        component: HomeComponent,
-      },
-      {
-        path: 'authorizations',
-        loadChildren: () => AuthorizationsModule,
-      },
-      {
-        path: 'eps-transfers',
-        loadChildren: () => EpsTransfersModule,
-      },
-      {
-        path: 'history',
-        loadChildren: () => HistoryModule,
-      },
-      {
-        path: 'market',
-        loadChildren: () => MarketModule,
-      },
-      {
-        path: 'merchandise',
-        loadChildren: () => MerchandiseModule,
-      },
-      {
-        path: 'money-loan',
-        loadChildren: () => MoneyLoanModule,
-      },
-      {
-        path: 'users',
-        loadChildren: () => UsersModule,
-      },
+      { path: '', component: HomeComponent },
+      { path: 'authorizations', loadChildren: () => import('./submodule/authorizations/authorizations.module').then(m => m.AuthorizationsModule) },
+      { path: 'eps-transfers', loadChildren: () => import('./submodule/eps-transfers/eps-transfers.module').then(m => m.EpsTransfersModule) },
+      { path: 'history', loadChildren: () => import('./submodule/history/history.module').then(m => m.HistoryModule) },
+      { path: 'market', loadChildren: () => import('./submodule/market/market.module').then(m => m.MarketModule) },
+      { path: 'merchandise', loadChildren: () => import('./submodule/merchandise/merchandise.module').then(m => m.MerchandiseModule) },
+      { path: 'money-loan', loadChildren: () => import('./submodule/money-loan/money-loan.module').then(m => m.MoneyLoanModule) },
+      { path: 'users', loadChildren: () => import('./submodule/users/users.module').then(m => m.UsersModule) },
     ],
   },
-
 ];
+
 
 @NgModule({
   imports: [RouterModule.forChild(routes)],
   exports: [RouterModule],
 })
-export class DashboardRoutingModule {}
+export class DashboardRoutingModule { }

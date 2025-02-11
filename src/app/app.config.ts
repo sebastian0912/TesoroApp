@@ -10,7 +10,7 @@ export const appConfig: ApplicationConfig = {
   providers: [
     provideZoneChangeDetection({ eventCoalescing: true }),
     provideRouter(routes),
-    provideClientHydration(), // ✅ Mantener para evitar problemas con SSR
+    provideClientHydration(),
     provideAnimationsAsync(),
     provideHttpClient(
       withFetch(),

@@ -4,7 +4,7 @@ const { autoUpdater } = require('electron-updater');
 
 let mainWindow;
 
-autoUpdater.autoDownload = false;
+autoUpdater.autoDownload = true; // Descargar automáticamente
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -13,7 +13,7 @@ function createWindow() {
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
-      nodeIntegration: true,
+      nodeIntegration: false, // Más seguro deshabilitarlo
     }
   });
 
@@ -21,61 +21,67 @@ function createWindow() {
     mainWindow.loadURL('http://localhost:4300');
     mainWindow.webContents.openDevTools();
   } else {
-    mainWindow.removeMenu();
-    mainWindow.loadURL(`file://${path.join(__dirname, 'dist/tesoreria-angular-electron-actualizacion/browser/index.html')}`);
+    mainWindow.loadURL(`file://${path.join(__dirname, 'dist/tesoreria/browser/index.html')}`);
   }
 
   mainWindow.maximize();
 
-  mainWindow.on('closed', function () {
+  mainWindow.on('closed', () => {
     mainWindow = null;
   });
 
-  // Evento para manejar recargas de página
+  // Prevenir recargas no controladas
   mainWindow.webContents.on('will-navigate', (event, url) => {
-    event.preventDefault();
-    mainWindow.loadURL(url);
+    if (!url.startsWith('file://') && !url.startsWith('http://localhost')) {
+      event.preventDefault();
+    }
   });
 
-  autoUpdater.checkForUpdatesAndNotify();
+  if (process.env.NODE_ENV !== 'development') {
+    autoUpdater.checkForUpdatesAndNotify();
+  }
 }
 
+// IPC para obtener versión y entorno
 ipcMain.handle('version:get', () => {
-  const packageJson = require(path.resolve(__dirname, 'package.json'));
-  return packageJson.version;
+  return require(path.resolve(__dirname, 'package.json')).version;
 });
 
 ipcMain.handle('env:get', () => {
   return process.env.NODE_ENV || 'production';
 });
 
+// Manejadores de actualizaciones
 autoUpdater.on('update-available', () => {
   mainWindow.webContents.send('update-available');
-  autoUpdater.downloadUpdate();
 });
 
-autoUpdater.on('update-downloaded', (info) => {
+autoUpdater.on('download-progress', (progressObj) => {
+  mainWindow.webContents.send('update-progress', progressObj);
+});
+
+autoUpdater.on('update-downloaded', () => {
   mainWindow.webContents.send('update-downloaded');
-});
-
-autoUpdater.on('update-not-available', () => {
-  mainWindow.webContents.send('update-not-available');
+  setTimeout(() => {
+    autoUpdater.quitAndInstall();
+  }, 3000); // Espera 3 segundos antes de reiniciar
 });
 
 autoUpdater.on('error', (error) => {
   mainWindow.webContents.send('update-error', error);
 });
 
+// Forzar la instalación sin preguntar
 ipcMain.on('restart-app', () => {
   autoUpdater.quitAndInstall();
 });
 
 app.on('ready', createWindow);
 
-app.on('window-all-closed', function () {
+app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
 });
 
-app.on('activate', function () {
+app.on('activate', () => {
   if (mainWindow === null) createWindow();
 });

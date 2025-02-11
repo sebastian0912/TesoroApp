@@ -16,6 +16,7 @@
             "outputPath": "dist/tesoreria",
             "index": "src/index.html",
             "browser": "src/main.ts",
+            "baseHref": "./",
             "polyfills": ["zone.js"],
             "tsConfig": "tsconfig.app.json",
             "assets": [
@@ -61,6 +62,7 @@
               "outputHashing": "all"
             },
             "development": {
+              "baseHref": "/",
               "optimization": false,
               "extractLicenses": false,
               "sourceMap": true,

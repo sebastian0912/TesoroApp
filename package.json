@@ -16,7 +16,7 @@
       "output": "dist/electron"
     },
     "files": [
-      "dist/tesoreria-angular-electron-actualizacion/**/*",
+      "dist/tesoreria/**/*",
       "app.js",
       "preload.js"
     ],
@@ -39,13 +39,13 @@
     "start": "concurrently \"ng serve\" \"wait-on http://localhost:4200 && cross-env NODE_ENV=development electron .\"",
     "build": "ng build --configuration production",
     "watch": "ng build --watch --configuration development",
-    "start:electron": "concurrently \"ng serve --host 0.0.0.0 --port 4300\" \"wait-on http://localhost:4300 && npx cross-env NODE_ENV=development electron .\"",
+    "start:electron": "concurrently \"ng serve --configuration=development --host 0.0.0.0 --port 4300\" \"wait-on http://localhost:4300 && cross-env NODE_ENV=development electron .\"",
     "test": "ng test",
     "lint": "ng lint",
     "e2e": "ng e2e",
-    "dist": "ng build --configuration production && electron-builder -p always",
-    "dist2": "ng build --configuration production && electron-builder",
-    "serve:ssr:Tesoreria-Angular-Electron-Actualizacion": "node dist/tesoreria-angular-electron-actualizacion/server/server.mjs"
+    "dist": "ng build --configuration production && cross-env NODE_ENV=production electron-builder -p always",
+    "dist2": "ng build --configuration production && cross-env NODE_ENV=production electron-builder",
+    "serve:ssr:Tesoreria": "node dist/tesoreria/server/server.mjs"
   },
   "private": true,
   "dependencies": {
@@ -82,6 +82,7 @@
     "concurrently": "^9.1.2",
     "cross-env": "^7.0.3",
     "electron": "^34.0.1",
+    "electron-builder": "^25.1.8",
     "jasmine-core": "~5.4.0",
     "karma": "~6.4.0",
     "karma-chrome-launcher": "~3.2.0",

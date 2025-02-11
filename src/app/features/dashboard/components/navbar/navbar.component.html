@@ -21,10 +21,7 @@
         <p>Home</p>
       </a>
     </li>
-
-
-
-
+    
     <ng-container *ngFor="let menu of dynamicMenus">
       <li *ngIf="menuHasSubMenus(menu)" class="label-menu">
         <a (click)="toggleMenu(menu.key)" [ngClass]="{ active: menuState[menu.key] }">
