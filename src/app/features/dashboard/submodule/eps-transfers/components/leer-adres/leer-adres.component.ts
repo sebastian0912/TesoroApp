@@ -8,7 +8,6 @@ import { MatButtonModule } from '@angular/material/button';
 
 @Component({
   selector: 'app-leer-adres',
-  standalone: true,
   imports: [
     CommonModule,
     MatDialogModule,

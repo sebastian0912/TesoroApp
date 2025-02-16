@@ -8,7 +8,6 @@ import Swal from 'sweetalert2';
 
 @Component({
   selector: 'app-editar-administrativo',
-  standalone: true,
   imports: [SharedModule],
   templateUrl: './editar-administrativo.component.html',
   styleUrls: ['./editar-administrativo.component.css'],

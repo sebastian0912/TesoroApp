@@ -10,7 +10,6 @@ import { HistorialService } from '../../service/historial/historial.service';
 
 @Component({
   selector: 'app-historial-modificaciones',
-  standalone: true,
   imports: [
     CommonModule,
     MatCardModule,

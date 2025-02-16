@@ -14,18 +14,6 @@ export class MercadoService {
 
   constructor(private http: HttpClient, @Inject(PLATFORM_ID) private platformId: Object) { }
 
-  private getToken(): string | null {
-    if (isPlatformBrowser(this.platformId)) {
-      return localStorage.getItem('token');
-    }
-    return null;
-  }
-
-  private createAuthorizationHeader(): HttpHeaders {
-    const token = this.getToken();
-    return token ? new HttpHeaders().set('Authorization', token) : new HttpHeaders();
-  }
-
   public getUser(): any {
     if (isPlatformBrowser(this.platformId)) {
       return JSON.parse(localStorage.getItem('user') || '{}');
@@ -39,22 +27,16 @@ export class MercadoService {
 
   // verificar estado del codigo
   public verificarCodigo(codigo: string): Observable<string> {
-    const headers = this.createAuthorizationHeader();
-    return this.http.get<{ message: string }>(`${this.apiUrl}/Codigo/verificarestado/${codigo}`, { headers })
+    return this.http.get<{ message: string }>(`${this.apiUrl}/Codigo/verificarestado/${codigo}`)
       .pipe(
         map(response => response.message),
         catchError(this.handleError)
       );
   }
-
-
-
-
-
+  
   // Cambiar estado del codigo
   public cambiarEstadoCodigo(codigo: string): Observable<string> {
-    const headers = this.createAuthorizationHeader();
-    return this.http.put<{ message: string }>(`${this.apiUrl}/Codigo/cambiarestado/${codigo}`, {}, { headers })
+    return this.http.put<{ message: string }>(`${this.apiUrl}/Codigo/cambiarestado/${codigo}`, {},)
       .pipe(
         map(response => response.message),
         catchError(this.handleError)
@@ -63,8 +45,7 @@ export class MercadoService {
 
   // Escribe el codigo de ejecutado en el codigo de Autorizacion
   public escribirCodigo(codigo: string, cedula: string, valor: number): Observable<string> {
-    const headers = this.createAuthorizationHeader();
-    return this.http.post<{ message: string }>(`${this.apiUrl}/Codigo/escribircodigo`, { codigo, cedula, valor }, { headers })
+    return this.http.post<{ message: string }>(`${this.apiUrl}/Codigo/escribircodigo`, { codigo, cedula, valor })
       .pipe(
         map(response => response.message),
         catchError(this.handleError)
@@ -80,19 +61,12 @@ export class MercadoService {
     conceptoEjecutado: string,
     historial_id: number
   ): Promise<any> {
-
-    const token = this.getToken();
     const user = this.getUser();
     const usernameLocal = `${user.primer_nombre} ${user.primer_apellido}`;
-    if (!token) {
-      throw new Error('No token found');
-    }
 
     const fecha = new Date().toISOString().split('T')[0];
 
     const urlcompleta = `${this.apiUrl}/Codigo/ejecutarMercadoTienda`;
-
-    const headers = this.createAuthorizationHeader().set('Content-Type', 'application/json');
 
     const requestBody = {
       cedula: cedula,
@@ -104,12 +78,11 @@ export class MercadoService {
       fecha: fecha,
       ejecutadoPor: usernameLocal,
       historial: historial_id,
-      jwt: token
     };
 
 
     try {
-      const response = await firstValueFrom(this.http.post<string>(urlcompleta, requestBody, { headers }).pipe(
+      const response = await firstValueFrom(this.http.post<string>(urlcompleta, requestBody).pipe(
         catchError(this.handleError)
       ));
       return response;
@@ -127,19 +100,12 @@ export class MercadoService {
     conceptoEjecutado: string,
     historial_id: number
   ): Promise<any> {
-
-    const token = this.getToken();
     const user = this.getUser();
     const usernameLocal = `${user.primer_nombre} ${user.primer_apellido}`;
-    if (!token) {
-      throw new Error('No token found');
-    }
 
     const fecha = new Date().toISOString().split('T')[0];
 
     const urlcompleta = `${this.apiUrl}/Codigo/ejecutarMercadoTienda`;
-
-    const headers = this.createAuthorizationHeader().set('Content-Type', 'application/json');
 
     const requestBody = {
       cedula: cedula,
@@ -151,11 +117,10 @@ export class MercadoService {
       fecha: fecha,
       ejecutadoPor: usernameLocal,
       historial: historial_id,
-      jwt: token
     };
 
     try {
-      const response = await firstValueFrom(this.http.post<string>(urlcompleta, requestBody, { headers }).pipe(
+      const response = await firstValueFrom(this.http.post<string>(urlcompleta, requestBody).pipe(
         catchError(this.handleError)
       ));
       return response;

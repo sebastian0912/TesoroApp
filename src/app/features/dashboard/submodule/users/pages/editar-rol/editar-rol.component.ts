@@ -8,7 +8,6 @@ import { SharedModule } from '../../../../../../shared/shared.module';
 
 @Component({
   selector: 'app-editar-rol',
-  standalone: true,
   imports: [
     SharedModule
   ],

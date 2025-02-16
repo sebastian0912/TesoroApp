@@ -8,7 +8,6 @@ import { UtilityServiceService } from '../../../../../../shared/services/utility
 
 @Component({
   selector: 'app-eliminar-administrativos',
-  standalone: true,
   imports: [
     SharedModule
   ],

@@ -8,7 +8,6 @@ import { SharedModule } from '../../../../../../shared/shared.module';
 
 @Component({
   selector: 'app-historial-autorizaciones',
-  standalone: true,
   imports: [
     SharedModule
   ],
@@ -69,6 +68,19 @@ export class HistorialAutorizacionesComponent implements OnInit {
   }
 
   buscarOperario(): void {
+    // si cedula no es válida
+    Swal.fire({
+      title: 'Buscando trabajador...',
+      icon: 'info',
+      text: 'Por favor, espera mientras se procesa la información.',
+      allowOutsideClick: false,
+      allowEscapeKey: false,
+      showConfirmButton: false,
+      didOpen: () => {
+        Swal.showLoading();
+      }
+    });
+
     if (this.myForm.valid) {
       this.autorizacionesService.traerOperarios(this.myForm.value.cedula).subscribe(
         (data: any) => {
@@ -79,8 +91,22 @@ export class HistorialAutorizacionesComponent implements OnInit {
               text: 'Este empleado no existe, esta retirado o no pertenece a la empresa',
             });
           }
+          if (!data.activo) {
+            Swal.fire({
+              icon: 'error',
+              title: 'Empleado retirado',
+              text: 'El empleado con la cédula proporcionada se encuentra retirado.',
+            });
+            return;
+          }
         },
         (error: any) => {
+          Swal.close();
+          Swal.fire({
+            icon: 'error',
+            title: 'Error de conexión',
+            text: 'Hubo un problema al buscar el operario. Intente nuevamente.',
+          });
         }
       );
     }

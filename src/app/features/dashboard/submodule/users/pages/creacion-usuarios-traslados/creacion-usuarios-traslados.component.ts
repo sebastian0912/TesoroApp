@@ -11,7 +11,6 @@ import { SharedModule } from '../../../../../../shared/shared.module';
 
 @Component({
   selector: 'app-creacion-usuarios-traslados',
-  standalone: true,
   imports: [
     SharedModule
   ],

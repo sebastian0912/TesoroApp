@@ -74,83 +74,91 @@ export class AutorizacionesService {
 
   // Verificar condiciones
   verificarCondiciones(operario: any, nuevovalor: number, sumaTotal: number, tipo: 'prestamo' | 'mercado'): boolean {
+    if (operario.bloqueado) {
+      this.aviso('Ups no se pueden generar prestamos, el empleado está bloqueado', 'error');
+      return false;
+    }
+
+    if (!operario.activo) {
+      this.aviso('Ups no se pueden generar prestamos, el empleado está retirado', 'error');
+      return false;
+    }
+
+    if (!operario.ingreso || !/^\d{2}-\d{2}-\d{2}$/.test(operario.ingreso)) {
+      this.aviso('Formato de fecha inválido en ingreso', 'error');
+      return false;
+    }
+
     const [dia, mes, anio] = operario.ingreso.split('-');
-    const anioConvertido = '20' + anio;
-    const fechaIngreso = new Date(parseInt(anioConvertido), parseInt(mes) - 1, parseInt(dia));
+    const anioConvertido = parseInt(`20${anio}`, 10);
+    const fechaIngreso = new Date(anioConvertido, parseInt(mes, 10) - 1, parseInt(dia, 10));
     const fechaActual = new Date();
+
     const diferenciaEnMilisegundos = fechaActual.getTime() - fechaIngreso.getTime();
     const diasTrabajados = Math.ceil(diferenciaEnMilisegundos / (1000 * 60 * 60 * 24));
     const mesesTrabajados = (fechaActual.getFullYear() - fechaIngreso.getFullYear()) * 12 + fechaActual.getMonth() - fechaIngreso.getMonth();
 
-    const mensajes = {
-      prestamo300: 'Ups no se pueden generar el prestamo porque superas los 300.000 permitidos',
-      prestamo500: (maximo: number) => `Ups no se pueden generar prestamos, puede sacar máximo ${maximo}`,
-      prestamo200: 'Ups no se pueden generar el prestamo porque superas los 200.000 permitidos',
-      prestamo350: (maximo: number) => `Ups no se pueden generar prestamos, puede sacar máximo ${maximo}`,
-      prestamoTiempo: 'Ups no se pueden generar prestamos, el empleado no lleva más de 2 meses en la empresa',
-      mercado150: (maximo: number) => `Ups no se pueden generar mercado, puede sacar máximo ${maximo}`,
-      mercado250: (maximo: number) => `Ups no se pueden generar mercado, puede sacar máximo ${maximo}`,
-      mercado350: (maximo: number) => `Ups no se pueden generar mercado, puede sacar máximo ${maximo}`,
-      mercadoTiempo: 'Ups no se pueden generar mercado, el empleado no tiene los días suficientes para pedir prestamo',
-      // si bloqueado es 1 esta bloqueado
-      bloqueado: 'Ups no se pueden generar prestamos, el empleado esta bloqueado',
-    };
-
-    if (operario.bloqueado == 1) {
-      this.aviso(mensajes.bloqueado, 'error');
+    if (nuevovalor < 0 || sumaTotal < 0) {
+      this.aviso('Los valores no pueden ser negativos', 'error');
       return false;
     }
 
     if (tipo === 'prestamo') {
-      if (mesesTrabajados >= 2) {
-        if (mesesTrabajados >= 3) {
-          if (nuevovalor >= 300001) {
-            this.aviso(mensajes.prestamo300, 'error');
-            return false;
-          }
-          if ((sumaTotal + nuevovalor) >= 500001) {
-            this.aviso(mensajes.prestamo500(500001 - sumaTotal), 'error');
-            return false;
-          }
-        } else {
-          if (nuevovalor >= 200001) {
-            this.aviso(mensajes.prestamo200, 'error');
-            return false;
-          }
-          if ((sumaTotal + nuevovalor) >= 350001) {
-            this.aviso(mensajes.prestamo350(350000 - sumaTotal), 'error');
-            return false;
-          }
-        }
-        return true;
-      } else {
-        this.aviso(mensajes.prestamoTiempo, 'error');
+      if (mesesTrabajados < 2) {
+        this.aviso('Ups no se pueden generar préstamos, el empleado no lleva más de 2 meses en la empresa', 'error');
         return false;
       }
-    } else if (tipo === 'mercado') {
-      if (diasTrabajados > 8 && diasTrabajados <= 15) {
-        if ((sumaTotal + nuevovalor) >= 150001) {
-          this.aviso(mensajes.mercado150(150000 - sumaTotal), 'error');
+
+      if (mesesTrabajados >= 3) {
+        if (nuevovalor > 300000) {
+          this.aviso('Ups no se pueden generar el préstamo porque superas los 300.000 permitidos', 'error');
           return false;
         }
-      } else if (diasTrabajados > 15 && diasTrabajados <= 30) {
-        if ((sumaTotal + nuevovalor) >= 250001) {
-          this.aviso(mensajes.mercado250(250000 - sumaTotal), 'error');
-          return false;
-        }
-      } else if (diasTrabajados > 30) {
-        if ((sumaTotal + nuevovalor) >= 350001) {
-          this.aviso(mensajes.mercado350(350000 - sumaTotal), 'error');
+        if (sumaTotal + nuevovalor > 500000) {
+          this.aviso(`Ups no se pueden generar préstamos, puede sacar máximo ${500000 - sumaTotal}`, 'error');
           return false;
         }
       } else {
-        this.aviso(mensajes.mercadoTiempo, 'error');
-        return false;
+        if (nuevovalor > 200000) {
+          this.aviso('Ups no se pueden generar el préstamo porque superas los 200.000 permitidos', 'error');
+          return false;
+        }
+        if (sumaTotal + nuevovalor > 350000) {
+          this.aviso(`Ups no se pueden generar préstamos, puede sacar máximo ${350000 - sumaTotal}`, 'error');
+          return false;
+        }
       }
       return true;
     }
+
+    if (tipo === 'mercado') {
+      if (diasTrabajados <= 8) {
+        this.aviso('Ups no se pueden generar mercado, el empleado no tiene los días suficientes para pedir préstamo', 'error');
+        return false;
+      }
+
+      if (diasTrabajados > 8 && diasTrabajados <= 15) {
+        if (sumaTotal + nuevovalor > 150000) {
+          this.aviso(`Ups no se pueden generar mercado, puede sacar máximo ${150000 - sumaTotal}`, 'error');
+          return false;
+        }
+      } else if (diasTrabajados > 15 && diasTrabajados <= 30) {
+        if (sumaTotal + nuevovalor > 250000) {
+          this.aviso(`Ups no se pueden generar mercado, puede sacar máximo ${250000 - sumaTotal}`, 'error');
+          return false;
+        }
+      } else if (diasTrabajados > 30) {
+        if (sumaTotal + nuevovalor > 350000) {
+          this.aviso(`Ups no se pueden generar mercado, puede sacar máximo ${350000 - sumaTotal}`, 'error');
+          return false;
+        }
+      }
+      return true;
+    }
+
     return false;
   }
+
 
 
 
@@ -163,7 +171,7 @@ export class AutorizacionesService {
 
   // buscarCodigo
   async buscarCodigo(codigo: string): Promise<any> {
-    return firstValueFrom(this.http.get(`${this.apiUrl}/Codigo/jefedearea/leercodigo/${codigo}` )
+    return firstValueFrom(this.http.get(`${this.apiUrl}/Codigo/jefedearea/leercodigo/${codigo}`)
       .pipe(catchError(this.handleError)));
   }
 

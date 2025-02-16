@@ -12,7 +12,6 @@ import moment from 'moment';
 
 @Component({
   selector: 'app-date-rang-dialog',
-  standalone: true,
   imports: [
     MatInputModule,
     MatFormFieldModule,

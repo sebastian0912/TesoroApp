@@ -1,0 +1,8 @@
+::ng-deep .mat-sort-header-arrow {
+  color: white !important; /* Cambia el color del icono a blanco */
+  font-size: 24pt !important; /* Aumenta el tamaño del icono */
+  width: 24pt !important;
+  height: 24pt !important;
+}
+
+

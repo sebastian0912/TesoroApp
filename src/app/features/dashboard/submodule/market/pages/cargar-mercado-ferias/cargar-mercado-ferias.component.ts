@@ -11,7 +11,6 @@ import { ComercializadoraService } from '../../../merchandise/service/comerciali
 
 @Component({
   selector: 'app-cargar-mercado-ferias',
-  standalone: true,
   imports: [
     SharedModule
   ],
@@ -181,44 +180,75 @@ export class CargarMercadoFeriasComponent implements OnInit {
       return;
     }
 
-
-
-
-    const formValues = { ...this.myForm.value, valor: this.myForm.value.valor.replace(/\D/g, '') };
-
-    this.sumaPrestamos = this.autorizacionesService.traerSaldoPendiente(this.datosOperario);
-
-    if (this.correoUsuario !== "lola@gmail.com" && this.rolUsuario !== "GERENCIA") {
-      if (!this.autorizacionesService.verificarCondiciones(this.datosOperario, parseInt(formValues.valor), this.sumaPrestamos, "mercado")) {
-        return;
+    // 🔵 Mostrar Swal de carga antes de iniciar la lógica
+    Swal.fire({
+      title: 'Procesando...',
+      icon: 'info',
+      text: 'Por favor, espera mientras se realiza la operación.',
+      allowOutsideClick: false,
+      allowEscapeKey: false,
+      showConfirmButton: false,
+      didOpen: () => {
+        Swal.showLoading();
       }
-    }
+    });
 
-    let cuotasAux = formValues.cuotas;
-
-    // Generar codigo que no exista
-    while (true) {
-      codigoOH = 'M' + Math.floor(Math.random() * 1000000);
-
-      try {
-        const data = await this.autorizacionesService.buscarCodigo(codigoOH);
-        if (data.codigo.length === 0) {
-          break;  // Salir del bucle si el código no existe
-        }
-      } catch (error) {
-        break;  // Salir del bucle si hay un error en la solicitud
-      }
-    }
-
+    // Usamos un try-catch para manejar cualquier error global
     try {
+      const formValues = { ...this.myForm.value, valor: this.myForm.value.valor.replace(/\D/g, '') };
+      this.sumaPrestamos = this.autorizacionesService.traerSaldoPendiente(this.datosOperario);
+
+      // Validar condiciones si el usuario no es GERENCIA y no es lola@gmail.com
+      if (this.correoUsuario !== "lola@gmail.com" && this.rolUsuario !== "GERENCIA") {
+        if (!this.autorizacionesService.verificarCondiciones(this.datosOperario, parseInt(formValues.valor), this.sumaPrestamos, "mercado")) {
+          Swal.close();
+          await Swal.fire({
+            icon: 'error',
+            title: 'Oops...',
+            text: 'No se cumplen las condiciones de verificación para el monto',
+          });
+          return;
+        }
+      }
+
+      let cuotasAux = formValues.cuotas;
+
+      // Generar código que no exista
+      while (true) {
+        codigoOH = 'M' + Math.floor(Math.random() * 1000000);
+        try {
+          const data = await this.autorizacionesService.buscarCodigo(codigoOH);
+          if (data.codigo.length === 0) {
+            break; // Salir del bucle si el código no existe
+          }
+        } catch (error) {
+          break; // Salir del bucle si hay un error en la solicitud
+        }
+      }
+
+      // Creamos un segundo código
       codigoMOH = 'MOH' + Math.floor(Math.random() * 1000000);
 
+      // Si el comercio es "si", se maneja la lógica de comercializadora
       if (formValues.comercio === "si") {
         const producto = this.comercializadoraService.traerComercializadoraPorCodigo(this.productos, formValues.codigoComercio);
 
-        conceptoMOH = "Compra tienda de Ferias respecto a : " + producto.concepto + " en " + this.utilityServiceService.getUser().sucursalde;
-        let valorTotal = parseInt(producto.valorUnidad) * parseInt(formValues.cantidad);
+        // Validar que el producto exista
+        if (!producto) {
+          Swal.close();
+          await Swal.fire({
+            icon: 'error',
+            title: 'Oops...',
+            text: 'Producto no encontrado',
+          });
+          return;
+        }
 
+        const valorTotal = parseInt(producto.valorUnidad) * parseInt(formValues.cantidad);
+
+        conceptoMOH = "Compra tienda de Ferias respecto a : " + producto.concepto + " en " + this.utilityServiceService.getUser().sucursalde;
+
+        // Escritura en historial
         const historialData = await this.autorizacionesService.escribirHistorial(
           formValues.cedula,
           valorTotal,
@@ -228,9 +258,10 @@ export class CargarMercadoFeriasComponent implements OnInit {
           this.usuario.primer_nombre + ' ' + this.usuario.primer_apellido
         );
 
-        // Asegúrate de que `this.historial_id` se asigne correctamente
+        // Asignar historial_id a la variable de clase (o local, según tu lógica)
         this.historial_id = historialData.historial_id;
 
+        // Escritura de código
         await this.autorizacionesService.escribirCodigo(
           formValues.cedula,
           String(valorTotal),
@@ -242,59 +273,50 @@ export class CargarMercadoFeriasComponent implements OnInit {
           this.usuario.numero_de_documento
         );
 
-
         // Actualizar inventario
         await this.comercializadoraService.ActualizarInventario(
           formValues.cantidad,
           formValues.codigoComercio
-        ).then(response => {
-        }).catch(error => {
-          Swal.fire({
+        ).catch(async error => {
+          Swal.close();
+          await Swal.fire({
             icon: 'error',
             title: 'Oops...',
             text: 'Hubo un error al realizar el cargue, por favor intente de nuevo',
           });
+          return; // Importante para no continuar la ejecución en caso de error
         });
 
-
-        // Actualiza los datos del codigo, los datos del historial y los datos de datos
-        await this.mercadoService.ejecutarMercadoComercializadora(
+        // Ejecutar mercado en comercializadora
+        const response = await this.mercadoService.ejecutarMercadoComercializadora(
           codigoOH,
           formValues.cedula,
           valorTotal,
           codigoMOH,
           conceptoMOH,
           this.historial_id
-        )
-          .then(response => {
-            if (response.message == "Actualización exitosa") {
-              // Termino el proceso
-              Swal.fire({
-                icon: 'success',
-                title: '¡Éxito!',
-                text: 'El préstamo ha sido cargado exitosamente',
-                confirmButtonText: 'Aceptar'
-              }).then(() => {
-                this.router.navigateByUrl('/dashboard', { skipLocationChange: true }).then(() => {
-                  this.router.navigate(["/dashboard/market/load-fair-market"]);
-                });
-              });
-            } else {
-              Swal.fire({
-                icon: 'error',
-                title: 'Oops...',
-                text: 'Hubo un error al realizar el cargue, por favor intente de nuevo',
-              });
-            }
-          })
-          .catch(error => {
+        );
 
-            Swal.fire({
-              icon: 'error',
-              title: 'Oops...',
-              text: 'Hubo un error al realizar el cargue, por favor intente de nuevo',
-            });
+        Swal.close();
+
+        if (response.message === "Actualización exitosa") {
+          await Swal.fire({
+            icon: 'success',
+            title: '¡Éxito!',
+            text: 'El préstamo ha sido cargado exitosamente',
+            confirmButtonText: 'Aceptar'
           });
+          // Redirección
+          this.router.navigateByUrl('/dashboard', { skipLocationChange: true }).then(() => {
+            this.router.navigate(["/dashboard/market/load-fair-market"]);
+          });
+        } else {
+          await Swal.fire({
+            icon: 'error',
+            title: 'Oops...',
+            text: 'Hubo un error al realizar el cargue, por favor intente de nuevo',
+          });
+        }
 
         // Generar PDF
         this.autorizacionesService.generatePdf(
@@ -308,12 +330,10 @@ export class CargarMercadoFeriasComponent implements OnInit {
           "Mercado",
           this.usuario.primer_nombre + ' ' + this.usuario.primer_apellido,
         );
-
-        return;
-
+        return; // Sale de la función, porque ya terminaste el caso "comercio = si"
       }
 
-      // cuando el comercio es no
+      // Escritura en historial
       const historialData = await this.autorizacionesService.escribirHistorial(
         formValues.cedula,
         parseInt(formValues.valor),
@@ -325,6 +345,7 @@ export class CargarMercadoFeriasComponent implements OnInit {
 
       this.historial_id = historialData.historial_id;
 
+      // Escritura de código
       await this.autorizacionesService.escribirCodigo(
         formValues.cedula,
         formValues.valor,
@@ -336,47 +357,43 @@ export class CargarMercadoFeriasComponent implements OnInit {
         this.usuario.numero_de_documento
       );
 
+      // Se crea un concepto para MOH
       conceptoMOH = "Compra tienda de Ferias respecto a : " + formValues.concepto + " en " + this.utilityServiceService.getUser().sucursalde;
       if (formValues.concepto === 'Otro') {
         conceptoMOH = "Compra tienda de Ferias respecto a : " + formValues.otroConcepto + " en " + this.utilityServiceService.getUser().sucursalde;
       }
 
-      await this.mercadoService.ejecutarMercadoTienda(
+      // Ejecutar mercado en tienda
+      const responseTienda = await this.mercadoService.ejecutarMercadoTienda(
         codigoOH,
         formValues.cedula,
         parseInt(formValues.valor),
         codigoMOH,
         conceptoMOH,
         this.historial_id
-      )
-        .then(response => {
-          if (response.message == "Actualización exitosa") {
-            // Termino el proceso
-            Swal.fire({
-              icon: 'success',
-              title: '¡Éxito!',
-              text: 'El préstamo ha sido cargado exitosamente',
-              confirmButtonText: 'Aceptar'
-            }).then(() => {
-              this.router.navigateByUrl('/dashboard', { skipLocationChange: true }).then(() => {
-                this.router.navigate(["/dashboard/market/load-fair-market"]);
-              });
-            });
-          } else {
-            Swal.fire({
-              icon: 'error',
-              title: 'Oops...',
-              text: 'Hubo un error al realizar el cargue, por favor intente de nuevo',
-            });
-          }
-        })
-        .catch(error => {
-          Swal.fire({
-            icon: 'error',
-            title: 'Oops...',
-            text: 'Hubo un error al realizar el cargue, por favor intente de nuevo',
-          });
+      );
+
+      Swal.close();
+
+      if (responseTienda.message === "Actualización exitosa") {
+        await Swal.fire({
+          icon: 'success',
+          title: '¡Éxito!',
+          text: 'El préstamo ha sido cargado exitosamente',
+          confirmButtonText: 'Aceptar'
         });
+        this.router.navigateByUrl('/dashboard', { skipLocationChange: true }).then(() => {
+          this.router.navigate(["/dashboard/market/load-fair-market"]);
+        });
+      } else {
+        await Swal.fire({
+          icon: 'error',
+          title: 'Oops...',
+          text: 'Hubo un error al realizar el cargue, por favor intente de nuevo',
+        });
+      }
+
+      // Generar PDF
       this.autorizacionesService.generatePdf(
         this.datosOperario,
         formValues.valor,
@@ -389,10 +406,9 @@ export class CargarMercadoFeriasComponent implements OnInit {
         this.usuario.primer_nombre + ' ' + this.usuario.primer_apellido,
       );
 
-
-
     } catch (error) {
-      Swal.fire({
+      Swal.close();
+      await Swal.fire({
         icon: 'error',
         title: 'Oops...',
         text: 'Hubo un error al realizar el cargue, por favor intente de nuevo',
@@ -402,32 +418,106 @@ export class CargarMercadoFeriasComponent implements OnInit {
 
 
 
+
+  // Función para buscar operario
   // Función para buscar operario
   buscarOperario() {
+    // si cedula no es válida
+    if (this.myForm.value.cedula === '') {
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: 'Por favor, ingrese una cédula válida.',
+      });
+      this.myForm.markAllAsTouched();
+      return;
+    }
+
+    Swal.fire({
+      title: 'Buscando trabajador...',
+      icon: 'info',
+      text: 'Por favor, espera mientras se procesa la información.',
+      allowOutsideClick: false,
+      allowEscapeKey: false,
+      showConfirmButton: false,
+      didOpen: () => {
+        Swal.showLoading();
+      }
+    });
+
     this.autorizacionesService.traerOperarios(this.myForm.value.cedula).subscribe(
       (data: any) => {
+        Swal.close();
+
+        // Validar si el operario existe
         if (data.datosbase === "No se encontró el registro para el ID proporcionado") {
           this.datosOperario = null;
           Swal.fire({
             icon: 'error',
             title: 'Oops...',
-            text: 'No se encontró el empleado con la cedula proporcionado',
+            text: 'No se encontró el empleado con la cédula proporcionada',
+            showConfirmButton: true, // Muestra un botón para cerrar
+            allowOutsideClick: false, // Evita que se cierre al hacer clic fuera
+            allowEscapeKey: false, // Evita que se cierre con la tecla Esc
           });
           return;
         }
+        // 🔵 Función para mostrar errores sin permitir que el usuario cierre el Swal fuera de él
+
 
         this.datosOperario = data.datosbase[0];
         this.nombreOperario = `${this.datosOperario.nombre} `;
 
-        if (this.rolUsuario != "GERENCIA") {
-          // Validar si el operario tiene saldos pendientes mayores a 175000
-          if (!this.autorizacionesService.verificarSaldo(this.datosOperario) == true) {
-            this.datosOperario = null;
-          }
+        if (!this.datosOperario.activo) {
+          this.datosOperario = null;
+          Swal.fire({
+            icon: 'error',
+            title: 'Empleado retirado',
+            text: 'El empleado con la cédula proporcionada se encuentra retirado y no puede solicitar autorizaciones.',
+            showConfirmButton: true, // Muestra un botón para cerrar
+            allowOutsideClick: false, // Evita que se cierre al hacer clic fuera
+            allowEscapeKey: false, // Evita que se cierre con la tecla Esc
+          });
+          return;
         }
 
+        if (this.datosOperario.bloqueado) {
+          this.datosOperario = null;
+          Swal.fire({
+            icon: 'error',
+            title: 'Empleado bloqueado',
+            text: 'El empleado con la cédula proporcionada se encuentra bloqueado y no puede solicitar autorizaciones.',
+            showConfirmButton: true, // Muestra un botón para cerrar
+            allowOutsideClick: false, // Evita que se cierre al hacer clic fuera
+            allowEscapeKey: false, // Evita que se cierre con la tecla Esc
+          });
+          return;
+        }
+
+        if (this.rolUsuario !== "GERENCIA") {
+          // Validar si el operario tiene saldos pendientes mayores a 175000
+          if (!this.autorizacionesService.verificarSaldo(this.datosOperario)) {
+            this.datosOperario = null;
+            Swal.fire({
+              icon: 'error',
+              title: 'Saldo pendiente',
+              text: 'El empleado con la cédula proporcionada tiene saldos pendientes mayores a $175.000 y no puede solicitar autorizaciones.',
+              showConfirmButton: true, // Muestra un botón para cerrar
+              allowOutsideClick: false, // Evita que se cierre al hacer clic fuera
+              allowEscapeKey: false, // Evita que se cierre con la tecla Esc
+            });
+            return;
+          }
+        }
       },
       (error: any) => {
+        Swal.close();
+
+        Swal.fire({
+          icon: 'error',
+          title: 'Error de conexión',
+          text: 'Hubo un problema al buscar el operario. Intente nuevamente.',
+        });
       }
     );
   }

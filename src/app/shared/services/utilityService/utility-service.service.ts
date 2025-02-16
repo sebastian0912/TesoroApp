@@ -10,7 +10,7 @@ import { environment } from '../../../../environments/environment.development';
 export class UtilityServiceService {
   private apiUrl = environment.apiUrl;
 
-  constructor(private http: HttpClient) {}
+  constructor(private http: HttpClient) { }
 
   /**
    * Maneja errores de las peticiones HTTP.
@@ -93,13 +93,29 @@ export class UtilityServiceService {
       );
   }
 
-  // verificar monto del codigo
-  public verificarMontoCodigo(codigo: any, monto: number): boolean {
-    if (parseInt(codigo.codigo[0].monto) < monto) {
+  // Verificar monto del código
+  public verificarMontoCodigo(codigo: any, monto: number, rol?: string): boolean {
+    // 🔹 Validar si codigo y codigo.codigo[0] existen
+    if (!codigo || !codigo.codigo || !codigo.codigo[0]) {
       return false;
     }
-    return true;
+
+    // 🔹 Convertir a número para asegurar cálculos correctos
+    const montoCodigo = parseInt(codigo.codigo[0].monto, 10);
+    if (isNaN(montoCodigo)) {
+      return false;
+    }
+
+    // 🔹 Evaluar según el rol
+    if (rol?.toLowerCase() === 'tienda') {
+      // Se permite un excedente de 50,000 si el rol es "TIENDA"
+      return montoCodigo >= (monto - 50000);
+    }
+
+    // Para otros roles, el monto no debe superar el disponible
+    return montoCodigo >= monto;
   }
+
 
   // Buscar operario por cedula
   async buscarOperarioPorCedula(cedula: string): Promise<any> {

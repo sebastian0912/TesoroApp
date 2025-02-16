@@ -1,25 +1,18 @@
-import {
-  Component,
-  EventEmitter,
-  OnInit,
-  Output,
-  Inject,
-  PLATFORM_ID,
-} from '@angular/core';
+import { Component, EventEmitter, OnInit, Output, Inject, PLATFORM_ID, } from '@angular/core';
 import { isPlatformBrowser } from '@angular/common';
 import { SharedModule } from '../../../../shared/shared.module';
 import { Router, NavigationEnd, RouterModule } from '@angular/router';
 import { catchError, filter, finalize } from 'rxjs/operators';
-import * as XLSX from 'xlsx'; // Importación para generar Excel
 import { DYNAMIC_MENUS, IDynamicMenu } from './menu.config'; // Importamos el menú
-import Swal from 'sweetalert2'; // Importación para alertas
-import moment from 'moment';
 import { TesoreriaService } from '../../service/teroreria/tesoreria.service'; // Importación del servicio
 import { DateRangeDialogComponent } from '../../../../shared/components/date-rang-dialog/date-rang-dialog.component';
 import { MatDialog } from '@angular/material/dialog';
 import { UtilityServiceService } from '../../../../shared/services/utilityService/utility-service.service';
 import { AutorizacionesService } from '../../submodule/authorizations/services/autorizaciones/autorizaciones.service';
 import { MercadoService } from '../../submodule/market/service/mercado/mercado.service';
+import Swal from 'sweetalert2';
+import * as XLSX from 'xlsx';
+import moment from 'moment';
 
 @Component({
   selector: 'app-navbar',
@@ -143,7 +136,7 @@ export class NavbarComponent implements OnInit {
   executeAction(action?: string): void {
     if (!action) return;
 
-    const actionsRequiringFile = ['addWorkers', 'deleteWorkers', 'updateWorkersData','bulkUploadMarketsWithCode', 'bulkUploadMarketsWithoutCode'];
+    const actionsRequiringFile = ['addWorkers', 'disableWorkers', 'updateWorkersData', 'bulkUploadMarketsWithCode', 'bulkUploadMarketsWithoutCode', 'updatePendingBalancesWorkers'];
 
     if (actionsRequiringFile.includes(action)) {
       this.selectFile().then((file) => {
@@ -179,8 +172,8 @@ export class NavbarComponent implements OnInit {
           case 'addWorkers':
             this.processInsertarEmpleados(workbook);
             break;
-          case 'deleteWorkers':
-            this.processEliminarEmpleados(workbook);
+          case 'disableWorkers':
+            this.processDesabilitarEmpleados(workbook);
             break;
           case 'updateWorkersData':
             this.processActualizarSaldos(workbook);
@@ -191,6 +184,9 @@ export class NavbarComponent implements OnInit {
           case 'bulkUploadMarketsWithoutCode':
             this.processMercadoAutorizacionesSinCod(workbook);
             break;
+          case 'updatePendingBalancesWorkers':
+            this.processActualizarSaldosPendientes(workbook);
+            break
 
           default:
             this.showError('Acción no válida.');
@@ -310,7 +306,7 @@ export class NavbarComponent implements OnInit {
 
   /* Eliminar empleados */
 
-  private async processEliminarEmpleados(workbook: XLSX.WorkBook): Promise<void> {
+  private async processDesabilitarEmpleados(workbook: XLSX.WorkBook): Promise<void> {
     const result = await Swal.fire({
       title: '¿Está seguro de que desea eliminar los empleados seleccionados?',
       text: 'Esta acción no se puede deshacer.',
@@ -668,6 +664,97 @@ export class NavbarComponent implements OnInit {
     }
   }
 
+  async processActualizarSaldosPendientes(workbook: XLSX.WorkBook): Promise<void> {
+    const result = await Swal.fire({
+      title: '¿Está seguro de que desea actualizar los saldos de los empleados?',
+      text: 'Esta acción no se puede deshacer.',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'Sí, actualizar saldos',
+      cancelButtonText: 'Cancelar'
+    });
+
+    if (!result.isConfirmed) return;
+
+    try {
+      //  Mostrar mensaje de carga mientras se procesa
+      Swal.fire({
+        title: 'Procesando...',
+        icon: 'info',
+        text: 'Por favor, espere mientras se actualizan los saldos.',
+        allowOutsideClick: false,
+        didOpen: () => {
+          Swal.showLoading();
+        }
+      });
+
+
+      const sheet = workbook.Sheets[workbook.SheetNames[0]];
+      const data = XLSX.utils.sheet_to_json(sheet, {
+        header: 1,
+        range: 1,
+        raw: true, // Leer valores originales
+        defval: ''
+      });
+
+      if (!data || data.length === 0) {
+        Swal.close();
+        this.showError('El archivo está vacío o no tiene datos válidos.');
+        return;
+      }
+
+      const rows: any[][] = data as any[][];
+
+      const cedulas: string[] = rows.map(row => row[0]?.toString().replace(/[.,]/g, ''));
+
+      const base = await this.tesoreriaService.traerDatosbaseGeneral();
+
+      this.empleadosSinProblemas = [];
+      this.empleadosProblemas = [];
+
+      //  Verificar si los empleados existen en la base de datos
+      for (const cedula of cedulas) {
+        try {
+          const response = await this.tesoreriaService.traerDatosBase(base, cedula);
+          if (response.length === 1) {
+            this.empleadosSinProblemas.push(response[0]);
+          } else {
+            this.empleadosProblemas.push({ cedula, mensaje: "No se encuentra en la base de datos" });
+          }
+        } catch (error) {
+          this.empleadosProblemas.push({ cedula, mensaje: "Error al consultar la base de datos" });
+        }
+      }
+
+      //  Actualizar los saldos de los empleados sin problemas
+      for (const empleado of rows) {
+        try {
+          await this.tesoreriaService.actualizarSaldoPendienteEmpleado(empleado[0], empleado[1]);
+        } catch (error) {
+          this.empleadosProblemas.push({ cedula: empleado[0], mensaje: 'Error al actualizar' });
+        }
+      }
+
+      //  Ocultar el mensaje de carga y mostrar éxito
+      Swal.close();
+
+
+      if (this.empleadosProblemas.length > 0) {
+        this.generateExcelFile();
+        this.showWarning('Se generó un archivo con los empleados que tuvieron problemas en la actualización.');
+      } else {
+        this.showSuccess('Saldos actualizados correctamente.');
+      }
+
+      // ✅ Limpiar arreglos
+      this.empleadosProblemas = [];
+      this.empleadosSinProblemas = [];
+
+    } catch (error) {
+      Swal.close();
+      this.showError('Ocurrió un error inesperado al actualizar los saldos.');
+    }
+  }
 
 
   resetearValoresQuincena(): void {
@@ -743,8 +830,8 @@ export class NavbarComponent implements OnInit {
         Swal.showLoading();
       }
     });
-
-    this.tesoreriaService.traerHistorialPorFecha(dateRange.start, dateRange.end)
+    let user = this.utilityService.getUser()
+    this.tesoreriaService.traerHistorialPorFecha(dateRange.start, dateRange.end, user.primer_nombre + ' ' + user.primer_apellido)
       .pipe(
         catchError((error) => {
           this.showError('Ocurrió un error al extraer los datos.');

@@ -8,7 +8,6 @@ import { SharedModule } from '../../../../../../shared/shared.module';
 
 @Component({
   selector: 'app-editar-sede',
-  standalone: true,
   imports: [SharedModule],
   templateUrl: './editar-sede.component.html',
   styleUrls: ['./editar-sede.component.css'],

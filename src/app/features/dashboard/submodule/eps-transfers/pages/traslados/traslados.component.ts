@@ -1,5 +1,5 @@
-import { Component, OnInit } from '@angular/core';
-import { MatTableDataSource, MatTableModule } from '@angular/material/table';
+import { Component, OnInit, ViewChild } from '@angular/core';
+import { MatTableDataSource } from '@angular/material/table';
 import { MatDialog } from '@angular/material/dialog';
 import { TrasladosService } from '../../service/traslados.service';
 import { catchError } from 'rxjs/operators';
@@ -12,13 +12,14 @@ import { LeerAdresComponent } from '../../components/leer-adres/leer-adres.compo
 import { InfoCardComponent } from '../../../../../../shared/components/info-card/info-card.component';
 import { UtilityServiceService } from '../../../../../../shared/services/utilityService/utility-service.service';
 import { SharedModule } from '../../../../../../shared/shared.module';
+import { MatPaginator, MatPaginatorModule } from '@angular/material/paginator';
 
 @Component({
   selector: 'app-traslados',
-  standalone: true,
   imports: [
     InfoCardComponent,
-    SharedModule
+    SharedModule,
+    MatPaginatorModule
   ],
   templateUrl: './traslados.component.html',
   styleUrls: ['./traslados.component.css'],
@@ -43,14 +44,23 @@ export class TrasladosComponent implements OnInit {
   dataLoaded: boolean = false; // Bandera para indicar si los datos están cargados
   istraslados18: boolean = false;
   user: any;
+  @ViewChild(MatPaginator) paginator!: MatPaginator; // Obtener el paginador
 
   constructor(
     private trasladosService: TrasladosService,
     public dialog: MatDialog,
     private utilityService: UtilityServiceService,
-  ) {}
+  ) { }
+
+  ngAfterViewInit() {
+    if (this.paginator) {
+      this.dataSource.paginator = this.paginator;
+    }
+  }
+
 
   async ngOnInit(): Promise<void> {
+
     try {
       this.user = this.utilityService.getUser();
       if (this.user && this.user.correo_electronico == 'traslados18@gmail.com' || this.user.correo_electronico == 'programador.ts@gmail.com') {
@@ -74,47 +84,58 @@ export class TrasladosComponent implements OnInit {
       .toPromise();
     this.numTrasladosResponsableNull = cont.count_null_responsables;
   }
-
   async mostrarTraslados() {
-    // Mostrar el modal de "Cargando..."
     Swal.fire({
       icon: 'info',
       title: 'Cargando...',
       html: 'Por favor espera mientras se cargan los datos.',
       allowOutsideClick: false,
       didOpen: () => {
-        Swal.showLoading(); // Muestra el spinner de carga
+        Swal.showLoading();
       },
     });
 
-    // Cargar otros datos después de que los traslados se hayan cargado
-    const cont = await this.trasladosService
-      .cuantosTrasladosDisponibles()
-      .toPromise();
-    this.numTrasladosResponsableNull = cont.count_null_responsables;
+    try {
+      // Obtener número de traslados disponibles
+      const cont = await lastValueFrom(this.trasladosService.cuantosTrasladosDisponibles());
+      this.numTrasladosResponsableNull = cont.count_null_responsables;
 
-    this.numTraslados = 5; // Reiniciar el contador de traslados
-    // Esperamos la respuesta directamente usando async/await y el operador pipe sin toPromise
-    const response: any = await (
-      await this.trasladosService.getTrasladosPorResponsable(this.user.primer_nombre + ' ' + this.user.primer_apellido)
-    )
-      .pipe(
-        catchError((error) => {
-          return of([]); // Retorna un arreglo vacío en caso de error
-        })
-      )
-      .toPromise();
-    // Filtrar los traslados según el estado
-    this.dataSource.data = response.traslados;
-    // Actualiza los conteos por estado
-    this.updateEstadosCount();
-    // Ordenar estados count por cantidad
-    this.estadosCount = Object.fromEntries(
-      Object.entries(this.estadosCount).sort(([, a], [, b]) => b - a)
-    );
+      this.numTraslados = 5; // Reiniciar contador de traslados
 
-    this.numTraslados -= response.total_diferente_de;
-    Swal.close(); // Cierra el modal de carga
+      // Obtener traslados por responsable
+      const response: any = await lastValueFrom(
+        this.trasladosService.getTrasladosPorResponsable(
+          `${this.user.primer_nombre} ${this.user.primer_apellido}`
+        ).pipe(
+          catchError(() => of({ traslados: [], total_diferente_de: 0 })) // Evita errores
+        )
+      );
+
+      // Cargar los datos en la tabla
+      this.dataSource.data = response.traslados;
+
+      // Reasignar paginador y ordenar después de actualizar los datos
+      setTimeout(() => {
+        this.dataSource.paginator = this.paginator;
+      });
+
+      // Actualizar conteo de estados
+      this.updateEstadosCount();
+
+      // Ordenar estados por cantidad
+      this.estadosCount = Object.fromEntries(
+        Object.entries(this.estadosCount).sort(([, a], [, b]) => b - a)
+      );
+
+      // Ajustar número de traslados
+      this.numTraslados -= response.total_diferente_de;
+
+    } catch (error) {
+      console.error('Error al cargar traslados:', error);
+      Swal.fire('Error', 'No se pudieron cargar los datos.', 'error');
+    } finally {
+      Swal.close(); // Cerrar modal de carga
+    }
   }
 
   updateEstadosCount(): void {
@@ -319,7 +340,7 @@ export class TrasladosComponent implements OnInit {
       .then((response: any) => {
         this.mostrarTraslados();
       })
-      .catch((error) => {});
+      .catch((error) => { });
   }
 
   async autoAsignar() {
@@ -395,71 +416,71 @@ export class TrasladosComponent implements OnInit {
 
 
 
-    imprimirCedula(codigoTraslado: string): void {
-      // Mostrar Swal de carga
-      Swal.fire({
-        title: 'Cargando...',
-        icon: 'info',
-        text: 'Obteniendo la cédula escaneada.',
-        allowOutsideClick: false,
-        didOpen: () => {
-          Swal.showLoading();
-        }
-      });
+  imprimirCedula(codigoTraslado: string): void {
+    // Mostrar Swal de carga
+    Swal.fire({
+      title: 'Cargando...',
+      icon: 'info',
+      text: 'Obteniendo la cédula escaneada.',
+      allowOutsideClick: false,
+      didOpen: () => {
+        Swal.showLoading();
+      }
+    });
 
-      this.trasladosService.traerCedulaEscaneada(codigoTraslado).subscribe(
-        (data: any) => {
-          Swal.close();
-          if (data.cedula_escaneada_delante) {
-            // Mostrar la cédula en PDF si es Base64
-            if (this.isBase64PDF(data.cedula_escaneada_delante)) {
-              this.openBase64PDF(data.cedula_escaneada_delante);
-            } else {
-              Swal.fire('Error', 'La cédula no es un PDF válido.', 'error');
-            }
+    this.trasladosService.traerCedulaEscaneada(codigoTraslado).subscribe(
+      (data: any) => {
+        Swal.close();
+        if (data.cedula_escaneada_delante) {
+          // Mostrar la cédula en PDF si es Base64
+          if (this.isBase64PDF(data.cedula_escaneada_delante)) {
+            this.openBase64PDF(data.cedula_escaneada_delante);
           } else {
-            Swal.fire('Error', 'No se encontró la cédula escaneada.', 'error');
+            Swal.fire('Error', 'La cédula no es un PDF válido.', 'error');
           }
-        },
-        (error) => {
-          Swal.close(); // Cerrar Swal de carga
-          Swal.fire('Error', 'Hubo un problema obteniendo la cédula escaneada.', 'error');
+        } else {
+          Swal.fire('Error', 'No se encontró la cédula escaneada.', 'error');
         }
-      );
-    }
+      },
+      (error) => {
+        Swal.close(); // Cerrar Swal de carga
+        Swal.fire('Error', 'Hubo un problema obteniendo la cédula escaneada.', 'error');
+      }
+    );
+  }
 
-    imprimirSolicitudTraslado(codigoTraslado: string): void {
-      // Mostrar Swal de carga
-      Swal.fire({
-        title: 'Cargando...',
-        icon: 'info',
-        text: 'Obteniendo la solicitud de traslado.',
-        allowOutsideClick: false,
-        didOpen: () => {
-          Swal.showLoading();
-        }
-      });
+  imprimirSolicitudTraslado(codigoTraslado: string): void {
+    // Mostrar Swal de carga
+    Swal.fire({
+      title: 'Cargando...',
+      icon: 'info',
+      text: 'Obteniendo la solicitud de traslado.',
+      allowOutsideClick: false,
+      didOpen: () => {
+        Swal.showLoading();
+      }
+    });
 
-      this.trasladosService.traerSolicitudPorCodigo(codigoTraslado).subscribe(
-        (data: any) => {
-          Swal.close();
+    this.trasladosService.traerSolicitudPorCodigo(codigoTraslado).subscribe(
+      (data: any) => {
+        Swal.close();
 
-          if (data[0].solicitud_traslado) {
-            // Mostrar la solicitud en PDF si es Base64
-            if (this.isBase64PDF(data[0].solicitud_traslado)) {
-              this.openBase64PDF(data[0].solicitud_traslado);
-            } else {
-              Swal.fire('Error', 'La solicitud de traslado no es un PDF válido.', 'error');
-            }
+        if (data[0].solicitud_traslado) {
+          // Mostrar la solicitud en PDF si es Base64
+          if (this.isBase64PDF(data[0].solicitud_traslado)) {
+            this.openBase64PDF(data[0].solicitud_traslado);
           } else {
-            Swal.fire('Error', 'No se encontró la solicitud de traslado.', 'error');
+            Swal.fire('Error', 'La solicitud de traslado no es un PDF válido.', 'error');
           }
-        },
-        (error) => {
-          Swal.close();
-          Swal.fire('Error', 'Hubo un problema obteniendo la solicitud de traslado.', 'error');
+        } else {
+          Swal.fire('Error', 'No se encontró la solicitud de traslado.', 'error');
         }
-      );
-    }
+      },
+      (error) => {
+        Swal.close();
+        Swal.fire('Error', 'Hubo un problema obteniendo la solicitud de traslado.', 'error');
+      }
+    );
+  }
 
 }

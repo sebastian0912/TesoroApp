@@ -21,14 +21,15 @@ export class TrasladosService {
   }
 
   // Buscar traslados por responsable
-  async getTrasladosPorResponsable(fullName: string): Promise<Observable<any>> {
+  getTrasladosPorResponsable(fullName: string): Observable<any> {
     const ano = new Date().getFullYear();
-    const url = `${this.apiUrl
-      }/traslados/buscar-filtro/?responsable=${encodeURIComponent(
-        fullName
-      )}&ano=${encodeURIComponent(ano.toString())}`;
-    return this.http.get(url).pipe(catchError(this.handleError));
+    const url = `${this.apiUrl}/traslados/buscar-filtro/?responsable=${encodeURIComponent(fullName)}&ano=${ano}`;
+
+    return this.http.get<any>(url).pipe(
+      catchError(this.handleError)
+    );
   }
+
 
   // Cambiar correo
   async cambiarCorreo(codigo: string, usernameLocal: string): Promise<any> {

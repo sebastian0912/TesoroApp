@@ -12,7 +12,6 @@ import Swal from 'sweetalert2';
 
 @Component({
   selector: 'app-cambiar-estado',
-  standalone: true,
   imports: [
     CommonModule,
     ReactiveFormsModule,

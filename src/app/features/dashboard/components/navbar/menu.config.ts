@@ -87,10 +87,12 @@ export const DYNAMIC_MENUS: IDynamicMenu[] = [
     label: 'Tesoreria',
     icon: 'icons/navbar/reserve.png',
     subMenus: [
+      { route: '/dashboard/treasury/manage-workers', label: 'Gestionar trabajadores', permission: 'manage-workers' },
       { label: 'Añadir operarios', permission: 'add-workers', action: 'addWorkers' },
       { label: 'Extraer datos base', permission: 'extract-base-data', action: 'extractBaseData' },
-      { label: 'Eliminar operarios', permission: 'delete-workers', action: 'deleteWorkers' },
-      { label: 'Actualizar datos operarios', permission: 'update-workers-data', action: 'updateWorkersData' },
+      { label: 'Eliminar operarios', permission: 'delete-workers', action: 'disableWorkers' },
+      { label: 'Actualizar saldos operarios', permission: 'update-workers-data', action: 'updateWorkersData' },
+      { label: 'Actualizar saldos pendientes operarios', permission: 'update-pending-balances-workers', action: 'updatePendingBalancesWorkers' },
       { label: 'Resetear valores quincena', permission: 'set-values-zero', action: 'resetValues' },
       { label: 'Extraer datos tienda detalle', permission: 'extract-detailed-store-data', action: 'extractStoreData' },
       { label: 'Extraer codigos para hacer', permission: 'extract-codes-to-process', action: 'extractCodesToDo' }

@@ -14,21 +14,7 @@ export class ComercializadoraService {
   constructor(
     private http: HttpClient,
     @Inject(PLATFORM_ID) private platformId: Object
-  ) {}
-
-  private getToken(): string | null {
-    if (isPlatformBrowser(this.platformId)) {
-      return localStorage.getItem('token');
-    }
-    return null;
-  }
-
-  private createAuthorizationHeader(): HttpHeaders {
-    const token = this.getToken();
-    return token
-      ? new HttpHeaders().set('Authorization', token)
-      : new HttpHeaders();
-  }
+  ) { }
 
   public getUser(): any {
     if (isPlatformBrowser(this.platformId)) {
@@ -56,28 +42,18 @@ export class ComercializadoraService {
     cantidadTotalVendida: string,
     codigo: string
   ): Promise<string> {
-    const token = this.getToken();
-
-    if (!token) {
-      throw new Error('No token found');
-    }
 
     const urlcompleta = `${this.apiUrl}/Comercio/jefedearea/ActualizarCantidadVendida/${codigo}`;
 
-    const headers = this.createAuthorizationHeader().set(
-      'Content-Type',
-      'application/json'
-    );
 
     const requestBody = {
       cantidadTotalVendida,
-      jwt: token,
     };
 
     try {
       const response = await firstValueFrom(
         this.http
-          .post<string>(urlcompleta, requestBody, { headers })
+          .post<string>(urlcompleta, requestBody)
           .pipe(catchError(this.handleError))
       );
       return response;
@@ -88,9 +64,8 @@ export class ComercializadoraService {
 
   // Traer datos de la comercializadora por codigo
   traerComercio(codigo: number): Observable<any> {
-    const headers = this.createAuthorizationHeader();
     return this.http
-      .get(`${this.apiUrl}/Comercio/comercio/${codigo}`, { headers })
+      .get(`${this.apiUrl}/Comercio/comercio/${codigo}`)
       .pipe(catchError(this.handleError));
   }
 
@@ -104,15 +79,9 @@ export class ComercializadoraService {
     personaQueLleva: string,
     comentariosEnvio: string
   ): Promise<string> {
-    const token = this.getToken();
 
-    if (!token) {
-      throw new Error('No token found');
-    }
 
     const urlcompleta = `${this.apiUrl}/Comercio/Comercializadora/realizarenvio`;
-
-    const headers = this.createAuthorizationHeader();
 
     const requestBody = {
       cantidadEnvio,
@@ -122,15 +91,13 @@ export class ComercializadoraService {
       destino,
       personaQueLleva,
       comentariosEnvio,
-      PersonaEnvia:
-        this.getUser().primer_nombre + ' ' + this.getUser().primer_apellido,
-      jwt: token,
+      PersonaEnvia: this.getUser().primer_nombre + ' ' + this.getUser().primer_apellido,
     };
 
     try {
       const response = await firstValueFrom(
         this.http
-          .post<{ message: string }>(urlcompleta, requestBody, { headers })
+          .post<{ message: string }>(urlcompleta, requestBody)
           .pipe(catchError(this.handleError))
       );
       return response.message;
@@ -147,15 +114,9 @@ export class ComercializadoraService {
     cantidadEnvio: string,
     valorUnidad: string
   ): Promise<string> {
-    const token = this.getToken();
-
-    if (!token) {
-      throw new Error('No token found');
-    }
 
     const urlcompleta = `${this.apiUrl}/Comercio/Comercializadora/editarEnvio/${codigo}`;
 
-    const headers = this.createAuthorizationHeader();
 
     const requestBody = {
       cantidadEnvio,
@@ -163,13 +124,12 @@ export class ComercializadoraService {
       concepto,
       codigo,
       destino,
-      jwt: token,
     };
 
     try {
       const response = await firstValueFrom(
         this.http
-          .post<{ message: string }>(urlcompleta, requestBody, { headers })
+          .post<{ message: string }>(urlcompleta, requestBody)
           .pipe(catchError(this.handleError))
       );
       return response.message;
@@ -185,27 +145,21 @@ export class ComercializadoraService {
     comentariosRecibido: string,
     codigo: string
   ): Promise<string> {
-    const token = this.getToken();
 
-    if (!token) {
-      throw new Error('No token found');
-    }
 
     const urlcompleta = `${this.apiUrl}/Comercio/jefedearea/recibirenvio/${codigo}`;
 
-    const headers = this.createAuthorizationHeader();
 
     const requestBody = {
       cantidadRecibida,
       PersonaRecibe,
       comentariosRecibido,
-      jwt: token,
     };
 
     try {
       const response = await firstValueFrom(
         this.http
-          .post<{ message: string }>(urlcompleta, requestBody, { headers })
+          .post<{ message: string }>(urlcompleta, requestBody)
           .pipe(catchError(this.handleError))
       );
       return response.message;
@@ -220,18 +174,9 @@ export class ComercializadoraService {
     cantidadRecibida: any,
     comentariosRecibido: any
   ): Promise<any> {
-    const token = this.getToken();
-
-    if (!token) {
-      throw new Error('No token found');
-    }
 
     const urlcompleta = `${this.apiUrl}/Comercio/jefedearea/recibirenvio/${cod}`;
 
-    const headers = this.createAuthorizationHeader().set(
-      'Content-Type',
-      'application/json'
-    );
     const PersonaRecibe =
       this.getUser().primer_nombre + ' ' + this.getUser().primer_apellido;
     const dataToSend = {
@@ -239,13 +184,12 @@ export class ComercializadoraService {
       cantidadRecibida,
       PersonaRecibe,
       comentariosRecibido,
-      jwt: token,
     };
 
     try {
       const response = await firstValueFrom(
         this.http
-          .post<string>(urlcompleta, dataToSend, { headers })
+          .post<string>(urlcompleta, dataToSend)
           .pipe(catchError(this.handleError))
       );
       return response;

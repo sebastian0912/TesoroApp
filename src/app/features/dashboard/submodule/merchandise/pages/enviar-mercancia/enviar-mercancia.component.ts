@@ -8,7 +8,6 @@ import { UtilityServiceService } from '../../../../../../shared/services/utility
 
 @Component({
   selector: 'app-enviar-mercancia',
-  standalone: true,
   imports: [
     SharedModule
   ],

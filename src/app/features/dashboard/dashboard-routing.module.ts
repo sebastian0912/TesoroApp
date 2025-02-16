@@ -16,6 +16,7 @@ const routes: Routes = [
       { path: 'merchandise', loadChildren: () => import('./submodule/merchandise/merchandise.module').then(m => m.MerchandiseModule) },
       { path: 'money-loan', loadChildren: () => import('./submodule/money-loan/money-loan.module').then(m => m.MoneyLoanModule) },
       { path: 'users', loadChildren: () => import('./submodule/users/users.module').then(m => m.UsersModule) },
+      { path: 'treasury', loadChildren: () => import('./submodule/treasury/treasury.module').then(m => m.TreasuryModule) },
     ],
   },
 ];

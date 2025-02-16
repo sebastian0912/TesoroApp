@@ -1,0 +1,196 @@
+<mat-card>
+  <mat-card-content>
+    <h1 class="titulo">Lista de Trabajadores</h1>
+
+    <mat-form-field class="filtro">
+      <mat-label>Buscar</mat-label>
+      <input matInput (keyup)="applyFilter($event)" placeholder="Buscar por número de cedula o codigo contrato" #input />
+    </mat-form-field>
+
+    <div class="table-container">
+      <table mat-table [dataSource]="dataSource" class="mat-elevation-z8" matSort>
+
+        <!-- Número de Documento -->
+        <ng-container matColumnDef="numero_de_documento">
+          <th mat-header-cell *matHeaderCellDef mat-sort-header>Número Documento</th>
+          <td mat-cell *matCellDef="let element">{{ element.numero_de_documento }}</td>
+        </ng-container>
+
+        <!-- Código -->
+        <ng-container matColumnDef="codigo">
+          <th mat-header-cell *matHeaderCellDef mat-sort-header>Código</th>
+          <td mat-cell *matCellDef="let element">{{ element.codigo }}</td>
+        </ng-container>
+
+        <!-- Nombre -->
+        <ng-container matColumnDef="nombre">
+          <th mat-header-cell *matHeaderCellDef mat-sort-header>Nombre</th>
+          <td mat-cell *matCellDef="let element">{{ element.nombre }}</td>
+        </ng-container>
+
+        <!-- Ingreso -->
+        <ng-container matColumnDef="ingreso">
+          <th mat-header-cell *matHeaderCellDef mat-sort-header>Ingreso</th>
+          <td mat-cell *matCellDef="let element">{{ element.ingreso }}</td>
+        </ng-container>
+
+        <!-- Temporal -->
+        <ng-container matColumnDef="temporal">
+          <th mat-header-cell *matHeaderCellDef mat-sort-header>Temporal</th>
+          <td mat-cell *matCellDef="let element">{{ element.temporal }}</td>
+        </ng-container>
+
+        <!-- Finca -->
+        <ng-container matColumnDef="finca">
+          <th mat-header-cell *matHeaderCellDef mat-sort-header>Finca</th>
+          <td mat-cell *matCellDef="let element">{{ element.finca }}</td>
+        </ng-container>
+
+        <!-- Salario -->
+        <ng-container matColumnDef="salario">
+          <th mat-header-cell *matHeaderCellDef mat-sort-header>Salario</th>
+          <td mat-cell *matCellDef="let element">{{ element.salario | currency}}</td>
+        </ng-container>
+
+        <!-- Saldos -->
+        <ng-container matColumnDef="saldos">
+          <th mat-header-cell *matHeaderCellDef mat-sort-header>Saldos</th>
+          <td mat-cell *matCellDef="let element">{{ element.saldos | currency}}</td>
+        </ng-container>
+
+        <!-- Fondos -->
+        <ng-container matColumnDef="fondos">
+          <th mat-header-cell *matHeaderCellDef mat-sort-header>Fondos</th>
+          <td mat-cell *matCellDef="let element">{{ element.fondos | currency}}</td>
+        </ng-container>
+
+        <!-- Mercados -->
+        <ng-container matColumnDef="mercados">
+          <th mat-header-cell *matHeaderCellDef mat-sort-header>Mercados</th>
+          <td mat-cell *matCellDef="let element">{{ element.mercados | currency}}</td>
+        </ng-container>
+
+        <!-- Cuotas de Mercados -->
+        <ng-container matColumnDef="cuotasMercados">
+          <th mat-header-cell *matHeaderCellDef mat-sort-header>Cuotas Mercados</th>
+          <td mat-cell *matCellDef="let element">{{ element.cuotasMercados }}</td>
+        </ng-container>
+
+        <!-- Préstamos -->
+        <ng-container matColumnDef="prestamoParaDescontar">
+          <th mat-header-cell *matHeaderCellDef mat-sort-header>Préstamo para Descontar</th>
+          <td mat-cell *matCellDef="let element">{{ element.prestamoParaDescontar| currency }}</td>
+        </ng-container>
+
+        <ng-container matColumnDef="cuotasPrestamosParaDescontar">
+          <th mat-header-cell *matHeaderCellDef mat-sort-header>Cuotas Préstamos</th>
+          <td mat-cell *matCellDef="let element">{{ element.cuotasPrestamosParaDescontar }}</td>
+        </ng-container>
+
+        <!-- Casino -->
+        <ng-container matColumnDef="casino">
+          <th mat-header-cell *matHeaderCellDef mat-sort-header>Casino</th>
+          <td mat-cell *matCellDef="let element">{{ element.casino | currency}}</td>
+        </ng-container>
+
+        <!-- Anchetas -->
+        <ng-container matColumnDef="valoranchetas">
+          <th mat-header-cell *matHeaderCellDef mat-sort-header>Valor Anchetas</th>
+          <td mat-cell *matCellDef="let element">{{ element.valoranchetas | currency}}</td>
+        </ng-container>
+
+        <ng-container matColumnDef="cuotasAnchetas">
+          <th mat-header-cell *matHeaderCellDef mat-sort-header>Cuotas Anchetas</th>
+          <td mat-cell *matCellDef="let element">{{ element.cuotasAnchetas }}</td>
+        </ng-container>
+
+        <!-- Fondo -->
+        <ng-container matColumnDef="fondo">
+          <th mat-header-cell *matHeaderCellDef mat-sort-header>Fondo</th>
+          <td mat-cell *matCellDef="let element">{{ element.fondo | currency }}</td>
+        </ng-container>
+
+        <!-- Carnet -->
+        <ng-container matColumnDef="carnet">
+          <th mat-header-cell *matHeaderCellDef mat-sort-header>Carnet</th>
+          <td mat-cell *matCellDef="let element">{{ element.carnet | currency}}</td>
+        </ng-container>
+
+        <!-- Seguro Funerario -->
+        <ng-container matColumnDef="seguroFunerario">
+          <th mat-header-cell *matHeaderCellDef mat-sort-header>Seguro Funerario</th>
+          <td mat-cell *matCellDef="let element">{{ element.seguroFunerario | currency}}</td>
+        </ng-container>
+
+        <!-- Préstamos para Hacer -->
+        <ng-container matColumnDef="prestamoParaHacer">
+          <th mat-header-cell *matHeaderCellDef mat-sort-header>Préstamo para Hacer</th>
+          <td mat-cell *matCellDef="let element">{{ element.prestamoParaHacer | currency}}</td>
+        </ng-container>
+
+        <ng-container matColumnDef="cuotasPrestamoParahacer">
+          <th mat-header-cell *matHeaderCellDef mat-sort-header>Cuotas Préstamo para Hacer</th>
+          <td mat-cell *matCellDef="let element">{{ element.cuotasPrestamoParahacer }}</td>
+        </ng-container>
+
+        <!-- Anticipo Liquidación -->
+        <ng-container matColumnDef="anticipoLiquidacion">
+          <th mat-header-cell *matHeaderCellDef mat-sort-header>Anticipo Liquidación</th>
+          <td mat-cell *matCellDef="let element">{{ element.anticipoLiquidacion  }}</td>
+        </ng-container>
+
+        <!-- Cuentas -->
+        <ng-container matColumnDef="cuentas">
+          <th mat-header-cell *matHeaderCellDef mat-sort-header>Cuentas</th>
+          <td mat-cell *matCellDef="let element">{{ element.cuentas | currency }}</td>
+        </ng-container>
+
+        <!-- Bloqueado con Switch -->
+        <ng-container matColumnDef="bloqueado">
+          <th mat-header-cell *matHeaderCellDef mat-sort-header>Bloqueado</th>
+          <td mat-cell *matCellDef="let element">
+            <mat-slide-toggle [checked]="element.bloqueado" (change)="toggleEstado(element, 'bloqueado')">
+              {{ element.bloqueado ? 'Si' : 'No' }}
+            </mat-slide-toggle>
+          </td>
+        </ng-container>
+
+        <!-- Fecha Bloqueo -->
+        <ng-container matColumnDef="fechaBloqueo">
+          <th mat-header-cell *matHeaderCellDef mat-sort-header>Fecha Bloqueo</th>
+          <td mat-cell *matCellDef="let element">
+            {{ element.fechaBloqueo ? (element.fechaBloqueo | date:'dd/MM/yyyy HH:mm:ss' : 'America/Bogota') : '' }}
+          </td>
+        </ng-container>
+
+        <!-- Activo con Switch -->
+        <ng-container matColumnDef="activo">
+          <th mat-header-cell *matHeaderCellDef mat-sort-header>Activo</th>
+          <td mat-cell *matCellDef="let element">
+            <mat-slide-toggle [checked]="element.activo" (change)="toggleEstado(element, 'activo')">
+              {{ element.activo ? 'Sí' : 'No' }}
+            </mat-slide-toggle>
+          </td>
+        </ng-container>
+
+        <!-- Saldo Pendiente -->
+        <ng-container matColumnDef="saldoPendiente">
+          <th mat-header-cell *matHeaderCellDef mat-sort-header>Saldo Pendiente</th>
+          <td mat-cell *matCellDef="let element">
+            {{ element.saldoPendiente | currency }}
+          </td>
+        </ng-container>
+
+        <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+        <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
+
+        <tr class="mat-row" *matNoDataRow>
+          <td class="mat-cell" colspan="27">No hay datos "{{ input.value }}"</td>
+        </tr>
+      </table>
+    </div>
+    <mat-paginator [length]="dataSource.data.length || 0" [pageSize]="10" [pageSizeOptions]="[5, 10, 25, 50, 100]"
+      showFirstLastButtons>
+    </mat-paginator>
+  </mat-card-content>
+</mat-card>

@@ -9,7 +9,6 @@ import { UtilityServiceService } from '../../../../../../shared/services/utility
 
 @Component({
   selector: 'app-autorizacion-mercado',
-  standalone: true,
   imports: [
     SharedModule
   ],
@@ -24,7 +23,7 @@ export class AutorizacionMercadoComponent implements OnInit {
   showValor = false;
   showCuotas = false;
   celularLabel = 'Número';
-  user : any;
+  user: any;
   rolUsuario: string = '';
   correoUsuario: string = '';
 
@@ -91,9 +90,6 @@ export class AutorizacionMercadoComponent implements OnInit {
   // Función para enviar el formulario
   async onSubmit() {
     let codigoOH: string = '';
-    let empresa = null;
-    let NIT = null;
-    let direcccion = null;
     let concepto: string = '';
 
     if (this.myForm.invalid) {
@@ -102,11 +98,9 @@ export class AutorizacionMercadoComponent implements OnInit {
     }
 
     this.trimFormFields();
-
     this.correoUsuario = this.utilityService.getUser().correo_electronico;
 
     const formValues = { ...this.myForm.value, valor: this.myForm.value.valor.replace(/\D/g, '') };
-
     this.sumaPrestamos = this.autorizacionesService.traerSaldoPendiente(this.datosOperario);
 
     if (this.correoUsuario != "lola@gmail.com" && this.rolUsuario != "GERENCIA") {
@@ -115,11 +109,23 @@ export class AutorizacionMercadoComponent implements OnInit {
       }
     }
 
+    // 🔵 Mostrar Swal de carga
+    Swal.fire({
+      title: 'Procesando...',
+      icon: 'info',
+      text: 'Por favor, espera mientras se genera la autorización.',
+      allowOutsideClick: false,
+      allowEscapeKey: false,
+      showConfirmButton: false,
+      didOpen: () => {
+        Swal.showLoading();
+      }
+    });
+
     let cuotasAux = formValues.cuotas;
 
-    // Generar codigo que no exista
+    // Generar un código único
     while (true) {
-
       codigoOH = 'M' + Math.floor(Math.random() * 1000000);
       concepto = "Mercado";
 
@@ -156,7 +162,6 @@ export class AutorizacionMercadoComponent implements OnInit {
       );
 
       this.autorizacionesService.generatePdf(
-
         this.datosOperario,
         formValues.valor,
         formValues.valor,
@@ -168,11 +173,12 @@ export class AutorizacionMercadoComponent implements OnInit {
         this.user.primer_nombre + ' ' + this.user.primer_apellido,
       );
 
-      // Swal al darle click se recarga la pagina
+      Swal.close();
+
       Swal.fire({
         icon: 'success',
         title: '¡Éxito!',
-        text: 'El préstamo ha sido autorizado, se ha generado el código ' + codigoOH,
+        text: `El préstamo ha sido autorizado, se ha generado el código ${codigoOH}`,
         confirmButtonText: 'Aceptar'
       }).then(() => {
         this.router.navigateByUrl('/dashboard', { skipLocationChange: true }).then(() => {
@@ -181,40 +187,92 @@ export class AutorizacionMercadoComponent implements OnInit {
       });
 
     } catch (error) {
+      Swal.close();
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: 'Ocurrió un problema al procesar la autorización. Intenta nuevamente.',
+        confirmButtonText: 'Aceptar'
+      });
     }
-
-
   }
-
 
   // Función para buscar operario
   buscarOperario() {
+    // si cedula no es válida
+    if (this.myForm.value.cedula.length == ''){
+      this.myForm.markAllAsTouched();
+      return;
+    }
+
+    Swal.fire({
+      title: 'Buscando trabajador...',
+      icon: 'info',
+      text: 'Por favor, espera mientras se procesa la información.',
+      allowOutsideClick: false,
+      allowEscapeKey: false,
+      showConfirmButton: false,
+      didOpen: () => {
+        Swal.showLoading();
+      }
+    });
+
     this.autorizacionesService.traerOperarios(this.myForm.value.cedula).subscribe(
       (data: any) => {
+        Swal.close();
+
+        // Validar si el operario existe
         if (data.datosbase === "No se encontró el registro para el ID proporcionado") {
           this.datosOperario = null;
           Swal.fire({
             icon: 'error',
             title: 'Oops...',
-            text: 'No se encontró el empleado con la cedula proporcionado',
+            text: 'No se encontró el empleado con la cédula proporcionada',
           });
           return;
         }
 
         this.datosOperario = data.datosbase[0];
         this.nombreOperario = `${this.datosOperario.nombre} `;
-        if (this.rolUsuario != "GERENCIA") {
-          // Validar si el operario tiene saldos pendientes mayores a 175000
-          if (!this.autorizacionesService.verificarSaldo(this.datosOperario) == true) {
-            this.datosOperario = null;
-          }
+
+        if (!this.datosOperario.activo) {
+          this.datosOperario = null;
+          Swal.fire({
+            icon: 'error',
+            title: 'Empleado retirado',
+            text: 'El empleado con la cédula proporcionada se encuentra retirado y no puede solicitar autorizaciones.',
+          });
+          return;
         }
 
+        if (this.datosOperario.bloqueado) {
+          this.datosOperario = null;
+          Swal.fire({ icon: 'error', title: 'Empleado bloqueado', text: 'El empleado con la cédula proporcionada se encuentra bloqueado y no puede solicitar autorizaciones.' });
+          return;
+        }
+
+        if (this.rolUsuario !== "GERENCIA") {
+          // Validar si el operario tiene saldos pendientes mayores a 175000
+          if (!this.autorizacionesService.verificarSaldo(this.datosOperario)) {
+            this.datosOperario = null;
+            Swal.fire({ icon: 'error', title: 'Saldo pendiente', text: 'El empleado con la cédula proporcionada tiene saldos pendientes mayores a $175.000 y no puede solicitar autorizaciones.' });
+            return;
+          }
+        }
       },
       (error: any) => {
+        Swal.close();
+
+        Swal.fire({
+          icon: 'error',
+          title: 'Error de conexión',
+          text: 'Hubo un problema al buscar el operario. Intente nuevamente.',
+        });
       }
     );
   }
+
+
 
   onFormaPagoChange(event: any) {
     const formaPago = event.value;

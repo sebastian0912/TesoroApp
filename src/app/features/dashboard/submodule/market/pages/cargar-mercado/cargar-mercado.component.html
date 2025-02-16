@@ -6,23 +6,22 @@
       </h1>
 
       <ng-container>
-        <mat-form-field class="example-full-width">
-          <mat-label>Número de identificación</mat-label>
-          <input matInput formControlName="cedula" />
-          <mat-error *ngIf="myForm.get('cedula')?.hasError('required')">
-            El número de identificación es requerido
-          </mat-error>
-        </mat-form-field>
+        <div class="encabezado">
+          <mat-form-field class="example-full-width cedula">
+            <mat-label>Número de identificación</mat-label>
+            <input matInput formControlName="cedula">
+            <mat-error *ngIf="myForm.get('cedula')?.hasError('required')">
+              El número de identificación es requerido
+            </mat-error>
+          </mat-form-field>
+          <h1 class="nombre"> <strong> Nombre Operario : </strong> {{nombreOperario}}</h1>
+        </div>
       </ng-container>
 
       <ng-container>
         <mat-form-field class="example-full-width">
           <mat-label>Valor</mat-label>
-          <input
-            matInput
-            formControlName="valor"
-            (input)="formatCurrency($event)"
-          />
+          <input matInput formControlName="valor" (input)="formatCurrency($event)" />
           <mat-error *ngIf="myForm.get('valor')?.hasError('required')">
             El valor es requerido
           </mat-error>
@@ -36,12 +35,7 @@
           </mat-error>
         </mat-form-field>
 
-        <button
-          mat-flat-button
-          type="submit"
-          class="boton"
-          [disabled]="myForm.invalid"
-        >
+        <button mat-flat-button type="submit" class="boton" [disabled]="myForm.invalid">
           Cargar
         </button>
       </ng-container>

@@ -9,7 +9,6 @@ import { SharedModule } from '../../../../../../shared/shared.module';
 
 @Component({
   selector: 'app-recibir-envio',
-  standalone: true,
   imports: [
     SharedModule
   ],

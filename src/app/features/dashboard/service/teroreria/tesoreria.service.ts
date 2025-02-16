@@ -14,25 +14,6 @@ export class TesoreriaService {
 
   constructor(private http: HttpClient, @Inject(PLATFORM_ID) private platformId: Object) { }
 
-  private getToken(): string | null {
-    if (isPlatformBrowser(this.platformId)) {
-      return localStorage.getItem('token');
-    }
-    return null;
-  }
-
-  private createAuthorizationHeader(): HttpHeaders {
-    const token = this.getToken();
-    return token ? new HttpHeaders().set('Authorization', token) : new HttpHeaders();
-  }
-
-  public getUser(): any {
-    if (isPlatformBrowser(this.platformId)) {
-      return JSON.parse(localStorage.getItem('user') || '{}');
-    }
-    return null;
-  }
-
   private handleError(error: any): Observable<never> {
     throw error;
   }
@@ -42,24 +23,17 @@ export class TesoreriaService {
     datos: any
   ): Promise<any> {
 
-    const token = this.getToken();
-
-    if (!token) {
-      throw new Error('No token found');
-    }
 
     const urlcompleta = `${this.apiUrl}/Datosbase/datosbase`;
 
-    const headers = this.createAuthorizationHeader().set('Content-Type', 'application/json');
 
     const requestBody = {
       datos,
       mensaje: "muchos",
-      jwt: token
     };
 
     try {
-      const response = await firstValueFrom(this.http.post<string>(urlcompleta, requestBody, { headers }).pipe(
+      const response = await firstValueFrom(this.http.post<string>(urlcompleta, requestBody).pipe(
         catchError(this.handleError)
       ));
       return response;
@@ -68,47 +42,84 @@ export class TesoreriaService {
     }
   }
 
-  // Eliminar empleados
+  // Eliminar empleados (desactivar en lugar de eliminar físicamente)
   async eliminarEmpleados(cedulaEmpleado: string): Promise<any> {
-    const token = this.getToken();
-    if (!token) {
-      throw new Error('No token found');
-    }
-
-    const urlcompleta = `${this.apiUrl}/Datosbase/eliminardatos/${cedulaEmpleado}`;
-
-    const headers = this.createAuthorizationHeader();
-
-    try {
-      const response = await firstValueFrom(this.http.delete(urlcompleta, { headers }).pipe(
-        catchError(this.handleError)
-      ));
-      return response;
-    } catch (error) {
-      throw error;
-    }
+    const urlcompleta = `${this.apiUrl}/Datosbase/retirar/${cedulaEmpleado}`;
+    return firstValueFrom(
+      this.http.delete(urlcompleta).pipe(
+        catchError(error => {
+          console.error('Error eliminando el empleado:', error);
+          throw error;
+        })
+      )
+    );
   }
+
+  async actualizarEstado(numero_de_documento: string, cambios: { bloqueado?: boolean; activo?: boolean; fechaBloqueo?: string | null }): Promise<any> {
+    const url = `${this.apiUrl}/Datosbase/actualizar-estados/${numero_de_documento}/`;
+
+    return firstValueFrom(
+      this.http.patch(url, cambios).pipe(
+        catchError(error => {
+          console.error('Error actualizando estado:', error);
+          throw error;
+        })
+      )
+    );
+  }
+
+
+
+  async bloquearEmpleado(numero_de_documento: string, estado: boolean, fechaBloqueo: string | null): Promise<any> {
+    const url = `${this.apiUrl}/Datosbase/actualizar-estados/${numero_de_documento}/`;
+
+    return firstValueFrom(
+      this.http.patch(url, { bloqueado: estado, fechaBloqueo }).pipe(
+        catchError(error => {
+          console.error('Error actualizando estado de bloqueo:', error);
+          throw error;
+        })
+      )
+    );
+  }
+
+
 
   // Actualizar empleados
   async actualizarEmpleado(
     cedulaEmpleado: string,
     saldos: string
   ): Promise<any> {
-    const token = this.getToken();
-    if (!token) {
-      throw new Error('No token found');
-    }
-
     const urlcompleta = `${this.apiUrl}/Datosbase/actualizarSaldos/${cedulaEmpleado}`;
-    const headers = this.createAuthorizationHeader().set('Content-Type', 'application/json');
 
     const requestBody = {
       saldos,
-      jwt: token
     };
 
     try {
-      const response = await firstValueFrom(this.http.post(urlcompleta, requestBody, { headers }).pipe(
+      const response = await firstValueFrom(this.http.post(urlcompleta, requestBody).pipe(
+        catchError(this.handleError)
+      ));
+
+      return response;
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  // Actualizar salgo pendiente
+  async actualizarSaldoPendienteEmpleado(
+    cedulaEmpleado: string,
+    saldoPendiente: string
+  ): Promise<any> {
+    const urlcompleta = `${this.apiUrl}/Datosbase/actualizar-saldo-pendiente/${cedulaEmpleado}/`;
+
+    const requestBody = {
+      saldoPendiente,
+    };
+
+    try {
+      const response = await firstValueFrom(this.http.post(urlcompleta, requestBody).pipe(
         catchError(this.handleError)
       ));
 
@@ -120,29 +131,18 @@ export class TesoreriaService {
 
   // Valores en 0
   async resetearValoresQuincena(): Promise<any> {
-
-    const token = this.getToken();
-    if (!token) {
-      throw new Error('No token found');
-    }
-
     const urlcompleta = `${this.apiUrl}/Datosbase/reiniciarValores`;
-    const headers = this.createAuthorizationHeader().set('Content-Type', 'application/json');
 
-    const requestBody = {
-      jwt: token
-    };
-
-    try {
-      const response = await firstValueFrom(this.http.post(urlcompleta, requestBody, { headers }).pipe(
-        catchError(this.handleError)
-      ));
-
-      return response;
-    } catch (error) {
-      throw error;
-    }
+    return firstValueFrom(
+      this.http.post(urlcompleta, {}).pipe(
+        catchError(error => {
+          console.error('Error al reiniciar valores de la quincena:', error);
+          throw error;
+        })
+      )
+    );
   }
+
 
   // Traer todo datos base
   async traerDatosBase(base: any, ceduladelapersona: string): Promise<any[]> {
@@ -151,9 +151,8 @@ export class TesoreriaService {
   }
 
   async traerDatosbaseGeneral(): Promise<any[]> {
-    const headers = this.createAuthorizationHeader();
     const response = await firstValueFrom(
-      this.http.get<any>(`${this.apiUrl}/Datosbase/tesoreria`, { headers }).pipe(
+      this.http.get<any>(`${this.apiUrl}/Datosbase/tesoreria`).pipe(
         catchError(this.handleError)
       )
     );
@@ -162,9 +161,8 @@ export class TesoreriaService {
 
   // traer historial
   async traerHistorial(): Promise<any[]> {
-    const headers = this.createAuthorizationHeader();
     const response = await firstValueFrom(
-      this.http.get<any>(`${this.apiUrl}/Datosbase/tesoreria`, { headers }).pipe(
+      this.http.get<any>(`${this.apiUrl}/Datosbase/tesoreria`).pipe(
         catchError(this.handleError)
       )
     );
@@ -195,17 +193,13 @@ export class TesoreriaService {
   }
 
 
-  traerHistorialPorFecha(fechaInicio: string, fechaFin: string): Observable<any> {
-    const headers = this.createAuthorizationHeader();
-    const user = this.getUser();
-    const nombre = `${user.primer_nombre} ${user.primer_apellido}`;
-
+  traerHistorialPorFecha(fechaInicio: string, fechaFin: string, nombre: string): Observable<any> {
     const params = new HttpParams()
       .set('nombre', nombre)
       .set('fecha_inicio', fechaInicio)
       .set('fecha_fin', fechaFin);
 
-    return this.http.get(`${this.apiUrl}/Historial/informeFecha`, { headers, params })
+    return this.http.get(`${this.apiUrl}/Historial/informeFecha`, { params })
       .pipe(catchError(this.handleError));
   }
 

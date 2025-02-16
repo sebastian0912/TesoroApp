@@ -8,7 +8,6 @@ import { MatButtonModule } from '@angular/material/button';
 
 @Component({
   selector: 'app-trabajador',
-  standalone: true,
   imports: [
     CommonModule,
     MatDialogModule,

@@ -1,24 +1,11 @@
 <div class="tabla">
   <div class="cards">
-    <app-info-card
-      title="Cupo de traslados"
-      imageUrl="icons/cards/comprobado.png"
-      [value]="numTraslados"
-    ></app-info-card>
-    <app-info-card
-      title="Auto asignar traslados disponibles"
-      imageUrl="icons/cards/delegar.png"
-      style="cursor: pointer"
-      [value]="numTrasladosResponsableNull"
-      (cardClicked)="autoAsignar()"
-    ></app-info-card>
-    <app-info-card
-      title="Recargar traslados disponibles"
-      imageUrl="icons/cards/loading-arrow.png"
-      style="cursor: pointer"
-      (cardClicked)="cuantosTraslados()"
-      *ngIf="istraslados18"
-    ></app-info-card>
+    <app-info-card title="Cupo de traslados" imageUrl="icons/cards/comprobado.png"
+      [value]="numTraslados"></app-info-card>
+    <app-info-card title="Auto asignar traslados disponibles" imageUrl="icons/cards/delegar.png" style="cursor: pointer"
+      [value]="numTrasladosResponsableNull" (cardClicked)="autoAsignar()"></app-info-card>
+    <app-info-card title="Recargar traslados disponibles" imageUrl="icons/cards/loading-arrow.png"
+      style="cursor: pointer" (cardClicked)="cuantosTraslados()" *ngIf="istraslados18"></app-info-card>
   </div>
 
   <mat-card>
@@ -26,22 +13,14 @@
       <div class="div">
         <mat-form-field class="filtro">
           <mat-label>Filter</mat-label>
-          <input
-            matInput
-            (keyup)="applyFilter($event)"
-            placeholder="Filter"
-            #input
-          />
+          <input matInput (keyup)="applyFilter($event)" placeholder="Filter" #input />
         </mat-form-field>
 
         <div class="filter-container">
           <mat-form-field appearance="fill">
             <mat-label>Filtrar por estado</mat-label>
             <mat-select (selectionChange)="applyFilterByEstado($event.value)">
-              <mat-option
-                *ngFor="let estado of estadosCount | keyvalue"
-                [value]="estado.key"
-              >
+              <mat-option *ngFor="let estado of estadosCount | keyvalue" [value]="estado.key">
                 {{ estado.key }} ({{ estado.value }})
               </mat-option>
             </mat-select>
@@ -49,7 +28,7 @@
         </div>
       </div>
       <div class="table-container">
-        <table mat-table [dataSource]="dataSource" class="mat-elevation-z8">
+        <table mat-table [dataSource]="dataSource" class="mat-elevation-z8" matSort>
           <!-- codigo -->
           <ng-container matColumnDef="codigo_traslado">
             <th mat-header-cell *matHeaderCellDef>Código Traslado</th>
@@ -78,7 +57,8 @@
             <th mat-header-cell *matHeaderCellDef> Solicitud de Traslado </th>
             <td mat-cell *matCellDef="let element">
               <ng-container *ngIf="element.solicitud_disponible === 1; else noDisponibleSolicitud">
-                <a (click)="imprimirSolicitudTraslado(element.codigo_traslado)" style="cursor: pointer; text-decoration: underline;">
+                <a (click)="imprimirSolicitudTraslado(element.codigo_traslado)"
+                  style="cursor: pointer; text-decoration: underline;">
                   Ver Solicitud
                 </a>
               </ng-container>
@@ -122,29 +102,17 @@
 
               <!-- Menú desplegable -->
               <mat-menu #menu="matMenu" class="menu">
-                <button
-                  mat-menu-item
-                  (click)="cambiarEstado(element)"
-                  class="menu"
-                >
+                <button mat-menu-item (click)="cambiarEstado(element)" class="menu">
                   <mat-icon>swap_horiz</mat-icon> Cambiar Estado
                 </button>
-                <button
-                  mat-menu-item
-                  (click)="verTrabajador(element)"
-                  class="menu"
-                >
+                <button mat-menu-item (click)="verTrabajador(element)" class="menu">
                   <mat-icon>person</mat-icon> Ver Trabajador
                 </button>
                 <button mat-menu-item (click)="verEstado(element)" class="menu">
                   <mat-icon>visibility</mat-icon> Ver Estado
                 </button>
 
-                <button
-                  mat-menu-item
-                  (click)="verAfiliacion(element)"
-                  class="menu"
-                >
+                <button mat-menu-item (click)="verAfiliacion(element)" class="menu">
                   <mat-icon>assignment</mat-icon> Ver Adres
                 </button>
               </mat-menu>
@@ -160,6 +128,10 @@
           </tr>
         </table>
       </div>
+      <mat-paginator [length]="dataSource.data.length || 0" [pageSize]="10" [pageSizeOptions]="[5, 10, 25, 50]"
+        showFirstLastButtons>
+      </mat-paginator>
+
     </mat-card-content>
   </mat-card>
 </div>
