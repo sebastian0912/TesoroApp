@@ -5,6 +5,7 @@ import { firstValueFrom } from 'rxjs';
 import { Router } from '@angular/router';
 import { ComercializadoraService } from '../../service/comercializadora/comercializadora.service';
 import { SharedModule } from '../../../../../../shared/shared.module';
+import { UtilityServiceService } from '@/app/shared/services/utilityService/utility-service.service';
 
 @Component({
   selector: 'app-editar-envio',
@@ -18,45 +19,13 @@ import { SharedModule } from '../../../../../../shared/shared.module';
 export class EditarEnvioComponent {
   myForm: FormGroup;
   datosEnvio: any;
-
-  sedes = [
-    "FACA_PRINCIPAL",
-    "FACA_CENTRO",
-    "ROSAL",
-    "CARTAGENITA",
-    "MADRID",
-    "FUNZA",
-    "SOACHA",
-    "FONTIBÓN",
-    "SUBA",
-    "TOCANCIPÁ",
-    "BOSA",
-    "BOGOTÁ"
-  ];
-
-  conceptos = [
-    "Mercado",
-    "Kit escolar",
-    "Kit aseo",
-    "Anchetas",
-    "Matrimonios",
-    "Kit velitas",
-    "Kit amor y amistad",
-    "Kit Día de las Madres",
-    "Juguetes",
-    "Kit dulces",
-    "Combo Carne",
-    "Fruver",
-    "Verdura",
-    "Carne",
-    "Pollo",
-    "Embutidos",
-    "Otro"
-  ];
+  sedes: any
+  conceptos: any
 
   constructor(
     private fb: FormBuilder,
     private comercializadoraService: ComercializadoraService,
+    private utilityService: UtilityServiceService,
     private router: Router
   ) {
 
@@ -71,6 +40,14 @@ export class EditarEnvioComponent {
 
     this.myForm.get('concepto')?.valueChanges.subscribe(value => {
       this.updateOtroConceptoValidator(value);
+    });
+
+    this.utilityService.traerSucursales().subscribe((data: any) => {
+      this.sedes = data.sucursal;
+    });
+
+    this.comercializadoraService.traerCategorias(31).then((data: any) => {
+      this.conceptos = data[0].opciones;
     });
   }
 

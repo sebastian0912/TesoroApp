@@ -234,6 +234,12 @@ export class AutorizacionesService {
     }
   }
 
+  // activos/<str:cedula>/
+  async traerAutorizacionesActivasOperario(cedula: string): Promise<any> {
+    return firstValueFrom(this.http.get(`${this.apiUrl}/Codigo/activos/${cedula}/`)
+      .pipe(catchError(this.handleError)));
+  }
+
 
 
 

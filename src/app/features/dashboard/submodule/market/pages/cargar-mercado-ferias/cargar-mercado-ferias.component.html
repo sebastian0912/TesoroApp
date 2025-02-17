@@ -20,17 +20,14 @@
       </ng-container>
 
       <ng-container *ngIf="datosOperario">
-        <mat-form-field class="example-full-width" *ngIf="comercio !== 'si'">
+        <mat-form-field class="example-full-width">
           <mat-label>Valor</mat-label>
-          <input
-            matInput
-            formControlName="valor"
-            (input)="formatCurrency($event)"
-          />
+          <input matInput formControlName="valor" (input)="formatCurrency($event)" />
           <mat-error *ngIf="myForm.get('valor')?.hasError('required')">
             El valor es requerido
           </mat-error>
         </mat-form-field>
+
 
         <mat-form-field class="example-full-width">
           <mat-label>Número de cuotas</mat-label>
@@ -43,32 +40,21 @@
           </mat-error>
         </mat-form-field>
 
-        <mat-form-field class="example-full-width" *ngIf="comercio !== 'si'">
+        <mat-form-field class="example-full-width">
           <mat-label>Seleccione un concepto</mat-label>
           <mat-select formControlName="concepto">
             <mat-option *ngFor="let dato of datos2" [value]="dato">{{
               dato
-            }}</mat-option>
+              }}</mat-option>
           </mat-select>
           <mat-error *ngIf="myForm.get('concepto')?.hasError('required')">
             Seleccione una forma de pago
           </mat-error>
         </mat-form-field>
 
-        <mat-form-field class="example-full-width" *ngIf="concepto === 'Otro'">
-          <mat-label>Otro concepto</mat-label>
-          <input matInput formControlName="otroConcepto" required />
-          <mat-error *ngIf="myForm.get('otroConcepto')?.hasError('required')">
-            Ingrese otro concepto
-          </mat-error>
-        </mat-form-field>
-
         <mat-form-field class="example-full-width">
           <mat-label>Seleccione una Forma Pago</mat-label>
-          <mat-select
-            formControlName="formaPago"
-            (selectionChange)="onFormaPagoChange($event)"
-          >
+          <mat-select formControlName="formaPago" (selectionChange)="onFormaPagoChange($event)">
             <mat-option value="Daviplata">Daviplata</mat-option>
             <mat-option value="Efectivo">Efectivo</mat-option>
             <mat-option value="Master">Mastercard</mat-option>
@@ -90,37 +76,8 @@
           </mat-error>
         </mat-form-field>
 
-        <mat-form-field class="example-full-width">
-          <mat-label>Ingresará productos comercializadora?</mat-label>
-          <mat-select formControlName="comercio">
-            <mat-option value="si">Si</mat-option>
-            <mat-option value="no">No</mat-option>
-          </mat-select>
-        </mat-form-field>
-
-        <mat-form-field class="example-full-width" *ngIf="comercio === 'si'">
-          <mat-label>Codigo comercializadora</mat-label>
-          <input matInput formControlName="codigoComercio" required />
-          <mat-error *ngIf="myForm.get('codigoComercio')?.hasError('required')">
-            Ingrese el codigo de la comercializadora
-          </mat-error>
-        </mat-form-field>
-
-        <mat-form-field class="example-full-width" *ngIf="comercio === 'si'">
-          <mat-label>Cantidad</mat-label>
-          <input matInput formControlName="cantidad" required type="number" />
-          <mat-error *ngIf="myForm.get('cantidad')?.hasError('required')">
-            Ingrese la cantidad
-          </mat-error>
-        </mat-form-field>
-
-        <button
-          mat-flat-button
-          type="submit"
-          class="boton"
-          [disabled]="myForm.invalid"
-          style="margin-top: 2pt; margin-bottom: 15pt;"
-        >
+        <button mat-flat-button type="submit" class="boton" [disabled]="myForm.invalid"
+          style="margin-top: 2pt; margin-bottom: 15pt;">
           Cargar
         </button>
 
@@ -130,35 +87,49 @@
       </ng-container>
     </form>
 
-    <div class="tabla" *ngIf="comercio === 'si'">
+    <div class="tabla" *ngIf="myForm.get('concepto')?.value === 'Mercado'" style="margin-top: 10pt;">
       <h1 class="title">Tabla de Inventario de Productos Comercializados</h1>
       <mat-form-field class="filtro">
         <mat-label>Filter</mat-label>
-        <input
-          matInput
-          (keyup)="applyFilterInventario($event)"
-          placeholder="Filter"
-          #inputInventario
-        />
+        <input matInput (keyup)="applyFilterInventario($event)" placeholder="Filter" #inputInventario />
       </mat-form-field>
       <div class="table-container">
-        <table
-          mat-table
-          [dataSource]="dataSourceInventario"
-          class="mat-elevation-z8"
-        >
-          <ng-container matColumnDef="codigo">
-            <th mat-header-cell *matHeaderCellDef>Código</th>
-            <td mat-cell *matCellDef="let element">{{ element.codigo }}</td>
+        <table mat-table [dataSource]="dataSourceInventario" class="mat-elevation-z8">
+
+          <!-- Checkbox -->
+          <ng-container matColumnDef="select">
+            <th mat-header-cell *matHeaderCellDef>Seleccionar</th>
+            <td mat-cell *matCellDef="let element">
+              <mat-checkbox (change)="onProductSelectionChange(element, $event)"></mat-checkbox>
+            </td>
           </ng-container>
+
+          <ng-container matColumnDef="cantidadSeleccionada">
+            <th mat-header-cell *matHeaderCellDef>Cantidad</th>
+            <td mat-cell *matCellDef="let element">
+              <div class="cantidad-container">
+                <button mat-icon-button color="primary" type="button" (click)="decrementarCantidad(element)"
+                  [disabled]="!element.seleccionado || element.cantidadSeleccionada <= 1">
+                  <mat-icon>remove</mat-icon>
+                </button>
+
+                <span class="cantidad">{{ element.cantidadSeleccionada || 0 }}</span>
+
+                <button mat-icon-button color="primary" type="button" (click)="incrementarCantidad(element)"
+                  [disabled]="!element.seleccionado">
+                  <mat-icon>add</mat-icon>
+                </button>
+              </div>
+            </td>
+          </ng-container>
+
+
+
           <ng-container matColumnDef="concepto">
             <th mat-header-cell *matHeaderCellDef>Concepto</th>
             <td mat-cell *matCellDef="let element">{{ element.concepto }}</td>
           </ng-container>
-          <ng-container matColumnDef="destino">
-            <th mat-header-cell *matHeaderCellDef>Destino</th>
-            <td mat-cell *matCellDef="let element">{{ element.destino }}</td>
-          </ng-container>
+
           <ng-container matColumnDef="cantidadEnvio">
             <th mat-header-cell *matHeaderCellDef>Cantidad Enviada</th>
             <td mat-cell *matCellDef="let element">
@@ -174,7 +145,7 @@
           <ng-container matColumnDef="valorUnidad">
             <th mat-header-cell *matHeaderCellDef>Valor Unidad</th>
             <td mat-cell *matCellDef="let element">
-              {{ element.valorUnidad  | currency}}
+              {{ element.valorUnidad | currency}}
             </td>
           </ng-container>
           <ng-container matColumnDef="cantidadTotalVendida">
@@ -214,10 +185,7 @@
             </td>
           </ng-container>
           <tr mat-header-row *matHeaderRowDef="displayedColumnsInventario"></tr>
-          <tr
-            mat-row
-            *matRowDef="let row; columns: displayedColumnsInventario"
-          ></tr>
+          <tr mat-row *matRowDef="let row; columns: displayedColumnsInventario"></tr>
           <tr class="mat-row" *matNoDataRow>
             <td class="mat-cell" colspan="12">
               No hay datos "{{ inputInventario.value }}"

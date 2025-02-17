@@ -1,50 +1,45 @@
 import { Component, OnInit } from '@angular/core';
-import { FormBuilder, FormGroup, Validators, FormArray, AbstractControl, ValidatorFn } from '@angular/forms';
+import { FormGroup, FormControl } from '@angular/forms';
 import Swal from 'sweetalert2';
-import { Router } from '@angular/router';
-import { MatTableDataSource, MatTableModule } from '@angular/material/table';
+import { MatTableDataSource } from '@angular/material/table';
 import { UtilityServiceService } from '../../../../../../shared/services/utilityService/utility-service.service';
 import { ComercializadoraService } from '../../service/comercializadora/comercializadora.service';
 import { SharedModule } from '../../../../../../shared/shared.module';
+import { MatCheckboxModule } from '@angular/material/checkbox';
 
 @Component({
   selector: 'app-recibir-envio',
-  imports: [
-    SharedModule
-  ],
+  imports: [SharedModule, MatCheckboxModule],
   templateUrl: './recibir-envio.component.html',
   styleUrl: './recibir-envio.component.css'
 })
-
 export class RecibirEnvioComponent implements OnInit {
 
-  myForm!: FormGroup;
-  datosOperario: any;
-  nombreOperario: string = '';
-  sumaPrestamos: number = 0;
-  productos: any[] = [];
   displayedColumnsInventario: string[] = [
-    'codigo', 'concepto', 'destino', 'cantidadEnvio', 'cantidadRecibida',
-    'valorUnidad', 'cantidadTotalVendida', 'PersonaEnvia', 'PersonaRecibe', 'fechaRecibida'
+    'select',
+    'codigo',
+    'concepto',
+    'cantidadEnvio',
+    'cantidadRecibida',
+    'valorUnidad',
+    'PersonaEnvia',
+    'PersonaRecibe',
+    'comentariosEnvio'
   ];
+
   dataSourceInventario = new MatTableDataSource<any>();
-  concepto: string = '';
-  historial_id: number = 0;
-  rolUsuario: string = '';
-  correoUsuario: string = '';
+  productos: any[] = [];
+
+  // Objeto para saber si un producto está seleccionado o no
+  seleccionados: { [key: string]: boolean } = {};
+
+  // FormGroup para controlar las cantidades recibidas
+  cantidadForm = new FormGroup({});
 
   constructor(
-    private fb: FormBuilder,
     private utilityService: UtilityServiceService,
-    private comercializadoraService: ComercializadoraService,
-
-  ) {
-    this.myForm = this.fb.group({
-      codigoProducto: ['', Validators.required],
-      cantidad: ['', Validators.required],
-      comentariosEnvio: ['', Validators.required],
-    });
-  }
+    private comercializadoraService: ComercializadoraService
+  ) { }
 
   ngOnInit() {
     this.loadProductos();
@@ -52,111 +47,121 @@ export class RecibirEnvioComponent implements OnInit {
 
   async loadProductos() {
     try {
-      // Obtener usuario primero
       const user = await this.utilityService.getUser();
       const sedeUsuario = user.sucursalde;
       const userEmail = user.correo_electronico;
 
-      // Luego obtener productos
       this.utilityService.traerInventarioProductos().subscribe(
         (data: any) => {
-          // Filtrar productos basados en el correo del usuario
-          if (userEmail === 'contaduria.rtc@gmail.com') {
-            this.productos = data.comercio.filter((producto: any) =>
-              producto.cantidadRecibida === "0" &&
-              (producto.destino === 'ROSAL' || producto.destino === 'CARTAGENITA')
-            );
-          } else {
-            this.productos = data.comercio.filter((producto: any) =>
-              producto.cantidadRecibida === "0" &&
-              producto.destino.toLowerCase() === sedeUsuario.toLowerCase()
-            );
-          }
+          // Filtramos la data según tu lógica
+          this.productos = data.comercio.filter((producto: any) =>
+            producto.cantidadRecibida === "0" &&
+            (
+              userEmail === 'contaduria.rtc@gmail.com'
+                ? ['ROSAL', 'CARTAGENITA'].includes(producto.destino)
+                : producto.destino.toLowerCase() === sedeUsuario.toLowerCase()
+            )
+          );
 
-          // Ordenar productos por fecha de recibo
-          this.productos.sort((a: any, b: any) => new Date(b.fechaRecibida).getTime() - new Date(a.fechaRecibida).getTime());
+          // Ordenar por fecha descendente, por ejemplo
+          this.productos.sort(
+            (a: any, b: any) => new Date(b.fechaRecibida).getTime() - new Date(a.fechaRecibida).getTime()
+          );
 
-          // Actualizar la fuente de datos
+          // Inicializamos selección y FormControl por cada producto
+          this.productos.forEach((producto: any) => {
+            // Inicialmente sin seleccionar
+            this.seleccionados[producto.codigo] = false;
+
+            // Creamos un control con la cantidad enviada y lo deshabilitamos
+            this.cantidadForm.addControl(
+              producto.codigo,
+              new FormControl({
+                value: producto.cantidadEnvio,
+                disabled: true
+              })
+            );
+          });
+
           this.dataSourceInventario.data = this.productos;
         },
-        (error: any) => {
-          Swal.fire({
-            icon: 'error',
-            title: 'Oops...',
-            text: 'Hubo un error al obtener los productos, por favor intente de nuevo',
-          });
-        }
+        () => this.showError('Hubo un error al obtener los productos, por favor intente de nuevo')
       );
-    } catch (error) {
-      Swal.fire({
-        icon: 'error',
-        title: 'Oops...',
-        text: 'Hubo un error al obtener los productos, por favor intente de nuevo',
-      });
+    } catch {
+      this.showError('Hubo un error al obtener los productos, por favor intente de nuevo');
     }
   }
 
+  /**
+   * Manejar selección del checkbox
+   */
+  toggleSelection(event: any, codigo: string) {
+    const isChecked = event.checked;
+    this.seleccionados[codigo] = isChecked;
 
-  private trimFormFields() {
-    const trimControl = (control: AbstractControl) => {
-      if (control && control.value && typeof control.value === 'string') {
-        control.setValue(control.value.trim());
+    const control = this.cantidadForm.get(codigo);
+    if (control) {
+      if (isChecked) {
+        // Habilitamos y ponemos la cantidad por defecto (por ejemplo, la misma cantidad que se envió)
+        control.enable();
+      } else {
+        // Deshabilitamos y opcionalmente ponemos en 0
+        control.setValue(0);
+        control.disable();
       }
-    };
-
-    const trimGroup = (group: FormGroup) => {
-      Object.keys(group.controls).forEach(field => {
-        const control = group.get(field);
-        if (control) {
-          if (control instanceof FormArray) {
-            control.controls.forEach(arrayControl => {
-              if (arrayControl instanceof FormGroup) {
-                trimGroup(arrayControl);
-              } else {
-                trimControl(arrayControl);
-              }
-            });
-          } else {
-            trimControl(control);
-          }
-        }
-      });
-    };
-
-    trimGroup(this.myForm);
+    }
   }
 
-  async onSubmit() {
-    if (this.myForm.invalid) {
-      this.myForm.markAllAsTouched();
+  /**
+   * Incrementar la cantidad recibida
+   */
+  incrementarCantidad(codigo: string) {
+    const control = this.cantidadForm.get(codigo);
+    if (control) {
+      const currentValue = control.value || 0;
+      control.setValue(parseInt(currentValue) + 1);
+    }
+  }
+
+  /**
+   * Decrementar la cantidad recibida
+   */
+  decrementarCantidad(codigo: string) {
+    const control = this.cantidadForm.get(codigo);
+    if (control) {
+      const currentValue = control.value || 0;
+      if (currentValue > 0) {
+        control.setValue(parseInt(currentValue) - 1);
+      }
+    }
+  }
+
+  /**
+   * Confirmar la recepción
+   */
+  confirmarRecepcion() {
+    // Obtener solo los productos seleccionados
+    const seleccionados = this.productos.filter(
+      producto => this.seleccionados[producto.codigo]
+    );
+
+    if (seleccionados.length === 0) {
+      Swal.fire('Aviso', 'Debe seleccionar al menos un producto para recibir.', 'warning');
       return;
     }
 
-    const formValues = this.myForm.value;
-
-    this.trimFormFields();
-
-    this.comercializadoraService.recibirMercancia(formValues.codigoProducto, formValues.cantidad, formValues.comentariosEnvio)
-    .then((response: any) => {
-      if (response.message) {
-        Swal.fire({
-          icon: 'success',
-          title: '¡Éxito!',
-          text: 'Se ha realizado el cargue de manera exitosa',
-        });
-        this.loadProductos();
-      } else {
-        this.showError();
-      }
-    })
-  }
-
-
-  private showError() {
-    Swal.fire({
-      icon: 'error',
-      title: 'Oops...',
-      text: 'Hubo un error al realizar el cargue, por favor intente de nuevo',
+    // Por cada producto seleccionado, llamar a tu servicio
+    seleccionados.forEach(producto => {
+      const cantidad = this.cantidadForm.get(producto.codigo)?.value;
+      this.comercializadoraService.recibirMercancia(producto.codigo, cantidad, 'Recibido correctamente')
+        .then(() => {
+          Swal.fire('¡Éxito!', 'Se ha recibido la mercancía correctamente.', 'success');
+          // Recargamos los productos
+          this.loadProductos();
+        })
+        .catch(() =>
+          this.showError('Hubo un error al recibir la mercancía, por favor intente de nuevo')
+        );
     });
   }
 
@@ -165,5 +170,7 @@ export class RecibirEnvioComponent implements OnInit {
     this.dataSourceInventario.filter = filterValue.trim().toLowerCase();
   }
 
-
+  private showError(message: string) {
+    Swal.fire('Oops...', message, 'error');
+  }
 }

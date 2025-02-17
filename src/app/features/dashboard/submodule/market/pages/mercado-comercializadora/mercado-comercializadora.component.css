@@ -1,12 +1,47 @@
-
-
-
-.title {
-    margin-top: 10px;
-    margin-bottom: 10px;
-    font-size: 20pt;
-    font-weight: bold;
-    line-height: 1.3;
-
+.encabezado {
+  display: flex;
+  width: 100%;
+  align-items: center;
 }
 
+.comercializadora{
+  margin-top: 0;
+  border-radius: 5pt;
+  width: 125pt;
+}
+
+.title {
+  margin-top: 10px;
+  margin-bottom: 10px;
+  font-size: 20pt;
+  font-weight: bold;
+  line-height: 1.3;
+}
+
+.cantidad-container {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.cantidad {
+  font-size: 1.2em;
+  min-width: 30px;
+  text-align: center;
+}
+
+
+@media (max-width: 768px) {
+  .encabezado {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .title {
+    font-size: 16pt;
+  }
+
+  .comercializadora {
+    width: 100%;
+  }
+}

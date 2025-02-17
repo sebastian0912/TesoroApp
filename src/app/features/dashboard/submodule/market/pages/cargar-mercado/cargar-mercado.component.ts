@@ -221,7 +221,6 @@ export class CargarMercadoComponent implements OnInit {
         if (!this.autorizacionesService.verificarCondiciones(this.datosOperario, parseInt(formValues.valor), this.sumaPrestamos, "mercado")) {
           return;
         }
-
         if (!this.utilityServiceService.verificarMontoCodigo(data, parseInt(formValues.valor), this.rolUsuario)) {
           Swal.fire({
             icon: 'error',
@@ -230,7 +229,6 @@ export class CargarMercadoComponent implements OnInit {
           });
           return;
         }
-
       }
 
       const response = await this.mercadoService.ejecutarMercadoTienda(

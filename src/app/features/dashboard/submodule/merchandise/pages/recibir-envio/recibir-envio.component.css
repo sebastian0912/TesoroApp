@@ -5,3 +5,15 @@ button {
 form {
     margin-bottom: 30px;
 }
+
+.cantidad-container {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.cantidad {
+  font-size: 1.2em;
+  min-width: 30px;
+  text-align: center;
+}

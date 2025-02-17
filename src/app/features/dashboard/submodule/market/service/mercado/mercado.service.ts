@@ -33,7 +33,7 @@ export class MercadoService {
         catchError(this.handleError)
       );
   }
-  
+
   // Cambiar estado del codigo
   public cambiarEstadoCodigo(codigo: string): Observable<string> {
     return this.http.put<{ message: string }>(`${this.apiUrl}/Codigo/cambiarestado/${codigo}`, {},)
@@ -105,7 +105,7 @@ export class MercadoService {
 
     const fecha = new Date().toISOString().split('T')[0];
 
-    const urlcompleta = `${this.apiUrl}/Codigo/ejecutarMercadoTienda`;
+    const urlcompleta = `${this.apiUrl}/Codigo/ejecutarMercadoComercializadora`;
 
     const requestBody = {
       cedula: cedula,
@@ -118,6 +118,7 @@ export class MercadoService {
       ejecutadoPor: usernameLocal,
       historial: historial_id,
     };
+    console.log(requestBody);
 
     try {
       const response = await firstValueFrom(this.http.post<string>(urlcompleta, requestBody).pipe(

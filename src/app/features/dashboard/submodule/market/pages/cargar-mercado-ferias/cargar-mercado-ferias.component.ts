@@ -1,5 +1,5 @@
 import { Component, OnInit } from '@angular/core';
-import { FormBuilder, FormGroup, Validators, AbstractControl } from '@angular/forms';
+import { FormBuilder, FormGroup, Validators, AbstractControl, FormArray } from '@angular/forms';
 import Swal from 'sweetalert2';
 import { Router } from '@angular/router';
 import { MatTableDataSource, MatTableModule } from '@angular/material/table';
@@ -8,11 +8,12 @@ import { MercadoService } from '../../service/mercado/mercado.service';
 import { AutorizacionesService } from '../../../authorizations/services/autorizaciones/autorizaciones.service';
 import { UtilityServiceService } from '../../../../../../shared/services/utilityService/utility-service.service';
 import { ComercializadoraService } from '../../../merchandise/service/comercializadora/comercializadora.service';
+import { MatCheckboxModule } from '@angular/material/checkbox';
 
 @Component({
   selector: 'app-cargar-mercado-ferias',
   imports: [
-    SharedModule
+    SharedModule, MatCheckboxModule
   ],
   templateUrl: './cargar-mercado-ferias.component.html',
   styleUrl: './cargar-mercado-ferias.component.css'
@@ -26,10 +27,14 @@ export class CargarMercadoFeriasComponent implements OnInit {
   showCuotas = false;
   celularLabel = 'Número';
   productos: any[] = [];
+  selectedProducts: any[] = []; // Productos seleccionados con checkbox
 
-  displayedColumnsInventario: string[] = ['codigo', 'concepto', 'destino', 'cantidadEnvio',
-    'cantidadRecibida', 'valorUnidad', 'cantidadTotalVendida', 'PersonaEnvia', 'PersonaRecibe',
-    'fechaRecibida'];
+  displayedColumnsInventario: string[] = [
+    'select', 'cantidadSeleccionada',
+    'concepto', 'cantidadEnvio',
+    'cantidadRecibida', 'valorUnidad',
+    'cantidadTotalVendida', 'PersonaEnvia',
+    'PersonaRecibe', 'fechaRecibida'];
 
   dataSourceInventario = new MatTableDataSource<any>();
 
@@ -38,8 +43,10 @@ export class CargarMercadoFeriasComponent implements OnInit {
 
   historial_id: number = 0;
   usuario: any;
+  conceptos: any
 
   datos2: string[] = [
+    "Mercado",
     "Pollo Suba",
     "Pollo Luz Dary",
     "Embutidos Luz Dary",
@@ -49,7 +56,6 @@ export class CargarMercadoFeriasComponent implements OnInit {
     "Embutidos",
     "Carne",
     "Babuchas",
-    "Otro"
   ];
 
   rolUsuario: string = '';
@@ -72,23 +78,7 @@ export class CargarMercadoFeriasComponent implements OnInit {
       otroConcepto: [''],
       formaPago: ['', Validators.required],
       celular: [''],
-      comercio: [''],
-      codigoComercio: [''],
-      cantidad: [''],
     });
-
-    this.myForm.get('concepto')?.valueChanges.subscribe(value => {
-      this.concepto = value;
-      if (value !== 'Otro') {
-        this.myForm.get('otroConcepto')?.setValue('');
-      }
-    });
-
-    this.myForm.get('comercio')?.valueChanges.subscribe(value => {
-      this.comercio = value;
-      this.updateValidators(value);
-    });
-
   }
 
   async ngOnInit() {
@@ -155,14 +145,6 @@ export class CargarMercadoFeriasComponent implements OnInit {
   }
 
 
-
-  formatCurrency(event: any) {
-    const input = event.target;
-    let value = input.value.replace(/\D/g, '');
-    value = Number(value).toLocaleString();
-    input.value = value;
-  }
-
   currencyValidator(control: AbstractControl) {
     const value = control.value.replace(/\D/g, '');
     return value ? null : { required: true };
@@ -170,17 +152,19 @@ export class CargarMercadoFeriasComponent implements OnInit {
 
   // Función para enviar el formulario
   async onSubmit() {
+    // Variables para almacenar códigos y conceptos
     let codigoOH: string = '';
     let codigoMOH: string = '';
-    let concepto: string = 'Mercado';
     let conceptoMOH: string = '';
+    const concepto = 'Mercado'; // Puedes cambiarlo si necesitas otro valor por defecto
 
+    // 1. Validar el formulario
     if (this.myForm.invalid) {
       this.myForm.markAllAsTouched();
       return;
     }
 
-    // 🔵 Mostrar Swal de carga antes de iniciar la lógica
+    // 2. Mostrar Swal de carga antes de iniciar la lógica
     Swal.fire({
       title: 'Procesando...',
       icon: 'info',
@@ -193,14 +177,26 @@ export class CargarMercadoFeriasComponent implements OnInit {
       }
     });
 
-    // Usamos un try-catch para manejar cualquier error global
+    // 3. Iniciar bloque try-catch para capturar errores globales
     try {
-      const formValues = { ...this.myForm.value, valor: this.myForm.value.valor.replace(/\D/g, '') };
+      // 3.1 Obtener valores del formulario, quitando caracteres no numéricos de 'valor'
+      const formValues = {
+        ...this.myForm.value,
+        valor: this.myForm.value.valor.replace(/\D/g, '')
+      };
+
+      // 3.2 Calcular saldo pendiente del operario (si aplica en tu lógica)
       this.sumaPrestamos = this.autorizacionesService.traerSaldoPendiente(this.datosOperario);
 
-      // Validar condiciones si el usuario no es GERENCIA y no es lola@gmail.com
-      if (this.correoUsuario !== "lola@gmail.com" && this.rolUsuario !== "GERENCIA") {
-        if (!this.autorizacionesService.verificarCondiciones(this.datosOperario, parseInt(formValues.valor), this.sumaPrestamos, "mercado")) {
+      // 3.3 Validar condiciones si no es GERENCIA ni "lola@gmail.com"
+      if (this.correoUsuario !== 'lola@gmail.com' && this.rolUsuario !== 'GERENCIA') {
+        const verifica = this.autorizacionesService.verificarCondiciones(
+          this.datosOperario,
+          parseInt(formValues.valor),
+          this.sumaPrestamos,
+          'mercado'
+        );
+        if (!verifica) {
           Swal.close();
           await Swal.fire({
             icon: 'error',
@@ -211,83 +207,79 @@ export class CargarMercadoFeriasComponent implements OnInit {
         }
       }
 
-      let cuotasAux = formValues.cuotas;
-
-      // Generar código que no exista
+      // 3.4 Generar código 'codigoOH' que no exista en base de datos
       while (true) {
         codigoOH = 'M' + Math.floor(Math.random() * 1000000);
         try {
           const data = await this.autorizacionesService.buscarCodigo(codigoOH);
           if (data.codigo.length === 0) {
-            break; // Salir del bucle si el código no existe
+            // Si el código no existe, salimos del bucle
+            break;
           }
         } catch (error) {
-          break; // Salir del bucle si hay un error en la solicitud
+          // Si hay error en la solicitud, salimos igual
+          break;
         }
       }
 
-      // Creamos un segundo código
+      // 3.5 Generar segundo código 'codigoMOH'
       codigoMOH = 'MOH' + Math.floor(Math.random() * 1000000);
 
-      // Si el comercio es "si", se maneja la lógica de comercializadora
-      if (formValues.comercio === "si") {
-        const producto = this.comercializadoraService.traerComercializadoraPorCodigo(this.productos, formValues.codigoComercio);
+      // 4. Si el concepto seleccionado es "Mercado", manejar la lógica de la comercializadora
+      if (formValues.concepto === 'Mercado') {
+        const valorTotal = formValues.valor; // Ya está limpio de caracteres no numéricos
 
-        // Validar que el producto exista
-        if (!producto) {
-          Swal.close();
-          await Swal.fire({
-            icon: 'error',
-            title: 'Oops...',
-            text: 'Producto no encontrado',
-          });
-          return;
-        }
+        // 4.1 Generar la descripción de los productos seleccionados (nombre + cantidad)
+        const conceptoProductos = this.selectedProducts
+          .map((p) => `${p.concepto} (x${p.cantidadSeleccionada})`)
+          .join(', ');
 
-        const valorTotal = parseInt(producto.valorUnidad) * parseInt(formValues.cantidad);
+        // 4.2 Construir el mensaje final del concepto
+        conceptoMOH = `Compra tienda de Ferias respecto a: ${conceptoProductos} en ${this.utilityServiceService.getUser().sucursalde}`;
 
-        conceptoMOH = "Compra tienda de Ferias respecto a : " + producto.concepto + " en " + this.utilityServiceService.getUser().sucursalde;
-
-        // Escritura en historial
+        // 4.3 Escribir en historial
         const historialData = await this.autorizacionesService.escribirHistorial(
           formValues.cedula,
           valorTotal,
-          cuotasAux,
-          "Autorizacion de Mercado",
+          formValues.cuotas,
+          'Autorizacion de Mercado',
           codigoOH,
           this.usuario.primer_nombre + ' ' + this.usuario.primer_apellido
         );
 
-        // Asignar historial_id a la variable de clase (o local, según tu lógica)
         this.historial_id = historialData.historial_id;
 
-        // Escritura de código
+        // 4.4 Escribir código
         await this.autorizacionesService.escribirCodigo(
           formValues.cedula,
           String(valorTotal),
           codigoOH,
-          cuotasAux,
-          "Autorizacion de Mercado",
+          formValues.cuotas,
+          'Autorizacion de Mercado',
           this.historial_id,
           this.usuario.primer_nombre + ' ' + this.usuario.primer_apellido,
           this.usuario.numero_de_documento
         );
 
-        // Actualizar inventario
-        await this.comercializadoraService.ActualizarInventario(
-          formValues.cantidad,
-          formValues.codigoComercio
-        ).catch(async error => {
-          Swal.close();
-          await Swal.fire({
-            icon: 'error',
-            title: 'Oops...',
-            text: 'Hubo un error al realizar el cargue, por favor intente de nuevo',
-          });
-          return; // Importante para no continuar la ejecución en caso de error
-        });
+        // 4.5 Actualizar inventario para cada producto seleccionado
+        for (const product of this.selectedProducts) {
+          console.log('Actualizando inventario para', product);
+          // cantidadSeleccionada tiene que ser string para la API
+          product.cantidadSeleccionada = String(product.cantidadSeleccionada);
+          await this.comercializadoraService
+            .ActualizarInventario(product.cantidadSeleccionada, product.codigo)
+            .catch(async (error) => {
+              Swal.close();
+              await Swal.fire({
+                icon: 'error',
+                title: 'Oops...',
+                text: `Hubo un error al actualizar el inventario para ${product.concepto}, por favor intente de nuevo.`,
+              });
+              return;
+            });
+        }
 
-        // Ejecutar mercado en comercializadora
+        // 4.6 Ejecutar la lógica de mercado en la comercializadora
         const response = await this.mercadoService.ejecutarMercadoComercializadora(
           codigoOH,
           formValues.cedula,
@@ -297,18 +289,20 @@ export class CargarMercadoFeriasComponent implements OnInit {
           this.historial_id
         );
 
+        // 4.7 Cerrar el Swal de carga
         Swal.close();
 
-        if (response.message === "Actualización exitosa") {
+        // 4.8 Verificar respuesta
+        if (response.message === 'Actualización exitosa') {
           await Swal.fire({
             icon: 'success',
             title: '¡Éxito!',
             text: 'El préstamo ha sido cargado exitosamente',
-            confirmButtonText: 'Aceptar'
+            confirmButtonText: 'Aceptar',
           });
           // Redirección
           this.router.navigateByUrl('/dashboard', { skipLocationChange: true }).then(() => {
-            this.router.navigate(["/dashboard/market/load-fair-market"]);
+            this.router.navigate(['/dashboard/market/load-fair-market']);
           });
         } else {
           await Swal.fire({
@@ -318,7 +312,7 @@ export class CargarMercadoFeriasComponent implements OnInit {
           });
         }
 
-        // Generar PDF
+        // 4.9 Generar PDF
         this.autorizacionesService.generatePdf(
           this.datosOperario,
           valorTotal,
@@ -326,64 +320,69 @@ export class CargarMercadoFeriasComponent implements OnInit {
           formValues.formaPago || '',
           formValues.celular || '',
           codigoOH,
-          cuotasAux,
-          "Mercado",
-          this.usuario.primer_nombre + ' ' + this.usuario.primer_apellido,
+          formValues.cuotas,
+          'Mercado',
+          this.usuario.primer_nombre + ' ' + this.usuario.primer_apellido
         );
-        return; // Sale de la función, porque ya terminaste el caso "comercio = si"
+
+        return; // Termina la ejecución porque ya procesaste el caso de "Mercado"
       }
 
-      // Escritura en historial
+      // 5. Si NO es "Mercado", procesar la lógica estándar
+      const valorNormal = parseInt(formValues.valor);
+
+      // 5.1 Escribir en historial
       const historialData = await this.autorizacionesService.escribirHistorial(
         formValues.cedula,
-        parseInt(formValues.valor),
-        cuotasAux,
-        "Autorizacion de Mercado",
+        valorNormal,
+        formValues.cuotas,
+        'Autorizacion de Mercado',
         codigoOH,
         this.usuario.primer_nombre + ' ' + this.usuario.primer_apellido
       );
-
       this.historial_id = historialData.historial_id;
 
-      // Escritura de código
+      // 5.2 Escribir código
       await this.autorizacionesService.escribirCodigo(
         formValues.cedula,
-        formValues.valor,
+        String(valorNormal),
         codigoOH,
-        cuotasAux,
-        "Autorizacion de Mercado",
+        formValues.cuotas,
+        'Autorizacion de Mercado',
         this.historial_id,
         this.usuario.primer_nombre + ' ' + this.usuario.primer_apellido,
         this.usuario.numero_de_documento
       );
 
-      // Se crea un concepto para MOH
-      conceptoMOH = "Compra tienda de Ferias respecto a : " + formValues.concepto + " en " + this.utilityServiceService.getUser().sucursalde;
+      // 5.3 Construir el mensaje para MOH
+      conceptoMOH = `Compra tienda de Ferias respecto a : ${formValues.concepto} en ${this.utilityServiceService.getUser().sucursalde}`;
       if (formValues.concepto === 'Otro') {
-        conceptoMOH = "Compra tienda de Ferias respecto a : " + formValues.otroConcepto + " en " + this.utilityServiceService.getUser().sucursalde;
+        conceptoMOH = `Compra tienda de Ferias respecto a : ${formValues.otroConcepto} en ${this.utilityServiceService.getUser().sucursalde}`;
       }
 
-      // Ejecutar mercado en tienda
+      // 5.4 Ejecutar en tienda
       const responseTienda = await this.mercadoService.ejecutarMercadoTienda(
         codigoOH,
         formValues.cedula,
-        parseInt(formValues.valor),
+        valorNormal,
         codigoMOH,
         conceptoMOH,
         this.historial_id
       );
 
+      // 5.5 Cerrar Swal de carga
       Swal.close();
 
-      if (responseTienda.message === "Actualización exitosa") {
+      // 5.6 Validar respuesta
+      if (responseTienda.message === 'Actualización exitosa') {
         await Swal.fire({
           icon: 'success',
           title: '¡Éxito!',
           text: 'El préstamo ha sido cargado exitosamente',
-          confirmButtonText: 'Aceptar'
+          confirmButtonText: 'Aceptar',
         });
         this.router.navigateByUrl('/dashboard', { skipLocationChange: true }).then(() => {
-          this.router.navigate(["/dashboard/market/load-fair-market"]);
+          this.router.navigate(['/dashboard/market/load-fair-market']);
         });
       } else {
         await Swal.fire({
@@ -393,20 +392,21 @@ export class CargarMercadoFeriasComponent implements OnInit {
         });
       }
 
-      // Generar PDF
+      // 5.7 Generar PDF
       this.autorizacionesService.generatePdf(
         this.datosOperario,
-        formValues.valor,
-        formValues.valor,
+        valorNormal,
+        String(valorNormal),
         formValues.formaPago || '',
         formValues.celular || '',
         codigoOH,
-        cuotasAux,
-        "Mercado",
+        formValues.cuotas,
+        'Mercado',
         this.usuario.primer_nombre + ' ' + this.usuario.primer_apellido,
       );
 
     } catch (error) {
+      // 6. Manejo de errores global
       Swal.close();
       await Swal.fire({
         icon: 'error',
@@ -417,9 +417,6 @@ export class CargarMercadoFeriasComponent implements OnInit {
   }
 
 
-
-
-  // Función para buscar operario
   // Función para buscar operario
   buscarOperario() {
     // si cedula no es válida
@@ -535,38 +532,80 @@ export class CargarMercadoFeriasComponent implements OnInit {
     }
   }
 
-
-  updateValidators(comercio: string) {
-    const codigoComercioControl = this.myForm.get('codigoComercio');
-    const cantidadControl = this.myForm.get('cantidad');
-    const valorControl = this.myForm.get('valor');
-
-    if (comercio === 'si') {
-      codigoComercioControl?.setValidators([Validators.required]);
-      cantidadControl?.setValidators([Validators.required]);
-      valorControl?.clearValidators();
-      valorControl?.setValue('');
-    } else if (comercio === 'no') {
-      cantidadControl?.clearValidators();
-      codigoComercioControl?.clearValidators();
-      valorControl?.setValidators([Validators.required, this.currencyValidator]);
-    } else {
-      codigoComercioControl?.clearValidators();
-      cantidadControl?.clearValidators();
-      valorControl?.setValidators([Validators.required, this.currencyValidator]);
-    }
-
-    codigoComercioControl?.updateValueAndValidity();
-    cantidadControl?.updateValueAndValidity();
-    valorControl?.updateValueAndValidity();
-  }
-
-
-
-
   applyFilterInventario(event: Event) {
     const filterValue = (event.target as HTMLInputElement).value;
     this.dataSourceInventario.filter = filterValue.trim().toLowerCase();
   }
+
+  incrementarCantidad(element: any) {
+    if (!element.seleccionado) return; // Solo si está seleccionado
+
+    if (!element.cantidadSeleccionada) {
+      element.cantidadSeleccionada = 1; // La cantidad mínima es 1
+    } else {
+      element.cantidadSeleccionada++;
+    }
+
+    this.updateTotalValue();
+  }
+
+  decrementarCantidad(element: any) {
+    if (!element.seleccionado) return; // Solo si está seleccionado
+
+    if (element.cantidadSeleccionada && element.cantidadSeleccionada > 1) {
+      element.cantidadSeleccionada--;
+    }
+
+    this.updateTotalValue();
+  }
+
+  // Método para manejar la selección del checkbox
+  onProductSelectionChange(product: any, event: any) {
+    product.seleccionado = event.checked;
+
+    if (product.seleccionado) {
+      product.cantidadSeleccionada = 1; // La cantidad mínima es 1
+      if (!this.selectedProducts.includes(product)) {
+        this.selectedProducts.push(product);
+      }
+    } else {
+      product.cantidadSeleccionada = 0; // Resetear cantidad al desmarcar
+      this.selectedProducts = this.selectedProducts.filter(p => p !== product);
+    }
+
+    this.updateTotalValue();
+  }
+
+  // Actualiza el total en el campo 'valor' y lo formatea con separadores de miles
+  updateTotalValue() {
+    const total = this.selectedProducts.reduce((sum, product) =>
+      sum + (parseFloat(product.valorUnidad) * (product.cantidadSeleccionada || 0)), 0
+    );
+    // cuotas 2
+    if (this.selectedProducts.length > 0) {
+      this.myForm.get('cuotas')?.setValue(2);
+    } else {
+      this.myForm.get('cuotas')?.setValue('');
+    }
+
+    // Aplicar formato antes de asignar el valor
+    this.formatCurrencyFromNumber(total);
+  }
+
+  // Formatea el número al escribir en el input
+  formatCurrency(event: any) {
+    let value = event.target.value.replace(/\D/g, ""); // Elimina caracteres no numéricos
+    let numericValue = parseFloat(value) || 0;
+
+    this.formatCurrencyFromNumber(numericValue);
+  }
+
+  // Formatea el número y lo asigna al campo "valor"
+  formatCurrencyFromNumber(value: number) {
+    let formattedValue = new Intl.NumberFormat("es-CO").format(value);
+    this.myForm.get("valor")?.setValue(formattedValue, { emitEvent: false });
+  }
+
+
 
 }

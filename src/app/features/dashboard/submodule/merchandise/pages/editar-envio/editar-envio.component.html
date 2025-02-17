@@ -44,8 +44,8 @@
             formControlName="concepto"
             (selectionChange)="updateOtroConceptoValidator($event.value)"
           >
-            <mat-option *ngFor="let concepto of conceptos" [value]="concepto">
-              {{ concepto }}
+            <mat-option *ngFor="let concepto of conceptos" [value]="concepto.valor">
+              {{ concepto.valor }}
             </mat-option>
           </mat-select>
           <mat-error *ngIf="myForm.get('concepto')?.hasError('required')">
@@ -66,8 +66,8 @@
         <mat-form-field class="example-full-width">
           <mat-label>Seleccione una Sede</mat-label>
           <mat-select formControlName="sede">
-            <mat-option *ngFor="let sede of sedes" [value]="sede">
-              {{ sede }}
+            <mat-option *ngFor="let sede of sedes" [value]="sede.nombre">
+              {{ sede.nombre }}
             </mat-option>
           </mat-select>
           <mat-error *ngIf="myForm.get('sede')?.hasError('required')">
