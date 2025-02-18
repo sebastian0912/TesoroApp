@@ -17,7 +17,6 @@ import {
   takeUntil
 } from 'rxjs/operators';
 import { of, Observable, Subject } from 'rxjs';
-
 import { ComercializadoraService } from '../../../merchandise/service/comercializadora/comercializadora.service';
 import { MercadoService } from '../../service/mercado/mercado.service';
 import { AutorizacionesService } from '../../../authorizations/services/autorizaciones/autorizaciones.service';
@@ -342,14 +341,18 @@ export class MercadoComercializadoraComponent implements OnInit, OnDestroy {
         return;
       }
 
-      if (this.rolUsuario !== "GERENCIA" && !this.autorizacionesService.verificarCondiciones(this.datosOperario, valorTotal, this.sumaPrestamos, "mercado")) {
-        Swal.fire({
-          icon: 'error',
-          title: 'Oops...',
-          text: 'No se cumplen las condiciones de verificación para el monto',
-        });
-        return;
+      if (this.rolUsuario != "GERENCIA") {
+        if (!this.autorizacionesService.verificarCondiciones(this.datosOperario, valorTotal, this.sumaPrestamos, "mercado")) {
+          await Swal.fire({
+            icon: 'error',
+            title: 'Oops...',
+            text: 'No se cumplen las condiciones de verificación para el monto',
+          });
+          return;
+        }
+
       }
+
 
       // ✅ Actualizar inventario de manera asincrónica
       try {

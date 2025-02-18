@@ -22,11 +22,8 @@ export class TesoreriaService {
   async añadirEmpleado(
     datos: any
   ): Promise<any> {
-
-
     const urlcompleta = `${this.apiUrl}/Datosbase/datosbase`;
-
-
+    
     const requestBody = {
       datos,
       mensaje: "muchos",
@@ -201,6 +198,20 @@ export class TesoreriaService {
 
     return this.http.get(`${this.apiUrl}/Historial/informeFecha`, { params })
       .pipe(catchError(this.handleError));
+  }
+
+  // tesoreria/cambioEstado
+  async actualizarEstadoQuincena(estado: boolean): Promise<any> {
+    const url = `${this.apiUrl}/usuarios/tesoreria/cambioEstado`;
+
+    return firstValueFrom(
+      this.http.post(url, { estado }).pipe(
+        catchError(error => {
+          console.error('Error cambiando estado:', error);
+          throw error;
+        })
+      )
+    );
   }
 
 

@@ -1,12 +1,13 @@
 import { TesoreriaService } from '@/app/features/dashboard/service/teroreria/tesoreria.service';
 import { UtilityServiceService } from '@/app/shared/services/utilityService/utility-service.service';
 import { SharedModule } from '@/app/shared/shared.module';
-import { Component, OnInit, ViewChild } from '@angular/core';
+import { ChangeDetectorRef, Component, OnInit, ViewChild } from '@angular/core';
 import Swal from 'sweetalert2';
 import { MatTableDataSource } from '@angular/material/table';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatPaginator, MatPaginatorModule } from '@angular/material/paginator';
 import { MatSort, MatSortModule } from '@angular/material/sort';
+import { LoginService } from '@/app/features/auth/service/login.service';
 
 @Component({
   selector: 'app-manage-workers',
@@ -28,14 +29,33 @@ export class ManageWorkersComponent implements OnInit {
   // ViewChild para el paginator y sort
   @ViewChild(MatPaginator) paginator!: MatPaginator;
   @ViewChild(MatSort) sort!: MatSort;
-
+  showInactive = false;
   constructor(
     private tesoreriaService: TesoreriaService,
-    private utilityService: UtilityServiceService
+    private utilityService: UtilityServiceService,
+    private loginService: LoginService,
+    private cdr: ChangeDetectorRef // 🔹 Importar para forzar actualización de la vista
+
   ) { }
 
   ngOnInit(): void {
     this.getWorkers();
+
+    this.loginService.getUser().then((user) => {
+      this.showInactive = user.estadoquincena;
+      // Forzar actualización de la vista para reflejar el estado en el toggle
+      this.cdr.detectChanges();
+    });
+  }
+
+  toggleShowInactive(event: any) {
+    this.showInactive = event.checked; // 🔹 Captura el cambio del toggle
+    console.log("Nuevo estado:", this.showInactive);
+    this.tesoreriaService.actualizarEstadoQuincena(this.showInactive).then(() => {
+      console.log("Estado actualizado en la base de datos");
+    });
+
+    // Aquí podrías enviar este estado al backend si es necesario
   }
 
   ngAfterViewInit(): void {

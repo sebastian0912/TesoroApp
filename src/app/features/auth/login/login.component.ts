@@ -194,6 +194,15 @@ export class LoginComponent implements OnInit {
                     user.permissions = permissions;
                   });
                 localStorage.setItem('user', JSON.stringify(user));
+                // Si estadoquincena es false y no es rol ADMIN O TESORERIA
+                if (!user.estadoquincena && user.rol !== 'ADMIN' && user.rol !== 'TESORERIA' && user.rol !== 'TRASLADOS') {
+                  Swal.fire({
+                    icon: 'warning',
+                    title: 'Cierre de quincena',
+                    text: 'Tesoreria esta realizando los cierres de quincena, por favor intente más tarde, para mas información comuniquese con el área de tesoreria (Deiby)',
+                  });
+                  return;
+                }
                 this.router.navigate(['/dashboard']);
               });
             }

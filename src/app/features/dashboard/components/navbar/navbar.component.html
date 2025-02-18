@@ -21,7 +21,7 @@
         <p>Home</p>
       </a>
     </li>
-    
+
     <ng-container *ngFor="let menu of dynamicMenus">
       <li *ngIf="menuHasSubMenus(menu)" class="label-menu">
         <a (click)="toggleMenu(menu.key)" [ngClass]="{ active: menuState[menu.key] }">
@@ -36,7 +36,7 @@
             <li *ngFor="let subMenu of menu.subMenus">
               <ng-container *ngIf="hasPermission(subMenu.permission)">
                 <a *ngIf="subMenu.route; else actionTemplate" [routerLink]="subMenu.route"
-                  [ngClass]="{ active: isActive(subMenu.route) }" (click)="closeSidebar()" class="sub-menu-link">
+                  [ngClass]="{ active: isActive(subMenu.route) }" (click)="handleSubMenuClick(subMenu.route)" class="sub-menu-link">
                   {{ subMenu.label }}
                 </a>
                 <ng-template #actionTemplate>

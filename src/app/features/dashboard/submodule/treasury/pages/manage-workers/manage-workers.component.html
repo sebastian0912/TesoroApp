@@ -2,10 +2,19 @@
   <mat-card-content>
     <h1 class="titulo">Lista de Trabajadores</h1>
 
+
     <mat-form-field class="filtro">
       <mat-label>Buscar</mat-label>
-      <input matInput (keyup)="applyFilter($event)" placeholder="Buscar por número de cedula o codigo contrato" #input />
+      <input matInput (keyup)="applyFilter($event)" placeholder="Buscar por número de cedula o codigo contrato"
+        #input />
     </mat-form-field>
+
+    <!--Slide-toggle-->
+    <mat-slide-toggle class="slide-toggle" [checked]="showInactive" (change)="toggleShowInactive($event)"
+      style="margin-left: 20pt;">
+      Bloquear Trabajadores
+    </mat-slide-toggle>
+
 
     <div class="table-container">
       <table mat-table [dataSource]="dataSource" class="mat-elevation-z8" matSort>
@@ -136,7 +145,7 @@
         <!-- Anticipo Liquidación -->
         <ng-container matColumnDef="anticipoLiquidacion">
           <th mat-header-cell *matHeaderCellDef mat-sort-header>Anticipo Liquidación</th>
-          <td mat-cell *matCellDef="let element">{{ element.anticipoLiquidacion  }}</td>
+          <td mat-cell *matCellDef="let element">{{ element.anticipoLiquidacion }}</td>
         </ng-container>
 
         <!-- Cuentas -->

@@ -13,6 +13,7 @@ import { MercadoService } from '../../submodule/market/service/mercado/mercado.s
 import Swal from 'sweetalert2';
 import * as XLSX from 'xlsx';
 import moment from 'moment';
+import { LoginService } from '@/app/features/auth/service/login.service';
 
 @Component({
   selector: 'app-navbar',
@@ -41,6 +42,7 @@ export class NavbarComponent implements OnInit {
     private utilityService: UtilityServiceService,
     private autorizacionesService: AutorizacionesService,
     private mercadoService: MercadoService,
+    private loginService: LoginService,
     private dialog: MatDialog
   ) { }
 
@@ -115,6 +117,18 @@ export class NavbarComponent implements OnInit {
     setTimeout(() => {
       this.isSidebarHidden = false;
     }, 200);
+  }
+
+  handleSubMenuClick(route: string) {
+    this.loginService.getUser().then((user) => {
+      if (!user.estadoquincena && user.rol !== 'ADMIN' && user.rol !== 'TESORERIA' && user.rol !== 'TRASLADOS') {
+        localStorage.clear();
+        this.router.navigate(['']); // Redirige al inicio si no tiene permiso
+      } else {
+        this.router.navigate([route]); // Navega a la ruta
+        this.closeSidebar(); // Cierra la barra solo si tiene acceso
+      }
+    });
   }
 
   toggleMenu(key: string): void {

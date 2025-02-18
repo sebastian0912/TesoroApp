@@ -197,12 +197,6 @@ export class CargarMercadoFeriasComponent implements OnInit {
           'mercado'
         );
         if (!verifica) {
-          Swal.close();
-          await Swal.fire({
-            icon: 'error',
-            title: 'Oops...',
-            text: 'No se cumplen las condiciones de verificación para el monto',
-          });
           return;
         }
       }
