@@ -48,33 +48,10 @@
               }}</mat-option>
           </mat-select>
           <mat-error *ngIf="myForm.get('concepto')?.hasError('required')">
-            Seleccione una forma de pago
+            Seleccione un concepto
           </mat-error>
         </mat-form-field>
 
-        <mat-form-field class="example-full-width">
-          <mat-label>Seleccione una Forma Pago</mat-label>
-          <mat-select formControlName="formaPago" (selectionChange)="onFormaPagoChange($event)">
-            <mat-option value="Daviplata">Daviplata</mat-option>
-            <mat-option value="Efectivo">Efectivo</mat-option>
-            <mat-option value="Master">Mastercard</mat-option>
-            <mat-option value="Otro">Otro</mat-option>
-          </mat-select>
-          <mat-error *ngIf="myForm.get('formaPago')?.hasError('required')">
-            Seleccione una forma de pago
-          </mat-error>
-        </mat-form-field>
-
-        <mat-form-field class="example-full-width">
-          <mat-label>{{ celularLabel }}</mat-label>
-          <input matInput formControlName="celular" />
-          <mat-error *ngIf="myForm.get('celular')?.hasError('required')">
-            El número de celular es requerido
-          </mat-error>
-          <mat-error *ngIf="myForm.get('celular')?.hasError('pattern')">
-            El número de celular debe tener 10 dígitos
-          </mat-error>
-        </mat-form-field>
 
         <button mat-flat-button type="submit" class="boton" [disabled]="myForm.invalid"
           style="margin-top: 2pt; margin-bottom: 15pt;">

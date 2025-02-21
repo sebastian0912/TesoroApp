@@ -23,7 +23,7 @@ export class TesoreriaService {
     datos: any
   ): Promise<any> {
     const urlcompleta = `${this.apiUrl}/Datosbase/datosbase`;
-    
+
     const requestBody = {
       datos,
       mensaje: "muchos",
@@ -52,7 +52,14 @@ export class TesoreriaService {
     );
   }
 
-  async actualizarEstado(numero_de_documento: string, cambios: { bloqueado?: boolean; activo?: boolean; fechaBloqueo?: string | null }): Promise<any> {
+  async actualizarEstado(numero_de_documento: string, cambios: {
+    bloqueado?: boolean;
+    activo?: boolean;
+    fechaBloqueo?: string | null;
+    fechaDesbloqueo?: string | null;
+    observacion_bloqueo?: string;
+    observacion_desbloqueo?: string;
+  }): Promise<any> {
     const url = `${this.apiUrl}/Datosbase/actualizar-estados/${numero_de_documento}/`;
 
     return firstValueFrom(
@@ -64,6 +71,7 @@ export class TesoreriaService {
       )
     );
   }
+
 
 
 

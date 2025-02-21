@@ -42,6 +42,9 @@ export class ManageWorkersComponent implements OnInit {
     this.getWorkers();
 
     this.loginService.getUser().then((user) => {
+      if (!user) {
+        return;
+      }
       this.showInactive = user.estadoquincena;
       // Forzar actualización de la vista para reflejar el estado en el toggle
       this.cdr.detectChanges();
@@ -50,9 +53,7 @@ export class ManageWorkersComponent implements OnInit {
 
   toggleShowInactive(event: any) {
     this.showInactive = event.checked; // 🔹 Captura el cambio del toggle
-    console.log("Nuevo estado:", this.showInactive);
     this.tesoreriaService.actualizarEstadoQuincena(this.showInactive).then(() => {
-      console.log("Estado actualizado en la base de datos");
     });
 
     // Aquí podrías enviar este estado al backend si es necesario
@@ -120,16 +121,55 @@ export class ManageWorkersComponent implements OnInit {
   }
 
 
-  async toggleEstado(worker: any, tipo: 'bloqueado' | 'activo') {
+  async toggleEstado(worker: any, tipo: 'bloqueado' | 'activo'): Promise<void> {
     const nuevoEstado = !worker[tipo]; // Invertir el estado antes de enviarlo
-    const cambios: { bloqueado?: boolean; activo?: boolean; fechaBloqueo?: string | null } = {
+    let observacion = '';
+
+    // Solo pedir observación si se está BLOQUEANDO o DESBLOQUEANDO
+    if (tipo === 'bloqueado') {
+      const { value: comentario } = await Swal.fire({
+        title: nuevoEstado ? 'Motivo del bloqueo' : 'Motivo del desbloqueo',
+        input: 'textarea',
+        inputPlaceholder: 'Escribe una observación...',
+        showCancelButton: true,
+        confirmButtonText: 'Guardar',
+        cancelButtonText: 'Cancelar',
+        inputValidator: (value) => {
+          if (!value) {
+            return 'Debes escribir una observación';
+          }
+          return null; // Evita el error de TypeScript
+        }
+      });
+
+      if (comentario === undefined) {
+        return; // Si el usuario cancela, no hacer nada
+      }
+
+      observacion = comentario;
+    }
+
+    const cambios: {
+      bloqueado?: boolean;
+      activo?: boolean;
+      fechaBloqueo?: string | null;
+      fechaDesbloqueo?: string | null;
+      observacion_bloqueo?: string;
+      observacion_desbloqueo?: string;
+    } = {
       [tipo]: nuevoEstado,
     };
 
-    // Si es bloqueo, también actualizamos la fecha
+    // Si es un bloqueo, agregamos la fecha y la observación
     if (tipo === 'bloqueado') {
-      cambios.fechaBloqueo = nuevoEstado ? new Date().toISOString() : null;
-      console.log(cambios.fechaBloqueo)
+      if (nuevoEstado) {
+        cambios.fechaBloqueo = new Date().toISOString();
+        cambios.observacion_bloqueo = observacion; // Guardar observación del bloqueo
+      } else {
+        cambios.fechaBloqueo = null;
+        cambios.fechaDesbloqueo = new Date().toISOString();
+        cambios.observacion_desbloqueo = observacion; // Guardar observación del desbloqueo
+      }
     }
 
     try {
@@ -139,6 +179,7 @@ export class ManageWorkersComponent implements OnInit {
       worker[tipo] = nuevoEstado;
       if (tipo === 'bloqueado') {
         worker.fechaBloqueo = cambios.fechaBloqueo;
+        worker.fechaDesbloqueo = cambios.fechaDesbloqueo;
       }
 
       Swal.fire('Estado actualizado', `El estado de ${tipo} se ha actualizado correctamente`, 'success');
@@ -147,11 +188,15 @@ export class ManageWorkersComponent implements OnInit {
       worker[tipo] = !nuevoEstado;
       if (tipo === 'bloqueado') {
         worker.fechaBloqueo = !nuevoEstado ? null : worker.fechaBloqueo;
+        worker.fechaDesbloqueo = !nuevoEstado ? worker.fechaDesbloqueo : null;
       }
 
       Swal.fire('Error', `No se pudo actualizar el estado de ${tipo}`, 'error');
     }
   }
+
+
+
 
 
 

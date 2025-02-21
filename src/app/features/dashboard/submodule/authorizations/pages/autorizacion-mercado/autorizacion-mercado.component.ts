@@ -21,8 +21,6 @@ export class AutorizacionMercadoComponent implements OnInit {
   nombreOperario: string = '';
   sumaPrestamos: number = 0;
   showValor = false;
-  showCuotas = false;
-  celularLabel = 'Número';
   user: any;
   rolUsuario: string = '';
   correoUsuario: string = '';
@@ -44,19 +42,8 @@ export class AutorizacionMercadoComponent implements OnInit {
     this.myForm = this.fb.group({
       cedula: ['', Validators.required],
       valor: ['', [Validators.required, this.currencyValidator]],
-      formaPago: ['', Validators.required],
-      celular: ['']
     });
 
-    this.myForm.get('formaPago')?.valueChanges.subscribe(value => {
-      const celularControl = this.myForm.get('celular');
-      if (value === 'Daviplata' || value === 'Master') {
-        celularControl?.setValidators([Validators.required, Validators.pattern(/^\d{10}$/)]);
-      } else {
-        celularControl?.clearValidators();
-      }
-      celularControl?.updateValueAndValidity();
-    });
   }
 
   formatCurrency(event: any) {
@@ -80,12 +67,6 @@ export class AutorizacionMercadoComponent implements OnInit {
     });
   }
 
-  private trimField(fieldName: string) {
-    const control = this.myForm.get(fieldName);
-    if (control && control.value && typeof control.value === 'string') {
-      control.setValue(control.value.trim());
-    }
-  }
 
   // Función para enviar el formulario
   async onSubmit() {
@@ -274,16 +255,5 @@ export class AutorizacionMercadoComponent implements OnInit {
 
 
 
-  onFormaPagoChange(event: any) {
-    const formaPago = event.value;
-    if (formaPago === "Daviplata") {
-      this.celularLabel = "Número de Daviplata";
-    } else if (formaPago === "Master") {
-      this.celularLabel = "Número de tarjeta Master";
-    } else if (formaPago === "Efectivo") {
-      this.celularLabel = "Número";
-    } else {
-      this.celularLabel = "Número de cuenta";
-    }
-  }
+
 }

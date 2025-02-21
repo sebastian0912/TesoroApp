@@ -271,6 +271,13 @@ export class AutorizacionPrestamoComponent implements OnInit {
             Swal.fire({ icon: 'error', title: 'Saldo pendiente', text: 'El empleado con la cédula proporcionada tiene saldos pendientes mayores a $175.000 y no puede solicitar autorizaciones.' });
             return;
           }
+
+
+          if (!this.autorizacionesService.verificarFondos(this.datosOperario)) {
+            this.datosOperario = null;
+            Swal.fire({ icon: 'error', title: 'Pertene Fondo', text: 'El empleado con la cédula proporcionada pertenece al fondo no puede solicitar autorizaciones.' });
+            return;
+          }
         }
       },
       (error: any) => {

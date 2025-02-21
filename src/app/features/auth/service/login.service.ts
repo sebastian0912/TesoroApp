@@ -37,14 +37,18 @@ export class LoginService {
   // Traer usuario
   async getUser(): Promise<any> {
     const token = this.getToken();
-    const headers = new HttpHeaders().set(
-      'Authorization',
-      token ? `${token}` : ''
-    );
+
+    // 🚨 Si no hay token, detener la ejecución y retornar null
+    if (!token) {
+      return null;
+    }
+    const headers = new HttpHeaders().set('Authorization', `${token}`);
+
     return await firstValueFrom(
       this.http.get(`${this.apiUrl}/usuarios/usuario`, { headers })
     );
   }
+
 
   // permisos/<str:username>/
   async getPermissions(username: string): Promise<any> {

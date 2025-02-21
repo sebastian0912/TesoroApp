@@ -1,14 +1,13 @@
 import { HttpInterceptorFn } from '@angular/common/http';
+import { HttpRequest, HttpHandlerFn, HttpEvent } from '@angular/common/http';
 import { Observable } from 'rxjs';
-import { HttpRequest, HttpEvent } from '@angular/common/http';
 
-export const interceptor: HttpInterceptorFn = (req: HttpRequest<any>, next: any): Observable<HttpEvent<any>> => {
+export const interceptor: HttpInterceptorFn = (req: HttpRequest<any>, next: HttpHandlerFn): Observable<HttpEvent<any>> => {
   // Detectar si estamos en un entorno de navegador
   const isBrowser = typeof window !== 'undefined' && typeof localStorage !== 'undefined';
 
-  // Si estamos en SSR, dejar pasar la petición sin modificar
   if (!isBrowser) {
-    return next(req);
+    return next(req); // NO usar .handle(req)
   }
 
   // Obtener el token JWT del localStorage
@@ -24,18 +23,18 @@ export const interceptor: HttpInterceptorFn = (req: HttpRequest<any>, next: any)
   const isExcluded = excludedUrls.some(url => req.url.includes(url));
 
   if (isExcluded) {
-    return next(req);
+    return next(req); // NO usar .handle(req)
   }
 
   // Si no hay token, permitir la petición pero mostrar advertencia
   if (!jwtToken) {
-    return next(req);
+    return next(req); // NO usar .handle(req)
   }
 
-  // Clonar la solicitud y agregar el token en los headers
+  // Clonar la solicitud y agregar el token con el prefijo "Bearer"
   const modifiedReq = req.clone({
     headers: req.headers.set('Authorization', `${jwtToken}`)
   });
 
-  return next(modifiedReq);
+  return next(modifiedReq); // NO usar .handle(req)
 };

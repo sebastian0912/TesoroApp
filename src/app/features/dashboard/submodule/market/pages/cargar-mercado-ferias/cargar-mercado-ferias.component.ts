@@ -75,9 +75,6 @@ export class CargarMercadoFeriasComponent implements OnInit {
       cuotas: ['', [Validators.min(1), Validators.max(2)]],
       valor: ['', [Validators.required, this.currencyValidator]],
       concepto: [''],
-      otroConcepto: [''],
-      formaPago: ['', Validators.required],
-      celular: [''],
     });
   }
 
@@ -513,18 +510,6 @@ export class CargarMercadoFeriasComponent implements OnInit {
     );
   }
 
-  onFormaPagoChange(event: any) {
-    const formaPago = event.value;
-    if (formaPago === "Daviplata") {
-      this.celularLabel = "Número de Daviplata";
-    } else if (formaPago === "Master") {
-      this.celularLabel = "Número de tarjeta Master";
-    } else if (formaPago === "Efectivo") {
-      this.celularLabel = "Número";
-    } else {
-      this.celularLabel = "Número de cuenta";
-    }
-  }
 
   applyFilterInventario(event: Event) {
     const filterValue = (event.target as HTMLInputElement).value;
