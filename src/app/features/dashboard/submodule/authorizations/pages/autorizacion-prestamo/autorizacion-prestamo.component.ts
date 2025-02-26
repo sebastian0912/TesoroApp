@@ -24,6 +24,7 @@ export class AutorizacionPrestamoComponent implements OnInit {
   celularLabel = 'Número';
   user: any;
   rolUsuario: string = '';
+  fechaIngreso: string = '';
 
   constructor(
     private fb: FormBuilder,
@@ -247,6 +248,7 @@ export class AutorizacionPrestamoComponent implements OnInit {
 
         this.datosOperario = data.datosbase[0];
         this.nombreOperario = `${this.datosOperario.nombre} `;
+        this.fechaIngreso = this.datosOperario.ingreso;
 
         if (!this.datosOperario.activo) {
           this.datosOperario = null;

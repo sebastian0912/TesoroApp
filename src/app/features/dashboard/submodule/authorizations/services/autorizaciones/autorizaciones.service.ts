@@ -84,14 +84,28 @@ export class AutorizacionesService {
       return false;
     }
 
-    if (!operario.ingreso || !/^\d{2}-\d{2}-\d{2}$/.test(operario.ingreso)) {
+    if (!operario.ingreso || !/^(\d{4}\/\d{2}\/\d{2}|\d{1,2}-\d{1,2}-\d{2})$/.test(operario.ingreso)) {
       this.aviso('Formato de fecha inválido en ingreso', 'error');
       return false;
     }
 
-    const [dia, mes, anio] = operario.ingreso.split('-');
-    const anioConvertido = parseInt(`20${anio}`, 10);
-    const fechaIngreso = new Date(anioConvertido, parseInt(mes, 10) - 1, parseInt(dia, 10));
+    let dia: number, mes: number, anio: number;
+    if (operario.ingreso.includes('/')) {
+      // Formato YYYY/MM/DD
+      const [anioStr, mesStr, diaStr] = operario.ingreso.split('/');
+      anio = parseInt(anioStr, 10);
+      mes = parseInt(mesStr, 10);
+      dia = parseInt(diaStr, 10);
+    } else {
+      // Formato D-M-YY o DD-MM-YY
+      const [diaStr, mesStr, anioStr] = operario.ingreso.split('-');
+      dia = parseInt(diaStr, 10);
+      mes = parseInt(mesStr, 10);
+      anio = parseInt(anioStr, 10);
+      anio = anio < 100 ? 2000 + anio : anio; // Convertir YY a YYYY
+    }
+
+    const fechaIngreso = new Date(anio, mes - 1, dia);
     const fechaActual = new Date();
 
     const diferenciaEnMilisegundos = fechaActual.getTime() - fechaIngreso.getTime();
@@ -104,20 +118,20 @@ export class AutorizacionesService {
     }
 
     if (tipo === 'mercado') {
-      if ((dia >= '11' && dia <= '15' && fechaActual.getDate() < 20 && mes == fechaActual.getMonth() + 1) ||
-        (dia >= '26' && dia <= '30' && fechaActual.getDate() < 5 && mes == fechaActual.getMonth())) {
+      if ((dia >= 11 && dia <= 15 && fechaActual.getDate() < 20 && mes == fechaActual.getMonth() + 1) ||
+        (dia >= 26 && dia <= 30 && fechaActual.getDate() < 5 && mes == fechaActual.getMonth())) {
         this.aviso('No puedes solicitar mercado aún, debes esperar la fecha permitida', 'error');
         return false;
       }
 
       let limite = 0;
-      if (diasTrabajados >= 8 && diasTrabajados < 15) {
+      if (diasTrabajados >= 8 && diasTrabajados <= 15) {
         limite = 80000;
-      } else if (diasTrabajados >= 15 && diasTrabajados < 30) {
+      } else if (diasTrabajados >= 16 && diasTrabajados <= 30) {
         limite = 150000;
-      } else if (diasTrabajados >= 30 && diasTrabajados < 45) {
+      } else if (diasTrabajados >= 31 && diasTrabajados <= 45) {
         limite = 230000;
-      } else if (diasTrabajados >= 45) {
+      } else if (diasTrabajados >= 46) {
         limite = 350000;
       }
 
@@ -152,15 +166,15 @@ export class AutorizacionesService {
         return false;
       }
 
-      // si el nuevo valor, + saldo es mayor a 250.000
       if (nuevovalor + sumaTotal > 250000) {
-        this.aviso('Ups no se pueden generar préstamos, el saldo pendiente supera los 250.000 puede sacar' + (250000 - sumaTotal), 'error');
+        this.aviso('Ups no se pueden generar préstamos, el saldo pendiente supera los 250.000 puede sacar ' + (250000 - sumaTotal), 'error');
         return false;
       }
       return true;
     }
     return false;
   }
+
 
 
 

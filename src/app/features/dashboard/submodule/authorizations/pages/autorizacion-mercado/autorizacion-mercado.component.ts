@@ -24,6 +24,7 @@ export class AutorizacionMercadoComponent implements OnInit {
   user: any;
   rolUsuario: string = '';
   correoUsuario: string = '';
+  fechaIngreso: string = '';
 
   constructor(
     private fb: FormBuilder,
@@ -84,7 +85,7 @@ export class AutorizacionMercadoComponent implements OnInit {
     const formValues = { ...this.myForm.value, valor: this.myForm.value.valor.replace(/\D/g, '') };
     this.sumaPrestamos = this.autorizacionesService.traerSaldoPendiente(this.datosOperario);
 
-    if (this.correoUsuario != "lola@gmail.com" && this.rolUsuario != "GERENCIA") {
+    if (this.rolUsuario != "GERENCIA") {
       if (!this.autorizacionesService.verificarCondiciones(this.datosOperario, parseInt(formValues.valor), this.sumaPrestamos, "mercado")) {
         return;
       }
@@ -215,6 +216,7 @@ export class AutorizacionMercadoComponent implements OnInit {
 
         this.datosOperario = data.datosbase[0];
         this.nombreOperario = `${this.datosOperario.nombre} `;
+        this.fechaIngreso = this.datosOperario.ingreso;
 
         if (!this.datosOperario.activo) {
           this.datosOperario = null;

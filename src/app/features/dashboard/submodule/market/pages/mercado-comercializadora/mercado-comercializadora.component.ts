@@ -14,7 +14,8 @@ import {
   debounceTime,
   distinctUntilChanged,
   switchMap,
-  takeUntil
+  takeUntil,
+  tap
 } from 'rxjs/operators';
 import { of, Observable, Subject } from 'rxjs';
 import { ComercializadoraService } from '../../../merchandise/service/comercializadora/comercializadora.service';
@@ -52,6 +53,7 @@ export class MercadoComercializadoraComponent implements OnInit, OnDestroy {
   rolUsuario: string = '';
   correoUsuario: string = '';
   private destroy$ = new Subject<void>();
+  fechaIngreso: string = '';
 
   constructor(
     private fb: FormBuilder,
@@ -99,17 +101,20 @@ export class MercadoComercializadoraComponent implements OnInit, OnDestroy {
   private setupFormValueChanges() {
     this.myForm.get('cedula')?.valueChanges
       .pipe(
-        debounceTime(1000),
-        distinctUntilChanged(),
-        switchMap(value => {
-          this.trimField('cedula');
-          return this.buscarOperario(value);
+        takeUntil(this.destroy$),
+        tap(() => {
+          // Limpiar la tabla de códigos al cambiar la cédula
+          this.codigosFormArray.clear();
+          this.dataSource.data = this.codigosFormArray.controls;
         }),
-        catchError(() => of(null)),
-        takeUntil(this.destroy$)
+        debounceTime(1500),
+        distinctUntilChanged(),
+        tap(() => this.trimField('cedula')),
+        switchMap(value => this.buscarOperario(value)),
+        catchError(() => of(null))
       )
       .subscribe((result: any) => {
-        Swal.close(); // cierra la alerta de carga
+        Swal.close(); // Cierra la alerta de carga
 
         if (!result || result.datosbase === 'No se encontró el registro para el ID proporcionado') {
           this.datosOperario = null;
@@ -119,9 +124,10 @@ export class MercadoComercializadoraComponent implements OnInit, OnDestroy {
 
         // Si el resultado es correcto:
         this.datosOperario = result.datosbase[0];
-        this.nombreOperario = `${this.datosOperario.nombre} `;
+        this.nombreOperario = `${this.datosOperario.nombre}`;
+        this.fechaIngreso = this.datosOperario.ingreso;
 
-        // Validaciones extras
+        // Validaciones adicionales
         if (!this.datosOperario.activo) {
           this.datosOperario = null;
           this.mostrarError('El empleado se encuentra retirado y no puede solicitar autorizaciones.');
@@ -134,39 +140,33 @@ export class MercadoComercializadoraComponent implements OnInit, OnDestroy {
           return;
         }
 
-        // Cargamos las autorizaciones activas:
+        // Cargar autorizaciones activas
         this.autorizacionesService
           .traerAutorizacionesActivasOperario(this.datosOperario.numero_de_documento)
           .then((data: any) => {
-            // "data.codigo" es un array con los objetos {codigo, cuotas, monto, ...}
-            // Limpiamos el FormArray "codigos"
             this.codigosFormArray.clear();
-            // Por cada item, creamos un FormGroup y lo añadimos al FormArray
             data.codigo.forEach((item: any) => {
               const grupo = this.fb.group({
                 codigo: [item.codigo],
                 cuotas: [item.cuotas],
                 monto: [item.monto],
-                seleccionado: [false], // checkbox
+                seleccionado: [false], // Checkbox
                 historial_id: [item.historial_id],
               });
               this.codigosFormArray.push(grupo);
             });
-
-            // Asignamos los controles al dataSource
             this.dataSource.data = this.codigosFormArray.controls;
           });
 
-        // Si no es GERENCIA, verificamos saldo
-        if (this.rolUsuario !== 'GERENCIA') {
-          if (!this.autorizacionesService.verificarSaldo(this.datosOperario)) {
-            this.datosOperario = null;
-            this.mostrarError('El operario tiene saldos pendientes mayores a 175000.');
-            return;
-          }
+        // Verificar saldo si el usuario no es GERENCIA
+        if (this.rolUsuario !== 'GERENCIA' && !this.autorizacionesService.verificarSaldo(this.datosOperario)) {
+          this.datosOperario = null;
+          this.mostrarError('El operario tiene saldos pendientes mayores a 175000.');
+          return;
         }
       });
   }
+
 
   private loadProductos() {
     this.utilityServiceService.traerInventarioProductos().subscribe(
@@ -314,6 +314,15 @@ export class MercadoComercializadoraComponent implements OnInit, OnDestroy {
         this.mostrarError('Debe seleccionar al menos un producto para continuar.');
         return;
       }
+      // que la cantidadseleccionada sea menor o igual a cantidadrecibida
+      const cantidadSeleccionadaInvalida = inventarioSeleccionados.some(
+        (item: any) => item.cantidadSeleccionada + item.cantidadTotalVendida > item.cantidadRecibida
+      );
+
+      if (cantidadSeleccionadaInvalida) {
+        this.mostrarError('La cantidad seleccionada no puede ser mayor a la cantidad recibida.');
+        return;
+      }
 
       this.sumaPrestamos = this.autorizacionesService.traerSaldoPendiente(this.datosOperario);
       const codigoMOH = 'MOH' + Math.floor(Math.random() * 1000000);
@@ -411,6 +420,8 @@ export class MercadoComercializadoraComponent implements OnInit, OnDestroy {
           text: 'Hubo un problema con alguna autorización. Revise los detalles en consola.',
         });
       }
+
+
 
     } catch (error) {
       console.error('Error inesperado en onSubmit:', error);

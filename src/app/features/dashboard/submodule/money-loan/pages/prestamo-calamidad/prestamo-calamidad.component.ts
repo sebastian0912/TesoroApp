@@ -27,6 +27,7 @@ export class PrestamoCalamidadComponent implements OnInit {
   rolUsuario: string = '';
   correoUsuario: string = '';
   private destroy$ = new Subject<void>();
+  fechaIngreso: string = '';
 
   constructor(
     private fb: FormBuilder,
@@ -73,6 +74,7 @@ export class PrestamoCalamidadComponent implements OnInit {
 
         this.datosOperario = result.datosbase[0];
         this.nombreOperario = `${this.datosOperario.nombre} `;
+        this.fechaIngreso = this.datosOperario.ingreso;
 
         // 🔴 Validar si el operario está inactivo (retirado)
         if (!this.datosOperario.activo) {

@@ -49,8 +49,8 @@ export class HomeComponent implements OnInit {
     if (!this.user) return;
 
     this.general = this.user.rol !== 'GERENCIA' && this.user.rol !== 'TRASLADOS';
-    this.comercializadora = this.user.rol === 'COMERCIALIZADORA' || this.user.rol === 'ADMIN';
-    this.traslado = this.user.rol === 'TRASLADOS' || this.user.rol === 'ADMIN';
+    this.comercializadora = this.user.rol === 'COMERCIALIZADORA' || this.user.rol === 'ADMIN' || this.user.correo_electronico === 'tuafiliacion@tsservicios.co';
+    this.traslado = this.user.rol === 'TRASLADOS' || this.user.rol === 'ADMIN' || this.user.correo_electronico === 'tuafiliacion@tsservicios.co';
     this.admin = this.user.rol === 'GERENCIA' || this.user.rol === 'ADMIN';
   }
 

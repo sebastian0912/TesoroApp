@@ -89,13 +89,18 @@
           type="submit"
           class="boton"
           [disabled]="myForm.invalid"
+          style="margin-top: 2pt; margin-bottom: 10pt;"
         >
           Cargar
         </button>
 
         <h1 class="nombre">
-          <strong> Nombre Operario : </strong> {{ nombreOperario }}
+          <strong>Nombre Operario:  </strong>{{ nombreOperario }}
         </h1>
+        <h1 class="nombre">
+          <strong>Fecha ingreso: </strong>{{ fechaIngreso }}
+        </h1>
+
       </ng-container>
     </form>
   </mat-card-content>

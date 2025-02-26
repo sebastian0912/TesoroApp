@@ -28,6 +28,7 @@ export class CargarMercadoFeriasComponent implements OnInit {
   celularLabel = 'Número';
   productos: any[] = [];
   selectedProducts: any[] = []; // Productos seleccionados con checkbox
+  fechaIngreso: string = '';
 
   displayedColumnsInventario: string[] = [
     'select', 'cantidadSeleccionada',
@@ -185,8 +186,8 @@ export class CargarMercadoFeriasComponent implements OnInit {
       // 3.2 Calcular saldo pendiente del operario (si aplica en tu lógica)
       this.sumaPrestamos = this.autorizacionesService.traerSaldoPendiente(this.datosOperario);
 
-      // 3.3 Validar condiciones si no es GERENCIA ni "lola@gmail.com"
-      if (this.correoUsuario !== 'lola@gmail.com' && this.rolUsuario !== 'GERENCIA') {
+      // 3.3 Validar condiciones si no es GERENCIA
+      if (this.rolUsuario !== 'GERENCIA') {
         const verifica = this.autorizacionesService.verificarCondiciones(
           this.datosOperario,
           parseInt(formValues.valor),
@@ -455,6 +456,7 @@ export class CargarMercadoFeriasComponent implements OnInit {
 
         this.datosOperario = data.datosbase[0];
         this.nombreOperario = `${this.datosOperario.nombre} `;
+        this.fechaIngreso = this.datosOperario.ingreso;
 
         if (!this.datosOperario.activo) {
           this.datosOperario = null;

@@ -29,6 +29,7 @@ export class CargarMercadoComponent implements OnInit {
   correoUsuario: string = '';
   rolUsuario: string = '';
   private destroy$ = new Subject<void>();
+  fechaIngreso: string = '';
 
   constructor(
     private fb: FormBuilder,
@@ -85,6 +86,7 @@ export class CargarMercadoComponent implements OnInit {
 
         this.datosOperario = result.datosbase[0];
         this.nombreOperario = `${this.datosOperario.nombre} `;
+        this.fechaIngreso = this.datosOperario.ingreso;
 
         // 🔴 Validar si el operario está inactivo (retirado)
         if (!this.datosOperario.activo) {
@@ -217,7 +219,7 @@ export class CargarMercadoComponent implements OnInit {
         return;
       }
 
-      if (this.correoUsuario != "lola@gmail.com" && this.rolUsuario != "GERENCIA") {
+      if (this.rolUsuario != "GERENCIA") {
         if (!this.autorizacionesService.verificarCondiciones(this.datosOperario, parseInt(formValues.valor), this.sumaPrestamos, "mercado")) {
           return;
         }

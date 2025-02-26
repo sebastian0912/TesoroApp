@@ -91,7 +91,7 @@ export class HistorialAutorizacionesComponent implements OnInit {
               text: 'Este empleado no existe, esta retirado o no pertenece a la empresa',
             });
           }
-          if (!data.activo) {
+          if (data.activo == false) {
             Swal.fire({
               icon: 'error',
               title: 'Empleado retirado',
@@ -99,6 +99,7 @@ export class HistorialAutorizacionesComponent implements OnInit {
             });
             return;
           }
+          Swal.close();
         },
         (error: any) => {
           Swal.close();

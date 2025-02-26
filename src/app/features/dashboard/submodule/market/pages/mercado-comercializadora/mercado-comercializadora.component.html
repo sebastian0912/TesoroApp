@@ -14,7 +14,12 @@
           </mat-error>
         </mat-form-field>
 
-        <h1 class="nombre"><strong>Nombre Operario:</strong> {{ nombreOperario }}</h1>
+        <h1 class="nombre">
+          <strong>Nombre Operario:  </strong>{{ nombreOperario }}
+        </h1>
+        <h1 class="nombre">
+          <strong>Fecha ingreso: </strong>{{ fechaIngreso }}
+        </h1>
 
         <button mat-flat-button type="submit" class="boton comercializadora" [disabled]="myForm.invalid">
           Cargar
