@@ -12,8 +12,9 @@
     <!--Slide-toggle-->
     <mat-slide-toggle class="slide-toggle" [checked]="showInactive" (change)="toggleShowInactive($event)"
       style="margin-left: 20pt;">
-      Bloquear Trabajadores
+      {{ showInactive ? 'Desbloquear Trabajadores' : 'Bloquear Trabajadores' }}
     </mat-slide-toggle>
+
 
 
     <div class="table-container">

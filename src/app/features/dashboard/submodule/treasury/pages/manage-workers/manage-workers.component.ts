@@ -45,7 +45,7 @@ export class ManageWorkersComponent implements OnInit {
       if (!user) {
         return;
       }
-      this.showInactive = user.estadoquincena;
+      this.showInactive = !user.estadoquincena;
       // Forzar actualización de la vista para reflejar el estado en el toggle
       this.cdr.detectChanges();
     });
@@ -53,7 +53,7 @@ export class ManageWorkersComponent implements OnInit {
 
   toggleShowInactive(event: any) {
     this.showInactive = event.checked; // 🔹 Captura el cambio del toggle
-    this.tesoreriaService.actualizarEstadoQuincena(this.showInactive).then(() => {
+    this.tesoreriaService.actualizarEstadoQuincena(!this.showInactive).then(() => {
     });
 
     // Aquí podrías enviar este estado al backend si es necesario
