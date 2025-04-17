@@ -5,7 +5,7 @@
     <app-info-card title="Auto asignar traslados disponibles" imageUrl="icons/cards/delegar.png" style="cursor: pointer"
       [value]="numTrasladosResponsableNull" (cardClicked)="autoAsignar()"></app-info-card>
     <app-info-card title="Recargar traslados disponibles" imageUrl="icons/cards/loading-arrow.png"
-      style="cursor: pointer" (cardClicked)="cuantosTraslados()" *ngIf="istraslados18"></app-info-card>
+      style="cursor: pointer" (cardClicked)="cuantosTraslados()"></app-info-card>
   </div>
 
   <mat-card>
@@ -41,6 +41,14 @@
             <th mat-header-cell *matHeaderCellDef>Estado del Traslado</th>
             <td mat-cell *matCellDef="let element">
               {{ element.estado_del_traslado }}
+            </td>
+          </ng-container>
+
+          <!-- observacion_estado -->
+          <ng-container matColumnDef="observacion_estado">
+            <th mat-header-cell *matHeaderCellDef>Observación</th>
+            <td mat-cell *matCellDef="let element">
+              {{ element.observacion_estado }}
             </td>
           </ng-container>
 

@@ -258,7 +258,7 @@ export class NavbarComponent implements OnInit {
       const processedRows = (data as any[][]).map(row =>
         row.map((cell, index) => (index === 3 ? this.normalizeDate(cell) : cell))
       );
-
+      console.log(processedRows);
       // ✅ Guardar los datos procesados
       this.guardarDatos(processedRows);
 
@@ -299,6 +299,7 @@ export class NavbarComponent implements OnInit {
 
   private guardarDatos(datos: any[][]): void {
     this.tesoreriaService.añadirEmpleado(datos).then(response => {
+      console.log(response);
       this.handleResponse(response);
     }).catch(() => {
       this.showError('Ocurrió un error al guardar los datos.');
@@ -376,10 +377,10 @@ export class NavbarComponent implements OnInit {
           this.empleadosProblemas.push({ cedula, mensaje: "Error al consultar la base de datos" });
         }
       }
-
       for (const empleado of this.empleadosSinProblemas) {
         if (this.tesoreriaService.verificaInfo(empleado)) {
           try {
+
             await this.tesoreriaService.eliminarEmpleados(empleado.numero_de_documento);
           } catch (error) {
             this.empleadosProblemas.push({
@@ -441,7 +442,7 @@ export class NavbarComponent implements OnInit {
       }
     });
 
-    this.tesoreriaService.traerDatosbaseGeneral().then((response) => {
+    this.tesoreriaService.traerdatosbaseGeneral2().then((response) => {
       if (!response || response.length === 0) {
         Swal.close();
         this.showError('No hay datos disponibles para exportar.');

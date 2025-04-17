@@ -75,7 +75,8 @@ export class HomeComponent implements OnInit {
       usuarios: this.homeService.traerUsuarios().pipe(catchError(() => of([]))),
     }).subscribe(
       ({ empleados, usuarios }) => {
-        this.numeroempleados = empleados.datosbase.length;
+        this.numeroempleados = empleados.datosbase.filter((worker: any) => worker.activo).length;
+        
         this.numeroCoordinadores = this.homeService.contarRol(usuarios, 'COORDINADOR');
         this.numeroTiendas = this.homeService.contarRol(usuarios, 'TIENDA');
         Swal.close();

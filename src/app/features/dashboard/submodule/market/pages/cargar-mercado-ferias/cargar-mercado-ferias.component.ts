@@ -226,6 +226,19 @@ export class CargarMercadoFeriasComponent implements OnInit {
           .map((p) => `${p.concepto} (x${p.cantidadSeleccionada})`)
           .join(', ');
 
+        // verificar que la cantidad seleccionada + la cantidad total vendida no sea mayor a la cantidad recibida
+        for (const product of this.selectedProducts) {
+          if (parseInt(product.cantidadSeleccionada) + parseInt(product.cantidadTotalVendida) > parseInt(product.cantidadRecibida)) {
+            Swal.close();
+            await Swal.fire({
+              icon: 'error',
+              title: 'Oops...',
+              text: `La cantidad seleccionada para ${product.concepto} supera la cantidad disponible en inventario, por favor intente de nuevo.`,
+            });
+            return;
+          }
+        }
+
         // 4.2 Construir el mensaje final del concepto
         conceptoMOH = `Compra tienda de Ferias respecto a: ${conceptoProductos} en ${this.utilityServiceService.getUser().sucursalde}`;
 
@@ -255,7 +268,6 @@ export class CargarMercadoFeriasComponent implements OnInit {
 
         // 4.5 Actualizar inventario para cada producto seleccionado
         for (const product of this.selectedProducts) {
-          console.log('Actualizando inventario para', product);
           // cantidadSeleccionada tiene que ser string para la API
           product.cantidadSeleccionada = String(product.cantidadSeleccionada);
           await this.comercializadoraService

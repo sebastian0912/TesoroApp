@@ -1,6 +1,6 @@
 {
   "name": "tesoreria",
-  "version": "4.0.5",
+  "version": "4.2.5",
   "main": "app.js",
   "description": "Programa para control de prestamos a tesoreria",
   "author": "SebastianGuarnizoCampos",
@@ -39,7 +39,7 @@
     "start": "concurrently \"ng serve\" \"wait-on http://localhost:4200 && cross-env NODE_ENV=development electron .\"",
     "build": "ng build --configuration production",
     "watch": "ng build --watch --configuration development",
-    "start:electron": "concurrently \"ng serve --configuration=development --host 0.0.0.0 --port 4300\" \"wait-on http://localhost:4300 && cross-env NODE_ENV=development electron .\"",
+    "start:electron": "concurrently \"ng serve --configuration=development --host 0.0.0.0 --port 4400\" \"wait-on http://localhost:4400 && cross-env NODE_ENV=development electron .\"",
     "test": "ng test",
     "lint": "ng lint",
     "e2e": "ng e2e",

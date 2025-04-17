@@ -66,7 +66,7 @@ export class CargarMercadoComponent implements OnInit {
 
     this.myForm.get('cedula')?.valueChanges
       .pipe(
-        debounceTime(1000), // Espera 1 segundo después del último cambio
+        debounceTime(3000), // Espera 1 segundo después del último cambio
         distinctUntilChanged(), // Evita búsquedas innecesarias si el usuario escribe el mismo valor
         switchMap(value => {
           this.trimField('cedula');
@@ -180,7 +180,6 @@ export class CargarMercadoComponent implements OnInit {
 
     try {
       const formValues = { ...this.myForm.value, valor: this.myForm.value.valor.replace(/\D/g, '') };
-      console.log(this.datosOperario);
       this.sumaPrestamos = this.autorizacionesService.traerSaldoPendiente(this.datosOperario);
 
       // Buscar si el código ya existe
@@ -219,7 +218,7 @@ export class CargarMercadoComponent implements OnInit {
         return;
       }
 
-      if (this.rolUsuario != "GERENCIA") {
+      if (this.rolUsuario != "GERENCIA" && this.correoUsuario != "mercarflorats@gmail.com") {
         if (!this.autorizacionesService.verificarCondiciones(this.datosOperario, parseInt(formValues.valor), this.sumaPrestamos, "mercado")) {
           return;
         }

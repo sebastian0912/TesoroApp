@@ -30,6 +30,8 @@ export class ManageWorkersComponent implements OnInit {
   @ViewChild(MatPaginator) paginator!: MatPaginator;
   @ViewChild(MatSort) sort!: MatSort;
   showInactive = false;
+  numeroActivo = 0;
+
   constructor(
     private tesoreriaService: TesoreriaService,
     private utilityService: UtilityServiceService,
@@ -85,6 +87,9 @@ export class ManageWorkersComponent implements OnInit {
 
       if (response && Array.isArray(response)) {
         this.dataSource.data = response;
+        // cuantos estan con activo
+        
+        this.numeroActivo = response.filter((worker: any) => worker.activo).length;
       } else {
         this.dataSource.data = [];
       }

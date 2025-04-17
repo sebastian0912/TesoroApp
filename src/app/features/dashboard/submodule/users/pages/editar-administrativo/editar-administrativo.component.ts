@@ -59,12 +59,11 @@ export class EditarAdministrativoComponent implements OnInit {
           .filter(
             (user: any) =>
               user.rol !== 'EMPRESA' &&
-              user.rol !== 'TICKTOKER' &&
+              user.rol !== 'TICKTOKER' 
               // user.rol !== 'SIN-ASIGNAR' &&
-              user.rol !== 'TRASLADOS'
           )
           .sort((a: any, b: any) =>
-            a.primer_nombre.localeCompare(b.primer_nombre)
+            a.correo_electronico.localeCompare(b.correo_electronico)
           );
       }
       // Procesar roles si existen

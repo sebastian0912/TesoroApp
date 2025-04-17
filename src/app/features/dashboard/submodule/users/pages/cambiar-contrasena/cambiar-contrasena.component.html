@@ -1,0 +1,43 @@
+<mat-card>
+  <mat-card-content>
+    <form [formGroup]="myForm" (ngSubmit)="onSubmit()">
+      <h1 class="titulo">Digite el número de identificación del empleado a validar:</h1>
+
+      <mat-form-field class="example-full-width">
+        <mat-label>Antigua Contraseña</mat-label>
+        <input matInput [type]="hideOldPassword ? 'password' : 'text'" formControlName="oldPassword">
+        <button mat-icon-button matSuffix (click)="toggleOldPasswordVisibility()" type="button">
+          <mat-icon>{{ hideOldPassword ? 'visibility_off' : 'visibility' }}</mat-icon>
+        </button>
+        <mat-error *ngIf="myForm.get('oldPassword')?.hasError('required')">La antigua contraseña es
+          obligatoria</mat-error>
+      </mat-form-field>
+
+      <mat-form-field class="example-full-width">
+        <mat-label>Nueva Contraseña</mat-label>
+        <input matInput [type]="hideNewPassword ? 'password' : 'text'" formControlName="newPassword">
+        <button mat-icon-button matSuffix (click)="toggleNewPasswordVisibility()" type="button">
+          <mat-icon>{{ hideNewPassword ? 'visibility_off' : 'visibility' }}</mat-icon>
+        </button>
+        <mat-error *ngIf="myForm.get('newPassword')?.hasError('required')">La nueva contraseña es
+          obligatoria</mat-error>
+        <mat-error *ngIf="myForm.get('newPassword')?.hasError('minlength')">La nueva contraseña debe tener al menos 6
+          caracteres</mat-error>
+      </mat-form-field>
+
+      <mat-form-field class="example-full-width">
+        <mat-label>Confirmar Nueva Contraseña</mat-label>
+        <input matInput [type]="hideConfirmPassword ? 'password' : 'text'" formControlName="confirmNewPassword">
+        <button mat-icon-button matSuffix (click)="toggleConfirmPasswordVisibility()" type="button">
+          <mat-icon>{{ hideConfirmPassword ? 'visibility_off' : 'visibility' }}</mat-icon>
+        </button>
+        <mat-error *ngIf="myForm.get('confirmNewPassword')?.hasError('required')">Confirmar la nueva contraseña es
+          obligatorio</mat-error>
+        <mat-error *ngIf="myForm.hasError('mismatch') && myForm.get('confirmNewPassword')?.touched">Las contraseñas no
+          coinciden</mat-error>
+      </mat-form-field>
+
+      <button mat-flat-button type="submit" class="boton" [disabled]="myForm.invalid">Cambiar Contraseña</button>
+    </form>
+  </mat-card-content>
+</mat-card>

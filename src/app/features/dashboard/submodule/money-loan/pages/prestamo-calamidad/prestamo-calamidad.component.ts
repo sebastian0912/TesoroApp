@@ -54,7 +54,7 @@ export class PrestamoCalamidadComponent implements OnInit {
     }
     this.myForm.get('cedula')?.valueChanges
       .pipe(
-        debounceTime(1000), // Espera 1 segundo después del último cambio
+        debounceTime(2500), // Espera 1 segundo después del último cambio
         distinctUntilChanged(), // Evita búsquedas innecesarias si el usuario escribe el mismo valor
         switchMap(value => {
           this.trimField('cedula');

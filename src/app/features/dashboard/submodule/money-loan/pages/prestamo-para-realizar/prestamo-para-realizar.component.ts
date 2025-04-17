@@ -54,7 +54,7 @@ export class PrestamoParaRealizarComponent {
 
     this.myForm.get('cedula')?.valueChanges
       .pipe(
-        debounceTime(1000), // Espera 1 segundo después del último cambio
+        debounceTime(2500), // Espera 1 segundo después del último cambio
         distinctUntilChanged(), // Evita búsquedas innecesarias si el usuario escribe el mismo valor
         switchMap(value => {
           this.trimField('cedula');
@@ -170,20 +170,14 @@ export class PrestamoParaRealizarComponent {
 
       // Verificar si la cédula pertenece al código
       if (this.rolUsuario !== 'GERENCIA') {
+        Swal.close();
         const validacion = this.autorizacionesService.verificarCondiciones(
           this.datosOperario,
           parseInt(formValues.valor),
           this.sumaPrestamos,
           'prestamo'
         );
-
         if (!validacion) {
-          Swal.close();
-          await Swal.fire({
-            icon: 'error',
-            title: 'Oops...',
-            text: 'No se cumplen las condiciones de verificación para el préstamo.',
-          });
           return;
         }
       }
@@ -244,7 +238,7 @@ export class PrestamoParaRealizarComponent {
           text: 'El préstamo ha sido cargado exitosamente',
           confirmButtonText: 'Aceptar',
         });
-        this.router.navigateByUrl('/home', { skipLocationChange: true }).then(() => {
+        this.router.navigateByUrl('/dashboard', { skipLocationChange: true }).then(() => {
           this.router.navigate(['/prestamo-para-realizar']);
         });
       } else {

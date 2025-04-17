@@ -14,7 +14,7 @@ export class AdminService {
   constructor(
     private http: HttpClient,
     @Inject(PLATFORM_ID) private platformId: Object
-  ) {}
+  ) { }
 
   private getToken(): string | null {
     if (isPlatformBrowser(this.platformId)) {
@@ -265,4 +265,43 @@ export class AdminService {
       throw error;
     }
   }
+
+
+
+
+  // Cambiar contraseña
+  async cambiarContrasena(
+    oldpassword: any,
+    newpassword: any,
+  ): Promise<any> {
+
+    const token = this.getToken();
+
+    if (!token) {
+      throw new Error('No token found');
+    }
+
+    const urlcompleta = `${this.apiUrl}/usuarios/cambiocontrasena`;
+
+    const headers = this.createAuthorizationHeader().set('Content-Type', 'application/json');
+
+    const requestBody = {
+      oldpassword,
+      newpassword,
+      token: token
+    };
+
+
+    try {
+      const response = await firstValueFrom(this.http.post<string>(urlcompleta, requestBody, { headers }).pipe(
+        catchError(this.handleError)
+      ));
+      return response;
+    } catch (error) {
+      throw error;
+    }
+
+
+  }
+
 }

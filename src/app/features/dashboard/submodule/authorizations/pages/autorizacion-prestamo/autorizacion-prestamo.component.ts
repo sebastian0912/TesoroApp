@@ -50,12 +50,16 @@ export class AutorizacionPrestamoComponent implements OnInit {
     this.myForm.get('formaPago')?.valueChanges.subscribe(value => {
       const celularControl = this.myForm.get('celular');
       if (value === 'Daviplata' || value === 'Master') {
-        celularControl?.setValidators([Validators.required, Validators.pattern(/^\d{10}$/)]);
+        celularControl?.setValidators([
+          Validators.required,
+          Validators.pattern(/^\d{10,11}$/)
+        ]);
       } else {
         celularControl?.clearValidators();
       }
       celularControl?.updateValueAndValidity();
     });
+
   }
 
 

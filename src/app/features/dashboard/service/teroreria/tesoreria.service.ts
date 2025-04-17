@@ -41,7 +41,7 @@ export class TesoreriaService {
 
   // Eliminar empleados (desactivar en lugar de eliminar físicamente)
   async eliminarEmpleados(cedulaEmpleado: string): Promise<any> {
-    const urlcompleta = `${this.apiUrl}/Datosbase/retirar/${cedulaEmpleado}`;
+    const urlcompleta = `${this.apiUrl}/Datosbase/eliminardatos/${cedulaEmpleado}`;
     return firstValueFrom(
       this.http.delete(urlcompleta).pipe(
         catchError(error => {
@@ -158,6 +158,15 @@ export class TesoreriaService {
   async traerDatosbaseGeneral(): Promise<any[]> {
     const response = await firstValueFrom(
       this.http.get<any>(`${this.apiUrl}/Datosbase/tesoreria`).pipe(
+        catchError(this.handleError)
+      )
+    );
+    return response.datosbase || [];
+  }
+
+  async traerdatosbaseGeneral2(): Promise<any[]> {
+    const response = await firstValueFrom(
+      this.http.get<any>(`${this.apiUrl}/Datosbase/tesoreria2`).pipe(
         catchError(this.handleError)
       )
     );

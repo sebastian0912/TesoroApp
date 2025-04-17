@@ -118,7 +118,6 @@ export class MercadoService {
       ejecutadoPor: usernameLocal,
       historial: historial_id,
     };
-    console.log(requestBody);
 
     try {
       const response = await firstValueFrom(this.http.post<string>(urlcompleta, requestBody).pipe(

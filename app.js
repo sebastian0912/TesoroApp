@@ -18,7 +18,7 @@ function createWindow() {
   });
 
   if (process.env.NODE_ENV === 'development') {
-    mainWindow.loadURL('http://localhost:4300');
+    mainWindow.loadURL('http://localhost:4400');
     mainWindow.webContents.openDevTools();
   } else {
     mainWindow.loadURL(`file://${path.join(__dirname, 'dist/tesoreria/browser/index.html')}`);

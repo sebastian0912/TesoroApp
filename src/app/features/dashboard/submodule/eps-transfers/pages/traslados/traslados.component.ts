@@ -13,13 +13,17 @@ import { InfoCardComponent } from '../../../../../../shared/components/info-card
 import { UtilityServiceService } from '../../../../../../shared/services/utilityService/utility-service.service';
 import { SharedModule } from '../../../../../../shared/shared.module';
 import { MatPaginator, MatPaginatorModule } from '@angular/material/paginator';
+import { MatDatepickerModule } from '@angular/material/datepicker';
+import { MatNativeDateModule } from '@angular/material/core';
 
 @Component({
   selector: 'app-traslados',
   imports: [
     InfoCardComponent,
     SharedModule,
-    MatPaginatorModule
+    MatPaginatorModule,
+    MatDatepickerModule,
+    MatNativeDateModule
   ],
   templateUrl: './traslados.component.html',
   styleUrls: ['./traslados.component.css'],
@@ -28,6 +32,7 @@ export class TrasladosComponent implements OnInit {
   displayedColumns: string[] = [
     'codigo_traslado',
     'estado_del_traslado',
+    'observacion_estado',
     'numero_cedula',
     'solicitud_traslado',
     'cedulas',
@@ -227,7 +232,7 @@ export class TrasladosComponent implements OnInit {
     this.dialog
       .open(CambiarEstadoComponent, {
         minWidth: '30vw',
-        height: '550pt',
+        height: '60vh',
         data: element,
       })
       .afterClosed()

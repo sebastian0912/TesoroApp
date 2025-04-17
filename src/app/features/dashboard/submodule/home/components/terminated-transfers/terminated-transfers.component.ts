@@ -106,8 +106,8 @@ export class TerminatedTransfersComponent implements OnInit {
 
   async obtenerTrasladosYGenerarExcel(): Promise<void> {
     Swal.fire({
-      title: 'Loading...',
-      text: 'Please wait while we process your request.',
+      title: 'Cargando...',
+      text: 'Por favor espera mientras procesamos tu solicitud.',
       icon: 'info',
       allowOutsideClick: false,
       didOpen: () => Swal.showLoading(),
@@ -115,7 +115,6 @@ export class TerminatedTransfersComponent implements OnInit {
 
     try {
       const data: Traslado[] = await firstValueFrom(this.homeService.traerTraladosPorFecha());
-
       const dataOrdenada = data.map(item => {
         return {
           ...item,
@@ -123,23 +122,24 @@ export class TerminatedTransfersComponent implements OnInit {
         };
       });
 
-      // 2. Generamos el Excel con todos los datos obtenidos
+      // Generamos el Excel con todos los datos obtenidos
       this.generateExcel(dataOrdenada);
 
       Swal.fire({
-        title: 'Success!',
-        text: 'The data has been processed and the Excel file has been generated.',
+        title: '¡Éxito!',
+        text: 'Los datos han sido procesados y el archivo Excel se ha generado.',
         icon: 'success',
       });
 
     } catch (error) {
       Swal.fire({
-        title: 'Error!',
-        text: 'There was an error processing your request.',
+        title: '¡Error!',
+        text: 'Hubo un error al procesar tu solicitud.',
         icon: 'error',
       });
     }
   }
+
 
 
   generateExcel(data: any[]): void {
@@ -159,18 +159,18 @@ export class TerminatedTransfersComponent implements OnInit {
       }
 
       return {
-        "Número Cédula": item.numero_cedula || "N/A",
-        "Código Traslado": item.codigo_traslado || "N/A",
-        "EPS a Trasladar": item.eps_a_trasladar || "N/A",
-        "Asignación Correo": item.asignacion_correo || "N/A",
-        "Responsable": item.responsable || "N/A",
-        "Estado del Traslado": item.estado_del_traslado || "N/A",
-        "Observación Estado": item.observacion_estado || "N/A",
-        "Número Radicado": item.numero_radicado || "N/A",
-        "Fecha Efectividad": item.fecha_efectividad || "N/A",
+        "Número Cédula": item.numero_cedula || "",
+        "Código Traslado": item.codigo_traslado || "",
+        "EPS a Trasladar": item.eps_a_trasladar || "",
+        "Asignación Correo": item.asignacion_correo || "",
+        "Responsable": item.responsable || "",
+        "Estado del Traslado": item.estado_del_traslado || "",
+        "Observación Estado": item.observacion_estado || "",
+        "Número Radicado": item.numero_radicado || "",
+        "Fecha Efectividad": item.fecha_efectividad || "",
         "Cantidad Beneficiarios": item.cantidad_beneficiarios || 0,
         "Marca Temporal Solicitud": this.formatDate(item.marca_temporal_solicitud),
-        "EPS Trasladada": item.eps_trasladada || "N/A",
+        "EPS Trasladada": item.eps_trasladada || "",
         "Últimas Actualizaciones": formattedUpdates,
       };
     });
@@ -196,7 +196,7 @@ export class TerminatedTransfersComponent implements OnInit {
     ];
 
     XLSX.utils.book_append_sheet(wb, ws, "Traslados");
-    XLSX.writeFile(wb, "traslados_completo2.xlsx");
+    XLSX.writeFile(wb, "base_general_traslados.xlsx");
   }
 
   /**

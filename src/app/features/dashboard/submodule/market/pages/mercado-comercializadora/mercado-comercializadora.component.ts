@@ -107,7 +107,7 @@ export class MercadoComercializadoraComponent implements OnInit, OnDestroy {
           this.codigosFormArray.clear();
           this.dataSource.data = this.codigosFormArray.controls;
         }),
-        debounceTime(1500),
+        debounceTime(3000),
         distinctUntilChanged(),
         tap(() => this.trimField('cedula')),
         switchMap(value => this.buscarOperario(value)),
@@ -316,8 +316,9 @@ export class MercadoComercializadoraComponent implements OnInit, OnDestroy {
       }
       // que la cantidadseleccionada sea menor o igual a cantidadrecibida
       const cantidadSeleccionadaInvalida = inventarioSeleccionados.some(
-        (item: any) => item.cantidadSeleccionada + item.cantidadTotalVendida > item.cantidadRecibida
+        (item: any) => (parseInt(item.cantidadSeleccionada) + parseInt(item.cantidadTotalVendida)) > parseInt(item.cantidadRecibida)
       );
+
 
       if (cantidadSeleccionadaInvalida) {
         this.mostrarError('La cantidad seleccionada no puede ser mayor a la cantidad recibida.');

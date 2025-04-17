@@ -99,4 +99,8 @@ export class SidebarComponent {
     }
   }
 
+  prueba(): void {
+    // dirigir a la página de inicio
+    this.router.navigate(['/dashboard/users/change-password']);
+  }
 }

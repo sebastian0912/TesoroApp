@@ -30,25 +30,32 @@ export class AutorizacionesService {
     });
   }
 
-  // Suma Saldo pendiente
   traerSaldoPendiente(operario: any): number {
+    const campos = [
+      'saldos',
+      'fondos',
+      'mercados',
+      'prestamoParaDescontar',
+      'casino',
+      'valoranchetas',
+      'fondo',
+      'carnet',
+      'seguroFunerario',
+      'prestamoParaHacer',
+      'anticipoLiquidacion',
+      'cuentas',
+    ];
+
     let sumaPrestamos = 0;
-    sumaPrestamos = 0;
-    sumaPrestamos +=
-      parseFloat(operario.saldos) +
-      parseFloat(operario.fondos) +
-      parseFloat(operario.mercados) +
-      parseFloat(operario.prestamoParaDescontar) +
-      parseFloat(operario.casino) +
-      parseFloat(operario.valoranchetas) +
-      parseFloat(operario.fondo) +
-      parseFloat(operario.carnet) +
-      parseFloat(operario.seguroFunerario) +
-      parseFloat(operario.prestamoParaHacer) +
-      parseFloat(operario.anticipoLiquidacion) +
-      parseFloat(operario.cuentas);
+
+    for (const campo of campos) {
+      const valor = parseFloat(operario[campo]) || 0;
+      sumaPrestamos += valor;
+    }
+
     return sumaPrestamos;
   }
+
 
   // verificar saldo
   verificarSaldo(operario: any): boolean {
@@ -74,6 +81,8 @@ export class AutorizacionesService {
 
   // Verificar condiciones
   verificarCondiciones(operario: any, nuevovalor: number, sumaTotal: number, tipo: 'prestamo' | 'mercado'): boolean {
+    let user = JSON.parse(localStorage.getItem('user') || '{}');
+
     if (operario.bloqueado) {
       this.aviso('Ups no se pueden generar préstamos ni mercado, el empleado está bloqueado', 'error');
       return false;
@@ -91,13 +100,11 @@ export class AutorizacionesService {
 
     let dia: number, mes: number, anio: number;
     if (operario.ingreso.includes('/')) {
-      // Formato YYYY/MM/DD
       const [anioStr, mesStr, diaStr] = operario.ingreso.split('/');
       anio = parseInt(anioStr, 10);
       mes = parseInt(mesStr, 10);
       dia = parseInt(diaStr, 10);
     } else {
-      // Formato D-M-YY o DD-MM-YY
       const [diaStr, mesStr, anioStr] = operario.ingreso.split('-');
       dia = parseInt(diaStr, 10);
       mes = parseInt(mesStr, 10);
@@ -111,11 +118,6 @@ export class AutorizacionesService {
     const diferenciaEnMilisegundos = fechaActual.getTime() - fechaIngreso.getTime();
     const diasTrabajados = Math.ceil(diferenciaEnMilisegundos / (1000 * 60 * 60 * 24));
     const mesesTrabajados = (fechaActual.getFullYear() - fechaIngreso.getFullYear()) * 12 + fechaActual.getMonth() - fechaIngreso.getMonth();
-
-    if (nuevovalor < 0 || sumaTotal < 0) {
-      this.aviso('Los valores no pueden ser negativos', 'error');
-      return false;
-    }
 
     if (tipo === 'mercado') {
       if ((dia >= 11 && dia <= 15 && fechaActual.getDate() < 20 && mes == fechaActual.getMonth() + 1) ||
@@ -133,6 +135,11 @@ export class AutorizacionesService {
         limite = 230000;
       } else if (diasTrabajados >= 46) {
         limite = 350000;
+      }
+
+      // Si el rol del usuario es TIENDA, se permite un extra de 50,000
+      if (user.rol === 'TIENDA') {
+        limite += 50000; // Añadimos 50,000 al límite para usuarios de rol "TIENDA"
       }
 
       if (sumaTotal + nuevovalor > limite) {
@@ -174,6 +181,7 @@ export class AutorizacionesService {
     }
     return false;
   }
+
 
 
 

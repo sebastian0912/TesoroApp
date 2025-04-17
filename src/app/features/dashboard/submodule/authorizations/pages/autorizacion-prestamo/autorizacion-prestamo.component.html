@@ -77,10 +77,10 @@
           <mat-label>{{ celularLabel }}</mat-label>
           <input matInput formControlName="celular" />
           <mat-error *ngIf="myForm.get('celular')?.hasError('required')">
-            El número de celular es requerido
+            El número es requerido
           </mat-error>
           <mat-error *ngIf="myForm.get('celular')?.hasError('pattern')">
-            El número de celular debe tener 10 dígitos
+            El número debe tener 10 o 11 dígitos
           </mat-error>
         </mat-form-field>
 
