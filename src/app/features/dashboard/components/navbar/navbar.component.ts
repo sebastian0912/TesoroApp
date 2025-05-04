@@ -86,6 +86,7 @@ export class NavbarComponent implements OnInit {
   }
 
   updateRolePermissions(permissions: string[]): void {
+    console.log(permissions);
     this.rolePermissions['ALL_PERMISSIONS'] = permissions;
   }
 

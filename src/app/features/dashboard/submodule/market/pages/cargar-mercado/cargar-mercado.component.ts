@@ -218,7 +218,7 @@ export class CargarMercadoComponent implements OnInit {
         return;
       }
 
-      if (this.rolUsuario != "GERENCIA" && this.correoUsuario != "mercarflorats@gmail.com") {
+      if (this.rolUsuario != "GERENCIA" && this.correoUsuario != "mercarflorats@gmail.com" && this.correoUsuario != "Mercarflora2.ts@gmail.com") {
         if (!this.autorizacionesService.verificarCondiciones(this.datosOperario, parseInt(formValues.valor), this.sumaPrestamos, "mercado")) {
           return;
         }

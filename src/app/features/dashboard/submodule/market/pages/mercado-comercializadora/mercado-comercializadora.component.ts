@@ -351,13 +351,8 @@ export class MercadoComercializadoraComponent implements OnInit, OnDestroy {
         return;
       }
 
-      if (this.rolUsuario != "GERENCIA") {
+      if (this.rolUsuario != "GERENCIA" && this.rolUsuario != "ADMIN") {
         if (!this.autorizacionesService.verificarCondiciones(this.datosOperario, valorTotal, this.sumaPrestamos, "mercado")) {
-          await Swal.fire({
-            icon: 'error',
-            title: 'Oops...',
-            text: 'No se cumplen las condiciones de verificación para el monto',
-          });
           return;
         }
 
