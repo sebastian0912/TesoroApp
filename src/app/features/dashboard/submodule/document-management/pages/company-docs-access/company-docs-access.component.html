@@ -1,0 +1,78 @@
+<mat-card>
+  <mat-card-content>
+    <h1 class="titulo">Usuarios con Permisos Asignados</h1>
+    <!-- Botón para crear un nuevo permiso -->
+    <button
+      mat-flat-button
+      color="primary"
+      (click)="openDialog()"
+      style="margin-bottom: 10pt"
+    >
+      Crear Permiso
+    </button>
+
+    <!-- Acordeón para mostrar permisos -->
+    <mat-accordion *ngIf="usuariosPermisos?.length > 0; else noData">
+      <mat-expansion-panel
+        *ngFor="let permiso of usuariosPermisos"
+        #panel
+        class="hide-toggle"
+      >
+        <mat-expansion-panel-header>
+          <mat-panel-title>
+            {{ permiso.nombre }}
+          </mat-panel-title>
+
+          <mat-panel-description>
+            {{ permiso.tipos_documentales.length }} permiso(s) asignado(s)
+          </mat-panel-description>
+
+          <!-- Botón personalizado para agregar -->
+          <button
+            mat-icon-button
+            (click)="addPermission(permiso)"
+            aria-label="Agregar permiso"
+          >
+            <mat-icon>add</mat-icon>
+          </button>
+
+          <!-- Botón personalizado para expandir/cerrar -->
+          <button
+            mat-icon-button
+            (click)="panel.toggle(); $event.stopPropagation()"
+            aria-label="Expandir panel"
+          >
+            <mat-icon>{{
+              panel.expanded ? "expand_less" : "expand_more"
+            }}</mat-icon>
+          </button>
+        </mat-expansion-panel-header>
+
+        <!-- Contenido interno del panel -->
+        <div
+          *ngFor="let tipo of permiso.tipos_documentales"
+          class="tree-node-container"
+        >
+          <div class="node-content">
+            <span>{{ tipo }}</span>
+          </div>
+          <div class="actions">
+            <!--
+              <button mat-icon-button (click)="editPermission(tipo)">
+                <mat-icon>edit</mat-icon>
+              </button>
+              -->
+          </div>
+        </div>
+      </mat-expansion-panel>
+    </mat-accordion>
+
+    <!-- Mensaje cuando no hay datos -->
+    <ng-template #noData>
+      <div class="no-data-message">
+        <mat-icon>info</mat-icon>
+        <p>No hay usuarios con permisos asignados</p>
+      </div>
+    </ng-template>
+  </mat-card-content>
+</mat-card>

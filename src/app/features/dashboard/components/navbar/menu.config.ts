@@ -132,14 +132,12 @@ export const DYNAMIC_MENUS: IDynamicMenu[] = [
     label: 'Gestión documental',
     icon: 'icons/navbar/folders.png',
     subMenus: [
-      { route: '/dashboard/document-management/eps',           label: 'Buscar documentación',                  permission: 'search-documents'     },
-      { route: '/dashboard/document-management/health',        label: 'Adjuntar documentación',                permission: 'upload-documents'     },
-      { route: '/dashboard/document-management/education',     label: 'Estructura documental',                 permission: 'create-doc-structure' },
-      { route: '/dashboard/document-management/transportation',label: 'Permisos de documentos de empresas',    permission: 'company-Docs-Access'  },
-      { route: '/dashboard/document-management/food',          label: 'Alimentación',                          permission: 'food'                 },
+      { route: '/dashboard/document-management/search-documents',           label: 'Buscar documentación',                  permission: 'search-documents'     },
+      { route: '/dashboard/document-management/upload-documents',        label: 'Adjuntar documentación',                permission: 'upload-documents'     },
+      { route: '/dashboard/document-management/create-doc-structure',     label: 'Estructura documental',                 permission: 'create-doc-structure' },
+      { route: '/dashboard/document-management/company-docs-access',label: 'Permisos de documentos de empresas',    permission: 'company-Docs-Access'  },
     ],
   },
-
   {
     key: 'hiring',
     label: 'Contratación',
@@ -156,7 +154,6 @@ export const DYNAMIC_MENUS: IDynamicMenu[] = [
       { route: '/dashboard/hiring/transportation',  label: 'Gerencia 901',                permission: 'banned-management'    },
     ],
   },
-
   // disabilities
   {
     key: 'disabilities',

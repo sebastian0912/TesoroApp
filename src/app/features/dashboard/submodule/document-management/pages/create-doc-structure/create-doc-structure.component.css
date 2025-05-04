@@ -1,0 +1,29 @@
+.tree-node-container {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+
+.node-content {
+  display: flex;
+  align-items: center;
+  gap: 8px; /* Espaciado entre ícono y texto */
+}
+
+.toggle-icon {
+  min-width: 24px; /* Para alinear correctamente el ícono con el texto */
+}
+
+.actions {
+  display: flex;
+  gap: 8px; /* Espaciado entre >los botones */
+}
+
+.hide-toggle mat-expansion-indicator {
+  display: none !important; /* Oculta completamente el ícono pequeño */
+}
+
+::ng-deep .hide-toggle mat-expansion-indicator {
+  display: none !important; /* Ocultar el ícono pequeño */
+}

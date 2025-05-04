@@ -1,0 +1,36 @@
+<h2 mat-dialog-title class="titulo">
+  Seleccionar Usuario y Tipo Documental al que se le dará permisos
+</h2>
+<mat-dialog-content [formGroup]="form">
+  <!-- Campo de usuario deshabilitado -->
+  <mat-form-field class="example-full-width">
+    <mat-label>Usuario Seleccionado</mat-label>
+    <mat-select formControlName="usuario">
+      <mat-option *ngFor="let usuario of usuariosEmpresas" [value]="usuario">
+        {{ usuario.primer_nombre }} {{ usuario.primer_apellido }} -
+        {{ usuario.username }}
+      </mat-option>
+    </mat-select>
+  </mat-form-field>
+
+  <!-- Select para Tipos Documentales -->
+  <mat-form-field class="example-full-width">
+    <mat-label>Seleccione Tipo Documental</mat-label>
+    <mat-select formControlName="tipoDocumental">
+      <mat-option *ngFor="let tipo of tiposDocumentos" [value]="tipo">
+        {{ tipo.name }}
+      </mat-option>
+    </mat-select>
+  </mat-form-field>
+</mat-dialog-content>
+
+<mat-dialog-actions align="end">
+  <button mat-button mat-dialog-close>Cerrar</button>
+  <button
+    mat-flat-button
+    [mat-dialog-close]="getFormValue()"
+    [disabled]="form.invalid"
+  >
+    Confirmar
+  </button>
+</mat-dialog-actions>

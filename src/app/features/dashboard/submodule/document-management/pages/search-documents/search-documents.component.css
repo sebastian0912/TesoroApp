@@ -1,0 +1,85 @@
+.example-full-width:nth-child(1),
+.example-full-width:nth-child(2) {
+    max-width: 20% !important;
+}
+
+.example-full-width:nth-child(3) {
+    min-width: 50% !important;
+}
+
+
+/* Contenedor principal que divide la pantalla en dos columnas */
+.split-container {
+    display: flex;
+    gap: 1rem;
+    padding: 1rem;
+    box-sizing: border-box;
+    min-height: 65vh;
+}
+
+/* Panel izquierdo: categorías y documentos */
+.left-panel {
+    flex: 1;
+    background-color: #fafafa;
+    padding: 1rem;
+    border-radius: 4px;
+    box-shadow: 0 0 5px rgba(0, 0, 0, 0.1);
+    max-height: 62vh;
+    overflow-y: auto;
+}
+
+/* Panel derecho: vista previa del PDF */
+.right-panel {
+    flex: 1.5;
+    border-radius: 4px;
+    display: flex;
+    flex-direction: column;
+}
+
+.preview-title {
+    margin-top: 0;
+    font-size: 1.2rem;
+    font-weight: 600;
+    color: #333;
+}
+
+/* Contenedor de cada categoría */
+.category-group {
+    margin-bottom: 1.5rem;
+}
+
+/* Título de la categoría */
+.category-title {
+    margin: 0 0 0.5rem 0;
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #555;
+}
+
+/* Contenedor de cada documento */
+.document-item {
+    padding: 0.5rem 0;
+    border-bottom: 1px solid #eee;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Fila con detalles del documento y menú */
+.document-details {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+/* Nombre del tipo documental */
+.document-type {
+    font-weight: 500;
+    color: #424242;
+}
+
+/* El iframe con la vista previa del PDF */
+.pdf-preview {
+    flex: 1;
+    width: 100%;
+    border: none;
+}

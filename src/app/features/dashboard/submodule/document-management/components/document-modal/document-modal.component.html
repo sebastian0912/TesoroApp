@@ -1,0 +1,86 @@
+<div class="modal-container">
+  <h2 mat-dialog-title>{{ data.isEdit ? 'Editar Tipo Documental' : 'Agregar Nuevos Tipos Documentales' }}</h2>
+
+  <mat-dialog-content>
+    <!-- Formulario de edición -->
+    <div *ngIf="data.isEdit; else agregarTemplate" [formGroup]="form">
+      <div class="full-width-checkbox">
+        <mat-checkbox formControlName="expandable">¿Es padre?</mat-checkbox>
+        <mat-checkbox formControlName="estado">¿Está activo?</mat-checkbox>
+      </div>
+
+      <mat-form-field class="example-full-width">
+        <mat-label>Nombre</mat-label>
+        <input matInput formControlName="name" placeholder="Ingrese el nombre"/>
+        <mat-error *ngIf="form.get('name')?.invalid && form.get('name')?.touched">
+          El nombre es requerido.
+        </mat-error>
+      </mat-form-field>
+
+      <mat-form-field class="example-full-width">
+        <mat-label>Tags</mat-label>
+        <mat-select formControlName="tags" multiple (selectionChange)="onTagSelection($event)">
+          <mat-option *ngFor="let tag of availableTags" [value]="tag.id">
+            {{ tag.name }}
+          </mat-option>
+        </mat-select>
+      </mat-form-field>
+
+      <mat-form-field *ngIf="isAddingNewTag" class="example-full-width">
+        <mat-label>Nuevo Tag</mat-label>
+        <input matInput formControlName="newTagName" placeholder="Ingrese el nuevo tag" />
+        <mat-error *ngIf="form.get('newTagName')?.invalid && form.get('newTagName')?.touched">
+          El nuevo tag es requerido.
+        </mat-error>
+      </mat-form-field>
+
+    </div>
+
+    <!-- Formulario de creación de nuevos documentos -->
+    <ng-template #agregarTemplate>
+      <div *ngFor="let item of nuevosDocumentos.controls; let i = index" [formGroup]="item">
+        <mat-divider></mat-divider>
+        <div class="full-width-checkbox">
+          <mat-checkbox formControlName="estado">¿Está activo?</mat-checkbox>
+        </div>
+
+        <mat-form-field class="example-full-width">
+          <mat-label>Nombre</mat-label>
+          <input matInput formControlName="name" placeholder="Ingrese el nombre" />
+        </mat-form-field>
+
+        <mat-form-field class="example-full-width">
+          <mat-label>Tags</mat-label>
+          <mat-select formControlName="tags" multiple (selectionChange)="onTagSelection($event)">
+            <mat-option *ngFor="let tag of availableTags" [value]="tag.id">
+              {{ tag.name }}
+            </mat-option>
+          </mat-select>
+        </mat-form-field>
+
+        <mat-form-field *ngIf="isAddingNewTag" class="example-full-width">
+          <mat-label>Nuevo Tag</mat-label>
+          <input matInput formControlName="newTagName" placeholder="Ingrese el nuevo tag" />
+          <mat-error *ngIf="form.get('newTagName')?.invalid && form.get('newTagName')?.touched">
+            El nuevo tag es requerido.
+          </mat-error>
+        </mat-form-field>
+
+        <button mat-icon-button color="warn" (click)="eliminarDocumento(i)">
+          <mat-icon>delete</mat-icon>
+        </button>
+      </div>
+
+      <button mat-flat-button color="primary" (click)="agregarNuevoDocumento()">
+        Agregar Documento
+      </button>
+    </ng-template>
+  </mat-dialog-content>
+
+  <mat-dialog-actions align="end">
+    <button mat-flat-button (click)="cancel()">Cancelar</button>
+    <button mat-flat-button color="primary" (click)="save()">
+      Guardar
+    </button>
+  </mat-dialog-actions>
+</div>

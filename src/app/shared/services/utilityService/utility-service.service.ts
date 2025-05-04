@@ -129,4 +129,14 @@ export class UtilityServiceService {
     return this.http.get(`${this.apiUrl}/Codigo/codigos`)
       .pipe(catchError(this.handleError));
   }
+
+
+
+  public obtenerCodigosContrato(cedula: string): Observable<any> {
+    return this.http.get(`${this.apiUrl}/contratacion/contratos/${cedula}/`).pipe(
+      map((response: any) => response),
+      catchError(this.handleError)
+    );
+  }
+
 }
