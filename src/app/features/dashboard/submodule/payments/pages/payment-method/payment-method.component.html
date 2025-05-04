@@ -1,0 +1,96 @@
+<input type="file" id="fileInput" (change)="cargarExcel($event)" accept=".xlsx, .xls" style="display: none;">
+
+<mat-card>
+  <mat-card-content>
+    <div class="search-container">
+      <div class="buscar">
+        <mat-form-field appearance="fill" class="example-full-width">
+          <mat-label>Ingrese la cédula</mat-label>
+          <input matInput [(ngModel)]="cedula">
+        </mat-form-field>
+        <button mat-flat-button (click)="buscarFormasPago(cedula)" class="boton">Buscar</button>
+      </div>
+      <app-info-card title="Cargar formas de pago" imageUrl="icons/cards/excel.png" (click)="triggerFileInput()" *ngIf="
+        correo == 'contaduria.rtc@gmail.com' ||
+        correo == 'ghumana.rtc@gmail.com' ||
+        correo == 'programador.ts@gmail.com' ||
+        correo == 'antcontable5.ts@gmail.com' ||
+        correo == 'asistconta.rtc@gmail.com'
+        " style="cursor: pointer;">
+      </app-info-card>
+    </div>
+
+    <div class="tabla">
+      <h1 class="title">Formas de Pago</h1>
+      <mat-form-field class="filtro">
+        <mat-label>Filter</mat-label>
+        <input matInput (keyup)="applyFilter($event)" placeholder="Filter" #input>
+      </mat-form-field>
+      <div class="table-container">
+        <table mat-table [dataSource]="dataSource" class="mat-elevation-z8">
+          <ng-container matColumnDef="contrato">
+            <th mat-header-cell *matHeaderCellDef> Contrato </th>
+            <td mat-cell *matCellDef="let element"> {{element.contrato}} </td>
+          </ng-container>
+          <ng-container matColumnDef="cedula">
+            <th mat-header-cell *matHeaderCellDef> Cédula </th>
+            <td mat-cell *matCellDef="let element"> {{element.cedula}} </td>
+          </ng-container>
+          <ng-container matColumnDef="nombre">
+            <th mat-header-cell *matHeaderCellDef> Nombre </th>
+            <td mat-cell *matCellDef="let element"> {{element.nombre}} </td>
+          </ng-container>
+          <ng-container matColumnDef="centrodecosto">
+            <th mat-header-cell *matHeaderCellDef> Centro de Costo </th>
+            <td mat-cell *matCellDef="let element"> {{element.centrodecosto}} </td>
+          </ng-container>
+          <ng-container matColumnDef="concepto">
+            <th mat-header-cell *matHeaderCellDef> Concepto </th>
+            <td mat-cell *matCellDef="let element"> {{element.concepto}} </td>
+          </ng-container>
+          <ng-container matColumnDef="formadepago">
+            <th mat-header-cell *matHeaderCellDef> Forma de Pago </th>
+            <td mat-cell *matCellDef="let element" [class.editable]="element.editing">
+              <input matInput [(ngModel)]="element.formadepago" [readonly]="!element.editing" class="editado">
+            </td>
+          </ng-container>
+          <ng-container matColumnDef="valor">
+            <th mat-header-cell *matHeaderCellDef> Valor </th>
+            <td mat-cell *matCellDef="let element" [class.editable]="element.editing">
+              <input matInput [(ngModel)]="element.valor" [readonly]="!element.editing" class="editado">
+            </td>
+          </ng-container>
+
+          <ng-container matColumnDef="banco">
+            <th mat-header-cell *matHeaderCellDef> Banco </th>
+            <td mat-cell *matCellDef="let element" [class.editable]="element.editing">
+              <input matInput [(ngModel)]="element.banco" [readonly]="!element.editing" class="editado">
+            </td>
+          </ng-container>
+          <ng-container matColumnDef="fechadepago">
+            <th mat-header-cell *matHeaderCellDef> Fecha de Pago </th>
+            <td mat-cell *matCellDef="let element" [class.editable]="element.editing">
+              <input matInput [(ngModel)]="element.fechadepago" [readonly]="!element.editing" class="editado">
+            </td>
+          </ng-container>
+          <ng-container matColumnDef="acciones">
+            <th mat-header-cell *matHeaderCellDef> Acciones </th>
+            <td mat-cell *matCellDef="let element" class="acciones-cell">
+              <button mat-icon-button color="primary" (click)="toggleEdit(element)">
+                <mat-icon>{{element.editing ? 'save' : 'edit'}}</mat-icon>
+              </button>
+              <button mat-icon-button color="warn" (click)="eliminarFormaPago(element)">
+                <mat-icon>delete</mat-icon>
+              </button>
+            </td>
+          </ng-container>
+          <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+          <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
+          <tr class="mat-row" *matNoDataRow>
+            <td class="mat-cell" colspan="10">No hay datos "{{input.value}}"</td>
+          </tr>
+        </table>
+      </div>
+    </div>
+  </mat-card-content>
+</mat-card>

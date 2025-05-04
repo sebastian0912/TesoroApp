@@ -1,0 +1,122 @@
+<input type="file" id="fileInput" (change)="cargarExcel($event)" accept=".xlsx, .xls" style="display: none;">
+
+<mat-card>
+  <mat-card-content>
+
+    <div class="search-container">
+      <div class="buscar">
+        <mat-form-field appearance="fill" class="example-full-width">
+          <mat-label>Ingrese la cédula</mat-label>
+          <input matInput [(ngModel)]="cedula">
+        </mat-form-field>
+        <button mat-flat-button (click)="buscarDesprendibles(cedula)" class="boton">Buscar</button>
+      </div>
+      <app-info-card title="Cargar desprendibles de pago" imageUrl="icons/cards/excel.png" (click)="triggerFileInput()" *ngIf="correo == 'nominacentral4@gmail.com' ||
+        correo == 'nomina.rtc@gmail.com' ||
+        correo == 'programador.ts@gmail.com' ||
+        correo == 'nomina.gandes@gmail.com'||
+        correo == 'nominacentral7@gmail.com' ||
+        correo == 'antcontable4.ts@gmail.com'" style="cursor: pointer;"></app-info-card>
+    </div>
+
+    <div class="tabla">
+      <h1 class="title">Desprendibles de pago</h1>
+      <mat-form-field class="filtro">
+        <mat-label>Filter</mat-label>
+        <input matInput (keyup)="applyFilter($event)" placeholder="Filter" #input>
+      </mat-form-field>
+      <div class="table-container">
+        <table mat-table [dataSource]="dataSource" class="mat-elevation-z8">
+          <ng-container matColumnDef="no">
+            <th mat-header-cell *matHeaderCellDef> No </th>
+            <td mat-cell *matCellDef="let element"> {{element.no}} </td>
+          </ng-container>
+          <ng-container matColumnDef="cedula">
+            <th mat-header-cell *matHeaderCellDef> Cédula </th>
+            <td mat-cell *matCellDef="let element"> {{element.cedula}} </td>
+          </ng-container>
+          <ng-container matColumnDef="nombre">
+            <th mat-header-cell *matHeaderCellDef> Nombre </th>
+            <td mat-cell *matCellDef="let element"> {{element.nombre}} </td>
+          </ng-container>
+          <ng-container matColumnDef="ingreso">
+            <th mat-header-cell *matHeaderCellDef> Ingreso </th>
+            <td mat-cell *matCellDef="let element"> {{element.ingreso}} </td>
+          </ng-container>
+          <ng-container matColumnDef="retiro">
+            <th mat-header-cell *matHeaderCellDef> Retiro </th>
+            <td mat-cell *matCellDef="let element"> {{element.retiro}} </td>
+          </ng-container>
+          <ng-container matColumnDef="finca">
+            <th mat-header-cell *matHeaderCellDef> Finca </th>
+            <td mat-cell *matCellDef="let element"> {{element.finca}} </td>
+          </ng-container>
+          <ng-container matColumnDef="telefono">
+            <th mat-header-cell *matHeaderCellDef> Teléfono </th>
+            <td mat-cell *matCellDef="let element"> {{element.telefono}} </td>
+          </ng-container>
+          <ng-container matColumnDef="concepto">
+            <th mat-header-cell *matHeaderCellDef> Concepto </th>
+            <td mat-cell *matCellDef="let element"> {{element.concepto}} </td>
+          </ng-container>
+          <ng-container matColumnDef="desprendibles">
+            <th mat-header-cell *matHeaderCellDef> Desprendibles </th>
+            <td mat-cell *matCellDef="let element">
+              <a *ngIf="isValidLink(element.desprendibles)" [href]="element.desprendibles" target="_blank">Ver
+                link</a>
+              <span *ngIf="!isValidLink(element.desprendibles)">{{element.desprendibles}}</span>
+            </td>
+          </ng-container>
+          <ng-container matColumnDef="certificaciones">
+            <th mat-header-cell *matHeaderCellDef> Certificaciones </th>
+            <td mat-cell *matCellDef="let element">
+              <a *ngIf="isValidLink(element.certificaciones)" [href]="element.certificaciones" target="_blank">Ver
+                link</a>
+              <span *ngIf="!isValidLink(element.certificaciones)">{{element.certificaciones}}</span>
+            </td>
+          </ng-container>
+          <ng-container matColumnDef="cartas_retiro">
+            <th mat-header-cell *matHeaderCellDef> Cartas Retiro </th>
+            <td mat-cell *matCellDef="let element">
+              <a *ngIf="isValidLink(element.cartas_retiro)" [href]="element.cartas_retiro" target="_blank">Ver
+                link</a>
+              <span *ngIf="!isValidLink(element.cartas_retiro)">{{element.cartas_retiro}}</span>
+            </td>
+          </ng-container>
+
+          <ng-container matColumnDef="carta_cesantias">
+            <th mat-header-cell *matHeaderCellDef> Carta Cesantías </th>
+            <td mat-cell *matCellDef="let element">
+              <a *ngIf="isValidLink(element.carta_cesantias)" [href]="element.carta_cesantias" target="_blank">Ver
+                link</a>
+              <span *ngIf="!isValidLink(element.carta_cesantias)">{{element.carta_cesantias}}</span>
+            </td>
+          </ng-container>
+
+          <ng-container matColumnDef="entrevista_retiro">
+            <th mat-header-cell *matHeaderCellDef> Entrevista Retiro </th>
+            <td mat-cell *matCellDef="let element">
+              <a *ngIf="isValidLink(element.entrevista_retiro)" [href]="element.entrevista_retiro" target="_blank">Ver
+                link</a>
+              <span *ngIf="!isValidLink(element.entrevista_retiro)">{{element.entrevista_retiro}}</span>
+            </td>
+          </ng-container>
+          <ng-container matColumnDef="correo">
+            <th mat-header-cell *matHeaderCellDef> Correo </th>
+            <td mat-cell *matCellDef="let element"> {{element.correo}} </td>
+          </ng-container>
+          <ng-container matColumnDef="confirmacion_envio">
+            <th mat-header-cell *matHeaderCellDef> Confirmación Envío </th>
+            <td mat-cell *matCellDef="let element"> {{element.confirmacion_envio}} </td>
+          </ng-container>
+
+          <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+          <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
+          <tr class="mat-row" *matNoDataRow>
+            <td class="mat-cell" colspan="15">No hay datos "{{input.value}}"</td>
+          </tr>
+        </table>
+      </div>
+    </div>
+  </mat-card-content>
+</mat-card>

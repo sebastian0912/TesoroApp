@@ -121,8 +121,8 @@ export const DYNAMIC_MENUS: IDynamicMenu[] = [
     label: 'Pagos',
     icon: 'icons/navbar/salary.png',
     subMenus: [
-      { route: '/dashboard/payments/market-payments', label: 'Formas de pago',        permission: 'payment-method' },
-      { route: '/dashboard/payments/loan-payments',   label: 'Desprendibles de pago', permission: 'pay-slips'      },
+      { route: '/dashboard/payments/payments-method', label: 'Formas de pago',        permission: 'payment-method' },
+      { route: '/dashboard/payments/pay-slips',   label: 'Desprendibles de pago', permission: 'pay-slips'      },
     ],
   },
 

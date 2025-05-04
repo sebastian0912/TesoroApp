@@ -17,6 +17,10 @@ const routes: Routes = [
       { path: 'money-loan', loadChildren: () => import('./submodule/money-loan/money-loan.module').then(m => m.MoneyLoanModule) },
       { path: 'users', loadChildren: () => import('./submodule/users/users.module').then(m => m.UsersModule) },
       { path: 'treasury', loadChildren: () => import('./submodule/treasury/treasury.module').then(m => m.TreasuryModule) },
+      { path: 'payments', loadChildren: () => import('./submodule/payments/payments.module').then(m => m.PaymentsModule) },
+      { path: 'document-management', loadChildren: () => import('./submodule/document-management/document-management.module').then(m => m.DocumentManagementModule) },
+      { path: 'hiring', loadChildren: () => import('./submodule/hiring/hiring.module').then(m => m.HiringModule) },
+      { path: 'disabilities', loadChildren: () => import('./submodule/disabilities/disabilities.module').then(m => m.DisabilitiesModule) },
     ],
   },
 ];
