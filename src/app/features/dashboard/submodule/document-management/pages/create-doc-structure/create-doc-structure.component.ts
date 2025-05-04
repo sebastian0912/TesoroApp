@@ -86,29 +86,6 @@ export class CreateDocStructureComponent {
       });
     }
 
-    /** Agregar un nuevo nodo raíz */
-    addRootNode(): void {
-      const dialogRef = this.dialog.open(DocumentModalComponent, {
-        width: '600px',
-        data: {
-          id: null, // Sin ID porque es un nuevo nodo
-          name: '',
-          expandable: false,
-          estado: true, // Estado inicial
-          tags: [],
-          isEdit: false, // Indica que es creación
-        },
-      });
-
-      dialogRef.afterClosed().subscribe((result) => {
-        if (result) {
-          console.log('Creando nuevo nodo:', result);
-          
-        }
-      });
-    }
-
-
     openModal(node: FlatNode | null, isEdit: boolean): void {
       // Configuración de datos iniciales para el modal
       const data: ModalData = node
