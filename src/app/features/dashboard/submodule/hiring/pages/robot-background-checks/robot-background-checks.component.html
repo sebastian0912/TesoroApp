@@ -1,0 +1,235 @@
+<!-- TABLA PRINCIPAL + PEGAR DIRECTO -->
+<mat-card>
+  <mat-card-content>
+    <app-info-card title="Cargar solicitudes robots paquete" imageUrl="icons/cards/excel.png"
+      (click)="triggerFileInput()" style="cursor:pointer"></app-info-card>
+    <div class="tabla">
+      <h1 class="title">Estados Robots</h1>
+
+      <!-- FILTRO -->
+      <mat-form-field class="filtro">
+        <mat-label>Filtrar</mat-label>
+        <input matInput #input placeholder="Filtrar en tabla" (keyup)="applyFilters($event)" />
+      </mat-form-field>
+
+      <!-- TABLA -->
+      <div class="table-container" tabindex="0" (paste)="onTablePaste($event)">
+        <table mat-table [dataSource]="dataSource" class="mat-elevation-z8">
+          <!-- ÍCONO ✔ / ❌ -->
+          <ng-container matColumnDef="encontrado">
+            <th mat-header-cell *matHeaderCellDef>Estado</th>
+            <td mat-cell *matCellDef="let e">
+              <mat-icon [color]="e.encontrado ? 'primary' : 'warn'">
+                {{ e.encontrado ? 'check_circle' : 'cancel' }}
+              </mat-icon>
+            </td>
+          </ng-container>
+
+          <!-- CÉDULA -->
+          <ng-container matColumnDef="cedula">
+            <th mat-header-cell *matHeaderCellDef>Cédula</th>
+            <td mat-cell *matCellDef="let e">{{ e.cedula }}</td>
+          </ng-container>
+
+          <!-- HORA REGISTRO -->
+          <ng-container matColumnDef="hora_registro">
+            <th mat-header-cell *matHeaderCellDef>Hora Registro</th>
+            <td mat-cell *matCellDef="let e">{{ e.hora_registro | date:'yyyy-MM-dd HH:mm:ss' }}</td>
+          </ng-container>
+
+          <!-- OFICINA -->
+          <ng-container matColumnDef="oficina">
+            <th mat-header-cell *matHeaderCellDef>Oficina</th>
+            <td mat-cell *matCellDef="let e">{{ e.oficina }}</td>
+          </ng-container>
+
+          <!-- TIPO DOC -->
+          <ng-container matColumnDef="tipo_documento">
+            <th mat-header-cell *matHeaderCellDef>Tipo Doc.</th>
+            <td mat-cell *matCellDef="let e">{{ e.tipo_documento }}</td>
+          </ng-container>
+
+
+          <!-- ESTADO ADRESS -->
+          <ng-container matColumnDef="estado_adress">
+            <th mat-header-cell *matHeaderCellDef class="section-start">Estado Adress</th>
+            <td mat-cell *matCellDef="let e" class="section-start">{{ e.estado_adress }}</td>
+          </ng-container>
+
+          <!-- APELLIDO ADRESS -->
+          <ng-container matColumnDef="apellido_adress">
+            <th mat-header-cell *matHeaderCellDef>Apellido Adress</th>
+            <td mat-cell *matCellDef="let e">{{ e.apellido_adress }}</td>
+          </ng-container>
+
+          <!-- ENTIDAD ADRESS -->
+          <ng-container matColumnDef="entidad_adress">
+            <th mat-header-cell *matHeaderCellDef>Entidad Adress</th>
+            <td mat-cell *matCellDef="let e">{{ e.entidad_adress }}</td>
+          </ng-container>
+
+          <!-- PDF ADRESS -->
+          <ng-container matColumnDef="pdf_adress">
+            <th mat-header-cell *matHeaderCellDef>PDF Adress</th>
+            <td mat-cell *matCellDef="let e">{{ e.pdf_adress }}</td>
+          </ng-container>
+
+          <!-- FECHA ADRESS -->
+          <!-- FECHA ADRESS -->
+          <ng-container matColumnDef="fecha_adress" style="background-color: red !important;">
+            <th mat-header-cell *matHeaderCellDef class="espacio-bloque">Fecha Adress</th>
+            <td mat-cell *matCellDef="let e" class="espacio-bloque">{{ e.fecha_adress }}</td>
+          </ng-container>
+
+
+          <!-- ESTADO POLICIVO -->
+          <ng-container matColumnDef="estado_policivo">
+            <th mat-header-cell *matHeaderCellDef>Estado Policivo</th>
+            <td mat-cell *matCellDef="let e">{{ e.estado_policivo }}</td>
+          </ng-container>
+
+          <!-- ANOTACIÓN POLICIVO -->
+          <ng-container matColumnDef="anotacion_policivo">
+            <th mat-header-cell *matHeaderCellDef>Anotación Policivo</th>
+            <td mat-cell *matCellDef="let e">{{ e.anotacion_policivo }}</td>
+          </ng-container>
+
+          <!-- PDF POLICIVO -->
+          <ng-container matColumnDef="pdf_policivo">
+            <th mat-header-cell *matHeaderCellDef>PDF Policivo</th>
+            <td mat-cell *matCellDef="let e">{{ e.pdf_policivo }}</td>
+          </ng-container>
+
+          <!-- ESTADO OFAC -->
+          <ng-container matColumnDef="estado_ofac">
+            <th mat-header-cell *matHeaderCellDef>Estado OFAC</th>
+            <td mat-cell *matCellDef="let e">{{ e.estado_ofac }}</td>
+          </ng-container>
+
+          <!-- ANOTACIÓN OFAC -->
+          <ng-container matColumnDef="anotacion_ofac">
+            <th mat-header-cell *matHeaderCellDef>Anotación OFAC</th>
+            <td mat-cell *matCellDef="let e">{{ e.anotacion_ofac }}</td>
+          </ng-container>
+
+          <!-- PDF OFAC -->
+          <ng-container matColumnDef="pdf_ofac">
+            <th mat-header-cell *matHeaderCellDef>PDF OFAC</th>
+            <td mat-cell *matCellDef="let e">{{ e.pdf_ofac }}</td>
+          </ng-container>
+
+          <!-- ESTADO CONTRALORÍA -->
+          <ng-container matColumnDef="estado_contraloria">
+            <th mat-header-cell *matHeaderCellDef>Estado Contraloría</th>
+            <td mat-cell *matCellDef="let e">{{ e.estado_contraloria }}</td>
+          </ng-container>
+
+          <!-- ANOTACIÓN CONTRALORÍA -->
+          <ng-container matColumnDef="anotacion_contraloria">
+            <th mat-header-cell *matHeaderCellDef>Anotación Contraloría</th>
+            <td mat-cell *matCellDef="let e">{{ e.anotacion_contraloria }}</td>
+          </ng-container>
+
+          <!-- PDF CONTRALORÍA -->
+          <ng-container matColumnDef="pdf_contraloria">
+            <th mat-header-cell *matHeaderCellDef>PDF Contraloría</th>
+            <td mat-cell *matCellDef="let e">{{ e.pdf_contraloria }}</td>
+          </ng-container>
+
+          <!-- ESTADO SISBEN -->
+          <ng-container matColumnDef="estado_sisben">
+            <th mat-header-cell *matHeaderCellDef>Estado Sisben</th>
+            <td mat-cell *matCellDef="let e">{{ e.estado_sisben }}</td>
+          </ng-container>
+
+          <!-- TIPO SISBEN -->
+          <ng-container matColumnDef="tipo_sisben">
+            <th mat-header-cell *matHeaderCellDef>Tipo Sisben</th>
+            <td mat-cell *matCellDef="let e">{{ e.tipo_sisben }}</td>
+          </ng-container>
+
+          <!-- PDF SISBEN -->
+          <ng-container matColumnDef="pdf_sisben">
+            <th mat-header-cell *matHeaderCellDef>PDF Sisben</th>
+            <td mat-cell *matCellDef="let e">{{ e.pdf_sisben }}</td>
+          </ng-container>
+
+          <!-- FECHA SISBEN -->
+          <ng-container matColumnDef="fecha_sisben">
+            <th mat-header-cell *matHeaderCellDef>Fecha Sisben</th>
+            <td mat-cell *matCellDef="let e">{{ e.fecha_sisben }}</td>
+          </ng-container>
+
+          <!-- ESTADO PROCURADURÍA -->
+          <ng-container matColumnDef="estado_procuraduria">
+            <th mat-header-cell *matHeaderCellDef>Estado Procuraduría</th>
+            <td mat-cell *matCellDef="let e">{{ e.estado_procuraduria }}</td>
+          </ng-container>
+
+          <!-- ANOTACIÓN PROCURADURÍA -->
+          <ng-container matColumnDef="anotacion_procuraduria">
+            <th mat-header-cell *matHeaderCellDef>Anotación Procuraduría</th>
+            <td mat-cell *matCellDef="let e">{{ e.anotacion_procuraduria }}</td>
+          </ng-container>
+
+          <!-- PDF PROCURADURÍA -->
+          <ng-container matColumnDef="pdf_procuraduria">
+            <th mat-header-cell *matHeaderCellDef>PDF Procuraduría</th>
+            <td mat-cell *matCellDef="let e">{{ e.pdf_procuraduria }}</td>
+          </ng-container>
+
+          <!-- ESTADO FONDO PENSIÓN -->
+          <ng-container matColumnDef="estado_fondo_pension">
+            <th mat-header-cell *matHeaderCellDef>Estado Fondo Pensión</th>
+            <td mat-cell *matCellDef="let e">{{ e.estado_fondo_pension }}</td>
+          </ng-container>
+
+          <!-- ENTIDAD FONDO PENSIÓN -->
+          <ng-container matColumnDef="entidad_fondo_pension">
+            <th mat-header-cell *matHeaderCellDef>Entidad Fondo Pensión</th>
+            <td mat-cell *matCellDef="let e">{{ e.entidad_fondo_pension }}</td>
+          </ng-container>
+
+          <!-- PDF FONDO PENSIÓN -->
+          <ng-container matColumnDef="pdf_fondo_pension">
+            <th mat-header-cell *matHeaderCellDef>PDF Fondo Pensión</th>
+            <td mat-cell *matCellDef="let e">{{ e.pdf_fondo_pension }}</td>
+          </ng-container>
+
+          <!-- FECHA FONDO PENSIÓN -->
+          <ng-container matColumnDef="fecha_fondo_pension">
+            <th mat-header-cell *matHeaderCellDef>Fecha Fondo Pensión</th>
+            <td mat-cell *matCellDef="let e">{{ e.fecha_fondo_pension }}</td>
+          </ng-container>
+
+          <!-- ESTADO UNIÓN -->
+          <ng-container matColumnDef="estado_union">
+            <th mat-header-cell *matHeaderCellDef>Estado Unión</th>
+            <td mat-cell *matCellDef="let e">{{ e.estado_union }}</td>
+          </ng-container>
+
+          <!-- UNIÓN PDF -->
+          <ng-container matColumnDef="union_pdf">
+            <th mat-header-cell *matHeaderCellDef>Unión PDF</th>
+            <td mat-cell *matCellDef="let e">{{ e.union_pdf }}</td>
+          </ng-container>
+
+          <!-- FECHA UNIÓN PDF -->
+          <ng-container matColumnDef="fecha_union_pdf">
+            <th mat-header-cell *matHeaderCellDef>Fecha Unión PDF</th>
+            <td mat-cell *matCellDef="let e">{{ e.fecha_union_pdf }}</td>
+          </ng-container>
+
+          <!-- FILAS -->
+          <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+          <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
+          <tr class="mat-row" *matNoDataRow>
+            <td class="mat-cell" colspan="35">
+              No hay datos "{{ input.value }}"
+            </td>
+          </tr>
+        </table>
+      </div>
+    </div>
+  </mat-card-content>
+</mat-card>

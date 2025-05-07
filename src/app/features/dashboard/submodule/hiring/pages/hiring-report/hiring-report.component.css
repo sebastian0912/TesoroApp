@@ -1,0 +1,106 @@
+form {
+  display: flex;
+  flex-direction: column;
+  margin: 0 auto;
+}
+
+.primeras {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between; /* Distribuye uniformemente */
+  align-items: center;
+}
+
+.form-field-container {
+  flex: 1 1 10%;
+}
+
+.botones{
+  display: flex;
+  gap: 10pt;
+  justify-content: space-between;
+}
+
+
+
+.subida {
+  display: flex;
+  align-items: center;
+  gap: 10pt;
+}
+
+.subida mat-checkbox {
+  width: 50%;
+}
+
+textarea {
+  width: 100%;
+  resize: vertical;
+}
+
+.botones button {
+  width: 50%;
+  border-radius: 5pt;
+}
+
+
+
+/* Estilos responsivos para tablets */
+@media (max-width: 933px) {
+  .primeras {
+      flex-direction: column;
+      gap: 15px;
+  }
+
+  .example-full-width2 {
+      width: 100%; /* Los inputs ocupan todo el ancho */
+      margin-left: 0;
+  }
+
+  .subida {
+      flex-direction: column;
+      gap: 15pt;
+      align-items: stretch; /* Asegura que los elementos ocupen el ancho disponible */
+  }
+
+  .subida mat-checkbox {
+      width: 100%; /* Asegura que los checkboxes ocupen todo el ancho */
+  }
+
+  .form-field-container {
+      flex: 1 1 100%; /* Ajusta el ancho para dispositivos más pequeños */
+      box-sizing: border-box;
+
+  }
+}
+
+/* Estilos responsivos para móviles */
+@media (max-width: 480px) {
+  .primeras {
+      flex-direction: column;
+      gap: 10px;
+  }
+
+  .example-full-width2 {
+      max-width: 100%; /* Los inputs ocupan todo el ancho */
+      margin-left: 0;
+  }
+
+  .subida {
+      flex-direction: column;
+      gap: 10px;
+      align-items: stretch; /* Asegura que los elementos ocupen el ancho disponible */
+  }
+
+  .subida mat-checkbox {
+      width: 100%; /* Asegura que los checkboxes ocupen todo el ancho */
+  }
+
+  button {
+      align-self: stretch; /* Asegura que los botones ocupen el ancho disponible */
+  }
+
+  textarea {
+      width: 100%;
+  }
+}

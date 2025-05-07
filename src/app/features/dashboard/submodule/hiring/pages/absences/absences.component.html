@@ -1,0 +1,116 @@
+<mat-card>
+  <mat-card-content>
+
+    <div class="search-container">
+      <div class="buscar">
+        <mat-form-field appearance="fill" class="example-full-width">
+          <mat-label>Ingrese la cédula</mat-label>
+          <input matInput [(ngModel)]="cedula">
+        </mat-form-field>
+        <button mat-raised-button color="primary" (click)="buscarFormasPago(cedula)" class="boton">Buscar</button>
+      </div>
+
+      <div class="cards">
+        <app-info-card title="Cargar Ausentismos" imageUrl="icons/cards/excel.png" (click)="triggerFileInput()"
+          style="cursor: pointer;"
+          *ngIf="correo == 'tuafiliacion@tsservicios.co' || correo == 'contaduria.rtc@gmail.com' || correo == 'programador.ts@gmail.com'"></app-info-card>
+
+        <app-info-card title="Eliminar caracteres especiales" imageUrl="icons/cards/excel.png"
+          style="cursor: pointer;" (click)="triggerFileInput2()"
+          *ngIf="correo == 'tuafiliacion@tsservicios.co' || correo == 'contaduria.rtc@gmail.com' || correo == 'programador.ts@gmail.com' || correo == 'a.seguridad.ts@gmail.com'"></app-info-card>
+      </div>
+
+    </div>
+
+    <div class="tabla">
+      <h1 class="title">Numeros para ausentismos</h1>
+      <mat-form-field class="filtro">
+        <mat-label>Filter</mat-label>
+        <input matInput (keyup)="applyFilter($event)" placeholder="Filter" #input>
+      </mat-form-field>
+      <div class="table-container">
+        <table mat-table [dataSource]="dataSource" class="mat-elevation-z8">
+          <ng-container matColumnDef="numerodeceduladepersona">
+            <th mat-header-cell *matHeaderCellDef> Número de Cédula </th>
+            <td mat-cell *matCellDef="let element"> {{element.numerodeceduladepersona}} </td>
+          </ng-container>
+
+          <!--codigo_ultimo_contrato-->
+          <ng-container matColumnDef="codigo_ultimo_contrato">
+            <th mat-header-cell *matHeaderCellDef> Código Último Contrato </th>
+            <td mat-cell *matCellDef="let element"> {{element.codigo_ultimo_contrato}} </td>
+          </ng-container>
+
+          <!--fecha_ultimo_ingreso-->
+          <ng-container matColumnDef="fecha_ultimo_ingreso">
+            <th mat-header-cell *matHeaderCellDef> Fecha Último Ingreso </th>
+            <td mat-cell *matCellDef="let element"> {{element.fecha_ultimo_ingreso}} </td>
+          </ng-container>
+
+          <ng-container matColumnDef="nombre_completo">
+            <th mat-header-cell *matHeaderCellDef> Nombre Completo </th>
+            <td mat-cell *matCellDef="let element"> {{element.nombre_completo}} </td>
+          </ng-container>
+          <ng-container matColumnDef="primercorreoelectronico">
+            <th mat-header-cell *matHeaderCellDef> Primer Correo Electrónico </th>
+            <td mat-cell *matCellDef="let element" [class.editable]="element.editing">
+              <input matInput [(ngModel)]="element.primercorreoelectronico" [readonly]="!element.editing"
+                class="editado">
+            </td>
+          </ng-container>
+          <ng-container matColumnDef="celular">
+            <th mat-header-cell *matHeaderCellDef> Celular </th>
+            <td mat-cell *matCellDef="let element" [class.editable]="element.editing">
+              <input matInput [(ngModel)]="element.celular" [readonly]="!element.editing" class="editado">
+            </td>
+          </ng-container>
+          <ng-container matColumnDef="telefono_conyugue">
+            <th mat-header-cell *matHeaderCellDef> Teléfono Conyugue </th>
+            <td mat-cell *matCellDef="let element"> {{element.telefono_conyugue}} </td>
+          </ng-container>
+          <ng-container matColumnDef="telefono_familiar_emergencia">
+            <th mat-header-cell *matHeaderCellDef> Teléfono Familiar Emergencia </th>
+            <td mat-cell *matCellDef="let element"> {{element.telefono_familiar_emergencia}} </td>
+          </ng-container>
+          <ng-container matColumnDef="telefono_madre">
+            <th mat-header-cell *matHeaderCellDef> Teléfono Madre </th>
+            <td mat-cell *matCellDef="let element"> {{element.telefono_madre}} </td>
+          </ng-container>
+          <ng-container matColumnDef="telefono_padre">
+            <th mat-header-cell *matHeaderCellDef> Teléfono Padre </th>
+            <td mat-cell *matCellDef="let element"> {{element.telefono_padre}} </td>
+          </ng-container>
+          <ng-container matColumnDef="telefono_referencia_familiar1">
+            <th mat-header-cell *matHeaderCellDef> Teléfono Referencia Familiar 1 </th>
+            <td mat-cell *matCellDef="let element"> {{element.telefono_referencia_familiar1}} </td>
+          </ng-container>
+          <ng-container matColumnDef="telefono_referencia_familiar2">
+            <th mat-header-cell *matHeaderCellDef> Teléfono Referencia Familiar 2 </th>
+            <td mat-cell *matCellDef="let element"> {{element.telefono_referencia_familiar2}} </td>
+          </ng-container>
+          <ng-container matColumnDef="telefono_referencia_personal1">
+            <th mat-header-cell *matHeaderCellDef> Teléfono Referencia Personal 1 </th>
+            <td mat-cell *matCellDef="let element"> {{element.telefono_referencia_personal1}} </td>
+          </ng-container>
+          <ng-container matColumnDef="telefono_referencia_personal2">
+            <th mat-header-cell *matHeaderCellDef> Teléfono Referencia Personal 2 </th>
+            <td mat-cell *matCellDef="let element"> {{element.telefono_referencia_personal2}} </td>
+          </ng-container>
+          <ng-container matColumnDef="acciones">
+            <th mat-header-cell *matHeaderCellDef> Acciones </th>
+            <td mat-cell *matCellDef="let element" class="acciones-cell">
+              <button mat-icon-button color="primary" (click)="toggleEdit(element)">
+                <mat-icon>{{element.editing ? 'save' : 'edit'}}</mat-icon>
+              </button>
+            </td>
+          </ng-container>
+          <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+          <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
+          <tr class="mat-row" *matNoDataRow>
+            <td class="mat-cell" colspan="15">No hay datos "{{input.value}}"</td>
+          </tr>
+        </table>
+      </div>
+    </div>
+  </mat-card-content>
+</mat-card>

@@ -1,0 +1,140 @@
+.modal-container {
+    display: flex;
+    padding: 20px;
+    gap: 30px;
+    width: 100%;
+    margin: 0 auto;
+    height: 67vh;
+}
+
+.cedulas-list-container {
+    border-radius: 8px;
+    padding: 20px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    height: 100%;
+    overflow-y: auto;
+    width: 46%;
+}
+
+.cedulas-list {
+    list-style: none;
+    padding: 0;
+}
+
+.cedula-link {
+    display: block;
+    padding: 10px;
+    margin: 5px 0;
+    color: #000000;
+    border: 1px solid #0d47a1;
+    border-radius: 4px;
+    width: 100%;
+    text-align: left;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.selected {
+    background-color: #0d47a1;
+    color: #fff;
+}
+
+.cedula-link:hover {
+    background-color: #0d47a1;
+    color: #fff;
+}
+
+.pdf-viewer-container {
+    width: 52%;
+    border-radius: 8px;
+    padding: 20px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.pdf-frame {
+    width: 100%;
+    height: 600px;
+    border: none;
+}
+
+.modal-header {
+    font-size: 18px;
+    margin-bottom: 20px;
+    font-weight: bold;
+    color: #424242;
+}
+
+.modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 20px;
+}
+
+@media (max-width: 1024px) {
+    .modal-container {
+        flex-direction: column;
+        /* Pasa de un layout horizontal a uno vertical */
+        height: auto;
+        /* Permite que el contenido se ajuste dinámicamente */
+        gap: 15px;
+        /* Reduce el espacio entre los elementos */
+    }
+
+    .cedulas-list-container,
+    .pdf-viewer-container {
+        width: 100%;
+        /* Asegura que ambos contenedores ocupen el ancho completo */
+    }
+
+    .pdf-frame {
+        height: 400px;
+        /* Ajusta la altura del visor de PDF para pantallas medianas */
+    }
+}
+
+@media (max-width: 768px) {
+    .modal-container {
+        padding: 10px;
+        /* Reduce el padding para que haya más espacio para el contenido */
+        gap: 10px;
+    }
+
+    .cedulas-list-container {
+        padding: 15px;
+        /* Ajusta el padding interno */
+    }
+
+    .pdf-frame {
+        height: 300px;
+        /* Reduce la altura del visor de PDF para pantallas pequeñas */
+    }
+
+    .modal-header {
+        font-size: 16px;
+        /* Reduce el tamaño del encabezado */
+    }
+}
+
+@media (max-width: 480px) {
+    .cedulas-list-container {
+        padding: 10px;
+        /* Ajusta el padding para móviles */
+    }
+
+    .cedula-link {
+        font-size: 14px;
+        /* Reduce el tamaño de la fuente de los botones */
+        padding: 8px;
+        /* Ajusta el padding para que los botones sean más compactos */
+    }
+
+    .pdf-frame {
+        height: 200px;
+        /* Reduce la altura del visor de PDF para móviles */
+    }
+
+    .modal-header {
+        font-size: 14px;
+        /* Ajusta el tamaño de la fuente del encabezado en móviles */
+    }
+}

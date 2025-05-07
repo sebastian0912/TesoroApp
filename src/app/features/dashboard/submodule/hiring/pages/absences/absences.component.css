@@ -1,0 +1,54 @@
+.title {
+  margin-top: 10px;
+  margin-bottom: 10px;
+  font-size: 20pt;
+  font-weight: bold;
+}
+
+.example-full-width{
+  min-width: 60% !important;
+}
+
+.buscar{
+  min-width: 40%;
+}
+
+.boton{
+  margin-top: 10px;
+  margin-bottom: 10px;
+}
+
+
+input[readonly] {
+  border: none;
+  background: transparent;
+  text-align: center;
+  pointer-events: none;
+  width: 130px;
+}
+
+.editado{
+  width: 130px;
+  min-width: 130px;
+  border: 1px solid #ccc;
+  border-radius: 5px;
+}
+
+input[readonly]:focus {
+  outline: none;
+
+}
+
+input.editable {
+  border: 1px solid #ccc;
+  padding: 4px;
+  text-align: left;
+  width: 130px;
+  min-width: 130px;
+}
+
+.mat-cell .editable {
+  width: 130px;
+  min-width: 130px;
+  /* Ajusta este valor según sea necesario */
+}

@@ -1,0 +1,18 @@
+<div class="modal-container">
+  <div class="cedulas-list-container">
+    <h3 class="modal-header">Lista de Cédulas</h3>
+    <ul class="cedulas-list">
+      <li *ngFor="let cedula of data.cedulas">
+        <button mat-button class="cedula-link" 
+                [ngClass]="{'selected': cedula === selectedCedula}" 
+                (click)="showPdf(cedula.file_base64, cedula)">
+          {{ cedula.file_name }}
+        </button>
+      </li>
+    </ul>
+  </div>
+
+  <div class="pdf-viewer-container" *ngIf="selectedPdf">
+    <iframe [src]="selectedPdf" class="pdf-frame"></iframe>
+  </div>
+</div>
