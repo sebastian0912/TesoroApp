@@ -1,0 +1,246 @@
+<mat-tab-group class="help-tabs" animationDuration="300ms">
+
+  <!-- ────────────────────────── TAB 1 ─ Info personal ───────────────────────── -->
+  <mat-tab class="tab-info">
+    <ng-template mat-tab-label>
+      <mat-icon>person</mat-icon>
+      Info&nbsp;personal
+    </ng-template>
+
+    <form [formGroup]="infoPersonalForm" class="form-tab">
+      <div class="grid">
+
+        <!-- Oficina (solo lectura) -->
+        <mat-form-field class="example-full-width">
+          <mat-label>Oficina</mat-label>
+          <input matInput formControlName="oficina" readonly>
+        </mat-form-field>
+
+        <!-- Tipo de documento -->
+        <mat-form-field class="example-full-width">
+          <mat-label>Tipo de documento</mat-label>
+          <input matInput formControlName="tipodedocumento" readonly>
+        </mat-form-field>
+
+        <!-- Número de cédula -->
+        <mat-form-field class="example-full-width">
+          <mat-label>Número de cédula</mat-label>
+          <input matInput formControlName="numerodecedula" readonly>
+        </mat-form-field>
+
+        <!-- Nombre completo -->
+        <mat-form-field class="example-full-width">
+          <mat-label>Nombre completo</mat-label>
+          <input matInput formControlName="nombreCompleto" readonly>
+        </mat-form-field>
+
+        <!-- Celular -->
+        <mat-form-field class="example-full-width">
+          <mat-label>Celular</mat-label>
+          <input matInput formControlName="celular" type="tel">
+        </mat-form-field>
+
+        <!-- WhatsApp -->
+        <mat-form-field class="example-full-width">
+          <mat-label>WhatsApp</mat-label>
+          <input matInput formControlName="whatsapp" type="tel">
+        </mat-form-field>
+
+        <!-- Género -->
+        <mat-form-field class="example-full-width">
+          <mat-label>Género</mat-label>
+          <mat-select formControlName="genero">
+            <mat-option value="F">Femenino</mat-option>
+            <mat-option value="M">Masculino</mat-option>
+            <mat-option value="O">Otro</mat-option>
+          </mat-select>
+        </mat-form-field>
+
+        <!-- Edad (solo lectura) -->
+        <mat-form-field class="example-full-width">
+          <mat-label>Edad</mat-label>
+          <input matInput formControlName="edad" readonly>
+        </mat-form-field>
+
+        <!-- Fecha de nacimiento -->
+        <mat-form-field class="example-full-width">
+          <mat-label>Fecha de nacimiento</mat-label>
+          <input matInput formControlName="fechaNacimiento" readonly>
+        </mat-form-field>
+
+        <!-- Barrio -->
+        <mat-form-field class="example-full-width">
+          <mat-label>Barrio</mat-label>
+          <input matInput formControlName="barrio">
+        </mat-form-field>
+
+        <!-- Experiencia en flores -->
+        <mat-form-field class="example-full-width">
+          <mat-label>¿Tiene experiencia en flores?</mat-label>
+          <mat-select formControlName="tieneExperienciaFlores">
+            <mat-option value="SI">Sí</mat-option>
+            <mat-option value="NO">No</mat-option>
+          </mat-select>
+        </mat-form-field>
+
+        <!-- Referenciado -->
+        <mat-form-field class="example-full-width">
+          <mat-label>Referenciado</mat-label>
+          <mat-select formControlName="referenciado">
+            <mat-option value="SI">Sí</mat-option>
+            <mat-option value="NO">No</mat-option>
+          </mat-select>
+        </mat-form-field>
+
+        <!-- ¿Cómo se enteró? -->
+        <mat-form-field class="example-full-width">
+          <mat-label>¿Cómo se enteró?</mat-label>
+          <textarea matInput formControlName="comoSeEntero" rows="2"></textarea>
+        </mat-form-field>
+      </div>
+
+      <div class="actions">
+        <button mat-flat-button color="primary" [disabled]="infoPersonalForm.invalid" (click)="guardarInfoPersonal()">
+          Guardar
+        </button>
+      </div>
+    </form>
+  </mat-tab>
+
+  <!-- ──────────────────────── TAB 2 ─ Entrevista ──────────────────────── -->
+  <mat-tab>
+    <ng-template mat-tab-label>
+      <mat-icon>question_answer</mat-icon>
+      Entrevista
+    </ng-template>
+
+    <form [formGroup]="entrevistaForm" class="form-tab">
+      <div class="grid">
+
+        <mat-form-field class="example-full-width">
+          <mat-label>¿Presentó entrevista?</mat-label>
+          <mat-select formControlName="presentoEntrevista">
+            <mat-option value="SI">Sí</mat-option>
+            <mat-option value="NO">No</mat-option>
+          </mat-select>
+        </mat-form-field>
+
+        <mat-form-field class="example-full-width">
+          <mat-label>Labores realizadas</mat-label>
+          <input matInput formControlName="laboresRealizadas" rows="2">
+        </mat-form-field>
+
+        <mat-form-field class="example-full-width">
+          <mat-label>Empresas donde ha laborado</mat-label>
+          <input matInput formControlName="empresasLaborado" rows="2">
+        </mat-form-field>
+
+        <mat-form-field class="example-full-width">
+          <mat-label>Tiempo de experiencia (meses)</mat-label>
+          <input matInput formControlName="tiempoExperiencia" type="number">
+        </mat-form-field>
+
+        <mat-form-field class="example-full-width">
+          <mat-label>Escolaridad</mat-label>
+          <input matInput formControlName="escolaridad" placeholder="escolaridad">
+        </mat-form-field>
+
+        <mat-form-field class="example-full-width">
+          <mat-label>Número de hijos</mat-label>
+          <input matInput formControlName="numHijos" type="number">
+        </mat-form-field>
+
+        <mat-form-field class="example-full-width">
+          <mat-label>¿Quién los cuida?</mat-label>
+          <input matInput formControlName="quienLosCuida">
+        </mat-form-field>
+      </div>
+
+      <div class="actions">
+        <button mat-flat-button color="primary" [disabled]="entrevistaForm.invalid" (click)="guardarEntrevista()">
+          Guardar
+        </button>
+      </div>
+    </form>
+  </mat-tab>
+
+  <!-- ──────────────────────── TAB 3 ─ Observaciones ──────────────────────── -->
+  <mat-tab>
+    <ng-template mat-tab-label>
+      <mat-icon>visibility</mat-icon>
+      Observaciones
+    </ng-template>
+
+    <form [formGroup]="observacionesForm" class="form-tab">
+      <div class="grid">
+
+        <mat-form-field class="example-full-width">
+          <mat-label>Observación / Novedad</mat-label>
+          <textarea matInput formControlName="observacionNovedad" rows="3"></textarea>
+        </mat-form-field>
+
+        <mat-form-field class="example-full-width">
+          <mat-label>Observación del evaluador</mat-label>
+          <textarea matInput formControlName="observacionEvaluador" rows="3"></textarea>
+        </mat-form-field>
+
+      </div>
+
+      <div class="actions">
+        <button mat-flat-button color="primary" [disabled]="observacionesForm.invalid" (click)="guardarObservaciones()">
+          Guardar
+        </button>
+      </div>
+    </form>
+  </mat-tab>
+
+  <!-- ───────────────────────── TAB 4 ─ Vacantes ───────────────────────── -->
+  <mat-tab>
+    <ng-template mat-tab-label>
+      <mat-icon>work</mat-icon>
+      Vacantes
+    </ng-template>
+
+    <form [formGroup]="vacantesForm" class="form-tab">
+      <div class="grid">
+
+        <mat-form-field class="example-full-width">
+          <mat-label>Centro de costo</mat-label>
+          <input matInput formControlName="centroCosto" readonly>
+        </mat-form-field>
+
+        <mat-form-field class="example-full-width">
+          <mat-label>Cargo</mat-label>
+          <input matInput formControlName="cargo" readonly>
+        </mat-form-field>
+
+        <mat-form-field class="example-full-width">
+          <mat-label>Fecha prueba/entrevista</mat-label>
+          <input matInput formControlName="fechaPruebaEntrevista" readonly>
+        </mat-form-field>
+
+        <mat-form-field class="example-full-width">
+          <mat-label>Hora</mat-label>
+          <input matInput formControlName="horaPruebaEntrevista" readonly>
+        </mat-form-field>
+
+        <mat-form-field class="example-full-width">
+          <mat-label>¿Por quién preguntar?</mat-label>
+          <input matInput formControlName="porQuienPregunta">
+        </mat-form-field>
+
+        <mat-form-field class="example-full-width">
+          <mat-label>Retroalimentación final</mat-label>
+          <input matInput formControlName="retroalimentacionFinal" rows="3">
+        </mat-form-field>
+      </div>
+
+      <div class="actions">
+        <button mat-flat-button color="primary" [disabled]="vacantesForm.invalid" (click)="guardarVacantes()">
+          Guardar
+        </button>
+      </div>
+    </form>
+  </mat-tab>
+
+</mat-tab-group>

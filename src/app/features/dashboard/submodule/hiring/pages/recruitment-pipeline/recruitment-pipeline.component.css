@@ -1,0 +1,52 @@
+mat-tab-group {
+  height: 100%;
+}
+
+.tab {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+}
+
+.tab-icon {
+  margin-left: 8pt;
+}
+
+.tab-content-scrollable {
+  min-height: 75vh;
+  overflow-y: auto;
+  padding: 16px;
+  box-sizing: border-box;
+}
+
+.vacantes-scroll-container {
+  overflow-x: auto;
+  padding: 10px;
+}
+
+.vacantes-container {
+  display: flex;
+  gap: 16px;
+  flex-wrap: nowrap;
+}
+
+.vacante-card {
+  min-width: 300px;
+  max-width: 350px;
+  flex-shrink: 0;
+  box-shadow: rgba(0, 0, 0, 0.19) 0px 10px 20px, rgba(0, 0, 0, 0.23) 0px 6px 6px;
+}
+
+.actions-wrapper {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 1;
+}
+
+.fixed-button {
+  background-color: white;
+  box-shadow: none;
+}

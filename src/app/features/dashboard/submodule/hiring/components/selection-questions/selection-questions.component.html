@@ -1,0 +1,470 @@
+<!-- TAB GROUP PRINCIPAL -->
+<mat-tab-group class="selection-tabs" animationDuration="300ms">
+
+  <!-- ─────────── TAB 1 • VERIFICACIONES Y ÁREA DE APLICACIÓN ─────────── -->
+  <mat-tab>
+    <ng-template mat-tab-label let-active="active" let-disabled="disabled">
+      <div class="custom-colored-tab" [class.active]="active" [class.disabled]="disabled">
+        Verificaciones / Área de Aplicación ({{ getPercentage(formGroup1) }}% completo)
+      </div>
+    </ng-template>
+
+    <!-- CONTENIDO ORIGINAL DEL EXPANSION‑PANEL 1 -->
+    <div class="seccion" [formGroup]="formGroup1">
+      <!-- EPS -->
+      <div class="input-container">
+        <button mat-icon-button [matMenuTriggerFor]="pdfMenuEps" aria-label="PDF options">
+          <mat-icon>more_vert</mat-icon>
+        </button>
+        <mat-menu #pdfMenuEps="matMenu">
+          <button mat-menu-item (click)="verArchivo('eps')">Ver PDF</button>
+          <button mat-menu-item>
+            <label for="fileInputEps" style="cursor: pointer;">Subir PDF</label>
+          </button>
+          <input type="file" id="fileInputEps" style="display: none;" (change)="subirArchivo($event, 'eps')">
+        </mat-menu>
+        <mat-form-field appearance="fill" class="example-full-width">
+          <mat-label>EPS</mat-label>
+          <mat-select formControlName="eps" placeholder="EPS">
+            <mat-option *ngFor="let eps of epsList" [value]="eps">{{ eps }}</mat-option>
+          </mat-select>
+        </mat-form-field>
+        <small *ngIf="uploadedFiles['eps']" class="uploaded-file-name"
+          [ngClass]="{ 'text-danger': uploadedFiles['eps'].fileName === 'No disponible, falta cargar' }">
+          {{ uploadedFiles['eps'].fileName }}
+        </small>
+
+      </div>
+
+      <!-- AFP -->
+      <div class="input-container">
+        <button mat-icon-button [matMenuTriggerFor]="pdfMenuAfp" aria-label="PDF options">
+          <mat-icon>more_vert</mat-icon>
+        </button>
+        <mat-menu #pdfMenuAfp="matMenu">
+          <button mat-menu-item (click)="verArchivo('afp')">Ver PDF</button>
+          <button mat-menu-item>
+            <label for="fileInputAfp" style="cursor: pointer;">Subir PDF</label>
+          </button>
+          <input type="file" id="fileInputAfp" style="display: none;" (change)="subirArchivo($event, 'afp')">
+        </mat-menu>
+        <mat-form-field appearance="fill" class="example-full-width">
+          <mat-label>AFP</mat-label>
+          <mat-select formControlName="afp" placeholder="AFP">
+            <mat-option *ngFor="let afp of afpList" [value]="afp">{{ afp }}</mat-option>
+          </mat-select>
+        </mat-form-field>
+        <small *ngIf="uploadedFiles['afp']" class="uploaded-file-name"
+          [ngClass]="{ 'text-danger': uploadedFiles['afp'].fileName === 'No disponible, falta cargar' }">
+          {{ uploadedFiles['afp'].fileName }}
+        </small>
+      </div>
+
+      <!-- Policivos -->
+      <div class="input-container">
+        <button mat-icon-button [matMenuTriggerFor]="pdfMenuPolicivos" aria-label="PDF options">
+          <mat-icon>more_vert</mat-icon>
+        </button>
+        <mat-menu #pdfMenuPolicivos="matMenu">
+          <button mat-menu-item (click)="verArchivo('policivos')">Ver PDF</button>
+          <button mat-menu-item>
+            <label for="fileInputPolicivos" style="cursor: pointer;">Subir PDF</label>
+          </button>
+          <input type="file" id="fileInputPolicivos" style="display: none;"
+            (change)="subirArchivo($event, 'policivos')">
+        </mat-menu>
+        <mat-form-field appearance="fill" class="example-full-width">
+          <mat-label>Policivos</mat-label>
+          <mat-select formControlName="policivos">
+            <mat-option *ngFor="let estado of antecedentesEstados" [value]="estado">{{ estado }}</mat-option>
+          </mat-select>
+        </mat-form-field>
+        <small *ngIf="uploadedFiles['policivos']" class="uploaded-file-name"
+          [ngClass]="{ 'text-danger': uploadedFiles['policivos'].fileName === 'No disponible, falta cargar' }">
+          {{ uploadedFiles['policivos'].fileName }}
+        </small>
+      </div>
+
+      <!-- Procuraduría -->
+      <div class="input-container">
+        <button mat-icon-button [matMenuTriggerFor]="pdfMenuProcuraduria" aria-label="PDF options">
+          <mat-icon>more_vert</mat-icon>
+        </button>
+        <mat-menu #pdfMenuProcuraduria="matMenu">
+          <button mat-menu-item (click)="verArchivo('procuraduria')">Ver PDF</button>
+          <button mat-menu-item>
+            <label for="fileInputProcuraduria" style="cursor: pointer;">Subir PDF</label>
+          </button>
+          <input type="file" id="fileInputProcuraduria" style="display: none;"
+            (change)="subirArchivo($event, 'procuraduria')">
+        </mat-menu>
+        <mat-form-field appearance="fill" class="example-full-width">
+          <mat-label>Procuraduría</mat-label>
+          <mat-select formControlName="procuraduria">
+            <mat-option *ngFor="let estado of antecedentesEstados" [value]="estado">{{ estado }}</mat-option>
+          </mat-select>
+        </mat-form-field>
+        <small *ngIf="uploadedFiles['procuraduria']" class="uploaded-file-name"
+          [ngClass]="{ 'text-danger': uploadedFiles['procuraduria'].fileName === 'No disponible, falta cargar' }">
+          {{ uploadedFiles['procuraduria'].fileName }}
+        </small>
+      </div>
+
+      <!-- Contraloría -->
+      <div class="input-container">
+        <button mat-icon-button [matMenuTriggerFor]="pdfMenuContraloria" aria-label="PDF options">
+          <mat-icon>more_vert</mat-icon>
+        </button>
+        <mat-menu #pdfMenuContraloria="matMenu">
+          <button mat-menu-item (click)="verArchivo('contraloria')">Ver PDF</button>
+          <button mat-menu-item>
+            <label for="fileInputContraloria" style="cursor: pointer;">Subir PDF</label>
+          </button>
+          <input type="file" id="fileInputContraloria" style="display: none;"
+            (change)="subirArchivo($event, 'contraloria')">
+        </mat-menu>
+        <mat-form-field appearance="fill" class="example-full-width">
+          <mat-label>Contraloría</mat-label>
+          <mat-select formControlName="contraloria">
+            <mat-option *ngFor="let estado of antecedentesEstados" [value]="estado">{{ estado }}</mat-option>
+          </mat-select>
+        </mat-form-field>
+        <small *ngIf="uploadedFiles['contraloria']" class="uploaded-file-name"
+          [ngClass]="{ 'text-danger': uploadedFiles['contraloria'].fileName === 'No disponible, falta cargar' }">
+          {{ uploadedFiles['contraloria'].fileName }}
+        </small>
+      </div>
+
+      <!-- Rama Judicial -->
+      <div class="input-container">
+        <button mat-icon-button [matMenuTriggerFor]="pdfMenuRamaJudicial" aria-label="PDF options">
+          <mat-icon>more_vert</mat-icon>
+        </button>
+        <mat-menu #pdfMenuRamaJudicial="matMenu">
+          <button mat-menu-item (click)="verArchivo('ramaJudicial')">Ver PDF</button>
+          <button mat-menu-item>
+            <label for="fileInputRamaJudicial" style="cursor: pointer;">Subir PDF</label>
+          </button>
+          <input type="file" id="fileInputRamaJudicial" style="display: none;"
+            (change)="subirArchivo($event, 'ramaJudicial')">
+        </mat-menu>
+        <mat-form-field appearance="fill" class="example-full-width">
+          <mat-label>Rama Judicial</mat-label>
+          <mat-select formControlName="ramaJudicial">
+            <mat-option *ngFor="let estado of antecedentesEstados" [value]="estado">{{ estado }}</mat-option>
+          </mat-select>
+        </mat-form-field>
+        <small *ngIf="uploadedFiles['ramaJudicial']" class="uploaded-file-name"
+          [ngClass]="{ 'text-danger': uploadedFiles['ramaJudicial'].fileName === 'No disponible, falta cargar' }">
+          {{ uploadedFiles['ramaJudicial'].fileName }}
+        </small>
+      </div>
+
+      <!-- Medidas Correctivas -->
+      <div class="input-container">
+        <button mat-icon-button [matMenuTriggerFor]="pdfMenuMedidasCorrectivas" aria-label="PDF options">
+          <mat-icon>more_vert</mat-icon>
+        </button>
+        <mat-menu #pdfMenuMedidasCorrectivas="matMenu">
+          <button mat-menu-item (click)="verArchivo('medidasCorrectivas')">Ver PDF</button>
+          <button mat-menu-item>
+            <label for="fileInputMedidasCorrectivas" style="cursor: pointer;">Subir PDF</label>
+          </button>
+          <input type="file" id="fileInputMedidasCorrectivas" style="display: none;"
+            (change)="subirArchivo($event, 'medidasCorrectivas')">
+        </mat-menu>
+        <mat-form-field appearance="fill" class="example-full-width">
+          <mat-label>Medidas Correctivas</mat-label>
+          <mat-select formControlName="medidasCorrectivas">
+            <mat-option *ngFor="let estado of antecedentesEstados" [value]="estado">{{ estado }}</mat-option>
+          </mat-select>
+        </mat-form-field>
+        <small *ngIf="uploadedFiles['medidasCorrectivas']" class="uploaded-file-name"
+          [ngClass]="{ 'text-danger': uploadedFiles['medidasCorrectivas'].fileName === 'No disponible, falta cargar' }">
+          {{ uploadedFiles['medidasCorrectivas'].fileName }}
+        </small>
+      </div>
+
+      <!-- Sisben -->
+      <div class="input-container">
+        <button mat-icon-button [matMenuTriggerFor]="pdfMenuSisben" aria-label="PDF options">
+          <mat-icon>more_vert</mat-icon>
+        </button>
+        <mat-menu #pdfMenuSisben="matMenu">
+          <button mat-menu-item (click)="verArchivo('sisben')">Ver PDF</button>
+          <button mat-menu-item>
+            <label for="fileInputSisben" style="cursor: pointer;">Subir PDF</label>
+          </button>
+          <input type="file" id="fileInputSisben" style="display: none;" (change)="subirArchivo($event, 'sisben')">
+        </mat-menu>
+        <mat-form-field appearance="fill" class="example-full-width">
+          <mat-label>Sisben</mat-label>
+          <mat-select formControlName="sisben">
+            <mat-option *ngFor="let estado of antecedentesEstados" [value]="estado">{{ estado }}</mat-option>
+          </mat-select>
+        </mat-form-field>
+        <small *ngIf="uploadedFiles['sisben']" class="uploaded-file-name"
+          [ngClass]="{ 'text-danger': uploadedFiles['sisben'].fileName === 'No disponible, falta cargar' }">
+          {{ uploadedFiles['sisben'].fileName }}
+        </small>
+      </div>
+
+      <!-- OFAC -->
+      <div class="input-container">
+        <button mat-icon-button [matMenuTriggerFor]="pdfMenuOfac" aria-label="PDF options">
+          <mat-icon>more_vert</mat-icon>
+        </button>
+        <mat-menu #pdfMenuOfac="matMenu">
+          <button mat-menu-item (click)="verArchivo('ofac')">Ver PDF</button>
+          <button mat-menu-item>
+            <label for="fileInputOfac" style="cursor: pointer;">Subir PDF</label>
+          </button>
+          <input type="file" id="fileInputOfac" style="display: none;" (change)="subirArchivo($event, 'ofac')">
+        </mat-menu>
+        <mat-form-field appearance="fill" class="example-full-width">
+          <mat-label>OFAC</mat-label>
+          <mat-select formControlName="ofac">
+            <mat-option *ngFor="let estado of antecedentesEstados" [value]="estado">{{ estado }}</mat-option>
+          </mat-select>
+        </mat-form-field>
+        <small *ngIf="uploadedFiles['ofac']" class="uploaded-file-name"
+          [ngClass]="{ 'text-danger': uploadedFiles['ofac'].fileName === 'No disponible, falta cargar' }">
+          {{ uploadedFiles['ofac'].fileName }}
+        </small>
+      </div>
+
+
+      <mat-form-field class="example-full-width">
+        <mat-label>Revisión de antecedentes</mat-label>
+        <input matInput formControlName="revisionAntecedentes"
+          placeholder="Escribe si pasó la revisión de antecedentes" />
+      </mat-form-field>
+
+      <mat-form-field appearance="fill" class="example-full-width">
+        <mat-label>Área para la que Aplica</mat-label>
+        <input matInput formControlName="area_aplica" placeholder="Área para la que Aplica">
+      </mat-form-field>
+
+
+      <button mat-flat-button (click)="imprimirVerificacionesAplicacion()" class="example-full-width">Cargar</button>
+    </div>
+  </mat-tab>
+
+  <!-- ─────────── TAB 2 • ENTREVISTA / PRUEBA TÉCNICA ─────────── -->
+  <mat-tab>
+    <ng-template mat-tab-label>
+      <div class="tab-label">
+        Entrevista / Prueba Técnica ({{ getPercentage(formGroup2) }} % completo)
+      </div>
+    </ng-template>
+
+    <div class="seccion" [formGroup]="formGroup2">
+      <mat-form-field appearance="fill" class="example-full-width">
+        <mat-label>Centro de Costo</mat-label>
+        <input matInput formControlName="centroCosto" placeholder="CENTRO DE COSTO ENTREVISTA O PRUEBA TECNICA">
+      </mat-form-field>
+      <mat-form-field appearance="fill" class="example-full-width">
+        <mat-label>Cargo</mat-label>
+        <input matInput formControlName="cargo" placeholder="CARGO">
+      </mat-form-field>
+      <mat-form-field appearance="fill" class="example-full-width">
+        <mat-label>Área en la que presentará la entrevista</mat-label>
+        <input matInput formControlName="areaEntrevista" placeholder="ÁREA EN LA QUE PRESENTARA LA ENTREVISTA">
+      </mat-form-field>
+
+      <mat-form-field appearance="fill" class="example-full-width">
+        <mat-label>Fecha de la Prueba o Entrevista</mat-label>
+        <input matInput [matDatepicker]="picker" formControlName="fechaPruebaEntrevista">
+        <mat-datepicker-toggle matSuffix [for]="picker"></mat-datepicker-toggle>
+        <mat-datepicker #picker></mat-datepicker>
+      </mat-form-field>
+
+      <mat-form-field appearance="fill" class="example-full-width">
+        <mat-label>Hora de la Prueba o Entrevista</mat-label>
+        <input matInput type="time" formControlName="horaPruebaEntrevista">
+      </mat-form-field>
+
+      <mat-form-field appearance="fill" class="example-full-width">
+        <mat-label>Dirección o indicación para llegar a la empresa</mat-label>
+        <input matInput formControlName="direccionEmpresa"
+          placeholder="DIRECCION O INDICACION PARA LLEGAR A LA EMPRESA">
+      </mat-form-field>
+      <button mat-flat-button (click)="imprimirEntrevistaPrueba()" class="example-full-width">Cargar</button>
+    </div>
+
+  </mat-tab>
+
+  <!-- ─────────── TAB 3 • EXAMEN DE SALUD OCUPACIONAL ─────────── -->
+  <mat-tab>
+    <ng-template mat-tab-label>
+      <div class="tab-label">
+        Salud Ocupacional ({{ getPercentage(formGroup3) }} % completo)
+      </div>
+    </ng-template>
+
+    <div class="seccion" [formGroup]="formGroup3">
+
+
+
+      <mat-form-field appearance="fill" class="example-full-width">
+        <mat-label>IPS</mat-label>
+        <mat-select formControlName="ips" placeholder="IPS">
+          <mat-option value="JAVAP">JAVAP</mat-option>
+          <mat-option value="ESTRATEGO">ESTRATEGO</mat-option>
+          <mat-option value="HELSEN">HELSEN</mat-option>
+          <mat-option value="ASISTIR">ASISTIR</mat-option>
+          <mat-option value="SIGMEDICAL">SIGMEDICAL</mat-option>
+          <mat-option value="PORSALUD">PORSALUD</mat-option>
+        </mat-select>
+      </mat-form-field>
+
+      <mat-form-field appearance="fill" class="example-full-width">
+        <mat-label>IPSLAB</mat-label>
+        <mat-select formControlName="ipsLab" placeholder="IPSLAB">
+          <mat-option value="JAVAP">JAVAP</mat-option>
+          <mat-option value="ESTRATEGO">ESTRATEGO</mat-option>
+          <mat-option value="HELSEN">HELSEN</mat-option>
+          <mat-option value="ASISTIR">ASISTIR</mat-option>
+          <mat-option value="SIGMEDICAL">SIGMEDICAL</mat-option>
+          <mat-option value="PORSALUD">PORSALUD</mat-option>
+        </mat-select>
+      </mat-form-field>
+
+      <!-- Select múltiple para elegir exámenes -->
+      <mat-form-field appearance="fill" class="example-full-width">
+        <mat-label>Seleccione los exámenes</mat-label>
+        <mat-select formControlName="selectedExams" multiple>
+          <mat-option *ngFor="let exam of filteredExamOptions" [value]="exam">
+            {{ exam }}
+          </mat-option>
+        </mat-select>
+      </mat-form-field>
+
+      <!-- Campos dinámicos para cada examen seleccionado -->
+      <div formArrayName="selectedExamsArray">
+        <div *ngFor="let exam of formGroup3.get('selectedExams')?.value; let i = index" [formGroupName]="i">
+
+          <mat-form-field appearance="fill" class="example-full-width">
+            <mat-label>{{ exam }}</mat-label> <!-- Usa el nombre del examen seleccionado directamente -->
+            <mat-select formControlName="aptoStatus">
+              <mat-option value="APTO">APTO</mat-option>
+              <mat-option value="NO APTO">NO APTO</mat-option>
+            </mat-select>
+          </mat-form-field>
+
+          <!-- Campo para subir PDF -->
+          <input type="file" accept="application/pdf" (change)="onFileSelected($event, i)" />
+
+          <p *ngIf="examFiles[i]">Archivo seleccionado: {{ examFiles[i].name }}</p>
+
+        </div>
+      </div>
+
+      <!-- Botón para fusionar e imprimir los PDFs -->
+      <button mat-flat-button (click)="imprimirSaludOcupacional()" class="example-full-width">Imprimir Salud
+        Ocupacional</button>
+
+    </div>
+  </mat-tab>
+
+  <!-- ─────────── TAB 4 • CONTRATACIÓN ─────────── -->
+  <mat-tab>
+    <ng-template mat-tab-label>
+      <div class="tab-label">
+        Contratación ({{ getPercentage(formGroup4) }} % completo)
+      </div>
+    </ng-template>
+
+    <div class="seccion" [formGroup]="formGroup4">
+      <mat-form-field appearance="fill" class="example-full-width">
+        <mat-label>Empresa Usuaria</mat-label>
+        <input matInput formControlName="empresaUsuaria" placeholder="EMPRESA USUARIA">
+      </mat-form-field>
+
+      <mat-form-field appearance="fill" class="example-full-width">
+        <mat-label>Fecha de Ingreso</mat-label>
+        <input matInput [matDatepicker]="pickerFechaIngreso" formControlName="fechaIngreso">
+        <mat-datepicker-toggle matSuffix [for]="pickerFechaIngreso"></mat-datepicker-toggle>
+        <mat-datepicker #pickerFechaIngreso></mat-datepicker>
+      </mat-form-field>
+
+
+
+      <mat-form-field appearance="fill" class="example-full-width">
+        <mat-label>Salario</mat-label>
+        <input matInput formControlName="salario" placeholder="SALARIO">
+      </mat-form-field>
+      <mat-form-field appearance="fill" class="example-full-width">
+        <mat-label>Auxilio de Transporte</mat-label>
+        <input matInput formControlName="auxTransporte" placeholder="AUXTRANSPORTE">
+      </mat-form-field>
+      <mat-form-field appearance="fill" class="example-full-width">
+        <mat-label>Rodamiento</mat-label>
+        <input matInput formControlName="rodamiento" placeholder="RODAMIENTO">
+      </mat-form-field>
+      <mat-form-field appearance="fill" class="example-full-width">
+        <mat-label>Auxilio de Movilidad</mat-label>
+        <input matInput formControlName="auxMovilidad" placeholder="AUX MOVILIDAD">
+      </mat-form-field>
+      <mat-form-field appearance="fill" class="example-full-width">
+        <mat-label>Bonificación</mat-label>
+        <input matInput formControlName="bonificacion" placeholder="BONIFICACION">
+      </mat-form-field>
+      <button mat-flat-button (click)="imprimirContratacion()" class="example-full-width">Cargar</button>
+    </div>
+
+  </mat-tab>
+
+  <!-- ─────────── TAB 5 • SUBIDA DE DOCUMENTOS ─────────── -->
+  <mat-tab label="Subida de documentos">
+    <div class="seccion">
+
+      <!-- Pensión / Semanas Cotizadas -->
+      <div class="input-container">
+        <button mat-icon-button [matMenuTriggerFor]="pdfMenuPension" aria-label="PDF options">
+          <mat-icon>more_vert</mat-icon>
+        </button>
+        <mat-menu #pdfMenuPension="matMenu">
+          <button mat-menu-item (click)="verArchivo('pensionSemanas')">Ver PDF</button>
+          <button mat-menu-item>
+            <label for="fileInputPension" style="cursor:pointer">Subir PDF</label>
+          </button>
+          <input type="file" id="fileInputPension" style="display:none"
+            (change)="subirArchivo($event, 'pensionSemanas')" />
+        </mat-menu>
+
+        <mat-form-field appearance="fill" class="example-full-width">
+          <mat-label>Pensión / Semanas cotizadas</mat-label>
+          <input matInput [placeholder]="'Cargar Pensión/Semanas Cotizadas'"
+            [value]="uploadedFiles['pensionSemanas'].fileName || ''" readonly />
+        </mat-form-field>
+      </div>
+
+      <!-- Figura Humana -->
+      <div class="input-container">
+        <button mat-icon-button [matMenuTriggerFor]="pdfMenuFiguraHumana" aria-label="PDF options">
+          <mat-icon>more_vert</mat-icon>
+        </button>
+        <mat-menu #pdfMenuFiguraHumana="matMenu">
+          <button mat-menu-item (click)="verArchivo('figuraHumana')">Ver PDF</button>
+          <button mat-menu-item>
+            <label for="fileInputFiguraHumana" style="cursor:pointer">Subir PDF</label>
+          </button>
+          <input type="file" id="fileInputFiguraHumana" style="display:none"
+            (change)="subirArchivo($event, 'figuraHumana')" />
+        </mat-menu>
+
+        <mat-form-field appearance="fill" class="example-full-width">
+          <mat-label>Figura Humana</mat-label>
+          <input matInput [placeholder]="'Cargar Figura Humana'" [value]="uploadedFiles['figuraHumana'].fileName || ''"
+            readonly />
+        </mat-form-field>
+      </div>
+
+      <button mat-flat-button color="primary" (click)="imprimirDocumentos()" class="example-full-width">
+        Cargar
+      </button>
+    </div>
+  </mat-tab>
+
+</mat-tab-group>

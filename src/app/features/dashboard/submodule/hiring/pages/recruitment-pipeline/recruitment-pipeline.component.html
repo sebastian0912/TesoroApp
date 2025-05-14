@@ -1,38 +1,99 @@
-<mat-card>
-  <mat-card-content>
-    <mat-tab-group>
+<mat-card style="height: 87vh;">
+  <mat-card-content style="height: 100%;">
+    <mat-tab-group class="tab-group">
       <mat-tab>
         <ng-template mat-tab-label>
-          <mat-icon class="example-tab-icon">thumb_up</mat-icon>
-          Busqueda
+          <div class="tab">
+            <mat-icon>search</mat-icon>
+            Búsqueda
+          </div>
         </ng-template>
-        Content 1
+        <div class="tab-content-scrollable">
+          <app-search-for-candidate
+          (cedulaSeleccionada)="onCedulaSeleccionada($event)"
+          (codigoContratoChange)="onCodigoContrato($event)"
+          ></app-search-for-candidate>
+        </div>
       </mat-tab>
 
       <mat-tab>
         <ng-template mat-tab-label>
-          <mat-icon class="example-tab-icon">thumb_up</mat-icon>
-          Vacantes
+          <div class="tab">
+            <mat-icon>work</mat-icon>
+            Vacantes
+          </div>
         </ng-template>
-        Content 2
+        <div class="tab-content-scrollable">
+          <!-- Buscador para filtrar vacantes -->
+          <mat-form-field class="example-full-width">
+            <mat-label>Buscar Vacante</mat-label>
+            <input matInput [(ngModel)]="filtro" placeholder="Buscar por título, oficina, etc." />
+          </mat-form-field>
+          <!-- Contenedor de vacantes con scroll horizontal -->
+          <div class="vacantes-scroll-container">
+            <div class="vacantes-container">
+              <mat-card class="vacante-card" *ngFor="let vacante of filtrarVacantes()">
+                <mat-card-header>
+                  <div mat-card-avatar class="vacante-icon">
+                    <mat-icon>work_outline</mat-icon>
+                  </div>
+                  <mat-card-title>{{ vacante.cargo }}</mat-card-title>
+                  <mat-card-subtitle>{{ vacante.finca }}</mat-card-subtitle>
+                </mat-card-header>
+
+                <mat-card-content>
+                  <p><strong>Temporal:</strong> {{ vacante.empresaUsuariaSolicita }}</p>
+                  <p><strong>Experiencia Requerida:</strong> {{ vacante.experiencia }}</p>
+                </mat-card-content>
+
+                <!-- Menu button for actions -->
+                <div class="actions-wrapper">
+                  <button mat-icon-button [matMenuTriggerFor]="menu" class="fixed-button">
+                    <mat-icon>more_vert</mat-icon>
+                  </button>
+
+                  <mat-menu #menu="matMenu">
+                    <!-- Botón para escoger vacante -->
+                    <button mat-menu-item (click)="escogerVacante(vacante)">
+                      <mat-icon>check_circle</mat-icon>
+                      <span>Escoger</span>
+                    </button>
+                  </mat-menu>
+                </div>
+              </mat-card>
+            </div>
+          </div>
+        </div>
       </mat-tab>
 
       <mat-tab>
         <ng-template mat-tab-label>
-          <mat-icon class="example-tab-icon">thumb_up</mat-icon>
-          Información de ayuda
+          <div class="tab">
+            <mat-icon>rate_review</mat-icon>
+            Información de ayuda
+          </div>
         </ng-template>
-
-        Content 3
+        <div class="tab-content-scrollable">
+          <app-help-information
+          [cedula]="cedulaActual"
+          ></app-help-information>
+        </div>
       </mat-tab>
 
       <mat-tab>
         <ng-template mat-tab-label>
-          <mat-icon class="example-tab-icon">thumb_up</mat-icon>
-          Selección
+          <div class="tab">
+            <mat-icon>thumb_up</mat-icon>
+            Selección
+          </div>
         </ng-template>
-
-        Content 4
+        <div class="tab-content-scrollable">
+          <app-selection-questions
+          [cedula]="cedulaActual"
+          [vacanteSeleccionada]="selectionQuestionsComponent"
+          [codigoContrato]="codigoContrato"
+          ></app-selection-questions>
+        </div>
       </mat-tab>
     </mat-tab-group>
   </mat-card-content>

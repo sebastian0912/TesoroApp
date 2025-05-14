@@ -1,0 +1,110 @@
+:host {
+  display: block;
+  padding: 16px;
+  box-sizing: border-box;
+}
+
+/* Títulos */
+.titulo {
+  font-size: 1.5rem;
+  margin-bottom: 16px;
+  width: 100%;
+  text-align: center;
+}
+
+/* Contenedor búsqueda */
+.busqueda-container {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.input-cedula{
+  margin-top: 15pt;
+}
+
+
+
+/* Botones */
+.acciones {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* Observación */
+.observacion-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.input-observacion {
+  width: 100%;
+}
+
+/* Botones generales */
+button.mat-flat-button {
+  background-color: #1976d2;
+  color: white;
+}
+
+button.mat-flat-button:hover {
+  background-color: #1565c0;
+}
+
+/* Filtro */
+.filtro {
+  width: 100%;
+  max-width: 400px;
+  margin-bottom: 16px;
+}
+
+/* Tabla */
+.tabla {
+  margin-top: 32px;
+}
+
+.table-container {
+  overflow-x: auto;
+  max-height: 60vh;
+  border-radius: 8px;
+}
+
+table {
+  width: 100%;
+  min-width: 800px;
+}
+
+.mat-row td[colspan] {
+  text-align: center;
+  font-style: italic;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .titulo {
+    font-size: 1.2rem;
+    text-align: left;
+  }
+
+  .busqueda-container {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .filtro {
+    width: 100%;
+  }
+
+  .table-container {
+    max-height: 50vh;
+  }
+
+  table {
+    min-width: 100%;
+  }
+}
