@@ -1,0 +1,58 @@
+<!-- Tarjeta para búsqueda de cédula -->
+<div class="seleccion">
+  <button mat-flat-button class="btn-with-arrow" (click)="devolvercontratacion()">
+    <span class="text">Devolver a contratación</span>
+    <mat-icon class="arrow">arrow_back</mat-icon>
+  </button>
+  <mat-card>
+    <mat-card-content>
+      <h1 class="titulo" style="margin-right: 10px; width: 100%;">
+        Documentos para generar o subir
+      </h1>
+
+      <!-- Contenedor dividido - usando *ngFor -->
+      <div class="split-container">
+        <!-- Lado izquierdo: Lista de documentos -->
+        <div class="left-panel">
+          <div *ngFor="let doc of documentos" class="document-item">
+            <span>{{ doc.titulo }}</span>
+            <button mat-icon-button [matMenuTriggerFor]="menu">
+              <mat-icon>more_vert</mat-icon>
+            </button>
+            <mat-menu #menu="matMenu">
+              <button mat-menu-item (click)="verPDF(doc)">
+                <mat-icon>visibility</mat-icon>
+                <span>Ver PDF</span>
+              </button>
+
+              <!-- Botón Subir PDF con input tipo file -->
+              <label mat-menu-item *ngIf="isSubirPDF(doc)">
+                <input type="file" hidden (change)="subirArchivo($event, doc.titulo)" />
+                <mat-icon>cloud_upload</mat-icon>
+                <span>Subir PDF</span>
+              </label>
+
+              <!-- Botón Generar PDF para otros documentos -->
+              <button mat-menu-item *ngIf="!isSubirPDF(doc)" (click)="generarPDF(doc.titulo)">
+                <mat-icon>download</mat-icon>
+                <span>Generar PDF</span>
+              </button>
+            </mat-menu>
+          </div>
+          <!-- Botón para cargar PDFs -->
+          <button mat-flat-button class="btn-with-arrow2" (click)="cargarpdf()">
+            <span class="text">Cargar PDF</span>
+            <mat-icon class="arrow">arrow_forward</mat-icon>
+          </button>
+        </div>
+
+
+
+        <!-- Lado derecho: Vista previa del PDF -->
+        <div class="right-panel">
+          <iframe id="pdfPreview" class="pdf-preview" title="Vista previa PDF"></iframe>
+        </div>
+      </div>
+    </mat-card-content>
+  </mat-card>
+</div>

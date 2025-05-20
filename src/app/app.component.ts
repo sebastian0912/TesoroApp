@@ -16,6 +16,9 @@ declare global {
       env: {
         get: () => Promise<string>;
       };
+      fingerprint: {
+        get: () => Promise<{ success: boolean; data?: string; error?: string }>;
+      };
       __dirname: string;
     };
   }

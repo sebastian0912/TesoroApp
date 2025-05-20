@@ -84,8 +84,11 @@ export class AutorizacionMercadoComponent implements OnInit {
 
     const formValues = { ...this.myForm.value, valor: this.myForm.value.valor.replace(/\D/g, '') };
     this.sumaPrestamos = this.autorizacionesService.traerSaldoPendiente(this.datosOperario);
+    console.log(this.sumaPrestamos);
 
-    if (this.rolUsuario != "GERENCIA") {
+    if (this.rolUsuario != "GERENCIA" && this.correoUsuario != "mercarflorats@gmail.com"
+      && this.correoUsuario != "mercarflora2.ts@gmail.com"
+    ) {
       if (!this.autorizacionesService.verificarCondiciones(this.datosOperario, parseInt(formValues.valor), this.sumaPrestamos, "mercado")) {
         return;
       }

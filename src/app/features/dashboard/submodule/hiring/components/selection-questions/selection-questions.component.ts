@@ -1,5 +1,5 @@
 import { SharedModule } from '@/app/shared/shared.module';
-import { Component, SimpleChanges } from '@angular/core';
+import { Component, OnInit, SimpleChanges } from '@angular/core';
 import { FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { MatTabsModule } from '@angular/material/tabs';
 import Swal from 'sweetalert2';
@@ -10,6 +10,7 @@ import { Input } from '@angular/core';
 import { MatDatepickerModule } from '@angular/material/datepicker';
 import { MatNativeDateModule } from '@angular/material/core';
 import { HiringService } from '../../service/hiring.service';
+import { debounceTime, merge, Subscription } from 'rxjs';
 
 @Component({
   selector: 'app-selection-questions',
@@ -22,7 +23,7 @@ import { HiringService } from '../../service/hiring.service';
   templateUrl: './selection-questions.component.html',
   styleUrl: './selection-questions.component.css'
 })
-export class SelectionQuestionsComponent {
+export class SelectionQuestionsComponent implements OnInit {
   idvacante: string = '';
   @Input() cedula: string = '';
   @Input() codigoContrato: string = '';
@@ -34,6 +35,7 @@ export class SelectionQuestionsComponent {
   formGroup2: FormGroup;
   formGroup3: FormGroup;
   formGroup4: FormGroup;
+  private formSubs!: Subscription;
 
   examFiles: File[] = []; // Guardamos los archivos PDF por índice
 
@@ -105,6 +107,38 @@ export class SelectionQuestionsComponent {
     examenesMedicos: 32,
     pensionSemanas: 33
   };
+
+  ngOnInit(): void {
+    // … aquí creas/inyectas los formGroups …
+
+    /* 🔔 Detectar cambios en los 4 juntos */
+    this.formSubs = merge(
+      this.formGroup1.valueChanges,
+      this.formGroup2.valueChanges,
+      this.formGroup3.valueChanges,
+      this.formGroup4.valueChanges,
+    )
+      .pipe(debounceTime(300))        // evita escribir en cada tecla
+      .subscribe(() => this.actualizarFormulariosLS());
+  }
+
+  ngOnDestroy(): void {
+    this.formSubs?.unsubscribe();
+  }
+
+  private actualizarFormulariosLS(): void {
+  const almacenado = localStorage.getItem('formularios');
+  const formularios = almacenado ? JSON.parse(almacenado) : {};
+
+  /* 👉 Agregar o sobre-escribir sólo estas partes */
+  formularios.selecionparte1 = this.formGroup1.value;
+  formularios.selecionparte2 = this.formGroup2.value;
+  formularios.selecionparte3 = this.formGroup3.value;
+  formularios.selecionparte4 = this.formGroup4.value;
+
+  localStorage.setItem('formularios', JSON.stringify(formularios));
+}
+
 
   constructor(
     private seleccionService: SeleccionService,

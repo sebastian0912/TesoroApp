@@ -9,6 +9,8 @@ import Swal from 'sweetalert2';
 import { VerPdfsComponent } from '../../components/ver-pdfs/ver-pdfs.component';
 import { DateRangeDialogComponent } from '@/app/shared/components/date-rang-dialog/date-rang-dialog.component';
 import saveAs from 'file-saver';
+import { PLATFORM_ID, Inject } from '@angular/core';
+import { isPlatformBrowser } from '@angular/common';
 
 
 @Component({
@@ -455,15 +457,6 @@ export class ViewReportsComponent {
 
     return formattedData;
   }
-
-
-
-
-
-
-
-
-
 
   descargarCedulasZip() {
     const zip = new JSZip();

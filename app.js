@@ -1,6 +1,7 @@
 const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
 const { autoUpdater } = require('electron-updater');
+const { execFile } = require('child_process'); // Asegúrate de importar execFile aquí
 
 let mainWindow;
 
@@ -84,4 +85,35 @@ app.on('window-all-closed', () => {
 
 app.on('activate', () => {
   if (mainWindow === null) createWindow();
+});
+
+
+ipcMain.handle('fingerprint:get', async (event) => {
+  return new Promise((resolve, reject) => {
+    let csharpAppPath;
+
+    if (process.env.NODE_ENV === 'development') {
+      // En desarrollo, el archivo está en el mismo directorio del código
+      csharpAppPath = path.join(__dirname, 'csharp', 'UareUSampleCSharp_CaptureOnly.exe');
+    } else {
+      // En producción, el ejecutable debe estar en la carpeta "resources"
+      csharpAppPath = path.join(process.resourcesPath, 'csharp', 'UareUSampleCSharp_CaptureOnly.exe');
+    }
+
+    execFile(csharpAppPath, (error, stdout, stderr) => {
+      if (error) {
+        console.error(`Error al ejecutar el archivo C#: ${stderr}`);
+        reject({ error: stderr });
+        return;
+      }
+
+      const match = stdout.match(/DATA:\s*(.+)/);
+      if (match) {
+        const base64Image = match[1].trim();
+        resolve({ success: true, data: base64Image });
+      } else {
+        reject({ error: 'No se recibió una imagen en Base64.' });
+      }
+    });
+  });
 });

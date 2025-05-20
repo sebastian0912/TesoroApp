@@ -13,5 +13,8 @@ contextBridge.exposeInMainWorld('electron', {
   },
   env: {
     get: () => ipcRenderer.invoke('env:get')  // Nuevo método para obtener el entorno
+  },
+  fingerprint: {
+    get: () => ipcRenderer.invoke('fingerprint:get')
   }
 });

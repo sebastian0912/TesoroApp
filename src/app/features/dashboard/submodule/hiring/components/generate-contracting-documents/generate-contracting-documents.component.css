@@ -1,0 +1,50 @@
+.titulo {
+  font-size: 1.2rem;
+  font-weight: bold;
+  line-height: 1;
+}
+
+mat-card{
+  margin-top: 10pt;
+  min-height: 80vh;
+}
+
+
+.split-container {
+  display: flex;
+  gap: 16px;
+  margin-top: 16px;
+  height: auto;
+}
+
+.left-panel {
+  flex: 1;
+  padding: 5px;
+  max-width: 250px;
+  overflow-y: auto;
+}
+
+.right-panel {
+  flex: 2;
+  min-height: 70vh;
+}
+
+.pdf-preview{
+  width: 100%;
+  height: 100%;
+  border: none;
+}
+
+.document-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-bottom: 1px solid #ccc;
+}
+
+.btn-with-arrow2{
+  margin-top: 10pt;
+  width: 100%;
+  border-radius: 5px;
+}

@@ -25,6 +25,7 @@ export class AutorizacionPrestamoComponent implements OnInit {
   user: any;
   rolUsuario: string = '';
   fechaIngreso: string = '';
+  correoUsuario: string = '';
 
   constructor(
     private fb: FormBuilder,
@@ -37,6 +38,7 @@ export class AutorizacionPrestamoComponent implements OnInit {
     this.user = this.utilityService.getUser();
     if (this.user) {
       this.rolUsuario = this.user.rol;
+      this.correoUsuario = this.user.correo_electronico;
     }
     this.myForm = this.fb.group({
       cedula: ['', Validators.required],
@@ -107,7 +109,8 @@ export class AutorizacionPrestamoComponent implements OnInit {
 
     this.sumaPrestamos = this.autorizacionesService.traerSaldoPendiente(this.datosOperario);
 
-    if (this.rolUsuario != "GERENCIA") {
+    if (this.rolUsuario != "GERENCIA" && this.correoUsuario != "mercarflorats@gmail.com"
+      && this.correoUsuario != "mercarflora2.ts@gmail.com") {
       if (!this.autorizacionesService.verificarCondiciones(this.datosOperario, parseInt(formValues.valor), this.sumaPrestamos, "prestamo")) {
         return;
       }

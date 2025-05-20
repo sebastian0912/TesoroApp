@@ -9,17 +9,19 @@ import { QueryFormComponent } from './pages/query-form/query-form.component';
 import { RecruitmentPipelineComponent } from './pages/recruitment-pipeline/recruitment-pipeline.component';
 import { RobotBackgroundChecksComponent } from './pages/robot-background-checks/robot-background-checks.component';
 import { ViewReportsComponent } from './pages/view-reports/view-reports.component';
+import { GenerateContractingDocumentsComponent } from './components/generate-contracting-documents/generate-contracting-documents.component';
 
 const routes: Routes = [
   { path: 'absences', component: AbsencesComponent },
   { path: 'hiring-report', component: HiringReportComponent },
-  { path: 'view-reports', component: ViewReportsComponent },
   { path: 'recruitment-pipeline', component: RecruitmentPipelineComponent },
   { path: 'hiring-process', component: HiringProcessComponent },
+  { path: 'generate-contracting-documents', component: GenerateContractingDocumentsComponent },
   { path: 'query-form', component: QueryFormComponent },
   { path: 'robot-background-checks', component: RobotBackgroundChecksComponent },
   { path: 'banned-report', component: BannedReportComponent },
   { path: 'banned-management', component: BannedManagementComponent },
+  //{ path: 'view-reports', component: ViewReportsComponent },
 ];
 
 @NgModule({

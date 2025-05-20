@@ -42,7 +42,20 @@
               "core-js",
               "raf",
               "rgbcolor",
-              "moment"
+              "moment",
+              "exceljs",
+              "file-saver",
+              "jszip",
+              "fast-deep-equal",
+              "unicode-trie",
+              "dfa",
+              "clone",
+              "tiny-inflate",
+              "brotli/decompress.js",
+              "base64-js",
+              "pako"
+
+
             ]
           },
           "configurations": {
