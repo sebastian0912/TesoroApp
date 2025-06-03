@@ -166,5 +166,14 @@ export const DYNAMIC_MENUS: IDynamicMenu[] = [
       { route: '/dashboard/disabilities/transportation', label: 'Incapacidades generales',   permission: 'total-disabilities'      },
     ],
   },
+  // vacancies
+  {
+    key: 'vacancies',
+    label: 'Vacantes',
+    icon: 'icons/navbar/vacant.png',
+    subMenus: [
+      { route: '/dashboard/vacancies', label: 'Vacante', permission: 'job-openings' },
+    ],
+  },
 ];
 

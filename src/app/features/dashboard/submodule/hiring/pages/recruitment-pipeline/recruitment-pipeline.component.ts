@@ -10,6 +10,11 @@ import { catchError, of } from 'rxjs';
 import Swal from 'sweetalert2';
 import { UtilityServiceService } from '@/app/shared/services/utilityService/utility-service.service';
 import { HelpInformationComponent } from '../../components/help-information/help-information.component';
+import { MatTableDataSource } from '@angular/material/table';
+import { MatTableModule } from '@angular/material/table';
+import { MatPaginatorModule } from '@angular/material/paginator';
+import { MatSortModule } from '@angular/material/sort';
+import { MatMenuModule } from '@angular/material/menu';
 
 @Component({
   selector: 'app-recruitment-pipeline',
@@ -27,17 +32,27 @@ import { HelpInformationComponent } from '../../components/help-information/help
 })
 
 export class RecruitmentPipelineComponent implements OnInit {
-  cedulaActual: string = '';
-  codigoContrato: string = '';
-  filtro: string = '';
+  cedulaActual = '';
+  codigoContrato = '';
+  filtro = '';
   vacantes: any[] = [];
-  idvacante: string = '';
+  idvacante = '';
+  // Añadir dentro de la clase RecruitmentPipelineComponent
+  dataSource = new MatTableDataSource<any>([]);
+  displayedColumns: string[] = [
+    'cargo',
+    'finca',
+    'empresaUsuariaSolicita',
+    'experiencia',
+    'fechaPublicado',
+    'acciones'
+  ];
+
   @ViewChild(SelectionQuestionsComponent)
   selectionQuestionsComponent!: SelectionQuestionsComponent;
 
   @ViewChild(HelpInformationComponent)
   helpInformationComponent!: HelpInformationComponent;
-
 
   constructor(
     private vacantesService: VacantesService,
@@ -54,8 +69,8 @@ export class RecruitmentPipelineComponent implements OnInit {
         Swal.fire('Error', 'Ocurrió un error al cargar las vacantes', 'error');
         return of([]);
       })
-    ).subscribe((response: any) => {
-      if (!response) {
+    ).subscribe((response: any[]) => {
+      if (!response || response.length === 0) {
         Swal.fire('Error', 'No se encontraron vacantes', 'error');
         return;
       }
@@ -66,27 +81,30 @@ export class RecruitmentPipelineComponent implements OnInit {
         return;
       }
 
-      const sedeLoginLower = user.sucursalde.toLowerCase();
+      const sedeLoginLower = user.sucursalde?.toLowerCase?.() || '';
 
-      this.vacantes = response.filter((vacante: any) => {
-        if (!vacante.oficinasQueContratan || !Array.isArray(vacante.oficinasQueContratan)) {
-          return false;
-        }
-
-        return vacante.oficinasQueContratan.some((oficina: any) =>
-          oficina.nombre.toLowerCase() === sedeLoginLower
-        );
-      });
+      this.vacantes = response.filter(vacante =>
+        Array.isArray(vacante.oficinasQueContratan) &&
+        vacante.oficinasQueContratan.some((oficina: { nombre: string; }) =>
+          oficina.nombre?.toLowerCase() === sedeLoginLower
+        )
+      );
+      this.dataSource.data = this.vacantes;
     });
   }
 
-
-  filtrarVacantes() {
+  filtrarVacantes(): any[] {
     if (!this.filtro) return this.vacantes;
     const filtroLower = this.filtro.toLowerCase();
+
     return this.vacantes.filter(vacante =>
-      ['Cargovacante_id', 'localizacionDeLaPersona', 'empresaQueSolicita_id']
-        .some(key => vacante[key]?.toLowerCase().includes(filtroLower))
+      [
+        vacante.cargo,
+        vacante.finca,
+        vacante.empresaUsuariaSolicita,
+        vacante.temporal
+      ]
+        .some(field => field?.toLowerCase?.().includes(filtroLower))
     );
   }
 
@@ -100,26 +118,24 @@ export class RecruitmentPipelineComponent implements OnInit {
     if (vacante) {
       this.idvacante = vacante.id;
 
-      if (this.selectionQuestionsComponent) {
-        this.selectionQuestionsComponent.recibirVacante(vacante);
-      }
-
-      if (this.helpInformationComponent) {
-        this.helpInformationComponent.recibirVacante(vacante);
-      }
+      this.selectionQuestionsComponent?.recibirVacante(vacante);
+      this.helpInformationComponent?.recibirVacante(vacante);
     }
   }
 
-
-
-
-  onCedulaSeleccionada(cedula: string) {
+  onCedulaSeleccionada(cedula: string): void {
     this.cedulaActual = cedula;
-    console.log('Cédula recibida del hijo:', this.cedulaActual);
+    console.log('📩 Cédula recibida del hijo:', this.cedulaActual);
   }
 
   onCodigoContrato(codigo: string): void {
     this.codigoContrato = codigo;
-    console.log('Código de contrato recibido del hijo:', codigo);
+    console.log('📩 Código de contrato recibido del hijo:', this.codigoContrato);
+  }
+
+  // Este método se llama desde el input en la plantilla HTML
+  applyFilterManual(event: Event): void {
+    const filterValue = (event.target as HTMLInputElement).value.trim().toLowerCase();
+    this.dataSource.filter = filterValue;
   }
 }

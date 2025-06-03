@@ -1,5 +1,5 @@
 import { SharedModule } from '@/app/shared/shared.module';
-import { Component } from '@angular/core';
+import { Component, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { forkJoin, take } from 'rxjs';
 import Swal from 'sweetalert2';
@@ -19,12 +19,14 @@ import { HiringService } from '../../service/hiring.service';
   templateUrl: './search-for-candidate.component.html',
   styleUrl: './search-for-candidate.component.css'
 })
-export class SearchForCandidateComponent {
+export class SearchForCandidateComponent implements OnInit {
   [x: string]: any;
-  @Output() codigoContratoChange  = new EventEmitter<string>();
+  @Output() codigoContratoChange = new EventEmitter<string>();
   @Output() cedulaSeleccionada = new EventEmitter<string>();
   codigoContratoActual: string = '';
   sede: string = '';
+  abreviacionSede: string = '';
+  user: any;
   // Datos del formulario
   cedula: string = '';
   observacion: string = '';
@@ -42,7 +44,37 @@ export class SearchForCandidateComponent {
     private seleccionService: SeleccionService,
     private utilityService: UtilityServiceService,
     private contratacionService: HiringService
-  ) { }
+  ) {
+
+  }
+
+  ngOnInit(): void {
+    this.user = this.utilityService.getUser();
+    if (this.user) {
+      const abreviaciones: { [key: string]: string } = {
+        'ADMINISTRATIVOS': 'ADM',
+        'ANDES': 'AND',
+        'BOSA': 'BOS',
+        'CARTAGENITA': 'CAR',
+        'FACA_PRIMERA': 'FPR',
+        'FACA_PRINCIPAL': 'FPC',
+        'FONTIBÓN': 'FON',
+        'FORANEOS': 'FOR',
+        'FUNZA': 'FUN',
+        'MADRID': 'MAD',
+        'MONTE_VERDE': 'MV',
+        'ROSAL': 'ROS',
+        'SOACHA': 'SOA',
+        'SUBA': 'SUB',
+        'TOCANCIPÁ': 'TOC',
+        'USME': 'USM',
+      };
+
+      // Asegurar que `user.sucursalde` es string
+      const abreviacion: string = this.user.sucursalde;
+      this.abreviacionSede = abreviacion;
+    }
+  }
 
   /**
    * Buscar por cédula si está vetado o no.
@@ -131,25 +163,27 @@ export class SearchForCandidateComponent {
 
 
   private generarNuevoCodigoContrato(): void {
-    this.seleccionService.generarCodigoContratacion(this.sede, this.cedula)
+    this.seleccionService.generarCodigoContratacion(this.abreviacionSede, this.cedula)
       .pipe(take(1))
       .subscribe({
-        next: ({ codigo_contrato }) => {
-          this.codigoContratoActual = codigo_contrato;            // guarda
-          this.codigoContratoChange.emit(codigo_contrato);        // emite
+        next: (response) => {
+          const { nuevo_codigo, created } = response;
+          console.log("Código de contrato generado:", nuevo_codigo);
+          this.codigoContratoActual = nuevo_codigo;
+          this.codigoContratoChange.emit(nuevo_codigo);
           this.procesoValido = true;
 
           Swal.fire({
             title: '¡Código de contrato generado!',
-            text : `El nuevo código es ${codigo_contrato}`,
-            icon : 'success',
+            text: `El nuevo código es ${nuevo_codigo}`,
+            icon: created ? 'success' : 'info',
             confirmButtonText: 'Ok'
           });
         },
         error: () => Swal.fire({
           title: 'Error',
-          text : 'No se pudo generar el nuevo código de contrato',
-          icon : 'error'
+          text: 'No se pudo generar el nuevo código de contrato',
+          icon: 'error'
         })
       });
   }

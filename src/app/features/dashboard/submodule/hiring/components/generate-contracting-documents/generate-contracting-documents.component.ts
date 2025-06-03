@@ -9,6 +9,7 @@ import * as fontkit from 'fontkit';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 import autoTable from 'jspdf-autotable';
+import { Router } from '@angular/router';
 
 @Component({
   selector: 'app-generate-contracting-documents',
@@ -182,7 +183,8 @@ export class GenerateContractingDocumentsComponent {
   constructor(
     @Inject(PLATFORM_ID) private platformId: Object,
     private contratacionService: HiringService,
-    private gestionDocumentalService: GestionDocumentalService
+    private gestionDocumentalService: GestionDocumentalService,
+    private router: Router
   ) { }
 
   toggleSidebar() {
@@ -222,7 +224,7 @@ export class GenerateContractingDocumentsComponent {
   }
 
   devolvercontratacion() {
-    window.location.href = '/dashboard/hiring/hiring-process';
+    this.router.navigate(['/dashboard/hiring/hiring-process']);
   }
 
   verPDF(doc: { titulo: string }) {

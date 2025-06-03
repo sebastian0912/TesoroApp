@@ -21,6 +21,7 @@ const routes: Routes = [
       { path: 'document-management', loadChildren: () => import('./submodule/document-management/document-management.module').then(m => m.DocumentManagementModule) },
       { path: 'hiring', loadChildren: () => import('./submodule/hiring/hiring.module').then(m => m.HiringModule) },
       { path: 'disabilities', loadChildren: () => import('./submodule/disabilities/disabilities.module').then(m => m.DisabilitiesModule) },
+      { path: 'vacancies', loadChildren: () => import('./submodule/vacancies/vacancies.module').then(m => m.VacanciesModule) },
     ],
   },
 ];

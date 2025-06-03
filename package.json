@@ -1,6 +1,6 @@
 {
   "name": "tesoreria",
-  "version": "4.3.0",
+  "version": "4.3.8",
   "main": "app.js",
   "description": "Programa para control de prestamos a tesoreria",
   "author": "SebastianGuarnizoCampos",
@@ -18,7 +18,23 @@
     "files": [
       "dist/tesoreria/**/*",
       "app.js",
-      "preload.js"
+      "preload.js",
+      {
+        "from": "csharp",
+        "to": "csharp",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
+    "extraResources": [
+      {
+        "from": "csharp",
+        "to": "csharp",
+        "filter": [
+          "UareUSampleCSharp_CaptureOnly.exe"
+        ]
+      }
     ],
     "win": {
       "target": "nsis",
@@ -43,11 +59,9 @@
     "test": "ng test",
     "lint": "ng lint",
     "e2e": "ng e2e",
-
     "dist": "ng build --configuration production && cross-env NODE_ENV=production electron-builder -p always",
     "dist2": "ng build --configuration production && cross-env NODE_ENV=production electron-builder",
     "dist3": "ng build --configuration production --prerender=false && cross-env NODE_ENV=production electron-builder -p always",
-
     "serve:ssr:Tesoreria": "node dist/tesoreria/server/server.mjs"
   },
   "private": true,

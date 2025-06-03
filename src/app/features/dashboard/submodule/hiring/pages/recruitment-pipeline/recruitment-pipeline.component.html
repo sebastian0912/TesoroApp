@@ -9,10 +9,8 @@
           </div>
         </ng-template>
         <div class="tab-content-scrollable">
-          <app-search-for-candidate
-          (cedulaSeleccionada)="onCedulaSeleccionada($event)"
-          (codigoContratoChange)="onCodigoContrato($event)"
-          ></app-search-for-candidate>
+          <app-search-for-candidate (cedulaSeleccionada)="onCedulaSeleccionada($event)"
+            (codigoContratoChange)="onCodigoContrato($event)"></app-search-for-candidate>
         </div>
       </mat-tab>
 
@@ -23,48 +21,79 @@
             Vacantes
           </div>
         </ng-template>
+
         <div class="tab-content-scrollable">
-          <!-- Buscador para filtrar vacantes -->
-          <mat-form-field class="example-full-width">
-            <mat-label>Buscar Vacante</mat-label>
-            <input matInput [(ngModel)]="filtro" placeholder="Buscar por título, oficina, etc." />
-          </mat-form-field>
-          <!-- Contenedor de vacantes con scroll horizontal -->
-          <div class="vacantes-scroll-container">
-            <div class="vacantes-container">
-              <mat-card class="vacante-card" *ngFor="let vacante of filtrarVacantes()">
-                <mat-card-header>
-                  <div mat-card-avatar class="vacante-icon">
-                    <mat-icon>work_outline</mat-icon>
-                  </div>
-                  <mat-card-title>{{ vacante.cargo }}</mat-card-title>
-                  <mat-card-subtitle>{{ vacante.finca }}</mat-card-subtitle>
-                </mat-card-header>
+          <div class="tabla">
+            <mat-form-field class="filtro">
+              <mat-label>Buscar Vacante</mat-label>
+              <input matInput [(ngModel)]="filtro" (keyup)="applyFilterManual($event)"
+                placeholder="Buscar por título, oficina, etc." #input />
+            </mat-form-field>
 
-                <mat-card-content>
-                  <p><strong>Temporal:</strong> {{ vacante.empresaUsuariaSolicita }}</p>
-                  <p><strong>Experiencia Requerida:</strong> {{ vacante.experiencia }}</p>
-                </mat-card-content>
+            <div class="table-container">
+              <table mat-table [dataSource]="dataSource" class="mat-elevation-z8" matSort>
 
-                <!-- Menu button for actions -->
-                <div class="actions-wrapper">
-                  <button mat-icon-button [matMenuTriggerFor]="menu" class="fixed-button">
-                    <mat-icon>more_vert</mat-icon>
-                  </button>
+                <!-- Cargo -->
+                <ng-container matColumnDef="cargo">
+                  <th mat-header-cell *matHeaderCellDef mat-sort-header>Cargo</th>
+                  <td mat-cell *matCellDef="let element">{{ element.cargo }}</td>
+                </ng-container>
 
-                  <mat-menu #menu="matMenu">
-                    <!-- Botón para escoger vacante -->
-                    <button mat-menu-item (click)="escogerVacante(vacante)">
-                      <mat-icon>check_circle</mat-icon>
-                      <span>Escoger</span>
+                <!-- Fecha Publicado -->
+                <ng-container matColumnDef="fechaPublicado">
+                  <th mat-header-cell *matHeaderCellDef mat-sort-header>Publicado</th>
+                  <td mat-cell *matCellDef="let element">{{ element.fechaPublicado }}</td>
+                </ng-container>
+
+
+                <!-- Finca -->
+                <ng-container matColumnDef="finca">
+                  <th mat-header-cell *matHeaderCellDef mat-sort-header>Finca</th>
+                  <td mat-cell *matCellDef="let element">{{ element.finca }}</td>
+                </ng-container>
+
+                <!-- Empresa Usuaria -->
+                <ng-container matColumnDef="empresaUsuariaSolicita">
+                  <th mat-header-cell *matHeaderCellDef mat-sort-header>Temporal</th>
+                  <td mat-cell *matCellDef="let element">{{ element.empresaUsuariaSolicita }}</td>
+                </ng-container>
+
+                <!-- Experiencia -->
+                <ng-container matColumnDef="experiencia">
+                  <th mat-header-cell *matHeaderCellDef mat-sort-header>Experiencia</th>
+                  <td mat-cell *matCellDef="let element">{{ element.experiencia }}</td>
+                </ng-container>
+
+                <!-- Acciones -->
+                <ng-container matColumnDef="acciones">
+                  <th mat-header-cell *matHeaderCellDef>Acciones</th>
+                  <td mat-cell *matCellDef="let element">
+                    <button mat-icon-button [matMenuTriggerFor]="menu" class="fixed-button">
+                      <mat-icon>more_vert</mat-icon>
                     </button>
-                  </mat-menu>
-                </div>
-              </mat-card>
+                    <mat-menu #menu="matMenu">
+                      <button mat-menu-item (click)="escogerVacante(element)">
+                        <mat-icon>check_circle</mat-icon>
+                        <span>Escoger</span>
+                      </button>
+                    </mat-menu>
+                  </td>
+                </ng-container>
+
+                <!-- Header and Rows -->
+                <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+                <tr mat-row *matRowDef="let row; columns: displayedColumns"></tr>
+                <tr class="mat-row" *matNoDataRow>
+                  <td class="mat-cell" colspan="5">
+                    No hay resultados para "{{ input.value }}"
+                  </td>
+                </tr>
+              </table>
             </div>
           </div>
         </div>
       </mat-tab>
+
 
       <mat-tab>
         <ng-template mat-tab-label>
@@ -74,9 +103,7 @@
           </div>
         </ng-template>
         <div class="tab-content-scrollable">
-          <app-help-information
-          [cedula]="cedulaActual"
-          ></app-help-information>
+          <app-help-information [cedula]="cedulaActual"></app-help-information>
         </div>
       </mat-tab>
 
@@ -88,11 +115,8 @@
           </div>
         </ng-template>
         <div class="tab-content-scrollable">
-          <app-selection-questions
-          [cedula]="cedulaActual"
-          [vacanteSeleccionada]="selectionQuestionsComponent"
-          [codigoContrato]="codigoContrato"
-          ></app-selection-questions>
+          <app-selection-questions [cedula]="cedulaActual" [vacanteSeleccionada]="selectionQuestionsComponent"
+            [codigoContrato]="codigoContrato"></app-selection-questions>
         </div>
       </mat-tab>
     </mat-tab-group>

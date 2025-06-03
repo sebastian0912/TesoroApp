@@ -1,0 +1,156 @@
+<h1 mat-dialog-title class="titulo">Crear/Editar Vacante</h1>
+
+<div mat-dialog-content>
+  <form [formGroup]="vacanteForm">
+    <!-- Campo para Cargo -->
+    <mat-form-field class="example-full-width">
+      <mat-label>Cargo</mat-label>
+      <input type="text" matInput formControlName="cargo" [matAutocomplete]="autoCargo">
+      <mat-autocomplete #autoCargo="matAutocomplete">
+        <mat-option *ngFor="let cargo of filteredCargos | async" [value]="cargo">
+          {{ cargo }}
+        </mat-option>
+      </mat-autocomplete>
+    </mat-form-field>
+
+    <!-- Campo para Centro de Costo -->
+    <mat-form-field class="example-full-width">
+      <mat-label>Centro de Costo</mat-label>
+      <input type="text" matInput formControlName="finca" [matAutocomplete]="autoCentroCosto">
+      <mat-autocomplete #autoCentroCosto="matAutocomplete" (optionSelected)="onCentroCostoSelected($event)">
+        <mat-option *ngFor="let centro of filteredCentrosCostos | async" [value]="centro">
+          {{ centro }}
+        </mat-option>
+      </mat-autocomplete>
+    </mat-form-field>
+
+
+
+
+    <mat-form-field class="example-full-width">
+      <mat-label>Empresa</mat-label>
+      <input matInput formControlName="empresaUsuariaSolicita">
+    </mat-form-field>
+
+    <!--Temporal-->
+    <mat-form-field class="example-full-width">
+      <mat-label>Temporal</mat-label>
+      <mat-select formControlName="temporal">
+        <mat-option value="APOYO LABORAL SAS">APOYO LABORAL SAS</mat-option>
+        <mat-option value="TU ALIANZA SAS">TU ALIANZA SAS</mat-option>
+      </mat-select>
+    </mat-form-field>
+
+    <!--requiere experiencia-->
+    <mat-form-field class="example-full-width">
+      <mat-label>Requiere Experiencia</mat-label>
+      <mat-select formControlName="experiencia">
+        <mat-option value="SI">SI</mat-option>
+        <mat-option value="NO">NO</mat-option>
+        <mat-option value="AMBAS">AMBAS</mat-option>
+      </mat-select>
+    </mat-form-field>
+
+    <!--presenta prueba tecnica -->
+    <mat-form-field class="example-full-width">
+      <mat-label>Presenta Prueba Técnica</mat-label>
+      <mat-select formControlName="presentaPruebaTecnica">
+        <mat-option value="Si">Si</mat-option>
+        <mat-option value="No">No</mat-option>
+      </mat-select>
+    </mat-form-field>
+
+    <mat-form-field class="example-full-width" *ngIf="vacanteForm.get('presentaPruebaTecnica')?.value === 'Si'">
+      <mat-label>Fecha de Prueba Técnica</mat-label>
+      <input matInput [matDatepicker]="picker1" formControlName="fechadePruebatecnica">
+      <mat-datepicker-toggle matSuffix [for]="picker1"></mat-datepicker-toggle>
+      <mat-datepicker #picker1></mat-datepicker>
+    </mat-form-field>
+
+    <mat-form-field class="example-full-width" *ngIf="vacanteForm.get('presentaPruebaTecnica')?.value === 'Si'">
+      <mat-label>Hora de Prueba Técnica</mat-label>
+      <input matInput type="time" formControlName="horadePruebatecnica">
+    </mat-form-field>
+
+    <mat-form-field class="example-full-width" *ngIf="vacanteForm.get('presentaPruebaTecnica')?.value === 'Si'">
+      <mat-label>Ubicación Prueba Técnica</mat-label>
+      <input matInput formControlName="ubicacionPruebaTecnica">
+    </mat-form-field>
+
+    <mat-form-field class="example-full-width">
+      <mat-label>Observación Vacante</mat-label>
+      <input matInput formControlName="observacionVacante">
+    </mat-form-field>
+
+    <!-- tiene tiene fecha ingreso -->
+    <mat-form-field class="example-full-width">
+      <mat-label>Tiene Fecha de Ingreso</mat-label>
+      <mat-select formControlName="tieneFechaIngreso">
+        <mat-option value="Si">Si</mat-option>
+        <mat-option value="No">No</mat-option>
+      </mat-select>
+    </mat-form-field>
+
+    <mat-form-field class="example-full-width" *ngIf="vacanteForm.get('tieneFechaIngreso')?.value === 'Si'">
+      <mat-label>Fecha de Ingreso</mat-label>
+      <input matInput [matDatepicker]="picker2" formControlName="fechadeIngreso">
+      <mat-datepicker-toggle matSuffix [for]="picker2"></mat-datepicker-toggle>
+      <mat-datepicker #picker2></mat-datepicker>
+    </mat-form-field>
+
+    <mat-form-field class="example-full-width">
+      <mat-label>Descripción</mat-label>
+      <input matInput formControlName="descripcion">
+    </mat-form-field>
+
+    <mat-form-field class="example-full-width">
+      <mat-label>Salario</mat-label>
+      <input matInput type="text" formControlName="salario" (input)="formatSalary($event)" (blur)="onBlur()">
+    </mat-form-field>
+
+
+
+    <mat-form-field class="example-full-width">
+      <mat-label>Código Elite</mat-label>
+      <input matInput formControlName="codigoElite">
+    </mat-form-field>
+
+    <!-- Select Múltiple para Oficinas -->
+    <mat-form-field class="example-full-width">
+      <mat-label>Seleccione las oficinas que pueden contratar</mat-label>
+      <mat-select formControlName="oficinasSeleccionadas" multiple>
+        <mat-option *ngFor="let sede of sedes" [value]="sede.nombre">
+          {{ sede.nombre }}
+        </mat-option>
+      </mat-select>
+    </mat-form-field>
+
+    <h3 class="titulo">Oficinas Que Contratan</h3>
+    <div formArrayName="oficinasQueContratan">
+      <div *ngFor="let oficinaCtrl of oficinasQueContratan.controls; let i = index" [formGroupName]="i">
+        <mat-form-field class="example-full-width">
+          <mat-label>Nombre de Oficina</mat-label>
+          <input matInput formControlName="nombre" readonly>
+        </mat-form-field>
+
+        <mat-form-field class="example-full-width">
+          <mat-label>Número de Personas Requeridas</mat-label>
+          <input matInput type="number" formControlName="numeroDeGenteRequerida" min="0">
+        </mat-form-field>
+
+
+        <mat-checkbox formControlName="ruta">¿Tiene Ruta?</mat-checkbox>
+
+        <button mat-icon-button color="warn" (click)="eliminarOficina(i)">
+          <mat-icon>delete</mat-icon>
+        </button>
+      </div>
+    </div>
+
+  </form>
+</div>
+
+<div mat-dialog-actions>
+  <button mat-button (click)="cancelar()">Cancelar</button>
+  <button mat-button color="primary" (click)="guardar()" >Guardar</button>
+</div>

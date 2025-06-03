@@ -1,0 +1,105 @@
+<div class="anadir">
+  <button mat-flat-button class="add-button" (click)="openModal()">
+    <mat-icon>add</mat-icon>
+    <span>Añadir Vacante</span>
+  </button>
+
+  <!-- Botón para subir el archivo Excel -->
+  <button mat-flat-button class="add-button" (click)="subirArchivoExcel($event)">
+    <mat-icon>upload_file</mat-icon>
+    <span>Subir Excel Vacantes</span>
+  </button>
+
+  <!-- Input para seleccionar el archivo Excel, oculto -->
+  <input type="file" id="fileInput" (change)="onFileSelected($event)" hidden>
+
+</div>
+
+
+<mat-card>
+  <mat-card-content>
+    <div class="tabla">
+      <h1 class="title">Listado de Vacantes</h1>
+
+      <mat-form-field class="filtro">
+        <mat-label>Filtrar</mat-label>
+        <input
+          matInput
+          (keyup)="applyFilter($event)"
+          placeholder="Buscar..."
+          #input
+        />
+      </mat-form-field>
+
+      <div class="table-container">
+        <table mat-table [dataSource]="dataSource" class="mat-elevation-z8">
+
+          <!-- Cargo -->
+          <ng-container matColumnDef="cargo">
+            <th mat-header-cell *matHeaderCellDef>Cargo</th>
+            <td mat-cell *matCellDef="let v">{{ v.cargo }}</td>
+          </ng-container>
+
+          <!-- Finca -->
+          <ng-container matColumnDef="finca">
+            <th mat-header-cell *matHeaderCellDef>Finca</th>
+            <td mat-cell *matCellDef="let v">{{ v.finca }}</td>
+          </ng-container>
+
+          <!-- Temporal -->
+          <ng-container matColumnDef="temporal">
+            <th mat-header-cell *matHeaderCellDef>Temporal</th>
+            <td mat-cell *matCellDef="let v">{{ v.temporal }}</td>
+          </ng-container>
+
+          <!-- Experiencia -->
+          <ng-container matColumnDef="experiencia">
+            <th mat-header-cell *matHeaderCellDef>Experiencia</th>
+            <td mat-cell *matCellDef="let v">{{ v.experiencia }}</td>
+          </ng-container>
+
+          <!-- Fecha Publicado -->
+          <ng-container matColumnDef="fechaPublicado">
+            <th mat-header-cell *matHeaderCellDef>Publicado</th>
+            <td mat-cell *matCellDef="let v">{{ v.fechaPublicado }}</td>
+          </ng-container>
+
+          <!-- Oficinas -->
+          <ng-container matColumnDef="oficinas">
+            <th mat-header-cell *matHeaderCellDef>Oficinas</th>
+            <td mat-cell *matCellDef="let v">
+              <ng-container *ngFor="let o of v.oficinasQueContratan; let i = index">
+                {{ o.nombre }} ({{ o.numeroDeGenteRequerida }}){{ i < v.oficinasQueContratan.length - 1 ? ', ' : '' }}
+              </ng-container>
+            </td>
+          </ng-container>
+
+          <!-- Acciones -->
+          <ng-container matColumnDef="acciones">
+            <th mat-header-cell *matHeaderCellDef>Acciones</th>
+            <td mat-cell *matCellDef="let v">
+              <button mat-icon-button color="primary" (click)="openModalEdit(v)">
+                <mat-icon>edit</mat-icon>
+              </button>
+              <button mat-icon-button color="warn" (click)="eliminarVacante(v)">
+                <mat-icon>delete</mat-icon>
+              </button>
+              <button mat-icon-button color="accent" (click)="escogerVacante(v)">
+                <mat-icon>check_circle</mat-icon>
+              </button>
+            </td>
+          </ng-container>
+
+          <!-- Filas -->
+          <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+          <tr mat-row *matRowDef="let row; columns: displayedColumns"></tr>
+          <tr class="mat-row" *matNoDataRow>
+            <td class="mat-cell" colspan="7">
+              No hay datos para "{{ input.value }}"
+            </td>
+          </tr>
+        </table>
+      </div>
+    </div>
+  </mat-card-content>
+</mat-card>
