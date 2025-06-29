@@ -257,7 +257,6 @@ export class MercadoComercializadoraComponent implements OnInit, OnDestroy {
       catchError(error => {
         Swal.close();
         this.mostrarError('Hubo un problema al buscar el operario. Intente nuevamente.');
-        console.error('Error en la búsqueda:', error);
         return of(null);
       })
     );
@@ -367,7 +366,6 @@ export class MercadoComercializadoraComponent implements OnInit, OnDestroy {
           )
         );
       } catch (error) {
-        console.error('Error al actualizar inventario:', error);
         Swal.fire({
           icon: 'error',
           title: 'Oops...',
@@ -390,7 +388,6 @@ export class MercadoComercializadoraComponent implements OnInit, OnDestroy {
             );
 
             if (response.message !== "Actualización exitosa") {
-              console.error(`Error en la ejecución del código ${codigo.codigo}:`, response);
               throw new Error(`Error en código ${codigo.codigo}`);
             }
           })
@@ -409,7 +406,6 @@ export class MercadoComercializadoraComponent implements OnInit, OnDestroy {
           }
         });
       } catch (error) {
-        console.error('Error en la ejecución de las autorizaciones:', error);
         Swal.fire({
           icon: 'error',
           title: 'Error',
@@ -420,7 +416,6 @@ export class MercadoComercializadoraComponent implements OnInit, OnDestroy {
 
 
     } catch (error) {
-      console.error('Error inesperado en onSubmit:', error);
       Swal.fire({
         icon: 'error',
         title: 'Error inesperado',
@@ -437,7 +432,6 @@ export class MercadoComercializadoraComponent implements OnInit, OnDestroy {
   incrementarCantidad(index: number) {
     const formArray = this.myForm.get('inventario') as FormArray; // Cambiado a 'inventario'
     if (!formArray || index < 0 || index >= formArray.length) {
-      console.error("Error: FormArray no existe o índice fuera de rango");
       return;
     }
 
@@ -451,7 +445,6 @@ export class MercadoComercializadoraComponent implements OnInit, OnDestroy {
   decrementarCantidad(index: number) {
     const formArray = this.myForm.get('inventario') as FormArray; // Cambiado a 'inventario'
     if (!formArray || index < 0 || index >= formArray.length) {
-      console.error("Error: FormArray no existe o índice fuera de rango");
       return;
     }
 

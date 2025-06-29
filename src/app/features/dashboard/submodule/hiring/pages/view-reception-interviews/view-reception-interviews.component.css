@@ -1,0 +1,49 @@
+.filtros-barra {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1.5rem;
+  margin-bottom: 1.5rem;
+  flex-direction: row;
+}
+
+.filtros-campos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: flex-end;
+  flex: 1 1 70%;
+}
+
+.filtro-campo {
+  min-width: 170px;
+  flex: 1 1 170px;
+  margin-bottom: 0;
+}
+
+.filtro-busqueda {
+  min-width: 220px;
+  flex: 2 1 250px;
+}
+
+.filtros-acciones {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+/* Opcional: Responsive para móvil */
+@media (max-width: 900px) {
+  .filtros-barra {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .filtros-campos, .filtros-acciones {
+    flex-direction: row;
+    align-items: stretch;
+    gap: 1rem;
+    justify-content: flex-start;
+  }
+}

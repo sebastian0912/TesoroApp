@@ -2,6 +2,11 @@ mat-tab-group {
   height: 100%;
 }
 
+.example-full-width {
+  max-width: 22% !important;
+}
+
+
 .tab {
   display: flex;
   flex-direction: column;
@@ -49,4 +54,29 @@ mat-tab-group {
 .fixed-button {
   background-color: white;
   box-shadow: none;
+}
+
+
+.info-candidato-card {
+  margin-bottom: 16px;
+  background: #f9f9f9;
+}
+
+.info-candidato-titulo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 1.0rem;
+  font-weight: 500;
+  font-family: 'Roboto', sans-serif;
+}
+
+.info-candidato-label {
+  color: #616161;
+  margin-left: 8px;
+}
+
+.info-candidato-valor {
+  color: #1976d2;
+  font-weight: 600;
 }

@@ -28,7 +28,6 @@ export const MY_DATE_FORMATS = {
 
 @Component({
   selector: 'app-crear-editar-vacante',
-  standalone: true,
   imports: [
     CommonModule,
     ReactiveFormsModule,
@@ -210,7 +209,6 @@ export class CrearEditarVacanteComponent implements OnInit {
       this.dialogRef.close(this.vacanteForm.value);
     } else {
       const camposFaltantes = Object.keys(this.vacanteForm.controls).filter(key => this.vacanteForm.get(key)?.invalid);
-      console.log('Campos faltantes:', camposFaltantes);
     }
   }
 

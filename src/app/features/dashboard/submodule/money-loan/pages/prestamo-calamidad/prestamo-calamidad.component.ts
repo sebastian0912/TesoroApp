@@ -287,7 +287,6 @@ export class PrestamoCalamidadComponent implements OnInit {
       catchError(error => {
         Swal.close(); // 🔴 Cierra Swal en caso de error
         this.mostrarError('Hubo un problema al buscar el operario. Intente nuevamente.');
-        console.error('Error en la búsqueda:', error);
         return of(null); // Evita que la aplicación falle
       })
     );

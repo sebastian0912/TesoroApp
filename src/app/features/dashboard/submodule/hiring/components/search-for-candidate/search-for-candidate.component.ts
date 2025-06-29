@@ -1,5 +1,5 @@
 import { SharedModule } from '@/app/shared/shared.module';
-import { Component, OnInit } from '@angular/core';
+import { Component, LOCALE_ID, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { forkJoin, take } from 'rxjs';
 import Swal from 'sweetalert2';
@@ -9,6 +9,7 @@ import { MatTableDataSource } from '@angular/material/table';
 import { UtilityServiceService } from '@/app/shared/services/utilityService/utility-service.service';
 import { EventEmitter, Output } from '@angular/core';
 import { HiringService } from '../../service/hiring.service';
+import { Router } from '@angular/router';
 
 @Component({
   selector: 'app-search-for-candidate',
@@ -17,12 +18,15 @@ import { HiringService } from '../../service/hiring.service';
     FormsModule
   ],
   templateUrl: './search-for-candidate.component.html',
-  styleUrl: './search-for-candidate.component.css'
+  styleUrl: './search-for-candidate.component.css',
 })
 export class SearchForCandidateComponent implements OnInit {
   [x: string]: any;
   @Output() codigoContratoChange = new EventEmitter<string>();
   @Output() cedulaSeleccionada = new EventEmitter<string>();
+  // nombre
+  @Output() nombreCompletoChange = new EventEmitter<string>();
+
   codigoContratoActual: string = '';
   sede: string = '';
   abreviacionSede: string = '';
@@ -39,16 +43,20 @@ export class SearchForCandidateComponent implements OnInit {
   dataSource: any;
   displayedColumns!: string[];
 
+  showTable = false;
+  simpleDisplayedColumns: string[] = ['cedula', 'nombre_completo', 'created_at', 'acciones'];
+  simpleDataSource = new MatTableDataSource<any>([]);
+
   constructor(
     private vetadosService: VetadosService,
     private seleccionService: SeleccionService,
     private utilityService: UtilityServiceService,
-    private contratacionService: HiringService
-  ) {
+    private contratacionService: HiringService,
+    private router: Router
+  ) { }
 
-  }
-
-  ngOnInit(): void {
+  async ngOnInit(): Promise<void> {
+    await this.checkRoute();
     this.user = this.utilityService.getUser();
     if (this.user) {
       const abreviaciones: { [key: string]: string } = {
@@ -74,6 +82,65 @@ export class SearchForCandidateComponent implements OnInit {
       const abreviacion: string = this.user.sucursalde;
       this.abreviacionSede = abreviacion;
     }
+    if (this.showTable) {
+      this.loadCandidatos();
+    }
+
+  }
+
+  async checkRoute() {
+    // Inicialización
+    this.showTable = this.router.url.includes('recruitment-pipeline');
+    if (this.showTable) this.loadCandidatos();
+
+    // Escucha cambios en la ruta
+    this.router.events.subscribe(() => {
+      const tableShouldShow = this.router.url.includes('recruitment-pipeline');
+      if (tableShouldShow !== this.showTable) {
+        this.showTable = tableShouldShow;
+        if (this.showTable) this.loadCandidatos();
+        else this.simpleDataSource.data = [];
+      }
+    });
+  }
+
+
+  loadCandidatos() {
+    this.seleccionService.getCandidatos().subscribe({
+      next: (candidatos) => {
+        this.simpleDataSource.data = (candidatos ?? []).map((c: any) => ({
+          cedula: c.numero ?? '',
+          created_at: c.created_at ? this.formatFecha(c.created_at) : '',
+          nombre_completo: [
+            c.primer_nombre,
+            c.segundo_nombre,
+            c.primer_apellido,
+            c.segundo_apellido
+          ]
+            .filter(Boolean) // Elimina null/undefined/empty
+            .join(' ')
+            .trim()
+        }));
+      },
+      error: (err) => {
+        console.error("Error al cargar candidatos:", err);
+      }
+    });
+  }
+
+
+  formatFecha(fecha: string): string {
+    // Asegura formato seguro para el pipe date
+    // Si ya es ISO, puedes dejarlo así. O parsea si es necesario.
+    return fecha;
+  }
+
+
+
+  seleccionarCedula(cedula: string, nombreCompleto: string): void {
+    this.cedula = cedula;
+    this.nombreCompletoChange.emit(nombreCompleto); // Emitir el nombre completo al padre
+    this.buscarCedula();
   }
 
   /**

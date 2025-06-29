@@ -387,10 +387,6 @@ export class AbsencesComponent {
         link.click();
         document.body.removeChild(link);
 
-        console.log('Archivo procesado y descargado');
-        console.log('jsonAOA Original:', jsonAOA);
-        console.log('cleanedAOA:', cleanedAOA);
-
         Swal.fire({
           icon: 'success',
           title: 'Archivo procesado',

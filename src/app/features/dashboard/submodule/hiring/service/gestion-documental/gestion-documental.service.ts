@@ -13,7 +13,7 @@ export class GestionDocumentalService {
   constructor(
     private http: HttpClient,
     @Inject(PLATFORM_ID) private platformId: Object
-  ) {}
+  ) { }
 
   private getToken(): string | null {
     if (isPlatformBrowser(this.platformId)) {
@@ -87,6 +87,21 @@ export class GestionDocumentalService {
       params,
     });
   }
+
+
+consultarDocumentosPorCedulaYTipo(cedula: string, type?: number): Observable<any> {
+  let params = new HttpParams().set('cedula', cedula);
+  if (type !== undefined && type !== null) {
+    params = params.set('type', type.toString());
+  }
+
+  return this.http.get(
+    `${this.apiUrl}/gestion_documental/documentos/`,
+    { params }
+  );
+}
+
+
 
 
 }

@@ -86,6 +86,7 @@ export const DYNAMIC_MENUS: IDynamicMenu[] = [
     icon: 'icons/navbar/eps.png',
     subMenus: [
       { route: '/dashboard/eps-transfers/process-transfers', label: 'Proceso de traslados', permission: 'process-transfers' },
+      { route: '/dashboard/eps-transfers/transfer-query', label: 'Consulta de traslados', permission: 'transfer-query' },
     ],
   },
 
@@ -146,15 +147,20 @@ export const DYNAMIC_MENUS: IDynamicMenu[] = [
       { route: '/dashboard/hiring/absences',                label: 'Ausentismos',                 permission: 'absences'             },
       { route: '/dashboard/hiring/query-form',              label: 'Formulario de consulta',      permission: 'query-form'           },
       { route: '/dashboard/hiring/hiring-report',           label: 'Reporte de contratación',     permission: 'hiring-report'        },
-      { route: '/dashboard/hiring/view-reports',            label: 'Ver reporte de contratación', permission: 'view-reports'        },
+      { route: '/dashboard/hiring/view-reports',            label: 'Ver reporte de contratación', permission: 'view-reports'         },
       { route: '/dashboard/hiring/robot-background-checks', label: 'Antecedentes robots',         permission: 'robot-background-checks' },
       { route: '/dashboard/hiring/recruitment-pipeline',    label: 'Selección',                   permission: 'recruitment-pipeline' },
       { route: '/dashboard/hiring/hiring-process',          label: 'Contratación',                permission: 'hiring-process'       },
-      { route: '/dashboard/hiring/banned-report',           label: 'Reporte 901',                 permission: 'banned-report'        },
-      { route: '/dashboard/hiring/banned-management',       label: 'Gerencia 901',                permission: 'banned-management'    },
+      { route: '/dashboard/hiring/reception-register',      label: 'Registro de recepción',       permission: 'reception_register'   },
+      { route: '/dashboard/hiring/banned-report',           label: 'Reporte 901',                 permission: 'banned-report'        },
+      { route: '/dashboard/hiring/banned-management',       label: 'Gerencia 901',                permission: 'banned-management'    },
+      { route: '/dashboard/hiring/view-reception-interviews', label: 'Ver entrevistas de recepción', permission: 'view_reception_interviews' },
+      // error-listing
+      { route: '/dashboard/hiring/error-listing',           label: 'Listado de errores',          permission: 'error-listing'        },
+      // consult-contracting-documentation
+      { route: '/dashboard/hiring/consult-contracting-documentation', label: 'Consultar documentación de contratación', permission: 'consult-contracting-documentation' },
     ],
   },
-  // disabilities
   {
     key: 'disabilities',
     label: 'Incapacidades',

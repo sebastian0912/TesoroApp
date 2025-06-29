@@ -45,7 +45,6 @@ export class TesoreriaService {
     return firstValueFrom(
       this.http.delete(urlcompleta).pipe(
         catchError(error => {
-          console.error('Error eliminando el empleado:', error);
           throw error;
         })
       )
@@ -65,7 +64,6 @@ export class TesoreriaService {
     return firstValueFrom(
       this.http.patch(url, cambios).pipe(
         catchError(error => {
-          console.error('Error actualizando estado:', error);
           throw error;
         })
       )
@@ -81,7 +79,6 @@ export class TesoreriaService {
     return firstValueFrom(
       this.http.patch(url, { bloqueado: estado, fechaBloqueo }).pipe(
         catchError(error => {
-          console.error('Error actualizando estado de bloqueo:', error);
           throw error;
         })
       )
@@ -141,7 +138,6 @@ export class TesoreriaService {
     return firstValueFrom(
       this.http.post(urlcompleta, {}).pipe(
         catchError(error => {
-          console.error('Error al reiniciar valores de la quincena:', error);
           throw error;
         })
       )
@@ -224,7 +220,6 @@ export class TesoreriaService {
     return firstValueFrom(
       this.http.post(url, { estado }).pipe(
         catchError(error => {
-          console.error('Error cambiando estado:', error);
           throw error;
         })
       )

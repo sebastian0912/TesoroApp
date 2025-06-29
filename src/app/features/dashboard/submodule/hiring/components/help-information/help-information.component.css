@@ -1,3 +1,7 @@
 form{
   min-height: 66vh
 }
+
+.example-full-width {
+  max-width: 22% !important;
+}

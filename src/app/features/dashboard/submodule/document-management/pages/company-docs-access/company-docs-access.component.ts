@@ -72,7 +72,6 @@ export class CompanyDocsAccessComponent {
             this.ngOnInit(); // Actualiza la vista
           },
           error: (err: any) => {
-            console.error('Error al crear permiso:', err);
             Swal.fire({
               icon: 'error',
               title: 'Error',
@@ -115,7 +114,6 @@ export class CompanyDocsAccessComponent {
             this.ngOnInit(); // Actualiza la vista
           },
           error: (err: any) => {
-            console.error('Error al crear permiso:', err);
             Swal.fire({
               icon: 'error',
               title: 'Error',

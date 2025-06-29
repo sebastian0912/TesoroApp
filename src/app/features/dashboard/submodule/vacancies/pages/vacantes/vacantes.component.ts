@@ -12,6 +12,8 @@ import { VacantesService } from '../../service/vacantes/vacantes.service';
 import { SharedModule } from '@/app/shared/shared.module';
 import { MatPaginator, MatPaginatorModule } from '@angular/material/paginator';
 import { MatSort, MatSortModule } from '@angular/material/sort';
+import { MatDatepickerModule } from '@angular/material/datepicker';
+import { NativeDateModule } from '@angular/material/core';
 
 @Component({
   selector: 'app-vacantes',
@@ -25,6 +27,8 @@ import { MatSort, MatSortModule } from '@angular/material/sort';
     MatMenuModule,
     MatPaginatorModule,
     MatSortModule,
+    MatDatepickerModule,
+    NativeDateModule,
   ],
   templateUrl: './vacantes.component.html',
   styleUrl: './vacantes.component.css'
@@ -33,12 +37,14 @@ export class VacantesComponent implements OnInit {
   vacantes: any[] = [];
   dataSource = new MatTableDataSource<any>([]);
   displayedColumns: string[] = [
+    'fechaPublicado',
     'cargo',
+    'observacionVacante',
     'finca',
     'temporal',
     'experiencia',
-    'fechaPublicado',
     'oficinas',
+    'fechadeIngreso',
     'acciones'
   ];
     @ViewChild(MatPaginator) paginator!: MatPaginator;
@@ -62,7 +68,6 @@ export class VacantesComponent implements OnInit {
         return of([]);
       })
     ).subscribe((response: any) => {
-      console.log('🔍 Vacantes cargadas:', response);
       this.dataSource.data = response;
 
       // Asigna paginator y sort si están disponibles
@@ -78,7 +83,6 @@ export class VacantesComponent implements OnInit {
 
 
   openModalEdit(vacante?: any): void {
-    console.log('🔍 Abriendo modal para editar vacante:', vacante);
 
     const dialogRef = this.dialog.open(CrearEditarVacanteComponent, {
       minWidth: '80vw',
@@ -87,7 +91,6 @@ export class VacantesComponent implements OnInit {
 
     dialogRef.afterClosed().subscribe(result => {
       if (result) {
-        console.log('📝 Vacante editada:', result);
 
         // Armar payload con los campos que espera Django
         const payload = {
@@ -100,9 +103,9 @@ export class VacantesComponent implements OnInit {
           salario: Number(result.salario),
           codigoElite: result.codigoElite,
           observacionVacante: result.observacionVacante,
-          fechadePruebatecnica: result.presentaPruebaTecnica === 'Si' ? result.fechadePruebatecnica : null,
+          fechadePruebatecnica: this.formatDate(result.fechadePruebatecnica) || null,
           horadePruebatecnica: result.presentaPruebaTecnica === 'Si' ? result.horadePruebatecnica : null,
-          fechadeIngreso: result.tieneFechaIngreso === 'Si' ? result.fechadeIngreso : null,
+          fechadeIngreso: this.formatDate(result.fechadeIngreso) || null,
           fechaPublicado: result.fechaPublicado || new Date().toISOString(),
           quienpublicolavacante: result.quienpublicolavacante || 'Sistema',
           estadovacante: result.estadovacante || 'Activa',
@@ -145,7 +148,6 @@ export class VacantesComponent implements OnInit {
     });
 
     dialogRef.afterClosed().subscribe(result => {
-      console.log('🔍 Resultado del modal:', result);
 
       if (result) {
         // ✅ Asegurar que `oficinasQueContratan` es una lista válida
@@ -178,12 +180,9 @@ export class VacantesComponent implements OnInit {
           }))
         };
 
-        console.log("✅ Payload enviado a la API:", payload);
-
         // ✅ Enviar los datos a la API Django
         this.vacantesService.enviarVacante(payload).subscribe({
           next: async (response) => {
-            console.log("✅ Publicación creada exitosamente:", response);
             await this.loadData();
             Swal.fire({
               title: '¡Éxito!',
@@ -193,7 +192,6 @@ export class VacantesComponent implements OnInit {
             });
           },
           error: (error) => {
-            console.error("❌ Error al crear la publicación:", error);
             Swal.fire({
               title: 'Error',
               text: `Hubo un problema al enviar la vacante: ${error.message || 'Error desconocido'}`,
@@ -282,7 +280,6 @@ export class VacantesComponent implements OnInit {
 
         // Excluir la primera fila (encabezados) y procesar el resto
         const datosProcesados = this.procesarDatosExcel(jsonData);
-        console.log('Datos procesados:', datosProcesados);
         // Llamar al servicio para subir los datos
         this.enviarDatosExcel(datosProcesados);
       };

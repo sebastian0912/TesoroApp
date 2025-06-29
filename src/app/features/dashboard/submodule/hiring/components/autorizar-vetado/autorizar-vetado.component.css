@@ -1,0 +1,99 @@
+.contenedor {
+    padding: 40px;
+    background-color: #f9f9f9;
+    /* Añadir un fondo suave */
+    border-radius: 10px;
+    /* Bordes redondeados */
+}
+
+/* Ajustar el título */
+h1[mat-dialog-title] {
+    font-size: 26px;
+    font-weight: bold;
+    margin-bottom: 30px;
+    text-align: center;
+    /* Centrar el título */
+    color: #333;
+    /* Un gris más suave */
+}
+
+/* Mejorar el margen entre campos y ajustar el ancho */
+.mat-form-field {
+    width: 32%;
+    /* Hacer que los campos ocupen un tercio del ancho */
+    margin-right: 1%;
+    margin-bottom: 20px;
+}
+
+/* Cambiar el fondo de los inputs para mayor visibilidad */
+.mat-form-field input,
+.mat-form-field mat-select {
+    background-color: #fff;
+    border-radius: 5px;
+}
+
+/* Alinear el grupo de botones al centro */
+.mat-dialog-actions {
+    display: flex;
+    justify-content: center;
+    /* Centrar los botones */
+    padding-top: 20px;
+}
+
+/* Estilos para los botones */
+button[mat-button] {
+    min-width: 120px;
+    /* Aumentar el tamaño mínimo del botón */
+    font-size: 14px;
+    padding: 10px 20px;
+    border-radius: 5px;
+    /* Bordes redondeados */
+}
+
+/* Botón Cancelar */
+button[mat-button]:first-child {
+    background-color: #f44336;
+    color: white;
+    transition: background-color 0.3s ease;
+}
+
+button[mat-button]:first-child:hover {
+    background-color: #e53935;
+}
+
+/* Botón Seleccionar */
+button[mat-button]:last-child {
+    background-color: #3f51b5;
+    color: white;
+    transition: background-color 0.3s ease;
+}
+
+button[mat-button]:last-child:hover {
+    background-color: #303f9f;
+}
+
+/* Botón deshabilitado */
+button[mat-button]:disabled {
+    background-color: rgba(63, 81, 181, 0.5);
+    color: white;
+}
+
+/* Mantener el diálogo con un tamaño adecuado */
+.mat-dialog-content {
+    display: flex;
+    justify-content: space-between;
+    /* Separar los elementos para que no queden pegados */
+    align-items: flex-start;
+    /* Alinear los campos en la parte superior */
+    padding: 20px;
+    max-width: 800px;
+    /* Hacer el cuadro de diálogo más amplio */
+    flex-wrap: wrap;
+    /* Permitir que los campos se acomoden en varias filas */
+}
+
+
+button {
+    border: none;
+    margin: 10px;
+}

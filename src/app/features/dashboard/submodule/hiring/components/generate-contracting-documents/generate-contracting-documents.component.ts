@@ -1470,7 +1470,6 @@ export class GenerateContractingDocumentsComponent {
 
   // Generar contrato de trabajo
   generarContratoTrabajo() {
-    console.log('Generando contrato de trabajo...');
     // Determinar la ruta del logo y el NIT
     let logoPath = '';
     let nit = '';
@@ -2074,7 +2073,6 @@ export class GenerateContractingDocumentsComponent {
         }
         return res.arrayBuffer();
       });
-      console.log(this.empresa);
       let logoPath = '';
       let personaVerificareferencias = '';
       let firmaVerificareferencias = '';
@@ -2928,7 +2926,11 @@ export class GenerateContractingDocumentsComponent {
       // Mostrar el PDF generado
       this.verPDF({ titulo: 'Ficha técnica' });
     } catch (error) {
-      console.error('Error al generar la ficha técnica:', error);
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: 'Ocurrió un error al generar la ficha técnica. Por favor, inténtalo de nuevo más tarde.',
+      });
     }
   }
 

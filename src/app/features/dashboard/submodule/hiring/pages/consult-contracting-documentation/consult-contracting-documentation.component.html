@@ -1,0 +1,210 @@
+<!-- TABLA PRINCIPAL + PEGAR DIRECTO -->
+<mat-card>
+  <mat-card-content>
+    <div class="tabla">
+      <h1 class="title">Consultar documentacion contratacion </h1>
+
+      <!-- FILTRO -->
+      <mat-form-field class="filtro">
+        <mat-label>Filtrar</mat-label>
+        <input matInput #input placeholder="Filtrar en tabla" (keyup)="applyFilters($event)" />
+      </mat-form-field>
+
+      <!-- TABLA -->
+      <div class="table-container" tabindex="0" (paste)="onTablePaste($event)">
+        <table mat-table [dataSource]="dataSource" class="mat-elevation-z8">
+
+          <!-- ÍCONO ✔ / ❌ -->
+          <ng-container matColumnDef="encontrado">
+            <th mat-header-cell *matHeaderCellDef>Estado</th>
+            <td mat-cell *matCellDef="let e">
+              <mat-icon [color]="e.encontrado ? 'primary' : 'warn'">
+                {{ e.encontrado ? 'check_circle' : 'cancel' }}
+              </mat-icon>
+            </td>
+          </ng-container>
+
+          <!-- CÉDULA -->
+          <ng-container matColumnDef="cedula">
+            <th mat-header-cell *matHeaderCellDef>Cédula</th>
+            <td mat-cell *matCellDef="let e">{{ e.cedula }}</td>
+          </ng-container>
+
+          <!-- Procuraduria -->
+          <ng-container matColumnDef="procuraduria">
+            <th mat-header-cell *matHeaderCellDef>Procuraduría</th>
+            <td mat-cell *matCellDef="let e">
+              <ng-container *ngIf="e.pdf_procuraduria; else noProcuraduria">
+                <a [href]="e.pdf_procuraduria" target="_blank" matTooltip="Ver documento">
+                  <mat-icon color="primary">check_circle</mat-icon>
+                </a>
+              </ng-container>
+              <ng-template #noProcuraduria>
+                <mat-icon color="warn">cancel</mat-icon>
+              </ng-template>
+            </td>
+          </ng-container>
+
+          <!-- Contraloria -->
+          <ng-container matColumnDef="contraloria">
+            <th mat-header-cell *matHeaderCellDef>Contraloría</th>
+            <td mat-cell *matCellDef="let e">
+              <ng-container *ngIf="e.pdf_contraloria; else noContraloria">
+                <a [href]="e.pdf_contraloria" target="_blank" matTooltip="Ver documento">
+                  <mat-icon color="primary">check_circle</mat-icon>
+                </a>
+              </ng-container>
+              <ng-template #noContraloria>
+                <mat-icon color="warn">cancel</mat-icon>
+              </ng-template>
+            </td>
+          </ng-container>
+
+          <!-- OFAC -->
+          <ng-container matColumnDef="ofac">
+            <th mat-header-cell *matHeaderCellDef>OFAC</th>
+            <td mat-cell *matCellDef="let e">
+              <ng-container *ngIf="e.pdf_ofac; else noOfac">
+                <a [href]="e.pdf_ofac" target="_blank" matTooltip="Ver documento">
+                  <mat-icon color="primary">check_circle</mat-icon>
+                </a>
+              </ng-container>
+              <ng-template #noOfac>
+                <mat-icon color="warn">cancel</mat-icon>
+              </ng-template>
+            </td>
+          </ng-container>
+
+          <!-- Policivos -->
+          <ng-container matColumnDef="policivos">
+            <th mat-header-cell *matHeaderCellDef>Policivos</th>
+            <td mat-cell *matCellDef="let e">
+              <ng-container *ngIf="e.pdf_policivos; else noPolicivos">
+                <a [href]="e.pdf_policivos" target="_blank" matTooltip="Ver documento">
+                  <mat-icon color="primary">check_circle</mat-icon>
+                </a>
+              </ng-container>
+              <ng-template #noPolicivos>
+                <mat-icon color="warn">cancel</mat-icon>
+              </ng-template>
+            </td>
+          </ng-container>
+
+          <!-- ADRES -->
+          <ng-container matColumnDef="adres">
+            <th mat-header-cell *matHeaderCellDef>ADRES</th>
+            <td mat-cell *matCellDef="let e">
+              <ng-container *ngIf="e.pdf_adres; else noAdres">
+                <a [href]="e.pdf_adres" target="_blank" matTooltip="Ver documento">
+                  <mat-icon color="primary">check_circle</mat-icon>
+                </a>
+              </ng-container>
+              <ng-template #noAdres>
+                <mat-icon color="warn">cancel</mat-icon>
+              </ng-template>
+            </td>
+          </ng-container>
+
+          <!-- SISBEN -->
+          <ng-container matColumnDef="sisben">
+            <th mat-header-cell *matHeaderCellDef>SISBEN</th>
+            <td mat-cell *matCellDef="let e">
+              <ng-container *ngIf="e.pdf_sisben; else noSisben">
+                <a [href]="e.pdf_sisben" target="_blank" matTooltip="Ver documento">
+                  <mat-icon color="primary">check_circle</mat-icon>
+                </a>
+              </ng-container>
+              <ng-template #noSisben>
+                <mat-icon color="warn">cancel</mat-icon>
+              </ng-template>
+            </td>
+          </ng-container>
+
+          <!-- Contrato -->
+          <ng-container matColumnDef="contrato">
+            <th mat-header-cell *matHeaderCellDef>Contrato</th>
+            <td mat-cell *matCellDef="let e">
+              <ng-container *ngIf="e.pdf_contrato; else noContrato">
+                <a [href]="e.pdf_contrato" target="_blank" matTooltip="Ver documento">
+                  <mat-icon color="primary">check_circle</mat-icon>
+                </a>
+              </ng-container>
+              <ng-template #noContrato>
+                <mat-icon color="warn">cancel</mat-icon>
+              </ng-template>
+            </td>
+          </ng-container>
+
+          <!-- Entrega de Documentos -->
+          <ng-container matColumnDef="entrega_documentos">
+            <th mat-header-cell *matHeaderCellDef>Entrega de Documentos</th>
+            <td mat-cell *matCellDef="let e">
+              <ng-container *ngIf="e.pdf_entrega_documentos; else noEntrega">
+                <a [href]="e.pdf_entrega_documentos" target="_blank" matTooltip="Ver documento">
+                  <mat-icon color="primary">check_circle</mat-icon>
+                </a>
+              </ng-container>
+              <ng-template #noEntrega>
+                <mat-icon color="warn">cancel</mat-icon>
+              </ng-template>
+            </td>
+          </ng-container>
+
+          <!-- ARL -->
+          <ng-container matColumnDef="arl">
+            <th mat-header-cell *matHeaderCellDef>ARL</th>
+            <td mat-cell *matCellDef="let e">
+              <ng-container *ngIf="e.pdf_arl; else noArl">
+                <a [href]="e.pdf_arl" target="_blank" matTooltip="Ver documento">
+                  <mat-icon color="primary">check_circle</mat-icon>
+                </a>
+              </ng-container>
+              <ng-template #noArl>
+                <mat-icon color="warn">cancel</mat-icon>
+              </ng-template>
+            </td>
+          </ng-container>
+
+          <!-- Examen -->
+          <ng-container matColumnDef="examen">
+            <th mat-header-cell *matHeaderCellDef>Examen</th>
+            <td mat-cell *matCellDef="let e">
+              <ng-container *ngIf="e.pdf_examen; else noExamen">
+                <a [href]="e.pdf_examen" target="_blank" matTooltip="Ver documento">
+                  <mat-icon color="primary">check_circle</mat-icon>
+                </a>
+              </ng-container>
+              <ng-template #noExamen>
+                <mat-icon color="warn">cancel</mat-icon>
+              </ng-template>
+            </td>
+          </ng-container>
+
+          <!-- Fondo de Pensión -->
+          <ng-container matColumnDef="fondo_pension">
+            <th mat-header-cell *matHeaderCellDef>Fondo de Pensión</th>
+            <td mat-cell *matCellDef="let e">
+              <ng-container *ngIf="e.pdf_fondo_pension; else noFondo">
+                <a [href]="e.pdf_fondo_pension" target="_blank" matTooltip="Ver documento">
+                  <mat-icon color="primary">check_circle</mat-icon>
+                </a>
+              </ng-container>
+              <ng-template #noFondo>
+                <mat-icon color="warn">cancel</mat-icon>
+              </ng-template>
+            </td>
+          </ng-container>
+
+          <!-- FILAS -->
+          <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+          <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
+          <tr class="mat-row" *matNoDataRow>
+            <td class="mat-cell" colspan="35">
+              No hay datos "{{ input.value }}"
+            </td>
+          </tr>
+        </table>
+      </div>
+    </div>
+  </mat-card-content>
+</mat-card>

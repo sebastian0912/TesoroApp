@@ -67,7 +67,6 @@ export class VacantesService {
     return this.http.get(`${this.apiUrl}/infoCentrosCosto/centro-costos/`, { headers, params }).pipe(
       map((response: any) => response.data || []), // Extraer data de la respuesta
       catchError(error => {
-        console.error('Error al filtrar finca:', error);
         return of([]); // En caso de error, devolver un array vacío
       })
     );

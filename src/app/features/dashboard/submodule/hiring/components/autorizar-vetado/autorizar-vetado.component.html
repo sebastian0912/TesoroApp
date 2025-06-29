@@ -1,0 +1,32 @@
+<div class="contenedor">
+
+  <h1 mat-dialog-title>Seleccionar Categoría</h1>
+  <div mat-dialog-content [formGroup]="categoriaForm">
+    <!-- Selector de Categoría -->
+    <mat-form-field class="example-full-width">
+      <mat-label>Categoría</mat-label>
+      <mat-select formControlName="selectedCategoriaId" (selectionChange)="onCategoriaChange($event.value)">
+        <mat-option *ngFor="let categoria of categorias" [value]="categoria.id">
+          {{ categoria.id }} - {{ categoria.clasificacion }}
+        </mat-option>
+      </mat-select>
+    </mat-form-field>
+  
+    <!-- Campo de Clasificación -->
+    <mat-form-field class="example-full-width">
+      <mat-label>Clasificación</mat-label>
+      <input matInput formControlName="clasificacion" readonly />
+    </mat-form-field>
+  
+    <!-- Campo de Descripción -->
+    <mat-form-field class="example-full-width">
+      <mat-label>Descripción</mat-label>
+      <input matInput formControlName="descripcion" readonly />
+    </mat-form-field>
+  </div>
+  
+  <div mat-dialog-actions>
+    <button mat-button (click)="onNoClick()">Cancelar</button>
+    <button mat-button [disabled]="!categoriaForm.get('selectedCategoriaId')?.value" (click)="seleccionarCategoria()">Seleccionar</button>
+  </div>
+</div>

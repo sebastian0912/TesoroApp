@@ -1237,7 +1237,6 @@ export class HiringReportComponent implements OnInit {
               }
 
               if (typeof dateStr === 'string') {
-                console.log(dateStr);
                 const normalizedDateStr = dateStr.includes('-')
                   ? dateStr.replace(/-/g, '/')
                   : dateStr;
@@ -1388,7 +1387,6 @@ export class HiringReportComponent implements OnInit {
         }
       }, 500);
     } catch (error) {
-      console.log(error);
       Swal.close();
       Swal.fire({
         icon: 'error',
@@ -1697,7 +1695,12 @@ export class HiringReportComponent implements OnInit {
               await process(files);
             } catch (error) {
               this.processingErrors.push(name);
-              console.error(`Error procesando ${name}:`, error);
+              Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: `Ocurrió un error al procesar ${name}. Por favor, inténtelo de nuevo.`,
+                confirmButtonText: 'Aceptar',
+              });
             }
           }
         });

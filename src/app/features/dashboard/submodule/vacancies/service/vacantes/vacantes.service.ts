@@ -67,7 +67,6 @@ export class VacantesService {
     return this.http.get(`${this.apiUrl}/infoCentrosCosto/centro-costos/`, { headers, params }).pipe(
       map((response: any) => response.data || []), // Extraer data de la respuesta
       catchError(error => {
-        console.error('Error al filtrar finca:', error);
         return of([]); // En caso de error, devolver un array vacío
       })
     );
@@ -98,7 +97,7 @@ export class VacantesService {
   // Eliminar vacante por ID
   eliminarVacante(id: string): Observable<any> {
     const headers = this.createAuthorizationHeader();
-    return this.http.delete(`${this.apiUrl}/publicacion/eliminarVacante/${id}`, { headers }).pipe(
+    return this.http.delete(`${this.apiUrl}/publicaciones/${id}`, { headers }).pipe(
       map((response: any) => response),
       catchError(this.handleError)
     );

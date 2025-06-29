@@ -48,6 +48,8 @@ export class HiringQuestionsComponent implements OnInit {
     familiar1: 17,
     familiar2: 17,
     traslado: 18,
+    laboral1: 2,
+    laboral2: 2,
   };
 
   ngOnInit() {
@@ -96,6 +98,8 @@ export class HiringQuestionsComponent implements OnInit {
       familiar2: [''],
       personal1: [''],
       personal2: [''],
+      laboral1: [''],
+      laboral2: [''],
     });
 
     // Inicializar el FormGroup de traslados
@@ -478,17 +482,13 @@ export class HiringQuestionsComponent implements OnInit {
             this.fingerprintImageID = `data:image/png;base64,${result.data}`;
           } else {
             this.message = `Error al capturar huella: ${result.error || 'Error desconocido.'}`;
-            console.error(this.message);
           }
         })
         .catch((error: any) => {
-          console.error(error);
           this.message = `Error al capturar huella: ${error.error || 'Error de comunicación con el módulo Electron.'}`;
-          console.error(this.message);
         });
     } else {
       const errorMessage = 'Electron o fingerprint no están disponibles en window.';
-      console.error(errorMessage);
       this.message = errorMessage;
     }
   }
@@ -503,16 +503,13 @@ export class HiringQuestionsComponent implements OnInit {
             this.fingerprintImagePD = `data:image/png;base64,${result.data}`;
           } else {
             this.message2 = `Error al capturar huella: ${result.error || 'Error desconocido.'}`;
-            console.error(this.message);
           }
         })
         .catch((error: any) => {
           this.message2 = `Error al capturar huella: ${error.error || 'Error de comunicación con el módulo Electron.'}`;
-          console.error(this.message);
         });
     } else {
       const errorMessage = 'Electron o fingerprint no están disponibles en window.';
-      console.error(errorMessage);
       this.message2 = errorMessage;
     }
   }
@@ -581,7 +578,6 @@ export class HiringQuestionsComponent implements OnInit {
     if (!this.cedula || !this.codigoContrato) {
       return; // No hacer nada si la cédula o el código de contrato no están definidos
     }
-    console.log('Cargando datos para la cédula:', this.cedula, 'y código de contrato:', this.codigoContrato);
     this.contratacionService.traerDatosSeleccion(this.cedula).subscribe((response: any) => {
       if (response && Array.isArray(response.procesoSeleccion) && response.procesoSeleccion.length > 0) {
         // Encontrar el proceso con el id más alto

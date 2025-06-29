@@ -186,6 +186,48 @@
           </mat-form-field>
         </div>
 
+        <!-- Laboral 1-->
+        <div class="input-container">
+          <button mat-icon-button [matMenuTriggerFor]="pdfMenuLaboral1" aria-label="PDF options">
+            <mat-icon>more_vert</mat-icon>
+          </button>
+          <mat-menu #pdfMenuLaboral1="matMenu">
+            <button mat-menu-item (click)="verArchivo('laboral1')">Ver PDF</button>
+            <button mat-menu-item>
+              <label for="fileInputLaboral1" style="cursor:pointer;">Subir PDF</label>
+            </button>
+            <input type="file" id="fileInputLaboral1" style="display:none;"
+              (change)="subirArchivo($event,'laboral1')" />
+          </mat-menu>
+
+          <mat-form-field appearance="fill" class="example-full-width">
+            <mat-label>Laboral 1</mat-label>
+            <input matInput formControlName="laboral1"
+              [value]="uploadedFiles['laboral1'] && uploadedFiles['laboral1'].fileName || ''" readonly>
+          </mat-form-field>
+        </div>
+
+        <!-- Laboral 2 -->
+        <div class="input-container">
+          <button mat-icon-button [matMenuTriggerFor]="pdfMenuLaboral2" aria-label="PDF options">
+            <mat-icon>more_vert</mat-icon>
+          </button>
+          <mat-menu #pdfMenuLaboral2="matMenu">
+            <button mat-menu-item (click)="verArchivo('laboral2')">Ver PDF</button>
+            <button mat-menu-item>
+              <label for="fileInputLaboral2" style="cursor:pointer;">Subir PDF</label>
+            </button>
+            <input type="file" id="fileInputLaboral2" style="display:none;"
+              (change)="subirArchivo($event,'laboral2')" />
+          </mat-menu>
+
+          <mat-form-field appearance="fill" class="example-full-width">
+            <mat-label>Laboral 2</mat-label>
+            <input matInput formControlName="laboral2"
+              [value]="uploadedFiles['laboral2'] && uploadedFiles['laboral2'].fileName || ''" readonly>
+          </mat-form-field>
+        </div>
+
       </div>
 
       <button mat-flat-button (click)="cargarReferencias()">Cargar</button>

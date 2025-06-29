@@ -4,7 +4,7 @@
   <mat-tab class="tab-info">
     <ng-template mat-tab-label>
       <mat-icon>person</mat-icon>
-      Info&nbsp;personal
+      Pre formulario
     </ng-template>
 
     <form [formGroup]="infoPersonalForm" class="form-tab">
@@ -48,11 +48,10 @@
 
         <!-- Género -->
         <mat-form-field class="example-full-width">
-          <mat-label>Género</mat-label>
+          <mat-label>SEXO</mat-label>
           <mat-select formControlName="genero">
             <mat-option value="F">Femenino</mat-option>
             <mat-option value="M">Masculino</mat-option>
-            <mat-option value="O">Otro</mat-option>
           </mat-select>
         </mat-form-field>
 
@@ -154,40 +153,16 @@
           <mat-label>¿Quién los cuida?</mat-label>
           <input matInput formControlName="quienLosCuida">
         </mat-form-field>
+
+        <mat-form-field class="example-full-width">
+          <mat-label>Observación del evaluador</mat-label>
+          <input matInput formControlName="observacionDelEvaluador">
+        </mat-form-field>
+
       </div>
 
       <div class="actions">
         <button mat-flat-button color="primary" [disabled]="entrevistaForm.invalid" (click)="guardarEntrevista()">
-          Guardar
-        </button>
-      </div>
-    </form>
-  </mat-tab>
-
-  <!-- ──────────────────────── TAB 3 ─ Observaciones ──────────────────────── -->
-  <mat-tab>
-    <ng-template mat-tab-label>
-      <mat-icon>visibility</mat-icon>
-      Observaciones
-    </ng-template>
-
-    <form [formGroup]="observacionesForm" class="form-tab">
-      <div class="grid">
-
-        <mat-form-field class="example-full-width">
-          <mat-label>Observación / Novedad</mat-label>
-          <textarea matInput formControlName="observacionNovedad" rows="3"></textarea>
-        </mat-form-field>
-
-        <mat-form-field class="example-full-width">
-          <mat-label>Observación del evaluador</mat-label>
-          <textarea matInput formControlName="observacionEvaluador" rows="3"></textarea>
-        </mat-form-field>
-
-      </div>
-
-      <div class="actions">
-        <button mat-flat-button color="primary" [disabled]="observacionesForm.invalid" (click)="guardarObservaciones()">
           Guardar
         </button>
       </div>
@@ -206,23 +181,29 @@
 
         <mat-form-field class="example-full-width">
           <mat-label>Centro de costo</mat-label>
-          <input matInput formControlName="centroCosto" readonly>
+          <input matInput formControlName="centroCosto">
         </mat-form-field>
 
         <mat-form-field class="example-full-width">
           <mat-label>Cargo</mat-label>
-          <input matInput formControlName="cargo" readonly>
+          <input matInput formControlName="cargo">
         </mat-form-field>
 
+        <!-- Fecha prueba/entrevista -->
         <mat-form-field class="example-full-width">
           <mat-label>Fecha prueba/entrevista</mat-label>
-          <input matInput formControlName="fechaPruebaEntrevista" readonly>
+          <input matInput [matDatepicker]="pickerFecha" formControlName="fechaPruebaEntrevista" autocomplete="off"
+            readonly (focus)="pickerFecha.open()" (click)="pickerFecha.open()">
+          <mat-datepicker-toggle matSuffix [for]="pickerFecha"></mat-datepicker-toggle>
+          <mat-datepicker #pickerFecha></mat-datepicker>
         </mat-form-field>
 
+        <!-- Hora prueba/entrevista -->
         <mat-form-field class="example-full-width">
-          <mat-label>Hora</mat-label>
-          <input matInput formControlName="horaPruebaEntrevista" readonly>
+          <mat-label>Hora prueba/entrevista</mat-label>
+          <input matInput type="time" formControlName="horaPruebaEntrevista" autocomplete="off">
         </mat-form-field>
+
 
         <mat-form-field class="example-full-width">
           <mat-label>¿Por quién preguntar?</mat-label>

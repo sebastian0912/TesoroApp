@@ -68,10 +68,12 @@
             <td mat-cell *matCellDef="let e">{{ e.entidad_adress }}</td>
           </ng-container>
 
-          <!-- PDF ADRESS -->
+          <!-- PDF ADRESS -->
           <ng-container matColumnDef="pdf_adress">
-            <th mat-header-cell *matHeaderCellDef>PDF Adress</th>
-            <td mat-cell *matCellDef="let e">{{ e.pdf_adress }}</td>
+            <th mat-header-cell *matHeaderCellDef>PDF Adress</th>
+            <td mat-cell *matCellDef="let e">
+              <a *ngIf="e.pdf_adress" [href]="e.pdf_adress" target="_blank" rel="noopener noreferrer">Ver PDF</a>
+            </td>
           </ng-container>
 
           <!-- FECHA ADRESS -->
@@ -94,11 +96,14 @@
             <td mat-cell *matCellDef="let e">{{ e.anotacion_policivo }}</td>
           </ng-container>
 
-          <!-- PDF POLICIVO -->
+          <!-- PDF POLICIVO -->
           <ng-container matColumnDef="pdf_policivo">
-            <th mat-header-cell *matHeaderCellDef>PDF Policivo</th>
-            <td mat-cell *matCellDef="let e">{{ e.pdf_policivo }}</td>
+            <th mat-header-cell *matHeaderCellDef>PDF Policivo</th>
+            <td mat-cell *matCellDef="let e">
+              <a *ngIf="e.pdf_policivo" [href]="e.pdf_policivo" target="_blank" rel="noopener noreferrer">Ver PDF</a>
+            </td>
           </ng-container>
+
 
           <!-- ESTADO OFAC -->
           <ng-container matColumnDef="estado_ofac">
@@ -112,10 +117,12 @@
             <td mat-cell *matCellDef="let e">{{ e.anotacion_ofac }}</td>
           </ng-container>
 
-          <!-- PDF OFAC -->
+          <!-- PDF OFAC -->
           <ng-container matColumnDef="pdf_ofac">
-            <th mat-header-cell *matHeaderCellDef>PDF OFAC</th>
-            <td mat-cell *matCellDef="let e">{{ e.pdf_ofac }}</td>
+            <th mat-header-cell *matHeaderCellDef>PDF OFAC</th>
+            <td mat-cell *matCellDef="let e">
+              <a *ngIf="e.pdf_ofac" [href]="e.pdf_ofac" target="_blank" rel="noopener noreferrer">Ver PDF</a>
+            </td>
           </ng-container>
 
           <!-- ESTADO CONTRALORÍA -->
@@ -130,10 +137,13 @@
             <td mat-cell *matCellDef="let e">{{ e.anotacion_contraloria }}</td>
           </ng-container>
 
-          <!-- PDF CONTRALORÍA -->
+          <!-- PDF CONTRALORÍA -->
           <ng-container matColumnDef="pdf_contraloria">
-            <th mat-header-cell *matHeaderCellDef>PDF Contraloría</th>
-            <td mat-cell *matCellDef="let e">{{ e.pdf_contraloria }}</td>
+            <th mat-header-cell *matHeaderCellDef>PDF Contraloría</th>
+            <td mat-cell *matCellDef="let e">
+              <a *ngIf="e.pdf_contraloria" [href]="e.pdf_contraloria" target="_blank" rel="noopener noreferrer">Ver
+                PDF</a>
+            </td>
           </ng-container>
 
           <!-- ESTADO SISBEN -->
@@ -148,10 +158,12 @@
             <td mat-cell *matCellDef="let e">{{ e.tipo_sisben }}</td>
           </ng-container>
 
-          <!-- PDF SISBEN -->
+          <!-- PDF SISBEN -->
           <ng-container matColumnDef="pdf_sisben">
-            <th mat-header-cell *matHeaderCellDef>PDF Sisben</th>
-            <td mat-cell *matCellDef="let e">{{ e.pdf_sisben }}</td>
+            <th mat-header-cell *matHeaderCellDef>PDF Sisben</th>
+            <td mat-cell *matCellDef="let e">
+              <a *ngIf="e.pdf_sisben" [href]="e.pdf_sisben" target="_blank" rel="noopener noreferrer">Ver PDF</a>
+            </td>
           </ng-container>
 
           <!-- FECHA SISBEN -->
@@ -172,11 +184,15 @@
             <td mat-cell *matCellDef="let e">{{ e.anotacion_procuraduria }}</td>
           </ng-container>
 
-          <!-- PDF PROCURADURÍA -->
+          <!-- PDF PROCURADURÍA -->
           <ng-container matColumnDef="pdf_procuraduria">
-            <th mat-header-cell *matHeaderCellDef>PDF Procuraduría</th>
-            <td mat-cell *matCellDef="let e">{{ e.pdf_procuraduria }}</td>
+            <th mat-header-cell *matHeaderCellDef>PDF Procuraduría</th>
+            <td mat-cell *matCellDef="let e">
+              <a *ngIf="e.pdf_procuraduria" [href]="e.pdf_procuraduria" target="_blank" rel="noopener noreferrer">Ver
+                PDF</a>
+            </td>
           </ng-container>
+
 
           <!-- ESTADO FONDO PENSIÓN -->
           <ng-container matColumnDef="estado_fondo_pension">
@@ -192,9 +208,13 @@
 
           <!-- PDF FONDO PENSIÓN -->
           <ng-container matColumnDef="pdf_fondo_pension">
-            <th mat-header-cell *matHeaderCellDef>PDF Fondo Pensión</th>
-            <td mat-cell *matCellDef="let e">{{ e.pdf_fondo_pension }}</td>
+            <th mat-header-cell *matHeaderCellDef>PDF Fondo Pensión</th>
+            <td mat-cell *matCellDef="let e">
+              <a *ngIf="e.pdf_fondo_pension" [href]="e.pdf_fondo_pension" target="_blank" rel="noopener noreferrer">Ver
+                PDF</a>
+            </td>
           </ng-container>
+
 
           <!-- FECHA FONDO PENSIÓN -->
           <ng-container matColumnDef="fecha_fondo_pension">

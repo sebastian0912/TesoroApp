@@ -247,7 +247,12 @@ export class SelectionQuestionsComponent implements OnInit {
           }
         },
         (error) => {
-          console.error('Error al obtener los datos de selección:', error);
+          Swal.fire({
+            title: '¡Error!',
+            text: 'No se pudieron obtener los datos de selección. Por favor, inténtelo de nuevo más tarde.',
+            icon: 'error',
+            confirmButtonText: 'Ok'
+          });
         }
       );
     }

@@ -1,1 +1,55 @@
-<p>banned-report works!</p>
+    <mat-card>
+      <h1 class="title">Reporte 901</h1>
+      <mat-card-content>
+        <form [formGroup]="reporteForm" (ngSubmit)="enviarReporte()">
+          <!-- Campo de cédula -->
+          <mat-form-field appearance="fill" class="example-full-width">
+            <mat-label>Ingrese la cédula</mat-label>
+            <input matInput formControlName="cedula" required>
+          </mat-form-field>
+
+          <!-- Campo de nombre (solo lectura) -->
+          <mat-form-field appearance="fill" class="example-full-width" style="font-size: 8.5pt;">
+            <mat-label>Nombre completo</mat-label>
+            <input matInput formControlName="nombre" readonly>
+          </mat-form-field>
+
+          <!-- centro_costo_carnet -->
+          <mat-form-field appearance="fill" class="example-full-width">
+            <mat-label>Centro de costo</mat-label>
+            <input matInput formControlName="centro_costo_carnet" required>
+          </mat-form-field>
+
+          <!-- fecha_contratacion -->
+          <mat-form-field appearance="fill" class="example-full-width">
+            <mat-label>Fecha de contratación</mat-label>
+            <input matInput formControlName="fecha_contratacion" readonly>
+          </mat-form-field>
+
+          <!-- Campo de sede (select) -->
+          <mat-form-field appearance="fill" class="example-full-width">
+            <mat-label>Seleccione la sede</mat-label>
+            <mat-select formControlName="sede" required>
+              <mat-option *ngFor="let sede of sedes" [value]="sede.nombre">
+                {{ sede.nombre }}
+              </mat-option>
+            </mat-select>
+          </mat-form-field>
+
+          <!-- Campo de observación -->
+          <mat-form-field appearance="fill" class="example-full-width">
+            <mat-label>Observación</mat-label>
+            <input matInput formControlName="observacion">
+          </mat-form-field>
+
+          <!-- Campo de reportado por (automático, deshabilitado) -->
+          <mat-form-field appearance="fill" class="example-full-width">
+            <mat-label>Reportado por</mat-label>
+            <input matInput formControlName="reportadoPor" readonly>
+          </mat-form-field>
+
+          <!-- Botón de envío -->
+          <button mat-flat-button type="submit" [disabled]="reporteForm.invalid">Enviar reporte</button>
+        </form>
+      </mat-card-content>
+    </mat-card>

@@ -33,14 +33,11 @@ export class TrasladosService {
 
   // Cambiar correo
   async cambiarCorreo(codigo: string, usernameLocal: string): Promise<any> {
-
     const urlcompleta = `${this.apiUrl}/traslados/asignar-correo`;
-
     const requestBody = {
       codigo_traslado: codigo,
       responsable: usernameLocal,
     };
-
     try {
       const response = await firstValueFrom(
         this.http
@@ -143,6 +140,12 @@ export class TrasladosService {
   // obtener-cedula-escaneada/<str:numero_cedula>/
   traerCedulaEscaneada(numeroCedula: any): Observable<any> {
     return this.http.get(`${this.apiUrl}/traslados/obtener-cedula-escaneada/${numeroCedula}/`)
+      .pipe(catchError(this.handleError));
+  }
+
+  // buscar/<str:id>
+  buscarAfiliacionPorId(id: string): Observable<any> {
+    return this.http.get(`${this.apiUrl}/traslados/buscar-por-cedula/${id}/`)
       .pipe(catchError(this.handleError));
   }
 

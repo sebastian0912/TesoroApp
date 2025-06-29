@@ -7,7 +7,8 @@
         Descargar todas las cédulas por oficina
       </button>
       <div class="filter-container"
-        *ngIf="userCorreo == 'tuafiliacion@tsservicios.co' || userCorreo == 'programador.ts@gmail.com' || userCorreo == 'a.seguridad.ts@gmail.com'">
+        *ngIf="userCorreo == 'tuafiliacion@tsservicios.co' || userCorreo == 'programador.ts@gmail.com' || userCorreo == 'a.seguridad.ts@gmail.com'
+                || userCorreo == 'a.sotelotualianza@gmail.com'">
 
         <mat-form-field class="example-full-width">
           <mat-label>Buscar por Nombre</mat-label>
@@ -37,8 +38,6 @@
             <span>Generar reporte fincas</span>
           </button>
         </mat-menu>
-
-
       </div>
 
       <div class="table-container">

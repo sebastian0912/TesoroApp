@@ -26,14 +26,14 @@
               </button>
 
               <!-- Botón Subir PDF con input tipo file -->
-              <label mat-menu-item *ngIf="isSubirPDF(doc)">
+              <label mat-menu-item >
                 <input type="file" hidden (change)="subirArchivo($event, doc.titulo)" />
                 <mat-icon>cloud_upload</mat-icon>
                 <span>Subir PDF</span>
               </label>
 
               <!-- Botón Generar PDF para otros documentos -->
-              <button mat-menu-item *ngIf="!isSubirPDF(doc)" (click)="generarPDF(doc.titulo)">
+              <button mat-menu-item  (click)="generarPDF(doc.titulo)">
                 <mat-icon>download</mat-icon>
                 <span>Generar PDF</span>
               </button>

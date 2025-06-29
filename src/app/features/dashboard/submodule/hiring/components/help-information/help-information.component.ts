@@ -1,12 +1,24 @@
 import { SharedModule } from '@/app/shared/shared.module';
-import { Component, Input, SimpleChanges } from '@angular/core';
+import { Component, Input, LOCALE_ID, SimpleChanges } from '@angular/core';
 import { FormGroup, FormBuilder } from '@angular/forms';
 import Swal from 'sweetalert2';
 import { MatTabsModule } from '@angular/material/tabs';
 import { HiringService } from '../../service/hiring.service';
 import { UtilityServiceService } from '@/app/shared/services/utilityService/utility-service.service';
 import { MatDatepickerModule } from '@angular/material/datepicker';
-import { MatNativeDateModule } from '@angular/material/core';
+import { DateAdapter, MAT_DATE_FORMATS, MAT_DATE_LOCALE, MatNativeDateModule, NativeDateModule } from '@angular/material/core';
+import { SeleccionService } from '../../service/seleccion/seleccion.service';
+import { MomentDateAdapter } from '@angular/material-moment-adapter';
+
+export const MY_DATE_FORMATS = {
+  parse: { dateInput: 'DD/MM/YYYY' },
+  display: {
+    dateInput: 'DD/MM/YYYY',
+    monthYearLabel: 'MMMM YYYY',
+    dateA11yLabel: 'LL',
+    monthYearA11yLabel: 'MMMM YYYY'
+  }
+};
 
 @Component({
   selector: 'app-help-information',
@@ -14,10 +26,18 @@ import { MatNativeDateModule } from '@angular/material/core';
     SharedModule,
     MatTabsModule,
     MatDatepickerModule,
-    MatNativeDateModule
+    MatNativeDateModule,
+    NativeDateModule
   ],
   templateUrl: './help-information.component.html',
-  styleUrl: './help-information.component.css'
+  styleUrl: './help-information.component.css',
+  providers: [
+    { provide: LOCALE_ID, useValue: 'es-CO' },
+    { provide: MAT_DATE_LOCALE, useValue: 'es-CO' },
+    { provide: DateAdapter, useClass: MomentDateAdapter, deps: [MAT_DATE_LOCALE] },
+    { provide: MAT_DATE_FORMATS, useValue: MY_DATE_FORMATS }
+  ]
+
 })
 export class HelpInformationComponent {
   @Input() cedula: string = '';
@@ -25,7 +45,6 @@ export class HelpInformationComponent {
   // Formularios
   infoPersonalForm: FormGroup;
   entrevistaForm: FormGroup;
-  observacionesForm: FormGroup;
   vacantesForm: FormGroup;
   infoCandidatoForm: any;
 
@@ -37,6 +56,7 @@ export class HelpInformationComponent {
   constructor(
     private fb: FormBuilder,
     private hiringService: HiringService,
+    private seleccionService: SeleccionService,
     private utilityService: UtilityServiceService
   ) {
     // Formulario 1: Info personal
@@ -53,7 +73,7 @@ export class HelpInformationComponent {
       barrio: [''],
       tieneExperienciaFlores: [''],
       referenciado: [''],
-      comoSeEntero: ['']
+      comoSeEntero: [''],
     });
 
     // Formulario 2: Entrevista
@@ -64,21 +84,16 @@ export class HelpInformationComponent {
       tiempoExperiencia: [''],
       escolaridad: [''],
       numHijos: [''],
-      quienLosCuida: ['']
-    });
-
-    // Formulario 3: Observaciones
-    this.observacionesForm = this.fb.group({
-      observacionNovedad: [''],
-      observacionEvaluador: ['']
+      quienLosCuida: [''],
+      observacionDelEvaluador: [''],
     });
 
     // Formulario 4: Vacantes
     this.vacantesForm = this.fb.group({
-      centroCosto: [{ value: '', disabled: true }],
-      cargo: [{ value: '', disabled: true }],
-      fechaPruebaEntrevista: [{ value: '', disabled: true }],
-      horaPruebaEntrevista: [{ value: '', disabled: true }],
+      centroCosto: [''],
+      cargo: [''],
+      fechaPruebaEntrevista: [''],
+      horaPruebaEntrevista: [''],
       porQuienPregunta: [''],
       retroalimentacionFinal: ['']
     });
@@ -92,7 +107,6 @@ export class HelpInformationComponent {
 
   recibirVacante(vacante: any): void {
     this.vacanteActual = vacante;
-    console.log('Vacante recibida en HelpInformation:', vacante);
     if (this.vacanteActual) {
       this.vacantesForm.patchValue({
         centroCosto: this.vacanteActual.empresaUsuariaSolicita,
@@ -105,7 +119,6 @@ export class HelpInformationComponent {
 
   private buscarContratacion(): void {
     const user = this.utilityService.getUser();
-    console.log('Usuario:', user);
     if (!user) {
       return;
     }
@@ -122,7 +135,7 @@ export class HelpInformationComponent {
           tipodedocumento: this.infoCandidatoForm.tipodedocumento || 'No disponible',
           numerodecedula: this.infoCandidatoForm.numerodeceduladepersona || 'No disponible',
           nombreCompleto: this.getFullName(),
-          celular: this.infoCandidatoForm.celular || '',
+          celular: this.infoCandidatoForm.celular || this.infoCandidatoForm.whatsapp || '',
           whatsapp: this.infoCandidatoForm.whatsapp || '',
           genero: this.infoCandidatoForm.genero || '',
           edad: this.calcularEdad(this.infoCandidatoForm.fecha_nacimiento) || '',
@@ -146,15 +159,9 @@ export class HelpInformationComponent {
           quienLosCuida: this.infoCandidatoForm.quien_los_cuida || ''
         });
 
-        // Llenar el formulario de Observaciones con los datos de this.infoCandidatoForm
-        this.observacionesForm.patchValue({
-          observacionNovedad: this.infoCandidatoForm.observacion_novedad || '',
-          observacionEvaluador: this.infoCandidatoForm.observacion_evaluador || ''
-        });
         // aquí puedes guardar o mostrar el resultado como necesites
       },
       error: (error) => {
-        console.error('Error al buscar contratación:', error);
         Swal.fire('Error', 'No se pudo obtener la contratación', 'error');
       }
     });
@@ -164,28 +171,57 @@ export class HelpInformationComponent {
   guardarInfoPersonal(): void {
 
     if (this.infoPersonalForm.valid) {
-      // Aquí podrías enviar a un servicio
-      Swal.fire('Guardado', 'Información personal actualizada correctamente.', 'success');
+
     }
   }
 
   guardarEntrevista(): void {
-    if (this.entrevistaForm.valid) {
-      Swal.fire('Guardado', 'Información de entrevista guardada.', 'success');
+    if (this.entrevistaForm.invalid) {
+      this.entrevistaForm.markAllAsTouched();
+      Swal.fire('Error', 'Debes completar todos los campos obligatorios de la entrevista.', 'error');
+      return;
     }
+
+    // Construir objeto a enviar, añadiendo la cédula
+    const payload = { ...this.entrevistaForm.value, numero: this.cedula };
+
+    this.seleccionService.guardarEntrevista(payload).subscribe({
+      next: (resp) => {
+        Swal.fire('Guardado', 'Información de entrevista guardada correctamente.', 'success');
+      },
+      error: (error) => {
+        Swal.fire('Error', 'No se pudo guardar la información de la entrevista.', 'error');
+      }
+    });
   }
 
-  guardarObservaciones(): void {
-    if (this.observacionesForm.valid) {
-      Swal.fire('Guardado', 'Observaciones registradas.', 'success');
-    }
-  }
+
+
 
   guardarVacantes(): void {
-    if (this.vacantesForm.valid) {
-      Swal.fire('Guardado', 'Información de vacantes registrada.', 'success');
+    if (this.vacantesForm.invalid) {
+      this.vacantesForm.markAllAsTouched();
+      Swal.fire('Error', 'Debes completar todos los campos obligatorios.', 'error');
+      return;
     }
+
+    const payload = { ...this.vacantesForm.value, numero: this.cedula };
+
+    // ✅ Convertir la fecha a "YYYY-MM-DD" si es un Date
+    if (payload.fechaPruebaEntrevista instanceof Date) {
+      payload.fechaPruebaEntrevista = payload.fechaPruebaEntrevista.toISOString().slice(0, 10);
+    }
+
+    this.seleccionService.guardarVacantes(payload).subscribe({
+      next: () => {
+        Swal.fire('Guardado', 'Vacantes guardadas correctamente.', 'success');
+      },
+      error: (error) => {
+        Swal.fire('Error', 'No se pudo guardar las vacantes.', 'error');
+      }
+    });
   }
+
 
   // Obtener el nombre completo
   getFullName(): string {
@@ -193,58 +229,49 @@ export class HelpInformationComponent {
     return `${primer_nombre || ''} ${segundo_nombre || ''} ${primer_apellido || ''} ${segundo_apellido || ''}`.trim();
   }
 
-  // Calcular edad a partir del número de días desde 1 de enero de 1900
-  calcularEdad(fecha: string): number {
-    console.log('Fecha de nacimiento:', fecha);
-
-    const fechaNacimiento = this.convertirAFecha(fecha);
-    if (!fechaNacimiento) {
-      return NaN; // Si la fecha no es válida
-    }
-
-    const today = new Date();
-    let age = today.getFullYear() - fechaNacimiento.getFullYear();
-
-    // Restar un año si aún no ha pasado el cumpleaños este año
-    const monthDiff = today.getMonth() - fechaNacimiento.getMonth();
-    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < fechaNacimiento.getDate())) {
-      age--;
-    }
-    return age;
-  }
-
-  // Convertir un número de días en una fecha válida (basado en el 1 de enero de 1900)
+  // Convierte días desde 1900, DD/MM/YYYY o YYYY-MM-DD a Date
   convertirAFecha(fecha: string): Date | null {
-    // Si la fecha es un número de días (solo contiene dígitos)
     if (/^\d+$/.test(fecha)) {
       const diasDesde1900 = Number(fecha);
-      const fechaBase = new Date(1900, 0, 1); // 1 de enero de 1900
+      const fechaBase = new Date(1900, 0, 1);
       fechaBase.setDate(fechaBase.getDate() + diasDesde1900);
-
-      if (isNaN(fechaBase.getTime())) {
-        return null;
-      }
-
+      if (isNaN(fechaBase.getTime())) return null;
       return fechaBase;
-
-      // Si la fecha está en formato "DD/MM/YYYY"
     } else if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(fecha)) {
       const [dia, mes, anio] = fecha.split('/').map(Number);
-      if (!dia || !mes || !anio) {
-        return null;
-      }
-
+      if (!dia || !mes || !anio) return null;
       const fechaValida = new Date(anio, mes - 1, dia);
-
-      if (isNaN(fechaValida.getTime())) {
-        return null;
-      }
-
+      if (isNaN(fechaValida.getTime())) return null;
       return fechaValida;
-
+    } else if (/^\d{4}-\d{2}-\d{2}$/.test(fecha)) {
+      const fechaValida = new Date(fecha);
+      if (isNaN(fechaValida.getTime())) return null;
+      return fechaValida;
     } else {
       return null;
     }
   }
+
+  // Calcula la edad a partir de una fecha string
+  calcularEdad(fecha: string): number {
+    const fechaNacimiento = this.convertirAFecha(fecha);
+    console.log('Fecha de nacimiento convertida:', fechaNacimiento);
+    if (!fechaNacimiento) return NaN;
+
+    const today = new Date();
+    let age = today.getFullYear() - fechaNacimiento.getFullYear();
+    console.log('Edad calculada:', age);
+    const monthDiff = today.getMonth() - fechaNacimiento.getMonth();
+
+    if (
+      monthDiff < 0 ||
+      (monthDiff === 0 && today.getDate() < fechaNacimiento.getDate())
+    ) {
+      age--;
+    }
+
+    return age;
+  }
+
 
 }

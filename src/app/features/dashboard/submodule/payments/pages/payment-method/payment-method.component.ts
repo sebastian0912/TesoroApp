@@ -242,7 +242,6 @@ export class PaymentMethodComponent implements OnInit {
             title: 'Error',
             text: 'Ocurrió un error inesperado al cargar los datos.'
           });
-          console.error('Error en la carga del archivo:', error);
         });
       } catch (error) {
         Swal.fire({
@@ -250,7 +249,6 @@ export class PaymentMethodComponent implements OnInit {
           title: 'Error',
           text: 'No se pudo procesar el archivo.'
         });
-        console.error('Error al procesar archivo Excel:', error);
       }
     };
 

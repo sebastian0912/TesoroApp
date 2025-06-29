@@ -67,8 +67,8 @@ export class SeleccionService {
       rama_judicial: formData.ramaJudicial,   // Nombre mapeado
       medidas_correctivas: formData.medidasCorrectivas, // Nombre mapeado
       area_aplica: formData.area_aplica,
-      sisben : formData.sisben,
-      ofac : formData.ofac,
+      sisben: formData.sisben,
+      ofac: formData.ofac,
       revisionAntecedentes: formData.revisionAntecedentes,
       jwt: this.getToken()
     };
@@ -134,7 +134,7 @@ export class SeleccionService {
       codigo_contrato: numeroContrato,              // Número de contrato
       ips: formData.ips,
       ipslab: formData.ipsLab,                      // Mapeo correcto
-      examenes : formData.selectedExams,
+      examenes: formData.selectedExams,
       aptosExamenes: formData.selectedExamsArray,
     };
 
@@ -171,6 +171,52 @@ export class SeleccionService {
 
 
 
+  // --- Guardar Entrevista ---
+  public guardarEntrevista(data: any): Observable<any> {
+    const headers = this.createAuthorizationHeader();
+    return this.http.post(`${this.apiUrl}/entrevista/entrevista/`, data, { headers }).pipe(
+      map((response: any) => response),
+      catchError(this.handleError)
+    );
+  }
+
+  // --- Guardar Observaciones ---
+  public guardarObservaciones(data: any): Observable<any> {
+    const headers = this.createAuthorizationHeader();
+    return this.http.post(`${this.apiUrl}/entrevista/observaciones/`, data, { headers }).pipe(
+      map((response: any) => response),
+      catchError(this.handleError)
+    );
+  }
+
+  // --- Guardar Vacantes ---
+  public guardarVacantes(data: any): Observable<any> {
+    const headers = this.createAuthorizationHeader();
+    return this.http.post(`${this.apiUrl}/entrevista/vacantes/`, data, { headers }).pipe(
+      map((response: any) => response),
+      catchError(this.handleError)
+    );
+  }
+
+  // listado-candidatos/
+  public getCandidatos(): Observable<any> {
+    const headers = this.createAuthorizationHeader();
+    return this.http.get(`${this.apiUrl}/entrevista/listado-candidatos/`, { headers }).pipe(
+      map((response: any) => response),
+      catchError(this.handleError)
+    );
+  }
+
+  // exportar-candidatos-excel/
+  public exportarCandidatosExcel(rangoFechas: { start: string; end: string }): Observable<Blob> {
+    const headers = this.createAuthorizationHeader();
+    return this.http.post(`${this.apiUrl}/entrevista/exportar-candidatos-excel/`, rangoFechas, {
+      headers,
+      responseType: 'blob',
+    }).pipe(
+      catchError(this.handleError)
+    );
+  }
 
 
 

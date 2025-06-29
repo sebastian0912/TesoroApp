@@ -136,7 +136,6 @@ export class TrasladosComponent implements OnInit {
       this.numTraslados -= response.total_diferente_de;
 
     } catch (error) {
-      console.error('Error al cargar traslados:', error);
       Swal.fire('Error', 'No se pudieron cargar los datos.', 'error');
     } finally {
       Swal.close(); // Cerrar modal de carga

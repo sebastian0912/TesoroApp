@@ -1,0 +1,70 @@
+<mat-card>
+  <mat-card-content>
+    <form [formGroup]="myForm" (ngSubmit)="onSubmit()">
+      <h1 class="titulo">
+        Digite el número de identificación del empleado a validar:
+      </h1>
+
+      <ng-container>
+        <mat-form-field class="example-full-width">
+          <mat-label>Número de identificación</mat-label>
+          <input matInput formControlName="cedula" />
+          <mat-error *ngIf="myForm.get('cedula')?.hasError('required')">
+            El número de identificación es requerido
+          </mat-error>
+        </mat-form-field>
+
+        <button mat-flat-button type="submit">Buscar</button>
+      </ng-container>
+    </form>
+
+    <div class="table-container">
+      <table mat-table [dataSource]="dataSource" class="mat-elevation-z8">
+
+        <!-- Código de Traslado -->
+        <ng-container matColumnDef="codigo_traslado">
+          <th mat-header-cell *matHeaderCellDef> Código Traslado </th>
+          <td mat-cell *matCellDef="let element"> {{ element.codigo_traslado }} </td>
+        </ng-container>
+
+        <!-- Solicitud Traslado -->
+        <ng-container matColumnDef="solicitud_traslado">
+          <th mat-header-cell *matHeaderCellDef> Solicitud </th>
+          <td mat-cell *matCellDef="let element">
+            <button *ngIf="element.solicitud_traslado" mat-button (click)="verDocumento(element.solicitud_traslado)">
+              Ver Documento
+            </button>
+            <span *ngIf="!element.solicitud_traslado">Sin documento</span>
+          </td>
+        </ng-container>
+
+        <!-- EPS a Trasladar -->
+        <ng-container matColumnDef="eps_a_trasladar">
+          <th mat-header-cell *matHeaderCellDef> EPS a Trasladar </th>
+          <td mat-cell *matCellDef="let element"> {{ element.eps_a_trasladar }} </td>
+        </ng-container>
+
+        <!-- Responsable -->
+        <ng-container matColumnDef="responsable">
+          <th mat-header-cell *matHeaderCellDef> Responsable </th>
+          <td mat-cell *matCellDef="let element"> {{ element.responsable }} </td>
+        </ng-container>
+
+        <!-- Estado del Traslado -->
+        <ng-container matColumnDef="estado_del_traslado">
+          <th mat-header-cell *matHeaderCellDef> Estado </th>
+          <td mat-cell *matCellDef="let element"> {{ element.estado_del_traslado }} </td>
+        </ng-container>
+
+        <!-- Filas -->
+        <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+        <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
+        <tr class="mat-row" *matNoDataRow>
+          <td class="mat-cell" colspan="5">
+            No hay datos
+          </td>
+        </tr>
+      </table>
+    </div>
+  </mat-card-content>
+</mat-card>

@@ -163,7 +163,6 @@ export class PaySlipsComponent implements OnInit {
             });
           }
         }).catch((error: any) => {
-          console.error('Error en subida:', error);
           Swal.fire({
             icon: 'error',
             title: 'Error inesperado',
@@ -171,7 +170,6 @@ export class PaySlipsComponent implements OnInit {
           });
         });
       } catch (error) {
-        console.error('Error de lectura:', error);
         Swal.fire({
           icon: 'error',
           title: 'Error de lectura',
