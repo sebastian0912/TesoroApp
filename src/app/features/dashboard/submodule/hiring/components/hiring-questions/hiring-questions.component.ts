@@ -585,7 +585,6 @@ export class HiringQuestionsComponent implements OnInit {
           current.id > max.id ? current : max
         );
 
-        console.log('Proceso seleccionado:', seleccion);
 
         // Obtener la vacante desde ese proceso
         const idVacante = seleccion.vacante;
@@ -596,8 +595,7 @@ export class HiringQuestionsComponent implements OnInit {
           this.actualizarEmpresaYDescripcionEnLocalStorage();
           this.llenarDocumentos();
           // cedula
-          console.log('Cedula:', this.cedula);
-          console.log('Codigo Contrato:', this.codigoContrato);
+
           this.contratacionService.traerDatosContratacion(this.cedula, this.codigoContrato).subscribe((datosContratacion: any) => {
             if (datosContratacion) {
               this.pagoTransporteForm.patchValue({

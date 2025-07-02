@@ -339,7 +339,6 @@ export class RecruitmentPipelineComponent implements OnInit {
   getFullName(nombre_completo: string): void {
     if (nombre_completo) {
       this.nombreCandidato = nombre_completo;
-      console.log('Nombre del candidato:', this.nombreCandidato);
     } else {
       this.nombreCandidato = '';
     }
@@ -460,9 +459,9 @@ export class RecruitmentPipelineComponent implements OnInit {
       datosPersonales: this.datosPersonales.value,
       //datosPersonalesParte2: this.datosPersonalesParte2.value,
       //datosTallas: this.datosTallas.value,
-      datosConyugue: this.datosConyugue.value,
-      datosPadre: this.datosPadre.value,
-      datosMadre: this.datosMadre.value,
+      //datosConyugue: this.datosConyugue.value,
+      //datosPadre: this.datosPadre.value,
+      //datosMadre: this.datosMadre.value,
       datosReferencias: this.datosReferencias.value,
       datosExperienciaLaboral: this.datosExperienciaLaboral.value,
       datosHijos: this.datosHijos.value,

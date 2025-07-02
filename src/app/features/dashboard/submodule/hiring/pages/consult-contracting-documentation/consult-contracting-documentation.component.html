@@ -2,7 +2,7 @@
 <mat-card>
   <mat-card-content>
     <div class="tabla">
-      <h1 class="title">Consultar documentacion contratacion </h1>
+      <h1 class="title">Consultar documentación contratación </h1>
 
       <!-- FILTRO -->
       <mat-form-field class="filtro">
@@ -10,24 +10,54 @@
         <input matInput #input placeholder="Filtrar en tabla" (keyup)="applyFilters($event)" />
       </mat-form-field>
 
+      <!--limpiar-->
+      <button mat-flat-button type="button" (click)="limpiarTabla()" style="margin-left: 15pt; margin-right: 15pt;">
+        Limpiar
+      </button>
+
+      <!--descargar-->
+      <button mat-flat-button type="button" (click)="descargarZip()">
+        Descargar paquetes
+      </button>
+
       <!-- TABLA -->
       <div class="table-container" tabindex="0" (paste)="onTablePaste($event)">
         <table mat-table [dataSource]="dataSource" class="mat-elevation-z8">
-
-          <!-- ÍCONO ✔ / ❌ -->
-          <ng-container matColumnDef="encontrado">
-            <th mat-header-cell *matHeaderCellDef>Estado</th>
-            <td mat-cell *matCellDef="let e">
-              <mat-icon [color]="e.encontrado ? 'primary' : 'warn'">
-                {{ e.encontrado ? 'check_circle' : 'cancel' }}
-              </mat-icon>
-            </td>
-          </ng-container>
 
           <!-- CÉDULA -->
           <ng-container matColumnDef="cedula">
             <th mat-header-cell *matHeaderCellDef>Cédula</th>
             <td mat-cell *matCellDef="let e">{{ e.cedula }}</td>
+          </ng-container>
+
+          <!-- FICHA TÉCNICA  ✅  (sin cambios funcionales) -->
+          <ng-container matColumnDef="ficha_tecnica">
+            <th mat-header-cell *matHeaderCellDef>Ficha Técnica</th>
+            <td mat-cell *matCellDef="let e">
+              <ng-container *ngIf="e.pdf_ficha_tecnica; else noFichaTecnica">
+                <a [href]="e.pdf_ficha_tecnica" target="_blank" matTooltip="Ver documento">
+                  <mat-icon color="primary">check_circle</mat-icon>
+                </a>
+              </ng-container>
+              <ng-template #noFichaTecnica>
+                <mat-icon color="warn">cancel</mat-icon>
+              </ng-template>
+            </td>
+          </ng-container>
+
+          <!-- PDF CÉDULA  ✅  (alias y propiedad alineados) -->
+          <ng-container matColumnDef="pdf_cedula">
+            <th mat-header-cell *matHeaderCellDef>PDF Cédula</th>
+            <td mat-cell *matCellDef="let e">
+              <ng-container *ngIf="e.pdf_cedula; else noPdfCedula">
+                <a [href]="e.pdf_cedula" target="_blank" matTooltip="Ver documento">
+                  <mat-icon color="primary">check_circle</mat-icon>
+                </a>
+              </ng-container>
+              <ng-template #noPdfCedula>
+                <mat-icon color="warn">cancel</mat-icon>
+              </ng-template>
+            </td>
           </ng-container>
 
           <!-- Procuraduria -->

@@ -63,7 +63,6 @@ export class ViewReceptionInterviewsComponent implements OnInit {
   ngOnInit(): void {
     this.seleccionService.getCandidatos().subscribe(
       (data) => {
-        console.log('Candidatos obtenidos:', data);
         this.dataSource.data = data;
         this.oficinasUnicas = [...new Set(data.map((e: any) => e.oficina).filter(Boolean))].sort() as string[];
 
@@ -94,7 +93,6 @@ export class ViewReceptionInterviewsComponent implements OnInit {
     });
 
     dialogRef.afterClosed().subscribe(result => {
-      console.log('El diálogo se cerró con el resultado:', result);
       if (result) {
         // Convertir los strings a Date
         const start = new Date(result.start);

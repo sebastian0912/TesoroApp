@@ -55,9 +55,6 @@ export class RobotBackgroundChecksComponent {
       next: r => this.pintarRespuestaEnTabla(r, cedula),
       error: () => this.pintarRespuestaEnTabla(null, cedula)
     });
-    console.log('Buscando cédula:', cedula);
-    // ---- Aquí agregas tu consulta documental ----
-
   }
 
 

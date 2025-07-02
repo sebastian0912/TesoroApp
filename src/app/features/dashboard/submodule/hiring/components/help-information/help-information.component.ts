@@ -127,7 +127,6 @@ export class HelpInformationComponent {
     this.hiringService.buscarEncontratacion(this.cedula).subscribe({
 
       next: (resultado) => {
-        console.log('Resultado contratación:', resultado);
         this.infoCandidatoForm = resultado.data[0];
         // Llenar el formulario de Info Personal con los datos de this.infoCandidatoForm
         this.infoPersonalForm.patchValue({
@@ -255,12 +254,10 @@ export class HelpInformationComponent {
   // Calcula la edad a partir de una fecha string
   calcularEdad(fecha: string): number {
     const fechaNacimiento = this.convertirAFecha(fecha);
-    console.log('Fecha de nacimiento convertida:', fechaNacimiento);
     if (!fechaNacimiento) return NaN;
 
     const today = new Date();
     let age = today.getFullYear() - fechaNacimiento.getFullYear();
-    console.log('Edad calculada:', age);
     const monthDiff = today.getMonth() - fechaNacimiento.getMonth();
 
     if (

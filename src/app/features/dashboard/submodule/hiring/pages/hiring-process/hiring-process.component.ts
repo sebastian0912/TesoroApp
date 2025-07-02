@@ -199,19 +199,16 @@ export class HiringProcessComponent {
 
   onCedulaSeleccionada(cedula: string) {
     this.cedulaActual = cedula;
-    console.log('Cédula recibida del hijo:', this.cedulaActual);
     this.loadData();
   }
 
   onCodigoContrato(codigo: string): void {
     this.codigoContrato = codigo;
-    console.log('Código de contrato recibido del hijo:', codigo);
   }
 
   loadData() {
     this.contratacionService.buscarEncontratacion(this.cedulaActual).subscribe(
       (data) => {
-        console.log('Datos recibidos:', data);
         this.llenarInformacion(data.data[0]);
       },
       (error) => {

@@ -5,12 +5,16 @@ import { MatDialog } from '@angular/material/dialog';
 import { MatTableDataSource } from '@angular/material/table';
 import Swal from 'sweetalert2';
 import { GestionDocumentalService } from '../../service/gestion-documental/gestion-documental.service';
-import { forkJoin } from 'rxjs';
-
+import { catchError, forkJoin, of } from 'rxjs';
+import { MatButtonModule } from '@angular/material/button';
+import { OrdenUnionDialogComponent } from '../../components/orden-union-dialog/orden-union-dialog.component';
+import { MatDialogModule } from '@angular/material/dialog';
 @Component({
   selector: 'app-consult-contracting-documentation',
   imports: [
     SharedModule,
+    MatButtonModule,
+    MatDialogModule
   ],
   templateUrl: './consult-contracting-documentation.component.html',
   styleUrl: './consult-contracting-documentation.component.css'
@@ -22,14 +26,19 @@ export class ConsultContractingDocumentationComponent {
   /** ---------- TABLA PRINCIPAL ---------- */
   dataSource = new MatTableDataSource<any>([]);
   displayedColumns: string[] = [
-    'encontrado', 'cedula', 'procuraduria',
-    'contraloria', 'ofac', 'policivos', 'adres', 'sisben',
-    'contrato', 'entrega_documentos', 'arl', 'examen', 'fondo_pension'
+    'cedula', 'ficha_tecnica', 'pdf_cedula',  // ← coincide 100 %
+    'procuraduria', 'contraloria', 'ofac', 'policivos',
+    'adres', 'sisben', 'contrato', 'entrega_documentos',
+    'arl', 'examen', 'fondo_pension'
   ];
+
+
   private crearFilaBase(cedula: string) {
     return {
       encontrado: true,
       cedula,
+      ficha_tecnica: '',
+      pdf_cedula: '',
       procuraduria: '',
       contraloria: '',
       ofac: '',
@@ -88,43 +97,48 @@ export class ConsultContractingDocumentationComponent {
     const cedulas = texto.split(/[\n,\t;]+/).map(c => c.trim()).filter(Boolean);
 
     if (cedulas.length === 0) {
-      Swal.fire({ icon: 'info', title: 'Sin datos', text: 'No se detectaron cédulas en el texto pegado.' });
+      Swal.fire({
+        icon: 'info',
+        title: 'Sin datos',
+        text: 'No se detectaron cédulas en el texto pegado.'
+      });
       return;
     }
 
-    Swal.fire({ icon: 'info', title: 'Consultando información...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+    Swal.fire({
+      icon: 'info',
+      title: 'Consultando información...',
+      allowOutsideClick: false,
+      didOpen: () => Swal.showLoading()
+    });
 
-    // Para saber cuándo todas las cédulas terminaron
     let pendientes = cedulas.length;
 
     cedulas.forEach(c => {
-      // Inicializa la fila en el datasource desde el inicio:
       let idx = this.dataSource.data.findIndex(row => row.cedula === c);
       let row = idx >= 0 ? { ...this.dataSource.data[idx] } : this.crearFilaBase(c);
 
-      // Siempre asegura que esté presente en la tabla:
       if (idx < 0) {
         this.dataSource.data = [...this.dataSource.data, row];
       }
 
-      // Arreglo con todos los tipos a consultar
-      const tipos = [2, 25, 27, 30, 32];
+      // Documentos por tipo, puedes agregar/quitar según tus necesidades
+      const tipos = [2, 25, 27, 29, 30, 32, 34];
 
-      // Ejecuta todas las consultas en paralelo
       forkJoin(
         tipos.map(tipo =>
           this.gestionDocumentalService.consultarDocumentosPorCedulaYTipo(c, tipo)
+            .pipe(
+              catchError(() => of([])) // Si falla, devuelve array vacío
+            )
         )
       ).subscribe({
         next: (respuestas: any[]) => {
-          // Procesa cada respuesta según el tipo solicitado
           respuestas.forEach((docs: any, i: number) => {
-            const tipoConsulta = tipos[i];
             const documentos = Array.isArray(docs) ? docs : [docs];
             documentos.forEach((doc: any) => {
               if (!doc || !doc.type_name) return;
               const tipo = doc.type_name.toLowerCase().replace(/\s+/g, '_');
-
               switch (tipo) {
                 case 'procuraduria':
                   row.procuraduria = '✔';
@@ -169,21 +183,29 @@ export class ConsultContractingDocumentationComponent {
                   row.examen = '✔';
                   row.pdf_examen = doc.file_url || '';
                   break;
-                case 'fondo_pension':
+                case 'afp':
                   row.fondo_pension = '✔';
                   row.pdf_fondo_pension = doc.file_url || '';
                   break;
+                case 'ficha_tecnica':
+                  row.ficha_tecnica = '✔';
+                  row.pdf_ficha_tecnica = doc.file_url || '';
+                  break;
+                case 'cedula':
+                  row.pdf_cedula = doc.file_url || '';  // ← Usa _guion bajo_, igual que el resto
+                  break;
+                // Si quieres mapear más tipos, agrégalos aquí
               }
             });
           });
 
-          // Actualiza el datasource
+          // Actualizar la fila en la tabla (por referencia y por spread)
           idx = this.dataSource.data.findIndex(row => row.cedula === c);
           this.dataSource.data[idx] = row;
           this.dataSource.data = [...this.dataSource.data];
         },
         error: () => {
-          Swal.fire({ icon: 'error', title: 'Error', text: `No se pudieron recuperar los documentos para la cédula ${c}.` });
+          // Puedes mostrar un error global aquí si lo deseas
         },
         complete: () => {
           pendientes--;
@@ -194,20 +216,92 @@ export class ConsultContractingDocumentationComponent {
   }
 
 
-
-
-
-  /* ---------- AGREGAR FILA CON ✔ / ❌ ---------- */
-  private pintarRespuestaEnTabla(res: any | null, cedulaFallback: string): void {
-    const row = (res && (res.con_registros?.length || res.sin_consultar?.length))
-      ? { ... (res.con_registros?.[0] ?? res.sin_consultar?.[0]), encontrado: true }
-      : { cedula: cedulaFallback, encontrado: false };
-    this.dataSource.data = [...this.dataSource.data, row];
-  }
-
   /* ---------- FILTRO DE TABLA ---------- */
   applyFilters(ev: Event): void {
     this.dataSource.filter = (ev.target as HTMLInputElement).value.trim().toLowerCase();
   }
 
+  limpiarTabla() {
+    this.dataSource.data = [];
+    this.cedulaControl.setValue('');
+  }
+
+  descargarZip(): void {
+    Swal.fire({
+      title: '¿Deseas descargar los archivos PDF?',
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonText: 'Sí, por favor',
+      cancelButtonText: 'No'
+    }).then(result => {
+      if (result.isConfirmed) {
+        this.abrirDialogOrden();
+      }
+    });
+  }
+
+  abrirDialogOrden(): void {
+    const antecedentes = [
+      { id: 34, name: 'FICHA TÉCNICA' },
+      { id: 29, name: 'CEDULA' },
+      { id: 3, name: 'PROCURADURIA' },
+      { id: 4, name: 'CONTRALORIA' },
+      { id: 5, name: 'OFAC' },
+      { id: 6, name: 'POLICIVOS' },
+      { id: 7, name: 'ADRES' },
+      { id: 8, name: 'SISBEN' },
+      { id: 25, name: 'CONTRATO' },
+      { id: 27, name: 'ENTREGA DE DOCUMENTOS' },
+      { id: 30, name: 'ARL' },
+      { id: 32, name: 'EXAMENES MEDICOS' },
+      { id: 11, name: 'AFP' },
+    ];
+
+    const dialogRef = this.dialog.open(OrdenUnionDialogComponent, {
+      width: '400px',
+      height: 'auto',
+      data: { antecedentes }
+    });
+
+    dialogRef.afterClosed().subscribe((ordenSeleccionado: number[] | null) => {
+      if (ordenSeleccionado) {
+        this.descargarZipConUnion(ordenSeleccionado);
+      }
+    });
+  }
+
+  descargarZipConUnion(ordenSeleccionado: any): void {
+    // imprimir cedulas
+    const cedulas = this.dataSource.data
+      .filter(row => row.encontrado && row.cedula)
+      .map(row => row.cedula);
+
+    Swal.fire({
+      title: 'Preparando descarga...',
+      text: 'Esto puede tardar unos segundos',
+      allowOutsideClick: false,
+      didOpen: () => Swal.showLoading()
+    });
+
+    this.gestionDocumentalService.descargarZipPorCedulasYOrden(cedulas, ordenSeleccionado)
+      .subscribe({
+        next: (blob: Blob) => {
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `documentos_union_${new Date().toISOString()}.zip`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          Swal.close();
+        },
+        error: (err) => {
+          Swal.fire({ icon: 'error', title: 'Error', text: 'No se pudo descargar el archivo.' });
+        }
+      });
+
+  }
+
 }
+
+

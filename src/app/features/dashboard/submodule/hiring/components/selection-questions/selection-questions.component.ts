@@ -224,8 +224,7 @@ export class SelectionQuestionsComponent implements OnInit {
     const contratoLleno = this.codigoContrato && this.codigoContrato.trim() !== '';
 
     if (cedulaLlena && contratoLleno) {
-      console.log('Cédula:', this.cedula);
-      console.log('Código de contrato:', this.codigoContrato);
+
       this.hiringService.traerDatosSeleccion(this.cedula).subscribe(
         (response) => {
           if (response) {
@@ -240,7 +239,6 @@ export class SelectionQuestionsComponent implements OnInit {
               procesos[0]
             );
 
-            console.log('Último proceso:', ultimoProceso);
             this.loadDataSeleccion(ultimoProceso);
             this.loadDataDocumentos();
 
@@ -259,7 +257,6 @@ export class SelectionQuestionsComponent implements OnInit {
   }
 
   loadDataSeleccion(seleccion: any): void {
-    console.log('Datos de selección:', seleccion);
     // Llenar los campos del formulario de Datos Generales (formGroup1)
     this.formGroup1.patchValue({
       eps: seleccion.eps || '',
@@ -370,7 +367,6 @@ export class SelectionQuestionsComponent implements OnInit {
   }
 
   recibirVacante(vacante: any): void {
-    console.log('Vacante recibida:', vacante);
 
     this.formGroup2.patchValue({
       centroCosto: vacante?.empresaUsuariaSolicita ?? '',

@@ -15,20 +15,6 @@ export class GestionDocumentalService {
     @Inject(PLATFORM_ID) private platformId: Object
   ) { }
 
-  private getToken(): string | null {
-    if (isPlatformBrowser(this.platformId)) {
-      return localStorage.getItem('token');
-    }
-    return null;
-  }
-
-  private createAuthorizationHeader(): HttpHeaders {
-    const token = this.getToken();
-    return token
-      ? new HttpHeaders().set('Authorization', `${token}`)
-      : new HttpHeaders();
-  }
-
   async getUser(): Promise<any> {
     if (isPlatformBrowser(this.platformId)) {
       const user = localStorage.getItem('user');
@@ -57,14 +43,9 @@ export class GestionDocumentalService {
       formData.append('contract_number', contract_number);
     }
 
-    const headers = this.createAuthorizationHeader();
-
     return this.http.post(
       `${this.apiUrl}/gestion_documental/documentos/`,
       formData,
-      {
-        headers,
-      }
     );
   }
 
@@ -74,7 +55,6 @@ export class GestionDocumentalService {
     contract_number: string,
     type: number
   ): Observable<any> {
-    const headers = this.createAuthorizationHeader();
 
     // Preparar los parámetros de la solicitud
     let params = new HttpParams();
@@ -83,23 +63,38 @@ export class GestionDocumentalService {
     params = params.append('type', type.toString()); // Agregar el tipo documental
 
     return this.http.get(`${this.apiUrl}/gestion_documental/documentos/`, {
-      headers,
       params,
     });
   }
 
 
-consultarDocumentosPorCedulaYTipo(cedula: string, type?: number): Observable<any> {
-  let params = new HttpParams().set('cedula', cedula);
-  if (type !== undefined && type !== null) {
-    params = params.set('type', type.toString());
+  consultarDocumentosPorCedulaYTipo(cedula: string, type?: number): Observable<any> {
+    let params = new HttpParams().set('cedula', cedula);
+    if (type !== undefined && type !== null) {
+      params = params.set('type', type.toString());
+    }
+
+    return this.http.get(
+      `${this.apiUrl}/gestion_documental/documentos/`,
+      { params }
+    );
   }
 
-  return this.http.get(
-    `${this.apiUrl}/gestion_documental/documentos/`,
-    { params }
-  );
-}
+  descargarZipPorCedulasYOrden(cedulas: number[], orden: number[]): Observable<Blob> {
+    const body = {
+      cedulas,
+      orden
+    };
+
+    // Asegúrate que la URL coincide con la ruta en Django
+    return this.http.post(
+      `${this.apiUrl}/gestion_documental/descargar-zip`,
+      body,
+      {
+        responseType: 'blob' // Importante para recibir archivos
+      }
+    );
+  }
 
 
 

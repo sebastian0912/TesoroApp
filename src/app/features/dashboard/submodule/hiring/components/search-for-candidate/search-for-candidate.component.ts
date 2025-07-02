@@ -123,7 +123,12 @@ export class SearchForCandidateComponent implements OnInit {
         }));
       },
       error: (err) => {
-        console.error("Error al cargar candidatos:", err);
+        Swal.fire({
+          title: 'Error',
+          text: 'No se pudieron cargar los candidatos. Inténtalo más tarde.',
+          icon: 'error',
+          confirmButtonText: 'Ok'
+        });
       }
     });
   }
@@ -235,7 +240,6 @@ export class SearchForCandidateComponent implements OnInit {
       .subscribe({
         next: (response) => {
           const { nuevo_codigo, created } = response;
-          console.log("Código de contrato generado:", nuevo_codigo);
           this.codigoContratoActual = nuevo_codigo;
           this.codigoContratoChange.emit(nuevo_codigo);
           this.procesoValido = true;

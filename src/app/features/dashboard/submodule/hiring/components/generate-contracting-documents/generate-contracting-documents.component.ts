@@ -224,7 +224,7 @@ export class GenerateContractingDocumentsComponent {
   }
 
   devolvercontratacion() {
-    this.router.navigate(['/dashboard/hiring/hiring-process']);
+    this.router.navigate(['/dashboard/hiring/recruitment-pipeline']);
   }
 
   verPDF(doc: { titulo: string }) {
