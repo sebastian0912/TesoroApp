@@ -5,9 +5,9 @@
   <mat-tab>
     <ng-template mat-tab-label let-active="active" let-disabled="disabled">
       <div class="custom-colored-tab" [class.active]="active" [class.disabled]="disabled">
-        Verificaciones / Área de Aplicación ({{ getPercentage(formGroup1) }}% completo)
+        Antecedentes Judiciales ({{ getPercentage(formGroup1) }}% completo)
       </div>
-    </ng-template>
+    </ng-template>    <br>
 
     <!-- CONTENIDO ORIGINAL DEL EXPANSION‑PANEL 1 -->
     <div class="seccion" [formGroup]="formGroup1">
@@ -240,191 +240,19 @@
           placeholder="Escribe si pasó la revisión de antecedentes" />
       </mat-form-field>
 
-      <mat-form-field appearance="fill" class="example-full-width">
-        <mat-label>Área para la que Aplica</mat-label>
-        <input matInput formControlName="area_aplica" placeholder="Área para la que Aplica">
-      </mat-form-field>
-
 
       <button mat-flat-button (click)="imprimirVerificacionesAplicacion()" class="example-full-width">Cargar</button>
     </div>
   </mat-tab>
 
-  <!-- ─────────── TAB 2 • ENTREVISTA / PRUEBA TÉCNICA ─────────── -->
-  <mat-tab>
-    <ng-template mat-tab-label>
-      <div class="tab-label">
-        Entrevista / Prueba Técnica ({{ getPercentage(formGroup2) }} % completo)
-      </div>
-    </ng-template>
-
-    <div class="seccion" [formGroup]="formGroup2">
-      <mat-form-field appearance="fill" class="example-full-width">
-        <mat-label>Centro de Costo</mat-label>
-        <input matInput formControlName="centroCosto" placeholder="CENTRO DE COSTO ENTREVISTA O PRUEBA TECNICA">
-      </mat-form-field>
-      <mat-form-field appearance="fill" class="example-full-width">
-        <mat-label>Cargo</mat-label>
-        <input matInput formControlName="cargo" placeholder="CARGO">
-      </mat-form-field>
-      <mat-form-field appearance="fill" class="example-full-width">
-        <mat-label>Área en la que presentará la entrevista</mat-label>
-        <input matInput formControlName="areaEntrevista" placeholder="ÁREA EN LA QUE PRESENTARA LA ENTREVISTA">
-      </mat-form-field>
-
-      <mat-form-field appearance="fill" class="example-full-width">
-        <mat-label>Fecha de la Prueba o Entrevista</mat-label>
-        <input matInput [matDatepicker]="picker" formControlName="fechaPruebaEntrevista">
-        <mat-datepicker-toggle matSuffix [for]="picker"></mat-datepicker-toggle>
-        <mat-datepicker #picker></mat-datepicker>
-      </mat-form-field>
-
-      <mat-form-field appearance="fill" class="example-full-width">
-        <mat-label>Hora de la Prueba o Entrevista</mat-label>
-        <input matInput type="time" formControlName="horaPruebaEntrevista">
-      </mat-form-field>
-
-      <mat-form-field appearance="fill" class="example-full-width">
-        <mat-label>Dirección o indicación para llegar a la empresa</mat-label>
-        <input matInput formControlName="direccionEmpresa"
-          placeholder="DIRECCION O INDICACION PARA LLEGAR A LA EMPRESA">
-      </mat-form-field>
-      <button mat-flat-button (click)="imprimirEntrevistaPrueba()" class="example-full-width">Cargar</button>
-    </div>
-
-  </mat-tab>
-
-  <!-- ─────────── TAB 3 • EXAMEN DE SALUD OCUPACIONAL ─────────── -->
-  <mat-tab>
-    <ng-template mat-tab-label>
-      <div class="tab-label">
-        Salud Ocupacional ({{ getPercentage(formGroup3) }} % completo)
-      </div>
-    </ng-template>
-
-    <div class="seccion" [formGroup]="formGroup3">
 
 
 
-      <mat-form-field appearance="fill" class="example-full-width">
-        <mat-label>IPS</mat-label>
-        <mat-select formControlName="ips" placeholder="IPS">
-          <mat-option value="JAVAP">JAVAP</mat-option>
-          <mat-option value="ESTRATEGO">ESTRATEGO</mat-option>
-          <mat-option value="HELSEN">HELSEN</mat-option>
-          <mat-option value="ASISTIR">ASISTIR</mat-option>
-          <mat-option value="SIGMEDICAL">SIGMEDICAL</mat-option>
-          <mat-option value="PORSALUD">PORSALUD</mat-option>
-          <mat-option value="ASTON MEDICAL">ASTON MEDICAL</mat-option>
-          <mat-option value="ACR VITAL">ACR VITAL</mat-option>
-          <mat-option value="SANILAB">SANILAB</mat-option>
-        </mat-select>
-      </mat-form-field>
-
-      <mat-form-field appearance="fill" class="example-full-width">
-        <mat-label>IPSLAB</mat-label>
-        <mat-select formControlName="ipsLab" placeholder="IPSLAB">
-          <mat-option value="JAVAP">JAVAP</mat-option>
-          <mat-option value="ESTRATEGO">ESTRATEGO</mat-option>
-          <mat-option value="HELSEN">HELSEN</mat-option>
-          <mat-option value="ASISTIR">ASISTIR</mat-option>
-          <mat-option value="SIGMEDICAL">SIGMEDICAL</mat-option>
-          <mat-option value="PORSALUD">PORSALUD</mat-option>
-          <mat-option value="ASTON MEDICAL">ASTON MEDICAL</mat-option>
-          <mat-option value="ACR VITAL">ACR VITAL</mat-option>
-          <mat-option value="SANILAB">SANILAB</mat-option>
-
-        </mat-select>
-      </mat-form-field>
-
-      <!-- Select múltiple para elegir exámenes -->
-      <mat-form-field appearance="fill" class="example-full-width">
-        <mat-label>Seleccione los exámenes</mat-label>
-        <mat-select formControlName="selectedExams" multiple>
-          <mat-option *ngFor="let exam of filteredExamOptions" [value]="exam">
-            {{ exam }}
-          </mat-option>
-        </mat-select>
-      </mat-form-field>
-
-      <!-- Campos dinámicos para cada examen seleccionado -->
-      <div formArrayName="selectedExamsArray">
-        <div *ngFor="let exam of formGroup3.get('selectedExams')?.value; let i = index" [formGroupName]="i">
-
-          <mat-form-field appearance="fill" class="example-full-width">
-            <mat-label>{{ exam }}</mat-label> <!-- Usa el nombre del examen seleccionado directamente -->
-            <mat-select formControlName="aptoStatus">
-              <mat-option value="APTO">APTO</mat-option>
-              <mat-option value="NO APTO">NO APTO</mat-option>
-            </mat-select>
-          </mat-form-field>
-
-          <!-- Campo para subir PDF -->
-          <input type="file" accept="application/pdf" (change)="onFileSelected($event, i)" />
-
-          <p *ngIf="examFiles[i]">Archivo seleccionado: {{ examFiles[i].name }}</p>
-
-        </div>
-      </div>
-
-      <!-- Botón para fusionar e imprimir los PDFs -->
-      <button mat-flat-button (click)="imprimirSaludOcupacional()" class="example-full-width">Imprimir Salud
-        Ocupacional</button>
-
-    </div>
-  </mat-tab>
-
-  <!-- ─────────── TAB 4 • CONTRATACIÓN ─────────── -->
-  <mat-tab>
-    <ng-template mat-tab-label>
-      <div class="tab-label">
-        Contratación ({{ getPercentage(formGroup4) }} % completo)
-      </div>
-    </ng-template>
-
-    <div class="seccion" [formGroup]="formGroup4">
-      <mat-form-field appearance="fill" class="example-full-width">
-        <mat-label>Empresa Usuaria</mat-label>
-        <input matInput formControlName="empresaUsuaria" placeholder="EMPRESA USUARIA">
-      </mat-form-field>
-
-      <mat-form-field appearance="fill" class="example-full-width">
-        <mat-label>Fecha de Ingreso</mat-label>
-        <input matInput [matDatepicker]="pickerFechaIngreso" formControlName="fechaIngreso">
-        <mat-datepicker-toggle matSuffix [for]="pickerFechaIngreso"></mat-datepicker-toggle>
-        <mat-datepicker #pickerFechaIngreso></mat-datepicker>
-      </mat-form-field>
-
-
-
-      <mat-form-field appearance="fill" class="example-full-width">
-        <mat-label>Salario</mat-label>
-        <input matInput formControlName="salario" placeholder="SALARIO">
-      </mat-form-field>
-      <mat-form-field appearance="fill" class="example-full-width">
-        <mat-label>Auxilio de Transporte</mat-label>
-        <input matInput formControlName="auxTransporte" placeholder="AUXTRANSPORTE">
-      </mat-form-field>
-      <mat-form-field appearance="fill" class="example-full-width">
-        <mat-label>Rodamiento</mat-label>
-        <input matInput formControlName="rodamiento" placeholder="RODAMIENTO">
-      </mat-form-field>
-      <mat-form-field appearance="fill" class="example-full-width">
-        <mat-label>Auxilio de Movilidad</mat-label>
-        <input matInput formControlName="auxMovilidad" placeholder="AUX MOVILIDAD">
-      </mat-form-field>
-      <mat-form-field appearance="fill" class="example-full-width">
-        <mat-label>Bonificación</mat-label>
-        <input matInput formControlName="bonificacion" placeholder="BONIFICACION">
-      </mat-form-field>
-      <button mat-flat-button (click)="imprimirContratacion()" class="example-full-width">Cargar</button>
-    </div>
-
-  </mat-tab>
 
   <!-- ─────────── TAB 5 • SUBIDA DE DOCUMENTOS ─────────── -->
   <mat-tab label="Subida de documentos">
-    <div class="seccion">
+    <br>
+    <div class="secciones">
 
       <!-- Pensión / Semanas Cotizadas -->
       <div class="input-container">

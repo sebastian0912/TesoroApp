@@ -23,12 +23,7 @@
 
       <mat-form-field class="filtro">
         <mat-label>Filtrar</mat-label>
-        <input
-          matInput
-          (keyup)="applyFilter($event)"
-          placeholder="Buscar..."
-          #input
-        />
+        <input matInput (keyup)="applyFilter($event)" placeholder="Buscar..." #input />
       </mat-form-field>
 
       <div class="table-container">
@@ -36,17 +31,22 @@
 
           <!-- Cargo -->
           <ng-container matColumnDef="cargo">
-            <th mat-header-cell *matHeaderCellDef>Cargo</th>
-            <td mat-cell *matCellDef="let v">{{ v.cargo }}</td>
+            <th mat-header-cell *matHeaderCellDef style="min-width: 350pt;">Cargo</th>
+            <td mat-cell *matCellDef="let v" style="min-width: 350pt;">{{ v.cargo }}</td>
+          </ng-container>
+
+
+          <!--salario-->
+          <ng-container matColumnDef="salario">
+            <th mat-header-cell *matHeaderCellDef>Salario</th>
+            <td mat-cell *matCellDef="let v">{{ v.salario | currency }}</td>
           </ng-container>
 
           <!-- observacionVacante -->
           <ng-container matColumnDef="observacionVacante">
-            <th mat-header-cell *matHeaderCellDef>Observación</th>
-            <td mat-cell *matCellDef="let v">{{ v.observacionVacante }}</td>
+            <th mat-header-cell *matHeaderCellDef style="min-width: 350pt;">Descripción del perfil</th>
+            <td mat-cell *matCellDef="let v" style="min-width: 350pt;">{{ v.observacionVacante }}</td>
           </ng-container>
-
-
 
           <!-- Finca -->
           <ng-container matColumnDef="finca">
@@ -57,8 +57,11 @@
           <!-- Temporal -->
           <ng-container matColumnDef="temporal">
             <th mat-header-cell *matHeaderCellDef>Temporal</th>
-            <td mat-cell *matCellDef="let v">{{ v.temporal }}</td>
+            <td mat-cell *matCellDef="let v">
+              {{ getSiglaTemporal(v.temporal) }}
+            </td>
           </ng-container>
+
 
           <!-- Experiencia -->
           <ng-container matColumnDef="experiencia">
@@ -69,8 +72,11 @@
           <!-- Fecha Publicado -->
           <ng-container matColumnDef="fechaPublicado">
             <th mat-header-cell *matHeaderCellDef>Publicado</th>
-            <td mat-cell *matCellDef="let v">{{ v.fechaPublicado }}</td>
+            <td mat-cell *matCellDef="let v">
+              {{ v.fechaPublicado | date: 'dd/MM/yyyy' }}
+            </td>
           </ng-container>
+
 
           <!-- Oficinas -->
           <ng-container matColumnDef="oficinas">
@@ -78,9 +84,21 @@
             <td mat-cell *matCellDef="let v">
               <ng-container *ngFor="let o of v.oficinasQueContratan; let i = index">
                 {{ o.nombre }} ({{ o.numeroDeGenteRequerida }}){{ i < v.oficinasQueContratan.length - 1 ? ', ' : '' }}
-              </ng-container>
+                  </ng-container>
             </td>
           </ng-container>
+
+          <!-- Ruta -->
+          <ng-container matColumnDef="ruta">
+            <th mat-header-cell *matHeaderCellDef>Ruta</th>
+            <td mat-cell *matCellDef="let v">
+              <ng-container *ngFor="let o of v.oficinasQueContratan; let i = index">
+                {{ o.nombre }} ({{ o.ruta ? 'Sí' : 'No' }}){{ i < v.oficinasQueContratan.length - 1 ? ', ' : '' }}
+                  </ng-container>
+            </td>
+          </ng-container>
+
+
 
           <!--fechadeIngreso-->
           <ng-container matColumnDef="fechadeIngreso">
@@ -92,17 +110,23 @@
           <ng-container matColumnDef="acciones">
             <th mat-header-cell *matHeaderCellDef>Acciones</th>
             <td mat-cell *matCellDef="let v">
-              <button mat-icon-button color="primary" (click)="openModalEdit(v)">
-                <mat-icon>edit</mat-icon>
+              <button mat-icon-button [matMenuTriggerFor]="menuAcciones">
+                <mat-icon>more_vert</mat-icon>
               </button>
-              <button mat-icon-button color="warn" (click)="eliminarVacante(v)">
-                <mat-icon>delete</mat-icon>
-              </button>
-              <button mat-icon-button color="accent" (click)="escogerVacante(v)">
-                <mat-icon>check_circle</mat-icon>
-              </button>
+              <mat-menu #menuAcciones="matMenu">
+                <button mat-menu-item (click)="openModalEdit(v)">
+                  <mat-icon>edit</mat-icon>
+                  <span>Editar</span>
+                </button>
+                <button mat-menu-item (click)="eliminarVacante(v)">
+                  <mat-icon>delete</mat-icon>
+                  <span>Eliminar</span>
+                </button>
+                <!-- Puedes agregar más acciones si lo necesitas -->
+              </mat-menu>
             </td>
           </ng-container>
+
 
           <!-- Filas -->
           <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>

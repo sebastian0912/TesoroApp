@@ -8,24 +8,27 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatIconModule } from '@angular/material/icon';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatDatepickerModule } from '@angular/material/datepicker';
-import { MatNativeDateModule, MAT_DATE_FORMATS } from '@angular/material/core';
+import { MatNativeDateModule, MAT_DATE_FORMATS, DateAdapter, MAT_DATE_LOCALE } from '@angular/material/core';
 import { CommonModule } from '@angular/common';
 import { Observable } from 'rxjs';
 import { map, startWith } from 'rxjs/operators';
 import { MatAutocompleteModule } from '@angular/material/autocomplete';
 import { UtilityServiceService } from '@/app/shared/services/utilityService/utility-service.service';
 import { VacantesService } from '../../service/vacantes/vacantes.service';
+import { HttpClient } from '@angular/common/http';
+import { MomentDateAdapter } from '@angular/material-moment-adapter';
 
 export const MY_DATE_FORMATS = {
-  parse: { dateInput: 'DD/MM/YYYY' },
+  parse: {
+    dateInput: 'D/M/YYYY',
+  },
   display: {
-    dateInput: 'DD/MM/YYYY',
-    monthYearLabel: 'MMM YYYY',
+    dateInput: 'D/M/YYYY',
+    monthYearLabel: 'MMMM YYYY',
     dateA11yLabel: 'LL',
     monthYearA11yLabel: 'MMMM YYYY',
   },
 };
-
 @Component({
   selector: 'app-crear-editar-vacante',
   imports: [
@@ -44,7 +47,11 @@ export const MY_DATE_FORMATS = {
   ],
   templateUrl: './crear-editar-vacante.component.html',
   styleUrls: ['./crear-editar-vacante.component.css'],
-  providers: [{ provide: MAT_DATE_FORMATS, useValue: MY_DATE_FORMATS }],
+  providers: [
+    { provide: DateAdapter, useClass: MomentDateAdapter, deps: [MAT_DATE_LOCALE] },
+    { provide: MAT_DATE_FORMATS, useValue: MY_DATE_FORMATS },
+    { provide: MAT_DATE_LOCALE, useValue: 'es-CO' }, // o 'es'
+  ]
 })
 export class CrearEditarVacanteComponent implements OnInit {
   vacanteForm!: FormGroup;
@@ -54,14 +61,16 @@ export class CrearEditarVacanteComponent implements OnInit {
   filteredCargos!: Observable<string[]>;
   centrosCostos: string[] = [];
   filteredCentrosCostos!: Observable<string[]>;
+  municipiosColombia: string[] = [];
 
   constructor(
     private fb: FormBuilder,
+    private http: HttpClient,
     public dialogRef: MatDialogRef<CrearEditarVacanteComponent>,
     @Inject(MAT_DIALOG_DATA) public data: any,
     private adminService: UtilityServiceService,
     private vacantesService: VacantesService
-  ) {}
+  ) { }
 
   async ngOnInit(): Promise<void> {
     this.user = JSON.parse(localStorage.getItem('user') || '{}');
@@ -73,7 +82,7 @@ export class CrearEditarVacanteComponent implements OnInit {
       temporal: ['', Validators.required],
       ubicacionPruebaTecnica: [''],
       experiencia: ['', Validators.required],
-      presentaPruebaTecnica: ['', Validators.required],
+      presentaPruebaTecnica: [''],
       fechadePruebatecnica: [''],
       horadePruebatecnica: [''],
       observacionVacante: [''],
@@ -86,7 +95,12 @@ export class CrearEditarVacanteComponent implements OnInit {
       salario: [1423500, [Validators.required, Validators.min(0)]],
       codigoElite: [''],
       oficinasSeleccionadas: [[]],
-      oficinasQueContratan: this.fb.array([])
+      oficinasQueContratan: this.fb.array([]),
+      // nuevos
+      pruebaOContratacion: ['', Validators.required],
+      tipoContratacion: ['', Validators.required],
+      municipio: [[], Validators.required],
+      auxilioTransporte: [0, [Validators.required]],
     });
 
     if (this.data) this.cargarParaEdicion(this.data);
@@ -114,6 +128,26 @@ export class CrearEditarVacanteComponent implements OnInit {
 
     this.vacanteForm.get('oficinasSeleccionadas')!.valueChanges.subscribe((seleccionadas: string[]) => {
       this.actualizarOficinasQueContratan(seleccionadas);
+    });
+
+    this.vacanteForm.get('pruebaOContratacion')?.valueChanges.subscribe(valor => {
+      if (valor !== 'Prueba') {
+        // Limpia todos los campos de la prueba técnica
+        this.vacanteForm.patchValue({
+          presentaPruebaTecnica: '',
+          fechadePruebatecnica: '',
+          horadePruebatecnica: '',
+          ubicacionPruebaTecnica: ''
+        });
+        // Si quieres también puedes hacer: this.vacanteForm.get('presentaPruebaTecnica')?.setValue('');
+        // Y así con los demás, si prefieres.
+      }
+    });
+
+    this.http.get<any[]>('/util/colombia.json').subscribe(data => {
+      // Flatten y ordenar municipios
+      this.municipiosColombia = data.flatMap(dep => dep.ciudades)
+        .sort((a, b) => a.localeCompare(b, 'es', { sensitivity: 'base' }));
     });
   }
 

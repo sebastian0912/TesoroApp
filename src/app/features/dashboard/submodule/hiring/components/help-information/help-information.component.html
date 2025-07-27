@@ -13,25 +13,25 @@
         <!-- Oficina (solo lectura) -->
         <mat-form-field class="example-full-width">
           <mat-label>Oficina</mat-label>
-          <input matInput formControlName="oficina" readonly>
+          <input matInput formControlName="oficina">
         </mat-form-field>
 
         <!-- Tipo de documento -->
         <mat-form-field class="example-full-width">
           <mat-label>Tipo de documento</mat-label>
-          <input matInput formControlName="tipodedocumento" readonly>
+          <input matInput formControlName="tipodedocumento">
         </mat-form-field>
 
         <!-- Número de cédula -->
         <mat-form-field class="example-full-width">
           <mat-label>Número de cédula</mat-label>
-          <input matInput formControlName="numerodecedula" readonly>
+          <input matInput formControlName="numerodecedula">
         </mat-form-field>
 
         <!-- Nombre completo -->
         <mat-form-field class="example-full-width">
           <mat-label>Nombre completo</mat-label>
-          <input matInput formControlName="nombreCompleto" readonly>
+          <input matInput formControlName="nombreCompleto">
         </mat-form-field>
 
         <!-- Celular -->
@@ -58,13 +58,27 @@
         <!-- Edad (solo lectura) -->
         <mat-form-field class="example-full-width">
           <mat-label>Edad</mat-label>
-          <input matInput formControlName="edad" readonly>
+          <input matInput formControlName="edad">
         </mat-form-field>
 
-        <!-- Fecha de nacimiento -->
-        <mat-form-field class="example-full-width">
+        <!-- Fecha de nacimiento como Date Picker -->
+        <mat-form-field appearance="fill" class="example-full-width">
           <mat-label>Fecha de nacimiento</mat-label>
-          <input matInput formControlName="fechaNacimiento" readonly>
+          <input matInput [matDatepicker]="pickerNacimiento" formControlName="fechaNacimiento"
+            placeholder="Selecciona la fecha" autocomplete="off" readonly (focus)="pickerNacimiento.open()"
+            (click)="pickerNacimiento.open()">
+          <mat-datepicker-toggle matSuffix [for]="pickerNacimiento"></mat-datepicker-toggle>
+          <mat-datepicker #pickerNacimiento></mat-datepicker>
+        </mat-form-field>
+
+        <!-- Fecha de expedicion -->
+        <mat-form-field appearance="fill" class="example-full-width">
+          <mat-label>Fecha de expedición</mat-label>
+          <input matInput [matDatepicker]="pickerExpedicion" formControlName="fechaExpedicion"
+            placeholder="Selecciona la fecha" autocomplete="off" readonly (focus)="pickerExpedicion.open()"
+            (click)="pickerExpedicion.open()">
+          <mat-datepicker-toggle matSuffix [for]="pickerExpedicion"></mat-datepicker-toggle>
+          <mat-datepicker #pickerExpedicion></mat-datepicker>
         </mat-form-field>
 
         <!-- Barrio -->
@@ -82,7 +96,6 @@
           </mat-select>
         </mat-form-field>
 
-        <!-- Referenciado -->
         <mat-form-field class="example-full-width">
           <mat-label>Referenciado</mat-label>
           <mat-select formControlName="referenciado">
@@ -91,10 +104,15 @@
           </mat-select>
         </mat-form-field>
 
+        <mat-form-field class="example-full-width" *ngIf="infoPersonalForm.get('referenciado')?.value === 'SI'">
+          <mat-label>Nombre del referenciado</mat-label>
+          <input matInput formControlName="nombreReferenciado">
+        </mat-form-field>
+
         <!-- ¿Cómo se enteró? -->
         <mat-form-field class="example-full-width">
           <mat-label>¿Cómo se enteró?</mat-label>
-          <textarea matInput formControlName="comoSeEntero" rows="2"></textarea>
+          <input matInput formControlName="comoSeEntero">
         </mat-form-field>
       </div>
 
@@ -110,19 +128,11 @@
   <mat-tab>
     <ng-template mat-tab-label>
       <mat-icon>question_answer</mat-icon>
-      Entrevista
+      Selección
     </ng-template>
 
     <form [formGroup]="entrevistaForm" class="form-tab">
       <div class="grid">
-
-        <mat-form-field class="example-full-width">
-          <mat-label>¿Presentó entrevista?</mat-label>
-          <mat-select formControlName="presentoEntrevista">
-            <mat-option value="SI">Sí</mat-option>
-            <mat-option value="NO">No</mat-option>
-          </mat-select>
-        </mat-form-field>
 
         <mat-form-field class="example-full-width">
           <mat-label>Labores realizadas</mat-label>
@@ -136,7 +146,7 @@
 
         <mat-form-field class="example-full-width">
           <mat-label>Tiempo de experiencia (meses)</mat-label>
-          <input matInput formControlName="tiempoExperiencia" type="number">
+          <input matInput formControlName="tiempoExperiencia" type="text">
         </mat-form-field>
 
         <mat-form-field class="example-full-width">
@@ -146,8 +156,59 @@
 
         <mat-form-field class="example-full-width">
           <mat-label>Número de hijos</mat-label>
-          <input matInput formControlName="numHijos" type="number">
+          <input matInput formControlName="numHijos" type="number" min="0">
         </mat-form-field>
+
+        <!-- Solo aparece si numHijos > 0 -->
+        <mat-form-field class="example-full-width" *ngIf="entrevistaForm.get('numHijos')?.value > 0">
+          <mat-label>Edades de los hijos (separadas por coma)</mat-label>
+          <input matInput formControlName="edadesHijos" placeholder="Ej: 5, 8, 12">
+        </mat-form-field>
+
+        <!-- Inputs dinámicos de hijos -->
+        <div formArrayName="hijos" *ngIf="hijosFormArray.controls.length > 0">
+          <div *ngFor="let hijoCtrl of hijosFormArray.controls; let i = index" [formGroupName]="i" class="hijo-form">
+            <mat-card class="mb-3">
+              <h4>Hijo {{ i + 1 }}</h4>
+              <div class="hijo-fields">
+                <mat-form-field class="example-full-width">
+                  <mat-label>Nombre</mat-label>
+                  <input matInput formControlName="nombre">
+                </mat-form-field>
+                <mat-form-field class="example-full-width">
+                  <mat-label>Sexo</mat-label>
+                  <mat-select formControlName="sexo">
+                    <mat-option value="M">Masculino</mat-option>
+                    <mat-option value="F">Femenino</mat-option>
+                    <mat-option value="">No especifica</mat-option>
+                  </mat-select>
+                </mat-form-field>
+                <mat-form-field class="example-full-width">
+                  <mat-label>Fecha de nacimiento</mat-label>
+                  <input matInput [matDatepicker]="picker" formControlName="fecha_nacimiento"
+                    placeholder="Selecciona la fecha" autocomplete="off">
+                  <mat-datepicker-toggle matSuffix [for]="picker"></mat-datepicker-toggle>
+                  <mat-datepicker #picker></mat-datepicker>
+                </mat-form-field>
+
+                <mat-form-field class="example-full-width">
+                  <mat-label>N° documento</mat-label>
+                  <input matInput formControlName="no_documento">
+                </mat-form-field>
+                <mat-form-field class="example-full-width">
+                  <mat-label>Estudia o trabaja</mat-label>
+                  <input matInput formControlName="estudia_o_trabaja">
+                </mat-form-field>
+                <mat-form-field class="example-full-width">
+                  <mat-label>Curso</mat-label>
+                  <input matInput formControlName="curso">
+                </mat-form-field>
+              </div>
+            </mat-card>
+          </div>
+        </div>
+
+
 
         <mat-form-field class="example-full-width">
           <mat-label>¿Quién los cuida?</mat-label>
@@ -156,8 +217,32 @@
 
         <mat-form-field class="example-full-width">
           <mat-label>Observación del evaluador</mat-label>
-          <input matInput formControlName="observacionDelEvaluador">
+          <input matInput formControlName="aplicaObservacion">
         </mat-form-field>
+
+        <mat-form-field appearance="fill" class="example-full-width">
+          <mat-label>¿Observación del evaluador?</mat-label>
+          <mat-select formControlName="aplicaObservacion" required>
+            <mat-option value="APLICA">APLICA</mat-option>
+            <mat-option value="NO_APLICA">NO APLICA</mat-option>
+          </mat-select>
+          <mat-error
+            *ngIf="entrevistaForm.get('aplicaObservacion')?.hasError('required') && entrevistaForm.get('aplicaObservacion')?.touched">
+            Este campo es requerido
+          </mat-error>
+        </mat-form-field>
+
+        <!-- Mostrar motivo solo si NO APLICA -->
+        <mat-form-field appearance="fill" class="example-full-width"
+          *ngIf="entrevistaForm.get('aplicaObservacion')?.value === 'NO_APLICA'">
+          <mat-label>Motivo (obligatorio)</mat-label>
+          <input matInput formControlName="motivoNoAplica" required>
+          <mat-error
+            *ngIf="entrevistaForm.get('motivoNoAplica')?.hasError('required') && entrevistaForm.get('motivoNoAplica')?.touched">
+            Debe especificar el motivo
+          </mat-error>
+        </mat-form-field>
+
 
       </div>
 
@@ -173,7 +258,7 @@
   <mat-tab>
     <ng-template mat-tab-label>
       <mat-icon>work</mat-icon>
-      Vacantes
+      Remisión
     </ng-template>
 
     <form [formGroup]="vacantesForm" class="form-tab">
@@ -222,6 +307,98 @@
         </button>
       </div>
     </form>
+  </mat-tab>
+
+  <!-- ─────────── TAB 2 • ENTREVISTA / PRUEBA TÉCNICA ───────────
+
+  <mat-tab>
+    <ng-template mat-tab-label>
+      <div class="tab-label">
+        Autorización de ingreso
+      </div>
+    </ng-template>    <br>
+
+    <div class="secciones" [formGroup]="formGroup2">
+      <mat-form-field appearance="fill" class="example-full-width">
+        <mat-label>Centro de Costo</mat-label>
+        <input matInput formControlName="centroCosto" placeholder="CENTRO DE COSTO ENTREVISTA O PRUEBA TECNICA">
+      </mat-form-field>
+      <mat-form-field appearance="fill" class="example-full-width">
+        <mat-label>Cargo</mat-label>
+        <input matInput formControlName="cargo" placeholder="CARGO">
+      </mat-form-field>
+      <mat-form-field appearance="fill" class="example-full-width">
+        <mat-label>Área en la que presentará la entrevista</mat-label>
+        <input matInput formControlName="areaEntrevista" placeholder="ÁREA EN LA QUE PRESENTARA LA ENTREVISTA">
+      </mat-form-field>
+
+      <mat-form-field appearance="fill" class="example-full-width">
+        <mat-label>Fecha de la Prueba o Entrevista</mat-label>
+        <input matInput [matDatepicker]="picker" formControlName="fechaPruebaEntrevista">
+        <mat-datepicker-toggle matSuffix [for]="picker"></mat-datepicker-toggle>
+        <mat-datepicker #picker></mat-datepicker>
+      </mat-form-field>
+
+      <mat-form-field appearance="fill" class="example-full-width">
+        <mat-label>Hora de la Prueba o Entrevista</mat-label>
+        <input matInput type="time" formControlName="horaPruebaEntrevista">
+      </mat-form-field>
+
+      <mat-form-field appearance="fill" class="example-full-width">
+        <mat-label>Dirección o indicación para llegar a la empresa</mat-label>
+        <input matInput formControlName="direccionEmpresa"
+          placeholder="DIRECCION O INDICACION PARA LLEGAR A LA EMPRESA">
+      </mat-form-field>
+      <button mat-flat-button (click)="imprimirEntrevistaPrueba()" class="example-full-width">Cargar</button>
+    </div>
+
+  </mat-tab>
+   -->
+
+  <!-- ─────────── TAB 4 • CONTRATACIÓN ─────────── -->
+  <mat-tab>
+    <ng-template mat-tab-label>
+      <div class="tab-label">
+        Contratación ({{ getPercentage(formGroup4) }} % completo)
+      </div>
+    </ng-template> <br>
+
+    <div class="secciones" [formGroup]="formGroup4">
+      <mat-form-field appearance="fill" class="example-full-width">
+        <mat-label>Empresa Usuaria</mat-label>
+        <input matInput formControlName="empresaUsuaria" placeholder="EMPRESA USUARIA">
+      </mat-form-field>
+
+      <mat-form-field appearance="fill" class="example-full-width">
+        <mat-label>Fecha de Ingreso</mat-label>
+        <input matInput [matDatepicker]="pickerFechaIngreso" formControlName="fechaIngreso">
+        <mat-datepicker-toggle matSuffix [for]="pickerFechaIngreso"></mat-datepicker-toggle>
+        <mat-datepicker #pickerFechaIngreso></mat-datepicker>
+      </mat-form-field>
+
+      <mat-form-field appearance="fill" class="example-full-width">
+        <mat-label>Salario</mat-label>
+        <input matInput formControlName="salario" placeholder="SALARIO">
+      </mat-form-field>
+      <mat-form-field appearance="fill" class="example-full-width">
+        <mat-label>Auxilio de Transporte</mat-label>
+        <input matInput formControlName="auxTransporte" placeholder="AUXTRANSPORTE">
+      </mat-form-field>
+      <mat-form-field appearance="fill" class="example-full-width">
+        <mat-label>Rodamiento</mat-label>
+        <input matInput formControlName="rodamiento" placeholder="RODAMIENTO">
+      </mat-form-field>
+      <mat-form-field appearance="fill" class="example-full-width">
+        <mat-label>Auxilio de Movilidad</mat-label>
+        <input matInput formControlName="auxMovilidad" placeholder="AUX MOVILIDAD">
+      </mat-form-field>
+      <mat-form-field appearance="fill" class="example-full-width">
+        <mat-label>Bonificación</mat-label>
+        <input matInput formControlName="bonificacion" placeholder="BONIFICACION">
+      </mat-form-field>
+      <button mat-flat-button (click)="imprimirContratacion()" class="example-full-width">Cargar</button>
+    </div>
+
   </mat-tab>
 
 </mat-tab-group>

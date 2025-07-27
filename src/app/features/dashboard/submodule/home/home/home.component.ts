@@ -37,7 +37,7 @@ export class HomeComponent implements OnInit {
     private dialog: MatDialog,
     private utilityService: UtilityServiceService,
     private homeService: HomeService
-  ) {}
+  ) { }
 
   ngOnInit(): void {
     this.initializeUserRoles();
@@ -46,7 +46,13 @@ export class HomeComponent implements OnInit {
 
   private initializeUserRoles(): void {
     this.user = this.utilityService.getUser();
-    if (!this.user) return;
+    if (!this.user || this.user.rol === 'SIN-ASIGNAR') {
+      this.general = false;
+      this.comercializadora = false;
+      this.traslado = false;
+      this.admin = false;
+      return;
+    }
 
     this.general = this.user.rol !== 'GERENCIA' && this.user.rol !== 'TRASLADOS';
     this.comercializadora = this.user.rol === 'COMERCIALIZADORA' || this.user.rol === 'ADMIN' || this.user.correo_electronico === 'tuafiliacion@tsservicios.co';
@@ -76,7 +82,7 @@ export class HomeComponent implements OnInit {
     }).subscribe(
       ({ empleados, usuarios }) => {
         this.numeroempleados = empleados.datosbase.filter((worker: any) => worker.activo).length;
-        
+
         this.numeroCoordinadores = this.homeService.contarRol(usuarios, 'COORDINADOR');
         this.numeroTiendas = this.homeService.contarRol(usuarios, 'TIENDA');
         Swal.close();

@@ -9,6 +9,8 @@ import { catchError, forkJoin, of } from 'rxjs';
 import { MatButtonModule } from '@angular/material/button';
 import { OrdenUnionDialogComponent } from '../../components/orden-union-dialog/orden-union-dialog.component';
 import { MatDialogModule } from '@angular/material/dialog';
+import { SeleccionService } from '../../service/seleccion/seleccion.service';
+
 @Component({
   selector: 'app-consult-contracting-documentation',
   imports: [
@@ -26,17 +28,21 @@ export class ConsultContractingDocumentationComponent {
   /** ---------- TABLA PRINCIPAL ---------- */
   dataSource = new MatTableDataSource<any>([]);
   displayedColumns: string[] = [
-    'cedula', 'ficha_tecnica', 'pdf_cedula',  // ← coincide 100 %
+    'cedula', 'nombre', 'finca', 'fecha_ingreso', 'ficha_tecnica', 'pdf_cedula',  // ← coincide 100 %
     'procuraduria', 'contraloria', 'ofac', 'policivos',
     'adres', 'sisben', 'contrato', 'entrega_documentos',
-    'arl', 'examen', 'fondo_pension'
+    'arl', 'examen', 'fondo_pension', 'eps', 'caja', 'pago_seguridad_social',
   ];
-
 
   private crearFilaBase(cedula: string) {
     return {
       encontrado: true,
       cedula,
+
+      nombre: '',
+      finca: '',
+      fecha_ingreso: '',
+
       ficha_tecnica: '',
       pdf_cedula: '',
       procuraduria: '',
@@ -60,13 +66,16 @@ export class ConsultContractingDocumentationComponent {
       pdf_entrega_documentos: '',
       pdf_arl: '',
       pdf_examen: '',
-      pdf_fondo_pension: ''
+      pdf_fondo_pension: '',
+      pdf_eps: '',
+      pdf_caja: '',
+      pdf_pago_seguridad_social: ''
     };
   }
 
-
   constructor(
     private gestionDocumentalService: GestionDocumentalService,
+    private seleccionService: SeleccionService,
     private dialog: MatDialog
   ) { }
 
@@ -83,12 +92,12 @@ export class ConsultContractingDocumentationComponent {
   onTablePaste(evt: ClipboardEvent): void {
     const txt = evt.clipboardData?.getData('text') ?? '';
     if (!txt) { return; }
-    evt.preventDefault();                                     // no pegar texto crudo
+    evt.preventDefault();
     if (txt.includes('\n') || txt.includes('\t') || txt.includes(',')) {
-      this.procesarCedulasPegadas(txt);                       // lista de cédulas
+      this.procesarCedulasPegadas(txt);
     } else {
       this.cedulaControl.setValue(txt.trim());
-      this.buscarPorCedula();                                 // cédula única
+      this.buscarPorCedula();
     }
   }
 
@@ -122,18 +131,36 @@ export class ConsultContractingDocumentationComponent {
         this.dataSource.data = [...this.dataSource.data, row];
       }
 
-      // Documentos por tipo, puedes agregar/quitar según tus necesidades
-      const tipos = [2, 25, 27, 29, 30, 32, 34];
+      const tipos = [2, 25, 27, 29, 30, 32, 34, 36, 37, 38];
 
-      forkJoin(
-        tipos.map(tipo =>
-          this.gestionDocumentalService.consultarDocumentosPorCedulaYTipo(c, tipo)
-            .pipe(
-              catchError(() => of([])) // Si falla, devuelve array vacío
-            )
+      forkJoin([
+        this.seleccionService.buscarEncontratacion(c).pipe(
+          catchError(() => of(null))
+        ),
+        forkJoin(
+          tipos.map(tipo =>
+            this.gestionDocumentalService.consultarDocumentosPorCedulaYTipo(c, tipo)
+              .pipe(
+                catchError(() => of([]))
+              )
+          )
         )
-      ).subscribe({
-        next: (respuestas: any[]) => {
+      ]).subscribe({
+        next: ([contratacionData, respuestas]: [any, any[]]) => {
+          // --- Datos personales y de contratación ---
+          if (contratacionData) {
+            row.nombre_completo = contratacionData.nombre_completo || contratacionData.nombreCompleto || '';
+            row.nombre = contratacionData.nombre_completo || contratacionData.nombreCompleto || '';
+            row.finca = contratacionData.centro_de_costos || '';
+            row.fecha_ingreso = contratacionData.fechaIngreso || '';
+          } else {
+            row.nombre_completo = '';
+            row.nombre = '';
+            row.finca = '';
+            row.fecha_ingreso = '';
+          }
+
+          // --- Documentos ---
           respuestas.forEach((docs: any, i: number) => {
             const documentos = Array.isArray(docs) ? docs : [docs];
             documentos.forEach((doc: any) => {
@@ -192,9 +219,22 @@ export class ConsultContractingDocumentationComponent {
                   row.pdf_ficha_tecnica = doc.file_url || '';
                   break;
                 case 'cedula':
-                  row.pdf_cedula = doc.file_url || '';  // ← Usa _guion bajo_, igual que el resto
+                  row.pdf_cedula = doc.file_url || '';
                   break;
-                // Si quieres mapear más tipos, agrégalos aquí
+                case 'eps':
+                  row.eps = '✔';
+                  row.pdf_eps = doc.file_url || '';
+                  break;
+                case 'caja':
+                  row.caja = '✔';
+                  row.pdf_caja = doc.file_url || '';
+                  break;
+                case 'pago_seguridad_social':
+                  row.pago_seguridad_social = '✔';
+                  row.pdf_pago_seguridad_social = doc.file_url || '';
+                  break;
+
+                // Agrega más tipos si es necesario
               }
             });
           });
@@ -214,7 +254,6 @@ export class ConsultContractingDocumentationComponent {
       });
     });
   }
-
 
   /* ---------- FILTRO DE TABLA ---------- */
   applyFilters(ev: Event): void {
@@ -255,11 +294,14 @@ export class ConsultContractingDocumentationComponent {
       { id: 30, name: 'ARL' },
       { id: 32, name: 'EXAMENES MEDICOS' },
       { id: 11, name: 'AFP' },
+      { id: 36, name: 'EPS' },
+      { id: 37, name: 'CAJA DE COMPENSACION' },
+      { id: 38, name: 'PAGO SEGURIDAD SOCIAL' }
     ];
 
     const dialogRef = this.dialog.open(OrdenUnionDialogComponent, {
       width: '400px',
-      height: 'auto',
+      height: '65vh',
       data: { antecedentes }
     });
 
@@ -299,9 +341,7 @@ export class ConsultContractingDocumentationComponent {
           Swal.fire({ icon: 'error', title: 'Error', text: 'No se pudo descargar el archivo.' });
         }
       });
-
   }
-
 }
 
 

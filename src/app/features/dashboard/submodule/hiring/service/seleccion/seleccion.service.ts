@@ -170,6 +170,13 @@ export class SeleccionService {
 
 
 
+  public guardarInfoPersonal(data: any): Observable<any> {
+    const headers = this.createAuthorizationHeader();
+    return this.http.post(`${this.apiUrl}/entrevista/info-personal-alt/`, data, { headers }).pipe(
+      map((response: any) => response),
+      catchError(this.handleError)
+    );
+  }
 
   // --- Guardar Entrevista ---
   public guardarEntrevista(data: any): Observable<any> {
@@ -218,6 +225,24 @@ export class SeleccionService {
     );
   }
 
+  public exportarCandidatosPorOficinaExcel(payload: { start: string; end: string; oficina: string }): Observable<Blob> {
+    const headers = this.createAuthorizationHeader();
+    return this.http.post(`${this.apiUrl}/entrevista/exportar-candidatos-por-oficina-excel/`, payload, {
+      headers,
+      responseType: 'blob',
+    }).pipe(
+      catchError(this.handleError)
+    );
+  }
+
+
+  // Buscar en contratacion por cedula para sacar los numeros
+  public buscarEncontratacion(cedula: any): Observable<any> {
+    return this.http.get(`${this.apiUrl}/contratacion/traerNombreCompletoCandidatoSin/${cedula}`, {}).pipe(
+      map((response: any) => response),
+      catchError(this.handleError)
+    );
+  }
 
 
 }

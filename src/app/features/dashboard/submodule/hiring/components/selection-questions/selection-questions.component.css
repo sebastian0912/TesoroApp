@@ -1,7 +1,3 @@
-.seccion{
-  min-height: 66vh
-}
-
 ::ng-deep .mat-tab-label.custom-colored-tab {
   display: flex;
   align-items: center;
@@ -16,7 +12,7 @@
 
 /* Color también en el tab activo */
 ::ng-deep .mat-tab-label.custom-colored-tab.active {
-  background-color: inherit; /* hereda de ngStyle */
+  background-color: inherit;
   color: white;
 }
 
@@ -121,24 +117,19 @@ mat-card-subtitle {
 
 .vacantes-scroll-container {
   overflow-x: auto;
-  /* Permite el scroll horizontal */
   padding: 10px;
 }
 
 .vacantes-container {
   display: flex;
   gap: 16px;
-  /* Espacio entre las tarjetas */
   flex-wrap: nowrap;
-  /* Evita que las tarjetas se envuelvan a la siguiente línea */
 }
 
 .vacante-card {
   min-width: 300px;
   max-width: 350px;
-  /* Ancho mínimo de cada tarjeta */
   flex-shrink: 0;
-  /* Evita que se reduzcan las tarjetas */
   box-shadow: rgba(0, 0, 0, 0.19) 0px 10px 20px, rgba(0, 0, 0, 0.23) 0px 6px 6px;
 }
 
@@ -162,28 +153,31 @@ mat-card-subtitle {
 /*-----------------------------------*/
 
 .seccion {
+  min-height: 66vh;
   display: grid;
   grid-template-columns: repeat(2, 1fr);
+}
+
+.secciones{
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
   gap: 16px;
+  width: 100%;
 }
 
 .input-container {
   display: flex;
   align-items: center;
   justify-content: flex-start;
-  /* Alinea el contenido a la izquierda para mejorar la apariencia */
   flex-wrap: wrap;
   width: 100%;
   gap: 8px;
-  /* Añade un pequeño espacio entre los elementos para mayor claridad */
 }
 
 .input-container mat-form-field {
   flex: 1 1 200px;
-  /* Permite que el campo de formulario crezca pero tenga un tamaño mínimo */
   min-width: 200px;
   max-width: 100%;
-  /* Asegura que no se desborde en pantallas más pequeñas */
 }
 
 .input-container button {
@@ -194,7 +188,6 @@ mat-card-subtitle {
   display: block;
   width: 100%;
   margin-top: -8px;
-  /* Ajusta el espacio para una mejor alineación */
   font-size: 0.85rem;
   color: #666;
   word-wrap: break-word;
@@ -208,56 +201,52 @@ mat-card-subtitle {
 @media (max-width: 768px) {
 
   .seccion {
-      grid-template-columns: 1fr;
-      gap: 8px;
+    grid-template-columns: 1fr;
+    gap: 8px;
   }
 
   .input-container {
-      justify-content: center;
-      /* Centra el contenido en pantallas pequeñas */
-      gap: 5px;
+    justify-content: center;
+    gap: 5px;
   }
 
   .input-container mat-form-field {
-      flex: 1 1 150px;
-      /* Reduce el tamaño mínimo en pantallas pequeñas */
-      min-width: 150px;
+    flex: 1 1 150px;
+    min-width: 150px;
   }
 
   mat-card:nth-child(1),
   mat-card:nth-child(2) {
-      width: 90vw;
-      margin: 10px;
-      position: static;
-      /* Permite que los elementos sean más fluidos en móviles */
+    width: 90vw;
+    margin: 10px;
+    position: static;
   }
 
   .opcionesVer {
-      width: 90vw;
+    width: 90vw;
   }
 
   .uploaded-file-name {
-      font-size: 0.75rem;
-      /* Ajusta el tamaño del texto para que se vea mejor en pantallas pequeñas */
+    font-size: 0.75rem;
   }
 
   mat-expansion-panel-header {
-      min-height: 35pt;
-      height: auto;
+    min-height: 35pt;
+    height: auto;
   }
 
   mat-expansion-panel {
-      margin-bottom: 5pt;
-      height: auto;
+    margin-bottom: 5pt;
+    height: auto;
   }
 
   .vacante-card {
-      min-width: 70vw;
+    min-width: 70vw;
   }
 
   .example-full-width3 {
-      width: 100%;
-      margin: 5px;
+    width: 100%;
+    margin: 5px;
   }
 
 }

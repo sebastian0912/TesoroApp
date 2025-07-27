@@ -104,6 +104,7 @@ export const DYNAMIC_MENUS: IDynamicMenu[] = [
       { label: 'Restablecer valores de quincena',         permission: 'set-values-zero',                   action: 'resetValues'                       },
       { label: 'Extraer datos tienda detalle',            permission: 'extract-detailed-store-data',       action: 'extractStoreData'                  },
       { label: 'Extraer códigos para hacer',              permission: 'extract-codes-to-process',          action: 'extractCodesToDo'                  },
+
     ],
   },
 
@@ -141,7 +142,7 @@ export const DYNAMIC_MENUS: IDynamicMenu[] = [
   },
   {
     key: 'hiring',
-    label: 'Contratación',
+    label: 'Selección y Contratación',
     icon: 'icons/navbar/hiring.png',
     subMenus: [
       { route: '/dashboard/hiring/absences',                label: 'Ausentismos',                 permission: 'absences'             },
@@ -159,6 +160,8 @@ export const DYNAMIC_MENUS: IDynamicMenu[] = [
       { route: '/dashboard/hiring/error-listing',           label: 'Listado de errores',          permission: 'error-listing'        },
       // consult-contracting-documentation
       { route: '/dashboard/hiring/consult-contracting-documentation', label: 'Consultar documentación de contratación', permission: 'consult-contracting-documentation' },
+      // income
+      { route: '/dashboard/hiring/income', label: 'Ingreso', permission: 'income' },
     ],
   },
   {

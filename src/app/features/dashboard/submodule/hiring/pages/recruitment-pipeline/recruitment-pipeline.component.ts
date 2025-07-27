@@ -4,7 +4,7 @@ import { MatTabsModule } from '@angular/material/tabs';
 import { SharedModule } from '../../../../../../shared/shared.module';
 import { SearchForCandidateComponent } from '../../components/search-for-candidate/search-for-candidate.component';
 import { SelectionQuestionsComponent } from '../../components/selection-questions/selection-questions.component';
-import { FormArray, FormBuilder, FormGroup, FormsModule } from '@angular/forms';
+import { FormArray, FormBuilder, FormGroup, FormsModule, Validators } from '@angular/forms';
 import { VacantesService } from '../../service/vacantes/vacantes.service';
 import { catchError, of } from 'rxjs';
 import Swal from 'sweetalert2';
@@ -20,6 +20,9 @@ import { DateAdapter, MAT_DATE_FORMATS, MAT_DATE_LOCALE, MatNativeDateModule } f
 import { HiringQuestionsComponent } from '../../components/hiring-questions/hiring-questions.component';
 import { MomentDateAdapter } from '@angular/material-moment-adapter';
 import { Router } from '@angular/router';
+import { SeleccionService } from '../../service/seleccion/seleccion.service';
+import { PDFDocument } from 'pdf-lib';
+import { GestionDocumentalService } from '../../service/gestion-documental/gestion-documental.service';
 
 export const MY_DATE_FORMATS = {
   parse: { dateInput: 'DD/MM/YYYY' },
@@ -90,6 +93,9 @@ export class RecruitmentPipelineComponent implements OnInit {
   datosParte3Seccion1!: FormGroup;
   datosParte3Seccion2!: FormGroup;
   datosParte4!: FormGroup;
+  //
+  examFiles: File[] = []; // Guardamos los archivos PDF por índice
+  formGroup3: FormGroup;
 
   @ViewChild(SelectionQuestionsComponent)
   selectionQuestionsComponent!: SelectionQuestionsComponent;
@@ -97,13 +103,100 @@ export class RecruitmentPipelineComponent implements OnInit {
   @ViewChild(HelpInformationComponent)
   helpInformationComponent!: HelpInformationComponent;
 
+  uploadedFiles: { [key: string]: { file?: File; fileName?: string } } = {
+    eps: { fileName: 'No disponible, falta cargar' },
+    afp: { fileName: 'No disponible, falta cargar' },
+    policivos: { fileName: 'No disponible, falta cargar' },
+    procuraduria: { fileName: 'No disponible, falta cargar' },
+    contraloria: { fileName: 'No disponible, falta cargar' },
+    ramaJudicial: { fileName: 'No disponible, falta cargar' },
+    medidasCorrectivas: { fileName: 'No disponible, falta cargar' },
+    sisben: { fileName: 'No disponible, falta cargar' },
+    ofac: { fileName: 'No disponible, falta cargar' },
+    examenesMedicos: { fileName: 'No disponible, falta cargar' },
+    figuraHumana: { fileName: 'No disponible, falta cargar' },
+    pensionSemanas: { fileName: 'No disponible, falta cargar' },
+  };
+
+
+  typeMap: { [key: string]: number } = {
+    eps: 7,
+    policivos: 6,
+    procuraduria: 3,
+    contraloria: 4,
+    medidasCorrectivas: 10,
+    afp: 11,
+    ramaJudicial: 12,
+    sisben: 8,
+    ofac: 5,
+    figuraHumana: 31,
+    examenesMedicos: 32,
+    pensionSemanas: 33
+  };
+
+  filteredExamOptions: string[] = [];
+
   constructor(
     private vacantesService: VacantesService,
     private utilityService: UtilityServiceService,
     private contratacionService: HiringService,
+    private seleccionService: SeleccionService,
+    private gestionDocumentalService: GestionDocumentalService,
     private router: Router,
     private fb: FormBuilder,
   ) {
+
+    // Cargar lista completa de exámenes disponibles
+    this.filteredExamOptions = [
+      'Exámen Ingreso',
+      'Colinesterasa',
+      'Glicemia Basal',
+      'Perfil lípidico',
+      'Visiometria',
+      'Optometría',
+      'Audiometría',
+      'Espirometría',
+      'Sicometrico',
+      'Frotis de uñas',
+      'Frotis de garganta',
+      'Cuadro hematico',
+      'Creatinina',
+      'TGO',
+      'Coprológico',
+      'Osteomuscular',
+      'Quimico (Respiratorio - Dermatologico)',
+      'Tegumentaria',
+      'Cardiovascular',
+      'Trabajo en alturas (Incluye test para detección de fobia a las alturas: El AQ (Acrophobia Questionnaire) de Cohen)',
+      'Electrocardiograma (Sólo aplica para mayores de 45 años)',
+      'Examen Médico',
+      'HEPATITIS A Y B',
+      'TETANO VACUNA T-D',
+      'Exámen médico integral definido para conductores'
+    ];
+
+    this.formGroup3 = this.fb.group({
+      ips: ['', Validators.required],
+      ipsLab: ['', Validators.required],
+      selectedExams: [[], Validators.required],
+      selectedExamsArray: this.fb.array([]) // Se llenará dinámicamente
+    });
+
+    // Para actualizar los campos dinámicos cuando se seleccionan exámenes:
+    this.formGroup3.get('selectedExams')!.valueChanges.subscribe((exams: string[]) => {
+      const examsArray = this.formGroup3.get('selectedExamsArray') as FormArray;
+      // Limpiar primero
+      while (examsArray.length) examsArray.removeAt(0);
+      // Agregar uno por cada examen seleccionado
+      exams.forEach(() => {
+        examsArray.push(this.fb.group({
+          aptoStatus: ['', Validators.required]
+        }));
+      });
+    });
+
+
+
     this.datosPersonales = this.fb.group({
       tipodedocumento: [''],
       numerodeceduladepersona: [''],
@@ -321,8 +414,6 @@ export class RecruitmentPipelineComponent implements OnInit {
 
     if (vacante) {
       this.idvacante = vacante.id;
-
-      this.selectionQuestionsComponent?.recibirVacante(vacante);
       this.helpInformationComponent?.recibirVacante(vacante);
     }
   }
@@ -474,4 +565,219 @@ export class RecruitmentPipelineComponent implements OnInit {
     // Guardar de nuevo el objeto completo
     localStorage.setItem('formularios', JSON.stringify(formularios));
   }
+
+
+
+
+
+
+
+  // Método para fusionar PDFs y almacenarlo en uploadedFiles["examenesMedicos"]
+  async imprimirSaludOcupacional(): Promise<void> {
+    if (this.examFiles.length === 0 || this.examFiles.every(file => !file)) {
+      Swal.fire({
+        title: '¡Advertencia!',
+        text: 'Debe subir al menos un archivo PDF.',
+        icon: 'warning',
+        confirmButtonText: 'Ok'
+      });
+      return;
+    }
+
+    Swal.fire({
+      title: 'Procesando...',
+      icon: 'info',
+      text: 'Generando documento PDF...',
+      allowOutsideClick: false,
+      allowEscapeKey: false,
+      didOpen: () => {
+        Swal.showLoading();
+      }
+    });
+
+    try {
+      // Crear un nuevo documento PDF
+      const mergedPdf = await PDFDocument.create();
+
+      for (const file of this.examFiles) {
+        if (file) {
+          const fileBuffer = await file.arrayBuffer();
+          const pdf = await PDFDocument.load(fileBuffer);
+          const copiedPages = await mergedPdf.copyPages(pdf, pdf.getPageIndices());
+          copiedPages.forEach((page) => mergedPdf.addPage(page));
+        }
+      }
+
+      // Generar el PDF fusionado en Blob
+      const mergedPdfBytes = await mergedPdf.save();
+      const pdfBlob = new Blob([mergedPdfBytes], { type: 'application/pdf' });
+
+      // Guardar el archivo fusionado en uploadedFiles["examenesMedicos"]
+      this.subirArchivo(pdfBlob, "examenesMedicos", "SaludOcupacional_Combinado.pdf");
+
+      Swal.close(); // Cerrar la alerta de carga
+
+      this.imprimirDocumentos();
+
+    } catch (error) {
+      Swal.close();
+      Swal.fire({
+        title: '¡Error!',
+        text: 'Ocurrió un problema al fusionar los archivos PDF.',
+        icon: 'error',
+        confirmButtonText: 'Ok'
+      });
+    }
+  }
+
+
+
+  // Método que se ejecuta cuando se selecciona un archivo o se genera un PDF en memoria
+  subirArchivo(event: any | Blob, campo: string, fileName?: string) {
+    let file: File;
+
+    if (event instanceof Blob) {
+      // Si es un archivo generado en memoria (como el PDF fusionado)
+      file = new File([event], fileName || 'archivo.pdf', { type: 'application/pdf' });
+    } else {
+      // Si es un evento de input file (archivo seleccionado por el usuario)
+      file = event.target.files[0];
+    }
+
+    if (file) {
+      // Verificar si el nombre del archivo tiene más de 100 caracteres
+      if (file.name.length > 100) {
+        Swal.fire('Error', 'El nombre del archivo no debe exceder los 100 caracteres', 'error');
+        return; // Salir de la función si la validación falla
+      }
+
+      // Si la validación es exitosa, almacenar el archivo en uploadedFiles
+      this.uploadedFiles[campo] = { file: file, fileName: file.name };
+
+      // Mensaje opcional de éxito
+      // Swal.fire('Archivo subido', `Archivo ${file.name} subido para ${campo}`, 'success');
+    }
+  }
+
+  imprimirDocumentos() {
+    // Mostrar Swal de carga con ícono animado
+    Swal.fire({
+      title: 'Subiendo archivos...',
+      icon: 'info',
+      html: 'Por favor, espere mientras se suben los archivos.',
+      allowOutsideClick: false,
+      allowEscapeKey: false,
+      didOpen: () => {
+        Swal.showLoading(); // Mostrar icono de carga animado
+      }
+    });
+    const nombres = ["examenesMedicos", "figuraHumana", "pensionSemanas"];
+    // Subir solo los primeros 9 archivos
+    this.subirTodosLosArchivos(nombres)
+      .then((allFilesUploaded) => {
+        if (allFilesUploaded) {
+          Swal.close(); // Cerrar el Swal de carga
+          // Mostrar mensaje de éxito
+          Swal.fire({
+            title: '¡Éxito!',
+            text: 'Datos y archivos guardados exitosamente',
+            icon: 'success',
+            confirmButtonText: 'Ok'
+          });
+        }
+      })
+      .catch((error) => {
+        // Cerrar el Swal de carga y mostrar un mensaje de error
+        Swal.close();
+        Swal.fire({
+          title: 'Error',
+          text: `Hubo un error al subir los archivos: ${error}`,
+          icon: 'error',
+          confirmButtonText: 'Ok'
+        });
+      });
+  }
+
+
+  // Método para subir todos los archivos almacenados en uploadedFiles
+  subirTodosLosArchivos(keysEspecificos: string[]): Promise<boolean> {
+    return new Promise((resolve, reject) => {
+      // Filtrar los archivos válidos basados en las keys específicas proporcionadas
+      let archivosAEnviar = Object.keys(this.uploadedFiles)
+        .filter(key => {
+          const fileData = this.uploadedFiles[key];
+          // Incluir solo las keys específicas y con un objeto `file` válido
+          return keysEspecificos.includes(key) && fileData && fileData.file;
+        })
+        .map(key => ({
+          key,
+          ...this.uploadedFiles[key],
+          typeId: this.typeMap[key] // Asignar el tipo documental (typeId)
+        }));
+
+
+      // Si no hay archivos para subir
+      if (archivosAEnviar.length === 0) {
+        resolve(true); // Resolver inmediatamente si no hay archivos
+        return;
+      }
+
+      // Crear promesas para cada archivo
+      const promesasDeSubida = archivosAEnviar.map(({ key, file, fileName, typeId }) => {
+        return new Promise<void>((resolveSubida, rejectSubida) => {
+          if (file && typeId) {
+            // Verificar si la clave está entre ["examenesMedicos", "figuraHumana", "pensionSemanas"]
+            if (["examenesMedicos", "figuraHumana", "pensionSemanas"].includes(key)) {
+              // Si la clave coincide, incluir this.codigoContrato en guardarDocumento
+              this.gestionDocumentalService
+                .guardarDocumento(fileName, this.cedulaActual, typeId, file, this.codigoContrato)
+                .subscribe({
+                  next: () => {
+                    resolveSubida(); // Resolver la promesa de este archivo
+                  },
+                  error: (error) => {
+                    rejectSubida(`Error al subir archivo ${key}: ${error.message}`);
+                  }
+                });
+            } else {
+              // Si no coincide, usar el método normal
+              this.gestionDocumentalService
+                .guardarDocumento(fileName, this.cedulaActual, typeId, file) // Sin this.codigoContrato
+                .subscribe({
+                  next: () => {
+                    resolveSubida(); // Resolver la promesa de este archivo
+                  },
+                  error: (error) => {
+                    rejectSubida(`Error al subir archivo ${key}: ${error.message}`);
+                  }
+                });
+            }
+          } else {
+            rejectSubida(`Archivo ${key} no tiene datos válidos`);
+          }
+        });
+      });
+
+      // Esperar a que todas las subidas terminen
+      Promise.all(promesasDeSubida)
+        .then(() => {
+          resolve(true); // Resolver cuando todos los archivos hayan sido procesados
+        })
+        .catch((error) => {
+          reject(error); // Rechazar si hay errores en alguna subida
+        });
+    });
+  }
+
+  // Guardar el archivo PDF seleccionado para cada examen
+  onFileSelected(event: any, index: number): void {
+    const file = event.target.files[0];
+    if (file && file.type === 'application/pdf') {
+      this.examFiles[index] = file;
+    } else {
+      alert('Por favor, seleccione un archivo PDF válido.');
+    }
+  }
+
+
 }

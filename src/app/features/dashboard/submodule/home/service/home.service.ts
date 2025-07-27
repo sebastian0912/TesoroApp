@@ -17,15 +17,55 @@ export class HomeService {
     throw error;
   }
 
-  traerHistorialInformePersona(fechaInicio: string, fechaFin: string, user: string): Observable<any> {
-    const params = new HttpParams()
+  traerHistorialInformePersona(
+    fechaInicio: string,
+    fechaFin: string,
+    user: string,
+    excel: boolean = false
+  ): Observable<any> {
+    let params = new HttpParams()
       .set('nombre', user)
       .set('fecha_inicio', fechaInicio)
       .set('fecha_fin', fechaFin);
 
-    return this.http.get(`${this.apiUrl}/Historial/informe`)
+    if (excel) {
+      params = params.set('excel', '1');
+      // Para descargar archivo, hay que cambiar responseType
+      return this.http.get(`${this.apiUrl}/Historial/informe`, {
+        params,
+        responseType: 'blob'
+      })
+        .pipe(catchError(this.handleError));
+    }
+
+    return this.http.get(`${this.apiUrl}/Historial/informe`, { params })
       .pipe(catchError(this.handleError));
   }
+
+  traerHistorialInformeSoloFecha(
+    fechaInicio: string,
+    fechaFin: string,
+    excel: boolean = false
+  ): Observable<any> {
+    let params = new HttpParams()
+      .set('fecha_inicio', fechaInicio)
+      .set('fecha_fin', fechaFin);
+
+    if (excel) {
+      params = params.set('excel', '1');
+      // Para descargar archivo, hay que cambiar responseType
+      return this.http.get(`${this.apiUrl}/Historial/informeFecha`, {
+        params,
+        responseType: 'blob'
+      })
+        .pipe(catchError(this.handleError));
+    }
+
+    return this.http.get(`${this.apiUrl}/Historial/informeFecha`, { params })
+      .pipe(catchError(this.handleError));
+  }
+
+
 
   traerTraladosPorFecha(): Observable<any> {
     return this.http.get(`${this.apiUrl}/traslados/traer_todo_base_general`)
@@ -77,7 +117,7 @@ export class HomeService {
   }
 
   // buscar-aceptados/
-  traerTraladosAceptados(nombre: string):any {
+  traerTraladosAceptados(nombre: string): any {
     const ano = new Date().getFullYear();
     const url = `${this.apiUrl}/traslados/buscar-aceptados/?responsable=${encodeURIComponent(nombre)}&ano=${encodeURIComponent(ano.toString())}`;
     return this.http.get(url).pipe(catchError(this.handleError));

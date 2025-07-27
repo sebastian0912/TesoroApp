@@ -32,9 +32,7 @@ export class SelectionQuestionsComponent implements OnInit {
   filteredExamOptions: string[] = [];
 
   formGroup1: FormGroup;
-  formGroup2: FormGroup;
-  formGroup3: FormGroup;
-  formGroup4: FormGroup;
+
   private formSubs!: Subscription;
 
   examFiles: File[] = []; // Guardamos los archivos PDF por índice
@@ -114,9 +112,7 @@ export class SelectionQuestionsComponent implements OnInit {
     /* 🔔 Detectar cambios en los 4 juntos */
     this.formSubs = merge(
       this.formGroup1.valueChanges,
-      this.formGroup2.valueChanges,
-      this.formGroup3.valueChanges,
-      this.formGroup4.valueChanges,
+
     )
       .pipe(debounceTime(300))        // evita escribir en cada tecla
       .subscribe(() => this.actualizarFormulariosLS());
@@ -132,9 +128,7 @@ export class SelectionQuestionsComponent implements OnInit {
 
   /* 👉 Agregar o sobre-escribir sólo estas partes */
   formularios.selecionparte1 = this.formGroup1.value;
-  formularios.selecionparte2 = this.formGroup2.value;
-  formularios.selecionparte3 = this.formGroup3.value;
-  formularios.selecionparte4 = this.formGroup4.value;
+
 
   localStorage.setItem('formularios', JSON.stringify(formularios));
 }
@@ -158,36 +152,12 @@ export class SelectionQuestionsComponent implements OnInit {
       sisben: [''],
       ofac: [''],
       medidasCorrectivas: [''],
-      area_aplica: [''],
       revisionAntecedentes: [''],
-
     });
 
-    this.formGroup2 = this.fb.group({
-      centroCosto: [''],
-      cargo: [''],
-      areaEntrevista: [''],
-      fechaPruebaEntrevista: [''],
-      horaPruebaEntrevista: [''],
-      direccionEmpresa: ['']
-    });
 
-    this.formGroup3 = this.fb.group({
-      ips: [''],
-      ipsLab: [''],
-      selectedExams: [[]], // Lista de exámenes seleccionados
-      selectedExamsArray: this.fb.array([]) // FormArray dinámico para apto/no apto
-    });
 
-    this.formGroup4 = this.fb.group({
-      empresaUsuaria: [''],
-      fechaIngreso: [null],
-      salario: [''],
-      auxTransporte: [''],
-      rodamiento: [''],
-      auxMovilidad: [''],
-      bonificacion: ['']
-    });
+
 
         // Cargar lista completa de exámenes disponibles
         this.filteredExamOptions = [
@@ -272,50 +242,6 @@ export class SelectionQuestionsComponent implements OnInit {
       revisionAntecedentes: seleccion.revisionAntecedentes || ''
     });
 
-
-    // Llenar los campos del formulario con los datos de la selección
-    this.formGroup2.patchValue({
-      centroCosto: seleccion.centro_costo_entrevista || '',
-      cargo: seleccion.cargo || '',
-      areaEntrevista: seleccion.area_entrevista || '',
-      fechaPruebaEntrevista: seleccion.fecha_prueba_entrevista || '',
-      horaPruebaEntrevista: seleccion.hora_prueba_entrevista || '',
-      direccionEmpresa: seleccion.direccion_empresa || ''
-    });
-
-    // Llenar los campos del formulario de Examen de Salud Ocupacional (formGroup3)
-    this.formGroup3.patchValue({
-      ips: seleccion.ips || '',
-      ipsLab: seleccion.ipslab || '',
-      selectedExams: seleccion.examenes ? seleccion.examenes.split(', ') : [],
-    });
-
-    // Obtener los valores de los exámenes seleccionados y los estados de aptitud
-    const selectedExamsArray: string[] = this.formGroup3.get('selectedExams')?.value || [];
-    const aptosExamenesArray: string[] = seleccion.aptosExamenes ? seleccion.aptosExamenes.split(', ') : [];
-
-    // Crear el FormArray para los estados de aptitud
-    const formArray = this.fb.array(
-      selectedExamsArray.map((_, index) =>
-        this.fb.group({
-          aptoStatus: [aptosExamenesArray[index] || '', Validators.required]
-        })
-      )
-    );
-
-    // Establecer el FormArray en el formulario
-    this.formGroup3.setControl('selectedExamsArray', formArray);
-
-    // Llenar los campos del formulario de Contratación (formGroup4)
-    this.formGroup4.patchValue({
-      empresaUsuaria: seleccion.empresa_usuario || '',
-      fechaIngreso: seleccion.fecha_ingreso_usuario || '',
-      salario: seleccion.salario || '',
-      auxTransporte: seleccion.aux_transporte || '',
-      rodamiento: seleccion.rodamiento || '',
-      auxMovilidad: seleccion.aux_movilidad || '',
-      bonificacion: seleccion.bonificacion || ''
-    });
   }
 
   loadDataDocumentos(): void {
@@ -364,19 +290,6 @@ export class SelectionQuestionsComponent implements OnInit {
           }
         });
     }
-  }
-
-  recibirVacante(vacante: any): void {
-
-    this.formGroup2.patchValue({
-      centroCosto: vacante?.empresaUsuariaSolicita ?? '',
-      cargo: vacante?.cargo ?? '',
-      areaEntrevista: vacante?.areaEntrevista ?? '',
-      fechaPruebaEntrevista: vacante?.fechadePruebatecnica ?? '',
-      horaPruebaEntrevista: vacante?.horadePruebatecnica ?? '',
-      direccionEmpresa: vacante?.ubicacionPruebaTecnica ?? ''
-    });
-
   }
 
   // Método para calcular el porcentaje de llenado de un FormGroup
@@ -553,30 +466,7 @@ export class SelectionQuestionsComponent implements OnInit {
   }
 
 
-  // Método para imprimir los datos de los formularios
-  imprimirEntrevistaPrueba(): void {
-    this.formGroup2.value.vacante = this.idvacante;
-    this.seleccionService.crearSeleccionParteDosCandidato(this.formGroup2.value, this.cedula, this.codigoContrato).subscribe(
-      response => {
-        if (response.message === 'success') {
-          Swal.fire({
-            title: '¡Éxito!',
-            text: 'Datos guardados exitosamente',
-            icon: 'success',
-            confirmButtonText: 'Ok'
-          });
-        }
-      },
-      error => {
-        Swal.fire({
-          title: '¡Error!',
-          text: 'Error al guardar los datos',
-          icon: 'error',
-          confirmButtonText: 'Ok'
-        });
-      }
-    );
-  }
+
 
   // Método para fusionar PDFs y almacenarlo en uploadedFiles["examenesMedicos"]
   async imprimirSaludOcupacional(): Promise<void> {
@@ -636,29 +526,7 @@ export class SelectionQuestionsComponent implements OnInit {
     }
   }
 
-  // Método para imprimir los datos de los formularios
-  imprimirContratacion(): void {
-    this.seleccionService.crearSeleccionParteCuatroCandidato(this.formGroup4.value, this.cedula, this.codigoContrato).subscribe(
-      response => {
-        if (response.message === 'success') {
-          Swal.fire({
-            title: '¡Éxito!',
-            text: 'Datos guardados exitosamente',
-            icon: 'success',
-            confirmButtonText: 'Ok'
-          });
-        }
-      },
-      error => {
-        Swal.fire({
-          title: '¡Error!',
-          text: 'Error al guardar los datos',
-          icon: 'error',
-          confirmButtonText: 'Ok'
-        });
-      }
-    );
-  }
+
 
 
   // Método para subir todos los archivos almacenados en uploadedFiles

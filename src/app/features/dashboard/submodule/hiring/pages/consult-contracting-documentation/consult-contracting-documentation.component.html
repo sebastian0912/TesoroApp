@@ -1,4 +1,3 @@
-<!-- TABLA PRINCIPAL + PEGAR DIRECTO -->
 <mat-card>
   <mat-card-content>
     <div class="tabla">
@@ -28,6 +27,26 @@
           <ng-container matColumnDef="cedula">
             <th mat-header-cell *matHeaderCellDef>Cédula</th>
             <td mat-cell *matCellDef="let e">{{ e.cedula }}</td>
+          </ng-container>
+
+          <!-- NOMBRE (o NOMBRE COMPLETO) -->
+          <ng-container matColumnDef="nombre">
+            <th mat-header-cell *matHeaderCellDef>Nombre</th>
+            <td mat-cell *matCellDef="let e">{{ e.nombre }}</td>
+          </ng-container>
+
+          <!-- FINCA -->
+          <ng-container matColumnDef="finca">
+            <th mat-header-cell *matHeaderCellDef>Finca</th>
+            <td mat-cell *matCellDef="let e">{{ e.finca }}</td>
+          </ng-container>
+
+          <!-- FECHA DE INGRESO -->
+          <ng-container matColumnDef="fecha_ingreso">
+            <th mat-header-cell *matHeaderCellDef>Fecha ingreso</th>
+            <td mat-cell *matCellDef="let e">
+              {{ e.fecha_ingreso ? (e.fecha_ingreso | date:'yyyy-MM-dd') : '' }}
+            </td>
           </ng-container>
 
           <!-- FICHA TÉCNICA  ✅  (sin cambios funcionales) -->
@@ -220,6 +239,51 @@
                 </a>
               </ng-container>
               <ng-template #noFondo>
+                <mat-icon color="warn">cancel</mat-icon>
+              </ng-template>
+            </td>
+          </ng-container>
+
+          <!-- EPS -->
+          <ng-container matColumnDef="eps">
+            <th mat-header-cell *matHeaderCellDef>EPS</th>
+            <td mat-cell *matCellDef="let e">
+              <ng-container *ngIf="e.pdf_eps; else noEps">
+                <a [href]="e.pdf_eps" target="_blank" matTooltip="Ver documento">
+                  <mat-icon color="primary">check_circle</mat-icon>
+                </a>
+              </ng-container>
+              <ng-template #noEps>
+                <mat-icon color="warn">cancel</mat-icon>
+              </ng-template>
+            </td>
+          </ng-container>
+
+          <!-- Caja de Compensación -->
+          <ng-container matColumnDef="caja">
+            <th mat-header-cell *matHeaderCellDef>Caja de Compensación</th>
+            <td mat-cell *matCellDef="let e">
+              <ng-container *ngIf="e.pdf_caja; else noCaja">
+                <a [href]="e.pdf_caja" target="_blank" matTooltip="Ver documento">
+                  <mat-icon color="primary">check_circle</mat-icon>
+                </a>
+              </ng-container>
+              <ng-template #noCaja>
+                <mat-icon color="warn">cancel</mat-icon>
+              </ng-template>
+            </td>
+          </ng-container>
+
+          <!-- Pago Seguridad Social -->
+          <ng-container matColumnDef="pago_seguridad_social">
+            <th mat-header-cell *matHeaderCellDef>Pago Seguridad Social</th>
+            <td mat-cell *matCellDef="let e">
+              <ng-container *ngIf="e.pdf_pago_seguridad_social; else noPago">
+                <a [href]="e.pdf_pago_seguridad_social" target="_blank" matTooltip="Ver documento">
+                  <mat-icon color="primary">check_circle</mat-icon>
+                </a>
+              </ng-container>
+              <ng-template #noPago>
                 <mat-icon color="warn">cancel</mat-icon>
               </ng-template>
             </td>

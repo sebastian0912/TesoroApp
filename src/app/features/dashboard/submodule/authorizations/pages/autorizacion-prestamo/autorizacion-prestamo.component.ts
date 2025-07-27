@@ -274,12 +274,13 @@ export class AutorizacionPrestamoComponent implements OnInit {
         }
 
         if (this.rolUsuario !== "GERENCIA") {
+          /*
           // Validar si el operario tiene saldos pendientes mayores a 175000
           if (!this.autorizacionesService.verificarSaldo(this.datosOperario)) {
             this.datosOperario = null;
             Swal.fire({ icon: 'error', title: 'Saldo pendiente', text: 'El empleado con la cédula proporcionada tiene saldos pendientes mayores a $175.000 y no puede solicitar autorizaciones.' });
             return;
-          }
+          }*/
 
 
           if (!this.autorizacionesService.verificarFondos(this.datosOperario)) {

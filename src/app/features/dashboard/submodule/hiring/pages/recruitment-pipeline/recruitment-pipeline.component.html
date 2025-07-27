@@ -7,7 +7,7 @@
   <mat-card-content style="height: 100%;">
     <div class="info-candidato-titulo">
       <mat-icon>person</mat-icon>
-      <span class="info-candidato-label">Cédula trabajada:</span>
+      <span class="info-candidato-label">Cédula:</span>
       <span class="info-candidato-valor">{{ cedulaActual }}</span>
       <span class="info-candidato-label">| Nombre:</span>
       <span class="info-candidato-valor">{{ nombreCandidato }}</span>
@@ -30,6 +30,21 @@
       <mat-tab>
         <ng-template mat-tab-label>
           <div class="tab">
+            <mat-icon>thumb_up</mat-icon>
+            Novedad de antecedentes
+          </div>
+        </ng-template>
+        <div class="tab-content-scrollable">
+          <app-selection-questions
+            [cedula]="cedulaActual" [vacanteSeleccionada]="selectionQuestionsComponent"
+            [codigoContrato]="codigoContrato">
+          </app-selection-questions>
+        </div>
+      </mat-tab>
+
+      <mat-tab>
+        <ng-template mat-tab-label>
+          <div class="tab">
             <mat-icon>rate_review</mat-icon>
             Entrevista
           </div>
@@ -39,18 +54,99 @@
         </div>
       </mat-tab>
 
+      <!-- ─────────── TAB 3 • EXAMEN DE SALUD OCUPACIONAL ─────────── -->
       <mat-tab>
         <ng-template mat-tab-label>
           <div class="tab">
-            <mat-icon>thumb_up</mat-icon>
-            Selección
+            <mat-icon>check_circle</mat-icon>
+            Examenes de ingreso
           </div>
         </ng-template>
-        <div class="tab-content-scrollable">
-          <app-selection-questions [cedula]="cedulaActual" [vacanteSeleccionada]="selectionQuestionsComponent"
-            [codigoContrato]="codigoContrato"></app-selection-questions>
+        <br>
+
+        <div class="tab-content-scrollable" [formGroup]="formGroup3">
+          <!-- IPS -->
+          <mat-form-field appearance="fill" class="example-full-width">
+            <mat-label>IPS</mat-label>
+            <mat-select formControlName="ips" placeholder="IPS" required>
+              <mat-option value="JAVAP">JAVAP</mat-option>
+              <mat-option value="ESTRATEGO">ESTRATEGO</mat-option>
+              <mat-option value="HELSEN">HELSEN</mat-option>
+              <mat-option value="ASISTIR">ASISTIR</mat-option>
+              <mat-option value="SIGMEDICAL">SIGMEDICAL</mat-option>
+              <mat-option value="PORSALUD">PORSALUD</mat-option>
+              <mat-option value="ASTON MEDICAL">ASTON MEDICAL</mat-option>
+              <mat-option value="ACR VITAL">ACR VITAL</mat-option>
+              <mat-option value="SANILAB">SANILAB</mat-option>
+            </mat-select>
+            <mat-error *ngIf="formGroup3.get('ips')?.hasError('required') && formGroup3.get('ips')?.touched">
+              Este campo es requerido
+            </mat-error>
+          </mat-form-field>
+
+          <!-- IPSLAB -->
+          <mat-form-field appearance="fill" class="example-full-width">
+            <mat-label>IPSLAB</mat-label>
+            <mat-select formControlName="ipsLab" placeholder="IPSLAB" required>
+              <mat-option value="JAVAP">JAVAP</mat-option>
+              <mat-option value="ESTRATEGO">ESTRATEGO</mat-option>
+              <mat-option value="HELSEN">HELSEN</mat-option>
+              <mat-option value="ASISTIR">ASISTIR</mat-option>
+              <mat-option value="SIGMEDICAL">SIGMEDICAL</mat-option>
+              <mat-option value="PORSALUD">PORSALUD</mat-option>
+              <mat-option value="ASTON MEDICAL">ASTON MEDICAL</mat-option>
+              <mat-option value="ACR VITAL">ACR VITAL</mat-option>
+              <mat-option value="SANILAB">SANILAB</mat-option>
+            </mat-select>
+            <mat-error *ngIf="formGroup3.get('ipsLab')?.hasError('required') && formGroup3.get('ipsLab')?.touched">
+              Este campo es requerido
+            </mat-error>
+          </mat-form-field>
+
+          <!-- Selección de exámenes -->
+          <mat-form-field appearance="fill" class="example-full-width">
+            <mat-label>Seleccione los exámenes</mat-label>
+            <mat-select formControlName="selectedExams" multiple required>
+              <mat-option *ngFor="let exam of filteredExamOptions" [value]="exam">
+                {{ exam }}
+              </mat-option>
+            </mat-select>
+            <mat-error
+              *ngIf="formGroup3.get('selectedExams')?.hasError('required') && formGroup3.get('selectedExams')?.touched">
+              Debe seleccionar al menos un examen
+            </mat-error>
+          </mat-form-field>
+
+          <!-- Campos dinámicos para cada examen seleccionado -->
+          <div formArrayName="selectedExamsArray">
+            <div *ngFor="let exam of formGroup3.get('selectedExams')?.value; let i = index" [formGroupName]="i">
+              <!-- Estado Apto/No Apto requerido -->
+              <mat-form-field appearance="fill" class="example-full-width">
+                <mat-label>{{ exam }}</mat-label>
+                <mat-select formControlName="aptoStatus" required>
+                  <mat-option value="APTO">APTO</mat-option>
+                  <mat-option value="NO APTO">NO APTO</mat-option>
+                </mat-select>
+                <mat-error *ngIf="formGroup3.get('selectedExamsArray')?.get(i.toString())?.get('aptoStatus')?.hasError('required')
+            && formGroup3.get('selectedExamsArray')?.get(i.toString())?.get('aptoStatus')?.touched">
+                  Este campo es requerido
+                </mat-error>
+              </mat-form-field>
+
+              <!-- Subir PDF (no requerido, pero puedes hacerlo si quieres) -->
+              <input type="file" accept="application/pdf" (change)="onFileSelected($event, i)" />
+              <p *ngIf="examFiles[i]">Archivo seleccionado: {{ examFiles[i].name }}</p>
+            </div>
+          </div>
+
+          <!-- Botón para imprimir -->
+          <button mat-flat-button (click)="imprimirSaludOcupacional()" class="example-full-width">
+            Imprimir Salud Ocupacional
+          </button>
         </div>
+
       </mat-tab>
+
 
       <!-- Información del formulario -->
       <mat-tab>
@@ -458,7 +554,7 @@
               </form>
             </mat-tab>
 
-<!--
+            <!--
 
             <mat-tab label="Datos del Padre">
               <form [formGroup]="datosPadre">

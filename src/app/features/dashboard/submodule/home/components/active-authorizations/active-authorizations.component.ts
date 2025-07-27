@@ -7,6 +7,7 @@ import { DateRangeDialogComponent } from '../../../../../../shared/components/da
 import { HomeService } from '../../service/home.service';
 import { catchError } from 'rxjs/operators';
 import { of } from 'rxjs/internal/observable/of';
+import Swal from 'sweetalert2';
 
 @Component({
   selector: 'app-active-authorizations',
@@ -47,19 +48,65 @@ export class ActiveAuthorizationsComponent implements OnInit {
 
     dialogRef.afterClosed().subscribe(result => {
       if (result) {
-        let user = this.utilityServiceService.getUser();
-        this.homeService.traerHistorialInformePersona(result.start, result.end, user.primer_nombre + ' ' + user.primer_apellido)
-          .pipe(
-            catchError(error => {
-              return of({ historial: {} });
-            })
+        const user = this.utilityServiceService.getUser();
+        const email = user.correo_electronico?.toLowerCase();
+
+        const excepciones = [
+          "programador.ts@gmail.com",
+          "bernardin.ts@gmail.com"
+        ];
+
+        const handleExcelDownload = (blob: Blob, nombreArchivo: string) => {
+          Swal.close(); // Cierra el swal de cargando
+          if (!blob || blob.size === 0) {
+            Swal.fire({
+              icon: 'info',
+              title: 'Sin información',
+              text: 'No se encontraron registros para el rango de fechas seleccionado.',
+            });
+            return;
+          }
+          // Descargar el archivo
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `${nombreArchivo}.xlsx`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          window.URL.revokeObjectURL(url);
+        };
+
+        Swal.fire({
+          title: 'Cargando...',
+          icon: 'info',
+          html: 'Consultando información, por favor espera.',
+          allowOutsideClick: false,
+          allowEscapeKey: false,
+          didOpen: () => {
+            Swal.showLoading();
+          }
+        });
+
+        if (
+          user.primer_nombre && user.primer_apellido &&
+          !excepciones.includes(email)
+        ) {
+          this.homeService.traerHistorialInformePersona(
+            result.start, result.end, user.primer_nombre + ' ' + user.primer_apellido, true // <--- excel:true
           )
-          .subscribe(data => {
-            this.exportAsExcelFile(data.historial, 'Historial_Informe_Personal');
-          });
+            .subscribe(blob => handleExcelDownload(blob, 'Historial_Informe_Personal'));
+        } else {
+          this.homeService.traerHistorialInformeSoloFecha(
+            result.start, result.end, true // <--- excel:true
+          )
+            .subscribe(blob => handleExcelDownload(blob, 'Historial_Informe_Fecha'));
+        }
       }
     });
   }
+
+
 
   private exportAsExcelFile(historial: any, fileName: string): void {
     const registrosData: any[] = [];

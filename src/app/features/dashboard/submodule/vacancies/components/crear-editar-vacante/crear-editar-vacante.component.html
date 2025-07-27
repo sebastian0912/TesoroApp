@@ -41,6 +41,33 @@
       </mat-select>
     </mat-form-field>
 
+    <mat-form-field appearance="fill" class="example-full-width">
+      <mat-label>Municipio(s)</mat-label>
+      <mat-select formControlName="municipio" multiple>
+        <mat-option *ngFor="let m of municipiosColombia" [value]="m">{{ m }}</mat-option>
+      </mat-select>
+    </mat-form-field>
+
+    <!--auxilioTransporte si o no-->
+    <mat-form-field class="example-full-width">
+      <mat-label>Auxilio Transporte</mat-label>
+      <mat-select formControlName="auxilioTransporte">
+        <mat-option value="Si">Si</mat-option>
+        <mat-option value="No">No</mat-option>
+      </mat-select>
+    </mat-form-field>
+
+    <!--tipoContratacion-->
+    <mat-form-field class="example-full-width">
+      <mat-label>Tipo de Contratación</mat-label>
+      <mat-select formControlName="tipoContratacion">
+        <mat-option value="Obra Labor">Obra Labor</mat-option>
+        <mat-option value="Fijo Inferior a un año">Fijo Inferior a un año</mat-option>
+        <mat-option value="Fijo a un año">Fijo a un año</mat-option>
+        <mat-option value="Indefinido">Indefinido</mat-option>
+      </mat-select>
+    </mat-form-field>
+
     <!--requiere experiencia-->
     <mat-form-field class="example-full-width">
       <mat-label>Requiere Experiencia</mat-label>
@@ -51,8 +78,17 @@
       </mat-select>
     </mat-form-field>
 
-    <!--presenta prueba tecnica -->
+    <!-- tiene prueba o contratacion -->
     <mat-form-field class="example-full-width">
+      <mat-label>Prueba o Contratación</mat-label>
+      <mat-select formControlName="pruebaOContratacion">
+        <mat-option value="Prueba">Prueba Tecnica </mat-option>
+        <mat-option value="Contratación">Contratación Inmediata</mat-option>
+      </mat-select>
+    </mat-form-field>
+
+    <!--presenta prueba tecnica -->
+    <mat-form-field class="example-full-width" *ngIf="vacanteForm.get('pruebaOContratacion')?.value === 'Prueba'">
       <mat-label>Presenta Prueba Técnica</mat-label>
       <mat-select formControlName="presentaPruebaTecnica">
         <mat-option value="Si">Si</mat-option>
@@ -151,6 +187,6 @@
 </div>
 
 <div mat-dialog-actions>
-  <button mat-button (click)="cancelar()">Cancelar</button>
-  <button mat-button color="primary" (click)="guardar()" >Guardar</button>
+  <button mat-button (click)="cancelar()" style="background-color: red; color: white; border-radius: 5pt;">Cancelar</button>
+  <button mat-button (click)="guardar()"  style="background-color: #003e7f; color: white; border-radius: 5pt;">Guardar</button>
 </div>

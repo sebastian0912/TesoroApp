@@ -4,6 +4,8 @@ import { FormGroup, FormArray, FormBuilder, Validators } from '@angular/forms';
 import { MatDialogRef, MAT_DIALOG_DATA } from '@angular/material/dialog';
 import { DocumentacionService } from '../../service/documentacion/documentacion.service';
 import { MatDividerModule } from '@angular/material/divider';
+import { MatCheckboxModule } from '@angular/material/checkbox';
+import { ReactiveFormsModule } from '@angular/forms';
 
 
 export interface ModalData {
@@ -21,6 +23,8 @@ export interface ModalData {
   imports: [
     SharedModule,
     MatDividerModule,
+    MatCheckboxModule,
+    ReactiveFormsModule
   ],
   templateUrl: './document-modal.component.html',
   styleUrl: './document-modal.component.css'

@@ -1,0 +1,69 @@
+<mat-card class="main-card">
+  <mat-card-content>
+    <!-- Sección de carga -->
+    <div class="cards">
+      <app-info-card imageUrl="icons/cards/excel.png" title="Cargar activos"
+        (click)="triggerFileInput('activos')"></app-info-card>
+      <app-info-card imageUrl="icons/cards/excel.png" title="Cargar retiros"
+        (click)="triggerFileInput('retiros')"></app-info-card>
+      <input type="file" id="fileInput" (change)="cargarExcel($event)" accept=".xlsx, .xls" style="display: none" />
+    </div>
+
+    <div class="search-container">
+      <mat-form-field>
+        <mat-label>Buscar operario</mat-label>
+        <input matInput [formControl]="searchControl" placeholder="Ingrese nombre o cédula">
+        <mat-icon matSuffix>search</mat-icon>
+      </mat-form-field>
+    </div>
+
+    <!-- Listado de operarios -->
+    <div class="operarios-container">
+      <!-- Operarios Activos -->
+      <div class="operarios-column">
+        <h2 class="section-title">Operarios Activos</h2>
+        <div *ngIf="activosFiltrados.length > 0; else noActivos">
+          <mat-card *ngFor="let activo of activosFiltrados" class="operario-card">
+            <mat-card-title class="card-header">
+              <span>{{ activo.numero_cedula }} - {{ activo.nombre_completo }}</span>
+              <mat-icon (click)="activo.mostrarDetalles = !activo.mostrarDetalles">{{ activo.mostrarDetalles ?
+                "visibility_off" : "visibility" }}</mat-icon>
+            </mat-card-title>
+            <mat-card-content *ngIf="activo.mostrarDetalles" class="details-content">
+              <p><strong>Contrato:</strong> {{ activo.codigo_contrato }}</p>
+              <p><strong>Finca:</strong> {{ activo.nombre_finca }}</p>
+              <p><strong>Fecha Inicio:</strong> {{ activo.fecha_inicio || "No registrada" }}</p>
+              <p><strong>Fecha Fin:</strong> {{ activo.fecha_fin || "No registrada" }}</p>
+            </mat-card-content>
+          </mat-card>
+        </div>
+        <ng-template #noActivos>
+          <p class="empty-message">No hay operarios activos en este momento.</p>
+        </ng-template>
+      </div>
+
+      <!-- Operarios Inactivos -->
+      <div class="operarios-column">
+        <h2 class="section-title">Operarios Inactivos</h2>
+        <div *ngIf="inactivosFiltrados.length > 0; else noInactivos">
+          <mat-card *ngFor="let inactivo of inactivosFiltrados" class="operario-card inactivo">
+            <mat-card-title class="card-header">
+              <span>{{ inactivo.numero_cedula }} - {{ inactivo.nombre_completo }}</span>
+              <mat-icon (click)="inactivo.mostrarDetalles = !inactivo.mostrarDetalles">{{ inactivo.mostrarDetalles ?
+                "visibility_off" : "visibility" }}</mat-icon>
+            </mat-card-title>
+            <mat-card-content *ngIf="inactivo.mostrarDetalles" class="details-content">
+              <p><strong>Contrato:</strong> {{ inactivo.codigo_contrato }}</p>
+              <p><strong>Finca:</strong> {{ inactivo.nombre_finca }}</p>
+              <p><strong>Fecha Inicio:</strong> {{ inactivo.fecha_inicio || "No registrada" }}</p>
+              <p><strong>Fecha Fin:</strong> {{ inactivo.fecha_fin || "No registrada" }}</p>
+            </mat-card-content>
+          </mat-card>
+        </div>
+        <ng-template #noInactivos>
+          <p class="empty-message">No hay operarios inactivos en este momento.</p>
+        </ng-template>
+      </div>
+    </div>
+  </mat-card-content>
+</mat-card>

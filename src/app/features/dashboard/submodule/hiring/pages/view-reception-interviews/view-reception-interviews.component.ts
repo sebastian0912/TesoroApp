@@ -10,6 +10,7 @@ import { FormsModule } from '@angular/forms';
 import { MatDatepickerModule } from '@angular/material/datepicker';
 import { MatNativeDateModule } from '@angular/material/core';
 import { MatTooltipModule } from '@angular/material/tooltip';
+import { UtilityServiceService } from '@/app/shared/services/utilityService/utility-service.service';
 
 @Component({
   selector: 'app-view-reception-interviews',
@@ -26,7 +27,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
   styleUrl: './view-reception-interviews.component.css'
 })
 export class ViewReceptionInterviewsComponent implements OnInit {
-
+  user: any;
   displayedColumns: string[] = [
     'como_se_entero',
     'tipo_documento',
@@ -57,6 +58,7 @@ export class ViewReceptionInterviewsComponent implements OnInit {
 
   constructor(
     private seleccionService: SeleccionService,
+    private utilityService: UtilityServiceService,
     private dialog: MatDialog
   ) { }
 
@@ -71,6 +73,12 @@ export class ViewReceptionInterviewsComponent implements OnInit {
         Swal.fire('Error', 'No se pudieron cargar los candidatos.', 'error');
       }
     );
+
+    this.user = this.utilityService.getUser() || '';
+    if (!this.user) {
+      Swal.fire('Atención', 'No se pudo determinar la sede actual.', 'warning');
+    }
+
   }
 
   limpiarFiltros() {
@@ -93,35 +101,81 @@ export class ViewReceptionInterviewsComponent implements OnInit {
     });
 
     dialogRef.afterClosed().subscribe(result => {
-      if (result) {
-        // Convertir los strings a Date
-        const start = new Date(result.start);
-        const end = new Date(result.end);
-
-        // Llama al servicio con fechas como strings originales
-        this.seleccionService.exportarCandidatosExcel({ start: result.start, end: result.end }).subscribe(
-          (response: Blob) => {
-            const blob = new Blob([response], {
-              type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-            });
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `reporte_candidatos_${start.toISOString().split('T')[0]}_${end.toISOString().split('T')[0]}.xlsx`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            window.URL.revokeObjectURL(url);
-          },
-          (error) => {
-            Swal.fire('Error', 'No se pudo generar el reporte.', 'error');
-          }
-        );
-      } else if (result !== undefined) {
+      if (!result || !result.start || !result.end) {
         Swal.fire('Atención', 'Debes seleccionar ambas fechas para descargar el reporte.', 'warning');
+        return;
       }
+
+      const start = new Date(result.start);
+      const end = new Date(result.end);
+
+      Swal.fire({
+        title: 'Generando reporte...',
+        text: 'Por favor espera.',
+        allowOutsideClick: false,
+        didOpen: () => {
+          Swal.showLoading();
+        }
+      });
+
+      // Si el usuario NO es ADMIN/GERENCIA, descarga el reporte por oficina
+      if (this.user.rol !== 'ADMIN' && this.user.rol !== 'GERENCIA') {
+        this.seleccionService.exportarCandidatosPorOficinaExcel({
+          start: result.start,
+          end: result.end,
+          oficina: this.user.sucursalde // o el campo correcto
+        }).subscribe({
+          next: (blob: Blob) => {
+            Swal.close();
+            this.downloadBlob(
+              blob,
+              `reporte_candidatos_${this.user.oficina || this.user.sucursalde}_${start.toISOString().split('T')[0]}_${end.toISOString().split('T')[0]}.xlsx`
+            );
+          },
+          error: () => {
+            Swal.close();
+            Swal.fire('Error', 'No se pudo generar el reporte para la oficina.', 'error');
+          }
+        });
+        return; // IMPORTANTE: solo descarga uno u otro, nunca ambos
+      }
+
+      // Si es ADMIN o GERENCIA, descarga el reporte general
+      this.seleccionService.exportarCandidatosExcel({
+        start: result.start,
+        end: result.end
+      }).subscribe({
+        next: (blob: Blob) => {
+          Swal.close();
+          this.downloadBlob(
+            blob,
+            `reporte_candidatos_${start.toISOString().split('T')[0]}_${end.toISOString().split('T')[0]}.xlsx`
+          );
+        },
+        error: () => {
+          Swal.close();
+          Swal.fire('Error', 'No se pudo generar el reporte.', 'error');
+        }
+      });
     });
   }
+
+  // Utilidad profesional para descargar cualquier blob
+  private downloadBlob(blob: Blob, fileName: string): void {
+    if (!blob || blob.size === 0) {
+      Swal.fire('Sin datos', 'No hay información para exportar en este rango de fechas.', 'info');
+      return;
+    }
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+  }
+
 
   copiarTablaExcel() {
     const toColombiaDateTime = (utcString: string) => {

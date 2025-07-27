@@ -83,8 +83,7 @@ export class CompanyDocsAccessComponent {
   }
 
   editPermission(permission: string): void {
-    console.log('Editando permiso:', permission);
-    // Lógica adicional para editar el permiso
+          // Lógica adicional para editar el permiso
   }
 
   addPermission(data: any) {

@@ -495,7 +495,7 @@ export class CargarMercadoFeriasComponent implements OnInit {
           });
           return;
         }
-
+/*
         if (this.rolUsuario !== "GERENCIA") {
           // Validar si el operario tiene saldos pendientes mayores a 175000
           if (!this.autorizacionesService.verificarSaldo(this.datosOperario)) {
@@ -510,7 +510,7 @@ export class CargarMercadoFeriasComponent implements OnInit {
             });
             return;
           }
-        }
+        }*/
       },
       (error: any) => {
         Swal.close();

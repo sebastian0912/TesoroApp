@@ -631,9 +631,7 @@ export class HiringQuestionsComponent implements OnInit {
             }
           });
         });
-      } else {
-        console.warn('No se encontró ningún proceso de selección para esta cédula.');
-      }
+      } 
     });
   }
 

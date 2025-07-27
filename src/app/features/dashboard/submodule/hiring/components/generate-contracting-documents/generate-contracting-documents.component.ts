@@ -61,6 +61,9 @@ export class GenerateContractingDocumentsComponent {
     { titulo: 'Cedula' },
     { titulo: 'ARL' },
     { titulo: 'Figura Humana' },
+    { titulo: 'EPS' },
+    { titulo: 'CAJA' },
+    { titulo: 'PAGO SEGURIDAD SOCIAL' },
   ];
   nombreCompleto = '';
 
@@ -125,7 +128,10 @@ export class GenerateContractingDocumentsComponent {
     'Ficha técnica': 34,
     Cedula: 29,
     ARL: 30,
-    'Figura Humana': 31
+    'Figura Humana': 31,
+    EPS: 36,
+    CAJA: 37,
+    'PAGO SEGURIDAD SOCIAL': 38
   };
 
 

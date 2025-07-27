@@ -14,6 +14,7 @@ import { MatPaginator, MatPaginatorModule } from '@angular/material/paginator';
 import { MatSort, MatSortModule } from '@angular/material/sort';
 import { MatDatepickerModule } from '@angular/material/datepicker';
 import { NativeDateModule } from '@angular/material/core';
+import { S } from 'node_modules/@angular/cdk/scrolling-module.d-ud2XrbF8';
 
 @Component({
   selector: 'app-vacantes',
@@ -39,15 +40,17 @@ export class VacantesComponent implements OnInit {
   displayedColumns: string[] = [
     'fechaPublicado',
     'cargo',
+    'salario',
     'observacionVacante',
     'finca',
     'temporal',
     'experiencia',
     'oficinas',
+    'ruta',
     'fechadeIngreso',
     'acciones'
   ];
-    @ViewChild(MatPaginator) paginator!: MatPaginator;
+  @ViewChild(MatPaginator) paginator!: MatPaginator;
   @ViewChild(MatSort) sort!: MatSort;
 
   constructor(
@@ -144,43 +147,43 @@ export class VacantesComponent implements OnInit {
   openModal(vacante?: any): void {
     const dialogRef = this.dialog.open(CrearEditarVacanteComponent, {
       minWidth: '80vw',
-      data: vacante ? vacante : null // Si existe vacante, se pasa como data
+      data: vacante ? vacante : null
     });
 
     dialogRef.afterClosed().subscribe(result => {
-
       if (result) {
-        // ✅ Asegurar que `oficinasQueContratan` es una lista válida
-        const oficinas = result.oficinasQueContratan || [];
+        // Formatear y limpiar campos
+        const oficinas = Array.isArray(result.oficinasQueContratan) ? result.oficinasQueContratan : [];
 
-        // ✅ Formatear correctamente el payload
         const payload = {
-          cargo: result.cargo.trim(),  // ✅ Enviar nombre del cargo
-          empresaUsuariaSolicita: result.empresaUsuariaSolicita.trim(),
+          cargo: result.cargo?.trim() || null,
+          empresaUsuariaSolicita: result.empresaUsuariaSolicita?.trim() || null,
           finca: result.finca?.trim() || null,
           ubicacionPruebaTecnica: result.ubicacionPruebaTecnica?.trim() || null,
-          experiencia: result.experiencia?.trim(),
+          experiencia: result.experiencia?.trim() || null,
           fechadePruebatecnica: result.fechadePruebatecnica ? this.formatDate(result.fechadePruebatecnica) : null,
           horadePruebatecnica: result.horadePruebatecnica?.trim() || null,
           observacionVacante: result.observacionVacante?.trim() || null,
           fechadeIngreso: result.fechadeIngreso ? this.formatDate(result.fechadeIngreso) : null,
-          temporal: result.temporal.trim(),  // ✅ Enviar nombre de la empresa
-          descripcion: result.descripcion?.trim(),
-          fechaPublicado: this.formatDate(new Date()), // Fecha actual
+          temporal: result.temporal?.trim() || null,
+          descripcion: result.descripcion?.trim() || null,
+          fechaPublicado: this.formatDate(new Date()),
           quienpublicolavacante: result.quienpublicolavacante?.trim() || "Usuario Logueado",
           estadovacante: result.estadovacante?.trim() || "Activa",
-          salario: parseFloat(result.salario) || 0, // ✅ Convertir salario a número
+          salario: Number(result.salario) || 0,
           codigoElite: result.codigoElite?.trim() || null,
-
-          // ✅ Mapear `oficinasQueContratan`
           oficinasQueContratan: oficinas.map((oficina: any) => ({
-            nombre: oficina.nombre.trim(),
-            numeroDeGenteRequerida: parseInt(oficina.numeroDeGenteRequerida, 10) || 1, // ✅ Convertir a número
-            ruta: oficina.ruta || false // ✅ Ajustar si hay lógica para ruta
-          }))
+            nombre: oficina.nombre?.trim() || '',
+            numeroDeGenteRequerida: Number(oficina.numeroDeGenteRequerida) || 1,
+            ruta: !!oficina.ruta // true/false
+          })),
+          pruebaOContratacion: result.pruebaOContratacion?.trim() || null,
+          tipoContratacion: result.tipoContratacion?.trim() || null,
+          municipio: Array.isArray(result.municipio) ? result.municipio : [],
+          auxilioTransporte: Number(result.auxilioTransporte) || 0,
         };
 
-        // ✅ Enviar los datos a la API Django
+        // Enviar a API
         this.vacantesService.enviarVacante(payload).subscribe({
           next: async (response) => {
             await this.loadData();
@@ -200,11 +203,10 @@ export class VacantesComponent implements OnInit {
             });
           }
         });
-      } else {
-        console.warn("⚠️ No se enviaron datos válidos.");
-      }
+      } 
     });
   }
+
 
 
   formatDate(date: Date | string | null): string | null {
@@ -339,6 +341,17 @@ export class VacantesComponent implements OnInit {
         Swal.fire('Error', 'Ocurrió un error al subir los datos', 'error');
       }
     );
+  }
+
+  getSiglaTemporal(temporal: string): string {
+    switch (temporal) {
+      case 'TU ALIANZA SAS':
+        return 'TA';
+      case 'APOYO LABORAL SAS':
+        return 'AL';
+      default:
+        return temporal;
+    }
   }
 
 
