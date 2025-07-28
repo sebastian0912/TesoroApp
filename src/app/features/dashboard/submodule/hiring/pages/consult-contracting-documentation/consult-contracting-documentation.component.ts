@@ -378,52 +378,103 @@ export class ConsultContractingDocumentationComponent implements OnInit {
 
   descargarChecklistExcel(startDate: Date, endDate: Date): void {
     if (!startDate || !endDate) {
-      Swal.fire({ icon: 'error', title: 'Error', text: 'Por favor, seleccione un rango de fechas válido.' });
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: 'Por favor, seleccione un rango de fechas válido.'
+      });
       return;
     }
 
-    // 1. Mostrar Swal cargando
+    // 1. Mostrar modal de carga
     Swal.fire({
       title: 'Generando archivo...',
       icon: 'info',
       text: 'Por favor espera un momento.',
       allowOutsideClick: false,
       allowEscapeKey: false,
-      didOpen: () => {
-        Swal.showLoading();
-      }
+      didOpen: () => Swal.showLoading()
     });
 
     this.infoVacantesService.descargarChecklistJson(startDate, endDate).subscribe(json => {
-      Swal.close(); // 2. Cerrar Swal cargando
+      Swal.close(); // 2. Cerrar modal de carga
 
       if (!json || !json.rows || !json.rows.length) {
-        Swal.fire({ icon: 'info', title: 'Sin registros', text: 'No se encontraron registros en el rango seleccionado.' });
+        Swal.fire({
+          icon: 'info',
+          title: 'Sin registros',
+          text: 'No se encontraron registros en el rango seleccionado.'
+        });
         return;
       }
 
-      // 3. Prepara los datos y las columnas
+      // 3. Mapea los encabezados a títulos "bonitos" para el Excel (opcional)
+      const headerMap: Record<string, string> = {
+        cedula: 'Cédula',
+        tipo_documento: 'Tipo Documento',
+        primer_apellido: 'Primer Apellido',
+        segundo_apellido: 'Segundo Apellido',
+        primer_nombre: 'Primer Nombre',
+        segundo_nombre: 'Segundo Nombre',
+        ficha_tecnica: 'Ficha Técnica',
+        cedula_doc: 'Cédula Doc.',
+        procuraduria: 'Procuraduría',
+        contraloria: 'Contraloría',
+        ofac: 'OFAC',
+        policivos: 'Policivos',
+        adres: 'Adres',
+        sisben: 'Sisbén',
+        contrato: 'Contrato',
+        entrega_documentos: 'Entrega Documentos',
+        arl: 'ARL',
+        examenes_medicos: 'Exámenes Médicos',
+        afp: 'AFP'
+      };
+
       const headers: string[] = json.headers;
       const rows: any[] = json.rows;
 
-      // 4. Crea el worksheet y workbook
-      const worksheet: XLSX.WorkSheet = XLSX.utils.json_to_sheet(rows, { header: headers });
-      XLSX.utils.sheet_add_aoa(worksheet, [headers], { origin: 'A1' });
+      // 4. Opcional: Mapea los headers para el Excel (puedes quitar esto si prefieres los nombres técnicos)
+      const displayHeaders = headers.map(h => headerMap[h] || h);
 
-      const workbook: XLSX.WorkBook = { Sheets: { 'Checklist': worksheet }, SheetNames: ['Checklist'] };
+      // 5. Prepara los datos para Excel asegurando el orden de columnas
+      const dataForExcel = rows.map((row: any) => {
+        const newRow: any = {};
+        headers.forEach(h => {
+          newRow[headerMap[h] || h] = row[h];
+        });
+        return newRow;
+      });
 
-      // 5. Genera el archivo excel en memoria
+      // 6. Crea el worksheet y el workbook
+      const worksheet: XLSX.WorkSheet = XLSX.utils.json_to_sheet(dataForExcel, { header: displayHeaders });
+      XLSX.utils.sheet_add_aoa(worksheet, [displayHeaders], { origin: 'A1' });
+
+      const workbook: XLSX.WorkBook = {
+        Sheets: { 'Checklist': worksheet },
+        SheetNames: ['Checklist']
+      };
+
+      // 7. Genera el archivo Excel
       const excelBuffer: any = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
 
-      // 6. Descarga el archivo
+      // 8. Descarga el archivo
       const fechaActual = new Date().toISOString().slice(0, 10);
-      saveAs(new Blob([excelBuffer], { type: 'application/octet-stream' }), `checklist_documental_${fechaActual}.xlsx`);
+      saveAs(
+        new Blob([excelBuffer], { type: 'application/octet-stream' }),
+        `checklist_documental_${fechaActual}.xlsx`
+      );
 
     }, error => {
       Swal.close();
-      Swal.fire({ icon: 'error', title: 'Error', text: 'No se pudo generar el archivo.' });
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: 'No se pudo generar el archivo.'
+      });
     });
   }
+  
 }
 
 
