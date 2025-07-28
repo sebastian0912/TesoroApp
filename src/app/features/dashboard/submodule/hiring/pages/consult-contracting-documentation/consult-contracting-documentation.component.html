@@ -15,8 +15,14 @@
       </button>
 
       <!--descargar-->
-      <button mat-flat-button type="button" (click)="descargarZip()">
+      <button mat-flat-button type="button" (click)="descargarZip()" style="margin-left: 15pt; margin-right: 15pt;">
         Descargar paquetes
+      </button>
+
+      <!-- Faltantes -->
+      <button mat-flat-button type="button" (click)="exportarExcelFaltantes()"
+        style="margin-left: 15pt; margin-right: 15pt;" *ngIf="user?.rol === 'ADMIN' || user?.rol === 'GERENCIA'">
+        Ver faltantes
       </button>
 
       <!-- TABLA -->

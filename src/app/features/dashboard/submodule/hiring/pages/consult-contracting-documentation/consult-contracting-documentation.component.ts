@@ -1,5 +1,5 @@
 import { SharedModule } from '@/app/shared/shared.module';
-import { Component } from '@angular/core';
+import { Component, OnInit } from '@angular/core';
 import { FormControl } from '@angular/forms';
 import { MatDialog } from '@angular/material/dialog';
 import { MatTableDataSource } from '@angular/material/table';
@@ -10,6 +10,11 @@ import { MatButtonModule } from '@angular/material/button';
 import { OrdenUnionDialogComponent } from '../../components/orden-union-dialog/orden-union-dialog.component';
 import { MatDialogModule } from '@angular/material/dialog';
 import { SeleccionService } from '../../service/seleccion/seleccion.service';
+import { InfoVacantesService } from '../../service/info-vacantes/info-vacantes.service';
+import { DateRangeDialogComponent } from '@/app/shared/components/date-rang-dialog/date-rang-dialog.component';
+import * as XLSX from 'xlsx';
+import { saveAs } from 'file-saver';
+import { UtilityServiceService } from '@/app/shared/services/utilityService/utility-service.service';
 
 @Component({
   selector: 'app-consult-contracting-documentation',
@@ -21,10 +26,10 @@ import { SeleccionService } from '../../service/seleccion/seleccion.service';
   templateUrl: './consult-contracting-documentation.component.html',
   styleUrl: './consult-contracting-documentation.component.css'
 })
-export class ConsultContractingDocumentationComponent {
+export class ConsultContractingDocumentationComponent implements OnInit {
   /** ---------- CONTROLES ---------- */
   cedulaControl = new FormControl('');
-
+  user: any;
   /** ---------- TABLA PRINCIPAL ---------- */
   dataSource = new MatTableDataSource<any>([]);
   displayedColumns: string[] = [
@@ -33,6 +38,8 @@ export class ConsultContractingDocumentationComponent {
     'adres', 'sisben', 'contrato', 'entrega_documentos',
     'arl', 'examen', 'fondo_pension', 'eps', 'caja', 'pago_seguridad_social',
   ];
+
+
 
   private crearFilaBase(cedula: string) {
     return {
@@ -76,8 +83,17 @@ export class ConsultContractingDocumentationComponent {
   constructor(
     private gestionDocumentalService: GestionDocumentalService,
     private seleccionService: SeleccionService,
-    private dialog: MatDialog
+    private dialog: MatDialog,
+    private infoVacantesService: InfoVacantesService,
+    private utilityService: UtilityServiceService
   ) { }
+
+  ngOnInit(): void {
+    this.user = this.utilityService.getUser();
+    console.log('Usuario actual:', this.user);
+    // rol
+    console.log('Rol del usuario:', this.user?.rol);
+  }
 
   /* ---------- BÚSQUEDA INDIVIDUAL ---------- */
   buscarPorCedula(): void {
@@ -341,6 +357,72 @@ export class ConsultContractingDocumentationComponent {
           Swal.fire({ icon: 'error', title: 'Error', text: 'No se pudo descargar el archivo.' });
         }
       });
+  }
+
+
+  exportarExcelFaltantes(): void {
+    this.dialog.open(DateRangeDialogComponent, {
+      width: '400px',
+    }).afterClosed().subscribe(result => {
+      if (result) {
+        const startDate = result.start ? new Date(result.start) : null;
+        const endDate = result.end ? new Date(result.end) : null;
+        if (startDate && endDate) {
+          this.descargarChecklistExcel(startDate, endDate);
+        } else {
+          Swal.fire({ icon: 'error', title: 'Error', text: 'Por favor, seleccione un rango de fechas válido.' });
+        }
+      }
+    });
+  }
+
+  descargarChecklistExcel(startDate: Date, endDate: Date): void {
+    if (!startDate || !endDate) {
+      Swal.fire({ icon: 'error', title: 'Error', text: 'Por favor, seleccione un rango de fechas válido.' });
+      return;
+    }
+
+    // 1. Mostrar Swal cargando
+    Swal.fire({
+      title: 'Generando archivo...',
+      icon: 'info',
+      text: 'Por favor espera un momento.',
+      allowOutsideClick: false,
+      allowEscapeKey: false,
+      didOpen: () => {
+        Swal.showLoading();
+      }
+    });
+
+    this.infoVacantesService.descargarChecklistJson(startDate, endDate).subscribe(json => {
+      Swal.close(); // 2. Cerrar Swal cargando
+
+      if (!json || !json.rows || !json.rows.length) {
+        Swal.fire({ icon: 'info', title: 'Sin registros', text: 'No se encontraron registros en el rango seleccionado.' });
+        return;
+      }
+
+      // 3. Prepara los datos y las columnas
+      const headers: string[] = json.headers;
+      const rows: any[] = json.rows;
+
+      // 4. Crea el worksheet y workbook
+      const worksheet: XLSX.WorkSheet = XLSX.utils.json_to_sheet(rows, { header: headers });
+      XLSX.utils.sheet_add_aoa(worksheet, [headers], { origin: 'A1' });
+
+      const workbook: XLSX.WorkBook = { Sheets: { 'Checklist': worksheet }, SheetNames: ['Checklist'] };
+
+      // 5. Genera el archivo excel en memoria
+      const excelBuffer: any = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+
+      // 6. Descarga el archivo
+      const fechaActual = new Date().toISOString().slice(0, 10);
+      saveAs(new Blob([excelBuffer], { type: 'application/octet-stream' }), `checklist_documental_${fechaActual}.xlsx`);
+
+    }, error => {
+      Swal.close();
+      Swal.fire({ icon: 'error', title: 'Error', text: 'No se pudo generar el archivo.' });
+    });
   }
 }
 
