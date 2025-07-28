@@ -1,25 +1,36 @@
 .title {
-    margin-top: 10px;
-    margin-bottom: 10px;
-    font-size: 14pt;
-    color: rgb(170, 170, 170);
+  margin-top: 10px;
+  margin-bottom: 10px;
+  font-size: 14pt;
+  color: rgb(170, 170, 170);
 }
 
 
 .headerCargoAdd {
-    width: 96%;
-    display: flex;
-    justify-content: space-between;
+  width: 96%;
+  display: flex;
+  justify-content: space-between;
 }
 
 
 
 .hora-ampm-container {
-    display: flex;
-    align-items: center;
-  }
-  .hora-ampm-container input {
-    flex-grow: 1;
-    margin-right: 10px;
-  }
-  
+  display: flex;
+  align-items: center;
+}
+
+.hora-ampm-container input {
+  flex-grow: 1;
+  margin-right: 10px;
+}
+
+
+.no-select {
+  pointer-events: none;
+}
+
+.no-select input {
+  pointer-events: auto;
+  cursor: pointer;
+  color: #000;
+}

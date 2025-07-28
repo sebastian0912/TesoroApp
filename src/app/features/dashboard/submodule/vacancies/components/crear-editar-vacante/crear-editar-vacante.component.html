@@ -41,12 +41,35 @@
       </mat-select>
     </mat-form-field>
 
+    <!-- MUNICIPIOS -->
     <mat-form-field appearance="fill" class="example-full-width">
       <mat-label>Municipio(s)</mat-label>
-      <mat-select formControlName="municipio" multiple>
-        <mat-option *ngFor="let m of municipiosColombia" [value]="m">{{ m }}</mat-option>
+      <mat-select formControlName="municipio" multiple panelClass="select-panel"
+        (openedChange)="resetFiltroMunicipio()">
+        <!-- Opción de filtro -->
+        <mat-option disabled class="no-select filtro-option">
+          <input matInput placeholder="Buscar municipio..." [(ngModel)]="municipioFiltro"
+            (ngModelChange)="filtrarMunicipios()" [ngModelOptions]="{standalone: true}">
+        </mat-option>
+        <!-- Opciones filtradas -->
+        <mat-option *ngFor="let m of municipiosFiltrados" [value]="m">
+          {{ m }}
+        </mat-option>
       </mat-select>
     </mat-form-field>
+
+
+
+
+
+
+
+
+
+
+
+
+
 
     <!--auxilioTransporte si o no-->
     <mat-form-field class="example-full-width">
@@ -187,6 +210,8 @@
 </div>
 
 <div mat-dialog-actions>
-  <button mat-button (click)="cancelar()" style="background-color: red; color: white; border-radius: 5pt;">Cancelar</button>
-  <button mat-button (click)="guardar()"  style="background-color: #003e7f; color: white; border-radius: 5pt;">Guardar</button>
+  <button mat-button (click)="cancelar()"
+    style="background-color: red; color: white; border-radius: 5pt;">Cancelar</button>
+  <button mat-button (click)="guardar()"
+    style="background-color: #003e7f; color: white; border-radius: 5pt;">Guardar</button>
 </div>

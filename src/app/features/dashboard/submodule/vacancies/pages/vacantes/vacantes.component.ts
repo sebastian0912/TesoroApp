@@ -41,6 +41,10 @@ export class VacantesComponent implements OnInit {
     'fechaPublicado',
     'cargo',
     'salario',
+    'auxilioTransporte',
+    'municipio',
+    'tipoContratacion',
+    'pruebaOContratacion',
     'observacionVacante',
     'finca',
     'temporal',
@@ -71,6 +75,7 @@ export class VacantesComponent implements OnInit {
         return of([]);
       })
     ).subscribe((response: any) => {
+      console.log('Vacantes cargadas:', response);
       this.dataSource.data = response;
 
       // Asigna paginator y sort si están disponibles
@@ -203,7 +208,7 @@ export class VacantesComponent implements OnInit {
             });
           }
         });
-      } 
+      }
     });
   }
 

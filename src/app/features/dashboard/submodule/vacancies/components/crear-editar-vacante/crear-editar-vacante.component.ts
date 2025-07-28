@@ -1,5 +1,5 @@
-import { Component, Inject, OnInit } from '@angular/core';
-import { FormArray, FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angular/forms';
+import { Component, ElementRef, Inject, OnInit, ViewChild } from '@angular/core';
+import { FormArray, FormBuilder, FormGroup, Validators, ReactiveFormsModule, FormsModule, FormControl } from '@angular/forms';
 import { MatDialogRef, MAT_DIALOG_DATA, MatDialogModule } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
@@ -12,11 +12,13 @@ import { MatNativeDateModule, MAT_DATE_FORMATS, DateAdapter, MAT_DATE_LOCALE } f
 import { CommonModule } from '@angular/common';
 import { Observable } from 'rxjs';
 import { map, startWith } from 'rxjs/operators';
-import { MatAutocompleteModule } from '@angular/material/autocomplete';
+import { MatAutocompleteModule, MatAutocompleteSelectedEvent } from '@angular/material/autocomplete';
 import { UtilityServiceService } from '@/app/shared/services/utilityService/utility-service.service';
 import { VacantesService } from '../../service/vacantes/vacantes.service';
 import { HttpClient } from '@angular/common/http';
 import { MomentDateAdapter } from '@angular/material-moment-adapter';
+import { MatChipInputEvent, MatChipsModule } from '@angular/material/chips';
+import { COMMA, ENTER } from '@angular/cdk/keycodes';
 
 export const MY_DATE_FORMATS = {
   parse: {
@@ -43,7 +45,9 @@ export const MY_DATE_FORMATS = {
     MatCheckboxModule,
     MatDatepickerModule,
     MatNativeDateModule,
-    MatAutocompleteModule
+    MatAutocompleteModule,
+    FormsModule,
+    MatChipsModule
   ],
   templateUrl: './crear-editar-vacante.component.html',
   styleUrls: ['./crear-editar-vacante.component.css'],
@@ -62,6 +66,15 @@ export class CrearEditarVacanteComponent implements OnInit {
   centrosCostos: string[] = [];
   filteredCentrosCostos!: Observable<string[]>;
   municipiosColombia: string[] = [];
+
+
+  municipiosFiltrados: string[] = [];
+  municipioFiltro = '';
+  municipioCtrl = new FormControl('');
+  separatorKeysCodes: number[] = [ENTER, COMMA];
+  @ViewChild('municipioInput', { static: false })
+  municipioInput!: ElementRef<HTMLInputElement>;
+
 
   constructor(
     private fb: FormBuilder,
@@ -96,7 +109,6 @@ export class CrearEditarVacanteComponent implements OnInit {
       codigoElite: [''],
       oficinasSeleccionadas: [[]],
       oficinasQueContratan: this.fb.array([]),
-      // nuevos
       pruebaOContratacion: ['', Validators.required],
       tipoContratacion: ['', Validators.required],
       municipio: [[], Validators.required],
@@ -132,24 +144,56 @@ export class CrearEditarVacanteComponent implements OnInit {
 
     this.vacanteForm.get('pruebaOContratacion')?.valueChanges.subscribe(valor => {
       if (valor !== 'Prueba') {
-        // Limpia todos los campos de la prueba técnica
         this.vacanteForm.patchValue({
           presentaPruebaTecnica: '',
           fechadePruebatecnica: '',
           horadePruebatecnica: '',
           ubicacionPruebaTecnica: ''
         });
-        // Si quieres también puedes hacer: this.vacanteForm.get('presentaPruebaTecnica')?.setValue('');
-        // Y así con los demás, si prefieres.
       }
     });
 
-    this.http.get<any[]>('/util/colombia.json').subscribe(data => {
-      // Flatten y ordenar municipios
-      this.municipiosColombia = data.flatMap(dep => dep.ciudades)
+    /* Carga de municipios + filtro reactivo */
+    this.http.get<any[]>('./util/colombia.json').subscribe(data => {
+      this.municipiosColombia = data
+        .flatMap(dep => dep.ciudades)
         .sort((a, b) => a.localeCompare(b, 'es', { sensitivity: 'base' }));
+      this.municipiosFiltrados = [...this.municipiosColombia];
     });
+
+    this.municipioCtrl.valueChanges
+      .pipe(startWith(''))
+      .subscribe(value => this.filtrarMunicipios());
   }
+
+  filtrarMunicipios() {
+    const f = this.municipioFiltro.toLowerCase();
+    // Los seleccionados actuales
+    const seleccionados: string[] = this.vacanteForm.get('municipio')?.value || [];
+
+    // Filtra los no seleccionados
+    const noSeleccionados = this.municipiosColombia.filter(m =>
+      !seleccionados.includes(m) && m.toLowerCase().includes(f)
+    );
+
+    // Siempre pon los seleccionados arriba
+    this.municipiosFiltrados = [
+      ...seleccionados,
+      ...noSeleccionados
+    ];
+  }
+
+
+  resetFiltroMunicipio() {
+    // Siempre muestra todos los municipios, pero los seleccionados primero
+    const seleccionados: string[] = this.vacanteForm.get('municipio')?.value || [];
+    const noSeleccionados = this.municipiosColombia.filter(m => !seleccionados.includes(m));
+    this.municipiosFiltrados = [...seleccionados, ...noSeleccionados];
+    this.municipioFiltro = '';
+  }
+
+
+
 
   private cargarParaEdicion(v: any): void {
     this.vacanteForm.patchValue({
