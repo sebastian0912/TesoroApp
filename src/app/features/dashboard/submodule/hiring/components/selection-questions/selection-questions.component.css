@@ -1,3 +1,4 @@
+/*────────────────────────  PESTAÑAS  ────────────────────────*/
 ::ng-deep .mat-tab-label.custom-colored-tab {
   display: flex;
   align-items: center;
@@ -6,247 +7,121 @@
   min-height: 48px;
   font-weight: 500;
   border-radius: 4px 4px 0 0;
-  transition: background-color 0.3s ease;
-  color: white;
+  transition: background-color .3s ease;
+  color: #fff;
 }
 
-/* Color también en el tab activo */
 ::ng-deep .mat-tab-label.custom-colored-tab.active {
   background-color: inherit;
-  color: white;
+  color: #fff;
 }
 
-/* Opcional: atenuado para tabs desactivados */
 ::ng-deep .mat-tab-label.custom-colored-tab.disabled {
-  opacity: 0.5;
+  opacity: .5;
   cursor: not-allowed;
 }
 
-
-
-
-.titulo {
-  font-size: 1.2rem;
-  font-weight: bold;
-  line-height: 1;
-}
-
-.info {
-  margin-top: 20px;
+/*──────────────────────  LAYOUT GENERAL  ───────────────────*/
+.seleccion,
+.secciones,
+.seccion {
   width: 100%;
-  max-width: 100px;
-  display: block;
-  margin-left: auto;
-  margin-right: auto;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px 20px;
+  /* ↓ menos espacio entre filas / cols ↓ */
+  align-items: start;
 }
 
-
-.seleccion {
-  width: 100%;
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  align-items: flex-start;
-}
-
+/* Tarjetas laterales */
 mat-card:nth-child(1) {
-  box-shadow: rgba(0, 0, 0, 0.19) 0px 10px 20px, rgba(0, 0, 0, 0.23) 0px 6px 6px;
-  width: 30%;
+  width: 32%;
   margin: 10px;
   position: sticky;
   top: 10px;
-}
-
-.example-full-width {
-  min-width: 80%;
-}
-
-.example-full-width2 {
-  width: 100%;
-}
-
-.example-full-width3 {
-  width: 30%;
-  margin: 5px;
+  box-shadow:
+    0 10px 20px rgba(0, 0, 0, .19),
+    0 6px 6px rgba(0, 0, 0, .23);
 }
 
 mat-card:nth-child(2) {
-  width: 60%;
+  width: 64%;
   margin: 10px;
-  box-shadow: rgba(0, 0, 0, 0.19) 0px 10px 20px, rgba(0, 0, 0, 0.23) 0px 6px 6px;
   overflow-y: auto;
+  box-shadow:
+    0 10px 20px rgba(0, 0, 0, .19),
+    0 6px 6px rgba(0, 0, 0, .23);
 }
 
-.text-danger {
-  color: red !important;
-}
-
-
-/*------------------------------------------------------*/
-
-.opcionesVer {
-  width: 72vw;
-  max-height: 400px;
-  overflow-y: auto;
-  margin-top: 20px;
-  margin: 0 auto;
-  margin-bottom: 10pt;
-}
-
-p {
-  margin: 0;
-  padding: 0;
-  line-height: 1;
-}
-
-mat-card-title,
-mat-card-subtitle {
-  font-weight: bold;
-  font-size: 13pt;
-}
-
-mat-card-subtitle {
-  margin-bottom: 10px;
-}
-
-.actions-wrapper {
-  display: flex;
-  justify-content: flex-end;
-  padding: 5px;
-}
-
-.vacantes-scroll-container {
-  overflow-x: auto;
-  padding: 10px;
-}
-
-.vacantes-container {
-  display: flex;
-  gap: 16px;
-  flex-wrap: nowrap;
-}
-
-.vacante-card {
-  min-width: 300px;
-  max-width: 350px;
-  flex-shrink: 0;
-  box-shadow: rgba(0, 0, 0, 0.19) 0px 10px 20px, rgba(0, 0, 0, 0.23) 0px 6px 6px;
-}
-
-.actions-wrapper {
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  z-index: 1;
-}
-
-.fixed-button {
-  background-color: white;
-  box-shadow: none;
-}
-
-
-
-
-
-
-/*-----------------------------------*/
-
-.seccion {
-  min-height: 66vh;
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-}
-
-.secciones{
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 16px;
-  width: 100%;
-}
-
+/*─────────────────────  CONTENEDOR DE INPUT  ───────────────*/
 .input-container {
   display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  flex-wrap: wrap;
+  flex-direction: column;
+  /* compacta verticalmente */
+  gap: 4px;
+  /* espacio mínimo entre campo y «small» */
   width: 100%;
-  gap: 8px;
+  min-width: 0;
 }
 
-.input-container mat-form-field {
-  flex: 1 1 200px;
-  min-width: 200px;
-  max-width: 100%;
-}
-
-.input-container button {
-  margin-right: 8px;
+mat-form-field.example-full-width {
+  width: 100%;
+  margin: 0;
 }
 
 .uploaded-file-name {
-  display: block;
-  width: 100%;
-  margin-top: -8px;
-  font-size: 0.85rem;
+  font-size: .825rem;
   color: #666;
-  word-wrap: break-word;
   font-style: italic;
+  line-height: 1.3;
+  word-break: break-word;
+}
+
+/* Color para estados */
+.text-danger {
+  color: #e53935 !important;
 }
 
 
 
+.input-container {
+  min-width: 280px;
+  max-width: 100%;
+}
 
-/* Media Query para pantallas pequeñas */
-@media (max-width: 768px) {
+mat-form-field.example-full-width {
+  width: 100%;
+  min-width: 240px;
+}
 
+/*────────────────────  BREAKPOINTS RESPONSIVE  ─────────────*/
+@media (max-width:1100px) {
+
+  .seleccion,
+  .secciones,
+  .seccion {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width:700px) {
+
+  .seleccion,
+  .secciones,
   .seccion {
     grid-template-columns: 1fr;
-    gap: 8px;
-  }
-
-  .input-container {
-    justify-content: center;
-    gap: 5px;
-  }
-
-  .input-container mat-form-field {
-    flex: 1 1 150px;
-    min-width: 150px;
+    gap: 10px;
+    padding: 0 4px;
   }
 
   mat-card:nth-child(1),
   mat-card:nth-child(2) {
-    width: 90vw;
-    margin: 10px;
+    width: 92vw;
+    margin: 10px auto;
     position: static;
   }
 
-  .opcionesVer {
-    width: 90vw;
-  }
-
   .uploaded-file-name {
-    font-size: 0.75rem;
+    font-size: .75rem;
   }
-
-  mat-expansion-panel-header {
-    min-height: 35pt;
-    height: auto;
-  }
-
-  mat-expansion-panel {
-    margin-bottom: 5pt;
-    height: auto;
-  }
-
-  .vacante-card {
-    min-width: 70vw;
-  }
-
-  .example-full-width3 {
-    width: 100%;
-    margin: 5px;
-  }
-
 }

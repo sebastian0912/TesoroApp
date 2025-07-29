@@ -38,18 +38,18 @@ export class SelectionQuestionsComponent implements OnInit {
   examFiles: File[] = []; // Guardamos los archivos PDF por índice
 
   uploadedFiles: { [key: string]: { file?: File; fileName?: string } } = {
-    eps: { fileName: 'No disponible, falta cargar' },
-    afp: { fileName: 'No disponible, falta cargar' },
-    policivos: { fileName: 'No disponible, falta cargar' },
-    procuraduria: { fileName: 'No disponible, falta cargar' },
-    contraloria: { fileName: 'No disponible, falta cargar' },
-    ramaJudicial: { fileName: 'No disponible, falta cargar' },
-    medidasCorrectivas: { fileName: 'No disponible, falta cargar' },
-    sisben: { fileName: 'No disponible, falta cargar' },
-    ofac: { fileName: 'No disponible, falta cargar' },
-    examenesMedicos: { fileName: 'No disponible, falta cargar' },
-    figuraHumana: { fileName: 'No disponible, falta cargar' },
-    pensionSemanas: { fileName: 'No disponible, falta cargar' },
+    eps: { fileName: 'Adjuntar documento' },
+    afp: { fileName: 'Adjuntar documento' },
+    policivos: { fileName: 'Adjuntar documento' },
+    procuraduria: { fileName: 'Adjuntar documento' },
+    contraloria: { fileName: 'Adjuntar documento' },
+    ramaJudicial: { fileName: 'Adjuntar documento' },
+    medidasCorrectivas: { fileName: 'Adjuntar documento' },
+    sisben: { fileName: 'Adjuntar documento' },
+    ofac: { fileName: 'Adjuntar documento' },
+    examenesMedicos: { fileName: 'Adjuntar documento' },
+    figuraHumana: { fileName: 'Adjuntar documento' },
+    pensionSemanas: { fileName: 'Adjuntar documento' },
   };
 
   epsList: string[] = [
@@ -90,6 +90,24 @@ export class SelectionQuestionsComponent implements OnInit {
     'No Cumple',
     'Sin Buscar'
   ];
+
+categoriasSisben: string[] = [
+  // Grupo A: Pobreza extrema
+  'A1', 'A2', 'A3', 'A4', 'A5',
+
+  // Grupo B: Pobreza moderada
+  'B1', 'B2', 'B3', 'B4', 'B5', 'B6', 'B7',
+
+  // Grupo C: Vulnerabilidad
+  'C1', 'C2', 'C3', 'C4', 'C5', 'C6', 'C7', 'C8', 'C9', 'C10', 'C11', 'C12', 'C13', 'C14', 'C15', 'C16', 'C17', 'C18',
+
+  // Grupo D: No pobre ni vulnerable
+  'D1', 'D2', 'D3', 'D4', 'D5', 'D6', 'D7', 'D8', 'D9', 'D10', 'D11', 'D12', 'D13', 'D14', 'D15', 'D16', 'D17', 'D18', 'D19', 'D20', 'D21',
+
+  // Opcionales de UI
+  'No Aplica',
+  'Sin Buscar'
+];
 
   typeMap: { [key: string]: number } = {
     eps: 7,

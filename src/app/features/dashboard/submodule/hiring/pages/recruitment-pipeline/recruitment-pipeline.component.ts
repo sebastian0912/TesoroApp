@@ -104,18 +104,18 @@ export class RecruitmentPipelineComponent implements OnInit {
   helpInformationComponent!: HelpInformationComponent;
 
   uploadedFiles: { [key: string]: { file?: File; fileName?: string } } = {
-    eps: { fileName: 'No disponible, falta cargar' },
-    afp: { fileName: 'No disponible, falta cargar' },
-    policivos: { fileName: 'No disponible, falta cargar' },
-    procuraduria: { fileName: 'No disponible, falta cargar' },
-    contraloria: { fileName: 'No disponible, falta cargar' },
-    ramaJudicial: { fileName: 'No disponible, falta cargar' },
-    medidasCorrectivas: { fileName: 'No disponible, falta cargar' },
-    sisben: { fileName: 'No disponible, falta cargar' },
-    ofac: { fileName: 'No disponible, falta cargar' },
-    examenesMedicos: { fileName: 'No disponible, falta cargar' },
-    figuraHumana: { fileName: 'No disponible, falta cargar' },
-    pensionSemanas: { fileName: 'No disponible, falta cargar' },
+    eps: { fileName: 'Adjuntar documento' },
+    afp: { fileName: 'Adjuntar documento' },
+    policivos: { fileName: 'Adjuntar documento' },
+    procuraduria: { fileName: 'Adjuntar documento' },
+    contraloria: { fileName: 'Adjuntar documento' },
+    ramaJudicial: { fileName: 'Adjuntar documento' },
+    medidasCorrectivas: { fileName: 'Adjuntar documento' },
+    sisben: { fileName: 'Adjuntar documento' },
+    ofac: { fileName: 'Adjuntar documento' },
+    examenesMedicos: { fileName: 'Adjuntar documento' },
+    figuraHumana: { fileName: 'Adjuntar documento' },
+    pensionSemanas: { fileName: 'Adjuntar documento' },
   };
 
 
