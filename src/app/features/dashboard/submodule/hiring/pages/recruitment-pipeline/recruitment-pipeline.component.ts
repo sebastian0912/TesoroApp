@@ -23,6 +23,11 @@ import { Router } from '@angular/router';
 import { SeleccionService } from '../../service/seleccion/seleccion.service';
 import { PDFDocument } from 'pdf-lib';
 import { GestionDocumentalService } from '../../service/gestion-documental/gestion-documental.service';
+import { MatTooltipModule } from '@angular/material/tooltip';
+import { InfoVacantesService } from '../../service/info-vacantes/info-vacantes.service';
+import { TablaComponent } from '@/app/shared/components/tabla/tabla.component';
+import { ColumnConfig } from '@/app/shared/models/advanced-table-interface';
+import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 
 export const MY_DATE_FORMATS = {
   parse: { dateInput: 'DD/MM/YYYY' },
@@ -48,7 +53,10 @@ export const MY_DATE_FORMATS = {
     MatSortModule,
     MatDatepickerModule,
     MatNativeDateModule,
-    HiringQuestionsComponent
+    HiringQuestionsComponent,
+    MatTooltipModule,
+    
+    MatDialogModule
 
   ],
   templateUrl: './recruitment-pipeline.component.html',
@@ -136,6 +144,35 @@ export class RecruitmentPipelineComponent implements OnInit {
 
   filteredExamOptions: string[] = [];
 
+  // Donde uses el componente TablaComponent (ej. en un componente padre)
+  columns: ColumnConfig[] = [
+    {
+      header: 'Fecha de Creación',
+      columnDef: 'created_at',
+      type: 'date',
+      cellFn: (row: any) => new Date(row.created_at).toLocaleString(), // Puedes ajustar formato
+      placeholder: 'Filtrar por fecha'
+    },
+    {
+      header: 'Observación de Aplicación',
+      columnDef: 'aplicaObservacion',
+      type: 'text',
+      placeholder: 'Buscar...'
+    },
+    {
+      header: 'Motivo No Aplica',
+      columnDef: 'motivoNoAplica',
+      type: 'text',
+      placeholder: 'Buscar...'
+    },
+    {
+      header: 'Retroalimentación Final',
+      columnDef: 'retroalimentacion_final',
+      type: 'text',
+      placeholder: 'Buscar...'
+    }
+  ];
+
   constructor(
     private vacantesService: VacantesService,
     private utilityService: UtilityServiceService,
@@ -144,6 +181,8 @@ export class RecruitmentPipelineComponent implements OnInit {
     private gestionDocumentalService: GestionDocumentalService,
     private router: Router,
     private fb: FormBuilder,
+    private infoVacantesService: InfoVacantesService,
+    private dialog: MatDialog
   ) {
 
     // Cargar lista completa de exámenes disponibles
@@ -526,6 +565,11 @@ export class RecruitmentPipelineComponent implements OnInit {
 
 
   generacionDocumentos() {
+    // Si no existe la cedula, mostrar un mensaje de error
+    if (!this.cedulaActual || !this.codigoContrato) {
+      Swal.fire('Error', 'Debe seleccionar un candidato primero', 'error');
+      return;
+    }
     // Guardar cedula y codigoContrato en el localStorage separados
     localStorage.setItem('cedula', this.cedulaActual);
     localStorage.setItem('codigoContrato', this.codigoContrato);
@@ -779,5 +823,37 @@ export class RecruitmentPipelineComponent implements OnInit {
     }
   }
 
+  mostrarTabla() {
+    // Si no existe la cedula, mostrar un mensaje de error
+    if (!this.cedulaActual) {
+      Swal.fire('Error', 'Debe seleccionar un candidato primero', 'error');
+      return;
+    }
+
+    this.infoVacantesService.getVacantesPorNumero(this.cedulaActual).pipe(
+      catchError((error) => {
+        Swal.fire('Error', 'Ocurrió un error al cargar las vacantes del candidato', 'error');
+        return of([]);
+      }
+      )
+    ).subscribe((response: any[]) => {
+      if (!response || response.length === 0) {
+        Swal.fire('Error', 'No se encontraron vacantes para este candidato', 'error');
+        return;
+      }
+      this.dialog.open(TablaComponent, {
+        data: {
+          dataSource: response,
+          columns: this.columns
+        },
+        minWidth: '80vw', // opcional
+        height: 'auto'
+      });
+
+      console.log('Vacantes encontradas:', response);
+    });
+
+
+  }
 
 }

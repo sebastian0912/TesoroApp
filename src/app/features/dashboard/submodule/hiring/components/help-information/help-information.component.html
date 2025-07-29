@@ -215,11 +215,6 @@
           <input matInput formControlName="quienLosCuida">
         </mat-form-field>
 
-        <mat-form-field class="example-full-width">
-          <mat-label>Observación del evaluador</mat-label>
-          <input matInput formControlName="aplicaObservacion">
-        </mat-form-field>
-
         <mat-form-field appearance="fill" class="example-full-width">
           <mat-label>¿Observación del evaluador?</mat-label>
           <mat-select formControlName="aplicaObservacion" required>
@@ -231,6 +226,12 @@
             Este campo es requerido
           </mat-error>
         </mat-form-field>
+
+        <mat-form-field class="example-full-width">
+          <mat-label>Observación del evaluador</mat-label>
+          <input matInput formControlName="aplicaObservacion">
+        </mat-form-field>
+
 
         <!-- Mostrar motivo solo si NO APLICA -->
         <mat-form-field appearance="fill" class="example-full-width"
@@ -297,7 +298,7 @@
 
         <mat-form-field class="example-full-width">
           <mat-label>Retroalimentación final</mat-label>
-          <input matInput formControlName="retroalimentacionFinal" rows="3">
+          <input matInput formControlName="retroalimentacionFinal" >
         </mat-form-field>
       </div>
 

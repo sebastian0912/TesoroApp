@@ -1,0 +1,174 @@
+.table-container{
+  min-height: 85vh;
+}
+
+/* ======================
+   Bordes redondeados encabezado
+====================== */
+.table-container th.mat-header-cell:first-child {
+  border-top-left-radius: 16px;
+}
+
+.table-container th.mat-header-cell:last-child {
+  border-top-right-radius: 16px;
+}
+
+/* ======================
+   Bordes redondeados fila de filtros
+====================== */
+.table-container tr.filter-row th.filter-cell:first-child {
+  border-bottom-left-radius: 12px;
+}
+
+.table-container tr.filter-row th.filter-cell:last-child {
+  border-bottom-right-radius: 12px;
+}
+
+/* ======================
+   Fila de filtros (color y separación con tabla)
+====================== */
+::ng-deep .filter-row th.filter-cell {
+  background: #232942 !important;
+  color: #fff !important;
+  font-weight: normal;
+  padding-top: 12pt;
+  padding-bottom: 10pt !important;
+  border-bottom: none;
+  box-shadow: 0 4px 12px -8px #0001;
+  vertical-align: middle;
+}
+
+/* mat-form-field de filtros: todo el ancho, sin margen extra */
+::ng-deep .filter-row mat-form-field {
+  margin: 0;
+  width: 100%;
+}
+
+/* ========== INPUTS texto: blanco ========== */
+::ng-deep .filter-row input,
+::ng-deep .filter-row .mat-input-element {
+  color: #fff !important;
+  background: transparent !important;
+  font-weight: 500;
+}
+
+/* ========== Placeholders blanco en input ========== */
+::ng-deep .filter-row input::placeholder {
+  color: #fff !important;
+  opacity: 0.8 !important;
+}
+
+/* ========== mat-select: texto y placeholder blanco ========== */
+::ng-deep .filter-row .mat-select-value-text {
+  color: #fff !important;
+  font-weight: 500;
+  opacity: 1 !important;
+}
+
+::ng-deep .filter-row .mat-select-placeholder {
+  color: #fff !important;
+  opacity: 0.8 !important;
+}
+
+::ng-deep .filter-row .mat-select-arrow {
+  color: #fff !important;
+}
+
+/* ========== mat-form-field label blanco ========== */
+::ng-deep .filter-row .mat-form-field-label {
+  color: #fff !important;
+  opacity: 0.8 !important;
+}
+
+/* ========== Icono de datepicker blanco ========== */
+::ng-deep .filter-row .mat-datepicker-toggle-default-icon,
+::ng-deep .filter-row .mat-datepicker-toggle-active {
+  color: #fff !important;
+}
+
+/* ========== Panel flotante del mat-select: fondo y opciones blancas ========== */
+::ng-deep .cdk-overlay-pane .mat-select-panel {
+  background: #232942 !important;
+  color: #fff !important;
+}
+
+::ng-deep .mat-select-panel .mat-option {
+  color: #fff !important;
+}
+
+::ng-deep .mat-select-panel .mat-option.mat-active {
+  background: #36406c !important;
+  color: #fff !important;
+}
+
+::ng-deep .mat-select-panel .mat-option.mat-selected:not(.mat-option-disabled) {
+  background: #182540 !important;
+  color: #fff !important;
+}
+
+/* ========== Separación visual entre filtros y cuerpo de la tabla ========== */
+.table-container .filter-row {
+  border-bottom: 0;
+}
+
+.table-container .filter-row th.filter-cell {
+  box-shadow: 0 2px 8px -4px #0003;
+}
+
+/* ======================
+   Tabla general
+====================== */
+.table-container {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-height: 60vh;
+  overflow: auto;
+}
+
+.table-container table {
+  width: 100%;
+  text-align: center;
+  font-size: 14px;
+}
+
+.table-container th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background-color: #1b1e36 !important;
+  color: white;
+  align-items: center;
+}
+
+.mat-table th.mat-header-cell {
+  background-color: #182540 !important;
+}
+
+.mat-table {
+  width: 100%;
+}
+
+.table-container tr:nth-child(even),
+.table-container tr:nth-child(odd) {
+  background-color: #fff;
+}
+
+.table-container td,
+.table-container th {
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ========== Placeholders hueso en input ========== */
+::ng-deep .filter-row input::placeholder {
+  color: #F5E9DA !important;
+  /* Color hueso */
+  opacity: 1 !important;
+}
+
+
+button {
+  margin-left: 5pt;
+}

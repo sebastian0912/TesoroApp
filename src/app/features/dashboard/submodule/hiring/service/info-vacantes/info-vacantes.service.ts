@@ -27,4 +27,10 @@ export class InfoVacantesService {
     return this.http.get(url, { params, responseType: 'json' });
   }
 
+  // vacantes-por-numero/<str:numero>/
+  getVacantesPorNumero(numero: string): Observable<any> {
+    const url = `${this.apiUrl}/entrevista/vacantes-por-numero/${numero}/`;
+    return this.http.get(url);
+  }
+
 }

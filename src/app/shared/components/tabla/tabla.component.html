@@ -1,0 +1,82 @@
+<mat-card>
+  <div class="table-container">
+    <table mat-table [dataSource]="dataSource" matSort class="mat-elevation-z2 tabla">
+  
+      <!-- ===================== 1)  COLUMNAS DE DATOS ===================== -->
+      <ng-container *ngFor="let col of columns" [matColumnDef]="col.columnDef">
+        <th mat-header-cell *matHeaderCellDef mat-sort-header>{{ col.header }}</th>
+        <td mat-cell *matCellDef="let row">
+          {{ col.cellFn ? col.cellFn(row) : row[col.columnDef] }}
+        </td>
+      </ng-container>
+  
+      <!-- ===================== 2)  COLUMNAS DE FILTRO  ===================== -->
+      <ng-container *ngFor="let col of columns" [matColumnDef]="col.columnDef + '_filter'">
+        <th mat-header-cell *matHeaderCellDef class="filter-cell">
+  
+          <!-- Texto -->
+          <mat-form-field *ngIf="col.type === 'text'" appearance="outline" class="w-100">
+            <input matInput [placeholder]="col.placeholder || ''" [(ngModel)]="filters[col.columnDef]"
+              (ngModelChange)="applyFilter()" style="color: white;" />
+          </mat-form-field>
+  
+          <!-- Select -->
+          <mat-form-field *ngIf="col.type === 'select'" appearance="outline" class="w-100" style="color: white;">
+            <mat-select [placeholder]="col.placeholder || ''" [(ngModel)]="filters[col.columnDef]"
+              (selectionChange)="applyFilter()" style="color: white;">
+              <mat-option *ngFor="let opt of col.options" [value]="opt.value">
+                {{ opt.viewValue }}
+              </mat-option>
+            </mat-select>
+          </mat-form-field>
+  
+          <!-- Fecha -->
+          <!-- Filtro fecha -->
+          <mat-form-field *ngIf="col.type === 'date'" class="w-100">
+            <input matInput [matDatepicker]="picker" [placeholder]="col.placeholder || ''"
+              [(ngModel)]="filters[col.columnDef]" (dateChange)="applyFilter()" style="color: white;" />
+            <mat-datepicker-toggle matSuffix [for]="picker"></mat-datepicker-toggle>
+            <mat-datepicker #picker></mat-datepicker>
+          </mat-form-field>
+  
+  
+        </th>
+      </ng-container>
+  
+      <!-- ===================== 3)  ACCIONES (datos) ===================== -->
+      <ng-container matColumnDef="actions">
+        <th mat-header-cell *matHeaderCellDef>Acciones</th>
+        <td mat-cell *matCellDef="let row">
+          <ng-content select="[actions]"></ng-content>
+        </td>
+      </ng-container>
+  
+      <!-- ===================== 4)  ACCIONES (filtros) ===================== -->
+      <ng-container matColumnDef="actions_filter">
+        <th mat-header-cell *matHeaderCellDef class="filter-cell" >
+          <button mat-icon-button matTooltip="Limpiar filtros" (click)="resetFilters()" style="background-color: white;">
+            <mat-icon>filter_alt_off</mat-icon>
+          </button>
+          <button mat-icon-button matTooltip="Descargar Excel" (click)="exportFilteredToExcel()"
+            style="background-color: white; margin-right: 4px;">
+            <mat-icon style="color: #232942;">download</mat-icon>
+          </button>
+  
+  
+        </th>
+      </ng-container>
+  
+      <!-- ========== FILAS ========== -->
+  
+      <!-- Encabezados con sort -->
+      <tr mat-header-row *matHeaderRowDef="displayedColumns; sticky: true"></tr>
+      <!-- Fila de filtros justo debajo -->
+      <tr class="filter-row" mat-header-row *matHeaderRowDef="displayedFilterColumns"></tr>
+      <!-- Datos -->
+      <tr mat-row *matRowDef="let row; columns: displayedColumns"></tr>
+  
+    </table>
+  
+    <mat-paginator [pageSize]="12" [pageSizeOptions]="[12, 24, 36]"></mat-paginator>
+  </div>
+</mat-card>

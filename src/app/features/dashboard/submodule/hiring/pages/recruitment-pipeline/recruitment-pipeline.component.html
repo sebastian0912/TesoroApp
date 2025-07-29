@@ -1,17 +1,29 @@
-<button mat-flat-button class="btn-with-arrow" (click)="generacionDocumentos()">
-  <span class="text">Generar o subir documentación </span>
-  <mat-icon class="arrow">arrow_forward</mat-icon>
-</button> <br><br>
-
 <mat-card style="height: 87vh;">
   <mat-card-content style="height: 100%;">
-    <div class="info-candidato-titulo">
-      <mat-icon>person</mat-icon>
-      <span class="info-candidato-label">Cédula:</span>
-      <span class="info-candidato-valor">{{ cedulaActual }}</span>
-      <span class="info-candidato-label">| Nombre:</span>
-      <span class="info-candidato-valor">{{ nombreCandidato }}</span>
+
+    <div class="header">
+      <div class="info-candidato-titulo">
+        <mat-icon>person</mat-icon>
+        <span class="info-candidato-label">Cédula:</span>
+        <span class="info-candidato-valor">{{ cedulaActual }}</span>
+        <span class="info-candidato-label">| Nombre:</span>
+        <span class="info-candidato-valor">{{ nombreCandidato }}</span>
+      </div>
+      <div class="botones">
+        <!-- Botón de documentos -->
+        <button mat-icon-button matTooltip="Generar o subir documentación" aria-label="Generar o subir documentación"
+          (click)="generacionDocumentos()">
+          <mat-icon>description</mat-icon>
+        </button>
+  
+        <!-- Botón de tabla -->
+        <button mat-icon-button matTooltip="Ver tabla de registros" aria-label="Ver tabla de registros"
+          (click)="mostrarTabla()">
+          <mat-icon>table_chart</mat-icon>
+        </button>
+      </div>
     </div>
+
     <mat-tab-group class="tab-group">
       <mat-tab>
         <ng-template mat-tab-label>
@@ -35,8 +47,7 @@
           </div>
         </ng-template>
         <div class="tab-content-scrollable">
-          <app-selection-questions
-            [cedula]="cedulaActual" [vacanteSeleccionada]="selectionQuestionsComponent"
+          <app-selection-questions [cedula]="cedulaActual" [vacanteSeleccionada]="selectionQuestionsComponent"
             [codigoContrato]="codigoContrato">
           </app-selection-questions>
         </div>
