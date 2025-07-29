@@ -95,7 +95,7 @@ export class CrearEditarVacanteComponent implements OnInit {
       temporal: ['', Validators.required],
       ubicacionPruebaTecnica: [''],
       experiencia: ['', Validators.required],
-      presentaPruebaTecnica: [''],
+      //presentaPruebaTecnica: [''],
       fechadePruebatecnica: [''],
       horadePruebatecnica: [''],
       observacionVacante: [''],
@@ -145,7 +145,7 @@ export class CrearEditarVacanteComponent implements OnInit {
     this.vacanteForm.get('pruebaOContratacion')?.valueChanges.subscribe(valor => {
       if (valor !== 'Prueba') {
         this.vacanteForm.patchValue({
-          presentaPruebaTecnica: '',
+          //presentaPruebaTecnica: '',
           fechadePruebatecnica: '',
           horadePruebatecnica: '',
           ubicacionPruebaTecnica: ''
@@ -203,7 +203,7 @@ export class CrearEditarVacanteComponent implements OnInit {
       temporal: v.temporal,
       ubicacionPruebaTecnica: v.ubicacionPruebaTecnica,
       experiencia: v.experiencia,
-      presentaPruebaTecnica: v.fechadePruebatecnica ? 'Si' : 'No',
+      //presentaPruebaTecnica: v.fechadePruebatecnica ? 'Si' : 'No',
       fechadePruebatecnica: v.fechadePruebatecnica ? new Date(v.fechadePruebatecnica) : null,
       horadePruebatecnica: v.horadePruebatecnica,
       observacionVacante: v.observacionVacante,
@@ -213,9 +213,14 @@ export class CrearEditarVacanteComponent implements OnInit {
       fechaPublicado: new Date(v.fechaPublicado),
       quienpublicolavacante: v.quienpublicolavacante,
       estadovacante: v.estadovacante,
-      salario: +v.salario,
+      salario: v.salario,
       codigoElite: v.codigoElite,
-      oficinasSeleccionadas: v.oficinasQueContratan.map((o: any) => o.nombre)
+      oficinasSeleccionadas: v.oficinasQueContratan.map((o: any) => o.nombre),
+      pruebaOContratacion: v.pruebaOContratacion || 'Prueba',
+      tipoContratacion: v.tipoContratacion || 'Temporal',
+      municipio: v.municipio || [],
+      auxilioTransporte: v.auxilioTransporte
+
     });
 
     const fa = this.oficinasQueContratan;

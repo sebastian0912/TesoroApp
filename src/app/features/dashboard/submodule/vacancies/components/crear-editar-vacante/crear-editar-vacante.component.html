@@ -110,28 +110,19 @@
       </mat-select>
     </mat-form-field>
 
-    <!--presenta prueba tecnica -->
     <mat-form-field class="example-full-width" *ngIf="vacanteForm.get('pruebaOContratacion')?.value === 'Prueba'">
-      <mat-label>Presenta Prueba Técnica</mat-label>
-      <mat-select formControlName="presentaPruebaTecnica">
-        <mat-option value="Si">Si</mat-option>
-        <mat-option value="No">No</mat-option>
-      </mat-select>
-    </mat-form-field>
-
-    <mat-form-field class="example-full-width" *ngIf="vacanteForm.get('presentaPruebaTecnica')?.value === 'Si'">
       <mat-label>Fecha de Prueba Técnica</mat-label>
       <input matInput [matDatepicker]="picker1" formControlName="fechadePruebatecnica">
       <mat-datepicker-toggle matSuffix [for]="picker1"></mat-datepicker-toggle>
       <mat-datepicker #picker1></mat-datepicker>
     </mat-form-field>
 
-    <mat-form-field class="example-full-width" *ngIf="vacanteForm.get('presentaPruebaTecnica')?.value === 'Si'">
+    <mat-form-field class="example-full-width" *ngIf="vacanteForm.get('pruebaOContratacion')?.value === 'Prueba'">
       <mat-label>Hora de Prueba Técnica</mat-label>
       <input matInput type="time" formControlName="horadePruebatecnica">
     </mat-form-field>
 
-    <mat-form-field class="example-full-width" *ngIf="vacanteForm.get('presentaPruebaTecnica')?.value === 'Si'">
+    <mat-form-field class="example-full-width" *ngIf="vacanteForm.get('pruebaOContratacion')?.value === 'Prueba'">
       <mat-label>Ubicación Prueba Técnica</mat-label>
       <input matInput formControlName="ubicacionPruebaTecnica">
     </mat-form-field>

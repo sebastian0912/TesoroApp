@@ -441,7 +441,12 @@ export class ConsultContractingDocumentationComponent implements OnInit {
       const dataForExcel = rows.map((row: any) => {
         const newRow: any = {};
         headers.forEach(h => {
-          newRow[headerMap[h] || h] = row[h];
+          if (h === 'cedula') {
+            // Convertir a número (solo si no tiene ceros a la izquierda)
+            newRow[headerMap[h] || h] = Number(row[h]);
+          } else {
+            newRow[headerMap[h] || h] = row[h];
+          }
         });
         return newRow;
       });
@@ -474,7 +479,8 @@ export class ConsultContractingDocumentationComponent implements OnInit {
       });
     });
   }
-  
+
+
 }
 
 

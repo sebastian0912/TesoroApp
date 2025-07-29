@@ -112,7 +112,7 @@ export class VacantesComponent implements OnInit {
           codigoElite: result.codigoElite,
           observacionVacante: result.observacionVacante,
           fechadePruebatecnica: this.formatDate(result.fechadePruebatecnica) || null,
-          horadePruebatecnica: result.presentaPruebaTecnica === 'Si' ? result.horadePruebatecnica : null,
+          horadePruebatecnica: result.pruebaOContratacion === 'Prueba' ? result.horadePruebatecnica : null,
           fechadeIngreso: this.formatDate(result.fechadeIngreso) || null,
           fechaPublicado: result.fechaPublicado || new Date().toISOString(),
           quienpublicolavacante: result.quienpublicolavacante || 'Sistema',
@@ -121,7 +121,11 @@ export class VacantesComponent implements OnInit {
             nombre: o.nombre,
             numeroDeGenteRequerida: o.numeroDeGenteRequerida,
             ruta: o.ruta
-          }))
+          })),
+          pruebaOContratacion: result.pruebaOContratacion?.trim() || null,
+          tipoContratacion: result.tipoContratacion?.trim() || null,
+          municipio: Array.isArray(result.municipio) ? result.municipio : [],
+          auxilioTransporte: result.auxilioTransporte
         };
 
         this.vacantesService.actualizarVacante(vacante?.id, payload).subscribe({
@@ -185,7 +189,7 @@ export class VacantesComponent implements OnInit {
           pruebaOContratacion: result.pruebaOContratacion?.trim() || null,
           tipoContratacion: result.tipoContratacion?.trim() || null,
           municipio: Array.isArray(result.municipio) ? result.municipio : [],
-          auxilioTransporte: Number(result.auxilioTransporte) || 0,
+          auxilioTransporte: result.auxilioTransporte
         };
 
         // Enviar a API
