@@ -181,7 +181,7 @@ mat-card {
 .table-container th {
   position: sticky;
   top: 0;
-  z-index: 1;
+  z-index: 2;
   background-color: #5e6a75 !important;
   color: white;
   text-align: center;
@@ -190,6 +190,7 @@ mat-card {
 
 .mat-table th.mat-header-cell {
   background-color: #5e6a75 !important;
+  z-index: 8;
 }
 
 .mat-table {

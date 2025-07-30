@@ -10,6 +10,8 @@ import { UtilityServiceService } from '@/app/shared/services/utilityService/util
 import { EventEmitter, Output } from '@angular/core';
 import { HiringService } from '../../service/hiring.service';
 import { NavigationEnd, Router } from '@angular/router';
+import { MatButtonModule } from '@angular/material/button';
+import { InfoVacantesService } from '../../service/info-vacantes/info-vacantes.service';
 
 interface Usuario {
   primer_nombre : string;
@@ -28,7 +30,8 @@ interface CandidatoTabla {
   selector: 'app-search-for-candidate',
   imports: [
     SharedModule,
-    FormsModule
+    FormsModule,
+    MatButtonModule
   ],
   templateUrl: './search-for-candidate.component.html',
   styleUrl: './search-for-candidate.component.css',
@@ -73,13 +76,14 @@ export class SearchForCandidateComponent implements OnInit {
     private seleccionService    : SeleccionService,
     private utilityService      : UtilityServiceService,
     private hiringService       : HiringService,
+    private infoVacantesService : InfoVacantesService,
     private router              : Router,
   ) {}
 
   /* ──────────  Ciclo de vida  ────────── */
   ngOnInit(): void {
     this.initUsuarioYAbreviacion();
-    this.configurarRutas();
+    this.loadCandidatos();
   }
 
   private initUsuarioYAbreviacion(): void {
@@ -91,22 +95,7 @@ export class SearchForCandidateComponent implements OnInit {
   }
 
   /* ──────────  Escucha de ruta y carga tabla  ────────── */
-  private configurarRutas(): void {
-    const probarRuta = (url: string) => url.includes('recruitment-pipeline');
 
-    this.showTable = probarRuta(this.router.url);
-    if (this.showTable) this.loadCandidatos();
-
-    this.router.events
-      .pipe(filter((e): e is NavigationEnd => e instanceof NavigationEnd))
-      .subscribe(e => {
-        const mostrar = probarRuta(e.urlAfterRedirects);
-        if (mostrar !== this.showTable) {
-          this.showTable = mostrar;
-          mostrar ? this.loadCandidatos() : (this.simpleDataSource.data = []);
-        }
-      });
-  }
 
   /* ──────────  Tabla candidatos  ────────── */
   private loadCandidatos(): void {
@@ -147,14 +136,18 @@ export class SearchForCandidateComponent implements OnInit {
     this.cedulaSeleccionada.emit(this.cedula);
 
     forkJoin({
+      candidato : this.infoVacantesService.getVacantesPorNumero(this.cedula),
       seleccion : this.hiringService.traerDatosSeleccion(this.cedula),
       vetado    : this.vetadosService.listarReportesVetadosPorCedula(this.cedula)
     })
     .pipe(take(1))
     .subscribe({
-      next : ({ vetado, seleccion }) => {
+      next : ({ vetado, seleccion, candidato }) => {
         this.procesarVetado(vetado);
         this.procesarSeleccion(seleccion);
+        console.log('Candidato:', candidato);
+        // colocar nombre completo 
+        this.nombreCompletoChange.emit(candidato[0].primer_nombre + ' ' + candidato[0].segundo_nombre + ' ' + candidato[0].primer_apellido + ' ' + candidato[0].segundo_apellido);
       },
       error: e => this.procesarError(e)
     });

@@ -4,13 +4,6 @@
   box-sizing: border-box;
 }
 
-/* Títulos */
-.titulo {
-  font-size: 1.5rem;
-  margin-bottom: 16px;
-  width: 100%;
-  text-align: center;
-}
 
 /* Contenedor búsqueda */
 .busqueda-container {
@@ -72,6 +65,7 @@ button.mat-flat-button:hover {
   overflow-x: auto;
   max-height: 60vh;
   border-radius: 8px;
+
 }
 
 table {
