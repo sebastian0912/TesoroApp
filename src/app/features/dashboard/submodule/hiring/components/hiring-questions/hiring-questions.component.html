@@ -102,133 +102,188 @@
     <div class="tab-content-scrollable" [formGroup]="referenciasForm">
 
       <div class="referencias">
-        <!-- Familiar 1 -->
-        <div class="input-container">
-          <button mat-icon-button [matMenuTriggerFor]="pdfMenuFamiliar1" aria-label="PDF options">
-            <mat-icon>more_vert</mat-icon>
-          </button>
-          <mat-menu #pdfMenuFamiliar1="matMenu">
-            <button mat-menu-item (click)="verArchivo('familiar1')">Ver PDF</button>
-            <button mat-menu-item>
-              <label for="fileInputFamiliar1" style="cursor:pointer;">Subir PDF</label>
-            </button>
-            <input type="file" id="fileInputFamiliar1" style="display:none;"
-              (change)="subirArchivo($event,'familiar1')" />
-          </mat-menu>
+          <!-- Familiar 1 -->
+          <div class="input-container">
+            <mat-form-field appearance="fill" class="example-full-width">
+              <mat-label>Familiar 1</mat-label>
+              <input matInput formControlName="familiar1"
+                [value]="uploadedFiles['familiar1'] && uploadedFiles['familiar1'].fileName || ''" readonly>
+              <!-- Botón de tres puntos alineado a la derecha -->
+              <button mat-icon-button matSuffix [matMenuTriggerFor]="pdfMenuFamiliar1" aria-label="PDF options"
+                (click)="$event.stopPropagation()">
+                <mat-icon>more_vert</mat-icon>
+              </button>
+            </mat-form-field>
 
-          <mat-form-field appearance="fill" class="example-full-width">
-            <mat-label>Familiar 1</mat-label>
-            <input matInput formControlName="familiar1"
-              [value]="uploadedFiles['familiar1'] && uploadedFiles['familiar1'].fileName || ''" readonly>
-          </mat-form-field>
-        </div>
+            <mat-menu #pdfMenuFamiliar1="matMenu">
+              <button mat-menu-item (click)="verArchivo('familiar1')">Ver PDF</button>
+              <button mat-menu-item>
+                <label for="fileInputFamiliar1" style="cursor: pointer; margin-bottom: 0;">
+                  Subir PDF
+                  <input type="file" id="fileInputFamiliar1" style="display: none;"
+                    (change)="subirArchivo($event, 'familiar1')" />
+                </label>
+              </button>
+            </mat-menu>
 
-        <!-- Familiar 2 -->
-        <div class="input-container">
-          <button mat-icon-button [matMenuTriggerFor]="pdfMenuFamiliar2" aria-label="PDF options">
-            <mat-icon>more_vert</mat-icon>
-          </button>
-          <mat-menu #pdfMenuFamiliar2="matMenu">
-            <button mat-menu-item (click)="verArchivo('familiar2')">Ver PDF</button>
-            <button mat-menu-item>
-              <label for="fileInputFamiliar2" style="cursor:pointer;">Subir PDF</label>
-            </button>
-            <input type="file" id="fileInputFamiliar2" style="display:none;"
-              (change)="subirArchivo($event,'familiar2')" />
-          </mat-menu>
+            <small *ngIf="uploadedFiles['familiar1']" class="uploaded-file-name"
+              [ngClass]="{ 'text-danger': uploadedFiles['familiar1'].fileName === 'Adjuntar documento' }">
+              {{ uploadedFiles['familiar1'].fileName }}
+            </small>
+          </div>
 
-          <mat-form-field appearance="fill" class="example-full-width">
-            <mat-label>Familiar 2</mat-label>
-            <input matInput formControlName="familiar2"
-              [value]="uploadedFiles['familiar2'] && uploadedFiles['familiar2'].fileName || ''" readonly>
-          </mat-form-field>
-        </div>
+          <!-- Familiar 2 -->
+          <div class="input-container">
+            <mat-form-field appearance="fill" class="example-full-width">
+              <mat-label>Familiar 2</mat-label>
+              <input matInput formControlName="familiar2"
+                [value]="uploadedFiles['familiar2'] && uploadedFiles['familiar2'].fileName || ''" readonly>
+              <!-- Botón de menú dentro del input -->
+              <button mat-icon-button matSuffix [matMenuTriggerFor]="pdfMenuFamiliar2" aria-label="PDF options"
+                (click)="$event.stopPropagation()">
+                <mat-icon>more_vert</mat-icon>
+              </button>
+            </mat-form-field>
 
-        <!-- Personal 1 -->
-        <div class="input-container">
-          <button mat-icon-button [matMenuTriggerFor]="pdfMenuPersonal1" aria-label="PDF options">
-            <mat-icon>more_vert</mat-icon>
-          </button>
-          <mat-menu #pdfMenuPersonal1="matMenu">
-            <button mat-menu-item (click)="verArchivo('personal1')">Ver PDF</button>
-            <button mat-menu-item>
-              <label for="fileInputPersonal1" style="cursor:pointer;">Subir PDF</label>
-            </button>
-            <input type="file" id="fileInputPersonal1" style="display:none;"
-              (change)="subirArchivo($event,'personal1')" />
-          </mat-menu>
+            <mat-menu #pdfMenuFamiliar2="matMenu">
+              <button mat-menu-item (click)="verArchivo('familiar2')">Ver PDF</button>
+              <button mat-menu-item>
+                <label for="fileInputFamiliar2" style="cursor: pointer; margin-bottom: 0;">
+                  Subir PDF
+                  <input type="file" id="fileInputFamiliar2" style="display: none;"
+                    (change)="subirArchivo($event, 'familiar2')" />
+                </label>
+              </button>
+            </mat-menu>
 
-          <mat-form-field appearance="fill" class="example-full-width">
-            <mat-label>Personal 1</mat-label>
-            <input matInput formControlName="personal1"
-              [value]="uploadedFiles['personal1'] && uploadedFiles['personal1'].fileName || ''" readonly>
-          </mat-form-field>
-        </div>
+            <small *ngIf="uploadedFiles['familiar2']" class="uploaded-file-name"
+              [ngClass]="{ 'text-danger': uploadedFiles['familiar2'].fileName === 'Adjuntar documento' }">
+              {{ uploadedFiles['familiar2'].fileName }}
+            </small>
+          </div>
 
-        <!-- Personal 2 -->
-        <div class="input-container">
-          <button mat-icon-button [matMenuTriggerFor]="pdfMenuPersonal2" aria-label="PDF options">
-            <mat-icon>more_vert</mat-icon>
-          </button>
-          <mat-menu #pdfMenuPersonal2="matMenu">
-            <button mat-menu-item (click)="verArchivo('personal2')">Ver PDF</button>
-            <button mat-menu-item>
-              <label for="fileInputPersonal2" style="cursor:pointer;">Subir PDF</label>
-            </button>
-            <input type="file" id="fileInputPersonal2" style="display:none;"
-              (change)="subirArchivo($event,'personal2')" />
-          </mat-menu>
+          <!-- Personal 1 -->
+          <div class="input-container">
+            <mat-form-field appearance="fill" class="example-full-width">
+              <mat-label>Personal 1</mat-label>
+              <input matInput formControlName="personal1"
+                [value]="uploadedFiles['personal1'] && uploadedFiles['personal1'].fileName || ''" readonly>
+              <!-- Botón de menú dentro del mat-form-field -->
+              <button mat-icon-button matSuffix [matMenuTriggerFor]="pdfMenuPersonal1" aria-label="PDF options"
+                (click)="$event.stopPropagation()">
+                <mat-icon>more_vert</mat-icon>
+              </button>
+            </mat-form-field>
 
-          <mat-form-field appearance="fill" class="example-full-width">
-            <mat-label>Personal 2</mat-label>
-            <input matInput formControlName="personal2"
-              [value]="uploadedFiles['personal2'] && uploadedFiles['personal2'].fileName || ''" readonly>
-          </mat-form-field>
-        </div>
+            <mat-menu #pdfMenuPersonal1="matMenu">
+              <button mat-menu-item (click)="verArchivo('personal1')">Ver PDF</button>
+              <button mat-menu-item>
+                <label for="fileInputPersonal1" style="cursor: pointer; margin-bottom: 0;">
+                  Subir PDF
+                  <input type="file" id="fileInputPersonal1" style="display: none;"
+                    (change)="subirArchivo($event, 'personal1')" />
+                </label>
+              </button>
+            </mat-menu>
 
-        <!-- Laboral 1-->
-        <div class="input-container">
-          <button mat-icon-button [matMenuTriggerFor]="pdfMenuLaboral1" aria-label="PDF options">
-            <mat-icon>more_vert</mat-icon>
-          </button>
-          <mat-menu #pdfMenuLaboral1="matMenu">
-            <button mat-menu-item (click)="verArchivo('laboral1')">Ver PDF</button>
-            <button mat-menu-item>
-              <label for="fileInputLaboral1" style="cursor:pointer;">Subir PDF</label>
-            </button>
-            <input type="file" id="fileInputLaboral1" style="display:none;"
-              (change)="subirArchivo($event,'laboral1')" />
-          </mat-menu>
+            <small *ngIf="uploadedFiles['personal1']" class="uploaded-file-name"
+              [ngClass]="{ 'text-danger': uploadedFiles['personal1'].fileName === 'Adjuntar documento' }">
+              {{ uploadedFiles['personal1'].fileName }}
+            </small>
+          </div>
 
-          <mat-form-field appearance="fill" class="example-full-width">
-            <mat-label>Laboral 1</mat-label>
-            <input matInput formControlName="laboral1"
-              [value]="uploadedFiles['laboral1'] && uploadedFiles['laboral1'].fileName || ''" readonly>
-          </mat-form-field>
-        </div>
+          <!-- Personal 2 -->
+          <div class="input-container">
+            <mat-form-field appearance="fill" class="example-full-width">
+              <mat-label>Personal 2</mat-label>
+              <input matInput formControlName="personal2"
+                [value]="uploadedFiles['personal2'] && uploadedFiles['personal2'].fileName || ''" readonly>
+              <!-- Botón de menú dentro del mat-form-field -->
+              <button mat-icon-button matSuffix [matMenuTriggerFor]="pdfMenuPersonal2" aria-label="PDF options"
+                (click)="$event.stopPropagation()">
+                <mat-icon>more_vert</mat-icon>
+              </button>
+            </mat-form-field>
 
-        <!-- Laboral 2 -->
-        <div class="input-container">
-          <button mat-icon-button [matMenuTriggerFor]="pdfMenuLaboral2" aria-label="PDF options">
-            <mat-icon>more_vert</mat-icon>
-          </button>
-          <mat-menu #pdfMenuLaboral2="matMenu">
-            <button mat-menu-item (click)="verArchivo('laboral2')">Ver PDF</button>
-            <button mat-menu-item>
-              <label for="fileInputLaboral2" style="cursor:pointer;">Subir PDF</label>
-            </button>
-            <input type="file" id="fileInputLaboral2" style="display:none;"
-              (change)="subirArchivo($event,'laboral2')" />
-          </mat-menu>
+            <mat-menu #pdfMenuPersonal2="matMenu">
+              <button mat-menu-item (click)="verArchivo('personal2')">Ver PDF</button>
+              <button mat-menu-item>
+                <label for="fileInputPersonal2" style="cursor: pointer; margin-bottom: 0;">
+                  Subir PDF
+                  <input type="file" id="fileInputPersonal2" style="display: none;"
+                    (change)="subirArchivo($event, 'personal2')" />
+                </label>
+              </button>
+            </mat-menu>
 
-          <mat-form-field appearance="fill" class="example-full-width">
-            <mat-label>Laboral 2</mat-label>
-            <input matInput formControlName="laboral2"
-              [value]="uploadedFiles['laboral2'] && uploadedFiles['laboral2'].fileName || ''" readonly>
-          </mat-form-field>
+            <small *ngIf="uploadedFiles['personal2']" class="uploaded-file-name"
+              [ngClass]="{ 'text-danger': uploadedFiles['personal2'].fileName === 'Adjuntar documento' }">
+              {{ uploadedFiles['personal2'].fileName }}
+            </small>
+          </div>
+
+          <!-- Laboral 1 -->
+          <div class="input-container">
+            <mat-form-field appearance="fill" class="example-full-width">
+              <mat-label>Laboral 1</mat-label>
+              <input matInput formControlName="laboral1"
+                [value]="uploadedFiles['laboral1'] && uploadedFiles['laboral1'].fileName || ''" readonly>
+              <!-- Botón de menú dentro del mat-form-field -->
+              <button mat-icon-button matSuffix [matMenuTriggerFor]="pdfMenuLaboral1" aria-label="PDF options"
+                (click)="$event.stopPropagation()">
+                <mat-icon>more_vert</mat-icon>
+              </button>
+            </mat-form-field>
+
+            <mat-menu #pdfMenuLaboral1="matMenu">
+              <button mat-menu-item (click)="verArchivo('laboral1')">Ver PDF</button>
+              <button mat-menu-item>
+                <label for="fileInputLaboral1" style="cursor: pointer; margin-bottom: 0;">
+                  Subir PDF
+                  <input type="file" id="fileInputLaboral1" style="display: none;"
+                    (change)="subirArchivo($event, 'laboral1')" />
+                </label>
+              </button>
+            </mat-menu>
+
+            <small *ngIf="uploadedFiles['laboral1']" class="uploaded-file-name"
+              [ngClass]="{ 'text-danger': uploadedFiles['laboral1'].fileName === 'Adjuntar documento' }">
+              {{ uploadedFiles['laboral1'].fileName }}
+            </small>
+          </div>
+
+          <!-- Laboral 2 -->
+          <div class="input-container">
+            <mat-form-field appearance="fill" class="example-full-width">
+              <mat-label>Laboral 2</mat-label>
+              <input matInput formControlName="laboral2"
+                [value]="uploadedFiles['laboral2'] && uploadedFiles['laboral2'].fileName || ''" readonly>
+              <!-- Botón de menú dentro del mat-form-field -->
+              <button mat-icon-button matSuffix [matMenuTriggerFor]="pdfMenuLaboral2" aria-label="PDF options"
+                (click)="$event.stopPropagation()">
+                <mat-icon>more_vert</mat-icon>
+              </button>
+            </mat-form-field>
+
+            <mat-menu #pdfMenuLaboral2="matMenu">
+              <button mat-menu-item (click)="verArchivo('laboral2')">Ver PDF</button>
+              <button mat-menu-item>
+                <label for="fileInputLaboral2" style="cursor: pointer; margin-bottom: 0;">
+                  Subir PDF
+                  <input type="file" id="fileInputLaboral2" style="display: none;"
+                    (change)="subirArchivo($event, 'laboral2')" />
+                </label>
+              </button>
+            </mat-menu>
+
+            <small *ngIf="uploadedFiles['laboral2']" class="uploaded-file-name"
+              [ngClass]="{ 'text-danger': uploadedFiles['laboral2'].fileName === 'Adjuntar documento' }">
+              {{ uploadedFiles['laboral2'].fileName }}
+            </small>
         </div>
 
       </div>
+
 
       <button mat-flat-button (click)="cargarReferencias()">Cargar</button>
     </div>
@@ -266,24 +321,35 @@
 
       <!-- PDF traslado (solo si SI) -->
       <div class="input-container" *ngIf="trasladosForm.get('opcion_traslado_eps')?.value === 'SI'">
-        <button mat-icon-button [matMenuTriggerFor]="pdfMenuTraslado" aria-label="PDF options">
-          <mat-icon>more_vert</mat-icon>
-        </button>
-        <mat-menu #pdfMenuTraslado="matMenu">
-          <button mat-menu-item (click)="verArchivo('traslado')">Ver PDF</button>
-          <button mat-menu-item>
-            <label for="fileInputTraslado" style="cursor:pointer;">Subir PDF</label>
-          </button>
-          <input type="file" id="fileInputTraslado" style="display:none;" (change)="subirArchivo($event,'traslado')" />
-          <button mat-menu-item (click)="descargarArchivo()">Descargar</button>
-        </mat-menu>
-
         <mat-form-field appearance="fill" class="example-full-width">
           <mat-label>Archivo Traslado</mat-label>
           <input matInput formControlName="traslado"
             [value]="uploadedFiles['traslado'] && uploadedFiles['traslado'].fileName || ''" readonly>
+          <!-- Botón de menú dentro del mat-form-field -->
+          <button mat-icon-button matSuffix [matMenuTriggerFor]="pdfMenuTraslado" aria-label="PDF options"
+            (click)="$event.stopPropagation()">
+            <mat-icon>more_vert</mat-icon>
+          </button>
         </mat-form-field>
+
+        <mat-menu #pdfMenuTraslado="matMenu">
+          <button mat-menu-item (click)="verArchivo('traslado')">Ver PDF</button>
+          <button mat-menu-item>
+            <label for="fileInputTraslado" style="cursor: pointer; margin-bottom: 0;">
+              Subir PDF
+              <input type="file" id="fileInputTraslado" style="display: none;"
+                (change)="subirArchivo($event, 'traslado')" />
+            </label>
+          </button>
+          <button mat-menu-item (click)="descargarArchivo()">Descargar</button>
+        </mat-menu>
+
+        <small *ngIf="uploadedFiles['traslado']" class="uploaded-file-name"
+          [ngClass]="{ 'text-danger': uploadedFiles['traslado'].fileName === 'Adjuntar documento' }">
+          {{ uploadedFiles['traslado'].fileName }}
+        </small>
       </div>
+
 
       <button mat-flat-button (click)="cargarTraslados()">Cargar</button>
     </div>
