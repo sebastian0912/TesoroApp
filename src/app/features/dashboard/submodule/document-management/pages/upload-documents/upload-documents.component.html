@@ -1,1 +1,103 @@
-<p>upload-documents works!</p>
+<mat-card>
+  <mat-card-content>
+    <h1 class="title">Subir Documentación</h1>
+    <br>
+
+    <form [formGroup]="formDoc" (ngSubmit)="onSubmit()">
+
+      <!-- Selección múltiple de tipo documental -->
+      <mat-form-field class="example-full-width" style="min-width: 360pt !important;">
+        <mat-label>Tipo documental</mat-label>
+        <mat-select formControlName="tipo_documental" required multiple>
+          <mat-optgroup *ngFor="let grupo of gruposHojas" [label]="grupo.padre">
+            <mat-option *ngFor="let hoja of grupo.hijos" [value]="hoja.id">
+              {{ hoja.name }}
+            </mat-option>
+          </mat-optgroup>
+        </mat-select>
+        <mat-error
+          *ngIf="formDoc.get('tipo_documental')?.hasError('required') && formDoc.get('tipo_documental')?.touched">
+          Selecciona al menos un tipo documental.
+        </mat-error>
+      </mat-form-field>
+
+      <!-- Campos generales -->
+      <mat-form-field class="example-full-width">
+        <mat-label>Número de documento</mat-label>
+        <input matInput formControlName="numero_documento" required>
+        <mat-error
+          *ngIf="formDoc.get('numero_documento')?.hasError('required') && formDoc.get('numero_documento')?.touched">
+          El número de documento es obligatorio.
+        </mat-error>
+      </mat-form-field>
+
+      <mat-form-field class="example-full-width">
+        <mat-label>Código de contrato</mat-label>
+        <input matInput formControlName="codigo_contrato">
+        <mat-error
+          *ngIf="formDoc.get('codigo_contrato')?.hasError('required') && formDoc.get('codigo_contrato')?.touched">
+          El código de contrato es obligatorio para al menos uno de los seleccionados.
+        </mat-error>
+      </mat-form-field>
+      <button mat-flat-button type="submit" [disabled]="formDoc.invalid || !documentosArray.length">
+        <mat-icon>save</mat-icon>
+        Guardar Documentación
+      </button>
+
+      <br> <br>
+
+      <div class="documentos-panel">
+        <!-- Sidebar izquierda -->
+        <div class="documentos-sidebar" formArrayName="documentos">
+          <div *ngFor="let docCtrl of documentosArray.controls; let i = index" [formGroupName]="i" class="upload-item"
+            [class.selected]="selectedDocId === docCtrl.get('tipoId')?.value">
+            <mat-form-field appearance="fill" class="w-full">
+              <mat-label>
+                {{ hojasPorId[docCtrl.get('tipoId')?.value]?.name }}
+              </mat-label>
+
+              <!-- nombre del archivo -->
+              <input matInput [value]="uploadedFiles[docCtrl.get('tipoId')?.value]?.fileName || ''" readonly
+                style="cursor:pointer" (click)="selectPreview(docCtrl.get('tipoId')?.value)" />
+
+              <!-- botón de menú -->
+              <button mat-icon-button matSuffix [matMenuTriggerFor]="menu" aria-label="PDF options"
+                (click)="$event.stopPropagation()" type="button">
+                <mat-icon>more_vert</mat-icon>
+              </button>
+            </mat-form-field>
+
+            <!-- menú de la fila -->
+            <mat-menu #menu="matMenu">
+              <button mat-menu-item (click)="selectPreview(docCtrl.get('tipoId')?.value)" type="button">
+                Ver PDF aquí
+              </button>
+              <button mat-menu-item type="button">
+                <label [for]="'fileInput' + docCtrl.get('tipoId')?.value" style="cursor:pointer">
+                  Subir PDF
+                  <input type="file" accept="application/pdf" [id]="'fileInput' + docCtrl.get('tipoId')?.value"
+                    style="display:none" (change)="subirArchivo($event, docCtrl.get('tipoId')?.value)" />
+                </label>
+              </button>
+            </mat-menu>
+          </div>
+        </div>
+
+        <!-- Panel de previsualización -->
+        <div class="documento-preview-container" *ngIf="selectedPdfUrl">
+          <object [data]="selectedPdfUrl" type="application/pdf" width="100%" height="100%"
+            style="min-height:480px;border-radius:12px">
+            <span>El PDF no se puede previsualizar en tu navegador.</span>
+          </object>
+        </div>
+      </div>
+
+
+
+
+
+      <br>
+
+    </form>
+  </mat-card-content>
+</mat-card>

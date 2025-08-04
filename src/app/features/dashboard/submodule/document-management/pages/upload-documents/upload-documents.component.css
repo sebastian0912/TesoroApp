@@ -1,0 +1,52 @@
+.documentos-panel {
+  display: flex;
+  gap: 32px;
+  width: 100%;
+  min-height: 480px;
+}
+
+.documentos-sidebar {
+  flex: 0 0 340px;
+  max-width: 350px;
+  min-width: 230px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.upload-item {
+  margin-bottom: 8px;
+  background: #fafbfc;
+  padding: 8px 4px;
+  transition: box-shadow 0.2s;
+  cursor: pointer;
+  box-shadow: 0 0 0 transparent;
+}
+
+.upload-item.selected {
+  background: #e3f0fb;
+  box-shadow: 0 2px 8px rgba(25, 118, 210, 0.05);
+}
+
+.w-full {
+  width: 100%;
+  margin-bottom: -25pt;
+}
+
+.documento-preview-container {
+  flex: 1 1 auto;
+  background: #f5f6fa;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  min-width: 340px;
+  box-shadow: 0 1px 16px 2px #0001;
+}
+
+.preview-header {
+  display: flex;
+  align-items: center;
+  font-weight: bold;
+  font-size: 1.1rem;
+  margin-bottom: 10px;
+}
