@@ -386,5 +386,10 @@ export class VacantesComponent implements OnInit {
     return typeof val === 'number' && !isNaN(val);
   }
 
+abrirFormularioPreRegistroVacantes(): void {
+  window.open('https://formulario.tsservicios.co/formulario/formulario-pre-registro-vacantes', '_blank');
+}
+
+
 
 }
