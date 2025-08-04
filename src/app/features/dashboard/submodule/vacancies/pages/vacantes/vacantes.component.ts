@@ -4,7 +4,7 @@ import { FormsModule } from '@angular/forms';
 import Swal from 'sweetalert2';
 import * as XLSX from 'xlsx';
 import { NgFor, NgForOf, NgIf } from '@angular/common';
-import { MatDialog } from '@angular/material/dialog';
+import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { CrearEditarVacanteComponent } from '../../components/crear-editar-vacante/crear-editar-vacante.component';
 import { MatMenuModule } from '@angular/material/menu';
 import { catchError, of } from 'rxjs';
@@ -14,7 +14,7 @@ import { MatPaginator, MatPaginatorModule } from '@angular/material/paginator';
 import { MatSort, MatSortModule } from '@angular/material/sort';
 import { MatDatepickerModule } from '@angular/material/datepicker';
 import { NativeDateModule } from '@angular/material/core';
-import { S } from 'node_modules/@angular/cdk/scrolling-module.d-ud2XrbF8';
+import { DateRangeDialogComponent } from '@/app/shared/components/date-rang-dialog/date-rang-dialog.component';
 
 @Component({
   selector: 'app-vacantes',
@@ -30,6 +30,7 @@ import { S } from 'node_modules/@angular/cdk/scrolling-module.d-ud2XrbF8';
     MatSortModule,
     MatDatepickerModule,
     NativeDateModule,
+    MatDialogModule,
   ],
   templateUrl: './vacantes.component.html',
   styleUrl: './vacantes.component.css'
@@ -60,6 +61,7 @@ export class VacantesComponent implements OnInit {
   constructor(
     private dialog: MatDialog,
     private vacantesService: VacantesService,
+
   ) { }
 
   async ngOnInit(): Promise<void> {
@@ -361,6 +363,27 @@ export class VacantesComponent implements OnInit {
       default:
         return temporal;
     }
+  }
+
+  descargarExcelvacantes(event: Event): void {
+    // Lógica para descargar el archivo Excel de vacantes
+    this.dialog.open(DateRangeDialogComponent, {
+      width: '400px',
+      data: {
+        title: 'Seleccionar rango de fechas',
+        startDate: null,
+        endDate: null
+      }
+    }).afterClosed().subscribe(result => {
+      if (result) {
+        const { startDate, endDate } = result;
+        console.log('Rango de fechas seleccionado:', startDate, endDate);
+      }
+    });
+  }
+
+  isNumber(val: any): boolean {
+    return typeof val === 'number' && !isNaN(val);
   }
 
 
