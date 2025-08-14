@@ -127,7 +127,8 @@ export class VacantesComponent implements OnInit {
           pruebaOContratacion: result.pruebaOContratacion?.trim() || null,
           tipoContratacion: result.tipoContratacion?.trim() || null,
           municipio: Array.isArray(result.municipio) ? result.municipio : [],
-          auxilioTransporte: result.auxilioTransporte
+          auxilioTransporte: result.auxilioTransporte,
+          area: result.area?.trim() || null // Asegurarse de que el campo 'area' esté incluido
         };
 
         this.vacantesService.actualizarVacante(vacante?.id, payload).subscribe({
@@ -191,7 +192,8 @@ export class VacantesComponent implements OnInit {
           pruebaOContratacion: result.pruebaOContratacion?.trim() || null,
           tipoContratacion: result.tipoContratacion?.trim() || null,
           municipio: Array.isArray(result.municipio) ? result.municipio : [],
-          auxilioTransporte: result.auxilioTransporte
+          auxilioTransporte: result.auxilioTransporte,
+          area: result.area?.trim() || null // Asegurarse de que el campo 'area' esté incluido
         };
 
         // Enviar a API

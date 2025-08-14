@@ -74,8 +74,9 @@ export class CrearEditarVacanteComponent implements OnInit {
   separatorKeysCodes: number[] = [ENTER, COMMA];
   @ViewChild('municipioInput', { static: false })
   municipioInput!: ElementRef<HTMLInputElement>;
-
-
+  // filteredAreas rosa, clavel,astromelia,pompon,miniclavel,diversificados,lirios,fumigacion,corte de rosa,oficios varios
+  areas: string[] = ['Rosa', 'Clavel', 'Astromelia', 'Pompon', 'Miniclavel', 'Diversificados', 'Lirios', 'Fumigación', 'Corte de Rosa', 'Oficios Varios'];
+  
   constructor(
     private fb: FormBuilder,
     private http: HttpClient,
@@ -113,6 +114,7 @@ export class CrearEditarVacanteComponent implements OnInit {
       tipoContratacion: ['', Validators.required],
       municipio: [[], Validators.required],
       auxilioTransporte: [0, [Validators.required]],
+      area: ['', Validators.required]
     });
 
     if (this.data) this.cargarParaEdicion(this.data);
