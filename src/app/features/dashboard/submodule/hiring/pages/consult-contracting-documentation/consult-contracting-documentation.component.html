@@ -51,7 +51,7 @@
           <ng-container matColumnDef="fecha_ingreso">
             <th mat-header-cell *matHeaderCellDef>Fecha ingreso</th>
             <td mat-cell *matCellDef="let e">
-              {{ e.fecha_ingreso ? (e.fecha_ingreso | date:'yyyy-MM-dd') : '' }}
+              {{ e.fecha_ingreso ? (e.fecha_ingreso | date:'dd-MM-yyyy') : '' }}
             </td>
           </ng-container>
 
