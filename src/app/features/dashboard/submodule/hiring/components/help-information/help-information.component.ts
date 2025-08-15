@@ -47,7 +47,6 @@ export class HelpInformationComponent implements OnInit {
 
   // Formularios
   infoPersonalForm: FormGroup;
-  entrevistaForm: FormGroup;
   vacantesForm: FormGroup;
   infoCandidatoForm: any;
 
@@ -99,9 +98,10 @@ export class HelpInformationComponent implements OnInit {
 
     // Formulario 1: Info personal
     this.infoPersonalForm = this.fb.group({
-      oficina: [''],
       tipodedocumento: [''],
       numerodecedula: [''],
+      municipio: [''],
+      municipioExpedicion: [''],
       nombreCompleto: [''],
       celular: [''],
       whatsapp: [''],
@@ -114,10 +114,6 @@ export class HelpInformationComponent implements OnInit {
       referenciado: [''],
       nombreReferenciado: [''], // Campo adicional para el nombre del referenciado
       comoSeEntero: [''],
-    });
-
-    // Formulario 2: Entrevista
-    this.entrevistaForm = this.fb.group({
       laboresRealizadas: [''],
       empresasLaborado: [''],
       tiempoExperiencia: [''],
@@ -149,8 +145,8 @@ export class HelpInformationComponent implements OnInit {
 
   ngOnInit(): void {
     // Lógica para requerir motivo solo si eligen NO APLICA:
-    this.entrevistaForm.get('aplicaObservacion')!.valueChanges.subscribe(val => {
-      const motivo = this.entrevistaForm.get('motivoNoAplica');
+    this.infoPersonalForm.get('aplicaObservacion')!.valueChanges.subscribe(val => {
+      const motivo = this.infoPersonalForm.get('motivoNoAplica');
       if (val === 'NO_APLICA') {
         motivo?.setValidators([Validators.required]);
       } else {
@@ -160,13 +156,13 @@ export class HelpInformationComponent implements OnInit {
       motivo?.updateValueAndValidity();
     });
 
-    this.entrevistaForm.get('numHijos')?.valueChanges.subscribe(n => {
+    this.infoPersonalForm.get('numHijos')?.valueChanges.subscribe(n => {
       this.actualizarHijos(+n || 0);
     });
   }
 
   get hijosFormArray(): FormArray {
-    return this.entrevistaForm.get('hijos') as FormArray;
+    return this.infoPersonalForm.get('hijos') as FormArray;
   }
 
   actualizarHijos(cantidad: number) {
@@ -199,7 +195,7 @@ export class HelpInformationComponent implements OnInit {
         curso: [h.curso ?? ''],
       }));
     });
-    this.entrevistaForm.get('numHijos')?.setValue(hijosBackend.length, { emitEvent: false });
+    this.infoPersonalForm.get('numHijos')?.setValue(hijosBackend.length, { emitEvent: false });
   }
 
   ngOnChanges(changes: SimpleChanges): void {
@@ -258,6 +254,9 @@ export class HelpInformationComponent implements OnInit {
           oficina: this.sedeLogin || 'No disponible',
           tipodedocumento: this.infoCandidatoForm.tipodedocumento || 'No disponible',
           numerodecedula: this.infoCandidatoForm.numerodeceduladepersona || 'No disponible',
+          municipio: this.infoCandidatoForm.lugar_nacimiento_municipio || '',
+          municipioExpedicion: this.infoCandidatoForm.municipio_expedicion_cc || '',
+
           nombreCompleto: this.getFullName(),
           celular: this.infoCandidatoForm.celular || this.infoCandidatoForm.whatsapp || '',
           whatsapp: this.infoCandidatoForm.whatsapp || '',
@@ -273,7 +272,7 @@ export class HelpInformationComponent implements OnInit {
         });
 
         // Llenar el formulario de Entrevista con los datos de this.infoCandidatoForm
-        this.entrevistaForm.patchValue({
+        this.infoPersonalForm.patchValue({
           presentoEntrevista: this.infoCandidatoForm.presento_entrevista || '',
           eps: this.infoCandidatoForm.eps || '',
           revisionAntecedentes: this.infoCandidatoForm.revision_antecedentes || '',
@@ -332,14 +331,14 @@ export class HelpInformationComponent implements OnInit {
 
 
   guardarEntrevista(): void {
-    if (this.entrevistaForm.invalid) {
-      this.entrevistaForm.markAllAsTouched();
+    if (this.infoPersonalForm.invalid) {
+      this.infoPersonalForm.markAllAsTouched();
       Swal.fire('Error', 'Debes completar todos los campos obligatorios de la entrevista.', 'error');
       return;
     }
 
     // Construir objeto a enviar, añadiendo la cédula
-    const payload = { ...this.entrevistaForm.value, numero: this.cedula };
+    const payload = { ...this.infoPersonalForm.value, numero: this.cedula };
 
     this.seleccionService.guardarEntrevista(payload).subscribe({
       next: (resp) => {
