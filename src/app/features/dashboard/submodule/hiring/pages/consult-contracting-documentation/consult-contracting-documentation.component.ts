@@ -33,10 +33,11 @@ export class ConsultContractingDocumentationComponent implements OnInit {
   /** ---------- TABLA PRINCIPAL ---------- */
   dataSource = new MatTableDataSource<any>([]);
   displayedColumns: string[] = [
-    'cedula', 'nombre', 'finca', 'fecha_ingreso', 'ficha_tecnica', 'pdf_cedula',  // ← coincide 100 %
+    'cedula', 'nombre', 'finca', 'fecha_ingreso', 'codigo_contrato', 'ficha_tecnica', 'pdf_cedula',  // ← coincide 100 %
     'procuraduria', 'contraloria', 'ofac', 'policivos',
     'adres', 'sisben', 'contrato', 'entrega_documentos',
     'arl', 'examen', 'fondo_pension', 'eps', 'caja', 'pago_seguridad_social',
+    
   ];
 
 
@@ -169,6 +170,7 @@ export class ConsultContractingDocumentationComponent implements OnInit {
             row.nombre = contratacionData.nombre_completo || contratacionData.nombreCompleto || '';
             row.finca = contratacionData.centro_de_costos || '';
             row.fecha_ingreso = contratacionData.fechaIngreso || '';
+            row.codigo_contrato = contratacionData.codigo_contrato || '';
           } else {
             row.nombre_completo = '';
             row.nombre = '';

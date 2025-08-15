@@ -55,6 +55,12 @@
             </td>
           </ng-container>
 
+          <!-- codigo_contrato -->
+          <ng-container matColumnDef="codigo_contrato">
+            <th mat-header-cell *matHeaderCellDef>Código de contrato</th>
+            <td mat-cell *matCellDef="let e">{{ e.codigo_contrato }}</td>
+          </ng-container>
+
           <!-- FICHA TÉCNICA  ✅  (sin cambios funcionales) -->
           <ng-container matColumnDef="ficha_tecnica">
             <th mat-header-cell *matHeaderCellDef>Ficha Técnica</th>
