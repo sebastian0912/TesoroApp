@@ -50,37 +50,37 @@
         <!-- Sidebar izquierda -->
         <div class="documentos-sidebar" formArrayName="documentos">
           <div *ngFor="let docCtrl of documentosArray.controls; let i = index" [formGroupName]="i" class="upload-item"
-            [class.selected]="selectedDocId === docCtrl.get('tipoId')?.value">
+            [class.selected]="selectedDocId === $any(docCtrl).controls.tipoId.value">
             <mat-form-field appearance="fill" class="w-full">
               <mat-label>
-                {{ hojasPorId[docCtrl.get('tipoId')?.value]?.name }}
+                {{ hojasPorId[$any(docCtrl).controls.tipoId.value]?.name }}
               </mat-label>
 
               <!-- nombre del archivo -->
-              <input matInput [value]="uploadedFiles[docCtrl.get('tipoId')?.value].fileName || ''" readonly
-                style="cursor:pointer" (click)="selectPreview(docCtrl.get('tipoId')?.value)" />
+              <input matInput [value]="uploadedFiles[$any(docCtrl).controls.tipoId.value].fileName || ''" readonly
+                style="cursor:pointer" (click)="selectPreview($any(docCtrl).controls.tipoId.value)" />
 
-              <!-- botón de menú -->
               <button mat-icon-button matSuffix [matMenuTriggerFor]="menu" aria-label="PDF options"
                 (click)="$event.stopPropagation()" type="button">
                 <mat-icon>more_vert</mat-icon>
               </button>
             </mat-form-field>
 
-            <!-- menú de la fila -->
             <mat-menu #menu="matMenu">
-              <button mat-menu-item (click)="selectPreview(docCtrl.get('tipoId')?.value)" type="button">
+              <button mat-menu-item (click)="selectPreview($any(docCtrl).controls.tipoId.value)" type="button">
                 Ver PDF aquí
               </button>
+
               <button mat-menu-item type="button">
-                <label [for]="'fileInput' + docCtrl.get('tipoId')?.value" style="cursor:pointer">
+                <label [for]="'fileInput' + $any(docCtrl).controls.tipoId.value" style="cursor:pointer">
                   Subir PDF
-                  <input type="file" accept="application/pdf" [id]="'fileInput' + docCtrl.get('tipoId')?.value"
-                    style="display:none" (change)="subirArchivo($event, docCtrl.get('tipoId')?.value)" />
+                  <input type="file" accept="application/pdf" [id]="'fileInput' + $any(docCtrl).controls.tipoId.value"
+                    style="display:none" (change)="subirArchivo($event, $any(docCtrl).controls.tipoId.value)" />
                 </label>
               </button>
             </mat-menu>
           </div>
+
         </div>
 
         <!-- Panel de previsualización -->

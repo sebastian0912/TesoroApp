@@ -13,6 +13,17 @@
       </mat-autocomplete>
     </mat-form-field>
 
+    <!-- Campo para Área -->
+    <mat-form-field class="example-full-width">
+      <mat-label>Área</mat-label>
+      <mat-select formControlName="area">
+        <mat-option *ngFor="let area of areas" [value]="area">
+          {{ area }}
+        </mat-option>
+      </mat-select>
+    </mat-form-field>
+
+
     <!-- Campo para Centro de Costo -->
     <mat-form-field class="example-full-width">
       <mat-label>Centro de Costo</mat-label>
