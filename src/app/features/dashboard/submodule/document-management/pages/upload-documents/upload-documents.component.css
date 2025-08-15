@@ -16,7 +16,6 @@
 
 .upload-item {
   margin-bottom: 8px;
-  background: #fafbfc;
   padding: 8px 4px;
   transition: box-shadow 0.2s;
   cursor: pointer;
@@ -24,7 +23,6 @@
 }
 
 .upload-item.selected {
-  background: #e3f0fb;
   box-shadow: 0 2px 8px rgba(25, 118, 210, 0.05);
 }
 
@@ -35,7 +33,6 @@
 
 .documento-preview-container {
   flex: 1 1 auto;
-  background: #f5f6fa;
   padding: 24px;
   display: flex;
   flex-direction: column;

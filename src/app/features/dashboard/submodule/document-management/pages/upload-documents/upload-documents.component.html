@@ -57,7 +57,7 @@
               </mat-label>
 
               <!-- nombre del archivo -->
-              <input matInput [value]="uploadedFiles[docCtrl.get('tipoId')?.value]?.fileName || ''" readonly
+              <input matInput [value]="uploadedFiles[docCtrl.get('tipoId')?.value].fileName || ''" readonly
                 style="cursor:pointer" (click)="selectPreview(docCtrl.get('tipoId')?.value)" />
 
               <!-- botón de menú -->
@@ -90,14 +90,8 @@
             <span>El PDF no se puede previsualizar en tu navegador.</span>
           </object>
         </div>
+
       </div>
-
-
-
-
-
-      <br>
-
     </form>
   </mat-card-content>
 </mat-card>

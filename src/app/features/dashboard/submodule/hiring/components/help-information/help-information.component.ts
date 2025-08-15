@@ -43,7 +43,7 @@ export const MY_DATE_FORMATS = {
 })
 export class HelpInformationComponent implements OnInit {
   @Input() cedula: string = '';
-  examFiles: File[] = []; // Guardamos los archivos PDF por índice
+  examFiles: File[] = [];
 
   // Formularios
   infoPersonalForm: FormGroup;
@@ -75,7 +75,6 @@ export class HelpInformationComponent implements OnInit {
       horaPruebaEntrevista: [''],
       direccionEmpresa: ['']
     });
-
 
     this.formGroup4 = this.fb.group({
       empresaUsuaria: [''],
@@ -120,15 +119,18 @@ export class HelpInformationComponent implements OnInit {
       hijos: this.fb.array([])
     });
 
-
-
-
     // Formulario 4: Vacantes
     this.vacantesForm = this.fb.group({
+      tipo: ['', Validators.required],
       centroCosto: [''],
       cargo: [''],
+      empresaUsuaria: [''],
+      area: [''],
+      fechaIngreso: [''],
+      salario: [''],
       fechaPruebaEntrevista: [''],
       horaPruebaEntrevista: [''],
+      direccionEmpresa: [''],
       porQuienPregunta: [''],
       retroalimentacionFinal: ['']
     });
@@ -207,9 +209,6 @@ export class HelpInformationComponent implements OnInit {
     }
   }
 
-
-
-
   parseFechaDDMMYYYY(fechaStr: any): Date | null {
     if (!fechaStr) return null;
 
@@ -231,7 +230,6 @@ export class HelpInformationComponent implements OnInit {
 
     return null; // No reconoce el formato
   }
-
 
   private buscarContratacion(): void {
     const user = this.utilityService.getUser();
@@ -275,8 +273,6 @@ export class HelpInformationComponent implements OnInit {
           numHijos: this.infoCandidatoForm.num_hijos_dependen_economicamente || '',
           quienLosCuida: this.infoCandidatoForm.quien_los_cuida || ''
         });
-
-        // aquí puedes guardar o mostrar el resultado como necesites
       },
       error: (error) => {
         Swal.fire('Error', 'No se pudo obtener la contratación', 'error');
@@ -344,9 +340,6 @@ export class HelpInformationComponent implements OnInit {
     });
   }
 
-
-
-
   guardarVacantes(): void {
     if (this.vacantesForm.invalid) {
       this.vacantesForm.markAllAsTouched();
@@ -385,7 +378,6 @@ export class HelpInformationComponent implements OnInit {
       }
     });
   }
-
 
   // Obtener el nombre completo
   getFullName(): string {
@@ -435,7 +427,6 @@ export class HelpInformationComponent implements OnInit {
     return age;
   }
 
-
   // Método para imprimir los datos de los formularios
   imprimirEntrevistaPrueba(): void {
     // this.formGroup2.value.vacante = this.idvacante;
@@ -478,10 +469,6 @@ export class HelpInformationComponent implements OnInit {
     return Math.round((filledFields / totalFields) * 100);
   }
 
-
-
-
-
   // Método para imprimir los datos de los formularios
   imprimirContratacion(): void {
     this.seleccionService.crearSeleccionParteCuatroCandidato(this.formGroup4.value, this.cedula, this.codigoContrato).subscribe(
@@ -506,6 +493,28 @@ export class HelpInformationComponent implements OnInit {
     );
   }
 
+  isAutorizacion(): boolean {
+    return this.vacantesForm.get('tipo')?.value === 'Autorización de ingreso';
+  }
 
+  isPrueba(): boolean {
+    return this.vacantesForm.get('tipo')?.value === 'Prueba técnica';
+  }
 
+  onTipoChange(tipo: string): void {
+    // Limpia los campos irrelevantes según el tipo
+    if (tipo === 'Autorización de ingreso') {
+      this.vacantesForm.patchValue({
+        area: '',
+        fechaPruebaEntrevista: '',
+        horaPruebaEntrevista: '',
+        direccionEmpresa: ''
+      });
+    } else if (tipo === 'Prueba técnica') {
+      this.vacantesForm.patchValue({
+        fechaIngreso: '',
+        salario: ''
+      });
+    }
+  }
 }
