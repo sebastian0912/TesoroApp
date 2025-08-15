@@ -147,6 +147,7 @@ export class SearchForCandidateComponent implements OnInit {
         this.procesarSeleccion(seleccion);
         console.log('Candidato:', candidato);
         // colocar nombre completo 
+        
         this.nombreCompletoChange.emit(candidato[0].primer_nombre + ' ' + candidato[0].segundo_nombre + ' ' + candidato[0].primer_apellido + ' ' + candidato[0].segundo_apellido);
       },
       error: e => this.procesarError(e)
