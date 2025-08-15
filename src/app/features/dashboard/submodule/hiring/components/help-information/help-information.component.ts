@@ -59,6 +59,17 @@ export class HelpInformationComponent implements OnInit {
   formGroup4: FormGroup;
   codigoContrato: string = '';
 
+  opcionesPromocion: string[] = [
+    "CHAT SERVICIO AL CLIENTE (WHATSAPP, REDES SOCIALES)",
+    "CONVOCATORIA EXTERNA (MUNICIPIO, LOCALIDAD, BARRIO)",
+    "PERIFONEO (CARRO, MOTO)",
+    "PUNTO FÍSICO DIRECTO (PREGUNTÓ EN LA OFICINA TEMPORAL)",
+    "RED SOCIAL (FACEBOOK, INSTAGRAM, TIKTOK)",
+    "REFERENCIADO POR ALGUIEN QUE YA TRABAJA/O EN LA TEMPORAL",
+    "VOLANTES (A PIE)",
+    "YA HABÍA TRABAJADO CON NOSOTROS"
+  ];
+
   constructor(
     private fb: FormBuilder,
     private hiringService: HiringService,

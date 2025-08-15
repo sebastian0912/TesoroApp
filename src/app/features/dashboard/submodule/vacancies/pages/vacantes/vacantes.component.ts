@@ -1,3 +1,4 @@
+import { SeleccionService } from './../../../hiring/service/seleccion/seleccion.service';
 import { Component, OnInit, ViewChild } from '@angular/core';
 import { MatTableDataSource, MatTableModule } from '@angular/material/table';
 import { FormsModule } from '@angular/forms';
@@ -7,7 +8,7 @@ import { NgFor, NgForOf, NgIf } from '@angular/common';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { CrearEditarVacanteComponent } from '../../components/crear-editar-vacante/crear-editar-vacante.component';
 import { MatMenuModule } from '@angular/material/menu';
-import { catchError, of } from 'rxjs';
+import { catchError, Observable, of } from 'rxjs';
 import { VacantesService } from '../../service/vacantes/vacantes.service';
 import { SharedModule } from '@/app/shared/shared.module';
 import { MatPaginator, MatPaginatorModule } from '@angular/material/paginator';
@@ -15,6 +16,7 @@ import { MatSort, MatSortModule } from '@angular/material/sort';
 import { MatDatepickerModule } from '@angular/material/datepicker';
 import { NativeDateModule } from '@angular/material/core';
 import { DateRangeDialogComponent } from '@/app/shared/components/date-rang-dialog/date-rang-dialog.component';
+import { UtilityServiceService } from '@/app/shared/services/utilityService/utility-service.service';
 
 @Component({
   selector: 'app-vacantes',
@@ -61,7 +63,8 @@ export class VacantesComponent implements OnInit {
   constructor(
     private dialog: MatDialog,
     private vacantesService: VacantesService,
-
+    private utilityService: UtilityServiceService,
+    private seleccionService: SeleccionService
   ) { }
 
   async ngOnInit(): Promise<void> {
@@ -367,8 +370,7 @@ export class VacantesComponent implements OnInit {
     }
   }
 
-  descargarExcelvacantes(event: Event): void {
-    // Lógica para descargar el archivo Excel de vacantes
+  descargarExcelVacantes(event: Event): void {
     this.dialog.open(DateRangeDialogComponent, {
       width: '400px',
       data: {
@@ -378,19 +380,46 @@ export class VacantesComponent implements OnInit {
       }
     }).afterClosed().subscribe(result => {
       if (result) {
-        const { startDate, endDate } = result;
-        console.log('Rango de fechas seleccionado:', startDate, endDate);
+        const { start, end } = result;
+        const user = this.utilityService.getUser();
+
+        let request$: Observable<Blob>;
+
+        if (user.rol === 'GERENCIA') {
+          request$ = this.seleccionService.exportarCandidatosExcel({ start, end });
+        } else {
+          request$ = this.seleccionService.exportarCandidatosPorOficinaExcel({
+            start,
+            end,
+            oficina: user.sucursalde
+          });
+        }
+
+        request$.subscribe({
+          next: (blob: Blob) => {
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `candidatos_${start}_a_${end}.xlsx`;
+            a.click();
+            window.URL.revokeObjectURL(url);
+          },
+          error: (err) => {
+            console.error('Error al exportar candidatos:', err);
+          }
+        });
       }
     });
   }
+
 
   isNumber(val: any): boolean {
     return typeof val === 'number' && !isNaN(val);
   }
 
-abrirFormularioPreRegistroVacantes(): void {
-  window.open('https://formulario.tsservicios.co/formulario/formulario-pre-registro-vacantes', '_blank');
-}
+  abrirFormularioPreRegistroVacantes(): void {
+    window.open('https://formulario.tsservicios.co/formulario/formulario-pre-registro-vacantes', '_blank');
+  }
 
 
 

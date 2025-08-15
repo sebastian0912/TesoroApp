@@ -112,8 +112,13 @@
         <!-- ¿Cómo se enteró? -->
         <mat-form-field class="example-full-width">
           <mat-label>¿Cómo se enteró?</mat-label>
-          <input matInput formControlName="comoSeEntero">
+          <mat-select formControlName="comoSeEntero">
+            <mat-option *ngFor="let opcion of opcionesPromocion" [value]="opcion">
+              {{ opcion }}
+            </mat-option>
+          </mat-select>
         </mat-form-field>
+
       </div>
 
       <div class="actions">
