@@ -290,67 +290,43 @@
   </div>
 
   <!-- Pensión / Semanas Cotizadas -->
-<div class="input-container">
-  <mat-form-field appearance="fill" class="example-full-width">
-    <mat-label>Semanas cotizadas</mat-label>
+  <div class="input-container">
+    <mat-form-field appearance="fill" class="example-full-width">
+      <mat-label>Semanas cotizadas</mat-label>
 
-    <input
-      matInput
-      type="number"
-      formControlName="semanasCotizadas"
-      min="1"
-      step="1"
-      inputmode="numeric"
-      pattern="[0-9]*"
-      (keydown)="onlyInteger($event)"
-    />
+      <input matInput type="number" formControlName="semanasCotizadas" min="1" step="1" inputmode="numeric"
+        pattern="[0-9]*" (keydown)="onlyInteger($event)" />
 
-    <!-- botón 3 puntos -->
-    <button
-      mat-icon-button
-      matSuffix
-      [matMenuTriggerFor]="pdfMenuPension"
-      aria-label="PDF options"
-      (click)="$event.stopPropagation()"
-    >
-      <mat-icon>more_vert</mat-icon>
-    </button>
+      <!-- botón 3 puntos -->
+      <button mat-icon-button matSuffix [matMenuTriggerFor]="pdfMenuPension" aria-label="PDF options"
+        (click)="$event.stopPropagation()">
+        <mat-icon>more_vert</mat-icon>
+      </button>
 
-    <mat-error *ngIf="formGroup1.get('semanasCotizadas')?.hasError('required')">
-      Este campo es obligatorio.
-    </mat-error>
-    <mat-error *ngIf="formGroup1.get('semanasCotizadas')?.hasError('min')">
-      Debe ser al menos 1.
-    </mat-error>
-  </mat-form-field>
+      <mat-error *ngIf="formGroup1.get('semanasCotizadas')?.hasError('required')">
+        Este campo es obligatorio.
+      </mat-error>
+      <mat-error *ngIf="formGroup1.get('semanasCotizadas')?.hasError('min')">
+        Debe ser al menos 1.
+      </mat-error>
+    </mat-form-field>
 
-  <mat-menu #pdfMenuPension="matMenu">
-    <button mat-menu-item (click)="verArchivo('pensionSemanas')">Ver PDF</button>
-    <button mat-menu-item>
-      <label for="fileInputPension" style="cursor: pointer; margin-bottom: 0;">
-        Subir PDF
-        <input
-          type="file"
-          id="fileInputPension"
-          style="display: none;"
-          (change)="subirArchivo($event, 'pensionSemanas')"
-        />
-      </label>
-    </button>
-  </mat-menu>
+    <mat-menu #pdfMenuPension="matMenu">
+      <button mat-menu-item (click)="verArchivo('pensionSemanas')">Ver PDF</button>
+      <button mat-menu-item>
+        <label for="fileInputPension" style="cursor: pointer; margin-bottom: 0;">
+          Subir PDF
+          <input type="file" id="fileInputPension" style="display: none;"
+            (change)="subirArchivo($event, 'pensionSemanas')" />
+        </label>
+      </button>
+    </mat-menu>
 
-  <small
-    *ngIf="uploadedFiles['pensionSemanas']"
-    class="uploaded-file-name"
-    [ngClass]="{ 'text-danger': uploadedFiles['pensionSemanas'].fileName === 'Adjuntar documento' }"
-  >
-    {{ uploadedFiles['pensionSemanas'].fileName }}
-  </small>
-</div>
-
-
-
-
+    <small *ngIf="uploadedFiles['pensionSemanas']" class="uploaded-file-name"
+      [ngClass]="{ 'text-danger': uploadedFiles['pensionSemanas'].fileName === 'Adjuntar documento' }">
+      {{ uploadedFiles['pensionSemanas'].fileName }}
+    </small>
+  </div>
 
   <button mat-flat-button (click)="imprimirVerificacionesAplicacion()" class="example-full-width">Cargar</button>
 </div>

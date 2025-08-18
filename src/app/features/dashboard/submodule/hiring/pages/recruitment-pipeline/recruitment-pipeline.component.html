@@ -787,19 +787,22 @@
       </mat-tab>
 
       <!-- Contratación -->
-      <mat-tab>
+      <!-- ─────────── TAB • CONTRATACIÓN ─────────── -->
+      <mat-tab [disabled]="deshabilitarContratacion">
         <ng-template mat-tab-label>
-          <div class="tab">
+          <div class="tab" [matTooltip]="deshabilitarContratacion ? 'Hay exámenes NO APTO' : ''">
             <mat-icon>how_to_reg</mat-icon>
             Contratación
           </div>
         </ng-template>
+
         <div class="tab-content-scrollable">
           <app-hiring-questions [cedula]="cedulaActual" [codigoContrato]="codigoContrato"
             (idVacante)="onIdVacanteFromHiring($event)">
           </app-hiring-questions>
         </div>
       </mat-tab>
+
 
 
     </mat-tab-group>

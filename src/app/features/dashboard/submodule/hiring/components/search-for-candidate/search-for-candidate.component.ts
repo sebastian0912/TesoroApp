@@ -1,5 +1,5 @@
 import { Component, LOCALE_ID, OnInit } from '@angular/core';
-import { filter, forkJoin, take } from 'rxjs';
+import { filter, forkJoin, Subject, take, takeUntil } from 'rxjs';
 import Swal from 'sweetalert2';
 import { VetadosService } from '../../service/vetados/vetados.service';
 import { SeleccionService } from '../../service/seleccion/seleccion.service';
@@ -101,6 +101,8 @@ export class SearchForCandidateComponent implements OnInit {
     FUNZA: 'FUN', MADRID: 'MAD', MONTE_VERDE: 'MV', ROSAL: 'ROS',
     SOACHA: 'SOA', SUBA: 'SUB', TOCANCIPÁ: 'TOC', USME: 'USM',
   };
+  private destroyed$ = new Subject<void>();
+
 
   constructor(
     private vetadosService: VetadosService,
@@ -112,10 +114,25 @@ export class SearchForCandidateComponent implements OnInit {
   ) { }
 
   /* ──────────  Ciclo de vida  ────────── */
+  /* ──────────  Ciclo de vida  ────────── */
   ngOnInit(): void {
     this.initUsuarioYAbreviacion();
     this.loadCandidatos();
+    // …lo que ya tengas…
+    this.utilityService.nextStep
+      .pipe(takeUntil(this.destroyed$))
+      .subscribe(() => {
+        if (this.datosSeleccion) {
+          this.procesarSeleccion(this.datosSeleccion);
+        }
+      });
   }
+
+  ngOnDestroy(): void {
+    this.destroyed$.next();
+    this.destroyed$.complete();
+  }
+
 
   private initUsuarioYAbreviacion(): void {
     const user = this.utilityService.getUser() as Usuario | null;
@@ -177,6 +194,7 @@ export class SearchForCandidateComponent implements OnInit {
     this.nombreCompletoChange.emit(nombre);
     this.buscarCedula();
   }
+  datosSeleccion: any = null;
 
   buscarCedula(): void {
     if (!this.cedula) return;
@@ -191,7 +209,10 @@ export class SearchForCandidateComponent implements OnInit {
       .subscribe({
         next: ({ vetado, seleccion, candidato }) => {
           this.procesarVetado(vetado);
-          this.procesarSeleccion(seleccion);
+
+          // ⬇️ Guarda la data, NO llames procesarSeleccion aquí
+          this.datosSeleccion = seleccion;
+
           console.log('Candidato:', candidato);
 
           if (candidato && candidato.length > 0) {
@@ -203,23 +224,19 @@ export class SearchForCandidateComponent implements OnInit {
 
             this.idInfoEntrevistaAndreaChange.emit(candidato[0].id);
 
-            // 👇 Llamar al backend para marcar pre_registro=true
             this.infoVacantesService
               .setEstadoVacanteAplicante(candidato[0].id, 'pre_registro', true)
               .pipe(take(1))
               .subscribe({
-                next: (resp: EstadoResponse) => {
-                  console.log('✅ Pre-registro actualizado:', resp);
-                },
-                error: err => {
-                  console.error('❌ Error actualizando pre_registro', err);
-                }
+                next: (resp: EstadoResponse) => console.log('✅ Pre-registro actualizado:', resp),
+                error: err => console.error('❌ Error actualizando pre_registro', err)
               });
           }
         },
         error: e => this.procesarError(e)
       });
   }
+
 
 
   /* vetados */
@@ -244,24 +261,28 @@ export class SearchForCandidateComponent implements OnInit {
   private procesarSeleccion(sel: any): void {
     const procs = sel?.procesoSeleccion ?? [];
     if (!procs.length) return;
-    const ultimo = procs.reduce((a: { id: number; }, b: { id: number; }) => b.id > a.id ? b : a);
+
+    const ultimo = procs.reduce((a: { id: number }, b: { id: number }) => b.id > a.id ? b : a);
     const codigoExistente = ultimo.codigo_contrato;
 
     Swal.fire({
       title: '¡Atención!',
       html: 'Este usuario ya tiene un proceso.<br>¿Deseas crear otro o continuar con este?',
-      icon: 'warning', showCancelButton: true,
+      icon: 'warning',
+      showCancelButton: true,
       confirmButtonText: 'Crear otro',
       cancelButtonText: 'Continuar con este'
     }).then(r => {
-      if (r.isConfirmed) this.generarNuevoCodigoContrato();
-      else {
-        this.codigoContratoActual = codigoExistente;
-        this.codigoContratoChange.emit(codigoExistente);
+      if (r.isConfirmed) {
+        this.generarNuevoCodigoContrato();
+      } else {
+        this.codigoContratoActual = codigoExistente; // ✅ ya lo tomas del backend
+        this.codigoContratoChange.emit(this.codigoContratoActual);
         this.procesoValido = true;
       }
     });
   }
+
 
   private generarNuevoCodigoContrato(): void {
     this.seleccionService.generarCodigoContratacion(this.abreviacionSede, this.cedula)

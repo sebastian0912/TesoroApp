@@ -1,4 +1,4 @@
-import { Injectable } from '@angular/core';
+import { EventEmitter, Injectable } from '@angular/core';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { Observable, throwError } from 'rxjs';
 import { catchError, map } from 'rxjs/operators';
@@ -9,7 +9,9 @@ import { environment } from '../../../../environments/environment.development';
 })
 export class UtilityServiceService {
   private apiUrl = environment.apiUrl;
-
+  // 🔔 EventEmitter para comunicar entre padre e hijo
+  nextStep: EventEmitter<void> = new EventEmitter<void>();
+  
   constructor(private http: HttpClient) { }
 
   /**

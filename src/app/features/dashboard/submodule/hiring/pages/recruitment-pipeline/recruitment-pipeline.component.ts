@@ -4,7 +4,7 @@ import { MatTabsModule } from '@angular/material/tabs';
 import { SharedModule } from '../../../../../../shared/shared.module';
 import { SearchForCandidateComponent } from '../../components/search-for-candidate/search-for-candidate.component';
 import { SelectionQuestionsComponent } from '../../components/selection-questions/selection-questions.component';
-import { FormArray, FormBuilder, FormGroup, FormsModule, Validators } from '@angular/forms';
+import { AbstractControl, FormArray, FormBuilder, FormGroup, FormsModule, Validators } from '@angular/forms';
 import { VacantesService } from '../../service/vacantes/vacantes.service';
 import { catchError, of } from 'rxjs';
 import Swal from 'sweetalert2';
@@ -463,10 +463,62 @@ export class RecruitmentPipelineComponent implements OnInit {
 
   onCedulaSeleccionada(cedula: string): void {
     this.cedulaActual = cedula;
+
+    this.contratacionService.traerDatosSeleccion(this.cedulaActual).subscribe((response: any) => {
+      const list = response?.procesoSeleccion;
+      if (!Array.isArray(list) || list.length === 0) return;
+
+      // ✅ primer elemento
+      const data = list[1];
+
+      // ----- 1) Setear IPS / IPSLAB -----
+      this.formGroup3.patchValue({
+        ips: data?.ips ?? '',
+        // en el JSON viene "ipslab" (todo minúscula). Mapea a tu control "ipsLab".
+        ipsLab: data?.ipslab ?? data?.ipsLab ?? ''
+      });
+
+      // ----- 2) Parsear examenes y aptosExamenes -----
+      const examenesArr = String(data?.examenes || '')
+        .split(',')
+        .map(s => s.trim())
+        .filter(Boolean);
+
+      const aptosArr = String(data?.aptosExamenes || '')
+        .split(',')
+        .map(s => s.trim().toUpperCase())
+        .filter(Boolean);
+
+      // Emparejar longitudes (por seguridad)
+      const len = Math.min(examenesArr.length, aptosArr.length);
+      const selectedExams = examenesArr.slice(0, len);
+      const selectedAptos = aptosArr.slice(0, len);
+
+      // ----- 3) Cargar en el formulario -----
+      // selectedExams: lista simple (tu <mat-select multiple> o donde la uses)
+      this.formGroup3.get('selectedExams')?.setValue(selectedExams);
+
+      // selectedExamsArray: FormArray de grupos { aptoStatus: 'APTO'|'NO APTO' }
+      const fa = this.fb.array(
+        selectedAptos.map(status =>
+          this.fb.group({
+            aptoStatus: [status || 'APTO'] // si falta, por defecto APTO
+          })
+        )
+      );
+
+      this.formGroup3.setControl('selectedExamsArray', fa);
+
+      // (Opcional) Si además quieres llenar otros campos que coincidan por nombre:
+      // this.formGroup3.patchValue(data, { onlySelf: false });
+    });
   }
+
 
   onCodigoContrato(codigo: string): void {
     this.codigoContrato = codigo;
+
+
   }
 
   // id de info entrevista andrea
@@ -594,41 +646,41 @@ export class RecruitmentPipelineComponent implements OnInit {
     this.router.navigate(['dashboard/hiring/generate-contracting-documents']);
   }
 
-guardarFormulariosEnLocalStorage() {
-  // Leer lo que ya hay en localStorage
-  const stored = localStorage.getItem('formularios');
-  let formularios: any = {};
+  guardarFormulariosEnLocalStorage() {
+    // Leer lo que ya hay en localStorage
+    const stored = localStorage.getItem('formularios');
+    let formularios: any = {};
 
-  if (stored) {
-    formularios = JSON.parse(stored); // conservar lo anterior
-  }
-  console.log('idInfoEntrevistaAndrea:', this.idInfoEntrevistaAndrea);
-  console.log('idVacanteContratacion:', this.idVacanteContratacion);
-  // Actualizar o agregar los datos nuevos
-  formularios = {
-    ...formularios, // mantiene lo que ya tenía
-    datosPersonales: this.datosPersonales.value,
-    //datosPersonalesParte2: this.datosPersonalesParte2.value,
-    //datosTallas: this.datosTallas.value,
-    //datosConyugue: this.datosConyugue.value,
-    //datosPadre: this.datosPadre.value,
-    //datosMadre: this.datosMadre.value,
-    datosReferencias: this.datosReferencias.value,
-    datosExperienciaLaboral: this.datosExperienciaLaboral.value,
-    datosHijos: this.datosHijos.value,
-    datosParte3Seccion1: this.datosParte3Seccion1.value,
-    datosParte3Seccion2: this.datosParte3Seccion2.value,
-    datosParte4: this.datosParte4.value,
-    vacante: this.idvacante !== 0
+    if (stored) {
+      formularios = JSON.parse(stored); // conservar lo anterior
+    }
+    console.log('idInfoEntrevistaAndrea:', this.idInfoEntrevistaAndrea);
+    console.log('idVacanteContratacion:', this.idVacanteContratacion);
+    // Actualizar o agregar los datos nuevos
+    formularios = {
+      ...formularios, // mantiene lo que ya tenía
+      datosPersonales: this.datosPersonales.value,
+      //datosPersonalesParte2: this.datosPersonalesParte2.value,
+      //datosTallas: this.datosTallas.value,
+      //datosConyugue: this.datosConyugue.value,
+      //datosPadre: this.datosPadre.value,
+      //datosMadre: this.datosMadre.value,
+      datosReferencias: this.datosReferencias.value,
+      datosExperienciaLaboral: this.datosExperienciaLaboral.value,
+      datosHijos: this.datosHijos.value,
+      datosParte3Seccion1: this.datosParte3Seccion1.value,
+      datosParte3Seccion2: this.datosParte3Seccion2.value,
+      datosParte4: this.datosParte4.value,
+      vacante: this.idvacante !== 0
         ? this.idvacante
         : this.idVacanteContratacion,
-    entrevista_andrea: this.idInfoEntrevistaAndrea
+      entrevista_andrea: this.idInfoEntrevistaAndrea
 
-  };
+    };
 
-  // Guardar de nuevo el objeto completo
-  localStorage.setItem('formularios', JSON.stringify(formularios));
-}
+    // Guardar de nuevo el objeto completo
+    localStorage.setItem('formularios', JSON.stringify(formularios));
+  }
 
 
 
@@ -701,6 +753,45 @@ guardarFormulariosEnLocalStorage() {
     }
   }
 
+  // flag para evitar múltiples alerts durante el change detection
+  private _warnedNoApto = false;
+
+  get deshabilitarContratacion(): boolean {
+    const fa = this.formGroup3?.get('selectedExamsArray') as FormArray | null;
+    if (!fa || !Array.isArray(fa.controls) || fa.length === 0) {
+      this._warnedNoApto = false;
+      return false;
+    }
+
+    const hayNoApto = fa.controls.some((ctrl: AbstractControl) => {
+      const v = String(ctrl.get('aptoStatus')?.value || '').trim().toUpperCase();
+      return v === 'NO APTO';
+    });
+
+    if (hayNoApto && !this._warnedNoApto) {
+      this._warnedNoApto = true;
+
+      // Evitar que se reemplace si ya hay un Swal abierto
+      Swal.fire({
+        icon: 'warning',
+        title: 'Examen no apto',
+        text: 'Hay al menos un examen con resultado "NO APTO". Se deshabilitará la pestaña de Contratación.',
+        confirmButtonText: 'Entendido',
+        allowOutsideClick: false,
+        allowEscapeKey: false
+      }).then(() => {
+        // ✅ Emitir evento al hijo
+        this.utilityService.nextStep.emit();
+      });
+    }
+
+
+    if (!hayNoApto && this._warnedNoApto) {
+      this._warnedNoApto = false;
+    }
+
+    return hayNoApto;
+  }
 
 
   onIdVacanteFromHiring(id: number): void {
