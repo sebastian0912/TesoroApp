@@ -218,6 +218,7 @@ export class SearchForCandidateComponent implements OnInit {
       });
   }
 
+
   /* vetados */
   private procesarVetado(vetado: any[] | null): void {
     if (!vetado?.length) return;

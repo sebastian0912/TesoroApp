@@ -5,6 +5,7 @@ import Swal from 'sweetalert2';
 import { isPlatformBrowser } from '@angular/common';
 import { LoginService } from '../service/login.service';
 import { SharedModule } from '../../../shared/shared.module';
+import { HttpErrorResponse } from '@angular/common/http';
 
 @Component({
   selector: 'app-login',
@@ -66,40 +67,86 @@ export class LoginComponent implements OnInit {
       return;
     }
 
-    const newUser = this.registerForm.value;
-    // Crear campo username y colocarle el valor de correo_electronico
-    newUser.username = newUser.correo_electronico;
+    const newUser = { ...this.registerForm.value };
+
+    // Validar y normalizar correo
+    const email = (newUser.correo_electronico || '').trim().toLowerCase();
+    if (!email) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'Campo requerido',
+        text: 'Debes ingresar un correo electrónico válido',
+      });
+      return;
+    }
+
+    // Usar el correo como username
+    newUser.correo_electronico = email;
+    newUser.username = email;
 
     try {
       const response = await this.authService.register(newUser);
-      if (response && response) {
+
+      if (response) {
         Swal.fire({
           icon: 'success',
           title: 'Registro Exitoso',
           text: 'Tu cuenta ha sido creada correctamente',
         });
-
+        // Opcional: this.registerForm.reset();
       } else {
         Swal.fire({
           icon: 'error',
           title: 'Error en el Registro',
           text:
-            response.message ||
+            (response as any)?.message ||
             'No se pudo crear la cuenta, por favor intente de nuevo',
         });
       }
-    } catch (error: any) {
-      // Procesar los errores recibidos del servidor
-      const processedErrors = this.processErrors(error.error);
+    } catch (err: any) {
+      const error = err as HttpErrorResponse;
+      let message =
+        (error?.error && (error.error.message || error.error.detail)) ||
+        '';
+
+      // Manejo explícito de 409 (conflicto por correo ya registrado)
+      if (error?.status === 409) {
+        message =
+          message ||
+          'Ya existe una cuenta registrada con este correo electrónico.';
+      }
+      // Manejo de 400 (validaciones del backend)
+      else if (error?.status === 400) {
+        message =
+          this.processErrors?.(error.error) ||
+          message ||
+          'Solicitud inválida. Revisa los campos.';
+      }
+      // Error de red / CORS
+      else if (error?.status === 0) {
+        message =
+          'No se pudo conectar con el servidor. Verifica tu conexión o inténtalo más tarde.';
+      }
+      // Fallback para error crudo de MySQL (por si llega)
+      else if (
+        error?.error?.message?.includes?.('Duplicate entry') &&
+        error?.error?.message?.includes?.('correo_electronico')
+      ) {
+        message = 'Ya existe una cuenta registrada con este correo electrónico.';
+      }
+      // Fallback genérico
+      else {
+        message = message || 'Hubo un problema al intentar crear la cuenta.';
+      }
 
       Swal.fire({
         icon: 'error',
         title: 'Error en el Registro',
-        text:
-          processedErrors || 'Hubo un problema al intentar crear la cuenta.',
+        text: message,
       });
     }
   }
+
 
   /**
    * Función para procesar los errores y excluir el del username.
