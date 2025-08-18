@@ -1,7 +1,7 @@
 import { SharedModule } from '@/app/shared/shared.module';
 import { Component, Inject } from '@angular/core';
 import { FormGroup, FormArray, FormBuilder, Validators } from '@angular/forms';
-import { MatDialogRef, MAT_DIALOG_DATA } from '@angular/material/dialog';
+import { MatDialogRef, MAT_DIALOG_DATA, MatDialogActions } from '@angular/material/dialog';
 import { DocumentacionService } from '../../service/documentacion/documentacion.service';
 import { MatDividerModule } from '@angular/material/divider';
 import { MatCheckboxModule } from '@angular/material/checkbox';
@@ -24,7 +24,8 @@ export interface ModalData {
     SharedModule,
     MatDividerModule,
     MatCheckboxModule,
-    ReactiveFormsModule
+    ReactiveFormsModule,
+    MatDialogActions
   ],
   templateUrl: './document-modal.component.html',
   styleUrl: './document-modal.component.css'

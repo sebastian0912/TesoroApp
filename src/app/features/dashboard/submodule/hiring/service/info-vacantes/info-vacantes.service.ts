@@ -4,6 +4,20 @@ import { isPlatformBrowser } from '@angular/common';
 import { environment } from '@/environments/environment.development';
 import { Observable } from 'rxjs';
 
+export type EstadoField =
+  | 'pre_registro'
+  | 'entrevistado'
+  | 'prueba_tecnica'
+  | 'examenes_medicos'
+  | 'contratado';
+
+export interface EstadoResponse {
+  id: number;
+  updated_at: string;
+  // el backend devuelve solo el campo cambiado, por eso lo dejamos index signature:
+  [k: string]: any;
+}
+
 @Injectable({
   providedIn: 'root'
 })
@@ -31,6 +45,28 @@ export class InfoVacantesService {
   getVacantesPorNumero(numero: string): Observable<any> {
     const url = `${this.apiUrl}/entrevista/vacantes-por-numero/${numero}/`;
     return this.http.get(url);
+  }
+
+
+  // -----------------------
+  // NUEVO: Estado individual (APIView)
+  // PATCH /vacantes-aplicantes/:id/estado/:field/
+  // - Si envías {value: true|false}, lo fija
+  // - Si envías {}, hace toggle
+  // -----------------------
+  setEstadoVacanteAplicante(
+    id: number,
+    field: EstadoField,
+    value?: boolean
+  ): Observable<EstadoResponse> {
+    const url = `${this.apiUrl}/entrevista/cambioestado/${id}/estado/${field}/`;
+    const body = value === undefined ? {} : { value };
+    return this.http.patch<EstadoResponse>(url, body);
+  }
+
+  /** Atajo para toggle sin pasar value */
+  toggleEstadoVacanteAplicante(id: number, field: EstadoField): Observable<EstadoResponse> {
+    return this.setEstadoVacanteAplicante(id, field);
   }
 
 }
