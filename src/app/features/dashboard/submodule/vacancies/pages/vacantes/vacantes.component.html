@@ -1,37 +1,42 @@
-<div class="anadir">
-  <button mat-flat-button class="add-button" (click)="openModal()">
-    <mat-icon>add</mat-icon>
-    <span>Añadir Vacante</span>
-  </button>
-
-  <!-- Botón para subir el archivo Excel -->
-  <button mat-flat-button class="add-button" (click)="subirArchivoExcel($event)">
-    <mat-icon>upload_file</mat-icon>
-    <span>Subir Excel Vacantes</span>
-  </button>
-
-  <!-- Botón para subir el archivo Excel -->
-  <button mat-flat-button class="add-button" (click)="descargarExcelVacantes($event)">
-    <mat-icon>upload_file</mat-icon>
-    <span>Descargar excel vacantes</span>
-  </button>
-
-  <!-- Botón para abrir en navegador a https://formulario.tsservicios.co/formulario/formulario-pre-registro-vacantes -->
-  <button mat-flat-button class="add-button" (click)="abrirFormularioPreRegistroVacantes()">
-    <mat-icon>open_in_new</mat-icon>
-    <span>Formulario Pre Registro Vacantes</span>
-  </button>
-  
-  <!-- Input para seleccionar el archivo Excel, oculto -->
-  <input type="file" id="fileInput" (change)="onFileSelected($event)" hidden>
-
-</div>
-
-
 <mat-card>
   <mat-card-content>
     <div class="tabla">
-      <h1 class="title">Listado de Vacantes</h1>
+      <!-- Encabezado con título + menú de acciones -->
+      <div class="page-header">
+        <h1 class="title">Listado de Vacantes</h1>
+        <span class="spacer"></span>
+
+        <!-- Botón 3 puntos -->
+        <button mat-icon-button [matMenuTriggerFor]="accionesMenu" aria-label="Acciones de vacantes">
+          <mat-icon>more_vert</mat-icon>
+        </button>
+
+        <!-- Menú de acciones -->
+        <mat-menu #accionesMenu="matMenu">
+          <button mat-menu-item (click)="openModal()">
+            <mat-icon>add</mat-icon>
+            <span>Añadir Vacante</span>
+          </button>
+
+          <button mat-menu-item (click)="fileInput.click()">
+            <mat-icon>upload_file</mat-icon>
+            <span>Subir Excel Vacantes</span>
+          </button>
+
+          <button mat-menu-item (click)="descargarExcelVacantes($event)">
+            <mat-icon>download</mat-icon>
+            <span>Descargar Excel Vacantes</span>
+          </button>
+
+          <button mat-menu-item (click)="abrirFormularioPreRegistroVacantes()">
+            <mat-icon>open_in_new</mat-icon>
+            <span>Formulario Pre Registro Vacantes</span>
+          </button>
+        </mat-menu>
+
+        <!-- Input de archivo oculto -->
+        <input type="file" #fileInput (change)="onFileSelected($event)" hidden />
+      </div>
 
       <mat-form-field class="filtro">
         <mat-label>Filtrar</mat-label>
@@ -45,6 +50,18 @@
           <ng-container matColumnDef="cargo">
             <th mat-header-cell *matHeaderCellDef style="min-width: 350pt;">Cargo</th>
             <td mat-cell *matCellDef="let v" style="min-width: 350pt;">{{ v.cargo }}</td>
+          </ng-container>
+
+          <!--cuantos preseleccionados -->
+          <ng-container matColumnDef="preseleccionados">
+            <th mat-header-cell *matHeaderCellDef>Preseleccionados</th>
+            <td mat-cell *matCellDef="let v">{{ v.preseleccionados.length }}</td>
+          </ng-container>
+
+          <!--contratados-->
+          <ng-container matColumnDef="contratados">
+            <th mat-header-cell *matHeaderCellDef>Contratados</th>
+            <td mat-cell *matCellDef="let v">{{ v.contratados.length }}</td>
           </ng-container>
 
           <!--salario-->

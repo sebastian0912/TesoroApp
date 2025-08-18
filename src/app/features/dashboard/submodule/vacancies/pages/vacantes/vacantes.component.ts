@@ -41,8 +41,11 @@ export class VacantesComponent implements OnInit {
   vacantes: any[] = [];
   dataSource = new MatTableDataSource<any>([]);
   displayedColumns: string[] = [
+    'acciones',
     'fechaPublicado',
     'cargo',
+    'preseleccionados',
+    'contratados',
     'salario',
     'auxilioTransporte',
     'municipio',
@@ -55,7 +58,6 @@ export class VacantesComponent implements OnInit {
     'oficinas',
     'ruta',
     'fechadeIngreso',
-    'acciones'
   ];
   @ViewChild(MatPaginator) paginator!: MatPaginator;
   @ViewChild(MatSort) sort!: MatSort;
@@ -381,32 +383,14 @@ export class VacantesComponent implements OnInit {
     }).afterClosed().subscribe(result => {
       if (result) {
         const { start, end } = result;
-        const user = this.utilityService.getUser();
-
-        let request$: Observable<Blob>;
-
-        if (user.rol === 'GERENCIA') {
-          request$ = this.seleccionService.exportarCandidatosExcel({ start, end });
-        } else {
-          request$ = this.seleccionService.exportarCandidatosPorOficinaExcel({
-            start,
-            end,
-            oficina: user.sucursalde
-          });
-        }
-
-        request$.subscribe({
-          next: (blob: Blob) => {
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `candidatos_${start}_a_${end}.xlsx`;
-            a.click();
-            window.URL.revokeObjectURL(url);
-          },
-          error: (err) => {
-            console.error('Error al exportar candidatos:', err);
-          }
+        console.log('Rango de fechas seleccionado:', start, end);
+        this.vacantesService.getVacantesExcel(start, end).subscribe(blob => {
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `vacantes_${start || 'inicio'}_${end || 'hoy'}.xlsx`;
+          a.click();
+          URL.revokeObjectURL(url);
         });
       }
     });

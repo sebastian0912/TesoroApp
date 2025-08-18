@@ -32,6 +32,21 @@ export class SelectionQuestionsComponent implements OnInit {
   filteredExamOptions: string[] = [];
 
   formGroup1: FormGroup;
+  // (opcional) por si tu valor llegara como string y quieres compararlo como número
+  compareNumbers = (a: any, b: any) => Number(a) === Number(b);
+  semanasOptions: number[] = Array.from({ length: 2001 }, (_, i) => i);
+  // Evitar que se escriban caracteres no numéricos y solo enteros
+  onlyInteger(e: KeyboardEvent) {
+    const allowed = [
+      'Backspace', 'Tab', 'ArrowLeft', 'ArrowRight', 'Delete', 'Home', 'End'
+    ];
+    if (allowed.includes(e.key)) return;
+
+    // Permite números 0-9
+    if (!/^\d$/.test(e.key)) {
+      e.preventDefault();
+    }
+  }
 
   private formSubs!: Subscription;
 
@@ -91,23 +106,23 @@ export class SelectionQuestionsComponent implements OnInit {
     'Sin Buscar'
   ];
 
-categoriasSisben: string[] = [
-  // Grupo A: Pobreza extrema
-  'A1', 'A2', 'A3', 'A4', 'A5',
+  categoriasSisben: string[] = [
+    // Grupo A: Pobreza extrema
+    'A1', 'A2', 'A3', 'A4', 'A5',
 
-  // Grupo B: Pobreza moderada
-  'B1', 'B2', 'B3', 'B4', 'B5', 'B6', 'B7',
+    // Grupo B: Pobreza moderada
+    'B1', 'B2', 'B3', 'B4', 'B5', 'B6', 'B7',
 
-  // Grupo C: Vulnerabilidad
-  'C1', 'C2', 'C3', 'C4', 'C5', 'C6', 'C7', 'C8', 'C9', 'C10', 'C11', 'C12', 'C13', 'C14', 'C15', 'C16', 'C17', 'C18',
+    // Grupo C: Vulnerabilidad
+    'C1', 'C2', 'C3', 'C4', 'C5', 'C6', 'C7', 'C8', 'C9', 'C10', 'C11', 'C12', 'C13', 'C14', 'C15', 'C16', 'C17', 'C18',
 
-  // Grupo D: No pobre ni vulnerable
-  'D1', 'D2', 'D3', 'D4', 'D5', 'D6', 'D7', 'D8', 'D9', 'D10', 'D11', 'D12', 'D13', 'D14', 'D15', 'D16', 'D17', 'D18', 'D19', 'D20', 'D21',
+    // Grupo D: No pobre ni vulnerable
+    'D1', 'D2', 'D3', 'D4', 'D5', 'D6', 'D7', 'D8', 'D9', 'D10', 'D11', 'D12', 'D13', 'D14', 'D15', 'D16', 'D17', 'D18', 'D19', 'D20', 'D21',
 
-  // Opcionales de UI
-  'No Aplica',
-  'Sin Buscar'
-];
+    // Opcionales de UI
+    'No Aplica',
+    'Sin Buscar'
+  ];
 
   typeMap: { [key: string]: number } = {
     eps: 7,
@@ -141,15 +156,15 @@ categoriasSisben: string[] = [
   }
 
   private actualizarFormulariosLS(): void {
-  const almacenado = localStorage.getItem('formularios');
-  const formularios = almacenado ? JSON.parse(almacenado) : {};
+    const almacenado = localStorage.getItem('formularios');
+    const formularios = almacenado ? JSON.parse(almacenado) : {};
 
-  /* 👉 Agregar o sobre-escribir sólo estas partes */
-  formularios.selecionparte1 = this.formGroup1.value;
+    /* 👉 Agregar o sobre-escribir sólo estas partes */
+    formularios.selecionparte1 = this.formGroup1.value;
 
 
-  localStorage.setItem('formularios', JSON.stringify(formularios));
-}
+    localStorage.setItem('formularios', JSON.stringify(formularios));
+  }
 
 
   constructor(
@@ -170,41 +185,41 @@ categoriasSisben: string[] = [
       sisben: [''],
       ofac: [''],
       medidasCorrectivas: [''],
-      revisionAntecedentes: [''],
+      semanasCotizadas: [0, [Validators.required, Validators.min(1)]],
     });
 
 
 
 
 
-        // Cargar lista completa de exámenes disponibles
-        this.filteredExamOptions = [
-          'Exámen Ingreso',
-          'Colinesterasa',
-          'Glicemia Basal',
-          'Perfil lípidico',
-          'Visiometria',
-          'Optometría',
-          'Audiometría',
-          'Espirometría',
-          'Sicometrico',
-          'Frotis de uñas',
-          'Frotis de garganta',
-          'Cuadro hematico',
-          'Creatinina',
-          'TGO',
-          'Coprológico',
-          'Osteomuscular',
-          'Quimico (Respiratorio - Dermatologico)',
-          'Tegumentaria',
-          'Cardiovascular',
-          'Trabajo en alturas (Incluye test para detección de fobia a las alturas: El AQ (Acrophobia Questionnaire) de Cohen)',
-          'Electrocardiograma (Sólo aplica para mayores de 45 años)',
-          'Examen Médico',
-          'HEPATITIS A Y B',
-          'TETANO VACUNA T-D',
-          'Exámen médico integral definido para conductores'
-        ];
+    // Cargar lista completa de exámenes disponibles
+    this.filteredExamOptions = [
+      'Exámen Ingreso',
+      'Colinesterasa',
+      'Glicemia Basal',
+      'Perfil lípidico',
+      'Visiometria',
+      'Optometría',
+      'Audiometría',
+      'Espirometría',
+      'Sicometrico',
+      'Frotis de uñas',
+      'Frotis de garganta',
+      'Cuadro hematico',
+      'Creatinina',
+      'TGO',
+      'Coprológico',
+      'Osteomuscular',
+      'Quimico (Respiratorio - Dermatologico)',
+      'Tegumentaria',
+      'Cardiovascular',
+      'Trabajo en alturas (Incluye test para detección de fobia a las alturas: El AQ (Acrophobia Questionnaire) de Cohen)',
+      'Electrocardiograma (Sólo aplica para mayores de 45 años)',
+      'Examen Médico',
+      'HEPATITIS A Y B',
+      'TETANO VACUNA T-D',
+      'Exámen médico integral definido para conductores'
+    ];
   }
 
   ngOnChanges(changes: SimpleChanges): void {
@@ -280,24 +295,10 @@ categoriasSisben: string[] = [
                 }
               });
             }
-            else {
-              Swal.fire({
-                title: '¡Atención!',
-                text: 'No se encontraron documentos de antecedentes',
-                icon: 'warning',
-                confirmButtonText: 'Ok'
-              });
-            }
           },
           error: (err: any) => {
-            if (err.error.error === "No se encontraron documentos") {
-              Swal.fire({
-                title: '¡Atención!',
-                text: 'No se encontraron documentos de antecedentes',
-                icon: 'warning',
-                confirmButtonText: 'Ok'
-              });
-            } else {
+            // error que no sea que no se encontraron documentos
+            if (err.error.error !== "No se encontraron documentos") {
               Swal.fire({
                 title: '¡Error!',
                 text: 'No se pudieron obtener los documentos de antecedentes',
@@ -446,7 +447,7 @@ categoriasSisben: string[] = [
               });
             }
             else {
-              const nombres = ["eps", "afp", "policivos", "procuraduria", "contraloria", "ramaJudicial", "medidasCorrectivas", "sisben", "ofac"];
+              const nombres = ["eps", "afp", "policivos", "procuraduria", "contraloria", "ramaJudicial", "medidasCorrectivas", "sisben", "ofac", "pensionSemanas"];
               // Si la respuesta es exitosa, proceder a subir los archivos
               this.subirTodosLosArchivos(nombres).then((allFilesUploaded) => {
                 if (allFilesUploaded) {

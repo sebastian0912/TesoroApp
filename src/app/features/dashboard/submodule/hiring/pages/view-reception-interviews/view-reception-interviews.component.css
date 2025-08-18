@@ -47,3 +47,28 @@
     justify-content: flex-start;
   }
 }
+
+
+.bool-chip {
+  display: inline-block;
+  padding: 2px 10px;
+  font-weight: 600;
+  font-size: .85rem;
+  line-height: 1.4;
+  border-radius: 999px; /* si lo quieres más “cuadrito”: pon 6px */
+  border: 1px solid transparent;
+}
+
+/* Sí = verde */
+.bool-chip.si {
+  color: #065f46;
+  background: #d1fae5;
+  border-color: #a7f3d0;
+}
+
+/* No = rojo */
+.bool-chip.no {
+  color: #991b1b;
+  background: #fee2e2;
+  border-color: #fecaca;
+}

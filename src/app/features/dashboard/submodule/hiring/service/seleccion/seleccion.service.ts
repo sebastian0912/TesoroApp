@@ -245,4 +245,25 @@ export class SeleccionService {
   }
 
 
+  /**
+ * Setea la vacante para un candidato dado su número de cédula.
+ * @param cedula - Número de cédula del candidato
+ * @param vacante - ID de la vacante a asignar
+ * @param codigoContrato - (opcional) código de contrato
+ */
+  setVacante(cedula: string, vacante: any, codigoContrato?: string): Observable<any> {
+    const url = `${this.apiUrl}/contratacion/proceso-seleccion/${cedula}/set-vacante/`;
+    const body: any = { vacante };
+    if (codigoContrato) {
+      body.codigo_contrato = codigoContrato;
+    }
+
+    return this.http.post(url, body).pipe(
+      catchError(err => {
+        console.error('Error al asignar la vacante', err);
+        return throwError(() => err);
+      })
+    );
+  }
+
 }

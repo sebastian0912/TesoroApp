@@ -2,7 +2,7 @@ import { Injectable, Inject, PLATFORM_ID } from '@angular/core';
 import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
 import { isPlatformBrowser } from '@angular/common';
 import { firstValueFrom, Observable, of, throwError } from 'rxjs';
-import { map, catchError } from 'rxjs/operators';
+import { map, catchError, tap } from 'rxjs/operators';
 import { environment } from '@/environments/environment.development';
 
 @Injectable({
@@ -122,6 +122,54 @@ export class VacantesService {
       catchError(this.handleError)
     );
   }
+
+
+  /**
+   * Obtiene el Excel como Blob para que el componente decida cómo guardarlo.
+   * @param start YYYY-MM-DD (opcional)
+   * @param end   YYYY-MM-DD (opcional)
+   */
+  getVacantesExcel(start?: string, end?: string): Observable<Blob> {
+    let params = new HttpParams();
+    if (start) params = params.set('start', start);
+    if (end) params = params.set('end', end);
+
+    const url = `${this.apiUrl}/publicacion/publicaciones-excel/`;
+    return this.http.get(url, { params, responseType: 'blob' as const }).pipe(
+      catchError(err => throwError(() => err))
+    );
+  }
+
+  /**
+   * Descarga directamente el Excel (con nombre sugerido).
+   * Usa esto si prefieres que el servicio haga la descarga.
+   */
+  downloadVacantesExcel(start?: string, end?: string, filename?: string): Observable<void> {
+    const suggested = `vacantes_${start || 'inicio'}_${end || 'hoy'}.xlsx`;
+    const name = filename || suggested;
+
+    return this.getVacantesExcel(start, end).pipe(
+      tap(blob => {
+        if (!isPlatformBrowser(this.platformId)) return;
+
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = name;
+        a.click();
+        window.URL.revokeObjectURL(url);
+      }),
+      map(() => void 0),
+      catchError(err => throwError(() => err))
+    );
+  }
+
+
+
+
+
+
+
 
   // -------------------------------------------------------------------
   // ----------------------- CENTROS DE COSTOS  ------------------------

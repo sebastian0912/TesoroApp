@@ -71,6 +71,7 @@ export class SearchForCandidateComponent implements OnInit {
   @Output() codigoContratoChange = new EventEmitter<string>();
   @Output() cedulaSeleccionada = new EventEmitter<string>();
   @Output() nombreCompletoChange = new EventEmitter<string>();
+  @Output() idInfoEntrevistaAndreaChange = new EventEmitter<number>();
 
   /* ──────────  Propiedades  ────────── */
   cedula = '';
@@ -141,7 +142,7 @@ export class SearchForCandidateComponent implements OnInit {
         };
 
         const boolText = (v: any): 'Sí' | 'No' => (!!v ? 'Sí' : 'No');
-
+        console.log('Candidatos cargados:', candidatos);
         this.registros = candidatos
           .filter(c => ((c.oficina ?? '') as string).toLowerCase().trim() === sedeLower)
           .map(c => ({
@@ -199,6 +200,8 @@ export class SearchForCandidateComponent implements OnInit {
                 .filter(Boolean)
                 .join(' ');
             this.nombreCompletoChange.emit(nombreCompleto);
+
+            this.idInfoEntrevistaAndreaChange.emit(candidato[0].id);
 
             // 👇 Llamar al backend para marcar pre_registro=true
             this.infoVacantesService

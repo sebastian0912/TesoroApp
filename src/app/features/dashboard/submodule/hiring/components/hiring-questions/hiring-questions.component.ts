@@ -1,5 +1,5 @@
 import { SharedModule } from '@/app/shared/shared.module';
-import { Component, Input, OnInit, SimpleChanges } from '@angular/core';
+import { Component, EventEmitter, Input, OnInit, Output, SimpleChanges } from '@angular/core';
 import { AbstractControl, FormBuilder, FormControl, FormGroup, Validators } from '@angular/forms';
 import { MatTabsModule } from '@angular/material/tabs';
 import { Router } from '@angular/router';
@@ -24,6 +24,8 @@ import { VacantesService } from '../../service/vacantes/vacantes.service';
 export class HiringQuestionsComponent implements OnInit {
   @Input() cedula: string = '';
   @Input() codigoContrato: string = '';
+  @Output() idVacante = new EventEmitter<number>();
+
   arregloDeCentroDeCostos: any[] = arregloDeCentroDeCostos;
   message: string = '';
   message2: string = '';
@@ -588,6 +590,10 @@ export class HiringQuestionsComponent implements OnInit {
 
         // Obtener la vacante desde ese proceso
         const idVacante = seleccion.vacante;
+        console.log('ID de la vacante:', idVacante);
+        if (typeof idVacante === 'number') {
+          this.idVacante.emit(idVacante);
+        }
 
         this.vacantesService.obtenerVacante(idVacante).subscribe((vacanteResponse: any) => {
           this.nombreEmpresa = vacanteResponse.temporal;
@@ -631,7 +637,7 @@ export class HiringQuestionsComponent implements OnInit {
             }
           });
         });
-      } 
+      }
     });
   }
 
@@ -733,12 +739,7 @@ export class HiringQuestionsComponent implements OnInit {
         }
       },
       error: (err) => {
-        Swal.fire({
-          title: '¡Error!',
-          text: 'Ocurrió un error al obtener los documentos',
-          icon: 'error',
-          confirmButtonText: 'Ok'
-        });
+
       }
     });
   }

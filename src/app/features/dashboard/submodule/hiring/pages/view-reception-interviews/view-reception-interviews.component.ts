@@ -29,13 +29,16 @@ import { UtilityServiceService } from '@/app/shared/services/utilityService/util
 export class ViewReceptionInterviewsComponent implements OnInit {
   user: any;
   displayedColumns: string[] = [
-    'como_se_entero',
     'tipo_documento',
     'numero',
     'primer_apellido',
     'segundo_apellido',
     'primer_nombre',
     'segundo_nombre',
+    'pre_registro',
+    'entrevistado',
+    'examenes_medicos',
+    'contratado',
     'fecha_nacimiento',
     'fecha_expedicion',
     'barrio',
@@ -66,6 +69,7 @@ export class ViewReceptionInterviewsComponent implements OnInit {
     this.seleccionService.getCandidatos().subscribe(
       (data) => {
         this.dataSource.data = data;
+        console.log('Candidatos cargados:', data);
         this.oficinasUnicas = [...new Set(data.map((e: any) => e.oficina).filter(Boolean))].sort() as string[];
 
       },

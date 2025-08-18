@@ -34,8 +34,8 @@
         </ng-template>
         <div class="tab-content-scrollable">
           <app-search-for-candidate (cedulaSeleccionada)="onCedulaSeleccionada($event)"
-            (codigoContratoChange)="onCodigoContrato($event)"
-            (nombreCompletoChange)="getFullName($event)"></app-search-for-candidate>
+            (codigoContratoChange)="onCodigoContrato($event)" (nombreCompletoChange)="getFullName($event)"
+            (idInfoEntrevistaAndreaChange)="onIdInfoEntrevistaAndreaChange($event)"></app-search-for-candidate>
         </div>
       </mat-tab>
 
@@ -61,7 +61,7 @@
           </div>
         </ng-template>
         <div class="tab-content-scrollable">
-          <app-help-information [cedula]="cedulaActual"></app-help-information>
+          <app-help-information [cedula]="cedulaActual" (idVacante)="onIdVacanteChange($event)"></app-help-information>
         </div>
       </mat-tab>
 
@@ -152,7 +152,7 @@
 
           <!-- Botón para imprimir -->
           <button mat-flat-button (click)="imprimirSaludOcupacional()" class="example-full-width">
-            Imprimir Salud Ocupacional
+            Guardar Salud Ocupacional
           </button>
         </div>
 
@@ -795,10 +795,12 @@
           </div>
         </ng-template>
         <div class="tab-content-scrollable">
-          <!-- Aquí va el componente de contratación -->
-          <app-hiring-questions [cedula]="cedulaActual" [codigoContrato]="codigoContrato"></app-hiring-questions>
+          <app-hiring-questions [cedula]="cedulaActual" [codigoContrato]="codigoContrato"
+            (idVacante)="onIdVacanteFromHiring($event)">
+          </app-hiring-questions>
         </div>
       </mat-tab>
+
 
     </mat-tab-group>
   </mat-card-content>

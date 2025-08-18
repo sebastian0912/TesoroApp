@@ -33,7 +33,7 @@ export class ConsultContractingDocumentationComponent implements OnInit {
   /** ---------- TABLA PRINCIPAL ---------- */
   dataSource = new MatTableDataSource<any>([]);
   displayedColumns: string[] = [
-    'cedula', 'nombre', 'finca', 'fecha_ingreso', 'codigo_contrato', 'ficha_tecnica', 'pdf_cedula',  // ← coincide 100 %
+    'cedula', 'tipo_documento', 'nombre', 'finca', 'fecha_ingreso', 'codigo_contrato', 'ficha_tecnica', 'pdf_cedula',  // ← coincide 100 %
     'procuraduria', 'contraloria', 'ofac', 'policivos',
     'adres', 'sisben', 'contrato', 'entrega_documentos',
     'arl', 'examen', 'fondo_pension', 'eps', 'caja', 'pago_seguridad_social',
@@ -46,7 +46,7 @@ export class ConsultContractingDocumentationComponent implements OnInit {
     return {
       encontrado: true,
       cedula,
-
+      tipo_documento: '',
       nombre: '',
       finca: '',
       fecha_ingreso: '',
@@ -173,12 +173,14 @@ export class ConsultContractingDocumentationComponent implements OnInit {
           // --- Datos personales y de contratación ---
           if (contratacionData) {
             row.nombre_completo = contratacionData.nombre_completo || contratacionData.nombreCompleto || '';
+            row.tipo_documento = contratacionData.tipodedocumento || '';
             row.nombre = contratacionData.nombre_completo || contratacionData.nombreCompleto || '';
             row.finca = contratacionData.centro_costo_carnet || '';
             row.fecha_ingreso = this.parseFecha(contratacionData.fechaIngreso) || '';
             row.codigo_contrato = contratacionData.codigo_contrato || '';
           } else {
             row.nombre_completo = '';
+            row.tipo_documento = '';
             row.nombre = '';
             row.finca = '';
             row.fecha_ingreso = '';
@@ -332,6 +334,7 @@ export class ConsultContractingDocumentationComponent implements OnInit {
     dialogRef.afterClosed().subscribe((ordenSeleccionado: number[] | null) => {
       if (ordenSeleccionado) {
         this.descargarZipConUnion(ordenSeleccionado);
+
       }
     });
   }
@@ -367,22 +370,87 @@ export class ConsultContractingDocumentationComponent implements OnInit {
       });
   }
 
+exportarExcelFaltantes(): void {
+  const data: any[] = (this.dataSource?.data || []).map(x => ({ ...x })) as any[];
 
-  exportarExcelFaltantes(): void {
-    this.dialog.open(DateRangeDialogComponent, {
-      width: '400px',
-    }).afterClosed().subscribe(result => {
-      if (result) {
-        const startDate = result.start ? new Date(result.start) : null;
-        const endDate = result.end ? new Date(result.end) : null;
-        if (startDate && endDate) {
-          this.descargarChecklistExcel(startDate, endDate);
-        } else {
-          Swal.fire({ icon: 'error', title: 'Error', text: 'Por favor, seleccione un rango de fechas válido.' });
-        }
-      }
-    });
-  }
+  // Orden exacto de columnas que quieres en el Excel
+  const headers = [
+    'Cédula',
+    'Tipo de Documento',
+    'Nombre',
+    'Finca',
+    'Fecha ingreso',
+    'Código de contrato',
+    'Ficha Técnica',
+    'PDF Cédula',
+    'Procuraduría',
+    'Contraloría',
+    'OFAC',
+    'Policivos',
+    'ADRES',
+    'SISBEN',
+    'Contrato',
+    'Entrega de Documentos',
+    'ARL',
+    'Examen',
+    'Fondo de Pensión',
+    'EPS',
+    'Caja de Compensación',
+    'Pago Seguridad Social',
+  ];
+
+  // Helper: 1 si hay archivo/url o flag "✔", 0 si no
+  const toBin = (v: any) => (v && String(v).trim() !== '' ? 1 : 0);
+  const isCheck = (v: any) => String(v || '').trim() === '✔';
+
+  // Helper: prioriza pdfField, y si no existe usa un flag alterno (✔)
+  const hasDoc = (item: any, pdfField: string, altFlagField?: string) => {
+    if (pdfField in item) return toBin(item[pdfField]);
+    if (altFlagField) return isCheck(item[altFlagField]) ? 1 : 0;
+    return 0;
+  };
+
+  const rows = data.map((item) => {
+    return {
+      'Cédula'                 : item.cedula ?? '',
+      'Tipo de Documento'      : item.tipo_documento ?? '',
+      'Nombre'                 : item.nombre ?? '',
+      'Finca'                  : item.finca ?? '',
+      'Fecha ingreso'          : item.fecha_ingreso ?? '',
+      'Código de contrato'     : item.codigo_contrato ?? '',
+
+      // Documentos (1 si hay pdf_*, 0 si no). En algunos hago fallback al flag "✔".
+      'Ficha Técnica'          : hasDoc(item, 'pdf_ficha_tecnica', 'ficha_tecnica'),
+      'PDF Cédula'             : hasDoc(item, 'pdf_cedula'),
+      'Procuraduría'           : hasDoc(item, 'pdf_procuraduria', 'procuraduria'),
+      'Contraloría'            : hasDoc(item, 'pdf_contraloria', 'contraloria'),
+      'OFAC'                   : hasDoc(item, 'pdf_ofac', 'ofac'),
+      'Policivos'              : hasDoc(item, 'pdf_policivos', 'policivos'),
+      'ADRES'                  : hasDoc(item, 'pdf_adres', 'adres'),
+      'SISBEN'                 : hasDoc(item, 'pdf_sisben', 'sisben'),
+      'Contrato'               : hasDoc(item, 'pdf_contrato', 'contrato'),
+      'Entrega de Documentos'  : hasDoc(item, 'pdf_entrega_documentos', 'entrega_documentos'),
+      'ARL'                    : hasDoc(item, 'pdf_arl', 'arl'),
+      'Examen'                 : hasDoc(item, 'pdf_examen', 'examen'),
+      'Fondo de Pensión'       : hasDoc(item, 'pdf_fondo_pension', 'fondo_pension'),
+      'EPS'                    : hasDoc(item, 'pdf_eps', 'eps'),
+      'Caja de Compensación'   : hasDoc(item, 'pdf_caja', 'caja'),
+      'Pago Seguridad Social'  : hasDoc(item, 'pdf_pago_seguridad_social', 'pago_seguridad_social'),
+    };
+  });
+
+  // Crea la hoja con el orden de headers deseado
+  const ws = XLSX.utils.json_to_sheet(rows, { header: headers });
+  // Ajuste de anchos aproximados
+  ws['!cols'] = headers.map(h => ({ wch: Math.max(18, h.length + 2) }));
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Faltantes');
+
+  const filename = `faltantes_${new Date().toISOString().slice(0, 10)}.xlsx`;
+  XLSX.writeFile(wb, filename);
+}
+
 
   descargarChecklistExcel(startDate: Date, endDate: Date): void {
     if (!startDate || !endDate) {

@@ -47,3 +47,10 @@ mat-card-subtitle{
     background-color: white; /* Optional: to give the button a background */
     box-shadow: none; /* Remove default shadow if present */
 }
+
+.page-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}

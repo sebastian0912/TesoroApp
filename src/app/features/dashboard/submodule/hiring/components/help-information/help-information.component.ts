@@ -1,5 +1,5 @@
 import { SharedModule } from '@/app/shared/shared.module';
-import { Component, Input, LOCALE_ID, OnInit, SimpleChanges } from '@angular/core';
+import { Component, EventEmitter, Input, LOCALE_ID, OnInit, Output, SimpleChanges } from '@angular/core';
 import { FormGroup, FormBuilder, Validators, FormArray } from '@angular/forms';
 import Swal from 'sweetalert2';
 import { MatTabsModule } from '@angular/material/tabs';
@@ -11,6 +11,8 @@ import { SeleccionService } from '../../service/seleccion/seleccion.service';
 import { MomentDateAdapter } from '@angular/material-moment-adapter';
 import { PDFDocument } from 'pdf-lib';
 import { GestionDocumentalService } from '../../service/gestion-documental/gestion-documental.service';
+import { InfoVacantesService } from '../../service/info-vacantes/info-vacantes.service';
+import { VacantesService } from '../../service/vacantes/vacantes.service';
 
 export const MY_DATE_FORMATS = {
   parse: { dateInput: 'DD/MM/YYYY' },
@@ -21,6 +23,35 @@ export const MY_DATE_FORMATS = {
     monthYearA11yLabel: 'MMMM YYYY'
   }
 };
+
+// Interfaces útiles
+interface OficinaDTO { nombre: string; numeroDeGenteRequerida: number; ruta: boolean; }
+
+interface PublicacionDTO {
+  id: number;
+  cargo: string;
+  oficinasQueContratan: OficinaDTO[];
+  empresaUsuariaSolicita: string;
+  finca: string | null;
+  ubicacionPruebaTecnica: string | null;
+  experiencia: string | null;
+  fechadePruebatecnica: string | null; // "YYYY-MM-DD"
+  horadePruebatecnica: string | null; // "HH:mm:ss"
+  observacionVacante: string | null;
+  fechadeIngreso: string | null; // "YYYY-MM-DD"
+  temporal: string | null;
+  descripcion: string | null;
+  fechaPublicado: string; // "YYYY-MM-DD"
+  quienpublicolavacante: string | null;
+  estadovacante: string | null;
+  salario: string | null;           // "0.00" ó null
+  codigoElite: string | null;
+  area: string | null;
+  pruebaOContratacion: string | null; // "Prueba" | "Contratación" | ...
+  tipoContratacion: string | null;
+  municipio: string[] | null;
+  auxilioTransporte: string | null;
+}
 
 @Component({
   selector: 'app-help-information',
@@ -44,6 +75,7 @@ export const MY_DATE_FORMATS = {
 export class HelpInformationComponent implements OnInit {
   @Input() cedula: string = '';
   examFiles: File[] = [];
+  @Output() idVacante = new EventEmitter<number>();
 
   // Formularios
   infoPersonalForm: FormGroup;
@@ -69,12 +101,25 @@ export class HelpInformationComponent implements OnInit {
     "YA HABÍA TRABAJADO CON NOSOTROS"
   ];
 
+  vacantes: PublicacionDTO[] = [];
+  vacanteSeleccionada: PublicacionDTO | null = null;
+
+  oficinasNombres(oficinas?: OficinaDTO[] | null): string {
+    if (!oficinas || oficinas.length === 0) return '';
+    return oficinas.map(o => o?.nombre).filter(Boolean).join(', ');
+  }
+
+  // NO tocamos vacanteSeleccionada; usamos un id aparte
+  selectedVacanteId: number | null = null;
+
   constructor(
     private fb: FormBuilder,
     private hiringService: HiringService,
     private seleccionService: SeleccionService,
     private utilityService: UtilityServiceService,
-    private gestionDocumentalService: GestionDocumentalService
+    private gestionDocumentalService: GestionDocumentalService,
+    private infoVacantesService: InfoVacantesService,
+    private vacantesService: VacantesService
   ) {
 
     this.formGroup2 = this.fb.group({
@@ -129,21 +174,80 @@ export class HelpInformationComponent implements OnInit {
     // Formulario 4: Vacantes
     this.vacantesForm = this.fb.group({
       tipo: ['', Validators.required],
-      centroCosto: [''],
-      cargo: [''],
       empresaUsuaria: [''],
+      cargo: [''],
       area: [''],
       fechaIngreso: [''],
       salario: [''],
       fechaPruebaEntrevista: [''],
       horaPruebaEntrevista: [''],
-      direccionEmpresa: [''],
-      porQuienPregunta: [''],
-      retroalimentacionFinal: ['']
+      direccionEmpresa: ['']
     });
   }
 
+  onVacanteIdChange(id: number): void {
+    this.selectedVacanteId = id;
+    const v = this.vacantes.find(x => x.id === id) || null;
+    this.vacanteSeleccionada = v;
+    if (v) this.patchVacanteToForm(v);
+  }
+
+  // si también quieres re-emitir tras guardar:
+  emitirIdSiSeleccionado(): void {
+    if (typeof this.selectedVacanteId === 'number') {
+      this.idVacante.emit(this.selectedVacanteId);
+    }
+  }
+
+  private patchVacanteToForm(v: PublicacionDTO): void {
+    // deducir tipo desde la vacante (si aplica)
+
+
+    // helpers de conversión
+    const toDate = (yyyyMmDd: string | null) =>
+      yyyyMmDd ? new Date(`${yyyyMmDd}T00:00:00`) : null;
+
+    const toTime = (hhmmss: string | null) =>
+      hhmmss ? hhmmss.slice(0, 5) : null; // "HH:mm:ss" -> "HH:mm"
+
+    const salarioNum =
+      v.salario && v.salario !== '0.00' ? Number(v.salario) : null;
+
+    this.vacantesForm.patchValue({
+      // comunes
+
+      empresaUsuaria: v.empresaUsuariaSolicita ?? '',
+      cargo: v.cargo ?? '',
+
+      // autorización
+      fechaIngreso: toDate(v.fechadeIngreso),
+      salario: salarioNum,
+
+      // prueba
+      area: v.area ?? '',
+      fechaPruebaEntrevista: toDate(v.fechadePruebatecnica),
+      horaPruebaEntrevista: toTime(v.horadePruebatecnica),
+      direccionEmpresa: v.ubicacionPruebaTecnica ?? ''
+    });
+
+    // Si cambiaste 'tipo', fuerza *ngIf del template a reevaluar
+    this.vacantesForm.get('tipo')?.updateValueAndValidity({ emitEvent: true });
+  }
+
   ngOnInit(): void {
+    const user = this.utilityService.getUser();
+    if (!user) {
+      Swal.fire('Error', 'No se encontró información del usuario', 'error');
+      return;
+    }
+    this.vacantesService.getVacantesPorOficina(user.sucursalde)
+      .subscribe((vacantes: PublicacionDTO[]) => {
+        this.vacantes = vacantes ?? [];
+        // (opcional) autoseleccionar la primera:
+        // if (this.vacantes.length) this.onVacanteIdChange(this.vacantes[0].id);
+      });
+
+
     // Lógica para requerir motivo solo si eligen NO APLICA:
     this.infoPersonalForm.get('aplicaObservacion')!.valueChanges.subscribe(val => {
       const motivo = this.infoPersonalForm.get('motivoNoAplica');
@@ -202,6 +306,8 @@ export class HelpInformationComponent implements OnInit {
     if (changes['cedula'] && this.cedula) {
       this.buscarContratacion();
     }
+
+
   }
 
   recibirVacante(vacante: any): void {
@@ -310,12 +416,28 @@ export class HelpInformationComponent implements OnInit {
 
     this.seleccionService.guardarInfoPersonal(info).subscribe({
       next: (resp) => {
+        // ✅ primero guardó la info
         Swal.fire({
           title: 'Guardado',
           text: 'Información personal guardada correctamente.',
           icon: 'success',
           confirmButtonText: 'Ok'
         });
+        console.log('✅ Info personal guardada:', resp);
+
+        // 👇 ahora actualizamos el estado entrevistado=true
+        if (resp && resp.id) {
+          this.infoVacantesService
+            .setEstadoVacanteAplicante(resp.id, 'entrevistado', true)
+            .subscribe({
+              next: (estadoResp) => {
+                console.log('✅ Estado entrevistado actualizado:', estadoResp);
+              },
+              error: (err) => {
+                console.error('❌ Error al actualizar entrevistado', err);
+              }
+            });
+        }
       },
       error: (err) => {
         Swal.fire({
@@ -327,6 +449,7 @@ export class HelpInformationComponent implements OnInit {
       }
     });
   }
+
 
 
 
@@ -378,16 +501,50 @@ export class HelpInformationComponent implements OnInit {
         }
       }
     }
+    console.log('Guardando vacantes con payload:', payload);
 
     this.seleccionService.guardarVacantes(payload).subscribe({
-      next: () => {
+      next: (resp) => {
         Swal.fire('Guardado', 'Vacantes guardadas correctamente.', 'success');
+
+        // ✅ ahora marcamos prueba_tecnica=true
+        if (resp && resp.id) {
+          this.infoVacantesService
+            .setEstadoVacanteAplicante(resp.id, 'prueba_tecnica', true)
+            .subscribe({
+              next: (estadoResp) => {
+                console.log('✅ Estado prueba_tecnica actualizado:', estadoResp);
+              },
+              error: (err) => {
+                console.error('❌ Error al actualizar prueba_tecnica', err);
+              }
+            });
+          this.vacantesService.setEstadoVacanteAplicante(this.vacanteSeleccionada?.id, 'preseleccionado', this.cedula).subscribe({
+            next: (estadoResp) => {
+              console.log('✅ Estado preseleccionado actualizado:', estadoResp);
+            },
+            error: (err) => {
+              console.error('❌ Error al actualizar preseleccionado', err);
+            }
+          });
+          this.seleccionService.setVacante(this.cedula, this.vacanteSeleccionada?.id).subscribe({
+            next: (estadoResp) => {
+              console.log('✅ Vacante asignada correctamente:', estadoResp);
+            },
+            error: (err) => {
+              console.error('❌ Error al asignar vacante', err);
+            }
+          });
+          this.emitirIdSiSeleccionado(); // Emitir el ID de la vacante seleccionada
+        }
+
       },
       error: (error) => {
         Swal.fire('Error', 'No se pudo guardar las vacantes.', 'error');
       }
     });
   }
+
 
   // Obtener el nombre completo
   getFullName(): string {

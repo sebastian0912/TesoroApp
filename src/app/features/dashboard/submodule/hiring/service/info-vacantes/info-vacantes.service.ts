@@ -55,7 +55,7 @@ export class InfoVacantesService {
   // - Si envías {}, hace toggle
   // -----------------------
   setEstadoVacanteAplicante(
-    id: number,
+    id: any,
     field: EstadoField,
     value?: boolean
   ): Observable<EstadoResponse> {

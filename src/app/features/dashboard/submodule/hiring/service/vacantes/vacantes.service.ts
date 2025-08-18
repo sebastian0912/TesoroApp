@@ -6,17 +6,14 @@ import { map, catchError } from 'rxjs/operators';
 import { environment } from '@/environments/environment.development';
 
 export type EstadoField =
-  | 'pre_registro'
-  | 'entrevistado'
-  | 'prueba_tecnica'
-  | 'examenes_medicos'
+  | 'preseleccionado'
   | 'contratado';
 
 export interface EstadoResponse {
   id: number;
+  preseleccionados?: string[];
+  contratados?: string[];
   updated_at: string;
-  // el backend devuelve solo el campo cambiado, por eso lo dejamos index signature:
-  [k: string]: any;
 }
 
 @Injectable({
@@ -54,7 +51,7 @@ export class VacantesService {
 
     const params = new HttpParams().set('centro_costo_carnet', costo.trim()); // Crear parámetros limpios
 
-    return this.http.get(`${this.apiUrl}/infoCentrosCosto/centro-costos/`, {  params }).pipe(
+    return this.http.get(`${this.apiUrl}/infoCentrosCosto/centro-costos/`, { params }).pipe(
       map((response: any) => response.data || []), // Extraer data de la respuesta
       catchError(error => {
         return of([]); // En caso de error, devolver un array vacío
@@ -111,26 +108,27 @@ export class VacantesService {
     );
   }
 
+  getVacantesPorOficina(nombreOficina: string): Observable<any[]> {
+    const url = `${this.apiUrl}/publicacion/vacantes-por-nombre-oficina/${encodeURIComponent(nombreOficina)}/`;
+    return this.http.get<any[]>(url);
+  }
 
-    // -----------------------
+
+  // -----------------------
   // NUEVO: Estado individual (APIView)
   // PATCH /vacantes-aplicantes/:id/estado/:field/
   // - Si envías {value: true|false}, lo fija
   // - Si envías {}, hace toggle
   // -----------------------
+
   setEstadoVacanteAplicante(
-    id: number,
+    id: any,
     field: EstadoField,
-    value?: boolean
+    cedula: string
   ): Observable<EstadoResponse> {
     const url = `${this.apiUrl}/publicacion/cambioestado/${id}/estado/${field}/`;
-    const body = value === undefined ? {} : { value };
+    const body = { cedula, op: 'add' }; // siempre add
     return this.http.patch<EstadoResponse>(url, body);
-  }
-
-  /** Atajo para toggle sin pasar value */
-  toggleEstadoVacanteAplicante(id: number, field: EstadoField): Observable<EstadoResponse> {
-    return this.setEstadoVacanteAplicante(id, field);
   }
 
   // -------------------------------------------------------------------
@@ -181,11 +179,13 @@ export class VacantesService {
       .set('sublabor', sublabor);
 
     // Hacer la solicitud GET
-    return this.http.get(`${this.apiUrl}/infoCentrosCosto/detalle-laboral/`, {  params }).pipe(
+    return this.http.get(`${this.apiUrl}/infoCentrosCosto/detalle-laboral/`, { params }).pipe(
       map((response: any) => response),  // Procesar la respuesta
       catchError(this.handleError)       // Manejar errores
     );
   }
+
+
 
 
 }

@@ -55,7 +55,7 @@ export const MY_DATE_FORMATS = {
     MatNativeDateModule,
     HiringQuestionsComponent,
     MatTooltipModule,
-    
+
     MatDialogModule
 
   ],
@@ -74,9 +74,11 @@ export class RecruitmentPipelineComponent implements OnInit {
   cedulaActual = '';
   codigoContrato = '';
   nombreCandidato = '';
+  idInfoEntrevistaAndrea = 0;
   filtro = '';
   vacantes: any[] = [];
-  idvacante = '';
+  idvacante = 0;
+  idVacanteContratacion = 0;
   // Añadir dentro de la clase RecruitmentPipelineComponent
   dataSource = new MatTableDataSource<any>([]);
   displayedColumns: string[] = [
@@ -125,7 +127,6 @@ export class RecruitmentPipelineComponent implements OnInit {
     figuraHumana: { fileName: 'Adjuntar documento' },
     pensionSemanas: { fileName: 'Adjuntar documento' },
   };
-
 
   typeMap: { [key: string]: number } = {
     eps: 7,
@@ -400,6 +401,13 @@ export class RecruitmentPipelineComponent implements OnInit {
   }
 
   async loadData(): Promise<void> {
+    const user = this.utilityService.getUser();
+    if (!user) {
+      Swal.fire('Error', 'No se encontró información del usuario', 'error');
+      return;
+    }
+
+
     this.vacantesService.listarVacantes().pipe(
       catchError((error) => {
         Swal.fire('Error', 'Ocurrió un error al cargar las vacantes', 'error');
@@ -411,11 +419,7 @@ export class RecruitmentPipelineComponent implements OnInit {
         return;
       }
 
-      const user = this.utilityService.getUser();
-      if (!user) {
-        Swal.fire('Error', 'No se encontró información del usuario', 'error');
-        return;
-      }
+
 
       const sedeLoginLower = user.sucursalde?.toLowerCase?.() || '';
 
@@ -463,6 +467,17 @@ export class RecruitmentPipelineComponent implements OnInit {
 
   onCodigoContrato(codigo: string): void {
     this.codigoContrato = codigo;
+  }
+
+  // id de info entrevista andrea
+  onIdInfoEntrevistaAndreaChange(id: number): void {
+    this.idInfoEntrevistaAndrea = id;
+  }
+
+  //OnIdVacanteChange
+  onIdVacanteChange(id: number): void {
+    this.idvacante = id;
+    console.log('ID de vacante cambiado:', id);
   }
 
   // Método para obtener el nombre completo del candidato
@@ -579,36 +594,42 @@ export class RecruitmentPipelineComponent implements OnInit {
     this.router.navigate(['dashboard/hiring/generate-contracting-documents']);
   }
 
-  guardarFormulariosEnLocalStorage() {
-    // Leer lo que ya hay en localStorage
-    const stored = localStorage.getItem('formularios');
-    let formularios: any = {};
+guardarFormulariosEnLocalStorage() {
+  // Leer lo que ya hay en localStorage
+  const stored = localStorage.getItem('formularios');
+  let formularios: any = {};
 
-    if (stored) {
-      formularios = JSON.parse(stored); // conservar lo anterior
-    }
-
-    // Actualizar o agregar los datos nuevos
-    formularios = {
-      ...formularios, // mantiene lo que ya tenía
-      datosPersonales: this.datosPersonales.value,
-      //datosPersonalesParte2: this.datosPersonalesParte2.value,
-      //datosTallas: this.datosTallas.value,
-      //datosConyugue: this.datosConyugue.value,
-      //datosPadre: this.datosPadre.value,
-      //datosMadre: this.datosMadre.value,
-      datosReferencias: this.datosReferencias.value,
-      datosExperienciaLaboral: this.datosExperienciaLaboral.value,
-      datosHijos: this.datosHijos.value,
-      datosParte3Seccion1: this.datosParte3Seccion1.value,
-      datosParte3Seccion2: this.datosParte3Seccion2.value,
-      datosParte4: this.datosParte4.value,
-
-    };
-
-    // Guardar de nuevo el objeto completo
-    localStorage.setItem('formularios', JSON.stringify(formularios));
+  if (stored) {
+    formularios = JSON.parse(stored); // conservar lo anterior
   }
+  console.log('idInfoEntrevistaAndrea:', this.idInfoEntrevistaAndrea);
+  console.log('idVacanteContratacion:', this.idVacanteContratacion);
+  // Actualizar o agregar los datos nuevos
+  formularios = {
+    ...formularios, // mantiene lo que ya tenía
+    datosPersonales: this.datosPersonales.value,
+    //datosPersonalesParte2: this.datosPersonalesParte2.value,
+    //datosTallas: this.datosTallas.value,
+    //datosConyugue: this.datosConyugue.value,
+    //datosPadre: this.datosPadre.value,
+    //datosMadre: this.datosMadre.value,
+    datosReferencias: this.datosReferencias.value,
+    datosExperienciaLaboral: this.datosExperienciaLaboral.value,
+    datosHijos: this.datosHijos.value,
+    datosParte3Seccion1: this.datosParte3Seccion1.value,
+    datosParte3Seccion2: this.datosParte3Seccion2.value,
+    datosParte4: this.datosParte4.value,
+    vacante: this.idvacante !== 0
+        ? this.idvacante
+        : this.idVacanteContratacion,
+    entrevista_andrea: this.idInfoEntrevistaAndrea
+
+  };
+
+  // Guardar de nuevo el objeto completo
+  localStorage.setItem('formularios', JSON.stringify(formularios));
+}
+
 
 
 
@@ -640,7 +661,6 @@ export class RecruitmentPipelineComponent implements OnInit {
     });
 
     try {
-      // Crear un nuevo documento PDF
       const mergedPdf = await PDFDocument.create();
 
       for (const file of this.examFiles) {
@@ -652,16 +672,23 @@ export class RecruitmentPipelineComponent implements OnInit {
         }
       }
 
-      // Generar el PDF fusionado en Blob
       const mergedPdfBytes = await mergedPdf.save();
       const pdfBlob = new Blob([mergedPdfBytes], { type: 'application/pdf' });
 
-      // Guardar el archivo fusionado en uploadedFiles["examenesMedicos"]
       this.subirArchivo(pdfBlob, "examenesMedicos", "SaludOcupacional_Combinado.pdf");
 
-      Swal.close(); // Cerrar la alerta de carga
-
+      Swal.close();
       this.imprimirDocumentos();
+
+      // 📌 Actualizar estado examenes_medicos
+      if (this.idInfoEntrevistaAndrea) {
+        this.infoVacantesService
+          .setEstadoVacanteAplicante(this.idInfoEntrevistaAndrea, 'examenes_medicos', true)
+          .subscribe({
+            next: () => console.log('Estado examenes_medicos actualizado ✅'),
+            error: () => console.warn('No se pudo actualizar el estado examenes_medicos ❌')
+          });
+      }
 
     } catch (error) {
       Swal.close();
@@ -672,6 +699,13 @@ export class RecruitmentPipelineComponent implements OnInit {
         confirmButtonText: 'Ok'
       });
     }
+  }
+
+
+
+  onIdVacanteFromHiring(id: number): void {
+    this.idVacanteContratacion = id;
+    console.log('📌 ID de vacante recibido desde contratación:', id);
   }
 
 
