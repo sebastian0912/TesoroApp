@@ -1,3 +1,19 @@
 .table-container{
   height: 250pt;
 }
+
+.page-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.page-header .title {
+  margin: 0;
+  font-weight: 600;
+  line-height: 1.2;
+  /* hace que el botón se pegue al título sin saltar de línea */
+  display: inline-flex;
+  align-items: center;
+}

@@ -1,29 +1,37 @@
 <mat-card>
   <mat-card-content>
     <div class="tabla">
-      <h1 class="title">Consultar documentación contratación </h1>
+<div class="page-header">
+  <h1 class="title">Consultar documentación contratación</h1>
 
-      <!-- FILTRO -->
-      <mat-form-field class="filtro">
-        <mat-label>Filtrar</mat-label>
-        <input matInput #input placeholder="Filtrar en tabla" (keyup)="applyFilters($event)" />
-      </mat-form-field>
+  <button mat-icon-button [matMenuTriggerFor]="accionesMenu" aria-label="Acciones">
+    <mat-icon>more_vert</mat-icon>
+  </button>
 
-      <!--limpiar-->
-      <button mat-flat-button type="button" (click)="limpiarTabla()" style="margin-left: 15pt; margin-right: 15pt;">
-        Limpiar
-      </button>
+  <mat-menu #accionesMenu="matMenu">
+    <button mat-menu-item (click)="limpiarTabla()">
+      <mat-icon>filter_alt_off</mat-icon>
+      <span>Limpiar</span>
+    </button>
 
-      <!--descargar-->
-      <button mat-flat-button type="button" (click)="descargarZip()" style="margin-left: 15pt; margin-right: 15pt;">
-        Descargar paquetes
-      </button>
+    <button mat-menu-item (click)="descargarZip()">
+      <mat-icon>archive</mat-icon>
+      <span>Descargar paquetes</span>
+    </button>
 
-      <!-- Faltantes -->
-      <button mat-flat-button type="button" (click)="exportarExcelFaltantes()"
-        style="margin-left: 15pt; margin-right: 15pt;" *ngIf="user?.rol === 'ADMIN' || user?.rol === 'GERENCIA'">
-        Ver faltantes
-      </button>
+    <button mat-menu-item *ngIf="user?.rol === 'ADMIN' || user?.rol === 'GERENCIA'" (click)="exportarExcelFaltantes()">
+      <mat-icon>table_view</mat-icon>
+      <span>Ver faltantes</span>
+    </button>
+  </mat-menu>
+</div>
+
+<!-- Filtro debajo (sin cambios) -->
+<mat-form-field class="filtro">
+  <mat-label>Filtrar</mat-label>
+  <input matInput #input placeholder="Filtrar en tabla" (keyup)="applyFilters($event)" />
+</mat-form-field>
+
 
       <!-- TABLA -->
       <div class="table-container" tabindex="0" (paste)="onTablePaste($event)">
