@@ -517,8 +517,7 @@ export class RecruitmentPipelineComponent implements OnInit {
 
   onCodigoContrato(codigo: string): void {
     this.codigoContrato = codigo;
-
-
+    console.log('Código de contrato:', this.codigoContrato);
   }
 
   // id de info entrevista andrea
@@ -632,6 +631,10 @@ export class RecruitmentPipelineComponent implements OnInit {
 
 
   generacionDocumentos() {
+    console.log('Generando documentos...');
+    console.log('Cedula actual:', this.cedulaActual);
+    console.log('Codigo de contrato:', this.codigoContrato);
+
     // Si no existe la cedula, mostrar un mensaje de error
     if (!this.cedulaActual || !this.codigoContrato) {
       Swal.fire('Error', 'Debe seleccionar un candidato primero', 'error');
@@ -771,7 +774,6 @@ export class RecruitmentPipelineComponent implements OnInit {
     if (hayNoApto && !this._warnedNoApto) {
       this._warnedNoApto = true;
 
-      // Evitar que se reemplace si ya hay un Swal abierto
       Swal.fire({
         icon: 'warning',
         title: 'Examen no apto',
@@ -780,10 +782,14 @@ export class RecruitmentPipelineComponent implements OnInit {
         allowOutsideClick: false,
         allowEscapeKey: false
       }).then(() => {
-        // ✅ Emitir evento al hijo
+        // 🔔 Solo avisa, no procesa
         this.utilityService.nextStep.emit();
       });
+    } else {
+      this.utilityService.nextStep.emit();
     }
+
+
 
 
     if (!hayNoApto && this._warnedNoApto) {

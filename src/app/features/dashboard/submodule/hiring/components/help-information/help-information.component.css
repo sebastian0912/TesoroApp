@@ -1,7 +1,220 @@
-form{
-  min-height: 66vh
+
+.datos {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
 }
 
-.example-full-width {
-  max-width: 22% !important;
+
+.archivo,
+.file-input {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-top: 20px;
+}
+
+@media screen and (max-width: 600px) {
+  .logo {
+    width: 70%;
+    height: auto;
+    margin-top: 80px;
+  }
+
+  .datos {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+
+  .titulo {
+    font-size: 25pt;
+    color: white;
+    float: left;
+    font-family: Oswald;
+    text-align: center;
+  }
+
+  .title {
+    height: auto;
+    padding-bottom: 20px; /* ajustar porque la palabra se pega una con otra */
+  }
+
+  .title h1 { line-height: 1.2; }
+
+  .logo { margin-top: 10px; }
+
+  .contenedor {
+    width: 100%;
+    height: 100%;
+  }
+
+  h3 { margin-bottom: 0; }
+
+  mat-form-field {
+    width: 80%;
+    margin-top: 10px;
+    margin-bottom: 0px;
+  }
+
+  .boton { width: 300px; }
+  .boton2 { width: 300px; margin-left: 30px; }
+
+  .botones button {
+    width: 150px;
+    margin: 0 10px 0 0;
+  }
+
+  .cajabusqueda {
+    flex-direction: column;
+    max-height: 50vh;
+    height: auto;
+  }
+
+  .cajabusqueda mat-form-field { width: 80%; }
+  .cajabusqueda .boton { width: 80%; margin-top: 10px; }
+  .cajabusqueda .boton:nth-child(2) { margin-left: 37px; }
+  .cajabusqueda .boton:nth-child(3) { margin-left: 0; }
+}
+
+@media screen and (min-width: 601px) and (max-width: 1223px) {
+  h3 { margin-bottom: 0; }
+
+  mat-form-field {
+    width: 42%;
+    margin-top: 10px;
+    margin-bottom: 0px;
+  }
+
+  .file { width: 42%; margin-top: 10px; }
+  .boton { width: 100%; }
+
+  .previo { margin-left: -50px; }
+  .previo2 { margin-left: -130px; }
+
+  .botones button {
+    width: 145px;
+    margin: 0 10px 0 0;
+  }
+
+  .cajabusqueda .boton { width: 40%; }
+}
+
+@media screen and (min-width: 1224px) and (max-width: 1824px) {
+  .cajabusqueda .boton { width: 40%; }
+
+  h3 { margin-bottom: 0; }
+
+  mat-form-field {
+    width: 29.1%;
+    margin-top: 10px;
+    margin-bottom: 0px;
+  }
+
+  .file { width: 29.1%; margin-top: 10px; }
+  .boton { width: 100%; }
+
+  .previo { margin-left: -50px; }
+  .previo2 { margin-left: -130px; }
+
+  .logo {
+    width: 60%;
+    height: auto;
+    margin-top: -5px;
+  }
+}
+
+/* ========= Cards genéricas existentes ========= */
+.cards-stack {
+  display: grid;
+  flex: 1 1 auto;
+  gap: 12px;
+  padding: 10pt;
+}
+
+.card {
+  padding: 12px;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 1px 6px rgba(0, 0, 0, .06);
+}
+
+.card-title {
+  font-weight: 600;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+}
+
+.section-header {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 16px 0 8px;
+}
+
+.section-header .spacer,
+.card-title .spacer {
+  flex: 1 1 auto;
+}
+
+/* ========= Estilos nuevos, escopados a la sección bonita ========= */
+.section {
+  width: 70vw;
+  background: #fafafa;
+  border-radius: 12px;
+  padding: 16px;
+  margin: 16px 0;
+  box-shadow: 0 1px 6px rgba(0,0,0,.06);
+}
+
+.section-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.section-title {
+  margin: 0;
+  font-weight: 600;
+}
+
+/* Grids responsivas */
+.grid-1,
+.grid-2,
+.grid-3 {
+  display: grid;
+  gap: 12px;
+}
+
+.grid-1 { grid-template-columns: 1fr; }
+.grid-2 { grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+.grid-3 { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+
+.stack { display: grid; gap: 16px; }
+.placeholder { min-height: 0; }
+
+.section mat-form-field {
+  width: 100% !important;
+  margin: 0 !important;
+}
+
+/* Cards dentro de la sección (pueden reutilizar las genéricas) */
+.section .cards-stack {
+  padding: 0; /* ya hay padding en .section */
+}
+
+.cards-stack.children {
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+}
+
+/* Botones dentro de cabeceras de sección */
+.section .spacer {
+  flex: 1 1 auto;
 }

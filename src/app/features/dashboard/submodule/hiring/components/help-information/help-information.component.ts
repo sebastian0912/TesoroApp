@@ -101,6 +101,31 @@ export class HelpInformationComponent implements OnInit {
     "YA HABÍA TRABAJADO CON NOSOTROS"
   ];
 
+  //  Lista estado civil
+  estadosCiviles: any[] = [
+    {
+      codigo: 'SO',
+      descripcion: 'SO (Soltero)',
+    },
+    {
+      codigo: 'UL',
+      descripcion: 'UL (Unión Libre) ',
+    },
+    {
+      codigo: 'CA',
+      descripcion: 'CA (Casado)',
+    },
+    {
+      codigo: 'SE',
+      descripcion: 'SE (Separado)',
+    },
+    {
+      codigo: 'VI',
+      descripcion: 'VI (Viudo)',
+    },
+  ];
+
+
   vacantes: PublicacionDTO[] = [];
   vacanteSeleccionada: PublicacionDTO | null = null;
 
@@ -142,34 +167,71 @@ export class HelpInformationComponent implements OnInit {
     });
 
     // Formulario 1: Info personal
+    // Dentro del constructor (o donde inicializas los formularios)
     this.infoPersonalForm = this.fb.group({
-      tipodedocumento: [''],
-      numerodecedula: [''],
+      // --- TUS CAMPOS ORIGINALES ---
+      tipodedocumento: ['', Validators.required],
+      numerodecedula: [
+        '',
+        [Validators.required, Validators.pattern(/^\d+$/)]
+      ],
       municipio: [''],
-      municipioExpedicion: [''],
+      municipioExpedicion: ['', Validators.required],
       nombreCompleto: [''],
-      celular: [''],
-      whatsapp: [''],
-      genero: [''],
+      celular: ['', [Validators.required, Validators.pattern(/^3\d{9}$/)]],
+      whatsapp: ['', [Validators.required, Validators.pattern(/^3\d{9}$/), Validators.maxLength(10)]],
+      genero: ['', Validators.required],
       edad: [''],
-      fechaNacimiento: [''],
-      fechaExpedicion: [''],
-      barrio: [''],
-      tieneExperienciaFlores: [''],
+      fechaNacimiento: ['', Validators.required],
+      fechaExpedicion: ['', Validators.required],
+      barrio: ['', [Validators.required, Validators.minLength(3), Validators.maxLength(40)]],
+      tieneExperienciaFlores: ['', Validators.required],
       referenciado: [''],
-      nombreReferenciado: [''], // Campo adicional para el nombre del referenciado
+      nombreReferenciado: [''],
       comoSeEntero: [''],
       laboresRealizadas: [''],
       empresasLaborado: [''],
       tiempoExperiencia: [''],
-      escolaridad: [''],
-      numHijos: [''],
+      escolaridad: [null, Validators.required],
+      numHijos: [0],
       edadesHijos: [''],
       quienLosCuida: [''],
       aplicaObservacion: ['', Validators.required],
       motivoNoAplica: [''],
-      hijos: this.fb.array([])
+      hijos: this.fb.array([]),
+      // --- CAMPOS QUE FALTABAN (TRAÍDOS DE formVacante) ---
+      primerApellido: ['', [Validators.required, Validators.minLength(2), Validators.maxLength(30)]],
+      segundoApellido: ['', [Validators.maxLength(30)]],
+      primerNombre: ['', [Validators.required, Validators.minLength(2), Validators.maxLength(30)]],
+      segundoNombre: ['', [Validators.maxLength(30)]],
+      lugarNacimiento: ['', Validators.required],
+
+      experienciaFlores: ['', Validators.required], // coexistirá con tieneExperienciaFlores
+      tipoExperienciaFlores: [''],
+      otroExperiencia: [''],
+
+      oficina: ['', Validators.required],
+      brigadaDe: [''],
+
+      correo_usuario: ['', [Validators.required, Validators.pattern(/^[^@\s]+$/)]], // mismo patrón que usas
+      correo_dominio: ['', Validators.required],
+
+      estadoCivil: ['', Validators.required],
+      conQuienViveChecks: [[], Validators.required],
+
+      tieneHijos: [null, Validators.required],
+      cuidadorHijos: [''],
+      numeroHijos: [0],
+
+      tiempoResidencia: ['', Validators.required],
+      proyeccion1Ano: ['', Validators.required],
+      estudiaActualmente: [null, Validators.required],
+
+      experiencias: this.fb.array([]), // arreglo dinámico (empresa, labores, tiempo, labores_principales)
+      observacionEvaluador: [''],
+
     });
+
 
     // Formulario 4: Vacantes
     this.vacantesForm = this.fb.group({
@@ -182,6 +244,291 @@ export class HelpInformationComponent implements OnInit {
       fechaPruebaEntrevista: [''],
       horaPruebaEntrevista: [''],
       direccionEmpresa: ['']
+    });
+
+    // 1) Motivo no aplica
+    this.infoPersonalForm.get('aplicaObservacion')!.valueChanges.subscribe(val => {
+      const motivo = this.infoPersonalForm.get('motivoNoAplica');
+      if (val === 'NO_APLICA') {
+        motivo?.setValidators([Validators.required]);
+      } else {
+        motivo?.clearValidators();
+        motivo?.setValue('');
+      }
+      motivo?.updateValueAndValidity();
+    });
+
+    // 2) Hijos: activar validadores con tieneHijos y sincronizar cantidades
+    this.infoPersonalForm.get('tieneHijos')?.valueChanges.subscribe((tiene: boolean) => {
+      const cuidador = this.infoPersonalForm.get('cuidadorHijos');
+      const num = this.infoPersonalForm.get('numeroHijos');
+
+      if (tiene) {
+        cuidador?.addValidators([Validators.required, Validators.maxLength(120)]);
+        num?.addValidators([Validators.required, Validators.min(1)]);
+      } else {
+        cuidador?.clearValidators();
+        cuidador?.setValue('');
+        num?.clearValidators();
+        num?.setValue(0, { emitEvent: true });
+        this.setHijosCount(0);
+      }
+      cuidador?.updateValueAndValidity();
+      num?.updateValueAndValidity();
+    });
+
+    // Sincronizar numHijos <-> numeroHijos y ajustar FormArray
+    this.infoPersonalForm.get('numHijos')?.valueChanges.subscribe(n => {
+      const parsed = Number(n) || 0;
+      const actual = this.infoPersonalForm.get('numeroHijos')?.value ?? 0;
+      if (actual !== parsed) {
+        this.infoPersonalForm.get('numeroHijos')?.setValue(parsed, { emitEvent: false });
+      }
+      this.setHijosCount(parsed);
+    });
+
+    this.infoPersonalForm.get('numeroHijos')?.valueChanges.subscribe(n => {
+      const parsed = Number(n) || 0;
+      const actual = this.infoPersonalForm.get('numHijos')?.value ?? 0;
+      if (actual !== parsed) {
+        this.infoPersonalForm.get('numHijos')?.setValue(parsed, { emitEvent: false });
+      }
+      this.setHijosCount(parsed);
+    });
+
+    // 3) Experiencia flores
+    this.infoPersonalForm.get('experienciaFlores')?.valueChanges.subscribe(val => {
+      const tipo = this.infoPersonalForm.get('tipoExperienciaFlores');
+      const otro = this.infoPersonalForm.get('otroExperiencia');
+
+      if (val === 'Sí') {
+        tipo?.setValidators([Validators.required]);
+      } else {
+        tipo?.setValue('');
+        otro?.setValue('');
+        tipo?.clearValidators();
+        otro?.clearValidators();
+      }
+      tipo?.updateValueAndValidity();
+      otro?.updateValueAndValidity();
+
+      // Mantener en sync (opcional) con tieneExperienciaFlores
+      const tieneCtrl = this.infoPersonalForm.get('tieneExperienciaFlores');
+      if (tieneCtrl && tieneCtrl.value !== val) {
+        tieneCtrl.setValue(val, { emitEvent: false });
+      }
+    });
+
+    this.infoPersonalForm.get('tipoExperienciaFlores')?.valueChanges.subscribe(value => {
+      const otro = this.infoPersonalForm.get('otroExperiencia');
+      if (value === 'OTROS') {
+        otro?.setValidators([Validators.required, Validators.maxLength(64)]);
+      } else {
+        otro?.setValue('');
+        otro?.clearValidators();
+      }
+      otro?.updateValueAndValidity();
+    });
+
+    // 4) Calcular edad desde fechaNacimiento
+    this.infoPersonalForm.get('fechaNacimiento')?.valueChanges.subscribe((f: any) => {
+      const edad = this.calcEdad(f);
+      this.infoPersonalForm.get('edad')?.setValue(edad, { emitEvent: false });
+    });
+
+    // 5) Construir nombreCompleto desde nombres/apellidos (opcional)
+    const nombrePartes = ['primerNombre', 'segundoNombre', 'primerApellido', 'segundoApellido'];
+    nombrePartes.forEach(ctrl => {
+      this.infoPersonalForm.get(ctrl)?.valueChanges.subscribe(() => {
+        const v = this.infoPersonalForm.value;
+        const full = [v.primerNombre, v.segundoNombre, v.primerApellido, v.segundoApellido]
+          .filter(Boolean).join(' ').trim();
+        this.infoPersonalForm.get('nombreCompleto')?.setValue(full, { emitEvent: false });
+      });
+    });
+  }
+
+  ngOnInit(): void {
+    const user = this.utilityService.getUser();
+    if (!user) {
+      Swal.fire('Error', 'No se encontró información del usuario', 'error');
+      return;
+    }
+    this.vacantesService.getVacantesPorOficina(user.sucursalde)
+      .subscribe((vacantes: PublicacionDTO[]) => {
+        this.vacantes = vacantes ?? [];
+        // (opcional) autoseleccionar la primera:
+        // if (this.vacantes.length) this.onVacanteIdChange(this.vacantes[0].id);
+      });
+
+
+    // Lógica para requerir motivo solo si eligen NO APLICA:
+    this.infoPersonalForm.get('aplicaObservacion')!.valueChanges.subscribe(val => {
+      const motivo = this.infoPersonalForm.get('motivoNoAplica');
+      if (val === 'NO_APLICA') {
+        motivo?.setValidators([Validators.required]);
+      } else {
+        motivo?.clearValidators();
+        motivo?.setValue('');
+      }
+      motivo?.updateValueAndValidity();
+    });
+
+  }
+
+  get experienciasFA(): FormArray {
+    return this.infoPersonalForm.get('experiencias') as FormArray;
+  }
+
+
+  private createHijoGroup(hijo: any = {}): FormGroup {
+    return this.fb.group({
+      edad: [hijo.edad ?? '', Validators.required]
+    });
+  }
+
+
+  addExperiencia(): void {
+    this.experienciasFA.push(this.fb.group({
+      empresa: ['', [Validators.required, Validators.maxLength(120)]],
+      tiempo: ['', [Validators.required, Validators.maxLength(80)]],
+      labores: ['', [Validators.required, Validators.maxLength(800)]],
+      labores_principales: ['', [Validators.required, Validators.maxLength(800)]],
+    }));
+  }
+
+  removeExperiencia(i: number): void {
+    this.experienciasFA.removeAt(i);
+  }
+
+
+
+  // -------- Hijos (estructura local) --------
+
+  get hijosFormArray(): FormArray {
+    return this.infoPersonalForm.get('hijos') as FormArray;
+  }
+
+  actualizarHijos(cantidad: number) {
+    const hijos = this.hijosFormArray;
+    while (hijos.length < cantidad) {
+      hijos.push(this.fb.group({
+        nombre: [''],
+        sexo: [''],
+        fecha_nacimiento: [''],
+        no_documento: [''],
+        estudia_o_trabaja: [''],
+        curso: ['']
+      }));
+    }
+    while (hijos.length > cantidad) {
+      hijos.removeAt(hijos.length - 1);
+    }
+  }
+
+  private buildHijoGroup(): FormGroup {
+    return this.fb.group({
+      edad: ['', Validators.required]
+    });
+  }
+
+  private setHijosCount(n: number): void {
+    const fa = this.hijosFormArray;
+    while (fa.length < n) fa.push(this.buildHijoGroup());
+    while (fa.length > n) fa.removeAt(fa.length - 1);
+  }
+
+  setHijosDesdeBackend(hijosBackend: any[]) {
+    const hijos = this.hijosFormArray;
+    hijos.clear();
+    hijosBackend.forEach(h => {
+      hijos.push(this.fb.group({
+        nombre: [h.nombre ?? ''],
+        sexo: [h.sexo ?? ''],
+        fecha_nacimiento: [h.fecha_nacimiento ?? ''],
+        no_documento: [h.no_documento ?? ''],
+        estudia_o_trabaja: [h.estudia_o_trabaja ?? ''],
+        curso: [h.curso ?? ''],
+      }));
+    });
+    this.infoPersonalForm.get('numHijos')?.setValue(hijosBackend.length, { emitEvent: false });
+    this.infoPersonalForm.get('numeroHijos')?.setValue(hijosBackend.length, { emitEvent: false });
+  }
+
+  // -------- Utilidades --------
+  private calcEdad(f?: any): string {
+    if (!f) return '';
+    const d = new Date(f), h = new Date();
+    let e = h.getFullYear() - d.getFullYear();
+    const m = h.getMonth() - d.getMonth();
+    if (m < 0 || (m === 0 && h.getDate() < d.getDate())) e--;
+    return String(e);
+  }
+
+  // Métodos de guardado (mock)
+  guardarInfoPersonal(): void {
+    if (this.infoPersonalForm.invalid) {
+      Swal.fire({
+        title: 'Error',
+        text: 'Por favor, completa todos los campos requeridos.',
+        icon: 'error',
+        confirmButtonText: 'Ok'
+      });
+      // que campos faltan para que sea valido
+      const invalidFields = Object.keys(this.infoPersonalForm.controls).filter(field => this.infoPersonalForm.get(field)?.invalid);
+      console.log('Campos inválidos:', invalidFields);
+      return;
+    }
+
+    // Clonamos el objeto para no afectar el formulario original
+    const info = { ...this.infoPersonalForm.value };
+
+    // Si el campo es un Date, lo convertimos a string "YYYY-MM-DD"
+    if (info.fechaNacimiento instanceof Date) {
+      const yyyy = info.fechaNacimiento.getFullYear();
+      const mm = (info.fechaNacimiento.getMonth() + 1).toString().padStart(2, '0');
+      const dd = info.fechaNacimiento.getDate().toString().padStart(2, '0');
+      info.fechaNacimiento = `${yyyy}-${mm}-${dd}`;
+    }
+
+    // Si es string con hora ("2006-09-24T05:00:00.000Z"), lo recortamos
+    if (typeof info.fechaNacimiento === 'string' && info.fechaNacimiento.length > 10) {
+      info.fechaNacimiento = info.fechaNacimiento.slice(0, 10);
+    }
+
+    this.seleccionService.guardarInfoPersonal(info).subscribe({
+      next: (resp) => {
+        // ✅ primero guardó la info
+        Swal.fire({
+          title: 'Guardado',
+          text: 'Información personal guardada correctamente.',
+          icon: 'success',
+          confirmButtonText: 'Ok'
+        });
+        console.log('✅ Info personal guardada:', resp);
+
+        // 👇 ahora actualizamos el estado entrevistado=true
+        if (resp && resp.id) {
+          this.infoVacantesService
+            .setEstadoVacanteAplicante(resp.id, 'entrevistado', true)
+            .subscribe({
+              next: (estadoResp) => {
+                console.log('✅ Estado entrevistado actualizado:', estadoResp);
+              },
+              error: (err) => {
+                console.error('❌ Error al actualizar entrevistado', err);
+              }
+            });
+        }
+      },
+      error: (err) => {
+        Swal.fire({
+          title: 'Error',
+          text: 'No se pudo guardar la información personal.',
+          icon: 'error',
+          confirmButtonText: 'Ok'
+        });
+      }
     });
   }
 
@@ -234,80 +581,12 @@ export class HelpInformationComponent implements OnInit {
     this.vacantesForm.get('tipo')?.updateValueAndValidity({ emitEvent: true });
   }
 
-  ngOnInit(): void {
-    const user = this.utilityService.getUser();
-    if (!user) {
-      Swal.fire('Error', 'No se encontró información del usuario', 'error');
-      return;
-    }
-    this.vacantesService.getVacantesPorOficina(user.sucursalde)
-      .subscribe((vacantes: PublicacionDTO[]) => {
-        this.vacantes = vacantes ?? [];
-        // (opcional) autoseleccionar la primera:
-        // if (this.vacantes.length) this.onVacanteIdChange(this.vacantes[0].id);
-      });
 
-
-    // Lógica para requerir motivo solo si eligen NO APLICA:
-    this.infoPersonalForm.get('aplicaObservacion')!.valueChanges.subscribe(val => {
-      const motivo = this.infoPersonalForm.get('motivoNoAplica');
-      if (val === 'NO_APLICA') {
-        motivo?.setValidators([Validators.required]);
-      } else {
-        motivo?.clearValidators();
-        motivo?.setValue('');
-      }
-      motivo?.updateValueAndValidity();
-    });
-
-    this.infoPersonalForm.get('numHijos')?.valueChanges.subscribe(n => {
-      this.actualizarHijos(+n || 0);
-    });
-  }
-
-  get hijosFormArray(): FormArray {
-    return this.infoPersonalForm.get('hijos') as FormArray;
-  }
-
-  actualizarHijos(cantidad: number) {
-    const hijos = this.hijosFormArray;
-    while (hijos.length < cantidad) {
-      hijos.push(this.fb.group({
-        nombre: [''],
-        sexo: [''],
-        fecha_nacimiento: [''],
-        no_documento: [''],
-        estudia_o_trabaja: [''],
-        curso: ['']
-      }));
-    }
-    while (hijos.length > cantidad) {
-      hijos.removeAt(hijos.length - 1);
-    }
-  }
-
-  setHijosDesdeBackend(hijosBackend: any[]) {
-    const hijos = this.hijosFormArray;
-    hijos.clear();
-    hijosBackend.forEach(h => {
-      hijos.push(this.fb.group({
-        nombre: [h.nombre ?? ''],
-        sexo: [h.sexo ?? ''],
-        fecha_nacimiento: [h.fecha_nacimiento ?? ''],
-        no_documento: [h.no_documento ?? ''],
-        estudia_o_trabaja: [h.estudia_o_trabaja ?? ''],
-        curso: [h.curso ?? ''],
-      }));
-    });
-    this.infoPersonalForm.get('numHijos')?.setValue(hijosBackend.length, { emitEvent: false });
-  }
 
   ngOnChanges(changes: SimpleChanges): void {
     if (changes['cedula'] && this.cedula) {
       this.buscarContratacion();
     }
-
-
   }
 
   recibirVacante(vacante: any): void {
@@ -346,109 +625,171 @@ export class HelpInformationComponent implements OnInit {
 
   private buscarContratacion(): void {
     const user = this.utilityService.getUser();
-    if (!user) {
-      return;
-    }
+    if (!user) return;
     this.sedeLogin = user.sucursalde;
 
-    this.hiringService.buscarEncontratacion(this.cedula).subscribe({
-
+    this.infoVacantesService.getVacantesPorNumero(this.cedula).subscribe({
       next: (resultado) => {
-        this.infoCandidatoForm = resultado.data[0];
-        // Llenar el formulario de Info Personal con los datos de this.infoCandidatoForm
-        this.infoPersonalForm.patchValue({
-          oficina: this.sedeLogin || 'No disponible',
-          tipodedocumento: this.infoCandidatoForm.tipodedocumento || 'No disponible',
-          numerodecedula: this.infoCandidatoForm.numerodeceduladepersona || 'No disponible',
-          municipio: this.infoCandidatoForm.lugar_nacimiento_municipio || '',
-          municipioExpedicion: this.infoCandidatoForm.municipio_expedicion_cc || '',
-
-          nombreCompleto: this.getFullName(),
-          celular: this.infoCandidatoForm.celular || this.infoCandidatoForm.whatsapp || '',
-          whatsapp: this.infoCandidatoForm.whatsapp || '',
-          genero: this.infoCandidatoForm.genero || '',
-          edad: this.calcularEdad(this.infoCandidatoForm.fecha_nacimiento) || '',
-          fechaNacimiento: this.parseFechaDDMMYYYY(this.infoCandidatoForm.fecha_nacimiento),
-          fechaExpedicion: this.parseFechaDDMMYYYY(this.infoCandidatoForm.fecha_expedicion_cc),
-          barrio: this.infoCandidatoForm.barrio || '',
-          tieneExperienciaFlores: this.infoCandidatoForm.tiene_experiencia_laboral || '',
-          referenciado: this.infoCandidatoForm.referenciado || '',
-          nombreReferenciado: this.infoCandidatoForm.nombre_referenciado || '',
-          comoSeEntero: this.infoCandidatoForm.como_se_entero || ''
-        });
-
-        // Llenar el formulario de Entrevista con los datos de this.infoCandidatoForm
-        this.infoPersonalForm.patchValue({
-          presentoEntrevista: this.infoCandidatoForm.presento_entrevista || '',
-          eps: this.infoCandidatoForm.eps || '',
-          revisionAntecedentes: this.infoCandidatoForm.revision_antecedentes || '',
-          laboresRealizadas: this.infoCandidatoForm.labores_realizadas || '',
-          empresasLaborado: this.infoCandidatoForm.empresas_laborado || '',
-          tiempoExperiencia: this.infoCandidatoForm.tiempo_experiencia || '',
-          escolaridad: this.infoCandidatoForm.escolaridad || '',
-          numHijos: this.infoCandidatoForm.num_hijos_dependen_economicamente || '',
-          quienLosCuida: this.infoCandidatoForm.quien_los_cuida || ''
-        });
+        const contratacion = resultado?.[0];
+        console.log('Contratación encontrada:', contratacion);
+        if (contratacion) {
+          this.patchInfoPersonalFromApi(contratacion);
+        }
       },
-      error: (error) => {
+      error: () => {
         Swal.fire('Error', 'No se pudo obtener la contratación', 'error');
       }
     });
   }
 
-  // Métodos de guardado (mock)
-  guardarInfoPersonal(): void {
-    // Clonamos el objeto para no afectar el formulario original
-    const info = { ...this.infoPersonalForm.value };
 
-    // Si el campo es un Date, lo convertimos a string "YYYY-MM-DD"
-    if (info.fechaNacimiento instanceof Date) {
-      const yyyy = info.fechaNacimiento.getFullYear();
-      const mm = (info.fechaNacimiento.getMonth() + 1).toString().padStart(2, '0');
-      const dd = info.fechaNacimiento.getDate().toString().padStart(2, '0');
-      info.fechaNacimiento = `${yyyy}-${mm}-${dd}`;
+  private fillHijosFromApi(numeroHijos: number, hijosApi: Array<any> | null | undefined): void {
+    // Ajusta la cantidad de controles
+    this.actualizarHijos(Number(numeroHijos) || 0);
+
+    // Si el backend trae solo edades, úsalas para el campo 'edadesHijos'
+    if (Array.isArray(hijosApi) && hijosApi.length) {
+      const edades = hijosApi
+        .map(h => h?.edad)
+        .filter(e => e !== undefined && e !== null)
+        .join(', ');
+      this.infoPersonalForm.get('edadesHijos')?.setValue(edades);
+    } else {
+      this.infoPersonalForm.get('edadesHijos')?.setValue('');
     }
-
-    // Si es string con hora ("2006-09-24T05:00:00.000Z"), lo recortamos
-    if (typeof info.fechaNacimiento === 'string' && info.fechaNacimiento.length > 10) {
-      info.fechaNacimiento = info.fechaNacimiento.slice(0, 10);
-    }
-
-    this.seleccionService.guardarInfoPersonal(info).subscribe({
-      next: (resp) => {
-        // ✅ primero guardó la info
-        Swal.fire({
-          title: 'Guardado',
-          text: 'Información personal guardada correctamente.',
-          icon: 'success',
-          confirmButtonText: 'Ok'
-        });
-        console.log('✅ Info personal guardada:', resp);
-
-        // 👇 ahora actualizamos el estado entrevistado=true
-        if (resp && resp.id) {
-          this.infoVacantesService
-            .setEstadoVacanteAplicante(resp.id, 'entrevistado', true)
-            .subscribe({
-              next: (estadoResp) => {
-                console.log('✅ Estado entrevistado actualizado:', estadoResp);
-              },
-              error: (err) => {
-                console.error('❌ Error al actualizar entrevistado', err);
-              }
-            });
-        }
-      },
-      error: (err) => {
-        Swal.fire({
-          title: 'Error',
-          text: 'No se pudo guardar la información personal.',
-          icon: 'error',
-          confirmButtonText: 'Ok'
-        });
-      }
-    });
   }
+
+
+
+  private patchInfoPersonalFromApi(data: any): void {
+    // Experiencia en flores -> 'Sí'/'No' (y espejo en tieneExperienciaFlores 'SI'/'NO')
+    const expTxt = (data?.cuenta_experiencia_flores ?? '').toString().trim();
+    const expSi = this.boolFromText(expTxt) === true;
+    const experienciaFlores = expSi ? 'Sí' : (expTxt ? 'No' : '');
+
+    // APLICA / NO_APLICA
+    const aplicaSel = (data?.aplica_o_no_aplica ?? data?.aplicaObservacion ?? '').toString().trim();
+
+    // Correo -> split usuario/dominio
+    const { usuario: correo_usuario, dominio: correo_dominio } = this.splitCorreo(data?.correo);
+
+    // Preferencias y equivalentes
+    const municipioExp = data?.municipio_expedicion ?? data?.municipioExpedicion ?? '';
+    const nombreCompleto = [data?.primer_nombre, data?.segundo_nombre, data?.primer_apellido, data?.segundo_apellido]
+      .filter(Boolean).join(' ').trim();
+
+    // Patch principal
+    this.infoPersonalForm.patchValue({
+      // originales
+      tipodedocumento: data?.tipo_documento ?? '',
+      numerodecedula: data?.numero ?? this.cedula ?? '',
+      municipio: data?.municipio ?? '',
+      municipioExpedicion: municipioExp,
+      nombreCompleto,
+      celular: data?.celular ?? '',
+      whatsapp: data?.whatsapp ?? '',
+      genero: data?.genero ?? '',
+      edad: this.calcEdad(data?.fecha_nacimiento),
+      fechaNacimiento: this.toDate(data?.fecha_nacimiento),
+      fechaExpedicion: this.toDate(data?.fecha_expedicion),
+      barrio: data?.barrio ?? '',
+      tieneExperienciaFlores: expSi ? 'SI' : (expTxt ? 'NO' : ''),
+      referenciado: data?.referenciado ?? '',
+      nombreReferenciado: data?.nombreReferenciado ?? '',
+      comoSeEntero: data?.como_se_entero ?? '',
+      laboresRealizadas: data?.labores_especificas ?? '',
+      empresasLaborado: data?.fincas_que_ha_trabajado ?? '',
+      tiempoExperiencia: data?.tiempo_experiencia ?? '',
+      escolaridad: data?.nivel_escolaridad || data?.escolaridad || null,
+      numHijos: data?.numero_hijos ?? 0,
+      quienLosCuida: data?.quien_los_cuida ?? data?.cuidador_hijos ?? '',
+      aplicaObservacion: aplicaSel,
+      motivoNoAplica: data?.motivoNoAplica ?? '',
+
+      // faltantes/extra
+      primerApellido: data?.primer_apellido ?? '',
+      segundoApellido: data?.segundo_apellido ?? '',
+      primerNombre: data?.primer_nombre ?? '',
+      segundoNombre: data?.segundo_nombre ?? '',
+      lugarNacimiento: data?.lugar_nacimiento ?? '',
+
+      experienciaFlores,                 // 'Sí'/'No'
+      tipoExperienciaFlores: data?.tipo_experiencia_flores ?? '',
+      otroExperiencia: data?.otro_experiencia ?? '',
+
+      oficina: data?.oficina ?? '',
+      brigadaDe: data?.brigada_de ?? '',
+
+      correo_usuario,
+      correo_dominio,
+
+      estadoCivil: data?.estado_civil ?? '',
+      conQuienViveChecks: Array.isArray(data?.con_quien_vive) ? data.con_quien_vive : [],
+
+      tieneHijos: this.boolFromText(data?.tiene_hijos),
+      cuidadorHijos: data?.cuidador_hijos ?? '',
+      numeroHijos: data?.numero_hijos ?? 0,
+
+      tiempoResidencia: data?.tiempo_residencia ?? '',
+      proyeccion1Ano: data?.proyeccion_1_ano ?? '',
+      estudiaActualmente: (this.boolFromText(data?.estudiaActualmente) ?? null),
+
+      observacionEvaluador: data?.observacion ?? data?.observacion_novedad ?? '',
+    });
+
+    // Sincronizar hijos (FormArray y edades)
+    this.fillHijosFromApi(data?.numero_hijos, data?.hijos);
+
+    // 🔹 Experiencias (FormArray)
+    if (Array.isArray(data?.hijos)) {
+      const fa = this.hijosFA; // getter que devuelve this.infoPersonalForm.get('hijos') as FormArray
+      fa.clear(); // limpiar antes de llenar
+      data.hijos.forEach((hijo: any) => {
+        fa.push(this.fb.group({
+          edad: [hijo.edad ?? '']
+        }));
+      });
+    } else {
+      // Si no viene arreglo, sincronizar con número de hijos
+      this.fillHijosFromApi(data?.numero_hijos, []);
+    }
+
+    // Validación adicional
+    this.infoPersonalForm.get('motivoNoAplica')?.updateValueAndValidity();
+  }
+
+  get hijosFA(): FormArray {
+    return this.infoPersonalForm.get('hijos') as FormArray;
+  }
+
+
+
+
+  private toDate(v: any): Date | null {
+    if (!v) return null;
+    // Acepta 'YYYY-MM-DD' ó Date
+    return v instanceof Date ? v : new Date(String(v));
+  }
+
+  private splitCorreo(correo?: string): { usuario: string; dominio: string } {
+    if (!correo || typeof correo !== 'string' || !correo.includes('@')) {
+      return { usuario: '', dominio: '' };
+    }
+    const [u, d] = correo.split('@');
+    return { usuario: u || '', dominio: (d || '').toUpperCase() };
+  }
+
+  private boolFromText(v: any): boolean | null {
+    if (v === true || v === false) return v;
+    if (v == null) return null;
+    const s = String(v).trim().toLowerCase();
+    if (s === 'true' || s === 'sí' || s === 'si' || s === '1') return true;
+    if (s === 'false' || s === 'no' || s === '0') return false;
+    return null;
+  }
+
+
+
 
 
 

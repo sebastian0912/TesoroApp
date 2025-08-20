@@ -1,4 +1,4 @@
-import { Component, LOCALE_ID, OnInit } from '@angular/core';
+import { Component, LOCALE_ID, OnDestroy, OnInit } from '@angular/core';
 import { filter, forkJoin, Subject, take, takeUntil } from 'rxjs';
 import Swal from 'sweetalert2';
 import { VetadosService } from '../../service/vetados/vetados.service';
@@ -35,7 +35,7 @@ interface CandidatoTabla {
   templateUrl: './search-for-candidate.component.html',
   styleUrl: './search-for-candidate.component.css',
 })
-export class SearchForCandidateComponent implements OnInit {
+export class SearchForCandidateComponent implements OnInit, OnDestroy {
   // arriba del componente o como propiedad private readonly
   yesNoStatusConfig: Record<string, { color: string; background: string }> = {
     'Sí': { color: '#065f46', background: '#d1fae5' },   // verde
@@ -78,6 +78,7 @@ export class SearchForCandidateComponent implements OnInit {
   observacion = '';
   mostrarObservacion = false;
   procesoValido = false;
+  datosSeleccion: any = null;
 
   sede = '';
   abreviacionSede = '';
@@ -112,21 +113,44 @@ export class SearchForCandidateComponent implements OnInit {
     private infoVacantesService: InfoVacantesService,
     private router: Router,
   ) { }
+  private _procEnCurso = false;
 
   /* ──────────  Ciclo de vida  ────────── */
   /* ──────────  Ciclo de vida  ────────── */
   ngOnInit(): void {
     this.initUsuarioYAbreviacion();
     this.loadCandidatos();
-    // …lo que ya tengas…
+/*
     this.utilityService.nextStep
       .pipe(takeUntil(this.destroyed$))
-      .subscribe(() => {
-        if (this.datosSeleccion) {
-          this.procesarSeleccion(this.datosSeleccion);
-        }
-      });
+      .subscribe(() => this.onNextStep());
+*/
   }
+
+  private async onNextStep(): Promise<void> {
+    // Evita reentradas (ciclos) si llega otra emisión mientras procesas
+    if (this._procEnCurso) {
+      console.debug('[nextStep] ignorado: ya hay proceso en curso');
+      return;
+    }
+
+    this._procEnCurso = true;
+    try {
+      if (!this.datosSeleccion) {
+        console.warn('[nextStep] datosSeleccion aún no están listos');
+        return;
+      }
+
+      // Si procesarSeleccion es síncrono, quita el await
+      await this.procesarSeleccion(this.datosSeleccion);
+    } catch (e) {
+      console.error('Error en procesarSeleccion:', e);
+    } finally {
+      this._procEnCurso = false;
+    }
+  }
+
+
 
   ngOnDestroy(): void {
     this.destroyed$.next();
@@ -189,53 +213,86 @@ export class SearchForCandidateComponent implements OnInit {
   }
 
   /* ──────────  Acciones sobre cédula  ────────── */
-  seleccionarCedula(cedula: string, nombre: string): void {
-    this.cedula = cedula;
-    this.nombreCompletoChange.emit(nombre);
-    this.buscarCedula();
-  }
-  datosSeleccion: any = null;
+  async seleccionarCedula(cedula: string, nombre: string): Promise<void> {
+    try {
+      this.cedula = (cedula ?? '').trim();
+      this.nombreCompletoChange.emit(nombre);
 
-  buscarCedula(): void {
+      // Espera a que se cargue todo (forkJoin dentro de buscarCedula)
+      await this.buscarCedula();
+
+      console.log('[seleccionarCedula] datosSeleccion listo:', this.datosSeleccion);
+
+      // 1) Procesar aquí mismo (seguro: ya tienes datosSeleccion)
+      if (this.datosSeleccion) {
+        this.procesarSeleccion(this.datosSeleccion);
+      } else {
+        console.warn('No hay datosSeleccion después de buscarCedula');
+      }
+
+    } catch (e) {
+      console.error('Error en seleccionarCedula:', e);
+    }
+  }
+
+
+  async buscarCedula(): Promise<void> {
     if (!this.cedula) return;
+
     this.cedulaSeleccionada.emit(this.cedula);
+    console.log('[buscarCedula] Cédula seleccionada emitida:', this.cedula);
 
-    forkJoin({
-      candidato: this.infoVacantesService.getVacantesPorNumero(this.cedula),
-      seleccion: this.hiringService.traerDatosSeleccion(this.cedula),
-      vetado: this.vetadosService.listarReportesVetadosPorCedula(this.cedula)
-    })
-      .pipe(take(1))
-      .subscribe({
-        next: ({ vetado, seleccion, candidato }) => {
-          this.procesarVetado(vetado);
+    return new Promise<void>((resolve, reject) => {
+      forkJoin({
+        candidato: this.infoVacantesService.getVacantesPorNumero(this.cedula),
+        seleccion: this.hiringService.traerDatosSeleccion(this.cedula),
+        vetado: this.vetadosService.listarReportesVetadosPorCedula(this.cedula)
+      })
+        .pipe(take(1))
+        .subscribe({
+          next: ({ vetado, seleccion, candidato }) => {
+            try {
+              // Vetado
+              this.procesarVetado(vetado);
 
-          // ⬇️ Guarda la data, NO llames procesarSeleccion aquí
-          this.datosSeleccion = seleccion;
+              // Guarda selección (NO proceses aquí; deja que lo haga quien reciba el evento)
+              this.datosSeleccion = seleccion ?? null;
+              console.log('[buscarCedula] datosSeleccion:', this.datosSeleccion);
 
-          console.log('Candidato:', candidato);
+              // Nombre, id y estado pre_registro (si hay candidato)
+              if (Array.isArray(candidato) && candidato.length > 0) {
+                const c0 = candidato[0];
+                const nombreCompleto = [c0.primer_nombre, c0.segundo_nombre, c0.primer_apellido, c0.segundo_apellido]
+                  .filter(Boolean)
+                  .join(' ');
+                this.nombreCompletoChange.emit(nombreCompleto);
+                this.idInfoEntrevistaAndreaChange.emit(c0.id);
 
-          if (candidato && candidato.length > 0) {
-            const nombreCompleto =
-              [candidato[0].primer_nombre, candidato[0].segundo_nombre, candidato[0].primer_apellido, candidato[0].segundo_apellido]
-                .filter(Boolean)
-                .join(' ');
-            this.nombreCompletoChange.emit(nombreCompleto);
+                this.infoVacantesService
+                  .setEstadoVacanteAplicante(c0.id, 'pre_registro', true)
+                  .pipe(take(1))
+                  .subscribe({
+                    next: (resp: EstadoResponse) =>
+                      console.log('✅ pre_registro actualizado:', resp),
+                    error: (err) =>
+                      console.error('❌ Error actualizando pre_registro', err)
+                  });
+              }
 
-            this.idInfoEntrevistaAndreaChange.emit(candidato[0].id);
-
-            this.infoVacantesService
-              .setEstadoVacanteAplicante(candidato[0].id, 'pre_registro', true)
-              .pipe(take(1))
-              .subscribe({
-                next: (resp: EstadoResponse) => console.log('✅ Pre-registro actualizado:', resp),
-                error: err => console.error('❌ Error actualizando pre_registro', err)
-              });
+              resolve();
+            } catch (inner) {
+              this.procesarError(inner);
+              reject(inner);
+            }
+          },
+          error: (e) => {
+            this.procesarError(e);
+            reject(e);
           }
-        },
-        error: e => this.procesarError(e)
-      });
+        });
+    });
   }
+
 
 
 
@@ -259,6 +316,7 @@ export class SearchForCandidateComponent implements OnInit {
 
   /* selección */
   private procesarSeleccion(sel: any): void {
+    console.log('Procesando selección:', sel);
     const procs = sel?.procesoSeleccion ?? [];
     if (!procs.length) return;
 
@@ -277,6 +335,7 @@ export class SearchForCandidateComponent implements OnInit {
         this.generarNuevoCodigoContrato();
       } else {
         this.codigoContratoActual = codigoExistente; // ✅ ya lo tomas del backend
+        console.log('Código de contrato actual:', this.codigoContratoActual);
         this.codigoContratoChange.emit(this.codigoContratoActual);
         this.procesoValido = true;
       }
