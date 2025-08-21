@@ -120,11 +120,11 @@ export class SearchForCandidateComponent implements OnInit, OnDestroy {
   ngOnInit(): void {
     this.initUsuarioYAbreviacion();
     this.loadCandidatos();
-/*
-    this.utilityService.nextStep
-      .pipe(takeUntil(this.destroyed$))
-      .subscribe(() => this.onNextStep());
-*/
+    /*
+        this.utilityService.nextStep
+          .pipe(takeUntil(this.destroyed$))
+          .subscribe(() => this.onNextStep());
+    */
   }
 
   private async onNextStep(): Promise<void> {
@@ -144,7 +144,11 @@ export class SearchForCandidateComponent implements OnInit, OnDestroy {
       // Si procesarSeleccion es síncrono, quita el await
       await this.procesarSeleccion(this.datosSeleccion);
     } catch (e) {
-      console.error('Error en procesarSeleccion:', e);
+      Swal.fire({
+        icon: 'error',
+        title: 'Error inesperado',
+        text: 'Error al procesar la selección'
+      });
     } finally {
       this._procEnCurso = false;
     }
@@ -258,7 +262,7 @@ export class SearchForCandidateComponent implements OnInit, OnDestroy {
               // Guarda selección (NO proceses aquí; deja que lo haga quien reciba el evento)
               this.datosSeleccion = seleccion ?? null;
               console.log('[buscarCedula] datosSeleccion:', this.datosSeleccion);
-
+              this.procesarSeleccion(this.datosSeleccion);
               // Nombre, id y estado pre_registro (si hay candidato)
               if (Array.isArray(candidato) && candidato.length > 0) {
                 const c0 = candidato[0];

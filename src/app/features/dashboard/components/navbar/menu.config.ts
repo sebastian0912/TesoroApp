@@ -160,8 +160,6 @@ export const DYNAMIC_MENUS: IDynamicMenu[] = [
       { route: '/dashboard/hiring/error-listing',           label: 'Listado de errores',          permission: 'error-listing'        },
       // consult-contracting-documentation
       { route: '/dashboard/hiring/consult-contracting-documentation', label: 'Consultar documentación de contratación', permission: 'consult-contracting-documentation' },
-      // income
-      { route: '/dashboard/hiring/income', label: 'Ingreso', permission: 'income' },
     ],
   },
   {

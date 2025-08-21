@@ -97,7 +97,7 @@ export class VacantesService {
   // Eliminar vacante por ID
   eliminarVacante(id: string): Observable<any> {
     const headers = this.createAuthorizationHeader();
-    return this.http.delete(`${this.apiUrl}/publicaciones/${id}`, { headers }).pipe(
+    return this.http.delete(`${this.apiUrl}/publicacion/publicaciones/${id}`, { headers }).pipe(
       map((response: any) => response),
       catchError(this.handleError)
     );

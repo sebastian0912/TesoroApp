@@ -13,6 +13,7 @@ import { Router } from '@angular/router';
 import { VacantesService } from '../../service/vacantes/vacantes.service';
 import { InfoVacantesService } from '../../service/info-vacantes/info-vacantes.service';
 import { catchError, of, forkJoin, take } from 'rxjs';
+import { S } from '@angular/cdk/keycodes';
 
 @Component({
   selector: 'app-generate-contracting-documents',
@@ -55,8 +56,8 @@ export class GenerateContractingDocumentsComponent {
   user: any = {};
   sede: any = '';
   cedulaPersonalAdministrativo: any = {};
-  idVacante: any ;
-  idInfoAndrea: any ;
+  idVacante: any;
+  idInfoAndrea: any;
 
   documentos = [
     { titulo: 'Autorización de datos' },
@@ -2022,97 +2023,109 @@ export class GenerateContractingDocumentsComponent {
   }
 
   // Método para subir todos los archivos almacenados en uploadedFiles
-subirTodosLosArchivos(): Promise<boolean> {
-  return new Promise((resolve, reject) => {
-    const archivosAEnviar = Object.keys(this.uploadedFiles)
-      .filter((key) => (key in this.typeMap) && this.uploadedFiles[key]?.file)
-      .map((key) => ({
-        key,
-        ...this.uploadedFiles[key],
-        typeId: this.typeMap[key],
-      }));
+  subirTodosLosArchivos(): Promise<boolean> {
+    return new Promise((resolve, reject) => {
+      const archivosAEnviar = Object.keys(this.uploadedFiles)
+        .filter((key) => (key in this.typeMap) && this.uploadedFiles[key]?.file)
+        .map((key) => ({
+          key,
+          ...this.uploadedFiles[key],
+          typeId: this.typeMap[key],
+        }));
 
-    if (archivosAEnviar.length === 0) {
-      resolve(true);
-      return;
-    }
+      if (archivosAEnviar.length === 0) {
+        resolve(true);
+        return;
+      }
 
-    const promesasDeSubida = archivosAEnviar.map(({ key, file, fileName, typeId }) => {
-      return new Promise<void>((resolveSubida, rejectSubida) => {
-        this.gestionDocumentalService
-          .guardarDocumento(fileName, this.cedula, typeId, file, this.codigoContratacion)
-          .subscribe({
-            next: () => resolveSubida(),
-            error: (error) => rejectSubida(`Error al subir archivo "${key}": ${error.message}`),
-          });
-      });
-    });
-
-    Promise.all(promesasDeSubida)
-      .then(() => {
-        // ¿Se subió "Contrato"?
-        const contratoIncluido = archivosAEnviar.some(a => a.key === 'Contrato' || a.typeId === this.typeMap['Contrato']);
-        if (!contratoIncluido) {
-          resolve(true);
-          return;
-        }
-
-        // IDs necesarios
-        const idVacanteAplicante = Number(this.idVacante);
-        const idPublicacion = Number(this.idInfoAndrea);
-
-        const llamadas = [];
-
-        if (idVacanteAplicante) {
-          llamadas.push(
-            this.infoVacantesService
-              .setEstadoVacanteAplicante(idPublicacion, 'contratado', true)
-              .pipe(
-                catchError(err => {
-                  console.error('❌ Error al actualizar contratado', err);
-                  return of(null);
-                })
-              )
-          );
-        }
-
-        if (idPublicacion) {
-          llamadas.push(
-            this.vacantesService
-              .setEstadoVacanteAplicante(idVacanteAplicante, 'contratado', this.cedula)
-              .pipe(
-                catchError(err => {
-                  console.error('❌ Error al actualizar contratado', err);
-                  return of(null);
-                })
-              )
-          );
-        }
-
-        if (llamadas.length === 0) {
-          // No tenemos IDs; no bloqueamos el flujo
-          resolve(true);
-          return;
-        }
-
-        forkJoin(llamadas).pipe(take(1)).subscribe({
-          next: (res) => {
-            console.log('✅ Estados por contrato actualizados:', res);
-            resolve(true);
-          },
-          error: (err) => {
-            // No debería entrar por catchError, pero por si acaso:
-            console.error('❌ Error en forkJoin estados', err);
-            resolve(true); // no bloqueamos la subida completa
-          }
+      const promesasDeSubida = archivosAEnviar.map(({ key, file, fileName, typeId }) => {
+        return new Promise<void>((resolveSubida, rejectSubida) => {
+          this.gestionDocumentalService
+            .guardarDocumento(fileName, this.cedula, typeId, file, this.codigoContratacion)
+            .subscribe({
+              next: () => resolveSubida(),
+              error: (error) => rejectSubida(`Error al subir archivo "${key}": ${error.message}`),
+            });
         });
-      })
-      .catch((error) => {
-        Swal.fire({ icon: 'error', title: 'Error al subir archivos', text: error });
-        reject(error);
       });
-  });
-}
+
+      Promise.all(promesasDeSubida)
+        .then(() => {
+          // ¿Se subió "Contrato"?
+          const contratoIncluido = archivosAEnviar.some(a => a.key === 'Contrato' || a.typeId === this.typeMap['Contrato']);
+          if (!contratoIncluido) {
+            resolve(true);
+            return;
+          }
+
+          // IDs necesarios
+          const idVacanteAplicante = Number(this.idVacante);
+          const idPublicacion = Number(this.idInfoAndrea);
+
+          const llamadas = [];
+
+          if (idVacanteAplicante) {
+            llamadas.push(
+              this.infoVacantesService
+                .setEstadoVacanteAplicante(idPublicacion, 'contratado', true)
+                .pipe(
+                  catchError(err => {
+                    Swal.fire({
+                      icon: 'error',
+                      title: 'Error al actualizar contratado',
+                      text: err.message
+                    });
+                    return of(null);
+                  })
+                )
+            );
+          }
+
+          if (idPublicacion) {
+            llamadas.push(
+              this.vacantesService
+                .setEstadoVacanteAplicante(idVacanteAplicante, 'contratado', this.cedula)
+                .pipe(
+                  catchError(err => {
+                    Swal.fire({
+                      icon: 'error',
+                      title: 'Error al actualizar contratado',
+                      text: err.message
+                    });
+                    return of(null);
+                  })
+                )
+            );
+          }
+
+          if (llamadas.length === 0) {
+            // No tenemos IDs; no bloqueamos el flujo
+            resolve(true);
+            return;
+          }
+
+          forkJoin(llamadas).pipe(take(1)).subscribe({
+            next: (res) => {
+              console.log('✅ Estados por contrato actualizados:', res);
+              resolve(true);
+            },
+            error: (err) => {
+              // No debería entrar por catchError, pero por si acaso:
+              Swal.fire({
+                icon: 'error',
+                title: 'Error en forkJoin estados',
+                text: err.message
+              });
+              resolve(true); // no bloqueamos la subida completa
+            }
+          });
+        })
+        .catch((error) => {
+          Swal.fire({ icon: 'error', title: 'Error al subir archivos', text: error });
+          reject(error);
+        });
+    });
+  }
 
   async generarFichaTecnica() {
     try {

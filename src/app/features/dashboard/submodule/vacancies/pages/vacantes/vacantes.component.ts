@@ -257,6 +257,7 @@ export class VacantesComponent implements OnInit {
         this.vacantesService.eliminarVacante(vacante.id).subscribe(() => {
           this.vacantes = this.vacantes.filter(v => v.id !== vacante.id);
           Swal.fire('Eliminado!', 'La vacante ha sido eliminada.', 'success');
+          this.loadData(); // Recargar la lista de vacantes
         });
       }
     });

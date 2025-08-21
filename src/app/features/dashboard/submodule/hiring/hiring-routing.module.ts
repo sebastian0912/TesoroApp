@@ -14,7 +14,6 @@ import { RegisterReceptionComponent } from './pages/register-reception/register-
 import { ViewReceptionInterviewsComponent } from './pages/view-reception-interviews/view-reception-interviews.component';
 import { ErrorListingComponent } from './pages/error-listing/error-listing.component';
 import { ConsultContractingDocumentationComponent } from './pages/consult-contracting-documentation/consult-contracting-documentation.component';
-import { IncomeComponent } from './pages/income/income.component';
 
 const routes: Routes = [
   { path: 'absences', component: AbsencesComponent },
@@ -31,7 +30,6 @@ const routes: Routes = [
   { path: 'view-reception-interviews', component: ViewReceptionInterviewsComponent },
   { path: 'error-listing', component: ErrorListingComponent },
   { path: 'consult-contracting-documentation', component: ConsultContractingDocumentationComponent },
-  { path: 'income', component: IncomeComponent },
 ];
 
 @NgModule({
