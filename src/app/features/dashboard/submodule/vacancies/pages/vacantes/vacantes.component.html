@@ -172,7 +172,7 @@
                   <mat-icon>edit</mat-icon>
                   <span>Editar</span>
                 </button>
-                <button mat-menu-item (click)="eliminarVacante(v)">
+                <button mat-menu-item (click)="eliminarVacante(v)" *ngIf="permitido">
                   <mat-icon>delete</mat-icon>
                   <span>Eliminar</span>
                 </button>

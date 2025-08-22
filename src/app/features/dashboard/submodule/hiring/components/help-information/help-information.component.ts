@@ -101,6 +101,20 @@ export class HelpInformationComponent implements OnInit {
     "YA HABÍA TRABAJADO CON NOSOTROS"
   ];
 
+  meses = Array.from({ length: 11 }, (_, i) => i + 1);  // 1..11
+  anios = Array.from({ length: 80 }, (_, i) => i + 1);  // 1..80
+
+  get tiempoResidenciaParsed() {
+    const v = this.infoCandidatoForm.value.tiempoResidencia as string | null;
+    if (!v) return null;
+    if (v === 'LIFETIME') return { unit: 'LIFETIME', quantity: null, label: 'Toda la vida' };
+    const [u, q] = v.split(':');
+    const n = Number(q);
+    if (u === 'M') return { unit: 'MONTH', quantity: n, label: `${n} ${n === 1 ? 'mes' : 'meses'}` };
+    if (u === 'Y') return { unit: 'YEAR', quantity: n, label: `${n} ${n === 1 ? 'año' : 'años'}` };
+    return null;
+  }
+
   //  Lista estado civil
   estadosCiviles: any[] = [
     {
@@ -496,6 +510,8 @@ export class HelpInformationComponent implements OnInit {
       info.fechaNacimiento = info.fechaNacimiento.slice(0, 10);
     }
 
+    console.log('Información personal a guardar:', info);
+
     this.seleccionService.guardarInfoPersonal(info).subscribe({
       next: (resp) => {
         // ✅ primero guardó la info
@@ -694,6 +710,7 @@ export class HelpInformationComponent implements OnInit {
       fechaExpedicion: this.toDate(data?.fecha_expedicion),
       barrio: data?.barrio ?? '',
       tieneExperienciaFlores: expSi ? 'SI' : (expTxt ? 'NO' : ''),
+      tipoExperienciaFlores: data?.tipoExperienciaFlores ?? '',
       referenciado: data?.referenciado ?? '',
       nombreReferenciado: data?.nombreReferenciado ?? '',
       comoSeEntero: data?.como_se_entero ?? '',
@@ -703,9 +720,8 @@ export class HelpInformationComponent implements OnInit {
       escolaridad: data?.nivel_escolaridad || data?.escolaridad || null,
       numHijos: data?.numero_hijos ?? 0,
       quienLosCuida: data?.quien_los_cuida ?? data?.cuidador_hijos ?? '',
-      aplicaObservacion: aplicaSel,
+      aplicaObservacion: data?.aplica_o_no_aplica ?? '',
       motivoNoAplica: data?.motivoNoAplica ?? '',
-
       // faltantes/extra
       primerApellido: data?.primer_apellido ?? '',
       segundoApellido: data?.segundo_apellido ?? '',
@@ -714,7 +730,7 @@ export class HelpInformationComponent implements OnInit {
       lugarNacimiento: data?.lugar_nacimiento ?? '',
 
       experienciaFlores,                 // 'Sí'/'No'
-      tipoExperienciaFlores: data?.tipo_experiencia_flores ?? '',
+
       otroExperiencia: data?.otro_experiencia ?? '',
 
       oficina: data?.oficina ?? '',
@@ -734,7 +750,7 @@ export class HelpInformationComponent implements OnInit {
       proyeccion1Ano: data?.proyeccion_1_ano ?? '',
       estudiaActualmente: (this.boolFromText(data?.estudiaActualmente) ?? null),
 
-      observacionEvaluador: data?.observacion ?? data?.observacion_novedad ?? '',
+      observacionEvaluador: data?.aplicaObservacion ?? '',
     });
 
     // Sincronizar hijos (FormArray y edades)

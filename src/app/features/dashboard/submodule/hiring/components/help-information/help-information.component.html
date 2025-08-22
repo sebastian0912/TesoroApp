@@ -174,11 +174,30 @@
         <mat-error *ngIf="infoPersonalForm.get('conQuienViveChecks')?.hasError('required')">Requerido</mat-error>
       </mat-form-field>
 
-      <!--hace cuanto vive en la zona-->
-      <mat-form-field class="example-full-width">
+      <!-- ¿Hace cuánto vive en la zona? -->
+      <mat-form-field appearance="outline" class="w-full">
         <mat-label>¿Hace cuánto vive en la zona?</mat-label>
-        <input matInput formControlName="tiempoResidencia" placeholder="Ej. 2 años">
-        <mat-error *ngIf="infoPersonalForm.get('tiempoResidencia')?.hasError('required')">Requerido</mat-error>
+        <mat-select formControlName="tiempoResidencia" required>
+          <mat-option [value]="'LIFETIME'">Toda la vida</mat-option>
+
+          <mat-optgroup label="Meses">
+            <mat-option *ngFor="let m of meses" [value]="'M:' + m">
+              {{ m }} {{ m === 1 ? 'mes' : 'meses' }}
+            </mat-option>
+          </mat-optgroup>
+
+          <mat-optgroup label="Años">
+            <mat-option *ngFor="let y of anios" [value]="'Y:' + y">
+              {{ y }} {{ y === 1 ? 'año' : 'años' }}
+            </mat-option>
+          </mat-optgroup>
+        </mat-select>
+
+        <mat-hint>Ej.: 6 meses, 3 años o “Toda la vida”.</mat-hint>
+
+        <mat-error *ngIf="infoPersonalForm.get('tiempoResidencia')?.hasError('required')">
+          Este campo es obligatorio.
+        </mat-error>
       </mat-form-field>
 
       <!-- Referenciado -->
@@ -362,7 +381,7 @@
       </mat-form-field>
 
       <div class="actions">
-        <button mat-flat-button color="primary"  (click)="guardarInfoPersonal()">
+        <button mat-flat-button color="primary" (click)="guardarInfoPersonal()">
           Guardar
         </button>
       </div>

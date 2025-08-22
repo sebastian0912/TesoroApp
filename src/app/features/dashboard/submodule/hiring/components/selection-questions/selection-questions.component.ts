@@ -28,7 +28,7 @@ export class SelectionQuestionsComponent implements OnInit {
   @Input() cedula: string = '';
   @Input() codigoContrato: string = '';
   @Input() vacanteSeleccionada: any;
-
+  medidasCorrectivas = Array.from({ length: 10 }, (_, i) => i + 1);
   filteredExamOptions: string[] = [];
 
   formGroup1: FormGroup;

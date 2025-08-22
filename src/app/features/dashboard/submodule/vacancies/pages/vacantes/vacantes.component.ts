@@ -61,6 +61,7 @@ export class VacantesComponent implements OnInit {
   ];
   @ViewChild(MatPaginator) paginator!: MatPaginator;
   @ViewChild(MatSort) sort!: MatSort;
+  permitido: boolean = false;
 
   constructor(
     private dialog: MatDialog,
@@ -71,7 +72,9 @@ export class VacantesComponent implements OnInit {
 
   async ngOnInit(): Promise<void> {
     await this.loadData();
-
+    const user  = this.utilityService.getUser();
+    // el rol es GERENCIA O ADMIN?
+    this.permitido = user?.rol === 'GERENCIA' || user?.rol === 'ADMIN';
 
   }
 

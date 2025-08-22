@@ -106,8 +106,10 @@
   <div class="input-container">
     <mat-form-field appearance="fill" class="example-full-width">
       <mat-label>Medidas Correctivas</mat-label>
-      <mat-select formControlName="medidasCorrectivas">
-        <mat-option *ngFor="let estado of antecedentesEstados" [value]="estado">{{ estado }}</mat-option>
+      <mat-select formControlName="medidasCorrectivas" required>
+        <mat-option *ngFor="let n of medidasCorrectivas" [value]="n">
+          {{ n }}
+        </mat-option>
       </mat-select>
       <!-- Botón de tres puntos dentro del input -->
       <button mat-icon-button matSuffix [matMenuTriggerFor]="pdfMenuMedidasCorrectivas" aria-label="PDF options"
