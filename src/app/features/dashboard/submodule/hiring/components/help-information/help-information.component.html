@@ -115,22 +115,6 @@
         <mat-error *ngIf="infoPersonalForm.get('barrio')?.hasError('required')">Requerido</mat-error>
       </mat-form-field>
 
-      <!--Numero celular-->
-      <mat-form-field class="example-full-width">
-        <mat-label>Número celular</mat-label>
-        <input matInput formControlName="celular" placeholder="Ej. 3123456789">
-        <mat-error *ngIf="infoPersonalForm.get('celular')?.hasError('required')">Requerido</mat-error>
-        <mat-error *ngIf="infoPersonalForm.get('celular')?.hasError('pattern')">Formato inválido</mat-error>
-      </mat-form-field>
-
-      <!--Numero de whatsapp-->
-      <mat-form-field class="example-full-width">
-        <mat-label>Número de WhatsApp</mat-label>
-        <input matInput formControlName="whatsapp" placeholder="Ej. 3123456789">
-        <mat-error *ngIf="infoPersonalForm.get('whatsapp')?.hasError('required')">Requerido</mat-error>
-        <mat-error *ngIf="infoPersonalForm.get('whatsapp')?.hasError('pattern')">Formato inválido</mat-error>
-      </mat-form-field>
-
       <!--sexo-->
       <mat-form-field class="example-full-width">
         <mat-label>Sexo</mat-label>
