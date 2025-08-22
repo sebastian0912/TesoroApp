@@ -69,4 +69,9 @@ export class InfoVacantesService {
     return this.setEstadoVacanteAplicante(id, field);
   }
 
+  actualizarDetalle(id: number, detalle: string) {
+    return this.http.patch(`${this.apiUrl}/entrevista/info/${id}/detalle/`, { detalle });
+  }
+
+
 }

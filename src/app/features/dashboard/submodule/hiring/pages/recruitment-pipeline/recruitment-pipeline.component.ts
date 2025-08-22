@@ -28,6 +28,7 @@ import { InfoVacantesService } from '../../service/info-vacantes/info-vacantes.s
 import { TablaComponent } from '@/app/shared/components/tabla/tabla.component';
 import { ColumnConfig } from '@/app/shared/models/advanced-table-interface';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
+import { ColumnDefinition, StandardFilterTable } from '@/app/shared/components/standard-filter-table/standard-filter-table';
 
 export const MY_DATE_FORMATS = {
   parse: { dateInput: 'DD/MM/YYYY' },
@@ -955,7 +956,6 @@ export class RecruitmentPipelineComponent implements OnInit {
   }
 
   mostrarTabla() {
-    // Si no existe la cedula, mostrar un mensaje de error
     if (!this.cedulaActual) {
       Swal.fire('Error', 'Debe seleccionar un candidato primero', 'error');
       return;
@@ -965,26 +965,55 @@ export class RecruitmentPipelineComponent implements OnInit {
       catchError((error) => {
         Swal.fire('Error', 'Ocurrió un error al cargar las vacantes del candidato', 'error');
         return of([]);
-      }
-      )
+      })
     ).subscribe((response: any[]) => {
       if (!response || response.length === 0) {
         Swal.fire('Error', 'No se encontraron vacantes para este candidato', 'error');
         return;
       }
-      this.dialog.open(TablaComponent, {
-        data: {
-          dataSource: response,
-          columns: this.columns
-        },
-        minWidth: '80vw', // opcional
-        height: 'auto'
+
+      // --- Definición de columnas para StandardFilterTable ---
+      const columns: ColumnDefinition[] = [
+        { name: 'created_at', header: 'Fecha de creación', type: 'date', width: '180px' },
+        { name: 'oficina', header: 'Oficina', type: 'text', width: '160px' },
+        { name: 'aplica_o_no_aplica', header: 'Aplica o no aplica', type: 'text', width: '280px' },
+        { name: 'motivoNoAplica', header: 'Motivo no aplica', type: 'text', width: '220px' },
+        { name: 'aplicaObservacion', header: 'Retroalimentación', type: 'text', width: '280px' },
+        { name: 'detalle', header: 'Detalle', type: 'text', width: '320px' },
+        { name: 'actions', header: '', type: 'custom', width: '72px', stickyEnd: true, filterable: false },
+      ];
+
+      // (Opcional) Normaliza created_at a Date si llega con microsegundos (p.ej. 6 dígitos)
+      const fixIso = (v: any): Date | null => {
+        if (!v) return null;
+        const d1 = new Date(v);
+        if (!isNaN(d1.getTime())) return d1;
+        const m = String(v).match(/^(.*\.\d{3})\d*(.*)$/);
+        return m ? new Date(m[1] + m[2]) : null;
+      };
+
+      // Puedes pasar el response tal cual; StandardFilterTable solo renderiza lo que esté en columnDefinitions.
+      // Aquí dejo el created_at “arreglado” para garantizar el sort/pipe de fecha.
+      const data = response.map(r => ({
+        ...r,
+        created_at: fixIso(r.created_at)
+      }));
+
+      // --- Abre StandardFilterTable en un MatDialog y setea los @Input ---
+      const dialogRef = this.dialog.open(StandardFilterTable, {
+        minWidth: '90vw',
+        height: '65vh'
       });
+
+      dialogRef.componentInstance.tableTitle = 'Vacantes del candidato';
+      dialogRef.componentInstance.columnDefinitions = columns;
+      dialogRef.componentInstance.data = data;
+      dialogRef.componentInstance.pageSizeOptions = [10, 20, 50];
+      dialogRef.componentInstance.defaultPageSize = 10;
 
       console.log('Vacantes encontradas:', response);
     });
-
-
   }
+
 
 }

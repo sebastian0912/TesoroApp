@@ -7,6 +7,7 @@ import {
   ViewChild,
   ContentChild,
   TemplateRef,
+  inject,
 } from '@angular/core';
 import { MatTableDataSource } from '@angular/material/table';
 import { MatSort } from '@angular/material/sort';
@@ -15,6 +16,8 @@ import { FormControl, FormGroup } from '@angular/forms';
 import * as XLSX from 'xlsx';
 import { SharedModule } from '../../shared.module';
 import { CdkTableModule } from '@angular/cdk/table';
+import Swal from 'sweetalert2';
+import { InfoVacantesService } from '@/app/features/dashboard/submodule/hiring/service/info-vacantes/info-vacantes.service';
 
 type Align = 'left' | 'center' | 'right';
 
@@ -69,6 +72,7 @@ export class StandardFilterTable implements OnInit, OnChanges {
 
   @ViewChild(MatSort) sort!: MatSort;
   @ViewChild(MatPaginator) paginator!: MatPaginator;
+  private infoVacantesService = inject(InfoVacantesService);
 
   // Rango de fechas global para todas las columnas tipo 'date'
   dateRange: FormGroup = new FormGroup({
@@ -339,6 +343,56 @@ export class StandardFilterTable implements OnInit, OnChanges {
       else ctrl.setValue('');
     }
   }
+
+async editarDetalle(row: any) {
+  const { value: nuevoDetalle, isConfirmed } = await Swal.fire<string>({
+    title: 'Editar detalle',
+    input: 'textarea',
+    inputValue: row?.detalle ?? '',
+    inputLabel: 'Detalle',
+    inputPlaceholder: 'Escribe el detalle…',
+    inputAttributes: { maxlength: '5000' },
+    showCancelButton: true,
+    confirmButtonText: 'Guardar',
+    cancelButtonText: 'Cancelar',
+    focusConfirm: false,
+    allowOutsideClick: () => !Swal.isLoading(),
+  });
+
+  if (!isConfirmed || nuevoDetalle == null) return;
+
+  const detalleLimpio = (nuevoDetalle ?? '').trim();
+  const prev = row.detalle;
+
+  // 1) UI inmediata: actualiza dataset completo y visible
+  this.data = this.data.map(r =>
+    r.id === row.id ? { ...r, detalle: detalleLimpio } : r
+  );
+  this.dataSource.data = (this.dataSource.data as any[]).map(r =>
+    r.id === row.id ? { ...r, detalle: detalleLimpio } : r
+  );
+
+  // 2) Persistencia en backend
+  this.infoVacantesService.actualizarDetalle(row.id, detalleLimpio).subscribe({
+    next: () => {
+      Swal.fire('Guardado', 'Detalle actualizado correctamente', 'success');
+    },
+    error: (err) => {
+      console.error('Error al actualizar detalle:', err);
+      // 3) Revertir UI si falla el backend
+      this.data = this.data.map(r =>
+        r.id === row.id ? { ...r, detalle: prev } : r
+      );
+      this.dataSource.data = (this.dataSource.data as any[]).map(r =>
+        r.id === row.id ? { ...r, detalle: prev } : r
+      );
+      Swal.fire('Error', 'No se pudo actualizar el detalle', 'error');
+    }
+  });
+}
+
+
+
 }
 
 /** Helper para resetear controles sin conocer el tipo */
