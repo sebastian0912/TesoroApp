@@ -279,11 +279,19 @@ export class SearchForCandidateComponent implements OnInit, OnDestroy {
                   .setEstadoVacanteAplicante(c0.id, 'pre_registro', true)
                   .pipe(take(1))
                   .subscribe({
-                    next: (resp: EstadoResponse) =>
-                      console.log('✅ pre_registro actualizado:', resp),
-                    error: (err) =>
-                      console.error('❌ Error actualizando pre_registro', err)
+                    next: (resp: EstadoResponse) => {
+                      // cambiar estado en la tabla
+                      this.dataSource.data = this.dataSource.data.map(item =>
+                        item.id === c0.id ? { ...item, estado: 'pre_registro' } : item
+                      );
+
+                      console.log('✅ pre_registro actualizado:', resp);
+                    },
+                    error: (err) => {
+                      console.error('❌ Error actualizando pre_registro', err);
+                    }
                   });
+
               }
 
               resolve();
