@@ -25,6 +25,9 @@ interface CandidatoTabla {
   created_at: string | Date;
 }
 
+// Puedes dejar este tipo dentro o fuera de la clase
+type ProcesoSeleccion = { id: number; codigo_contrato?: string | number | null };
+
 @Component({
   selector: 'app-search-for-candidate',
   imports: [
@@ -319,32 +322,58 @@ export class SearchForCandidateComponent implements OnInit, OnDestroy {
   }
 
   /* selección */
-  private procesarSeleccion(sel: any): void {
-    console.log('Procesando selección:', sel);
-    const procs = sel?.procesoSeleccion ?? [];
-    if (!procs.length) return;
 
-    const ultimo = procs.reduce((a: { id: number }, b: { id: number }) => b.id > a.id ? b : a);
-    const codigoExistente = ultimo.codigo_contrato;
 
-    Swal.fire({
-      title: '¡Atención!',
-      html: 'Este usuario ya tiene un proceso.<br>¿Deseas crear otro o continuar con este?',
-      icon: 'warning',
-      showCancelButton: true,
-      confirmButtonText: 'Crear otro',
-      cancelButtonText: 'Continuar con este'
-    }).then(r => {
-      if (r.isConfirmed) {
-        this.generarNuevoCodigoContrato();
-      } else {
-        this.codigoContratoActual = codigoExistente; // ✅ ya lo tomas del backend
-        console.log('Código de contrato actual:', this.codigoContratoActual);
-        this.codigoContratoChange.emit(this.codigoContratoActual);
-        this.procesoValido = true;
-      }
-    });
+private procesarSeleccion(sel: any): void {
+  console.log('Procesando selección:', sel);
+
+  const procs: ProcesoSeleccion[] = Array.isArray(sel?.procesoSeleccion)
+    ? sel.procesoSeleccion
+    : [];
+
+  if (!procs.length) return;
+
+  const { codigo: codigoExistente, maxId } = this.getUltimoCodigoValido(procs);
+
+  Swal.fire({
+    title: '¡Atención!',
+    html: 'Este usuario ya tiene un proceso.<br>¿Deseas crear otro o continuar con este?',
+    icon: 'warning',
+    showCancelButton: true,
+    confirmButtonText: 'Crear otro',
+    cancelButtonText: 'Continuar con este'
+  }).then(r => {
+    if (r.isConfirmed) {
+      // crear uno nuevo
+      this.generarNuevoCodigoContrato?.();
+    } else {
+      // continuar con el último código válido; si no hay ninguno, usa maxId+1
+      this.codigoContratoActual = (codigoExistente && codigoExistente.trim() !== '')
+        ? codigoExistente
+        : String(maxId + 1);
+
+      console.log('Código de contrato actual:', this.codigoContratoActual);
+      this.codigoContratoChange?.emit(this.codigoContratoActual);
+      this.procesoValido = true;
+    }
+  });
+}
+
+/**
+ * Devuelve el primer codigo_contrato NO vacío al recorrer por id DESC.
+ * Si ninguno tiene código, retorna null y también el maxId del arreglo.
+ */
+private getUltimoCodigoValido(procs: ProcesoSeleccion[]): { codigo: string | null; maxId: number } {
+  const ordenados = [...procs].sort((a, b) => (b.id ?? 0) - (a.id ?? 0));
+  const maxId = ordenados.length ? (ordenados[0].id ?? 0) : 0;
+
+  for (const p of ordenados) {
+    const cod = (p.codigo_contrato ?? '').toString().trim();
+    if (cod !== '') return { codigo: cod, maxId };
   }
+  return { codigo: null, maxId };
+}
+
 
 
   private generarNuevoCodigoContrato(): void {
