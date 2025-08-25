@@ -280,11 +280,7 @@ export class SearchForCandidateComponent implements OnInit, OnDestroy {
                   .pipe(take(1))
                   .subscribe({
                     next: (resp: EstadoResponse) => {
-                      // cambiar estado en la tabla
-                      this.dataSource.data = this.dataSource.data.map(item =>
-                        item.id === c0.id ? { ...item, estado: 'pre_registro' } : item
-                      );
-
+                      this.loadCandidatos();
                       console.log('✅ pre_registro actualizado:', resp);
                     },
                     error: (err) => {
