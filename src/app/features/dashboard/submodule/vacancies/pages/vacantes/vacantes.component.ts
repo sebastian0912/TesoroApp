@@ -114,6 +114,7 @@ export class VacantesComponent implements OnInit {
         const payload = {
           cargo: result.cargo,
           temporal: result.temporal,
+          area: result.area,
           empresaUsuariaSolicita: result.empresaUsuariaSolicita,
           finca: result.finca,
           experiencia: result.experiencia,
@@ -136,7 +137,6 @@ export class VacantesComponent implements OnInit {
           tipoContratacion: result.tipoContratacion?.trim() || null,
           municipio: Array.isArray(result.municipio) ? result.municipio : [],
           auxilioTransporte: result.auxilioTransporte,
-          area: result.area?.trim() || null // Asegurarse de que el campo 'area' esté incluido
         };
 
         this.vacantesService.actualizarVacante(vacante?.id, payload).subscribe({
@@ -177,6 +177,7 @@ export class VacantesComponent implements OnInit {
 
         const payload = {
           cargo: result.cargo?.trim() || null,
+          area: result.area || null,
           empresaUsuariaSolicita: result.empresaUsuariaSolicita?.trim() || null,
           finca: result.finca?.trim() || null,
           ubicacionPruebaTecnica: result.ubicacionPruebaTecnica?.trim() || null,
@@ -201,7 +202,6 @@ export class VacantesComponent implements OnInit {
           tipoContratacion: result.tipoContratacion?.trim() || null,
           municipio: Array.isArray(result.municipio) ? result.municipio : [],
           auxilioTransporte: result.auxilioTransporte,
-          area: result.area?.trim() || null // Asegurarse de que el campo 'area' esté incluido
         };
 
         // Enviar a API

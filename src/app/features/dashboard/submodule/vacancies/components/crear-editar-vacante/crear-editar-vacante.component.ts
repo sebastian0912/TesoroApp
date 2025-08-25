@@ -76,7 +76,7 @@ export class CrearEditarVacanteComponent implements OnInit {
   municipioInput!: ElementRef<HTMLInputElement>;
   // filteredAreas rosa, clavel,astromelia,pompon,miniclavel,diversificados,lirios,fumigacion,corte de rosa,oficios varios
   areas: string[] = ['Rosa', 'Clavel', 'Astromelia', 'Pompon', 'Miniclavel', 'Diversificados', 'Lirios', 'Fumigación', 'Corte de Rosa', 'Oficios Varios'];
-  
+
   constructor(
     private fb: FormBuilder,
     private http: HttpClient,
@@ -200,6 +200,7 @@ export class CrearEditarVacanteComponent implements OnInit {
   private cargarParaEdicion(v: any): void {
     this.vacanteForm.patchValue({
       cargo: v.cargo,
+      area: v.area,
       finca: v.finca,
       empresaUsuariaSolicita: v.empresaUsuariaSolicita,
       temporal: v.temporal,
