@@ -2,7 +2,23 @@
 <mat-card>
   <mat-card-content>
     <div class="tabla">
-      <h1 class="title">Reporte 901 reportados</h1>
+      <div class="header-901">
+        <h1 class="title">Reporte 901 reportados</h1>
+
+        <button mat-icon-button [matMenuTriggerFor]="menu901" matTooltip="Acciones" aria-label="Abrir acciones">
+          <mat-icon>more_vert</mat-icon>
+        </button>
+
+        <mat-menu #menu901="matMenu">
+          <button mat-menu-item (click)="triggerUpload901()">
+            <mat-icon>upload</mat-icon>
+            <span>Cargar 901</span>
+          </button>
+        </mat-menu>
+
+        <!-- input oculto para Excel -->
+        <input #file901 type="file" accept=".xlsx,.xls,.csv" (change)="onFileSelected901($event)" hidden>
+      </div>
       <mat-form-field class="filtro">
         <mat-label>Filtrar</mat-label>
         <input matInput (keyup)="applyFilter($event)" placeholder="Filtrar" #input>

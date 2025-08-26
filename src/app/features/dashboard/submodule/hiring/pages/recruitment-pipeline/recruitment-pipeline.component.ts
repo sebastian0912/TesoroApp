@@ -6,7 +6,7 @@ import { SearchForCandidateComponent } from '../../components/search-for-candida
 import { SelectionQuestionsComponent } from '../../components/selection-questions/selection-questions.component';
 import { AbstractControl, FormArray, FormBuilder, FormGroup, FormsModule, Validators } from '@angular/forms';
 import { VacantesService } from '../../service/vacantes/vacantes.service';
-import { catchError, of } from 'rxjs';
+import { catchError, firstValueFrom, of, take } from 'rxjs';
 import Swal from 'sweetalert2';
 import { UtilityServiceService } from '@/app/shared/services/utilityService/utility-service.service';
 import { HelpInformationComponent } from '../../components/help-information/help-information.component';
@@ -39,6 +39,14 @@ export const MY_DATE_FORMATS = {
     monthYearA11yLabel: 'MMMM YYYY'
   }
 };
+
+interface Usuario {
+  primer_nombre: string;
+  primer_apellido: string;
+  rol: string;
+  sucursalde: string;
+}
+
 @Component({
   selector: 'app-recruitment-pipeline',
   imports: [
@@ -76,6 +84,8 @@ export class RecruitmentPipelineComponent implements OnInit {
   codigoContrato = '';
   nombreCandidato = '';
   idInfoEntrevistaAndrea = 0;
+  idProcesoSeleccion: number | null = null; // id interno del proceso de selección
+
   filtro = '';
   vacantes: any[] = [];
   idvacante = 0;
@@ -115,33 +125,11 @@ export class RecruitmentPipelineComponent implements OnInit {
   helpInformationComponent!: HelpInformationComponent;
 
   uploadedFiles: { [key: string]: { file?: File; fileName?: string } } = {
-    eps: { fileName: 'Adjuntar documento' },
-    afp: { fileName: 'Adjuntar documento' },
-    policivos: { fileName: 'Adjuntar documento' },
-    procuraduria: { fileName: 'Adjuntar documento' },
-    contraloria: { fileName: 'Adjuntar documento' },
-    ramaJudicial: { fileName: 'Adjuntar documento' },
-    medidasCorrectivas: { fileName: 'Adjuntar documento' },
-    sisben: { fileName: 'Adjuntar documento' },
-    ofac: { fileName: 'Adjuntar documento' },
     examenesMedicos: { fileName: 'Adjuntar documento' },
-    figuraHumana: { fileName: 'Adjuntar documento' },
-    pensionSemanas: { fileName: 'Adjuntar documento' },
   };
 
   typeMap: { [key: string]: number } = {
-    eps: 7,
-    policivos: 6,
-    procuraduria: 3,
-    contraloria: 4,
-    medidasCorrectivas: 10,
-    afp: 11,
-    ramaJudicial: 12,
-    sisben: 8,
-    ofac: 5,
-    figuraHumana: 31,
-    examenesMedicos: 32,
-    pensionSemanas: 33
+    examenesMedicos: 32
   };
 
   filteredExamOptions: string[] = [];
@@ -235,7 +223,6 @@ export class RecruitmentPipelineComponent implements OnInit {
         }));
       });
     });
-
 
 
     this.datosPersonales = this.fb.group({
@@ -399,6 +386,7 @@ export class RecruitmentPipelineComponent implements OnInit {
 
   ngOnInit(): void {
     this.loadData();
+    this.initUsuarioYAbreviacion();
   }
 
   async loadData(): Promise<void> {
@@ -462,63 +450,196 @@ export class RecruitmentPipelineComponent implements OnInit {
     }
   }
 
-  onCedulaSeleccionada(cedula: string): void {
+  async onCedulaSeleccionada(cedula: string): Promise<void> {
     this.cedulaActual = cedula;
+    this.mostrarTabla();
 
-    this.contratacionService.traerDatosSeleccion(this.cedulaActual).subscribe((response: any) => {
+    this.contratacionService.traerDatosSeleccion(this.cedulaActual).subscribe(async (response: any) => {
       const list = response?.procesoSeleccion;
-      if (!Array.isArray(list) || list.length === 0) return;
+      // Si no hay historial: empezamos nuevo proceso
+      if (!Array.isArray(list) || list.length === 0) {
+        this.iniciarNuevoProcesoUI();
+        return;
+      }
 
-      // ✅ primer elemento
-      const data = list[1];
+      // Top 2 por id DESC (id solo interno, no se muestra)
+      const topTwo = [...list]
+        .filter(x => typeof x?.id === 'number')
+        .sort((a, b) => b.id - a.id)
+        .slice(0, 2);
 
-      // ----- 1) Setear IPS / IPSLAB -----
+      // Mostrar selector SIEMPRE (para permitir “nuevo proceso”)
+      const chosen = await this.elegirProcesoBonitoSinIdONuevo(topTwo);
+      if (!chosen) return; // canceló
+
+      if (chosen === 'NEW') {
+        this.iniciarNuevoProcesoUI();
+        return;
+      }
+
+      // --- Continuar con proceso existente ---
+      const data = chosen;
+      console.log('Datos del proceso seleccionado:', data);
+      this.idProcesoSeleccion = data.id; // guardar id interno
+
+
+      // 1) IPS / IPSLAB
       this.formGroup3.patchValue({
         ips: data?.ips ?? '',
-        // en el JSON viene "ipslab" (todo minúscula). Mapea a tu control "ipsLab".
         ipsLab: data?.ipslab ?? data?.ipsLab ?? ''
       });
 
-      // ----- 2) Parsear examenes y aptosExamenes -----
+      // 2) Examénes y aptos
       const examenesArr = String(data?.examenes || '')
         .split(',')
-        .map(s => s.trim())
+        .map((s: string) => s.trim())
         .filter(Boolean);
 
       const aptosArr = String(data?.aptosExamenes || '')
         .split(',')
-        .map(s => s.trim().toUpperCase())
+        .map((s: string) => s.trim().toUpperCase())
         .filter(Boolean);
 
-      // Emparejar longitudes (por seguridad)
       const len = Math.min(examenesArr.length, aptosArr.length);
       const selectedExams = examenesArr.slice(0, len);
       const selectedAptos = aptosArr.slice(0, len);
 
-      // ----- 3) Cargar en el formulario -----
-      // selectedExams: lista simple (tu <mat-select multiple> o donde la uses)
       this.formGroup3.get('selectedExams')?.setValue(selectedExams);
 
-      // selectedExamsArray: FormArray de grupos { aptoStatus: 'APTO'|'NO APTO' }
       const fa = this.fb.array(
-        selectedAptos.map(status =>
+        selectedAptos.map((status: string) =>
           this.fb.group({
-            aptoStatus: [status || 'APTO'] // si falta, por defecto APTO
+            aptoStatus: [status || 'APTO']
           })
         )
       );
-
       this.formGroup3.setControl('selectedExamsArray', fa);
-
-      // (Opcional) Si además quieres llenar otros campos que coincidan por nombre:
-      // this.formGroup3.patchValue(data, { onlySelf: false });
     });
   }
 
+  /** Limpia UI para iniciar un proceso nuevo */
+  private iniciarNuevoProcesoUI(): void {
+    this.idProcesoSeleccion = null; // nuevo proceso
+    // Limpia campos relevantes
+    this.formGroup3.patchValue({
+      ips: '',
+      ipsLab: '',
+      selectedExams: []
+    });
+    this.formGroup3.setControl('selectedExamsArray', this.fb.array([]));
+  }
 
-  onCodigoContrato(codigo: string): void {
-    this.codigoContrato = codigo;
-    console.log('Código de contrato:', this.codigoContrato);
+  /** Modal con 2 tarjetas + opción “Crear nuevo proceso”; retorna objeto elegido o 'NEW' o null si cancela */
+  private async elegirProcesoBonitoSinIdONuevo(items: any[]): Promise<any | 'NEW' | null> {
+    const card = (it: any, checked = false) => {
+      const fechaBonita = this.formatMarcaTemporal(it?.marcaTemporal);
+      const evaluador = this.escapeHtml(it?.nombre_evaluador || '—');
+      const ips = this.escapeHtml(it?.ips || '');
+      return `
+      <label class="proc-card">
+        <input type="radio" name="procOption" value="${it.id}" ${checked ? 'checked' : ''}/>
+        <div class="card">
+          <div class="card-row">
+            <span class="date">${fechaBonita}</span>
+          </div>
+          <div class="card-body">
+            <div><b>Evaluador:</b> ${evaluador}</div>
+            ${ips ? `<div><b>IPS:</b> ${ips}</div>` : ''}
+          </div>
+        </div>
+      </label>
+    `;
+    };
+
+    const newCard = `
+    <label class="proc-card">
+      <input type="radio" name="procOption" value="NEW"/>
+      <div class="card new">
+        <div class="new-title">Crear nuevo proceso</div>
+        <div class="new-sub">Comenzar desde cero</div>
+      </div>
+    </label>
+  `;
+
+    const { isConfirmed } = await Swal.fire({
+      title: '¿Cómo deseas continuar?',
+      html: `
+      <style>
+        .proc-wrap{display:flex;gap:12px;flex-wrap:wrap;justify-content:center;margin-top:6px}
+        .proc-card{cursor:pointer}
+        .proc-card input{display:none}
+        .proc-card .card{
+          width: 300px; padding: 12px 14px; border-radius: 14px;
+          border: 1px solid #e5e7eb; transition: all .15s ease; background: #fff;
+          box-shadow: 0 1px 3px rgba(0,0,0,.06);
+        }
+        .proc-card .card.new{
+          background: #f8fafc;
+          border-style: dashed;
+        }
+        .proc-card .new-title{font-weight:700; color:#0f172a}
+        .proc-card .new-sub{font-size:12px; color:#64748b}
+        .proc-card input:checked + .card{
+          border-color: #3f51b5; box-shadow: 0 0 0 3px rgba(63,81,181,.15);
+        }
+        .proc-card .card-row{display:flex;justify-content:flex-start;align-items:center;margin-bottom:8px}
+        .date{font-size:13px;color:#374151;font-weight:600}
+        .card-body{font-size:13px;color:#374151;line-height:1.35}
+        .note{margin-top:8px;font-size:12px;color:#6b7280}
+      </style>
+      <div class="proc-wrap">
+        ${items[0] ? card(items[0], true) : ''}
+        ${items[1] ? card(items[1]) : ''}
+        ${newCard}
+      </div>
+      <div class="note">
+        Selecciona el registro por <b>fecha</b> (marcaTemporal) con el que quieres continuar
+        o elige <b>Crear nuevo proceso</b>.
+      </div>
+    `,
+      focusConfirm: false,
+      showCancelButton: true,
+      confirmButtonText: 'Continuar',
+      cancelButtonText: 'Cancelar',
+      preConfirm: () => {
+        const sel = (document.querySelector('input[name="procOption"]:checked') as HTMLInputElement)?.value;
+        if (!sel) {
+          Swal.showValidationMessage('Selecciona una opción');
+          return false as any;
+        }
+        // guardamos en dataset de swal para leerlo luego
+        (Swal as any).selectedOption = sel;
+        return true;
+      }
+    });
+
+    if (!isConfirmed) return null;
+
+    const sel = (Swal as any).selectedOption as string;
+    if (sel === 'NEW') return 'NEW';
+    const idSel = Number(sel);
+    return items.find(it => it.id === idSel) ?? null;
+  }
+
+  /** Formatea marcaTemporal a es-CO / America/Bogota o devuelve original si no se puede. */
+  private formatMarcaTemporal(v: any): string {
+    if (!v) return '—';
+    const d = new Date(v);
+    if (isNaN(d.getTime())) return String(v);
+    try {
+      return d.toLocaleString('es-CO', {
+        dateStyle: 'medium',
+        timeStyle: 'short',
+        timeZone: 'America/Bogota'
+      });
+    } catch {
+      return d.toLocaleString();
+    }
+  }
+
+  /** Anti XSS mínimo para texto plano en HTML */
+  private escapeHtml(s: string): string {
+    return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
   }
 
   // id de info entrevista andrea
@@ -529,7 +650,6 @@ export class RecruitmentPipelineComponent implements OnInit {
   //OnIdVacanteChange
   onIdVacanteChange(id: number): void {
     this.idvacante = id;
-    console.log('ID de vacante cambiado:', id);
   }
 
   // Método para obtener el nombre completo del candidato
@@ -632,18 +752,16 @@ export class RecruitmentPipelineComponent implements OnInit {
 
 
   generacionDocumentos() {
-    console.log('Generando documentos...');
-    console.log('Cedula actual:', this.cedulaActual);
-    console.log('Codigo de contrato:', this.codigoContrato);
 
     // Si no existe la cedula, mostrar un mensaje de error
-    if (!this.cedulaActual || !this.codigoContrato) {
+    if (!this.cedulaActual) {
       Swal.fire('Error', 'Debe seleccionar un candidato primero', 'error');
       return;
     }
+
     // Guardar cedula y codigoContrato en el localStorage separados
     localStorage.setItem('cedula', this.cedulaActual);
-    localStorage.setItem('codigoContrato', this.codigoContrato);
+    localStorage.setItem('codigoContrato', this.codigoContratoActual);
     // empresa
     this.guardarFormulariosEnLocalStorage();
     // Redirige a la página de generación de documentos
@@ -658,8 +776,7 @@ export class RecruitmentPipelineComponent implements OnInit {
     if (stored) {
       formularios = JSON.parse(stored); // conservar lo anterior
     }
-    console.log('idInfoEntrevistaAndrea:', this.idInfoEntrevistaAndrea);
-    console.log('idVacanteContratacion:', this.idVacanteContratacion);
+
     // Actualizar o agregar los datos nuevos
     formularios = {
       ...formularios, // mantiene lo que ya tenía
@@ -686,16 +803,53 @@ export class RecruitmentPipelineComponent implements OnInit {
     localStorage.setItem('formularios', JSON.stringify(formularios));
   }
 
+  sede = '';
+  abreviacionSede = '';
+  codigoContratoActual = '';
+  /* diccionario de abreviaciones */
+  private readonly abreviaciones: Record<string, string> = {
+    ADMINISTRATIVOS: 'ADM', ANDES: 'AND', BOSA: 'BOS', CARTAGENITA: 'CAR',
+    FACA_PRIMERA: 'FPR', FACA_PRINCIPAL: 'FPC', FONTIBÓN: 'FON', FORANEOS: 'FOR',
+    FUNZA: 'FUN', MADRID: 'MAD', MONTE_VERDE: 'MV', ROSAL: 'ROS',
+    SOACHA: 'SOA', SUBA: 'SUB', TOCANCIPÁ: 'TOC', USME: 'USM',
+  };
+
+  private initUsuarioYAbreviacion(): void {
+    const user = this.utilityService.getUser() as Usuario | null;
+    if (!user) { return; }
+
+    this.sede = user.sucursalde;
+    this.abreviacionSede = this.abreviaciones[this.sede] || this.sede;
+  }
 
 
 
+  private generarNuevoCodigoContrato(): void {
+    this.seleccionService.generarCodigoContratacion(this.abreviacionSede, this.cedulaActual)
+      .pipe(take(1))
+      .subscribe({
+        next: r => {
+          this.codigoContratoActual = r.nuevo_codigo;
+          console.log('Código de contrato generado:', this.codigoContratoActual);
+          Swal.fire('Éxito', 'Código de contrato generado correctamente: ' + this.codigoContratoActual, 'success');
+        },
+        error: () => Swal.fire('Error', 'No se pudo generar el código', 'error')
+      });
+  }
 
 
+  private isPdf(file: File | undefined | null): file is File {
+    return !!file && (
+      file.type === 'application/pdf' ||
+      /\.pdf$/i.test(file.name || '')
+    );
+  }
 
-
-  // Método para fusionar PDFs y almacenarlo en uploadedFiles["examenesMedicos"]
+  // Método para fusionar PDFs y almacenar en uploadedFiles["examenesMedicos"]
   async imprimirSaludOcupacional(): Promise<void> {
-    if (this.examFiles.length === 0 || this.examFiles.every(file => !file)) {
+    // Normaliza y valida archivos
+    const pdfs = (this.examFiles || []).filter(f => this.isPdf(f));
+    if (!pdfs.length) {
       Swal.fire({
         title: '¡Advertencia!',
         text: 'Debe subir al menos un archivo PDF.',
@@ -705,38 +859,61 @@ export class RecruitmentPipelineComponent implements OnInit {
       return;
     }
 
+    // Loader
     Swal.fire({
       title: 'Procesando...',
       icon: 'info',
       text: 'Generando documento PDF...',
       allowOutsideClick: false,
       allowEscapeKey: false,
-      didOpen: () => {
-        Swal.showLoading();
-      }
+      didOpen: () => Swal.showLoading()
     });
 
     try {
-      const mergedPdf = await PDFDocument.create();
+      // 1) (Opcional) Crear/actualizar parte 3 antes de fusionar
+      try {
+        await firstValueFrom(
+          this.seleccionService.crearSeleccionParteTresCandidato(
+            this.formGroup3,
+            this.cedulaActual,
+            this.idProcesoSeleccion
+          )
+        );
+        console.log('Parte 3 de la selección creada/actualizada correctamente');
+      } catch (e) {
+        console.warn('No se pudo crear/actualizar Parte 3, se continúa igual.', e);
+        // seguimos; no bloquea la fusión de PDF
+      }
 
-      for (const file of this.examFiles) {
-        if (file) {
-          const fileBuffer = await file.arrayBuffer();
-          const pdf = await PDFDocument.load(fileBuffer);
-          const copiedPages = await mergedPdf.copyPages(pdf, pdf.getPageIndices());
-          copiedPages.forEach((page) => mergedPdf.addPage(page));
-        }
+      // 2) Fusionar PDFs
+      const mergedPdf = await PDFDocument.create();
+      for (const file of pdfs) {
+        const fileBuffer = await file.arrayBuffer();
+        const pdf = await PDFDocument.load(fileBuffer, { ignoreEncryption: true });
+        const pages = await mergedPdf.copyPages(pdf, pdf.getPageIndices());
+        pages.forEach(p => mergedPdf.addPage(p));
       }
 
       const mergedPdfBytes = await mergedPdf.save();
-      const pdfBlob = new Blob([mergedPdfBytes], { type: 'application/pdf' });
+      const mergedName = `SaludOcupacional_Combinado_${new Date().toISOString().slice(0, 10)}.pdf`;
+      const mergedFile = new File([mergedPdfBytes], mergedName, { type: 'application/pdf' });
 
-      this.subirArchivo(pdfBlob, "examenesMedicos", "SaludOcupacional_Combinado.pdf");
+      // 3) Guardar en uploadedFiles["examenesMedicos"]
+      this.uploadedFiles['examenesMedicos'] = {
+        fileName: mergedName,
+        file: mergedFile
+      };
 
-      Swal.close();
-      this.imprimirDocumentos();
+      // 4) (Opcional) Subir inmediatamente si tu flujo lo requiere
+      // Si tu helper acepta Blob/File + key + fileName:
+      try {
+        await this.subirArchivo(mergedFile, 'examenesMedicos', mergedName);
+      } catch (upErr) {
+        console.warn('No se pudo subir el PDF combinado ahora. Queda en uploadedFiles.', upErr);
+        // No bloquea; ya quedó en uploadedFiles para reintento posterior
+      }
 
-      // 📌 Actualizar estado examenes_medicos
+      // 5) Actualizar estado examenes_medicos
       if (this.idInfoEntrevistaAndrea) {
         this.infoVacantesService
           .setEstadoVacanteAplicante(this.idInfoEntrevistaAndrea, 'examenes_medicos', true)
@@ -746,7 +923,22 @@ export class RecruitmentPipelineComponent implements OnInit {
           });
       }
 
+      Swal.close();
+
+      // 6) (Opcional) seguir con tu flujo
+      if (typeof this.imprimirDocumentos === 'function') {
+        this.imprimirDocumentos();
+      }
+
+      await Swal.fire({
+        title: '¡Éxito!',
+        text: 'El PDF de Salud Ocupacional fue generado y guardado correctamente.',
+        icon: 'success',
+        confirmButtonText: 'Ok'
+      });
+
     } catch (error) {
+      console.error(error);
       Swal.close();
       Swal.fire({
         title: '¡Error!',
@@ -803,7 +995,6 @@ export class RecruitmentPipelineComponent implements OnInit {
 
   onIdVacanteFromHiring(id: number): void {
     this.idVacanteContratacion = id;
-    console.log('📌 ID de vacante recibido desde contratación:', id);
   }
 
 
@@ -1011,7 +1202,6 @@ export class RecruitmentPipelineComponent implements OnInit {
       dialogRef.componentInstance.pageSizeOptions = [10, 20, 50];
       dialogRef.componentInstance.defaultPageSize = 10;
 
-      console.log('Vacantes encontradas:', response);
     });
   }
 

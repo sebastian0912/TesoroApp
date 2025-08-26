@@ -84,8 +84,7 @@ export class SearchForCandidateComponent implements OnInit, OnDestroy {
   datosSeleccion: any = null;
 
   sede = '';
-  abreviacionSede = '';
-  codigoContratoActual = '';
+
 
   /* tablas */
   simpleDisplayedColumns = ['cedula', 'nombre_completo', 'created_at', 'acciones'];
@@ -116,47 +115,12 @@ export class SearchForCandidateComponent implements OnInit, OnDestroy {
     private infoVacantesService: InfoVacantesService,
     private router: Router,
   ) { }
-  private _procEnCurso = false;
 
-  /* ──────────  Ciclo de vida  ────────── */
   /* ──────────  Ciclo de vida  ────────── */
   ngOnInit(): void {
     this.initUsuarioYAbreviacion();
     this.loadCandidatos();
-    /*
-        this.utilityService.nextStep
-          .pipe(takeUntil(this.destroyed$))
-          .subscribe(() => this.onNextStep());
-    */
   }
-
-  private async onNextStep(): Promise<void> {
-    // Evita reentradas (ciclos) si llega otra emisión mientras procesas
-    if (this._procEnCurso) {
-      console.debug('[nextStep] ignorado: ya hay proceso en curso');
-      return;
-    }
-
-    this._procEnCurso = true;
-    try {
-      if (!this.datosSeleccion) {
-        console.warn('[nextStep] datosSeleccion aún no están listos');
-        return;
-      }
-
-      // Si procesarSeleccion es síncrono, quita el await
-      await this.procesarSeleccion(this.datosSeleccion);
-    } catch (e) {
-      Swal.fire({
-        icon: 'error',
-        title: 'Error inesperado',
-        text: 'Error al procesar la selección'
-      });
-    } finally {
-      this._procEnCurso = false;
-    }
-  }
-
 
 
   ngOnDestroy(): void {
@@ -164,13 +128,11 @@ export class SearchForCandidateComponent implements OnInit, OnDestroy {
     this.destroyed$.complete();
   }
 
-
   private initUsuarioYAbreviacion(): void {
     const user = this.utilityService.getUser() as Usuario | null;
     if (!user) { return; }
 
     this.sede = user.sucursalde;
-    this.abreviacionSede = this.abreviaciones[this.sede] || this.sede;
   }
 
   /* ──────────  Escucha de ruta y carga tabla  ────────── */
@@ -190,10 +152,10 @@ export class SearchForCandidateComponent implements OnInit, OnDestroy {
         };
 
         const boolText = (v: any): 'Sí' | 'No' => (!!v ? 'Sí' : 'No');
-        console.log('Candidatos cargados:', candidatos);
         this.registros = candidatos
           .filter(c => ((c.oficina ?? '') as string).toLowerCase().trim() === sedeLower)
           .map(c => ({
+
             cedula: c.numero ?? '',
             created_at: toDate(c.created_at),
             nombre_completo: [c.primer_nombre, c.segundo_nombre, c.primer_apellido, c.segundo_apellido]
@@ -228,17 +190,13 @@ export class SearchForCandidateComponent implements OnInit, OnDestroy {
       // Espera a que se cargue todo (forkJoin dentro de buscarCedula)
       await this.buscarCedula();
 
-      console.log('[seleccionarCedula] datosSeleccion listo:', this.datosSeleccion);
-
-      // 1) Procesar aquí mismo (seguro: ya tienes datosSeleccion)
-      if (this.datosSeleccion) {
-        this.procesarSeleccion(this.datosSeleccion);
-      } else {
-        console.warn('No hay datosSeleccion después de buscarCedula');
-      }
 
     } catch (e) {
-      console.error('Error en seleccionarCedula:', e);
+      Swal.fire({
+        icon: 'error',
+        title: 'Error inesperado',
+        text: 'Error al seleccionar la cédula'
+      });
     }
   }
 
@@ -247,25 +205,19 @@ export class SearchForCandidateComponent implements OnInit, OnDestroy {
     if (!this.cedula) return;
 
     this.cedulaSeleccionada.emit(this.cedula);
-    console.log('[buscarCedula] Cédula seleccionada emitida:', this.cedula);
 
     return new Promise<void>((resolve, reject) => {
       forkJoin({
         candidato: this.infoVacantesService.getVacantesPorNumero(this.cedula),
-        seleccion: this.hiringService.traerDatosSeleccion(this.cedula),
         vetado: this.vetadosService.listarReportesVetadosPorCedula(this.cedula)
       })
         .pipe(take(1))
         .subscribe({
-          next: ({ vetado, seleccion, candidato }) => {
+          next: ({ vetado, candidato }) => {
             try {
               // Vetado
               this.procesarVetado(vetado);
 
-              // Guarda selección (NO proceses aquí; deja que lo haga quien reciba el evento)
-              this.datosSeleccion = seleccion ?? null;
-              console.log('[buscarCedula] datosSeleccion:', this.datosSeleccion);
-              this.procesarSeleccion(this.datosSeleccion);
               // Nombre, id y estado pre_registro (si hay candidato)
               if (Array.isArray(candidato) && candidato.length > 0) {
                 const c0 = candidato[0];
@@ -281,10 +233,9 @@ export class SearchForCandidateComponent implements OnInit, OnDestroy {
                   .subscribe({
                     next: (resp: EstadoResponse) => {
                       this.loadCandidatos();
-                      console.log('✅ pre_registro actualizado:', resp);
                     },
                     error: (err) => {
-                      console.error('❌ Error actualizando pre_registro', err);
+                      Swal.fire('Error', 'No se pudo actualizar el estado de pre_registro', 'error');
                     }
                   });
 
@@ -292,12 +243,12 @@ export class SearchForCandidateComponent implements OnInit, OnDestroy {
 
               resolve();
             } catch (inner) {
-              this.procesarError(inner);
+              Swal.fire('Error', 'Error inesperado', 'error');
               reject(inner);
             }
           },
           error: (e) => {
-            this.procesarError(e);
+            Swal.fire('Error', 'Error inesperado', 'error');
             reject(e);
           }
         });
@@ -328,81 +279,21 @@ export class SearchForCandidateComponent implements OnInit, OnDestroy {
   /* selección */
 
 
-private procesarSeleccion(sel: any): void {
-  console.log('Procesando selección:', sel);
+  /**
+   * Devuelve el primer codigo_contrato NO vacío al recorrer por id DESC.
+   * Si ninguno tiene código, retorna null y también el maxId del arreglo.
+   */
+  private getUltimoCodigoValido(procs: ProcesoSeleccion[]): { codigo: string | null; maxId: number } {
+    const ordenados = [...procs].sort((a, b) => (b.id ?? 0) - (a.id ?? 0));
+    const maxId = ordenados.length ? (ordenados[0].id ?? 0) : 0;
 
-  const procs: ProcesoSeleccion[] = Array.isArray(sel?.procesoSeleccion)
-    ? sel.procesoSeleccion
-    : [];
-
-  if (!procs.length) return;
-
-  const { codigo: codigoExistente, maxId } = this.getUltimoCodigoValido(procs);
-
-  Swal.fire({
-    title: '¡Atención!',
-    html: 'Este usuario ya tiene un proceso.<br>¿Deseas crear otro o continuar con este?',
-    icon: 'warning',
-    showCancelButton: true,
-    confirmButtonText: 'Crear otro',
-    cancelButtonText: 'Continuar con este'
-  }).then(r => {
-    if (r.isConfirmed) {
-      // crear uno nuevo
-      this.generarNuevoCodigoContrato?.();
-    } else {
-      // continuar con el último código válido; si no hay ninguno, usa maxId+1
-      this.codigoContratoActual = (codigoExistente && codigoExistente.trim() !== '')
-        ? codigoExistente
-        : String(maxId + 1);
-
-      console.log('Código de contrato actual:', this.codigoContratoActual);
-      this.codigoContratoChange?.emit(this.codigoContratoActual);
-      this.procesoValido = true;
+    for (const p of ordenados) {
+      const cod = (p.codigo_contrato ?? '').toString().trim();
+      if (cod !== '') return { codigo: cod, maxId };
     }
-  });
-}
-
-/**
- * Devuelve el primer codigo_contrato NO vacío al recorrer por id DESC.
- * Si ninguno tiene código, retorna null y también el maxId del arreglo.
- */
-private getUltimoCodigoValido(procs: ProcesoSeleccion[]): { codigo: string | null; maxId: number } {
-  const ordenados = [...procs].sort((a, b) => (b.id ?? 0) - (a.id ?? 0));
-  const maxId = ordenados.length ? (ordenados[0].id ?? 0) : 0;
-
-  for (const p of ordenados) {
-    const cod = (p.codigo_contrato ?? '').toString().trim();
-    if (cod !== '') return { codigo: cod, maxId };
-  }
-  return { codigo: null, maxId };
-}
-
-
-
-  private generarNuevoCodigoContrato(): void {
-    this.seleccionService.generarCodigoContratacion(this.abreviacionSede, this.cedula)
-      .pipe(take(1))
-      .subscribe({
-        next: r => {
-          this.codigoContratoActual = r.nuevo_codigo;
-          this.codigoContratoChange.emit(r.nuevo_codigo);
-          this.procesoValido = true;
-        },
-        error: () => Swal.fire('Error', 'No se pudo generar el código', 'error')
-      });
+    return { codigo: null, maxId };
   }
 
-  /* errores */
-  private procesarError(err: any): void {
-    const m = err?.error?.message ?? '';
-    if (m.includes('No se encontró el proceso de selección')) {
-      Swal.fire('Info', 'El usuario no tiene procesos', 'info')
-        .then(() => this.generarNuevoCodigoContrato());
-    } else {
-      Swal.fire('Atención', 'No se encontró la cédula ingresada', 'warning');
-    }
-  }
 
   /* ──────────  Observación  ────────── */
   mostrarCampoObservacion(): void { this.mostrarObservacion = true; }

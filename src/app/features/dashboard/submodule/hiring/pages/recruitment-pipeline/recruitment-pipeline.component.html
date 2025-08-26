@@ -34,7 +34,7 @@
         </ng-template>
         <div class="tab-content-scrollable">
           <app-search-for-candidate (cedulaSeleccionada)="onCedulaSeleccionada($event)"
-            (codigoContratoChange)="onCodigoContrato($event)" (nombreCompletoChange)="getFullName($event)"
+            (nombreCompletoChange)="getFullName($event)"
             (idInfoEntrevistaAndreaChange)="onIdInfoEntrevistaAndreaChange($event)"></app-search-for-candidate>
         </div>
       </mat-tab>
@@ -47,8 +47,7 @@
           </div>
         </ng-template>
         <div class="tab-content-scrollable">
-          <app-selection-questions [cedula]="cedulaActual" [vacanteSeleccionada]="selectionQuestionsComponent"
-            [codigoContrato]="codigoContrato">
+          <app-selection-questions [cedula]="cedulaActual" [vacanteSeleccionada]="selectionQuestionsComponent" [idProcesoSeleccion]="idProcesoSeleccion">
           </app-selection-questions>
         </div>
       </mat-tab>

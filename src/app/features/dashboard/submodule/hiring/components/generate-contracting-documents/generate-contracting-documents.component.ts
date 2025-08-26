@@ -2106,7 +2106,6 @@ export class GenerateContractingDocumentsComponent {
 
           forkJoin(llamadas).pipe(take(1)).subscribe({
             next: (res) => {
-              console.log('✅ Estados por contrato actualizados:', res);
               resolve(true);
             },
             error: (err) => {

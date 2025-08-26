@@ -1,14 +1,14 @@
 p {
-    margin: 0;
-    padding: 0;
-    line-height: 1.3;
+  margin: 0;
+  padding: 0;
+  line-height: 1.3;
 }
 
-.anadir{
-    display: flex;
-    justify-content: flex-end;
-    flex-wrap: wrap;
-    margin-bottom: 10px;
+.anadir {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
 }
 
 .anadir button {
@@ -18,34 +18,41 @@ p {
 
 mat-card-title,
 mat-card-subtitle {
-    font-weight: bold;
-    font-size: 13pt;
+  font-weight: bold;
+  font-size: 13pt;
 }
 
-mat-card-subtitle{
-    margin-bottom: 10px;
+mat-card-subtitle {
+  margin-bottom: 10px;
 }
 
 .actions-wrapper {
-    display: flex;
-    justify-content: flex-end;
-    padding: 5px;
+  display: flex;
+  justify-content: flex-end;
+  padding: 5px;
 }
 
 .vacante-card {
-    position: relative; /* Added to ensure absolute positioning works inside the card */
+  position: relative;
+  /* Added to ensure absolute positioning works inside the card */
 }
 
 .actions-wrapper {
-    position: absolute; /* Ensures the button is positioned absolutely inside the card */
-    top: 10px; /* Adjust the top padding as needed */
-    right: 10px; /* Ensures it stays on the right side */
-    z-index: 1; /* Brings the button on top of other elements */
+  position: absolute;
+  /* Ensures the button is positioned absolutely inside the card */
+  top: 10px;
+  /* Adjust the top padding as needed */
+  right: 10px;
+  /* Ensures it stays on the right side */
+  z-index: 1;
+  /* Brings the button on top of other elements */
 }
 
 .fixed-button {
-    background-color: white; /* Optional: to give the button a background */
-    box-shadow: none; /* Remove default shadow if present */
+  background-color: white;
+  /* Optional: to give the button a background */
+  box-shadow: none;
+  /* Remove default shadow if present */
 }
 
 .page-header {
@@ -54,3 +61,20 @@ mat-card-subtitle{
   gap: 8px;
   margin-bottom: 12px;
 }
+
+/* Aplica tanto a celdas Material como a <td> plano */
+.mat-mdc-cell.semaforo-ok,
+td.semaforo-ok {
+  background-color: #9cd69e !important; /* verde suave */
+}
+
+.mat-mdc-cell.semaforo-warn,
+td.semaforo-warn {
+  background-color: #f5db8d !important; /* naranja suave */
+}
+
+.mat-mdc-cell.semaforo-error,
+td.semaforo-error {
+  background-color: #ffa1ab !important; /* rojo suave */
+}
+

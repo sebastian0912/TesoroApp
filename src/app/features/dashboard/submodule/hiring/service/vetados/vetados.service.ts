@@ -82,6 +82,11 @@ export class VetadosService {
     return this.http.put(`${this.apiUrl}/vetados/vetados/update/${reporte.id}`, Categoria);
   }
 
+  uploadReporte901(file: File): Observable<any> {
+    const fd = new FormData();
+    fd.append('file', file);
+    return this.http.post<any>(`${this.apiUrl}/vetados/bulk-upload/`, fd);
+  }
 
 
   //------------------------ categorias ------------------------

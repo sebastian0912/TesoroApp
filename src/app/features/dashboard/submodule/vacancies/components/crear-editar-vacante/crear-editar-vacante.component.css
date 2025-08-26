@@ -1,18 +1,19 @@
-.title {
-  margin-top: 10px;
-  margin-bottom: 10px;
-  font-size: 14pt;
-  color: rgb(170, 170, 170);
-}
-
-
-.headerCargoAdd {
-  width: 96%;
+form {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
 }
 
+.example-full-width {
+  width: 20%;
+}
 
+.mat-dialog-content {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding-top: 10px;
+}
 
 .hora-ampm-container {
   display: flex;

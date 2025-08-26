@@ -490,7 +490,6 @@ export class HelpInformationComponent implements OnInit {
       });
       // que campos faltan para que sea valido
       const invalidFields = Object.keys(this.infoPersonalForm.controls).filter(field => this.infoPersonalForm.get(field)?.invalid);
-      console.log('Campos inválidos:', invalidFields);
       return;
     }
 
@@ -510,7 +509,6 @@ export class HelpInformationComponent implements OnInit {
       info.fechaNacimiento = info.fechaNacimiento.slice(0, 10);
     }
 
-    console.log('Información personal a guardar:', info);
 
     this.seleccionService.guardarInfoPersonal(info).subscribe({
       next: (resp) => {
@@ -521,7 +519,6 @@ export class HelpInformationComponent implements OnInit {
           icon: 'success',
           confirmButtonText: 'Ok'
         });
-        console.log('✅ Info personal guardada:', resp);
 
         // 👇 ahora actualizamos el estado entrevistado=true
         if (resp && resp.id) {
@@ -647,7 +644,6 @@ export class HelpInformationComponent implements OnInit {
     this.infoVacantesService.getVacantesPorNumero(this.cedula).subscribe({
       next: (resultado) => {
         const contratacion = resultado?.[0];
-        console.log('Contratación encontrada:', contratacion);
         if (contratacion) {
           this.patchInfoPersonalFromApi(contratacion);
         }
@@ -858,7 +854,6 @@ export class HelpInformationComponent implements OnInit {
         }
       }
     }
-    console.log('Guardando vacantes con payload:', payload);
 
     this.seleccionService.guardarVacantes(payload).subscribe({
       next: (resp) => {
@@ -1041,4 +1036,81 @@ export class HelpInformationComponent implements OnInit {
       });
     }
   }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  // Total requerido (suma oficinas)
+  totalRequerida(v: any): number {
+    const oficinas = Array.isArray(v?.oficinasQueContratan) ? v.oficinasQueContratan : [];
+    return oficinas.reduce((acc: number, o: any) => acc + this.toInt(o?.numeroDeGenteRequerida), 0);
+  }
+
+  // Conteos robustos: admiten array | number | string
+  countPre(v: any): number {
+    const p = v?.preseleccionados;
+    if (Array.isArray(p)) return p.length;
+    return this.toInt(p);
+  }
+  countCont(v: any): number {
+    const c = v?.contratados;
+    if (Array.isArray(c)) return c.length;
+    return this.toInt(c);
+  }
+
+  // Clases de color para las píldoras (verde, naranja, rojo)
+  pillClasePre(v: any): string {
+    const req = this.totalRequerida(v);
+    const pre = this.countPre(v);
+    return pre >= req ? 'pill-ok' : 'pill-error';
+  }
+  pillClaseCont(v: any): string {
+    const req = this.totalRequerida(v);
+    const pre = this.countPre(v);
+    const cont = this.countCont(v);
+    if (cont >= req) return 'pill-ok';           // verde
+    if (pre >= req && cont < req) return 'pill-warn'; // naranja
+    return 'pill-error';                          // rojo
+  }
+
+  // Oficinas compactas "Nombre (n), ..."
+  oficinasResumen(ofs: any[]): string {
+    if (!Array.isArray(ofs) || !ofs.length) return '—';
+    return ofs
+      .map(o => `${o?.nombre ?? 'Oficina'} (${this.toInt(o?.numeroDeGenteRequerida)})`)
+      .join(', ');
+  }
+
+  // Fecha corta (YYYY-MM-DD) sin pipes
+  formatShortDate(d: any): string {
+    if (!d) return '—';
+    const date = new Date(d);
+    if (isNaN(date.getTime())) return '—';
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  }
+
+  // Conversión robusta a entero
+  private toInt(v: unknown): number {
+    if (typeof v === 'number' && Number.isFinite(v)) return Math.trunc(v);
+    if (typeof v === 'string') {
+      const m = v.match(/-?\d+/);
+      return m ? parseInt(m[0], 10) : 0;
+    }
+    return 0;
+  }
+
+
 }

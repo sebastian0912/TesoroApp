@@ -66,19 +66,6 @@
       </mat-select>
     </mat-form-field>
 
-
-
-
-
-
-
-
-
-
-
-
-
-
     <!--auxilioTransporte si o no-->
     <mat-form-field class="example-full-width">
       <mat-label>Auxilio Transporte</mat-label>
@@ -87,6 +74,8 @@
         <mat-option value="No">No</mat-option>
       </mat-select>
     </mat-form-field>
+
+
 
     <!--tipoContratacion-->
     <mat-form-field class="example-full-width">
@@ -107,6 +96,22 @@
         <mat-option value="NO">NO</mat-option>
         <mat-option value="AMBAS">AMBAS</mat-option>
       </mat-select>
+    </mat-form-field>
+
+    <!-- tiene tiene fecha ingreso -->
+    <mat-form-field class="example-full-width">
+      <mat-label>Tiene Fecha de Ingreso</mat-label>
+      <mat-select formControlName="tieneFechaIngreso">
+        <mat-option value="Si">Si</mat-option>
+        <mat-option value="No">No</mat-option>
+      </mat-select>
+    </mat-form-field>
+
+    <mat-form-field class="example-full-width" *ngIf="vacanteForm.get('tieneFechaIngreso')?.value === 'Si'">
+      <mat-label>Fecha de Ingreso</mat-label>
+      <input matInput [matDatepicker]="picker2" formControlName="fechadeIngreso">
+      <mat-datepicker-toggle matSuffix [for]="picker2"></mat-datepicker-toggle>
+      <mat-datepicker #picker2></mat-datepicker>
     </mat-form-field>
 
     <!-- tiene prueba o contratacion -->
@@ -140,21 +145,7 @@
       <input matInput formControlName="observacionVacante">
     </mat-form-field>
 
-    <!-- tiene tiene fecha ingreso -->
-    <mat-form-field class="example-full-width">
-      <mat-label>Tiene Fecha de Ingreso</mat-label>
-      <mat-select formControlName="tieneFechaIngreso">
-        <mat-option value="Si">Si</mat-option>
-        <mat-option value="No">No</mat-option>
-      </mat-select>
-    </mat-form-field>
 
-    <mat-form-field class="example-full-width" *ngIf="vacanteForm.get('tieneFechaIngreso')?.value === 'Si'">
-      <mat-label>Fecha de Ingreso</mat-label>
-      <input matInput [matDatepicker]="picker2" formControlName="fechadeIngreso">
-      <mat-datepicker-toggle matSuffix [for]="picker2"></mat-datepicker-toggle>
-      <mat-datepicker #picker2></mat-datepicker>
-    </mat-form-field>
 
     <mat-form-field class="example-full-width">
       <mat-label>Descripción</mat-label>

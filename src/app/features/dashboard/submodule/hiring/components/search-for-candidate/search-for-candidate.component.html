@@ -23,19 +23,12 @@
 </div>
 
 <!-- ejemplo: view-reception-interviews.component.html -->
-<app-standard-filter-table
-  [data]="registros"
-  [columnDefinitions]="columns"
-  [pageSizeOptions]="[5,10,25,100]"
-  [defaultPageSize]="10"
-  [tableTitle]="'Candidatos recientes'">
+<app-standard-filter-table [data]="registros" [columnDefinitions]="columns" [pageSizeOptions]="[5,10,25,100]"
+  [defaultPageSize]="10" [tableTitle]="'Candidatos recientes'">
 
   <!-- Botón 'Escoger' en la columna actions -->
   <ng-template #actionsTemplate let-row>
-    <button
-      mat-flat-button
-      color="primary"
-      (click)="seleccionarCedula(row.cedula, row.nombre_completo)">
+    <button mat-flat-button color="primary" (click)="seleccionarCedula(row.cedula, row.nombre_completo)">
       Escoger
     </button>
   </ng-template>

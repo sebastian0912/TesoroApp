@@ -106,9 +106,7 @@ export class ConsultContractingDocumentationComponent implements OnInit {
 
   ngOnInit(): void {
     this.user = this.utilityService.getUser();
-    console.log('Usuario actual:', this.user);
-    // rol
-    console.log('Rol del usuario:', this.user?.rol);
+
   }
 
   /* ---------- BÚSQUEDA INDIVIDUAL ---------- */
@@ -201,7 +199,6 @@ export class ConsultContractingDocumentationComponent implements OnInit {
             row.finca = '';
             row.fecha_ingreso = '';
           }
-          console.log('Datos de contratación:', respuestas);
           // --- Documentos ---
           respuestas.forEach((docs: any, i: number) => {
             const documentos = Array.isArray(docs) ? docs : [docs];

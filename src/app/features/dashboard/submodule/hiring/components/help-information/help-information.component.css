@@ -218,3 +218,76 @@
 .section .spacer {
   flex: 1 1 auto;
 }
+
+
+
+/* Trigger */
+.trigger-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+}
+.trigger-title {
+  max-width: 42ch;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.trigger-meta {
+  display: block;
+  font-size: 12px;
+  opacity: 0.8;
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Opción del select */
+.vacante-option {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-width: 100%;
+}
+.vacante-option .row-1 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+}
+.vacante-option .row-2 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  opacity: 0.85;
+  flex-wrap: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.vacante-option .cargo {
+  max-width: 40ch;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.vacante-option .spacer {
+  flex: 1 1 auto;
+}
+
+/* Píldoras */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  line-height: 1.6;
+  background-color: #eee;   /* base neutra */
+}
+.pill-req { background-color: #e6e6e6; }          /* requerida (gris) */
+.pill-ok  { background-color: #C8E6C9; }          /* verde */
+.pill-warn{ background-color: #FFECB3; }          /* naranja */
+.pill-error{ background-color: #FFCDD2; }         /* rojo */

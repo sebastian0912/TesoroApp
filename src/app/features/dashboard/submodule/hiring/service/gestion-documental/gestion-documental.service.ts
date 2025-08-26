@@ -52,14 +52,16 @@ export class GestionDocumentalService {
   // Nuevo método para obtener documentos por tipo documental
   obtenerDocumentosPorTipo(
     owner_id: string,
-    contract_number: string,
-    type: number
+    type: number,
+    contract_number?: string,
   ): Observable<any> {
 
     // Preparar los parámetros de la solicitud
     let params = new HttpParams();
     params = params.append('cedula', owner_id);
-    params = params.append('contract_number', contract_number);
+    if (contract_number) {
+      params = params.append('contract_number', contract_number);
+    }
     params = params.append('type', type.toString()); // Agregar el tipo documental
 
     return this.http.get(`${this.apiUrl}/gestion_documental/documentos/`, {

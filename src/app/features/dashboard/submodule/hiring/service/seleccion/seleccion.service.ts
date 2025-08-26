@@ -4,6 +4,7 @@ import { isPlatformBrowser } from '@angular/common';
 import { firstValueFrom, Observable, throwError } from 'rxjs';
 import { map, catchError } from 'rxjs/operators';
 import { environment } from '@/environments/environment.development';
+import { FormGroup } from '@angular/forms';
 
 @Injectable({
   providedIn: 'root'
@@ -52,32 +53,49 @@ export class SeleccionService {
   }
 
   // Mandar parte uno de la selección
-  public crearSeleccionParteUnoCandidato(formData: any, cedula: string, numeroContrato: string): Observable<any> {
-    const headers = this.createAuthorizationHeader();
+  public crearSeleccionParteUnoCandidato(
+    formData: any,
+    cedula: string,
+    seleccion?: number | null
+  ): Observable<any> {
+    const headers = this.createAuthorizationHeader(); // <-- Debe incluir Authorization: Bearer <token>
 
-    // Mapear los nombres de los campos del formulario a los nombres esperados por Django
-    const requestData = {
-      numerodeceduladepersona: cedula,        // Cédula
-      codigo_contrato: numeroContrato,        // Número de contrato
-      eps: formData.eps,
-      afp: formData.afp,
-      policivos: formData.policivos,
-      procuraduria: formData.procuraduria,
-      contraloria: formData.contraloria,
-      rama_judicial: formData.ramaJudicial,   // Nombre mapeado
-      medidas_correctivas: formData.medidasCorrectivas, // Nombre mapeado
-      area_aplica: formData.area_aplica,
-      sisben: formData.sisben,
-      ofac: formData.ofac,
-      revisionAntecedentes: formData.revisionAntecedentes,
-      jwt: this.getToken()
+    // Normalizaciones rápidas
+    const toInt = (v: any, def = 0) => {
+      const n = parseInt(String(v ?? '').trim(), 10);
+      return Number.isFinite(n) ? n : def;
+    };
+    const pick = (v: any, alt?: any) => (v ?? alt ?? '');
+
+    const requestData: any = {
+      numerodeceduladepersona: String(cedula).trim(),
+
+      // Campos que el backend Parte 1 espera
+      nombre_evaluador: pick(formData.nombre_evaluador),
+      eps: pick(formData.eps),
+      afp: pick(formData.afp),
+      policivos: pick(formData.policivos),
+      procuraduria: pick(formData.procuraduria),
+      contraloria: pick(formData.contraloria),
+      rama_judicial: pick(formData.ramaJudicial, formData.rama_judicial),
+      sisben: pick(formData.sisben),
+      ofac: pick(formData.ofac),
+      medidas_correctivas: pick(formData.medidasCorrectivas, formData.medidas_correctivas),
+      semanasCotizadas: toInt(formData.semanasCotizadas, 0),
     };
 
-    // Realizar la solicitud POST al backend
-    return this.http.post(`${this.apiUrl}/Seleccion/crearSeleccionParteUnoCandidato`, requestData, { headers }).pipe(
-      map((response: any) => response),
-      catchError(this.handleError)
-    );
+    // Actualiza si viene id; crea si no viene
+    if (seleccion !== undefined && seleccion !== null) {
+      requestData.seleccion = seleccion;
+    }
+
+    // IMPORTANTE: ya NO enviamos jwt en el body
+    return this.http
+      .post(`${this.apiUrl}/Seleccion/crearSeleccionParteUnoCandidato`, requestData, { headers })
+      .pipe(
+        map((response: any) => response),
+        catchError(this.handleError)
+      );
   }
 
 
@@ -125,23 +143,50 @@ export class SeleccionService {
 
 
   // Mandar parte tres de la selección
-  public crearSeleccionParteTresCandidato(formData: any, cedula: string, numeroContrato: string): Observable<any> {
+  public crearSeleccionParteTresCandidato(
+    formData: any | FormGroup,
+    cedula: string,
+    seleccion?: number | null
+  ): Observable<any> {
     const headers = this.createAuthorizationHeader();
 
-    // Mapear los nombres de los campos del formulario a los nombres esperados por Django
-    const requestData = {
-      numerodeceduladepersona: cedula,              // Cédula
-      codigo_contrato: numeroContrato,              // Número de contrato
-      ips: formData.ips,
-      ipslab: formData.ipsLab,                      // Mapeo correcto
-      examenes: formData.selectedExams,
-      aptosExamenes: formData.selectedExamsArray,
+    // Acepta FormGroup o plain object
+    const raw: any = (formData && (formData as FormGroup).value)
+      ? (formData as FormGroup).value
+      : (formData || {});
+
+    // Normalizaciones
+    const examsArr: string[] = Array.isArray(raw.selectedExams)
+      ? raw.selectedExams.filter((x: any) => !!x && String(x).trim() !== '')
+      : [];
+
+    // selectedExamsArray puede venir como [{aptoStatus:'APTO'}, ...] o solo ['APTO', ...]
+    const aptosArr: string[] = Array.isArray(raw.selectedExamsArray)
+      ? raw.selectedExamsArray
+        .map((x: any) => (x && typeof x === 'object' ? x.aptoStatus : x))
+        .filter((x: any) => !!x && String(x).trim() !== '')
+        .map((x: any) => String(x).toUpperCase().trim())
+      : [];
+
+    const requestData: any = {
+      numerodeceduladepersona: String(cedula),
+      ips: raw.ips ?? '',
+      ipslab: raw.ipsLab ?? raw.ipslab ?? '',       // ⇐ mapeo correcto
+      examenes: examsArr.join(', '),                // ⇐ backend recibe texto
+      aptosExamenes: aptosArr.join(', '),           // ⇐ backend recibe texto
     };
 
-    return this.http.post(`${this.apiUrl}/Seleccion/crearSeleccionparteTrescandidato`, requestData, { headers }).pipe(
-      map((response: any) => response),
-      catchError(this.handleError)
-    );
+    // Solo incluir si trae valor; si no, se creará uno nuevo en el backend
+    if (seleccion !== undefined && seleccion !== null) {
+      requestData.seleccion = seleccion;
+    }
+
+    return this.http
+      .post(`${this.apiUrl}/Seleccion/crearSeleccionparteTrescandidato`, requestData, { headers })
+      .pipe(
+        map((response: any) => response),
+        catchError(this.handleError)
+      );
   }
 
 

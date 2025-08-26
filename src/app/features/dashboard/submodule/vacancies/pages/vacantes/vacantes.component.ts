@@ -72,10 +72,9 @@ export class VacantesComponent implements OnInit {
 
   async ngOnInit(): Promise<void> {
     await this.loadData();
-    const user  = this.utilityService.getUser();
+    const user = this.utilityService.getUser();
     // el rol es GERENCIA O ADMIN?
     this.permitido = user?.rol === 'GERENCIA' || user?.rol === 'ADMIN';
-
   }
 
   async loadData(): Promise<void> {
@@ -84,24 +83,25 @@ export class VacantesComponent implements OnInit {
         Swal.fire('Error', 'Ocurrió un error al cargar las vacantes', 'error');
         return of([]);
       })
-    ).subscribe((response: any) => {
-      console.log('Vacantes cargadas:', response);
-      this.dataSource.data = response;
+    ).subscribe((response: any[]) => {
 
-      // Asigna paginator y sort si están disponibles
+      // 1) Reordenar: incompletas primero, cumplidas al final
+      const ordenadas = this.reordenarCumplidasAlFinal(response);
+      this.dataSource.data = ordenadas;
+
+      // MatTable hooks
       this.dataSource.paginator = this.paginator;
       this.dataSource.sort = this.sort;
     });
   }
+
 
   applyFilter(event: Event): void {
     const filterValue = (event.target as HTMLInputElement).value.trim().toLowerCase();
     this.dataSource.filter = filterValue;
   }
 
-
   openModalEdit(vacante?: any): void {
-
     const dialogRef = this.dialog.open(CrearEditarVacanteComponent, {
       minWidth: '80vw',
       data: vacante || null
@@ -109,8 +109,6 @@ export class VacantesComponent implements OnInit {
 
     dialogRef.afterClosed().subscribe(result => {
       if (result) {
-
-        // Armar payload con los campos que espera Django
         const payload = {
           cargo: result.cargo,
           temporal: result.temporal,
@@ -140,7 +138,7 @@ export class VacantesComponent implements OnInit {
         };
 
         this.vacantesService.actualizarVacante(vacante?.id, payload).subscribe({
-          next: async (response: any) => {
+          next: async () => {
             await this.loadData();
             Swal.fire({
               title: '¡Vacante actualizada!',
@@ -162,8 +160,6 @@ export class VacantesComponent implements OnInit {
     });
   }
 
-
-
   openModal(vacante?: any): void {
     const dialogRef = this.dialog.open(CrearEditarVacanteComponent, {
       minWidth: '80vw',
@@ -172,7 +168,6 @@ export class VacantesComponent implements OnInit {
 
     dialogRef.afterClosed().subscribe(result => {
       if (result) {
-        // Formatear y limpiar campos
         const oficinas = Array.isArray(result.oficinasQueContratan) ? result.oficinasQueContratan : [];
 
         const payload = {
@@ -196,7 +191,7 @@ export class VacantesComponent implements OnInit {
           oficinasQueContratan: oficinas.map((oficina: any) => ({
             nombre: oficina.nombre?.trim() || '',
             numeroDeGenteRequerida: Number(oficina.numeroDeGenteRequerida) || 1,
-            ruta: !!oficina.ruta // true/false
+            ruta: !!oficina.ruta
           })),
           pruebaOContratacion: result.pruebaOContratacion?.trim() || null,
           tipoContratacion: result.tipoContratacion?.trim() || null,
@@ -204,9 +199,8 @@ export class VacantesComponent implements OnInit {
           auxilioTransporte: result.auxilioTransporte,
         };
 
-        // Enviar a API
         this.vacantesService.enviarVacante(payload).subscribe({
-          next: async (response) => {
+          next: async () => {
             await this.loadData();
             Swal.fire({
               title: '¡Éxito!',
@@ -228,22 +222,14 @@ export class VacantesComponent implements OnInit {
     });
   }
 
-
-
   formatDate(date: Date | string | null): string | null {
-    if (!date) return null; // Si la fecha es nula, devolver null
+    if (!date) return null;
     const d = new Date(date);
-
-    // Extraer día, mes y año
     const day = d.getDate().toString().padStart(2, '0');
-    const month = (d.getMonth() + 1).toString().padStart(2, '0'); // getMonth() empieza en 0
+    const month = (d.getMonth() + 1).toString().padStart(2, '0');
     const year = d.getFullYear();
-
-    return `${year}-${month}-${day}`; // Formato YYYY-MM-DD
+    return `${year}-${month}-${day}`;
   }
-
-
-
 
   // Método para eliminar una vacante
   eliminarVacante(vacante: any): void {
@@ -260,33 +246,24 @@ export class VacantesComponent implements OnInit {
         this.vacantesService.eliminarVacante(vacante.id).subscribe(() => {
           this.vacantes = this.vacantes.filter(v => v.id !== vacante.id);
           Swal.fire('Eliminado!', 'La vacante ha sido eliminada.', 'success');
-          this.loadData(); // Recargar la lista de vacantes
+          this.loadData();
         });
       }
     });
   }
 
-
-  // Función para escoger una vacante y almacenarla en LocalStorage
+  // Escoger vacante y almacenar
   escogerVacante(vacante: any): void {
-    // Almacenar la vacante seleccionada en LocalStorage
     localStorage.setItem('vacanteSeleccionada', JSON.stringify(vacante));
     Swal.fire('Vacante seleccionada', 'La vacante ha sido almacenada para ejecutarla en su proceso de seleccion', 'success');
   }
 
-
-
-
-  // ------------------ Métodos para exportar a Excel ------------------
-
-  // Función para manejar la subida del archivo Excel
+  // ------------------ Subida y envío Excel ------------------
   subirArchivoExcel(event: any): void {
-    // Dispara el input oculto para seleccionar archivo
     const fileInput = document.getElementById('fileInput') as HTMLInputElement;
     fileInput.click();
   }
 
-  // Función para manejar la selección del archivo Excel
   onFileSelected(event: any): void {
     const file = event.target.files[0];
     if (file) {
@@ -294,35 +271,21 @@ export class VacantesComponent implements OnInit {
       reader.onload = (e: any) => {
         const data = new Uint8Array(e.target.result);
         const workbook = XLSX.read(data, { type: 'array' });
-
-        // Suponemos que el primer sheet contiene los datos
         const sheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[sheetName];
-
-        // Convertir el Excel a JSON
         const jsonData: any[] = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
-
-        // Excluir la primera fila (encabezados) y procesar el resto
         const datosProcesados = this.procesarDatosExcel(jsonData);
-        // Llamar al servicio para subir los datos
         this.enviarDatosExcel(datosProcesados);
       };
-
       reader.readAsArrayBuffer(file);
     }
-
-    // Reiniciar el input para permitir la selección de un nuevo archivo
     event.target.value = '';
   }
 
-  // Función para procesar los datos del Excel
   procesarDatosExcel(jsonData: any[]): any[] {
     const datosProcesados = [];
-
-    // Iterar sobre las filas, comenzando en la segunda (índice 1) para omitir los encabezados
     for (let i = 1; i < jsonData.length; i++) {
       const fila = jsonData[i];
-
       if (fila && fila.length > 0) {
         const vacante = {
           empresa_temporal: fila[0] || '',
@@ -344,22 +307,19 @@ export class VacantesComponent implements OnInit {
           horas_extras: fila[16] || 0,
           porcentaje_arl: fila[17] || 0
         };
-
         datosProcesados.push(vacante);
       }
     }
     return datosProcesados;
   }
 
-
-  // Función para enviar los datos procesados al backend
   enviarDatosExcel(datos: any[]): void {
     this.vacantesService.crearDetalleLaboral(datos).subscribe(
-      (response: any) => {
+      () => {
         Swal.fire('Éxito', 'Datos subidos correctamente', 'success');
         this.loadData();
       },
-      (error: any) => {
+      () => {
         Swal.fire('Error', 'Ocurrió un error al subir los datos', 'error');
       }
     );
@@ -387,7 +347,6 @@ export class VacantesComponent implements OnInit {
     }).afterClosed().subscribe(result => {
       if (result) {
         const { start, end } = result;
-        console.log('Rango de fechas seleccionado:', start, end);
         this.vacantesService.getVacantesExcel(start, end).subscribe(blob => {
           const url = URL.createObjectURL(blob);
           const a = document.createElement('a');
@@ -400,7 +359,6 @@ export class VacantesComponent implements OnInit {
     });
   }
 
-
   isNumber(val: any): boolean {
     return typeof val === 'number' && !isNaN(val);
   }
@@ -409,6 +367,88 @@ export class VacantesComponent implements OnInit {
     window.open('https://formulario.tsservicios.co/formulario/formulario-pre-registro-vacantes', '_blank');
   }
 
+  // =========================================================
+  // ===============  SEMAFORIZACIÓN (Helper)  ===============
+  // =========================================================
+
+  totalRequerida(v: any): number {
+    const oficinas = Array.isArray(v?.oficinasQueContratan) ? v.oficinasQueContratan : [];
+    return oficinas.reduce((acc: number, o: any) => acc + this.toInt(o?.numeroDeGenteRequerida), 0);
+  }
+
+  countPre(v: any): number {
+    const p = v?.preseleccionados;
+    if (Array.isArray(p)) return p.length;
+    return this.toInt(p);
+  }
+
+  countCont(v: any): number {
+    const c = v?.contratados;
+    if (Array.isArray(c)) return c.length;
+    return this.toInt(c);
+  }
+
+  private toInt(v: unknown): number {
+    if (typeof v === 'number' && Number.isFinite(v)) return Math.trunc(v);
+    if (typeof v === 'string') {
+      const m = v.match(/-?\d+/);
+      return m ? parseInt(m[0], 10) : 0;
+    }
+    return 0;
+  }
+
+  /**
+   * PRESELECCIONADOS:
+   * - Verde  (ok)   si pre >= requerido
+   * - Rojo   (error) si pre  < requerido
+   */
+  semaforoPre(v: any): string {
+    const req = this.totalRequerida(v);
+    const pre = this.countPre(v);
+    return pre >= req ? 'semaforo-ok' : 'semaforo-error';
+  }
+
+  /**
+   * CONTRATADOS:
+   * - Verde   (ok)   si cont >= requerido
+   * - Naranja (warn) si pre  >= requerido pero cont < requerido
+   * - Rojo    (error) si pre  < requerido (ni siquiera hay pre suficientes)
+   */
+  semaforoCont(v: any): string {
+    const req = this.totalRequerida(v);
+    const pre = this.countPre(v);
+    const cont = this.countCont(v);
+
+    if (cont >= req) return 'semaforo-ok';
+    if (pre >= req && cont < req) return 'semaforo-warn';
+    return 'semaforo-error';
+  }
+
+  /** ¿Cumplida? pre == requerido y cont == requerido */
+  private isCumplida(v: any): boolean {
+    const req = this.totalRequerida(v);
+    return this.countPre(v) === req && this.countCont(v) === req;
+  }
+
+  /** Particiona estable: primero NO cumplidas, luego cumplidas */
+  private reordenarCumplidasAlFinal(arr: any[]): any[] {
+    const no: any[] = [];
+    const si: any[] = [];
+    for (const v of arr) (this.isCumplida(v) ? si : no).push(v);
+    return [...no, ...si];
+  }
+
+  /** Accesor para números robusto */
+  private toNumber(v: any): number {
+    return typeof v === 'number' ? v : this.toInt(v);
+  }
+
+  /** Accesor de fechas -> timestamp */
+  private toTime(v: any): number {
+    if (!v) return 0;
+    const d = new Date(v);
+    return Number.isFinite(d.getTime()) ? d.getTime() : 0;
+  }
 
 
 }

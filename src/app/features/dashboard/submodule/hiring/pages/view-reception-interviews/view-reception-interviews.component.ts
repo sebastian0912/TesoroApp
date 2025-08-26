@@ -69,7 +69,6 @@ export class ViewReceptionInterviewsComponent implements OnInit {
     this.seleccionService.getCandidatos().subscribe(
       (data) => {
         this.dataSource.data = data;
-        console.log('Candidatos cargados:', data);
         this.oficinasUnicas = [...new Set(data.map((e: any) => e.oficina).filter(Boolean))].sort() as string[];
 
       },

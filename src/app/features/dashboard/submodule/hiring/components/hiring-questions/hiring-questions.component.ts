@@ -590,7 +590,6 @@ export class HiringQuestionsComponent implements OnInit {
 
         // Obtener la vacante desde ese proceso
         const idVacante = seleccion.vacante;
-        console.log('ID de la vacante:', idVacante);
         if (typeof idVacante === 'number') {
           this.idVacante.emit(idVacante);
         }
@@ -646,10 +645,10 @@ export class HiringQuestionsComponent implements OnInit {
 
   llenarDocumentos() {
     forkJoin({
-      tipo2: this.gestionDocumentalService.obtenerDocumentosPorTipo(this.cedula, this.codigoContrato, 2),
-      tipo16: this.gestionDocumentalService.obtenerDocumentosPorTipo(this.cedula, this.codigoContrato, 16),
-      tipo17: this.gestionDocumentalService.obtenerDocumentosPorTipo(this.cedula, this.codigoContrato, 17),
-      tipo18: this.gestionDocumentalService.obtenerDocumentosPorTipo(this.cedula, this.codigoContrato, 18),
+      tipo2: this.gestionDocumentalService.obtenerDocumentosPorTipo(this.cedula, 2, this.codigoContrato),
+      tipo16: this.gestionDocumentalService.obtenerDocumentosPorTipo(this.cedula, 16, this.codigoContrato),
+      tipo17: this.gestionDocumentalService.obtenerDocumentosPorTipo(this.cedula, 17, this.codigoContrato),
+      tipo18: this.gestionDocumentalService.obtenerDocumentosPorTipo(this.cedula, 18, this.codigoContrato),
     }).subscribe({
       next: async (resultados) => {
         // Manejo de documentos tipo 2
