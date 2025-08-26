@@ -120,6 +120,31 @@ export class SelectionQuestionsComponent implements OnInit {
     'Sin Buscar'
   ];
 
+  getEstadoIcon(estado: string | null | undefined): string {
+    switch (estado) {
+      case 'Cumple':
+        return 'check_circle';   // ✅ chulo
+      case 'No Cumple':
+        return 'cancel';         // ❌ x
+      case 'Sin Buscar':
+      default:
+        return 'remove_circle';  // ⭕ sin buscar
+    }
+  }
+
+  getEstadoColor(estado: string | null | undefined): string {
+    switch (estado) {
+      case 'Cumple':
+        return 'green';
+      case 'No Cumple':
+        return 'red';
+      case 'Sin Buscar':
+      default:
+        return 'gray';
+    }
+  }
+
+
   categoriasSisben: string[] = [
     // Grupo A: Pobreza extrema
     'A1', 'A2', 'A3', 'A4', 'A5',
@@ -622,9 +647,7 @@ export class SelectionQuestionsComponent implements OnInit {
     }
   }
 
-  get idProcesoSeleccion(): number | null {
-    return this._idProcesoSeleccion;
-  }
+
 
 
 }

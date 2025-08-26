@@ -1,12 +1,67 @@
-.titulo {
-  font-size: 1.2rem;
-  font-weight: bold;
-  line-height: 1;
+/* Header de documentos */
+.doc-header{
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+  padding:14px 16px;
+  border-radius:10px;
+  background:#fff;
+  box-shadow:0 6px 16px rgba(16,24,40,.06);
+  margin-bottom:16px;
+}
+
+.doc-header__title{
+  display:flex;
+  align-items:center;
+  gap:8px;
+}
+
+.doc-header__icon{
+  font-size:22px;
+  line-height:1;
+}
+
+.doc-header h1{
+  margin:0;
+  font-size:1.25rem; /* ~20px */
+  font-weight:700;
+  color:#111827; /* slate-900 */
+}
+
+.doc-header__meta{
+  display:flex;
+  align-items:center;
+  flex-wrap:wrap;
+  gap:8px;
+  color:#374151; /* slate-700 */
+  font-size:.95rem;
+}
+
+.meta-label{
+  color:#6b7280; /* slate-500 */
+}
+
+.meta-chip{
+  padding:4px 10px;
+  border-radius:999px;
+  background:#eef2ff;  /* indigo-50 */
+  color:#1f2937;       /* gray-800 */
+  font-weight:600;
+}
+
+.meta-sep{
+  color:#9ca3af; /* slate-400 */
+}
+
+/* Responsive */
+@media (max-width:640px){
+  .doc-header{ padding:12px 12px; }
+  .doc-header h1{ font-size:1.125rem; }
 }
 
 mat-card{
   margin-top: 10pt;
-  min-height: 80vh;
+  max-height: 82vh;
 }
 
 
@@ -26,7 +81,7 @@ mat-card{
 
 .right-panel {
   flex: 2;
-  min-height: 70vh;
+  min-height: 60vh;
 }
 
 .pdf-preview{

@@ -1,4 +1,4 @@
-/*────────────────────────  PESTAÑAS  ────────────────────────*/
+/*──────────────────────────  PESTAÑAS  ──────────────────────────*/
 ::ng-deep .mat-tab-label.custom-colored-tab {
   display: flex;
   align-items: center;
@@ -7,7 +7,7 @@
   min-height: 48px;
   font-weight: 500;
   border-radius: 4px 4px 0 0;
-  transition: background-color .3s ease;
+  transition: background-color .3s ease, color .3s ease;
   color: #fff;
 }
 
@@ -21,51 +21,50 @@
   cursor: not-allowed;
 }
 
-/*──────────────────────  LAYOUT GENERAL  ───────────────────*/
+/*─────────────────────────  LAYOUT GENERAL  ─────────────────────*/
 .seleccion,
 .secciones,
 .seccion {
   width: 100%;
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 12px 20px;
-  /* ↓ menos espacio entre filas / cols ↓ */
+  gap: 16px 24px;
   align-items: start;
 }
 
-/* Tarjetas laterales */
+/* Tarjeta lateral (izquierda) */
 mat-card:nth-child(1) {
   width: 32%;
   margin: 10px;
   position: sticky;
   top: 10px;
-  box-shadow:
-    0 10px 20px rgba(0, 0, 0, .19),
-    0 6px 6px rgba(0, 0, 0, .23);
+  box-shadow: 0 10px 20px rgba(0, 0, 0, .15),
+              0 6px 6px rgba(0, 0, 0, .20);
+  border-radius: 8px;
 }
 
+/* Tarjeta principal (derecha) */
 mat-card:nth-child(2) {
   width: 64%;
   margin: 10px;
   overflow-y: auto;
-  box-shadow:
-    0 10px 20px rgba(0, 0, 0, .19),
-    0 6px 6px rgba(0, 0, 0, .23);
+  box-shadow: 0 10px 20px rgba(0, 0, 0, .15),
+              0 6px 6px rgba(0, 0, 0, .20);
+  border-radius: 8px;
 }
 
-/*─────────────────────  CONTENEDOR DE INPUT  ───────────────*/
+/*───────────────────────  INPUT CONTAINER  ─────────────────────*/
 .input-container {
   display: flex;
   flex-direction: column;
-  /* compacta verticalmente */
   gap: 4px;
-  /* espacio mínimo entre campo y «small» */
   width: 100%;
-  min-width: 0;
+  max-width: 100%;
 }
 
 mat-form-field.example-full-width {
   width: 100%;
+  min-width: 200pt;
   margin: 0;
 }
 
@@ -77,48 +76,55 @@ mat-form-field.example-full-width {
   word-break: break-word;
 }
 
-/* Color para estados */
 .text-danger {
   color: #e53935 !important;
 }
 
 
-
-.input-container {
-  min-width: 280px;
-  max-width: 100%;
+/* Contenedor del botón + icono */
+.acciones-suffix {
+  display: flex;
+  align-items: center;
+  gap: 6px; /* espacio entre los dos */
 }
 
-mat-form-field.example-full-width {
-  width: 100%;
-  min-width: 240px;
+.estado-icon {
+  font-size: 20pt;
+  margin: 0;
+  line-height: 1;
+  margin-right: 6pt;
 }
 
-/*────────────────────  BREAKPOINTS RESPONSIVE  ─────────────*/
-@media (max-width:1100px) {
 
+/*─────────────────────  BREAKPOINTS RESPONSIVE  ─────────────────*/
+@media (max-width: 1100px) {
   .seleccion,
   .secciones,
   .seccion {
     grid-template-columns: repeat(2, 1fr);
   }
+
+  mat-card:nth-child(1),
+  mat-card:nth-child(2) {
+    width: 100%;
+    margin: 10px 0;
+    position: static;
+  }
 }
 
-@media (max-width:700px) {
-
+@media (max-width: 700px) {
   .seleccion,
   .secciones,
   .seccion {
     grid-template-columns: 1fr;
-    gap: 10px;
-    padding: 0 4px;
+    gap: 12px;
+    padding: 0 6px;
   }
 
   mat-card:nth-child(1),
   mat-card:nth-child(2) {
-    width: 92vw;
-    margin: 10px auto;
-    position: static;
+    width: 100%;
+    margin: 8px 0;
   }
 
   .uploaded-file-name {

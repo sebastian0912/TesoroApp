@@ -454,6 +454,13 @@ export class RecruitmentPipelineComponent implements OnInit {
     this.cedulaActual = cedula;
     this.mostrarTabla();
 
+    this.seleccionService.buscarEncontratacion(this.cedulaActual)
+      .pipe(take(1))
+      .subscribe((resp: any) => {
+        console.log('Datos de la contratación:', resp);
+        this.codigoContratoActual = resp?.codigo_contrato || '';
+      });
+
     this.contratacionService.traerDatosSeleccion(this.cedulaActual).subscribe(async (response: any) => {
       const list = response?.procesoSeleccion;
       // Si no hay historial: empezamos nuevo proceso
@@ -752,7 +759,9 @@ export class RecruitmentPipelineComponent implements OnInit {
 
 
   generacionDocumentos() {
-
+    console.log('Iniciando generación de documentos...');
+    console.log('Cédula actual:', this.cedulaActual);
+    console.log('Código de contrato actual:', this.codigoContratoActual);
     // Si no existe la cedula, mostrar un mensaje de error
     if (!this.cedulaActual) {
       Swal.fire('Error', 'Debe seleccionar un candidato primero', 'error');

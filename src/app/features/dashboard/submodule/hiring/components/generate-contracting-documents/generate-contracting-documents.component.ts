@@ -1,6 +1,6 @@
 import { SharedModule } from '@/app/shared/shared.module';
 import { isPlatformBrowser } from '@angular/common';
-import { Component, Inject, PLATFORM_ID } from '@angular/core';
+import { Component, Inject, OnInit, PLATFORM_ID } from '@angular/core';
 import { PDFDocument, PDFTextField, PDFCheckBox } from 'pdf-lib';
 import Swal from 'sweetalert2';
 import { GestionDocumentalService } from '../../service/gestion-documental/gestion-documental.service';
@@ -13,7 +13,12 @@ import { Router } from '@angular/router';
 import { VacantesService } from '../../service/vacantes/vacantes.service';
 import { InfoVacantesService } from '../../service/info-vacantes/info-vacantes.service';
 import { catchError, of, forkJoin, take } from 'rxjs';
-import { S } from '@angular/cdk/keycodes';
+
+type UploadedInfo = {
+  file: File;
+  fileName: string;
+  previewUrl?: string; // URL creada con URL.createObjectURL
+};
 
 @Component({
   selector: 'app-generate-contracting-documents',
@@ -24,7 +29,7 @@ import { S } from '@angular/cdk/keycodes';
   styleUrl: './generate-contracting-documents.component.css'
 })
 
-export class GenerateContractingDocumentsComponent {
+export class GenerateContractingDocumentsComponent implements OnInit {
   isSidebarHidden = false;
   empresa: string = '';
   descripcionVacante: string = '';
@@ -71,6 +76,8 @@ export class GenerateContractingDocumentsComponent {
     { titulo: 'CAJA' },
     { titulo: 'PAGO SEGURIDAD SOCIAL' },
   ];
+
+
   nombreCompleto = '';
 
   referenciasA = [
@@ -123,7 +130,7 @@ export class GenerateContractingDocumentsComponent {
     "LO CONOCE DE TODA LA VIDA LO REFIERE COMO PERSONA BONDADOSA"
   ];
 
-  uploadedFiles: { [key: string]: { file: File, fileName: string } } = {}; // Almacenar tanto el archivo como el nombre
+  uploadedFiles: { [key: string]: UploadedInfo } = {};
 
   typeMap: { [key: string]: number } = {
     Contrato: 25,
@@ -150,6 +157,9 @@ export class GenerateContractingDocumentsComponent {
         Swal.showLoading();
       }
     });
+
+
+
     await this.recuperarFormulariosDesdeLocalStorage();
 
     // Cargar datos del localStorage y asignarlos
@@ -208,26 +218,53 @@ export class GenerateContractingDocumentsComponent {
     return ['Cedula', 'ARL', 'Figura Humana'].includes(doc.titulo);
   }
 
-  subirArchivo(event: any, campo: string) {
-    const input = event.target as HTMLInputElement; // Referencia al input
-    const file = input.files?.[0]; // Obtén el archivo seleccionado
+  subirArchivo(event: Event, campo: string) {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
 
-    if (file) {
-      // Verificar si el nombre del archivo tiene más de 100 caracteres
-      if (file.name.length > 100) {
-        Swal.fire('Error', 'El nombre del archivo no debe exceder los 100 caracteres', 'error');
-
-        // Limpiar el input
-        this.resetInput(input);
-        return; // Salir de la función si la validación falla
-      }
-
-      // Si la validación es exitosa, almacenar el archivo
-      this.uploadedFiles[campo] = { file: file, fileName: file.name }; // Guarda el archivo y el nombre
+    if (!file) {
+      this.resetInput(input);
+      return;
     }
-    // Limpiar el input para permitir seleccionar el mismo archivo nuevamente
+
+    // Validación del nombre de archivo
+    if (file.name.length > 100) {
+      Swal.fire('Error', 'El nombre del archivo no debe exceder los 100 caracteres', 'error');
+      this.resetInput(input);
+      return;
+    }
+
+    // Revocar URL anterior si existía (evitar memory leaks)
+    const prev = this.uploadedFiles[campo]?.previewUrl;
+    if (prev) {
+      try { URL.revokeObjectURL(prev); } catch { }
+
+    }
+
+    // Guardar archivo y URL de previsualización
+    const previewUrl = URL.createObjectURL(file);
+    this.uploadedFiles[campo] = { file, fileName: file.name, previewUrl };
+
+    // Mostrar previsualización en el iframe (si es PDF)
+    if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
+      this.setPdfPreview(previewUrl);
+    } else {
+      // Si quieres permitir ver imágenes también, puedes poner el mismo previewUrl
+      // this.setPdfPreview(previewUrl);
+      Swal.fire('Aviso', 'El archivo seleccionado no es un PDF. Solo se previsualizan PDFs.', 'info');
+    }
+
+    // Permitir volver a seleccionar el mismo archivo
     this.resetInput(input);
   }
+
+  private setPdfPreview(url: string) {
+    const iframe: HTMLIFrameElement | null = document.querySelector('#pdfPreview');
+    if (iframe) {
+      iframe.src = url;
+    }
+  }
+
 
   // Método para reiniciar el input en el DOM
   private resetInput(input: HTMLInputElement): void {
@@ -2024,7 +2061,7 @@ export class GenerateContractingDocumentsComponent {
 
   // Método para subir todos los archivos almacenados en uploadedFiles
   subirTodosLosArchivos(): Promise<boolean> {
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve) => {
       const archivosAEnviar = Object.keys(this.uploadedFiles)
         .filter((key) => (key in this.typeMap) && this.uploadedFiles[key]?.file)
         .map((key) => ({
@@ -2038,23 +2075,53 @@ export class GenerateContractingDocumentsComponent {
         return;
       }
 
-      const promesasDeSubida = archivosAEnviar.map(({ key, file, fileName, typeId }) => {
-        return new Promise<void>((resolveSubida, rejectSubida) => {
+      // Una promesa por archivo
+      const promesasDeSubida = archivosAEnviar.map(({ key, file, fileName, typeId }) =>
+        new Promise<{ key: string }>((resolveSubida, rejectSubida) => {
           this.gestionDocumentalService
             .guardarDocumento(fileName, this.cedula, typeId, file, this.codigoContratacion)
+            .pipe(take(1))
             .subscribe({
-              next: () => resolveSubida(),
-              error: (error) => rejectSubida(`Error al subir archivo "${key}": ${error.message}`),
+              next: () => resolveSubida({ key }),
+              error: (error) => rejectSubida({ key, error: error?.message || 'Error desconocido' })
             });
-        });
-      });
+        })
+      );
 
-      Promise.all(promesasDeSubida)
-        .then(() => {
+      // Procesar todas (exitosas y fallidas)
+      Promise.allSettled(promesasDeSubida)
+        .then((results) => {
+          const exitosos: string[] = [];
+          const fallidos: { key: string; error: string }[] = [];
+
+          results.forEach((r) => {
+            if (r.status === 'fulfilled') {
+              exitosos.push(r.value.key);
+            } else {
+              const info = r.reason as { key: string; error: string };
+              fallidos.push({ key: info.key, error: info.error });
+            }
+          });
+
+          // Mostrar resumen si hubo fallos
+          if (fallidos.length) {
+            const htmlFallidos = `
+            <ul style="text-align:left;margin:0;padding-left:18px">
+              ${fallidos.map(f => `<li><b>${f.key}</b>: ${this.escapeHtml(f.error)}</li>`).join('')}
+            </ul>`;
+            Swal.fire({
+              icon: 'warning',
+              title: 'Algunos archivos no se subieron',
+              html: htmlFallidos
+            });
+          }
+
+          // Continuar con las acciones posteriores aunque haya fallos
           // ¿Se subió "Contrato"?
           const contratoIncluido = archivosAEnviar.some(a => a.key === 'Contrato' || a.typeId === this.typeMap['Contrato']);
+
           if (!contratoIncluido) {
-            resolve(true);
+            resolve(fallidos.length === 0);
             return;
           }
 
@@ -2068,16 +2135,10 @@ export class GenerateContractingDocumentsComponent {
             llamadas.push(
               this.infoVacantesService
                 .setEstadoVacanteAplicante(idPublicacion, 'contratado', true)
-                .pipe(
-                  catchError(err => {
-                    Swal.fire({
-                      icon: 'error',
-                      title: 'Error al actualizar contratado',
-                      text: err.message
-                    });
-                    return of(null);
-                  })
-                )
+                .pipe(catchError(err => {
+                  console.error('Error setEstadoVacanteAplicante (info):', err);
+                  return of(null);
+                }))
             );
           }
 
@@ -2085,45 +2146,36 @@ export class GenerateContractingDocumentsComponent {
             llamadas.push(
               this.vacantesService
                 .setEstadoVacanteAplicante(idVacanteAplicante, 'contratado', this.cedula)
-                .pipe(
-                  catchError(err => {
-                    Swal.fire({
-                      icon: 'error',
-                      title: 'Error al actualizar contratado',
-                      text: err.message
-                    });
-                    return of(null);
-                  })
-                )
+                .pipe(catchError(err => {
+                  console.error('Error setEstadoVacanteAplicante (vacantes):', err);
+                  return of(null);
+                }))
             );
           }
 
-          if (llamadas.length === 0) {
-            // No tenemos IDs; no bloqueamos el flujo
-            resolve(true);
+          if (!llamadas.length) {
+            resolve(fallidos.length === 0);
             return;
           }
 
           forkJoin(llamadas).pipe(take(1)).subscribe({
-            next: (res) => {
-              resolve(true);
-            },
+            next: () => resolve(fallidos.length === 0),
             error: (err) => {
-              // No debería entrar por catchError, pero por si acaso:
-              Swal.fire({
-                icon: 'error',
-                title: 'Error en forkJoin estados',
-                text: err.message
-              });
-              resolve(true); // no bloqueamos la subida completa
+              console.error('Error en forkJoin estados:', err);
+              resolve(fallidos.length === 0); // no bloqueamos
             }
           });
         })
-        .catch((error) => {
-          Swal.fire({ icon: 'error', title: 'Error al subir archivos', text: error });
-          reject(error);
+        .catch((err) => {
+          Swal.fire({ icon: 'error', title: 'Error al subir archivos', text: String(err) });
+          resolve(false);
         });
     });
+  }
+
+  // Helper pequeño para HTML-safe en mensajes
+  private escapeHtml(s: string): string {
+    return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string));
   }
 
   async generarFichaTecnica() {
@@ -2998,8 +3050,6 @@ export class GenerateContractingDocumentsComponent {
       });
     }
   }
-
-
 
   async listFormFields() {
     // Asume que tienes un PDF en la carpeta de activos; ajusta la ruta según sea necesario

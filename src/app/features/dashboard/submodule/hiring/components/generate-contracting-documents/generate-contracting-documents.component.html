@@ -6,9 +6,23 @@
   </button>
   <mat-card>
     <mat-card-content>
-      <h1 class="titulo" style="margin-right: 10px; width: 100%;">
-        Documentos para generar o subir
-      </h1>
+      <!-- Encabezado de documentos -->
+      <header class="doc-header">
+        <div class="doc-header__title">
+          <h1>Documentos para generar o subir</h1>
+        </div>
+
+        <div class="doc-header__meta">
+          <span class="meta-label">Cédula:</span>
+          <span class="meta-chip">{{ cedula || '—' }}</span>
+
+          <span class="meta-sep">•</span>
+
+          <span class="meta-label">Código de contratación:</span>
+          <span class="meta-chip">{{ codigoContratacion || '—' }}</span>
+        </div>
+      </header>
+
 
       <!-- Contenedor dividido - usando *ngFor -->
       <div class="split-container">
@@ -27,7 +41,7 @@
 
               <!-- Botón Subir PDF con input tipo file -->
               <label mat-menu-item>
-                <input type="file" hidden (change)="subirArchivo($event, doc.titulo)" />
+                <input type="file" hidden (change)="subirArchivo($event, doc.titulo)" accept=".pdf" />
                 <mat-icon>cloud_upload</mat-icon>
                 <span>Subir PDF</span>
               </label>

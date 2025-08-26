@@ -99,46 +99,91 @@ export class SeleccionService {
   }
 
 
-  // Mandar parte dos de la selección
-  public crearSeleccionParteDosCandidato(formData: any, cedula: string, numeroContrato: string): Observable<any> {
-    const headers = this.createAuthorizationHeader();
+public crearSeleccionParteDosCandidato(
+  formData: any | FormGroup,
+  cedula: string,
+  seleccion?: number | null
+): Observable<any> {
+  const headers = this.createAuthorizationHeader(); // Debe incluir Authorization: Bearer <token>
 
-    // Transformar hora a formato de 24 horas
-    let hora = formData.horaPruebaEntrevista;
-    let [horaParte, periodo] = hora.split(' '); // Dividir la hora y el periodo (AM/PM)
-    let [horas, minutos] = horaParte.split(':').map(Number); // Obtener horas y minutos como números
+  // Acepta FormGroup o plain object
+  const raw: any = (formData && (formData as FormGroup).value)
+    ? (formData as FormGroup).value
+    : (formData || {});
 
-    if (periodo === 'PM' && horas < 12) {
-      // Sumar 12 a las horas si es PM (excepto para 12 PM que ya es correcto)
-      horas += 12;
-    } else if (periodo === 'AM' && horas === 12) {
-      // Convertir 12 AM a 00
-      horas = 0;
+  // ---- Normalizadores ----
+  const normDate = (v: any): string => {
+    if (!v) return '';
+    if (v instanceof Date) return v.toISOString().slice(0, 10); // YYYY-MM-DD
+    const s = String(v);
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;                 // YYYY-MM-DD
+    const m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);         // DD/MM/YYYY
+    if (m) {
+      const [_, d, mo, y] = m;
+      return `${y}-${String(mo).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    }
+    const d2 = new Date(s);
+    return isNaN(d2.getTime()) ? '' : d2.toISOString().slice(0, 10);
+  };
+
+  const normTime = (v: any): string | null => {
+    if (!v) return null;
+    let s = String(v).trim();
+
+    // Soporta "HH:MM AM/PM" o "HH:MM"
+    const ampm = s.match(/^(\d{1,2}):(\d{2})\s*([AaPp][Mm])$/);
+    if (ampm) {
+      let hh = parseInt(ampm[1], 10);
+      const mm = parseInt(ampm[2], 10);
+      const p  = ampm[3].toUpperCase();
+      if (p === 'PM' && hh < 12) hh += 12;
+      if (p === 'AM' && hh === 12) hh = 0;
+      return `${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}`;
     }
 
-    // Formatear la hora a 'HH:MM'
-    const horaFinal = `${horas.toString().padStart(2, '0')}:${minutos.toString().padStart(2, '0')}`;
-    formData.horaPruebaEntrevista = horaFinal;
+    const h24 = s.match(/^(\d{1,2}):(\d{2})$/);
+    if (h24) {
+      const hh = Math.min(23, Math.max(0, +h24[1]));
+      const mm = Math.min(59, Math.max(0, +h24[2]));
+      return `${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}`;
+    }
+    return null;
+  };
 
-    // Mapear los nombres de los campos del formulario a los nombres esperados por Django
-    const requestData = {
-      numerodeceduladepersona: cedula,  // Cédula
-      codigo_contrato: numeroContrato,  // Número de contrato
-      fecha_prueba_entrevista: formData.fechaPruebaEntrevista,
-      hora_prueba_entrevista: formData.horaPruebaEntrevista,
-      direccion_empresa: formData.direccionEmpresa,
-      area_entrevista: formData.areaEntrevista,
-      cargo: formData.cargo,
-      centro_costo_entrevista: formData.centroCosto,
-      jwt: this.getToken(),
-      vacante: formData.vacante,
+  const toIntOrNull = (v: any) => {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : null;
+  };
 
-    };
-    return this.http.post(`${this.apiUrl}/Seleccion/crearSeleccionparteDoscandidato`, requestData, { headers }).pipe(
+  // ---- Mapeo Angular → Backend ----
+  const requestData: any = {
+    numerodeceduladepersona: String(cedula).trim(),
+
+    // Campos de Parte 2
+    tipo: raw.tipo ?? '',
+    centro_costo_entrevista: raw.empresaUsuaria ?? '', // antes "empresaUsuaria"
+    cargo: raw.cargo ?? '',
+    area_entrevista: raw.area ?? '',                   // antes "area"
+    fecha_prueba_entrevista: normDate(raw.fechaPruebaEntrevista),
+    hora_prueba_entrevista: normTime(raw.horaPruebaEntrevista),
+    direccion_empresa: raw.direccionEmpresa ?? '',
+    fechaIngreso: normDate(raw.fechaIngreso),
+    salario: raw.salario != null ? String(raw.salario) : '',
+  };
+
+  // Si envías 'seleccion' (id del proceso), actualiza; si no, crea
+  if (seleccion !== undefined && seleccion !== null) {
+    requestData.seleccion = seleccion;
+  }
+
+  // IMPORTANTE: no enviamos jwt en el body; va en headers
+  return this.http
+    .post(`${this.apiUrl}/Seleccion/crearSeleccionparteDoscandidato`, requestData, { headers })
+    .pipe(
       map((response: any) => response),
       catchError(this.handleError)
     );
-  }
+}
 
 
 

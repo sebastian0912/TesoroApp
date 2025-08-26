@@ -46,19 +46,35 @@
   </div>
 
   <!-- Policivos -->
+  <!-- Policivos -->
   <div class="input-container">
     <mat-form-field appearance="fill" class="example-full-width">
       <mat-label>Policivos</mat-label>
       <mat-select formControlName="policivos">
         <mat-option *ngFor="let estado of antecedentesEstados" [value]="estado">{{ estado }}</mat-option>
       </mat-select>
-      <!-- Botón de tres puntos dentro del input -->
-      <button mat-icon-button matSuffix [matMenuTriggerFor]="pdfMenuPolicivos" aria-label="PDF options"
-        (click)="$event.stopPropagation()">
-        <mat-icon>more_vert</mat-icon>
-      </button>
+
+      <!-- Contenedor de acciones (3 puntos + estado) -->
+      <div matSuffix class="acciones-suffix">
+        <!-- Botón menú -->
+        <button mat-icon-button [matMenuTriggerFor]="pdfMenuPolicivos" aria-label="PDF options"
+          (click)="$event.stopPropagation()">
+          <mat-icon>more_vert</mat-icon>
+        </button>
+
+        <!-- Icono estado -->
+        <mat-icon class="estado-icon" [ngStyle]="{
+        color: formGroup1.get('policivos')?.value === 'Cumple' ? 'green' :
+               formGroup1.get('policivos')?.value === 'No Cumple' ? 'red' : 'gray'
+      }">
+          {{ formGroup1.get('policivos')?.value === 'Cumple' ? 'check_circle' :
+          formGroup1.get('policivos')?.value === 'No Cumple' ? 'cancel' : 'help_outline' }}
+        </mat-icon>
+      </div>
     </mat-form-field>
 
+
+    <!-- Menú -->
     <mat-menu #pdfMenuPolicivos="matMenu">
       <button mat-menu-item (click)="verArchivo('policivos')">Ver PDF</button>
       <button mat-menu-item>
@@ -70,6 +86,7 @@
       </button>
     </mat-menu>
 
+    <!-- Nombre del archivo -->
     <small *ngIf="uploadedFiles['policivos']" class="uploaded-file-name"
       [ngClass]="{ 'text-danger': uploadedFiles['policivos'].fileName === 'Adjuntar documento' }">
       {{ uploadedFiles['policivos'].fileName }}
@@ -77,24 +94,42 @@
         &nbsp;•&nbsp;<span class="text-muted">Actualizado: {{ uploadedFiles['policivos'].updatedAtLabel }}</span>
       </ng-container>
     </small>
-
-
   </div>
 
+
+
+
+  <!-- Procuraduría -->
   <!-- Procuraduría -->
   <div class="input-container">
     <mat-form-field appearance="fill" class="example-full-width">
       <mat-label>Procuraduría</mat-label>
       <mat-select formControlName="procuraduria">
-        <mat-option *ngFor="let estado of antecedentesEstados" [value]="estado">{{ estado }}</mat-option>
+        <mat-option *ngFor="let estado of antecedentesEstados" [value]="estado">
+          {{ estado }}
+        </mat-option>
       </mat-select>
-      <!-- Botón de tres puntos dentro del input -->
-      <button mat-icon-button matSuffix [matMenuTriggerFor]="pdfMenuProcuraduria" aria-label="PDF options"
-        (click)="$event.stopPropagation()">
-        <mat-icon>more_vert</mat-icon>
-      </button>
+
+      <!-- Botón (3 puntos) + icono de estado juntos -->
+      <div matSuffix class="acciones-suffix">
+        <!-- Menú -->
+        <button mat-icon-button [matMenuTriggerFor]="pdfMenuProcuraduria" aria-label="PDF options"
+          (click)="$event.stopPropagation()">
+          <mat-icon>more_vert</mat-icon>
+        </button>
+
+        <!-- Estado -->
+        <mat-icon class="estado-icon" [ngStyle]="{
+          color: formGroup1.get('procuraduria')?.value === 'Cumple' ? 'green' :
+                 formGroup1.get('procuraduria')?.value === 'No Cumple' ? 'red' : 'gray'
+        }">
+          {{ formGroup1.get('procuraduria')?.value === 'Cumple' ? 'check_circle' :
+          formGroup1.get('procuraduria')?.value === 'No Cumple' ? 'cancel' : 'help_outline' }}
+        </mat-icon>
+      </div>
     </mat-form-field>
 
+    <!-- Menú PDF -->
     <mat-menu #pdfMenuProcuraduria="matMenu">
       <button mat-menu-item (click)="verArchivo('procuraduria')">Ver PDF</button>
       <button mat-menu-item>
@@ -106,6 +141,7 @@
       </button>
     </mat-menu>
 
+    <!-- Nombre + fecha -->
     <small *ngIf="uploadedFiles['procuraduria']" class="uploaded-file-name"
       [ngClass]="{ 'text-danger': uploadedFiles['procuraduria'].fileName === 'Adjuntar documento' }">
       {{ uploadedFiles['procuraduria'].fileName }}
@@ -113,8 +149,8 @@
         &nbsp;•&nbsp;<span class="text-muted">Actualizado: {{ uploadedFiles['procuraduria'].updatedAtLabel }}</span>
       </ng-container>
     </small>
-
   </div>
+
 
   <!-- Medidas Correctivas -->
   <div class="input-container">
@@ -147,7 +183,8 @@
       [ngClass]="{ 'text-danger': uploadedFiles['medidasCorrectivas'].fileName === 'Adjuntar documento' }">
       {{ uploadedFiles['medidasCorrectivas'].fileName }}
       <ng-container *ngIf="uploadedFiles['medidasCorrectivas'].updatedAtLabel">
-        &nbsp;•&nbsp;<span class="text-muted">Actualizado: {{ uploadedFiles['medidasCorrectivas'].updatedAtLabel }}</span>
+        &nbsp;•&nbsp;<span class="text-muted">Actualizado: {{ uploadedFiles['medidasCorrectivas'].updatedAtLabel
+          }}</span>
       </ng-container>
     </small>
 
@@ -159,15 +196,29 @@
     <mat-form-field appearance="fill" class="example-full-width">
       <mat-label>Contraloría</mat-label>
       <mat-select formControlName="contraloria">
-        <mat-option *ngFor="let estado of antecedentesEstados" [value]="estado">{{ estado }}</mat-option>
+        <mat-option *ngFor="let estado of antecedentesEstados" [value]="estado">
+          {{ estado }}
+        </mat-option>
       </mat-select>
-      <!-- Botón de tres puntos dentro del input -->
-      <button mat-icon-button matSuffix [matMenuTriggerFor]="pdfMenuContraloria" aria-label="PDF options"
-        (click)="$event.stopPropagation()">
-        <mat-icon>more_vert</mat-icon>
-      </button>
+
+      <!-- Botón (3 puntos) + icono de estado juntos -->
+      <div matSuffix class="acciones-suffix">
+        <button mat-icon-button [matMenuTriggerFor]="pdfMenuContraloria" aria-label="PDF options"
+          (click)="$event.stopPropagation()">
+          <mat-icon>more_vert</mat-icon>
+        </button>
+
+        <mat-icon class="estado-icon" [ngStyle]="{
+          color: formGroup1.get('contraloria')?.value === 'Cumple' ? 'green' :
+                 formGroup1.get('contraloria')?.value === 'No Cumple' ? 'red' : 'gray'
+        }">
+          {{ formGroup1.get('contraloria')?.value === 'Cumple' ? 'check_circle' :
+          formGroup1.get('contraloria')?.value === 'No Cumple' ? 'cancel' : 'help_outline' }}
+        </mat-icon>
+      </div>
     </mat-form-field>
 
+    <!-- Menú PDF -->
     <mat-menu #pdfMenuContraloria="matMenu">
       <button mat-menu-item (click)="verArchivo('contraloria')">Ver PDF</button>
       <button mat-menu-item>
@@ -179,6 +230,7 @@
       </button>
     </mat-menu>
 
+    <!-- Nombre + fecha -->
     <small *ngIf="uploadedFiles['contraloria']" class="uploaded-file-name"
       [ngClass]="{ 'text-danger': uploadedFiles['contraloria'].fileName === 'Adjuntar documento' }">
       {{ uploadedFiles['contraloria'].fileName }}
@@ -188,20 +240,36 @@
     </small>
   </div>
 
+
+  <!-- OFAC -->
   <!-- OFAC -->
   <div class="input-container">
     <mat-form-field appearance="fill" class="example-full-width">
       <mat-label>OFAC</mat-label>
       <mat-select formControlName="ofac">
-        <mat-option *ngFor="let estado of antecedentesEstados" [value]="estado">{{ estado }}</mat-option>
+        <mat-option *ngFor="let estado of antecedentesEstados" [value]="estado">
+          {{ estado }}
+        </mat-option>
       </mat-select>
-      <!-- Botón de tres puntos dentro del input -->
-      <button mat-icon-button matSuffix [matMenuTriggerFor]="pdfMenuOfac" aria-label="PDF options"
-        (click)="$event.stopPropagation()">
-        <mat-icon>more_vert</mat-icon>
-      </button>
+
+      <!-- Botón (3 puntos) + icono de estado juntos -->
+      <div matSuffix class="acciones-suffix">
+        <button mat-icon-button [matMenuTriggerFor]="pdfMenuOfac" aria-label="PDF options"
+          (click)="$event.stopPropagation()">
+          <mat-icon>more_vert</mat-icon>
+        </button>
+
+        <mat-icon class="estado-icon" [ngStyle]="{
+          color: formGroup1.get('ofac')?.value === 'Cumple' ? 'green' :
+                 formGroup1.get('ofac')?.value === 'No Cumple' ? 'red' : 'gray'
+        }">
+          {{ formGroup1.get('ofac')?.value === 'Cumple' ? 'check_circle' :
+          formGroup1.get('ofac')?.value === 'No Cumple' ? 'cancel' : 'help_outline' }}
+        </mat-icon>
+      </div>
     </mat-form-field>
 
+    <!-- Menú PDF -->
     <mat-menu #pdfMenuOfac="matMenu">
       <button mat-menu-item (click)="verArchivo('ofac')">Ver PDF</button>
       <button mat-menu-item>
@@ -213,6 +281,7 @@
       </button>
     </mat-menu>
 
+    <!-- Nombre + fecha -->
     <small *ngIf="uploadedFiles['ofac']" class="uploaded-file-name"
       [ngClass]="{ 'text-danger': uploadedFiles['ofac'].fileName === 'Adjuntar documento' }">
       {{ uploadedFiles['ofac'].fileName }}
@@ -220,8 +289,8 @@
         &nbsp;•&nbsp;<span class="text-muted">Actualizado: {{ uploadedFiles['ofac'].updatedAtLabel }}</span>
       </ng-container>
     </small>
-
   </div>
+
 
   <!-- Sisben -->
   <div class="input-container">
@@ -300,15 +369,29 @@
     <mat-form-field appearance="fill" class="example-full-width">
       <mat-label>Rama Judicial</mat-label>
       <mat-select formControlName="ramaJudicial">
-        <mat-option *ngFor="let estado of antecedentesEstados" [value]="estado">{{ estado }}</mat-option>
+        <mat-option *ngFor="let estado of antecedentesEstados" [value]="estado">
+          {{ estado }}
+        </mat-option>
       </mat-select>
-      <!-- Botón de tres puntos dentro del input -->
-      <button mat-icon-button matSuffix [matMenuTriggerFor]="pdfMenuRamaJudicial" aria-label="PDF options"
-        (click)="$event.stopPropagation()">
-        <mat-icon>more_vert</mat-icon>
-      </button>
+
+      <!-- Botón (3 puntos) + icono de estado juntos -->
+      <div matSuffix class="acciones-suffix">
+        <button mat-icon-button [matMenuTriggerFor]="pdfMenuRamaJudicial" aria-label="PDF options"
+          (click)="$event.stopPropagation()">
+          <mat-icon>more_vert</mat-icon>
+        </button>
+
+        <mat-icon class="estado-icon" [ngStyle]="{
+          color: formGroup1.get('ramaJudicial')?.value === 'Cumple' ? 'green' :
+                 formGroup1.get('ramaJudicial')?.value === 'No Cumple' ? 'red' : 'gray'
+        }">
+          {{ formGroup1.get('ramaJudicial')?.value === 'Cumple' ? 'check_circle' :
+          formGroup1.get('ramaJudicial')?.value === 'No Cumple' ? 'cancel' : 'help_outline' }}
+        </mat-icon>
+      </div>
     </mat-form-field>
 
+    <!-- Menú PDF -->
     <mat-menu #pdfMenuRamaJudicial="matMenu">
       <button mat-menu-item (click)="verArchivo('ramaJudicial')">Ver PDF</button>
       <button mat-menu-item>
@@ -320,6 +403,7 @@
       </button>
     </mat-menu>
 
+    <!-- Nombre + fecha -->
     <small *ngIf="uploadedFiles['ramaJudicial']" class="uploaded-file-name"
       [ngClass]="{ 'text-danger': uploadedFiles['ramaJudicial'].fileName === 'Adjuntar documento' }">
       {{ uploadedFiles['ramaJudicial'].fileName }}
@@ -328,6 +412,7 @@
       </ng-container>
     </small>
   </div>
+
 
   <!-- Pensión / Semanas Cotizadas -->
   <div class="input-container">
