@@ -1,5 +1,5 @@
 import { Component, LOCALE_ID, OnDestroy, OnInit } from '@angular/core';
-import { filter, forkJoin, Subject, take, takeUntil } from 'rxjs';
+import { filter, forkJoin, map, Subject, take, takeUntil, tap } from 'rxjs';
 import Swal from 'sweetalert2';
 import { VetadosService } from '../../service/vetados/vetados.service';
 import { SeleccionService } from '../../service/seleccion/seleccion.service';
@@ -24,6 +24,36 @@ interface CandidatoTabla {
   nombre_completo: string;
   created_at: string | Date;
 }
+
+type BackendCandidato = {
+  id: number;
+  numero: string;
+  oficina?: string | null;
+  primer_nombre?: string | null;
+  segundo_nombre?: string | null;
+  primer_apellido?: string | null;
+  segundo_apellido?: string | null;
+  created_at?: string | Date | null;
+  pre_registro?: boolean | null;
+  entrevistado?: boolean | null;
+  prueba_tecnica?: boolean | null;
+  examenes_medicos?: boolean | null;
+  contratado?: boolean | null;
+};
+
+type RegistroRow = {
+  id: number;
+  cedula: string;
+  created_at: Date | null;
+  created_at_label: string;
+  nombre_completo: string;
+  pre_registro: 'Sí' | 'No';
+  entrevistado: 'Sí' | 'No';
+  prueba_tecnica: 'Sí' | 'No';
+  examenes_medicos: 'Sí' | 'No';
+  contratado: 'Sí' | 'No';
+};
+type RowLike = RegistroRow | CandidatoTabla;
 
 // Puedes dejar este tipo dentro o fuera de la clase
 type ProcesoSeleccion = { id: number; codigo_contrato?: string | number | null };
@@ -140,39 +170,76 @@ export class SearchForCandidateComponent implements OnInit, OnDestroy {
 
   /* ──────────  Tabla candidatos  ────────── */
   private loadCandidatos(): void {
-    this.seleccionService.getCandidatos().pipe(take(1)).subscribe({
-      next: (candidatos: any[] = []) => {
-        const sedeLower = (this.sede ?? '').toLowerCase().trim();
+    const yesNo = (v: any): 'Sí' | 'No' => (v ? 'Sí' : 'No');
+    const toDate = (v: any): Date | null => {
+      if (!v) return null;
+      if (v instanceof Date) return isNaN(v.getTime()) ? null : v;
+      const d = new Date(v);
+      return isNaN(d.getTime()) ? null : d;
+    };
+    const normalize = (s: string) =>
+      s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
 
-        const toDate = (v: any): Date | null => {
-          if (!v) return null;
-          if (v instanceof Date) return isNaN(v.getTime()) ? null : v;
-          const d = new Date(v);
-          return isNaN(d.getTime()) ? null : d;
-        };
+    const sedeFilter = (c: BackendCandidato): boolean => {
+      if (!this.sede) return true; // si no hay sede, no filtramos
+      const sOf = normalize(String(c.oficina ?? ''));
+      const sWanted = normalize(String(this.sede ?? ''));
+      return sOf === sWanted;
+    };
 
-        const boolText = (v: any): 'Sí' | 'No' => (!!v ? 'Sí' : 'No');
-        this.registros = candidatos
-          .filter(c => ((c.oficina ?? '') as string).toLowerCase().trim() === sedeLower)
-          .map(c => ({
+    const fullName = (c: BackendCandidato) =>
+      [c.primer_nombre, c.segundo_nombre, c.primer_apellido, c.segundo_apellido]
+        .filter(Boolean)
+        .join(' ')
+        .replace(/\s+/g, ' ')
+        .trim();
 
-            cedula: c.numero ?? '',
-            created_at: toDate(c.created_at),
-            nombre_completo: [c.primer_nombre, c.segundo_nombre, c.primer_apellido, c.segundo_apellido]
-              .filter(Boolean)
-              .join(' ')
-              .trim(),
+    const formatCo = (d: Date | null): string =>
+      d
+        ? d.toLocaleString('es-CO', {
+          dateStyle: 'medium',
+          timeStyle: 'short',
+          timeZone: 'America/Bogota',
+        })
+        : '—';
 
-            // Mapea booleanos del backend a 'Sí'/'No'
-            pre_registro: boolText(c.pre_registro),
-            entrevistado: boolText(c.entrevistado),
-            prueba_tecnica: boolText(c.prueba_tecnica),
-            examenes_medicos: boolText(c.examenes_medicos),
-            contratado: boolText(c.contratado),
-          }));
-      },
-      error: () => Swal.fire('Error', 'No se pudieron cargar los candidatos.', 'error')
-    });
+    this.seleccionService
+      .getCandidatos()
+      .pipe(
+        take(1),
+        map((candidatos: BackendCandidato[] = []) =>
+          candidatos
+            .filter(sedeFilter)
+            .map<RegistroRow>((c) => {
+              // imprimir candidatos
+              const dt = toDate(c.created_at);
+              return {
+                id: c.id,
+                cedula: String(c.numero ?? ''),
+                created_at: dt,
+                created_at_label: formatCo(dt),
+                nombre_completo: fullName(c),
+                pre_registro: yesNo(c.pre_registro),
+                entrevistado: yesNo(c.entrevistado),
+                prueba_tecnica: yesNo(c.prueba_tecnica),
+                examenes_medicos: yesNo(c.examenes_medicos),
+                contratado: yesNo(c.contratado),
+              };
+            })
+            // Ordena por fecha (más reciente primero). Cambia a (a-b) para más antiguos primero.
+            .sort((a, b) => {
+              const ta = a.created_at?.getTime() ?? 0;
+              const tb = b.created_at?.getTime() ?? 0;
+              return tb - ta;
+            })
+        ),
+        tap((rows) => console.log('Registros procesados para la tabla:', rows))
+
+      )
+      .subscribe({
+        next: (rows) => (this.registros = rows),
+        error: () => Swal.fire('Error', 'No se pudieron cargar los candidatos.', 'error'),
+      });
   }
 
   aplicarFiltroCedula(valor: string): void {
@@ -182,16 +249,40 @@ export class SearchForCandidateComponent implements OnInit, OnDestroy {
   }
 
   /* ──────────  Acciones sobre cédula  ────────── */
-  async seleccionarCedula(cedula: string, nombre: string): Promise<void> {
+  async seleccionarCedula(row: RowLike): Promise<void> {
+    console.log('Seleccionar cédula:', row);
     try {
-      this.cedula = (cedula ?? '').trim();
-      this.nombreCompletoChange.emit(nombre);
+      const cedula = String(row?.cedula ?? '').trim();
+      const nombre = String(row?.nombre_completo ?? '').trim();
 
-      // Espera a que se cargue todo (forkJoin dentro de buscarCedula)
-      await this.buscarCedula();
+      if (!cedula) {
+        Swal.fire({ icon: 'warning', title: 'Sin cédula', text: 'La fila no contiene cédula.' });
+        return;
+      }
 
+      // Set locals
+      this.cedula = cedula;
 
-    } catch (e) {
+      // Emitimos el nombre que ya viene en la fila
+      if (nombre) this.nombreCompletoChange.emit(nombre);
+
+      // Si la fila trae id (caso RegistroRow), lo emitimos y marcamos pre_registro=true
+      if ('id' in row && typeof row.id === 'number' && Number.isFinite(row.id)) {
+        this.idInfoEntrevistaAndreaChange.emit(row.id);
+
+        this.infoVacantesService
+          .setEstadoVacanteAplicante(row.id, 'pre_registro', true)
+          .pipe(take(1))
+          .subscribe({
+            next: () => this.loadCandidatos(),
+            error: () =>
+              Swal.fire('Error', 'No se pudo actualizar el estado de pre_registro', 'error')
+          });
+      }
+
+      // Continúa con el flujo estándar (consulta vetados, etc.)
+      await this.buscarCedula(); // <- si aquí también emites nombre, puedes quitar esa emisión para evitar duplicado.
+    } catch {
       Swal.fire({
         icon: 'error',
         title: 'Error inesperado',
@@ -208,38 +299,14 @@ export class SearchForCandidateComponent implements OnInit, OnDestroy {
 
     return new Promise<void>((resolve, reject) => {
       forkJoin({
-        candidato: this.infoVacantesService.getVacantesPorNumero(this.cedula),
         vetado: this.vetadosService.listarReportesVetadosPorCedula(this.cedula)
       })
         .pipe(take(1))
         .subscribe({
-          next: ({ vetado, candidato }) => {
+          next: ({ vetado }) => {
             try {
               // Vetado
               this.procesarVetado(vetado);
-
-              // Nombre, id y estado pre_registro (si hay candidato)
-              if (Array.isArray(candidato) && candidato.length > 0) {
-                const c0 = candidato[0];
-                const nombreCompleto = [c0.primer_nombre, c0.segundo_nombre, c0.primer_apellido, c0.segundo_apellido]
-                  .filter(Boolean)
-                  .join(' ');
-                this.nombreCompletoChange.emit(nombreCompleto);
-                this.idInfoEntrevistaAndreaChange.emit(c0.id);
-
-                this.infoVacantesService
-                  .setEstadoVacanteAplicante(c0.id, 'pre_registro', true)
-                  .pipe(take(1))
-                  .subscribe({
-                    next: (resp: EstadoResponse) => {
-                      this.loadCandidatos();
-                    },
-                    error: (err) => {
-                      Swal.fire('Error', 'No se pudo actualizar el estado de pre_registro', 'error');
-                    }
-                  });
-
-              }
 
               resolve();
             } catch (inner) {

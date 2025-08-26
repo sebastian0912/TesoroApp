@@ -47,7 +47,7 @@
           </div>
         </ng-template>
         <div class="tab-content-scrollable">
-          <app-selection-questions [cedula]="cedulaActual" [vacanteSeleccionada]="selectionQuestionsComponent" [idProcesoSeleccion]="idProcesoSeleccion">
+          <app-selection-questions [cedula]="cedulaActual" [vacanteSeleccionada]="selectionQuestionsComponent"  >
           </app-selection-questions>
         </div>
       </mat-tab>
@@ -60,7 +60,7 @@
           </div>
         </ng-template>
         <div class="tab-content-scrollable">
-          <app-help-information [cedula]="cedulaActual" (idVacante)="onIdVacanteChange($event)" [idProcesoSeleccion]="idProcesoSeleccion"></app-help-information>
+          <app-help-information [cedula]="cedulaActual" (idVacante)="onIdVacanteChange($event)" [idProcesoSeleccion]="idProcesoSeleccion" [vacanteSeleccionadaId]="selectionQuestionsComponent" [idInfoEntrevistaAndrea]="idInfoEntrevistaAndrea"></app-help-information>
         </div>
       </mat-tab>
 
@@ -797,7 +797,7 @@
 
         <div class="tab-content-scrollable">
           <app-hiring-questions [cedula]="cedulaActual" [codigoContrato]="codigoContrato"
-            (idVacante)="onIdVacanteFromHiring($event)">
+           >
           </app-hiring-questions>
         </div>
       </mat-tab>

@@ -77,6 +77,11 @@ export class HelpInformationComponent implements OnInit {
   @Input() cedula: string = '';
   examFiles: File[] = [];
   @Output() idVacante = new EventEmitter<number>();
+  @Input() vacanteSeleccionadaId: any;
+  private _idInfoEntrevistaAndrea: number = 0;
+  @Input() set idInfoEntrevistaAndrea(value: number) {
+    this._idInfoEntrevistaAndrea = value;
+  }
 
   // Formularios
   infoPersonalForm: FormGroup;
@@ -124,6 +129,11 @@ export class HelpInformationComponent implements OnInit {
     if (u === 'M') return { unit: 'MONTH', quantity: n, label: `${n} ${n === 1 ? 'mes' : 'meses'}` };
     if (u === 'Y') return { unit: 'YEAR', quantity: n, label: `${n} ${n === 1 ? 'año' : 'años'}` };
     return null;
+  }
+
+  // id de info entrevista andrea
+  onIdInfoEntrevistaAndreaChange(id: number): void {
+    this.idInfoEntrevistaAndrea = id;
   }
 
   //  Lista estado civil
@@ -204,7 +214,7 @@ export class HelpInformationComponent implements OnInit {
       tieneExperienciaFlores: ['', Validators.required],
       referenciado: [''],
       nombreReferenciado: [''],
-      comoSeEntero: [''],
+      comoSeEntero: ['', Validators.required],
       laboresRealizadas: [''],
       empresasLaborado: [''],
       tiempoExperiencia: [''],
@@ -497,6 +507,8 @@ export class HelpInformationComponent implements OnInit {
 
     // Clonamos el objeto para no afectar el formulario original
     const info = { ...this.infoPersonalForm.value };
+    // añadir id
+    info.id = this._idInfoEntrevistaAndrea;
 
     // Si el campo es un Date, lo convertimos a string "YYYY-MM-DD"
     if (info.fechaNacimiento instanceof Date) {
@@ -511,6 +523,12 @@ export class HelpInformationComponent implements OnInit {
       info.fechaNacimiento = info.fechaNacimiento.slice(0, 10);
     }
 
+    // CADA UNO DE LOS CAMPOS EN MAYUSCULA SOSTENIDA
+    Object.keys(info).forEach(key => {
+      if (typeof info[key] === 'string') {
+        info[key] = info[key].toUpperCase();
+      }
+    });
 
     this.seleccionService.guardarInfoPersonal(info).subscribe({
       next: (resp) => {
@@ -521,11 +539,11 @@ export class HelpInformationComponent implements OnInit {
           icon: 'success',
           confirmButtonText: 'Ok'
         });
-
+        console.log('✅ Prueba', this._idInfoEntrevistaAndrea);
         // 👇 ahora actualizamos el estado entrevistado=true
         if (resp && resp.id) {
           this.infoVacantesService
-            .setEstadoVacanteAplicante(resp.id, 'entrevistado', true)
+            .setEstadoVacanteAplicante(this._idInfoEntrevistaAndrea, 'entrevistado', true)
             .subscribe({
               next: (estadoResp) => {
                 console.log('✅ Estado entrevistado actualizado:', estadoResp);
@@ -828,137 +846,145 @@ export class HelpInformationComponent implements OnInit {
     });
   }
 
-async guardarVacantes(): Promise<void> {
-  if (this.vacantesForm.invalid) {
-    this.vacantesForm.markAllAsTouched();
-    await Swal.fire('Error', 'Debes completar todos los campos obligatorios.', 'error');
-    return;
-  }
-
-  // Helpers locales
-  const normDate = (v: any): string => {
-    if (!v) return '';
-    if (v instanceof Date) return v.toISOString().slice(0, 10);
-    const s = String(v);
-    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;                 // YYYY-MM-DD
-    const m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);         // DD/MM/YYYY
-    if (m) {
-      const [_, d, mo, y] = m;
-      return `${y}-${String(mo).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-    }
-    const d2 = new Date(s);
-    return isNaN(d2.getTime()) ? '' : d2.toISOString().slice(0, 10);
-  };
-  const normTime = (v: any): string | null => {
-    if (!v) return null;
-    const s = String(v).trim();
-    const m = s.match(/^(\d{1,2}):(\d{2})$/);
-    if (!m) return null;
-    const hh = String(Math.min(23, Math.max(0, +m[1]))).padStart(2, '0');
-    const mm = String(Math.min(59, Math.max(0, +m[2]))).padStart(2, '0');
-    return `${hh}:${mm}`;
-  };
-
-  // Tomar valores del form
-  const fv = this.vacantesForm.value;
-
-  // Payload para tu endpoint de "guardar vacantes" (si lo usas aparte de Parte 2)
-  // Mapeado a los nombres de backend:
-  const payloadVacante = {
-    numerodeceduladepersona: String(this.cedula).trim(),
-    tipo: fv.tipo ?? '',
-    centro_costo_entrevista: fv.empresaUsuaria ?? '',
-    cargo: fv.cargo ?? '',
-    area_entrevista: fv.area ?? '',
-    fecha_prueba_entrevista: normDate(fv.fechaPruebaEntrevista),
-    hora_prueba_entrevista: normTime(fv.horaPruebaEntrevista),
-    direccion_empresa: fv.direccionEmpresa ?? '',
-    fechaIngreso: normDate(fv.fechaIngreso),
-    salario: fv.salario != null ? String(fv.salario) : '',
-    // Si tienes una vacante seleccionada, priorízala
-    vacante: this.vacanteSeleccionada?.id ?? (fv.vacante ?? null)
-  };
-
-  // Loader
-  Swal.fire({
-    title: 'Guardando…',
-    text: 'Procesando información de vacantes.',
-    icon: 'info',
-    allowOutsideClick: false,
-    showConfirmButton: false,
-    didOpen: () => Swal.showLoading()
-  });
-
-  try {
-    // 1) Guardar/actualizar PARTE 2 del proceso (correcto, NO parte 3)
-    //    Enviamos el id del proceso si lo tienes; creará uno nuevo si no.
-    const respParte2: any = await firstValueFrom(
-      this.seleccionService.crearSeleccionParteDosCandidato(
-        this.vacantesForm,               // acepta FormGroup o .value (tu service lo maneja)
-        this.cedula,
-        this._idProcesoSeleccion   // usa el nombre consistente en tu componente
-      )
-    );
-
-    // Si backend devuelve id del proceso, consérvalo
-    if (respParte2?.id && !this.idProcesoSeleccion) {
-      this.idProcesoSeleccion = respParte2.id;
+  async guardarVacantes(): Promise<void> {
+    if (this.vacantesForm.invalid) {
+      this.vacantesForm.markAllAsTouched();
+      await Swal.fire('Error', 'Debes completar todos los campos obligatorios.', 'error');
+      return;
     }
 
-    // 2) Guardar "vacantes" (si usas un endpoint adicional para otro modelo)
-    const respGuardar: any = await firstValueFrom(
-      this.seleccionService.guardarVacantes(payloadVacante)
-    );
+    // Helpers locales
+    const normDate = (v: any): string => {
+      if (!v) return '';
+      if (v instanceof Date) return v.toISOString().slice(0, 10);
+      const s = String(v);
+      if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;                 // YYYY-MM-DD
+      const m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);         // DD/MM/YYYY
+      if (m) {
+        const [_, d, mo, y] = m;
+        return `${y}-${String(mo).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      }
+      const d2 = new Date(s);
+      return isNaN(d2.getTime()) ? '' : d2.toISOString().slice(0, 10);
+    };
+    const normTime = (v: any): string | null => {
+      if (!v) return null;
+      const s = String(v).trim();
+      const m = s.match(/^(\d{1,2}):(\d{2})$/);
+      if (!m) return null;
+      const hh = String(Math.min(23, Math.max(0, +m[1]))).padStart(2, '0');
+      const mm = String(Math.min(59, Math.max(0, +m[2]))).padStart(2, '0');
+      return `${hh}:${mm}`;
+    };
 
-    Swal.close();
+    // Tomar valores del form
+    const fv = this.vacantesForm.value;
+    fv.id = this._idInfoEntrevistaAndrea;
+    // COLOCAR EN MAYÚSCULAS
+    Object.keys(fv).forEach(key => {
+      if (typeof fv[key] === 'string') {
+        fv[key] = fv[key].toUpperCase();
+      }
+    });
+    // Payload para tu endpoint de "guardar vacantes" (si lo usas aparte de Parte 2)
+    // Mapeado a los nombres de backend:
+    const payloadVacante = {
+      numerodeceduladepersona: String(this.cedula).trim(),
+      tipo: fv.tipo ?? '',
+      centro_costo_entrevista: fv.empresaUsuaria ?? '',
+      cargo: fv.cargo ?? '',
+      area_entrevista: fv.area ?? '',
+      fecha_prueba_entrevista: normDate(fv.fechaPruebaEntrevista),
+      hora_prueba_entrevista: normTime(fv.horaPruebaEntrevista),
+      direccion_empresa: fv.direccionEmpresa ?? '',
+      fechaIngreso: normDate(fv.fechaIngreso),
+      salario: fv.salario != null ? String(fv.salario) : '',
+      // Si tienes una vacante seleccionada, priorízala
+      vacante: this.vacanteSeleccionada?.id ?? (fv.vacante ?? null)
+    };
 
-    // 3) Acciones post-guardado (estados/relaciones)
-    if (respGuardar && respGuardar.id) {
-      // marcar prueba_técnica=true en tu InfoVacantes (si aplica)
-      this.infoVacantesService
-        .setEstadoVacanteAplicante(respGuardar.id, 'prueba_tecnica', true)
-        .subscribe({
-          next: r => console.log('✅ Estado prueba_tecnica actualizado:', r),
-          error: err => console.warn('❌ No se pudo actualizar prueba_tecnica', err)
-        });
-    }
-
-    // marcar preseleccionado y asignar vacante (si hay vacanteSeleccionada)
-    if (this.vacanteSeleccionada?.id) {
-      this.vacantesService
-        .setEstadoVacanteAplicante(this.vacanteSeleccionada.id, 'preseleccionado', this.cedula)
-        .subscribe({
-          next: r => console.log('✅ Estado preseleccionado actualizado:', r),
-          error: err => console.warn('❌ No se pudo actualizar preseleccionado', err)
-        });
-
-      this.seleccionService
-        .setVacante(this.cedula, this.vacanteSeleccionada.id)
-        .subscribe({
-          next: r => console.log('✅ Vacante asignada correctamente:', r),
-          error: err => console.warn('❌ Error al asignar vacante', err)
-        });
-
-      // (opcional) emitir id hacia el padre
-      this.emitirIdSiSeleccionado?.();
-    }
-
-    await Swal.fire({
-      icon: 'success',
-      title: 'Guardado',
-      text: 'Información de vacantes guardada correctamente.',
+    // Loader
+    Swal.fire({
+      title: 'Guardando…',
+      text: 'Procesando información de vacantes.',
+      icon: 'info',
+      allowOutsideClick: false,
+      showConfirmButton: false,
+      didOpen: () => Swal.showLoading()
     });
 
-  } catch (err: any) {
-    console.error('guardarVacantes error:', err);
-    Swal.close();
-    await Swal.fire({
-      icon: 'error',
-      title: 'Error',
-      text: err?.error?.detail || err?.message || 'No se pudo guardar la información de vacantes.'
-    });
+    try {
+      // 1) Guardar/actualizar PARTE 2 del proceso (correcto, NO parte 3)
+      //    Enviamos el id del proceso si lo tienes; creará uno nuevo si no.
+      // TODA LA INFO DEL FORMULARIO EN MAYÚSCULAS
+
+      const respParte2: any = await firstValueFrom(
+        this.seleccionService.crearSeleccionParteDosCandidato(
+          this.vacantesForm,               // acepta FormGroup o .value (tu service lo maneja)
+          this.cedula,
+          this._idProcesoSeleccion   // usa el nombre consistente en tu componente
+        )
+      );
+
+      // Si backend devuelve id del proceso, consérvalo
+      if (respParte2?.id && !this.idProcesoSeleccion) {
+        this.idProcesoSeleccion = respParte2.id;
+      }
+
+      // 2) Guardar "vacantes" (si usas un endpoint adicional para otro modelo)
+      const respGuardar: any = await firstValueFrom(
+        this.seleccionService.guardarVacantes(payloadVacante)
+      );
+
+      Swal.close();
+
+      // 3) Acciones post-guardado (estados/relaciones)
+      if (respGuardar && respGuardar.id) {
+        // marcar prueba_técnica=true en tu InfoVacantes (si aplica)
+        this.infoVacantesService
+          .setEstadoVacanteAplicante(this._idInfoEntrevistaAndrea, 'prueba_tecnica', true)
+          .subscribe({
+            next: r => console.log('✅ Estado prueba_tecnica actualizado:', r),
+            error: err => console.warn('❌ No se pudo actualizar prueba_tecnica', err)
+          });
+      }
+
+      // marcar preseleccionado y asignar vacante (si hay vacanteSeleccionada)
+      if (this.vacanteSeleccionada?.id) {
+        this.vacantesService
+          .setEstadoVacanteAplicante(this.vacanteSeleccionada.id, 'preseleccionado', this.cedula)
+          .subscribe({
+            next: r => console.log('✅ Estado preseleccionado actualizado:', r),
+            error: err => console.warn('❌ No se pudo actualizar preseleccionado', err)
+          });
+
+        this.seleccionService
+          .setVacante(this.cedula, this.vacanteSeleccionada.id)
+          .subscribe({
+            next: r => console.log('✅ Vacante asignada correctamente:', r),
+            error: err => console.warn('❌ Error al asignar vacante', err)
+          });
+
+        // (opcional) emitir id hacia el padre
+        this.emitirIdSiSeleccionado?.();
+      }
+
+      await Swal.fire({
+        icon: 'success',
+        title: 'Guardado',
+        text: 'Información de vacantes guardada correctamente.',
+      });
+
+    } catch (err: any) {
+      console.error('guardarVacantes error:', err);
+      Swal.close();
+      await Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: err?.error?.detail || err?.message || 'No se pudo guardar la información de vacantes.'
+      });
+    }
   }
-}
 
 
   // Obtener el nombre completo

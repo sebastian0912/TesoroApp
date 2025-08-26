@@ -28,7 +28,7 @@
 
   <!-- Botón 'Escoger' en la columna actions -->
   <ng-template #actionsTemplate let-row>
-    <button mat-flat-button color="primary" (click)="seleccionarCedula(row.cedula, row.nombre_completo)">
+    <button mat-flat-button color="primary" (click)="seleccionarCedula(row);">
       Escoger
     </button>
   </ng-template>

@@ -25,6 +25,9 @@ export class HiringQuestionsComponent implements OnInit {
   @Input() cedula: string = '';
   @Input() codigoContrato: string = '';
   @Output() idVacante = new EventEmitter<number>();
+  //vacanteSeleccionadaId
+  @Input() vacanteSeleccionadaId: any;
+
 
   arregloDeCentroDeCostos: any[] = arregloDeCentroDeCostos;
   message: string = '';
@@ -55,6 +58,7 @@ export class HiringQuestionsComponent implements OnInit {
   };
 
   ngOnInit() {
+    console.log(this.vacanteSeleccionadaId);
     // Inicializar el filtro de centros de costos
     this.filteredCentros$ = this.pagoTransporteForm.get('Ccostos')?.valueChanges.pipe(
       startWith(''),

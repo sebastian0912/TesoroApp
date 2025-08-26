@@ -479,6 +479,8 @@ export class RecruitmentPipelineComponent implements OnInit {
       const chosen = await this.elegirProcesoBonitoSinIdONuevo(topTwo);
       if (!chosen) return; // canceló
 
+      console.log('Proceso elegido:', chosen);
+      this.idVacanteContratacion = chosen.vacante;
       if (chosen === 'NEW') {
         this.iniciarNuevoProcesoUI();
         return;
@@ -652,6 +654,7 @@ export class RecruitmentPipelineComponent implements OnInit {
   // id de info entrevista andrea
   onIdInfoEntrevistaAndreaChange(id: number): void {
     this.idInfoEntrevistaAndrea = id;
+    console.log('ID Info Entrevista Andrea:', id);
   }
 
   //OnIdVacanteChange
@@ -1003,6 +1006,7 @@ export class RecruitmentPipelineComponent implements OnInit {
 
 
   onIdVacanteFromHiring(id: number): void {
+    console.log('ID Vacante desde contratación:', id);
     this.idVacanteContratacion = id;
   }
 

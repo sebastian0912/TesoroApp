@@ -277,12 +277,16 @@ export class SelectionQuestionsComponent implements OnInit {
           }
         },
         (error) => {
-          Swal.fire({
-            title: '¡Error!',
-            text: 'No se pudieron obtener los datos de selección. Por favor, inténtelo de nuevo más tarde.',
-            icon: 'error',
-            confirmButtonText: 'Ok'
-          });
+          // si es 404
+          if (error?.status !== 404) {
+            Swal.fire({
+              title: '¡Error!',
+              text: 'No se pudieron obtener los datos de selección. Por favor, inténtelo de nuevo más tarde.',
+              icon: 'error',
+              confirmButtonText: 'Ok'
+            });
+            return;
+          }
         }
       );
     }

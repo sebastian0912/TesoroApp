@@ -344,52 +344,52 @@ export class StandardFilterTable implements OnInit, OnChanges {
     }
   }
 
-async editarDetalle(row: any) {
-  const { value: nuevoDetalle, isConfirmed } = await Swal.fire<string>({
-    title: 'Editar detalle',
-    input: 'textarea',
-    inputValue: row?.detalle ?? '',
-    inputLabel: 'Detalle',
-    inputPlaceholder: 'Escribe el detalle…',
-    inputAttributes: { maxlength: '5000' },
-    showCancelButton: true,
-    confirmButtonText: 'Guardar',
-    cancelButtonText: 'Cancelar',
-    focusConfirm: false,
-    allowOutsideClick: () => !Swal.isLoading(),
-  });
+  async editarDetalle(row: any) {
+    const { value: nuevoDetalle, isConfirmed } = await Swal.fire<string>({
+      title: 'Editar detalle',
+      input: 'textarea',
+      inputValue: row?.detalle ?? '',
+      inputLabel: 'Detalle',
+      inputPlaceholder: 'Escribe el detalle…',
+      inputAttributes: { maxlength: '5000' },
+      showCancelButton: true,
+      confirmButtonText: 'Guardar',
+      cancelButtonText: 'Cancelar',
+      focusConfirm: false,
+      allowOutsideClick: () => !Swal.isLoading(),
+    });
 
-  if (!isConfirmed || nuevoDetalle == null) return;
+    if (!isConfirmed || nuevoDetalle == null) return;
 
-  const detalleLimpio = (nuevoDetalle ?? '').trim();
-  const prev = row.detalle;
+    const detalleLimpio = (nuevoDetalle ?? '').trim();
+    const prev = row.detalle;
 
-  // 1) UI inmediata: actualiza dataset completo y visible
-  this.data = this.data.map(r =>
-    r.id === row.id ? { ...r, detalle: detalleLimpio } : r
-  );
-  this.dataSource.data = (this.dataSource.data as any[]).map(r =>
-    r.id === row.id ? { ...r, detalle: detalleLimpio } : r
-  );
+    // 1) UI inmediata: actualiza dataset completo y visible
+    this.data = this.data.map(r =>
+      r.id === row.id ? { ...r, detalle: detalleLimpio } : r
+    );
+    this.dataSource.data = (this.dataSource.data as any[]).map(r =>
+      r.id === row.id ? { ...r, detalle: detalleLimpio } : r
+    );
 
-  // 2) Persistencia en backend
-  this.infoVacantesService.actualizarDetalle(row.id, detalleLimpio).subscribe({
-    next: () => {
-      Swal.fire('Guardado', 'Detalle actualizado correctamente', 'success');
-    },
-    error: (err) => {
-      console.error('Error al actualizar detalle:', err);
-      // 3) Revertir UI si falla el backend
-      this.data = this.data.map(r =>
-        r.id === row.id ? { ...r, detalle: prev } : r
-      );
-      this.dataSource.data = (this.dataSource.data as any[]).map(r =>
-        r.id === row.id ? { ...r, detalle: prev } : r
-      );
-      Swal.fire('Error', 'No se pudo actualizar el detalle', 'error');
-    }
-  });
-}
+    // 2) Persistencia en backend
+    this.infoVacantesService.actualizarDetalle(row.id, detalleLimpio).subscribe({
+      next: () => {
+        Swal.fire('Guardado', 'Detalle actualizado correctamente', 'success');
+      },
+      error: (err) => {
+        console.error('Error al actualizar detalle:', err);
+        // 3) Revertir UI si falla el backend
+        this.data = this.data.map(r =>
+          r.id === row.id ? { ...r, detalle: prev } : r
+        );
+        this.dataSource.data = (this.dataSource.data as any[]).map(r =>
+          r.id === row.id ? { ...r, detalle: prev } : r
+        );
+        Swal.fire('Error', 'No se pudo actualizar el detalle', 'error');
+      }
+    });
+  }
 
 
 
