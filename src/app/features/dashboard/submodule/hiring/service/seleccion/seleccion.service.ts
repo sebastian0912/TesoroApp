@@ -38,6 +38,13 @@ export class SeleccionService {
     return null;
   }
 
+  public getSeleccion(cedula: any): Observable<any> {
+    return this.http.get(`${this.apiUrl}/Seleccion/traerDatosSeleccion/${cedula}`).pipe(
+      map((response: any) => response),
+      catchError(this.handleError)
+    );
+  }
+
   // Método para generar el código de contratación
   public generarCodigoContratacion(officePrefix: string, cedula: string): Observable<any> {
     const headers = this.createAuthorizationHeader();
@@ -99,91 +106,91 @@ export class SeleccionService {
   }
 
 
-public crearSeleccionParteDosCandidato(
-  formData: any | FormGroup,
-  cedula: string,
-  seleccion?: number | null
-): Observable<any> {
-  const headers = this.createAuthorizationHeader(); // Debe incluir Authorization: Bearer <token>
+  public crearSeleccionParteDosCandidato(
+    formData: any | FormGroup,
+    cedula: string,
+    seleccion?: number | null
+  ): Observable<any> {
+    const headers = this.createAuthorizationHeader(); // Debe incluir Authorization: Bearer <token>
 
-  // Acepta FormGroup o plain object
-  const raw: any = (formData && (formData as FormGroup).value)
-    ? (formData as FormGroup).value
-    : (formData || {});
+    // Acepta FormGroup o plain object
+    const raw: any = (formData && (formData as FormGroup).value)
+      ? (formData as FormGroup).value
+      : (formData || {});
 
-  // ---- Normalizadores ----
-  const normDate = (v: any): string => {
-    if (!v) return '';
-    if (v instanceof Date) return v.toISOString().slice(0, 10); // YYYY-MM-DD
-    const s = String(v);
-    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;                 // YYYY-MM-DD
-    const m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);         // DD/MM/YYYY
-    if (m) {
-      const [_, d, mo, y] = m;
-      return `${y}-${String(mo).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    // ---- Normalizadores ----
+    const normDate = (v: any): string => {
+      if (!v) return '';
+      if (v instanceof Date) return v.toISOString().slice(0, 10); // YYYY-MM-DD
+      const s = String(v);
+      if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;                 // YYYY-MM-DD
+      const m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);         // DD/MM/YYYY
+      if (m) {
+        const [_, d, mo, y] = m;
+        return `${y}-${String(mo).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      }
+      const d2 = new Date(s);
+      return isNaN(d2.getTime()) ? '' : d2.toISOString().slice(0, 10);
+    };
+
+    const normTime = (v: any): string | null => {
+      if (!v) return null;
+      let s = String(v).trim();
+
+      // Soporta "HH:MM AM/PM" o "HH:MM"
+      const ampm = s.match(/^(\d{1,2}):(\d{2})\s*([AaPp][Mm])$/);
+      if (ampm) {
+        let hh = parseInt(ampm[1], 10);
+        const mm = parseInt(ampm[2], 10);
+        const p = ampm[3].toUpperCase();
+        if (p === 'PM' && hh < 12) hh += 12;
+        if (p === 'AM' && hh === 12) hh = 0;
+        return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
+      }
+
+      const h24 = s.match(/^(\d{1,2}):(\d{2})$/);
+      if (h24) {
+        const hh = Math.min(23, Math.max(0, +h24[1]));
+        const mm = Math.min(59, Math.max(0, +h24[2]));
+        return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
+      }
+      return null;
+    };
+
+    const toIntOrNull = (v: any) => {
+      const n = Number(v);
+      return Number.isFinite(n) ? n : null;
+    };
+
+    // ---- Mapeo Angular → Backend ----
+    const requestData: any = {
+      numerodeceduladepersona: String(cedula).trim(),
+
+      // Campos de Parte 2
+      tipo: raw.tipo ?? '',
+      centro_costo_entrevista: raw.empresaUsuaria ?? '', // antes "empresaUsuaria"
+      cargo: raw.cargo ?? '',
+      area_entrevista: raw.area ?? '',                   // antes "area"
+      fecha_prueba_entrevista: normDate(raw.fechaPruebaEntrevista),
+      hora_prueba_entrevista: normTime(raw.horaPruebaEntrevista),
+      direccion_empresa: raw.direccionEmpresa ?? '',
+      fechaIngreso: normDate(raw.fechaIngreso),
+      salario: raw.salario != null ? String(raw.salario) : '',
+    };
+
+    // Si envías 'seleccion' (id del proceso), actualiza; si no, crea
+    if (seleccion !== undefined && seleccion !== null) {
+      requestData.seleccion = seleccion;
     }
-    const d2 = new Date(s);
-    return isNaN(d2.getTime()) ? '' : d2.toISOString().slice(0, 10);
-  };
 
-  const normTime = (v: any): string | null => {
-    if (!v) return null;
-    let s = String(v).trim();
-
-    // Soporta "HH:MM AM/PM" o "HH:MM"
-    const ampm = s.match(/^(\d{1,2}):(\d{2})\s*([AaPp][Mm])$/);
-    if (ampm) {
-      let hh = parseInt(ampm[1], 10);
-      const mm = parseInt(ampm[2], 10);
-      const p  = ampm[3].toUpperCase();
-      if (p === 'PM' && hh < 12) hh += 12;
-      if (p === 'AM' && hh === 12) hh = 0;
-      return `${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}`;
-    }
-
-    const h24 = s.match(/^(\d{1,2}):(\d{2})$/);
-    if (h24) {
-      const hh = Math.min(23, Math.max(0, +h24[1]));
-      const mm = Math.min(59, Math.max(0, +h24[2]));
-      return `${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}`;
-    }
-    return null;
-  };
-
-  const toIntOrNull = (v: any) => {
-    const n = Number(v);
-    return Number.isFinite(n) ? n : null;
-  };
-
-  // ---- Mapeo Angular → Backend ----
-  const requestData: any = {
-    numerodeceduladepersona: String(cedula).trim(),
-
-    // Campos de Parte 2
-    tipo: raw.tipo ?? '',
-    centro_costo_entrevista: raw.empresaUsuaria ?? '', // antes "empresaUsuaria"
-    cargo: raw.cargo ?? '',
-    area_entrevista: raw.area ?? '',                   // antes "area"
-    fecha_prueba_entrevista: normDate(raw.fechaPruebaEntrevista),
-    hora_prueba_entrevista: normTime(raw.horaPruebaEntrevista),
-    direccion_empresa: raw.direccionEmpresa ?? '',
-    fechaIngreso: normDate(raw.fechaIngreso),
-    salario: raw.salario != null ? String(raw.salario) : '',
-  };
-
-  // Si envías 'seleccion' (id del proceso), actualiza; si no, crea
-  if (seleccion !== undefined && seleccion !== null) {
-    requestData.seleccion = seleccion;
+    // IMPORTANTE: no enviamos jwt en el body; va en headers
+    return this.http
+      .post(`${this.apiUrl}/Seleccion/crearSeleccionparteDoscandidato`, requestData, { headers })
+      .pipe(
+        map((response: any) => response),
+        catchError(this.handleError)
+      );
   }
-
-  // IMPORTANTE: no enviamos jwt en el body; va en headers
-  return this.http
-    .post(`${this.apiUrl}/Seleccion/crearSeleccionparteDoscandidato`, requestData, { headers })
-    .pipe(
-      map((response: any) => response),
-      catchError(this.handleError)
-    );
-}
 
 
 
@@ -329,6 +336,15 @@ public crearSeleccionParteDosCandidato(
   // Buscar en contratacion por cedula para sacar los numeros
   public buscarEncontratacion(cedula: any): Observable<any> {
     return this.http.get(`${this.apiUrl}/contratacion/traerNombreCompletoCandidatoSin/${cedula}`, {}).pipe(
+      map((response: any) => response),
+      catchError(this.handleError)
+    );
+  }
+
+  // 'seleccion/<int:id>/'
+  public getSeleccionPorId(id: any): Observable<any> {
+    const headers = this.createAuthorizationHeader();
+    return this.http.get(`${this.apiUrl}/Seleccion/seleccion/${id}/`, { headers }).pipe(
       map((response: any) => response),
       catchError(this.handleError)
     );

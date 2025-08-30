@@ -250,7 +250,6 @@ export class SearchForCandidateComponent implements OnInit, OnDestroy {
 
   /* ──────────  Acciones sobre cédula  ────────── */
   async seleccionarCedula(row: RowLike): Promise<void> {
-    console.log('Seleccionar cédula:', row);
     try {
       const cedula = String(row?.cedula ?? '').trim();
       const nombre = String(row?.nombre_completo ?? '').trim();
@@ -289,6 +288,22 @@ export class SearchForCandidateComponent implements OnInit, OnDestroy {
         text: 'Error al seleccionar la cédula'
       });
     }
+  }
+
+  buscarEntrevistaAndrea(): void {
+    this.infoVacantesService.getVacantesPorNumero(this.cedula).subscribe({
+      next: (resultado) => {
+        const entrevista = resultado?.[0];
+        this.cedula = entrevista.numero;
+        this.cedulaSeleccionada.emit(this.cedula);
+        this.nombreCompletoChange.emit(entrevista.primer_nombre + ' ' + (entrevista.segundo_nombre ?? '') + ' ' + entrevista.primer_apellido + ' ' + (entrevista.segundo_apellido ?? ''));
+        this.idInfoEntrevistaAndreaChange.emit(entrevista.id);
+        this.buscarCedula();
+      },
+      error: () => {
+        Swal.fire('Error', 'No se pudo obtener la entrevista', 'error');
+      }
+    });
   }
 
 

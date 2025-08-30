@@ -47,7 +47,7 @@
           </div>
         </ng-template>
         <div class="tab-content-scrollable">
-          <app-selection-questions [cedula]="cedulaActual" [vacanteSeleccionada]="selectionQuestionsComponent"  >
+          <app-selection-questions [cedula]="cedulaActual" [vacanteSeleccionada]="selectionQuestionsComponent"  [idProcesoSeleccion]="idProcesoSeleccion">
           </app-selection-questions>
         </div>
       </mat-tab>
@@ -156,7 +156,6 @@
         </div>
 
       </mat-tab>
-
 
       <!-- Información del formulario -->
       <mat-tab>
@@ -796,7 +795,10 @@
         </ng-template>
 
         <div class="tab-content-scrollable">
-          <app-hiring-questions [cedula]="cedulaActual" [codigoContrato]="codigoContrato"
+          <app-hiring-questions [cedula]="cedulaActual" [codigoContrato]="codigoContratoActual" 
+           [idInfoEntrevistaAndrea]="idInfoEntrevistaAndrea"
+           [idVacantes]="idVacanteContratacion"
+           
            >
           </app-hiring-questions>
         </div>

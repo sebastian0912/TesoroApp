@@ -64,7 +64,6 @@ interface Usuario {
     MatNativeDateModule,
     HiringQuestionsComponent,
     MatTooltipModule,
-
     MatDialogModule
 
   ],
@@ -457,8 +456,9 @@ export class RecruitmentPipelineComponent implements OnInit {
     this.seleccionService.buscarEncontratacion(this.cedulaActual)
       .pipe(take(1))
       .subscribe((resp: any) => {
-        console.log('Datos de la contratación:', resp);
+        console.log('resp:', resp);
         this.codigoContratoActual = resp?.codigo_contrato || '';
+        console.log('Código de contrato actual:', this.codigoContratoActual);
       });
 
     this.contratacionService.traerDatosSeleccion(this.cedulaActual).subscribe(async (response: any) => {
@@ -488,7 +488,6 @@ export class RecruitmentPipelineComponent implements OnInit {
 
       // --- Continuar con proceso existente ---
       const data = chosen;
-      console.log('Datos del proceso seleccionado:', data);
       this.idProcesoSeleccion = data.id; // guardar id interno
 
 
@@ -654,12 +653,12 @@ export class RecruitmentPipelineComponent implements OnInit {
   // id de info entrevista andrea
   onIdInfoEntrevistaAndreaChange(id: number): void {
     this.idInfoEntrevistaAndrea = id;
-    console.log('ID Info Entrevista Andrea:', id);
   }
 
   //OnIdVacanteChange
   onIdVacanteChange(id: number): void {
     this.idvacante = id;
+    console.log('Vacante recibida de contratación:', id);
   }
 
   // Método para obtener el nombre completo del candidato
@@ -762,9 +761,7 @@ export class RecruitmentPipelineComponent implements OnInit {
 
 
   generacionDocumentos() {
-    console.log('Iniciando generación de documentos...');
-    console.log('Cédula actual:', this.cedulaActual);
-    console.log('Código de contrato actual:', this.codigoContratoActual);
+
     // Si no existe la cedula, mostrar un mensaje de error
     if (!this.cedulaActual) {
       Swal.fire('Error', 'Debe seleccionar un candidato primero', 'error');
@@ -842,7 +839,6 @@ export class RecruitmentPipelineComponent implements OnInit {
       .subscribe({
         next: r => {
           this.codigoContratoActual = r.nuevo_codigo;
-          console.log('Código de contrato generado:', this.codigoContratoActual);
           Swal.fire('Éxito', 'Código de contrato generado correctamente: ' + this.codigoContratoActual, 'success');
         },
         error: () => Swal.fire('Error', 'No se pudo generar el código', 'error')
@@ -891,11 +887,21 @@ export class RecruitmentPipelineComponent implements OnInit {
             this.idProcesoSeleccion
           )
         );
-        console.log('Parte 3 de la selección creada/actualizada correctamente');
       } catch (e) {
         console.warn('No se pudo crear/actualizar Parte 3, se continúa igual.', e);
         // seguimos; no bloquea la fusión de PDF
       }
+
+
+      this.seleccionService.generarCodigoContratacion(this.abreviacionSede, this.cedulaActual)
+        .pipe(take(1))
+        .subscribe({
+          next: r => {
+            this.codigoContratoActual = r.nuevo_codigo;
+            
+          },
+          error: () => console.warn('No se pudo generar el código de contrato')
+        });
 
       // 2) Fusionar PDFs
       const mergedPdf = await PDFDocument.create();
@@ -1006,8 +1012,8 @@ export class RecruitmentPipelineComponent implements OnInit {
 
 
   onIdVacanteFromHiring(id: number): void {
-    console.log('ID Vacante desde contratación:', id);
     this.idVacanteContratacion = id;
+    console.log('Vacante recibida de contratación:', id);
   }
 
 

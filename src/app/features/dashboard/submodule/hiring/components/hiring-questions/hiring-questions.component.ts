@@ -7,9 +7,10 @@ import Swal from 'sweetalert2';
 import { HiringService } from '../../service/hiring.service';
 import { GestionDocumentalService } from '../../service/gestion-documental/gestion-documental.service';
 import { Observable } from 'rxjs/internal/Observable';
-import { forkJoin, map, startWith } from 'rxjs';
+import { catchError, firstValueFrom, forkJoin, map, of, startWith } from 'rxjs';
 import { arregloDeCentroDeCostos } from '@/app/shared/model/models';
 import { VacantesService } from '../../service/vacantes/vacantes.service';
+import { InfoVacantesService } from '../../service/info-vacantes/info-vacantes.service';
 
 @Component({
   selector: 'app-hiring-questions',
@@ -27,7 +28,10 @@ export class HiringQuestionsComponent implements OnInit {
   @Output() idVacante = new EventEmitter<number>();
   //vacanteSeleccionadaId
   @Input() vacanteSeleccionadaId: any;
-
+  //idInfoEntrevistaAndrea
+  @Input() idInfoEntrevistaAndrea: any;
+  // idVacantes
+  @Input() idVacantes: any;
 
   arregloDeCentroDeCostos: any[] = arregloDeCentroDeCostos;
   message: string = '';
@@ -58,7 +62,6 @@ export class HiringQuestionsComponent implements OnInit {
   };
 
   ngOnInit() {
-    console.log(this.vacanteSeleccionadaId);
     // Inicializar el filtro de centros de costos
     this.filteredCentros$ = this.pagoTransporteForm.get('Ccostos')?.valueChanges.pipe(
       startWith(''),
@@ -72,8 +75,8 @@ export class HiringQuestionsComponent implements OnInit {
     private router: Router,
     private contratacionService: HiringService,
     private gestionDocumentalService: GestionDocumentalService,
-    private vacantesService: VacantesService
-
+    private vacantesService: VacantesService,
+    private infoVacantesService: InfoVacantesService
   ) {
     this.pagoTransporteForm = this.fb.group(
       {
@@ -126,7 +129,8 @@ export class HiringQuestionsComponent implements OnInit {
     if (changes['cedula'] || changes['codigoContrato']) {
       const nuevaCedula = this.cedula?.trim();
       const nuevoCodigo = this.codigoContrato?.trim();
-
+      console.log('Cédula cambiada a:', nuevaCedula);
+      console.log('Código de contrato cambiado a:', nuevoCodigo);
       if (nuevaCedula && nuevoCodigo) {
         this.loadData();
       }
@@ -144,44 +148,80 @@ export class HiringQuestionsComponent implements OnInit {
 
 
 
-  cargarPagoTransporte() {
-    // Verificar si el formulario es válido antes de enviar
+
+
+  async cargarPagoTransporte() {
+    // 1) Validación rápida del form
     if (this.pagoTransporteForm.invalid) {
+      this.pagoTransporteForm.markAllAsTouched();
+      Swal.fire({
+        icon: 'warning',
+        title: 'Formulario incompleto',
+        text: 'Revisa los campos obligatorios antes de continuar.',
+      });
       return;
     }
 
-    // Construir los datos que se enviarán al servicio
+    // 2) Construcción del payload (ajusta nombres según tu API)
     const data = {
-      numero_de_cedula: this.cedula, // Cédula del candidato
-      codigo_contrato: this.codigoContrato, // Código de contrato
+      numero_de_cedula: this.cedula,
+      codigo_contrato: this.codigoContrato,
       semanas_cotizadas: this.pagoTransporteForm.get('semanasCotizadas')?.value,
       forma_pago: this.pagoTransporteForm.get('formaPago')?.value,
       numero_pagos: this.pagoTransporteForm.get('numeroPagos')?.value,
       validacion_numero_cuenta: this.pagoTransporteForm.get('validacionNumeroCuenta')?.value,
       seguro_funerario: this.pagoTransporteForm.get('seguroFunerario')?.value,
+      // OJO: revisa que el control realmente se llame 'Ccostos'
       centro_de_costos: this.pagoTransporteForm.get('Ccostos')?.value,
       salario_contratacion: this.pagoTransporteForm.get('salario')?.value,
       valor_transporte: this.pagoTransporteForm.get('auxilioTransporte')?.value,
       porcentaje_arl: this.pagoTransporteForm.get('porcentajeARL')?.value
     };
 
-    // Llamar al servicio para guardar o actualizar los datos
-    this.contratacionService.guardarOActualizarContratacion(data).then((response: any) => {
-      // Aquí puedes manejar la respuesta si es necesario
-      if (response) {
-        // Mostrar mensaje de éxito
+    try {
+      // 3) Guardar/actualizar contratación (Promise)
+      const response = await this.contratacionService.guardarOActualizarContratacion(data);
+
+      // 4) Actualizar estados en paralelo (ambos son Observables → firstValueFrom)
+      const results = await Promise.allSettled([
+        firstValueFrom(
+          this.infoVacantesService
+            .setEstadoVacanteAplicante(this.idInfoEntrevistaAndrea, 'contratado', true)
+        ),
+        firstValueFrom(
+          this.vacantesService
+            .setEstadoVacanteAplicante(this.idVacantes, 'contratado', this.cedula)
+        )
+      ]);
+
+      const fallas = results.filter(r => r.status === 'rejected');
+
+      if (fallas.length) {
+        console.error('Fallas al actualizar estados:', fallas);
         Swal.fire({
-          title: '¡Éxito!',
-          text: 'Datos guardados exitosamente.',
+          icon: 'warning',
+          title: 'Guardado con advertencias',
+          text: 'Se guardaron los datos, pero hubo problemas actualizando algunos estados. Intenta actualizar nuevamente desde la sección de vacantes.',
+          confirmButtonText: 'Entendido'
+        });
+      } else {
+        Swal.fire({
           icon: 'success',
+          title: '¡Éxito!',
+          text: 'Datos guardados y estados actualizados correctamente.',
           confirmButtonText: 'Ok'
         });
       }
-    }).catch((error: any) => {
-      Swal.fire('Error', 'Hubo un error al guardar o actualizar los datos', 'error');
-      // Aquí puedes manejar el error si es necesario
-    });
+    } catch (error) {
+      console.error('Error al guardar o actualizar:', error);
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: 'Hubo un error al guardar o actualizar los datos. Intenta nuevamente.',
+      });
+    }
   }
+
 
 
   cargarReferencias() {

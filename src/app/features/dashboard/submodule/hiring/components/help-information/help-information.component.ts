@@ -82,6 +82,7 @@ export class HelpInformationComponent implements OnInit {
   @Input() set idInfoEntrevistaAndrea(value: number) {
     this._idInfoEntrevistaAndrea = value;
   }
+  pendingVacanteId: number | null = null;
 
   // Formularios
   infoPersonalForm: FormGroup;
@@ -98,7 +99,6 @@ export class HelpInformationComponent implements OnInit {
   @Input() set idProcesoSeleccion(value: number | null) {
     this._idProcesoSeleccion = value;
     // Aquí reaccionas cada vez que cambie
-    console.log('idProcesoSeleccion recibido en hijo:', value);
     // ej: this.form.patchValue({ seleccion: value ?? null });
   }
 
@@ -251,10 +251,11 @@ export class HelpInformationComponent implements OnInit {
 
       tiempoResidencia: ['', Validators.required],
       proyeccion1Ano: ['', Validators.required],
-      estudiaActualmente: [null, Validators.required],
+      //estudiaActualmente: [null, Validators.required],
 
       experiencias: this.fb.array([]), // arreglo dinámico (empresa, labores, tiempo, labores_principales)
       observacionEvaluador: [''],
+      motivoEspera: [''],
 
     });
 
@@ -380,6 +381,9 @@ export class HelpInformationComponent implements OnInit {
       Swal.fire('Error', 'No se encontró información del usuario', 'error');
       return;
     }
+
+
+
     this.vacantesService.getVacantesPorOficina(user.sucursalde)
       .subscribe((vacantes: PublicacionDTO[]) => {
         this.vacantes = vacantes ?? [];
@@ -502,6 +506,7 @@ export class HelpInformationComponent implements OnInit {
       });
       // que campos faltan para que sea valido
       const invalidFields = Object.keys(this.infoPersonalForm.controls).filter(field => this.infoPersonalForm.get(field)?.invalid);
+      console.log('Campos inválidos:', invalidFields);
       return;
     }
 
@@ -539,7 +544,6 @@ export class HelpInformationComponent implements OnInit {
           icon: 'success',
           confirmButtonText: 'Ok'
         });
-        console.log('✅ Prueba', this._idInfoEntrevistaAndrea);
         // 👇 ahora actualizamos el estado entrevistado=true
         if (resp && resp.id) {
           this.infoVacantesService
@@ -565,11 +569,18 @@ export class HelpInformationComponent implements OnInit {
     });
   }
 
-  onVacanteIdChange(id: number): void {
-    this.selectedVacanteId = id;
-    const v = this.vacantes.find(x => x.id === id) || null;
+  onVacanteIdChange(id: number | string): void {
+    const idNum = Number(id);
+    this.selectedVacanteId = idNum;
+
+    const v = this.vacantes?.find(x => Number(x.id) === idNum) || null;
     this.vacanteSeleccionada = v;
-    if (v) this.patchVacanteToForm(v);
+
+    if (v) {
+      this.patchVacanteToForm(v);
+      // Si usas OnPush:
+      // this.cdr.markForCheck();
+    }
   }
 
   // si también quieres re-emitir tras guardar:
@@ -614,13 +625,41 @@ export class HelpInformationComponent implements OnInit {
     this.vacantesForm.get('tipo')?.updateValueAndValidity({ emitEvent: true });
   }
 
+  private setVacantes(lista: PublicacionDTO[]): void {
+    this.vacantes = lista || [];
+
+    if (this.pendingVacanteId != null) {
+      // ahora sí existe la opción, aplica selección
+      this.onVacanteIdChange(this.pendingVacanteId);
+      this.pendingVacanteId = null;
+    }
+  }
+
 
 
   ngOnChanges(changes: SimpleChanges): void {
     if (changes['cedula'] && this.cedula) {
       this.buscarContratacion();
+
+      this.seleccionService.getSeleccion(this.cedula).subscribe((seleccion: any) => {
+        const procesos = Array.isArray(seleccion?.procesoSeleccion) ? seleccion.procesoSeleccion : [];
+        if (!procesos.length) return;
+
+        // max por id:
+        const maxProceso = procesos.reduce((acc: any, it: any) => !acc || (it?.id ?? -Infinity) > acc.id ? it : acc, null);
+        const vacanteId = Number(maxProceso?.vacante);
+
+        if (!vacanteId) return;
+
+        if (this.vacantes?.length) {
+          this.onVacanteIdChange(vacanteId);
+        } else {
+          this.pendingVacanteId = vacanteId; // se aplicará en setVacantes()
+        }
+      });
     }
   }
+
 
   recibirVacante(vacante: any): void {
     this.vacanteActual = vacante;
@@ -785,6 +824,24 @@ export class HelpInformationComponent implements OnInit {
       // Si no viene arreglo, sincronizar con número de hijos
       this.fillHijosFromApi(data?.numero_hijos, []);
     }
+
+    // 🔹 Experiencias laborales (FormArray)
+    if (Array.isArray(data?.experiencias)) {
+      const faExp = this.experienciasFA; // getter -> this.infoPersonalForm.get('experiencias') as FormArray
+      faExp.clear(); // limpiar antes de llenar
+      data.experiencias.forEach((exp: any) => {
+        faExp.push(this.fb.group({
+          tiempo: [exp.tiempo ?? ''],
+          empresa: [exp.empresa ?? ''],
+          labores: [exp.labores ?? ''],
+          labores_principales: [exp.labores_principales ?? '']
+        }));
+      });
+    } else {
+      // Si no viene arreglo, asegurarse de limpiar
+      this.experienciasFA.clear();
+    }
+
 
     // Validación adicional
     this.infoPersonalForm.get('motivoNoAplica')?.updateValueAndValidity();

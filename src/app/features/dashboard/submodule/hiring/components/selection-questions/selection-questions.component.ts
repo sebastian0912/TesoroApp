@@ -1,5 +1,5 @@
 import { SharedModule } from '@/app/shared/shared.module';
-import { Component, OnInit, SimpleChanges } from '@angular/core';
+import { Component, OnChanges, OnInit, SimpleChanges } from '@angular/core';
 import { FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { MatTabsModule } from '@angular/material/tabs';
 import Swal from 'sweetalert2';
@@ -10,7 +10,8 @@ import { Input } from '@angular/core';
 import { MatDatepickerModule } from '@angular/material/datepicker';
 import { MatNativeDateModule } from '@angular/material/core';
 import { HiringService } from '../../service/hiring.service';
-import { debounceTime, firstValueFrom, merge, Subscription } from 'rxjs';
+import { catchError, debounceTime, firstValueFrom, merge, of, Subscription, take, throwError } from 'rxjs';
+import { I } from '@angular/cdk/keycodes';
 
 type UploadedFileInfo = {
   file?: File;
@@ -36,15 +37,18 @@ export class SelectionQuestionsComponent implements OnInit {
   idvacante: string = '';
   @Input() cedula: string = '';
   @Input() vacanteSeleccionada: any;
+  private _idProcesoSeleccion: number | null = null;
+
+  @Input() set idProcesoSeleccion(v: any) {
+    // fuerza a número si viene string
+    const n = v === null || v === undefined ? null : Number(v);
+    this._idProcesoSeleccion = Number.isFinite(n as number) ? (n as number) : null;
+    this.tryFetchOnce();
+  }
+  get idProcesoSeleccion() { return this._idProcesoSeleccion; }
+
   medidasCorrectivas = Array.from({ length: 10 }, (_, i) => i + 1);
   filteredExamOptions: string[] = [];
-  private _idProcesoSeleccion: number | null = null;
-  @Input() set idProcesoSeleccion(value: number | null) {
-    this._idProcesoSeleccion = value;
-    // Aquí reaccionas cada vez que cambie
-    console.log('idProcesoSeleccion recibido en hijo:', value);
-    // ej: this.form.patchValue({ seleccion: value ?? null });
-  }
 
   formGroup1: FormGroup;
   // (opcional) por si tu valor llegara como string y quieres compararlo como número
@@ -142,6 +146,50 @@ export class SelectionQuestionsComponent implements OnInit {
       default:
         return 'gray';
     }
+  }
+  private _lastId: number | null = null;
+  isLoading: boolean = false;
+
+  // ------------ CARGA PROTEGIDA (solo cuando ambos inputs están listos) ------------
+  private tryFetchOnce(): void {
+    // Solo arrancar si hay id
+    if (this._idProcesoSeleccion == null) return;
+
+    // Evitar llamadas duplicadas para el mismo id
+    if (this._lastId === this._idProcesoSeleccion) return;
+    this._lastId = this._idProcesoSeleccion;
+
+    this.isLoading = true;
+    console.debug('[SelectionQuestions] Fetching selección', {
+      idProcesoSeleccion: this._idProcesoSeleccion
+    });
+
+    this.seleccionService.getSeleccionPorId(this._idProcesoSeleccion!)
+      .pipe(
+        take(1),
+        catchError(err => {
+          this.isLoading = false;
+          if (err?.status === 404) {
+            console.warn('No hay proceso de selección para ese id.');
+            return of(null);
+          }
+          Swal.fire({
+            title: '¡Error!',
+            text: 'No se pudieron obtener los datos de selección. Inténtalo de nuevo más tarde.',
+            icon: 'error',
+            confirmButtonText: 'Ok'
+          });
+          return throwError(() => err);
+        })
+      )
+      .subscribe((response: any) => {
+        this.isLoading = false;
+        if (!response) return;
+
+        const sel = response?.procesoSeleccion ?? response;
+        this.loadDataSeleccion(sel);
+        this.loadDataDocumentos(); // <- si quieres que dependa del id, ajusta este método
+      });
   }
 
 
@@ -251,48 +299,6 @@ export class SelectionQuestionsComponent implements OnInit {
     ];
   }
 
-  ngOnChanges(changes: SimpleChanges): void {
-    const cedulaLlena = this.cedula && this.cedula.trim() !== '';
-
-    if (cedulaLlena) {
-
-      this.hiringService.traerDatosSeleccion(this.cedula).subscribe(
-        (response) => {
-          if (response) {
-            const procesos = response?.procesoSeleccion;
-            console.log('Procesos de selección encontrados:', procesos);
-            // 1️⃣  Si no hay procesos, salimos
-            if (!Array.isArray(procesos) || procesos.length === 0) { return; }
-
-            // 2️⃣  Obtenemos el proceso con id mayor
-            const ultimoProceso = procesos.reduce(
-              (max, curr) => (curr.id > max.id ? curr : max),
-              procesos[0]
-            );
-            console.log('Datos de selección:', ultimoProceso);
-
-            this.loadDataSeleccion(ultimoProceso);
-            this.loadDataDocumentos();
-
-          }
-        },
-        (error) => {
-          // si es 404
-          if (error?.status !== 404) {
-            Swal.fire({
-              title: '¡Error!',
-              text: 'No se pudieron obtener los datos de selección. Por favor, inténtelo de nuevo más tarde.',
-              icon: 'error',
-              confirmButtonText: 'Ok'
-            });
-            return;
-          }
-        }
-      );
-    }
-  }
-
-
   loadDataSeleccion(seleccion: any): void {
     const toInt = (v: any, def = 0) => {
       const n = parseInt(String(v ?? '').trim(), 10);
@@ -359,7 +365,6 @@ export class SelectionQuestionsComponent implements OnInit {
       });
 
       await Promise.all(tareas);
-      console.log('Documentos (con fechas):', this.uploadedFiles);
 
     } catch (err: any) {
       if (err?.error?.error !== 'No se encontraron documentos') {
@@ -479,7 +484,7 @@ export class SelectionQuestionsComponent implements OnInit {
       const payload = { ...this.formGroup1.value, numerodeceduladepersona: this.cedula };
 
       const resp: any = await firstValueFrom(
-        this.seleccionService.crearSeleccionParteUnoCandidato(payload, this.cedula, this._idProcesoSeleccion)
+        this.seleccionService.crearSeleccionParteUnoCandidato(payload, this.cedula, this.idProcesoSeleccion)
       );
 
       const message = (resp?.message || '').toLowerCase();

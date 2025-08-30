@@ -139,9 +139,9 @@
       <mat-form-field class="example-full-width" *ngIf="infoPersonalForm.get('experienciaFlores')?.value === 'Sí'">
         <mat-label>Tipo de experiencia en flores</mat-label>
         <mat-select formControlName="tipoExperienciaFlores">
-          <mat-option value="COSECHA">Cosecha</mat-option>
+          <mat-option value="CULTIVO">Cultivo</mat-option>
           <mat-option value="POSCOSECHA">Poscosecha</mat-option>
-          <mat-option value="RIEGO">Riego</mat-option>
+          <mat-option value="AMBAS">Ambas</mat-option>
           <mat-option value="OTROS">Otros</mat-option>
         </mat-select>
         <mat-error *ngIf="infoPersonalForm.get('tipoExperienciaFlores')?.hasError('required')">Requerido</mat-error>
@@ -359,11 +359,31 @@
         </mat-error>
       </mat-form-field>
 
-      <!-- Observación del evaluador (texto libre) -->
-      <mat-form-field class="example-full-width">
+
+      <!-- En espera de vacante -->
+      <!-- Observación del evaluador -->
+      <mat-form-field class="example-full-width" appearance="outline">
         <mat-label>Observación del evaluador</mat-label>
-        <input matInput formControlName="observacionEvaluador">
+        <mat-select formControlName="observacionEvaluador">
+          <mat-option value="">-- Seleccione --</mat-option>
+          <mat-option value="ESPERA DE VACANTE">ESPERA DE VACANTE</mat-option>
+        </mat-select>
       </mat-form-field>
+
+      <!-- ¿Por qué? (solo si observacionEvaluador = "espera") -->
+      <mat-form-field class="example-full-width" appearance="outline"
+        *ngIf="infoPersonalForm.get('observacionEvaluador')?.value === 'espera'">
+        <mat-label>¿Por qué está en espera?</mat-label>
+        <textarea matInput rows="3" formControlName="motivoEspera"></textarea>
+        <mat-hint align="start">Máx. 300 caracteres.</mat-hint>
+        <mat-error *ngIf="infoPersonalForm.get('motivoEspera')?.hasError('required')">
+          Este campo es obligatorio.
+        </mat-error>
+        <mat-error *ngIf="infoPersonalForm.get('motivoEspera')?.hasError('maxlength')">
+          Máximo 300 caracteres.
+        </mat-error>
+      </mat-form-field>
+
 
       <!-- Motivo (solo si NO_APLICA) -->
       <mat-form-field appearance="fill" class="example-full-width"
@@ -395,51 +415,47 @@
     <form [formGroup]="vacantesForm" class="form-tab">
 
       <!-- Selector de vacante -->
-<mat-form-field class="example-full-width" appearance="outline" style="min-width: 90% !important;">
-  <mat-label>Seleccionar vacante</mat-label>
+      <mat-form-field class="example-full-width" appearance="outline" style="min-width: 90% !important;">
+        <mat-label>Seleccionar vacante</mat-label>
 
-  <mat-select
-    [value]="vacanteSeleccionada?.id || null"
-    (selectionChange)="onVacanteIdChange($event.value)"
-  >
-    <!-- Trigger: cómo se ve la opción seleccionada -->
-    <mat-select-trigger>
-      <ng-container *ngIf="vacanteSeleccionada as v; else placeholder">
-        <span class="trigger-wrap">
-          <span class="trigger-title">{{ v.cargo }}</span>
-          <span class="spacer"></span>
-          <span class="pill pill-req">Req {{ totalRequerida(v) }}</span>
-          <span class="pill" [ngClass]="pillClasePre(v)">Pre {{ countPre(v) }}</span>
-          <span class="pill" [ngClass]="pillClaseCont(v)">Cont {{ countCont(v) }}</span>
-        </span>
-        <span class="trigger-meta">
-          {{ v.empresaUsuariaSolicita }} — {{ v.finca }} · {{ oficinasResumen(v.oficinasQueContratan) }}
-          · {{ formatShortDate(v.fechaPublicado) }}
-        </span>
-      </ng-container>
-      <ng-template #placeholder>Selecciona…</ng-template>
-    </mat-select-trigger>
+        <mat-select [(value)]="selectedVacanteId" (selectionChange)="onVacanteIdChange($event.value)">
+          <mat-select-trigger>
+            <ng-container *ngIf="vacanteSeleccionada as v; else placeholder">
+              <span class="trigger-wrap">
+                <span class="trigger-title">{{ v.cargo }}</span>
+                <span class="spacer"></span>
+                <span class="pill pill-req">Req {{ totalRequerida(v) }}</span>
+                <span class="pill" [ngClass]="pillClasePre(v)">Pre {{ countPre(v) }}</span>
+                <span class="pill" [ngClass]="pillClaseCont(v)">Cont {{ countCont(v) }}</span>
+              </span>
+              <span class="trigger-meta">
+                {{ v.empresaUsuariaSolicita }} — {{ v.finca }} · {{ oficinasResumen(v.oficinasQueContratan) }}
+                · {{ formatShortDate(v.fechaPublicado) }}
+              </span>
+            </ng-container>
+            <ng-template #placeholder>Selecciona…</ng-template>
+          </mat-select-trigger>
 
-    <!-- Opciones -->
-    <mat-option *ngFor="let v of vacantes" [value]="v.id">
-      <div class="vacante-option">
-        <div class="row-1">
-          <span class="cargo">{{ v.cargo }}</span>
-          <span class="spacer"></span>
-          <span class="pill pill-req">Req {{ totalRequerida(v) }}</span>
-          <span class="pill" [ngClass]="pillClasePre(v)">Pre {{ countPre(v) }}</span>
-          <span class="pill" [ngClass]="pillClaseCont(v)">Cont {{ countCont(v) }}</span>
-        </div>
-        <div class="row-2">
-          <span class="empresa">{{ v.empresaUsuariaSolicita }}</span> —
-          <span class="finca">{{ v.finca }}</span> ·
-          <span class="oficinas">{{ oficinasResumen(v.oficinasQueContratan) }}</span> ·
-          <span class="fecha">{{ formatShortDate(v.fechaPublicado) }}</span>
-        </div>
-      </div>
-    </mat-option>
-  </mat-select>
-</mat-form-field>
+          <!-- Opciones -->
+          <mat-option *ngFor="let v of vacantes" [value]="v.id">
+            <div class="vacante-option">
+              <div class="row-1">
+                <span class="cargo">{{ v.cargo }}</span>
+                <span class="spacer"></span>
+                <span class="pill pill-req">Req {{ totalRequerida(v) }}</span>
+                <span class="pill" [ngClass]="pillClasePre(v)">Pre {{ countPre(v) }}</span>
+                <span class="pill" [ngClass]="pillClaseCont(v)">Cont {{ countCont(v) }}</span>
+              </div>
+              <div class="row-2">
+                <span class="empresa">{{ v.empresaUsuariaSolicita }}</span> —
+                <span class="finca">{{ v.finca }}</span> ·
+                <span class="oficinas">{{ oficinasResumen(v.oficinasQueContratan) }}</span> ·
+                <span class="fecha">{{ formatShortDate(v.fechaPublicado) }}</span>
+              </div>
+            </div>
+          </mat-option>
+        </mat-select>
+      </mat-form-field>
 
 
       <!-- Resumen (opcional) -->
@@ -562,7 +578,9 @@
   </mat-tab>
    -->
 
-  <!-- ─────────── TAB 4 • CONTRATACIÓN ─────────── -->
+  <!-- ─────────── TAB 4 • CONTRATACIÓN ─────────── 
+   
+
   <mat-tab>
     <ng-template mat-tab-label>
       <div class="tab-label">
@@ -607,5 +625,6 @@
     </div>
 
   </mat-tab>
-
+  -->
+  
 </mat-tab-group>
