@@ -96,7 +96,7 @@ export class SeleccionService {
       requestData.seleccion = seleccion;
     }
 
-    // IMPORTANTE: ya NO enviamos jwt en el body
+    // IMPORTANTE: ya NO enviamos jwt crearSeleccionParteUnoCandidato
     return this.http
       .post(`${this.apiUrl}/Seleccion/crearSeleccionParteUnoCandidato`, requestData, { headers })
       .pipe(

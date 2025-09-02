@@ -1,4 +1,4 @@
-import { Component, LOCALE_ID, OnInit, ViewChild } from '@angular/core';
+import { Component, inject, LOCALE_ID, OnInit, ViewChild } from '@angular/core';
 import { MatIconModule } from '@angular/material/icon';
 import { MatTabsModule } from '@angular/material/tabs';
 import { SharedModule } from '../../../../../../shared/shared.module';
@@ -6,7 +6,7 @@ import { SearchForCandidateComponent } from '../../components/search-for-candida
 import { SelectionQuestionsComponent } from '../../components/selection-questions/selection-questions.component';
 import { AbstractControl, FormArray, FormBuilder, FormGroup, FormsModule, Validators } from '@angular/forms';
 import { VacantesService } from '../../service/vacantes/vacantes.service';
-import { catchError, firstValueFrom, of, take } from 'rxjs';
+import { catchError, firstValueFrom, of, take, throwError } from 'rxjs';
 import Swal from 'sweetalert2';
 import { UtilityServiceService } from '@/app/shared/services/utilityService/utility-service.service';
 import { HelpInformationComponent } from '../../components/help-information/help-information.component';
@@ -29,6 +29,8 @@ import { TablaComponent } from '@/app/shared/components/tabla/tabla.component';
 import { ColumnConfig } from '@/app/shared/models/advanced-table-interface';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { ColumnDefinition, StandardFilterTable } from '@/app/shared/components/standard-filter-table/standard-filter-table';
+import { HttpErrorResponse } from '@angular/common/http';
+import { MatSnackBar } from '@angular/material/snack-bar';
 
 export const MY_DATE_FORMATS = {
   parse: { dateInput: 'DD/MM/YYYY' },
@@ -449,81 +451,117 @@ export class RecruitmentPipelineComponent implements OnInit {
     }
   }
 
+  private snackBar = inject(MatSnackBar);
+
   async onCedulaSeleccionada(cedula: string): Promise<void> {
     this.cedulaActual = cedula;
     this.mostrarTabla();
 
+    // 1) Contratación: si 404 solo limpia y sigue (no crea nada aquí)
     this.seleccionService.buscarEncontratacion(this.cedulaActual)
-      .pipe(take(1))
+      .pipe(
+        take(1),
+        catchError((err: HttpErrorResponse) => {
+          if (err.status === 404) {
+            this.codigoContratoActual = '';
+            this.snackBar.open('No hay contratación asociada.', 'OK', { duration: 2500 });
+            return of(null);
+          }
+          this.snackBar.open('Error al consultar contratación', 'OK', { duration: 3500 });
+          console.error('buscarEncontratacion error:', err);
+          return of(null);
+        })
+      )
       .subscribe((resp: any) => {
-        console.log('resp:', resp);
         this.codigoContratoActual = resp?.codigo_contrato || '';
-        console.log('Código de contrato actual:', this.codigoContratoActual);
       });
 
-    this.contratacionService.traerDatosSeleccion(this.cedulaActual).subscribe(async (response: any) => {
-      const list = response?.procesoSeleccion;
-      // Si no hay historial: empezamos nuevo proceso
-      if (!Array.isArray(list) || list.length === 0) {
-        this.iniciarNuevoProcesoUI();
-        return;
-      }
+    // 2) Datos de selección: el backend crea (201) cuando antes era 404
+    this.contratacionService.traerDatosSeleccion(this.cedulaActual)
+      .pipe(
+        take(1),
+        catchError((err: HttpErrorResponse) => {
+          // Si llega 404 aquí, normalmente falló la creación automática o no existe candidato
+          if (err.status === 404) {
+          
+            Swal.fire('Atención', 'No fue posible crear el proceso de selección automáticamente.', 'warning');
+            return of(null);
+          }
+          this.snackBar.open('Error al traer datos de selección', 'OK', { duration: 10000 });
+          console.error('traerDatosSeleccion error:', err);
+          return of(null);
+        })
+      )
+      .subscribe(async (response: any) => {
+        console.log('Datos selección recibidos:', response);
+        if (!response) return;
+        console.log('Datos selección recibidos:', response);
+        // Caso creado por el backend (antes recibías 404)
+        if (response.created && response.createdId) {
+          this.idProcesoSeleccion = response.createdId;
+          Swal.fire('Listo', 'Se creó el proceso de selección automáticamente.', 'success');
+          this.iniciarNuevoProcesoUI(); // arranca flujo de nuevo proceso con el id
+          return;
+        }
 
-      // Top 2 por id DESC (id solo interno, no se muestra)
-      const topTwo = [...list]
-        .filter(x => typeof x?.id === 'number')
-        .sort((a, b) => b.id - a.id)
-        .slice(0, 2);
+        // Caso normal: ya había historial
+        const list = Array.isArray(response?.procesoSeleccion) ? response.procesoSeleccion : [];
+        if (list.length === 0) {
+          // Respaldo defensivo
+          this.iniciarNuevoProcesoUI();
+          return;
+        }
 
-      // Mostrar selector SIEMPRE (para permitir “nuevo proceso”)
-      const chosen = await this.elegirProcesoBonitoSinIdONuevo(topTwo);
-      if (!chosen) return; // canceló
+        // Top 2 por id DESC
+        const topTwo = [...list]
+          .filter(x => typeof x?.id === 'number')
+          .sort((a, b) => b.id - a.id)
+          .slice(0, 2);
 
-      console.log('Proceso elegido:', chosen);
-      this.idVacanteContratacion = chosen.vacante;
-      if (chosen === 'NEW') {
-        this.iniciarNuevoProcesoUI();
-        return;
-      }
+        // Mostrar selector (permite “nuevo proceso”)
+        const chosen = await this.elegirProcesoBonitoSinIdONuevo(topTwo);
+        if (!chosen) return;
 
-      // --- Continuar con proceso existente ---
-      const data = chosen;
-      this.idProcesoSeleccion = data.id; // guardar id interno
+        // Si el usuario elige crear uno nuevo desde el selector
+        if (chosen === 'NEW') {
+          this.iniciarNuevoProcesoUI();
+          return;
+        }
 
+        // --- Continuar con proceso existente ---
+        const data = chosen;
+        this.idProcesoSeleccion = data.id;
+        this.idVacanteContratacion = data?.vacante ?? null;
 
-      // 1) IPS / IPSLAB
-      this.formGroup3.patchValue({
-        ips: data?.ips ?? '',
-        ipsLab: data?.ipslab ?? data?.ipsLab ?? ''
+        // 1) IPS / IPSLAB
+        this.formGroup3.patchValue({
+          ips: data?.ips ?? '',
+          ipsLab: data?.ipslab ?? data?.ipsLab ?? ''
+        });
+
+        // 2) Exámenes y aptos
+        const examenesArr = String(data?.examenes || '')
+          .split(',').map((s: string) => s.trim()).filter(Boolean);
+
+        const aptosArr = String(data?.aptosExamenes || '')
+          .split(',').map((s: string) => s.trim().toUpperCase()).filter(Boolean);
+
+        const len = Math.min(examenesArr.length, aptosArr.length);
+        const selectedExams = examenesArr.slice(0, len);
+        const selectedAptos = aptosArr.slice(0, len);
+
+        this.formGroup3.get('selectedExams')?.setValue(selectedExams);
+
+        const fa = this.fb.array(
+          selectedAptos.map((status: string) =>
+            this.fb.group({ aptoStatus: [status || 'APTO'] })
+          )
+        );
+        this.formGroup3.setControl('selectedExamsArray', fa);
       });
-
-      // 2) Examénes y aptos
-      const examenesArr = String(data?.examenes || '')
-        .split(',')
-        .map((s: string) => s.trim())
-        .filter(Boolean);
-
-      const aptosArr = String(data?.aptosExamenes || '')
-        .split(',')
-        .map((s: string) => s.trim().toUpperCase())
-        .filter(Boolean);
-
-      const len = Math.min(examenesArr.length, aptosArr.length);
-      const selectedExams = examenesArr.slice(0, len);
-      const selectedAptos = aptosArr.slice(0, len);
-
-      this.formGroup3.get('selectedExams')?.setValue(selectedExams);
-
-      const fa = this.fb.array(
-        selectedAptos.map((status: string) =>
-          this.fb.group({
-            aptoStatus: [status || 'APTO']
-          })
-        )
-      );
-      this.formGroup3.setControl('selectedExamsArray', fa);
-    });
   }
+
+
 
   /** Limpia UI para iniciar un proceso nuevo */
   private iniciarNuevoProcesoUI(): void {
@@ -898,7 +936,7 @@ export class RecruitmentPipelineComponent implements OnInit {
         .subscribe({
           next: r => {
             this.codigoContratoActual = r.nuevo_codigo;
-            
+
           },
           error: () => console.warn('No se pudo generar el código de contrato')
         });
