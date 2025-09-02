@@ -73,7 +73,7 @@
       </mat-form-field>
 
       <!-- Fecha de nacimiento -->
-      <mat-form-field appearance="fill" class="example-full-width">
+      <mat-form-field appearance="outline" class="example-full-width">
         <mat-label>Fecha de nacimiento</mat-label>
         <input matInput [matDatepicker]="pickerNacimiento" formControlName="fechaNacimiento"
           placeholder="Selecciona la fecha" autocomplete="off" readonly (focus)="pickerNacimiento.open()"
@@ -91,7 +91,7 @@
       </mat-form-field>
 
       <!-- Fecha de expedicion -->
-      <mat-form-field appearance="fill" class="example-full-width">
+      <mat-form-field appearance="outline" class="example-full-width">
         <mat-label>Fecha de expedición</mat-label>
         <input matInput [matDatepicker]="pickerExpedicion" formControlName="fechaExpedicion"
           placeholder="Selecciona la fecha" autocomplete="off" readonly (focus)="pickerExpedicion.open()"
@@ -244,24 +244,24 @@
             </div>
 
             <div class="grid-2">
-              <mat-form-field appearance="fill">
+              <mat-form-field appearance="outline">
                 <mat-label>Nombre de la empresa</mat-label>
                 <input matInput formControlName="empresa">
               </mat-form-field>
 
-              <mat-form-field appearance="fill">
+              <mat-form-field appearance="outline">
                 <mat-label>Tiempo (meses/años)</mat-label>
                 <input matInput formControlName="tiempo">
               </mat-form-field>
             </div>
 
             <div class="grid-1">
-              <mat-form-field appearance="fill">
+              <mat-form-field appearance="outline">
                 <mat-label>Labores realizadas</mat-label>
                 <textarea matInput rows="2" formControlName="labores"></textarea>
               </mat-form-field>
 
-              <mat-form-field appearance="fill">
+              <mat-form-field appearance="outline">
                 <mat-label>Labores principales</mat-label>
                 <textarea matInput rows="2" formControlName="labores_principales"></textarea>
               </mat-form-field>
@@ -279,7 +279,7 @@
 
         <div class="grid-2">
           <!-- ¿Tiene hijos? -->
-          <mat-form-field appearance="fill">
+          <mat-form-field appearance="outline">
             <mat-label>¿Tiene hijos?</mat-label>
             <mat-select formControlName="tieneHijos" required>
               <mat-option [value]="true">Sí</mat-option>
@@ -298,7 +298,7 @@
         <!-- Si tiene hijos, mostrar detalles debajo -->
         <div *ngIf="infoPersonalForm.get('tieneHijos')?.value === true" class="stack">
           <div class="grid-2">
-            <mat-form-field appearance="fill">
+            <mat-form-field appearance="outline">
               <mat-label>¿Quién los cuida?</mat-label>
               <input matInput formControlName="cuidadorHijos" placeholder="Ej: Madre, Abuela, Guardería...">
               <mat-error
@@ -307,7 +307,7 @@
               </mat-error>
             </mat-form-field>
 
-            <mat-form-field appearance="fill">
+            <mat-form-field appearance="outline">
               <mat-label>Número de hijos</mat-label>
               <input matInput type="number" min="1" formControlName="numeroHijos" placeholder="Ej: 2">
               <mat-error
@@ -328,7 +328,7 @@
               </div>
 
               <div class="grid-3">
-                <mat-form-field appearance="fill">
+                <mat-form-field appearance="outline">
                   <mat-label>Edad</mat-label>
                   <input matInput type="number" formControlName="edad" min="0" max="99">
                   <mat-error *ngIf="hijo.get('edad')?.hasError('required')">Requerido</mat-error>
@@ -347,7 +347,7 @@
       </mat-form-field>
 
       <!-- ¿Observación del evaluador? (select) -->
-      <mat-form-field appearance="fill" class="example-full-width">
+      <mat-form-field appearance="outline" class="example-full-width">
         <mat-label>¿Observación del evaluador?</mat-label>
         <mat-select formControlName="aplicaObservacion" required>
           <mat-option value="APLICA">APLICA</mat-option>
@@ -372,9 +372,9 @@
 
       <!-- ¿Por qué? (solo si observacionEvaluador = "espera") -->
       <mat-form-field class="example-full-width" appearance="outline"
-        *ngIf="infoPersonalForm.get('observacionEvaluador')?.value === 'espera'">
+        *ngIf="infoPersonalForm.get('observacionEvaluador')?.value === 'ESPERA DE VACANTE'">
         <mat-label>¿Por qué está en espera?</mat-label>
-        <textarea matInput rows="3" formControlName="motivoEspera"></textarea>
+        <input matInput formControlName="motivoEspera">
         <mat-hint align="start">Máx. 300 caracteres.</mat-hint>
         <mat-error *ngIf="infoPersonalForm.get('motivoEspera')?.hasError('required')">
           Este campo es obligatorio.
@@ -386,7 +386,7 @@
 
 
       <!-- Motivo (solo si NO_APLICA) -->
-      <mat-form-field appearance="fill" class="example-full-width"
+      <mat-form-field appearance="outline" class="example-full-width"
         *ngIf="infoPersonalForm.get('aplicaObservacion')?.value === 'NO_APLICA'">
         <mat-label>Motivo (obligatorio)</mat-label>
         <input matInput formControlName="motivoNoAplica" required>
@@ -542,32 +542,32 @@
     </ng-template>    <br>
 
     <div class="secciones" [formGroup]="formGroup2">
-      <mat-form-field appearance="fill" class="example-full-width">
+      <mat-form-field appearance="outline" class="example-full-width">
         <mat-label>Centro de Costo</mat-label>
         <input matInput formControlName="centroCosto" placeholder="CENTRO DE COSTO ENTREVISTA O PRUEBA TECNICA">
       </mat-form-field>
-      <mat-form-field appearance="fill" class="example-full-width">
+      <mat-form-field appearance="outline" class="example-full-width">
         <mat-label>Cargo</mat-label>
         <input matInput formControlName="cargo" placeholder="CARGO">
       </mat-form-field>
-      <mat-form-field appearance="fill" class="example-full-width">
+      <mat-form-field appearance="outline" class="example-full-width">
         <mat-label>Área en la que presentará la entrevista</mat-label>
         <input matInput formControlName="areaEntrevista" placeholder="ÁREA EN LA QUE PRESENTARA LA ENTREVISTA">
       </mat-form-field>
 
-      <mat-form-field appearance="fill" class="example-full-width">
+      <mat-form-field appearance="outline" class="example-full-width">
         <mat-label>Fecha de la Prueba o Entrevista</mat-label>
         <input matInput [matDatepicker]="picker" formControlName="fechaPruebaEntrevista">
         <mat-datepicker-toggle matSuffix [for]="picker"></mat-datepicker-toggle>
         <mat-datepicker #picker></mat-datepicker>
       </mat-form-field>
 
-      <mat-form-field appearance="fill" class="example-full-width">
+      <mat-form-field appearance="outline" class="example-full-width">
         <mat-label>Hora de la Prueba o Entrevista</mat-label>
         <input matInput type="time" formControlName="horaPruebaEntrevista">
       </mat-form-field>
 
-      <mat-form-field appearance="fill" class="example-full-width">
+      <mat-form-field appearance="outline" class="example-full-width">
         <mat-label>Dirección o indicación para llegar a la empresa</mat-label>
         <input matInput formControlName="direccionEmpresa"
           placeholder="DIRECCION O INDICACION PARA LLEGAR A LA EMPRESA">
@@ -578,8 +578,8 @@
   </mat-tab>
    -->
 
-  <!-- ─────────── TAB 4 • CONTRATACIÓN ─────────── 
-   
+  <!-- ─────────── TAB 4 • CONTRATACIÓN ───────────
+
 
   <mat-tab>
     <ng-template mat-tab-label>
@@ -589,35 +589,35 @@
     </ng-template> <br>
 
     <div class="secciones" [formGroup]="formGroup4">
-      <mat-form-field appearance="fill" class="example-full-width">
+      <mat-form-field appearance="outline" class="example-full-width">
         <mat-label>Empresa Usuaria</mat-label>
         <input matInput formControlName="empresaUsuaria" placeholder="EMPRESA USUARIA">
       </mat-form-field>
 
-      <mat-form-field appearance="fill" class="example-full-width">
+      <mat-form-field appearance="outline" class="example-full-width">
         <mat-label>Fecha de Ingreso</mat-label>
         <input matInput [matDatepicker]="pickerFechaIngreso" formControlName="fechaIngreso">
         <mat-datepicker-toggle matSuffix [for]="pickerFechaIngreso"></mat-datepicker-toggle>
         <mat-datepicker #pickerFechaIngreso></mat-datepicker>
       </mat-form-field>
 
-      <mat-form-field appearance="fill" class="example-full-width">
+      <mat-form-field appearance="outline" class="example-full-width">
         <mat-label>Salario</mat-label>
         <input matInput formControlName="salario" placeholder="SALARIO">
       </mat-form-field>
-      <mat-form-field appearance="fill" class="example-full-width">
+      <mat-form-field appearance="outline" class="example-full-width">
         <mat-label>Auxilio de Transporte</mat-label>
         <input matInput formControlName="auxTransporte" placeholder="AUXTRANSPORTE">
       </mat-form-field>
-      <mat-form-field appearance="fill" class="example-full-width">
+      <mat-form-field appearance="outline" class="example-full-width">
         <mat-label>Rodamiento</mat-label>
         <input matInput formControlName="rodamiento" placeholder="RODAMIENTO">
       </mat-form-field>
-      <mat-form-field appearance="fill" class="example-full-width">
+      <mat-form-field appearance="outline" class="example-full-width">
         <mat-label>Auxilio de Movilidad</mat-label>
         <input matInput formControlName="auxMovilidad" placeholder="AUX MOVILIDAD">
       </mat-form-field>
-      <mat-form-field appearance="fill" class="example-full-width">
+      <mat-form-field appearance="outline" class="example-full-width">
         <mat-label>Bonificación</mat-label>
         <input matInput formControlName="bonificacion" placeholder="BONIFICACION">
       </mat-form-field>
@@ -626,5 +626,5 @@
 
   </mat-tab>
   -->
-  
+
 </mat-tab-group>

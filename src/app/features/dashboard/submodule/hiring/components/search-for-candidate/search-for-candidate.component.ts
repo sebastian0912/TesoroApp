@@ -291,9 +291,17 @@ export class SearchForCandidateComponent implements OnInit, OnDestroy {
   }
 
   buscarEntrevistaAndrea(): void {
+    console.log('Buscando entrevista para cédula:', this.cedula);
+    // quitar espacios
+    this.cedula = this.cedula.trim();
     this.infoVacantesService.getVacantesPorNumero(this.cedula).subscribe({
       next: (resultado) => {
         const entrevista = resultado?.[0];
+        if (!entrevista) {
+          Swal.fire('Error', 'No se encontró la informacion, por favor llenar de nuevo el pre formulario correctamente', 'error');
+          return;
+        }
+        console.log('Entrevista encontrada:', entrevista);
         this.cedula = entrevista.numero;
         this.cedulaSeleccionada.emit(this.cedula);
         this.nombreCompletoChange.emit(entrevista.primer_nombre + ' ' + (entrevista.segundo_nombre ?? '') + ' ' + entrevista.primer_apellido + ' ' + (entrevista.segundo_apellido ?? ''));
