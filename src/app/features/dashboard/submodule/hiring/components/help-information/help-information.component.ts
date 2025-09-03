@@ -251,12 +251,11 @@ export class HelpInformationComponent implements OnInit {
 
       tiempoResidencia: ['', Validators.required],
       proyeccion1Ano: ['', Validators.required],
-      //estudiaActualmente: [null, Validators.required],
+      estudiaActualmente: ['', Validators.required],
 
       experiencias: this.fb.array([]), // arreglo dinámico (empresa, labores, tiempo, labores_principales)
       observacionEvaluador: [''],
       motivoEspera: [''],
-
     });
 
 
@@ -496,273 +495,272 @@ export class HelpInformationComponent implements OnInit {
   }
 
   // Métodos de guardado (mock)
-// 1) Etiquetas legibles para infoPersonalForm
- LABELS_INFO: Record<string, string> = {
-  tipodedocumento: 'Tipo de documento',
-  numerodecedula: 'Número de cédula',
-  municipio: 'Municipio',
-  municipioExpedicion: 'Municipio de expedición',
-  nombreCompleto: 'Nombre completo',
-  celular: 'Celular',
-  whatsapp: 'WhatsApp',
-  genero: 'Sexo',
-  edad: 'Edad',
-  fechaNacimiento: 'Fecha de nacimiento',
-  fechaExpedicion: 'Fecha de expedición',
-  barrio: 'Barrio',
-  tieneExperienciaFlores: '¿Tiene experiencia en flores?',
-  experienciaFlores: '¿Tiene experiencia en flores?',
-  tipoExperienciaFlores: 'Tipo de experiencia en flores',
-  otroExperiencia: 'Otro tipo de experiencia',
-  referenciado: 'Referenciado',
-  nombreReferenciado: 'Nombre del referenciado',
-  comoSeEntero: '¿Cómo se enteró?',
-  laboresRealizadas: 'Labores realizadas',
-  empresasLaborado: 'Empresas donde ha laborado',
-  tiempoExperiencia: 'Tiempo de experiencia',
-  escolaridad: 'Escolaridad',
-  numHijos: 'Número de hijos (legacy)',
-  edadesHijos: 'Edades de los hijos (legacy)',
-  quienLosCuida: 'Quién los cuida (legacy)',
-  aplicaObservacion: '¿Observación del evaluador?',
-  motivoNoAplica: 'Motivo (No aplica)',
-  hijos: 'Hijos',
-  primerApellido: 'Primer apellido',
-  segundoApellido: 'Segundo apellido',
-  primerNombre: 'Primer nombre',
-  segundoNombre: 'Segundo nombre',
-  lugarNacimiento: 'Lugar de nacimiento',
-  oficina: 'Oficina',
-  brigadaDe: 'Brigada',
-  correo_usuario: 'Usuario del correo',
-  correo_dominio: 'Dominio del correo',
-  estadoCivil: 'Estado civil',
-  conQuienViveChecks: 'Con quién vive',
-  tieneHijos: '¿Tiene hijos?',
-  cuidadorHijos: 'Quién cuida a los hijos',
-  numeroHijos: 'Número de hijos',
-  tiempoResidencia: 'Tiempo de residencia',
-  proyeccion1Ano: 'Proyección a 1 año',
-  experiencias: 'Experiencias',
-  observacionEvaluador: 'Observación del evaluador',
-  motivoEspera: 'Motivo de espera'
-};
-
-// 2) Helper: arma la lista HTML de errores (incluye condicionales)
-private buildInvalidList(): { html: string; firstKey?: string } {
-  const f = this.infoPersonalForm;
-  const lines: string[] = [];
-  let firstKey: string | undefined;
-
-  const push = (key: string, msg: string) => {
-    if (!firstKey) firstKey = key;
-    lines.push(`<li><b>${this.LABELS_INFO[key] ?? key}:</b> ${msg}</li>`);
+  // 1) Etiquetas legibles para infoPersonalForm
+  LABELS_INFO: Record<string, string> = {
+    tipodedocumento: 'Tipo de documento',
+    numerodecedula: 'Número de cédula',
+    municipio: 'Municipio',
+    municipioExpedicion: 'Municipio de expedición',
+    nombreCompleto: 'Nombre completo',
+    celular: 'Celular',
+    whatsapp: 'WhatsApp',
+    genero: 'Sexo',
+    edad: 'Edad',
+    fechaNacimiento: 'Fecha de nacimiento',
+    fechaExpedicion: 'Fecha de expedición',
+    barrio: 'Barrio',
+    tieneExperienciaFlores: '¿Tiene experiencia en flores?',
+    experienciaFlores: '¿Tiene experiencia en flores?',
+    tipoExperienciaFlores: 'Tipo de experiencia en flores',
+    otroExperiencia: 'Otro tipo de experiencia',
+    referenciado: 'Referenciado',
+    nombreReferenciado: 'Nombre del referenciado',
+    comoSeEntero: '¿Cómo se enteró?',
+    laboresRealizadas: 'Labores realizadas',
+    empresasLaborado: 'Empresas donde ha laborado',
+    tiempoExperiencia: 'Tiempo de experiencia',
+    escolaridad: 'Escolaridad',
+    numHijos: 'Número de hijos (legacy)',
+    edadesHijos: 'Edades de los hijos (legacy)',
+    quienLosCuida: 'Quién los cuida (legacy)',
+    aplicaObservacion: '¿Observación del evaluador?',
+    motivoNoAplica: 'Motivo (No aplica)',
+    hijos: 'Hijos',
+    primerApellido: 'Primer apellido',
+    segundoApellido: 'Segundo apellido',
+    primerNombre: 'Primer nombre',
+    segundoNombre: 'Segundo nombre',
+    lugarNacimiento: 'Lugar de nacimiento',
+    oficina: 'Oficina',
+    brigadaDe: 'Brigada',
+    estadoCivil: 'Estado civil',
+    conQuienViveChecks: 'Con quién vive',
+    tieneHijos: '¿Tiene hijos?',
+    cuidadorHijos: 'Quién cuida a los hijos',
+    numeroHijos: 'Número de hijos',
+    tiempoResidencia: 'Tiempo de residencia',
+    proyeccion1Ano: 'Proyección a 1 año',
+    experiencias: 'Experiencias',
+    observacionEvaluador: 'Observación del evaluador',
+    motivoEspera: 'Motivo de espera',
+    estudiaActualmente: '¿Estudia actualmente?'
   };
 
-  // ------ Errores por validadores estándar ------
-  Object.entries(f.controls).forEach(([key, control]) => {
-    if (!control || control.valid) return;
-    const errors = control.errors || {};
+  // 2) Helper: arma la lista HTML de errores (incluye condicionales)
+  private buildInvalidList(): { html: string; firstKey?: string } {
+    const f = this.infoPersonalForm;
+    const lines: string[] = [];
+    let firstKey: string | undefined;
 
-    if (errors['required']) push(key, 'es obligatorio.');
-    if (errors['pattern']) {
-      if (key === 'celular' || key === 'whatsapp') {
-        push(key, 'formato inválido (debe iniciar con 3 y tener 10 dígitos).');
-      } else if (key === 'correo_usuario') {
-        push(key, 'solo el usuario (sin @, espacios ni dominio).');
-      } else {
-        push(key, 'formato inválido.');
-      }
-    }
-    if (errors['minlength']) {
-      const req = errors['minlength'].requiredLength;
-      push(key, `mínimo ${req} caracteres.`);
-    }
-    if (errors['maxlength']) {
-      const req = errors['maxlength'].requiredLength;
-      push(key, `máximo ${req} caracteres.`);
-    }
-    if (errors['min']) {
-      push(key, `debe ser al menos ${errors['min'].min}.`);
-    }
-    if (errors['max']) {
-      push(key, `debe ser como máximo ${errors['max'].max}.`);
-    }
-  });
+    const push = (key: string, msg: string) => {
+      if (!firstKey) firstKey = key;
+      lines.push(`<li><b>${this.LABELS_INFO[key] ?? key}:</b> ${msg}</li>`);
+    };
 
-  // ------ Reglas condicionales de negocio ------
-  // 2.1 Experiencia en flores
-  const exp = f.get('experienciaFlores')?.value;
-  if (exp === 'Sí') {
-    if (!f.get('tipoExperienciaFlores')?.value) {
-      push('tipoExperienciaFlores', 'es obligatorio cuando hay experiencia en flores.');
-    } else if (f.get('tipoExperienciaFlores')?.value === 'OTROS' &&
-               !String(f.get('otroExperiencia')?.value || '').trim()) {
-      push('otroExperiencia', 'es obligatorio cuando el tipo es "OTROS".');
-    }
-  }
+    // ------ Errores por validadores estándar ------
+    Object.entries(f.controls).forEach(([key, control]) => {
+      if (!control || control.valid) return;
+      const errors = control.errors || {};
 
-  // 2.2 Referenciado
-  if (f.get('referenciado')?.value === 'SI' &&
-      !String(f.get('nombreReferenciado')?.value || '').trim()) {
-    push('nombreReferenciado', 'es obligatorio cuando "Referenciado" es "Sí".');
-  }
-
-  // 2.3 Hijos
-  if (f.get('tieneHijos')?.value === true) {
-    if (!String(f.get('cuidadorHijos')?.value || '').trim()) {
-      push('cuidadorHijos', 'es obligatorio cuando "¿Tiene hijos?" es "Sí".');
-    }
-    const nH = Number(f.get('numeroHijos')?.value ?? 0);
-    if (!nH || nH < 1) {
-      push('numeroHijos', 'debe ser al menos 1 cuando "¿Tiene hijos?" es "Sí".');
-    }
-    // Validar edades en el FormArray hijos (si existe)
-    const hijosFA = f.get('hijos') as import('@angular/forms').FormArray;
-    if (hijosFA && hijosFA.length) {
-      hijosFA.controls.forEach((grp, idx) => {
-        const edadCtrl = grp.get('edad');
-        if (!edadCtrl?.value && edadCtrl?.touched) {
-          push('hijos', `falta la edad del hijo #${idx + 1}.`);
+      if (errors['required']) push(key, 'es obligatorio.');
+      if (errors['pattern']) {
+        if (key === 'celular' || key === 'whatsapp') {
+          push(key, 'formato inválido (debe iniciar con 3 y tener 10 dígitos).');
+        } else if (key === 'correo_usuario') {
+          push(key, 'solo el usuario (sin @, espacios ni dominio).');
+        } else {
+          push(key, 'formato inválido.');
         }
-      });
-    }
-  }
-
-  // 2.4 Observaciones del evaluador
-  if (f.get('observacionEvaluador')?.value === 'ESPERA DE VACANTE') {
-    const motivo = String(f.get('motivoEspera')?.value || '');
-    if (!motivo.trim()) {
-      push('motivoEspera', 'es obligatorio cuando la observación es "ESPERA DE VACANTE".');
-    } else if (motivo.length > 300) {
-      push('motivoEspera', 'máximo 300 caracteres.');
-    }
-  }
-
-  // 2.5 NO_APLICA requiere motivo
-  if (f.get('aplicaObservacion')?.value === 'NO_APLICA' &&
-      !String(f.get('motivoNoAplica')?.value || '').trim()) {
-    push('motivoNoAplica', 'debe especificarse cuando es "NO APLICA".');
-  }
-
-  // 2.6 Correo armado: usuario + dominio
-  if (!String(f.get('correo_usuario')?.value || '').trim()) {
-    push('correo_usuario', 'es obligatorio.');
-  } else if (/@|\s/.test(String(f.get('correo_usuario')?.value))) {
-    push('correo_usuario', 'no debe incluir @, espacios ni el dominio.');
-  }
-  if (!String(f.get('correo_dominio')?.value || '').trim()) {
-    push('correo_dominio', 'es obligatorio.');
-  }
-
-  // 2.7 Oficina con BRIGADA requiere detalle
-  if (String(f.get('oficina')?.value || '') === 'BRIGADA' &&
-      !String(f.get('brigadaDe')?.value || '').trim()) {
-    push('brigadaDe', 'es obligatorio cuando la oficina es "BRIGADA".');
-  }
-
-  const html = lines.length
-    ? `<ul style="text-align:left;margin:0;padding-left:18px;">${lines.join('')}</ul>`
-    : '';
-  return { html, firstKey };
-}
-
-// 3) Helper: enfoca el primer control con error
-private scrollToControl(key?: string) {
-  if (!key) return;
-  const el = document.querySelector(`[formcontrolname="${key}"]`) as HTMLElement | null;
-  if (el) {
-    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    setTimeout(() => el.focus(), 200);
-  }
-}
-
-// 4) Tu función, con SweetAlert detallado + foco al primer error
-guardarInfoPersonal(): void {
-  if (this.infoPersonalForm.invalid) {
-    this.infoPersonalForm.markAllAsTouched();
-
-    // Construir lista de errores (incluye condicionales)
-    const { html, firstKey } = this.buildInvalidList();
-
-    Swal.fire({
-      title: 'Revisa la información',
-      html: html || 'Por favor, completa los campos obligatorios.',
-      icon: 'warning',
-      confirmButtonText: 'Entendido'
-    }).then(() => this.scrollToControl(firstKey));
-
-    return;
-  }
-
-  // Valida reglas condicionales también cuando el form "pase"
-  const { html, firstKey } = this.buildInvalidList();
-  if (html) {
-    Swal.fire({
-      title: 'Faltan datos',
-      html,
-      icon: 'warning',
-      confirmButtonText: 'Entendido'
-    }).then(() => this.scrollToControl(firstKey));
-    return;
-  }
-
-  // ====== Si todo OK, preparar payload ======
-  const info: any = { ...this.infoPersonalForm.value };
-  info.id = this._idInfoEntrevistaAndrea;
-
-  // Normalizar fechas a YYYY-MM-DD
-  const toYMD = (v: any) => {
-    if (!v) return v;
-    if (v instanceof Date) {
-      const yyyy = v.getFullYear();
-      const mm = String(v.getMonth() + 1).padStart(2, '0');
-      const dd = String(v.getDate()).padStart(2, '0');
-      return `${yyyy}-${mm}-${dd}`;
-    }
-    if (typeof v === 'string' && v.length > 10) return v.slice(0, 10);
-    return v;
-  };
-  info.fechaNacimiento = toYMD(info.fechaNacimiento);
-  info.fechaExpedicion = toYMD(info.fechaExpedicion);
-
-  // Mayúsculas sostenidas (solo strings)
-  Object.keys(info).forEach(k => {
-    if (typeof info[k] === 'string') {
-      info[k] = info[k].toUpperCase();
-    }
-  });
-
-  this.seleccionService.guardarInfoPersonal(info).subscribe({
-    next: (resp) => {
-      Swal.fire({
-        title: 'Guardado',
-        text: 'Información personal guardada correctamente.',
-        icon: 'success',
-        confirmButtonText: 'Ok'
-      });
-
-      // Actualiza estado entrevistado=true si hay id
-      if (resp && resp.id) {
-        this.infoVacantesService
-          .setEstadoVacanteAplicante(this._idInfoEntrevistaAndrea, 'entrevistado', true)
-          .subscribe({
-            next: (estadoResp) => console.log('✅ Estado entrevistado actualizado:', estadoResp),
-            error: (err) => console.error('❌ Error al actualizar entrevistado', err)
-          });
       }
-    },
-    error: (err) => {
-      const msg = err?.error?.detail || 'No se pudo guardar la información personal.';
-      Swal.fire({
-        title: 'Error',
-        text: msg,
-        icon: 'error',
-        confirmButtonText: 'Ok'
-      });
+      if (errors['minlength']) {
+        const req = errors['minlength'].requiredLength;
+        push(key, `mínimo ${req} caracteres.`);
+      }
+      if (errors['maxlength']) {
+        const req = errors['maxlength'].requiredLength;
+        push(key, `máximo ${req} caracteres.`);
+      }
+      if (errors['min']) {
+        push(key, `debe ser al menos ${errors['min'].min}.`);
+      }
+      if (errors['max']) {
+        push(key, `debe ser como máximo ${errors['max'].max}.`);
+      }
+    });
+
+    // ------ Reglas condicionales de negocio ------
+    // 2.1 Experiencia en flores
+    const exp = f.get('experienciaFlores')?.value;
+    if (exp === 'Sí') {
+      if (!f.get('tipoExperienciaFlores')?.value) {
+        push('tipoExperienciaFlores', 'es obligatorio cuando hay experiencia en flores.');
+      } else if (f.get('tipoExperienciaFlores')?.value === 'OTROS' &&
+        !String(f.get('otroExperiencia')?.value || '').trim()) {
+        push('otroExperiencia', 'es obligatorio cuando el tipo es "OTROS".');
+      }
     }
-  });
-}
+
+    // 2.2 Referenciado
+    if (f.get('referenciado')?.value === 'SI' &&
+      !String(f.get('nombreReferenciado')?.value || '').trim()) {
+      push('nombreReferenciado', 'es obligatorio cuando "Referenciado" es "Sí".');
+    }
+
+    // 2.3 Hijos
+    if (f.get('tieneHijos')?.value === true) {
+      if (!String(f.get('cuidadorHijos')?.value || '').trim()) {
+        push('cuidadorHijos', 'es obligatorio cuando "¿Tiene hijos?" es "Sí".');
+      }
+      const nH = Number(f.get('numeroHijos')?.value ?? 0);
+      if (!nH || nH < 1) {
+        push('numeroHijos', 'debe ser al menos 1 cuando "¿Tiene hijos?" es "Sí".');
+      }
+      // Validar edades en el FormArray hijos (si existe)
+      const hijosFA = f.get('hijos') as import('@angular/forms').FormArray;
+      if (hijosFA && hijosFA.length) {
+        hijosFA.controls.forEach((grp, idx) => {
+          const edadCtrl = grp.get('edad');
+          if (!edadCtrl?.value && edadCtrl?.touched) {
+            push('hijos', `falta la edad del hijo #${idx + 1}.`);
+          }
+        });
+      }
+    }
+
+    // 2.4 Observaciones del evaluador
+    if (f.get('observacionEvaluador')?.value === 'ESPERA DE VACANTE') {
+      const motivo = String(f.get('motivoEspera')?.value || '');
+      if (!motivo.trim()) {
+        push('motivoEspera', 'es obligatorio cuando la observación es "ESPERA DE VACANTE".');
+      } else if (motivo.length > 300) {
+        push('motivoEspera', 'máximo 300 caracteres.');
+      }
+    }
+
+    // 2.5 NO_APLICA requiere motivo
+    if (f.get('aplicaObservacion')?.value === 'NO_APLICA' &&
+      !String(f.get('motivoNoAplica')?.value || '').trim()) {
+      push('motivoNoAplica', 'debe especificarse cuando es "NO APLICA".');
+    }
+
+    // 2.6 Correo armado: usuario + dominio
+    if (!String(f.get('correo_usuario')?.value || '').trim()) {
+      push('correo_usuario', 'es obligatorio.');
+    } else if (/@|\s/.test(String(f.get('correo_usuario')?.value))) {
+      push('correo_usuario', 'no debe incluir @, espacios ni el dominio.');
+    }
+    if (!String(f.get('correo_dominio')?.value || '').trim()) {
+      push('correo_dominio', 'es obligatorio.');
+    }
+
+    // 2.7 Oficina con BRIGADA requiere detalle
+    if (String(f.get('oficina')?.value || '') === 'BRIGADA' &&
+      !String(f.get('brigadaDe')?.value || '').trim()) {
+      push('brigadaDe', 'es obligatorio cuando la oficina es "BRIGADA".');
+    }
+
+    const html = lines.length
+      ? `<ul style="text-align:left;margin:0;padding-left:18px;">${lines.join('')}</ul>`
+      : '';
+    return { html, firstKey };
+  }
+
+  // 3) Helper: enfoca el primer control con error
+  private scrollToControl(key?: string) {
+    if (!key) return;
+    const el = document.querySelector(`[formcontrolname="${key}"]`) as HTMLElement | null;
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      setTimeout(() => el.focus(), 200);
+    }
+  }
+
+  // 4) Tu función, con SweetAlert detallado + foco al primer error
+  guardarInfoPersonal(): void {
+    if (this.infoPersonalForm.invalid) {
+      this.infoPersonalForm.markAllAsTouched();
+
+      // Construir lista de errores (incluye condicionales)
+      const { html, firstKey } = this.buildInvalidList();
+
+      Swal.fire({
+        title: 'Revisa la información',
+        html: html || 'Por favor, completa los campos obligatorios.',
+        icon: 'warning',
+        confirmButtonText: 'Entendido'
+      }).then(() => this.scrollToControl(firstKey));
+
+      return;
+    }
+
+    // Valida reglas condicionales también cuando el form "pase"
+    const { html, firstKey } = this.buildInvalidList();
+    if (html) {
+      Swal.fire({
+        title: 'Faltan datos',
+        html,
+        icon: 'warning',
+        confirmButtonText: 'Entendido'
+      }).then(() => this.scrollToControl(firstKey));
+      return;
+    }
+
+    // ====== Si todo OK, preparar payload ======
+    const info: any = { ...this.infoPersonalForm.value };
+    info.id = this._idInfoEntrevistaAndrea;
+
+    // Normalizar fechas a YYYY-MM-DD
+    const toYMD = (v: any) => {
+      if (!v) return v;
+      if (v instanceof Date) {
+        const yyyy = v.getFullYear();
+        const mm = String(v.getMonth() + 1).padStart(2, '0');
+        const dd = String(v.getDate()).padStart(2, '0');
+        return `${yyyy}-${mm}-${dd}`;
+      }
+      if (typeof v === 'string' && v.length > 10) return v.slice(0, 10);
+      return v;
+    };
+    info.fechaNacimiento = toYMD(info.fechaNacimiento);
+    info.fechaExpedicion = toYMD(info.fechaExpedicion);
+
+    // Mayúsculas sostenidas (solo strings)
+    Object.keys(info).forEach(k => {
+      if (typeof info[k] === 'string') {
+        info[k] = info[k].toUpperCase();
+      }
+    });
+
+    this.seleccionService.guardarInfoPersonal(info).subscribe({
+      next: (resp) => {
+        Swal.fire({
+          title: 'Guardado',
+          text: 'Información personal guardada correctamente.',
+          icon: 'success',
+          confirmButtonText: 'Ok'
+        });
+
+        // Actualiza estado entrevistado=true si hay id
+        if (resp && resp.id) {
+          this.infoVacantesService
+            .setEstadoVacanteAplicante(this._idInfoEntrevistaAndrea, 'entrevistado', true)
+            .subscribe({
+              next: (estadoResp) => console.log('✅ Estado entrevistado actualizado:', estadoResp),
+              error: (err) => console.error('❌ Error al actualizar entrevistado', err)
+            });
+        }
+      },
+      error: (err) => {
+        const msg = err?.error?.detail || 'No se pudo guardar la información personal.';
+        Swal.fire({
+          title: 'Error',
+          text: msg,
+          icon: 'error',
+          confirmButtonText: 'Ok'
+        });
+      }
+    });
+  }
 
 
   onVacanteIdChange(id: number | string): void {
@@ -1002,6 +1000,9 @@ guardarInfoPersonal(): void {
       estudiaActualmente: (this.boolFromText(data?.estudiaActualmente) ?? null),
 
       observacionEvaluador: data?.aplicaObservacion ?? '',
+      motivoEspera: data?.motivoEspera ?? '',
+
+
     });
 
     // Sincronizar hijos (FormArray y edades)

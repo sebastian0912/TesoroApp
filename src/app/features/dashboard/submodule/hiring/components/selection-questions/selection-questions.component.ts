@@ -47,7 +47,13 @@ export class SelectionQuestionsComponent implements OnInit {
   }
   get idProcesoSeleccion() { return this._idProcesoSeleccion; }
 
-  medidasCorrectivas = Array.from({ length: 10 }, (_, i) => i + 1);
+  medidasCorrectivas = [
+    ...Array.from({ length: 11 }, (_, i) => i),
+    'CUMPLE'
+  ];
+
+  // Resultado: [0,1,2,3,4,5,6,7,8,9,10,"CUMPLE"]
+
   filteredExamOptions: string[] = [];
 
   formGroup1: FormGroup;

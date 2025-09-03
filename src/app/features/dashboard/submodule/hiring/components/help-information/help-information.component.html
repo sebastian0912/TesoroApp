@@ -39,59 +39,6 @@
         <input matInput formControlName="nombreCompleto" placeholder="(se arma con nombres y apellidos)">
       </mat-form-field>
 
-      <!-- Celular -->
-      <mat-form-field class="example-full-width" appearance="outline">
-        <mat-label>Celular</mat-label>
-        <input matInput formControlName="celular" type="tel" placeholder="3xxxxxxxxx">
-        <mat-hint>Debe iniciar con 3 y tener 10 dígitos.</mat-hint>
-        <mat-error aria-live="polite"
-          *ngIf="infoPersonalForm.get('celular')?.touched && infoPersonalForm.get('celular')?.hasError('required')">
-          Requerido.
-        </mat-error>
-        <mat-error aria-live="polite"
-          *ngIf="infoPersonalForm.get('celular')?.touched && infoPersonalForm.get('celular')?.hasError('pattern')">
-          Formato inválido (ej.: 3XXXXXXXXX).
-        </mat-error>
-      </mat-form-field>
-
-      <!-- WhatsApp -->
-      <mat-form-field class="example-full-width" appearance="outline">
-        <mat-label>WhatsApp</mat-label>
-        <input matInput formControlName="whatsapp" type="tel" placeholder="3xxxxxxxxx">
-        <mat-hint>Debe iniciar con 3 y tener 10 dígitos.</mat-hint>
-        <mat-error aria-live="polite"
-          *ngIf="infoPersonalForm.get('whatsapp')?.touched && infoPersonalForm.get('whatsapp')?.hasError('required')">
-          Requerido.
-        </mat-error>
-        <mat-error aria-live="polite"
-          *ngIf="infoPersonalForm.get('whatsapp')?.touched && infoPersonalForm.get('whatsapp')?.hasError('pattern')">
-          Formato inválido (ej.: 3XXXXXXXXX).
-        </mat-error>
-        <mat-error aria-live="polite"
-          *ngIf="infoPersonalForm.get('whatsapp')?.touched && infoPersonalForm.get('whatsapp')?.hasError('maxlength')">
-          Máximo 10 dígitos.
-        </mat-error>
-      </mat-form-field>
-
-      <!-- Género -->
-      <mat-form-field class="example-full-width" appearance="outline">
-        <mat-label>Sexo</mat-label>
-        <mat-select formControlName="genero">
-          <mat-option value="F">Femenino</mat-option>
-          <mat-option value="M">Masculino</mat-option>
-        </mat-select>
-        <mat-error aria-live="polite"
-          *ngIf="infoPersonalForm.get('genero')?.touched && infoPersonalForm.get('genero')?.hasError('required')">
-          Requerido.
-        </mat-error>
-      </mat-form-field>
-
-      <!-- Edad (solo lectura) -->
-      <mat-form-field class="example-full-width" appearance="outline">
-        <mat-label>Edad</mat-label>
-        <input matInput formControlName="edad" readonly>
-      </mat-form-field>
-
       <!-- Fecha de nacimiento -->
       <mat-form-field appearance="outline" class="example-full-width">
         <mat-label>Fecha de nacimiento</mat-label>
@@ -104,6 +51,12 @@
           *ngIf="infoPersonalForm.get('fechaNacimiento')?.touched && infoPersonalForm.get('fechaNacimiento')?.hasError('required')">
           Requerido.
         </mat-error>
+      </mat-form-field>
+
+      <!-- Edad (solo lectura) -->
+      <mat-form-field class="example-full-width" appearance="outline">
+        <mat-label>Edad</mat-label>
+        <input matInput formControlName="edad" readonly>
       </mat-form-field>
 
       <!-- Lugar de nacimiento -->
@@ -158,9 +111,103 @@
         </mat-error>
       </mat-form-field>
 
+      <!-- Celular -->
+      <mat-form-field class="example-full-width" appearance="outline">
+        <mat-label>Celular</mat-label>
+        <input matInput formControlName="celular" type="tel" placeholder="3xxxxxxxxx">
+        <mat-hint>Debe iniciar con 3 y tener 10 dígitos.</mat-hint>
+        <mat-error aria-live="polite"
+          *ngIf="infoPersonalForm.get('celular')?.touched && infoPersonalForm.get('celular')?.hasError('required')">
+          Requerido.
+        </mat-error>
+        <mat-error aria-live="polite"
+          *ngIf="infoPersonalForm.get('celular')?.touched && infoPersonalForm.get('celular')?.hasError('pattern')">
+          Formato inválido (ej.: 3XXXXXXXXX).
+        </mat-error>
+      </mat-form-field>
+
+      <!-- WhatsApp -->
+      <mat-form-field class="example-full-width" appearance="outline">
+        <mat-label>WhatsApp</mat-label>
+        <input matInput formControlName="whatsapp" type="tel" placeholder="3xxxxxxxxx">
+        <mat-hint>Debe iniciar con 3 y tener 10 dígitos.</mat-hint>
+        <mat-error aria-live="polite"
+          *ngIf="infoPersonalForm.get('whatsapp')?.touched && infoPersonalForm.get('whatsapp')?.hasError('required')">
+          Requerido.
+        </mat-error>
+        <mat-error aria-live="polite"
+          *ngIf="infoPersonalForm.get('whatsapp')?.touched && infoPersonalForm.get('whatsapp')?.hasError('pattern')">
+          Formato inválido (ej.: 3XXXXXXXXX).
+        </mat-error>
+        <mat-error aria-live="polite"
+          *ngIf="infoPersonalForm.get('whatsapp')?.touched && infoPersonalForm.get('whatsapp')?.hasError('maxlength')">
+          Máximo 10 dígitos.
+        </mat-error>
+      </mat-form-field>
+
+      <!-- Género -->
+      <mat-form-field class="example-full-width" appearance="outline">
+        <mat-label>Sexo</mat-label>
+        <mat-select formControlName="genero">
+          <mat-option value="F">Femenino</mat-option>
+          <mat-option value="M">Masculino</mat-option>
+        </mat-select>
+        <mat-error aria-live="polite"
+          *ngIf="infoPersonalForm.get('genero')?.touched && infoPersonalForm.get('genero')?.hasError('required')">
+          Requerido.
+        </mat-error>
+      </mat-form-field>
+
+      <!-- Estado civil -->
+      <mat-form-field class="example-full-width" appearance="outline">
+        <mat-label>Estado civil</mat-label>
+        <mat-select formControlName="estadoCivil">
+          <mat-option *ngFor="let estado of estadosCiviles" [value]="estado.codigo">
+            {{ estado.descripcion }}
+          </mat-option>
+        </mat-select>
+        <mat-error aria-live="polite"
+          *ngIf="infoPersonalForm.get('estadoCivil')?.touched && infoPersonalForm.get('estadoCivil')?.hasError('required')">
+          Requerido.
+        </mat-error>
+      </mat-form-field>
+
+      <!-- Con quién vive -->
+      <mat-form-field class="example-full-width" appearance="outline">
+        <mat-label>Con quién vive</mat-label>
+        <input matInput formControlName="conQuienViveChecks" placeholder="Ej. Padre, Madre, Pareja, Solo, etc.">
+        <mat-error aria-live="polite"
+          *ngIf="infoPersonalForm.get('conQuienViveChecks')?.touched && infoPersonalForm.get('conQuienViveChecks')?.hasError('required')">
+          Requerido.
+        </mat-error>
+      </mat-form-field>
+
+      <!-- ¿Hace cuánto vive en la zona? -->
+      <mat-form-field appearance="outline" class="example-full-width">
+        <mat-label>¿Hace cuánto vive en la zona?</mat-label>
+        <mat-select formControlName="tiempoResidencia" required>
+          <mat-option [value]="'LIFETIME'">Toda la vida</mat-option>
+          <mat-optgroup label="Meses">
+            <mat-option *ngFor="let m of meses" [value]="'M:' + m">
+              {{ m }} {{ m === 1 ? 'mes' : 'meses' }}
+            </mat-option>
+          </mat-optgroup>
+          <mat-optgroup label="Años">
+            <mat-option *ngFor="let y of anios" [value]="'Y:' + y">
+              {{ y }} {{ y === 1 ? 'año' : 'años' }}
+            </mat-option>
+          </mat-optgroup>
+        </mat-select>
+        <mat-hint>Ej.: 6 meses, 3 años o “Toda la vida”.</mat-hint>
+        <mat-error aria-live="polite"
+          *ngIf="infoPersonalForm.get('tiempoResidencia')?.touched && infoPersonalForm.get('tiempoResidencia')?.hasError('required')">
+          Este campo es obligatorio.
+        </mat-error>
+      </mat-form-field>
+
       <!-- Experiencia en flores -->
       <mat-form-field class="example-full-width" appearance="outline">
-        <mat-label>¿Tiene experiencia en flores?</mat-label>
+        <mat-label>¿Cuenta con experiencia en flores?</mat-label>
         <mat-select formControlName="experienciaFlores">
           <mat-option value="Sí">Sí</mat-option>
           <mat-option value="No">No</mat-option>
@@ -201,50 +248,37 @@
         </mat-error>
       </mat-form-field>
 
-      <!-- Estado civil -->
+      <!--¿Cómo se proyecta en 1 año?-->
       <mat-form-field class="example-full-width" appearance="outline">
-        <mat-label>Estado civil</mat-label>
-        <mat-select formControlName="estadoCivil">
-          <mat-option *ngFor="let estado of estadosCiviles" [value]="estado.codigo">
-            {{ estado.descripcion }}
-          </mat-option>
-        </mat-select>
+        <mat-label>¿Cómo se proyecta en 1 año?</mat-label>
+        <input matInput formControlName="proyeccion1Ano" maxlength="64">
+        <mat-hint align="end">{{ infoPersonalForm.get('proyeccion1Ano')?.value?.length || 0 }}/64</mat-hint>
         <mat-error aria-live="polite"
-          *ngIf="infoPersonalForm.get('estadoCivil')?.touched && infoPersonalForm.get('estadoCivil')?.hasError('required')">
+          *ngIf="infoPersonalForm.get('proyeccion1Ano')?.touched && !infoPersonalForm.get('proyeccion1Ano')?.value">
           Requerido.
         </mat-error>
       </mat-form-field>
 
-      <!-- Con quién vive -->
+      <!-- Escolaridad -->
       <mat-form-field class="example-full-width" appearance="outline">
-        <mat-label>Con quién vive</mat-label>
-        <input matInput formControlName="conQuienViveChecks" placeholder="Ej. Padre, Madre, Pareja, Solo, etc.">
+        <mat-label>Escolaridad</mat-label>
+        <input matInput formControlName="escolaridad" placeholder="Escolaridad">
         <mat-error aria-live="polite"
-          *ngIf="infoPersonalForm.get('conQuienViveChecks')?.touched && infoPersonalForm.get('conQuienViveChecks')?.hasError('required')">
+          *ngIf="infoPersonalForm.get('escolaridad')?.touched && infoPersonalForm.get('escolaridad')?.hasError('required')">
           Requerido.
         </mat-error>
       </mat-form-field>
 
-      <!-- ¿Hace cuánto vive en la zona? -->
-      <mat-form-field appearance="outline" class="w-full">
-        <mat-label>¿Hace cuánto vive en la zona?</mat-label>
-        <mat-select formControlName="tiempoResidencia" required>
-          <mat-option [value]="'LIFETIME'">Toda la vida</mat-option>
-          <mat-optgroup label="Meses">
-            <mat-option *ngFor="let m of meses" [value]="'M:' + m">
-              {{ m }} {{ m === 1 ? 'mes' : 'meses' }}
-            </mat-option>
-          </mat-optgroup>
-          <mat-optgroup label="Años">
-            <mat-option *ngFor="let y of anios" [value]="'Y:' + y">
-              {{ y }} {{ y === 1 ? 'año' : 'años' }}
-            </mat-option>
-          </mat-optgroup>
+      <!--CEstudia actualmente?-->
+      <mat-form-field class="example-full-width" appearance="outline">
+        <mat-label>¿Estudia actualmente?</mat-label>
+        <mat-select formControlName="estudiaActualmente">
+          <mat-option value="SI">Sí</mat-option>
+          <mat-option value="NO">No</mat-option>
         </mat-select>
-        <mat-hint>Ej.: 6 meses, 3 años o “Toda la vida”.</mat-hint>
         <mat-error aria-live="polite"
-          *ngIf="infoPersonalForm.get('tiempoResidencia')?.touched && infoPersonalForm.get('tiempoResidencia')?.hasError('required')">
-          Este campo es obligatorio.
+          *ngIf="infoPersonalForm.get('estudiaActualmente')?.touched && infoPersonalForm.get('estudiaActualmente')?.hasError('required')">
+          Requerido.
         </mat-error>
       </mat-form-field>
 
@@ -351,15 +385,7 @@
         </div>
       </section>
 
-      <!-- Escolaridad -->
-      <mat-form-field class="example-full-width" appearance="outline">
-        <mat-label>Escolaridad</mat-label>
-        <input matInput formControlName="escolaridad" placeholder="Escolaridad">
-        <mat-error aria-live="polite"
-          *ngIf="infoPersonalForm.get('escolaridad')?.touched && infoPersonalForm.get('escolaridad')?.hasError('required')">
-          Requerido.
-        </mat-error>
-      </mat-form-field>
+
 
       <!-- ¿Observación del evaluador? (select) -->
       <mat-form-field appearance="outline" class="example-full-width">
