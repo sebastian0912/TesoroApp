@@ -11,7 +11,7 @@ import { MatDatepickerModule } from '@angular/material/datepicker';
 import { MatNativeDateModule } from '@angular/material/core';
 import { HiringService } from '../../service/hiring.service';
 import { catchError, debounceTime, firstValueFrom, merge, of, Subscription, take, throwError } from 'rxjs';
-import { I } from '@angular/cdk/keycodes';
+import { UtilityServiceService } from '@/app/shared/services/utilityService/utility-service.service';
 
 type UploadedFileInfo = {
   file?: File;
@@ -253,6 +253,7 @@ export class SelectionQuestionsComponent implements OnInit {
     private seleccionService: SeleccionService,
     private gestionDocumentalService: GestionDocumentalService,
     private hiringService: HiringService,
+    private utilityService: UtilityServiceService,
     private fb: FormBuilder,
 
   ) {
@@ -483,7 +484,11 @@ export class SelectionQuestionsComponent implements OnInit {
     try {
       // --- 1) Guardar parte uno (puede crear o actualizar) ---
       const payload = { ...this.formGroup1.value, numerodeceduladepersona: this.cedula };
-
+      // user
+      const user = this.utilityService.getUser();
+      const nombre = user.primer_nombre + ' ' + user.primer_apellido;
+      // nombre_evaluador
+      payload.nombre_evaluador = nombre;
       const resp: any = await firstValueFrom(
         this.seleccionService.crearSeleccionParteUnoCandidato(payload, this.cedula, this.idProcesoSeleccion)
       );

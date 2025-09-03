@@ -295,6 +295,7 @@ export class SearchForCandidateComponent implements OnInit, OnDestroy {
     this.cedula = this.cedula.trim();
     this.infoVacantesService.getVacantesPorNumero(this.cedula).subscribe({
       next: (resultado) => {
+        console.log('Resultado de la búsqueda de entrevista:', resultado);
         const entrevista = resultado?.[0];
         if (!entrevista) {
           Swal.fire('Error', 'No se encontró la informacion, por favor llenar de nuevo el pre formulario correctamente', 'error');
