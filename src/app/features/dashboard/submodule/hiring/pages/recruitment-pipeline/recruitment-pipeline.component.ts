@@ -483,7 +483,7 @@ export class RecruitmentPipelineComponent implements OnInit {
         catchError((err: HttpErrorResponse) => {
           // Si llega 404 aquí, normalmente falló la creación automática o no existe candidato
           if (err.status === 404) {
-          
+
             Swal.fire('Atención', 'No fue posible crear el proceso de selección automáticamente.', 'warning');
             return of(null);
           }
@@ -493,9 +493,7 @@ export class RecruitmentPipelineComponent implements OnInit {
         })
       )
       .subscribe(async (response: any) => {
-        console.log('Datos selección recibidos:', response);
         if (!response) return;
-        console.log('Datos selección recibidos:', response);
         // Caso creado por el backend (antes recibías 404)
         if (response.created && response.createdId) {
           this.idProcesoSeleccion = response.createdId;

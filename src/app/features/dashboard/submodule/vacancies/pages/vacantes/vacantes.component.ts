@@ -8,7 +8,7 @@ import { NgFor, NgForOf, NgIf } from '@angular/common';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { CrearEditarVacanteComponent } from '../../components/crear-editar-vacante/crear-editar-vacante.component';
 import { MatMenuModule } from '@angular/material/menu';
-import { catchError, Observable, of } from 'rxjs';
+import { catchError, finalize, Observable, of } from 'rxjs';
 import { VacantesService } from '../../service/vacantes/vacantes.service';
 import { SharedModule } from '@/app/shared/shared.module';
 import { MatPaginator, MatPaginatorModule } from '@angular/material/paginator';
@@ -78,19 +78,77 @@ export class VacantesComponent implements OnInit {
     this.permitido = user?.rol === 'GERENCIA' || user?.rol === 'ADMIN';
   }
 
-  async loadData(): Promise<void> {
+  loading = false;
+
+  private normalize(s?: string | null): string {
+    return (s ?? '')
+      .toString()
+      .normalize('NFD')
+      .replace(/\p{Diacritic}/gu, '') // quita acentos
+      .trim()
+      .toUpperCase();
+  }
+
+  // ADMIN / GERENCIA ven todo (aceptamos algunos alias comunes)
+  private canSeeAll(user: any): boolean {
+    const rol = this.normalize(user?.rol);
+    return rol === 'ADMIN' || rol === 'GERENCIA';
+  }
+
+  // Convierte a array desde string/array y soporta separadores ; , |
+  private splitToArray(raw: unknown): string[] {
+    if (Array.isArray(raw)) return raw.filter(Boolean) as string[];
+    if (typeof raw === 'string') {
+      return raw.split(/[;,|]/).map(s => s.trim()).filter(Boolean);
+    }
+    return [];
+  }
+
+  // Tomamos las oficinas objetivo del usuario: sucursalde (principal), con fallbacks por si cambian el nombre del campo
+  private extractTargetOffices(user: any): string[] {
+    const parts = [
+      ...this.splitToArray(user?.sucursalde),   // <- lo que nos dijiste que viene
+      ...this.splitToArray(user?.oficinade),    // fallback
+      ...this.splitToArray(user?.oficinas),     // fallback
+      ...this.splitToArray(user?.oficinasNombre)// fallback
+    ];
+    // quitar duplicados
+    const uni = Array.from(new Set(parts));
+    return uni;
+  }
+
+  // ¿La vacante tiene alguna oficina con nombre que coincida con las oficinas del usuario?
+  private matchOffice(vacante: any, officeNames: string[]): boolean {
+    if (!officeNames.length) return false;
+    const wanted = new Set(officeNames.map(n => this.normalize(n)));
+    const oficinas = vacante?.oficinasQueContratan ?? [];
+    return oficinas.some((o: any) => wanted.has(this.normalize(o?.nombre)));
+  }
+
+  loadData(): void {
+    this.loading = true;
+
     this.vacantesService.listarVacantes().pipe(
-      catchError((error) => {
+      catchError(() => {
         Swal.fire('Error', 'Ocurrió un error al cargar las vacantes', 'error');
-        return of([]);
-      })
+        return of([] as any[]); // si tienes interfaz, usa Vacante[]
+      }),
+      finalize(() => this.loading = false)
     ).subscribe((response: any[]) => {
+      const user = this.utilityService.getUser();
 
-      // 1) Reordenar: incompletas primero, cumplidas al final
-      const ordenadas = this.reordenarCumplidasAlFinal(response);
-      this.dataSource.data = ordenadas;
+      // 1) Filtrar por oficinas (comparando user.sucursalde vs oficinasQueContratan[].nombre)
+      let rows = this.canSeeAll(user)
+        ? response
+        : response.filter(v => this.matchOffice(v, this.extractTargetOffices(user)));
 
-      // MatTable hooks
+      console.log(`Vacantes cargadas: total=${response.length}, tras filtro=${rows.length}`);
+
+      // 2) Reordenar (usa el resultado filtrado)
+      rows = this.reordenarCumplidasAlFinal(rows);
+
+      // 3) Asignar a la tabla
+      this.dataSource.data = rows;
       this.dataSource.paginator = this.paginator;
       this.dataSource.sort = this.sort;
     });

@@ -129,8 +129,7 @@ export class HiringQuestionsComponent implements OnInit {
     if (changes['cedula'] || changes['codigoContrato']) {
       const nuevaCedula = this.cedula?.trim();
       const nuevoCodigo = this.codigoContrato?.trim();
-      console.log('Cédula cambiada a:', nuevaCedula);
-      console.log('Código de contrato cambiado a:', nuevoCodigo);
+
       if (nuevaCedula && nuevoCodigo) {
         this.loadData();
       }
