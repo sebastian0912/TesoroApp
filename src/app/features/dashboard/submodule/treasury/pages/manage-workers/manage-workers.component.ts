@@ -43,14 +43,6 @@ export class ManageWorkersComponent implements OnInit {
   ngOnInit(): void {
     this.getWorkers();
 
-    this.loginService.getUser().then((user) => {
-      if (!user) {
-        return;
-      }
-      this.showInactive = !user.estadoquincena;
-      // Forzar actualización de la vista para reflejar el estado en el toggle
-      this.cdr.detectChanges();
-    });
   }
 
   toggleShowInactive(event: any) {
@@ -88,7 +80,7 @@ export class ManageWorkersComponent implements OnInit {
       if (response && Array.isArray(response)) {
         this.dataSource.data = response;
         // cuantos estan con activo
-        
+
         this.numeroActivo = response.filter((worker: any) => worker.activo).length;
       } else {
         this.dataSource.data = [];

@@ -49,7 +49,7 @@ export class PrestamoParaRealizarComponent {
     if (!this.user) {
       return;
     }
-    this.rolUsuario = this.user.rol;
+    this.rolUsuario = this.user.rol.nombre;
     this.correoUsuario = this.user.correo_electronico;
 
     this.myForm.get('cedula')?.valueChanges
@@ -201,7 +201,7 @@ export class PrestamoParaRealizarComponent {
         formValues.cuotas,
         concepto,
         codigoOH,
-        this.user.primer_nombre + ' ' + this.user.primer_apellido
+        this.user.datos_basicos.nombres + ' ' + this.user.datos_basicos.apellidos
       );
 
       this.historial_id = historialData.historial_id;
@@ -214,7 +214,7 @@ export class PrestamoParaRealizarComponent {
         formValues.cuotas,
         concepto,
         this.historial_id,
-        this.user.primer_nombre + ' ' + this.user.primer_apellido,
+        this.user.datos_basicos.nombres + ' ' + this.user.datos_basicos.apellidos,
         this.user.numero_de_documento
       );
 
@@ -259,7 +259,7 @@ export class PrestamoParaRealizarComponent {
         codigoOH,
         formValues.cuotas,
         'Préstamo',
-        this.user.primer_nombre + ' ' + this.user.primer_apellido
+        this.user.datos_basicos.nombres + ' ' + this.user.datos_basicos.apellidos
       );
 
     } catch (error) {

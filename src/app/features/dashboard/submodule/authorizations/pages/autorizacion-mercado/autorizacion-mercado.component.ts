@@ -37,8 +37,9 @@ export class AutorizacionMercadoComponent implements OnInit {
 
     this.user = this.utilityService.getUser();
     if (this.user) {
-      this.rolUsuario = this.user.rol;
+      this.rolUsuario = this.user.rol?.nombre ?? '';
     }
+
 
     this.myForm = this.fb.group({
       cedula: ['', Validators.required],
@@ -184,7 +185,7 @@ export class AutorizacionMercadoComponent implements OnInit {
   // Función para buscar operario
   buscarOperario() {
     // si cedula no es válida
-    if (this.myForm.value.cedula.length == ''){
+    if (this.myForm.value.cedula.length == '') {
       this.myForm.markAllAsTouched();
       return;
     }
@@ -235,15 +236,15 @@ export class AutorizacionMercadoComponent implements OnInit {
           Swal.fire({ icon: 'error', title: 'Empleado bloqueado', text: 'El empleado con la cédula proporcionada se encuentra bloqueado y no puede solicitar autorizaciones.' });
           return;
         }
-/*
-        if (this.rolUsuario !== "GERENCIA") {
-          // Validar si el operario tiene saldos pendientes mayores a 175000
-          if (!this.autorizacionesService.verificarSaldo(this.datosOperario)) {
-            this.datosOperario = null;
-            Swal.fire({ icon: 'error', title: 'Saldo pendiente', text: 'El empleado con la cédula proporcionada tiene saldos pendientes mayores a $175.000 y no puede solicitar autorizaciones.' });
-            return;
-          }
-        }*/
+        /*
+                if (this.rolUsuario !== "GERENCIA") {
+                  // Validar si el operario tiene saldos pendientes mayores a 175000
+                  if (!this.autorizacionesService.verificarSaldo(this.datosOperario)) {
+                    this.datosOperario = null;
+                    Swal.fire({ icon: 'error', title: 'Saldo pendiente', text: 'El empleado con la cédula proporcionada tiene saldos pendientes mayores a $175.000 y no puede solicitar autorizaciones.' });
+                    return;
+                  }
+                }*/
       },
       (error: any) => {
         Swal.close();

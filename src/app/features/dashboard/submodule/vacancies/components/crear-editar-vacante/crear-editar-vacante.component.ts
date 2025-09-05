@@ -76,6 +76,7 @@ export class CrearEditarVacanteComponent implements OnInit {
   municipioInput!: ElementRef<HTMLInputElement>;
   // filteredAreas rosa, clavel,astromelia,pompon,miniclavel,diversificados,lirios,fumigacion,corte de rosa,oficios varios
   areas: string[] = ['Rosa', 'Clavel', 'Astromelia', 'Pompon', 'Miniclavel', 'Diversificados', 'Lirios', 'Fumigación', 'Corte de Rosa', 'Oficios Varios'];
+  today: Date = new Date();
 
   constructor(
     private fb: FormBuilder,
@@ -84,7 +85,11 @@ export class CrearEditarVacanteComponent implements OnInit {
     @Inject(MAT_DIALOG_DATA) public data: any,
     private adminService: UtilityServiceService,
     private vacantesService: VacantesService
-  ) { }
+  ) {
+    // Normaliza a inicio de día para evitar issues de zona horaria
+    this.today.setHours(0, 0, 0, 0);
+
+  }
 
   async ngOnInit(): Promise<void> {
     this.user = JSON.parse(localStorage.getItem('user') || '{}');

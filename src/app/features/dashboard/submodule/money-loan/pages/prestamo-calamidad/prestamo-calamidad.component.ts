@@ -49,7 +49,7 @@ export class PrestamoCalamidadComponent implements OnInit {
   ngOnInit() {
     let user = this.utilityService.getUser();
     if (user) {
-      this.rolUsuario = user.rol;
+      this.rolUsuario = user.rol.nombre;
       this.correoUsuario = user.correo_electronico;
     }
     this.myForm.get('cedula')?.valueChanges

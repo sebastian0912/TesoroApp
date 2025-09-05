@@ -44,10 +44,10 @@ export class VacantesComponent implements OnInit {
     'acciones',
     'fechaPublicado',
     'finca',
-    'pruebaOContratacion',
-    'oficinas',
-    'municipio',
     'cargo',
+    'oficinas',
+    'pruebaOContratacion',
+    'municipio',
     'experiencia',
     'observacionVacante',
     'descripcion',
@@ -75,7 +75,7 @@ export class VacantesComponent implements OnInit {
     await this.loadData();
     const user = this.utilityService.getUser();
     // el rol es GERENCIA O ADMIN?
-    this.permitido = user?.rol === 'GERENCIA' || user?.rol === 'ADMIN';
+    this.permitido = user?.rol.nombre === 'GERENCIA' || user?.rol.nombre === 'ADMIN';
   }
 
   loading = false;
@@ -91,7 +91,7 @@ export class VacantesComponent implements OnInit {
 
   // ADMIN / GERENCIA ven todo (aceptamos algunos alias comunes)
   private canSeeAll(user: any): boolean {
-    const rol = this.normalize(user?.rol);
+    const rol = this.normalize(user?.rol.nombre);
     return rol === 'ADMIN' || rol === 'GERENCIA';
   }
 
@@ -107,10 +107,7 @@ export class VacantesComponent implements OnInit {
   // Tomamos las oficinas objetivo del usuario: sucursalde (principal), con fallbacks por si cambian el nombre del campo
   private extractTargetOffices(user: any): string[] {
     const parts = [
-      ...this.splitToArray(user?.sucursalde),   // <- lo que nos dijiste que viene
-      ...this.splitToArray(user?.oficinade),    // fallback
-      ...this.splitToArray(user?.oficinas),     // fallback
-      ...this.splitToArray(user?.oficinasNombre)// fallback
+      ...this.splitToArray(user?.sede.nombre),   // <- lo que nos dijiste que viene
     ];
     // quitar duplicados
     const uni = Array.from(new Set(parts));

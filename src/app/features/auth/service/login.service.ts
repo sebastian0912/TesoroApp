@@ -1,60 +1,27 @@
 import { Injectable, Inject, PLATFORM_ID } from '@angular/core';
-import { HttpClient, HttpHeaders } from '@angular/common/http';
+import { HttpClient } from '@angular/common/http';
 import { environment } from '../../../../environments/environment.development';
 import { isPlatformBrowser } from '@angular/common';
 import { firstValueFrom } from 'rxjs';
 
-@Injectable({
-  providedIn: 'root'
-})
+@Injectable({ providedIn: 'root' })
 export class LoginService {
+  private apiUrl = `${environment.apiUrl}/gestion_admin/auth`;
 
-  private apiUrl = environment.apiUrl;
-
-  constructor(private http: HttpClient, @Inject(PLATFORM_ID) private platformId: Object) { }
-
-  private getToken(): string | null {
-    if (isPlatformBrowser(this.platformId)) {
-      return localStorage.getItem('token');
-    }
-    return null;
-  }
+  constructor(
+    private http: HttpClient,
+    @Inject(PLATFORM_ID) private platformId: Object
+  ) {}
 
   // Register
   async register(user: any): Promise<any> {
-    return await firstValueFrom(
-      this.http.post(`${this.apiUrl}/usuarios/registro`, user)
-    );
+    return firstValueFrom(this.http.post(`${this.apiUrl}/register/`, user));
   }
 
-  // Login
-  async login(email: string, password: string): Promise<any> {
-    return await firstValueFrom(
-      this.http.post(`${this.apiUrl}/usuarios/ingresar`, { email, password })
+  // Login (correo o documento)
+  async login(login: string, password: string): Promise<{ token: string; user: any }> {
+    return firstValueFrom(
+      this.http.post<{ token: string; user: any }>(`${this.apiUrl}/login/`, { login, password })
     );
   }
-
-  // Traer usuario
-  async getUser(): Promise<any> {
-    const token = this.getToken();
-
-    // 🚨 Si no hay token, detener la ejecución y retornar null
-    if (!token) {
-      return null;
-    }
-    const headers = new HttpHeaders().set('Authorization', `${token}`);
-
-    return await firstValueFrom(
-      this.http.get(`${this.apiUrl}/usuarios/usuario`, { headers })
-    );
-  }
-
-
-  // permisos/<str:username>/
-  async getPermissions(username: string): Promise<any> {
-    return await firstValueFrom(
-      this.http.get(`${this.apiUrl}/usuarios/permisos/${username}`)
-    );
-  }
-
 }

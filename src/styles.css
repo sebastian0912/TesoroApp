@@ -110,7 +110,8 @@ body {
 
 /* Componente navbar */
 app-navbar {
-  width: 195pt; /* Si quieres mantener el valor 'pt', está bien, pero se suele usar px */
+  min-width: 35pt;
+
 }
 
 /* Contenido del dashboard */
@@ -362,3 +363,8 @@ mat-card-content p {
   }
 }
 
+
+
+.material-symbols-outlined{
+  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+}

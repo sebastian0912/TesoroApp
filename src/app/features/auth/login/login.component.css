@@ -1,359 +1,134 @@
-@import url('https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&display=swap');
-
-* {
-  box-sizing: border-box;
+.backgraound {
+  background: linear-gradient(290deg, #fff 50%, #8DD603 40%);
+  background-repeat: no-repeat;
+  width: 100vw;
+  height: 100vh;
 }
 
-.contenedor {
-  background-image: url("../../../../../public/comun/descargar-bosque-montanas-atardecer-clima-fresco-minimalismo-1024x600-1-scaled.jpg");
+.view {
+  position: relative;
+  z-index: 1;
   display: flex;
   justify-content: center;
   align-items: center;
+  height: 100vh;
+
+}
+
+
+:host {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   width: 100%;
-  background-size: cover;
-  background-repeat: no-repeat;
-  background-position: center;
-  min-height: 100vh;
-  font-family: "Montserrat", sans-serif;
 }
 
-.container {
-  background-color: #fff;
-  border-radius: 30px;
-  box-shadow: 0 14px 28px rgba(0, 0, 0, 0.25), 0 10px 10px rgba(0, 0, 0, 0.22);
+.blob-container {
+  position: fixed;
+  z-index: 1;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.blob {
+  width: 85vw;
+  max-width: 550px;
+}
+
+.orbit {
+  width: 95vw;
+  max-width: 720px;
+  aspect-ratio: 1 / 1;
+  border: 2px solid #ffffff;
+  border-radius: 50%;
+  animation: spin 50s infinite linear;
+}
+
+@keyframes spin {
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+.orbit::before,
+.orbit::after {
+  content: "";
   position: absolute;
-  overflow: hidden;
-  width: 60vw;
-  max-width: 100%;
-  min-height: 80vh;
+  width: 24px;
+  aspect-ratio: 1 / 1;
+  border-radius: inherit;
+  background: #1157FB;
 }
 
-h1 {
-  font-weight: bold;
-  margin: 50px 0 0 0;
-  padding: 0;
-  font-size: 34pt;
+.orbit::before {
+  top: 50%;
+  left: -12px;
 }
 
-.container h1 {
-  margin: 0 0 20px 0;
+.orbit::after {
+  top: 50%;
+  right: -12px;
 }
 
-h2 {
+.login {
+  position: relative;
+  z-index: 2;
+  background: #ffffff;
+  border-radius: 24px;
+  padding: 72px 32px 48px;
+  width: 340px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   text-align: center;
+  box-shadow: -1px -4px 20px 28px rgba(17, 17, 26, 0.08);
 }
 
-p {
-  font-size: 16pt;
+.login img {
+  width: 106pt;
+  margin-bottom: 32px;
+}
+
+.login h2 {
+  font-weight: 500;
+  font-size: 18px;
+  margin-bottom: 6px;
+}
+
+.login h3 {
   font-weight: 400;
-  line-height: 20px;
-  letter-spacing: 0.5px;
-  margin: 20px 0 30px;
+  color: #ada5b4;
+  font-size: 13px;
+  margin-bottom: 32px;
 }
 
-a {
-  color: #333;
-  font-size: 14px;
-  text-decoration: none;
-  margin: 15px 0;
+.form {
+  display: grid;
+  gap: 12px;
+  width: 100%;
+  margin-bottom: 20px;
+}
+
+.mat-form-field {
+  width: 100%;
 }
 
 button {
-  border-radius: 20px;
-  border: 1px solid #1157fb;
-  background-color: #1157fb;
-  color: #ffffff;
-  font-size: 12px;
-  font-weight: bold;
-  padding: 12px 45px;
-  letter-spacing: 1px;
-  text-transform: uppercase;
-  transition: transform 80ms ease-in;
-  box-shadow: 0 5px 5px rgba(0, 0, 0, 0.2);
-  margin-top: 15px;
-  width: 100%;
-}
-
-button:active {
-  transform: scale(0.95);
-}
-
-button:focus {
-  outline: none;
-}
-
-button.ghost {
-  background-color: transparent;
-  border-color: #ffffff;
-}
-
-form {
-  background-color: #ffffff;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-direction: column;
-  padding: 0 50px;
-  height: 100%;
-  text-align: center;
-  width: 100%; /* Ensure the form takes up the full width */
-}
-
-.input-container {
-  width: 100%; /* Ensures all inputs have the same width */
-  margin-bottom: 10px; /* Adds space between inputs */
-}
-
-input {
-  background-color: #ffffff;
-  border: none;
-  padding: 12px 15px;
-  width: 100%;
-  box-shadow: 0 5px 5px rgba(0, 0, 0, 0.2);
-  margin-bottom: 10px;
-}
-
-input:focus {
-  outline: none;
-  border-radius: 5px;
-  border: 2px solid #1157fb;
-}
-
-
-
-.form-container {
-  position: absolute;
-  top: 0;
-  height: 100%;
-  transition: all 0.6s ease-in-out;
-  width: 100%; /* Ensure the form container takes up full width */
-}
-
-.sign-in-container {
-  left: 0;
-  width: 50%;
-  z-index: 2;
-}
-
-.container.right-panel-active .sign-in-container {
-  transform: translateX(100%);
-}
-
-.sign-up-container {
-  left: 0;
-  width: 50%;
-  opacity: 0;
-  z-index: 1;
-}
-
-.container.right-panel-active .sign-up-container {
-  transform: translateX(100%);
-  opacity: 1;
-  z-index: 5;
-  animation: show 0.6s;
-}
-
-@keyframes show {
-  0%, 49.99% {
-    opacity: 0;
-    z-index: 1;
-  }
-  50%, 100% {
-    opacity: 1;
-    z-index: 5;
-  }
-}
-
-.overlay-container {
-  position: absolute;
-  top: 0;
-  left: 50%;
-  width: 50%;
-  height: 100%;
-  overflow: hidden;
-  transition: transform 0.6s ease-in-out;
-  z-index: 100;
-}
-
-.container.right-panel-active .overlay-container {
-  transform: translateX(-100%);
-}
-
-.overlay {
-  background: #1157fb;
-  background-repeat: no-repeat;
-  background-size: cover;
-  background-position: 0 0;
-  color: #ffffff;
-  position: relative;
-  left: -100%;
-  height: 100%;
-  width: 200%;
-  transform: translateX(0);
-  transition: transform 0.6s ease-in-out;
-}
-
-.container.right-panel-active .overlay {
-  transform: translateX(50%);
-}
-
-.overlay-panel {
-  position: absolute;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-direction: column;
-  padding: 0 40px;
-  text-align: center;
-  top: 0;
-  height: 100%;
-  width: 50%;
-  transform: translateX(0);
-  transition: transform 0.6s ease-in-out;
-}
-
-.overlay-left {
-  transform: translateX(-20%);
-}
-
-.container.right-panel-active .overlay-left {
-  transform: translateX(0);
-}
-
-.overlay-right {
-  right: 0;
-  transform: translateX(0);
-}
-
-.container.right-panel-active .overlay-right {
-  transform: translateX(20%);
-}
-
-.social-container a {
-  border: 1px solid #DDDDDD;
-  border-radius: 50%;
-  display: inline-flex;
-  justify-content: center;
-  align-items: center;
-  margin: 0 5px;
-  height: 40px;
-  width: 40px;
-}
-
-.bx {
-  font-size: 25px;
-  transform: translateY(-40px);
-  margin-left: 230px;
+  height: 52px;
+  font-family: inherit;
+  font-size: 15px;
+  border-radius: 8px;
   cursor: pointer;
 }
 
-.error {
-  color: red;
-  font-size: 12px;
-  margin: 0;
-  padding: 0;
+.login a {
+  font-size: 14px;
+  color: #182540;
 }
 
-.password-container {
-  position: relative;
-  width: 100%;
-}
-
-.toggle-password {
-  position: absolute;
-  right: 10px;
-  top: 50%;
-  transform: translateY(-50%);
-  cursor: pointer;
-}
-
-
-@media (max-width: 1024px) {
-  .overlay-container {
-    display: none; /* Oculta el overlay en tabletas y móviles */
-  }
-
-  .container {
-    width: 70vw; /* Ajusta el tamaño del contenedor en tabletas */
-  }
-
-  .sign-up-container {
-    display: none; /* Oculta el formulario de registro en tabletas */
-  }
-
-  .sign-in-container {
-    width: 100%; /* Asegura que el formulario de inicio de sesión ocupe todo el espacio */
-    transform: translateX(0); /* Evita que se deslice */
-  }
-}
-
-@media (max-width: 768px) {
-  .container {
-    width: 90vw; /* Reduce el ancho del contenedor en pantallas pequeñas */
-    min-height: 90vh; /* Aumenta la altura mínima para cubrir más en móvil */
-  }
-
-  .sign-up-container {
-    display: none; /* Oculta el formulario de registro en móviles */
-  }
-
-  mat-icon{
-    margin-top: -5px;
-  }
-
-  .sign-in-container {
-    width: 100%; /* Asegúrate de que el formulario de inicio de sesión ocupe el ancho completo */
-    transform: translateX(0); /* Evita el deslizamiento de lado a lado */
-    border-top: 62px solid #1157fb; /* Agrega una línea superior para separar los formularios */
-    border-bottom:  62px solid #1157fb; /* Agrega una línea inferior para separar los formularios */
-  }
-
-  h1 {
-    font-size: 24pt; /* Ajusta el tamaño de los títulos */
-  }
-
-  p {
-    font-size: 12pt; /* Reduce el tamaño del texto */
-    line-height: 18px;
-  }
-
-  .password-container {
-    width: 100%; /* Asegura que el campo de la contraseña ocupe el ancho completo */
-  }
-
-  .toggle-password {
-    right: 5px; /* Ajusta la posición del ícono de visibilidad */
-  }
-}
-
-@media (max-width: 480px) {
-  .contenedor {
-    padding: 20px; /* Agrega un poco de espacio alrededor para evitar que el contenido quede pegado al borde */
-  }
-
-  .container {
-    border-radius: 15px; /* Reduce el radio de los bordes para una apariencia más ajustada */
-  }
-
-  input {
-    padding: 10px; /* Ajusta el padding para que los campos no se vean demasiado grandes */
-  }
-
-  button {
-    padding: 10px 30px; /* Ajusta el tamaño de los botones */
-    font-size: 10px; /* Reduce el tamaño de la fuente de los botones */
-  }
-
-  h1 {
-    font-size: 20pt; /* Reduce el tamaño del título para móviles pequeños */
-  }
-
-  .sign-up-container {
-    display: none; /* Oculta el formulario de registro en móviles pequeños */
-  }
-
-  .sign-in-container {
-    width: 100%; /* Asegúrate de que el formulario de inicio de sesión ocupe todo el espacio */
-    transform: translateX(0); /* Evita el deslizamiento */
-  }
+.footer {
+  margin-top: 48px;
+  font-size: 14px;
+  color: #ada5b4;
 }

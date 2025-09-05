@@ -85,7 +85,7 @@ export class HiringReportComponent implements OnInit {
 
     const user = this.utilityService.getUser();
     if (user) {
-      this.nombre = user.primer_nombre + ' ' + user.primer_apellido;
+      this.nombre = user.datos_basicos.nombres + ' ' + user.datos_basicos.apellidos;
     }
 
     // Validación inicial del campo 'fecha' según el valor de 'esDeHoy'
@@ -1754,7 +1754,7 @@ export class HiringReportComponent implements OnInit {
               this.sstBase64 !== ''
                 ? this.sstBase64
                 : 'No se ha cargado la inducción SST.',
-            nombre: `${user.primer_nombre} ${user.primer_apellido}`,
+            nombre: `${user.datos_basicos.nombres} ${user.datos_basicos.apellidos}`,
             arl:
               this.arlBase64 !== ''
                 ? this.arlBase64
@@ -1819,7 +1819,7 @@ export class HiringReportComponent implements OnInit {
             this.sstBase64 !== ''
               ? this.sstBase64
               : 'No se ha cargado la inducción SST.',
-          nombre: `${user.primer_nombre} ${user.primer_apellido}`,
+          nombre: `${user.datos_basicos.nombres} ${user.datos_basicos.apellidos}`,
           arl:
             this.arlBase64 !== ''
               ? this.arlBase64

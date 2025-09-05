@@ -122,17 +122,17 @@ export class ViewReceptionInterviewsComponent implements OnInit {
       });
 
       // Si el usuario NO es ADMIN/GERENCIA, descarga el reporte por oficina
-      if (this.user.rol !== 'ADMIN' && this.user.rol !== 'GERENCIA') {
+      if (this.user.rol.nombre !== 'ADMIN' && this.user.rol.nombre !== 'GERENCIA') {
         this.seleccionService.exportarCandidatosPorOficinaExcel({
           start: result.start,
           end: result.end,
-          oficina: this.user.sucursalde // o el campo correcto
+          oficina: this.user.sede.nombre // o el campo correcto
         }).subscribe({
           next: (blob: Blob) => {
             Swal.close();
             this.downloadBlob(
               blob,
-              `reporte_candidatos_${this.user.oficina || this.user.sucursalde}_${start.toISOString().split('T')[0]}_${end.toISOString().split('T')[0]}.xlsx`
+              `reporte_candidatos_${this.user.oficina || this.user.sede.nombre}_${start.toISOString().split('T')[0]}_${end.toISOString().split('T')[0]}.xlsx`
             );
           },
           error: () => {

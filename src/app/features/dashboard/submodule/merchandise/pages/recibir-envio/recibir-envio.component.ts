@@ -48,7 +48,7 @@ export class RecibirEnvioComponent implements OnInit {
   async loadProductos() {
     try {
       const user = await this.utilityService.getUser();
-      const sedeUsuario = user.sucursalde;
+      const sedeUsuario = user.sede.nombre;
       const userEmail = user.correo_electronico;
 
       this.utilityService.traerInventarioProductos().subscribe(

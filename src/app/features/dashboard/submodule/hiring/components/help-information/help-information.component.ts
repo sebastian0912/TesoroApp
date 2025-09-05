@@ -383,7 +383,7 @@ export class HelpInformationComponent implements OnInit {
 
 
 
-    this.vacantesService.getVacantesPorOficina(user.sucursalde)
+    this.vacantesService.getVacantesPorOficina(user.sede.nombre)
       .subscribe((vacantes: PublicacionDTO[]) => {
         this.vacantes = vacantes ?? [];
         // (opcional) autoseleccionar la primera:
@@ -892,7 +892,7 @@ export class HelpInformationComponent implements OnInit {
   private buscarContratacion(): void {
     const user = this.utilityService.getUser();
     if (!user) return;
-    this.sedeLogin = user.sucursalde;
+    this.sedeLogin = user.sede.nombre;
 
     this.infoVacantesService.getVacantesPorNumero(this.cedula).subscribe({
       next: (resultado) => {

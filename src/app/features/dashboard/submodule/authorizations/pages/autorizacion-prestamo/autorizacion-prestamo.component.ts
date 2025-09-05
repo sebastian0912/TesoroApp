@@ -37,9 +37,10 @@ export class AutorizacionPrestamoComponent implements OnInit {
   ngOnInit() {
     this.user = this.utilityService.getUser();
     if (this.user) {
-      this.rolUsuario = this.user.rol;
-      this.correoUsuario = this.user.correo_electronico;
+      this.rolUsuario = this.user.rol?.nombre ?? '';
+      this.correoUsuario = this.user.correo_electronico ?? '';
     }
+
     this.myForm = this.fb.group({
       cedula: ['', Validators.required],
       tipo: ['', Validators.required],

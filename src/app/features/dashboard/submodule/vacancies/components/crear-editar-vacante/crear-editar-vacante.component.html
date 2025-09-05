@@ -109,9 +109,13 @@
 
     <mat-form-field class="example-full-width" *ngIf="vacanteForm.get('tieneFechaIngreso')?.value === 'Si'">
       <mat-label>Fecha de Ingreso</mat-label>
-      <input matInput [matDatepicker]="picker2" formControlName="fechadeIngreso">
+      <input matInput [matDatepicker]="picker2" formControlName="fechadeIngreso" [min]="today"> <!-- 🔥 bloqueo -->
       <mat-datepicker-toggle matSuffix [for]="picker2"></mat-datepicker-toggle>
       <mat-datepicker #picker2></mat-datepicker>
+      <mat-error *ngIf="vacanteForm.get('fechadeIngreso')?.hasError('matDatepickerMin')">
+        No se permiten fechas anteriores a hoy.
+      </mat-error>
+
     </mat-form-field>
 
     <!-- tiene prueba o contratacion -->
@@ -125,9 +129,13 @@
 
     <mat-form-field class="example-full-width" *ngIf="vacanteForm.get('pruebaOContratacion')?.value === 'Prueba'">
       <mat-label>Fecha de Prueba Técnica</mat-label>
-      <input matInput [matDatepicker]="picker1" formControlName="fechadePruebatecnica">
+      <input matInput [matDatepicker]="picker1" formControlName="fechadePruebatecnica" [min]="today">
+      <!-- 🔥 bloqueo -->
       <mat-datepicker-toggle matSuffix [for]="picker1"></mat-datepicker-toggle>
       <mat-datepicker #picker1></mat-datepicker>
+      <mat-error *ngIf="vacanteForm.get('fechadePruebatecnica')?.hasError('matDatepickerMin')">
+        No se permiten fechas anteriores a hoy.
+      </mat-error>
     </mat-form-field>
 
     <mat-form-field class="example-full-width" *ngIf="vacanteForm.get('pruebaOContratacion')?.value === 'Prueba'">
@@ -160,7 +168,7 @@
 
 
     <mat-form-field class="example-full-width">
-      <mat-label>Código Elite</mat-label>
+      <mat-label>Código Bot</mat-label>
       <input matInput formControlName="codigoElite">
     </mat-form-field>
 

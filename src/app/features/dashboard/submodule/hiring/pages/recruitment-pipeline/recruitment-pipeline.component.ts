@@ -411,7 +411,7 @@ export class RecruitmentPipelineComponent implements OnInit {
 
 
 
-      const sedeLoginLower = user.sucursalde?.toLowerCase?.() || '';
+      const sedeLoginLower = user.sede.nombre?.toLowerCase?.() || '';
 
       this.vacantes = response.filter(vacante =>
         Array.isArray(vacante.oficinasQueContratan) &&
@@ -737,7 +737,7 @@ export class RecruitmentPipelineComponent implements OnInit {
 
     // Obtener datos del local storage
     const userData = JSON.parse(localStorage.getItem('user') || '{}');
-    const nombreQuienValidoInformacion = `${userData.primer_nombre || ''} ${userData.primer_apellido || ''}`.trim();
+    const nombreQuienValidoInformacion = `${userData.datos_basicos.nombres || ''} ${userData.datos_basicos.apellidos || ''}`.trim();
 
     // Obtén los valores del formulario y formatea las fechas
     const payload = {

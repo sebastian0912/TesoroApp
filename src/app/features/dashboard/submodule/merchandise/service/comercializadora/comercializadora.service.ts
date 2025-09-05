@@ -91,7 +91,7 @@ export class ComercializadoraService {
       destino,
       personaQueLleva,
       comentariosEnvio,
-      PersonaEnvia: this.getUser().primer_nombre + ' ' + this.getUser().primer_apellido,
+      PersonaEnvia: this.getUser().datos_basicos.nombres + ' ' + this.getUser().datos_basicos.apellido,
     };
 
     try {
@@ -178,7 +178,7 @@ export class ComercializadoraService {
     const urlcompleta = `${this.apiUrl}/Comercio/jefedearea/recibirenvio/${cod}`;
 
     const PersonaRecibe =
-      this.getUser().primer_nombre + ' ' + this.getUser().primer_apellido;
+      this.getUser().datos_basicos.nombres + ' ' + this.getUser().datos_basicos.apellido;
     const dataToSend = {
       cod,
       cantidadRecibida,

@@ -43,13 +43,13 @@ export class TerminatedTransfersComponent implements OnInit {
 
   ngOnInit(): void {
     this.user = this.utilityService.getUser();
-    this.descargarExcel = this.user.rol === 'ADMIN' || this.user.correo_electronico === 'tuafiliacion@tsservicios.co';
+    this.descargarExcel = this.user.rol.nombre === 'ADMIN' || this.user.correo_electronico === 'tuafiliacion@tsservicios.co';
 
     if (!this.user) {
       return;
     }
 
-    const nombreCompleto = `${this.user.primer_nombre} ${this.user.primer_apellido}`;
+    const nombreCompleto = `${this.user.datos_basicos.nombres} ${this.user.datos_basicos.apellidos}`;
     this.homeService.traerTraladosAceptados(nombreCompleto).pipe(
       catchError(error => {
         return of({ traslados: [] }); // Devuelve un array vacío en caso de error

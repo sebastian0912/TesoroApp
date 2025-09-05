@@ -79,7 +79,7 @@ export class MercadoComercializadoraComponent implements OnInit, OnDestroy {
     // Extraemos usuario actual
     const user = this.utilityServiceService.getUser();
     if (user) {
-      this.rolUsuario = user.rol;
+      this.rolUsuario = user.rol.nombre;
       this.correoUsuario = user.correo_electronico;
     }
 
@@ -171,7 +171,7 @@ export class MercadoComercializadoraComponent implements OnInit, OnDestroy {
   private loadProductos() {
     this.utilityServiceService.traerInventarioProductos().subscribe(
       (data: any) => {
-        const sedeUsuario = this.utilityServiceService.getUser().sucursalde;
+        const sedeUsuario = this.utilityServiceService.getUser().sede.nombre;
         const userEmail = this.utilityServiceService.getUser().correo_electronico;
 
         // Filtramos según la lógica que tenías
@@ -335,7 +335,7 @@ export class MercadoComercializadoraComponent implements OnInit, OnDestroy {
         concepto += `${item.concepto} (x${item.cantidadSeleccionada}), `;
       });
 
-      concepto = concepto.slice(0, -2) + ' en ' + this.utilityServiceService.getUser().sucursalde;
+      concepto = concepto.slice(0, -2) + ' en ' + this.utilityServiceService.getUser().sede.nombre;
 
       // Calcular monto total de las autorizaciones seleccionadas
       const montoTotal = codigosSeleccionados.reduce((total: number, item: { monto: string; }) => total + parseFloat(item.monto), 0);

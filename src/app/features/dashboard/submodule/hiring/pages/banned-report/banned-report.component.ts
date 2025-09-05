@@ -72,8 +72,8 @@ export class BannedReportComponent {
     // Obtener usuario actual y sede
     const user = await this.getUser();
     if (user) {
-      this.username = `${user.primer_nombre} ${user.primer_apellido} - ${user.rol}`;
-      this.sede = user.sucursalde;
+      this.username = `${user.datos_basicos.nombres} ${user.datos_basicos.apellidos} - ${user.rol.nombre}`;
+      this.sede = user.sede.nombre;
 
       // Asignar el valor del campo 'reportadoPor' en el formulario
       this.reporteForm.patchValue({

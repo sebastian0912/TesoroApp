@@ -54,7 +54,7 @@
 
           <!-- Preseleccionados -->
           <ng-container matColumnDef="preseleccionados">
-            <th mat-header-cell *matHeaderCellDef>Preseleccionados</th>
+            <th mat-header-cell *matHeaderCellDef>Seleccionados</th>
             <td mat-cell *matCellDef="let v" [ngClass]="semaforoPre(v)">
               {{ countPre(v) }}
             </td>
@@ -114,7 +114,7 @@
 
           <!-- Finca -->
           <ng-container matColumnDef="finca">
-            <th mat-header-cell *matHeaderCellDef>Finca</th>
+            <th mat-header-cell *matHeaderCellDef>CENTRO DE COSTO</th>
             <td mat-cell *matCellDef="let v">{{ v.finca }}</td>
           </ng-container>
 

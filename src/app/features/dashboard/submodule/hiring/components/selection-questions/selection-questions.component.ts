@@ -492,7 +492,7 @@ export class SelectionQuestionsComponent implements OnInit {
       const payload = { ...this.formGroup1.value, numerodeceduladepersona: this.cedula };
       // user
       const user = this.utilityService.getUser();
-      const nombre = user.primer_nombre + ' ' + user.primer_apellido;
+      const nombre = user.datos_basicos.nombres + ' ' + user.datos_basicos.apellidos;
       // nombre_evaluador
       payload.nombre_evaluador = nombre;
       const resp: any = await firstValueFrom(

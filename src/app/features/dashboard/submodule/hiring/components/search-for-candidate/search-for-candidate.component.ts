@@ -159,10 +159,10 @@ export class SearchForCandidateComponent implements OnInit, OnDestroy {
   }
 
   private initUsuarioYAbreviacion(): void {
-    const user = this.utilityService.getUser() as Usuario | null;
+    const user = this.utilityService.getUser() as any | null;
     if (!user) { return; }
 
-    this.sede = user.sucursalde;
+    this.sede = user.sede.nombre;
   }
 
   /* ──────────  Escucha de ruta y carga tabla  ────────── */
@@ -392,11 +392,11 @@ export class SearchForCandidateComponent implements OnInit, OnDestroy {
       Swal.fire('Error', 'Debe escribir una observación.', 'error'); return;
     }
 
-    const u = this.utilityService.getUser() as Usuario | null;
+    const u = this.utilityService.getUser() as any | null;
     if (!u) { Swal.fire('Error', 'No hay usuario en sesión', 'error'); return; }
 
-    const nombre = `${u.primer_nombre} ${u.primer_apellido} - ${u.rol}`;
-    const sedeAbrev = this.abreviaciones[u.sucursalde] || u.sucursalde;
+    const nombre = `${u.datos_basicos.nombres} ${u.datos_basicos.apellidos} - ${u.rol.nombre}`;
+    const sedeAbrev = this.abreviaciones[u.sede.nombre] || u.sede.nombre;
 
     const reporte = {
       cedula: this.cedula,

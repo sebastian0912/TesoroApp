@@ -1,274 +1,431 @@
-@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap');
+/* Tipografías del otro proyecto */
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700&family=Nunito+Sans:wght@400;500;600;700&display=swap');
 
+/* ===============================
+   VARIABLES (con valores por defecto)
+   =============================== */
+:root {
+  /* layout */
+  --sidebar-left-width: 60pt;
+  /* ancho carril izquierdo */
+  --sidebar-right-width: 200pt;
+  /* ancho panel derecho */
+  --sidebar-width-collapsed: var(--sidebar-left-width);
+  --sidebar-width-expanded: calc(var(--sidebar-left-width) + var(--sidebar-right-width));
 
+  /* radios, bordes, colores base */
+  --radius-button: 12px;
+  --radius-surface: 16px;
+  --color-border: #E6E9F0;
+  --color-surface: #FFFFFF;
+  --color-surface-muted: #F4F6FA;
+  --color-surface-hover: #F8FAFD;
+  --color-hover-on-white-bg: #F4F6FA;
+  --color-hover-on-gray-bg: #EEF1F6;
+  --color-active-bg: #1B1E36;
+  --color-active-text: #FFFFFF;
+  --color-text-primary: #1F2937;
+  --color-text-secondary: #5D6674;
+  --color-icon: #384251;
+  --color-icon-muted: #6B7280;
 
-button,
-a {
-  background: transparent;
-  border: 0;
-  padding: 0;
-  cursor: pointer;
-  text-align: left;
-  text-decoration: none;
+  /* transiciones */
+  --transition-speed: .25s;
+  --transition-timing: cubic-bezier(.2, .8, .2, 1);
+
+  /* animación panel derecho */
+  --panel-right-entry-duration: .9s;
+  --panel-right-entry-timing-function: cubic-bezier(0.23, 1, 0.32, 1);
+  --panel-right-entry-initial-offset: -40px;
+  --panel-right-entry-initial-opacity: 0;
+  --panel-right-entry-delay: 0s;
 }
 
-.expand {
-  font-size: 24px;
-  color: #ffffff;
-  margin-left: auto;
+/* ===============================
+   CONTENEDOR SIDEBAR
+   =============================== */
+aside.sidebar {
+  position: fixed;
+  inset: 0 auto 0 0;
+  display: flex;
+  width: var(--sidebar-width-collapsed);
+  flex-direction: row;
+  box-shadow: 1px 0 4px rgba(0, 0, 0, .07);
+  transition: width var(--transition-speed) var(--transition-timing);
+  overflow: hidden;
+  z-index: 9999;
+  font-family: "Nunito Sans", system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+}
+
+/* cuando hay módulo raíz activo, expandimos para mostrar el panel derecho */
+.sidebar.show-detail {
+  width: var(--sidebar-width-expanded);
+}
+
+/* oculto (por ejemplo en móvil) */
+.sidebar.sidebar-hidden {
+  width: 0 !important;
+  min-width: 0 !important;
+  overflow: visible;
+}
+
+/* ===============================
+   PANEL IZQUIERDO (módulos raíz)
+   =============================== */
+.sidebar .left {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: var(--sidebar-left-width);
+  padding: 16px 0;
+  background-color: #1d2953;
+  border-right: 1px solid var(--color-border);
+  color: #fff;
+  z-index: 2;
+}
+
+/* contenedor de botones de módulos */
+.sidebar .module-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* botón de módulo */
+.sidebar .module-buttons button {
+  width: 45px;
+  height: 45px;
   display: flex;
   align-items: center;
   justify-content: center;
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-button);
+  cursor: pointer;
+  transition:
+    background-color var(--transition-speed) var(--transition-timing),
+    color var(--transition-speed) var(--transition-timing),
+    transform .08s ease;
 }
 
-.label-menu p {
-  margin-left: 5pt;
+.sidebar .module-buttons button:hover {
+  background-color: var(--color-hover-on-white-bg);
 }
 
+.sidebar .module-buttons button:active {
+  transform: scale(.98);
+}
 
-p {
+.sidebar .module-buttons button.active-module-button {
+  background-color: var(--color-active-bg);
+}
+
+/* íconos de módulo */
+.sidebar .module-buttons .tree-icon,
+.sidebar .module-buttons .mat-icon {
+  font-size: 20pt;
+  line-height: 1;
+  color: #fff !important
+}
+
+.sidebar .module-buttons button.active-module-button .tree-icon,
+.sidebar .module-buttons button.active-module-button .mat-icon {
+  color: #fff;
+}
+
+/* botones inferiores (logout, settings) */
+.sidebar .bottom-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: auto;
+  margin-bottom: 12px;
+}
+
+.sidebar .bottom-buttons button {
+  width: 55px;
+  height: 55px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-button);
+  cursor: pointer;
+  transition: background-color var(--transition-speed) var(--transition-timing);
+}
+
+.sidebar .bottom-buttons button:hover {
+  background-color: var(--color-hover-on-white-bg);
+}
+
+.sidebar .bottom-buttons .mat-icon {
+  font-size: 19pt;
+  color: #fff;
+}
+
+/* ===============================
+   PANEL DERECHO (árbol recursivo)
+   =============================== */
+.sidebar .right {
+  width: var(--sidebar-right-width);
+  height: 100%;
+  padding: 10pt;
+  background-color: #fff;
+  border-top-right-radius: 20px;
+  border-bottom-right-radius: 20px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  z-index: 1;
+  /* al lado del izquierdo, no por encima */
+
+  /* animación de entrada */
+  animation-name: slide-in-right-professional;
+  animation-duration: var(--panel-right-entry-duration);
+  animation-timing-function: var(--panel-right-entry-timing-function);
+  animation-delay: var(--panel-right-entry-delay);
+  animation-fill-mode: both;
+  will-change: transform, opacity;
+}
+
+/* contenedor interno tipo “card” para dar profundidad */
+.sidebar .right .right-inner {
+  background: var(--color-surface-muted);
+  border-radius: var(--radius-surface);
+  width: 100%;
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 8px 24px rgba(24, 39, 75, .05);
+  overflow: hidden;
+}
+
+/* ===============================
+   Encabezado del panel derecho
+   =============================== */
+.sidebar .right .header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 18px 18px 12px;
+  border-bottom: 1px solid var(--color-border);
+  background: linear-gradient(180deg, #fff, transparent);
+}
+
+.sidebar .right .header-title {
+  margin: 0;
+  font-family: "Montserrat", "Nunito Sans", system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: .2px;
+  color: var(--color-text-secondary);
+}
+
+.sidebar .right .header-pin-button {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  transition: background-color var(--transition-speed) var(--transition-timing);
+}
+
+.sidebar .right .header-pin-button:hover {
+  background-color: var(--color-hover-on-gray-bg);
+}
+
+.sidebar .right .header-icon {
+  font-size: 20px;
+  color: var(--color-text-secondary);
   line-height: 1;
 }
 
-.sidebar header {
-  display: flex;
-  align-items: center;
-  height: 72px;
-  padding-top: 10px;
-  border-bottom: 1px solid rgb(255 255 255 / 8%);
-}
-
-.sidebar header img {
-  height: 44px;
-}
-
-.sidebar {
-  position: fixed;
-  top: 0;
-  left: 0;
-  bottom: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  width: 260px;
-  padding: 16px;
-  background-color: #404040;
-  transition: transform 0.4s ease-in-out, opacity 0.4s ease-in-out;
-  overflow-y: auto;
-  scrollbar-width: thin;
-  scrollbar-color: #febb2e #404040;
-  z-index: 3;
-  font-family: 'Poppins', sans-serif;
-}
-
-.sidebar-header {
-  width: 100%;
-  color: #414141;
-  text-align: left;
-}
-
-.titulo-header h3 {
-  font-size: 18pt;
-  width: 100%;
-  color: #febb2e;
-  font-style: italic;
-  border-bottom: 2px solid #febb2e;
-  padding-bottom: 0px;
-  font-weight: 600;
-
-}
-
-.servicios-header {
-  margin-top: 20px;
-}
-
-.sidebar-header h3 {
-  font-size: 14pt;
-}
-
-.servicios-header h3 {
-  font-size: 14pt;
-  color: #fff;
-}
-
-
-.sidebar-hidden {
-  transform: translateX(-100%);
-  opacity: 0;
-}
-
-.sidebar::-webkit-scrollbar {
-  width: 8px;
-}
-
-.sidebar::-webkit-scrollbar-thumb {
-  background-color: #febb2e;
-  border-radius: 10px;
-}
-
-.sidebar::-webkit-scrollbar-track {
-  background-color: #404040;
-}
-
-.sidebar-toggle {
-  display: none;
-  position: fixed;
-  top: 16px;
-  left: 16px;
-  background-color: #404040;
-  border: none;
-  font-size: 24px;
-  padding: 8px;
-  border-radius: 8px;
-  z-index: 4;
-  transition: background-color 0.3s ease;
-}
-
-.sub-menu-link{
-  line-height: 0.8;
-  font-size: 12pt !important;
-}
-
-li {
-  cursor: pointer;
-}
-
-.blockLink{
-  min-width: 100%;
-}
-
-.sidebar :is(button, a) {
-  position: relative;
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  justify-content: flex-start;
-  height: 48px;
-  width: 100%;
-  border-radius: 8px;
-  font-family: 'Poppins', sans-serif;
-  font-size: 16px;
-  font-weight: 500;
-  padding: 0 16px;
-  color: #F2F2F2;
-  transition: background-color 0.3s ease, color 0.3s ease;
-  margin-top: 2px;
-}
-
-.blockLink img.icon {
-  width: 24px;
-  height: 24px;
-  object-fit: cover;
-  margin-right: 8px;
-}
-
-.sidebar a:hover,
-.blockLink:hover {
-  background-color: #febb2e;
-  border-radius: 8pt;
-}
-
-
-
-.sidebar ul {
-  display: grid;
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  width: 100%;
-}
-
-.sub-menu {
-  max-height: 0;
-  overflow: hidden;
-  background-color: #D9CEB0;
-  border-radius: 8px;
-  box-shadow: 0px 2px 8px rgba(0, 0, 0, 0.15);
-  margin-top: 8px;
-  transition: max-height 1.2s ease-in-out, padding 1.2s ease-in-out;
-}
-
-.sub-menu.open {
-  max-height: 600pt;
-  padding: 0;
-}
-
-.sub-menu ul {
-  display: grid;
-  padding: 0;
-  margin: 0;
-  list-style: none;
-}
-
-.sub-menu a {
-  padding: 8px 24px;
-  background-color: transparent;
-  font-size: 14px;
-  font-weight: 500 !important;
-  transition: background-color 0.3s ease;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: #000 !important;
-}
-
-.sidebar > ul > li > a.active {
-  background-color: #febb2e;
-  color: #000;
-}
-
-.sub-menu > ul > li > a.active {
-  background-color: #febb2e;
-  color: #fff;
-}
-
-.sidebar img.icon {
-  width: 24px;
-  height: 24px;
-  object-fit: contain;
+/* ===============================
+   Árbol de navegación (recursivo)
+   =============================== */
+.sidebar .right .nav-tree {
+  flex: 1 1 auto;
+  padding: 14px 14px 18px;
   display: block;
 }
 
-.cerrar-sesion:hover {
-  background-color: #FF4D4D;
-  color: #fff;
+/* nivel UL */
+.sidebar .right .tree-level {
+  list-style: none;
+  margin: 0;
+  padding: 0;
 }
 
-@media (max-width: 768px) {
-  .sidebar {
-    transform: translateX(-100%);
-    padding-top: 64px;
+/* cada LI separadito */
+.sidebar .right .tree-level>li {
+  margin-bottom: 8px;
+}
+
+.sidebar .right .tree-level>li:last-child {
+  margin-bottom: 0;
+}
+
+
+
+/* item visual (cada fila) */
+.sidebar .right .tree-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 40px;
+  padding: 8px 10px;
+  background: var(--color-surface);
+  border: 1px solid #EEF1F6;
+  border-radius: 12px;
+  transition: background-color var(--transition-speed) var(--transition-timing),
+    border-color var(--transition-speed) var(--transition-timing),
+    box-shadow var(--transition-speed) var(--transition-timing);
+}
+
+/* profundidad: ya traes paddingLeft por inline style; esto solo ajusta suavidad */
+.sidebar .right .tree-item:hover {
+  background: var(--color-surface-hover);
+  border-color: #E5EAF3;
+  box-shadow: 0 2px 10px rgba(31, 41, 55, .06);
+}
+
+/* foco accesible cuando el link o botón recibe focus */
+.sidebar .right .tree-item:focus-within {
+  box-shadow: 0 0 0 2px #CFE3FF;
+  border-color: #B9D3FF;
+}
+
+/* botón de toggle (expand/collapse) */
+.sidebar .right .toggle-btn {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  padding: 0 2px 0 0;
+  color: var(--color-icon-muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  transition: background-color var(--transition-speed) var(--transition-timing), color var(--transition-speed);
+}
+
+.sidebar .right .toggle-btn:hover {
+  background: #F2F5FB;
+  color: var(--color-icon);
+}
+
+.sidebar .right .toggle-btn .mat-icon {
+  font-size: 20px;
+}
+
+/* icono del nodo */
+.sidebar .right .tree-icon {
+  font-size: 18px !important;
+  color: var(--color-icon);
+  width: 18px;
+  height: 18px;
+}
+
+/* link del nodo (hoja) */
+.sidebar .right .tree-link {
+  color: var(--color-text-primary);
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: .2px;
+  text-decoration: none;
+  cursor: pointer;
+  line-height: 1.2;
+  ;
+}
+
+.sidebar .right .tree-link:hover {
+  color: #111827;
+  text-decoration: underline;
+}
+
+/* cuando es botón (nodo con hijos) */
+.sidebar .right .tree-link.as-button {
+  border: none;
+  background: none;
+  padding: 0;
+  color: var(--color-text-primary);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* estado activo (routerLinkActive) */
+.sidebar .right .active-submodule {
+  background: var(--color-active-bg);
+  color: var(--color-active-text) !important;
+  border-radius: 10px;
+  padding: 2px 6px;
+}
+
+/* ===============================
+   Scrollbar sutil del panel derecho
+   =============================== */
+.sidebar .right {
+  scrollbar-width: thin;
+  scrollbar-color: #C7C9CC transparent;
+}
+
+.sidebar .right::-webkit-scrollbar {
+  width: 8px;
+}
+
+.sidebar .right::-webkit-scrollbar-thumb {
+  background: #C7C9CC;
+  border-radius: 6px;
+}
+
+/* ===============================
+   Responsive
+   =============================== */
+@media (max-width: 900px) {
+
+  /* el botón móvil puedes añadirlo si lo usas; aquí solo ejemplo */
+  .mobile-menu-btn {
+    display: flex !important;
   }
 
-  .sidebar.sidebar-hidden {
+  /* el panel derecho ocupa el resto del ancho en móvil */
+  .sidebar {
+    width: var(--sidebar-left-width);
+  }
+
+  .sidebar.show-detail {
+    width: calc(100vw);
+  }
+
+  .sidebar .right {
+    width: calc(100vw - var(--sidebar-left-width));
+  }
+
+  /* si escondes la barra, ocultamos ambos paneles visualmente */
+  .sidebar.sidebar-hidden .left,
+  .sidebar.sidebar-hidden .right {
+    display: none !important;
+  }
+}
+
+/* ===============================
+   Animación slide-in del panel derecho
+   =============================== */
+@keyframes slide-in-right-professional {
+  from {
+    transform: translateX(var(--panel-right-entry-initial-offset));
+    opacity: var(--panel-right-entry-initial-opacity);
+  }
+
+  to {
     transform: translateX(0);
     opacity: 1;
-    transition: transform 0.4s ease-in-out, opacity 0.4s ease-in-out;
-  }
-
-  .sidebar-toggle {
-    display: block;
-  }
-
-  .dashboard-content {
-    margin-left: 0;
-    padding-top: 64px;
   }
 }
-
-@media (min-width: 769px) {
-  .sidebar-toggle {
-    display: none;
-  }
-
-  .sidebar {
-    transform: translateX(0);
-    opacity: 1;
-    padding-top: 80px;
-  }
-
-  .dashboard-content {
-    margin-left: 260px;
-  }
-}
-

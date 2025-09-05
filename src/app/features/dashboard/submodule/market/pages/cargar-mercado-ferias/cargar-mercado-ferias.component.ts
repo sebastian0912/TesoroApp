@@ -95,7 +95,7 @@ export class CargarMercadoFeriasComponent implements OnInit {
       // Obtener usuario desde el servicio
       this.usuario = this.utilityServiceService.getUser();
       if (this.usuario) {
-        this.rolUsuario = this.usuario.rol;
+        this.rolUsuario = this.usuario.rol.nombre;
         this.correoUsuario = this.usuario.correo;
       }
 
@@ -112,7 +112,7 @@ export class CargarMercadoFeriasComponent implements OnInit {
 
       // Llamar datos de la comercializadora
       const data: any = await this.utilityServiceService.traerInventarioProductos().toPromise();
-      const sedeUsuario = this.utilityServiceService.getUser().sucursalde;
+      const sedeUsuario = this.utilityServiceService.getUser().sede.nombre;
 
       if (data && data.comercio) {
         // Filtrar productos según sede y disponibilidad
@@ -240,7 +240,7 @@ export class CargarMercadoFeriasComponent implements OnInit {
         }
 
         // 4.2 Construir el mensaje final del concepto
-        conceptoMOH = `Compra tienda de Ferias respecto a: ${conceptoProductos} en ${this.utilityServiceService.getUser().sucursalde}`;
+        conceptoMOH = `Compra tienda de Ferias respecto a: ${conceptoProductos} en ${this.utilityServiceService.getUser().sede.nombre}`;
 
         // 4.3 Escribir en historial
         const historialData = await this.autorizacionesService.escribirHistorial(
@@ -359,9 +359,9 @@ export class CargarMercadoFeriasComponent implements OnInit {
       );
 
       // 5.3 Construir el mensaje para MOH
-      conceptoMOH = `Compra tienda de Ferias respecto a : ${formValues.concepto} en ${this.utilityServiceService.getUser().sucursalde}`;
+      conceptoMOH = `Compra tienda de Ferias respecto a : ${formValues.concepto} en ${this.utilityServiceService.getUser().sede.nombre}`;
       if (formValues.concepto === 'Otro') {
-        conceptoMOH = `Compra tienda de Ferias respecto a : ${formValues.otroConcepto} en ${this.utilityServiceService.getUser().sucursalde}`;
+        conceptoMOH = `Compra tienda de Ferias respecto a : ${formValues.otroConcepto} en ${this.utilityServiceService.getUser().sede.nombre}`;
       }
 
       // 5.4 Ejecutar en tienda

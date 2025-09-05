@@ -1,62 +1,124 @@
-<!-- Botón de menú para dispositivos móviles -->
-<button class="sidebar-toggle" (click)="toggleSidebar()">
-  <mat-icon>menu</mat-icon>
-</button>
+<aside class="sidebar" [class.show-detail]="!!activeRoot" [class.sidebar-hidden]="isSidebarHidden">
+  <!-- PANEL IZQUIERDO (MÓDULOS RAÍZ) -->
+  <div class="left" (mouseleave)="onPanelLeave()" *ngIf="!isSidebarHidden">
+    <div class="module-buttons">
+      <!-- HOME fijo -->
+      <button
+        routerLink="/dashboard"
+        routerLinkActive="active-module-button"
+        [routerLinkActiveOptions]="{ exact: true }"
+        aria-label="Inicio"
+        matTooltip="Inicio"
+        matTooltipPosition="right"
+        type="button">
+        <mat-icon class="tree-icon" fontSet="material-symbols-outlined">home</mat-icon>
+      </button>
 
-<!-- Barra lateral -->
-<aside class="sidebar" [ngClass]="{ 'sidebar-hidden': isSidebarHidden }">
-  <div class="sidebar-header titulo-header">
-    <h3>Gestión Empresa</h3>
-  </div>
-
-  <div class="sidebar-header servicios-header">
-    <h3>Menú</h3>
-  </div>
-
-  <ul>
-    <li class="blockLink">
-      <a routerLink="/dashboard" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }"
-        (click)="closeSidebar()">
-        <img src="icons/navbar/home-button.png" alt="Dashboard" class="icon" />
-        <p>Home</p>
-      </a>
-    </li>
-
-    <ng-container *ngFor="let menu of dynamicMenus">
-      <li *ngIf="menuHasSubMenus(menu)" class="label-menu">
-        <a (click)="toggleMenu(menu.key)" [ngClass]="{ active: menuState[menu.key] }">
-          <img [src]="menu.icon" [alt]="menu.label" class="icon" />
-          <p>{{ menu.label }}</p>
-          <mat-icon class="expand">
-            {{ menuState[menu.key] ? "expand_less" : "expand_more" }}
+      <!-- Módulos raíz desde permisos_tree -->
+      <ng-container *ngFor="let mod of rootModules; trackBy: trackByNodeId">
+        <button
+          type="button"
+          (mouseenter)="onModuleEnter(mod)"
+          [matTooltip]="mod.nombre"
+          matTooltipPosition="right"
+          [attr.aria-expanded]="activeRoot?.id === mod.id">
+          <mat-icon class="tree-icon" fontSet="material-symbols-outlined">
+            {{ getModuleIcon(mod.nombre) }}
           </mat-icon>
-        </a>
-        <div class="sub-menu" [ngClass]="{ open: menuState[menu.key] }">
-          <ul>
-            <li *ngFor="let subMenu of menu.subMenus">
-              <ng-container *ngIf="hasPermission(subMenu.permission)">
-                <a *ngIf="subMenu.route; else actionTemplate" [routerLink]="subMenu.route"
-                  [ngClass]="{ active: isActive(subMenu.route) }" (click)="handleSubMenuClick(subMenu.route)" class="sub-menu-link">
-                  {{ subMenu.label }}
-                </a>
-                <ng-template #actionTemplate>
-                  <a *ngIf="subMenu.action" (click)="executeAction(subMenu.action)" class="sub-menu-link">
-                    {{ subMenu.label }}
-                  </a>
-                </ng-template>
+        </button>
+      </ng-container>
+    </div>
+
+    <div class="bottom-buttons">
+      <button class="tree-icon" (click)="cerrarSesion()" title="Cerrar sesión" type="button">
+        <mat-icon fontSet="material-symbols-outlined">logout</mat-icon>
+      </button>
+    </div>
+  </div>
+
+  <!-- PANEL DERECHO (ÁRBOL RECURSIVO) -->
+  <div
+    class="right"
+    *ngIf="activeRoot"
+    id="right-panel-content"
+    (mouseenter)="onRightPanelEnter()"
+    (mouseleave)="onPanelLeave()">
+
+    <div class="right-inner">
+      <!-- Cabecera -->
+      <div class="header">
+        <h2 class="header-title">{{ activeRoot.nombre }}</h2>
+        <button class="header-pin-button" title="Expandir/Colapsar todo" (click)="toggleAll(activeRoot)" type="button">
+          <mat-icon class="header-icon" fontSet="material-symbols-outlined">
+            {{ isAnyCollapsed(activeRoot) ? 'unfold_more' : 'unfold_less' }}
+          </mat-icon>
+        </button>
+      </div>
+
+      <!-- Árbol -->
+      <nav class="nav-tree" [attr.aria-label]="'Submódulos de ' + activeRoot.nombre">
+        <ng-container *ngTemplateOutlet="nodeListTpl; context: { nodes: activeRoot.hijos, depth: 0 }"></ng-container>
+      </nav>
+
+      <!-- plantilla recursiva -->
+      <ng-template #nodeListTpl let-nodes="nodes" let-depth="depth">
+        <ul class="tree-level" [class.is-root]="depth === 0">
+          <li *ngFor="let node of nodes; trackBy: trackByNodeId">
+            <!--
+              NODOS HOJA alineados a la DERECHA:
+              - class.is-leaf para CSS
+              - paddingLeft solo si tiene hijos
+              - paddingRight solo si es hoja
+            -->
+            <div
+              class="tree-item"
+              [class.is-leaf]="!node.hijos?.length"
+              [style.paddingLeft.px]="node.hijos?.length ? depth * 16 : 0"
+              [style.paddingRight.px]="!node.hijos?.length ? depth * 16 : 0">
+
+              <!-- Toggle solo si tiene hijos -->
+              <button
+                *ngIf="node.hijos?.length"
+                class="toggle-btn"
+                type="button"
+                (click)="toggleNode(node.id)"
+                [attr.aria-expanded]="isExpanded(node.id)">
+                <mat-icon fontSet="material-symbols-outlined">
+                  {{ isExpanded(node.id) ? 'expand_more' : 'chevron_right' }}
+                </mat-icon>
+              </button>
+
+              <!-- Icono del nodo -->
+              <mat-icon class="tree-icon" fontSet="material-symbols-outlined">
+                {{ getNodeIcon(node.nombre) }}
+              </mat-icon>
+
+              <!-- Si es hoja, navega; si no, expande/colapsa -->
+              <a
+                *ngIf="!node.hijos?.length; else expandableTitle"
+                class="tree-link"
+                [routerLink]="getNodeRoute(node)"
+                routerLinkActive="active-submodule"
+                (click)="activeRoot = null">
+                {{ node.nombre }}
+              </a>
+
+              <ng-template #expandableTitle>
+                <button class="tree-link as-button" type="button" (click)="toggleNode(node.id)">
+                  {{ node.nombre }}
+                </button>
+              </ng-template>
+            </div>
+
+            <!-- hijos -->
+            <ng-container *ngIf="node.hijos?.length && isExpanded(node.id)">
+              <ng-container
+                *ngTemplateOutlet="nodeListTpl; context: { nodes: node.hijos, depth: depth + 1 }">
               </ng-container>
-            </li>
-          </ul>
-        </div>
-      </li>
-    </ng-container>
-
-    <li class="blockLink">
-      <a (click)="cerrarSesion()" (click)="closeSidebar()">
-        <img src="icons/navbar/cerrar-sesion.png" alt="Cerrar Sesión" class="icon" />
-        <p>Cerrar Sesión</p>
-      </a>
-    </li>
-
-  </ul>
+            </ng-container>
+          </li>
+        </ul>
+      </ng-template>
+    </div>
+  </div>
 </aside>

@@ -28,14 +28,12 @@ export class SidebarComponent {
   ) { }
 
   async ngOnInit(): Promise<void> {
-    const user = await this.getUser();
+    const user = this.adminService.getUser();
+    if (!user) return;
+    this.sede = user.sede.nombre;
+    this.role = user.rol.nombre;
+    this.username = user.datos_basicos.nombres + ' ' + user.datos_basicos.apellidos;
     this.getAppVersion();
-
-    if (user) {
-      this.username = `${user.primer_nombre} ${user.primer_apellido}`;
-      this.role = user.rol;
-      this.sede = user.sucursalde;
-    }
   }
 
   getAppVersion() {
@@ -50,16 +48,6 @@ export class SidebarComponent {
     }
   }
 
-
-  async getUser(): Promise<any> {
-    if (isPlatformBrowser(this.platformId)) {
-      const user = localStorage.getItem('user');
-      if (user) {
-        return JSON.parse(user);
-      }
-    }
-    return null;
-  }
 
   async cargarSedes(): Promise<void> {
     (await this.adminService.traerSucursales()).subscribe((data: any) => {
@@ -79,9 +67,16 @@ export class SidebarComponent {
           if (response.message === 'error') {
             Swal.fire('Error!', 'Hubo un problema al asignar la sede, vuelva a intentarlo.', 'error');
           } else if (response.message === 'success') {
-            user.sucursalde = sede;
+            // 🔥 corregido: actualizar el objeto correcto
+            if (user.sede) {
+              user.sede.nombre = sede;
+            } else {
+              user.sede = { id: '', nombre: sede, activa: true }; // fallback si no existiera
+            }
+
             this.sede = sede;
             localStorage.setItem('user', JSON.stringify(user));
+
             Swal.fire('Editado!', 'La sede ha sido asignada.', 'success').then(() => {
               const currentUrl = this.router.url; // Guarda la URL actual
               this.router.navigateByUrl('/dashboard', { skipLocationChange: true }).then(() => {
@@ -98,6 +93,7 @@ export class SidebarComponent {
       Swal.fire('Error!', 'No se encontró información del usuario.', 'error');
     }
   }
+
 
   prueba(): void {
     // dirigir a la página de inicio

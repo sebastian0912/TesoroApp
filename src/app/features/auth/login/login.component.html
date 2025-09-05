@@ -1,105 +1,47 @@
-<div class="contenedor">
-  <div class="container" [ngClass]="{'right-panel-active': rightPanelActive}" id="container">
-    <div class="form-container sign-up-container">
-      <form [formGroup]="registerForm" (ngSubmit)="register()">
-        <h1>Crear Cuenta</h1>
-
-        <div class="input-container">
-          <input type="text" placeholder="Número de Documento" formControlName="numero_de_documento" required />
-          <div *ngIf="registerForm.get('numero_de_documento')?.touched && registerForm.get('numero_de_documento')?.invalid">
-            <small *ngIf="registerForm.get('numero_de_documento')?.hasError('required')" class="error">El número de documento es obligatorio.</small>
-          </div>
-        </div>
-
-        <div class="input-container">
-          <input type="text" placeholder="Primer Nombre" formControlName="primer_nombre" required />
-          <div *ngIf="registerForm.get('primer_nombre')?.touched && registerForm.get('primer_nombre')?.invalid">
-            <small *ngIf="registerForm.get('primer_nombre')?.hasError('required')" class="error">El primer nombre es obligatorio.</small>
-          </div>
-        </div>
-
-        <div class="input-container">
-          <input type="text" placeholder="Segundo Nombre" formControlName="segundo_nombre" />
-        </div>
-
-        <div class="input-container">
-          <input type="text" placeholder="Primer Apellido" formControlName="primer_apellido" required />
-          <div *ngIf="registerForm.get('primer_apellido')?.touched && registerForm.get('primer_apellido')?.invalid">
-            <small *ngIf="registerForm.get('primer_apellido')?.hasError('required')" class="error">El primer apellido es obligatorio.</small>
-          </div>
-        </div>
-
-        <div class="input-container">
-          <input type="text" placeholder="Segundo Apellido" formControlName="segundo_apellido" />
-        </div>
-
-        <div class="input-container">
-          <input type="email" placeholder="Correo" formControlName="correo_electronico" required />
-          <div *ngIf="registerForm.get('correo_electronico')?.touched && registerForm.get('correo_electronico')?.invalid">
-            <small *ngIf="registerForm.get('correo_electronico')?.hasError('required')" class="error">El correo es obligatorio.</small>
-            <small *ngIf="registerForm.get('correo_electronico')?.hasError('correo_electronico')" class="error">Por favor, introduce un correo válido.</small>
-          </div>
-        </div>
-
-        <div class="input-container password-container">
-          <input [type]="showPassword ? 'text' : 'password'" placeholder="Contraseña" formControlName="password" required />
-          <mat-icon class="toggle-password" (click)="togglePasswordVisibility()">
-            {{ showPassword ? 'visibility_off' : 'visibility' }}
-          </mat-icon>
-          <div *ngIf="registerForm.get('password')?.touched && registerForm.get('password')?.invalid">
-            <small *ngIf="registerForm.get('password')?.hasError('required')" class="error">La contraseña es obligatoria.</small>
-            <small *ngIf="registerForm.get('password')?.hasError('minlength')" class="error">
-              La contraseña debe tener al menos 6 caracteres.
-            </small>
-          </div>
-        </div>
-
-        <button type="submit" [disabled]="registerForm.invalid">Regístrate</button>
-      </form>
+<div class="backgraound">
+  <div class="view">
+    <div class="blob-container">
+      <div class="orbit"></div>
     </div>
 
-    <div class="form-container sign-in-container">
-      <form [formGroup]="loginForm" (ngSubmit)="login()">
-        <h1>Inicio Sesión</h1>
+    <div class="login">
+      <!--
+        <img src="logo/FOMAGMesa-de-trabajo-34@2x.png" />
+        -->
+      <h2>¡Bienvenido a Tu Apo!</h2>
+      <h3>¡Ingresa tus credenciales!</h3>
 
-        <div class="input-container">
-          <input type="email" placeholder="Correo" formControlName="email" required />
-          <div *ngIf="loginForm.get('email')?.touched && loginForm.get('email')?.invalid">
-            <small *ngIf="loginForm.get('email')?.hasError('required')" class="error">El correo es obligatorio.</small>
-            <small *ngIf="loginForm.get('email')?.hasError('email')" class="error">Por favor, introduce un correo válido.</small>
-          </div>
-        </div>
+      <form [formGroup]="loginForm" (ngSubmit)="onSubmit()" class="form" autocomplete="off">
+        <mat-form-field class="textbox" appearance="outline">
+          <mat-label>Correo o documento</mat-label>
+          <input matInput type="text" formControlName="login" required />
+          <mat-error *ngIf="loginForm.get('login')?.hasError('required')">
+            Este campo es obligatorio
+          </mat-error>
+          <mat-error *ngIf="loginForm.get('login')?.hasError('emailOrDoc')">
+            Ingrese un correo válido o un número de documento
+          </mat-error>
+        </mat-form-field>
 
-        <div class="input-container password-container">
-          <input [type]="showLoginPassword ? 'text' : 'password'" placeholder="Contraseña" formControlName="password" required />
-          <mat-icon class="toggle-password" (click)="toggleLoginPasswordVisibility()">
-            {{ showLoginPassword ? 'visibility_off' : 'visibility' }}
-          </mat-icon>
-          <div *ngIf="loginForm.get('password')?.touched && loginForm.get('password')?.invalid">
-            <small *ngIf="loginForm.get('password')?.hasError('required')" class="error">La contraseña es obligatoria.</small>
-            <small *ngIf="loginForm.get('password')?.hasError('minlength')" class="error">
-              La contraseña debe tener al menos 6 caracteres.
-            </small>
-          </div>
-        </div>
+        <mat-form-field class="textbox" appearance="outline">
+          <mat-label>Contraseña</mat-label>
+          <input matInput [type]="hide ? 'password' : 'text'" formControlName="password" required />
+          <button mat-icon-button matSuffix type="button" (click)="hide = !hide" [attr.aria-label]="'Mostrar/Ocultar contraseña'">
+            <mat-icon>{{ hide ? 'visibility' : 'visibility_off' }}</mat-icon>
+          </button>
+          <mat-error *ngIf="loginForm.get('password')?.hasError('required')">
+            La contraseña es obligatoria
+          </mat-error>
+        </mat-form-field>
 
-        <button type="submit" [disabled]="loginForm.invalid">Inicia Sesión</button>
+        <button mat-flat-button color="primary" type="submit" [disabled]="loginForm.invalid || loading">
+          {{ loading ? 'Ingresando...' : 'Iniciar sesión' }}
+        </button>
       </form>
-    </div>
-
-    <div class="overlay-container">
-      <div class="overlay">
-        <div class="overlay-panel overlay-left">
-          <h1>Bienvenido!</h1>
-          <p>Si ya tienes una cuenta, inicia sesión con tu correo y contraseña</p>
-          <button class="ghost" (click)="togglePanel(false)">Inicia Sesión</button>
-        </div>
-        <div class="overlay-panel overlay-right">
-          <h1>Bienvenido!</h1>
-          <p>No te has registrado? Regístrate para validar los empleados</p>
-          <button class="ghost" (click)="togglePanel(true)">Regístrate</button>
-        </div>
-      </div>
+<!--
+  <a href="#">¿Olvidaste tu contraseña?</a>
+  <p class="footer">¿No tienes una cuenta? <a href="#">¡Regístrate!</a></p>
+  -->
     </div>
   </div>
 </div>

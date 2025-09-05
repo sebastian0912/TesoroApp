@@ -42,7 +42,7 @@ export class CargarMercadoComponent implements OnInit {
   ngOnInit() {
     let user = this.utilityServiceService.getUser();
     if (user) {
-      this.rolUsuario = user.rol;
+      this.rolUsuario = user.rol.nombre;
       this.correoUsuario = user.correo_electronico;
     }
 
@@ -186,7 +186,7 @@ export class CargarMercadoComponent implements OnInit {
       const data = await this.autorizacionesService.buscarCodigo(formValues.codigo);
 
       codigoOH = 'MOH' + Math.floor(Math.random() * 1000000);
-      concepto = 'Compra tienda de ' + this.utilityServiceService.getUser().primer_nombre + ' ' + this.utilityServiceService.getUser().primer_apellido;
+      concepto = 'Compra tienda de ' + this.utilityServiceService.getUser().datos_basicos.nombres + ' ' + this.utilityServiceService.getUser().datos_basicos.apellidos;
 
       // Verificar si el código ya ha sido utilizado o no existe
       if (data.codigo.length === 0) {

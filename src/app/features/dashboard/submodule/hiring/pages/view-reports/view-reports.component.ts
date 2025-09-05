@@ -79,7 +79,7 @@ export class ViewReportsComponent {
     const user = await this.utilityService.getUser();
     if (user) {
       this.userCorreo = user.correo_electronico;
-      this.userNombre = `${user.primer_nombre} ${user.primer_apellido}`;
+      this.userNombre = `${user.datos_basicos.nombres} ${user.datos_basicos.apellidos}`;
     }
 
     this.obtenerReportes();

@@ -89,11 +89,11 @@ export class ActiveAuthorizationsComponent implements OnInit {
         });
 
         if (
-          user.primer_nombre && user.primer_apellido &&
+          user.datos_basicos.nombres && user.datos_basicos.apellidos &&
           !excepciones.includes(email)
         ) {
           this.homeService.traerHistorialInformePersona(
-            result.start, result.end, user.primer_nombre + ' ' + user.primer_apellido, true // <--- excel:true
+            result.start, result.end, user.datos_basicos.nombres + ' ' + user.datos_basicos.apellidos, true // <--- excel:true
           )
             .subscribe(blob => handleExcelDownload(blob, 'Historial_Informe_Personal'));
         } else {

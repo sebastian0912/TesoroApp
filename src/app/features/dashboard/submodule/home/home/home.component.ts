@@ -46,7 +46,7 @@ export class HomeComponent implements OnInit {
 
   private initializeUserRoles(): void {
     this.user = this.utilityService.getUser();
-    if (!this.user || this.user.rol === 'SIN-ASIGNAR') {
+    if (!this.user || this.user.rol.nombre === 'SIN-ASIGNAR') {
       this.general = false;
       this.comercializadora = false;
       this.traslado = false;
@@ -54,10 +54,10 @@ export class HomeComponent implements OnInit {
       return;
     }
 
-    this.general = this.user.rol !== 'GERENCIA' && this.user.rol !== 'TRASLADOS';
-    this.comercializadora = this.user.rol === 'COMERCIALIZADORA' || this.user.rol === 'ADMIN' || this.user.correo_electronico === 'tuafiliacion@tsservicios.co';
-    this.traslado = this.user.rol === 'TRASLADOS' || this.user.rol === 'ADMIN' || this.user.correo_electronico === 'tuafiliacion@tsservicios.co';
-    this.admin = this.user.rol === 'GERENCIA' || this.user.rol === 'ADMIN';
+    this.general = this.user.rol.nombre !== 'GERENCIA' && this.user.rol.nombre !== 'TRASLADOS';
+    this.comercializadora = this.user.rol.nombre === 'COMERCIALIZADORA' || this.user.rol.nombre === 'ADMIN' || this.user.correo_electronico === 'tuafiliacion@tsservicios.co';
+    this.traslado = this.user.rol.nombre === 'TRASLADOS' || this.user.rol.nombre === 'ADMIN' || this.user.correo_electronico === 'tuafiliacion@tsservicios.co';
+    this.admin = this.user.rol.nombre === 'GERENCIA' || this.user.rol.nombre === 'ADMIN';
   }
 
   private async fetchInitialData(): Promise<void> {
