@@ -1,0 +1,31 @@
+/* src/app/features/admin/components/user-upsert-dialog/user-upsert-dialog.component.css */
+.content { padding: 8px 4px; }
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(240px, 1fr));
+  gap: 12px;
+}
+
+.form-grid .span-2 {
+  grid-column: span 2;
+}
+
+.toggle {
+  display: flex;
+  align-items: center;
+  padding-left: 4px;
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 12px 4px 4px;
+}
+
+.loading {
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}

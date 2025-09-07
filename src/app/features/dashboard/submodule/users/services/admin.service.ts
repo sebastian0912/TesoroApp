@@ -5,6 +5,22 @@ import { firstValueFrom, Observable, throwError } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 import { environment } from '../../../../../../environments/environment.development';
 
+export interface ActualizarUsuarioPayload {
+  numero_de_documento?: string;
+  tipo_documento?: string;
+  correo_electronico?: string;
+  estado_solicitudes?: boolean;
+  empresa_id?: string | null;
+  sede_id?: string | null;
+  rol_id?: string | null;
+  nombres?: string;
+  apellidos?: string;
+  celular?: string | null;
+  password?: string;     // ⬅️ nuevo (write-only)
+  // contrasena?: string; // (si prefieres ese nombre, pero ya soportamos 'password' en backend)
+}
+
+
 @Injectable({
   providedIn: 'root',
 })
@@ -302,6 +318,23 @@ export class AdminService {
     }
 
 
+  }
+
+
+  crear(body: Required<Pick<ActualizarUsuarioPayload,
+    'numero_de_documento' | 'tipo_documento' | 'correo_electronico'>> &
+    Omit<ActualizarUsuarioPayload, 'numero_de_documento' | 'tipo_documento' | 'correo_electronico'>
+  ): Observable<any> {
+    return this.http.post(`${this.apiUrl}/gestion_admin/usuarios`, body);
+  }
+
+  actualizar(id: string, body: ActualizarUsuarioPayload, partial = true): Observable<any> {
+    const url = `${this.apiUrl}/gestion_admin/usuarios/${id}/`;
+    return partial ? this.http.patch(url, body) : this.http.put(url, body);
+  }
+
+  eliminar(id: string): Observable<void> {
+    return this.http.delete<void>(`${this.apiUrl}/gestion_admin/usuarios/${id}/`);
   }
 
 }

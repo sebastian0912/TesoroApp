@@ -1,0 +1,6 @@
+.card-header {
+  display: flex;
+  align-items: center;
+  padding-right: 8px;
+}
+.grow { flex: 1 1 auto; }

@@ -1,0 +1,37 @@
+<mat-card>
+  <mat-card-header class="card-header">
+    <mat-card-title>Gestión de usuarios88</mat-card-title>
+    <span class="grow"></span>
+
+    <!-- Menú 3 puntos -->
+    <button mat-icon-button [matMenuTriggerFor]="menu" aria-label="Más opciones">
+      <mat-icon>more_vert</mat-icon>
+    </button>
+    <mat-menu #menu="matMenu">
+      <button mat-menu-item (click)="openCreateDialog()">
+        <mat-icon>person_add</mat-icon>
+        <span>Crear usuario</span>
+      </button>
+    </mat-menu>
+  </mat-card-header>
+
+  <mat-card-content>
+    <app-standard-filter-table
+      [data]="rows"
+      [columnDefinitions]="columnsWithActions"
+      [tableTitle]="'Usuarios'"
+      [pageSizeOptions]="[10, 20, 50]"
+      [defaultPageSize]="10">
+
+      <!-- Acciones por fila -->
+      <ng-template #actionsTemplate let-row>
+        <button mat-icon-button (click)="openEditDialog(row)" aria-label="Editar">
+          <mat-icon>edit</mat-icon>
+        </button>
+        <button mat-icon-button color="warn" (click)="deleteUser(row)" aria-label="Eliminar">
+          <mat-icon>delete</mat-icon>
+        </button>
+      </ng-template>
+    </app-standard-filter-table>
+  </mat-card-content>
+</mat-card>

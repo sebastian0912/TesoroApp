@@ -170,6 +170,10 @@ export class NavbarComponent implements OnInit {
   /* ============ Navegación / rutas ============ */
   // NOTA: rutas relativas (sin "/" inicial). getNodeRoute compone con "/dashboard"
   private readonly routeMap: Record<string, string> = {
+    // Raíces
+    // Administración
+    'Administración': 'users/manage-users',
+
     // Gestión documental
     'Adjuntar documentación': 'document-management/upload-documents',
     'Buscar documentación': 'document-management/search-documents',
@@ -249,7 +253,6 @@ export class NavbarComponent implements OnInit {
 
     // GESTION DEL PROGRAMA
     'Administración': 'admin_panel_settings',
-    'Administrador': 'supervisor_account',
 
     // Procesos empresariales ▸ Gestión documental
     'Gestión documental': 'folder',
@@ -299,9 +302,6 @@ export class NavbarComponent implements OnInit {
     'Carga de mercado': 'upload_file',
     'Carga de mercado (comercializadora)': 'storefront',
     'Carga de mercado (ferias)': 'festival',
-    'Cargar mercado': 'file_upload',
-    'Cargar mercado comercializadora': 'storefront',
-    'Cargar mercado ferias': 'festival',
 
     'Operaciones de tesorería': 'calculate',
     'Cargas masivas': 'dataset',
@@ -314,12 +314,6 @@ export class NavbarComponent implements OnInit {
 
     'Préstamos': 'savings',
     'Prestamo para realizar': 'schedule',
-
-    'Tesorero': 'account_balance_wallet',
-    'Anadir operarios (subida masiva de excel)': 'group_add',
-    'Eliminar operarios (subida masiva de excel)': 'group_remove',
-    'Extraer datos base (boton)': 'file_download',
-    'Gestionar trabajadores': 'manage_accounts',
 
     'Traslados': 'swap_horiz',
     'Consulta de traslados': 'search',

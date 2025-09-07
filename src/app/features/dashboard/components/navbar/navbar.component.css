@@ -125,7 +125,7 @@ aside.sidebar {
 .sidebar .module-buttons .mat-icon {
   font-size: 20pt;
   line-height: 1;
-  color: #fff !important
+  color: #fff !important;
 }
 
 .sidebar .module-buttons button.active-module-button .tree-icon,
@@ -177,9 +177,7 @@ aside.sidebar {
   overflow-y: auto;
   overflow-x: hidden;
   z-index: 1;
-  /* al lado del izquierdo, no por encima */
 
-  /* animación de entrada */
   animation-name: slide-in-right-professional;
   animation-duration: var(--panel-right-entry-duration);
   animation-timing-function: var(--panel-right-entry-timing-function);
@@ -188,7 +186,7 @@ aside.sidebar {
   will-change: transform, opacity;
 }
 
-/* contenedor interno tipo “card” para dar profundidad */
+/* contenedor interno tipo “card” */
 .sidebar .right .right-inner {
   background: var(--color-surface-muted);
   border-radius: var(--radius-surface);
@@ -269,8 +267,6 @@ aside.sidebar {
   margin-bottom: 0;
 }
 
-
-
 /* item visual (cada fila) */
 .sidebar .right .tree-item {
   display: flex;
@@ -286,20 +282,19 @@ aside.sidebar {
     box-shadow var(--transition-speed) var(--transition-timing);
 }
 
-/* profundidad: ya traes paddingLeft por inline style; esto solo ajusta suavidad */
 .sidebar .right .tree-item:hover {
   background: var(--color-surface-hover);
   border-color: #E5EAF3;
   box-shadow: 0 2px 10px rgba(31, 41, 55, .06);
 }
 
-/* foco accesible cuando el link o botón recibe focus */
+/* foco accesible */
 .sidebar .right .tree-item:focus-within {
   box-shadow: 0 0 0 2px #CFE3FF;
   border-color: #B9D3FF;
 }
 
-/* botón de toggle (expand/collapse) */
+/* botón de toggle */
 .sidebar .right .toggle-btn {
   border: none;
   background: transparent;
@@ -312,7 +307,7 @@ aside.sidebar {
   width: 28px;
   height: 28px;
   border-radius: 8px;
-  transition: background-color var(--transition-speed) var(--transition-timing), color var(--transition-speed);
+  transition: background-color var(--transition-speed), color var(--transition-speed);
 }
 
 .sidebar .right .toggle-btn:hover {
@@ -341,7 +336,6 @@ aside.sidebar {
   text-decoration: none;
   cursor: pointer;
   line-height: 1.2;
-  ;
 }
 
 .sidebar .right .tree-link:hover {
@@ -349,7 +343,7 @@ aside.sidebar {
   text-decoration: underline;
 }
 
-/* cuando es botón (nodo con hijos) */
+/* cuando es botón (nodo padre con hijos) */
 .sidebar .right .tree-link.as-button {
   border: none;
   background: none;
@@ -369,7 +363,26 @@ aside.sidebar {
 }
 
 /* ===============================
-   Scrollbar sutil del panel derecho
+   PADRES EN ROJO
+   =============================== */
+.sidebar .right .tree-item:not(.is-leaf) {
+  color: #e0a72b;
+}
+
+.sidebar .right .tree-item:not(.is-leaf) .tree-link.as-button {
+  color: #e0a72b;
+}
+
+.sidebar .right .tree-item:not(.is-leaf) .tree-icon {
+  color: #e0a72b;
+}
+
+.sidebar .right .tree-item:not(.is-leaf) .toggle-btn {
+  color: #e0a72b;
+}
+
+/* ===============================
+   Scrollbar sutil
    =============================== */
 .sidebar .right {
   scrollbar-width: thin;
@@ -389,26 +402,22 @@ aside.sidebar {
    Responsive
    =============================== */
 @media (max-width: 900px) {
-
-  /* el botón móvil puedes añadirlo si lo usas; aquí solo ejemplo */
   .mobile-menu-btn {
     display: flex !important;
   }
 
-  /* el panel derecho ocupa el resto del ancho en móvil */
   .sidebar {
     width: var(--sidebar-left-width);
   }
 
   .sidebar.show-detail {
-    width: calc(100vw);
+    width: 100vw;
   }
 
   .sidebar .right {
     width: calc(100vw - var(--sidebar-left-width));
   }
 
-  /* si escondes la barra, ocultamos ambos paneles visualmente */
   .sidebar.sidebar-hidden .left,
   .sidebar.sidebar-hidden .right {
     display: none !important;
@@ -416,7 +425,7 @@ aside.sidebar {
 }
 
 /* ===============================
-   Animación slide-in del panel derecho
+   Animación slide-in
    =============================== */
 @keyframes slide-in-right-professional {
   from {

@@ -1,0 +1,92 @@
+<!-- src/app/features/admin/components/user-upsert-dialog/user-upsert-dialog.component.html -->
+<h2 mat-dialog-title>{{ title() }}</h2>
+
+<div class="content" *ngIf="!loading(); else loadingTpl">
+  <form [formGroup]="form" class="form-grid">
+    <mat-form-field appearance="outline">
+      <mat-label>Cédula</mat-label>
+      <input matInput formControlName="numero_de_documento" />
+      <mat-error *ngIf="form.get('numero_de_documento')?.hasError('required')">Requerido</mat-error>
+    </mat-form-field>
+
+    <mat-form-field appearance="outline">
+      <mat-label>Tipo de documento</mat-label>
+      <mat-select formControlName="tipo_documento">
+        <mat-option value="CC">CC</mat-option>
+        <mat-option value="CE">CE</mat-option>
+        <mat-option value="TI">TI</mat-option>
+        <mat-option value="PA">Pasaporte</mat-option>
+      </mat-select>
+      <mat-error *ngIf="form.get('tipo_documento')?.hasError('required')">Requerido</mat-error>
+    </mat-form-field>
+
+    <mat-form-field appearance="outline" class="span-2">
+      <mat-label>Correo electrónico</mat-label>
+      <input matInput formControlName="correo_electronico" />
+      <mat-error *ngIf="form.get('correo_electronico')?.hasError('required')">Requerido</mat-error>
+      <mat-error *ngIf="form.get('correo_electronico')?.hasError('email')">Correo inválido</mat-error>
+    </mat-form-field>
+
+    <mat-form-field appearance="outline">
+      <mat-label>Rol</mat-label>
+      <mat-select formControlName="rol_id">
+        <mat-option *ngFor="let r of roles()" [value]="r.id">{{ r.nombre }}</mat-option>
+      </mat-select>
+      <mat-error *ngIf="form.get('rol_id')?.invalid">Requerido</mat-error>
+    </mat-form-field>
+
+    <mat-form-field appearance="outline">
+      <mat-label>Sede</mat-label>
+      <mat-select formControlName="sede_id">
+        <mat-option [value]="null">— Sin sede —</mat-option>
+        <mat-option *ngFor="let s of sedes()" [value]="s.id">{{ s.nombre }}</mat-option>
+      </mat-select>
+    </mat-form-field>
+
+    <mat-form-field appearance="outline">
+      <mat-label>Empresa</mat-label>
+      <mat-select formControlName="empresa_id">
+        <mat-option [value]="null">— Sin empresa —</mat-option>
+        <mat-option *ngFor="let e of empresas()" [value]="e.id">{{ e.nombre }}</mat-option>
+      </mat-select>
+    </mat-form-field>
+
+    <mat-form-field appearance="outline">
+      <mat-label>Nombres</mat-label>
+      <input matInput formControlName="nombres" />
+      <mat-error *ngIf="form.get('nombres')?.invalid">Requerido</mat-error>
+    </mat-form-field>
+
+    <mat-form-field appearance="outline">
+      <mat-label>Apellidos</mat-label>
+      <input matInput formControlName="apellidos" />
+      <mat-error *ngIf="form.get('apellidos')?.invalid">Requerido</mat-error>
+    </mat-form-field>
+
+    <mat-form-field appearance="outline">
+      <mat-label>Celular</mat-label>
+      <input matInput formControlName="celular" />
+    </mat-form-field>
+
+    <div class="toggle">
+      <mat-slide-toggle formControlName="estado_solicitudes">Activo</mat-slide-toggle>
+    </div>
+  </form>
+</div>
+
+<ng-template #loadingTpl>
+  <div class="loading">
+    <mat-progress-spinner mode="indeterminate" diameter="32"></mat-progress-spinner>
+  </div>
+</ng-template>
+
+<mat-divider></mat-divider>
+
+<div class="actions">
+  <button mat-stroked-button (click)="cancelar()">
+    <mat-icon>close</mat-icon>&nbsp;Cancelar
+  </button>
+  <button mat-flat-button color="primary" (click)="guardar()" [disabled]="saving() || form.invalid">
+    <mat-icon>save</mat-icon>&nbsp;Guardar
+  </button>
+</div>

@@ -11,7 +11,7 @@ export class UtilityServiceService {
   private apiUrl = environment.apiUrl;
   // 🔔 EventEmitter para comunicar entre padre e hijo
   nextStep: EventEmitter<void> = new EventEmitter<void>();
-  
+
   constructor(private http: HttpClient) { }
 
   /**
@@ -41,6 +41,19 @@ export class UtilityServiceService {
       .pipe(catchError(this.handleError));
   }
 
+  traerSucursales2(): Observable<any> {
+    return this.http
+      .get(`${this.apiUrl}/gestion_admin/sedes`)
+      .pipe(catchError(this.handleError));
+  }
+
+  // traer roles
+  traerRoles(): Observable<any> {
+    return this.http
+      .get(`${this.apiUrl}/gestion_admin/roles`)
+      .pipe(catchError(this.handleError));
+  }
+
   /**
    * Edita la sede de un usuario.
    * @param ceduladelapersona Identificación de la persona.
@@ -61,6 +74,12 @@ export class UtilityServiceService {
   traerUsuarios(): Observable<any> {
     return this.http
       .get(`${this.apiUrl}/usuarios/usuarios`)
+      .pipe(catchError(this.handleError));
+  }
+
+  traerUsuarios2(): Observable<any> {
+    return this.http
+      .get(`${this.apiUrl}/gestion_admin/usuarios`)
       .pipe(catchError(this.handleError));
   }
 

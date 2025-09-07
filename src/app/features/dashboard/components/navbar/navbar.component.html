@@ -3,24 +3,15 @@
   <div class="left" (mouseleave)="onPanelLeave()" *ngIf="!isSidebarHidden">
     <div class="module-buttons">
       <!-- HOME fijo -->
-      <button
-        routerLink="/dashboard"
-        routerLinkActive="active-module-button"
-        [routerLinkActiveOptions]="{ exact: true }"
-        aria-label="Inicio"
-        matTooltip="Inicio"
-        matTooltipPosition="right"
+      <button routerLink="/dashboard" routerLinkActive="active-module-button"
+        [routerLinkActiveOptions]="{ exact: true }" aria-label="Inicio" matTooltip="Inicio" matTooltipPosition="right"
         type="button">
         <mat-icon class="tree-icon" fontSet="material-symbols-outlined">home</mat-icon>
       </button>
 
       <!-- Módulos raíz desde permisos_tree -->
       <ng-container *ngFor="let mod of rootModules; trackBy: trackByNodeId">
-        <button
-          type="button"
-          (mouseenter)="onModuleEnter(mod)"
-          [matTooltip]="mod.nombre"
-          matTooltipPosition="right"
+        <button type="button" (mouseenter)="onModuleEnter(mod)" [matTooltip]="mod.nombre" matTooltipPosition="right"
           [attr.aria-expanded]="activeRoot?.id === mod.id">
           <mat-icon class="tree-icon" fontSet="material-symbols-outlined">
             {{ getModuleIcon(mod.nombre) }}
@@ -37,11 +28,7 @@
   </div>
 
   <!-- PANEL DERECHO (ÁRBOL RECURSIVO) -->
-  <div
-    class="right"
-    *ngIf="activeRoot"
-    id="right-panel-content"
-    (mouseenter)="onRightPanelEnter()"
+  <div class="right" *ngIf="activeRoot" id="right-panel-content" (mouseenter)="onRightPanelEnter()"
     (mouseleave)="onPanelLeave()">
 
     <div class="right-inner">
@@ -64,24 +51,13 @@
       <ng-template #nodeListTpl let-nodes="nodes" let-depth="depth">
         <ul class="tree-level" [class.is-root]="depth === 0">
           <li *ngFor="let node of nodes; trackBy: trackByNodeId">
-            <!--
-              NODOS HOJA alineados a la DERECHA:
-              - class.is-leaf para CSS
-              - paddingLeft solo si tiene hijos
-              - paddingRight solo si es hoja
-            -->
-            <div
-              class="tree-item"
-              [class.is-leaf]="!node.hijos?.length"
+
+            <div class="tree-item" [class.is-leaf]="!node.hijos?.length"
               [style.paddingLeft.px]="node.hijos?.length ? depth * 16 : 0"
               [style.paddingRight.px]="!node.hijos?.length ? depth * 16 : 0">
 
               <!-- Toggle solo si tiene hijos -->
-              <button
-                *ngIf="node.hijos?.length"
-                class="toggle-btn"
-                type="button"
-                (click)="toggleNode(node.id)"
+              <button *ngIf="node.hijos?.length" class="toggle-btn" type="button" (click)="toggleNode(node.id)" 
                 [attr.aria-expanded]="isExpanded(node.id)">
                 <mat-icon fontSet="material-symbols-outlined">
                   {{ isExpanded(node.id) ? 'expand_more' : 'chevron_right' }}
@@ -94,13 +70,9 @@
               </mat-icon>
 
               <!-- Si es hoja, navega; si no, expande/colapsa -->
-              <a
-                *ngIf="!node.hijos?.length; else expandableTitle"
-                class="tree-link"
-                [routerLink]="getNodeRoute(node)"
-                routerLinkActive="active-submodule"
-                (click)="activeRoot = null">
-                {{ node.nombre }}
+              <a *ngIf="!node.hijos?.length; else expandableTitle" class="tree-link" [routerLink]="getNodeRoute(node)"
+                routerLinkActive="active-submodule" (click)="activeRoot = null">
+                {{ node.nombre }} 
               </a>
 
               <ng-template #expandableTitle>
@@ -112,8 +84,7 @@
 
             <!-- hijos -->
             <ng-container *ngIf="node.hijos?.length && isExpanded(node.id)">
-              <ng-container
-                *ngTemplateOutlet="nodeListTpl; context: { nodes: node.hijos, depth: depth + 1 }">
+              <ng-container *ngTemplateOutlet="nodeListTpl; context: { nodes: node.hijos, depth: depth + 1 }">
               </ng-container>
             </ng-container>
           </li>
