@@ -15,7 +15,6 @@ export const interceptor: HttpInterceptorFn = (req: HttpRequest<any>, next: Http
 
   // Definir las rutas que queremos omitir del interceptor
   const excludedUrls = [
-    '/usuarios/registro',
     '/usuarios/ingresar'
   ];
 

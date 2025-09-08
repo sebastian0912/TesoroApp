@@ -1,0 +1,68 @@
+.card-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.spacer {
+  flex: 1;
+}
+
+.card-content {
+  padding-top: 8px;
+}
+
+/* Banner de información */
+.info-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: #f8fafc;
+  /* muy tenue */
+  color: #0f172a;
+  /* casi negro */
+  border: 1px solid #e2e8f0;
+  /* borde suave */
+  margin-bottom: 10px;
+}
+
+.info-banner mat-icon {
+  font-size: 20px;
+  height: 20px;
+  width: 20px;
+}
+
+/* Chips: solo ícono en remove (tamaño consistente) */
+mat-chip-row button[matChipRemove] mat-icon {
+  font-size: 18px;
+  line-height: 18px;
+}
+
+/* En la tabla: botón X sin borde/caja extra, solo ícono */
+.mod-name {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.mod-name>span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mod-name button[mat-icon-button] {
+  padding: 0;
+  /* sin espacio extra */
+  line-height: 1;
+}
+
+.mod-name button[mat-icon-button] mat-icon {
+  font-size: 18px;
+  /* ícono discreto y consistente con chips */
+  height: 18px;
+  width: 18px;
+}

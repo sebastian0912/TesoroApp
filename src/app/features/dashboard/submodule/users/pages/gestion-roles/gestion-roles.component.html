@@ -1,0 +1,40 @@
+<mat-card>
+  <mat-card-header class="card-header">
+    <mat-card-title>Gestión de roles</mat-card-title>
+
+    <span class="spacer"></span>
+
+    <!-- Menú 3 puntos (acciones secundarias) -->
+    <button mat-icon-button [matMenuTriggerFor]="menu" aria-label="Más opciones">
+      <mat-icon>more_vert</mat-icon>
+    </button>
+    <mat-menu #menu="matMenu">
+      <button mat-menu-item (click)="refresh()">
+        <mat-icon>refresh</mat-icon>
+        <span>Recargar</span>
+      </button>
+      <button mat-menu-item (click)="nuevo()">
+        <mat-icon>person_add</mat-icon>
+        <span>Crear usuario</span>
+      </button>
+    </mat-menu>
+  </mat-card-header>
+
+  <mat-card-content class="card-content">
+    <app-standard-filter-table [data]="roles()" [columnDefinitions]="columns()" [tableTitle]="'Roles'">
+
+      <!-- Acciones por fila -->
+      <ng-template #actionsTemplate let-row>
+        <button mat-icon-button matTooltip="Permisos" (click)="permisos(row)">
+          <mat-icon>lock</mat-icon>
+        </button>
+        <button mat-icon-button matTooltip="Editar" (click)="editar(row)">
+          <mat-icon>edit</mat-icon>
+        </button>
+        <button mat-icon-button color="warn" matTooltip="Eliminar" (click)="eliminar(row)">
+          <mat-icon>delete</mat-icon>
+        </button>
+      </ng-template>
+    </app-standard-filter-table>
+  </mat-card-content>
+</mat-card>

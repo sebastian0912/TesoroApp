@@ -215,13 +215,21 @@ export class NavbarComponent implements OnInit {
     'Bono de mercado': 'authorizations/market-bonus',
     'Prestado de dinero': 'authorizations/money-loan',
 
-    // Préstamos
-    'Prestamo para realizar': 'money-loan/loan-to-perform',
-    'Préstamo por calamidad': 'money-loan/emergency-loan',
+    // PRESTADO PARA REALIZAR
+    // PRESTAMO POR CALAMIDAD
+    'PRESTADO PARA REALIZAR': 'money-loan/loan-to-perform',
+    'PRESTAMO POR CALAMIDAD': 'money-loan/emergency-loan',
 
     // Traslados
     'Procesos de traslados': 'eps-transfers/process-transfers',
     'Consulta de traslados': 'eps-transfers/transfer-query',
+
+    // Historial
+    'Historial de autorizaciones': 'history/authorizations-history',
+    'Historial de modificaciones': 'history/modifications-history',
+
+    // GESTION ROLES
+    'GESTIÓN ROLES': 'users/manage-roles',
   };
 
   // Índice insensible a mayúsculas para rutas
@@ -318,6 +326,9 @@ export class NavbarComponent implements OnInit {
     'Traslados': 'swap_horiz',
     'Consulta de traslados': 'search',
     'Procesos de traslados': 'sync_alt',
+
+    // GESTION ROLES
+    'GESTIÓN ROLES': 'security',
   };
 
   // Índice insensible a mayúsculas para iconos
@@ -354,8 +365,12 @@ export class NavbarComponent implements OnInit {
   public trackByNodeId = (_: number, n: PermNode) => n.id;
 
   public canRead(n: PermNode): boolean {
-    return (n.acciones || []).includes('LEER');
+    // si el nodo mismo tiene LEER -> OK
+    if ((n.acciones || []).includes('LEER')) return true;
+    // si cualquiera de sus hijos (o nietos, etc.) tiene LEER -> OK
+    return (n.hijos || []).some(h => this.canRead(h));
   }
+
 
   private slug(name: string): string {
     return name

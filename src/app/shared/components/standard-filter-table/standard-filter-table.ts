@@ -45,13 +45,12 @@ export interface ActiveFilter {
 
 @Component({
   selector: 'app-standard-filter-table',
-  standalone: true,
-  templateUrl: './standard-filter-table.html',
-  styleUrls: ['./standard-filter-table.css'],
   imports: [
     SharedModule,
     CdkTableModule
   ],
+  templateUrl: './standard-filter-table.html',
+  styleUrl: './standard-filter-table.css',
 })
 export class StandardFilterTable implements OnInit, OnChanges {
   @ContentChild('actionsTemplate', { static: false })
@@ -73,7 +72,8 @@ export class StandardFilterTable implements OnInit, OnChanges {
   @ViewChild(MatSort) sort!: MatSort;
   @ViewChild(MatPaginator) paginator!: MatPaginator;
   private infoVacantesService = inject(InfoVacantesService);
-
+  /** Total global (sin filtros) */
+  totalCount = 0;
   // Rango de fechas global para todas las columnas tipo 'date'
   dateRange: FormGroup = new FormGroup({
     start: new FormControl<Date | null>(null),
@@ -89,14 +89,15 @@ export class StandardFilterTable implements OnInit, OnChanges {
   }
 
   ngOnChanges(changes: SimpleChanges): void {
-    // Si cambian las columnas, reconfigura columnas y filtros
-    if (changes['columnDefinitions'] && !changes['columnDefinitions'].firstChange) {
+    // CORRECCIÓN: Reaccionar a CUALQUIER cambio en las definiciones de columnas
+    if (changes['columnDefinitions']) {
       this.rebuildColumnsAndFilters();
     }
 
-    // Si cambian los datos, reaplica filtros
-    if (changes['data'] && !changes['data'].firstChange) {
+    // Si cambian los datos, actualiza el dataSource
+    if (changes['data']) {
       this.dataSource.data = this.data || [];
+      this.totalCount = this.data?.length || 0;
       this.applyFilters();
       if (this.paginator) {
         this.dataSource.paginator = this.paginator;
@@ -378,7 +379,6 @@ export class StandardFilterTable implements OnInit, OnChanges {
         Swal.fire('Guardado', 'Detalle actualizado correctamente', 'success');
       },
       error: (err) => {
-        console.error('Error al actualizar detalle:', err);
         // 3) Revertir UI si falla el backend
         this.data = this.data.map(r =>
           r.id === row.id ? { ...r, detalle: prev } : r
@@ -390,9 +390,6 @@ export class StandardFilterTable implements OnInit, OnChanges {
       }
     });
   }
-
-
-
 }
 
 /** Helper para resetear controles sin conocer el tipo */
