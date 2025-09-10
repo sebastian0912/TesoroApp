@@ -110,7 +110,7 @@ export class TrasladosComponent implements OnInit {
       // Obtener traslados por responsable
       const response: any = await lastValueFrom(
         this.trasladosService.getTrasladosPorResponsable(
-          `${this.user.primer_nombre} ${this.user.primer_apellido}`
+          `${this.user.datos_basicos.nombres} ${this.user.datos_basicos.apellidos}`
         ).pipe(
           catchError(() => of({ traslados: [], total_diferente_de: 0 })) // Evita errores
         )
@@ -375,7 +375,7 @@ export class TrasladosComponent implements OnInit {
     });
 
     try {
-      const response: any = await this.trasladosService.autoasignarTraslado(this.user.primer_nombre + ' ' + this.user.primer_apellido);
+      const response: any = await this.trasladosService.autoasignarTraslado(this.user.datos_basicos.nombres + ' ' + this.user.datos_basicos.apellidos);
       if (
         response.correo_status === 'Correo actualizado correctamente.' &&
         response.traslado_status === 'Traslado actualizado correctamente.'

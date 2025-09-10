@@ -96,7 +96,7 @@ export class CargarMercadoFeriasComponent implements OnInit {
       this.usuario = this.utilityServiceService.getUser();
       if (this.usuario) {
         this.rolUsuario = this.usuario.rol.nombre;
-        this.correoUsuario = this.usuario.correo;
+        this.correoUsuario = this.usuario.correo_electronico;
       }
 
       // Suscribirse a los cambios de "formaPago"
@@ -249,7 +249,7 @@ export class CargarMercadoFeriasComponent implements OnInit {
           formValues.cuotas,
           'Autorizacion de Mercado',
           codigoOH,
-          this.usuario.primer_nombre + ' ' + this.usuario.primer_apellido
+        this.usuario.datos_basicos.nombres + ' ' + this.usuario.datos_basicos .apellidos
         );
 
         this.historial_id = historialData.historial_id;
@@ -262,7 +262,7 @@ export class CargarMercadoFeriasComponent implements OnInit {
           formValues.cuotas,
           'Autorizacion de Mercado',
           this.historial_id,
-          this.usuario.primer_nombre + ' ' + this.usuario.primer_apellido,
+          this.usuario.datos_basicos.nombres + ' ' + this.usuario.datos_basicos.apellidos,
           this.usuario.numero_de_documento
         );
 
@@ -326,7 +326,7 @@ export class CargarMercadoFeriasComponent implements OnInit {
           codigoOH,
           formValues.cuotas,
           'Mercado',
-          this.usuario.primer_nombre + ' ' + this.usuario.primer_apellido
+          this.usuario.datos_basicos.nombres + ' ' + this.usuario.datos_basicos.apellidos
         );
 
         return; // Termina la ejecución porque ya procesaste el caso de "Mercado"
@@ -342,7 +342,7 @@ export class CargarMercadoFeriasComponent implements OnInit {
         formValues.cuotas,
         'Autorizacion de Mercado',
         codigoOH,
-        this.usuario.primer_nombre + ' ' + this.usuario.primer_apellido
+        this.usuario.datos_basicos.nombres + ' ' + this.usuario.datos_basicos.apellidos
       );
       this.historial_id = historialData.historial_id;
 
@@ -354,7 +354,7 @@ export class CargarMercadoFeriasComponent implements OnInit {
         formValues.cuotas,
         'Autorizacion de Mercado',
         this.historial_id,
-        this.usuario.primer_nombre + ' ' + this.usuario.primer_apellido,
+        this.usuario.datos_basicos.nombres + ' ' + this.usuario.datos_basicos.apellidos,
         this.usuario.numero_de_documento
       );
 
@@ -406,7 +406,7 @@ export class CargarMercadoFeriasComponent implements OnInit {
         codigoOH,
         formValues.cuotas,
         'Mercado',
-        this.usuario.primer_nombre + ' ' + this.usuario.primer_apellido,
+        this.usuario.datos_basicos.nombres + ' ' + this.usuario.datos_basicos.apellidos,
       );
 
     } catch (error) {

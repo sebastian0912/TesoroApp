@@ -169,7 +169,6 @@ export class SelectionQuestionsComponent implements OnInit {
     console.debug('[SelectionQuestions] Fetching selección', {
       idProcesoSeleccion: this._idProcesoSeleccion
     });
-    console.log('Intentando obtener selección para ID:', this._idProcesoSeleccion);
 
     this.seleccionService.getSeleccionPorId(this._idProcesoSeleccion!)
       .pipe(

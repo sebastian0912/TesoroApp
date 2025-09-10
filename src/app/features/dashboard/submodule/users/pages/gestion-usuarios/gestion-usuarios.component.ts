@@ -145,7 +145,6 @@ export class GestionUsuariosComponent implements OnInit {
 
   openPermsDialog(user: any): void {
     const userfull = this.users().find(u => u.id === user.id);
-    console.log('Usuario completo:', userfull);
     if (!userfull) {
       Swal.fire('¡Error!', 'No se encontró el usuario.', 'error');
       return;

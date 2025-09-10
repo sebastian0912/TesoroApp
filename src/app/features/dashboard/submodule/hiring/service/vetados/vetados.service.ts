@@ -20,11 +20,6 @@ export class VetadosService {
     return null;
   }
 
-  private createAuthorizationHeader(): HttpHeaders {
-    const token = this.getToken();
-    return token ? new HttpHeaders().set('Authorization', `${token}`) : new HttpHeaders();
-  }
-
   async getUser(): Promise<any> {
     if (isPlatformBrowser(this.platformId)) {
       const user = localStorage.getItem('user');
@@ -37,41 +32,39 @@ export class VetadosService {
 
   // Enviar reporte de candidato vetado
   enviarReporte(reporte: any, sede: string): Observable<any> {
-    const headers = this.createAuthorizationHeader();
     reporte.jwt = this.getToken();
     reporte.sede = sede;
-    return this.http.post(`${this.apiUrl}/vetados/vetados/`, reporte, { headers });
+    return this.http.post(`${this.apiUrl}/vetados/vetados/`, reporte,);
   }
 
   // Listar reportes de candidatos vetados
   listarReportesVetados(): Observable<any> {
-    const headers = this.createAuthorizationHeader();
-    return this.http.get(`${this.apiUrl}/vetados/vetados`, { headers });
+    return this.http.get(`${this.apiUrl}/vetados/vetados`,);
   }
 
   // listar reportes de candidatos vetados por cedula
   listarReportesVetadosPorCedula(cedula: string): Observable<any> {
-    const headers = this.createAuthorizationHeader();
-    return this.http.get(`${this.apiUrl}/vetados/vetados/${cedula}`, { headers });
+
+    return this.http.get(`${this.apiUrl}/vetados/vetados/${cedula}`,);
   }
 
   // Traer datos de nombre completo de candidato
   traerNombreCompletoCandidato(cedula: string): Observable<any> {
-    const headers = this.createAuthorizationHeader();
-    return this.http.get(`${this.apiUrl}/contratacion/traerNombreCompletoCandidato/${cedula}`, { headers });
+
+    return this.http.get(`${this.apiUrl}/contratacion/traerNombreCompletoCandidato/${cedula}`,);
   }
 
   // Eliminar reporte de candidato vetado
   eliminarReporte(id: string): Observable<any> {
-    const headers = this.createAuthorizationHeader();
-    return this.http.delete(`${this.apiUrl}/vetados/vetados/delete/${id}`, { headers });
+
+    return this.http.delete(`${this.apiUrl}/vetados/vetados/delete/${id}`,);
   }
 
   // Actualizar reporte de candidato vetado
   async actualizarReporte(reporte: any, Categoria: any): Promise<Observable<any>> {
     let nombreRol = "";
     await this.getUser().then((data: any) => {
-      nombreRol = data.primer_nombre + " " + data.primer_apellido + " - " + data.rol;
+      nombreRol = data.datos_basicos.nombres + " " + data.datos_basicos.apellidos + " - " + data.rol.nombre;
     });
     Categoria.jwt = this.getToken();
     Categoria.autorizado_por = nombreRol;
@@ -92,8 +85,8 @@ export class VetadosService {
   //------------------------ categorias ------------------------
   // Listar categorias de vetados
   listarCategorias(): Observable<any> {
-    const headers = this.createAuthorizationHeader();
-    return this.http.get(`${this.apiUrl}/vetados/categorias`, { headers });
+
+    return this.http.get(`${this.apiUrl}/vetados/categorias`,);
   }
 
 }

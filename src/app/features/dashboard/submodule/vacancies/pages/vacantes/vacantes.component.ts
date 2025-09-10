@@ -139,7 +139,6 @@ export class VacantesComponent implements OnInit {
         ? response
         : response.filter(v => this.matchOffice(v, this.extractTargetOffices(user)));
 
-      console.log(`Vacantes cargadas: total=${response.length}, tras filtro=${rows.length}`);
 
       // 2) Reordenar (usa el resultado filtrado)
       rows = this.reordenarCumplidasAlFinal(rows);

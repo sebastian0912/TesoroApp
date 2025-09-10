@@ -13,7 +13,7 @@ export const appConfig: ApplicationConfig = {
     provideClientHydration(),
     provideAnimationsAsync(),
     provideHttpClient(
-      //withFetch(),
+      withFetch(),
       withInterceptors([interceptor])
     )
   ]

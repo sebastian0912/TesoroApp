@@ -230,6 +230,9 @@ export class NavbarComponent implements OnInit {
 
     // GESTION ROLES
     'GESTIÓN ROLES': 'users/manage-roles',
+
+    // AUSENTISMOS
+    'AUSENTISMOS': 'hiring/absences',
   };
 
   // Índice insensible a mayúsculas para rutas
@@ -329,6 +332,9 @@ export class NavbarComponent implements OnInit {
 
     // GESTION ROLES
     'GESTIÓN ROLES': 'security',
+
+    // AUSENTISMOS
+    'AUSENTISMOS': 'event_busy',
   };
 
   // Índice insensible a mayúsculas para iconos

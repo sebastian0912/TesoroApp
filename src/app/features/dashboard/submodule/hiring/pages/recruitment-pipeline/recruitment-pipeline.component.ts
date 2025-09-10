@@ -409,8 +409,6 @@ export class RecruitmentPipelineComponent implements OnInit {
         return;
       }
 
-
-
       const sedeLoginLower = user.sede.nombre?.toLowerCase?.() || '';
 
       this.vacantes = response.filter(vacante =>
@@ -694,7 +692,6 @@ export class RecruitmentPipelineComponent implements OnInit {
   //OnIdVacanteChange
   onIdVacanteChange(id: number): void {
     this.idvacante = id;
-    console.log('Vacante recibida de contratación:', id);
   }
 
   // Método para obtener el nombre completo del candidato
@@ -1049,7 +1046,6 @@ export class RecruitmentPipelineComponent implements OnInit {
 
   onIdVacanteFromHiring(id: number): void {
     this.idVacanteContratacion = id;
-    console.log('Vacante recibida de contratación:', id);
   }
 
 

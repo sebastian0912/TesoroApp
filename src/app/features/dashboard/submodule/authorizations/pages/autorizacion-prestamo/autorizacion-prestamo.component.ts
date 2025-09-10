@@ -163,7 +163,7 @@ export class AutorizacionPrestamoComponent implements OnInit {
         cuotasAux,
         concepto,
         codigoOH,
-        this.user.primer_nombre + ' ' + this.user.primer_apellido
+        this.user.datos_basicos.nombres + ' ' + this.user.datos_basicos.apellidos
       );
       const historial_id = historialData.historial_id;
 
@@ -174,7 +174,7 @@ export class AutorizacionPrestamoComponent implements OnInit {
         cuotasAux,
         formValues.tipo,
         historial_id,
-        this.user.primer_nombre + ' ' + this.user.primer_apellido,
+        this.user.datos_basicos.nombres + ' ' + this.user.datos_basicos.apellidos,
         this.user.numero_de_documento
       );
 
@@ -187,7 +187,7 @@ export class AutorizacionPrestamoComponent implements OnInit {
         codigoOH,
         cuotasAux,
         "Prestamo",
-        this.user.primer_nombre + ' ' + this.user.primer_apellido,
+        this.user.datos_basicos.nombres + ' ' + this.user.datos_basicos.apellidos,
       );
 
       Swal.close();

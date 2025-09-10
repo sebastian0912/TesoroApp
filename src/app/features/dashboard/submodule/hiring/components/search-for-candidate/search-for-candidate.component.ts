@@ -232,9 +232,7 @@ export class SearchForCandidateComponent implements OnInit, OnDestroy {
               const tb = b.created_at?.getTime() ?? 0;
               return tb - ta;
             })
-        ),
-        tap((rows) => console.log('Registros procesados para la tabla:', rows))
-
+        )
       )
       .subscribe({
         next: (rows) => (this.registros = rows),
@@ -295,7 +293,6 @@ export class SearchForCandidateComponent implements OnInit, OnDestroy {
     this.cedula = this.cedula.trim();
     this.infoVacantesService.getVacantesPorNumero(this.cedula).subscribe({
       next: (resultado) => {
-        console.log('Resultado de la búsqueda de entrevista:', resultado);
         const entrevista = resultado?.[0];
         if (!entrevista) {
           Swal.fire('Error', 'No se encontró la informacion, por favor llenar de nuevo el pre formulario correctamente', 'error');
@@ -333,12 +330,12 @@ export class SearchForCandidateComponent implements OnInit, OnDestroy {
               resolve();
             } catch (inner) {
               Swal.fire('Error', 'Error inesperado', 'error');
-              reject(inner);
+              //reject(inner);
             }
           },
           error: (e) => {
             Swal.fire('Error', 'Error inesperado', 'error');
-            reject(e);
+            //reject(e);
           }
         });
     });

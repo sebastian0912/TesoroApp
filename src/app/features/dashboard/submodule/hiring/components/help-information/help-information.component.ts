@@ -1240,13 +1240,6 @@ export class HelpInformationComponent implements OnInit {
     }
   }
 
-
-  // Obtener el nombre completo
-  getFullName(): string {
-    const { primer_nombre, segundo_nombre, primer_apellido, segundo_apellido } = this.infoCandidatoForm || {};
-    return `${primer_nombre || ''} ${segundo_nombre || ''} ${primer_apellido || ''} ${segundo_apellido || ''}`.trim();
-  }
-
   // Convierte días desde 1900, DD/MM/YYYY o YYYY-MM-DD a Date
   convertirAFecha(fecha: string): Date | null {
     if (/^\d+$/.test(fecha)) {

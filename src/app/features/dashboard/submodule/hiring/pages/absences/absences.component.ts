@@ -1,7 +1,7 @@
 import { InfoCardComponent } from '@/app/shared/components/info-card/info-card.component';
 import { UtilityServiceService } from '@/app/shared/services/utilityService/utility-service.service';
 import { SharedModule } from '@/app/shared/shared.module';
-import { Component } from '@angular/core';
+import { Component, ElementRef, ViewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { MatTableDataSource } from '@angular/material/table';
 import { HiringService } from '../../service/hiring.service';
@@ -41,6 +41,10 @@ export class AbsencesComponent {
   originalData: any[] = [];
   correo: string | null = null;
 
+  // Refs a los inputs de archivo (deben existir en el HTML con #fileInput y #fileInput2)
+  @ViewChild('fileInput', { static: false }) private fileInputRef!: ElementRef<HTMLInputElement>;
+  @ViewChild('fileInput2', { static: false }) private fileInput2Ref!: ElementRef<HTMLInputElement>;
+
   constructor(
     private hiringService: HiringService,
     private utilityService: UtilityServiceService
@@ -54,24 +58,23 @@ export class AbsencesComponent {
   }
 
   public buscarFormasPago(cedula: string): void {
-    // Eliminar espacios en blanco, comas, puntos y guiones
+    // Eliminar todo lo que no sea dígito
     const cleanedCedula = cedula.replace(/[^\d]/g, '');
 
     this.hiringService.buscarEncontratacion(cleanedCedula).subscribe(
       (response: any) => {
-        if (response.message == 'success') {
-          // Procesar datos de forma inmutable y optimizada
+        if (response.message === 'success') {
           const data = response.data.map((item: any) => ({
             ...item,
             nombre_completo: `${item.primer_nombre} ${item.segundo_nombre} ${item.primer_apellido} ${item.segundo_apellido}`,
             editing: false
           }));
-          this.originalData = JSON.parse(JSON.stringify(data)); // Hacer una copia profunda de los datos originales
+          this.originalData = JSON.parse(JSON.stringify(data));
           this.dataSource.data = data;
         }
       },
       (error: any) => {
-        if (error.error.message.startsWith('No se encontraron datos ')) {
+        if (error?.error?.message?.startsWith?.('No se encontraron datos ')) {
           Swal.fire({
             icon: 'error',
             title: 'Error',
@@ -89,7 +92,7 @@ export class AbsencesComponent {
   }
 
   applyFilter(event: Event) {
-    const filterValue = (event.target as HTMLInputElement).value;
+    const filterValue = (event.target as HTMLInputElement).value || '';
     this.dataSource.filter = filterValue.trim().toLowerCase();
   }
 
@@ -97,59 +100,62 @@ export class AbsencesComponent {
     element.editing = !element.editing;
 
     if (!element.editing) {
-      // Guardar cambios
-      const editedData = {
-        numerodeceduladepersona: element.numerodeceduladepersona,
-        celular: element.celular,
-        primercorreoelectronico: element.primercorreoelectronico
-      };
-      this.hiringService.editarContratacion_Cedula_Correo(element.numerodeceduladepersona, element.primercorreoelectronico, element.celular).then((response: any) => {
-        if (response.message === 'success') {
-          Swal.fire({
-            icon: 'success',
-            title: 'Éxito',
-            text: 'La información ha sido actualizada correctamente'
-          });
-        } else {
+      this.hiringService
+        .editarContratacion_Cedula_Correo(
+          element.numerodeceduladepersona,
+          element.primercorreoelectronico,
+          element.celular
+        )
+        .then((response: any) => {
+          if (response.message === 'success') {
+            Swal.fire({
+              icon: 'success',
+              title: 'Éxito',
+              text: 'La información ha sido actualizada correctamente'
+            });
+          } else {
+            Swal.fire({
+              icon: 'error',
+              title: 'Error',
+              text: 'Ha ocurrido un error al actualizar la información'
+            });
+          }
+        })
+        .catch(() => {
           Swal.fire({
             icon: 'error',
             title: 'Error',
             text: 'Ha ocurrido un error al actualizar la información'
           });
-        }
-      }).catch((error: any) => {
-        Swal.fire({
-          icon: 'error',
-          title: 'Error',
-          text: 'Ha ocurrido un error al actualizar la información'
         });
-      });
     }
   }
 
+  /** Abre el selector del input #fileInput (Cargar Ausentismos) */
   triggerFileInput(): void {
-    const fileInput = document.getElementById('fileInput') as HTMLInputElement;
-    fileInput.click();
+    this.fileInputRef?.nativeElement?.click();
   }
 
+  /** Abre el selector del input #fileInput2 (Eliminar caracteres especiales) */
   triggerFileInput2(): void {
-    const fileInput = document.getElementById('fileInput2') as HTMLInputElement;
-    fileInput.click();
+    const el = this.fileInput2Ref?.nativeElement;
+    if (!el) return;
+    el.value = '';          // permite re-seleccionar el mismo archivo
+    el.click();             // abre el selector
   }
 
-
-
+  /** Helper para limpiar caracteres especiales (incluye emojis) */
   removeSpecialCharacters = (text: string): string => {
-    // Expresión regular ampliada para eliminar cualquier emoji, pictogramas y símbolos especiales
-    const emojiPattern = /[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F1E0}-\u{1F1FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F900}-\u{1F9FF}\u{1FA70}-\u{1FAFF}\u{1F7E0}-\u{1F7EF}]/gu;
+    const emojiPattern =
+      /[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F1E0}-\u{1F1FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F900}-\u{1F9FF}\u{1FA70}-\u{1FAFF}\u{1F7E0}-\u{1F7EF}]/gu;
 
     return text.replace(emojiPattern, '');
   };
 
-
-  // Función para subir archivo de contratación
-  cargarExcel(event: any): void {
-    const file = event.target.files[0];
+  // -------- Cargar Excel (contratación) ----------
+  cargarExcel(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const file = input?.files?.[0];
     if (!file) return;
 
     Swal.fire({
@@ -157,20 +163,25 @@ export class AbsencesComponent {
       text: 'Por favor espera mientras se sube el archivo.',
       allowOutsideClick: false,
       allowEscapeKey: false,
-      didOpen: () => {
-        Swal.showLoading();
-      }
+      didOpen: () => Swal.showLoading()
     });
 
     const reader = new FileReader();
 
     reader.onload = (e: any) => {
       const data = new Uint8Array(e.target.result);
-      const workbook = XLSX.read(data, { type: 'array', cellDates: true, cellNF: false, cellText: false });
+      const workbook = XLSX.read(data, {
+        type: 'array',
+        cellDates: true,
+        cellNF: false,
+        cellText: false
+      });
+
       const sheetName = workbook.SheetNames[0];
       const sheet = workbook.Sheets[sheetName];
-      const json = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: false, dateNF: "dd/mm/yyyy" });
-      json.shift();
+
+      const json = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: false, dateNF: 'dd/mm/yyyy' }) as any[][];
+      json.shift(); // quita encabezado si aplica
 
       const formatDate = (date: string): string => {
         const regex_ddmmyyyy = /^\d{1,2}\/\d{1,2}\/\d{4}$/;
@@ -210,80 +221,71 @@ export class AbsencesComponent {
         return completeRow;
       });
 
-      this.hiringService.subirContratacion(rows).then((response: any) => {
-        Swal.close(); // Cierra el modal de cargando
+      this.hiringService.subirContratacion(rows)
+        .then((response: any) => {
+          Swal.close();
+          if (response.message === 'success') {
+            const total = response.actualizados + response.creados;
 
-        if (response.message === 'success') {
-          const total = response.actualizados + response.creados;
+            Swal.fire({
+              icon: 'success',
+              title: 'Éxito',
+              html: `Los datos se procesaron correctamente.<br><br>
+                     <strong>Actualizados:</strong> ${response.actualizados}<br>
+                     <strong>Creados:</strong> ${response.creados}<br>
+                     <strong>Total:</strong> ${total}`
+            });
 
-          Swal.fire({
-            icon: 'success',
-            title: 'Éxito',
-            html: `Los datos se procesaron correctamente.<br><br>
-                   <strong>Actualizados:</strong> ${response.actualizados}<br>
-                   <strong>Creados:</strong> ${response.creados}<br>
-                   <strong>Total:</strong> ${total}`
-          });
-
-          if (response.errores) {
-            this.generateErrorExcel(response.errores);
+            if (response.errores) {
+              this.generateErrorExcel(response.errores);
+            }
+          } else {
+            Swal.fire({
+              icon: 'error',
+              title: 'Error',
+              text: 'Ocurrió un error al procesar los datos, inténtalo nuevamente.'
+            });
           }
-        } else {
+        })
+        .catch((error: any) => {
+          Swal.close();
           Swal.fire({
             icon: 'error',
             title: 'Error',
-            text: 'Ocurrió un error al procesar los datos, inténtalo nuevamente.'
+            text: `Error al procesar los datos: ${error?.message || 'Error desconocido'}`
           });
-        }
-      }).catch((error: any) => {
-        Swal.close();
-        Swal.fire({
-          icon: 'error',
-          title: 'Error',
-          text: `Error al procesar los datos: ${error.message || 'Error desconocido'}`
+        })
+        .finally(() => {
+          this.resetFile(this.fileInputRef);
         });
-      });
-
-      this.resetFileInput();
     };
 
     reader.readAsArrayBuffer(file);
   }
 
-
   generateErrorExcel(errores: any[]): void {
-    const worksheetData = [
-      ['Registro', 'Campo', 'Error']
-    ];
-
+    const worksheetData = [['Registro', 'Campo', 'Error']];
     errores.forEach((error: any) => {
       worksheetData.push([error.registro, error.campo, error.error]);
     });
 
     const worksheet: XLSX.WorkSheet = XLSX.utils.aoa_to_sheet(worksheetData);
     const workbook: XLSX.WorkBook = { Sheets: { 'Errores': worksheet }, SheetNames: ['Errores'] };
-
-    // Generar el archivo Excel
     const excelBuffer: any = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
-
-    // Guardar el archivo
     this.saveAsExcelFile(excelBuffer, 'Errores_Contratacion');
   }
 
   saveAsExcelFile(buffer: any, fileName: string): void {
     const data: Blob = new Blob([buffer], { type: 'application/octet-stream' });
     const url: string = window.URL.createObjectURL(data);
-
     const link: HTMLAnchorElement = document.createElement('a');
     link.href = url;
     link.download = `${fileName}.xlsx`;
     link.click();
-
     window.URL.revokeObjectURL(url);
   }
 
   isExcelDate(serial: number): boolean {
-    // Verifica si el número está dentro del rango de fechas de Excel
     return serial > 25569 && serial < 2958465;
   }
 
@@ -296,18 +298,16 @@ export class AbsencesComponent {
     return `${day}/${month}/${year}`;
   }
 
-  resetFileInput(): void {
-    const fileInput = document.getElementById('fileInput') as HTMLInputElement;
-    if (fileInput) {
-      fileInput.value = '';
-    }
+  /** Reset genérico para cualquiera de los 2 inputs */
+  private resetFile(ref: ElementRef<HTMLInputElement> | undefined): void {
+    const el = ref?.nativeElement;
+    if (el) el.value = '';
   }
 
-
-  //
-
-  eliminarCaracteresEspeciales(event: any): void {
-    const file = event.target.files[0];
+  // -------- Eliminar caracteres especiales ----------
+  eliminarCaracteresEspeciales(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const file = input?.files?.[0];
     if (!file) return;
 
     Swal.fire({
@@ -315,16 +315,14 @@ export class AbsencesComponent {
       text: 'Eliminando acentos y caracteres especiales...',
       allowOutsideClick: false,
       allowEscapeKey: false,
-      didOpen: () => {
-        Swal.showLoading();
-      }
+      didOpen: () => Swal.showLoading()
     });
 
     const reader = new FileReader();
 
-    const limpiarTexto = (input: string): string => {
-      let output = input.normalize('NFD');
-      output = output.replace(/[\u0300-\u036f]/g, '');
+    const limpiarTexto = (inputStr: string): string => {
+      let output = inputStr.normalize('NFD');
+      output = output.replace(/[\u0300-\u036f]/g, ''); // quita diacríticos
       return output;
     };
 
@@ -359,24 +357,15 @@ export class AbsencesComponent {
           dateNF: 'dd/mm/yyyy'
         }) as any[][];
 
-        const cleanedAOA = jsonAOA.map((row: any[]) => {
-          return row.map((cell: any) => {
-            if (typeof cell === 'string') {
-              let sinEspeciales = limpiarTexto(cell);
-              return sinEspeciales;
-            }
-            return cell;
-          });
-        });
+        const cleanedAOA = jsonAOA.map((row: any[]) =>
+          row.map((cell: any) => (typeof cell === 'string' ? limpiarTexto(cell) : cell))
+        );
 
         const newSheet = XLSX.utils.aoa_to_sheet(cleanedAOA);
         const newWorkbook = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(newWorkbook, newSheet, sheetName);
 
-        const excelBuffer = XLSX.write(newWorkbook, {
-          bookType: 'xlsx',
-          type: 'array'
-        });
+        const excelBuffer = XLSX.write(newWorkbook, { bookType: 'xlsx', type: 'array' });
 
         const blob = new Blob([excelBuffer], { type: 'application/octet-stream' });
         const url = window.URL.createObjectURL(blob);
@@ -390,21 +379,19 @@ export class AbsencesComponent {
         Swal.fire({
           icon: 'success',
           title: 'Archivo procesado',
-          text: 'Se eliminaron los caracteres especiales correctamente y se descargó el nuevo archivo.'
+          text: 'Se eliminaron los caracteres especiales y se descargó el nuevo archivo.'
         });
       } catch (error: any) {
         Swal.fire({
           icon: 'error',
           title: 'Error al procesar el archivo',
-          text: error.message || 'Ocurrió un error inesperado.'
+          text: error?.message || 'Ocurrió un error inesperado.'
         });
+      } finally {
+        this.resetFile(this.fileInput2Ref);
       }
-
-      this.resetFileInput();
     };
 
     reader.readAsArrayBuffer(file);
   }
-
-
 }

@@ -59,7 +59,6 @@ export class GestionRolesComponent implements OnInit {
     this.loading.set(true);
     this.rolesSvc.list().subscribe({
       next: (items) => {
-        console.log(items);
         this.roles.set(items ?? []);
         this.loading.set(false);
       },
