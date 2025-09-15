@@ -128,27 +128,44 @@ export class VacantesComponent implements OnInit {
     this.vacantesService.listarVacantes().pipe(
       catchError(() => {
         Swal.fire('Error', 'Ocurrió un error al cargar las vacantes', 'error');
-        return of([] as any[]); // si tienes interfaz, usa Vacante[]
+        return of([] as any[]);
       }),
       finalize(() => this.loading = false)
     ).subscribe((response: any[]) => {
       const user = this.utilityService.getUser();
 
-      // 1) Filtrar por oficinas (comparando user.sucursalde vs oficinasQueContratan[].nombre)
-      let rows = this.canSeeAll(user)
-        ? response
-        : response.filter(v => this.matchOffice(v, this.extractTargetOffices(user)));
+      let rows: any[];
 
+      if (this.isManager(user)) {
+        // GERENCIA o ADMIN: no filtrar
+        rows = response;
+      } else if (this.isSubaUser(user)) {
+        // Caso especial: oficinasuba.rtc@gmail.com
+        const target = ['VIRTUAL', 'TOCANCIPÁ', 'ZIPAQUIRÁ'];
+        rows = response.filter(v => this.matchOffice(v, target));
+      } else {
+        // Resto: filtro normal por oficinas del usuario
+        rows = response.filter(v => this.matchOffice(v, this.extractTargetOffices(user)));
+      }
 
-      // 2) Reordenar (usa el resultado filtrado)
+      // Reordenar y asignar a la tabla
       rows = this.reordenarCumplidasAlFinal(rows);
-
-      // 3) Asignar a la tabla
       this.dataSource.data = rows;
       this.dataSource.paginator = this.paginator;
       this.dataSource.sort = this.sort;
     });
   }
+
+  /** Helpers */
+  private isManager(user: any): boolean {
+    const roles: string[] = (user?.role.nombre || []).map((r: string) => r?.toUpperCase?.() ?? r);
+    return roles.includes('GERENCIA') || roles.includes('ADMIN');
+  }
+
+  private isSubaUser(user: any): boolean {
+    return (user?.correo_electronico || '').toLowerCase() === 'oficinasuba.rtc@gmail.com';
+  }
+
 
 
   applyFilter(event: Event): void {

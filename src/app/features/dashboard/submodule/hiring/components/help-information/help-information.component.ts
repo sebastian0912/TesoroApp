@@ -1,15 +1,13 @@
 import { SharedModule } from '@/app/shared/shared.module';
-import { Component, EventEmitter, Input, LOCALE_ID, OnInit, Output, SimpleChanges } from '@angular/core';
+import { Component, EventEmitter, Input, LOCALE_ID, OnInit, OnChanges, Output, SimpleChanges } from '@angular/core';
 import { FormGroup, FormBuilder, Validators, FormArray } from '@angular/forms';
 import Swal from 'sweetalert2';
 import { MatTabsModule } from '@angular/material/tabs';
 import { HiringService } from '../../service/hiring.service';
 import { UtilityServiceService } from '@/app/shared/services/utilityService/utility-service.service';
 import { MatDatepickerModule } from '@angular/material/datepicker';
-import { DateAdapter, MAT_DATE_FORMATS, MAT_DATE_LOCALE, MatNativeDateModule, NativeDateModule } from '@angular/material/core';
+import { MAT_DATE_FORMATS, MAT_DATE_LOCALE, MatNativeDateModule } from '@angular/material/core';
 import { SeleccionService } from '../../service/seleccion/seleccion.service';
-import { MomentDateAdapter } from '@angular/material-moment-adapter';
-import { PDFDocument } from 'pdf-lib';
 import { GestionDocumentalService } from '../../service/gestion-documental/gestion-documental.service';
 import { InfoVacantesService } from '../../service/info-vacantes/info-vacantes.service';
 import { VacantesService } from '../../service/vacantes/vacantes.service';
@@ -37,9 +35,9 @@ interface PublicacionDTO {
   ubicacionPruebaTecnica: string | null;
   experiencia: string | null;
   fechadePruebatecnica: string | null; // "YYYY-MM-DD"
-  horadePruebatecnica: string | null; // "HH:mm:ss"
+  horadePruebatecnica: string | null;  // "HH:mm:ss"
   observacionVacante: string | null;
-  fechadeIngreso: string | null; // "YYYY-MM-DD"
+  fechadeIngreso: string | null;       // "YYYY-MM-DD"
   temporal: string | null;
   descripcion: string | null;
   fechaPublicado: string; // "YYYY-MM-DD"
@@ -61,46 +59,48 @@ interface PublicacionDTO {
     MatTabsModule,
     MatDatepickerModule,
     MatNativeDateModule,
-    NativeDateModule
   ],
   templateUrl: './help-information.component.html',
   styleUrl: './help-information.component.css',
   providers: [
     { provide: LOCALE_ID, useValue: 'es-CO' },
     { provide: MAT_DATE_LOCALE, useValue: 'es-CO' },
-    { provide: DateAdapter, useClass: MomentDateAdapter, deps: [MAT_DATE_LOCALE] },
     { provide: MAT_DATE_FORMATS, useValue: MY_DATE_FORMATS }
   ]
 
 })
 export class HelpInformationComponent implements OnInit {
   @Input() cedula: string = '';
-  examFiles: File[] = [];
   @Output() idVacante = new EventEmitter<number>();
   @Input() vacanteSeleccionadaId: any;
+
   private _idInfoEntrevistaAndrea: number = 0;
   @Input() set idInfoEntrevistaAndrea(value: number) {
     this._idInfoEntrevistaAndrea = value;
+  }
+
+  get idInfoEntrevistaAndrea(): number { return this._idInfoEntrevistaAndrea; }
+
+  private _idProcesoSeleccion: number | null = null;
+  @Input() set idProcesoSeleccion(value: number | null) {
+    this._idProcesoSeleccion = value;
+  }
+  get idProcesoSeleccion(): number | null { return this._idProcesoSeleccion; }
+  get hijosFA(): FormArray {
+    return this.infoPersonalForm.get('hijos') as FormArray;
   }
   pendingVacanteId: number | null = null;
 
   // Formularios
   infoPersonalForm: FormGroup;
   vacantesForm: FormGroup;
-  infoCandidatoForm: any;
 
   // Variables
   sedeLogin: string = '';
   vacanteActual: any;
   formGroup4: FormGroup;
   codigoContrato: string = '';
-
-  private _idProcesoSeleccion: number | null = null;
-  @Input() set idProcesoSeleccion(value: number | null) {
-    this._idProcesoSeleccion = value;
-    // Aquí reaccionas cada vez que cambie
-    // ej: this.form.patchValue({ seleccion: value ?? null });
-  }
+  readonly SEED_EXP_COUNT = 3;
 
   opcionesPromocion: string[] = [
     "CHAT SERVICIO AL CLIENTE (WHATSAPP, REDES SOCIALES)",
@@ -116,12 +116,9 @@ export class HelpInformationComponent implements OnInit {
   meses = Array.from({ length: 11 }, (_, i) => i + 1);  // 1..11
   anios = Array.from({ length: 80 }, (_, i) => i + 1);  // 1..80
 
-  get idProcesoSeleccion(): number | null {
-    return this._idProcesoSeleccion;
-  }
-
+  // Usa el formulario real (no uno “any” sin inicializar)
   get tiempoResidenciaParsed() {
-    const v = this.infoCandidatoForm.value.tiempoResidencia as string | null;
+    const v = this.infoPersonalForm?.value?.tiempoResidencia as string | null;
     if (!v) return null;
     if (v === 'LIFETIME') return { unit: 'LIFETIME', quantity: null, label: 'Toda la vida' };
     const [u, q] = v.split(':');
@@ -131,45 +128,18 @@ export class HelpInformationComponent implements OnInit {
     return null;
   }
 
-  // id de info entrevista andrea
-  onIdInfoEntrevistaAndreaChange(id: number): void {
-    this.idInfoEntrevistaAndrea = id;
-  }
-
-  //  Lista estado civil
+  // Lista estado civil
   estadosCiviles: any[] = [
-    {
-      codigo: 'SO',
-      descripcion: 'SO (Soltero)',
-    },
-    {
-      codigo: 'UL',
-      descripcion: 'UL (Unión Libre) ',
-    },
-    {
-      codigo: 'CA',
-      descripcion: 'CA (Casado)',
-    },
-    {
-      codigo: 'SE',
-      descripcion: 'SE (Separado)',
-    },
-    {
-      codigo: 'VI',
-      descripcion: 'VI (Viudo)',
-    },
+    { codigo: 'SO', descripcion: 'SO (Soltero)' },
+    { codigo: 'UL', descripcion: 'UL (Unión Libre) ' },
+    { codigo: 'CA', descripcion: 'CA (Casado)' },
+    { codigo: 'SE', descripcion: 'SE (Separado)' },
+    { codigo: 'VI', descripcion: 'VI (Viudo)' },
   ];
-
 
   vacantes: PublicacionDTO[] = [];
   vacanteSeleccionada: PublicacionDTO | null = null;
 
-  oficinasNombres(oficinas?: OficinaDTO[] | null): string {
-    if (!oficinas || oficinas.length === 0) return '';
-    return oficinas.map(o => o?.nombre).filter(Boolean).join(', ');
-  }
-
-  // NO tocamos vacanteSeleccionada; usamos un id aparte
   selectedVacanteId: number | null = null;
 
   constructor(
@@ -185,7 +155,7 @@ export class HelpInformationComponent implements OnInit {
     this.formGroup4 = this.fb.group({
       empresaUsuaria: [''],
       fechaIngreso: [null],
-      salario: ['1423500'],
+      salario: [''],
       auxTransporte: [''],
       rodamiento: [''],
       auxMovilidad: [''],
@@ -193,14 +163,10 @@ export class HelpInformationComponent implements OnInit {
     });
 
     // Formulario 1: Info personal
-    // Dentro del constructor (o donde inicializas los formularios)
     this.infoPersonalForm = this.fb.group({
-      // --- TUS CAMPOS ORIGINALES ---
+      // ORIGINALES
       tipodedocumento: ['', Validators.required],
-      numerodecedula: [
-        '',
-        [Validators.required, Validators.pattern(/^\d+$/)]
-      ],
+      numerodecedula: ['', [Validators.required, Validators.pattern(/^\d+$/)]],
       municipio: [''],
       municipioExpedicion: ['', Validators.required],
       nombreCompleto: [''],
@@ -225,22 +191,20 @@ export class HelpInformationComponent implements OnInit {
       aplicaObservacion: ['', Validators.required],
       motivoNoAplica: [''],
       hijos: this.fb.array([]),
-      // --- CAMPOS QUE FALTABAN (TRAÍDOS DE formVacante) ---
+
+      // CAMPOS ADICIONALES
       primerApellido: ['', [Validators.required, Validators.minLength(2), Validators.maxLength(30)]],
       segundoApellido: ['', [Validators.maxLength(30)]],
       primerNombre: ['', [Validators.required, Validators.minLength(2), Validators.maxLength(30)]],
       segundoNombre: ['', [Validators.maxLength(30)]],
       lugarNacimiento: ['', Validators.required],
 
-      experienciaFlores: ['', Validators.required], // coexistirá con tieneExperienciaFlores
+      experienciaFlores: ['', Validators.required],
       tipoExperienciaFlores: [''],
       otroExperiencia: [''],
 
       oficina: ['', Validators.required],
       brigadaDe: [''],
-
-      correo_usuario: ['', [Validators.required, Validators.pattern(/^[^@\s]+$/)]], // mismo patrón que usas
-      correo_dominio: ['', Validators.required],
 
       estadoCivil: ['', Validators.required],
       conQuienViveChecks: [[], Validators.required],
@@ -253,13 +217,12 @@ export class HelpInformationComponent implements OnInit {
       proyeccion1Ano: ['', Validators.required],
       estudiaActualmente: ['', Validators.required],
 
-      experiencias: this.fb.array([]), // arreglo dinámico (empresa, labores, tiempo, labores_principales)
+      experiencias: this.fb.array([]),
       observacionEvaluador: [''],
       motivoEspera: [''],
     });
 
-
-    // Formulario 4: Vacantes
+    // Formulario 2: Vacantes
     this.vacantesForm = this.fb.group({
       tipo: ['', Validators.required],
       empresaUsuaria: [''],
@@ -272,6 +235,9 @@ export class HelpInformationComponent implements OnInit {
       direccionEmpresa: ['']
     });
 
+    if (this.experienciasFA.length === 0) this.seedExperiencias();
+
+    // === Reglas dinámicas ===
     // 1) Motivo no aplica
     this.infoPersonalForm.get('aplicaObservacion')!.valueChanges.subscribe(val => {
       const motivo = this.infoPersonalForm.get('motivoNoAplica');
@@ -284,7 +250,7 @@ export class HelpInformationComponent implements OnInit {
       motivo?.updateValueAndValidity();
     });
 
-    // 2) Hijos: activar validadores con tieneHijos y sincronizar cantidades
+    // 2) Hijos
     this.infoPersonalForm.get('tieneHijos')?.valueChanges.subscribe((tiene: boolean) => {
       const cuidador = this.infoPersonalForm.get('cuidadorHijos');
       const num = this.infoPersonalForm.get('numeroHijos');
@@ -303,22 +269,18 @@ export class HelpInformationComponent implements OnInit {
       num?.updateValueAndValidity();
     });
 
-    // Sincronizar numHijos <-> numeroHijos y ajustar FormArray
+    // Sincronizar numHijos <-> numeroHijos
     this.infoPersonalForm.get('numHijos')?.valueChanges.subscribe(n => {
       const parsed = Number(n) || 0;
       const actual = this.infoPersonalForm.get('numeroHijos')?.value ?? 0;
-      if (actual !== parsed) {
-        this.infoPersonalForm.get('numeroHijos')?.setValue(parsed, { emitEvent: false });
-      }
+      if (actual !== parsed) this.infoPersonalForm.get('numeroHijos')?.setValue(parsed, { emitEvent: false });
       this.setHijosCount(parsed);
     });
 
     this.infoPersonalForm.get('numeroHijos')?.valueChanges.subscribe(n => {
       const parsed = Number(n) || 0;
       const actual = this.infoPersonalForm.get('numHijos')?.value ?? 0;
-      if (actual !== parsed) {
-        this.infoPersonalForm.get('numHijos')?.setValue(parsed, { emitEvent: false });
-      }
+      if (actual !== parsed) this.infoPersonalForm.get('numHijos')?.setValue(parsed, { emitEvent: false });
       this.setHijosCount(parsed);
     });
 
@@ -338,7 +300,6 @@ export class HelpInformationComponent implements OnInit {
       tipo?.updateValueAndValidity();
       otro?.updateValueAndValidity();
 
-      // Mantener en sync (opcional) con tieneExperienciaFlores
       const tieneCtrl = this.infoPersonalForm.get('tieneExperienciaFlores');
       if (tieneCtrl && tieneCtrl.value !== val) {
         tieneCtrl.setValue(val, { emitEvent: false });
@@ -356,15 +317,14 @@ export class HelpInformationComponent implements OnInit {
       otro?.updateValueAndValidity();
     });
 
-    // 4) Calcular edad desde fechaNacimiento
+    // 4) Edad desde fechaNacimiento
     this.infoPersonalForm.get('fechaNacimiento')?.valueChanges.subscribe((f: any) => {
       const edad = this.calcEdad(f);
       this.infoPersonalForm.get('edad')?.setValue(edad, { emitEvent: false });
     });
 
-    // 5) Construir nombreCompleto desde nombres/apellidos (opcional)
-    const nombrePartes = ['primerNombre', 'segundoNombre', 'primerApellido', 'segundoApellido'];
-    nombrePartes.forEach(ctrl => {
+    // 5) Armar nombreCompleto
+    ['primerNombre', 'segundoNombre', 'primerApellido', 'segundoApellido'].forEach(ctrl => {
       this.infoPersonalForm.get(ctrl)?.valueChanges.subscribe(() => {
         const v = this.infoPersonalForm.value;
         const full = [v.primerNombre, v.segundoNombre, v.primerApellido, v.segundoApellido]
@@ -381,110 +341,73 @@ export class HelpInformationComponent implements OnInit {
       return;
     }
 
-
-
     this.vacantesService.getVacantesPorOficina(user.sede.nombre)
       .subscribe((vacantes: PublicacionDTO[]) => {
-        this.vacantes = vacantes ?? [];
-        // (opcional) autoseleccionar la primera:
-        // if (this.vacantes.length) this.onVacanteIdChange(this.vacantes[0].id);
+        this.setVacantes(vacantes ?? []);
       });
 
+    // (duplicado defensivo por si el form viene ya con valor)
+    this.infoPersonalForm.get('aplicaObservacion')!.updateValueAndValidity();
+  }
 
-    // Lógica para requerir motivo solo si eligen NO APLICA:
-    this.infoPersonalForm.get('aplicaObservacion')!.valueChanges.subscribe(val => {
-      const motivo = this.infoPersonalForm.get('motivoNoAplica');
-      if (val === 'NO_APLICA') {
-        motivo?.setValidators([Validators.required]);
-      } else {
-        motivo?.clearValidators();
-        motivo?.setValue('');
-      }
-      motivo?.updateValueAndValidity();
-    });
+  ngOnChanges(changes: SimpleChanges): void {
+    if (changes['cedula'] && this.cedula) {
+      this.buscarContratacion();
 
+      this.seleccionService.getSeleccion(this.cedula).subscribe((seleccion: any) => {
+        const procesos = Array.isArray(seleccion?.procesoSeleccion) ? seleccion.procesoSeleccion : [];
+        if (!procesos.length) return;
+
+        const maxProceso = procesos.reduce((acc: any, it: any) => !acc || (it?.id ?? -Infinity) > acc.id ? it : acc, null);
+        const vacanteId = Number(maxProceso?.vacante);
+        if (!vacanteId) return;
+
+        if (this.vacantes?.length) {
+          this.onVacanteIdChange(vacanteId);
+        } else {
+          this.pendingVacanteId = vacanteId; // se aplicará en setVacantes()
+        }
+      });
+    }
   }
 
   get experienciasFA(): FormArray {
     return this.infoPersonalForm.get('experiencias') as FormArray;
   }
-
-
-  private createHijoGroup(hijo: any = {}): FormGroup {
-    return this.fb.group({
-      edad: [hijo.edad ?? '', Validators.required]
-    });
-  }
-
-
-  addExperiencia(): void {
-    this.experienciasFA.push(this.fb.group({
-      empresa: ['', [Validators.required, Validators.maxLength(120)]],
-      tiempo: ['', [Validators.required, Validators.maxLength(80)]],
-      labores: ['', [Validators.required, Validators.maxLength(800)]],
-      labores_principales: ['', [Validators.required, Validators.maxLength(800)]],
-    }));
-  }
-
-  removeExperiencia(i: number): void {
-    this.experienciasFA.removeAt(i);
-  }
-
-
-
-  // -------- Hijos (estructura local) --------
-
   get hijosFormArray(): FormArray {
     return this.infoPersonalForm.get('hijos') as FormArray;
   }
 
-  actualizarHijos(cantidad: number) {
-    const hijos = this.hijosFormArray;
-    while (hijos.length < cantidad) {
-      hijos.push(this.fb.group({
-        nombre: [''],
-        sexo: [''],
-        fecha_nacimiento: [''],
-        no_documento: [''],
-        estudia_o_trabaja: [''],
-        curso: ['']
-      }));
-    }
-    while (hijos.length > cantidad) {
-      hijos.removeAt(hijos.length - 1);
-    }
-  }
-
-  private buildHijoGroup(): FormGroup {
-    return this.fb.group({
-      edad: ['', Validators.required]
-    });
-  }
-
+  // ===== Hijos (FormArray) =====
   private setHijosCount(n: number): void {
     const fa = this.hijosFormArray;
-    while (fa.length < n) fa.push(this.buildHijoGroup());
+    while (fa.length < n) fa.push(this.fb.group({ edad: ['', Validators.required] }));
     while (fa.length > n) fa.removeAt(fa.length - 1);
   }
 
-  setHijosDesdeBackend(hijosBackend: any[]) {
-    const hijos = this.hijosFormArray;
-    hijos.clear();
-    hijosBackend.forEach(h => {
-      hijos.push(this.fb.group({
-        nombre: [h.nombre ?? ''],
-        sexo: [h.sexo ?? ''],
-        fecha_nacimiento: [h.fecha_nacimiento ?? ''],
-        no_documento: [h.no_documento ?? ''],
-        estudia_o_trabaja: [h.estudia_o_trabaja ?? ''],
-        curso: [h.curso ?? ''],
+  setHijosDesdeBackend(hijos: any[]) {
+    const fa = this.hijosFormArray;
+    fa.clear();
+    (hijos || []).forEach(h => {
+      fa.push(this.fb.group({
+        nombre: [h?.nombre ?? ''],
+        sexo: [h?.sexo ?? ''],
+        fecha_nacimiento: [h?.fecha_nacimiento ?? ''],
+        no_documento: [h?.no_documento ?? ''],
+        estudia_o_trabaja: [h?.estudia_o_trabaja ?? ''],
+        curso: [h?.curso ?? ''],
+        edad: [h?.edad ?? '']
       }));
     });
-    this.infoPersonalForm.get('numHijos')?.setValue(hijosBackend.length, { emitEvent: false });
-    this.infoPersonalForm.get('numeroHijos')?.setValue(hijosBackend.length, { emitEvent: false });
+    const n = hijos?.length ?? 0;
+    this.infoPersonalForm.get('numHijos')?.setValue(n, { emitEvent: false });
+    this.infoPersonalForm.get('numeroHijos')?.setValue(n, { emitEvent: false });
+    // Campo “edadesHijos” si lo necesitas mostrar
+    const edades = (hijos || []).map(x => x?.edad).filter(e => e != null).join(', ');
+    this.infoPersonalForm.get('edadesHijos')?.setValue(edades);
   }
 
-  // -------- Utilidades --------
+  // ===== Utilidades =====
   private calcEdad(f?: any): string {
     if (!f) return '';
     const d = new Date(f), h = new Date();
@@ -494,8 +417,6 @@ export class HelpInformationComponent implements OnInit {
     return String(e);
   }
 
-  // Métodos de guardado (mock)
-  // 1) Etiquetas legibles para infoPersonalForm
   LABELS_INFO: Record<string, string> = {
     tipodedocumento: 'Tipo de documento',
     numerodecedula: 'Número de cédula',
@@ -546,7 +467,6 @@ export class HelpInformationComponent implements OnInit {
     estudiaActualmente: '¿Estudia actualmente?'
   };
 
-  // 2) Helper: arma la lista HTML de errores (incluye condicionales)
   private buildInvalidList(): { html: string; firstKey?: string } {
     const f = this.infoPersonalForm;
     const lines: string[] = [];
@@ -557,7 +477,6 @@ export class HelpInformationComponent implements OnInit {
       lines.push(`<li><b>${this.LABELS_INFO[key] ?? key}:</b> ${msg}</li>`);
     };
 
-    // ------ Errores por validadores estándar ------
     Object.entries(f.controls).forEach(([key, control]) => {
       if (!control || control.valid) return;
       const errors = control.errors || {};
@@ -566,30 +485,17 @@ export class HelpInformationComponent implements OnInit {
       if (errors['pattern']) {
         if (key === 'celular' || key === 'whatsapp') {
           push(key, 'formato inválido (debe iniciar con 3 y tener 10 dígitos).');
-        } else if (key === 'correo_usuario') {
-          push(key, 'solo el usuario (sin @, espacios ni dominio).');
         } else {
           push(key, 'formato inválido.');
         }
       }
-      if (errors['minlength']) {
-        const req = errors['minlength'].requiredLength;
-        push(key, `mínimo ${req} caracteres.`);
-      }
-      if (errors['maxlength']) {
-        const req = errors['maxlength'].requiredLength;
-        push(key, `máximo ${req} caracteres.`);
-      }
-      if (errors['min']) {
-        push(key, `debe ser al menos ${errors['min'].min}.`);
-      }
-      if (errors['max']) {
-        push(key, `debe ser como máximo ${errors['max'].max}.`);
-      }
+      if (errors['minlength']) push(key, `mínimo ${errors['minlength'].requiredLength} caracteres.`);
+      if (errors['maxlength']) push(key, `máximo ${errors['maxlength'].requiredLength} caracteres.`);
+      if (errors['min']) push(key, `debe ser al menos ${errors['min'].min}.`);
+      if (errors['max']) push(key, `debe ser como máximo ${errors['max'].max}.`);
     });
 
-    // ------ Reglas condicionales de negocio ------
-    // 2.1 Experiencia en flores
+    // Reglas condicionales
     const exp = f.get('experienciaFlores')?.value;
     if (exp === 'Sí') {
       if (!f.get('tipoExperienciaFlores')?.value) {
@@ -600,60 +506,37 @@ export class HelpInformationComponent implements OnInit {
       }
     }
 
-    // 2.2 Referenciado
     if (f.get('referenciado')?.value === 'SI' &&
       !String(f.get('nombreReferenciado')?.value || '').trim()) {
       push('nombreReferenciado', 'es obligatorio cuando "Referenciado" es "Sí".');
     }
 
-    // 2.3 Hijos
     if (f.get('tieneHijos')?.value === true) {
       if (!String(f.get('cuidadorHijos')?.value || '').trim()) {
         push('cuidadorHijos', 'es obligatorio cuando "¿Tiene hijos?" es "Sí".');
       }
       const nH = Number(f.get('numeroHijos')?.value ?? 0);
-      if (!nH || nH < 1) {
-        push('numeroHijos', 'debe ser al menos 1 cuando "¿Tiene hijos?" es "Sí".');
-      }
-      // Validar edades en el FormArray hijos (si existe)
-      const hijosFA = f.get('hijos') as import('@angular/forms').FormArray;
+      if (!nH || nH < 1) push('numeroHijos', 'debe ser al menos 1 cuando "¿Tiene hijos?" es "Sí".');
+      const hijosFA = f.get('hijos') as FormArray;
       if (hijosFA && hijosFA.length) {
         hijosFA.controls.forEach((grp, idx) => {
-          const edadCtrl = grp.get('edad');
-          if (!edadCtrl?.value && edadCtrl?.touched) {
-            push('hijos', `falta la edad del hijo #${idx + 1}.`);
-          }
+          const edadCtrl = (grp as FormGroup).get('edad');
+          if (!edadCtrl?.value && edadCtrl?.touched) push('hijos', `falta la edad del hijo #${idx + 1}.`);
         });
       }
     }
 
-    // 2.4 Observaciones del evaluador
     if (f.get('observacionEvaluador')?.value === 'ESPERA DE VACANTE') {
       const motivo = String(f.get('motivoEspera')?.value || '');
-      if (!motivo.trim()) {
-        push('motivoEspera', 'es obligatorio cuando la observación es "ESPERA DE VACANTE".');
-      } else if (motivo.length > 300) {
-        push('motivoEspera', 'máximo 300 caracteres.');
-      }
+      if (!motivo.trim()) push('motivoEspera', 'es obligatorio cuando la observación es "ESPERA DE VACANTE".');
+      else if (motivo.length > 300) push('motivoEspera', 'máximo 300 caracteres.');
     }
 
-    // 2.5 NO_APLICA requiere motivo
     if (f.get('aplicaObservacion')?.value === 'NO_APLICA' &&
       !String(f.get('motivoNoAplica')?.value || '').trim()) {
       push('motivoNoAplica', 'debe especificarse cuando es "NO APLICA".');
     }
 
-    // 2.6 Correo armado: usuario + dominio
-    if (!String(f.get('correo_usuario')?.value || '').trim()) {
-      push('correo_usuario', 'es obligatorio.');
-    } else if (/@|\s/.test(String(f.get('correo_usuario')?.value))) {
-      push('correo_usuario', 'no debe incluir @, espacios ni el dominio.');
-    }
-    if (!String(f.get('correo_dominio')?.value || '').trim()) {
-      push('correo_dominio', 'es obligatorio.');
-    }
-
-    // 2.7 Oficina con BRIGADA requiere detalle
     if (String(f.get('oficina')?.value || '') === 'BRIGADA' &&
       !String(f.get('brigadaDe')?.value || '').trim()) {
       push('brigadaDe', 'es obligatorio cuando la oficina es "BRIGADA".');
@@ -665,7 +548,6 @@ export class HelpInformationComponent implements OnInit {
     return { html, firstKey };
   }
 
-  // 3) Helper: enfoca el primer control con error
   private scrollToControl(key?: string) {
     if (!key) return;
     const el = document.querySelector(`[formcontrolname="${key}"]`) as HTMLElement | null;
@@ -675,41 +557,24 @@ export class HelpInformationComponent implements OnInit {
     }
   }
 
-  // 4) Tu función, con SweetAlert detallado + foco al primer error
   guardarInfoPersonal(): void {
     if (this.infoPersonalForm.invalid) {
       this.infoPersonalForm.markAllAsTouched();
-
-      // Construir lista de errores (incluye condicionales)
       const { html, firstKey } = this.buildInvalidList();
-
-      Swal.fire({
-        title: 'Revisa la información',
-        html: html || 'Por favor, completa los campos obligatorios.',
-        icon: 'warning',
-        confirmButtonText: 'Entendido'
-      }).then(() => this.scrollToControl(firstKey));
-
+      Swal.fire({ title: 'Revisa la información', html: html || 'Por favor, completa los campos obligatorios.', icon: 'warning', confirmButtonText: 'Entendido' })
+        .then(() => this.scrollToControl(firstKey));
       return;
     }
 
-    // Valida reglas condicionales también cuando el form "pase"
     const { html, firstKey } = this.buildInvalidList();
     if (html) {
-      Swal.fire({
-        title: 'Faltan datos',
-        html,
-        icon: 'warning',
-        confirmButtonText: 'Entendido'
-      }).then(() => this.scrollToControl(firstKey));
+      Swal.fire({ title: 'Faltan datos', html, icon: 'warning', confirmButtonText: 'Entendido' })
+        .then(() => this.scrollToControl(firstKey));
       return;
     }
 
-    // ====== Si todo OK, preparar payload ======
-    const info: any = { ...this.infoPersonalForm.value };
-    info.id = this._idInfoEntrevistaAndrea;
+    const info: any = { ...this.infoPersonalForm.value, id: this._idInfoEntrevistaAndrea };
 
-    // Normalizar fechas a YYYY-MM-DD
     const toYMD = (v: any) => {
       if (!v) return v;
       if (v instanceof Date) {
@@ -724,169 +589,73 @@ export class HelpInformationComponent implements OnInit {
     info.fechaNacimiento = toYMD(info.fechaNacimiento);
     info.fechaExpedicion = toYMD(info.fechaExpedicion);
 
-    // Mayúsculas sostenidas (solo strings)
-    Object.keys(info).forEach(k => {
-      if (typeof info[k] === 'string') {
-        info[k] = info[k].toUpperCase();
-      }
-    });
+    Object.keys(info).forEach(k => { if (typeof info[k] === 'string') info[k] = info[k].toUpperCase(); });
 
     this.seleccionService.guardarInfoPersonal(info).subscribe({
       next: (resp) => {
-        Swal.fire({
-          title: 'Guardado',
-          text: 'Información personal guardada correctamente.',
-          icon: 'success',
-          confirmButtonText: 'Ok'
-        });
-
-        // Actualiza estado entrevistado=true si hay id
+        Swal.fire({ title: 'Guardado', text: 'Información personal guardada correctamente.', icon: 'success', confirmButtonText: 'Ok' });
         if (resp && resp.id) {
           this.infoVacantesService
             .setEstadoVacanteAplicante(this._idInfoEntrevistaAndrea, 'entrevistado', true)
-            .subscribe({
-              next: (estadoResp) => console.log('✅ Estado entrevistado actualizado:', estadoResp),
-              error: (err) => console.error('❌ Error al actualizar entrevistado', err)
-            });
+            .subscribe({ next: () => { }, error: () => { } });
         }
       },
       error: (err) => {
         const msg = err?.error?.detail || 'No se pudo guardar la información personal.';
-        Swal.fire({
-          title: 'Error',
-          text: msg,
-          icon: 'error',
-          confirmButtonText: 'Ok'
-        });
+        Swal.fire({ title: 'Error', text: msg, icon: 'error', confirmButtonText: 'Ok' });
       }
     });
   }
 
-
   onVacanteIdChange(id: number | string): void {
     const idNum = Number(id);
     this.selectedVacanteId = idNum;
-
     const v = this.vacantes?.find(x => Number(x.id) === idNum) || null;
     this.vacanteSeleccionada = v;
-
-    if (v) {
-      this.patchVacanteToForm(v);
-      // Si usas OnPush:
-      // this.cdr.markForCheck();
-    }
+    if (v) this.patchVacanteToForm(v);
   }
 
-  // si también quieres re-emitir tras guardar:
   emitirIdSiSeleccionado(): void {
-    if (typeof this.selectedVacanteId === 'number') {
-      this.idVacante.emit(this.selectedVacanteId);
-    }
+    if (typeof this.selectedVacanteId === 'number') this.idVacante.emit(this.selectedVacanteId);
   }
 
   private patchVacanteToForm(v: PublicacionDTO): void {
-    // deducir tipo desde la vacante (si aplica)
-
-
-    // helpers de conversión
-    const toDate = (yyyyMmDd: string | null) =>
-      yyyyMmDd ? new Date(`${yyyyMmDd}T00:00:00`) : null;
-
-    const toTime = (hhmmss: string | null) =>
-      hhmmss ? hhmmss.slice(0, 5) : null; // "HH:mm:ss" -> "HH:mm"
-
-    const salarioNum =
-      v.salario && v.salario !== '0.00' ? Number(v.salario) : null;
-
+    console.log('Patching vacante to form:', v);
+    const toDate = (yyyyMmDd: string | null) => yyyyMmDd ? new Date(`${yyyyMmDd}T00:00:00`) : null;
+    const toTime = (hhmmss: string | null) => hhmmss ? hhmmss.slice(0, 5) : null;
+    const salarioNum = v.salario && v.salario !== '0.00' ? Number(v.salario) : null;
+    console.log('Patching vacante to form:', v, { salarioNum });
     this.vacantesForm.patchValue({
-      // comunes
-
       empresaUsuaria: v.empresaUsuariaSolicita ?? '',
       cargo: v.cargo ?? '',
-
-      // autorización
       fechaIngreso: toDate(v.fechadeIngreso),
       salario: salarioNum,
-
-      // prueba
       area: v.area ?? '',
       fechaPruebaEntrevista: toDate(v.fechadePruebatecnica),
       horaPruebaEntrevista: toTime(v.horadePruebatecnica),
       direccionEmpresa: v.ubicacionPruebaTecnica ?? ''
     });
 
-    // Si cambiaste 'tipo', fuerza *ngIf del template a reevaluar
     this.vacantesForm.get('tipo')?.updateValueAndValidity({ emitEvent: true });
   }
 
   private setVacantes(lista: PublicacionDTO[]): void {
     this.vacantes = lista || [];
-
     if (this.pendingVacanteId != null) {
-      // ahora sí existe la opción, aplica selección
       this.onVacanteIdChange(this.pendingVacanteId);
       this.pendingVacanteId = null;
     }
   }
 
-
-
-  ngOnChanges(changes: SimpleChanges): void {
-    if (changes['cedula'] && this.cedula) {
-      this.buscarContratacion();
-
-      this.seleccionService.getSeleccion(this.cedula).subscribe((seleccion: any) => {
-        const procesos = Array.isArray(seleccion?.procesoSeleccion) ? seleccion.procesoSeleccion : [];
-        if (!procesos.length) return;
-
-        // max por id:
-        const maxProceso = procesos.reduce((acc: any, it: any) => !acc || (it?.id ?? -Infinity) > acc.id ? it : acc, null);
-        const vacanteId = Number(maxProceso?.vacante);
-
-        if (!vacanteId) return;
-
-        if (this.vacantes?.length) {
-          this.onVacanteIdChange(vacanteId);
-        } else {
-          this.pendingVacanteId = vacanteId; // se aplicará en setVacantes()
-        }
-      });
-    }
-  }
-
-
-  recibirVacante(vacante: any): void {
-    this.vacanteActual = vacante;
-    if (this.vacanteActual) {
-      this.vacantesForm.patchValue({
-        centroCosto: this.vacanteActual.empresaUsuariaSolicita,
-        cargo: this.vacanteActual.cargo,
-        fechaPruebaEntrevista: this.vacanteActual.fechadePruebatecnica,
-        horaPruebaEntrevista: this.vacanteActual.horadePruebatecnica
-      });
-    }
-  }
-
   parseFechaDDMMYYYY(fechaStr: any): Date | null {
     if (!fechaStr) return null;
-
-    // Si viene como objeto Date, retorna igual
     if (fechaStr instanceof Date) return fechaStr;
-
-    // Si ya viene en formato "yyyy-mm-dd" o "yyyy-mm-ddTHH:mm:ss"
-    if (/^\d{4}-\d{2}-\d{2}/.test(fechaStr)) {
-      return new Date(fechaStr);
-    }
-
-    // Si viene en formato "dd/mm/yyyy"
+    if (/^\d{4}-\d{2}-\d{2}/.test(fechaStr)) return new Date(fechaStr);
     if (fechaStr.includes('/')) {
       const [dia, mes, anio] = fechaStr.split('/');
-      if (dia && mes && anio) {
-        return new Date(+anio, +mes - 1, +dia);
-      }
+      if (dia && mes && anio) return new Date(+anio, +mes - 1, +dia);
     }
-
-    return null; // No reconoce el formato
+    return null;
   }
 
   private buscarContratacion(): void {
@@ -897,55 +666,22 @@ export class HelpInformationComponent implements OnInit {
     this.infoVacantesService.getVacantesPorNumero(this.cedula).subscribe({
       next: (resultado) => {
         const contratacion = resultado?.[0];
-        if (contratacion) {
-          this.patchInfoPersonalFromApi(contratacion);
-        }
+        if (contratacion) this.patchInfoPersonalFromApi(contratacion);
       },
-      error: () => {
-        Swal.fire('Error', 'No se pudo obtener la contratación', 'error');
-      }
+      error: () => Swal.fire('Error', 'No se pudo obtener la contratación', 'error')
     });
   }
 
-
-  private fillHijosFromApi(numeroHijos: number, hijosApi: Array<any> | null | undefined): void {
-    // Ajusta la cantidad de controles
-    this.actualizarHijos(Number(numeroHijos) || 0);
-
-    // Si el backend trae solo edades, úsalas para el campo 'edadesHijos'
-    if (Array.isArray(hijosApi) && hijosApi.length) {
-      const edades = hijosApi
-        .map(h => h?.edad)
-        .filter(e => e !== undefined && e !== null)
-        .join(', ');
-      this.infoPersonalForm.get('edadesHijos')?.setValue(edades);
-    } else {
-      this.infoPersonalForm.get('edadesHijos')?.setValue('');
-    }
-  }
-
-
-
   private patchInfoPersonalFromApi(data: any): void {
-    // Experiencia en flores -> 'Sí'/'No' (y espejo en tieneExperienciaFlores 'SI'/'NO')
     const expTxt = (data?.cuenta_experiencia_flores ?? '').toString().trim();
     const expSi = this.boolFromText(expTxt) === true;
     const experienciaFlores = expSi ? 'Sí' : (expTxt ? 'No' : '');
 
-    // APLICA / NO_APLICA
-    const aplicaSel = (data?.aplica_o_no_aplica ?? data?.aplicaObservacion ?? '').toString().trim();
-
-    // Correo -> split usuario/dominio
-    const { usuario: correo_usuario, dominio: correo_dominio } = this.splitCorreo(data?.correo);
-
-    // Preferencias y equivalentes
     const municipioExp = data?.municipio_expedicion ?? data?.municipioExpedicion ?? '';
     const nombreCompleto = [data?.primer_nombre, data?.segundo_nombre, data?.primer_apellido, data?.segundo_apellido]
       .filter(Boolean).join(' ').trim();
 
-    // Patch principal
     this.infoPersonalForm.patchValue({
-      // originales
       tipodedocumento: data?.tipo_documento ?? '',
       numerodecedula: data?.numero ?? this.cedula ?? '',
       municipio: data?.municipio ?? '',
@@ -971,22 +707,18 @@ export class HelpInformationComponent implements OnInit {
       quienLosCuida: data?.quien_los_cuida ?? data?.cuidador_hijos ?? '',
       aplicaObservacion: data?.aplica_o_no_aplica ?? '',
       motivoNoAplica: data?.motivoNoAplica ?? '',
-      // faltantes/extra
+
       primerApellido: data?.primer_apellido ?? '',
       segundoApellido: data?.segundo_apellido ?? '',
       primerNombre: data?.primer_nombre ?? '',
       segundoNombre: data?.segundo_nombre ?? '',
       lugarNacimiento: data?.lugar_nacimiento ?? '',
 
-      experienciaFlores,                 // 'Sí'/'No'
-
+      experienciaFlores,
       otroExperiencia: data?.otro_experiencia ?? '',
 
       oficina: data?.oficina ?? '',
       brigadaDe: data?.brigada_de ?? '',
-
-      correo_usuario,
-      correo_dominio,
 
       estadoCivil: data?.estado_civil ?? '',
       conQuienViveChecks: Array.isArray(data?.con_quien_vive) ? data.con_quien_vive : [],
@@ -1001,68 +733,16 @@ export class HelpInformationComponent implements OnInit {
 
       observacionEvaluador: data?.aplicaObservacion ?? '',
       motivoEspera: data?.motivoEspera ?? '',
-
-
     });
 
-    // Sincronizar hijos (FormArray y edades)
-    this.fillHijosFromApi(data?.numero_hijos, data?.hijos);
-
-    // 🔹 Experiencias (FormArray)
-    if (Array.isArray(data?.hijos)) {
-      const fa = this.hijosFA; // getter que devuelve this.infoPersonalForm.get('hijos') as FormArray
-      fa.clear(); // limpiar antes de llenar
-      data.hijos.forEach((hijo: any) => {
-        fa.push(this.fb.group({
-          edad: [hijo.edad ?? '']
-        }));
-      });
-    } else {
-      // Si no viene arreglo, sincronizar con número de hijos
-      this.fillHijosFromApi(data?.numero_hijos, []);
-    }
-
-    // 🔹 Experiencias laborales (FormArray)
-    if (Array.isArray(data?.experiencias)) {
-      const faExp = this.experienciasFA; // getter -> this.infoPersonalForm.get('experiencias') as FormArray
-      faExp.clear(); // limpiar antes de llenar
-      data.experiencias.forEach((exp: any) => {
-        faExp.push(this.fb.group({
-          tiempo: [exp.tiempo ?? ''],
-          empresa: [exp.empresa ?? ''],
-          labores: [exp.labores ?? ''],
-          labores_principales: [exp.labores_principales ?? '']
-        }));
-      });
-    } else {
-      // Si no viene arreglo, asegurarse de limpiar
-      this.experienciasFA.clear();
-    }
-
-
-    // Validación adicional
+    // Hijos desde backend (centralizado)
+    this.setHijosDesdeBackend(Array.isArray(data?.hijos) ? data.hijos : []);
     this.infoPersonalForm.get('motivoNoAplica')?.updateValueAndValidity();
   }
 
-  get hijosFA(): FormArray {
-    return this.infoPersonalForm.get('hijos') as FormArray;
-  }
-
-
-
-
   private toDate(v: any): Date | null {
     if (!v) return null;
-    // Acepta 'YYYY-MM-DD' ó Date
     return v instanceof Date ? v : new Date(String(v));
-  }
-
-  private splitCorreo(correo?: string): { usuario: string; dominio: string } {
-    if (!correo || typeof correo !== 'string' || !correo.includes('@')) {
-      return { usuario: '', dominio: '' };
-    }
-    const [u, d] = correo.split('@');
-    return { usuario: u || '', dominio: (d || '').toUpperCase() };
   }
 
   private boolFromText(v: any): boolean | null {
@@ -1074,29 +754,16 @@ export class HelpInformationComponent implements OnInit {
     return null;
   }
 
-
-
-
-
-
-
   guardarEntrevista(): void {
     if (this.infoPersonalForm.invalid) {
       this.infoPersonalForm.markAllAsTouched();
       Swal.fire('Error', 'Debes completar todos los campos obligatorios de la entrevista.', 'error');
       return;
     }
-
-    // Construir objeto a enviar, añadiendo la cédula
     const payload = { ...this.infoPersonalForm.value, numero: this.cedula };
-
     this.seleccionService.guardarEntrevista(payload).subscribe({
-      next: (resp) => {
-        Swal.fire('Guardado', 'Información de entrevista guardada correctamente.', 'success');
-      },
-      error: (error) => {
-        Swal.fire('Error', 'No se pudo guardar la información de la entrevista.', 'error');
-      }
+      next: () => Swal.fire('Guardado', 'Información de entrevista guardada correctamente.', 'success'),
+      error: () => Swal.fire('Error', 'No se pudo guardar la información de la entrevista.', 'error')
     });
   }
 
@@ -1107,13 +774,12 @@ export class HelpInformationComponent implements OnInit {
       return;
     }
 
-    // Helpers locales
     const normDate = (v: any): string => {
       if (!v) return '';
       if (v instanceof Date) return v.toISOString().slice(0, 10);
       const s = String(v);
-      if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;                 // YYYY-MM-DD
-      const m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);         // DD/MM/YYYY
+      if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+      const m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
       if (m) {
         const [_, d, mo, y] = m;
         return `${y}-${String(mo).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
@@ -1131,17 +797,9 @@ export class HelpInformationComponent implements OnInit {
       return `${hh}:${mm}`;
     };
 
-    // Tomar valores del form
-    const fv = this.vacantesForm.value;
-    fv.id = this._idInfoEntrevistaAndrea;
-    // COLOCAR EN MAYÚSCULAS
-    Object.keys(fv).forEach(key => {
-      if (typeof fv[key] === 'string') {
-        fv[key] = fv[key].toUpperCase();
-      }
-    });
-    // Payload para tu endpoint de "guardar vacantes" (si lo usas aparte de Parte 2)
-    // Mapeado a los nombres de backend:
+    const fv: any = { ...this.vacantesForm.value, id: this._idInfoEntrevistaAndrea };
+    Object.keys(fv).forEach(key => { if (typeof fv[key] === 'string') fv[key] = fv[key].toUpperCase(); });
+
     const payloadVacante = {
       numerodeceduladepersona: String(this.cedula).trim(),
       tipo: fv.tipo ?? '',
@@ -1153,221 +811,114 @@ export class HelpInformationComponent implements OnInit {
       direccion_empresa: fv.direccionEmpresa ?? '',
       fechaIngreso: normDate(fv.fechaIngreso),
       salario: fv.salario != null ? String(fv.salario) : '',
-      // Si tienes una vacante seleccionada, priorízala
       vacante: this.vacanteSeleccionada?.id ?? (fv.vacante ?? null)
     };
 
-    // Loader
-    Swal.fire({
-      title: 'Guardando…',
-      text: 'Procesando información de vacantes.',
-      icon: 'info',
-      allowOutsideClick: false,
-      showConfirmButton: false,
-      didOpen: () => Swal.showLoading()
-    });
+    Swal.fire({ title: 'Guardando…', text: 'Procesando información de vacantes.', icon: 'info', allowOutsideClick: false, showConfirmButton: false, didOpen: () => Swal.showLoading() });
 
     try {
-      // 1) Guardar/actualizar PARTE 2 del proceso (correcto, NO parte 3)
-      //    Enviamos el id del proceso si lo tienes; creará uno nuevo si no.
-      // TODA LA INFO DEL FORMULARIO EN MAYÚSCULAS
-
       const respParte2: any = await firstValueFrom(
-        this.seleccionService.crearSeleccionParteDosCandidato(
-          this.vacantesForm,               // acepta FormGroup o .value (tu service lo maneja)
-          this.cedula,
-          this._idProcesoSeleccion   // usa el nombre consistente en tu componente
-        )
+        this.seleccionService.crearSeleccionParteDosCandidato(this.vacantesForm, this.cedula, this._idProcesoSeleccion)
       );
-
-      // Si backend devuelve id del proceso, consérvalo
       if (respParte2?.id && !this.idProcesoSeleccion) {
         this.idProcesoSeleccion = respParte2.id;
       }
 
-      // 2) Guardar "vacantes" (si usas un endpoint adicional para otro modelo)
-      const respGuardar: any = await firstValueFrom(
-        this.seleccionService.guardarVacantes(payloadVacante)
-      );
-
+      const respGuardar: any = await firstValueFrom(this.seleccionService.guardarVacantes(payloadVacante));
       Swal.close();
 
-      // 3) Acciones post-guardado (estados/relaciones)
       if (respGuardar && respGuardar.id) {
-        // marcar prueba_técnica=true en tu InfoVacantes (si aplica)
-        this.infoVacantesService
-          .setEstadoVacanteAplicante(this._idInfoEntrevistaAndrea, 'prueba_tecnica', true)
-          .subscribe({
-            next: r => console.log('✅ Estado prueba_tecnica actualizado:', r),
-            error: err => console.warn('❌ No se pudo actualizar prueba_tecnica', err)
-          });
+        this.infoVacantesService.setEstadoVacanteAplicante(this._idInfoEntrevistaAndrea, 'prueba_tecnica', true)
+          .subscribe({ next: () => { }, error: () => { } });
       }
 
-      // marcar preseleccionado y asignar vacante (si hay vacanteSeleccionada)
       if (this.vacanteSeleccionada?.id) {
-        this.vacantesService
-          .setEstadoVacanteAplicante(this.vacanteSeleccionada.id, 'preseleccionado', this.cedula)
-          .subscribe({
-            next: r => console.log('✅ Estado preseleccionado actualizado:', r),
-            error: err => console.warn('❌ No se pudo actualizar preseleccionado', err)
-          });
+        this.vacantesService.setEstadoVacanteAplicante(this.vacanteSeleccionada.id, 'preseleccionado', this.cedula)
+          .subscribe({ next: () => { }, error: () => { } });
 
-        this.seleccionService
-          .setVacante(this.cedula, this.vacanteSeleccionada.id)
-          .subscribe({
-            next: r => console.log('✅ Vacante asignada correctamente:', r),
-            error: err => console.warn('❌ Error al asignar vacante', err)
-          });
+        this.seleccionService.setVacante(this.cedula, this.vacanteSeleccionada.id)
+          .subscribe({ next: () => { }, error: () => { } });
 
-        // (opcional) emitir id hacia el padre
         this.emitirIdSiSeleccionado?.();
       }
 
-      await Swal.fire({
-        icon: 'success',
-        title: 'Guardado',
-        text: 'Información de vacantes guardada correctamente.',
-      });
+      await Swal.fire({ icon: 'success', title: 'Guardado', text: 'Información de vacantes guardada correctamente.' });
 
     } catch (err: any) {
       console.error('guardarVacantes error:', err);
       Swal.close();
-      await Swal.fire({
-        icon: 'error',
-        title: 'Error',
-        text: err?.error?.detail || err?.message || 'No se pudo guardar la información de vacantes.'
-      });
+      await Swal.fire({ icon: 'error', title: 'Error', text: err?.error?.detail || err?.message || 'No se pudo guardar la información de vacantes.' });
     }
   }
 
-  // Convierte días desde 1900, DD/MM/YYYY o YYYY-MM-DD a Date
   convertirAFecha(fecha: string): Date | null {
     if (/^\d+$/.test(fecha)) {
       const diasDesde1900 = Number(fecha);
       const fechaBase = new Date(1900, 0, 1);
       fechaBase.setDate(fechaBase.getDate() + diasDesde1900);
-      if (isNaN(fechaBase.getTime())) return null;
-      return fechaBase;
+      return isNaN(fechaBase.getTime()) ? null : fechaBase;
     } else if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(fecha)) {
       const [dia, mes, anio] = fecha.split('/').map(Number);
-      if (!dia || !mes || !anio) return null;
       const fechaValida = new Date(anio, mes - 1, dia);
-      if (isNaN(fechaValida.getTime())) return null;
-      return fechaValida;
+      return isNaN(fechaValida.getTime()) ? null : fechaValida;
     } else if (/^\d{4}-\d{2}-\d{2}$/.test(fecha)) {
       const fechaValida = new Date(fecha);
-      if (isNaN(fechaValida.getTime())) return null;
-      return fechaValida;
+      return isNaN(fechaValida.getTime()) ? null : fechaValida;
     } else {
       return null;
     }
   }
 
-  // Calcula la edad a partir de una fecha string
   calcularEdad(fecha: string): number {
     const fechaNacimiento = this.convertirAFecha(fecha);
     if (!fechaNacimiento) return NaN;
-
     const today = new Date();
     let age = today.getFullYear() - fechaNacimiento.getFullYear();
     const monthDiff = today.getMonth() - fechaNacimiento.getMonth();
-
-    if (
-      monthDiff < 0 ||
-      (monthDiff === 0 && today.getDate() < fechaNacimiento.getDate())
-    ) {
-      age--;
-    }
-
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < fechaNacimiento.getDate())) age--;
     return age;
   }
 
-  // Método para calcular el porcentaje de llenado de un FormGroup
   getPercentage(formGroup: FormGroup): number {
     const totalFields = Object.keys(formGroup.controls).length;
     const filledFields = Object.values(formGroup.controls).filter(control => {
       const value = control.value;
-
-      // Ignorar campos vacíos y arreglos vacíos
-      if (Array.isArray(value)) {
-        return value.length > 0; // Solo contar como lleno si el arreglo tiene elementos
-      }
-
-      return value !== null && value !== undefined && value !== ''; // Considerar los valores no vacíos
+      if (Array.isArray(value)) return value.length > 0;
+      return value !== null && value !== undefined && value !== '';
     }).length;
-
     return Math.round((filledFields / totalFields) * 100);
   }
 
-  // Método para imprimir los datos de los formularios
   imprimirContratacion(): void {
     this.seleccionService.crearSeleccionParteCuatroCandidato(this.formGroup4.value, this.cedula, this.codigoContrato).subscribe(
       response => {
         if (response.message === 'success') {
-          Swal.fire({
-            title: '¡Éxito!',
-            text: 'Datos guardados exitosamente',
-            icon: 'success',
-            confirmButtonText: 'Ok'
-          });
+          Swal.fire({ title: '¡Éxito!', text: 'Datos guardados exitosamente', icon: 'success', confirmButtonText: 'Ok' });
         }
       },
-      error => {
-        Swal.fire({
-          title: '¡Error!',
-          text: 'Error al guardar los datos',
-          icon: 'error',
-          confirmButtonText: 'Ok'
-        });
-      }
+      () => Swal.fire({ title: '¡Error!', text: 'Error al guardar los datos', icon: 'error', confirmButtonText: 'Ok' })
     );
   }
 
   isAutorizacion(): boolean {
     return this.vacantesForm.get('tipo')?.value === 'Autorización de ingreso';
   }
-
   isPrueba(): boolean {
     return this.vacantesForm.get('tipo')?.value === 'Prueba técnica';
   }
-
   onTipoChange(tipo: string): void {
-    // Limpia los campos irrelevantes según el tipo
     if (tipo === 'Autorización de ingreso') {
-      this.vacantesForm.patchValue({
-        area: '',
-        fechaPruebaEntrevista: '',
-        horaPruebaEntrevista: '',
-        direccionEmpresa: ''
-      });
+      this.vacantesForm.patchValue({ area: '', fechaPruebaEntrevista: '', horaPruebaEntrevista: '', direccionEmpresa: '' });
     } else if (tipo === 'Prueba técnica') {
-      this.vacantesForm.patchValue({
-        fechaIngreso: '',
-        salario: ''
-      });
+      this.vacantesForm.patchValue({ fechaIngreso: '', salario: '' });
     }
   }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-  // Total requerido (suma oficinas)
+  // KPIs
   totalRequerida(v: any): number {
     const oficinas = Array.isArray(v?.oficinasQueContratan) ? v.oficinasQueContratan : [];
     return oficinas.reduce((acc: number, o: any) => acc + this.toInt(o?.numeroDeGenteRequerida), 0);
   }
-
-  // Conteos robustos: admiten array | number | string
   countPre(v: any): number {
     const p = v?.preseleccionados;
     if (Array.isArray(p)) return p.length;
@@ -1378,8 +929,6 @@ export class HelpInformationComponent implements OnInit {
     if (Array.isArray(c)) return c.length;
     return this.toInt(c);
   }
-
-  // Clases de color para las píldoras (verde, naranja, rojo)
   pillClasePre(v: any): string {
     const req = this.totalRequerida(v);
     const pre = this.countPre(v);
@@ -1389,20 +938,14 @@ export class HelpInformationComponent implements OnInit {
     const req = this.totalRequerida(v);
     const pre = this.countPre(v);
     const cont = this.countCont(v);
-    if (cont >= req) return 'pill-ok';           // verde
-    if (pre >= req && cont < req) return 'pill-warn'; // naranja
-    return 'pill-error';                          // rojo
+    if (cont >= req) return 'pill-ok';
+    if (pre >= req && cont < req) return 'pill-warn';
+    return 'pill-error';
   }
-
-  // Oficinas compactas "Nombre (n), ..."
   oficinasResumen(ofs: any[]): string {
     if (!Array.isArray(ofs) || !ofs.length) return '—';
-    return ofs
-      .map(o => `${o?.nombre ?? 'Oficina'} (${this.toInt(o?.numeroDeGenteRequerida)})`)
-      .join(', ');
+    return ofs.map(o => `${o?.nombre ?? 'Oficina'} (${this.toInt(o?.numeroDeGenteRequerida)})`).join(', ');
   }
-
-  // Fecha corta (YYYY-MM-DD) sin pipes
   formatShortDate(d: any): string {
     if (!d) return '—';
     const date = new Date(d);
@@ -1412,8 +955,6 @@ export class HelpInformationComponent implements OnInit {
     const day = String(date.getDate()).padStart(2, '0');
     return `${y}-${m}-${day}`;
   }
-
-  // Conversión robusta a entero
   private toInt(v: unknown): number {
     if (typeof v === 'number' && Number.isFinite(v)) return Math.trunc(v);
     if (typeof v === 'string') {
@@ -1422,6 +963,16 @@ export class HelpInformationComponent implements OnInit {
     }
     return 0;
   }
-
-
+  private buildExperienciaGroup(required = true): FormGroup {
+    return this.fb.group({
+      empresa: ['', required ? [Validators.required, Validators.maxLength(120)] : [Validators.maxLength(120)]],
+      labores: ['', required ? [Validators.required, Validators.maxLength(800)] : [Validators.maxLength(800)]],
+      tiempo: ['', required ? [Validators.required, Validators.maxLength(80)] : [Validators.maxLength(80)]],
+      labores_principales: ['', required ? [Validators.required, Validators.maxLength(800)] : [Validators.maxLength(800)]],
+    });
+  }
+  private seedExperiencias(n = this.SEED_EXP_COUNT): void {
+    const fa = this.experienciasFA;
+    while (fa.length < n) fa.push(this.buildExperienciaGroup(false));
+  }
 }

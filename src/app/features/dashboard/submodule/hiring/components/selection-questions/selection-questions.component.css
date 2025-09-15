@@ -39,7 +39,7 @@ mat-card:nth-child(1) {
   position: sticky;
   top: 10px;
   box-shadow: 0 10px 20px rgba(0, 0, 0, .15),
-              0 6px 6px rgba(0, 0, 0, .20);
+    0 6px 6px rgba(0, 0, 0, .20);
   border-radius: 8px;
 }
 
@@ -49,7 +49,7 @@ mat-card:nth-child(2) {
   margin: 10px;
   overflow-y: auto;
   box-shadow: 0 10px 20px rgba(0, 0, 0, .15),
-              0 6px 6px rgba(0, 0, 0, .20);
+    0 6px 6px rgba(0, 0, 0, .20);
   border-radius: 8px;
 }
 
@@ -74,6 +74,7 @@ mat-form-field.example-full-width {
   font-style: italic;
   line-height: 1.3;
   word-break: break-word;
+  margin-top: -14pt;
 }
 
 .text-danger {
@@ -85,7 +86,8 @@ mat-form-field.example-full-width {
 .acciones-suffix {
   display: flex;
   align-items: center;
-  gap: 6px; /* espacio entre los dos */
+  gap: 6px;
+  /* espacio entre los dos */
 }
 
 .estado-icon {
@@ -95,9 +97,27 @@ mat-form-field.example-full-width {
   margin-right: 6pt;
 }
 
+.doc-warning {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #b91c1c;
+  font-size: 0.875rem;
+  margin-top: 4px;
+}
+
+.doc-warning .mat-icon.warn-icon {
+  font-size: 18px;
+  width: 18px;
+  height: 18px;
+  line-height: 18px;
+}
+
+
 
 /*─────────────────────  BREAKPOINTS RESPONSIVE  ─────────────────*/
 @media (max-width: 1100px) {
+
   .seleccion,
   .secciones,
   .seccion {
@@ -113,6 +133,7 @@ mat-form-field.example-full-width {
 }
 
 @media (max-width: 700px) {
+
   .seleccion,
   .secciones,
   .seccion {

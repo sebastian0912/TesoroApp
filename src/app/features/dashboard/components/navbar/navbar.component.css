@@ -1,440 +1,240 @@
-/* Tipografías del otro proyecto */
+/* Tipografías */
 @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700&family=Nunito+Sans:wght@400;500;600;700&display=swap');
 
 /* ===============================
-   VARIABLES (con valores por defecto)
+   VARIABLES
    =============================== */
-:root {
-  /* layout */
+:root{
   --sidebar-left-width: 60pt;
-  /* ancho carril izquierdo */
   --sidebar-right-width: 200pt;
-  /* ancho panel derecho */
   --sidebar-width-collapsed: var(--sidebar-left-width);
   --sidebar-width-expanded: calc(var(--sidebar-left-width) + var(--sidebar-right-width));
 
-  /* radios, bordes, colores base */
   --radius-button: 12px;
   --radius-surface: 16px;
-  --color-border: #E6E9F0;
-  --color-surface: #FFFFFF;
-  --color-surface-muted: #F4F6FA;
-  --color-surface-hover: #F8FAFD;
-  --color-hover-on-white-bg: #F4F6FA;
-  --color-hover-on-gray-bg: #EEF1F6;
-  --color-active-bg: #1B1E36;
-  --color-active-text: #FFFFFF;
-  --color-text-primary: #1F2937;
-  --color-text-secondary: #5D6674;
-  --color-icon: #384251;
-  --color-icon-muted: #6B7280;
 
-  /* transiciones */
-  --transition-speed: .25s;
-  --transition-timing: cubic-bezier(.2, .8, .2, 1);
+  --color-border:#E6E9F0;
+  --color-surface:#FFFFFF;
+  --color-surface-muted:#F4F6FA;
+  --color-surface-hover:#F8FAFD;
+  --color-hover-on-white-bg:#F4F6FA;
+  --color-hover-on-gray-bg:#EEF1F6;
+  --color-active-bg:#1B1E36;
+  --color-active-text:#FFFFFF;
 
-  /* animación panel derecho */
-  --panel-right-entry-duration: .9s;
-  --panel-right-entry-timing-function: cubic-bezier(0.23, 1, 0.32, 1);
-  --panel-right-entry-initial-offset: -40px;
-  --panel-right-entry-initial-opacity: 0;
-  --panel-right-entry-delay: 0s;
+  --color-text-primary:#1F2937;
+  --color-text-secondary:#5D6674;
+  --color-icon:#384251;
+  --color-icon-muted:#6B7280;
+
+  --transition-speed:.25s;
+  --transition-timing:cubic-bezier(.2,.8,.2,1);
+
+  --panel-right-entry-duration:.9s;
+  --panel-right-entry-timing-function:cubic-bezier(0.23,1,0.32,1);
+  --panel-right-entry-initial-offset:-40px;
+  --panel-right-entry-initial-opacity:0;
+  --panel-right-entry-delay:0s;
 }
 
 /* ===============================
    CONTENEDOR SIDEBAR
    =============================== */
-aside.sidebar {
-  position: fixed;
-  inset: 0 auto 0 0;
-  display: flex;
-  width: var(--sidebar-width-collapsed);
-  flex-direction: row;
-  box-shadow: 1px 0 4px rgba(0, 0, 0, .07);
-  transition: width var(--transition-speed) var(--transition-timing);
-  overflow: hidden;
-  z-index: 120;
-  font-family: "Nunito Sans", system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+aside.sidebar{
+  position:fixed; inset:0 auto 0 0;
+  display:flex; flex-direction:row;
+  width:var(--sidebar-width-collapsed);
+  box-shadow:1px 0 4px rgba(0,0,0,.07);
+  transition:width var(--transition-speed) var(--transition-timing);
+  overflow:hidden; z-index:120;
+  font-family:"Nunito Sans",system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
 }
-
-/* cuando hay módulo raíz activo, expandimos para mostrar el panel derecho */
-.sidebar.show-detail {
-  width: var(--sidebar-width-expanded);
-}
-
-/* oculto (por ejemplo en móvil) */
-.sidebar.sidebar-hidden {
-  width: 0 !important;
-  min-width: 0 !important;
-  overflow: visible;
-}
+.sidebar.show-detail{ width:var(--sidebar-width-expanded); }
+.sidebar.sidebar-hidden{ width:0!important; min-width:0!important; overflow:visible; }
 
 /* ===============================
-   PANEL IZQUIERDO (módulos raíz)
+   PANEL IZQUIERDO
    =============================== */
-.sidebar .left {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  width: var(--sidebar-left-width);
-  padding: 16px 0;
-  background-color: #1d2953;
-  border-right: 1px solid var(--color-border);
-  color: #fff;
-  z-index: 2;
+.sidebar .left{
+  display:flex; flex-direction:column; align-items:center;
+  width:var(--sidebar-left-width);
+  padding:16px 0; background-color:#1d2953;
+  border-right:1px solid var(--color-border);
+  color:#fff; z-index:2;
 }
-
-/* contenedor de botones de módulos */
-.sidebar .module-buttons {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+.sidebar .module-buttons{ display:flex; flex-direction:column; gap:6px; }
+.sidebar .module-buttons button{
+  width:45px; height:45px; display:flex; align-items:center; justify-content:center;
+  border:none; background:transparent; border-radius:var(--radius-button); cursor:pointer;
+  transition:background-color var(--transition-speed) var(--transition-timing),color var(--transition-speed) var(--transition-timing),transform .08s ease;
 }
-
-/* botón de módulo */
-.sidebar .module-buttons button {
-  width: 45px;
-  height: 45px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: none;
-  background: transparent;
-  border-radius: var(--radius-button);
-  cursor: pointer;
-  transition:
-    background-color var(--transition-speed) var(--transition-timing),
-    color var(--transition-speed) var(--transition-timing),
-    transform .08s ease;
-}
-
-.sidebar .module-buttons button:hover {
-  background-color: var(--color-hover-on-white-bg);
-}
-
-.sidebar .module-buttons button:active {
-  transform: scale(.98);
-}
-
-.sidebar .module-buttons button.active-module-button {
-  background-color: var(--color-active-bg);
-}
-
-/* íconos de módulo */
+.sidebar .module-buttons button:hover{ background-color:var(--color-hover-on-white-bg); }
+.sidebar .module-buttons button:active{ transform:scale(.98); }
+.sidebar .module-buttons button.active-module-button{ background-color:var(--color-active-bg); }
 .sidebar .module-buttons .tree-icon,
-.sidebar .module-buttons .mat-icon {
-  font-size: 20pt;
-  line-height: 1;
-  color: #fff !important;
-}
-
+.sidebar .module-buttons .mat-icon{ font-size:20pt; line-height:1; color:#fff!important; }
 .sidebar .module-buttons button.active-module-button .tree-icon,
-.sidebar .module-buttons button.active-module-button .mat-icon {
-  color: #fff;
+.sidebar .module-buttons button.active-module-button .mat-icon{ color:#fff; }
+.sidebar .bottom-buttons{ display:flex; flex-direction:column; gap:6px; margin-top:auto; margin-bottom:12px; }
+.sidebar .bottom-buttons button{
+  width:55px; height:55px; display:flex; align-items:center; justify-content:center;
+  border:none; background:transparent; border-radius:var(--radius-button); cursor:pointer;
+  transition:background-color var(--transition-speed) var(--transition-timing);
+}
+.sidebar .bottom-buttons button:hover{ background-color:var(--color-hover-on-white-bg); }
+.sidebar .bottom-buttons .mat-icon{ font-size:19pt; color:#fff; }
+
+/* ===============================
+   PANEL DERECHO
+   =============================== */
+.sidebar .right{
+  width:var(--sidebar-right-width); height:100%;
+  padding:10pt; background-color:#fff;
+  border-top-right-radius:20px; border-bottom-right-radius:20px;
+  overflow-y:auto; overflow-x:hidden; z-index:1;
+  animation-name:slide-in-right-professional;
+  animation-duration:var(--panel-right-entry-duration);
+  animation-timing-function:var(--panel-right-entry-timing-function);
+  animation-delay:var(--panel-right-entry-delay);
+  animation-fill-mode:both; will-change:transform,opacity;
+}
+.sidebar .right .right-inner{
+  background:var(--color-surface-muted); border-radius:var(--radius-surface);
+  width:100%; min-height:100%; display:flex; flex-direction:column;
+  box-shadow:0 8px 24px rgba(24,39,75,.05); overflow:hidden;
 }
 
-/* botones inferiores (logout, settings) */
-.sidebar .bottom-buttons {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  margin-top: auto;
-  margin-bottom: 12px;
+/* Header */
+.sidebar .right .header{
+  display:flex; justify-content:space-between; align-items:center;
+  padding:18px 18px 12px; border-bottom:1px solid var(--color-border);
+  background:linear-gradient(180deg,#fff,transparent);
 }
-
-.sidebar .bottom-buttons button {
-  width: 55px;
-  height: 55px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: none;
-  background: transparent;
-  border-radius: var(--radius-button);
-  cursor: pointer;
-  transition: background-color var(--transition-speed) var(--transition-timing);
+.sidebar .right .header-title{
+  margin:0; font-family:"Montserrat","Nunito Sans",system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
+  font-size:1.05rem; font-weight:700; letter-spacing:.2px; color:var(--color-text-secondary);
 }
-
-.sidebar .bottom-buttons button:hover {
-  background-color: var(--color-hover-on-white-bg);
+.sidebar .right .header-pin-button{
+  border:none; background:transparent; cursor:pointer; display:inline-flex; align-items:center; justify-content:center;
+  width:36px; height:36px; border-radius:50%;
+  transition:background-color var(--transition-speed) var(--transition-timing);
 }
+.sidebar .right .header-pin-button:hover{ background-color:var(--color-hover-on-gray-bg); }
+.sidebar .right .header-icon{ font-size:20px; color:var(--color-text-secondary); line-height:1; }
 
-.sidebar .bottom-buttons .mat-icon {
-  font-size: 19pt;
-  color: #fff;
+/* ===============================
+   Árbol (recursivo)
+   =============================== */
+.sidebar .right .nav-tree{ flex:1 1 auto; padding:14px 14px 18px; display:block; }
+.sidebar .right .tree-level{ list-style:none; margin:0; padding:0; }
+.sidebar .right .tree-level>li{ margin-bottom:8px; }
+.sidebar .right .tree-level>li:last-child{ margin-bottom:0; }
+
+/* Fila (por defecto) */
+.sidebar .right .tree-item{
+  display:flex; align-items:center; gap:10px;
+  min-height:40px; padding:8px 10px;
+  background:var(--color-surface);
+  border:1px solid #EEF1F6; border-radius:12px;
+  transition:background-color var(--transition-speed) var(--transition-timing),
+             border-color var(--transition-speed) var(--transition-timing),
+             box-shadow var(--transition-speed) var(--transition-timing);
+}
+.sidebar .right .tree-item:hover{
+  background:var(--color-surface-hover);
+  border-color:#E5EAF3; box-shadow:0 2px 10px rgba(31,41,55,.06);
+}
+.sidebar .right .tree-item:focus-within{
+  box-shadow:0 0 0 2px #CFE3FF; border-color:#B9D3FF;
 }
 
 /* ===============================
-   PANEL DERECHO (árbol recursivo)
+   PADRES SIN BORDE / SIN FONDO
    =============================== */
-.sidebar .right {
-  width: var(--sidebar-right-width);
-  height: 100%;
-  padding: 10pt;
-  background-color: #fff;
-  border-top-right-radius: 20px;
-  border-bottom-right-radius: 20px;
-  overflow-y: auto;
-  overflow-x: hidden;
-  z-index: 1;
-
-  animation-name: slide-in-right-professional;
-  animation-duration: var(--panel-right-entry-duration);
-  animation-timing-function: var(--panel-right-entry-timing-function);
-  animation-delay: var(--panel-right-entry-delay);
-  animation-fill-mode: both;
-  will-change: transform, opacity;
+.sidebar .right .tree-item.is-parent{
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 4px 2px;            /* un poco más compacto */
+}
+.sidebar .right .tree-item.is-parent:hover,
+.sidebar .right .tree-item.is-parent:focus-within{
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
 }
 
-/* contenedor interno tipo “card” */
-.sidebar .right .right-inner {
-  background: var(--color-surface-muted);
-  border-radius: var(--radius-surface);
-  width: 100%;
-  min-height: 100%;
-  display: flex;
-  flex-direction: column;
-  box-shadow: 0 8px 24px rgba(24, 39, 75, .05);
-  overflow: hidden;
+/* Toggle (ya casi no se usa) */
+.sidebar .right .toggle-btn{
+  border:none; background:transparent; cursor:pointer;
+  padding:0 2px 0 0; color:var(--color-icon-muted);
+  display:inline-flex; align-items:center; justify-content:center;
+  width:28px; height:28px; border-radius:8px;
+  transition:background-color var(--transition-speed), color var(--transition-speed);
+  flex:0 0 28px;
+}
+.sidebar .right .toggle-btn:hover{ background:#F2F5FB; color:var(--color-icon); }
+.sidebar .right .toggle-btn .mat-icon{ font-size:20px; }
+
+/* Icono del nodo (hijo) */
+.sidebar .right .tree-icon{
+  font-size:22px !important;
+  color:var(--color-icon);
+  width:22px; height:22px;
+  margin-left:8px;
+  flex:0 0 22px;
 }
 
-/* ===============================
-   Encabezado del panel derecho
-   =============================== */
-.sidebar .right .header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 18px 18px 12px;
-  border-bottom: 1px solid var(--color-border);
-  background: linear-gradient(180deg, #fff, transparent);
+/* Título de PADRE (simple + contador) */
+.sidebar .right .tree-parent-title{
+  display:inline-flex; align-items:center; gap:6px;
+  font-size:14px; font-weight:700; color:#e0a72b;
+  user-select:none;
+}
+.sidebar .right .tree-parent-title .child-count{
+  font-weight:600; font-size:12px; color:#9CA3AF;
 }
 
-.sidebar .right .header-title {
-  margin: 0;
-  font-family: "Montserrat", "Nunito Sans", system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
-  font-size: 1.05rem;
-  font-weight: 700;
-  letter-spacing: .2px;
-  color: var(--color-text-secondary);
+/* Hoja MINIMALISTA */
+.sidebar .right .tree-link{
+  color:var(--color-text-primary); font-size:14px; font-weight:600; letter-spacing:.2px;
+  text-decoration:none; cursor:pointer; line-height:1.2;
+}
+.sidebar .right .tree-link.leaf{
+  display:inline-flex; align-items:center;
+  padding:6px 8px; border-radius:8px;
+}
+.sidebar .right .tree-link.leaf:hover{
+  background:var(--color-hover-on-gray-bg);
+  text-decoration:none; color:#111827;
 }
 
-.sidebar .right .header-pin-button {
-  border: none;
-  background: transparent;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  transition: background-color var(--transition-speed) var(--transition-timing);
+/* Activo */
+.sidebar .right .active-submodule{
+  background:var(--color-active-bg); color:var(--color-active-text) !important;
+  border-radius:10px; padding:2px 6px;
 }
 
-.sidebar .right .header-pin-button:hover {
-  background-color: var(--color-hover-on-gray-bg);
-}
+/* Colorear padres (solo texto) */
+.sidebar .right .tree-item.is-parent{ color:#e0a72b; }
 
-.sidebar .right .header-icon {
-  font-size: 20px;
-  color: var(--color-text-secondary);
-  line-height: 1;
-}
+/* Scrollbar sutil */
+.sidebar .right{ scrollbar-width:thin; scrollbar-color:#C7C9CC transparent; }
+.sidebar .right::-webkit-scrollbar{ width:8px; }
+.sidebar .right::-webkit-scrollbar-thumb{ background:#C7C9CC; border-radius:6px; }
 
-/* ===============================
-   Árbol de navegación (recursivo)
-   =============================== */
-.sidebar .right .nav-tree {
-  flex: 1 1 auto;
-  padding: 14px 14px 18px;
-  display: block;
-}
-
-/* nivel UL */
-.sidebar .right .tree-level {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
-/* cada LI separadito */
-.sidebar .right .tree-level>li {
-  margin-bottom: 8px;
-}
-
-.sidebar .right .tree-level>li:last-child {
-  margin-bottom: 0;
-}
-
-/* item visual (cada fila) */
-.sidebar .right .tree-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-height: 40px;
-  padding: 8px 10px;
-  background: var(--color-surface);
-  border: 1px solid #EEF1F6;
-  border-radius: 12px;
-  transition: background-color var(--transition-speed) var(--transition-timing),
-    border-color var(--transition-speed) var(--transition-timing),
-    box-shadow var(--transition-speed) var(--transition-timing);
-}
-
-.sidebar .right .tree-item:hover {
-  background: var(--color-surface-hover);
-  border-color: #E5EAF3;
-  box-shadow: 0 2px 10px rgba(31, 41, 55, .06);
-}
-
-/* foco accesible */
-.sidebar .right .tree-item:focus-within {
-  box-shadow: 0 0 0 2px #CFE3FF;
-  border-color: #B9D3FF;
-}
-
-/* botón de toggle */
-.sidebar .right .toggle-btn {
-  border: none;
-  background: transparent;
-  cursor: pointer;
-  padding: 0 2px 0 0;
-  color: var(--color-icon-muted);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  border-radius: 8px;
-  transition: background-color var(--transition-speed), color var(--transition-speed);
-}
-
-.sidebar .right .toggle-btn:hover {
-  background: #F2F5FB;
-  color: var(--color-icon);
-}
-
-.sidebar .right .toggle-btn .mat-icon {
-  font-size: 20px;
-}
-
-/* icono del nodo */
-.sidebar .right .tree-icon {
-  font-size: 18px !important;
-  color: var(--color-icon);
-  width: 18px;
-  height: 18px;
-}
-
-/* link del nodo (hoja) */
-.sidebar .right .tree-link {
-  color: var(--color-text-primary);
-  font-size: 14px;
-  font-weight: 600;
-  letter-spacing: .2px;
-  text-decoration: none;
-  cursor: pointer;
-  line-height: 1.2;
-}
-
-.sidebar .right .tree-link:hover {
-  color: #111827;
-  text-decoration: underline;
-}
-
-/* cuando es botón (nodo padre con hijos) */
-.sidebar .right .tree-link.as-button {
-  border: none;
-  background: none;
-  padding: 0;
-  color: var(--color-text-primary);
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-/* estado activo (routerLinkActive) */
-.sidebar .right .active-submodule {
-  background: var(--color-active-bg);
-  color: var(--color-active-text) !important;
-  border-radius: 10px;
-  padding: 2px 6px;
-}
-
-/* ===============================
-   PADRES EN ROJO
-   =============================== */
-.sidebar .right .tree-item:not(.is-leaf) {
-  color: #e0a72b;
-}
-
-.sidebar .right .tree-item:not(.is-leaf) .tree-link.as-button {
-  color: #e0a72b;
-}
-
-.sidebar .right .tree-item:not(.is-leaf) .tree-icon {
-  color: #e0a72b;
-}
-
-.sidebar .right .tree-item:not(.is-leaf) .toggle-btn {
-  color: #e0a72b;
-}
-
-/* ===============================
-   Scrollbar sutil
-   =============================== */
-.sidebar .right {
-  scrollbar-width: thin;
-  scrollbar-color: #C7C9CC transparent;
-}
-
-.sidebar .right::-webkit-scrollbar {
-  width: 8px;
-}
-
-.sidebar .right::-webkit-scrollbar-thumb {
-  background: #C7C9CC;
-  border-radius: 6px;
-}
-
-/* ===============================
-   Responsive
-   =============================== */
-@media (max-width: 900px) {
-  .mobile-menu-btn {
-    display: flex !important;
-  }
-
-  .sidebar {
-    width: var(--sidebar-left-width);
-  }
-
-  .sidebar.show-detail {
-    width: 100vw;
-  }
-
-  .sidebar .right {
-    width: calc(100vw - var(--sidebar-left-width));
-  }
-
+/* Responsive */
+@media (max-width:900px){
+  .mobile-menu-btn{ display:flex !important; }
+  .sidebar{ width:var(--sidebar-left-width); }
+  .sidebar.show-detail{ width:100vw; }
+  .sidebar .right{ width:calc(100vw - var(--sidebar-left-width)); }
   .sidebar.sidebar-hidden .left,
-  .sidebar.sidebar-hidden .right {
-    display: none !important;
-  }
+  .sidebar.sidebar-hidden .right{ display:none !important; }
 }
 
-/* ===============================
-   Animación slide-in
-   =============================== */
-@keyframes slide-in-right-professional {
-  from {
-    transform: translateX(var(--panel-right-entry-initial-offset));
-    opacity: var(--panel-right-entry-initial-opacity);
-  }
-
-  to {
-    transform: translateX(0);
-    opacity: 1;
-  }
+/* Animación */
+@keyframes slide-in-right-professional{
+  from{ transform:translateX(var(--panel-right-entry-initial-offset)); opacity:var(--panel-right-entry-initial-opacity); }
+  to{ transform:translateX(0); opacity:1; }
 }

@@ -6,7 +6,6 @@ import { Router } from '@angular/router';
 import { SharedModule } from '../../../../../../shared/shared.module';
 import { UtilityServiceService } from '../../../../../../shared/services/utilityService/utility-service.service';
 
-
 @Component({
   selector: 'app-autorizacion-mercado',
   imports: [
@@ -118,10 +117,10 @@ export class AutorizacionMercadoComponent implements OnInit {
       try {
         const data = await this.autorizacionesService.buscarCodigo(codigoOH);
         if (data.codigo.length === 0) {
-          break;  // Salir del bucle si el código no existe
+          break;
         }
       } catch (error) {
-        break;  // Salir del bucle si hay un error en la solicitud
+        break;
       }
     }
 

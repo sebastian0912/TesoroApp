@@ -1,10 +1,7 @@
 import { Injectable, Inject, PLATFORM_ID } from '@angular/core';
-import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
-import { isPlatformBrowser } from '@angular/common';
-import { firstValueFrom, Observable } from 'rxjs';
+import { HttpClient } from '@angular/common/http';
+import { firstValueFrom, lastValueFrom, Observable } from 'rxjs';
 import { catchError, map } from 'rxjs/operators';
-import Swal from 'sweetalert2';
-import jsPDF from 'jspdf';
 import { environment } from '@/environments/environment.development';
 
 
@@ -134,5 +131,9 @@ export class PaymentsService {
     }
   }
 
+  actualizarCorreosMasivos(payload: Array<{ numerodeceduladepersona: string; primercorreoelectronico: string }>): Promise<any> {
+    const url = `${this.apiUrl}/contratacion/candidatos/emails/bulk-update`;
+    return lastValueFrom(this.http.post(url, payload));
+  }
 
 }
