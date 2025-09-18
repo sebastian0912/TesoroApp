@@ -1,228 +1,168 @@
-/* ============================
-   Paleta / alturas
-   ============================ */
-:root {
-  --tbl-surface: #fff;
-  --tbl-on-surface: #1f2937;
-  --tbl-border: #e5e7eb;
-  --tbl-hover: #eef2f7;
-  --tbl-sticky-shadow: 0 2px 10px rgba(0, 0, 0, .06);
+/* ===========================================
+   1. VARIABLES DE DISEÑO (FUENTE ÚNICA DE VERDAD)
+   =========================================== */
+:host {
+  /* Paleta de Colores */
+  --bg-color: #ffffff;
+  --header-bg: #1d2953;
+  --header-color: #ffffff;
+  --row-hover-bg: #f0f4f8;
+  /* Un azul muy suave */
+  --row-even-bg: #f9fafb;
+  /* Un gris muy claro */
+  --border-color: #e5e7eb;
+  --text-color: #1f2937;
+  --text-muted-color: #6b7280;
+  --shadow-color: rgba(0, 0, 0, 0.08);
+  --primary-color-focus: #1976d2;
 
-  /* Alturas REALES (ajústalas si tu UI es más alta) */
-  --tbl-header-main-h: 88px;
-  /* Encabezados */
-  --tbl-header-filter-h: 48px;
-  /* Fila de filtros */
-  --tbl-toolbar-h: 56px;
-  /* Altura del paginator-row */
+  /* Dimensiones y Espaciado */
+  --border-radius: 12px;
+  --header-height: 56px;
+  --filter-height: 62pt;
+  --row-height: 52px;
+  --padding: 16px;
+  --cell-padding: 12px 16px;
 }
 
-/* ============================
-   Contenedor / tabla
-   ============================ */
+/* ===========================================
+   2. CONTENEDOR PRINCIPAL Y TABLA
+   =========================================== */
 .table-container {
-  margin: 0 auto;
-  width: 100%;
-  box-sizing: border-box;
-  padding: 0 8px 16px;
+  overflow: auto;
+  /* Permite scroll horizontal si es necesario */
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius);
+  background-color: var(--bg-color);
+  box-shadow: 0 4px 12px var(--shadow-color);
 }
 
-.table--compact .mat-mdc-table {
-  table-layout: fixed;
+.mat-mdc-table {
   width: 100%;
-  border-spacing: 0;
   border-collapse: collapse;
+  /* Asegura que los bordes se unan */
 }
 
-.table--compact .mat-mdc-header-cell,
-.table--compact .mat-mdc-cell {
-  box-sizing: border-box;
-  padding: 8px 10px;
-  font-size: .94rem;
-  line-height: 1.25rem;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  vertical-align: middle;
-  background-clip: padding-box;
-}
-
-/* ============================
-   1) Encabezados sticky (arriba del todo)
-   ============================ */
-.header-row-main {
-  background: #fff !important;
-  box-shadow: var(--tbl-sticky-shadow);
-  z-index: 7 !important;
-  /* por encima de filtros y paginator */
-  height: var(--tbl-header-main-h);
-}
-
-/* El sticky lo aplica Material por celda ⇒ ajustamos top en la celda */
-.header-row-main .mat-mdc-header-cell.mat-mdc-table-sticky {
-  top: 0 !important;
-  z-index: 7 !important;
-}
-
-.header-row-main .mat-mdc-header-cell {
-  background: #fff !important;
-  color: var(--tbl-on-surface) !important;
-  font-weight: 600 !important;
-}
-
-/* ============================
-   2) Filtros sticky (debajo del header)
-   ============================ */
-.header-row-filters {
-  background: #fff !important;
-  box-shadow: var(--tbl-sticky-shadow);
-  z-index: 6 !important;
-  height: var(--tbl-header-filter-h);
-}
-
-.header-row-filters .mat-mdc-header-cell.mat-mdc-table-sticky {
-  top: var(--tbl-header-main-h) !important;
-  z-index: 6 !important;
-}
-
-.filter-cell {
-  padding: 0 8px;
-  box-sizing: border-box;
-  background: #fff;
-}
-
-.filter-cell .mat-mdc-text-field-wrapper {
-  background: #fff;
-  border-radius: 8px;
-}
-
-.filter-ff.dense .mat-mdc-text-field-wrapper {
-  --mdc-shape-small: 8px;
-  padding-top: 0;
-  padding-bottom: 0;
-  min-height: 40px;
-}
-
-.filter-ff.dense .mat-mdc-form-field-subscript-wrapper {
-  display: none;
-}
-
-.filter-cell .mat-mdc-select-trigger {
-  width: 100%;
-  height: 32px;
-  line-height: 32px;
-}
-
-.date-range-input {
-  width: 100%;
-  min-width: 0;
-}
-
-.date-range-input input {
-  font-size: 13px;
-  padding: 4px 6px;
-}
-
-/* ============================
-   3) Paginator-row sticky (debajo de los filtros)
-   ============================ */
-/* Para que quede VISUALMENTE debajo de los filtros al scrollear */
+/* ===========================================
+   3. BARRA SUPERIOR (PAGINADOR Y ACCIONES)
+   =========================================== */
 .paginator-row {
-  position: sticky;
-  top: calc(var(--tbl-header-main-h) + var(--tbl-header-filter-h));
-  z-index: 5;
-  /* por debajo de headers y filtros, encima de filas */
-
   display: flex;
   align-items: center;
-  gap: 12px;
   flex-wrap: wrap;
-  padding: 10px 12px;
-  background: #fff;
-  border: 1px solid var(--tbl-border);
-  border-radius: 12px;
-  box-shadow: var(--tbl-sticky-shadow);
+  gap: 12px;
+  padding: var(--padding);
+  border-bottom: 1px solid var(--border-color);
+  background-color: var(--bg-color);
 }
 
 .grow {
-  flex: 1 1 auto;
+  flex-grow: 1;
+  /* Empuja los elementos a los extremos */
 }
 
-.table-paginator {
-  min-width: 240px;
+/* ===========================================
+   4. FILAS Y CELDAS
+   =========================================== */
+
+/* Estilo base para todas las celdas */
+.mat-mdc-cell,
+.mat-mdc-header-cell {
+  padding: var(--cell-padding);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  overflow: hidden;
 }
 
-/* ============================
-   4) Filas (siempre por debajo)
-   ============================ */
-.table--compact .mat-mdc-row,
-mat-row.data-row {
-  position: relative;
-  z-index: 1;
+/* Fila de Encabezado Principal */
+.mat-mdc-header-row.header-row-main {
+  height: var(--header-height);
 }
 
-mat-row.data-row:nth-child(even) {
-  background: #fafafa;
+.mat-mdc-header-cell.custom-header {
+  font-weight: 600;
+  color: var(--header-color);
+  background-color: var(--header-bg);
 }
 
-mat-row.data-row:hover {
-  background: var(--tbl-hover);
-  transition: background .15s ease;
+/* Fila de Filtros */
+.mat-mdc-header-row.header-row-filters {
+  background-color: var(--bg-color);
+  border-bottom: 1px solid var(--border-color);
 }
 
-mat-row.data-row:focus-visible {
-  outline: 2px solid #1976d2;
+.filter-cell {
+  padding: 4px 8px !important;
+  height: var(--filter-height);
+}
+
+.filter-cell .mat-mdc-form-field-infix {
+  padding: 8px 0 !important;
+}
+
+/* Filas de Datos */
+.mat-mdc-row.data-row {
+  height: var(--row-height);
+  border-bottom: 1px solid var(--border-color);
+  transition: background-color 0.2s ease-in-out;
+}
+
+.mat-mdc-row.data-row:last-child {
+  border-bottom: none;
+}
+
+.mat-mdc-row.data-row:nth-child(even) {
+  background-color: var(--row-even-bg);
+}
+
+.mat-mdc-row.data-row:hover {
+  background-color: var(--row-hover-bg);
+}
+
+/* Foco para accesibilidad */
+.mat-mdc-row.data-row:focus-visible {
+  outline: 2px solid var(--primary-color-focus);
   outline-offset: -2px;
 }
 
-.cell-ellipsis {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+/* Fila para "Sin Datos" */
+.no-data-row .mat-mdc-cell {
+  text-align: center;
+  padding: 32px;
+  color: var(--text-muted-color);
+  font-style: italic;
 }
 
-.cell-right {
-  text-align: right;
-}
-
+/* ===========================================
+   5. COMPONENTES reUTILIZABLES (CHIPS)
+   =========================================== */
 .status-chip,
 .custom-chip {
-  display: inline-flex;
-  align-items: center;
-  padding: 2px 10px;
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 16px;
+  font-weight: 500;
+  font-size: 0.8rem;
+  line-height: 1.2;
+}
+
+.count-chip {
+  font: 500 13px/1.2 var(--mat-font-family, Roboto, sans-serif);
+  padding: 6px 10px;
   border-radius: 999px;
-  font-weight: 600;
-  font-size: .85rem;
-  letter-spacing: .2px;
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  background: rgba(25, 118, 210, 0.1);
+  color: rgb(25, 118, 210);
+  margin-right: 8px;
 }
 
-.no-data td {
-  text-align: center;
-  padding: 24px;
-  color: #6b7280;
-}
 
-/* Refuerzo general para cualquier sticky de Material */
-.table--compact .mat-mdc-table-sticky {
-  background: #fff !important;
-  box-shadow: var(--tbl-sticky-shadow);
-}
-
-/* ============================
-   Responsive
-   ============================ */
-@media (max-width:900px) {
+/* ===========================================
+   6. RESPONSIVE
+   =========================================== */
+@media (max-width: 768px) {
   .paginator-row {
     flex-direction: column;
     align-items: stretch;
-  }
-
-  .table-paginator,
-  .export-menu-btn {
-    width: 100%;
+    gap: 16px;
   }
 }

@@ -1,8 +1,158 @@
 ::ng-deep .mat-sort-header-arrow {
-  color: white !important; /* Cambia el color del icono a blanco */
-  font-size: 24pt !important; /* Aumenta el tamaño del icono */
+  color: white !important;
+  /* Cambia el color del icono a blanco */
+  font-size: 24pt !important;
+  /* Aumenta el tamaño del icono */
   width: 24pt !important;
   height: 24pt !important;
 }
 
+/* =========================
+   Toolbar minimal pro
+   ========================= */
 
+/* Estructura básica */
+mat-toolbar {
+  gap: 12px;
+  padding-inline: 14px;
+  box-shadow: 0 8px 24px rgba(2, 6, 23, .06);
+}
+.spacer { flex: 1 1 auto; }
+
+mat-toolbar span:first-child {
+  font: 700 1.05rem/1.2 "Montserrat", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  letter-spacing: .2px;
+}
+
+/* =========================
+   Buscador integrado
+   ========================= */
+.toolbar-search {
+  min-width: clamp(220px, 28vw, 420px);
+  margin-inline: 4px;
+}
+.toolbar-search .mat-mdc-form-field-subscript-wrapper { display: none; }  /* sin helper text */
+.toolbar-search .mdc-line-ripple { display: none !important; }           /* sin subrayado */
+.toolbar-search .mat-mdc-form-field { width: 100%; }
+
+/* Caja visual del input */
+.toolbar-search .mdc-text-field--outlined,
+.toolbar-search .mdc-text-field--filled {
+  border-radius: 10px;
+  background: #fff !important;
+  transition: border-color .2s ease, box-shadow .2s ease, background .2s ease;
+}
+
+/* Borde/contorno limpio */
+.toolbar-search .mdc-notched-outline__leading,
+.toolbar-search .mdc-notched-outline__trailing,
+.toolbar-search .mdc-notched-outline__notch {
+  border-color: #e5e7eb !important;
+}
+
+/* Hover/Focus */
+.toolbar-search .mdc-text-field:hover { background: #f5f7fb !important; }
+.toolbar-search .mdc-text-field--focused {
+  box-shadow: 0 0 0 3px rgba(29,41,83,.12);
+}
+.toolbar-search .mat-mdc-form-field-infix { padding: 8px 12px !important; }
+.toolbar-search input { font: 600 .95rem/1.2 "Nunito Sans", ui-sans-serif, system-ui; }
+
+/* Botón limpiar dentro del input */
+.toolbar-search .mat-mdc-form-field-icon-suffix .mat-icon {
+  font-size: 20px;
+}
+
+/* =========================
+   Botón menú
+   ========================= */
+button[mat-icon-button] .mat-icon {
+  font-size: 22px;
+}
+
+/* =========================
+   Menú (panel + items)
+   ========================= */
+/* Usa panelClass="toolbar-menu" en el <mat-menu> para limitar el alcance */
+.toolbar-menu.mat-mdc-menu-panel {
+  border: 1px solid #e5e7eb !important;
+  border-radius: 12px !important;
+  box-shadow: 0 12px 32px rgba(2, 6, 23, .14) !important;
+  overflow: hidden;
+  padding-block: 4px;
+}
+
+/* Items del menú */
+.toolbar-menu .mat-mdc-menu-item {
+  font-weight: 600;
+  letter-spacing: .2px;
+}
+.toolbar-menu .mat-mdc-menu-item .mat-icon {
+  color: #1d2953;
+}
+.toolbar-menu .mat-mdc-menu-item:hover {
+  background: #f5f7fb;
+}
+
+/* Contenedor del slide-toggle dentro del menú */
+.menu-toggle {
+  padding: 6px 14px 8px;
+}
+.menu-toggle .mat-mdc-slide-toggle .mdc-form-field {
+  font-weight: 600;
+  color: #6b7280;
+}
+.menu-toggle .mat-mdc-slide-toggle {
+  --mdc-switch-selected-track-color: rgba(29,41,83,.28);
+  --mdc-switch-selected-handle-color: #1d2953;
+  --mdc-switch-selected-hover-state-layer-color: rgba(29,41,83,.08);
+}
+
+/* =========================
+   Accesibilidad (focus visible)
+   ========================= */
+mat-toolbar :is(button, .mat-mdc-icon-button):focus-visible,
+.toolbar-search :is(input, button):focus-visible {
+  outline: 3px solid rgba(29,41,83,.22);
+  outline-offset: 2px;
+}
+
+/* =========================
+   Responsive
+   ========================= */
+@media (max-width: 900px) {
+  mat-toolbar {
+    flex-wrap: wrap;
+    row-gap: 10px;
+  }
+  .toolbar-search {
+    order: 3;               /* baja el buscador a la segunda línea */
+    min-width: 100%;
+  }
+}
+
+@media (max-width: 600px) {
+  mat-toolbar { padding-inline: 10px; gap: 8px; }
+  mat-toolbar span:first-child { font-size: 1rem; }
+  .toolbar-search .mat-mdc-form-field-infix { padding: 6px 10px !important; }
+}
+
+/* =========================
+   Dark mode (auto)
+   ========================= */
+@media (prefers-color-scheme: dark) {
+  .toolbar-search .mdc-text-field--outlined,
+  .toolbar-search .mdc-text-field--filled {
+    background: #0e1430 !important;
+  }
+  .toolbar-search .mdc-notched-outline__leading,
+  .toolbar-search .mdc-notched-outline__trailing,
+  .toolbar-search .mdc-notched-outline__notch {
+    border-color: #1f2a44 !important;
+  }
+  .toolbar-menu.mat-mdc-menu-panel {
+    border-color: #1f2a44 !important;
+    box-shadow: 0 12px 32px rgba(0,0,0,.45) !important;
+  }
+  .toolbar-menu .mat-mdc-menu-item .mat-icon { color: #9bb0ff; }
+}

@@ -1,0 +1,272 @@
+:host {
+  /* ---- Design tokens ---- */
+  --pad: 16px;
+  --gap: 12px;
+  --radius: 12px;
+
+  --fg-strong: #111827;
+  /* casi negro */
+  --fg-muted: #6b7280;
+  /* gris neutro */
+  --bd: #e5e7eb;
+  /* borde tenue */
+  --bg-chip: #f3f4f6;
+  /* gris claro */
+  --bg-soft: #fafafa;
+  --danger: #e53935;
+  /* rojo */
+  --danger-2: #c62828;
+  /* rojo hover */
+}
+
+/* -------------------------
+   Título
+------------------------- */
+h2[mat-dialog-title] {
+  margin: 0 0 8px;
+  font-weight: 600;
+  color: var(--fg-strong);
+}
+
+/* -------------------------
+   Banner: “acceso a todos los módulos”
+   (úsalo con <div class="full-access-banner">…</div>)
+------------------------- */
+.full-access-banner {
+  display: grid;
+  grid-template-columns: 20px 1fr;
+  align-items: start;
+  gap: 8px;
+  padding: 12px var(--pad);
+  margin: 8px 0 12px;
+  border: 1px solid var(--bd);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--fg-strong);
+}
+
+.full-access-banner .icon {
+  color: var(--fg-muted);
+}
+
+.full-access-banner .title {
+  font-weight: 600;
+}
+
+.full-access-banner .desc {
+  color: var(--fg-muted);
+  font-size: .9rem;
+}
+
+/* -------------------------
+   Panel: agregar módulos + acciones
+------------------------- */
+.add-panel {
+  display: grid;
+  grid-template-columns: 1.2fr .8fr;
+  gap: var(--gap);
+  padding: var(--pad) 0 var(--pad);
+}
+
+.add-panel .block {
+  background: #fff;
+  border: 1px solid var(--bd);
+  border-radius: var(--radius);
+  padding: calc(var(--pad) - 4px);
+}
+
+/* Full width helpers */
+.full,
+mat-form-field.full.mat-mdc-form-field {
+  width: 100%;
+}
+
+/* Outline tenue en fields */
+.mdc-notched-outline__leading,
+.mdc-notched-outline__notch,
+.mdc-notched-outline__trailing {
+  border-color: var(--bd) !important;
+}
+
+/* Chips (selección de módulos) */
+mat-chip-grid,
+mat-chip-row {
+  --chip-h: 32px;
+}
+
+mat-chip-row.mat-mdc-chip {
+  background: var(--bg-chip);
+  height: var(--chip-h);
+  border-radius: 999px;
+  color: var(--fg-strong);
+}
+
+mat-chip-row .mat-mdc-chip-action-label {
+  padding-right: 4px;
+}
+
+mat-chip-row .mat-mdc-chip-trailing-action,
+mat-chip-row .mat-mdc-chip-remove,
+mat-chip-row .mat-mdc-chip-remove .mat-mdc-button-touch-target {
+  height: var(--chip-h);
+  width: var(--chip-h);
+  min-width: var(--chip-h);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+mat-chip-row button[matChipRemove] mat-icon {
+  font-size: 18px;
+  line-height: 18px;
+}
+
+/* Chips de acciones (LEER/CREAR/…) */
+.actions-chips {
+  display: grid;
+  grid-template-rows: auto auto;
+  gap: var(--gap);
+  align-content: start;
+}
+
+.actions-chips .label {
+  font-size: .85rem;
+  color: var(--fg-muted);
+}
+
+.actions-chips .mat-mdc-chip {
+  background: var(--bg-chip);
+  height: 30px;
+  border-radius: 999px;
+}
+
+.add-btn {
+  justify-self: end;
+}
+
+/* Divider */
+mat-divider {
+  margin: 8px 0 12px;
+}
+
+/* -------------------------
+   Tabla
+------------------------- */
+.table-wrap {
+  margin-top: 8px;
+  border: 1px solid var(--bd);
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: #fff;
+}
+
+table[mat-table] {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+th.mat-mdc-header-cell {
+  font-weight: 600;
+  color: var(--fg-muted);
+  background: var(--bg-soft);
+  border-bottom: 1px solid var(--bd);
+  padding: 10px 12px;
+}
+
+td.mat-mdc-cell {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--bd);
+  vertical-align: middle;
+}
+
+/* Columna módulo: nombre + ‘X’ alineada a la derecha */
+.mod-name {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.mod-name>span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* --------- SOLO ÍCONO “X” ROJO CON CURSOR --------- */
+.icon-x {
+  background: none;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  line-height: 1;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.icon-x mat-icon {
+  color: var(--danger);
+  font-size: 18px;
+  width: 18px;
+  height: 18px;
+  transition: color .15s ease;
+}
+
+.icon-x:hover mat-icon,
+.icon-x:focus-visible mat-icon {
+  color: var(--danger-2);
+}
+
+.icon-x:focus-visible {
+  outline: 2px solid rgba(229, 57, 53, 0.35);
+  outline-offset: 3px;
+  border-radius: 6px;
+}
+
+/* Columnas de acciones: centrar checkbox y ancho consistente */
+th[mat-header-cell]:not(:first-child),
+td[mat-cell]:not(:first-child) {
+  width: 120px;
+  /* Leer/Crear/Actualizar/Eliminar */
+  text-align: center;
+}
+
+td.mat-mdc-cell .mat-mdc-checkbox {
+  display: flex;
+  justify-content: center;
+}
+
+/* Fila vacía */
+tr.no-rows td {
+  text-align: center;
+  color: var(--fg-muted);
+  padding: 18px;
+  border: 0;
+}
+
+/* Loading */
+.loading {
+  display: grid;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+  padding: 32px 0;
+  color: var(--fg-muted);
+}
+
+/* Footer botones */
+mat-dialog-actions {
+  padding-top: 8px;
+}
+
+/* -------------------------
+   Responsive
+------------------------- */
+@media (max-width: 900px) {
+  .add-panel {
+    grid-template-columns: 1fr;
+  }
+}

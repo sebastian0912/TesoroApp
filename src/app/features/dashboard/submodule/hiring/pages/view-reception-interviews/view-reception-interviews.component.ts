@@ -132,7 +132,7 @@ export class ViewReceptionInterviewsComponent implements OnInit {
             Swal.close();
             this.downloadBlob(
               blob,
-              `reporte_candidatos_${this.user.oficina || this.user.sede.nombre}_${start.toISOString().split('T')[0]}_${end.toISOString().split('T')[0]}.xlsx`
+              `reporte_candidatos_${this.user.sede.nombre}_${start.toISOString().split('T')[0]}_${end.toISOString().split('T')[0]}.xlsx`
             );
           },
           error: () => {

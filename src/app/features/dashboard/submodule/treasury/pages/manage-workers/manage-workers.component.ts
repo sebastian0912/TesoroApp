@@ -8,6 +8,7 @@ import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatPaginator, MatPaginatorModule } from '@angular/material/paginator';
 import { MatSort, MatSortModule } from '@angular/material/sort';
 import { LoginService } from '@/app/features/auth/service/login.service';
+import * as XLSX from 'xlsx';
 
 @Component({
   selector: 'app-manage-workers',
@@ -104,17 +105,15 @@ export class ManageWorkersComponent implements OnInit {
   }
 
 
-  applyFilter(event: Event) {
-    const filterValue = (event.target as HTMLInputElement).value.trim();
+  applyFilter(query: string): void {
+    const q = (query ?? '').trim().toLowerCase();
+    // tu lógica de filtrado aquí
+     this.dataSource.filter = q;  // si usas MatTableDataSource
+  }
 
-    this.dataSource.filterPredicate = (data: any, filter: string) => {
-      return (
-        data.numero_de_documento.toLowerCase() === filter.toLowerCase() ||
-        data.codigo.toLowerCase() === filter.toLowerCase()
-      );
-    };
-
-    this.dataSource.filter = filterValue;
+  clearSearch(input: HTMLInputElement): void {
+    input.value = '';
+    this.applyFilter('');
   }
 
 
@@ -194,7 +193,184 @@ export class ManageWorkersComponent implements OnInit {
 
 
 
+  resetearValores() {
+    this.tesoreriaService.resetearValoresQuincena().then(() => {
+      Swal.fire('Valores reseteados', 'Los valores de la quincena han sido reseteados correctamente.', 'success');
+      this.getWorkers(); // Refrescar la lista de trabajadores
+    }).catch(() => {
+      Swal.fire('Error', 'Error al resetear los valores', 'error');
+    });
+  }
 
+  traerDatosBase() {
+    this.tesoreriaService.traerdatosbaseGeneral2()
+      .then((datos) => {
+        console.log('Datos base:', datos);
+
+        if (!datos.length) {
+          Swal.fire('Aviso', 'No se encontraron datos base.', 'info');
+        }
+      })
+      .catch(() => {
+        Swal.fire('Error', 'Error al extraer los datos base', 'error');
+      });
+  }
+
+  private toNum(v: any) {
+    if (v === null || v === undefined || v === '') return 0;
+    // si ya es número, devuélvelo
+    if (typeof v === 'number') return v;
+    // si viene como string numérica ("0","12.5"), conviértela
+    const n = Number(String(v).replace(/,/g, '.'));
+    return isNaN(n) ? 0 : n;
+  }
+
+  generarExcelDatosBase() {
+    // Loader
+    Swal.fire({
+      title: 'Generando Excel',
+      text: 'Por favor, espera…',
+      allowOutsideClick: false,
+      allowEscapeKey: false,
+      didOpen: () => Swal.showLoading(),
+    });
+
+    this.tesoreriaService
+      .traerdatosbaseGeneral2()
+      .then((rows: any[]) => {
+        if (!Array.isArray(rows) || rows.length === 0) {
+          Swal.fire('Aviso', 'No se encontraron datos base.', 'info');
+          return;
+        }
+
+        const toNum = (v: any) => {
+          const n = Number(String(v ?? '').toString().replace(/[, ]/g, ''));
+          return Number.isFinite(n) ? n : 0;
+        };
+
+        // Orden y títulos EXACTOS pedidos
+        const HEADERS = [
+          'CODIGO', 'CEDULA', 'NOMBRE', 'INGRESO', 'TEMPORAL', 'FINCA', 'SALARIO',
+          ' SALDOS  ', ' FONDO ', ' MERCADO ', ' CUOTAS ', ' PRESTAMO ', ' N. CUOTA ',
+          ' CASINOS ', ' ANCHETAS ', ' CUOTAS ', ' FONDO ', ' CARNET ', ' SEGURO FUNERARIO ',
+          ' PRESTAMOS  ', ' N° CUOTA ', ' Anticipo liq ', ' CUENTAS '
+        ];
+
+        // Mapeo de cada fila a las columnas, respetando duplicados
+        const data = rows.map((r) => {
+          const cedula = r?.numero_de_documento ?? '';
+          const cedulaStr = typeof cedula === 'string' ? cedula : String(cedula);
+
+          return {
+            // Básicos
+            'CODIGO': r?.codigo ?? '',
+            'CEDULA': cedulaStr, // se fuerza tipo texto más abajo
+            'NOMBRE': r?.nombre ?? '',
+            'INGRESO': r?.ingreso ?? '',
+            'TEMPORAL': r?.temporal ?? '',
+            'FINCA': r?.finca ?? '',
+            'SALARIO': toNum(r?.salario),
+
+            // Saldos / Fondo (plural en el objeto)
+            ' SALDOS  ': toNum(r?.saldos),
+            ' FONDO ': toNum(r?.fondos),
+
+            // Mercado + Cuotas (primera pareja de "CUOTAS")
+            ' MERCADO ': toNum(r?.mercados),
+            ' CUOTAS ': toNum(r?.cuotasMercados),
+
+            // Préstamo para descontar + #cuota
+            ' PRESTAMO ': toNum(r?.prestamoParaDescontar),
+            ' N. CUOTA ': toNum(r?.cuotasPrestamosParaDescontar),
+
+            // Casinos
+            ' CASINOS ': toNum(r?.casino),
+
+            // Anchetas + Cuotas (segunda aparición de "CUOTAS")
+            ' ANCHETAS ': toNum(r?.valoranchetas),
+            ' CUOTAS A ': toNum(r?.cuotasAnchetas),
+
+            // Fondo (singular en el objeto)
+            ' FONDO E': toNum(r?.fondo),
+
+            // Otros
+            ' CARNET ': toNum(r?.carnet),
+            ' SEGURO FUNERARIO ': toNum(r?.seguroFunerario),
+
+            // Préstamo para hacer + #cuota
+            ' PRESTAMOS  ': toNum(r?.prestamoParaHacer),
+            ' N° CUOTA ': toNum(r?.cuotasPrestamoParahacer),
+
+            // Anticipo y cuentas
+            ' Anticipo liq ': toNum(r?.anticipoLiquidacion),
+            ' CUENTAS ': toNum(r?.cuentas),
+          };
+        });
+
+        // Generar hoja con orden fijo
+        const ws = XLSX.utils.json_to_sheet(data, { header: HEADERS });
+
+        // Forzar columna CEDULA (B) como string para preservar "X..." y ceros
+        if (ws['!ref']) {
+          const range = XLSX.utils.decode_range(ws['!ref']);
+          for (let R = range.s.r + 1; R <= range.e.r; R++) {
+            const addr = XLSX.utils.encode_cell({ c: 1, r: R }); // B
+            if (ws[addr]) ws[addr].t = 's';
+          }
+        }
+
+        // Ancho de columnas (opcional)
+        ws['!cols'] = [
+          { wch: 12 }, // CODIGO
+          { wch: 16 }, // CEDULA
+          { wch: 28 }, // NOMBRE
+          { wch: 12 }, // INGRESO
+          { wch: 12 }, // TEMPORAL
+          { wch: 16 }, // FINCA
+          { wch: 12 }, // SALARIO
+          { wch: 12 }, // SALDOS
+          { wch: 10 }, // FONDO (fondos)
+          { wch: 10 }, // MERCADO
+          { wch: 10 }, // CUOTAS mercado
+          { wch: 12 }, // PRESTAMO p/descontar
+          { wch: 10 }, // N. CUOTA p/descontar
+          { wch: 10 }, // CASINOS
+          { wch: 12 }, // ANCHETAS
+          { wch: 10 }, // CUOTAS anchetas
+          { wch: 10 }, // FONDO (fondo)
+          { wch: 10 }, // CARNET
+          { wch: 16 }, // SEGURO FUNERARIO
+          { wch: 12 }, // PRESTAMOS p/hacer
+          { wch: 10 }, // N° CUOTA p/hacer
+          { wch: 14 }, // Anticipo liq
+          { wch: 12 }, // CUENTAS
+        ];
+
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'Datos base');
+
+        const d = new Date();
+        const fname = `datos_base_${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}.xlsx`;
+
+        // Cierra el loader ANTES de descargar (mejor UX)
+        Swal.close();
+
+        XLSX.writeFile(wb, fname);
+
+        // Toast de éxito
+        Swal.fire({
+          icon: 'success',
+          title: 'Excel generado',
+          text: 'El archivo se descargó correctamente.',
+          timer: 1800,
+          showConfirmButton: false,
+        });
+      })
+      .catch(() => {
+        // Error
+        Swal.fire('Error', 'Error al extraer los datos base', 'error');
+      });
+  }
 
 
 

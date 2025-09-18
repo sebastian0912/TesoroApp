@@ -14,18 +14,15 @@
       <mat-select formControlName="eps" placeholder="EPS">
         <mat-option *ngFor="let eps of epsList" [value]="eps">{{ eps }}</mat-option>
       </mat-select>
-      <!-- Botón de tres puntos dentro del input -->
+
       <button mat-icon-button matSuffix [matMenuTriggerFor]="pdfMenuEps" aria-label="PDF options"
         (click)="$event.stopPropagation()">
         <mat-icon>more_vert</mat-icon>
       </button>
     </mat-form-field>
 
-    <!-- Menú PDF -->
     <mat-menu #pdfMenuEps="matMenu">
-      <button mat-menu-item (click)="verArchivo('eps')">
-        Ver PDF
-      </button>
+      <button mat-menu-item (click)="verArchivo('eps')">Ver PDF</button>
       <button mat-menu-item>
         <label for="fileInputEps" style="cursor: pointer; margin-bottom: 0;">
           Subir PDF
@@ -43,7 +40,13 @@
       </ng-container>
     </small>
 
+    <!-- 🔔 Alerta si el documento es mayor a 15 días -->
+    <div class="doc-warning" *ngIf="isOlderThan('eps', 15)">
+      <mat-icon class="warn-icon" color="warn">warning</mat-icon>
+      <span>El documento tiene más de 15 días.</span>
+    </div>
   </div>
+
 
   <!-- Policivos -->
   <!-- Policivos -->
@@ -94,12 +97,14 @@
         &nbsp;•&nbsp;<span class="text-muted">Actualizado: {{ uploadedFiles['policivos'].updatedAtLabel }}</span>
       </ng-container>
     </small>
+
+    <!-- 🔔 Alerta si el documento es mayor a 15 días -->
+    <div class="doc-warning" *ngIf="isOlderThan('policivos', 15)">
+      <mat-icon class="warn-icon" color="warn">warning</mat-icon>
+      <span>El documento tiene más de 15 días.</span>
+    </div>
   </div>
 
-
-
-
-  <!-- Procuraduría -->
   <!-- Procuraduría -->
   <div class="input-container">
     <mat-form-field appearance="fill" class="example-full-width">
@@ -149,6 +154,12 @@
         &nbsp;•&nbsp;<span class="text-muted">Actualizado: {{ uploadedFiles['procuraduria'].updatedAtLabel }}</span>
       </ng-container>
     </small>
+
+    <!-- 🔔 Alerta si el documento es mayor a 15 días -->
+    <div class="doc-warning" *ngIf="isOlderThan('procuraduria', 15)">
+      <mat-icon class="warn-icon" color="warn">warning</mat-icon>
+      <span>El documento tiene más de 15 días.</span>
+    </div>
   </div>
 
 
@@ -187,6 +198,12 @@
           }}</span>
       </ng-container>
     </small>
+
+    <!-- 🔔 Alerta si el documento es mayor a 15 días -->
+    <div class="doc-warning" *ngIf="isOlderThan('medidasCorrectivas', 15)">
+      <mat-icon class="warn-icon" color="warn">warning</mat-icon>
+      <span>El documento tiene más de 15 días.</span>
+    </div>
 
   </div>
 
@@ -238,10 +255,15 @@
         &nbsp;•&nbsp;<span class="text-muted">Actualizado: {{ uploadedFiles['contraloria'].updatedAtLabel }}</span>
       </ng-container>
     </small>
+
+    <!-- 🔔 Alerta si el documento es mayor a 15 días -->
+    <div class="doc-warning" *ngIf="isOlderThan('contraloria', 15)">
+      <mat-icon class="warn-icon" color="warn">warning</mat-icon>
+      <span>El documento tiene más de 15 días.</span>
+    </div>
   </div>
 
 
-  <!-- OFAC -->
   <!-- OFAC -->
   <div class="input-container">
     <mat-form-field appearance="fill" class="example-full-width">
@@ -289,6 +311,12 @@
         &nbsp;•&nbsp;<span class="text-muted">Actualizado: {{ uploadedFiles['ofac'].updatedAtLabel }}</span>
       </ng-container>
     </small>
+
+    <!-- 🔔 Alerta si el documento es mayor a 15 días -->
+    <div class="doc-warning" *ngIf="isOlderThan('ofac', 15)">
+      <mat-icon class="warn-icon" color="warn">warning</mat-icon>
+      <span>El documento tiene más de 15 días.</span>
+    </div>
   </div>
 
 
@@ -327,6 +355,12 @@
         &nbsp;•&nbsp;<span class="text-muted">Actualizado: {{ uploadedFiles['sisben'].updatedAtLabel }}</span>
       </ng-container>
     </small>
+
+    <!-- 🔔 Alerta si el documento es mayor a 15 días -->
+    <div class="doc-warning" *ngIf="isOlderThan('sisben', 15)">
+      <mat-icon class="warn-icon" color="warn">warning</mat-icon>
+      <span>El documento tiene más de 15 días.</span>
+    </div>
   </div>
 
   <!-- AFP -->
@@ -361,6 +395,12 @@
         &nbsp;•&nbsp;<span class="text-muted">Actualizado: {{ uploadedFiles['afp'].updatedAtLabel }}</span>
       </ng-container>
     </small>
+
+    <!-- 🔔 Alerta si el documento es mayor a 15 días -->
+    <div class="doc-warning" *ngIf="isOlderThan('afp', 15)">
+      <mat-icon class="warn-icon" color="warn">warning</mat-icon>
+      <span>El documento tiene más de 15 días.</span>
+    </div>
 
   </div>
 
@@ -411,6 +451,12 @@
         &nbsp;•&nbsp;<span class="text-muted">Actualizado: {{ uploadedFiles['ramaJudicial'].updatedAtLabel }}</span>
       </ng-container>
     </small>
+
+    <!-- 🔔 Alerta si el documento es mayor a 15 días -->
+    <div class="doc-warning" *ngIf="isOlderThan('ramaJudicial', 15)">
+      <mat-icon class="warn-icon" color="warn">warning</mat-icon>
+      <span>El documento tiene más de 15 días.</span>
+    </div>
   </div>
 
 
@@ -454,6 +500,13 @@
         &nbsp;•&nbsp;<span class="text-muted">Actualizado: {{ uploadedFiles['pensionSemanas'].updatedAtLabel }}</span>
       </ng-container>
     </small>
+
+    <!-- 🔔 Alerta si el documento es mayor a 15 días -->
+    <div class="doc-warning" *ngIf="isOlderThan('pensionSemanas', 15)">
+      <mat-icon class="warn-icon" color="warn">warning</mat-icon>
+      <span>El documento tiene más de 15 días.</span>
+    </div>
+
   </div>
 
   <button mat-flat-button (click)="imprimirVerificacionesAplicacion()" class="example-full-width">Cargar</button>

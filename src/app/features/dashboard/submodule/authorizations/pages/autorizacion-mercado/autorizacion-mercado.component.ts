@@ -6,7 +6,6 @@ import { Router } from '@angular/router';
 import { SharedModule } from '../../../../../../shared/shared.module';
 import { UtilityServiceService } from '../../../../../../shared/services/utilityService/utility-service.service';
 
-
 @Component({
   selector: 'app-autorizacion-mercado',
   imports: [
@@ -36,6 +35,7 @@ export class AutorizacionMercadoComponent implements OnInit {
   ngOnInit() {
 
     this.user = this.utilityService.getUser();
+
     if (this.user) {
       this.rolUsuario = this.user.rol?.nombre ?? '';
     }
@@ -117,10 +117,10 @@ export class AutorizacionMercadoComponent implements OnInit {
       try {
         const data = await this.autorizacionesService.buscarCodigo(codigoOH);
         if (data.codigo.length === 0) {
-          break;  // Salir del bucle si el código no existe
+          break;
         }
       } catch (error) {
-        break;  // Salir del bucle si hay un error en la solicitud
+        break;
       }
     }
 
@@ -131,7 +131,7 @@ export class AutorizacionMercadoComponent implements OnInit {
         2,
         "Autorizacion de Mercado",
         codigoOH,
-        this.user.primer_nombre + ' ' + this.user.primer_apellido
+        this.user.datos_basicos.nombres + ' ' + this.user.datos_basicos.apellidos,
       );
       const historial_id = historialData.historial_id;
 
@@ -142,7 +142,7 @@ export class AutorizacionMercadoComponent implements OnInit {
         String(2),
         "Autorizacion de Mercado",
         historial_id,
-        this.user.primer_nombre + ' ' + this.user.primer_apellido,
+        this.user.datos_basicos.nombres + ' ' + this.user.datos_basicos.apellidos,
         this.user.numero_de_documento
       );
 
@@ -155,7 +155,7 @@ export class AutorizacionMercadoComponent implements OnInit {
         codigoOH,
         String(2),
         "Mercado",
-        this.user.primer_nombre + ' ' + this.user.primer_apellido,
+        this.user.datos_basicos.nombres + ' ' + this.user.datos_basicos.apellidos,
       );
 
       Swal.close();

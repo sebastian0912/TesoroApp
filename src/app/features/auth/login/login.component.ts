@@ -45,6 +45,11 @@ export class LoginComponent implements OnInit {
       this.loginForm.markAllAsTouched();
       return;
     }
+    // quitar espacios
+    this.loginForm.patchValue({
+      login: (this.loginForm.value.login || '').toString().trim(),
+      password: (this.loginForm.value.password || '').toString().trim(),
+    });
 
     const { login, password } = this.loginForm.value;
 

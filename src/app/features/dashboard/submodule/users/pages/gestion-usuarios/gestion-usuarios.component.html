@@ -1,6 +1,6 @@
 <mat-card>
   <mat-card-header class="card-header">
-    <mat-card-title>Gestión de usuarios88</mat-card-title>
+    <mat-card-title>Gestión de usuarios</mat-card-title>
     <span class="grow"></span>
 
     <!-- Menú 3 puntos -->
@@ -15,13 +15,11 @@
     </mat-menu>
   </mat-card-header>
 
-  <mat-card-content>
-    <app-standard-filter-table
-      [data]="rows"
-      [columnDefinitions]="columnsWithActions"
-      [tableTitle]="'Usuarios'"
-      [pageSizeOptions]="[10, 20, 50]"
-      [defaultPageSize]="10">
+  <mat-card-content class="card-content">
+    <!-- La tabla solo se muestra cuando los datos están listos -->
+    @if (tableVisible()) {
+    <app-standard-filter-table [data]="rows()" [columnDefinitions]="columns" [tableTitle]="'Usuarios'"
+      [pageSizeOptions]="[10, 20, 50]" [defaultPageSize]="10">
 
       <!-- Acciones por fila -->
       <ng-template #actionsTemplate let-row>
@@ -31,7 +29,11 @@
         <button mat-icon-button color="warn" (click)="deleteUser(row)" aria-label="Eliminar">
           <mat-icon>delete</mat-icon>
         </button>
+        <button mat-icon-button (click)="openPermsDialog(row)" matTooltip="Ver permisos">
+          <mat-icon>admin_panel_settings</mat-icon>
+        </button>
       </ng-template>
     </app-standard-filter-table>
+    }
   </mat-card-content>
 </mat-card>

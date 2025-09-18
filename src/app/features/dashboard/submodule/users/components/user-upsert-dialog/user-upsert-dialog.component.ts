@@ -1,4 +1,3 @@
-import { ActualizarUsuarioPayload } from './../../services/admin.service';
 import { Component, Inject, OnInit, ChangeDetectionStrategy, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, Validators, ReactiveFormsModule, FormGroup } from '@angular/forms';
@@ -12,8 +11,9 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatDividerModule } from '@angular/material/divider';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { UtilityServiceService } from '@/app/shared/services/utilityService/utility-service.service';
-import { AdminService } from '../../services/admin.service';
+import { AdminService, ActualizarUsuarioPayload, UsuarioDetail, AuthResponse } from '../../services/admin.service';
 import { forkJoin, Observable, of } from 'rxjs';
+import { map } from 'rxjs/operators';
 
 export interface UserUpsertData {
   mode: 'create' | 'edit';
@@ -29,6 +29,8 @@ export interface UserUpsertData {
     datos_basicos?: { nombres: string; apellidos: string; celular?: string | null } | null;
   } | null;
 }
+
+
 
 @Component({
   selector: 'app-user-upsert-dialog',
@@ -57,7 +59,12 @@ export class UserUpsertDialogComponent implements OnInit {
 
   loading = signal(false);
   saving = signal(false);
-  title = computed(() => this.data.mode === 'create' ? 'Crear usuario' : 'Editar usuario');
+  hidePw = signal(true);
+  hidePw2 = signal(true);
+  changePw = signal(false); // <- toggle para cambiar contraseña en edición
+
+  title = computed(() => (this.data.mode === 'create' ? 'Crear usuario' : 'Editar usuario'));
+  isCreate = computed(() => this.data.mode === 'create');
 
   form!: FormGroup;
 
@@ -70,7 +77,7 @@ export class UserUpsertDialogComponent implements OnInit {
   ) {}
 
   ngOnInit(): void {
-    // 1) Inicializar form aquí (con constructor)
+    // 1) Form base
     this.form = this.fb.group({
       numero_de_documento: ['', [Validators.required, Validators.minLength(4)]],
       tipo_documento: ['CC', Validators.required],
@@ -82,34 +89,34 @@ export class UserUpsertDialogComponent implements OnInit {
       nombres: ['', [Validators.required, Validators.minLength(2)]],
       apellidos: ['', [Validators.required, Validators.minLength(2)]],
       celular: [null as string | null],
+
+      // Password: obligatorio solo en create. En edición se activa con toggle.
+      password: [''],
+      password2: [''],
     });
 
-    // 2) Cargar catálogos en paralelo (sin genéricos mal puestos)
+    if (this.isCreate()) {
+      this.form.get('password')?.addValidators([Validators.required, Validators.minLength(8)]);
+      this.form.get('password2')?.addValidators([Validators.required]);
+      this.form.get('password')?.updateValueAndValidity();
+      this.form.get('password2')?.updateValueAndValidity();
+    }
+
+    // 2) Cargar catálogos en paralelo (con fallback por si no existe traerEmpresas en UtilityService)
     this.loading.set(true);
 
-    const roles$    = this.utils.traerRoles() as Observable<any[]>;
-    const sedes$    = this.utils.traerSucursales2() as Observable<any[]>;
-    const empresas$ = ((this.utils as any).traerEmpresas
+    const roles$ = this.utils.traerRoles() as Observable<any[]>;
+    const sedes$ = this.utils.traerSucursales2() as Observable<any[]>;
+    const empresas$ = (typeof (this.utils as any).traerEmpresas === 'function'
       ? (this.utils as any).traerEmpresas()
-      : of([] as any[])
-    ) as Observable<any[]>;
+      : of([])) as Observable<any[]>;
 
-    forkJoin({
-      roles: roles$,
-      sedes: sedes$,
-      empresas: empresas$,
-    }).subscribe({
+    forkJoin({ roles: roles$, sedes: sedes$, empresas: empresas$ }).subscribe({
       next: ({ roles, sedes, empresas }) => {
-        // Normaliza por si la API retorna {results:[]} o {data:[]}
-        const norm = (x: any): any[] => Array.isArray(x) ? x : (x?.results ?? x?.data ?? []);
-
-        const rolesArr    = norm(roles);
-        const sedesArr    = norm(sedes);
-        const empresasArr = norm(empresas);
-
-        this.roles.set(rolesArr.map((r: any) => ({ id: r.id, nombre: r.nombre })));
-        this.sedes.set(sedesArr.map((s: any) => ({ id: s.id, nombre: s.nombre, activa: !!s.activa })));
-        this.empresas.set(empresasArr.map((e: any) => ({ id: e.id, nombre: e.nombre })));
+        const norm = (x: any): any[] => (Array.isArray(x) ? x : x?.results ?? x?.data ?? []);
+        this.roles.set(norm(roles).map((r: any) => ({ id: r.id, nombre: r.nombre })));
+        this.sedes.set(norm(sedes).map((s: any) => ({ id: s.id, nombre: s.nombre, activa: !!s.activa })));
+        this.empresas.set(norm(empresas).map((e: any) => ({ id: e.id, nombre: e.nombre })));
 
         if (this.data.mode === 'edit' && this.data.user) {
           this.patchFormWithUser(this.data.user);
@@ -128,11 +135,34 @@ export class UserUpsertDialogComponent implements OnInit {
       estado_solicitudes: !!u.estado_solicitudes,
       empresa_id: u.empresa?.id ?? null,
       sede_id: u.sede?.id ?? null,
-      rol_id: (u as any).rol?.id ?? null,
+      rol_id: (u.rol as any)?.id ?? null,
       nombres: u.datos_basicos?.nombres ?? '',
       apellidos: u.datos_basicos?.apellidos ?? '',
       celular: u.datos_basicos?.celular ?? null,
     });
+
+    // En edición: por defecto no cambiar contraseña
+    if (!this.isCreate()) {
+      this.onToggleChangePw(false);
+    }
+  }
+
+  // Toggle para activar/desactivar cambio de contraseña en edición
+  onToggleChangePw(checked: boolean): void {
+    this.changePw.set(checked);
+    const pw = this.form.get('password')!;
+    const pw2 = this.form.get('password2')!;
+    if (checked) {
+      pw.setValidators([Validators.required, Validators.minLength(8)]);
+      pw2.setValidators([Validators.required]);
+    } else {
+      pw.clearValidators(); pw.reset('');
+      pw2.clearValidators(); pw2.reset('');
+      // Limpia error de mismatch si quedó colgado
+      pw2.setErrors(null);
+    }
+    pw.updateValueAndValidity();
+    pw2.updateValueAndValidity();
   }
 
   cancelar(): void {
@@ -140,50 +170,70 @@ export class UserUpsertDialogComponent implements OnInit {
   }
 
   guardar(): void {
+    // Validación de match de password en create o si activaste el toggle en edición
+    if (this.isCreate() || this.changePw()) {
+      const p1 = (this.form.get('password')?.value ?? '').toString();
+      const p2 = (this.form.get('password2')?.value ?? '').toString();
+      if (p1 !== p2) {
+        this.form.get('password2')?.setErrors({ mismatch: true });
+      }
+    }
+
     if (this.form.invalid) {
       this.form.markAllAsTouched();
       return;
     }
     this.saving.set(true);
 
+    // Saneo simple: trim strings
     const raw = this.form.getRawValue();
+    const trim = (v: any) => (typeof v === 'string' ? v.trim() : v);
+
     const payload: ActualizarUsuarioPayload = {
-      numero_de_documento: raw.numero_de_documento || undefined,
-      tipo_documento: raw.tipo_documento || undefined,
-      correo_electronico: raw.correo_electronico || undefined,
+      numero_de_documento: trim(raw.numero_de_documento) || undefined,
+      tipo_documento: trim(raw.tipo_documento) || undefined,
+      correo_electronico: trim(raw.correo_electronico) || undefined,
       estado_solicitudes: raw.estado_solicitudes ?? true,
-      empresa_id: raw.empresa_id ?? null,
-      sede_id: raw.sede_id ?? null,
-      rol_id: raw.rol_id ?? null,
-      nombres: raw.nombres ?? '',
-      apellidos: raw.apellidos ?? '',
-      celular: (raw.celular ?? null) as any,
+      // Puedes mandar empresa/sede/rol o *_id; el backend acepta ambos
+      empresa: raw.empresa_id ?? null,
+      sede: raw.sede_id ?? null,
+      rol: raw.rol_id ?? null,
+      nombres: trim(raw.nombres) ?? '',
+      apellidos: trim(raw.apellidos) ?? '',
+      celular: trim(raw.celular) ?? null,
+      // password sólo si aplica (create o toggle activo en edición)
+      ...(this.isCreate() || this.changePw() ? { password: trim(raw.password) } : {}),
     };
 
-    const req$ = this.data.mode === 'create'
-      ? this.adminService.crear({
-          numero_de_documento: payload.numero_de_documento!,
-          tipo_documento: payload.tipo_documento!,
-          correo_electronico: payload.correo_electronico!,
-          estado_solicitudes: payload.estado_solicitudes,
-          empresa_id: payload.empresa_id,
-          sede_id: payload.sede_id,
-          rol_id: payload.rol_id,
-          nombres: payload.nombres,
-          apellidos: payload.apellidos,
-          celular: payload.celular ?? null,
-        })
-      : this.adminService.actualizar(this.data.user!.id, payload, true);
+    // Unificamos a Observable<UsuarioDetail>
+    const req$: Observable<UsuarioDetail> =
+      this.data.mode === 'create'
+        ? this.adminService
+            .crear({
+              numero_de_documento: payload.numero_de_documento!,
+              tipo_documento: payload.tipo_documento!,
+              correo_electronico: payload.correo_electronico!,
+              password: (payload as any).password!, // garantizado en create
+              estado_solicitudes: payload.estado_solicitudes,
+              empresa: payload.empresa ?? null,
+              sede: payload.sede ?? null,
+              rol: payload.rol ?? null,
+              nombres: payload.nombres,
+              apellidos: payload.apellidos,
+              celular: payload.celular ?? null,
+            } as any)
+            .pipe(map((r: AuthResponse) => r.user))
+        : this.adminService.actualizar(this.data.user!.id, payload, true);
 
     req$.subscribe({
-      next: (res) => {
+      next: (detail: UsuarioDetail) => {
         this.saving.set(false);
-        this.dialogRef.close({ ok: true, data: res });
+        this.dialogRef.close({ ok: true, data: detail });
       },
-      error: (err) => {
+      error: (err: unknown) => {
         console.error('Error guardando usuario:', err);
         this.saving.set(false);
-      }
+      },
     });
   }
 }

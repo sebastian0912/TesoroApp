@@ -1,5 +1,5 @@
 import { SharedModule } from '@/app/shared/shared.module';
-import { Component, OnChanges, OnInit, SimpleChanges } from '@angular/core';
+import { Component, OnInit } from '@angular/core';
 import { FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { MatTabsModule } from '@angular/material/tabs';
 import Swal from 'sweetalert2';
@@ -14,13 +14,12 @@ import { catchError, debounceTime, firstValueFrom, merge, of, Subscription, take
 import { UtilityServiceService } from '@/app/shared/services/utilityService/utility-service.service';
 
 type UploadedFileInfo = {
-  file?: File;
+  file?: File | string;
   fileName?: string;
-  updatedAt?: string;       // fecha backend
-  updatedAtLabel?: string;  // formateada
-  changed?: boolean;        // ✅ para saber si hay que subirlo
+  updatedAt?: number | string;   // ✅ ahora acepta número o ISO string
+  updatedAtLabel?: string;
+  changed?: boolean;
 };
-
 
 @Component({
   selector: 'app-selection-questions',
@@ -40,7 +39,6 @@ export class SelectionQuestionsComponent implements OnInit {
   private _idProcesoSeleccion: number | null = null;
 
   @Input() set idProcesoSeleccion(v: any) {
-    // fuerza a número si viene string
     const n = v === null || v === undefined ? null : Number(v);
     this._idProcesoSeleccion = Number.isFinite(n as number) ? (n as number) : null;
     this.tryFetchOnce();
@@ -52,30 +50,21 @@ export class SelectionQuestionsComponent implements OnInit {
     'CUMPLE'
   ];
 
-  // Resultado: [0,1,2,3,4,5,6,7,8,9,10,"CUMPLE"]
-
   filteredExamOptions: string[] = [];
 
   formGroup1: FormGroup;
-  // (opcional) por si tu valor llegara como string y quieres compararlo como número
   compareNumbers = (a: any, b: any) => Number(a) === Number(b);
   semanasOptions: number[] = Array.from({ length: 2001 }, (_, i) => i);
-  // Evitar que se escriban caracteres no numéricos y solo enteros
-  onlyInteger(e: KeyboardEvent) {
-    const allowed = [
-      'Backspace', 'Tab', 'ArrowLeft', 'ArrowRight', 'Delete', 'Home', 'End'
-    ];
-    if (allowed.includes(e.key)) return;
 
-    // Permite números 0-9
-    if (!/^\d$/.test(e.key)) {
-      e.preventDefault();
-    }
+  onlyInteger(e: KeyboardEvent) {
+    const allowed = ['Backspace', 'Tab', 'ArrowLeft', 'ArrowRight', 'Delete', 'Home', 'End'];
+    if (allowed.includes(e.key)) return;
+    if (!/^\d$/.test(e.key)) e.preventDefault();
   }
 
   private formSubs!: Subscription;
 
-  examFiles: File[] = []; // Guardamos los archivos PDF por índice
+  examFiles: File[] = [];
 
   uploadedFiles: { [key: string]: UploadedFileInfo } = {
     eps: { fileName: 'Adjuntar documento' },
@@ -92,84 +81,44 @@ export class SelectionQuestionsComponent implements OnInit {
   };
 
   epsList: string[] = [
-    'ALIANSALUD',
-    'ASMET SALUD',
-    'CAJACOPI',
-    'CAPITAL SALUD',
-    'CAPRESOCA',
-    'COMFAMILIARHUILA',
-    'COMFAORIENTE',
-    'COMPENSAR',
-    'COOSALUD',
-    'DUSAKAWI',
-    'ECOOPSOS',
-    'FAMISANAR',
-    'FAMILIAR DE COLOMBIA',
-    'MUTUAL SER',
-    'NUEVA EPS',
-    'PIJAOS SALUD',
-    'SALUD TOTAL',
-    'SANITAS',
-    'SAVIA SALUD',
-    'SOS',
-    'SURA',
-    'No Tiene',
-    'Sin Buscar',
+    'ALIANSALUD', 'ASMET SALUD', 'CAJACOPI', 'CAPITAL SALUD', 'CAPRESOCA', 'COMFAMILIARHUILA',
+    'COMFAORIENTE', 'COMPENSAR', 'COOSALUD', 'DUSAKAWI', 'ECOOPSOS', 'FAMISANAR',
+    'FAMILIAR DE COLOMBIA', 'MUTUAL SER', 'NUEVA EPS', 'PIJAOS SALUD', 'SALUD TOTAL',
+    'SANITAS', 'SAVIA SALUD', 'SOS', 'SURA', 'No Tiene', 'Sin Buscar',
   ];
 
-  afpList: string[] = [
-    'PORVENIR',
-    'COLFONDOS',
-    'PROTECCION',
-    'COLPENSIONES'
-  ];
+  afpList: string[] = ['PORVENIR', 'COLFONDOS', 'PROTECCION', 'COLPENSIONES'];
 
-  antecedentesEstados: string[] = [
-    'Cumple',
-    'No Cumple',
-    'Sin Buscar'
-  ];
+  antecedentesEstados: string[] = ['Cumple', 'No Cumple', 'Sin Buscar'];
 
   getEstadoIcon(estado: string | null | undefined): string {
     switch (estado) {
-      case 'Cumple':
-        return 'check_circle';   // ✅ chulo
-      case 'No Cumple':
-        return 'cancel';         // ❌ x
+      case 'Cumple': return 'check_circle';
+      case 'No Cumple': return 'cancel';
       case 'Sin Buscar':
-      default:
-        return 'remove_circle';  // ⭕ sin buscar
+      default: return 'remove_circle';
     }
   }
 
   getEstadoColor(estado: string | null | undefined): string {
     switch (estado) {
-      case 'Cumple':
-        return 'green';
-      case 'No Cumple':
-        return 'red';
+      case 'Cumple': return 'green';
+      case 'No Cumple': return 'red';
       case 'Sin Buscar':
-      default:
-        return 'gray';
+      default: return 'gray';
     }
   }
+
   private _lastId: number | null = null;
   isLoading: boolean = false;
 
-  // ------------ CARGA PROTEGIDA (solo cuando ambos inputs están listos) ------------
   private tryFetchOnce(): void {
-    // Solo arrancar si hay id
     if (this._idProcesoSeleccion == null) return;
-
-    // Evitar llamadas duplicadas para el mismo id
     if (this._lastId === this._idProcesoSeleccion) return;
     this._lastId = this._idProcesoSeleccion;
 
     this.isLoading = true;
-    console.debug('[SelectionQuestions] Fetching selección', {
-      idProcesoSeleccion: this._idProcesoSeleccion
-    });
-    console.log('Intentando obtener selección para ID:', this._idProcesoSeleccion);
+    console.debug('[SelectionQuestions] Fetching selección', { idProcesoSeleccion: this._idProcesoSeleccion });
 
     this.seleccionService.getSeleccionPorId(this._idProcesoSeleccion!)
       .pipe(
@@ -195,27 +144,16 @@ export class SelectionQuestionsComponent implements OnInit {
 
         const sel = response?.procesoSeleccion ?? response;
         this.loadDataSeleccion(sel);
-        this.loadDataDocumentos(); // <- si quieres que dependa del id, ajusta este método
+        this.loadDataDocumentos();
       });
   }
 
-
   categoriasSisben: string[] = [
-    // Grupo A: Pobreza extrema
-    'A1', 'A2', 'A3', 'A4', 'A5',
-
-    // Grupo B: Pobreza moderada
-    'B1', 'B2', 'B3', 'B4', 'B5', 'B6', 'B7',
-
-    // Grupo C: Vulnerabilidad
-    'C1', 'C2', 'C3', 'C4', 'C5', 'C6', 'C7', 'C8', 'C9', 'C10', 'C11', 'C12', 'C13', 'C14', 'C15', 'C16', 'C17', 'C18',
-
-    // Grupo D: No pobre ni vulnerable
-    'D1', 'D2', 'D3', 'D4', 'D5', 'D6', 'D7', 'D8', 'D9', 'D10', 'D11', 'D12', 'D13', 'D14', 'D15', 'D16', 'D17', 'D18', 'D19', 'D20', 'D21',
-
-    // Opcionales de UI
-    'No Aplica',
-    'Sin Buscar'
+    'A1','A2','A3','A4','A5',
+    'B1','B2','B3','B4','B5','B6','B7',
+    'C1','C2','C3','C4','C5','C6','C7','C8','C9','C10','C11','C12','C13','C14','C15','C16','C17','C18',
+    'D1','D2','D3','D4','D5','D6','D7','D8','D9','D10','D11','D12','D13','D14','D15','D16','D17','D18','D19','D20','D21',
+    'No Aplica', 'Sin Buscar'
   ];
 
   typeMap: { [key: string]: number } = {
@@ -233,13 +171,10 @@ export class SelectionQuestionsComponent implements OnInit {
   };
 
   ngOnInit(): void {
-    // … aquí creas/inyectas los formGroups …
-
-    /* 🔔 Detectar cambios en los 4 juntos */
     this.formSubs = merge(
       this.formGroup1.valueChanges,
     )
-      .pipe(debounceTime(300))        // evita escribir en cada tecla
+      .pipe(debounceTime(300))
       .subscribe(() => this.actualizarFormulariosLS());
   }
 
@@ -254,16 +189,13 @@ export class SelectionQuestionsComponent implements OnInit {
     localStorage.setItem('formularios', JSON.stringify(formularios));
   }
 
-
   constructor(
     private seleccionService: SeleccionService,
     private gestionDocumentalService: GestionDocumentalService,
     private hiringService: HiringService,
     private utilityService: UtilityServiceService,
     private fb: FormBuilder,
-
   ) {
-
     this.formGroup1 = this.fb.group({
       eps: [''],
       afp: [''],
@@ -277,33 +209,14 @@ export class SelectionQuestionsComponent implements OnInit {
       semanasCotizadas: [0, [Validators.required, Validators.min(1)]],
     });
 
-    // Cargar lista completa de exámenes disponibles
     this.filteredExamOptions = [
-      'Exámen Ingreso',
-      'Colinesterasa',
-      'Glicemia Basal',
-      'Perfil lípidico',
-      'Visiometria',
-      'Optometría',
-      'Audiometría',
-      'Espirometría',
-      'Sicometrico',
-      'Frotis de uñas',
-      'Frotis de garganta',
-      'Cuadro hematico',
-      'Creatinina',
-      'TGO',
-      'Coprológico',
-      'Osteomuscular',
-      'Quimico (Respiratorio - Dermatologico)',
-      'Tegumentaria',
-      'Cardiovascular',
-      'Trabajo en alturas (Incluye test para detección de fobia a las alturas: El AQ (Acrophobia Questionnaire) de Cohen)',
-      'Electrocardiograma (Sólo aplica para mayores de 45 años)',
-      'Examen Médico',
-      'HEPATITIS A Y B',
-      'TETANO VACUNA T-D',
-      'Exámen médico integral definido para conductores'
+      'Exámen Ingreso', 'Colinesterasa', 'Glicemia Basal', 'Perfil lípidico', 'Visiometria',
+      'Optometría', 'Audiometría', 'Espirometría', 'Sicometrico', 'Frotis de uñas',
+      'Frotis de garganta', 'Cuadro hematico', 'Creatinina', 'TGO', 'Coprológico',
+      'Osteomuscular', 'Quimico (Respiratorio - Dermatologico)', 'Tegumentaria',
+      'Cardiovascular', 'Trabajo en alturas (Incluye test para detección de fobia a las alturas: El AQ (Acrophobia Questionnaire) de Cohen)',
+      'Electrocardiograma (Sólo aplica para mayores de 45 años)', 'Examen Médico',
+      'HEPATITIS A Y B', 'TETANO VACUNA T-D', 'Exámen médico integral definido para conductores'
     ];
   }
 
@@ -313,7 +226,6 @@ export class SelectionQuestionsComponent implements OnInit {
       return Number.isFinite(n) ? n : def;
     };
 
-    // Llenar los campos del formulario de Datos Generales (formGroup1)
     this.formGroup1.patchValue({
       eps: seleccion.eps || '',
       afp: seleccion.afp || '',
@@ -327,11 +239,10 @@ export class SelectionQuestionsComponent implements OnInit {
       ofac: seleccion.ofac || '',
       semanasCotizadas: seleccion.semanasCotizadas || 0
     });
-
   }
 
   private formatFechaActualizacion(iso: string | null | undefined): string | undefined {
-    if (!iso) return undefined; // ✅ no null
+    if (!iso) return undefined;
     const d = new Date(iso);
     if (isNaN(d.getTime())) return undefined;
     try {
@@ -344,7 +255,6 @@ export class SelectionQuestionsComponent implements OnInit {
       return d.toLocaleString();
     }
   }
-
 
   async loadDataDocumentos(): Promise<void> {
     try {
@@ -361,14 +271,14 @@ export class SelectionQuestionsComponent implements OnInit {
         const nombre = documento.title || 'Documento sin título';
         const file = await this.urlToFile(documento.file_url, nombre);
 
-        const iso: string | undefined = documento.uploaded_at || undefined;   // ✅
+        const iso: string | undefined = documento.uploaded_at || undefined;
         const label = this.formatFechaActualizacion(iso);
 
         this.uploadedFiles[typeKey] = {
           fileName: nombre,
           file,
-          updatedAt: iso || undefined,
-          updatedAtLabel: label || undefined
+          updatedAt: iso ?? undefined,            // puede venir ISO
+          updatedAtLabel: label ?? undefined
         };
       });
 
@@ -386,78 +296,84 @@ export class SelectionQuestionsComponent implements OnInit {
     }
   }
 
+  // ✅ Normaliza a timestamp numérico (ms) o undefined
+  private toTimestampMs(v: unknown): number | undefined {
+    if (typeof v === 'number' && Number.isFinite(v)) return v;
+    if (typeof v === 'string') {
+      const p = Date.parse(v);
+      return isNaN(p) ? undefined : p;
+    }
+    return undefined;
+  }
 
-  // Método para abrir un archivo en una nueva pestaña
+  // Devuelve true si el archivo 'key' tiene más de 'days' días desde updatedAt/lastModified
+  isOlderThan(key: string, days: number): boolean {
+    const entry = this.uploadedFiles[key];
+    if (!entry) return false;
+
+    let ts: number | undefined = this.toTimestampMs(entry.updatedAt);
+    if (ts == null && entry.file instanceof File) {
+      ts = entry.file.lastModified;
+    }
+    if (ts == null) return false;
+
+    const diffMs = Date.now() - ts;
+    const limitMs = days * 24 * 60 * 60 * 1000;
+    return diffMs > limitMs;
+  }
+
   verArchivo(campo: string) {
     const archivo = this.uploadedFiles[campo];
     if (archivo && archivo.file) {
       if (typeof archivo.file === 'string') {
-        // Asegurarse de que la URL esté correctamente codificada para evitar problemas
         const fileUrl = encodeURI(archivo.file);
-        // Abrir el archivo en una nueva pestaña
         window.open(fileUrl, '_blank');
       } else if (archivo.file instanceof File) {
-        // Crear una URL temporal para el archivo si es un objeto File
         const fileUrl = URL.createObjectURL(archivo.file);
         window.open(fileUrl, '_blank');
-
-        // Revocar la URL después de que el archivo ha sido abierto para liberar memoria
-        setTimeout(() => {
-          URL.revokeObjectURL(fileUrl);
-        }, 100);
+        setTimeout(() => URL.revokeObjectURL(fileUrl), 100);
       }
     } else {
       Swal.fire('Error', 'No se pudo encontrar el archivo para este campo', 'error');
     }
   }
 
-  // Método que se ejecuta cuando se selecciona un archivo o se genera un PDF en memoria
-  // Método que se ejecuta cuando se selecciona un archivo o se genera un PDF en memoria
   subirArchivo(event: any | Blob, campo: string, fileName?: string): void {
     let file: File | null = null;
 
     if (event instanceof Blob && !(event as any).target) {
-      // 📌 Caso: archivo generado en memoria (ej: PDF fusionado)
       file = new File([event], fileName || 'archivo.pdf', { type: 'application/pdf' });
     } else if (event?.target?.files?.length) {
-      // 📌 Caso: archivo seleccionado por el usuario
       file = event.target.files[0];
     }
 
     if (!file) return;
 
-    // 1) Validación: nombre del archivo no supere 100 caracteres
     if (file.name.length > 100) {
       Swal.fire('Error', 'El nombre del archivo no debe exceder los 100 caracteres', 'error');
       return;
     }
 
-    // 2) Validación opcional: solo PDF
     if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
       Swal.fire('Error', 'Solo se permiten archivos PDF', 'error');
       return;
     }
 
-    // 3) Guardar en uploadedFiles y marcar como cambiado
     this.uploadedFiles[campo] = {
       file,
       fileName: file.name,
-      changed: true, // ✅ ahora sabemos que debe subirse
+      changed: true,
       updatedAt: undefined,
       updatedAtLabel: undefined
     };
-
   }
 
-
   async urlToFile(url: string, fileName: string): Promise<File> {
-    // Evita cache: parámetro "buster" + cache:'no-store'
     const busted = url + (url.includes('?') ? '&' : '?') + '_=' + Date.now();
 
     const res = await fetch(busted, {
-      cache: 'no-store',         // no lee ni escribe en caché
-      mode: 'cors',              // si es otro origen
-      // credentials: 'include', // descomenta si tu endpoint requiere cookie/sesión
+      cache: 'no-store',
+      mode: 'cors',
       referrerPolicy: 'strict-origin-when-cross-origin'
     });
 
@@ -473,11 +389,7 @@ export class SelectionQuestionsComponent implements OnInit {
     return new File([blob], fileName, { type });
   }
 
-
-
-  // Método para imprimir los datos del formulario y subir todos los archivos
   async imprimirVerificacionesAplicacion(): Promise<void> {
-    // Loader
     Swal.fire({
       title: 'Cargando...',
       text: 'Estamos guardando los datos y subiendo los archivos.',
@@ -488,27 +400,20 @@ export class SelectionQuestionsComponent implements OnInit {
     });
 
     try {
-      // --- 1) Guardar parte uno (puede crear o actualizar) ---
-      const payload = { ...this.formGroup1.value, numerodeceduladepersona: this.cedula };
-      // user
+      const payload: any = { ...this.formGroup1.value, numerodeceduladepersona: this.cedula };
+
       const user = this.utilityService.getUser();
       const nombre = user.datos_basicos.nombres + ' ' + user.datos_basicos.apellidos;
-      // nombre_evaluador
       payload.nombre_evaluador = nombre;
+
       const resp: any = await firstValueFrom(
         this.seleccionService.crearSeleccionParteUnoCandidato(payload, this.cedula, this.idProcesoSeleccion)
       );
 
       const message = (resp?.message || '').toLowerCase();
       const ok = ['success', 'created', 'updated'].includes(message);
-      if (!ok) {
-        throw new Error(resp?.message || 'Respuesta inesperada del servidor.');
-      }
+      if (!ok) throw new Error(resp?.message || 'Respuesta inesperada del servidor.');
 
-      // Si tu backend devuelve id del proceso, queda aquí por si luego lo quieres usar
-      const procesoId: number | null = resp?.id ?? null;
-
-      // --- 2) Si no hay archivos por subir, fin ---
       const hayArchivos = this.uploadedFiles && Object.keys(this.uploadedFiles).length > 0;
       if (!hayArchivos) {
         Swal.close();
@@ -521,13 +426,11 @@ export class SelectionQuestionsComponent implements OnInit {
         return;
       }
 
-      // --- 3) Subir archivos ---
       const nombres = [
         'eps', 'afp', 'policivos', 'procuraduria', 'contraloria',
         'ramaJudicial', 'medidasCorrectivas', 'sisben', 'ofac', 'pensionSemanas'
       ];
 
-      // Etiquetas legibles (opcional). Puedes mover esto a una propiedad de la clase.
       const docLabel: Record<string, string> = {
         eps: 'EPS',
         afp: 'AFP',
@@ -543,8 +446,7 @@ export class SelectionQuestionsComponent implements OnInit {
       const label = (k: string) => (docLabel?.[k] ?? k);
 
       try {
-        // Llama a tu función que devuelve detalle de éxitos/fallos
-        const { todosOk, exitosos, fallidos } = await this.subirTodosLosArchivos(nombres /* , procesoId si tu función lo soporta */);
+        const { todosOk, exitosos, fallidos } = await this.subirTodosLosArchivos(nombres);
 
         Swal.close();
 
@@ -556,7 +458,6 @@ export class SelectionQuestionsComponent implements OnInit {
             confirmButtonText: 'Ok'
           });
         } else {
-          // Construye HTML con el detalle de errores y éxitos
           const htmlFallidos = fallidos.length
             ? `<ul>${fallidos.map(f => `<li>${label(f.key)}:</li>`).join('')}</ul>`
             : '<p>—</p>';
@@ -569,12 +470,12 @@ export class SelectionQuestionsComponent implements OnInit {
             icon: 'warning',
             title: 'Subida parcial',
             html: `
-            <p>Los datos se guardaron, pero algunos archivos no se pudieron subir.</p>
-            <p><b>Fallidos:</b></p>
-            ${htmlFallidos}
-            <p><b>Exitosos:</b></p>
-            ${htmlExitosos}
-          `,
+              <p>Los datos se guardaron, pero algunos archivos no se pudieron subir.</p>
+              <p><b>Fallidos:</b></p>
+              ${htmlFallidos}
+              <p><b>Exitosos:</b></p>
+              ${htmlExitosos}
+            `,
             confirmButtonText: 'Ok'
           });
         }
@@ -598,67 +499,71 @@ export class SelectionQuestionsComponent implements OnInit {
     }
   }
 
-
-  // Método para subir todos los archivos almacenados en uploadedFiles
-  /**
-   * Sube los archivos indicados y devuelve detalle de éxito/error por documento.
-   */
-  async subirTodosLosArchivos(
-    keysEspecificos: string[]
-  ): Promise<{ todosOk: boolean; exitosos: string[]; fallidos: { key: string; error: string }[] }> {
-    const archivosAEnviar = Object.keys(this.uploadedFiles)
-      .filter(key => {
-        const fd = this.uploadedFiles[key];
-        return keysEspecificos.includes(key) && fd?.file && fd.changed; // ✅ solo los que cambiaron
-      })
-      .map(key => ({
+async subirTodosLosArchivos(
+  keysEspecificos: string[]
+): Promise<{ todosOk: boolean; exitosos: string[]; fallidos: { key: string; error: string }[] }> {
+  // Prepara solo los que cambiaron y cuyo file es realmente File
+  const archivosAEnviar = Object.keys(this.uploadedFiles)
+    .filter(key => {
+      const fd = this.uploadedFiles[key];
+      return (
+        keysEspecificos.includes(key) &&
+        !!fd?.changed &&
+        fd.file instanceof File
+      );
+    })
+    .map(key => {
+      const fd = this.uploadedFiles[key];
+      const typeId = this.typeMap[key];
+      return {
         key,
-        ...this.uploadedFiles[key],
-        typeId: this.typeMap[key]
-      }));
+        file: fd.file as File,                                // ✅ ya es File
+        fileName: fd.fileName ?? 'documento.pdf',
+        typeId
+      };
+    })
+    .filter(item => Number.isFinite(item.typeId));            // seguridad extra
 
-    if (!archivosAEnviar.length) {
-      return { todosOk: true, exitosos: [], fallidos: [] };
-    }
-
-    const promesas = archivosAEnviar.map(({ key, file, fileName, typeId }) => {
-      return new Promise<void>((resolve, reject) => {
-        this.gestionDocumentalService
-          .guardarDocumento(fileName!, this.cedula, typeId, file!)
-          .subscribe({
-            next: () => {
-              // ✅ Marcar como ya subido
-              this.uploadedFiles[key].changed = false;
-              this.uploadedFiles[key].updatedAt = new Date().toISOString();
-              this.uploadedFiles[key].updatedAtLabel = this.formatFechaActualizacion(this.uploadedFiles[key].updatedAt);
-              resolve();
-            },
-            error: (err) =>
-              reject(new Error(`Error al subir "${key}": ${err?.message || err}`))
-          });
-      });
-    });
-
-    const resultados = await Promise.allSettled(promesas);
-
-    const exitosos: string[] = [];
-    const fallidos: { key: string; error: string }[] = [];
-
-    resultados.forEach((r, idx) => {
-      const key = archivosAEnviar[idx].key;
-      if (r.status === 'fulfilled') {
-        exitosos.push(key);
-      } else {
-        fallidos.push({ key, error: r.reason?.message || String(r.reason) });
-      }
-    });
-
-    return { todosOk: fallidos.length === 0, exitosos, fallidos };
+  if (!archivosAEnviar.length) {
+    return { todosOk: true, exitosos: [], fallidos: [] };
   }
 
+  const promesas = archivosAEnviar.map(({ key, file, fileName, typeId }) => {
+    return new Promise<void>((resolve, reject) => {
+      this.gestionDocumentalService
+        .guardarDocumento(fileName, this.cedula, typeId as number, file) // ✅ file: File
+        .subscribe({
+          next: () => {
+            this.uploadedFiles[key].changed = false;
+            this.uploadedFiles[key].updatedAt = new Date().toISOString();
+            this.uploadedFiles[key].updatedAtLabel = this.formatFechaActualizacion(
+              this.uploadedFiles[key].updatedAt as string
+            );
+            resolve();
+          },
+          error: (err) => reject(new Error(`Error al subir "${key}": ${err?.message || err}`))
+        });
+    });
+  });
+
+  const resultados = await Promise.allSettled(promesas);
+
+  const exitosos: string[] = [];
+  const fallidos: { key: string; error: string }[] = [];
+
+  resultados.forEach((r, idx) => {
+    const key = archivosAEnviar[idx].key;
+    if (r.status === 'fulfilled') {
+      exitosos.push(key);
+    } else {
+      fallidos.push({ key, error: r.reason?.message || String(r.reason) });
+    }
+  });
+
+  return { todosOk: fallidos.length === 0, exitosos, fallidos };
+}
 
 
-  // Guardar el archivo PDF seleccionado para cada examen
   onFileSelected(event: any, index: number): void {
     const file = event.target.files[0];
     if (file && file.type === 'application/pdf') {
@@ -667,8 +572,4 @@ export class SelectionQuestionsComponent implements OnInit {
       alert('Por favor, seleccione un archivo PDF válido.');
     }
   }
-
-
-
-
 }

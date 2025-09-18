@@ -1,4 +1,6 @@
 <input type="file" id="fileInput" (change)="cargarExcel($event)" accept=".xlsx, .xls" style="display: none;">
+<input type="file" id="fileInputEmails" (change)="cargarCorreosMasivos($event)" accept=".xlsx, .xls"
+  style="display: none;">
 
 <mat-card>
   <mat-card-content>
@@ -11,12 +13,20 @@
         </mat-form-field>
         <button mat-flat-button (click)="buscarDesprendibles(cedula)" class="boton">Buscar</button>
       </div>
-      <app-info-card title="Cargar desprendibles de pago" imageUrl="icons/cards/excel.png" (click)="triggerFileInput()" *ngIf="correo == 'nominacentral4@gmail.com' ||
-        correo == 'nomina.rtc@gmail.com' ||
-        correo == 'programador.ts@gmail.com' ||
-        correo == 'nomina.gandes@gmail.com'||
-        correo == 'nominacentral7@gmail.com' ||
-        correo == 'antcontable4.ts@gmail.com'" style="cursor: pointer;"></app-info-card>
+      
+      <app-info-card title="Cargar desprendibles de pago" imageUrl="icons/cards/excel.png"
+        (click)="triggerFileInput('desprendibles')" *ngIf="correo == 'nominacentral4@gmail.com' ||
+         correo == 'nomina.rtc@gmail.com' ||
+         correo == 'programador.ts@gmail.com' ||
+         correo == 'nomina.gandes@gmail.com' ||
+         correo == 'nominacentral7@gmail.com' ||
+         correo == 'antcontable4.ts@gmail.com'" style="cursor: pointer;">
+      </app-info-card>
+
+
+      <app-info-card title="Cambiar masivamente los correos" imageUrl="icons/cards/excel.png"
+        (click)="triggerFileInput('correos')" style="cursor: pointer;">
+      </app-info-card>
     </div>
 
     <div class="tabla">

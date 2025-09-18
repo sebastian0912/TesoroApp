@@ -1,4 +1,4 @@
-import { Component, EventEmitter, OnInit, Output, Inject, PLATFORM_ID, } from '@angular/core';
+import { Component, EventEmitter, OnInit, OnDestroy, Output, Inject, PLATFORM_ID } from '@angular/core';
 import { isPlatformBrowser } from '@angular/common';
 import { SharedModule } from '../../../../shared/shared.module';
 import { Router, NavigationEnd, RouterModule } from '@angular/router';
@@ -29,7 +29,7 @@ export interface PermNode {
   templateUrl: './navbar.component.html',
   styleUrls: ['./navbar.component.css'],
 })
-export class NavbarComponent implements OnInit {
+export class NavbarComponent implements OnInit, OnDestroy {
 
   @Output() public menuToggle = new EventEmitter<boolean>();
 
@@ -43,8 +43,11 @@ export class NavbarComponent implements OnInit {
 
   // estado UI
   private expanded: Record<string, boolean> = {};
-  private closeTimer: any = null;
-  private readonly CLOSE_DELAY = 200;
+
+  // 🔧 Cierre diferido
+  private closeTimer: ReturnType<typeof setTimeout> | null = null;
+  private readonly CLOSE_DELAY = 500;
+
   private routerSubscription?: Subscription;
 
   // handler ligado para poder removerlo correctamente
@@ -71,7 +74,7 @@ export class NavbarComponent implements OnInit {
 
   ngOnDestroy(): void {
     this.routerSubscription?.unsubscribe();
-    clearTimeout(this.closeTimer);
+    this.cancelClose();
     if (isPlatformBrowser(this.platformId)) {
       window.removeEventListener('resize', this.resizeHandler);
     }
@@ -82,6 +85,30 @@ export class NavbarComponent implements OnInit {
     if (!isPlatformBrowser(this.platformId)) return;
     const hidden = localStorage.getItem('sidebarHidden');
     this.isSidebarHidden = hidden === 'true';
+  }
+
+  // 👉 Cancela cualquier cierre pendiente
+  cancelClose(): void {
+    if (this.closeTimer) {
+      clearTimeout(this.closeTimer);
+      this.closeTimer = null;
+    }
+  }
+
+  // 👉 Programa el cierre con retardo
+  public scheduleClose(): void {
+    this.cancelClose();
+    this.closeTimer = setTimeout(() => {
+      this.activeRoot = null;
+      // si quisieras ocultar todo en desktop al salir, descomenta:
+      // this.isSidebarHidden = true;
+    }, this.CLOSE_DELAY);
+  }
+
+  onLeafClick(): void {
+    this.cancelClose();
+    this.activeRoot = null;
+    if (matchMedia('(hover: none)').matches) this.isSidebarHidden = true;
   }
 
   /* ============ Lectura de permisos_tree ============ */
@@ -107,17 +134,18 @@ export class NavbarComponent implements OnInit {
   }
 
   public onModuleEnter(mod: PermNode): void {
-    clearTimeout(this.closeTimer);
+    this.cancelClose();            // ⛔ evita cierre mientras pasas al derecho
     this.activeRoot = mod;
     (mod.hijos || []).forEach((h) => (this.expanded[h.id] = true));
   }
 
+  // Si tu template aún llama onPanelLeave(), ahora usa cierre diferido
   public onPanelLeave(): void {
-    this.closeTimer = setTimeout(() => (this.activeRoot = null), this.CLOSE_DELAY);
+    this.scheduleClose();
   }
 
   public onRightPanelEnter(): void {
-    clearTimeout(this.closeTimer);
+    this.cancelClose();            // ⛔ al entrar al derecho, cancela el cierre
   }
 
   /* ============ Toggle / expand ============ */
@@ -148,19 +176,15 @@ export class NavbarComponent implements OnInit {
      y lookups insensibles a mayúsculas para rutas e iconos
      =========================================================== */
 
-  // Convierte "GESTIÓN DOCUMENTAL" -> "Gestión documental"
   private toSentenceCase(s: string = ''): string {
     const t = s.toLowerCase();
-    // Sube solo la primera letra (unicode-aware)
     return t.replace(/^\p{L}/u, (c) => c.toUpperCase());
   }
 
-  // Se usa en el template: {{ formatLabel(node.nombre) }}
   public formatLabel(nombre: string): string {
     return this.toSentenceCase(nombre);
   }
 
-  // Crea un índice de un mapa convirtiendo las claves a UPPERCASE
   private indexByUpper<T extends Record<string, string>>(obj: T): Record<string, string> {
     const out: Record<string, string> = {};
     for (const k of Object.keys(obj)) out[k.toUpperCase()] = obj[k];
@@ -168,7 +192,6 @@ export class NavbarComponent implements OnInit {
   }
 
   /* ============ Navegación / rutas ============ */
-  // NOTA: rutas relativas (sin "/" inicial). getNodeRoute compone con "/dashboard"
   private readonly routeMap: Record<string, string> = {
     // Raíces
     // Administración
@@ -215,16 +238,29 @@ export class NavbarComponent implements OnInit {
     'Bono de mercado': 'authorizations/market-bonus',
     'Prestado de dinero': 'authorizations/money-loan',
 
-    // Préstamos
-    'Prestamo para realizar': 'money-loan/loan-to-perform',
-    'Préstamo por calamidad': 'money-loan/emergency-loan',
+    // PRESTADO PARA REALIZAR
+    // PRESTAMO POR CALAMIDAD
+    'PRESTADO PARA REALIZAR': 'money-loan/loan-to-perform',
+    'PRESTAMO POR CALAMIDAD': 'money-loan/emergency-loan',
 
     // Traslados
     'Procesos de traslados': 'eps-transfers/process-transfers',
     'Consulta de traslados': 'eps-transfers/transfer-query',
+
+    // Historial
+    'Historial de autorizaciones': 'history/authorizations-history',
+    'Historial de modificaciones': 'history/modifications-history',
+
+    // GESTION ROLES
+    'GESTIÓN ROLES': 'users/manage-roles',
+
+    // AUSENTISMOS
+    'AUSENTISMOS': 'hiring/absences',
+
+    // upload-treasury
+    'CARGAS MASIVAS': 'treasury/upload-treasury',
   };
 
-  // Índice insensible a mayúsculas para rutas
   private readonly routeMapIndex = this.indexByUpper(this.routeMap);
 
   public getNodeRoute(node: PermNode): string {
@@ -232,7 +268,6 @@ export class NavbarComponent implements OnInit {
     const key = (node?.nombre ?? '').toUpperCase();
     const mapped = this.routeMapIndex[key];
     if (mapped) return `${base}/${mapped}`;
-    // fallback slugify
     return `${base}/${this.slug(node.nombre)}`;
   }
 
@@ -318,9 +353,14 @@ export class NavbarComponent implements OnInit {
     'Traslados': 'swap_horiz',
     'Consulta de traslados': 'search',
     'Procesos de traslados': 'sync_alt',
+
+    // GESTION ROLES
+    'GESTIÓN ROLES': 'security',
+
+    // AUSENTISMOS
+    'AUSENTISMOS': 'event_busy',
   };
 
-  // Índice insensible a mayúsculas para iconos
   private readonly iconMapIndex = this.indexByUpper(this.iconMap);
 
   public getModuleIcon(nombre: string): string {
@@ -354,7 +394,8 @@ export class NavbarComponent implements OnInit {
   public trackByNodeId = (_: number, n: PermNode) => n.id;
 
   public canRead(n: PermNode): boolean {
-    return (n.acciones || []).includes('LEER');
+    if ((n.acciones || []).includes('LEER')) return true;
+    return (n.hijos || []).some(h => this.canRead(h));
   }
 
   private slug(name: string): string {

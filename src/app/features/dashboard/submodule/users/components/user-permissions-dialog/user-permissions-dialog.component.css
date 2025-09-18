@@ -1,0 +1,146 @@
+:host {
+  --pad: 16px;
+  --gap: 12px;
+  --bd: #e5e7eb;
+  --fg: #111827;
+  --muted: #6b7280;
+  --ok: #10b981;
+  /* verde */
+  --bad: #ef4444;
+  /* rojo */
+  --off: #9ca3af;
+  /* gris */
+  display: block;
+}
+
+h2[mat-dialog-title] {
+  margin: 0 0 8px 0;
+  font-weight: 600;
+  color: var(--fg);
+}
+
+h2[mat-dialog-title] .muted {
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.legend {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 8px 0 4px;
+}
+
+.legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: .92rem;
+  color: var(--muted);
+}
+
+.legend-item mat-icon.ok {
+  color: var(--ok);
+}
+
+.legend-item mat-icon.bad {
+  color: var(--bad);
+}
+
+.legend-item mat-icon.off {
+  color: var(--off);
+}
+
+.spacer {
+  flex: 1 1 auto;
+}
+
+.role-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--bd);
+  border-radius: 999px;
+  padding: 4px 10px;
+  color: var(--fg);
+}
+
+mat-divider {
+  margin: 8px 0 12px;
+}
+
+.table-wrap {
+  border: 1px solid var(--bd);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+table[mat-table] {
+  width: 100%;
+  background: #fff;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+th.mat-mdc-header-cell {
+  font-weight: 600;
+  color: var(--muted);
+  background: #fafafa;
+  border-bottom: 1px solid var(--bd);
+  padding: 10px 12px;
+}
+
+td.mat-mdc-cell {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--bd);
+  vertical-align: middle;
+}
+
+.hdr th.mat-mdc-header-cell:not(:first-child),
+td.mat-mdc-cell:not(:first-child) {
+  width: 110px;
+  text-align: center;
+}
+
+.mod {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.mod mat-icon {
+  color: var(--muted);
+}
+
+td.mat-mdc-cell mat-icon.ok {
+  color: var(--ok);
+}
+
+td.mat-mdc-cell mat-icon.bad {
+  color: var(--bad);
+}
+
+td.mat-mdc-cell mat-icon.off {
+  color: var(--off);
+}
+
+.no-rows td {
+  text-align: center;
+  color: var(--muted);
+  padding: 18px;
+  border: 0;
+}
+
+.state {
+  display: grid;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+  padding: 28px 0;
+  color: var(--muted);
+}
+
+.state.error {
+  color: var(--bad);
+  text-align: center;
+}

@@ -8,6 +8,7 @@ import { environment } from '../../../../../environments/environment.development
 @Injectable({
   providedIn: 'root'
 })
+
 export class TesoreriaService {
 
   private apiUrl = environment.apiUrl;
@@ -73,11 +74,11 @@ export class TesoreriaService {
 
 
 
-  async bloquearEmpleado(numero_de_documento: string, estado: boolean, fechaBloqueo: string | null): Promise<any> {
+  async bloquearEmpleado(numero_de_documento: string, estado: boolean): Promise<any> {
     const url = `${this.apiUrl}/Datosbase/actualizar-estados/${numero_de_documento}/`;
 
     return firstValueFrom(
-      this.http.patch(url, { bloqueado: estado, fechaBloqueo }).pipe(
+      this.http.patch(url, { bloqueado: estado }).pipe(
         catchError(error => {
           throw error;
         })

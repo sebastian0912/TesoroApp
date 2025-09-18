@@ -30,7 +30,46 @@ import { MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatAutocompleteModule } from '@angular/material/autocomplete';
 import { MatDialogModule } from '@angular/material/dialog';
 
+// 👇 Standalone directive
+import { ThousandSeparatorDirective } from './directives/thousand-separator.directive';
+
 @NgModule({
+  imports: [
+    CommonModule,
+    FormsModule,
+    ReactiveFormsModule,
+
+    // Material
+    MatIconModule,
+    MatMenuModule,
+    MatFormFieldModule,
+    MatInputModule,
+    MatButtonModule,
+    MatCardModule,
+    MatToolbarModule,
+    MatSelectModule,
+    MatTableModule,
+    MatDividerModule,
+    MatTabsModule,
+    MatPaginatorModule,
+    MatDatepickerModule,
+    MatNativeDateModule,
+    MatListModule,
+    MatExpansionModule,
+    MatCheckboxModule,
+    MatProgressSpinnerModule,
+    MatChipsModule,
+    MatBadgeModule,
+    MatRadioModule,
+    MatTooltipModule,
+    MatSortModule,
+    MatSnackBarModule,
+    MatAutocompleteModule,
+    MatDialogModule,
+
+    // 👈 IMPORTA la standalone
+    ThousandSeparatorDirective
+  ],
   exports: [
     CommonModule,
     FormsModule,
@@ -63,6 +102,9 @@ import { MatDialogModule } from '@angular/material/dialog';
     MatSnackBarModule,
     MatAutocompleteModule,
     MatDialogModule,
+
+    // 👈 y re-EXPÓRTALA
+    ThousandSeparatorDirective
   ],
 })
 export class SharedModule {}

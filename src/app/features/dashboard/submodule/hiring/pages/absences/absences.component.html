@@ -7,18 +7,29 @@
           <mat-label>Ingrese la cédula</mat-label>
           <input matInput [(ngModel)]="cedula">
         </mat-form-field>
-        <button mat-raised-button color="primary" (click)="buscarFormasPago(cedula)" class="boton">Buscar</button>
+        <button mat-flat-button (click)="buscarFormasPago(cedula)" class="boton" type="button">Buscar</button>
       </div>
 
       <div class="cards">
         <app-info-card title="Cargar Ausentismos" imageUrl="icons/cards/excel.png" (click)="triggerFileInput()"
           style="cursor: pointer;"
-          *ngIf="correo == 'tuafiliacion@tsservicios.co' || correo == 'contaduria.rtc@gmail.com' || correo == 'programador.ts@gmail.com'"></app-info-card>
+          *ngIf="correo == 'tuafiliacion@tsservicios.co' || correo == 'contaduria.rtc@gmail.com' || correo == 'programador.ts@gmail.com'">
+        </app-info-card>
 
         <app-info-card title="Eliminar caracteres especiales" imageUrl="icons/cards/excel.png"
-          style="cursor: pointer;" (click)="triggerFileInput2()"
-          *ngIf="correo == 'tuafiliacion@tsservicios.co' || correo == 'contaduria.rtc@gmail.com' || correo == 'programador.ts@gmail.com' || correo == 'a.seguridad.ts@gmail.com'"></app-info-card>
+          (click)="triggerFileInput2()" style="cursor: pointer;" *ngIf="correo === 'tuafiliacion@tsservicios.co'
+      || correo === 'contaduria.rtc@gmail.com'
+      || correo === 'programador.ts@gmail.com'
+      || correo === 'a.seguridad.ts@gmail.com'">
+        </app-info-card>
+
       </div>
+
+      <!-- Inputs ocultos SIEMPRE presentes -->
+      <input #fileInput type="file" accept=".xlsx,.xls" (change)="cargarExcel($event)" hidden />
+      <input #fileInput2 id="fileInput2" type="file"
+        accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
+        (change)="eliminarCaracteresEspeciales($event)" hidden />
 
     </div>
 

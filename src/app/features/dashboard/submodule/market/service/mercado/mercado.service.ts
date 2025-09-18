@@ -62,7 +62,7 @@ export class MercadoService {
     historial_id: number
   ): Promise<any> {
     const user = this.getUser();
-    const usernameLocal = `${user.primer_nombre} ${user.primer_apellido}`;
+    const usernameLocal = `${user.datos_basicos.nombres} ${user.datos_basicos.apellidos}`;
 
     const fecha = new Date().toISOString().split('T')[0];
 
@@ -101,7 +101,7 @@ export class MercadoService {
     historial_id: number
   ): Promise<any> {
     const user = this.getUser();
-    const usernameLocal = `${user.primer_nombre} ${user.primer_apellido}`;
+    const usernameLocal = `${user.datos_basicos.nombres} ${user.datos_basicos.apellidos}`;
 
     const fecha = new Date().toISOString().split('T')[0];
 

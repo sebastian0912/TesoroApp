@@ -1,7 +1,7 @@
 import { EventEmitter, Injectable } from '@angular/core';
-import { HttpClient, HttpHeaders } from '@angular/common/http';
-import { Observable, throwError } from 'rxjs';
-import { catchError, map } from 'rxjs/operators';
+import { HttpClient } from '@angular/common/http';
+import { Observable } from 'rxjs';
+import { map } from 'rxjs/operators';
 import { environment } from '../../../../environments/environment.development';
 
 @Injectable({
@@ -13,13 +13,6 @@ export class UtilityServiceService {
   nextStep: EventEmitter<void> = new EventEmitter<void>();
 
   constructor(private http: HttpClient) { }
-
-  /**
-   * Maneja errores de las peticiones HTTP.
-   */
-  private handleError(error: any): Observable<never> {
-    return throwError(() => new Error(error.message || 'Server Error'));
-  }
 
   /**
    * Obtiene el usuario almacenado en `localStorage`, verificando si se está ejecutando en el navegador.
@@ -36,22 +29,26 @@ export class UtilityServiceService {
    * Trae la lista de sucursales.
    */
   traerSucursales(): Observable<any> {
-    return this.http
-      .get(`${this.apiUrl}/Sucursal/sucursal`)
-      .pipe(catchError(this.handleError));
+    return this.http.get(`${this.apiUrl}/Sucursal/sucursal`);
   }
 
   traerSucursales2(): Observable<any> {
-    return this.http
-      .get(`${this.apiUrl}/gestion_admin/sedes`)
-      .pipe(catchError(this.handleError));
+    return this.http.get(`${this.apiUrl}/gestion_admin/sedes`);
+  }
+
+  // traer empresas
+  traerEmpresas(): Observable<any> {
+    return this.http.get(`${this.apiUrl}/gestion_admin/empresas`);
   }
 
   // traer roles
   traerRoles(): Observable<any> {
-    return this.http
-      .get(`${this.apiUrl}/gestion_admin/roles`)
-      .pipe(catchError(this.handleError));
+    return this.http.get(`${this.apiUrl}/gestion_admin/roles`);
+  }
+
+  // traer permisos
+  traerPermisos(): Observable<any> {
+    return this.http.get(`${this.apiUrl}/gestion_admin/permisos`);
   }
 
   /**
@@ -66,27 +63,19 @@ export class UtilityServiceService {
     const urlcompleta = `${this.apiUrl}/usuarios/cambiodesucursal`;
     const requestBody = { ceduladelapersona, sucursalacambiar };
 
-    return this.http
-      .post<string>(urlcompleta, requestBody)
-      .pipe(catchError(this.handleError));
+    return this.http.post<string>(urlcompleta, requestBody);
   }
 
   traerUsuarios(): Observable<any> {
-    return this.http
-      .get(`${this.apiUrl}/usuarios/usuarios`)
-      .pipe(catchError(this.handleError));
+    return this.http.get(`${this.apiUrl}/usuarios/usuarios`);
   }
 
-  traerUsuarios2(): Observable<any> {
-    return this.http
-      .get(`${this.apiUrl}/gestion_admin/usuarios`)
-      .pipe(catchError(this.handleError));
+  getAllUsers(): Observable<any> {
+    return this.http.get(`${this.apiUrl}/gestion_admin/usuarios`);
   }
 
   traerInventarioProductos(): Observable<any> {
-    return this.http
-      .get(`${this.apiUrl}/Comercio/comercio`)
-      .pipe(catchError(this.handleError));
+    return this.http.get(`${this.apiUrl}/Comercio/comercio`);
   }
 
   // Traer datos de la comercializadora por codigo
@@ -108,10 +97,7 @@ export class UtilityServiceService {
       .get<{ message: string }>(
         `${this.apiUrl}/Codigo/verificarCedula/${cedula}/${codigo}`
       )
-      .pipe(
-        map((response) => response.message),
-        catchError(this.handleError)
-      );
+      .pipe(map((response) => response.message));
   }
 
   // Verificar monto del código
@@ -137,27 +123,18 @@ export class UtilityServiceService {
     return montoCodigo >= monto;
   }
 
-
   // Buscar operario por cedula
   async buscarOperarioPorCedula(cedula: string): Promise<any> {
-    return this.http
-      .get(`${this.apiUrl}/contratacion/buscarCandidato/${cedula}`)
-      .pipe(catchError(this.handleError));
+    return this.http.get(`${this.apiUrl}/contratacion/buscarCandidato/${cedula}`);
   }
-
 
   traerAutorizaciones(): Observable<any> {
-    return this.http.get(`${this.apiUrl}/Codigo/codigos`)
-      .pipe(catchError(this.handleError));
+    return this.http.get(`${this.apiUrl}/Codigo/codigos`);
   }
-
-
 
   public obtenerCodigosContrato(cedula: string): Observable<any> {
     return this.http.get(`${this.apiUrl}/contratacion/contratos/${cedula}/`).pipe(
-      map((response: any) => response),
-      catchError(this.handleError)
+      map((response: any) => response)
     );
   }
-
 }

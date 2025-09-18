@@ -109,7 +109,7 @@ export class CrearEditarVacanteComponent implements OnInit {
       fechadeIngreso: [''],
       descripcion: ['', Validators.required],
       fechaPublicado: [new Date()],
-      quienpublicolavacante: [`${this.user.primer_nombre} ${this.user.primer_apellido}`],
+      quienpublicolavacante: [`${this.user.datos_basicos.nombres} ${this.user.datos_basicos.apellidos}`],
       estadovacante: ['Activa'],
       salario: [1423500, [Validators.required, Validators.min(0)]],
       codigoElite: [''],

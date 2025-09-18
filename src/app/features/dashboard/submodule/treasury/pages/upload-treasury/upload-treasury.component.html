@@ -1,0 +1,17 @@
+<mat-card>
+  <mat-card-content>
+    <h2 class="section-title">Cargar información de tesorería</h2>
+
+    <section class="cards-grid">
+      <app-info-card *ngFor="let c of cards" [title]="c.title" [imageUrl]="c.imageUrl"
+        (cardClicked)="onCardClick(c.id)">
+      </app-info-card>
+    </section>
+
+    <!-- Inputs ocultos: SOLO EXCEL -->
+    <input #fileInsert type="file" accept=".xlsx,.xls" (change)="handleFile('insert', $event)" hidden>
+    <input #fileSaldos type="file" accept=".xlsx,.xls" (change)="handleFile('saldos', $event)" hidden>
+    <input #fileEliminar type="file" accept=".xlsx,.xls" (change)="handleFile('eliminar', $event)" hidden>
+
+  </mat-card-content>
+</mat-card>

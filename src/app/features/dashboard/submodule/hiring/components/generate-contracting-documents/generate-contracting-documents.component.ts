@@ -359,13 +359,11 @@ export class GenerateContractingDocumentsComponent implements OnInit {
 
         // Ordenar apellidos primero y luego nombres
         this.nombreCompletoLogin = [
-          user.primer_apellido || '',
-          user.segundo_apellido || '',
-          user.primer_nombre || '',
-          user.segundo_nombre || ''
+          user.datos_basicos.apellidos || '',
+          user.datos_basicos.nombres || ''
         ].filter(part => part.trim() !== '').join(' ');
 
-        this.nombreCompleto = `${this.datosPersonales.primer_nombre} ${this.datosPersonales.segundo_nombre} ${this.datosPersonales.primer_apellido} ${this.datosPersonales.segundo_apellido}`
+        this.nombreCompleto = `${this.datosPersonales.nombres} ${this.datosPersonales.apellidos}`
           .replace(/\s+/g, ' ')
           .trim();
       } else {

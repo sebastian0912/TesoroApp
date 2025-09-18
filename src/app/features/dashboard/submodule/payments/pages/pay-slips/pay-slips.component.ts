@@ -100,9 +100,13 @@ export class PaySlipsComponent implements OnInit {
   }
 
 
-  triggerFileInput(): void {
-    const fileInput = document.getElementById('fileInput') as HTMLInputElement;
-    fileInput.click();
+  triggerFileInput(tipo: 'desprendibles' | 'correos'): void {
+    const id = tipo === 'desprendibles' ? 'fileInput' : 'fileInputEmails';
+    const fileInput = document.getElementById(id) as HTMLInputElement | null;
+    if (fileInput) {
+      fileInput.value = ''; // reinicia para permitir recargar el mismo archivo
+      fileInput.click();
+    }
   }
 
   cargarExcel(event: any): void {
@@ -146,7 +150,7 @@ export class PaySlipsComponent implements OnInit {
         // Eliminar fila de encabezados
         modifiedRows.shift();
 
-        this.resetFileInput();
+        this.resetFileInput('fileInput');
 
         this.paymentsService.subirExcelDesprendibles(modifiedRows).then((response: any) => {
           if (response.message === 'success') {
@@ -191,11 +195,173 @@ export class PaySlipsComponent implements OnInit {
     });
   }
 
-  resetFileInput(): void {
-    const fileInput = document.getElementById('fileInput') as HTMLInputElement;
-    if (fileInput) {
-      fileInput.value = '';
+  resetFileInput(id: 'fileInput' | 'fileInputEmails'): void {
+    const input = document.getElementById(id) as HTMLInputElement | null;
+    if (input) input.value = '';
+  }
+
+
+
+  // ============================================
+  // NUEVO: CARGA MASIVA DE CORREOS (FILA 2 = DATA)
+  // ============================================
+  cargarCorreosMasivos(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    if (!input.files?.length) return;
+    const file = input.files[0];
+
+    const validExtensions = ['xlsx', 'xls'];
+    const ext = file.name.split('.').pop()?.toLowerCase();
+    if (!ext || !validExtensions.includes(ext)) {
+      Swal.fire({ icon: 'error', title: 'Archivo no válido', text: 'Selecciona un Excel (.xlsx o .xls)' });
+      input.value = '';
+      return;
     }
+
+    Swal.fire({
+      title: 'Leyendo Excel...',
+      html: 'Procesando correos y cédulas desde la fila 2.',
+      icon: 'info',
+      allowOutsideClick: false,
+      didOpen: () => Swal.showLoading()
+    });
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const wb = XLSX.read(new Uint8Array(reader.result as ArrayBuffer), { type: 'array' });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const rows: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+
+        if (!rows.length || rows.length < 2) {
+          Swal.fire({ icon: 'error', title: 'Sin datos', text: 'El archivo debe tener encabezados en la fila 1 y datos desde la fila 2.' });
+          return;
+        }
+
+        // Detectar columnas por encabezado (flexible) o fallback [0]=cedula, [1]=correo
+        const headers = rows[0].map((h: any) => String(h || '').toLowerCase().trim());
+        const cedCandidates = ['cedula', 'cédula', 'documento', 'doc', 'numero de documento', 'numerodeceduladepersona', 'num_doc'];
+        const mailCandidates = ['correo', 'email', 'e-mail', 'primercorreoelectronico'];
+
+        const findIndex = (list: string[]) => {
+          for (const key of list) {
+            const idx = headers.findIndex(h => h === key || h.includes(key));
+            if (idx !== -1) return idx;
+          }
+          return -1;
+        };
+
+        let cedIdx = findIndex(cedCandidates);
+        let mailIdx = findIndex(mailCandidates);
+
+        if (cedIdx === -1 || mailIdx === -1) {
+          // fallback simple si no hay encabezados claros
+          cedIdx = 0;
+          mailIdx = 1;
+        }
+
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/i;
+
+        const seen = new Map<string, string>(); // doc -> email (último valor gana)
+        const invalidRows: number[] = [];
+        const invalidEmails: Array<{ row: number, email: string }> = [];
+        const incompleteRows: number[] = [];
+
+        for (let i = 1; i < rows.length; i++) {
+          const row = rows[i] || [];
+          const rawDoc = String(row[cedIdx] ?? '').replace(/\u00A0/g, '').trim();
+          const rawMail = String(row[mailIdx] ?? '').trim();
+
+          const emptyRow = !rawDoc && !rawMail;
+          if (emptyRow) continue; // salta filas vacías
+
+          if (!rawDoc || !rawMail) {
+            incompleteRows.push(i + 1); // +1 por base 1 de Excel
+            continue;
+          }
+          if (!emailRegex.test(rawMail)) {
+            invalidEmails.push({ row: i + 1, email: rawMail });
+            continue;
+          }
+          // Guarda (último valor gana)
+          seen.set(rawDoc, rawMail);
+        }
+
+        const payload = Array.from(seen.entries()).map(([numerodeceduladepersona, primercorreoelectronico]) => ({
+          numerodeceduladepersona,
+          primercorreoelectronico
+        }));
+
+        if (!payload.length) {
+          Swal.fire({
+            icon: 'error',
+            title: 'Nada para enviar',
+            html: 'No se encontraron filas válidas.<br>Revisa encabezados y datos desde la fila 2.'
+          });
+          this.resetFileInput('fileInputEmails');
+          return;
+        }
+
+        // Confirmación previa con resumen
+        const resumenHtml = `
+          <div style="text-align:left">
+            <p><b>Registros válidos:</b> ${payload.length}</p>
+            ${invalidRows.length ? `<p><b>Filas inválidas (formato):</b> ${invalidRows.join(', ')}</p>` : ''}
+            ${incompleteRows.length ? `<p><b>Filas incompletas (faltan columnas):</b> ${incompleteRows.join(', ')}</p>` : ''}
+            ${invalidEmails.length ? `<p><b>Correos no válidos:</b> ${invalidEmails.map(i => `F${i.row}(${i.email})`).join(', ')}</p>` : ''}
+          </div>
+        `;
+        Swal.fire({
+          title: '¿Enviar actualización masiva?',
+          html: resumenHtml,
+          icon: 'question',
+          showCancelButton: true,
+          confirmButtonText: 'Sí, enviar',
+          cancelButtonText: 'Cancelar'
+        }).then((res) => {
+          if (!res.isConfirmed) {
+            this.resetFileInput('fileInputEmails');
+            return;
+          }
+
+          Swal.fire({
+            title: 'Actualizando correos...',
+            html: 'Procesando en el servidor.',
+            icon: 'info',
+            allowOutsideClick: false,
+            didOpen: () => Swal.showLoading()
+          });
+
+          this.paymentsService.actualizarCorreosMasivos(payload)
+            .then((response: any) => {
+              // El backend devuelve summary y details (según lo que hicimos)
+              const s = response?.summary || {};
+              const d = response?.details || {};
+              const html = `
+                <div style="text-align:left">
+                  <p><b>Recibidos:</b> ${s.received ?? '-'}</p>
+                  <p><b>Documentos únicos:</b> ${s.unique_docs ?? '-'}</p>
+                  <p><b>Actualizados:</b> ${s.updated ?? '-'}</p>
+                  <p><b>Sin cambio:</b> ${s.unchanged ?? '-'}</p>
+                  <p><b>No encontrados:</b> ${s.not_found ?? '-'}</p>
+                  <p><b>Duplicados en archivo:</b> ${s.duplicates_in_payload ?? '-'}</p>
+                </div>`;
+              Swal.fire({ icon: 'success', title: 'Actualización completada', html });
+            })
+            .catch((err: any) => {
+              const msg = err?.error?.detail || 'Error al actualizar correos.';
+              Swal.fire({ icon: 'error', title: 'Error', text: msg });
+            })
+            .finally(() => this.resetFileInput('fileInputEmails'));
+        });
+
+      } catch (e) {
+        Swal.fire({ icon: 'error', title: 'Error de lectura', text: 'No se pudo procesar el archivo Excel.' });
+        this.resetFileInput('fileInputEmails');
+      }
+    };
+
+    reader.readAsArrayBuffer(file);
   }
 
 }
