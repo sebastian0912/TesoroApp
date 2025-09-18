@@ -1,19 +1,45 @@
 <mat-card>
   <mat-card-content>
-    <h1 class="titulo">Lista de Trabajadores</h1>
+    <mat-toolbar color="primary">
+      <span>Lista de Trabajadores</span>
+      <span class="spacer"></span>
+
+      <!-- Buscador -->
+      <mat-form-field class="toolbar-search" appearance="outline">
+        <mat-label>Buscar</mat-label>
+        <input #input matInput placeholder="Cédula o código" (input)="applyFilter(input.value)" />
+        <button mat-icon-button matSuffix aria-label="Limpiar" *ngIf="input.value" (click)="clearSearch(input)">
+          <mat-icon>close</mat-icon>
+        </button>
+      </mat-form-field>
+
+      <!-- Menú -->
+      <button mat-icon-button [matMenuTriggerFor]="actions" aria-label="Acciones">
+        <mat-icon>more_vert</mat-icon>
+      </button>
+    </mat-toolbar>
+
+    <mat-menu #actions="matMenu">
+      <button mat-menu-item (click)="resetearValores()">
+        <mat-icon>refresh</mat-icon>
+        <span>Resetear valores quincena</span>
+      </button>
+
+      <button mat-menu-item (click)="generarExcelDatosBase()">
+        <mat-icon>download</mat-icon>
+        <span>Extraer datos base</span>
+      </button>
+
+      <mat-divider></mat-divider>
+
+      <div class="menu-toggle" (click)="$event.stopPropagation()">
+        <mat-slide-toggle [checked]="showInactive" (change)="toggleShowInactive($event)">
+          {{ showInactive ? 'Desbloquear trabajadores' : 'Bloquear trabajadores' }}
+        </mat-slide-toggle>
+      </div>
+    </mat-menu>
 
 
-    <mat-form-field class="filtro">
-      <mat-label>Buscar</mat-label>
-      <input matInput (keyup)="applyFilter($event)" placeholder="Buscar por número de cedula o codigo contrato"
-        #input />
-    </mat-form-field>
-
-    <!--Slide-toggle-->
-    <mat-slide-toggle class="slide-toggle" [checked]="showInactive" (change)="toggleShowInactive($event)"
-      style="margin-left: 20pt;">
-      {{ showInactive ? 'Desbloquear Trabajadores' : 'Bloquear Trabajadores' }}
-    </mat-slide-toggle>
 
     <h1 style="font-size: 14pt;"><strong class="titulo">Trabajadores activos:</strong> {{numeroActivo}}</h1> <br>
 

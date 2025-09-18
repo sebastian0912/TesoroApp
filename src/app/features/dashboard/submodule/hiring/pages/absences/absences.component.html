@@ -7,7 +7,7 @@
           <mat-label>Ingrese la cédula</mat-label>
           <input matInput [(ngModel)]="cedula">
         </mat-form-field>
-        <button mat-raised-button color="primary" (onclick)="buscarFormasPago(cedula)" class="boton">Buscar</button>
+        <button mat-flat-button (click)="buscarFormasPago(cedula)" class="boton" type="button">Buscar</button>
       </div>
 
       <div class="cards">
@@ -30,8 +30,6 @@
       <input #fileInput2 id="fileInput2" type="file"
         accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
         (change)="eliminarCaracteresEspeciales($event)" hidden />
-
-
 
     </div>
 

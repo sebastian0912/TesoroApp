@@ -7,13 +7,15 @@ import { MatTableDataSource } from '@angular/material/table';
 import { HiringService } from '../../service/hiring.service';
 import Swal from 'sweetalert2';
 import * as XLSX from 'xlsx';
+import { MatButtonModule } from '@angular/material/button';
 
 @Component({
   selector: 'app-absences',
   imports: [
     SharedModule,
     InfoCardComponent,
-    FormsModule
+    FormsModule,
+    MatButtonModule
   ],
   templateUrl: './absences.component.html',
   styleUrl: './absences.component.css'

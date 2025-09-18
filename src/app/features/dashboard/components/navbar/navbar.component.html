@@ -1,6 +1,22 @@
-<aside class="sidebar" [class.show-detail]="!!activeRoot" [class.sidebar-hidden]="isSidebarHidden">
+<!-- Botón móvil (hamburguesa) -->
+<button
+  class="mobile-menu-btn"
+  type="button"
+  aria-label="Abrir menú"
+  (click)="isSidebarHidden = false"
+>
+  <mat-icon fontSet="material-symbols-outlined">menu</mat-icon>
+</button>
+
+<aside
+  class="sidebar"
+  [class.show-detail]="!!activeRoot"
+  [class.sidebar-hidden]="isSidebarHidden"
+  (pointerenter)="cancelClose()"
+  (pointerleave)="scheduleClose()"
+>
   <!-- PANEL IZQUIERDO (MÓDULOS RAÍZ) -->
-  <div class="left" (mouseleave)="onPanelLeave()" *ngIf="!isSidebarHidden">
+  <div class="left" *ngIf="!isSidebarHidden">
     <div class="module-buttons">
       <!-- HOME fijo -->
       <button
@@ -19,10 +35,10 @@
       <ng-container *ngFor="let mod of rootModules; trackBy: trackByNodeId">
         <button
           type="button"
-          (mouseenter)="onModuleEnter(mod)"
-          [matTooltip]="mod.nombre"
-          matTooltipPosition="right"
+          (pointerenter)="onModuleEnter(mod)"
+          (click)="onModuleEnter(mod)"
           [attr.aria-expanded]="activeRoot?.id === mod.id"
+          [attr.aria-controls]="'right-panel-content'"
         >
           <mat-icon class="tree-icon" fontSet="material-symbols-outlined">
             {{ getModuleIcon(mod.nombre) }}
@@ -43,14 +59,15 @@
     class="right"
     *ngIf="activeRoot"
     id="right-panel-content"
-    (mouseenter)="onRightPanelEnter()"
-    (mouseleave)="onPanelLeave()"
+    (pointerenter)="onRightPanelEnter()"
+    role="dialog"
+    aria-modal="true"
+    [attr.aria-label]="'Submódulos de ' + activeRoot.nombre"
   >
     <div class="right-inner">
       <!-- Cabecera -->
       <div class="header">
         <h2 class="header-title">{{ activeRoot.nombre }}</h2>
-        <!-- El botón ahora solo es decorativo (sin expandir/colapsar) o puedes eliminarlo -->
         <button class="header-pin-button" title="Opciones" type="button">
           <mat-icon class="header-icon" fontSet="material-symbols-outlined">more_horiz</mat-icon>
         </button>
@@ -67,17 +84,15 @@
       <ng-template #nodeListTpl let-nodes="nodes" let-depth="depth">
         <ul class="tree-level" [class.is-root]="depth === 0">
           <li *ngFor="let node of nodes; trackBy: trackByNodeId">
-            <!-- NODO PADRE (TÍTULO) -->
+            <!-- NODO PADRE -->
             <ng-container *ngIf="node.hijos?.length; else leafTpl">
               <div class="tree-item is-parent" [style.paddingLeft.px]="depth * 12">
-                <!-- Sin ícono, sin toggle, solo título con contador -->
                 <div class="tree-parent-title">
                   {{ node.nombre }}
                   <span class="child-count">({{ node.hijos.length }})</span>
                 </div>
               </div>
 
-              <!-- HIJOS SIEMPRE VISIBLES -->
               <ng-container
                 *ngTemplateOutlet="nodeListTpl; context: { nodes: node.hijos, depth: depth + 1 }"
               ></ng-container>
@@ -94,7 +109,7 @@
                   class="tree-link leaf"
                   [routerLink]="getNodeRoute(node)"
                   routerLinkActive="active-submodule"
-                  (click)="activeRoot = null"
+                  (click)="onLeafClick()"
                 >
                   {{ node.nombre }}
                 </a>
@@ -105,4 +120,12 @@
       </ng-template>
     </div>
   </div>
+
+  <!-- Backdrop dentro del aside para overlay móvil -->
+  <div
+    class="sidebar-backdrop"
+    *ngIf="!isSidebarHidden && activeRoot"
+    (click)="isSidebarHidden = true; activeRoot = null"
+    aria-hidden="true"
+  ></div>
 </aside>
