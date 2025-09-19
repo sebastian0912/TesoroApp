@@ -158,12 +158,7 @@ export class MercadoComercializadoraComponent implements OnInit, OnDestroy {
             this.dataSource.data = this.codigosFormArray.controls;
           });
 
-        // Verificar saldo si el usuario no es GERENCIA
-        if (this.rolUsuario !== 'GERENCIA' && !this.autorizacionesService.verificarSaldo(this.datosOperario)) {
-          this.datosOperario = null;
-          this.mostrarError('El operario tiene saldos pendientes mayores a 175000.');
-          return;
-        }
+
       });
   }
 

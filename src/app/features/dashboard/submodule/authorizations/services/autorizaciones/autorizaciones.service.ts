@@ -56,18 +56,6 @@ export class AutorizacionesService {
     return sumaPrestamos;
   }
 
-
-  // verificar saldo
-  verificarSaldo(operario: any): boolean {
-    if (operario.saldos < 175000) {
-      return true;
-    }
-    else {
-      this.aviso('Ups no se pueden generar prestamos porque superas los 175000 de saldo permitido', 'error');
-    }
-    return false;
-  }
-
   // verificar fondos
   verificarFondos(operario: any): boolean {
     if (parseInt(operario.fondos) <= 0) {

@@ -101,13 +101,6 @@ export class CargarMercadoComponent implements OnInit {
           return;
         }
 
-        if (this.rolUsuario !== "GERENCIA" ) {
-          if (!this.autorizacionesService.verificarSaldo(this.datosOperario)) {
-            this.datosOperario = null;
-            this.mostrarError('El operario tiene saldos pendientes mayores a 175000.');
-            return;
-          }
-        }
       });
   }
 

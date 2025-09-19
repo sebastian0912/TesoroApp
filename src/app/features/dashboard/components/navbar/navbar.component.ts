@@ -1,25 +1,28 @@
-import { Component, EventEmitter, OnInit, OnDestroy, Output, Inject, PLATFORM_ID } from '@angular/core';
+import {
+  Component,
+  EventEmitter,
+  OnInit,
+  OnDestroy,
+  Output,
+  Inject,
+  PLATFORM_ID,
+  ElementRef,
+  ViewChild,
+  HostListener,
+} from '@angular/core';
 import { isPlatformBrowser } from '@angular/common';
 import { SharedModule } from '../../../../shared/shared.module';
 import { Router, NavigationEnd, RouterModule } from '@angular/router';
 import { filter } from 'rxjs/operators';
-import { TesoreriaService } from '../../service/teroreria/tesoreria.service'; // Importación del servicio
-import { DateRangeDialogComponent } from '../../../../shared/components/date-rang-dialog/date-rang-dialog.component';
-import { MatDialog } from '@angular/material/dialog';
-import { UtilityServiceService } from '../../../../shared/services/utilityService/utility-service.service';
-import { AutorizacionesService } from '../../submodule/authorizations/services/autorizaciones/autorizaciones.service';
-import { MercadoService } from '../../submodule/market/service/mercado/mercado.service';
 import Swal from 'sweetalert2';
-import * as XLSX from 'xlsx';
-import moment from 'moment';
 import { Subscription } from 'rxjs';
 import { MatIconModule } from '@angular/material/icon';
 
 export interface PermNode {
   id: string;
   nombre: string;
-  acciones: string[];                    // p.ej. ["LEER","CREAR",...]
-  permiso_ids: Record<string, string>;   // p.ej. { LEER: "uuid", ... }
+  acciones: string[];                  // p.ej. ["LEER","CREAR",...]
+  permiso_ids: Record<string, string>; // p.ej. { LEER: "uuid", ... }
   hijos: PermNode[];
 }
 
@@ -30,11 +33,12 @@ export interface PermNode {
   styleUrls: ['./navbar.component.css'],
 })
 export class NavbarComponent implements OnInit, OnDestroy {
-
   @Output() public menuToggle = new EventEmitter<boolean>();
+  @ViewChild('sidebarRef', { static: false }) asideRef?: ElementRef<HTMLElement>;
 
   public isSidebarHidden = false;
   public isMobile = false;
+  public pinOpen = false; // 🔒 anclado
   public currentRoute?: string;
 
   // árbol de permisos (raíces)
@@ -44,13 +48,13 @@ export class NavbarComponent implements OnInit, OnDestroy {
   // estado UI
   private expanded: Record<string, boolean> = {};
 
-  // 🔧 Cierre diferido
+  // ⏳ Cierre diferido
   private closeTimer: ReturnType<typeof setTimeout> | null = null;
   private readonly CLOSE_DELAY = 500;
 
   private routerSubscription?: Subscription;
 
-  // handler ligado para poder removerlo correctamente
+  // breakpoint y handler
   private readonly MOBILE_BREAKPOINT = 900;
   private resizeHandler = () => this.checkMobile();
 
@@ -67,9 +71,15 @@ export class NavbarComponent implements OnInit, OnDestroy {
       window.addEventListener('resize', this.resizeHandler);
     }
 
+    // Cerrar/ajustar al navegar
     this.routerSubscription = this.router.events
       .pipe(filter((e): e is NavigationEnd => e instanceof NavigationEnd))
-      .subscribe((e) => (this.currentRoute = e.urlAfterRedirects));
+      .subscribe((e) => {
+        this.currentRoute = e.urlAfterRedirects;
+        if (!this.pinOpen) this.activeRoot = null;
+        if (this.isMobile) this.isSidebarHidden = true;
+        this.saveUIState();
+      });
   }
 
   ngOnDestroy(): void {
@@ -80,14 +90,27 @@ export class NavbarComponent implements OnInit, OnDestroy {
     }
   }
 
-  /** Restaura el estado de ocultar sidebar */
+  /* ===========================
+     Estado UI persistente
+     =========================== */
   private loadUIState(): void {
     if (!isPlatformBrowser(this.platformId)) return;
     const hidden = localStorage.getItem('sidebarHidden');
+    const pin = localStorage.getItem('sidebarPin');
     this.isSidebarHidden = hidden === 'true';
+    this.pinOpen = pin === 'true';
   }
 
-  // 👉 Cancela cualquier cierre pendiente
+  private saveUIState(): void {
+    if (!isPlatformBrowser(this.platformId)) return;
+    localStorage.setItem('sidebarHidden', String(this.isSidebarHidden));
+    localStorage.setItem('sidebarPin', String(this.pinOpen));
+  }
+
+  /* ===========================
+     Cierre seguro
+     =========================== */
+  // Cancela cualquier cierre pendiente
   cancelClose(): void {
     if (this.closeTimer) {
       clearTimeout(this.closeTimer);
@@ -95,23 +118,30 @@ export class NavbarComponent implements OnInit, OnDestroy {
     }
   }
 
-  // 👉 Programa el cierre con retardo
-  public scheduleClose(): void {
+  // Programa el cierre sólo si realmente sales del <aside>
+  public scheduleClose(ev?: PointerEvent): void {
+    if (this.pinOpen || this.isMobile) return; // no cerrar por hover si está anclado o en móvil
+
+    const aside = this.asideRef?.nativeElement;
+    const to = ev?.relatedTarget as Node | null;
+    if (aside && to && aside.contains(to)) return; // seguimos dentro → no cerrar
+
     this.cancelClose();
     this.closeTimer = setTimeout(() => {
       this.activeRoot = null;
-      // si quisieras ocultar todo en desktop al salir, descomenta:
-      // this.isSidebarHidden = true;
     }, this.CLOSE_DELAY);
   }
 
   onLeafClick(): void {
     this.cancelClose();
     this.activeRoot = null;
-    if (matchMedia('(hover: none)').matches) this.isSidebarHidden = true;
+    if (matchMedia('(hover: none)').matches) this.isSidebarHidden = true; // móvil
+    this.saveUIState();
   }
 
-  /* ============ Lectura de permisos_tree ============ */
+  /* ===========================
+     Lectura de permisos_tree
+     =========================== */
   private loadPermTreeFromStorage(): void {
     try {
       const raw = localStorage.getItem('user');
@@ -128,37 +158,44 @@ export class NavbarComponent implements OnInit, OnDestroy {
     }
   }
 
-  /* ============ Panel izquierdo (módulos raíz) ============ */
+  /* ===========================
+     Panel izquierdo (raíces)
+     =========================== */
   public get rootModules(): PermNode[] {
     return (this.permTree || []).filter((n) => this.canRead(n));
   }
 
   public onModuleEnter(mod: PermNode): void {
-    this.cancelClose();            // ⛔ evita cierre mientras pasas al derecho
+    this.cancelClose(); // evita cierre al pasar al derecho
     this.activeRoot = mod;
     (mod.hijos || []).forEach((h) => (this.expanded[h.id] = true));
   }
 
-  // Si tu template aún llama onPanelLeave(), ahora usa cierre diferido
+  // Si tu template aún llama onPanelLeave()
   public onPanelLeave(): void {
     this.scheduleClose();
   }
 
   public onRightPanelEnter(): void {
-    this.cancelClose();            // ⛔ al entrar al derecho, cancela el cierre
+    this.cancelClose(); // al entrar al derecho, cancela cierre
   }
 
-  /* ============ Toggle / expand ============ */
+  /* ===========================
+     Expand/collapse utilidades
+     =========================== */
   public isExpanded(id: string): boolean {
     return !!this.expanded[id];
   }
+
   public toggleNode(id: string): void {
     this.expanded[id] = !this.expanded[id];
   }
+
   public toggleAll(root: PermNode): void {
     const hasCollapsed = this.isAnyCollapsed(root);
     this.walk(root, (n) => (this.expanded[n.id] = hasCollapsed));
   }
+
   public isAnyCollapsed(root: PermNode): boolean {
     let collapsed = false;
     this.walk(root, (n) => {
@@ -166,16 +203,15 @@ export class NavbarComponent implements OnInit, OnDestroy {
     });
     return collapsed;
   }
+
   private walk(node: PermNode, fn: (n: PermNode) => void): void {
     fn(node);
     (node.hijos || []).forEach((h) => this.walk(h, fn));
   }
 
   /* ===========================================================
-     Normalización de texto (mostrar solo primera mayúscula)
-     y lookups insensibles a mayúsculas para rutas e iconos
+     Normalización de texto e índices case-insensitive
      =========================================================== */
-
   private toSentenceCase(s: string = ''): string {
     const t = s.toLowerCase();
     return t.replace(/^\p{L}/u, (c) => c.toUpperCase());
@@ -191,9 +227,10 @@ export class NavbarComponent implements OnInit, OnDestroy {
     return out;
   }
 
-  /* ============ Navegación / rutas ============ */
+  /* ===========================
+     Navegación / rutas
+     =========================== */
   private readonly routeMap: Record<string, string> = {
-    // Raíces
     // Administración
     'Administración': 'users/manage-users',
 
@@ -238,8 +275,7 @@ export class NavbarComponent implements OnInit, OnDestroy {
     'Bono de mercado': 'authorizations/market-bonus',
     'Prestado de dinero': 'authorizations/money-loan',
 
-    // PRESTADO PARA REALIZAR
-    // PRESTAMO POR CALAMIDAD
+    // Préstamos (alias)
     'PRESTADO PARA REALIZAR': 'money-loan/loan-to-perform',
     'PRESTAMO POR CALAMIDAD': 'money-loan/emergency-loan',
 
@@ -251,13 +287,13 @@ export class NavbarComponent implements OnInit, OnDestroy {
     'Historial de autorizaciones': 'history/authorizations-history',
     'Historial de modificaciones': 'history/modifications-history',
 
-    // GESTION ROLES
+    // Gestión roles
     'GESTIÓN ROLES': 'users/manage-roles',
 
-    // AUSENTISMOS
+    // Ausentismos
     'AUSENTISMOS': 'hiring/absences',
 
-    // upload-treasury
+    // Cargas masivas tesorería
     'CARGAS MASIVAS': 'treasury/upload-treasury',
   };
 
@@ -271,44 +307,45 @@ export class NavbarComponent implements OnInit, OnDestroy {
     return `${base}/${this.slug(node.nombre)}`;
   }
 
-  /* ============ Iconos ============ */
+  /* ===========================
+     Iconos
+     =========================== */
   private readonly iconMap: Record<string, string> = {
-    // Raíces
+    // Raíces y categorías
     'Comercializadora': 'storefront',
     'Gestión del programa': 'manage_accounts',
     'Procesos empresa': 'work',
     'Procesos empresariales': 'work',
     'Tesoreria': 'account_balance',
 
-    // COMERCIALIZADORA ▸ Mercancía
+    // Mercancía
     'Mercancía': 'inventory_2',
     'Edición de mercancía': 'edit',
     'Envío de mercancía': 'local_shipping',
     'Recepción de mercancía': 'assignment_turned_in',
 
-    // GESTION DEL PROGRAMA
+    // Gestión del programa
     'Administración': 'admin_panel_settings',
 
-    // Procesos empresariales ▸ Gestión documental
+    // Gestión documental
     'Gestión documental': 'folder',
     'Adjuntar documentación': 'upload_file',
     'Buscar documentación': 'search',
     'Estructura documental': 'schema',
     'Permisos de documentación de empresas usuarias': 'lock',
 
-    // Procesos empresariales ▸ Pagos
+    // Pagos
     'Pagos': 'payments',
     'Comprobantes de pago': 'receipt_long',
     'Formas de pago': 'credit_card',
 
-    // Procesos empresariales ▸ Selección y contratación
+    // Selección y contratación
     'Selección y contratación': 'how_to_reg',
     'Contratación 1.0': 'assignment',
     'Formulario de consulta': 'fact_check',
     'Listado de errores': 'bug_report',
     'Reporte de contratación': 'insert_chart',
     'Ver reporte de contratación': 'visibility',
-
     'Contratación 2.0': 'assignment_turned_in',
     'Consultar documentación': 'find_in_page',
     'Gerencia 901': 'workspace_premium',
@@ -316,48 +353,42 @@ export class NavbarComponent implements OnInit, OnDestroy {
     'Selección': 'person_search',
     'Ver entrevistas de recepción': 'record_voice_over',
 
-    // Procesos empresariales ▸ Vacantes
+    // Vacantes
     'Vacantes': 'work',
     'Gestión de vacantes': 'work',
 
-    // TESORERIA ▸ Autorizaciones / Ayudas / Historial / Mercado / Operaciones...
+    // Tesorería / Autorizaciones / Ayudas / Historial / Mercado / Operaciones
     'Autorizaciones': 'approval',
     'Bono de mercado': 'redeem',
     'Prestado de dinero': 'paid',
-
     'Ayudas': 'volunteer_activism',
     'Cargar mercados con código': 'qr_code_scanner',
     'Cargar mercados sin código': 'shopping_cart',
-
     'Historial': 'history',
     'Historial de autorizaciones': 'history',
     'Historial de modificaciones': 'manage_history',
-
     'Mercado': 'shopping_bag',
     'Carga de mercado': 'upload_file',
     'Carga de mercado (comercializadora)': 'storefront',
     'Carga de mercado (ferias)': 'festival',
-
     'Operaciones de tesorería': 'calculate',
     'Cargas masivas': 'dataset',
     'Gestión de trabajadores': 'group',
 
-    // TESORERIA ▸ Préstamos / Tesorero / Traslados
+    // Préstamos / Traslados
     'Prestamo de dinero': 'savings',
     'Prestado para realizar': 'schedule',
     'Prestamo por calamidad': 'warning_amber',
-
     'Préstamos': 'savings',
     'Prestamo para realizar': 'schedule',
-
     'Traslados': 'swap_horiz',
     'Consulta de traslados': 'search',
     'Procesos de traslados': 'sync_alt',
 
-    // GESTION ROLES
+    // Gestión roles
     'GESTIÓN ROLES': 'security',
 
-    // AUSENTISMOS
+    // Ausentismos
     'AUSENTISMOS': 'event_busy',
   };
 
@@ -366,26 +397,74 @@ export class NavbarComponent implements OnInit, OnDestroy {
   public getModuleIcon(nombre: string): string {
     return this.iconMapIndex[(nombre ?? '').toUpperCase()] || 'widgets';
   }
+
   public getNodeIcon(nombre: string): string {
     return this.iconMapIndex[(nombre ?? '').toUpperCase()] || 'radio_button_unchecked';
   }
 
-  /* ============ Utilidades ============ */
+  /* ===========================
+     Utilidades layout
+     =========================== */
   private checkMobile(): void {
     this.isMobile = window.innerWidth <= this.MOBILE_BREAKPOINT;
-    if (this.isMobile && !this.isSidebarHidden) {
+    if (this.isMobile) {
+      // en móvil, por defecto oculto hasta abrir con botón
       this.isSidebarHidden = true;
+    } else {
+      // en desktop, visible barra izquierda
+      this.isSidebarHidden = false;
     }
-    if (!this.isMobile) this.isSidebarHidden = false;
+    this.saveUIState();
   }
 
   public toggleSidebar(): void {
     this.isSidebarHidden = !this.isSidebarHidden;
-    if (isPlatformBrowser(this.platformId)) {
-      localStorage.setItem('sidebarHidden', String(this.isSidebarHidden));
+    this.saveUIState();
+  }
+
+  public openSidebarForMobile(): void {
+    // usado por el botón hamburguesa
+    this.isSidebarHidden = false;
+    if (!this.activeRoot && this.rootModules.length) {
+      this.activeRoot = this.rootModules[0];
+    }
+    this.saveUIState();
+  }
+
+  public closeAll(_source: 'backdrop' | 'outside' | 'esc' | 'api' = 'api'): void {
+    if (this.pinOpen) return; // respetar pin
+    this.activeRoot = null;
+    if (this.isMobile) this.isSidebarHidden = true;
+    this.saveUIState();
+  }
+
+  public togglePin(): void {
+    this.pinOpen = !this.pinOpen;
+    this.saveUIState();
+  }
+
+  /* ===========================
+     Cierre por clic fuera / ESC
+     =========================== */
+  @HostListener('document:click', ['$event'])
+  onDocumentClick(e: MouseEvent): void {
+    if (this.pinOpen) return;
+    const aside = this.asideRef?.nativeElement;
+    if (!aside || this.isMobile) return;
+    const target = e.target as Node;
+    if (!aside.contains(target)) {
+      this.closeAll('outside');
     }
   }
 
+  @HostListener('document:keydown.escape')
+  onEsc(): void {
+    this.closeAll('esc');
+  }
+
+  /* ===========================
+     Otros helpers
+     =========================== */
   public cerrarSesion(): void {
     if (isPlatformBrowser(this.platformId)) localStorage.clear();
     this.router.navigate(['']);
@@ -395,7 +474,7 @@ export class NavbarComponent implements OnInit, OnDestroy {
 
   public canRead(n: PermNode): boolean {
     if ((n.acciones || []).includes('LEER')) return true;
-    return (n.hijos || []).some(h => this.canRead(h));
+    return (n.hijos || []).some((h) => this.canRead(h));
   }
 
   private slug(name: string): string {

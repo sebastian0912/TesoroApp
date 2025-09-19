@@ -90,12 +90,6 @@ export class PrestamoCalamidadComponent implements OnInit {
         }
 
         if (this.rolUsuario !== "GERENCIA" || this.correoUsuario === 'antcontable6.ts@gmail.com') {
-          if (!this.autorizacionesService.verificarSaldo(this.datosOperario)) {
-            this.datosOperario = null;
-            this.mostrarError('El operario tiene saldos pendientes mayores a 175000.');
-            return;
-          }
-
           if (!this.autorizacionesService.verificarFondos(this.datosOperario)) {
             this.datosOperario = null;
             this.mostrarError('El operario pertenece al fondo');

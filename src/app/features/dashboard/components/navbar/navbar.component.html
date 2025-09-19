@@ -3,19 +3,21 @@
   class="mobile-menu-btn"
   type="button"
   aria-label="Abrir menú"
-  (click)="isSidebarHidden = false"
+  (click)="openSidebarForMobile()"
 >
   <mat-icon fontSet="material-symbols-outlined">menu</mat-icon>
 </button>
 
 <aside
+  #sidebarRef
   class="sidebar"
   [class.show-detail]="!!activeRoot"
   [class.sidebar-hidden]="isSidebarHidden"
+  [class.pinned]="pinOpen"
   (pointerenter)="cancelClose()"
-  (pointerleave)="scheduleClose()"
+  (pointerleave)="scheduleClose($event)"
 >
-  <!-- PANEL IZQUIERDO (MÓDULOS RAÍZ) -->
+  <!-- PANEL IZQUIERDO -->
   <div class="left" *ngIf="!isSidebarHidden">
     <div class="module-buttons">
       <!-- HOME fijo -->
@@ -24,14 +26,13 @@
         routerLinkActive="active-module-button"
         [routerLinkActiveOptions]="{ exact: true }"
         aria-label="Inicio"
-        matTooltip="Inicio"
-        matTooltipPosition="right"
+        title="Inicio"
         type="button"
       >
         <mat-icon class="tree-icon" fontSet="material-symbols-outlined">home</mat-icon>
       </button>
 
-      <!-- Módulos raíz desde permisos_tree -->
+      <!-- Módulos raíz -->
       <ng-container *ngFor="let mod of rootModules; trackBy: trackByNodeId">
         <button
           type="button"
@@ -54,7 +55,7 @@
     </div>
   </div>
 
-  <!-- PANEL DERECHO (ÁRBOL SIEMPRE EXPANDIDO) -->
+  <!-- PANEL DERECHO -->
   <div
     class="right"
     *ngIf="activeRoot"
@@ -68,23 +69,31 @@
       <!-- Cabecera -->
       <div class="header">
         <h2 class="header-title">{{ activeRoot.nombre }}</h2>
-        <button class="header-pin-button" title="Opciones" type="button">
-          <mat-icon class="header-icon" fontSet="material-symbols-outlined">more_horiz</mat-icon>
+
+        <!-- Botón PIN: ancla/desancla el panel derecho -->
+        <button
+          class="header-pin-button"
+          [class.is-pinned]="pinOpen"
+          [attr.aria-pressed]="pinOpen"
+          (click)="togglePin()"
+          [title]="pinOpen ? 'Desanclar panel' : 'Anclar panel'"
+          type="button"
+        >
+          <mat-icon class="header-icon" fontSet="material-symbols-outlined">
+            {{ pinOpen ? 'keep' : 'push_pin' }}
+          </mat-icon>
         </button>
       </div>
 
       <!-- Árbol SIEMPRE VISIBLE -->
       <nav class="nav-tree" [attr.aria-label]="'Submódulos de ' + activeRoot.nombre">
-        <ng-container
-          *ngTemplateOutlet="nodeListTpl; context: { nodes: activeRoot.hijos, depth: 0 }"
-        ></ng-container>
+        <ng-container *ngTemplateOutlet="nodeListTpl; context: { nodes: activeRoot.hijos, depth: 0 }"></ng-container>
       </nav>
 
-      <!-- PLANTILLA RECURSIVA (SIEMPRE EXPANDIDA) -->
+      <!-- PLANTILLA RECURSIVA -->
       <ng-template #nodeListTpl let-nodes="nodes" let-depth="depth">
         <ul class="tree-level" [class.is-root]="depth === 0">
           <li *ngFor="let node of nodes; trackBy: trackByNodeId">
-            <!-- NODO PADRE -->
             <ng-container *ngIf="node.hijos?.length; else leafTpl">
               <div class="tree-item is-parent" [style.paddingLeft.px]="depth * 12">
                 <div class="tree-parent-title">
@@ -92,13 +101,9 @@
                   <span class="child-count">({{ node.hijos.length }})</span>
                 </div>
               </div>
-
-              <ng-container
-                *ngTemplateOutlet="nodeListTpl; context: { nodes: node.hijos, depth: depth + 1 }"
-              ></ng-container>
+              <ng-container *ngTemplateOutlet="nodeListTpl; context: { nodes: node.hijos, depth: depth + 1 }"></ng-container>
             </ng-container>
 
-            <!-- NODO HOJA -->
             <ng-template #leafTpl>
               <div class="tree-item is-leaf" [style.paddingLeft.px]="depth * 12">
                 <mat-icon class="tree-icon" fontSet="material-symbols-outlined">
@@ -121,11 +126,11 @@
     </div>
   </div>
 
-  <!-- Backdrop dentro del aside para overlay móvil -->
+  <!-- Backdrop móvil -->
   <div
     class="sidebar-backdrop"
     *ngIf="!isSidebarHidden && activeRoot"
-    (click)="isSidebarHidden = true; activeRoot = null"
+    (click)="closeAll('backdrop')"
     aria-hidden="true"
   ></div>
 </aside>

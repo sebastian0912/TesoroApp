@@ -495,22 +495,7 @@ export class CargarMercadoFeriasComponent implements OnInit {
           });
           return;
         }
-/*
-        if (this.rolUsuario !== "GERENCIA") {
-          // Validar si el operario tiene saldos pendientes mayores a 175000
-          if (!this.autorizacionesService.verificarSaldo(this.datosOperario)) {
-            this.datosOperario = null;
-            Swal.fire({
-              icon: 'error',
-              title: 'Saldo pendiente',
-              text: 'El empleado con la cédula proporcionada tiene saldos pendientes mayores a $175.000 y no puede solicitar autorizaciones.',
-              showConfirmButton: true, // Muestra un botón para cerrar
-              allowOutsideClick: false, // Evita que se cierre al hacer clic fuera
-              allowEscapeKey: false, // Evita que se cierre con la tecla Esc
-            });
-            return;
-          }
-        }*/
+
       },
       (error: any) => {
         Swal.close();

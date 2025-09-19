@@ -68,6 +68,7 @@ aside.sidebar {
   width: 0 !important;
   min-width: 0 !important;
   overflow: visible;
+  pointer-events: none; /* evita clics fantasma cuando está oculto */
 }
 
 /* Botón móvil (oculto en desktop) */
@@ -110,6 +111,11 @@ aside.sidebar {
 
 .sidebar.show-detail .sidebar-backdrop {
   display: block;
+}
+
+/* Al estar anclado (pin), oculta el backdrop */
+.sidebar.pinned .sidebar-backdrop {
+  display: none !important;
 }
 
 /* ===============================
@@ -266,6 +272,11 @@ aside.sidebar {
 }
 
 .sidebar .right .header-pin-button:hover {
+  background-color: var(--color-hover-on-gray-bg);
+}
+
+/* Estado visual cuando está anclado (pin activo) */
+.sidebar .right .header-pin-button.is-pinned {
   background-color: var(--color-hover-on-gray-bg);
 }
 
@@ -438,6 +449,7 @@ aside.sidebar {
 
   aside.sidebar {
     width: 100vw;
+    pointer-events: auto;
   }
 
   /* El izquierdo debe tener contexto y quedar por debajo del derecho */
