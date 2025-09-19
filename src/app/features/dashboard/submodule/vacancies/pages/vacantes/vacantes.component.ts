@@ -8,7 +8,7 @@ import { NgFor, NgForOf, NgIf } from '@angular/common';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { CrearEditarVacanteComponent } from '../../components/crear-editar-vacante/crear-editar-vacante.component';
 import { MatMenuModule } from '@angular/material/menu';
-import { catchError, finalize, Observable, of } from 'rxjs';
+import { catchError, finalize, of } from 'rxjs';
 import { VacantesService } from '../../service/vacantes/vacantes.service';
 import { SharedModule } from '@/app/shared/shared.module';
 import { MatPaginator, MatPaginatorModule } from '@angular/material/paginator';
@@ -18,9 +18,13 @@ import { NativeDateModule } from '@angular/material/core';
 import { DateRangeDialogComponent } from '@/app/shared/components/date-rang-dialog/date-rang-dialog.component';
 import { UtilityServiceService } from '@/app/shared/services/utilityService/utility-service.service';
 
+// NUEVO: módulos para toggle, iconos y card (si no vienen desde SharedModule)
+import { MatButtonToggleModule } from '@angular/material/button-toggle';
+import { MatIconModule } from '@angular/material/icon';
+import { MatCardModule } from '@angular/material/card';
+
 @Component({
   selector: 'app-vacantes',
-  standalone: true,
   imports: [
     SharedModule,
     MatTableModule,
@@ -33,6 +37,10 @@ import { UtilityServiceService } from '@/app/shared/services/utilityService/util
     MatDatepickerModule,
     NativeDateModule,
     MatDialogModule,
+    // NUEVO
+    MatButtonToggleModule,
+    MatIconModule,
+    MatCardModule,
   ],
   templateUrl: './vacantes.component.html',
   styleUrl: './vacantes.component.css'
@@ -60,42 +68,71 @@ export class VacantesComponent implements OnInit {
     'preseleccionados',
     'contratados',
   ];
+
+  // NUEVO: modo de vista (tabla | cards)
+  viewMode: 'table' | 'card' = 'table';
+
   @ViewChild(MatPaginator) paginator!: MatPaginator;
   @ViewChild(MatSort) sort!: MatSort;
   permitido: boolean = false;
+  loading = false;
 
   constructor(
     private dialog: MatDialog,
     private vacantesService: VacantesService,
     private utilityService: UtilityServiceService,
     private seleccionService: SeleccionService
-  ) { }
+  ) {}
 
   async ngOnInit(): Promise<void> {
+    // Cargar preferencia de vista (si existe)
+    const saved = (typeof window !== 'undefined')
+      ? (localStorage.getItem('vacantes:viewMode') as 'table' | 'card' | null)
+      : null;
+    if (saved) this.viewMode = saved;
+
     await this.loadData();
+
     const user = this.utilityService.getUser();
-    // el rol es GERENCIA O ADMIN?
-    this.permitido = user?.rol.nombre === 'GERENCIA' || user?.rol.nombre === 'ADMIN';
+    this.permitido = this.isManager(user);
+
+    // Filtro por string simple (incluye arrays/objetos)
+    this.dataSource.filterPredicate = (data: any, filter: string) =>
+      JSON.stringify(data).toLowerCase().includes(filter);
   }
 
-  loading = false;
+  // ========= Toggle de vista =========
+  onToggleView(mode: 'table' | 'card'): void {
+    this.viewMode = mode;
+    try { localStorage.setItem('vacantes:viewMode', mode); } catch {}
+  }
+
+  // ========= Datos para cards (respeta el filtro de la tabla) =========
+  get filteredVacantes(): any[] {
+    return this.dataSource?.filteredData ?? this.dataSource?.data ?? [];
+  }
+
+  // Mejor rendimiento en *ngFor
+  trackById = (_: number, v: any) => v?.id ?? v?.codigo ?? _;
+
+  // Iniciales para el avatar de la card
+  initials(text: string): string {
+    if (!text) return '?';
+    const parts = String(text).trim().split(/\s+/);
+    const a = parts[0]?.[0] ?? '';
+    const b = parts[1]?.[0] ?? '';
+    return (a + b).toUpperCase();
+  }
 
   private normalize(s?: string | null): string {
     return (s ?? '')
       .toString()
       .normalize('NFD')
-      .replace(/\p{Diacritic}/gu, '') // quita acentos
+      .replace(/\p{Diacritic}/gu, '')
       .trim()
       .toUpperCase();
   }
 
-  // ADMIN / GERENCIA ven todo (aceptamos algunos alias comunes)
-  private canSeeAll(user: any): boolean {
-    const rol = this.normalize(user?.rol.nombre);
-    return rol === 'ADMIN' || rol === 'GERENCIA';
-  }
-
-  // Convierte a array desde string/array y soporta separadores ; , |
   private splitToArray(raw: unknown): string[] {
     if (Array.isArray(raw)) return raw.filter(Boolean) as string[];
     if (typeof raw === 'string') {
@@ -104,17 +141,13 @@ export class VacantesComponent implements OnInit {
     return [];
   }
 
-  // Tomamos las oficinas objetivo del usuario: sucursalde (principal), con fallbacks por si cambian el nombre del campo
   private extractTargetOffices(user: any): string[] {
     const parts = [
-      ...this.splitToArray(user?.sede.nombre),   // <- lo que nos dijiste que viene
+      ...this.splitToArray(user?.sede?.nombre),
     ];
-    // quitar duplicados
-    const uni = Array.from(new Set(parts));
-    return uni;
+    return Array.from(new Set(parts));
   }
 
-  // ¿La vacante tiene alguna oficina con nombre que coincida con las oficinas del usuario?
   private matchOffice(vacante: any, officeNames: string[]): boolean {
     if (!officeNames.length) return false;
     const wanted = new Set(officeNames.map(n => this.normalize(n)));
@@ -135,20 +168,15 @@ export class VacantesComponent implements OnInit {
       const user = this.utilityService.getUser();
 
       let rows: any[];
-
       if (this.isManager(user)) {
-        // GERENCIA o ADMIN: no filtrar
-        rows = response;
+        rows = response; // no filtrar
       } else if (this.isSubaUser(user)) {
-        // Caso especial: oficinasuba.rtc@gmail.com
         const target = ['VIRTUAL', 'TOCANCIPÁ', 'ZIPAQUIRÁ'];
         rows = response.filter(v => this.matchOffice(v, target));
       } else {
-        // Resto: filtro normal por oficinas del usuario
         rows = response.filter(v => this.matchOffice(v, this.extractTargetOffices(user)));
       }
 
-      // Reordenar y asignar a la tabla
       rows = this.reordenarCumplidasAlFinal(rows);
       this.dataSource.data = rows;
       this.dataSource.paginator = this.paginator;
@@ -156,23 +184,29 @@ export class VacantesComponent implements OnInit {
     });
   }
 
-  /** Helpers */
+  // ===== Helpers de rol/correo
   private isManager(user: any): boolean {
-    const roles: string[] = (user?.role.nombre || []).map((r: string) => r?.toUpperCase?.() ?? r);
-    return roles.includes('GERENCIA') || roles.includes('ADMIN');
+    const raw = user?.rol ?? user?.roles ?? [];
+    const roleNames: string[] = Array.isArray(raw)
+      ? raw
+          .map((r: any) => (typeof r === 'string' ? r : r?.nombre))
+          .filter((v: any): v is string => !!v)
+      : [typeof raw === 'string' ? raw : raw?.nombre].filter(Boolean) as string[];
+    const upper = roleNames.map(r => r.toUpperCase());
+    return upper.includes('GERENCIA') || upper.includes('ADMIN');
   }
 
   private isSubaUser(user: any): boolean {
     return (user?.correo_electronico || '').toLowerCase() === 'oficinasuba.rtc@gmail.com';
   }
 
-
-
+  // ===== Filtro
   applyFilter(event: Event): void {
     const filterValue = (event.target as HTMLInputElement).value.trim().toLowerCase();
     this.dataSource.filter = filterValue;
   }
 
+  // ===== Modales crear/editar
   openModalEdit(vacante?: any): void {
     const dialogRef = this.dialog.open(CrearEditarVacanteComponent, {
       minWidth: '80vw',
@@ -303,7 +337,6 @@ export class VacantesComponent implements OnInit {
     return `${year}-${month}-${day}`;
   }
 
-  // Método para eliminar una vacante
   eliminarVacante(vacante: any): void {
     Swal.fire({
       title: '¿Estás seguro?',
@@ -324,20 +357,19 @@ export class VacantesComponent implements OnInit {
     });
   }
 
-  // Escoger vacante y almacenar
   escogerVacante(vacante: any): void {
     localStorage.setItem('vacanteSeleccionada', JSON.stringify(vacante));
     Swal.fire('Vacante seleccionada', 'La vacante ha sido almacenada para ejecutarla en su proceso de seleccion', 'success');
   }
 
-  // ------------------ Subida y envío Excel ------------------
-  subirArchivoExcel(event: any): void {
+  // ---------- Subida Excel ----------
+  subirArchivoExcel(_: any): void {
     const fileInput = document.getElementById('fileInput') as HTMLInputElement;
-    fileInput.click();
+    fileInput?.click();
   }
 
   onFileSelected(event: any): void {
-    const file = event.target.files[0];
+    const file = event.target.files?.[0];
     if (file) {
       const reader = new FileReader();
       reader.onload = (e: any) => {
@@ -355,7 +387,7 @@ export class VacantesComponent implements OnInit {
   }
 
   procesarDatosExcel(jsonData: any[]): any[] {
-    const datosProcesados = [];
+    const datosProcesados: any[] = [];
     for (let i = 1; i < jsonData.length; i++) {
       const fila = jsonData[i];
       if (fila && fila.length > 0) {
@@ -399,23 +431,16 @@ export class VacantesComponent implements OnInit {
 
   getSiglaTemporal(temporal: string): string {
     switch (temporal) {
-      case 'TU ALIANZA SAS':
-        return 'TA';
-      case 'APOYO LABORAL SAS':
-        return 'AL';
-      default:
-        return temporal;
+      case 'TU ALIANZA SAS': return 'TA';
+      case 'APOYO LABORAL SAS': return 'AL';
+      default: return temporal;
     }
   }
 
-  descargarExcelVacantes(event: Event): void {
+  descargarExcelVacantes(_: Event): void {
     this.dialog.open(DateRangeDialogComponent, {
       width: '400px',
-      data: {
-        title: 'Seleccionar rango de fechas',
-        startDate: null,
-        endDate: null
-      }
+      data: { title: 'Seleccionar rango de fechas', startDate: null, endDate: null }
     }).afterClosed().subscribe(result => {
       if (result) {
         const { start, end } = result;
@@ -439,10 +464,7 @@ export class VacantesComponent implements OnInit {
     window.open('https://formulario.tsservicios.co/formulario/formulario-pre-registro-vacantes', '_blank');
   }
 
-  // =========================================================
-  // ===============  SEMAFORIZACIÓN (Helper)  ===============
-  // =========================================================
-
+  // ================== Semaforización ==================
   totalRequerida(v: any): number {
     const oficinas = Array.isArray(v?.oficinasQueContratan) ? v.oficinasQueContratan : [];
     return oficinas.reduce((acc: number, o: any) => acc + this.toInt(o?.numeroDeGenteRequerida), 0);
@@ -469,23 +491,12 @@ export class VacantesComponent implements OnInit {
     return 0;
   }
 
-  /**
-   * PRESELECCIONADOS:
-   * - Verde  (ok)   si pre >= requerido
-   * - Rojo   (error) si pre  < requerido
-   */
   semaforoPre(v: any): string {
     const req = this.totalRequerida(v);
     const pre = this.countPre(v);
     return pre >= req ? 'semaforo-ok' : 'semaforo-error';
   }
 
-  /**
-   * CONTRATADOS:
-   * - Verde   (ok)   si cont >= requerido
-   * - Naranja (warn) si pre  >= requerido pero cont < requerido
-   * - Rojo    (error) si pre  < requerido (ni siquiera hay pre suficientes)
-   */
   semaforoCont(v: any): string {
     const req = this.totalRequerida(v);
     const pre = this.countPre(v);
@@ -496,31 +507,15 @@ export class VacantesComponent implements OnInit {
     return 'semaforo-error';
   }
 
-  /** ¿Cumplida? pre == requerido y cont == requerido */
   private isCumplida(v: any): boolean {
     const req = this.totalRequerida(v);
     return this.countPre(v) === req && this.countCont(v) === req;
   }
 
-  /** Particiona estable: primero NO cumplidas, luego cumplidas */
   private reordenarCumplidasAlFinal(arr: any[]): any[] {
     const no: any[] = [];
     const si: any[] = [];
     for (const v of arr) (this.isCumplida(v) ? si : no).push(v);
     return [...no, ...si];
   }
-
-  /** Accesor para números robusto */
-  private toNumber(v: any): number {
-    return typeof v === 'number' ? v : this.toInt(v);
-  }
-
-  /** Accesor de fechas -> timestamp */
-  private toTime(v: any): number {
-    if (!v) return 0;
-    const d = new Date(v);
-    return Number.isFinite(d.getTime()) ? d.getTime() : 0;
-  }
-
-
 }

@@ -312,17 +312,20 @@
       </mat-form-field>
 
       <!-- ¿Estudia actualmente? -->
+      <!-- ¿Estudia actualmente? -->
       <mat-form-field class="example-full-width" appearance="outline">
         <mat-label>¿Estudia actualmente?</mat-label>
         <mat-select formControlName="estudiaActualmente">
-          <mat-option value="SI">Sí</mat-option>
-          <mat-option value="NO">No</mat-option>
+          <mat-option [value]="true">Sí</mat-option>
+          <mat-option [value]="false">No</mat-option>
         </mat-select>
-        <mat-error
-          *ngIf="infoPersonalForm.get('estudiaActualmente')?.touched && infoPersonalForm.get('estudiaActualmente')?.hasError('required')">
+
+        <mat-error *ngIf="infoPersonalForm.get('estudiaActualmente')?.touched
+           && infoPersonalForm.get('estudiaActualmente')?.hasError('required')">
           Requerido.
         </mat-error>
       </mat-form-field>
+
 
       <!-- Referenciado -->
       <mat-form-field class="example-full-width" appearance="outline">
@@ -416,6 +419,10 @@
         <div class="section-head">
           <h3 class="section-title">Empresas donde ha laborado (Llénenlo si tiene experiencia)</h3>
           <span class="spacer"></span>
+
+          <button mat-mini-fab color="primary" (click)="agregarExperiencia()" matTooltip="Agregar experiencia">
+            <mat-icon>add</mat-icon>
+          </button>
         </div>
 
         <div formArrayName="experiencias" class="cards-stack">
@@ -444,9 +451,10 @@
               </mat-form-field>
 
               <mat-form-field appearance="outline">
-                <mat-label>Labores principales</mat-label>
+                <mat-label>Que labor realiza con mayor facilidad</mat-label>
                 <textarea matInput rows="2" formControlName="labores_principales"></textarea>
               </mat-form-field>
+
             </div>
           </div>
         </div>
@@ -466,7 +474,8 @@
       </mat-form-field>
 
       <!-- Observación del evaluador -->
-      <mat-form-field class="example-full-width" appearance="outline">
+      <mat-form-field class="example-full-width" appearance="outline"
+        *ngIf="infoPersonalForm.get('aplicaObservacion')?.value === 'APLICA'">
         <mat-label>Observación del evaluador</mat-label>
         <mat-select formControlName="observacionEvaluador">
           <mat-option value="">-- Seleccione --</mat-option>
@@ -502,7 +511,7 @@
       </mat-form-field>
 
       <div class="actions">
-        <button mat-flat-button color="primary" (click)="guardarInfoPersonal()" style="min-width: 40vw !important;" [disabled]="infoPersonalForm.invalid">
+        <button mat-flat-button color="primary" (click)="guardarInfoPersonal()" style="min-width: 40vw !important;">
           Guardar
         </button>
       </div>

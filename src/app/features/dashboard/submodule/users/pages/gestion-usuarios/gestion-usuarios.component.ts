@@ -57,8 +57,8 @@ export class GestionUsuariosComponent implements OnInit {
     { name: 'nombres', header: 'Nombres', type: 'text' },
     { name: 'apellidos', header: 'Apellidos', type: 'text' },
     { name: 'sede', header: 'Sede', type: 'text', width: '140px' },
-    { name: 'rol', header: 'Rol', type: 'text', width: '120px' },
-    { name: 'actions', header: 'Acciones', type: 'custom', width: '112px', stickyEnd: true },
+    { name: 'rol', header: 'Rol', type: 'text', width: '150px' },
+    { name: 'actions', header: 'Acciones', type: 'custom', width: '142px', stickyEnd: true },
   ];
 
   ngOnInit(): void {

@@ -70,6 +70,7 @@ export class SearchForCandidateComponent implements OnInit, OnDestroy {
 
   // Columnas para StandardFilterTable
   columns: ColumnDefinition[] = [
+    { name: 'actions', header: 'Acción', type: 'custom', filterable: false, width: '80px', stickyStart: true },
     { name: 'cedula', header: 'Número de Cédula', type: 'text', width: '180px' },
     { name: 'nombre_completo', header: 'Nombre Completo', type: 'text' },
     { name: 'created_at', header: 'Fecha de Registro', type: 'date', width: '200px' },
@@ -80,7 +81,6 @@ export class SearchForCandidateComponent implements OnInit, OnDestroy {
     { name: 'examenes_medicos', header: 'Exámenes Médicos', type: 'status', width: '160px', statusConfig: this.yesNoStatusConfig },
     { name: 'contratado', header: 'Contratado', type: 'status', width: '130px', statusConfig: this.yesNoStatusConfig },
 
-    { name: 'actions', header: 'Acción', type: 'custom', filterable: false, width: '130px' }
   ];
 
   registros: RegistroRow[] = [];
@@ -125,7 +125,7 @@ export class SearchForCandidateComponent implements OnInit, OnDestroy {
     private seleccionService: SeleccionService,
     private utilityService: UtilityServiceService,
     private infoVacantesService: InfoVacantesService,
-  ) {}
+  ) { }
 
   /* ──────────  Ciclo de vida  ────────── */
   async ngOnInit(): Promise<void> {
@@ -178,10 +178,10 @@ export class SearchForCandidateComponent implements OnInit, OnDestroy {
     const formatCo = (d: Date | null): string =>
       d
         ? d.toLocaleString('es-CO', {
-            dateStyle: 'medium',
-            timeStyle: 'short',
-            timeZone: 'America/Bogota',
-          })
+          dateStyle: 'medium',
+          timeStyle: 'short',
+          timeZone: 'America/Bogota',
+        })
         : '—';
 
     this.seleccionService

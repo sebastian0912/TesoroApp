@@ -1,10 +1,27 @@
 <mat-card>
   <mat-card-content>
     <div class="tabla">
-      <!-- Encabezado con título + menú de acciones -->
+      <!-- Encabezado con título + menú de acciones + toggle de vista -->
       <div class="page-header">
         <h1 class="title">Listado de Vacantes</h1>
         <span class="spacer"></span>
+
+        <!-- Toggle vista -->
+        <mat-button-toggle-group
+          [value]="viewMode"
+          (change)="onToggleView($event.value)"
+          aria-label="Cambiar vista"
+          class="view-toggle"
+        >
+          <mat-button-toggle value="table" aria-label="Vista tabla">
+            <mat-icon>table_chart</mat-icon>
+            <span class="toggle-text">Tabla</span>
+          </mat-button-toggle>
+          <mat-button-toggle value="card" aria-label="Vista tarjetas">
+            <mat-icon>view_module</mat-icon>
+            <span class="toggle-text">Cards</span>
+          </mat-button-toggle>
+        </mat-button-toggle-group>
 
         <!-- Botón 3 puntos -->
         <button mat-icon-button [matMenuTriggerFor]="accionesMenu" aria-label="Acciones de vacantes">
@@ -38,12 +55,14 @@
         <input type="file" #fileInput (change)="onFileSelected($event)" hidden />
       </div>
 
+      <!-- Filtro (compartido para ambas vistas) -->
       <mat-form-field class="filtro">
         <mat-label>Filtrar</mat-label>
         <input matInput (keyup)="applyFilter($event)" placeholder="Buscar..." #input />
       </mat-form-field>
 
-      <div class="table-container">
+      <!-- ==================== VISTA TABLA ==================== -->
+      <div class="table-container" *ngIf="viewMode === 'table'">
         <table mat-table [dataSource]="dataSource" class="mat-elevation-z8">
 
           <!-- Cargo -->
@@ -68,13 +87,13 @@
             </td>
           </ng-container>
 
-          <!--salario-->
+          <!-- Salario -->
           <ng-container matColumnDef="salario">
             <th mat-header-cell *matHeaderCellDef>Salario</th>
             <td mat-cell *matCellDef="let v">{{ v.salario | currency }}</td>
           </ng-container>
 
-          <!-- auxilioTransporte -->
+          <!-- Auxilio Transporte -->
           <ng-container matColumnDef="auxilioTransporte">
             <th mat-header-cell *matHeaderCellDef>Auxilio Transporte</th>
             <td mat-cell *matCellDef="let v">
@@ -82,25 +101,25 @@
             </td>
           </ng-container>
 
-          <!-- municipio -->
+          <!-- Municipio -->
           <ng-container matColumnDef="municipio">
-            <th mat-header-cell *matHeaderCellDef  style="min-width: 210pt !important;">Municipio</th>
-            <td mat-cell *matCellDef="let v"  style="min-width: 210pt !important;">{{ v.municipio.join(', ') }}</td>
+            <th mat-header-cell *matHeaderCellDef style="min-width: 210pt !important;">Municipio</th>
+            <td mat-cell *matCellDef="let v" style="min-width: 210pt !important;">{{ v.municipio.join(', ') }}</td>
           </ng-container>
 
-          <!-- tipoContratacion -->
+          <!-- Tipo de Contratación -->
           <ng-container matColumnDef="tipoContratacion">
             <th mat-header-cell *matHeaderCellDef>Tipo de Contratación</th>
             <td mat-cell *matCellDef="let v">{{ v.tipoContratacion }}</td>
           </ng-container>
 
-          <!-- pruebaOContratacion -->
+          <!-- Prueba o Contratación -->
           <ng-container matColumnDef="pruebaOContratacion">
             <th mat-header-cell *matHeaderCellDef>Prueba o Contratación</th>
             <td mat-cell *matCellDef="let v">{{ v.pruebaOContratacion }}</td>
           </ng-container>
 
-          <!-- observacionVacante -->
+          <!-- Observación del perfil -->
           <ng-container matColumnDef="observacionVacante">
             <th mat-header-cell *matHeaderCellDef style="min-width: 350pt;">Observación del perfil</th>
             <td mat-cell *matCellDef="let v" style="min-width: 350pt;">{{ v.observacionVacante }}</td>
@@ -112,7 +131,7 @@
             <td mat-cell *matCellDef="let v" style="min-width: 350pt;">{{ v.descripcion }}</td>
           </ng-container>
 
-          <!-- Finca -->
+          <!-- Centro de costo -->
           <ng-container matColumnDef="finca">
             <th mat-header-cell *matHeaderCellDef>CENTRO DE COSTO</th>
             <td mat-cell *matCellDef="let v">{{ v.finca }}</td>
@@ -121,11 +140,8 @@
           <!-- Temporal -->
           <ng-container matColumnDef="temporal">
             <th mat-header-cell *matHeaderCellDef>Temporal</th>
-            <td mat-cell *matCellDef="let v">
-              {{ getSiglaTemporal(v.temporal) }}
-            </td>
+            <td mat-cell *matCellDef="let v">{{ getSiglaTemporal(v.temporal) }}</td>
           </ng-container>
-
 
           <!-- Experiencia -->
           <ng-container matColumnDef="experiencia">
@@ -133,14 +149,11 @@
             <td mat-cell *matCellDef="let v">{{ v.experiencia }}</td>
           </ng-container>
 
-          <!-- Fecha Publicado -->
+          <!-- Publicado -->
           <ng-container matColumnDef="fechaPublicado">
             <th mat-header-cell *matHeaderCellDef>Publicado</th>
-            <td mat-cell *matCellDef="let v">
-              {{ v.fechaPublicado | date: 'dd/MM/yyyy' }}
-            </td>
+            <td mat-cell *matCellDef="let v">{{ v.fechaPublicado | date: 'dd/MM/yyyy' }}</td>
           </ng-container>
-
 
           <!-- Oficinas -->
           <ng-container matColumnDef="oficinas">
@@ -148,7 +161,7 @@
             <td mat-cell *matCellDef="let v">
               <ng-container *ngFor="let o of v.oficinasQueContratan; let i = index">
                 {{ o.nombre }} ({{ o.numeroDeGenteRequerida }}){{ i < v.oficinasQueContratan.length - 1 ? ', ' : '' }}
-                  </ng-container>
+              </ng-container>
             </td>
           </ng-container>
 
@@ -158,11 +171,11 @@
             <td mat-cell *matCellDef="let v">
               <ng-container *ngFor="let o of v.oficinasQueContratan; let i = index">
                 {{ o.nombre }} ({{ o.ruta ? 'Sí' : 'No' }}){{ i < v.oficinasQueContratan.length - 1 ? ', ' : '' }}
-                  </ng-container>
+              </ng-container>
             </td>
           </ng-container>
 
-          <!--fechadeIngreso-->
+          <!-- Fecha de ingreso -->
           <ng-container matColumnDef="fechadeIngreso">
             <th mat-header-cell *matHeaderCellDef>Fecha de Ingreso</th>
             <td mat-cell *matCellDef="let v">{{ v.fechadeIngreso }}</td>
@@ -184,21 +197,156 @@
                   <mat-icon>delete</mat-icon>
                   <span>Eliminar</span>
                 </button>
-                <!-- Puedes agregar más acciones si lo necesitas -->
               </mat-menu>
             </td>
           </ng-container>
-
 
           <!-- Filas -->
           <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
           <tr mat-row *matRowDef="let row; columns: displayedColumns"></tr>
           <tr class="mat-row" *matNoDataRow>
-            <td class="mat-cell" colspan="7">
-              No hay datos para "{{ input.value }}"
-            </td>
+            <td class="mat-cell" colspan="7">No hay datos para "{{ input.value }}"</td>
           </tr>
         </table>
+      </div>
+
+      <!-- ==================== VISTA CARDS ==================== -->
+      <div *ngIf="viewMode === 'card'">
+        <div class="cards-grid">
+          <mat-card
+            class="vacante-card mat-elevation-z4"
+            *ngFor="let v of filteredVacantes; trackBy: trackById"
+          >
+            <mat-card-header>
+              <div mat-card-avatar class="avatar">{{ initials(v.cargo) }}</div>
+              <mat-card-title class="card-title">{{ v.cargo }}</mat-card-title>
+              <mat-card-subtitle class="muted">
+                {{ getSiglaTemporal(v.temporal) }} · {{ v.tipoContratacion }}
+              </mat-card-subtitle>
+              <span class="spacer"></span>
+              <button mat-icon-button [matMenuTriggerFor]="menuAccionesCard">
+                <mat-icon>more_vert</mat-icon>
+              </button>
+              <mat-menu #menuAccionesCard="matMenu">
+                <button mat-menu-item (click)="openModalEdit(v)">
+                  <mat-icon>edit</mat-icon>
+                  <span>Editar</span>
+                </button>
+                <button mat-menu-item (click)="eliminarVacante(v)" *ngIf="permitido">
+                  <mat-icon>delete</mat-icon>
+                  <span>Eliminar</span>
+                </button>
+              </mat-menu>
+            </mat-card-header>
+
+            <mat-card-content>
+              <div class="kpis">
+                <div class="kpi" [ngClass]="semaforoPre(v)">
+                  <mat-icon>how_to_reg</mat-icon>
+                  <div>
+                    <div class="kpi-label">Seleccionados</div>
+                    <div class="kpi-value">{{ countPre(v) }}</div>
+                  </div>
+                </div>
+                <div class="kpi" [ngClass]="semaforoCont(v)">
+                  <mat-icon>verified</mat-icon>
+                  <div>
+                    <div class="kpi-label">Contratados</div>
+                    <div class="kpi-value">{{ countCont(v) }}</div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="info-grid">
+                <div class="info-row">
+                  <mat-icon>payments</mat-icon>
+                  <div>
+                    <div class="muted">Salario</div>
+                    <div class="strong">{{ v.salario | currency }}</div>
+                  </div>
+                </div>
+
+                <div class="info-row">
+                  <mat-icon>commute</mat-icon>
+                  <div>
+                    <div class="muted">Auxilio Transporte</div>
+                    <div class="strong">
+                      {{ isNumber(v.auxilioTransporte) ? (v.auxilioTransporte | currency) : v.auxilioTransporte }}
+                    </div>
+                  </div>
+                </div>
+
+                <div class="info-row">
+                  <mat-icon>timeline</mat-icon>
+                  <div>
+                    <div class="muted">Experiencia</div>
+                    <div class="strong">{{ v.experiencia }}</div>
+                  </div>
+                </div>
+
+                <div class="info-row">
+                  <mat-icon>event</mat-icon>
+                  <div>
+                    <div class="muted">Publicado</div>
+                    <div class="strong">{{ v.fechaPublicado | date: 'dd/MM/yyyy' }}</div>
+                  </div>
+                </div>
+
+                <div class="info-row" *ngIf="v.fechadeIngreso">
+                  <mat-icon>calendar_month</mat-icon>
+                  <div>
+                    <div class="muted">Fecha de Ingreso</div>
+                    <div class="strong">{{ v.fechadeIngreso }}</div>
+                  </div>
+                </div>
+
+                <div class="info-row" *ngIf="v.finca">
+                  <mat-icon>business</mat-icon>
+                  <div>
+                    <div class="muted">Centro de Costo</div>
+                    <div class="strong">{{ v.finca }}</div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="pills">
+                <span class="pill" *ngFor="let m of v.municipio">{{ m }}</span>
+              </div>
+
+              <div class="oficinas">
+                <div class="oficina" *ngFor="let o of v.oficinasQueContratan">
+                  <mat-icon class="oficina-icon">location_on</mat-icon>
+                  <span class="oficina-text">
+                    {{ o.nombre }} · {{ o.numeroDeGenteRequerida }} · Ruta: {{ o.ruta ? 'Sí' : 'No' }}
+                  </span>
+                </div>
+              </div>
+
+              <div class="descripcion" *ngIf="v.descripcion">
+                {{ v.descripcion }}
+              </div>
+
+              <div class="observacion" *ngIf="v.observacionVacante">
+                <span class="muted">Observación:</span> {{ v.observacionVacante }}
+              </div>
+            </mat-card-content>
+
+            <mat-card-actions align="end">
+              <button mat-stroked-button color="primary" (click)="openModalEdit(v)">
+                <mat-icon>edit</mat-icon>
+                Editar
+              </button>
+              <button mat-stroked-button color="warn" *ngIf="permitido" (click)="eliminarVacante(v)">
+                <mat-icon>delete</mat-icon>
+                Eliminar
+              </button>
+            </mat-card-actions>
+          </mat-card>
+        </div>
+
+        <div class="no-data" *ngIf="!filteredVacantes?.length">
+          No hay datos para "{{ input.value }}"
+        </div>
       </div>
     </div>
   </mat-card-content>

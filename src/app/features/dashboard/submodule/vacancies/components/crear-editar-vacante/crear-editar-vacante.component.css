@@ -1,37 +1,122 @@
-form {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
+/* ===== Título del diálogo ===== */
+.titulo {
+  margin: 0 0 6px 0;
+  font-weight: 700;
+  font-size: 1.25rem;
 }
 
-.example-full-width {
-  width: 20%;
-}
-
+/* ===== Contenido del diálogo ===== */
 .mat-dialog-content {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-  padding-top: 10px;
+  display: block;
+  max-height: 75vh;           /* más área de trabajo */
+  overflow: auto;
+  padding-top: 8px;
 }
 
+/* ===== Grid responsive del formulario =====
+   Auto-ajusta a 1, 2 o más columnas según ancho
+*/
+.mat-dialog-content form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 12px 16px;
+  align-items: start;
+}
+
+/* Todos los form-field ocupan el 100% de su celda */
+mat-form-field,
+.mat-mdc-form-field,
+.example-full-width {
+  width: 100% !important;
+}
+
+/* Elementos que deben ocupar todo el ancho */
+h3.titulo,
+[formArrayName="oficinasQueContratan"] {
+  grid-column: 1 / -1;
+  margin-top: 8px;
+}
+
+/* ===== Bloques de oficinas (FormArray) ===== */
+[formArrayName="oficinasQueContratan"] > div {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px 16px;
+  padding: 12px;
+  border: 1px solid #eee;
+  border-radius: 12px;
+  background: #fafafa;
+}
+
+/* Alineación de checkbox y botón eliminar dentro del bloque */
+[formArrayName="oficinasQueContratan"] > div mat-checkbox {
+  align-self: center;
+}
+[formArrayName="oficinasQueContratan"] > div button[mat-icon-button] {
+  justify-self: end;
+  align-self: center;
+}
+
+/* ===== Panel del select múltiple con buscador de municipios ===== */
+.select-panel .filtro-option {
+  opacity: 1;
+  padding: 4px 8px;
+}
+.select-panel .filtro-option input {
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+}
+.select-panel .mat-mdc-option {
+  line-height: 36px;
+}
+
+/* Permite escribir dentro de la opción "disabled" (hack controlado) */
+.no-select {
+  pointer-events: none;
+}
+.no-select input {
+  pointer-events: auto;
+  cursor: text;
+  color: #000;
+}
+
+/* ===== Acciones del diálogo (abajo) ===== */
+mat-dialog-actions,
+[mat-dialog-actions] {
+  position: sticky;
+  bottom: 0;
+  background: #fff;
+  padding: 12px 16px;
+  border-top: 1px solid #eee;
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+/* ===== Contenedor hora AM/PM (si lo usas luego) ===== */
 .hora-ampm-container {
   display: flex;
   align-items: center;
 }
-
 .hora-ampm-container input {
   flex-grow: 1;
   margin-right: 10px;
 }
 
-
-.no-select {
-  pointer-events: none;
+/* ===== Breakpoints ===== */
+@media (max-width: 480px) {
+  .mat-dialog-content form {
+    grid-template-columns: 1fr;     /* 1 columna en pantallas muy pequeñas */
+  }
+  [formArrayName="oficinasQueContratan"] > div {
+    grid-template-columns: 1fr;
+  }
 }
 
-.no-select input {
-  pointer-events: auto;
-  cursor: pointer;
-  color: #000;
+@media (min-width: 1200px) {
+  .mat-dialog-content {
+    max-height: 78vh;
+  }
 }

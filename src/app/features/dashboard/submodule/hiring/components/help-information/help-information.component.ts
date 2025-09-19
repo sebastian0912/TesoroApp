@@ -215,7 +215,8 @@ export class HelpInformationComponent implements OnInit {
 
       tiempoResidencia: ['', Validators.required],
       proyeccion1Ano: ['', Validators.required],
-      estudiaActualmente: ['', Validators.required],
+      // ← boolean | null
+      estudiaActualmente: [null as boolean | null, Validators.required],
 
       experiencias: this.fb.array([]),
       observacionEvaluador: [''],
@@ -407,6 +408,37 @@ export class HelpInformationComponent implements OnInit {
     this.infoPersonalForm.get('edadesHijos')?.setValue(edades);
   }
 
+  /** ===== Experiencias (FormArray) ===== */
+  private setExperienciasDesdeBackend(raw: any[]): void {
+    const cleaned = (Array.isArray(raw) ? raw : [])
+      .map((e: any) => ({
+        empresa: (e?.empresa ?? '').toString().trim(),
+        tiempo: (e?.tiempo ?? '').toString().trim(),
+        labores: (e?.labores ?? '').toString().trim(),
+        labores_principales: (e?.labores_principales ?? e?.laboresPrincipales ?? '').toString().trim(),
+      }))
+      .filter(e => e.empresa || e.tiempo || e.labores || e.labores_principales);
+
+    if (!cleaned.length) {
+      // si no hay datos, deja semillas
+      this.infoPersonalForm.setControl('experiencias', this.fb.array([]));
+      this.seedExperiencias(this.SEED_EXP_COUNT);
+      return;
+    }
+
+    const newFA = this.fb.array(
+      cleaned.map(v =>
+        this.fb.group({
+          empresa: [v.empresa, [Validators.maxLength(120)]],
+          labores: [v.labores, [Validators.maxLength(800)]],
+          tiempo: [v.tiempo, [Validators.maxLength(80)]],
+          labores_principales: [v.labores_principales, [Validators.maxLength(800)]],
+        })
+      )
+    );
+    this.infoPersonalForm.setControl('experiencias', newFA);
+  }
+
   // ===== Utilidades =====
   private calcEdad(f?: any): string {
     if (!f) return '';
@@ -590,6 +622,7 @@ export class HelpInformationComponent implements OnInit {
     info.fechaExpedicion = toYMD(info.fechaExpedicion);
 
     Object.keys(info).forEach(k => { if (typeof info[k] === 'string') info[k] = info[k].toUpperCase(); });
+    info.estudiaActualmente = this.toSiNo(this.infoPersonalForm.value.estudiaActualmente);
 
     this.seleccionService.guardarInfoPersonal(info).subscribe({
       next: (resp) => {
@@ -607,6 +640,10 @@ export class HelpInformationComponent implements OnInit {
     });
   }
 
+  private toSiNo(v: boolean | null): 'SI' | 'NO' | null {
+    return v == null ? null : (v ? 'SI' : 'NO');
+  }
+
   onVacanteIdChange(id: number | string): void {
     const idNum = Number(id);
     this.selectedVacanteId = idNum;
@@ -618,6 +655,32 @@ export class HelpInformationComponent implements OnInit {
   emitirIdSiSeleccionado(): void {
     if (typeof this.selectedVacanteId === 'number') this.idVacante.emit(this.selectedVacanteId);
   }
+  /** Normaliza texto: minúsculas, sin tildes, trim. */
+  private norm(s: any): string {
+    return (s ?? '')
+      .toString()
+      .normalize('NFD')
+      .replace(/\p{Diacritic}/gu, '')
+      .toLowerCase()
+      .trim();
+  }
+
+  /** De API → UI (Form): "Prueba"/"Contratación" → "Prueba técnica"/"Autorización de ingreso" */
+  private mapApiTipoToForm(apiVal: any): '' | 'Prueba técnica' | 'Autorización de ingreso' {
+    const t = this.norm(apiVal);
+    if (t === 'prueba' || t === 'prueba tecnica' || t === 'prueba_tecnica') return 'Prueba técnica';
+    if (t.startsWith('contrat') || (t.includes('autorizacion') && t.includes('ingreso'))) return 'Autorización de ingreso';
+    return '';
+  }
+
+  /** De UI (Form) → API: "Prueba técnica"/"Autorización de ingreso" → "Prueba"/"Contratación" */
+  private mapFormTipoToApi(formVal: any): string {
+    const t = this.norm(formVal);
+    if (t === 'prueba tecnica') return 'Prueba';
+    if (t === 'autorizacion de ingreso') return 'Contratación';
+    return formVal ?? '';
+  }
+
 
   private patchVacanteToForm(v: PublicacionDTO): void {
     console.log('Patching vacante to form:', v);
@@ -626,6 +689,7 @@ export class HelpInformationComponent implements OnInit {
     const salarioNum = v.salario && v.salario !== '0.00' ? Number(v.salario) : null;
     console.log('Patching vacante to form:', v, { salarioNum });
     this.vacantesForm.patchValue({
+      tipo: this.mapApiTipoToForm(v.pruebaOContratacion),
       empresaUsuaria: v.empresaUsuariaSolicita ?? '',
       cargo: v.cargo ?? '',
       fechaIngreso: toDate(v.fechadeIngreso),
@@ -680,7 +744,7 @@ export class HelpInformationComponent implements OnInit {
     const municipioExp = data?.municipio_expedicion ?? data?.municipioExpedicion ?? '';
     const nombreCompleto = [data?.primer_nombre, data?.segundo_nombre, data?.primer_apellido, data?.segundo_apellido]
       .filter(Boolean).join(' ').trim();
-
+    console.log(data)
     this.infoPersonalForm.patchValue({
       tipodedocumento: data?.tipo_documento ?? '',
       numerodecedula: data?.numero ?? this.cedula ?? '',
@@ -737,6 +801,15 @@ export class HelpInformationComponent implements OnInit {
 
     // Hijos desde backend (centralizado)
     this.setHijosDesdeBackend(Array.isArray(data?.hijos) ? data.hijos : []);
+
+    // Experiencias desde backend (acepta varias llaves)
+    const rawExp =
+      Array.isArray(data?.experiencias) ? data.experiencias :
+        Array.isArray(data?.experiencia_laboral) ? data.experiencia_laboral :
+          Array.isArray(data?.experiencias_laborales) ? data.experiencias_laborales :
+            [];
+    this.setExperienciasDesdeBackend(rawExp);
+
     this.infoPersonalForm.get('motivoNoAplica')?.updateValueAndValidity();
   }
 
@@ -779,9 +852,11 @@ export class HelpInformationComponent implements OnInit {
       if (v instanceof Date) return v.toISOString().slice(0, 10);
       const s = String(v);
       if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
-      const m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-      if (m) {
-        const [_, d, mo, y] = m;
+      const m = s.match(/^(\d{1,2}):(\d{1,2}):(\d{1,2})$/);
+      if (m) return s; // por si llega "HH:MM:SS" como fecha (defensivo)
+      const m2 = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+      if (m2) {
+        const [_, d, mo, y] = m2;
         return `${y}-${String(mo).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
       }
       const d2 = new Date(s);
@@ -974,5 +1049,39 @@ export class HelpInformationComponent implements OnInit {
   private seedExperiencias(n = this.SEED_EXP_COUNT): void {
     const fa = this.experienciasFA;
     while (fa.length < n) fa.push(this.buildExperienciaGroup(false));
+  }
+
+  readonly MAX_EXP = 12;
+
+  agregarExperiencia(prefill?: Partial<{ empresa: string; tiempo: string; labores: string; labores_principales: string }>) {
+    const fa = this.experienciasFA;
+
+    if (fa.length >= this.MAX_EXP) {
+      Swal.fire('Límite alcanzado', `Máximo ${this.MAX_EXP} experiencias.`, 'info');
+      return;
+    }
+
+    const grp = this.buildExperienciaGroup(false); // sin requeridos por defecto
+    if (prefill) {
+      grp.patchValue({
+        empresa: prefill.empresa ?? '',
+        tiempo: prefill.tiempo ?? '',
+        labores: prefill.labores ?? '',
+        labores_principales: prefill.labores_principales ?? (prefill as any)?.laboresPrincipales ?? '',
+      });
+    }
+
+    fa.push(grp);
+    this.infoPersonalForm.markAsDirty();
+
+    // (Opcional) enfocar el primer input de la nueva tarjeta
+    setTimeout(() => {
+      try {
+        const el = document.querySelector(
+          `[formarrayname="experiencias"] .card:last-of-type input[formcontrolname="empresa"]`
+        ) as HTMLInputElement | null;
+        el?.focus();
+      } catch { }
+    }, 0);
   }
 }
