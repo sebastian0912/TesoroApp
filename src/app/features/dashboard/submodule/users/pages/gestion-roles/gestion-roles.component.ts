@@ -33,8 +33,8 @@ export class GestionRolesComponent implements OnInit {
 
   /** Definición tipo ColumnConfig (tu modelo) */
   columnsCfg: ColumnConfig[] = [
-    { columnDef: 'nombre', header: 'Nombre', type: 'text', width: '240px' },
-    { columnDef: 'actions', header: 'Acciones', type: 'actions', width: '120px', align: 'end', editable: false },
+    { columnDef: 'nombre', header: 'Nombre', type: 'text' },
+    { columnDef: 'actions', header: 'Acciones', type: 'actions', align: 'end', editable: false },
   ];
 
   /** Mapeo al ColumnDefinition que consume la tabla */

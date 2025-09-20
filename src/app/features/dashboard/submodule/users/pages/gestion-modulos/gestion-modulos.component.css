@@ -1,0 +1,178 @@
+/* ===========================
+   Layout del card (scroll Y único)
+   =========================== */
+mat-card {
+  display: flex;
+  flex-direction: column;
+  max-height: 88vh;          /* tú lo fijaste a ~88vh */
+  overflow-y: auto;          /* scroll vertical aquí */
+  overflow-x: hidden;        /* sin scroll horizontal */
+  scrollbar-gutter: stable;  /* evita saltos al aparecer la barra */
+}
+
+/* Header pegado arriba mientras scrollea el card */
+.card-header {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--mat-card-background, #fff);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  border-bottom: 1px solid rgba(0,0,0,.06);
+}
+
+/* El contenido NO debe crear su propio scroll */
+mat-card-content {
+  flex: 1 1 auto;
+  padding: 0;
+  overflow: visible;  /* hereda el scroll del card */
+  min-width: 0;       /* clave para evitar overflow-x */
+}
+
+/* El árbol hereda el scroll del card (sin overflow propio) */
+.tree-container {
+  padding: 8px 6px;
+  min-width: 0;       /* evita overflow-x por hijos */
+  overflow: visible;
+}
+
+/* Loader fino (si lo usas) */
+mat-progress-bar {
+  height: 3px;
+  margin-bottom: 2px;
+}
+
+/* ===========================
+   Fila del árbol en una sola línea
+   =========================== */
+mat-tree {
+  width: 100%;
+  min-width: 0;
+}
+
+mat-tree-node,
+[matTreeNodePadding] {
+  display: flex !important;  /* todo en una misma línea */
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  box-sizing: border-box;
+  min-width: 0;              /* evita overflow-x */
+}
+
+/* ===========================
+   Botones de ícono centrados (MDC)
+   =========================== */
+:host {
+  --icon-btn-size: 36px;   /* tamaño del botón de ícono */
+  --icon-size: 22px;       /* tamaño del ícono dentro */
+}
+
+/* botón de ícono */
+button[mat-icon-button],
+.mat-mdc-icon-button.mat-mdc-button-base {
+  width: var(--icon-btn-size) !important;
+  height: var(--icon-btn-size) !important;
+  padding: 0 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  border-radius: 50%;
+}
+
+/* touch target interno de MDC al mismo tamaño */
+.mat-mdc-icon-button .mat-mdc-button-touch-target {
+  width: var(--icon-btn-size) !important;
+  height: var(--icon-btn-size) !important;
+}
+
+/* ripple centrado dentro del nuevo tamaño */
+.mat-mdc-icon-button .mat-mdc-button-persistent-ripple,
+.mat-mdc-icon-button .mat-mdc-button-ripple {
+  inset: 0 !important;
+  border-radius: inherit;
+}
+
+/* tamaño y centrado del <mat-icon> */
+button[mat-icon-button] mat-icon {
+  width: var(--icon-size);
+  height: var(--icon-size);
+  font-size: var(--icon-size);
+  line-height: var(--icon-size);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+}
+
+/* el botón toggle (o disabled en hojas) ocupa un ancho fijo */
+mat-tree-node > button[mat-icon-button] {
+  flex: 0 0 var(--icon-btn-size);
+}
+
+/* ===========================
+   Contenido del nodo
+   =========================== */
+.node-content {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1 1 auto;       /* ocupa el resto del ancho, no 100% fijo */
+  min-width: 0;         /* permite elipsis y evita overflow-x */
+  padding: 6px 8px;
+  border-radius: 10px;
+  transition: background-color .15s ease;
+}
+
+/* texto truncado */
+.node-text {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.node-title,
+.node-desc {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.node-title { font-weight: 500; line-height: 1.25; }
+.node-desc  { font-size: 12px; opacity: .75; }
+
+/* acciones compactas */
+.node-content > button[mat-icon-button] {
+  flex: 0 0 auto;
+  border-radius: 10px;
+}
+
+/* utilitario */
+.spacer { flex: 1 1 auto; min-width: 8px; }
+
+/* hover sutil */
+mat-tree-node:hover .node-content {
+  background: rgba(0,0,0,.035);
+}
+
+/* estado de carga opcional */
+.tree-container.loading .node-content {
+  opacity: .6;
+  pointer-events: none;
+}
+
+/* (opcional) estado vacío */
+.empty-state {
+  color: rgba(0,0,0,.6);
+  text-align: center;
+  padding: 16px 8px;
+  font-size: 14px;
+}
+
+/* dark mode suave */
+@media (prefers-color-scheme: dark) {
+  .card-header { border-bottom-color: rgba(255,255,255,.08); }
+  .empty-state { color: rgba(255,255,255,.7); }
+  mat-tree-node:hover .node-content { background: rgba(255,255,255,.06); }
+}

@@ -683,11 +683,10 @@ export class HelpInformationComponent implements OnInit {
 
 
   private patchVacanteToForm(v: PublicacionDTO): void {
-    console.log('Patching vacante to form:', v);
     const toDate = (yyyyMmDd: string | null) => yyyyMmDd ? new Date(`${yyyyMmDd}T00:00:00`) : null;
     const toTime = (hhmmss: string | null) => hhmmss ? hhmmss.slice(0, 5) : null;
     const salarioNum = v.salario && v.salario !== '0.00' ? Number(v.salario) : null;
-    console.log('Patching vacante to form:', v, { salarioNum });
+
     this.vacantesForm.patchValue({
       tipo: this.mapApiTipoToForm(v.pruebaOContratacion),
       empresaUsuaria: v.empresaUsuariaSolicita ?? '',

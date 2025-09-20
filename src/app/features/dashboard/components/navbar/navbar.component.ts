@@ -21,8 +21,8 @@ import { MatIconModule } from '@angular/material/icon';
 export interface PermNode {
   id: string;
   nombre: string;
-  acciones: string[];                  // p.ej. ["LEER","CREAR",...]
-  permiso_ids: Record<string, string>; // p.ej. { LEER: "uuid", ... }
+  acciones: string[];
+  permiso_ids: Record<string, string>;
   hijos: PermNode[];
 }
 
@@ -30,7 +30,7 @@ export interface PermNode {
   selector: 'app-navbar',
   imports: [SharedModule, RouterModule, MatIconModule],
   templateUrl: './navbar.component.html',
-  styleUrls: ['./navbar.component.css'],
+  styleUrl: './navbar.component.css',
 })
 export class NavbarComponent implements OnInit, OnDestroy {
   @Output() public menuToggle = new EventEmitter<boolean>();
@@ -38,7 +38,7 @@ export class NavbarComponent implements OnInit, OnDestroy {
 
   public isSidebarHidden = false;
   public isMobile = false;
-  public pinOpen = false; // 🔒 anclado
+  public pinOpen = false;
   public currentRoute?: string;
 
   // árbol de permisos (raíces)
@@ -120,11 +120,11 @@ export class NavbarComponent implements OnInit, OnDestroy {
 
   // Programa el cierre sólo si realmente sales del <aside>
   public scheduleClose(ev?: PointerEvent): void {
-    if (this.pinOpen || this.isMobile) return; // no cerrar por hover si está anclado o en móvil
+    if (this.pinOpen || this.isMobile) return;
 
     const aside = this.asideRef?.nativeElement;
     const to = ev?.relatedTarget as Node | null;
-    if (aside && to && aside.contains(to)) return; // seguimos dentro → no cerrar
+    if (aside && to && aside.contains(to)) return;
 
     this.cancelClose();
     this.closeTimer = setTimeout(() => {
@@ -232,7 +232,7 @@ export class NavbarComponent implements OnInit, OnDestroy {
      =========================== */
   private readonly routeMap: Record<string, string> = {
     // Administración
-    'Administración': 'users/manage-users',
+    'ADMINISTRACIÓN': 'users/manage-users',
 
     // Gestión documental
     'Adjuntar documentación': 'document-management/upload-documents',
@@ -289,6 +289,8 @@ export class NavbarComponent implements OnInit, OnDestroy {
 
     // Gestión roles
     'GESTIÓN ROLES': 'users/manage-roles',
+    'GESTIÓN MÓDULOS': 'users/manage-modules',
+    'GESTIÓN CARGOS': 'positions/manage-positions',
 
     // Ausentismos
     'AUSENTISMOS': 'hiring/absences',
@@ -336,6 +338,7 @@ export class NavbarComponent implements OnInit, OnDestroy {
 
     // Pagos
     'Pagos': 'payments',
+    'CARGOS': 'assignment',
     'Comprobantes de pago': 'receipt_long',
     'Formas de pago': 'credit_card',
 
@@ -387,7 +390,8 @@ export class NavbarComponent implements OnInit, OnDestroy {
 
     // Gestión roles
     'GESTIÓN ROLES': 'security',
-
+    'GESTIÓN MÓDULOS': 'view_module',
+    'GESTIÓN CARGOS': 'assignment',
     // Ausentismos
     'AUSENTISMOS': 'event_busy',
   };

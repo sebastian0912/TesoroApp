@@ -1,7 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
-// si prefieres, usa '@/environments/environment' y deja que Angular reemplace por build
 import { environment } from '@/environments/environment.development';
 
 export interface Rol {

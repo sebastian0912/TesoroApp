@@ -117,7 +117,7 @@ export class StandardFilterTable implements OnInit, OnChanges, AfterViewInit, On
   filteredCount = 0;
 
   /** Anchos calculados por columna (ej: { codigo: '128px' }) */
-  computedWidths: Record<string, string> = {};
+  computedWidths: Record<string, string> | null = null;
 
   /** Timer para debounce del autosize */
   private autosizeTimer: any;
