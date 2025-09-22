@@ -51,10 +51,11 @@
   <div class="table-viewport">
     <mat-table #tableEl [dataSource]="dataSource" matSort class="dynamic-table" ngSkipHydration>
 
-      <!-- 1) Colgroup: respeta width explícito; si no hay, usa autosize -->
+      <!-- 1) Colgroup: respeta width explícito; si no hay, usa autosize
+           (si tampoco hay autosize, no pone style y el browser reparte) -->
       <colgroup>
         @for (col of columnDefinitions; track col.name) {
-          <col [style.width]="col.width || computedWidths?.[col.name] || 'auto'" />
+          <col [style.width]="col.width || (computedWidths ? computedWidths[col.name] : null)" />
         }
       </colgroup>
 
@@ -62,28 +63,28 @@
       @for (col of columnDefinitions; track col.name) {
         <ng-container [matColumnDef]="col.name" [sticky]="!!col.stickyStart" [stickyEnd]="!!col.stickyEnd">
 
-          <!-- A. Header (forzado a width) -->
+          <!-- A. Header (solo fija width si existe) -->
           <mat-header-cell
             *matHeaderCellDef
             mat-sort-header
             [disabled]="col.type === 'custom'"
             [matTooltip]="col.header"
             class="custom-header"
-            [style.width]="(col.width || computedWidths?.[col.name])"
-            [style.minWidth]="(col.width || computedWidths?.[col.name])"
-            [style.maxWidth]="(col.width || computedWidths?.[col.name])">
+            [style.width]="col.width || (computedWidths ? computedWidths[col.name] : null)"
+            [style.minWidth]="col.width || (computedWidths ? computedWidths[col.name] : null)"
+            [style.maxWidth]="col.width || (computedWidths ? computedWidths[col.name] : null)">
             {{ col.header }}
           </mat-header-cell>
 
-          <!-- B. Celda (forzado a width) -->
+          <!-- B. Celda (solo fija width si existe) -->
           <mat-cell
             *matCellDef="let row"
             [class.cell-right]="col.type === 'number' || col.align === 'right'"
             [class.cell-center]="col.align === 'center'"
             [class.cell-left]="col.align === 'left'"
-            [style.width]="(col.width || computedWidths?.[col.name])"
-            [style.minWidth]="(col.width || computedWidths?.[col.name])"
-            [style.maxWidth]="(col.width || computedWidths?.[col.name])">
+            [style.width]="col.width || (computedWidths ? computedWidths[col.name] : null)"
+            [style.minWidth]="col.width || (computedWidths ? computedWidths[col.name] : null)"
+            [style.maxWidth]="col.width || (computedWidths ? computedWidths[col.name] : null)">
 
             @switch (col.name) {
 
@@ -144,15 +145,15 @@
         </ng-container>
       }
 
-      <!-- 3) Fila de filtros (forzado a width) -->
+      <!-- 3) Fila de filtros (solo fija width si existe) -->
       @for (col of columnDefinitions; track col.name) {
         <ng-container [matColumnDef]="col.name + '_filter'" [sticky]="!!col.stickyStart" [stickyEnd]="!!col.stickyEnd">
           <mat-header-cell
             *matHeaderCellDef
             class="filter-cell"
-            [style.width]="(col.width || computedWidths?.[col.name])"
-            [style.minWidth]="(col.width || computedWidths?.[col.name])"
-            [style.maxWidth]="(col.width || computedWidths?.[col.name])">
+            [style.width]="col.width || (computedWidths ? computedWidths[col.name] : null)"
+            [style.minWidth]="col.width || (computedWidths ? computedWidths[col.name] : null)"
+            [style.maxWidth]="col.width || (computedWidths ? computedWidths[col.name] : null)">
 
             @if ((col.type === 'text' || col.type === 'number') && filterControls[col.name]) {
               <mat-form-field appearance="outline" class="filter-ff">

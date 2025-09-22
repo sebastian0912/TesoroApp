@@ -107,7 +107,7 @@ export class StandardFilterTable implements OnInit, OnChanges, AfterViewInit, On
   @ViewChild(MatPaginator) paginator!: MatPaginator;
 
   /** Ref al <mat-table> para medición de columnas */
-  @ViewChild('tableEl', { static: false }) tableEl!: ElementRef<HTMLElement>;
+  @ViewChild('tableEl', { static: false }) tableEl?: ElementRef<HTMLElement>;
 
   private infoVacantesService = inject(InfoVacantesService);
   private subs: Array<{ unsubscribe: () => void }> = [];
@@ -117,7 +117,7 @@ export class StandardFilterTable implements OnInit, OnChanges, AfterViewInit, On
   filteredCount = 0;
 
   /** Anchos calculados por columna (ej: { codigo: '128px' }) */
-  computedWidths: Record<string, string> | null = null;
+  computedWidths: Record<string, string> = {};
 
   /** Timer para debounce del autosize */
   private autosizeTimer: any;
@@ -166,10 +166,13 @@ export class StandardFilterTable implements OnInit, OnChanges, AfterViewInit, On
         }
         return (raw ?? '').toString().toLowerCase();
       };
+      this.subs.push(this.sort.sortChange.subscribe(() => this.scheduleAutosize()));
     }
+
     if (this.paginator) {
       this.dataSource.paginator = this.paginator;
       this.paginator.pageSize = this.defaultPageSize;
+      this.subs.push(this.paginator.page.subscribe(() => this.scheduleAutosize()));
     }
 
     this.scheduleAutosize();
@@ -505,38 +508,42 @@ export class StandardFilterTable implements OnInit, OnChanges, AfterViewInit, On
   private scheduleAutosize() {
     if (!this.autoSize) return;
     clearTimeout(this.autosizeTimer);
-    // Deja que Angular pinte primero
-    this.autosizeTimer = setTimeout(() => this.autosizeColumns(), 0);
+    this.autosizeTimer = setTimeout(() => {
+      requestAnimationFrame(() => this.autosizeColumns());
+    }, 0);
   }
 
-  /** Mide header + celdas visibles y fija <col> en px (si no hay width definida) */
-  /** Mide header + celdas visibles y fija <col> en px/chs.
-   *  Si col.width viene definido, se usa como ANCHO EXACTO y no se mide. */
+  /** Mide header + celdas; reparte ancho sobrante entre columnas sin width */
   private autosizeColumns(): void {
-    if (!this.autoSize || !this.tableEl) return;
+    if (!this.autoSize) return;
 
-    const table = this.tableEl.nativeElement;
+    const host = this.tableEl?.nativeElement ?? null;
+    if (!host || typeof (host as any).querySelector !== 'function') return;
+
+    // ancho visible del contenedor scroll (si existe)
+    const container = host.closest('.table-viewport') as HTMLElement | null;
+    const containerWidth = container?.clientWidth || host.clientWidth || 0;
+
+    const PADDING_FALLBACK = 24;
+    const MAX_CAP = 560;
+    const MIN_BASE = 72;
+
     const newWidths: Record<string, string> = {};
-    const PADDING_FALLBACK = 24; // ~12px left + 12px right
-    const MAX_CAP = 560;         // anti-outliers
-    const MIN_BASE = 72;         // base mínima
 
-    for (const col of this.columnDefinitions) {
-      // 1) Si el usuario pasó un ancho (px, ch, rem...), respétalo y sigue
-      if (col.width) {
-        newWidths[col.name] = col.width;   // <-- se acepta '18ch', '120px', etc.
-        continue;
-      }
+    const flexCols = this.columnDefinitions.filter(c => !c.width);
+    const fixedCols = this.columnDefinitions.filter(c => !!c.width);
 
-      // 2) Si NO hay width explícito, se mide
+    const measuredMap = new Map<string, number>();
+
+    // 1) Medir columnas flex
+    for (const col of flexCols) {
       const cls = `.mat-column-${cssEscape(col.name)}`;
+
       const headerEl =
-        table.querySelector<HTMLElement>(`.mat-mdc-header-cell${cls}`) ||
-        table.querySelector<HTMLElement>(`.cdk-header-cell${cls}`);
+        host.querySelector<HTMLElement>(`.mat-mdc-header-cell${cls}, .cdk-header-cell${cls}`);
 
       const cellEls =
-        Array.from(table.querySelectorAll<HTMLElement>(`.mat-mdc-cell${cls}`)) ||
-        Array.from(table.querySelectorAll<HTMLElement>(`.cdk-cell${cls}`));
+        host.querySelectorAll<HTMLElement>(`.mat-mdc-cell${cls}, .cdk-cell${cls}`);
 
       // base mínima (algo mayor si es custom/toggle)
       let measured = (col.name === 'actions' || col.type === 'custom') ? 140 : MIN_BASE;
@@ -551,12 +558,43 @@ export class StandardFilterTable implements OnInit, OnChanges, AfterViewInit, On
       }
 
       measured = Math.min(measured, MAX_CAP);
+      measuredMap.set(col.name, measured);
       newWidths[col.name] = `${Math.ceil(measured)}px`;
+    }
+
+    // 2) Fijar columnas con width explícito
+    for (const col of fixedCols) {
+      newWidths[col.name] = col.width as string;
+    }
+
+    // 3) Repartir ancho sobrante entre las flex
+    const fixedTotalPx = fixedCols
+      .map(c => toPx(c.width as string, containerWidth))
+      .reduce((a, b) => a + b, 0);
+
+    const measuredTotal = Array.from(measuredMap.values()).reduce((a, b) => a + b, 0);
+
+    const scrollbarW = container ? (container.offsetWidth - container.clientWidth) : 0;
+    const availableForFlex = Math.max(0, containerWidth - fixedTotalPx - scrollbarW);
+
+    if (availableForFlex > 0 && measuredTotal > 0 && flexCols.length) {
+      if (measuredTotal < availableForFlex) {
+        const extra = availableForFlex - measuredTotal;
+        const perCol = Math.floor(extra / flexCols.length);
+        const remainder = extra - perCol * flexCols.length;
+
+        flexCols.forEach((c, i) => {
+          const base = measuredMap.get(c.name)!;
+          const add = perCol + (i === flexCols.length - 1 ? remainder : 0);
+          newWidths[c.name] = `${base + add}px`;
+        });
+      }
+      // Si measuredTotal >= availableForFlex, mantenemos lo medido (scroll X aparece si es necesario)
     }
 
     this.computedWidths = newWidths;
 
-    // --- helpers ---
+    // helpers
     function measure(el: HTMLElement): number {
       try {
         const cs = getComputedStyle(el);
@@ -571,8 +609,15 @@ export class StandardFilterTable implements OnInit, OnChanges, AfterViewInit, On
     function cssEscape(s: string): string {
       return s.replace(/[^a-zA-Z0-9_-]/g, (m) => `\\${m}`);
     }
+    function toPx(value: string, basis: number): number {
+      if (!value) return 0;
+      const v = String(value).trim();
+      if (v.endsWith('px')) return parseFloat(v) || 0;
+      if (v.endsWith('%')) return Math.round((parseFloat(v) || 0) * basis / 100);
+      const n = parseFloat(v);
+      return Number.isFinite(n) ? n : 0;
+    }
   }
-
 
   /** Util */
   private clearSubs() {

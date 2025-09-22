@@ -1,0 +1,75 @@
+<h2 mat-dialog-title class="dlg-title">
+  {{ data.title }}
+</h2>
+
+<div mat-dialog-content class="dlg-content" [formGroup]="form">
+  <ng-container *ngFor="let f of data.fields">
+    <ng-container [ngSwitch]="f.type">
+
+      <!-- TEXT -->
+      <mat-form-field *ngSwitchCase="'text'" appearance="outline" class="ff">
+        <mat-label>{{ f.label }}</mat-label>
+        <input matInput [placeholder]="f.placeholder ?? ''" [formControlName]="f.name"
+          [attr.inputmode]="f.inputMode ?? 'text'">
+        <span matTextPrefix *ngIf="f.prefix">&nbsp;{{ f.prefix }}&nbsp;</span>
+        <span matTextSuffix *ngIf="f.suffix">&nbsp;{{ f.suffix }}&nbsp;</span>
+        <mat-hint *ngIf="f.hint">{{ f.hint }}</mat-hint>
+        <mat-error *ngIf="showError(f.name)">{{ errorMsg(f.name, f) }}</mat-error>
+      </mat-form-field>
+
+      <!-- PASSWORD -->
+      <mat-form-field *ngSwitchCase="'password'" appearance="outline" class="ff">
+        <mat-label>{{ f.label }}</mat-label>
+        <input matInput type="password" [placeholder]="f.placeholder ?? ''" [formControlName]="f.name">
+        <mat-hint *ngIf="f.hint">{{ f.hint }}</mat-hint>
+        <mat-error *ngIf="showError(f.name)">{{ errorMsg(f.name, f) }}</mat-error>
+      </mat-form-field>
+
+      <!-- NUMBER (texto + inputmode decimal) -->
+      <mat-form-field *ngSwitchCase="'number'" appearance="outline" class="ff">
+        <mat-label>{{ f.label }}</mat-label>
+        <input matInput type="text" inputmode="decimal" [placeholder]="f.placeholder ?? ''" [formControlName]="f.name">
+        <span matTextPrefix *ngIf="f.prefix">&nbsp;{{ f.prefix }}&nbsp;</span>
+        <span matTextSuffix *ngIf="f.suffix">&nbsp;{{ f.suffix }}&nbsp;</span>
+        <mat-hint *ngIf="f.hint">{{ f.hint }}</mat-hint>
+        <mat-error *ngIf="showError(f.name)">{{ errorMsg(f.name, f) }}</mat-error>
+      </mat-form-field>
+
+      <!-- TEXTAREA -->
+      <mat-form-field *ngSwitchCase="'textarea'" appearance="outline" class="ff">
+        <mat-label>{{ f.label }}</mat-label>
+        <textarea matInput rows="3" [placeholder]="f.placeholder ?? ''" [formControlName]="f.name"></textarea>
+        <mat-hint *ngIf="f.hint">{{ f.hint }}</mat-hint>
+        <mat-error *ngIf="showError(f.name)">{{ errorMsg(f.name, f) }}</mat-error>
+      </mat-form-field>
+
+      <!-- SELECT -->
+      <mat-form-field *ngSwitchCase="'select'" appearance="outline" class="ff">
+        <mat-label>{{ f.label }}</mat-label>
+        <mat-select [formControlName]="f.name" [placeholder]="f.placeholder ?? ''">
+          <mat-option *ngFor="let opt of (f.options || [])" [value]="opt.value">
+            {{ opt.label }}
+          </mat-option>
+        </mat-select>
+        <mat-hint *ngIf="f.hint">{{ f.hint }}</mat-hint>
+        <mat-error *ngIf="showError(f.name)">{{ errorMsg(f.name, f) }}</mat-error>
+      </mat-form-field>
+
+      <!-- CHECKBOX -->
+      <mat-checkbox *ngSwitchCase="'checkbox'" [formControlName]="f.name" class="ff">
+        {{ f.label }}
+      </mat-checkbox>
+
+    </ng-container>
+  </ng-container>
+</div>
+
+<div mat-dialog-actions class="dlg-actions">
+  <button mat-stroked-button mat-dialog-close>
+    {{ data.cancelText || 'Cancelar' }}
+  </button>
+  <span class="grow"></span>
+  <button mat-flat-button color="primary" (click)="submit()">
+    {{ data.submitText || 'Guardar' }}
+  </button>
+</div>

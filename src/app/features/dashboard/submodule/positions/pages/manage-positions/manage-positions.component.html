@@ -1,1 +1,62 @@
-<p>manage-positions works!</p>
+<mat-card class="full-card">
+  <mat-card-header class="card-header">
+    <mat-card-title >Gestión de cargos</mat-card-title>
+    <span class="spacer"></span>
+
+    <!-- Menú principal (3 puntos) -->
+    <button mat-icon-button [matMenuTriggerFor]="mainMenu" aria-label="Abrir acciones">
+      <mat-icon>more_vert</mat-icon>
+    </button>
+    <mat-menu #mainMenu="matMenu">
+      <button mat-menu-item (click)="nuevo()">
+        <mat-icon>add</mat-icon>
+        <span>Nuevo</span>
+      </button>
+
+      <button mat-menu-item (click)="triggerImport()">
+        <mat-icon>file_upload</mat-icon>
+        <span>Importar</span>
+      </button>
+
+      <button mat-menu-item (click)="exportar()">
+        <mat-icon>file_download</mat-icon>
+        <span>Exportar</span>
+      </button>
+    </mat-menu>
+
+    <!-- Input para importar (oculto) -->
+    <input
+      #fileInp
+      type="file"
+      accept=".xlsx,.xls"
+      (change)="onImportFile($event)"
+      hidden>
+  </mat-card-header>
+
+  <mat-card-content class="card-body">
+    <app-standard-filter-table
+      [data]="viewData"
+      [columnDefinitions]="columns"
+      [pageSizeOptions]="[10,20,50]"
+      [defaultPageSize]="10"
+      [tableTitle]="'Cargos'">
+
+      <!-- Acciones por fila con menú (3 puntos) -->
+      <ng-template #actionsTemplate let-row>
+        <button mat-icon-button [matMenuTriggerFor]="rowMenu" aria-label="Acciones de fila">
+          <mat-icon>more_vert</mat-icon>
+        </button>
+        <mat-menu #rowMenu="matMenu">
+          <button mat-menu-item (click)="editar(row)">
+            <mat-icon>edit</mat-icon>
+            <span>Editar</span>
+          </button>
+          <button mat-menu-item (click)="eliminar(row)">
+            <mat-icon color="warn">delete</mat-icon>
+            <span>Eliminar</span>
+          </button>
+        </mat-menu>
+      </ng-template>
+    </app-standard-filter-table>
+  </mat-card-content>
+</mat-card>

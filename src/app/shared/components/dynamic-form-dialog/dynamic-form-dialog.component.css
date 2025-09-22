@@ -1,0 +1,25 @@
+.dlg-title {
+  margin: 0 0 4px;
+}
+
+.dlg-content {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+  min-width: 360px;
+}
+
+.ff {
+  width: 100%;
+}
+
+.dlg-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-top: 4px;
+}
+
+.grow {
+  flex: 1 1 auto;
+}

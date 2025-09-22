@@ -44,11 +44,12 @@
 
 /* CLAVE: que la suma de columnas sea el ancho real, sin estirar */
 .dynamic-table{
-  width:max-content;                /* respeta widths de columnas */
-  border-collapse:collapse;
-  table-layout:fixed;               /* seguir <col width> y widths de celdas */
-  min-width:max-content;            /* evita encoger bajo el contenido */
+  width: 100%;                 /* ocupa todo el ancho del viewport */
+  min-width: 100%;             /* evita quedarse más angosta */
+  border-collapse: collapse;
+  table-layout: fixed;         /* respeta <col> y reparte el resto */
 }
+
 
 /* ============== TOP BAR ============== */
 .paginator-row{
