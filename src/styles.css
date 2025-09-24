@@ -110,7 +110,6 @@ body {
 /* Componente navbar */
 app-navbar {
   min-width: 35pt;
-
 }
 
 /* Contenido del dashboard */
@@ -125,8 +124,7 @@ app-navbar {
       ====================== */
 .titulo {
   margin-bottom: 20px;
-  /* Evitar 'pt'; usar px o rem es más común en web */
-  font-size: 14px !important;
+  font-size: 1.5rem !important;
   font-weight: bold !important;
   line-height: 1.1 !important;
 }

@@ -37,7 +37,6 @@ import { MatCardModule } from '@angular/material/card';
     MatDatepickerModule,
     NativeDateModule,
     MatDialogModule,
-    // NUEVO
     MatButtonToggleModule,
     MatIconModule,
     MatCardModule,
@@ -69,12 +68,12 @@ export class VacantesComponent implements OnInit {
     'contratados',
   ];
 
-  // NUEVO: modo de vista (tabla | cards)
+  // Toggle de vista (tabla | cards)
   viewMode: 'table' | 'card' = 'table';
 
   @ViewChild(MatPaginator) paginator!: MatPaginator;
   @ViewChild(MatSort) sort!: MatSort;
-  permitido: boolean = false;
+  permitido = false;
   loading = false;
 
   constructor(
@@ -82,10 +81,9 @@ export class VacantesComponent implements OnInit {
     private vacantesService: VacantesService,
     private utilityService: UtilityServiceService,
     private seleccionService: SeleccionService
-  ) {}
+  ) { }
 
   async ngOnInit(): Promise<void> {
-    // Cargar preferencia de vista (si existe)
     const saved = (typeof window !== 'undefined')
       ? (localStorage.getItem('vacantes:viewMode') as 'table' | 'card' | null)
       : null;
@@ -96,7 +94,7 @@ export class VacantesComponent implements OnInit {
     const user = this.utilityService.getUser();
     this.permitido = this.isManager(user);
 
-    // Filtro por string simple (incluye arrays/objetos)
+    // Filtro simple
     this.dataSource.filterPredicate = (data: any, filter: string) =>
       JSON.stringify(data).toLowerCase().includes(filter);
   }
@@ -104,10 +102,10 @@ export class VacantesComponent implements OnInit {
   // ========= Toggle de vista =========
   onToggleView(mode: 'table' | 'card'): void {
     this.viewMode = mode;
-    try { localStorage.setItem('vacantes:viewMode', mode); } catch {}
+    try { localStorage.setItem('vacantes:viewMode', mode); } catch { }
   }
 
-  // ========= Datos para cards (respeta el filtro de la tabla) =========
+  // ========= Datos para cards =========
   get filteredVacantes(): any[] {
     return this.dataSource?.filteredData ?? this.dataSource?.data ?? [];
   }
@@ -115,7 +113,7 @@ export class VacantesComponent implements OnInit {
   // Mejor rendimiento en *ngFor
   trackById = (_: number, v: any) => v?.id ?? v?.codigo ?? _;
 
-  // Iniciales para el avatar de la card
+  // Iniciales para avatar de la card
   initials(text: string): string {
     if (!text) return '?';
     const parts = String(text).trim().split(/\s+/);
@@ -151,7 +149,7 @@ export class VacantesComponent implements OnInit {
   private matchOffice(vacante: any, officeNames: string[]): boolean {
     if (!officeNames.length) return false;
     const wanted = new Set(officeNames.map(n => this.normalize(n)));
-    const oficinas = vacante?.oficinasQueContratan ?? [];
+    const oficinas = Array.isArray(vacante?.oficinasQueContratan) ? vacante.oficinasQueContratan : [];
     return oficinas.some((o: any) => wanted.has(this.normalize(o?.nombre)));
   }
 
@@ -169,7 +167,7 @@ export class VacantesComponent implements OnInit {
 
       let rows: any[];
       if (this.isManager(user)) {
-        rows = response; // no filtrar
+        rows = response; // sin filtro
       } else if (this.isSubaUser(user)) {
         const target = ['VIRTUAL', 'TOCANCIPÁ', 'ZIPAQUIRÁ'];
         rows = response.filter(v => this.matchOffice(v, target));
@@ -189,8 +187,8 @@ export class VacantesComponent implements OnInit {
     const raw = user?.rol ?? user?.roles ?? [];
     const roleNames: string[] = Array.isArray(raw)
       ? raw
-          .map((r: any) => (typeof r === 'string' ? r : r?.nombre))
-          .filter((v: any): v is string => !!v)
+        .map((r: any) => (typeof r === 'string' ? r : r?.nombre))
+        .filter((v: any): v is string => !!v)
       : [typeof raw === 'string' ? raw : raw?.nombre].filter(Boolean) as string[];
     const upper = roleNames.map(r => r.toUpperCase());
     return upper.includes('GERENCIA') || upper.includes('ADMIN');
@@ -209,125 +207,131 @@ export class VacantesComponent implements OnInit {
   // ===== Modales crear/editar
   openModalEdit(vacante?: any): void {
     const dialogRef = this.dialog.open(CrearEditarVacanteComponent, {
-      minWidth: '80vw',
+      width: '95vw',
+      maxWidth: '95vw',
       data: vacante || null
     });
 
     dialogRef.afterClosed().subscribe(result => {
-      if (result) {
-        const payload = {
-          cargo: result.cargo,
-          temporal: result.temporal,
-          area: result.area,
-          empresaUsuariaSolicita: result.empresaUsuariaSolicita,
-          finca: result.finca,
-          experiencia: result.experiencia,
-          descripcion: result.descripcion,
-          salario: Number(result.salario),
-          codigoElite: result.codigoElite,
-          observacionVacante: result.observacionVacante,
-          fechadePruebatecnica: this.formatDate(result.fechadePruebatecnica) || null,
-          horadePruebatecnica: result.pruebaOContratacion === 'Prueba' ? result.horadePruebatecnica : null,
-          fechadeIngreso: this.formatDate(result.fechadeIngreso) || null,
-          fechaPublicado: result.fechaPublicado || new Date().toISOString(),
-          quienpublicolavacante: result.quienpublicolavacante || 'Sistema',
-          estadovacante: result.estadovacante || 'Activa',
-          oficinasQueContratan: result.oficinasQueContratan.map((o: any) => ({
-            nombre: o.nombre,
-            numeroDeGenteRequerida: o.numeroDeGenteRequerida,
-            ruta: o.ruta
-          })),
-          pruebaOContratacion: result.pruebaOContratacion?.trim() || null,
-          tipoContratacion: result.tipoContratacion?.trim() || null,
-          municipio: Array.isArray(result.municipio) ? result.municipio : [],
-          auxilioTransporte: result.auxilioTransporte,
-        };
+      if (!result) return;
 
-        this.vacantesService.actualizarVacante(vacante?.id, payload).subscribe({
-          next: async () => {
-            await this.loadData();
-            Swal.fire({
-              title: '¡Vacante actualizada!',
-              text: 'Los datos han sido guardados correctamente',
-              icon: 'success',
-              confirmButtonText: 'Aceptar'
-            });
-          },
-          error: (error: any) => {
-            Swal.fire({
-              title: 'Error al guardar',
-              text: error.message || 'Error desconocido al actualizar la vacante',
-              icon: 'error',
-              confirmButtonText: 'Aceptar'
-            });
-          }
-        });
-      }
+      const isPrueba = result.pruebaOContratacion === 'Prueba';
+
+      const payload = {
+        cargo: result.cargo?.trim() || null,
+        temporal: result.temporal?.trim() || null,
+        area: result.area || null,
+        empresaUsuariaSolicita: result.empresaUsuariaSolicita?.trim() || null,
+        finca: result.finca?.trim() || null,
+        experiencia: result.experiencia?.trim() || null,
+        descripcion: result.descripcion?.trim() || null,
+        salario: this.parseCurrency(result.salario),
+        codigoElite: result.codigoElite?.trim() || null,
+        observacionVacante: result.observacionVacante?.trim() || null,
+
+        // Condicionales
+        pruebaOContratacion: isPrueba ? 'Prueba' : 'Contratación',
+        fechadePruebatecnica: isPrueba ? this.formatDate(result.fechadePruebatecnica) : null,
+        horadePruebatecnica: isPrueba ? (result.horadePruebatecnica || null) : null,
+
+        // Fecha de ingreso (si aplica ya viene validado en el form)
+        fechadeIngreso: this.formatDate(result.fechadeIngreso) || null,
+
+        fechaPublicado: result.fechaPublicado || new Date().toISOString(),
+        quienpublicolavacante: result.quienpublicolavacante || 'Sistema',
+        estadovacante: result.estadovacante || 'Activa',
+
+        // Distribución + total solicitadas
+        personasSolicitadas: Number(result.personasSolicitadas) || 0,
+        municipiosDistribucion: this.mapMunicipiosDistribucion(result.municipiosDistribucion),
+
+        // Oficinas (nombre + ruta)
+        oficinasQueContratan: (result.oficinasQueContratan || []).map((o: any) => ({
+          nombre: o?.nombre?.trim() || '',
+          ruta: !!o?.ruta,
+        })),
+
+        tipoContratacion: result.tipoContratacion?.trim() || null,
+        municipio: Array.isArray(result.municipio) ? result.municipio : [],
+        auxilioTransporte: result.auxilioTransporte,
+      };
+
+      this.vacantesService.actualizarVacante(vacante?.id, payload).subscribe({
+        next: async () => {
+          await this.loadData();
+          Swal.fire('¡Vacante actualizada!', 'Los datos se guardaron correctamente', 'success');
+        },
+        error: (error: any) => {
+          Swal.fire('Error al guardar', error?.message || 'Error desconocido al actualizar la vacante', 'error');
+        }
+      });
     });
   }
 
   openModal(vacante?: any): void {
     const dialogRef = this.dialog.open(CrearEditarVacanteComponent, {
-      minWidth: '80vw',
+      width: '95vw',
+      maxWidth: '95vw',
       data: vacante ? vacante : null
     });
 
     dialogRef.afterClosed().subscribe(result => {
-      if (result) {
-        const oficinas = Array.isArray(result.oficinasQueContratan) ? result.oficinasQueContratan : [];
+      if (!result) return;
 
-        const payload = {
-          cargo: result.cargo?.trim() || null,
-          area: result.area || null,
-          empresaUsuariaSolicita: result.empresaUsuariaSolicita?.trim() || null,
-          finca: result.finca?.trim() || null,
-          ubicacionPruebaTecnica: result.ubicacionPruebaTecnica?.trim() || null,
-          experiencia: result.experiencia?.trim() || null,
-          fechadePruebatecnica: result.fechadePruebatecnica ? this.formatDate(result.fechadePruebatecnica) : null,
-          horadePruebatecnica: result.horadePruebatecnica?.trim() || null,
-          observacionVacante: result.observacionVacante?.trim() || null,
-          fechadeIngreso: result.fechadeIngreso ? this.formatDate(result.fechadeIngreso) : null,
-          temporal: result.temporal?.trim() || null,
-          descripcion: result.descripcion?.trim() || null,
-          fechaPublicado: this.formatDate(new Date()),
-          quienpublicolavacante: result.quienpublicolavacante?.trim() || "Usuario Logueado",
-          estadovacante: result.estadovacante?.trim() || "Activa",
-          salario: Number(result.salario) || 0,
-          codigoElite: result.codigoElite?.trim() || null,
-          oficinasQueContratan: oficinas.map((oficina: any) => ({
-            nombre: oficina.nombre?.trim() || '',
-            numeroDeGenteRequerida: Number(oficina.numeroDeGenteRequerida) || 1,
-            ruta: !!oficina.ruta
-          })),
-          pruebaOContratacion: result.pruebaOContratacion?.trim() || null,
-          tipoContratacion: result.tipoContratacion?.trim() || null,
-          municipio: Array.isArray(result.municipio) ? result.municipio : [],
-          auxilioTransporte: result.auxilioTransporte,
-        };
+      const isPrueba = result.pruebaOContratacion === 'Prueba';
+      const oficinas = Array.isArray(result.oficinasQueContratan) ? result.oficinasQueContratan : [];
 
-        this.vacantesService.enviarVacante(payload).subscribe({
-          next: async () => {
-            await this.loadData();
-            Swal.fire({
-              title: '¡Éxito!',
-              text: 'La vacante ha sido enviada correctamente',
-              icon: 'success',
-              confirmButtonText: 'Aceptar'
-            });
-          },
-          error: (error) => {
-            Swal.fire({
-              title: 'Error',
-              text: `Hubo un problema al enviar la vacante: ${error.message || 'Error desconocido'}`,
-              icon: 'error',
-              confirmButtonText: 'Aceptar'
-            });
-          }
-        });
-      }
+      const payload = {
+        cargo: result.cargo?.trim() || null,
+        area: result.area || null,
+        empresaUsuariaSolicita: result.empresaUsuariaSolicita?.trim() || null,
+        finca: result.finca?.trim() || null,
+        ubicacionPruebaTecnica: result.ubicacionPruebaTecnica?.trim() || null,
+        experiencia: result.experiencia?.trim() || null,
+
+        // Condicionales
+        fechadePruebatecnica: isPrueba ? this.formatDate(result.fechadePruebatecnica) : null,
+        horadePruebatecnica: isPrueba ? (result.horadePruebatecnica || null) : null,
+        fechadeIngreso: this.formatDate(result.fechadeIngreso) || null,
+        pruebaOContratacion: isPrueba ? 'Prueba' : 'Contratación',
+
+        observacionVacante: result.observacionVacante?.trim() || null,
+        temporal: result.temporal?.trim() || null,
+        descripcion: result.descripcion?.trim() || null,
+        fechaPublicado: this.formatDate(new Date()),
+        quienpublicolavacante: result.quienpublicolavacante?.trim() || 'Usuario Logueado',
+        estadovacante: result.estadovacante?.trim() || 'Activa',
+        salario: this.parseCurrency(result.salario),
+        codigoElite: result.codigoElite?.trim() || null,
+
+        // Distribución + total solicitadas
+        personasSolicitadas: Number(result.personasSolicitadas) || 0,
+        municipiosDistribucion: this.mapMunicipiosDistribucion(result.municipiosDistribucion),
+
+        // Oficinas (nombre + ruta)
+        oficinasQueContratan: oficinas.map((oficina: any) => ({
+          nombre: oficina?.nombre?.trim() || '',
+          ruta: !!oficina?.ruta
+        })),
+
+        tipoContratacion: result.tipoContratacion?.trim() || null,
+        municipio: Array.isArray(result.municipio) ? result.municipio : [],
+        auxilioTransporte: result.auxilioTransporte,
+      };
+
+      this.vacantesService.enviarVacante(payload).subscribe({
+        next: async () => {
+          await this.loadData();
+          Swal.fire('¡Éxito!', 'La vacante ha sido enviada correctamente', 'success');
+        },
+        error: (error) => {
+          Swal.fire('Error', `Problema al enviar la vacante: ${error?.message || 'Error desconocido'}`, 'error');
+        }
+      });
     });
   }
 
+  // ===== Utilidades =====
   formatDate(date: Date | string | null): string | null {
     if (!date) return null;
     const d = new Date(date);
@@ -340,7 +344,7 @@ export class VacantesComponent implements OnInit {
   eliminarVacante(vacante: any): void {
     Swal.fire({
       title: '¿Estás seguro?',
-      text: "No podrás revertir esto",
+      text: 'No podrás revertir esto',
       icon: 'warning',
       showCancelButton: true,
       confirmButtonColor: '#3085d6',
@@ -359,7 +363,7 @@ export class VacantesComponent implements OnInit {
 
   escogerVacante(vacante: any): void {
     localStorage.setItem('vacanteSeleccionada', JSON.stringify(vacante));
-    Swal.fire('Vacante seleccionada', 'La vacante ha sido almacenada para ejecutarla en su proceso de seleccion', 'success');
+    Swal.fire('Vacante seleccionada', 'Se almacenó la vacante para el proceso de selección', 'success');
   }
 
   // ---------- Subida Excel ----------
@@ -418,15 +422,18 @@ export class VacantesComponent implements OnInit {
   }
 
   enviarDatosExcel(datos: any[]): void {
-    this.vacantesService.crearDetalleLaboral(datos).subscribe(
-      () => {
-        Swal.fire('Éxito', 'Datos subidos correctamente', 'success');
-        this.loadData();
-      },
-      () => {
-        Swal.fire('Error', 'Ocurrió un error al subir los datos', 'error');
-      }
-    );
+    // ⚠️ Ajusta este método según tu servicio real.
+    // Si NO tienes vacantesService.crearDetalleLaboral, comenta esta llamada o crea el método.
+    // this.vacantesService.crearDetalleLaboral(datos).subscribe(
+    //   () => {
+    //     Swal.fire('Éxito', 'Datos subidos correctamente', 'success');
+    //     this.loadData();
+    //   },
+    //   () => {
+    //     Swal.fire('Error', 'Ocurrió un error al subir los datos', 'error');
+    //   }
+    // );
+    Swal.fire('Aviso', 'Implementa el endpoint para subir Excel (crearDetalleLaboral).', 'info');
   }
 
   getSiglaTemporal(temporal: string): string {
@@ -465,9 +472,19 @@ export class VacantesComponent implements OnInit {
   }
 
   // ================== Semaforización ==================
+  /** Total requerido desde el backend moderno. */
   totalRequerida(v: any): number {
-    const oficinas = Array.isArray(v?.oficinasQueContratan) ? v.oficinasQueContratan : [];
-    return oficinas.reduce((acc: number, o: any) => acc + this.toInt(o?.numeroDeGenteRequerida), 0);
+    // 1) Si viene personasSolicitadas (nuevo campo)
+    const total = Number(v?.personasSolicitadas);
+    if (Number.isFinite(total) && total > 0) return total;
+
+    // 2) Respaldo: sumar distribución si viene
+    const dist = Array.isArray(v?.municipiosDistribucion) ? v.municipiosDistribucion : [];
+    const sumDist = dist.reduce((acc: number, d: any) => acc + (Number(d?.cantidad) || 0), 0);
+    if (sumDist > 0) return sumDist;
+
+    // 3) Último recurso: 0
+    return 0;
   }
 
   countPre(v: any): number {
@@ -517,5 +534,20 @@ export class VacantesComponent implements OnInit {
     const si: any[] = [];
     for (const v of arr) (this.isCumplida(v) ? si : no).push(v);
     return [...no, ...si];
+  }
+
+  private parseCurrency(val: any): number {
+    // Convierte "1.423.500" → 1423500
+    return Number(String(val ?? '').replace(/[^\d]/g, '')) || 0;
+  }
+
+  private mapMunicipiosDistribucion(arr: any[]): Array<{ municipio: string; cantidad: number }> {
+    const src = Array.isArray(arr) ? arr : [];
+    return src
+      .map(d => ({
+        municipio: String(d?.municipio ?? '').trim(),
+        cantidad: Number(d?.cantidad) || 0,
+      }))
+      .filter(d => !!d.municipio);
   }
 }

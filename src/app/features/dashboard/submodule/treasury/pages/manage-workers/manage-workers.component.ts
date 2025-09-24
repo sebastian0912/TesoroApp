@@ -1,4 +1,3 @@
-import { TesoreriaService } from '@/app/features/dashboard/service/teroreria/tesoreria.service';
 import { SharedModule } from '@/app/shared/shared.module';
 import { Component, OnInit } from '@angular/core';
 import Swal from 'sweetalert2';
@@ -6,6 +5,7 @@ import { MatTableDataSource } from '@angular/material/table';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import * as XLSX from 'xlsx';
 import { StandardFilterTable, ColumnDefinition } from '@/app/shared/components/standard-filter-table/standard-filter-table';
+import { TesoreriaService } from '../../service/teroreria/tesoreria.service';
 
 @Component({
   selector: 'app-manage-workers',

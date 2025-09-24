@@ -1,122 +1,207 @@
-/* ===== Título del diálogo ===== */
-.titulo {
-  margin: 0 0 6px 0;
-  font-weight: 700;
-  font-size: 1.25rem;
+/* ================== BASE ================== */
+.mat-mdc-dialog-content {
+  max-height: 75vh !important;
+  overflow: auto !important;
+  padding: 8px 16px 88px !important;
+  /* espacio para footer sticky */
 }
 
-/* ===== Contenido del diálogo ===== */
-.mat-dialog-content {
-  display: block;
-  max-height: 75vh;           /* más área de trabajo */
-  overflow: auto;
-  padding-top: 8px;
+/* Grid del formulario (4–5 campos por fila según ancho) */
+.mat-mdc-dialog-content form {
+  display: grid !important;
+  gap: 12px 16px !important;
+  align-items: start !important;
+  grid-auto-flow: dense !important;
+  grid-template-columns: 1fr !important;
+  /* móvil */
 }
 
-/* ===== Grid responsive del formulario =====
-   Auto-ajusta a 1, 2 o más columnas según ancho
-*/
-.mat-dialog-content form {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap: 12px 16px;
-  align-items: start;
+@media (min-width:720px) {
+  .mat-mdc-dialog-content form {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  }
 }
 
-/* Todos los form-field ocupan el 100% de su celda */
+@media (min-width:1024px) {
+  .mat-mdc-dialog-content form {
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  }
+}
+
+@media (min-width:1400px) {
+  .mat-mdc-dialog-content form {
+    grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+  }
+}
+
+/* Los campos llenan su celda sí o sí */
 mat-form-field,
-.mat-mdc-form-field,
-.example-full-width {
+.mat-mdc-form-field {
+  width: 100% !important;
+  min-width: 0 !important;
+}
+
+/* Evitar truncados en selects/labels */
+.mat-mdc-select-value-text,
+.mat-mdc-option .mdc-list-item__primary-text {
+  white-space: normal !important;
+  line-height: 1.25 !important;
+}
+
+.mat-mdc-form-field .mdc-floating-label {
+  white-space: normal !important;
+  text-overflow: clip !important;
+  overflow: visible !important;
+}
+
+/* Títulos/bloques que deben ocupar todo el ancho del formulario */
+h3.titulo,
+[formArrayName="municipiosDistribucion"],
+[formArrayName="oficinasQueContratan"],
+.resumen-muni {
+  grid-column: 1 / -1 !important;
+}
+
+/* ================== 3 POR FILA: DISTRIBUCIÓN POR MUNICIPIO ================== */
+[formArrayName="municipiosDistribucion"] {
+  display: grid !important;
+  grid-template-columns: 1fr !important;
+  /* móvil */
+  gap: 12px 16px !important;
+}
+
+@media (min-width:720px) {
+  [formArrayName="municipiosDistribucion"] {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+}
+
+@media (min-width:1024px) {
+  [formArrayName="municipiosDistribucion"] {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  }
+
+  /* ✅ 3 por fila */
+}
+
+/* Tarjeta de cada municipio */
+.row-muni {
+  display: grid !important;
+  grid-template-columns: 1fr 140px !important;
+  /* Municipio | Cantidad */
+  gap: 12px 12px !important;
+  padding: 12px !important;
+  border: 1px solid #eee !important;
+  border-radius: 12px !important;
+  background: #fafafa !important;
+}
+
+.row-muni mat-form-field {
   width: 100% !important;
 }
 
-/* Elementos que deben ocupar todo el ancho */
-h3.titulo,
+/* Resumen */
+.resumen-muni {
+  display: flex !important;
+  gap: 16px !important;
+  align-items: center !important;
+  padding: 6px 0 4px !important;
+}
+
+/* ================== 3 POR FILA: OFICINAS QUE CONTRATAN ================== */
 [formArrayName="oficinasQueContratan"] {
-  grid-column: 1 / -1;
-  margin-top: 8px;
+  display: grid !important;
+  grid-template-columns: 1fr !important;
+  /* móvil */
+  gap: 12px 16px !important;
 }
 
-/* ===== Bloques de oficinas (FormArray) ===== */
-[formArrayName="oficinasQueContratan"] > div {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 12px 16px;
-  padding: 12px;
-  border: 1px solid #eee;
-  border-radius: 12px;
-  background: #fafafa;
+@media (min-width:720px) {
+  [formArrayName="oficinasQueContratan"] {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
 }
 
-/* Alineación de checkbox y botón eliminar dentro del bloque */
-[formArrayName="oficinasQueContratan"] > div mat-checkbox {
-  align-self: center;
-}
-[formArrayName="oficinasQueContratan"] > div button[mat-icon-button] {
-  justify-self: end;
-  align-self: center;
+@media (min-width:1024px) {
+  [formArrayName="oficinasQueContratan"] {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  }
+
+  /* ✅ 3 por fila */
 }
 
-/* ===== Panel del select múltiple con buscador de municipios ===== */
+/* Tarjeta de oficina */
+[formArrayName="oficinasQueContratan"]>div[formGroupName] {
+  display: grid !important;
+  grid-template-columns: 1fr auto auto !important;
+  /* nombre | ruta | borrar */
+  gap: 12px 12px !important;
+  padding: 12px !important;
+  border: 1px solid #eee !important;
+  border-radius: 12px !important;
+  background: #fafafa !important;
+  align-items: center !important;
+}
+
+[formArrayName="oficinasQueContratan"]>div[formGroupName] mat-form-field {
+  width: 100% !important;
+}
+
+[formArrayName="oficinasQueContratan"]>div[formGroupName] button[mat-icon-button] {
+  justify-self: end !important;
+}
+
+/* ===== Panel del select múltiple con buscador ===== */
 .select-panel .filtro-option {
-  opacity: 1;
-  padding: 4px 8px;
+  opacity: 1 !important;
+  padding: 6px 8px !important;
 }
+
 .select-panel .filtro-option input {
-  width: 100%;
-  padding: 6px 8px;
-  border: 1px solid #e0e0e0;
-  border-radius: 6px;
-}
-.select-panel .mat-mdc-option {
-  line-height: 36px;
+  width: 100% !important;
+  padding: 6px 8px !important;
+  border: 1px solid #e0e0e0 !important;
+  border-radius: 6px !important;
+  background: #fff !important;
 }
 
-/* Permite escribir dentro de la opción "disabled" (hack controlado) */
 .no-select {
-  pointer-events: none;
+  pointer-events: none !important;
 }
+
 .no-select input {
-  pointer-events: auto;
-  cursor: text;
-  color: #000;
+  pointer-events: auto !important;
+  cursor: text !important;
 }
 
-/* ===== Acciones del diálogo (abajo) ===== */
-mat-dialog-actions,
+/* ===== Footer sticky ===== */
+.mat-mdc-dialog-actions,
 [mat-dialog-actions] {
-  position: sticky;
-  bottom: 0;
-  background: #fff;
-  padding: 12px 16px;
-  border-top: 1px solid #eee;
-  display: flex;
-  gap: 8px;
-  justify-content: flex-end;
+  position: sticky !important;
+  bottom: 0 !important;
+  background: #fff !important;
+  padding: 12px 16px !important;
+  border-top: 1px solid #eee !important;
+  display: flex !important;
+  gap: 8px !important;
+  justify-content: flex-end !important;
+  z-index: 2 !important;
 }
 
-/* ===== Contenedor hora AM/PM (si lo usas luego) ===== */
-.hora-ampm-container {
-  display: flex;
-  align-items: center;
-}
-.hora-ampm-container input {
-  flex-grow: 1;
-  margin-right: 10px;
+
+.input-obligatorio {
+  position: relative;
 }
 
-/* ===== Breakpoints ===== */
-@media (max-width: 480px) {
-  .mat-dialog-content form {
-    grid-template-columns: 1fr;     /* 1 columna en pantallas muy pequeñas */
-  }
-  [formArrayName="oficinasQueContratan"] > div {
-    grid-template-columns: 1fr;
-  }
-}
-
-@media (min-width: 1200px) {
-  .mat-dialog-content {
-    max-height: 78vh;
-  }
+.input-obligatorio::before {
+  content: '';
+  position: absolute;
+  top: 0pt;
+  left: 0;
+  width: 2pt;
+  height: calc(100% - 15pt);
+  background: red;
+  z-index: 2;
+  border-radius: 2px;
+  pointer-events: none;
 }
