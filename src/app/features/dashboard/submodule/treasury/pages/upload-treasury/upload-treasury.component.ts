@@ -1,9 +1,9 @@
-import { TesoreriaService } from '@/app/features/dashboard/service/teroreria/tesoreria.service';
 import { InfoCardComponent } from '@/app/shared/components/info-card/info-card.component';
 import { CommonModule } from '@angular/common';
 import { Component, ElementRef, ViewChild } from '@angular/core';
 import { MatCardModule } from '@angular/material/card';
 import Swal from 'sweetalert2';
+import { TesoreriaService } from '../../service/teroreria/tesoreria.service';
 
 @Component({
   selector: 'app-upload-treasury',

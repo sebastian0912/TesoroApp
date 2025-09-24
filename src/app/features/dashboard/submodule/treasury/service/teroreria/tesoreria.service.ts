@@ -3,7 +3,7 @@ import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
 import { isPlatformBrowser } from '@angular/common';
 import { firstValueFrom, Observable } from 'rxjs';
 import { catchError } from 'rxjs/operators';
-import { environment } from '../../../../../environments/environment.development';
+import { environment } from '@/environments/environment.development';
 
 @Injectable({
   providedIn: 'root'

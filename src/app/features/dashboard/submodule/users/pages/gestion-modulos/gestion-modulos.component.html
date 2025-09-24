@@ -1,6 +1,6 @@
 <mat-card>
   <mat-card-header class="card-header">
-    <mat-card-title>Gestión de módulos</mat-card-title>
+    <mat-card-title class="titulo">Gestión de módulos</mat-card-title>
     <span class="spacer"></span>
 
     <!-- Crear módulo raíz -->
@@ -10,73 +10,75 @@
     </button>
   </mat-card-header>
 
-  <mat-card-content>
+  <mat-card-content class="card-body">
     <!-- Loader superior opcional -->
     <mat-progress-bar *ngIf="loading" mode="indeterminate"></mat-progress-bar>
+    <div class="scroll">
 
-    <div class="tree-container" [class.loading]="loading">
-      <mat-tree #tree [dataSource]="dataSource" [childrenAccessor]="childrenAccessor">
+      <div class="tree-container" [class.loading]="loading">
+        <mat-tree #tree [dataSource]="dataSource" [childrenAccessor]="childrenAccessor">
 
-        <!-- PADRE / EXPANDIBLE -->
-        <mat-tree-node *matTreeNodeDef="let node; when: hasChild" matTreeNodePadding
-          [cdkTreeNodeTypeaheadLabel]="(node.nombre || node.name)">
+          <!-- PADRE / EXPANDIBLE -->
+          <mat-tree-node *matTreeNodeDef="let node; when: hasChild" matTreeNodePadding
+            [cdkTreeNodeTypeaheadLabel]="(node.nombre || node.name)">
 
-          <button mat-icon-button matTreeNodeToggle [attr.aria-label]="'Alternar ' + (node.nombre || node.name)">
-            <mat-icon class="mat-icon-rtl-mirror">
-              {{ tree.isExpanded(node) ? 'expand_more' : 'chevron_right' }}
-            </mat-icon>
-          </button>
+            <button mat-icon-button matTreeNodeToggle [attr.aria-label]="'Alternar ' + (node.nombre || node.name)">
+              <mat-icon class="mat-icon-rtl-mirror">
+                {{ tree.isExpanded(node) ? 'expand_more' : 'chevron_right' }}
+              </mat-icon>
+            </button>
 
-          <div class="node-content" [attr.data-node-id]="node.id">
-            <div class="node-text">
-              <div class="node-title">{{ node.nombre || node.name }}</div>
-              <div class="node-desc" *ngIf="node.descripcion">{{ node.descripcion }}</div>
+            <div class="node-content" [attr.data-node-id]="node.id">
+              <div class="node-text">
+                <div class="node-title">{{ node.nombre || node.name }}</div>
+                <div class="node-desc" *ngIf="node.descripcion">{{ node.descripcion }}</div>
+              </div>
+
+              <span class="spacer"></span>
+
+              <button mat-icon-button (click)="crear(node)" matTooltip="Agregar submódulo">
+                <mat-icon>add</mat-icon>
+              </button>
+              <button mat-icon-button (click)="editar(node)" matTooltip="Editar">
+                <mat-icon>edit</mat-icon>
+              </button>
+              <button mat-icon-button color="warn" (click)="eliminar(node)" matTooltip="Eliminar">
+                <mat-icon>delete</mat-icon>
+              </button>
             </div>
+          </mat-tree-node>
 
-            <span class="spacer"></span>
+          <!-- HOJA -->
+          <mat-tree-node *matTreeNodeDef="let node" matTreeNodePadding>
+            <!-- botón “espaciador” para alinear con los padres -->
+            <button mat-icon-button disabled></button>
 
-            <button mat-icon-button (click)="crear(node)" matTooltip="Agregar submódulo">
-              <mat-icon>add</mat-icon>
-            </button>
-            <button mat-icon-button (click)="editar(node)" matTooltip="Editar">
-              <mat-icon>edit</mat-icon>
-            </button>
-            <button mat-icon-button color="warn" (click)="eliminar(node)" matTooltip="Eliminar">
-              <mat-icon>delete</mat-icon>
-            </button>
-          </div>
-        </mat-tree-node>
+            <div class="node-content" [attr.data-node-id]="node.id">
+              <div class="node-text">
+                <div class="node-title">{{ node.nombre || node.name }}</div>
+                <div class="node-desc" *ngIf="node.descripcion">{{ node.descripcion }}</div>
+              </div>
 
-        <!-- HOJA -->
-        <mat-tree-node *matTreeNodeDef="let node" matTreeNodePadding>
-          <!-- botón “espaciador” para alinear con los padres -->
-          <button mat-icon-button disabled></button>
+              <span class="spacer"></span>
+              <button mat-icon-button (click)="crear(node)" matTooltip="Agregar submódulo">
+                <mat-icon>add</mat-icon>
+              </button>
 
-          <div class="node-content" [attr.data-node-id]="node.id">
-            <div class="node-text">
-              <div class="node-title">{{ node.nombre || node.name }}</div>
-              <div class="node-desc" *ngIf="node.descripcion">{{ node.descripcion }}</div>
+              <button mat-icon-button (click)="editar(node)" matTooltip="Editar">
+                <mat-icon>edit</mat-icon>
+              </button>
+              <button mat-icon-button color="warn" (click)="eliminar(node)" matTooltip="Eliminar">
+                <mat-icon>delete</mat-icon>
+              </button>
             </div>
+          </mat-tree-node>
 
-            <span class="spacer"></span>
-            <button mat-icon-button (click)="crear(node)" matTooltip="Agregar submódulo">
-              <mat-icon>add</mat-icon>
-            </button>
+        </mat-tree>
 
-            <button mat-icon-button (click)="editar(node)" matTooltip="Editar">
-              <mat-icon>edit</mat-icon>
-            </button>
-            <button mat-icon-button color="warn" (click)="eliminar(node)" matTooltip="Eliminar">
-              <mat-icon>delete</mat-icon>
-            </button>
-          </div>
-        </mat-tree-node>
-
-      </mat-tree>
-
-      <!-- Estado vacío -->
-      <div *ngIf="!loading && (!dataSource || dataSource.length === 0)" class="empty-state">
-        No hay módulos todavía. Crea el primero con el botón “Crear módulo (raíz)”.
+        <!-- Estado vacío -->
+        <div *ngIf="!loading && (!dataSource || dataSource.length === 0)" class="empty-state">
+          No hay módulos todavía. Crea el primero con el botón “Crear módulo (raíz)”.
+        </div>
       </div>
     </div>
   </mat-card-content>

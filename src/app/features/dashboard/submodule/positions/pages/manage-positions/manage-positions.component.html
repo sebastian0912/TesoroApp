@@ -1,6 +1,6 @@
 <mat-card class="full-card">
   <mat-card-header class="card-header">
-    <mat-card-title >Gestión de cargos</mat-card-title>
+    <mat-card-title>Gestión de cargos</mat-card-title>
     <span class="spacer"></span>
 
     <!-- Menú principal (3 puntos) -->
@@ -25,21 +25,12 @@
     </mat-menu>
 
     <!-- Input para importar (oculto) -->
-    <input
-      #fileInp
-      type="file"
-      accept=".xlsx,.xls"
-      (change)="onImportFile($event)"
-      hidden>
+    <input #fileInp type="file" accept=".xlsx,.xls" (change)="onImportFile($event)" hidden>
   </mat-card-header>
 
   <mat-card-content class="card-body">
-    <app-standard-filter-table
-      [data]="viewData"
-      [columnDefinitions]="columns"
-      [pageSizeOptions]="[10,20,50]"
-      [defaultPageSize]="10"
-      [tableTitle]="'Cargos'">
+    <app-standard-filter-table [data]="viewData" [columnDefinitions]="columns" [pageSizeOptions]="[10,20,50]"
+      [defaultPageSize]="10" [tableTitle]="'Cargos'">
 
       <!-- Acciones por fila con menú (3 puntos) -->
       <ng-template #actionsTemplate let-row>
