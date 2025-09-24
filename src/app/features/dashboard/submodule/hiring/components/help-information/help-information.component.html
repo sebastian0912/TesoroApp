@@ -531,20 +531,23 @@
       <mat-form-field class="example-full-width" appearance="outline" style="min-width: 90% !important;">
         <mat-label>Seleccionar vacante</mat-label>
 
+        <!-- mat-select -->
         <mat-select [(value)]="selectedVacanteId" (selectionChange)="onVacanteIdChange($event.value)">
+
+          <!-- Trigger -->
           <mat-select-trigger>
             <ng-container *ngIf="vacanteSeleccionada as v; else placeholderVac">
-              <span class="trigger-wrap">
-                <span class="trigger-title">{{ v.cargo }}</span>
+              <div class="trigger-wrap">
+                <span class="trigger-title">{{ v.cargo || 'Sin cargo' }}</span>
                 <span class="spacer"></span>
                 <span class="pill pill-req">Req {{ totalRequerida(v) }}</span>
                 <span class="pill" [ngClass]="pillClasePre(v)">Pre {{ countPre(v) }}</span>
                 <span class="pill" [ngClass]="pillClaseCont(v)">Cont {{ countCont(v) }}</span>
-              </span>
-              <span class="trigger-meta">
+              </div>
+              <div class="trigger-meta">
                 {{ v.empresaUsuariaSolicita }} — {{ v.finca }} · {{ oficinasResumen(v.oficinasQueContratan) }}
                 · {{ formatShortDate(v.fechaPublicado) }}
-              </span>
+              </div>
             </ng-container>
             <ng-template #placeholderVac>Selecciona…</ng-template>
           </mat-select-trigger>
@@ -553,7 +556,7 @@
           <mat-option *ngFor="let v of vacantes" [value]="v.id">
             <div class="vacante-option">
               <div class="row-1">
-                <span class="cargo">{{ v.cargo }}</span>
+                <span class="cargo">{{ v.cargo || 'Sin cargo' }}</span>
                 <span class="spacer"></span>
                 <span class="pill pill-req">Req {{ totalRequerida(v) }}</span>
                 <span class="pill" [ngClass]="pillClasePre(v)">Pre {{ countPre(v) }}</span>
@@ -569,6 +572,7 @@
           </mat-option>
         </mat-select>
       </mat-form-field>
+
 
       <!-- Resumen (opcional) -->
       <div class="grid">

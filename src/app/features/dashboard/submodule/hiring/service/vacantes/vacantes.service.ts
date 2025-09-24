@@ -111,7 +111,7 @@ export class VacantesService {
   getVacantesPorOficina(nombreOficina: string): Observable<any[]> {
     const url = `${this.apiUrl}/publicacion/vacantes-por-nombre-oficina/${encodeURIComponent(nombreOficina)}/`;
     return this.http.get<any[]>(url);
-  }
+  } 
 
 
   // -----------------------

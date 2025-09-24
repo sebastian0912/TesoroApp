@@ -1,17 +1,15 @@
 import { SharedModule } from '@/app/shared/shared.module';
-import { Component, EventEmitter, Input, LOCALE_ID, OnInit, OnChanges, Output, SimpleChanges } from '@angular/core';
+import { Component, EventEmitter, Input, LOCALE_ID, OnInit, Output, SimpleChanges } from '@angular/core';
 import { FormGroup, FormBuilder, Validators, FormArray } from '@angular/forms';
-import Swal from 'sweetalert2';
 import { MatTabsModule } from '@angular/material/tabs';
-import { HiringService } from '../../service/hiring.service';
 import { UtilityServiceService } from '@/app/shared/services/utilityService/utility-service.service';
 import { MatDatepickerModule } from '@angular/material/datepicker';
 import { MAT_DATE_FORMATS, MAT_DATE_LOCALE, MatNativeDateModule } from '@angular/material/core';
 import { SeleccionService } from '../../service/seleccion/seleccion.service';
-import { GestionDocumentalService } from '../../service/gestion-documental/gestion-documental.service';
 import { InfoVacantesService } from '../../service/info-vacantes/info-vacantes.service';
 import { VacantesService } from '../../service/vacantes/vacantes.service';
 import { firstValueFrom } from 'rxjs';
+import Swal from 'sweetalert2';
 
 export const MY_DATE_FORMATS = {
   parse: { dateInput: 'DD/MM/YYYY' },
@@ -34,19 +32,19 @@ interface PublicacionDTO {
   finca: string | null;
   ubicacionPruebaTecnica: string | null;
   experiencia: string | null;
-  fechadePruebatecnica: string | null; // "YYYY-MM-DD"
-  horadePruebatecnica: string | null;  // "HH:mm:ss"
+  fechadePruebatecnica: string | null;
+  horadePruebatecnica: string | null;
   observacionVacante: string | null;
-  fechadeIngreso: string | null;       // "YYYY-MM-DD"
+  fechadeIngreso: string | null;
   temporal: string | null;
   descripcion: string | null;
-  fechaPublicado: string; // "YYYY-MM-DD"
+  fechaPublicado: string;
   quienpublicolavacante: string | null;
   estadovacante: string | null;
-  salario: string | null;           // "0.00" ó null
+  salario: string | null;
   codigoElite: string | null;
   area: string | null;
-  pruebaOContratacion: string | null; // "Prueba" | "Contratación" | ...
+  pruebaOContratacion: string | null;
   tipoContratacion: string | null;
   municipio: string[] | null;
   auxilioTransporte: string | null;
@@ -67,8 +65,8 @@ interface PublicacionDTO {
     { provide: MAT_DATE_LOCALE, useValue: 'es-CO' },
     { provide: MAT_DATE_FORMATS, useValue: MY_DATE_FORMATS }
   ]
-
 })
+
 export class HelpInformationComponent implements OnInit {
   @Input() cedula: string = '';
   @Output() idVacante = new EventEmitter<number>();
@@ -144,12 +142,10 @@ export class HelpInformationComponent implements OnInit {
 
   constructor(
     private fb: FormBuilder,
-    private hiringService: HiringService,
     private seleccionService: SeleccionService,
     private utilityService: UtilityServiceService,
-    private gestionDocumentalService: GestionDocumentalService,
     private infoVacantesService: InfoVacantesService,
-    private vacantesService: VacantesService
+    private vacantesService: VacantesService,
   ) {
 
     this.formGroup4 = this.fb.group({
@@ -344,6 +340,7 @@ export class HelpInformationComponent implements OnInit {
 
     this.vacantesService.getVacantesPorOficina(user.sede.nombre)
       .subscribe((vacantes: PublicacionDTO[]) => {
+        console.log('Vacantes para oficina', user.sede.nombre, vacantes);
         this.setVacantes(vacantes ?? []);
       });
 
