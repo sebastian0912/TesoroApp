@@ -1,41 +1,35 @@
-import { SeleccionService } from './../../../hiring/service/seleccion/seleccion.service';
 import { Component, OnInit, ViewChild } from '@angular/core';
 import { MatTableDataSource, MatTableModule } from '@angular/material/table';
 import { FormsModule } from '@angular/forms';
-import Swal from 'sweetalert2';
-import * as XLSX from 'xlsx';
-import { NgFor, NgForOf, NgIf } from '@angular/common';
+import { NgIf } from '@angular/common';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
-import { CrearEditarVacanteComponent } from '../../components/crear-editar-vacante/crear-editar-vacante.component';
 import { MatMenuModule } from '@angular/material/menu';
-import { catchError, finalize, of } from 'rxjs';
-import { VacantesService } from '../../service/vacantes/vacantes.service';
-import { SharedModule } from '@/app/shared/shared.module';
 import { MatPaginator, MatPaginatorModule } from '@angular/material/paginator';
 import { MatSort, MatSortModule } from '@angular/material/sort';
-import { MatDatepickerModule } from '@angular/material/datepicker';
-import { NativeDateModule } from '@angular/material/core';
-import { DateRangeDialogComponent } from '@/app/shared/components/date-rang-dialog/date-rang-dialog.component';
-import { UtilityServiceService } from '@/app/shared/services/utilityService/utility-service.service';
-
-// NUEVO: módulos para toggle, iconos y card (si no vienen desde SharedModule)
 import { MatButtonToggleModule } from '@angular/material/button-toggle';
 import { MatIconModule } from '@angular/material/icon';
 import { MatCardModule } from '@angular/material/card';
+import Swal from 'sweetalert2';
+import * as XLSX from 'xlsx';
+
+import { VacantesService } from '../../service/vacantes/vacantes.service';
+import { UtilityServiceService } from '@/app/shared/services/utilityService/utility-service.service';
+import { SharedModule } from '@/app/shared/shared.module';
+import { CrearEditarVacanteComponent } from '../../components/crear-editar-vacante/crear-editar-vacante.component';
+import { DateRangeDialogComponent } from '@/app/shared/components/date-rang-dialog/date-rang-dialog.component';
 
 @Component({
   selector: 'app-vacantes',
+  standalone: true,
   imports: [
     SharedModule,
+    // Material / Angular necesarios por el template
     MatTableModule,
     FormsModule,
-    NgFor,
-    NgForOf,
+    NgIf,
     MatMenuModule,
     MatPaginatorModule,
     MatSortModule,
-    MatDatepickerModule,
-    NativeDateModule,
     MatDialogModule,
     MatButtonToggleModule,
     MatIconModule,
@@ -45,15 +39,18 @@ import { MatCardModule } from '@angular/material/card';
   styleUrl: './vacantes.component.css'
 })
 export class VacantesComponent implements OnInit {
-  vacantes: any[] = [];
   dataSource = new MatTableDataSource<any>([]);
   displayedColumns: string[] = [
-    'acciones',
     'fechaPublicado',
+    'req',
+    'falt',
+    'prueba',
+    'auto',
+    'exm',
+    'firm',
+    'ing',
     'finca',
     'cargo',
-    'oficinas',
-    'pruebaOContratacion',
     'municipio',
     'experiencia',
     'observacionVacante',
@@ -61,36 +58,32 @@ export class VacantesComponent implements OnInit {
     'salario',
     'auxilioTransporte',
     'tipoContratacion',
-    'temporal',
-    'ruta',
-    'fechadeIngreso',
-    'preseleccionados',
-    'contratados',
+    'acciones',           // <- necesaria por tu HTML
   ];
 
-  // Toggle de vista (tabla | cards)
-  viewMode: 'table' | 'card' = 'table';
+  viewMode: 'table' | 'card' = 'table'; // el HTML muestra el toggle
+  loading = false;
+  permitido = false;
 
   @ViewChild(MatPaginator) paginator!: MatPaginator;
   @ViewChild(MatSort) sort!: MatSort;
-  permitido = false;
-  loading = false;
 
   constructor(
     private dialog: MatDialog,
     private vacantesService: VacantesService,
     private utilityService: UtilityServiceService,
-    private seleccionService: SeleccionService
-  ) { }
+  ) {}
 
   async ngOnInit(): Promise<void> {
+    // Persistencia simple del toggle
     const saved = (typeof window !== 'undefined')
       ? (localStorage.getItem('vacantes:viewMode') as 'table' | 'card' | null)
       : null;
     if (saved) this.viewMode = saved;
 
-    await this.loadData();
+    this.loadData();
 
+    // Permisos (para botón Eliminar)
     const user = this.utilityService.getUser();
     this.permitido = this.isManager(user);
 
@@ -99,112 +92,58 @@ export class VacantesComponent implements OnInit {
       JSON.stringify(data).toLowerCase().includes(filter);
   }
 
-  // ========= Toggle de vista =========
   onToggleView(mode: 'table' | 'card'): void {
     this.viewMode = mode;
-    try { localStorage.setItem('vacantes:viewMode', mode); } catch { }
+    try { localStorage.setItem('vacantes:viewMode', mode); } catch {}
   }
 
-  // ========= Datos para cards =========
-  get filteredVacantes(): any[] {
-    return this.dataSource?.filteredData ?? this.dataSource?.data ?? [];
-  }
-
-  // Mejor rendimiento en *ngFor
-  trackById = (_: number, v: any) => v?.id ?? v?.codigo ?? _;
-
-  // Iniciales para avatar de la card
-  initials(text: string): string {
-    if (!text) return '?';
-    const parts = String(text).trim().split(/\s+/);
-    const a = parts[0]?.[0] ?? '';
-    const b = parts[1]?.[0] ?? '';
-    return (a + b).toUpperCase();
-  }
-
-  private normalize(s?: string | null): string {
-    return (s ?? '')
-      .toString()
-      .normalize('NFD')
-      .replace(/\p{Diacritic}/gu, '')
-      .trim()
-      .toUpperCase();
-  }
-
-  private splitToArray(raw: unknown): string[] {
-    if (Array.isArray(raw)) return raw.filter(Boolean) as string[];
-    if (typeof raw === 'string') {
-      return raw.split(/[;,|]/).map(s => s.trim()).filter(Boolean);
-    }
-    return [];
-  }
-
-  private extractTargetOffices(user: any): string[] {
-    const parts = [
-      ...this.splitToArray(user?.sede?.nombre),
-    ];
-    return Array.from(new Set(parts));
-  }
-
-  private matchOffice(vacante: any, officeNames: string[]): boolean {
-    if (!officeNames.length) return false;
-    const wanted = new Set(officeNames.map(n => this.normalize(n)));
-    const oficinas = Array.isArray(vacante?.oficinasQueContratan) ? vacante.oficinasQueContratan : [];
-    return oficinas.some((o: any) => wanted.has(this.normalize(o?.nombre)));
-  }
-
+  // ================== Carga de datos ==================
   loadData(): void {
     this.loading = true;
-
-    this.vacantesService.listarVacantes().pipe(
-      catchError(() => {
+    this.vacantesService.listarVacantes().subscribe({
+      next: (response: any[]) => {
+        console.log('Vacantes recibidas:', response);
+        // Normaliza datos mínimos que usa la tabla
+        const rows = (response ?? []).map(r => this.mapRow(r));
+        this.dataSource.data = rows;
+        this.dataSource.paginator = this.paginator;
+        this.dataSource.sort = this.sort;
+      },
+      error: () => {
         Swal.fire('Error', 'Ocurrió un error al cargar las vacantes', 'error');
-        return of([] as any[]);
-      }),
-      finalize(() => this.loading = false)
-    ).subscribe((response: any[]) => {
-      const user = this.utilityService.getUser();
-
-      let rows: any[];
-      if (this.isManager(user)) {
-        rows = response; // sin filtro
-      } else if (this.isSubaUser(user)) {
-        const target = ['VIRTUAL', 'TOCANCIPÁ', 'ZIPAQUIRÁ'];
-        rows = response.filter(v => this.matchOffice(v, target));
-      } else {
-        rows = response.filter(v => this.matchOffice(v, this.extractTargetOffices(user)));
-      }
-
-      rows = this.reordenarCumplidasAlFinal(rows);
-      this.dataSource.data = rows;
-      this.dataSource.paginator = this.paginator;
-      this.dataSource.sort = this.sort;
+      },
+      complete: () => this.loading = false
     });
   }
 
-  // ===== Helpers de rol/correo
-  private isManager(user: any): boolean {
-    const raw = user?.rol ?? user?.roles ?? [];
-    const roleNames: string[] = Array.isArray(raw)
-      ? raw
-        .map((r: any) => (typeof r === 'string' ? r : r?.nombre))
-        .filter((v: any): v is string => !!v)
-      : [typeof raw === 'string' ? raw : raw?.nombre].filter(Boolean) as string[];
-    const upper = roleNames.map(r => r.toUpperCase());
-    return upper.includes('GERENCIA') || upper.includes('ADMIN');
+  private mapRow(r: any) {
+    // Asegura tipos esperados por el template
+    return {
+      ...r,
+      salario: this.parseCurrency(r?.salario),                           // string "0.00" -> number
+      municipio: Array.isArray(r?.municipio) ? r.municipio : [],         // [] o array de strings
+      observacionVacante: r?.observacionVacante ?? '',                   // puede no venir
+      preseleccionados: Array.isArray(r?.preseleccionados) ? r.preseleccionados : [],
+      contratados: Array.isArray(r?.contratados) ? r.contratados : [],
+      personasSolicitadas: Number(r?.personasSolicitadas) || 0,
+      municipiosDistribucion: Array.isArray(r?.municipiosDistribucion) ? r.municipiosDistribucion : [],
+      fechaPublicado: r?.fechaPublicado ?? null,                         // 'yyyy-MM-dd'
+      fechadeIngreso: r?.fechadeIngreso ?? null,
+      cargo: r?.cargo ?? null,
+      finca: r?.finca ?? '',
+      experiencia: r?.experiencia ?? '',
+      auxilioTransporte: r?.auxilioTransporte ?? 'No',
+      tipoContratacion: r?.tipoContratacion ?? '',
+    };
   }
 
-  private isSubaUser(user: any): boolean {
-    return (user?.correo_electronico || '').toLowerCase() === 'oficinasuba.rtc@gmail.com';
-  }
-
-  // ===== Filtro
+  // ================== Filtro ==================
   applyFilter(event: Event): void {
     const filterValue = (event.target as HTMLInputElement).value.trim().toLowerCase();
     this.dataSource.filter = filterValue;
   }
 
-  // ===== Modales crear/editar
+  // ================== Acciones (editar / eliminar) ==================
   openModalEdit(vacante?: any): void {
     const dialogRef = this.dialog.open(CrearEditarVacanteComponent, {
       width: '95vw',
@@ -233,19 +172,15 @@ export class VacantesComponent implements OnInit {
         pruebaOContratacion: isPrueba ? 'Prueba' : 'Contratación',
         fechadePruebatecnica: isPrueba ? this.formatDate(result.fechadePruebatecnica) : null,
         horadePruebatecnica: isPrueba ? (result.horadePruebatecnica || null) : null,
-
-        // Fecha de ingreso (si aplica ya viene validado en el form)
         fechadeIngreso: this.formatDate(result.fechadeIngreso) || null,
 
         fechaPublicado: result.fechaPublicado || new Date().toISOString(),
         quienpublicolavacante: result.quienpublicolavacante || 'Sistema',
         estadovacante: result.estadovacante || 'Activa',
 
-        // Distribución + total solicitadas
         personasSolicitadas: Number(result.personasSolicitadas) || 0,
         municipiosDistribucion: this.mapMunicipiosDistribucion(result.municipiosDistribucion),
 
-        // Oficinas (nombre + ruta)
         oficinasQueContratan: (result.oficinasQueContratan || []).map((o: any) => ({
           nombre: o?.nombre?.trim() || '',
           ruta: !!o?.ruta,
@@ -257,14 +192,35 @@ export class VacantesComponent implements OnInit {
       };
 
       this.vacantesService.actualizarVacante(vacante?.id, payload).subscribe({
-        next: async () => {
-          await this.loadData();
+        next: () => {
+          this.loadData();
           Swal.fire('¡Vacante actualizada!', 'Los datos se guardaron correctamente', 'success');
         },
         error: (error: any) => {
           Swal.fire('Error al guardar', error?.message || 'Error desconocido al actualizar la vacante', 'error');
         }
       });
+    });
+  }
+
+  eliminarVacante(vacante: any): void {
+    Swal.fire({
+      title: '¿Estás seguro?',
+      text: 'No podrás revertir esto',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#3085d6',
+      cancelButtonColor: '#d33',
+      confirmButtonText: 'Sí, eliminar'
+    }).then(result => {
+      if (result.isConfirmed) {
+        this.vacantesService.eliminarVacante(vacante.id).subscribe({
+          next: () => {
+            Swal.fire('Eliminado', 'La vacante ha sido eliminada.', 'success');
+            this.loadData();
+          }
+        });
+      }
     });
   }
 
@@ -289,7 +245,6 @@ export class VacantesComponent implements OnInit {
         ubicacionPruebaTecnica: result.ubicacionPruebaTecnica?.trim() || null,
         experiencia: result.experiencia?.trim() || null,
 
-        // Condicionales
         fechadePruebatecnica: isPrueba ? this.formatDate(result.fechadePruebatecnica) : null,
         horadePruebatecnica: isPrueba ? (result.horadePruebatecnica || null) : null,
         fechadeIngreso: this.formatDate(result.fechadeIngreso) || null,
@@ -304,11 +259,9 @@ export class VacantesComponent implements OnInit {
         salario: this.parseCurrency(result.salario),
         codigoElite: result.codigoElite?.trim() || null,
 
-        // Distribución + total solicitadas
         personasSolicitadas: Number(result.personasSolicitadas) || 0,
         municipiosDistribucion: this.mapMunicipiosDistribucion(result.municipiosDistribucion),
 
-        // Oficinas (nombre + ruta)
         oficinasQueContratan: oficinas.map((oficina: any) => ({
           nombre: oficina?.nombre?.trim() || '',
           ruta: !!oficina?.ruta
@@ -320,8 +273,8 @@ export class VacantesComponent implements OnInit {
       };
 
       this.vacantesService.enviarVacante(payload).subscribe({
-        next: async () => {
-          await this.loadData();
+        next: () => {
+          this.loadData();
           Swal.fire('¡Éxito!', 'La vacante ha sido enviada correctamente', 'success');
         },
         error: (error) => {
@@ -331,7 +284,7 @@ export class VacantesComponent implements OnInit {
     });
   }
 
-  // ===== Utilidades =====
+  // ================== Utilidades ==================
   formatDate(date: Date | string | null): string | null {
     if (!date) return null;
     const d = new Date(date);
@@ -341,109 +294,74 @@ export class VacantesComponent implements OnInit {
     return `${year}-${month}-${day}`;
   }
 
-  eliminarVacante(vacante: any): void {
-    Swal.fire({
-      title: '¿Estás seguro?',
-      text: 'No podrás revertir esto',
-      icon: 'warning',
-      showCancelButton: true,
-      confirmButtonColor: '#3085d6',
-      cancelButtonColor: '#d33',
-      confirmButtonText: 'Sí, eliminar'
-    }).then(result => {
-      if (result.isConfirmed) {
-        this.vacantesService.eliminarVacante(vacante.id).subscribe(() => {
-          this.vacantes = this.vacantes.filter(v => v.id !== vacante.id);
-          Swal.fire('Eliminado!', 'La vacante ha sido eliminada.', 'success');
-          this.loadData();
-        });
-      }
-    });
+  private parseCurrency(val: any): number {
+    // "1.423.500" | "1423500.00" | 0 -> 1423500
+    return Number(String(val ?? '').replace(/[^\d.-]/g, '')) || 0;
   }
 
-  escogerVacante(vacante: any): void {
-    localStorage.setItem('vacanteSeleccionada', JSON.stringify(vacante));
-    Swal.fire('Vacante seleccionada', 'Se almacenó la vacante para el proceso de selección', 'success');
+  private mapMunicipiosDistribucion(arr: any[]): Array<{ municipio: string; cantidad: number }> {
+    const src = Array.isArray(arr) ? arr : [];
+    return src
+      .map(d => ({
+        municipio: String(d?.municipio ?? '').trim(),
+        cantidad: Number(d?.cantidad) || 0,
+      }))
+      .filter(d => !!d.municipio);
   }
 
-  // ---------- Subida Excel ----------
-  subirArchivoExcel(_: any): void {
-    const fileInput = document.getElementById('fileInput') as HTMLInputElement;
-    fileInput?.click();
+  // ================== Métricas de tabla ==================
+  /** Total requerido: primero personasSolicitadas, si no, suma de distribución. */
+  totalRequerida(v: any): number {
+    const total = Number(v?.personasSolicitadas);
+    if (Number.isFinite(total) && total > 0) return total;
+
+    const dist = Array.isArray(v?.municipiosDistribucion) ? v.municipiosDistribucion : [];
+    const sumDist = dist.reduce((acc: number, d: any) => acc + (Number(d?.cantidad) || 0), 0);
+    return sumDist || 0;
   }
 
-  onFileSelected(event: any): void {
-    const file = event.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (e: any) => {
-        const data = new Uint8Array(e.target.result);
-        const workbook = XLSX.read(data, { type: 'array' });
-        const sheetName = workbook.SheetNames[0];
-        const worksheet = workbook.Sheets[sheetName];
-        const jsonData: any[] = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
-        const datosProcesados = this.procesarDatosExcel(jsonData);
-        this.enviarDatosExcel(datosProcesados);
-      };
-      reader.readAsArrayBuffer(file);
+  /** Preseleccionados (array o número). */
+  countPre(v: any): number {
+    const p = v?.preseleccionados;
+    if (Array.isArray(p)) return p.length;
+    return this.toInt(p);
+  }
+
+  /** Contratados (array o número). */
+  countCont(v: any): number {
+    const c = v?.contratados;
+    if (Array.isArray(c)) return c.length;
+    return this.toInt(c);
+  }
+
+  private toInt(v: unknown): number {
+    if (typeof v === 'number' && Number.isFinite(v)) return Math.trunc(v);
+    if (typeof v === 'string') {
+      const m = v.match(/-?\d+/);
+      return m ? parseInt(m[0], 10) : 0;
     }
-    event.target.value = '';
+    return 0;
   }
 
-  procesarDatosExcel(jsonData: any[]): any[] {
-    const datosProcesados: any[] = [];
-    for (let i = 1; i < jsonData.length; i++) {
-      const fila = jsonData[i];
-      if (fila && fila.length > 0) {
-        const vacante = {
-          empresa_temporal: fila[0] || '',
-          empresa_usuaria: fila[1] || '',
-          centro_costo_carnet: fila[2] || '',
-          empresa_usuaria_centro_costo: fila[3] || '',
-          ciudad: fila[4] || '',
-          telefono_encargado: fila[5] || '',
-          sublabor: fila[6] || '',
-          categoria: fila[7] || '',
-          ccostos: fila[8] || '',
-          subcentro: fila[9] || '',
-          grupo: fila[10] || '',
-          operacion: fila[11] || '',
-          salario: fila[12] || 0,
-          auxilio_transporte: fila[13] || '',
-          ruta: fila[14] || '',
-          valor_transporte: fila[15] || 0,
-          horas_extras: fila[16] || 0,
-          porcentaje_arl: fila[17] || 0
-        };
-        datosProcesados.push(vacante);
-      }
-    }
-    return datosProcesados;
+  // Columnas calculadas según tu maqueta
+  faltantes(v: any): number { return this.totalRequerida(v) - this.countPre(v); }
+  prue(v: any): number { return this.countPre(v); }          // placeholder
+  auto(v: any): number { return Math.max(0, this.countPre(v) - 1); } // placeholder
+  exm(v: any): number  { return Math.max(0, this.countPre(v) - 2); } // placeholder
+  firm(v: any): number { return this.countCont(v); }          // usa contratados
+  ing(v: any): number  { return v.fechadeIngreso ? 1 : 0; }   // bandera simple
+
+  // ================== Utilidad de permisos ==================
+  private isManager(user: any): boolean {
+    const raw = user?.rol ?? user?.roles ?? [];
+    const roleNames: string[] = Array.isArray(raw)
+      ? raw.map((r: any) => (typeof r === 'string' ? r : r?.nombre)).filter((v: any): v is string => !!v)
+      : [typeof raw === 'string' ? raw : raw?.nombre].filter(Boolean) as string[];
+    const upper = roleNames.map(r => r.toUpperCase());
+    return upper.includes('GERENCIA') || upper.includes('ADMIN');
   }
 
-  enviarDatosExcel(datos: any[]): void {
-    // ⚠️ Ajusta este método según tu servicio real.
-    // Si NO tienes vacantesService.crearDetalleLaboral, comenta esta llamada o crea el método.
-    // this.vacantesService.crearDetalleLaboral(datos).subscribe(
-    //   () => {
-    //     Swal.fire('Éxito', 'Datos subidos correctamente', 'success');
-    //     this.loadData();
-    //   },
-    //   () => {
-    //     Swal.fire('Error', 'Ocurrió un error al subir los datos', 'error');
-    //   }
-    // );
-    Swal.fire('Aviso', 'Implementa el endpoint para subir Excel (crearDetalleLaboral).', 'info');
-  }
-
-  getSiglaTemporal(temporal: string): string {
-    switch (temporal) {
-      case 'TU ALIANZA SAS': return 'TA';
-      case 'APOYO LABORAL SAS': return 'AL';
-      default: return temporal;
-    }
-  }
-
+  // ================== Exportar / Importar Excel ==================
   descargarExcelVacantes(_: Event): void {
     this.dialog.open(DateRangeDialogComponent, {
       width: '400px',
@@ -463,91 +381,26 @@ export class VacantesComponent implements OnInit {
     });
   }
 
-  isNumber(val: any): boolean {
-    return typeof val === 'number' && !isNaN(val);
+  onFileSelected(event: any): void {
+    const file = event.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (e: any) => {
+        const data = new Uint8Array(e.target.result);
+        const workbook = XLSX.read(data, { type: 'array' });
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+        const jsonData: any[] = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+        // Implementa aquí tu envío real si aplica
+        console.log('Excel leído, filas:', jsonData.length);
+        Swal.fire('Aviso', 'Implementa el endpoint para subir Excel (crearDetalleLaboral).', 'info');
+      };
+      reader.readAsArrayBuffer(file);
+    }
+    event.target.value = '';
   }
 
   abrirFormularioPreRegistroVacantes(): void {
     window.open('https://formulario.tsservicios.co/formulario/formulario-pre-registro-vacantes', '_blank');
-  }
-
-  // ================== Semaforización ==================
-  /** Total requerido desde el backend moderno. */
-  totalRequerida(v: any): number {
-    // 1) Si viene personasSolicitadas (nuevo campo)
-    const total = Number(v?.personasSolicitadas);
-    if (Number.isFinite(total) && total > 0) return total;
-
-    // 2) Respaldo: sumar distribución si viene
-    const dist = Array.isArray(v?.municipiosDistribucion) ? v.municipiosDistribucion : [];
-    const sumDist = dist.reduce((acc: number, d: any) => acc + (Number(d?.cantidad) || 0), 0);
-    if (sumDist > 0) return sumDist;
-
-    // 3) Último recurso: 0
-    return 0;
-  }
-
-  countPre(v: any): number {
-    const p = v?.preseleccionados;
-    if (Array.isArray(p)) return p.length;
-    return this.toInt(p);
-  }
-
-  countCont(v: any): number {
-    const c = v?.contratados;
-    if (Array.isArray(c)) return c.length;
-    return this.toInt(c);
-  }
-
-  private toInt(v: unknown): number {
-    if (typeof v === 'number' && Number.isFinite(v)) return Math.trunc(v);
-    if (typeof v === 'string') {
-      const m = v.match(/-?\d+/);
-      return m ? parseInt(m[0], 10) : 0;
-    }
-    return 0;
-  }
-
-  semaforoPre(v: any): string {
-    const req = this.totalRequerida(v);
-    const pre = this.countPre(v);
-    return pre >= req ? 'semaforo-ok' : 'semaforo-error';
-  }
-
-  semaforoCont(v: any): string {
-    const req = this.totalRequerida(v);
-    const pre = this.countPre(v);
-    const cont = this.countCont(v);
-
-    if (cont >= req) return 'semaforo-ok';
-    if (pre >= req && cont < req) return 'semaforo-warn';
-    return 'semaforo-error';
-  }
-
-  private isCumplida(v: any): boolean {
-    const req = this.totalRequerida(v);
-    return this.countPre(v) === req && this.countCont(v) === req;
-  }
-
-  private reordenarCumplidasAlFinal(arr: any[]): any[] {
-    const no: any[] = [];
-    const si: any[] = [];
-    for (const v of arr) (this.isCumplida(v) ? si : no).push(v);
-    return [...no, ...si];
-  }
-
-  private parseCurrency(val: any): number {
-    // Convierte "1.423.500" → 1423500
-    return Number(String(val ?? '').replace(/[^\d]/g, '')) || 0;
-  }
-
-  private mapMunicipiosDistribucion(arr: any[]): Array<{ municipio: string; cantidad: number }> {
-    const src = Array.isArray(arr) ? arr : [];
-    return src
-      .map(d => ({
-        municipio: String(d?.municipio ?? '').trim(),
-        cantidad: Number(d?.cantidad) || 0,
-      }))
-      .filter(d => !!d.municipio);
   }
 }

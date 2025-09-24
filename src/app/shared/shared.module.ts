@@ -1,3 +1,4 @@
+import { MatButtonToggleModule } from '@angular/material/button-toggle';
 import { NgModule } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
@@ -104,7 +105,8 @@ import { ThousandSeparatorDirective } from './directives/thousand-separator.dire
     MatDialogModule,
 
     // 👈 y re-EXPÓRTALA
-    ThousandSeparatorDirective
+    ThousandSeparatorDirective,
+    MatButtonToggleModule
   ],
 })
 export class SharedModule {}
