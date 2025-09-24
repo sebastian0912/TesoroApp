@@ -53,7 +53,8 @@ export class ActiveAuthorizationsComponent implements OnInit {
 
         const excepciones = [
           "programador.ts@gmail.com",
-          "bernardin.ts@gmail.com"
+          "bernardin.ts@gmail.com",
+          "mercaflorats@gmail.com"
         ];
 
         const handleExcelDownload = (blob: Blob, nombreArchivo: string) => {

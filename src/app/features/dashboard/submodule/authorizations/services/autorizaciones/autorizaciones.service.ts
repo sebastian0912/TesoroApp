@@ -126,7 +126,7 @@ export class AutorizacionesService {
       }
 
       // Si el rol del usuario es TIENDA, se permite un extra de 50,000
-      if (user.rol === 'TIENDA') {
+      if (user.rol.nombre === 'TIENDA' || user.rol.nombre === 'ESPECIAL') {
         limite += 50000; // Añadimos 50,000 al límite para usuarios de rol "TIENDA"
       }
 

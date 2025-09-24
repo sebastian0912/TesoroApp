@@ -187,7 +187,7 @@ export class CargarMercadoFeriasComponent implements OnInit {
       this.sumaPrestamos = this.autorizacionesService.traerSaldoPendiente(this.datosOperario);
 
       // 3.3 Validar condiciones si no es GERENCIA
-      if (this.rolUsuario !== 'GERENCIA' && this.correoUsuario != "mercarflorats@gmail.com" && this.correoUsuario != "Mercarflora2.ts@gmail.com") {
+      if (this.rolUsuario != "GERENCIA" && this.correoUsuario != "mercarflorats@gmail.com" && this.correoUsuario != "mercarflora2.ts@gmail.com" && this.correoUsuario != "servicioalcliente.tuapo1@gmail.com") {
         const verifica = this.autorizacionesService.verificarCondiciones(
           this.datosOperario,
           parseInt(formValues.valor),
@@ -249,7 +249,7 @@ export class CargarMercadoFeriasComponent implements OnInit {
           formValues.cuotas,
           'Autorizacion de Mercado',
           codigoOH,
-        this.usuario.datos_basicos.nombres + ' ' + this.usuario.datos_basicos .apellidos
+          this.usuario.datos_basicos.nombres + ' ' + this.usuario.datos_basicos.apellidos
         );
 
         this.historial_id = historialData.historial_id;

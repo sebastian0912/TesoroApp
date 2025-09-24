@@ -75,11 +75,8 @@ export class SearchForCandidateComponent implements OnInit, OnDestroy {
     { name: 'nombre_completo', header: 'Nombre Completo', type: 'text' },
     { name: 'created_at', header: 'Fecha de Registro', type: 'date', width: '200px' },
 
-    { name: 'pre_registro', header: 'Pre-registro', type: 'status', width: '140px', statusConfig: this.yesNoStatusConfig },
-    { name: 'entrevistado', header: 'Entrevistado', type: 'status', width: '140px', statusConfig: this.yesNoStatusConfig },
-    { name: 'prueba_tecnica', header: 'Prueba Técnica', type: 'status', width: '150px', statusConfig: this.yesNoStatusConfig },
-    { name: 'examenes_medicos', header: 'Exámenes Médicos', type: 'status', width: '160px', statusConfig: this.yesNoStatusConfig },
-    { name: 'contratado', header: 'Contratado', type: 'status', width: '130px', statusConfig: this.yesNoStatusConfig },
+    { name: 'pre_registro', header: 'Pre Selecciionado', type: 'status', width: '140px', statusConfig: this.yesNoStatusConfig },
+
 
   ];
 
