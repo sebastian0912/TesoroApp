@@ -18,9 +18,19 @@ import { SharedModule } from '@/app/shared/shared.module';
 import { CrearEditarVacanteComponent } from '../../components/crear-editar-vacante/crear-editar-vacante.component';
 import { DateRangeDialogComponent } from '@/app/shared/components/date-rang-dialog/date-rang-dialog.component';
 
+interface ConteoEstados {
+  pre_registro: number;
+  entrevistado: number;
+  prueba_tecnica: number;
+  autorizado: number;
+  examenes_medicos: number;
+  contratado: number;
+  ingreso: number;
+  total_con_su_ultimo_registro: number;
+}
+
 @Component({
   selector: 'app-vacantes',
-  standalone: true,
   imports: [
     SharedModule,
     // Material / Angular necesarios por el template
@@ -41,6 +51,8 @@ import { DateRangeDialogComponent } from '@/app/shared/components/date-rang-dial
 export class VacantesComponent implements OnInit {
   dataSource = new MatTableDataSource<any>([]);
   displayedColumns: string[] = [
+    'acciones',
+    'cumpl',
     'fechaPublicado',
     'req',
     'falt',
@@ -58,10 +70,9 @@ export class VacantesComponent implements OnInit {
     'salario',
     'auxilioTransporte',
     'tipoContratacion',
-    'acciones',           // <- necesaria por tu HTML
   ];
 
-  viewMode: 'table' | 'card' = 'table'; // el HTML muestra el toggle
+  viewMode: 'table' | 'card' = 'table';
   loading = false;
   permitido = false;
 
@@ -72,7 +83,7 @@ export class VacantesComponent implements OnInit {
     private dialog: MatDialog,
     private vacantesService: VacantesService,
     private utilityService: UtilityServiceService,
-  ) {}
+  ) { }
 
   async ngOnInit(): Promise<void> {
     // Persistencia simple del toggle
@@ -94,7 +105,7 @@ export class VacantesComponent implements OnInit {
 
   onToggleView(mode: 'table' | 'card'): void {
     this.viewMode = mode;
-    try { localStorage.setItem('vacantes:viewMode', mode); } catch {}
+    try { localStorage.setItem('vacantes:viewMode', mode); } catch { }
   }
 
   // ================== Carga de datos ==================
@@ -102,7 +113,6 @@ export class VacantesComponent implements OnInit {
     this.loading = true;
     this.vacantesService.listarVacantes().subscribe({
       next: (response: any[]) => {
-        console.log('Vacantes recibidas:', response);
         // Normaliza datos mínimos que usa la tabla
         const rows = (response ?? []).map(r => this.mapRow(r));
         this.dataSource.data = rows;
@@ -117,12 +127,22 @@ export class VacantesComponent implements OnInit {
   }
 
   private mapRow(r: any) {
-    // Asegura tipos esperados por el template
+    const defaultConteo: ConteoEstados = {
+      pre_registro: 0,
+      entrevistado: 0,
+      prueba_tecnica: 0,
+      autorizado: 0,
+      examenes_medicos: 0,
+      contratado: 0,
+      ingreso: 0,
+      total_con_su_ultimo_registro: 0,
+    };
+
     return {
       ...r,
       salario: this.parseCurrency(r?.salario),                           // string "0.00" -> number
       municipio: Array.isArray(r?.municipio) ? r.municipio : [],         // [] o array de strings
-      observacionVacante: r?.observacionVacante ?? '',                   // puede no venir
+      observacionVacante: r?.observacionVacante ?? '',
       preseleccionados: Array.isArray(r?.preseleccionados) ? r.preseleccionados : [],
       contratados: Array.isArray(r?.contratados) ? r.contratados : [],
       personasSolicitadas: Number(r?.personasSolicitadas) || 0,
@@ -134,6 +154,7 @@ export class VacantesComponent implements OnInit {
       experiencia: r?.experiencia ?? '',
       auxilioTransporte: r?.auxilioTransporte ?? 'No',
       tipoContratacion: r?.tipoContratacion ?? '',
+      conteo_estados: (r?.conteo_estados as ConteoEstados) || defaultConteo,
     };
   }
 
@@ -320,36 +341,31 @@ export class VacantesComponent implements OnInit {
     return sumDist || 0;
   }
 
-  /** Preseleccionados (array o número). */
-  countPre(v: any): number {
-    const p = v?.preseleccionados;
-    if (Array.isArray(p)) return p.length;
-    return this.toInt(p);
+  /** Faltantes = Req - Ing (puedes cambiar a Req - Firm si lo prefieres). */
+  faltantes(v: any): number {
+    return Math.max(0, this.totalRequerida(v) - this.firm(v));
   }
 
-  /** Contratados (array o número). */
-  countCont(v: any): number {
-    const c = v?.contratados;
-    if (Array.isArray(c)) return c.length;
-    return this.toInt(c);
+  // ---------- Conteo por estados (desde conteo_estados) ----------
+  private ce(v: any): ConteoEstados {
+    const z: ConteoEstados = {
+      pre_registro: 0,
+      entrevistado: 0,
+      prueba_tecnica: 0,
+      autorizado: 0,
+      examenes_medicos: 0,
+      contratado: 0,
+      ingreso: 0,
+      total_con_su_ultimo_registro: 0,
+    };
+    return (v?.conteo_estados as ConteoEstados) || z;
   }
 
-  private toInt(v: unknown): number {
-    if (typeof v === 'number' && Number.isFinite(v)) return Math.trunc(v);
-    if (typeof v === 'string') {
-      const m = v.match(/-?\d+/);
-      return m ? parseInt(m[0], 10) : 0;
-    }
-    return 0;
-  }
-
-  // Columnas calculadas según tu maqueta
-  faltantes(v: any): number { return this.totalRequerida(v) - this.countPre(v); }
-  prue(v: any): number { return this.countPre(v); }          // placeholder
-  auto(v: any): number { return Math.max(0, this.countPre(v) - 1); } // placeholder
-  exm(v: any): number  { return Math.max(0, this.countPre(v) - 2); } // placeholder
-  firm(v: any): number { return this.countCont(v); }          // usa contratados
-  ing(v: any): number  { return v.fechadeIngreso ? 1 : 0; }   // bandera simple
+  prue(v: any): number { return this.ce(v).prueba_tecnica; }      // columna "Pru"
+  auto(v: any): number { return this.ce(v).autorizado; }          // columna "Auto"
+  exm(v: any): number { return this.ce(v).examenes_medicos; }    // columna "Exm"
+  firm(v: any): number { return this.ce(v).contratado; }          // columna "Firm"
+  ing(v: any): number { return this.ce(v).ingreso; }             // columna "Ing"
 
   // ================== Utilidad de permisos ==================
   private isManager(user: any): boolean {
@@ -363,10 +379,11 @@ export class VacantesComponent implements OnInit {
 
   // ================== Exportar / Importar Excel ==================
   descargarExcelVacantes(_: Event): void {
-    this.dialog.open(DateRangeDialogComponent, {
+    const ref = this.dialog.open(DateRangeDialogComponent, {
       width: '400px',
       data: { title: 'Seleccionar rango de fechas', startDate: null, endDate: null }
-    }).afterClosed().subscribe(result => {
+    });
+    ref.afterClosed().subscribe(result => {
       if (result) {
         const { start, end } = result;
         this.vacantesService.getVacantesExcel(start, end).subscribe(blob => {
@@ -391,7 +408,6 @@ export class VacantesComponent implements OnInit {
         const sheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[sheetName];
         const jsonData: any[] = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
-        // Implementa aquí tu envío real si aplica
         console.log('Excel leído, filas:', jsonData.length);
         Swal.fire('Aviso', 'Implementa el endpoint para subir Excel (crearDetalleLaboral).', 'info');
       };
@@ -402,5 +418,22 @@ export class VacantesComponent implements OnInit {
 
   abrirFormularioPreRegistroVacantes(): void {
     window.open('https://formulario.tsservicios.co/formulario/formulario-pre-registro-vacantes', '_blank');
+  }
+
+  /** % de cumplimiento = Ing / Req * 100, redondeado */
+  cumplimientoPct(v: any): number {
+    const req = this.totalRequerida(v);
+    if (!req) return 0;
+    const ingresados = this.firm(v);
+    const pct = (ingresados / req) * 100;
+    return Math.max(0, Math.min(100, Math.round(pct)));
+  }
+
+  /** Clase de semáforo según % */
+  cumplClass(v: any): string {
+    const pct = this.cumplimientoPct(v);
+    if (pct >= 100) return 'semaforo-pill semaforo-ok';
+    if (pct >= 70) return 'semaforo-pill semaforo-warn';
+    return 'semaforo-pill semaforo-error';
   }
 }

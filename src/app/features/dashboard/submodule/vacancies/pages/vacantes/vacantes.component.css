@@ -250,6 +250,34 @@ mat-card-subtitle,
   color: rgba(0,0,0,.6);
 }
 
+.semaforo-pill {
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-weight: 600;
+  font-size: 12px;
+  display: inline-block;
+  border: 1px solid transparent;
+}
+
+.semaforo-ok {
+  color: #0f5132;
+  background: #d1e7dd;
+  border-color: #badbcc;
+}
+
+.semaforo-warn {
+  color: #664d03;
+  background: #fff3cd;
+  border-color: #ffecb5;
+}
+
+.semaforo-error {
+  color: #842029;
+  background: #f8d7da;
+  border-color: #f5c2c7;
+}
+
+
 /* ====== Responsive ====== */
 @media (max-width: 599px) {
   .info-grid {
