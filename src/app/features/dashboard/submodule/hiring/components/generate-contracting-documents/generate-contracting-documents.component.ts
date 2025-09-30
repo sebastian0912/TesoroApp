@@ -12,7 +12,8 @@ import autoTable from 'jspdf-autotable';
 import { Router } from '@angular/router';
 import { VacantesService } from '../../service/vacantes/vacantes.service';
 import { InfoVacantesService } from '../../service/info-vacantes/info-vacantes.service';
-import { catchError, of, forkJoin, take } from 'rxjs';
+import { catchError, of, forkJoin, take, finalize, map, switchMap } from 'rxjs';
+import { SeleccionService } from '../../service/seleccion/seleccion.service';
 
 type UploadedInfo = {
   file: File;
@@ -64,6 +65,11 @@ export class GenerateContractingDocumentsComponent implements OnInit {
   idVacante: any;
   idInfoAndrea: any;
 
+  datoPersonal: any;
+  datoSeleccion: any;
+  datoContratacion: any;
+  datoVacante: any;
+
   documentos = [
     { titulo: 'Autorización de datos' },
     { titulo: 'Entrega de documentos' },
@@ -76,7 +82,6 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     { titulo: 'CAJA' },
     { titulo: 'PAGO SEGURIDAD SOCIAL' },
   ];
-
 
   nombreCompleto = '';
 
@@ -147,58 +152,113 @@ export class GenerateContractingDocumentsComponent implements OnInit {
 
 
   async ngOnInit(): Promise<void> {
-    // Mostrar Swal de carga desde el inicio
+    // Loader inicial
     Swal.fire({
       icon: 'info',
       title: 'Cargando datos...',
       text: 'Por favor, espera un momento.',
       allowOutsideClick: false,
-      didOpen: () => {
-        Swal.showLoading();
-      }
+      didOpen: () => Swal.showLoading()
     });
-
-
 
     await this.recuperarFormulariosDesdeLocalStorage();
 
-    // Cargar datos del localStorage y asignarlos
-    if (isPlatformBrowser(this.platformId)) {
-      try {
-        const storedUser = localStorage.getItem('user');
-        const cedulaL = localStorage.getItem('cedula');
-        this.cedula = cedulaL || '';
-        this.user = storedUser ? JSON.parse(storedUser) : {};
-        this.sede = this.user.sucursalde || '';
-      } catch (error) {
-        this.user = {};
-      }
-    } else {
+    // Cargar datos del localStorage (solo en navegador)
+    if (!isPlatformBrowser(this.platformId)) {
+      this.user = {};
+      Swal.close();
+      return;
+    }
+
+    try {
+      const storedUser = localStorage.getItem('user');
+      const cedulaL = localStorage.getItem('cedula');
+      this.cedula = cedulaL || '';
+      this.user = storedUser ? JSON.parse(storedUser) : {};
+      this.sede = this.user.sede.nombre || '';
+    } catch {
       this.user = {};
     }
 
-    // Llamar al servicio para obtener datos biométricos
-    this.contratacionService.buscarEncontratacionDatosBiometricos(this.cedula).subscribe(
-      (res: any) => {
-        // Al terminar la llamada, cerrar el Swal
-        Swal.close();
+    if (!this.cedula) {
+      Swal.close();
+      Swal.fire('Sin datos', 'No hay cédula en sesión.', 'info');
+      return;
+    }
 
-        if (res && Object.keys(res).length > 0) {
-          this.firma = res.firmaSolicitante || '';
-          // this.huellaIndiceDerecho = res.huellaIndiceDerecho || '';
-          // this.huellaPulgarDerecho = res.huellaPulgarDerecho || '';
-          this.firmaPersonalAdministrativo = res.firmaPersonalAdministrativo || '';
-        } else {
-          Swal.fire('Sin datos', 'No se encontraron datos biométricos para esta cédula.', 'info');
-        }
-      },
-      (error) => {
-        // En caso de error también cerrar el Swal y notificar
-        Swal.close();
-        Swal.fire('Error', 'Ocurrió un error al obtener los datos biométricos.', 'error');
-      }
+    // --- Streams ---
+    const datoVacante$ = this.contratacionService.buscarEncontratacion(this.cedula).pipe(
+      take(1),
+      map((res: any) => res?.data?.[0] ?? null),
+      catchError(err => { console.error('Error datoVacante:', err); return of(null); })
     );
+
+    const seleccionTop$ = this.seleccionService.getSeleccion(this.cedula).pipe(
+      take(1),
+      catchError(err => { console.error('Error getSeleccion:', err); return of(null); }),
+      map((contratacion: any) => {
+        if (!contratacion) return null;
+        const procesos: any[] = Array.isArray(contratacion)
+          ? contratacion
+          : (Array.isArray(contratacion?.procesoSeleccion) ? contratacion.procesoSeleccion : [contratacion]);
+        if (!procesos.length) return null;
+        return procesos.reduce((max, item) => {
+          const idMax = Number(max?.id ?? -Infinity);
+          const idCur = Number(item?.id ?? -Infinity);
+          return idCur > idMax ? item : max;
+        }, procesos[0]);
+      })
+    );
+
+    const datoContratacion$ = this.seleccionService.buscarEncontratacion(this.cedula).pipe(
+      take(1),
+      catchError(err => { console.error('Error datoContratacion:', err); return of(null); })
+    );
+
+    forkJoin({
+      personal: datoVacante$,
+      procesoTop: seleccionTop$,
+      contratacion: datoContratacion$
+    })
+      .pipe(
+        switchMap(({ personal, procesoTop, contratacion }) => {
+          // Set de estado local
+          this.datoPersonal = personal;
+          this.datoSeleccion = procesoTop;
+          this.datoContratacion = contratacion;
+          this.firma = this.datoPersonal?.firmaSolicitante || '';
+          // Feedback mínimo si algo falta (opcional, sin interrumpir flujo)
+          if (!personal) console.warn('Sin datoPersonal para la cédula:', this.cedula);
+          if (!procesoTop) console.warn('Sin procesoTop de selección para la cédula:', this.cedula);
+
+          // Obtener la descripción/empresa de la vacante si hay id
+          const vacanteId =
+            this.idVacante ??
+            procesoTop?.vacante ??          // en tu ejemplo viene así: 33
+            procesoTop?.vacanteId ??        // fallback si tu backend usa otra key
+            procesoTop?.vacante?.id ?? null;
+
+          if (!vacanteId) return of(null);
+
+          return this.vacantesService.obtenerVacante(vacanteId).pipe(
+            take(1),
+            catchError(err => { console.error('Error obtenerVacante:', err); return of(null); })
+          );
+        }),
+        finalize(() => Swal.close())
+      )
+      .subscribe((vac: any) => {
+        if (vac && Object.keys(vac).length > 0) {
+          this.datoVacante = vac;
+        } else {
+          // Si quieres mostrar aviso cuando no hay vacante:
+          // Swal.fire('Sin datos', 'No se encontraron datos de la vacante.', 'info');
+        }
+      }, _ => {
+        Swal.fire('Error', 'Ocurrió un error al cargar información.', 'error');
+      });
   }
+
 
   constructor(
     @Inject(PLATFORM_ID) private platformId: Object,
@@ -206,6 +266,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     private gestionDocumentalService: GestionDocumentalService,
     private infoVacantesService: InfoVacantesService,
     private vacantesService: VacantesService,
+    private seleccionService: SeleccionService,
     private router: Router
   ) { }
 
@@ -264,8 +325,6 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       iframe.src = url;
     }
   }
-
-
   // Método para reiniciar el input en el DOM
   private resetInput(input: HTMLInputElement): void {
     const newInput = input.cloneNode(true) as HTMLInputElement;
@@ -582,7 +641,6 @@ export class GenerateContractingDocumentsComponent implements OnInit {
 
     // Línea para firma
     doc.line(10, 250, 100, 250); // Ajusta las coordenadas según el tamaño del documento
-
     // Aquí agregamos la firma en base64 con su prefijo
     if (this.firma !== '') {
       // Asegúrate de que this.firma solo sea el base64 sin el 'data:image/png;base64,'
@@ -604,9 +662,9 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     doc.text('Firma de Autorización', 10, 253); // Texto alineado con la línea superior
     doc.setFont('helvetica', 'normal'); // Restaura el estilo de fuente normal
     // Número de Identificación
-    if (this.datosPersonales?.numerodeceduladepersona) {
+    if (this.datoPersonal?.numerodeceduladepersona) {
       doc.text(
-        `Número de Identificación: ${this.datosPersonales.numerodeceduladepersona}`,
+        `Número de Identificación: ${this.datoPersonal.numerodeceduladepersona}`,
         10,
         257
       ); // Espaciado adecuado debajo de "Firma de Autorización"
@@ -2020,7 +2078,6 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     doc.setFont('helvetica', 'normal');
   }
 
-
   cargarpdf() {
     // Mostrar Swal de carga
     Swal.fire({
@@ -2176,878 +2233,285 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string));
   }
 
+  private toSafeArrayBuffer(u8: Uint8Array): ArrayBuffer {
+    const ab = new ArrayBuffer(u8.byteLength);
+    new Uint8Array(ab).set(u8);
+    return ab;
+  }
+
+
+  // === Método principal SOLO con datoVacante, datoSeleccion, datoContratacion ===
   async generarFichaTecnica() {
     try {
-      // Ruta del PDF base
       const pdfUrl = '/Docs/Ficha tecnica.pdf';
+      const arrayBuffer = await this.fetchAsArrayBufferOrNull(pdfUrl);
+      if (!arrayBuffer) throw new Error('No se pudo cargar el PDF base.');
 
-      // Cargar el PDF en formato ArrayBuffer
-      const arrayBuffer = await fetch(pdfUrl).then((res) => {
-        if (!res.ok) {
-          throw new Error('No se pudo cargar el PDF base.');
-        }
-        return res.arrayBuffer();
-      });
-      let logoPath = '';
-      let personaVerificareferencias = '';
-      let firmaVerificareferencias = '';
-      let nombreEmpresa = '';
-      if (this.empresa === 'APOYO LABORAL SAS') {
-        personaVerificareferencias = 'Andrea Sotelo C.C. 1.019.034.641';
-        logoPath = '/logos/Logo_AL.png';
-        nombreEmpresa = 'APOYO LABORAL TS S.A.S.';
-        firmaVerificareferencias = 'firma/FirmaAndreaSD.png';
-      } else if (this.empresa === 'TU ALIANZA SAS') {
-        nombreEmpresa = 'TU ALIANZA S.A.S.';
-        personaVerificareferencias = 'Andrea Sotelo C.C. 1.019.034.641';
-        firmaVerificareferencias = 'firma/FirmaAndreaSD.png';
-        logoPath = '/logos/Logo_TA.png';
-      } else {
-        return;
-      }
-      // Cargar el PDF y su formulario
       const pdfDoc = await PDFDocument.load(arrayBuffer);
-
-      // Registrar fontkit
       pdfDoc.registerFontkit(fontkit as any);
 
-      // Cargar la fuente personalizada (por ejemplo, Roboto)
-      const fontUrl = '/fonts/Roboto-Regular.ttf'; // Ruta a la fuente descargada
-      const fontBytes = await fetch(fontUrl).then((res) => res.arrayBuffer());
-      const customFont = await pdfDoc.embedFont(fontBytes);
+      const fontBytes = await this.fetchAsArrayBufferOrNull('/fonts/Roboto-Regular.ttf');
+      const customFont = fontBytes ? await pdfDoc.embedFont(fontBytes) : undefined;
 
-      // Obtener el formulario
       const form = pdfDoc.getForm();
 
-      // Image16
-      // Cargar la imagen desde la ruta y convertirla en un objeto PDFImage
-      const logoImageBytes = await fetch(logoPath).then((res) => {
-        if (!res.ok) {
-          throw new Error('No se pudo cargar el logo de la empresa.');
-        }
-        return res.arrayBuffer();
-      });
-      const logoImage = await pdfDoc.embedPng(logoImageBytes); // Convierte los bytes en un objeto PDFImage
-      const referenciaPersonal1 = this.referenciasA[Math.floor(Math.random() * this.referenciasA.length)];
-      const referenciaPersonal2 = this.referenciasA[Math.floor(Math.random() * this.referenciasA.length)];
-      const referenciaFamiliar = this.referenciasF[Math.floor(Math.random() * this.referenciasF.length)];
-      const referenciaFamiliar2 = this.referenciasF[Math.floor(Math.random() * this.referenciasF.length)];
-      // Asignar la imagen al botón del formulario
-      const image16 = form.getButton('Image16_af_image');
-      image16.setImage(logoImage); // Ahora se pasa un PDFImage, no un string
+      // --- Branding de empresa desde los objetos permitidos ---
+      const { logoPath, firmaPath, persona, nombreEmpresa } = this.getEmpresaInfo();
 
-      // Image18_af_image
-      const image18 = form.getButton('Image18_af_image');
-      image18.setImage(logoImage);
+      const logoBytes = await this.fetchAsArrayBufferOrNull(logoPath);
+      if (logoBytes) {
+        try {
+          const logoImg = await pdfDoc.embedPng(logoBytes);
+          try { form.getButton('Image16_af_image').setImage(logoImg); } catch { }
+          try { form.getButton('Image18_af_image').setImage(logoImg); } catch { }
+        } catch { }
+      }
 
-      // Establecer el texto y el tamaño de letra usando la fuente personalizada
-      const codContratoField = form.getTextField('CodContrato');
-      codContratoField.setText(this.codigoContratacion || '');
-      codContratoField.setFontSize(7.2);
-      codContratoField.updateAppearances(customFont);
+      // === Campos de cabecera / contrato ===
+      this.setText(form, 'CodContrato', this.safe(this.datoContratacion?.codigo_contrato), customFont, 7.2);
+      this.setText(form, 'sede',this.sede , customFont, 7.2); // NO DISPONIBLE -> vacío
+      this.setText(form, 'empresa', this.safe(nombreEmpresa), customFont);
 
-      const sede = form.getTextField('sede');
-      sede.setText(this.sede || '');
-      sede.setFontSize(7.2);
-      sede.updateAppearances(customFont);
+      // === Identificación principal (datoPersonal) ===
+      const dv = this.datoPersonal ?? {};
+      this.setText(form, '1er ApellidoRow1', this.safe(dv.primer_apellido), customFont);
+      this.setText(form, '2do ApellidoRow1', this.safe(dv.segundo_apellido), customFont);
+      this.setText(form, 'NombresRow1', [this.safe(dv.primer_nombre), this.safe(dv.segundo_nombre)].filter(Boolean).join(' '), customFont);
+      this.setText(form, 'Tipo Documento IdentificaciónRow1', this.safe(dv.tipodedocumento), customFont);
+      this.setText(form, 'Número de IdentificaciónRow1', this.safe(dv.numerodeceduladepersona), customFont);
 
-      // 1er ApellidoRow1
-      const primerApellidoField = form.getTextField('1er ApellidoRow1');
-      primerApellidoField.setText(this.datosPersonales.primer_apellido || '');
-      primerApellidoField.updateAppearances(customFont);
+      // fechas básicas
+      this.setText(form, 'Fecha de ExpediciónRow1', this.parseDateToDDMMYYYY(dv.fecha_expedicion_cc), customFont);
+      this.setText(form, 'Departamento de ExpediciónRow1', this.safe(dv.departamento_expedicion_cc), customFont);
+      this.setText(form, 'Municipio de ExpediciónRow1', this.safe(dv.municipio_expedicion_cc), customFont);
 
-      // 2do ApellidoRow1
-      const segundoApellidoField = form.getTextField('2do ApellidoRow1');
-      segundoApellidoField.setText(this.datosPersonales.segundo_apellido || '');
-      segundoApellidoField.updateAppearances(customFont);
+      // nacimiento
+      this.setText(form, 'GeneroRow1', this.safe(dv.genero), customFont);
+      this.setText(form, 'Fecha de NacimientoRow1', this.parseDateToDDMMYYYY(dv.fecha_nacimiento), customFont);
+      this.setText(form, 'Departamento de NacimientoRow1', this.safe(dv.lugar_nacimiento_departamento), customFont);
+      this.setText(form, 'Municipio de NacimientoRow1', this.safe(dv.lugar_nacimiento_municipio), customFont);
 
-      // NombresRow1
-      const nombresField = form.getTextField('NombresRow1');
-      nombresField.setText(
-        `${this.datosPersonales.primer_nombre || ''} ${this.datosPersonales.segundo_nombre || ''
-        }`
+      // estado civil (texto 'X')
+      const ec = this.safe(dv.estado_civil).toUpperCase();
+      this.setXIf(form, 'SolteroEstado Civil', ec === 'SO');
+      this.setXIf(form, 'CasadoEstado Civil', ec === 'CA');
+      this.setXIf(form, 'Union LibreEstado Civil', ec === 'UN');
+      this.setXIf(form, 'SeparadoEstado Civil', ec === 'SE');
+      this.setXIf(form, 'ViudoEstado Civil', ec === 'VI');
+
+      // contacto y residencia
+      this.setText(form, 'Dirección de DomicilioRow1', this.safe(dv.direccion_residencia), customFont);
+      this.setText(form, 'BarrioRow1', this.safe(dv.barrio), customFont);
+      this.setText(form, 'Ciudad DomicilioRow1', this.safe(dv.municipio), customFont);
+      this.setText(form, 'DepartamentoRow1', this.safe(dv.departamento), customFont);
+      this.setText(form, 'CelularRow1', this.safe(dv.celular), customFont);
+      this.setText(form, 'Correo ElectrónicoRow1', this.safe(dv.primercorreoelectronico), customFont);
+
+      // RH y zurdo/diestro
+      this.setText(form, 'CelularGrupo Sanguineo y RH', this.safe(dv.rh), customFont);
+      const mano = this.safe(dv.zurdo_diestro).toUpperCase();
+      this.setXIf(form, 'Diestro', mano.includes('DIESTRO')); // si no, marca el otro
+      this.setXIf(form, 'PesoZurdo', !mano.includes('DIESTRO'));
+
+      // === Fecha de ingreso y salario (datoSeleccion) ===
+      const ds = this.datoSeleccion ?? {};
+      this.setText(form, 'Fecha de Ingreso', this.formatLongDateES(this.safe(ds.fechaIngreso) || this.safe(this.datoContratacion?.fechaIngreso)), customFont);
+      this.setText(form, 'Sueldo Básico', this.formatMoneyCOP(ds.salario), customFont);
+
+      // Bancos/cuenta/ARL: NO DISPONIBLE -> vacío
+      this.setText(form, 'Banco', '', customFont);
+      this.setText(form, 'Cuenta', '', customFont);
+      this.setText(form, 'Porcentaje ARLARL SURA', '', customFont);
+
+      // Seguridad social (datoSeleccion)
+      this.setText(form, 'EPS SaludRow1', this.safe(ds.eps), customFont);
+      this.setText(form, 'AFP PensiónRow1', this.safe(ds.afp), customFont);
+      // this.setText(form, 'AFC CesantiasRow1', this.safe(ds.afc), customFont); // si el campo existe y quieres usarlo
+
+      // === Contacto de emergencia (datoPersonal) ===
+      this.setText(form, 'Apellidos y NombresRow1', this.safe(dv.familiar_emergencia), customFont);
+      this.setText(form, 'Número de ContactoRow1', this.safe(dv.telefono_familiar_emergencia), customFont);
+
+      // === Educación (datoPersonal) ===
+      this.setText(form, 'Seleccione el Grado de Escolaridad', this.safe(dv.escolaridad ?? dv.nivel_escolaridad), customFont);
+      this.setText(form, 'Institución', this.safe(dv.nombre_institucion), customFont);
+      this.setText(form, 'Titulo Obtenido o Ultimo año Cursado', this.safe(dv.titulo_obtenido), customFont);
+      this.setText(form, 'Año Finalización', this.parseDateToDDMMYYYY(dv.ano_finalizacion), customFont);
+
+      // === Padres (datoPersonal) ===
+      this.setText(form, 'Nombre y Apellido PadreRow1', this.safe(dv.nombre_padre), customFont);
+      this.setText(form, 'ViveRow1', this.safe(dv.vive_padre), customFont);
+      this.setText(form, 'OcupaciónRow1', this.safe(dv.ocupacion_padre), customFont);
+      this.setText(form, 'DirecciónRow1', this.safe(dv.direccion_padre), customFont);
+      this.setText(form, 'TeléfonoRow1', this.safe(dv.telefono_padre), customFont);
+      this.setText(form, 'BarrioMunicipioRow1', this.safe(dv.barrio_padre), customFont);
+
+      this.setText(form, 'Nombre y Apellido MadreRow1', this.safe(dv.nombre_madre), customFont);
+      this.setText(form, 'ViveRow1_2', this.safe(dv.vive_madre), customFont);
+      this.setText(form, 'OcupaciónRow1_2', this.safe(dv.ocupacion_madre), customFont);
+      this.setText(form, 'DirecciónRow1_2', this.safe(dv.direccion_madre), customFont);
+      this.setText(form, 'TeléfonoRow1_2', this.safe(dv.telefono_madre), customFont);
+      this.setText(form, 'BarrioMunicipioRow1_2', this.safe(dv.barrio_madre), customFont);
+
+      // === Conyugue (datoPersonal) ===
+      const nombreConyuge = [this.safe(dv.nombre_conyugue), this.safe(dv.apellido_conyugue)].filter(Boolean).join(' ');
+      this.setText(form, 'Nombre y ApellidoconyugeRow1', nombreConyuge, customFont);
+      this.setText(form, 'ViveRow1_3', this.safe(dv.vive_con_el_conyugue), customFont);
+      this.setText(form, 'OcupaciónRow1_3', this.safe(dv.ocupacion_conyugue), customFont);
+      this.setText(form, 'DirecciónRow1_3', this.safe(dv.direccion_conyugue), customFont);
+      this.setText(form, 'TeléfonoRow1_3', this.safe(dv.telefono_conyugue), customFont);
+      this.setText(form, 'BarrioMunicipioRow1_3', this.safe(dv.barrio_municipio_conyugue), customFont);
+
+      // === Hijos (datoPersonal.hijos) ===
+      const hijos = this.hijosTop5();
+      const nombreFields = ['Apellidos y Nombres1', 'Apellidos y Nombres2', 'Apellidos y Nombres3', 'Apellidos y Nombres4', 'Apellidos y Nombres5'];
+      const fnFields = ['F de Nacimiento1', 'F de Nacimiento2', 'F de Nacimiento3', 'F de Nacimiento4', 'F de Nacimiento5'];
+      const idFields = [' de Identificación1', ' de Identificación2', ' de Identificación3', ' de Identificación4', ' de Identificación5'];
+      const genFields = ['Gen1', 'Gen2', 'Gen3', 'Gen4', 'Gen5'];
+      const ocuFields = ['Ocupación1', 'Ocupación2', 'Ocupación3', 'Ocupación4', 'Ocupación5'];
+      const cursoFields = ['Curso1', 'Curso2', 'Curso3', 'Curso4', 'Curso5'];
+
+      for (let i = 0; i < 5; i++) {
+        const h = hijos[i] ?? {};
+        this.setText(form, nombreFields[i], this.safe(h.nombre), customFont);
+        this.setText(form, fnFields[i], this.parseDateToDDMMYYYY(h.fecha_nacimiento), customFont);
+        this.setText(form, idFields[i], this.safe(h.no_documento), customFont);
+        this.setText(form, genFields[i], this.safe(h.sexo), customFont);
+        this.setText(form, ocuFields[i], this.safe(h.estudia_o_trabaja), customFont);
+        this.setText(form, cursoFields[i], this.safe(h.curso), customFont);
+      }
+
+      // === Tallas dotación (datoPersonal) ===
+      this.setText(form, 'TALLA CHAQUETARow1', this.safe(dv.chaqueta), customFont);
+      this.setText(form, 'TALLA PANTALONRow1', this.safe(dv.pantalon), customFont);
+      this.setText(form, 'TALLA OVEROLRow1', this.safe(dv.chaqueta), customFont);
+      this.setText(form, 'No calzadoRow1', this.safe(dv.calzado), customFont);
+      this.setText(form, 'No Botas de CauchoRow1', this.safe(dv.calzado), customFont);
+      this.setText(form, 'No ZapatonesRow1', this.safe(dv.calzado), customFont);
+      this.setText(form, 'No Botas MaterialRow1', this.safe(dv.calzado), customFont);
+
+      // === Experiencia laboral 1 (datoPersonal) ===
+      this.setText(form, 'Nombre Empresa 1Row1', this.safe(dv.nombre_expe_laboral1_empresa), customFont);
+      this.setText(form, 'Dirección EmpresaRow1', this.safe(dv.direccion_empresa1), customFont);
+      this.setText(form, 'TeléfonosRow1', this.safe(dv.telefonos_empresa1), customFont);
+      this.setText(form, 'Jefe InmediatoRow1', this.safe(dv.nombre_jefe_empresa1), customFont);
+      this.setText(form, 'CargoRow1', this.safe(dv.cargo_empresa1), customFont);
+      this.setText(form, 'F de RetiroRow1', this.parseDateToDDMMYYYY(dv.fecha_retiro_empresa1), customFont);
+      this.setText(form, 'Motivo de RetiroRow1', this.safe(dv.motivo_retiro_empresa1), customFont);
+
+      // === Referencias (datoPersonal) ===
+      this.setText(form, 'Nombre Referencia 1Row1', this.safe(dv.nombre_referencia_personal1), customFont);
+      this.setText(form, 'TeléfonosRow1_3', this.safe(dv.telefono_referencia_personal1), customFont);
+      this.setText(form, 'OcupaciónRow1_4', this.safe(dv.ocupacion_referencia_personal1), customFont);
+
+      this.setText(form, 'Nombre Referencia 2Row1', this.safe(dv.nombre_referencia_personal2), customFont);
+      this.setText(form, 'TeléfonosRow1_4', this.safe(dv.telefono_referencia_personal2), customFont);
+      this.setText(form, 'OcupaciónRow1_5', this.safe(dv.ocupacion_referencia_personal2), customFont);
+
+      this.setText(form, 'Nombre Referencia 1Row1_2', this.safe(dv.nombre_referencia_familiar1), customFont);
+      this.setText(form, 'TeléfonosRow1_5', this.safe(dv.telefono_referencia_familiar1), customFont);
+      this.setText(form, 'OcupaciónRow1_6', this.safe(dv.ocupacion_referencia_familiar1), customFont);
+
+      this.setText(form, 'Nombre Referencia 1Row1_3', this.safe(dv.nombre_referencia_familiar2), customFont);
+      this.setText(form, 'TeléfonosRow1_6', this.safe(dv.telefono_referencia_familiar2), customFont);
+      // (el PDF tenía un bug: 'OcupaciónRow1_7' con personal2; lo dejo vacío si no corresponde)
+      this.setText(form, 'OcupaciónRow1_7', '', customFont);
+
+      // === Autorizaciones / textos (solo variables permitidas) ===
+      const centroCostoTexto = this.safe(this.datoContratacion?.centro_de_costos) || this.safe(this.datoSeleccion?.empresa_usuario);
+      this.setText(
+        form,
+        'AutorizacionDeEstudiosSeguridad2',
+        centroCostoTexto
+          ? `estudios de seguridad. De conformidad con lo dispuesto en la ley 1581 de 2012 y el decreto reglamentario 1377 de 2013 autorizo a ${centroCostoTexto} a consultar en cualquier momento ante las centrales de riesgo la información comercial a mi nombre.`
+          : '',
+        customFont,
+        6
       );
-      nombresField.updateAppearances(customFont);
 
-      // Tipo Documento IdentificaciónRow1
-      const tipoDocumentoField = form.getTextField('Tipo Documento IdentificaciónRow1');
-      tipoDocumentoField.setText(this.datosPersonales.tipodedocumento || '');
-      tipoDocumentoField.updateAppearances(customFont);
+      // Cedula para autorización
+      this.setText(form, 'CedulaAutorizacion', this.safe(dv.numerodeceduladepersona), customFont);
 
-      // Número de IdentificaciónRow1
-      const numeroIdentificacionField = form.getTextField('Número de IdentificaciónRow1');
-      numeroIdentificacionField.setText(this.datosPersonales.numerodeceduladepersona || '');
-      numeroIdentificacionField.updateAppearances(customFont);
+      // Comentarios referencias (antes usabas arrays aleatorios -> ahora vacío)
+      this.setText(form, 'Comentarios de las Referencias Pesonales 1', '', customFont);
+      this.setText(form, 'Comentarios de las Referencias Pesonales 2', '', customFont);
+      this.setText(form, 'Comentario referencia Familiar', '', customFont);
+      this.setText(form, 'Comentario referencia Familiar 2', '', customFont);
 
-      // Convertir la fecha de expedición al formato dd/mm/yyyy
-      const fechaISO = this.datosPersonales.fecha_expedicion_cc || '';
-      const fechaExpedicion = fechaISO
-        ? new Date(fechaISO).toLocaleDateString('es-ES', {
-          day: '2-digit',
-          month: '2-digit',
-          year: 'numeric',
-        })
-        : '';
+      // Persona que firma verificación (derivada de empresa si aplica)
+      this.setText(form, 'Persona que firma', this.safe(persona), customFont);
 
-      // Asignar la fecha al campo del formulario
-      const fechaExpedicionField = form.getTextField('Fecha de ExpediciónRow1');
-      fechaExpedicionField.setText(fechaExpedicion);
-      fechaExpedicionField.updateAppearances(customFont);
-
-      // Departamento de ExpediciónRow1
-      const departamentoExpedicionField = form.getTextField('Departamento de ExpediciónRow1');
-      departamentoExpedicionField.setText(this.datosPersonales.departamento_expedicion_cc || '');
-      departamentoExpedicionField.updateAppearances(customFont);
-
-      // Municipio de ExpediciónRow1
-      const municipioExpedicionField = form.getTextField('Municipio de ExpediciónRow1');
-      municipioExpedicionField.setText(this.datosPersonales.municipio_expedicion_cc || '');
-      municipioExpedicionField.updateAppearances(customFont);
-
-      // GeneroRow1
-      const generoField = form.getTextField('GeneroRow1');
-      generoField.setText(this.datosPersonales.genero || '');
-      generoField.updateAppearances(customFont);
-
-      // Fecha de iso 2 Fecha de NacimientoRow1
-      const fechaNacimientoISO = this.datosPersonales.fecha_nacimiento || '';
-      const fechaNacimiento = fechaNacimientoISO
-        ? new Date(fechaNacimientoISO).toLocaleDateString('es-ES', {
-          day: '2-digit',
-          month: '2-digit',
-          year: 'numeric',
-        })
-        : '';
-
-      // Fecha de Fecha de NacimientoRow1
-      const fechaNacimientoField = form.getTextField('Fecha de NacimientoRow1');
-      fechaNacimientoField.setText(fechaNacimiento);
-      fechaNacimientoField.updateAppearances(customFont);
-
-      //Departamento de NacimientoRow1
-      const departamentoNacimientoField = form.getTextField('Departamento de NacimientoRow1');
-      departamentoNacimientoField.setText(this.datosPersonales.lugar_nacimiento_departamento || '');
-      departamentoNacimientoField.updateAppearances(customFont);
-
-      // Municipio de NacimientoRow1
-      const municipioNacimientoField = form.getTextField('Municipio de NacimientoRow1');
-      municipioNacimientoField.setText(this.datosPersonales.lugar_nacimiento_municipio || '');
-      municipioNacimientoField.updateAppearances(customFont);
-
-      // Estado Civil
-      // if estado_civil = SE -> SeparadoEstado Civil CON X
-      if (this.datosPersonales.estado_civil === 'SE') {
-        const separadoField = form.getTextField('SeparadoEstado Civil');
-        separadoField.setText('X');
+      // Firma/verificación (si tenemos ruta de firma institucional)
+      const firmaInstBytes = await this.fetchAsArrayBufferOrNull(firmaPath);
+      if (firmaInstBytes) {
+        await this.setImageButtonFromBytes(pdfDoc, form, 'Image15_af_image', firmaInstBytes);
       }
 
-      // if estado_civil = SO -> SolteroEstado Civil CON X
-      if (this.datosPersonales.estado_civil === 'SO') {
-        const solteroField = form.getTextField('SolteroEstado Civil');
-        solteroField.setText('X');
-      }
-
-      // if estado_civil = CA -> CasadoEstado Civil CON X
-      if (this.datosPersonales.estado_civil === 'CA') {
-        const casadoField = form.getTextField('CasadoEstado Civil');
-        casadoField.setText('X');
-      }
-
-      // if estado_civil = VI -> ViudoEstado Civil CON X
-      if (this.datosPersonales.estado_civil === 'VI') {
-        const viudoField = form.getTextField('ViudoEstado Civil');
-        viudoField.setText('X');
-      }
-
-      // if estado_civil = UN -> Union LibreEstado Civil CON X
-      if (this.datosPersonales.estado_civil === 'UN') {
-        const unionLibreField = form.getTextField('Union LibreEstado Civil');
-        unionLibreField.setText('X');
-      }
-
-      // Dirección de DomicilioRow1
-      const direccionDomicilioField = form.getTextField('Dirección de DomicilioRow1');
-      direccionDomicilioField.setText(this.datosPersonales.direccion_residencia || '');
-      direccionDomicilioField.updateAppearances(customFont);
-
-      // BarrioRow1
-      const barrioField = form.getTextField('BarrioRow1');
-      barrioField.setText(this.datosPersonales.barrio || '');
-      barrioField.updateAppearances(customFont);
-
-      // Ciudad DomicilioRow1
-      const ciudadDomicilioField = form.getTextField('Ciudad DomicilioRow1');
-      ciudadDomicilioField.setText(this.datosPersonales.municipio || '');
-      ciudadDomicilioField.updateAppearances(customFont);
-
-      // DepartamentoRow1
-      const departamentoField = form.getTextField('DepartamentoRow1');
-      departamentoField.setText(this.datosPersonales.departamento || '');
-      departamentoField.updateAppearances(customFont);
-
-      // CelularRow1
-      const celularField = form.getTextField('CelularRow1');
-      celularField.setText(this.datosPersonales.celular || '');
-      celularField.updateAppearances(customFont);
-
-      // Correo ElectrónicoRow1
-      const correoElectronicoField = form.getTextField('Correo ElectrónicoRow1');
-      correoElectronicoField.setText(this.datosPersonales.primercorreoelectronico || '');
-      correoElectronicoField.updateAppearances(customFont);
-
-      // CelularGrupo Sanguineo y RH
-      const celularGrupoSanguineoField = form.getTextField('CelularGrupo Sanguineo y RH');
-      celularGrupoSanguineoField.setText(this.datosPersonales.rh || '');
-      celularGrupoSanguineoField.updateAppearances(customFont);
-
-      // if zurdo_diestro = ZU -> Diestro CON X
-      if (this.datosPersonales.zurdo_diestro === 'ZU') {
-        const diestroField = form.getTextField('Diestro');
-        diestroField.setText('X');
-      }
-      else {
-        const zurdoField = form.getTextField('PesoZurdo');
-        zurdoField.setText('X');
-      }
-
-      // Fecha de Ingreso -> selecionparte4.fechaIngreso en jueves 17 de junio de 2021
-      // Convertir la fecha de ingreso al formato "jueves 17 de junio de 2021"
-      const fechaISOIngreso = this.selecionparte4.fechaIngreso || '';
-      const fechaIngreso = fechaISOIngreso
-        ? new Date(fechaISOIngreso).toLocaleDateString('es-ES', {
-          weekday: 'long',
-          day: 'numeric',
-          month: 'long',
-          year: 'numeric',
-        })
-        : '';
-
-      // Asignar la fecha al campo del formulario
-      const fechaIngresoField = form.getTextField('Fecha de Ingreso');
-      fechaIngresoField.setText(fechaIngreso);
-      fechaIngresoField.updateAppearances(customFont);
-
-
-      // Sueldo Básico
-      // Formatear el salario al formato con separador de miles
-      const salario = this.selecionparte4.salario || '';
-      const salarioFormateado = salario
-        ? new Intl.NumberFormat('es-ES', {
-          minimumFractionDigits: 0, // Sin decimales
-          maximumFractionDigits: 0, // Sin decimales
-        }).format(Number(salario))
-        : '';
-
-      // Asignar el salario formateado al campo del formulario
-      const sueldoBasicoField = form.getTextField('Sueldo Básico');
-      sueldoBasicoField.setText(salarioFormateado);
-      sueldoBasicoField.updateAppearances(customFont);
-
-      // Banco
-      const bancoField = form.getTextField('Banco');
-      bancoField.setText(this.pagoTransporte.formaPago || '');
-      bancoField.updateAppearances(customFont);
-
-      // Cuenta
-      const cuentaField = form.getTextField('Cuenta');
-      cuentaField.setText(this.pagoTransporte.numeroPagos || '');
-      cuentaField.updateAppearances(customFont);
-
-      // EPS SaludRow1
-      const epsSaludField = form.getTextField('EPS SaludRow1');
-      epsSaludField.setText(this.selecionparte1.eps || '');
-      epsSaludField.updateAppearances(customFont);
-
-      // AFP PensiónRow1
-      const afpPensionField = form.getTextField('AFP PensiónRow1');
-      afpPensionField.setText(this.selecionparte1.afp || '');
-      afpPensionField.updateAppearances(customFont);
-
+      // Firma del candidato (datoVacante.firma base64) -> en este dataset viene null
       /*
-      // AFC CesantiasRow1
-      const afcCesantiasField = form.getTextField('AFC CesantiasRow1');
-      afcCesantiasField.setText(this.selecionparte1.afc || '');
-      afcCesantiasField.updateAppearances(customFont);
-      */
-
-      // Porcentaje ARLARL SURA
-      const porcentajeARLField = form.getTextField('Porcentaje ARLARL SURA');
-      porcentajeARLField.setText(this.pagoTransporte.porcentajeARL || '');
-      porcentajeARLField.updateAppearances(customFont);
-
-      // Apellidos y NombresRow1 -> de emergercia
-      const apellidosNombresField = form.getTextField('Apellidos y NombresRow1');
-      apellidosNombresField.setText(this.datosPersonales.familiar_emergencia || '');
-      apellidosNombresField.updateAppearances(customFont);
-
-      // Número de ContactoRow1
-      const numeroContactoField = form.getTextField('Número de ContactoRow1');
-      numeroContactoField.setText(this.datosPersonales.telefono_familiar_emergencia || '');
-      numeroContactoField.updateAppearances(customFont);
-
-      // Seleccione el Grado de Escolaridad
-      const gradoEscolaridadField = form.getTextField('Seleccione el Grado de Escolaridad');
-      gradoEscolaridadField.setText(this.datosPersonalesParte2.escolaridad || '');
-      gradoEscolaridadField.updateAppearances(customFont);
-
-      // Institución
-      const institucionField = form.getTextField('Institución');
-      institucionField.setText(this.datosPersonalesParte2.nombre_institucion || '');
-      institucionField.updateAppearances(customFont);
-
-      // Titulo Obtenido o Ultimo año Cursado
-      const tituloField = form.getTextField('Titulo Obtenido o Ultimo año Cursado');
-      tituloField.setText(this.datosPersonalesParte2.titulo_obtenido || '');
-      tituloField.updateAppearances(customFont);
-
-      // Año Finalización
-      const anoFinalizacionField = form.getTextField('Año Finalización');
-      anoFinalizacionField.setText(this.datosPersonalesParte2.ano_finalizacion || '');
-      anoFinalizacionField.updateAppearances(customFont);
-
-      // Nombre y Apellido PadreRow1
-      const nombrePadreField = form.getTextField('Nombre y Apellido PadreRow1');
-      nombrePadreField.setText(this.datosPadre.nombre_padre || '');
-      nombrePadreField.updateAppearances(customFont);
-
-      // ViveRow1
-      const viveField = form.getTextField('ViveRow1');
-      viveField.setText(this.datosPadre.vive_padre || '');
-      viveField.updateAppearances(customFont);
-
-      // OcupaciónRow1
-      const ocupacionField = form.getTextField('OcupaciónRow1');
-      ocupacionField.setText(this.datosPadre.ocupacion_padre || '');
-      ocupacionField.updateAppearances(customFont);
-
-      // DirecciónRow1
-      const direccionPadreField = form.getTextField('DirecciónRow1');
-      direccionPadreField.setText(this.datosPadre.direccion_padre || '');
-      direccionPadreField.updateAppearances(customFont);
-
-      // TeléfonoRow1
-      const telefonoPadreField = form.getTextField('TeléfonoRow1');
-      telefonoPadreField.setText(this.datosPadre.telefono_padre || '');
-      telefonoPadreField.updateAppearances(customFont);
-
-      // BarrioMunicipioRow1
-      const barrioPadreField = form.getTextField('BarrioMunicipioRow1');
-      barrioPadreField.setText(this.datosPadre.barrio_padre || '');
-      barrioPadreField.updateAppearances(customFont);
-
-      // Nombre y Apellido MadreRow1
-      const nombreMadreField = form.getTextField('Nombre y Apellido MadreRow1');
-      nombreMadreField.setText(this.datosMadre.nombre_madre || '');
-      nombreMadreField.updateAppearances(customFont);
-
-      // ViveRow1_2
-      const viveMadreField = form.getTextField('ViveRow1_2');
-      viveMadreField.setText(this.datosMadre.vive_madre || '');
-      viveMadreField.updateAppearances(customFont);
-
-      // OcupaciónRow1_2
-      const ocupacionMadreField = form.getTextField('OcupaciónRow1_2');
-      ocupacionMadreField.setText(this.datosMadre.ocupacion_madre || '');
-      ocupacionMadreField.updateAppearances(customFont);
-
-      // DirecciónRow1_2
-      const direccionMadreField = form.getTextField('DirecciónRow1_2');
-      direccionMadreField.setText(this.datosMadre.direccion_madre || '');
-      direccionMadreField.updateAppearances(customFont);
-
-      // TeléfonoRow1_2
-      const telefonoMadreField = form.getTextField('TeléfonoRow1_2');
-      telefonoMadreField.setText(this.datosMadre.telefono_madre || '');
-      telefonoMadreField.updateAppearances(customFont);
-
-      // BarrioMunicipioRow1_2
-      const barrioMadreField = form.getTextField('BarrioMunicipioRow1_2');
-      barrioMadreField.setText(this.datosMadre.barrio_madre || '');
-      barrioMadreField.updateAppearances(customFont);
-
-      // Nombre y ApellidoconyugeRow1
-      const nombreConyugeField = form.getTextField('Nombre y ApellidoconyugeRow1');
-      nombreConyugeField.setText(this.datosConyugue.nombre_conyugue || '');
-      nombreConyugeField.updateAppearances(customFont);
-
-      // ViveRow1_3
-      const viveConyugeField = form.getTextField('ViveRow1_3');
-      viveConyugeField.setText(this.datosConyugue.vive_con_el_conyugue || '');
-      viveConyugeField.updateAppearances(customFont);
-
-      // OcupaciónRow1_3
-      const ocupacionConyugeField = form.getTextField('OcupaciónRow1_3');
-      ocupacionConyugeField.setText(this.datosConyugue.ocupacion_conyugue || '');
-      ocupacionConyugeField.updateAppearances(customFont);
-
-      // DirecciónRow1_3
-      const direccionConyugeField = form.getTextField('DirecciónRow1_3');
-      direccionConyugeField.setText(this.datosConyugue.direccion_conyugue || '');
-      direccionConyugeField.updateAppearances(customFont);
-
-      // TeléfonoRow1_3
-      const telefonoConyugeField = form.getTextField('TeléfonoRow1_3');
-      telefonoConyugeField.setText(this.datosConyugue.telefono_conyugue || '');
-      telefonoConyugeField.updateAppearances(customFont);
-
-      // BarrioMunicipioRow1_3
-      const barrioConyugeField = form.getTextField('BarrioMunicipioRow1_3');
-      barrioConyugeField.setText(this.datosConyugue.barrio_conyugue || '');
-      barrioConyugeField.updateAppearances(customFont);
-
-      // Apellidos y Nombres1
-      const apellidosNombres1Field = form.getTextField('Apellidos y Nombres1');
-      apellidosNombres1Field.setText(this.datosHijos.hijosArray[0].nombre || '');
-      apellidosNombres1Field.updateAppearances(customFont);
-
-      // Apellidos y Nombres2
-      const apellidosNombres2Field = form.getTextField('Apellidos y Nombres2');
-      apellidosNombres2Field.setText(this.datosHijos.hijosArray[1].nombre || '');
-      apellidosNombres2Field.updateAppearances(customFont);
-
-      // Apellidos y Nombres3
-      const apellidosNombres3Field = form.getTextField('Apellidos y Nombres3');
-      apellidosNombres3Field.setText(this.datosHijos.hijosArray[2].nombre || '');
-      apellidosNombres3Field.updateAppearances(customFont);
-
-      // Apellidos y Nombres4
-      const apellidosNombres4Field = form.getTextField('Apellidos y Nombres4');
-      apellidosNombres4Field.setText(this.datosHijos.hijosArray[3].nombre || '');
-      apellidosNombres4Field.updateAppearances(customFont);
-
-      // Apellidos y Nombres5
-      const apellidosNombres5Field = form.getTextField('Apellidos y Nombres5');
-      apellidosNombres5Field.setText(this.datosHijos.hijosArray[4].nombre || '');
-      apellidosNombres5Field.updateAppearances(customFont);
-
-      /*
-      // Apellidos y Nombres6
-      const apellidosNombres6Field = form.getTextField('Apellidos y Nombres6');
-      apellidosNombres6Field.setText(this.datosHijos.hijosArray[5].nombre || '');
-      apellidosNombres6Field.updateAppearances(customFont);
-*/
-      // F de Nacimiento1
-      const fechaNacimiento1Field = form.getTextField('F de Nacimiento1');
-      fechaNacimiento1Field.setText(this.datosHijos.hijosArray[0].fecha_nacimiento || '');
-      fechaNacimiento1Field.updateAppearances(customFont);
-
-      // F de Nacimiento2
-      const fechaNacimiento2Field = form.getTextField('F de Nacimiento2');
-      fechaNacimiento2Field.setText(this.datosHijos.hijosArray[1].fecha_nacimiento || '');
-      fechaNacimiento2Field.updateAppearances(customFont);
-
-      // F de Nacimiento3
-      const fechaNacimiento3Field = form.getTextField('F de Nacimiento3');
-      fechaNacimiento3Field.setText(this.datosHijos.hijosArray[2].fecha_nacimiento || '');
-      fechaNacimiento3Field.updateAppearances(customFont);
-
-      // F de Nacimiento4
-      const fechaNacimiento4Field = form.getTextField('F de Nacimiento4');
-      fechaNacimiento4Field.setText(this.datosHijos.hijosArray[3].fecha_nacimiento || '');
-      fechaNacimiento4Field.updateAppearances(customFont);
-
-      // F de Nacimiento5
-      const fechaNacimiento5Field = form.getTextField('F de Nacimiento5');
-      fechaNacimiento5Field.setText(this.datosHijos.hijosArray[4].fecha_nacimiento || '');
-      fechaNacimiento5Field.updateAppearances(customFont);
-
-      /*
-      // F de Nacimiento6
-      const fechaNacimiento6Field = form.getTextField('F de Nacimiento6');
-      fechaNacimiento6Field.setText(this.datosHijos.hijosArray[5].fecha_nacimiento || '');
-      fechaNacimiento6Field.updateAppearances(customFont);
-*/
-
-      //  de Identificación1
-      const numeroIdentificacion1Field = form.getTextField(' de Identificación1');
-      numeroIdentificacion1Field.setText(this.datosHijos.hijosArray[0].no_documento || '');
-      numeroIdentificacion1Field.updateAppearances(customFont);
-
-      //  de Identificación2
-      const numeroIdentificacion2Field = form.getTextField(' de Identificación2');
-      numeroIdentificacion2Field.setText(this.datosHijos.hijosArray[1].no_documento || '');
-      numeroIdentificacion2Field.updateAppearances(customFont);
-
-      //  de Identificación3
-      const numeroIdentificacion3Field = form.getTextField(' de Identificación3');
-      numeroIdentificacion3Field.setText(this.datosHijos.hijosArray[2].no_documento || '');
-      numeroIdentificacion3Field.updateAppearances(customFont);
-
-      //  de Identificación4
-      const numeroIdentificacion4Field = form.getTextField(' de Identificación4');
-      numeroIdentificacion4Field.setText(this.datosHijos.hijosArray[3].no_documento || '');
-      numeroIdentificacion4Field.updateAppearances(customFont);
-
-      //  de Identificación5
-      const numeroIdentificacion5Field = form.getTextField(' de Identificación5');
-      numeroIdentificacion5Field.setText(this.datosHijos.hijosArray[4].no_documento || '');
-      numeroIdentificacion5Field.updateAppearances(customFont);
-
-      /*
-      //  de Identificación6
-      const numeroIdentificacion6Field = form.getTextField(' de Identificación6');
-      numeroIdentificacion6Field.setText(this.datosHijos.hijosArray[5].numero_identificacion || '');
-      numeroIdentificacion6Field.updateAppearances(customFont);
-*/
-
-      // Gen1
-      const genero1Field = form.getTextField('Gen1');
-      genero1Field.setText(this.datosHijos.hijosArray[0].sexo || '');
-      genero1Field.updateAppearances(customFont);
-
-      // Gen2
-      const genero2Field = form.getTextField('Gen2');
-      genero2Field.setText(this.datosHijos.hijosArray[1].sexo || '');
-      genero2Field.updateAppearances(customFont);
-
-      // Gen3
-      const genero3Field = form.getTextField('Gen3');
-      genero3Field.setText(this.datosHijos.hijosArray[2].sexo || '');
-      genero3Field.updateAppearances(customFont);
-
-      // Gen4
-      const genero4Field = form.getTextField('Gen4');
-      genero4Field.setText(this.datosHijos.hijosArray[3].sexo || '');
-      genero4Field.updateAppearances(customFont);
-
-      // Gen5
-      const genero5Field = form.getTextField('Gen5');
-      genero5Field.setText(this.datosHijos.hijosArray[4].sexo || '');
-      genero5Field.updateAppearances(customFont);
-
-      /*
-      // Gen6
-      const genero6Field = form.getTextField('Gen6');
-      genero6Field.setText(this.datosHijos.hijosArray[5].sexo || '');
-      genero6Field.updateAppearances(customFont);
-*/
-
-      // Ocupación1
-      const ocupacion1Field = form.getTextField('Ocupación1');
-      ocupacion1Field.setText(this.datosHijos.hijosArray[0].estudia_o_trabaja || '');
-      ocupacion1Field.updateAppearances(customFont);
-
-      // Ocupación2
-      const ocupacion2Field = form.getTextField('Ocupación2');
-      ocupacion2Field.setText(this.datosHijos.hijosArray[1].estudia_o_trabaja || '');
-      ocupacion2Field.updateAppearances(customFont);
-
-      // Ocupación3
-      const ocupacion3Field = form.getTextField('Ocupación3');
-      ocupacion3Field.setText(this.datosHijos.hijosArray[2].estudia_o_trabaja || '');
-      ocupacion3Field.updateAppearances(customFont);
-
-      // Ocupación4
-      const ocupacion4Field = form.getTextField('Ocupación4');
-      ocupacion4Field.setText(this.datosHijos.hijosArray[3].estudia_o_trabaja || '');
-      ocupacion4Field.updateAppearances(customFont);
-
-      // Ocupación5
-      const ocupacion5Field = form.getTextField('Ocupación5');
-      ocupacion5Field.setText(this.datosHijos.hijosArray[4].estudia_o_trabaja || '');
-      ocupacion5Field.updateAppearances(customFont);
-
-      // Curso1
-      const curso1Field = form.getTextField('Curso1');
-      curso1Field.setText(this.datosHijos.hijosArray[0].curso || '');
-      curso1Field.updateAppearances(customFont);
-
-      // Curso2
-      const curso2Field = form.getTextField('Curso2');
-      curso2Field.setText(this.datosHijos.hijosArray[1].curso || '');
-      curso2Field.updateAppearances(customFont);
-
-      // Curso3
-      const curso3Field = form.getTextField('Curso3');
-      curso3Field.setText(this.datosHijos.hijosArray[2].curso || '');
-      curso3Field.updateAppearances(customFont);
-
-      // Curso4
-      const curso4Field = form.getTextField('Curso4');
-      curso4Field.setText(this.datosHijos.hijosArray[3].curso || '');
-      curso4Field.updateAppearances(customFont);
-
-      // Curso5
-      const curso5Field = form.getTextField('Curso5');
-      curso5Field.setText(this.datosHijos.hijosArray[4].curso || '');
-      curso5Field.updateAppearances(customFont);
-
-
-
-      // TALLA CHAQUETARow1
-      const tallaChaquetaField = form.getTextField('TALLA CHAQUETARow1');
-      tallaChaquetaField.setText(this.datosTallas.chaqueta || '');
-      tallaChaquetaField.updateAppearances(customFont);
-
-      // TALLA PANTALONRow1
-      const tallaPantalonField = form.getTextField('TALLA PANTALONRow1');
-      tallaPantalonField.setText(this.datosTallas.pantalon || '');
-      tallaPantalonField.updateAppearances(customFont);
-
-      // TALLA OVEROLRow1
-      const tallaOverolField = form.getTextField('TALLA OVEROLRow1');
-      tallaOverolField.setText(this.datosTallas.chaqueta || '');
-      tallaOverolField.updateAppearances(customFont);
-
-      // No calzadoRow1
-      const noCalzadoField = form.getTextField('No calzadoRow1');
-      noCalzadoField.setText(this.datosTallas.calzado || '');
-      noCalzadoField.updateAppearances(customFont);
-
-      // No Botas de CauchoRow1
-      const noBotasCauchoField = form.getTextField('No Botas de CauchoRow1');
-      noBotasCauchoField.setText(this.datosTallas.calzado || '');
-      noBotasCauchoField.updateAppearances(customFont);
-
-      // No ZapatonesRow1
-      const noZapatonesField = form.getTextField('No ZapatonesRow1');
-      noZapatonesField.setText(this.datosTallas.calzado || '');
-      noZapatonesField.updateAppearances(customFont);
-
-      // No Botas MaterialRow1
-      const noBotasMaterialField = form.getTextField('No Botas MaterialRow1');
-      noBotasMaterialField.setText(this.datosTallas.calzado || '');
-      noBotasMaterialField.updateAppearances(customFont);
-
-      // Nombre Empresa 1Row1
-      const nombreEmpresa1Field = form.getTextField('Nombre Empresa 1Row1');
-      nombreEmpresa1Field.setText(this.datosExperienciaLaboral.nombre_expe_laboral1_empresa || '');
-      nombreEmpresa1Field.updateAppearances(customFont);
-
-      // Dirección EmpresaRow1
-      const direccionEmpresa1Field = form.getTextField('Dirección EmpresaRow1');
-      direccionEmpresa1Field.setText(this.datosExperienciaLaboral.direccion_empresa1 || '');
-      direccionEmpresa1Field.updateAppearances(customFont);
-
-      // TeléfonosRow1
-      const telefonos1Field = form.getTextField('TeléfonosRow1');
-      telefonos1Field.setText(this.datosExperienciaLaboral.telefonos_empresa1 || '');
-      telefonos1Field.updateAppearances(customFont);
-
-      // Jefe InmediatoRow1
-      const jefeInmediato1Field = form.getTextField('Jefe InmediatoRow1');
-      jefeInmediato1Field.setText(this.datosExperienciaLaboral.nombre_jefe_empresa1 || '');
-      jefeInmediato1Field.updateAppearances(customFont);
-
-      // CargoRow1
-      const cargo1Field = form.getTextField('CargoRow1');
-      cargo1Field.setText(this.datosExperienciaLaboral.cargo_empresa1 || '');
-      cargo1Field.updateAppearances(customFont);
-
-      // F de RetiroRow1
-      const fechaRetiro1ISO = this.datosExperienciaLaboral.fecha_retiro_empresa1 || '';
-      const fechaRetiro1 = fechaRetiro1ISO
-        ? new Date(fechaRetiro1ISO).toLocaleDateString('es-ES', {
-          day: '2-digit',
-          month: '2-digit',
-          year: 'numeric',
-        })
-        : '';
-      const fechaRetiro1Field = form.getTextField('F de RetiroRow1');
-      fechaRetiro1Field.setText(fechaRetiro1);
-      fechaRetiro1Field.updateAppearances(customFont);
-
-      // Motivo de RetiroRow1
-      const motivoRetiro1Field = form.getTextField('Motivo de RetiroRow1');
-      motivoRetiro1Field.setText(this.datosExperienciaLaboral.motivo_retiro_empresa1 || '');
-      motivoRetiro1Field.updateAppearances(customFont);
-
-
-      // Nombre Referencia 1Row1
-      const nombreReferencia1Field = form.getTextField('Nombre Referencia 1Row1');
-      nombreReferencia1Field.setText(this.datosReferencias.nombre_referencia_personal1 || '');
-      nombreReferencia1Field.updateAppearances(customFont);
-
-      // TeléfonosRow1_3
-      const telefonosReferencia1Field = form.getTextField('TeléfonosRow1_3');
-      telefonosReferencia1Field.setText(this.datosReferencias.telefono_referencia_personal1 || '');
-      telefonosReferencia1Field.updateAppearances(customFont);
-
-      // OcupaciónRow1_4
-      const ocupacionReferencia1Field = form.getTextField('OcupaciónRow1_4');
-      ocupacionReferencia1Field.setText(this.datosReferencias.ocupacion_referencia_personal1 || '');
-      ocupacionReferencia1Field.updateAppearances(customFont);
-
-
-      // Nombre Referencia 2Row1
-      const nombreReferencia2Field = form.getTextField('Nombre Referencia 2Row1');
-      nombreReferencia2Field.setText(this.datosReferencias.nombre_referencia_personal2 || '');
-      nombreReferencia2Field.updateAppearances(customFont);
-
-      // TeléfonosRow1_4
-      const telefonosReferencia2Field = form.getTextField('TeléfonosRow1_4');
-      telefonosReferencia2Field.setText(this.datosReferencias.telefono_referencia_personal2 || '');
-      telefonosReferencia2Field.updateAppearances(customFont);
-
-      // OcupaciónRow1_5
-      const ocupacionReferencia2Field = form.getTextField('OcupaciónRow1_5');
-      ocupacionReferencia2Field.setText(this.datosReferencias.ocupacion_referencia_personal2 || '');
-      ocupacionReferencia2Field.updateAppearances(customFont);
-
-      // Nombre Referencia 1Row1_2
-      const nombreReferencia3Field = form.getTextField('Nombre Referencia 1Row1_2');
-      nombreReferencia3Field.setText(this.datosReferencias.nombre_referencia_familiar1 || '');
-      nombreReferencia3Field.updateAppearances(customFont);
-
-      // TeléfonosRow1_5
-      const telefonosReferencia3Field = form.getTextField('TeléfonosRow1_5');
-      telefonosReferencia3Field.setText(this.datosReferencias.telefono_referencia_familiar1 || '');
-      telefonosReferencia3Field.updateAppearances(customFont);
-
-      // OcupaciónRow1_6
-      const ocupacionReferencia3Field = form.getTextField('OcupaciónRow1_6');
-      ocupacionReferencia3Field.setText(this.datosReferencias.ocupacion_referencia_familiar1 || '');
-      ocupacionReferencia3Field.updateAppearances(customFont);
-
-      // Nombre Referencia 1Row1_3
-      const nombreReferencia4Field = form.getTextField('Nombre Referencia 1Row1_3');
-      nombreReferencia4Field.setText(this.datosReferencias.nombre_referencia_familiar2 || '');
-      nombreReferencia4Field.updateAppearances(customFont);
-
-      // TeléfonosRow1_6
-      const telefonosReferencia4Field = form.getTextField('TeléfonosRow1_6');
-      telefonosReferencia4Field.setText(this.datosReferencias.telefono_referencia_familiar2 || '');
-      telefonosReferencia4Field.updateAppearances(customFont);
-
-      // OcupaciónRow1_7
-      const ocupacionReferencia4Field = form.getTextField('OcupaciónRow1_7');
-      ocupacionReferencia4Field.setText(this.datosReferencias.ocupacion_referencia_personal2 || '');
-      ocupacionReferencia4Field.updateAppearances(customFont);
-
-      // AutorizacionDeEstudiosSeguridad2
-      const autorizacionEstudiosField = form.getTextField('AutorizacionDeEstudiosSeguridad2');
-      autorizacionEstudiosField.setText("estudios de seguridad. De conformidad con lo dispuesto en la ley 1581 de 2012 y el decreto reglamentario 1377 de 2013 autorizo a  " + this.selecionparte2.centroCosto + " a consultar en cualquier momento a consultar en cualquier tiempo ante las centrales de riesgo datacredito, Cifin o cualquier otra entidad autorizada o central de información; el endeudamiento o información comercial disponible a mi nombre.");
-      autorizacionEstudiosField.setFontSize(6);
-      autorizacionEstudiosField.updateAppearances(customFont);
-
-      // Image11_af_image -> ESTA EN BASE 64 EN firma
-      // Decodificar la imagen Base64 en un Uint8Array
-      const firmaBytes = this.base64ToUint8Array(this.firma);
-      // Incrustar la imagen en el PDF
-      const firmaImage = await pdfDoc.embedPng(firmaBytes); // Cambiar a embedJpg si la imagen es JPG
-      // Obtener el campo de imagen específico
-      const firmaField = form.getButton('Image11_af_image'); // Usa el nombre del campo correctamente
-      // Asignar la imagen al campo de imagen
-      firmaField.setImage(firmaImage);
-
-      // CedulaAutorizacion
-      const cedulaAutorizacionField = form.getTextField('CedulaAutorizacion');
-      cedulaAutorizacionField.setText(this.datosPersonales.numero_documento);
-      cedulaAutorizacionField.updateAppearances(customFont);
-
-      // PersonaRefencia1P
-      const personaReferencia1Field = form.getTextField('PersonaRefencia1P');
-      personaReferencia1Field.setText(this.datosReferencias.nombre_referencia_personal1 || '');
-      personaReferencia1Field.updateAppearances(customFont);
-
-      // PersonaRefencia2P
-      const personaReferencia2Field = form.getTextField('PersonaRefencia2P');
-      personaReferencia2Field.setText(this.datosReferencias.nombre_referencia_personal2 || '');
-      personaReferencia2Field.updateAppearances(customFont);
-
-      // PersonaRefencia1F
-      const personaReferencia3Field = form.getTextField('PersonaRefencia1F');
-      personaReferencia3Field.setText(this.datosReferencias.nombre_referencia_familiar1 || '');
-      personaReferencia3Field.updateAppearances(customFont);
-
-      // PersonaRefencia2F
-      const personaReferencia4Field = form.getTextField('PersonaRefencia2F');
-      personaReferencia4Field.setText(this.datosReferencias.nombre_referencia_familiar2 || '');
-      personaReferencia4Field.updateAppearances(customFont);
-
-      // Comentarios de las Referencias Pesonales 1
-      const comentariosReferencia1Field = form.getTextField('Comentarios de las Referencias Pesonales 1');
-      comentariosReferencia1Field.setText(referenciaPersonal1);
-      comentariosReferencia1Field.updateAppearances(customFont);
-
-      // Comentarios de las Referencias Pesonales 2
-      const comentariosReferencia2Field = form.getTextField('Comentarios de las Referencias Pesonales 2');
-      comentariosReferencia2Field.setText(referenciaPersonal2);
-      comentariosReferencia2Field.updateAppearances(customFont);
-
-      // Comentario referencia Familiar
-      const comentariosReferencia3Field = form.getTextField('Comentario referencia Familiar');
-      comentariosReferencia3Field.setText(referenciaFamiliar);
-      comentariosReferencia3Field.updateAppearances(customFont);
-
-      // Comentario referencia Familiar 2
-      const comentariosReferencia4Field = form.getTextField('Comentario referencia Familiar 2');
-      comentariosReferencia4Field.setText(referenciaFamiliar2);
-      comentariosReferencia4Field.updateAppearances(customFont);
-
-      // Persona que firma
-      const personaFirmaField = form.getTextField('Persona que firma');
-      personaFirmaField.setText(personaVerificareferencias);
-      personaFirmaField.updateAppearances(customFont);
-
-      // Cargar la imagen desde la ruta y convertirla en un objeto PDFImage
-      const firmaImageBytes = await fetch(firmaVerificareferencias).then((res) => {
-        if (!res.ok) {
-          throw new Error('No se pudo cargar el logo de la empresa.');
+      const firmaCandidatoBytes = this.base64ToUint8Array(this.datoVacante?.firma);
+      if (firmaCandidatoBytes) {
+        try {
+          const img = await pdfDoc.embedPng(firmaCandidatoBytes);
+          form.getButton('Image11_af_image').setImage(img);
+        } catch { }
+      }
+        */
+
+      // Huella (no está en las variables permitidas) -> se deja vacío
+
+      // colocar foro dv.fotoSoliciante en Image17_af_image
+      // OJO: tu backend guarda "fotoSoliciante" (sin t)
+      const foto = this.decodeBase64Image(this.datoPersonal?.fotoSoliciante);
+      if (foto?.bytes) {
+        try {
+          let pdfImg;
+          if (foto.mime === 'image/png') {
+            pdfImg = await pdfDoc.embedPng(foto.bytes);
+          } else if (foto.mime === 'image/jpeg' || foto.mime === 'image/jpg') {
+            pdfImg = await pdfDoc.embedJpg(foto.bytes);
+          } else {
+            // Fallback si el mime no es claro: intentamos PNG y luego JPG
+            try { pdfImg = await pdfDoc.embedPng(foto.bytes); }
+            catch { pdfImg = await pdfDoc.embedJpg(foto.bytes); }
+          }
+          form.getButton('Image17_af_image').setImage(pdfImg);
+        } catch {
+          // silenciar si el campo no existe o la imagen no es soportada
         }
-        return res.arrayBuffer();
-      });
-      const fimraImage = await pdfDoc.embedPng(firmaImageBytes); // Convierte los bytes en un objeto PDFImage
-
-      // Image15_af_image
-      const firmaVerificacionReferenciasField = form.getButton('Image15_af_image');
-      firmaVerificacionReferenciasField.setImage(fimraImage);
-
-      // TEXTOCARNET
-      const textoCarnetField = form.getTextField('TEXTOCARNET');
-      textoCarnetField.setText("En Caso de perdida o daño, autorizo a " + nombreEmpresa + " , para descontar de mi sueldo o de mis prestaciones en caso de retiro, la suma eqivalente a MEDIO DÍA DE SALARIO MINIMO LEGAL VIGENTE (1/2 DSMLV) y me comprometo a presentar ante " + this.selecionparte2.centroCosto + "  fotocopia del denuncio correspondiente y en el caso de aparecer el carnet perdido lo devolveré a la empresa para su respectiva anulación.");
-      textoCarnetField.setFontSize(6);
-      textoCarnetField.updateAppearances(customFont);
-
-      // TEXTOLOCKER5
-      const textoLockerField = form.getTextField('TEXTOLOCKER5');
-      textoLockerField.setText("Yo " + this.datosPersonales.primer_nombre + " " + this.datosPersonales.segundo_nombre + " " + this.datosPersonales.primer_apellido + " " + this.datosPersonales.segundo_apellido + " identificado(a) con cedula de ciudadanía No. " + this.datosPersonales.numerodeceduladepersona + " declaro haber recibido el Locker relacionado abajo y me comprometo a seguir las recomendaciones y politicas de uso y cuidado de estós, y a devolver el Locker en el mismo estado en que me fue asignado, al momento de la finalización de mi relación laboral y antes de la entrega de la liquidación de contrato");
-      textoLockerField.setFontSize(6);
-      textoLockerField.updateAppearances(customFont);
-
-      // empresa
-      const empresaField = form.getTextField('empresa');
-      empresaField.setText(nombreEmpresa);
-      empresaField.updateAppearances(customFont);
-
-      // Image10_af_image
-      // La imagen esta en base 64 con el prefijo data:image/png;base64, es huellaIndiceDerecha
-      if (this.huellaIndiceDerecho) {
-        const huellaBytes = this.base64ToUint8Array(this.huellaIndiceDerecho);
-        const huellaImage = await pdfDoc.embedPng(huellaBytes);
-        const huellaField = form.getButton('Image10_af_image');
-        huellaField.setImage(huellaImage);
       }
 
 
-      // Bloquear todos los campos del formulario para que sean solo lectura
-      const fields = form.getFields();
-      fields.forEach((field) => {
-        field.enableReadOnly();
-      });
+      // Bloquear campos
+      form.getFields().forEach((f: any) => { try { f.enableReadOnly(); } catch { } });
 
-      // Guardar el PDF modificado en un Uint8Array
-      const pdfBytes = await pdfDoc.save();
+      // Guardar el PDF
+      const pdfBytes = await pdfDoc.save(); // Uint8Array
 
-      // Convertir el Uint8Array en un Blob con el contenido correcto
-      const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+      // ✅ Convertir a ArrayBuffer NO-compartido
+      const ab = this.toSafeArrayBuffer(pdfBytes);
 
-      // Convertir el Blob en un File
-      const file = new File([blob], 'Ficha tecnica.pdf', { type: 'application/pdf' });
+      // Crear el File desde un ArrayBuffer “clásico”
+      const file = new File([ab], 'Ficha tecnica.pdf', { type: 'application/pdf' });
 
-      // Asignar el archivo generado al objeto uploadedFiles
+      // (Opcional) si prefieres Blob:
+      // const blob = new Blob([ab], { type: 'application/pdf' });
+      // const file = new File([blob], 'Ficha tecnica.pdf', { type: 'application/pdf' });
+
       this.uploadedFiles['Ficha técnica'] = { file, fileName: 'Ficha tecnica.pdf' };
-
-      // Mostrar el PDF generado
       this.verPDF({ titulo: 'Ficha técnica' });
+
+
     } catch (error) {
+      console.error('Error al generar la ficha técnica:', error);
       Swal.fire({
         icon: 'error',
         title: 'Error',
-        text: 'Ocurrió un error al generar la ficha técnica. Por favor, inténtalo de nuevo más tarde.',
+        text: 'Ocurrió un error al generar la ficha técnica.',
       });
     }
   }
+
 
   async listFormFields() {
     // Asume que tienes un PDF en la carpeta de activos; ajusta la ruta según sea necesario
@@ -3105,6 +2569,177 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     }
     return bytes;
   }
+
+  // Decodifica base64 (con o sin prefijo data:) y devuelve bytes + mime (si se pudo determinar)
+  private decodeBase64Image(input?: string | null): { bytes: Uint8Array; mime?: string } | null {
+    if (!input || typeof input !== 'string') return null;
+
+    let mime: string | undefined;
+    let b64 = input.trim();
+
+    // ¿Viene como data URL?
+    const m = /^data:([^;]+);base64,(.*)$/i.exec(b64);
+    if (m) {
+      mime = m[1]?.toLowerCase();
+      b64 = m[2] || '';
+    }
+
+    // Limpia espacios/nuevas líneas
+    b64 = b64.replace(/\s+/g, '');
+
+    // Decodifica a Uint8Array
+    let bytes: Uint8Array;
+    try {
+      const bin = atob(b64);
+      bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    } catch {
+      return null; // base64 inválido
+    }
+
+    // Si no vino MIME, intenta detectar por firma
+    if (!mime) {
+      const sniff = this.sniffImageMime(bytes);
+      if (sniff) mime = sniff;
+    }
+
+    return { bytes, mime };
+  }
+
+  // Detecta PNG o JPEG por firma binaria
+  private sniffImageMime(bytes: Uint8Array): 'image/png' | 'image/jpeg' | null {
+    if (bytes.length >= 8 &&
+      bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4E && bytes[3] === 0x47 &&
+      bytes[4] === 0x0D && bytes[5] === 0x0A && bytes[6] === 0x1A && bytes[7] === 0x0A) {
+      return 'image/png';
+    }
+    if (bytes.length >= 3 &&
+      bytes[0] === 0xFF && bytes[1] === 0xD8 && bytes[2] === 0xFF) {
+      return 'image/jpeg';
+    }
+    return null;
+  }
+
+
+
+
+  // === Helpers universales (puedes dejarlos como privados en la clase) ===
+  private safe<T>(v: T | null | undefined, fallback = ''): string {
+    return v == null ? fallback : String(v);
+  }
+
+  private parseDateToDDMMYYYY(input?: string | null): string {
+    if (!input) return '';
+    // Si viene como DD/MM/YYYY ya está
+    const ddmmyyyy = /^(\d{2})\/(\d{2})\/(\d{4})$/;
+    if (ddmmyyyy.test(input)) return input;
+    // ISO o algo que Date entienda
+    const d = new Date(input);
+    if (isNaN(d.getTime())) return '';
+    const dd = String(d.getDate()).padStart(2, '0');
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const yyyy = d.getFullYear();
+    return `${dd}/${mm}/${yyyy}`;
+  }
+
+  private formatLongDateES(input?: string | null): string {
+    if (!input) return '';
+    // aceptar dd/mm/yyyy o iso
+    let d: Date;
+    const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(input);
+    if (m) {
+      const [_, dd, mm, yyyy] = m;
+      d = new Date(Number(yyyy), Number(mm) - 1, Number(dd));
+    } else {
+      d = new Date(input);
+    }
+    if (isNaN(d.getTime())) return '';
+    return d.toLocaleDateString('es-ES', {
+      weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
+    });
+  }
+
+  private formatMoneyCOP(n?: string | number | null): string {
+    if (n == null || n === '') return '';
+    const val = typeof n === 'string' ? Number(n) : n;
+    if (isNaN(val)) return '';
+    return new Intl.NumberFormat('es-ES', { maximumFractionDigits: 0 }).format(val);
+  }
+
+  // Tamaño por defecto para TODOS los campos
+  private readonly PDF_FONT_SIZE = 7;
+
+  private setText(form: any, fieldName: string, value: string, font?: any, size?: number) {
+    try {
+      const f = form.getTextField(fieldName);
+      f.setText(value ?? '');
+      // Fuerza 10pt si no te pasan otro tamaño
+      f.setFontSize(size ?? this.PDF_FONT_SIZE);
+      if (font) f.updateAppearances(font);
+    } catch {
+      // campo no existe en el PDF, ignorar
+    }
+  }
+
+
+  private setXIf(form: any, fieldName: string, cond: boolean) {
+    this.setText(form, fieldName, cond ? 'X' : '');
+  }
+
+  private async setImageButtonFromBytes(pdfDoc: any, form: any, fieldName: string, bytes?: ArrayBuffer | Uint8Array) {
+    if (!bytes) return;
+    try {
+      const img = await pdfDoc.embedPng(bytes);
+      const btn = form.getButton(fieldName);
+      btn.setImage(img);
+    } catch { /* si no existe el botón o la imagen falla, ignorar */ }
+  }
+
+  private async fetchAsArrayBufferOrNull(url?: string): Promise<ArrayBuffer | null> {
+    if (!url) return null;
+    try {
+      const res = await fetch(url);
+      if (!res.ok) return null;
+      return await res.arrayBuffer();
+    } catch { return null; }
+  }
+
+
+  private getEmpresaInfo(): { logoPath?: string; firmaPath?: string; persona?: string; nombreEmpresa?: string } {
+    // Deriva desde centro de costos o empresa usuaria (usa SOLO datoSeleccion/datoContratacion)
+    const temporal = this.datoVacante?.temporal;
+
+    if (temporal.includes('APOYO LABORAL')) {
+      return {
+        logoPath: '/logos/Logo_AL.png',
+        firmaPath: 'firma/FirmaAndreaSD.png',
+        persona: 'Andrea Sotelo C.C. 1.019.034.641',
+        nombreEmpresa: 'APOYO LABORAL TS S.A.S.',
+      };
+    }
+    if (temporal.includes('TU ALIANZA')) {
+      return {
+        logoPath: '/logos/Logo_TA.png',
+        firmaPath: 'firma/FirmaAndreaSD.png',
+        persona: 'Andrea Sotelo C.C. 1.019.034.641',
+        nombreEmpresa: 'TU ALIANZA S.A.S.',
+      };
+    }
+    // Por defecto: sin logo/firma, pero mantiene el centro/usuaria como nombre visible
+    return {
+      logoPath: undefined,
+      firmaPath: undefined,
+      persona: '',
+      nombreEmpresa: ''
+    };
+  }
+
+  private hijosTop5(): any[] {
+    const arr: any[] = Array.isArray(this.datoPersonal?.hijos) ? this.datoPersonal.hijos : [];
+    // filtra vacíos por nombre
+    return arr.filter(h => (this.safe(h?.nombre).trim() !== '')).slice(0, 5);
+  }
+
 
 
 

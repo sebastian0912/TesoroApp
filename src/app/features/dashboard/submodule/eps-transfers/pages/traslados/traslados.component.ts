@@ -283,46 +283,6 @@ export class TrasladosComponent implements OnInit {
     });
   }
 
-  async verAfiliacion(element: any) {
-    try {
-      // Obteniendo los datos de la afiliación
-      const operarioData: any = await lastValueFrom(
-        this.trasladosService.leerAfiliaciones(element.numero_cedula)
-      );
-
-      if (operarioData.message === 'No se encontró el número de cédula') {
-        Swal.fire(
-          'Información',
-          'No se encontraron datos de afiliación.',
-          'warning'
-        );
-        return;
-      }
-
-      // Verifica si operarioData es un array (se espera un objeto, así que esto sería un error)
-      if (Array.isArray(operarioData)) {
-        throw new Error('Se esperaba un objeto pero se recibió un arreglo.');
-      }
-
-      // Asigna el valor de afiliacion al array this.operario
-      this.operario = [operarioData.afiliacion]; // Suponiendo que afiliacion es un objeto
-    } catch (error) {
-      Swal.fire(
-        'Error',
-        'Error leyendo afiliaciones, inténtelo nuevamente',
-        'error'
-      );
-      return; // Detener si hay error
-    }
-
-    // Abre el modal pasando los datos en formato de array
-    this.dialog.open(LeerAdresComponent, {
-      minWidth: '50vw',
-      height: '500px',
-      data: this.operario, // Aquí this.operario será un array, compatible con MatTable
-    });
-  }
-
   verEstado(element: any) {
     const estadosArray = Object.keys(element.ultimas_actualizaciones).map(
       (key) => ({

@@ -6,7 +6,7 @@ import { SearchForCandidateComponent } from '../../components/search-for-candida
 import { SelectionQuestionsComponent } from '../../components/selection-questions/selection-questions.component';
 import { AbstractControl, FormArray, FormBuilder, FormGroup, FormsModule, Validators } from '@angular/forms';
 import { VacantesService } from '../../service/vacantes/vacantes.service';
-import { catchError, firstValueFrom, of, take } from 'rxjs';
+import { catchError, filter, firstValueFrom, from, of, switchMap, take } from 'rxjs';
 import Swal from 'sweetalert2';
 import { UtilityServiceService } from '@/app/shared/services/utilityService/utility-service.service';
 import { HelpInformationComponent } from '../../components/help-information/help-information.component';
@@ -30,6 +30,7 @@ import { ColumnDefinition, StandardFilterTable } from '@/app/shared/components/s
 import { HttpErrorResponse } from '@angular/common/http';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { ColumnConfig } from '@/app/shared/models/advanced-table-interface';
+import { CameraDialogComponent, CameraDialogResult } from '../../components/camera-dialog/camera-dialog.component';
 
 export const MY_DATE_FORMATS = {
   parse: { dateInput: 'DD/MM/YYYY' },
@@ -401,7 +402,6 @@ export class RecruitmentPipelineComponent implements OnInit {
 
   /* ========= outputs desde SearchForCandidate ========= */
   async onCedulaSeleccionada(cedula: string): Promise<void> {
-    console.log('Cédula seleccionada:', cedula);
     this.cedulaActual = (cedula ?? '').trim();
     this.mostrarTabla();
 
@@ -955,5 +955,64 @@ export class RecruitmentPipelineComponent implements OnInit {
       dialogRef.componentInstance.defaultPageSize = 10;
     });
   }
+
+  uploadedFiles2: Record<string, { file: File; fileName: string; previewUrl?: string }> = {};
+
+  openCamera(): void {
+    const dialogRef = this.dialog.open(CameraDialogComponent, {
+      width: 'min(96vw, 720px)',
+      maxWidth: '96vw',
+      panelClass: 'camera-dialog',
+      autoFocus: false,
+      disableClose: true,
+      data: {} // por si luego quieres pasar algo
+    });
+
+    dialogRef.afterClosed().pipe(
+      // 1) si el usuario canceló, no seguimos
+      filter((res): res is CameraDialogResult => !!res),
+
+      // 2) garantizamos un data URL (CSP-friendly). Si el preview ya es data:, úsalo;
+      //    si no, convertimos el File.
+      switchMap((res) => {
+        const dataUrl$ = res.previewUrl?.startsWith('data:')
+          ? of(res.previewUrl)
+          : from(this.fileToDataURL(res.file)); // helper abajo
+
+        return dataUrl$.pipe(
+          // 3) subir al backend
+          switchMap((base64) =>
+            this.seleccionService.subirFotoBase64(this.cedulaActual, base64)
+          ),
+          catchError((err: HttpErrorResponse) => {
+            this.snackBar.open('Error al subir la foto', 'OK', { duration: 5000 });
+            console.error('subirFotoBase64 error:', err);
+            return of(null);
+          })
+        );
+      }),
+      take(1)
+    ).subscribe((resp: any) => {
+      if (resp?.ok || resp?.success) {
+        this.snackBar.open('Foto subida exitosamente', 'OK', { duration: 3000 });
+        // TODO: guarda localmente si quieres reflejar el cambio en UI
+        // p.ej.: this.fotoPreviewUrl = res.previewUrl;
+      } else if (resp !== null) {
+        // llegó respuesta pero no fue OK
+        this.snackBar.open('No se pudo subir la foto', 'OK', { duration: 4000 });
+      }
+    });
+
+  }
+
+  private fileToDataURL(file: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onerror = () => reject(new Error('No se pudo leer el archivo'));
+      reader.onload = () => resolve(String(reader.result));
+      reader.readAsDataURL(file);
+    });
+  }
+
 
 }

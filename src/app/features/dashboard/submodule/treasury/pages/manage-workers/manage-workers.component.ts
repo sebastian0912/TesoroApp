@@ -208,7 +208,6 @@ columns: ColumnDefinition[] = [
   traerDatosBase() {
     this.tesoreriaService.traerdatosbaseGeneral2()
       .then((datos) => {
-        console.log('Datos base:', datos);
         if (!datos.length) Swal.fire('Aviso', 'No se encontraron datos base.', 'info');
       })
       .catch(() => Swal.fire('Error', 'Error al extraer los datos base', 'error'));

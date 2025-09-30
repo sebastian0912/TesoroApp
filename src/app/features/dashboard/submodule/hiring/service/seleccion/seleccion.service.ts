@@ -6,6 +6,11 @@ import { map, catchError } from 'rxjs/operators';
 import { environment } from '@/environments/environment.development';
 import { FormGroup } from '@angular/forms';
 
+export interface UploadFotoResponse {
+  ok: boolean;
+  id: number;
+}
+
 @Injectable({
   providedIn: 'root'
 })
@@ -370,6 +375,14 @@ export class SeleccionService {
         return throwError(() => err);
       })
     );
+  }
+
+
+  subirFotoBase64(pk: number | string, fotoBase64: string): Observable<UploadFotoResponse> {
+    const url = `${this.apiUrl}/contratacion/candidatos/${pk}/foto/`;
+    const body = { foto_base64: fotoBase64 };
+    // Sin headers explícitos: HttpClient envía JSON por defecto
+    return this.http.post<UploadFotoResponse>(url, body);
   }
 
 }

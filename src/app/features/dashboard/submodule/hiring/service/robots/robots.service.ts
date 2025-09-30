@@ -17,33 +17,6 @@ export class RobotsService {
     throw error;
   }
 
-  // Método para enviar afiliaciones de forma masiva
-  enviarAfiliaciones(afiliaciones: any[]): Observable<any> {
-    const url = `${this.apiUrl}/adresRobots/cargar_afiliaciones/`; // Cambia por tu endpoint real
-
-    // Añadir el JWT en el body junto con los datos de afiliaciones
-    const body = {
-      datos: afiliaciones  // Los datos de afiliaciones
-    };
-
-    return this.http.post(url, body, {}).pipe(
-      map((response: any) => response),
-      catchError(this.handleError)
-    );
-  }
-
-
-  // Método para leer afiliaciones desde el backend
-  leerAfiliaciones(): Observable<any[]> {
-    const url = `${this.apiUrl}/adresRobots/afiliaciones/`; // Cambia por tu endpoint real
-
-
-    return this.http.get<any[]>(url, {}).pipe(
-      map((response: any) => response),
-      catchError(this.handleError)
-    );
-  }
-
   // EstadosRobots
   consultarEstadosRobots(cedula: string): Observable<any> {
 

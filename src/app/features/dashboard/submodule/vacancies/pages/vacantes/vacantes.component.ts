@@ -408,7 +408,6 @@ export class VacantesComponent implements OnInit {
         const sheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[sheetName];
         const jsonData: any[] = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
-        console.log('Excel leído, filas:', jsonData.length);
         Swal.fire('Aviso', 'Implementa el endpoint para subir Excel (crearDetalleLaboral).', 'info');
       };
       reader.readAsArrayBuffer(file);

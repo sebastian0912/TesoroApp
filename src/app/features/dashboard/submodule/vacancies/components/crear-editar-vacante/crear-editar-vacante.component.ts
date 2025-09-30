@@ -95,7 +95,7 @@ export class CrearEditarVacanteComponent implements OnInit {
   @ViewChild('municipioInput', { static: false }) municipioInput!: ElementRef<HTMLInputElement>;
 
   areas: string[] = [
-    'Rosa', 'Clavel', 'Astromelia', 'Pompon', 'Miniclavel', 'Diversificados', 'Lirios', 'Fumigación', 'Corte de Rosa', 'Oficios Varios',
+    'Rosa', 'Clavel', 'Astromelia', 'Pompon', 'Miniclavel', 'Diversificados', 'Lirios', 'Fumigación', 'Corte de Rosa', 'Oficios Varios', 'Otros',
   ];
 
   today: Date = new Date();

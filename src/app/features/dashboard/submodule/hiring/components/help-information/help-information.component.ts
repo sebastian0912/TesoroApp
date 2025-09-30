@@ -340,7 +340,6 @@ export class HelpInformationComponent implements OnInit {
 
     this.vacantesService.getVacantesPorOficina(user.sede.nombre)
       .subscribe((vacantes: PublicacionDTO[]) => {
-        console.log('Vacantes para oficina', user.sede.nombre, vacantes);
         this.setVacantes(vacantes ?? []);
       });
 
@@ -740,7 +739,6 @@ export class HelpInformationComponent implements OnInit {
     const municipioExp = data?.municipio_expedicion ?? data?.municipioExpedicion ?? '';
     const nombreCompleto = [data?.primer_nombre, data?.segundo_nombre, data?.primer_apellido, data?.segundo_apellido]
       .filter(Boolean).join(' ').trim();
-    console.log(data)
     this.infoPersonalForm.patchValue({
       tipodedocumento: data?.tipo_documento ?? '',
       numerodecedula: data?.numero ?? this.cedula ?? '',
