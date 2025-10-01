@@ -2,11 +2,9 @@ import { Component, Inject, OnInit, PLATFORM_ID } from '@angular/core';
 import { AbstractControl, FormBuilder, FormGroup, ValidationErrors, Validators } from '@angular/forms';
 import { Router } from '@angular/router';
 import Swal from 'sweetalert2';
-import { isPlatformBrowser } from '@angular/common';
 import { LoginService } from '../service/login.service';
 import { SharedModule } from '../../../shared/shared.module';
 import { HttpErrorResponse } from '@angular/common/http';
-import { S } from '@angular/cdk/keycodes';
 
 function emailOrDocValidator(control: AbstractControl): ValidationErrors | null {
   const v: string = (control.value || '').toString().trim();
@@ -78,6 +76,7 @@ export class LoginComponent implements OnInit {
       if (!resp?.token || !resp?.user) {
         throw new Error('Respuesta inválida del servidor');
       }
+      console.log('Login exitoso:', resp);
 
       // Guarda credenciales
       localStorage.setItem('token', resp.token);
@@ -85,6 +84,7 @@ export class LoginComponent implements OnInit {
 
       // Redirección según rol (el backend retorna rol como objeto {id, nombre})
       const rolNombre = resp.user?.rol?.nombre ?? '';
+      
       if (rolNombre === 'SIN-ASIGNAR') {
         this.router.navigate(['']);
         Swal.fire({

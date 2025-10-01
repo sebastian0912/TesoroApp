@@ -56,6 +56,7 @@ export class VacantesComponent implements OnInit {
     'fechaPublicado',
     'req',
     'falt',
+    'entrev',
     'prueba',
     'auto',
     'exm',
@@ -366,7 +367,7 @@ export class VacantesComponent implements OnInit {
   exm(v: any): number { return this.ce(v).examenes_medicos; }    // columna "Exm"
   firm(v: any): number { return this.ce(v).contratado; }          // columna "Firm"
   ing(v: any): number { return this.ce(v).ingreso; }             // columna "Ing"
-
+  entrev(v: any): number { return this.ce(v).entrevistado; } // No usado en tabla
   // ================== Utilidad de permisos ==================
   private isManager(user: any): boolean {
     const raw = user?.rol ?? user?.roles ?? [];
