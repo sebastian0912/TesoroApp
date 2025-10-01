@@ -90,7 +90,7 @@ export class AdminService {
     const headers = this.createAuthorizationHeader();
 
     return this.http
-      .get(`${this.apiUrl}/Sucursal/sucursal`, { headers })
+      .get(`${this.apiUrl}/gestion_admin/sedes`, { headers })
       .pipe(catchError(this.handleError));
   }
 

@@ -144,11 +144,21 @@ export class NavbarComponent implements OnInit, OnDestroy {
      =========================== */
   private loadPermTreeFromStorage(): void {
     try {
-      const raw = localStorage.getItem('user');
-      if (!raw) return;
-      const user = JSON.parse(raw);
-      const tree = user?.permisos_tree;
-      if (Array.isArray(tree)) this.permTree = tree;
+      const rawUser = localStorage.getItem('user');
+      const rawTree = localStorage.getItem('permisos_tree'); // opcional: soporte directo
+      let tree: unknown = null;
+
+      if (rawUser) {
+        const user = JSON.parse(rawUser);
+        tree = user?.permisos_tree;
+      }
+      if (!Array.isArray(tree) && rawTree) {
+        tree = JSON.parse(rawTree);
+      }
+
+      if (Array.isArray(tree)) {
+        this.permTree = tree as PermNode[];
+      }
     } catch {
       Swal.fire({
         icon: 'error',
@@ -157,6 +167,7 @@ export class NavbarComponent implements OnInit, OnDestroy {
       });
     }
   }
+
 
   /* ===========================
      Panel izquierdo (raíces)
@@ -475,10 +486,18 @@ export class NavbarComponent implements OnInit, OnDestroy {
   }
 
   public trackByNodeId = (_: number, n: PermNode) => n.id;
+  private readonly READ_KEYS = new Set(['VER', 'LEER', 'READ', 'VIEW']);
 
   public canRead(n: PermNode): boolean {
-    if ((n.acciones || []).includes('LEER')) return true;
-    return (n.hijos || []).some((h) => this.canRead(h));
+    const acc = (n.acciones ?? []).map(a => (a || '').toUpperCase());
+    const hasAction = acc.some(a => this.READ_KEYS.has(a));
+
+    const permKeys = Object.keys(n.permiso_ids ?? {}).map(k => k.toUpperCase());
+    const hasPerm = permKeys.some(k => this.READ_KEYS.has(k));
+
+    if (hasAction || hasPerm) return true;
+
+    return (n.hijos ?? []).some(h => this.canRead(h));
   }
 
   private slug(name: string): string {

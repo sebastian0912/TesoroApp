@@ -10,17 +10,19 @@
   script-src 'self' 'unsafe-inline';
   style-src 'self' https://fonts.googleapis.com 'unsafe-inline';
   font-src 'self' https://fonts.gstatic.com https://fonts.googleapis.com;
-  connect-src 'self' http://localhost:* http://10.10.10.60:4545 https://formulario.tsservicios.co;
+  connect-src 'self' http://localhost:* ws://localhost:* http://10.10.10.60:4545 https://formulario.tsservicios.co;
   frame-src 'self' blob: data: https://formulario.tsservicios.co;
-  object-src 'self' blob:;
-  img-src 'self' data:;
+  img-src 'self' data: blob:;
+  media-src 'self' blob: data:;
+  object-src 'none';
 ">
-
 
   <link rel="icon" type="image/x-icon" href="favicon.ico" />
   <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500&display=swap" rel="stylesheet" />
   <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet" />
-<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0,0" rel="stylesheet">
+  <link
+    href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0,0"
+    rel="stylesheet">
 
 </head>
 

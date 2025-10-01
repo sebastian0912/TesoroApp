@@ -13,6 +13,7 @@ import * as ExcelJS from 'exceljs';
 import * as FileSaver from 'file-saver';
 import { Router } from '@angular/router';
 import { MatNativeDateModule } from '@angular/material/core'; // ¡importante!
+import { firstValueFrom } from 'rxjs';
 
 @Component({
   selector: 'app-hiring-report',
@@ -115,21 +116,17 @@ export class HiringReportComponent implements OnInit {
     });
 
     // Cargar sucursales
-    const sucursalesObservable = await this.utilityService.traerSucursales();
-    if (sucursalesObservable) {
-      sucursalesObservable.subscribe((data: any) => {
-        if (data && Array.isArray(data.sucursal)) {
-          const sucursalesUnicas = data.sucursal.filter(
-            (item: any, index: number, self: any[]) =>
-              index === self.findIndex((t) => t.nombre === item.nombre)
-          );
-          this.sedes = sucursalesUnicas.sort((a: any, b: any) =>
-            a.nombre.localeCompare(b.nombre)
-          );
-        } else {
-          Swal.fire('Error', 'No se pudieron cargar las sedes', 'error');
-        }
-      });
+    try {
+      const data: any = await firstValueFrom(this.utilityService.traerSucursales());
+      if (!Array.isArray(data)) throw new Error('Respuesta inválida');
+
+      const soloActivas = data.filter((s: any) => s.activa === true);
+      const unicas = Array.from(new Map(soloActivas.map((s: any) => [s.nombre, s])).values());
+      this.sedes = unicas.sort((a: any, b: any) =>
+        a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base' })
+      );
+    } catch {
+      Swal.fire('Error', 'No se pudieron cargar las sedes', 'error');
     }
   }
 

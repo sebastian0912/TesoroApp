@@ -1,0 +1,67 @@
+<h2 mat-dialog-title class="dialog-title">
+  <mat-icon>photo_camera</mat-icon>
+  <span>Tomar o adjuntar foto</span>
+</h2>
+
+<mat-dialog-content class="dialog-content">
+  <mat-tab-group>
+    <!-- TAB: Cámara -->
+    <mat-tab label="Cámara">
+      <div class="camera-wrap">
+        <div class="video-area" *ngIf="!cameraError; else cameraErrorTpl">
+          <div class="video-frame" *ngIf="!previewUrl; else previewTpl">
+            <video #videoEl playsinline muted></video>
+            <div class="video-overlay" *ngIf="loadingCamera">
+              <mat-spinner diameter="36"></mat-spinner>
+              <span>Activando cámara…</span>
+            </div>
+          </div>
+
+          <ng-template #previewTpl>
+            <img class="preview" [src]="previewUrl" alt="Previsualización" />
+          </ng-template>
+
+          <canvas #canvasEl class="hidden-canvas"></canvas>
+        </div>
+
+        <ng-template #cameraErrorTpl>
+          <div class="camera-error">
+            <mat-icon>warning</mat-icon>
+            <p>{{ cameraError }}</p>
+            <p>Prueba el tab <strong>Adjuntar</strong>.</p>
+          </div>
+        </ng-template>
+
+        <div class="actions-row">
+          <button mat-stroked-button color="primary" (click)="toggleFacing()" [disabled]="!!previewUrl || !!cameraError">
+            <mat-icon>cameraswitch</mat-icon>
+            Voltear cámara
+          </button>
+
+          <span class="spacer"></span>
+
+          <button mat-raised-button color="primary" (click)="capture()" [disabled]="!!previewUrl || !!cameraError || loadingCamera">
+            <mat-icon>photo_camera</mat-icon>
+            Capturar
+          </button>
+        </div>
+      </div>
+    </mat-tab>
+
+    <!-- TAB: Adjuntar -->
+    <mat-tab label="Adjuntar">
+      <div class="attach-wrap">
+        <input #fileInput type="file" accept="image/*" capture="environment" (change)="onFileSelected($event)">
+        <div class="attach-preview" *ngIf="previewUrl">
+          <img [src]="previewUrl" alt="Previsualización" />
+        </div>
+      </div>
+    </mat-tab>
+  </mat-tab-group>
+</mat-dialog-content>
+
+<mat-dialog-actions align="end" class="dialog-actions">
+  <button mat-button (click)="cancel()">Cancelar</button>
+  <button mat-stroked-button color="warn" (click)="clearSelection()" [disabled]="!previewUrl">Borrar</button>
+  <button mat-raised-button color="primary" (click)="confirm()" [disabled]="!capturedFile">Usar esta imagen</button>
+</mat-dialog-actions>

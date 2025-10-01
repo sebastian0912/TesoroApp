@@ -89,7 +89,6 @@ export class UploadTreasuryComponent {
         }
 
         Swal.fire({ icon: 'info', title: 'Cargando empleados...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
-        console.log('Empleados a insertar:', cleaned);
         //await this.tesoreriaService.añadirEmpleado(cleaned);
         Swal.fire({ icon: 'success', title: 'Inserción exitosa', text: 'Se cargaron los empleados correctamente.' });
         this.bumpCard('insert');

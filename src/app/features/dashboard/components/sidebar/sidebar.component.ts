@@ -53,8 +53,8 @@ export class SidebarComponent {
     (await this.adminService.traerSucursales()).subscribe((data: any) => {
       // ordenar por nombre
       if (data) {
-        data.sucursal.sort((a: any, b: any) => a.nombre.localeCompare(b.nombre));
-        this.sedes = data.sucursal;
+        data.sort((a: any, b: any) => a.nombre.localeCompare(b.nombre));
+        this.sedes = data;
       }
     });
   }

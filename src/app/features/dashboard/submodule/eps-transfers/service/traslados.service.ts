@@ -120,17 +120,6 @@ export class TrasladosService {
     return this.http.get(url).pipe(catchError(this.handleError));
   }
 
-  // Método para leer afiliaciones desde el backend
-  leerAfiliaciones(id: string): Observable<any[]> {
-    const url = `${this.apiUrl}/adresRobots/afiliaciones/${id}`; // Corrección aquí
-
-    return this.http.get<any[]>(url).pipe(
-      map((response: any) => response),
-      catchError(this.handleError)
-    );
-  }
-
-
   // obtener-solicitud-por-codigo/<int:codigo_traslado>/
   traerSolicitudPorCodigo(codigo: any): Observable<any> {
     return this.http.get(`${this.apiUrl}/traslados/obtener-solicitud-por-codigo/${codigo}/`)

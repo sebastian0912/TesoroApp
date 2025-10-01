@@ -13,14 +13,17 @@
         </mat-form-field>
         <button mat-flat-button (click)="buscarDesprendibles(cedula)" class="boton">Buscar</button>
       </div>
-      
+
       <app-info-card title="Cargar desprendibles de pago" imageUrl="icons/cards/excel.png"
         (click)="triggerFileInput('desprendibles')" *ngIf="correo == 'nominacentral4@gmail.com' ||
          correo == 'nomina.rtc@gmail.com' ||
          correo == 'programador.ts@gmail.com' ||
          correo == 'nomina.gandes@gmail.com' ||
          correo == 'nominacentral7@gmail.com' ||
-         correo == 'antcontable4.ts@gmail.com'" style="cursor: pointer;">
+         correo == 'antcontable4.ts@gmail.com' ||
+         correo == 'nominacentral4@gmail.com' ||
+         correo == 'nominacentral6@gmail.com' ||
+         correo == 'nomina.gandes@gmail.com' " style="cursor: pointer;">
       </app-info-card>
 
 

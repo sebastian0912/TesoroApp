@@ -95,7 +95,7 @@ export class CrearEditarVacanteComponent implements OnInit {
   @ViewChild('municipioInput', { static: false }) municipioInput!: ElementRef<HTMLInputElement>;
 
   areas: string[] = [
-    'Rosa', 'Clavel', 'Astromelia', 'Pompon', 'Miniclavel', 'Diversificados', 'Lirios', 'Fumigación', 'Corte de Rosa', 'Oficios Varios',
+    'Rosa', 'Clavel', 'Astromelia', 'Pompon', 'Miniclavel', 'Diversificados', 'Lirios', 'Fumigación', 'Corte de Rosa', 'Oficios Varios', 'Otros',
   ];
 
   today: Date = new Date();
@@ -209,8 +209,17 @@ this.positionsService.list()
       );
     });
 
-    const sucursalesObservable = await this.adminService.traerSucursales();
-    sucursalesObservable.subscribe((sucursales: any) => (this.sedes = sucursales.sucursal || []));
+const sucursalesObservable = await this.adminService.traerSucursales();
+sucursalesObservable.subscribe((sucursales: any[]) => {
+  if (Array.isArray(sucursales)) {
+    this.sedes = sucursales
+      .filter(s => s?.activa !== false) // opcional: sólo activas
+      .sort((a, b) => (a.nombre || '').localeCompare(b.nombre || ''));
+  } else {
+    this.sedes = [];
+  }
+});
+
 
     // Ofis seleccionadas -> array
     this.vacanteForm.get('oficinasSeleccionadas')!

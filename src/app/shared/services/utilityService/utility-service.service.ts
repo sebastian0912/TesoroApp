@@ -29,7 +29,7 @@ export class UtilityServiceService {
    * Trae la lista de sucursales.
    */
   traerSucursales(): Observable<any> {
-    return this.http.get(`${this.apiUrl}/Sucursal/sucursal`);
+    return this.http.get(`${this.apiUrl}/gestion_admin/sedes`);
   }
 
   traerSucursales2(): Observable<any> {
