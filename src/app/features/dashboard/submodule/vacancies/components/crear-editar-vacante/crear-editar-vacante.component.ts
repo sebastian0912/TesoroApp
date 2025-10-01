@@ -209,8 +209,17 @@ this.positionsService.list()
       );
     });
 
-    const sucursalesObservable = await this.adminService.traerSucursales();
-    sucursalesObservable.subscribe((sucursales: any) => (this.sedes = sucursales.sucursal || []));
+const sucursalesObservable = await this.adminService.traerSucursales();
+sucursalesObservable.subscribe((sucursales: any[]) => {
+  if (Array.isArray(sucursales)) {
+    this.sedes = sucursales
+      .filter(s => s?.activa !== false) // opcional: sólo activas
+      .sort((a, b) => (a.nombre || '').localeCompare(b.nombre || ''));
+  } else {
+    this.sedes = [];
+  }
+});
+
 
     // Ofis seleccionadas -> array
     this.vacanteForm.get('oficinasSeleccionadas')!
