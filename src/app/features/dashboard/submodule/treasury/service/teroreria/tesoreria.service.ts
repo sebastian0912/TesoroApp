@@ -5,6 +5,22 @@ import { firstValueFrom, Observable } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 import { environment } from '@/environments/environment.development';
 
+export interface SaldosMasivoRow {
+  cedula: string;
+  saldos?: string | null;
+  fondos?: string | null; // si tu Excel trae también Fondo
+}
+
+export interface SaldosMasivoResponse {
+  message: 'success' | 'error';
+  total_recibidos: number;
+  actualizados: number;
+  sin_cambios: number;
+  no_encontrados: string[];
+  errores: number;
+  detalles: Array<{ documento: string; ok: boolean; cambios?: any; error?: string }>;
+}
+
 @Injectable({
   providedIn: 'root'
 })
@@ -86,6 +102,27 @@ export class TesoreriaService {
     );
   }
 
+  // en tu TesoreriaService (o donde corresponda)
+  async actualizarEstadosMasivo(payload: {
+    documentos: string[];
+    activo?: boolean;
+    bloqueado?: boolean;
+    fechaBloqueo?: string;
+    observacion_bloqueo?: string;
+    observacion_desbloqueo?: string;
+  }): Promise<{
+    total_recibidos: number;
+    actualizados: number;
+    ya_en_estado: number;
+    no_encontrados: string[];
+    errores: number;
+    detalles: Array<{ documento: string; ok: boolean; cambios?: any; error?: string }>;
+  }> {
+    const url = `${this.apiUrl}/Datosbase/actualizar-estados/masivo/`;
+    return firstValueFrom(this.http.post<any>(url, payload));
+  }
+
+
 
 
   // Actualizar empleados
@@ -105,6 +142,26 @@ export class TesoreriaService {
       ));
 
       return response;
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  // ====== MASIVO ======
+  async actualizarSaldosMasivo(rows: SaldosMasivoRow[]): Promise<SaldosMasivoResponse> {
+    // mis mañas: uso EXACTAMENTE el mismo prefijo que tu unitario
+    // (/Datosbase/actualizarSaldos) y sin trailing slash, para evitar 301 si no lo tienes en urls.py
+    const url = `${this.apiUrl}/Datosbase/actualizar-saldos/`;
+
+    const body = { rows };
+
+    try {
+      const res = await firstValueFrom(
+        this.http.post<SaldosMasivoResponse>(url, body).pipe(
+          catchError(this.handleError)
+        )
+      );
+      return res;
     } catch (error) {
       throw error;
     }

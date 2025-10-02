@@ -147,6 +147,7 @@ export class GestionRolesComponent implements OnInit {
     const ref = this.dialog.open(RolPermissionsDialogComponent, {
       width: '940px',
       maxWidth: '98vw',
+      height: '80vh',
       data: { rol: row },
       disableClose: true,
     });

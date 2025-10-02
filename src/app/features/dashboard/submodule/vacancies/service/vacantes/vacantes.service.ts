@@ -25,27 +25,6 @@ export class VacantesService {
     return throwError(() => error);
   }
 
-  // ========= Catálogos externos =========
-  listarCargos(): Observable<any> {
-    const url = this.base('/infoCentrosCosto/sublabores/');
-    return this.http.get(url).pipe(map(res => res), catchError(this.handleError));
-  }
-
-  listarCentrosCostos(): Observable<any> {
-    const url = this.base('/infoCentrosCosto/listar-centros-costo/');
-    return this.http.get(url).pipe(map(res => res), catchError(this.handleError));
-  }
-
-  filtrarFinca(costo: string): Observable<any> {
-    if (!costo) return of([]);
-    const url = this.base('/infoCentrosCosto/centro-costos/');
-    const params = new HttpParams().set('centro_costo_carnet', costo.trim());
-    return this.http.get(url, { params }).pipe(
-      map((res: any) => res?.data || []),
-      catchError(() => of([]))
-    );
-  }
-
   // ========= Publicación (congruente con publicacion/urls.py) =========
   // GET/POST -> /publicacion/publicaciones/
   listarVacantes(): Observable<any> {

@@ -31,6 +31,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { ColumnConfig } from '@/app/shared/models/advanced-table-interface';
 import { CameraDialogComponent, CameraDialogResult } from '../../components/camera-dialog/camera-dialog.component';
+import { MatBadgeModule } from '@angular/material/badge';
 
 export const MY_DATE_FORMATS = {
   parse: { dateInput: 'DD/MM/YYYY' },
@@ -67,8 +68,8 @@ interface Usuario {
     MatNativeDateModule,
     HiringQuestionsComponent,
     MatTooltipModule,
-    MatDialogModule
-
+    MatDialogModule,
+    MatBadgeModule
   ],
   templateUrl: './recruitment-pipeline.component.html',
   styleUrl: './recruitment-pipeline.component.css',
@@ -109,6 +110,8 @@ export class RecruitmentPipelineComponent implements OnInit {
   datosParte3Seccion1!: FormGroup;
   datosParte3Seccion2!: FormGroup;
   datosParte4!: FormGroup;
+  tieneFoto = false;
+  fotoDataUrl: string | null = null;
 
   examFiles: File[] = []; // PDFs cargados individualmente
   formGroup3: FormGroup;
@@ -335,6 +338,8 @@ export class RecruitmentPipelineComponent implements OnInit {
   async ngOnInit(): Promise<void> {
     await this.initUsuarioYAbreviacion();
     await this.loadData();
+
+ 
   }
 
   /* ========= helpers usuario ========= */
@@ -404,6 +409,24 @@ export class RecruitmentPipelineComponent implements OnInit {
   async onCedulaSeleccionada(cedula: string): Promise<void> {
     this.cedulaActual = (cedula ?? '').trim();
     this.mostrarTabla();
+
+   this.contratacionService.buscarEncontratacion(this.cedulaActual).subscribe({
+      next: (resp: any) => {
+        const raw = resp?.data?.[0]?.fotoSoliciante ?? null; // viene como data:image/png;base64,...
+        if (typeof raw === 'string' && raw.trim().length > 0) {
+          this.fotoDataUrl = raw.trim();
+          this.tieneFoto = true;
+        } else {
+          this.fotoDataUrl = null;
+          this.tieneFoto = false;
+        }
+      },
+      error: () => {
+        this.fotoDataUrl = null;
+        this.tieneFoto = false;
+        Swal.fire('Error', 'Error al consultar contratación', 'error');
+      }
+    });
 
     // 1) Contratación (si 404: limpiar y seguir)
     this.seleccionService.buscarEncontratacion(this.cedulaActual)
@@ -965,26 +988,22 @@ export class RecruitmentPipelineComponent implements OnInit {
       panelClass: 'camera-dialog',
       autoFocus: false,
       disableClose: true,
-      data: {} // por si luego quieres pasar algo
+      data: {
+        initialPreviewUrl: this.fotoDataUrl || null   // ⬅️ pasa la foto actual si existe
+      }
     });
 
     dialogRef.afterClosed().pipe(
-      // 1) si el usuario canceló, no seguimos
       filter((res): res is CameraDialogResult => !!res),
-
-      // 2) garantizamos un data URL (CSP-friendly). Si el preview ya es data:, úsalo;
-      //    si no, convertimos el File.
       switchMap((res) => {
         const dataUrl$ = res.previewUrl?.startsWith('data:')
           ? of(res.previewUrl)
           : from(this.fileToDataURL(res.file)); // helper abajo
-
         return dataUrl$.pipe(
-          // 3) subir al backend
           switchMap((base64) =>
             this.seleccionService.subirFotoBase64(this.cedulaActual, base64)
           ),
-          catchError((err: HttpErrorResponse) => {
+          catchError((err) => {
             this.snackBar.open('Error al subir la foto', 'OK', { duration: 5000 });
             console.error('subirFotoBase64 error:', err);
             return of(null);
@@ -995,22 +1014,23 @@ export class RecruitmentPipelineComponent implements OnInit {
     ).subscribe((resp: any) => {
       if (resp?.ok || resp?.success) {
         this.snackBar.open('Foto subida exitosamente', 'OK', { duration: 3000 });
-        // TODO: guarda localmente si quieres reflejar el cambio en UI
-        // p.ej.: this.fotoPreviewUrl = res.previewUrl;
+        // refresca estado local
+        if (this.fotoDataUrl) {
+          this.tieneFoto = true;
+        }
       } else if (resp !== null) {
-        // llegó respuesta pero no fue OK
         this.snackBar.open('No se pudo subir la foto', 'OK', { duration: 4000 });
       }
     });
-
   }
 
+  // Helper: File -> dataURL
   private fileToDataURL(file: File): Promise<string> {
     return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onerror = () => reject(new Error('No se pudo leer el archivo'));
-      reader.onload = () => resolve(String(reader.result));
-      reader.readAsDataURL(file);
+      const fr = new FileReader();
+      fr.onload = () => resolve(String(fr.result));
+      fr.onerror = reject;
+      fr.readAsDataURL(file);
     });
   }
 

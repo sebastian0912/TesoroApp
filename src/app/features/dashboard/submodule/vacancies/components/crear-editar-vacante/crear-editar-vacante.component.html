@@ -59,6 +59,15 @@
       </mat-error>
     </mat-form-field>
 
+    <!-- direccion -->
+    <mat-form-field [ngClass]="{'input-obligatorio': isRequired('direccion')}">
+      <mat-label>Dirección</mat-label>
+      <input matInput formControlName="direccion">
+      <mat-error *ngIf="vacanteForm.get('direccion')?.hasError('required')">
+        La dirección es obligatoria.
+      </mat-error>
+    </mat-form-field>
+
     <!-- ===================== Municipios + Total general ===================== -->
     <mat-form-field appearance="fill" [ngClass]="{'input-obligatorio': isRequired('municipio')}">
       <mat-label>Municipio(s)</mat-label>

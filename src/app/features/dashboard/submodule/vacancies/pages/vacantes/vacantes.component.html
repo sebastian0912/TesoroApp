@@ -3,19 +3,30 @@
     <div class="tabla">
       <!-- Encabezado con título + menú de acciones + toggle de vista -->
       <div class="page-header">
-        <h1 class="title">Listado de Vacantes</h1>
+        <h1 class="title">Listado de Vacante</h1>
         <span class="spacer"></span>
 
         <!-- Toggle vista -->
-        <mat-button-toggle-group [value]="viewMode" (change)="onToggleView($event.value)" aria-label="Cambiar vista"
+        <mat-button-toggle-group
+          [value]="viewMode"
+          (change)="onToggleView($event.value)"
+          aria-label="Cambiar vista"
           class="view-toggle">
-          <mat-button-toggle value="table" aria-label="Vista tabla">
-            <mat-icon>table_chart</mat-icon>
-            <span class="toggle-text">Tabla</span>
-          </mat-button-toggle>
+
           <mat-button-toggle value="card" aria-label="Vista tarjetas">
             <mat-icon>view_module</mat-icon>
             <span class="toggle-text">Cards</span>
+          </mat-button-toggle>
+
+          <!-- NUEVOS modos -->
+          <mat-button-toggle value="faltantes" aria-label="Solo faltantes">
+            <mat-icon>warning</mat-icon>
+            <span class="toggle-text">Faltantes</span>
+          </mat-button-toggle>
+
+          <mat-button-toggle value="completados" aria-label="Solo completados">
+            <mat-icon>check_circle</mat-icon>
+            <span class="toggle-text">Completados</span>
           </mat-button-toggle>
         </mat-button-toggle-group>
 
@@ -51,17 +62,17 @@
         <input type="file" #fileInput (change)="onFileSelected($event)" hidden />
       </div>
 
-      <!-- Filtro (compartido para ambas vistas) -->
+      <!-- Filtro (compartido para todas las vistas) -->
       <mat-form-field class="filtro">
         <mat-label>Filtrar</mat-label>
         <input matInput (keyup)="applyFilter($event)" placeholder="Buscar..." #input />
       </mat-form-field>
 
-      <!-- ==================== VISTA TABLA ==================== -->
-      <div class="table-container" *ngIf="viewMode === 'table'">
-        <table mat-table [dataSource]="dataSource" class="mat-elevation-z8">
+      <!-- ==================== VISTA FALTANTES ==================== -->
+      <div class="table-container" *ngIf="viewMode === 'faltantes'">
+        <table mat-table [dataSource]="dataSourceFaltantes" class="mat-elevation-z8">
 
-          <!-- Acciones -->
+          <!-- (reusar las mismas columnas de arriba) -->
           <ng-container matColumnDef="acciones">
             <th mat-header-cell *matHeaderCellDef>Acciones</th>
             <td mat-cell *matCellDef="let v">
@@ -81,137 +92,239 @@
             </td>
           </ng-container>
 
-          <!-- Cumpl. (%) -->
           <ng-container matColumnDef="cumpl">
             <th mat-header-cell *matHeaderCellDef>Cumpl.</th>
             <td mat-cell *matCellDef="let v">
-              <span [ngClass]="cumplClass(v)">
-                {{ cumplimientoPct(v) }}%
-              </span>
+              <span [ngClass]="cumplClass(v)">{{ cumplimientoPct(v) }}%</span>
             </td>
           </ng-container>
 
-
-          <!-- Publicado -->
           <ng-container matColumnDef="fechaPublicado">
             <th mat-header-cell *matHeaderCellDef>Publicado</th>
             <td mat-cell *matCellDef="let v">{{ v.fechaPublicado | date:'dd-MMM' }}</td>
           </ng-container>
 
-          <!-- Entrevistado -->
           <ng-container matColumnDef="entrev">
             <th mat-header-cell *matHeaderCellDef>Entrev</th>
             <td mat-cell *matCellDef="let v">{{ entrev(v) }}</td>
           </ng-container>
 
-          <!-- Req -->
           <ng-container matColumnDef="req">
             <th mat-header-cell *matHeaderCellDef>Req</th>
             <td mat-cell *matCellDef="let v">{{ totalRequerida(v) }}</td>
           </ng-container>
 
-          <!-- Falt. -->
           <ng-container matColumnDef="falt">
             <th mat-header-cell *matHeaderCellDef>Falt.</th>
             <td mat-cell *matCellDef="let v">{{ faltantes(v) }}</td>
           </ng-container>
 
-          <!-- Pru -->
           <ng-container matColumnDef="prueba">
             <th mat-header-cell *matHeaderCellDef>Pru</th>
             <td mat-cell *matCellDef="let v">{{ prue(v) }}</td>
           </ng-container>
 
-          <!-- Auto -->
           <ng-container matColumnDef="auto">
             <th mat-header-cell *matHeaderCellDef>Auto</th>
             <td mat-cell *matCellDef="let v">{{ auto(v) }}</td>
           </ng-container>
 
-          <!-- Exm -->
           <ng-container matColumnDef="exm">
             <th mat-header-cell *matHeaderCellDef>Exm</th>
             <td mat-cell *matCellDef="let v">{{ exm(v) }}</td>
           </ng-container>
 
-          <!-- Firm -->
           <ng-container matColumnDef="firm">
             <th mat-header-cell *matHeaderCellDef>Firm</th>
             <td mat-cell *matCellDef="let v">{{ firm(v) }}</td>
           </ng-container>
 
-          <!-- Ing -->
           <ng-container matColumnDef="ing">
             <th mat-header-cell *matHeaderCellDef>Ing</th>
             <td mat-cell *matCellDef="let v">{{ ing(v) }}</td>
           </ng-container>
 
-          <!-- Centro de costo -->
           <ng-container matColumnDef="finca">
             <th mat-header-cell *matHeaderCellDef>Centro de costo</th>
             <td mat-cell *matCellDef="let v">{{ v.finca }}</td>
           </ng-container>
 
-          <!-- Cargo -->
           <ng-container matColumnDef="cargo">
             <th mat-header-cell *matHeaderCellDef>Cargo</th>
             <td mat-cell *matCellDef="let v">{{ v.cargo || 'Sin cargo' }}</td>
           </ng-container>
 
-          <!-- Municipio -->
           <ng-container matColumnDef="municipio">
             <th mat-header-cell *matHeaderCellDef>Municipio</th>
             <td mat-cell *matCellDef="let v">{{ v.municipio.join(', ') }}</td>
           </ng-container>
 
-          <!-- Experiencia -->
           <ng-container matColumnDef="experiencia">
             <th mat-header-cell *matHeaderCellDef>Expe</th>
             <td mat-cell *matCellDef="let v">{{ v.experiencia }}</td>
           </ng-container>
 
-          <!-- Observación -->
           <ng-container matColumnDef="observacionVacante">
             <th mat-header-cell *matHeaderCellDef>Observación del perfil</th>
             <td mat-cell *matCellDef="let v">{{ v.observacionVacante }}</td>
           </ng-container>
 
-          <!-- Descripción -->
           <ng-container matColumnDef="descripcion">
             <th mat-header-cell *matHeaderCellDef>Descripción</th>
             <td mat-cell *matCellDef="let v">{{ v.descripcion }}</td>
           </ng-container>
 
-          <!-- Salario -->
           <ng-container matColumnDef="salario">
             <th mat-header-cell *matHeaderCellDef>Salario</th>
             <td mat-cell *matCellDef="let v">{{ v.salario | currency }}</td>
           </ng-container>
 
-          <!-- Auxilio -->
           <ng-container matColumnDef="auxilioTransporte">
             <th mat-header-cell *matHeaderCellDef>Auxilio</th>
             <td mat-cell *matCellDef="let v">{{ v.auxilioTransporte }}</td>
           </ng-container>
 
-          <!-- Tipo de contrato -->
           <ng-container matColumnDef="tipoContratacion">
             <th mat-header-cell *matHeaderCellDef>Tipo de Contrato</th>
             <td mat-cell *matCellDef="let v">{{ v.tipoContratacion }}</td>
           </ng-container>
 
-          <!-- Filas -->
+          <!-- Filas: solo FALTANTES -->
           <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
-          <tr mat-row *matRowDef="let row; columns: displayedColumns"></tr>
-          <tr class="mat-row" *matNoDataRow>
-            <td class="mat-cell" colspan="7">No hay datos para "{{ input.value }}"</td>
-          </tr>
+          <tr mat-row *matRowDef="let row; columns: displayedColumns; when: isFaltante"></tr>
+        </table>
+      </div>
+
+      <!-- ==================== VISTA COMPLETADOS ==================== -->
+      <div class="table-container" *ngIf="viewMode === 'completados'">
+        <table mat-table [dataSource]="dataSourceCompletados" class="mat-elevation-z8">
+
+          <!-- (reusar las mismas columnas de arriba) -->
+          <ng-container matColumnDef="acciones">
+            <th mat-header-cell *matHeaderCellDef>Acciones</th>
+            <td mat-cell *matCellDef="let v">
+              <button mat-icon-button [matMenuTriggerFor]="menuAcciones">
+                <mat-icon>more_vert</mat-icon>
+              </button>
+              <mat-menu #menuAcciones="matMenu">
+                <button mat-menu-item (click)="openModalEdit(v)">
+                  <mat-icon>edit</mat-icon>
+                  <span>Editar</span>
+                </button>
+                <button mat-menu-item (click)="eliminarVacante(v)" *ngIf="permitido">
+                  <mat-icon>delete</mat-icon>
+                  <span>Eliminar</span>
+                </button>
+              </mat-menu>
+            </td>
+          </ng-container>
+
+          <ng-container matColumnDef="cumpl">
+            <th mat-header-cell *matHeaderCellDef>Cumpl.</th>
+            <td mat-cell *matCellDef="let v">
+              <span [ngClass]="cumplClass(v)">{{ cumplimientoPct(v) }}%</span>
+            </td>
+          </ng-container>
+
+          <ng-container matColumnDef="fechaPublicado">
+            <th mat-header-cell *matHeaderCellDef>Publicado</th>
+            <td mat-cell *matCellDef="let v">{{ v.fechaPublicado | date:'dd-MMM' }}</td>
+          </ng-container>
+
+          <ng-container matColumnDef="entrev">
+            <th mat-header-cell *matHeaderCellDef>Entrev</th>
+            <td mat-cell *matCellDef="let v">{{ entrev(v) }}</td>
+          </ng-container>
+
+          <ng-container matColumnDef="req">
+            <th mat-header-cell *matHeaderCellDef>Req</th>
+            <td mat-cell *matCellDef="let v">{{ totalRequerida(v) }}</td>
+          </ng-container>
+
+          <ng-container matColumnDef="falt">
+            <th mat-header-cell *matHeaderCellDef>Falt.</th>
+            <td mat-cell *matCellDef="let v">{{ faltantes(v) }}</td>
+          </ng-container>
+
+          <ng-container matColumnDef="prueba">
+            <th mat-header-cell *matHeaderCellDef>Pru</th>
+            <td mat-cell *matCellDef="let v">{{ prue(v) }}</td>
+          </ng-container>
+
+          <ng-container matColumnDef="auto">
+            <th mat-header-cell *matHeaderCellDef>Auto</th>
+            <td mat-cell *matCellDef="let v">{{ auto(v) }}</td>
+          </ng-container>
+
+          <ng-container matColumnDef="exm">
+            <th mat-header-cell *matHeaderCellDef>Exm</th>
+            <td mat-cell *matCellDef="let v">{{ exm(v) }}</td>
+          </ng-container>
+
+          <ng-container matColumnDef="firm">
+            <th mat-header-cell *matHeaderCellDef>Firm</th>
+            <td mat-cell *matCellDef="let v">{{ firm(v) }}</td>
+          </ng-container>
+
+          <ng-container matColumnDef="ing">
+            <th mat-header-cell *matHeaderCellDef>Ing</th>
+            <td mat-cell *matCellDef="let v">{{ ing(v) }}</td>
+          </ng-container>
+
+          <ng-container matColumnDef="finca">
+            <th mat-header-cell *matHeaderCellDef>Centro de costo</th>
+            <td mat-cell *matCellDef="let v">{{ v.finca }}</td>
+          </ng-container>
+
+          <ng-container matColumnDef="cargo">
+            <th mat-header-cell *matHeaderCellDef>Cargo</th>
+            <td mat-cell *matCellDef="let v">{{ v.cargo || 'Sin cargo' }}</td>
+          </ng-container>
+
+          <ng-container matColumnDef="municipio">
+            <th mat-header-cell *matHeaderCellDef>Municipio</th>
+            <td mat-cell *matCellDef="let v">{{ v.municipio.join(', ') }}</td>
+          </ng-container>
+
+          <ng-container matColumnDef="experiencia">
+            <th mat-header-cell *matHeaderCellDef>Expe</th>
+            <td mat-cell *matCellDef="let v">{{ v.experiencia }}</td>
+          </ng-container>
+
+          <ng-container matColumnDef="observacionVacante">
+            <th mat-header-cell *matHeaderCellDef>Observación del perfil</th>
+            <td mat-cell *matCellDef="let v">{{ v.observacionVacante }}</td>
+          </ng-container>
+
+          <ng-container matColumnDef="descripcion">
+            <th mat-header-cell *matHeaderCellDef>Descripción</th>
+            <td mat-cell *matCellDef="let v">{{ v.descripcion }}</td>
+          </ng-container>
+
+          <ng-container matColumnDef="salario">
+            <th mat-header-cell *matHeaderCellDef>Salario</th>
+            <td mat-cell *matCellDef="let v">{{ v.salario | currency }}</td>
+          </ng-container>
+
+          <ng-container matColumnDef="auxilioTransporte">
+            <th mat-header-cell *matHeaderCellDef>Auxilio</th>
+            <td mat-cell *matCellDef="let v">{{ v.auxilioTransporte }}</td>
+          </ng-container>
+
+          <ng-container matColumnDef="tipoContratacion">
+            <th mat-header-cell *matHeaderCellDef>Tipo de Contrato</th>
+            <td mat-cell *matCellDef="let v">{{ v.tipoContratacion }}</td>
+          </ng-container>
+
+          <!-- Filas: solo COMPLETADOS -->
+          <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+          <tr mat-row *matRowDef="let row; columns: displayedColumns; when: isCompletado"></tr>
         </table>
       </div>
 
       <!-- ==================== VISTA CARDS ==================== -->
       <div *ngIf="viewMode === 'card'">
-
+        <!-- tu implementación de tarjetas aquí -->
       </div>
     </div>
   </mat-card-content>

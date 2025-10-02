@@ -1,138 +1,162 @@
-<h2 mat-dialog-title>Permisos — {{ data.rol.nombre }}</h2>
+<h2 mat-dialog-title class="titulo">
+  Permisos del rol: <em>{{ rolNombre() }}</em>
+</h2>
 
-<mat-dialog-content>
-  <!-- Panel superior: agregar módulos y acciones -->
-  <section class="add-panel">
-    <div class="block">
-      <!-- Aviso cuando ya no hay módulos disponibles por agregar -->
-      <div class="info-banner" *ngIf="hasAllModules()">
-        <mat-icon>verified</mat-icon>
-        Este rol ya tiene acceso a todos los módulos disponibles.
-      </div> <br>
-      <mat-form-field appearance="outline" class="full">
-        <mat-label>Agregar módulos</mat-label>
+<mat-dialog-content class="dialog-content">
+  <div class="toolbar">
+    <span class="spacer"></span>
+    <span class="counter">Seleccionados: {{ selectedCount() }}</span>
+  </div>
 
-        <mat-chip-grid #chipList>
-          <mat-chip-row *ngFor="let m of selectedModules()" (removed)="removeSelectedModule(m.id)">
-            {{ m.nombre }}
-            <button matChipRemove mat-icon-button aria-label="Quitar">
-              <mat-icon>close</mat-icon>
-            </button>
-          </mat-chip-row>
+  <div class="loading" *ngIf="loading(); else tableTpl">
+    <mat-progress-spinner mode="indeterminate" diameter="36"></mat-progress-spinner>
+  </div>
 
-          <!-- IMPORTANTE: matInput para que el control funcione bien en el form-field -->
-          <input matInput [matAutocomplete]="auto" [matChipInputFor]="chipList" [formControl]="moduleFilter"
-            [matChipInputSeparatorKeyCodes]="[]" [matChipInputAddOnBlur]="false" placeholder="Escribe para buscar…">
-        </mat-chip-grid>
+  <ng-template #tableTpl>
+    <table
+      mat-table
+      [dataSource]="rows()"
+      class="perm-table mat-elevation-z2"
+      [multiTemplateDataRows]="true"
+    >
 
-        <mat-autocomplete #auto="matAutocomplete" [displayWith]="displayModule" (optionSelected)="selectModule($event)">
-          <mat-option *ngFor="let opt of filteredModuleOptions()" [value]="opt">
-            {{ opt.nombre }}
-          </mat-option>
-        </mat-autocomplete>
-      </mat-form-field>
+      <!-- ===================== Fila de GRUPO (módulo padre / intermedio) ===================== -->
+      <ng-container matColumnDef="group">
+        <td
+          mat-cell
+          *matCellDef="let g"
+          class="group-row"
+          [attr.colspan]="displayedColumns.length"
+        >
+          <div
+            class="group-title"
+            [style.paddingLeft.px]="12 + (g.level * 18)"
+          >
+            <mat-icon
+              class="group-icon"
+              [ngClass]="{
+                'icon-root': g.level === 0,
+                'icon-child': g.level === 1,
+                'icon-deep' : g.level >= 2
+              }"
+              aria-hidden="true"
+            >
+              {{ g.level === 0 ? 'folder' : (g.level === 1 ? 'folder_open' : 'folder_copy') }}
+            </mat-icon>
 
-    </div>
+            <strong class="group-text">{{ g.titulo }}</strong>
+          </div>
+        </td>
+      </ng-container>
 
-    <div class="block actions-chips">
-      <span class="label">Acciones a asignar</span>
-      <mat-chip-listbox>
-        <mat-chip-option *ngFor="let a of ACTIONS" [selected]="isAddActionSelected(a)" (click)="toggleAddAction(a)">
-          {{ a }}
-        </mat-chip-option>
-      </mat-chip-listbox>
+      <!-- ===================== Columnas de FILA DE DATOS (solo hojas) ===================== -->
 
-      <button mat-stroked-button color="primary" class="add-btn" (click)="agregarSeleccion()"
-        [disabled]="selectedModules().length === 0">
-        <mat-icon>playlist_add</mat-icon>
-        Agregar a la tabla
-      </button>
-
-    </div>
-  </section>
-
-  <mat-divider></mat-divider>
-
-  <!-- Tabla editable -->
-  <div class="table-wrap" *ngIf="!loading(); else loadingTpl">
-    <table mat-table [dataSource]="rows()" class="mat-elevation-z1">
       <!-- Módulo -->
       <ng-container matColumnDef="modulo">
-        <th mat-header-cell *matHeaderCellDef>Módulo</th>
+        <th mat-header-cell *matHeaderCellDef sticky>Módulo</th>
         <td mat-cell *matCellDef="let r">
-          <div class="mod-name">
-            <span>{{ r.modulo_nombre }}</span>
-            <!-- Solo ícono rojo, sin caja; accesible y con tooltip -->
-            <button type="button" class="icon-x" (click)="quitarModulo(r.modulo_id)" matTooltip="Quitar módulo completo"
-              aria-label="Quitar módulo">
+          <div
+            class="mod-name"
+            [style.paddingLeft.px]="8 + (r.level * 18)"
+          >
+            <span class="row-icon-wrap">
+              <mat-icon class="row-icon" aria-hidden="true">
+                {{ r.level > 0 ? 'subdirectory_arrow_right' : 'description' }}
+              </mat-icon>
+            </span>
+
+            <span class="mod-text" [matTooltip]="r.modulo_nombre">
+              {{ r.modulo_nombre }}
+            </span>
+
+            <!-- Quitar todo el módulo (sus permisos) -->
+            <button
+              type="button"
+              class="icon-x"
+              (click)="quitarModulo(r.modulo_id)"
+              matTooltip="Quitar módulo completo"
+              aria-label="Quitar módulo"
+            >
               <mat-icon>close</mat-icon>
             </button>
           </div>
         </td>
       </ng-container>
 
-
       <!-- Acciones -->
       <ng-container matColumnDef="leer">
-        <th mat-header-cell *matHeaderCellDef>Leer</th>
+        <th mat-header-cell *matHeaderCellDef sticky>Leer</th>
         <td mat-cell *matCellDef="let r">
-          <mat-checkbox [checked]="r.LEER" (change)="toggleCell(r.modulo_id, 'LEER', $event.checked!)"></mat-checkbox>
+          <mat-checkbox
+            [checked]="r.LEER"
+            (change)="toggleCell(r.modulo_id, 'LEER', $event.checked!)"
+            aria-label="Permiso leer"
+          ></mat-checkbox>
         </td>
       </ng-container>
 
       <ng-container matColumnDef="crear">
-        <th mat-header-cell *matHeaderCellDef>Crear</th>
+        <th mat-header-cell *matHeaderCellDef sticky>Crear</th>
         <td mat-cell *matCellDef="let r">
-          <mat-checkbox [checked]="r.CREAR" (change)="toggleCell(r.modulo_id, 'CREAR', $event.checked!)"></mat-checkbox>
+          <mat-checkbox
+            [checked]="r.CREAR"
+            (change)="toggleCell(r.modulo_id, 'CREAR', $event.checked!)"
+            aria-label="Permiso crear"
+          ></mat-checkbox>
         </td>
       </ng-container>
 
       <ng-container matColumnDef="actualizar">
-        <th mat-header-cell *matHeaderCellDef>Actualizar</th>
+        <th mat-header-cell *matHeaderCellDef sticky>Actualizar</th>
         <td mat-cell *matCellDef="let r">
-          <mat-checkbox [checked]="r.ACTUALIZAR"
-            (change)="toggleCell(r.modulo_id, 'ACTUALIZAR', $event.checked!)"></mat-checkbox>
+          <mat-checkbox
+            [checked]="r.ACTUALIZAR"
+            (change)="toggleCell(r.modulo_id, 'ACTUALIZAR', $event.checked!)"
+            aria-label="Permiso actualizar"
+          ></mat-checkbox>
         </td>
       </ng-container>
 
       <ng-container matColumnDef="eliminar">
-        <th mat-header-cell *matHeaderCellDef>Eliminar</th>
+        <th mat-header-cell *matHeaderCellDef sticky>Eliminar</th>
         <td mat-cell *matCellDef="let r">
-          <mat-checkbox [checked]="r.ELIMINAR"
-            (change)="toggleCell(r.modulo_id, 'ELIMINAR', $event.checked!)"></mat-checkbox>
+          <mat-checkbox
+            [checked]="r.ELIMINAR"
+            (change)="toggleCell(r.modulo_id, 'ELIMINAR', $event.checked!)"
+            aria-label="Permiso eliminar"
+          ></mat-checkbox>
         </td>
       </ng-container>
 
+      <!-- ===================== Definiciones de filas ===================== -->
+
+      <!-- Fila de GRUPO (solo columna 'group') -->
+      <tr mat-row *matRowDef="let row; columns: ['group']; when: isGroup"></tr>
+
+      <!-- Encabezado para hojas -->
       <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
-      <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
+
+      <!-- Fila de HOJA -->
+      <tr mat-row *matRowDef="let row; columns: displayedColumns; when: isData"></tr>
+
+      <!-- Sin filas -->
       <tr class="no-rows" *ngIf="rows().length === 0">
-        <td [attr.colspan]="displayedColumns.length">
+        <td [attr.colspan]="displayedColumns.length" class="no-rows-cell">
           No hay módulos seleccionados.
         </td>
       </tr>
     </table>
-  </div>
+  </ng-template>
 </mat-dialog-content>
 
-<ng-template #loadingTpl>
-  <div class="loading">
-    <mat-progress-spinner mode="indeterminate"></mat-progress-spinner>
-    <p>Cargando…</p>
-  </div>
-</ng-template>
+<mat-divider></mat-divider>
 
 <mat-dialog-actions align="end">
-  <button mat-stroked-button (click)="cancelar()">Cancelar</button>
-  <button mat-flat-button color="primary" (click)="guardar()" [disabled]="saving()">
-    <ng-container *ngIf="!saving(); else svTpl">
-      Guardar
-    </ng-container>
+  <span class="total">Seleccionados: {{ selectedCount() }}</span>
+  <button mat-button (click)="close()" [disabled]="saving()">Cancelar</button>
+  <button mat-flat-button color="primary" (click)="save()" [disabled]="saving()">
+    <mat-icon *ngIf="!saving()">save</mat-icon>
+    <mat-progress-spinner *ngIf="saving()" diameter="18" mode="indeterminate"></mat-progress-spinner>
+    &nbsp;Guardar
   </button>
 </mat-dialog-actions>
-
-<ng-template #svTpl>
-  <span class="saving">
-    <mat-progress-spinner diameter="18" mode="indeterminate"></mat-progress-spinner>
-    Guardando…
-  </span>
-</ng-template>

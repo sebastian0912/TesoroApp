@@ -89,88 +89,135 @@ export class UploadTreasuryComponent {
         }
 
         Swal.fire({ icon: 'info', title: 'Cargando empleados...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
-        //await this.tesoreriaService.añadirEmpleado(cleaned);
+        await this.tesoreriaService.añadirEmpleado(cleaned);
         Swal.fire({ icon: 'success', title: 'Inserción exitosa', text: 'Se cargaron los empleados correctamente.' });
         this.bumpCard('insert');
-      } else if (kind === 'saldos') {
-        // == Saldos: 2 columnas [numero_de_documento, saldos] ==
-        const rows = allRows
+      }
+      else if (kind === 'saldos') {
+        // == Saldos/Fondos (masivo): 2 o 3 columnas [cedula, saldos(, fondos)] ==
+        const raw = allRows
           .filter(r => r.some(c => c !== null && c !== undefined && String(c).trim() !== ''))
-          .map(r => this.normalizeColumns(r, 2));
+          .map(r => this.normalizeColumns(r, 3)); // hasta 3 columnas
 
         // Quitar cabecera si viene
-        if (rows.length && this.isHeaderRow(rows[0])) rows.shift();
+        if (raw.length && this.isHeaderRow(raw[0])) raw.shift();
 
-        const bad = rows.find(r => r.length < 2 || String(r[0]).trim() === '');
-        if (bad) {
+        // Normaliza y deduplica
+        const rows: Array<{ cedula: string; saldos?: string | null; fondos?: string | null }> = [];
+        const seen = new Set<string>();
+
+        const sanitize = (v: any): string | null => {
+          if (v === null || v === undefined) return null;
+          const s = String(v).trim();
+          if (!s || s.toLowerCase() === 'null' || s.toLowerCase() === 'undefined') return null;
+          // opcional: si vienes con separadores de miles "154.450" o "154,450", límpialos aquí
+          return s;
+        };
+
+        for (const r of raw) {
+          const cedula = String(r[0] ?? '').trim();
+          const saldos = sanitize(r[1]);
+          const fondos = sanitize(r[2]); // puede venir vacío en archivos de 2 columnas
+
+          // descarta filas sin cédula o sin al menos un valor (saldos/fondos)
+          if (!cedula || (saldos === null && fondos === null)) continue;
+
+          if (!seen.has(cedula)) {
+            rows.push({ cedula, saldos, fondos });
+            seen.add(cedula);
+          }
+        }
+
+        if (!rows.length) {
           Swal.fire({
             icon: 'error',
-            title: 'Formato inválido',
-            html: 'El archivo de <b>saldos</b> debe tener <b>2 columnas</b> (numero_de_documento, saldos) y sin encabezado.'
+            title: 'Sin datos válidos',
+            html: 'Debes incluir al menos una fila con <b>cédula</b> y <b>saldo</b> (y opcionalmente <b>fondo</b>).'
           });
           return;
         }
 
         Swal.fire({ icon: 'info', title: 'Actualizando saldos...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
 
-        let ok = 0, fail = 0;
-        for (const r of rows) {
-          const cedula = String(r[0]).trim();
-          const saldos = String(r[1] ?? '').trim();
-          if (!cedula || saldos === '' || saldos === 'null' || saldos === 'undefined') { fail++; continue; }
-          try {
-            await this.tesoreriaService.actualizarEmpleado(cedula, saldos);
-            ok++;
-          } catch {
-            fail++;
-          }
+        try {
+          const res = await this.tesoreriaService.actualizarSaldosMasivo(rows);
+
+          const noenc = (res.no_encontrados || []).slice(0, 10);
+          const more = Math.max(0, (res.no_encontrados || []).length - noenc.length);
+
+          Swal.fire({
+            icon: res.errores ? 'warning' : 'success',
+            title: 'Proceso finalizado',
+            html: `
+        Recibidos: <b>${res.total_recibidos}</b><br>
+        Actualizados: <b>${res.actualizados}</b><br>
+        Sin cambios: <b>${res.sin_cambios}</b><br>
+        No encontrados: <b>${(res.no_encontrados || []).length}</b>${noenc.length
+                ? `<br><small>${noenc.join(', ')}${more ? ` y ${more} más…` : ''}</small>`
+                : ''
+              }<br>
+        Errores: <b>${res.errores}</b>
+      `
+          });
+
+          this.bumpCard('saldos');
+        } catch (e) {
+          console.error(e);
+          Swal.fire({ icon: 'error', title: 'Error', text: 'No se pudo completar la actualización masiva.' });
         }
+      }
 
-        Swal.fire({
-          icon: fail ? 'warning' : 'success',
-          title: 'Proceso finalizado',
-          html: `Saldos actualizados: <b>${ok}</b> OK, <b>${fail}</b> con error.`
-        });
-        this.bumpCard('saldos');
-
-      } else if (kind === 'eliminar') {
-        // == Eliminar (bloquear): 1 columna [numero_de_documento] ==
+      else if (kind === 'eliminar') {
+        // == Desactivar (activo=false) : 1 columna [numero_de_documento] ==
         const rows = allRows
           .filter(r => r.some(c => c !== null && c !== undefined && String(c).trim() !== ''))
-          .map(r => this.normalizeColumns(r, 1)); // nos quedamos con la primera celda (cédula)
+          .map(r => this.normalizeColumns(r, 1)); // solo 1 columna
 
         // Quitar cabecera si viene (CEDULA / CÉDULA / CODIGO, etc.)
         if (rows.length && this.isHeaderRow(rows[0])) rows.shift();
 
-        const cedulas = rows
-          .map(r => String(r[0] ?? '').trim())
-          .filter(v => v.length > 0);
+        // Cédulas normalizadas y únicas
+        const cedulas = Array.from(new Set(
+          rows
+            .map(r => String(r[0] ?? '').trim())
+            .filter(v => v.length > 0)
+        ));
 
         if (!cedulas.length) {
-          Swal.fire({ icon: 'error', title: 'Sin cédulas', text: 'El archivo de eliminar debe contener al menos una cédula.' });
+          Swal.fire({
+            icon: 'error',
+            title: 'Sin cédulas',
+            text: 'El archivo debe contener al menos una cédula.'
+          });
           return;
         }
 
-        Swal.fire({ icon: 'info', title: 'Bloqueando empleados...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+        Swal.fire({ icon: 'info', title: 'Desactivando empleados...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
 
-        let ok = 0, fail = 0;
-        for (const cedula of cedulas) {
-          try {
-            // Bloqueo lógico: estado siempre true
-            await this.tesoreriaService.bloquearEmpleado(cedula, true);
-            ok++;
-          } catch {
-            fail++;
-          }
+        try {
+          // Llamada MASIVA (una sola petición)
+          const res = await this.tesoreriaService.actualizarEstadosMasivo({
+            documentos: cedulas,
+            activo: false
+          });
+
+          Swal.fire({
+            icon: (res.errores && res.errores > 0) ? 'warning' : 'success',
+            title: 'Proceso finalizado',
+            html: `
+        Recibidos: <b>${res.total_recibidos}</b><br>
+        Actualizados: <b>${res.actualizados}</b><br>
+        Ya en estado: <b>${res.ya_en_estado}</b><br>
+        No encontrados: <b>${(res.no_encontrados || []).length}</b><br>
+        Errores: <b>${res.errores}</b>
+      `
+          });
+          this.bumpCard('eliminar');
+        } catch (e) {
+          Swal.fire({ icon: 'error', title: 'Error', text: 'No se pudo completar la desactivación masiva.' });
         }
-
-        Swal.fire({
-          icon: fail ? 'warning' : 'success',
-          title: 'Proceso finalizado',
-          html: `Empleados bloqueados: <b>${ok}</b> OK, <b>${fail}</b> con error.`
-        });
-        this.bumpCard('eliminar');
       }
+
 
     } catch (e: any) {
       Swal.fire({ icon: 'error', title: 'Error', text: e?.message ?? 'Error procesando el archivo' });

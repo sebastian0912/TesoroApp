@@ -42,8 +42,12 @@ export class EditarEnvioComponent {
       this.updateOtroConceptoValidator(value);
     });
 
-    this.utilityService.traerSucursales().subscribe((data: any) => {
-      this.sedes = data.sucursal;
+    (this.utilityService.traerSucursales()).subscribe((data: any) => {
+      // ordenar por nombre
+      if (data) {
+        data.sort((a: any, b: any) => a.nombre.localeCompare(b.nombre));
+        this.sedes = data;
+      }
     });
 
     this.comercializadoraService.traerCategorias(31).then((data: any) => {

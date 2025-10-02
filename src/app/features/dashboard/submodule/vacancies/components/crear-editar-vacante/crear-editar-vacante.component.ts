@@ -1,3 +1,4 @@
+import { FincaItem } from './../../service/fincas/fincas.service';
 import { Component, ElementRef, Inject, OnInit, ViewChild } from '@angular/core';
 import {
   AbstractControl,
@@ -30,6 +31,7 @@ import { MomentDateAdapter } from '@angular/material-moment-adapter';
 import { MatChipsModule } from '@angular/material/chips';
 import { COMMA, ENTER } from '@angular/cdk/keycodes';
 import { PositionsService } from '../../../positions/services/positions/positions.service';
+import { FincasService } from '../../service/fincas/fincas.service';
 
 export const MY_DATE_FORMATS = {
   parse: { dateInput: 'D/M/YYYY' },
@@ -110,7 +112,8 @@ export class CrearEditarVacanteComponent implements OnInit {
     @Inject(MAT_DIALOG_DATA) public data: any,
     private adminService: UtilityServiceService,
     private vacantesService: VacantesService,
-    private positionsService: PositionsService
+    private positionsService: PositionsService,
+    private fincasService: FincasService,
   ) {
     this.today.setHours(0, 0, 0, 0);
   }
@@ -124,6 +127,7 @@ export class CrearEditarVacanteComponent implements OnInit {
         finca: ['', Validators.required],
         empresaUsuariaSolicita: ['', Validators.required],
         temporal: ['', Validators.required],
+        direccion: ['', Validators.required],
 
         experiencia: ['', Validators.required],
         observacionVacante: [''],
@@ -165,60 +169,61 @@ export class CrearEditarVacanteComponent implements OnInit {
 
     if (this.data) this.cargarParaEdicion(this.data);
 
-// ---------- Catálogos: CARGOS ----------
-const cargoCtrl = this.vacanteForm.get('cargo')!;
+    // ---------- Catálogos: CARGOS ----------
+    const cargoCtrl = this.vacanteForm.get('cargo')!;
 
-// Inicializa para evitar undefined antes de la data
-this.filteredCargos = cargoCtrl.valueChanges.pipe(
-  startWith(cargoCtrl.value ?? ''),
-  map((value: string) => this._filter(value || '', this.cargos))
-);
+    // Inicializa para evitar undefined antes de la data
+    this.filteredCargos = cargoCtrl.valueChanges.pipe(
+      startWith(cargoCtrl.value ?? ''),
+      map((value: string) => this._filter(value || '', this.cargos))
+    );
 
-this.positionsService.list()
-  .pipe(
-    map((rows: any[]) => (rows ?? []).map(c => c.nombre).filter(Boolean))
-  )
-  .subscribe({
-    next: (nombres: string[]) => {
-      this.cargos = nombres;
-      // Reengancha el filtro con la lista ya cargada
-      this.filteredCargos = cargoCtrl.valueChanges.pipe(
-        startWith(cargoCtrl.value ?? ''),
-        map((value: string) => this._filter(value || '', this.cargos))
-      );
-    },
-    error: (err) => {
-      console.error('Error cargando cargos', err);
-      this.cargos = [];
-      this.filteredCargos = cargoCtrl.valueChanges.pipe(
-        startWith(cargoCtrl.value ?? ''),
-        map((value: string) => this._filter(value || '', this.cargos))
-      );
-    }
-  });
-
-
+    this.positionsService.list()
+      .pipe(
+        map((rows: any[]) => (rows ?? []).map(c => c.nombre).filter(Boolean))
+      )
+      .subscribe({
+        next: (nombres: string[]) => {
+          this.cargos = nombres;
+          // Reengancha el filtro con la lista ya cargada
+          this.filteredCargos = cargoCtrl.valueChanges.pipe(
+            startWith(cargoCtrl.value ?? ''),
+            map((value: string) => this._filter(value || '', this.cargos))
+          );
+        },
+        error: (err) => {
+          console.error('Error cargando cargos', err);
+          this.cargos = [];
+          this.filteredCargos = cargoCtrl.valueChanges.pipe(
+            startWith(cargoCtrl.value ?? ''),
+            map((value: string) => this._filter(value || '', this.cargos))
+          );
+        }
+      });
 
 
 
-    this.vacantesService.listarCentrosCostos().subscribe((response: any) => {
-      this.centrosCostos = response.data || [];
+
+
+    // Cargar nombres de fincas para el autocomplete
+    this.fincasService.listNombreFincas().subscribe((nombres) => {
+      this.centrosCostos = nombres ?? [];
       this.filteredCentrosCostos = this.vacanteForm.get('finca')!.valueChanges.pipe(
         startWith(''),
-        map((value) => this._filter(value || '', this.centrosCostos))
+        map((value: string) => this._filter(value || '', this.centrosCostos))
       );
     });
 
-const sucursalesObservable = await this.adminService.traerSucursales();
-sucursalesObservable.subscribe((sucursales: any[]) => {
-  if (Array.isArray(sucursales)) {
-    this.sedes = sucursales
-      .filter(s => s?.activa !== false) // opcional: sólo activas
-      .sort((a, b) => (a.nombre || '').localeCompare(b.nombre || ''));
-  } else {
-    this.sedes = [];
-  }
-});
+    const sucursalesObservable = await this.adminService.traerSucursales();
+    sucursalesObservable.subscribe((sucursales: any[]) => {
+      if (Array.isArray(sucursales)) {
+        this.sedes = sucursales
+          .filter(s => s?.activa !== false) // opcional: sólo activas
+          .sort((a, b) => (a.nombre || '').localeCompare(b.nombre || ''));
+      } else {
+        this.sedes = [];
+      }
+    });
 
 
     // Ofis seleccionadas -> array
@@ -371,6 +376,7 @@ sucursalesObservable.subscribe((sucursales: any[]) => {
       area: v.area,
       finca: v.finca,
       empresaUsuariaSolicita: v.empresaUsuariaSolicita,
+      direccion: v.direccion,
       temporal: v.temporal,
       experiencia: v.experiencia,
       observacionVacante: v.observacionVacante,
@@ -429,13 +435,43 @@ sucursalesObservable.subscribe((sucursales: any[]) => {
     return this.vacanteForm.get('oficinasQueContratan') as FormArray;
   }
 
+  // Helper: normaliza y mapea temporal a los dos valores del mat-select
+  private canonicalTemporal(raw: string | null | undefined): 'APOYO LABORAL SAS' | 'TU ALIANZA SAS' | null {
+    if (!raw) return null;
+
+    // quitar acentos y normalizar
+    const norm = String(raw)
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    // ejemplos que suelen llegar: "Apoyo Laboral TS", "Apoyo", "Apoyo laboral", etc.
+    if (/(^|[^a-z])apoyo([^a-z]|$)/.test(norm)) {
+      return 'APOYO LABORAL SAS';
+    }
+
+    // ejemplos: "Alianza", "Tu Alianza", "Alianza SAS", etc.
+    if (/(^|[^a-z])alianza([^a-z]|$)/.test(norm)) {
+      return 'TU ALIANZA SAS';
+    }
+
+    return null; // si no encaja, no seteamos nada
+  }
+
+  // Al seleccionar una finca del autocomplete, rellenar empresa, temporal y dirección
   onCentroCostoSelected(event: MatAutocompleteSelectedEvent): void {
-    const selectedCentro = event.option.value;
-    this.vacantesService.filtrarFinca(selectedCentro).subscribe((response) => {
-      this.vacanteForm.get('empresaUsuariaSolicita')?.setValue(response?.[0]?.empresa_usuaria ?? null);
-      const empresaTemporal = response?.[0]?.empresa_temporal;
-      const opcionesValidas = ['APOYO LABORAL SAS', 'TU ALIANZA SAS'];
-      this.vacanteForm.get('temporal')?.setValue(opcionesValidas.includes(empresaTemporal) ? empresaTemporal : null);
+    const nombre = (event.option.value || '').toString();
+    if (!nombre) return;
+
+    this.fincasService.getFincaByNombre(nombre).subscribe((finca: FincaItem | undefined) => {
+      const temporalCanon = this.canonicalTemporal(finca?.temporal);
+
+      this.vacanteForm.patchValue({
+        empresaUsuariaSolicita: finca?.empresa ?? null,
+        direccion: finca?.direccion ?? null,
+        temporal: temporalCanon, // ← asigna exactamente uno de los dos valores del mat-select
+      });
     });
   }
 

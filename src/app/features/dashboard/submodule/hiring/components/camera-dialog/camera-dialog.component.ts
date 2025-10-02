@@ -1,11 +1,10 @@
 import { CommonModule } from '@angular/common';
-import { Component, ElementRef, inject, OnDestroy, OnInit, ViewChild } from '@angular/core';
+import { Component, ElementRef, OnDestroy, OnInit, ViewChild, inject } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
-import { MatDialogModule, MatDialogRef } from '@angular/material/dialog';
+import { MatDialogModule, MatDialogRef, MAT_DIALOG_DATA } from '@angular/material/dialog';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatTabsModule } from '@angular/material/tabs';
-
 
 export type CameraDialogResult = { file: File; previewUrl: string };
 
@@ -24,6 +23,7 @@ export type CameraDialogResult = { file: File; previewUrl: string };
 })
 export class CameraDialogComponent implements OnInit, OnDestroy {
   private dialogRef = inject(MatDialogRef<CameraDialogComponent>);
+  private dialogData = inject(MAT_DIALOG_DATA, { optional: true }) as { initialPreviewUrl?: string | null } | null;
 
   @ViewChild('videoEl', { static: false }) videoEl?: ElementRef<HTMLVideoElement>;
   @ViewChild('canvasEl', { static: false }) canvasEl?: ElementRef<HTMLCanvasElement>;
@@ -38,6 +38,13 @@ export class CameraDialogComponent implements OnInit, OnDestroy {
   capturedFile: File | null = null;
 
   async ngOnInit(): Promise<void> {
+    // Si llega una foto existente (data URL), precárgala para previsualizar y habilitar "Usar esta imagen"
+    const initial = this.dialogData?.initialPreviewUrl || null;
+    if (typeof initial === 'string' && initial.startsWith('data:')) {
+      this.previewUrl = initial;
+      this.capturedFile = this.dataURLToFile(initial, 'foto-actual.png');
+    }
+
     const supportsCamera =
       typeof navigator !== 'undefined' &&
       !!navigator.mediaDevices &&
@@ -54,7 +61,6 @@ export class CameraDialogComponent implements OnInit, OnDestroy {
       this.cameraError = 'La cámara no está disponible (permiso/HTTPS). Puedes adjuntar una imagen.';
     }
   }
-
 
   ngOnDestroy(): void {
     this.stopCamera();
@@ -79,7 +85,7 @@ export class CameraDialogComponent implements OnInit, OnDestroy {
       if (this.videoEl?.nativeElement) {
         const v = this.videoEl.nativeElement;
         v.srcObject = this.stream;
-        await v.play().catch(() => {/* algunos navegadores requieren interacción */ });
+        await v.play().catch(() => { /* algunos navegadores requieren interacción */ });
       }
     } catch (err: any) {
       console.error(err);
@@ -165,5 +171,16 @@ export class CameraDialogComponent implements OnInit, OnDestroy {
     if (this.previewUrl) {
       URL.revokeObjectURL(this.previewUrl);
     }
+  }
+
+  private dataURLToFile(dataUrl: string, filename: string): File {
+    const [meta, base64] = dataUrl.split(',');
+    const mimeMatch = meta.match(/:(.*?);/);
+    const mime = mimeMatch ? mimeMatch[1] : 'image/png';
+    const binStr = atob(base64 || '');
+    const len = binStr.length;
+    const u8 = new Uint8Array(len);
+    for (let i = 0; i < len; i++) u8[i] = binStr.charCodeAt(i);
+    return new File([u8], filename, { type: mime });
   }
 }

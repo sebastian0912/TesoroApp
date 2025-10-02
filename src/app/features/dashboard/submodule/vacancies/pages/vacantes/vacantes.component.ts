@@ -33,7 +33,6 @@ interface ConteoEstados {
   selector: 'app-vacantes',
   imports: [
     SharedModule,
-    // Material / Angular necesarios por el template
     MatTableModule,
     FormsModule,
     NgIf,
@@ -73,7 +72,8 @@ export class VacantesComponent implements OnInit {
     'tipoContratacion',
   ];
 
-  viewMode: 'table' | 'card' = 'table';
+  // Agregamos 'faltantes' y 'completados'
+  viewMode: 'table' | 'card' | 'faltantes' | 'completados' = 'table';
   loading = false;
   permitido = false;
 
@@ -87,45 +87,80 @@ export class VacantesComponent implements OnInit {
   ) { }
 
   async ngOnInit(): Promise<void> {
-    // Persistencia simple del toggle
     const saved = (typeof window !== 'undefined')
-      ? (localStorage.getItem('vacantes:viewMode') as 'table' | 'card' | null)
+      ? (localStorage.getItem('vacantes:viewMode') as 'table' | 'card' | 'faltantes' | 'completados' | null)
       : null;
     if (saved) this.viewMode = saved;
 
     this.loadData();
 
-    // Permisos (para botón Eliminar)
     const user = this.utilityService.getUser();
     this.permitido = this.isManager(user);
 
-    // Filtro simple
     this.dataSource.filterPredicate = (data: any, filter: string) =>
       JSON.stringify(data).toLowerCase().includes(filter);
   }
 
-  onToggleView(mode: 'table' | 'card'): void {
+  onToggleView(mode: 'table' | 'card' | 'faltantes' | 'completados'): void {
     this.viewMode = mode;
     try { localStorage.setItem('vacantes:viewMode', mode); } catch { }
+    setTimeout(() => {
+      const active = this.getActiveDataSource();
+      active.paginator = this.paginator;
+      active.sort = this.sort;
+    });
   }
+
+  dataSourceFaltantes = new MatTableDataSource<any>([]);
+  dataSourceCompletados = new MatTableDataSource<any>([]);
+
+  private getActiveDataSource(): MatTableDataSource<any> {
+    if (this.viewMode === 'faltantes') return this.dataSourceFaltantes;
+    if (this.viewMode === 'completados') return this.dataSourceCompletados;
+    return this.dataSource;
+  }
+
+  private rebuildDerivedTables(): void {
+    const rows = this.dataSource.data ?? [];
+
+    const falt = rows.filter(r => this.faltantes(r) > 0);
+    const comp = rows.filter(r => this.totalRequerida(r) > 0 && this.faltantes(r) === 0);
+
+    this.dataSourceFaltantes.data = falt;
+    this.dataSourceCompletados.data = comp;
+
+    // compartir misma lógica de filtro
+    this.dataSourceFaltantes.filterPredicate = this.dataSource.filterPredicate;
+    this.dataSourceCompletados.filterPredicate = this.dataSource.filterPredicate;
+    console.log('Tablas derivadas reconstruidas. :', this.dataSourceCompletados.data);
+    
+      
+    // re-atachear paginator/sort al dataSource visible
+    setTimeout(() => {
+      const active = this.getActiveDataSource();
+      active.paginator = this.paginator;
+      active.sort = this.sort;
+    });
+  }
+
 
   // ================== Carga de datos ==================
   loadData(): void {
     this.loading = true;
     this.vacantesService.listarVacantes().subscribe({
       next: (response: any[]) => {
-        // Normaliza datos mínimos que usa la tabla
         const rows = (response ?? []).map(r => this.mapRow(r));
         this.dataSource.data = rows;
         this.dataSource.paginator = this.paginator;
         this.dataSource.sort = this.sort;
+
+        this.rebuildDerivedTables(); // <<---- importante
       },
-      error: () => {
-        Swal.fire('Error', 'Ocurrió un error al cargar las vacantes', 'error');
-      },
+      error: () => { /* ... */ },
       complete: () => this.loading = false
     });
   }
+
 
   private mapRow(r: any) {
     const defaultConteo: ConteoEstados = {
@@ -139,16 +174,21 @@ export class VacantesComponent implements OnInit {
       total_con_su_ultimo_registro: 0,
     };
 
+    // Normaliza municipios (acepta 'municipio' o 'municipios' del backend)
+    const municipioArr = Array.isArray(r?.municipio)
+      ? r.municipio
+      : (Array.isArray(r?.municipios) ? r.municipios : []);
+
     return {
       ...r,
-      salario: this.parseCurrency(r?.salario),                           // string "0.00" -> number
-      municipio: Array.isArray(r?.municipio) ? r.municipio : [],         // [] o array de strings
+      salario: this.parseCurrency(r?.salario),
+      municipio: municipioArr,
       observacionVacante: r?.observacionVacante ?? '',
       preseleccionados: Array.isArray(r?.preseleccionados) ? r.preseleccionados : [],
       contratados: Array.isArray(r?.contratados) ? r.contratados : [],
       personasSolicitadas: Number(r?.personasSolicitadas) || 0,
       municipiosDistribucion: Array.isArray(r?.municipiosDistribucion) ? r.municipiosDistribucion : [],
-      fechaPublicado: r?.fechaPublicado ?? null,                         // 'yyyy-MM-dd'
+      fechaPublicado: r?.fechaPublicado ?? null, // 'yyyy-MM-dd'
       fechadeIngreso: r?.fechadeIngreso ?? null,
       cargo: r?.cargo ?? null,
       finca: r?.finca ?? '',
@@ -184,13 +224,14 @@ export class VacantesComponent implements OnInit {
         area: result.area || null,
         empresaUsuariaSolicita: result.empresaUsuariaSolicita?.trim() || null,
         finca: result.finca?.trim() || null,
+        direccion: result.direccion?.trim() || null,
+        
         experiencia: result.experiencia?.trim() || null,
         descripcion: result.descripcion?.trim() || null,
         salario: this.parseCurrency(result.salario),
         codigoElite: result.codigoElite?.trim() || null,
         observacionVacante: result.observacionVacante?.trim() || null,
 
-        // Condicionales
         pruebaOContratacion: isPrueba ? 'Prueba' : 'Contratación',
         fechadePruebatecnica: isPrueba ? this.formatDate(result.fechadePruebatecnica) : null,
         horadePruebatecnica: isPrueba ? (result.horadePruebatecnica || null) : null,
@@ -266,6 +307,7 @@ export class VacantesComponent implements OnInit {
         finca: result.finca?.trim() || null,
         ubicacionPruebaTecnica: result.ubicacionPruebaTecnica?.trim() || null,
         experiencia: result.experiencia?.trim() || null,
+        direccion: result.direccion?.trim() || null,
 
         fechadePruebatecnica: isPrueba ? this.formatDate(result.fechadePruebatecnica) : null,
         horadePruebatecnica: isPrueba ? (result.horadePruebatecnica || null) : null,
@@ -317,7 +359,6 @@ export class VacantesComponent implements OnInit {
   }
 
   private parseCurrency(val: any): number {
-    // "1.423.500" | "1423500.00" | 0 -> 1423500
     return Number(String(val ?? '').replace(/[^\d.-]/g, '')) || 0;
   }
 
@@ -335,14 +376,10 @@ export class VacantesComponent implements OnInit {
   /** Total requerido: primero personasSolicitadas, si no, suma de distribución. */
   totalRequerida(v: any): number {
     const total = Number(v?.personasSolicitadas);
-    if (Number.isFinite(total) && total > 0) return total;
-
-    const dist = Array.isArray(v?.municipiosDistribucion) ? v.municipiosDistribucion : [];
-    const sumDist = dist.reduce((acc: number, d: any) => acc + (Number(d?.cantidad) || 0), 0);
-    return sumDist || 0;
+    return total
   }
 
-  /** Faltantes = Req - Ing (puedes cambiar a Req - Firm si lo prefieres). */
+  /** Faltantes = Req - Firm (contratados). */
   faltantes(v: any): number {
     return Math.max(0, this.totalRequerida(v) - this.firm(v));
   }
@@ -362,12 +399,17 @@ export class VacantesComponent implements OnInit {
     return (v?.conteo_estados as ConteoEstados) || z;
   }
 
-  prue(v: any): number { return this.ce(v).prueba_tecnica; }      // columna "Pru"
-  auto(v: any): number { return this.ce(v).autorizado; }          // columna "Auto"
-  exm(v: any): number { return this.ce(v).examenes_medicos; }    // columna "Exm"
-  firm(v: any): number { return this.ce(v).contratado; }          // columna "Firm"
-  ing(v: any): number { return this.ce(v).ingreso; }             // columna "Ing"
-  entrev(v: any): number { return this.ce(v).entrevistado; } // No usado en tabla
+  prue(v: any): number { return this.ce(v).prueba_tecnica; }
+  auto(v: any): number { return this.ce(v).autorizado; }
+  exm(v: any): number { return this.ce(v).examenes_medicos; }
+  firm(v: any): number { return this.ce(v).contratado; }
+  ing(v: any): number { return this.ce(v).ingreso; }
+  entrev(v: any): number { return this.ce(v).entrevistado; }
+
+  // ---------- Predicados para las vistas filtradas ----------
+  isFaltante = (_: number, row: any) => this.faltantes(row) > 0;
+  isCompletado = (_: number, row: any) => this.totalRequerida(row) > 0 && this.faltantes(row) === 0;
+
   // ================== Utilidad de permisos ==================
   private isManager(user: any): boolean {
     const raw = user?.rol ?? user?.roles ?? [];
@@ -420,12 +462,12 @@ export class VacantesComponent implements OnInit {
     window.open('https://formulario.tsservicios.co/formulario/formulario-pre-registro-vacantes', '_blank');
   }
 
-  /** % de cumplimiento = Ing / Req * 100, redondeado */
+  /** % de cumplimiento = Firm / Req * 100, redondeado */
   cumplimientoPct(v: any): number {
     const req = this.totalRequerida(v);
     if (!req) return 0;
-    const ingresados = this.firm(v);
-    const pct = (ingresados / req) * 100;
+    const firmados = this.firm(v);
+    const pct = (firmados / req) * 100;
     return Math.max(0, Math.min(100, Math.round(pct)));
   }
 
@@ -436,4 +478,8 @@ export class VacantesComponent implements OnInit {
     if (pct >= 70) return 'semaforo-pill semaforo-warn';
     return 'semaforo-pill semaforo-error';
   }
+
+
 }
+
+

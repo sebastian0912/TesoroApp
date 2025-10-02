@@ -22,6 +22,7 @@ export const routes: Routes = [
       { path: 'disabilities', loadChildren: () => import('./submodule/disabilities/disabilities.routes').then(m => m.routes) },
       { path: 'vacancies', loadChildren: () => import('./submodule/vacancies/vacancies.routes').then(m => m.routes) },
       { path: 'positions', loadChildren: () => import('./submodule/positions/positions.routes').then(m => m.routes) },
+      { path: 'farms', loadChildren: () => import('./submodule/farms/farms.routes').then(m => m.routes) },
     ],
   },
 ];

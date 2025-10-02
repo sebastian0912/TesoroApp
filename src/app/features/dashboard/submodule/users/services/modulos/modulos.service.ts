@@ -29,6 +29,18 @@ export interface Paginated<T> {
   results: T[];
 }
 
+/** Etiquetas esperadas; dejar string para futuras acciones personalizadas */
+export type AccionEtiqueta = 'LEER' | 'CREAR' | 'ACTUALIZAR' | 'ELIMINAR' | string;
+
+/** Nodo del árbol de permisos por módulo (GET /gestion_admin/modulos/arbol-permisos/) */
+export interface ModuloPermisosNode {
+  id: string;
+  nombre: string;
+  acciones: AccionEtiqueta[];             // acciones efectivas en este módulo
+  permiso_ids: Record<string, string>;    // { 'LEER': '<permiso_uuid>', ... }
+  hijos: ModuloPermisosNode[];            // submódulos
+}
+
 @Injectable({ providedIn: 'root' })
 export class ModulosService {
   private http = inject(HttpClient);
@@ -47,7 +59,7 @@ export class ModulosService {
     return this.http.get<Paginated<Modulo> | Modulo[]>(this.base, { params: httpParams });
   }
 
-  // Para combos (sin paginar) — si tienes paginación, puedes pedir un page_size grande vía querystring
+  // Para combos (sin paginar)
   listAll(): Observable<Modulo[] | Paginated<Modulo>> {
     return this.http.get<Modulo[] | Paginated<Modulo>>(this.base);
   }
@@ -72,8 +84,20 @@ export class ModulosService {
     return this.http.delete<void>(`${this.base}${id}/`);
   }
 
+  /** Árbol de módulos simple (GET /gestion_admin/modulos/arbol/) */
   tree(): Observable<any[]> {
     return this.http.get<any[]>(`${this.base}arbol/`);
   }
 
+  /**
+   * Árbol de permisos por módulo (GET /gestion_admin/modulos/arbol-permisos/)
+   * - Si no envías `usuario`, usa el usuario autenticado (permisos efectivos).
+   * - `include_empty=true` para incluir módulos sin acciones (útil para UI).
+   */
+  treePermisos(options?: { usuario?: string; include_empty?: boolean }): Observable<ModuloPermisosNode[]> {
+    let params = new HttpParams();
+    if (options?.usuario) params = params.set('usuario', options.usuario);
+    if (options?.include_empty != null) params = params.set('include_empty', String(options.include_empty));
+    return this.http.get<ModuloPermisosNode[]>(`${this.base}arbol-permisos/`, { params });
+  }
 }
