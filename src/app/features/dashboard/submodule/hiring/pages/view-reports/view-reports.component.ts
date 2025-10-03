@@ -12,7 +12,6 @@ import saveAs from 'file-saver';
 import { PLATFORM_ID, Inject } from '@angular/core';
 import { isPlatformBrowser } from '@angular/common';
 
-
 @Component({
   selector: 'app-view-reports',
   imports: [
@@ -119,7 +118,7 @@ export class ViewReportsComponent {
     const todosLosReportes$ =
       this.userCorreo !== 'tuafiliacion@tsservicios.co' &&
         this.userCorreo !== 'programador.ts@gmail.com' &&
-        this.userCorreo !== 'a.seguridad.ts@gmail.com' &&
+        this.userCorreo !== 'A.SEGURIDAD.TS@GMAIL.COM' &&
         this.userCorreo !== 'a.sotelotualianza@gmail.com'
         ? this.hiringService.obtenerTodosLosReportes(this.userNombre)
         : this.hiringService.obtenerTodosLosReportes('todos');
@@ -133,7 +132,7 @@ export class ViewReportsComponent {
         if (
           this.userCorreo === 'tuafiliacion@tsservicios.co' ||
           this.userCorreo === 'programador.ts@gmail.com' ||
-          this.userCorreo === 'a.seguridad.ts@gmail.com'  ||
+          this.userCorreo === 'A.SEGURIDAD.TS@GMAIL.COM'  ||
           this.userCorreo === 'a.sotelotualianza@gmail.com'
         ) {
           this.consolidadoDataSource.data = await this.generateConsolidatedData(this.reportes);

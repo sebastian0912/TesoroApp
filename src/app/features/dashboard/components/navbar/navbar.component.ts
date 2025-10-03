@@ -303,6 +303,7 @@ export class NavbarComponent implements OnInit, OnDestroy {
     'GESTIÓN MÓDULOS': 'users/manage-modules',
     'GESTIÓN CARGOS': 'positions/manage-positions',
     'GESTIÓN CENTRO DE COSTOS': 'farms/management-farms',
+    
 
     // Ausentismos
     'AUSENTISMOS': 'hiring/absences',

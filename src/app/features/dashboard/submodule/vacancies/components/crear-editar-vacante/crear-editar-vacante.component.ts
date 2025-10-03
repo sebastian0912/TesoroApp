@@ -153,6 +153,7 @@ export class CrearEditarVacanteComponent implements OnInit {
         tipoContratacion: ['', Validators.required],
 
         municipio: [[], Validators.required],
+        barrio: [''],
 
         personasSolicitadas: [null, [Validators.required, Validators.min(1)]],
         municipiosDistribucion: this.fb.array<DistMunGroup>([]),
@@ -305,6 +306,36 @@ export class CrearEditarVacanteComponent implements OnInit {
     return this.vacanteForm.get('municipiosDistribucion') as FormArray<DistMunGroup>;
   }
 
+  onAddBarrioFromForm(): void {
+    const raw = (this.vacanteForm.get('barrio')?.value || '').toString().trim();
+    if (!raw) return;
+
+    const etiqueta = `B - ${raw}`.trim();
+
+    // ¿Ya existe alguna fila "B - ..."?
+    const idxBarrio = this.municipiosDistribucion.controls.findIndex((fg) =>
+      /^B\s*-\s*/i.test((fg.get('municipio')?.value || '').toString())
+    );
+
+    if (idxBarrio > -1) {
+      // Actualiza el nombre del barrio en la primera fila "B - ..."
+      this.municipiosDistribucion.at(idxBarrio).get('municipio')?.setValue(etiqueta);
+    } else {
+      // Si no existe, crea una nueva con cantidad 0
+      this.municipiosDistribucion.push(
+        this.fb.group<DistMunControls>({
+          municipio: this.fb.control<string>(etiqueta, { nonNullable: true }),
+          cantidad: this.fb.control<number | null>(0, [Validators.required, Validators.min(0)]),
+        })
+      );
+    }
+
+    // Limpia el input
+    this.vacanteForm.get('barrio')?.setValue('');
+  }
+
+
+
   private syncDistribucionConSeleccion(actual: string[]): void {
     const curr = (actual || []).map((s) => (s ?? '').toString().trim());
     const added = curr.filter((m) => !this.prevMunicipios.includes(m));
@@ -419,10 +450,18 @@ export class CrearEditarVacanteComponent implements OnInit {
       );
     });
 
-    // Reaplicar reglas condicionales con los valores que entraron
+    // --- NUEVO: si hay "B - ...", mostrarlo en el campo barrio sin el prefijo ---
+    const barrioItem = dist.find((d: any) => typeof d?.municipio === 'string' && /^B\s*-\s*/i.test(d.municipio));
+    if (barrioItem) {
+      const nombreBarrio = String(barrioItem.municipio).replace(/^B\s*-\s*/i, '').trim();
+      this.vacanteForm.get('barrio')?.setValue(nombreBarrio);
+    }
+
+    // Reaplicar reglas condicionales...
     this.applyTieneFechaIngreso(this.vacanteForm.get('tieneFechaIngreso')!.value);
     this.applyPruebaContratacion(this.vacanteForm.get('pruebaOContratacion')!.value);
     this.syncDistribucionConSeleccion(this.vacanteForm.get('municipio')!.value || []);
+
   }
 
   // ---------- Helpers ----------

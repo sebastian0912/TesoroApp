@@ -3,6 +3,24 @@
 <div mat-dialog-content>
   <form [formGroup]="vacanteForm">
 
+    <mat-form-field [ngClass]="{'input-obligatorio': isRequired('personasSolicitadas')}">
+      <mat-label>Personas solicitadas (total)</mat-label>
+      <input matInput type="number" formControlName="personasSolicitadas" min="1" step="1">
+      <mat-error *ngIf="vacanteForm.get('personasSolicitadas')?.hasError('required')">
+        Indique el número total de personas solicitadas.
+      </mat-error>
+      <mat-error *ngIf="vacanteForm.get('personasSolicitadas')?.hasError('min')">
+        Debe ser un valor mayor o igual a 1.
+      </mat-error>
+      <mat-error *ngIf="vacanteForm.hasError('excesoMunicipios')">
+        La suma por municipio ({{ totalAsignado }}) no puede superar el total ({{
+        vacanteForm.get('personasSolicitadas')?.value || 0 }}).
+      </mat-error>
+      <mat-error *ngIf="vacanteForm.hasError('sumaNoIgualTotal')">
+        La suma por municipio debe ser igual al total solicitado.
+      </mat-error>
+    </mat-form-field>
+
     <!-- ===================== Campos básicos ===================== -->
     <mat-form-field [ngClass]="{'input-obligatorio': isRequired('cargo')}">
       <mat-label>Cargo</mat-label>
@@ -17,16 +35,6 @@
       </mat-error>
     </mat-form-field>
 
-    <mat-form-field [ngClass]="{'input-obligatorio': isRequired('area')}">
-      <mat-label>Área</mat-label>
-      <mat-select formControlName="area">
-        <mat-option *ngFor="let area of areas" [value]="area">{{ area }}</mat-option>
-      </mat-select>
-      <mat-error *ngIf="vacanteForm.get('area')?.hasError('required')">
-        Seleccione un área.
-      </mat-error>
-    </mat-form-field>
-
     <mat-form-field [ngClass]="{'input-obligatorio': isRequired('finca')}">
       <mat-label>Centro de Costo</mat-label>
       <input type="text" matInput formControlName="finca" [matAutocomplete]="autoCentroCosto">
@@ -37,6 +45,15 @@
       </mat-autocomplete>
       <mat-error *ngIf="vacanteForm.get('finca')?.hasError('required')">
         El centro de costo es obligatorio.
+      </mat-error>
+    </mat-form-field>
+
+    <!-- direccion -->
+    <mat-form-field [ngClass]="{'input-obligatorio': isRequired('direccion')}">
+      <mat-label>Dirección</mat-label>
+      <input matInput formControlName="direccion">
+      <mat-error *ngIf="vacanteForm.get('direccion')?.hasError('required')">
+        La dirección es obligatoria.
       </mat-error>
     </mat-form-field>
 
@@ -59,12 +76,58 @@
       </mat-error>
     </mat-form-field>
 
-    <!-- direccion -->
-    <mat-form-field [ngClass]="{'input-obligatorio': isRequired('direccion')}">
-      <mat-label>Dirección</mat-label>
-      <input matInput formControlName="direccion">
-      <mat-error *ngIf="vacanteForm.get('direccion')?.hasError('required')">
-        La dirección es obligatoria.
+    <mat-form-field [ngClass]="{'input-obligatorio': isRequired('area')}">
+      <mat-label>Área</mat-label>
+      <mat-select formControlName="area">
+        <mat-option *ngFor="let area of areas" [value]="area">{{ area }}</mat-option>
+      </mat-select>
+      <mat-error *ngIf="vacanteForm.get('area')?.hasError('required')">
+        Seleccione un área.
+      </mat-error>
+    </mat-form-field>
+
+    <mat-form-field [ngClass]="{'input-obligatorio': isRequired('salario')}">
+      <mat-label>Salario</mat-label>
+      <input matInput type="text" formControlName="salario" (input)="formatSalary($event)" (blur)="onBlur()">
+      <mat-error *ngIf="vacanteForm.get('salario')?.hasError('required')">
+        El salario es obligatorio.
+      </mat-error>
+      <mat-error *ngIf="vacanteForm.get('salario')?.hasError('min')">
+        Ingrese un valor mayor o igual a 0.
+      </mat-error>
+    </mat-form-field>
+
+    <!-- ===================== Fecha de ingreso (condicional) ===================== -->
+    <mat-form-field [ngClass]="{'input-obligatorio': isRequired('tieneFechaIngreso')}">
+      <mat-label>Tiene Fecha de Ingreso</mat-label>
+      <mat-select formControlName="tieneFechaIngreso">
+        <mat-option value="Si">Sí</mat-option>
+        <mat-option value="No">No</mat-option>
+      </mat-select>
+    </mat-form-field>
+
+    <mat-form-field *ngIf="vacanteForm.get('tieneFechaIngreso')?.value === 'Si'"
+      [ngClass]="{'input-obligatorio': isRequired('fechadeIngreso')}">
+      <mat-label>Fecha de Ingreso</mat-label>
+      <input matInput [matDatepicker]="picker2" formControlName="fechadeIngreso" [min]="today">
+      <mat-datepicker-toggle matSuffix [for]="picker2"></mat-datepicker-toggle>
+      <mat-datepicker #picker2></mat-datepicker>
+      <mat-error *ngIf="vacanteForm.get('fechadeIngreso')?.hasError('required')">
+        La fecha de ingreso es obligatoria.
+      </mat-error>
+      <mat-error *ngIf="vacanteForm.get('fechadeIngreso')?.hasError('matDatepickerMin')">
+        La fecha de ingreso no puede ser anterior a hoy.
+      </mat-error>
+    </mat-form-field>
+
+    <mat-form-field [ngClass]="{'input-obligatorio': isRequired('auxilioTransporte')}">
+      <mat-label>Auxilio Transporte</mat-label>
+      <mat-select formControlName="auxilioTransporte">
+        <mat-option value="Si">Sí</mat-option>
+        <mat-option value="No">No</mat-option>
+      </mat-select>
+      <mat-error *ngIf="vacanteForm.get('auxilioTransporte')?.hasError('required')">
+        Indique si incluye auxilio de transporte.
       </mat-error>
     </mat-form-field>
 
@@ -72,11 +135,11 @@
     <mat-form-field appearance="fill" [ngClass]="{'input-obligatorio': isRequired('municipio')}">
       <mat-label>Municipio(s)</mat-label>
       <mat-select formControlName="municipio" multiple panelClass="select-panel"
-                  (openedChange)="resetFiltroMunicipio()">
+        (openedChange)="resetFiltroMunicipio()">
         <!-- Opción de filtro -->
         <mat-option disabled class="no-select filtro-option">
           <input matInput placeholder="Buscar municipio..." [(ngModel)]="municipioFiltro"
-                 (ngModelChange)="filtrarMunicipios()" [ngModelOptions]="{standalone: true}">
+            (ngModelChange)="filtrarMunicipios()" [ngModelOptions]="{standalone: true}">
         </mat-option>
         <!-- Opciones filtradas -->
         <mat-option *ngFor="let m of municipiosFiltrados" [value]="m">{{ m }}</mat-option>
@@ -86,21 +149,99 @@
       </mat-error>
     </mat-form-field>
 
-    <mat-form-field [ngClass]="{'input-obligatorio': isRequired('personasSolicitadas')}">
-      <mat-label>Personas solicitadas (total)</mat-label>
-      <input matInput type="number" formControlName="personasSolicitadas" min="1" step="1">
-      <mat-error *ngIf="vacanteForm.get('personasSolicitadas')?.hasError('required')">
-        Indique el número total de personas solicitadas.
+    <!-- ===================== Barrio (se agrega a la distribución) ===================== -->
+    <mat-form-field appearance="fill">
+      <mat-label>Agregar barrio</mat-label>
+      <input matInput placeholder="Escribe el barrio" formControlName="barrio" (keyup.enter)="onAddBarrioFromForm()" />
+      <button mat-icon-button matSuffix aria-label="Agregar barrio" (click)="onAddBarrioFromForm()"
+        [disabled]="!(vacanteForm.get('barrio')?.value || '').toString().trim()" type="button">
+        <mat-icon>add</mat-icon>
+      </button>
+      <mat-hint>Se añadirá abajo como “B - Nombre del barrio”.</mat-hint>
+    </mat-form-field>
+
+    <mat-form-field [ngClass]="{'input-obligatorio': isRequired('pruebaOContratacion')}">
+      <mat-label>Prueba o Contratación</mat-label>
+      <mat-select formControlName="pruebaOContratacion">
+        <mat-option value="Prueba">Prueba técnica</mat-option>
+        <mat-option value="Contratación">Contratación inmediata</mat-option>
+      </mat-select>
+      <mat-error *ngIf="vacanteForm.get('pruebaOContratacion')?.hasError('required')">
+        Seleccione el tipo de vinculación.
       </mat-error>
-      <mat-error *ngIf="vacanteForm.get('personasSolicitadas')?.hasError('min')">
-        Debe ser un valor mayor o igual a 1.
+    </mat-form-field>
+
+    <!-- Campos visibles SOLO si es Prueba -->
+    <mat-form-field *ngIf="vacanteForm.get('pruebaOContratacion')?.value === 'Prueba'"
+      [ngClass]="{'input-obligatorio': isRequired('fechadePruebatecnica')}">
+      <mat-label>Fecha de Prueba Técnica</mat-label>
+      <input matInput [matDatepicker]="picker1" formControlName="fechadePruebatecnica" [min]="today">
+      <mat-datepicker-toggle matSuffix [for]="picker1"></mat-datepicker-toggle>
+      <mat-datepicker #picker1></mat-datepicker>
+      <mat-error *ngIf="vacanteForm.get('fechadePruebatecnica')?.hasError('required')">
+        La fecha de la prueba es obligatoria.
       </mat-error>
-      <mat-error *ngIf="vacanteForm.hasError('excesoMunicipios')">
-        La suma por municipio ({{ totalAsignado }}) no puede superar el total ({{ vacanteForm.get('personasSolicitadas')?.value || 0 }}).
+      <mat-error *ngIf="vacanteForm.get('fechadePruebatecnica')?.hasError('matDatepickerMin')">
+        La fecha de la prueba no puede ser anterior a hoy.
       </mat-error>
-      <mat-error *ngIf="vacanteForm.hasError('sumaNoIgualTotal')">
-        La suma por municipio debe ser igual al total solicitado.
+    </mat-form-field>
+
+    <mat-form-field *ngIf="vacanteForm.get('pruebaOContratacion')?.value === 'Prueba'"
+      [ngClass]="{'input-obligatorio': isRequired('horadePruebatecnica')}">
+      <mat-label>Hora de Prueba Técnica</mat-label>
+      <input matInput type="time" formControlName="horadePruebatecnica">
+      <mat-error *ngIf="vacanteForm.get('horadePruebatecnica')?.hasError('required')">
+        La hora de la prueba es obligatoria.
       </mat-error>
+    </mat-form-field>
+
+    <mat-form-field *ngIf="vacanteForm.get('pruebaOContratacion')?.value === 'Prueba'">
+      <mat-label>Ubicación Prueba Técnica</mat-label>
+      <input matInput formControlName="ubicacionPruebaTecnica">
+      <!-- opcional, sin error -->
+    </mat-form-field>
+
+    <mat-form-field [ngClass]="{'input-obligatorio': isRequired('descripcion')}">
+      <mat-label>Descripción</mat-label>
+      <input matInput formControlName="descripcion">
+      <mat-error *ngIf="vacanteForm.get('descripcion')?.hasError('required')">
+        La descripción es obligatoria.
+      </mat-error>
+    </mat-form-field>
+
+    <mat-form-field>
+      <mat-label>Observación Vacante</mat-label>
+      <input matInput formControlName="observacionVacante">
+    </mat-form-field>
+
+    <mat-form-field [ngClass]="{'input-obligatorio': isRequired('tipoContratacion')}">
+      <mat-label>Tipo de Contratación</mat-label>
+      <mat-select formControlName="tipoContratacion">
+        <mat-option value="Obra Labor">Obra Labor</mat-option>
+        <mat-option value="Fijo Inferior a un año">Fijo Inferior a un año</mat-option>
+        <mat-option value="Fijo a un año">Fijo a un año</mat-option>
+        <mat-option value="Indefinido">Indefinido</mat-option>
+      </mat-select>
+      <mat-error *ngIf="vacanteForm.get('tipoContratacion')?.hasError('required')">
+        Seleccione el tipo de contratación.
+      </mat-error>
+    </mat-form-field>
+
+    <mat-form-field [ngClass]="{'input-obligatorio': isRequired('experiencia')}">
+      <mat-label>Requiere Experiencia</mat-label>
+      <mat-select formControlName="experiencia">
+        <mat-option value="SI">Sí</mat-option>
+        <mat-option value="NO">No</mat-option>
+        <mat-option value="AMBAS">Ambas</mat-option>
+      </mat-select>
+      <mat-error *ngIf="vacanteForm.get('experiencia')?.hasError('required')">
+        Indique si requiere experiencia.
+      </mat-error>
+    </mat-form-field>
+
+    <mat-form-field>
+      <mat-label>Código Bot</mat-label>
+      <input matInput formControlName="codigoElite">
     </mat-form-field>
 
     <!-- ===================== Distribución por municipio ===================== -->
@@ -129,140 +270,6 @@
       <span><strong>Total asignado:</strong> {{ totalAsignado }}</span>
       <span><strong>Restante:</strong> {{ restante }}</span>
     </div>
-
-    <!-- ===================== Más campos ===================== -->
-    <mat-form-field [ngClass]="{'input-obligatorio': isRequired('auxilioTransporte')}">
-      <mat-label>Auxilio Transporte</mat-label>
-      <mat-select formControlName="auxilioTransporte">
-        <mat-option value="Si">Sí</mat-option>
-        <mat-option value="No">No</mat-option>
-      </mat-select>
-      <mat-error *ngIf="vacanteForm.get('auxilioTransporte')?.hasError('required')">
-        Indique si incluye auxilio de transporte.
-      </mat-error>
-    </mat-form-field>
-
-    <mat-form-field [ngClass]="{'input-obligatorio': isRequired('tipoContratacion')}">
-      <mat-label>Tipo de Contratación</mat-label>
-      <mat-select formControlName="tipoContratacion">
-        <mat-option value="Obra Labor">Obra Labor</mat-option>
-        <mat-option value="Fijo Inferior a un año">Fijo Inferior a un año</mat-option>
-        <mat-option value="Fijo a un año">Fijo a un año</mat-option>
-        <mat-option value="Indefinido">Indefinido</mat-option>
-      </mat-select>
-      <mat-error *ngIf="vacanteForm.get('tipoContratacion')?.hasError('required')">
-        Seleccione el tipo de contratación.
-      </mat-error>
-    </mat-form-field>
-
-    <mat-form-field [ngClass]="{'input-obligatorio': isRequired('experiencia')}">
-      <mat-label>Requiere Experiencia</mat-label>
-      <mat-select formControlName="experiencia">
-        <mat-option value="SI">Sí</mat-option>
-        <mat-option value="NO">No</mat-option>
-        <mat-option value="AMBAS">Ambas</mat-option>
-      </mat-select>
-      <mat-error *ngIf="vacanteForm.get('experiencia')?.hasError('required')">
-        Indique si requiere experiencia.
-      </mat-error>
-    </mat-form-field>
-
-    <!-- ===================== Fecha de ingreso (condicional) ===================== -->
-    <mat-form-field [ngClass]="{'input-obligatorio': isRequired('tieneFechaIngreso')}">
-      <mat-label>Tiene Fecha de Ingreso</mat-label>
-      <mat-select formControlName="tieneFechaIngreso">
-        <mat-option value="Si">Sí</mat-option>
-        <mat-option value="No">No</mat-option>
-      </mat-select>
-    </mat-form-field>
-
-    <mat-form-field
-      *ngIf="vacanteForm.get('tieneFechaIngreso')?.value === 'Si'"
-      [ngClass]="{'input-obligatorio': isRequired('fechadeIngreso')}">
-      <mat-label>Fecha de Ingreso</mat-label>
-      <input matInput [matDatepicker]="picker2" formControlName="fechadeIngreso" [min]="today">
-      <mat-datepicker-toggle matSuffix [for]="picker2"></mat-datepicker-toggle>
-      <mat-datepicker #picker2></mat-datepicker>
-      <mat-error *ngIf="vacanteForm.get('fechadeIngreso')?.hasError('required')">
-        La fecha de ingreso es obligatoria.
-      </mat-error>
-      <mat-error *ngIf="vacanteForm.get('fechadeIngreso')?.hasError('matDatepickerMin')">
-        La fecha de ingreso no puede ser anterior a hoy.
-      </mat-error>
-    </mat-form-field>
-
-    <!-- ===================== Prueba o Contratación ===================== -->
-    <mat-form-field [ngClass]="{'input-obligatorio': isRequired('pruebaOContratacion')}">
-      <mat-label>Prueba o Contratación</mat-label>
-      <mat-select formControlName="pruebaOContratacion">
-        <mat-option value="Prueba">Prueba técnica</mat-option>
-        <mat-option value="Contratación">Contratación inmediata</mat-option>
-      </mat-select>
-      <mat-error *ngIf="vacanteForm.get('pruebaOContratacion')?.hasError('required')">
-        Seleccione el tipo de vinculación.
-      </mat-error>
-    </mat-form-field>
-
-    <!-- Campos visibles SOLO si es Prueba -->
-    <mat-form-field
-      *ngIf="vacanteForm.get('pruebaOContratacion')?.value === 'Prueba'"
-      [ngClass]="{'input-obligatorio': isRequired('fechadePruebatecnica')}">
-      <mat-label>Fecha de Prueba Técnica</mat-label>
-      <input matInput [matDatepicker]="picker1" formControlName="fechadePruebatecnica" [min]="today">
-      <mat-datepicker-toggle matSuffix [for]="picker1"></mat-datepicker-toggle>
-      <mat-datepicker #picker1></mat-datepicker>
-      <mat-error *ngIf="vacanteForm.get('fechadePruebatecnica')?.hasError('required')">
-        La fecha de la prueba es obligatoria.
-      </mat-error>
-      <mat-error *ngIf="vacanteForm.get('fechadePruebatecnica')?.hasError('matDatepickerMin')">
-        La fecha de la prueba no puede ser anterior a hoy.
-      </mat-error>
-    </mat-form-field>
-
-    <mat-form-field
-      *ngIf="vacanteForm.get('pruebaOContratacion')?.value === 'Prueba'"
-      [ngClass]="{'input-obligatorio': isRequired('horadePruebatecnica')}">
-      <mat-label>Hora de Prueba Técnica</mat-label>
-      <input matInput type="time" formControlName="horadePruebatecnica">
-      <mat-error *ngIf="vacanteForm.get('horadePruebatecnica')?.hasError('required')">
-        La hora de la prueba es obligatoria.
-      </mat-error>
-    </mat-form-field>
-
-    <mat-form-field *ngIf="vacanteForm.get('pruebaOContratacion')?.value === 'Prueba'">
-      <mat-label>Ubicación Prueba Técnica</mat-label>
-      <input matInput formControlName="ubicacionPruebaTecnica">
-      <!-- opcional, sin error -->
-    </mat-form-field>
-
-    <mat-form-field>
-      <mat-label>Observación Vacante</mat-label>
-      <input matInput formControlName="observacionVacante">
-    </mat-form-field>
-
-    <mat-form-field [ngClass]="{'input-obligatorio': isRequired('descripcion')}">
-      <mat-label>Descripción</mat-label>
-      <input matInput formControlName="descripcion">
-      <mat-error *ngIf="vacanteForm.get('descripcion')?.hasError('required')">
-        La descripción es obligatoria.
-      </mat-error>
-    </mat-form-field>
-
-    <mat-form-field [ngClass]="{'input-obligatorio': isRequired('salario')}">
-      <mat-label>Salario</mat-label>
-      <input matInput type="text" formControlName="salario" (input)="formatSalary($event)" (blur)="onBlur()">
-      <mat-error *ngIf="vacanteForm.get('salario')?.hasError('required')">
-        El salario es obligatorio.
-      </mat-error>
-      <mat-error *ngIf="vacanteForm.get('salario')?.hasError('min')">
-        Ingrese un valor mayor o igual a 0.
-      </mat-error>
-    </mat-form-field>
-
-    <mat-form-field>
-      <mat-label>Código Bot</mat-label>
-      <input matInput formControlName="codigoElite">
-    </mat-form-field>
 
     <!-- ===================== Oficinas ===================== -->
     <mat-form-field [ngClass]="{'input-obligatorio': isRequired('oficinasSeleccionadas')}">
