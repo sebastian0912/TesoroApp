@@ -11,6 +11,7 @@ import { DateRangeDialogComponent } from '@/app/shared/components/date-rang-dial
 import saveAs from 'file-saver';
 import { PLATFORM_ID, Inject } from '@angular/core';
 import { isPlatformBrowser } from '@angular/common';
+import { finalize, firstValueFrom } from 'rxjs';
 
 @Component({
   selector: 'app-view-reports',
@@ -132,7 +133,7 @@ export class ViewReportsComponent {
         if (
           this.userCorreo === 'tuafiliacion@tsservicios.co' ||
           this.userCorreo === 'programador.ts@gmail.com' ||
-          this.userCorreo === 'A.SEGURIDAD.TS@GMAIL.COM'  ||
+          this.userCorreo === 'A.SEGURIDAD.TS@GMAIL.COM' ||
           this.userCorreo === 'a.sotelotualianza@gmail.com'
         ) {
           this.consolidadoDataSource.data = await this.generateConsolidatedData(this.reportes);
@@ -205,111 +206,232 @@ export class ViewReportsComponent {
   // --------------------------------------------------------------------------------
   private async generateConsolidatedData(reportes: any[]): Promise<any[]> {
     const consolidado: any[] = [];
-    const sucursales$ = await this.utilityService.traerSucursales();
 
-    return new Promise((resolve, reject) => {
-      sucursales$.subscribe({
-        next: (data: any) => {
-          const sucursales = data.sucursal.sort((a: any, b: any) => a.nombre.localeCompare(b.nombre));
+    // Traer sucursales como array (soporta array directo o {sucursal: [...]})
+    const data = await firstValueFrom(this.utilityService.traerSucursales());
+    const sucursalesArr = Array.isArray(data) ? data : (data?.sucursal ?? []);
+    const sucursales = [...sucursalesArr].sort(
+      (a: any, b: any) => (a?.nombre ?? '').localeCompare(b?.nombre ?? '')
+    );
 
-          sucursales.forEach((sucursal: any) => {
-            const reportsForSede = reportes.filter(r => r.sede === sucursal.nombre);
-            const sum = (key: string) => reportsForSede.reduce((s, r) => s + (r[key] || 0), 0);
+    for (const sucursal of sucursales) {
+      const reportsForSede = (reportes ?? []).filter(
+        (r: any) => (r?.sede ?? '') === (sucursal?.nombre ?? '')
+      );
 
-            const totalTuA = sum('cantidadContratosTuAlianza');
-            const totalApoyo = sum('cantidadContratosApoyoLaboral');
-            const totalCedulas = reportsForSede.reduce((s, r) => s + (Array.isArray(r.cedulas) ? r.cedulas.length : 0), 0);
-            const totalTraslados = reportsForSede.reduce((s, r) => s + (Array.isArray(r.traslados) ? r.traslados.length : 0), 0);
+      const sum = (key: string) =>
+        reportsForSede.reduce(
+          (s: number, r: any) => s + (Number(r?.[key]) || 0),
+          0
+        );
 
-            let status = 'REALIZO REPORTE';
-            if (!reportsForSede.length) status = 'NO REALIZO REPORTE';
-            else if (!totalTuA && !totalApoyo) status = 'NO HUBO CONTRATACION';
+      const totalTuA = sum('cantidadContratosTuAlianza');
+      const totalApoyo = sum('cantidadContratosApoyoLaboral');
+      const totalCedulas = reportsForSede.reduce(
+        (s: number, r: any) => s + (Array.isArray(r?.cedulas) ? r.cedulas.length : 0),
+        0
+      );
+      const totalTraslados = reportsForSede.reduce(
+        (s: number, r: any) => s + (Array.isArray(r?.traslados) ? r.traslados.length : 0),
+        0
+      );
 
-            consolidado.push({
-              fecha: reportsForSede[0]?.fecha ?? null,
-              sede: sucursal.nombre,
-              cantidadContratosTuAlianza: totalTuA,
-              cantidadContratosApoyoLaboral: totalApoyo,
-              totalIngresos: totalTuA + totalApoyo,
-              cedulas: totalCedulas,
-              traslados: totalTraslados,
-              sst: reportsForSede.some(r => r.sst && r.sst !== 'No se ha cargado SST'),
-              notas: reportsForSede.map(r => r.nota).filter(Boolean).join(', '),
-              status
-            });
-          });
+      let status = 'REALIZO REPORTE';
+      if (reportsForSede.length === 0) status = 'NO REALIZO REPORTE';
+      else if (totalTuA === 0 && totalApoyo === 0) status = 'NO HUBO CONTRATACION';
 
-          resolve(consolidado);
-        },
-        error: reject
+      consolidado.push({
+        fecha: reportsForSede[0]?.fecha ?? null,
+        sede: sucursal?.nombre ?? '',
+        cantidadContratosTuAlianza: totalTuA,
+        cantidadContratosApoyoLaboral: totalApoyo,
+        totalIngresos: totalTuA + totalApoyo,
+        cedulas: totalCedulas,
+        traslados: totalTraslados,
+        sst: reportsForSede.some((r: any) => r?.sst && r.sst !== 'No se ha cargado SST'),
+        notas: reportsForSede.map((r: any) => r?.nota).filter(Boolean).join(', '),
+        status
       });
-    });
+    }
+
+    return consolidado;
   }
 
   // --------------------------------------------------------------------------------
   // DATE RANGE DIALOGS (solo en navegador)
   // --------------------------------------------------------------------------------
-  openDateRangeDialog(): void {
-    if (!this.isBrowser) return;
-    this.launchDateDialog(async ({ start, end }) => {
-      this.hiringService.obtenerReportesPorFechas(start, end).subscribe({
-        next: async ({ reportes }) => {
+openDateRangeDialog(): void {
+  if (!this.isBrowser) return;
+
+  this.launchDateDialog(({ start, end }) => {
+
+    // Swal de carga SIN timer
+    Swal.fire({
+      title: 'Cargando reportes…',
+      html: 'Por favor espera',
+      allowOutsideClick: false,
+      allowEscapeKey: false,
+      showConfirmButton: false,
+      didOpen: () => {
+        Swal.showLoading(); // icono/animación de carga
+      }
+    });
+
+    this.hiringService.obtenerReportesPorFechas(start, end).subscribe({
+      next: async ({ reportes }) => {
+        try {
           this.reportes = reportes;
           this.dataSource.data = reportes;
           this.consolidadoDataSource.data = await this.generateConsolidatedData(reportes);
+        } finally {
+          Swal.close(); // cerrar al terminar TODO (incluido el await)
         }
-      });
+      },
+      error: (err) => {
+        Swal.close();
+        Swal.fire({
+          icon: 'error',
+          title: 'Error al cargar',
+          text: err?.message ?? 'Ocurrió un error. Intenta de nuevo.'
+        });
+      }
     });
-  }
 
-  openDateRangeDialog2(): void {
-    if (!this.isBrowser) return;
-    this.launchDateDialog(({ start, end }) => {
-      Swal.fire({
-        icon: 'info',
-        title: 'Cargando',
-        text: 'Descargando archivo...',
-        allowOutsideClick: false,
-        didOpen: () => Swal.showLoading()
-      });
-      this.hiringService.obtenerBaseContratacionPorFechas(start, end).subscribe({
-        next: (blob) => {
-          Swal.close();
-          saveAs(blob, `reporte_contratacion_${start}_a_${end}.xlsx`);
-        },
-        error: () => Swal.fire({ icon: 'error', title: 'Error', text: 'Ocurrió un error al descargar el archivo.' })
-      });
+  });
+}
+
+openDateRangeDialog2(): void {
+  if (!this.isBrowser) return;
+
+  this.launchDateDialog(({ start, end }) => {
+    Swal.fire({
+      title: 'Generando archivo…',
+      html: 'Por favor espera',
+      allowOutsideClick: false,
+      allowEscapeKey: false,
+      showConfirmButton: false,
+      didOpen: () => Swal.showLoading()
     });
-  }
 
-  openDateRangeDialog3(): void {
-    if (!this.isBrowser) return;
-    this.launchDateDialog(({ start, end }) => {
-      this.hiringService.obtenerReportesPorFechasCentroCosto(start, end).subscribe(({ resultado }) => {
-        if (resultado.total_general === 0) {
-          Swal.fire({ icon: 'warning', title: 'No hay reportes', text: 'No se encontraron reportes para las fechas seleccionadas.' });
-          return;
-        }
-        this.consolidadoFechasFincaDataSource = this.formatData(resultado.detalles);
-      });
-    });
-  }
-
-  openDateRangeDialog4(): void {
-    if (!this.isBrowser) return;
-    this.launchDateDialog(({ start, end }) => {
-      this.hiringService.descargarReporteFechaIngresoCentroCostoFincas(start, end).subscribe({
-        next: (blob) => {
-          if (blob.size === 0) {
-            Swal.fire({ icon: 'warning', title: 'No hay reportes', text: 'No se encontraron reportes para las fechas seleccionadas.' });
+    this.hiringService
+      .obtenerBaseContratacionPorFechas(start, end)
+      .pipe(finalize(() => Swal.close()))
+      .subscribe({
+        next: (blob: Blob) => {
+          if (!blob || (blob as any).size === 0) {
+            Swal.fire({
+              icon: 'warning',
+              title: 'Sin datos',
+              text: 'No se encontraron registros para el rango seleccionado.'
+            });
             return;
           }
-          saveAs(blob, 'reporte_centro_costos.xlsx');
+          const fmt = (d: any) => d instanceof Date ? d.toISOString().slice(0, 10) : String(d);
+          saveAs(blob, `reporte_contratacion_${fmt(start)}_a_${fmt(end)}.xlsx`);
         },
-        error: () => Swal.fire({ icon: 'error', title: 'Error', text: 'Ocurrió un error al descargar el archivo.' })
+        error: (err) => {
+          Swal.fire({
+            icon: 'error',
+            title: 'Error al descargar',
+            text: err?.message ?? 'Ocurrió un error al descargar el archivo.'
+          });
+        }
       });
+  });
+}
+
+openDateRangeDialog3(): void {
+  if (!this.isBrowser) return;
+
+  this.launchDateDialog(({ start, end }) => {
+    Swal.fire({
+      title: 'Cargando reportes…',
+      html: 'Por favor espera',
+      allowOutsideClick: false,
+      allowEscapeKey: false,
+      showConfirmButton: false,
+      didOpen: () => Swal.showLoading()
     });
-  }
+
+    this.hiringService.obtenerReportesPorFechasCentroCosto(start, end).subscribe({
+      next: ({ resultado }) => {
+        const total = resultado?.total_general ?? 0;
+
+        if (total === 0) {
+          Swal.close(); // cerrar loader ANTES del warning
+          Swal.fire({
+            icon: 'warning',
+            title: 'No hay reportes',
+            text: 'No se encontraron reportes para las fechas seleccionadas.'
+          });
+          return;
+        }
+
+        const detalles = resultado?.detalles ?? [];
+        this.consolidadoFechasFincaDataSource = this.formatData(detalles);
+
+        Swal.close(); // cerrar al terminar OK
+      },
+      error: (err) => {
+        Swal.close();
+        Swal.fire({
+          icon: 'error',
+          title: 'Error al cargar',
+          text: err?.message ?? 'Ocurrió un error al cargar los reportes.'
+        });
+      }
+    });
+  });
+}
+
+openDateRangeDialog4(): void {
+  if (!this.isBrowser) return;
+
+  this.launchDateDialog(({ start, end }) => {
+    // Loader sin timer
+    Swal.fire({
+      title: 'Generando archivo…',
+      html: 'Por favor espera',
+      allowOutsideClick: false,
+      allowEscapeKey: false,
+      showConfirmButton: false,
+      didOpen: () => Swal.showLoading()
+    });
+
+    this.hiringService
+      .descargarReporteFechaIngresoCentroCostoFincas(start, end)
+      .pipe(finalize(() => Swal.close()))
+      .subscribe({
+        next: (blob: Blob) => {
+          // Cerrar loader antes de warnings
+          if (!blob || blob.size === 0) {
+            Swal.close();
+            Swal.fire({
+              icon: 'warning',
+              title: 'No hay reportes',
+              text: 'No se encontraron reportes para las fechas seleccionadas.'
+            });
+            return;
+          }
+
+          // (Opcional) validar content-type si tu backend lo envía
+          // if (blob.type && !blob.type.includes(
+          //   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+          // )) { ... }
+
+          const fmt = (d: any) => d instanceof Date ? d.toISOString().slice(0, 10) : String(d);
+          saveAs(blob, `reporte_centro_costos_${fmt(start)}_a_${fmt(end)}.xlsx`);
+        },
+        error: (err) => {
+          Swal.fire({
+            icon: 'error',
+            title: 'Error al descargar',
+            text: err?.message ?? 'Ocurrió un error al descargar el archivo.'
+          });
+        }
+      });
+  });
+}
 
   private launchDateDialog(callback: (result: any) => void): void {
     const dialogRef = this.dialog.open(DateRangeDialogComponent, { width: '550px' });
