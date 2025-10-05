@@ -49,10 +49,9 @@
   <!-- VIEWPORT CON SCROLL (SOLO SCROLLEA LA TABLA)       -->
   <!-- =================================================== -->
   <div class="table-viewport">
-    <mat-table #tableEl [dataSource]="dataSource" matSort class="dynamic-table" ngSkipHydration>
+    <table mat-table #tableEl [dataSource]="dataSource" matSort class="dynamic-table" ngSkipHydration>
 
-      <!-- 1) Colgroup: respeta width explícito; si no hay, usa autosize
-           (si tampoco hay autosize, no pone style y el browser reparte) -->
+      <!-- 1) Colgroup: respeta width explícito; si no hay, usa autosize -->
       <colgroup>
         @for (col of columnDefinitions; track col.name) {
           <col [style.width]="col.width || (computedWidths ? computedWidths[col.name] : null)" />
@@ -64,7 +63,8 @@
         <ng-container [matColumnDef]="col.name" [sticky]="!!col.stickyStart" [stickyEnd]="!!col.stickyEnd">
 
           <!-- A. Header (solo fija width si existe) -->
-          <mat-header-cell
+          <th
+            mat-header-cell
             *matHeaderCellDef
             mat-sort-header
             [disabled]="col.type === 'custom'"
@@ -74,10 +74,11 @@
             [style.minWidth]="col.width || (computedWidths ? computedWidths[col.name] : null)"
             [style.maxWidth]="col.width || (computedWidths ? computedWidths[col.name] : null)">
             {{ col.header }}
-          </mat-header-cell>
+          </th>
 
           <!-- B. Celda (solo fija width si existe) -->
-          <mat-cell
+          <td
+            mat-cell
             *matCellDef="let row"
             [class.cell-right]="col.type === 'number' || col.align === 'right'"
             [class.cell-center]="col.align === 'center'"
@@ -141,14 +142,15 @@
                 }
               }
             }
-          </mat-cell>
+          </td>
         </ng-container>
       }
 
       <!-- 3) Fila de filtros (solo fija width si existe) -->
       @for (col of columnDefinitions; track col.name) {
         <ng-container [matColumnDef]="col.name + '_filter'" [sticky]="!!col.stickyStart" [stickyEnd]="!!col.stickyEnd">
-          <mat-header-cell
+          <th
+            mat-header-cell
             *matHeaderCellDef
             class="filter-cell"
             [style.width]="col.width || (computedWidths ? computedWidths[col.name] : null)"
@@ -188,39 +190,49 @@
                 <mat-date-range-picker #pickerRange></mat-date-range-picker>
               </mat-form-field>
             }
-          </mat-header-cell>
+          </th>
         </ng-container>
       }
 
       <!-- 4) Filas -->
-      <mat-header-row
+      <tr
+        mat-header-row
         *matHeaderRowDef="displayedColumns; sticky: true"
         class="header-row-main">
-      </mat-header-row>
+      </tr>
 
-      <mat-header-row
+      <tr
+        mat-header-row
         *matHeaderRowDef="displayedFilterColumns; sticky: true"
         class="header-row-filters">
-      </mat-header-row>
+      </tr>
 
-      <mat-row
+      <tr
+        mat-row
         *matRowDef="let row; columns: displayedColumns;"
-        class="data-row"
-        tabindex="0">
-      </mat-row>
+        class="data-row clickable-row"
+        tabindex="0"
+        role="button"
+        (click)="rowClicked.emit(row)"
+        (keydown.enter)="rowClicked.emit(row)"
+        (keydown.space)="$event.preventDefault(); rowClicked.emit(row)">
+      </tr>
 
       <tr mat-row *matNoDataRow class="no-data-row">
         <td class="mat-mdc-cell" [attr.colspan]="displayedColumns.length">
           No se encontraron registros que coincidan con los filtros.
         </td>
       </tr>
-    </mat-table>
+    </table>
   </div>
 </div>
 
 <!-- Acciones por defecto -->
 <ng-template #defaultActions let-row>
-  <button mat-icon-button matTooltip="Editar detalle" (click)="editarDetalle(row)">
+  <button
+    mat-icon-button
+    matTooltip="Editar detalle"
+    (click)="$event.stopPropagation(); editarDetalle(row)">
     <mat-icon>edit</mat-icon>
   </button>
 </ng-template>

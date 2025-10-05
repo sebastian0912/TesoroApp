@@ -67,8 +67,8 @@ export class SeleccionService {
   // Mandar parte uno de la selección
   public crearSeleccionParteUnoCandidato(
     formData: any,
-    cedula: string,
-    seleccion?: number | null
+    cedula: any,
+    seleccion?: any | null
   ): Observable<any> {
     const headers = this.createAuthorizationHeader(); // <-- Debe incluir Authorization: Bearer <token>
 

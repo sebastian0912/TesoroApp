@@ -301,9 +301,10 @@ export class NavbarComponent implements OnInit, OnDestroy {
     // Gestión roles
     'GESTIÓN ROLES': 'users/manage-roles',
     'GESTIÓN MÓDULOS': 'users/manage-modules',
+    'PARAMETRIZACIÓN': 'users/manage-parameterization',
     'GESTIÓN CARGOS': 'positions/manage-positions',
     'GESTIÓN CENTRO DE COSTOS': 'farms/management-farms',
-    
+
 
     // Ausentismos
     'AUSENTISMOS': 'hiring/absences',
@@ -406,6 +407,7 @@ export class NavbarComponent implements OnInit, OnDestroy {
     'GESTIÓN MÓDULOS': 'view_module',
     'GESTIÓN CARGOS': 'assignment',
     'GESTIÓN CENTRO DE COSTOS': 'account_balance_wallet',
+    'PARAMETRIZACIÓN': 'settings',
     // Ausentismos
     'AUSENTISMOS': 'event_busy',
   };

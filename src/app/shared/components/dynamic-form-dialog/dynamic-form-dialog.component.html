@@ -5,12 +5,14 @@
 <div mat-dialog-content class="dlg-content" [formGroup]="form">
   <ng-container *ngFor="let f of data.fields">
     <ng-container [ngSwitch]="f.type">
-
       <!-- TEXT -->
       <mat-form-field *ngSwitchCase="'text'" appearance="outline" class="ff">
         <mat-label>{{ f.label }}</mat-label>
-        <input matInput [placeholder]="f.placeholder ?? ''" [formControlName]="f.name"
-          [attr.inputmode]="f.inputMode ?? 'text'">
+        <input
+          matInput
+          [placeholder]="f.placeholder ?? ''"
+          [formControlName]="f.name"
+          [attr.inputmode]="f.inputMode ?? 'text'"/>
         <span matTextPrefix *ngIf="f.prefix">&nbsp;{{ f.prefix }}&nbsp;</span>
         <span matTextSuffix *ngIf="f.suffix">&nbsp;{{ f.suffix }}&nbsp;</span>
         <mat-hint *ngIf="f.hint">{{ f.hint }}</mat-hint>
@@ -20,7 +22,14 @@
       <!-- PASSWORD -->
       <mat-form-field *ngSwitchCase="'password'" appearance="outline" class="ff">
         <mat-label>{{ f.label }}</mat-label>
-        <input matInput type="password" [placeholder]="f.placeholder ?? ''" [formControlName]="f.name">
+        <input
+          matInput
+          [type]="showPwd[f.name] ? 'text' : 'password'"
+          [placeholder]="f.placeholder ?? ''"
+          [formControlName]="f.name"/>
+        <button mat-icon-button matSuffix type="button" (click)="togglePwd(f.name)" [attr.aria-label]="'toggle '+f.name">
+          <mat-icon>{{ showPwd[f.name] ? 'visibility_off' : 'visibility' }}</mat-icon>
+        </button>
         <mat-hint *ngIf="f.hint">{{ f.hint }}</mat-hint>
         <mat-error *ngIf="showError(f.name)">{{ errorMsg(f.name, f) }}</mat-error>
       </mat-form-field>
@@ -28,7 +37,13 @@
       <!-- NUMBER (texto + inputmode decimal) -->
       <mat-form-field *ngSwitchCase="'number'" appearance="outline" class="ff">
         <mat-label>{{ f.label }}</mat-label>
-        <input matInput type="text" inputmode="decimal" [placeholder]="f.placeholder ?? ''" [formControlName]="f.name">
+        <input
+          matInput
+          type="text"
+          inputmode="decimal"
+          [step]="f.step ?? 0.01"
+          [placeholder]="f.placeholder ?? ''"
+          [formControlName]="f.name"/>
         <span matTextPrefix *ngIf="f.prefix">&nbsp;{{ f.prefix }}&nbsp;</span>
         <span matTextSuffix *ngIf="f.suffix">&nbsp;{{ f.suffix }}&nbsp;</span>
         <mat-hint *ngIf="f.hint">{{ f.hint }}</mat-hint>
@@ -38,7 +53,11 @@
       <!-- TEXTAREA -->
       <mat-form-field *ngSwitchCase="'textarea'" appearance="outline" class="ff">
         <mat-label>{{ f.label }}</mat-label>
-        <textarea matInput rows="3" [placeholder]="f.placeholder ?? ''" [formControlName]="f.name"></textarea>
+        <textarea
+          matInput
+          rows="3"
+          [placeholder]="f.placeholder ?? ''"
+          [formControlName]="f.name"></textarea>
         <mat-hint *ngIf="f.hint">{{ f.hint }}</mat-hint>
         <mat-error *ngIf="showError(f.name)">{{ errorMsg(f.name, f) }}</mat-error>
       </mat-form-field>
@@ -46,7 +65,10 @@
       <!-- SELECT -->
       <mat-form-field *ngSwitchCase="'select'" appearance="outline" class="ff">
         <mat-label>{{ f.label }}</mat-label>
-        <mat-select [formControlName]="f.name" [placeholder]="f.placeholder ?? ''">
+        <mat-select
+          [formControlName]="f.name"
+          [placeholder]="f.placeholder ?? ''"
+          [multiple]="!!f.multiple">
           <mat-option *ngFor="let opt of (f.options || [])" [value]="opt.value">
             {{ opt.label }}
           </mat-option>
@@ -60,6 +82,21 @@
         {{ f.label }}
       </mat-checkbox>
 
+      <!-- DATE -->
+      <mat-form-field *ngSwitchCase="'date'" appearance="outline" class="ff">
+        <mat-label>{{ f.label }}</mat-label>
+        <input
+          matInput
+          [matDatepicker]="picker"
+          [placeholder]="f.placeholder ?? ''"
+          [formControlName]="f.name" />
+        <mat-datepicker-toggle matSuffix [for]="picker"></mat-datepicker-toggle>
+        <!-- Un solo datepicker reutilizado para todos los campos 'date' -->
+        <mat-datepicker #picker></mat-datepicker>
+        <mat-hint *ngIf="f.hint">{{ f.hint }}</mat-hint>
+        <mat-error *ngIf="showError(f.name)">{{ errorMsg(f.name, f) }}</mat-error>
+      </mat-form-field>
+
     </ng-container>
   </ng-container>
 </div>
@@ -69,7 +106,7 @@
     {{ data.cancelText || 'Cancelar' }}
   </button>
   <span class="grow"></span>
-  <button mat-flat-button color="primary" (click)="submit()">
+  <button mat-flat-button color="primary" (click)="submit()" [disabled]="form.invalid">
     {{ data.submitText || 'Guardar' }}
   </button>
 </div>

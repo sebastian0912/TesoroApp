@@ -1,3 +1,4 @@
+// src/app/shared/components/standard-filter-table/standard-filter-table.ts
 import {
   Component,
   Input,
@@ -12,8 +13,11 @@ import {
   AfterViewInit,
   ElementRef,
   HostListener,
+  EventEmitter,
+  Output,
+  PLATFORM_ID,           // ⬅️ nuevo
 } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { CommonModule, isPlatformBrowser } from '@angular/common'; // ⬅️ isPlatformBrowser
 import { MatTableDataSource, MatTableModule } from '@angular/material/table';
 import { MatSort, MatSortModule } from '@angular/material/sort';
 import { MatPaginator, MatPaginatorModule } from '@angular/material/paginator';
@@ -43,7 +47,7 @@ export interface ColumnDefinition {
   options?: string[];
   statusConfig?: Record<string, { color: string; background: string }>;
   customClassConfig?: Record<string, { color: string; background: string }>;
-  width?: string;           // si se define, se respeta y NO se autosizea
+  width?: string;
   filterable?: boolean;
   stickyStart?: boolean;
   stickyEnd?: boolean;
@@ -63,7 +67,6 @@ export interface ActiveFilter {
   imports: [
     CommonModule,
     ReactiveFormsModule,
-    // Material
     MatTableModule,
     MatSortModule,
     MatPaginatorModule,
@@ -76,7 +79,6 @@ export interface ActiveFilter {
     MatMenuModule,
     MatTooltipModule,
     MatChipsModule,
-    // CDK
     CdkTableModule,
   ],
   templateUrl: './standard-filter-table.html',
@@ -85,6 +87,7 @@ export interface ActiveFilter {
 export class StandardFilterTable implements OnInit, OnChanges, AfterViewInit, OnDestroy {
   @ContentChild('actionsTemplate', { static: false }) actionsTemplate!: TemplateRef<any>;
   @ContentChild('attachmentTemplate', { static: false }) attachmentTemplate!: TemplateRef<any>;
+  @Output() rowClicked = new EventEmitter<any>();
 
   @ContentChild('bloqueadoTemplate', { static: false }) bloqueadoTemplate?: TemplateRef<any>;
   @ContentChild('activoTemplate', { static: false }) activoTemplate?: TemplateRef<any>;
@@ -94,8 +97,6 @@ export class StandardFilterTable implements OnInit, OnChanges, AfterViewInit, On
   @Input() pageSizeOptions: number[] = [10, 20, 50];
   @Input() defaultPageSize = 10;
   @Input() tableTitle = 'Tabla de datos';
-
-  /** Activa el autosize de columnas basado en contenido (por defecto: true) */
   @Input() autoSize = true;
 
   displayedColumns: string[] = [];
@@ -105,30 +106,35 @@ export class StandardFilterTable implements OnInit, OnChanges, AfterViewInit, On
 
   @ViewChild(MatSort) sort!: MatSort;
   @ViewChild(MatPaginator) paginator!: MatPaginator;
-
-  /** Ref al <mat-table> para medición de columnas */
   @ViewChild('tableEl', { static: false }) tableEl?: ElementRef<HTMLElement>;
 
   private infoVacantesService = inject(InfoVacantesService);
-  private subs: Array<{ unsubscribe: () => void }> = [];
 
-  /** Conteos */
+  // ⬇️ Plataforma y bandera de navegador
+  private platformId = inject(PLATFORM_ID);
+  private readonly isBrowser = isPlatformBrowser(this.platformId);
+
+  private subs: Array<{ unsubscribe: () => void }> = [];
   totalCount = 0;
   filteredCount = 0;
 
-  /** Anchos calculados por columna (ej: { codigo: '128px' }) */
   computedWidths: Record<string, string> = {};
-
-  /** Timer para debounce del autosize */
   private autosizeTimer: any;
 
-  /** Rango de fechas global */
   dateRange: FormGroup = new FormGroup({
     start: new FormControl<Date | null>(null),
     end: new FormControl<Date | null>(null),
   });
 
   yesNoOptions = ['Sí', 'No'];
+
+  // ⬇️ Polyfill seguro para SSR: usa rAF en browser y setTimeout en server
+  private raf(cb: () => void): any {
+    if (this.isBrowser && typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
+      return window.requestAnimationFrame(cb);
+    }
+    return setTimeout(cb, 0);
+  }
 
   ngOnInit(): void {
     this.initializeTable();
@@ -149,6 +155,9 @@ export class StandardFilterTable implements OnInit, OnChanges, AfterViewInit, On
   }
 
   ngAfterViewInit(): void {
+    // ⬇️ Evita tocar DOM/Material en SSR
+    if (!this.isBrowser) return;
+
     if (this.sort) {
       this.dataSource.sort = this.sort;
       this.dataSource.sortingDataAccessor = (item: any, property: string) => {
@@ -183,13 +192,11 @@ export class StandardFilterTable implements OnInit, OnChanges, AfterViewInit, On
     clearTimeout(this.autosizeTimer);
   }
 
-  /** Recalcular cuando cambia el viewport */
   @HostListener('window:resize')
   onResize() {
     this.scheduleAutosize();
   }
 
-  /** Inicializa columnas, filtros y listeners */
   private initializeTable(): void {
     this.displayedColumns = this.columnDefinitions.map(col => col.name);
     this.displayedFilterColumns = this.columnDefinitions.map(col => col.name + '_filter');
@@ -197,15 +204,12 @@ export class StandardFilterTable implements OnInit, OnChanges, AfterViewInit, On
     this.totalCount = this.data?.length || 0;
     this.filteredCount = this.totalCount;
 
-    // Limpiar subs previas
     this.clearSubs();
     this.filterControls = {};
 
-    // Date range (único para todas las cols date)
     const dateSub = this.dateRange.valueChanges.subscribe(() => this.applyFilters());
     this.subs.push(dateSub);
 
-    // Controles por columna
     this.columnDefinitions.forEach(col => {
       if (col.filterable === false) return;
       if (col.type !== 'date') {
@@ -219,23 +223,17 @@ export class StandardFilterTable implements OnInit, OnChanges, AfterViewInit, On
     this.applyFilters();
   }
 
-  /** Reconstruye columnas y filtros si cambian las definiciones */
   private rebuildColumnsAndFilters(): void {
-    // reset de controles existentes
     Object.values(this.filterControls).forEach(ctrl => ctrl.reset(colResetValue(ctrl)));
     this.dateRange.reset({ start: null, end: null });
-
-    // volver a crear estructura
     this.initializeTable();
   }
 
-  /** Aplica los filtros de cada columna */
   applyFilters(): void {
     const filtered = (this.data || []).filter(item => {
       return this.columnDefinitions.every(col => {
         if (col.filterable === false) return true;
 
-        // Rango de fechas (global)
         if (col.type === 'date') {
           const start: Date | null = this.dateRange.get('start')?.value ?? null;
           const end: Date | null = this.dateRange.get('end')?.value ?? null;
@@ -258,7 +256,6 @@ export class StandardFilterTable implements OnInit, OnChanges, AfterViewInit, On
           return true;
         }
 
-        // Otros filtros
         const control = this.filterControls[col.name];
         if (!control) return true;
 
@@ -291,11 +288,9 @@ export class StandardFilterTable implements OnInit, OnChanges, AfterViewInit, On
       this.paginator.firstPage();
     }
 
-    // Recalcular anchos tras cambiar contenido visible
     this.scheduleAutosize();
   }
 
-  /** Limpia todos los filtros */
   clearFilters(): void {
     Object.keys(this.filterControls).forEach(key => {
       const ctrl = this.filterControls[key];
@@ -316,18 +311,11 @@ export class StandardFilterTable implements OnInit, OnChanges, AfterViewInit, On
     return colDef ? colDef.customClassConfig || {} : {};
   }
 
-  /** Exportaciones */
   exportTable(format: 'pdf' | 'xml' | 'excel') {
     switch (format) {
-      case 'pdf':
-        this.exportToPDF();
-        break;
-      case 'xml':
-        this.exportToXML();
-        break;
-      case 'excel':
-        this.exportToExcel();
-        break;
+      case 'pdf': this.exportToPDF(); break;
+      case 'xml': this.exportToXML(); break;
+      case 'excel': this.exportToExcel(); break;
     }
   }
 
@@ -420,7 +408,6 @@ export class StandardFilterTable implements OnInit, OnChanges, AfterViewInit, On
     }
   }
 
-  /** Tags de filtros activos */
   getActiveFilters(): ActiveFilter[] {
     const filters: ActiveFilter[] = [];
     (this.columnDefinitions || []).forEach((col: ColumnDefinition) => {
@@ -455,7 +442,6 @@ export class StandardFilterTable implements OnInit, OnChanges, AfterViewInit, On
     return filters;
   }
 
-  /** Limpia un filtro individual (tag) */
   clearSingleFilter(filter: ActiveFilter): void {
     if (filter.type === 'date') {
       this.dateRange.reset({ start: null, end: null });
@@ -486,15 +472,12 @@ export class StandardFilterTable implements OnInit, OnChanges, AfterViewInit, On
     const detalleLimpio = (nuevoDetalle ?? '').trim();
     const prev = row.detalle;
 
-    // 1) UI inmediata
     this.data = this.data.map(r => (r.id === row.id ? { ...r, detalle: detalleLimpio } : r));
     this.dataSource.data = (this.dataSource.data as any[]).map(r => (r.id === row.id ? { ...r, detalle: detalleLimpio } : r));
 
-    // 2) Persistencia
     this.infoVacantesService.actualizarDetalle(row.id, detalleLimpio).subscribe({
       next: () => Swal.fire('Guardado', 'Detalle actualizado correctamente', 'success'),
       error: () => {
-        // 3) Revertir UI si falla
         this.data = this.data.map(r => (r.id === row.id ? { ...r, detalle: prev } : r));
         this.dataSource.data = (this.dataSource.data as any[]).map(r => (r.id === row.id ? { ...r, detalle: prev } : r));
         Swal.fire('Error', 'No se pudo actualizar el detalle', 'error');
@@ -502,25 +485,22 @@ export class StandardFilterTable implements OnInit, OnChanges, AfterViewInit, On
     });
   }
 
-  /** ---------------- AUTOSIZE DE COLUMNAS ---------------- */
-
-  /** Programa el autosize (debounce para evitar medir en cada cambio minúsculo) */
+  /** ---------- AUTOSIZE ---------- */
   private scheduleAutosize() {
-    if (!this.autoSize) return;
+    // ⬇️ nada de autosize en SSR
+    if (!this.autoSize || !this.isBrowser) return;
     clearTimeout(this.autosizeTimer);
     this.autosizeTimer = setTimeout(() => {
-      requestAnimationFrame(() => this.autosizeColumns());
+      this.raf(() => this.autosizeColumns());
     }, 0);
   }
 
-  /** Mide header + celdas; reparte ancho sobrante entre columnas sin width */
   private autosizeColumns(): void {
-    if (!this.autoSize) return;
+    if (!this.autoSize || !this.isBrowser) return;
 
     const host = this.tableEl?.nativeElement ?? null;
     if (!host || typeof (host as any).querySelector !== 'function') return;
 
-    // ancho visible del contenedor scroll (si existe)
     const container = host.closest('.table-viewport') as HTMLElement | null;
     const containerWidth = container?.clientWidth || host.clientWidth || 0;
 
@@ -535,7 +515,6 @@ export class StandardFilterTable implements OnInit, OnChanges, AfterViewInit, On
 
     const measuredMap = new Map<string, number>();
 
-    // 1) Medir columnas flex
     for (const col of flexCols) {
       const cls = `.mat-column-${cssEscape(col.name)}`;
 
@@ -545,13 +524,10 @@ export class StandardFilterTable implements OnInit, OnChanges, AfterViewInit, On
       const cellEls =
         host.querySelectorAll<HTMLElement>(`.mat-mdc-cell${cls}, .cdk-cell${cls}`);
 
-      // base mínima (algo mayor si es custom/toggle)
       let measured = (col.name === 'actions' || col.type === 'custom') ? 140 : MIN_BASE;
 
-      // header
       if (headerEl) measured = Math.max(measured, measure(headerEl));
 
-      // sample de filas (hasta 40 para performance)
       const sample = Math.min(cellEls.length, 40);
       for (let i = 0; i < sample; i++) {
         measured = Math.max(measured, measure(cellEls[i]));
@@ -562,12 +538,10 @@ export class StandardFilterTable implements OnInit, OnChanges, AfterViewInit, On
       newWidths[col.name] = `${Math.ceil(measured)}px`;
     }
 
-    // 2) Fijar columnas con width explícito
     for (const col of fixedCols) {
       newWidths[col.name] = col.width as string;
     }
 
-    // 3) Repartir ancho sobrante entre las flex
     const fixedTotalPx = fixedCols
       .map(c => toPx(c.width as string, containerWidth))
       .reduce((a, b) => a + b, 0);
@@ -589,12 +563,10 @@ export class StandardFilterTable implements OnInit, OnChanges, AfterViewInit, On
           newWidths[c.name] = `${base + add}px`;
         });
       }
-      // Si measuredTotal >= availableForFlex, mantenemos lo medido (scroll X aparece si es necesario)
     }
 
     this.computedWidths = newWidths;
 
-    // helpers
     function measure(el: HTMLElement): number {
       try {
         const cs = getComputedStyle(el);
@@ -619,7 +591,6 @@ export class StandardFilterTable implements OnInit, OnChanges, AfterViewInit, On
     }
   }
 
-  /** Util */
   private clearSubs() {
     this.subs.forEach(s => s?.unsubscribe?.());
     this.subs = [];

@@ -1,120 +1,155 @@
 /* ============== VARIABLES ============== */
-:host{
-  --bg-color:#fff;
-  --header-bg:#1d2953;
-  --header-color:#fff;
-  --row-hover-bg:#f0f4f8;
-  --row-even-bg:#f9fafb;
-  --border-color:#e5e7eb;
-  --text-muted-color:#6b7280;
-  --shadow-color:rgba(0,0,0,.08);
-  --primary-color-focus:#1976d2;
+:host {
+  --bg-color: #fff;
+  --header-bg: #1d2953;
+  --header-color: #fff;
+  --row-hover-bg: #f0f4f8;
+  --row-even-bg: #f9fafb;
+  --border-color: #e5e7eb;
+  --text-muted-color: #6b7280;
+  --shadow-color: rgba(0, 0, 0, .08);
+  --primary-color-focus: #1976d2;
 
-  --border-radius:12px;
-  --header-height:56px;
-  --filter-height:62px;      /* <-- estaba en pt; usa px */
-  --row-height:52px;
-  --padding:16px;
-  --cell-padding:10px 12px;
+  --border-radius: 12px;
+  --header-height: 56px;
+  --filter-height: 62px;
+  /* <-- estaba en pt; usa px */
+  --row-height: 52px;
+  --padding: 16px;
+  --cell-padding: 10px 12px;
 
-  --cell-maxch:28;
-  --cell-maxch-num:14;
+  --cell-maxch: 28;
+  --cell-maxch-num: 14;
 }
 
 /* ============== CONTENEDOR + VIEWPORT + TABLA ============== */
-.table-container{
-  display:flex;
-  flex-direction:column;
-  height:100%;
-  min-height:0;                     /* permite que el hijo scrollee */
-  border:1px solid var(--border-color);
-  border-radius:var(--border-radius);
-  background-color:var(--bg-color);
-  box-shadow:0 4px 12px var(--shadow-color);
+.table-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  /* permite que el hijo scrollee */
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius);
+  background-color: var(--bg-color);
+  box-shadow: 0 4px 12px var(--shadow-color);
   /* sin overflow-y aquí; el scroll vive en .table-viewport */
 }
 
-.table-viewport{
-  flex:1 1 auto;
-  min-height:0;                     /* crucial en layout flex */
-  overflow-y:auto;                  /* scroll vertical del contenido */
-  overflow-x:auto;                  /* scroll horizontal si hay muchas columnas */
-  position:relative;                /* requerido para sticky internos */
+.table-viewport {
+  flex: 1 1 auto;
+  min-height: 0;
+  /* crucial en layout flex */
+  overflow-y: auto;
+  /* scroll vertical del contenido */
+  overflow-x: auto;
+  /* scroll horizontal si hay muchas columnas */
+  position: relative;
+  /* requerido para sticky internos */
 }
 
 /* CLAVE: que la suma de columnas sea el ancho real, sin estirar */
-.dynamic-table{
-  width: 100%;                 /* ocupa todo el ancho del viewport */
-  min-width: 100%;             /* evita quedarse más angosta */
+.dynamic-table {
+  width: 100%;
+  /* ocupa todo el ancho del viewport */
+  min-width: 100%;
+  /* evita quedarse más angosta */
   border-collapse: collapse;
-  table-layout: fixed;         /* respeta <col> y reparte el resto */
+  table-layout: fixed;
+  /* respeta <col> y reparte el resto */
 }
 
 
 /* ============== TOP BAR ============== */
-.paginator-row{
-  position:sticky;                  /* fija la barra superior */
-  top:0;
-  z-index:5;
-  display:flex;align-items:center;flex-wrap:wrap;gap:12px;
-  padding:var(--padding);
-  border-bottom:1px solid var(--border-color);
-  background-color:var(--bg-color);
+.paginator-row {
+  position: sticky;
+  /* fija la barra superior */
+  top: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: var(--padding);
+  border-bottom: 1px solid var(--border-color);
+  background-color: var(--bg-color);
 }
-.grow{flex-grow:1}
+
+.grow {
+  flex-grow: 1
+}
 
 /* ============== CELDAS ============== */
 .dynamic-table .mat-mdc-header-cell,
-.dynamic-table .mat-mdc-cell{
-  box-sizing:border-box;
-  padding:var(--cell-padding);
-  white-space:nowrap;
-  overflow:hidden;
-  text-overflow:ellipsis;
-  vertical-align:middle;
-  min-width:0; /* permite encoger */
+.dynamic-table .mat-mdc-cell {
+  box-sizing: border-box;
+  padding: var(--cell-padding);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: middle;
+  min-width: 0;
+  /* permite encoger */
 }
 
 /* El sort-header no debe ensanchar */
-.dynamic-table .mat-mdc-header-cell .mat-sort-header-container{
-  display:inline-flex;max-width:100%;min-width:0;
-}
-.dynamic-table .mat-mdc-header-cell .mat-sort-header-content{
-  display:inline-block;
-  max-width:calc(var(--cell-maxch)*1ch);
-  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+.dynamic-table .mat-mdc-header-cell .mat-sort-header-container {
+  display: inline-flex;
+  max-width: 100%;
+  min-width: 0;
 }
 
-.dynamic-table .mat-mdc-cell>span{
-  display:inline-block;
-  max-width:calc(var(--cell-maxch)*1ch);
-  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+.dynamic-table .mat-mdc-header-cell .mat-sort-header-content {
+  display: inline-block;
+  max-width: calc(var(--cell-maxch)*1ch);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-.dynamic-table .cell-right{text-align:right}
-.dynamic-table .cell-right>span{max-width:calc(var(--cell-maxch-num)*1ch)}
+
+.dynamic-table .mat-mdc-cell>span {
+  display: inline-block;
+  max-width: calc(var(--cell-maxch)*1ch);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dynamic-table .cell-right {
+  text-align: right
+}
+
+.dynamic-table .cell-right>span {
+  max-width: calc(var(--cell-maxch-num)*1ch)
+}
 
 /* ============== CABECERAS STICKY + FILA DE FILTROS ============== */
-.dynamic-table .mat-mdc-header-row.header-row-main{height:var(--header-height)}
-.dynamic-table .mat-mdc-header-cell.custom-header{
-  font-weight:600;color:var(--header-color);background-color:var(--header-bg);
+.dynamic-table .mat-mdc-header-row.header-row-main {
+  height: var(--header-height)
 }
 
-.dynamic-table .mat-mdc-header-row.header-row-filters{
-  background-color:var(--bg-color);
-  border-bottom:1px solid var(--border-color);
+.dynamic-table .mat-mdc-header-cell.custom-header {
+  font-weight: 600;
+  color: var(--header-color);
+  background-color: var(--header-bg);
+}
+
+.dynamic-table .mat-mdc-header-row.header-row-filters {
+  background-color: var(--bg-color);
+  border-bottom: 1px solid var(--border-color);
 }
 
 /* Asegura fondo en elementos sticky (cabeceras/columnas) */
-.mat-mdc-table .cdk-table-sticky{
-  background:var(--bg-color);
+.mat-mdc-table .cdk-table-sticky {
+  background: var(--bg-color);
 }
 
 /* Celda de filtro */
-.dynamic-table .filter-cell{
-  box-sizing:border-box;
-  padding:var(--cell-padding)!important;
-  height:var(--filter-height);
-  min-width:0;
+.dynamic-table .filter-cell {
+  box-sizing: border-box;
+  padding: var(--cell-padding) !important;
+  height: var(--filter-height);
+  min-width: 0;
 }
 
 /* Los form-fields no imponen min-width grandes */
@@ -122,49 +157,92 @@
 .dynamic-table .filter-ff .mat-mdc-form-field,
 .dynamic-table .filter-ff .mat-mdc-text-field-wrapper,
 .dynamic-table .filter-ff .mat-mdc-form-field-flex,
-.dynamic-table .filter-ff .mat-mdc-form-field-infix{
-  width:100%;
-  min-width:0!important;
-  box-sizing:border-box;
+.dynamic-table .filter-ff .mat-mdc-form-field-infix {
+  width: 100%;
+  min-width: 0 !important;
+  box-sizing: border-box;
 }
-.dynamic-table .filter-ff .mat-mdc-form-field-subscript-wrapper{max-width:100%;overflow:hidden}
+
+.dynamic-table .filter-ff .mat-mdc-form-field-subscript-wrapper {
+  max-width: 100%;
+  overflow: hidden
+}
+
 .dynamic-table .filter-ff .mat-mdc-chip-set,
-.dynamic-table .filter-ff .mat-mdc-chip-list{max-width:100%;overflow:hidden}
+.dynamic-table .filter-ff .mat-mdc-chip-list {
+  max-width: 100%;
+  overflow: hidden
+}
+
 .dynamic-table .filter-ff .mat-date-range-input-container,
-.dynamic-table .filter-ff .mat-date-range-input-inner{width:100%;min-width:0}
+.dynamic-table .filter-ff .mat-date-range-input-inner {
+  width: 100%;
+  min-width: 0
+}
 
 /* ============== FILAS + ACCESIBILIDAD ============== */
-.dynamic-table .mat-mdc-row.data-row{
-  height:var(--row-height);
-  border-bottom:1px solid var(--border-color);
-  transition:background-color .2s ease-in-out;
+.dynamic-table .mat-mdc-row.data-row {
+  height: var(--row-height);
+  border-bottom: 1px solid var(--border-color);
+  transition: background-color .2s ease-in-out;
 }
-.dynamic-table .mat-mdc-row.data-row:last-child{border-bottom:none}
-.dynamic-table .mat-mdc-row.data-row:nth-child(even){background-color:var(--row-even-bg)}
-.dynamic-table .mat-mdc-row.data-row:hover{background-color:var(--row-hover-bg)}
-.dynamic-table .mat-mdc-row.data-row:focus-visible{
-  outline:2px solid var(--primary-color-focus);outline-offset:-2px;
+
+.dynamic-table .mat-mdc-row.data-row:last-child {
+  border-bottom: none
+}
+
+.dynamic-table .mat-mdc-row.data-row:nth-child(even) {
+  background-color: var(--row-even-bg)
+}
+
+.dynamic-table .mat-mdc-row.data-row:hover {
+  background-color: var(--row-hover-bg)
+}
+
+.dynamic-table .mat-mdc-row.data-row:focus-visible {
+  outline: 2px solid var(--primary-color-focus);
+  outline-offset: -2px;
 }
 
 /* Sin datos */
-.no-data-row .mat-mdc-cell{
-  text-align:center;padding:32px;color:var(--text-muted-color);font-style:italic;
+.no-data-row .mat-mdc-cell {
+  text-align: center;
+  padding: 32px;
+  color: var(--text-muted-color);
+  font-style: italic;
 }
 
 /* Chips contador */
-.count-chip{
-  font:500 13px/1.2 var(--mat-font-family, Roboto, sans-serif);
-  padding:6px 10px;border-radius:999px;
-  background:rgba(25,118,210,.1);color:rgb(25,118,210);margin-right:8px;
+.count-chip {
+  font: 500 13px/1.2 var(--mat-font-family, Roboto, sans-serif);
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(25, 118, 210, .1);
+  color: rgb(25, 118, 210);
+  margin-right: 8px;
 }
 
 /* Toggles compactos */
 .dynamic-table .mat-mdc-cell mat-slide-toggle,
-.dynamic-table .mat-mdc-header-cell mat-slide-toggle{white-space:nowrap}
+.dynamic-table .mat-mdc-header-cell mat-slide-toggle {
+  white-space: nowrap
+}
+
 .dynamic-table .mat-mdc-cell .mdc-form-field,
-.dynamic-table .mat-mdc-header-cell .mdc-form-field{gap:6px}
+.dynamic-table .mat-mdc-header-cell .mdc-form-field {
+  gap: 6px
+}
 
 /* ============== RESPONSIVE ============== */
-@media (max-width:768px){
-  .paginator-row{flex-direction:column;align-items:stretch;gap:16px}
+@media (max-width:768px) {
+  .paginator-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 16px
+  }
+}
+
+/* standard-filter-table.css */
+.clickable-row {
+  cursor: pointer;
 }

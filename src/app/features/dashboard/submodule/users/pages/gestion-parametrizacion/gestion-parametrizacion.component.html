@@ -1,0 +1,44 @@
+<mat-card>
+  <mat-card-content>
+    <div class="page-header">
+      <h2>Gestión de Parametrización</h2>
+      <span class="grow"></span>
+
+      <button mat-flat-button (click)="onNuevaTabla()">
+        <mat-icon>add</mat-icon>
+        Nueva
+      </button>
+
+      <button mat-raised-button color="primary" (click)="descargarExcelServidor()">
+        <mat-icon>table_view</mat-icon>
+        Excel
+      </button>
+
+      <button mat-raised-button (click)="descargarZipServidor()">
+        <mat-icon>archive</mat-icon>
+        ZIP
+      </button>
+    </div>
+
+    <app-standard-filter-table [data]="data()" [columnDefinitions]="columns" [pageSizeOptions]="pageSizeOptions"
+      [defaultPageSize]="defaultPageSize" [tableTitle]="'MetaTablas'" (rowClicked)="onRowClick($event)">
+
+      <!-- Acciones por fila (sin botón de editar) -->
+      <ng-template #actionsTemplate let-row>
+        <!-- Gestionar CAMPOS -->
+        <button mat-icon-button matTooltip="Configurar campos"
+          (click)="$event.stopPropagation(); openMetaConfig(row, 'campos')">
+          <mat-icon>view_list</mat-icon>
+        </button>
+
+        <!-- Gestionar VALORES -->
+        <button mat-icon-button matTooltip="Gestionar valores"
+          (click)="$event.stopPropagation(); openMetaConfig(row, 'valores')">
+          <mat-icon>dataset</mat-icon>
+        </button>
+      </ng-template>
+    </app-standard-filter-table>
+
+
+  </mat-card-content>
+</mat-card>

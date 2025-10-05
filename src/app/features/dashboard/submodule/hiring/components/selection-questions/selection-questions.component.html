@@ -5,7 +5,7 @@
 </ng-template> <br>
 
 <!-- CONTENIDO ORIGINAL DEL EXPANSION‑PANEL 1 -->
-<div class="seccion" [formGroup]="formGroup1">
+<div class="seccion" [formGroup]="antecedentes">
 
   <!-- EPS -->
   <div class="input-container">
@@ -67,11 +67,11 @@
 
         <!-- Icono estado -->
         <mat-icon class="estado-icon" [ngStyle]="{
-        color: formGroup1.get('policivos')?.value === 'Cumple' ? 'green' :
-               formGroup1.get('policivos')?.value === 'No Cumple' ? 'red' : 'gray'
+        color: antecedentes.get('policivos')?.value === 'Cumple' ? 'green' :
+               antecedentes.get('policivos')?.value === 'No Cumple' ? 'red' : 'gray'
       }">
-          {{ formGroup1.get('policivos')?.value === 'Cumple' ? 'check_circle' :
-          formGroup1.get('policivos')?.value === 'No Cumple' ? 'cancel' : 'help_outline' }}
+          {{ antecedentes.get('policivos')?.value === 'Cumple' ? 'check_circle' :
+          antecedentes.get('policivos')?.value === 'No Cumple' ? 'cancel' : 'help_outline' }}
         </mat-icon>
       </div>
     </mat-form-field>
@@ -125,11 +125,11 @@
 
         <!-- Estado -->
         <mat-icon class="estado-icon" [ngStyle]="{
-          color: formGroup1.get('procuraduria')?.value === 'Cumple' ? 'green' :
-                 formGroup1.get('procuraduria')?.value === 'No Cumple' ? 'red' : 'gray'
+          color: antecedentes.get('procuraduria')?.value === 'Cumple' ? 'green' :
+                 antecedentes.get('procuraduria')?.value === 'No Cumple' ? 'red' : 'gray'
         }">
-          {{ formGroup1.get('procuraduria')?.value === 'Cumple' ? 'check_circle' :
-          formGroup1.get('procuraduria')?.value === 'No Cumple' ? 'cancel' : 'help_outline' }}
+          {{ antecedentes.get('procuraduria')?.value === 'Cumple' ? 'check_circle' :
+          antecedentes.get('procuraduria')?.value === 'No Cumple' ? 'cancel' : 'help_outline' }}
         </mat-icon>
       </div>
     </mat-form-field>
@@ -226,11 +226,11 @@
         </button>
 
         <mat-icon class="estado-icon" [ngStyle]="{
-          color: formGroup1.get('contraloria')?.value === 'Cumple' ? 'green' :
-                 formGroup1.get('contraloria')?.value === 'No Cumple' ? 'red' : 'gray'
+          color: antecedentes.get('contraloria')?.value === 'Cumple' ? 'green' :
+                 antecedentes.get('contraloria')?.value === 'No Cumple' ? 'red' : 'gray'
         }">
-          {{ formGroup1.get('contraloria')?.value === 'Cumple' ? 'check_circle' :
-          formGroup1.get('contraloria')?.value === 'No Cumple' ? 'cancel' : 'help_outline' }}
+          {{ antecedentes.get('contraloria')?.value === 'Cumple' ? 'check_circle' :
+          antecedentes.get('contraloria')?.value === 'No Cumple' ? 'cancel' : 'help_outline' }}
         </mat-icon>
       </div>
     </mat-form-field>
@@ -282,11 +282,11 @@
         </button>
 
         <mat-icon class="estado-icon" [ngStyle]="{
-          color: formGroup1.get('ofac')?.value === 'Cumple' ? 'green' :
-                 formGroup1.get('ofac')?.value === 'No Cumple' ? 'red' : 'gray'
+          color: antecedentes.get('ofac')?.value === 'Cumple' ? 'green' :
+                 antecedentes.get('ofac')?.value === 'No Cumple' ? 'red' : 'gray'
         }">
-          {{ formGroup1.get('ofac')?.value === 'Cumple' ? 'check_circle' :
-          formGroup1.get('ofac')?.value === 'No Cumple' ? 'cancel' : 'help_outline' }}
+          {{ antecedentes.get('ofac')?.value === 'Cumple' ? 'check_circle' :
+          antecedentes.get('ofac')?.value === 'No Cumple' ? 'cancel' : 'help_outline' }}
         </mat-icon>
       </div>
     </mat-form-field>
@@ -422,11 +422,11 @@
         </button>
 
         <mat-icon class="estado-icon" [ngStyle]="{
-          color: formGroup1.get('ramaJudicial')?.value === 'Cumple' ? 'green' :
-                 formGroup1.get('ramaJudicial')?.value === 'No Cumple' ? 'red' : 'gray'
+          color: antecedentes.get('ramaJudicial')?.value === 'Cumple' ? 'green' :
+                 antecedentes.get('ramaJudicial')?.value === 'No Cumple' ? 'red' : 'gray'
         }">
-          {{ formGroup1.get('ramaJudicial')?.value === 'Cumple' ? 'check_circle' :
-          formGroup1.get('ramaJudicial')?.value === 'No Cumple' ? 'cancel' : 'help_outline' }}
+          {{ antecedentes.get('ramaJudicial')?.value === 'Cumple' ? 'check_circle' :
+          antecedentes.get('ramaJudicial')?.value === 'No Cumple' ? 'cancel' : 'help_outline' }}
         </mat-icon>
       </div>
     </mat-form-field>
@@ -474,10 +474,10 @@
         <mat-icon>more_vert</mat-icon>
       </button>
 
-      <mat-error *ngIf="formGroup1.get('semanasCotizadas')?.hasError('required')">
+      <mat-error *ngIf="antecedentes.get('semanasCotizadas')?.hasError('required')">
         Este campo es obligatorio.
       </mat-error>
-      <mat-error *ngIf="formGroup1.get('semanasCotizadas')?.hasError('min')">
+      <mat-error *ngIf="antecedentes.get('semanasCotizadas')?.hasError('min')">
         Debe ser al menos 1.
       </mat-error>
     </mat-form-field>

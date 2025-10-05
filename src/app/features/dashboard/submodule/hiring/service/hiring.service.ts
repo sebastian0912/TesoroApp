@@ -443,24 +443,6 @@ export class HiringService {
     }
   }
 
-  // Servicio Angular
-  public detalleLaboralContratacion(empresaUsuaria: string, sublabor: string): Observable<any> {
-
-    // Construimos los parámetros de consulta
-    const params = new HttpParams()
-      .set('empresa_usuaria', empresaUsuaria)
-      .set('sublabor', sublabor);
-
-
-
-    // Realizamos la solicitud GET
-    return this.http.get(`${this.apiUrl}/infoCentrosCosto/detalle-laboralContratacion/`, { params }).pipe(
-      map((response: any) => response), // Procesamos la respuesta si es necesario
-      catchError(this.handleError) // Manejamos errores
-    );
-  }
-
-
   async guardarOActualizarContratacion(data: any): Promise<any> {
 
     const urlcompleta = `${this.apiUrl}/contratacion/guardar-o-actualizar-contratacion/`;

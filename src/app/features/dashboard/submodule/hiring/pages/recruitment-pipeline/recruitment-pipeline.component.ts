@@ -43,14 +43,6 @@ export const MY_DATE_FORMATS = {
   }
 };
 
-
-interface Usuario {
-  primer_nombre: string;
-  primer_apellido: string;
-  rol: string;
-  sucursalde: string;
-}
-
 @Component({
   selector: 'app-recruitment-pipeline',
   imports: [
@@ -338,8 +330,6 @@ export class RecruitmentPipelineComponent implements OnInit {
   async ngOnInit(): Promise<void> {
     await this.initUsuarioYAbreviacion();
     await this.loadData();
-
- 
   }
 
   /* ========= helpers usuario ========= */
@@ -1033,6 +1023,7 @@ export class RecruitmentPipelineComponent implements OnInit {
       fr.readAsDataURL(file);
     });
   }
+
 
 
 }

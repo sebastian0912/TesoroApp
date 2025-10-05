@@ -28,7 +28,7 @@ export class GestionDocumentalService {
   // Método para subir un documento
   guardarDocumento(
     title: any,
-    owner_id: string,
+    owner_id: any,
     type: number,
     file: File,
     contract_number?: string // Hacer que el número de contrato sea opcional
