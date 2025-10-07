@@ -1622,7 +1622,7 @@ export class HiringReportComponent implements OnInit {
     Swal.close();
 
     // Obtenemos la información del usuario
-    const user = await this.hiringService.getUser();
+    const user = await this.utilityService.getUser();
 
     // Validaciones previas a la carga
     if (!this.isArlValidado) {

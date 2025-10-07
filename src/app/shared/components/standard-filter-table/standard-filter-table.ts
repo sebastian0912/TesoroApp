@@ -15,9 +15,9 @@ import {
   HostListener,
   EventEmitter,
   Output,
-  PLATFORM_ID,           // ⬅️ nuevo
+  PLATFORM_ID,
 } from '@angular/core';
-import { CommonModule, isPlatformBrowser } from '@angular/common'; // ⬅️ isPlatformBrowser
+import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { MatTableDataSource, MatTableModule } from '@angular/material/table';
 import { MatSort, MatSortModule } from '@angular/material/sort';
 import { MatPaginator, MatPaginatorModule } from '@angular/material/paginator';
@@ -104,19 +104,20 @@ export class StandardFilterTable implements OnInit, OnChanges, AfterViewInit, On
   dataSource = new MatTableDataSource<any>();
   filterControls: { [key: string]: FormControl<any> } = {};
 
+  totalCount: number = 0;
+  filteredCount: number = 0;
+
   @ViewChild(MatSort) sort!: MatSort;
   @ViewChild(MatPaginator) paginator!: MatPaginator;
   @ViewChild('tableEl', { static: false }) tableEl?: ElementRef<HTMLElement>;
 
   private infoVacantesService = inject(InfoVacantesService);
 
-  // ⬇️ Plataforma y bandera de navegador
+  // Plataforma
   private platformId = inject(PLATFORM_ID);
   private readonly isBrowser = isPlatformBrowser(this.platformId);
 
   private subs: Array<{ unsubscribe: () => void }> = [];
-  totalCount = 0;
-  filteredCount = 0;
 
   computedWidths: Record<string, string> = {};
   private autosizeTimer: any;
@@ -128,7 +129,23 @@ export class StandardFilterTable implements OnInit, OnChanges, AfterViewInit, On
 
   yesNoOptions = ['Sí', 'No'];
 
-  // ⬇️ Polyfill seguro para SSR: usa rAF en browser y setTimeout en server
+  /** ------------ Helpers seguros para template/export ------------ */
+  /** Devuelve una Date válida o null (evita NG02100 en DatePipe). */
+  safeDate(value: unknown): Date | null {
+    if (value == null || value === '') return null;
+    if (value instanceof Date) return isNaN(value.getTime()) ? null : value;
+    const d = new Date(value as any);
+    return isNaN(d.getTime()) ? null : d;
+  }
+
+  /** Convierte a número o NaN; útil para sorting/control interno. */
+  private toNumber(value: unknown): number {
+    if (typeof value === 'number') return value;
+    const n = Number(value as any);
+    return Number.isFinite(n) ? n : NaN;
+  }
+
+  // Polyfill rAF SSR-safe
   private raf(cb: () => void): any {
     if (this.isBrowser && typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
       return window.requestAnimationFrame(cb);
@@ -147,7 +164,7 @@ export class StandardFilterTable implements OnInit, OnChanges, AfterViewInit, On
     }
     if (changes['data']) {
       this.dataSource.data = this.data || [];
-      this.totalCount = this.data?.length || 0;
+      this.totalCount = Array.isArray(this.data) ? this.data.length : 0;
       this.applyFilters();
       if (this.paginator) this.dataSource.paginator = this.paginator;
       this.scheduleAutosize();
@@ -155,23 +172,23 @@ export class StandardFilterTable implements OnInit, OnChanges, AfterViewInit, On
   }
 
   ngAfterViewInit(): void {
-    // ⬇️ Evita tocar DOM/Material en SSR
+    // No tocar DOM/Material en SSR
     if (!this.isBrowser) return;
 
     if (this.sort) {
       this.dataSource.sort = this.sort;
+      // sortingDataAccessor recomendado para fechas/números
       this.dataSource.sortingDataAccessor = (item: any, property: string) => {
         const col = this.columnDefinitions.find(c => c.name === property);
         const raw = item?.[property];
         if (!col) return raw;
         if (col.type === 'date') {
-          if (raw instanceof Date) return raw.getTime();
-          const d = raw ? new Date(raw) : null;
-          return d && !isNaN(d.getTime()) ? d.getTime() : -Infinity;
+          const d = this.safeDate(raw);
+          return d ? d.getTime() : -Infinity;
         }
         if (col.type === 'number') {
-          const n = typeof raw === 'number' ? raw : Number(raw);
-          return isNaN(n) ? -Infinity : n;
+          const n = this.toNumber(raw);
+          return Number.isNaN(n) ? -Infinity : n;
         }
         return (raw ?? '').toString().toLowerCase();
       };
@@ -201,8 +218,8 @@ export class StandardFilterTable implements OnInit, OnChanges, AfterViewInit, On
     this.displayedColumns = this.columnDefinitions.map(col => col.name);
     this.displayedFilterColumns = this.columnDefinitions.map(col => col.name + '_filter');
     this.dataSource.data = this.data || [];
-    this.totalCount = this.data?.length || 0;
-    this.filteredCount = this.totalCount;
+    this.totalCount = Array.isArray(this.data) ? this.data.length : 0;
+    this.filteredCount = this.totalCount; // ✅ antes usabas "filtered" sin definir
 
     this.clearSubs();
     this.filterControls = {};
@@ -237,15 +254,9 @@ export class StandardFilterTable implements OnInit, OnChanges, AfterViewInit, On
         if (col.type === 'date') {
           const start: Date | null = this.dateRange.get('start')?.value ?? null;
           const end: Date | null = this.dateRange.get('end')?.value ?? null;
+          const itemDate = this.safeDate(item[col.name]);
 
-          const itemDate: Date | null =
-            item[col.name] instanceof Date
-              ? item[col.name]
-              : item[col.name]
-                ? new Date(item[col.name])
-                : null;
-
-          if (!itemDate || isNaN(itemDate.getTime())) return !(start || end);
+          if (!itemDate) return !(start || end);
 
           if (start && itemDate < start) return false;
           if (end) {
@@ -262,18 +273,25 @@ export class StandardFilterTable implements OnInit, OnChanges, AfterViewInit, On
         const filterValue = control.value;
         const itemValue = item[col.name];
 
+        // Select / status (arreglo de opciones)
         if (Array.isArray(filterValue)) {
           return filterValue.length === 0 || filterValue.includes(itemValue);
         }
 
+        // Números: comparar como número si hay filtro
+        if (col.type === 'number') {
+          if (filterValue === '' || filterValue == null) return true;
+          const fv = this.toNumber(filterValue);
+          const iv = this.toNumber(itemValue);
+          if (Number.isNaN(fv)) return true;
+          return iv === fv;
+        }
+
+        // Texto: contains case-insensitive
         if (typeof filterValue === 'string') {
           const needle = filterValue.trim().toLowerCase();
           if (!needle) return true;
           return (itemValue ?? '').toString().toLowerCase().includes(needle);
-        }
-
-        if (typeof filterValue === 'number') {
-          return itemValue === filterValue;
         }
 
         return true;
@@ -299,6 +317,7 @@ export class StandardFilterTable implements OnInit, OnChanges, AfterViewInit, On
     });
     this.dateRange.get('start')?.setValue(null);
     this.dateRange.get('end')?.setValue(null);
+    this.applyFilters(); // ✅ reaplicar
   }
 
   getStatusConfig(columnName: string): any {
@@ -325,10 +344,10 @@ export class StandardFilterTable implements OnInit, OnChanges, AfterViewInit, On
       this.columnDefinitions.forEach(col => {
         let value = row[col.name];
         if (col.type === 'date') {
-          const d = value instanceof Date ? value : value ? new Date(value) : null;
-          value = d && !isNaN(d.getTime()) ? d.toLocaleString() : '';
+          const d = this.safeDate(value);
+          value = d ? d.toLocaleString() : '';
         }
-        obj[col.header] = value;
+        obj[col.header] = value ?? '';
       });
       return obj;
     });
@@ -343,8 +362,8 @@ export class StandardFilterTable implements OnInit, OnChanges, AfterViewInit, On
       this.columnDefinitions.map(col => {
         const val = row[col.name];
         if (col.type === 'date') {
-          const d = val instanceof Date ? val : val ? new Date(val) : null;
-          return d && !isNaN(d.getTime()) ? d.toLocaleString() : '';
+          const d = this.safeDate(val);
+          return d ? d.toLocaleString() : '';
         }
         return val ?? '';
       })
@@ -386,7 +405,10 @@ export class StandardFilterTable implements OnInit, OnChanges, AfterViewInit, On
 
     const rows = (this.dataSource.data as any[]).map(row => {
       const fields = this.columnDefinitions
-        .map(col => `<${tagName(col.header)}>${esc(formatCell(row[col.name], col.type))}</${tagName(col.header)}>`)
+        .map(col => {
+          const v = col.type === 'date' ? (this.safeDate(row[col.name])?.toISOString() ?? '') : (row[col.name] ?? '');
+          return `<${tagName(col.header)}>${esc(v)}</${tagName(col.header)}>`;
+        })
         .join('');
       return `<row>${fields}</row>`;
     });
@@ -398,14 +420,6 @@ export class StandardFilterTable implements OnInit, OnChanges, AfterViewInit, On
     a.download = `${(this.tableTitle || 'tabla').replace(/\s+/g, '_')}.xml`;
     a.click();
     URL.revokeObjectURL(a.href);
-
-    function formatCell(val: any, type: ColumnDefinition['type']) {
-      if (type === 'date') {
-        const d = val instanceof Date ? val : val ? new Date(val) : null;
-        return d && !isNaN(d.getTime()) ? d.toISOString() : '';
-      }
-      return val ?? '';
-    }
   }
 
   getActiveFilters(): ActiveFilter[] {
@@ -450,6 +464,7 @@ export class StandardFilterTable implements OnInit, OnChanges, AfterViewInit, On
       if (Array.isArray(ctrl.value)) ctrl.setValue([]);
       else ctrl.setValue('');
     }
+    this.applyFilters(); // ✅ reaplicar también aquí
   }
 
   async editarDetalle(row: any) {
@@ -487,7 +502,6 @@ export class StandardFilterTable implements OnInit, OnChanges, AfterViewInit, On
 
   /** ---------- AUTOSIZE ---------- */
   private scheduleAutosize() {
-    // ⬇️ nada de autosize en SSR
     if (!this.autoSize || !this.isBrowser) return;
     clearTimeout(this.autosizeTimer);
     this.autosizeTimer = setTimeout(() => {
@@ -595,6 +609,12 @@ export class StandardFilterTable implements OnInit, OnChanges, AfterViewInit, On
     this.subs.forEach(s => s?.unsubscribe?.());
     this.subs = [];
   }
+
+  formatInt(value: unknown, locale = 'es-CO'): string {
+    const n = typeof value === 'number' ? value : Number(value as any);
+    return Number.isFinite(n) ? n.toLocaleString(locale) : '0';
+  }
+
 }
 
 /** Helper para resetear controles sin conocer el tipo */

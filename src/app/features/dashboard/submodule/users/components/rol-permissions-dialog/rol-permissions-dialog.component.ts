@@ -277,7 +277,6 @@ export class RolPermissionsDialogComponent implements OnInit {
         error: (err) => {
           this.saving.set(false);
           Swal.fire({ icon: 'error', title: 'Error', text: 'No se pudieron guardar los permisos.' });
-          console.error(err);
         }
       });
   }

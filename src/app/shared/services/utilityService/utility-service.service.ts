@@ -52,18 +52,16 @@ export class UtilityServiceService {
   }
 
   /**
-   * Edita la sede de un usuario.
-   * @param ceduladelapersona Identificación de la persona.
-   * @param sucursalacambiar Sucursal a asignar.
+   * Variante directa cuando ya tienes el UUID del usuario.
    */
-  editarSede(
-    ceduladelapersona: string,
-    sucursalacambiar: string
-  ): Observable<any> {
-    const urlcompleta = `${this.apiUrl}/usuarios/cambiodesucursal`;
-    const requestBody = { ceduladelapersona, sucursalacambiar };
-
-    return this.http.post<string>(urlcompleta, requestBody);
+  cambiarSedePorUsuarioId(
+    usuarioId: string,
+    sedeId: string | null
+  ): Observable<{ ok: boolean; changed: boolean; sede_id: string | null; sede: string | null; }> {
+    const body = sedeId ? { sede: sedeId } : { sede: null };
+    return this.http.post<{
+      ok: boolean; changed: boolean; sede_id: string | null; sede: string | null;
+    }>(`${this.apiUrl}/gestion_admin/usuarios/${usuarioId}/cambiar_sede/`, body);
   }
 
   traerUsuarios(): Observable<any> {

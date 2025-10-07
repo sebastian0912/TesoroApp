@@ -1,13 +1,20 @@
 import { Component, OnInit } from '@angular/core';
-import { FormBuilder, FormGroup, Validators } from '@angular/forms';
+import {
+  FormBuilder,
+  FormGroup,
+  Validators,
+  AbstractControl,
+  ValidationErrors
+} from '@angular/forms';
+import { CommonModule } from '@angular/common';
+import { ReactiveFormsModule } from '@angular/forms';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { MatButtonModule } from '@angular/material/button';
-import { CommonModule } from '@angular/common';
-import { ReactiveFormsModule } from '@angular/forms';
 import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
 import Swal from 'sweetalert2';
+import { finalize } from 'rxjs/operators';
 import { AdminService } from '../../services/admin.service';
 
 @Component({
@@ -30,22 +37,26 @@ export class CambiarContrasenaComponent implements OnInit {
   hideOldPassword = true;
   hideNewPassword = true;
   hideConfirmPassword = true;
+  isSubmitting = false;
 
   constructor(
     private fb: FormBuilder,
     private adminService: AdminService
-  ) { }
+  ) {}
 
-  ngOnInit() {
-    this.myForm = this.fb.group({
-      oldPassword: ['', Validators.required],
-      newPassword: ['', [Validators.required, Validators.minLength(6)]],
-      confirmNewPassword: ['', Validators.required]
-    }, { validators: this.passwordsMatchValidator });
+  ngOnInit(): void {
+    this.myForm = this.fb.group(
+      {
+        oldPassword: ['', Validators.required],
+        newPassword: ['', [Validators.required, Validators.minLength(6)]],
+        confirmNewPassword: ['', Validators.required]
+      },
+      { validators: this.passwordsMatchValidator }
+    );
   }
 
-  // Función para enviar el formulario
-  async onSubmit() {
+  // Enviar formulario
+  onSubmit(): void {
     if (this.myForm.invalid) {
       this.myForm.markAllAsTouched();
       return;
@@ -53,58 +64,70 @@ export class CambiarContrasenaComponent implements OnInit {
 
     this.trimFormFields();
 
-    // Aquí puedes manejar la lógica de cambio de contraseña
-    this.adminService.cambiarContrasena(this.myForm.value.oldPassword, this.myForm.value.newPassword)
-      .then(() => {
-        Swal.fire({
-          icon: 'success',
-          title: 'Contraseña cambiada',
-          text: 'Tu contraseña ha sido cambiada correctamente, la próxima vez que inicies sesión, utiliza tu nueva contraseña'
-        }).then(() => {
-          window.location.href = '';
-        } );
+    const { oldPassword, newPassword } = this.myForm.value;
+    this.isSubmitting = true;
 
-      })
-      .catch(error => {
-        Swal.fire({
-          icon: 'error',
-          title: 'Error al cambiar la contraseña',
-          text: error.message
-        });
+    // Llama al endpoint "me" (token en Authorization)
+    this.adminService
+      .cambiarContrasenaMe(oldPassword, newPassword)
+      .pipe(finalize(() => (this.isSubmitting = false)))
+      .subscribe({
+        next: (res) => {
+          Swal.fire({
+            icon: 'success',
+            title: 'Contraseña cambiada',
+            text:
+              res?.message ||
+              'Tu contraseña ha sido cambiada correctamente. La próxima vez que inicies sesión, utiliza tu nueva contraseña.'
+          });
+          this.myForm.reset();
+        },
+        error: (err) => {
+          const msg =
+            err?.error?.detail ||
+            err?.error?.message ||
+            err?.message ||
+            'Error al cambiar la contraseña. Inténtalo de nuevo.';
+          Swal.fire({
+            icon: 'error',
+            title: 'Error al cambiar la contraseña',
+            text: msg
+          });
+        }
       });
   }
 
-  private trimFormFields() {
-    Object.keys(this.myForm.controls).forEach(field => {
+  private trimFormFields(): void {
+    Object.keys(this.myForm.controls).forEach((field) => {
       const control = this.myForm.get(field);
-      if (control && control.value && typeof control.value === 'string') {
+      if (control && typeof control.value === 'string') {
         control.setValue(control.value.trim());
       }
     });
   }
 
-  toggleOldPasswordVisibility() {
+  toggleOldPasswordVisibility(): void {
     this.hideOldPassword = !this.hideOldPassword;
   }
 
-  toggleNewPasswordVisibility() {
+  toggleNewPasswordVisibility(): void {
     this.hideNewPassword = !this.hideNewPassword;
   }
 
-  toggleConfirmPasswordVisibility() {
+  toggleConfirmPasswordVisibility(): void {
     this.hideConfirmPassword = !this.hideConfirmPassword;
   }
 
-  private passwordsMatchValidator(form: FormGroup) {
-    const newPassword = form.get('newPassword')?.value;
-    const confirmNewPassword = form.get('confirmNewPassword')?.value;
-    return newPassword === confirmNewPassword ? null : { mismatch: true };
-  }
+  private passwordsMatchValidator = (group: AbstractControl): ValidationErrors | null => {
+    const p1 = group.get('newPassword')?.value;
+    const p2 = group.get('confirmNewPassword')?.value;
+    if (!p1 || !p2) return null;
+    return p1 === p2 ? null : { mismatch: true };
+  };
 
-
+  // (Opcional) Mostrar/ocultar sidebar si lo usas en el layout
   isSidebarHidden = false;
-
-  toggleSidebar() {
+  toggleSidebar(): void {
     this.isSidebarHidden = !this.isSidebarHidden;
   }
 }

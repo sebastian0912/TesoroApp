@@ -15,16 +15,6 @@ export class GestionDocumentalService {
     @Inject(PLATFORM_ID) private platformId: Object
   ) { }
 
-  async getUser(): Promise<any> {
-    if (isPlatformBrowser(this.platformId)) {
-      const user = localStorage.getItem('user');
-      if (user) {
-        return JSON.parse(user);
-      }
-    }
-    return null;
-  }
-
   // Método para subir un documento
   guardarDocumento(
     title: any,
@@ -51,7 +41,7 @@ export class GestionDocumentalService {
 
   // Nuevo método para obtener documentos por tipo documental
   obtenerDocumentosPorTipo(
-    owner_id: string,
+    owner_id: any,
     type: number,
     contract_number?: string,
   ): Observable<any> {

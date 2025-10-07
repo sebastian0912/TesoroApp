@@ -11,12 +11,13 @@ import {
   HostListener,
 } from '@angular/core';
 import { isPlatformBrowser } from '@angular/common';
-import { SharedModule } from '../../../../shared/shared.module';
 import { Router, NavigationEnd, RouterModule } from '@angular/router';
 import { filter } from 'rxjs/operators';
-import Swal from 'sweetalert2';
 import { Subscription } from 'rxjs';
+import Swal from 'sweetalert2';
+
 import { MatIconModule } from '@angular/material/icon';
+import { SharedModule } from '../../../../shared/shared.module';
 
 export interface PermNode {
   id: string;
@@ -28,9 +29,10 @@ export interface PermNode {
 
 @Component({
   selector: 'app-navbar',
+  standalone: true,
   imports: [SharedModule, RouterModule, MatIconModule],
   templateUrl: './navbar.component.html',
-  styleUrl: './navbar.component.css',
+  styleUrls: ['./navbar.component.css'],
 })
 export class NavbarComponent implements OnInit, OnDestroy {
   @Output() public menuToggle = new EventEmitter<boolean>();
@@ -41,206 +43,20 @@ export class NavbarComponent implements OnInit, OnDestroy {
   public pinOpen = false;
   public currentRoute?: string;
 
-  // árbol de permisos (raíces)
   public permTree: PermNode[] = [];
   public activeRoot: PermNode | null = null;
 
-  // estado UI
   private expanded: Record<string, boolean> = {};
-
-  // ⏳ Cierre diferido
   private closeTimer: ReturnType<typeof setTimeout> | null = null;
   private readonly CLOSE_DELAY = 500;
 
   private routerSubscription?: Subscription;
-
-  // breakpoint y handler
   private readonly MOBILE_BREAKPOINT = 900;
-  private resizeHandler = () => this.checkMobile();
 
-  constructor(
-    @Inject(PLATFORM_ID) private platformId: object,
-    private router: Router
-  ) { }
+  // ==== SSR flag ====
+  private readonly isBrowser: boolean;
 
-  ngOnInit(): void {
-    if (isPlatformBrowser(this.platformId)) {
-      this.loadPermTreeFromStorage();
-      this.loadUIState();
-      this.checkMobile();
-      window.addEventListener('resize', this.resizeHandler);
-    }
-
-    // Cerrar/ajustar al navegar
-    this.routerSubscription = this.router.events
-      .pipe(filter((e): e is NavigationEnd => e instanceof NavigationEnd))
-      .subscribe((e) => {
-        this.currentRoute = e.urlAfterRedirects;
-        if (!this.pinOpen) this.activeRoot = null;
-        if (this.isMobile) this.isSidebarHidden = true;
-        this.saveUIState();
-      });
-  }
-
-  ngOnDestroy(): void {
-    this.routerSubscription?.unsubscribe();
-    this.cancelClose();
-    if (isPlatformBrowser(this.platformId)) {
-      window.removeEventListener('resize', this.resizeHandler);
-    }
-  }
-
-  /* ===========================
-     Estado UI persistente
-     =========================== */
-  private loadUIState(): void {
-    if (!isPlatformBrowser(this.platformId)) return;
-    const hidden = localStorage.getItem('sidebarHidden');
-    const pin = localStorage.getItem('sidebarPin');
-    this.isSidebarHidden = hidden === 'true';
-    this.pinOpen = pin === 'true';
-  }
-
-  private saveUIState(): void {
-    if (!isPlatformBrowser(this.platformId)) return;
-    localStorage.setItem('sidebarHidden', String(this.isSidebarHidden));
-    localStorage.setItem('sidebarPin', String(this.pinOpen));
-  }
-
-  /* ===========================
-     Cierre seguro
-     =========================== */
-  // Cancela cualquier cierre pendiente
-  cancelClose(): void {
-    if (this.closeTimer) {
-      clearTimeout(this.closeTimer);
-      this.closeTimer = null;
-    }
-  }
-
-  // Programa el cierre sólo si realmente sales del <aside>
-  public scheduleClose(ev?: PointerEvent): void {
-    if (this.pinOpen || this.isMobile) return;
-
-    const aside = this.asideRef?.nativeElement;
-    const to = ev?.relatedTarget as Node | null;
-    if (aside && to && aside.contains(to)) return;
-
-    this.cancelClose();
-    this.closeTimer = setTimeout(() => {
-      this.activeRoot = null;
-    }, this.CLOSE_DELAY);
-  }
-
-  onLeafClick(): void {
-    this.cancelClose();
-    this.activeRoot = null;
-    if (matchMedia('(hover: none)').matches) this.isSidebarHidden = true; // móvil
-    this.saveUIState();
-  }
-
-  /* ===========================
-     Lectura de permisos_tree
-     =========================== */
-  private loadPermTreeFromStorage(): void {
-    try {
-      const rawUser = localStorage.getItem('user');
-      const rawTree = localStorage.getItem('permisos_tree'); // opcional: soporte directo
-      let tree: unknown = null;
-
-      if (rawUser) {
-        const user = JSON.parse(rawUser);
-        tree = user?.permisos_tree;
-      }
-      if (!Array.isArray(tree) && rawTree) {
-        tree = JSON.parse(rawTree);
-      }
-
-      if (Array.isArray(tree)) {
-        this.permTree = tree as PermNode[];
-      }
-    } catch {
-      Swal.fire({
-        icon: 'error',
-        title: 'Error de permisos',
-        text: 'No se pudo cargar el árbol de permisos.',
-      });
-    }
-  }
-
-
-  /* ===========================
-     Panel izquierdo (raíces)
-     =========================== */
-  public get rootModules(): PermNode[] {
-    return (this.permTree || []).filter((n) => this.canRead(n));
-  }
-
-  public onModuleEnter(mod: PermNode): void {
-    this.cancelClose(); // evita cierre al pasar al derecho
-    this.activeRoot = mod;
-    (mod.hijos || []).forEach((h) => (this.expanded[h.id] = true));
-  }
-
-  // Si tu template aún llama onPanelLeave()
-  public onPanelLeave(): void {
-    this.scheduleClose();
-  }
-
-  public onRightPanelEnter(): void {
-    this.cancelClose(); // al entrar al derecho, cancela cierre
-  }
-
-  /* ===========================
-     Expand/collapse utilidades
-     =========================== */
-  public isExpanded(id: string): boolean {
-    return !!this.expanded[id];
-  }
-
-  public toggleNode(id: string): void {
-    this.expanded[id] = !this.expanded[id];
-  }
-
-  public toggleAll(root: PermNode): void {
-    const hasCollapsed = this.isAnyCollapsed(root);
-    this.walk(root, (n) => (this.expanded[n.id] = hasCollapsed));
-  }
-
-  public isAnyCollapsed(root: PermNode): boolean {
-    let collapsed = false;
-    this.walk(root, (n) => {
-      if (n.hijos?.length && !this.isExpanded(n.id)) collapsed = true;
-    });
-    return collapsed;
-  }
-
-  private walk(node: PermNode, fn: (n: PermNode) => void): void {
-    fn(node);
-    (node.hijos || []).forEach((h) => this.walk(h, fn));
-  }
-
-  /* ===========================================================
-     Normalización de texto e índices case-insensitive
-     =========================================================== */
-  private toSentenceCase(s: string = ''): string {
-    const t = s.toLowerCase();
-    return t.replace(/^\p{L}/u, (c) => c.toUpperCase());
-  }
-
-  public formatLabel(nombre: string): string {
-    return this.toSentenceCase(nombre);
-  }
-
-  private indexByUpper<T extends Record<string, string>>(obj: T): Record<string, string> {
-    const out: Record<string, string> = {};
-    for (const k of Object.keys(obj)) out[k.toUpperCase()] = obj[k];
-    return out;
-  }
-
-  /* ===========================
-     Navegación / rutas
-     =========================== */
+  // ==== Mapas de rutas e íconos (declarados ANTES de usarlos) ====
   private readonly routeMap: Record<string, string> = {
     // Administración
     'ADMINISTRACIÓN': 'users/manage-users',
@@ -305,7 +121,6 @@ export class NavbarComponent implements OnInit, OnDestroy {
     'GESTIÓN CARGOS': 'positions/manage-positions',
     'GESTIÓN CENTRO DE COSTOS': 'farms/management-farms',
 
-
     // Ausentismos
     'AUSENTISMOS': 'hiring/absences',
 
@@ -313,19 +128,6 @@ export class NavbarComponent implements OnInit, OnDestroy {
     'CARGAS MASIVAS': 'treasury/upload-treasury',
   };
 
-  private readonly routeMapIndex = this.indexByUpper(this.routeMap);
-
-  public getNodeRoute(node: PermNode): string {
-    const base = '/dashboard';
-    const key = (node?.nombre ?? '').toUpperCase();
-    const mapped = this.routeMapIndex[key];
-    if (mapped) return `${base}/${mapped}`;
-    return `${base}/${this.slug(node.nombre)}`;
-  }
-
-  /* ===========================
-     Iconos
-     =========================== */
   private readonly iconMap: Record<string, string> = {
     // Raíces y categorías
     'Comercializadora': 'storefront',
@@ -408,12 +210,209 @@ export class NavbarComponent implements OnInit, OnDestroy {
     'GESTIÓN CARGOS': 'assignment',
     'GESTIÓN CENTRO DE COSTOS': 'account_balance_wallet',
     'PARAMETRIZACIÓN': 'settings',
+
     // Ausentismos
     'AUSENTISMOS': 'event_busy',
   };
 
-  private readonly iconMapIndex = this.indexByUpper(this.iconMap);
+  // Índices calculados en constructor (evita TS2729)
+  private routeMapIndex!: Record<string, string>;
+  private iconMapIndex!: Record<string, string>;
 
+  constructor(
+    @Inject(PLATFORM_ID) platformId: object,
+    private router: Router
+  ) {
+    this.isBrowser = isPlatformBrowser(platformId);
+    this.routeMapIndex = this.indexByUpper(this.routeMap);
+    this.iconMapIndex = this.indexByUpper(this.iconMap);
+  }
+
+  async ngOnInit(): Promise<void> {
+    if (this.isBrowser) {
+      this.loadPermTreeFromStorage();
+      this.loadUIState();
+      this.checkMobile();
+      window.addEventListener('resize', this.onResize);
+    }
+
+    this.routerSubscription = this.router.events
+      .pipe(filter((e): e is NavigationEnd => e instanceof NavigationEnd))
+      .subscribe((e) => {
+        this.currentRoute = e.urlAfterRedirects;
+        if (!this.pinOpen) this.activeRoot = null;
+        if (this.isMobile) this.isSidebarHidden = true;
+        this.saveUIState();
+      });
+  }
+
+  ngOnDestroy(): void {
+    this.routerSubscription?.unsubscribe();
+    this.cancelClose();
+    if (this.isBrowser) {
+      window.removeEventListener('resize', this.onResize);
+    }
+  }
+
+  // ======== SSR-safe localStorage ========
+  private lsGet(key: string): string | null {
+    if (!this.isBrowser) return null;
+    try { return localStorage.getItem(key); } catch { return null; }
+  }
+  private lsSet(key: string, val: string): void {
+    if (!this.isBrowser) return;
+    try { localStorage.setItem(key, val); } catch {}
+  }
+  private lsClear(): void {
+    if (!this.isBrowser) return;
+    try { localStorage.clear(); } catch {}
+  }
+
+  // ======== Estado UI persistente ========
+  private loadUIState(): void {
+    const hidden = this.lsGet('sidebarHidden');
+    const pin = this.lsGet('sidebarPin');
+    this.isSidebarHidden = hidden === 'true';
+    this.pinOpen = pin === 'true';
+  }
+
+  private saveUIState(): void {
+    this.lsSet('sidebarHidden', String(this.isSidebarHidden));
+    this.lsSet('sidebarPin', String(this.pinOpen));
+  }
+
+  // ======== Cierre seguro ========
+  cancelClose(): void {
+    if (this.closeTimer) {
+      clearTimeout(this.closeTimer);
+      this.closeTimer = null;
+    }
+  }
+
+  public scheduleClose(ev?: PointerEvent): void {
+    if (this.pinOpen || this.isMobile) return;
+
+    const aside = this.asideRef?.nativeElement;
+    const to = ev?.relatedTarget as Node | null;
+    if (aside && to && aside.contains(to)) return;
+
+    this.cancelClose();
+    this.closeTimer = setTimeout(() => {
+      this.activeRoot = null;
+    }, this.CLOSE_DELAY);
+  }
+
+  onLeafClick(): void {
+    this.cancelClose();
+    this.activeRoot = null;
+
+    if (this.isBrowser && typeof matchMedia !== 'undefined' && matchMedia('(hover: none)').matches) {
+      this.isSidebarHidden = true; // móvil
+    }
+    this.saveUIState();
+  }
+
+  // ======== Permisos: lectura de árbol ========
+  private loadPermTreeFromStorage(): void {
+    try {
+      const rawUser = this.lsGet('user');
+      const rawTree = this.lsGet('permisos_tree');
+      let tree: unknown = null;
+
+      if (rawUser) {
+        const user = JSON.parse(rawUser);
+        tree = (user?.permisos_tree ?? null);
+      }
+      if (!Array.isArray(tree) && rawTree) {
+        tree = JSON.parse(rawTree);
+      }
+
+      if (Array.isArray(tree)) {
+        this.permTree = tree as PermNode[];
+      }
+    } catch {
+      if (this.isBrowser) {
+        Swal.fire({
+          icon: 'error',
+          title: 'Error de permisos',
+          text: 'No se pudo cargar el árbol de permisos.',
+        });
+      }
+    }
+  }
+
+  // ======== Panel izquierdo (raíces) ========
+  public get rootModules(): PermNode[] {
+    return (this.permTree || []).filter((n) => this.canRead(n));
+  }
+
+  public onModuleEnter(mod: PermNode): void {
+    this.cancelClose();
+    this.activeRoot = mod;
+    (mod.hijos || []).forEach((h) => (this.expanded[h.id] = true));
+  }
+
+  public onPanelLeave(): void {
+    this.scheduleClose();
+  }
+
+  public onRightPanelEnter(): void {
+    this.cancelClose();
+  }
+
+  // ======== Expand/Collapse ========
+  public isExpanded(id: string): boolean {
+    return !!this.expanded[id];
+  }
+
+  public toggleNode(id: string): void {
+    this.expanded[id] = !this.expanded[id];
+  }
+
+  public toggleAll(root: PermNode): void {
+    const hasCollapsed = this.isAnyCollapsed(root);
+    this.walk(root, (n) => (this.expanded[n.id] = hasCollapsed));
+  }
+
+  public isAnyCollapsed(root: PermNode): boolean {
+    let collapsed = false;
+    this.walk(root, (n) => {
+      if (n.hijos?.length && !this.isExpanded(n.id)) collapsed = true;
+    });
+    return collapsed;
+  }
+
+  private walk(node: PermNode, fn: (n: PermNode) => void): void {
+    fn(node);
+    (node.hijos || []).forEach((h) => this.walk(h, fn));
+  }
+
+  // ======== Texto & normalización ========
+  private toSentenceCase(s: string = ''): string {
+    const t = s.toLowerCase();
+    return t.replace(/^\p{L}/u, (c) => c.toUpperCase());
+  }
+
+  public formatLabel(nombre: string): string {
+    return this.toSentenceCase(nombre);
+  }
+
+  private indexByUpper<T extends Record<string, string>>(obj: T): Record<string, string> {
+    const out: Record<string, string> = {};
+    for (const k of Object.keys(obj)) out[k.toUpperCase()] = obj[k];
+    return out;
+  }
+
+  // ======== Navegación / rutas ========
+  public getNodeRoute(node: PermNode): string {
+    const base = '/dashboard';
+    const key = (node?.nombre ?? '').toUpperCase();
+    const mapped = this.routeMapIndex[key];
+    if (mapped) return `${base}/${mapped}`;
+    return `${base}/${this.slug(node.nombre)}`;
+  }
+
+  // ======== Iconos ========
   public getModuleIcon(nombre: string): string {
     return this.iconMapIndex[(nombre ?? '').toUpperCase()] || 'widgets';
   }
@@ -422,18 +421,13 @@ export class NavbarComponent implements OnInit, OnDestroy {
     return this.iconMapIndex[(nombre ?? '').toUpperCase()] || 'radio_button_unchecked';
   }
 
-  /* ===========================
-     Utilidades layout
-     =========================== */
+  // ======== Layout utils ========
+  private onResize = () => this.checkMobile();
+
   private checkMobile(): void {
+    if (!this.isBrowser) return;
     this.isMobile = window.innerWidth <= this.MOBILE_BREAKPOINT;
-    if (this.isMobile) {
-      // en móvil, por defecto oculto hasta abrir con botón
-      this.isSidebarHidden = true;
-    } else {
-      // en desktop, visible barra izquierda
-      this.isSidebarHidden = false;
-    }
+    this.isSidebarHidden = this.isMobile ? true : false;
     this.saveUIState();
   }
 
@@ -443,7 +437,6 @@ export class NavbarComponent implements OnInit, OnDestroy {
   }
 
   public openSidebarForMobile(): void {
-    // usado por el botón hamburguesa
     this.isSidebarHidden = false;
     if (!this.activeRoot && this.rootModules.length) {
       this.activeRoot = this.rootModules[0];
@@ -452,7 +445,7 @@ export class NavbarComponent implements OnInit, OnDestroy {
   }
 
   public closeAll(_source: 'backdrop' | 'outside' | 'esc' | 'api' = 'api'): void {
-    if (this.pinOpen) return; // respetar pin
+    if (this.pinOpen) return;
     this.activeRoot = null;
     if (this.isMobile) this.isSidebarHidden = true;
     this.saveUIState();
@@ -463,12 +456,10 @@ export class NavbarComponent implements OnInit, OnDestroy {
     this.saveUIState();
   }
 
-  /* ===========================
-     Cierre por clic fuera / ESC
-     =========================== */
+  // ======== Cierre por clic fuera / ESC ========
   @HostListener('document:click', ['$event'])
   onDocumentClick(e: MouseEvent): void {
-    if (this.pinOpen) return;
+    if (!this.isBrowser || this.pinOpen) return;
     const aside = this.asideRef?.nativeElement;
     if (!aside || this.isMobile) return;
     const target = e.target as Node;
@@ -479,14 +470,13 @@ export class NavbarComponent implements OnInit, OnDestroy {
 
   @HostListener('document:keydown.escape')
   onEsc(): void {
+    if (!this.isBrowser) return;
     this.closeAll('esc');
   }
 
-  /* ===========================
-     Otros helpers
-     =========================== */
+  // ======== Otros helpers ========
   public cerrarSesion(): void {
-    if (isPlatformBrowser(this.platformId)) localStorage.clear();
+    this.lsClear();
     this.router.navigate(['']);
   }
 
@@ -501,7 +491,6 @@ export class NavbarComponent implements OnInit, OnDestroy {
     const hasPerm = permKeys.some(k => this.READ_KEYS.has(k));
 
     if (hasAction || hasPerm) return true;
-
     return (n.hijos ?? []).some(h => this.canRead(h));
   }
 

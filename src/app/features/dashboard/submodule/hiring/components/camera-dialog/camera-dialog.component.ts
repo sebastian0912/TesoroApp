@@ -88,7 +88,6 @@ export class CameraDialogComponent implements OnInit, OnDestroy {
         await v.play().catch(() => { /* algunos navegadores requieren interacción */ });
       }
     } catch (err: any) {
-      console.error(err);
       this.cameraError = 'No fue posible acceder a la cámara. Puedes adjuntar una imagen.';
     } finally {
       this.loadingCamera = false;

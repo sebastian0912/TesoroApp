@@ -12,15 +12,18 @@
 
       <div class="cards">
         <app-info-card title="Cargar Ausentismos" imageUrl="icons/cards/excel.png" (click)="triggerFileInput()"
-          style="cursor: pointer;"
-          *ngIf="correo == 'tuafiliacion@tsservicios.co' || correo == 'contaduria.rtc@gmail.com' || correo == 'programador.ts@gmail.com'">
+          style="cursor: pointer;" *ngIf="
+          correo == 'tuafiliacion@tsservicios.co' ||
+          correo == 'contaduria.rtc@gmail.com' ||
+          correo == 'programador.ts@gmail.com'">
         </app-info-card>
 
         <app-info-card title="Eliminar caracteres especiales" imageUrl="icons/cards/excel.png"
-          (click)="triggerFileInput2()" style="cursor: pointer;" *ngIf="correo === 'tuafiliacion@tsservicios.co'
-      || correo === 'contaduria.rtc@gmail.com'
-      || correo === 'programador.ts@gmail.com'
-      || correo === 'a.seguridad.ts@gmail.com'">
+          (click)="triggerFileInput2()" style="cursor: pointer;" *ngIf="
+          correo === 'tuafiliacion@tsservicios.co'   ||
+          correo === 'contaduria.rtc@gmail.com'      ||
+          correo === 'programador.ts@gmail.com'      ||
+          correo === 'A.SEGURIDAD.TS@GMAIL.COM'">
         </app-info-card>
 
       </div>

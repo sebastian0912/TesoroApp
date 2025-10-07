@@ -186,7 +186,7 @@ export class MetaConfigDialogComponent implements OnInit {
       this.formValor.setControl('datos', this.fb.group({}));
       this.cdr.detectChanges();
 
-      this.svc.listMetaCampos({ tablaId: id }).subscribe({
+      this.svc.listMetaCampos({ tabla: id }).subscribe({
         next: res => {
           if (token !== this.reqToken) return;
           const arr = Array.isArray(res) ? res : [];
@@ -212,7 +212,7 @@ export class MetaConfigDialogComponent implements OnInit {
     this.campos.set([]);
     this.cdr.detectChanges();
 
-    this.svc.listMetaCampos({ tablaId: id }).subscribe({
+    this.svc.listMetaCampos({ tabla: id }).subscribe({
       next: res => {
         if (token !== this.reqToken) return;
         const arr = Array.isArray(res) ? res : [];

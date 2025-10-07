@@ -14,6 +14,7 @@ import { UtilityServiceService } from '@/app/shared/services/utilityService/util
 import { AdminService, ActualizarUsuarioPayload, UsuarioDetail, AuthResponse } from '../../services/admin.service';
 import { forkJoin, Observable, of } from 'rxjs';
 import { map } from 'rxjs/operators';
+import Swal from 'sweetalert2';
 
 export interface UserUpsertData {
   mode: 'create' | 'edit';
@@ -231,7 +232,7 @@ export class UserUpsertDialogComponent implements OnInit {
         this.dialogRef.close({ ok: true, data: detail });
       },
       error: (err: unknown) => {
-        console.error('Error guardando usuario:', err);
+        Swal.fire('Error', 'No fue posible guardar el usuario.', 'error');
         this.saving.set(false);
       },
     });

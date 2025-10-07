@@ -11,6 +11,7 @@ import { MatNativeDateModule } from '@angular/material/core';
 import Swal from 'sweetalert2';
 import { HiringQuestionsComponent } from '../../components/hiring-questions/hiring-questions.component';
 import { Router } from '@angular/router';
+import { UtilityServiceService } from '../../../../../../shared/services/utilityService/utility-service.service';
 
 @Component({
   selector: 'app-hiring-process',
@@ -48,6 +49,7 @@ export class HiringProcessComponent {
 
   constructor(
     private contratacionService: HiringService,
+    private utilityServiceService: UtilityServiceService,
     private fb: FormBuilder,
     private router: Router
   ) {
@@ -422,7 +424,7 @@ export class HiringProcessComponent {
     };
 
     // Obtener datos del local storage
-    const userData = JSON.parse(localStorage.getItem('user') || '{}');
+    const userData = this.utilityServiceService.getUser() || 'null';
     const nombreQuienValidoInformacion = `${userData.primer_nombre || ''} ${userData.primer_apellido || ''}`.trim();
 
     // Obtén los valores del formulario y formatea las fechas

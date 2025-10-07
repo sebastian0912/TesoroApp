@@ -102,7 +102,6 @@ ipcMain.handle('fingerprint:get', async (event) => {
 
     execFile(csharpAppPath, (error, stdout, stderr) => {
       if (error) {
-        console.error(`Error al ejecutar el archivo C#: ${stderr}`);
         reject({ error: stderr });
         return;
       }

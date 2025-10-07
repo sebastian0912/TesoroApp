@@ -132,9 +132,8 @@ export class VacantesComponent implements OnInit {
     // compartir misma lógica de filtro
     this.dataSourceFaltantes.filterPredicate = this.dataSource.filterPredicate;
     this.dataSourceCompletados.filterPredicate = this.dataSource.filterPredicate;
-    console.log('Tablas derivadas reconstruidas. :', this.dataSourceCompletados.data);
-    
-      
+
+
     // re-atachear paginator/sort al dataSource visible
     setTimeout(() => {
       const active = this.getActiveDataSource();
@@ -225,7 +224,7 @@ export class VacantesComponent implements OnInit {
         empresaUsuariaSolicita: result.empresaUsuariaSolicita?.trim() || null,
         finca: result.finca?.trim() || null,
         direccion: result.direccion?.trim() || null,
-        
+
         experiencia: result.experiencia?.trim() || null,
         descripcion: result.descripcion?.trim() || null,
         salario: this.parseCurrency(result.salario),

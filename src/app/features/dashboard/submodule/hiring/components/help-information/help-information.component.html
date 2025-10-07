@@ -1,0 +1,644 @@
+<mat-tab-group class="help-tabs" animationDuration="300ms">
+
+  <!-- ────────────────────────── TAB 1 ─ Info personal ───────────────────────── -->
+  <mat-tab class="tab-info">
+    <ng-template mat-tab-label>
+      <mat-icon>person</mat-icon>
+      Entrevista
+    </ng-template>
+
+    <form [formGroup]="infoPersonalForm" class="datos">
+
+      <!-- ¿Cómo se enteró? (usa opcionesPromocion() que viene de MetaValor[]) -->
+      <mat-form-field class="example-full-width" appearance="outline">
+        <mat-label>¿Cómo se enteró de la vacante?</mat-label>
+        <mat-select formControlName="comoSeEntero">
+          <mat-option *ngFor="let o of opcionesPromocion()" [value]="o?.datos?.codigo ?? o?.id">
+            {{ o?.datos?.descripcion ?? o?.datos?.label ?? o?.datos?.codigo ?? o?.id }}
+          </mat-option>
+        </mat-select>
+        <mat-hint>Seleccione la opción que aplique.</mat-hint>
+        <mat-error *ngIf="infoPersonalForm.get('comoSeEntero')?.touched && infoPersonalForm.get('comoSeEntero')?.hasError('required')">
+          Requerido.
+        </mat-error>
+      </mat-form-field>
+
+      <!-- Tipo de documento -->
+      <mat-form-field class="example-full-width" appearance="outline">
+        <mat-label>Tipo de documento</mat-label>
+        <input matInput formControlName="tipodedocumento" placeholder="CC / CE / PPT">
+        <mat-error *ngIf="infoPersonalForm.get('tipodedocumento')?.touched && infoPersonalForm.get('tipodedocumento')?.hasError('required')">
+          Requerido.
+        </mat-error>
+      </mat-form-field>
+
+      <!-- Número de cédula -->
+      <mat-form-field class="example-full-width" appearance="outline">
+        <mat-label>Número de cédula</mat-label>
+        <input matInput formControlName="numerodecedula" inputmode="numeric">
+        <mat-error *ngIf="infoPersonalForm.get('numerodecedula')?.touched && infoPersonalForm.get('numerodecedula')?.hasError('required')">
+          Requerido.
+        </mat-error>
+        <mat-error *ngIf="infoPersonalForm.get('numerodecedula')?.touched && infoPersonalForm.get('numerodecedula')?.hasError('pattern')">
+          Solo números.
+        </mat-error>
+      </mat-form-field>
+
+      <!-- Nombre completo (informativo) -->
+      <mat-form-field class="example-full-width" appearance="outline">
+        <mat-label>Nombre completo</mat-label>
+        <input matInput formControlName="nombreCompleto" placeholder="(se arma con nombres y apellidos)">
+      </mat-form-field>
+
+      <!-- Fecha de nacimiento -->
+      <mat-form-field appearance="outline" class="example-full-width">
+        <mat-label>Fecha de nacimiento</mat-label>
+        <input
+          matInput
+          [matDatepicker]="pickerNacimiento"
+          formControlName="fechaNacimiento"
+          placeholder="Selecciona la fecha"
+          autocomplete="off"
+          readonly
+          (focus)="pickerNacimiento.open()"
+          (click)="pickerNacimiento.open()"
+        >
+        <mat-datepicker-toggle matSuffix [for]="pickerNacimiento"></mat-datepicker-toggle>
+        <mat-datepicker #pickerNacimiento></mat-datepicker>
+        <mat-error *ngIf="infoPersonalForm.get('fechaNacimiento')?.touched && infoPersonalForm.get('fechaNacimiento')?.hasError('required')">
+          Requerido.
+        </mat-error>
+      </mat-form-field>
+
+      <!-- Edad (solo lectura) -->
+      <mat-form-field class="example-full-width" appearance="outline">
+        <mat-label>Edad</mat-label>
+        <input matInput formControlName="edad" readonly>
+      </mat-form-field>
+
+      <!-- Lugar de nacimiento -->
+      <mat-form-field class="example-full-width" appearance="outline">
+        <mat-label>Lugar de nacimiento</mat-label>
+        <input matInput formControlName="lugarNacimiento" placeholder="Municipio / ciudad">
+        <mat-error *ngIf="infoPersonalForm.get('lugarNacimiento')?.touched && infoPersonalForm.get('lugarNacimiento')?.hasError('required')">
+          Requerido.
+        </mat-error>
+      </mat-form-field>
+
+      <!-- Fecha de expedición -->
+      <mat-form-field appearance="outline" class="example-full-width">
+        <mat-label>Fecha de expedición</mat-label>
+        <input
+          matInput
+          [matDatepicker]="pickerExpedicion"
+          formControlName="fechaExpedicion"
+          placeholder="Selecciona la fecha"
+          autocomplete="off"
+          readonly
+          (focus)="pickerExpedicion.open()"
+          (click)="pickerExpedicion.open()"
+        >
+        <mat-datepicker-toggle matSuffix [for]="pickerExpedicion"></mat-datepicker-toggle>
+        <mat-datepicker #pickerExpedicion></mat-datepicker>
+        <mat-error *ngIf="infoPersonalForm.get('fechaExpedicion')?.touched && infoPersonalForm.get('fechaExpedicion')?.hasError('required')">
+          Requerido.
+        </mat-error>
+      </mat-form-field>
+
+      <!-- Municipio de expedición -->
+      <mat-form-field class="example-full-width" appearance="outline">
+        <mat-label>Municipio de expedición</mat-label>
+        <input matInput formControlName="municipioExpedicion">
+        <mat-error *ngIf="infoPersonalForm.get('municipioExpedicion')?.touched && infoPersonalForm.get('municipioExpedicion')?.hasError('required')">
+          Requerido.
+        </mat-error>
+      </mat-form-field>
+
+      <!-- Barrio -->
+      <mat-form-field class="example-full-width" appearance="outline">
+        <mat-label>Barrio</mat-label>
+        <input matInput formControlName="barrio">
+        <mat-error *ngIf="infoPersonalForm.get('barrio')?.touched && infoPersonalForm.get('barrio')?.hasError('required')">
+          Requerido.
+        </mat-error>
+        <mat-error *ngIf="infoPersonalForm.get('barrio')?.touched && infoPersonalForm.get('barrio')?.hasError('minlength')">
+          Mínimo 3 caracteres.
+        </mat-error>
+        <mat-error *ngIf="infoPersonalForm.get('barrio')?.touched && infoPersonalForm.get('barrio')?.hasError('maxlength')">
+          Máximo 40 caracteres.
+        </mat-error>
+      </mat-form-field>
+
+      <!-- Celular -->
+      <mat-form-field class="example-full-width" appearance="outline">
+        <mat-label>Celular</mat-label>
+        <input matInput formControlName="celular" type="tel" placeholder="3xxxxxxxxx">
+        <mat-hint>Debe iniciar con 3 y tener 10 dígitos.</mat-hint>
+        <mat-error *ngIf="infoPersonalForm.get('celular')?.touched && infoPersonalForm.get('celular')?.hasError('required')">
+          Requerido.
+        </mat-error>
+        <mat-error *ngIf="infoPersonalForm.get('celular')?.touched && infoPersonalForm.get('celular')?.hasError('pattern')">
+          Formato inválido (ej.: 3XXXXXXXXX).
+        </mat-error>
+      </mat-form-field>
+
+      <!-- WhatsApp -->
+      <mat-form-field class="example-full-width" appearance="outline">
+        <mat-label>WhatsApp</mat-label>
+        <input matInput formControlName="whatsapp" type="tel" placeholder="3xxxxxxxxx">
+        <mat-hint>Debe iniciar con 3 y tener 10 dígitos.</mat-hint>
+        <mat-error *ngIf="infoPersonalForm.get('whatsapp')?.touched && infoPersonalForm.get('whatsapp')?.hasError('required')">
+          Requerido.
+        </mat-error>
+        <mat-error *ngIf="infoPersonalForm.get('whatsapp')?.touched && infoPersonalForm.get('whatsapp')?.hasError('pattern')">
+          Formato inválido (ej.: 3XXXXXXXXX).
+        </mat-error>
+        <mat-error *ngIf="infoPersonalForm.get('whatsapp')?.touched && infoPersonalForm.get('whatsapp')?.hasError('maxlength')">
+          Máximo 10 dígitos.
+        </mat-error>
+      </mat-form-field>
+
+      <!-- Género -->
+      <mat-form-field class="example-full-width" appearance="outline">
+        <mat-label>Sexo</mat-label>
+        <mat-select formControlName="genero">
+          <mat-option value="F">Femenino</mat-option>
+          <mat-option value="M">Masculino</mat-option>
+        </mat-select>
+        <mat-error *ngIf="infoPersonalForm.get('genero')?.touched && infoPersonalForm.get('genero')?.hasError('required')">
+          Requerido.
+        </mat-error>
+      </mat-form-field>
+
+      <!-- Estado civil (usa estadosCiviles() que viene de MetaValor[]) -->
+      <mat-form-field class="example-full-width" appearance="outline">
+        <mat-label>Estado civil</mat-label>
+        <mat-select formControlName="estadoCivil">
+          <mat-option *ngFor="let e of estadosCiviles()" [value]="e?.datos?.codigo">
+            {{ e?.datos?.descripcion ?? e?.datos?.codigo }}
+          </mat-option>
+        </mat-select>
+        <mat-error *ngIf="infoPersonalForm.get('estadoCivil')?.touched && infoPersonalForm.get('estadoCivil')?.hasError('required')">
+          Requerido.
+        </mat-error>
+      </mat-form-field>
+
+      <!-- Oficina (requerido) -->
+      <mat-form-field class="example-full-width" appearance="outline">
+        <mat-label>Oficina</mat-label>
+        <input matInput formControlName="oficina" placeholder="Ej. FUNZA, MADRID, BRIGADA...">
+        <mat-error *ngIf="infoPersonalForm.get('oficina')?.touched && infoPersonalForm.get('oficina')?.hasError('required')">
+          Requerido.
+        </mat-error>
+      </mat-form-field>
+
+      <!-- Brigada de (solo si oficina = BRIGADA) -->
+      <mat-form-field
+        class="example-full-width"
+        appearance="outline"
+        *ngIf="(infoPersonalForm.get('oficina')?.value || '').toUpperCase() === 'BRIGADA'">
+        <mat-label>Brigada de</mat-label>
+        <input matInput formControlName="brigadaDe" placeholder="¿De qué brigada?">
+        <mat-error *ngIf="infoPersonalForm.get('brigadaDe')?.touched && !infoPersonalForm.get('brigadaDe')?.value">
+          Requerido cuando la oficina es BRIGADA.
+        </mat-error>
+      </mat-form-field>
+
+      <!-- Con quién vive (multiselección) -->
+      <mat-form-field class="example-full-width" appearance="outline">
+        <mat-label>Con quién vive</mat-label>
+        <mat-select formControlName="conQuienViveChecks" multiple>
+          <mat-option value="PADRE">Padre</mat-option>
+          <mat-option value="MADRE">Madre</mat-option>
+          <mat-option value="PAREJA">Pareja</mat-option>
+          <mat-option value="HIJOS">Hijos</mat-option>
+          <mat-option value="SOLO">Solo</mat-option>
+          <mat-option value="OTROS">Otros</mat-option>
+        </mat-select>
+        <mat-hint>Selecciona todas las que apliquen.</mat-hint>
+        <mat-error *ngIf="infoPersonalForm.get('conQuienViveChecks')?.touched && infoPersonalForm.get('conQuienViveChecks')?.hasError('required')">
+          Requerido.
+        </mat-error>
+      </mat-form-field>
+
+      <!-- ¿Hace cuánto vive en la zona? -->
+      <mat-form-field appearance="outline" class="example-full-width">
+        <mat-label>¿Hace cuánto vive en la zona?</mat-label>
+        <mat-select formControlName="tiempoResidencia" required>
+          <mat-option [value]="'LIFETIME'">Toda la vida</mat-option>
+          <mat-optgroup label="Meses">
+            <mat-option *ngFor="let m of meses" [value]="'M:' + m">
+              {{ m }} {{ m === 1 ? 'mes' : 'meses' }}
+            </mat-option>
+          </mat-optgroup>
+          <mat-optgroup label="Años">
+            <mat-option *ngFor="let y of anios" [value]="'Y:' + y">
+              {{ y }} {{ y === 1 ? 'año' : 'años' }}
+            </mat-option>
+          </mat-optgroup>
+        </mat-select>
+        <mat-hint>Ej.: 6 meses, 3 años o “Toda la vida”.</mat-hint>
+        <mat-error *ngIf="infoPersonalForm.get('tiempoResidencia')?.touched && infoPersonalForm.get('tiempoResidencia')?.hasError('required')">
+          Este campo es obligatorio.
+        </mat-error>
+      </mat-form-field>
+
+      <!-- Experiencia en flores -->
+      <mat-form-field class="example-full-width" appearance="outline">
+        <mat-label>¿Cuenta con experiencia en flores?</mat-label>
+        <mat-select formControlName="experienciaFlores">
+          <mat-option value="Sí">Sí</mat-option>
+          <mat-option value="No">No</mat-option>
+        </mat-select>
+        <mat-error *ngIf="infoPersonalForm.get('experienciaFlores')?.touched && infoPersonalForm.get('experienciaFlores')?.hasError('required')">
+          Requerido.
+        </mat-error>
+      </mat-form-field>
+
+      <!-- Tipo experiencia (solo si Sí) -->
+      <mat-form-field appearance="outline" class="example-full-width"
+        *ngIf="infoPersonalForm.get('experienciaFlores')?.value === 'Sí'">
+        <mat-label>Tipo de experiencia en flores</mat-label>
+        <mat-select formControlName="tipoExperienciaFlores">
+          <mat-option value="CULTIVO">Cultivo</mat-option>
+          <mat-option value="POSCOSECHA">Poscosecha</mat-option>
+          <mat-option value="AMBAS">Ambas</mat-option>
+          <mat-option value="OTROS">Otros</mat-option>
+        </mat-select>
+        <mat-error *ngIf="infoPersonalForm.get('tipoExperienciaFlores')?.touched
+            && infoPersonalForm.get('experienciaFlores')?.value === 'Sí'
+            && !infoPersonalForm.get('tipoExperienciaFlores')?.value">
+          Requerido.
+        </mat-error>
+      </mat-form-field>
+
+      <!-- Otro experiencia (solo si Sí + OTROS) -->
+      <mat-form-field class="example-full-width" appearance="outline"
+        *ngIf="infoPersonalForm.get('experienciaFlores')?.value === 'Sí' &&
+               infoPersonalForm.get('tipoExperienciaFlores')?.value === 'OTROS'">
+        <mat-label>Otro tipo de experiencia</mat-label>
+        <input matInput formControlName="otroExperiencia" maxlength="64">
+        <mat-hint align="end">{{ infoPersonalForm.get('otroExperiencia')?.value?.length || 0 }}/64</mat-hint>
+        <mat-error *ngIf="infoPersonalForm.get('otroExperiencia')?.touched && !infoPersonalForm.get('otroExperiencia')?.value">
+          Requerido.
+        </mat-error>
+      </mat-form-field>
+
+      <!--¿Cómo se proyecta en 1 año?-->
+      <mat-form-field class="example-full-width" appearance="outline">
+        <mat-label>¿Cómo se proyecta en 1 año?</mat-label>
+        <input matInput formControlName="proyeccion1Ano" maxlength="64">
+        <mat-hint align="end">{{ infoPersonalForm.get('proyeccion1Ano')?.value?.length || 0 }}/64</mat-hint>
+        <mat-error *ngIf="infoPersonalForm.get('proyeccion1Ano')?.touched && !infoPersonalForm.get('proyeccion1Ano')?.value">
+          Requerido.
+        </mat-error>
+      </mat-form-field>
+
+      <!-- Escolaridad -->
+      <mat-form-field class="example-full-width" appearance="outline">
+        <mat-label>Escolaridad</mat-label>
+        <input matInput formControlName="escolaridad" placeholder="Escolaridad">
+        <mat-error *ngIf="infoPersonalForm.get('escolaridad')?.touched && infoPersonalForm.get('escolaridad')?.hasError('required')">
+          Requerido.
+        </mat-error>
+      </mat-form-field>
+
+      <!-- ¿Estudia actualmente? -->
+      <mat-form-field class="example-full-width" appearance="outline">
+        <mat-label>¿Estudia actualmente?</mat-label>
+        <mat-select formControlName="estudiaActualmente">
+          <mat-option [value]="true">Sí</mat-option>
+          <mat-option [value]="false">No</mat-option>
+        </mat-select>
+        <mat-error *ngIf="infoPersonalForm.get('estudiaActualmente')?.touched && infoPersonalForm.get('estudiaActualmente')?.hasError('required')">
+          Requerido.
+        </mat-error>
+      </mat-form-field>
+
+      <!-- Referenciado -->
+      <mat-form-field class="example-full-width" appearance="outline">
+        <mat-label>Referenciado</mat-label>
+        <mat-select formControlName="referenciado">
+          <mat-option value="SI">Sí</mat-option>
+          <mat-option value="NO">No</mat-option>
+        </mat-select>
+      </mat-form-field>
+
+      <!-- Nombre del referenciado (si aplica) -->
+      <mat-form-field class="example-full-width" appearance="outline"
+        *ngIf="infoPersonalForm.get('referenciado')?.value === 'SI'">
+        <mat-label>Nombre del referenciado</mat-label>
+        <input matInput formControlName="nombreReferenciado">
+        <mat-error *ngIf="infoPersonalForm.get('nombreReferenciado')?.touched
+            && infoPersonalForm.get('referenciado')?.value === 'SI'
+            && !infoPersonalForm.get('nombreReferenciado')?.value">
+          Requerido cuando es “Sí”.
+        </mat-error>
+      </mat-form-field>
+
+      <!-- ==== HIJOS ==== -->
+      <section class="section" [formGroup]="infoPersonalForm">
+        <div class="section-head">
+          <h3 class="section-title">Información familiar</h3>
+          <div style="height:1px;background:#e5e7eb;margin:6px 0;"></div>
+        </div>
+
+        <div class="grid-2">
+          <!-- ¿Tiene hijos? -->
+          <mat-form-field appearance="outline">
+            <mat-label>¿Tiene hijos?</mat-label>
+            <mat-select formControlName="tieneHijos" required>
+              <mat-option [value]="true">Sí</mat-option>
+              <mat-option [value]="false">No</mat-option>
+            </mat-select>
+            <mat-error *ngIf="infoPersonalForm.get('tieneHijos')?.touched && infoPersonalForm.get('tieneHijos')?.hasError('required')">
+              Este campo es obligatorio.
+            </mat-error>
+          </mat-form-field>
+
+          <div class="placeholder" *ngIf="infoPersonalForm.get('tieneHijos')?.value !== true"></div>
+        </div>
+
+        <!-- Si tiene hijos, mostrar detalles -->
+        <div *ngIf="infoPersonalForm.get('tieneHijos')?.value === true" class="stack">
+          <div class="grid-2">
+            <mat-form-field appearance="outline">
+              <mat-label>¿Quién los cuida?</mat-label>
+              <input matInput formControlName="cuidadorHijos" placeholder="Ej: Madre, Abuela, Guardería...">
+              <mat-error *ngIf="infoPersonalForm.get('cuidadorHijos')?.touched && !infoPersonalForm.get('cuidadorHijos')?.value">
+                Este campo es obligatorio.
+              </mat-error>
+            </mat-form-field>
+
+            <mat-form-field appearance="outline">
+              <mat-label>Número de hijos</mat-label>
+              <input matInput type="number" min="1" formControlName="numeroHijos" placeholder="Ej: 2">
+              <mat-error *ngIf="infoPersonalForm.get('numeroHijos')?.touched && (!infoPersonalForm.get('numeroHijos')?.value || infoPersonalForm.get('numeroHijos')?.value < 1)">
+                Debe ser al menos 1.
+              </mat-error>
+            </mat-form-field>
+          </div>
+
+          <!-- Cards por hijo -->
+          <div formArrayName="hijos" class="cards-stack children">
+            <div class="card" *ngFor="let hijo of hijosFA.controls; let i = index" [formGroupName]="i">
+              <div class="card-title">
+                <span>Hijo {{ i + 1 }}</span>
+              </div>
+              <div class="grid-3">
+                <mat-form-field appearance="outline">
+                  <mat-label>Edad</mat-label>
+                  <input matInput type="number" formControlName="edad" min="0" max="99">
+                  <mat-error *ngIf="hijo.get('edad')?.touched && !hijo.get('edad')?.value">
+                    Requerido.
+                  </mat-error>
+                </mat-form-field>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ==== EXPERIENCIA LABORAL ==== -->
+      <section class="section">
+        <div class="section-head">
+          <h3 class="section-title">Empresas donde ha laborado (Llénenlo si tiene experiencia)</h3>
+          <span class="spacer"></span>
+
+          <button mat-mini-fab color="primary" (click)="agregarExperiencia()" matTooltip="Agregar experiencia">
+            <mat-icon>add</mat-icon>
+          </button>
+        </div>
+
+        <div formArrayName="experiencias" class="cards-stack">
+          <div class="card" *ngFor="let exp of experienciasFA.controls; let i = index" [formGroupName]="i">
+            <div class="card-title">
+              <span>Experiencia {{ i + 1 }}</span>
+              <span class="spacer"></span>
+            </div>
+
+            <div class="grid-2">
+              <mat-form-field appearance="outline">
+                <mat-label>Nombre de la empresa</mat-label>
+                <input matInput formControlName="empresa">
+              </mat-form-field>
+
+              <mat-form-field appearance="outline">
+                <mat-label>Tiempo (meses/años)</mat-label>
+                <input matInput formControlName="tiempo">
+              </mat-form-field>
+            </div>
+
+            <div class="grid-1">
+              <mat-form-field appearance="outline">
+                <mat-label>Labores realizadas</mat-label>
+                <textarea matInput rows="2" formControlName="labores"></textarea>
+              </mat-form-field>
+
+              <mat-form-field appearance="outline">
+                <mat-label>Que labor realiza con mayor facilidad</mat-label>
+                <textarea matInput rows="2" formControlName="labores_principales"></textarea>
+              </mat-form-field>
+
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ¿Observación del evaluador? (select) -->
+      <mat-form-field appearance="outline" class="example-full-width">
+        <mat-label>¿Observación del evaluador?</mat-label>
+        <mat-select formControlName="aplicaObservacion" required>
+          <mat-option value="APLICA">APLICA</mat-option>
+          <mat-option value="NO_APLICA">NO APLICA</mat-option>
+        </mat-select>
+        <mat-error *ngIf="infoPersonalForm.get('aplicaObservacion')?.touched && infoPersonalForm.get('aplicaObservacion')?.hasError('required')">
+          Este campo es requerido.
+        </mat-error>
+      </mat-form-field>
+
+      <!-- Observación del evaluador -->
+      <mat-form-field class="example-full-width" appearance="outline"
+        *ngIf="infoPersonalForm.get('aplicaObservacion')?.value === 'APLICA'">
+        <mat-label>Observación del evaluador</mat-label>
+        <mat-select formControlName="observacionEvaluador">
+          <mat-option value="">-- Seleccione --</mat-option>
+          <mat-option value="ESPERA DE VACANTE">ESPERA DE VACANTE</mat-option>
+        </mat-select>
+      </mat-form-field>
+
+      <!-- ¿Por qué? (solo si observacionEvaluador = "ESPERA DE VACANTE") -->
+      <mat-form-field class="example-full-width" appearance="outline"
+        *ngIf="infoPersonalForm.get('observacionEvaluador')?.value === 'ESPERA DE VACANTE'">
+        <mat-label>¿Por qué está en espera?</mat-label>
+        <input matInput formControlName="motivoEspera">
+        <mat-hint align="start">Máx. 300 caracteres.</mat-hint>
+        <mat-error *ngIf="infoPersonalForm.get('motivoEspera')?.touched && !infoPersonalForm.get('motivoEspera')?.value">
+          Este campo es obligatorio.
+        </mat-error>
+        <mat-error *ngIf="infoPersonalForm.get('motivoEspera')?.touched && (infoPersonalForm.get('motivoEspera')?.value?.length > 300)">
+          Máximo 300 caracteres.
+        </mat-error>
+      </mat-form-field>
+
+      <!-- Motivo (solo si NO_APLICA) -->
+      <mat-form-field appearance="outline" class="example-full-width"
+        *ngIf="infoPersonalForm.get('aplicaObservacion')?.value === 'NO_APLICA'">
+        <mat-label>Motivo (obligatorio)</mat-label>
+        <input matInput formControlName="motivoNoAplica">
+        <mat-error *ngIf="infoPersonalForm.get('motivoNoAplica')?.touched && !infoPersonalForm.get('motivoNoAplica')?.value">
+          Debe especificar el motivo.
+        </mat-error>
+      </mat-form-field>
+
+      <div class="actions">
+        <button mat-flat-button color="primary" (click)="guardarInfoPersonal()" style="min-width: 40vw !important;">
+          Guardar
+        </button>
+      </div>
+    </form>
+  </mat-tab>
+
+  <!-- ───────────────────────── TAB 4 ─ Vacantes ───────────────────────── -->
+  <mat-tab>
+    <ng-template mat-tab-label>
+      <mat-icon>work</mat-icon>
+      Remisión
+    </ng-template>
+
+    <form [formGroup]="vacantesForm" class="form-tab">
+
+      <!-- Selector de vacante (usa signals en trigger y en la lista) -->
+      <mat-form-field class="example-full-width" appearance="outline" style="min-width: 90% !important;">
+        <mat-label>Seleccionar vacante</mat-label>
+
+        <mat-select
+          [value]="selectedVacanteId()"
+          (selectionChange)="onVacanteIdChange($event.value)">
+
+          <!-- Trigger -->
+          <mat-select-trigger>
+            <ng-container *ngIf="vacanteSeleccionada() as v; else placeholderVac">
+              <div class="trigger-wrap">
+                <span class="trigger-title">{{ v.cargo || 'Sin cargo' }}</span>
+                <span class="spacer"></span>
+                <span class="pill pill-req">Req {{ totalRequerida() }}</span>
+                <span class="pill" [ngClass]="pillClasePre(v)">Pre {{ countPre(v) }}</span>
+                <span class="pill" [ngClass]="pillClaseCont(v)">Cont {{ countCont(v) }}</span>
+              </div>
+              <div class="trigger-meta">
+                {{ v.empresaUsuariaSolicita }} — {{ v.finca }} · {{ oficinasResumen(v.oficinasQueContratan) }}
+                · {{ formatShortDate(v.fechaPublicado) }}
+              </div>
+            </ng-container>
+            <ng-template #placeholderVac>Selecciona…</ng-template>
+          </mat-select-trigger>
+
+          <!-- Opciones -->
+          <mat-option *ngFor="let v of vacantes()" [value]="v.id">
+            <div class="vacante-option">
+              <div class="row-1">
+                <span class="cargo">{{ v.cargo || 'Sin cargo' }}</span>
+                <span class="spacer"></span>
+                <span class="pill pill-req">Req {{ totalRequeridaOf(v) }}</span>
+                <span class="pill" [ngClass]="pillClasePre(v)">Pre {{ countPre(v) }}</span>
+                <span class="pill" [ngClass]="pillClaseCont(v)">Cont {{ countCont(v) }}</span>
+              </div>
+              <div class="row-2">
+                <span class="empresa">{{ v.empresaUsuariaSolicita }}</span> —
+                <span class="finca">{{ v.finca }}</span> ·
+                <span class="oficinas">{{ oficinasResumen(v.oficinasQueContratan) }}</span> ·
+                <span class="fecha">{{ formatShortDate(v.fechaPublicado) }}</span>
+              </div>
+            </div>
+          </mat-option>
+        </mat-select>
+      </mat-form-field>
+
+      <!-- Resumen -->
+      <div class="grid">
+        <mat-form-field class="example-full-width" appearance="outline">
+          <mat-label>Tipo</mat-label>
+          <mat-select formControlName="tipo" (selectionChange)="onTipoChange($event.value)">
+            <mat-option value="Autorización de ingreso">Autorización de ingreso</mat-option>
+            <mat-option value="Prueba técnica">Prueba técnica</mat-option>
+          </mat-select>
+        </mat-form-field>
+
+        <!-- Empresa usuaria -->
+        <mat-form-field *ngIf="isAutorizacion() || isPrueba()" class="example-full-width" appearance="outline">
+          <mat-label>Empresa usuaria</mat-label>
+          <input matInput formControlName="empresaUsuaria">
+        </mat-form-field>
+
+        <!-- Cargo -->
+        <mat-form-field *ngIf="isAutorizacion() || isPrueba()" class="example-full-width" appearance="outline">
+          <mat-label>Cargo</mat-label>
+          <input matInput formControlName="cargo">
+        </mat-form-field>
+
+        <!-- SOLO Autorización de ingreso -->
+        <ng-container *ngIf="isAutorizacion()">
+          <mat-form-field class="example-full-width" appearance="outline">
+            <mat-label>Fecha ingreso</mat-label>
+            <input
+              matInput
+              [matDatepicker]="pickerIngreso"
+              formControlName="fechaIngreso"
+              autocomplete="off"
+              readonly
+              (focus)="pickerIngreso.open()"
+              (click)="pickerIngreso.open()"
+            >
+            <mat-datepicker-toggle matSuffix [for]="pickerIngreso"></mat-datepicker-toggle>
+            <mat-datepicker #pickerIngreso></mat-datepicker>
+          </mat-form-field>
+
+          <mat-form-field class="example-full-width" appearance="outline">
+            <mat-label>Salario</mat-label>
+            <input matInput type="text" formControlName="salario" thousandSeparator>
+          </mat-form-field>
+        </ng-container>
+
+        <!-- SOLO Prueba técnica -->
+        <ng-container *ngIf="isPrueba()">
+          <mat-form-field class="example-full-width" appearance="outline">
+            <mat-label>Área</mat-label>
+            <input matInput formControlName="area">
+          </mat-form-field>
+
+          <mat-form-field class="example-full-width" appearance="outline">
+            <mat-label>Fecha de prueba</mat-label>
+            <input
+              matInput
+              [matDatepicker]="pickerPrueba"
+              formControlName="fechaPruebaEntrevista"
+              autocomplete="off"
+              readonly
+              (focus)="pickerPrueba.open()"
+              (click)="pickerPrueba.open()"
+            >
+            <mat-datepicker-toggle matSuffix [for]="pickerPrueba"></mat-datepicker-toggle>
+            <mat-datepicker #pickerPrueba></mat-datepicker>
+          </mat-form-field>
+
+          <mat-form-field class="example-full-width" appearance="outline">
+            <mat-label>Hora de prueba</mat-label>
+            <input matInput type="time" formControlName="horaPruebaEntrevista">
+          </mat-form-field>
+
+          <mat-form-field class="example-full-width" appearance="outline">
+            <mat-label>Dirección de la empresa</mat-label>
+            <input matInput formControlName="direccionEmpresa">
+          </mat-form-field>
+        </ng-container>
+      </div>
+
+      <div class="actions">
+        <button mat-flat-button color="primary" [disabled]="vacantesForm.invalid" (click)="guardarVacantes()">
+          Guardar
+        </button>
+      </div>
+    </form>
+  </mat-tab>
+</mat-tab-group>

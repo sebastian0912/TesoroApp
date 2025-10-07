@@ -162,7 +162,6 @@ export class UploadTreasuryComponent {
 
           this.bumpCard('saldos');
         } catch (e) {
-          console.error(e);
           Swal.fire({ icon: 'error', title: 'Error', text: 'No se pudo completar la actualización masiva.' });
         }
       }

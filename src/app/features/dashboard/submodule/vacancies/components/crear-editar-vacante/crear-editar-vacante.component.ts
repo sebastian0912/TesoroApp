@@ -114,12 +114,13 @@ export class CrearEditarVacanteComponent implements OnInit {
     private vacantesService: VacantesService,
     private positionsService: PositionsService,
     private fincasService: FincasService,
+    private utilityService: UtilityServiceService
   ) {
     this.today.setHours(0, 0, 0, 0);
   }
 
   async ngOnInit(): Promise<void> {
-    this.user = JSON.parse(localStorage.getItem('user') || '{}');
+    this.user = this.utilityService.getUser() || 'null';
 
     this.vacanteForm = this.fb.group(
       {
@@ -193,7 +194,6 @@ export class CrearEditarVacanteComponent implements OnInit {
           );
         },
         error: (err) => {
-          console.error('Error cargando cargos', err);
           this.cargos = [];
           this.filteredCargos = cargoCtrl.valueChanges.pipe(
             startWith(cargoCtrl.value ?? ''),

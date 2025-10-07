@@ -4,6 +4,7 @@ import { isPlatformBrowser } from '@angular/common';
 import { Router } from '@angular/router';
 import Swal from 'sweetalert2';
 import { UtilityServiceService } from '../../../../shared/services/utilityService/utility-service.service';
+import { firstValueFrom } from 'rxjs';
 
 @Component({
   selector: 'app-sidebar',
@@ -16,87 +17,106 @@ import { UtilityServiceService } from '../../../../shared/services/utilityServic
 export class SidebarComponent {
   role: string = '';
   username: string = '';
+  documento: string = '';
   appVersion: string = '';
 
+  // Nombre visible de la sede actual del usuario
   sede: string = '';
+  // Listado de sedes para el selector
   sedes: any[] = [];
 
   constructor(
     @Inject(PLATFORM_ID) private platformId: Object,
     private adminService: UtilityServiceService,
     private router: Router
-  ) { }
+  ) {}
 
   async ngOnInit(): Promise<void> {
-    const user = this.adminService.getUser();
+    const user: any = this.adminService.getUser?.()  || 'null';
     if (!user) return;
-    this.sede = user.sede.nombre;
-    this.role = user.rol.nombre;
-    this.username = user.datos_basicos.nombres + ' ' + user.datos_basicos.apellidos;
+
+    this.sede = user?.sede?.nombre ?? '';
+    this.role = user?.rol?.nombre ?? '';
+    this.documento = user?.numero_de_documento ?? '';
+    this.username = [user?.datos_basicos?.nombres, user?.datos_basicos?.apellidos].filter(Boolean).join(' ');
     this.getAppVersion();
+    await this.cargarSedes();
   }
 
-  getAppVersion() {
-    // Verificar si estamos en el entorno del navegador
+  getAppVersion(): void {
     if (isPlatformBrowser(this.platformId)) {
-      // Comprobar si window.electron está disponible
-      if (window.electron && window.electron.version) {
-        window.electron.version.get().then((response: any) => {
-          this.appVersion = response;
-        });
+      const w = window as any;
+      if (w.electron?.version?.get) {
+        w.electron.version.get().then((response: any) => (this.appVersion = response));
       }
     }
   }
 
-
   async cargarSedes(): Promise<void> {
-    (await this.adminService.traerSucursales()).subscribe((data: any) => {
-      // ordenar por nombre
-      if (data) {
-        data.sort((a: any, b: any) => a.nombre.localeCompare(b.nombre));
-        this.sedes = data;
+    try {
+      const data: any = await firstValueFrom(this.adminService.traerSucursales());
+      // Soporta distintos formatos de respuesta
+      const lista = Array.isArray(data?.results)
+        ? data.results
+        : Array.isArray(data)
+          ? data
+          : Array.isArray(data?.sucursal)
+            ? data.sucursal
+            : [];
+
+      this.sedes = [...lista].sort((a: any, b: any) => (a?.nombre ?? '').localeCompare(b?.nombre ?? ''));
+    } catch (err) {
+      Swal.fire('Error', 'No fue posible cargar las sedes.', 'error');
+    }
+  }
+
+  /**
+   * Cambia la sede del usuario actual.
+   * Espera un UUID de sede (string). Si tu template envía el objeto, pasa su .id.
+   */
+  onSedeSeleccionada(sedeId: string): void {
+    const user: any = this.adminService.getUser?.() || 'null';
+
+    // Llamamos el servicio que cambia la sede por cédula (envía UUID)
+    this.adminService.cambiarSedePorUsuarioId(user.id, sedeId).subscribe({
+      next: (res: any) => {
+        // Respuesta esperada: { ok: boolean, changed: boolean, sede_id, sede }
+        if (!res?.ok) {
+          Swal.fire('Error', 'Hubo un problema al asignar la sede.', 'error');
+          return;
+        }
+
+        // Buscar el nombre desde el catálogo local si viene solo el id
+        const sedeEncontrada = this.sedes.find(s => String(s.id) === String(res.sede_id || sedeId));
+        const nombreSede = res?.sede ?? sedeEncontrada?.nombre ?? this.sede;
+
+        // Actualizar user en memoria/localStorage
+        user.sede = {
+          id: res?.sede_id ?? sedeEncontrada?.id ?? sedeId,
+          nombre: nombreSede,
+          activa: sedeEncontrada?.activa ?? true
+        };
+        this.sede = nombreSede;
+
+        // Persistir
+        try {
+          localStorage.setItem('user', JSON.stringify(user));
+        } catch {}
+
+        Swal.fire('Editado', 'La sede ha sido asignada.', 'success').then(() => {
+          const currentUrl = this.router.url;
+          this.router.navigateByUrl('/dashboard', { skipLocationChange: true }).then(() => {
+            this.router.navigateByUrl(currentUrl);
+          });
+        });
+      },
+      error: (err) => {
+        Swal.fire('Error', 'Hubo un problema al asignar la sede.', 'error');
       }
     });
   }
 
-  onSedeSeleccionada(sede: string): void {
-    const user = this.adminService.getUser();
-    if (user) {
-      this.adminService.editarSede(user.numero_de_documento, sede).subscribe({
-        next: (response) => {
-          if (response.message === 'error') {
-            Swal.fire('Error!', 'Hubo un problema al asignar la sede, vuelva a intentarlo.', 'error');
-          } else if (response.message === 'success') {
-            // 🔥 corregido: actualizar el objeto correcto
-            if (user.sede) {
-              user.sede.nombre = sede;
-            } else {
-              user.sede = { id: '', nombre: sede, activa: true }; // fallback si no existiera
-            }
-
-            this.sede = sede;
-            localStorage.setItem('user', JSON.stringify(user));
-
-            Swal.fire('Editado!', 'La sede ha sido asignada.', 'success').then(() => {
-              const currentUrl = this.router.url; // Guarda la URL actual
-              this.router.navigateByUrl('/dashboard', { skipLocationChange: true }).then(() => {
-                this.router.navigateByUrl(currentUrl); // Usa la URL guardada
-              });
-            });
-          }
-        },
-        error: () => {
-          Swal.fire('Error!', 'Hubo un problema al asignar la sede.', 'error');
-        },
-      });
-    } else {
-      Swal.fire('Error!', 'No se encontró información del usuario.', 'error');
-    }
-  }
-
-
   prueba(): void {
-    // dirigir a la página de inicio
     this.router.navigate(['/dashboard/users/change-password']);
   }
 }

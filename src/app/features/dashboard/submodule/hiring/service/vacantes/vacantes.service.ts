@@ -111,7 +111,7 @@ export class VacantesService {
   getVacantesPorOficina(nombreOficina: string): Observable<any[]> {
     const url = `${this.apiUrl}/publicacion/vacantes-por-nombre-oficina/${encodeURIComponent(nombreOficina)}/`;
     return this.http.get<any[]>(url);
-  } 
+  }
 
 
   // -----------------------
@@ -124,7 +124,7 @@ export class VacantesService {
   setEstadoVacanteAplicante(
     id: any,
     field: EstadoField,
-    cedula: string
+    cedula: any
   ): Observable<EstadoResponse> {
     const url = `${this.apiUrl}/publicacion/cambioestado/${id}/estado/${field}/`;
     const body = { cedula, op: 'add' }; // siempre add

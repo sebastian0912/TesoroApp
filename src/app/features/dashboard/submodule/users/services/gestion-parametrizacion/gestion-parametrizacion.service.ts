@@ -14,10 +14,6 @@ export interface MetaCampo {
   obligatorio: boolean;
   visible: boolean;
   orden: number;
-  regex?: string | null;
-  placeholder?: string | null;
-  help?: string | null;
-  config: Record<string, any>; // ej. { min_len, max_len, enum_values, default, ... }
   activo: boolean;
   tabla?: string;              // UUID (en responses puede venir o no, útil para POST/PUT)
 }
@@ -25,12 +21,12 @@ export interface MetaCampo {
 export interface MetaTabla {
   id: string;                  // UUID
   codigo: string;              // ej. "AFILIADO"
-  nombre: string;
   descripcion?: string | null;
   activo: boolean;
   created_at: string;
   updated_at: string;
   campos: MetaCampo[];         // prefetch en el ViewSet
+  // allow_extra_fields?: boolean; // opcional si lo agregaste en el modelo
 }
 
 export interface MetaValor {
@@ -40,6 +36,7 @@ export interface MetaValor {
   activo: boolean;
   created_at: string;
   updated_at: string;
+  // referencia?: string | null; // solo si la agregas como columna real
 }
 
 /** Respuesta paginada DRF (si la habilitas) */
@@ -61,7 +58,7 @@ export interface MetaValorFilters {
 
 /** Filtros para meta/campos */
 export interface MetaCampoFilters {
-  tablaId?: string;       // ?tabla=<uuid>
+  tabla?: string;         // ?tabla=<uuid> o ?tabla=<codigo>
   activo?: boolean;
   page?: number;
   page_size?: number;
@@ -70,11 +67,11 @@ export interface MetaCampoFilters {
 @Injectable({ providedIn: 'root' })
 export class GestionParametrizacionService {
   private http = inject(HttpClient);
-  private base = `${environment.apiUrl}/gestion_catalogos`;
+  private base = `${environment.apiUrl.replace(/\/$/, '')}/gestion_catalogos`;
 
   // ===== Helpers =====
   private unwrapMaybePaginated<T>() {
-    return map((res: T[] | DRFPaginated<T>) => (this.isPaginated(res) ? res.results : (res as T[])));
+    return map((res: T[] | DRFPaginated<T>) => (this.isPaginated(res) ? (res as DRFPaginated<T>).results : (res as T[])));
   }
   private isPaginated<T>(res: any): res is DRFPaginated<T> {
     return res && typeof res === 'object' && Array.isArray(res.results);
@@ -94,9 +91,12 @@ export class GestionParametrizacionService {
    *  =========================== */
 
   /** Lista todas las tablas (si hay paginación, devuelve results) */
-  listMetaTablas(): Observable<MetaTabla[]> {
+  listMetaTablas(params?: { created_from?: string; created_to?: string; ordering?: string; }): Observable<MetaTabla[]> {
     return this.http
-      .get<MetaTabla[] | DRFPaginated<MetaTabla>>(`${this.base}/meta/tablas/`)
+      .get<MetaTabla[] | DRFPaginated<MetaTabla>>(
+        `${this.base}/meta/tablas/`,
+        { params: this.qp(params) }
+      )
       .pipe(this.unwrapMaybePaginated<MetaTabla>());
   }
 
@@ -124,10 +124,13 @@ export class GestionParametrizacionService {
    *  MetaCampos (CRUD)
    *  =========================== */
 
-  /** Lista campos filtrando por tabla UUID (?tabla=<uuid>). Soporta paginación. */
+  /**
+   * Lista campos filtrando por tabla (?tabla=<uuid> o ?tabla=<codigo>).
+   * Soporta paginación si está activa en DRF.
+   */
   listMetaCampos(filters: MetaCampoFilters = {}): Observable<MetaCampo[]> {
     const params = this.qp({
-      tabla: filters.tablaId,
+      tabla: filters.tabla,
       activo: typeof filters.activo === 'boolean' ? String(filters.activo) : undefined,
       page: filters.page,
       page_size: filters.page_size,
@@ -138,12 +141,17 @@ export class GestionParametrizacionService {
   }
 
   /** Crea un campo (debes enviar tabla: <uuid>) */
-  createMetaCampo(payload: Omit<MetaCampo, 'id'> & { tabla: string }): Observable<MetaCampo> {
+  createMetaCampo(payload: {
+    tabla: string; campo: string; tipo: CampoTipo;
+    obligatorio?: boolean; visible?: boolean; orden?: number; activo?: boolean;
+  }): Observable<MetaCampo> {
     return this.http.post<MetaCampo>(`${this.base}/meta/campos/`, payload);
   }
 
   /** Actualiza parcialmente un campo */
-  updateMetaCampo(id: string, partial: Partial<MetaCampo>): Observable<MetaCampo> {
+  updateMetaCampo(id: string, partial: Partial<{
+    campo: string; tipo: CampoTipo; obligatorio: boolean; visible: boolean; orden: number; activo: boolean;
+  }>): Observable<MetaCampo> {
     return this.http.patch<MetaCampo>(`${this.base}/meta/campos/${encodeURIComponent(id)}/`, partial);
   }
 
@@ -176,7 +184,7 @@ export class GestionParametrizacionService {
   }
 
   /**
-   * Crea un MetaValor recibiendo { tabla(UUID), referencia?, datos }.
+   * Crea un MetaValor recibiendo { tabla(UUID), datos, activo? }.
    * La validación central se hace en el backend (clean()).
    */
   createMetaValor(payload: Pick<MetaValor, 'tabla' | 'datos'> & { activo?: boolean }): Observable<MetaValor> {
@@ -184,9 +192,12 @@ export class GestionParametrizacionService {
   }
 
   /** (Convenience) Crea un MetaValor pasando el código de tabla (resuelve UUID) */
-  createMetaValorByCodigo(tablaCodigo: string, body: Omit<MetaValor, 'id' | 'tabla' | 'created_at' | 'updated_at'>): Observable<MetaValor> {
+  createMetaValorByCodigo(
+    tablaCodigo: string,
+    body: Omit<MetaValor, 'id' | 'tabla' | 'created_at' | 'updated_at'>
+  ): Observable<MetaValor> {
     return this.getMetaTablaByCodigo(tablaCodigo).pipe(
-      switchMap(tabla => this.createMetaValor({ tabla: tabla.id, datos: body.datos, activo: body.activo }))
+      switchMap(tabla => this.createMetaValor({ tabla: tabla.id, datos: body.datos, activo: (body as any).activo }))
     );
   }
 
@@ -203,6 +214,30 @@ export class GestionParametrizacionService {
   /** Borra (DELETE) un MetaValor */
   deleteMetaValor(id: string): Observable<void> {
     return this.http.delete<void>(`${this.base}/meta/valores/${encodeURIComponent(id)}/`);
+  }
+
+  /** ===========================
+   *  Valores por código de tabla (endpoint anidado)
+   *  ===========================
+   *  GET /meta/tablas/TIPO_CONTRATO/valores/
+   *  GET /meta/tablas/TIPO_CONTRATO/valores/?activo=true&referencia=XYZ
+   */
+  listMetaValoresByTablaCodigo(
+    codigo: string,
+    filters: Omit<MetaValorFilters, 'tablaCodigo'> = {}
+  ): Observable<MetaValor[]> {
+    const params = this.qp({
+      referencia: filters.referencia,
+      activo: typeof filters.activo === 'boolean' ? String(filters.activo) : undefined,
+      page: filters.page,
+      page_size: filters.page_size,
+    });
+    return this.http
+      .get<MetaValor[] | DRFPaginated<MetaValor>>(
+        `${this.base}/meta/tablas/${encodeURIComponent(codigo)}/valores/`,
+        { params }
+      )
+      .pipe(this.unwrapMaybePaginated<MetaValor>());
   }
 
   /** ===========================

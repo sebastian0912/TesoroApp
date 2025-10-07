@@ -1,5 +1,5 @@
 import { Injectable, Inject, PLATFORM_ID } from '@angular/core';
-import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
+import { HttpClient, HttpParams } from '@angular/common/http';
 import { isPlatformBrowser } from '@angular/common';
 import { firstValueFrom, Observable, throwError } from 'rxjs';
 import { map, catchError } from 'rxjs/operators';
@@ -20,27 +20,8 @@ export class SeleccionService {
 
   constructor(private http: HttpClient, @Inject(PLATFORM_ID) private platformId: Object) { }
 
-  private getToken(): string | null {
-    if (isPlatformBrowser(this.platformId)) {
-      return localStorage.getItem('token');
-    }
-    return null;
-  }
-
-  private createAuthorizationHeader(): HttpHeaders {
-    const token = this.getToken();
-    return token ? new HttpHeaders().set('Authorization', `${token}`) : new HttpHeaders();
-  }
-
   private handleError(error: any): Observable<never> {
     return throwError(() => error);
-  }
-
-  async getUser(): Promise<any> {
-    if (isPlatformBrowser(this.platformId)) {
-      return JSON.parse(localStorage.getItem('user') || '{}');
-    }
-    return null;
   }
 
   public getSeleccion(cedula: any): Observable<any> {
@@ -52,13 +33,11 @@ export class SeleccionService {
 
   // Método para generar el código de contratación
   public generarCodigoContratacion(officePrefix: string, cedula: string): Observable<any> {
-    const headers = this.createAuthorizationHeader();
-
     // Agregar el prefijo de oficina y cedula como parámetros de la query string
     let params = new HttpParams()
       .set('office_prefix', officePrefix)
       .set('cedula', cedula);  // Añadir cedula al parámetro
-    return this.http.get(`${this.apiUrl}/contratacion/generarCodigoContratacion/`, { headers, params }).pipe(
+    return this.http.get(`${this.apiUrl}/contratacion/generarCodigoContratacion/`, {  params }).pipe(
       map((response: any) => response),  // Procesa la respuesta
       catchError(this.handleError)       // Manejo de errores
     );
@@ -70,8 +49,6 @@ export class SeleccionService {
     cedula: any,
     seleccion?: any | null
   ): Observable<any> {
-    const headers = this.createAuthorizationHeader(); // <-- Debe incluir Authorization: Bearer <token>
-
     // Normalizaciones rápidas
     const toInt = (v: any, def = 0) => {
       const n = parseInt(String(v ?? '').trim(), 10);
@@ -103,7 +80,7 @@ export class SeleccionService {
 
     // IMPORTANTE: ya NO enviamos jwt crearSeleccionParteUnoCandidato
     return this.http
-      .post(`${this.apiUrl}/Seleccion/crearSeleccionParteUnoCandidato`, requestData, { headers })
+      .post(`${this.apiUrl}/Seleccion/crearSeleccionParteUnoCandidato`, requestData, )
       .pipe(
         map((response: any) => response),
         catchError(this.handleError)
@@ -113,10 +90,10 @@ export class SeleccionService {
 
   public crearSeleccionParteDosCandidato(
     formData: any | FormGroup,
-    cedula: string,
-    seleccion?: number | null
+    cedula: any,
+    seleccion?: any
   ): Observable<any> {
-    const headers = this.createAuthorizationHeader(); // Debe incluir Authorization: Bearer <token>
+     // Debe incluir Authorization: Bearer <token>
 
     // Acepta FormGroup o plain object
     const raw: any = (formData && (formData as FormGroup).value)
@@ -190,7 +167,7 @@ export class SeleccionService {
 
     // IMPORTANTE: no enviamos jwt en el body; va en headers
     return this.http
-      .post(`${this.apiUrl}/Seleccion/crearSeleccionparteDoscandidato`, requestData, { headers })
+      .post(`${this.apiUrl}/Seleccion/crearSeleccionparteDoscandidato`, requestData, )
       .pipe(
         map((response: any) => response),
         catchError(this.handleError)
@@ -205,7 +182,7 @@ export class SeleccionService {
     cedula: string,
     seleccion?: number | null
   ): Observable<any> {
-    const headers = this.createAuthorizationHeader();
+
 
     // Acepta FormGroup o plain object
     const raw: any = (formData && (formData as FormGroup).value)
@@ -239,7 +216,7 @@ export class SeleccionService {
     }
 
     return this.http
-      .post(`${this.apiUrl}/Seleccion/crearSeleccionparteTrescandidato`, requestData, { headers })
+      .post(`${this.apiUrl}/Seleccion/crearSeleccionparteTrescandidato`, requestData, )
       .pipe(
         map((response: any) => response),
         catchError(this.handleError)
@@ -249,7 +226,7 @@ export class SeleccionService {
 
   // Mandar parte cuatro de la selección
   public crearSeleccionParteCuatroCandidato(formData: any, cedula: string, numeroContrato: string): Observable<any> {
-    const headers = this.createAuthorizationHeader();
+
 
     // Mapear los nombres de los campos del formulario a los nombres esperados por Django
     const requestData = {
@@ -264,7 +241,7 @@ export class SeleccionService {
       bonificacion: formData.bonificacion
     };
 
-    return this.http.post(`${this.apiUrl}/Seleccion/crearSeleccionparteCuatrocandidato`, requestData, { headers }).pipe(
+    return this.http.post(`${this.apiUrl}/Seleccion/crearSeleccionparteCuatrocandidato`, requestData, ).pipe(
       map((response: any) => response),
       catchError(this.handleError)
     );
@@ -273,8 +250,8 @@ export class SeleccionService {
 
 
   public guardarInfoPersonal(data: any): Observable<any> {
-    const headers = this.createAuthorizationHeader();
-    return this.http.post(`${this.apiUrl}/entrevista/info-personal-alt/`, data, { headers }).pipe(
+
+    return this.http.post(`${this.apiUrl}/entrevista/info-personal-alt/`, data, ).pipe(
       map((response: any) => response),
       catchError(this.handleError)
     );
@@ -282,8 +259,8 @@ export class SeleccionService {
 
   // --- Guardar Entrevista ---
   public guardarEntrevista(data: any): Observable<any> {
-    const headers = this.createAuthorizationHeader();
-    return this.http.post(`${this.apiUrl}/entrevista/entrevista/`, data, { headers }).pipe(
+
+    return this.http.post(`${this.apiUrl}/entrevista/entrevista/`, data, ).pipe(
       map((response: any) => response),
       catchError(this.handleError)
     );
@@ -291,8 +268,8 @@ export class SeleccionService {
 
   // --- Guardar Observaciones ---
   public guardarObservaciones(data: any): Observable<any> {
-    const headers = this.createAuthorizationHeader();
-    return this.http.post(`${this.apiUrl}/entrevista/observaciones/`, data, { headers }).pipe(
+
+    return this.http.post(`${this.apiUrl}/entrevista/observaciones/`, data, ).pipe(
       map((response: any) => response),
       catchError(this.handleError)
     );
@@ -300,8 +277,8 @@ export class SeleccionService {
 
   // --- Guardar Vacantes ---
   public guardarVacantes(data: any): Observable<any> {
-    const headers = this.createAuthorizationHeader();
-    return this.http.post(`${this.apiUrl}/entrevista/vacantes/`, data, { headers }).pipe(
+
+    return this.http.post(`${this.apiUrl}/entrevista/vacantes/`, data, ).pipe(
       map((response: any) => response),
       catchError(this.handleError)
     );
@@ -309,8 +286,8 @@ export class SeleccionService {
 
   // listado-candidatos/
   public getCandidatos(): Observable<any> {
-    const headers = this.createAuthorizationHeader();
-    return this.http.get(`${this.apiUrl}/entrevista/listado-candidatos/`, { headers }).pipe(
+
+    return this.http.get(`${this.apiUrl}/entrevista/listado-candidatos/`, ).pipe(
       map((response: any) => response),
       catchError(this.handleError)
     );
@@ -318,9 +295,9 @@ export class SeleccionService {
 
   // exportar-candidatos-excel/
   public exportarCandidatosExcel(rangoFechas: { start: string; end: string }): Observable<Blob> {
-    const headers = this.createAuthorizationHeader();
+
     return this.http.post(`${this.apiUrl}/entrevista/exportar-candidatos-excel/`, rangoFechas, {
-      headers,
+
       responseType: 'blob',
     }).pipe(
       catchError(this.handleError)
@@ -328,9 +305,9 @@ export class SeleccionService {
   }
 
   public exportarCandidatosPorOficinaExcel(payload: { start: string; end: string; oficina: string }): Observable<Blob> {
-    const headers = this.createAuthorizationHeader();
+
     return this.http.post(`${this.apiUrl}/entrevista/exportar-candidatos-por-oficina-excel/`, payload, {
-      headers,
+
       responseType: 'blob',
     }).pipe(
       catchError(this.handleError)
@@ -348,8 +325,8 @@ export class SeleccionService {
 
   // 'seleccion/<int:id>/'
   public getSeleccionPorId(id: any): Observable<any> {
-    const headers = this.createAuthorizationHeader();
-    return this.http.get(`${this.apiUrl}/Seleccion/seleccion/${id}/`, { headers }).pipe(
+
+    return this.http.get(`${this.apiUrl}/Seleccion/seleccion/${id}/`, ).pipe(
       map((response: any) => response),
       catchError(this.handleError)
     );
@@ -362,7 +339,7 @@ export class SeleccionService {
  * @param vacante - ID de la vacante a asignar
  * @param codigoContrato - (opcional) código de contrato
  */
-  setVacante(cedula: string, vacante: any, codigoContrato?: string): Observable<any> {
+  setVacante(cedula: any, vacante: any, codigoContrato?: string): Observable<any> {
     const url = `${this.apiUrl}/contratacion/proceso-seleccion/${cedula}/set-vacante/`;
     const body: any = { vacante };
     if (codigoContrato) {
@@ -371,7 +348,6 @@ export class SeleccionService {
 
     return this.http.post(url, body).pipe(
       catchError(err => {
-        console.error('Error al asignar la vacante', err);
         return throwError(() => err);
       })
     );

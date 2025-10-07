@@ -6,6 +6,7 @@ import { catchError } from 'rxjs/operators';
 import Swal from 'sweetalert2';
 import jsPDF from 'jspdf';
 import { environment } from '../../../../../../../environments/environment.development';
+import { UtilityServiceService } from '@/app/shared/services/utilityService/utility-service.service';
 
 @Injectable({
   providedIn: 'root'
@@ -15,7 +16,7 @@ export class AutorizacionesService {
 
   private apiUrl = environment.apiUrl;
 
-  constructor(private http: HttpClient, @Inject(PLATFORM_ID) private platformId: Object) { }
+  constructor(private http: HttpClient, @Inject(PLATFORM_ID) private platformId: Object, private utilityService: UtilityServiceService) { }
 
   private handleError(error: any): Observable<never> {
     throw error;
@@ -69,7 +70,7 @@ export class AutorizacionesService {
 
   // Verificar condiciones
   verificarCondiciones(operario: any, nuevovalor: number, sumaTotal: number, tipo: 'prestamo' | 'mercado'): boolean {
-    let user = JSON.parse(localStorage.getItem('user') || '{}');
+    let user = this.utilityService.getUser() || 'null';
 
     if (operario.bloqueado) {
       this.aviso('Ups no se pueden generar préstamos ni mercado, el empleado está bloqueado', 'error');

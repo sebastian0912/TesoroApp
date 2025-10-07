@@ -185,7 +185,6 @@ export class GestionParametrizacionComponent implements OnInit {
 
   /** ===== Diálogo de Config (Campos / Valores) desde acciones ===== */
   openMetaConfig(row: MetaTabla, mode: 'campos' | 'valores') {
-    console.log('Abriendo diálogo de MetaConfig', { row, mode });
     const ref = this.dialog.open(MetaConfigDialogComponent, {
       minWidth: '70vw',
       data: { mode, tabla: row }   // ← pasa el objeto completo, más robusto

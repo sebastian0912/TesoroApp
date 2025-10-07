@@ -183,13 +183,6 @@ export class HiringService {
     }
   }
 
-  async getUser(): Promise<any> {
-    if (isPlatformBrowser(this.platformId)) {
-      return JSON.parse(localStorage.getItem('user') || '{}');
-    }
-    return null;
-  }
-
   // Generar el excel de arl
   async generarExcelArl(
     datos: any

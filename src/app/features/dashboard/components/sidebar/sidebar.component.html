@@ -4,15 +4,20 @@
   </div>
   <div class="perfil">
     <div class="opciones">
-      <div class="informacion">
-        <h1 class="titulo">Hola, <span id="username">{{username}}</span></h1>
-        <h1 id="perfil" class="titulo">{{role}} / {{sede}}</h1>
-        <h1 id="perfil" class="titulo">Versión: {{appVersion}}</h1>
 
+      <div class="perfil-container">
+        <div class="perfil-info">
+          <h1 class="titulo">Hola, <span class="username">{{ username }}</span></h1>
+          <p class="detalle">Documento: <span>{{ documento }}</span></p>
+          <p class="detalle">{{ role }} / {{ sede }}</p>
+          <p class="detalle version">Versión: {{ appVersion }}</p>
+        </div>
       </div>
 
+
       <div class="botonConfig">
-        <button mat-icon-button [matMenuTriggerFor]="menu" aria-label="Configuración" class="icono" (menuOpened)="cargarSedes()">
+        <button mat-icon-button [matMenuTriggerFor]="menu" aria-label="Configuración" class="icono"
+          (menuOpened)="cargarSedes()">
           <mat-icon>settings</mat-icon>
         </button>
 
@@ -33,7 +38,7 @@
         </mat-menu>
 
         <mat-menu #sedeMenu="matMenu">
-          <button mat-menu-item *ngFor="let sede of sedes" (click)="onSedeSeleccionada(sede.nombre)">
+          <button mat-menu-item *ngFor="let sede of sedes" (click)="onSedeSeleccionada(sede.id)">
             {{ sede.nombre }}
           </button>
         </mat-menu>

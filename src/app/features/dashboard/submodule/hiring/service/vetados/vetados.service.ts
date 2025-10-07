@@ -13,26 +13,8 @@ export class VetadosService {
 
   constructor(private http: HttpClient, @Inject(PLATFORM_ID) private platformId: Object) { }
 
-  private getToken(): string | null {
-    if (isPlatformBrowser(this.platformId)) {
-      return localStorage.getItem('token');
-    }
-    return null;
-  }
-
-  async getUser(): Promise<any> {
-    if (isPlatformBrowser(this.platformId)) {
-      const user = localStorage.getItem('user');
-      if (user) {
-        return JSON.parse(user);
-      }
-    }
-    return null;
-  }
-
   // Enviar reporte de candidato vetado
   enviarReporte(reporte: any, sede: string): Observable<any> {
-    reporte.jwt = this.getToken();
     reporte.sede = sede;
     return this.http.post(`${this.apiUrl}/vetados/vetados/`, reporte,);
   }
@@ -63,15 +45,9 @@ export class VetadosService {
   // Actualizar reporte de candidato vetado
   async actualizarReporte(reporte: any, Categoria: any): Promise<Observable<any>> {
     let nombreRol = "";
-    await this.getUser().then((data: any) => {
-      nombreRol = data.datos_basicos.nombres + " " + data.datos_basicos.apellidos + " - " + data.rol.nombre;
-    });
-    Categoria.jwt = this.getToken();
     Categoria.autorizado_por = nombreRol;
-
     // cambiar de id a categoria_id de categoria
     Categoria.categoria_id = Categoria.id;
-
     return this.http.put(`${this.apiUrl}/vetados/vetados/update/${reporte.id}`, Categoria);
   }
 
@@ -81,11 +57,9 @@ export class VetadosService {
     return this.http.post<any>(`${this.apiUrl}/vetados/bulk-upload/`, fd);
   }
 
-
   //------------------------ categorias ------------------------
   // Listar categorias de vetados
   listarCategorias(): Observable<any> {
-
     return this.http.get(`${this.apiUrl}/vetados/categorias`,);
   }
 

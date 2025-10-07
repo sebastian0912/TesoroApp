@@ -4,6 +4,7 @@ import { isPlatformBrowser } from '@angular/common';
 import { firstValueFrom, Observable } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 import { environment } from '../../../../../../../environments/environment.development';
+import { UtilityServiceService } from '@/app/shared/services/utilityService/utility-service.service';
 
 @Injectable({
   providedIn: 'root',
@@ -13,15 +14,9 @@ export class PrestamoService {
 
   constructor(
     private http: HttpClient,
-    @Inject(PLATFORM_ID) private platformId: Object
+    @Inject(PLATFORM_ID) private platformId: Object,
+    private utilityService: UtilityServiceService
   ) {}
-
-  public getUser(): any {
-    if (isPlatformBrowser(this.platformId)) {
-      return JSON.parse(localStorage.getItem('user') || '{}');
-    }
-    return null;
-  }
 
   private handleError(error: any): Observable<never> {
     throw error;
@@ -36,7 +31,7 @@ export class PrestamoService {
     historial_id: number,
     cuotas: number
   ): Promise<any> {
-    const user = this.getUser();
+    const user = this.utilityService.getUser();
     const usernameLocal = `${user.datos_basicos.nombres} ${user.datos_basicos.apellidos}`;
 
     const fecha = new Date().toISOString().split('T')[0];
@@ -76,7 +71,7 @@ export class PrestamoService {
     historial_id: number,
     cuotas: number
   ): Promise<any> {
-    const user = this.getUser();
+    const user = this.utilityService.getUser();
     const usernameLocal = `${user.datos_basicos.nombres} ${user.datos_basicos.apellidos}`;
 
     const fecha = new Date().toISOString().split('T')[0];

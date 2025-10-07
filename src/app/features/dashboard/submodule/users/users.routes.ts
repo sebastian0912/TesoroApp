@@ -4,10 +4,12 @@ import { GestionUsuariosComponent } from './pages/gestion-usuarios/gestion-usuar
 import { GestionRolesComponent } from './pages/gestion-roles/gestion-roles.component';
 import { GestionModulosComponent } from './pages/gestion-modulos/gestion-modulos.component';
 import { GestionParametrizacionComponent } from './pages/gestion-parametrizacion/gestion-parametrizacion.component';
+import { CambiarContrasenaComponent } from './pages/cambiar-contrasena/cambiar-contrasena.component';
 
 export const routes: Routes = [
   { path: 'manage-users', component: GestionUsuariosComponent },
   { path: 'manage-roles', component: GestionRolesComponent },
   { path: 'manage-modules', component: GestionModulosComponent },
-  { path: 'manage-parameterization', component: GestionParametrizacionComponent }
+  { path: 'manage-parameterization', component: GestionParametrizacionComponent },
+  { path: 'change-password', component: CambiarContrasenaComponent }
 ];

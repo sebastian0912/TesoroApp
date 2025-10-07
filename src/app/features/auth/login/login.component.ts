@@ -1,4 +1,4 @@
-import { Component, Inject, OnInit, PLATFORM_ID } from '@angular/core';
+import { Component, OnInit } from '@angular/core';
 import { AbstractControl, FormBuilder, FormGroup, ValidationErrors, Validators } from '@angular/forms';
 import { Router } from '@angular/router';
 import Swal from 'sweetalert2';
@@ -75,16 +75,12 @@ export class LoginComponent implements OnInit {
       const resp = await this.loginS.login(login, password); // { token, user }
       if (!resp?.token || !resp?.user) {
         throw new Error('Respuesta inválida del servidor');
-      }
-      console.log('Login exitoso:', resp);
-
-      // Guarda credenciales
+      }      // Guarda credenciales
       localStorage.setItem('token', resp.token);
       localStorage.setItem('user', JSON.stringify(resp.user));
-
       // Redirección según rol (el backend retorna rol como objeto {id, nombre})
       const rolNombre = resp.user?.rol?.nombre ?? '';
-      
+
       if (rolNombre === 'SIN-ASIGNAR') {
         this.router.navigate(['']);
         Swal.fire({

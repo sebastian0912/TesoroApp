@@ -4,6 +4,7 @@ import { isPlatformBrowser } from '@angular/common';
 import { firstValueFrom, Observable } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 import { environment } from '../../../../../../../environments/environment.development';
+import { UtilityServiceService } from '@/app/shared/services/utilityService/utility-service.service';
 
 @Injectable({
   providedIn: 'root',
@@ -13,15 +14,9 @@ export class ComercializadoraService {
 
   constructor(
     private http: HttpClient,
-    @Inject(PLATFORM_ID) private platformId: Object
+    @Inject(PLATFORM_ID) private platformId: Object,
+    private utilityService: UtilityServiceService
   ) { }
-
-  public getUser(): any {
-    if (isPlatformBrowser(this.platformId)) {
-      return JSON.parse(localStorage.getItem('user') || '{}');
-    }
-    return null;
-  }
 
   private handleError(error: any): Observable<never> {
     throw error;
@@ -91,7 +86,7 @@ export class ComercializadoraService {
       destino,
       personaQueLleva,
       comentariosEnvio,
-      PersonaEnvia: this.getUser().datos_basicos.nombres + ' ' + this.getUser().datos_basicos.apellido,
+      PersonaEnvia: this.utilityService.getUser().datos_basicos.nombres + ' ' + this.utilityService.getUser().datos_basicos.apellido,
     };
 
     try {
@@ -178,7 +173,7 @@ export class ComercializadoraService {
     const urlcompleta = `${this.apiUrl}/Comercio/jefedearea/recibirenvio/${cod}`;
 
     const PersonaRecibe =
-      this.getUser().datos_basicos.nombres + ' ' + this.getUser().datos_basicos.apellido;
+      this.utilityService.getUser().datos_basicos.nombres + ' ' + this.utilityService.getUser().datos_basicos.apellido;
     const dataToSend = {
       cod,
       cantidadRecibida,

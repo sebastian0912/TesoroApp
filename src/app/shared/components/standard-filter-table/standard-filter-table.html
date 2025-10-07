@@ -10,11 +10,12 @@
 
     <!-- Chips de conteo -->
     <span class="count-chip" matTooltip="Registros totales (sin filtros)">
-      Total: {{ totalCount | number }}
+      Total: {{ formatInt(totalCount) }}
     </span>
     <span class="count-chip" matTooltip="Registros visibles (con filtros)">
-      Mostrando: {{ filteredCount | number }}
+      Mostrando: {{ formatInt(filteredCount) }}
     </span>
+
 
     <span class="grow"></span>
 
@@ -37,10 +38,7 @@
       </button>
     </mat-menu>
 
-    <mat-paginator
-      [pageSizeOptions]="pageSizeOptions"
-      [pageSize]="defaultPageSize"
-      showFirstLastButtons
+    <mat-paginator [pageSizeOptions]="pageSizeOptions" [pageSize]="defaultPageSize" showFirstLastButtons
       aria-label="Paginador de tabla">
     </mat-paginator>
   </div>
@@ -54,167 +52,133 @@
       <!-- 1) Colgroup: respeta width explícito; si no hay, usa autosize -->
       <colgroup>
         @for (col of columnDefinitions; track col.name) {
-          <col [style.width]="col.width || (computedWidths ? computedWidths[col.name] : null)" />
+        <col [style.width]="col.width || (computedWidths ? computedWidths[col.name] : null)" />
         }
       </colgroup>
 
       <!-- 2) Columnas -->
       @for (col of columnDefinitions; track col.name) {
-        <ng-container [matColumnDef]="col.name" [sticky]="!!col.stickyStart" [stickyEnd]="!!col.stickyEnd">
+      <ng-container [matColumnDef]="col.name" [sticky]="!!col.stickyStart" [stickyEnd]="!!col.stickyEnd">
 
-          <!-- A. Header (solo fija width si existe) -->
-          <th
-            mat-header-cell
-            *matHeaderCellDef
-            mat-sort-header
-            [disabled]="col.type === 'custom'"
-            [matTooltip]="col.header"
-            class="custom-header"
-            [style.width]="col.width || (computedWidths ? computedWidths[col.name] : null)"
-            [style.minWidth]="col.width || (computedWidths ? computedWidths[col.name] : null)"
-            [style.maxWidth]="col.width || (computedWidths ? computedWidths[col.name] : null)">
-            {{ col.header }}
-          </th>
+        <!-- A. Header (solo fija width si existe) -->
+        <th mat-header-cell *matHeaderCellDef mat-sort-header [disabled]="col.type === 'custom'"
+          [matTooltip]="col.header" class="custom-header"
+          [style.width]="col.width || (computedWidths ? computedWidths[col.name] : null)"
+          [style.minWidth]="col.width || (computedWidths ? computedWidths[col.name] : null)"
+          [style.maxWidth]="col.width || (computedWidths ? computedWidths[col.name] : null)">
+          {{ col.header }}
+        </th>
 
-          <!-- B. Celda (solo fija width si existe) -->
-          <td
-            mat-cell
-            *matCellDef="let row"
-            [class.cell-right]="col.type === 'number' || col.align === 'right'"
-            [class.cell-center]="col.align === 'center'"
-            [class.cell-left]="col.align === 'left'"
-            [style.width]="col.width || (computedWidths ? computedWidths[col.name] : null)"
-            [style.minWidth]="col.width || (computedWidths ? computedWidths[col.name] : null)"
-            [style.maxWidth]="col.width || (computedWidths ? computedWidths[col.name] : null)">
+        <!-- B. Celda (solo fija width si existe) -->
+        <td mat-cell *matCellDef="let row" [class.cell-right]="col.type === 'number' || col.align === 'right'"
+          [class.cell-center]="col.align === 'center'" [class.cell-left]="col.align === 'left'"
+          [style.width]="col.width || (computedWidths ? computedWidths[col.name] : null)"
+          [style.minWidth]="col.width || (computedWidths ? computedWidths[col.name] : null)"
+          [style.maxWidth]="col.width || (computedWidths ? computedWidths[col.name] : null)">
 
-            @switch (col.name) {
+          @switch (col.name) {
 
-              @case ('actions') {
-                <ng-container *ngTemplateOutlet="actionsTemplate || defaultActions; context: { $implicit: row }"></ng-container>
-              }
+          @case ('actions') {
+          <ng-container
+            *ngTemplateOutlet="actionsTemplate || defaultActions; context: { $implicit: row }"></ng-container>
+          }
 
-              @case ('attachment') {
-                @if (attachmentTemplate) {
-                  <ng-container *ngTemplateOutlet="attachmentTemplate; context: { $implicit: row }"></ng-container>
-                }
-              }
+          @case ('attachment') {
+          @if (attachmentTemplate) {
+          <ng-container *ngTemplateOutlet="attachmentTemplate; context: { $implicit: row }"></ng-container>
+          }
+          }
 
-              @case ('bloqueado') {
-                @if (bloqueadoTemplate) {
-                  <ng-container *ngTemplateOutlet="bloqueadoTemplate; context: { $implicit: row }"></ng-container>
-                } @else {
-                  <span>{{ row[col.name] ? 'Sí' : 'No' }}</span>
-                }
-              }
+          @case ('bloqueado') {
+          @if (bloqueadoTemplate) {
+          <ng-container *ngTemplateOutlet="bloqueadoTemplate; context: { $implicit: row }"></ng-container>
+          } @else {
+          <span>{{ row[col.name] ? 'Sí' : 'No' }}</span>
+          }
+          }
 
-              @case ('activo') {
-                @if (activoTemplate) {
-                  <ng-container *ngTemplateOutlet="activoTemplate; context: { $implicit: row }"></ng-container>
-                } @else {
-                  <span>{{ row[col.name] ? 'Sí' : 'No' }}</span>
-                }
-              }
+          @case ('activo') {
+          @if (activoTemplate) {
+          <ng-container *ngTemplateOutlet="activoTemplate; context: { $implicit: row }"></ng-container>
+          } @else {
+          <span>{{ row[col.name] ? 'Sí' : 'No' }}</span>
+          }
+          }
 
-              @default {
-                @switch (col.type) {
-                  @case ('date') {
-                    <span>{{ row[col.name] | date:'dd-MM-yyyy HH:mm' }}</span>
-                  }
-                  @case ('status') {
-                    <span
-                      class="status-chip"
-                      [style.color]="getStatusConfig(col.name)[row[col.name]]?.color"
-                      [style.backgroundColor]="getStatusConfig(col.name)[row[col.name]]?.background">
-                      {{ row[col.name] }}
-                    </span>
-                  }
-                  @case ('custom') {
-                    <span
-                      class="custom-chip"
-                      [style.color]="getCustomClassConfig(col.name)[row[col.name]]?.color"
-                      [style.backgroundColor]="getCustomClassConfig(col.name)[row[col.name]]?.background">
-                      {{ row[col.name] }}
-                    </span>
-                  }
-                  @default {
-                    <span [matTooltip]="row[col.name]" matTooltipShowDelay="600">{{ row[col.name] }}</span>
-                  }
-                }
-              }
-            }
-          </td>
-        </ng-container>
+          @default {
+          @switch (col.type) {
+          @case ('date') {
+          <span>{{ safeDate(row[col.name]) | date:'dd-MM-yyyy HH:mm' }}</span>
+          }
+          @case ('status') {
+          <span class="status-chip" [style.color]="getStatusConfig(col.name)[row[col.name]]?.color"
+            [style.backgroundColor]="getStatusConfig(col.name)[row[col.name]]?.background">
+            {{ row[col.name] }}
+          </span>
+          }
+          @case ('custom') {
+          <span class="custom-chip" [style.color]="getCustomClassConfig(col.name)[row[col.name]]?.color"
+            [style.backgroundColor]="getCustomClassConfig(col.name)[row[col.name]]?.background">
+            {{ row[col.name] }}
+          </span>
+          }
+          @default {
+          <span [matTooltip]="row[col.name]" matTooltipShowDelay="600">{{ row[col.name] }}</span>
+          }
+          }
+          }
+          }
+        </td>
+      </ng-container>
       }
 
       <!-- 3) Fila de filtros (solo fija width si existe) -->
       @for (col of columnDefinitions; track col.name) {
-        <ng-container [matColumnDef]="col.name + '_filter'" [sticky]="!!col.stickyStart" [stickyEnd]="!!col.stickyEnd">
-          <th
-            mat-header-cell
-            *matHeaderCellDef
-            class="filter-cell"
-            [style.width]="col.width || (computedWidths ? computedWidths[col.name] : null)"
-            [style.minWidth]="col.width || (computedWidths ? computedWidths[col.name] : null)"
-            [style.maxWidth]="col.width || (computedWidths ? computedWidths[col.name] : null)">
+      <ng-container [matColumnDef]="col.name + '_filter'" [sticky]="!!col.stickyStart" [stickyEnd]="!!col.stickyEnd">
+        <th mat-header-cell *matHeaderCellDef class="filter-cell"
+          [style.width]="col.width || (computedWidths ? computedWidths[col.name] : null)"
+          [style.minWidth]="col.width || (computedWidths ? computedWidths[col.name] : null)"
+          [style.maxWidth]="col.width || (computedWidths ? computedWidths[col.name] : null)">
 
-            @if ((col.type === 'text' || col.type === 'number') && filterControls[col.name]) {
-              <mat-form-field appearance="outline" class="filter-ff">
-                <input
-                  matInput
-                  [type]="col.type"
-                  [placeholder]="col.header"
-                  [formControl]="filterControls[col.name]" />
-              </mat-form-field>
-            }
+          @if ((col.type === 'text' || col.type === 'number') && filterControls[col.name]) {
+          <mat-form-field appearance="outline" class="filter-ff">
+            <input matInput [type]="col.type" [placeholder]="col.header" [formControl]="filterControls[col.name]" />
+          </mat-form-field>
+          }
 
-            @if ((col.type === 'select' || col.type === 'status') && filterControls[col.name]) {
-              <mat-form-field appearance="outline" class="filter-ff">
-                <mat-select
-                  [placeholder]="col.header"
-                  [formControl]="filterControls[col.name]"
-                  multiple>
-                  @for (option of (col.options || yesNoOptions); track option) {
-                    <mat-option [value]="option">{{ option }}</mat-option>
-                  }
-                </mat-select>
-              </mat-form-field>
-            }
+          @if ((col.type === 'select' || col.type === 'status') && filterControls[col.name]) {
+          <mat-form-field appearance="outline" class="filter-ff">
+            <mat-select [placeholder]="col.header" [formControl]="filterControls[col.name]" multiple>
+              @for (option of (col.options || yesNoOptions); track option) {
+              <mat-option [value]="option">{{ option }}</mat-option>
+              }
+            </mat-select>
+          </mat-form-field>
+          }
 
-            @if (col.type === 'date') {
-              <mat-form-field appearance="outline" class="filter-ff">
-                <mat-date-range-input [formGroup]="dateRange" [rangePicker]="pickerRange">
-                  <input matStartDate placeholder="Desde" />
-                  <input matEndDate placeholder="Hasta" />
-                </mat-date-range-input>
-                <mat-datepicker-toggle matSuffix [for]="pickerRange"></mat-datepicker-toggle>
-                <mat-date-range-picker #pickerRange></mat-date-range-picker>
-              </mat-form-field>
-            }
-          </th>
-        </ng-container>
+          @if (col.type === 'date') {
+          <mat-form-field appearance="outline" class="filter-ff">
+            <mat-date-range-input [formGroup]="dateRange" [rangePicker]="pickerRange">
+              <input matStartDate placeholder="Desde" />
+              <input matEndDate placeholder="Hasta" />
+            </mat-date-range-input>
+            <mat-datepicker-toggle matSuffix [for]="pickerRange"></mat-datepicker-toggle>
+            <mat-date-range-picker #pickerRange></mat-date-range-picker>
+          </mat-form-field>
+          }
+        </th>
+      </ng-container>
       }
 
       <!-- 4) Filas -->
-      <tr
-        mat-header-row
-        *matHeaderRowDef="displayedColumns; sticky: true"
-        class="header-row-main">
+      <tr mat-header-row *matHeaderRowDef="displayedColumns; sticky: true" class="header-row-main">
       </tr>
 
-      <tr
-        mat-header-row
-        *matHeaderRowDef="displayedFilterColumns; sticky: true"
-        class="header-row-filters">
+      <tr mat-header-row *matHeaderRowDef="displayedFilterColumns; sticky: true" class="header-row-filters">
       </tr>
 
-      <tr
-        mat-row
-        *matRowDef="let row; columns: displayedColumns;"
-        class="data-row clickable-row"
-        tabindex="0"
-        role="button"
-        (click)="rowClicked.emit(row)"
-        (keydown.enter)="rowClicked.emit(row)"
+      <tr mat-row *matRowDef="let row; columns: displayedColumns;" class="data-row clickable-row" tabindex="0"
+        role="button" (click)="rowClicked.emit(row)" (keydown.enter)="rowClicked.emit(row)"
         (keydown.space)="$event.preventDefault(); rowClicked.emit(row)">
       </tr>
 
@@ -229,10 +193,7 @@
 
 <!-- Acciones por defecto -->
 <ng-template #defaultActions let-row>
-  <button
-    mat-icon-button
-    matTooltip="Editar detalle"
-    (click)="$event.stopPropagation(); editarDetalle(row)">
+  <button mat-icon-button matTooltip="Editar detalle" (click)="$event.stopPropagation(); editarDetalle(row)">
     <mat-icon>edit</mat-icon>
   </button>
 </ng-template>

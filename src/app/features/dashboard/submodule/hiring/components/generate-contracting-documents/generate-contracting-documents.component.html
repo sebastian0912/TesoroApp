@@ -1,17 +1,22 @@
 <!-- Tarjeta para búsqueda de cédula -->
 <div class="seleccion">
-  <button mat-flat-button class="btn-with-arrow" (click)="devolvercontratacion()">
-    <span class="text">Devolver a contratación</span>
-    <mat-icon class="arrow">arrow_back</mat-icon>
-  </button>
+
   <mat-card>
     <mat-card-content>
       <!-- Encabezado de documentos -->
       <header class="doc-header">
+        <!-- Flecha a la izquierda -->
+        <button mat-flat-button class="back-button" (click)="devolvercontratacion()"
+          aria-label="Devolver a contratación">
+          <mat-icon>arrow_back</mat-icon>
+        </button>
+
+        <!-- Título -->
         <div class="doc-header__title">
           <h1>Documentos para generar o subir</h1>
         </div>
 
+        <!-- Datos meta -->
         <div class="doc-header__meta">
           <span class="meta-label">Cédula:</span>
           <span class="meta-chip">{{ cedula || '—' }}</span>
@@ -22,6 +27,7 @@
           <span class="meta-chip">{{ codigoContratacion || '—' }}</span>
         </div>
       </header>
+
 
 
       <!-- Contenedor dividido - usando *ngFor -->
@@ -59,8 +65,6 @@
             <mat-icon class="arrow">arrow_forward</mat-icon>
           </button>
         </div>
-
-
 
         <!-- Lado derecho: Vista previa del PDF -->
         <div class="right-panel">

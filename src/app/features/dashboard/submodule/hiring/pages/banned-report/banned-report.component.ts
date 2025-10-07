@@ -6,6 +6,7 @@ import { debounceTime, distinctUntilChanged } from 'rxjs';
 import Swal from 'sweetalert2';
 import { AdminService } from '../../../users/services/admin.service';
 import { VetadosService } from '../../service/vetados/vetados.service';
+import { UtilityServiceService } from '../../../../../../shared/services/utilityService/utility-service.service';
 
 @Component({
   selector: 'app-banned-report',
@@ -26,7 +27,7 @@ export class BannedReportComponent {
     private fb: FormBuilder,
     private adminService: AdminService,
     private vetadosService: VetadosService,
-
+    private UtilityServiceService: UtilityServiceService,
     @Inject(PLATFORM_ID) private platformId: Object
   ) {
 
@@ -70,7 +71,7 @@ export class BannedReportComponent {
     });
 
     // Obtener usuario actual y sede
-    const user = await this.getUser();
+    const user = await this.UtilityServiceService.getUser();
     if (user) {
       this.username = `${user.datos_basicos.nombres} ${user.datos_basicos.apellidos} - ${user.rol.nombre}`;
       this.sede = user.sede.nombre;
@@ -80,16 +81,6 @@ export class BannedReportComponent {
         reportadoPor: this.username
       });
     }
-  }
-
-  async getUser(): Promise<any> {
-    if (isPlatformBrowser(this.platformId)) {
-      const user = localStorage.getItem('user');
-      if (user) {
-        return JSON.parse(user);
-      }
-    }
-    return null;
   }
 
   buscarNombre(cedula: string): void {

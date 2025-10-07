@@ -4,6 +4,7 @@ import { isPlatformBrowser } from '@angular/common';
 import { firstValueFrom, Observable } from 'rxjs';
 import { map, catchError } from 'rxjs/operators';
 import { environment } from '../../../../../../../environments/environment.development';
+import { UtilityServiceService } from '@/app/shared/services/utilityService/utility-service.service';
 
 @Injectable({
   providedIn: 'root'
@@ -12,19 +13,11 @@ export class MercadoService {
 
   private apiUrl = environment.apiUrl;
 
-  constructor(private http: HttpClient, @Inject(PLATFORM_ID) private platformId: Object) { }
-
-  public getUser(): any {
-    if (isPlatformBrowser(this.platformId)) {
-      return JSON.parse(localStorage.getItem('user') || '{}');
-    }
-    return null;
-  }
+  constructor(private http: HttpClient, @Inject(PLATFORM_ID) private platformId: Object, private utilityService: UtilityServiceService) { }
 
   private handleError(error: any): Observable<never> {
     throw error;
   }
-
   // verificar estado del codigo
   public verificarCodigo(codigo: string): Observable<string> {
     return this.http.get<{ message: string }>(`${this.apiUrl}/Codigo/verificarestado/${codigo}`)
@@ -61,7 +54,7 @@ export class MercadoService {
     conceptoEjecutado: string,
     historial_id: number
   ): Promise<any> {
-    const user = this.getUser();
+    const user = this.utilityService.getUser();
     const usernameLocal = `${user.datos_basicos.nombres} ${user.datos_basicos.apellidos}`;
 
     const fecha = new Date().toISOString().split('T')[0];
@@ -100,7 +93,7 @@ export class MercadoService {
     conceptoEjecutado: string,
     historial_id: number
   ): Promise<any> {
-    const user = this.getUser();
+    const user = this.utilityService.getUser();
     const usernameLocal = `${user.datos_basicos.nombres} ${user.datos_basicos.apellidos}`;
 
     const fecha = new Date().toISOString().split('T')[0];
