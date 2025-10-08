@@ -141,7 +141,7 @@ export class SelectionQuestionsComponent implements OnInit {
       sisben: [''],
       ofac: [''],
       medidasCorrectivas: [''],
-      semanasCotizadas: [0, [Validators.required, Validators.min(1)]],
+      semanasCotizadas: [0, [Validators.min(0)]],
       // area_aplica: [''], // si lo usas, descomenta
     });
 
@@ -203,82 +203,101 @@ export class SelectionQuestionsComponent implements OnInit {
     this.antecedentes.patchValue(patch as any, { emitEvent: false });
   }
   /** Se ejecuta cada vez que cambian los inputs con signal() */
-  private async onInputsChanged(
-    cedula: string,
-    vacante: any,
-    idProceso: number | null,
-    idInfoEntrevistaAndrea: number | null
-  ) {
-    const ctx = ++this._ctx; // descartar respuestas viejas
+// Helpers para loading ---------------------------------
+private showLoading(text = 'Cargando información…') {
+  Swal.fire({
+    icon: 'info',
+    title: 'Cargando…',
+    text,
+    allowOutsideClick: false,
+    showConfirmButton: false,
+    didOpen: () => Swal.showLoading(),
+  });
+}
+private closeLoadingIf(ctx: number) {
+  if (ctx === this._ctx && Swal.isVisible()) Swal.close();
+}
+// ------------------------------------------------------
 
-    // 1) Si no hay contexto suficiente, limpia y sal
-    if (!cedula || !idProceso) {
-      const resetValue: any = {
-        eps: '', afp: '', policivos: '', procuraduria: '', contraloria: '',
-        ramaJudicial: '', sisben: '', ofac: '', medidasCorrectivas: '',
-        semanasCotizadas: 0
-      };
-      if (this.antecedentes.get('area_aplica')) resetValue.area_aplica = '';
+// Reemplaza tu método por este
+private async onInputsChanged(
+  cedula: string,
+  vacante: any,
+  idProceso: number | null,
+  idInfoEntrevistaAndrea: number | null
+) {
+  const ctx = ++this._ctx; // descartar respuestas viejas
 
-      this.antecedentes.reset(resetValue as any, { emitEvent: false });
+  // 1) Si no hay contexto suficiente, limpia y sal
+  if (!cedula || !idProceso) {
+    const resetValue: any = {
+      eps: '', afp: '', policivos: '', procuraduria: '', contraloria: '',
+      ramaJudicial: '', sisben: '', ofac: '', medidasCorrectivas: '',
+      semanasCotizadas: 0
+    };
+    if (this.antecedentes.get('area_aplica')) resetValue.area_aplica = '';
 
-      (Object.keys(this.uploadedFiles) as DocKey[]).forEach(k => {
-        const prev = this.uploadedFiles[k];
-        this.uploadedFiles[k] = { fileName: prev?.fileName || 'Adjuntar documento' };
-      });
-      return;
-    }
+    this.antecedentes.reset(resetValue as any, { emitEvent: false });
 
-    // 2) Si cambió cédula o proceso, reinicia UI derivada
-    const changedCedula = this._prev.cedula !== cedula;
-    const changedProceso = this._prev.idProceso !== idProceso;
-    if (changedCedula || changedProceso) {
-      const resetValue: any = {
-        eps: '', afp: '', policivos: '', procuraduria: '', contraloria: '',
-        ramaJudicial: '', sisben: '', ofac: '', medidasCorrectivas: '',
-        semanasCotizadas: 0
-      };
-      if (this.antecedentes.get('area_aplica')) resetValue.area_aplica = '';
-      this.antecedentes.reset(resetValue as any, { emitEvent: false });
+    (Object.keys(this.uploadedFiles) as DocKey[]).forEach(k => {
+      const prev = this.uploadedFiles[k];
+      this.uploadedFiles[k] = { fileName: prev?.fileName || 'Adjuntar documento' };
+    });
 
-      (Object.keys(this.uploadedFiles) as DocKey[]).forEach(k => {
-        const prev = this.uploadedFiles[k];
-        this.uploadedFiles[k] = { fileName: prev?.fileName || 'Adjuntar documento' };
-      });
-    }
-
-    // 3) Precarga documentos del candidato
-    try {
-      await this.loadDataDocumentos();
-      if (ctx !== this._ctx) return;
-    } catch (e) {
-
-    }
-
-    try {
-      const svc: any = this.seleccionService as any;
-      if (typeof svc.getSeleccionPorId === 'function') {
-
-        // ✅ Usa el tipo correcto del response
-        const res = await firstValueFrom(
-          svc.getSeleccionPorId(idProceso)
-        ) as SeleccionPorIdResponse;
-
-
-        if (ctx !== this._ctx) return;
-
-        const seleccion = res?.procesoSeleccion;
-        if (seleccion) {
-          this.loadDataSeleccion(seleccion); // <- ya esperas AntecedentesData aquí
-        }
-      }
-    } catch (e) {
-      Swal.fire('Error', 'No se pudo cargar la información de selección.', 'error');
-    }
-
-    // 5) Si cambió solo la entrevista, podrías cargar/ligar datos adicionales aquí
-    // if (this._prev.idInfoEntrevistaAndrea !== idInfoEntrevistaAndrea && idInfoEntrevistaAndrea) { ... }
+    this.closeLoadingIf(ctx);
+    return;
   }
+
+  // 2) Si cambió cédula o proceso, reinicia UI derivada
+  const changedCedula = this._prev.cedula !== cedula;
+  const changedProceso = this._prev.idProceso !== idProceso;
+  if (changedCedula || changedProceso) {
+    const resetValue: any = {
+      eps: '', afp: '', policivos: '', procuraduria: '', contraloria: '',
+      ramaJudicial: '', sisben: '', ofac: '', medidasCorrectivas: '',
+      semanasCotizadas: 0
+    };
+    if (this.antecedentes.get('area_aplica')) resetValue.area_aplica = '';
+    this.antecedentes.reset(resetValue as any, { emitEvent: false });
+
+    (Object.keys(this.uploadedFiles) as DocKey[]).forEach(k => {
+      const prev = this.uploadedFiles[k];
+      this.uploadedFiles[k] = { fileName: prev?.fileName || 'Adjuntar documento' };
+    });
+  }
+
+  // 3) Mostrar loading y ejecutar cargas
+  this.showLoading('Obteniendo documentos y datos de selección…');
+
+  try {
+    // 3.1) Precarga documentos del candidato
+    await this.loadDataDocumentos();
+    if (ctx !== this._ctx) { this.closeLoadingIf(ctx); return; }
+
+    // 3.2) Traer selección por id (si el servicio existe)
+    const svc: any = this.seleccionService as any;
+    if (typeof svc.getSeleccionPorId === 'function') {
+      const res = await firstValueFrom(svc.getSeleccionPorId(idProceso!)) as SeleccionPorIdResponse;
+      if (ctx !== this._ctx) { this.closeLoadingIf(ctx); return; }
+
+      const seleccion = res?.procesoSeleccion;
+      if (seleccion) {
+        this.loadDataSeleccion(seleccion);
+      }
+    }
+
+    // 3.3) Si hubiera más cargas dependientes de idInfoEntrevistaAndrea, hazlo aquí
+    // if (this._prev.idInfoEntrevistaAndrea !== idInfoEntrevistaAndrea && idInfoEntrevistaAndrea) { ... }
+
+  } catch (e) {
+    // Muestra error sin cerrar el swal antes de tiempo por carrera
+    Swal.fire('Error', 'No se pudo cargar la información.', 'error');
+  } finally {
+    // Cerrar loader solo si sigue siendo el contexto actual
+    this.closeLoadingIf(ctx);
+  }
+}
+
 
   private toTimestampMs(v: unknown): number | undefined {
     if (typeof v === 'number' && Number.isFinite(v)) return v;
@@ -302,6 +321,7 @@ export class SelectionQuestionsComponent implements OnInit {
   }
 
   verArchivo(campo: DocKey) {
+    console.log('verArchivo', campo, this.uploadedFiles[campo]);
     const archivo = this.uploadedFiles[campo];
     if (archivo?.file) {
       if (typeof archivo.file === 'string') {

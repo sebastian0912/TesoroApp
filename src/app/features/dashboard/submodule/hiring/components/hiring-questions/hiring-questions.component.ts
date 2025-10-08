@@ -12,6 +12,7 @@ import { HiringService } from '../../service/hiring.service';
 import { GestionDocumentalService } from '../../service/gestion-documental/gestion-documental.service';
 import { VacantesService } from '../../service/vacantes/vacantes.service';
 import { InfoVacantesService } from '../../service/info-vacantes/info-vacantes.service';
+import { SeleccionService } from '../../service/seleccion/seleccion.service';
 
 type LocalFile = { file: File | string; fileName: string };
 
@@ -93,6 +94,7 @@ export class HiringQuestionsComponent implements OnInit {
     private vacantesService: VacantesService,
     private infoVacantesService: InfoVacantesService,
     private gestionDocumentalService: GestionDocumentalService,
+    private seleccionService: SeleccionService,
   ) {
     // Efecto: recarga cada vez que cambian los input() del componente
     effect(() => {
@@ -135,8 +137,8 @@ export class HiringQuestionsComponent implements OnInit {
       familiar2: [''],
       personal1: [''],
       personal2: [''],
-      laboral1:  [''],
-      laboral2:  [''],
+      laboral1: [''],
+      laboral2: [''],
     });
 
     this.trasladosForm = this.fb.group({
@@ -202,7 +204,7 @@ export class HiringQuestionsComponent implements OnInit {
 
       const results = await Promise.allSettled([
         this.idInfo ? firstValueFrom(this.infoVacantesService.setEstadoVacanteAplicante(this.idInfo, 'contratado', true)) : Promise.resolve(null),
-        this.idVac  ? firstValueFrom(this.vacantesService.setEstadoVacanteAplicante(this.idVac, 'contratado', this.ced)) : Promise.resolve(null),
+        this.idVac ? firstValueFrom(this.vacantesService.setEstadoVacanteAplicante(this.idVac, 'contratado', this.ced)) : Promise.resolve(null),
       ]);
 
       results.some(x => x.status === 'rejected')
@@ -272,9 +274,9 @@ export class HiringQuestionsComponent implements OnInit {
     return nameDiffers || sizeKnownAndDiffers;
   }
 
-  private async uploadChanged(keys: string[], withContract = false): Promise<{uploaded: string[], skipped: string[]}> {
+  private async uploadChanged(keys: string[], withContract = false): Promise<{ uploaded: string[], skipped: string[] }> {
     const toUpload = keys.filter(k => this.isChanged(k));
-    const skipped  = keys.filter(k => !toUpload.includes(k));
+    const skipped = keys.filter(k => !toUpload.includes(k));
 
     const tasks = toUpload.map(async (k) => {
       const { file, fileName } = this.uploadedFiles[k]!;
@@ -310,14 +312,14 @@ export class HiringQuestionsComponent implements OnInit {
     this.loading('Validando cambios y subiendo referencias…');
     try {
       const { uploaded, skipped } = await this.uploadChanged(
-        ['personal1','personal2','familiar1','familiar2','laboral1','laboral2'],
+        ['personal1', 'personal2', 'familiar1', 'familiar2', 'laboral1', 'laboral2'],
         false
       );
       Swal.close();
 
       const msg = [
         uploaded.length ? `Subidos: ${uploaded.join(', ')}` : 'No hubo cambios para subir',
-        skipped.length  ? `Omitidos (sin cambios): ${skipped.join(', ')}` : ''
+        skipped.length ? `Omitidos (sin cambios): ${skipped.join(', ')}` : ''
       ].filter(Boolean).join('\n');
 
       this.alert('success', 'Listo', msg || 'Operación completada.');
@@ -359,27 +361,68 @@ export class HiringQuestionsComponent implements OnInit {
   }
 
   // ───────── Huellas (Electron) ─────────
-  async captureFingerprintID(): Promise<void> { await this.captureFingerprint('ID'); }
+async captureFingerprintID(): Promise<void> {
+  await this.captureFingerprint('ID');
+}
 
-  private async captureFingerprint(kind: 'ID' | 'PD'): Promise<void> {
-    const setMsg = (t: string) => kind === 'ID' ? this.messageID = t : this.messagePD = t;
-    const setImg = (d: string | null) => kind === 'ID' ? this.fingerprintImageID = d : this.fingerprintImagePD = d;
+async captureFingerprintPD(): Promise<void> {
+  await this.captureFingerprint('PD'); // aquí solo captura y muestra; no sube
+}
 
-    const electron = (window as any)?.electron;
-    if (!electron?.fingerprint?.get) { setMsg('Electron o fingerprint no están disponibles.'); return; }
+private async captureFingerprint(kind: 'ID' | 'PD'): Promise<void> {
+  const setMsg = (t: string) => kind === 'ID' ? this.messageID = t : this.messagePD = t;
+  const setImg = (d: string | null) => kind === 'ID' ? this.fingerprintImageID = d : this.fingerprintImagePD = d;
 
-    try {
-      const res = await electron.fingerprint.get();
-      if (res.success && res.data) {
-        setMsg('Huella capturada exitosamente.');
-        setImg(`data:image/png;base64,${res.data}`);
-      } else {
-        setMsg(`Error al capturar huella: ${res.error || 'Desconocido.'}`);
-      }
-    } catch {
-      setMsg('Error de comunicación con Electron.');
-    }
+  const electron = (window as any)?.electron;
+  if (!electron?.fingerprint?.get) {
+    setMsg('Electron o fingerprint no están disponibles.');
+    return;
   }
+
+  try {
+    const res = await electron.fingerprint.get();
+    if (!res?.success || !res.data) {
+      setMsg(`Error al capturar huella: ${res?.error || 'Desconocido.'}`);
+      return;
+    }
+
+    // base64 crudo -> Data URL (mostrable en <img>)
+    const dataUrl = `data:image/png;base64,${res.data}`;
+    setImg(dataUrl);
+    setMsg('Huella capturada exitosamente.');
+
+    // Solo subimos automáticamente la Índice Derecho (ID)
+    if (kind === 'ID') {
+      if (!this.ced) {
+        this.alert('warning', 'Cédula requerida', 'No hay cédula para asociar la huella.');
+        return;
+      }
+      // Subir al backend
+      Swal.fire({
+        icon: 'info',
+        title: 'Subiendo huella…',
+        text: 'Guardando Índice Derecho en el servidor.',
+        allowOutsideClick: false,
+        didOpen: () => Swal.showLoading(),
+      });
+
+      try {
+        await firstValueFrom(this.seleccionService.subirHuellaBase64(this.ced, dataUrl));
+        Swal.close();
+        setMsg('Huella capturada y guardada.');
+        this.alert('success', '¡Listo!', 'La huella (Índice Derecho) se guardó correctamente.');
+      } catch (e) {
+        Swal.close();
+        setMsg('Huella capturada, pero no se pudo guardar.');
+        this.alert('error', 'Error al guardar la huella', 'Intenta nuevamente.');
+      }
+    }
+
+  } catch {
+    setMsg('Error de comunicación con Electron.');
+  }
+}
+
 
   // ───────── Utilidades ─────────
   private alert(icon: 'success' | 'error' | 'warning' | 'info', title: string, text: string) {
@@ -414,9 +457,9 @@ export class HiringQuestionsComponent implements OnInit {
     const hrs = Math.round(min / 60);
     const days = Math.round(hrs / 24);
 
-    if (sec < 60)  return `hace ${sec} s`;
-    if (min < 60)  return `hace ${min} min`;
-    if (hrs < 24)  return `hace ${hrs} h`;
+    if (sec < 60) return `hace ${sec} s`;
+    if (min < 60) return `hace ${min} min`;
+    if (hrs < 24) return `hace ${hrs} h`;
     return `hace ${days} días`;
   }
   ageInDays(dateStr?: string): number {
@@ -504,60 +547,91 @@ export class HiringQuestionsComponent implements OnInit {
   }
 
   // Llena serverDocs + uploadedFiles (como URL) + meta HEAD
+  private _docsCtx = 0;
   async llenarDocumentos(): Promise<void> {
-    const res = await firstValueFrom(
-      forkJoin({
-        tipo16: this.docs$(16),
-        tipo17: this.docs$(17),
-        tipo18: this.docs$(18),
-        tipo86: this.docs$(86),
-      })
-    ).catch((err) => {
-      Swal.fire('Error', 'No fue posible cargar los documentos.', 'error');
-      return { tipo16: [], tipo17: [], tipo18: [], tipo86: [] } as any;
+    const ctx = ++this._docsCtx;
+
+    // Loader
+    Swal.fire({
+      icon: 'info',
+      title: 'Cargando…',
+      text: 'Cargando documentos del candidato…',
+      allowOutsideClick: false,
+      showConfirmButton: false,
+      didOpen: () => Swal.showLoading(),
     });
 
-    const t86 = res.tipo86 ?? [];
-    const t16 = res.tipo16 ?? [];
-    const t17 = res.tipo17 ?? [];
-    const t18 = res.tipo18 ?? [];
+    try {
+      const res = await firstValueFrom(
+        forkJoin({
+          tipo16: this.docs$(16),
+          tipo17: this.docs$(17),
+          tipo18: this.docs$(18),
+          tipo86: this.docs$(86),
+        })
+      );
 
-    const fillList = async (list: any[], baseKey: 'personal'|'familiar'|'laboral', max = 2) => {
-      let i = 1;
-      for (const doc of list) {
-        if (i > max) break;
-        const key = `${baseKey}${i}` as const;
+      // Si se disparó otra carga después, aborta ésta
+      if (ctx !== this._docsCtx) {
+        if (Swal.isVisible()) Swal.close();
+        return;
+      }
+
+      const t86 = res.tipo86 ?? [];
+      const t16 = res.tipo16 ?? [];
+      const t17 = res.tipo17 ?? [];
+      const t18 = res.tipo18 ?? [];
+
+      const fillList = async (list: any[], baseKey: 'personal' | 'familiar' | 'laboral', max = 2) => {
+        let i = 1;
+        for (const doc of list) {
+          if (i > max) break;
+          const key = `${baseKey}${i}` as const;
+          const head = await this.headMeta(doc.file_url);
+          this.serverDocs[key] = {
+            id: doc.id,
+            fileName: doc.title || 'Documento',
+            type: doc.type,
+            file_url: doc.file_url,
+            uploaded_at: doc.uploaded_at,
+            size: head.size, etag: head.etag, lastModified: head.lastModified,
+          };
+          // Cargar como URL (NO File) => se considera “sin cambios”
+          this.uploadedFiles[key] = { file: doc.file_url, fileName: doc.title || 'Documento' };
+
+          if (baseKey === 'personal' || baseKey === 'familiar') {
+            this.referenciasForm.patchValue({ [key]: doc.title || 'Documento' });
+          }
+          i++;
+        }
+      };
+
+      await fillList(t16, 'personal', 2);
+      await fillList(t17, 'familiar', 2);
+      await fillList(t86, 'laboral', 2);
+
+      // Traslado (único)
+      for (const doc of t18) {
         const head = await this.headMeta(doc.file_url);
-        this.serverDocs[key] = {
-          id: doc.id, fileName: doc.title || 'Documento',
-          type: doc.type, file_url: doc.file_url, uploaded_at: doc.uploaded_at,
+        this.serverDocs['traslado'] = {
+          id: doc.id,
+          fileName: doc.title || 'Documento',
+          type: doc.type,
+          file_url: doc.file_url,
+          uploaded_at: doc.uploaded_at,
           size: head.size, etag: head.etag, lastModified: head.lastModified,
         };
-        // Cargar como URL (NO File) => se considera “sin cambios”
-        this.uploadedFiles[key] = { file: doc.file_url, fileName: doc.title || 'Documento' };
-
-        if (baseKey === 'personal' || baseKey === 'familiar') {
-          this.referenciasForm.patchValue({ [key]: doc.title || 'Documento' });
-        }
-        i++;
+        this.uploadedFiles['traslado'] = { file: doc.file_url, fileName: doc.title || 'Documento' };
+        this.trasladosForm.patchValue({ traslado: doc.title || 'Documento' });
+        break;
       }
-    };
 
-    await fillList(t16, 'personal', 2);
-    await fillList(t17, 'familiar', 2);
-    await fillList(t86, 'laboral', 2);
-
-    // Traslado (único)
-    for (const doc of t18) {
-      const head = await this.headMeta(doc.file_url);
-      this.serverDocs['traslado'] = {
-        id: doc.id, fileName: doc.title || 'Documento',
-        type: doc.type, file_url: doc.file_url, uploaded_at: doc.uploaded_at,
-        size: head.size, etag: head.etag, lastModified: head.lastModified,
-      };
-      this.uploadedFiles['traslado'] = { file: doc.file_url, fileName: doc.title || 'Documento' };
-      this.trasladosForm.patchValue({ traslado: doc.title || 'Documento' });
-      break;
+    } catch (err) {
+      if (Swal.isVisible()) Swal.close();
+      Swal.fire('Error', 'No fue posible cargar los documentos.', 'error');
+      return;
+    } finally {
+      if (ctx === this._docsCtx && Swal.isVisible()) Swal.close();
     }
   }
 }

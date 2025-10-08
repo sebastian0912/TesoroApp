@@ -241,6 +241,36 @@
             </td>
           </ng-container>
 
+          <!--Tratamiento de datos-->
+          <ng-container matColumnDef="tratamiento_datos">
+            <th mat-header-cell *matHeaderCellDef>Tratamiento de Datos</th>
+            <td mat-cell *matCellDef="let e">
+              <ng-container *ngIf="e.pdf_tratamiento_datos; else noTratamiento">
+                <a [href]="e.pdf_tratamiento_datos" target="_blank" matTooltip="Ver documento">
+                  <mat-icon color="primary">check_circle</mat-icon>
+                </a>
+              </ng-container>
+              <ng-template #noTratamiento>
+                <mat-icon color="warn">cancel</mat-icon>
+              </ng-template>
+            </td>
+          </ng-container>
+
+          <!--Manejo de imagen-->
+          <ng-container matColumnDef="manejo_imagen">
+            <th mat-header-cell *matHeaderCellDef>Manejo de Imagen</th>
+            <td mat-cell *matCellDef="let e">
+              <ng-container *ngIf="e.pdf_manejo_imagen; else noManejo">
+                <a [href]="e.pdf_manejo_imagen" target="_blank" matTooltip="Ver documento">
+                  <mat-icon color="primary">check_circle</mat-icon>
+                </a>
+              </ng-container>
+              <ng-template #noManejo>
+                <mat-icon color="warn">cancel</mat-icon>
+              </ng-template>
+            </td>
+          </ng-container>
+
           <!-- ARL -->
           <ng-container matColumnDef="arl">
             <th mat-header-cell *matHeaderCellDef>ARL</th>

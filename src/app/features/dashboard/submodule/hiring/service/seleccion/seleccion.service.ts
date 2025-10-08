@@ -37,7 +37,7 @@ export class SeleccionService {
     let params = new HttpParams()
       .set('office_prefix', officePrefix)
       .set('cedula', cedula);  // Añadir cedula al parámetro
-    return this.http.get(`${this.apiUrl}/contratacion/generarCodigoContratacion/`, {  params }).pipe(
+    return this.http.get(`${this.apiUrl}/contratacion/generarCodigoContratacion/`, { params }).pipe(
       map((response: any) => response),  // Procesa la respuesta
       catchError(this.handleError)       // Manejo de errores
     );
@@ -80,7 +80,7 @@ export class SeleccionService {
 
     // IMPORTANTE: ya NO enviamos jwt crearSeleccionParteUnoCandidato
     return this.http
-      .post(`${this.apiUrl}/Seleccion/crearSeleccionParteUnoCandidato`, requestData, )
+      .post(`${this.apiUrl}/Seleccion/crearSeleccionParteUnoCandidato`, requestData,)
       .pipe(
         map((response: any) => response),
         catchError(this.handleError)
@@ -93,7 +93,7 @@ export class SeleccionService {
     cedula: any,
     seleccion?: any
   ): Observable<any> {
-     // Debe incluir Authorization: Bearer <token>
+    // Debe incluir Authorization: Bearer <token>
 
     // Acepta FormGroup o plain object
     const raw: any = (formData && (formData as FormGroup).value)
@@ -167,7 +167,7 @@ export class SeleccionService {
 
     // IMPORTANTE: no enviamos jwt en el body; va en headers
     return this.http
-      .post(`${this.apiUrl}/Seleccion/crearSeleccionparteDoscandidato`, requestData, )
+      .post(`${this.apiUrl}/Seleccion/crearSeleccionparteDoscandidato`, requestData,)
       .pipe(
         map((response: any) => response),
         catchError(this.handleError)
@@ -216,7 +216,7 @@ export class SeleccionService {
     }
 
     return this.http
-      .post(`${this.apiUrl}/Seleccion/crearSeleccionparteTrescandidato`, requestData, )
+      .post(`${this.apiUrl}/Seleccion/crearSeleccionparteTrescandidato`, requestData,)
       .pipe(
         map((response: any) => response),
         catchError(this.handleError)
@@ -241,7 +241,7 @@ export class SeleccionService {
       bonificacion: formData.bonificacion
     };
 
-    return this.http.post(`${this.apiUrl}/Seleccion/crearSeleccionparteCuatrocandidato`, requestData, ).pipe(
+    return this.http.post(`${this.apiUrl}/Seleccion/crearSeleccionparteCuatrocandidato`, requestData,).pipe(
       map((response: any) => response),
       catchError(this.handleError)
     );
@@ -251,7 +251,7 @@ export class SeleccionService {
 
   public guardarInfoPersonal(data: any): Observable<any> {
 
-    return this.http.post(`${this.apiUrl}/entrevista/info-personal-alt/`, data, ).pipe(
+    return this.http.post(`${this.apiUrl}/entrevista/info-personal-alt/`, data,).pipe(
       map((response: any) => response),
       catchError(this.handleError)
     );
@@ -260,7 +260,7 @@ export class SeleccionService {
   // --- Guardar Entrevista ---
   public guardarEntrevista(data: any): Observable<any> {
 
-    return this.http.post(`${this.apiUrl}/entrevista/entrevista/`, data, ).pipe(
+    return this.http.post(`${this.apiUrl}/entrevista/entrevista/`, data,).pipe(
       map((response: any) => response),
       catchError(this.handleError)
     );
@@ -269,7 +269,7 @@ export class SeleccionService {
   // --- Guardar Observaciones ---
   public guardarObservaciones(data: any): Observable<any> {
 
-    return this.http.post(`${this.apiUrl}/entrevista/observaciones/`, data, ).pipe(
+    return this.http.post(`${this.apiUrl}/entrevista/observaciones/`, data,).pipe(
       map((response: any) => response),
       catchError(this.handleError)
     );
@@ -278,7 +278,7 @@ export class SeleccionService {
   // --- Guardar Vacantes ---
   public guardarVacantes(data: any): Observable<any> {
 
-    return this.http.post(`${this.apiUrl}/entrevista/vacantes/`, data, ).pipe(
+    return this.http.post(`${this.apiUrl}/entrevista/vacantes/`, data,).pipe(
       map((response: any) => response),
       catchError(this.handleError)
     );
@@ -287,7 +287,7 @@ export class SeleccionService {
   // listado-candidatos/
   public getCandidatos(): Observable<any> {
 
-    return this.http.get(`${this.apiUrl}/entrevista/listado-candidatos/`, ).pipe(
+    return this.http.get(`${this.apiUrl}/entrevista/listado-candidatos/`,).pipe(
       map((response: any) => response),
       catchError(this.handleError)
     );
@@ -326,7 +326,7 @@ export class SeleccionService {
   // 'seleccion/<int:id>/'
   public getSeleccionPorId(id: any): Observable<any> {
 
-    return this.http.get(`${this.apiUrl}/Seleccion/seleccion/${id}/`, ).pipe(
+    return this.http.get(`${this.apiUrl}/Seleccion/seleccion/${id}/`,).pipe(
       map((response: any) => response),
       catchError(this.handleError)
     );
@@ -357,6 +357,13 @@ export class SeleccionService {
   subirFotoBase64(pk: number | string, fotoBase64: string): Observable<UploadFotoResponse> {
     const url = `${this.apiUrl}/contratacion/candidatos/${pk}/foto/`;
     const body = { foto_base64: fotoBase64 };
+    // Sin headers explícitos: HttpClient envía JSON por defecto
+    return this.http.post<UploadFotoResponse>(url, body);
+  }
+
+  subirHuellaBase64(pk: number | string, huellaBase64: string): Observable<UploadFotoResponse> {
+    const url = `${this.apiUrl}/contratacion/candidatos/${pk}/huella-indice/`;
+    const body = { huella_base64: huellaBase64 };
     // Sin headers explícitos: HttpClient envía JSON por defecto
     return this.http.post<UploadFotoResponse>(url, body);
   }

@@ -1,7 +1,10 @@
 <div class="cards">
-  <app-info-card *ngIf="general" title="Número total de empleados" imageUrl="icons/cards/empleados.png"    [value]="numeroempleados" />
-  <app-info-card *ngIf="general" title="Numero de coordinadores" imageUrl="icons/cards/coordinador.png"    [value]="numeroCoordinadores" />
-  <app-info-card *ngIf="general" title="Numero de tiendas" imageUrl="icons/navbar/mercado.png"    [value]="numeroTiendas" />
+  <app-info-card *ngIf="general" title="Número total de empleados" imageUrl="icons/cards/empleados.png"
+    [value]="numeroempleados" />
+  <app-info-card *ngIf="general" title="Numero de coordinadores" imageUrl="icons/cards/coordinador.png"
+    [value]="numeroCoordinadores" />
+  <app-info-card *ngIf="general" title="Numero de tiendas" imageUrl="icons/navbar/mercado.png"
+    [value]="numeroTiendas" />
 </div>
 
 <app-active-authorizations *ngIf="general"></app-active-authorizations> <br>
@@ -16,3 +19,91 @@
   <app-info-card title="Mercado Andrea" imageUrl="comun/excel.png" [value]=""
   (cardClicked)="reporteMercadoAndrea()" style="cursor: pointer;" />
 -->
+
+
+<mat-card *ngIf="robotsHome">
+  <mat-card-content>
+    <div class="table-container">
+      <h1 class="titulo">General</h1>
+      <table mat-table [dataSource]="dataSource" matSort class="mat-elevation-z8">
+
+        <!-- Columnas dinámicas -->
+        <ng-container *ngFor="let column of displayedColumns" [matColumnDef]="column">
+
+          <!-- ENCABEZADO -->
+          <ng-container *ngIf="column !== 'Total'; else noSortHeader">
+            <th mat-header-cell *matHeaderCellDef mat-sort-header>{{ column }}</th>
+          </ng-container>
+          <ng-template #noSortHeader>
+            <th mat-header-cell *matHeaderCellDef>{{ column }}</th>
+          </ng-template>
+
+          <!-- CELDA -->
+          <td mat-cell *matCellDef="let element">
+            {{ element[column] }}
+          </td>
+
+          <!-- PIE DE TABLA -->
+          <td mat-footer-cell *matFooterCellDef>
+            {{
+            column !== 'pendiente' && column !== 'Total'
+            ? getTotalForColumn(column)
+            : (column === 'Total'
+            ? getTotalForColumn('Total')
+            : 'Total General')
+            }}
+          </td>
+
+        </ng-container>
+
+        <!-- Filas de tabla -->
+        <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+        <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
+        <tr mat-footer-row *matFooterRowDef="displayedColumns"></tr>
+      </table>
+    </div>
+  </mat-card-content>
+</mat-card>
+<br>
+<mat-card>
+  <mat-card-content>
+    <div class="table-container">
+      <h1 class="titulo">Por Paquete</h1>
+      <table mat-table [dataSource]="paquetesDataSource" matSort cdkDropList
+         class="mat-elevation-z8">
+
+        <!-- Columnas dinámicas -->
+        <ng-container *ngFor="let column of displayedPaqueteColumns" [matColumnDef]="column">
+          <th mat-header-cell *matHeaderCellDef mat-sort-header>{{ column }}</th>
+
+          <td mat-cell *matCellDef="let element">
+            <ng-container [ngSwitch]="column">
+              <!--
+                <button *ngSwitchCase="'descargar'" mat-icon-button color="primary"
+                (click)="descargarZip(element.paquete)" matTooltip="Descargar ZIP">
+                <mat-icon>download</mat-icon>
+              </button>
+              -->
+              <span *ngSwitchDefault>{{ element[column] }}</span>
+            </ng-container>
+          </td>
+
+          <td mat-footer-cell *matFooterCellDef>
+            {{
+            column !== 'paquete' && column !== 'prioridad' && column !== 'descargar'
+            ? getTotalForPaqueteColumn(column)
+            : (column === 'paquete'
+            ? 'Total General'
+            : '')
+            }}
+          </td>
+        </ng-container>
+
+        <!-- Filas -->
+        <tr mat-header-row *matHeaderRowDef="displayedPaqueteColumns"></tr>
+        <tr mat-row *matRowDef="let row; columns: displayedPaqueteColumns;" cdkDrag></tr>
+        <tr mat-footer-row *matFooterRowDef="displayedPaqueteColumns"></tr>
+      </table>
+    </div>
+  </mat-card-content>
+</mat-card>

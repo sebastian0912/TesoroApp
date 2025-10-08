@@ -190,14 +190,14 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     }
 
     try {
-      const storedUser = this.UtilityServiceService.getUser();
+      this.user = this.UtilityServiceService.getUser();
       const cedulaL = localStorage.getItem('cedula');
       this.cedula = cedulaL || '';
-      this.user = storedUser ? JSON.parse(storedUser) : {};
       this.sede = this.user.sede.nombre || '';
     } catch {
       this.user = {};
     }
+    console.log('Usuario cargado:', this.user);
 
     if (!this.cedula) {
       Swal.close();
@@ -209,6 +209,11 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     const datoVacante$ = this.contratacionService.buscarEncontratacion(this.cedula).pipe(
       take(1),
       map((res: any) => res?.data?.[0] ?? null),
+      catchError(err => { return of(null); })
+    );
+
+    const datoAdministrativo$ = this.contratacionService.buscarEncontratacion(this.user.numero_de_documento).pipe(
+      take(1),
       catchError(err => { return of(null); })
     );
 
@@ -241,15 +246,18 @@ export class GenerateContractingDocumentsComponent implements OnInit {
 
     forkJoin({
       personal: datoVacante$,
+      administrativo: datoAdministrativo$,
       procesoTop: seleccionTop$,
       contratacion: datoContratacion$,
       infoContratacion: datoInfoContratacion$
     })
       .pipe(
-        switchMap(({ personal, procesoTop, contratacion, infoContratacion }) => {
+        switchMap(({ personal, administrativo, procesoTop, contratacion, infoContratacion }) => {
           // Set de estado local
           this.datoPersonal = personal;
           console.log('Dato Personal:', this.datoPersonal);
+          this.huellaIndiceDerecho = this.datoPersonal?.huellaIndiceDerecho || '';
+          this.firmaPersonalAdministrativo = administrativo?.data?.[0]?.firmaSolicitante || '';
           this.datoSeleccion = procesoTop;
           console.log('Proceso Top:', this.datoSeleccion);
           this.datoContratacion = contratacion;
@@ -1027,10 +1035,11 @@ export class GenerateContractingDocumentsComponent implements OnInit {
           try { form.getButton('Image18_af_image').setImage(logoImg); } catch { }
         } catch { }
       }
+      const user = this.UtilityServiceService.getUser();
 
       // === Campos de cabecera / contrato ===
       this.setText(form, 'CodContrato', this.safe(this.datoContratacion?.codigo_contrato), customFont, 7.2);
-      this.setText(form, 'sede', this.sede, customFont, 7.2); // NO DISPONIBLE -> vacío
+      this.setText(form, 'sede', user.sede.nombre, customFont, 7.2); // NO DISPONIBLE -> vacío
       this.setText(form, 'empresa', this.safe(nombreEmpresa), customFont);
 
       // === Identificación principal (datoPersonal) ===
@@ -1213,13 +1222,15 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       this.setText(form, 'Comentario referencia Familiar', '', customFont);
       this.setText(form, 'Comentario referencia Familiar 2', '', customFont);
 
+      console.log(user);
       // Persona que firma verificación (derivada de empresa si aplica)
-      this.setText(form, 'Persona que firma', this.safe(persona), customFont);
+      this.setText(form, 'Persona que firma', this.safe(user.datos_basicos.nombres + ' ' + user.datos_basicos.apellidos + ' ' + user.tipo_documento + ' ' + user.numero_de_documento), customFont);
 
       // Firma/verificación (si tenemos ruta de firma institucional)
-      const firmaInstBytes = await this.fetchAsArrayBufferOrNull(firmaPath);
+      const firmaInstBytes = await this.base64ToUint8Array(this.firmaPersonalAdministrativo);
       if (firmaInstBytes) {
-        await this.setImageButtonFromBytes(pdfDoc, form, 'Image15_af_image', firmaInstBytes);
+        const img = await pdfDoc.embedPng(firmaInstBytes);
+        form.getButton('Image15_af_image').setImage(img);
       }
 
       // Firma del candidato (datoVacante.firma base64) -> en este dataset viene null
@@ -1255,6 +1266,29 @@ export class GenerateContractingDocumentsComponent implements OnInit {
           // silenciar si el campo no existe o la imagen no es soportada
         }
       }
+
+      // Image10_af_image huella
+      if (this.datoPersonal?.huellaIndiceDerecho) {
+        const huella = this.decodeBase64Image(this.datoPersonal.huellaIndiceDerecho);
+        if (huella?.bytes) {
+          try {
+            let pdfImg;
+            if (huella.mime === 'image/png') {
+              pdfImg = await pdfDoc.embedPng(huella.bytes);
+            } else if (huella.mime === 'image/jpeg' || huella.mime === 'image/jpg') {
+              pdfImg = await pdfDoc.embedJpg(huella.bytes);
+            } else {
+              // Fallback si el mime no es claro: intentamos PNG y luego JPG
+              try { pdfImg = await pdfDoc.embedPng(huella.bytes); }
+              catch { pdfImg = await pdfDoc.embedJpg(huella.bytes); }
+            }
+            form.getButton('Image10_af_image').setImage(pdfImg);
+          } catch {
+            // silenciar si el campo no existe o la imagen no es soportada
+          }
+        }
+      }
+
 
       // PersonaRefencia1P
       this.setText(form, 'PersonaRefencia1P', this.safe(this.datoPersonal.nombre_referencia_personal1), customFont);
@@ -1510,7 +1544,6 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       return {
         logoPath: '/logos/Logo_AL.png',
         firmaPath: 'firma/FirmaAndreaSD.png',
-        persona: 'Andrea Sotelo C.C. 1.019.034.641',
         nombreEmpresa: 'APOYO LABORAL TS S.A.S.',
       };
     }
@@ -1518,7 +1551,6 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       return {
         logoPath: '/logos/Logo_TA.png',
         firmaPath: 'firma/FirmaAndreaSD.png',
-        persona: 'Andrea Sotelo C.C. 1.019.034.641',
         nombreEmpresa: 'TU ALIANZA S.A.S.',
       };
     }
@@ -2690,14 +2722,14 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     doc.text(this.nombreCompletoLogin, 150, y + 43);
     //doc.text('C.C.' + this.cedulaPersonalAdministrativo.cedula, 150, y + 46);
 
-    /*
+
     if (this.firmaPersonalAdministrativo !== '') {
       // Asegúrate de que this.firmaPersonalAdministrativo solo sea el base64 sin el 'data:image/png;base64,'
-      const firmaPersonalAdministrativoConPrefijo = 'data:image/png;base64,' + this.firmaPersonalAdministrativo;
+      const firmaPersonalAdministrativoConPrefijo = this.firmaPersonalAdministrativo;
 
       doc.addImage(firmaPersonalAdministrativoConPrefijo, 'PNG', 150, 230, 48, 15);
     }
-      */
+
 
 
     // Convertir a Blob y guardar en uploadedFiles

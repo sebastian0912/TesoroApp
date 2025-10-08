@@ -539,68 +539,58 @@ export class RecruitmentPipelineComponent {
     this.hayNoApto.set(Array.isArray(arr) && arr.some(x => this.isNoApto(x?.aptoStatus)));
   }
 
-  private async elegirProcesoBonitoSinIdONuevo(items: any[]): Promise<any | 'NEW' | null> {
-    const card = (it: any, checked = false) => {
-      const fecha = this.formatMarcaTemporal(it?.marcaTemporal);
-      const evaluador = this.escapeHtml(it?.nombre_evaluador || '—');
-      const ips = this.escapeHtml(it?.ips || '');
-      return `
-        <label class="proc-card">
-          <input type="radio" name="procOption" value="${it.id}" ${checked ? 'checked' : ''}/>
-          <div class="card">
-            <div class="card-row"><span class="date">${fecha}</span></div>
-            <div class="card-body">
-              <div><b>Evaluador:</b> ${evaluador}</div>
-              ${ips ? `<div><b>IPS:</b> ${ips}</div>` : ''}
-            </div>
-          </div>
-        </label>`;
-    };
-    const newCard = `
-      <label class="proc-card">
-        <input type="radio" name="procOption" value="NEW"/>
-        <div class="card new">
-          <div class="new-title">Crear nuevo proceso</div>
-          <div class="new-sub">Comenzar desde cero</div>
-        </div>
-      </label>`;
-
-    const { isConfirmed } = await Swal.fire({
-      title: '¿Cómo deseas continuar?',
-      html: `
-        <style>
-          .proc-wrap{display:flex;gap:12px;flex-wrap:wrap;justify-content:center;margin-top:6px}
-          .proc-card{cursor:pointer}
-          .proc-card input{display:none}
-          .proc-card .card{width:300px;padding:12px 14px;border-radius:14px;border:1px solid #e5e7eb;transition:.15s;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.06)}
-          .proc-card .card.new{background:#f8fafc;border-style:dashed}
-          .proc-card .new-title{font-weight:700;color:#0f172a}
-          .proc-card .new-sub{font-size:12px;color:#64748b}
-          .proc-card input:checked + .card{border-color:#3f51b5;box-shadow:0 0 0 3px rgba(63,81,181,.15)}
-          .proc-card .card-row{display:flex;justify-content:flex-start;align-items:center;margin-bottom:8px}
-          .date{font-size:13px;color:#374151;font-weight:600}
-          .card-body{font-size:13px;color:#374151;line-height:1.35}
-        </style>
-        <div class="proc-wrap">
-          ${items[0] ? card(items[0], true) : ''}
-          ${items[1] ? card(items[1]) : ''}
-          ${newCard}
-        </div>`,
-      focusConfirm: false,
-      allowOutsideClick: false,
-      confirmButtonText: 'Continuar',
-      preConfirm: () => {
-        const sel = (document.querySelector('input[name="procOption"]:checked') as HTMLInputElement)?.value;
-        if (!sel) { Swal.showValidationMessage('Selecciona una opción'); return false as any; }
-        (Swal as any).selectedOption = sel; return true;
-      }
-    });
-    if (!isConfirmed) return null;
-    const sel = (Swal as any).selectedOption as string;
-    if (sel === 'NEW') return 'NEW';
-    const idSel = Number(sel);
-    return items.find(it => it.id === idSel) ?? null;
+  // Elige automáticamente el proceso más reciente o 'NEW' si no hay items
+  private async elegirProcesoBonitoSinIdONuevo(
+    items: any[]
+  ): Promise<any | 'NEW' | null> {
+    if (!Array.isArray(items) || items.length === 0) return 'NEW';
+    return this.elegirUltimoProceso(items);
   }
+
+  // Helper: retorna el item más "reciente" por marcaTemporal (o por id si no hay fecha/empate)
+  private elegirUltimoProceso(items: any[]): any {
+    const toEpoch = (it: any): number => {
+      const raw =
+        it?.marcaTemporal ??
+        it?.fecha ??
+        it?.created_at ??
+        it?.updated_at ??
+        null;
+
+      // Acepta Date o string; tolera "YYYY-MM-DD HH:mm:ss" o ISO
+      if (raw instanceof Date) return raw.getTime();
+      if (typeof raw === 'string') {
+        // Normaliza espacio -> 'T' para mejorar el parseo en algunos entornos
+        const str = raw.includes(' ') ? raw.replace(' ', 'T') : raw;
+        const t = Date.parse(str);
+        if (!Number.isNaN(t)) return t;
+      }
+      return NaN; // sin fecha válida
+    };
+
+    const toId = (it: any): number => Number(it?.id) || -Infinity;
+
+    return items.reduce((best, cur) => {
+      const tb = toEpoch(best);
+      const tc = toEpoch(cur);
+
+      // Si uno no tiene fecha válida, gana el que sí tiene
+      if (Number.isNaN(tb) && !Number.isNaN(tc)) return cur;
+      if (!Number.isNaN(tb) && Number.isNaN(tc)) return best;
+
+      // Si ambos tienen fecha válida, gana el más reciente
+      if (!Number.isNaN(tb) && !Number.isNaN(tc)) {
+        if (tc > tb) return cur;
+        if (tc < tb) return best;
+        // Empate por fecha -> desempata por id mayor
+        return toId(cur) > toId(best) ? cur : best;
+      }
+
+      // Si ninguno tiene fecha válida -> desempata por id mayor
+      return toId(cur) > toId(best) ? cur : best;
+    }, items[0]);
+  }
+
 
   private formatMarcaTemporal(v: any): string {
     if (!v) return '—';

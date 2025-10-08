@@ -35,12 +35,9 @@ export class ConsultContractingDocumentationComponent implements OnInit {
   displayedColumns: string[] = [
     'cedula', 'tipo_documento', 'nombre', 'finca', 'fecha_ingreso', 'codigo_contrato', 'fechaContratacion', 'ficha_tecnica', 'pdf_cedula',  // ← coincide 100 %
     'procuraduria', 'contraloria', 'ofac', 'policivos',
-    'adres', 'sisben', 'contrato', 'entrega_documentos',
+    'adres', 'sisben', 'contrato', 'entrega_documentos', 'tratamiento_datos', 'manejo_imagen',
     'arl', 'examen', 'fondo_pension', 'eps', 'caja', 'pago_seguridad_social',
-
   ];
-
-
 
   private crearFilaBase(cedula: string) {
     return {
@@ -62,6 +59,8 @@ export class ConsultContractingDocumentationComponent implements OnInit {
       sisben: '',
       contrato: '',
       entrega_documentos: '',
+      tratamiento_datos: '',
+      manejo_imagen: '',
       arl: '',
       examen: '',
       fondo_pension: '',
@@ -167,7 +166,7 @@ export class ConsultContractingDocumentationComponent implements OnInit {
         this.dataSource.data = [...this.dataSource.data, row];
       }
 
-      const tipos = [2, 25, 27, 29, 30, 32, 34, 36, 37, 38];
+      const tipos = [2, 25, 26, 27, 29, 30, 32, 34, 36, 37, 38, 46];
 
       forkJoin([
         this.seleccionService.buscarEncontratacion(c).pipe(
@@ -288,6 +287,17 @@ export class ConsultContractingDocumentationComponent implements OnInit {
                   row.pdf_pago_seguridad_social = doc.file_url || '';
                   row.fecha_pago_seguridad_social = doc.uploaded_at || '';
                   break;
+                case 'autorizacion_tratamientos_de_datos':
+                  row.tratamiento_datos = '✔';
+                  row.pdf_tratamiento_datos = doc.file_url || '';
+                  row.fecha_tratamiento_datos = doc.uploaded_at || '';
+                  break;
+                case 'manejo_imagen':
+                  row.manejo_imagen = '✔';
+                  row.pdf_manejo_imagen = doc.file_url || '';
+                  row.fecha_manejo_imagen = doc.uploaded_at || '';
+                  break;
+
 
                 // Agrega más tipos si es necesario
               }
