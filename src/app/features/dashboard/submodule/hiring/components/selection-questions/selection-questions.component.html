@@ -167,7 +167,7 @@
   <div class="input-container">
     <mat-form-field appearance="fill" class="example-full-width">
       <mat-label>Medidas Correctivas</mat-label>
-      <mat-select formControlName="medidasCorrectivas" required>
+      <mat-select formControlName="medidasCorrectivas">
         <mat-option *ngFor="let n of medidasCorrectivas" [value]="n">
           {{ n }}
         </mat-option>
@@ -473,13 +473,6 @@
         (click)="$event.stopPropagation()">
         <mat-icon>more_vert</mat-icon>
       </button>
-
-      <mat-error *ngIf="antecedentes.get('semanasCotizadas')?.hasError('required')">
-        Este campo es obligatorio.
-      </mat-error>
-      <mat-error *ngIf="antecedentes.get('semanasCotizadas')?.hasError('min')">
-        Debe ser al menos 1.
-      </mat-error>
     </mat-form-field>
 
     <mat-menu #pdfMenuPension="matMenu">

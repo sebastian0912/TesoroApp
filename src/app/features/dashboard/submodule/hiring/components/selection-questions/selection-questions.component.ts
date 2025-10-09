@@ -1,6 +1,6 @@
 import { Component, effect, input, OnInit } from '@angular/core';
 import { SharedModule } from '@/app/shared/shared.module';
-import { FormBuilder, FormGroup, Validators } from '@angular/forms';
+import { FormBuilder, FormGroup } from '@angular/forms';
 import { MatTabsModule } from '@angular/material/tabs';
 import Swal from 'sweetalert2';
 import { SeleccionService } from '../../service/seleccion/seleccion.service';
@@ -16,6 +16,7 @@ type UploadedFileInfo = {
   updatedAt?: number | string;
   updatedAtLabel?: string;
   changed?: boolean;
+  loading?: boolean; // visual mientras carga del backend
 };
 
 // Llaves tipadas para evitar typos
@@ -48,6 +49,20 @@ export interface AntecedentesData {
 interface SeleccionPorIdResponse {
   procesoSeleccion?: Maybe<AntecedentesData>;
 }
+
+const DEFAULT_UPLOADED_FILES: Record<DocKey, UploadedFileInfo> = {
+  eps: { fileName: 'Adjuntar documento' },
+  afp: { fileName: 'Adjuntar documento' },
+  policivos: { fileName: 'Adjuntar documento' },
+  procuraduria: { fileName: 'Adjuntar documento' },
+  contraloria: { fileName: 'Adjuntar documento' },
+  ramaJudicial: { fileName: 'Adjuntar documento' },
+  medidasCorrectivas: { fileName: 'Adjuntar documento' },
+  sisben: { fileName: 'Adjuntar documento' },
+  ofac: { fileName: 'Adjuntar documento' },
+  figuraHumana: { fileName: 'Adjuntar documento' },
+  pensionSemanas: { fileName: 'Sin consultar' },
+};
 
 @Component({
   selector: 'app-selection-questions',
@@ -87,7 +102,7 @@ export class SelectionQuestionsComponent implements OnInit {
     'No Aplica', 'Sin Buscar'
   ] as const;
 
-  // formulario
+  // formulario (sin requeridos)
   antecedentes: FormGroup;
 
   // Mapea cada doc a su tipo en backend
@@ -106,19 +121,7 @@ export class SelectionQuestionsComponent implements OnInit {
   };
 
   // Estado de archivos por clave
-  uploadedFiles: Record<DocKey, UploadedFileInfo> = {
-    eps: { fileName: 'Adjuntar documento' },
-    afp: { fileName: 'Adjuntar documento' },
-    policivos: { fileName: 'Adjuntar documento' },
-    procuraduria: { fileName: 'Adjuntar documento' },
-    contraloria: { fileName: 'Adjuntar documento' },
-    ramaJudicial: { fileName: 'Adjuntar documento' },
-    medidasCorrectivas: { fileName: 'Adjuntar documento' },
-    sisben: { fileName: 'Adjuntar documento' },
-    ofac: { fileName: 'Adjuntar documento' },
-    figuraHumana: { fileName: 'Adjuntar documento' },
-    pensionSemanas: { fileName: 'Sin consultar' },
-  };
+  uploadedFiles: Record<DocKey, UploadedFileInfo> = { ...DEFAULT_UPLOADED_FILES };
 
   // token anti-carrera
   private _ctx = 0;
@@ -129,8 +132,7 @@ export class SelectionQuestionsComponent implements OnInit {
     private seleccionService: SeleccionService,
     private utilityService: UtilityServiceService
   ) {
-    // Si usas typed forms estrictos en tu proyecto y te da lata TS,
-    // puedes tipar este FormGroup con generics. Aquí lo dejamos suelto.
+    // NOTA: Nada requerido; semanasCotizadas es nullable
     this.antecedentes = this.fb.group({
       eps: [''],
       afp: [''],
@@ -140,9 +142,9 @@ export class SelectionQuestionsComponent implements OnInit {
       ramaJudicial: [''],
       sisben: [''],
       ofac: [''],
-      medidasCorrectivas: [''],
-      semanasCotizadas: [0, [Validators.min(0)]],
-      // area_aplica: [''], // si lo usas, descomenta
+      medidasCorrectivas: [''], // opcional
+      semanasCotizadas: [null], // opcional y nullable
+      // area_aplica: [''],
     });
 
     // Un único efecto que registra cambios por input
@@ -152,9 +154,7 @@ export class SelectionQuestionsComponent implements OnInit {
       const id = this.idProcesoSeleccion();
       const idInfo = this.idInfoEntrevistaAndrea();
 
-      // Ejecuta primero con el “prev” antiguo para detectar cambios correctamente
       this.onInputsChanged(c, v, id, idInfo);
-      // Actualiza prev después
       this._prev = { cedula: c, vacante: v, idProceso: id, idInfoEntrevistaAndrea: idInfo };
     });
   }
@@ -163,19 +163,20 @@ export class SelectionQuestionsComponent implements OnInit {
     this._ready = true;
   }
 
-  /** Utilidad local: a número seguro */
-  private toInt(v: any, def = 0): number {
-    const n = parseInt(String(v ?? '').trim(), 10);
-    return Number.isFinite(n) ? n : def;
+  /** Utilidad: a número o null si no aplica */
+  private toIntOrNull(v: any): number | null {
+    if (v === null || v === undefined || v === '') return null;
+    const n = parseInt(String(v).trim(), 10);
+    return Number.isFinite(n) ? n : null;
   }
 
-  /** Utilidad local: medidasCorrectivas "CUMPLE" | número | '' */
+  /** Utilidad local: medidasCorrectivas -> "CUMPLE" | número | '' */
   private coerceMedidas(v: any): string | number | '' {
-    if (v == null) return '';
+    if (v == null || v === '') return '';
     const s = String(v).trim().toUpperCase();
     if (s === 'CUMPLE') return 'CUMPLE';
-    const n = this.toInt(v, NaN as unknown as number);
-    return Number.isFinite(n) ? n : '';
+    const n = this.toIntOrNull(v);
+    return n ?? '';
   }
 
   /** Carga la info de selección en el form `antecedentes` */
@@ -192,112 +193,124 @@ export class SelectionQuestionsComponent implements OnInit {
       medidasCorrectivas: this.coerceMedidas(seleccion.medidasCorrectivas ?? seleccion.medidas_correctivas),
       sisben: seleccion.sisben ?? '',
       ofac: seleccion.ofac ?? '',
-      semanasCotizadas: this.toInt(seleccion.semanasCotizadas ?? seleccion.semanas_cotizadas, 0),
+      semanasCotizadas: this.toIntOrNull(seleccion.semanasCotizadas ?? seleccion.semanas_cotizadas),
     };
 
     if (this.antecedentes.get('area_aplica')) {
       patch.area_aplica = seleccion.area_aplica ?? '';
     }
 
-    // Cast para strict typed forms
     this.antecedentes.patchValue(patch as any, { emitEvent: false });
   }
+
+  // ======= Helpers Loading =======
+  private showLoading(text = 'Cargando información…') {
+    Swal.fire({
+      icon: 'info',
+      title: 'Cargando…',
+      text,
+      allowOutsideClick: false,
+      showConfirmButton: false,
+      didOpen: () => Swal.showLoading(),
+    });
+  }
+  private closeLoadingIf(ctx: number) {
+    if (ctx === this._ctx && Swal.isVisible()) Swal.close();
+  }
+  // ===============================
+
+  /** deja todos los docs como “nuevos” y en loading=true */
+  private resetUploadedFilesAsNew(): void {
+    const keys = Object.keys(this.typeMap) as DocKey[];
+    for (const k of keys) {
+      const defaultName = k === 'pensionSemanas' ? 'Sin consultar' : 'Adjuntar documento';
+      this.uploadedFiles[k] = {
+        file: undefined,
+        fileName: defaultName,
+        changed: false,
+        updatedAt: undefined,
+        updatedAtLabel: undefined,
+        loading: true,
+      };
+    }
+  }
+
   /** Se ejecuta cada vez que cambian los inputs con signal() */
-// Helpers para loading ---------------------------------
-private showLoading(text = 'Cargando información…') {
-  Swal.fire({
-    icon: 'info',
-    title: 'Cargando…',
-    text,
-    allowOutsideClick: false,
-    showConfirmButton: false,
-    didOpen: () => Swal.showLoading(),
-  });
-}
-private closeLoadingIf(ctx: number) {
-  if (ctx === this._ctx && Swal.isVisible()) Swal.close();
-}
-// ------------------------------------------------------
+  private async onInputsChanged(
+    cedula: string,
+    _vacante: any,
+    idProceso: number | null,
+    _idInfoEntrevistaAndrea: number | null
+  ) {
+    const ctx = ++this._ctx; // descartar respuestas viejas
 
-// Reemplaza tu método por este
-private async onInputsChanged(
-  cedula: string,
-  vacante: any,
-  idProceso: number | null,
-  idInfoEntrevistaAndrea: number | null
-) {
-  const ctx = ++this._ctx; // descartar respuestas viejas
+    // 1) Si no hay contexto suficiente, limpia y sal
+    if (!cedula || !idProceso) {
+      const resetValue: any = {
+        eps: '', afp: '', policivos: '', procuraduria: '', contraloria: '',
+        ramaJudicial: '', sisben: '', ofac: '', medidasCorrectivas: '',
+        semanasCotizadas: null
+      };
+      if (this.antecedentes.get('area_aplica')) resetValue.area_aplica = '';
 
-  // 1) Si no hay contexto suficiente, limpia y sal
-  if (!cedula || !idProceso) {
-    const resetValue: any = {
-      eps: '', afp: '', policivos: '', procuraduria: '', contraloria: '',
-      ramaJudicial: '', sisben: '', ofac: '', medidasCorrectivas: '',
-      semanasCotizadas: 0
-    };
-    if (this.antecedentes.get('area_aplica')) resetValue.area_aplica = '';
+      this.antecedentes.reset(resetValue as any, { emitEvent: false });
 
-    this.antecedentes.reset(resetValue as any, { emitEvent: false });
+      (Object.keys(this.typeMap) as DocKey[]).forEach(k => {
+        const dflt = k === 'pensionSemanas' ? 'Sin consultar' : 'Adjuntar documento';
+        this.uploadedFiles[k] = { fileName: dflt, loading: false, changed: false };
+      });
 
-    (Object.keys(this.uploadedFiles) as DocKey[]).forEach(k => {
-      const prev = this.uploadedFiles[k];
-      this.uploadedFiles[k] = { fileName: prev?.fileName || 'Adjuntar documento' };
-    });
-
-    this.closeLoadingIf(ctx);
-    return;
-  }
-
-  // 2) Si cambió cédula o proceso, reinicia UI derivada
-  const changedCedula = this._prev.cedula !== cedula;
-  const changedProceso = this._prev.idProceso !== idProceso;
-  if (changedCedula || changedProceso) {
-    const resetValue: any = {
-      eps: '', afp: '', policivos: '', procuraduria: '', contraloria: '',
-      ramaJudicial: '', sisben: '', ofac: '', medidasCorrectivas: '',
-      semanasCotizadas: 0
-    };
-    if (this.antecedentes.get('area_aplica')) resetValue.area_aplica = '';
-    this.antecedentes.reset(resetValue as any, { emitEvent: false });
-
-    (Object.keys(this.uploadedFiles) as DocKey[]).forEach(k => {
-      const prev = this.uploadedFiles[k];
-      this.uploadedFiles[k] = { fileName: prev?.fileName || 'Adjuntar documento' };
-    });
-  }
-
-  // 3) Mostrar loading y ejecutar cargas
-  this.showLoading('Obteniendo documentos y datos de selección…');
-
-  try {
-    // 3.1) Precarga documentos del candidato
-    await this.loadDataDocumentos();
-    if (ctx !== this._ctx) { this.closeLoadingIf(ctx); return; }
-
-    // 3.2) Traer selección por id (si el servicio existe)
-    const svc: any = this.seleccionService as any;
-    if (typeof svc.getSeleccionPorId === 'function') {
-      const res = await firstValueFrom(svc.getSeleccionPorId(idProceso!)) as SeleccionPorIdResponse;
-      if (ctx !== this._ctx) { this.closeLoadingIf(ctx); return; }
-
-      const seleccion = res?.procesoSeleccion;
-      if (seleccion) {
-        this.loadDataSeleccion(seleccion);
-      }
+      this.closeLoadingIf(ctx);
+      return;
     }
 
-    // 3.3) Si hubiera más cargas dependientes de idInfoEntrevistaAndrea, hazlo aquí
-    // if (this._prev.idInfoEntrevistaAndrea !== idInfoEntrevistaAndrea && idInfoEntrevistaAndrea) { ... }
+    // 2) Si cambió cédula o proceso, reinicia UI derivada y marca loading
+    const changedCedula = this._prev.cedula !== cedula;
+    const changedProceso = this._prev.idProceso !== idProceso;
+    if (changedCedula || changedProceso) {
+      const resetValue: any = {
+        eps: '', afp: '', policivos: '', procuraduria: '', contraloria: '',
+        ramaJudicial: '', sisben: '', ofac: '', medidasCorrectivas: '',
+        semanasCotizadas: null
+      };
+      if (this.antecedentes.get('area_aplica')) resetValue.area_aplica = '';
+      this.antecedentes.reset(resetValue as any, { emitEvent: false });
 
-  } catch (e) {
-    // Muestra error sin cerrar el swal antes de tiempo por carrera
-    Swal.fire('Error', 'No se pudo cargar la información.', 'error');
-  } finally {
-    // Cerrar loader solo si sigue siendo el contexto actual
-    this.closeLoadingIf(ctx);
+      this.resetUploadedFilesAsNew();
+    }
+
+    // 3) Mostrar loading y ejecutar cargas
+    this.showLoading('Obteniendo documentos y datos de selección…');
+
+    try {
+      // 3.1) Precarga documentos del candidato (con ctx)
+      const tocados = await this.loadDataDocumentos(ctx);
+      if (ctx !== this._ctx) { this.closeLoadingIf(ctx); return; }
+
+      // apaga loading en los no tocados
+      const all = new Set(Object.keys(this.typeMap) as DocKey[]);
+      tocados.forEach(k => all.delete(k));
+      for (const k of all) {
+        if (this.uploadedFiles[k]) this.uploadedFiles[k].loading = false;
+      }
+
+      // 3.2) Traer selección por id (si el servicio existe)
+      const svc: any = this.seleccionService as any;
+      if (typeof svc.getSeleccionPorId === 'function') {
+        const res = await firstValueFrom(svc.getSeleccionPorId(idProceso!)) as SeleccionPorIdResponse;
+        if (ctx !== this._ctx) { this.closeLoadingIf(ctx); return; }
+
+        const seleccion = res?.procesoSeleccion;
+        if (seleccion) {
+          this.loadDataSeleccion(seleccion);
+        }
+      }
+    } catch (e) {
+      Swal.fire('Error', 'No se pudo cargar la información.', 'error');
+    } finally {
+      this.closeLoadingIf(ctx);
+    }
   }
-}
-
 
   private toTimestampMs(v: unknown): number | undefined {
     if (typeof v === 'number' && Number.isFinite(v)) return v;
@@ -321,7 +334,6 @@ private async onInputsChanged(
   }
 
   verArchivo(campo: DocKey) {
-    console.log('verArchivo', campo, this.uploadedFiles[campo]);
     const archivo = this.uploadedFiles[campo];
     if (archivo?.file) {
       if (typeof archivo.file === 'string') {
@@ -356,6 +368,7 @@ private async onInputsChanged(
       file,
       fileName: file.name,
       changed: true,
+      loading: false, // ya hay archivo local
       updatedAt: undefined,
       updatedAtLabel: undefined
     };
@@ -367,11 +380,30 @@ private async onInputsChanged(
     if (!/^\d$/.test(e.key)) e.preventDefault();
   }
 
+  /** Elimina del payload lo que venga vacío/nullable */
+  private sanitizarPayload(formValue: any): any {
+    const out: any = { ...formValue };
+
+    // semanasCotizadas: enviar número si existe; si no, omitir
+    const sc = this.toIntOrNull(out.semanasCotizadas);
+    if (sc === null) delete out.semanasCotizadas;
+    else out.semanasCotizadas = sc;
+
+    // medidasCorrectivas: si '', omitir
+    if (out.medidasCorrectivas === '' || out.medidasCorrectivas === undefined || out.medidasCorrectivas === null) {
+      delete out.medidasCorrectivas;
+    }
+
+    return out;
+  }
+
   async imprimirVerificacionesAplicacion(): Promise<void> {
-    // Valida formulario antes de enviar
+    // Con estos cambios, el form debería estar válido salvo otros campos
     if (this.antecedentes.invalid) {
       this.antecedentes.markAllAsTouched();
       await Swal.fire('Campos incompletos', 'Revisa los campos obligatorios.', 'warning');
+      const missingFields = Object.keys(this.antecedentes.controls).filter(key => this.antecedentes.get(key)?.invalid);
+      console.log('Campos faltantes o inválidos:', missingFields);
       return;
     }
 
@@ -385,7 +417,8 @@ private async onInputsChanged(
     });
 
     try {
-      const payload: any = { ...this.antecedentes.value, numerodeceduladepersona: this.cedula() };
+      const base = this.sanitizarPayload(this.antecedentes.value);
+      const payload: any = { ...base, numerodeceduladepersona: this.cedula() };
 
       const user = this.utilityService.getUser();
       payload.nombre_evaluador = `${user.datos_basicos.nombres} ${user.datos_basicos.apellidos}`;
@@ -451,17 +484,6 @@ private async onInputsChanged(
     }
   }
 
-  private formatFechaActualizacion(iso: string | null | undefined): string | undefined {
-    if (!iso) return undefined;
-    const d = new Date(iso);
-    if (isNaN(d.getTime())) return undefined;
-    try {
-      return d.toLocaleString('es-CO', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'America/Bogota' });
-    } catch {
-      return d.toLocaleString();
-    }
-  }
-
   async subirTodosLosArchivos(
     keysEspecificos: DocKey[]
   ): Promise<{ todosOk: boolean; exitosos: DocKey[]; fallidos: { key: DocKey; error: string }[] }> {
@@ -507,20 +529,35 @@ private async onInputsChanged(
     return { todosOk: fallidos.length === 0, exitosos, fallidos };
   }
 
-  async loadDataDocumentos(): Promise<void> {
+  private formatFechaActualizacion(iso: string | null | undefined): string | undefined {
+    if (!iso) return undefined;
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return undefined;
+    try {
+      return d.toLocaleString('es-CO', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'America/Bogota' });
+    } catch {
+      return d.toLocaleString();
+    }
+  }
+
+  /** Carga documentos previos; devuelve las claves tocadas y respeta el contexto para evitar carreras */
+  async loadDataDocumentos(ctx: number): Promise<Set<DocKey>> {
+    const tocados = new Set<DocKey>();
     try {
       const docs: any[] = await firstValueFrom(
         this.gestionDocumentalService.obtenerDocumentosPorTipo(this.cedula(), 2)
       );
+      if (ctx !== this._ctx || !Array.isArray(docs) || !docs.length) return tocados;
 
-      if (!Array.isArray(docs) || !docs.length) return;
+      for (const documento of docs) {
+        if (ctx !== this._ctx) return tocados;
 
-      const tareas = docs.map(async (documento: any) => {
         const typeKey = (Object.keys(this.typeMap) as DocKey[]).find(k => this.typeMap[k] === documento.type);
-        if (!typeKey) return;
+        if (!typeKey) continue;
 
         const nombre = documento.title || 'Documento sin título';
         const file = await this.urlToFile(documento.file_url, nombre);
+        if (ctx !== this._ctx) return tocados;
 
         const iso: string | undefined = documento.uploaded_at || undefined;
         const label = this.formatFechaActualizacion(iso);
@@ -529,12 +566,12 @@ private async onInputsChanged(
           fileName: nombre,
           file,
           updatedAt: iso ?? undefined,
-          updatedAtLabel: label ?? undefined
+          updatedAtLabel: label ?? undefined,
+          changed: false,
+          loading: false,
         };
-      });
-
-      await Promise.all(tareas);
-
+        tocados.add(typeKey);
+      }
     } catch (err: any) {
       if (err?.error?.error !== 'No se encontraron documentos') {
         Swal.fire({
@@ -545,6 +582,7 @@ private async onInputsChanged(
         });
       }
     }
+    return tocados;
   }
 
   async urlToFile(url: string, fileName: string): Promise<File> {
