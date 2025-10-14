@@ -136,4 +136,53 @@ export class UtilityServiceService {
     );
   }
 
+
+  /** Normaliza para comparar: sin acentos, minúsculas, un solo espacio */
+  _normKey(s: string): string {
+    return (s ?? '')
+      .toString()
+      .normalize('NFD')
+      .replace(/\p{Diacritic}/gu, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .toLowerCase();
+  }
+
+  /** normaliza para comparar: sin acentos, minúsculas */
+  normKey(s: string): string {
+    return (s ?? '')
+      .toString()
+      .normalize('NFD')
+      .replace(/\p{Diacritic}/gu, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .toLowerCase();
+  }
+
+  /** String del backend ("A, B, C") -> array mapeado a tu catálogo */
+  parseMultiToCatalog(input: string | string[] | null | undefined, catalog: readonly string[]): string[] {
+    const catMap = new Map<string, string>(catalog.map(v => [this.normKey(v), v]));
+    const tokens = Array.isArray(input)
+      ? input
+      : String(input ?? '')
+        .split(/[,\uFF0C;|/]+/) // coma, punto y coma, pipes, slash…
+        .map(s => s.trim())
+        .filter(Boolean);
+
+    const out: string[] = [];
+    const seen = new Set<string>();
+    for (const raw of tokens) {
+      const k = this.normKey(raw);
+      const canon = catMap.get(k);
+      if (!canon) continue;          // ignora lo que no esté en tu catálogo
+      const dk = this.normKey(canon);
+      if (seen.has(dk)) continue;    // evita duplicados
+      seen.add(dk);
+      out.push(canon);
+    }
+    return out;
+  }
+
+
+
 }

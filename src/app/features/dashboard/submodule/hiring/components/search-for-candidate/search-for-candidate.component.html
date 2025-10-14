@@ -11,7 +11,7 @@
 
   <!-- Botones -->
   <div class="acciones">
-    <button mat-flat-button color="primary" (click)="buscarEntrevistaAndrea()">
+    <button mat-flat-button color="primary" (click)="buscarCandidato()">
       Buscar
     </button>
 
@@ -28,7 +28,7 @@
 
   <!-- Botón 'Escoger' en la columna actions -->
   <ng-template #actionsTemplate let-row>
-    <button mat-flat-button color="primary" (click)="seleccionarCedula(row);">
+    <button mat-flat-button color="primary" (click)="onOk(row)">
       ok
     </button>
   </ng-template>
@@ -50,11 +50,6 @@
   <h1 class="titulo" *ngIf="dataSource.data.length > 0">
     Reporte 901
   </h1>
-
-  <mat-form-field class="filtro" *ngIf="dataSource.data.length > 0">
-    <mat-label>Filter</mat-label>
-    <input matInput (keyup)="applyFilter($event)" placeholder="Filter" #input>
-  </mat-form-field>
 
   <div class="table-container">
     <table mat-table [dataSource]="dataSource" class="mat-elevation-z8">

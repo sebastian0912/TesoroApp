@@ -365,3 +365,8 @@ mat-card-content p {
 .material-symbols-outlined{
   font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
 }
+
+
+mat-horizontal-stepper, mat-step {
+  background-color: #fff !important;
+}

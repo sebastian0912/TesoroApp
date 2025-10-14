@@ -48,7 +48,6 @@ export const MY_DATE_FORMATS = {
 
 @Component({
   selector: 'app-recruitment-pipeline',
-  standalone: true,
   imports: [
     FormsModule,
     MatIconModule, MatTabsModule, MatDatepickerModule, MatNativeDateModule,
@@ -67,24 +66,18 @@ export const MY_DATE_FORMATS = {
 })
 export class RecruitmentPipelineComponent {
   // ───────── Signals de estado ─────────
-  cedulaActual = signal<string>('');
-  codigoContratoActual = signal<string>('');
-  nombreCandidato = signal<string>('');
-  idInfoEntrevistaAndrea = signal<number>(0);
-  idProcesoSeleccion = signal<number | null>(null);
-  idvacante = signal<number>(0);
-  idVacanteContratacion = signal<number>(0);
+  candidatoSeleccionado = signal<any | null>(null);
+  nombreCandidato: string = '';
+  numeroDocumento: string = '';
 
   fotoDataUrl = signal<string | null>(null);
   tieneFoto = computed(() => !!this.fotoDataUrl());
-
   sede = signal<string>('');
-  abreviacionSede = signal<string>('');
-
   examFiles = signal<File[]>([]);
   uploadedFiles = signal<Record<string, { file?: File; fileName?: string }>>({
     examenesMedicos: { fileName: 'Adjuntar documento' },
   });
+
   readonly typeMap: Record<string, number> = { examenesMedicos: 32 };
 
   readonly filteredExamOptions: string[] = [
@@ -124,6 +117,7 @@ export class RecruitmentPipelineComponent {
     selectedExams: [[], Validators.required],
     selectedExamsArray: this.fb.array([]),
   });
+
   private selectedExamsCtrl = this.formGroup3.get('selectedExams')!;
   private selectedExamsArray = this.formGroup3.get('selectedExamsArray') as FormArray;
 
@@ -142,9 +136,6 @@ export class RecruitmentPipelineComponent {
   deshabilitarContratacion = computed(() => this.hayNoApto());
 
   constructor() {
-    // 0) Usuario/sede
-    this.initUsuarioYAbreviacion();
-
     // 1) Mantén SIEMPRE la MISMA instancia de FormArray → clear() + push()
     this.selectedExamsCtrl.valueChanges
       .pipe(takeUntilDestroyed(this.destroyRef))
@@ -164,99 +155,8 @@ export class RecruitmentPipelineComponent {
 
     // 2) Reaccionar a cédula
     effect(() => {
-      const ced = this.cedulaActual().trim();
-      if (!ced) return;
-
-      // 2.1 Foto
-      this.hiring.buscarEncontratacion(ced).pipe(
-        take(1),
-        catchError(() => of(null))
-      ).subscribe((resp: any) => {
-        const raw = resp?.data?.[0]?.fotoSoliciante ?? null;
-        this.fotoDataUrl.set(typeof raw === 'string' && raw.trim() ? raw.trim() : null);
-      });
-
-      // 2.2 Código de contratación
-      this.seleccionService.buscarEncontratacion(ced).pipe(
-        take(1),
-        catchError((err: HttpErrorResponse) => {
-          if (err.status === 404) {
-            this.codigoContratoActual.set('');
-            this.snack.open('No hay contratación asociada.', 'OK', { duration: 2500 });
-            return of(null);
-          }
-          this.snack.open('Error al consultar contratación', 'OK', { duration: 3500 });
-          return of(null);
-        })
-      ).subscribe((resp: any) => {
-        if (resp) this.codigoContratoActual.set(resp?.codigo_contrato || '');
-      });
-
-      // 2.3 Procesos de selección
-      this.hiring.traerDatosSeleccion(ced).pipe(
-        take(1),
-        catchError((err: HttpErrorResponse) => {
-          if (err.status === 404) {
-            Swal.fire('Atención', 'No fue posible crear el proceso de selección automáticamente.', 'warning');
-            return of(null);
-          }
-          this.snack.open('Error al traer datos de selección', 'OK', { duration: 5000 });
-          return of(null);
-        })
-      ).subscribe(async (response: any) => {
-        if (!response) return;
-
-        if (response.created && response.createdId) {
-          this.idProcesoSeleccion.set(response.createdId);
-          this.iniciarNuevoProcesoUI();
-          await Swal.fire('Listo', 'Se creó el proceso de selección automáticamente.', 'success');
-          return;
-        }
-
-        const list = Array.isArray(response?.procesoSeleccion) ? response.procesoSeleccion : [];
-        if (!list.length) {
-          this.iniciarNuevoProcesoUI();
-          return;
-        }
-
-        const topTwo = [...list]
-          .filter(x => typeof x?.id === 'number')
-          .sort((a, b) => b.id - a.id)
-          .slice(0, 2);
-
-        const chosen = await this.elegirProcesoBonitoSinIdONuevo(topTwo);
-        if (!chosen) return;
-
-        if (chosen === 'NEW') {
-          this.iniciarNuevoProcesoUI();
-          return;
-        }
-
-        // Continuar con proceso existente
-        this.idProcesoSeleccion.set(chosen.id);
-        this.idVacanteContratacion.set(chosen?.vacante ?? null);
-
-        this.formGroup3.patchValue({
-          ips: chosen?.ips ?? '',
-          ipsLab: chosen?.ipslab ?? chosen?.ipsLab ?? '',
-        });
-
-        // Exámenes + aptos -> NO reemplazar el FormArray (no usar setControl)
-        const examenesArr = String(chosen?.examenes || '')
-          .split(',').map((s: string) => s.trim()).filter(Boolean);
-        const aptosArr = String(chosen?.aptosExamenes || '')
-          .split(',').map((s: string) => s.trim()).filter(Boolean);
-        const len = Math.min(examenesArr.length, aptosArr.length);
-
-        this.formGroup3.get('selectedExams')?.setValue(examenesArr.slice(0, len));
-
-        const arr = this.selectedExamsArray;
-        while (arr.length) arr.removeAt(0);
-        aptosArr.slice(0, len).forEach(status => {
-          arr.push(this.fb.group({ aptoStatus: [status || 'APTO', Validators.required] }));
-        });
-        this.recalcHayNoApto();
-      });
+      this.getFullName();
+      this.getNumeroDocumento();
     });
 
     // 3) Aviso/lock por “NO APTO”
@@ -277,37 +177,35 @@ export class RecruitmentPipelineComponent {
     });
   }
 
-  // ───────── API UI ─────────
-  onCedulaSeleccionada(cedula: string): void {
-    this.cedulaActual.set((cedula ?? '').trim());
-    this.mostrarTabla();
+  // ───────── API UI ────────
+  onCandidatoSeleccionado(candidato: any | null): void {
+    this.candidatoSeleccionado.set(candidato);
+    console.log('Candidato seleccionado:', candidato);
   }
-  onIdInfoEntrevistaAndreaChange(id: number): void { this.idInfoEntrevistaAndrea.set(id); }
-  onIdVacanteChange(id: number): void { this.idvacante.set(id); }
 
-  // Usa deshabilitarContratacion() en el template
-  getFullName(nombre_completo: string): void {
-    this.nombreCandidato.set(nombre_completo ? String(nombre_completo) : '');
-  }
+getFullName(): void {
+  const c = this.candidatoSeleccionado(); // puede ser null
+  this.nombreCandidato = c
+    ? [c.primer_nombre, c.segundo_nombre, c.primer_apellido, c.segundo_apellido]
+        .map(v => (v ?? '').toString().trim())
+        .filter(v => v.length > 0)
+        .join(' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+    : '';
+}
+
+getNumeroDocumento(): void {
+  const c = this.candidatoSeleccionado();
+  this.numeroDocumento = c?.numero_documento != null
+    ? String(c.numero_documento).trim()
+    : '';
+}
+
 
   generacionDocumentos(): void {
-    const ced = this.cedulaActual();
-    if (!ced) { Swal.fire('Error', 'Debe seleccionar un candidato primero', 'error'); return; }
-    localStorage.setItem('cedula', ced);
-    localStorage.setItem('codigoContrato', this.codigoContratoActual());
-    this.guardarFormulariosEnLocalStorage();
-    this.router.navigate(['dashboard/hiring/generate-contracting-documents']);
-  }
 
-  guardarFormulariosEnLocalStorage(): void {
-    const stored = localStorage.getItem('formularios');
-    const current = stored ? JSON.parse(stored) : {};
-    const payload = {
-      ...current,
-      vacante: this.idvacante() !== 0 ? this.idvacante() : this.idVacanteContratacion(),
-      entrevista_andrea: this.idInfoEntrevistaAndrea(),
-    };
-    localStorage.setItem('formularios', JSON.stringify(payload));
+    this.router.navigate(['dashboard/hiring/generate-contracting-documents']);
   }
 
   // ───────── Salud ocupacional (PDF) ─────────
@@ -322,20 +220,6 @@ export class RecruitmentPipelineComponent {
     Swal.fire({ title: 'Procesando...', icon: 'info', text: 'Generando documento PDF...', allowOutsideClick: false, allowEscapeKey: false, didOpen: () => Swal.showLoading() });
 
     try {
-      try {
-        await firstValueFrom(
-          this.seleccionService
-            .crearSeleccionParteTresCandidato(this.formGroup3, this.cedulaActual(), this.idProcesoSeleccion())
-            .pipe(take(1))
-        );
-      } catch { /* noop */ }
-
-      this.seleccionService
-        .generarCodigoContratacion(this.abreviacionSede(), this.cedulaActual())
-        .pipe(take(1))
-        .subscribe({
-          next: (r) => this.codigoContratoActual.set(r?.nuevo_codigo ?? this.codigoContratoActual())
-        });
 
       const mergedPdf = await PDFDocument.create();
       for (const file of pdfs) {
@@ -351,14 +235,6 @@ export class RecruitmentPipelineComponent {
 
       this.uploadedFiles.update(u => ({ ...u, examenesMedicos: { file: mergedFile, fileName: mergedName } }));
       try { await this.subirArchivo(mergedFile, 'examenesMedicos', mergedName); } catch { /* noop */ }
-
-      const idEnt = this.idInfoEntrevistaAndrea();
-      if (idEnt) {
-        this.infoVacantesService
-          .setEstadoVacanteAplicante(idEnt, 'examenes_medicos', true)
-          .pipe(take(1))
-          .subscribe({ next: () => { }, error: () => { } });
-      }
 
       Swal.close();
       if (typeof (this as any).imprimirDocumentos === 'function') (this as any).imprimirDocumentos();
@@ -385,39 +261,9 @@ export class RecruitmentPipelineComponent {
 
   imprimirDocumentos(): void {
     Swal.fire({ title: 'Subiendo archivos...', icon: 'info', html: 'Por favor, espere…', allowOutsideClick: false, allowEscapeKey: false, didOpen: () => Swal.showLoading() });
-
-    const keys = ['examenesMedicos', 'figuraHumana', 'pensionSemanas'];
-    this.subirTodosLosArchivos(keys)
-      .then(() => Swal.fire('¡Éxito!', 'Datos y archivos guardados exitosamente', 'success'))
-      .catch((e) => Swal.fire('Error', `Hubo un error al subir los archivos: ${e}`, 'error'));
   }
 
-  async subirTodosLosArchivos(keys: string[]): Promise<boolean> {
-    const map = this.uploadedFiles();
-    const archivos = Object.keys(map)
-      .filter(k => keys.includes(k) && map[k]?.file)
-      .map(k => ({ key: k, file: map[k]!.file!, fileName: map[k]!.fileName!, typeId: this.typeMap[k] }));
 
-    if (!archivos.length) return true;
-
-    const ced = this.cedulaActual();
-    const codigo = this.codigoContratoActual();
-
-    const results = await Promise.allSettled(
-      archivos.map(({ key, file, fileName, typeId }) => {
-        return new Promise<void>((ok, fail) => {
-          const obs = (['examenesMedicos', 'figuraHumana', 'pensionSemanas'].includes(key))
-            ? this.docSvc.guardarDocumento(fileName, ced, typeId, file, codigo)
-            : this.docSvc.guardarDocumento(fileName, ced, typeId, file);
-          obs.subscribe({ next: () => ok(), error: (e) => fail(`Error al subir ${key}: ${e?.message || e}`) });
-        });
-      })
-    );
-
-    const rejected = results.find(r => r.status === 'rejected') as PromiseRejectedResult | undefined;
-    if (rejected) throw rejected.reason;
-    return true;
-  }
 
   onFileSelected(evt: any, index: number): void {
     const f: File | undefined = evt?.target?.files?.[0];
@@ -432,77 +278,24 @@ export class RecruitmentPipelineComponent {
 
   // ───────── Tabla ─────────
   mostrarTabla(): void {
-    const ced = this.cedulaActual();
-    if (!ced) { Swal.fire('Error', 'Debe seleccionar un candidato primero', 'error'); return; }
+    console.log('Mostrando tabla de procesos de selección');
 
-    this.infoVacantesService.getVacantesPorNumero(ced).pipe(
-      catchError(() => { Swal.fire('Error', 'Ocurrió un error al cargar las vacantes del candidato', 'error'); return of([]); })
-    ).subscribe((response: any[]) => {
-      if (!response?.length) { Swal.fire('Error', 'No se encontraron vacantes para este candidato', 'error'); return; }
+    const columns: ColumnDefinition[] = [
+      { name: 'created_at', header: 'Fecha de creación', type: 'date', width: '180px' },
+      { name: 'oficina', header: 'Oficina', type: 'text', width: '160px' },
+      { name: 'aplica_o_no_aplica', header: 'Aplica o no aplica', type: 'text', width: '280px' },
+      { name: 'motivoNoAplica', header: 'Motivo no aplica', type: 'text', width: '220px' },
+      { name: 'aplicaObservacion', header: 'Retroalimentación', type: 'text', width: '280px' },
+      { name: 'detalle', header: 'Detalle', type: 'text', width: '320px' },
+      { name: 'actions', header: '', type: 'custom', width: '72px', stickyEnd: true, filterable: false },
+    ];
 
-      const fixIso = (v: any): Date | null => {
-        if (!v) return null;
-        const d1 = new Date(v);
-        if (!isNaN(d1.getTime())) return d1;
-        const m = String(v).match(/^(.*\.\d{3})\d*(.*)$/);
-        return m ? new Date(m[1] + m[2]) : null;
-      };
-      const data = response.map(r => ({ ...r, created_at: fixIso(r.created_at) }));
 
-      const columns: ColumnDefinition[] = [
-        { name: 'created_at', header: 'Fecha de creación', type: 'date', width: '180px' },
-        { name: 'oficina', header: 'Oficina', type: 'text', width: '160px' },
-        { name: 'aplica_o_no_aplica', header: 'Aplica o no aplica', type: 'text', width: '280px' },
-        { name: 'motivoNoAplica', header: 'Motivo no aplica', type: 'text', width: '220px' },
-        { name: 'aplicaObservacion', header: 'Retroalimentación', type: 'text', width: '280px' },
-        { name: 'detalle', header: 'Detalle', type: 'text', width: '320px' },
-        { name: 'actions', header: '', type: 'custom', width: '72px', stickyEnd: true, filterable: false },
-      ];
-
-      const ref = this.dialog.open(StandardFilterTable, { minWidth: '90vw', height: '65vh' });
-      ref.componentInstance.tableTitle = 'Vacantes del candidato';
-      ref.componentInstance.columnDefinitions = columns;
-      ref.componentInstance.data = data;
-      ref.componentInstance.pageSizeOptions = [10, 20, 50];
-      ref.componentInstance.defaultPageSize = 10;
-    });
   }
 
   // ───────── Cámara ─────────
   openCamera(): void {
-    const dialogRef = this.dialog.open(CameraDialogComponent, {
-      width: 'min(96vw, 720px)',
-      maxWidth: '96vw',
-      panelClass: 'camera-dialog',
-      autoFocus: false,
-      disableClose: true,
-      data: { initialPreviewUrl: this.fotoDataUrl() || null },
-    });
-
-    dialogRef.afterClosed().pipe(
-      filter((res): res is CameraDialogResult => !!res),
-      switchMap((res) => {
-        const dataUrl$ = res.previewUrl?.startsWith('data:')
-          ? of(res.previewUrl as string)
-          : from(this.fileToDataURL(res.file));
-        return dataUrl$.pipe(
-          switchMap((base64: string) =>
-            this.seleccionService.subirFotoBase64(this.cedulaActual(), base64)
-          ),
-        );
-      }),
-      take(1),
-      catchError((err) => {
-        Swal.fire('Error', `No se pudo subir la foto: ${err?.message || err}`, 'error');
-        return of(null);
-      }),
-    ).subscribe((resp: any) => {
-      if (resp?.ok || resp?.success) {
-        Swal.fire('Éxito', 'Foto subida exitosamente', 'success');
-      } else if (resp !== null) {
-        Swal.fire('Error', 'No se pudo subir la foto', 'error');
-      }
-    });
+    console.log('Abriendo cámara...');
   }
 
   private fileToDataURL(file: File): Promise<string> {
@@ -515,19 +308,7 @@ export class RecruitmentPipelineComponent {
   }
 
   // ───────── Helpers ─────────
-  private async initUsuarioYAbreviacion(): Promise<void> {
-    try {
-      const user: any = await this.util.getUser();
-      const sedeNombre = user?.sede?.nombre ?? user?.sucursalde ?? '';
-      this.sede.set(sedeNombre);
-      this.abreviacionSede.set(this.abreviaciones[sedeNombre] || sedeNombre);
-    } catch {
-      this.sede.set(''); this.abreviacionSede.set('');
-    }
-  }
-
   private iniciarNuevoProcesoUI(): void {
-    this.idProcesoSeleccion.set(null);
     this.formGroup3.patchValue({ ips: '', ipsLab: '', selectedExams: [] });
     const arr = this.selectedExamsArray;
     while (arr.length) arr.removeAt(0);
@@ -591,16 +372,4 @@ export class RecruitmentPipelineComponent {
     }, items[0]);
   }
 
-
-  private formatMarcaTemporal(v: any): string {
-    if (!v) return '—';
-    const d = new Date(v);
-    if (isNaN(d.getTime())) return String(v);
-    try {
-      return d.toLocaleString('es-CO', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'America/Bogota' });
-    } catch { return d.toLocaleString(); }
-  }
-  private escapeHtml(s: string): string {
-    return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
-  }
 }

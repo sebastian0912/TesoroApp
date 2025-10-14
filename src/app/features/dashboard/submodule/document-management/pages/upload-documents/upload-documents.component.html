@@ -46,7 +46,7 @@
 
       <div class="actions">
         <button mat-flat-button color="primary" type="submit"
-          [disabled]="formDoc.invalid || (documentosArray.length ?? 0) === 0">
+          [disabled]="formDoc.invalid">
           <mat-icon>save</mat-icon>
           Guardar Documentación
         </button>
@@ -67,7 +67,7 @@
                   </mat-label>
 
                   <!-- nombre del archivo -->
-                  <input matInput [value]="uploadedFiles[tipoId]?.fileName || ''" readonly class="clickable"
+                  <input matInput [value]="uploadedFiles[tipoId].fileName || ''" readonly class="clickable"
                     (click)="selectPreview(tipoId)" />
 
                   <button mat-icon-button matSuffix [matMenuTriggerFor]="menu" aria-label="Opciones de PDF"

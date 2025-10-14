@@ -1,56 +1,40 @@
-import { Component, effect, input, OnInit } from '@angular/core';
-import { SharedModule } from '@/app/shared/shared.module';
+import { Component, effect, input } from '@angular/core';
 import { FormBuilder, FormGroup } from '@angular/forms';
-import { MatTabsModule } from '@angular/material/tabs';
+import { firstValueFrom } from 'rxjs';
 import Swal from 'sweetalert2';
-import { SeleccionService } from '../../service/seleccion/seleccion.service';
-import { GestionDocumentalService } from '../../service/gestion-documental/gestion-documental.service';
+
+import { SharedModule } from '@/app/shared/shared.module';
+import { MatTabsModule } from '@angular/material/tabs';
 import { MatDatepickerModule } from '@angular/material/datepicker';
 import { MatNativeDateModule } from '@angular/material/core';
-import { firstValueFrom } from 'rxjs';
-import { UtilityServiceService } from '@/app/shared/services/utilityService/utility-service.service';
 
+import { GestionDocumentalService } from '../../service/gestion-documental/gestion-documental.service';
+import { UtilityServiceService } from '@/app/shared/services/utilityService/utility-service.service';
+import { RegistroProcesoContratacion } from '../../service/registro-proceso-contratacion/registro-proceso-contratacion';
+
+// ---------- Tipos / claves ----------
 type UploadedFileInfo = {
   file?: File | string;
   fileName?: string;
   updatedAt?: number | string;
   updatedAtLabel?: string;
   changed?: boolean;
-  loading?: boolean; // visual mientras carga del backend
+  loading?: boolean;
 };
 
-// Llaves tipadas para evitar typos
 type DocKey =
   | 'eps' | 'afp' | 'policivos' | 'procuraduria' | 'contraloria'
   | 'ramaJudicial' | 'medidasCorrectivas' | 'sisben' | 'ofac'
   | 'figuraHumana' | 'pensionSemanas';
 
-// Datos que esperamos del backend para pre-llenar el form
-type Maybe<T> = T | null | undefined;
+type AntecedenteNombre =
+  | 'EPS' | 'AFP' | 'POLICIVOS' | 'PROCURADURIA' | 'CONTRALORIA'
+  | 'RAMA_JUDICIAL' | 'SISBEN' | 'OFAC' | 'MEDIDAS_CORRECTIVAS' | 'SEMANAS_COTIZADAS';
 
-export interface AntecedentesData {
-  eps?: string;
-  afp?: string;
-  policivos?: string;
-  procuraduria?: string;
-  contraloria?: string;
-  ramaJudicial?: string;                // camelCase
-  rama_judicial?: string;               // snake_case
-  sisben?: string;
-  ofac?: string;
-  medidasCorrectivas?: string | number; // camelCase
-  medidas_correctivas?: string | number;// snake_case
-  semanasCotizadas?: number | string;   // camelCase
-  semanas_cotizadas?: number | string;  // snake_case
-  area_aplica?: string;
-  [k: string]: any;                     // otros campos que vengan del backend
-}
+type AntecedenteItem = { nombre: AntecedenteNombre; observacion: string | number | null };
 
-interface SeleccionPorIdResponse {
-  procesoSeleccion?: Maybe<AntecedentesData>;
-}
-
-const DEFAULT_UPLOADED_FILES: Record<DocKey, UploadedFileInfo> = {
+// ---------- Constantes ----------
+const DEFAULT_FILES: Record<DocKey, UploadedFileInfo> = {
   eps: { fileName: 'Adjuntar documento' },
   afp: { fileName: 'Adjuntar documento' },
   policivos: { fileName: 'Adjuntar documento' },
@@ -64,29 +48,135 @@ const DEFAULT_UPLOADED_FILES: Record<DocKey, UploadedFileInfo> = {
   pensionSemanas: { fileName: 'Sin consultar' },
 };
 
-@Component({
-  selector: 'app-selection-questions',
-  imports: [SharedModule, MatTabsModule, MatDatepickerModule, MatNativeDateModule],
-  templateUrl: './selection-questions.component.html',
-  styleUrl: './selection-questions.component.css'
-})
-export class SelectionQuestionsComponent implements OnInit {
-  // Inputs como signals
-  cedula = input<string>('');
-  vacanteSeleccionada = input<any>(null);
-  idProcesoSeleccion = input<number | null>(null);
-  idInfoEntrevistaAndrea = input<number | null>(null);
+type SeleccionPatch = {
+  eps: string;
+  afp: string;
+  policivos: string;
+  procuraduria: string;
+  contraloria: string;
+  ramaJudicial: string;
+  sisben: string;
+  ofac: string;
+  medidasCorrectivas: string | number | ''; // '' para “sin valor”
+  semanasCotizadas: number | '';            // '' para “sin valor”
+};
 
-  private _ready = false;
-  private _prev = {
-    cedula: undefined as string | undefined,
-    vacante: undefined as any,
-    idProceso: undefined as number | null | undefined,
-    idInfoEntrevistaAndrea: undefined as number | null | undefined
+const MAP_NOMBRE_TO_KEY: Record<string, keyof SeleccionPatch> = {
+  EPS: 'eps',
+  AFP: 'afp',
+  POLICIVOS: 'policivos',
+  PROCURADURIA: 'procuraduria',
+  CONTRALORIA: 'contraloria',
+  RAMA_JUDICIAL: 'ramaJudicial',
+  SISBEN: 'sisben',
+  OFAC: 'ofac',
+  MEDIDAS_CORRECTIVAS: 'medidasCorrectivas',
+  SEMANAS_COTIZADAS: 'semanasCotizadas',
+};
+
+// Estados válidos en backend
+const ESTADOS_VALIDOS = new Set(['CUMPLE', 'NO CUMPLE'] as const);
+
+// ---------- Helpers puros ----------
+const up = (v: unknown) => (v == null ? '' : String(v).toUpperCase().trim());
+const isEmpty = (v: unknown) => v === '' || v === undefined || v === null;
+const toNumOrEmpty = (v: unknown) => (isEmpty(v) ? '' : (Number.isFinite(Number(v)) ? Number(v) : ''));
+const toNumOrNull = (v: unknown) => (isEmpty(v) ? null : Number(v));
+
+/** Backend: solo 'CUMPLE' | 'NO CUMPLE'; todo lo demás => null */
+function normalizeEstado(v: unknown): 'CUMPLE' | 'NO CUMPLE' | null {
+  const s = up(v);
+  return ESTADOS_VALIDOS.has(s as any) ? (s as 'CUMPLE' | 'NO CUMPLE') : null;
+}
+type ListSource = 'epsList' | 'afpList' | 'categoriasSisben' | 'medidasCorrectivas';
+type FieldType = 'estado' | 'list' | 'number';
+
+interface FieldDef {
+  key: DocKey;               // usa tu DocKey existente
+  label: string;
+  type: FieldType;
+  optionSource?: ListSource;
+  placeholder?: string;
+  control?: string;          // nombre alterno del formControl (ej. 'semanasCotizadas')
+}
+
+/** 'CUMPLE' | número | null */
+function normalizeMedidasCorrectivas(v: unknown): number | 'CUMPLE' | null {
+  if (isEmpty(v)) return null;
+  const s = up(v);
+  if (/^\d+$/.test(s)) return Number(s);
+  return s === 'CUMPLE' ? 'CUMPLE' : null;
+}
+
+/** Mapea lista [{nombre, observacion}] o diccionario normalizado a patch del form */
+/** Mapea lista [{nombre, observacion}] o diccionario normalizado a patch del form */
+function buildPatchFromAntecedentes(raw: any): SeleccionPatch {
+  const base: SeleccionPatch = {
+    eps: '', afp: '', policivos: '', procuraduria: '', contraloria: '',
+    ramaJudicial: '', sisben: '', ofac: '', medidasCorrectivas: '', semanasCotizadas: ''
   };
 
-  // Catálogos (readonly para no mutar accidentalmente)
-  readonly antecedentesEstados = ['Cumple', 'No Cumple', 'Sin Buscar'] as const;
+  // Diccionario normalizado (p. ej. { eps, policivos, ... })
+  if (raw && !Array.isArray(raw) &&
+    ('eps' in raw || 'policivos' in raw || 'ramaJudicial' in raw || 'medidasCorrectivas' in raw)) {
+    return {
+      ...base,
+      eps: up(raw.eps),
+      afp: up(raw.afp),
+      policivos: up(raw.policivos),
+      procuraduria: up(raw.procuraduria),
+      contraloria: up(raw.contraloria),
+      ramaJudicial: up(raw.ramaJudicial ?? raw.rama_judicial),
+      sisben: up(raw.sisben),
+      ofac: up(raw.ofac),
+      medidasCorrectivas: up(raw.medidasCorrectivas),
+      semanasCotizadas: toNumOrEmpty(raw.semanasCotizadas ?? raw.semanas_cotizadas),
+    };
+  }
+
+  // Lista [{ nombre, observacion }]
+  const lista: any[] | undefined =
+    Array.isArray(raw) ? raw :
+      Array.isArray(raw?.proceso?.antecedentes) ? raw.proceso.antecedentes :
+        Array.isArray(raw?.antecedentes) ? raw.antecedentes : undefined;
+
+  if (!lista) return base;
+
+  const out: SeleccionPatch = { ...base };
+  for (const it of lista) {
+    const key = MAP_NOMBRE_TO_KEY[up(it?.nombre)];
+    if (!key) continue;
+
+    if (key === 'semanasCotizadas') {
+      out.semanasCotizadas = toNumOrEmpty(it?.observacion);
+    } else if (key === 'medidasCorrectivas') {
+      const obs = it?.observacion;
+      out.medidasCorrectivas = isEmpty(obs)
+        ? ''
+        : (/^\d+$/.test(String(obs)) ? Number(obs) : up(obs));
+    } else {
+      out[key] = up(it?.observacion) as any;
+    }
+  }
+  return out;
+}
+
+@Component({
+  selector: 'app-selection-questions',
+  standalone: true,
+  imports: [SharedModule, MatTabsModule, MatDatepickerModule, MatNativeDateModule],
+  templateUrl: './selection-questions.component.html',
+  styleUrls: ['./selection-questions.component.css']
+})
+export class SelectionQuestionsComponent {
+  // Inputs (signals)
+  candidatoSeleccionado = input<any | null>(null);
+
+  // Cédula para servicios externos
+  cedula: string | null = null;
+
+  // Catálogos UI
+  readonly antecedentesEstados = ['CUMPLE', 'NO CUMPLE', 'SIN BUSCAR'] as const;
   readonly epsList = [
     'ALIANSALUD', 'ASMET SALUD', 'CAJACOPI', 'CAPITAL SALUD', 'CAPRESOCA', 'COMFAMILIARHUILA',
     'COMFAORIENTE', 'COMPENSAR', 'COOSALUD', 'DUSAKAWI', 'ECOOPSOS', 'FAMISANAR',
@@ -102,254 +192,146 @@ export class SelectionQuestionsComponent implements OnInit {
     'No Aplica', 'Sin Buscar'
   ] as const;
 
-  // formulario (sin requeridos)
-  antecedentes: FormGroup;
-
-  // Mapea cada doc a su tipo en backend
+  // Map doc -> tipo backend
   readonly typeMap: Record<DocKey, number> = {
-    eps: 7,
-    policivos: 6,
-    procuraduria: 3,
-    contraloria: 4,
-    medidasCorrectivas: 10,
-    afp: 11,
-    ramaJudicial: 12,
-    sisben: 8,
-    ofac: 5,
-    figuraHumana: 31,
-    pensionSemanas: 33
+    eps: 7, policivos: 6, procuraduria: 3, contraloria: 4, medidasCorrectivas: 10,
+    afp: 11, ramaJudicial: 12, sisben: 8, ofac: 5, figuraHumana: 31, pensionSemanas: 33
   };
 
-  // Estado de archivos por clave
-  uploadedFiles: Record<DocKey, UploadedFileInfo> = { ...DEFAULT_UPLOADED_FILES };
+  // Estado archivos
+  uploadedFiles: Record<DocKey, UploadedFileInfo> = { ...DEFAULT_FILES };
 
-  // token anti-carrera
+  // Form
+  antecedentes: FormGroup;
+
+  // Token para invalidar cargas en carrera
   private _ctx = 0;
 
   constructor(
     private fb: FormBuilder,
-    private gestionDocumentalService: GestionDocumentalService,
-    private seleccionService: SeleccionService,
-    private utilityService: UtilityServiceService
+    private gestionDocumental: GestionDocumentalService,
+    private registroProceso: RegistroProcesoContratacion,
+    private ui: UtilityServiceService
   ) {
-    // NOTA: Nada requerido; semanasCotizadas es nullable
     this.antecedentes = this.fb.group({
-      eps: [''],
-      afp: [''],
-      policivos: [''],
-      procuraduria: [''],
-      contraloria: [''],
-      ramaJudicial: [''],
-      sisben: [''],
-      ofac: [''],
-      medidasCorrectivas: [''], // opcional
-      semanasCotizadas: [null], // opcional y nullable
-      // area_aplica: [''],
+      eps: [''], afp: [''], policivos: [''], procuraduria: [''], contraloria: [''],
+      ramaJudicial: [''], sisben: [''], ofac: [''], medidasCorrectivas: [''], semanasCotizadas: [null],
     });
 
-    // Un único efecto que registra cambios por input
+    // Reacciona a cambios del candidato (objeto completo)
     effect(() => {
-      const c = this.cedula();
-      const v = this.vacanteSeleccionada();
-      const id = this.idProcesoSeleccion();
-      const idInfo = this.idInfoEntrevistaAndrea();
+      const cand = this.candidatoSeleccionado();
+      this.cedula = (cand?.numero_documento ?? cand?.numeroDocumento ?? null) as string | null;
 
-      this.onInputsChanged(c, v, id, idInfo);
-      this._prev = { cedula: c, vacante: v, idProceso: id, idInfoEntrevistaAndrea: idInfo };
+      this.resetFiles();
+      const proc = cand?.entrevistas?.[0]?.proceso;
+      this.patchFormFromAntecedentes(proc?.antecedentes ?? null);
+
+      const ctx = ++this._ctx;
+      if (this.cedula) this.loadDataDocumentos(ctx);
     });
   }
 
-  ngOnInit(): void {
-    this._ready = true;
-  }
+  // Debe existir como propiedad pública
+  public readonly fields: FieldDef[] = [
+    { key: 'policivos', label: 'Policivos', type: 'estado' },
+    { key: 'procuraduria', label: 'Procuraduría', type: 'estado' },
+    { key: 'contraloria', label: 'Contraloría', type: 'estado' },
+    { key: 'ofac', label: 'OFAC', type: 'estado' },
+    { key: 'ramaJudicial', label: 'Rama Judicial', type: 'estado' },
+    { key: 'eps', label: 'EPS', type: 'list', optionSource: 'epsList', placeholder: 'EPS' },
+    { key: 'sisben', label: 'Sisbén', type: 'list', optionSource: 'categoriasSisben' },
+    { key: 'afp', label: 'AFP', type: 'list', optionSource: 'afpList', placeholder: 'AFP' },
+    { key: 'medidasCorrectivas', label: 'Medidas Correctivas', type: 'list', optionSource: 'medidasCorrectivas' },
+    { key: 'pensionSemanas', label: 'Semanas cotizadas', type: 'number', control: 'semanasCotizadas' },
+  ];
 
-  /** Utilidad: a número o null si no aplica */
-  private toIntOrNull(v: any): number | null {
-    if (v === null || v === undefined || v === '') return null;
-    const n = parseInt(String(v).trim(), 10);
-    return Number.isFinite(n) ? n : null;
-  }
-
-  /** Utilidad local: medidasCorrectivas -> "CUMPLE" | número | '' */
-  private coerceMedidas(v: any): string | number | '' {
-    if (v == null || v === '') return '';
-    const s = String(v).trim().toUpperCase();
-    if (s === 'CUMPLE') return 'CUMPLE';
-    const n = this.toIntOrNull(v);
-    return n ?? '';
-  }
-
-  /** Carga la info de selección en el form `antecedentes` */
-  private loadDataSeleccion(seleccion: AntecedentesData): void {
-    if (!seleccion) return;
-
-    const patch: any = {
-      eps: seleccion.eps ?? '',
-      afp: seleccion.afp ?? '',
-      policivos: seleccion.policivos ?? '',
-      procuraduria: seleccion.procuraduria ?? '',
-      contraloria: seleccion.contraloria ?? '',
-      ramaJudicial: (seleccion.ramaJudicial ?? seleccion.rama_judicial ?? ''),
-      medidasCorrectivas: this.coerceMedidas(seleccion.medidasCorrectivas ?? seleccion.medidas_correctivas),
-      sisben: seleccion.sisben ?? '',
-      ofac: seleccion.ofac ?? '',
-      semanasCotizadas: this.toIntOrNull(seleccion.semanasCotizadas ?? seleccion.semanas_cotizadas),
-    };
-
-    if (this.antecedentes.get('area_aplica')) {
-      patch.area_aplica = seleccion.area_aplica ?? '';
+  // Necesario para *ngFor options
+  public getOptions(fld: FieldDef): readonly (string | number)[] {
+    switch (fld.optionSource) {
+      case 'epsList': return this.epsList;
+      case 'afpList': return this.afpList;
+      case 'categoriasSisben': return this.categoriasSisben;
+      case 'medidasCorrectivas': return this.medidasCorrectivas;
+      default: return [];
     }
-
-    this.antecedentes.patchValue(patch as any, { emitEvent: false });
   }
 
-  // ======= Helpers Loading =======
-  private showLoading(text = 'Cargando información…') {
-    Swal.fire({
-      icon: 'info',
-      title: 'Cargando…',
-      text,
-      allowOutsideClick: false,
-      showConfirmButton: false,
-      didOpen: () => Swal.showLoading(),
-    });
+  // Necesario para el warning de “> 15 días”
+  public isOlderThan(key: DocKey, days: number): boolean {
+    const entry = this.uploadedFiles[key];
+    if (!entry) return false;
+    let ts: number | undefined;
+    if (typeof entry.updatedAt === 'number') ts = entry.updatedAt;
+    else if (typeof entry.updatedAt === 'string') {
+      const p = Date.parse(entry.updatedAt);
+      ts = isNaN(p) ? undefined : p;
+    }
+    if (ts == null && entry.file instanceof File) ts = entry.file.lastModified;
+    if (ts == null) return false;
+    return (Date.now() - ts) > days * 24 * 60 * 60 * 1000;
   }
-  private closeLoadingIf(ctx: number) {
-    if (ctx === this._ctx && Swal.isVisible()) Swal.close();
-  }
-  // ===============================
 
-  /** deja todos los docs como “nuevos” y en loading=true */
-  private resetUploadedFilesAsNew(): void {
-    const keys = Object.keys(this.typeMap) as DocKey[];
-    for (const k of keys) {
-      const defaultName = k === 'pensionSemanas' ? 'Sin consultar' : 'Adjuntar documento';
+  // Helpers para evitar el error 7053 en el template al indexar con fld.key
+  public fileBy(fld: FieldDef): UploadedFileInfo | undefined {
+    return this.uploadedFiles[fld.key as DocKey];
+  }
+  public fileNameBy(fld: FieldDef): string | undefined {
+    return this.uploadedFiles[fld.key as DocKey]?.fileName;
+  }
+  public updatedAtLabelBy(fld: FieldDef): string | undefined {
+    return this.uploadedFiles[fld.key as DocKey]?.updatedAtLabel;
+  }
+
+
+  // ---------- UI helpers ----------
+  estadoColor(val: string | null | undefined) {
+    const v = up(val);
+    if (v === 'CUMPLE') return '#2E7D32';
+    if (v === 'NO CUMPLE') return '#C62828';
+    return '#6E7781';
+  }
+  estadoIcon(val: string | null | undefined) {
+    const v = up(val);
+    if (v === 'CUMPLE') return 'check_circle';
+    if (v === 'NO CUMPLE') return 'cancel';
+    return 'help_outline';
+  }
+
+  // ---------- Carga al form ----------
+  private patchFormFromAntecedentes(data: any) {
+    this.antecedentes.patchValue(buildPatchFromAntecedentes(data), { emitEvent: false });
+  }
+
+  // ---------- Reset archivos ----------
+  private resetFiles() {
+    (Object.keys(this.typeMap) as DocKey[]).forEach(k => {
       this.uploadedFiles[k] = {
         file: undefined,
-        fileName: defaultName,
+        fileName: k === 'pensionSemanas' ? 'Sin consultar' : 'Adjuntar documento',
         changed: false,
         updatedAt: undefined,
         updatedAtLabel: undefined,
         loading: true,
       };
-    }
+    });
   }
 
-  /** Se ejecuta cada vez que cambian los inputs con signal() */
-  private async onInputsChanged(
-    cedula: string,
-    _vacante: any,
-    idProceso: number | null,
-    _idInfoEntrevistaAndrea: number | null
-  ) {
-    const ctx = ++this._ctx; // descartar respuestas viejas
+  // ---------- Subir/ver archivos ----------
+  verArchivo(key: DocKey) {
+    const a = this.uploadedFiles[key];
+    if (!a?.file) return void Swal.fire('Error', 'No se encontró archivo para este campo', 'error');
 
-    // 1) Si no hay contexto suficiente, limpia y sal
-    if (!cedula || !idProceso) {
-      const resetValue: any = {
-        eps: '', afp: '', policivos: '', procuraduria: '', contraloria: '',
-        ramaJudicial: '', sisben: '', ofac: '', medidasCorrectivas: '',
-        semanasCotizadas: null
-      };
-      if (this.antecedentes.get('area_aplica')) resetValue.area_aplica = '';
-
-      this.antecedentes.reset(resetValue as any, { emitEvent: false });
-
-      (Object.keys(this.typeMap) as DocKey[]).forEach(k => {
-        const dflt = k === 'pensionSemanas' ? 'Sin consultar' : 'Adjuntar documento';
-        this.uploadedFiles[k] = { fileName: dflt, loading: false, changed: false };
-      });
-
-      this.closeLoadingIf(ctx);
-      return;
-    }
-
-    // 2) Si cambió cédula o proceso, reinicia UI derivada y marca loading
-    const changedCedula = this._prev.cedula !== cedula;
-    const changedProceso = this._prev.idProceso !== idProceso;
-    if (changedCedula || changedProceso) {
-      const resetValue: any = {
-        eps: '', afp: '', policivos: '', procuraduria: '', contraloria: '',
-        ramaJudicial: '', sisben: '', ofac: '', medidasCorrectivas: '',
-        semanasCotizadas: null
-      };
-      if (this.antecedentes.get('area_aplica')) resetValue.area_aplica = '';
-      this.antecedentes.reset(resetValue as any, { emitEvent: false });
-
-      this.resetUploadedFilesAsNew();
-    }
-
-    // 3) Mostrar loading y ejecutar cargas
-    this.showLoading('Obteniendo documentos y datos de selección…');
-
-    try {
-      // 3.1) Precarga documentos del candidato (con ctx)
-      const tocados = await this.loadDataDocumentos(ctx);
-      if (ctx !== this._ctx) { this.closeLoadingIf(ctx); return; }
-
-      // apaga loading en los no tocados
-      const all = new Set(Object.keys(this.typeMap) as DocKey[]);
-      tocados.forEach(k => all.delete(k));
-      for (const k of all) {
-        if (this.uploadedFiles[k]) this.uploadedFiles[k].loading = false;
-      }
-
-      // 3.2) Traer selección por id (si el servicio existe)
-      const svc: any = this.seleccionService as any;
-      if (typeof svc.getSeleccionPorId === 'function') {
-        const res = await firstValueFrom(svc.getSeleccionPorId(idProceso!)) as SeleccionPorIdResponse;
-        if (ctx !== this._ctx) { this.closeLoadingIf(ctx); return; }
-
-        const seleccion = res?.procesoSeleccion;
-        if (seleccion) {
-          this.loadDataSeleccion(seleccion);
-        }
-      }
-    } catch (e) {
-      Swal.fire('Error', 'No se pudo cargar la información.', 'error');
-    } finally {
-      this.closeLoadingIf(ctx);
-    }
-  }
-
-  private toTimestampMs(v: unknown): number | undefined {
-    if (typeof v === 'number' && Number.isFinite(v)) return v;
-    if (typeof v === 'string') {
-      const p = Date.parse(v);
-      return isNaN(p) ? undefined : p;
-    }
-    return undefined;
-  }
-
-  isOlderThan(key: DocKey, days: number): boolean {
-    const entry = this.uploadedFiles[key];
-    if (!entry) return false;
-
-    let ts: number | undefined = this.toTimestampMs(entry.updatedAt);
-    if (ts == null && entry.file instanceof File) ts = entry.file.lastModified;
-    if (ts == null) return false;
-
-    const diffMs = Date.now() - ts;
-    return diffMs > days * 24 * 60 * 60 * 1000;
-  }
-
-  verArchivo(campo: DocKey) {
-    const archivo = this.uploadedFiles[campo];
-    if (archivo?.file) {
-      if (typeof archivo.file === 'string') {
-        const url = encodeURI(archivo.file);
-        window.open(url, '_blank', 'noopener,noreferrer');
-      } else {
-        const url = URL.createObjectURL(archivo.file);
-        window.open(url, '_blank', 'noopener,noreferrer');
-        setTimeout(() => URL.revokeObjectURL(url), 100);
-      }
+    if (typeof a.file === 'string') {
+      window.open(encodeURI(a.file), '_blank', 'noopener,noreferrer');
     } else {
-      Swal.fire('Error', 'No se pudo encontrar el archivo para este campo', 'error');
+      const url = URL.createObjectURL(a.file);
+      window.open(url, '_blank', 'noopener,noreferrer');
+      setTimeout(() => URL.revokeObjectURL(url), 100);
     }
   }
 
-  subirArchivo(event: any | Blob, campo: DocKey, fileName?: string): void {
+  subirArchivo(event: any | Blob, key: DocKey, fileName?: string) {
     let file: File | null = null;
 
     if (event instanceof Blob && !(event as any).target) {
@@ -359,177 +341,94 @@ export class SelectionQuestionsComponent implements OnInit {
     }
     if (!file) return;
 
-    const nameOk = file.name && file.name.length <= 100;
-    const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
-    if (!nameOk) return void Swal.fire('Error', 'El nombre del archivo no debe exceder los 100 caracteres', 'error');
-    if (!isPdf) return void Swal.fire('Error', 'Solo se permiten archivos PDF', 'error');
+    if (!file.name || file.name.length > 100)
+      return void Swal.fire('Error', 'El nombre del archivo no debe exceder 100 caracteres', 'error');
+    if (!(file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')))
+      return void Swal.fire('Error', 'Solo se permiten archivos PDF', 'error');
 
-    this.uploadedFiles[campo] = {
-      file,
-      fileName: file.name,
-      changed: true,
-      loading: false, // ya hay archivo local
-      updatedAt: undefined,
-      updatedAtLabel: undefined
+    this.uploadedFiles[key] = {
+      file, fileName: file.name, changed: true, loading: false, updatedAt: undefined, updatedAtLabel: undefined
     };
   }
 
   onlyInteger(e: KeyboardEvent) {
-    const allowed = ['Backspace', 'Tab', 'ArrowLeft', 'ArrowRight', 'Delete', 'Home', 'End'];
-    if (allowed.includes(e.key)) return;
-    if (!/^\d$/.test(e.key)) e.preventDefault();
+    const ok = ['Backspace', 'Tab', 'ArrowLeft', 'ArrowRight', 'Delete', 'Home', 'End'];
+    if (!ok.includes(e.key) && !/^\d$/.test(e.key)) e.preventDefault();
   }
 
-  /** Elimina del payload lo que venga vacío/nullable */
-  private sanitizarPayload(formValue: any): any {
-    const out: any = { ...formValue };
-
-    // semanasCotizadas: enviar número si existe; si no, omitir
-    const sc = this.toIntOrNull(out.semanasCotizadas);
-    if (sc === null) delete out.semanasCotizadas;
-    else out.semanasCotizadas = sc;
-
-    // medidasCorrectivas: si '', omitir
-    if (out.medidasCorrectivas === '' || out.medidasCorrectivas === undefined || out.medidasCorrectivas === null) {
-      delete out.medidasCorrectivas;
-    }
-
-    return out;
-  }
-
+  // ---------- Guardado ----------
   async imprimirVerificacionesAplicacion(): Promise<void> {
-    // Con estos cambios, el form debería estar válido salvo otros campos
     if (this.antecedentes.invalid) {
       this.antecedentes.markAllAsTouched();
       await Swal.fire('Campos incompletos', 'Revisa los campos obligatorios.', 'warning');
-      const missingFields = Object.keys(this.antecedentes.controls).filter(key => this.antecedentes.get(key)?.invalid);
-      console.log('Campos faltantes o inválidos:', missingFields);
       return;
     }
 
-    Swal.fire({
-      title: 'Cargando...',
-      text: 'Estamos guardando los datos y subiendo los archivos.',
-      icon: 'info',
-      allowOutsideClick: false,
-      showConfirmButton: false,
-      didOpen: () => Swal.showLoading()
-    });
+    const numero = (this.candidatoSeleccionado()?.numero_documento ?? this.candidatoSeleccionado()?.numeroDocumento ?? '').toString().trim();
+    if (!numero) return void Swal.fire('Error', 'No se encontró el número de documento del candidato.', 'error');
+
+    const v = this.antecedentes.value;
+    const payload = {
+      eps: isEmpty(v.eps) ? null : v.eps,
+      afp: isEmpty(v.afp) ? null : v.afp,
+      policivos: normalizeEstado(v.policivos),
+      procuraduria: normalizeEstado(v.procuraduria),
+      contraloria: normalizeEstado(v.contraloria),
+      ramaJudicial: normalizeEstado(v.ramaJudicial), // evita 400 por "" inválido
+      sisben: isEmpty(v.sisben) ? null : v.sisben,
+      ofac: normalizeEstado(v.ofac),
+      medidasCorrectivas: normalizeMedidasCorrectivas(v.medidasCorrectivas),
+      semanasCotizadas: toNumOrNull(v.semanasCotizadas),
+    };
 
     try {
-      const base = this.sanitizarPayload(this.antecedentes.value);
-      const payload: any = { ...base, numerodeceduladepersona: this.cedula() };
-
-      const user = this.utilityService.getUser();
-      payload.nombre_evaluador = `${user.datos_basicos.nombres} ${user.datos_basicos.apellidos}`;
-
-      const resp: any = await firstValueFrom(
-        this.seleccionService.crearSeleccionParteUnoCandidato(payload, this.cedula(), this.idProcesoSeleccion())
-      );
-
-      const message = (resp?.message || '').toLowerCase();
-      const ok = ['success', 'created', 'updated'].includes(message);
-      if (!ok) throw new Error(resp?.message || 'Respuesta inesperada del servidor.');
-
-      // Decide qué claves considerar: las del mapa
-      const keys: DocKey[] = Object.keys(this.typeMap) as DocKey[];
-
-      try {
-        const { todosOk, exitosos, fallidos } = await this.subirTodosLosArchivos(keys);
-
-        Swal.close();
-        if (todosOk) {
-          await Swal.fire({
-            title: '¡Éxito!',
-            text: (message === 'updated' ? 'Datos actualizados' : 'Datos guardados') + ' y archivos subidos exitosamente.',
-            icon: 'success', confirmButtonText: 'Ok'
-          });
-        } else {
-          const lbl: Record<DocKey, string> = {
-            eps: 'EPS', afp: 'AFP', policivos: 'Policivos', procuraduria: 'Procuraduría',
-            contraloria: 'Contraloría', ramaJudicial: 'Rama Judicial', medidasCorrectivas: 'Medidas Correctivas',
-            sisben: 'Sisbén', ofac: 'OFAC', figuraHumana: 'Figura Humana', pensionSemanas: 'Semanas cotizadas'
-          };
-          const htmlFallidos = fallidos.length
-            ? `<ul>${fallidos.map(f => `<li>${lbl[f.key]}: ${f.error}</li>`).join('')}</ul>` : '<p>—</p>';
-          const htmlExitosos = exitosos.length
-            ? `<ul>${exitosos.map(k => `<li>${lbl[k]}</li>`).join('')}</ul>` : '<p>—</p>';
-
-          await Swal.fire({
-            icon: 'warning',
-            title: 'Subida parcial',
-            html: `
-              <p>Los datos se guardaron, pero algunos archivos no se pudieron subir.</p>
-              <p><b>Fallidos:</b></p>${htmlFallidos}
-              <p><b>Exitosos:</b></p>${htmlExitosos}
-            `,
-            confirmButtonText: 'Ok'
-          });
-        }
-      } catch (upErr: any) {
-        Swal.close();
-        await Swal.fire({
-          title: 'Error',
-          text: `Los datos se guardaron, pero hubo un error al subir los archivos: ${upErr?.message || upErr}`,
-          icon: 'error', confirmButtonText: 'Ok'
-        });
-      }
+      await firstValueFrom(this.registroProceso.upsertSeleccionByDocumento(numero, payload));
+      await Swal.fire('¡Guardado!', 'Se actualizaron los antecedentes del proceso.', 'success');
+      await this.subirTodosLosArchivos(Object.keys(this.typeMap) as DocKey[]);
     } catch (err: any) {
-      Swal.close();
-      await Swal.fire({
-        title: 'Error',
-        text: err?.error?.detail || err?.message || 'Hubo un error al guardar los datos del formulario.',
-        icon: 'error', confirmButtonText: 'Ok'
-      });
+      const msg = err?.error?.detail || 'No fue posible guardar los antecedentes.';
+      await Swal.fire('Error', msg, 'error');
     }
   }
 
-  async subirTodosLosArchivos(
-    keysEspecificos: DocKey[]
-  ): Promise<{ todosOk: boolean; exitosos: DocKey[]; fallidos: { key: DocKey; error: string }[] }> {
+  private async subirTodosLosArchivos(keys: DocKey[]) {
+    if (!this.cedula) return;
 
-    const archivosAEnviar = keysEspecificos
-      .filter((key) => {
-        const fd = this.uploadedFiles[key];
-        return !!fd?.changed && fd.file instanceof File;
-      })
-      .map((key) => {
-        const fd = this.uploadedFiles[key];
-        return { key, file: fd.file as File, fileName: fd.fileName ?? 'documento.pdf', typeId: this.typeMap[key] };
+    const tareas = keys
+      .filter(k => this.uploadedFiles[k]?.changed && this.uploadedFiles[k].file instanceof File)
+      .map(k => {
+        const it = this.uploadedFiles[k];
+        const typeId = this.typeMap[k];
+        return new Promise<DocKey>((resolve, reject) => {
+          this.gestionDocumental
+            .guardarDocumento(it.fileName || 'documento.pdf', this.cedula!, typeId, it.file as File)
+            .subscribe({
+              next: () => {
+                it.changed = false;
+                it.updatedAt = new Date().toISOString();
+                it.updatedAtLabel = this.formatFecha(it.updatedAt as string);
+                resolve(k);
+              },
+              error: (e) => reject({ k, e }),
+            });
+        });
       });
 
-    if (!archivosAEnviar.length) return { todosOk: true, exitosos: [], fallidos: [] };
+    if (!tareas.length) return;
 
-    const promesas = archivosAEnviar.map(({ key, file, fileName, typeId }) =>
-      new Promise<void>((resolve, reject) => {
-        this.gestionDocumentalService
-          .guardarDocumento(fileName, this.cedula(), typeId, file)
-          .subscribe({
-            next: () => {
-              this.uploadedFiles[key].changed = false;
-              this.uploadedFiles[key].updatedAt = new Date().toISOString();
-              this.uploadedFiles[key].updatedAtLabel = this.formatFechaActualizacion(this.uploadedFiles[key].updatedAt as string);
-              resolve();
-            },
-            error: (err) => reject(new Error(err?.error?.detail || err?.message || 'Error desconocido'))
-          });
-      })
-    );
+    const res = await Promise.allSettled(tareas);
+    const ok = res.filter(r => r.status === 'fulfilled').map(r => (r as PromiseFulfilledResult<DocKey>).value);
+    const ko = res.filter(r => r.status === 'rejected').map(r => (r as any).reason?.k as DocKey);
 
-    const resultados = await Promise.allSettled(promesas);
-
-    const exitosos: DocKey[] = [];
-    const fallidos: { key: DocKey; error: string }[] = [];
-    resultados.forEach((r, idx) => {
-      const key = archivosAEnviar[idx].key;
-      if (r.status === 'fulfilled') exitosos.push(key);
-      else fallidos.push({ key, error: r.reason?.message || String(r.reason) });
-    });
-
-    return { todosOk: fallidos.length === 0, exitosos, fallidos };
+    if (ko.length === 0) {
+      Swal.fire('¡Listo!', 'Todos los documentos se subieron correctamente.', 'success');
+    } else {
+      if (ok.length) Swal.fire('¡Listo!', `Se subieron: ${ok.map(k => k.toUpperCase()).join(', ')}`, 'success');
+      Swal.fire('Error', `No se pudieron subir: ${ko.map(k => k.toUpperCase()).join(', ')}`, 'error');
+    }
   }
 
-  private formatFechaActualizacion(iso: string | null | undefined): string | undefined {
+  private formatFecha(iso?: string) {
     if (!iso) return undefined;
     const d = new Date(iso);
     if (isNaN(d.getTime())) return undefined;
@@ -540,69 +439,45 @@ export class SelectionQuestionsComponent implements OnInit {
     }
   }
 
-  /** Carga documentos previos; devuelve las claves tocadas y respeta el contexto para evitar carreras */
-  async loadDataDocumentos(ctx: number): Promise<Set<DocKey>> {
-    const tocados = new Set<DocKey>();
+  // ---------- Documentos previos ----------
+  private async loadDataDocumentos(ctx: number) {
     try {
-      const docs: any[] = await firstValueFrom(
-        this.gestionDocumentalService.obtenerDocumentosPorTipo(this.cedula(), 2)
-      );
-      if (ctx !== this._ctx || !Array.isArray(docs) || !docs.length) return tocados;
+      const docs: any[] = await firstValueFrom(this.gestionDocumental.obtenerDocumentosPorTipo(this.cedula!, 2));
+      if (ctx !== this._ctx || !Array.isArray(docs)) return;
 
-      for (const documento of docs) {
-        if (ctx !== this._ctx) return tocados;
+      for (const d of docs) {
+        if (ctx !== this._ctx) return;
 
-        const typeKey = (Object.keys(this.typeMap) as DocKey[]).find(k => this.typeMap[k] === documento.type);
-        if (!typeKey) continue;
+        const key = (Object.keys(this.typeMap) as DocKey[]).find(k => this.typeMap[k] === d.type);
+        if (!key) continue;
 
-        const nombre = documento.title || 'Documento sin título';
-        const file = await this.urlToFile(documento.file_url, nombre);
-        if (ctx !== this._ctx) return tocados;
+        const file = await this.urlToFile(d.file_url, d.title || 'Documento.pdf');
+        if (ctx !== this._ctx) return;
 
-        const iso: string | undefined = documento.uploaded_at || undefined;
-        const label = this.formatFechaActualizacion(iso);
-
-        this.uploadedFiles[typeKey] = {
-          fileName: nombre,
+        const iso: string | undefined = d.uploaded_at || undefined;
+        this.uploadedFiles[key] = {
+          fileName: d.title || 'Documento',
           file,
-          updatedAt: iso ?? undefined,
-          updatedAtLabel: label ?? undefined,
+          updatedAt: iso,
+          updatedAtLabel: this.formatFecha(iso),
           changed: false,
           loading: false,
         };
-        tocados.add(typeKey);
       }
     } catch (err: any) {
       if (err?.error?.error !== 'No se encontraron documentos') {
-        Swal.fire({
-          title: '¡Error!',
-          text: 'No se pudieron obtener los documentos de antecedentes',
-          icon: 'error',
-          confirmButtonText: 'Ok'
-        });
+        Swal.fire('¡Error!', 'No se pudieron obtener los documentos de antecedentes', 'error');
       }
     }
-    return tocados;
   }
 
-  async urlToFile(url: string, fileName: string): Promise<File> {
-    const busted = url + (url.includes('?') ? '&' : '?') + '_=' + Date.now();
-
-    const res = await fetch(busted, {
-      cache: 'no-store',
-      mode: 'cors',
-      referrerPolicy: 'strict-origin-when-cross-origin'
+  private async urlToFile(url: string, fileName: string): Promise<File> {
+    const res = await fetch(url + (url.includes('?') ? '&' : '?') + '_=' + Date.now(), {
+      cache: 'no-store', mode: 'cors', referrerPolicy: 'strict-origin-when-cross-origin'
     });
-
-    if (!res.ok) {
-      throw new Error(`No se pudo descargar el archivo: ${res.status} ${res.statusText}`);
-    }
-
+    if (!res.ok) throw new Error(`No se pudo descargar: ${res.status} ${res.statusText}`);
     const blob = await res.blob();
-    const ext = (fileName.split('.').pop() || '').toLowerCase();
-    const fallback = ext === 'pdf' ? 'application/pdf' : 'application/octet-stream';
-    const type = blob.type || fallback;
-
+    const type = blob.type || (fileName.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'application/octet-stream');
     return new File([blob], fileName, { type });
   }
 }

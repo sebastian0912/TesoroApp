@@ -5,9 +5,9 @@
       <div class="info-candidato-titulo">
         <mat-icon>person</mat-icon>
         <span class="info-candidato-label">Cédula:</span>
-        <span class="info-candidato-valor">{{ cedulaActual() }}</span>
+        <span class="info-candidato-valor">{{ numeroDocumento }}</span>
         <span class="info-candidato-label">| Nombre:</span>
-        <span class="info-candidato-valor">{{ nombreCandidato() }}</span>
+        <span class="info-candidato-valor">{{ nombreCandidato }}</span>
       </div>
       <div class="botones">
         <!-- Botón de documentos -->
@@ -39,9 +39,7 @@
           </div>
         </ng-template>
         <div class="tab-content-scrollable">
-          <app-search-for-candidate (cedulaSeleccionada)="onCedulaSeleccionada($event)"
-            (nombreCompletoChange)="getFullName($event)"
-            (idInfoEntrevistaAndreaChange)="onIdInfoEntrevistaAndreaChange($event)">
+          <app-search-for-candidate (candidatoSeleccionado)="onCandidatoSeleccionado($event)">
           </app-search-for-candidate>
         </div>
       </mat-tab>
@@ -54,9 +52,7 @@
           </div>
         </ng-template>
         <div class="tab-content-scrollable">
-          <!-- OJO: quitamos [vacanteSeleccionada]="selectionQuestionsComponent" porque no existe -->
-          <app-selection-questions [cedula]="cedulaActual()" [idProcesoSeleccion]="idProcesoSeleccion() ?? 0"
-            [idInfoEntrevistaAndrea]="idInfoEntrevistaAndrea()">
+          <app-selection-questions [candidatoSeleccionado]="candidatoSeleccionado()">
           </app-selection-questions>
         </div>
       </mat-tab>
@@ -69,8 +65,7 @@
           </div>
         </ng-template>
         <div class="tab-content-scrollable">
-          <app-help-information [cedula]="cedulaActual()" [idProcesoSeleccion]="idProcesoSeleccion()"
-            [idInfoEntrevistaAndrea]="idInfoEntrevistaAndrea()">
+          <app-help-information [candidatoSeleccionado]="candidatoSeleccionado()">
           </app-help-information>
         </div>
       </mat-tab>
@@ -177,8 +172,7 @@
         </ng-template>
 
         <div class="tab-content-scrollable">
-          <app-hiring-questions [cedula]="cedulaActual()" [codigoContrato]="codigoContratoActual()"
-            [idInfoEntrevistaAndrea]="idInfoEntrevistaAndrea()" [idVacantes]="idVacanteContratacion() || 0">
+          <app-hiring-questions>
           </app-hiring-questions>
         </div>
       </mat-tab>
