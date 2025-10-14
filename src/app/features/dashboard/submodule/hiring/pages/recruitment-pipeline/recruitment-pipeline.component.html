@@ -27,6 +27,19 @@
           matBadgeColor="primary" matBadgeOverlap="false" [matBadgeHidden]="!tieneFoto()">
           <mat-icon>photo_camera</mat-icon>
         </button>
+
+        <!-- huella -->
+        <button mat-icon-button matTooltip="Tomar huella" aria-label="Tomar huella" class="badge-left-5pt" (click)="verHuella()"
+          matBadge="✓" matBadgeColor="primary" matBadgeOverlap="false" [matBadgeHidden]="!tieneHuella()">
+          <mat-icon>fingerprint</mat-icon>
+        </button>
+
+        <!-- firma -->
+        <button mat-icon-button matTooltip="Tomar firma" aria-label="Tomar firma" (click)="verFirma()"
+          matBadge="✓" matBadgeColor="primary" matBadgeOverlap="false" [matBadgeHidden]="!tieneFirma()">
+          <mat-icon>edit</mat-icon>
+        </button>
+
       </div>
     </div>
 
@@ -103,7 +116,7 @@
           <!-- IPSLAB -->
           <mat-form-field appearance="fill" class="example-full-width">
             <mat-label>IPSLAB</mat-label>
-            <mat-select formControlName="ipsLab" placeholder="IPSLAB" required>
+            <mat-select formControlName="ipsLab" placeholder="IPSLAB">
               <mat-option value="JAVAP">JAVAP</mat-option>
               <mat-option value="ESTRATEGO">ESTRATEGO</mat-option>
               <mat-option value="HELSEN">HELSEN</mat-option>
@@ -113,10 +126,8 @@
               <mat-option value="ASTON MEDICAL">ASTON MEDICAL</mat-option>
               <mat-option value="ACR VITAL">ACR VITAL</mat-option>
               <mat-option value="SANILAB">SANILAB</mat-option>
+              <mat-option value="NO APLICA">NO APLICA</mat-option>
             </mat-select>
-            <mat-error *ngIf="formGroup3.get('ipsLab')?.hasError('required') && formGroup3.get('ipsLab')?.touched">
-              Este campo es requerido
-            </mat-error>
           </mat-form-field>
 
           <!-- Selección de exámenes -->

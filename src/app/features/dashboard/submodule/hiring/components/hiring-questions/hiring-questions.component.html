@@ -117,6 +117,15 @@
         <input matInput formControlName="operacion">
       </mat-form-field>
 
+      <!--horas_extras-->
+      <mat-form-field class="example-full-width">
+        <mat-label>Horas Extras</mat-label>
+        <mat-select formControlName="horasExtras">
+          <mat-option value="SI">SI</mat-option>
+          <mat-option value="NO">NO</mat-option>
+        </mat-select>
+      </mat-form-field>
+
       <button mat-flat-button color="primary" (click)="cargarPagoTransporte()">Cargar</button>
     </div>
   </mat-tab>

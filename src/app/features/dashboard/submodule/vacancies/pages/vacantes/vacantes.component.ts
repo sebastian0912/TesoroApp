@@ -48,6 +48,8 @@ interface ConteoEstados {
   styleUrl: './vacantes.component.css'
 })
 export class VacantesComponent implements OnInit {
+  filterFincaFaltantes = '';
+  filterFincaCompletados = '';
   dataSource = new MatTableDataSource<any>([]);
   displayedColumns: string[] = [
     'acciones',
@@ -478,7 +480,38 @@ export class VacantesComponent implements OnInit {
     return 'semaforo-pill semaforo-error';
   }
 
+  // Normaliza texto (lowercase, sin tildes, trim)
+  private norm(s: any): string {
+    return String(s ?? '')
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .trim();
+  }
 
+  // Predicado por finca (reutilizable)
+  private fincaPredicate = (data: any, filter: string) =>
+    this.norm(data?.finca).includes(this.norm(filter));
+
+  // Setea los predicados de cada dataSource derivado
+  private setDerivedPredicates(): void {
+    this.dataSourceFaltantes.filterPredicate = this.fincaPredicate;
+    this.dataSourceCompletados.filterPredicate = this.fincaPredicate;
+  }
+
+  // Handlers de los inputs
+  applyFincaFilterFaltantes(value: string): void {
+    this.filterFincaFaltantes = value;
+    this.dataSourceFaltantes.filter = this.norm(this.filterFincaFaltantes);
+    // opcional: reset paginación
+    this.dataSourceFaltantes.paginator?.firstPage();
+  }
+
+  applyFincaFilterCompletados(value: string): void {
+    this.filterFincaCompletados = value;
+    this.dataSourceCompletados.filter = this.norm(this.filterFincaCompletados);
+    this.dataSourceCompletados.paginator?.firstPage();
+  }
 }
 
 

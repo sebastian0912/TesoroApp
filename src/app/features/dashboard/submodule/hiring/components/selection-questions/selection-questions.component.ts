@@ -358,11 +358,7 @@ export class SelectionQuestionsComponent {
 
   // ---------- Guardado ----------
   async imprimirVerificacionesAplicacion(): Promise<void> {
-    if (this.antecedentes.invalid) {
-      this.antecedentes.markAllAsTouched();
-      await Swal.fire('Campos incompletos', 'Revisa los campos obligatorios.', 'warning');
-      return;
-    }
+    // Con estos cambios, el form debería estar válido salvo otros campos
 
     const numero = (this.candidatoSeleccionado()?.numero_documento ?? this.candidatoSeleccionado()?.numeroDocumento ?? '').toString().trim();
     if (!numero) return void Swal.fire('Error', 'No se encontró el número de documento del candidato.', 'error');

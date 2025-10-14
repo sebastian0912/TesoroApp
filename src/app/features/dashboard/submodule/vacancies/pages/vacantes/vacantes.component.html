@@ -7,10 +7,7 @@
         <span class="spacer"></span>
 
         <!-- Toggle vista -->
-        <mat-button-toggle-group
-          [value]="viewMode"
-          (change)="onToggleView($event.value)"
-          aria-label="Cambiar vista"
+        <mat-button-toggle-group [value]="viewMode" (change)="onToggleView($event.value)" aria-label="Cambiar vista"
           class="view-toggle">
 
           <mat-button-toggle value="card" aria-label="Vista tarjetas">
@@ -62,14 +59,13 @@
         <input type="file" #fileInput (change)="onFileSelected($event)" hidden />
       </div>
 
-      <!-- Filtro (compartido para todas las vistas) -->
-      <mat-form-field class="filtro">
-        <mat-label>Filtrar</mat-label>
-        <input matInput (keyup)="applyFilter($event)" placeholder="Buscar..." #input />
-      </mat-form-field>
-
       <!-- ==================== VISTA FALTANTES ==================== -->
       <div class="table-container" *ngIf="viewMode === 'faltantes'">
+        <mat-form-field class="filtro">
+          <mat-label>Filtrar por finca (faltantes)</mat-label>
+          <input matInput #ffalt (input)="applyFincaFilterFaltantes(ffalt.value)" placeholder="Ej: La Esperanza" />
+        </mat-form-field>
+
         <table mat-table [dataSource]="dataSourceFaltantes" class="mat-elevation-z8">
 
           <!-- (reusar las mismas columnas de arriba) -->
@@ -197,6 +193,12 @@
 
       <!-- ==================== VISTA COMPLETADOS ==================== -->
       <div class="table-container" *ngIf="viewMode === 'completados'">
+
+        <mat-form-field class="filtro">
+          <mat-label>Filtrar por finca (completados)</mat-label>
+          <input matInput #ffcomp (input)="applyFincaFilterCompletados(ffcomp.value)" placeholder="Ej: La Esperanza" />
+        </mat-form-field>
+
         <table mat-table [dataSource]="dataSourceCompletados" class="mat-elevation-z8">
 
           <!-- (reusar las mismas columnas de arriba) -->

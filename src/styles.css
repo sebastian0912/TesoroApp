@@ -370,3 +370,16 @@ mat-card-content p {
 mat-horizontal-stepper, mat-step {
   background-color: #fff !important;
 }
+
+
+/* Acerca un poco el chulo hacia adentro del botón */
+.badge-tight.mat-badge .mat-badge-content {
+  /* Por defecto Angular usa translate(50%, -50%). Reducimos el X para traerlo hacia adentro */
+  transform: translate(calc(50% - 6px), -50%);
+}
+
+/* Opcional: separa los botones entre sí para que nada se vea pegado */
+.icon-row {
+  display: inline-flex;
+  gap: 10px; /* ajusta a gusto */
+}

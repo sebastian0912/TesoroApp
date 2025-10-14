@@ -130,6 +130,7 @@ export class HiringQuestionsComponent implements OnInit {
       grupo: [null, Validators.required],
       categoria: [null, Validators.required],
       operacion: [null, Validators.required],
+      horasExtras: ['', Validators.required],
     }, { validators: this.match('numeroPagos', 'validacionNumeroCuenta') });
 
     this.referenciasForm = this.fb.group({
@@ -196,6 +197,7 @@ export class HiringQuestionsComponent implements OnInit {
       grupo: this.pagoTransporteForm.value.grupo,
       categoria: this.pagoTransporteForm.value.categoria,
       operacion: this.pagoTransporteForm.value.operacion,
+      horas_extras: this.pagoTransporteForm.value.horasExtras,
     };
 
     try {
@@ -504,6 +506,7 @@ private async captureFingerprint(kind: 'ID' | 'PD'): Promise<void> {
       auxilioTransporte: vacResp?.auxilioTransporte,
       salario: vacResp?.salario,
       Ccostos: vacResp?.empresaUsuariaSolicita || '',
+      
 
     });
 
@@ -526,6 +529,7 @@ private async captureFingerprint(kind: 'ID' | 'PD'): Promise<void> {
         grupo: datos.grupo,
         categoria: datos.categoria,
         operacion: datos.operacion,
+        horasExtras: datos.horas_extras,
       });
       this.trasladosForm.patchValue({
         opcion_traslado_eps: datos.opcion_traslado_eps || 'NO',
