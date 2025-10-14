@@ -365,3 +365,16 @@ mat-card-content p {
 .material-symbols-outlined{
   font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
 }
+
+
+/* Acerca un poco el chulo hacia adentro del botón */
+.badge-tight.mat-badge .mat-badge-content {
+  /* Por defecto Angular usa translate(50%, -50%). Reducimos el X para traerlo hacia adentro */
+  transform: translate(calc(50% - 6px), -50%);
+}
+
+/* Opcional: separa los botones entre sí para que nada se vea pegado */
+.icon-row {
+  display: inline-flex;
+  gap: 10px; /* ajusta a gusto */
+}

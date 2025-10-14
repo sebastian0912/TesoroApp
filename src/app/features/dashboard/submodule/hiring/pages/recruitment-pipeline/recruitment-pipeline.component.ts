@@ -77,6 +77,10 @@ export class RecruitmentPipelineComponent {
 
   fotoDataUrl = signal<string | null>(null);
   tieneFoto = computed(() => !!this.fotoDataUrl());
+  firmaDataUrl = signal<string | null>(null);
+  tieneFirma = computed(() => !!this.firmaDataUrl());
+  huellaDataUrl = signal<string | null>(null);
+  tieneHuella = computed(() => !!this.huellaDataUrl());
 
   sede = signal<string>('');
   abreviacionSede = signal<string>('');
@@ -120,7 +124,7 @@ export class RecruitmentPipelineComponent {
   // ───────── Form Parte 3 ─────────
   formGroup3: FormGroup = this.fb.group({
     ips: ['', Validators.required],
-    ipsLab: ['', Validators.required],
+    ipsLab: [''],
     selectedExams: [[], Validators.required],
     selectedExamsArray: this.fb.array([]),
   });
@@ -173,6 +177,10 @@ export class RecruitmentPipelineComponent {
         catchError(() => of(null))
       ).subscribe((resp: any) => {
         const raw = resp?.data?.[0]?.fotoSoliciante ?? null;
+        const rawFirma = resp?.data?.[0]?.firmaSolicitante ?? null;
+        const rawHuella = resp?.data?.[0]?.huellaIndiceDerecho ?? null;
+        this.firmaDataUrl.set(typeof rawFirma === 'string' && rawFirma.trim() ? rawFirma.trim() : null);
+        this.huellaDataUrl.set(typeof rawHuella === 'string' && rawHuella.trim() ? rawHuella.trim() : null);
         this.fotoDataUrl.set(typeof raw === 'string' && raw.trim() ? raw.trim() : null);
       });
 
@@ -504,6 +512,66 @@ export class RecruitmentPipelineComponent {
       }
     });
   }
+
+verHuella(): void {
+  // Ajusta la fuente según tu estado/servicio
+  const raw = this.huellaDataUrl?.()  ?? null;
+  this.showBase64('Huella', raw);
+}
+
+verFirma(): void {
+  // Ajusta la fuente según tu estado/servicio
+  const raw = this.firmaDataUrl?.() ?? null;
+  this.showBase64('Firma', raw);
+}
+
+
+// Helpers
+private normalizeDataUrl(raw: string | null | undefined, defaultMime = 'image/png'): string | null {
+  if (!raw) return null;
+  const s = String(raw).trim();
+  if (!s) return null;
+  if (s.startsWith('data:')) return s;                  // ya viene como data URL
+
+  // Heurísticos por encabezado base64
+  if (/^JVBERi0/.test(s)) return `data:application/pdf;base64,${s}`; // PDF
+  if (/^iVBOR/.test(s))  return `data:image/png;base64,${s}`;        // PNG
+  if (/^\/9j\//.test(s)) return `data:image/jpeg;base64,${s}`;       // JPG
+
+  return `data:${defaultMime};base64,${s}`;             // fallback
+}
+
+private isPdfDataUrl(url: string): boolean {
+  return url.startsWith('data:application/pdf');
+}
+
+// Viewer genérico con Swal
+private async showBase64(title: string, raw: string | null, alt = title) {
+  const url = this.normalizeDataUrl(raw);
+  if (!url) {
+    this.snack?.open?.(`No hay ${title.toLowerCase()} disponible.`, 'OK', { duration: 2500 });
+    return;
+  }
+
+  // Para PDF es mejor abrir pestaña nueva
+  if (this.isPdfDataUrl(url)) {
+    window.open(url, '_blank');
+    return;
+  }
+
+  const { isConfirmed } = await Swal.fire({
+    title,
+    html: `<img src="${url}" alt="${alt}" style="max-width:100%;height:auto;border-radius:8px;" />`,
+    width: '48rem',
+    heightAuto: false,
+    showCloseButton: true,
+    showCancelButton: true,
+    cancelButtonText: 'Cerrar'
+  });
+
+  if (isConfirmed) window.open(url, '_blank');
+}
+
 
   private fileToDataURL(file: File): Promise<string> {
     return new Promise<string>((resolve, reject) => {

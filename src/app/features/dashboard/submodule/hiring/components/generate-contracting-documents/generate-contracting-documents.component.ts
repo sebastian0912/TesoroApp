@@ -258,6 +258,8 @@ export class GenerateContractingDocumentsComponent implements OnInit {
           console.log('Dato Personal:', this.datoPersonal);
           this.huellaIndiceDerecho = this.datoPersonal?.huellaIndiceDerecho || '';
           this.firmaPersonalAdministrativo = administrativo?.data?.[0]?.firmaSolicitante || '';
+          this.nombreCompleto = this.datoPersonal.primer_nombre + ' ' +this.datoPersonal?.segundo_nombre + ' ' + this.datoPersonal?.primer_apellido + ' ' + this.datoPersonal?.segundo_apellido || '';
+
           this.datoSeleccion = procesoTop;
           console.log('Proceso Top:', this.datoSeleccion);
           this.datoContratacion = contratacion;
@@ -457,10 +459,10 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     let logoPath = '';
     let nit = '';
     if (empresaSeleccionada === EMP_APOYO) {
-      logoPath = '/logos/Logo_AL.png';
+      logoPath = 'logos/Logo_AL.png';
       nit = 'NIT: 900.814.587-1';
     } else if (empresaSeleccionada === EMP_TA) {
-      logoPath = '/logos/Logo_TA.png';
+      logoPath = 'logos/Logo_TA.png';
       nit = 'NIT: 900.864.596-1';
     } else {
       return;
@@ -637,7 +639,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     doc.line(10, yFirmaBase, 100, yFirmaBase);
 
     if (this.firma !== '') {
-      const firmaConPrefijo = 'data:image/png;base64,' + this.firma;
+      const firmaConPrefijo = this.firma;
       doc.addImage(firmaConPrefijo, 'PNG', 10, yFirmaBase - 20, 50, 18);
     } else {
       Swal.fire({ icon: 'error', title: 'Error', text: 'No se encontró la firma' });
@@ -1007,19 +1009,37 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     new Uint8Array(ab).set(u8);
     return ab;
   }
+  
+// --- Helpers ---
+private norm(s: any): string {
+  return String(s ?? '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim();
+}
+
+private getRutaInfo(oficinas: Array<{nombre?: string; ruta?: boolean}>, sede: string) {
+  const arr = Array.isArray(oficinas) ? oficinas : [];
+  const match = arr.find(o => this.norm(o?.nombre) === this.norm(sede));
+  const nombreRuta = match?.nombre ?? (sede ?? '');
+  const usaRuta = match == null ? '' : (match.ruta ? 'SI' : 'NO');
+  return { nombreRuta, usaRuta };
+}
+
 
 
   // === Método principal SOLO con datoVacante, datoSeleccion, datoContratacion ===
   async generarFichaTecnica() {
     try {
-      const pdfUrl = '/Docs/Ficha tecnica.pdf';
+      const pdfUrl = 'Docs/Ficha tecnica.pdf';
       const arrayBuffer = await this.fetchAsArrayBufferOrNull(pdfUrl);
       if (!arrayBuffer) throw new Error('No se pudo cargar el PDF base.');
 
       const pdfDoc = await PDFDocument.load(arrayBuffer);
       pdfDoc.registerFontkit(fontkit as any);
 
-      const fontBytes = await this.fetchAsArrayBufferOrNull('/fonts/Roboto-Regular.ttf');
+      const fontBytes = await this.fetchAsArrayBufferOrNull('fonts/Roboto-Regular.ttf');
       const customFont = fontBytes ? await pdfDoc.embedFont(fontBytes) : undefined;
 
       const form = pdfDoc.getForm();
@@ -1085,8 +1105,8 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       this.setXIf(form, 'PesoZurdo', !mano.includes('DIESTRO'));
 
       // Empresa Grupo Elite
-      this.setText(form, 'Empresa Grupo Elite', this.datoSeleccion.empresa_usuario ?? '', customFont);
-      this.setText(form, 'Código Compañía', this.safe(this.datoSeleccion.empresa_usuario ?? ''), customFont);
+      this.setText(form, 'Empresa Grupo Elite', this.datoVacante.empresaUsuariaSolicita   ?? '', customFont);
+      this.setText(form, 'Código Compañía', this.safe(this.datoVacante.empresaUsuariaSolicita  ?? ''), customFont);
       this.setText(form, 'Sucursal', this.safe(this.datoSeleccion.centro_costo_entrevista ?? ''), customFont);
       this.setText(form, 'Centro de Costo', this.safe(this.datoInfoContratacion.centro_de_costos ?? ''), customFont);
       this.setText(form, 'SubCentro de Costo', this.safe(this.datoInfoContratacion.subCentroCostos ?? ''), customFont);
@@ -1111,10 +1131,16 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       this.setText(form, 'EPS SaludRow1', this.safe(ds.eps), customFont);
       this.setText(form, 'AFP PensiónRow1', this.safe(ds.afp), customFont);
       this.setText(form, 'AFC CesantiasRow1', this.safe(this.datoInfoContratacion.cesantias ?? ''), customFont); // si el campo existe y quieres usarlo
-
+      this.setText(form, 'N de Semanas CotizadasPensionado NO', this.safe(this.datoInfoContratacion.semanas_cotizadas) || '0', customFont);
+      this.setText(form, 'Nombre de la RutaAuxilio Trasporte', this.safe(this.datoVacante.auxilioTransporte), customFont);
+      // Nombre de la RutaUsa Ruta
+      const rutaInfo = this.getRutaInfo(this.datoVacante.oficinasQueContratan, this.sede ?? '');
+      this.setText(form, 'Nombre de la RutaUsa Ruta', rutaInfo.usaRuta, customFont);
       // === Contacto de emergencia (datoPersonal) ===
       this.setText(form, 'Apellidos y NombresRow1', this.safe(dv.familiar_emergencia), customFont);
       this.setText(form, 'Número de ContactoRow1', this.safe(dv.telefono_familiar_emergencia), customFont);
+      // Horas extras
+      this.setText(form, 'Horas extras', this.safe(this.datoInfoContratacion.horas_extras), customFont);
 
       // === Educación (datoPersonal) ===
       this.setText(form, 'Seleccione el Grado de Escolaridad', this.safe(dv.escolaridad ?? dv.nivel_escolaridad), customFont);
@@ -1199,10 +1225,10 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       this.setText(form, 'Nombre Referencia 1Row1_3', this.safe(dv.nombre_referencia_familiar2), customFont);
       this.setText(form, 'TeléfonosRow1_6', this.safe(dv.telefono_referencia_familiar2), customFont);
       // (el PDF tenía un bug: 'OcupaciónRow1_7' con personal2; lo dejo vacío si no corresponde)
-      this.setText(form, 'OcupaciónRow1_7', '', customFont);
+      this.setText(form, 'OcupaciónRow1_7', this.safe(dv.ocupacion_referencia_familiar2), customFont);
 
       // === Autorizaciones / textos (solo variables permitidas) ===
-      const centroCostoTexto = this.safe(this.datoContratacion?.centro_de_costos) || this.safe(this.datoSeleccion?.empresa_usuario);
+      const centroCostoTexto = this.safe(this.datoVacante?.empresaUsuariaSolicita);
       this.setText(
         form,
         'AutorizacionDeEstudiosSeguridad2',
@@ -1227,45 +1253,24 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       this.setText(form, 'Persona que firma', this.safe(user.datos_basicos.nombres + ' ' + user.datos_basicos.apellidos + ' ' + user.tipo_documento + ' ' + user.numero_de_documento), customFont);
 
       // Firma/verificación (si tenemos ruta de firma institucional)
-      const firmaInstBytes = await this.base64ToUint8Array(this.firmaPersonalAdministrativo);
-      if (firmaInstBytes) {
-        const img = await pdfDoc.embedPng(firmaInstBytes);
-        form.getButton('Image15_af_image').setImage(img);
-      }
+const firmaInstImg = await this.embedAnyImage(pdfDoc, this.firmaPersonalAdministrativo);
+if (firmaInstImg) {
+  try { form.getButton('Image15_af_image').setImage(firmaInstImg); } catch {}
+}
+
 
       // Firma del candidato (datoVacante.firma base64) -> en este dataset viene null
 
-      const firmaCandidatoBytes = this.base64ToUint8Array(this.datoPersonal?.firmaSolicitante || '');
-      if (firmaCandidatoBytes) {
-        try {
-          const img = await pdfDoc.embedPng(firmaCandidatoBytes);
-          form.getButton('Image11_af_image').setImage(img);
-        } catch { }
-      }
+const firmaCandImg = await this.embedAnyImage(pdfDoc, this.datoPersonal?.firmaSolicitante || '');
+if (firmaCandImg) {
+  try { form.getButton('Image11_af_image').setImage(firmaCandImg); } catch {}
+}
 
+const fotoImg = await this.embedAnyImage(pdfDoc, this.datoPersonal?.fotoSoliciante || this.datoPersonal?.fotoSolicitante || '');
+if (fotoImg) {
+  try { form.getButton('Image17_af_image').setImage(fotoImg); } catch {}
+}
 
-      // Huella (no está en las variables permitidas) -> se deja vacío
-
-      // colocar foro dv.fotoSoliciante en Image17_af_image
-      // OJO: tu backend guarda "fotoSoliciante" (sin t)
-      const foto = this.decodeBase64Image(this.datoPersonal?.fotoSoliciante);
-      if (foto?.bytes) {
-        try {
-          let pdfImg;
-          if (foto.mime === 'image/png') {
-            pdfImg = await pdfDoc.embedPng(foto.bytes);
-          } else if (foto.mime === 'image/jpeg' || foto.mime === 'image/jpg') {
-            pdfImg = await pdfDoc.embedJpg(foto.bytes);
-          } else {
-            // Fallback si el mime no es claro: intentamos PNG y luego JPG
-            try { pdfImg = await pdfDoc.embedPng(foto.bytes); }
-            catch { pdfImg = await pdfDoc.embedJpg(foto.bytes); }
-          }
-          form.getButton('Image17_af_image').setImage(pdfImg);
-        } catch {
-          // silenciar si el campo no existe o la imagen no es soportada
-        }
-      }
 
       // Image10_af_image huella
       if (this.datoPersonal?.huellaIndiceDerecho) {
@@ -1305,13 +1310,11 @@ export class GenerateContractingDocumentsComponent implements OnInit {
 
       // AutorizacionDeEstudiosSeguridad2
       this.setText(form, 'AutorizacionDeEstudiosSeguridad2', this.safe(this.datoSeleccion.empresa_usuario), customFont, 6);
-      this.setText(form, 'Fecha de EntregaINICIAL', this.formatLongDateES(this.safe(ds.fechaIngreso) || this.safe(this.datoContratacion?.fechaIngreso)), customFont);
+      this.setText(form, 'Fecha de EntregaINICIAL', this.formatLongDateES(this.safe(ds.fechaIngreso) ), customFont);
       // FechaLocker
-      this.setText(form, 'FechaLocker', this.formatLongDateES(this.safe(ds.fechaIngreso) || this.safe(this.datoContratacion?.fechaIngreso)), customFont);
-      // por cualquier causa la suma de
-      this.setText(form, 'por cualquier causa la suma de', this.safe(this.datoInfoContratacion.salario_contratacion), customFont);
+      this.setText(form, 'FechaLocker', this.formatLongDateES(this.safe(ds.fechaIngreso)), customFont);
       // TEXTOCARNET
-      this.setText(form, 'TEXTOCARNET', 'me comprometo a presentar ante ' + this.datoSeleccion.empresa_usuario + ' fotocopia del denuncio correspondiente y en el caso de aparecer el carnet perdido lo devolveré a la empresa para su respectiva anulación', customFont, 6);
+      this.setText(form, 'TEXTOCARNET', 'me comprometo a presentar ante ' + this.datoVacante.empresaUsuariaSolicita + ' fotocopia del denuncio correspondiente y en el caso de aparecer el carnet perdido lo devolveré a la empresa para su respectiva anulación', customFont, 6);
       // TEXTOLOCKER5
       this.setText(form, 'TEXTOLOCKER5', 'Yo,' + this.nombreCompleto + ' identificado(a) con Cedula de Ciudadania No ' + this.datoPersonal.numerodeceduladepersona + ' declaro haber recibido el loker relacionado abajo y me comprometo a seguir las recomendaciones y politicas de uso y cuidado de estós, y a devolverer Loker en el mismo estado en que me fue asignado al momento de la finalizaci6n de mi relación laboral y antes de la entrega de la liquidación de contrato', customFont, 6);
       // Bloquear campos
@@ -1335,6 +1338,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
 
 
     } catch (error) {
+      console.error('Error generando ficha técnica:', error);
       Swal.fire({
         icon: 'error',
         title: 'Error',
@@ -1451,6 +1455,74 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     return null;
   }
 
+  /** Quita headers data: y duplicados, y retorna base64 “limpio” */
+private cleanBase64(raw?: string | null): string | null {
+  if (!raw) return null;
+  let s = String(raw).trim();
+  if (!s) return null;
+  // si ya viene como dataURL, separa en header + cuerpo
+  if (s.startsWith('data:')) {
+    const idx = s.indexOf(',');
+    if (idx >= 0) s = s.slice(idx + 1);
+  }
+  // por si el cuerpo vuelve a empezar con data:
+  s = s.replace(/^data:[^,]+,/, '');
+  // quitar espacios y saltos
+  s = s.replace(/\s+/g, '');
+  return s;
+}
+
+/** Convierte base64 limpio a bytes */
+private b64ToBytes(b64: string): Uint8Array {
+  const bin = atob(b64);
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+
+/** Detecta tipo de imagen por “magic numbers” */
+private sniffImg(bytes: Uint8Array): 'png' | 'jpg' | null {
+  if (bytes.length >= 8 &&
+      bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4E && bytes[3] === 0x47) return 'png';
+  if (bytes.length >= 2 &&
+      bytes[0] === 0xFF && bytes[1] === 0xD8) return 'jpg';
+  return null;
+}
+
+/** Embebe cualquier imagen (base64/dataURL/bytes) como PNG o JPG según corresponda */
+private async embedAnyImage(
+  pdfDoc: PDFDocument,
+  input: string | Uint8Array | ArrayBuffer | null | undefined
+) {
+  if (!input) return null;
+
+  let bytes: Uint8Array | null = null;
+  if (typeof input === 'string') {
+    const b64 = this.cleanBase64(input);
+    if (!b64) return null;
+    bytes = this.b64ToBytes(b64);
+  } else if (input instanceof Uint8Array) {
+    bytes = input;
+  } else if (input instanceof ArrayBuffer) {
+    bytes = new Uint8Array(input);
+  }
+
+  if (!bytes?.length) return null;
+
+  const kind = this.sniffImg(bytes);
+  try {
+    if (kind === 'png') return await pdfDoc.embedPng(bytes);
+    if (kind === 'jpg') return await pdfDoc.embedJpg(bytes);
+    // desconocido: intento PNG y luego JPG
+    try { return await pdfDoc.embedPng(bytes); }
+    catch { return await pdfDoc.embedJpg(bytes); }
+  } catch (e) {
+    console.error('embedAnyImage failed:', e);
+    return null;
+  }
+}
+
+
 
 
 
@@ -1473,22 +1545,44 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     return `${dd}/${mm}/${yyyy}`;
   }
 
-  private formatLongDateES(input?: string | null): string {
-    if (!input) return '';
-    // aceptar dd/mm/yyyy o iso
-    let d: Date;
-    const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(input);
-    if (m) {
-      const [_, dd, mm, yyyy] = m;
-      d = new Date(Number(yyyy), Number(mm) - 1, Number(dd));
-    } else {
-      d = new Date(input);
-    }
-    if (isNaN(d.getTime())) return '';
-    return d.toLocaleDateString('es-ES', {
-      weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
-    });
+private formatLongDateES(input?: string | null): string {
+  if (!input) return '';
+  const s = String(input).trim();
+  let d: Date | null = null;
+
+  // dd/mm/yyyy -> local
+  const mDMY = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(s);
+  if (mDMY) {
+    const [, dd, mm, yyyy] = mDMY;
+    d = new Date(Number(yyyy), Number(mm) - 1, Number(dd));
   }
+
+  // yyyy-mm-dd -> local (evita UTC)
+  const mYMD = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
+  if (!d && mYMD) {
+    const [, yyyy, mm, dd] = mYMD;
+    d = new Date(Number(yyyy), Number(mm) - 1, Number(dd));
+  }
+
+  // ISO con tiempo/zonas -> conserva el día del string ignorando hora/offset
+  const mISO = /^(\d{4})-(\d{2})-(\d{2})[T\s].*$/.exec(s);
+  if (!d && mISO) {
+    const [, yyyy, mm, dd] = mISO;
+    d = new Date(Number(yyyy), Number(mm) - 1, Number(dd));
+  }
+
+  // Fallback (último recurso)
+  if (!d) d = new Date(s);
+  if (isNaN(d.getTime())) return '';
+
+  return d.toLocaleDateString('es-ES', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric'
+  });
+}
+
 
   private formatMoneyCOP(n?: string | number | null): string {
     if (n == null || n === '') return '';
@@ -1542,14 +1636,14 @@ export class GenerateContractingDocumentsComponent implements OnInit {
 
     if (temporal.includes('APOYO LABORAL')) {
       return {
-        logoPath: '/logos/Logo_AL.png',
+        logoPath: 'logos/Logo_AL.png',
         firmaPath: 'firma/FirmaAndreaSD.png',
         nombreEmpresa: 'APOYO LABORAL TS S.A.S.',
       };
     }
     if (temporal.includes('TU ALIANZA')) {
       return {
-        logoPath: '/logos/Logo_TA.png',
+        logoPath: 'logos/Logo_TA.png',
         firmaPath: 'firma/FirmaAndreaSD.png',
         nombreEmpresa: 'TU ALIANZA S.A.S.',
       };
@@ -1884,7 +1978,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     // Aquí agregamos la firma en base64 con su prefijo
     if (this.firma !== '') {
       // Asegúrate de que this.firma solo sea el base64 sin el 'data:image/png;base64,'
-      const firmaConPrefijo = 'data:image/png;base64,' + this.firma;
+      const firmaConPrefijo = this.firma;
 
       doc.addImage(firmaConPrefijo, 'PNG', 10, 225, 50, 20);
     } else {
@@ -2001,7 +2095,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       creator: this.empresa,
     });
 
-    const logoPath = '/logos/Logo_AL.png';
+    const logoPath = 'logos/Logo_AL.png';
     const nit = 'NIT: 900.864.596-1';
 
     const imgWidth = 27, imgHeight = 10, marginTop = 5, marginLeft = 7;
@@ -2302,7 +2396,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     doc.text('Firma de Aceptación', 10, y + 4);
 
     if (this.firma !== '') {
-      const firmaConPrefijo = 'data:image/png;base64,' + this.firma;
+      const firmaConPrefijo =  this.firma;
       doc.addImage(firmaConPrefijo, 'PNG', 10, 186, 50, 20);
     } else {
       Swal.fire({ icon: 'error', title: 'Error', text: 'No se encontró la firma' });
@@ -2365,11 +2459,11 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     let nit = '';
     let domicilio = '';
     if (this.empresa === 'APOYO LABORAL SAS') {
-      logoPath = '/logos/Logo_AL.png';
+      logoPath = 'logos/Logo_AL.png';
       nit = '900.814.587-1';
       domicilio = 'CARRERA 2 # 8 - 156 FACATATIVÁ C/MARCA';
     } else if (this.empresa === 'TU ALIANZA SAS') {
-      logoPath = '/logos/Logo_TA.png';
+      logoPath = 'logos/Logo_TA.png';
       nit = '900.864.596-1';
       domicilio = 'CLL 7 4 49 Madrid, Cundinamarca';
     } else {
@@ -2440,8 +2534,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     doc.setFont('helvetica', 'bold');
     doc.text("Código: AL CO-RE-1", tableStartX + 2, startY + 11.5);
     doc.text("Versión: 07", col1 + 2, startY + 11.5); // Ajustar dentro de columna
-    let fechaEmision = this.obtenerFechaActual(); // Obtener la fecha actual formateada
-    doc.text(`Fecha Emisión: ${fechaEmision}`, col2 + 5, startY + 11.5);
+    doc.text(`Fecha Emisión: Enero 06-21`, col2 + 5, startY + 11.5);
     doc.text("Página: 1 de 3", col3 + 6, startY + 11.5); // Ajustar dentro de columna
 
     // Representado por
@@ -2597,8 +2690,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     doc.setFont('helvetica', 'bold');
     doc.text("Código: AL CO-RE-1", tableStartX + 2, startY + 11.5);
     doc.text("Versión: 07", col1 + 2, startY + 11.5); // Ajustar dentro de columna
-    fechaEmision = this.obtenerFechaActual(); // Obtener la fecha actual formateada
-    doc.text(`Fecha Emisión: ${fechaEmision}`, col2 + 5, startY + 11.5);
+    doc.text(`Fecha Emisión: Enero 06-21`, col2 + 5, startY + 11.5);
     doc.text("Página: 2 de 3", col3 + 6, startY + 11.5); // Ajustar dentro de columna
 
     // texto adicional
@@ -2652,8 +2744,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     doc.setFont('helvetica', 'bold');
     doc.text("Código: AL CO-RE-1", tableStartX + 2, startY + 11.5);
     doc.text("Versión: 07", col1 + 2, startY + 11.5); // Ajustar dentro de columna
-    fechaEmision = this.obtenerFechaActual(); // Obtener la fecha actual formateada
-    doc.text(`Fecha Emisión: ${fechaEmision}`, col2 + 5, startY + 11.5);
+    doc.text(`Fecha Emisión: Enero 06-21`, col2 + 5, startY + 11.5);
     doc.text("Página: 3 de 3", col3 + 6, startY + 11.5); // Ajustar dentro de columna
 
     y = columnStartY; // Posición inicial Y
@@ -2696,7 +2787,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     doc.text('Número de Identificación del Trabajador', 110, y + 23);
     if (this.firma !== '') {
       // Asegúrate de que this.firma solo sea el base64 sin el 'data:image/png;base64,'
-      const firmaConPrefijo = 'data:image/png;base64,' + this.firma;
+      const firmaConPrefijo =  this.firma;
 
       doc.addImage(firmaConPrefijo, 'PNG', 42, 207, 50, 20);
     } else {

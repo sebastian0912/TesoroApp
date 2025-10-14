@@ -399,13 +399,6 @@ export class SelectionQuestionsComponent implements OnInit {
 
   async imprimirVerificacionesAplicacion(): Promise<void> {
     // Con estos cambios, el form debería estar válido salvo otros campos
-    if (this.antecedentes.invalid) {
-      this.antecedentes.markAllAsTouched();
-      await Swal.fire('Campos incompletos', 'Revisa los campos obligatorios.', 'warning');
-      const missingFields = Object.keys(this.antecedentes.controls).filter(key => this.antecedentes.get(key)?.invalid);
-      console.log('Campos faltantes o inválidos:', missingFields);
-      return;
-    }
 
     Swal.fire({
       title: 'Cargando...',
