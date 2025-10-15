@@ -73,7 +73,7 @@ export class HiringQuestionsComponent implements OnInit {
   };
 
   // Snapshot para detectar cambios de inputs
-  private _prev = { this.candidatoSeleccionado: null as any };
+  private _prev = { candidatoSeleccionado: null as any };
 
   constructor(
     private fb: FormBuilder,
@@ -86,9 +86,9 @@ export class HiringQuestionsComponent implements OnInit {
   ) {
     // Efecto: recarga cada vez que cambian los input() del componente
     effect(() => {
-      const changed = ced !== this._prev.ced || cod !== this._prev.cod || idI !== this._prev.idInfo || idV !== this._prev.idVac;
-      if (changed) {
-        this._prev = { ced, cod, idInfo: idI, idVac: idV };
+      if (this.candidatoSeleccionado !== this._prev.candidatoSeleccionado) {
+        this._prev.candidatoSeleccionado = this.candidatoSeleccionado;
+        console.log('HiringQuestionsComponent: candidatoSeleccionado cambió:', this.candidatoSeleccionado);
         this.onInputsChanged();
       }
     });
@@ -144,7 +144,7 @@ export class HiringQuestionsComponent implements OnInit {
   private async onInputsChanged(
 
   ): Promise<void> {
-    if () {
+    if (!this.candidatoSeleccionado()?.numero_documento ) {
       await this.loadData();
     }
   }
@@ -157,8 +157,8 @@ export class HiringQuestionsComponent implements OnInit {
     }
 
     const data = {
-      numero_de_cedula: this.ced,
-      codigo_contrato: this.codContrato,
+      numero_de_cedula: this.candidatoSeleccionado()?.numero_documento,
+      codigo_contrato: this.candidatoSeleccionado()?.codigo_contrato, // corregir
       semanas_cotizadas: this.pagoTransporteForm.value.semanasCotizadas,
       forma_pago: this.pagoTransporteForm.value.formaPago,
       numero_pagos: this.pagoTransporteForm.value.numeroPagos,
@@ -176,21 +176,7 @@ export class HiringQuestionsComponent implements OnInit {
       horas_extras: this.pagoTransporteForm.value.horasExtras,
     };
 
-    try {
-      const r = (this.contratacionService.guardarOActualizarContratacion as any)(data);
-      if (isObservable(r)) await firstValueFrom(r); else await r;
 
-      const results = await Promise.allSettled([
-        this.idInfo ? firstValueFrom(this.infoVacantesService.setEstadoVacanteAplicante(this.idInfo, 'contratado', true)) : Promise.resolve(null),
-        this.idVac ? firstValueFrom(this.vacantesService.setEstadoVacanteAplicante(this.idVac, 'contratado', this.ced)) : Promise.resolve(null),
-      ]);
-
-      results.some(x => x.status === 'rejected')
-        ? this.alert('warning', 'Guardado con advertencias', 'Algunos estados no se actualizaron.')
-        : this.alert('success', '¡Éxito!', 'Datos guardados y estados actualizados.');
-    } catch (e) {
-      this.alert('error', 'Error', 'No se pudo guardar/actualizar.');
-    }
   }
 
   // ───────── Archivos: subir / ver / descargar ─────────
@@ -262,8 +248,8 @@ export class HiringQuestionsComponent implements OnInit {
       const type = this.typeMap[k] ?? 3;
 
       const obs = withContract
-        ? this.docSvc.guardarDocumento(fileName, this.ced, type, file, this.codContrato)
-        : this.docSvc.guardarDocumento(fileName, this.ced, type, file);
+        ? this.docSvc.guardarDocumento(fileName, this.candidatoSeleccionado()?.numero_documento, type, file, this.candidatoSeleccionado()?.codigo_contrato)
+        : this.docSvc.guardarDocumento(fileName, this.candidatoSeleccionado()?.numero_documento, type, file);
 
       const resp: any = await firstValueFrom(obs).catch(() => null);
 
@@ -318,8 +304,8 @@ export class HiringQuestionsComponent implements OnInit {
   async cargarTraslados(): Promise<void> {
     const payload = {
       ...this.trasladosForm.value,
-      numerodeceduladepersona: this.ced,
-      codigo_contrato: this.codContrato,
+      numerodeceduladepersona: this.candidatoSeleccionado()?.numero_documento,
+      codigo_contrato: this.candidatoSeleccionado()?.codigo_contrato,
     };
 
     this.loading('Procesando la solicitud de traslado…');
@@ -371,7 +357,7 @@ private async captureFingerprint(kind: 'ID' | 'PD'): Promise<void> {
 
     // Solo subimos automáticamente la Índice Derecho (ID)
     if (kind === 'ID') {
-      if (!this.ced) {
+      if (!this.candidatoSeleccionado()?.numero_documento) {
         this.alert('warning', 'Cédula requerida', 'No hay cédula para asociar la huella.');
         return;
       }
@@ -385,7 +371,7 @@ private async captureFingerprint(kind: 'ID' | 'PD'): Promise<void> {
       });
 
       try {
-        await firstValueFrom(this.seleccionService.subirHuellaBase64(this.ced, dataUrl));
+        await firstValueFrom(this.seleccionService.subirHuellaBase64(this.candidatoSeleccionado()?.numero_documento, dataUrl));
         Swal.close();
         setMsg('Huella capturada y guardada.');
         this.alert('success', '¡Listo!', 'La huella (Índice Derecho) se guardó correctamente.');
@@ -463,61 +449,14 @@ private async captureFingerprint(kind: 'ID' | 'PD'): Promise<void> {
 
   // ───────── Carga integral de datos (reactiva a inputs) ─────────
   async loadData(): Promise<void> {
-    if (!this.ced || !this.codContrato) return;
-
-    // 1) Proceso de selección más reciente
-    const respSel: any = await firstValueFrom(this.contratacionService.traerDatosSeleccion(this.ced));
-    const lista = Array.isArray(respSel?.procesoSeleccion) ? respSel.procesoSeleccion : [];
-    if (!lista.length) return;
-
-    const seleccion = lista.reduce((acc: any, cur: any) => (cur?.id ?? 0) > (acc?.id ?? 0) ? cur : acc, null);
-    const idVacante = seleccion?.vacante;
-    if (typeof idVacante === 'number') this.idVacante.emit(idVacante);
-
-    // 2) Detalle de vacante
-    const vacResp: any = await firstValueFrom(this.vacantesService.obtenerVacante(idVacante));
-    this.nombreEmpresa = vacResp?.temporal || '';
-    this.descripcionVacante = vacResp?.descripcion || '';
-    this.pagoTransporteForm.patchValue({
-      auxilioTransporte: vacResp?.auxilioTransporte,
-      salario: vacResp?.salario,
-      Ccostos: vacResp?.empresaUsuariaSolicita || '',
+    if (!this.candidatoSeleccionado()?.numero_documento || !this.candidatoSeleccionado()?.codigo_contrato) return;
 
 
-    });
-
-    // 3) Documentos actuales
-    await this.llenarDocumentos();
-
-    // 4) Datos de contratación
-    const datos: any = await firstValueFrom(this.contratacionService.traerDatosContratacion(this.ced, this.codContrato));
-    if (datos) {
-      console.log('Datos de contratación:', datos);
-      this.pagoTransporteForm.patchValue({
-        semanasCotizadas: datos.semanas_cotizadas,
-        formaPago: datos.forma_pago,
-        numeroPagos: datos.numero_pagos,
-        validacionNumeroCuenta: datos.numero_cuenta ?? datos.validacion_numero_cuenta,
-        seguroFunerario: datos.seguro_funerario,
-        porcentajeARL: datos.porcentaje_arl,
-        cesantias: datos.cesantias,
-        subCentroCostos: datos.subCentroCostos,
-        grupo: datos.grupo,
-        categoria: datos.categoria,
-        operacion: datos.operacion,
-        horasExtras: datos.horas_extras,
-      });
-      this.trasladosForm.patchValue({
-        opcion_traslado_eps: datos.opcion_traslado_eps || 'NO',
-        eps_a_trasladar: datos.eps_a_trasladar,
-        traslado: datos.traslado,
-      });
-    }
   }
 
   private docs$(type: number) {
     return this.gestionDocumentalService
-      .obtenerDocumentosPorTipo(this.ced, type, this.codContrato)
+      .obtenerDocumentosPorTipo(this.candidatoSeleccionado()?.numero_documento, type, this.candidatoSeleccionado()?.codigo_contrato)
       .pipe(
         catchError((err: HttpErrorResponse) => {
           if (err.status === 404) return of([] as any[]);   // 404 => tratar como vacío
