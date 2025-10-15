@@ -31,6 +31,59 @@ export interface ProcesoSeleccionResponse {
   procesoSeleccion: AntecedentesPayload;
 }
 
+// --- Bloque de examen médico que espera el backend (strings JSON) ---
+export interface ExamenMedicoUpsertPayload {
+  ips?: string | null;
+  ips_lab?: string | null;
+  /** JSON.stringify([...]) */
+  examenes?: string | null;
+  /** JSON.stringify([{...}, ...]) */
+  resultados?: string | null;
+}
+
+// --- Request para /procesos/update-by-document/ ---
+export interface ProcesoUpdateByDocumentRequest {
+  numero_documento: string;
+
+  // Proceso
+  publicacion?: number | null;
+  vacante_tipo?: string | null;
+  vacante_salario?: string | null;
+
+  // Etapas (mutuamente excluyentes en el backend)
+  prueba_tecnica?: boolean;
+  autorizado?: boolean;
+
+  // Examen médico (recomendado enviar en bloque)
+  examen_medico?: ExamenMedicoUpsertPayload;
+
+  // Compatibilidad: también puedes enviarlos “planos” y el backend los moverá al bloque
+  ips?: string | null;
+  ips_lab?: string | null;
+  /** JSON.stringify([...]) */
+  examenes?: string | null;
+  /** JSON.stringify([{...}, ...]) */
+  resultados?: string | null;
+}
+
+
+export interface ProcesoDto {
+  id: number;
+  entrevista: number; // o el objeto según tu serializer; ajusta si hace falta
+  publicacion: number | null;
+  vacante_tipo: string | null;
+  vacante_salario: string | null;
+  prueba_tecnica: boolean;
+  prueba_tecnica_at: string | null;
+  autorizado: boolean;
+  autorizado_at: string | null;
+  // ... agrega lo que exponga tu ProcesoCandidatoSerializer
+}
+
+export interface UpdateByDocumentResponse {
+  message: 'updated';
+  proceso: ProcesoDto;
+}
 
 @Injectable({ providedIn: 'root' })
 export class RegistroProcesoContratacion {
@@ -580,50 +633,59 @@ export class RegistroProcesoContratacion {
 
 
 
-/** Obtiene los antecedentes (selección) actuales de un proceso */
-getSeleccion(procesoId: number | string) {
-  return this.http
-    .get<ProcesoSeleccionResponse>(this.url(`procesos/${procesoId}/seleccion`))
-    .pipe(this.handle$());
-}
+  /** Obtiene los antecedentes (selección) actuales de un proceso */
+  getSeleccion(procesoId: number | string) {
+    return this.http
+      .get<ProcesoSeleccionResponse>(this.url(`procesos/${procesoId}/seleccion`))
+      .pipe(this.handle$());
+  }
 
-/** Upsert de antecedentes por ID de proceso (POST o PATCH funcionan) */
-upsertSeleccion(
-  procesoId: number | string,
-  payload: AntecedentesPayload,
-  method: 'post' | 'patch' = 'post'
-) {
-  const clean = this.clean(payload);
-  // Evitamos tocar números; strings se van en mayúscula (útil para "CUMPLE"/"NO CUMPLE")
-  const data = this.uppercaseDeepExcept(clean, new Set(['semanasCotizadas']));
-  const req$ = method === 'patch'
-    ? this.http.patch(this.url(`procesos/${procesoId}/seleccion`), data)
-    : this.http.post(this.url(`procesos/${procesoId}/seleccion`), data);
-  return req$.pipe(this.handle$());
-}
+  /** Upsert de antecedentes por ID de proceso (POST o PATCH funcionan) */
+  upsertSeleccion(
+    procesoId: number | string,
+    payload: AntecedentesPayload,
+    method: 'post' | 'patch' = 'post'
+  ) {
+    const clean = this.clean(payload);
+    // Evitamos tocar números; strings se van en mayúscula (útil para "CUMPLE"/"NO CUMPLE")
+    const data = this.uppercaseDeepExcept(clean, new Set(['semanasCotizadas']));
+    const req$ = method === 'patch'
+      ? this.http.patch(this.url(`procesos/${procesoId}/seleccion`), data)
+      : this.http.post(this.url(`procesos/${procesoId}/seleccion`), data);
+    return req$.pipe(this.handle$());
+  }
 
-/**
- * Upsert de antecedentes enviando el número de documento (y opcionalmente proceso_id).
- * Si no envías proceso_id, el backend abre/usa el proceso abierto de la última entrevista.
- */
-upsertSeleccionByDocumento(
-  numeroDocumento: string,
-  payload: AntecedentesPayload,
-  procesoId?: number | string
-) {
-  const body: any = {
-    numero_documento: (numeroDocumento ?? '').trim(),
-    ...(procesoId != null ? { proceso_id: procesoId } : {}),
-    ...this.clean(payload),
-  };
-  const data = this.uppercaseDeepExcept(body, new Set(['semanasCotizadas']));
-  return this.http
-    .post<{ message: string; proceso_id: number; procesoSeleccion: AntecedentesPayload }>(
-      this.url('procesos/seleccion-by-document'),
-      data
-    )
-    .pipe(this.handle$());
-}
+  /**
+   * Upsert de antecedentes enviando el número de documento (y opcionalmente proceso_id).
+   * Si no envías proceso_id, el backend abre/usa el proceso abierto de la última entrevista.
+   */
+  upsertSeleccionByDocumento(
+    numeroDocumento: string,
+    payload: AntecedentesPayload,
+    procesoId?: number | string
+  ) {
+    const body: any = {
+      numero_documento: (numeroDocumento ?? '').trim(),
+      ...(procesoId != null ? { proceso_id: procesoId } : {}),
+      ...this.clean(payload),
+    };
+    const data = this.uppercaseDeepExcept(body, new Set(['semanasCotizadas']));
+    return this.http
+      .post<{ message: string; proceso_id: number; procesoSeleccion: AntecedentesPayload }>(
+        this.url('procesos/seleccion-by-document'),
+        data
+      )
+      .pipe(this.handle$());
+  }
 
+  updateProcesoByDocumento(
+    body: ProcesoUpdateByDocumentRequest,
+    method: 'POST' | 'PATCH' = 'POST'
+  ): Observable<UpdateByDocumentResponse> {
+    const url = `${this.base}/procesos/update-by-document/`;
+    return method === 'POST'
+      ? this.http.post<UpdateByDocumentResponse>(url, body)
+      : this.http.patch<UpdateByDocumentResponse>(url, body);
+  }
 
 }

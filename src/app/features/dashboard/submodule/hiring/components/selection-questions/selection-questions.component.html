@@ -3,180 +3,128 @@
     Antecedentes Judiciales
   </div>
 </ng-template>
-
 <br />
 
 <div class="seccion" [formGroup]="antecedentes">
+  <ng-container *ngFor="let fld of fields; let i = index; trackBy: trackByIndex">
+    <div class="input-container">
+      <mat-form-field appearance="outline" class="example-full-width">
+        <mat-label>{{ fld.label }}</mat-label>
 
-  <!-- EPS -->
-  <div class="input-container">
-    <mat-form-field appearance="fill" class="example-full-width">
-      <mat-label>EPS</mat-label>
-      <mat-select formControlName="eps" placeholder="EPS">
-        <mat-option *ngFor="let eps of epsList" [value]="eps">{{ eps }}</mat-option>
-      </mat-select>
+        <ng-container [ngSwitch]="fld.type">
 
-      <button mat-icon-button matSuffix [matMenuTriggerFor]="pdfMenuEps" aria-label="PDF options"
-        (click)="$event.stopPropagation()">
-        <mat-icon>more_vert</mat-icon>
-      </button>
-    </mat-form-field>
+          <!-- ===== ESTADO ===== -->
+          <ng-container *ngSwitchCase="'estado'">
+            <mat-select [formControlName]="controlName(fld)">
+              <mat-option *ngFor="let estado of estados" [value]="estado">
+                {{ estado }}
+              </mat-option>
+            </mat-select>
 
-    <mat-menu #pdfMenuEps="matMenu">
-      <button mat-menu-item (click)="verArchivo('eps')">Ver PDF</button>
-      <button mat-menu-item>
-        <label for="fileInputEps" style="cursor: pointer; margin-bottom: 0;">
-          Subir PDF
-          <input type="file" id="fileInputEps" style="display: none;" (change)="subirArchivo($event, 'eps')"
-            accept=".pdf" />
-        </label>
-      </button>
-    </mat-menu>
-
-    <small *ngIf="uploadedFiles['eps']" class="uploaded-file-name"
-      [ngClass]="{ 'text-danger': uploadedFiles['eps'].fileName === 'Adjuntar documento' }">
-      {{ uploadedFiles['eps'].fileName }}
-      <ng-container *ngIf="uploadedFiles['eps'].updatedAtLabel">
-        &nbsp;•&nbsp;<span class="text-muted">Actualizado: {{ uploadedFiles['eps'].updatedAtLabel }}</span>
-      </ng-container>
-    </small>
-
-    <!-- 🔔 Alerta si el documento es mayor a 15 días -->
-    <div class="doc-warning" *ngIf="isOlderThan('eps', 15)">
-      <mat-icon class="warn-icon" color="warn">warning</mat-icon>
-      <span>El documento tiene más de 15 días.</span>
-    </div>
-  </div>
-
-  <!-- Policivos -->
-  <div class="input-container">
-    <mat-form-field appearance="fill" class="example-full-width">
-      <mat-label>Policivos</mat-label>
-      <mat-select formControlName="policivos">
-        <mat-option *ngFor="let estado of antecedentesEstados" [value]="estado">{{ estado }}</mat-option>
-      </mat-select>
-
-      <!-- Contenedor de acciones (3 puntos + estado) -->
-      <div matSuffix class="acciones-suffix">
-        <!-- Botón menú -->
-        <button mat-icon-button [matMenuTriggerFor]="pdfMenuPolicivos" aria-label="PDF options"
-          (click)="$event.stopPropagation()">
-          <mat-icon>more_vert</mat-icon>
-        </button>
-
-        <!-- Icono estado -->
-        <mat-icon class="estado-icon" [ngStyle]="{
-        color: antecedentes.get('policivos')?.value === 'Cumple' ? 'green' :
-               antecedentes.get('policivos')?.value === 'No Cumple' ? 'red' : 'gray'
-      }">
-          {{ antecedentes.get('policivos')?.value === 'Cumple' ? 'check_circle' :
-          antecedentes.get('policivos')?.value === 'No Cumple' ? 'cancel' : 'help_outline' }}
-        </mat-icon>
-      </div>
-    </mat-form-field>
-
-
-    <!-- Menú -->
-    <mat-menu #pdfMenuPolicivos="matMenu">
-      <button mat-menu-item (click)="verArchivo('policivos')">Ver PDF</button>
-      <button mat-menu-item>
-        <label for="fileInputPolicivos" style="cursor: pointer; margin-bottom: 0;">
-          Subir PDF
-          <input type="file" id="fileInputPolicivos" style="display: none;" (change)="subirArchivo($event, 'policivos')"
-            accept=".pdf" />
-        </label>
-      </button>
-    </mat-menu>
-
-    <!-- Nombre del archivo -->
-    <small *ngIf="uploadedFiles['policivos']" class="uploaded-file-name"
-      [ngClass]="{ 'text-danger': uploadedFiles['policivos'].fileName === 'Adjuntar documento' }">
-      {{ uploadedFiles['policivos'].fileName }}
-      <ng-container *ngIf="uploadedFiles['policivos'].updatedAtLabel">
-        &nbsp;•&nbsp;<span class="text-muted">Actualizado: {{ uploadedFiles['policivos'].updatedAtLabel }}</span>
-      </ng-container>
-    </small>
-
-    <!-- 🔔 Alerta si el documento es mayor a 15 días -->
-    <div class="doc-warning" *ngIf="isOlderThan('policivos', 15)">
-      <mat-icon class="warn-icon" color="warn">warning</mat-icon>
-      <span>El documento tiene más de 15 días.</span>
-    </div>
-  </div>
-
-  <!-- Procuraduría -->
-  <div class="input-container">
-    <mat-form-field appearance="fill" class="example-full-width">
-      <mat-label>Procuraduría</mat-label>
-      <mat-select formControlName="procuraduria">
-        <mat-option *ngFor="let estado of antecedentesEstados" [value]="estado">
-          {{ estado }}
-        </mat-option>
-      </mat-select>
-
-            <div matSuffix class="acciones-suffix">
-              <button mat-icon-button [matMenuTriggerFor]="menu" aria-label="PDF options"
-                (click)="$event.stopPropagation()">
+            <!-- Un solo contenedor matSuffix con menú + estado en línea -->
+            <div
+              matSuffix
+              class="acciones-suffix"
+              (click)="$event.stopPropagation()"
+              aria-label="Acciones del campo">
+              <button
+                mat-icon-button
+                [matMenuTriggerFor]="menu"
+                aria-label="Opciones PDF">
                 <mat-icon>more_vert</mat-icon>
               </button>
 
-              <!-- OJO: usamos (fld.control || fld.key) para leer el valor correcto -->
-              <mat-icon class="estado-icon"
-                [style.--estado-color]="estadoColor(antecedentes.get(fld.control || fld.key)?.value)">
-                {{ estadoIcon(antecedentes.get(fld.control || fld.key)?.value) }}
+              <mat-icon
+                class="estado-icon"
+                [style.--estado-color]="estadoColor(antecedentes.get(controlName(fld))?.value)"
+                aria-label="Estado del documento">
+                {{ estadoIcon(antecedentes.get(controlName(fld))?.value) }}
               </mat-icon>
-
             </div>
           </ng-container>
 
-          <!-- LIST: lista según optionSource + menú -->
+          <!-- ===== LISTA ===== -->
           <ng-container *ngSwitchCase="'list'">
-            <mat-select [formControlName]="fld.control || fld.key" [placeholder]="fld.placeholder ?? ''">
+            <mat-select [formControlName]="controlName(fld)" [placeholder]="fld.placeholder || ''">
               <mat-option *ngFor="let opt of getOptions(fld)" [value]="opt">
                 {{ opt }}
               </mat-option>
             </mat-select>
 
-            <button mat-icon-button matSuffix [matMenuTriggerFor]="menu" aria-label="PDF options"
-              (click)="$event.stopPropagation()">
-              <mat-icon>more_vert</mat-icon>
-            </button>
+            <div
+              matSuffix
+              class="acciones-suffix"
+              (click)="$event.stopPropagation()"
+              aria-label="Acciones del campo">
+              <button
+                mat-icon-button
+                [matMenuTriggerFor]="menu"
+                aria-label="Opciones PDF">
+                <mat-icon>more_vert</mat-icon>
+              </button>
+            </div>
           </ng-container>
 
-          <!-- NUMBER: input numérico + menú -->
+          <!-- ===== NÚMERO ===== -->
           <ng-container *ngSwitchCase="'number'">
-            <input matInput type="number" [formControlName]="fld.control || fld.key" min="1" step="1"
-              inputmode="numeric" pattern="[0-9]*" (keydown)="onlyInteger($event)" />
-            <button mat-icon-button matSuffix [matMenuTriggerFor]="menu" aria-label="PDF options"
-              (click)="$event.stopPropagation()">
-              <mat-icon>more_vert</mat-icon>
-            </button>
+            <input
+              matInput
+              type="number"
+              [formControlName]="controlName(fld)"
+              min="1"
+              step="1"
+              inputmode="numeric"
+              pattern="[0-9]*"
+              (keydown)="onlyInteger($event)" />
+
+            <div
+              matSuffix
+              class="acciones-suffix"
+              (click)="$event.stopPropagation()"
+              aria-label="Acciones del campo">
+              <button
+                mat-icon-button
+                [matMenuTriggerFor]="menu"
+                aria-label="Opciones PDF">
+                <mat-icon>more_vert</mat-icon>
+              </button>
+            </div>
           </ng-container>
+
         </ng-container>
       </mat-form-field>
 
-      <!-- Menú por item (para subir/ver PDF en TODOS) -->
+      <!-- Menú por campo (referencia local por iteración) -->
       <mat-menu #menu="matMenu">
         <button mat-menu-item (click)="verArchivo(fld.key)">Ver PDF</button>
         <button mat-menu-item>
           <label [for]="'fileInput_' + fld.key" style="cursor: pointer; margin-bottom: 0;">
             Subir PDF
-            <input type="file" [id]="'fileInput_' + fld.key" style="display: none;"
-              (change)="subirArchivo($event, fld.key)" accept=".pdf" />
+            <input
+              type="file"
+              [id]="'fileInput_' + fld.key"
+              style="display: none;"
+              (change)="subirArchivo($event, fld.key)"
+              accept=".pdf" />
           </label>
         </button>
       </mat-menu>
 
       <!-- Nombre del archivo + fecha -->
-      <small *ngIf="uploadedFiles[fld.key]" class="uploaded-file-name"
-        [ngClass]="{ 'text-danger': uploadedFiles[fld.key].fileName === 'Adjuntar documento' }">
-        {{ uploadedFiles[fld.key].fileName }}
-        <ng-container *ngIf="uploadedFiles[fld.key].updatedAtLabel">
-          &nbsp;•&nbsp;<span class="text-muted">Actualizado: {{ uploadedFiles[fld.key].updatedAtLabel }}</span>
+      <small
+        *ngIf="$any(uploadedFiles)[fld.key]"
+        class="uploaded-file-name"
+        [ngClass]="{ 'text-danger': $any(uploadedFiles)[fld.key].fileName === 'Adjuntar documento' }">
+        {{ $any(uploadedFiles)[fld.key].fileName }}
+        <ng-container *ngIf="$any(uploadedFiles)[fld.key].updatedAtLabel">
+          &nbsp;•&nbsp;
+          <span class="text-muted">
+            Actualizado: {{ $any(uploadedFiles)[fld.key].updatedAtLabel }}
+          </span>
         </ng-container>
       </small>
 
-      <!-- Alerta: documento > 15 días -->
+      <!-- Alerta documento antiguo -->
       <div class="doc-warning" *ngIf="isOlderThan(fld.key, 15)">
         <mat-icon class="warn-icon" color="warn">warning</mat-icon>
         <span>El documento tiene más de 15 días.</span>

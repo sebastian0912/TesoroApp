@@ -8,10 +8,7 @@ mat-tab-group {
 
 /* Nudge del badge 5pt hacia la izquierda (posición por defecto: above after) */
 .badge-left-5pt.mat-badge .mat-badge-content {
-  right: 5pt;              /* mueve el badge hacia la izquierda */
-  /* Alternativa con transform:
-  transform: translate(calc(50% - 5pt), -50%);
-  */
+  right: 5pt;            
 }
 
 

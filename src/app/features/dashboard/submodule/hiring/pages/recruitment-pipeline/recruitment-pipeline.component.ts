@@ -35,6 +35,7 @@ import Swal from 'sweetalert2';
 import { ColumnDefinition, StandardFilterTable } from '@/app/shared/components/standard-filter-table/standard-filter-table';
 import { HttpErrorResponse } from '@angular/common/http';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { ProcesoUpdateByDocumentRequest, RegistroProcesoContratacion } from '../../service/registro-proceso-contratacion/registro-proceso-contratacion';
 
 export const MY_DATE_FORMATS = {
   parse: { dateInput: 'DD/MM/YYYY' },
@@ -114,6 +115,7 @@ export class RecruitmentPipelineComponent {
   private hiring = inject(HiringService);
   private seleccionService = inject(SeleccionService);
   private docSvc = inject(GestionDocumentalService);
+  private registroProceso = inject(RegistroProcesoContratacion);
 
   // ───────── Form Parte 3 ─────────
   formGroup3: FormGroup = this.fb.group({
@@ -141,6 +143,17 @@ export class RecruitmentPipelineComponent {
   deshabilitarContratacion = computed(() => this.hayNoApto());
 
   constructor() {
+    // helper local para parsear JSON seguro
+    const safeJson = <T>(raw: any, fallback: T): T => {
+      try {
+        if (typeof raw !== 'string') return fallback;
+        const parsed = JSON.parse(raw);
+        return (Array.isArray(parsed) || typeof parsed === 'object') ? (parsed as T) : fallback;
+      } catch {
+        return fallback;
+      }
+    };
+
     // 1) Mantén SIEMPRE la MISMA instancia de FormArray → clear() + push()
     this.selectedExamsCtrl.valueChanges
       .pipe(takeUntilDestroyed(this.destroyRef))
@@ -158,103 +171,60 @@ export class RecruitmentPipelineComponent {
       .pipe(startWith(this.selectedExamsArray.value), takeUntilDestroyed(this.destroyRef))
       .subscribe(() => this.recalcHayNoApto());
 
-    // 2) Reaccionar a cédula
+    // 2) Reaccionar a cédula (cosas generales de cabecera)
     effect(() => {
-      const ced = this.cedulaActual().trim();
-      if (!ced) return;
+      console.log('Candidato cambiado:', this.candidatoSeleccionado());
+      this.getFullName();
+      this.getNumeroDocumento();
+    });
 
-      // 2.1 Foto
-      this.hiring.buscarEncontratacion(ced).pipe(
-        take(1),
-        catchError(() => of(null))
-      ).subscribe((resp: any) => {
-        const raw = resp?.data?.[0]?.fotoSoliciante ?? null;
-        const rawFirma = resp?.data?.[0]?.firmaSolicitante ?? null;
-        const rawHuella = resp?.data?.[0]?.huellaIndiceDerecho ?? null;
-        this.firmaDataUrl.set(typeof rawFirma === 'string' && rawFirma.trim() ? rawFirma.trim() : null);
-        this.huellaDataUrl.set(typeof rawHuella === 'string' && rawHuella.trim() ? rawHuella.trim() : null);
-        this.fotoDataUrl.set(typeof raw === 'string' && raw.trim() ? raw.trim() : null);
-      });
+    // 2.1) Autollenar Salud Ocupacional desde la PRIMERA entrevista → proceso.examen_medico
+    effect(() => {
+      const cand = this.candidatoSeleccionado();
+      const formArray = this.selectedExamsArray;
 
-      // 2.2 Código de contratación
-      this.seleccionService.buscarEncontratacion(ced).pipe(
-        take(1),
-        catchError((err: HttpErrorResponse) => {
-          if (err.status === 404) {
-            this.codigoContratoActual.set('');
-            this.snack.open('No hay contratación asociada.', 'OK', { duration: 2500 });
-            return of(null);
-          }
-          this.snack.open('Error al consultar contratación', 'OK', { duration: 3500 });
-          return of(null);
-        })
-      ).subscribe((resp: any) => {
-        if (resp) this.codigoContratoActual.set(resp?.codigo_contrato || '');
-      });
+      if (!cand || !cand.entrevistas?.length) {
+        this.formGroup3.reset();
+        while (formArray.length) formArray.removeAt(0);
+        this.recalcHayNoApto();
+        return;
+      }
 
-      // 2.3 Procesos de selección
-      this.hiring.traerDatosSeleccion(ced).pipe(
-        take(1),
-        catchError((err: HttpErrorResponse) => {
-          if (err.status === 404) {
-            Swal.fire('Atención', 'No fue posible crear el proceso de selección automáticamente.', 'warning');
-            return of(null);
-          }
-          this.snack.open('Error al traer datos de selección', 'OK', { duration: 5000 });
-          return of(null);
-        })
-      ).subscribe(async (response: any) => {
-        if (!response) return;
+      const ent = cand.entrevistas[0];
+      const proc = ent?.proceso;
+      const em = proc?.examen_medico;
 
-        if (response.created && response.createdId) {
-          this.idProcesoSeleccion.set(response.createdId);
-          this.iniciarNuevoProcesoUI();
-          await Swal.fire('Listo', 'Se creó el proceso de selección automáticamente.', 'success');
-          return;
+      if (!em) {
+        this.formGroup3.patchValue(
+          { ips: '', ipsLab: '', selectedExams: [] },
+          { emitEvent: false }
+        );
+        while (formArray.length) formArray.removeAt(0);
+        this.recalcHayNoApto();
+        return;
+      }
+
+      // Parsear strings JSON
+      const exams: string[] = safeJson<string[]>(em.examenes, []);
+      const results: Array<{ aptoStatus?: string }> = safeJson(em.resultados, []);
+
+      // 1) Patch simples (esto disparará el valueChanges que repuebla el FormArray)
+      this.formGroup3.patchValue(
+        {
+          ips: em.ips ?? '',
+          ipsLab: em.ips_lab ?? '',
+          selectedExams: exams ?? [],
+        },
+        { emitEvent: true }
+      );
+
+      // 2) Tras repoblar el FormArray, parchear aptoStatus uno a uno
+      setTimeout(() => {
+        const len = formArray.length;
+        for (let i = 0; i < len; i++) {
+          const fg = formArray.at(i) as FormGroup;
+          fg.patchValue({ aptoStatus: results[i]?.aptoStatus || 'APTO' }, { emitEvent: false });
         }
-
-        const list = Array.isArray(response?.procesoSeleccion) ? response.procesoSeleccion : [];
-        if (!list.length) {
-          this.iniciarNuevoProcesoUI();
-          return;
-        }
-
-        const topTwo = [...list]
-          .filter(x => typeof x?.id === 'number')
-          .sort((a, b) => b.id - a.id)
-          .slice(0, 2);
-
-        const chosen = await this.elegirProcesoBonitoSinIdONuevo(topTwo);
-        if (!chosen) return;
-
-        if (chosen === 'NEW') {
-          this.iniciarNuevoProcesoUI();
-          return;
-        }
-
-        // Continuar con proceso existente
-        this.idProcesoSeleccion.set(chosen.id);
-        this.idVacanteContratacion.set(chosen?.vacante ?? null);
-
-        this.formGroup3.patchValue({
-          ips: chosen?.ips ?? '',
-          ipsLab: chosen?.ipslab ?? chosen?.ipsLab ?? '',
-        });
-
-        // Exámenes + aptos -> NO reemplazar el FormArray (no usar setControl)
-        const examenesArr = String(chosen?.examenes || '')
-          .split(',').map((s: string) => s.trim()).filter(Boolean);
-        const aptosArr = String(chosen?.aptosExamenes || '')
-          .split(',').map((s: string) => s.trim()).filter(Boolean);
-        const len = Math.min(examenesArr.length, aptosArr.length);
-
-        this.formGroup3.get('selectedExams')?.setValue(examenesArr.slice(0, len));
-
-        const arr = this.selectedExamsArray;
-        while (arr.length) arr.removeAt(0);
-        aptosArr.slice(0, len).forEach(status => {
-          arr.push(this.fb.group({ aptoStatus: [status || 'APTO', Validators.required] }));
-        });
         this.recalcHayNoApto();
       });
     });
@@ -277,30 +247,31 @@ export class RecruitmentPipelineComponent {
     });
   }
 
+
   // ───────── API UI ────────
   onCandidatoSeleccionado(candidato: any | null): void {
     this.candidatoSeleccionado.set(candidato);
     console.log('Candidato seleccionado:', candidato);
   }
 
-getFullName(): void {
-  const c = this.candidatoSeleccionado(); // puede ser null
-  this.nombreCandidato = c
-    ? [c.primer_nombre, c.segundo_nombre, c.primer_apellido, c.segundo_apellido]
+  getFullName(): void {
+    const c = this.candidatoSeleccionado(); // puede ser null
+    this.nombreCandidato = c
+      ? [c.primer_nombre, c.segundo_nombre, c.primer_apellido, c.segundo_apellido]
         .map(v => (v ?? '').toString().trim())
         .filter(v => v.length > 0)
         .join(' ')
         .replace(/\s+/g, ' ')
         .trim()
-    : '';
-}
+      : '';
+  }
 
-getNumeroDocumento(): void {
-  const c = this.candidatoSeleccionado();
-  this.numeroDocumento = c?.numero_documento != null
-    ? String(c.numero_documento).trim()
-    : '';
-}
+  getNumeroDocumento(): void {
+    const c = this.candidatoSeleccionado();
+    this.numeroDocumento = c?.numero_documento != null
+      ? String(c.numero_documento).trim()
+      : '';
+  }
 
 
   generacionDocumentos(): void {
@@ -314,34 +285,81 @@ getNumeroDocumento(): void {
   }
 
   async imprimirSaludOcupacional(): Promise<void> {
-    const pdfs = (this.examFiles() ?? []).filter(f => this.isPdf(f));
-    if (!pdfs.length) { Swal.fire('¡Advertencia!', 'Debe subir al menos un archivo PDF.', 'warning'); return; }
+    // 1) Tomar valores del form y candidato
+    const f = this.formGroup3.value; // { ips, ipsLab, selectedExams, selectedExamsArray }
+    const numeroDocumento = this.candidatoSeleccionado()?.numero_documento;
 
-    Swal.fire({ title: 'Procesando...', icon: 'info', text: 'Generando documento PDF...', allowOutsideClick: false, allowEscapeKey: false, didOpen: () => Swal.showLoading() });
+    if (!numeroDocumento) {
+      await Swal.fire({
+        title: 'Falta el número de documento del candidato',
+        icon: 'info',
+        toast: true,
+        position: 'top-end',
+        showConfirmButton: false,
+        timer: 3000,
+        timerProgressBar: true,
+      });
+      return;
+    }
+
+    // 2) Construir payload para /gestion_contratacion/procesos/update-by-document/
+    //    Enviar examen_medico como bloque anidado + arrays en JSON string
+    const payload: ProcesoUpdateByDocumentRequest = {
+      numero_documento: numeroDocumento,
+
+      // Si además quieres tocar algo del proceso, descomenta:
+      // publicacion: this.vacanteSeleccionada()?.id ?? null,
+      // vacante_tipo: 'Prueba técnica', // o 'Autorización de ingreso'
+      // vacante_salario: '1500000',
+
+      examen_medico: {
+        ips: f?.ips ?? null,
+        ips_lab: f?.ipsLab ?? null,
+        examenes: JSON.stringify(f?.selectedExams ?? []),
+        resultados: JSON.stringify(f?.selectedExamsArray ?? []),
+      },
+
+      // Opcional: ajustar etapas (recuerda: son excluyentes en backend)
+      // prueba_tecnica: true,
+      // autorizado: false,
+    };
 
     try {
+      // Loader (no usar await aquí)
+      Swal.fire({
+        title: 'Guardando salud ocupacional...',
+        allowOutsideClick: false,
+        didOpen: () => Swal.showLoading(),
+      });
 
-      const mergedPdf = await PDFDocument.create();
-      for (const file of pdfs) {
-        const buf = await file.arrayBuffer();
-        const pdf = await PDFDocument.load(buf, { ignoreEncryption: true });
-        const pages = await mergedPdf.copyPages(pdf, pdf.getPageIndices());
-        pages.forEach(p => mergedPdf.addPage(p));
-      }
-      const mergedBytes = await mergedPdf.save();
-      const blob = new Blob([new Uint8Array(mergedBytes).buffer], { type: 'application/pdf' });
-      const mergedName = `SaludOcupacional_Combinado_${new Date().toISOString().slice(0, 10)}.pdf`;
-      const mergedFile = new File([blob], mergedName, { type: 'application/pdf' });
+      // 3) Llamada (asegúrate de que el servicio use la URL con SLASH final)
+      //    /gestion_contratacion/procesos/update-by-document/
+      await this.registroProceso.updateProcesoByDocumento(payload, 'PATCH').toPromise();
 
-      this.uploadedFiles.update(u => ({ ...u, examenesMedicos: { file: mergedFile, fileName: mergedName } }));
-      try { await this.subirArchivo(mergedFile, 'examenesMedicos', mergedName); } catch { /* noop */ }
-
+      // cerrar el loader antes del toast de éxito
       Swal.close();
-      if (typeof (this as any).imprimirDocumentos === 'function') (this as any).imprimirDocumentos();
-      await Swal.fire('¡Éxito!', 'El PDF de Salud Ocupacional fue generado y guardado correctamente.', 'success');
-    } catch (error) {
+
+      await Swal.fire({
+        title: 'Examen médico guardado',
+        icon: 'success',
+        toast: true,
+        position: 'top-end',
+        showConfirmButton: false,
+        timer: 2500,
+        timerProgressBar: true,
+      });
+    } catch (err: any) {
+      // cerrar el loader si hubo error
       Swal.close();
-      Swal.fire('¡Error!', 'Ocurrió un problema al fusionar los archivos PDF.', 'error');
+
+      const msg = err?.error?.detail || 'No se pudo guardar salud ocupacional.';
+      await Swal.fire({
+        title: 'Error',
+        text: msg,
+        icon: 'error',
+        confirmButtonText: 'OK',
+      });
+      console.error(err);
     }
   }
 
@@ -362,8 +380,6 @@ getNumeroDocumento(): void {
   imprimirDocumentos(): void {
     Swal.fire({ title: 'Subiendo archivos...', icon: 'info', html: 'Por favor, espere…', allowOutsideClick: false, allowEscapeKey: false, didOpen: () => Swal.showLoading() });
   }
-
-
 
   onFileSelected(evt: any, index: number): void {
     const f: File | undefined = evt?.target?.files?.[0];
@@ -389,105 +405,71 @@ getNumeroDocumento(): void {
       { name: 'detalle', header: 'Detalle', type: 'text', width: '320px' },
       { name: 'actions', header: '', type: 'custom', width: '72px', stickyEnd: true, filterable: false },
     ];
-
-
   }
 
   // ───────── Cámara ─────────
   openCamera(): void {
-    const dialogRef = this.dialog.open(CameraDialogComponent, {
-      width: 'min(96vw, 720px)',
-      maxWidth: '96vw',
-      panelClass: 'camera-dialog',
-      autoFocus: false,
-      disableClose: true,
-      data: { initialPreviewUrl: this.fotoDataUrl() || null },
+    console.log('Abriendo cámara...');
+  }
+
+  verHuella(): void {
+    // Ajusta la fuente según tu estado/servicio
+    const raw = this.huellaDataUrl?.() ?? null;
+    this.showBase64('Huella', raw);
+  }
+
+  verFirma(): void {
+    // Ajusta la fuente según tu estado/servicio
+    const raw = this.firmaDataUrl?.() ?? null;
+    this.showBase64('Firma', raw);
+  }
+
+
+  // Helpers
+  private normalizeDataUrl(raw: string | null | undefined, defaultMime = 'image/png'): string | null {
+    if (!raw) return null;
+    const s = String(raw).trim();
+    if (!s) return null;
+    if (s.startsWith('data:')) return s;                  // ya viene como data URL
+
+    // Heurísticos por encabezado base64
+    if (/^JVBERi0/.test(s)) return `data:application/pdf;base64,${s}`; // PDF
+    if (/^iVBOR/.test(s)) return `data:image/png;base64,${s}`;        // PNG
+    if (/^\/9j\//.test(s)) return `data:image/jpeg;base64,${s}`;       // JPG
+
+    return `data:${defaultMime};base64,${s}`;             // fallback
+  }
+
+  private isPdfDataUrl(url: string): boolean {
+    return url.startsWith('data:application/pdf');
+  }
+
+  // Viewer genérico con Swal
+  private async showBase64(title: string, raw: string | null, alt = title) {
+    const url = this.normalizeDataUrl(raw);
+    if (!url) {
+      this.snack?.open?.(`No hay ${title.toLowerCase()} disponible.`, 'OK', { duration: 2500 });
+      return;
+    }
+
+    // Para PDF es mejor abrir pestaña nueva
+    if (this.isPdfDataUrl(url)) {
+      window.open(url, '_blank');
+      return;
+    }
+
+    const { isConfirmed } = await Swal.fire({
+      title,
+      html: `<img src="${url}" alt="${alt}" style="max-width:100%;height:auto;border-radius:8px;" />`,
+      width: '48rem',
+      heightAuto: false,
+      showCloseButton: true,
+      showCancelButton: true,
+      cancelButtonText: 'Cerrar'
     });
 
-    dialogRef.afterClosed().pipe(
-      filter((res): res is CameraDialogResult => !!res),
-      switchMap((res) => {
-        const dataUrl$ = res.previewUrl?.startsWith('data:')
-          ? of(res.previewUrl as string)
-          : from(this.fileToDataURL(res.file));
-        return dataUrl$.pipe(
-          switchMap((base64: string) =>
-            this.seleccionService.subirFotoBase64(this.cedulaActual(), base64)
-          ),
-        );
-      }),
-      take(1),
-      catchError((err) => {
-        Swal.fire('Error', `No se pudo subir la foto: ${err?.message || err}`, 'error');
-        return of(null);
-      }),
-    ).subscribe((resp: any) => {
-      if (resp?.ok || resp?.success) {
-        Swal.fire('Éxito', 'Foto subida exitosamente', 'success');
-      } else if (resp !== null) {
-        Swal.fire('Error', 'No se pudo subir la foto', 'error');
-      }
-    });
+    if (isConfirmed) window.open(url, '_blank');
   }
-
-verHuella(): void {
-  // Ajusta la fuente según tu estado/servicio
-  const raw = this.huellaDataUrl?.()  ?? null;
-  this.showBase64('Huella', raw);
-}
-
-verFirma(): void {
-  // Ajusta la fuente según tu estado/servicio
-  const raw = this.firmaDataUrl?.() ?? null;
-  this.showBase64('Firma', raw);
-}
-
-
-// Helpers
-private normalizeDataUrl(raw: string | null | undefined, defaultMime = 'image/png'): string | null {
-  if (!raw) return null;
-  const s = String(raw).trim();
-  if (!s) return null;
-  if (s.startsWith('data:')) return s;                  // ya viene como data URL
-
-  // Heurísticos por encabezado base64
-  if (/^JVBERi0/.test(s)) return `data:application/pdf;base64,${s}`; // PDF
-  if (/^iVBOR/.test(s))  return `data:image/png;base64,${s}`;        // PNG
-  if (/^\/9j\//.test(s)) return `data:image/jpeg;base64,${s}`;       // JPG
-
-  return `data:${defaultMime};base64,${s}`;             // fallback
-}
-
-private isPdfDataUrl(url: string): boolean {
-  return url.startsWith('data:application/pdf');
-}
-
-// Viewer genérico con Swal
-private async showBase64(title: string, raw: string | null, alt = title) {
-  const url = this.normalizeDataUrl(raw);
-  if (!url) {
-    this.snack?.open?.(`No hay ${title.toLowerCase()} disponible.`, 'OK', { duration: 2500 });
-    return;
-  }
-
-  // Para PDF es mejor abrir pestaña nueva
-  if (this.isPdfDataUrl(url)) {
-    window.open(url, '_blank');
-    return;
-  }
-
-  const { isConfirmed } = await Swal.fire({
-    title,
-    html: `<img src="${url}" alt="${alt}" style="max-width:100%;height:auto;border-radius:8px;" />`,
-    width: '48rem',
-    heightAuto: false,
-    showCloseButton: true,
-    showCancelButton: true,
-    cancelButtonText: 'Cerrar'
-  });
-
-  if (isConfirmed) window.open(url, '_blank');
-}
 
 
   private fileToDataURL(file: File): Promise<string> {

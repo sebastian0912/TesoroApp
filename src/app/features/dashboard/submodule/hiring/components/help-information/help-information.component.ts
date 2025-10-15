@@ -1,7 +1,7 @@
 import { SharedModule } from '@/app/shared/shared.module';
 import {
   Component,
-  effect, input,  computed, signal, inject, DestroyRef, LOCALE_ID,
+  effect, input, computed, signal, inject, DestroyRef, LOCALE_ID,
   OnInit
 } from '@angular/core';
 import {
@@ -19,6 +19,7 @@ import { UtilityServiceService } from '@/app/shared/services/utilityService/util
 import { VacantesService } from '../../service/vacantes/vacantes.service';
 import { GestionParametrizacionService } from '../../../users/services/gestion-parametrizacion/gestion-parametrizacion.service';
 import { FormEntrevistaComponent } from '../form-entrevista/form-entrevista.component';
+import { ProcesoUpdateByDocumentRequest, RegistroProcesoContratacion } from '../../service/registro-proceso-contratacion/registro-proceso-contratacion';
 
 // ================== Constantes ==================
 export const MY_DATE_FORMATS = {
@@ -80,7 +81,7 @@ export class HelpInformationComponent implements OnInit {
   private vacantesService = inject(VacantesService);
   public utilService = inject(UtilityServiceService);
   private destroyRef = inject(DestroyRef);
-
+  private gc = inject(RegistroProcesoContratacion);
   // ========= Estado local (signals) =========
   vacantes = signal<PublicacionDTO[]>([]);
   vacanteSeleccionada = signal<PublicacionDTO | null>(null);
@@ -164,6 +165,7 @@ export class HelpInformationComponent implements OnInit {
   ) {
     if (candidato && candidato?.id) {
       console.log('Candidato cargado en help-information:', candidato);
+      this.onVacanteIdChange(candidato.entrevistas[0]?.proceso.publicacion);
     }
   }
 
@@ -233,8 +235,112 @@ export class HelpInformationComponent implements OnInit {
     }
   }
 
+
   async guardarVacantes(): Promise<void> {
-    console.log('Guardando vacantes...');
+    // 1) Validaciones básicas
+    const v = this.vacanteSeleccionada?.();
+    if (!v) {
+      await Swal.fire({
+        title: 'Selecciona una vacante primero.',
+        icon: 'info',
+        toast: true,
+        position: 'top-end',
+        showConfirmButton: false,
+        timer: 3000,
+        timerProgressBar: true,
+      });
+      return;
+    }
+
+    const tipo = this.vacantesForm.get('tipo')?.value as string | null;
+    if (!tipo) {
+      await Swal.fire({
+        title: 'Selecciona el tipo (Autorización de ingreso o Prueba técnica).',
+        icon: 'info',
+        toast: true,
+        position: 'top-end',
+        showConfirmButton: false,
+        timer: 3000,
+        timerProgressBar: true,
+      });
+      return;
+    }
+
+    const numeroDocumento = this.candidatoSeleccionado()?.numero_documento;
+    if (!numeroDocumento) {
+      await Swal.fire({
+        title: 'No hay número de documento del candidato.',
+        icon: 'info',
+        toast: true,
+        position: 'top-end',
+        showConfirmButton: false,
+        timer: 3000,
+        timerProgressBar: true,
+      });
+      return;
+    }
+
+    // 2) Salario (form > vacante)
+    const salarioForm = this.vacantesForm.get('salario')?.value;
+    const salarioVac = v.salario;
+    const vacante_salario = (salarioForm ?? salarioVac) ?? null;
+
+    // === MAPEO solicitado para el select "tipo" ===
+    const tipoValue = v.pruebaOContratacion ?? '';
+
+    const vacante_tipo =
+      tipoValue === 'Prueba'
+        ? 'Prueba técnica'
+        : tipoValue === 'Contratación'
+          ? 'Autorización de ingreso'
+          : null;
+
+    // 3) Payload para /procesos/update-by-document
+    const payload: ProcesoUpdateByDocumentRequest = {
+      numero_documento: numeroDocumento,
+      publicacion: v.id,
+      vacante_tipo,               // 👈 ya mapeado
+      vacante_salario,
+      ...(tipo === 'Prueba técnica' ? { prueba_tecnica: true } : {}),
+      ...(tipo === 'Autorización de ingreso' ? { autorizado: true } : {}),
+    };
+
+    // 4) Llamar al backend
+    try {
+      // 👇 NO uses await aquí
+      Swal.fire({
+        title: 'Guardando...',
+        allowOutsideClick: false,
+        didOpen: () => Swal.showLoading(),
+      });
+
+      // Asegúrate que tu servicio use URL con barra final .../update-by-document/
+      const res = await this.gc.updateProcesoByDocumento(payload, 'PATCH').toPromise();
+
+      await Swal.fire({
+        title: 'Proceso actualizado correctamente.',
+        icon: 'success',
+        toast: true,
+        position: 'top-end',
+        showConfirmButton: false,
+        timer: 2500,
+        timerProgressBar: true,
+      });
+
+      console.log('Proceso actualizado:', res?.proceso);
+    } catch (err: any) {
+      const msg = err?.error?.detail || 'No se pudo actualizar el proceso.';
+      await Swal.fire({
+        title: 'Error',
+        text: msg,
+        icon: 'error',
+        confirmButtonText: 'OK',
+      });
+      console.error(err);
+    } finally {
+      // Cierra el loader por si quedó abierto
+      Swal.close();
+    }
   }
 
   // ── Wrapper para usar en el template con argumento ──
