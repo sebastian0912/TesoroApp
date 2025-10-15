@@ -36,23 +36,11 @@ type ServerDocInfo = {
 })
 export class HiringQuestionsComponent implements OnInit {
   // ───────── Inputs (signals) ─────────
-  cedula = input<string>('');
-  codigoContrato = input<string>('');
-  idInfoEntrevistaAndrea = input<number | null>(null);
-  idVacantes = input<number | null>(null);
-
-  // Notificar idVacante (opcional)
-  @Output() idVacante = new EventEmitter<number>();
+  candidatoSeleccionado = input<any>(null);
 
   // Datos de UI/persistencia
   descripcionVacante = '';
   nombreEmpresa = '';
-
-  // Getters cortos
-  private get ced() { return (this.cedula() || '').trim(); }
-  private get codContrato() { return (this.codigoContrato() || '').trim(); }
-  private get idInfo() { return this.idInfoEntrevistaAndrea(); }
-  private get idVac() { return this.idVacantes(); }
 
   // ───────── Formularios ─────────
   pagoTransporteForm!: FormGroup;
@@ -85,7 +73,7 @@ export class HiringQuestionsComponent implements OnInit {
   };
 
   // Snapshot para detectar cambios de inputs
-  private _prev = { ced: '', cod: '', idInfo: null as number | null, idVac: null as number | null };
+  private _prev = { this.candidatoSeleccionado: null as any };
 
   constructor(
     private fb: FormBuilder,
@@ -98,15 +86,10 @@ export class HiringQuestionsComponent implements OnInit {
   ) {
     // Efecto: recarga cada vez que cambian los input() del componente
     effect(() => {
-      const ced = this.cedula();
-      const cod = this.codigoContrato();
-      const idI = this.idInfoEntrevistaAndrea();
-      const idV = this.idVacantes();
-
       const changed = ced !== this._prev.ced || cod !== this._prev.cod || idI !== this._prev.idInfo || idV !== this._prev.idVac;
       if (changed) {
         this._prev = { ced, cod, idInfo: idI, idVac: idV };
-        this.onInputsChanged(ced?.trim() || '', cod?.trim() || '', idI ?? null, idV ?? null);
+        this.onInputsChanged();
       }
     });
   }
@@ -148,10 +131,6 @@ export class HiringQuestionsComponent implements OnInit {
       traslado: [''],
     });
 
-    this.huellaForm = this.fb.group({
-      cedula: [this.ced || '', Validators.required],
-      centroCosto: [''],
-    });
   }
 
   private match(a: string, b: string) {
@@ -163,12 +142,9 @@ export class HiringQuestionsComponent implements OnInit {
 
   // ───────── Reacción a cambios de inputs ─────────
   private async onInputsChanged(
-    cedula: string,
-    codigoContrato: string,
-    _idInfo: number | null,
-    _idVac: number | null,
+
   ): Promise<void> {
-    if (cedula && codigoContrato) {
+    if () {
       await this.loadData();
     }
   }
@@ -506,7 +482,7 @@ private async captureFingerprint(kind: 'ID' | 'PD'): Promise<void> {
       auxilioTransporte: vacResp?.auxilioTransporte,
       salario: vacResp?.salario,
       Ccostos: vacResp?.empresaUsuariaSolicita || '',
-      
+
 
     });
 
