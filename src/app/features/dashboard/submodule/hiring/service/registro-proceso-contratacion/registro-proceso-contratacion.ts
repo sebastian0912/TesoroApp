@@ -13,6 +13,8 @@ export interface ListOptions {
   filters?: Record<string, any>;
 }
 
+type TipoBio = 'firma' | 'huella' | 'foto';
+
 /** Payload aceptado por /procesos/seleccion y /procesos/seleccion-by-document */
 export interface AntecedentesPayload {
   eps?: string | null;
@@ -383,23 +385,45 @@ export class RegistroProcesoContratacion {
   // =========================================================
   // BIOMETRÍA (multipart)
   // =========================================================
-  listBiometria(opts?: ListOptions) { return this.http.get(this.url('biometria'), { params: this.buildParams(opts) }).pipe(this.handle$()); }
-  getBiometria(id: number | string) { return this.http.get(this.url(`biometria/${id}`)).pipe(this.handle$()); }
+  /** Lista (puedes filtrar por cédula con search si quieres) */
+  listBiometria(opts?: ListOptions) {
+    return this.http
+      .get(this.url('biometria'), { params: this.buildParams(opts) })
+      .pipe(this.handle$());
+  }
 
-  /** Crear registro de biometría con FormData (ej: archivo + campos) */
-  createBiometria(formData: FormData) {
-    return this.http.post(this.url('biometria'), formData).pipe(this.handle$());
+  /** Obtiene la biometría de un candidato por cédula */
+  getBiometriaPorCedula(numero_documento: string | number) {
+    return this.http
+      .get(this.url(`biometria/${encodeURIComponent(String(numero_documento))}/`))
+      .pipe(this.handle$());
   }
-  /** Reemplazo completo vía PUT (también con FormData si hay archivos) */
-  updateBiometria(id: number | string, formData: FormData | any) {
-    return this.http.put(this.url(`biometria/${id}`), formData).pipe(this.handle$());
+
+  /** Upload genérico por tipo (FIRMA | HUELLA | FOTO) */
+  uploadBiometria(
+    tipo: TipoBio,
+    numero_documento: string | number,
+    file: File
+  ) {
+    const fd = new FormData();
+    fd.append('numero_documento', String(numero_documento));
+    fd.append('file', file);
+
+    // POST /biometria/upload/{tipo}
+    return this.http
+      .post(this.url(`biometria/upload/${tipo}`), fd)
+      .pipe(this.handle$());
   }
-  /** Actualización parcial vía PATCH (FormData o JSON) */
-  patchBiometria(id: number | string, formData: FormData | any) {
-    return this.http.patch(this.url(`biometria/${id}`), formData).pipe(this.handle$());
+
+  /** Azúcar sintáctico */
+  uploadFirma(numero_documento: string | number, file: File) {
+    return this.uploadBiometria('firma', numero_documento, file);
   }
-  deleteBiometria(id: number | string) {
-    return this.http.delete(this.url(`biometria/${id}`)).pipe(this.handle$());
+  uploadHuella(numero_documento: string | number, file: File) {
+    return this.uploadBiometria('huella', numero_documento, file);
+  }
+  uploadFoto(numero_documento: string | number, file: File) {
+    return this.uploadBiometria('foto', numero_documento, file);
   }
 
   // =========================================================

@@ -37,7 +37,7 @@ export class FormEntrevistaComponent implements OnInit, AfterViewInit {
   tipoDocOpciones$: Observable<CatalogValue[]> =
     this.catalogos.listDatosByTablaCodigo('TIPOS_IDENTIFICACION', { activo: true });
   escolaridadOpciones$: Observable<CatalogValue[]> =
-    this.catalogos.listDatosByTablaCodigo('CATALOGO_NIVELES_ESCOLARIDAD', { activo: true });
+    this.catalogos.listDatosByTablaCodigo('NIVELES_ESCOLARIDAD', { activo: true });
   estadoCivilOpciones$: Observable<CatalogValue[]> =
     this.catalogos.listDatosByTablaCodigo('ESTADOS_CIVILES', { activo: true });
   conQuienViveOpciones$: Observable<CatalogValue[]> =
@@ -491,7 +491,6 @@ export class FormEntrevistaComponent implements OnInit, AfterViewInit {
   // ====== Relleno por candidato ======
   private rellenarForm(cand: any): void {
     if (!cand) return;
-
     const toDate = (v: any): Date | null => {
       if (!v) return null;
       const d = v instanceof Date ? v : new Date(v);

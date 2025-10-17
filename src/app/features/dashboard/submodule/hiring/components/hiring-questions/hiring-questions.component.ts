@@ -10,9 +10,7 @@ import { catchError, firstValueFrom, forkJoin, isObservable, of, throwError } fr
 
 import { HiringService } from '../../service/hiring.service';
 import { GestionDocumentalService } from '../../service/gestion-documental/gestion-documental.service';
-import { VacantesService } from '../../service/vacantes/vacantes.service';
-import { InfoVacantesService } from '../../service/info-vacantes/info-vacantes.service';
-import { SeleccionService } from '../../service/seleccion/seleccion.service';
+import { RegistroProcesoContratacion } from '../../service/registro-proceso-contratacion/registro-proceso-contratacion';
 
 type LocalFile = { file: File | string; fileName: string };
 
@@ -79,10 +77,8 @@ export class HiringQuestionsComponent implements OnInit {
     private fb: FormBuilder,
     private contratacionService: HiringService,
     private docSvc: GestionDocumentalService,
-    private vacantesService: VacantesService,
-    private infoVacantesService: InfoVacantesService,
     private gestionDocumentalService: GestionDocumentalService,
-    private seleccionService: SeleccionService,
+    private registroProcesoContratacion: RegistroProcesoContratacion,
   ) {
     // Efecto: recarga cada vez que cambian los input() del componente
     effect(() => {
@@ -324,20 +320,22 @@ export class HiringQuestionsComponent implements OnInit {
     }
   }
 
-  // ───────── Huellas (Electron) ─────────
+// ───────── Huellas (Electron) ─────────
 async captureFingerprintID(): Promise<void> {
   await this.captureFingerprint('ID');
 }
 
 async captureFingerprintPD(): Promise<void> {
-  await this.captureFingerprint('PD'); // aquí solo captura y muestra; no sube
+  await this.captureFingerprint('PD'); // solo captura y muestra; no sube
 }
 
 private async captureFingerprint(kind: 'ID' | 'PD'): Promise<void> {
   const setMsg = (t: string) => kind === 'ID' ? this.messageID = t : this.messagePD = t;
   const setImg = (d: string | null) => kind === 'ID' ? this.fingerprintImageID = d : this.fingerprintImagePD = d;
 
-  const electron = (window as any)?.electron;
+  type FingerprintGetResult = { success: boolean; data?: string; error?: string };
+  const electron = (window as any)?.electron as { fingerprint?: { get: () => Promise<FingerprintGetResult> } };
+
   if (!electron?.fingerprint?.get) {
     setMsg('Electron o fingerprint no están disponibles.');
     return;
@@ -355,12 +353,18 @@ private async captureFingerprint(kind: 'ID' | 'PD'): Promise<void> {
     setImg(dataUrl);
     setMsg('Huella capturada exitosamente.');
 
-    // Solo subimos automáticamente la Índice Derecho (ID)
+    // Subimos automáticamente solo la Índice Derecho (ID)
     if (kind === 'ID') {
-      if (!this.candidatoSeleccionado()?.numero_documento) {
+      const cedula = this.candidatoSeleccionado()?.numero_documento;
+      if (!cedula) {
         this.alert('warning', 'Cédula requerida', 'No hay cédula para asociar la huella.');
         return;
       }
+
+      // Convierte el DataURL a File para enviar multipart/form-data
+      const filename = this.buildHuellaFilename('ID'); // ej. huella_ID_20251017_103012.png
+      const file = await this.dataUrlToFile(dataUrl, filename);
+
       // Subir al backend
       Swal.fire({
         icon: 'info',
@@ -371,7 +375,8 @@ private async captureFingerprint(kind: 'ID' | 'PD'): Promise<void> {
       });
 
       try {
-        await firstValueFrom(this.seleccionService.subirHuellaBase64(this.candidatoSeleccionado()?.numero_documento, dataUrl));
+        // Usa tu service que postea /biometria/upload/huella con FormData
+        await firstValueFrom(this.registroProcesoContratacion.uploadHuella(cedula, file));
         Swal.close();
         setMsg('Huella capturada y guardada.');
         this.alert('success', '¡Listo!', 'La huella (Índice Derecho) se guardó correctamente.');
@@ -386,6 +391,33 @@ private async captureFingerprint(kind: 'ID' | 'PD'): Promise<void> {
     setMsg('Error de comunicación con Electron.');
   }
 }
+
+// Helper: DataURL → File (para multipart)
+// Reemplaza tu dataUrlToFile: NO usa fetch, así evita connect-src
+private dataUrlToFile(dataUrl: string, filename: string): File {
+  // data:[mime];base64,AAAA...
+  const m = /^data:([^;]+);base64,(.*)$/.exec(dataUrl);
+  if (!m) throw new Error('DataURL inválido');
+  const mime = m[1] || 'application/octet-stream';
+  const base64 = m[2];
+
+  const binary = atob(base64);
+  const len = binary.length;
+  const bytes = new Uint8Array(len);
+  for (let i = 0; i < len; i++) bytes[i] = binary.charCodeAt(i);
+
+  return new File([bytes], filename, { type: mime });
+}
+
+
+// Helper: nombre de archivo consistente
+private buildHuellaFilename(kind: 'ID' | 'PD'): string {
+  const now = new Date();
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const stamp = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+  return `huella_${kind}_${stamp}.png`;
+}
+
 
 
   // ───────── Utilidades ─────────
@@ -450,7 +482,7 @@ private async captureFingerprint(kind: 'ID' | 'PD'): Promise<void> {
   // ───────── Carga integral de datos (reactiva a inputs) ─────────
   async loadData(): Promise<void> {
     if (!this.candidatoSeleccionado()?.numero_documento || !this.candidatoSeleccionado()?.codigo_contrato) return;
-
+    
 
   }
 
