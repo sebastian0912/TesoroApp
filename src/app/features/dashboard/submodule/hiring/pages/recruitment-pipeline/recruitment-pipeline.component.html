@@ -95,7 +95,7 @@
 
         <div class="tab-content-scrollable" [formGroup]="formGroup3">
           <!-- IPS -->
-          <mat-form-field appearance="fill" class="example-full-width">
+          <mat-form-field appearance="outline" class="example-full-width">
             <mat-label>IPS</mat-label>
             <mat-select formControlName="ips" placeholder="IPS" required>
               <mat-option value="JAVAP">JAVAP</mat-option>
@@ -114,7 +114,7 @@
           </mat-form-field>
 
           <!-- IPSLAB -->
-          <mat-form-field appearance="fill" class="example-full-width">
+          <mat-form-field appearance="outline" class="example-full-width">
             <mat-label>IPSLAB</mat-label>
             <mat-select formControlName="ipsLab" placeholder="IPSLAB">
               <mat-option value="JAVAP">JAVAP</mat-option>
@@ -131,7 +131,7 @@
           </mat-form-field>
 
           <!-- Selección de exámenes -->
-          <mat-form-field appearance="fill" class="example-full-width">
+          <mat-form-field appearance="outline" class="example-full-width">
             <mat-label>Seleccione los exámenes</mat-label>
             <mat-select formControlName="selectedExams" multiple required>
               <mat-option *ngFor="let exam of filteredExamOptions" [value]="exam">
@@ -148,7 +148,7 @@
           <div formArrayName="selectedExamsArray">
             <div *ngFor="let exam of formGroup3.get('selectedExams')?.value; let i = index" [formGroupName]="i">
               <!-- Estado Apto/No Apto requerido -->
-              <mat-form-field appearance="fill" class="example-full-width">
+              <mat-form-field appearance="outline" class="example-full-width">
                 <mat-label>{{ exam }}</mat-label>
                 <mat-select formControlName="aptoStatus" required>
                   <mat-option value="APTO">APTO</mat-option>

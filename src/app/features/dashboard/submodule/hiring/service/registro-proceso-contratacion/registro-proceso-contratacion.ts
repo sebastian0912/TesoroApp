@@ -4,6 +4,7 @@ import { Observable, throwError, of } from 'rxjs';
 import { catchError, map } from 'rxjs/operators';
 import { environment } from '@/environments/environment.development';
 
+// ===== Listado y filtros generales =====
 export interface ListOptions {
   page?: number;
   page_size?: number;
@@ -13,6 +14,7 @@ export interface ListOptions {
   filters?: Record<string, any>;
 }
 
+// ===== Antecedentes / Selección =====
 /** Payload aceptado por /procesos/seleccion y /procesos/seleccion-by-document */
 export interface AntecedentesPayload {
   eps?: string | null;
@@ -31,45 +33,67 @@ export interface ProcesoSeleccionResponse {
   procesoSeleccion: AntecedentesPayload;
 }
 
-// --- Bloque de examen médico que espera el backend (strings JSON) ---
+// ===== Examen médico =====
+/** Bloque que espera el backend (los arrays van como JSON.stringify([...])) */
 export interface ExamenMedicoUpsertPayload {
   ips?: string | null;
   ips_lab?: string | null;
   /** JSON.stringify([...]) */
   examenes?: string | null;
-  /** JSON.stringify([{...}, ...]) */
+  /** JSON.stringify([{ aptoStatus: 'APTO' | 'NO APTO' }, ...]) */
   resultados?: string | null;
 }
 
-// --- Request para /procesos/update-by-document/ ---
+// ===== Contrato: control de generación de código =====
+/**
+ * Si generar_codigo = true, sede_abbr es obligatorio.
+ * Si generar_codigo = false, puedes omitir el bloque o enviar sede_abbr opcional.
+ */
+export type ContratoCodigoRequest =
+  | { generar_codigo: true; sede_abbr: string }
+  | { generar_codigo: false; sede_abbr?: string };
+
+// ===== Request principal: /procesos/update-by-document/ =====
 export interface ProcesoUpdateByDocumentRequest {
   numero_documento: string;
-
-  // Proceso
   publicacion?: number | null;
   vacante_tipo?: string | null;
   vacante_salario?: string | null;
-
-  // Etapas (mutuamente excluyentes en el backend)
   prueba_tecnica?: boolean;
   autorizado?: boolean;
 
-  // Examen médico (recomendado enviar en bloque)
-  examen_medico?: ExamenMedicoUpsertPayload;
+  // ✅ nuevos
+  contratado?: boolean;
+  contrato_detalle?: {
+    forma_de_pago?: string | null;
+    numero_para_pagos?: string | null;
+    seguro_funerario?: boolean | null;
+    Ccentro_de_costos?: string | null;
+    porcentaje_arl?: number | null;
+    cesantias?: string | null;
+    subcentro_de_costos?: string | null;
+    grupo?: string | null;
+    categoria?: string | null;
+    operacion?: string | null;
+    horas_extras?: boolean | null;
+    desea_trasladarse?: boolean | null;
+    seleccion_eps?: string | null;
+  };
 
-  // Compatibilidad: también puedes enviarlos “planos” y el backend los moverá al bloque
+  examen_medico?: ExamenMedicoUpsertPayload;
   ips?: string | null;
   ips_lab?: string | null;
-  /** JSON.stringify([...]) */
   examenes?: string | null;
-  /** JSON.stringify([{...}, ...]) */
   resultados?: string | null;
+
+  contrato?: ContratoCodigoRequest;
 }
 
 
+// ===== DTO que devuelve el backend para un Proceso =====
 export interface ProcesoDto {
   id: number;
-  entrevista: number; // o el objeto según tu serializer; ajusta si hace falta
+  entrevista: number; // o un objeto según tu serializer; ajusta si hace falta
   publicacion: number | null;
   vacante_tipo: string | null;
   vacante_salario: string | null;
@@ -77,12 +101,28 @@ export interface ProcesoDto {
   prueba_tecnica_at: string | null;
   autorizado: boolean;
   autorizado_at: string | null;
-  // ... agrega lo que exponga tu ProcesoCandidatoSerializer
+
+  /** Campo inyectado por backend cuando se genera o ya existía */
+  contrato_codigo?: string | null;
+
+  /** Permite campos adicionales del serializer sin romper el tipado */
+  [k: string]: any;
 }
 
+// ===== Respuesta del endpoint /procesos/update-by-document/ =====
 export interface UpdateByDocumentResponse {
   message: 'updated';
   proceso: ProcesoDto;
+}
+
+export interface ProcesoMini {
+  id: number;
+  oficina: string | null;
+  entrevista_created_at: string; // ISO
+  aplica_o_no_aplica: string | null;
+  motivo_no_aplica: string | null;
+  motivo_espera: string | null;
+  detalle: string | null;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -369,6 +409,17 @@ export class RegistroProcesoContratacion {
   updateProceso(id: number | string, data: any) { return this.http.put(this.url(`procesos/${id}`), data).pipe(this.handle$()); }
   patchProceso(id: number | string, data: any) { return this.http.patch(this.url(`procesos/${id}`), data).pipe(this.handle$()); }
   deleteProceso(id: number | string) { return this.http.delete(this.url(`procesos/${id}`)).pipe(this.handle$()); }
+
+  listProcesosMiniByDocumento(numeroDocumento: string, onlyLatest = false) {
+    const params: any = { numero_documento: numeroDocumento };
+    if (onlyLatest) params.latest = 1;
+    return this.http.get<ProcesoMini | ProcesoMini[]>(
+      this.url('procesos/by-document-min'),
+      { params }
+    ).pipe(this.handle$());
+  }
+
+
 
   // =========================================================
   // ANTECEDENTES DE PROCESO
