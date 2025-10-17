@@ -9,11 +9,6 @@
     <div class="tab-content-scrollable" [formGroup]="pagoTransporteForm">
 
       <mat-form-field class="example-full-width">
-        <mat-label>Semanas Cotizadas</mat-label>
-        <input matInput formControlName="semanasCotizadas" type="number">
-      </mat-form-field>
-
-      <mat-form-field class="example-full-width">
         <mat-label>Forma de Pago</mat-label>
         <mat-select formControlName="formaPago">
           <mat-option value="Daviplata">Daviplata</mat-option>
@@ -24,8 +19,7 @@
         </mat-select>
       </mat-form-field>
 
-      <mat-form-field class="example-full-width"
-                      *ngIf="pagoTransporteForm.controls['formaPago'].value === 'Otra'">
+      <mat-form-field class="example-full-width" *ngIf="pagoTransporteForm.controls['formaPago'].value === 'Otra'">
         <mat-label>Otra Forma de Pago</mat-label>
         <input matInput formControlName="otraFormaPago">
       </mat-form-field>
@@ -70,7 +64,7 @@
 
       <mat-form-field class="example-full-width">
         <mat-label>Salario</mat-label>
-        <input matInput formControlName="salario">
+        <input matInput formControlName="salario" thousandSeparator>
       </mat-form-field>
 
       <mat-form-field class="example-full-width">
@@ -80,7 +74,7 @@
 
       <mat-form-field class="example-full-width">
         <mat-label>Porcentaje ARL</mat-label>
-        <input matInput formControlName="porcentajeARL" type="number" step="0.01">
+        <input matInput formControlName="porcentajeARL" type="text">
       </mat-form-field>
 
       <!-- Cesantías PORVENIR, FONDO NACIONAL DEL AHORRO, PROTECCIÓN -->
@@ -121,8 +115,8 @@
       <mat-form-field class="example-full-width">
         <mat-label>Horas Extras</mat-label>
         <mat-select formControlName="horasExtras">
-          <mat-option value="SI">SI</mat-option>
-          <mat-option value="NO">NO</mat-option>
+          <mat-option [value]="true">SI</mat-option>
+          <mat-option [value]="false">NO</mat-option>
         </mat-select>
       </mat-form-field>
 
@@ -145,8 +139,7 @@
           <mat-form-field appearance="fill" class="example-full-width">
             <mat-label>Familiar 1</mat-label>
             <input matInput formControlName="familiar1"
-                   [value]="uploadedFiles['familiar1'] ? uploadedFiles['familiar1'].fileName : ''"
-                   readonly>
+              [value]="uploadedFiles['familiar1'] ? uploadedFiles['familiar1'].fileName : ''" readonly>
             <button mat-icon-button matSuffix [matMenuTriggerFor]="menuF1" (click)="$event.stopPropagation()">
               <mat-icon>more_vert</mat-icon>
             </button>
@@ -157,7 +150,7 @@
               <label for="familiar1File">
                 Subir PDF
                 <input id="familiar1File" type="file" style="display:none"
-                       (change)="subirArchivo($event,'familiar1')" />
+                  (change)="subirArchivo($event,'familiar1')" />
               </label>
             </button>
           </mat-menu>
@@ -171,8 +164,7 @@
           <mat-form-field appearance="fill" class="example-full-width">
             <mat-label>Familiar 2</mat-label>
             <input matInput formControlName="familiar2"
-                   [value]="uploadedFiles['familiar2'] ? uploadedFiles['familiar2'].fileName : ''"
-                   readonly>
+              [value]="uploadedFiles['familiar2'] ? uploadedFiles['familiar2'].fileName : ''" readonly>
             <button mat-icon-button matSuffix [matMenuTriggerFor]="menuF2" (click)="$event.stopPropagation()">
               <mat-icon>more_vert</mat-icon>
             </button>
@@ -183,7 +175,7 @@
               <label for="familiar2File">
                 Subir PDF
                 <input id="familiar2File" type="file" style="display:none"
-                       (change)="subirArchivo($event,'familiar2')" />
+                  (change)="subirArchivo($event,'familiar2')" />
               </label>
             </button>
           </mat-menu>
@@ -197,8 +189,7 @@
           <mat-form-field appearance="fill" class="example-full-width">
             <mat-label>Personal 1</mat-label>
             <input matInput formControlName="personal1"
-                   [value]="uploadedFiles['personal1'] ? uploadedFiles['personal1'].fileName : ''"
-                   readonly>
+              [value]="uploadedFiles['personal1'] ? uploadedFiles['personal1'].fileName : ''" readonly>
             <button mat-icon-button matSuffix [matMenuTriggerFor]="menuP1" (click)="$event.stopPropagation()">
               <mat-icon>more_vert</mat-icon>
             </button>
@@ -209,7 +200,7 @@
               <label for="personal1File">
                 Subir PDF
                 <input id="personal1File" type="file" style="display:none"
-                       (change)="subirArchivo($event,'personal1')" />
+                  (change)="subirArchivo($event,'personal1')" />
               </label>
             </button>
           </mat-menu>
@@ -223,8 +214,7 @@
           <mat-form-field appearance="fill" class="example-full-width">
             <mat-label>Personal 2</mat-label>
             <input matInput formControlName="personal2"
-                   [value]="uploadedFiles['personal2'] ? uploadedFiles['personal2'].fileName : ''"
-                   readonly>
+              [value]="uploadedFiles['personal2'] ? uploadedFiles['personal2'].fileName : ''" readonly>
             <button mat-icon-button matSuffix [matMenuTriggerFor]="menuP2" (click)="$event.stopPropagation()">
               <mat-icon>more_vert</mat-icon>
             </button>
@@ -235,7 +225,7 @@
               <label for="personal2File">
                 Subir PDF
                 <input id="personal2File" type="file" style="display:none"
-                       (change)="subirArchivo($event,'personal2')" />
+                  (change)="subirArchivo($event,'personal2')" />
               </label>
             </button>
           </mat-menu>
@@ -249,8 +239,7 @@
           <mat-form-field appearance="fill" class="example-full-width">
             <mat-label>Laboral 1</mat-label>
             <input matInput formControlName="laboral1"
-                   [value]="uploadedFiles['laboral1'] ? uploadedFiles['laboral1'].fileName : ''"
-                   readonly>
+              [value]="uploadedFiles['laboral1'] ? uploadedFiles['laboral1'].fileName : ''" readonly>
             <button mat-icon-button matSuffix [matMenuTriggerFor]="menuL1" (click)="$event.stopPropagation()">
               <mat-icon>more_vert</mat-icon>
             </button>
@@ -260,8 +249,7 @@
             <button mat-menu-item>
               <label for="laboral1File">
                 Subir PDF
-                <input id="laboral1File" type="file" style="display:none"
-                       (change)="subirArchivo($event,'laboral1')" />
+                <input id="laboral1File" type="file" style="display:none" (change)="subirArchivo($event,'laboral1')" />
               </label>
             </button>
           </mat-menu>
@@ -275,8 +263,7 @@
           <mat-form-field appearance="fill" class="example-full-width">
             <mat-label>Laboral 2</mat-label>
             <input matInput formControlName="laboral2"
-                   [value]="uploadedFiles['laboral2'] ? uploadedFiles['laboral2'].fileName : ''"
-                   readonly>
+              [value]="uploadedFiles['laboral2'] ? uploadedFiles['laboral2'].fileName : ''" readonly>
             <button mat-icon-button matSuffix [matMenuTriggerFor]="menuL2" (click)="$event.stopPropagation()">
               <mat-icon>more_vert</mat-icon>
             </button>
@@ -286,8 +273,7 @@
             <button mat-menu-item>
               <label for="laboral2File">
                 Subir PDF
-                <input id="laboral2File" type="file" style="display:none"
-                       (change)="subirArchivo($event,'laboral2')" />
+                <input id="laboral2File" type="file" style="display:none" (change)="subirArchivo($event,'laboral2')" />
               </label>
             </button>
           </mat-menu>
@@ -317,8 +303,7 @@
         </mat-select>
       </mat-form-field>
 
-      <mat-form-field class="example-full-width"
-                      *ngIf="trasladosForm.controls['opcion_traslado_eps'].value === 'SI'">
+      <mat-form-field class="example-full-width" *ngIf="trasladosForm.controls['opcion_traslado_eps'].value === 'SI'">
         <mat-label>Seleccione EPS</mat-label>
         <mat-select formControlName="eps_a_trasladar">
           <mat-option value="FAMISANAR">Famisanar</mat-option>
@@ -327,13 +312,11 @@
         </mat-select>
       </mat-form-field>
 
-      <div class="input-container"
-           *ngIf="trasladosForm.controls['opcion_traslado_eps'].value === 'SI'">
+      <div class="input-container" *ngIf="trasladosForm.controls['opcion_traslado_eps'].value === 'SI'">
         <mat-form-field appearance="fill" class="example-full-width">
           <mat-label>Archivo Traslado</mat-label>
           <input matInput formControlName="traslado"
-                 [value]="uploadedFiles['traslado'] ? uploadedFiles['traslado'].fileName : ''"
-                 readonly>
+            [value]="uploadedFiles['traslado'] ? uploadedFiles['traslado'].fileName : ''" readonly>
           <button mat-icon-button matSuffix [matMenuTriggerFor]="menuTraslado" (click)="$event.stopPropagation()">
             <mat-icon>more_vert</mat-icon>
           </button>
@@ -344,8 +327,7 @@
           <button mat-menu-item>
             <label for="fileTraslado">
               Subir PDF
-              <input id="fileTraslado" type="file" style="display:none"
-                     (change)="subirArchivo($event,'traslado')" />
+              <input id="fileTraslado" type="file" style="display:none" (change)="subirArchivo($event,'traslado')" />
             </label>
           </button>
           <button mat-menu-item (click)="descargarArchivo()">Descargar plantilla</button>

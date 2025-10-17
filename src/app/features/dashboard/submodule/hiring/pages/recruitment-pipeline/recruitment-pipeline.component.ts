@@ -47,6 +47,8 @@ export const MY_DATE_FORMATS = {
   },
 };
 
+type ExamenResultadoForm = { aptoStatus?: string };
+
 @Component({
   selector: 'app-recruitment-pipeline',
   imports: [
@@ -57,7 +59,7 @@ export const MY_DATE_FORMATS = {
     SearchForCandidateComponent, SelectionQuestionsComponent, HiringQuestionsComponent, HelpInformationComponent,
   ],
   templateUrl: './recruitment-pipeline.component.html',
-  styleUrl: './recruitment-pipeline.component.css',
+  styleUrls: ['./recruitment-pipeline.component.css'],
   providers: [
     { provide: LOCALE_ID, useValue: 'es-CO' },
     { provide: MAT_DATE_LOCALE, useValue: 'es-CO' },
@@ -99,7 +101,7 @@ export class RecruitmentPipelineComponent {
     ADMINISTRATIVOS: 'ADM', ANDES: 'AND', BOSA: 'BOS', CARTAGENITA: 'CAR',
     FACA_PRIMERA: 'FPR', FACA_PRINCIPAL: 'FPC', FONTIBÓN: 'FON', FORANEOS: 'FOR',
     FUNZA: 'FUN', MADRID: 'MAD', MONTE_VERDE: 'MV', ROSAL: 'ROS', SOACHA: 'SOA',
-    SUBA: 'SUB', TOCANCIPÁ: 'TOC', USME: 'USM',
+    SUBA: 'SUB', TOCANCIPÁ: 'TOC', USME: 'USM', VIRTUAL: 'VIRTUAL'
   };
 
   // ───────── DI ─────────
@@ -173,7 +175,6 @@ export class RecruitmentPipelineComponent {
 
     // 2) Reaccionar a cédula (cosas generales de cabecera)
     effect(() => {
-      console.log('Candidato cambiado:', this.candidatoSeleccionado());
       this.getFullName();
       this.getNumeroDocumento();
     });
@@ -204,11 +205,11 @@ export class RecruitmentPipelineComponent {
         return;
       }
 
-      // Parsear strings JSON
+      // Parsear strings JSON (backend guarda como texto)
       const exams: string[] = safeJson<string[]>(em.examenes, []);
-      const results: Array<{ aptoStatus?: string }> = safeJson(em.resultados, []);
+      const results: ExamenResultadoForm[] = safeJson<ExamenResultadoForm[]>(em.resultados, []);
 
-      // 1) Patch simples (esto disparará el valueChanges que repuebla el FormArray)
+      // 1) Patch simples (dispara valueChanges y repuebla el FormArray)
       this.formGroup3.patchValue(
         {
           ips: em.ips ?? '',
@@ -247,7 +248,6 @@ export class RecruitmentPipelineComponent {
     });
   }
 
-
   // ───────── API UI ────────
   onCandidatoSeleccionado(candidato: any | null): void {
     this.candidatoSeleccionado.set(candidato);
@@ -255,7 +255,7 @@ export class RecruitmentPipelineComponent {
   }
 
   getFullName(): void {
-    const c = this.candidatoSeleccionado(); // puede ser null
+    const c = this.candidatoSeleccionado();
     this.nombreCandidato = c
       ? [c.primer_nombre, c.segundo_nombre, c.primer_apellido, c.segundo_apellido]
         .map(v => (v ?? '').toString().trim())
@@ -273,9 +273,7 @@ export class RecruitmentPipelineComponent {
       : '';
   }
 
-
   generacionDocumentos(): void {
-
     this.router.navigate(['dashboard/hiring/generate-contracting-documents']);
   }
 
@@ -284,84 +282,126 @@ export class RecruitmentPipelineComponent {
     return !!file && (file.type === 'application/pdf' || /\.pdf$/i.test(file.name));
   }
 
-  async imprimirSaludOcupacional(): Promise<void> {
-    // 1) Tomar valores del form y candidato
-    const f = this.formGroup3.value; // { ips, ipsLab, selectedExams, selectedExamsArray }
-    const numeroDocumento = this.candidatoSeleccionado()?.numero_documento;
+  private normalizarSedeAbbr(raw: string | undefined | null): string {
+    const s = (raw || '').toString().trim().toUpperCase();
+    return this.abreviaciones[s] || s; // si no existe en el mapa, usa tal cual
+  }
 
-    if (!numeroDocumento) {
-      await Swal.fire({
-        title: 'Falta el número de documento del candidato',
-        icon: 'info',
-        toast: true,
-        position: 'top-end',
-        showConfirmButton: false,
-        timer: 3000,
-        timerProgressBar: true,
-      });
-      return;
+async imprimirSaludOcupacional(): Promise<void> {
+  const f = this.formGroup3.value; // { ips, ipsLab, selectedExams, selectedExamsArray }
+  const numeroDocumento = this.candidatoSeleccionado()?.numero_documento;
+  if (!numeroDocumento) {
+    await Swal.fire({
+      title: 'Falta el número de documento del candidato',
+      icon: 'info',
+      toast: true,
+      position: 'top-end',
+      showConfirmButton: false,
+      timer: 3000,
+      timerProgressBar: true,
+    });
+    return;
+  }
+
+  // ---- contexto para contrato (llenado/código existente) ----
+  const cand = this.candidatoSeleccionado();
+  const ent0 = cand?.entrevistas?.[0];
+  const proc0 = ent0?.proceso;
+  const contratoBE: any = proc0?.contrato || null;
+
+  const formContrato: FormGroup | undefined = (this as any).formContrato;
+  const llenoUI = formContrato?.valid === true;
+
+  const camposClave = [
+    'forma_de_pago',
+    'numero_para_pagos',
+    'Ccentro_de_costos',
+    'subcentro_de_costos',
+    'grupo',
+    'categoria',
+    'operacion',
+  ];
+  const llenoBE = !!contratoBE && camposClave.every((k: string) => !!(contratoBE?.[k]));
+  const codigoYaExiste = !!(contratoBE?.codigo_contrato);
+
+  const sedeAbbr = this.normalizarSedeAbbr?.(ent0?.oficina) ?? ent0?.oficina ?? '';
+
+  // ---- resultados de SO: detectar NO APTO ----
+  type ExamenResultado = { aptoStatus?: string | boolean | null; [k: string]: any };
+  const resultadosArr: ExamenResultado[] = Array.isArray(this.selectedExamsArray?.value)
+    ? this.selectedExamsArray.value
+    : (f?.selectedExamsArray || []);
+
+  const norm = (x: any) =>
+    String(x ?? '').trim().toUpperCase().replace(/_/g, ' ').replace(/\s+/g, ' ');
+
+  const hayNoApto = resultadosArr.some(r => {
+    const v = r?.aptoStatus;
+    if (typeof v === 'boolean') return v === false;
+    return norm(v) === 'NO APTO';
+  });
+
+  // ---- payload base ----
+  const payload: any /* ProcesoUpdateByDocumentRequest & { rechazado?: boolean; detalle?: string|null } */ = {
+    numero_documento: numeroDocumento,
+    examen_medico: {
+      ips: f?.ips ?? null,
+      ips_lab: f?.ipsLab ?? null,
+      examenes: JSON.stringify(f?.selectedExams ?? []),
+      resultados: JSON.stringify(resultadosArr ?? []),
+    },
+  };
+
+  // Si hay NO APTO: rechazar y enviar detalle "901 examen"
+  if (hayNoApto) {
+    payload.rechazado = true;
+    payload.detalle = '901 examen'; // <- lo que pediste
+  } else {
+    // todos APTO -> permitir generación de contrato según regla
+    const generarCodigo = !(llenoUI || llenoBE || codigoYaExiste);
+    if (sedeAbbr) {
+      payload.contrato = { sede_abbr: sedeAbbr, generar_codigo: generarCodigo };
     }
-
-    // 2) Construir payload para /gestion_contratacion/procesos/update-by-document/
-    //    Enviar examen_medico como bloque anidado + arrays en JSON string
-    const payload: ProcesoUpdateByDocumentRequest = {
-      numero_documento: numeroDocumento,
-
-      // Si además quieres tocar algo del proceso, descomenta:
-      // publicacion: this.vacanteSeleccionada()?.id ?? null,
-      // vacante_tipo: 'Prueba técnica', // o 'Autorización de ingreso'
-      // vacante_salario: '1500000',
-
-      examen_medico: {
-        ips: f?.ips ?? null,
-        ips_lab: f?.ipsLab ?? null,
-        examenes: JSON.stringify(f?.selectedExams ?? []),
-        resultados: JSON.stringify(f?.selectedExamsArray ?? []),
-      },
-
-      // Opcional: ajustar etapas (recuerda: son excluyentes en backend)
-      // prueba_tecnica: true,
-      // autorizado: false,
-    };
-
-    try {
-      // Loader (no usar await aquí)
-      Swal.fire({
-        title: 'Guardando salud ocupacional...',
-        allowOutsideClick: false,
-        didOpen: () => Swal.showLoading(),
-      });
-
-      // 3) Llamada (asegúrate de que el servicio use la URL con SLASH final)
-      //    /gestion_contratacion/procesos/update-by-document/
-      await this.registroProceso.updateProcesoByDocumento(payload, 'PATCH').toPromise();
-
-      // cerrar el loader antes del toast de éxito
-      Swal.close();
-
-      await Swal.fire({
-        title: 'Examen médico guardado',
-        icon: 'success',
-        toast: true,
-        position: 'top-end',
-        showConfirmButton: false,
-        timer: 2500,
-        timerProgressBar: true,
-      });
-    } catch (err: any) {
-      // cerrar el loader si hubo error
-      Swal.close();
-
-      const msg = err?.error?.detail || 'No se pudo guardar salud ocupacional.';
-      await Swal.fire({
-        title: 'Error',
-        text: msg,
-        icon: 'error',
-        confirmButtonText: 'OK',
-      });
-      console.error(err);
+    if (llenoUI && formContrato) {
+      const det = { ...(formContrato.value || {}) };
+      Object.keys(det).forEach(k => { const v = det[k]; if (v === '' || v === undefined) delete det[k]; });
+      if (Object.keys(det).length > 0) payload.contrato_detalle = det;
     }
   }
+
+  try {
+    Swal.fire({ title: 'Guardando salud ocupacional...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+
+    const resp = await firstValueFrom(
+      this.registroProceso.updateProcesoByDocumento(payload, 'PATCH')
+    );
+
+    Swal.close();
+
+    const codigo = (resp as any)?.proceso?.contrato_codigo as string | undefined;
+    const okMsg = hayNoApto
+      ? 'Examen médico guardado · Proceso RECHAZADO por NO APTO'
+      : (codigo ? `Examen médico guardado · Contrato: ${codigo}` : 'Examen médico guardado');
+
+    await Swal.fire({
+      title: okMsg,
+      icon: 'success',
+      toast: true,
+      position: 'top-end',
+      showConfirmButton: false,
+      timer: 2500,
+      timerProgressBar: true,
+    });
+  } catch (err: unknown) {
+    Swal.close();
+    const http = err as any;
+    const msg = http?.error?.detail || http?.message || 'No se pudo guardar salud ocupacional.';
+    await Swal.fire({ title: 'Error', text: msg, icon: 'error', confirmButtonText: 'OK' });
+    console.error(err);
+  }
+}
+
+
 
   subirArchivo(event: any | Blob, campo: string, fileName?: string): Promise<void> {
     return new Promise((resolve, reject) => {
@@ -370,7 +410,10 @@ export class RecruitmentPipelineComponent {
       else file = event?.target?.files?.[0];
 
       if (!file) return reject('No se recibió archivo');
-      if (file.name.length > 100) { Swal.fire('Error', 'El nombre del archivo no debe exceder 100 caracteres', 'error'); return reject('Nombre demasiado largo'); }
+      if (file.name.length > 100) {
+        Swal.fire('Error', 'El nombre del archivo no debe exceder 100 caracteres', 'error');
+        return reject('Nombre demasiado largo');
+      }
 
       this.uploadedFiles.update(u => ({ ...u, [campo]: { file, fileName: file.name } }));
       resolve();
@@ -378,7 +421,14 @@ export class RecruitmentPipelineComponent {
   }
 
   imprimirDocumentos(): void {
-    Swal.fire({ title: 'Subiendo archivos...', icon: 'info', html: 'Por favor, espere…', allowOutsideClick: false, allowEscapeKey: false, didOpen: () => Swal.showLoading() });
+    Swal.fire({
+      title: 'Subiendo archivos...',
+      icon: 'info',
+      html: 'Por favor, espere…',
+      allowOutsideClick: false,
+      allowEscapeKey: false,
+      didOpen: () => Swal.showLoading()
+    });
   }
 
   onFileSelected(evt: any, index: number): void {
@@ -394,6 +444,9 @@ export class RecruitmentPipelineComponent {
 
   // ───────── Tabla ─────────
   mostrarTabla(): void {
+    this.registroProceso.listProcesosMiniByDocumento('1005851505')
+      .subscribe(list => console.log('mini procesos:', list));
+
     console.log('Mostrando tabla de procesos de selección');
 
     const columns: ColumnDefinition[] = [
@@ -405,6 +458,7 @@ export class RecruitmentPipelineComponent {
       { name: 'detalle', header: 'Detalle', type: 'text', width: '320px' },
       { name: 'actions', header: '', type: 'custom', width: '72px', stickyEnd: true, filterable: false },
     ];
+    // ... usa 'columns' con tu StandardFilterTable
   }
 
   // ───────── Cámara ─────────
@@ -413,31 +467,28 @@ export class RecruitmentPipelineComponent {
   }
 
   verHuella(): void {
-    // Ajusta la fuente según tu estado/servicio
     const raw = this.huellaDataUrl?.() ?? null;
     this.showBase64('Huella', raw);
   }
 
   verFirma(): void {
-    // Ajusta la fuente según tu estado/servicio
     const raw = this.firmaDataUrl?.() ?? null;
     this.showBase64('Firma', raw);
   }
-
 
   // Helpers
   private normalizeDataUrl(raw: string | null | undefined, defaultMime = 'image/png'): string | null {
     if (!raw) return null;
     const s = String(raw).trim();
     if (!s) return null;
-    if (s.startsWith('data:')) return s;                  // ya viene como data URL
+    if (s.startsWith('data:')) return s; // ya viene como data URL
 
     // Heurísticos por encabezado base64
     if (/^JVBERi0/.test(s)) return `data:application/pdf;base64,${s}`; // PDF
     if (/^iVBOR/.test(s)) return `data:image/png;base64,${s}`;        // PNG
-    if (/^\/9j\//.test(s)) return `data:image/jpeg;base64,${s}`;       // JPG
+    if (/^\/9j\//.test(s)) return `data:image/jpeg;base64,${s}`;      // JPG
 
-    return `data:${defaultMime};base64,${s}`;             // fallback
+    return `data:${defaultMime};base64,${s}`; // fallback
   }
 
   private isPdfDataUrl(url: string): boolean {
@@ -452,7 +503,6 @@ export class RecruitmentPipelineComponent {
       return;
     }
 
-    // Para PDF es mejor abrir pestaña nueva
     if (this.isPdfDataUrl(url)) {
       window.open(url, '_blank');
       return;
@@ -471,7 +521,6 @@ export class RecruitmentPipelineComponent {
     if (isConfirmed) window.open(url, '_blank');
   }
 
-
   private fileToDataURL(file: File): Promise<string> {
     return new Promise<string>((resolve, reject) => {
       const fr = new FileReader();
@@ -481,23 +530,13 @@ export class RecruitmentPipelineComponent {
     });
   }
 
-  // ───────── Helpers ─────────
-  private iniciarNuevoProcesoUI(): void {
-    this.formGroup3.patchValue({ ips: '', ipsLab: '', selectedExams: [] });
-    const arr = this.selectedExamsArray;
-    while (arr.length) arr.removeAt(0);
-    this.recalcHayNoApto();
-  }
-
   private recalcHayNoApto(): void {
-    const arr = (this.selectedExamsArray.value ?? []) as Array<{ aptoStatus?: string }>;
+    const arr = (this.selectedExamsArray.value ?? []) as ExamenResultadoForm[];
     this.hayNoApto.set(Array.isArray(arr) && arr.some(x => this.isNoApto(x?.aptoStatus)));
   }
 
   // Elige automáticamente el proceso más reciente o 'NEW' si no hay items
-  private async elegirProcesoBonitoSinIdONuevo(
-    items: any[]
-  ): Promise<any | 'NEW' | null> {
+  private async elegirProcesoBonitoSinIdONuevo(items: any[]): Promise<any | 'NEW' | null> {
     if (!Array.isArray(items) || items.length === 0) return 'NEW';
     return this.elegirUltimoProceso(items);
   }
@@ -512,15 +551,13 @@ export class RecruitmentPipelineComponent {
         it?.updated_at ??
         null;
 
-      // Acepta Date o string; tolera "YYYY-MM-DD HH:mm:ss" o ISO
       if (raw instanceof Date) return raw.getTime();
       if (typeof raw === 'string') {
-        // Normaliza espacio -> 'T' para mejorar el parseo en algunos entornos
         const str = raw.includes(' ') ? raw.replace(' ', 'T') : raw;
         const t = Date.parse(str);
         if (!Number.isNaN(t)) return t;
       }
-      return NaN; // sin fecha válida
+      return NaN;
     };
 
     const toId = (it: any): number => Number(it?.id) || -Infinity;
@@ -529,21 +566,16 @@ export class RecruitmentPipelineComponent {
       const tb = toEpoch(best);
       const tc = toEpoch(cur);
 
-      // Si uno no tiene fecha válida, gana el que sí tiene
       if (Number.isNaN(tb) && !Number.isNaN(tc)) return cur;
       if (!Number.isNaN(tb) && Number.isNaN(tc)) return best;
 
-      // Si ambos tienen fecha válida, gana el más reciente
       if (!Number.isNaN(tb) && !Number.isNaN(tc)) {
         if (tc > tb) return cur;
         if (tc < tb) return best;
-        // Empate por fecha -> desempata por id mayor
         return toId(cur) > toId(best) ? cur : best;
       }
 
-      // Si ninguno tiene fecha válida -> desempata por id mayor
       return toId(cur) > toId(best) ? cur : best;
     }, items[0]);
   }
-
 }

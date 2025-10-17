@@ -21,16 +21,9 @@
 :host ::ng-deep .mat-mdc-form-field .mat-mdc-text-field-wrapper {
   padding-top: 2px !important;
   padding-bottom: 2px !important;
-  background: #EEF2F7 !important;
   border-radius: 12px !important;
   border: 1px solid #E1E7EF !important;
   transition: background-color .2s ease, border-color .2s ease, box-shadow .2s ease !important;
-}
-
-/* Hover sutil */
-:host ::ng-deep .mat-mdc-form-field:hover .mat-mdc-text-field-wrapper {
-  background: #F6F8FB !important;
-  border-color: #D0D8E6 !important;
 }
 
 /* Focus sin halo azul */
