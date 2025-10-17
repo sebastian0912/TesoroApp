@@ -10,6 +10,7 @@ export type CameraDialogResult = { file: File; previewUrl: string };
 
 @Component({
   selector: 'app-camera-dialog',
+  standalone: true,
   imports: [
     MatDialogModule,
     MatIconModule,
@@ -38,12 +39,8 @@ export class CameraDialogComponent implements OnInit, OnDestroy {
   capturedFile: File | null = null;
 
   async ngOnInit(): Promise<void> {
-    // Si llega una foto existente (data URL), precárgala para previsualizar y habilitar "Usar esta imagen"
-    const initial = this.dialogData?.initialPreviewUrl || null;
-    if (typeof initial === 'string' && initial.startsWith('data:')) {
-      this.previewUrl = initial;
-      this.capturedFile = this.dataURLToFile(initial, 'foto-actual.png');
-    }
+    // Precargar foto existente si llega (dataURL o http(s))
+    await this.loadInitialPreview(this.dialogData?.initialPreviewUrl || null);
 
     const supportsCamera =
       typeof navigator !== 'undefined' &&
@@ -67,15 +64,45 @@ export class CameraDialogComponent implements OnInit, OnDestroy {
     this.revokePreview();
   }
 
+  private async loadInitialPreview(initial: string | null): Promise<void> {
+    if (!initial) return;
+
+    // 1) Si es dataURL, úsalo tal cual y crea File para permitir "Usar esta imagen"
+    if (initial.startsWith('data:')) {
+      this.previewUrl = initial;
+      this.capturedFile = this.dataURLToFile(initial, 'foto-actual.png');
+      return;
+    }
+
+    // 2) Si es http/https: intenta descargarla como blob -> File -> objectURL
+    if (/^https?:\/\//i.test(initial)) {
+      try {
+        const resp = await fetch(initial, { mode: 'cors' });
+        if (!resp.ok) throw new Error(String(resp.status));
+        const blob = await resp.blob();
+        const ext = blob.type === 'image/jpeg' ? 'jpg'
+                 : blob.type === 'image/png'  ? 'png'
+                 : 'bin';
+        const file = new File([blob], `foto-actual.${ext}`, { type: blob.type || 'application/octet-stream' });
+        this.capturedFile = file;
+        this.previewUrl = URL.createObjectURL(file);
+      } catch {
+        // Si CORS falla, al menos mostrar la URL directamente (no habrá File)
+        this.capturedFile = null;
+        this.previewUrl = initial;
+      }
+    }
+  }
+
   async startCamera(): Promise<void> {
     this.loadingCamera = true;
     this.cameraError = '';
-    this.stopCamera(); // por si estaba otro stream
+    this.stopCamera();
 
     try {
       const constraints: MediaStreamConstraints = {
         video: {
-          facingMode: { ideal: this.facingMode }, // 'environment' (trasera) o 'user' (frontal)
+          facingMode: { ideal: this.facingMode },
           width: { ideal: 1280 },
           height: { ideal: 720 }
         },
@@ -87,7 +114,7 @@ export class CameraDialogComponent implements OnInit, OnDestroy {
         v.srcObject = this.stream;
         await v.play().catch(() => { /* algunos navegadores requieren interacción */ });
       }
-    } catch (err: any) {
+    } catch {
       this.cameraError = 'No fue posible acceder a la cámara. Puedes adjuntar una imagen.';
     } finally {
       this.loadingCamera = false;
@@ -125,10 +152,8 @@ export class CameraDialogComponent implements OnInit, OnDestroy {
 
     canvas.toBlob((blob) => {
       if (!blob) return;
-      // nombrar con timestamp
       const ts = new Date().toISOString().replace(/[:.]/g, '');
       const file = new File([blob], `foto-${ts}.png`, { type: blob.type || 'image/png' });
-
       this.setPreviewFile(file);
     }, 'image/png', 0.92);
   }
@@ -150,7 +175,7 @@ export class CameraDialogComponent implements OnInit, OnDestroy {
   }
 
   confirm(): void {
-    if (!this.capturedFile || !this.previewUrl) return;
+    if (!this.capturedFile || !this.previewUrl) return; // exige archivo para “Usar esta imagen”
     this.stopCamera();
     this.dialogRef.close({ file: this.capturedFile, previewUrl: this.previewUrl } satisfies CameraDialogResult);
   }
@@ -167,7 +192,7 @@ export class CameraDialogComponent implements OnInit, OnDestroy {
   }
 
   private revokePreview(): void {
-    if (this.previewUrl) {
+    if (this.previewUrl?.startsWith('blob:')) {
       URL.revokeObjectURL(this.previewUrl);
     }
   }

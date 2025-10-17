@@ -414,10 +414,14 @@ export class RegistroProcesoContratacion {
   listProcesosMiniByDocumento(numeroDocumento: string, onlyLatest = false) {
     const params: any = { numero_documento: numeroDocumento };
     if (onlyLatest) params.latest = 1;
-    return this.http.get<ProcesoMini | ProcesoMini[]>(
-      this.url('procesos/by-document-min'),
-      { params }
-    ).pipe(this.handle$());
+
+    // Normalizamos SIEMPRE a array de any[]
+    return this.http
+      .get<any | any[]>(this.url('procesos/by-document-min'), { params })
+      .pipe(
+        map(v => Array.isArray(v) ? v : (v ? [v] : [])),
+        this.handle$() // conserva tu manejador de errores
+      );
   }
 
 
@@ -445,7 +449,7 @@ export class RegistroProcesoContratacion {
   /** Obtiene la biometría de un candidato por cédula */
   getBiometriaPorCedula(numero_documento: string | number) {
     return this.http
-      .get(this.url(`biometria/${encodeURIComponent(String(numero_documento))}/`))
+      .get(this.url(`biometria/${encodeURIComponent(String(numero_documento))}`))
       .pipe(this.handle$());
   }
 

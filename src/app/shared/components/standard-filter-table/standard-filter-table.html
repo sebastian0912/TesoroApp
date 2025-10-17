@@ -134,7 +134,7 @@
 
       <!-- 3) Fila de filtros (solo fija width si existe) -->
       @for (col of columnDefinitions; track col.name) {
-      <ng-container [matColumnDef]="col.name + '_filter'" [sticky]="!!col.stickyStart" [stickyEnd]="!!col.stickyEnd">
+      <ng-container [matColumnDef]="col.name + '_filter'" [sticky]="!!col.stickyStart" [stickyEnd]="!!col.stickyEnd" class="header-filters">
         <th mat-header-cell *matHeaderCellDef class="filter-cell"
           [style.width]="col.width || (computedWidths ? computedWidths[col.name] : null)"
           [style.minWidth]="col.width || (computedWidths ? computedWidths[col.name] : null)"

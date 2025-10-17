@@ -1,0 +1,27 @@
+<header class="td-header">
+  <h2 class="td-title" [title]="title">{{ title }}</h2>
+
+  <!-- Botón de cerrar solo si corre dentro de MatDialog -->
+  <button
+    *ngIf="isDialog"
+    mat-icon-button
+    aria-label="Cerrar"
+    (click)="close()"
+    class="td-close-btn"
+  >
+    <mat-icon>close</mat-icon>
+  </button>
+</header>
+
+<section class="td-content">
+  <app-standard-filter-table
+    [data]="rows || []"
+    [columnDefinitions]="columns || []"
+    [tableTitle]="tableTitle || title || 'Registros'"
+    [defaultPageSize]="pageSize"
+    [pageSizeOptions]="pageSizeOptions"
+    [autoSize]="true"
+    (rowClicked)="rowClicked.emit($event)"
+  >
+  </app-standard-filter-table>
+</section>

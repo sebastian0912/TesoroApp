@@ -6,8 +6,6 @@ import { catchError } from 'rxjs/operators';
 import { SharedModule } from '@/app/shared/shared.module';
 import { MatTabsModule } from '@angular/material/tabs';
 import Swal from 'sweetalert2';
-
-import { HiringService } from '../../service/hiring.service';
 import { GestionDocumentalService } from '../../service/gestion-documental/gestion-documental.service';
 import { VacantesService } from '../../service/vacantes/vacantes.service';
 import {
@@ -74,13 +72,9 @@ export class HiringQuestionsComponent implements OnInit {
   // ───────── Inyección compacta ─────────
   private readonly fb = inject(FormBuilder);
   private readonly http = inject(HttpClient);
-  private readonly contratacionService = inject(HiringService);
   private readonly docSvc = inject(GestionDocumentalService);
   private readonly vacantesService = inject(VacantesService);
   private readonly procesosService = inject(RegistroProcesoContratacion);
-
-  // Endpoint base para biometría
-  private readonly biometriaBaseUrl = '/api/biometria';
 
   constructor() {
     // Reacciona a cambios del candidato seleccionado
@@ -426,7 +420,7 @@ export class HiringQuestionsComponent implements OnInit {
         });
 
         try {
-          await firstValueFrom(this.uploadHuella(cedula, file));
+          await firstValueFrom(this.procesosService.uploadHuella(cedula, file));
           Swal.close();
           setMsg('Huella capturada y guardada.');
           this.alert('success', '¡Listo!', 'La huella (Índice Derecho) se guardó correctamente.');
@@ -439,14 +433,6 @@ export class HiringQuestionsComponent implements OnInit {
     } catch {
       setMsg('Error de comunicación con Electron.');
     }
-  }
-
-  // POST /biometria/upload/huella (FormData: numero_documento, file)
-  private uploadHuella(cedula: string, file: File) {
-    const fd = new FormData();
-    fd.append('numero_documento', String(cedula));
-    fd.append('file', file);
-    return this.http.post(`${this.biometriaBaseUrl}/upload/huella`, fd);
   }
 
   // Helper: DataURL → File (sin fetch, compatible con CSP)

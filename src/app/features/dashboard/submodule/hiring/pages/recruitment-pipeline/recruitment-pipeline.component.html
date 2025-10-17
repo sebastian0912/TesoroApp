@@ -21,24 +21,26 @@
           (click)="mostrarTabla()">
           <mat-icon>table_chart</mat-icon>
         </button>
-
-        <!-- Cámara -->
-        <button mat-icon-button matTooltip="Tomar foto" aria-label="Tomar foto" (click)="openCamera()" matBadge="✓"
-          matBadgeColor="primary" matBadgeOverlap="false" [matBadgeHidden]="!tieneFoto()">
+        <!-- FOTO (id 89) -->
+        <button mat-icon-button matTooltip="Ver foto" aria-label="Ver foto" (click)="openCamera()"
+          [matBadge]="badge('foto')" [matBadgeColor]="badgeColor('foto')" matBadgeOverlap="false">
           <mat-icon>photo_camera</mat-icon>
         </button>
 
-        <!-- huella -->
-        <button mat-icon-button matTooltip="Tomar huella" aria-label="Tomar huella" class="badge-left-5pt" (click)="verHuella()"
-          matBadge="✓" matBadgeColor="primary" matBadgeOverlap="false" [matBadgeHidden]="!tieneHuella()">
+        <!-- HUELLA (id 88) -->
+        <button mat-icon-button matTooltip="Ver huella" aria-label="Ver huella" class="badge-left-5pt"
+          (click)="ver('huella')" [matBadge]="badge('huella')" [matBadgeColor]="badgeColor('huella')"
+          matBadgeOverlap="false">
           <mat-icon>fingerprint</mat-icon>
         </button>
 
-        <!-- firma -->
-        <button mat-icon-button matTooltip="Tomar firma" aria-label="Tomar firma" (click)="verFirma()"
-          matBadge="✓" matBadgeColor="primary" matBadgeOverlap="false" [matBadgeHidden]="!tieneFirma()">
+        <!-- FIRMA (id 87) -->
+        <button mat-icon-button matTooltip="Ver firma" aria-label="Ver firma" (click)="ver('firma')"
+          [matBadge]="badge('firma')" [matBadgeColor]="badgeColor('firma')" matBadgeOverlap="false">
           <mat-icon>edit</mat-icon>
         </button>
+
+
 
       </div>
     </div>
