@@ -20,7 +20,7 @@ export const routes: Routes = [
   { path: 'hiring-report', component: HiringReportComponent },
   { path: 'recruitment-pipeline', component: RecruitmentPipelineComponent },
   { path: 'hiring-process', component: HiringProcessComponent },
-  { path: 'generate-contracting-documents', component: GenerateContractingDocumentsComponent },
+  { path: 'generate-contracting-documents/:numeroDocumento', component: GenerateContractingDocumentsComponent },
   { path: 'query-form', component: QueryFormComponent },
   { path: 'robot-background-checks', component: RobotBackgroundChecksComponent },
   { path: 'banned-report', component: BannedReportComponent },

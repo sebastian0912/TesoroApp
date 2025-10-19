@@ -1,7 +1,7 @@
 import {
   Component, LOCALE_ID, inject, effect, signal, computed, DestroyRef
 } from '@angular/core';
-import { Router } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 
 import { DateAdapter, MAT_DATE_FORMATS, MAT_DATE_LOCALE, MatDateFormats } from '@angular/material/core';
 import { MomentDateAdapter, MatMomentDateModule } from '@angular/material-moment-adapter';
@@ -55,6 +55,7 @@ type BioKind = 'foto' | 'huella' | 'firma';
     MatTooltipModule, MatDialogModule, MatBadgeModule,
     SharedModule,
     SearchForCandidateComponent, SelectionQuestionsComponent, HiringQuestionsComponent, HelpInformationComponent,
+    RouterLink
   ],
   templateUrl: './recruitment-pipeline.component.html',
   styleUrls: ['./recruitment-pipeline.component.css'],

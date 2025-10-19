@@ -12,13 +12,16 @@
       <div class="botones">
         <!-- Botón de documentos -->
         <button mat-icon-button matTooltip="Generar o subir documentación" aria-label="Generar o subir documentación"
-          (click)="generacionDocumentos()">
+          [routerLink]="[
+    '/dashboard/hiring/generate-contracting-documents',
+    candidatoSeleccionado()?.numero_documento
+  ]" [disabled]="!candidatoSeleccionado()?.numero_documento">
           <mat-icon>description</mat-icon>
         </button>
 
         <!-- Botón de tabla -->
         <button mat-icon-button matTooltip="Ver tabla de registros" aria-label="Ver tabla de registros"
-          (click)="mostrarTabla()">
+          (click)="mostrarTabla()" [disabled]="!candidatoSeleccionado()?.numero_documento">
           <mat-icon>table_chart</mat-icon>
         </button>
         <!-- FOTO (id 89) -->
