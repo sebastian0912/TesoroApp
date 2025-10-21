@@ -1,232 +1,76 @@
-
-.datos {
-  width: 100%;
-  height: 100%;
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
+/* ========== Layout base ========== */
+:host {
+  display: block;
 }
 
-
-.archivo,
-.file-input {
-  width: 100%;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  margin-top: 20px;
+/* Contenedor de tabs */
+.help-tabs {
+  display: block;
 }
 
-@media screen and (max-width: 600px) {
-  .logo {
-    width: 70%;
-    height: auto;
-    margin-top: 80px;
-  }
-
-  .datos {
-    width: 100%;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-  }
-
-  .titulo {
-    font-size: 25pt;
-    color: white;
-    float: left;
-    font-family: Oswald;
-    text-align: center;
-  }
-
-  .title {
-    height: auto;
-    padding-bottom: 20px; /* ajustar porque la palabra se pega una con otra */
-  }
-
-  .title h1 { line-height: 1.2; }
-
-  .logo { margin-top: 10px; }
-
-  .contenedor {
-    width: 100%;
-    height: 100%;
-  }
-
-  h3 { margin-bottom: 0; }
-
-  mat-form-field {
-    width: 80%;
-    margin-top: 10px;
-    margin-bottom: 0px;
-  }
-
-  .boton { width: 300px; }
-  .boton2 { width: 300px; margin-left: 30px; }
-
-  .botones button {
-    width: 150px;
-    margin: 0 10px 0 0;
-  }
-
-  .cajabusqueda {
-    flex-direction: column;
-    max-height: 50vh;
-    height: auto;
-  }
-
-  .cajabusqueda mat-form-field { width: 80%; }
-  .cajabusqueda .boton { width: 80%; margin-top: 10px; }
-  .cajabusqueda .boton:nth-child(2) { margin-left: 37px; }
-  .cajabusqueda .boton:nth-child(3) { margin-left: 0; }
-}
-
-@media screen and (min-width: 601px) and (max-width: 1223px) {
-  h3 { margin-bottom: 0; }
-
-  mat-form-field {
-    width: 42%;
-    margin-top: 10px;
-    margin-bottom: 0px;
-  }
-
-  .file { width: 42%; margin-top: 10px; }
-  .boton { width: 100%; }
-
-  .previo { margin-left: -50px; }
-  .previo2 { margin-left: -130px; }
-
-  .botones button {
-    width: 145px;
-    margin: 0 10px 0 0;
-  }
-
-  .cajabusqueda .boton { width: 40%; }
-}
-
-@media screen and (min-width: 1224px) and (max-width: 1824px) {
-  .cajabusqueda .boton { width: 40%; }
-
-  h3 { margin-bottom: 0; }
-
-  mat-form-field {
-    width: 29.1%;
-    margin-top: 10px;
-    margin-bottom: 0px;
-  }
-
-  .file { width: 29.1%; margin-top: 10px; }
-  .boton { width: 100%; }
-
-  .previo { margin-left: -50px; }
-  .previo2 { margin-left: -130px; }
-
-  .logo {
-    width: 60%;
-    height: auto;
-    margin-top: -5px;
-  }
-}
-
-/* ========= Cards genéricas existentes ========= */
-.cards-stack {
+/* Formulario dentro del tab "Remisión" */
+.form-tab {
   display: grid;
-  flex: 1 1 auto;
-  gap: 12px;
-  padding: 10pt;
+  gap: 16px;
 }
 
-.card {
-  padding: 12px;
-  border-radius: 12px;
-  background: #fff;
-  box-shadow: 0 1px 6px rgba(0, 0, 0, .06);
+/* Grid de campos (auto-fit columnas fluidas) */
+.grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: 1fr; /* móvil */
 }
 
-.card-title {
-  font-weight: 600;
-  margin-bottom: 8px;
+/* Acciones (footer del formulario) */
+.actions {
   display: flex;
-  align-items: center;
-}
-
-.section-header {
-  flex: 1 1 auto;
-  display: flex;
-  align-items: center;
+  justify-content: flex-end;
   gap: 12px;
-  margin: 16px 0 8px;
+  margin-top: 8px;
 }
 
-.section-header .spacer,
-.card-title .spacer {
-  flex: 1 1 auto;
+/* Mat form fields siempre al 100% dentro del form */
+.form-tab mat-form-field {
+  width: 100%;
+  margin: 0;
 }
 
-/* ========= Estilos nuevos, escopados a la sección bonita ========= */
-.section {
-  width: 70vw;
-  background: #fafafa;
-  border-radius: 12px;
-  padding: 16px;
-  margin: 16px 0;
-  box-shadow: 0 1px 6px rgba(0,0,0,.06);
-}
-
-.section-head {
-  display: flex;
-  align-items: center;
-  gap: 12px;
+/* ========== Tabs (MDC) ========== */
+/* Nota: para ajustar tipografía/espaciados de etiquetas de tab,
+   usamos ::ng-deep para llegar a internals de Angular Material */
+:host ::ng-deep .help-tabs .mat-mdc-tab-header {
   margin-bottom: 12px;
 }
 
-.section-title {
-  margin: 0;
+:host ::ng-deep .help-tabs .mat-mdc-tab {
+  min-height: 44px;
+}
+
+:host ::ng-deep .help-tabs .mdc-tab__content {
+  gap: 8px; /* separa el icono del texto */
+}
+
+:host ::ng-deep .help-tabs .mdc-tab__text-label,
+:host ::ng-deep .help-tabs .mat-mdc-tab .mdc-tab__text-label {
   font-weight: 600;
+  letter-spacing: .2px;
 }
 
-/* Grids responsivas */
-.grid-1,
-.grid-2,
-.grid-3 {
-  display: grid;
-  gap: 12px;
+/* Icono en la etiqueta del tab */
+:host ::ng-deep .help-tabs .mdc-tab__content mat-icon {
+  font-size: 20px;
+  width: 20px;
+  height: 20px;
+  line-height: 20px;
 }
 
-.grid-1 { grid-template-columns: 1fr; }
-.grid-2 { grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
-.grid-3 { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
-
-.stack { display: grid; gap: 16px; }
-.placeholder { min-height: 0; }
-
-.section mat-form-field {
-  width: 100% !important;
-  margin: 0 !important;
-}
-
-/* Cards dentro de la sección (pueden reutilizar las genéricas) */
-.section .cards-stack {
-  padding: 0; /* ya hay padding en .section */
-}
-
-.cards-stack.children {
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-}
-
-/* Botones dentro de cabeceras de sección */
-.section .spacer {
-  flex: 1 1 auto;
-}
-
-
-
-/* Trigger */
+/* ========== Select: trigger y opciones ========== */
 .trigger-wrap {
   display: flex;
   align-items: center;
   gap: 8px;
   font-weight: 600;
+  min-width: 0;
 }
 .trigger-title {
   max-width: 42ch;
@@ -244,7 +88,28 @@
   text-overflow: ellipsis;
 }
 
-/* Opción del select */
+/* Fila del buscador pegada al tope del panel */
+.filter-row {
+  display: flex !important;
+  align-items: center;
+  gap: .5rem;
+  padding: .5rem .75rem !important;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--mat-select-panel-background, #fff);
+  cursor: default !important;
+  border-bottom: 1px solid rgba(0,0,0,.06);
+}
+.filter-input {
+  flex: 1 1 auto;
+  border: none;
+  outline: none;
+  background: transparent;
+  font: inherit;
+}
+
+/* Opción de vacante (dos filas) */
 .vacante-option {
   display: flex;
   flex-direction: column;
@@ -256,6 +121,7 @@
   align-items: center;
   gap: 8px;
   font-weight: 600;
+  min-width: 0;
 }
 .vacante-option .row-2 {
   display: flex;
@@ -273,11 +139,12 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.vacante-option .spacer {
+.vacante-option .spacer,
+.trigger-wrap .spacer {
   flex: 1 1 auto;
 }
 
-/* Píldoras */
+/* Píldoras (KPIs) */
 .pill {
   display: inline-flex;
   align-items: center;
@@ -285,9 +152,107 @@
   border-radius: 999px;
   font-size: 12px;
   line-height: 1.6;
-  background-color: #eee;   /* base neutra */
+  background-color: #eee;
+  white-space: nowrap;
 }
-.pill-req { background-color: #e6e6e6; }          /* requerida (gris) */
-.pill-ok  { background-color: #C8E6C9; }          /* verde */
-.pill-warn{ background-color: #FFECB3; }          /* naranja */
-.pill-error{ background-color: #FFCDD2; }         /* rojo */
+.pill-req   { background-color: #e6e6e6; }
+.pill-ok    { background-color: #c8e6c9; }
+.pill-warn  { background-color: #ffecb3; }
+.pill-error { background-color: #ffcdd2; }
+
+/* ========== Secciones y cards reutilizables ========== */
+.section {
+  width: 100%;
+  background: #fafafa;
+  border-radius: 12px;
+  padding: 16px;
+  margin: 16px 0;
+  box-shadow: 0 1px 6px rgba(0,0,0,.06);
+}
+.section-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.section-title {
+  margin: 0;
+  font-weight: 600;
+}
+
+.cards-stack {
+  display: grid;
+  flex: 1 1 auto;
+  gap: 12px;
+  padding: 10pt;
+}
+.card {
+  padding: 12px;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 1px 6px rgba(0, 0, 0, .06);
+}
+.card-title {
+  font-weight: 600;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+}
+.section-header {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 16px 0 8px;
+}
+.section-header .spacer,
+.card-title .spacer {
+  flex: 1 1 auto;
+}
+
+/* ========== Utilidades previas (limpias) ========== */
+.datos {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.archivo,
+.file-input {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-top: 20px;
+}
+
+/* ========== Responsividad ========== */
+@media (min-width: 600px) {
+  /* Grid pasa a 2 columnas fluidas */
+  .grid {
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  }
+}
+
+
+/* ====== (Opcional) Ajustes heredados de otros layouts ====== */
+.logo { max-width: 100%; height: auto; }
+.title h1 { line-height: 1.2; }
+h3 { margin-bottom: 0; }
+
+/* Botoneras antiguas (si las usas) */
+.botones button { width: 150px; margin: 0 10px 0 0; }
+
+/* Caja de búsqueda (si existe en otras vistas) */
+.cajabusqueda {
+  display: flex;
+  gap: 12px;
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
+.cajabusqueda mat-form-field { width: 100%; }
+@media (min-width: 900px) {
+  .cajabusqueda mat-form-field { width: 48%; }
+}

@@ -36,6 +36,7 @@ export class FormEntrevistaComponent implements OnInit, AfterViewInit {
   // ====== Catálogos ======
   tipoDocOpciones$: Observable<CatalogValue[]> =
     this.catalogos.listDatosByTablaCodigo('TIPOS_IDENTIFICACION', { activo: true });
+  
   escolaridadOpciones$: Observable<CatalogValue[]> =
     this.catalogos.listDatosByTablaCodigo('NIVELES_ESCOLARIDAD', { activo: true });
   estadoCivilOpciones$: Observable<CatalogValue[]> =
@@ -307,6 +308,10 @@ export class FormEntrevistaComponent implements OnInit, AfterViewInit {
 
     this.formVacante.statusChanges.subscribe(() => this.refreshSteps());
     this.refreshSteps();
+    // imprimir opciones 
+    this.tipoDocOpciones$.pipe(take(1)).subscribe(opts => {
+      console.log('Opciones de tipo de documento:', opts);
+    });
   }
 
   @ViewChild('stepper') stepperRef?: MatStepper;
@@ -506,7 +511,7 @@ export class FormEntrevistaComponent implements OnInit, AfterViewInit {
 
     const fechaNac = toDate(cand?.fecha_nacimiento);
     const fechaExp = toDate(info_cc?.fecha_expedicion);
-
+    console.log('Rellenando formulario con candidato:', cand);
     // 1) patchValue SIN emitir eventos
     this.formVacante.patchValue({
       oficina: oficina || '',

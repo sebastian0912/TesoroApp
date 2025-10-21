@@ -208,6 +208,7 @@ export class CrearEditarVacanteComponent implements OnInit {
 
     // Cargar nombres de fincas para el autocomplete
     this.fincasService.listNombreFincas().subscribe((nombres) => {
+      console.log('Nombres de fincas:', nombres);
       this.centrosCostos = nombres ?? [];
       this.filteredCentrosCostos = this.vacanteForm.get('finca')!.valueChanges.pipe(
         startWith(''),

@@ -401,7 +401,6 @@ export class RecruitmentPipelineComponent {
   mostrarTabla(): void {
     const ced = this.candidatoSeleccionado()?.numero_documento || this.numeroDocumento;
     if (!ced) {
-      Swal.fire('Info', 'Selecciona primero un candidato.', 'info');
       return;
     }
 

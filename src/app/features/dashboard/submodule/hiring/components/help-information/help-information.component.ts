@@ -2,10 +2,10 @@ import { SharedModule } from '@/app/shared/shared.module';
 import {
   Component,
   effect, input, computed, signal, inject, DestroyRef, LOCALE_ID,
-  OnInit
+  OnInit, ViewChild, ElementRef
 } from '@angular/core';
 import {
-  FormGroup, FormBuilder, Validators, FormArray
+  FormGroup, FormBuilder, Validators
 } from '@angular/forms';
 import { MatTabsModule } from '@angular/material/tabs';
 import { MatDatepickerModule } from '@angular/material/datepicker';
@@ -82,10 +82,20 @@ export class HelpInformationComponent implements OnInit {
   public utilService = inject(UtilityServiceService);
   private destroyRef = inject(DestroyRef);
   private gc = inject(RegistroProcesoContratacion);
+
   // ========= Estado local (signals) =========
   vacantes = signal<PublicacionDTO[]>([]);
-  vacanteSeleccionada = signal<PublicacionDTO | null>(null);
+  // id seleccionado desde el select o desde el proceso/candidato
   selectedVacanteId = signal<number | null>(null);
+
+  // Filtro por finca (para el mat-select con buscador)
+  filtroFinca = signal<string>('');
+
+  // Para enfocar el input del filtro cuando abre el panel del select
+  @ViewChild('filtroInput') filtroInput!: ElementRef<HTMLInputElement>;
+
+  // Vacante actualmente seleccionada (mantiene sincronía entre lista e id)
+  vacanteSeleccionada = signal<PublicacionDTO | null>(null);
 
   // ========= Formularios =========
   vacantesForm: FormGroup;
@@ -116,9 +126,17 @@ export class HelpInformationComponent implements OnInit {
     return ofs.reduce((acc, o) => acc + this.toInt(o?.numeroDeGenteRequerida), 0);
   });
 
+  // Lista de vacantes filtrada por finca
+  filteredVacantes = computed(() => {
+    const q = this.norm(this.filtroFinca());
+    const list = this.vacantes();
+    if (!q) return list;
+    return list.filter(v => this.norm(v.finca).includes(q));
+  });
+
   // ========= Constructor =========
   constructor() {
-    // --- Form 2 (inyectamos tipoCtrl para poder observarlo como signal)
+    // --- Form principal (inyectamos tipoCtrl para observarlo como signal)
     this.vacantesForm = this.fb.group({
       tipo: this.tipoCtrl,
       empresaUsuaria: [''],
@@ -131,19 +149,25 @@ export class HelpInformationComponent implements OnInit {
       direccionEmpresa: ['']
     });
 
-    // --- Effect: reaccionar a inputs
+    // --- Effect: reaccionar a inputs (candidato)
     effect(() => {
-      this.onInputsChanged(
-        this.candidatoSeleccionado()
-      );
+      this.onInputsChanged(this.candidatoSeleccionado());
     });
 
+    // --- Effect: mantener vacanteSeleccionada sincronizada al cambiar id o lista
+    effect(() => {
+      const id = this.selectedVacanteId();
+      const list = this.vacantes();
+      const v = id != null ? (list.find(x => Number(x.id) === Number(id)) || null) : null;
+      this.vacanteSeleccionada.set(v);
+      if (v) this.patchVacanteToForm(v);
+    });
   }
 
   ngOnInit() {
     const user = this.utilService.getUser();
     if (user) {
-      this.sede = user.sede.nombre || null;
+      this.sede = user.sede?.nombre || null;
       if (this.sede) {
         this.vacantesService.getVacantesPorOficina(this.sede).pipe(
           takeUntilDestroyed(this.destroyRef)
@@ -151,30 +175,42 @@ export class HelpInformationComponent implements OnInit {
           next: (vacantes) => {
             this.vacantes.set(vacantes);
           },
-          error: (error) => {
+          error: () => {
+            // Puedes loguear o toastear si lo deseas
           }
         });
       }
     }
-
   }
 
   // ===== Handlers =====
-  private onInputsChanged(
-    candidato: any | null
-  ) {
+  private onInputsChanged(candidato: any | null) {
     if (candidato && candidato?.id) {
-      console.log('Candidato cargado en help-information:', candidato);
-      this.onVacanteIdChange(candidato.entrevistas[0]?.proceso.publicacion);
+      // Obtén el id de la publicación (vacante) desde el proceso
+      const vacanteId = candidato.entrevistas?.[0]?.proceso?.publicacion;
+      if (vacanteId != null) this.onVacanteIdChange(vacanteId);
     }
   }
 
   onVacanteIdChange(id: number | string): void {
     const idNum = Number(id);
     this.selectedVacanteId.set(idNum);
-    const v = this.vacantes().find(x => Number(x.id) === idNum) || null;
-    this.vacanteSeleccionada.set(v);
-    if (v) this.patchVacanteToForm(v);
+    // La sincronización y el patch al form lo hace el effect().
+  }
+
+  onOpen(opened: boolean) {
+    if (opened) {
+      // Enfoca el input del filtro cuando abre el panel
+      setTimeout(() => this.filtroInput?.nativeElement?.focus(), 0);
+    } else {
+      // Opcional: limpiar filtro al cerrar
+      // this.filtroFinca.set('');
+    }
+  }
+
+  clearFiltro() {
+    this.filtroFinca.set('');
+    setTimeout(() => this.filtroInput?.nativeElement?.focus(), 0);
   }
 
   async guardarInfoPersonal(): Promise<void> {
@@ -184,6 +220,7 @@ export class HelpInformationComponent implements OnInit {
   private norm(s: any): string {
     return (s ?? '').toString().normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase().trim();
   }
+
   private mapApiTipoToForm(apiVal: any): '' | 'Prueba técnica' | 'Autorización de ingreso' {
     const t = this.norm(apiVal);
     if (t === 'prueba' || t === 'prueba tecnica' || t === 'prueba_tecnica') return 'Prueba técnica';
@@ -210,7 +247,6 @@ export class HelpInformationComponent implements OnInit {
   }
 
   private patchProcesoSeleccionToForms(p: any): void {
-    // Mapea la estructura que mostraste en tu ejemplo de backend
     const toDate = (yyyyMmDd?: string | null) => (yyyyMmDd ? new Date(`${yyyyMmDd}T00:00:00`) : null);
     const toTime = (hhmm?: string | null) => (hhmm ? String(hhmm).slice(0, 5) : null);
 
@@ -228,17 +264,13 @@ export class HelpInformationComponent implements OnInit {
 
     // Si el proceso trae id de vacante, sincroniza selección
     if (p?.vacante != null) {
-      const id = Number(p.vacante);
-      this.selectedVacanteId.set(id);
-      const v = this.vacantes().find(x => Number(x.id) === id) || null;
-      this.vacanteSeleccionada.set(v);
+      this.selectedVacanteId.set(Number(p.vacante));
     }
   }
 
-
   async guardarVacantes(): Promise<void> {
     // 1) Validaciones básicas
-    const v = this.vacanteSeleccionada?.();
+    const v = this.vacanteSeleccionada();
     if (!v) {
       await Swal.fire({
         title: 'Selecciona una vacante primero.',
@@ -287,7 +319,6 @@ export class HelpInformationComponent implements OnInit {
 
     // === MAPEO solicitado para el select "tipo" ===
     const tipoValue = v.pruebaOContratacion ?? '';
-
     const vacante_tipo =
       tipoValue === 'Prueba'
         ? 'Prueba técnica'
@@ -307,14 +338,12 @@ export class HelpInformationComponent implements OnInit {
 
     // 4) Llamar al backend
     try {
-      // 👇 NO uses await aquí
       Swal.fire({
         title: 'Guardando...',
         allowOutsideClick: false,
         didOpen: () => Swal.showLoading(),
       });
 
-      // Asegúrate que tu servicio use URL con barra final .../update-by-document/
       const res = await this.gc.updateProcesoByDocumento(payload, 'PATCH').toPromise();
 
       await Swal.fire({
@@ -338,7 +367,6 @@ export class HelpInformationComponent implements OnInit {
       });
       console.error(err);
     } finally {
-      // Cierra el loader por si quedó abierto
       Swal.close();
     }
   }
@@ -375,15 +403,22 @@ export class HelpInformationComponent implements OnInit {
     if (!Array.isArray(ofs) || !ofs.length) return '—';
     return ofs.map(o => `${o?.nombre ?? 'Oficina'} (${this.toInt(o?.numeroDeGenteRequerida)})`).join(', ');
   }
-  formatShortDate(d: any): string {
-    if (!d) return '—';
-    const date = new Date(d);
-    if (isNaN(date.getTime())) return '—';
-    const y = date.getFullYear();
-    const m = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    return `${y}-${m}-${day}`;
-  }
+formatShortDate(d: any): string {
+  if (!d) return '—';
+
+  // Si viene como 'YYYY-MM-DD', parsea a local agregando T00:00:00
+  const date = (typeof d === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d))
+    ? new Date(d + 'T00:00:00')  // ← local
+    : new Date(d);
+
+  if (isNaN(date.getTime())) return '—';
+
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
 
   // ── Handler que el template invoca ──
   onTipoChange(tipo: string): void {
@@ -401,6 +436,7 @@ export class HelpInformationComponent implements OnInit {
       });
     }
   }
+
   // ===== Utilidades varias =====
   private toInt(v: unknown): number {
     if (typeof v === 'number' && Number.isFinite(v)) return Math.trunc(v);

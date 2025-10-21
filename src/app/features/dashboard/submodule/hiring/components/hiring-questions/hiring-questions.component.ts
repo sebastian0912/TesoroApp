@@ -1,5 +1,5 @@
-import { Component, OnInit, input, effect, inject } from '@angular/core';
-import { FormBuilder, FormGroup, Validators } from '@angular/forms';
+import { Component, OnInit, input, effect, inject, DestroyRef } from '@angular/core';
+import { AbstractControl, FormBuilder, FormGroup, ValidationErrors, ValidatorFn, Validators } from '@angular/forms';
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { firstValueFrom, forkJoin, of, throwError } from 'rxjs';
 import { catchError } from 'rxjs/operators';
@@ -12,6 +12,7 @@ import {
   ProcesoUpdateByDocumentRequest,
   RegistroProcesoContratacion,
 } from '../../service/registro-proceso-contratacion/registro-proceso-contratacion';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 type LocalFile = { file: File | string; fileName: string };
 type ServerDocInfo = {
@@ -75,6 +76,7 @@ export class HiringQuestionsComponent implements OnInit {
   private readonly docSvc = inject(GestionDocumentalService);
   private readonly vacantesService = inject(VacantesService);
   private readonly procesosService = inject(RegistroProcesoContratacion);
+  private readonly destroyRef = inject(DestroyRef);
 
   constructor() {
     // Reacciona a cambios del candidato seleccionado
@@ -86,14 +88,17 @@ export class HiringQuestionsComponent implements OnInit {
   }
 
   // ───────── Ciclo de vida ─────────
-  ngOnInit(): void { this.initForms(); }
+  ngOnInit(): void {
+    this.initForms();
+    this.setupFormaPagoValidation(); // ← aplica validación dinámica CO
+  }
 
   private initForms(): void {
     this.pagoTransporteForm = this.fb.group(
       {
         formaPago: ['', Validators.required],
-        numeroPagos: [null, [Validators.required, Validators.pattern(/^\d{10}$/)]],
-        validacionNumeroCuenta: ['', [Validators.required, Validators.pattern(/^\d{10}$/)]],
+        numeroPagos: ['', []],
+        validacionNumeroCuenta: ['', []],
         seguroFunerario: [false, Validators.required],
         Ccostos: ['', Validators.required],
         salario: [{ value: null, disabled: true }, Validators.required],
@@ -106,7 +111,7 @@ export class HiringQuestionsComponent implements OnInit {
         operacion: [null, Validators.required],
         horasExtras: [false, Validators.required],
       },
-      { validators: this.match('numeroPagos', 'validacionNumeroCuenta') },
+      { validators: this.numbersMatch('numeroPagos', 'validacionNumeroCuenta') },
     );
 
     this.referenciasForm = this.fb.group({
@@ -127,11 +132,56 @@ export class HiringQuestionsComponent implements OnInit {
     this.huellaForm = this.fb.group({});
   }
 
-  private match(a: string, b: string) {
-    return (fg: FormGroup) => {
-      const va = fg.get(a)?.value, vb = fg.get(b)?.value;
-      return va && vb && va !== vb ? { numbersNotMatch: true } : null;
+  // === Validador de coincidencia ===
+  numbersMatch(a: string, b: string): ValidatorFn {
+    return (group: AbstractControl): ValidationErrors | null => {
+      const va = group.get(a)?.value?.toString().trim() ?? '';
+      const vb = group.get(b)?.value?.toString().trim() ?? '';
+      if (!va || !vb) return null;          // no marque error hasta que ambos tengan algo
+      return va === vb ? null : { numbersNotMatch: true };
     };
+  }
+
+  // === Reglas dinámicas según forma de pago (CO) ===
+  private setupFormaPagoValidation() {
+    const formaCtrl = this.pagoTransporteForm.get('formaPago')!;
+    const numCtrl = this.pagoTransporteForm.get('numeroPagos')!;
+    const valCtrl = this.pagoTransporteForm.get('validacionNumeroCuenta')!;
+
+    const phoneCO = /^3\d{9}$/;       // Celular CO: 10 dígitos iniciando en 3 (Daviplata)
+    const acctCO  = /^\d{10,20}$/;    // Cuentas: solo dígitos, 10–20
+
+    const apply = () => {
+      const forma = formaCtrl.value;
+      numCtrl.clearValidators();
+      valCtrl.clearValidators();
+
+      if (forma === 'Daviplata') {
+        numCtrl.setValidators([Validators.required, Validators.pattern(phoneCO)]);
+        valCtrl.setValidators([Validators.required, Validators.pattern(phoneCO)]);
+      } else if (forma) {
+        // Bancolombia, Davivienda, Colpatria, Otra…
+        numCtrl.setValidators([Validators.required, Validators.pattern(acctCO)]);
+        valCtrl.setValidators([Validators.required, Validators.pattern(acctCO)]);
+      }
+
+      numCtrl.updateValueAndValidity({ emitEvent: false });
+      valCtrl.updateValueAndValidity({ emitEvent: false });
+    };
+
+    apply();
+    formaCtrl.valueChanges.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(apply);
+  }
+
+  // (Opcional) Limpia caracteres no numéricos al teclear/pegar
+  digitsOnly(controlName: string, e: Event) {
+    const ctrl = this.pagoTransporteForm.get(controlName);
+    const el = e.target as HTMLInputElement | null;
+    if (!ctrl || !el) return;
+    const cleaned = el.value.replace(/\D+/g, '');
+    if (el.value !== cleaned) {
+      ctrl.setValue(cleaned, { emitEvent: true });
+    }
   }
 
   // ───────── Acciones principales ─────────
@@ -394,7 +444,7 @@ export class HiringQuestionsComponent implements OnInit {
         return;
       }
 
-      // base64 crudo -> Data URL para preview (permitido por tu CSP en img-src)
+      // base64 crudo -> Data URL para preview
       const dataUrl = `data:image/png;base64,${res.data}`;
       setImg(dataUrl);
       setMsg('Huella capturada exitosamente.');
@@ -407,7 +457,7 @@ export class HiringQuestionsComponent implements OnInit {
           return;
         }
 
-        // DataURL → File sin usar fetch (evita bloqueo CSP en connect-src)
+        // DataURL → File
         const filename = this.buildHuellaFilename('ID');
         const file = this.dataUrlToFile(dataUrl, filename);
 
@@ -435,7 +485,7 @@ export class HiringQuestionsComponent implements OnInit {
     }
   }
 
-  // Helper: DataURL → File (sin fetch, compatible con CSP)
+  // Helper: DataURL → File
   private dataUrlToFile(dataUrl: string, filename: string): File {
     const m = /^data:([^;]+);base64,(.*)$/.exec(dataUrl);
     if (!m) throw new Error('DataURL inválido');
@@ -527,9 +577,9 @@ export class HiringQuestionsComponent implements OnInit {
     const contr = proc?.contrato;
     const isEmptyValue = (v: any) => v === null || v === '' || (typeof v === 'boolean' && v === false);
     const CONTR_KEYS: Array<keyof typeof contr> = [
-      'forma_de_pago','numero_para_pagos','Ccentro_de_costos','porcentaje_arl','cesantias',
-      'subcentro_de_costos','grupo','categoria','operacion','horas_extras','seguro_funerario',
-      'desea_trasladarse','seleccion_eps',
+      'forma_de_pago', 'numero_para_pagos', 'Ccentro_de_costos', 'porcentaje_arl', 'cesantias',
+      'subcentro_de_costos', 'grupo', 'categoria', 'operacion', 'horas_extras', 'seguro_funerario',
+      'desea_trasladarse', 'seleccion_eps',
     ];
     const contratoVacio = !contr || CONTR_KEYS.every(k => isEmptyValue((contr as any)?.[k]));
     const toNum = (v: any) => (v === '' || v == null ? null : Number(v));
@@ -558,7 +608,7 @@ export class HiringQuestionsComponent implements OnInit {
         const vac: any = await firstValueFrom(this.vacantesService.obtenerVacante(proc.publicacion));
 
         const salarioFromProc = proc?.vacante_salario != null ? toNum(proc.vacante_salario) : null;
-        const salarioFromVac  = vac?.salario != null ? toNum(vac.salario) : null;
+        const salarioFromVac = vac?.salario != null ? toNum(vac.salario) : null;
 
         const auxFromVac = this.toSiNo(vac?.auxilioTransporte);
 

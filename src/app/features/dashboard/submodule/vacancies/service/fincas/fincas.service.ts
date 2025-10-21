@@ -29,16 +29,6 @@ export class FincasService {
   listFincas(search?: string, useCache = true): Observable<FincaItem[]> {
     const q = (search || '').trim();
 
-    // Cache solo cuando NO hay búsqueda
-    if (useCache && !q) {
-      if (this.memCache) return of(this.memCache);
-      const fromLS = this.getFromLS();
-      if (fromLS) {
-        this.memCache = fromLS;
-        return of(fromLS);
-      }
-    }
-
     let params = new HttpParams();
     if (q) params = params.set('search', q);
 

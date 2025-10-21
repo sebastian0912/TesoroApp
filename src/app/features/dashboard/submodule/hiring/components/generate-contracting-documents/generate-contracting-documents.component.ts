@@ -1,6 +1,6 @@
 import { SharedModule } from '@/app/shared/shared.module';
 import { isPlatformBrowser } from '@angular/common';
-import { Component, Inject, OnInit, PLATFORM_ID } from '@angular/core';
+import { Component, inject, OnInit, PLATFORM_ID } from '@angular/core';
 import { PDFDocument, PDFTextField, PDFCheckBox } from 'pdf-lib';
 import Swal from 'sweetalert2';
 import { GestionDocumentalService } from '../../service/gestion-documental/gestion-documental.service';
@@ -8,15 +8,14 @@ import { HiringService } from '../../service/hiring.service';
 import * as fontkit from 'fontkit';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
-import autoTable, { FontStyle, RowInput } from 'jspdf-autotable';
-import { ActivatedRoute, Router } from '@angular/router';
+import autoTable, { RowInput } from 'jspdf-autotable';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 import { VacantesService } from '../../service/vacantes/vacantes.service';
-import { InfoVacantesService } from '../../service/info-vacantes/info-vacantes.service';
-import { catchError, of, forkJoin, take, finalize, map, switchMap, tap } from 'rxjs';
-import { SeleccionService } from '../../service/seleccion/seleccion.service';
 import { UtilityServiceService } from '../../../../../../shared/services/utilityService/utility-service.service';
 import { RegistroProcesoContratacion } from '../../service/registro-proceso-contratacion/registro-proceso-contratacion';
 import { REFERENCIAS_A, REFERENCIAS_F } from '@/app/shared/model/const';
+import { switchMap, map, take, catchError, tap, finalize } from 'rxjs/operators';
+import { of, forkJoin } from 'rxjs';
 
 type UploadedInfo = {
   file: File;
@@ -27,7 +26,7 @@ type UploadedInfo = {
 @Component({
   selector: 'app-generate-contracting-documents',
   imports: [
-    SharedModule
+    SharedModule, RouterLink
   ],
   templateUrl: './generate-contracting-documents.component.html',
   styleUrl: './generate-contracting-documents.component.css'
@@ -50,6 +49,15 @@ export class GenerateContractingDocumentsComponent implements OnInit {
   vacante: any = {};
   huella: any = '';
   foto: any = '';
+
+  private platformId = inject(PLATFORM_ID);
+  private route = inject(ActivatedRoute);
+  private utilService = inject(UtilityServiceService);
+  private registroProcesoContratacion = inject(RegistroProcesoContratacion);
+  private vacantesService = inject(VacantesService);
+  private contratacionService = inject(HiringService);
+  private gestionDocumentalService = inject(GestionDocumentalService);
+
 
   documentos = [
     { titulo: 'Autorización de datos' },
@@ -108,39 +116,31 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     'PAGO SEGURIDAD SOCIAL': 38
   };
 
-
   async ngOnInit(): Promise<void> {
-    // Loader inicial
+    // SSR: no hagas nada del navegador
+    if (!isPlatformBrowser(this.platformId)) {
+      this.user = {};
+      return;
+    }
+
+    // Loader
     Swal.fire({
       icon: 'info',
       title: 'Cargando datos...',
       text: 'Por favor, espera un momento.',
       allowOutsideClick: false,
-      didOpen: () => Swal.showLoading()
+      didOpen: () => Swal.showLoading(),
     });
 
-    // Solo navegador
-    if (!isPlatformBrowser(this.platformId)) {
-      this.user = {};
-      Swal.close();
-      return;
-    }
-
     try {
-      // 1) Cédula desde la URL (param de ruta) o fallback a localStorage
-      this.cedula = this.route.snapshot.paramMap.get('numeroDocumento') ?? '';
-      if (this.cedula) {
-        localStorage.setItem('cedula', this.cedula);
-      } else {
-        this.cedula = localStorage.getItem('cedula') ?? '';
-      }
+      // 1) Cédula: ruta -> localStorage
+      const cedulaRuta = this.route.snapshot.paramMap.get('numeroDocumento') ?? '';
+      this.cedula = cedulaRuta || localStorage.getItem('cedula') || '';
+      if (this.cedula) localStorage.setItem('cedula', this.cedula);
 
-      // 2) Usuario y sede seguros
-      this.user = this.UtilityServiceService.getUser?.() ?? {};
-      if (!this.user) {
-        return;
-      }
-      this.nombreCompletoLogin = `${this.user?.datos_basicos.nombres ?? ''} ${this.user?.datos_basicos.apellidos ?? ''}`.trim();
+      // 2) Usuario/sede
+      this.user = this.utilService.getUser?.() ?? {};
+      this.nombreCompletoLogin = `${this.user?.datos_basicos?.nombres ?? ''} ${this.user?.datos_basicos?.apellidos ?? ''}`.trim();
       this.sede = this.user?.sede?.nombre ?? '';
 
       // 3) Validación temprana
@@ -150,7 +150,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
         return;
       }
 
-      // 4) Observables con manejo de errores
+      // 4) Observables principales
       const datoCandidato$ = this.registroProcesoContratacion
         .getCandidatoPorDocumento(this.cedula, true)
         .pipe(take(1), catchError(() => of(null)));
@@ -160,28 +160,44 @@ export class GenerateContractingDocumentsComponent implements OnInit {
           .pipe(take(1), catchError(() => of(null)))
         : of(null);
 
-      // 5) Ejecutar en paralelo y setear estado local
+      // 5) Ejecutar, cargar vacante (si hay), y setear estado
       forkJoin({ datoCandidato: datoCandidato$, datoAdministrativo: datoAdministrativo$ })
         .pipe(
-          tap(({ datoCandidato, datoAdministrativo }) => {
+          switchMap(({ datoCandidato, datoAdministrativo }) => {
             this.candidato = datoCandidato;
-            this.firma = datoCandidato?.biometria.firma.file_url ?? '';
-            this.huella = datoCandidato?.biometria.huella.file_url ?? '';
-            this.foto = datoCandidato?.foto ?? '';
             console.log('datoCandidato', datoCandidato);
-            // Firma administrativa
+
+            this.firma = datoCandidato?.biometria?.firma?.file_url ?? '';
+            this.huella = datoCandidato?.biometria?.huella?.file_url ?? '';
+            this.foto = datoCandidato?.biometria?.foto?.file_url ?? '';
+
+            this.codigoContratacion =
+              datoCandidato?.entrevistas?.[0]?.proceso?.contrato?.codigo_contrato ?? null;
+
             this.firmaPersonalAdministrativo = datoAdministrativo?.data?.[0]?.firmaSolicitante ?? '';
-            this.vacantesService.obtenerVacante(this.candidato?.entrevistas[0].proceso.publicacion || 0).pipe(take(1)).subscribe((vacanteData: any) => {
-              this.vacante = vacanteData ?? {};
-              console.log('vacanteData', vacanteData);
-              this.empresa = this.vacante?.temporal || '';
-            });
+
+            const vacanteId = datoCandidato?.entrevistas?.[0]?.proceso?.publicacion ?? null;
+            const vacante$ = vacanteId
+              ? this.vacantesService.obtenerVacante(vacanteId).pipe(take(1), catchError(() => of(null)))
+              : of(null);
+
+            return vacante$.pipe(map(vac => ({ vac, datoAdministrativo, datoCandidato })));
+          }),
+          tap(({ vac }) => {
+            this.vacante = vac ?? {};
+            console.log('vacanteData', vac);
+            this.empresa = this.vacante?.temporal || '';
+            console.log('Código de contratación:', this.codigoContratacion);
           }),
           finalize(() => Swal.close())
         )
         .subscribe({
           next: () => { },
-          error: () => Swal.fire('Error', 'Ocurrió un error al cargar información.', 'error')
+          error: (err) => {
+            console.error(err);
+            Swal.close();
+            Swal.fire('Error', 'Ocurrió un error al cargar información.', 'error');
+          },
         });
 
     } catch (error) {
@@ -192,18 +208,8 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     }
   }
 
-  constructor(
-    @Inject(PLATFORM_ID) private platformId: Object,
-    private contratacionService: HiringService,
-    private gestionDocumentalService: GestionDocumentalService,
-    private infoVacantesService: InfoVacantesService,
-    private vacantesService: VacantesService,
-    private seleccionService: SeleccionService,
-    private UtilityServiceService: UtilityServiceService,
-    private router: Router,
-    private registroProcesoContratacion: RegistroProcesoContratacion,
-    private route: ActivatedRoute
-  ) { }
+
+
 
   isSubirPDF(doc: any): boolean {
     // Devuelve true si el título corresponde a Cedula, ARL o Figura Humana
@@ -1111,13 +1117,31 @@ export class GenerateContractingDocumentsComponent implements OnInit {
 
 
   // Generar documento de entrega de documentos de apoyo
-  generarEntregaDocsApoyo() {
-    // ---------------- Helpers ----------------
+  async generarEntregaDocsApoyo() {
+    // ───────── Helpers ─────────
     const H_CENTER = 'center' as const;
     const BOLD = 'bold' as const;
     const ITALIC = 'italic' as const;
 
-    const renderJustifiedLineEntregaDocs = (
+    // Carga URL → DataURL (necesario para doc.addImage en navegador)
+    const toDataURL = async (url?: string): Promise<string | null> => {
+      if (!url) return null;
+      try {
+        const r = await fetch(url, { cache: 'no-store' });
+        if (!r.ok) throw new Error('fetch fail');
+        const b = await r.blob();
+        return await new Promise<string>((res, rej) => {
+          const fr = new FileReader();
+          fr.onload = () => res(String(fr.result));
+          fr.onerror = () => rej(new Error('reader fail'));
+          fr.readAsDataURL(b);
+        });
+      } catch {
+        return null; // si no carga, omitimos la imagen
+      }
+    };
+
+    const renderJustifiedLine = (
       doc: jsPDF,
       linea: string,
       x: number,
@@ -1125,7 +1149,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       anchoDisponible: number,
       ultimaLinea: boolean
     ) => {
-      const palabras = linea.split(' ');
+      const palabras = linea.split(' ').filter(Boolean);
       if (palabras.length <= 1 || ultimaLinea) { doc.text(linea, x, y); return; }
       const widths = palabras.map(p => doc.getTextWidth(p));
       const totalPalabras = widths.reduce((a, b) => a + b, 0);
@@ -1138,7 +1162,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       });
     };
 
-    // --------------- PDF base ---------------
+    // ───────── PDF base y layout ─────────
     const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'letter' });
     doc.setProperties({
       title: 'Apoyo_Laboral_Entrega_Documentos.pdf',
@@ -1146,39 +1170,76 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       creator: this.empresa,
     });
 
-    const logoPath = 'logos/Logo_AL.png';
-    const nit = 'NIT: 900.864.596-1';
-
-    const imgWidth = 27, imgHeight = 10, marginTop = 5, marginLeft = 7;
-    doc.addImage(logoPath, 'PNG', marginLeft, marginTop, imgWidth, imgHeight);
-
-    doc.setFontSize(8);
-    doc.setFont('helvetica', 'bold');
-    doc.text(nit, marginLeft, marginTop + imgHeight + 3);
-    doc.setFont('helvetica', 'normal');
-
-    // Código de versión arriba derecha
-    doc.setFontSize(8);
-    doc.text('TA CO-RE-6 V23 Abril 06-25', 170, 10);
-
-    // Título
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(10);
     const pageWidth = doc.internal.pageSize.getWidth();
     const pageHeight = doc.internal.pageSize.getHeight();
-    doc.text('Entrega de Documentos y Autorizaciones', 110, 20, { align: 'center' });
 
-    // Intro
-    const marginLeftText = 10;
-    let y = 25;
-    let maxWidth = 190;
+    const leftMargin = 10;
+    const rightMargin = 10;
+    const contentWidth = pageWidth - leftMargin - rightMargin;
 
-    doc.setFontSize(8).setFont('helvetica', 'normal');
-    const intro =
-      'Reciba un cordial saludo, por medio del presente documento afirmo haber recibido, leído y comprendido los documentos relacionados a continuación:';
-    doc.text(intro, marginLeftText, y, { maxWidth });
+    let y = 10; // cursor vertical global
+    const marginLeft = leftMargin;
+
+    // ───────── Encabezado (logo + tabla) ─────────
+    const startX = leftMargin;
+    const startY = y;
+    const headerHeight = 13;
+    const logoBoxWidth = 50;
+    const tableWidth = contentWidth;
+
+    // Cuadro de logo/NIT
+    doc.setLineWidth(0.1);
+    doc.rect(startX, startY, logoBoxWidth, headerHeight);
+
+    // Logo (si no carga, se omite)
+    const logoData = await toDataURL('logos/Logo_AL.png');
+    if (logoData) {
+      doc.addImage(logoData, 'PNG', startX + 2, startY + 1.5, 27, 10);
+    }
+
+    // NIT
     doc.setFontSize(7);
-    y = 29;
+
+    // Tabla derecha del encabezado
+    const tableStartX = startX + logoBoxWidth;
+    const rightHeaderWidth = tableWidth - logoBoxWidth;
+    doc.rect(tableStartX, startY, rightHeaderWidth, headerHeight);
+
+    doc.setFont('helvetica', 'bold');
+    doc.text('PROCESO DE CONTRATACIÓN', tableStartX + 54, startY + 3);
+    doc.text('ENTREGA DE DOCUMENTOS Y AUTORIZACIONES', tableStartX + 44, startY + 7);
+
+    // Líneas y columnas
+    const h1Y = startY + 4;
+    const h2Y = startY + 8;
+    doc.line(tableStartX, h1Y, tableStartX + rightHeaderWidth, h1Y);
+    doc.line(tableStartX, h2Y, tableStartX + rightHeaderWidth, h2Y);
+
+    const col1 = tableStartX + 30;
+    const col2 = tableStartX + 50;
+    const col3 = tableStartX + 110;
+
+    doc.line(col1, h2Y, col1, startY + headerHeight);
+    doc.line(col2, h2Y, col2, startY + headerHeight);
+    doc.line(col3, h2Y, col3, startY + headerHeight);
+
+    // Contenido columnas
+    doc.setFontSize(7);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Código: AL CO-RE-6', tableStartX + 2, startY + 11.5);
+    doc.text('Versión: 23', col1 + 2, startY + 11.5);
+    doc.text('Fecha Emisión: Julio 9-25', col2 + 5, startY + 11.5);
+    doc.text('Página: 1 de 1', col3 + 6, startY + 11.5);
+
+    y = startY + headerHeight + 7;
+
+    // ───────── Intro ─────────
+    doc.setFontSize(8).setFont('helvetica', 'normal');
+    const maxWidth = contentWidth;
+    const intro = 'Reciba un cordial saludo, por medio del presente documento afirmo haber recibido, leído y comprendido los documentos relacionados a continuación:';
+    doc.text(intro, marginLeft, y, { maxWidth });
+    doc.setFontSize(7);
+    y += 4;
 
     // Lista 1) 2)
     const lista = [
@@ -1187,27 +1248,28 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     ];
     lista.forEach((item, index) => {
       const numero = `${index + 1}) `;
-      const textPosX = 10;
-      doc.setFont('helvetica', 'bold'); doc.text(numero, textPosX, y);
+      doc.setFont('helvetica', 'bold'); doc.text(numero, marginLeft, y);
       doc.setFont('helvetica', 'normal');
       const numW = doc.getTextWidth(numero);
-      doc.text(item, textPosX + numW, y);
+      doc.text(item, marginLeft + numW, y);
       y += 5;
     });
 
     // Subtítulo tabla
     doc.setFontSize(8).setFont('helvetica', 'bold');
-    doc.text('Fechas de Pago de Nómina y Valor del almuerzo que es descontado por Nómina o Liquidación final:', 30, y);
+    doc.text(
+      'Fechas de Pago de Nómina y Valor del almuerzo que es descontado por Nómina o Liquidación final:',
+      marginLeft + 20,
+      y
+    );
     const startYForTable = y + 3;
 
-    // -------------------- TABLA --------------------
-    const head: RowInput[] = [
-      [
-        { content: 'EMPRESA USUARIA', styles: { halign: H_CENTER, fontStyle: BOLD, fillColor: [255, 128, 0], textColor: 255 } },
-        { content: 'FECHA DE PAGO', styles: { halign: H_CENTER, fontStyle: BOLD, fillColor: [255, 128, 0], textColor: 255 } },
-        { content: 'SERVICIO DE CASINO', styles: { halign: H_CENTER, fontStyle: BOLD, fillColor: [255, 128, 0], textColor: 255 } }
-      ]
-    ];
+    // ───────── Tabla (autotable) ─────────
+    const head: RowInput[] = [[
+      { content: 'EMPRESA USUARIA', styles: { halign: H_CENTER, fontStyle: BOLD, fillColor: [255, 128, 0], textColor: 255 } },
+      { content: 'FECHA DE PAGO', styles: { halign: H_CENTER, fontStyle: BOLD, fillColor: [255, 128, 0], textColor: 255 } },
+      { content: 'SERVICIO DE CASINO', styles: { halign: H_CENTER, fontStyle: BOLD, fillColor: [255, 128, 0], textColor: 255 } }
+    ]];
 
     const body: RowInput[] = [
       [
@@ -1233,11 +1295,10 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     ];
 
     autoTable(doc, {
-      head,
-      body,
+      head, body,
       startY: startYForTable,
       theme: 'grid',
-      margin: { left: 10, right: 10 },
+      margin: { left: leftMargin, right: rightMargin },
       styles: { font: 'helvetica', fontSize: 6.5, cellPadding: { top: 1.2, bottom: 1.2, left: 2, right: 2 } },
       headStyles: { lineWidth: 0.2, lineColor: [120, 120, 120] },
       bodyStyles: { lineWidth: 0.2, lineColor: [180, 180, 180], valign: 'middle' },
@@ -1245,49 +1306,46 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     });
 
     const finalY = (doc as any).lastAutoTable?.finalY ?? (startYForTable + 30);
-
-    // Línea inferior
-    doc.setDrawColor(0, 0, 0).setLineWidth(0.2);
-    doc.line(15, finalY, 10 + 195, finalY);
+    doc.setDrawColor(0).setLineWidth(0.2);
+    doc.line(leftMargin, finalY, pageWidth - rightMargin, finalY);
 
     y = finalY + 4;
 
-    // Autorización casino
-    doc.setFontSize(7).setFont('helvetica', 'bold');
-    const maxW = doc.internal.pageSize.getWidth() - 20;
-
+    // Notas
+    doc.setFontSize(7).setFont('helvetica', 'normal');
+    const noteMaxW = contentWidth;
     const nota1 = 'Nota: * Para los centros de costo de la empresa usuaria The Elite Flower S.A.S. C.I.: Carnations, Florex, Jardines de Colombia Normandía, Tinzuque, Tikya, Chuzacá; su fecha de pago son 06 y 21 de cada mes.';
-    const nota2 = '   ** Para los centros de costo de la empresa usuaria Wayuu Flowers S.A.S.: Pozo Azul, Postcosecha Excellence, Belchite; su fecha de pago son 01 y 16 de cada mes.';
+    const nota2 = '** Para los centros de costo de la empresa usuaria Wayuu Flowers S.A.S.: Pozo Azul, Postcosecha Excellence, Belchite; su fecha de pago son 01 y 16 de cada mes.';
 
-    const l1 = doc.splitTextToSize(nota1, maxW);
-    doc.text(l1, 10, y);
-    y += l1.length * 4;
+    const l1 = doc.splitTextToSize(nota1, noteMaxW) as string[];
+    doc.text(l1, marginLeft, y); y += l1.length * 4;
 
-    const l2 = doc.splitTextToSize(nota2, maxW);
-    doc.text(l2, 10, y-2);
-    y += l2.length * 4;
+    const l2 = doc.splitTextToSize(nota2, noteMaxW) as string[];
+    doc.text(l2, marginLeft, y); y += l2.length * 4;
 
-    doc.setFontSize(8);
-    doc.text('Teniendo en cuenta la anterior información, autorizo descuento de casino:', 10, y);
-    // SI () NO () No aplica ()
-
+    // Autorización casino
+    doc.setFontSize(8).setFont('helvetica', 'bold');
+    doc.text('Teniendo en cuenta la anterior información, autorizo descuento de casino:', marginLeft, y);
+    doc.setFont('helvetica', 'normal');
     doc.text('SI (     )', 130, y);
     doc.text('NO (     )', 155, y);
     doc.text('No aplica (     )', 175, y);
 
     // Forma de pago
+    y += 5;
     doc.setFont('helvetica', 'bold').setFontSize(7);
-    doc.text('3) FORMA DE PAGO:', 10, y + 5);
+    doc.text('3) FORMA DE PAGO:', marginLeft, y);
     y += 5;
 
-    const formaPagoSeleccionada = this.candidato.entrevistas[0].proceso.contrato.forma_de_pago || '';
-    const numeroPagos = this.candidato.entrevistas[0].proceso.contrato.numero_para_pagos || '';
+    const contrato = this.candidato?.entrevistas?.[0]?.proceso?.contrato || {};
+    const formaPagoSeleccionada: string = contrato?.forma_de_pago ?? '';
+    const numeroPagos: string = contrato?.numero_para_pagos ?? '';
 
     const opciones = [
-      { nombre: 'Daviplata', x: 10, y: y + 5 },
-      { nombre: 'Davivienda cta ahorros', x: 30, y: y + 5 },
-      { nombre: 'Davivienda Tarjeta Master', x: 70, y: y + 5 },
-      { nombre: 'Otra', x: 110, y: y + 5 },
+      { nombre: 'Daviplata', x: marginLeft, y: y },
+      { nombre: 'Davivienda cta ahorros', x: marginLeft + 20, y: y },
+      { nombre: 'Davivienda Tarjeta Master', x: marginLeft + 60, y: y },
+      { nombre: 'Otra', x: marginLeft + 105, y: y },
     ];
 
     opciones.forEach((op) => {
@@ -1298,16 +1356,16 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       }
     });
 
-    doc.text('¿Cuál?', 130, y + 5);
-    doc.line(140, y + 5, 200, y + 5);
+    doc.text('¿Cuál?', 130, y);
+    doc.line(140, y, 200, y);
     if (formaPagoSeleccionada === 'Otra') {
-      doc.text('Especificar aquí...', 150, y + 15);
+      doc.text('Especificar aquí...', 150, y + 10);
     }
 
     // Número TJT / Código
-    y += 15;
+    y += 5;
     doc.setFontSize(8);
-    doc.setFont('helvetica', 'bold').text('Número TJT ó Celular:', 10, y);
+    doc.setFont('helvetica', 'bold').text('Número TJT ó Celular:', marginLeft, y);
     doc.text('Código de Tarjeta:', 110, y);
     doc.setFont('helvetica', 'normal');
     if (formaPagoSeleccionada === 'Daviplata') {
@@ -1316,24 +1374,24 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       doc.text(numeroPagos, 150, y);
     }
 
-    // IMPORTANTE (párrafo justificado)
+    // IMPORTANTE (justificado)
     y += 5;
     doc.setFont('helvetica', 'bold').setFontSize(7);
     const importante =
       'IMPORTANTE: Recuerde que si usted cuenta con su forma de pago Daviplata, cualquier cambio realizado en la misma debe ser notificado a la Emp. Temporal. También tenga presente que la entrega de la tarjeta Master por parte de la Emp. Temporal es provisional, y se reemplaza por la forma de pago DAVIPLATA; tan pronto Davivienda nos informa que usted activó su DAVIPLATA, se le genera automáticamente el cambio de forma de pago. CUIDADO! El manejo de estas cuentas es responsabilidad de usted como trabajador, por eso son personales e intransferibles.';
-    const anchoJust = 190, margenJust = 10, lineHeight = 3;
+    const anchoJust = contentWidth, margenJust = marginLeft, lineHeight = 3;
     doc.setFont('helvetica', 'normal');
-    const lineasImportante = doc.splitTextToSize(importante.trim().replace(/\s+/g, ' '), anchoJust);
-    lineasImportante.forEach((ln: string, i: number) => {
-      const last = i === lineasImportante.length - 1;
-      renderJustifiedLineEntregaDocs(doc, ln, margenJust, y, anchoJust, last);
+    const lineas = doc.splitTextToSize(importante.trim().replace(/\s+/g, ' '), anchoJust) as string[];
+    lineas.forEach((ln, i) => {
+      const last = i === lineas.length - 1;
+      renderJustifiedLine(doc, ln, margenJust, y, anchoJust, last);
       y += lineHeight;
     });
 
     // Acepto cambio
     y += 5;
     doc.setFont('helvetica', 'bold').setFontSize(8);
-    doc.text('ACEPTO CAMBIO SIN PREVIO AVISO YA QUE HE SIDO INFORMADO (A):', 10, y - 4);
+    doc.text('ACEPTO CAMBIO SIN PREVIO AVISO YA QUE HE SIDO INFORMADO (A):', marginLeft, y - 4);
     doc.setFont('helvetica', 'normal');
     doc.text('SI (  x  )', 170, y - 4);
     doc.text('NO (     )', 190, y - 4);
@@ -1347,7 +1405,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       { numero: '7)', texto: 'Curso de Seguridad y Salud en el Trabajo "SST" de la Empresa Temporal.' },
       {
         numero: '8)',
-        texto: 'Se hace entrega de la documentación requerida para la vinculación de beneficiarios a la Caja de Compensación Familiar y se establece compromiso de 15 días para la entrega sobre la documentación para afiliación de beneficiarios a la Caja de Compensación y EPS si aplica. \nDe lo contrario se entenderá que usted no desea recibir este beneficio, recuerde que es su responsabilidad el registro de los mismos.'
+        texto: 'Se hace entrega de la documentación requerida para la vinculación de beneficiarios a la Caja de Compensación Familiar y se establece compromiso de 15 días para la entrega sobre la documentación para afiliación de beneficiarios a la Caja de Compensación y EPS si aplica.\nDe lo contrario se entenderá que usted no desea recibir este beneficio, recuerde que es su responsabilidad el registro de los mismos.'
       },
       {
         numero: '9)',
@@ -1355,52 +1413,61 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       }
     ];
 
-    maxWidth = 190;
+    const bottomSafe = 12;
+    const ensureSpace = (need: number) => {
+      if (y + need > pageHeight - bottomSafe) { doc.addPage(); y = 15; }
+    };
+
+    doc.setFontSize(7);
     contenidoFinal.forEach((item) => {
-      doc.setFont('helvetica', 'bold').text(item.numero, 10, y);
+      ensureSpace(10);
+      doc.setFont('helvetica', 'bold').text(item.numero, marginLeft, y);
       doc.setFont('helvetica', 'normal');
-      const textoEnLineas = doc.splitTextToSize(item.texto, maxWidth);
-      doc.text(textoEnLineas, 20, y);
-      y += textoEnLineas.length * lineHeight;
+      const textoLineas = doc.splitTextToSize(item.texto, contentWidth) as string[];
+      doc.text(textoLineas, marginLeft + 10, y);
+      y += textoLineas.length * 4 + 1;
     });
 
     // SI / NO del seguro
-    if (this.candidato?.entrevistas[0].proceso.contrato.seguro_funerario === true) {
+    const seguro = !!contrato?.seguro_funerario;
+    if (seguro) {
       doc.text('SI (  x  )', 170, y - 4);
       doc.text('NO (     )', 190, y - 4);
-    } else if (this.candidato?.entrevistas[0].proceso.contrato.seguro_funerario === false) {
+    } else {
       doc.text('SI (     )', 170, y - 4);
       doc.text('NO (  x  )', 190, y - 4);
     }
 
     // Nota
-    doc.setFont('helvetica', 'bold').text('Nota:', 10, y + 1);
+    doc.setFont('helvetica', 'bold').text('Nota:', marginLeft, y + 1);
     doc.setFont('helvetica', 'normal').setFontSize(7).text(
       'Si usted autorizó este descuento debe presentar una carta en la oficina de la Temporal solicitando el retiro, para la desafiliación de este plan.',
-      20,
+      marginLeft + 10,
       y + 1,
-      { maxWidth: 180 }
+      { maxWidth: contentWidth - 10 }
     );
 
     // Banner "Recuerde que:"
     y += 5;
+    ensureSpace(10);
     doc.setFillColor(230, 230, 230);
-    doc.rect(10, y - 2, 190, 5, 'F');
+    doc.rect(marginLeft, y - 2, contentWidth, 5, 'F');
     doc.setFont('helvetica', 'bold').setFontSize(7.5).setTextColor(0, 0, 0);
-    doc.text('Recuerde que:', 12, y + 1);
+    doc.text('Recuerde que:', marginLeft + 2, y + 1);
     doc.setFont('helvetica', 'normal').setTextColor(0, 0, 0);
-    doc.text('Puede encontrar esta información disponible en:', 35, y + 1);
+    doc.text('Puede encontrar esta información disponible en:', marginLeft + 25, y + 1);
     doc.setTextColor(0, 0, 255);
-    doc.textWithLink('http://www.apoyolaboralts.com/', 105, y + 1, { url: 'http://www.apoyolaboralts.com/' });
+    doc.textWithLink('http://www.apoyolaboralts.com/', marginLeft + 95, y + 1, { url: 'http://www.apoyolaboralts.com/' });
     doc.setTextColor(0, 0, 0);
     doc.setFont('helvetica', 'bold');
-    doc.text('Ingresando la clave:', 155, y + 1);
+    doc.text('Ingresando la clave:', marginLeft + 145, y + 1);
     doc.setFont('helvetica', 'bold').setFontSize(8);
-    doc.text('9876', 190, y + 1);
+    doc.text('9876', marginLeft + 180, y + 1);
 
     // DEL COLABORADOR
     y += 8;
-    // --- DEL COLABORADOR (hanging indent, soporta saltos de línea) ---
+    ensureSpace(20);
+
     const contenidoFinalColaborador = [
       { numero: 'a)', texto: 'Por medio de la presente manifiesto que recibí lo anteriormente mencionado y que acepto el mismo.' },
       { numero: 'b)', texto: 'Leí y comprendí  el curso de inducción General y de Seguridad y Salud en el Trabajo, así como  el contrato laboral   y todas las cláusulas y condiciones establecidas.' },
@@ -1411,113 +1478,94 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     doc.text('DEL COLABORADOR:', marginLeft, y);
     y += 5;
 
-    doc.setFontSize(7.5); // tamaño de texto del bloque
+    doc.setFontSize(7.5);
+    const lh = 4;
+    const gapAfterItem = 1;
 
-    const lh = 4;             // interlineado (mm)
-    const gapAfterItem = 1;   // espacio entre ítems (mm)
-    const bottomMargin = 12;  // margen inferior de seguridad
-
-    // Medimos el ancho máximo de los bullets para alinear todo igual
     doc.setFont('helvetica', 'bold');
     const bulletBoxWidth =
       Math.max(doc.getTextWidth('a) '), doc.getTextWidth('b) '), doc.getTextWidth('c) ')) + 1.5;
 
     const xBullet = marginLeft;
     const xText = xBullet + bulletBoxWidth;
-    const availWidth = pageWidth - 9 - xText;
+    const availWidth = pageWidth - rightMargin - xText;
 
     contenidoFinalColaborador.forEach(({ numero, texto }) => {
-      // Asegura página disponible
-      if (y > pageHeight - bottomMargin) { doc.addPage(); y = 15; }
-
-      // Dibuja el bullet en negrita alineado a la primera línea del párrafo
+      ensureSpace(10);
       doc.setFont('helvetica', 'bold');
       doc.text(numero, xBullet, y);
 
-      // Texto normal con soporte de saltos de línea explícitos
       doc.setFont('helvetica', 'normal');
       const parrafos = String(texto).split(/\r?\n/).map(s => s.trim()).filter(Boolean);
       const partes = parrafos.length ? parrafos : [''];
 
       partes.forEach((p, pi) => {
         const lines = doc.splitTextToSize(p, availWidth) as string[];
-
         lines.forEach((ln) => {
-          if (y > pageHeight - bottomMargin) { doc.addPage(); y = 15; }
+          ensureSpace(lh);
           doc.text(ln, xText, y);
           y += lh;
         });
-
-        // Espacio entre párrafos del mismo ítem
         if (pi < partes.length - 1) y += 1.5;
       });
 
-      // Espacio entre ítems
       y += gapAfterItem;
     });
 
-
     // Firma + datos
     y += 10;
+    ensureSpace(30);
     doc.setFont('helvetica', 'bold').setFontSize(8);
-    doc.line(10, y, 70, y);
-    doc.text('Firma de Aceptación', 10, y + 4);
+    doc.line(marginLeft, y, marginLeft + 60, y);
+    doc.text('Firma de Aceptación', marginLeft, y + 4);
 
-    if (this.firma !== '') {
-      const firmaConPrefijo = this.firma;
-      doc.addImage(firmaConPrefijo, 'PNG', 10, 186, 50, 20);
+    const firmaData = await toDataURL(this.firma);
+    if (firmaData) {
+      doc.addImage(firmaData, 'PNG', marginLeft, y -12, 50, 20);
     } else {
-      Swal.fire({ icon: 'error', title: 'Error', text: 'No se encontró la firma' });
-      return;
+      Swal.fire({ icon: 'error', title: 'Error', text: 'No se pudo cargar la firma' });
     }
 
     y += 8;
     doc.setFont('helvetica', 'bold').setFontSize(8);
-    doc.text(`No de Identificación: ${this.cedula ?? ''}`, 10, y);
-    doc.text(`Fecha de Recibido: ${new Date().toISOString().split('T')[0]}`, 10, y + 4);
+    doc.text(`No de Identificación: ${this.cedula ?? ''}`, marginLeft, y);
+    doc.text(`Fecha de Recibido: ${new Date().toISOString().split('T')[0]}`, marginLeft, y + 4);
 
-    // Tabla de huellas
-    // ===== Huella (solo Índice Derecho, tamaño de un solo cuadro) =====
-    const tableWidth = 82, tableHeight = 30, headerHeight = 8, startX = 165, startY = y - 10;
-    const slotWidth = tableWidth / 2;   // ancho de un solo cuadro (no combinado)
-    const slotHeight = tableHeight;
+    // Tabla de huella (solo Índice Derecho)
+    const huellaData = await toDataURL(this.huella);
+    const huellaTableWidth = 82, huellaTableHeight = 30, huellaHeaderHeight = 8;
+    const huellaStartX = pageWidth - rightMargin - huellaTableWidth;
+    const huellaStartY = y - 10;
 
     doc.setFillColor(230, 230, 230);
-
-    // Encabezado del único cuadro
-    doc.rect(startX, startY, slotWidth, headerHeight, 'F'); // fondo gris
+    doc.rect(huellaStartX, huellaStartY, huellaTableWidth / 2, huellaHeaderHeight, 'F');
     doc.setDrawColor(0);
-    doc.rect(startX, startY, slotWidth, headerHeight);      // borde
+    doc.rect(huellaStartX, huellaStartY, huellaTableWidth / 2, huellaHeaderHeight);
     doc.setFont('helvetica', 'bold').setFontSize(8);
-    doc.text('Huella Indice Derecho', startX + 5, startY + 5);
+    doc.text('Huella Indice Derecho', huellaStartX + 5, huellaStartY + 5);
+    doc.rect(huellaStartX, huellaStartY + huellaHeaderHeight, huellaTableWidth / 2, huellaTableHeight);
 
-    // Área para la huella
-    doc.rect(startX, startY + headerHeight, slotWidth, slotHeight);
-
-    // Imagen de la huella (si existe)
-    const imageWidth = slotWidth - 10;   // pequeño margen interno
-    const imageHeight = slotHeight - 3;  // pequeño margen interno
-    const indiceX = startX + 5;
-    const indiceY = startY + headerHeight + 2;
-
-    if (this.huella) {
-      doc.addImage(this.huella, 'PNG', indiceX, indiceY, imageWidth, imageHeight);
+    if (huellaData) {
+      const imageWidth = huellaTableWidth / 2 - 10;
+      const imageHeight = huellaTableHeight - 3;
+      doc.addImage(huellaData, 'PNG', huellaStartX + 5, huellaStartY + huellaHeaderHeight + 2, imageWidth, imageHeight);
     }
 
-    // if (this.huellaPulgarDerecho) doc.addImage(this.huellaPulgarDerecho, 'PNG', pulgarX, pulgarY, imageWidth, imageHeight);
+    // Sello / imagen final (si existe local)
+    const selloData = await toDataURL('firma/FirmaEntregaDocApoyo.png');
+    if (selloData) {
+      y += 5;
+      doc.addImage(selloData, 'PNG', marginLeft, y, 95, 10);
+    }
 
-    // Sello / imagen final
-    y += 5;
-    const imagePath = 'firma/FirmaEntregaDocApoyo.png';
-    doc.addImage(imagePath, 'PNG', 10, y, 95, 10);
-
-    // Exportar
+    // ───────── Exportar y previsualizar ─────────
     const pdfBlob = doc.output('blob');
-    const fileName = `${this.empresa}_Entrega_de_documentos.pdf`;
+    const fileName = `${this.empresa || 'Apoyo_Laboral'}_Entrega_de_documentos.pdf`;
     const pdfFile = new File([pdfBlob], fileName, { type: 'application/pdf' });
     this.uploadedFiles['Entrega de documentos'] = { file: pdfFile, fileName };
     this.verPDF({ titulo: 'Entrega de documentos' });
   }
+
 
 
   // Generar contrato de trabajo

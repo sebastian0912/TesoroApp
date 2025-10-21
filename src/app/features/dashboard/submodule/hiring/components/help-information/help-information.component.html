@@ -25,9 +25,10 @@
       <mat-form-field class="example-full-width" appearance="outline" style="min-width: 90% !important;">
         <mat-label>Seleccionar vacante</mat-label>
 
-        <mat-select [value]="selectedVacanteId()" (selectionChange)="onVacanteIdChange($event.value)">
+        <mat-select [value]="selectedVacanteId()" (selectionChange)="onVacanteIdChange($event.value)"
+          (openedChange)="onOpen($event)" [disableOptionCentering]="true">
 
-          <!-- Trigger -->
+          <!-- Trigger actual -->
           <mat-select-trigger>
             <ng-container *ngIf="vacanteSeleccionada() as v; else placeholderVac">
               <div class="trigger-wrap">
@@ -45,26 +46,45 @@
             <ng-template #placeholderVac>Selecciona…</ng-template>
           </mat-select-trigger>
 
-          <!-- Opciones -->
-          <mat-option *ngFor="let v of vacantes()" [value]="v.id">
+          <!-- Filtro en el panel -->
+          <mat-option class="filter-row" [disabled]="true" (click)="$event.stopPropagation()">
+            <mat-icon>search</mat-icon>
+            <input #filtroInput class="filter-input" type="text" placeholder="Filtrar por finca…"
+              [value]="filtroFinca()" (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()"
+              (input)="filtroFinca.set(filtroInput.value)" />
+            <button mat-icon-button type="button" *ngIf="filtroFinca()"
+              (click)="$event.stopPropagation(); clearFiltro()">
+              <mat-icon>close</mat-icon>
+            </button>
+          </mat-option>
+
+
+          <!-- Opciones filtradas -->
+          <mat-option *ngFor="let v of filteredVacantes()" [value]="v.id">
             <div class="vacante-option">
               <div class="row-1">
-                <span class="cargo">{{ v.cargo || 'Sin cargo' }}</span>
+                <span class="cargo">{{ v.finca || 'Sin finca' }}</span>
                 <span class="spacer"></span>
                 <span class="pill pill-req">Req {{ totalRequeridaOf(v) }}</span>
                 <span class="pill" [ngClass]="pillClasePre(v)">Pre {{ countPre(v) }}</span>
                 <span class="pill" [ngClass]="pillClaseCont(v)">Cont {{ countCont(v) }}</span>
               </div>
               <div class="row-2">
-                <span class="empresa">{{ v.empresaUsuariaSolicita }}</span> —
+                <span class="empresa">{{ v.cargo }}</span> —
                 <span class="finca">{{ v.finca }}</span> ·
                 <span class="oficinas">{{ oficinasResumen(v.oficinasQueContratan) }}</span> ·
                 <span class="fecha">{{ formatShortDate(v.fechaPublicado) }}</span>
               </div>
             </div>
           </mat-option>
+
+          <!-- Vacío -->
+          <mat-option *ngIf="!filteredVacantes().length" disabled>
+            Sin resultados para “{{ filtroFinca() }}”
+          </mat-option>
         </mat-select>
       </mat-form-field>
+
 
       <!-- Resumen -->
       <div class="grid">

@@ -44,7 +44,7 @@
               <mat-select formControlName="tipo_doc" required>
                 @for (op of (tipoDocOpciones$ | async) ?? []; track op['codigo']) {
                 <mat-option [value]="op['codigo']">
-                  {{ op['descripcion'] || op['codigo'] }}
+                  {{ op['descripcion'] }}
                 </mat-option>
                 }
               </mat-select>
