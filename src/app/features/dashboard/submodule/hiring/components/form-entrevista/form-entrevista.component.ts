@@ -36,7 +36,7 @@ export class FormEntrevistaComponent implements OnInit, AfterViewInit {
   // ====== Catálogos ======
   tipoDocOpciones$: Observable<CatalogValue[]> =
     this.catalogos.listDatosByTablaCodigo('TIPOS_IDENTIFICACION', { activo: true });
-  
+
   escolaridadOpciones$: Observable<CatalogValue[]> =
     this.catalogos.listDatosByTablaCodigo('NIVELES_ESCOLARIDAD', { activo: true });
   estadoCivilOpciones$: Observable<CatalogValue[]> =
@@ -308,7 +308,7 @@ export class FormEntrevistaComponent implements OnInit, AfterViewInit {
 
     this.formVacante.statusChanges.subscribe(() => this.refreshSteps());
     this.refreshSteps();
-    // imprimir opciones 
+    // imprimir opciones
     this.tipoDocOpciones$.pipe(take(1)).subscribe(opts => {
       console.log('Opciones de tipo de documento:', opts);
     });
@@ -520,7 +520,9 @@ export class FormEntrevistaComponent implements OnInit, AfterViewInit {
       fecha_expedicion: fechaExp,
       mpio_expedicion: info_cc?.mpio_expedicion || '',
       primer_apellido: cand?.primer_apellido || '',
+      segundo_apellido: cand?.segundo_apellido || '',
       primer_nombre: cand?.primer_nombre || '',
+      segundo_nombre: cand?.segundo_nombre || '',
       fecha_nacimiento: fechaNac,
       mpio_nacimiento: info_cc?.mpio_nacimiento || '',
       sexo: cand?.sexo || '',
