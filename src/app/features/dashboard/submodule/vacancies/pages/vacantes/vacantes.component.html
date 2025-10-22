@@ -9,11 +9,7 @@
         <!-- Toggle vista -->
         <mat-button-toggle-group [value]="viewMode" (change)="onToggleView($event.value)" aria-label="Cambiar vista"
           class="view-toggle">
-
-          <mat-button-toggle value="card" aria-label="Vista tarjetas">
-            <mat-icon>view_module</mat-icon>
-            <span class="toggle-text">Cards</span>
-          </mat-button-toggle>
+    
 
           <!-- NUEVOS modos -->
           <mat-button-toggle value="faltantes" aria-label="Solo faltantes">

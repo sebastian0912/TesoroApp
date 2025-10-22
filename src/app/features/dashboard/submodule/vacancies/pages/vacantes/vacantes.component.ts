@@ -11,7 +11,6 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatCardModule } from '@angular/material/card';
 import Swal from 'sweetalert2';
 import * as XLSX from 'xlsx';
-
 import { VacantesService } from '../../service/vacantes/vacantes.service';
 import { UtilityServiceService } from '@/app/shared/services/utilityService/utility-service.service';
 import { SharedModule } from '@/app/shared/shared.module';
