@@ -12,6 +12,7 @@ import { MatDatepickerModule } from '@angular/material/datepicker';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatBadgeModule } from '@angular/material/badge';
+import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 
 import { FormsModule, FormArray, FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angular/forms';
 
@@ -24,14 +25,16 @@ import { CameraDialogComponent } from '../../components/camera-dialog/camera-dia
 
 import { UtilityServiceService } from '@/app/shared/services/utilityService/utility-service.service';
 
-import { MatSnackBar } from '@angular/material/snack-bar';
 import { firstValueFrom, merge, startWith } from 'rxjs';
 import Swal from 'sweetalert2';
 import { ColumnDefinition } from '@/app/shared/components/standard-filter-table/standard-filter-table';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { RegistroProcesoContratacion } from '../../service/registro-proceso-contratacion/registro-proceso-contratacion';
 import { TableDialogComponent } from '@/app/shared/components/table-dialog/table-dialog.component';
+import { GestionDocumentalService } from '../../service/gestion-documental/gestion-documental.service';
 
+// ⬇️ Librería para unir PDFs en el navegador
+import { PDFDocument } from 'pdf-lib'; // npm i pdf-lib
 
 export const MY_DATE_FORMATS: MatDateFormats = {
   parse: { dateInput: 'DD/MM/YYYY' },
@@ -43,6 +46,18 @@ export const MY_DATE_FORMATS: MatDateFormats = {
   },
 };
 
+type LocalFile = { file: File | string; fileName: string };
+type ServerDocInfo = {
+  id: number;
+  fileName: string;
+  type: number;
+  file_url: string;
+  uploaded_at?: string;
+  size?: number;
+  etag?: string;
+  lastModified?: string;
+};
+
 type ExamenResultadoForm = { aptoStatus?: string };
 type BioKind = 'foto' | 'huella' | 'firma';
 
@@ -52,7 +67,7 @@ type BioKind = 'foto' | 'huella' | 'firma';
   imports: [
     FormsModule, ReactiveFormsModule,
     MatIconModule, MatTabsModule, MatDatepickerModule, MatMomentDateModule,
-    MatTooltipModule, MatDialogModule, MatBadgeModule,
+    MatTooltipModule, MatDialogModule, MatBadgeModule, MatSnackBarModule,
     SharedModule,
     SearchForCandidateComponent, SelectionQuestionsComponent, HiringQuestionsComponent, HelpInformationComponent,
     RouterLink
@@ -72,10 +87,13 @@ export class RecruitmentPipelineComponent {
   nombreCandidato: string = '';
   numeroDocumento: string = '';
 
-  // Previews locales (para mostrar en modal si existen)
+  // Previews locales
   fotoDataUrl = signal<string | null>(null);
   firmaDataUrl = signal<string | null>(null);
   huellaDataUrl = signal<string | null>(null);
+
+  uploadedFiles: Record<string, LocalFile> = {};
+  serverDocs: Record<string, ServerDocInfo> = {};
 
   // Biometría desde backend
   biometria = signal<{ firma?: any; huella?: any; foto?: any; created_at?: string; updated_at?: string } | null>(null);
@@ -85,12 +103,12 @@ export class RecruitmentPipelineComponent {
   private tieneHuellaSrv = computed(() => !!this.getBioDoc('huella'));
   private tieneFotoSrv = computed(() => !!this.getBioDoc('foto'));
 
-  // Flags UI (preview local o backend)
+  // Flags UI
   tieneFirmaUI = computed(() => !!(this.firmaDataUrl() || this.tieneFirmaSrv()));
   tieneHuellaUI = computed(() => !!(this.huellaDataUrl() || this.tieneHuellaSrv()));
   tieneFotoUI = computed(() => !!(this.fotoDataUrl() || this.tieneFotoSrv()));
 
-  // Helpers para badges (si prefieres usar estos en el template)
+  // Helpers para badges
   badge(kind: BioKind) { return this.tiene(kind) ? '✓' : '✗'; }
   badgeColor(kind: BioKind) { return this.tiene(kind) ? 'primary' : 'warn'; }
   tiene(kind: BioKind): boolean {
@@ -98,10 +116,8 @@ export class RecruitmentPipelineComponent {
   }
 
   sede = signal<string>('');
+  // Un archivo por examen seleccionado (mapeo por índice)
   examFiles = signal<File[]>([]);
-  uploadedFiles = signal<Record<string, { file?: File; fileName?: string }>>({
-    examenesMedicos: { fileName: 'Adjuntar documento' },
-  });
 
   readonly typeMap: Record<string, number> = { examenesMedicos: 32 };
 
@@ -127,6 +143,7 @@ export class RecruitmentPipelineComponent {
   private snack = inject(MatSnackBar);
   private dialog = inject(MatDialog);
   private destroyRef = inject(DestroyRef);
+  private readonly docSvc = inject(GestionDocumentalService);
 
   private util = inject(UtilityServiceService);
   private registroProceso = inject(RegistroProcesoContratacion);
@@ -174,6 +191,11 @@ export class RecruitmentPipelineComponent {
         (exams || []).forEach(() =>
           arr.push(this.fb.group({ aptoStatus: ['APTO', Validators.required] }))
         );
+        // Sincronizar slots de archivos con la cantidad de exámenes seleccionados
+        const files = [...(this.examFiles() ?? [])];
+        files.length = (exams ?? []).length;
+        this.examFiles.set(files);
+
         this.recalcHayNoApto();
       });
 
@@ -208,6 +230,7 @@ export class RecruitmentPipelineComponent {
       if (!cand || !cand.entrevistas?.length) {
         this.formGroup3.reset();
         while (formArray.length) formArray.removeAt(0);
+        this.examFiles.set([]); // limpiar archivos si no hay entrevista
         this.recalcHayNoApto();
         return;
       }
@@ -219,6 +242,7 @@ export class RecruitmentPipelineComponent {
       if (!em) {
         this.formGroup3.patchValue({ ips: '', ipsLab: '', selectedExams: [] }, { emitEvent: false });
         while (formArray.length) formArray.removeAt(0);
+        this.examFiles.set([]);
         this.recalcHayNoApto();
         return;
       }
@@ -237,6 +261,9 @@ export class RecruitmentPipelineComponent {
           const fg = formArray.at(i) as FormGroup;
           fg.patchValue({ aptoStatus: results[i]?.aptoStatus || 'APTO' }, { emitEvent: false });
         }
+        // crear slots de archivos acorde a los exámenes autollenados (vacíos por ahora)
+        const files = new Array<File>(formArray.length);
+        this.examFiles.set(files);
         this.recalcHayNoApto();
       });
     });
@@ -296,6 +323,66 @@ export class RecruitmentPipelineComponent {
     return this.abreviaciones[s] || s;
   }
 
+  // ========= Utilidades nombres/fechas =========
+  private slug(input: string): string {
+    return (input ?? '')
+      .toString()
+      .normalize('NFD').replace(/\p{Diacritic}/gu, '')
+      .replace(/[^a-zA-Z0-9]+/g, '_')
+      .replace(/^_+|_+$/g, '')
+      .toUpperCase();
+  }
+
+  private yyyymmdd(d = new Date()): string {
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}`;
+  }
+
+  private buildExamFilename(examName: string, cedula: string): string {
+    const base = this.slug(examName || 'EXAMEN');
+    return `${base}_${cedula}_${this.yyyymmdd()}.pdf`;
+  }
+
+  // ========= Helpers de UI para no congelar =========
+  private nextFrame(): Promise<void> {
+    return new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
+  }
+  private yieldUI(): Promise<void> {
+    return new Promise<void>(resolve => setTimeout(resolve, 0));
+  }
+
+  // ========= Unir todos los PDFs de exámenes en uno solo =========
+  private async mergeExamPdfs(
+    pairs: { name: string; file: File }[],
+    mergedName: string,
+    onProgress?: (i: number, total: number) => void
+  ): Promise<File> {
+    const pdfDoc = await PDFDocument.create();
+    const total = pairs.length;
+
+    // Lee los ArrayBuffer en paralelo para acelerar I/O
+    const buffers = await Promise.all(pairs.map(p => p.file.arrayBuffer()));
+
+    for (let i = 0; i < total; i++) {
+      const src = await PDFDocument.load(buffers[i], { updateMetadata: false });
+      const copiedPages = await pdfDoc.copyPages(src, src.getPageIndices());
+      copiedPages.forEach(p => pdfDoc.addPage(p));
+      onProgress?.(i + 1, total);
+      await this.yieldUI(); // cede tiempo al UI
+    }
+
+    // Uint8Array con el PDF final
+    const bytes = await pdfDoc.save({ addDefaultPage: false });
+
+    // Crear un ArrayBuffer "puro" y copiar los bytes (evita ArrayBufferLike / SharedArrayBuffer)
+    const ab = new ArrayBuffer(bytes.byteLength);
+    new Uint8Array(ab).set(bytes);
+
+    // Construir el File a partir de ese ArrayBuffer estricto
+    return new File([ab], mergedName, { type: 'application/pdf' });
+  }
+
+  // ========= Guardar + Unir + Subir =========
   async imprimirSaludOcupacional(): Promise<void> {
     const f = this.formGroup3.value;
     const numeroDocumento = this.candidatoSeleccionado()?.numero_documento;
@@ -304,11 +391,23 @@ export class RecruitmentPipelineComponent {
       return;
     }
 
+    // Helpers del loader
+    const renderProgress = (pct: number, fase: string, sub: string = '') => `
+      <div style="width:100%;margin-top:6px">
+        <div style="height:10px;background:#eee;border-radius:6px;overflow:hidden">
+          <div style="height:100%;width:${pct}%;transition:width .2s ease;background:#1976d2"></div>
+        </div>
+        <div style="margin-top:8px;font-size:12px;color:#555">${fase}${sub ? `<br><span style="font-size:11px;color:#777">${sub}</span>` : ''}</div>
+      </div>
+    `;
+    const updateLoader = (pct: number, title: string, sub = '') =>
+      Swal.update({ title, html: renderProgress(pct, title, sub) });
+
+    // --- Datos para payload y NO APTO ---
     const cand = this.candidatoSeleccionado();
     const ent0 = cand?.entrevistas?.[0];
     const proc0 = ent0?.proceso;
     const contratoBE: any = proc0?.contrato || null;
-
     const formContrato: FormGroup | undefined = (this as any).formContrato;
     const llenoUI = formContrato?.valid === true;
 
@@ -345,26 +444,80 @@ export class RecruitmentPipelineComponent {
       }
     }
 
+    // --- Preparar insumos de exámenes ---
+    const selectedExams: string[] = (this.formGroup3.get('selectedExams')?.value || []) as string[];
+    const files: File[] = this.examFiles() || [];
+    const cedula = String(numeroDocumento);
+    const TYPE_EXAM = 32;
+
+    // Pares (nombre, archivo) válidos
+    const pairs = selectedExams
+      .map((name, i) => ({ name: name ?? `EXAMEN_${i + 1}`, file: files[i] }))
+      .filter(p => !!p.file && this.isPdf(p.file));
+
     try {
-      Swal.fire({ title: 'Guardando salud ocupacional...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+      // Abrir loader SIN await y ceder un frame para que pinte
+      Swal.fire({
+        title: 'Preparando…',
+        html: renderProgress(0, 'Preparando…'),
+        allowOutsideClick: false,
+        allowEscapeKey: false,
+        didOpen: () => Swal.showLoading(),
+      });
+      await this.nextFrame();
+
+      // 1) Guardar proceso (10%)
+      updateLoader(10, 'Guardando salud ocupacional…');
       const resp = await firstValueFrom(this.registroProceso.updateProcesoByDocumento(payload, 'PATCH'));
-      Swal.close();
 
       const codigo = (resp as any)?.proceso?.contrato_codigo as string | undefined;
       const okMsg = hayNoApto
         ? 'Examen médico guardado · Proceso RECHAZADO por NO APTO'
         : (codigo ? `Examen médico guardado · Contrato: ${codigo}` : 'Examen médico guardado');
 
-      await Swal.fire({ title: okMsg, icon: 'success', toast: true, position: 'top-end', showConfirmButton: false, timer: 2500, timerProgressBar: true });
+      let resumenHtml = '';
+
+      if (pairs.length) {
+        // 2) Unir PDFs (del 10% al 85%)
+        const mergedName = `EXAMENES_MEDICOS_${cedula}_${this.yyyymmdd()}.pdf`;
+        updateLoader(15, 'Uniendo PDFs de exámenes…', `${pairs.length} archivo(s)`);
+
+        const mergedFile = await this.mergeExamPdfs(pairs, mergedName, (i, total) => {
+          const pct = 15 + Math.round((i / total) * 70); // 15% → 85%
+          updateLoader(pct, `Uniendo PDFs de exámenes… (${i}/${total})`);
+        });
+
+        // 3) Subir PDF consolidado (85% → 100%)
+        updateLoader(88, 'Subiendo PDF consolidado…', mergedName);
+        const obs = this.candidatoSeleccionado()?.codigo_contrato
+          ? this.docSvc.guardarDocumento(mergedFile.name, cedula, TYPE_EXAM, mergedFile, this.candidatoSeleccionado()?.codigo_contrato)
+          : this.docSvc.guardarDocumento(mergedFile.name, cedula, TYPE_EXAM, mergedFile);
+        await firstValueFrom(obs);
+        updateLoader(100, 'Finalizando…');
+
+        resumenHtml = `PDF consolidado subido: <b>${mergedName}</b>`;
+      } else {
+        updateLoader(100, 'Finalizando…');
+        resumenHtml = 'No hay archivos PDF de exámenes para unir.';
+      }
+
+      Swal.close();
+      await Swal.fire({
+        icon: 'success',
+        title: okMsg,
+        html: resumenHtml,
+        confirmButtonText: 'Ok',
+      });
     } catch (err: unknown) {
       Swal.close();
       const http = err as any;
-      const msg = http?.error?.detail || http?.message || 'No se pudo guardar salud ocupacional.';
+      const msg = http?.error?.detail || http?.message || 'No se pudo completar la operación.';
       await Swal.fire({ title: 'Error', text: msg, icon: 'error', confirmButtonText: 'OK' });
       console.error(err);
     }
   }
 
+  // ========= Otros helpers/subidas =========
   subirArchivo(event: any | Blob, campo: string, fileName?: string): Promise<void> {
     return new Promise((resolve, reject) => {
       let file: File | undefined;
@@ -377,7 +530,8 @@ export class RecruitmentPipelineComponent {
         return reject('Nombre demasiado largo');
       }
 
-      this.uploadedFiles.update(u => ({ ...u, [campo]: { file, fileName: file.name } }));
+      // uploadedFiles queda para otros documentos (no exámenes)
+      this.uploadedFiles[campo] = { file, fileName: file.name };
       resolve();
     });
   }
@@ -388,10 +542,10 @@ export class RecruitmentPipelineComponent {
 
   onFileSelected(evt: any, index: number): void {
     const f: File | undefined = evt?.target?.files?.[0];
-    if (this.isPdf(f)) {
-      const arr = [...(this.examFiles() ?? [])];
-      arr[index] = f!;
-      this.examFiles.set(arr);
+    const files = [...(this.examFiles() ?? [])];
+    if (f && this.isPdf(f)) {
+      files[index] = f;
+      this.examFiles.set(files);
     } else {
       Swal.fire('Archivo inválido', 'Seleccione un PDF válido.', 'warning');
     }
@@ -400,9 +554,7 @@ export class RecruitmentPipelineComponent {
   // ───────── Tabla ─────────
   mostrarTabla(): void {
     const ced = this.candidatoSeleccionado()?.numero_documento || this.numeroDocumento;
-    if (!ced) {
-      return;
-    }
+    if (!ced) return;
 
     Swal.fire({
       icon: 'info',
@@ -415,7 +567,6 @@ export class RecruitmentPipelineComponent {
       next: (rows: any) => {
         Swal.close();
 
-        // Normaliza: el servicio puede devolver objeto o arreglo
         const data = Array.isArray(rows) ? rows : (rows ? [rows] : []);
 
         const columns: ColumnDefinition[] = [
@@ -433,9 +584,7 @@ export class RecruitmentPipelineComponent {
           { name: 'motivo_no_aplica', header: 'Motivo no aplica', type: 'text', width: '240px' },
           { name: 'motivo_espera', header: 'Motivo espera', type: 'text', width: '220px' },
           { name: 'detalle', header: 'Detalle', type: 'text', width: '260px' },
-          // acciones podrían ir aquí
           { name: 'actions', header: 'Acciones', type: 'custom', width: '120px', stickyEnd: true },
-
         ];
 
         this.dialog.open(TableDialogComponent, {
@@ -460,15 +609,9 @@ export class RecruitmentPipelineComponent {
     });
   }
 
-
-
-  // ───────── Cámara ─────────
-  // ───────── Cámara ─────────
   // ───────── Cámara ─────────
   async openCamera(): Promise<void> {
-    // foto existente: primero la local (dataURL), si no, la del backend
-    const initialPreview =
-      this.fotoDataUrl() || this.getBioUrl('foto') || null;
+    const initialPreview = this.fotoDataUrl() || this.getBioUrl('foto') || null;
 
     const ref = this.dialog.open<
       CameraDialogComponent,
@@ -484,26 +627,19 @@ export class RecruitmentPipelineComponent {
     const result = await firstValueFrom(ref.afterClosed());
     if (!result) return;
 
-    // Cedula a usar para el upload
     const numero = this.candidatoSeleccionado()?.numero_documento || this.numeroDocumento;
     if (!numero) {
       await Swal.fire('Información', 'Selecciona un candidato antes de tomar la foto.', 'info');
       return;
     }
 
-    // Preview local (para la UI)
     this.fotoDataUrl.set(result.previewUrl);
 
-    // Subir al backend (si hay file)
     try {
       Swal.fire({ title: 'Subiendo foto...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
-
       await firstValueFrom(this.registroProceso.uploadFoto(String(numero), result.file));
-
       Swal.close();
       await Swal.fire('Éxito', 'Foto subida correctamente', 'success');
-
-      // Refrescar biometría para que el badge se ponga ✓
       await this.refreshBiometriaForCandidate(String(numero));
     } catch (err) {
       console.error(err);
@@ -512,17 +648,12 @@ export class RecruitmentPipelineComponent {
     }
   }
 
-
-
   // ───────── Ver archivos con una sola función ─────────
   ver(kind: BioKind): void {
     const label = kind === 'huella' ? 'Huella' : kind === 'firma' ? 'Firma' : 'Foto';
-
-    // 1) Si hay preview local (data URL), mostrar en modal
     const local = this.bioLocal(kind);
     if (local) { this.showBase64(label, local); return; }
 
-    // 2) Si hay URL remota, abrir en pestaña nueva (evita CSP)
     const url = this.getBioUrl(kind);
     if (!url) {
       this.snack.open(`No hay ${label.toLowerCase()} disponible.`, 'OK', { duration: 2500 });
@@ -531,12 +662,11 @@ export class RecruitmentPipelineComponent {
     this.openInNewTab(url);
   }
 
-  // Wrappers para no romper plantillas antiguas
   verHuella(): void { this.ver('huella'); }
   verFirma(): void { this.ver('firma'); }
   verFoto(): void { this.ver('foto'); }
 
-  // Helpers —–––––––––––––––––––––––––––––––––
+  // Helpers
   private bioLocal(kind: BioKind): string | null {
     switch (kind) {
       case 'foto': return this.fotoDataUrl();
@@ -608,7 +738,7 @@ export class RecruitmentPipelineComponent {
     const len = binary.length;
     const bytes = new Uint8Array(len);
     for (let i = 0; i < len; i++) bytes[i] = binary.charCodeAt(i);
-    return new File([bytes], filename, { type: mime });
+    return new File([bytes.buffer], filename, { type: mime });
   }
 
   private recalcHayNoApto(): void {
@@ -616,44 +746,9 @@ export class RecruitmentPipelineComponent {
     this.hayNoApto.set(Array.isArray(arr) && arr.some(x => this.isNoApto(x?.aptoStatus)));
   }
 
-  private async elegirProcesoBonitoSinIdONuevo(items: any[]): Promise<any | 'NEW' | null> {
-    if (!Array.isArray(items) || items.length === 0) return 'NEW';
-    return this.elegirUltimoProceso(items);
-  }
-
-  private elegirUltimoProceso(items: any[]): any {
-    const toEpoch = (it: any): number => {
-      const raw = it?.marcaTemporal ?? it?.fecha ?? it?.created_at ?? it?.updated_at ?? null;
-      if (raw instanceof Date) return raw.getTime();
-      if (typeof raw === 'string') {
-        const str = raw.includes(' ') ? raw.replace(' ', 'T') : raw;
-        const t = Date.parse(str);
-        if (!Number.isNaN(t)) return t;
-      }
-      return NaN;
-    };
-
-    const toId = (it: any): number => Number(it?.id) || -Infinity;
-
-    return items.reduce((best, cur) => {
-      const tb = toEpoch(best);
-      const tc = toEpoch(cur);
-      if (Number.isNaN(tb) && !Number.isNaN(tc)) return cur;
-      if (!Number.isNaN(tb) && Number.isNaN(tc)) return best;
-      if (!Number.isNaN(tb) && !Number.isNaN(tc)) {
-        if (tc > tb) return cur;
-        if (tc < tb) return best;
-        return toId(cur) > toId(best) ? cur : best;
-      }
-      return toId(cur) > toId(best) ? cur : best;
-    }, items[0]);
-  }
-
-  // ===== Biometría =====
   private async refreshBiometriaForCandidate(cedula: string): Promise<void> {
     try {
       const data: any = await firstValueFrom(this.registroProceso.getBiometriaPorCedula(cedula));
-      // Puede venir como objeto {firma,huella,foto} o como arrays; nos quedamos con el primero.
       this.biometria.set({
         firma: Array.isArray(data?.firma) ? data.firma[0] : data?.firma ?? null,
         huella: Array.isArray(data?.huella) ? data.huella[0] : data?.huella ?? null,
