@@ -77,7 +77,7 @@ export class VacantesComponent implements OnInit {
   viewMode: 'table' | 'card' | 'faltantes' | 'completados' = 'table';
   loading = false;
   permitido = false;
-
+  sede = '';
   @ViewChild(MatPaginator) paginator!: MatPaginator;
   @ViewChild(MatSort) sort!: MatSort;
 
@@ -96,6 +96,7 @@ export class VacantesComponent implements OnInit {
     this.loadData();
 
     const user = this.utilityService.getUser();
+    this.sede = user?.sede.nombre || '';
     this.permitido = this.isManager(user);
 
     this.dataSource.filterPredicate = (data: any, filter: string) =>
@@ -429,7 +430,7 @@ export class VacantesComponent implements OnInit {
     ref.afterClosed().subscribe(result => {
       if (result) {
         const { start, end } = result;
-        this.vacantesService.getVacantesExcel(start, end).subscribe(blob => {
+        this.vacantesService.getVacantesExcel(start, end, this.sede).subscribe(blob => {
           const url = URL.createObjectURL(blob);
           const a = document.createElement('a');
           a.href = url;

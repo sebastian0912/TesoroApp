@@ -18,7 +18,11 @@
 .grid {
   display: grid;
   gap: 16px;
-  grid-template-columns: 1fr; /* móvil */
+  grid-template-columns: 1fr; 
+}
+
+.example-full-width {
+  min-width: 100% !important;
 }
 
 /* Acciones (footer del formulario) */
