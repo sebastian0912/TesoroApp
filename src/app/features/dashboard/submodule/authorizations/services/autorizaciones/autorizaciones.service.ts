@@ -131,6 +131,16 @@ export class AutorizacionesService {
         limite += 50000; // Añadimos 50,000 al límite para usuarios de rol "TIENDA"
       }
 
+      // si tiene mas de 60 días puedo aumentar 150.000
+      if (diasTrabajados > 60 && user.rol.nombre !== 'TIENDA' && user.rol.nombre !== 'ESPECIAL') {
+        limite += 150000;
+      }
+
+      // si el correo logueado es servicioalcliente.tuapo1@gmail.com y lleva 90 dias puede sacar 400.000
+      if (diasTrabajados > 90 && user.correo_electronico === 'servicioalcliente.tuapo1@gmail.com') {
+        limite = 400000;
+      }
+
       if (sumaTotal + nuevovalor > limite) {
         this.aviso(`Ups no se pueden generar mercado, puede sacar máximo ${limite - sumaTotal}`, 'error');
         return false;

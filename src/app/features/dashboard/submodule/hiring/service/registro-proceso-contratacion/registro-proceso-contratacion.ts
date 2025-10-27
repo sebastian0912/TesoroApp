@@ -200,6 +200,13 @@ export class RegistroProcesoContratacion {
 
   // ===================== CANDIDATOS =====================
 
+  // contratacion/candidatos-tabla/
+  listCandidatosTabla(opts?: ListOptions): Observable<any[]> {
+    return this.http
+      .get<any[]>(this.url('contratacion/candidatos-tabla'), { params: this.buildParams(opts) })
+      .pipe(this.handle$());
+  } 
+
   // Lista básica (serializer simple)
   listCandidatos(opts?: ListOptions): Observable<any[]> {
     return this.http

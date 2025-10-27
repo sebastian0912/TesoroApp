@@ -163,15 +163,67 @@ export class RecruitmentPipelineComponent {
   private hayNoApto = signal<boolean>(false);
   private _warnedNoApto = signal<boolean>(false);
 
+  // 🔔 control para no spamear toasts
+  private _lastMissingKey = signal<string>('');
+
+  // ───────── Overlay Toast persistente (no-Swal) ─────────
+  private _toastNode: HTMLDivElement | null = null;
+
+  private _ensureToastNode(): HTMLDivElement {
+    if (this._toastNode && document.body.contains(this._toastNode)) return this._toastNode;
+
+    const node = document.createElement('div');
+    node.setAttribute('role', 'status');
+    node.style.position = 'fixed';
+    node.style.top = '12px';
+    node.style.right = '12px';
+    node.style.maxWidth = '420px';
+    node.style.zIndex = '2147483647';
+    node.style.pointerEvents = 'auto';
+
+    node.innerHTML = `
+      <div style="
+        background:#fff;border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.18);
+        border:1px solid rgba(0,0,0,.08);overflow:hidden;font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,'Helvetica Neue',Arial;
+      ">
+        <div style="display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid rgba(0,0,0,.06);">
+          <span style="display:inline-flex;width:22px;height:22px;align-items:center;justify-content:center;border-radius:50%;background:#e8f0fe;">ℹ️</span>
+          <div style="font-weight:600;color:#222">Faltan requisitos para Contratación</div>
+          <button type="button" aria-label="Cerrar" style="
+            margin-left:auto;background:transparent;border:0;cursor:pointer;font-size:18px;line-height:1;color:#444;padding:2px 6px;border-radius:8px;
+          ">&times;</button>
+        </div>
+        <div class="body" style="padding:10px 14px;color:#333;font-size:13px;line-height:1.35;max-height:45vh;overflow:auto;"></div>
+      </div>
+    `;
+
+    const closeBtn = node.querySelector('button');
+    closeBtn?.addEventListener('click', () => this._closeToast());
+
+    document.body.appendChild(node);
+    this._toastNode = node;
+    return node;
+  }
+
+  private _renderToast(htmlList: string): void {
+    const node = this._ensureToastNode();
+    const body = node.querySelector('.body') as HTMLElement | null;
+    if (body) body.innerHTML = htmlList;
+  }
+
+  private _closeToast(): void {
+    if (this._toastNode) {
+      this._toastNode.remove();
+      this._toastNode = null;
+    }
+  }
+
   private isNoApto = (v: unknown) =>
     String(v ?? '')
       .normalize('NFD')
       .replace(/\p{Diacritic}/gu, '')
       .replace(/[\s_]+/g, '')
       .toUpperCase() === 'NOAPTO';
-
-  // === Señal computada para el template ===
-  deshabilitarContratacion = computed(() => this.hayNoApto());
 
   constructor() {
     const safeJson = <T>(raw: any, fallback: T): T => {
@@ -284,6 +336,32 @@ export class RecruitmentPipelineComponent {
       }
       if (!hay && this._warnedNoApto()) this._warnedNoApto.set(false);
     });
+
+    // 5) 🔔 Toast AUTOMÁTICO (overlay propio) con detalle de lo que FALTA (top-end)
+    effect(() => {
+      const cand = this.candidatoSeleccionado();
+      if (!cand) { this._closeToast(); return; }
+
+      const missing = this._missingForContratacion();
+      const key = missing.join('|');
+
+      // solo mostrar si hay algo faltante y cambió el "hash" de motivos
+      if (missing.length > 0) {
+        if (key !== this._lastMissingKey()) {
+          this._lastMissingKey.set(key);
+          const htmlList = `<ul style="margin:0;padding-left:18px;text-align:left">
+            ${missing.map(m => `<li>${m}</li>`).join('')}
+          </ul>`;
+          this._renderToast(htmlList);
+        } else {
+          // ya estaba abierto, no actualizar => nada
+        }
+      } else {
+        // ya no falta nada ⇒ cerrar si está abierto
+        this._lastMissingKey.set('');
+        this._closeToast();
+      }
+    });
   }
 
   // ───────── API UI ────────
@@ -311,6 +389,111 @@ export class RecruitmentPipelineComponent {
 
   generacionDocumentos(): void {
     this.router.navigate(['dashboard/hiring/generate-contracting-documents']);
+  }
+
+  // ───────── VALIDACIÓN PARA HABILITAR/DESHABILITAR CONTRATACIÓN ─────────
+  private _norm(s: any): string {
+    return String(s ?? '')
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      .toUpperCase().trim();
+  }
+
+  private _firstProceso(cand: any): any | null {
+    const ent0 = cand?.entrevistas?.[0];
+    return ent0?.proceso ?? null;
+  }
+
+  private _antecedenteValor(proc: any, nombre: string): string | null {
+    const want = this._norm(nombre);
+    const lista = proc?.antecedentes ?? [];
+    let val: string | null = null;
+    for (const it of lista) {
+      if (this._norm(it?.nombre) === want) {
+        val = it?.observacion ?? null; // si hay duplicados, se queda con el último
+      }
+    }
+    return val;
+  }
+
+  private _antecedentesCumplen(proc: any): boolean {
+    // Regla estricta: EPS = "CUMPLE", PROCURADURIA = "CUMPLE", POLICIVOS = "CUMPLE"
+    const eps  = this._norm(this._antecedenteValor(proc, 'EPS'));
+    const pro  = this._norm(this._antecedenteValor(proc, 'PROCURADURIA'));
+    const poli = this._norm(this._antecedenteValor(proc, 'POLICIVOS'));
+    return eps === 'CUMPLE' && pro === 'CUMPLE' && poli === 'CUMPLE';
+  }
+
+  private _etapasOk(proc: any): boolean {
+    const entrevistado = proc?.entrevistado === true;
+    const remision = proc?.remision === true; // requerido explícitamente
+    const pruebaOAprob = proc?.prueba_tecnica === true || proc?.autorizado === true;
+    const examenes = proc?.examenes_medicos === true;
+    return entrevistado && remision && pruebaOAprob && examenes;
+  }
+
+  /** Devuelve lista de mensajes con lo que falta para habilitar Contratación */
+private _missingForContratacion(): string[] {
+  const cand = this.candidatoSeleccionado();
+  if (!cand || !Array.isArray(cand.entrevistas) || cand.entrevistas.length === 0) {
+    return ['Debe existir al menos una entrevista (entrevistas[0]).'];
+  }
+
+  const proc = this._firstProceso(cand);
+  if (!proc) return ['La primera entrevista no tiene proceso asociado.'];
+
+  const missing: string[] = [];
+
+  // Antecedentes
+  const vEPS  = this._antecedenteValor(proc, 'EPS');
+  const vPROC = this._antecedenteValor(proc, 'PROCURADURIA');
+  const vPOLI = this._antecedenteValor(proc, 'POLICIVOS');
+
+  // ✅ EPS: sólo que NO esté vacío
+  if (!vEPS || this._norm(vEPS).length === 0) {
+    missing.push(`Antecedente EPS no debe estar vacío (actual: ${vEPS ?? 'sin registro'})`);
+  }
+
+  // Se mantienen estos como "CUMPLE"
+  if (this._norm(vPROC) !== 'CUMPLE') {
+    missing.push(`Antecedente PROCURADURIA debe estar en "CUMPLE" (actual: ${vPROC ?? 'sin registro'})`);
+  }
+  if (this._norm(vPOLI) !== 'CUMPLE') {
+    missing.push(`Antecedente POLICIVOS debe estar en "CUMPLE" (actual: ${vPOLI ?? 'sin registro'})`);
+  }
+
+  // Etapas del proceso
+  if (proc?.entrevistado !== true) {
+    missing.push('Marcar proceso.entrevistado en TRUE.');
+  }
+
+  // ❌ remision ya no es requisito
+  // if (proc?.remision !== true) missing.push('Marcar proceso.remision en TRUE.');
+
+  // ✅ Al menos uno: prueba_tecnica o autorizado
+  const tienePruebaTecnica = proc?.prueba_tecnica === true;
+  const tieneAutorizado    = proc?.autorizado === true;
+  if (!(tienePruebaTecnica || tieneAutorizado)) {
+    missing.push('Debe estar TRUE al menos uno: "prueba_tecnica" o "autorizado".');
+  }
+
+  if (proc?.examenes_medicos !== true) {
+    missing.push('Marcar proceso.examenes_medicos en TRUE.');
+  }
+
+  // NO APTO local (form)
+  const arr = (this.selectedExamsArray.value ?? []) as ExamenResultadoForm[];
+  const hayNoApto = Array.isArray(arr) && arr.some(x => this.isNoApto(x?.aptoStatus));
+  if (hayNoApto) {
+    missing.push('Hay al menos un examen con resultado "NO APTO".');
+  }
+
+  return missing;
+}
+
+
+  // Usado por la plantilla: <mat-tab [disabled]="deshabilitarContratacion()">
+  deshabilitarContratacion(): boolean {
+    return this._missingForContratacion().length > 0;
   }
 
   // ───────── Salud ocupacional (PDF) ─────────
@@ -374,11 +557,10 @@ export class RecruitmentPipelineComponent {
     // Uint8Array con el PDF final
     const bytes = await pdfDoc.save({ addDefaultPage: false });
 
-    // Crear un ArrayBuffer "puro" y copiar los bytes (evita ArrayBufferLike / SharedArrayBuffer)
+    // ArrayBuffer "puro"
     const ab = new ArrayBuffer(bytes.byteLength);
     new Uint8Array(ab).set(bytes);
 
-    // Construir el File a partir de ese ArrayBuffer estricto
     return new File([ab], mergedName, { type: 'application/pdf' });
   }
 
@@ -422,7 +604,7 @@ export class RecruitmentPipelineComponent {
     const hayNoApto = resultadosArr.some(r => typeof r?.aptoStatus === 'boolean' ? r.aptoStatus === false : norm(r?.aptoStatus) === 'NO APTO');
 
     const payload: any = {
-      numero_documento: numeroDocumento,
+      numero_documento: String(numeroDocumento),
       examen_medico: {
         ips: f?.ips ?? null,
         ips_lab: f?.ipsLab ?? null,
@@ -456,7 +638,7 @@ export class RecruitmentPipelineComponent {
       .filter(p => !!p.file && this.isPdf(p.file));
 
     try {
-      // Abrir loader SIN await y ceder un frame para que pinte
+      // Abrir loader
       Swal.fire({
         title: 'Preparando…',
         html: renderProgress(0, 'Preparando…'),
@@ -478,12 +660,12 @@ export class RecruitmentPipelineComponent {
       let resumenHtml = '';
 
       if (pairs.length) {
-        // 2) Unir PDFs (del 10% al 85%)
+        // 2) Unir PDFs (15% → 85%)
         const mergedName = `EXAMENES_MEDICOS_${cedula}_${this.yyyymmdd()}.pdf`;
         updateLoader(15, 'Uniendo PDFs de exámenes…', `${pairs.length} archivo(s)`);
 
         const mergedFile = await this.mergeExamPdfs(pairs, mergedName, (i, total) => {
-          const pct = 15 + Math.round((i / total) * 70); // 15% → 85%
+          const pct = 15 + Math.round((i / total) * 70);
           updateLoader(pct, `Uniendo PDFs de exámenes… (${i}/${total})`);
         });
 

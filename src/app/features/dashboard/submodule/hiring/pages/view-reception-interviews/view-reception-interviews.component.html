@@ -96,45 +96,45 @@
             <td mat-cell *matCellDef="let e">{{ e.segundo_nombre }}</td>
           </ng-container>
 
-<!-- Pre registro -->
-<ng-container matColumnDef="pre_registro">
-  <th mat-header-cell *matHeaderCellDef>Pre registro</th>
-  <td mat-cell *matCellDef="let e">
-    <span class="bool-chip" [class.si]="e.pre_registro" [class.no]="!e.pre_registro">
-      {{ e.pre_registro ? 'Sí' : 'No' }}
-    </span>
-  </td>
-</ng-container>
+          <!-- Pre registro -->
+          <ng-container matColumnDef="pre_registro">
+            <th mat-header-cell *matHeaderCellDef>Pre registro</th>
+            <td mat-cell *matCellDef="let e">
+              <span class="bool-chip" [class.si]="e.pre_registro" [class.no]="!e.pre_registro">
+                {{ e.pre_registro ? 'Sí' : 'No' }}
+              </span>
+            </td>
+          </ng-container>
 
-<!-- Entrevistado -->
-<ng-container matColumnDef="entrevistado">
-  <th mat-header-cell *matHeaderCellDef>Entrevistado</th>
-  <td mat-cell *matCellDef="let e">
-    <span class="bool-chip" [class.si]="e.entrevistado" [class.no]="!e.entrevistado">
-      {{ e.entrevistado ? 'Sí' : 'No' }}
-    </span>
-  </td>
-</ng-container>
+          <!-- Entrevistado -->
+          <ng-container matColumnDef="entrevistado">
+            <th mat-header-cell *matHeaderCellDef>Entrevistado</th>
+            <td mat-cell *matCellDef="let e">
+              <span class="bool-chip" [class.si]="e.entrevistado" [class.no]="!e.entrevistado">
+                {{ e.entrevistado ? 'Sí' : 'No' }}
+              </span>
+            </td>
+          </ng-container>
 
-<!-- Exámenes médicos -->
-<ng-container matColumnDef="examenes_medicos">
-  <th mat-header-cell *matHeaderCellDef>Exámenes médicos</th>
-  <td mat-cell *matCellDef="let e">
-    <span class="bool-chip" [class.si]="e.examenes_medicos" [class.no]="!e.examenes_medicos">
-      {{ e.examenes_medicos ? 'Sí' : 'No' }}
-    </span>
-  </td>
-</ng-container>
+          <!-- Exámenes médicos -->
+          <ng-container matColumnDef="examenes_medicos">
+            <th mat-header-cell *matHeaderCellDef>Exámenes médicos</th>
+            <td mat-cell *matCellDef="let e">
+              <span class="bool-chip" [class.si]="e.examenes_medicos" [class.no]="!e.examenes_medicos">
+                {{ e.examenes_medicos ? 'Sí' : 'No' }}
+              </span>
+            </td>
+          </ng-container>
 
-<!-- Contratado -->
-<ng-container matColumnDef="contratado">
-  <th mat-header-cell *matHeaderCellDef>Contratado</th>
-  <td mat-cell *matCellDef="let e">
-    <span class="bool-chip" [class.si]="e.contratado" [class.no]="!e.contratado">
-      {{ e.contratado ? 'Sí' : 'No' }}
-    </span>
-  </td>
-</ng-container>
+          <!-- Contratado -->
+          <ng-container matColumnDef="contratado">
+            <th mat-header-cell *matHeaderCellDef>Contratado</th>
+            <td mat-cell *matCellDef="let e">
+              <span class="bool-chip" [class.si]="e.contratado" [class.no]="!e.contratado">
+                {{ e.contratado ? 'Sí' : 'No' }}
+              </span>
+            </td>
+          </ng-container>
 
 
 

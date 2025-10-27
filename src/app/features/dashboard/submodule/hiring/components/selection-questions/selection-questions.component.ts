@@ -32,15 +32,31 @@ type ListSource = 'epsList' | 'afpList' | 'categoriasSisben' | 'medidasCorrectiv
 type FieldType = 'estado' | 'list' | 'number';
 
 interface FieldDef {
-  /** clave para formControl y/o archivos */
   key: DocKey;
   label: string;
   type: FieldType;
   optionSource?: ListSource;
   placeholder?: string;
-  /** si quieres que el control se llame distinto al key (ej: pensionSemanas -> semanasCotizadas) */
   control?: string;
 }
+
+/* ===== Cola de antecedentes (viene del backend) ===== */
+type ColaKey =
+  | 'adress'
+  | 'policivo'
+  | 'ofac'
+  | 'contraloria'
+  | 'sisben'
+  | 'procuraduria'
+  | 'fondo_pension'
+  | 'medidas_correctivas';
+
+interface ColaItem {
+  estado: 'FINALIZADO' | 'EN_PROGRESO' | 'SIN_CONSULTAR' | 'DESCARGADO ROBOT' | 'SIN_REGISTRO' | string;
+  faltan_antes: number | null;
+}
+
+type ColaRaw = Partial<Record<ColaKey, ColaItem>>;
 
 /* ============== Constantes (catálogos/UI) ============== */
 const DEFAULT_UPLOADED_FILES: Record<DocKey, UploadedFileInfo> = {
@@ -78,7 +94,6 @@ const MAP_NOMBRE_TO_KEY: Record<string, FormPatchKeys> = {
   SEMANAS_COTIZADAS: 'semanasCotizadas',
 };
 
-/* ===================== Componente ===================== */
 @Component({
   selector: 'app-selection-questions',
   standalone: true,
@@ -143,6 +158,30 @@ export class SelectionQuestionsComponent {
   private _ctx = 0;
   cedula: string | null = null;
 
+  /* -------- Cola de antecedentes (para la UI) -------- */
+  private colaRaw: ColaRaw | null = null;
+
+  /** Mapa de campos del formulario -> clave en cola_antecedentes */
+  /** Mapa de campos del formulario -> clave en cola_antecedentes */
+  private readonly colaKeyMap: Record<DocKey, ColaKey | null> = {
+    // con cola
+    eps: 'adress',                      // ← EPS usa 'adress'
+    policivos: 'policivo',
+    ramaJudicial: 'policivo',           // ← Rama Judicial también usa 'policivo'
+    procuraduria: 'procuraduria',
+    contraloria: 'contraloria',
+    ofac: 'ofac',
+    sisben: 'sisben',
+    medidasCorrectivas: 'medidas_correctivas',
+    // opcional (muestra la cola de AFP):
+    afp: 'fondo_pension',               // ← quítalo si no la quieres mostrar
+
+    // sin cola
+    figuraHumana: null,
+    pensionSemanas: null,
+  };
+
+
   constructor(
     private fb: FormBuilder,
     private docsSrv: GestionDocumentalService,
@@ -166,8 +205,12 @@ export class SelectionQuestionsComponent {
     // Reacciona al candidato seleccionado
     effect(() => {
       const candidato = this.candidatoSeleccionado();
+      // Fix: proceso (no "processo")
       const proc = candidato?.entrevistas?.[0]?.proceso;
       this.cedula = (candidato?.numero_documento ?? candidato?.numeroDocumento ?? null) as string | null;
+
+      // Cola de antecedentes (camelCase o snake_case)
+      this.colaRaw = (candidato?.cola_antecedentes ?? candidato?.colaAntecedentes ?? null) as ColaRaw | null;
 
       this.resetUploadedFilesAsNew();
       this.patchSeleccion(proc?.antecedentes ?? null);
@@ -203,6 +246,53 @@ export class SelectionQuestionsComponent {
     return '#6E7781';
   }
   trackByIndex(index: number): number { return index; }
+
+  /* ===== Cola: helpers que usa el template para la píldora ===== */
+  hasQueue(fld: FieldDef): boolean {
+    const k = this.colaKeyMap[fld.key];
+    return !!(k && this.colaRaw && this.colaRaw[k]);
+  }
+
+  colaEstado(fld: FieldDef): string | null {
+    const k = this.colaKeyMap[fld.key];
+    const it = k ? this.colaRaw?.[k] : undefined;
+    if (!it) return null;
+    // normaliza: FINALIZADO también se muestra como DESCARGADO ROBOT
+    if ((it.estado || '').toUpperCase() === 'FINALIZADO') return 'DESCARGADO ROBOT';
+    return it.estado || null;
+  }
+
+  queueLabelFor(fld: FieldDef): string {
+    const k = this.colaKeyMap[fld.key];
+    const it = k ? this.colaRaw?.[k] : undefined;
+    if (!it) return '—';
+    const estado = (it.estado || '').toUpperCase();
+    if (estado === 'DESCARGADO ROBOT' || estado === 'FINALIZADO') return 'DESCARGADO ROBOT';
+    if (typeof it.faltan_antes === 'number') return `${it.faltan_antes} antes`;
+    return '—';
+  }
+
+  queueTooltipFor(fld: FieldDef): string {
+    const k = this.colaKeyMap[fld.key];
+    const it = k ? this.colaRaw?.[k] : undefined;
+    if (!it) return 'Sin datos de cola';
+    const estado = (it.estado || '').toUpperCase();
+    if (estado === 'DESCARGADO ROBOT' || estado === 'FINALIZADO') {
+      return 'Este antecedente ya fue DESCARGADO ROBOT.';
+    }
+    const n = typeof it.faltan_antes === 'number' ? it.faltan_antes : null;
+    return n == null
+      ? `Estado: ${estado}`
+      : `Estado: ${estado} · Faltan ${n} antes en la cola`;
+  }
+
+  queuePillClass(fld: FieldDef): string {
+    const est = (this.colaEstado(fld) || '').toUpperCase();
+    if (est === 'DESCARGADO ROBOT') return 'q-pill q-ok';
+    if (est === 'EN_PROGRESO') return 'q-pill q-progress';
+    if (est === 'SIN_CONSULTAR') return 'q-pill q-wait';
+    return 'q-pill q-none';
+  }
 
   /* ===================== Carga antecedentes -> form ===================== */
   private patchSeleccion(raw: any): void {
@@ -360,7 +450,7 @@ export class SelectionQuestionsComponent {
 
     const v: Record<string, unknown> = this.antecedentes.value ?? {};
 
-    // ------ Normalizadores fuertes (evitan {} | any) ------
+    // ------ Normalizadores fuertes ------
     const toUpperStrOrNull = (x: unknown): string | null => {
       const s = (x ?? '').toString().trim().toUpperCase();
       return s ? s : null;
@@ -511,5 +601,4 @@ function buildPatchFromAntecedentes(raw: any, base: FormPatchBase): FormPatchBas
     }
   }
   return out as FormPatchBase;
-
 }

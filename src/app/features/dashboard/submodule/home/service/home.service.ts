@@ -1,7 +1,9 @@
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Inject, Injectable, PLATFORM_ID } from '@angular/core';
-import { Observable, catchError } from 'rxjs';
+import { Observable, catchError, map } from 'rxjs';
 import { environment } from '../../../../../../environments/environment.development';
+
+type Granularidad = 'dia' | 'semana' | 'mes';
 
 @Injectable({
   providedIn: 'root'
@@ -125,11 +127,115 @@ export class HomeService {
 
 
 
+  // Método para enviar Estados Robots de forma masiva
+  enviarEstadosRobots(datos: any[]): Observable<any> {
+    const url = `${this.apiUrl}/EstadosRobots/cargar_excel`; // Ajusta según tu endpoint real
+
+    // Construir el body con JWT y los datos
+    const body = {
+      datos   // Los datos que quieres enviar al backend
+    };
+
+    return this.http.post(url, body).pipe(
+      map((response: any) => response),
+      catchError(this.handleError)
+    );
+  }
 
 
 
+  /**
+   * Promedios globales por estado, opcionalmente filtrados por oficina y granularidad.
+   * GET /robot/tiempos/promedios/?granularidad=dia|semana|mes&oficina=SUBA
+   */
+  getPromedios(granularidad?: Granularidad, oficina?: string): Observable<any> {
+    let params = new HttpParams();
+    if (granularidad) params = params.set('granularidad', granularidad);
+    if (oficina) params = params.set('oficina', oficina);
+
+    const url = `${this.apiUrl}/EstadosRobots/promedios/`;
+    return this.http.get<any>(url, { params });
+  }
+
+  /**
+   * Resumen agregado (hoy / semana / mes) en un solo payload.
+   * GET /robot/tiempos/promedios/resumen/?oficina=SUBA
+   */
+  getPromediosResumen(oficina?: string): Observable<any> {
+    let params = new HttpParams();
+    if (oficina) params = params.set('oficina', oficina);
+
+    const url = `${this.apiUrl}/EstadosRobots/promedios/resumen/`;
+    return this.http.get<any>(url, { params });
+  }
+
+  /**
+   * Promedios para todas las granularidades en una llamada.
+   * GET /robot/tiempos/promedios/todos/?oficina=SUBA
+   */
+  getPromediosTodos(oficina?: string): Observable<any> {
+    let params = new HttpParams();
+    if (oficina) params = params.set('oficina', oficina);
+
+    const url = `${this.apiUrl}/EstadosRobots/promedios/todos/`;
+    return this.http.get<any>(url, { params });
+  }
+
+  /**
+   * Promedios para un estado específico (Adress, Policivo, Ofac, etc.).
+   * GET /robot/tiempos/promedios/estado/{estado}/?granularidad=mes&oficina=SUBA
+   */
+  getPromedioPorEstado(estado: string, granularidad?: Granularidad, oficina?: string): Observable<any> {
+    let params = new HttpParams();
+    if (granularidad) params = params.set('granularidad', granularidad);
+    if (oficina) params = params.set('oficina', oficina);
+
+    const url = `${this.apiUrl}/EstadosRobots/promedios/estado/${encodeURIComponent(estado)}/`;
+    return this.http.get<any>(url, { params });
+  }
 
 
+ /**
+   * GET /EstadosRobots/periodos-unificado/?format=combined
+   * Filtros (opcionales):
+   * - oficina: "SUBA,FACA_PRINCIPAL"  (OR por icontains)
+   * - paquete: "Vacantes"
+   * - robot:   "NombreDelRobot"
+   *
+   * Respuesta (todo junto):
+   * {
+   *   rango: {...},
+   *   dia:    { promedios:{}, finalizados:{}, pendientes:{}, muestra_registros_corte: N, estados_por_oficina:{...} },
+   *   semana: { ... },
+   *   mes:    { ... }
+   * }
+   */
+  getRobotPeriodosUnificado(
+    opts?: { oficina?: string; paquete?: string; robot?: string }
+  ): Observable<any> {
+    let params = new HttpParams().set('format', 'combined');
+    if (opts?.oficina) params = params.set('oficina', opts.oficina);
+    if (opts?.paquete) params = params.set('paquete', opts.paquete);
+    if (opts?.robot)   params = params.set('robot', opts.robot);
 
+    const url = `${this.apiUrl}/EstadosRobots/periodos-unificado/`;
+    return this.http.get<any>(url, { params });
+  }
+
+  // ===== Compatibilidad con tus nombres previos (redirigen al unificado) =====
+
+  getEstadosPorOficinaPeriodos(
+    opts?: { oficina?: string; paquete?: string; robot?: string }
+  ): Observable<any> {
+    return this.getRobotPeriodosUnificado(opts);
+  }
+
+  getEstadosPorOficinaPeriodosArgs(
+    oficina?: string,
+    paquete?: string,
+    robot?: string,
+  ): Observable<any> {
+    return this.getRobotPeriodosUnificado({ oficina, paquete, robot });
+  }
 
 }
