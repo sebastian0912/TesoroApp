@@ -182,6 +182,12 @@ export class AutorizacionMercadoComponent implements OnInit {
     }
   }
 
+  private escapeHtml(value: string): string {
+    const div = document.createElement('div');
+    div.textContent = value ?? '';
+    return div.innerHTML;
+  }
+
   // Función para buscar operario
   buscarOperario() {
     // si cedula no es válida
@@ -231,13 +237,25 @@ export class AutorizacionMercadoComponent implements OnInit {
           return;
         }
 
-        if (this.datosOperario.bloqueado) {
+        if (this.datosOperario?.bloqueado) {
+          const motivo = this.datosOperario?.observacion_bloqueo ?? 'Sin observación';
+          const safeMotivo = this.escapeHtml(motivo);
+
+          Swal.fire({
+            icon: 'error',
+            title: 'Empleado bloqueado',
+            html: `
+      El empleado con la cédula proporcionada se encuentra bloqueado y no puede solicitar autorizaciones.
+      <br><br><b>Motivo:</b> ${safeMotivo}
+    `
+          });
+
           this.datosOperario = null;
-          Swal.fire({ icon: 'error', title: 'Empleado bloqueado', text: 'El empleado con la cédula proporcionada se encuentra bloqueado y no puede solicitar autorizaciones.' });
           return;
         }
-
+        
       },
+
       (error: any) => {
         Swal.close();
 
