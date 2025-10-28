@@ -45,8 +45,7 @@
       </div>
 
       <div class="actions">
-        <button mat-flat-button color="primary" type="submit"
-          [disabled]="formDoc.invalid">
+        <button mat-flat-button color="primary" type="submit" [disabled]="formDoc.invalid">
           <mat-icon>save</mat-icon>
           Guardar Documentación
         </button>
@@ -56,22 +55,32 @@
       <div class="documentos-panel">
         <!-- Sidebar izquierda -->
         <div class="documentos-sidebar" formArrayName="documentos" *ngIf="documentosArray as docs">
-          <div class="upload-item" *ngFor="let docCtrl of docs.controls; let i = index; trackBy: trackByIndex"
+          <div
+            class="upload-item"
+            *ngFor="let docCtrl of docs.controls; let i = index; trackBy: trackByIndex"
             [formGroupName]="i">
+
             <!-- Asegura tipoId definido para usarlo en todo el bloque -->
             <ng-container *ngIf="docCtrl.get('tipoId')?.value as tipoId">
               <div [class.selected]="selectedDocId === tipoId">
                 <mat-form-field appearance="fill" class="w-100">
-                  <mat-label>
-                    {{ hojasPorId[tipoId]?.name }}
-                  </mat-label>
+                  <mat-label>{{ hojasPorId[tipoId]?.name }}</mat-label>
 
-                  <!-- nombre del archivo -->
-                  <input matInput [value]="uploadedFiles[tipoId].fileName || ''" readonly class="clickable"
-                    (click)="selectPreview(tipoId)" />
+                  <!-- nombre del archivo (acceso seguro) -->
+                  <input
+                    matInput
+                    [value]="uploadedFiles[tipoId]?.fileName ?? ''"
+                    readonly
+                    class="clickable"
+                    (click)="uploadedFiles[tipoId] && selectPreview(tipoId)" />
 
-                  <button mat-icon-button matSuffix [matMenuTriggerFor]="menu" aria-label="Opciones de PDF"
-                    type="button" (click)="$event.stopPropagation()">
+                  <button
+                    mat-icon-button
+                    matSuffix
+                    [matMenuTriggerFor]="menu"
+                    aria-label="Opciones de PDF"
+                    type="button"
+                    (click)="$event.stopPropagation()">
                     <mat-icon>more_vert</mat-icon>
                   </button>
 
@@ -82,14 +91,22 @@
 
                 <!-- Menú de acciones -->
                 <mat-menu #menu="matMenu">
-                  <button mat-menu-item type="button" (click)="selectPreview(tipoId)">
+                  <button
+                    mat-menu-item
+                    type="button"
+                    (click)="selectPreview(tipoId)"
+                    [disabled]="!uploadedFiles[tipoId]">
                     Ver PDF aquí
                   </button>
 
                   <button mat-menu-item type="button">
                     <label [for]="'fileInput' + tipoId" class="cursor-pointer">
                       Subir PDF
-                      <input type="file" accept="application/pdf" [id]="'fileInput' + tipoId" hidden
+                      <input
+                        type="file"
+                        accept="application/pdf"
+                        [id]="'fileInput' + tipoId"
+                        hidden
                         (change)="subirArchivo($event, tipoId)" />
                     </label>
                   </button>
@@ -106,7 +123,12 @@
 
         <!-- Panel de previsualización -->
         <div class="documento-preview-container" *ngIf="selectedPdfUrl; else noPreview">
-          <object [data]="selectedPdfUrl" type="application/pdf" width="100%" height="100%" class="pdf-object">
+          <object
+            [data]="selectedPdfUrl"
+            type="application/pdf"
+            width="100%"
+            height="100%"
+            class="pdf-object">
             <span>El PDF no se puede previsualizar en tu navegador.</span>
           </object>
         </div>
@@ -117,9 +139,7 @@
             <p>Selecciona un documento para previsualizarlo aquí.</p>
           </div>
         </ng-template>
-
       </div>
-
     </form>
   </mat-card-content>
 </mat-card>

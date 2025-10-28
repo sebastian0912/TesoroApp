@@ -62,6 +62,7 @@ export interface ProcesoUpdateByDocumentRequest {
   vacante_salario?: string | null;
   prueba_tecnica?: boolean;
   autorizado?: boolean;
+  vacante_fecha_prueba?: string | null;
 
   // ✅ nuevos
   contratado?: boolean;
