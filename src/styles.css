@@ -248,7 +248,7 @@ mat-card-content p {
 .cards {
   display: flex;
   flex-wrap: wrap;
-  justify-content: center;
+  justify-content: start;
   align-items: center;
 }
 

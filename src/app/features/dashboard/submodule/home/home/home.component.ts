@@ -14,6 +14,8 @@ import { MerchandisingMerchandiseComponent } from '../components/merchandising-m
 import { RobotTrackingComponent } from '../components/robot-tracking/robot-tracking.component';
 import { InfoCardComponent } from '@/app/shared/components/info-card/info-card.component';
 import { HomeService } from '../service/home.service';
+import { DateRangeDialogComponent } from '@/app/shared/components/date-rang-dialog/date-rang-dialog.component';
+import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 
 
 
@@ -28,7 +30,8 @@ import { HomeService } from '../service/home.service';
     // Componentes hijos
     MerchandisingMerchandiseComponent,
     RobotTrackingComponent,
-    InfoCardComponent
+    InfoCardComponent,
+    MatDialogModule,
   ],
   templateUrl: './home.component.html',
   styleUrl: './home.component.css',
@@ -54,6 +57,7 @@ export class HomeComponent implements OnInit {
   constructor(
     private utilityService: UtilityServiceService,
     private homeService: HomeService,
+    private dialog: MatDialog,
   ) { }
 
   // ========== Ciclo de vida ==========
@@ -86,6 +90,58 @@ export class HomeComponent implements OnInit {
     this.comercializadora = isComercial || isAdmin || isAliasTuAfiliacion;
     this.traslado = isTraslados || isAdmin || isAliasTuAfiliacion;
     this.admin = isGerencia || isAdmin;
+  }
+
+  extraerHistorialBeneficios(): void {
+    console.log('Iniciando descarga de historial de beneficios...');
+    // usuario
+    console.log('Usuario:', this.user);
+    if (this.user?.rol?.nombre !== 'ADMIN' || this.user?.rol?.nombre !== 'GERENCIA' || this.user?.correo_electronico !== 'mercarflorats@gmail.com') {
+      console.log('Descarga de historial de beneficios no autorizada para este usuario.');
+      this.dialog.open(DateRangeDialogComponent, {
+        width: '400px',
+        data: { title: 'Seleccionar rango de fechas' }
+      }).afterClosed().subscribe(result => {
+        if (result) {
+          const { start, end } = result;
+          this.homeService.traerHistorialInformeSoloFecha(start, end, true).subscribe({
+            next: (blob) => {
+              const url = window.URL.createObjectURL(blob);
+              const a = document.createElement('a');
+              a.href = url;
+              a.download = `historial_beneficios_${start}_a_${end}.xlsx`;
+              document.body.appendChild(a);
+              a.click();
+              document.body.removeChild(a);
+              window.URL.revokeObjectURL(url);
+            }
+          });
+        }
+      });
+      return;
+    }
+    else{
+      this.dialog.open(DateRangeDialogComponent, {
+        width: '400px',
+        data: { title: 'Seleccionar rango de fechas' }
+      }).afterClosed().subscribe(result => {
+        if (result) {
+          const { start, end } = result;
+          this.homeService.traerHistorialInformePersona(start, end, this.user.datos_basicos.nombres + ' ' + this.user.datos_basicos.apellidos, true).subscribe({
+            next: (blob) => {
+              const url = window.URL.createObjectURL(blob);
+              const a = document.createElement('a');
+              a.href = url;
+              a.download = `historial_beneficios_${this.user.datos_basicos.nombres + ' ' + this.user.datos_basicos.apellidos}_${start}_a_${end}.xlsx`;
+              document.body.appendChild(a);
+              a.click();
+              document.body.removeChild(a);
+              window.URL.revokeObjectURL(url);
+            }
+          });
+        }
+      });
+    }
   }
 
   /* ---------- INPUT FILE (EXCEL) ---------- */
