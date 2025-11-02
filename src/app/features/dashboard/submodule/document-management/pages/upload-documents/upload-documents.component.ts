@@ -1,5 +1,5 @@
 import { SharedModule } from '@/app/shared/shared.module';
-import { Component, OnDestroy, OnInit } from '@angular/core';
+import { Component, ElementRef, OnDestroy, OnInit, ViewChild } from '@angular/core';
 import { DocumentacionService } from '../../service/documentacion/documentacion.service';
 import Swal from 'sweetalert2';
 import {
@@ -13,7 +13,9 @@ import {
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { GestionDocumentalService } from '../../../hiring/service/gestion-documental/gestion-documental.service';
 import { Subject, firstValueFrom, takeUntil } from 'rxjs';
-
+import { MatMenuModule } from '@angular/material/menu';
+import { MatIconModule } from '@angular/material/icon';
+import { MatButtonModule } from '@angular/material/button';
 interface HojaMapa {
   file: File;
   fileName: string | null;
@@ -30,7 +32,7 @@ type DocGrupo = FormGroup<{
 @Component({
   selector: 'app-upload-documents',
   standalone: true,
-  imports: [SharedModule, FormsModule],
+  imports: [SharedModule, FormsModule, MatMenuModule, MatIconModule, MatButtonModule],
   templateUrl: './upload-documents.component.html',
   styleUrls: ['./upload-documents.component.css']
 })
@@ -45,6 +47,7 @@ export class UploadDocumentsComponent implements OnInit, OnDestroy {
   /* ───────── reactive form ────────────── */
   formDoc!: FormGroup;
   documentosArray!: FormArray<DocGrupo>;
+  @ViewChild('zipInput') zipInput!: ElementRef<HTMLInputElement>;
 
   /* ───────── previsualizador ──────────── */
   selectedDocId: number | null = null;
@@ -316,6 +319,102 @@ export class UploadDocumentsComponent implements OnInit, OnDestroy {
 
   trackByIndex(index: number) { return index; }
 
+  onClickSubidaMasiva(): void {
+    // limpia selección previa y abre picker
+    if (this.zipInput?.nativeElement) {
+      this.zipInput.nativeElement.value = '';
+      this.zipInput.nativeElement.click();
+    }
+  }
 
+  async onZipSelected(evt: Event): Promise<void> {
+    const file = (evt.target as HTMLInputElement).files?.[0];
+    if (!file) return;
+
+    if (!file.name.toLowerCase().endsWith('.zip')) {
+      Swal.fire('Archivo inválido', 'Debe seleccionar un archivo .zip', 'warning');
+      return;
+    }
+
+    // Opciones de carga (contrato)
+    const { value: opts, isConfirmed } = await Swal.fire({
+      title: 'Opciones de carga',
+      html: `
+        <div style="text-align:left">
+          <label style="display:flex;align-items:center;gap:.5rem;margin-bottom:.5rem;">
+            <input type="checkbox" id="optContract" checked />
+            Leer número de contrato desde el nombre del PDF
+          </label>
+          <input id="optDefault" class="swal2-input" placeholder="Contrato por defecto (opcional)">
+          <small>Si no se detecta en el nombre y escribes aquí, se usará este valor.</small>
+        </div>
+      `,
+      focusConfirm: false,
+      showCancelButton: true,
+      confirmButtonText: 'Subir',
+      cancelButtonText: 'Cancelar',
+      preConfirm: () => {
+        const contract_from_filename =
+          (document.getElementById('optContract') as HTMLInputElement)?.checked ?? true;
+        const default_contract =
+          (document.getElementById('optDefault') as HTMLInputElement)?.value?.trim() || '';
+        return { contract_from_filename, default_contract };
+      }
+    });
+
+    if (!isConfirmed) return;
+
+    Swal.fire({
+      title: 'Subiendo...',
+      text: 'Procesando archivos del ZIP',
+      allowOutsideClick: false,
+      didOpen: () => Swal.showLoading()
+    });
+
+    this.docSrv
+      .bulkZipUpload(file, {
+        contract_from_filename: !!opts?.contract_from_filename,
+        default_contract: opts?.default_contract || undefined
+      })
+      .subscribe({
+        next: (res) => {
+          Swal.close();
+          this.mostrarResumenCarga(res);
+          // si quieres refrescar una tabla/listado después, hazlo aquí
+        },
+        error: (err) => {
+          Swal.close();
+          console.error(err);
+          Swal.fire('Error', 'No se pudo subir el ZIP. Revisa la consola para más detalles.', 'error');
+        }
+      });
+  }
+
+  private mostrarResumenCarga(res: any): void {
+    const processed = res?.processed ?? 0;
+    const created   = res?.created ?? 0;
+    const skipped   = res?.skipped ?? 0;
+    const errors    = res?.errors ?? 0;
+
+    const primerosErrores = (res?.items ?? [])
+      .filter((x: any) => x.status === 'error')
+      .slice(0, 5)
+      .map((x: any) => `• ${x.path || x.type_name || '—'} → ${x.reason || 'Error'}`)
+      .join('<br>');
+
+    Swal.fire({
+      icon: errors ? 'warning' : 'success',
+      title: 'Resultado de la carga',
+      html: `
+        <div style="text-align:left">
+          <b>Procesados:</b> ${processed}<br>
+          <b>Creados:</b> ${created}<br>
+          <b>Omitidos:</b> ${skipped}<br>
+          <b>Errores:</b> ${errors}<br>
+          ${primerosErrores ? `<hr><b>Primeros errores:</b><br>${primerosErrores}` : ''}
+        </div>
+      `
+    });
+  }
 
 }

@@ -13,7 +13,7 @@ export class DocumentacionService {
   constructor(
     private http: HttpClient,
     @Inject(PLATFORM_ID) private platformId: Object
-  ) {}
+  ) { }
 
   private handleError(error: any): Observable<never> {
     throw error;
@@ -23,7 +23,7 @@ export class DocumentacionService {
   public mostrar_jerarquia_gestion_documental(): Observable<any> {
 
     return this.http
-      .get(`${this.apiUrl}/gestion_documental/document-types/`, )
+      .get(`${this.apiUrl}/gestion_documental/document-types/`,)
       .pipe(
         map((response: any) => response),
         catchError(this.handleError)
@@ -34,7 +34,7 @@ export class DocumentacionService {
   public mostrar_tags(): Observable<any> {
 
     return this.http
-      .get(`${this.apiUrl}/gestion_documental/tags/`, )
+      .get(`${this.apiUrl}/gestion_documental/tags/`,)
       .pipe(
         map((response: any) => response),
         catchError(this.handleError)
@@ -45,7 +45,7 @@ export class DocumentacionService {
   public editar_tipo_documento(id: number, data: any): Observable<any> {
 
     return this.http
-      .put(`${this.apiUrl}/gestion_documental/document-types/${id}`, data, )
+      .put(`${this.apiUrl}/gestion_documental/document-types/${id}`, data,)
       .pipe(
         map((response: any) => response),
         catchError(this.handleError)
@@ -56,7 +56,7 @@ export class DocumentacionService {
   public crear_tipo_documento(data: any): Observable<any> {
 
     return this.http
-      .post(`${this.apiUrl}/gestion_documental/document-types-create/`, data, )
+      .post(`${this.apiUrl}/gestion_documental/document-types-create/`, data,)
       .pipe(
         map((response: any) => response),
         catchError(this.handleError)
@@ -80,7 +80,7 @@ export class DocumentacionService {
   public mostrar_permisos(): Observable<any> {
 
     return this.http
-      .get(`${this.apiUrl}/gestion_documental/permisos/`, )
+      .get(`${this.apiUrl}/gestion_documental/permisos/`,)
       .pipe(
         map((response: any) => response),
         catchError(this.handleError)
@@ -94,13 +94,34 @@ export class DocumentacionService {
   }): Observable<any> {
 
     return this.http
-      .post(`${this.apiUrl}/gestion_documental/permisos/`, data, )
+      .post(`${this.apiUrl}/gestion_documental/permisos/`, data,)
       .pipe(
         map((response: any) => response),
         catchError(this.handleError)
       );
   }
 
+  bulkZipUpload(
+    zipFile: File,
+    opts?: { contract_from_filename?: boolean; default_contract?: string }
+  ): Observable<any> {
+    const form = new FormData();
+    form.append('zip_file', zipFile, zipFile.name);
+    if (opts?.contract_from_filename !== undefined) {
+      form.append('contract_from_filename', String(!!opts.contract_from_filename));
+    }
+    if (opts?.default_contract) {
+      form.append('default_contract', opts.default_contract);
+    }
+
+    // si tu backend expone directamente /bulk-zip-upload/ en la raíz de apiUrl:
+    const url = `${this.apiUrl}/gestion_documental/bulk-zip-upload/`;
+    // si lo tienes con prefijo (ej. /api/gestion-documental/bulk-zip-upload/), ajusta arriba.
+
+    return this.http.post<any>(url, form);
+    // no pongas Content-Type: multipart/form-data manualmente;
+    // HttpClient gestiona boundary y headers automáticamente.
+  }
 
 
 
