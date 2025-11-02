@@ -69,107 +69,216 @@ export class AutorizacionesService {
   }
 
   // Verificar condiciones
-  verificarCondiciones(operario: any, nuevovalor: number, sumaTotal: number, tipo: 'prestamo' | 'mercado'): boolean {
-    let user = this.utilityService.getUser() || 'null';
+verificarCondiciones(
+  operario: any,
+  nuevovalor: number,
+  sumaTotal: number,
+  tipo: 'prestamo' | 'mercado'
+): boolean {
 
-    if (operario.bloqueado) {
-      this.aviso('Ups no se pueden generar préstamos ni mercado, el empleado está bloqueado', 'error');
-      return false;
-    }
+  // Asegura que siempre haya un objeto y no una string rara
+  const user = this.utilityService.getUser() || {};
 
-    if (!operario.activo) {
-      this.aviso('Ups no se pueden generar préstamos ni mercado, el empleado está retirado', 'error');
-      return false;
-    }
-
-    if (!operario.ingreso || !/^(\d{4}\/\d{2}\/\d{2}|\d{1,2}-\d{1,2}-\d{2})$/.test(operario.ingreso)) {
-      this.aviso('Formato de fecha inválido en ingreso', 'error');
-      return false;
-    }
-
-    let dia: number, mes: number, anio: number;
-    if (operario.ingreso.includes('/')) {
-      const [anioStr, mesStr, diaStr] = operario.ingreso.split('/');
-      anio = parseInt(anioStr, 10);
-      mes = parseInt(mesStr, 10);
-      dia = parseInt(diaStr, 10);
-    } else {
-      const [diaStr, mesStr, anioStr] = operario.ingreso.split('-');
-      dia = parseInt(diaStr, 10);
-      mes = parseInt(mesStr, 10);
-      anio = parseInt(anioStr, 10);
-      anio = anio < 100 ? 2000 + anio : anio; // Convertir YY a YYYY
-    }
-
-    const fechaIngreso = new Date(anio, mes - 1, dia);
-    const fechaActual = new Date();
-
-    const diferenciaEnMilisegundos = fechaActual.getTime() - fechaIngreso.getTime();
-    const diasTrabajados = Math.ceil(diferenciaEnMilisegundos / (1000 * 60 * 60 * 24));
-    const mesesTrabajados = (fechaActual.getFullYear() - fechaIngreso.getFullYear()) * 12 + fechaActual.getMonth() - fechaIngreso.getMonth();
-
-    if (tipo === 'mercado') {
-      if ((dia >= 11 && dia <= 15 && fechaActual.getDate() < 20 && mes == fechaActual.getMonth() + 1) ||
-        (dia >= 26 && dia <= 30 && fechaActual.getDate() < 5 && mes == fechaActual.getMonth())) {
-        this.aviso('No puedes solicitar mercado aún, debes esperar la fecha permitida', 'error');
-        return false;
-      }
-
-      let limite = 0;
-      if (diasTrabajados >= 8 && diasTrabajados <= 15) {
-        limite = 80000;
-      } else if (diasTrabajados >= 16 && diasTrabajados <= 30) {
-        limite = 150000;
-      } else if (diasTrabajados >= 31 && diasTrabajados <= 45) {
-        limite = 230000;
-      } else if (diasTrabajados >= 46) {
-        limite = 350000;
-      }
-
-      // Si el rol del usuario es TIENDA, se permite un extra de 50,000
-      if (user.rol.nombre === 'TIENDA' || user.rol.nombre === 'ESPECIAL') {
-        limite += 50000; // Añadimos 50,000 al límite para usuarios de rol "TIENDA"
-      }
-
-      if (sumaTotal + nuevovalor > limite) {
-        this.aviso(`Ups no se pueden generar mercado, puede sacar máximo ${limite - sumaTotal}`, 'error');
-        return false;
-      }
-      return true;
-    }
-
-    if (tipo === 'prestamo') {
-      if (
-        (fechaActual.getMonth() === 11 || fechaActual.getMonth() === 0) ||
-        (fechaActual.getMonth() === 5 || fechaActual.getMonth() === 6)
-      ) {
-        this.aviso('Ups no se pueden generar préstamos en este período del año', 'error');
-        return false;
-      }
-
-      if (mesesTrabajados < 2) {
-        this.aviso('Ups no se pueden generar préstamos, el empleado no lleva más de 2 meses en la empresa', 'error');
-        return false;
-      }
-
-      if (nuevovalor > 250000) {
-        this.aviso('Ups no se pueden generar el préstamo porque supera los 250.000 permitidos', 'error');
-        return false;
-      }
-
-      if (operario.mercados > 0 || operario.valoranchetas > 0) {
-        this.aviso('Ups no se pueden generar préstamos si el operario tiene mercados o valor de anchetas pendiente', 'error');
-        return false;
-      }
-
-      if (nuevovalor + sumaTotal > 250000) {
-        this.aviso('Ups no se pueden generar préstamos, el saldo pendiente supera los 250.000 puede sacar ' + (250000 - sumaTotal), 'error');
-        return false;
-      }
-      return true;
-    }
+  // 1. Validaciones básicas del operario
+  if (operario.bloqueado) {
+    this.aviso('Ups no se pueden generar préstamos ni mercado, el empleado está bloqueado', 'error');
     return false;
   }
+
+  if (!operario.activo) {
+    this.aviso('Ups no se pueden generar préstamos ni mercado, el empleado está retirado', 'error');
+    return false;
+  }
+
+  // 2. Validar formato de la fecha de ingreso
+  // Formatos permitidos:
+  //  - YYYY/MM/DD   -> 2025/04/25
+  //  - DD/MM/YY     -> 10/6/25
+  //  - DD-MM-YY     -> 10-06-25
+  const FECHA_REGEX = /^(\d{4}\/\d{1,2}\/\d{1,2}|\d{1,2}\/\d{1,2}\/\d{2}|\d{1,2}-\d{1,2}-\d{2})$/;
+
+  if (!operario.ingreso || !FECHA_REGEX.test(String(operario.ingreso).trim())) {
+    this.aviso('Formato de fecha inválido en ingreso', 'error');
+    return false;
+  }
+
+  // 3. Parsear la fecha de ingreso a (dia, mes, anio)
+  let dia: number;
+  let mes: number;
+  let anio: number;
+
+  if (operario.ingreso.includes('/')) {
+    // Puede ser YYYY/MM/DD o DD/MM/YY
+    const [p1, p2, p3] = operario.ingreso.split('/');
+
+    if (p1.length === 4) {
+      // Caso: 2025/04/25  => YYYY/MM/DD
+      anio = parseInt(p1, 10);
+      mes = parseInt(p2, 10);
+      dia = parseInt(p3, 10);
+    } else {
+      // Caso: 10/6/25 => DD/MM/YY
+      dia = parseInt(p1, 10);
+      mes = parseInt(p2, 10);
+      anio = parseInt(p3, 10);
+
+      // convertir YY a YYYY (asumimos 20xx)
+      if (anio < 100) {
+        anio = 2000 + anio;
+      }
+    }
+
+  } else {
+    // Caso: DD-MM-YY (ej: 10-06-25)
+    const [diaStr, mesStr, anioStr] = operario.ingreso.split('-');
+    dia = parseInt(diaStr, 10);
+    mes = parseInt(mesStr, 10);
+    anio = parseInt(anioStr, 10);
+
+    if (anio < 100) {
+      anio = 2000 + anio;
+    }
+  }
+
+  // 4. Construir fecha y cálculos de antigüedad
+  const fechaIngreso = new Date(anio, mes - 1, dia);
+  const fechaActual = new Date();
+
+  const diferenciaEnMilisegundos = fechaActual.getTime() - fechaIngreso.getTime();
+  const diasTrabajados = Math.ceil(diferenciaEnMilisegundos / (1000 * 60 * 60 * 24));
+
+  const mesesTrabajados =
+    (fechaActual.getFullYear() - fechaIngreso.getFullYear()) * 12 +
+    (fechaActual.getMonth() - fechaIngreso.getMonth());
+
+  // ==============================
+  //   REGLAS PARA MERCADO
+  // ==============================
+  if (tipo === 'mercado') {
+
+    // Ventanas restringidas según la fecha de ingreso del operario
+    if (
+      (
+        dia >= 11 &&
+        dia <= 15 &&
+        fechaActual.getDate() < 20 &&
+        mes === (fechaActual.getMonth() + 1)
+      ) ||
+      (
+        dia >= 26 &&
+        dia <= 30 &&
+        fechaActual.getDate() < 5 &&
+        mes === fechaActual.getMonth() // OJO: acá en tu código original usabas getMonth() sin +1
+      )
+    ) {
+      this.aviso('No puedes solicitar mercado aún, debes esperar la fecha permitida', 'error');
+      return false;
+    }
+
+    // Límite base según días trabajados
+    let limite = 0;
+    if (diasTrabajados >= 8 && diasTrabajados <= 15) {
+      limite = 80000;
+    } else if (diasTrabajados >= 16 && diasTrabajados <= 30) {
+      limite = 150000;
+    } else if (diasTrabajados >= 31 && diasTrabajados <= 45) {
+      limite = 230000;
+    } else if (diasTrabajados >= 46) {
+      limite = 350000;
+    }
+
+    // Rol TIENDA o ESPECIAL tiene +50.000
+    if (user?.rol?.nombre === 'TIENDA' || user?.rol?.nombre === 'ESPECIAL') {
+      limite += 50000;
+    }
+
+    // Si lleva más de 60 días y NO es TIENDA/ESPECIAL => +150.000
+    if (
+      diasTrabajados > 60 &&
+      user?.rol?.nombre !== 'TIENDA' &&
+      user?.rol?.nombre !== 'ESPECIAL'
+    ) {
+      limite += 150000;
+    }
+
+    // Si el correo es el especial y lleva >90 días => 400.000 fijo
+    if (
+      diasTrabajados > 90 &&
+      user?.correo_electronico === 'servicioalcliente.tuapo1@gmail.com'
+    ) {
+      limite = 400000;
+    }
+
+    if (sumaTotal + nuevovalor > limite) {
+      this.aviso(
+        `Ups no se pueden generar mercado, puede sacar máximo ${limite - sumaTotal}`,
+        'error'
+      );
+      return false;
+    }
+
+    return true;
+  }
+
+  // ==============================
+  //   REGLAS PARA PRÉSTAMO
+  // ==============================
+  if (tipo === 'prestamo') {
+
+    // Bloquear diciembre-enero y junio-julio
+    const mesActual = fechaActual.getMonth(); // 0=enero ... 11=diciembre
+    if (
+      mesActual === 11 || mesActual === 0 || // dic-ene
+      mesActual === 5 || mesActual === 6     // jun-jul
+    ) {
+      this.aviso('Ups no se pueden generar préstamos en este período del año', 'error');
+      return false;
+    }
+
+    // Debe llevar mínimo 2 meses
+    if (mesesTrabajados < 2) {
+      this.aviso(
+        'Ups no se pueden generar préstamos, el empleado no lleva más de 2 meses en la empresa',
+        'error'
+      );
+      return false;
+    }
+
+    // Valor unitario máximo
+    if (nuevovalor > 250000) {
+      this.aviso(
+        'Ups no se puede generar el préstamo porque supera los 250.000 permitidos',
+        'error'
+      );
+      return false;
+    }
+
+    // No debe tener mercados ni anchetas pendientes
+    if (operario.mercados > 0 || operario.valoranchetas > 0) {
+      this.aviso(
+        'Ups no se pueden generar préstamos si el operario tiene mercados o valor de anchetas pendiente',
+        'error'
+      );
+      return false;
+    }
+
+    // Máximo acumulado 250.000
+    if (nuevovalor + sumaTotal > 250000) {
+      this.aviso(
+        'Ups no se pueden generar préstamos, el saldo pendiente supera los 250.000. Puede sacar ' +
+          (250000 - sumaTotal),
+        'error'
+      );
+      return false;
+    }
+
+    return true;
+  }
+
+  // Tipo no reconocido
+  return false;
+}
+
 
 
 

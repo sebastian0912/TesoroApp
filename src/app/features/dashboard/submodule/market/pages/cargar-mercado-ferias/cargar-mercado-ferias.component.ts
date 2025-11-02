@@ -483,16 +483,20 @@ export class CargarMercadoFeriasComponent implements OnInit {
           return;
         }
 
-        if (this.datosOperario.bloqueado) {
-          this.datosOperario = null;
+        if (this.datosOperario?.bloqueado) {
+          const motivo = this.datosOperario?.observacion_bloqueo ?? 'Sin observación';
+          const safeMotivo = this.escapeHtml(motivo);
+
           Swal.fire({
             icon: 'error',
             title: 'Empleado bloqueado',
-            text: 'El empleado con la cédula proporcionada se encuentra bloqueado y no puede solicitar autorizaciones.',
-            showConfirmButton: true, // Muestra un botón para cerrar
-            allowOutsideClick: false, // Evita que se cierre al hacer clic fuera
-            allowEscapeKey: false, // Evita que se cierre con la tecla Esc
+            html: `
+      El empleado con la cédula proporcionada se encuentra bloqueado y no puede solicitar autorizaciones.
+      <br><br><b>Motivo:</b> ${safeMotivo}
+    `
           });
+
+          this.datosOperario = null;
           return;
         }
 
@@ -507,6 +511,12 @@ export class CargarMercadoFeriasComponent implements OnInit {
         });
       }
     );
+  }
+
+  private escapeHtml(value: string): string {
+    const div = document.createElement('div');
+    div.textContent = value ?? '';
+    return div.innerHTML;
   }
 
 

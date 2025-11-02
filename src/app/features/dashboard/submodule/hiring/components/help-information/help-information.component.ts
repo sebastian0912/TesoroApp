@@ -268,6 +268,20 @@ export class HelpInformationComponent implements OnInit {
     }
   }
 
+  private toYMD(value: any): string | null {
+    if (!value) return null;
+
+    const d = value instanceof Date ? value : new Date(value);
+    if (isNaN(d.getTime())) return null;
+
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+
+    return `${y}-${m}-${day}`;
+  }
+
+
   async guardarVacantes(): Promise<void> {
     // 1) Validaciones básicas
     const v = this.vacanteSeleccionada();
@@ -326,15 +340,22 @@ export class HelpInformationComponent implements OnInit {
           ? 'Autorización de ingreso'
           : null;
 
+
+
     // 3) Payload para /procesos/update-by-document
+    const fechaPruebaControl = this.vacantesForm.get('fechaPruebaEntrevista')?.value;
+    const vacanteFechaPrueba = this.toYMD(fechaPruebaControl);
+
     const payload: ProcesoUpdateByDocumentRequest = {
       numero_documento: numeroDocumento,
       publicacion: v.id,
-      vacante_tipo,               // 👈 ya mapeado
+      vacante_tipo, // ya mapeado
+      vacante_fecha_prueba: vacanteFechaPrueba, // <-- YA en YYYY-MM-DD o null
       vacante_salario,
       ...(tipo === 'Prueba técnica' ? { prueba_tecnica: true } : {}),
       ...(tipo === 'Autorización de ingreso' ? { autorizado: true } : {}),
     };
+
 
     // 4) Llamar al backend
     try {
@@ -403,21 +424,21 @@ export class HelpInformationComponent implements OnInit {
     if (!Array.isArray(ofs) || !ofs.length) return '—';
     return ofs.map(o => `${o?.nombre ?? 'Oficina'} (${this.toInt(o?.numeroDeGenteRequerida)})`).join(', ');
   }
-formatShortDate(d: any): string {
-  if (!d) return '—';
+  formatShortDate(d: any): string {
+    if (!d) return '—';
 
-  // Si viene como 'YYYY-MM-DD', parsea a local agregando T00:00:00
-  const date = (typeof d === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d))
-    ? new Date(d + 'T00:00:00')  // ← local
-    : new Date(d);
+    // Si viene como 'YYYY-MM-DD', parsea a local agregando T00:00:00
+    const date = (typeof d === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d))
+      ? new Date(d + 'T00:00:00')  // ← local
+      : new Date(d);
 
-  if (isNaN(date.getTime())) return '—';
+    if (isNaN(date.getTime())) return '—';
 
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
-}
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  }
 
 
   // ── Handler que el template invoca ──

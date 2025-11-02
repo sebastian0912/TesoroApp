@@ -62,6 +62,7 @@ export interface ProcesoUpdateByDocumentRequest {
   vacante_salario?: string | null;
   prueba_tecnica?: boolean;
   autorizado?: boolean;
+  vacante_fecha_prueba?: string | null;
 
   // ✅ nuevos
   contratado?: boolean;
@@ -199,6 +200,13 @@ export class RegistroProcesoContratacion {
   }
 
   // ===================== CANDIDATOS =====================
+
+  // contratacion/candidatos-tabla/
+  listCandidatosTabla(opts?: ListOptions): Observable<any[]> {
+    return this.http
+      .get<any[]>(this.url('contratacion/candidatos-tabla'), { params: this.buildParams(opts) })
+      .pipe(this.handle$());
+  } 
 
   // Lista básica (serializer simple)
   listCandidatos(opts?: ListOptions): Observable<any[]> {

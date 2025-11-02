@@ -11,6 +11,7 @@ import { MatDatepickerModule } from '@angular/material/datepicker';
 import { MatNativeDateModule } from '@angular/material/core';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { UtilityServiceService } from '@/app/shared/services/utilityService/utility-service.service';
+import { RegistroProcesoContratacion } from '../../service/registro-proceso-contratacion/registro-proceso-contratacion';
 
 @Component({
   selector: 'app-view-reception-interviews',
@@ -62,10 +63,20 @@ export class ViewReceptionInterviewsComponent implements OnInit {
   constructor(
     private seleccionService: SeleccionService,
     private utilityService: UtilityServiceService,
+    private registroProcesoContratacion: RegistroProcesoContratacion,
     private dialog: MatDialog
   ) { }
 
   ngOnInit(): void {
+    this.registroProcesoContratacion.listCandidatosTabla().subscribe(
+      (data) => {
+        console.log('Candidatos tabla:', data);
+      },
+      (error) => {
+        Swal.fire('Error', 'No se pudieron cargar los candidatos.', 'error');
+      }
+    );
+
     this.seleccionService.getCandidatos().subscribe(
       (data) => {
         this.dataSource.data = data;

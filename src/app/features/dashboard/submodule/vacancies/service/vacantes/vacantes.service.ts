@@ -72,15 +72,28 @@ export class VacantesService {
   }
 
   // ========= Excel =========
-  getVacantesExcel(start?: string, end?: string): Observable<Blob> {
-    const url = this.base('/publicacion/publicaciones-excel/');
-    let params = new HttpParams();
-    if (start) params = params.set('start', start);
-    if (end)   params = params.set('end', end);
+getVacantesExcel(start?: string, end?: string, oficina?: string | string[]): Observable<Blob> {
+  const url = this.base('/publicacion/publicaciones-excel/');
+  let params = new HttpParams();
 
-    return this.http.get(url, { params, responseType: 'blob' as const })
-      .pipe(catchError(err => throwError(() => err)));
+  if (start) params = params.set('start', start);
+  if (end)   params = params.set('end', end);
+
+  // Nuevo: filtro por OficinaQueContrata (uno o varios nombres)
+  if (Array.isArray(oficina)) {
+    const value = oficina
+      .map(s => (s ?? '').trim())
+      .filter(s => s.length > 0)
+      .join(','); // el backend acepta coma o ';'
+    if (value) params = params.set('oficina', value);
+  } else if (typeof oficina === 'string' && oficina.trim()) {
+    params = params.set('oficina', oficina.trim());
   }
+
+  return this.http.get(url, { params, responseType: 'blob' as const })
+    .pipe(catchError(err => throwError(() => err)));
+}
+
 
   downloadVacantesExcel(start?: string, end?: string, filename?: string): Observable<void> {
     const suggested = `vacantes_${start || 'inicio'}_${end || 'hoy'}.xlsx`;

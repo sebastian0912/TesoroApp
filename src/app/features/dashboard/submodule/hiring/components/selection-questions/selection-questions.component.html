@@ -21,21 +21,13 @@
               </mat-option>
             </mat-select>
 
-            <!-- Un solo contenedor matSuffix con menú + estado en línea -->
-            <div
-              matSuffix
-              class="acciones-suffix"
-              (click)="$event.stopPropagation()"
-              aria-label="Acciones del campo">
-              <button
-                mat-icon-button
-                [matMenuTriggerFor]="menu"
-                aria-label="Opciones PDF">
+            <!-- ÚNICO matSuffix: menú + icono de estado -->
+            <div matSuffix class="acciones-suffix" (click)="$event.stopPropagation()" aria-label="Acciones del campo">
+              <button mat-icon-button [matMenuTriggerFor]="menu" aria-label="Opciones PDF">
                 <mat-icon>more_vert</mat-icon>
               </button>
 
-              <mat-icon
-                class="estado-icon"
+              <mat-icon class="estado-icon"
                 [style.--estado-color]="estadoColor(antecedentes.get(controlName(fld))?.value)"
                 aria-label="Estado del documento">
                 {{ estadoIcon(antecedentes.get(controlName(fld))?.value) }}
@@ -51,15 +43,8 @@
               </mat-option>
             </mat-select>
 
-            <div
-              matSuffix
-              class="acciones-suffix"
-              (click)="$event.stopPropagation()"
-              aria-label="Acciones del campo">
-              <button
-                mat-icon-button
-                [matMenuTriggerFor]="menu"
-                aria-label="Opciones PDF">
+            <div matSuffix class="acciones-suffix" (click)="$event.stopPropagation()" aria-label="Acciones del campo">
+              <button mat-icon-button [matMenuTriggerFor]="menu" aria-label="Opciones PDF">
                 <mat-icon>more_vert</mat-icon>
               </button>
             </div>
@@ -67,25 +52,11 @@
 
           <!-- ===== NÚMERO ===== -->
           <ng-container *ngSwitchCase="'number'">
-            <input
-              matInput
-              type="number"
-              [formControlName]="controlName(fld)"
-              min="1"
-              step="1"
-              inputmode="numeric"
-              pattern="[0-9]*"
-              (keydown)="onlyInteger($event)" />
+            <input matInput type="number" [formControlName]="controlName(fld)" min="1" step="1" inputmode="numeric"
+              pattern="[0-9]*" (keydown)="onlyInteger($event)" />
 
-            <div
-              matSuffix
-              class="acciones-suffix"
-              (click)="$event.stopPropagation()"
-              aria-label="Acciones del campo">
-              <button
-                mat-icon-button
-                [matMenuTriggerFor]="menu"
-                aria-label="Opciones PDF">
+            <div matSuffix class="acciones-suffix" (click)="$event.stopPropagation()" aria-label="Acciones del campo">
+              <button mat-icon-button [matMenuTriggerFor]="menu" aria-label="Opciones PDF">
                 <mat-icon>more_vert</mat-icon>
               </button>
             </div>
@@ -100,20 +71,14 @@
         <button mat-menu-item>
           <label [for]="'fileInput_' + fld.key" style="cursor: pointer; margin-bottom: 0;">
             Subir PDF
-            <input
-              type="file"
-              [id]="'fileInput_' + fld.key"
-              style="display: none;"
-              (change)="subirArchivo($event, fld.key)"
-              accept=".pdf" />
+            <input type="file" [id]="'fileInput_' + fld.key" style="display: none;"
+              (change)="subirArchivo($event, fld.key)" accept=".pdf" />
           </label>
         </button>
       </mat-menu>
 
       <!-- Nombre del archivo + fecha -->
-      <small
-        *ngIf="$any(uploadedFiles)[fld.key]"
-        class="uploaded-file-name"
+      <small *ngIf="$any(uploadedFiles)[fld.key]" class="uploaded-file-name"
         [ngClass]="{ 'text-danger': $any(uploadedFiles)[fld.key].fileName === 'Adjuntar documento' }">
         {{ $any(uploadedFiles)[fld.key].fileName }}
         <ng-container *ngIf="$any(uploadedFiles)[fld.key].updatedAtLabel">
@@ -123,6 +88,13 @@
           </span>
         </ng-container>
       </small>
+
+      <!-- ⬇️ Píldora de cola DEBAJO del 'Actualizado' -->
+      <div *ngIf="hasQueue(fld)" class="queue-row">
+        <span class="{{ queuePillClass(fld) }}" [matTooltip]="queueTooltipFor(fld)">
+          {{ queueLabelFor(fld) }}
+        </span>
+      </div>
 
       <!-- Alerta documento antiguo -->
       <div class="doc-warning" *ngIf="isOlderThan(fld.key, 15)">

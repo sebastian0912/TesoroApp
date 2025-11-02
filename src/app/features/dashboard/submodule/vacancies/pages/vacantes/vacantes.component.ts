@@ -77,7 +77,7 @@ export class VacantesComponent implements OnInit {
   viewMode: 'table' | 'card' | 'faltantes' | 'completados' = 'table';
   loading = false;
   permitido = false;
-
+  sede = '';
   @ViewChild(MatPaginator) paginator!: MatPaginator;
   @ViewChild(MatSort) sort!: MatSort;
 
@@ -93,10 +93,12 @@ export class VacantesComponent implements OnInit {
       : null;
     if (saved) this.viewMode = saved;
 
-    this.loadData();
-
+    // 👇 Obtengo la sede ANTES de cargar
     const user = this.utilityService.getUser();
+    this.sede = user?.sede?.nombre || '';
     this.permitido = this.isManager(user);
+
+    this.loadData();
 
     this.dataSource.filterPredicate = (data: any, filter: string) =>
       JSON.stringify(data).toLowerCase().includes(filter);
@@ -143,6 +145,16 @@ export class VacantesComponent implements OnInit {
     });
   }
 
+  private matchesSede(vac: any, sede: string): boolean {
+    const wanted = this.norm(sede);
+    if (!wanted) return true; // si no hay sede definida, no filtro
+
+    const arr = Array.isArray(vac?.oficinasQueContratan) ? vac.oficinasQueContratan : [];
+    return arr.some((o: any) => {
+      const name = typeof o === 'string' ? o : o?.nombre;
+      return this.norm(name) === wanted;
+    });
+  }
 
   // ================== Carga de datos ==================
   loadData(): void {
@@ -150,16 +162,20 @@ export class VacantesComponent implements OnInit {
     this.vacantesService.listarVacantes().subscribe({
       next: (response: any[]) => {
         const rows = (response ?? []).map(r => this.mapRow(r));
-        this.dataSource.data = rows;
-        this.dataSource.paginator = this.paginator;
-        this.dataSource.sort = this.sort;
 
-        this.rebuildDerivedTables(); // <<---- importante
+        // 👇 Si hay sede, me quedo solo con vacantes que la tengan en oficinasQueContratan
+        const sede = this.sede;
+        const filteredRows = sede ? rows.filter(r => this.matchesSede(r, sede)) : rows;
+
+        this.dataSource.data = filteredRows;
+
+        this.rebuildDerivedTables();
       },
       error: () => { /* ... */ },
       complete: () => this.loading = false
     });
   }
+
 
 
   private mapRow(r: any) {
@@ -429,7 +445,7 @@ export class VacantesComponent implements OnInit {
     ref.afterClosed().subscribe(result => {
       if (result) {
         const { start, end } = result;
-        this.vacantesService.getVacantesExcel(start, end).subscribe(blob => {
+        this.vacantesService.getVacantesExcel(start, end, this.sede).subscribe(blob => {
           const url = URL.createObjectURL(blob);
           const a = document.createElement('a');
           a.href = url;

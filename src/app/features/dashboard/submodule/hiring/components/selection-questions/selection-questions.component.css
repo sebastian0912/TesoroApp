@@ -115,6 +115,7 @@
   margin: 0 !important;
   padding: 0 !important;
   word-break: break-word !important;
+  margin-top: -10pt !important; /* más cerca del input */
 }
 
 /* ====== Aviso de documento > 15 días ====== */
@@ -133,6 +134,13 @@
   width: 16px !important;
   height: 16px !important;
   line-height: 16px !important;
+}
+
+.queue-row {
+  font-size: .8rem !important;
+  color: #5c667a !important;
+  font-style: italic !important;
+  font-weight: 500 !important;
 }
 
 .text-danger { color: #e53935 !important; }
