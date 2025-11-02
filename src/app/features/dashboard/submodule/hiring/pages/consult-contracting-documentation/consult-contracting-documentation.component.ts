@@ -1,126 +1,96 @@
-import { SharedModule } from '@/app/shared/shared.module';
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, DestroyRef, inject } from '@angular/core';
 import { FormControl } from '@angular/forms';
 import { MatDialog } from '@angular/material/dialog';
 import { MatTableDataSource } from '@angular/material/table';
 import Swal from 'sweetalert2';
-import { GestionDocumentalService } from '../../service/gestion-documental/gestion-documental.service';
-import { catchError, forkJoin, of } from 'rxjs';
+import { finalize } from 'rxjs';
+
+import { SharedModule } from '@/app/shared/shared.module';
 import { MatButtonModule } from '@angular/material/button';
-import { OrdenUnionDialogComponent } from '../../components/orden-union-dialog/orden-union-dialog.component';
 import { MatDialogModule } from '@angular/material/dialog';
-import { SeleccionService } from '../../service/seleccion/seleccion.service';
-import { InfoVacantesService } from '../../service/info-vacantes/info-vacantes.service';
-import { DateRangeDialogComponent } from '@/app/shared/components/date-rang-dialog/date-rang-dialog.component';
+
+import { GestionDocumentalService } from '../../service/gestion-documental/gestion-documental.service';
+import { OrdenUnionDialogComponent } from '../../components/orden-union-dialog/orden-union-dialog.component';
+
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 import { UtilityServiceService } from '@/app/shared/services/utilityService/utility-service.service';
 
+/** Doc serializado (lo que devuelve el backend por cada tipo) */
+type DocCell = {
+  exists: boolean;
+  url?: string;
+  uploaded_at?: string; // ISO
+};
+
+/** Fila de la tabla */
+type Row = {
+  cedula: string;
+  tipo_documento?: string | null;
+  nombre?: string | null;
+  finca?: string | null;
+  fecha_ingreso?: string | Date | null;
+  codigo_contrato?: string | null;
+  fecha_contratacion?: string | Date | null;
+  /** Mapa type_id -> DocCell */
+  docs: Record<number, DocCell>;
+};
+
 @Component({
   selector: 'app-consult-contracting-documentation',
-  imports: [
-    SharedModule,
-    MatButtonModule,
-    MatDialogModule
-  ],
+  standalone: true,
+  imports: [SharedModule, MatButtonModule, MatDialogModule],
   templateUrl: './consult-contracting-documentation.component.html',
   styleUrl: './consult-contracting-documentation.component.css'
 })
 export class ConsultContractingDocumentationComponent implements OnInit {
-  /** ---------- CONTROLES ---------- */
-  cedulaControl = new FormControl('');
+
+  // inyección moderna
+  private readonly destroyRef = inject(DestroyRef);
+  private readonly gestionDocumentalService = inject(GestionDocumentalService);
+  private readonly dialog = inject(MatDialog);
+  private readonly utilityService = inject(UtilityServiceService);
+
+  // --------- UI / estado ----------
+  cedulaControl = new FormControl<string>('', { nonNullable: true });
   user: any;
-  /** ---------- TABLA PRINCIPAL ---------- */
-  dataSource = new MatTableDataSource<any>([]);
+
+  // --------- columnas dinámicas ----------
+  /** Tipos que devuelve el backend, en orden */
+  tipoHeaders: Array<{ id: number; name: string }> = [];
+  /** Claves de columnas para Material Table (coinciden con los ng-container/defs de la plantilla) */
+  tipoColumnKeys: string[] = [];
+
+  // --------- tabla ----------
+  dataSource = new MatTableDataSource<Row>([]);
+  /** Columnas base + dinámicas por tipo */
   displayedColumns: string[] = [
-    'cedula', 'tipo_documento', 'nombre', 'finca', 'fecha_ingreso', 'codigo_contrato', 'fechaContratacion', 'ficha_tecnica', 'pdf_cedula',  // ← coincide 100 %
-    'procuraduria', 'contraloria', 'ofac', 'policivos',
-    'adres', 'sisben', 'contrato', 'entrega_documentos', 'tratamiento_datos', 'manejo_imagen',
-    'arl', 'examen', 'fondo_pension', 'eps', 'caja', 'pago_seguridad_social',
+    'cedula', 'tipo_documento', 'nombre', 'finca', 'fecha_ingreso', 'codigo_contrato', 'fecha_contratacion'
+    // luego se añaden ...tipoColumnKeys
   ];
-
-  private crearFilaBase(cedula: string) {
-    return {
-      encontrado: true,
-      cedula,
-      tipo_documento: '',
-      nombre: '',
-      finca: '',
-      fecha_ingreso: '',
-      codigo_contrato: '',
-      fechaContratacion: '',
-      ficha_tecnica: '',
-      pdf_cedula: '',
-      procuraduria: '',
-      contraloria: '',
-      ofac: '',
-      policivos: '',
-      adres: '',
-      sisben: '',
-      contrato: '',
-      entrega_documentos: '',
-      tratamiento_datos: '',
-      manejo_imagen: '',
-      arl: '',
-      examen: '',
-      fondo_pension: '',
-      pdf_procuraduria: '',
-      fecha_procuraduria: '',
-      pdf_contraloria: '',
-      fecha_contraloria: '',
-      pdf_ofac: '',
-      fecha_ofac: '',
-      pdf_policivos: '',
-      fecha_policivos: '',
-      pdf_adres: '',
-      fecha_adres: '',
-      pdf_sisben: '',
-      fecha_sisben: '',
-      pdf_contrato: '',
-      fecha_contrato: '',
-      pdf_entrega_documentos: '',
-      fecha_entrega_documentos: '',
-      pdf_arl: '',
-      fecha_arl: '',
-      pdf_examen: '',
-      fecha_examen: '',
-      pdf_fondo_pension: '',
-      fecha_fondo_pension: '',
-      pdf_eps: '',
-      fecha_eps: '',
-      pdf_caja: '',
-      fecha_caja: '',
-      pdf_pago_seguridad_social: '',
-      fecha_pago_seguridad_social: ''
-    };
-  }
-
-  constructor(
-    private gestionDocumentalService: GestionDocumentalService,
-    private seleccionService: SeleccionService,
-    private dialog: MatDialog,
-    private infoVacantesService: InfoVacantesService,
-    private utilityService: UtilityServiceService
-  ) { }
 
   ngOnInit(): void {
     this.user = this.utilityService.getUser();
 
+    // filtro de texto simple sobre todas las props stringificadas
+    this.dataSource.filterPredicate = (row, filter) =>
+      JSON.stringify(row).toLowerCase().includes(filter);
   }
 
-  /* ---------- BÚSQUEDA INDIVIDUAL ---------- */
+  /** ---------- BÚSQUEDA INDIVIDUAL ---------- */
   buscarPorCedula(): void {
-    const cedula = this.cedulaControl.value?.trim();
+    const cedula = this.cedulaControl.value.trim();
     if (!cedula) {
       Swal.fire({ icon: 'warning', title: 'Cédula vacía', text: 'Ingrese una cédula.' });
       return;
     }
+    this.procesarCedulasPegadas(cedula);
   }
 
-  /* ---------- PEGAR LISTA DIRECTO EN TABLA ---------- */
+  /** ---------- PEGAR LISTA DIRECTO EN TABLA ---------- */
   onTablePaste(evt: ClipboardEvent): void {
     const txt = evt.clipboardData?.getData('text') ?? '';
-    if (!txt) { return; }
+    if (!txt) return;
     evt.preventDefault();
     if (txt.includes('\n') || txt.includes('\t') || txt.includes(',')) {
       this.procesarCedulasPegadas(txt);
@@ -130,22 +100,23 @@ export class ConsultContractingDocumentationComponent implements OnInit {
     }
   }
 
-  parseFecha(fecha: string): Date | null {
-    if (!fecha) return null;
-    const [dia, mes, anio] = fecha.split('/');
-    return new Date(+anio, +mes - 1, +dia);
-  }
-
+  /** ---------- PROCESAMIENTO MASIVO CON NUEVO ENDPOINT ---------- */
   procesarCedulasPegadas(texto: string): void {
+    // limpia tabla y normaliza/deduplica cédulas
     this.dataSource.data = [];
-    const cedulas = texto.split(/[\n,\t;]+/).map(c => c.trim()).filter(Boolean);
+    this.tipoHeaders = [];
+    this.tipoColumnKeys = [];
+    this.displayedColumns = [
+      'cedula', 'tipo_documento', 'nombre', 'finca', 'fecha_ingreso', 'codigo_contrato', 'fecha_contratacion'
+    ];
 
-    if (cedulas.length === 0) {
-      Swal.fire({
-        icon: 'info',
-        title: 'Sin datos',
-        text: 'No se detectaron cédulas en el texto pegado.'
-      });
+    const cedulas = Array.from(
+      new Set(
+        texto.split(/[\n,\t;]+/).map(c => c.trim()).filter(Boolean)
+      )
+    );
+    if (!cedulas.length) {
+      Swal.fire({ icon: 'info', title: 'Sin datos', text: 'No se detectaron cédulas.' });
       return;
     }
 
@@ -156,233 +127,136 @@ export class ConsultContractingDocumentationComponent implements OnInit {
       didOpen: () => Swal.showLoading()
     });
 
-    let pendientes = cedulas.length;
+    this.gestionDocumentalService
+      .getDocumentosChecklistByGet(cedulas) // 👈 usa el nuevo servicio (tipos por defecto del backend)
+      .pipe(finalize(() => Swal.close()))
+      .subscribe({
+        next: (resp: any) => {
+          // 1) Encabezados de tipos (en orden) -> columnas dinámicas
+          this.tipoHeaders = Array.isArray(resp?.tipos) ? resp.tipos : [];
+          this.tipoColumnKeys = this.tipoHeaders.map(t => `type_${t.id}`);
+          this.displayedColumns = [
+            'cedula', 'tipo_documento', 'nombre', 'finca', 'fecha_ingreso', 'codigo_contrato', 'fecha_contratacion',
+            ...this.tipoColumnKeys
+          ];
 
-    cedulas.forEach(c => {
-      let idx = this.dataSource.data.findIndex(row => row.cedula === c);
-      let row = idx >= 0 ? { ...this.dataSource.data[idx] } : this.crearFilaBase(c);
-
-      if (idx < 0) {
-        this.dataSource.data = [...this.dataSource.data, row];
-      }
-
-      const tipos = [2, 25, 26, 27, 29, 30, 32, 34, 36, 37, 38, 46];
-
-      forkJoin([
-        this.seleccionService.buscarEncontratacion(c).pipe(
-          catchError(() => of(null))
-        ),
-        forkJoin(
-          tipos.map(tipo =>
-            this.gestionDocumentalService.consultarDocumentosPorCedulaYTipo(c, tipo)
-              .pipe(
-                catchError(() => of([]))
-              )
-          )
-        )
-      ]).subscribe({
-        next: ([contratacionData, respuestas]: [any, any[]]) => {
-          // --- Datos personales y de contratación ---
-          if (contratacionData) {
-            row.nombre_completo = contratacionData.nombre_completo || contratacionData.nombreCompleto || '';
-            row.tipo_documento = contratacionData.tipodedocumento || '';
-            row.nombre = contratacionData.nombre_completo || contratacionData.nombreCompleto || '';
-            row.finca = contratacionData.centro_costo_carnet || '';
-            row.fecha_ingreso = this.parseFecha(contratacionData.fechaIngreso) || '';
-            row.codigo_contrato = contratacionData.codigo_contrato || '';
-            row.fechaContratacion = this.parseFecha(contratacionData.fechaContratacion) || '';
-          } else {
-            row.nombre_completo = '';
-            row.tipo_documento = '';
-            row.nombre = '';
-            row.finca = '';
-            row.fecha_ingreso = '';
-          }
-          // --- Documentos ---
-          respuestas.forEach((docs: any, i: number) => {
-            const documentos = Array.isArray(docs) ? docs : [docs];
-            documentos.forEach((doc: any) => {
-              if (!doc || !doc.type_name) return;
-              const tipo = doc.type_name.toLowerCase().replace(/\s+/g, '_');
-              switch (tipo) {
-                case 'procuraduria':
-                  row.procuraduria = '✔';
-                  row.pdf_procuraduria = doc.file_url || '';
-                  row.fecha_procuraduria = doc.uploaded_at || '';
-                  break;
-                case 'contraloria':
-                  row.contraloria = '✔';
-                  row.pdf_contraloria = doc.file_url || '';
-                  row.fecha_contraloria = doc.uploaded_at || '';
-                  break;
-                case 'ofac':
-                  row.ofac = '✔';
-                  row.pdf_ofac = doc.file_url || '';
-                  row.fecha_ofac = doc.uploaded_at || '';
-                  break;
-                case 'policivo':
-                case 'policivos':
-                  row.policivos = '✔';
-                  row.pdf_policivos = doc.file_url || '';
-                  row.fecha_policivos = doc.uploaded_at || '';
-                  break;
-                case 'adres':
-                case 'adress':
-                  row.adres = '✔';
-                  row.pdf_adres = doc.file_url || '';
-                  row.fecha_adres = doc.uploaded_at || '';
-                  break;
-                case 'sisben':
-                  row.sisben = '✔';
-                  row.pdf_sisben = doc.file_url || '';
-                  row.fecha_sisben = doc.uploaded_at || '';
-                  break;
-                case 'contrato':
-                  row.contrato = '✔';
-                  row.pdf_contrato = doc.file_url || '';
-                  row.fecha_contrato = doc.uploaded_at || '';
-                  break;
-                case 'entrega_de_documentos':
-                  row.entrega_documentos = '✔';
-                  row.pdf_entrega_documentos = doc.file_url || '';
-                  row.fecha_entrega_documentos = doc.uploaded_at || '';
-                  break;
-                case 'arl':
-                  row.arl = '✔';
-                  row.pdf_arl = doc.file_url || '';
-                  row.fecha_arl = doc.uploaded_at || '';
-                  break;
-                case 'examen':
-                case 'examenes_medicos':
-                  row.examen = '✔';
-                  row.pdf_examen = doc.file_url || '';
-                  row.fecha_examen = doc.uploaded_at || '';
-                  break;
-                case 'afp':
-                  row.fondo_pension = '✔';
-                  row.pdf_fondo_pension = doc.file_url || '';
-                  row.fecha_fondo_pension = doc.uploaded_at || '';
-                  break;
-                case 'ficha_tecnica':
-                  row.ficha_tecnica = '✔';
-                  row.pdf_ficha_tecnica = doc.file_url || '';
-                  row.fecha_ficha_tecnica = doc.uploaded_at || '';
-                  break;
-                case 'cedula':
-                  row.pdf_cedula = doc.file_url || '';
-                  row.fecha_cedula = doc.uploaded_at || '';
-                  break;
-                case 'eps':
-                  row.eps = '✔';
-                  row.pdf_eps = doc.file_url || '';
-                  row.fecha_eps = doc.uploaded_at || '';
-                  break;
-                case 'caja':
-                  row.caja = '✔';
-                  row.pdf_caja = doc.file_url || '';
-                  row.fecha_caja = doc.uploaded_at || '';
-                  break;
-                case 'pago_seguridad_social':
-                  row.pago_seguridad_social = '✔';
-                  row.pdf_pago_seguridad_social = doc.file_url || '';
-                  row.fecha_pago_seguridad_social = doc.uploaded_at || '';
-                  break;
-                case 'autorizacion_tratamientos_de_datos':
-                  row.tratamiento_datos = '✔';
-                  row.pdf_tratamiento_datos = doc.file_url || '';
-                  row.fecha_tratamiento_datos = doc.uploaded_at || '';
-                  break;
-                case 'manejo_imagen':
-                  row.manejo_imagen = '✔';
-                  row.pdf_manejo_imagen = doc.file_url || '';
-                  row.fecha_manejo_imagen = doc.uploaded_at || '';
-                  break;
-
-
-                // Agrega más tipos si es necesario
-              }
+          // 2) Items -> filas
+          const rows: Row[] = (resp?.items ?? []).map((it: any) => {
+            const docsMap: Record<number, DocCell> = {};
+            const docsArr: any[] = Array.isArray(it?.docs) ? it.docs : [];
+            docsArr.forEach(d => {
+              const tid = Number(d?.type_id);
+              if (!Number.isFinite(tid)) return;
+              const dd = d?.doc;
+              docsMap[tid] = {
+                exists: !!dd,
+                url: dd?.file_url,
+                uploaded_at: dd?.uploaded_at
+              };
             });
+
+            return {
+              cedula: String(it?.cedula ?? ''),
+              tipo_documento: it?.tipo_documento ?? '',
+              nombre: it?.nombre_completo ?? '',
+              finca: it?.finca ?? '',
+              fecha_ingreso: it?.fecha_ingreso ?? '',
+              codigo_contrato: it?.codigo_contrato ?? '',
+              fecha_contratacion: it?.fecha_contratacion ?? '',
+              docs: docsMap
+            };
           });
 
-          // Actualizar la fila en la tabla (por referencia y por spread)
-          idx = this.dataSource.data.findIndex(row => row.cedula === c);
-          this.dataSource.data[idx] = row;
-          this.dataSource.data = [...this.dataSource.data];
+          this.dataSource.data = rows;
         },
         error: () => {
-          // Puedes mostrar un error global aquí si lo deseas
-        },
-        complete: () => {
-          pendientes--;
-          if (pendientes === 0) Swal.close();
+          Swal.fire({ icon: 'error', title: 'Error', text: 'Ocurrió un problema consultando datos.' });
         }
       });
-    });
   }
 
-  /* ---------- FILTRO DE TABLA ---------- */
+  /** ---------- FILTRO DE TABLA ---------- */
   applyFilters(ev: Event): void {
     this.dataSource.filter = (ev.target as HTMLInputElement).value.trim().toLowerCase();
   }
 
-  limpiarTabla() {
+  limpiarTabla(): void {
     this.dataSource.data = [];
     this.cedulaControl.setValue('');
   }
 
+  /** ---------- ZIP DE ARCHIVOS ---------- */
   descargarZip(): void {
+    if (!this.dataSource.data?.length) {
+      Swal.fire({ icon: 'info', title: 'Sin datos', text: 'Primero realiza una consulta.' });
+      return;
+    }
+    if (!this.tipoHeaders?.length) {
+      Swal.fire({ icon: 'info', title: 'Tipos no cargados', text: 'No se detectaron tipos documentales.' });
+      return;
+    }
+
     Swal.fire({
       title: '¿Deseas descargar los archivos PDF?',
       icon: 'question',
       showCancelButton: true,
       confirmButtonText: 'Sí, por favor',
       cancelButtonText: 'No'
-    }).then(result => {
-      if (result.isConfirmed) {
-        this.abrirDialogOrden();
-      }
-    });
+    }).then(r => r.isConfirmed && this.abrirDialogOrden());
   }
 
   abrirDialogOrden(): void {
-    const antecedentes = [
-      { id: 34, name: 'FICHA TÉCNICA' },
-      { id: 29, name: 'CEDULA' },
-      { id: 3, name: 'PROCURADURIA' },
-      { id: 4, name: 'CONTRALORIA' },
-      { id: 5, name: 'OFAC' },
-      { id: 6, name: 'POLICIVOS' },
-      { id: 7, name: 'ADRES' },
-      { id: 8, name: 'SISBEN' },
-      { id: 25, name: 'CONTRATO' },
-      { id: 27, name: 'ENTREGA DE DOCUMENTOS' },
-      { id: 30, name: 'ARL' },
-      { id: 32, name: 'EXAMENES MEDICOS' },
-      { id: 11, name: 'AFP' },
-      { id: 36, name: 'EPS' },
-      { id: 37, name: 'CAJA DE COMPENSACION' },
-      { id: 38, name: 'PAGO SEGURIDAD SOCIAL' }
-    ];
+    // 🔹 Opción A: todos los tipos que devolvió el backend (en el mismo orden)
+    const antecedentes = this.tipoHeaders.map(t => ({
+      id: t.id,
+      name: t.name?.toUpperCase?.() || String(t.name)
+    }));
 
-    const dialogRef = this.dialog.open(OrdenUnionDialogComponent, {
-      width: '400px',
-      height: '65vh',
+    if (!antecedentes.length) {
+      Swal.fire({ icon: 'info', title: 'Sin tipos disponibles', text: 'No hay tipos para ordenar.' });
+      return;
+    }
+
+    this.dialog.open(OrdenUnionDialogComponent, {
+      panelClass: 'orden-union-dialog-panel',
+      minWidth: '500pt',
+      height: '90vh',
+      maxHeight: '90vh',
+      autoFocus: false,
+      restoreFocus: false,
       data: { antecedentes }
-    });
+    }).afterClosed()
+      .subscribe((orden: number[] | null) => orden && this.descargarZipConUnion(orden));
 
-    dialogRef.afterClosed().subscribe((ordenSeleccionado: number[] | null) => {
-      if (ordenSeleccionado) {
-        this.descargarZipConUnion(ordenSeleccionado);
-
-      }
-    });
   }
 
-  descargarZipConUnion(ordenSeleccionado: any): void {
-    // imprimir cedulas
-    const cedulas = this.dataSource.data
-      .filter(row => row.encontrado && row.cedula)
-      .map(row => row.cedula);
+
+  descargarZipConUnion(ordenSeleccionado: Array<number | string>): void {
+    const cedulasStr = this.dataSource.data
+      .filter(r => r.cedula)
+      .map(r => r.cedula);
+
+    const cedulasNum = cedulasStr
+      .map(c => Number(c))
+      .filter(n => Number.isFinite(n));
+
+    const noNumericas = cedulasStr.length - cedulasNum.length;
+    if (noNumericas > 0) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'Cédulas no numéricas',
+        text: `Se omitieron ${noNumericas} cédula(s) con formato no numérico.`
+      });
+    }
+
+    const ordenNums = (ordenSeleccionado ?? [])
+      .map(v => typeof v === 'string' ? Number(v) : v)
+      .filter(n => Number.isFinite(n));
+
+    if (!cedulasNum.length || !ordenNums.length) {
+      Swal.fire({ icon: 'info', title: 'Sin datos', text: 'Verifica cédulas y orden seleccionado.' });
+      return;
+    }
 
     Swal.fire({
       title: 'Preparando descarga...',
@@ -391,7 +265,9 @@ export class ConsultContractingDocumentationComponent implements OnInit {
       didOpen: () => Swal.showLoading()
     });
 
-    this.gestionDocumentalService.descargarZipPorCedulasYOrden(cedulas, ordenSeleccionado)
+    this.gestionDocumentalService
+      .descargarZipPorCedulasYOrden(cedulasNum, ordenNums)
+      .pipe(finalize(() => Swal.close())) // 👈 quitamos el paréntesis extra aquí
       .subscribe({
         next: (blob: Blob) => {
           const url = window.URL.createObjectURL(blob);
@@ -401,351 +277,288 @@ export class ConsultContractingDocumentationComponent implements OnInit {
           document.body.appendChild(a);
           a.click();
           document.body.removeChild(a);
-          Swal.close();
+          window.URL.revokeObjectURL(url);
         },
-        error: (err) => {
-          Swal.fire({ icon: 'error', title: 'Error', text: 'No se pudo descargar el archivo.' });
-        }
+        error: () => Swal.fire({ icon: 'error', title: 'Error', text: 'No se pudo descargar el archivo.' })
       });
   }
+  // ---------- Util ----------
 
-  exportarExcelFaltantes(): void {
-    const data: any[] = (this.dataSource?.data || []).map(x => ({ ...x })) as any[];
-
-    // Orden exacto de columnas que quieres en el Excel
-    const headers = [
-      'Cédula',
-      'Tipo de Documento',
-      'Nombre',
-      'Finca',
-      'Fecha ingreso',
-      'Código de contrato',
-      'Ficha Técnica',
-      'PDF Cédula',
-      'Procuraduría',
-      'Contraloría',
-      'OFAC',
-      'Policivos',
-      'ADRES',
-      'SISBEN',
-      'Contrato',
-      'Entrega de Documentos',
-      'ARL',
-      'Examen',
-      'Fondo de Pensión',
-      'EPS',
-      'Caja de Compensación',
-      'Pago Seguridad Social',
-    ];
-
-    // Helper: 1 si hay archivo/url o flag "✔", 0 si no
-    const toBin = (v: any) => (v && String(v).trim() !== '' ? 1 : 0);
-    const isCheck = (v: any) => String(v || '').trim() === '✔';
-
-    // Helper: prioriza pdfField, y si no existe usa un flag alterno (✔)
-    const hasDoc = (item: any, pdfField: string, altFlagField?: string) => {
-      if (pdfField in item) return toBin(item[pdfField]);
-      if (altFlagField) return isCheck(item[altFlagField]) ? 1 : 0;
-      return 0;
-    };
-
-    const rows = data.map((item) => {
-      return {
-        'Cédula': item.cedula ?? '',
-        'Tipo de Documento': item.tipo_documento ?? '',
-        'Nombre': item.nombre ?? '',
-        'Finca': item.finca ?? '',
-        'Fecha ingreso': item.fecha_ingreso ?? '',
-        'Código de contrato': item.codigo_contrato ?? '',
-
-        // Documentos (1 si hay pdf_*, 0 si no). En algunos hago fallback al flag "✔".
-        'Ficha Técnica': hasDoc(item, 'pdf_ficha_tecnica', 'ficha_tecnica'),
-        'PDF Cédula': hasDoc(item, 'pdf_cedula'),
-        'Procuraduría': hasDoc(item, 'pdf_procuraduria', 'procuraduria'),
-        'Contraloría': hasDoc(item, 'pdf_contraloria', 'contraloria'),
-        'OFAC': hasDoc(item, 'pdf_ofac', 'ofac'),
-        'Policivos': hasDoc(item, 'pdf_policivos', 'policivos'),
-        'ADRES': hasDoc(item, 'pdf_adres', 'adres'),
-        'SISBEN': hasDoc(item, 'pdf_sisben', 'sisben'),
-        'Contrato': hasDoc(item, 'pdf_contrato', 'contrato'),
-        'Entrega de Documentos': hasDoc(item, 'pdf_entrega_documentos', 'entrega_documentos'),
-        'ARL': hasDoc(item, 'pdf_arl', 'arl'),
-        'Examen': hasDoc(item, 'pdf_examen', 'examen'),
-        'Fondo de Pensión': hasDoc(item, 'pdf_fondo_pension', 'fondo_pension'),
-        'EPS': hasDoc(item, 'pdf_eps', 'eps'),
-        'Caja de Compensación': hasDoc(item, 'pdf_caja', 'caja'),
-        'Pago Seguridad Social': hasDoc(item, 'pdf_pago_seguridad_social', 'pago_seguridad_social'),
-      };
-    });
-
-    // Crea la hoja con el orden de headers deseado
-    const ws = XLSX.utils.json_to_sheet(rows, { header: headers });
-    // Ajuste de anchos aproximados
-    ws['!cols'] = headers.map(h => ({ wch: Math.max(18, h.length + 2) }));
-
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Faltantes');
-
-    const filename = `faltantes_${new Date().toISOString().slice(0, 10)}.xlsx`;
-    XLSX.writeFile(wb, filename);
+  private parseFecha(fecha: string | Date | null | undefined): Date | null {
+    if (!fecha) return null;
+    if (fecha instanceof Date) return isNaN(fecha.getTime()) ? null : fecha;
+    const ddmmyyyy = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/;
+    const m = ddmmyyyy.exec(fecha);
+    if (m) return new Date(+m[3], +m[2] - 1, +m[1]);
+    const d = new Date(fecha);
+    return isNaN(d.getTime()) ? null : d;
   }
 
-
-  descargarChecklistExcel(startDate: Date, endDate: Date): void {
-    if (!startDate || !endDate) {
-      Swal.fire({
-        icon: 'error',
-        title: 'Error',
-        text: 'Por favor, seleccione un rango de fechas válido.'
-      });
-      return;
-    }
-
-    // 1. Mostrar modal de carga
-    Swal.fire({
-      title: 'Generando archivo...',
-      icon: 'info',
-      text: 'Por favor espera un momento.',
-      allowOutsideClick: false,
-      allowEscapeKey: false,
-      didOpen: () => Swal.showLoading()
-    });
-
-    this.infoVacantesService.descargarChecklistJson(startDate, endDate).subscribe(json => {
-      Swal.close(); // 2. Cerrar modal de carga
-
-      if (!json || !json.rows || !json.rows.length) {
-        Swal.fire({
-          icon: 'info',
-          title: 'Sin registros',
-          text: 'No se encontraron registros en el rango seleccionado.'
-        });
-        return;
-      }
-
-      // 3. Mapea los encabezados a títulos "bonitos" para el Excel (opcional)
-      const headerMap: Record<string, string> = {
-        cedula: 'Cédula',
-        tipo_documento: 'Tipo Documento',
-        primer_apellido: 'Primer Apellido',
-        segundo_apellido: 'Segundo Apellido',
-        primer_nombre: 'Primer Nombre',
-        segundo_nombre: 'Segundo Nombre',
-        ficha_tecnica: 'Ficha Técnica',
-        cedula_doc: 'Cédula Doc.',
-        procuraduria: 'Procuraduría',
-        contraloria: 'Contraloría',
-        ofac: 'OFAC',
-        policivos: 'Policivos',
-        adres: 'Adres',
-        sisben: 'Sisbén',
-        contrato: 'Contrato',
-        entrega_documentos: 'Entrega Documentos',
-        arl: 'ARL',
-        examenes_medicos: 'Exámenes Médicos',
-        afp: 'AFP'
-      };
-
-      const headers: string[] = json.headers;
-      const rows: any[] = json.rows;
-
-      // 4. Opcional: Mapea los headers para el Excel (puedes quitar esto si prefieres los nombres técnicos)
-      const displayHeaders = headers.map(h => headerMap[h] || h);
-
-      // 5. Prepara los datos para Excel asegurando el orden de columnas
-      const dataForExcel = rows.map((row: any) => {
-        const newRow: any = {};
-        headers.forEach(h => {
-          if (h === 'cedula') {
-            // Convertir a número (solo si no tiene ceros a la izquierda)
-            newRow[headerMap[h] || h] = Number(row[h]);
-          } else {
-            newRow[headerMap[h] || h] = row[h];
-          }
-        });
-        return newRow;
-      });
-
-      // 6. Crea el worksheet y el workbook
-      const worksheet: XLSX.WorkSheet = XLSX.utils.json_to_sheet(dataForExcel, { header: displayHeaders });
-      XLSX.utils.sheet_add_aoa(worksheet, [displayHeaders], { origin: 'A1' });
-
-      const workbook: XLSX.WorkBook = {
-        Sheets: { 'Checklist': worksheet },
-        SheetNames: ['Checklist']
-      };
-
-      // 7. Genera el archivo Excel
-      const excelBuffer: any = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
-
-      // 8. Descarga el archivo
-      const fechaActual = new Date().toISOString().slice(0, 10);
-      saveAs(
-        new Blob([excelBuffer], { type: 'application/octet-stream' }),
-        `checklist_documental_${fechaActual}.xlsx`
-      );
-
-    }, error => {
-      Swal.close();
-      Swal.fire({
-        icon: 'error',
-        title: 'Error',
-        text: 'No se pudo generar el archivo.'
-      });
-    });
-  }
-
-
-  verReporteAuditoria(): void {
-    const data: any[] = Array.isArray(this.dataSource?.data) ? this.dataSource.data : [];
+  // ---------- EXCEL (faltantes dinámico por tipos) ----------
+  // ✅ Excel pro con iconos y estilos
+  async exportarExcelFaltantes(): Promise<void> {
+    const data = this.dataSource.data ?? [];
     if (!data.length) {
       Swal.fire('Sin datos', 'No hay registros para exportar.', 'info');
       return;
     }
 
-    const f = (v: any) => {
-      if (!v) return '';
-      const d = new Date(v);
-      if (isNaN(d.getTime())) return '';
-      const yyyy = d.getFullYear();
-      const mm = String(d.getMonth() + 1).padStart(2, '0');
-      const dd = String(d.getDate()).padStart(2, '0');
-      return `${yyyy}-${mm}-${dd}`;
+    // Carga dinámica para no romper SSR ni inflar el bundle inicial
+    const ExcelJS = await import('exceljs');
+
+    // 1) Libro y hoja
+    const wb = new ExcelJS.Workbook();
+    wb.creator = 'TuAlianza';
+    wb.created = new Date();
+
+    const ws = wb.addWorksheet('Faltantes', {
+      views: [{ state: 'frozen', ySplit: 1 }] // encabezado congelado
+    });
+
+    // 2) Columnas (base + dinámicas por tipo)
+    const baseCols = [
+      { header: 'Cédula', key: 'cedula', width: 16 },
+      { header: 'Tipo de Documento', key: 'tipo_documento', width: 18 },
+      { header: 'Nombre', key: 'nombre', width: 30 },
+      { header: 'Finca', key: 'finca', width: 18 },
+      { header: 'Fecha ingreso', key: 'fecha_ingreso', width: 16, style: { numFmt: 'dd-mm-yyyy' } },
+      { header: 'Código de contrato', key: 'codigo_contrato', width: 20 },
+    ];
+
+    const tipoCols = this.tipoHeaders.map(t => ({
+      header: t.name,
+      key: `t_${t.id}`,
+      width: 18
+    }));
+
+    ws.columns = [...baseCols, ...tipoCols];
+
+    // 3) Cabecera con estilo (oscuro, tipografía blanca, centrado)
+    const header = ws.getRow(1);
+    header.height = 22;
+    header.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+    header.alignment = { vertical: 'middle', horizontal: 'center' };
+    header.eachCell(cell => {
+      cell.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FF1F2937' } // gris oscuro
+      };
+      cell.border = {
+        bottom: { style: 'thin', color: { argb: 'FF9CA3AF' } }
+      };
+    });
+
+    // 4) Filas
+    const baseKeys = baseCols.map(c => c.key);
+    const baseCount = baseCols.length;
+    const green = { argb: 'FF2E7D32' }; // verde 700
+    const red = { argb: 'FFC62828' }; // rojo 800
+
+    for (const item of data) {
+      // Mapa base
+      const rowData: any = {
+        cedula: item.cedula ?? '',
+        tipo_documento: item.tipo_documento ?? '',
+        nombre: item.nombre ?? '',
+        finca: item.finca ?? '',
+        fecha_ingreso: item.fecha_ingreso ?? '',
+        codigo_contrato: item.codigo_contrato ?? ''
+      };
+
+      // Por cada tipo: ✓ o ✗
+      this.tipoHeaders.forEach(t => {
+        const cell = item.docs?.[t.id];
+        rowData[`t_${t.id}`] = cell?.exists ? '✓' : '✗';
+      });
+
+      const row = ws.addRow(rowData);
+
+      // Zebra striping (muy sutil)
+      if (row.number % 2 === 0) {
+        row.eachCell((cell, col) => {
+          cell.fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: 'FFF9FAFB' } // gris muy claro
+          };
+        });
+      }
+
+      // Centrar y colorear las celdas dinámicas por tipo
+      for (let col = baseCount + 1; col <= ws.columnCount; col++) {
+        const c = row.getCell(col);
+        const v = (c.value ?? '') as string;
+        c.alignment = { vertical: 'middle', horizontal: 'center' };
+        c.font = {
+          name: 'Segoe UI Symbol',
+          bold: true,
+          color: v === '✓' ? green : red
+        };
+      }
+    }
+
+    // 5) Autofiltro sobre toda la cabecera
+    ws.autoFilter = {
+      from: { row: 1, column: 1 },
+      to: { row: 1, column: ws.columnCount }
     };
 
-    const headers = [
+    // 6) Bordes finos externos (look minimal)
+    const lastRow = ws.lastRow?.number ?? 1;
+    for (let r = 1; r <= lastRow; r++) {
+      for (let c = 1; c <= ws.columnCount; c++) {
+        const cell = ws.getRow(r).getCell(c);
+        cell.border = {
+          top: cell.border?.top ?? (r === 1 ? { style: 'thin', color: { argb: 'FF9CA3AF' } } : undefined),
+          bottom: { style: 'hair', color: { argb: 'FFE5E7EB' } },
+          left: { style: 'hair', color: { argb: 'FFE5E7EB' } },
+          right: { style: 'hair', color: { argb: 'FFE5E7EB' } },
+        };
+      }
+    }
+
+    // 7) Guardar
+    const blob = new Blob([await wb.xlsx.writeBuffer()], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    });
+    const today = new Date().toISOString().slice(0, 10);
+    saveAs(blob, `faltantes_${today}.xlsx`);
+  }
+
+
+  // ---------- EXCEL (auditoría dinámica) ----------
+  verReporteAuditoria(): void {
+    const data = this.dataSource.data ?? [];
+    if (!data.length) {
+      Swal.fire('Sin datos', 'No hay registros para exportar.', 'info');
+      return;
+    }
+
+    // ---- helpers locales ----
+    const toDateVal = (v: any): Date | '' => {
+      const d = this.parseFecha(v);
+      return d ? d : '';
+    };
+
+    const baseHeaders = [
       'Cédula',
       'Tipo de Documento',
       'Nombre',
       'Finca',
       'Fecha ingreso',
       'Código de contrato',
-      'Fecha de contratación',
+      'Fecha de contratación'
+    ];
 
-      'Ficha Técnica',
-      'Fecha Ficha Técnica',
+    // Por cada tipo: 2 columnas -> [<NombreTipo>, Fecha <NombreTipo>]
+    const dynHeaders: string[] = [];
+    this.tipoHeaders.forEach(t => {
+      dynHeaders.push(t.name);
+      dynHeaders.push(`Fecha ${t.name}`);
+    });
 
-      'PDF Cédula',
-      'Fecha Cédula',
+    const headers = [...baseHeaders, ...dynHeaders];
 
-      'Procuraduría',
-      'Fecha Procuraduría',
+    // ---- construimos la matriz (AOA) con headers + filas ----
+    const aoa: any[][] = [headers];
 
-      'Contraloría',
-      'Fecha Contraloría',
+    for (const r of data) {
+      const row: any[] = [
+        r.cedula ?? '',
+        r.tipo_documento ?? '',
+        r.nombre ?? '',
+        r.finca ?? '',
+        toDateVal(r.fecha_ingreso),
+        r.codigo_contrato ?? '',
+        toDateVal(r.fecha_contratacion),
+      ];
 
-      'OFAC',
-      'Fecha OFAC',
+      // por cada tipo: celda link + celda fecha
+      this.tipoHeaders.forEach(t => {
+        const cell = r.docs?.[t.id];
+        // Texto minimalista del link
+        const linkText = cell?.exists && cell.url ? 'Ver' : '';
+        const dateVal = cell?.uploaded_at ? toDateVal(cell.uploaded_at) : '';
 
-      'Policivos',
-      'Fecha Policivos',
+        row.push(linkText);
+        row.push(dateVal);
+      });
 
-      'ADRES',
-      'Fecha ADRES',
+      aoa.push(row);
+    }
 
-      'SISBEN',
-      'Fecha SISBEN',
+    // ---- hoja ----
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
 
-      'Contrato',
-      'Fecha Contrato',
+    // 1) AutoFilter en todo el rango
+    const endCol = headers.length - 1;
+    const endRow = aoa.length - 1;
+    ws['!autofilter'] = {
+      ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: endRow, c: endCol } })
+    };
 
-      'Entrega de Documentos',
-      'Fecha Entrega de Documentos',
+    // 2) Convertir a hipervínculo las celdas "Ver" de cada tipo
+    //    fila de datos comienza en 1 (porque 0 es el header)
+    const baseCols = baseHeaders.length;
+    for (let rIdx = 1; rIdx < aoa.length; rIdx++) {
+      this.tipoHeaders.forEach((t, i) => {
+        const linkColIdx = baseCols + (i * 2);       // columna del link
+        const cellAddr = XLSX.utils.encode_cell({ r: rIdx, c: linkColIdx });
+        const cell = ws[cellAddr];
+        // La URL está en this.dataSource.data[rIdx-1].docs[t.id]?.url
+        const url = this.dataSource.data[rIdx - 1]?.docs?.[t.id]?.url;
 
-      'ARL',
-      'Fecha ARL',
+        if (cell && url) {
+          // Asegura tipo string y añade hipervínculo
+          cell.t = 's';
+          cell.v = 'Ver';
+          (cell as any).l = { Target: String(url) };
+        }
+      });
+    }
 
-      'Examen',
-      'Fecha Examen',
+    // 3) Formato de fecha para las columnas de fecha (base + dinámicas)
+    //    Base: "Fecha ingreso" (col 4) y "Fecha de contratación" (col 6) -> índice 0-based
+    const setDateFormat = (rowIdx: number, colIdx: number) => {
+      const addr = XLSX.utils.encode_cell({ r: rowIdx, c: colIdx });
+      const c = ws[addr];
+      if (c && c.v instanceof Date) {
+        c.t = 'd';          // tipo fecha
+        c.z = 'yyyy-mm-dd'; // formato minimalista
+      }
+    };
 
-      'Fondo de Pensión',
-      'Fecha Fondo de Pensión',
+    for (let rIdx = 1; rIdx < aoa.length; rIdx++) {
+      // base dates: indices 4 y 6 (0-based dentro de headers)
+      setDateFormat(rIdx, 4);
+      setDateFormat(rIdx, 6);
 
-      'EPS',
-      'Fecha EPS',
+      // dinámicas: cada tipo añade [link, fecha] -> la fecha es la columna impar del par
+      this.tipoHeaders.forEach((_, i) => {
+        const dateColIdx = baseCols + (i * 2) + 1;
+        setDateFormat(rIdx, dateColIdx);
+      });
+    }
 
-      'Caja de Compensación',
-      'Fecha Caja',
+    // 4) Anchos de columna elegantes (mínimo 14, máximo 42)
+    const computeWch = (colIndex: number): number => {
+      const headerLen = String(headers[colIndex] ?? '').length;
+      let maxLen = headerLen;
+      for (let r = 1; r < aoa.length; r++) {
+        const val = aoa[r][colIndex];
+        const length =
+          val instanceof Date
+            ? 10 // "yyyy-mm-dd"
+            : (val ? String(val).length : 0);
+        if (length > maxLen) maxLen = length;
+      }
+      return Math.max(14, Math.min(42, maxLen + 2));
+    };
 
-      'Pago Seguridad Social',
-      'Fecha Pago Seguridad Social'
-    ] as const;
+    ws['!cols'] = headers.map((_, c) => ({ wch: computeWch(c) }));
 
-    type Header = (typeof headers)[number];
-    type Row = Record<Header, string | number>;
-
-    const rows: Row[] = data.map(r => ({
-      'Cédula': r.cedula ?? '',
-      'Tipo de Documento': r.tipo_documento ?? '',
-      'Nombre': r.nombre ?? '',
-      'Finca': r.finca ?? '',
-      'Fecha ingreso': f(r.fecha_ingreso),
-      'Código de contrato': r.codigo_contrato ?? '',
-      'Fecha de contratación': f(r.fechaContratacion),
-
-      'Ficha Técnica': r.ficha_tecnica ?? '',
-      'Fecha Ficha Técnica': f(r.fecha_ficha_tecnica),
-
-      'PDF Cédula': r.pdf_cedula ?? '',
-      'Fecha Cédula': f(r.fecha_cedula),
-
-      'Procuraduría': r.procuraduria ?? '',
-      'Fecha Procuraduría': f(r.fecha_procuraduria),
-
-      'Contraloría': r.contraloria ?? '',
-      'Fecha Contraloría': f(r.fecha_contraloria),
-
-      'OFAC': r.ofac ?? '',
-      'Fecha OFAC': f(r.fecha_ofac),
-
-      'Policivos': r.policivos ?? '',
-      'Fecha Policivos': f(r.fecha_policivos),
-
-      'ADRES': r.adres ?? '',
-      'Fecha ADRES': f(r.fecha_adres),
-
-      'SISBEN': r.sisben ?? '',
-      'Fecha SISBEN': f(r.fecha_sisben),
-
-      'Contrato': r.contrato ?? '',
-      'Fecha Contrato': f(r.fecha_contrato),
-
-      'Entrega de Documentos': r.entrega_documentos ?? '',
-      'Fecha Entrega de Documentos': f(r.fecha_entrega_documentos),
-
-      'ARL': r.arl ?? '',
-      'Fecha ARL': f(r.fecha_arl),
-
-      'Examen': r.examen ?? '',
-      'Fecha Examen': f(r.fecha_examen),
-
-      'Fondo de Pensión': r.fondo_pension ?? '',
-      'Fecha Fondo de Pensión': f(r.fecha_fondo_pension),
-
-      'EPS': r.eps ?? '',
-      'Fecha EPS': f(r.fecha_eps),
-
-      'Caja de Compensación': r.caja ?? '',
-      'Fecha Caja': f(r.fecha_caja),
-
-      'Pago Seguridad Social': r.pago_seguridad_social ?? '',
-      'Fecha Pago Seguridad Social': f(r.fecha_pago_seguridad_social),
-    }));
-
-    const ws = XLSX.utils.json_to_sheet(rows as any, { header: [...headers] });
-
-    // ✅ Ancho de columnas con tipos correctos
-    const colWidths = (headers as readonly Header[]).map((h) => ({
-      wch: Math.min(
-        50,
-        Math.max(
-          h.length + 2,
-          ...rows.map((row) => String(row[h] ?? '').length + 2)
-        )
-      )
-    }));
-    (ws as any)['!cols'] = colWidths;
-
+    // ---- libro y export ----
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Auditoría');
 
@@ -756,7 +569,4 @@ export class ConsultContractingDocumentationComponent implements OnInit {
     XLSX.writeFile(wb, `reporte_auditoria_${yyyy}-${mm}-${dd}.xlsx`);
   }
 
-
 }
-
-

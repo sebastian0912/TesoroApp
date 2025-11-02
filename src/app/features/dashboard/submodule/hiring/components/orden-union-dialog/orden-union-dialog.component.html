@@ -1,12 +1,77 @@
-<h2 mat-dialog-title class="titulo">Ordena los antecedentes</h2>
-<mat-dialog-content>
-  <div cdkDropList (cdkDropListDropped)="drop($event)">
-    <div *ngFor="let item of antecedentes" cdkDrag class="drag-item">
-      {{ item.name }}
+<h2 mat-dialog-title class="titulo">
+  Ordena y selecciona los documentos
+</h2>
+
+<mat-dialog-content class="content">
+  <div class="toolbar">
+    <button mat-stroked-button (click)="selectAll()" matTooltip="Seleccionar todos">
+      <mat-icon>done_all</mat-icon>&nbsp;Seleccionar todo
+    </button>
+    <button mat-stroked-button (click)="clearAll()" matTooltip="Quitar todos">
+      <mat-icon>remove_done</mat-icon>&nbsp;Limpiar
+    </button>
+    <button mat-stroked-button (click)="resetOrder()" matTooltip="Restablecer orden inicial">
+      <mat-icon>replay</mat-icon>&nbsp;Restablecer
+    </button>
+
+    <span class="spacer"></span>
+
+    <span class="contador"
+          [matBadge]="selectedCount()"
+          matBadgeColor="primary"
+          matBadgeOverlap="false">
+      Seleccionados
+    </span>
+  </div>
+
+  <!-- LISTA VERTICAL (una columna) -->
+  <div cdkDropList
+       class="drop-list"
+       cdkDropListOrientation="vertical"
+       [cdkDropListData]="items()"
+       (cdkDropListDropped)="drop($event)">
+
+    <div class="row"
+         *ngFor="let item of items(); let i = index"
+         cdkDrag
+         [cdkDragData]="item"
+         [class.unselected]="!selected().has(item.id)">
+
+      <!-- Handle -->
+      <button mat-icon-button
+              cdkDragHandle
+              class="drag-handle"
+              matTooltip="Arrastrar para reordenar"
+              aria-label="Reordenar">
+        <mat-icon>drag_indicator</mat-icon>
+      </button>
+
+      <!-- Nombre + check -->
+      <mat-checkbox
+        [checked]="selected().has(item.id)"
+        (change)="toggleSelection(item.id, $event)"
+        class="item-check">
+        {{ item.name }}
+      </mat-checkbox>
+
+      <!-- Badge de orden -->
+      <span class="order-badge"
+            [matBadge]="badgeNumber(item.id)"
+            matBadgeColor="primary"
+            matBadgeOverlap="false"
+            matBadgeSize="medium"
+            matBadgePosition="above after"
+            [matBadgeHidden]="!selected().has(item.id)"
+            matTooltip="Posición en el paquete"></span>
     </div>
   </div>
 </mat-dialog-content>
+
 <mat-dialog-actions align="end">
   <button mat-button (click)="cancelar()">Cancelar</button>
-  <button mat-button color="primary" (click)="confirmar()">Confirmar</button>
+  <button mat-flat-button color="primary"
+          (click)="confirmar()"
+          [disabled]="selectedCount() === 0">
+    Confirmar
+  </button>
 </mat-dialog-actions>

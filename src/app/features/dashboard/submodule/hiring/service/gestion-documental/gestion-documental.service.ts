@@ -13,82 +13,90 @@ export class GestionDocumentalService {
   constructor(
     private http: HttpClient,
     @Inject(PLATFORM_ID) private platformId: Object
-  ) { }
+  ) {}
 
-  // Método para subir un documento
+  // ------------------ DOCUMENTOS (CRUD) ------------------
+
   guardarDocumento(
     title: any,
     owner_id: any,
     type: number,
     file: File,
-    contract_number?: string // Hacer que el número de contrato sea opcional
+    contract_number?: string
   ): Observable<any> {
     const formData = new FormData();
-    formData.append('title', title); // Nombre del archivo
-    formData.append('owner_id', owner_id); // Cédula
-    formData.append('type', type.toString()); // Tipo de documento (entero)
-    formData.append('file', file); // Archivo PDF
-    // Solo agregar el número de contrato si está presente
-    if (contract_number) {
-      formData.append('contract_number', contract_number);
-    }
+    formData.append('title', title);
+    formData.append('owner_id', owner_id);
+    formData.append('type', type.toString());
+    formData.append('file', file);
+    if (contract_number) formData.append('contract_number', contract_number);
 
     return this.http.post(
       `${this.apiUrl}/gestion_documental/documentos/`,
-      formData,
+      formData
     );
   }
 
-  // Nuevo método para obtener documentos por tipo documental
   obtenerDocumentosPorTipo(
     owner_id: any,
     type: number,
     contract_number?: string,
   ): Observable<any> {
+    let params = new HttpParams().set('cedula', owner_id);
+    if (contract_number) params = params.set('contract_number', contract_number);
+    params = params.set('type', type.toString());
 
-    // Preparar los parámetros de la solicitud
-    let params = new HttpParams();
-    params = params.append('cedula', owner_id);
-    if (contract_number) {
-      params = params.append('contract_number', contract_number);
-    }
-    params = params.append('type', type.toString()); // Agregar el tipo documental
-
-    return this.http.get(`${this.apiUrl}/gestion_documental/documentos/`, {
-      params,
-    });
+    return this.http.get(`${this.apiUrl}/gestion_documental/documentos/`, { params });
   }
-
 
   consultarDocumentosPorCedulaYTipo(cedula: string, type?: number): Observable<any> {
     let params = new HttpParams().set('cedula', cedula);
     if (type !== undefined && type !== null) {
       params = params.set('type', type.toString());
     }
-
-    return this.http.get(
-      `${this.apiUrl}/gestion_documental/documentos/`,
-      { params }
-    );
+    return this.http.get(`${this.apiUrl}/gestion_documental/documentos/`, { params });
   }
 
-  descargarZipPorCedulasYOrden(cedulas: number[], orden: number[]): Observable<Blob> {
-    const body = {
-      cedulas,
-      orden
-    };
+  // ------------------ ZIP POR CÉDULAS + ORDEN ------------------
 
-    // Asegúrate que la URL coincide con la ruta en Django
+  descargarZipPorCedulasYOrden(cedulas: number[], orden: number[]): Observable<Blob> {
+    const body = { cedulas, orden };
     return this.http.post(
       `${this.apiUrl}/gestion_documental/descargar-zip`,
       body,
-      {
-        responseType: 'blob' // Importante para recibir archivos
-      }
+      { responseType: 'blob' } // descarga de archivo
     );
   }
 
+  // ------------------ NUEVO: CHECKLIST DOCUMENTAL ------------------
 
+  /**
+   * POST /gestion_documental/documentos-checklist/
+   * Envía SOLO cédulas; el backend usa los tipos por defecto si no envías 'tipos'.
+   * @param cedulas array de cédulas (string|number) -> se envían como string
+   * @param tipos   opcional para override puntual
+   */
+  getDocumentosChecklist(cedulas: Array<string | number>, tipos?: number[]): Observable<any> {
+    const body: any = { cedulas: cedulas.map(String) };
+    if (Array.isArray(tipos) && tipos.length) body.tipos = tipos;
+    return this.http.post(
+      `${this.apiUrl}/gestion_documental/documentos-checklist/`,
+      body
+    );
+  }
 
-
+  /**
+   * GET /gestion_documental/documentos-checklist/?cedulas=...[,...]&tipos=...[,...]
+   * Alternativa por querystring. Si omites 'tipos', el backend usará los defaults.
+   */
+  getDocumentosChecklistByGet(cedulas: Array<string | number>, tipos?: number[]): Observable<any> {
+    let params = new HttpParams().set('cedulas', cedulas.map(String).join(','));
+    if (Array.isArray(tipos) && tipos.length) {
+      params = params.set('tipos', tipos.join(','));
+    }
+    return this.http.get(
+      `${this.apiUrl}/gestion_documental/documentos-checklist/`,
+      { params }
+    );
+  }
 }
