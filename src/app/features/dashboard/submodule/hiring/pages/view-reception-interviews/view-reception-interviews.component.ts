@@ -1,20 +1,33 @@
 import { Component, OnInit } from '@angular/core';
-import { SeleccionService } from '../../service/seleccion/seleccion.service';
 import { MatTableDataSource } from '@angular/material/table';
-import { SharedModule } from '@/app/shared/shared.module';
-import { DateRangeDialogComponent } from '@/app/shared/components/date-rang-dialog/date-rang-dialog.component';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatButtonModule } from '@angular/material/button';
-import Swal from 'sweetalert2';
 import { FormsModule } from '@angular/forms';
 import { MatDatepickerModule } from '@angular/material/datepicker';
 import { MatNativeDateModule } from '@angular/material/core';
 import { MatTooltipModule } from '@angular/material/tooltip';
+import Swal from 'sweetalert2';
+
+import { SharedModule } from '@/app/shared/shared.module';
+import { DateRangeDialogComponent } from '@/app/shared/components/date-rang-dialog/date-rang-dialog.component';
 import { UtilityServiceService } from '@/app/shared/services/utilityService/utility-service.service';
 import { RegistroProcesoContratacion } from '../../service/registro-proceso-contratacion/registro-proceso-contratacion';
 
+export interface EnEsperaItem {
+  tipo_doc: string | null;
+  numero_documento: string;         // texto (conserva posible 'X...')
+  apellidos_nombres: string | null;
+  tiene_experiencia: 'SI' | 'NO';
+  barrio: string | null;
+  area_experiencia: string | null;
+  celular: string | null;
+  whatsapp: string | null;
+  motivo_espera: string | null;     // <<< NUEVO
+}
+
 @Component({
   selector: 'app-view-reception-interviews',
+  standalone: true,
   imports: [
     SharedModule,
     MatDialogModule,
@@ -25,275 +38,187 @@ import { RegistroProcesoContratacion } from '../../service/registro-proceso-cont
     MatTooltipModule
   ],
   templateUrl: './view-reception-interviews.component.html',
-  styleUrl: './view-reception-interviews.component.css'
+  styleUrls: ['./view-reception-interviews.component.css']
 })
 export class ViewReceptionInterviewsComponent implements OnInit {
   user: any;
+
+  /** Solo columnas del nuevo endpoint EN_ESPERA */
   displayedColumns: string[] = [
-    'tipo_documento',
-    'numero',
-    'primer_apellido',
-    'segundo_apellido',
-    'primer_nombre',
-    'segundo_nombre',
-    'pre_registro',
-    'entrevistado',
-    'examenes_medicos',
-    'contratado',
-    'fecha_nacimiento',
-    'fecha_expedicion',
+    'tipo_doc',
+    'numero_documento',
+    'apellidos_nombres',
+    'tiene_experiencia',
     'barrio',
+    'area_experiencia',
+    'celular',
     'whatsapp',
-    'genero',
-    'cuenta_experiencia_flores',
-    'oficina',
-    'created_at',
-    'correo'
+    'motivo_espera'                 // <<< NUEVO
   ];
 
-  filtroTexto: string = '';
-  filtroOficina: string = '';
-  fechaDesde: Date | null = null;
-  fechaHasta: Date | null = null;
-  oficinasUnicas: string[] = [];
-  filtroCedula: string = '';
+  // Filtros visibles en UI
+  filtroTexto = '';
+  filtroOficina = '';               // se usa para recargar desde backend
+  fechaDesde: Date | null = null;   // solo para Excel por rango
+  fechaHasta: Date | null = null;   // solo para Excel por rango
+  oficinasUnicas: string[] = [];    // llenamos con la sede del usuario si existe
+  filtroCedula = '';
 
-  dataSource = new MatTableDataSource<any>([]);
+  dataSource = new MatTableDataSource<EnEsperaItem>([]);
 
   constructor(
-    private seleccionService: SeleccionService,
     private utilityService: UtilityServiceService,
     private registroProcesoContratacion: RegistroProcesoContratacion,
     private dialog: MatDialog
-  ) { }
+  ) {}
 
   ngOnInit(): void {
-    this.registroProcesoContratacion.listCandidatosTabla().subscribe(
-      (data) => {
-        console.log('Candidatos tabla:', data);
-      },
-      (error) => {
-        Swal.fire('Error', 'No se pudieron cargar los candidatos.', 'error');
-      }
-    );
+    this.user = this.utilityService.getUser() || null;
 
-    this.seleccionService.getCandidatos().subscribe(
-      (data) => {
-        this.dataSource.data = data;
-        this.oficinasUnicas = [...new Set(data.map((e: any) => e.oficina).filter(Boolean))].sort() as string[];
+    // Sugerimos como opción de oficina la sede del usuario (si la hay)
+    const sedeUsuario = (this.user?.sede?.nombre || '').trim();
+    this.oficinasUnicas = sedeUsuario ? [sedeUsuario] : [];
 
-      },
-      (error) => {
-        Swal.fire('Error', 'No se pudieron cargar los candidatos.', 'error');
-      }
-    );
+    // Carga inicial (si hay sede la usamos, si no, sin filtro => todas las oficinas del día)
+    this.cargarUltimosEnEspera(sedeUsuario || undefined);
 
-    this.user = this.utilityService.getUser() || '';
-    if (!this.user) {
-      Swal.fire('Atención', 'No se pudo determinar la sede actual.', 'warning');
-    }
-
+    // Configuramos el predicate de filtros (texto y cédula)
+    this.configFilterPredicate();
   }
 
-  limpiarFiltros() {
+  /** Llama al endpoint /reporte/ultimos-en-espera?oficina=... (hoy) */
+  private cargarUltimosEnEspera(oficina?: string): void {
+    this.registroProcesoContratacion.getUltimosEnEspera(oficina).subscribe({
+      next: (data) => {
+        this.dataSource.data = data || [];
+        // refresca filtros vigentes
+        this.applyAdvancedFilter();
+      },
+      error: () => {
+        Swal.fire('Error', 'No se pudo cargar la lista de candidatos EN ESPERA.', 'error');
+      }
+    });
+  }
+
+  /** Cambia de oficina desde el select y recarga desde backend */
+  recargarConOficina(): void {
+    const oficina = (this.filtroOficina || '').trim() || undefined;
+    this.cargarUltimosEnEspera(oficina);
+  }
+
+  // ================= Acciones de UI =================
+
+  limpiarFiltros(): void {
     this.filtroTexto = '';
-    this.filtroOficina = '';
-    this.fechaDesde = null;
-    this.fechaHasta = null;
-
-    // Si tienes referencia al input de texto, límpialo visualmente también (opcional)
-    const input = document.querySelector('input[placeholder="Buscar"]') as HTMLInputElement;
-    if (input) input.value = '';
+    this.filtroCedula = '';
+    // No reseteamos filtroOficina para no perder el contexto de recarga
     this.applyAdvancedFilter();
+
+    // Limpia input visual (opcional)
+    const input = document.querySelector('input[placeholder="Buscar"]') as HTMLInputElement | null;
+    if (input) input.value = '';
   }
 
-
-  downloadReport() {
+  /** Descarga Excel por rango (reutiliza tu endpoint de entrevistas-excel) */
+  downloadReport(): void {
     const dialogRef = this.dialog.open(DateRangeDialogComponent, {
       width: '400px',
       data: { startDate: null, endDate: null }
     });
 
     dialogRef.afterClosed().subscribe(result => {
-      if (!result || !result.start || !result.end) {
+      if (!result?.start || !result?.end) {
         Swal.fire('Atención', 'Debes seleccionar ambas fechas para descargar el reporte.', 'warning');
         return;
       }
 
       const start = new Date(result.start);
-      const end = new Date(result.end);
+      const end   = new Date(result.end);
 
       Swal.fire({
         title: 'Generando reporte...',
         text: 'Por favor espera.',
         allowOutsideClick: false,
-        didOpen: () => {
-          Swal.showLoading();
-        }
+        didOpen: () => Swal.showLoading()
       });
 
-      // Si el usuario NO es ADMIN/GERENCIA, descarga el reporte por oficina
-      if (this.user.rol.nombre !== 'ADMIN' && this.user.rol.nombre !== 'GERENCIA') {
-        this.seleccionService.exportarCandidatosPorOficinaExcel({
-          start: result.start,
-          end: result.end,
-          oficina: this.user.sede.nombre // o el campo correcto
-        }).subscribe({
-          next: (blob: Blob) => {
-            Swal.close();
-            this.downloadBlob(
-              blob,
-              `reporte_candidatos_${this.user.sede.nombre}_${start.toISOString().split('T')[0]}_${end.toISOString().split('T')[0]}.xlsx`
-            );
-          },
+      const oficina = (this.user?.sede?.nombre || '').trim() || undefined;
+
+      this.registroProcesoContratacion
+        .downloadEntrevistasExcel(
+          { start, end },
+          oficina,
+          `reporte_candidatos${oficina ? '_' + oficina : ''}_${start.toISOString().split('T')[0]}_${end.toISOString().split('T')[0]}.xlsx`
+        )
+        .subscribe({
+          next: () => Swal.close(),
           error: () => {
             Swal.close();
-            Swal.fire('Error', 'No se pudo generar el reporte para la oficina.', 'error');
+            Swal.fire('Error', 'No se pudo generar el reporte.', 'error');
           }
         });
-        return; // IMPORTANTE: solo descarga uno u otro, nunca ambos
-      }
-
-      // Si es ADMIN o GERENCIA, descarga el reporte general
-      this.seleccionService.exportarCandidatosExcel({
-        start: result.start,
-        end: result.end
-      }).subscribe({
-        next: (blob: Blob) => {
-          Swal.close();
-          this.downloadBlob(
-            blob,
-            `reporte_candidatos_${start.toISOString().split('T')[0]}_${end.toISOString().split('T')[0]}.xlsx`
-          );
-        },
-        error: () => {
-          Swal.close();
-          Swal.fire('Error', 'No se pudo generar el reporte.', 'error');
-        }
-      });
     });
   }
 
-  // Utilidad profesional para descargar cualquier blob
-  private downloadBlob(blob: Blob, fileName: string): void {
-    if (!blob || blob.size === 0) {
-      Swal.fire('Sin datos', 'No hay información para exportar en este rango de fechas.', 'info');
-      return;
-    }
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = fileName;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    window.URL.revokeObjectURL(url);
-  }
-
-
-  copiarTablaExcel() {
-    const toColombiaDateTime = (utcString: string) => {
-      if (!utcString) return '';
-      const date = new Date(utcString);
-      // Opciones para obtener los componentes
-      const options: Intl.DateTimeFormatOptions = {
-        timeZone: 'America/Bogota',
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-        hour12: false,
-      };
-      const partes = new Intl.DateTimeFormat('en-GB', options).formatToParts(date);
-      const get = (type: string) => partes.find(x => x.type === type)?.value || '';
-
-      // Armar como DD-MM-YYYY HH:mm:ss
-      return `${get('day')}-${get('month')}-${get('year')} ${get('hour')}:${get('minute')}:${get('second')}`;
-    };
-
-    const filas = this.dataSource.filteredData.map((row: any) =>
+  /** Copia la tabla filtrada al portapapeles en formato tabulado (solo columnas visibles) */
+  copiarTablaExcel(): void {
+    const filas = this.dataSource.filteredData.map((row) =>
       [
-        toColombiaDateTime(row.created_at),
-        row.como_se_entero,
-        row.tipo_documento,
-        row.numero,
-        row.primer_apellido,
-        row.segundo_apellido,
-        row.primer_nombre,
-        row.segundo_nombre,
-        row.fecha_nacimiento,
-        row.fecha_expedicion,
-        row.barrio,
-        row.whatsapp,
-        row.genero,
-        row.cuenta_experiencia_flores,
-        row.correo,
+        row.tipo_doc || '',
+        row.numero_documento || '',
+        row.apellidos_nombres || '',
+        row.tiene_experiencia || '',
+        row.barrio || '',
+        row.area_experiencia || '',
+        row.celular || '',
+        row.whatsapp || '',
+        row.motivo_espera || ''        // <<< NUEVO
       ]
-        .map(dato => (dato ?? '').toString().toUpperCase())
-        .join('\t')
+      .map(dato => (dato ?? '').toString().toUpperCase())
+      .join('\t')
     );
 
     const textoTabla = filas.join('\n');
-
     navigator.clipboard.writeText(textoTabla).then(() => {
       Swal.fire('¡Copiado!', 'La tabla filtrada se copió al portapapeles.', 'success');
     });
   }
 
+  // ================= Búsqueda / Filtros en cliente =================
 
-
-  // Filtro de texto general (ya lo tienes)
-  applyFilter(event: Event) {
+  applyFilter(event: Event): void {
     const filterValue = (event.target as HTMLInputElement).value.trim().toLowerCase();
     this.filtroTexto = filterValue;
     this.applyAdvancedFilter();
   }
 
-  // Filtro avanzado
-  applyAdvancedFilter() {
-    const texto = this.filtroTexto?.trim().toLowerCase() ?? '';
-    const oficina = this.filtroOficina?.trim().toLowerCase() ?? '';
-    const desde = this.fechaDesde;
-    const hasta = this.fechaHasta;
-    const cedula = this.filtroCedula?.trim();
+  private configFilterPredicate(): void {
+    this.dataSource.filterPredicate = (data: EnEsperaItem, _filter: string) => {
+      const texto  = (this.filtroTexto ?? '').trim().toLowerCase();
+      const cedula = (this.filtroCedula ?? '').trim();
 
-    this.dataSource.filterPredicate = (data: any, filter: string) => {
-      // Filtro de texto general (en cualquier campo visible)
-      const matchesText =
-        texto === '' ||
-        Object.values(data)
-          .join(' ')
-          .toLowerCase()
-          .includes(texto);
+      // Búsqueda general en los campos visibles (incluye motivo_espera)
+      const buscable = [
+        data.tipo_doc,
+        data.numero_documento,
+        data.apellidos_nombres,
+        data.tiene_experiencia,
+        data.barrio,
+        data.area_experiencia,
+        data.celular,
+        data.whatsapp,
+        data.motivo_espera           // <<< NUEVO
+      ].map(v => (v ?? '').toString().toLowerCase()).join(' ');
 
-      // Filtro exacto por cédula
-      const matchesCedula =
-        cedula === '' ||
-        (data.numero ?? '').toString().includes(cedula);
+      const matchesTexto  = !texto || buscable.includes(texto);
+      const matchesCedula = !cedula || (data.numero_documento ?? '').toString().includes(cedula);
 
-      // Filtro por oficina exacta
-      const matchesOficina =
-        !oficina || (data.oficina ?? '').toLowerCase() === oficina;
-
-      // Filtro por fecha (created_at)
-      let matchesFecha = true;
-      if (desde) {
-        matchesFecha =
-          matchesFecha &&
-          new Date(data.created_at).setHours(0, 0, 0, 0) >= new Date(desde).setHours(0, 0, 0, 0);
-      }
-      if (hasta) {
-        matchesFecha =
-          matchesFecha &&
-          new Date(data.created_at).setHours(0, 0, 0, 0) <= new Date(hasta).setHours(0, 0, 0, 0);
-      }
-
-      return matchesText && matchesOficina && matchesFecha && matchesCedula;
+      return matchesTexto && matchesCedula;
     };
-    this.dataSource.filter = '' + Math.random(); // Trigger
   }
 
-
+  applyAdvancedFilter(): void {
+    // dispara el predicate ya configurado
+    this.dataSource.filter = Math.random().toString();
+  }
 }

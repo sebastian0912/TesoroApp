@@ -3,15 +3,21 @@
     <div class="tabla">
       <!-- Encabezado con título + menú de acciones + toggle de vista -->
       <div class="page-header">
-        <h1 class="title">Listado de Vacante</h1>
+        <h1 class="title">Listado de Vacantes</h1>
         <span class="spacer"></span>
 
-        <!-- Toggle vista -->
-        <mat-button-toggle-group [value]="viewMode" (change)="onToggleView($event.value)" aria-label="Cambiar vista"
+        <!-- Toggle de vistas -->
+        <mat-button-toggle-group
+          [value]="viewMode"
+          (change)="onToggleView($event.value)"
+          aria-label="Cambiar vista"
           class="view-toggle">
-    
 
-          <!-- NUEVOS modos -->
+          <mat-button-toggle value="table" aria-label="Todos">
+            <mat-icon>table_chart</mat-icon>
+            <span class="toggle-text">Todos</span>
+          </mat-button-toggle>
+
           <mat-button-toggle value="faltantes" aria-label="Solo faltantes">
             <mat-icon>warning</mat-icon>
             <span class="toggle-text">Faltantes</span>
@@ -23,12 +29,12 @@
           </mat-button-toggle>
         </mat-button-toggle-group>
 
-        <!-- Botón 3 puntos -->
+        <!-- Botón 3 puntos del header -->
         <button mat-icon-button [matMenuTriggerFor]="accionesMenu" aria-label="Acciones de vacantes">
           <mat-icon>more_vert</mat-icon>
         </button>
 
-        <!-- Menú de acciones -->
+        <!-- Menú de acciones (header) -->
         <mat-menu #accionesMenu="matMenu">
           <button mat-menu-item (click)="openModal()">
             <mat-icon>add</mat-icon>
@@ -55,6 +61,153 @@
         <input type="file" #fileInput (change)="onFileSelected($event)" hidden />
       </div>
 
+      <!-- ==================== VISTA TABLA (TODOS) ==================== -->
+      <div class="table-container" *ngIf="viewMode === 'table'">
+        <mat-form-field class="filtro">
+          <mat-label>Buscar</mat-label>
+          <input matInput (input)="applyFilter($event)" placeholder="Texto libre…" />
+        </mat-form-field>
+
+        <table mat-table [dataSource]="dataSource" matSort class="mat-elevation-z8">
+          <!-- Acciones -->
+          <ng-container matColumnDef="acciones">
+            <th mat-header-cell *matHeaderCellDef>Acciones</th>
+            <td mat-cell *matCellDef="let v">
+              <button mat-icon-button [matMenuTriggerFor]="menuAcciones" aria-label="Acciones">
+                <mat-icon>more_vert</mat-icon>
+              </button>
+              <mat-menu #menuAcciones="matMenu">
+                <button mat-menu-item (click)="openModalEdit(v)">
+                  <mat-icon>edit</mat-icon>
+                  <span>Editar</span>
+                </button>
+                <button mat-menu-item (click)="eliminarVacante(v)" *ngIf="permitido">
+                  <mat-icon>delete</mat-icon>
+                  <span>Eliminar</span>
+                </button>
+
+                <mat-divider></mat-divider>
+
+                <!-- Toggle ACTIVO dentro del menú (no cierra el menú al cambiar) -->
+                <div class="menu-toggle" (click)="$event.stopPropagation()">
+                  <mat-slide-toggle
+                    [checked]="v.activo"
+                    (change)="setActivo(v, $event.checked)"
+                    [disabled]="busyActivoIds.has(v.id)">
+                    {{ v.activo ? 'Activo' : 'Inactivo' }}
+                  </mat-slide-toggle>
+                </div>
+              </mat-menu>
+            </td>
+          </ng-container>
+
+          <!-- Cumplimiento -->
+          <ng-container matColumnDef="cumpl">
+            <th mat-header-cell *matHeaderCellDef mat-sort-header>Cumpl.</th>
+            <td mat-cell *matCellDef="let v">
+              <span [ngClass]="cumplClass(v)">{{ cumplimientoPct(v) }}%</span>
+            </td>
+          </ng-container>
+
+          <!-- Publicado -->
+          <ng-container matColumnDef="fechaPublicado">
+            <th mat-header-cell *matHeaderCellDef mat-sort-header>Publicado</th>
+            <td mat-cell *matCellDef="let v">{{ v.fechaPublicado | date:'dd-MMM' }}</td>
+          </ng-container>
+
+          <!-- Reqs / Estados -->
+          <ng-container matColumnDef="req">
+            <th mat-header-cell *matHeaderCellDef mat-sort-header>Req</th>
+            <td mat-cell *matCellDef="let v">{{ totalRequerida(v) }}</td>
+          </ng-container>
+
+          <ng-container matColumnDef="falt">
+            <th mat-header-cell *matHeaderCellDef mat-sort-header>Falt.</th>
+            <td mat-cell *matCellDef="let v">{{ faltantes(v) }}</td>
+          </ng-container>
+
+          <ng-container matColumnDef="entrev">
+            <th mat-header-cell *matHeaderCellDef mat-sort-header>Entrev</th>
+            <td mat-cell *matCellDef="let v">{{ entrev(v) }}</td>
+          </ng-container>
+
+          <ng-container matColumnDef="prueba">
+            <th mat-header-cell *matHeaderCellDef mat-sort-header>Pru</th>
+            <td mat-cell *matCellDef="let v">{{ prue(v) }}</td>
+          </ng-container>
+
+          <ng-container matColumnDef="auto">
+            <th mat-header-cell *matHeaderCellDef mat-sort-header>Auto</th>
+            <td mat-cell *matCellDef="let v">{{ auto(v) }}</td>
+          </ng-container>
+
+          <ng-container matColumnDef="exm">
+            <th mat-header-cell *matHeaderCellDef mat-sort-header>Exm</th>
+            <td mat-cell *matCellDef="let v">{{ exm(v) }}</td>
+          </ng-container>
+
+          <ng-container matColumnDef="firm">
+            <th mat-header-cell *matHeaderCellDef mat-sort-header>Firm</th>
+            <td mat-cell *matCellDef="let v">{{ firm(v) }}</td>
+          </ng-container>
+
+          <ng-container matColumnDef="ing">
+            <th mat-header-cell *matHeaderCellDef mat-sort-header>Ing</th>
+            <td mat-cell *matCellDef="let v">{{ ing(v) }}</td>
+          </ng-container>
+
+          <!-- Datos -->
+          <ng-container matColumnDef="finca">
+            <th mat-header-cell *matHeaderCellDef mat-sort-header>Centro de costo</th>
+            <td mat-cell *matCellDef="let v">{{ v.finca }}</td>
+          </ng-container>
+
+          <ng-container matColumnDef="cargo">
+            <th mat-header-cell *matHeaderCellDef mat-sort-header>Cargo</th>
+            <td mat-cell *matCellDef="let v">{{ v.cargo || 'Sin cargo' }}</td>
+          </ng-container>
+
+          <ng-container matColumnDef="municipio">
+            <th mat-header-cell *matHeaderCellDef mat-sort-header>Municipio</th>
+            <td mat-cell *matCellDef="let v">{{ v.municipio.join(', ') }}</td>
+          </ng-container>
+
+          <ng-container matColumnDef="experiencia">
+            <th mat-header-cell *matHeaderCellDef mat-sort-header>Expe</th>
+            <td mat-cell *matCellDef="let v">{{ v.experiencia }}</td>
+          </ng-container>
+
+          <ng-container matColumnDef="observacionVacante">
+            <th mat-header-cell *matHeaderCellDef>Observación del perfil</th>
+            <td mat-cell *matCellDef="let v">{{ v.observacionVacante }}</td>
+          </ng-container>
+
+          <ng-container matColumnDef="descripcion">
+            <th mat-header-cell *matHeaderCellDef>Descripción</th>
+            <td mat-cell *matCellDef="let v">{{ v.descripcion }}</td>
+          </ng-container>
+
+          <ng-container matColumnDef="salario">
+            <th mat-header-cell *matHeaderCellDef mat-sort-header>Salario</th>
+            <td mat-cell *matCellDef="let v">{{ v.salario | currency }}</td>
+          </ng-container>
+
+          <ng-container matColumnDef="auxilioTransporte">
+            <th mat-header-cell *matHeaderCellDef>Auxilio</th>
+            <td mat-cell *matCellDef="let v">{{ v.auxilioTransporte }}</td>
+          </ng-container>
+
+          <ng-container matColumnDef="tipoContratacion">
+            <th mat-header-cell *matHeaderCellDef>Tipo de Contrato</th>
+            <td mat-cell *matCellDef="let v">{{ v.tipoContratacion }}</td>
+          </ng-container>
+
+          <!-- Filas -->
+          <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+          <tr mat-row *matRowDef="let row; columns: displayedColumns"></tr>
+        </table>
+      </div>
+
       <!-- ==================== VISTA FALTANTES ==================== -->
       <div class="table-container" *ngIf="viewMode === 'faltantes'">
         <mat-form-field class="filtro">
@@ -62,16 +215,15 @@
           <input matInput #ffalt (input)="applyFincaFilterFaltantes(ffalt.value)" placeholder="Ej: La Esperanza" />
         </mat-form-field>
 
-        <table mat-table [dataSource]="dataSourceFaltantes" class="mat-elevation-z8">
-
-          <!-- (reusar las mismas columnas de arriba) -->
+        <table mat-table [dataSource]="dataSourceFaltantes" matSort class="mat-elevation-z8">
+          <!-- Acciones -->
           <ng-container matColumnDef="acciones">
             <th mat-header-cell *matHeaderCellDef>Acciones</th>
             <td mat-cell *matCellDef="let v">
-              <button mat-icon-button [matMenuTriggerFor]="menuAcciones">
+              <button mat-icon-button [matMenuTriggerFor]="menuAccionesF" aria-label="Acciones">
                 <mat-icon>more_vert</mat-icon>
               </button>
-              <mat-menu #menuAcciones="matMenu">
+              <mat-menu #menuAccionesF="matMenu">
                 <button mat-menu-item (click)="openModalEdit(v)">
                   <mat-icon>edit</mat-icon>
                   <span>Editar</span>
@@ -80,6 +232,18 @@
                   <mat-icon>delete</mat-icon>
                   <span>Eliminar</span>
                 </button>
+
+                <mat-divider></mat-divider>
+
+                <!-- Toggle ACTIVO dentro del menú -->
+                <div class="menu-toggle" (click)="$event.stopPropagation()">
+                  <mat-slide-toggle
+                    [checked]="v.activo"
+                    (change)="setActivo(v, $event.checked)"
+                    [disabled]="busyActivoIds.has(v.id)">
+                    {{ v.activo ? 'Activo' : 'Inactivo' }}
+                  </mat-slide-toggle>
+                </div>
               </mat-menu>
             </td>
           </ng-container>
@@ -96,11 +260,6 @@
             <td mat-cell *matCellDef="let v">{{ v.fechaPublicado | date:'dd-MMM' }}</td>
           </ng-container>
 
-          <ng-container matColumnDef="entrev">
-            <th mat-header-cell *matHeaderCellDef>Entrev</th>
-            <td mat-cell *matCellDef="let v">{{ entrev(v) }}</td>
-          </ng-container>
-
           <ng-container matColumnDef="req">
             <th mat-header-cell *matHeaderCellDef>Req</th>
             <td mat-cell *matCellDef="let v">{{ totalRequerida(v) }}</td>
@@ -109,6 +268,11 @@
           <ng-container matColumnDef="falt">
             <th mat-header-cell *matHeaderCellDef>Falt.</th>
             <td mat-cell *matCellDef="let v">{{ faltantes(v) }}</td>
+          </ng-container>
+
+          <ng-container matColumnDef="entrev">
+            <th mat-header-cell *matHeaderCellDef>Entrev</th>
+            <td mat-cell *matCellDef="let v">{{ entrev(v) }}</td>
           </ng-container>
 
           <ng-container matColumnDef="prueba">
@@ -181,30 +345,27 @@
             <td mat-cell *matCellDef="let v">{{ v.tipoContratacion }}</td>
           </ng-container>
 
-          <!-- Filas: solo FALTANTES -->
           <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
-          <tr mat-row *matRowDef="let row; columns: displayedColumns; when: isFaltante"></tr>
+          <tr mat-row *matRowDef="let row; columns: displayedColumns"></tr>
         </table>
       </div>
 
       <!-- ==================== VISTA COMPLETADOS ==================== -->
       <div class="table-container" *ngIf="viewMode === 'completados'">
-
         <mat-form-field class="filtro">
           <mat-label>Filtrar por finca (completados)</mat-label>
           <input matInput #ffcomp (input)="applyFincaFilterCompletados(ffcomp.value)" placeholder="Ej: La Esperanza" />
         </mat-form-field>
 
-        <table mat-table [dataSource]="dataSourceCompletados" class="mat-elevation-z8">
-
-          <!-- (reusar las mismas columnas de arriba) -->
+        <table mat-table [dataSource]="dataSourceCompletados" matSort class="mat-elevation-z8">
+          <!-- Acciones -->
           <ng-container matColumnDef="acciones">
             <th mat-header-cell *matHeaderCellDef>Acciones</th>
             <td mat-cell *matCellDef="let v">
-              <button mat-icon-button [matMenuTriggerFor]="menuAcciones">
+              <button mat-icon-button [matMenuTriggerFor]="menuAccionesC" aria-label="Acciones">
                 <mat-icon>more_vert</mat-icon>
               </button>
-              <mat-menu #menuAcciones="matMenu">
+              <mat-menu #menuAccionesC="matMenu">
                 <button mat-menu-item (click)="openModalEdit(v)">
                   <mat-icon>edit</mat-icon>
                   <span>Editar</span>
@@ -213,6 +374,18 @@
                   <mat-icon>delete</mat-icon>
                   <span>Eliminar</span>
                 </button>
+
+                <mat-divider></mat-divider>
+
+                <!-- Toggle ACTIVO dentro del menú -->
+                <div class="menu-toggle" (click)="$event.stopPropagation()">
+                  <mat-slide-toggle
+                    [checked]="v.activo"
+                    (change)="setActivo(v, $event.checked)"
+                    [disabled]="busyActivoIds.has(v.id)">
+                    {{ v.activo ? 'Activo' : 'Inactivo' }}
+                  </mat-slide-toggle>
+                </div>
               </mat-menu>
             </td>
           </ng-container>
@@ -229,11 +402,6 @@
             <td mat-cell *matCellDef="let v">{{ v.fechaPublicado | date:'dd-MMM' }}</td>
           </ng-container>
 
-          <ng-container matColumnDef="entrev">
-            <th mat-header-cell *matHeaderCellDef>Entrev</th>
-            <td mat-cell *matCellDef="let v">{{ entrev(v) }}</td>
-          </ng-container>
-
           <ng-container matColumnDef="req">
             <th mat-header-cell *matHeaderCellDef>Req</th>
             <td mat-cell *matCellDef="let v">{{ totalRequerida(v) }}</td>
@@ -242,6 +410,11 @@
           <ng-container matColumnDef="falt">
             <th mat-header-cell *matHeaderCellDef>Falt.</th>
             <td mat-cell *matCellDef="let v">{{ faltantes(v) }}</td>
+          </ng-container>
+
+          <ng-container matColumnDef="entrev">
+            <th mat-header-cell *matHeaderCellDef>Entrev</th>
+            <td mat-cell *matCellDef="let v">{{ entrev(v) }}</td>
           </ng-container>
 
           <ng-container matColumnDef="prueba">
@@ -314,16 +487,13 @@
             <td mat-cell *matCellDef="let v">{{ v.tipoContratacion }}</td>
           </ng-container>
 
-          <!-- Filas: solo COMPLETADOS -->
           <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
-          <tr mat-row *matRowDef="let row; columns: displayedColumns; when: isCompletado"></tr>
+          <tr mat-row *matRowDef="let row; columns: displayedColumns"></tr>
         </table>
       </div>
 
-      <!-- ==================== VISTA CARDS ==================== -->
-      <div *ngIf="viewMode === 'card'">
-        <!-- tu implementación de tarjetas aquí -->
-      </div>
+      <!-- Paginador común -->
+      <mat-paginator [pageSizeOptions]="[10, 25, 50]" showFirstLastButtons></mat-paginator>
     </div>
   </mat-card-content>
 </mat-card>

@@ -177,7 +177,7 @@ export class FormEntrevistaComponent implements OnInit {
         '',
         [
           Validators.required,
-          Validators.pattern(/^\d+$/),
+          Validators.pattern(/^X?\d+$/i),
           Validators.minLength(6),
           Validators.maxLength(15),
         ],
@@ -1006,9 +1006,9 @@ export class FormEntrevistaComponent implements OnInit {
         // Hijos: formatear fecha_nac
         hijos: Array.isArray(raw.hijos)
           ? raw.hijos.map((h: any) => ({
-              ...h,
-              fecha_nac: this.toYMD(h?.fecha_nac),
-            }))
+            ...h,
+            fecha_nac: this.toYMD(h?.fecha_nac),
+          }))
           : [],
 
         // Por si el backend espera string plano, no Date

@@ -1,8 +1,9 @@
 import { Inject, Injectable, PLATFORM_ID } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable, throwError, of } from 'rxjs';
-import { catchError, map } from 'rxjs/operators';
+import { catchError, map, tap } from 'rxjs/operators';
 import { environment } from '@/environments/environment.development';
+import { isPlatformBrowser } from '@angular/common';
 
 // ===== Listado y filtros generales =====
 export interface ListOptions {
@@ -127,12 +128,116 @@ export interface ProcesoMini {
   detalle: string | null;
 }
 
+export interface EnEsperaItem {
+  tipo_doc: string | null;
+  numero_documento: string;         // texto
+  apellidos_nombres: string | null;
+  tiene_experiencia: 'SI' | 'NO';
+  barrio: string | null;
+  area_experiencia: string | null;
+  celular: string | null;
+  whatsapp: string | null;
+  motivo_espera: string | null;    
+}
+
+export type RangoFechas = { start: string | Date; end: string | Date };
+
+
 @Injectable({ providedIn: 'root' })
 export class RegistroProcesoContratacion {
   private apiUrl = (environment.apiUrl || '').replace(/\/$/, '');
   private base = `${this.apiUrl}/gestion_contratacion`;
 
   constructor(private http: HttpClient, @Inject(PLATFORM_ID) private platformId: Object) { }
+
+  /** Obtiene el Excel como Blob (con filtro opcional por oficina). */
+  getEntrevistasExcel(range: RangoFechas, oficina?: string | string[]): Observable<Blob> {
+    const start = this.formatDate(range.start);
+    const end = this.formatDate(range.end);
+
+    let params = new HttpParams().set('start', start).set('end', end);
+    if (oficina) {
+      const ofi = Array.isArray(oficina) ? oficina.join(',') : oficina;
+      if (ofi.trim()) params = params.set('oficina', ofi.trim());
+    }
+
+    return this.http.get(`${this.base}/reporte/entrevistas-excel`, {
+      params,
+      responseType: 'blob'
+    });
+  }
+
+  getUltimosEnEspera(oficina?: string | string[]): Observable<EnEsperaItem[]> {
+    let options: { params?: HttpParams } = {};
+
+    if (oficina && oficina.length) {
+      const valor = Array.isArray(oficina) ? oficina.join(',') : oficina;
+      options.params = new HttpParams().set('oficina', valor);
+    }
+
+    return this.http.get<EnEsperaItem[]>(
+      `${this.base}/reporte/ultimos-en-espera`,
+      options
+    );
+  }
+
+  /** Descarga directa del Excel (sin leer headers) y con filtro opcional por oficina. */
+  downloadEntrevistasExcel(
+    range: RangoFechas,
+    oficina?: string | string[],
+    filename?: string
+  ): Observable<void> {
+    const start = this.formatDate(range.start);
+    const end = this.formatDate(range.end);
+
+    let params = new HttpParams().set('start', start).set('end', end);
+    if (oficina) {
+      const ofi = Array.isArray(oficina) ? oficina.join(',') : oficina;
+      if (ofi.trim()) params = params.set('oficina', ofi.trim());
+    }
+
+    return this.http.get(`${this.base}/reporte/entrevistas-excel`, {
+      params,
+      responseType: 'blob'
+    }).pipe(
+      tap(blob => {
+        if (!isPlatformBrowser(this.platformId)) return;
+        const finalName = this.safeFilename(filename || `entrevistas_${start}_a_${end}.xlsx`);
+        this.triggerDownload(blob, finalName);
+      }),
+      map(() => undefined)
+    );
+  }
+
+
+  // ===== Helpers =====
+
+  private formatDate(d: string | Date): string {
+    if (typeof d === 'string') return d;
+    const dt = new Date(d);
+    const y = dt.getFullYear();
+    const m = String(dt.getMonth() + 1).padStart(2, '0');
+    const day = String(dt.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  }
+
+  private safeFilename(name: string): string {
+    return name.replace(/[\\/:*?"<>|]+/g, '_');
+  }
+
+  private triggerDownload(blob: Blob, filename: string): void {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.style.display = 'none';
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => {
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }, 0);
+  }
 
   // =========================================================
   // Helpers genéricos
@@ -206,7 +311,7 @@ export class RegistroProcesoContratacion {
     return this.http
       .get<any[]>(this.url('contratacion/candidatos-tabla'), { params: this.buildParams(opts) })
       .pipe(this.handle$());
-  } 
+  }
 
   // Lista básica (serializer simple)
   listCandidatos(opts?: ListOptions): Observable<any[]> {

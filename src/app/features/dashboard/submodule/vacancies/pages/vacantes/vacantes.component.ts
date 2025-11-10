@@ -16,6 +16,7 @@ import { UtilityServiceService } from '@/app/shared/services/utilityService/util
 import { SharedModule } from '@/app/shared/shared.module';
 import { CrearEditarVacanteComponent } from '../../components/crear-editar-vacante/crear-editar-vacante.component';
 import { DateRangeDialogComponent } from '@/app/shared/components/date-rang-dialog/date-rang-dialog.component';
+import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 
 interface ConteoEstados {
   pre_registro: number;
@@ -42,6 +43,7 @@ interface ConteoEstados {
     MatButtonToggleModule,
     MatIconModule,
     MatCardModule,
+    MatSlideToggleModule,
   ],
   templateUrl: './vacantes.component.html',
   styleUrl: './vacantes.component.css'
@@ -71,6 +73,7 @@ export class VacantesComponent implements OnInit {
     'salario',
     'auxilioTransporte',
     'tipoContratacion',
+    // Si deseas mostrar el switch o botón para activo, en HTML úsalo dentro de 'acciones'
   ];
 
   // Agregamos 'faltantes' y 'completados'
@@ -78,6 +81,10 @@ export class VacantesComponent implements OnInit {
   loading = false;
   permitido = false;
   sede = '';
+
+  /** NUEVO: para bloquear acciones por fila mientras persiste el cambio de 'activo' */
+  busyActivoIds = new Set<number | string>();
+
   @ViewChild(MatPaginator) paginator!: MatPaginator;
   @ViewChild(MatSort) sort!: MatSort;
 
@@ -136,7 +143,6 @@ export class VacantesComponent implements OnInit {
     this.dataSourceFaltantes.filterPredicate = this.dataSource.filterPredicate;
     this.dataSourceCompletados.filterPredicate = this.dataSource.filterPredicate;
 
-
     // re-atachear paginator/sort al dataSource visible
     setTimeout(() => {
       const active = this.getActiveDataSource();
@@ -176,8 +182,6 @@ export class VacantesComponent implements OnInit {
     });
   }
 
-
-
   private mapRow(r: any) {
     const defaultConteo: ConteoEstados = {
       pre_registro: 0,
@@ -197,6 +201,11 @@ export class VacantesComponent implements OnInit {
 
     return {
       ...r,
+      /** NUEVO: asegurar que venga el estado activo (default true si no llega) */
+      activo: typeof r?.activo === 'boolean' ? r.activo : true,
+      /** NUEVO: mapear motivo si viene del backend */
+      motivoInactivacion: r?.motivoInactivacion ?? '',
+
       salario: this.parseCurrency(r?.salario),
       municipio: municipioArr,
       observacionVacante: r?.observacionVacante ?? '',
@@ -364,6 +373,81 @@ export class VacantesComponent implements OnInit {
     });
   }
 
+  // ================== NUEVO: Cambiar estado 'activo' ==================
+  /** Alterna el estado activo de una fila. Úsalo desde un botón/switch en la columna 'acciones'. */
+  onToggleActivo(row: any): void {
+    const nuevo = !row?.activo;
+    this.setActivo(row, nuevo);
+  }
+
+  /** Pide motivo (si aplica), hace UI optimista y envía PATCH { activo, motivoInactivacion? }. */
+  async setActivo(row: any, nuevoActivo: boolean): Promise<void> {
+    if (!row?.id || this.busyActivoIds.has(row.id)) return;
+
+    const anterior = !!row.activo;
+
+    // Si se va a DESACTIVAR y el cumplimiento no es 100%, pedir motivo
+    let motivo: string | null = null;
+    if (nuevoActivo === false && this.cumplimientoPct(row) < 100) {
+      const res = await Swal.fire({
+        title: 'Motivo de inactivación',
+        input: 'textarea',
+        inputLabel: 'Describe por qué se inactiva la vacante (obligatorio si no hay 100% de cumplimiento).',
+        inputPlaceholder: 'Escribe aquí el motivo…',
+        inputAttributes: { maxlength: '500', 'aria-label': 'Motivo de inactivación' },
+        inputValidator: (val: any) => {
+          const t = String(val ?? '').trim();
+          if (!t) return 'El motivo es obligatorio.';
+          if (t.length < 10) return 'Amplía un poco más el motivo (mínimo 10 caracteres).';
+          return null;
+        },
+        showCancelButton: true,
+        confirmButtonText: 'Guardar',
+        cancelButtonText: 'Cancelar',
+        focusConfirm: true,
+        allowOutsideClick: () => !Swal.isLoading(),
+      });
+
+      if (!res.isConfirmed) {
+        // Canceló: aseguro revertir visualmente el toggle
+        row.activo = anterior;
+        return;
+      }
+      motivo = String(res.value ?? '').trim();
+    }
+
+    // UI optimista
+    this.busyActivoIds.add(row.id);
+    row.activo = nuevoActivo;
+
+    this.vacantesService.cambiarEstadoActivo(row.id, nuevoActivo, motivo ?? undefined).subscribe({
+      next: () => {
+        if (nuevoActivo === false) {
+          // Si tu listado sólo trae activas, retírala
+          this.removeRowById(row.id);
+          Swal.fire('Desactivada', 'La publicación fue desactivada.', 'success');
+        } else {
+          Swal.fire('Activada', 'La publicación fue activada.', 'success');
+        }
+      },
+      error: (err) => {
+        // Revertir UI
+        row.activo = anterior;
+        Swal.fire('Error', err?.message || 'No se pudo cambiar el estado', 'error');
+      },
+      complete: () => {
+        this.busyActivoIds.delete(row.id);
+      }
+    });
+  }
+
+  /** Elimina una fila por id del dataSource principal y reconstruye derivadas. */
+  private removeRowById(id: number | string): void {
+    const rows = (this.dataSource.data ?? []).filter(r => r.id !== id);
+    this.dataSource.data = rows;
+    this.rebuildDerivedTables();
+  }
+
   // ================== Utilidades ==================
   formatDate(date: Date | string | null): string | null {
     if (!date) return null;
@@ -528,5 +612,3 @@ export class VacantesComponent implements OnInit {
     this.dataSourceCompletados.paginator?.firstPage();
   }
 }
-
-

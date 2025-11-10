@@ -1,4 +1,4 @@
-import { HttpClient, HttpParams } from '@angular/common/http';
+import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
 import { Inject, Injectable, PLATFORM_ID } from '@angular/core';
 import { Observable, catchError, map } from 'rxjs';
 import { environment } from '../../../../../../environments/environment.development';
@@ -128,19 +128,14 @@ export class HomeService {
 
 
   // Método para enviar Estados Robots de forma masiva
-  enviarEstadosRobots(datos: any[]): Observable<any> {
-    const url = `${this.apiUrl}/EstadosRobots/cargar_excel`; // Ajusta según tu endpoint real
-
-    // Construir el body con JWT y los datos
-    const body = {
-      datos   // Los datos que quieres enviar al backend
-    };
-
-    return this.http.post(url, body).pipe(
-      map((response: any) => response),
-      catchError(this.handleError)
-    );
+  enviarEstadosRobots(
+    payload: { candidatos_scope: 'nuevos' | 'todos' | 'ninguno'; datos: any[] }
+  ): Observable<any> {
+    const url = `${this.apiUrl}/EstadosRobots/cargar_excel`;
+    // Sin headers personalizados
+    return this.http.post(url, payload);
   }
+
 
 
 
@@ -195,28 +190,28 @@ export class HomeService {
   }
 
 
- /**
-   * GET /EstadosRobots/periodos-unificado/?format=combined
-   * Filtros (opcionales):
-   * - oficina: "SUBA,FACA_PRINCIPAL"  (OR por icontains)
-   * - paquete: "Vacantes"
-   * - robot:   "NombreDelRobot"
-   *
-   * Respuesta (todo junto):
-   * {
-   *   rango: {...},
-   *   dia:    { promedios:{}, finalizados:{}, pendientes:{}, muestra_registros_corte: N, estados_por_oficina:{...} },
-   *   semana: { ... },
-   *   mes:    { ... }
-   * }
-   */
+  /**
+    * GET /EstadosRobots/periodos-unificado/?format=combined
+    * Filtros (opcionales):
+    * - oficina: "SUBA,FACA_PRINCIPAL"  (OR por icontains)
+    * - paquete: "Vacantes"
+    * - robot:   "NombreDelRobot"
+    *
+    * Respuesta (todo junto):
+    * {
+    *   rango: {...},
+    *   dia:    { promedios:{}, finalizados:{}, pendientes:{}, muestra_registros_corte: N, estados_por_oficina:{...} },
+    *   semana: { ... },
+    *   mes:    { ... }
+    * }
+    */
   getRobotPeriodosUnificado(
     opts?: { oficina?: string; paquete?: string; robot?: string }
   ): Observable<any> {
     let params = new HttpParams().set('format', 'combined');
     if (opts?.oficina) params = params.set('oficina', opts.oficina);
     if (opts?.paquete) params = params.set('paquete', opts.paquete);
-    if (opts?.robot)   params = params.set('robot', opts.robot);
+    if (opts?.robot) params = params.set('robot', opts.robot);
 
     const url = `${this.apiUrl}/EstadosRobots/periodos-unificado/`;
     return this.http.get<any>(url, { params });

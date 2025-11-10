@@ -21,7 +21,7 @@ export class HiringService {
 
   // Buscar en contratacion por cedula para sacar los numeros
   public buscarEncontratacion(cedula: any): Observable<any> {
-    return this.http.get(`${this.apiUrl}/contratacion/buscarCandidato/${cedula}`, ).pipe(
+    return this.http.get(`${this.apiUrl}/contratacion/buscarCandidato/${cedula}`,).pipe(
       map((response: any) => response),
       catchError(this.handleError)
     );
@@ -29,8 +29,7 @@ export class HiringService {
 
   // Buscar en contratacion por cedula para sacar los datos bio
   public buscarEncontratacionDatosBiometricos(cedula: any): Observable<any> {
-
-    return this.http.get(`${this.apiUrl}/contratacion/candidato/${cedula}`, ).pipe(
+    return this.http.get(`${this.apiUrl}/contratacion/candidato/${cedula}`,).pipe(
       map((response: any) => response),
       catchError(this.handleError)
     );
@@ -38,8 +37,7 @@ export class HiringService {
 
   // check-contract/<str:codigo_contrato>/
   public checkContract(codigo_contrato: any): Observable<any> {
-
-    return this.http.get(`${this.apiUrl}/contratacion/check-contract/${codigo_contrato}/`, ).pipe(
+    return this.http.get(`${this.apiUrl}/contratacion/check-contract/${codigo_contrato}/`,).pipe(
       map((response: any) => response),
       catchError(this.handleError)
     );
@@ -47,8 +45,7 @@ export class HiringService {
 
   //
   public buscarEnContratacionFormulario(): Observable<any> {
-
-    return this.http.get(`${this.apiUrl}/contratacion/buscarPorMarcaTemporal/`, ).pipe(
+    return this.http.get(`${this.apiUrl}/contratacion/buscarPorMarcaTemporal/`,).pipe(
       map((response: any) => response),
       catchError(this.handleError)
     );
@@ -56,8 +53,7 @@ export class HiringService {
 
   // Buscar datos seleccion  /Seleccion/traerDatosSeleccion/{cedula}
   public traerDatosSeleccion(cedula: string): Observable<any> {
-
-    return this.http.get(`${this.apiUrl}/Seleccion/traerDatosSeleccion/${cedula}`, ).pipe(
+    return this.http.get(`${this.apiUrl}/Seleccion/traerDatosSeleccion/${cedula}`,).pipe(
       map((response: any) => response),
       catchError(this.handleError)
     );
@@ -65,14 +61,9 @@ export class HiringService {
 
   // Servicio para traer datos de contratación
   public traerDatosContratacion(cedula: string, contrato: string): Observable<any> {
-    // Crear el encabezado con la autorización
-
-
-    // Construir la URL con los parámetros
     const url = `${this.apiUrl}/contratacion/traerDatosContratacion/${cedula}/${contrato}`;
-
     // Realizar la solicitud GET
-    return this.http.get(url, ).pipe(
+    return this.http.get(url,).pipe(
       map((response: any) => response), // Mapear la respuesta directamente
       catchError(this.handleError) // Manejar errores
     );
@@ -83,8 +74,7 @@ export class HiringService {
 
 
   public traerDatosEncontratacion(cedula: string): Observable<any> {
-
-    return this.http.get(`${this.apiUrl}/contratacion/datosIncapacidadContratacion/${cedula}`, ).pipe(
+    return this.http.get(`${this.apiUrl}/contratacion/datosIncapacidadContratacion/${cedula}`,).pipe(
       map((response: any) => response),
       catchError(this.handleError)
     );
@@ -96,17 +86,13 @@ export class HiringService {
     primercorreoelectronico: string,
     celular: string,
   ): Promise<any> {
-
     const urlcompleta = `${this.apiUrl}/Ausentismos/editarAusentismosCedCorreo/${id}`;
-
-
     const data = {
       celular: celular,
       primercorreoelectronico: primercorreoelectronico,
     };
-
     try {
-      const response = await firstValueFrom(this.http.post<string>(urlcompleta, data, ).pipe(
+      const response = await firstValueFrom(this.http.post<string>(urlcompleta, data,).pipe(
         catchError(this.handleError)
       ));
       return response;
@@ -119,16 +105,14 @@ export class HiringService {
   async subirContratacionAuditoria(
     datos: any
   ): Promise<any> {
-
     const urlcompleta = `${this.apiUrl}/contratacion/subidadeusuariosarchivoAuditoriaexcel`;
-
     const data = {
       datos: datos,
       mensaje: "mcuhos",
     };
 
     try {
-      const response = await firstValueFrom(this.http.post<string>(urlcompleta, data, ).pipe(
+      const response = await firstValueFrom(this.http.post<string>(urlcompleta, data,).pipe(
         catchError(this.handleError)
       ));
       return response;
@@ -150,7 +134,7 @@ export class HiringService {
     };
 
     try {
-      const response = await firstValueFrom(this.http.post<string>(urlcompleta, data, ).pipe(
+      const response = await firstValueFrom(this.http.post<string>(urlcompleta, data,).pipe(
         catchError(this.handleError)
       ));
       return response;
@@ -166,15 +150,13 @@ export class HiringService {
 
     const urlcompleta = `${this.apiUrl}/contratacion/validarExcelContratacion`;
 
-
     const data = {
       datos: datos,
       mensaje: "mcuhos",
     };
 
-
     try {
-      const response = await firstValueFrom(this.http.post<string>(urlcompleta, data, ).pipe(
+      const response = await firstValueFrom(this.http.post<string>(urlcompleta, data,).pipe(
         catchError(this.handleError)
       ));
       return response;
@@ -195,7 +177,7 @@ export class HiringService {
     };
 
     try {
-      const response = await firstValueFrom(this.http.post<string>(urlcompleta, data, ).pipe(
+      const response = await firstValueFrom(this.http.post<string>(urlcompleta, data).pipe(
         catchError(this.handleError)
       ));
       return response;
@@ -206,7 +188,6 @@ export class HiringService {
 
   // Cargar una única cédula
   async cargarCedula(dato: any): Promise<any> {
-
     const urlcompleta = `${this.apiUrl}/traslados/cargar-cedula`;
 
     const data = {
@@ -214,7 +195,7 @@ export class HiringService {
     };
 
     try {
-      const response = await firstValueFrom(this.http.post<string>(urlcompleta, data, ).pipe(
+      const response = await firstValueFrom(this.http.post<string>(urlcompleta, data,).pipe(
         catchError(this.handleError)
       ));
       return response;
@@ -226,8 +207,6 @@ export class HiringService {
 
   // Enviar archivos de traslados
   async enviarTraslado(data: any): Promise<any> {
-
-
     const urlcompleta = `${this.apiUrl}/traslados/formulario-solicitud`;
 
     // Crear FormData y agregar los datos
@@ -249,17 +228,14 @@ export class HiringService {
 
   // actualizarProcesoContratacion (data)
   async actualizarProcesoContratacion(data: any): Promise<any> {
-
-
     const urlcompleta = `${this.apiUrl}/contratacion/actualizarProcesoContratacion/`;
-
 
     const data2 = {
       ...data,
     };
     delete data2.traslado; // Eliminar campo innecesario
     try {
-      const response = await firstValueFrom(this.http.post<string>(urlcompleta, data2, ).pipe(
+      const response = await firstValueFrom(this.http.post<string>(urlcompleta, data2,).pipe(
         catchError(this.handleError)
       ));
       return response;
@@ -274,7 +250,6 @@ export class HiringService {
 
   // Subir reporte completo
   async cargarReporte(datos: any): Promise<any> {
-
     const urlcompleta = `${this.apiUrl}/reportes/cargarReporte`;
 
     const data = {
@@ -282,7 +257,7 @@ export class HiringService {
     };
 
     try {
-      const response = await firstValueFrom(this.http.post<string>(urlcompleta, data, ).pipe(
+      const response = await firstValueFrom(this.http.post<string>(urlcompleta, data,).pipe(
         catchError(this.handleError)
       ));
       return response;
@@ -294,14 +269,12 @@ export class HiringService {
 
 
   public obtenerTodosLosReportes(nombre: string): Observable<any> {
-
-
     // Usar una sola ruta para obtener todos o filtrar por nombre
     const url = nombre === 'todos'
       ? `${this.apiUrl}/reportes/obtenerReportes`
       : `${this.apiUrl}/reportes/obtenerReportes/${nombre}`;
 
-    return this.http.get(url, ).pipe(
+    return this.http.get(url,).pipe(
       map((response: any) => response),  // Mapea la respuesta
       catchError(this.handleError)       // Manejo de errores
     );
@@ -309,7 +282,6 @@ export class HiringService {
 
 
   public obtenerReportesPorFechas(start: string, end: string): Observable<any> {
-
     const params = { start, end };  // Parámetros para enviar el rango de fechas
 
     return this.http.get(`${this.apiUrl}/reportes/obtenerReportesFechas`, { params }).pipe(
@@ -320,19 +292,14 @@ export class HiringService {
 
 
   public obtenerReportesPorFechasCentroCosto(start: string, end: string): Observable<any> {
-
     const params = { start, end };  // Parámetros para enviar el rango de fechas
-
     return this.http.get(`${this.apiUrl}/contratacion/descargarReporteFechaIngresoCentroCosto/`, { params }).pipe(
       map((response: any) => response),  // Mapea la respuesta
       catchError(this.handleError)       // Manejo de errores
     );
   }
 
-
-
   public descargarReporteFechaIngresoCentroCostoFincas(start: string, end: string): Observable<Blob> {
-
     const params = { start, end };
 
     return this.http.get(`${this.apiUrl}/contratacion/descargarReporteFechaIngresoCentroCostoFincas/`, {
@@ -343,8 +310,6 @@ export class HiringService {
       catchError(this.handleError)        // Manejo de errores
     );
   }
-
-
 
   //--------------------------------------------------------------------------------------------
   // ------------------------- Métodos para el módulo de reportes de errores --------------------------------
@@ -371,7 +336,7 @@ export class HiringService {
 
     try {
       const response = await firstValueFrom(
-        this.http.post<string>(urlcompleta, data, ).pipe(
+        this.http.post<string>(urlcompleta, data,).pipe(
           catchError((error) => {
             return throwError(() => new Error('Error en la solicitud al guardar errores de validación'));
           })
@@ -424,7 +389,7 @@ export class HiringService {
 
     try {
       const response = await firstValueFrom(
-        this.http.post(urlcompleta, payload, ).pipe(
+        this.http.post(urlcompleta, payload,).pipe(
           catchError((error) => {
             return throwError(() => new Error('Error al validar información de contratación'));
           })
@@ -447,7 +412,7 @@ export class HiringService {
 
     try {
       const response = await firstValueFrom(
-        this.http.post<string>(urlcompleta, dataConToken, ).pipe(
+        this.http.post<string>(urlcompleta, dataConToken,).pipe(
           catchError(this.handleError)
         )
       );
@@ -460,7 +425,7 @@ export class HiringService {
   // contratacion/traerCompletoContratacion/<str:codigo_contrato>/
   public traerCompletoContratacion(codigo_contrato: string): Observable<any> {
 
-    return this.http.get(`${this.apiUrl}/contratacion/traerCompletoContratacion/${codigo_contrato}/`, ).pipe(
+    return this.http.get(`${this.apiUrl}/contratacion/traerCompletoContratacion/${codigo_contrato}/`,).pipe(
       map((response: any) => response),
       catchError(this.handleError)
     );
