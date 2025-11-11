@@ -1,4 +1,4 @@
-import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
+import { HttpClient, HttpHeaders, HttpParams, HttpResponse } from '@angular/common/http';
 import { Inject, Injectable, PLATFORM_ID } from '@angular/core';
 import { Observable, catchError, map } from 'rxjs';
 import { environment } from '../../../../../../environments/environment.development';
@@ -18,6 +18,20 @@ export class HomeService {
   private handleError(error: any): Observable<never> {
     throw error;
   }
+
+descargarCedulasZipLote(offset: number, limit: number): Observable<HttpResponse<Blob>> {
+  const url = `${this.apiUrl}/traslados/cedulas/zip`;
+  let params = new HttpParams()
+    .set('offset', String(offset))
+    .set('limit', String(limit))
+    .set('skip_links', '1'); // ignora los links
+
+  return this.http.get(url, {
+    params,
+    responseType: 'blob' as const,
+    observe: 'response'
+  }).pipe(catchError(this.handleError));
+}
 
   traerHistorialInformePersona(
     fechaInicio: string,

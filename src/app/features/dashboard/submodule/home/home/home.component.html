@@ -1,9 +1,17 @@
 <div class="cards">
   <app-info-card title="Cargar solicitudes robots paquete" imageUrl="icons/cards/excel.png" (click)="triggerFileInput()"
     style="cursor:pointer"></app-info-card>
-  <app-info-card title="Descargar historial beneficios" imageUrl="icons/cards/excel.png" (click)="extraerHistorialBeneficios()"
-    style="cursor:pointer"></app-info-card>
+  <app-info-card title="Descargar historial beneficios" imageUrl="icons/cards/excel.png"
+    (click)="extraerHistorialBeneficios()" style="cursor:pointer"></app-info-card>
+
+  <button mat-raised-button color="primary" (click)="descargarCedulasPorLotes(1200, 67202)">
+    Descargar cédulas por lotes
+  </button>
+
+
 </div>
+
+
 
 <input type="file" id="fileInput" (change)="cargarExcel($event)" accept=".xlsx, .xls" style="display:none" />
 

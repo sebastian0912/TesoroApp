@@ -16,6 +16,8 @@ import { InfoCardComponent } from '@/app/shared/components/info-card/info-card.c
 import { HomeService } from '../service/home.service';
 import { DateRangeDialogComponent } from '@/app/shared/components/date-rang-dialog/date-rang-dialog.component';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
+import { HttpErrorResponse } from '@angular/common/http';
+import { firstValueFrom } from 'rxjs';
 
 
 
@@ -51,21 +53,21 @@ export class HomeComponent implements OnInit {
   isSidebarHidden = false;
   robotsHome = false;
 
-private readonly HEADER_ALIASES: Record<string, string[]> = {
-  'Identificación': [
-    'identificación','identificacion','cédula','cedula','documento',
-    'numero_documento','número de documento','numero de documento','id'
-  ],
-  'Tipo documento': ['tipo documento','tipo_documento','tipo doc','tipo'],
-  'PAQUETE': ['paquete','oficina','sede'],
-  'Nombre Y Apellidos': [
-    'nombre y apellidos','nombres y apellidos','nombre y apellido','nombres y apellido'
-  ],
-  'Primer Nombre': ['primer nombre','pn'],
-  'Segundo Nombre': ['segundo nombre','sn'],
-  'Primer Apellido': ['primer apellido','pa'],
-  'Segundo Apellido': ['segundo apellido','sa'],
-};
+  private readonly HEADER_ALIASES: Record<string, string[]> = {
+    'Identificación': [
+      'identificación', 'identificacion', 'cédula', 'cedula', 'documento',
+      'numero_documento', 'número de documento', 'numero de documento', 'id'
+    ],
+    'Tipo documento': ['tipo documento', 'tipo_documento', 'tipo doc', 'tipo'],
+    'PAQUETE': ['paquete', 'oficina', 'sede'],
+    'Nombre Y Apellidos': [
+      'nombre y apellidos', 'nombres y apellidos', 'nombre y apellido', 'nombres y apellido'
+    ],
+    'Primer Nombre': ['primer nombre', 'pn'],
+    'Segundo Nombre': ['segundo nombre', 'sn'],
+    'Primer Apellido': ['primer apellido', 'pa'],
+    'Segundo Apellido': ['segundo apellido', 'sa'],
+  };
 
   constructor(
     private utilityService: UtilityServiceService,
@@ -133,7 +135,7 @@ private readonly HEADER_ALIASES: Record<string, string[]> = {
       });
       return;
     }
-    else{
+    else {
       this.dialog.open(DateRangeDialogComponent, {
         width: '400px',
         data: { title: 'Seleccionar rango de fechas' }
@@ -163,123 +165,216 @@ private readonly HEADER_ALIASES: Record<string, string[]> = {
   }
 
   /** ---------- CARGAR EXCEL (sin cambios funcionales) ---------- */
-// Normaliza: quita acentos, colapsa espacios, a minúsculas
-private normalizeKey(s: string): string {
-  return (s || '')
-    .replace(/\u00A0|\u2007|\u202F/g, ' ')
-    .normalize('NFD').replace(/\p{Diacritic}/gu, '')
-    .trim().replace(/\s+/g, ' ')
-    .toLowerCase();
-}
-
-// Devuelve el canónico si el header coincide con algún alias
-private toCanonical(h: string): string {
-  const nk = this.normalizeKey(String(h || ''));
-  for (const canonical of Object.keys(this.HEADER_ALIASES)) {
-    const aliases = this.HEADER_ALIASES[canonical].map(a => this.normalizeKey(a));
-    if (aliases.includes(nk) || this.normalizeKey(canonical) === nk) return canonical;
-  }
-  return String(h || '').trim(); // fallback, se envía tal cual
-}
-
-/** ---------- CARGAR EXCEL (por encabezados) ---------- */
-cargarExcel(evt: any): void {
-  const file: File | undefined = evt?.target?.files?.[0];
-  if (!file) {
-    void Swal.fire({ icon: 'error', title: 'Selecciona un archivo' });
-    return;
+  // Normaliza: quita acentos, colapsa espacios, a minúsculas
+  private normalizeKey(s: string): string {
+    return (s || '')
+      .replace(/\u00A0|\u2007|\u202F/g, ' ')
+      .normalize('NFD').replace(/\p{Diacritic}/gu, '')
+      .trim().replace(/\s+/g, ' ')
+      .toLowerCase();
   }
 
-  const reader = new FileReader();
-  reader.onload = async (e: any) => {
-    try {
-      const wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array', cellDates: true });
-      const ws = wb.Sheets[wb.SheetNames[0]];
-      const rows: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: '' });
-
-      if (!rows.length) {
-        void Swal.fire({ icon: 'error', title: 'Archivo vacío' });
-        return;
-      }
-
-      const headerRow = (rows[0] || []).map(h => String(h || ''));
-      const canonicalHeaders = headerRow.map(h => this.toCanonical(h));
-
-      // Validar mínimo: Identificación
-      if (!canonicalHeaders.some(h => h === 'Identificación')) {
-        void Swal.fire({
-          icon: 'error',
-          title: 'Formato incorrecto',
-          text: 'Falta la columna "Identificación" en el encabezado.'
-        });
-        return;
-      }
-
-      // Construir objetos por fila usando los encabezados
-      const datos = rows.slice(1)
-        .map((r) => {
-          const o: any = {};
-          canonicalHeaders.forEach((key, idx) => {
-            if (!key) return;
-            const val = r[idx];
-            // Convertir todo a string “limpia” (evita NaN/undefined)
-            const sv = (val === null || val === undefined) ? '' : String(val).trim();
-            if (sv !== '') o[key] = sv;
-          });
-          return o;
-        })
-        // Filtra filas sin Identificación
-        .filter(o => !!o && typeof o === 'object' && String(o['Identificación'] || '').trim() !== '');
-
-      if (!datos.length) {
-        void Swal.fire({ icon: 'warning', title: 'No hay filas válidas', text: 'Todas las filas carecen de Identificación.' });
-        return;
-      }
-
-      // Defaults útiles:
-      datos.forEach(o => {
-        if (!o['Tipo documento']) o['Tipo documento'] = 'CC';
-        // Si no hay PN/PA pero sí “Nombre Y Apellidos”, el backend lo parte: no tocamos aquí.
-      });
-
-      // Recomendado: solo tocar Candidato para los “nuevos” (coincide con tu backend)
-      const payload = {
-        candidatos_scope: 'nuevos' as 'nuevos' | 'todos' | 'ninguno',
-        datos
-      };
-
-      // Lanza petición (tu interceptor de loader puede mostrar el spinner si quieres)
-      this.homeService.enviarEstadosRobots(payload)
-        .subscribe({
-          next: (r: any) => {
-            const ok = r?.message === 'success';
-            const detalle = [
-              r?.estado_robot_creados != null ? `Estados creados: ${r.estado_robot_creados}` : null,
-              r?.candidatos_creados != null ? `Candidatos creados: ${r.candidatos_creados}` : null,
-              r?.candidatos_actualizados != null ? `Candidatos actualizados: ${r.candidatos_actualizados}` : null,
-              Array.isArray(r?.omitidos_por_15d) ? `Omitidos 15d: ${r.omitidos_por_15d.length}` : null
-            ].filter(Boolean).join('\n');
-
-            void Swal.fire({
-              icon: ok ? 'success' : 'error',
-              title: ok ? 'Carga exitosa' : 'Carga con errores',
-              text: detalle || (ok ? 'OK' : 'Revisa los mensajes del servidor')
-            });
-          },
-          error: (err) => {
-            const msg = err?.error?.message || 'No se pudo cargar el Excel.';
-            void Swal.fire({ icon: 'error', title: 'Error', text: msg });
-          }
-        });
-
-    } catch (err) {
-      void Swal.fire({ icon: 'error', title: 'Error al procesar', text: 'Verifica el formato del archivo.' });
-    } finally {
-      // Limpia el input para permitir cargar el mismo archivo otra vez si es necesario
-      try { (evt.target as HTMLInputElement).value = ''; } catch {}
+  // Devuelve el canónico si el header coincide con algún alias
+  private toCanonical(h: string): string {
+    const nk = this.normalizeKey(String(h || ''));
+    for (const canonical of Object.keys(this.HEADER_ALIASES)) {
+      const aliases = this.HEADER_ALIASES[canonical].map(a => this.normalizeKey(a));
+      if (aliases.includes(nk) || this.normalizeKey(canonical) === nk) return canonical;
     }
-  };
+    return String(h || '').trim(); // fallback, se envía tal cual
+  }
 
-  reader.readAsArrayBuffer(file);
+  /** ---------- CARGAR EXCEL (por encabezados) ---------- */
+  cargarExcel(evt: any): void {
+    const file: File | undefined = evt?.target?.files?.[0];
+    if (!file) {
+      void Swal.fire({ icon: 'error', title: 'Selecciona un archivo' });
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = async (e: any) => {
+      try {
+        const wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array', cellDates: true });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const rows: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: '' });
+
+        if (!rows.length) {
+          void Swal.fire({ icon: 'error', title: 'Archivo vacío' });
+          return;
+        }
+
+        const headerRow = (rows[0] || []).map(h => String(h || ''));
+        const canonicalHeaders = headerRow.map(h => this.toCanonical(h));
+
+        // Validar mínimo: Identificación
+        if (!canonicalHeaders.some(h => h === 'Identificación')) {
+          void Swal.fire({
+            icon: 'error',
+            title: 'Formato incorrecto',
+            text: 'Falta la columna "Identificación" en el encabezado.'
+          });
+          return;
+        }
+
+        // Construir objetos por fila usando los encabezados
+        const datos = rows.slice(1)
+          .map((r) => {
+            const o: any = {};
+            canonicalHeaders.forEach((key, idx) => {
+              if (!key) return;
+              const val = r[idx];
+              // Convertir todo a string “limpia” (evita NaN/undefined)
+              const sv = (val === null || val === undefined) ? '' : String(val).trim();
+              if (sv !== '') o[key] = sv;
+            });
+            return o;
+          })
+          // Filtra filas sin Identificación
+          .filter(o => !!o && typeof o === 'object' && String(o['Identificación'] || '').trim() !== '');
+
+        if (!datos.length) {
+          void Swal.fire({ icon: 'warning', title: 'No hay filas válidas', text: 'Todas las filas carecen de Identificación.' });
+          return;
+        }
+
+        // Defaults útiles:
+        datos.forEach(o => {
+          if (!o['Tipo documento']) o['Tipo documento'] = 'CC';
+          // Si no hay PN/PA pero sí “Nombre Y Apellidos”, el backend lo parte: no tocamos aquí.
+        });
+
+        // Recomendado: solo tocar Candidato para los “nuevos” (coincide con tu backend)
+        const payload = {
+          candidatos_scope: 'nuevos' as 'nuevos' | 'todos' | 'ninguno',
+          datos
+        };
+
+        // Lanza petición (tu interceptor de loader puede mostrar el spinner si quieres)
+        this.homeService.enviarEstadosRobots(payload)
+          .subscribe({
+            next: (r: any) => {
+              const ok = r?.message === 'success';
+              const detalle = [
+                r?.estado_robot_creados != null ? `Estados creados: ${r.estado_robot_creados}` : null,
+                r?.candidatos_creados != null ? `Candidatos creados: ${r.candidatos_creados}` : null,
+                r?.candidatos_actualizados != null ? `Candidatos actualizados: ${r.candidatos_actualizados}` : null,
+                Array.isArray(r?.omitidos_por_15d) ? `Omitidos 15d: ${r.omitidos_por_15d.length}` : null
+              ].filter(Boolean).join('\n');
+
+              void Swal.fire({
+                icon: ok ? 'success' : 'error',
+                title: ok ? 'Carga exitosa' : 'Carga con errores',
+                text: detalle || (ok ? 'OK' : 'Revisa los mensajes del servidor')
+              });
+            },
+            error: (err) => {
+              const msg = err?.error?.message || 'No se pudo cargar el Excel.';
+              void Swal.fire({ icon: 'error', title: 'Error', text: msg });
+            }
+          });
+
+      } catch (err) {
+        void Swal.fire({ icon: 'error', title: 'Error al procesar', text: 'Verifica el formato del archivo.' });
+      } finally {
+        // Limpia el input para permitir cargar el mismo archivo otra vez si es necesario
+        try { (evt.target as HTMLInputElement).value = ''; } catch { }
+      }
+    };
+
+    reader.readAsArrayBuffer(file);
+  }
+
+// ---- helper: guardar en Descargas (FS Access si existe; fallback <a download>)
+private async saveToDownloads(blob: Blob, filename: string): Promise<void> {
+  // Intento 1: File System Access API (Chromium)
+  try {
+    // @ts-ignore
+    if (window.showSaveFilePicker) {
+      // @ts-ignore
+      const handle = await window.showSaveFilePicker({
+        suggestedName: filename,
+        startIn: 'downloads', // sugiere "Descargas"
+        types: [{ description: 'ZIP', accept: { 'application/zip': ['.zip'] } }]
+      });
+      const writable = await handle.createWritable();
+      await writable.write(blob);
+      await writable.close();
+      return;
+    }
+  } catch (_) {
+    // si el usuario cancela o falla, caemos al fallback
+  }
+
+  // Intento 2: descarga directa a la carpeta por defecto del navegador
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;      // esto fuerza guardar con ese nombre en Descargas
+  a.style.display = 'none';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
+
+async descargarCedulasPorLotes(tamano = 1200, totalEsperado = 67202): Promise<void> {
+  let offset = 0;
+  let lote = 1;
+  let totalDescargados = 0;
+  let totalGlobal = totalEsperado; // fallback si no llegan headers
+
+  Swal.fire({
+    title: 'Descargando cédulas por lotes',
+    html: `0% (0/${totalGlobal})`,
+    allowOutsideClick: false,
+    didOpen: () => Swal.showLoading()
+  });
+
+  try {
+    while (true) {
+      const res = await firstValueFrom(this.homeService.descargarCedulasZipLote(offset, tamano));
+      const items = Number(res.headers.get('X-Items-Count') || '0');
+
+      if (lote === 1) {
+        const hdrTotal = Number(res.headers.get('X-Total-Posibles') || '0');
+        if (hdrTotal > 0) totalGlobal = hdrTotal;
+      }
+
+      if (!res.body || items === 0) break;
+
+      // Nombre por header o por rango
+      let filename = `CEDULAS_${offset + 1}-${offset + items}.zip`;
+      const cd = res.headers.get('Content-Disposition') || '';
+      const m = /filename="([^"]+)"/i.exec(cd);
+      if (m) filename = m[1];
+
+      // Guardar automáticamente en Descargas
+      await this.saveToDownloads(res.body, filename);
+
+      totalDescargados += items;
+      const pct = totalGlobal ? Math.floor((totalDescargados / totalGlobal) * 100) : 0;
+      Swal.update({ html: `${pct}% (${totalDescargados}/${totalGlobal}) — Lote ${lote}` });
+
+      offset += tamano;
+      lote++;
+
+      // pequeña pausa para no saturar el navegador/antivirus
+      await new Promise(r => setTimeout(r, 250));
+    }
+
+    Swal.fire({
+      icon: 'success',
+      title: 'Completado',
+      text: `Descargados ${totalDescargados} de ${totalGlobal} PDF(s) en varios ZIPs.`
+    });
+  } catch (err: any) {
+    Swal.fire({
+      icon: 'error',
+      title: 'Error',
+      text: err?.status === 0 ? 'CORS o red: no se pudo contactar el servidor.' : 'Falló la descarga por lotes.'
+    });
+  }
+}
+
 }
