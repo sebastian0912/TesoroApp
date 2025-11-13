@@ -269,9 +269,7 @@ export class FormEntrevistaComponent implements OnInit {
 
     // Edad calculada
     this.ctrl('fecha_nacimiento')
-      .valueChanges.pipe(
-        startWith(this.ctrl('fecha_nacimiento').value)
-      )
+      .valueChanges.pipe(startWith(this.ctrl('fecha_nacimiento').value))
       .subscribe(() => this.setEdad());
 
     // Hijos
@@ -287,19 +285,7 @@ export class FormEntrevistaComponent implements OnInit {
     this.ctrl('experienciaFlores')
       .valueChanges.pipe(startWith(this.ctrl('experienciaFlores').value))
       .subscribe((val) => {
-        const tipoCtrl = this.ctrl('tipoExperienciaFlores');
-        if (val !== 'Sí') {
-          tipoCtrl.setValue('', { emitEvent: false });
-          tipoCtrl.clearValidators();
-          this.otroExperienciaControl.reset('', { emitEvent: false });
-          this.otroExperienciaControl.clearValidators();
-        } else {
-          tipoCtrl.setValidators([Validators.required]);
-        }
-        tipoCtrl.updateValueAndValidity({ emitEvent: false });
-        this.otroExperienciaControl.updateValueAndValidity({
-          emitEvent: false,
-        });
+        this.applyExperienciaFloresRules(val);
         this.refreshSteps();
       });
 
@@ -307,18 +293,7 @@ export class FormEntrevistaComponent implements OnInit {
     this.ctrl('tipoExperienciaFlores')
       .valueChanges.pipe(startWith(this.ctrl('tipoExperienciaFlores').value))
       .subscribe((value) => {
-        if (value === 'OTROS') {
-          this.otroExperienciaControl.setValidators([
-            Validators.required,
-            Validators.maxLength(64),
-          ]);
-        } else {
-          this.otroExperienciaControl.reset('', { emitEvent: false });
-          this.otroExperienciaControl.clearValidators();
-        }
-        this.otroExperienciaControl.updateValueAndValidity({
-          emitEvent: false,
-        });
+        this.applyTipoExperienciaFloresRules(value);
         this.refreshSteps();
       });
 
@@ -326,18 +301,7 @@ export class FormEntrevistaComponent implements OnInit {
     this.ctrl('referenciado')
       .valueChanges.pipe(startWith(this.ctrl('referenciado').value))
       .subscribe((v) => {
-        const nombreRef = this.ctrl('nombreReferenciado');
-        if (v === 'SI') {
-          nombreRef.setValidators([
-            Validators.required,
-            Validators.maxLength(120),
-          ]);
-        } else {
-          nombreRef.clearValidators();
-          nombreRef.setValue('', { emitEvent: false });
-        }
-        nombreRef.updateValueAndValidity({ emitEvent: false });
-        this.step7Ctrl.updateValueAndValidity({ emitEvent: false });
+        this.applyReferenciadoRules(v);
         this.refreshSteps();
       });
 
@@ -345,38 +309,7 @@ export class FormEntrevistaComponent implements OnInit {
     this.ctrl('aplicaObservacion')
       .valueChanges.pipe(startWith(this.ctrl('aplicaObservacion').value))
       .subscribe((v) => {
-        const motEsp = this.ctrl('motivoEspera');
-        const motNoAp = this.ctrl('motivoNoAplica');
-
-        if (v === 'EN_ESPERA') {
-          motEsp.setValidators([
-            Validators.required,
-            Validators.maxLength(300),
-          ]);
-          motNoAp.clearValidators();
-          motNoAp.setValue('', { emitEvent: false });
-        } else if (v === 'NO_APLICA') {
-          motNoAp.setValidators([
-            Validators.required,
-            Validators.maxLength(300),
-          ]);
-          motEsp.clearValidators();
-          motEsp.setValue('', { emitEvent: false });
-        } else if (v === 'APLICA') {
-          motEsp.clearValidators();
-          motEsp.setValue('', { emitEvent: false });
-          motNoAp.clearValidators();
-          motNoAp.setValue('', { emitEvent: false });
-        } else {
-          motEsp.clearValidators();
-          motEsp.setValue('', { emitEvent: false });
-          motNoAp.clearValidators();
-          motNoAp.setValue('', { emitEvent: false });
-        }
-
-        motEsp.updateValueAndValidity({ emitEvent: false });
-        motNoAp.updateValueAndValidity({ emitEvent: false });
-        this.step7Ctrl.updateValueAndValidity({ emitEvent: false });
+        this.applyAplicaObservacionRules(v);
         this.refreshSteps();
       });
 
@@ -715,6 +648,93 @@ export class FormEntrevistaComponent implements OnInit {
   }
 
   // =======================
+  // Helpers de reglas dinámicas
+  // =======================
+  private applyExperienciaFloresRules(val: any): void {
+    const tipoCtrl = this.ctrl('tipoExperienciaFlores');
+
+    if (val !== 'Sí') {
+      tipoCtrl.setValue('', { emitEvent: false });
+      tipoCtrl.clearValidators();
+      this.otroExperienciaControl.reset('', { emitEvent: false });
+      this.otroExperienciaControl.clearValidators();
+    } else {
+      tipoCtrl.setValidators([Validators.required]);
+    }
+
+    tipoCtrl.updateValueAndValidity({ emitEvent: false });
+    this.otroExperienciaControl.updateValueAndValidity({ emitEvent: false });
+  }
+
+  private applyTipoExperienciaFloresRules(value: any): void {
+    if (value === 'OTROS') {
+      this.otroExperienciaControl.setValidators([
+        Validators.required,
+        Validators.maxLength(64),
+      ]);
+    } else {
+      this.otroExperienciaControl.reset('', { emitEvent: false });
+      this.otroExperienciaControl.clearValidators();
+    }
+
+    this.otroExperienciaControl.updateValueAndValidity({
+      emitEvent: false,
+    });
+  }
+
+  private applyReferenciadoRules(v: any): void {
+    const nombreRef = this.ctrl('nombreReferenciado');
+
+    if (v === 'SI') {
+      nombreRef.setValidators([
+        Validators.required,
+        Validators.maxLength(120),
+      ]);
+    } else {
+      nombreRef.clearValidators();
+      nombreRef.setValue('', { emitEvent: false });
+    }
+
+    nombreRef.updateValueAndValidity({ emitEvent: false });
+    this.step7Ctrl.updateValueAndValidity({ emitEvent: false });
+  }
+
+  private applyAplicaObservacionRules(v: any): void {
+    const motEsp = this.ctrl('motivoEspera');
+    const motNoAp = this.ctrl('motivoNoAplica');
+
+    if (v === 'EN_ESPERA') {
+      motEsp.setValidators([
+        Validators.required,
+        Validators.maxLength(300),
+      ]);
+      motNoAp.clearValidators();
+      motNoAp.setValue('', { emitEvent: false });
+    } else if (v === 'NO_APLICA') {
+      motNoAp.setValidators([
+        Validators.required,
+        Validators.maxLength(300),
+      ]);
+      motEsp.clearValidators();
+      motEsp.setValue('', { emitEvent: false });
+    } else if (v === 'APLICA') {
+      motEsp.clearValidators();
+      motEsp.setValue('', { emitEvent: false });
+      motNoAp.clearValidators();
+      motNoAp.setValue('', { emitEvent: false });
+    } else {
+      motEsp.clearValidators();
+      motEsp.setValue('', { emitEvent: false });
+      motNoAp.clearValidators();
+      motNoAp.setValue('', { emitEvent: false });
+    }
+
+    motEsp.updateValueAndValidity({ emitEvent: false });
+    motNoAp.updateValueAndValidity({ emitEvent: false });
+    this.step7Ctrl.updateValueAndValidity({ emitEvent: false });
+  }
+
+  // =======================
   // Hidratar desde la URL (oficina)
   // =======================
   private normalizeOffice(s: string): string {
@@ -863,10 +883,9 @@ export class FormEntrevistaComponent implements OnInit {
         })
         .filter((x): x is string => !!x);
 
-      this.ctrl('personas_con_quien_convive').setValue(
-        selectedCodes,
-        { emitEvent: false }
-      );
+      this.ctrl('personas_con_quien_convive').setValue(selectedCodes, {
+        emitEvent: false,
+      });
       this.forceValidateStep(this.step3Ctrl, this.step3Fields);
       this.refreshSteps();
     });
@@ -933,14 +952,25 @@ export class FormEntrevistaComponent implements OnInit {
       );
     }
 
-    // 7) Forzar validación final de todas las secciones
+    // 7) Reaplicar reglas dinámicas para que los validadores condicionales coincidan con los valores cargados
+    this.setupHijosValidators(this.ctrl('tieneHijos').value === true);
+    this.applyExperienciaFloresRules(this.ctrl('experienciaFlores').value);
+    this.applyTipoExperienciaFloresRules(
+      this.ctrl('tipoExperienciaFlores').value
+    );
+    this.applyReferenciadoRules(this.ctrl('referenciado').value);
+    this.applyAplicaObservacionRules(
+      this.ctrl('aplicaObservacion').value
+    );
+
+    // 8) Forzar validación final de todas las secciones
     this.forceValidateStep(this.step3Ctrl, this.step3Fields);
     this.step4Ctrl.updateValueAndValidity({ emitEvent: false });
     this.step5Ctrl.updateValueAndValidity({ emitEvent: false });
     this.step6Ctrl.updateValueAndValidity({ emitEvent: false });
     this.step7Ctrl.updateValueAndValidity({ emitEvent: false });
 
-    // 8) Recalcular el formulario completo
+    // 9) Recalcular el formulario completo
     this.formVacante.updateValueAndValidity({ emitEvent: false });
     this.refreshSteps();
   }
@@ -1006,9 +1036,9 @@ export class FormEntrevistaComponent implements OnInit {
         // Hijos: formatear fecha_nac
         hijos: Array.isArray(raw.hijos)
           ? raw.hijos.map((h: any) => ({
-            ...h,
-            fecha_nac: this.toYMD(h?.fecha_nac),
-          }))
+              ...h,
+              fecha_nac: this.toYMD(h?.fecha_nac),
+            }))
           : [],
 
         // Por si el backend espera string plano, no Date
