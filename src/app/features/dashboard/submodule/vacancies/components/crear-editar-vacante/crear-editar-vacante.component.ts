@@ -411,7 +411,7 @@ export class CrearEditarVacanteComponent implements OnInit {
       direccion: v.direccion,
       temporal: v.temporal,
       experiencia: v.experiencia,
-      observacionVacante: v.observacionVacante,
+      observacionVacante: v.observacion,
       tieneFechaIngreso: v.fechadeIngreso ? this.SI : 'No',
       fechadeIngreso: v.fechadeIngreso ? new Date(v.fechadeIngreso) : null,
       descripcion: v.descripcion,

@@ -255,7 +255,7 @@ export class VacantesComponent implements OnInit {
         descripcion: result.descripcion?.trim() || null,
         salario: this.parseCurrency(result.salario),
         codigoElite: result.codigoElite?.trim() || null,
-        observacionVacante: result.observacionVacante?.trim() || null,
+        observacion: result.observacionVacante?.trim() || null,
 
         pruebaOContratacion: isPrueba ? 'Prueba' : 'Contratación',
         fechadePruebatecnica: isPrueba ? this.formatDate(result.fechadePruebatecnica) : null,
@@ -339,7 +339,7 @@ export class VacantesComponent implements OnInit {
         fechadeIngreso: this.formatDate(result.fechadeIngreso) || null,
         pruebaOContratacion: isPrueba ? 'Prueba' : 'Contratación',
 
-        observacionVacante: result.observacionVacante?.trim() || null,
+        observacion: result.observacionVacante?.trim() || null,
         temporal: result.temporal?.trim() || null,
         descripcion: result.descripcion?.trim() || null,
         fechaPublicado: this.formatDate(new Date()),
