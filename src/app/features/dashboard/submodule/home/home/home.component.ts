@@ -285,96 +285,88 @@ export class HomeComponent implements OnInit {
     reader.readAsArrayBuffer(file);
   }
 
-// ---- helper: guardar en Descargas (FS Access si existe; fallback <a download>)
-private async saveToDownloads(blob: Blob, filename: string): Promise<void> {
-  // Intento 1: File System Access API (Chromium)
-  try {
-    // @ts-ignore
-    if (window.showSaveFilePicker) {
-      // @ts-ignore
-      const handle = await window.showSaveFilePicker({
-        suggestedName: filename,
-        startIn: 'downloads', // sugiere "Descargas"
-        types: [{ description: 'ZIP', accept: { 'application/zip': ['.zip'] } }]
-      });
-      const writable = await handle.createWritable();
-      await writable.write(blob);
-      await writable.close();
-      return;
+  // ---- helper: guardar en Descargas (FS Access si existe; fallback <a download>)
+  private async saveToDownloads(blob: Blob, filename: string): Promise<void> {
+    // Detecta tipo por extensión para el diálogo nativo
+    const ext = (filename.split('.').pop() || '').toLowerCase();
+    const mime =
+      ext === 'zip' ? 'application/zip' :
+        ext === 'xlsx' ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' :
+          'application/octet-stream';
+
+    try {
+      // @ts-ignore - File System Access API (Chromium)
+      if (window.showSaveFilePicker) {
+        // @ts-ignore
+        const handle = await window.showSaveFilePicker({
+          suggestedName: filename,
+          startIn: 'downloads',
+          types: [{ description: ext.toUpperCase(), accept: { [mime]: ['.' + ext] } }]
+        });
+        const writable = await handle.createWritable();
+        await writable.write(blob);
+        await writable.close();
+        return;
+      }
+    } catch (_) {
+      // si el usuario cancela o falla, caemos al fallback
     }
-  } catch (_) {
-    // si el usuario cancela o falla, caemos al fallback
+
+    // Fallback: descarga directa
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename; // fuerza nombre en Descargas
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   }
 
-  // Intento 2: descarga directa a la carpeta por defecto del navegador
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;      // esto fuerza guardar con ese nombre en Descargas
-  a.style.display = 'none';
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-}
+  // ---- NUEVO: descarga el Excel de links (cedula, link)
+  async descargarLinksExcel(onlyDrive: 1 | 0 = 1, offset = 0, limit = 0): Promise<void> {
+    Swal.fire({
+      title: 'Generando Excel de links',
+      html: `Solicitando al servidor...`,
+      allowOutsideClick: false,
+      didOpen: () => Swal.showLoading()
+    });
 
-async descargarCedulasPorLotes(tamano = 1200, totalEsperado = 67202): Promise<void> {
-  let offset = 0;
-  let lote = 1;
-  let totalDescargados = 0;
-  let totalGlobal = totalEsperado; // fallback si no llegan headers
+    try {
+      // Si tu método está en CedulasService, cámbialo aquí.
+      // Debe devolver HttpResponse<Blob> con header X-Total y Content-Disposition
+      const res = await firstValueFrom(
+        this.homeService.exportarLinksExcel(onlyDrive, offset, limit) // <-- ajusta al servicio real
+      );
 
-  Swal.fire({
-    title: 'Descargando cédulas por lotes',
-    html: `0% (0/${totalGlobal})`,
-    allowOutsideClick: false,
-    didOpen: () => Swal.showLoading()
-  });
+      if (!res.body) throw new Error('Respuesta vacía');
 
-  try {
-    while (true) {
-      const res = await firstValueFrom(this.homeService.descargarCedulasZipLote(offset, tamano));
-      const items = Number(res.headers.get('X-Items-Count') || '0');
-
-      if (lote === 1) {
-        const hdrTotal = Number(res.headers.get('X-Total-Posibles') || '0');
-        if (hdrTotal > 0) totalGlobal = hdrTotal;
+      // Nombre desde Content-Disposition o fallback
+      const cd = res.headers.get('Content-Disposition') || '';
+      let filename = 'cedulas_links.xlsx';
+      const m = cd.match(/filename\*?=(?:UTF-8''|")?([^;"']+)/i);
+      if (m) {
+        try { filename = decodeURIComponent(m[1].replace(/"/g, '')); } catch { filename = m[1]; }
       }
 
-      if (!res.body || items === 0) break;
-
-      // Nombre por header o por rango
-      let filename = `CEDULAS_${offset + 1}-${offset + items}.zip`;
-      const cd = res.headers.get('Content-Disposition') || '';
-      const m = /filename="([^"]+)"/i.exec(cd);
-      if (m) filename = m[1];
-
-      // Guardar automáticamente en Descargas
+      // Guardar
       await this.saveToDownloads(res.body, filename);
 
-      totalDescargados += items;
-      const pct = totalGlobal ? Math.floor((totalDescargados / totalGlobal) * 100) : 0;
-      Swal.update({ html: `${pct}% (${totalDescargados}/${totalGlobal}) — Lote ${lote}` });
-
-      offset += tamano;
-      lote++;
-
-      // pequeña pausa para no saturar el navegador/antivirus
-      await new Promise(r => setTimeout(r, 250));
+      const total = res.headers.get('X-Total') || '0';
+      Swal.fire({
+        icon: 'success',
+        title: 'Excel descargado',
+        text: `Filas exportadas: ${total}`
+      });
+    } catch (err: any) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: err?.status === 0 ? 'CORS o red: no se pudo contactar el servidor.' : 'Falló la descarga del Excel.'
+      });
     }
-
-    Swal.fire({
-      icon: 'success',
-      title: 'Completado',
-      text: `Descargados ${totalDescargados} de ${totalGlobal} PDF(s) en varios ZIPs.`
-    });
-  } catch (err: any) {
-    Swal.fire({
-      icon: 'error',
-      title: 'Error',
-      text: err?.status === 0 ? 'CORS o red: no se pudo contactar el servidor.' : 'Falló la descarga por lotes.'
-    });
   }
-}
+
 
 }

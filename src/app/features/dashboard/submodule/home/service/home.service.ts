@@ -19,19 +19,41 @@ export class HomeService {
     throw error;
   }
 
-descargarCedulasZipLote(offset: number, limit: number): Observable<HttpResponse<Blob>> {
-  const url = `${this.apiUrl}/traslados/cedulas/zip`;
-  let params = new HttpParams()
-    .set('offset', String(offset))
-    .set('limit', String(limit))
-    .set('skip_links', '1'); // ignora los links
+  /**
+   * Descarga un .xlsx con columnas: numero_cedula, link
+   * GET /cedulas/links.xlsx?only_drive=1&offset=0&limit=0
+   * only_drive: 1 = solo Drive/Docs, 0 = cualquier http/https/www
+   * limit=0 significa "sin límite"
+   */
+  exportarLinksExcel(
+    onlyDrive: 1 | 0 = 1,
+    offset = 0,
+    limit = 0
+  ): Observable<HttpResponse<Blob>> {
+    const url = `${this.apiUrl}/traslados/cedulas/links.xlsx`;
 
-  return this.http.get(url, {
-    params,
-    responseType: 'blob' as const,
-    observe: 'response'
-  }).pipe(catchError(this.handleError));
-}
+    let params = new HttpParams().set('only_drive', String(onlyDrive));
+    if (offset > 0) params = params.set('offset', String(offset));
+    if (limit >= 0) params = params.set('limit', String(limit)); // 0 = sin límite
+
+    const headers = new HttpHeaders({
+      'Accept': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    });
+
+    return this.http.get(url, {
+      params,
+      headers,
+      responseType: 'blob' as const,
+      observe: 'response'
+    });
+  }
+
+  /** Extrae filename del header Content-Disposition */
+  getFilename(resp: HttpResponse<Blob>, fallback = 'cedulas_links.xlsx'): string {
+    const cd = resp.headers.get('Content-Disposition') || '';
+    const m = cd.match(/filename\*?=(?:UTF-8''|")?([^;"']+)/i);
+    return m ? decodeURIComponent(m[1].replace(/"/g, '')) : fallback;
+  }
 
   traerHistorialInformePersona(
     fechaInicio: string,
