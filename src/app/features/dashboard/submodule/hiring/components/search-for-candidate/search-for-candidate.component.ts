@@ -8,9 +8,10 @@ import { VetadosService } from '../../service/vetados/vetados.service';
 import { UtilityServiceService } from '@/app/shared/services/utilityService/utility-service.service';
 
 import { EventEmitter, Output } from '@angular/core';
-import { ColumnDefinition, StandardFilterTable } from '@/app/shared/components/standard-filter-table/standard-filter-table';
+import { StandardFilterTable } from '@/app/shared/components/standard-filter-table/standard-filter-table';
 import { SharedModule } from '@/app/shared/shared.module';
 import { RegistroProcesoContratacion } from '../../service/registro-proceso-contratacion/registro-proceso-contratacion';
+import { ColumnDefinition } from '@/app/shared/models/advanced-table-interface';
 
 /* ========== Fila que muestra StandardFilterTable ========== */
 type RegistroUI = {

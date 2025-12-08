@@ -23,7 +23,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatButtonToggleModule } from '@angular/material/button-toggle';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { StandardFilterTable } from '@/app/shared/components/standard-filter-table/standard-filter-table';
-import type { ColumnDefinition } from '@/app/shared/components/standard-filter-table/standard-filter-table';
+import { ColumnDefinition } from '@/app/shared/models/advanced-table-interface';
 
 type EstadoBucket = 'FINALIZADO' | 'EN_PROGRESO' | 'SIN_CONSULTAR';
 type PeriodKey = 'dia' | 'semana' | 'mes';

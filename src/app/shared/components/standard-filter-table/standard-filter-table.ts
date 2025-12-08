@@ -1,431 +1,365 @@
-// src/app/shared/components/standard-filter-table/standard-filter-table.ts
 import {
-  Component,
-  Input,
-  OnInit,
-  OnChanges,
-  SimpleChanges,
-  ViewChild,
-  ContentChild,
-  TemplateRef,
-  inject,
-  OnDestroy,
   AfterViewInit,
-  ElementRef,
-  HostListener,
-  EventEmitter,
-  Output,
-  PLATFORM_ID,
+  ChangeDetectionStrategy,
+  Component,
+  ContentChild,
+  Input,
+  OnChanges,
+  OnDestroy,
+  OnInit,
+  SimpleChanges,
+  TemplateRef,
+  ViewChild,
 } from '@angular/core';
-import { CommonModule, isPlatformBrowser } from '@angular/common';
+import { CommonModule } from '@angular/common';
+import { CdkTableModule } from '@angular/cdk/table';
 import { MatTableDataSource, MatTableModule } from '@angular/material/table';
 import { MatSort, MatSortModule } from '@angular/material/sort';
 import { MatPaginator, MatPaginatorModule } from '@angular/material/paginator';
-import { FormControl, FormGroup, ReactiveFormsModule } from '@angular/forms';
+import {
+  FormControl,
+  FormGroup,
+  ReactiveFormsModule,
+} from '@angular/forms';
 import * as XLSX from 'xlsx';
 import Swal from 'sweetalert2';
-import { CdkTableModule } from '@angular/cdk/table';
+import { Subscription } from 'rxjs';
 
+import {
+  ActiveFilter,
+  ColumnDefinition,
+} from '../../models/advanced-table-interface';
+
+import { MatIconModule } from '@angular/material/icon';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { MatDatepickerModule } from '@angular/material/datepicker';
-import { MatIconModule } from '@angular/material/icon';
-import { MatButtonModule } from '@angular/material/button';
+import { MatCommonModule, MatNativeDateModule } from '@angular/material/core';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatTooltipModule } from '@angular/material/tooltip';
-import { MatChipsModule } from '@angular/material/chips';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatButtonModule } from '@angular/material/button';
 
-import { InfoVacantesService } from '@/app/features/dashboard/submodule/hiring/service/info-vacantes/info-vacantes.service';
-
-type Align = 'left' | 'center' | 'right';
-
-export interface ColumnDefinition {
-  name: string;
-  header: string;
-  type: 'text' | 'number' | 'date' | 'select' | 'status' | 'custom';
-  options?: string[];
-  statusConfig?: Record<string, { color: string; background: string }>;
-  customClassConfig?: Record<string, { color: string; background: string }>;
-  width?: string;
-  filterable?: boolean;
-  stickyStart?: boolean;
-  stickyEnd?: boolean;
-  align?: Align;
-}
-
-export interface ActiveFilter {
-  name: string;
-  header: string;
-  type: string;
-  value: any;
-}
+type DateRangeGroup = FormGroup<{
+  start: FormControl<Date | null>;
+  end: FormControl<Date | null>;
+}>;
 
 @Component({
   selector: 'app-standard-filter-table',
   standalone: true,
+  templateUrl: './standard-filter-table.html',
+  styleUrls: ['./standard-filter-table.css'],
   imports: [
     CommonModule,
-    ReactiveFormsModule,
+    CdkTableModule,
     MatTableModule,
-    MatSortModule,
-    MatPaginatorModule,
+    MatCommonModule,
+    MatIconModule,
     MatFormFieldModule,
     MatInputModule,
     MatSelectModule,
     MatDatepickerModule,
-    MatIconModule,
-    MatButtonModule,
+    MatNativeDateModule,
+    ReactiveFormsModule,
     MatMenuModule,
+    MatPaginatorModule,
     MatTooltipModule,
-    MatChipsModule,
-    CdkTableModule,
+    MatProgressSpinnerModule,
+    MatSortModule,
+    MatButtonModule,
   ],
-  templateUrl: './standard-filter-table.html',
-  styleUrls: ['./standard-filter-table.css'],
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class StandardFilterTable implements OnInit, OnChanges, AfterViewInit, OnDestroy {
-  @ContentChild('actionsTemplate', { static: false }) actionsTemplate!: TemplateRef<any>;
-  @ContentChild('attachmentTemplate', { static: false }) attachmentTemplate!: TemplateRef<any>;
-  @Output() rowClicked = new EventEmitter<any>();
+export class StandardFilterTable
+  implements OnInit, OnChanges, AfterViewInit, OnDestroy
+{
+  // =======================
+  //  Content projection
+  // =======================
 
-  @ContentChild('bloqueadoTemplate', { static: false }) bloqueadoTemplate?: TemplateRef<any>;
-  @ContentChild('activoTemplate', { static: false }) activoTemplate?: TemplateRef<any>;
+  @ContentChild('actionsTemplate')
+  actionsTemplate?: TemplateRef<unknown>;
+
+  @ContentChild('attachmentTemplate')
+  attachmentTemplate?: TemplateRef<unknown>;
+
+  @ContentChild('semaforoTemplate')
+  semaforoTemplate?: TemplateRef<unknown>;
+
+  @ContentChild('estadoTemplate')
+  estadoTemplate?: TemplateRef<unknown>;
+
+  // =======================
+  //  Inputs de configuración
+  // =======================
 
   @Input() data: any[] = [];
   @Input() columnDefinitions: ColumnDefinition[] = [];
   @Input() pageSizeOptions: number[] = [10, 20, 50];
   @Input() defaultPageSize = 10;
   @Input() tableTitle = 'Tabla de datos';
-  @Input() autoSize = true;
+  @Input() customPdfExport?: () => void;
+  @Input() isLoading = false;
+
+  // =======================
+  //  Estado interno tabla
+  // =======================
 
   displayedColumns: string[] = [];
   displayedFilterColumns: string[] = [];
-  dataSource = new MatTableDataSource<any>();
-  filterControls: { [key: string]: FormControl<any> } = {};
+  dataSource = new MatTableDataSource<any>([]);
 
-  totalCount: number = 0;
-  filteredCount: number = 0;
+  filterControls: Record<string, FormControl<any>> = {};
 
-  @ViewChild(MatSort) sort!: MatSort;
-  @ViewChild(MatPaginator) paginator!: MatPaginator;
-  @ViewChild('tableEl', { static: false }) tableEl?: ElementRef<HTMLElement>;
+  @ViewChild(MatSort) sort?: MatSort;
+  @ViewChild(MatPaginator) paginator?: MatPaginator;
 
-  private infoVacantesService = inject(InfoVacantesService);
-
-  // Plataforma
-  private platformId = inject(PLATFORM_ID);
-  private readonly isBrowser = isPlatformBrowser(this.platformId);
-
-  private subs: Array<{ unsubscribe: () => void }> = [];
-
-  computedWidths: Record<string, string> = {};
-  private autosizeTimer: any;
-
-  dateRange: FormGroup = new FormGroup({
+  // Rango de fechas global para todas las columnas tipo 'date'
+  dateRange: DateRangeGroup = new FormGroup<{
+    start: FormControl<Date | null>;
+    end: FormControl<Date | null>;
+  }>({
     start: new FormControl<Date | null>(null),
     end: new FormControl<Date | null>(null),
   });
 
-  yesNoOptions = ['Sí', 'No'];
+  readonly yesNoOptions: string[] = ['Sí', 'No'];
 
-  /** ------------ Helpers seguros para template/export ------------ */
-  /** Devuelve una Date válida o null (evita NG02100 en DatePipe). */
-  safeDate(value: unknown): Date | null {
-    if (value == null || value === '') return null;
-    if (value instanceof Date) return isNaN(value.getTime()) ? null : value;
-    const d = new Date(value as any);
-    return isNaN(d.getTime()) ? null : d;
-  }
+  // Control para mostrar/ocultar filtros en móvil
+  showFilters = false;
 
-  /** Convierte a número o NaN; útil para sorting/control interno. */
-  private toNumber(value: unknown): number {
-    if (typeof value === 'number') return value;
-    const n = Number(value as any);
-    return Number.isFinite(n) ? n : NaN;
-  }
+  // Subscripciones internas
+  private subscriptions = new Subscription();
 
-  // Polyfill rAF SSR-safe
-  private raf(cb: () => void): any {
-    if (this.isBrowser && typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
-      return window.requestAnimationFrame(cb);
-    }
-    return setTimeout(cb, 0);
-  }
+  // ======================================================
+  // trackBy
+  // ======================================================
+
+  trackByCol = (_: number, c: ColumnDefinition) => c?.name;
+  trackByRow = (_: number, row: any) => row?.id ?? JSON.stringify(row);
+
+  // ======================================================
+  // Ciclo de vida
+  // ======================================================
 
   ngOnInit(): void {
     this.initializeTable();
+    this.setupDateRangeListener();
   }
 
   ngOnChanges(changes: SimpleChanges): void {
-    if (changes['columnDefinitions']) {
+    // Cambian las columnas → reconfigura columnas y filtros
+    if (changes['columnDefinitions'] && !changes['columnDefinitions'].firstChange) {
       this.rebuildColumnsAndFilters();
-      this.scheduleAutosize();
     }
-    if (changes['data']) {
+
+    // Cambian los datos → reaplica filtros
+    if (changes['data'] && !changes['data'].firstChange) {
       this.dataSource.data = this.data || [];
-      this.totalCount = Array.isArray(this.data) ? this.data.length : 0;
       this.applyFilters();
-      if (this.paginator) this.dataSource.paginator = this.paginator;
-      this.scheduleAutosize();
+      if (this.paginator) {
+        this.dataSource.paginator = this.paginator;
+      }
     }
   }
 
   ngAfterViewInit(): void {
-    // No tocar DOM/Material en SSR
-    if (!this.isBrowser) return;
-
     if (this.sort) {
       this.dataSource.sort = this.sort;
-      // sortingDataAccessor recomendado para fechas/números
+
+      // Accesor de ordenamiento consistente (fecha/number/string)
       this.dataSource.sortingDataAccessor = (item: any, property: string) => {
-        const col = this.columnDefinitions.find(c => c.name === property);
+        const col = this.columnDefinitions.find((c) => c.name === property);
         const raw = item?.[property];
+
         if (!col) return raw;
+
         if (col.type === 'date') {
-          const d = this.safeDate(raw);
-          return d ? d.getTime() : -Infinity;
+          if (raw instanceof Date) return raw.getTime();
+          const d = raw ? new Date(raw) : null;
+          return d && !isNaN(d.getTime()) ? d.getTime() : -Infinity;
         }
+
         if (col.type === 'number') {
-          const n = this.toNumber(raw);
-          return Number.isNaN(n) ? -Infinity : n;
+          if (raw === null || raw === undefined || raw === '') return -Infinity;
+          const n = typeof raw === 'number' ? raw : Number(raw);
+          return isNaN(n) ? -Infinity : n;
         }
+
+        // Default string, case-insensitive
         return (raw ?? '').toString().toLowerCase();
       };
-      this.subs.push(this.sort.sortChange.subscribe(() => this.scheduleAutosize()));
     }
 
     if (this.paginator) {
       this.dataSource.paginator = this.paginator;
       this.paginator.pageSize = this.defaultPageSize;
-      this.subs.push(this.paginator.page.subscribe(() => this.scheduleAutosize()));
     }
-
-    this.scheduleAutosize();
   }
 
   ngOnDestroy(): void {
-    this.clearSubs();
-    clearTimeout(this.autosizeTimer);
+    this.subscriptions.unsubscribe();
   }
 
-  @HostListener('window:resize')
-  onResize() {
-    this.scheduleAutosize();
-  }
+  // ======================================================
+  // Inicialización / configuración
+  // ======================================================
 
+  /** Inicializa columnas, filtros y datasource */
   private initializeTable(): void {
-    this.displayedColumns = this.columnDefinitions.map(col => col.name);
-    this.displayedFilterColumns = this.columnDefinitions.map(col => col.name + '_filter');
-    this.dataSource.data = this.data || [];
-    this.totalCount = Array.isArray(this.data) ? this.data.length : 0;
-    this.filteredCount = this.totalCount; // ✅ antes usabas "filtered" sin definir
+    this.displayedColumns = this.columnDefinitions.map((col) => col.name);
+    this.displayedFilterColumns = this.columnDefinitions.map(
+      (col) => `${col.name}_filter`,
+    );
 
-    this.clearSubs();
+    this.dataSource.data = this.data || [];
+
+    // Limpiar controles anteriores
     this.filterControls = {};
 
-    const dateSub = this.dateRange.valueChanges.subscribe(() => this.applyFilters());
-    this.subs.push(dateSub);
-
-    this.columnDefinitions.forEach(col => {
+    // Inicializar controles de filtro
+    this.columnDefinitions.forEach((col) => {
       if (col.filterable === false) return;
-      if (col.type !== 'date') {
-        const ctrl = new FormControl<any>((col.type === 'select' || col.type === 'status') ? [] : '');
-        const s = ctrl.valueChanges.subscribe(() => this.applyFilters());
-        this.filterControls[col.name] = ctrl;
-        this.subs.push(s);
-      }
-    });
 
+      if (col.type === 'date') {
+        // Los filtros de fecha usan dateRange global; no se crea control por columna
+        return;
+      }
+
+      const isMultiSelect = col.type === 'select' || col.type === 'status';
+      const control = new FormControl<any>(isMultiSelect ? [] : '');
+
+      this.filterControls[col.name] = control;
+      this.subscriptions.add(
+        control.valueChanges.subscribe(() => this.applyFilters()),
+      );
+    });
+  }
+
+  /** Suscripción única al rango de fechas */
+  private setupDateRangeListener(): void {
+    this.subscriptions.add(
+      this.dateRange.valueChanges.subscribe(() => this.applyFilters()),
+    );
+  }
+
+  /** Reconstruye columnas y filtros si cambian las definiciones */
+  private rebuildColumnsAndFilters(): void {
+    // Elimina subscripciones anteriores (controles + dateRange)
+    this.subscriptions.unsubscribe();
+    this.subscriptions = new Subscription();
+
+    // Reset de rango de fechas sin disparar doble filtro
+    this.dateRange.reset(
+      { start: null, end: null },
+      { emitEvent: false },
+    );
+
+    // Reconfigurar tabla y volver a suscribir
+    this.initializeTable();
+    this.setupDateRangeListener();
     this.applyFilters();
   }
 
-  private rebuildColumnsAndFilters(): void {
-    Object.values(this.filterControls).forEach(ctrl => ctrl.reset(colResetValue(ctrl)));
-    this.dateRange.reset({ start: null, end: null });
-    this.initializeTable();
-  }
+  // ======================================================
+  // Filtros
+  // ======================================================
 
+  /** Aplica los filtros de cada columna a los datos de entrada */
   applyFilters(): void {
-    const filtered = (this.data || []).filter(item => {
-      return this.columnDefinitions.every(col => {
+    const sourceData = this.data || [];
+
+    const filtered = sourceData.filter((item) =>
+      this.columnDefinitions.every((col) => {
         if (col.filterable === false) return true;
 
+        // Filtro por rango de fechas (global)
         if (col.type === 'date') {
           const start: Date | null = this.dateRange.get('start')?.value ?? null;
           const end: Date | null = this.dateRange.get('end')?.value ?? null;
-          const itemDate = this.safeDate(item[col.name]);
 
-          if (!itemDate) return !(start || end);
+          const raw = item[col.name];
+          const itemDate: Date | null =
+            raw instanceof Date ? raw : raw ? new Date(raw) : null;
+
+          // Si no hay fecha en el registro y no hay rango → pasa
+          if (!itemDate || isNaN(itemDate.getTime())) {
+            return !(start || end);
+          }
 
           if (start && itemDate < start) return false;
+
           if (end) {
-            const toEnd = new Date(end);
-            toEnd.setHours(23, 59, 59, 999);
-            if (itemDate > toEnd) return false;
+            const inclusiveEnd = new Date(end);
+            inclusiveEnd.setHours(23, 59, 59, 999);
+            if (itemDate > inclusiveEnd) return false;
           }
+
           return true;
         }
 
+        // Otros filtros (text, number, select, status, custom)
         const control = this.filterControls[col.name];
         if (!control) return true;
 
         const filterValue = control.value;
         const itemValue = item[col.name];
 
-        // Select / status (arreglo de opciones)
+        // select múltiple
         if (Array.isArray(filterValue)) {
           return filterValue.length === 0 || filterValue.includes(itemValue);
         }
 
-        // Números: comparar como número si hay filtro
-        if (col.type === 'number') {
-          if (filterValue === '' || filterValue == null) return true;
-          const fv = this.toNumber(filterValue);
-          const iv = this.toNumber(itemValue);
-          if (Number.isNaN(fv)) return true;
-          return iv === fv;
-        }
-
-        // Texto: contains case-insensitive
         if (typeof filterValue === 'string') {
           const needle = filterValue.trim().toLowerCase();
           if (!needle) return true;
           return (itemValue ?? '').toString().toLowerCase().includes(needle);
         }
 
+        if (typeof filterValue === 'number') {
+          return itemValue === filterValue;
+        }
+
         return true;
-      });
-    });
+      }),
+    );
 
     this.dataSource.data = filtered;
-    this.filteredCount = filtered.length;
 
     if (this.paginator) {
       this.dataSource.paginator = this.paginator;
       this.paginator.firstPage();
     }
-
-    this.scheduleAutosize();
   }
 
+  /** Limpia todos los filtros */
   clearFilters(): void {
-    Object.keys(this.filterControls).forEach(key => {
+    Object.keys(this.filterControls).forEach((key) => {
       const ctrl = this.filterControls[key];
-      if (Array.isArray(ctrl.value)) ctrl.setValue([]);
-      else ctrl.setValue('');
+      if (Array.isArray(ctrl.value)) {
+        ctrl.setValue([], { emitEvent: false });
+      } else {
+        ctrl.setValue('', { emitEvent: false });
+      }
     });
-    this.dateRange.get('start')?.setValue(null);
-    this.dateRange.get('end')?.setValue(null);
-    this.applyFilters(); // ✅ reaplicar
-  }
 
-  getStatusConfig(columnName: string): any {
-    const colDef = this.columnDefinitions.find(col => col.name === columnName);
-    return colDef ? colDef.statusConfig || {} : {};
-  }
-
-  getCustomClassConfig(columnName: string): any {
-    const colDef = this.columnDefinitions.find(col => col.name === columnName);
-    return colDef ? colDef.customClassConfig || {} : {};
-  }
-
-  exportTable(format: 'pdf' | 'xml' | 'excel') {
-    switch (format) {
-      case 'pdf': this.exportToPDF(); break;
-      case 'xml': this.exportToXML(); break;
-      case 'excel': this.exportToExcel(); break;
-    }
-  }
-
-  private exportToExcel() {
-    const exportData = (this.dataSource.data as any[]).map(row => {
-      const obj: any = {};
-      this.columnDefinitions.forEach(col => {
-        let value = row[col.name];
-        if (col.type === 'date') {
-          const d = this.safeDate(value);
-          value = d ? d.toLocaleString() : '';
-        }
-        obj[col.header] = value ?? '';
-      });
-      return obj;
-    });
-    const worksheet: XLSX.WorkSheet = XLSX.utils.json_to_sheet(exportData);
-    const workbook: XLSX.WorkBook = { Sheets: { Datos: worksheet }, SheetNames: ['Datos'] };
-    XLSX.writeFile(workbook, `${this.tableTitle || 'tabla'}.xlsx`);
-  }
-
-  private async exportToPDF() {
-    const headers = this.columnDefinitions.map(c => c.header);
-    const body = (this.dataSource.data as any[]).map(row =>
-      this.columnDefinitions.map(col => {
-        const val = row[col.name];
-        if (col.type === 'date') {
-          const d = this.safeDate(val);
-          return d ? d.toLocaleString() : '';
-        }
-        return val ?? '';
-      })
+    this.dateRange.reset(
+      { start: null, end: null },
+      { emitEvent: false },
     );
 
-    const { jsPDF } = await import('jspdf');
-    const autoTable = (await import('jspdf-autotable')).default;
-
-    const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
-    doc.setFontSize(12);
-    doc.text(this.tableTitle || 'Reporte', 40, 36);
-
-    autoTable(doc, {
-      head: [headers],
-      body,
-      startY: 56,
-      styles: { fontSize: 9, cellPadding: 4, overflow: 'linebreak' },
-      headStyles: { fillColor: [33, 150, 243] },
-      didDrawPage: () => {
-        const page = `${doc.getNumberOfPages()}`;
-        doc.setFontSize(8);
-        doc.text(`Página ${page}`, doc.internal.pageSize.getWidth() - 60, doc.internal.pageSize.getHeight() - 20);
-      },
-    });
-
-    doc.save(`${(this.tableTitle || 'tabla').replace(/\s+/g, '_')}.pdf`);
+    this.applyFilters();
   }
 
-  private exportToXML() {
-    const esc = (s: any) =>
-      String(s ?? '')
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&apos;');
-
-    const tagName = (t: string) => t.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
-
-    const rows = (this.dataSource.data as any[]).map(row => {
-      const fields = this.columnDefinitions
-        .map(col => {
-          const v = col.type === 'date' ? (this.safeDate(row[col.name])?.toISOString() ?? '') : (row[col.name] ?? '');
-          return `<${tagName(col.header)}>${esc(v)}</${tagName(col.header)}>`;
-        })
-        .join('');
-      return `<row>${fields}</row>`;
-    });
-
-    const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<rows>\n${rows.join('\n')}\n</rows>`;
-    const blob = new Blob([xml], { type: 'application/xml;charset=utf-8' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = `${(this.tableTitle || 'tabla').replace(/\s+/g, '_')}.xml`;
-    a.click();
-    URL.revokeObjectURL(a.href);
-  }
-
+  /** Devuelve los filtros activos para mostrar tags/chips */
   getActiveFilters(): ActiveFilter[] {
     const filters: ActiveFilter[] = [];
-    (this.columnDefinitions || []).forEach((col: ColumnDefinition) => {
+
+    (this.columnDefinitions || []).forEach((col) => {
       if (col.filterable === false) return;
+
       if (col.type === 'date') {
         const start = this.dateRange.get('start')?.value;
         const end = this.dateRange.get('end')?.value;
@@ -441,8 +375,9 @@ export class StandardFilterTable implements OnInit, OnChanges, AfterViewInit, On
         const val = this.filterControls[col.name].value;
         const hasVal =
           (Array.isArray(val) && val.length > 0) ||
-          (typeof val === 'string' && !!val.trim?.()) ||
-          (typeof val === 'number');
+          (typeof val === 'string' && val.trim().length > 0) ||
+          typeof val === 'number';
+
         if (hasVal) {
           filters.push({
             name: col.name,
@@ -453,171 +388,172 @@ export class StandardFilterTable implements OnInit, OnChanges, AfterViewInit, On
         }
       }
     });
+
     return filters;
   }
 
+  /** Limpia un filtro individual (tag) */
   clearSingleFilter(filter: ActiveFilter): void {
     if (filter.type === 'date') {
-      this.dateRange.reset({ start: null, end: null });
+      this.dateRange.reset(
+        { start: null, end: null },
+        { emitEvent: false },
+      );
     } else if (this.filterControls[filter.name]) {
       const ctrl = this.filterControls[filter.name];
-      if (Array.isArray(ctrl.value)) ctrl.setValue([]);
-      else ctrl.setValue('');
-    }
-    this.applyFilters(); // ✅ reaplicar también aquí
-  }
-
-  async editarDetalle(row: any) {
-    const { value: nuevoDetalle, isConfirmed } = await Swal.fire<string>({
-      title: 'Editar detalle',
-      input: 'textarea',
-      inputValue: row?.detalle ?? '',
-      inputLabel: 'Detalle',
-      inputPlaceholder: 'Escribe el detalle…',
-      inputAttributes: { maxlength: '5000' },
-      showCancelButton: true,
-      confirmButtonText: 'Guardar',
-      cancelButtonText: 'Cancelar',
-      focusConfirm: false,
-      allowOutsideClick: () => !Swal.isLoading(),
-    });
-
-    if (!isConfirmed || nuevoDetalle == null) return;
-
-    const detalleLimpio = (nuevoDetalle ?? '').trim();
-    const prev = row.detalle;
-
-    this.data = this.data.map(r => (r.id === row.id ? { ...r, detalle: detalleLimpio } : r));
-    this.dataSource.data = (this.dataSource.data as any[]).map(r => (r.id === row.id ? { ...r, detalle: detalleLimpio } : r));
-
-    this.infoVacantesService.actualizarDetalle(row.id, detalleLimpio).subscribe({
-      next: () => Swal.fire('Guardado', 'Detalle actualizado correctamente', 'success'),
-      error: () => {
-        this.data = this.data.map(r => (r.id === row.id ? { ...r, detalle: prev } : r));
-        this.dataSource.data = (this.dataSource.data as any[]).map(r => (r.id === row.id ? { ...r, detalle: prev } : r));
-        Swal.fire('Error', 'No se pudo actualizar el detalle', 'error');
-      },
-    });
-  }
-
-  /** ---------- AUTOSIZE ---------- */
-  private scheduleAutosize() {
-    if (!this.autoSize || !this.isBrowser) return;
-    clearTimeout(this.autosizeTimer);
-    this.autosizeTimer = setTimeout(() => {
-      this.raf(() => this.autosizeColumns());
-    }, 0);
-  }
-
-  private autosizeColumns(): void {
-    if (!this.autoSize || !this.isBrowser) return;
-
-    const host = this.tableEl?.nativeElement ?? null;
-    if (!host || typeof (host as any).querySelector !== 'function') return;
-
-    const container = host.closest('.table-viewport') as HTMLElement | null;
-    const containerWidth = container?.clientWidth || host.clientWidth || 0;
-
-    const PADDING_FALLBACK = 24;
-    const MAX_CAP = 560;
-    const MIN_BASE = 72;
-
-    const newWidths: Record<string, string> = {};
-
-    const flexCols = this.columnDefinitions.filter(c => !c.width);
-    const fixedCols = this.columnDefinitions.filter(c => !!c.width);
-
-    const measuredMap = new Map<string, number>();
-
-    for (const col of flexCols) {
-      const cls = `.mat-column-${cssEscape(col.name)}`;
-
-      const headerEl =
-        host.querySelector<HTMLElement>(`.mat-mdc-header-cell${cls}, .cdk-header-cell${cls}`);
-
-      const cellEls =
-        host.querySelectorAll<HTMLElement>(`.mat-mdc-cell${cls}, .cdk-cell${cls}`);
-
-      let measured = (col.name === 'actions' || col.type === 'custom') ? 140 : MIN_BASE;
-
-      if (headerEl) measured = Math.max(measured, measure(headerEl));
-
-      const sample = Math.min(cellEls.length, 40);
-      for (let i = 0; i < sample; i++) {
-        measured = Math.max(measured, measure(cellEls[i]));
+      if (Array.isArray(ctrl.value)) {
+        ctrl.setValue([], { emitEvent: false });
+      } else {
+        ctrl.setValue('', { emitEvent: false });
       }
-
-      measured = Math.min(measured, MAX_CAP);
-      measuredMap.set(col.name, measured);
-      newWidths[col.name] = `${Math.ceil(measured)}px`;
     }
 
-    for (const col of fixedCols) {
-      newWidths[col.name] = col.width as string;
-    }
+    this.applyFilters();
+  }
 
-    const fixedTotalPx = fixedCols
-      .map(c => toPx(c.width as string, containerWidth))
-      .reduce((a, b) => a + b, 0);
+  /** Toggle para mostrar/ocultar filtros en móvil */
+  toggleFilters(): void {
+    this.showFilters = !this.showFilters;
+  }
 
-    const measuredTotal = Array.from(measuredMap.values()).reduce((a, b) => a + b, 0);
+  // ======================================================
+  // Configuración de columnas (status/custom)
+  // ======================================================
 
-    const scrollbarW = container ? (container.offsetWidth - container.clientWidth) : 0;
-    const availableForFlex = Math.max(0, containerWidth - fixedTotalPx - scrollbarW);
+  private getStatusConfig(
+    columnName: string,
+  ): Record<string, { color: string; background: string }> {
+    const colDef = this.columnDefinitions.find((col) => col.name === columnName);
+    return colDef?.statusConfig || {};
+  }
 
-    if (availableForFlex > 0 && measuredTotal > 0 && flexCols.length) {
-      if (measuredTotal < availableForFlex) {
-        const extra = availableForFlex - measuredTotal;
-        const perCol = Math.floor(extra / flexCols.length);
-        const remainder = extra - perCol * flexCols.length;
+  private getCustomClassConfig(
+    columnName: string,
+  ): Record<string, { color: string; background: string }> {
+    const colDef = this.columnDefinitions.find((col) => col.name === columnName);
+    return colDef?.customClassConfig || {};
+  }
 
-        flexCols.forEach((c, i) => {
-          const base = measuredMap.get(c.name)!;
-          const add = perCol + (i === flexCols.length - 1 ? remainder : 0);
-          newWidths[c.name] = `${base + add}px`;
+  getStatusStyles(
+    columnName: string,
+    value: any,
+  ): { color?: string; background?: string } {
+    const config = this.getStatusConfig(columnName);
+    const entry = config ? config[value] : undefined;
+    return entry || {};
+  }
+
+  getCustomStyles(
+    columnName: string,
+    value: any,
+  ): { color?: string; background?: string } {
+    const config = this.getCustomClassConfig(columnName);
+    const entry = config ? config[value] : undefined;
+    return entry || {};
+  }
+
+  isSortable(col: ColumnDefinition): boolean {
+    if (col.sortable === false) return false;
+    if (col.name === 'actions' || col.name === 'attachment') return false;
+    return true;
+  }
+
+  // ======================================================
+  // Exportaciones
+  // ======================================================
+
+  exportTable(format: 'pdf' | 'xml' | 'excel'): void {
+    switch (format) {
+      case 'pdf':
+        if (this.customPdfExport) {
+          this.customPdfExport();
+        } else {
+          Swal.fire({
+            icon: 'info',
+            title: 'Funcionalidad no disponible',
+            text: 'La exportación a PDF aún no está implementada.',
+            timer: 2500,
+            showConfirmButton: false,
+          });
+        }
+        break;
+
+      case 'xml':
+        Swal.fire({
+          icon: 'info',
+          title: 'Funcionalidad no disponible',
+          text: 'La exportación a XML aún no está implementada.',
+          timer: 2500,
+          showConfirmButton: false,
         });
-      }
-    }
+        break;
 
-    this.computedWidths = newWidths;
-
-    function measure(el: HTMLElement): number {
-      try {
-        const cs = getComputedStyle(el);
-        const sw = el.scrollWidth;
-        const pl = parseFloat(cs.paddingLeft || '0');
-        const pr = parseFloat(cs.paddingRight || '0');
-        return sw + pl + pr + 2;
-      } catch {
-        return el.scrollWidth + PADDING_FALLBACK;
-      }
-    }
-    function cssEscape(s: string): string {
-      return s.replace(/[^a-zA-Z0-9_-]/g, (m) => `\\${m}`);
-    }
-    function toPx(value: string, basis: number): number {
-      if (!value) return 0;
-      const v = String(value).trim();
-      if (v.endsWith('px')) return parseFloat(v) || 0;
-      if (v.endsWith('%')) return Math.round((parseFloat(v) || 0) * basis / 100);
-      const n = parseFloat(v);
-      return Number.isFinite(n) ? n : 0;
+      case 'excel':
+        this.exportToExcel();
+        break;
     }
   }
 
-  private clearSubs() {
-    this.subs.forEach(s => s?.unsubscribe?.());
-    this.subs = [];
+  private exportToExcel(): void {
+    // Exporta los datos filtrados visibles
+    const exportData = (this.dataSource.data as any[]).map((row) => {
+      const obj: Record<string, any> = {};
+      this.columnDefinitions.forEach((col) => {
+        let value = row[col.name];
+
+        if (col.type === 'date') {
+          const d =
+            value instanceof Date ? value : value ? new Date(value) : null;
+          value = d && !isNaN(d.getTime()) ? d.toLocaleString() : '';
+        }
+
+        obj[col.header] = value;
+      });
+
+      return obj;
+    });
+
+    if (!exportData.length) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'Sin datos para exportar',
+        text: 'No hay registros que cumplan los filtros actuales.',
+        timer: 2500,
+        showConfirmButton: false,
+      });
+      return;
+    }
+
+    const worksheet: XLSX.WorkSheet = XLSX.utils.json_to_sheet(exportData);
+    const workbook: XLSX.WorkBook = {
+      Sheets: { Datos: worksheet },
+      SheetNames: ['Datos'],
+    };
+
+    const fileName = `${this.tableTitle || 'tabla'}.xlsx`;
+    XLSX.writeFile(workbook, fileName);
+
+    Swal.fire({
+      icon: 'success',
+      title: 'Exportación completada',
+      text: `Se ha generado el archivo ${fileName} con los registros filtrados.`,
+      timer: 2500,
+      showConfirmButton: false,
+    });
   }
 
-  formatInt(value: unknown, locale = 'es-CO'): string {
-    const n = typeof value === 'number' ? value : Number(value as any);
-    return Number.isFinite(n) ? n.toLocaleString(locale) : '0';
+  // ======================================================
+  // Paginación (vista móvil)
+  // ======================================================
+
+  /** Obtiene los datos paginados para las tarjetas móviles */
+  getPagedData(): any[] {
+    if (!this.paginator) {
+      return this.dataSource.data;
+    }
+
+    const startIndex = this.paginator.pageIndex * this.paginator.pageSize;
+    const endIndex = startIndex + this.paginator.pageSize;
+    return this.dataSource.data.slice(startIndex, endIndex);
   }
-
-}
-
-/** Helper para resetear controles sin conocer el tipo */
-function colResetValue(ctrl: FormControl<any>): any {
-  return Array.isArray(ctrl.value) ? [] : '';
 }

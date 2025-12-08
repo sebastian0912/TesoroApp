@@ -10,7 +10,7 @@ import { environment } from '@/environments/environment.development';
 export class ReportesService {
   private readonly apiUrl = environment.apiUrl;
 
-  constructor(private readonly http: HttpClient) { }
+  constructor(private readonly http: HttpClient) {}
 
   /**
    * GET /reportes/?nombre=&fecha_desde=&fecha_hasta=
@@ -59,6 +59,43 @@ export class ReportesService {
     );
   }
 
+  /**
+   * GET /reportes/cedulas-zip/?fecha_desde=&fecha_hasta=
+   * Devuelve un ZIP (Blob) con todas las cédulas de los reportes en el rango.
+   *
+   * - Si no mandas fechas, el backend usa el día actual.
+   */
+  downloadCedulasZip(filters?: {
+    fechaDesde?: string | Date;
+    fechaHasta?: string | Date;
+  }): Observable<Blob> {
+    let params = new HttpParams();
+
+    if (filters?.fechaDesde) {
+      const value =
+        filters.fechaDesde instanceof Date
+          ? this.formatDate(filters.fechaDesde)
+          : filters.fechaDesde;
+      params = params.set('fecha_desde', value);
+    }
+
+    if (filters?.fechaHasta) {
+      const value =
+        filters.fechaHasta instanceof Date
+          ? this.formatDate(filters.fechaHasta)
+          : filters.fechaHasta;
+      params = params.set('fecha_hasta', value);
+    }
+
+    const url = `${this.apiUrl}/reportes/cedulas-zip/`;
+
+    return this.http
+      .get(url, {
+        params,
+        responseType: 'blob',
+      })
+      .pipe(catchError((error) => this.handleError(error, 'downloadCedulasZip')));
+  }
 
   /**
    * GET /reportes/:id/
@@ -79,19 +116,6 @@ export class ReportesService {
 
   /**
    * POST /reportes/
-   * payload debe ser JSON del estilo:
-   * {
-   *   fecha: string | null,
-   *   nombre: string,
-   *   sede: string,
-   *   cantidadContratosTuAlianza: number | null,
-   *   cantidadContratosApoyoLaboral: number | null,
-   *   nota: string | null,
-   *   sst_document_id?: number | null,
-   *   cruce_document_id?: number | null,
-   *   cedulas_ids?: number[],
-   *   traslados_ids?: number[]
-   * }
    */
   createReporte(payload: any): Observable<any> {
     const url = `${this.apiUrl}/reportes/`;
@@ -122,14 +146,14 @@ export class ReportesService {
 
     const normalized = {
       statusCode,
-      code: backend.code || this.defaultCodeForStatus(statusCode),
+      code: (backend as any).code || this.defaultCodeForStatus(statusCode),
       message:
-        backend.message ||
+        (backend as any).message ||
         this.defaultMessageForStatus(statusCode) ||
         'Ocurrió un error procesando la solicitud.',
-      detail: backend.detail,
-      location: backend.location || context,
-      extra: backend.extra,
+      detail: (backend as any).detail,
+      location: (backend as any).location || context,
+      extra: (backend as any).extra,
       raw: error,
     };
 

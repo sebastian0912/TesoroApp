@@ -7,9 +7,10 @@ import { MatMenuModule } from '@angular/material/menu';
 import { MatDialog } from '@angular/material/dialog';
 import Swal from 'sweetalert2';
 
-import { StandardFilterTable, ColumnDefinition } from '@/app/shared/components/standard-filter-table/standard-filter-table';
+import { StandardFilterTable } from '@/app/shared/components/standard-filter-table/standard-filter-table';
 import { DynamicFormDialogComponent, FieldConfig } from '@/app/shared/components/dynamic-form-dialog/dynamic-form-dialog.component';
 import { FarmsService } from '../../services/farms/farms.service';
+import { ColumnDefinition } from '@/app/shared/models/advanced-table-interface';
 
 type AnyObj = Record<string, any>;
 

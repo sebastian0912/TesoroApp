@@ -148,25 +148,26 @@
   gap: 8px;
 }
 
-/* CONTENIDO PREVIEW */
+/* CONTENIDO PREVIEW (contenedor del overlay) */
 
 .preview-content {
+  position: relative; /* 👈 clave para centrar el loader */
   flex: 1;
   min-height: 0;
   border-radius: 12px;
   background: #f9fafb;
   border: 1px solid rgba(148, 163, 184, 0.45);
   overflow: hidden;
-  display: flex;
-  flex-direction: column;
 }
 
-/* ESTADO DE CARGA */
+/* ESTADO DE CARGA – overlay centrado */
 
 .loading-state {
-  position: relative;
-  flex: 1;
-  min-height: 0;
+  position: absolute;      /* overlay sobre el contenido */
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%); /* centrado perfecto */
+
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -175,6 +176,8 @@
   text-align: center;
   padding: 24px;
   color: #6b7280;
+  width: 100%;
+  pointer-events: none;    /* opcional: no bloquea clics cuando se oculte */
 }
 
 .loading-state p {

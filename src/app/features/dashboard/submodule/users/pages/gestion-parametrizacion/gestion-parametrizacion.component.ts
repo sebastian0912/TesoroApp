@@ -6,11 +6,12 @@ import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 
-import { StandardFilterTable, ColumnDefinition } from '@/app/shared/components/standard-filter-table/standard-filter-table';
+import { StandardFilterTable,  } from '@/app/shared/components/standard-filter-table/standard-filter-table';
 import { SharedModule } from '@/app/shared/shared.module';
 import { DynamicFormDialogComponent, FieldConfig } from '@/app/shared/components/dynamic-form-dialog/dynamic-form-dialog.component';
 import { MetaConfigDialogComponent } from '../../components/meta-config-dialog/meta-config-dialog.component';
 import { GestionParametrizacionService, MetaTabla } from '../../services/gestion-parametrizacion/gestion-parametrizacion.service';
+import { ColumnDefinition } from '@/app/shared/models/advanced-table-interface';
 
 @Component({
   selector: 'app-gestion-parametrizacion',
