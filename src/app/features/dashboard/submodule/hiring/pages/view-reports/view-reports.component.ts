@@ -208,8 +208,7 @@ export class ViewReportsComponent {
       }));
 
     this.dialog.open(VerPdfsComponent, {
-      width: '90vw',
-      maxWidth: '100vw',
+      minWidth: '90vw',
       panelClass: 'docs-viewer-dialog',
       data: {
         title,

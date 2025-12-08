@@ -3,8 +3,6 @@ import {
   Inject,
   ChangeDetectionStrategy,
   OnInit,
-  OnDestroy,
-  inject,
 } from '@angular/core';
 import {
   MAT_DIALOG_DATA,
@@ -19,7 +17,6 @@ import { MatDividerModule } from '@angular/material/divider';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { trigger, style, transition, animate } from '@angular/animations';
-import { HttpClient } from '@angular/common/http';
 
 export interface ViewerDocument {
   id: number;
@@ -66,17 +63,17 @@ export interface VerPdfsData {
     ]),
   ],
 })
-export class VerPdfsComponent implements OnInit, OnDestroy {
+export class VerPdfsComponent implements OnInit {
   selectedIndex = 0;
-
-  /** URL blob actual para poder hacer revokeObjectURL */
-  private currentObjectUrl: string | null = null;
 
   /** URL segura que se bindea al iframe */
   currentSafeUrl: SafeResourceUrl | null = null;
 
-  // Inyección con función `inject` (evita el problema de this.http undefined)
-  private readonly http = inject(HttpClient);
+  /** Estado de carga para mostrar el loader */
+  loading = false;
+
+  /** Mensaje de error (solo por si quieres setearlo desde fuera en un futuro) */
+  loadError: string | null = null;
 
   constructor(
     @Inject(MAT_DIALOG_DATA) public data: VerPdfsData,
@@ -89,14 +86,9 @@ export class VerPdfsComponent implements OnInit, OnDestroy {
   // ---------------------------------------------------------------------------
 
   ngOnInit(): void {
-    // Si hay documentos y el primero es PDF, cargamos preview
     if (this.hasDocuments && this.isPdf(this.selectedDoc)) {
       this.loadPdfPreview(this.selectedDoc);
     }
-  }
-
-  ngOnDestroy(): void {
-    this.clearPreview();
   }
 
   // ---------------------------------------------------------------------------
@@ -117,12 +109,14 @@ export class VerPdfsComponent implements OnInit, OnDestroy {
   // ---------------------------------------------------------------------------
 
   selectDoc(index: number): void {
+    if (index === this.selectedIndex) return;
+
     this.selectedIndex = index;
-    // Solo intentamos cargar preview si es PDF
+
     if (this.isPdf(this.selectedDoc)) {
       this.loadPdfPreview(this.selectedDoc);
     } else {
-      this.clearPreview();
+      this.resetCurrentPreviewState();
     }
   }
 
@@ -173,40 +167,29 @@ export class VerPdfsComponent implements OnInit, OnDestroy {
   }
 
   // ---------------------------------------------------------------------------
-  // PREVIEW PDF CON BLOB (RESPETA CSP frame-src 'self' blob: data:)
+  // PREVIEW PDF USANDO DIRECTAMENTE file_url
   // ---------------------------------------------------------------------------
 
-  /** Limpia el preview actual, revocando el ObjectURL para evitar fugas de memoria. */
-  private clearPreview(): void {
-    if (this.currentObjectUrl) {
-      URL.revokeObjectURL(this.currentObjectUrl);
-      this.currentObjectUrl = null;
-    }
+  private resetCurrentPreviewState(): void {
     this.currentSafeUrl = null;
+    this.loadError = null;
+    this.loading = false;
   }
 
-  /**
-   * Carga el PDF como blob y genera un blob: URL que sí cumple la CSP.
-   * Si no es PDF, se limpia el iframe.
-   */
   private loadPdfPreview(doc: ViewerDocument | null): void {
-    this.clearPreview();
+    this.resetCurrentPreviewState();
 
     if (!doc || !this.isPdf(doc)) return;
 
-    this.http.get(doc.file_url, { responseType: 'blob' }).subscribe({
-      next: (blob: Blob) => {
-        const objectUrl = URL.createObjectURL(blob);
-        this.currentObjectUrl = objectUrl;
-        this.currentSafeUrl =
-          this.sanitizer.bypassSecurityTrustResourceUrl(objectUrl);
-      },
-      error: (err) => {
-        // eslint-disable-next-line no-console
-        console.error('[VerPdfsComponent] Error cargando PDF:', err);
-        this.currentSafeUrl = null;
-      },
-    });
+    // mostramos loader mientras el iframe termina de cargar
+    this.loading = true;
+    this.currentSafeUrl =
+      this.sanitizer.bypassSecurityTrustResourceUrl(doc.file_url);
+  }
+
+  /** Se llama cuando el iframe termina de cargar el PDF */
+  onIframeLoaded(): void {
+    this.loading = false;
   }
 
   // ---------------------------------------------------------------------------

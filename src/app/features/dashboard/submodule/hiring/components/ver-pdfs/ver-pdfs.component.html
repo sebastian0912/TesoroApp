@@ -13,7 +13,11 @@
       </p>
     </div>
 
-    <button mat-icon-button matTooltip="Cerrar" (click)="close()">
+    <button
+      mat-icon-button
+      type="button"
+      matTooltip="Cerrar"
+      (click)="close()">
       <mat-icon>close</mat-icon>
     </button>
   </header>
@@ -28,8 +32,7 @@
           mat-list-item
           *ngFor="let doc of data.documents; let i = index"
           (click)="selectDoc(i)"
-          [class.active]="i === selectedIndex"
-        >
+          [class.active]="i === selectedIndex">
           <mat-icon matListItemIcon>
             {{ getIcon(doc) }}
           </mat-icon>
@@ -57,21 +60,23 @@
           </div>
 
           <div class="preview-actions">
+            <!-- Solo mostrar "Abrir" en pestaña nueva si NO es PDF -->
             <button
+              *ngIf="!isPdf(doc)"
               mat-stroked-button
               color="primary"
+              type="button"
               (click)="openInNewTab(doc)"
-              matTooltip="Abrir en pestaña nueva"
-            >
+              matTooltip="Abrir en pestaña nueva">
               <mat-icon>open_in_new</mat-icon>
               Abrir
             </button>
 
             <button
               mat-stroked-button
+              type="button"
               (click)="download(doc)"
-              matTooltip="Descargar documento"
-            >
+              matTooltip="Descargar documento">
               <mat-icon>download</mat-icon>
               Descargar
             </button>
@@ -79,30 +84,66 @@
         </header>
 
         <div class="preview-content">
+          <!-- Loader mientras se carga -->
+          <div *ngIf="loading" class="loading-state">
+            <span class="loader"></span><br />
+            <p class="loading-text" aria-label="Cargando documento…">
+              <span>C</span><span>a</span><span>r</span><span>g</span><span>a</span
+              ><span>n</span><span>d</span><span>o</span>
+              <span>&nbsp;</span>
+              <span>d</span><span>o</span><span>c</span><span>u</span><span>m</span
+              ><span>e</span><span>n</span><span>t</span><span>o</span><span>…</span>
+            </p>
+          </div>
+
           <!-- PDF -->
           <ng-container *ngIf="isPdf(doc); else nonPdf">
-            <ng-container *ngIf="currentSafeUrl; else pdfFallback">
-              <iframe
-                class="pdf-frame"
-                [src]="currentSafeUrl"
-                title="Vista previa PDF"
-              ></iframe>
-            </ng-container>
-
-            <ng-template #pdfFallback>
+            <!-- Error específico de carga -->
+            <ng-container *ngIf="loadError; else pdfContent">
               <div class="generic-preview">
-                <mat-icon class="big-icon">picture_as_pdf</mat-icon>
+                <mat-icon class="big-icon">error_outline</mat-icon>
                 <p class="info-text">
-                  No fue posible cargar la vista previa del PDF.
+                  {{ loadError }}
                 </p>
+
                 <button
                   mat-raised-button
                   color="primary"
-                  (click)="openInNewTab(doc)"
-                >
-                  Abrir en nueva pestaña
+                  type="button"
+                  (click)="download(doc)">
+                  Descargar PDF
                 </button>
               </div>
+            </ng-container>
+
+            <!-- PDF sin error -->
+            <ng-template #pdfContent>
+              <ng-container *ngIf="currentSafeUrl; else pdfFallback">
+                <iframe
+                  class="pdf-frame"
+                  [src]="currentSafeUrl"
+                  title="Vista previa PDF"
+                  (load)="onIframeLoaded()">
+                </iframe>
+              </ng-container>
+
+              <!-- No se pudo construir la URL -->
+              <ng-template #pdfFallback>
+                <div class="generic-preview">
+                  <mat-icon class="big-icon">picture_as_pdf</mat-icon>
+                  <p class="info-text">
+                    No fue posible cargar la vista previa del PDF.
+                  </p>
+
+                  <button
+                    mat-raised-button
+                    color="primary"
+                    type="button"
+                    (click)="download(doc)">
+                    Descargar PDF
+                  </button>
+                </div>
+              </ng-template>
             </ng-template>
           </ng-container>
 
@@ -113,8 +154,7 @@
               <img
                 class="image-preview"
                 [src]="doc.file_url"
-                [alt]="doc.title"
-              />
+                [alt]="doc.title" />
             </ng-container>
 
             <!-- Excel / otros -->
@@ -131,8 +171,8 @@
                 <button
                   mat-raised-button
                   color="primary"
-                  (click)="openInNewTab(doc)"
-                >
+                  type="button"
+                  (click)="openInNewTab(doc)">
                   Abrir en nueva pestaña
                 </button>
               </div>
