@@ -1,78 +1,78 @@
-import { SharedModule } from '@/app/shared/shared.module';
 import { Component, OnInit } from '@angular/core';
+import { Router } from '@angular/router';
+import { FormBuilder, FormGroup, Validators } from '@angular/forms';
+
+import { MatTableDataSource } from '@angular/material/table';
 import { MatDatepickerModule } from '@angular/material/datepicker';
 import { MatCheckboxModule } from '@angular/material/checkbox';
-import { FormBuilder, FormGroup, Validators } from '@angular/forms';
-import { MatTableDataSource } from '@angular/material/table';
-import { HiringService } from '../../service/hiring.service';
+import { MatNativeDateModule } from '@angular/material/core';
+
+import { SharedModule } from '@/app/shared/shared.module';
 import { UtilityServiceService } from '@/app/shared/services/utilityService/utility-service.service';
+import { HiringService } from '../../service/hiring.service';
+import { ReportesService } from '../../service/reportes/reportes.service';
 
 import Swal from 'sweetalert2';
 import * as XLSX from 'xlsx';
 import * as ExcelJS from 'exceljs';
 import * as FileSaver from 'file-saver';
-import { Router } from '@angular/router';
-import { MatNativeDateModule } from '@angular/material/core'; // ¡importante!
 import { firstValueFrom } from 'rxjs';
 
 @Component({
   selector: 'app-hiring-report',
-  imports: [
-    SharedModule,
-    MatDatepickerModule,
-    MatCheckboxModule,
-    MatNativeDateModule, // Asegúrate de importar el módulo nativo de fecha
-
-  ],
+  imports: [SharedModule, MatDatepickerModule, MatCheckboxModule, MatNativeDateModule],
   templateUrl: './hiring-report.component.html',
-  styleUrl: './hiring-report.component.css'
+  styleUrl: './hiring-report.component.css',
 })
 export class HiringReportComponent implements OnInit {
   reporteForm!: FormGroup;
   sedes: any[] = [];
 
-  cedulasEscaneadasFileName: string = '';
-  cruceDiarioFileName: string = '';
-  induccionSSOFileName: string = '';
-  trasladosFileName: string = '';
-  arlFileName: string = '';
+  // Nombres visibles en los inputs
+  cedulasEscaneadasFileName = '';
+  cruceDiarioFileName = '';
+  induccionSSOFileName = '';
+  trasladosFileName = '';
+  arlFileName = '';
 
-  filesToUpload: { [key: string]: File[] } = {};
+  // Archivos seleccionados por tipo
+  filesToUpload: Record<string, File[]> = {};
+
+  // Tabla de errores para mostrar en frontend
   erroresValidacion = new MatTableDataSource<any>([]);
 
-  isCruceValidado: boolean = false; // Bandera para el estado de validación del cruce
-  datoscruced: any[] = [];
-  // Variables para almacenar archivos en base64 y sus nombres
-  cedulasBase64: { file_name: string; file_base64: string }[] = [];
-  trasladosBase64: { file_name: string; file_base64: string }[] = [];
-  cruceBase64: string = '';
-  sstBase64: string = '';
-  arlBase64: string = '';
-  numeroContratosAlianza: number = 0;
-  numeroContratosApoyoLaboral: number = 0;
-  isArlValidado: boolean = true;
-  nombre: string = '';
-  processingErrors: string[] = [];
+  // Flags de validación
+  isCruceValidado = false;
+  isArlValidado = true;
 
+  // Datos del cruce procesado (filas normalizadas)
+  datoscruced: any[] = [];
+
+  // Contadores de contratos
+  numeroContratosAlianza = 0;
+  numeroContratosApoyoLaboral = 0;
+
+  nombre = '';
 
   constructor(
-    private fb: FormBuilder,
-    private router: Router,
-    private utilityService: UtilityServiceService,
-    private hiringService: HiringService
+    private readonly fb: FormBuilder,
+    private readonly router: Router,
+    private readonly utilityService: UtilityServiceService,
+    private readonly hiringService: HiringService,
+    private readonly reportesService: ReportesService,
   ) {
+    // Inicial mínimo para evitar undefined antes de ngOnInit
     this.reporteForm = this.fb.group({
       cantidadContratosTuAlianza: [0],
       cantidadContratosApoyoLaboral: [0],
     });
   }
 
-  async ngOnInit() {
-    // Inicialización del formulario reactivo
+  async ngOnInit(): Promise<void> {
     this.reporteForm = this.fb.group({
       sede: [null, Validators.required],
-      esDeHoy: ['false'], // Inicializamos la lista desplegable con "false" (No)
-      fecha: [null], // La validación se aplica condicionalmente
+      esDeHoy: ['false'],
+      fecha: [null],
       contratosHoy: ['', Validators.required],
       cedulasEscaneadas: [false],
       cruceDiario: [false],
@@ -85,26 +85,21 @@ export class HiringReportComponent implements OnInit {
     });
 
     const user = this.utilityService.getUser();
-    if (user) {
-      this.nombre = user.datos_basicos.nombres + ' ' + user.datos_basicos.apellidos;
+    if (user?.datos_basicos) {
+      this.nombre = `${user.datos_basicos.nombres} ${user.datos_basicos.apellidos}`;
     }
 
-    // Validación inicial del campo 'fecha' según el valor de 'esDeHoy'
     await this.manageFechaValidation();
 
-    // Observador para 'esDeHoy' para actualizar la validación de 'fecha'
     this.reporteForm.get('esDeHoy')?.valueChanges.subscribe(async () => {
-      await this.manageFechaValidation(); // Actualiza la validación cuando cambia el estado del checkbox
+      await this.manageFechaValidation();
     });
 
-    // Observador para el campo 'contratosHoy' para activar o desactivar validaciones
     this.reporteForm.get('contratosHoy')?.valueChanges.subscribe((value) => {
       if (value === 'si') {
-        this.reporteForm
-          .get('cedulasEscaneadas')
-          ?.setValidators(Validators.required);
-        this.reporteForm.get('arl')?.setValidators(Validators.required);
-        this.reporteForm.get('cruceDiario')?.setValidators(Validators.required);
+        this.reporteForm.get('cedulasEscaneadas')?.setValidators(Validators.requiredTrue);
+        this.reporteForm.get('arl')?.setValidators(Validators.requiredTrue);
+        this.reporteForm.get('cruceDiario')?.setValidators(Validators.requiredTrue);
       } else {
         this.reporteForm.get('cedulasEscaneadas')?.clearValidators();
         this.reporteForm.get('arl')?.clearValidators();
@@ -115,45 +110,68 @@ export class HiringReportComponent implements OnInit {
       this.reporteForm.get('cruceDiario')?.updateValueAndValidity();
     });
 
-    // Cargar sucursales
+    // Carga de sedes activas
     try {
       const data: any = await firstValueFrom(this.utilityService.traerSucursales());
       if (!Array.isArray(data)) throw new Error('Respuesta inválida');
 
       const soloActivas = data.filter((s: any) => s.activa === true);
-      const unicas = Array.from(new Map(soloActivas.map((s: any) => [s.nombre, s])).values());
+      const unicas = Array.from(
+        new Map(soloActivas.map((s: any) => [s.nombre, s])).values(),
+      );
       this.sedes = unicas.sort((a: any, b: any) =>
-        a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base' })
+        a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base' }),
       );
     } catch {
       Swal.fire('Error', 'No se pudieron cargar las sedes', 'error');
     }
   }
 
+  // ---------------------------------------------------------------------------
+  // Helpers generales
+  // ---------------------------------------------------------------------------
 
-  // Gestión dinámica de la validación de 'fecha'
-  async manageFechaValidation() {
+  private showLoading(title: string, text: string): void {
+    Swal.fire({
+      icon: 'info',
+      title,
+      text,
+      allowOutsideClick: false,
+      showConfirmButton: false,
+      didOpen: () => {
+        Swal.showLoading();
+      },
+    });
+  }
+
+  private closeSwal(): void {
+    Swal.close();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Validación dinámica de fecha
+  // ---------------------------------------------------------------------------
+
+  async manageFechaValidation(): Promise<void> {
     const esDeHoy = this.reporteForm.get('esDeHoy')?.value;
 
     if (esDeHoy === 'true') {
-      // Si es "Sí", quitamos la validación de fecha
       this.reporteForm.get('fecha')?.clearValidators();
-      this.reporteForm.get('fecha')?.setValue(null); // Reiniciamos el valor si es necesario
+      this.reporteForm.get('fecha')?.setValue(null);
     } else {
-      // Si es "No", la fecha es obligatoria
       this.reporteForm.get('fecha')?.setValidators(Validators.required);
     }
 
-    // Actualizamos la validación del campo fecha
     this.reporteForm.get('fecha')?.updateValueAndValidity();
-    this.reporteForm.updateValueAndValidity(); // Aseguramos que el formulario se revalide completamente
+    this.reporteForm.updateValueAndValidity();
   }
 
-  onContratosHoyChange(event: any) {
-    if (event.value === 'si') {
-      // Mostrar los campos adicionales
-    } else {
-      // Reiniciar los campos adicionales
+  // ---------------------------------------------------------------------------
+  // Manejo de checkboxes y archivos
+  // ---------------------------------------------------------------------------
+
+  onContratosHoyChange(event: any): void {
+    if (event.value !== 'si') {
       this.reporteForm.patchValue({
         cedulasEscaneadas: false,
         cruceDiario: false,
@@ -164,40 +182,74 @@ export class HiringReportComponent implements OnInit {
         cantidadContratosApoyoLaboral: null,
         notas: '',
       });
+
       this.filesToUpload = {};
       this.cedulasEscaneadasFileName = '';
       this.cruceDiarioFileName = '';
       this.induccionSSOFileName = '';
       this.trasladosFileName = '';
       this.arlFileName = '';
+
+      // Reset de estado de validación
+      this.isCruceValidado = false;
+      this.isArlValidado = true;
+      this.erroresValidacion.data = [];
+      this.datoscruced = [];
     }
   }
 
-  onCheckboxChange(event: any, controlName: string) {
+  onCheckboxChange(event: any, controlName: string): void {
     this.reporteForm.get(controlName)?.setValue(event.checked);
     if (!event.checked) {
       this.filesToUpload[controlName] = [];
       this.updateFileName([], controlName);
+
+      if (['cruceDiario', 'cedulasEscaneadas', 'traslados'].includes(controlName)) {
+        this.isCruceValidado = false;
+      }
+      if (controlName === 'arl') {
+        this.isArlValidado = false;
+      }
+      this.erroresValidacion.data = [];
     }
   }
 
-  onFilesSelected(event: any, controlName: string) {
-    const files = Array.from(event.target.files) as File[];
+  onFilesSelected(event: Event, controlName: string): void {
+    const input = event.target as HTMLInputElement;
+    const files = input.files ? Array.from(input.files) : [];
     if (files.length > 0) {
       this.filesToUpload[controlName] = files;
       this.updateFileName(files, controlName);
+
+      // Cada vez que cambias archivos relevantes, invalida validaciones previas
+      if (['cruceDiario', 'cedulasEscaneadas', 'traslados'].includes(controlName)) {
+        this.isCruceValidado = false;
+      }
+      if (controlName === 'arl') {
+        this.isArlValidado = false;
+      }
+      this.erroresValidacion.data = [];
     }
   }
 
-  onFileSelected(event: any, controlName: string) {
-    const file = event.target.files[0]; // Asegúrate de que se seleccionó un archivo
+  onFileSelected(event: Event, controlName: string): void {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
     if (file) {
-      this.updateFileName([file], controlName); // Actualizar el nombre del archivo mostrado
-      this.filesToUpload[controlName] = [file]; // Guardar el archivo seleccionado en filesToUpload
+      this.filesToUpload[controlName] = [file];
+      this.updateFileName([file], controlName);
+
+      if (['cruceDiario', 'cedulasEscaneadas', 'traslados'].includes(controlName)) {
+        this.isCruceValidado = false;
+      }
+      if (controlName === 'arl') {
+        this.isArlValidado = false;
+      }
+      this.erroresValidacion.data = [];
     }
   }
 
-  updateFileName(files: File[], controlName: string) {
+  private updateFileName(files: File[], controlName: string): void {
     const fileNames = files.map((file) => file.name).join(', ');
     switch (controlName) {
       case 'cedulasEscaneadas':
@@ -218,150 +270,83 @@ export class HiringReportComponent implements OnInit {
     }
   }
 
-  convertToBase64(file: File): Promise<string> {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result as string);
-      reader.onerror = (error) => reject(error);
-      reader.readAsDataURL(file);
-    });
-  }
-
-  async processCedulasEscaneadas(files: File[]) {
-    for (const file of files) {
-      const base64 = await this.convertToBase64(file);
-      let cedula = '';
-
-      // Intentar dividir por ' - ' primero, luego por '-' si falla
-      if (file.name.includes(' - ')) {
-        cedula = file.name.split(' - ')[0];
-      } else if (file.name.includes('-')) {
-        cedula = file.name.split('-')[0];
-      } else {
-        continue; // Salta este archivo si no cumple con el formato esperado
-      }
-
-      // Añadir a la lista de archivos en base64 con el nombre original
-      this.cedulasBase64.push({ file_name: file.name, file_base64: base64 });
-
-      const data = {
-        numero_cedula: cedula.trim(), // Eliminar espacios adicionales
-        cedula_escaneada_delante: base64,
-      };
-
-      await this.hiringService.cargarCedula(data);
-      await this.delay(100); // Espera de 100 ms
-    }
-  }
-
-  async processTraslados(files: File[]) {
-    // Lista de EPS válidas (en formato normalizado sin espacios)
-    const validEPS = ['nuevaeps', 'saludtotal', 'famisanar'];
-
-    for (const file of files) {
-      let cedula = '';
-      let eps = '';
-
-      // Intentar dividir por ' - ' primero, luego por '-' si falla
-      if (file.name.includes(' - ')) {
-        [cedula, eps] = file.name.split(' - ');
-      } else if (file.name.includes('-')) {
-        [cedula, eps] = file.name.split('-');
-      } else {
-        continue; // Salta este archivo si no cumple con el formato esperado
-      }
-
-      // Normalizar EPS eliminando '.pdf', espacios adicionales y convirtiendo a minúsculas sin espacios
-      eps = eps.replace('.pdf', '').replace(/\s+/g, '').toLowerCase();
-
-      // Validar si la EPS normalizada es válida
-      if (!validEPS.includes(eps)) {
-        Swal.fire(
-          'Error',
-          `La EPS "${eps}" no es válida. Solo se permiten NUEVA EPS, SALUD TOTAL o FAMISANAR. Por favor, corrija los nombres.`,
-          'error'
-        );
-        this.isCruceValidado = false;
-        return;
-      }
-
-      const base64 = await this.convertToBase64(file);
-
-      // Añadir a la lista de traslados en base64 con el nombre original
-      this.trasladosBase64.push({ file_name: file.name, file_base64: base64 });
-      const data = {
-        numero_cedula: cedula.trim(), // Eliminar espacios adicionales
-        eps_a_trasladar: eps.toUpperCase(), // Convertir de nuevo a mayúsculas para mostrar uniformidad
-        solicitud_traslado: base64,
-      };
-
-      await this.hiringService.enviarTraslado(data);
-    }
-  }
+  // ---------------------------------------------------------------------------
+  // Utilidades para Excel / texto
+  // ---------------------------------------------------------------------------
 
   corregirFecha(fecha: string): string {
     const dateParts = fecha.split(/\/|-/);
 
     if (dateParts.length === 3) {
-      let day = dateParts[0];
-      let month = dateParts[1];
-      let year = dateParts[2];
+      let [day, month, year] = dateParts;
 
-      // Convertir año corto a largo
       if (year.length === 2) {
         const currentYear = new Date().getFullYear();
         const century = Math.floor(currentYear / 100);
         year = (year >= '50' ? century - 1 : century) + year;
       }
 
-      // Asegurar que el día y el mes sean de dos dígitos
       day = day.padStart(2, '0');
       month = month.padStart(2, '0');
 
-      // Retornar fecha en formato dd/mm/yyyy
       return `${day}/${month}/${year}`;
     }
 
-    return fecha; // Retornar la fecha sin cambios si no coincide con el patrón
+    return fecha;
   }
 
   removeSpecialCharacters = (text: string): string => {
-    // Expresión regular ampliada para eliminar cualquier emoji, pictogramas y símbolos especiales
     const emojiPattern =
       /[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F1E0}-\u{1F1FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F900}-\u{1F9FF}\u{1FA70}-\u{1FAFF}\u{1F7E0}-\u{1F7EF}]/gu;
 
     return text.replace(emojiPattern, '');
   };
 
+  excelSerialToJSDate(serial: number): string {
+    const utcDays = Math.floor(serial - 25569);
+    const date = new Date(utcDays * 86400 * 1000);
+    const day = date.getUTCDate().toString().padStart(2, '0');
+    const month = (date.getUTCMonth() + 1).toString().padStart(2, '0');
+    const year = date.getUTCFullYear();
+    return `${day}/${month}/${year}`;
+  }
+
+  delay(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  // ---------------------------------------------------------------------------
+  // Extracción de datos desde archivos
+  // ---------------------------------------------------------------------------
+
   private async extraerCedulasDelArchivo(file: File): Promise<string[]> {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
 
-      reader.onload = (e: any) => {
-        const bstr: string = e.target.result;
+      reader.onload = (e: ProgressEvent<FileReader>) => {
+        const bstr = e.target?.result as string;
         const workbook = XLSX.read(bstr, { type: 'binary' });
 
         try {
-          const sheetName = workbook.SheetNames[0]; // Asumiendo que quieres la primera hoja
+          const sheetName = workbook.SheetNames[0];
           const sheet = workbook.Sheets[sheetName];
           const json = XLSX.utils.sheet_to_json(sheet, {
             header: 1,
             raw: false,
             dateNF: 'dd/mm/yyyy',
-          });
-          json.shift(); // Eliminar el encabezado, si lo tiene
+          }) as any[];
 
-          // Obtener todas las cédulas de la columna 1 (índice 0)
-          const cedulas: string[] = (json as any[])
+          // Quitamos encabezados
+          json.shift();
+
+          const cedulas: string[] = json
             .map((row: any[]) => {
-              const cedula = row[1]; // Columna de índice 0
+              const cedula = row[1];
               return cedula
-                ? this.removeSpecialCharacters(
-                  cedula.toString().replace(/\s/g, '')
-                )
+                ? this.removeSpecialCharacters(cedula.toString().replace(/\s/g, ''))
                 : '';
             })
-            .filter((cedula) => cedula !== ''); // Filtrar cédulas vacías
+            .filter((cedula) => cedula !== '');
 
           resolve(cedulas);
         } catch (error) {
@@ -369,36 +354,35 @@ export class HiringReportComponent implements OnInit {
         }
       };
 
+      reader.onerror = (err) => reject(err);
       reader.readAsBinaryString(file);
     });
   }
 
-  private async contarALyTAEnColumna(
-    file: File
-  ): Promise<{ AL: number; TA: number }> {
+  private async contarALyTAEnColumna(file: File): Promise<{ AL: number; TA: number }> {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
 
-      reader.onload = (e: any) => {
-        const bstr: string = e.target.result;
+      reader.onload = (e: ProgressEvent<FileReader>) => {
+        const bstr = e.target?.result as string;
         const workbook = XLSX.read(bstr, { type: 'binary' });
 
         try {
-          const sheetName = workbook.SheetNames[0]; // Asumiendo que quieres la primera hoja
+          const sheetName = workbook.SheetNames[0];
           const sheet = workbook.Sheets[sheetName];
           const json = XLSX.utils.sheet_to_json(sheet, {
             header: 1,
             raw: false,
             dateNF: 'dd/mm/yyyy',
-          });
-          json.shift(); // Eliminar el encabezado, si lo tiene
+          }) as any[];
+
+          json.shift();
 
           let alCount = 0;
           let taCount = 0;
 
-          // Recorrer cada fila y contar AL y TA en la columna 2 (índice 1)
-          (json as any[]).forEach((row: any[]) => {
-            const valor = row[2]; // Columna de índice 1
+          json.forEach((row: any[]) => {
+            const valor = row[2];
             if (valor === 'AL') {
               alCount++;
             } else if (valor === 'TA') {
@@ -412,6 +396,7 @@ export class HiringReportComponent implements OnInit {
         }
       };
 
+      reader.onerror = (err) => reject(err);
       reader.readAsBinaryString(file);
     });
   }
@@ -422,7 +407,6 @@ export class HiringReportComponent implements OnInit {
     files.forEach((file) => {
       let cedula = '';
 
-      // Intentar dividir por ' - ' primero, luego por '-'
       if (file.name.includes(' - ')) {
         cedula = file.name.split(' - ')[0];
       } else if (file.name.includes('-')) {
@@ -430,268 +414,248 @@ export class HiringReportComponent implements OnInit {
       }
 
       if (cedula) {
-        cedulas.push(cedula.trim()); // Agregar cédula a la lista, eliminando espacios
+        cedulas.push(cedula.trim());
       }
     });
 
     return cedulas;
   }
 
-  async ObtenerCedulasEscaneadas(files: File[]) {
-    const cedulas = this.extraerCedulasDeArchivos(files);
-
-    // Aquí puedes hacer lo que necesites con las cédulas extraídas
-    return cedulas;
+  async ObtenerCedulasEscaneadas(files: File[]): Promise<string[]> {
+    return this.extraerCedulasDeArchivos(files);
   }
 
-  async ObtenerCedulasTraslados(files: File[]) {
-    const cedulas = this.extraerCedulasDeArchivos(files);
-
-    // Aquí puedes hacer lo que necesites con las cédulas extraídas
-    return cedulas;
+  async ObtenerCedulasTraslados(files: File[]): Promise<string[]> {
+    return this.extraerCedulasDeArchivos(files);
   }
 
-  async validarTodo() {
-    // Mostrar el modal de carga
-    const loadingSwal = Swal.fire({
-      icon: 'info',
-      title: 'Cargando...',
-      text: 'Extrayendo cédulas del archivo',
-      allowOutsideClick: false,
-      didOpen: () => {
-        Swal.showLoading();
-      },
-    });
+  // Validación EPS de traslados (sin base64 ni subida)
+  async validarTrasladosEps(files: File[]): Promise<void> {
+    const validEPS = ['nuevaeps', 'saludtotal', 'famisanar'];
+
+    for (const file of files) {
+      let cedula = '';
+      let eps = '';
+
+      if (file.name.includes(' - ')) {
+        [cedula, eps] = file.name.split(' - ');
+      } else if (file.name.includes('-')) {
+        [cedula, eps] = file.name.split('-');
+      } else {
+        continue;
+      }
+
+      eps = eps.replace('.pdf', '').replace(/\s+/g, '').toLowerCase();
+
+      if (!validEPS.includes(eps)) {
+        await Swal.fire(
+          'Error',
+          `La EPS "${eps}" no es válida. Solo se permiten NUEVA EPS, SALUD TOTAL o FAMISANAR. Por favor, corrija los nombres.`,
+          'error',
+        );
+        throw new Error('EPS inválida en traslados');
+      }
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Botón VALIDAR (aplica todas las reglas antes de enviar a reportes/Django)
+  // ---------------------------------------------------------------------------
+
+  async validarTodo(): Promise<void> {
+    // Siempre que validas, resetea estado previo
+    this.isCruceValidado = false;
+    this.isArlValidado = true;
+    this.erroresValidacion.data = [];
+    this.datoscruced = [];
+
+    this.showLoading('Cargando...', 'Extrayendo cédulas del archivo');
 
     try {
-      // Verificar si se ha subido un archivo para el cruce diario
-      const files = this.filesToUpload['cruceDiario'];
-      if (!files || files.length === 0) {
-        Swal.close(); // Cerrar el Swal de carga antes de mostrar el error
+      const filesCruce = this.filesToUpload['cruceDiario'];
+      if (!filesCruce || filesCruce.length === 0) {
+        this.closeSwal();
         await Swal.fire(
           'Error',
           'Debe cargar un archivo de cruce diario antes de validar',
-          'error'
+          'error',
         );
         return;
       }
-      const file = files[0]; // Archivo de cruce diario
+      const fileCruce = filesCruce[0];
 
-      // Validar que ARL esté cargado
       const arlFiles = this.filesToUpload['arl'];
       if (!arlFiles || arlFiles.length === 0) {
-        Swal.close(); // Cerrar el Swal de carga antes de mostrar el error
-        await Swal.fire(
-          'Error',
-          'Debe cargar un archivo de ARL antes de validar',
-          'error'
-        );
+        this.closeSwal();
+        await Swal.fire('Error', 'Debe cargar un archivo de ARL antes de validar', 'error');
         return;
       }
 
-      // Verificar si se han subido cédulas escaneadas
-      const cedulasEscaneadas = this.filesToUpload['cedulasEscaneadas'];
-      if (!cedulasEscaneadas || cedulasEscaneadas.length === 0) {
-        Swal.close(); // Cerrar el Swal de carga antes de mostrar el error
+      const cedulasEscaneadasFiles = this.filesToUpload['cedulasEscaneadas'];
+      if (!cedulasEscaneadasFiles || cedulasEscaneadasFiles.length === 0) {
+        this.closeSwal();
         await Swal.fire(
           'Error',
           'Debe cargar archivos de cédulas escaneadas antes de validar',
-          'error'
+          'error',
         );
         return;
       }
-      const cedulas = this.extraerCedulasDeArchivos(cedulasEscaneadas);
 
-      // Si el checkbox de traslados está marcado, procesar las cédulas de traslados
+      const cedulasEscaneadas = this.extraerCedulasDeArchivos(cedulasEscaneadasFiles);
+
       let cedulasTrasladosExtraidas: string[] = [];
+      const trasladosFiles = this.filesToUpload['traslados'];
+
       if (this.reporteForm.get('traslados')?.value) {
-        const cedulasTraslados = this.filesToUpload['traslados'];
-        if (!cedulasTraslados || cedulasTraslados.length === 0) {
-          Swal.close(); // Cerrar el Swal de carga antes de mostrar el error
+        if (!trasladosFiles || trasladosFiles.length === 0) {
+          this.closeSwal();
           await Swal.fire(
             'Error',
             'Debe cargar archivos de traslados si seleccionó esa opción',
-            'error'
+            'error',
           );
           return;
         }
-        cedulasTrasladosExtraidas =
-          this.extraerCedulasDeArchivos(cedulasTraslados);
+        // validación adicional de EPS en traslados
+        await this.validarTrasladosEps(trasladosFiles);
+        cedulasTrasladosExtraidas = this.extraerCedulasDeArchivos(trasladosFiles);
       }
 
-      // Extraer cédulas del archivo Excel de cruce diario
-      const cedulasExcel = await this.extraerCedulasDelArchivo(file);
+      const cedulasExcel = await this.extraerCedulasDelArchivo(fileCruce);
 
-      // Contar AL y TA en la columna 2 del archivo de cruce diario
-      this.contarALyTAEnColumna(file)
-        .then((result) => {
-          this.reporteForm.controls['cantidadContratosTuAlianza'].setValue(
-            result.TA
-          );
-          this.reporteForm.controls['cantidadContratosApoyoLaboral'].setValue(
-            result.AL
-          );
-        })
-        .catch((error) => {
-          Swal.close(); // Cerrar el Swal de carga antes de mostrar el error
-          Swal.fire(
-            'Error',
-            'Error al contar AL y TA en el archivo de cruce diario',
-            'error'
-          );
-        });
+      // mejor: esperar el conteo y abortar si falla
+      try {
+        const result = await this.contarALyTAEnColumna(fileCruce);
+        this.numeroContratosApoyoLaboral = result.AL;
+        this.numeroContratosAlianza = result.TA;
+        this.reporteForm.controls['cantidadContratosTuAlianza'].setValue(result.TA);
+        this.reporteForm.controls['cantidadContratosApoyoLaboral'].setValue(result.AL);
+      } catch {
+        this.closeSwal();
+        await Swal.fire(
+          'Error',
+          'Error al contar AL y TA en el archivo de cruce diario',
+          'error',
+        );
+        return;
+      }
 
-      let mensaje = '';
-      let consoleOutput = '';
-      const erroresFormateados: {
-        registro: string;
-        errores: any[];
-        tipo: string;
-      }[] = []; // Para acumular todos los errores
+      const erroresFormateados: { registro: string; errores: any[]; tipo: string }[] = [];
 
-      // Validación 1: Las cédulas escaneadas deben estar en el Excel (cédulas en escaneadas pero no en Excel)
-      const cedulasFaltantesEnExcel = cedulas.filter(
-        (c) => !cedulasExcel.includes(c)
+      // Regla 7: cédulas escaneadas que faltan en cruce
+      const cedulasFaltantesEnExcel = cedulasEscaneadas.filter(
+        (c) => !cedulasExcel.includes(c),
       );
       if (cedulasFaltantesEnExcel.length > 0) {
-        mensaje += `Faltan en el cruce diario las siguientes cédulas escaneadas: ${cedulasFaltantesEnExcel.join(
-          ', '
-        )}.\n`;
-        consoleOutput += `Cédulas escaneadas faltantes en el Excel: ${cedulasFaltantesEnExcel.join(
-          ', '
-        )}.\n`;
-
-        // Formatear los errores de cruce diario
         cedulasFaltantesEnExcel.forEach((cedula) => {
           erroresFormateados.push({
             registro: '0',
-            errores: [
-              'Cédula no encontrada en el Excel la cedula es la: ' + cedula,
-            ],
-            tipo: 'Cedula escaneada',
+            errores: ['Cédula no encontrada en el Excel: ' + cedula],
+            tipo: 'Cédula escaneada',
           });
         });
       }
 
-      // Validación 2: Las cédulas del Excel que no están en las cédulas escaneadas (cédulas en Excel pero no en escaneadas)
+      // Regla 7 (lado inverso): cédulas en cruce no escaneadas
       const cedulasExtrasEnExcel = cedulasExcel.filter(
-        (c) => !cedulas.includes(c)
+        (c) => !cedulasEscaneadas.includes(c),
       );
       if (cedulasExtrasEnExcel.length > 0) {
-        mensaje += `El cruce diario contiene las siguientes cédulas adicionales que no fueron escaneadas: ${cedulasExtrasEnExcel.join(
-          ', '
-        )}.\n`;
-        consoleOutput += `Cédulas adicionales en el Excel: ${cedulasExtrasEnExcel.join(
-          ', '
-        )}.\n`;
-
-        // Formatear los errores de cruce diario
         cedulasExtrasEnExcel.forEach((cedula) => {
           erroresFormateados.push({
             registro: '0',
-            errores: [
-              'Cédula en el Excel pero no escaneada la cedula es la: ' + cedula,
-            ],
-            tipo: 'Cedula escaneada',
+            errores: ['Cédula en el Excel pero no escaneada: ' + cedula],
+            tipo: 'Cédula escaneada',
           });
         });
       }
 
-      // Validación 3: Las cédulas de traslados deben estar en el Excel (solo si se seleccionó traslados)
+      // Regla 8: cédulas de traslados deben existir en cruce
       if (cedulasTrasladosExtraidas.length > 0) {
         const cedulasTrasladosNoEnExcel = cedulasTrasladosExtraidas.filter(
-          (c) => !cedulasExcel.includes(c)
+          (c) => !cedulasExcel.includes(c),
         );
         if (cedulasTrasladosNoEnExcel.length > 0) {
-          mensaje += `Las cédulas de los traslados que no están en el cruce diario: ${cedulasTrasladosNoEnExcel.join(
-            ', '
-          )}.\n`;
-          consoleOutput += `Cédulas de los traslados faltantes en el Excel: ${cedulasTrasladosNoEnExcel.join(
-            ', '
-          )}.\n`;
-
-          // Formatear los errores de traslados
           cedulasTrasladosNoEnExcel.forEach((cedula) => {
             erroresFormateados.push({
               registro: '0',
-              errores: [
-                'Cédula de traslado no encontrada en el Excel la cedula es la :' +
-                cedula,
-              ],
+              errores: ['Cédula de traslado no encontrada en el Excel: ' + cedula],
               tipo: 'Traslado',
             });
           });
         }
       }
 
-      // Validación 4: La cantidad de cédulas escaneadas debe coincidir con las del Excel
-      if (cedulas.length !== cedulasExcel.length) {
-        mensaje += `El número de cédulas escaneadas (${cedulas.length}) no coincide con las cédulas del Excel (${cedulasExcel.length}).\n`;
-        consoleOutput += `Diferencia en número de cédulas: Número de cédulas escaneadas (${cedulas.length}) vs número de cédulas en el Excel (${cedulasExcel.length}).\n`;
+      // Regla 2: número total de cédulas escaneadas vs Excel
+      if (cedulasEscaneadas.length !== cedulasExcel.length) {
+        erroresFormateados.push({
+          registro: '0',
+          errores: [
+            `El número de cédulas escaneadas (${cedulasEscaneadas.length}) no coincide con las cédulas del Excel (${cedulasExcel.length}).`,
+          ],
+          tipo: 'Consistencia',
+        });
       }
 
-      // Si hay errores, almacenarlos en this.erroresValidacion.data y luego enviarlos
       if (erroresFormateados.length > 0) {
-        Swal.close(); // Asegurarse de cerrar el Swal de carga antes de mostrar el resultado
-
-        // Guardar los errores en this.erroresValidacion.data
+        this.closeSwal();
         this.erroresValidacion.data = erroresFormateados;
 
-        // Identificar el tipo de errores para enviar
         const tipoErrores = this.reporteForm.get('traslados')?.value
           ? 'Traslado'
           : 'Cruce Diario';
 
-        let payload = {
-          errores: this.erroresValidacion.data, // Aquí los errores ya almacenados
-          responsable: 'Nombre del Responsable', // Cambia esto dinámicamente si es necesario
-          tipo: tipoErrores, // Se envía el tipo de error correcto
+        const payload = {
+          errores: this.erroresValidacion.data,
+          responsable: this.nombre,
+          tipo: tipoErrores,
         };
 
-        Swal.update({ text: 'Enviando todos los errores para guardar...' });
+        this.showLoading(
+          'Guardando errores...',
+          'Enviando todos los errores para guardar...',
+        );
 
-        // Enviar los errores almacenados
         await this.hiringService.enviarErroresValidacion(payload).then(
           () => {
-            Swal.close();
+            this.closeSwal();
             Swal.fire(
               'Error',
               'Se han encontrado errores en el archivo de cruce diario. Por favor, corrija los datos y vuelva a intentarlo.',
-              'error'
+              'error',
             );
           },
-          (error) => {
-            Swal.close();
+          () => {
+            this.closeSwal();
             Swal.fire('Error', 'Error al guardar los errores.', 'error');
-          }
+          },
         );
       } else {
-        Swal.close();
+        this.closeSwal();
+        // marcamos que el cruce está pre-validado a nivel de reglas de cédulas
         this.isCruceValidado = true;
 
-        // Validar el cruce diario
+        // Validación profunda contra backend + ARL
         await this.validarCruce();
-
-        await Swal.fire({
-          icon: 'success',
-          title: 'Validación exitosa',
-          text: 'Todas las cédulas coinciden con el cruce diario',
-          heightAuto: false,
-        });
+        // el Swal de éxito o error final se maneja dentro de validarCruce / processArl
       }
     } catch (error) {
-      Swal.close(); // Asegurarse de cerrar el Swal de carga antes de mostrar el error
+      this.closeSwal();
       await Swal.fire(
         'Error',
         'Error al procesar el archivo. Inténtelo de nuevo.',
-        'error'
+        'error',
       );
     }
   }
 
-  async validarCruce() {
-    // Cierra cualquier posible alerta abierta
-    Swal.close();
+  // ---------------------------------------------------------------------------
+  // Validación profunda de cruce (lotes + ARL + errores de negocio)
+  // ---------------------------------------------------------------------------
+
+  async validarCruce(): Promise<void> {
+    this.closeSwal();
 
     const files = this.filesToUpload['cruceDiario'];
 
@@ -700,38 +664,21 @@ export class HiringReportComponent implements OnInit {
       return;
     }
 
-    // Primer mensaje: "Iniciando el proceso"
-    Swal.fire({
-      icon: 'info',
-      title: 'Cargando...',
-      text: 'Iniciando el proceso de validación',
-      allowOutsideClick: false,
-      showConfirmButton: false,
-      didOpen: () => {
-        Swal.showLoading();
-      },
-    });
+    // reset para ejecutar una validación limpia
+    this.isCruceValidado = false;
+    this.erroresValidacion.data = [];
+
+    this.showLoading('Cargando...', 'Iniciando el proceso de validación');
 
     const file = files[0];
     const reader = new FileReader();
 
-    reader.onload = async (e: any) => {
-      const bstr: string = e.target.result;
+    reader.onload = async (e: ProgressEvent<FileReader>) => {
+      const bstr = e.target?.result as string;
       const workbook = XLSX.read(bstr, { type: 'binary' });
 
       try {
-        // Cierra el Swal anterior y abre uno nuevo
-        Swal.close();
-        Swal.fire({
-          icon: 'info',
-          title: 'Leyendo el archivo Excel...',
-          text: 'Por favor, espere...',
-          allowOutsideClick: false,
-          showConfirmButton: false,
-          didOpen: () => {
-            Swal.showLoading();
-          },
-        });
+        this.showLoading('Leyendo el archivo Excel...', 'Por favor, espere...');
 
         const sheetName = workbook.SheetNames[0];
         const sheet = workbook.Sheets[sheetName];
@@ -739,11 +686,11 @@ export class HiringReportComponent implements OnInit {
           header: 1,
           raw: false,
           dateNF: 'dd/mm/yyyy',
-        });
-        // Quitamos el encabezado
+        }) as any[];
+
+        // Quitamos encabezados
         json.shift();
 
-        // Función para formatear fechas
         const formatDate = (date: string): string => {
           const regex_ddmmyyyy = /^\d{1,2}\/\d{1,2}\/\d{4}$/;
           const regex_mmddyy = /^\d{1,2}\/\d{1,2}\/\d{2}$/;
@@ -752,20 +699,15 @@ export class HiringReportComponent implements OnInit {
             return date;
           } else if (regex_mmddyy.test(date)) {
             const [month, day, year] = date.split('/');
-            const fullYear =
-              parseInt(year, 10) < 50 ? `20${year}` : `19${year}`;
-            return `${day.padStart(2, '0')}/${month.padStart(
-              2,
-              '0'
-            )}/${fullYear}`;
+            const fullYear = parseInt(year, 10) < 50 ? `20${year}` : `19${year}`;
+            return `${day.padStart(2, '0')}/${month.padStart(2, '0')}/${fullYear}`;
           }
           return date;
         };
 
         const indicesFechas = [0, 8, 16, 24, 44, 134];
 
-        // Transformamos cada fila del Excel
-        const rows: string[][] = (json as any[][]).map((row: any[]) => {
+        const rows: string[][] = json.map((row: any[]) => {
           const completeRow = new Array(195).fill('-');
 
           row.forEach((cell, index) => {
@@ -780,23 +722,20 @@ export class HiringReportComponent implements OnInit {
               ) {
                 completeRow[index] = '-';
               } else if (index === 11 || index === 1) {
-                // Ejemplo: quitar comas, puntos, espacios y dejar solo números o x/X
                 completeRow[index] = this.removeSpecialCharacters(
                   cell
                     .toString()
                     .replace(/,/g, '')
                     .replace(/\./g, '')
                     .replace(/\s/g, '')
-                    .replace(/[^0-9xX]/g, '')
+                    .replace(/[^0-9xX]/g, ''),
                 );
               } else if (indicesFechas.includes(index)) {
                 completeRow[index] = formatDate(
-                  this.removeSpecialCharacters(cell.toString())
+                  this.removeSpecialCharacters(cell.toString()),
                 );
               } else {
-                completeRow[index] = this.removeSpecialCharacters(
-                  cell.toString()
-                );
+                completeRow[index] = this.removeSpecialCharacters(cell.toString());
               }
             }
           });
@@ -806,131 +745,84 @@ export class HiringReportComponent implements OnInit {
 
         this.datoscruced = rows;
 
-        // Cierra el swal anterior y abre uno nuevo indicando división en lotes
-        Swal.close();
-        Swal.fire({
-          icon: 'info',
-          title: 'Dividiendo los datos en lotes...',
-          text: 'Por favor, espere...',
-          allowOutsideClick: false,
-          showConfirmButton: false,
-          didOpen: () => {
-            Swal.showLoading();
-          },
-        });
+        this.showLoading('Dividiendo los datos en lotes...', 'Por favor, espere...');
 
         const batchSize = 1500;
         const totalBatches = Math.ceil(rows.length / batchSize);
         let allErrors: any[] = [];
 
-        // Procesamos por lotes
         for (let i = 0; i < totalBatches; i++) {
           const batch = rows.slice(i * batchSize, (i + 1) * batchSize);
 
-          // Cierra el swal anterior y abre uno nuevo para cada lote
-          Swal.close();
-          Swal.fire({
-            icon: 'info',
-            title: 'Validando lote...',
-            text: `Enviando el lote ${i + 1
-              } de ${totalBatches} para validación...`,
-            allowOutsideClick: false,
-            showConfirmButton: false,
-            didOpen: () => {
-              Swal.showLoading();
-            },
-          });
+          this.showLoading(
+            'Validando lote...',
+            `Enviando el lote ${i + 1} de ${totalBatches} para validación...`,
+          );
 
-          await this.hiringService
-            .subirContratacionValidar(batch)
-            .then((response) => {
-              if (response.status === 'error') {
-                allErrors.push(...response.errores);
-              }
-            });
+          await this.hiringService.subirContratacionValidar(batch).then((response) => {
+            if (response.status === 'error') {
+              allErrors.push(...response.errores);
+            }
+          });
         }
 
-        // Cierra el swal anterior y abre uno nuevo para "Procesando errores..."
-        Swal.close();
-        Swal.fire({
-          icon: 'info',
-          title: 'Procesando errores...',
-          text: 'Por favor, espere...',
-          allowOutsideClick: false,
-          showConfirmButton: false,
-          didOpen: () => {
-            Swal.showLoading();
-          },
-        });
+        this.showLoading('Procesando errores...', 'Por favor, espere...');
 
-        // Guardamos los errores en nuestra estructura
         this.erroresValidacion.data = allErrors;
 
-        // Luego, validar la ARL (asumiendo tienes la lógica en proccssArl)
         await this.proccssArl([this.filesToUpload['arl'][0]]);
 
-        // Evaluamos si hay errores
         if (allErrors.length > 0) {
-          // Formatear errores para el backend
-          const erroresFormateados = [];
+          const erroresFormateados: { registro: string; errores: any[] }[] = [];
 
           for (const [registro, errorObj] of Object.entries(allErrors)) {
             erroresFormateados.push({
               registro: registro,
-              errores: errorObj.errores || [],
+              errores: (errorObj as any).errores || [],
             });
           }
 
-          let payload = {
+          const payload = {
             errores: erroresFormateados,
             responsable: this.nombre,
             tipo: 'Documento de Contratación',
           };
 
-          // Cierra el swal y abre uno nuevo "Enviando todos los errores..."
-          Swal.close();
-          Swal.fire({
-            icon: 'info',
-            title: 'Enviando errores...',
-            text: 'Guardando errores encontrados...',
-            allowOutsideClick: false,
-            showConfirmButton: false,
-            didOpen: () => {
-              Swal.showLoading();
-            },
-          });
+          this.showLoading(
+            'Enviando errores...',
+            'Guardando errores encontrados...',
+          );
 
           await this.hiringService.enviarErroresValidacion(payload).then(
             () => {
-              Swal.close();
+              this.closeSwal();
               Swal.fire(
                 'Error',
                 'Se han encontrado errores en el archivo de cruce diario. Por favor, corrija los datos y vuelva a intentarlo.',
-                'error'
+                'error',
               );
             },
-            (error) => {
-              Swal.close();
+            () => {
+              this.closeSwal();
               Swal.fire('Error', 'Error al guardar los errores.', 'error');
-            }
+            },
           );
         } else {
-          // Si no hubo errores
-          Swal.close();
+          this.closeSwal();
           this.isCruceValidado = true;
 
           Swal.fire(
             'Completado',
             'Proceso de validación finalizado correctamente.',
-            'success'
+            'success',
           );
         }
       } catch (error) {
-        Swal.close();
+        this.closeSwal();
         Swal.fire(
           'Error',
           'Error procesando el archivo. Verifique el formato e intente de nuevo.',
-          'error'
+          'error',
         );
       }
     };
@@ -938,69 +830,61 @@ export class HiringReportComponent implements OnInit {
     reader.readAsBinaryString(file);
   }
 
-  applyFilter(column: string, event: Event) {
+  applyFilter(column: string, event: Event): void {
     const filterValue = (event.target as HTMLInputElement).value;
     this.erroresValidacion.filter = filterValue.trim().toLowerCase();
   }
 
+  // ---------------------------------------------------------------------------
+  // Procesamiento ARL (Regla 9 + generación Excel de resultados ARL)
+  // ---------------------------------------------------------------------------
+
   async processArl(workbook: XLSX.WorkBook): Promise<void> {
     let confirmarErrores = true;
 
-    this.arlBase64 = await this.convertToBase64(this.filesToUpload['arl'][0]);
+    // cada vez que recalculamos ARL, asumimos válido hasta que se pruebe lo contrario
+    this.isArlValidado = true;
 
-    Swal.fire({
-      title: 'Cargando...',
-      icon: 'info',
-      text: 'Procesando archivo de ARL. Por favor, espere unos segundos.',
-      allowOutsideClick: false,
-      didOpen: () => {
-        Swal.showLoading();
-      },
-    });
+    this.showLoading(
+      'Cargando...',
+      'Procesando archivo de ARL. Por favor, espere unos segundos.',
+    );
 
     try {
-      // Asumiendo que dataArl ya está definido como en tu código
       const sheetArl = workbook.Sheets[workbook.SheetNames[0]];
 
       const dataArl = XLSX.utils.sheet_to_json(sheetArl, {
         header: 1,
-
         raw: true,
         defval: '',
-      });
+      }) as any[][];
 
-      // Extraer encabezados de la primera fila
       const datos = dataArl[0] as string[];
 
-      // Buscar las posiciones de los encabezados
       const dniTrabajadorIndex = datos.indexOf('DNI TRABAJADOR');
-
       const inicioVigenciaIndex = datos.indexOf('INICIO VIGENCIA');
 
-      // Validar si se encontraron
-      if (dniTrabajadorIndex == -1) {
+      if (dniTrabajadorIndex === -1) {
         Swal.fire(
           'Error',
           'No se encontró el encabezado "DNI TRABAJADOR" en el archivo de ARL. Tiene que tener encabezados',
-          'error'
+          'error',
         );
       }
-      if (inicioVigenciaIndex == -1) {
+      if (inicioVigenciaIndex === -1) {
         Swal.fire(
           'Error',
           'No se encontró el encabezado "INICIO VIGENCIA" en el archivo de ARL. Tiene que tener encabezados',
-          'error'
+          'error',
         );
       }
 
-      // Continuar con el mapeo de filas, si es necesario
-      const rowsArl = (dataArl as any[][]).map((row) => {
+      const rowsArl = dataArl.map((row) => {
         if (row[9] && typeof row[9] === 'number') {
           row[9] = this.excelSerialToJSDate(row[9]);
         }
         return row;
       });
-      // Eliminar la primera fila (encabezados)
       rowsArl.shift();
 
       const headers = [
@@ -1224,13 +1108,10 @@ export class HiringReportComponent implements OnInit {
             estadoCedula = 'SATISFACTORIO';
             const comparativoArl = filaArl[inicioVigenciaIndex];
 
-            const formatDate = (dateStr: string | number) => {
+            const formatDateAny = (dateStr: string | number) => {
               if (typeof dateStr === 'number') {
-                // Si es un número, se interpreta como una fecha en formato Excel
-                const excelEpoch = new Date(1899, 11, 30); // Base para fechas en Excel
-                return new Date(
-                  excelEpoch.getTime() + dateStr * 24 * 60 * 60 * 1000
-                );
+                const excelEpoch = new Date(1899, 11, 30);
+                return new Date(excelEpoch.getTime() + dateStr * 24 * 60 * 60 * 1000);
               }
 
               if (typeof dateStr === 'string') {
@@ -1246,10 +1127,9 @@ export class HiringReportComponent implements OnInit {
               throw new Error('Formato de fecha no reconocido');
             };
 
-            const fechaArl = formatDate(comparativoArl);
-            const fechaCruce = formatDate(comparativoCruce);
+            const fechaArl = formatDateAny(comparativoArl);
+            const fechaCruce = formatDateAny(comparativoCruce);
 
-            // Comparar fechas
             if (fechaArl.getTime() > fechaCruce.getTime()) {
               estadoFechas = 'ALERTA FECHAS NO COINCIDEN';
             }
@@ -1263,15 +1143,15 @@ export class HiringReportComponent implements OnInit {
             ARL_FECHAS: estadoFechas,
             'FECHA EN ARL': fechaIngresoArl,
             'FECHA INGRESO SUBIDA CONTRATACION': fechaIngresoCruce,
-            Errores: 'OK', // Inicializamos con "OK" por defecto
+            Errores: 'OK',
           };
 
-          headers.forEach((header, index) => {
-            resultado[header] = cruceRow[index] || 'NO DISPONIBLE';
+          headers.forEach((header, i) => {
+            resultado[header] = cruceRow[i] || 'NO DISPONIBLE';
           });
 
           const registroErrores = this.erroresValidacion.data.find(
-            (err: any) => err.registro == index + 1
+            (err: any) => err.registro == index + 1,
           );
           if (registroErrores && registroErrores.errores.length > 0) {
             confirmarErrores = false;
@@ -1279,7 +1159,7 @@ export class HiringReportComponent implements OnInit {
           }
 
           return resultado;
-        }
+        },
       );
 
       const workbookOut = new ExcelJS.Workbook();
@@ -1344,47 +1224,39 @@ export class HiringReportComponent implements OnInit {
       const cedulasNoEncontradas = datosMapeados
         .filter((dato) => dato['Arl'] === 'ALERTA NO ESTA EN ARL')
         .map((dato) => dato['Numero de Cedula']);
-      const cedulasWorksheet = workbookOut.addWorksheet(
-        'Cédulas No Encontradas'
-      );
-      cedulasWorksheet.columns = [
-        { header: 'Cédula', key: 'cedula', width: 20 },
-      ];
+      const cedulasWorksheet = workbookOut.addWorksheet('Cédulas No Encontradas');
+      cedulasWorksheet.columns = [{ header: 'Cédula', key: 'cedula', width: 20 }];
       cedulasNoEncontradas.forEach((cedula) => {
         cedulasWorksheet.addRow({ cedula });
       });
 
-      workbookOut.xlsx.writeBuffer().then((buffer) => {
-        const blob = new Blob([buffer], {
-          type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        });
-        FileSaver.saveAs(blob, 'ReporteARL.xlsx');
+      const buffer = await workbookOut.xlsx.writeBuffer();
+      const blob = new Blob([buffer], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       });
-      // Cerrar el Swal de carga
-      Swal.close();
+      FileSaver.saveAs(blob, 'ReporteARL.xlsx');
 
-      // Mostrar el Swal de éxito después de cerrar el anterior
+      this.closeSwal();
+
       setTimeout(() => {
-        if (this.isArlValidado) {
+        if (this.isArlValidado && confirmarErrores) {
           Swal.fire({
             icon: 'success',
             title: 'Validación exitosa',
             text: 'Todos los datos de ARL coinciden con el cruce diario',
             heightAuto: false,
           });
-          Swal.close();
         } else {
           Swal.fire({
             icon: 'error',
-            title: 'El arl tiene problemas',
-            text: 'Se han encontrado discrepancias en los datos de ARL. Por favor, revise los datos y vuelva a intentarlo. Si tiene errores en la base tambien se mostraran',
+            title: 'El ARL tiene problemas',
+            text: 'Se han encontrado discrepancias en los datos de ARL. Por favor, revise los datos y vuelva a intentarlo.',
             heightAuto: false,
           });
-          Swal.close();
         }
       }, 500);
     } catch (error) {
-      Swal.close();
+      this.closeSwal();
       Swal.fire({
         icon: 'error',
         title: 'Error',
@@ -1394,237 +1266,93 @@ export class HiringReportComponent implements OnInit {
     }
   }
 
-  excelSerialToJSDate(serial: number): string {
-    const utc_days = Math.floor(serial - 25569);
-    const date = new Date(utc_days * 86400 * 1000);
-    const day = date.getUTCDate().toString().padStart(2, '0');
-    const month = (date.getUTCMonth() + 1).toString().padStart(2, '0');
-    const year = date.getUTCFullYear();
-    return `${day}/${month}/${year}`;
-  }
-
-  delay(ms: number): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, ms));
-  }
-
-  async processFileList(files: File[]) {
-    for (const file of files) {
-      await this.processFile(file);
+  async proccssArl(files: File[]): Promise<void> {
+    if (!files || files.length === 0) {
+      return;
     }
-  }
 
-  async processFile(file: File) {
-    try {
-      const base64 = await this.convertToBase64(file);
-
-      // Compara el nombre del archivo para identificar si es el archivo de inducción SSO
-      const induccionSSOFile = this.filesToUpload['induccionSSO']?.[0];
-      if (file.name === induccionSSOFile?.name) {
-        this.sstBase64 = base64;
-      }
-    } catch (error) {
-      this.processingErrors.push('archivo');
-      Swal.fire({
-        icon: 'error',
-        title: 'Error',
-        text: `Ocurrió un error al procesar el archivo, inténtelo de nuevo.`,
-      });
-    }
-  }
-
-  async processExcelFiles(files: File[]) {
-    for (const file of files) {
-      await this.processExcel(file); // Asegurarse de que cada archivo se procese completamente antes de pasar al siguiente
-    }
-  }
-
-  async proccssArl(files: File[]) {
-    for (const file of files) {
-      await this.processExcelFileaRL(file);
-    }
-  }
-
-  async processExcel(file: File) {
-    const bstr: string = await this.readFileAsBinaryString(file); // Esperar hasta que se lea el archivo como cadena binaria
-    const workbook = XLSX.read(bstr, { type: 'binary' });
-    await this.processContratacion(workbook); // Esperar hasta que termine el procesamiento del archivo
-  }
-
-  // Convertir FileReader en promesa para poder utilizar await
-  readFileAsBinaryString(file: File): Promise<string> {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = (e: any) => {
-        resolve(e.target.result);
-      };
-      reader.onerror = (error) => {
-        reject(error);
-      };
-      reader.readAsBinaryString(file);
-    });
-  }
-
-  async processExcelFileaRL(file: File) {
+    const file = files[0];
     const reader = new FileReader();
-    reader.onload = async (e: any) => {
-      const bstr: string = e.target.result;
+
+    reader.onload = async (e: ProgressEvent<FileReader>) => {
+      const bstr = e.target?.result as string;
       const workbook = XLSX.read(bstr, { type: 'binary' });
       await this.processArl(workbook);
     };
+
     reader.readAsBinaryString(file);
   }
 
-  async processContratacion(workbook: XLSX.WorkBook): Promise<void> {
-    let response: any;
+  // ---------------------------------------------------------------------------
+  // Envío a Django (sin base64): se arma FormData con metadatos + archivos
+  // ---------------------------------------------------------------------------
 
-    // Copiar el Excel en base64
-    this.cruceBase64 = await this.convertToBase64(
-      this.filesToUpload['cruceDiario'][0]
+  private buildReporteFormData(user: any): FormData {
+    const formData = new FormData();
+    const formValue = this.reporteForm.value;
+
+    const sedeNombre = formValue.sede?.nombre ?? formValue.sede ?? '';
+    formData.append('sede', sedeNombre);
+
+    // Si es de hoy, se envía fecha actual; si no, la seleccionada
+    if (formValue.esDeHoy === 'true') {
+      formData.append('fecha', new Date().toISOString());
+    } else if (formValue.fecha instanceof Date) {
+      formData.append('fecha', formValue.fecha.toISOString());
+    }
+
+    formData.append(
+      'cantidadContratosTuAlianza',
+      (formValue.cantidadContratosTuAlianza ?? 0).toString(),
+    );
+    formData.append(
+      'cantidadContratosApoyoLaboral',
+      (formValue.cantidadContratosApoyoLaboral ?? 0).toString(),
     );
 
-    try {
-      const sheetName = workbook.SheetNames[0];
-      const sheet = workbook.Sheets[sheetName];
-      const json = XLSX.utils.sheet_to_json(sheet, {
-        header: 1,
-        raw: false,
-        dateNF: 'dd/mm/yyyy',
-      });
-      json.shift(); // Eliminar la fila de encabezados si es necesario
-
-      const formatDate = (date: string): string => {
-        const regex_ddmmyyyy = /^\d{1,2}\/\d{1,2}\/\d{4}$/;
-        const regex_mmddyy = /^\d{1,2}\/\d{1,2}\/\d{2}$/;
-
-        if (regex_ddmmyyyy.test(date)) {
-          return date;
-        } else if (regex_mmddyy.test(date)) {
-          const [month, day, year] = date.split('/');
-          const fullYear = parseInt(year, 10) < 50 ? `20${year}` : `19${year}`;
-          return `${day.padStart(2, '0')}/${month.padStart(
-            2,
-            '0'
-          )}/${fullYear}`;
-        }
-        return date;
-      };
-
-      const indicesFechas = [0, 8, 16, 24, 44, 134];
-
-      const rows: string[][] = (json as any[][]).map((row: any[]) => {
-        const completeRow = new Array(195).fill('-'); // Inicializar la fila con un array vacío de 195 elementos
-
-        row.forEach((cell, index) => {
-          if (index < 195) {
-            if (
-              cell == null ||
-              cell === '' ||
-              cell === '#N/A' ||
-              cell === 'N/A' ||
-              cell === '#REF!' ||
-              cell === '#¡REF!'
-            ) {
-              completeRow[index] = '-';
-            } else if (index === 11 || index === 1) {
-              completeRow[index] = this.removeSpecialCharacters(
-                cell
-                  .toString()
-                  .replace(/,/g, '') // Elimina comas
-                  .replace(/\./g, '') // Elimina puntos
-                  .replace(/\s/g, '') // Elimina espacios
-                  .replace(/[^0-9xX]/g, '') // Elimina todo excepto números y 'x' o 'X'
-              );
-            } else if (index === 3) {
-              completeRow[index] = this.removeSpecialCharacters(
-                cell
-                  .toString()
-                  .replace(/,/g, '') // Elimina comas
-                  .replace(/\./g, '') // Elimina puntos
-                  .replace(/\s/g, '') // Elimina espacios
-              );
-            } else if (indicesFechas.includes(index)) {
-              completeRow[index] = formatDate(
-                this.removeSpecialCharacters(cell.toString())
-              );
-            } else {
-              completeRow[index] = this.removeSpecialCharacters(
-                cell.toString()
-              );
-            }
-          }
-        });
-
-        return completeRow;
-      });
-
-      this.datoscruced = rows; // Guardar los datos procesados
-
-      // Esperar a la respuesta de la subida del archivo
-      response = await this.hiringService.subirContratacion(rows);
-
-      // Manejar respuesta
-      if (response.message !== 'success') {
-        this.processingErrors.push('Cruce diario Excel');
-      }
-    } catch (error) {
-      this.processingErrors.push('Cruce diario Excel');
+    if (formValue.notas) {
+      formData.append('nota', formValue.notas);
     }
-  }
 
-  async generateErrorExcel(errores: any[]): Promise<void> {
-    const worksheetData = [['Registro', 'Campo', 'Error']];
+    const nombreResponsable =
+      user && user.datos_basicos
+        ? `${user.datos_basicos.nombres} ${user.datos_basicos.apellidos}`
+        : this.nombre;
+    formData.append('nombre', nombreResponsable);
 
-    errores.forEach((error: any) => {
-      worksheetData.push([error.registro, error.campo, error.error]);
+    // Documentos asociados al reporte (Django: FK + M2M, sin base64)
+    const sstFiles = this.filesToUpload['induccionSSO'] ?? [];
+    if (sstFiles.length > 0) {
+      formData.append('sst_document', sstFiles[0]);
+    }
+
+    const cruceFiles = this.filesToUpload['cruceDiario'] ?? [];
+    if (cruceFiles.length > 0) {
+      formData.append('cruce_document', cruceFiles[0]);
+    }
+
+    const cedulasFiles = this.filesToUpload['cedulasEscaneadas'] ?? [];
+    cedulasFiles.forEach((file) => {
+      formData.append('cedulas', file);
     });
 
-    const worksheet: XLSX.WorkSheet = XLSX.utils.aoa_to_sheet(worksheetData);
-    const workbook: XLSX.WorkBook = {
-      Sheets: { Errores: worksheet },
-      SheetNames: ['Errores'],
-    };
-
-    const excelBuffer: any = XLSX.write(workbook, {
-      bookType: 'xlsx',
-      type: 'array',
+    const trasladosFiles = this.filesToUpload['traslados'] ?? [];
+    trasladosFiles.forEach((file) => {
+      formData.append('traslados', file);
     });
 
-    this.saveAsExcelFile(excelBuffer, 'Errores_Contratacion');
+    return formData;
   }
 
-  saveAsExcelFile(buffer: any, fileName: string): void {
-    const data: Blob = new Blob([buffer], { type: 'application/octet-stream' });
-    const url: string = window.URL.createObjectURL(data);
+  // ---------------------------------------------------------------------------
+  // Botón ENVIAR (solo cuando todas las reglas se cumplen)
+  // ---------------------------------------------------------------------------
 
-    const link: HTMLAnchorElement = document.createElement('a');
-    link.href = url;
-    link.download = `${fileName}.xlsx`;
-    link.click();
+  async onSubmit(): Promise<void> {
+    this.closeSwal();
 
-    window.URL.revokeObjectURL(url);
-  }
+    const user = this.utilityService.getUser();
 
-  isExcelDate(serial: number): boolean {
-    return serial > 25569 && serial < 2958465;
-  }
-
-  excelSerialToJSDate2(serial: number): string {
-    const utcDays = Math.floor(serial - 25569);
-    const date = new Date(utcDays * 86400 * 1000);
-    const day = date.getUTCDate().toString().padStart(2, '0');
-    const month = (date.getUTCMonth() + 1).toString().padStart(2, '0');
-    const year = date.getUTCFullYear();
-    return `${day}/${month}/${year}`;
-  }
-
-  async onSubmit() {
-    // Cerrar cualquier alerta que haya quedado abierta
-    Swal.close();
-
-    // Obtenemos la información del usuario
-    const user = await this.utilityService.getUser();
-
-    // Validaciones previas a la carga
     if (!this.isArlValidado) {
       Swal.fire({
         icon: 'error',
@@ -1645,221 +1373,52 @@ export class HiringReportComponent implements OnInit {
       return;
     }
 
-    // Verificamos si el formulario es válido
-    if (this.reporteForm.valid) {
-      // Si se seleccionó "sí" para contratosHoy
-      if (this.reporteForm.get('contratosHoy')?.value === 'si') {
-        this.processingErrors = [];
-
-        // Definimos los procesos a ejecutar
-        const processes = [
-          {
-            key: 'cedulasEscaneadas',
-            name: 'Cédulas Escaneadas',
-            process: this.processCedulasEscaneadas.bind(this),
-          },
-          {
-            key: 'cruceDiario',
-            name: 'Cruce diario Excel',
-            process: this.processExcelFiles.bind(this),
-          },
-          {
-            key: 'induccionSSO',
-            name: 'Inducción en SST',
-            process: this.processFileList.bind(this),
-          },
-          {
-            key: 'traslados',
-            name: 'Traslados',
-            process: this.processTraslados.bind(this),
-          },
-        ];
-
-        // Ejecutamos todos los procesos en paralelo
-        const processPromises = processes.map(async ({ key, name, process }) => {
-          if (this.reporteForm.get(key)?.value) {
-            const files = this.filesToUpload[key];
-            try {
-              Swal.fire({
-                icon: 'info',
-                title: 'Procesando',
-                html: 'Por favor, espere...',
-                allowOutsideClick: false,
-                didOpen: () => {
-                  Swal.showLoading();
-                },
-              });
-              await process(files);
-            } catch (error) {
-              this.processingErrors.push(name);
-              Swal.fire({
-                icon: 'error',
-                title: 'Error',
-                text: `Ocurrió un error al procesar ${name}. Por favor, inténtelo de nuevo.`,
-                confirmButtonText: 'Aceptar',
-              });
-            }
-          }
-        });
-
-        await Promise.all(processPromises);
-
-        // Si hubo errores en alguno de los procesos, los mostramos (pero se continúa el flujo)
-        if (this.processingErrors.length > 0) {
-          Swal.fire({
-            icon: 'error',
-            title: 'Errores durante la carga',
-            html: `Ocurrieron errores al procesar los siguientes elementos:
-                  <ul>${this.processingErrors
-                .map((err) => `<li>${err}</li>`)
-                .join('')}</ul>`,
-            confirmButtonText: 'Aceptar',
-          });
-        }
-
-        // Cerramos el Swal de "Procesando" antes de mostrar el siguiente
-        Swal.close();
-
-        try {
-          // ================================
-          // AQUÍ DEFINIMOS reporteData
-          // ================================
-          const reporteData = {
-            sede: this.reporteForm.get('sede')?.value.nombre,
-            fecha: this.reporteForm.get('fecha')?.value,
-            contratosHoy: this.reporteForm.get('contratosHoy')?.value,
-            cantidadContratosTuAlianza:
-              this.reporteForm.get('cantidadContratosTuAlianza')?.value || 0,
-            cantidadContratosApoyoLaboral:
-              this.reporteForm.get('cantidadContratosApoyoLaboral')?.value || 0,
-            nota: this.reporteForm.get('notas')?.value,
-            // Estas variables base64 se van llenando en los métodos "process..."
-            // Asegúrate de que estén actualizadas correctamente.
-            cedulas:
-              this.cedulasBase64.length > 0
-                ? this.cedulasBase64
-                : 'No se han cargado las cédulas.',
-            traslados:
-              this.trasladosBase64.length > 0
-                ? this.trasladosBase64
-                : 'No se han cargado traslados.',
-            cruce:
-              this.cruceBase64 !== ''
-                ? this.cruceBase64
-                : 'No se ha cargado el cruce.',
-            sst:
-              this.sstBase64 !== ''
-                ? this.sstBase64
-                : 'No se ha cargado la inducción SST.',
-            nombre: `${user.datos_basicos.nombres} ${user.datos_basicos.apellidos}`,
-            arl:
-              this.arlBase64 !== ''
-                ? this.arlBase64
-                : 'No se ha cargado el archivo ARL.',
-          };
-
-          // Enviamos el reporte
-          await this.hiringService.cargarReporte(reporteData);
-
-          Swal.fire({
-            icon: 'success',
-            title: 'Reporte enviado',
-            text: 'El reporte se ha enviado correctamente.',
-            confirmButtonText: 'Aceptar',
-          }).then((result) => {
-            if (result.isConfirmed) {
-              // Navegación de ejemplo al finalizar
-              this.router
-                .navigateByUrl('/home', { skipLocationChange: true })
-                .then(() => {
-                  this.router.navigate(['/reporte-contratacion']);
-                });
-            }
-          });
-        } catch (error) {
-          Swal.fire({
-            icon: 'error',
-            title: 'Error',
-            text: 'Hubo un problema al enviar el reporte. Inténtelo nuevamente.',
-            confirmButtonText: 'Aceptar',
-          });
-        }
-      } else {
-        // Si contratosHoy !== 'si'
-
-        // Cerramos el loader
-        Swal.close();
-
-        // Preparamos la data para el reporte
-        const reporteData = {
-          sede: this.reporteForm.get('sede')?.value.nombre,
-          fecha: this.reporteForm.get('fecha')?.value,
-          contratosHoy: this.reporteForm.get('contratosHoy')?.value,
-          cantidadContratosTuAlianza:
-            this.reporteForm.get('cantidadContratosTuAlianza')?.value || 0,
-          cantidadContratosApoyoLaboral:
-            this.reporteForm.get('cantidadContratosApoyoLaboral')?.value || 0,
-          nota: this.reporteForm.get('notas')?.value,
-          cedulas:
-            this.cedulasBase64.length > 0
-              ? this.cedulasBase64
-              : 'No se han cargado las cédulas.',
-          traslados:
-            this.trasladosBase64.length > 0
-              ? this.trasladosBase64
-              : 'No se han cargado traslados.',
-          cruce:
-            this.cruceBase64 !== ''
-              ? this.cruceBase64
-              : 'No se ha cargado el cruce.',
-          sst:
-            this.sstBase64 !== ''
-              ? this.sstBase64
-              : 'No se ha cargado la inducción SST.',
-          nombre: `${user.datos_basicos.nombres} ${user.datos_basicos.apellidos}`,
-          arl:
-            this.arlBase64 !== ''
-              ? this.arlBase64
-              : 'No se ha cargado el archivo ARL.',
-        };
-
-        try {
-          // Enviamos el reporte
-          await this.hiringService.cargarReporte(reporteData);
-
-          Swal.fire({
-            icon: 'success',
-            title: 'Reporte enviado',
-            text: 'El reporte se ha enviado correctamente.',
-            confirmButtonText: 'Aceptar',
-          }).then((result) => {
-            if (result.isConfirmed) {
-              // Navegación de ejemplo al finalizar
-              this.router
-                .navigateByUrl('/home', { skipLocationChange: true })
-                .then(() => {
-                  this.router.navigate(['/reporte-contratacion']);
-                });
-            }
-          });
-        } catch (error) {
-          Swal.fire({
-            icon: 'error',
-            title: 'Error',
-            text: 'Hubo un problema al enviar el reporte. Inténtelo nuevamente.',
-            confirmButtonText: 'Aceptar',
-          });
-        }
-      }
-    } else {
-      // Si el formulario no es válido
+    if (!this.reporteForm.valid) {
       Swal.fire({
         icon: 'error',
         title: 'Error',
         text: 'Por favor, complete el formulario correctamente.',
         confirmButtonText: 'Aceptar',
       });
+      return;
+    }
+
+    // Si no hubo contratos, igual se genera el reporte sin documentos obligatorios
+    if (this.reporteForm.get('contratosHoy')?.value !== 'si') {
+      // aquí solo aplican las reglas de datos generales
+    }
+
+    try {
+      const formData = this.buildReporteFormData(user);
+
+      this.showLoading('Enviando reporte...', 'Por favor, espere...');
+
+      await firstValueFrom(this.reportesService.createReporte(formData));
+
+      this.closeSwal();
+
+      Swal.fire({
+        icon: 'success',
+        title: 'Reporte enviado',
+        text: 'El reporte se ha enviado correctamente.',
+        confirmButtonText: 'Aceptar',
+      }).then((result) => {
+        if (result.isConfirmed) {
+          this.router
+            .navigateByUrl('/home', { skipLocationChange: true })
+            .then(() => {
+              this.router.navigate(['/reporte-contratacion']);
+            });
+        }
+      });
+    } catch (error) {
+      this.closeSwal();
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: 'Hubo un problema al enviar el reporte. Inténtelo nuevamente.',
+        confirmButtonText: 'Aceptar',
+      });
     }
   }
-
 }

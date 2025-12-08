@@ -1,140 +1,228 @@
-.modal-container {
+.viewer-container {
     display: flex;
-    padding: 20px;
-    gap: 30px;
-    width: 100%;
-    margin: 0 auto;
-    height: 67vh;
+    flex-direction: column;
+    min-height: 60vh;
+    max-height: 80vh;
+    width: 80vw;
+    max-width: 1100px;
+    background: #ffffff;
+    color: #1f2933;
+    border-radius: 12px;
+    box-shadow:
+        0 10px 30px rgba(15, 23, 42, 0.08),
+        0 1px 3px rgba(15, 23, 42, 0.06);
+    overflow: hidden;
 }
 
-.cedulas-list-container {
-    border-radius: 8px;
-    padding: 20px;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-    height: 100%;
+/* HEADER */
+
+.viewer-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px 10px;
+}
+
+.title-block h2 {
+    margin: 0;
+    font-size: 20px;
+    font-weight: 600;
+    color: #111827;
+}
+
+.subtitle {
+    margin: 2px 0 0;
+    font-size: 13px;
+    color: #6b7280;
+}
+
+/* BODY LAYOUT */
+
+.viewer-body {
+    display: grid;
+    grid-template-columns: 260px 1fr;
+    gap: 12px;
+    padding: 12px 16px 16px;
+    overflow: hidden;
+}
+
+/* LISTA DE DOCUMENTOS */
+
+.doc-list {
+    border-right: 1px solid rgba(148, 163, 184, 0.3);
     overflow-y: auto;
-    width: 46%;
+    padding-right: 4px;
 }
 
-.cedulas-list {
-    list-style: none;
-    padding: 0;
+.doc-list a.mat-mdc-list-item {
+    border-radius: 10px;
+    margin-bottom: 4px;
+    transition:
+        background 0.16s ease,
+        transform 0.12s ease,
+        box-shadow 0.12s ease;
 }
 
-.cedula-link {
-    display: block;
-    padding: 10px;
-    margin: 5px 0;
-    color: #000000;
-    border: 1px solid #0d47a1;
-    border-radius: 4px;
-    width: 100%;
-    text-align: left;
-    cursor: pointer;
-    transition: background-color 0.2s;
+.doc-list a.mat-mdc-list-item:hover {
+    background: #f3f4ff;
+    transform: translateY(-1px);
 }
 
-.selected {
-    background-color: #0d47a1;
-    color: #fff;
+.doc-list a.mat-mdc-list-item.active {
+    background: #e3f2fd;
+    box-shadow: 0 0 0 1px rgba(25, 118, 210, 0.25);
 }
 
-.cedula-link:hover {
-    background-color: #0d47a1;
-    color: #fff;
+.doc-meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 11px;
+    color: #6b7280;
 }
 
-.pdf-viewer-container {
-    width: 52%;
-    border-radius: 8px;
-    padding: 20px;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+/* CHIPS */
+
+.chip,
+.doc-chip {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    background: #e3f2fd;
+    color: #0d47a1;
 }
+
+/* PREVIEW PANEL */
+
+.preview {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    overflow: hidden;
+}
+
+.preview-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 8px;
+}
+
+.doc-title {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 500;
+    color: #111827;
+}
+
+.preview-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.preview-content {
+    flex: 1;
+    min-height: 0;
+    border-radius: 12px;
+    background: #f9fafb;
+    border: 1px solid rgba(148, 163, 184, 0.45);
+    overflow: hidden;
+    display: flex;
+}
+
+/* PDF IFRAME */
 
 .pdf-frame {
     width: 100%;
-    height: 600px;
+    height: 100%;
     border: none;
 }
 
-.modal-header {
-    font-size: 18px;
-    margin-bottom: 20px;
-    font-weight: bold;
-    color: #424242;
+/* IMAGEN */
+
+.image-preview {
+    max-width: 100%;
+    max-height: 100%;
+    margin: auto;
+    display: block;
+    object-fit: contain;
 }
 
-.modal-footer {
-    display: flex;
-    justify-content: flex-end;
-    margin-top: 20px;
+/* PREVIEW GENÉRICA */
+
+.generic-preview {
+    margin: auto;
+    text-align: center;
+    padding: 24px;
 }
 
-@media (max-width: 1024px) {
-    .modal-container {
-        flex-direction: column;
-        /* Pasa de un layout horizontal a uno vertical */
-        height: auto;
-        /* Permite que el contenido se ajuste dinámicamente */
-        gap: 15px;
-        /* Reduce el espacio entre los elementos */
-    }
-
-    .cedulas-list-container,
-    .pdf-viewer-container {
-        width: 100%;
-        /* Asegura que ambos contenedores ocupen el ancho completo */
-    }
-
-    .pdf-frame {
-        height: 400px;
-        /* Ajusta la altura del visor de PDF para pantallas medianas */
-    }
+.big-icon {
+    font-size: 56px;
+    width: 56px;
+    height: 56px;
+    margin-bottom: 12px;
+    color: #9ca3af;
 }
 
-@media (max-width: 768px) {
-    .modal-container {
-        padding: 10px;
-        /* Reduce el padding para que haya más espacio para el contenido */
-        gap: 10px;
-    }
-
-    .cedulas-list-container {
-        padding: 15px;
-        /* Ajusta el padding interno */
-    }
-
-    .pdf-frame {
-        height: 300px;
-        /* Reduce la altura del visor de PDF para pantallas pequeñas */
-    }
-
-    .modal-header {
-        font-size: 16px;
-        /* Reduce el tamaño del encabezado */
-    }
+.info-text {
+    margin: 0 0 16px;
+    font-size: 13px;
+    color: #6b7280;
 }
 
-@media (max-width: 480px) {
-    .cedulas-list-container {
-        padding: 10px;
-        /* Ajusta el padding para móviles */
+/* EMPTY STATE */
+
+.empty-state {
+    padding: 32px 16px;
+    text-align: center;
+}
+
+.empty-icon {
+    font-size: 48px;
+    width: 48px;
+    height: 48px;
+    margin-bottom: 8px;
+    color: #9ca3af;
+}
+
+/* SCROLL SUAVE PARA LISTA */
+
+.doc-list::-webkit-scrollbar {
+    width: 6px;
+}
+
+.doc-list::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.doc-list::-webkit-scrollbar-thumb {
+    background: rgba(148, 163, 184, 0.6);
+    border-radius: 999px;
+}
+
+/* RESPONSIVE */
+
+@media (max-width: 900px) {
+    .viewer-container {
+        width: 95vw;
+        max-height: 90vh;
     }
 
-    .cedula-link {
-        font-size: 14px;
-        /* Reduce el tamaño de la fuente de los botones */
-        padding: 8px;
-        /* Ajusta el padding para que los botones sean más compactos */
+    .viewer-body {
+        grid-template-columns: 1fr;
+        grid-template-rows: auto auto;
     }
 
-    .pdf-frame {
-        height: 200px;
-        /* Reduce la altura del visor de PDF para móviles */
-    }
-
-    .modal-header {
-        font-size: 14px;
-        /* Ajusta el tamaño de la fuente del encabezado en móviles */
+    .doc-list {
+        border-right: none;
+        border-bottom: 1px solid rgba(148, 163, 184, 0.3);
+        max-height: 180px;
+        margin-bottom: 8px;
     }
 }

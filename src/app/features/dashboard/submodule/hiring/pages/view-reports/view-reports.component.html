@@ -1,269 +1,361 @@
 <mat-card>
   <mat-card-content>
+    <!-- ====================================== -->
+    <!-- TABLA 1: Reporte uno a uno por persona -->
+    <!-- ====================================== -->
     <div class="tabla">
-      <h1 class="title">Reporte uno a uno por persona </h1>
+      <h1 class="title">Reporte uno a uno por persona</h1>
 
       <button mat-flat-button (click)="descargarCedulasZip()">
         Descargar todas las cédulas por oficina
       </button>
-      <div class="filter-container"
-        *ngIf="userCorreo == 'tuafiliacion@tsservicios.co' || userCorreo == 'programador.ts@gmail.com' || userCorreo == 'A.SEGURIDAD.TS@GMAIL.COM'
-                || userCorreo == 'a.sotelotualianza@gmail.com' || userCorreo == 'A.SEGURIDAD.TS@GMAIL.COM'">
 
-        <mat-form-field class="example-full-width">
-          <mat-label>Buscar por Nombre</mat-label>
-          <input matInput (keyup)="applyFilter('nombre', $event)" placeholder="Ej. Sebastian">
-        </mat-form-field>
+      @if (isAdminReportUser) {
+        <div class="filter-container">
+          <mat-form-field class="example-full-width">
+            <mat-label>Buscar por Nombre</mat-label>
+            <input
+              matInput
+              (keyup)="applyFilter('nombre', $event)"
+              placeholder="Ej. Sebastian"
+            />
+          </mat-form-field>
 
-        <mat-form-field class="example-full-width">
-          <mat-label>Buscar por Sede</mat-label>
-          <input matInput (keyup)="applyFilter('sede', $event)" placeholder="Ej. Facatativa">
-        </mat-form-field>
+          <mat-form-field class="example-full-width">
+            <mat-label>Buscar por Sede</mat-label>
+            <input
+              matInput
+              (keyup)="applyFilter('sede', $event)"
+              placeholder="Ej. Facatativa"
+            />
+          </mat-form-field>
 
-        <button mat-icon-button [matMenuTriggerFor]="menu" class="menu">
-          <img src="icons/buttons/calendario.png" style="width: 200px;">
-        </button>
+          <button mat-icon-button [matMenuTriggerFor]="menu" class="menu">
+            <img src="icons/buttons/calendario.png" style="width: 200px" />
+          </button>
 
-        <mat-menu #menu="matMenu">
-          <button mat-menu-item (click)="openDateRangeDialog()" class="submenu">
-            <span>Filtrar tablas por fecha</span>
-          </button>
-          <button mat-menu-item (click)="openDateRangeDialog2()" class="submenu">
-            <span>Extraer base contratación por código de contrato</span>
-          </button>
-          <button mat-menu-item (click)="openDateRangeDialog3()" class="submenu">
-            <span>Generar reporte</span>
-          </button>
-          <button mat-menu-item (click)="openDateRangeDialog4()" class="submenu">
-            <span>Generar reporte fincas</span>
-          </button>
-        </mat-menu>
-      </div>
+          <mat-menu #menu="matMenu">
+            <button
+              mat-menu-item
+              (click)="openDateRangeDialog('filterTables')"
+              class="submenu"
+            >
+              <span>Filtrar tablas por fecha</span>
+            </button>
+
+            <button
+              mat-menu-item
+              (click)="openDateRangeDialog('exportContratacion')"
+              class="submenu"
+            >
+              <span>Extraer base contratación por código de contrato</span>
+            </button>
+
+            <button
+              mat-menu-item
+              (click)="openDateRangeDialog('generateCentroCostoTable')"
+              class="submenu"
+            >
+              <span>Generar reporte</span>
+            </button>
+
+            <button
+              mat-menu-item
+              (click)="openDateRangeDialog('exportFincas')"
+              class="submenu"
+            >
+              <span>Generar reporte fincas</span>
+            </button>
+          </mat-menu>
+        </div>
+      }
 
       <div class="table-container">
-        <table mat-table [dataSource]="dataSource" class="mat-elevation-z8" multiTemplateDataRows>
-
-          <!-- 'fecha' -->
+        <table
+          mat-table
+          [dataSource]="dataSource"
+          class="mat-elevation-z8"
+          multiTemplateDataRows
+        >
+          <!-- fecha -->
           <ng-container matColumnDef="fecha">
-            <th mat-header-cell *matHeaderCellDef> Fecha </th>
-            <td mat-cell *matCellDef="let reporte"> {{reporte.fecha}} </td>
+            <th mat-header-cell *matHeaderCellDef>Fecha</th>
+            <td mat-cell *matCellDef="let reporte">
+              {{ reporte.fecha }}
+            </td>
           </ng-container>
 
-          <!-- Persona quien subió columna -->
+          <!-- Persona quien subió -->
           <ng-container matColumnDef="nombre">
-            <th mat-header-cell *matHeaderCellDef> Persona quien subió </th>
-            <td mat-cell *matCellDef="let reporte"> {{reporte.nombre}} </td>
+            <th mat-header-cell *matHeaderCellDef>Persona quien subió</th>
+            <td mat-cell *matCellDef="let reporte">
+              {{ reporte.nombre }}
+            </td>
           </ng-container>
 
-          <!-- Sede columna -->
+          <!-- Sede -->
           <ng-container matColumnDef="sede">
-            <th mat-header-cell *matHeaderCellDef> Sede </th>
-            <td mat-cell *matCellDef="let reporte"> {{reporte.sede}} </td>
+            <th mat-header-cell *matHeaderCellDef>Sede</th>
+            <td mat-cell *matCellDef="let reporte">
+              {{ reporte.sede }}
+            </td>
           </ng-container>
 
-          <!--cantidadContratosTuAlianza-->
+          <!-- Cantidad contratos Tu Alianza -->
           <ng-container matColumnDef="cantidadContratosTuAlianza">
-            <th mat-header-cell *matHeaderCellDef> Cantidad de contratos de Tu Alianza </th>
-            <td mat-cell *matCellDef="let reporte"> {{reporte.cantidadContratosTuAlianza}}
+            <th mat-header-cell *matHeaderCellDef>
+              Cantidad de contratos de Tu Alianza
+            </th>
+            <td mat-cell *matCellDef="let reporte">
+              {{ reporte.cantidadContratosTuAlianza }}
             </td>
           </ng-container>
 
-          <!-- cantidadContratosApoyoLaboral -->
+          <!-- Cantidad contratos Apoyo Laboral -->
           <ng-container matColumnDef="cantidadContratosApoyoLaboral">
-            <th mat-header-cell *matHeaderCellDef> Cantidad de contratos de Apoyo Laboral </th>
-            <td mat-cell *matCellDef="let reporte"> {{reporte.cantidadContratosApoyoLaboral}}
+            <th mat-header-cell *matHeaderCellDef>
+              Cantidad de contratos de Apoyo Laboral
+            </th>
+            <td mat-cell *matCellDef="let reporte">
+              {{ reporte.cantidadContratosApoyoLaboral }}
             </td>
           </ng-container>
 
-
-
-          <!-- Cédulas subidas columna -->
+          <!-- Cédulas -->
           <ng-container matColumnDef="cedulas">
-            <th mat-header-cell *matHeaderCellDef> Cédulas subidas </th>
+            <th mat-header-cell *matHeaderCellDef>Cédulas subidas</th>
             <td mat-cell *matCellDef="let reporte">
-              <ng-container *ngIf="isArray(reporte.cedulas); else noCedulas">
-                <button mat-icon-button (click)="openCedulasModal(reporte.cedulas)" class="ver">
+              @if (isArray(reporte.cedulas) && reporte.cedulas.length > 0) {
+                <button
+                  mat-icon-button
+                  class="ver"
+                  (click)="openDocsDialog('Cédulas del reporte', reporte.cedulas)"
+                  matTooltip="Ver cédulas"
+                >
                   <mat-icon>visibility</mat-icon>
-                  <!-- Show the number of cédulas -->
-                  <span *ngIf="reporte.cedulas.length > 0">({{ reporte.cedulas.length
-                    }})</span>
+                  <span class="count-badge">
+                    ({{ reporte.cedulas.length }})
+                  </span>
                 </button>
-              </ng-container>
-              <ng-template #noCedulas>
-                {{ reporte.cedulas }}
-              </ng-template>
+              } @else {
+                <span>Sin cédulas</span>
+              }
             </td>
           </ng-container>
 
-          <!-- Autorización traslados columna -->
+          <!-- Traslados -->
           <ng-container matColumnDef="traslados">
-            <th mat-header-cell *matHeaderCellDef> Traslados </th>
+            <th mat-header-cell *matHeaderCellDef>Traslados</th>
             <td mat-cell *matCellDef="let reporte">
-              <ng-container *ngIf="isArray(reporte.traslados); else noTraslados">
-                <button mat-icon-button (click)="openCedulasModal(reporte.traslados)" class="ver">
+              @if (isArray(reporte.traslados) && reporte.traslados.length > 0) {
+                <button
+                  mat-icon-button
+                  class="ver"
+                  (click)="openDocsDialog('Traslados del reporte', reporte.traslados)"
+                  matTooltip="Ver traslados"
+                >
                   <mat-icon>visibility</mat-icon>
-                  <!-- Show the number of traslados -->
-                  <span *ngIf="reporte.traslados.length > 0">({{ reporte.traslados.length
-                    }})</span>
+                  <span class="count-badge">
+                    ({{ reporte.traslados.length }})
+                  </span>
                 </button>
-              </ng-container>
-              <ng-template #noTraslados>
-                {{ reporte.traslados }}
-              </ng-template>
+              } @else {
+                <span>Sin traslados</span>
+              }
             </td>
           </ng-container>
 
-          <!-- Cruce Diario columna -->
+          <!-- Cruce -->
           <ng-container matColumnDef="cruce">
-            <th mat-header-cell *matHeaderCellDef> Cruce Diario </th>
+            <th mat-header-cell *matHeaderCellDef>Cruce Diario</th>
             <td mat-cell *matCellDef="let reporte">
-              <ng-container *ngIf="reporte.cruce && reporte.cruce !== 'No se ha cargado cruce'; else noCruce">
-                <a class="excel-link" (click)="verDocumento(reporte.cruce)">
-                  Ver Cruce Diario
-                </a>
-              </ng-container>
-              <ng-template #noCruce>
-                {{ reporte.cruce }}
-              </ng-template>
+              @if (reporte.cruce_document?.file_url) {
+                <button
+                  mat-stroked-button
+                  color="primary"
+                  (click)="openDocsDialog('Cruce diario', [reporte.cruce_document])"
+                >
+                  Ver Cruce
+                </button>
+              } @else {
+                <span>No se ha cargado cruce</span>
+              }
             </td>
           </ng-container>
 
-          <!-- SST columna -->
+          <!-- SST -->
           <ng-container matColumnDef="sst">
-            <th mat-header-cell *matHeaderCellDef> SST </th>
+            <th mat-header-cell *matHeaderCellDef>SST</th>
             <td mat-cell *matCellDef="let reporte">
-              <ng-container *ngIf="reporte.sst && reporte.sst !== 'No se ha cargado SST'; else noSST">
-                <a class="pdf-link" (click)="verDocumento(reporte.sst)">
+              @if (reporte.sst_document?.file_url) {
+                <button
+                  mat-stroked-button
+                  color="accent"
+                  (click)="openDocsDialog('SST del reporte', [reporte.sst_document])"
+                >
                   Ver SST
-                </a>
-              </ng-container>
-              <ng-template #noSST>
-                {{ reporte.sst }}
-              </ng-template>
+                </button>
+              } @else {
+                <span>No se ha cargado SST</span>
+              }
             </td>
           </ng-container>
 
-          <!-- Nota columna -->
+          <!-- Nota -->
           <ng-container matColumnDef="nota">
-            <th mat-header-cell *matHeaderCellDef> Nota </th>
-            <td mat-cell *matCellDef="let reporte"> {{ reporte.nota || 'No se ha proporcionado nota'
-              }}
+            <th mat-header-cell *matHeaderCellDef>Nota</th>
+            <td mat-cell *matCellDef="let reporte">
+              {{ reporte.nota || 'No se ha proporcionado nota' }}
             </td>
           </ng-container>
 
-          <!-- Header and row definition -->
           <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
-          <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
+          <tr mat-row *matRowDef="let row; columns: displayedColumns"></tr>
         </table>
       </div>
     </div>
 
-    <div class="tabla"
-      *ngIf="userCorreo == 'tuafiliacion@tsservicios.co' || userCorreo == 'programador.ts@gmail.com'|| userCorreo == 'A.SEGURIDAD.TS@GMAIL.COM'">
-      <h1 class="title">Consolidado por oficina</h1>
+    <!-- ============================= -->
+    <!-- TABLA 2: Consolidado oficina -->
+    <!-- ============================= -->
+    @if (isAdminReportUser) {
+      <div class="tabla">
+        <h1 class="title">Consolidado por oficina</h1>
 
-      <div class="table-container">
-        <table mat-table [dataSource]="consolidadoDataSource" class="mat-elevation-z8">
+        <div class="table-container">
+          <table
+            mat-table
+            [dataSource]="consolidadoDataSource"
+            class="mat-elevation-z8"
+          >
+            <ng-container matColumnDef="fecha">
+              <th mat-header-cell *matHeaderCellDef>Fecha</th>
+              <td mat-cell *matCellDef="let row">
+                {{ row.fecha }}
+              </td>
+            </ng-container>
 
-          <!-- Fecha columna -->
-          <ng-container matColumnDef="fecha">
-            <th mat-header-cell *matHeaderCellDef> Fecha </th>
-            <td mat-cell *matCellDef="let row"> {{ row.fecha }} </td>
-          </ng-container>
+            <ng-container matColumnDef="status">
+              <th mat-header-cell *matHeaderCellDef>Status</th>
+              <td mat-cell *matCellDef="let row">
+                {{ row.status }}
+              </td>
+            </ng-container>
 
-          <!--status-->
-          <ng-container matColumnDef="status">
-            <th mat-header-cell *matHeaderCellDef> Status </th>
-            <td mat-cell *matCellDef="let reporte"> {{reporte.status}} </td>
-          </ng-container>
+            <ng-container matColumnDef="sede">
+              <th mat-header-cell *matHeaderCellDef>Oficina</th>
+              <td mat-cell *matCellDef="let row">
+                {{ row.sede }}
+              </td>
+            </ng-container>
 
-          <!-- Oficina columna -->
-          <ng-container matColumnDef="sede">
-            <th mat-header-cell *matHeaderCellDef> Oficina </th>
-            <td mat-cell *matCellDef="let row"> {{ row.sede }} </td>
-          </ng-container>
+            <ng-container matColumnDef="cantidadContratosTuAlianza">
+              <th mat-header-cell *matHeaderCellDef>Contratos Tu Alianza</th>
+              <td mat-cell *matCellDef="let row">
+                {{ row.cantidadContratosTuAlianza }}
+              </td>
+            </ng-container>
 
-          <!-- Cantidad de contratos de Tu Alianza columna -->
-          <ng-container matColumnDef="cantidadContratosTuAlianza">
-            <th mat-header-cell *matHeaderCellDef> Contratos Tu Alianza </th>
-            <td mat-cell *matCellDef="let row"> {{ row.cantidadContratosTuAlianza }} </td>
-          </ng-container>
+            <ng-container matColumnDef="cantidadContratosApoyoLaboral">
+              <th mat-header-cell *matHeaderCellDef>Contratos Apoyo Laboral</th>
+              <td mat-cell *matCellDef="let row">
+                {{ row.cantidadContratosApoyoLaboral }}
+              </td>
+            </ng-container>
 
-          <!-- Cantidad de contratos de Apoyo Laboral columna -->
-          <ng-container matColumnDef="cantidadContratosApoyoLaboral">
-            <th mat-header-cell *matHeaderCellDef> Contratos Apoyo Laboral </th>
-            <td mat-cell *matCellDef="let row"> {{ row.cantidadContratosApoyoLaboral }} </td>
-          </ng-container>
+            <ng-container matColumnDef="totalIngresos">
+              <th mat-header-cell *matHeaderCellDef>Total de ingresos</th>
+              <td mat-cell *matCellDef="let row">
+                {{ row.totalIngresos }}
+              </td>
+            </ng-container>
 
-          <!-- Total de ingresos columna -->
-          <ng-container matColumnDef="totalIngresos">
-            <th mat-header-cell *matHeaderCellDef> Total de ingresos </th>
-            <td mat-cell *matCellDef="let row"> {{ row.totalIngresos }} </td>
-          </ng-container>
+            <ng-container matColumnDef="cedulas">
+              <th mat-header-cell *matHeaderCellDef>Cédulas subidas</th>
+              <td mat-cell *matCellDef="let row">
+                {{ row.cedulas }}
+              </td>
+            </ng-container>
 
-          <!-- Cédulas subidas columna -->
-          <ng-container matColumnDef="cedulas">
-            <th mat-header-cell *matHeaderCellDef> Cédulas subidas </th>
-            <td mat-cell *matCellDef="let row"> {{ row.cedulas }} </td>
-          </ng-container>
+            <ng-container matColumnDef="traslados">
+              <th mat-header-cell *matHeaderCellDef>Traslados</th>
+              <td mat-cell *matCellDef="let row">
+                {{ row.traslados }}
+              </td>
+            </ng-container>
 
-          <!-- Traslados columna -->
-          <ng-container matColumnDef="traslados">
-            <th mat-header-cell *matHeaderCellDef> Traslados </th>
-            <td mat-cell *matCellDef="let row"> {{ row.traslados }} </td>
-          </ng-container>
+            <ng-container matColumnDef="sst">
+              <th mat-header-cell *matHeaderCellDef>SST</th>
+              <td mat-cell *matCellDef="let row">
+                {{ row.sst ? 'OK' : 'No' }}
+              </td>
+            </ng-container>
 
-          <!-- SST columna -->
-          <ng-container matColumnDef="sst">
-            <th mat-header-cell *matHeaderCellDef> SST </th>
-            <td mat-cell *matCellDef="let row"> {{ row.sst ? 'OK' : 'No' }} </td>
-          </ng-container>
+            <ng-container matColumnDef="notas">
+              <th mat-header-cell *matHeaderCellDef>Notas</th>
+              <td mat-cell *matCellDef="let row">
+                {{ row.notas }}
+              </td>
+            </ng-container>
 
-          <!-- Notas columna -->
-          <ng-container matColumnDef="notas">
-            <th mat-header-cell *matHeaderCellDef> Notas </th>
-            <td mat-cell *matCellDef="let row"> {{ row.notas }} </td>
-          </ng-container>
-
-          <!-- Header and row definition -->
-          <tr mat-header-row *matHeaderRowDef="consolidadoDisplayedColumns"></tr>
-          <tr mat-row *matRowDef="let row; columns: consolidadoDisplayedColumns;"></tr>
-        </table>
+            <tr
+              mat-header-row
+              *matHeaderRowDef="consolidadoDisplayedColumns"
+            ></tr>
+            <tr
+              mat-row
+              *matRowDef="let row; columns: consolidadoDisplayedColumns"
+            ></tr>
+          </table>
+        </div>
       </div>
-    </div>
+    }
 
-    <div class="tabla"
-      *ngIf="userCorreo == 'tuafiliacion@tsservicios.co' || userCorreo == 'programador.ts@gmail.com' || userCorreo == 'A.SEGURIDAD.TS@GMAIL.COM'">
-      <h1 class="title">Reporte Finca por Fecha de Ingreso</h1>
+    <!-- ============================================== -->
+    <!-- TABLA 3: Reporte Finca por Fecha de Ingreso   -->
+    <!-- ============================================== -->
+    @if (isAdminReportUser) {
+      <div class="tabla">
+        <h1 class="title">Reporte Finca por Fecha de Ingreso</h1>
 
-      <div class="table-container">
-        <table mat-table [dataSource]="consolidadoFechasFincaDataSource" class="mat-elevation-z8">
+        <div class="table-container">
+          <table
+            mat-table
+            [dataSource]="consolidadoFechasFincaDataSource"
+            class="mat-elevation-z8"
+          >
+            <ng-container matColumnDef="fechaIngreso">
+              <th mat-header-cell *matHeaderCellDef>Fecha</th>
+              <td mat-cell *matCellDef="let element">
+                {{ element.fechaIngreso }}
+              </td>
+            </ng-container>
 
-          <!-- Fecha Ingreso Column -->
-          <ng-container matColumnDef="fechaIngreso">
-            <th mat-header-cell *matHeaderCellDef> Fecha </th>
-            <td mat-cell *matCellDef="let element"> {{element.fechaIngreso}} </td>
-          </ng-container>
+            <ng-container matColumnDef="centroCosto">
+              <th mat-header-cell *matHeaderCellDef>Centro de Costo</th>
+              <td mat-cell *matCellDef="let element">
+                {{ element.centroCosto }}
+              </td>
+            </ng-container>
 
-          <!-- Centro Costo Column -->
-          <ng-container matColumnDef="centroCosto">
-            <th mat-header-cell *matHeaderCellDef> Centro de Costo </th>
-            <td mat-cell *matCellDef="let element"> {{element.centroCosto}} </td>
-          </ng-container>
+            <ng-container matColumnDef="total">
+              <th mat-header-cell *matHeaderCellDef>Total</th>
+              <td mat-cell *matCellDef="let element">
+                {{ element.total }}
+              </td>
+            </ng-container>
 
-          <!-- Total Column -->
-          <ng-container matColumnDef="total">
-            <th mat-header-cell *matHeaderCellDef> Total </th>
-            <td mat-cell *matCellDef="let element"> {{element.total}} </td>
-          </ng-container>
-
-          <!-- Header and Row Declarations -->
-          <tr mat-header-row *matHeaderRowDef="['fechaIngreso', 'centroCosto', 'total']"></tr>
-          <tr mat-row *matRowDef="let row; columns: ['fechaIngreso', 'centroCosto', 'total'];"></tr>
-        </table>
+            <tr
+              mat-header-row
+              *matHeaderRowDef="['fechaIngreso', 'centroCosto', 'total']"
+            ></tr>
+            <tr
+              mat-row
+              *matRowDef="let row; columns: ['fechaIngreso', 'centroCosto', 'total']"
+            ></tr>
+          </table>
+        </div>
       </div>
-
-
-    </div>
+    }
   </mat-card-content>
 </mat-card>

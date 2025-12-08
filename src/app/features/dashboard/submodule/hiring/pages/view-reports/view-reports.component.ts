@@ -1,31 +1,39 @@
-import { UtilityServiceService } from '@/app/shared/services/utilityService/utility-service.service';
-import { SharedModule } from '@/app/shared/shared.module';
-import { Component } from '@angular/core';
-import { MatTableDataSource } from '@angular/material/table';
-import { HiringService } from '../../service/hiring.service';
+import { Component, Inject } from '@angular/core';
+import { isPlatformBrowser } from '@angular/common';
+import { PLATFORM_ID } from '@angular/core';
 import { MatDialog } from '@angular/material/dialog';
+import { MatTableDataSource } from '@angular/material/table';
+
 import JSZip from 'jszip';
 import Swal from 'sweetalert2';
-import { VerPdfsComponent } from '../../components/ver-pdfs/ver-pdfs.component';
-import { DateRangeDialogComponent } from '@/app/shared/components/date-rang-dialog/date-rang-dialog.component';
 import saveAs from 'file-saver';
-import { PLATFORM_ID, Inject } from '@angular/core';
-import { isPlatformBrowser } from '@angular/common';
-import { finalize, firstValueFrom } from 'rxjs';
+import { finalize } from 'rxjs';
+
+import { SharedModule } from '@/app/shared/shared.module';
+import { UtilityServiceService } from '@/app/shared/services/utilityService/utility-service.service';
+import { VerPdfsComponent, ViewerDocument } from '../../components/ver-pdfs/ver-pdfs.component';
+import { DateRangeDialogComponent } from '@/app/shared/components/date-rang-dialog/date-rang-dialog.component';
+import { HiringService } from '../../service/hiring.service';
+import { ReportesService } from '../../service/reportes/reportes.service';
+
+type DateRangeAction =
+  | 'filterTables'
+  | 'exportContratacion'
+  | 'generateCentroCostoTable'
+  | 'exportFincas';
 
 @Component({
   selector: 'app-view-reports',
-  imports: [
-    SharedModule
-  ],
+  imports: [SharedModule],
   templateUrl: './view-reports.component.html',
-  styleUrl: './view-reports.component.css'
+  styleUrl: './view-reports.component.css',
 })
 export class ViewReportsComponent {
   // --------------------------------------------------------------------------------
   // PROPERTIES
   // --------------------------------------------------------------------------------
   reportes: any[] = [];
+
   displayedColumns: string[] = [
     'fecha',
     'nombre',
@@ -36,13 +44,9 @@ export class ViewReportsComponent {
     'traslados',
     'cruce',
     'sst',
-    'nota'
+    'nota',
   ];
   dataSource = new MatTableDataSource<any>();
-  consolidadoFechasFincaDataSource: any[] = [];
-  userCorreo = '';
-  userNombre = '';
-  filterValues: any = { nombre: '', sede: '' };
 
   consolidadoDataSource = new MatTableDataSource<any>();
   consolidadoDisplayedColumns: string[] = [
@@ -55,17 +59,37 @@ export class ViewReportsComponent {
     'cedulas',
     'traslados',
     'sst',
-    'notas'
+    'notas',
   ];
+
+  // Tabla 3 – fechas / finca
+  consolidadoFechasFincaDataSource: any[] = [];
+
+  userCorreo = '';
+  userNombre = '';
+  filterValues: any = { nombre: '', sede: '' };
 
   isSidebarHidden = false;
   private isBrowser: boolean;
 
+  private readonly adminEmails = new Set<string>([
+    'tuafiliacion@tsservicios.co',
+    'programador.ts@gmail.com',
+    'a.seguridad.ts@gmail.com',
+    'a.sotelotualianza@gmail.com',
+  ]);
+
+  get isAdminReportUser(): boolean {
+    const email = (this.userCorreo || '').toLowerCase();
+    return this.adminEmails.has(email);
+  }
+
   constructor(
-    private hiringService: HiringService,
-    public dialog: MatDialog,
-    private utilityService: UtilityServiceService,
-    @Inject(PLATFORM_ID) private platformId: object
+    private readonly hiringService: HiringService,
+    private readonly reportesService: ReportesService,
+    private readonly dialog: MatDialog,
+    private readonly utilityService: UtilityServiceService,
+    @Inject(PLATFORM_ID) private readonly platformId: object,
   ) {
     this.isBrowser = isPlatformBrowser(this.platformId);
   }
@@ -74,7 +98,7 @@ export class ViewReportsComponent {
   // LIFECYCLE
   // --------------------------------------------------------------------------------
   async ngOnInit(): Promise<void> {
-    if (!this.isBrowser) return; // 🚫 Evitar ejecución en SSR
+    if (!this.isBrowser) return;
 
     const user = await this.utilityService.getUser();
     if (user) {
@@ -82,7 +106,10 @@ export class ViewReportsComponent {
       this.userNombre = `${user.datos_basicos.nombres} ${user.datos_basicos.apellidos}`;
     }
 
-    this.obtenerReportes();
+    // Día actual por defecto
+    const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+    this.loadReportes({ fechaDesde: today, fechaHasta: today });
+
     this.dataSource.filterPredicate = this.createFilter();
   }
 
@@ -103,9 +130,13 @@ export class ViewReportsComponent {
   }
 
   // --------------------------------------------------------------------------------
-  // DATA FETCHING
+  // DATA – TABLAS 1 y 2 (ReportesService)
   // --------------------------------------------------------------------------------
-  private async obtenerReportes(): Promise<void> {
+  private loadReportes(filters?: {
+    nombre?: string;
+    fechaDesde?: string;
+    fechaHasta?: string;
+  }): void {
     if (!this.isBrowser) return;
 
     Swal.fire({
@@ -113,44 +144,39 @@ export class ViewReportsComponent {
       title: 'Cargando...',
       html: 'Por favor espera mientras se cargan los reportes.',
       allowOutsideClick: false,
-      didOpen: () => Swal.showLoading()
+      didOpen: () => Swal.showLoading(),
     });
 
-    const todosLosReportes$ =
-      this.userCorreo !== 'tuafiliacion@tsservicios.co' &&
-        this.userCorreo !== 'programador.ts@gmail.com' &&
-        this.userCorreo !== 'A.SEGURIDAD.TS@GMAIL.COM' &&
-        this.userCorreo !== 'a.sotelotualianza@gmail.com'
-        ? this.hiringService.obtenerTodosLosReportes(this.userNombre)
-        : this.hiringService.obtenerTodosLosReportes('todos');
-
-    todosLosReportes$.subscribe({
-      next: async (response) => {
+    this.reportesService.getReportes(filters).subscribe({
+      next: ({ reportes, consolidado }) => {
         Swal.close();
-        this.reportes = response.reportes;
-        this.dataSource.data = this.reportes;
 
-        if (
-          this.userCorreo === 'tuafiliacion@tsservicios.co' ||
-          this.userCorreo === 'programador.ts@gmail.com' ||
-          this.userCorreo === 'A.SEGURIDAD.TS@GMAIL.COM' ||
-          this.userCorreo === 'a.sotelotualianza@gmail.com'
-        ) {
-          this.consolidadoDataSource.data = await this.generateConsolidatedData(this.reportes);
+        // Tabla 1
+        this.reportes = reportes;
+        this.dataSource.data = reportes;
+
+        // Tabla 2 (solo para usuarios admin de reportes)
+        if (this.isAdminReportUser) {
+          this.consolidadoDataSource.data = consolidado ?? [];
         }
       },
       error: () => {
         Swal.close();
-        Swal.fire({ icon: 'error', title: 'Error', text: 'Ocurrió un error al obtener los reportes.' });
-      }
+        Swal.fire({
+          icon: 'error',
+          title: 'Error',
+          text: 'Ocurrió un error al obtener los reportes.',
+        });
+      },
     });
   }
 
   // --------------------------------------------------------------------------------
-  // FILTERS
+  // FILTERS TABLA 1
   // --------------------------------------------------------------------------------
   applyFilter(filterKey: 'nombre' | 'sede', event: Event): void {
     if (!this.isBrowser) return;
+
     const input = event.target as HTMLInputElement;
     this.filterValues[filterKey] = input.value.trim().toLowerCase();
     this.dataSource.filter = JSON.stringify(this.filterValues);
@@ -160,288 +186,196 @@ export class ViewReportsComponent {
     return (data, filter) => {
       const searchTerms = JSON.parse(filter);
       return (
-        data.nombre.toLowerCase().includes(searchTerms.nombre) &&
-        data.sede.toLowerCase().includes(searchTerms.sede)
+        (data.nombre || '').toLowerCase().includes(searchTerms.nombre) &&
+        (data.sede || '').toLowerCase().includes(searchTerms.sede)
       );
     };
   }
 
   // --------------------------------------------------------------------------------
-  // MODALS & DOCUMENT VIEWERS (solo en navegador)
+  // VISOR DE DOCUMENTOS (dialog genérico)
   // --------------------------------------------------------------------------------
-  openCedulasModal(cedulas: any[]): void {
+  openDocsDialog(title: string, docs: any[] | null | undefined): void {
     if (!this.isBrowser) return;
+
+    const documents: ViewerDocument[] = (docs ?? [])
+      .filter((d: any) => !!d?.file_url)
+      .map((d: any) => ({
+        id: d.id,
+        title: d.title,
+        type_name: d.type_name,
+        file_url: d.file_url,
+      }));
+
     this.dialog.open(VerPdfsComponent, {
-      minWidth: '90vw',
-      maxHeight: '70vh',
-      data: { cedulas }
+      width: '90vw',
+      maxWidth: '100vw',
+      panelClass: 'docs-viewer-dialog',
+      data: {
+        title,
+        documents,
+      },
     });
   }
 
-  verDocumento(base64: string, fileName = 'CruceSubido.xlsx'): void {
+  // --------------------------------------------------------------------------------
+  // DATE RANGE – ÚNICO MÉTODO
+  // --------------------------------------------------------------------------------
+  openDateRangeDialog(action: DateRangeAction): void {
     if (!this.isBrowser) return;
 
-    const [meta, data] = base64.split(',');
-    const mimeType = meta.split(';')[0].split(':')[1];
-    const byteCharacters = atob(data);
-    const byteArray = new Uint8Array(byteCharacters.length);
-    for (let i = 0; i < byteCharacters.length; i++) byteArray[i] = byteCharacters.charCodeAt(i);
-
-    const blob = new Blob([byteArray], { type: mimeType });
-
-    if (mimeType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet') {
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = fileName;
-      a.click();
-      URL.revokeObjectURL(url);
-    } else {
-      window.open(URL.createObjectURL(blob));
-    }
-  }
-
-  // --------------------------------------------------------------------------------
-  // CONSOLIDATED DATA
-  // --------------------------------------------------------------------------------
-  private async generateConsolidatedData(reportes: any[]): Promise<any[]> {
-    const consolidado: any[] = [];
-
-    // Traer sucursales como array (soporta array directo o {sucursal: [...]})
-    const data = await firstValueFrom(this.utilityService.traerSucursales());
-    const sucursalesArr = Array.isArray(data) ? data : (data?.sucursal ?? []);
-    const sucursales = [...sucursalesArr].sort(
-      (a: any, b: any) => (a?.nombre ?? '').localeCompare(b?.nombre ?? '')
-    );
-
-    for (const sucursal of sucursales) {
-      const reportsForSede = (reportes ?? []).filter(
-        (r: any) => (r?.sede ?? '') === (sucursal?.nombre ?? '')
-      );
-
-      const sum = (key: string) =>
-        reportsForSede.reduce(
-          (s: number, r: any) => s + (Number(r?.[key]) || 0),
-          0
-        );
-
-      const totalTuA = sum('cantidadContratosTuAlianza');
-      const totalApoyo = sum('cantidadContratosApoyoLaboral');
-      const totalCedulas = reportsForSede.reduce(
-        (s: number, r: any) => s + (Array.isArray(r?.cedulas) ? r.cedulas.length : 0),
-        0
-      );
-      const totalTraslados = reportsForSede.reduce(
-        (s: number, r: any) => s + (Array.isArray(r?.traslados) ? r.traslados.length : 0),
-        0
-      );
-
-      let status = 'REALIZO REPORTE';
-      if (reportsForSede.length === 0) status = 'NO REALIZO REPORTE';
-      else if (totalTuA === 0 && totalApoyo === 0) status = 'NO HUBO CONTRATACION';
-
-      consolidado.push({
-        fecha: reportsForSede[0]?.fecha ?? null,
-        sede: sucursal?.nombre ?? '',
-        cantidadContratosTuAlianza: totalTuA,
-        cantidadContratosApoyoLaboral: totalApoyo,
-        totalIngresos: totalTuA + totalApoyo,
-        cedulas: totalCedulas,
-        traslados: totalTraslados,
-        sst: reportsForSede.some((r: any) => r?.sst && r.sst !== 'No se ha cargado SST'),
-        notas: reportsForSede.map((r: any) => r?.nota).filter(Boolean).join(', '),
-        status
-      });
-    }
-
-    return consolidado;
-  }
-
-  // --------------------------------------------------------------------------------
-  // DATE RANGE DIALOGS (solo en navegador)
-  // --------------------------------------------------------------------------------
-openDateRangeDialog(): void {
-  if (!this.isBrowser) return;
-
-  this.launchDateDialog(({ start, end }) => {
-
-    // Swal de carga SIN timer
-    Swal.fire({
-      title: 'Cargando reportes…',
-      html: 'Por favor espera',
-      allowOutsideClick: false,
-      allowEscapeKey: false,
-      showConfirmButton: false,
-      didOpen: () => {
-        Swal.showLoading(); // icono/animación de carga
-      }
-    });
-
-    this.hiringService.obtenerReportesPorFechas(start, end).subscribe({
-      next: async ({ reportes }) => {
-        try {
-          this.reportes = reportes;
-          this.dataSource.data = reportes;
-          this.consolidadoDataSource.data = await this.generateConsolidatedData(reportes);
-        } finally {
-          Swal.close(); // cerrar al terminar TODO (incluido el await)
-        }
-      },
-      error: (err) => {
-        Swal.close();
-        Swal.fire({
-          icon: 'error',
-          title: 'Error al cargar',
-          text: err?.message ?? 'Ocurrió un error. Intenta de nuevo.'
-        });
-      }
-    });
-
-  });
-}
-
-openDateRangeDialog2(): void {
-  if (!this.isBrowser) return;
-
-  this.launchDateDialog(({ start, end }) => {
-    Swal.fire({
-      title: 'Generando archivo…',
-      html: 'Por favor espera',
-      allowOutsideClick: false,
-      allowEscapeKey: false,
-      showConfirmButton: false,
-      didOpen: () => Swal.showLoading()
-    });
-
-    this.hiringService
-      .obtenerBaseContratacionPorFechas(start, end)
-      .pipe(finalize(() => Swal.close()))
-      .subscribe({
-        next: (blob: Blob) => {
-          if (!blob || (blob as any).size === 0) {
-            Swal.fire({
-              icon: 'warning',
-              title: 'Sin datos',
-              text: 'No se encontraron registros para el rango seleccionado.'
-            });
-            return;
-          }
-          const fmt = (d: any) => d instanceof Date ? d.toISOString().slice(0, 10) : String(d);
-          saveAs(blob, `reporte_contratacion_${fmt(start)}_a_${fmt(end)}.xlsx`);
-        },
-        error: (err) => {
-          Swal.fire({
-            icon: 'error',
-            title: 'Error al descargar',
-            text: err?.message ?? 'Ocurrió un error al descargar el archivo.'
-          });
-        }
-      });
-  });
-}
-
-openDateRangeDialog3(): void {
-  if (!this.isBrowser) return;
-
-  this.launchDateDialog(({ start, end }) => {
-    Swal.fire({
-      title: 'Cargando reportes…',
-      html: 'Por favor espera',
-      allowOutsideClick: false,
-      allowEscapeKey: false,
-      showConfirmButton: false,
-      didOpen: () => Swal.showLoading()
-    });
-
-    this.hiringService.obtenerReportesPorFechasCentroCosto(start, end).subscribe({
-      next: ({ resultado }) => {
-        const total = resultado?.total_general ?? 0;
-
-        if (total === 0) {
-          Swal.close(); // cerrar loader ANTES del warning
-          Swal.fire({
-            icon: 'warning',
-            title: 'No hay reportes',
-            text: 'No se encontraron reportes para las fechas seleccionadas.'
-          });
-          return;
-        }
-
-        const detalles = resultado?.detalles ?? [];
-        this.consolidadoFechasFincaDataSource = this.formatData(detalles);
-
-        Swal.close(); // cerrar al terminar OK
-      },
-      error: (err) => {
-        Swal.close();
-        Swal.fire({
-          icon: 'error',
-          title: 'Error al cargar',
-          text: err?.message ?? 'Ocurrió un error al cargar los reportes.'
-        });
-      }
-    });
-  });
-}
-
-openDateRangeDialog4(): void {
-  if (!this.isBrowser) return;
-
-  this.launchDateDialog(({ start, end }) => {
-    // Loader sin timer
-    Swal.fire({
-      title: 'Generando archivo…',
-      html: 'Por favor espera',
-      allowOutsideClick: false,
-      allowEscapeKey: false,
-      showConfirmButton: false,
-      didOpen: () => Swal.showLoading()
-    });
-
-    this.hiringService
-      .descargarReporteFechaIngresoCentroCostoFincas(start, end)
-      .pipe(finalize(() => Swal.close()))
-      .subscribe({
-        next: (blob: Blob) => {
-          // Cerrar loader antes de warnings
-          if (!blob || blob.size === 0) {
-            Swal.close();
-            Swal.fire({
-              icon: 'warning',
-              title: 'No hay reportes',
-              text: 'No se encontraron reportes para las fechas seleccionadas.'
-            });
-            return;
-          }
-
-          // (Opcional) validar content-type si tu backend lo envía
-          // if (blob.type && !blob.type.includes(
-          //   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-          // )) { ... }
-
-          const fmt = (d: any) => d instanceof Date ? d.toISOString().slice(0, 10) : String(d);
-          saveAs(blob, `reporte_centro_costos_${fmt(start)}_a_${fmt(end)}.xlsx`);
-        },
-        error: (err) => {
-          Swal.fire({
-            icon: 'error',
-            title: 'Error al descargar',
-            text: err?.message ?? 'Ocurrió un error al descargar el archivo.'
-          });
-        }
-      });
-  });
-}
-
-  private launchDateDialog(callback: (result: any) => void): void {
     const dialogRef = this.dialog.open(DateRangeDialogComponent, { width: '550px' });
-    dialogRef.afterClosed().subscribe(result => {
-      if (result) callback(result);
-    });
+
+    dialogRef.afterClosed().subscribe(
+      (result?: { start: string | null; end: string | null }) => {
+        if (!result || (!result.start && !result.end)) return;
+
+        const from = result.start ?? '';
+        const to = result.end ?? '';
+
+        switch (action) {
+          case 'filterTables': {
+            this.loadReportes({
+              fechaDesde: from || undefined,
+              fechaHasta: to || undefined,
+            });
+            break;
+          }
+
+          case 'exportContratacion': {
+            Swal.fire({
+              title: 'Generando archivo…',
+              html: 'Por favor espera',
+              allowOutsideClick: false,
+              allowEscapeKey: false,
+              showConfirmButton: false,
+              didOpen: () => Swal.showLoading(),
+            });
+
+            this.hiringService
+              .obtenerBaseContratacionPorFechas(from, to)
+              .pipe(finalize(() => Swal.close()))
+              .subscribe({
+                next: (blob: Blob) => {
+                  if (!blob || (blob as any).size === 0) {
+                    Swal.fire({
+                      icon: 'warning',
+                      title: 'Sin datos',
+                      text: 'No se encontraron registros para el rango seleccionado.',
+                    });
+                    return;
+                  }
+                  saveAs(
+                    blob,
+                    `reporte_contratacion_${from || 'sin_desde'}_a_${to || 'sin_hasta'}.xlsx`,
+                  );
+                },
+                error: (err) => {
+                  Swal.fire({
+                    icon: 'error',
+                    title: 'Error al descargar',
+                    text:
+                      err?.message ??
+                      'Ocurrió un error al descargar el archivo.',
+                  });
+                },
+              });
+            break;
+          }
+
+          case 'generateCentroCostoTable': {
+            Swal.fire({
+              title: 'Cargando reportes…',
+              html: 'Por favor espera',
+              allowOutsideClick: false,
+              allowEscapeKey: false,
+              showConfirmButton: false,
+              didOpen: () => Swal.showLoading(),
+            });
+
+            this.hiringService
+              .obtenerReportesPorFechasCentroCosto(from, to)
+              .subscribe({
+                next: ({ resultado }) => {
+                  const total = resultado?.total_general ?? 0;
+
+                  if (total === 0) {
+                    Swal.close();
+                    Swal.fire({
+                      icon: 'warning',
+                      title: 'No hay reportes',
+                      text: 'No se encontraron reportes para las fechas seleccionadas.',
+                    });
+                    return;
+                  }
+
+                  const detalles = resultado?.detalles ?? [];
+                  this.consolidadoFechasFincaDataSource = this.formatData(detalles);
+                  Swal.close();
+                },
+                error: (err) => {
+                  Swal.close();
+                  Swal.fire({
+                    icon: 'error',
+                    title: 'Error al cargar',
+                    text:
+                      err?.message ??
+                      'Ocurrió un error al cargar los reportes.',
+                  });
+                },
+              });
+            break;
+          }
+
+          case 'exportFincas': {
+            Swal.fire({
+              title: 'Generando archivo…',
+              html: 'Por favor espera',
+              allowOutsideClick: false,
+              allowEscapeKey: false,
+              showConfirmButton: false,
+              didOpen: () => Swal.showLoading(),
+            });
+
+            this.hiringService
+              .descargarReporteFechaIngresoCentroCostoFincas(from, to)
+              .pipe(finalize(() => Swal.close()))
+              .subscribe({
+                next: (blob: Blob) => {
+                  if (!blob || blob.size === 0) {
+                    Swal.fire({
+                      icon: 'warning',
+                      title: 'No hay reportes',
+                      text:
+                        'No se encontraron reportes para las fechas seleccionadas.',
+                    });
+                    return;
+                  }
+
+                  saveAs(
+                    blob,
+                    `reporte_centro_costos_${from || 'sin_desde'}_a_${to || 'sin_hasta'}.xlsx`,
+                  );
+                },
+                error: (err) => {
+                  Swal.fire({
+                    icon: 'error',
+                    title: 'Error al descargar',
+                    text:
+                      err?.message ??
+                      'Ocurrió un error al descargar el archivo.',
+                  });
+                },
+              });
+            break;
+          }
+        }
+      },
+    );
   }
 
   // --------------------------------------------------------------------------------
-  // FORMAT DATA
+  // FORMAT DATA – TABLA 3
   // --------------------------------------------------------------------------------
   private formatData(data: any): any[] {
     const fechas = Object.keys(data).sort((a, b) => {
@@ -451,13 +385,13 @@ openDateRangeDialog4(): void {
     });
 
     const resultado: any[] = [];
-    fechas.forEach(fecha => {
+    fechas.forEach((fecha) => {
       let first = true;
       data[fecha].forEach((item: any) => {
         resultado.push({
           fechaIngreso: first ? fecha : '',
           centroCosto: item.centro_costo,
-          total: item.total
+          total: item.total,
         });
         first = false;
       });
@@ -466,7 +400,7 @@ openDateRangeDialog4(): void {
   }
 
   // --------------------------------------------------------------------------------
-  // ZIP DOWNLOAD (solo en navegador)
+  // ZIP – CÉDULAS POR SEDE (usando file_url)
   // --------------------------------------------------------------------------------
   async descargarCedulasZip(): Promise<void> {
     if (!this.isBrowser) return;
@@ -474,34 +408,51 @@ openDateRangeDialog4(): void {
     const zip = new JSZip();
     const sedesMap = new Map<string, any[]>();
 
+    // Agrupar por sede
     this.dataSource.data.forEach((reporte: any) => {
       const sede = reporte.sede || 'Sin_Sede';
-      if (Array.isArray(reporte.cedulas)) {
-        sedesMap.has(sede)
-          ? sedesMap.get(sede)!.push(...reporte.cedulas)
-          : sedesMap.set(sede, [...reporte.cedulas]);
+      if (Array.isArray(reporte.cedulas) && reporte.cedulas.length > 0) {
+        const current = sedesMap.get(sede) ?? [];
+        current.push(...reporte.cedulas);
+        sedesMap.set(sede, current);
       }
     });
 
+    const fetchPromises: Promise<void>[] = [];
+
     sedesMap.forEach((cedulas, sede) => {
-      const carpeta = zip.folder(sede)!;
-      cedulas.forEach((cedula: any, idx: number) => {
-        const nombre = cedula.file_name || `cedula_${idx + 1}.pdf`;
-        const blob = this.base64ToBlob(cedula.file_base64);
-        carpeta.file(nombre, blob);
+      const folder = zip.folder(sede)!;
+
+      cedulas.forEach((doc: any, idx: number) => {
+        if (!doc.file_url) return;
+
+        const fileUrl: string = doc.file_url;
+        const safeTitle =
+          (doc.title as string | undefined)?.replace(/[^\w\-\.]+/g, '_') ??
+          '';
+        const nameFromUrl = fileUrl.split('/').pop() ?? '';
+        const fileName =
+          safeTitle ||
+          nameFromUrl ||
+          `cedula_${idx + 1}.pdf`;
+
+        const p = fetch(fileUrl)
+          .then((res) => res.blob())
+          .then((blob) => {
+            folder.file(fileName, blob);
+          })
+          .catch((err) => {
+            // eslint-disable-next-line no-console
+            console.error('Error descargando archivo', fileUrl, err);
+          });
+
+        fetchPromises.push(p);
       });
     });
 
+    await Promise.all(fetchPromises);
+
     const contenidoZip = await zip.generateAsync({ type: 'blob' });
     saveAs(contenidoZip, 'cedulas_por_sede.zip');
-  }
-
-  private base64ToBlob(base64: string): Blob {
-    const [head, data] = base64.split(',');
-    const mime = /:(.*?);/.exec(head)?.[1] || 'application/octet-stream';
-    const byteCharacters = atob(data);
-    const byteNumbers = new Uint8Array(byteCharacters.length);
-    for (let i = 0; i < byteCharacters.length; i++) byteNumbers[i] = byteCharacters.charCodeAt(i);
-    return new Blob([byteNumbers], { type: mime });
   }
 }

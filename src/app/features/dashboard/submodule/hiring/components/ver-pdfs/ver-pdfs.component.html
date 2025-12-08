@@ -1,18 +1,152 @@
-<div class="modal-container">
-  <div class="cedulas-list-container">
-    <h3 class="modal-header">Lista de Cédulas</h3>
-    <ul class="cedulas-list">
-      <li *ngFor="let cedula of data.cedulas">
-        <button mat-button class="cedula-link" 
-                [ngClass]="{'selected': cedula === selectedCedula}" 
-                (click)="showPdf(cedula.file_base64, cedula)">
-          {{ cedula.file_name }}
-        </button>
-      </li>
-    </ul>
+<div class="viewer-container" @dialogFade>
+  <header class="viewer-header">
+    <div class="title-block">
+      <h2>{{ data.title }}</h2>
+
+      <p class="subtitle" *ngIf="hasDocuments">
+        {{ data.documents.length }}
+        documento{{ data.documents.length === 1 ? '' : 's' }}
+      </p>
+
+      <p class="subtitle" *ngIf="!hasDocuments">
+        No hay documentos para mostrar.
+      </p>
+    </div>
+
+    <button mat-icon-button matTooltip="Cerrar" (click)="close()">
+      <mat-icon>close</mat-icon>
+    </button>
+  </header>
+
+  <mat-divider></mat-divider>
+
+  <div class="viewer-body" *ngIf="hasDocuments; else emptyState">
+    <!-- Lista de documentos (izquierda) -->
+    <aside class="doc-list">
+      <mat-nav-list dense>
+        <a
+          mat-list-item
+          *ngFor="let doc of data.documents; let i = index"
+          (click)="selectDoc(i)"
+          [class.active]="i === selectedIndex"
+        >
+          <mat-icon matListItemIcon>
+            {{ getIcon(doc) }}
+          </mat-icon>
+
+          <div matListItemTitle>
+            {{ doc.title }}
+          </div>
+
+          <div matListItemLine class="doc-meta">
+            <span class="chip">
+              {{ getChipLabel(doc) }}
+            </span>
+          </div>
+        </a>
+      </mat-nav-list>
+    </aside>
+
+    <!-- Preview (derecha) -->
+    <section class="preview">
+      <ng-container *ngIf="selectedDoc as doc">
+        <header class="preview-header">
+          <div>
+            <h3 class="doc-title">{{ doc.title }}</h3>
+            <span class="doc-chip">{{ getChipLabel(doc) }}</span>
+          </div>
+
+          <div class="preview-actions">
+            <button
+              mat-stroked-button
+              color="primary"
+              (click)="openInNewTab(doc)"
+              matTooltip="Abrir en pestaña nueva"
+            >
+              <mat-icon>open_in_new</mat-icon>
+              Abrir
+            </button>
+
+            <button
+              mat-stroked-button
+              (click)="download(doc)"
+              matTooltip="Descargar documento"
+            >
+              <mat-icon>download</mat-icon>
+              Descargar
+            </button>
+          </div>
+        </header>
+
+        <div class="preview-content">
+          <!-- PDF -->
+          <ng-container *ngIf="isPdf(doc); else nonPdf">
+            <ng-container *ngIf="currentSafeUrl; else pdfFallback">
+              <iframe
+                class="pdf-frame"
+                [src]="currentSafeUrl"
+                title="Vista previa PDF"
+              ></iframe>
+            </ng-container>
+
+            <ng-template #pdfFallback>
+              <div class="generic-preview">
+                <mat-icon class="big-icon">picture_as_pdf</mat-icon>
+                <p class="info-text">
+                  No fue posible cargar la vista previa del PDF.
+                </p>
+                <button
+                  mat-raised-button
+                  color="primary"
+                  (click)="openInNewTab(doc)"
+                >
+                  Abrir en nueva pestaña
+                </button>
+              </div>
+            </ng-template>
+          </ng-container>
+
+          <!-- NO PDF -->
+          <ng-template #nonPdf>
+            <!-- Imagen -->
+            <ng-container *ngIf="isImage(doc); else genericPreview">
+              <img
+                class="image-preview"
+                [src]="doc.file_url"
+                [alt]="doc.title"
+              />
+            </ng-container>
+
+            <!-- Excel / otros -->
+            <ng-template #genericPreview>
+              <div class="generic-preview">
+                <mat-icon class="big-icon">
+                  {{ getIcon(doc) }}
+                </mat-icon>
+
+                <p class="info-text">
+                  Vista previa no disponible para este tipo de archivo.
+                </p>
+
+                <button
+                  mat-raised-button
+                  color="primary"
+                  (click)="openInNewTab(doc)"
+                >
+                  Abrir en nueva pestaña
+                </button>
+              </div>
+            </ng-template>
+          </ng-template>
+        </div>
+      </ng-container>
+    </section>
   </div>
 
-  <div class="pdf-viewer-container" *ngIf="selectedPdf">
-    <iframe [src]="selectedPdf" class="pdf-frame"></iframe>
-  </div>
+  <ng-template #emptyState>
+    <div class="empty-state">
+      <mat-icon class="empty-icon">folder_off</mat-icon>
+      <p>No hay documentos para visualizar.</p>
+    </div>
+  </ng-template>
 </div>

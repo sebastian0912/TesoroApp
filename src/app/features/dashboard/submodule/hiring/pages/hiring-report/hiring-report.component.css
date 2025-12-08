@@ -1,106 +1,203 @@
-form {
+:host {
+  display: block;
+  padding: 16px;
+}
+
+/* CARD PRINCIPAL */
+.report-card {
+  max-width: 960px;
+  margin: 0 auto;
+  border-radius: 16px;
+  padding: 8px 4px 16px;
+}
+
+/* TÍTULOS */
+.report-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 16px;
+}
+
+.titulo {
+  margin: 0;
+  font-size: 1.4rem;
+  font-weight: 600;
+}
+
+.subtitle {
+  margin: 4px 0 0;
+  font-size: 0.85rem;
+  opacity: 0.7;
+}
+
+/* FORMULARIO */
+.report-form {
   display: flex;
   flex-direction: column;
-  margin: 0 auto;
+  gap: 16px;
 }
 
-.primeras {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between; /* Distribuye uniformemente */
-  align-items: center;
+/* FILAS DE CAMPOS */
+.form-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
 }
 
-.form-field-container {
-  flex: 1 1 10%;
+/* Fila de un solo bloque */
+.form-row.single {
+  grid-template-columns: minmax(0, 1fr);
 }
 
-.botones{
-  display: flex;
-  gap: 10pt;
-  justify-content: space-between;
+/* Fila de 4 columnas: es de hoy / fecha / sede / hubo contratos hoy */
+.form-row.four {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
-
-
-.subida {
-  display: flex;
-  align-items: center;
-  gap: 10pt;
-}
-
-.subida mat-checkbox {
-  width: 50%;
-}
-
-textarea {
+.field {
   width: 100%;
-  resize: vertical;
 }
 
-.botones button {
-  width: 50%;
-  border-radius: 5pt;
+.full-width {
+  width: 100%;
 }
 
+/* Placeholder para mantener la grilla cuando no se muestra Fecha */
+.field.placeholder {
+  visibility: hidden;
+}
 
+/* SECCIÓN DOCUMENTOS */
+.section-card {
+  border-radius: 12px;
+  padding: 16px;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  background-color: rgba(148, 163, 184, 0.04);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
 
-/* Estilos responsivos para tablets */
+.section-title {
+  margin: 0 0 8px;
+  font-size: 1.05rem;
+  font-weight: 500;
+}
+
+/* FILA UPLOAD (checkbox + input archivo) */
+.upload-row {
+  display: grid;
+  grid-template-columns: minmax(0, 220px) minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+}
+
+.upload-field {
+  width: 100%;
+}
+
+/* ACCIONES */
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 4px;
+}
+
+.actions button {
+  border-radius: 999px;
+  padding-inline: 20px;
+}
+
+/* CARD ERRORES */
+.errors-card {
+  max-width: 960px;
+  margin: 16px auto 0;
+  border-radius: 16px;
+}
+
+.errors-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.search-field {
+  width: 260px;
+  max-width: 100%;
+}
+
+/* TABLA ERRORES */
+.table-container {
+  max-height: 320px;
+  overflow: auto;
+  border-radius: 8px;
+}
+
+table {
+  width: 100%;
+}
+
+.error-list {
+  margin: 0;
+  padding-left: 16px;
+}
+
+/* RESPONSIVE */
 @media (max-width: 933px) {
-  .primeras {
-      flex-direction: column;
-      gap: 15px;
+  /* Otras filas de formulario pasan a 1 columna */
+  .form-row {
+    grid-template-columns: 1fr;
   }
 
-  .example-full-width2 {
-      width: 100%; /* Los inputs ocupan todo el ancho */
-      margin-left: 0;
+  /* La fila de 4 campos pasa a 2 columnas en tablet */
+  .form-row.four {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .subida {
-      flex-direction: column;
-      gap: 15pt;
-      align-items: stretch; /* Asegura que los elementos ocupen el ancho disponible */
+  .upload-row {
+    grid-template-columns: 1fr;
+    align-items: stretch;
   }
 
-  .subida mat-checkbox {
-      width: 100%; /* Asegura que los checkboxes ocupen todo el ancho */
+  .errors-header {
+    flex-direction: column;
+    align-items: flex-start;
   }
 
-  .form-field-container {
-      flex: 1 1 100%; /* Ajusta el ancho para dispositivos más pequeños */
-      box-sizing: border-box;
-
+  .search-field {
+    width: 100%;
   }
 }
 
-/* Estilos responsivos para móviles */
 @media (max-width: 480px) {
-  .primeras {
-      flex-direction: column;
-      gap: 10px;
+  :host {
+    padding: 8px;
   }
 
-  .example-full-width2 {
-      max-width: 100%; /* Los inputs ocupan todo el ancho */
-      margin-left: 0;
+  .report-card,
+  .errors-card {
+    border-radius: 12px;
   }
 
-  .subida {
-      flex-direction: column;
-      gap: 10px;
-      align-items: stretch; /* Asegura que los elementos ocupen el ancho disponible */
+  /* La fila de 4 campos baja a 1 columna en móvil */
+  .form-row.four {
+    grid-template-columns: 1fr;
   }
 
-  .subida mat-checkbox {
-      width: 100%; /* Asegura que los checkboxes ocupen todo el ancho */
+  /* En móvil no hace falta reservar espacio para la fecha */
+  .field.placeholder {
+    display: none;
   }
 
-  button {
-      align-self: stretch; /* Asegura que los botones ocupen el ancho disponible */
+  .actions {
+    flex-direction: column-reverse;
   }
 
-  textarea {
-      width: 100%;
+  .actions button {
+    width: 100%;
   }
 }

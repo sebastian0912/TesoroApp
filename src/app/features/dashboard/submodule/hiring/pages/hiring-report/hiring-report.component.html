@@ -1,207 +1,345 @@
 <mat-card>
-  <mat-card-content>
-      <h1 class="titulo">Reporte de Contratación</h1>
-      <form [formGroup]="reporteForm">
-          <!-- Checkbox de "Es de hoy" -->
-          <div class="form-field-container">
-              <mat-form-field class="example-full-width">
-                  <mat-label>¿Es de hoy2?</mat-label>
-                  <mat-select formControlName="esDeHoy">
-                      <mat-option value="true">Sí</mat-option>
-                      <mat-option value="false">No</mat-option>
-                  </mat-select>
-              </mat-form-field>
-          </div>
+    <mat-card-content>
+        <header class="report-header">
+            <div>
+                <h1 class="titulo">Reporte de contratación</h1>
+                <p class="subtitle">
+                    Carga y validación de documentos de contratación diaria
+                </p>
+            </div>
+        </header>
 
-          <div class="primeras">
-              <!-- Campo de fecha que se muestra solo si el checkbox "Es de hoy" no está seleccionado -->
+        <form [formGroup]="reporteForm" class="report-form">
+            <!-- Fila: es de hoy / fecha / sede / hubo contratos hoy -->
+            <div class="form-row four">
+                <!-- Es de hoy -->
+                <mat-form-field appearance="outline" class="field">
+                    <mat-label>¿Es de hoy?</mat-label>
+                    <mat-select formControlName="esDeHoy">
+                        <mat-option value="true">Sí</mat-option>
+                        <mat-option value="false">No</mat-option>
+                    </mat-select>
+                </mat-form-field>
 
-              <mat-form-field class="example-full-width"
-                  *ngIf="reporteForm.get('esDeHoy')?.value === 'false'">
-                  <mat-label>Fecha</mat-label>
-                  <input matInput [matDatepicker]="picker" formControlName="fecha" required>
-                  <mat-datepicker-toggle matSuffix [for]="picker"></mat-datepicker-toggle>
-                  <mat-datepicker #picker></mat-datepicker>
-              </mat-form-field>
+                <!-- Fecha (se oculta si es de hoy, pero se mantiene el espacio para que no se descuadre la fila) -->
+                @if (reporteForm.get('esDeHoy')?.value === 'false') {
+                <mat-form-field appearance="outline" class="field">
+                    <mat-label>Fecha</mat-label>
+                    <input
+                        matInput
+                        [matDatepicker]="picker"
+                        formControlName="fecha"
+                        required />
+                    <mat-datepicker-toggle matSuffix
+                        [for]="picker"></mat-datepicker-toggle>
+                    <mat-datepicker #picker></mat-datepicker>
+                </mat-form-field>
+                } @else {
+                <!-- Celda vacía para mantener la grilla de 4 columnas cuando no se muestra Fecha -->
+                <div class="field placeholder"></div>
+                }
 
+                <!-- Sede -->
+                <mat-form-field appearance="outline" class="field">
+                    <mat-label>Sede</mat-label>
+                    <mat-select formControlName="sede">
+                        @for (sede of sedes; track sede) {
+                        <mat-option [value]="sede">
+                            {{ sede.nombre }}
+                        </mat-option>
+                        }
+                    </mat-select>
+                </mat-form-field>
 
-              <!-- Selección de Sede -->
-              <mat-form-field class="example-full-width">
-                  <mat-label>Seleccione la sede</mat-label>
-                  <mat-select formControlName="sede">
-                      <mat-option *ngFor="let sede of sedes" [value]="sede">{{ sede.nombre }}</mat-option>
-                  </mat-select>
-              </mat-form-field>
+                <!-- ¿Hubo contratos hoy? -->
+                <mat-form-field appearance="outline" class="field">
+                    <mat-label>¿Hubo contratos hoy?</mat-label>
+                    <mat-select
+                        formControlName="contratosHoy"
+                        (selectionChange)="onContratosHoyChange($event)">
+                        <mat-option value="si">Sí</mat-option>
+                        <mat-option value="no">No</mat-option>
+                    </mat-select>
+                </mat-form-field>
+            </div>
 
+            <!-- Detalle si hubo contratos -->
+            @if (reporteForm.get('contratosHoy')?.value === 'si') {
+            <section class="section-card">
+                <h2 class="section-title">Documentos del día</h2>
 
-              <!-- Contratos Hoy -->
-              <mat-form-field class="example-full-width">
-                  <mat-label>¿Hubo contratos hoy?</mat-label>
-                  <mat-select formControlName="contratosHoy" (selectionChange)="onContratosHoyChange($event)">
-                      <mat-option value="si">Sí</mat-option>
-                      <mat-option value="no">No</mat-option>
-                  </mat-select>
-              </mat-form-field>
-          </div>
+                <!-- Cédulas escaneadas -->
+                <div class="upload-row">
+                    <mat-checkbox
+                        (change)="onCheckboxChange($event, 'cedulasEscaneadas')">
+                        Cédulas escaneadas
+                    </mat-checkbox>
 
+                    <mat-form-field appearance="outline" class="upload-field">
+                        <mat-label>Cédulas</mat-label>
+                        <input
+                            matInput
+                            [value]="cedulasEscaneadasFileName"
+                            placeholder="Ningún archivo seleccionado"
+                            readonly />
+                        <button
+                            mat-icon-button
+                            matSuffix
+                            type="button"
+                            (click)="fileInputCedulasEscaneadas.click()"
+                            [disabled]="!reporteForm.get('cedulasEscaneadas')?.value">
+                            <mat-icon>folder_open</mat-icon>
+                        </button>
+                        <input
+                            #fileInputCedulasEscaneadas
+                            type="file"
+                            webkitdirectory
+                            directory
+                            multiple
+                            accept=".pdf"
+                            (change)="onFilesSelected($event, 'cedulasEscaneadas')"
+                            hidden />
+                    </mat-form-field>
+                </div>
 
+                <!-- Cruce diario -->
+                <div class="upload-row">
+                    <mat-checkbox
+                        (change)="onCheckboxChange($event, 'cruceDiario')">
+                        Cruce diario (Excel)
+                    </mat-checkbox>
 
-          <!-- Detalles si hubo contratos hoy -->
-          <div *ngIf="reporteForm.get('contratosHoy')?.value === 'si'" id="contratosDetalles">
-              <!-- Subida de Cédulas Escaneadas -->
-              <div class="subida">
-                  <mat-checkbox (change)="onCheckboxChange($event, 'cedulasEscaneadas')">Cédulas
-                      Escaneadas</mat-checkbox>
-                  <mat-form-field class="example-full-width">
-                      <input matInput [value]="cedulasEscaneadasFileName"
-                          placeholder="Ningún archivo seleccionado" readonly>
-                      <button mat-icon-button matSuffix (click)="fileInputCedulasEscaneadas.click()"
-                          [disabled]="!reporteForm.get('cedulasEscaneadas')?.value">
-                          <mat-icon>folder_open</mat-icon>
-                      </button>
-                      <input #fileInputCedulasEscaneadas type="file" webkitdirectory directory multiple
-                          accept=".pdf" (change)="onFilesSelected($event, 'cedulasEscaneadas')" hidden>
-                  </mat-form-field>
-              </div>
+                    <mat-form-field appearance="outline" class="upload-field">
+                        <mat-label>Cruce diario</mat-label>
+                        <input
+                            matInput
+                            [value]="cruceDiarioFileName"
+                            placeholder="Ningún archivo seleccionado"
+                            readonly />
+                        <button
+                            mat-icon-button
+                            matSuffix
+                            type="button"
+                            (click)="fileInputCruceDiario.click()"
+                            [disabled]="!reporteForm.get('cruceDiario')?.value">
+                            <mat-icon>folder_open</mat-icon>
+                        </button>
+                        <input
+                            #fileInputCruceDiario
+                            type="file"
+                            accept=".xls,.xlsx"
+                            (change)="onFileSelected($event, 'cruceDiario')"
+                            hidden />
+                    </mat-form-field>
+                </div>
 
-              <!-- Subida de Cruce Diario -->
-              <div class="subida">
-                  <mat-checkbox (change)="onCheckboxChange($event, 'cruceDiario')">Cruce diario
-                      Excel</mat-checkbox>
-                  <mat-form-field class="example-full-width">
-                      <input matInput [value]="cruceDiarioFileName" placeholder="Ningún archivo seleccionado"
-                          readonly>
-                      <button mat-icon-button matSuffix (click)="fileInputCruceDiario.click()"
-                          [disabled]="!reporteForm.get('cruceDiario')?.value">
-                          <mat-icon>folder_open</mat-icon>
-                      </button>
-                      <input #fileInputCruceDiario type="file" accept=".xls,.xlsx"
-                          (change)="onFileSelected($event, 'cruceDiario')" hidden>
-                  </mat-form-field>
+                <!-- ARL -->
+                <div class="upload-row">
+                    <mat-checkbox (change)="onCheckboxChange($event, 'arl')">
+                        Archivo ARL (Excel)
+                    </mat-checkbox>
 
-                  <!-- Botón para validar cruce diario -->
-              </div>
+                    <mat-form-field appearance="outline" class="upload-field">
+                        <mat-label>ARL</mat-label>
+                        <input
+                            matInput
+                            [value]="arlFileName"
+                            placeholder="Ningún archivo seleccionado"
+                            readonly />
+                        <button
+                            mat-icon-button
+                            matSuffix
+                            type="button"
+                            (click)="fileInputArl.click()"
+                            [disabled]="!reporteForm.get('arl')?.value">
+                            <mat-icon>folder_open</mat-icon>
+                        </button>
+                        <input
+                            #fileInputArl
+                            type="file"
+                            accept=".xls,.xlsx"
+                            (change)="onFileSelected($event, 'arl')"
+                            hidden />
+                    </mat-form-field>
+                </div>
 
+                <!-- Inducción SST -->
+                <div class="upload-row">
+                    <mat-checkbox
+                        (change)="onCheckboxChange($event, 'induccionSSO')">
+                        Inducción SST
+                    </mat-checkbox>
 
-              <!-- Subida de Excel ARL -->
-              <div class="subida">
-                  <mat-checkbox (change)="onCheckboxChange($event, 'arl')">Subir ARL</mat-checkbox>
-                  <mat-form-field class="example-full-width">
-                      <input matInput [value]="arlFileName" placeholder="Ningún archivo seleccionado"
-                          readonly>
-                      <button mat-icon-button matSuffix (click)="fileInputArl.click()"
-                          [disabled]="!reporteForm.get('arl')?.value">
-                          <mat-icon>folder_open</mat-icon>
-                      </button>
-                      <input #fileInputArl type="file" accept=".xls,.xlsx"
-                          (change)="onFileSelected($event, 'arl')" hidden>
-                  </mat-form-field>
-              </div>
+                    <mat-form-field appearance="outline" class="upload-field">
+                        <mat-label>Inducción SST</mat-label>
+                        <input
+                            matInput
+                            [value]="induccionSSOFileName"
+                            placeholder="Ningún archivo seleccionado"
+                            readonly />
+                        <button
+                            mat-icon-button
+                            matSuffix
+                            type="button"
+                            (click)="fileInputInduccionSSO.click()"
+                            [disabled]="!reporteForm.get('induccionSSO')?.value">
+                            <mat-icon>folder_open</mat-icon>
+                        </button>
+                        <input
+                            #fileInputInduccionSSO
+                            type="file"
+                            accept=".pdf"
+                            (change)="onFileSelected($event, 'induccionSSO')"
+                            hidden />
+                    </mat-form-field>
+                </div>
 
-              <!-- Subida de Inducción SSO -->
-              <div class="subida">
-                  <mat-checkbox (change)="onCheckboxChange($event, 'induccionSSO')">Inducción Seguridad y
-                      Salud en el Trabajo</mat-checkbox>
-                  <mat-form-field class="example-full-width">
-                      <input matInput [value]="induccionSSOFileName" placeholder="Ningún archivo seleccionado"
-                          readonly>
-                      <button mat-icon-button matSuffix (click)="fileInputInduccionSSO.click()"
-                          [disabled]="!reporteForm.get('induccionSSO')?.value">
-                          <mat-icon>folder_open</mat-icon>
-                      </button>
-                      <input #fileInputInduccionSSO type="file" accept=".pdf"
-                          (change)="onFileSelected($event, 'induccionSSO')" hidden>
-                  </mat-form-field>
-              </div>
+                <!-- Traslados -->
+                <div class="upload-row">
+                    <mat-checkbox
+                        (change)="onCheckboxChange($event, 'traslados')">
+                        Traslados
+                    </mat-checkbox>
 
-              <!-- Subida de Traslados -->
-              <div class="subida">
-                  <mat-checkbox (change)="onCheckboxChange($event, 'traslados')">Traslados</mat-checkbox>
-                  <mat-form-field class="example-full-width">
-                      <input matInput [value]="trasladosFileName" placeholder="Ningún archivo seleccionado"
-                          readonly>
-                      <button mat-icon-button matSuffix (click)="fileInputTraslados.click()"
-                          [disabled]="!reporteForm.get('traslados')?.value">
-                          <mat-icon>folder_open</mat-icon>
-                      </button>
-                      <input #fileInputTraslados type="file" webkitdirectory directory multiple accept=".pdf"
-                          (change)="onFilesSelected($event, 'traslados')" hidden>
-                  </mat-form-field>
-              </div>
+                    <mat-form-field appearance="outline" class="upload-field">
+                        <mat-label>Traslados</mat-label>
+                        <input
+                            matInput
+                            [value]="trasladosFileName"
+                            placeholder="Ningún archivo seleccionado"
+                            readonly />
+                        <button
+                            mat-icon-button
+                            matSuffix
+                            type="button"
+                            (click)="fileInputTraslados.click()"
+                            [disabled]="!reporteForm.get('traslados')?.value">
+                            <mat-icon>folder_open</mat-icon>
+                        </button>
+                        <input
+                            #fileInputTraslados
+                            type="file"
+                            webkitdirectory
+                            directory
+                            multiple
+                            accept=".pdf"
+                            (change)="onFilesSelected($event, 'traslados')"
+                            hidden />
+                    </mat-form-field>
+                </div>
 
-              <div class="primeras">
-                  <!-- Cantidad de Contratos Tu Alianza -->
-                  <mat-form-field class="example-full-width">
-                      <mat-label># de Contratos Tu Alianza</mat-label>
-                      <input matInput type="number" formControlName="cantidadContratosTuAlianza" readonly>
-                  </mat-form-field>
+                <!-- Resumen contratos / notas -->
+                <div class="form-row">
+                    <mat-form-field appearance="outline" class="field">
+                        <mat-label># contratos Tu Alianza</mat-label>
+                        <input
+                            matInput
+                            type="number"
+                            formControlName="cantidadContratosTuAlianza"
+                            readonly />
+                    </mat-form-field>
 
-                  <!-- Cantidad de Contratos Apoyo Laboral -->
-                  <mat-form-field class="example-full-width">
-                      <mat-label># de Contratos Apoyo Laboral</mat-label>
-                      <input matInput type="number" formControlName="cantidadContratosApoyoLaboral" readonly>
-                  </mat-form-field>
+                    <mat-form-field appearance="outline" class="field">
+                        <mat-label># contratos Apoyo Laboral</mat-label>
+                        <input
+                            matInput
+                            type="number"
+                            formControlName="cantidadContratosApoyoLaboral"
+                            readonly />
+                    </mat-form-field>
 
-                  <!-- Notas -->
-                  <mat-form-field class="example-full-width">
-                      <mat-label>Notas</mat-label>
-                      <input matInput formControlName="notas" rows="4">
-                  </mat-form-field>
-              </div>
+                    <mat-form-field appearance="outline" class="field">
+                        <mat-label>Notas</mat-label>
+                        <textarea
+                            matInput
+                            rows="3"
+                            formControlName="notas"></textarea>
+                    </mat-form-field>
+                </div>
+            </section>
+            }
 
-          </div>
+            <!-- Acciones -->
+            <div class="actions">
+                @if (reporteForm.get('contratosHoy')?.value === 'si') {
+                <button
+                    mat-stroked-button
+                    type="button"
+                    color="primary"
+                    (click)="validarTodo()">
+                    Validar
+                </button>
+                }
 
-          <div class="botones">
-              <!-- Botón de Validar -->
-              <button mat-flat-button (click)="validarTodo()"
-                  *ngIf="reporteForm.get('contratosHoy')?.value === 'si'">Validar </button>
-
-              <!-- Botón de Enviar -->
-              <button mat-flat-button color="primary" id="enviar" type="submit"
-                  [disabled]="!reporteForm.valid" (click)="onSubmit()">Enviar</button>
-          </div>
-
-      </form>
-  </mat-card-content>
-
+                <button
+                    mat-flat-button
+                    color="primary"
+                    type="submit"
+                    [disabled]="!reporteForm.valid"
+                    (click)="onSubmit()">
+                    Enviar reporte
+                </button>
+            </div>
+        </form>
+    </mat-card-content>
 </mat-card>
 
-<mat-card *ngIf="erroresValidacion.data.length > 0" style="margin-top: 10pt;">
-  <mat-card-content>
-      <!-- Tabla de errores de validación -->
-      <div>
-          <div class="tabla">
-              <mat-form-field class="example-full-width2">
-                  <mat-label>Buscar por error</mat-label>
-                  <input matInput (keyup)="applyFilter('errores', $event)" placeholder="Ej. CAMPO">
-              </mat-form-field>
+<!-- Card de errores -->
+@if (erroresValidacion && erroresValidacion.data &&
+erroresValidacion.data.length > 0) {
+<mat-card class="errors-card">
+    <mat-card-content>
+        <div class="errors-header">
+            <div>
+                <h2 class="section-title">Errores de validación</h2>
+                <p class="subtitle">
+                    Revisa los registros antes de reenviar el reporte
+                </p>
+            </div>
 
-              <div class="table-container">
+            <mat-form-field
+                appearance="outline"
+                class="search-field">
+                <mat-label>Buscar por error</mat-label>
+                <input
+                    matInput
+                    (keyup)="applyFilter('errores', $event)"
+                    placeholder="Ej. CAMPO" />
+                <mat-icon matSuffix>search</mat-icon>
+            </mat-form-field>
+        </div>
 
-                  <table mat-table [dataSource]="erroresValidacion" class="mat-elevation-z8">
+        <div class="table-container">
+            <table
+                mat-table
+                [dataSource]="erroresValidacion"
+                class="mat-elevation-z1">
+                <!-- Columna Registro -->
+                <ng-container matColumnDef="registro">
+                    <th mat-header-cell *matHeaderCellDef>Registro</th>
+                    <td mat-cell *matCellDef="let element">
+                        {{ element.registro }}
+                    </td>
+                </ng-container>
 
-                      <!-- Columna Registro -->
-                      <ng-container matColumnDef="registro">
-                          <th mat-header-cell *matHeaderCellDef> Registro </th>
-                          <td mat-cell *matCellDef="let element"> {{element.registro}} </td>
-                      </ng-container>
+                <!-- Columna Errores -->
+                <ng-container matColumnDef="errores">
+                    <th mat-header-cell *matHeaderCellDef>Errores</th>
+                    <td mat-cell *matCellDef="let element">
+                        <ul class="error-list">
+                            @for (error of element.errores; track $index) {
+                            <li>{{ error }}</li>
+                            }
+                        </ul>
+                    </td>
+                </ng-container>
 
-                      <!-- Columna Errores -->
-                      <ng-container matColumnDef="errores">
-                          <th mat-header-cell *matHeaderCellDef> Errores </th>
-                          <td mat-cell *matCellDef="let element">
-                              <ul>
-                                  <li *ngFor="let error of element.errores">{{ error }}</li>
-                              </ul>
-                          </td>
-                      </ng-container>
-
-                      <tr mat-header-row *matHeaderRowDef="['registro', 'errores']"></tr>
-                      <tr mat-row *matRowDef="let row; columns: ['registro', 'errores'];"></tr>
-                  </table>
-              </div>
-
-          </div>
-      </div>
-  </mat-card-content>
+                <tr mat-header-row
+                    *matHeaderRowDef="['registro', 'errores']"></tr>
+                <tr mat-row
+                    *matRowDef="let row; columns: ['registro', 'errores'];"></tr>
+            </table>
+        </div>
+    </mat-card-content>
 </mat-card>
+}
