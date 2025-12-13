@@ -1,177 +1,755 @@
-/* ============== CONTENEDOR + VIEWPORT + TABLA ============== */
+/* ============================
+   Paleta / alturas - Estandarizada
+   ============================ */
+:host {
+  /* Colores principales del sistema */
+  --primary: #3f51b5;
+  --primary-light: #d6e0fa;
+  --primary-hover: #303f9f;
+  --secondary-bg: #f5f7fb;
+  --text-main: #202944;
+  --text-muted: #434a56;
+  --danger: #e53935;
+  --danger-dark: #c62828;
+  --success: #4caf50;
+  --warning: #ff9800;
+  --shadow-main: 0 4px 18px 0 rgba(60, 110, 180, 0.11);
+  --shadow-hover: 0 6px 26px 0 rgba(60, 110, 180, 0.17);
+  --shadow-light: 0 2px 8px 0 rgba(60, 110, 180, 0.08);
+  --border-radius: 20px;
+  --border-radius-small: 8px;
+  --border-radius-medium: 12px;
+  --transition: 0.22s cubic-bezier(0.35, 1.05, 0.68, 0.97);
+  --transition-fast: 0.16s ease;
+  --spacing-xs: 4px;
+  --spacing-sm: 8px;
+  --spacing-md: 16px;
+  --spacing-lg: 24px;
+  --spacing-xl: 32px;
+
+  /* Variables de tabla derivadas */
+  --tbl-surface: #fff;
+  --tbl-on-surface: var(--text-main);
+  --tbl-border: #e2e8f0;
+  --tbl-hover: var(--primary-light);
+  --tbl-sticky-shadow: var(--shadow-light);
+
+  /* Scrollbar theme */
+  --tbl-scroll-thumb: rgba(63, 81, 181, 0.3);
+  --tbl-scroll-thumb-hover: rgba(63, 81, 181, 0.5);
+  --tbl-scroll-track: transparent;
+
+  /* Alturas */
+  --tbl-header-main-h: 88px;
+  --tbl-header-filter-h: 48px;
+  --tbl-toolbar-h: 56px;
+}
+
+/* ============================
+   Contenedor / tabla
+   ============================ */
 .table-container {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  min-height: 0;                /* permite que el hijo scrollee */
-  border: 1px solid #e5e7eb;
-  border-radius: 12px;
-  background-color: #fff;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, .08);
+  margin: 0 auto;
+  padding-top: var(--spacing-sm);
+  width: 100%;
+  box-sizing: border-box;
+  max-height: 80vh;
+  overflow-x: auto; /* scroll horizontal si no cabe */
+  overflow-y: auto; /* scroll vertical dentro del contenedor */
+  /* Slim scrollbar (Firefox) */
+  scrollbar-width: thin;
+  scrollbar-color: var(--tbl-scroll-thumb) transparent;
+  scrollbar-gutter: stable;
 }
 
-.table-viewport {
-  flex: 1 1 auto;
-  min-height: 0;                /* crucial en layout flex */
-  overflow-y: auto;             /* scroll vertical del contenido */
-  overflow-x: auto;             /* scroll horizontal si hay muchas columnas */
-  position: relative;           /* requerido para sticky internos */
+/* Slim scrollbar (Chromium/WebKit) */
+.table-container::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+.table-container::-webkit-scrollbar-thumb {
+  background: var(--tbl-scroll-thumb);
+  border-radius: var(--border-radius-small);
+  border: 2px solid transparent;
+  background-clip: content-box;
+  transition: var(--transition-fast);
+}
+.table-container::-webkit-scrollbar-thumb:hover {
+  background: var(--tbl-scroll-thumb-hover);
+}
+.table-container::-webkit-scrollbar-track {
+  background: var(--tbl-scroll-track);
+}
+.table-container::-webkit-scrollbar-corner {
+  background: transparent;
 }
 
-/* CLAVE: que la suma de columnas sea el ancho real, sin estirar */
-.dynamic-table {
-  width: 100%;                  /* ocupa todo el ancho del viewport */
-  min-width: 100%;              /* evita quedarse más angosta */
+.table--compact .mat-mdc-table {
+  table-layout: fixed;
+  width: max-content; /* permite crecer más que el contenedor */
+  min-width: 100%; /* al menos ocupar el ancho disponible */
+  border-spacing: 0;
   border-collapse: collapse;
-  table-layout: fixed;          /* respeta <col> y reparte el resto */
 }
 
-/* ============== TOP BAR ============== */
+.table--compact .mat-mdc-header-cell,
+.table--compact .mat-mdc-cell {
+  box-sizing: border-box;
+  padding: var(--spacing-sm) var(--spacing-sm);
+  font-size: 0.94rem;
+  line-height: 1.35rem;
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  vertical-align: middle;
+  background-clip: padding-box;
+}
+
+/* ============================
+   1) Encabezados sticky (arriba del todo)
+   ============================ */
+.header-row-main {
+  box-shadow: var(--tbl-sticky-shadow);
+  z-index: 7 !important;
+  height: var(--tbl-header-main-h);
+}
+
+/* El sticky lo aplica Material por celda ⇒ ajustamos top en la celda */
+.header-row-main .mat-mdc-header-cell.mat-mdc-table-sticky {
+  top: 0 !important;
+  z-index: 7 !important;
+}
+
+.header-row-main .mat-mdc-header-cell {
+  background: var(--primary) !important;
+  color: white !important;
+  font-weight: 500 !important;
+  text-align: center;
+  letter-spacing: 0.3px;
+  transition: var(--transition-fast);
+}
+
+/* ============================
+   2) Filtros sticky (debajo del header)
+   ============================ */
+.header-row-filters {
+  background: #fff !important;
+  box-shadow: var(--tbl-sticky-shadow);
+  z-index: 6 !important;
+  height: var(--tbl-header-filter-h);
+}
+
+.header-row-filters .mat-mdc-header-cell.mat-mdc-table-sticky {
+  top: var(--tbl-header-main-h) !important;
+  z-index: 6 !important;
+}
+
+.filter-cell {
+  padding: 0 8px;
+  box-sizing: border-box;
+  background: #fff;
+}
+
+.filter-cell .mat-mdc-text-field-wrapper {
+  background: var(--tbl-surface);
+  border-radius: var(--border-radius-small);
+  transition: var(--transition-fast);
+}
+
+.filter-cell .mat-mdc-text-field-wrapper:hover {
+  box-shadow: var(--shadow-light);
+}
+
+.filter-ff.dense .mat-mdc-text-field-wrapper {
+  --mdc-shape-small: var(--border-radius-small);
+  padding-top: 0;
+  padding-bottom: 0;
+  min-height: 40px;
+}
+
+.filter-ff.dense .mat-mdc-form-field-subscript-wrapper {
+  display: none;
+}
+
+.filter-cell .mat-mdc-select-trigger {
+  width: 100%;
+  height: 32px;
+  line-height: 32px;
+}
+
+.date-range-input {
+  width: 100%;
+  min-width: 0;
+}
+
+.date-range-input input {
+  font-size: 13px;
+  padding: 4px 6px;
+}
+
+/* ============================
+   3) Paginator-row (encima de la tabla, NO sticky)
+   ============================ */
 .paginator-row {
-  position: sticky;             /* fija la barra superior */
-  top: 0;
-  z-index: 5;
   display: flex;
   align-items: center;
+  gap: var(--spacing-md);
   flex-wrap: wrap;
-  gap: 12px;
-  padding: 16px;
-  border-bottom: 1px solid #e5e7eb;
-  background-color: #fff;
+  padding: var(--spacing-sm) var(--spacing-md);
+  margin-bottom: var(--spacing-sm);
+  background: var(--tbl-surface);
+  border: 1px solid var(--tbl-border);
+  border-radius: var(--border-radius-medium);
+  box-shadow: var(--shadow-light);
+  transition: var(--transition-fast);
 }
 
-.grow { flex-grow: 1 }
-
-/* ============== CELDAS ============== */
-.dynamic-table .mat-mdc-header-cell,
-.dynamic-table .mat-mdc-cell {
-  box-sizing: border-box;
-  padding: 10px 12px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  vertical-align: middle;
-  min-width: 0;                 /* permite encoger */
+.grow {
+  flex: 1 1 auto;
 }
 
-/* El sort-header no debe ensanchar */
-.dynamic-table .mat-mdc-header-cell .mat-sort-header-container {
-  display: inline-flex;
-  max-width: 100%;
-  min-width: 0;
+.table-paginator {
+  min-width: 240px;
 }
 
-.dynamic-table .mat-mdc-header-cell .mat-sort-header-content {
-  display: inline-block;
-  max-width: calc(28ch);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+/* Asegurar visibilidad del paginador */
+.table-paginator,
+mat-paginator {
+  display: block !important;
+  background: transparent;
 }
 
-.dynamic-table .mat-mdc-cell > span {
-  display: inline-block;
-  max-width: calc(28ch);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.table-paginator .mat-mdc-paginator-container {
+  min-height: 56px;
+  padding: 0 8px;
 }
 
-.dynamic-table .cell-right { text-align: right }
-.dynamic-table .cell-right > span { max-width: calc(14ch) }
-
-/* ============== CABECERAS STICKY + FILA DE FILTROS ============== */
-.dynamic-table .mat-mdc-header-row.header-row-main { height: 56px }
-
-.dynamic-table .mat-mdc-header-cell.custom-header {
-  font-weight: 600;
-  color: #fff;
-  background-color: #1d2953;
+.clear-filters-btn{
+  background-color: var(--primary) !important;
 }
 
-.dynamic-table .mat-mdc-header-row.header-row-filters {
-  background-color: #fff;
-  border-bottom: 1px solid #e5e7eb;
+/* ============================
+   4) Filas (siempre por debajo)
+   ============================ */
+.table--compact .mat-mdc-row,
+mat-row.data-row {
+  position: relative;
+  z-index: 1;
 }
 
-/* Asegura fondo en elementos sticky (cabeceras/columnas) */
-.mat-mdc-table .cdk-table-sticky { background: #fff; }
-
-/* Celda de filtro */
-.dynamic-table .filter-cell {
-  box-sizing: border-box;
-  padding: 10px 12px !important;
-  height: 62px;
-  min-width: 0;
+mat-row.data-row:nth-child(even) {
+  background: var(--secondary-bg);
 }
 
-/* Los form-fields no imponen min-width grandes */
-.dynamic-table .filter-ff,
-.dynamic-table .filter-ff .mat-mdc-form-field,
-.dynamic-table .filter-ff .mat-mdc-text-field-wrapper,
-.dynamic-table .filter-ff .mat-mdc-form-field-flex,
-.dynamic-table .filter-ff .mat-mdc-form-field-infix {
-  width: 100%;
-  min-width: 0 !important;
-  box-sizing: border-box;
+mat-row.data-row:hover {
+  background: var(--tbl-hover);
+  transition: var(--transition-fast);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-light);
+  cursor: pointer;
 }
 
-.dynamic-table .filter-ff .mat-mdc-form-field-subscript-wrapper { max-width: 100%; overflow: hidden; }
-.dynamic-table .filter-ff .mat-mdc-chip-set,
-.dynamic-table .filter-ff .mat-mdc-chip-list { max-width: 100%; overflow: hidden; }
-
-.dynamic-table .filter-ff .mat-date-range-input-container,
-.dynamic-table .filter-ff .mat-date-range-input-inner { width: 100%; min-width: 0; }
-
-/* ============== FILAS + ACCESIBILIDAD ============== */
-.dynamic-table .mat-mdc-row.data-row {
-  height: 52px;
-  border-bottom: 1px solid #e5e7eb;
-  transition: background-color .2s ease-in-out;
-}
-
-.dynamic-table .mat-mdc-row.data-row:last-child { border-bottom: none; }
-.dynamic-table .mat-mdc-row.data-row:nth-child(even) { background-color: #f9fafb; }
-.dynamic-table .mat-mdc-row.data-row:hover { background-color: #f0f4f8; }
-
-.dynamic-table .mat-mdc-row.data-row:focus-visible {
-  outline: 2px solid #1976d2;
+mat-row.data-row:focus-visible {
+  outline: 2px solid var(--primary);
   outline-offset: -2px;
 }
 
-/* Sin datos */
-.no-data-row .mat-mdc-cell {
+/* Mantener compatibilidad: clase sin truncamiento explícito */
+.cell-ellipsis {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+}
+
+.cell-right {
+  text-align: right;
+}
+
+.status-chip,
+.custom-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border-radius: 999px;
+  font-weight: 600;
+  font-size: 0.85rem;
+  letter-spacing: 0.2px;
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  transition: var(--transition-fast);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+/* ============================
+   Estados: Carga y Sin Datos
+   ============================ */
+
+/* Fila de estado vacío (carga o sin datos) */
+.empty-state-row td {
   text-align: center;
-  padding: 32px;
-  color: #6b7280;
+  padding: var(--spacing-xl) var(--spacing-lg);
+  background: var(--secondary-bg);
+}
+
+/* Estado de carga en tabla desktop */
+.loading-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-md);
+  padding: var(--spacing-lg) 0;
+  animation: fadeIn 0.3s ease-in;
+}
+
+.loading-text {
+  color: var(--text-muted);
+  font-size: 1rem;
+  font-weight: 500;
+}
+
+::ng-deep .loading-content .mat-mdc-progress-spinner circle {
+  stroke: var(--primary);
+}
+
+/* Estado sin datos en tabla desktop */
+.no-data-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-md);
+  padding: var(--spacing-lg) 0;
+  animation: fadeIn 0.3s ease-in;
+}
+
+.no-data-icon {
+  font-size: 48px;
+  width: 48px;
+  height: 48px;
+  color: var(--text-muted);
+  opacity: 0.5;
+}
+
+.no-data-text {
+  color: var(--text-muted);
+  font-size: 1rem;
   font-style: italic;
 }
 
-/* Chips contador */
-.count-chip {
-  font: 500 13px/1.2 var(--mat-font-family, Roboto, sans-serif);
-  padding: 6px 10px;
-  border-radius: 999px;
-  background: rgba(25, 118, 210, .1);
-  color: rgb(25, 118, 210);
-  margin-right: 8px;
-}
-
-/* Toggles compactos */
-.dynamic-table .mat-mdc-cell mat-slide-toggle,
-.dynamic-table .mat-mdc-header-cell mat-slide-toggle { white-space: nowrap; }
-
-.dynamic-table .mat-mdc-cell .mdc-form-field,
-.dynamic-table .mat-mdc-header-cell .mdc-form-field { gap: 6px; }
-
-/* ============== RESPONSIVE ============== */
-@media (max-width: 768px) {
-  .paginator-row {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 16px;
+/* Animación suave para transiciones */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 
-/* standard-filter-table.css */
-.clickable-row { cursor: pointer; }
+/* Refuerzo general para cualquier sticky de Material */
+.table--compact .mat-mdc-table-sticky {
+  background: var(--tbl-surface) !important;
+  box-shadow: var(--shadow-light);
+}
+
+/* ============================
+   Responsive
+   ============================ */
+
+/* Ocultar elementos en desktop por defecto */
+.mobile-filters-container,
+.mobile-cards-container {
+  display: none;
+}
+
+.desktop-only {
+  display: flex;
+}
+
+/* Estilos para móviles */
+@media (max-width: 900px) {
+  /* Ocultar tabla desktop y mostrar elementos móviles */
+  .desktop-table,
+  .desktop-only {
+    display: none !important;
+  }
+
+  .mobile-filters-container,
+  .mobile-cards-container {
+    display: block;
+  }
+
+  /* ============================
+     Filtros móviles
+     ============================ */
+  .mobile-filters-container {
+    background: var(--tbl-surface);
+    border: 1px solid var(--tbl-border);
+    border-radius: var(--border-radius-medium);
+    padding: var(--spacing-sm) var(--spacing-md);
+    margin-bottom: var(--spacing-sm);
+    box-shadow: var(--shadow-light);
+  }
+
+  .mobile-filters-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--spacing-md);
+    border-bottom: 1px solid var(--tbl-border);
+    background: var(--secondary-bg);
+    border-radius: var(--border-radius-medium) var(--border-radius-medium) 0 0;
+  }
+
+  .mobile-filters-header h3 {
+    margin: 0;
+    font-size: 1.1rem;
+    font-weight: 500;
+    color: var(--text-main);
+  }
+
+  .filters-toggle-btn {
+    color: var(--primary);
+    transition: var(--transition-fast);
+  }
+
+  .filters-toggle-btn:hover {
+    color: var(--primary-hover);
+    transform: scale(1.1);
+  }
+
+  .mobile-filters-content {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease-in-out;
+  }
+
+  .mobile-filters-content.show {
+    max-height: max-content;
+    padding: var(--spacing-sm);
+  }
+
+  .filter-grid {
+    display: grid;
+    gap: var(--spacing-md);
+    grid-template-columns: 1fr;
+  }
+
+  .filter-item {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-sm);
+  }
+
+  .filter-label {
+    font-weight: 500;
+    font-size: 0.9rem;
+    color: var(--text-main);
+  }
+
+  .filter-ff.mobile {
+    width: 100%;
+  }
+
+  .filter-ff.mobile .mat-mdc-text-field-wrapper {
+    background: var(--tbl-surface);
+    border-radius: var(--border-radius-small);
+    transition: var(--transition-fast);
+  }
+
+  .filter-ff.mobile .mat-mdc-text-field-wrapper:focus-within {
+    box-shadow: var(--shadow-light);
+  }
+
+  .mobile-filter-actions {
+    padding-top: var(--spacing-sm);
+    border-top: 1px solid var(--tbl-border);
+    display: flex;
+    justify-content: center;
+  }
+
+  .clear-btn {
+    min-width: 140px;
+    background: var(--primary);
+    color: white;
+    font-weight: 500;
+    border-radius: var(--border-radius-small);
+    transition: var(--transition);
+    box-shadow: var(--shadow-light);
+  }
+
+  .clear-btn:hover {
+    background: var(--primary-hover);
+    box-shadow: var(--shadow-hover);
+    transform: translateY(-2px);
+  }
+
+  /* ============================
+     Tarjetas móviles
+     ============================ */
+  .mobile-cards-container {
+    display: flex;
+    flex-direction: column;
+    padding: var(--spacing-sm);
+    gap: var(--spacing-md);
+  }
+
+  .mobile-card {
+    background: var(--tbl-surface);
+    border: 1px solid var(--tbl-border);
+    border-radius: var(--border-radius-medium);
+    box-shadow: var(--shadow-light);
+    overflow: hidden;
+    transition: var(--transition);
+  }
+
+  .mobile-card:hover {
+    box-shadow: var(--shadow-hover);
+    transform: translateY(-2px);
+  }
+
+  .card-content {
+    padding: var(--spacing-md);
+  }
+
+  .card-fields {
+    display: grid;
+    gap: var(--spacing-md);
+    grid-template-columns: 1fr;
+  }
+
+  .card-field {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: var(--spacing-md);
+    min-height: 24px;
+  }
+
+  .card-field-full {
+    grid-column: 1 / -1;
+    justify-content: center;
+    border-top: 1px solid var(--tbl-border);
+    padding-top: var(--spacing-sm);
+  }
+
+  .field-label {
+    font-weight: 500;
+    font-size: 0.9rem;
+    color: var(--text-muted);
+    flex-shrink: 0;
+    min-width: 100px;
+  }
+
+  .field-value {
+    font-size: 0.95rem;
+    color: var(--text-main);
+    text-align: right;
+    word-break: break-word;
+    flex: 1;
+  }
+
+  /* Chips en móvil */
+  .status-chip.mobile,
+  .custom-chip.mobile {
+    font-size: 0.8rem;
+    padding: var(--spacing-xs) var(--spacing-sm);
+    border-radius: var(--border-radius-small);
+    display: inline-block;
+    min-width: 60px;
+    transition: var(--transition-fast);
+  }
+
+  /* Acciones en tarjetas móviles */
+  .card-actions {
+    display: flex;
+    gap: var(--spacing-md);
+    justify-content: center;
+    flex-wrap: wrap;
+    padding: var(--spacing-sm) 0;
+  }
+
+  /* Botones de acción en tarjetas móviles */
+  .card-actions button {
+    width: 44px !important;
+    height: 44px !important;
+    min-width: 44px !important;
+    border-radius: var(--border-radius-medium);
+    touch-action: manipulation;
+    position: relative;
+    transition: var(--transition-fast);
+  }
+
+  .card-actions button:hover {
+    transform: scale(1.05);
+    box-shadow: var(--shadow-light);
+  }
+
+  .card-actions button mat-icon {
+    font-size: 20px !important;
+    width: 20px !important;
+    height: 20px !important;
+  }
+
+  /* Aumentar área táctil sin cambiar apariencia visual */
+  .card-actions button::before {
+    content: "";
+    position: absolute;
+    top: -8px;
+    left: -8px;
+    right: -8px;
+    bottom: -8px;
+    /* Invisible pero táctil */
+    background: transparent;
+  }
+
+  /* Estado de carga en móvil */
+  .loading-mobile {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: var(--spacing-xl) var(--spacing-lg);
+    gap: var(--spacing-md);
+    background: var(--tbl-surface);
+    border-radius: var(--border-radius-medium);
+    margin-bottom: var(--spacing-md);
+  }
+
+  .loading-text-mobile {
+    color: var(--text-muted);
+    font-size: 1rem;
+    font-weight: 500;
+    margin: 0;
+  }
+
+  ::ng-deep .loading-mobile .mat-mdc-progress-spinner circle {
+    stroke: var(--primary);
+  }
+
+  /* Estado sin datos en móvil */
+  .no-data-mobile {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: var(--spacing-xl) var(--spacing-lg);
+    color: var(--text-muted);
+    text-align: center;
+    background: var(--tbl-surface);
+    border-radius: var(--border-radius-medium);
+    margin-bottom: var(--spacing-md);
+  }
+
+  .no-data-mobile mat-icon {
+    font-size: 48px;
+    width: 48px;
+    height: 48px;
+    margin-bottom: var(--spacing-md);
+    opacity: 0.5;
+    color: var(--primary);
+  }
+
+  .no-data-mobile p {
+    font-size: 1.1rem;
+    margin: 0;
+    color: var(--text-muted);
+  }
+
+  /* Ajustes del paginador en móvil */
+  .paginator-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--spacing-md);
+  }
+
+  .table-paginator,
+  .export-menu-btn {
+    width: 100%;
+  }
+
+  .table-paginator {
+    display: flex;
+    justify-content: center;
+  }
+
+  /* Ajustes para form fields en móvil */
+  .filter-ff.mobile .mdc-text-field {
+    height: 48px;
+  }
+
+  .filter-ff.mobile .mat-mdc-form-field-subscript-wrapper {
+    display: none;
+  }
+
+  /* Mejorar usabilidad táctil */
+  .mobile-card,
+  .filters-toggle-btn,
+  .clear-btn,
+  .export-menu-btn {
+    touch-action: manipulation;
+  }
+}
+
+/* Estilos adicionales para tablets (768px - 900px) */
+@media (min-width: 768px) and (max-width: 900px) {
+  .card-fields {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .card-field-full {
+    grid-column: 1 / -1;
+  }
+
+  .filter-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+/* Breakpoint muy pequeño para móviles pequeños */
+@media (max-width: 480px) {
+  .table-container {
+    margin: 0;
+    padding: 0 var(--spacing-sm);
+  }
+
+  .mobile-card {
+    margin: 0 calc(-1 * var(--spacing-sm));
+    border-radius: var(--border-radius-small);
+  }
+
+  .card-content {
+    padding: var(--spacing-md);
+  }
+
+  .field-label {
+    min-width: 80px;
+    font-size: 0.85rem;
+  }
+
+  .field-value {
+    font-size: 0.9rem;
+  }
+
+  .mobile-filters-content.show {
+    padding: var(--spacing-md);
+  }
+
+  /* Botones de acción para móviles muy pequeños */
+  .card-actions {
+    gap: var(--spacing-sm);
+  }
+
+  .card-actions button {
+    width: 48px !important;
+    height: 48px !important;
+    min-width: 48px !important;
+    border-radius: 14px;
+  }
+
+  .card-actions button mat-icon {
+    font-size: 22px !important;
+    width: 22px !important;
+    height: 22px !important;
+  }
+}

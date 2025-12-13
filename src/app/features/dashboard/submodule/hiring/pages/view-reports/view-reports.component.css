@@ -11,6 +11,13 @@ mat-cell{
   width: 300px;
 }
 
+.reports-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
 /* Estilo para los enlaces de PDF */
 a.pdf-link {
   color: #4240d6;
@@ -112,6 +119,35 @@ td {
 .mat-row:hover {
   background-color: #f1f1f1;
 }
+
+.docs-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: center;
+  align-items: center;
+}
+
+.doc-chip {
+  border-radius: 999px;
+  padding: 0 12px;
+  min-height: 32px;
+  line-height: 32px;
+  font-size: 0.8rem;
+}
+
+.doc-chip mat-icon {
+  font-size: 18px;
+  margin-right: 4px;
+}
+
+.docs-empty-label {
+  font-size: 0.85rem;
+  color: rgba(0, 0, 0, 0.54);
+  font-style: italic;
+  white-space: nowrap;
+}
+
 
 @media (max-width: 600px) {
   .menu{

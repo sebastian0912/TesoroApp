@@ -20,8 +20,7 @@
     [tableTitle]="tableTitle || title || 'Registros'"
     [defaultPageSize]="pageSize"
     [pageSizeOptions]="pageSizeOptions"
-    [autoSize]="true"
-    (rowClicked)="rowClicked.emit($event)"
++    (rowClicked)="rowClicked.emit($event)"
   >
   </app-standard-filter-table>
 </section>

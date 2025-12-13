@@ -27,7 +27,6 @@ import { UtilityServiceService } from '@/app/shared/services/utilityService/util
 
 import { firstValueFrom, merge, startWith } from 'rxjs';
 import Swal from 'sweetalert2';
-import { ColumnDefinition } from '@/app/shared/components/standard-filter-table/standard-filter-table';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { RegistroProcesoContratacion } from '../../service/registro-proceso-contratacion/registro-proceso-contratacion';
 import { TableDialogComponent } from '@/app/shared/components/table-dialog/table-dialog.component';
@@ -35,6 +34,7 @@ import { GestionDocumentalService } from '../../service/gestion-documental/gesti
 
 // ⬇️ Librería para unir PDFs en el navegador
 import { PDFDocument } from 'pdf-lib'; // npm i pdf-lib
+import { ColumnDefinition } from '@/app/shared/models/advanced-table-interface';
 
 export const MY_DATE_FORMATS: MatDateFormats = {
   parse: { dateInput: 'DD/MM/YYYY' },

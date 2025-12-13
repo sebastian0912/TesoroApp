@@ -7,8 +7,8 @@ import { MatButtonModule } from '@angular/material/button';
 
 import {
   StandardFilterTable,
-  ColumnDefinition,
 } from '@/app/shared/components/standard-filter-table/standard-filter-table';
+import { ColumnDefinition } from '../../models/advanced-table-interface';
 
 export interface TableDialogData {
   title?: string;

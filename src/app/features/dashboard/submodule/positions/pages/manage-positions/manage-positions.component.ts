@@ -5,11 +5,12 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import Swal from 'sweetalert2';
 
-import { StandardFilterTable, ColumnDefinition } from '@/app/shared/components/standard-filter-table/standard-filter-table';
+import { StandardFilterTable } from '@/app/shared/components/standard-filter-table/standard-filter-table';
 import { PositionsService, Cargo } from '../../services/positions/positions.service';
 import { DynamicFormDialogComponent, FieldConfig } from '@/app/shared/components/dynamic-form-dialog/dynamic-form-dialog.component';
 import { MatDialog } from '@angular/material/dialog';
 import { MatMenuModule } from '@angular/material/menu';
+import { ColumnDefinition } from '@/app/shared/models/advanced-table-interface';
 
 @Component({
   selector: 'app-manage-positions',

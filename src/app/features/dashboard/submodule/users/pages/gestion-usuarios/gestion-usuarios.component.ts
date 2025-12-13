@@ -4,7 +4,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
-import { StandardFilterTable, ColumnDefinition } from '@/app/shared/components/standard-filter-table/standard-filter-table';
+import { StandardFilterTable } from '@/app/shared/components/standard-filter-table/standard-filter-table';
 import { UtilityServiceService } from '@/app/shared/services/utilityService/utility-service.service';
 import { AdminService, UsuarioDetail } from '../../services/admin.service';
 import { UserUpsertDialogComponent } from '../../components/user-upsert-dialog/user-upsert-dialog.component';
@@ -12,6 +12,7 @@ import { firstValueFrom } from 'rxjs';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import Swal from 'sweetalert2';
 import { UserPermissionsDialogComponent } from '../../components/user-permissions-dialog/user-permissions-dialog.component';
+import { ColumnDefinition } from '@/app/shared/models/advanced-table-interface';
 
 @Component({
   selector: 'app-gestion-usuarios',
