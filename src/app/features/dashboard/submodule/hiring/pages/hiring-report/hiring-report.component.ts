@@ -18,6 +18,13 @@ import * as ExcelJS from 'exceljs';
 import * as FileSaver from 'file-saver';
 import { firstValueFrom } from 'rxjs';
 
+type UploadControl =
+  | 'cedulasEscaneadas'
+  | 'cruceDiario'
+  | 'arl'
+  | 'induccionSSO'
+  | 'traslados';
+
 @Component({
   selector: 'app-hiring-report',
   imports: [SharedModule, MatDatepickerModule, MatCheckboxModule, MatNativeDateModule],
@@ -36,14 +43,14 @@ export class HiringReportComponent implements OnInit {
   arlFileName = '';
 
   // Archivos seleccionados por tipo
-  filesToUpload: Record<string, File[]> = {};
+  filesToUpload: Partial<Record<UploadControl, File[]>> = {};
 
   // Tabla de errores para mostrar en frontend
   erroresValidacion = new MatTableDataSource<any>([]);
 
   // Flags de validación
   isCruceValidado = false;
-  isArlValidado = true;
+  isArlValidado = false;
 
   // Datos del cruce procesado (filas normalizadas)
   datoscruced: any[] = [];
@@ -53,6 +60,8 @@ export class HiringReportComponent implements OnInit {
   numeroContratosApoyoLaboral = 0;
 
   nombre = '';
+
+  private readonly BLOCKED_FILES = new Set(['thumbs.db', 'desktop.ini', '.ds_store']);
 
   constructor(
     private readonly fb: FormBuilder,
@@ -74,11 +83,13 @@ export class HiringReportComponent implements OnInit {
       esDeHoy: ['false'],
       fecha: [null],
       contratosHoy: ['', Validators.required],
+
       cedulasEscaneadas: [false],
       cruceDiario: [false],
       arl: [false],
       induccionSSO: [false],
       traslados: [false],
+
       cantidadContratosTuAlianza: [null],
       cantidadContratosApoyoLaboral: [null],
       notas: [''],
@@ -89,10 +100,10 @@ export class HiringReportComponent implements OnInit {
       this.nombre = `${user.datos_basicos.nombres} ${user.datos_basicos.apellidos}`;
     }
 
-    await this.manageFechaValidation();
+    this.manageFechaValidation();
 
-    this.reporteForm.get('esDeHoy')?.valueChanges.subscribe(async () => {
-      await this.manageFechaValidation();
+    this.reporteForm.get('esDeHoy')?.valueChanges.subscribe(() => {
+      this.manageFechaValidation();
     });
 
     this.reporteForm.get('contratosHoy')?.valueChanges.subscribe((value) => {
@@ -108,6 +119,12 @@ export class HiringReportComponent implements OnInit {
       this.reporteForm.get('cedulasEscaneadas')?.updateValueAndValidity();
       this.reporteForm.get('arl')?.updateValueAndValidity();
       this.reporteForm.get('cruceDiario')?.updateValueAndValidity();
+
+      // si cambia a "no", resetea flags para no bloquear envíos no-aplicables
+      if (value !== 'si') {
+        this.isCruceValidado = false;
+        this.isArlValidado = false;
+      }
     });
 
     // Carga de sedes activas
@@ -116,9 +133,8 @@ export class HiringReportComponent implements OnInit {
       if (!Array.isArray(data)) throw new Error('Respuesta inválida');
 
       const soloActivas = data.filter((s: any) => s.activa === true);
-      const unicas = Array.from(
-        new Map(soloActivas.map((s: any) => [s.nombre, s])).values(),
-      );
+      const unicas = Array.from(new Map(soloActivas.map((s: any) => [s.nombre, s])).values());
+
       this.sedes = unicas.sort((a: any, b: any) =>
         a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base' }),
       );
@@ -137,10 +153,10 @@ export class HiringReportComponent implements OnInit {
       title,
       text,
       allowOutsideClick: false,
+      allowEscapeKey: false,
       showConfirmButton: false,
-      didOpen: () => {
-        Swal.showLoading();
-      },
+      didOpen: () => Swal.showLoading(),
+      heightAuto: false,
     });
   }
 
@@ -148,11 +164,23 @@ export class HiringReportComponent implements OnInit {
     Swal.close();
   }
 
+  /**
+   * Convierte a Promise tanto Promises como Observables (por si algún día cambias tu service).
+   * - Si trae .subscribe => Observable => firstValueFrom
+   * - Si no => Promise/valor => await normal
+   */
+  private async toPromise<T>(input: any): Promise<T> {
+    if (input && typeof input.subscribe === 'function') {
+      return (await firstValueFrom(input)) as T;
+    }
+    return (await input) as T;
+  }
+
   // ---------------------------------------------------------------------------
   // Validación dinámica de fecha
   // ---------------------------------------------------------------------------
 
-  async manageFechaValidation(): Promise<void> {
+  manageFechaValidation(): void {
     const esDeHoy = this.reporteForm.get('esDeHoy')?.value;
 
     if (esDeHoy === 'true') {
@@ -190,16 +218,17 @@ export class HiringReportComponent implements OnInit {
       this.trasladosFileName = '';
       this.arlFileName = '';
 
-      // Reset de estado de validación
       this.isCruceValidado = false;
-      this.isArlValidado = true;
+      this.isArlValidado = false;
+
       this.erroresValidacion.data = [];
       this.datoscruced = [];
     }
   }
 
-  onCheckboxChange(event: any, controlName: string): void {
+  onCheckboxChange(event: any, controlName: UploadControl): void {
     this.reporteForm.get(controlName)?.setValue(event.checked);
+
     if (!event.checked) {
       this.filesToUpload[controlName] = [];
       this.updateFileName([], controlName);
@@ -210,46 +239,132 @@ export class HiringReportComponent implements OnInit {
       if (controlName === 'arl') {
         this.isArlValidado = false;
       }
+
       this.erroresValidacion.data = [];
     }
   }
 
-  onFilesSelected(event: Event, controlName: string): void {
+  onFilesSelected(event: Event, controlName: UploadControl): void {
     const input = event.target as HTMLInputElement;
-    const files = input.files ? Array.from(input.files) : [];
-    if (files.length > 0) {
-      this.filesToUpload[controlName] = files;
-      this.updateFileName(files, controlName);
+    const raw = input.files ? Array.from(input.files) : [];
 
-      // Cada vez que cambias archivos relevantes, invalida validaciones previas
-      if (['cruceDiario', 'cedulasEscaneadas', 'traslados'].includes(controlName)) {
-        this.isCruceValidado = false;
-      }
-      if (controlName === 'arl') {
-        this.isArlValidado = false;
-      }
-      this.erroresValidacion.data = [];
+    // permite seleccionar el mismo archivo dos veces
+    input.value = '';
+
+    if (!raw.length) return;
+
+    const { allowed, ignored } = this.filterFilesByControl(raw, controlName);
+
+    if (!allowed.length) {
+      this.filesToUpload[controlName] = [];
+      this.updateFileName([], controlName);
+      return;
     }
+
+    this.filesToUpload[controlName] = allowed;
+    this.updateFileName(allowed, controlName);
+
+    if (['cruceDiario', 'cedulasEscaneadas', 'traslados'].includes(controlName)) {
+      this.isCruceValidado = false;
+    }
+    if (controlName === 'arl') {
+      this.isArlValidado = false;
+    }
+
+    this.erroresValidacion.data = [];
   }
 
-  onFileSelected(event: Event, controlName: string): void {
+  onFileSelected(event: Event, controlName: UploadControl): void {
     const input = event.target as HTMLInputElement;
-    const file = input.files?.[0];
-    if (file) {
-      this.filesToUpload[controlName] = [file];
-      this.updateFileName([file], controlName);
+    const raw = input.files?.[0];
 
-      if (['cruceDiario', 'cedulasEscaneadas', 'traslados'].includes(controlName)) {
-        this.isCruceValidado = false;
-      }
-      if (controlName === 'arl') {
-        this.isArlValidado = false;
-      }
-      this.erroresValidacion.data = [];
+    input.value = '';
+
+    if (!raw) return;
+
+    const { allowed, ignored } = this.filterFilesByControl([raw], controlName);
+
+    if (ignored.length) {
+      console.warn('Ignorados:', ignored.map((f) => f.name));
+      Swal.fire({
+        icon: 'info',
+        title: 'Archivo ignorado',
+        text: `Se ignoró: ${ignored[0].name}.`,
+        heightAuto: false,
+      });
     }
+
+    if (!allowed.length) {
+      this.filesToUpload[controlName] = [];
+      this.updateFileName([], controlName);
+      return;
+    }
+
+    this.filesToUpload[controlName] = allowed;
+    this.updateFileName(allowed, controlName);
+
+    if (['cruceDiario', 'cedulasEscaneadas', 'traslados'].includes(controlName)) {
+      this.isCruceValidado = false;
+    }
+    if (controlName === 'arl') {
+      this.isArlValidado = false;
+    }
+
+    this.erroresValidacion.data = [];
   }
 
-  private updateFileName(files: File[], controlName: string): void {
+  private filterFilesByControl(
+    files: File[],
+    controlName: UploadControl,
+  ): { allowed: File[]; ignored: File[] } {
+    const allowed: File[] = [];
+    const ignored: File[] = [];
+
+    const lower = (s: string) => (s ?? '').trim().toLowerCase();
+    const isBlocked = (name: string) => this.BLOCKED_FILES.has(lower(name));
+    const ext = (name: string) => lower(name).split('.').pop() || '';
+
+    const isPdf = (f: File) => ext(f.name) === 'pdf' || lower(f.type) === 'application/pdf';
+    const isExcelLike = (f: File) => ['xlsx', 'xls', 'csv'].includes(ext(f.name));
+
+    for (const f of files) {
+      if (!f?.name) {
+        ignored.push(f);
+        continue;
+      }
+
+      if (isBlocked(f.name)) {
+        ignored.push(f);
+        continue;
+      }
+
+      // REGLAS POR TIPO (clave para NO mandar Thumbs.db / basura al backend)
+      if (controlName === 'cedulasEscaneadas' || controlName === 'traslados') {
+        if (!isPdf(f)) ignored.push(f);
+        else allowed.push(f);
+        continue;
+      }
+
+      if (controlName === 'cruceDiario' || controlName === 'arl') {
+        if (!isExcelLike(f)) ignored.push(f);
+        else allowed.push(f);
+        continue;
+      }
+
+      // induccionSSO: por defecto PDF (puedes ampliar si necesitas)
+      if (controlName === 'induccionSSO') {
+        if (!isPdf(f)) ignored.push(f);
+        else allowed.push(f);
+        continue;
+      }
+
+      allowed.push(f);
+    }
+
+    return { allowed, ignored };
+  }
+
+  private updateFileName(files: File[], controlName: UploadControl): void {
     const fileNames = files.map((file) => file.name).join(', ');
     switch (controlName) {
       case 'cedulasEscaneadas':
@@ -275,7 +390,7 @@ export class HiringReportComponent implements OnInit {
   // ---------------------------------------------------------------------------
 
   corregirFecha(fecha: string): string {
-    const dateParts = fecha.split(/\/|-/);
+    const dateParts = (fecha ?? '').split(/\/|-/);
 
     if (dateParts.length === 3) {
       let [day, month, year] = dateParts;
@@ -299,8 +414,14 @@ export class HiringReportComponent implements OnInit {
     const emojiPattern =
       /[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F1E0}-\u{1F1FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F900}-\u{1F9FF}\u{1FA70}-\u{1FAFF}\u{1F7E0}-\u{1F7EF}]/gu;
 
-    return text.replace(emojiPattern, '');
+    return (text ?? '').replace(emojiPattern, '');
   };
+
+  private onlyDigits(value: any): string {
+    return this.removeSpecialCharacters(String(value ?? ''))
+      .replace(/[^\d]/g, '')
+      .trim();
+  }
 
   excelSerialToJSDate(serial: number): string {
     const utcDays = Math.floor(serial - 25569);
@@ -311,8 +432,13 @@ export class HiringReportComponent implements OnInit {
     return `${day}/${month}/${year}`;
   }
 
-  delay(ms: number): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, ms));
+  // ---------------------------------------------------------------------------
+  // Lectura de Excel (ArrayBuffer)
+  // ---------------------------------------------------------------------------
+
+  private async readWorkbook(file: File): Promise<XLSX.WorkBook> {
+    const buffer = await file.arrayBuffer();
+    return XLSX.read(buffer, { type: 'array' });
   }
 
   // ---------------------------------------------------------------------------
@@ -320,105 +446,78 @@ export class HiringReportComponent implements OnInit {
   // ---------------------------------------------------------------------------
 
   private async extraerCedulasDelArchivo(file: File): Promise<string[]> {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
+    const workbook = await this.readWorkbook(file);
 
-      reader.onload = (e: ProgressEvent<FileReader>) => {
-        const bstr = e.target?.result as string;
-        const workbook = XLSX.read(bstr, { type: 'binary' });
+    const sheetName = workbook.SheetNames[0];
+    const sheet = workbook.Sheets[sheetName];
 
-        try {
-          const sheetName = workbook.SheetNames[0];
-          const sheet = workbook.Sheets[sheetName];
-          const json = XLSX.utils.sheet_to_json(sheet, {
-            header: 1,
-            raw: false,
-            dateNF: 'dd/mm/yyyy',
-          }) as any[];
+    const json = XLSX.utils.sheet_to_json(sheet, {
+      header: 1,
+      raw: false,
+      dateNF: 'dd/mm/yyyy',
+    }) as any[];
 
-          // Quitamos encabezados
-          json.shift();
+    // Quitamos encabezados
+    json.shift();
 
-          const cedulas: string[] = json
-            .map((row: any[]) => {
-              const cedula = row[1];
-              return cedula
-                ? this.removeSpecialCharacters(cedula.toString().replace(/\s/g, ''))
-                : '';
-            })
-            .filter((cedula) => cedula !== '');
-
-          resolve(cedulas);
-        } catch (error) {
-          reject(error);
-        }
-      };
-
-      reader.onerror = (err) => reject(err);
-      reader.readAsBinaryString(file);
-    });
+    // Tu lógica: cédula en columna 2 (index 1)
+    return json
+      .map((row: any[]) => this.onlyDigits(row?.[1]))
+      .filter((c) => c !== '');
   }
 
   private async contarALyTAEnColumna(file: File): Promise<{ AL: number; TA: number }> {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
+    const workbook = await this.readWorkbook(file);
 
-      reader.onload = (e: ProgressEvent<FileReader>) => {
-        const bstr = e.target?.result as string;
-        const workbook = XLSX.read(bstr, { type: 'binary' });
+    const sheetName = workbook.SheetNames[0];
+    const sheet = workbook.Sheets[sheetName];
 
-        try {
-          const sheetName = workbook.SheetNames[0];
-          const sheet = workbook.Sheets[sheetName];
-          const json = XLSX.utils.sheet_to_json(sheet, {
-            header: 1,
-            raw: false,
-            dateNF: 'dd/mm/yyyy',
-          }) as any[];
+    const json = XLSX.utils.sheet_to_json(sheet, {
+      header: 1,
+      raw: false,
+      dateNF: 'dd/mm/yyyy',
+    }) as any[];
 
-          json.shift();
+    json.shift();
 
-          let alCount = 0;
-          let taCount = 0;
+    let alCount = 0;
+    let taCount = 0;
 
-          json.forEach((row: any[]) => {
-            const valor = row[2];
-            if (valor === 'AL') {
-              alCount++;
-            } else if (valor === 'TA') {
-              taCount++;
-            }
-          });
-
-          resolve({ AL: alCount, TA: taCount });
-        } catch (error) {
-          reject(error);
-        }
-      };
-
-      reader.onerror = (err) => reject(err);
-      reader.readAsBinaryString(file);
+    // Tu lógica: AL/TA en columna 3 (index 2)
+    json.forEach((row: any[]) => {
+      const valor = (row?.[2] ?? '').toString().trim();
+      if (valor === 'AL') alCount++;
+      else if (valor === 'TA') taCount++;
     });
+
+    return { AL: alCount, TA: taCount };
+  }
+
+  private extractCedulaFromFilename(filename: string): string | null {
+    const name = (filename ?? '').trim();
+    const lower = name.toLowerCase();
+
+    if (!name) return null;
+    if (this.BLOCKED_FILES.has(lower)) return null;
+    if (!lower.endsWith('.pdf')) return null;
+
+    // Sin extensión
+    const base = name.replace(/\.pdf$/i, '').trim();
+
+    // acepta:
+    //  1051660630 - SALUD TOTAL
+    //  1051660630-SALUD TOTAL
+    //  1051660630 SALUD TOTAL
+    const match = base.match(/^\s*([0-9]{6,15})\s*(?:[-_ ]\s*.*)?$/);
+    if (!match) return null;
+
+    return match[1].trim();
   }
 
   private extraerCedulasDeArchivos(files: File[]): string[] {
-    const cedulas: string[] = [];
-
-    files.forEach((file) => {
-      let cedula = '';
-
-      if (file.name.includes(' - ')) {
-        cedula = file.name.split(' - ')[0];
-      } else if (file.name.includes('-')) {
-        cedula = file.name.split('-')[0];
-      }
-
-      if (cedula) {
-        cedulas.push(cedula.trim());
-      }
-    });
-
-    return cedulas;
+    return (files ?? [])
+      .map((f) => this.extractCedulaFromFilename(f?.name ?? ''))
+      .filter((c): c is string => !!c);
   }
 
   async ObtenerCedulasEscaneadas(files: File[]): Promise<string[]> {
@@ -431,26 +530,31 @@ export class HiringReportComponent implements OnInit {
 
   // Validación EPS de traslados (sin base64 ni subida)
   async validarTrasladosEps(files: File[]): Promise<void> {
-    const validEPS = ['nuevaeps', 'saludtotal', 'famisanar'];
+    const validEPS = new Set(['nuevaeps', 'saludtotal', 'famisanar']);
 
-    for (const file of files) {
-      let cedula = '';
-      let eps = '';
+    for (const file of files ?? []) {
+      const name = (file?.name ?? '').trim();
+      const lower = name.toLowerCase();
 
-      if (file.name.includes(' - ')) {
-        [cedula, eps] = file.name.split(' - ');
-      } else if (file.name.includes('-')) {
-        [cedula, eps] = file.name.split('-');
-      } else {
-        continue;
-      }
+      if (this.BLOCKED_FILES.has(lower)) continue;
+      if (!lower.endsWith('.pdf')) continue;
 
-      eps = eps.replace('.pdf', '').replace(/\s+/g, '').toLowerCase();
+      const base = name.replace(/\.pdf$/i, '').trim();
 
-      if (!validEPS.includes(eps)) {
+      // separadores posibles: " - " o "-"
+      let parts: string[] = [];
+      if (base.includes(' - ')) parts = base.split(' - ');
+      else if (base.includes('-')) parts = base.split('-');
+
+      if (parts.length < 2) continue;
+
+      let eps = (parts[1] ?? '').toString().replace(/\s+/g, '').toLowerCase();
+      eps = eps.replace(/[^a-z]/g, ''); // deja letras
+
+      if (!validEPS.has(eps)) {
         await Swal.fire(
           'Error',
-          `La EPS "${eps}" no es válida. Solo se permiten NUEVA EPS, SALUD TOTAL o FAMISANAR. Por favor, corrija los nombres.`,
+          `La EPS "${parts[1]}" no es válida. Solo se permiten NUEVA EPS, SALUD TOTAL o FAMISANAR. Corrija los nombres del PDF.`,
           'error',
         );
         throw new Error('EPS inválida en traslados');
@@ -459,95 +563,78 @@ export class HiringReportComponent implements OnInit {
   }
 
   // ---------------------------------------------------------------------------
-  // Botón VALIDAR (aplica todas las reglas antes de enviar a reportes/Django)
+  // Botón VALIDAR (aplica reglas antes de enviar a reportes/Django)
   // ---------------------------------------------------------------------------
 
   async validarTodo(): Promise<void> {
-    // Siempre que validas, resetea estado previo
+    // reset de estado previo
     this.isCruceValidado = false;
-    this.isArlValidado = true;
+    this.isArlValidado = false;
     this.erroresValidacion.data = [];
     this.datoscruced = [];
 
-    this.showLoading('Cargando...', 'Extrayendo cédulas del archivo');
+    this.showLoading('Cargando...', 'Extrayendo cédulas y validando archivos...');
 
     try {
-      const filesCruce = this.filesToUpload['cruceDiario'];
-      if (!filesCruce || filesCruce.length === 0) {
+      const cruceChecked = !!this.reporteForm.get('cruceDiario')?.value;
+      const arlChecked = !!this.reporteForm.get('arl')?.value;
+      const trasladosChecked = !!this.reporteForm.get('traslados')?.value;
+
+      const filesCruce = this.filesToUpload.cruceDiario ?? [];
+      if (cruceChecked && filesCruce.length === 0) {
         this.closeSwal();
-        await Swal.fire(
-          'Error',
-          'Debe cargar un archivo de cruce diario antes de validar',
-          'error',
-        );
+        await Swal.fire('Error', 'Debe cargar un archivo de cruce diario antes de validar', 'error');
         return;
       }
-      const fileCruce = filesCruce[0];
 
-      const arlFiles = this.filesToUpload['arl'];
-      if (!arlFiles || arlFiles.length === 0) {
+      const arlFiles = this.filesToUpload.arl ?? [];
+      if (arlChecked && arlFiles.length === 0) {
         this.closeSwal();
         await Swal.fire('Error', 'Debe cargar un archivo de ARL antes de validar', 'error');
         return;
       }
 
-      const cedulasEscaneadasFiles = this.filesToUpload['cedulasEscaneadas'];
-      if (!cedulasEscaneadasFiles || cedulasEscaneadasFiles.length === 0) {
+      const cedulasEscaneadasFiles = this.filesToUpload.cedulasEscaneadas ?? [];
+      if (this.reporteForm.get('cedulasEscaneadas')?.value && cedulasEscaneadasFiles.length === 0) {
         this.closeSwal();
-        await Swal.fire(
-          'Error',
-          'Debe cargar archivos de cédulas escaneadas antes de validar',
-          'error',
-        );
+        await Swal.fire('Error', 'Debe cargar archivos de cédulas escaneadas antes de validar', 'error');
         return;
       }
 
+      // cédulas desde PDFs (aquí ya NO entran Thumbs.db por el filtro de selección)
       const cedulasEscaneadas = this.extraerCedulasDeArchivos(cedulasEscaneadasFiles);
 
       let cedulasTrasladosExtraidas: string[] = [];
-      const trasladosFiles = this.filesToUpload['traslados'];
+      const trasladosFiles = this.filesToUpload.traslados ?? [];
 
-      if (this.reporteForm.get('traslados')?.value) {
-        if (!trasladosFiles || trasladosFiles.length === 0) {
+      if (trasladosChecked) {
+        if (trasladosFiles.length === 0) {
           this.closeSwal();
-          await Swal.fire(
-            'Error',
-            'Debe cargar archivos de traslados si seleccionó esa opción',
-            'error',
-          );
+          await Swal.fire('Error', 'Debe cargar archivos de traslados si seleccionó esa opción', 'error');
           return;
         }
-        // validación adicional de EPS en traslados
         await this.validarTrasladosEps(trasladosFiles);
         cedulasTrasladosExtraidas = this.extraerCedulasDeArchivos(trasladosFiles);
       }
 
-      const cedulasExcel = await this.extraerCedulasDelArchivo(fileCruce);
+      // Excel cruce
+      let cedulasExcel: string[] = [];
+      if (cruceChecked) {
+        const fileCruce = (this.filesToUpload.cruceDiario ?? [])[0];
+        cedulasExcel = await this.extraerCedulasDelArchivo(fileCruce);
 
-      // mejor: esperar el conteo y abortar si falla
-      try {
         const result = await this.contarALyTAEnColumna(fileCruce);
         this.numeroContratosApoyoLaboral = result.AL;
         this.numeroContratosAlianza = result.TA;
         this.reporteForm.controls['cantidadContratosTuAlianza'].setValue(result.TA);
         this.reporteForm.controls['cantidadContratosApoyoLaboral'].setValue(result.AL);
-      } catch {
-        this.closeSwal();
-        await Swal.fire(
-          'Error',
-          'Error al contar AL y TA en el archivo de cruce diario',
-          'error',
-        );
-        return;
       }
 
       const erroresFormateados: { registro: string; errores: any[]; tipo: string }[] = [];
 
-      // Regla 7: cédulas escaneadas que faltan en cruce
-      const cedulasFaltantesEnExcel = cedulasEscaneadas.filter(
-        (c) => !cedulasExcel.includes(c),
-      );
-      if (cedulasFaltantesEnExcel.length > 0) {
+      if (cruceChecked) {
+        // Regla: cédulas escaneadas que faltan en cruce
+        const cedulasFaltantesEnExcel = cedulasEscaneadas.filter((c) => !cedulasExcel.includes(c));
         cedulasFaltantesEnExcel.forEach((cedula) => {
           erroresFormateados.push({
             registro: '0',
@@ -555,13 +642,9 @@ export class HiringReportComponent implements OnInit {
             tipo: 'Cédula escaneada',
           });
         });
-      }
 
-      // Regla 7 (lado inverso): cédulas en cruce no escaneadas
-      const cedulasExtrasEnExcel = cedulasExcel.filter(
-        (c) => !cedulasEscaneadas.includes(c),
-      );
-      if (cedulasExtrasEnExcel.length > 0) {
+        // Regla inversa: cédulas en cruce no escaneadas
+        const cedulasExtrasEnExcel = cedulasExcel.filter((c) => !cedulasEscaneadas.includes(c));
         cedulasExtrasEnExcel.forEach((cedula) => {
           erroresFormateados.push({
             registro: '0',
@@ -569,14 +652,12 @@ export class HiringReportComponent implements OnInit {
             tipo: 'Cédula escaneada',
           });
         });
-      }
 
-      // Regla 8: cédulas de traslados deben existir en cruce
-      if (cedulasTrasladosExtraidas.length > 0) {
-        const cedulasTrasladosNoEnExcel = cedulasTrasladosExtraidas.filter(
-          (c) => !cedulasExcel.includes(c),
-        );
-        if (cedulasTrasladosNoEnExcel.length > 0) {
+        // Regla: traslados deben existir en cruce
+        if (cedulasTrasladosExtraidas.length > 0) {
+          const cedulasTrasladosNoEnExcel = cedulasTrasladosExtraidas.filter(
+            (c) => !cedulasExcel.includes(c),
+          );
           cedulasTrasladosNoEnExcel.forEach((cedula) => {
             erroresFormateados.push({
               registro: '0',
@@ -585,68 +666,59 @@ export class HiringReportComponent implements OnInit {
             });
           });
         }
-      }
 
-      // Regla 2: número total de cédulas escaneadas vs Excel
-      if (cedulasEscaneadas.length !== cedulasExcel.length) {
-        erroresFormateados.push({
-          registro: '0',
-          errores: [
-            `El número de cédulas escaneadas (${cedulasEscaneadas.length}) no coincide con las cédulas del Excel (${cedulasExcel.length}).`,
-          ],
-          tipo: 'Consistencia',
-        });
+        // Regla: total de cédulas escaneadas vs Excel
+        if (cedulasEscaneadas.length !== cedulasExcel.length) {
+          erroresFormateados.push({
+            registro: '0',
+            errores: [
+              `El número de cédulas escaneadas (${cedulasEscaneadas.length}) no coincide con las cédulas del Excel (${cedulasExcel.length}).`,
+            ],
+            tipo: 'Consistencia',
+          });
+        }
       }
 
       if (erroresFormateados.length > 0) {
         this.closeSwal();
         this.erroresValidacion.data = erroresFormateados;
 
-        const tipoErrores = this.reporteForm.get('traslados')?.value
-          ? 'Traslado'
-          : 'Cruce Diario';
-
+        const tipoErrores = trasladosChecked ? 'Traslado' : 'Cruce Diario';
         const payload = {
           errores: this.erroresValidacion.data,
           responsable: this.nombre,
           tipo: tipoErrores,
         };
 
-        this.showLoading(
-          'Guardando errores...',
-          'Enviando todos los errores para guardar...',
-        );
+        this.showLoading('Guardando errores...', 'Enviando todos los errores para guardar...');
 
-        await this.hiringService.enviarErroresValidacion(payload).then(
-          () => {
-            this.closeSwal();
-            Swal.fire(
-              'Error',
-              'Se han encontrado errores en el archivo de cruce diario. Por favor, corrija los datos y vuelva a intentarlo.',
-              'error',
-            );
-          },
-          () => {
-            this.closeSwal();
-            Swal.fire('Error', 'Error al guardar los errores.', 'error');
-          },
-        );
-      } else {
-        this.closeSwal();
-        // marcamos que el cruce está pre-validado a nivel de reglas de cédulas
-        this.isCruceValidado = true;
-
-        // Validación profunda contra backend + ARL
-        await this.validarCruce();
-        // el Swal de éxito o error final se maneja dentro de validarCruce / processArl
+        try {
+          // ✅ FIX: no firstValueFrom(Promise)
+          await this.toPromise(this.hiringService.enviarErroresValidacion(payload));
+          this.closeSwal();
+          await Swal.fire('Error', 'Se han encontrado errores. Corrija los datos y vuelva a intentarlo.', 'error');
+        } catch {
+          this.closeSwal();
+          await Swal.fire('Error', 'Error al guardar los errores.', 'error');
+        }
+        return;
       }
-    } catch (error) {
+
       this.closeSwal();
-      await Swal.fire(
-        'Error',
-        'Error al procesar el archivo. Inténtelo de nuevo.',
-        'error',
-      );
+
+      // pre-validación OK
+      this.isCruceValidado = cruceChecked ? true : false;
+
+      // Validación profunda (cruce + ARL)
+      if (cruceChecked) {
+        await this.validarCruce();
+      } else if (arlChecked) {
+        // Si no hay cruce pero sí ARL, al menos procesa ARL
+        await this.proccssArl([arlFiles[0]]);
+      }
+    } catch {
+      this.closeSwal();
+      await Swal.fire('Error', 'Error al procesar. Inténtelo de nuevo.', 'error');
     }
   }
 
@@ -657,12 +729,14 @@ export class HiringReportComponent implements OnInit {
   async validarCruce(): Promise<void> {
     this.closeSwal();
 
-    const files = this.filesToUpload['cruceDiario'];
-
-    if (!files || files.length === 0) {
-      Swal.fire('Error', 'Debe cargar un archivo antes de validar', 'error');
+    const files = this.filesToUpload.cruceDiario ?? [];
+    if (files.length === 0) {
+      await Swal.fire('Error', 'Debe cargar un archivo antes de validar', 'error');
       return;
     }
+
+    const arlChecked = !!this.reporteForm.get('arl')?.value;
+    const arlFiles = this.filesToUpload.arl ?? [];
 
     // reset para ejecutar una validación limpia
     this.isCruceValidado = false;
@@ -670,185 +744,179 @@ export class HiringReportComponent implements OnInit {
 
     this.showLoading('Cargando...', 'Iniciando el proceso de validación');
 
-    const file = files[0];
-    const reader = new FileReader();
+    try {
+      const file = files[0];
+      const workbook = await this.readWorkbook(file);
 
-    reader.onload = async (e: ProgressEvent<FileReader>) => {
-      const bstr = e.target?.result as string;
-      const workbook = XLSX.read(bstr, { type: 'binary' });
+      this.showLoading('Leyendo el archivo Excel...', 'Por favor, espere...');
 
-      try {
-        this.showLoading('Leyendo el archivo Excel...', 'Por favor, espere...');
+      const sheetName = workbook.SheetNames[0];
+      const sheet = workbook.Sheets[sheetName];
+      const json = XLSX.utils.sheet_to_json(sheet, {
+        header: 1,
+        raw: false,
+        dateNF: 'dd/mm/yyyy',
+      }) as any[];
 
-        const sheetName = workbook.SheetNames[0];
-        const sheet = workbook.Sheets[sheetName];
-        const json = XLSX.utils.sheet_to_json(sheet, {
-          header: 1,
-          raw: false,
-          dateNF: 'dd/mm/yyyy',
-        }) as any[];
+      // Quitamos encabezados
+      json.shift();
 
-        // Quitamos encabezados
-        json.shift();
+      const formatDate = (date: string): string => {
+        const value = (date ?? '').toString().trim();
+        const regex_ddmmyyyy = /^\d{1,2}\/\d{1,2}\/\d{4}$/;
+        const regex_mmddyy = /^\d{1,2}\/\d{1,2}\/\d{2}$/;
 
-        const formatDate = (date: string): string => {
-          const regex_ddmmyyyy = /^\d{1,2}\/\d{1,2}\/\d{4}$/;
-          const regex_mmddyy = /^\d{1,2}\/\d{1,2}\/\d{2}$/;
+        if (regex_ddmmyyyy.test(value)) return value;
 
-          if (regex_ddmmyyyy.test(date)) {
-            return date;
-          } else if (regex_mmddyy.test(date)) {
-            const [month, day, year] = date.split('/');
-            const fullYear = parseInt(year, 10) < 50 ? `20${year}` : `19${year}`;
-            return `${day.padStart(2, '0')}/${month.padStart(2, '0')}/${fullYear}`;
+        if (regex_mmddyy.test(value)) {
+          const [month, day, year] = value.split('/');
+          const fullYear = parseInt(year, 10) < 50 ? `20${year}` : `19${year}`;
+          return `${day.padStart(2, '0')}/${month.padStart(2, '0')}/${fullYear}`;
+        }
+
+        return value;
+      };
+
+      const indicesFechas = [0, 8, 16, 24, 44, 134];
+
+      const rows: string[][] = json.map((row: any[]) => {
+        const completeRow = new Array(195).fill('-');
+
+        row.forEach((cell, index) => {
+          if (index >= 195) return;
+
+          if (
+            cell == null ||
+            cell === '' ||
+            cell === '#N/A' ||
+            cell === 'N/A' ||
+            cell === '#REF!' ||
+            cell === '#¡REF!'
+          ) {
+            completeRow[index] = '-';
+            return;
           }
-          return date;
-        };
 
-        const indicesFechas = [0, 8, 16, 24, 44, 134];
+          if (index === 11 || index === 1) {
+            completeRow[index] = this.onlyDigits(cell);
+            return;
+          }
 
-        const rows: string[][] = json.map((row: any[]) => {
-          const completeRow = new Array(195).fill('-');
+          if (indicesFechas.includes(index)) {
+            completeRow[index] = formatDate(this.removeSpecialCharacters(cell.toString()));
+            return;
+          }
 
-          row.forEach((cell, index) => {
-            if (index < 195) {
-              if (
-                cell == null ||
-                cell === '' ||
-                cell === '#N/A' ||
-                cell === 'N/A' ||
-                cell === '#REF!' ||
-                cell === '#¡REF!'
-              ) {
-                completeRow[index] = '-';
-              } else if (index === 11 || index === 1) {
-                completeRow[index] = this.removeSpecialCharacters(
-                  cell
-                    .toString()
-                    .replace(/,/g, '')
-                    .replace(/\./g, '')
-                    .replace(/\s/g, '')
-                    .replace(/[^0-9xX]/g, ''),
-                );
-              } else if (indicesFechas.includes(index)) {
-                completeRow[index] = formatDate(
-                  this.removeSpecialCharacters(cell.toString()),
-                );
-              } else {
-                completeRow[index] = this.removeSpecialCharacters(cell.toString());
-              }
-            }
-          });
-
-          return completeRow;
+          completeRow[index] = this.removeSpecialCharacters(cell.toString());
         });
 
-        this.datoscruced = rows;
+        return completeRow;
+      });
 
-        this.showLoading('Dividiendo los datos en lotes...', 'Por favor, espere...');
+      this.datoscruced = rows;
 
-        const batchSize = 1500;
-        const totalBatches = Math.ceil(rows.length / batchSize);
-        let allErrors: any[] = [];
+      this.showLoading('Dividiendo los datos en lotes...', 'Por favor, espere...');
 
-        for (let i = 0; i < totalBatches; i++) {
-          const batch = rows.slice(i * batchSize, (i + 1) * batchSize);
+      const batchSize = 1500;
+      const totalBatches = Math.ceil(rows.length / batchSize);
+      const allErrors: any[] = [];
 
-          this.showLoading(
-            'Validando lote...',
-            `Enviando el lote ${i + 1} de ${totalBatches} para validación...`,
-          );
+      for (let i = 0; i < totalBatches; i++) {
+        const batch = rows.slice(i * batchSize, (i + 1) * batchSize);
 
-          await this.hiringService.subirContratacionValidar(batch).then((response) => {
-            if (response.status === 'error') {
-              allErrors.push(...response.errores);
-            }
-          });
-        }
-
-        this.showLoading('Procesando errores...', 'Por favor, espere...');
-
-        this.erroresValidacion.data = allErrors;
-
-        await this.proccssArl([this.filesToUpload['arl'][0]]);
-
-        if (allErrors.length > 0) {
-          const erroresFormateados: { registro: string; errores: any[] }[] = [];
-
-          for (const [registro, errorObj] of Object.entries(allErrors)) {
-            erroresFormateados.push({
-              registro: registro,
-              errores: (errorObj as any).errores || [],
-            });
-          }
-
-          const payload = {
-            errores: erroresFormateados,
-            responsable: this.nombre,
-            tipo: 'Documento de Contratación',
-          };
-
-          this.showLoading(
-            'Enviando errores...',
-            'Guardando errores encontrados...',
-          );
-
-          await this.hiringService.enviarErroresValidacion(payload).then(
-            () => {
-              this.closeSwal();
-              Swal.fire(
-                'Error',
-                'Se han encontrado errores en el archivo de cruce diario. Por favor, corrija los datos y vuelva a intentarlo.',
-                'error',
-              );
-            },
-            () => {
-              this.closeSwal();
-              Swal.fire('Error', 'Error al guardar los errores.', 'error');
-            },
-          );
-        } else {
-          this.closeSwal();
-          this.isCruceValidado = true;
-
-          Swal.fire(
-            'Completado',
-            'Proceso de validación finalizado correctamente.',
-            'success',
-          );
-        }
-      } catch (error) {
-        this.closeSwal();
-        Swal.fire(
-          'Error',
-          'Error procesando el archivo. Verifique el formato e intente de nuevo.',
-          'error',
+        this.showLoading(
+          'Validando lote...',
+          `Enviando el lote ${i + 1} de ${totalBatches} para validación...`,
         );
-      }
-    };
 
-    reader.readAsBinaryString(file);
+        // ✅ FIX: no firstValueFrom(Promise)
+        const response: any = await this.toPromise(this.hiringService.subirContratacionValidar(batch));
+        if (response?.status === 'error' && Array.isArray(response?.errores)) {
+          allErrors.push(...response.errores);
+        }
+      }
+
+      this.erroresValidacion.data = allErrors;
+
+      // Procesa ARL (si aplica) y genera el Excel ARL
+      if (arlChecked && arlFiles.length > 0) {
+        await this.proccssArl([arlFiles[0]]);
+      }
+
+      if (allErrors.length > 0) {
+        const payload = {
+          errores: allErrors,
+          responsable: this.nombre,
+          tipo: 'Documento de Contratación',
+        };
+
+        this.showLoading('Enviando errores...', 'Guardando errores encontrados...');
+
+        try {
+          // ✅ FIX: no firstValueFrom(Promise)
+          await this.toPromise(this.hiringService.enviarErroresValidacion(payload));
+          this.closeSwal();
+          await Swal.fire(
+            'Error',
+            'Se han encontrado errores en el cruce diario. Corrija y vuelva a intentar.',
+            'error',
+          );
+        } catch {
+          this.closeSwal();
+          await Swal.fire('Error', 'Error al guardar los errores.', 'error');
+        }
+        return;
+      }
+
+      this.closeSwal();
+      this.isCruceValidado = true;
+
+      await Swal.fire('Completado', 'Proceso de validación finalizado correctamente.', 'success');
+    } catch {
+      this.closeSwal();
+      await Swal.fire(
+        'Error',
+        'Error procesando el archivo. Verifique el formato e intente de nuevo.',
+        'error',
+      );
+    }
   }
 
-  applyFilter(column: string, event: Event): void {
+  applyFilter(_column: string, event: Event): void {
     const filterValue = (event.target as HTMLInputElement).value;
-    this.erroresValidacion.filter = filterValue.trim().toLowerCase();
+    this.erroresValidacion.filter = (filterValue ?? '').trim().toLowerCase();
   }
 
   // ---------------------------------------------------------------------------
   // Procesamiento ARL (Regla 9 + generación Excel de resultados ARL)
   // ---------------------------------------------------------------------------
 
+  private parseDateAny(value: any): Date | null {
+    if (value == null || value === '' || value === '-') return null;
+
+    if (typeof value === 'number') {
+      const excelEpoch = new Date(1899, 11, 30);
+      return new Date(excelEpoch.getTime() + value * 24 * 60 * 60 * 1000);
+    }
+
+    const str = String(value).trim();
+    if (!str) return null;
+
+    const normalized = str.includes('-') ? str.replace(/-/g, '/') : str;
+    const parts = normalized.split('/').map((p) => p.trim());
+    if (parts.length !== 3) return null;
+
+    const [d, m, y] = parts.map(Number);
+    if (!d || !m || !y) return null;
+
+    return new Date(y, m - 1, d);
+  }
+
   async processArl(workbook: XLSX.WorkBook): Promise<void> {
     let confirmarErrores = true;
-
-    // cada vez que recalculamos ARL, asumimos válido hasta que se pruebe lo contrario
     this.isArlValidado = true;
 
-    this.showLoading(
-      'Cargando...',
-      'Procesando archivo de ARL. Por favor, espere unos segundos.',
-    );
+    this.showLoading('Cargando...', 'Procesando archivo de ARL. Por favor, espere...');
 
     try {
       const sheetArl = workbook.Sheets[workbook.SheetNames[0]];
@@ -859,33 +927,39 @@ export class HiringReportComponent implements OnInit {
         defval: '',
       }) as any[][];
 
-      const datos = dataArl[0] as string[];
-
-      const dniTrabajadorIndex = datos.indexOf('DNI TRABAJADOR');
-      const inicioVigenciaIndex = datos.indexOf('INICIO VIGENCIA');
-
-      if (dniTrabajadorIndex === -1) {
-        Swal.fire(
-          'Error',
-          'No se encontró el encabezado "DNI TRABAJADOR" en el archivo de ARL. Tiene que tener encabezados',
-          'error',
-        );
-      }
-      if (inicioVigenciaIndex === -1) {
-        Swal.fire(
-          'Error',
-          'No se encontró el encabezado "INICIO VIGENCIA" en el archivo de ARL. Tiene que tener encabezados',
-          'error',
-        );
+      if (!dataArl.length) {
+        this.isArlValidado = false;
+        this.closeSwal();
+        await Swal.fire('Error', 'El archivo ARL está vacío.', 'error');
+        return;
       }
 
-      const rowsArl = dataArl.map((row) => {
-        if (row[9] && typeof row[9] === 'number') {
-          row[9] = this.excelSerialToJSDate(row[9]);
-        }
-        return row;
-      });
-      rowsArl.shift();
+      const headerRow = (dataArl[0] ?? []).map((h) => (h ?? '').toString().trim());
+      const dniTrabajadorIndex = headerRow.indexOf('DNI TRABAJADOR');
+      const inicioVigenciaIndex = headerRow.indexOf('INICIO VIGENCIA');
+
+      if (dniTrabajadorIndex === -1 || inicioVigenciaIndex === -1) {
+        this.isArlValidado = false;
+        this.closeSwal();
+        await Swal.fire(
+          'Error',
+          'El archivo ARL debe tener encabezados e incluir "DNI TRABAJADOR" y "INICIO VIGENCIA".',
+          'error',
+        );
+        return;
+      }
+
+      const rowsArl = dataArl
+        .slice(1)
+        .map((row) => {
+          const copy = [...row];
+          const v = copy[inicioVigenciaIndex];
+          if (typeof v === 'number') {
+            copy[inicioVigenciaIndex] = this.excelSerialToJSDate(v);
+          }
+          return copy;
+        })
+        .filter((r) => r && r.length);
 
       const headers = [
         'Fecha de firma de contrato',
@@ -1085,150 +1159,119 @@ export class HiringReportComponent implements OnInit {
         'OBSERVACIONES',
       ];
 
-      const datosMapeados = this.datoscruced.map(
-        (cruceRow: any[], index: number) => {
-          let cedulaCruce = cruceRow[1];
-          const comparativoCruce = cruceRow[8];
+      const datosMapeados = this.datoscruced.map((cruceRow: any[], index: number) => {
+        const cedulaCruce = this.onlyDigits(cruceRow?.[1]);
+        const comparativoCruce = cruceRow?.[8];
 
-          cedulaCruce = cedulaCruce.replace(/\s|\./g, '');
+        const filaArl = rowsArl.find((arlRow) => {
+          const cedulaArl = this.onlyDigits(arlRow?.[dniTrabajadorIndex]);
+          return cedulaArl === cedulaCruce;
+        });
 
-          const filaArl = rowsArl.find((arlRow) => {
-            const cedulaArl = (arlRow[dniTrabajadorIndex] || '')
-              .toString()
-              .replace(/\s|\./g, '');
-            return cedulaArl === cedulaCruce;
-          });
+        let estadoCedula = 'ALERTA NO ESTA EN ARL';
+        let estadoFechas = 'SATISFACTORIO';
+        let fechaIngresoArl: any = 'NO DISPONIBLE';
+        let fechaIngresoCruce: any = comparativoCruce || 'NO DISPONIBLE';
 
-          let estadoCedula = 'ALERTA NO ESTA EN ARL';
-          let estadoFechas = 'SATISFACTORIO';
-          let fechaIngresoArl = 'NO DISPONIBLE';
-          let fechaIngresoCruce = comparativoCruce || 'NO DISPONIBLE';
+        if (filaArl) {
+          estadoCedula = 'SATISFACTORIO';
 
-          if (filaArl) {
-            estadoCedula = 'SATISFACTORIO';
-            const comparativoArl = filaArl[inicioVigenciaIndex];
+          const comparativoArl = filaArl?.[inicioVigenciaIndex];
+          const fechaArl = this.parseDateAny(comparativoArl);
+          const fechaCruce = this.parseDateAny(comparativoCruce);
 
-            const formatDateAny = (dateStr: string | number) => {
-              if (typeof dateStr === 'number') {
-                const excelEpoch = new Date(1899, 11, 30);
-                return new Date(excelEpoch.getTime() + dateStr * 24 * 60 * 60 * 1000);
-              }
-
-              if (typeof dateStr === 'string') {
-                const normalizedDateStr = dateStr.includes('-')
-                  ? dateStr.replace(/-/g, '/')
-                  : dateStr;
-                const [day, month, year] = normalizedDateStr
-                  .split('/')
-                  .map(Number);
-                return new Date(year, month - 1, day);
-              }
-
-              throw new Error('Formato de fecha no reconocido');
-            };
-
-            const fechaArl = formatDateAny(comparativoArl);
-            const fechaCruce = formatDateAny(comparativoCruce);
-
-            if (fechaArl.getTime() > fechaCruce.getTime()) {
-              estadoFechas = 'ALERTA FECHAS NO COINCIDEN';
-            }
-
-            fechaIngresoArl = comparativoArl || 'NO DISPONIBLE';
+          if (!fechaArl || !fechaCruce) {
+            estadoFechas = 'ALERTA FECHA NO DISPONIBLE';
+          } else if (fechaArl.getTime() > fechaCruce.getTime()) {
+            estadoFechas = 'ALERTA FECHAS NO COINCIDEN';
           }
 
-          const resultado: { [key: string]: any } = {
-            'Numero de Cedula': cedulaCruce,
-            Arl: estadoCedula,
-            ARL_FECHAS: estadoFechas,
-            'FECHA EN ARL': fechaIngresoArl,
-            'FECHA INGRESO SUBIDA CONTRATACION': fechaIngresoCruce,
-            Errores: 'OK',
-          };
+          fechaIngresoArl = comparativoArl || 'NO DISPONIBLE';
+        }
 
-          headers.forEach((header, i) => {
-            resultado[header] = cruceRow[i] || 'NO DISPONIBLE';
-          });
+        const resultado: { [key: string]: any } = {
+          'Numero de Cedula': cedulaCruce || 'NO DISPONIBLE',
+          Arl: estadoCedula,
+          ARL_FECHAS: estadoFechas,
+          'FECHA EN ARL': fechaIngresoArl,
+          'FECHA INGRESO SUBIDA CONTRATACION': fechaIngresoCruce,
+          Errores: 'OK',
+        };
 
-          const registroErrores = this.erroresValidacion.data.find(
-            (err: any) => err.registro == index + 1,
-          );
-          if (registroErrores && registroErrores.errores.length > 0) {
-            confirmarErrores = false;
-            resultado['Errores'] = registroErrores.errores.join(', ');
-          }
+        headers.forEach((header, i) => {
+          resultado[header] = cruceRow?.[i] ?? 'NO DISPONIBLE';
+        });
 
-          return resultado;
-        },
-      );
+        const registroErrores = (this.erroresValidacion.data ?? []).find(
+          (err: any) => err?.registro == index + 1,
+        );
+        if (
+          registroErrores &&
+          Array.isArray(registroErrores.errores) &&
+          registroErrores.errores.length > 0
+        ) {
+          confirmarErrores = false;
+          resultado['Errores'] = registroErrores.errores.join(', ');
+        }
+
+        return resultado;
+      });
 
       const workbookOut = new ExcelJS.Workbook();
       const worksheet = workbookOut.addWorksheet('Datos');
 
-      worksheet.columns = Object.keys(datosMapeados[0]).map((titulo) => ({
+      worksheet.columns = Object.keys(datosMapeados[0] ?? {}).map((titulo) => ({
         header: titulo,
         key: titulo,
-        width: 20,
+        width: 22,
       }));
+
+      // ✅ FIX TS2322: tipa Fill correctamente (no "string")
+      const green: ExcelJS.Fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FF00FF00' },
+      };
+
+      const red: ExcelJS.Fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFFF0000' },
+      };
 
       datosMapeados.forEach((dato) => {
         const row = worksheet.addRow(dato);
 
-        if (dato['Arl'] === 'SATISFACTORIO') {
-          row.getCell('Arl').fill = {
-            type: 'pattern',
-            pattern: 'solid',
-            fgColor: { argb: '00FF00' },
-          };
-        } else if (dato['Arl'] === 'ALERTA NO ESTA EN ARL') {
+        if (dato['Arl'] === 'SATISFACTORIO') row.getCell('Arl').fill = green;
+        else {
           this.isArlValidado = false;
-          row.getCell('Arl').fill = {
-            type: 'pattern',
-            pattern: 'solid',
-            fgColor: { argb: 'FF0000' },
-          };
+          row.getCell('Arl').fill = red;
         }
 
-        if (dato['ARL_FECHAS'] === 'SATISFACTORIO') {
-          row.getCell('ARL_FECHAS').fill = {
-            type: 'pattern',
-            pattern: 'solid',
-            fgColor: { argb: '00FF00' },
-          };
-        } else if (dato['ARL_FECHAS'] === 'ALERTA FECHAS NO COINCIDEN') {
+        if (dato['ARL_FECHAS'] === 'SATISFACTORIO') row.getCell('ARL_FECHAS').fill = green;
+        else {
           this.isArlValidado = false;
-          row.getCell('ARL_FECHAS').fill = {
-            type: 'pattern',
-            pattern: 'solid',
-            fgColor: { argb: 'FF0000' },
-          };
+          row.getCell('ARL_FECHAS').fill = red;
         }
 
         if (dato['FECHA EN ARL'] === 'NO DISPONIBLE') {
-          row.getCell('FECHA EN ARL').fill = {
-            type: 'pattern',
-            pattern: 'solid',
-            fgColor: { argb: 'FF0000' },
-          };
+          this.isArlValidado = false;
+          row.getCell('FECHA EN ARL').fill = red;
         }
 
         if (dato['FECHA INGRESO SUBIDA CONTRATACION'] === 'NO DISPONIBLE') {
-          row.getCell('FECHA INGRESO SUBIDA CONTRATACION').fill = {
-            type: 'pattern',
-            pattern: 'solid',
-            fgColor: { argb: 'FF0000' },
-          };
+          this.isArlValidado = false;
+          row.getCell('FECHA INGRESO SUBIDA CONTRATACION').fill = red;
         }
       });
 
       const cedulasNoEncontradas = datosMapeados
         .filter((dato) => dato['Arl'] === 'ALERTA NO ESTA EN ARL')
         .map((dato) => dato['Numero de Cedula']);
+
       const cedulasWorksheet = workbookOut.addWorksheet('Cédulas No Encontradas');
       cedulasWorksheet.columns = [{ header: 'Cédula', key: 'cedula', width: 20 }];
-      cedulasNoEncontradas.forEach((cedula) => {
-        cedulasWorksheet.addRow({ cedula });
-      });
+      cedulasNoEncontradas.forEach((cedula) => cedulasWorksheet.addRow({ cedula }));
 
       const buffer = await workbookOut.xlsx.writeBuffer();
       const blob = new Blob([buffer], {
@@ -1243,48 +1286,41 @@ export class HiringReportComponent implements OnInit {
           Swal.fire({
             icon: 'success',
             title: 'Validación exitosa',
-            text: 'Todos los datos de ARL coinciden con el cruce diario',
+            text: 'Los datos de ARL coinciden con el cruce diario.',
             heightAuto: false,
           });
         } else {
           Swal.fire({
             icon: 'error',
             title: 'El ARL tiene problemas',
-            text: 'Se han encontrado discrepancias en los datos de ARL. Por favor, revise los datos y vuelva a intentarlo.',
+            text: 'Se encontraron discrepancias. Revise el ReporteARL.xlsx.',
             heightAuto: false,
           });
         }
-      }, 500);
-    } catch (error) {
+      }, 400);
+    } catch {
+      this.isArlValidado = false;
       this.closeSwal();
       Swal.fire({
         icon: 'error',
         title: 'Error',
-        text: 'Ocurrió un error al procesar los datos. Por favor, inténtelo de nuevo.',
+        text: 'Ocurrió un error al procesar ARL. Inténtelo nuevamente.',
         confirmButtonText: 'Aceptar',
+        heightAuto: false,
       });
     }
   }
 
   async proccssArl(files: File[]): Promise<void> {
-    if (!files || files.length === 0) {
-      return;
-    }
+    if (!files || files.length === 0) return;
 
     const file = files[0];
-    const reader = new FileReader();
-
-    reader.onload = async (e: ProgressEvent<FileReader>) => {
-      const bstr = e.target?.result as string;
-      const workbook = XLSX.read(bstr, { type: 'binary' });
-      await this.processArl(workbook);
-    };
-
-    reader.readAsBinaryString(file);
+    const workbook = await this.readWorkbook(file);
+    await this.processArl(workbook);
   }
 
   // ---------------------------------------------------------------------------
-  // Envío a Django (sin base64): se arma FormData con metadatos + archivos
+  // Envío a Django (FormData): metadatos + archivos
   // ---------------------------------------------------------------------------
 
   private buildReporteFormData(user: any): FormData {
@@ -1318,25 +1354,34 @@ export class HiringReportComponent implements OnInit {
       user && user.datos_basicos
         ? `${user.datos_basicos.nombres} ${user.datos_basicos.apellidos}`
         : this.nombre;
+
     formData.append('nombre', nombreResponsable);
 
-    // Documentos asociados al reporte (Django: FK + M2M, sin base64)
-    const sstFiles = this.filesToUpload['induccionSSO'] ?? [];
-    if (sstFiles.length > 0) {
+    const isBlocked = (name: string) => this.BLOCKED_FILES.has((name ?? '').trim().toLowerCase());
+    const isPdfName = (name: string) => (name ?? '').toLowerCase().trim().endsWith('.pdf');
+
+    // Documentos asociados al reporte (sin base64)
+    const sstFiles = this.filesToUpload.induccionSSO ?? [];
+    if (sstFiles.length > 0 && !isBlocked(sstFiles[0].name) && isPdfName(sstFiles[0].name)) {
       formData.append('sst_document', sstFiles[0]);
     }
 
-    const cruceFiles = this.filesToUpload['cruceDiario'] ?? [];
-    if (cruceFiles.length > 0) {
+    const cruceFiles = this.filesToUpload.cruceDiario ?? [];
+    if (cruceFiles.length > 0 && !isBlocked(cruceFiles[0].name)) {
       formData.append('cruce_document', cruceFiles[0]);
     }
 
-    const cedulasFiles = this.filesToUpload['cedulasEscaneadas'] ?? [];
+    const cedulasFiles = (this.filesToUpload.cedulasEscaneadas ?? []).filter(
+      (f) => f && !isBlocked(f.name) && isPdfName(f.name),
+    );
     cedulasFiles.forEach((file) => {
+      // aquí ya van SOLO PDFs válidos y SIN Thumbs.db
       formData.append('cedulas', file);
     });
 
-    const trasladosFiles = this.filesToUpload['traslados'] ?? [];
+    const trasladosFiles = (this.filesToUpload.traslados ?? []).filter(
+      (f) => f && !isBlocked(f.name) && isPdfName(f.name),
+    );
     trasladosFiles.forEach((file) => {
       formData.append('traslados', file);
     });
@@ -1345,7 +1390,7 @@ export class HiringReportComponent implements OnInit {
   }
 
   // ---------------------------------------------------------------------------
-  // Botón ENVIAR (solo cuando todas las reglas se cumplen)
+  // Botón ENVIAR (solo cuando reglas se cumplen)
   // ---------------------------------------------------------------------------
 
   async onSubmit(): Promise<void> {
@@ -1353,39 +1398,40 @@ export class HiringReportComponent implements OnInit {
 
     const user = this.utilityService.getUser();
 
-    if (!this.isArlValidado) {
-      Swal.fire({
+    const arlChecked = !!this.reporteForm.get('arl')?.value;
+    const cruceChecked = !!this.reporteForm.get('cruceDiario')?.value;
+
+    if (arlChecked && !this.isArlValidado) {
+      await Swal.fire({
         icon: 'error',
         title: 'Error',
         text: 'Debe validar el archivo ARL antes de enviar.',
         confirmButtonText: 'Aceptar',
+        heightAuto: false,
       });
       return;
     }
 
-    if (this.reporteForm.get('cruceDiario')?.value && !this.isCruceValidado) {
-      Swal.fire({
+    if (cruceChecked && !this.isCruceValidado) {
+      await Swal.fire({
         icon: 'error',
         title: 'Error',
         text: 'Debe validar el cruce diario antes de enviar.',
         confirmButtonText: 'Aceptar',
+        heightAuto: false,
       });
       return;
     }
 
     if (!this.reporteForm.valid) {
-      Swal.fire({
+      await Swal.fire({
         icon: 'error',
         title: 'Error',
         text: 'Por favor, complete el formulario correctamente.',
         confirmButtonText: 'Aceptar',
+        heightAuto: false,
       });
       return;
-    }
-
-    // Si no hubo contratos, igual se genera el reporte sin documentos obligatorios
-    if (this.reporteForm.get('contratosHoy')?.value !== 'si') {
-      // aquí solo aplican las reglas de datos generales
     }
 
     try {
@@ -1402,22 +1448,22 @@ export class HiringReportComponent implements OnInit {
         title: 'Reporte enviado',
         text: 'El reporte se ha enviado correctamente.',
         confirmButtonText: 'Aceptar',
+        heightAuto: false,
       }).then((result) => {
         if (result.isConfirmed) {
-          this.router
-            .navigateByUrl('/home', { skipLocationChange: true })
-            .then(() => {
-              this.router.navigate(['/reporte-contratacion']);
-            });
+          this.router.navigateByUrl('/home', { skipLocationChange: true }).then(() => {
+            this.router.navigate(['/reporte-contratacion']);
+          });
         }
       });
-    } catch (error) {
+    } catch {
       this.closeSwal();
-      Swal.fire({
+      await Swal.fire({
         icon: 'error',
         title: 'Error',
         text: 'Hubo un problema al enviar el reporte. Inténtelo nuevamente.',
         confirmButtonText: 'Aceptar',
+        heightAuto: false,
       });
     }
   }
