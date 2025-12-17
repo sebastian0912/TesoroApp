@@ -27,8 +27,6 @@ import {
   ProgresoPrioridadesAllResponse,
 } from '../service/home.service';
 import { DateRangeDialogComponent } from '@/app/shared/components/date-rang-dialog/date-rang-dialog.component';
-
-import { StandardFilterTable } from '@/app/shared/components/standard-filter-table/standard-filter-table';
 import { ColumnDefinition } from '../../../../../shared/models/advanced-table-interface';
 
 type PdfOption = { key: PdfKey; label: string };
@@ -61,8 +59,6 @@ type ProgresoTipoPrioridadRow = {
     MerchandisingMerchandiseComponent,
     RobotTrackingComponent,
     InfoCardComponent,
-
-    StandardFilterTable,
   ],
   templateUrl: './home.component.html',
   styleUrl: './home.component.css',
@@ -152,7 +148,7 @@ export class HomeComponent implements OnInit {
     private utilityService: UtilityServiceService,
     private homeService: HomeService,
     private dialog: MatDialog,
-  ) {}
+  ) { }
 
   ngOnInit(): void {
     this.initializeUserRoles();
@@ -211,8 +207,6 @@ export class HomeComponent implements OnInit {
   }
 
   // ✅ trae TODO y arma:
-  // - progresoByPdf[pdf]
-  // - progresoTipoPrioridad (tabla: tipo, prioridad, llevas, cuantos)
   async loadProgresoAll(): Promise<void> {
     this.isLoadingProgresoAll = true;
     for (const p of this.pdfOptions) this.isLoadingByPdf[p.key] = true;
@@ -402,13 +396,13 @@ export class HomeComponent implements OnInit {
     ];
 
     // ✅ tabla que te importa: tipo, prioridad, llevas, cuantos
-this.progresoTipoPrioridadColumns = [
-  { name: 'tipo', header: 'Tipo', type: 'text', width: '170px' },
-  { name: 'prioridad', header: 'Prioridad', type: 'text', width: '160px' },
-  { name: 'cuantos', header: 'Cuántos', type: 'number', width: '120px' },
-  { name: 'llevas', header: 'Llevas', type: 'number', width: '120px' },
-  { name: 'faltan', header: 'Faltan', type: 'number', width: '120px' },
-];
+    this.progresoTipoPrioridadColumns = [
+      { name: 'tipo', header: 'Tipo', type: 'text', width: '170px' },
+      { name: 'prioridad', header: 'Prioridad', type: 'text', width: '160px' },
+      { name: 'total', header: 'Cuántos', type: 'number', width: '120px' },
+      { name: 'llevas', header: 'Llevas', type: 'number', width: '120px' },
+      { name: 'faltan', header: 'Faltan', type: 'number', width: '120px' },
+    ];
 
   }
 
@@ -622,7 +616,7 @@ this.progresoTipoPrioridadColumns = [
       } finally {
         try {
           (evt.target as HTMLInputElement).value = '';
-        } catch {}
+        } catch { }
       }
     };
 
@@ -652,7 +646,7 @@ this.progresoTipoPrioridadColumns = [
         await writable.close();
         return;
       }
-    } catch (_) {}
+    } catch (_) { }
 
     this.downloadBlob(blob, filename);
   }

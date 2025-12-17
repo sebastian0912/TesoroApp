@@ -1,0 +1,113 @@
+<mat-card>
+  <mat-card-content>
+
+    <!-- =======================
+         HEADER
+    ======================== -->
+    <div
+      style="display:flex; align-items:center; gap:12px; margin-bottom:12px;">
+      <h2 style="margin:0;">Robots</h2>
+      <span style="flex:1 1 auto;"></span>
+
+      <button mat-stroked-button (click)="reloadAll()">
+        <mat-icon>refresh</mat-icon>
+        Recargar
+      </button>
+    </div>
+
+    <!-- =======================
+         PROGRESO POR PRIORIDAD (GLOBAL)
+         ✅ Lo que importa: tipo, prioridad, llevas, cuantos
+    ======================== -->
+    <div
+      style="display:flex; align-items:center; gap:12px; margin: 4px 0 12px; flex-wrap: wrap;">
+      <div style="display:flex; align-items:center; gap:8px;">
+        <mat-icon>analytics</mat-icon>
+        <strong>Progreso por prioridad</strong>
+      </div>
+
+      <span style="opacity:.75;">
+        Total registros: <strong>{{ totalRegistros }}</strong>
+      </span>
+
+      <span style="flex:1 1 auto;"></span>
+
+      <button mat-flat-button (click)="loadProgresoAll()">
+        <mat-icon>playlist_add_check</mat-icon>
+        Actualizar progreso
+      </button>
+    </div>
+
+    <app-standard-filter-table
+      [tableTitle]="'Progreso por prioridad — Global'"
+      [data]="progresoTipoPrioridad"
+      [columnDefinitions]="progresoTipoPrioridadColumns"
+      [isLoading]="isLoadingProgresoAll"
+      [defaultPageSize]="20"
+      [pageSizeOptions]="[10,20,50,100]">
+    </app-standard-filter-table>
+
+    <div style="height:16px;"></div>
+
+    <br>
+
+    <!-- =======================
+         TABLA FULL
+    ======================== -->
+    <app-standard-filter-table
+      [tableTitle]="'Robots Full'"
+      [data]="robotsFull"
+      [columnDefinitions]="fullColumns"
+      [isLoading]="isLoadingFull"
+      [defaultPageSize]="20"
+      [pageSizeOptions]="[10,20,50,100]">
+
+      <!-- Actions template (ContentChild) -->
+      <ng-template #actionsTemplate let-row>
+        <button mat-icon-button matTooltip="PDF Address"
+          (click)="openPdf(row.pdf_adress)" [disabled]="!row.pdf_adress">
+          <mat-icon>picture_as_pdf</mat-icon>
+        </button>
+
+        <button mat-icon-button matTooltip="PDF Policivo"
+          (click)="openPdf(row.pdf_policivo)" [disabled]="!row.pdf_policivo">
+          <mat-icon>picture_as_pdf</mat-icon>
+        </button>
+
+        <button mat-icon-button matTooltip="PDF OFAC"
+          (click)="openPdf(row.pdf_ofac)" [disabled]="!row.pdf_ofac">
+          <mat-icon>picture_as_pdf</mat-icon>
+        </button>
+
+        <button mat-icon-button matTooltip="PDF Contraloría"
+          (click)="openPdf(row.pdf_contraloria)"
+          [disabled]="!row.pdf_contraloria">
+          <mat-icon>picture_as_pdf</mat-icon>
+        </button>
+
+        <button mat-icon-button matTooltip="PDF Sisben"
+          (click)="openPdf(row.pdf_sisben)" [disabled]="!row.pdf_sisben">
+          <mat-icon>picture_as_pdf</mat-icon>
+        </button>
+
+        <button mat-icon-button matTooltip="PDF Procuraduría"
+          (click)="openPdf(row.pdf_procuraduria)"
+          [disabled]="!row.pdf_procuraduria">
+          <mat-icon>picture_as_pdf</mat-icon>
+        </button>
+
+        <button mat-icon-button matTooltip="PDF Fondo Pensión (AFP)"
+          (click)="openPdf(row.pdf_fondo_pension)"
+          [disabled]="!row.pdf_fondo_pension">
+          <mat-icon>picture_as_pdf</mat-icon>
+        </button>
+
+        <button mat-icon-button matTooltip="PDF Unión"
+          (click)="openPdf(row.union_pdf)" [disabled]="!row.union_pdf">
+          <mat-icon>picture_as_pdf</mat-icon>
+        </button>
+      </ng-template>
+    </app-standard-filter-table>
+
+  </mat-card-content>
+</mat-card>

@@ -77,13 +77,14 @@
             [formGroupName]="i">
 
             <!-- Asegura tipoId definido para usarlo en todo el bloque -->
-            <ng-container *ngIf="docCtrl.get('tipoId')?.value as tipoId">
+            <ng-container *ngIf="docCtrl.value.tipoId as tipoId">
+
               <div [class.selected]="selectedDocId === tipoId">
                 <mat-form-field appearance="fill" class="w-100">
                   <mat-label>{{ hojasPorId[tipoId]?.name }}</mat-label>
 
                   <!-- nombre del archivo (acceso seguro) -->
-                  <input matInput [value]="uploadedFiles[tipoId]?.fileName ?? ''" readonly class="clickable"
+                  <input matInput [value]="uploadedFiles[tipoId].fileName" readonly class="clickable"
                     (click)="uploadedFiles[tipoId] && selectPreview(tipoId)" />
 
                   <button mat-icon-button matSuffix [matMenuTriggerFor]="menu" aria-label="Opciones de PDF"

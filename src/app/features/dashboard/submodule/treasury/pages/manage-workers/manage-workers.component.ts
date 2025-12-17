@@ -7,6 +7,7 @@ import * as XLSX from 'xlsx';
 import { StandardFilterTable } from '@/app/shared/components/standard-filter-table/standard-filter-table';
 import { TesoreriaService } from '../../service/teroreria/tesoreria.service';
 import { ColumnDefinition } from '@/app/shared/models/advanced-table-interface';
+import { ColumnCellTemplateDirective } from '@/app/shared/directives/column-cell-template.directive';
 
 @Component({
   selector: 'app-manage-workers',
@@ -14,7 +15,8 @@ import { ColumnDefinition } from '@/app/shared/models/advanced-table-interface';
   imports: [
     SharedModule,
     MatSlideToggleModule,
-    StandardFilterTable
+    StandardFilterTable,
+    ColumnCellTemplateDirective,
   ],
   templateUrl: './manage-workers.component.html',
   styleUrls: ['./manage-workers.component.css']
@@ -26,46 +28,46 @@ export class ManageWorkersComponent implements OnInit {
   private allRows: any[] = [];
 
   /** Definición de columnas para StandardFilterTable */
-columns: ColumnDefinition[] = [
-  /** ======= Estados (sticky) ======= */
-  { name: 'bloqueado',          header: 'Bloqueado',        type: 'custom', width: '12ch', stickyStart: true, filterable: false },
-  { name: 'fechaBloqueo',       header: 'Fecha Bloqueo',    type: 'date',   width: '18ch'},
-  { name: 'activo',             header: 'Activo',           type: 'custom', width: '12ch', stickyStart: true, filterable: false },
+  columns: ColumnDefinition[] = [
+    /** ======= Estados (sticky) ======= */
+    { name: 'bloqueado', header: 'Bloqueado', type: 'custom', width: '12ch', stickyStart: true, filterable: false },
+    { name: 'fechaBloqueo', header: 'Fecha Bloqueo', type: 'date', width: '18ch' },
+    { name: 'activo', header: 'Activo', type: 'custom', width: '12ch', stickyStart: true, filterable: false },
 
-  /** ======= Identificación ======= */
-  { name: 'codigo',             header: 'Código',           type: 'text',   width: '10ch' , filterable: false },
-  { name: 'numero_de_documento',header: 'Número Documento', type: 'text',   width: '14ch' , stickyStart: true},
-  { name: 'nombre',             header: 'Nombre',           type: 'text',   width: '26ch' },
-  // Si "ingreso" llega como fecha ISO, cambia type:'date' y (opcional) aumenta a 14–16ch
-  { name: 'ingreso',            header: 'Ingreso',          type: 'text',   width: '15ch' },
-  { name: 'temporal',           header: 'Temporal',         type: 'text',   width: '20ch' },
-  { name: 'finca',              header: 'Finca',            type: 'text',   width: '12ch' },
+    /** ======= Identificación ======= */
+    { name: 'codigo', header: 'Código', type: 'text', width: '10ch', filterable: false },
+    { name: 'numero_de_documento', header: 'Número Documento', type: 'text', width: '14ch', stickyStart: true },
+    { name: 'nombre', header: 'Nombre', type: 'text', width: '26ch' },
+    // Si "ingreso" llega como fecha ISO, cambia type:'date' y (opcional) aumenta a 14–16ch
+    { name: 'ingreso', header: 'Ingreso', type: 'text', width: '15ch' },
+    { name: 'temporal', header: 'Temporal', type: 'text', width: '20ch' },
+    { name: 'finca', header: 'Finca', type: 'text', width: '12ch' },
 
-  /** ======= Números (alineados a la derecha automáticamente por type:'number') ======= */
-  { name: 'salario',                    header: 'Salario',                 type: 'number', width: '12ch', filterable: false },
-  { name: 'saldoPendiente',             header: 'Saldo Pendiente',         type: 'number', width: '14ch', filterable: false  },
-  { name: 'saldos',                     header: 'Saldos',                  type: 'number', width: '12ch', filterable: false  },
-  { name: 'fondos',                     header: 'Fondos',                  type: 'number', width: '12ch', filterable: false  },
-  { name: 'mercados',                   header: 'Mercados',                type: 'number', width: '12ch', filterable: false  },
-  { name: 'cuotasMercados',             header: 'Cuotas Mercados',         type: 'number', width: '12ch', filterable: false  },
+    /** ======= Números (alineados a la derecha automáticamente por type:'number') ======= */
+    { name: 'salario', header: 'Salario', type: 'number', width: '12ch', filterable: false },
+    { name: 'saldoPendiente', header: 'Saldo Pendiente', type: 'number', width: '14ch', filterable: false },
+    { name: 'saldos', header: 'Saldos', type: 'number', width: '12ch', filterable: false },
+    { name: 'fondos', header: 'Fondos', type: 'number', width: '12ch', filterable: false },
+    { name: 'mercados', header: 'Mercados', type: 'number', width: '12ch', filterable: false },
+    { name: 'cuotasMercados', header: 'Cuotas Mercados', type: 'number', width: '12ch', filterable: false },
 
-  { name: 'prestamoParaDescontar',      header: 'Préstamo p/Descontar',    type: 'number', width: '16ch', filterable: false  },
-  { name: 'cuotasPrestamosParaDescontar',header:'Cuotas Préstamo',         type: 'number', width: '12ch', filterable: false  },
+    { name: 'prestamoParaDescontar', header: 'Préstamo p/Descontar', type: 'number', width: '16ch', filterable: false },
+    { name: 'cuotasPrestamosParaDescontar', header: 'Cuotas Préstamo', type: 'number', width: '12ch', filterable: false },
 
-  { name: 'casino',                     header: 'Casino',                  type: 'number', width: '10ch', filterable: false  },
-  { name: 'valoranchetas',              header: 'Valor Anchetas',          type: 'number', width: '14ch', filterable: false  },
-  { name: 'cuotasAnchetas',             header: 'Cuotas Anchetas',         type: 'number', width: '12ch', filterable: false  },
+    { name: 'casino', header: 'Casino', type: 'number', width: '10ch', filterable: false },
+    { name: 'valoranchetas', header: 'Valor Anchetas', type: 'number', width: '14ch', filterable: false },
+    { name: 'cuotasAnchetas', header: 'Cuotas Anchetas', type: 'number', width: '12ch', filterable: false },
 
-  { name: 'fondo',                      header: 'Fondo',                   type: 'number', width: '10ch', filterable: false  },
-  { name: 'carnet',                     header: 'Carnet',                  type: 'number', width: '10ch', filterable: false  },
-  { name: 'seguroFunerario',            header: 'Seguro Funerario',        type: 'number', width: '14ch', filterable: false  },
+    { name: 'fondo', header: 'Fondo', type: 'number', width: '10ch', filterable: false },
+    { name: 'carnet', header: 'Carnet', type: 'number', width: '10ch', filterable: false },
+    { name: 'seguroFunerario', header: 'Seguro Funerario', type: 'number', width: '14ch', filterable: false },
 
-  { name: 'prestamoParaHacer',          header: 'Préstamo p/Hacer',        type: 'number', width: '14ch', filterable: false  },
-  { name: 'cuotasPrestamoParahacer',    header: 'Cuotas p/Hacer',          type: 'number', width: '12ch', filterable: false  },
+    { name: 'prestamoParaHacer', header: 'Préstamo p/Hacer', type: 'number', width: '14ch', filterable: false },
+    { name: 'cuotasPrestamoParahacer', header: 'Cuotas p/Hacer', type: 'number', width: '12ch', filterable: false },
 
-  { name: 'anticipoLiquidacion',        header: 'Anticipo Liquidación',    type: 'number', width: '16ch', filterable: false  },
-  { name: 'cuentas',                     header: 'Cuentas',                type: 'number', width: '10ch', filterable: false  },
-];
+    { name: 'anticipoLiquidacion', header: 'Anticipo Liquidación', type: 'number', width: '16ch', filterable: false },
+    { name: 'cuentas', header: 'Cuentas', type: 'number', width: '10ch', filterable: false },
+  ];
 
 
   showInactive = false;

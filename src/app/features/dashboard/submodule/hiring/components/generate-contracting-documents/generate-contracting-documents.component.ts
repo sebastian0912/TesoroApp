@@ -547,7 +547,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
 
     if (this.firma !== '') {
       const firmaConPrefijo = this.firma;
-      doc.addImage(firmaConPrefijo, 'PNG', 10, yFirmaBase - 20, 50, 18);
+      doc.addImage(firmaConPrefijo, 'PNG', 10, yFirmaBase - 30, 80, 28);
     } else {
       Swal.fire({ icon: 'error', title: 'Error', text: 'No se encontró la firma' });
       return;
@@ -1327,7 +1327,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     doc.setFontSize(8).setFont('helvetica', 'bold');
     doc.text('Teniendo en cuenta la anterior información, autorizo descuento de casino:', marginLeft, y);
     doc.setFont('helvetica', 'normal');
-    doc.text('SI (     )', 130, y);
+    doc.text('SI (  X  )', 130, y);
     doc.text('NO (     )', 155, y);
     doc.text('No aplica (     )', 175, y);
 
@@ -1430,6 +1430,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
 
     // SI / NO del seguro
     const seguro = !!contrato?.seguro_funerario;
+    console.log('Seguro funerario?', seguro);
     if (seguro) {
       doc.text('SI (  x  )', 170, y - 4);
       doc.text('NO (     )', 190, y - 4);
@@ -1521,7 +1522,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
 
     const firmaData = await toDataURL(this.firma);
     if (firmaData) {
-      doc.addImage(firmaData, 'PNG', marginLeft, y -12, 50, 20);
+      doc.addImage(firmaData, 'PNG', marginLeft, y - 18, 50, 20);
     } else {
       Swal.fire({ icon: 'error', title: 'Error', text: 'No se pudo cargar la firma' });
     }
@@ -1673,13 +1674,13 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       { titulo: 'Representado por', valor: 'MAYRA HUAMANÍ LÓPEZ' },
       { titulo: 'Nombre del Trabajador', valor: this.candidato.primer_nombre + ' ' + (this.candidato.segundo_nombre ?? '') + ' ' + this.candidato.primer_apellido + ' ' + (this.candidato.segundo_apellido ?? '') },
       { titulo: 'Fecha de Nacimiento', valor: this.candidato.fecha_nacimiento },
-      { titulo: 'Domicilio del Trabajador', valor: this.candidato.residencia.direccion },
+      { titulo: 'Domicilio del Trabajador', valor: this.candidato.residencia.direccion + ' ' + this.candidato.residencia.barrio + ' ' + 'BOGOTÁ' },
       { titulo: 'Fecha de Iniciación', valor: this.vacante.fechadeIngreso },
       { titulo: 'Salario Mensual Ordinario', valor: 'S.M.M.L.V. $1.423.500 — Un millón cuatrocientos veintitrés mil quinientos pesos M/C.' },
       { titulo: 'Periódo de Pago Salario', valor: 'Quincenal' },
       { titulo: 'Subsidio de Transporte', valor: 'SE PAGA EL LEGAL VIGENTE  O SE SUMINISTRA EL TRANSPORTE' },
       { titulo: 'Forma de Pago', valor: 'Banca Móvil,  Cuenta de Ahorro o Tarjeta Monedero' },
-      { titulo: 'Nombre Empresa Usuria', valor: this.vacante.finca },
+      { titulo: 'Nombre Empresa Usuria', valor: this.vacante.empresaUsuariaSolicita },
       { titulo: 'Cargo', valor: this.vacante.cargo },
       { titulo: 'Descripción de la Obra/Motivo Temporada', valor: this.vacante.descripcion },
       { titulo: 'Domicilio del patrono', valor: domicilio },
@@ -1736,7 +1737,10 @@ export class GenerateContractingDocumentsComponent implements OnInit {
 
     const textoLinea = partes.join(' ').replace(/\s+/g, ' ').trim();
 
-    doc.text(textoLinea, 45, y + 41.3, { maxWidth: 195 });
+    // negrita
+    doc.setFont('helvetica', 'bold');
+    doc.text(textoLinea, 5, y + 41.3, { maxWidth: 195 });
+    doc.setFont('helvetica', 'normal');
 
     let x = 5; // Margen izquierdo
     const lineHeight = 3.4;

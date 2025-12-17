@@ -5,7 +5,10 @@
       <span class="spacer"></span>
 
       <!-- Menú -->
-      <button mat-icon-button [matMenuTriggerFor]="actions" aria-label="Acciones">
+      <button
+        mat-icon-button
+        [matMenuTriggerFor]="actions"
+        aria-label="Acciones">
         <mat-icon>more_vert</mat-icon>
       </button>
     </mat-toolbar>
@@ -24,37 +27,47 @@
       <mat-divider></mat-divider>
 
       <div class="menu-toggle" (click)="$event.stopPropagation()">
-        <mat-slide-toggle [checked]="showInactive" (change)="toggleShowInactive($event)">
-          {{ showInactive ? 'Desbloquear trabajadores' : 'Bloquear trabajadores' }}
+        <mat-slide-toggle
+          [checked]="showInactive"
+          (change)="toggleShowInactive($event)">
+          {{ showInactive ? 'Desbloquear trabajadores' : 'Bloquear trabajadores'
+          }}
         </mat-slide-toggle>
       </div>
     </mat-menu>
 
-
-
-    <h1 style="font-size: 14pt;"><strong class="titulo">Trabajadores activos:</strong> {{numeroActivo}}</h1> <br>
+    <h1 style="font-size: 14pt;">
+      <strong class="titulo">Trabajadores activos:</strong> {{ numeroActivo }}
+    </h1>
+    <br />
 
     <div class="table-container">
-      <app-standard-filter-table [data]="dataSource.data" [columnDefinitions]="columns"
-        [pageSizeOptions]="[10,20,50,100]" [defaultPageSize]="10" [tableTitle]="'Trabajadores'">
+      <app-standard-filter-table
+        [data]="dataSource.data"
+        [columnDefinitions]="columns"
+        [pageSizeOptions]="[10, 20, 50, 100]"
+        [defaultPageSize]="10"
+        [tableTitle]="'Trabajadores'">
 
-        <!-- Columna BLOQUEADO (switch independiente) -->
-        <ng-template #bloqueadoTemplate let-row>
-          <mat-slide-toggle [checked]="row.bloqueado" (change)="toggleEstado(row, 'bloqueado')">
-            {{ row.bloqueado ? 'Si' : 'No' }}
+        <!-- ✅ Columna BLOQUEADO -->
+        <ng-template appCellTemplate="bloqueado" let-row>
+          <mat-slide-toggle
+            [checked]="row.bloqueado"
+            (change)="toggleEstado(row, 'bloqueado')">
+            {{ row.bloqueado ? 'Sí' : 'No' }}
           </mat-slide-toggle>
         </ng-template>
 
-        <!-- Columna ACTIVO (switch independiente) -->
-        <ng-template #activoTemplate let-row>
-          <mat-slide-toggle [checked]="row.activo" (change)="toggleEstado(row, 'activo')">
+        <!-- ✅ Columna ACTIVO -->
+        <ng-template appCellTemplate="activo" let-row>
+          <mat-slide-toggle
+            [checked]="row.activo"
+            (change)="toggleEstado(row, 'activo')">
             {{ row.activo ? 'Sí' : 'No' }}
           </mat-slide-toggle>
         </ng-template>
 
       </app-standard-filter-table>
     </div>
-
-
   </mat-card-content>
 </mat-card>

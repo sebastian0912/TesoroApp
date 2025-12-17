@@ -16,9 +16,10 @@ import { Subject, firstValueFrom, takeUntil } from 'rxjs';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
+
 interface HojaMapa {
   file: File;
-  fileName: string | null;
+  fileName: string;
   url: SafeResourceUrl;
   objectUrl: string;
 }
@@ -31,10 +32,9 @@ type DocGrupo = FormGroup<{
 
 @Component({
   selector: 'app-upload-documents',
-  standalone: true,
   imports: [SharedModule, FormsModule, MatMenuModule, MatIconModule, MatButtonModule],
   templateUrl: './upload-documents.component.html',
-  styleUrls: ['./upload-documents.component.css']
+  styleUrl: './upload-documents.component.css'
 })
 export class UploadDocumentsComponent implements OnInit, OnDestroy {
   /* ───────── datos de jerarquía ───────── */

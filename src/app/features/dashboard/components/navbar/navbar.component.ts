@@ -126,6 +126,9 @@ export class NavbarComponent implements OnInit, OnDestroy {
 
     // Cargas masivas tesorería
     'CARGAS MASIVAS': 'treasury/upload-treasury',
+
+    // Robots
+    'Robots': '/robots/dashboard-robots',
   };
 
   private readonly iconMap: Record<string, string> = {
@@ -213,6 +216,9 @@ export class NavbarComponent implements OnInit, OnDestroy {
 
     // Ausentismos
     'AUSENTISMOS': 'event_busy',
+
+    // Robots
+    'Robots': 'smart_toy',
   };
 
   // Índices calculados en constructor (evita TS2729)
@@ -261,11 +267,11 @@ export class NavbarComponent implements OnInit, OnDestroy {
   }
   private lsSet(key: string, val: string): void {
     if (!this.isBrowser) return;
-    try { localStorage.setItem(key, val); } catch {}
+    try { localStorage.setItem(key, val); } catch { }
   }
   private lsClear(): void {
     if (!this.isBrowser) return;
-    try { localStorage.clear(); } catch {}
+    try { localStorage.clear(); } catch { }
   }
 
   // ======== Estado UI persistente ========

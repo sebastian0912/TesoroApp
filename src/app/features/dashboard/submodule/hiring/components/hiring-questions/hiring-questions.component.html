@@ -49,13 +49,15 @@
         </mat-error>
       </mat-form-field>
 
-      <mat-form-field class="example-full-width">
-        <mat-label>Seguro Funerario</mat-label>
-        <mat-select formControlName="seguroFunerario">
-          <mat-option value="SI">SI</mat-option>
-          <mat-option value="NO">NO</mat-option>
-        </mat-select>
-      </mat-form-field>
+<mat-form-field class="example-full-width">
+  <mat-label>Seguro Funerario</mat-label>
+
+  <mat-select formControlName="seguroFunerario">
+    <mat-option [value]="true">SI</mat-option>
+    <mat-option [value]="false">NO</mat-option>
+  </mat-select>
+</mat-form-field>
+
 
       <mat-form-field class="example-full-width">
         <mat-label>Ccostos</mat-label>

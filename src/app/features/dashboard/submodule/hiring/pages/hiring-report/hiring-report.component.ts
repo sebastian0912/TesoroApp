@@ -18,12 +18,9 @@ import * as ExcelJS from 'exceljs';
 import * as FileSaver from 'file-saver';
 import { firstValueFrom } from 'rxjs';
 
-type UploadControl =
-  | 'cedulasEscaneadas'
-  | 'cruceDiario'
-  | 'arl'
-  | 'induccionSSO'
-  | 'traslados';
+type UploadControl = 'cedulasEscaneadas' | 'cruceDiario' | 'arl' | 'induccionSSO' | 'traslados';
+
+type ErrorRow = { registro: string; errores: any[]; tipo: string };
 
 @Component({
   selector: 'app-hiring-report',
@@ -253,7 +250,7 @@ export class HiringReportComponent implements OnInit {
 
     if (!raw.length) return;
 
-    const { allowed, ignored } = this.filterFilesByControl(raw, controlName);
+    const { allowed } = this.filterFilesByControl(raw, controlName);
 
     if (!allowed.length) {
       this.filesToUpload[controlName] = [];
@@ -423,6 +420,45 @@ export class HiringReportComponent implements OnInit {
       .trim();
   }
 
+  /**
+   * ✅ Mantiene X/x al inicio (ej: X1234567)
+   * ✅ Tolera celdas en notación científica (ej: 1.005851505E+9)
+   */
+  private normalizeCedula(value: any): string {
+    if (value == null) return '';
+
+    // si viene numérico, lo pasamos a string sin exponencial (para estos rangos funciona bien)
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      const asInt = Math.trunc(value);
+      return String(asInt);
+    }
+
+    let raw = this.removeSpecialCharacters(String(value ?? '')).trim();
+    if (!raw || raw === '-') return '';
+
+    // si viene como notación científica en string
+    const sci = raw.replace(/\s+/g, '');
+    if (/^[\d.]+e[+-]?\d+$/i.test(sci)) {
+      const n = Number(sci);
+      if (Number.isFinite(n)) {
+        raw = String(Math.trunc(n));
+      }
+    }
+
+    const compact = raw.replace(/\s+/g, '');
+    const hasX = /^x/i.test(compact);
+    const digits = compact.replace(/[^\d]/g, '');
+
+    if (!digits) return '';
+    return hasX ? `X${digits}` : digits;
+  }
+
+  /** ✅ Para enviar al backend cuando NO debe ir la X */
+  private cedulaToDigits(value: any): string {
+    const c = this.normalizeCedula(value);
+    return c.startsWith('X') ? c.slice(1) : c;
+  }
+
   excelSerialToJSDate(serial: number): string {
     const utcDays = Math.floor(serial - 25569);
     const date = new Date(utcDays * 86400 * 1000);
@@ -460,9 +496,9 @@ export class HiringReportComponent implements OnInit {
     // Quitamos encabezados
     json.shift();
 
-    // Tu lógica: cédula en columna 2 (index 1)
+    // ✅ cédula en columna 2 (index 1) preservando X
     return json
-      .map((row: any[]) => this.onlyDigits(row?.[1]))
+      .map((row: any[]) => this.normalizeCedula(row?.[1]))
       .filter((c) => c !== '');
   }
 
@@ -501,17 +537,13 @@ export class HiringReportComponent implements OnInit {
     if (this.BLOCKED_FILES.has(lower)) return null;
     if (!lower.endsWith('.pdf')) return null;
 
-    // Sin extensión
     const base = name.replace(/\.pdf$/i, '').trim();
+    const firstToken = base.split(/[-_ ]+/)[0] ?? '';
 
-    // acepta:
-    //  1051660630 - SALUD TOTAL
-    //  1051660630-SALUD TOTAL
-    //  1051660630 SALUD TOTAL
-    const match = base.match(/^\s*([0-9]{6,15})\s*(?:[-_ ]\s*.*)?$/);
-    if (!match) return null;
+    // ✅ preserva X si viene al inicio del token
+    const cedula = this.normalizeCedula(firstToken);
 
-    return match[1].trim();
+    return cedula ? cedula : null;
   }
 
   private extraerCedulasDeArchivos(files: File[]): string[] {
@@ -528,9 +560,17 @@ export class HiringReportComponent implements OnInit {
     return this.extraerCedulasDeArchivos(files);
   }
 
-  // Validación EPS de traslados (sin base64 ni subida)
-  async validarTrasladosEps(files: File[]): Promise<void> {
-    const validEPS = new Set(['nuevaeps', 'saludtotal', 'famisanar']);
+  // ✅ Validación EPS de traslados (retorna errores para tabla + envío)
+  private validarTrasladosEps(files: File[]): ErrorRow[] {
+    const validEPS = new Set(['saludtotal']);
+
+    const norm = (s: string) =>
+      (s ?? '')
+        .toLowerCase()
+        .replace(/\s+/g, '')
+        .replace(/[^a-z]/g, '');
+
+    const errors: ErrorRow[] = [];
 
     for (const file of files ?? []) {
       const name = (file?.name ?? '').trim();
@@ -540,26 +580,29 @@ export class HiringReportComponent implements OnInit {
       if (!lower.endsWith('.pdf')) continue;
 
       const base = name.replace(/\.pdf$/i, '').trim();
+      const parts = base.split('-').map((p) => p.trim()).filter(Boolean);
 
-      // separadores posibles: " - " o "-"
-      let parts: string[] = [];
-      if (base.includes(' - ')) parts = base.split(' - ');
-      else if (base.includes('-')) parts = base.split('-');
+      if (parts.length < 2) {
+        errors.push({
+          registro: name,
+          errores: ['Nombre inválido. Debe incluir EPS. Ej: 1002299663-SALUD TOTAL.pdf'],
+          tipo: 'Traslado EPS',
+        });
+        continue;
+      }
 
-      if (parts.length < 2) continue;
+      const epsEncontrada = parts.slice(1).find((p) => validEPS.has(norm(p)));
 
-      let eps = (parts[1] ?? '').toString().replace(/\s+/g, '').toLowerCase();
-      eps = eps.replace(/[^a-z]/g, ''); // deja letras
-
-      if (!validEPS.has(eps)) {
-        await Swal.fire(
-          'Error',
-          `La EPS "${parts[1]}" no es válida. Solo se permiten NUEVA EPS, SALUD TOTAL o FAMISANAR. Corrija los nombres del PDF.`,
-          'error',
-        );
-        throw new Error('EPS inválida en traslados');
+      if (!epsEncontrada) {
+        errors.push({
+          registro: name,
+          errores: ['EPS inválida/no encontrada. Solo se permite SALUD TOTAL. Ej: 1002299663-SALUD TOTAL.pdf'],
+          tipo: 'Traslado EPS',
+        });
       }
     }
+
+    return errors;
   }
 
   // ---------------------------------------------------------------------------
@@ -601,7 +644,9 @@ export class HiringReportComponent implements OnInit {
         return;
       }
 
-      // cédulas desde PDFs (aquí ya NO entran Thumbs.db por el filtro de selección)
+      const erroresFormateados: ErrorRow[] = [];
+
+      // cédulas desde PDFs (ya filtradas por selección)
       const cedulasEscaneadas = this.extraerCedulasDeArchivos(cedulasEscaneadasFiles);
 
       let cedulasTrasladosExtraidas: string[] = [];
@@ -613,7 +658,11 @@ export class HiringReportComponent implements OnInit {
           await Swal.fire('Error', 'Debe cargar archivos de traslados si seleccionó esa opción', 'error');
           return;
         }
-        await this.validarTrasladosEps(trasladosFiles);
+
+        // ✅ (1) traslados también generan error + tabla + envío
+        erroresFormateados.push(...this.validarTrasladosEps(trasladosFiles));
+
+        // ✅ extraemos cédulas de traslados preservando X
         cedulasTrasladosExtraidas = this.extraerCedulasDeArchivos(trasladosFiles);
       }
 
@@ -621,6 +670,8 @@ export class HiringReportComponent implements OnInit {
       let cedulasExcel: string[] = [];
       if (cruceChecked) {
         const fileCruce = (this.filesToUpload.cruceDiario ?? [])[0];
+
+        // ✅ (2) NO borrar X/x en lectura excel
         cedulasExcel = await this.extraerCedulasDelArchivo(fileCruce);
 
         const result = await this.contarALyTAEnColumna(fileCruce);
@@ -630,10 +681,7 @@ export class HiringReportComponent implements OnInit {
         this.reporteForm.controls['cantidadContratosApoyoLaboral'].setValue(result.AL);
       }
 
-      const erroresFormateados: { registro: string; errores: any[]; tipo: string }[] = [];
-
       if (cruceChecked) {
-        // Regla: cédulas escaneadas que faltan en cruce
         const cedulasFaltantesEnExcel = cedulasEscaneadas.filter((c) => !cedulasExcel.includes(c));
         cedulasFaltantesEnExcel.forEach((cedula) => {
           erroresFormateados.push({
@@ -643,7 +691,6 @@ export class HiringReportComponent implements OnInit {
           });
         });
 
-        // Regla inversa: cédulas en cruce no escaneadas
         const cedulasExtrasEnExcel = cedulasExcel.filter((c) => !cedulasEscaneadas.includes(c));
         cedulasExtrasEnExcel.forEach((cedula) => {
           erroresFormateados.push({
@@ -653,11 +700,8 @@ export class HiringReportComponent implements OnInit {
           });
         });
 
-        // Regla: traslados deben existir en cruce
         if (cedulasTrasladosExtraidas.length > 0) {
-          const cedulasTrasladosNoEnExcel = cedulasTrasladosExtraidas.filter(
-            (c) => !cedulasExcel.includes(c),
-          );
+          const cedulasTrasladosNoEnExcel = cedulasTrasladosExtraidas.filter((c) => !cedulasExcel.includes(c));
           cedulasTrasladosNoEnExcel.forEach((cedula) => {
             erroresFormateados.push({
               registro: '0',
@@ -667,7 +711,6 @@ export class HiringReportComponent implements OnInit {
           });
         }
 
-        // Regla: total de cédulas escaneadas vs Excel
         if (cedulasEscaneadas.length !== cedulasExcel.length) {
           erroresFormateados.push({
             registro: '0',
@@ -683,7 +726,11 @@ export class HiringReportComponent implements OnInit {
         this.closeSwal();
         this.erroresValidacion.data = erroresFormateados;
 
-        const tipoErrores = trasladosChecked ? 'Traslado' : 'Cruce Diario';
+        const tipoErrores =
+          [cruceChecked ? 'Cruce Diario' : null, trasladosChecked ? 'Traslado' : null]
+            .filter(Boolean)
+            .join(' + ') || 'Validación';
+
         const payload = {
           errores: this.erroresValidacion.data,
           responsable: this.nombre,
@@ -693,7 +740,6 @@ export class HiringReportComponent implements OnInit {
         this.showLoading('Guardando errores...', 'Enviando todos los errores para guardar...');
 
         try {
-          // ✅ FIX: no firstValueFrom(Promise)
           await this.toPromise(this.hiringService.enviarErroresValidacion(payload));
           this.closeSwal();
           await Swal.fire('Error', 'Se han encontrado errores. Corrija los datos y vuelva a intentarlo.', 'error');
@@ -713,7 +759,6 @@ export class HiringReportComponent implements OnInit {
       if (cruceChecked) {
         await this.validarCruce();
       } else if (arlChecked) {
-        // Si no hay cruce pero sí ARL, al menos procesa ARL
         await this.proccssArl([arlFiles[0]]);
       }
     } catch {
@@ -797,8 +842,9 @@ export class HiringReportComponent implements OnInit {
             return;
           }
 
+          // ✅ (2) preserva X/x en cruce (columnas de cédula)
           if (index === 11 || index === 1) {
-            completeRow[index] = this.onlyDigits(cell);
+            completeRow[index] = this.normalizeCedula(cell);
             return;
           }
 
@@ -824,12 +870,8 @@ export class HiringReportComponent implements OnInit {
       for (let i = 0; i < totalBatches; i++) {
         const batch = rows.slice(i * batchSize, (i + 1) * batchSize);
 
-        this.showLoading(
-          'Validando lote...',
-          `Enviando el lote ${i + 1} de ${totalBatches} para validación...`,
-        );
+        this.showLoading('Validando lote...', `Enviando el lote ${i + 1} de ${totalBatches} para validación...`);
 
-        // ✅ FIX: no firstValueFrom(Promise)
         const response: any = await this.toPromise(this.hiringService.subirContratacionValidar(batch));
         if (response?.status === 'error' && Array.isArray(response?.errores)) {
           allErrors.push(...response.errores);
@@ -853,14 +895,9 @@ export class HiringReportComponent implements OnInit {
         this.showLoading('Enviando errores...', 'Guardando errores encontrados...');
 
         try {
-          // ✅ FIX: no firstValueFrom(Promise)
           await this.toPromise(this.hiringService.enviarErroresValidacion(payload));
           this.closeSwal();
-          await Swal.fire(
-            'Error',
-            'Se han encontrado errores en el cruce diario. Corrija y vuelva a intentar.',
-            'error',
-          );
+          await Swal.fire('Error', 'Se han encontrado errores en el cruce diario. Corrija y vuelva a intentar.', 'error');
         } catch {
           this.closeSwal();
           await Swal.fire('Error', 'Error al guardar los errores.', 'error');
@@ -874,11 +911,7 @@ export class HiringReportComponent implements OnInit {
       await Swal.fire('Completado', 'Proceso de validación finalizado correctamente.', 'success');
     } catch {
       this.closeSwal();
-      await Swal.fire(
-        'Error',
-        'Error procesando el archivo. Verifique el formato e intente de nuevo.',
-        'error',
-      );
+      await Swal.fire('Error', 'Error procesando el archivo. Verifique el formato e intente de nuevo.', 'error');
     }
   }
 
@@ -1160,11 +1193,12 @@ export class HiringReportComponent implements OnInit {
       ];
 
       const datosMapeados = this.datoscruced.map((cruceRow: any[], index: number) => {
-        const cedulaCruce = this.onlyDigits(cruceRow?.[1]);
+        // ✅ (3) ARL también con X/x: comparar usando normalizeCedula
+        const cedulaCruce = this.normalizeCedula(cruceRow?.[1]);
         const comparativoCruce = cruceRow?.[8];
 
         const filaArl = rowsArl.find((arlRow) => {
-          const cedulaArl = this.onlyDigits(arlRow?.[dniTrabajadorIndex]);
+          const cedulaArl = this.normalizeCedula(arlRow?.[dniTrabajadorIndex]);
           return cedulaArl === cedulaCruce;
         });
 
@@ -1202,14 +1236,8 @@ export class HiringReportComponent implements OnInit {
           resultado[header] = cruceRow?.[i] ?? 'NO DISPONIBLE';
         });
 
-        const registroErrores = (this.erroresValidacion.data ?? []).find(
-          (err: any) => err?.registro == index + 1,
-        );
-        if (
-          registroErrores &&
-          Array.isArray(registroErrores.errores) &&
-          registroErrores.errores.length > 0
-        ) {
+        const registroErrores = (this.erroresValidacion.data ?? []).find((err: any) => err?.registro == index + 1);
+        if (registroErrores && Array.isArray(registroErrores.errores) && registroErrores.errores.length > 0) {
           confirmarErrores = false;
           resultado['Errores'] = registroErrores.errores.join(', ');
         }
@@ -1226,7 +1254,6 @@ export class HiringReportComponent implements OnInit {
         width: 22,
       }));
 
-      // ✅ FIX TS2322: tipa Fill correctamente (no "string")
       const green: ExcelJS.Fill = {
         type: 'pattern',
         pattern: 'solid',
@@ -1337,14 +1364,8 @@ export class HiringReportComponent implements OnInit {
       formData.append('fecha', formValue.fecha.toISOString());
     }
 
-    formData.append(
-      'cantidadContratosTuAlianza',
-      (formValue.cantidadContratosTuAlianza ?? 0).toString(),
-    );
-    formData.append(
-      'cantidadContratosApoyoLaboral',
-      (formValue.cantidadContratosApoyoLaboral ?? 0).toString(),
-    );
+    formData.append('cantidadContratosTuAlianza', (formValue.cantidadContratosTuAlianza ?? 0).toString());
+    formData.append('cantidadContratosApoyoLaboral', (formValue.cantidadContratosApoyoLaboral ?? 0).toString());
 
     if (formValue.notas) {
       formData.append('nota', formValue.notas);
@@ -1375,7 +1396,6 @@ export class HiringReportComponent implements OnInit {
       (f) => f && !isBlocked(f.name) && isPdfName(f.name),
     );
     cedulasFiles.forEach((file) => {
-      // aquí ya van SOLO PDFs válidos y SIN Thumbs.db
       formData.append('cedulas', file);
     });
 

@@ -7,8 +7,7 @@
     mat-icon-button
     aria-label="Cerrar"
     (click)="close()"
-    class="td-close-btn"
-  >
+    class="td-close-btn">
     <mat-icon>close</mat-icon>
   </button>
 </header>
@@ -20,7 +19,6 @@
     [tableTitle]="tableTitle || title || 'Registros'"
     [defaultPageSize]="pageSize"
     [pageSizeOptions]="pageSizeOptions"
-+    (rowClicked)="rowClicked.emit($event)"
-  >
+    (rowClicked)="rowClicked.emit($event)">
   </app-standard-filter-table>
 </section>
