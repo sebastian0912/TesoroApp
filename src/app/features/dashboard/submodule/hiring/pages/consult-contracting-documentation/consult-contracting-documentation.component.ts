@@ -287,15 +287,23 @@ export class ConsultContractingDocumentationComponent implements OnInit {
   private parseFecha(fecha: string | Date | null | undefined): Date | null {
     if (!fecha) return null;
     if (fecha instanceof Date) return isNaN(fecha.getTime()) ? null : fecha;
+
+    const s0 = String(fecha).trim();
+
+    // dd/mm/yyyy
     const ddmmyyyy = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/;
-    const m = ddmmyyyy.exec(fecha);
+    const m = ddmmyyyy.exec(s0);
     if (m) return new Date(+m[3], +m[2] - 1, +m[1]);
-    const d = new Date(fecha);
+
+    // ✅ Normaliza ISO con microsegundos: .824286 -> .824 (Excel/JS trabaja en ms)
+    const s = s0.replace(/(\.\d{3})\d+(?=[Z+-])/, '$1');
+
+    const d = new Date(s);
     return isNaN(d.getTime()) ? null : d;
   }
 
-  // ---------- EXCEL (faltantes dinámico por tipos) ----------
-  // ✅ Excel pro con iconos y estilos
+
+  // ---------- EXCEL (faltantes dinámico por tipos + fecha + links + regla 15 días) ----------
   async exportarExcelFaltantes(): Promise<void> {
     const data = this.dataSource.data ?? [];
     if (!data.length) {
@@ -303,108 +311,125 @@ export class ConsultContractingDocumentationComponent implements OnInit {
       return;
     }
 
-    // Carga dinámica para no romper SSR ni inflar el bundle inicial
     const ExcelJS = await import('exceljs');
 
-    // 1) Libro y hoja
+    // ✅ Vigente si uploaded_at está dentro de los últimos 15 días
+    const cutoff = new Date();
+    cutoff.setHours(0, 0, 0, 0);
+    cutoff.setDate(cutoff.getDate() - 15);
+
     const wb = new ExcelJS.Workbook();
     wb.creator = 'TuAlianza';
     wb.created = new Date();
 
     const ws = wb.addWorksheet('Faltantes', {
-      views: [{ state: 'frozen', ySplit: 1 }] // encabezado congelado
+      views: [{ state: 'frozen', ySplit: 1 }]
     });
 
-    // 2) Columnas (base + dinámicas por tipo)
+    // Base (incluye fecha_contratacion como en tu tabla)
     const baseCols = [
       { header: 'Cédula', key: 'cedula', width: 16 },
       { header: 'Tipo de Documento', key: 'tipo_documento', width: 18 },
       { header: 'Nombre', key: 'nombre', width: 30 },
       { header: 'Finca', key: 'finca', width: 18 },
-      { header: 'Fecha ingreso', key: 'fecha_ingreso', width: 16, style: { numFmt: 'dd-mm-yyyy' } },
+      { header: 'Fecha ingreso', key: 'fecha_ingreso', width: 16, style: { numFmt: 'yyyy-mm-dd' } },
       { header: 'Código de contrato', key: 'codigo_contrato', width: 20 },
     ];
 
-    const tipoCols = this.tipoHeaders.map(t => ({
-      header: t.name,
-      key: `t_${t.id}`,
-      width: 18
-    }));
+    // Dinámicas por tipo: Estado + Fecha + Link
+    const tipoCols = this.tipoHeaders.flatMap(t => ([
+      { header: t.name, key: `t_${t.id}_estado`, width: 10 },
+      { header: `Fecha ${t.name}`, key: `t_${t.id}_fecha`, width: 20, style: { numFmt: 'yyyy-mm-dd hh:mm' } },
+      { header: `${t.name} (Archivo)`, key: `t_${t.id}_link`, width: 28 }
+    ]));
 
     ws.columns = [...baseCols, ...tipoCols];
 
-    // 3) Cabecera con estilo (oscuro, tipografía blanca, centrado)
+    // Header style
     const header = ws.getRow(1);
     header.height = 22;
     header.font = { bold: true, color: { argb: 'FFFFFFFF' } };
     header.alignment = { vertical: 'middle', horizontal: 'center' };
     header.eachCell(cell => {
-      cell.fill = {
-        type: 'pattern',
-        pattern: 'solid',
-        fgColor: { argb: 'FF1F2937' } // gris oscuro
-      };
-      cell.border = {
-        bottom: { style: 'thin', color: { argb: 'FF9CA3AF' } }
-      };
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1F2937' } };
+      cell.border = { bottom: { style: 'thin', color: { argb: 'FF9CA3AF' } } };
     });
 
-    // 4) Filas
-    const baseKeys = baseCols.map(c => c.key);
-    const baseCount = baseCols.length;
-    const green = { argb: 'FF2E7D32' }; // verde 700
-    const red = { argb: 'FFC62828' }; // rojo 800
+    const green = { argb: 'FF2E7D32' };
+    const red = { argb: 'FFC62828' };
+    const amber = { argb: 'FFF59E0B' };
+    const linkBlue = { argb: 'FF2563EB' };
 
     for (const item of data) {
-      // Mapa base
+      const fechaIngreso = this.parseFecha(item.fecha_ingreso as any);
+      const fechaContratacion = this.parseFecha(item.fecha_contratacion as any);
+
       const rowData: any = {
         cedula: item.cedula ?? '',
         tipo_documento: item.tipo_documento ?? '',
         nombre: item.nombre ?? '',
         finca: item.finca ?? '',
-        fecha_ingreso: item.fecha_ingreso ?? '',
-        codigo_contrato: item.codigo_contrato ?? ''
+        fecha_ingreso: fechaIngreso ?? '',
+        codigo_contrato: item.codigo_contrato ?? '',
+        fecha_contratacion: fechaContratacion ?? ''
       };
 
-      // Por cada tipo: ✓ o ✗
       this.tipoHeaders.forEach(t => {
-        const cell = item.docs?.[t.id];
-        rowData[`t_${t.id}`] = cell?.exists ? '✓' : '✗';
+        const doc = item.docs?.[t.id]; // DocCell
+        const exists = !!doc?.exists;
+
+        const uploadedAt = this.parseFecha(doc?.uploaded_at as any); // ✅ ya parsea microsegundos
+        const vigente15d = exists && !!uploadedAt && uploadedAt.getTime() >= cutoff.getTime();
+
+        // Estado: ✓ vigente, ⚠ existe pero vencido/fecha inválida, ✗ no existe
+        rowData[`t_${t.id}_estado`] = !exists ? '✗' : (vigente15d ? '✓' : '⚠');
+
+        // Fecha siempre visible (si no parsea, al menos deja el string)
+        rowData[`t_${t.id}_fecha`] = uploadedAt ?? (doc?.uploaded_at ?? '');
+
+        // Link (si existe)
+        rowData[`t_${t.id}_link`] = exists && doc?.url
+          ? { text: 'Abrir', hyperlink: String(doc.url) }
+          : '';
       });
 
       const row = ws.addRow(rowData);
 
-      // Zebra striping (muy sutil)
+      // Zebra
       if (row.number % 2 === 0) {
-        row.eachCell((cell, col) => {
-          cell.fill = {
-            type: 'pattern',
-            pattern: 'solid',
-            fgColor: { argb: 'FFF9FAFB' } // gris muy claro
-          };
+        row.eachCell(cell => {
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF9FAFB' } };
         });
       }
 
-      // Centrar y colorear las celdas dinámicas por tipo
-      for (let col = baseCount + 1; col <= ws.columnCount; col++) {
-        const c = row.getCell(col);
-        const v = (c.value ?? '') as string;
-        c.alignment = { vertical: 'middle', horizontal: 'center' };
-        c.font = {
+      // Estilos por tipo
+      this.tipoHeaders.forEach(t => {
+        const estadoCell = row.getCell(`t_${t.id}_estado`);
+        const fechaCell = row.getCell(`t_${t.id}_fecha`);
+        const linkCell = row.getCell(`t_${t.id}_link`);
+
+        const v = String(estadoCell.value ?? '');
+        estadoCell.alignment = { vertical: 'middle', horizontal: 'center' };
+        estadoCell.font = {
           name: 'Segoe UI Symbol',
           bold: true,
-          color: v === '✓' ? green : red
+          color: v === '✓' ? green : (v === '⚠' ? amber : red)
         };
-      }
+
+        fechaCell.alignment = { vertical: 'middle', horizontal: 'center' };
+
+        linkCell.alignment = { vertical: 'middle', horizontal: 'center' };
+        if (linkCell.value && typeof linkCell.value === 'object') {
+          linkCell.font = { color: linkBlue, underline: true };
+        }
+      });
     }
 
-    // 5) Autofiltro sobre toda la cabecera
     ws.autoFilter = {
       from: { row: 1, column: 1 },
       to: { row: 1, column: ws.columnCount }
     };
 
-    // 6) Bordes finos externos (look minimal)
     const lastRow = ws.lastRow?.number ?? 1;
     for (let r = 1; r <= lastRow; r++) {
       for (let c = 1; c <= ws.columnCount; c++) {
@@ -418,7 +443,6 @@ export class ConsultContractingDocumentationComponent implements OnInit {
       }
     }
 
-    // 7) Guardar
     const blob = new Blob([await wb.xlsx.writeBuffer()], {
       type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
     });

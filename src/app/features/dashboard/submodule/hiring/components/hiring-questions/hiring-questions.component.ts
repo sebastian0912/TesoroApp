@@ -110,6 +110,7 @@ export class HiringQuestionsComponent implements OnInit {
         categoria: [null, Validators.required],
         operacion: [null, Validators.required],
         horasExtras: [false, Validators.required],
+        fechaIngreso: [null, Validators.required],
       },
       { validators: this.numbersMatch('numeroPagos', 'validacionNumeroCuenta') },
     );
@@ -223,6 +224,7 @@ export class HiringQuestionsComponent implements OnInit {
         categoria?: string | null;
         operacion?: string | null;
         horas_extras?: boolean | null;
+        fecha_ingreso?: string | null;
       };
     } = {
       numero_documento: String(cand.numero_documento),
@@ -239,6 +241,7 @@ export class HiringQuestionsComponent implements OnInit {
         categoria: v.categoria ?? null,
         operacion: v.operacion ?? null,
         horas_extras: !!v.horasExtras,
+        fecha_ingreso: v.fechaIngreso ? new Date(v.fechaIngreso).toISOString().split('T')[0] : null,
       },
     };
 
@@ -600,6 +603,7 @@ export class HiringQuestionsComponent implements OnInit {
       horasExtras: contr?.horas_extras ?? false,
       salario: proc?.vacante_salario != null ? toNum(proc.vacante_salario) : null,
       auxilioTransporte: 'No',
+      fechaIngreso: contr?.fecha_ingreso ?? null,
     });
 
     // 2) Traer SIEMPRE la vacante (si hay publicacion) para setear auxilioTransporte
