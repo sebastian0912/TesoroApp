@@ -562,7 +562,7 @@ export class HiringReportComponent implements OnInit {
 
   // ✅ Validación EPS de traslados (retorna errores para tabla + envío)
   private validarTrasladosEps(files: File[]): ErrorRow[] {
-    const validEPS = new Set(['saludtotal', 'nuevaeps', 'salud total']);
+    const validEPS = new Set(['saludtotal', 'nuevaeps']);
 
     const norm = (s: string) =>
       (s ?? '')

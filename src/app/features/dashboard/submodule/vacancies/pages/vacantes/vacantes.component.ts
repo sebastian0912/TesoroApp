@@ -100,7 +100,7 @@ export class VacantesComponent implements OnInit {
     private dialog: MatDialog,
     private vacantesService: VacantesService,
     private utilityService: UtilityServiceService,
-  ) {}
+  ) { }
 
   ngOnInit(): void {
     const saved =
@@ -118,7 +118,7 @@ export class VacantesComponent implements OnInit {
 
   onToggleView(mode: 'table' | 'faltantes' | 'completados'): void {
     this.viewMode = mode;
-    try { localStorage.setItem('vacantes:viewMode', mode); } catch {}
+    try { localStorage.setItem('vacantes:viewMode', mode); } catch { }
     this.applyViewMode();
   }
 
@@ -149,7 +149,7 @@ export class VacantesComponent implements OnInit {
         this.allRows = filtered;
         this.applyViewMode();
       },
-      error: () => {},
+      error: () => { },
       complete: () => (this.loading = false),
     });
   }
@@ -237,12 +237,59 @@ export class VacantesComponent implements OnInit {
     const dialogRef = this.dialog.open(CrearEditarVacanteComponent, {
       width: '95vw',
       maxWidth: '95vw',
-      data: vacante || null,
+      data: vacante || null
     });
 
     dialogRef.afterClosed().subscribe(result => {
       if (!result) return;
-      // ... tu lógica igual (no la toqué)
+
+      const isPrueba = result.pruebaOContratacion === 'Prueba';
+
+      const payload = {
+        cargo: result.cargo?.trim() || null,
+        temporal: result.temporal?.trim() || null,
+        area: result.area || null,
+        empresaUsuariaSolicita: result.empresaUsuariaSolicita?.trim() || null,
+        finca: result.finca?.trim() || null,
+        direccion: result.direccion?.trim() || null,
+
+        experiencia: result.experiencia?.trim() || null,
+        descripcion: result.descripcion?.trim() || null,
+        salario: this.parseCurrency(result.salario),
+        codigoElite: result.codigoElite?.trim() || null,
+        observacion: result.observacionVacante?.trim() || null,
+
+        pruebaOContratacion: isPrueba ? 'Prueba' : 'Contratación',
+        fechadePruebatecnica: isPrueba ? this.formatDate(result.fechadePruebatecnica) : null,
+        horadePruebatecnica: isPrueba ? (result.horadePruebatecnica || null) : null,
+        fechadeIngreso: this.formatDate(result.fechadeIngreso) || null,
+
+        fechaPublicado: result.fechaPublicado || new Date().toISOString(),
+        quienpublicolavacante: result.quienpublicolavacante || 'Sistema',
+        estadovacante: result.estadovacante || 'Activa',
+
+        personasSolicitadas: Number(result.personasSolicitadas) || 0,
+        municipiosDistribucion: this.mapMunicipiosDistribucion(result.municipiosDistribucion),
+
+        oficinasQueContratan: (result.oficinasQueContratan || []).map((o: any) => ({
+          nombre: o?.nombre?.trim() || '',
+          ruta: !!o?.ruta,
+        })),
+
+        tipoContratacion: result.tipoContratacion?.trim() || null,
+        municipio: Array.isArray(result.municipio) ? result.municipio : [],
+        auxilioTransporte: result.auxilioTransporte,
+      };
+
+      this.vacantesService.actualizarVacante(vacante?.id, payload).subscribe({
+        next: () => {
+          this.loadData();
+          Swal.fire('¡Vacante actualizada!', 'Los datos se guardaron correctamente', 'success');
+        },
+        error: (error: any) => {
+          Swal.fire('Error al guardar', error?.message || 'Error desconocido al actualizar la vacante', 'error');
+        }
+      });
     });
   }
 
@@ -272,13 +319,80 @@ export class VacantesComponent implements OnInit {
     const dialogRef = this.dialog.open(CrearEditarVacanteComponent, {
       width: '95vw',
       maxWidth: '95vw',
-      data: vacante ? vacante : null,
+      data: vacante ? vacante : null
     });
 
     dialogRef.afterClosed().subscribe(result => {
       if (!result) return;
-      // ... tu lógica igual (no la toqué)
+
+      const isPrueba = result.pruebaOContratacion === 'Prueba';
+      const oficinas = Array.isArray(result.oficinasQueContratan) ? result.oficinasQueContratan : [];
+
+      const payload = {
+        cargo: result.cargo?.trim() || null,
+        area: result.area || null,
+        empresaUsuariaSolicita: result.empresaUsuariaSolicita?.trim() || null,
+        finca: result.finca?.trim() || null,
+        ubicacionPruebaTecnica: result.ubicacionPruebaTecnica?.trim() || null,
+        experiencia: result.experiencia?.trim() || null,
+        direccion: result.direccion?.trim() || null,
+
+        fechadePruebatecnica: isPrueba ? this.formatDate(result.fechadePruebatecnica) : null,
+        horadePruebatecnica: isPrueba ? (result.horadePruebatecnica || null) : null,
+        fechadeIngreso: this.formatDate(result.fechadeIngreso) || null,
+        pruebaOContratacion: isPrueba ? 'Prueba' : 'Contratación',
+
+        observacion: result.observacionVacante?.trim() || null,
+        temporal: result.temporal?.trim() || null,
+        descripcion: result.descripcion?.trim() || null,
+        fechaPublicado: this.formatDate(new Date()),
+        quienpublicolavacante: result.quienpublicolavacante?.trim() || 'Usuario Logueado',
+        estadovacante: result.estadovacante?.trim() || 'Activa',
+        salario: this.parseCurrency(result.salario),
+        codigoElite: result.codigoElite?.trim() || null,
+
+        personasSolicitadas: Number(result.personasSolicitadas) || 0,
+        municipiosDistribucion: this.mapMunicipiosDistribucion(result.municipiosDistribucion),
+
+        oficinasQueContratan: oficinas.map((oficina: any) => ({
+          nombre: oficina?.nombre?.trim() || '',
+          ruta: !!oficina?.ruta
+        })),
+
+        tipoContratacion: result.tipoContratacion?.trim() || null,
+        municipio: Array.isArray(result.municipio) ? result.municipio : [],
+        auxilioTransporte: result.auxilioTransporte,
+      };
+
+      this.vacantesService.enviarVacante(payload).subscribe({
+        next: () => {
+          this.loadData();
+          Swal.fire('¡Éxito!', 'La vacante ha sido enviada correctamente', 'success');
+        },
+        error: (error) => {
+          Swal.fire('Error', `Problema al enviar la vacante: ${error?.message || 'Error desconocido'}`, 'error');
+        }
+      });
     });
+  }
+
+    formatDate(date: Date | string | null): string | null {
+    if (!date) return null;
+    const d = new Date(date);
+    const day = d.getDate().toString().padStart(2, '0');
+    const month = (d.getMonth() + 1).toString().padStart(2, '0');
+    const year = d.getFullYear();
+    return `${year}-${month}-${day}`;
+  }
+
+  private mapMunicipiosDistribucion(arr: any[]): Array<{ municipio: string; cantidad: number }> {
+    const src = Array.isArray(arr) ? arr : [];
+    return src
+      .map(d => ({
+        municipio: String(d?.municipio ?? '').trim(),
+        cantidad: Number(d?.cantidad) || 0,
+      }))
+      .filter(d => !!d.municipio);
   }
 
   // ================== Activo ==================
