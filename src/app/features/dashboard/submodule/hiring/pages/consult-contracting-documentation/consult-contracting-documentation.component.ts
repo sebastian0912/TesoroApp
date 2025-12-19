@@ -116,10 +116,6 @@ export class ConsultContractingDocumentationComponent implements OnInit {
   private readonly robotsService = inject(RobotsService);
 
   // --------- Ajustes para masivo ----------
-  /**
-   * Tamaño de lote para POST (si backend demora o hay timeouts, esto ayuda).
-   * 1000–2000 suele ir bien. Ajusta según rendimiento.
-   */
   private readonly MAX_POST_BATCH = 1500;
 
   /** token para ignorar respuestas viejas (cuando el usuario pega otra lista) */
@@ -163,6 +159,25 @@ export class ConsultContractingDocumentationComponent implements OnInit {
   pendientesRowsWithAnyPending = 0;
   pendientesDistinctCedulasWithAnyPending = 0;
 
+  // =========================
+  // ✅ NUEVO: abreviador de headers Excel
+  // =========================
+  private readonly DOC_ABBR: Record<string, string> = {
+    Procuraduria: 'Proc',
+    Procuraduría: 'Proc',
+    Contraloria: 'Contra',
+    Contraloría: 'Contra',
+    Policivo: 'Pol',
+    SISBEN: 'Sis',
+    Sisben: 'Sis',
+    OFAC: 'OFAC',
+    Fondo: 'Fondo',
+    Adress: 'Dir',
+    Address: 'Dir',
+    Direccion: 'Dir',
+    Dirección: 'Dir',
+  };
+
   constructor() {
     // al destruir el componente, invalida cualquier request en curso
     this.destroyRef.onDestroy(() => {
@@ -175,7 +190,7 @@ export class ConsultContractingDocumentationComponent implements OnInit {
 
     this.resetTabla();
 
-    // ✅ filtro eficiente (evita JSON.stringify en 5.000+ filas)
+    // ✅ filtro eficiente
     this.dataSource.filterPredicate = (row, filter) => {
       const f = (filter ?? '').trim().toLowerCase();
       if (!f) return true;
@@ -216,7 +231,6 @@ export class ConsultContractingDocumentationComponent implements OnInit {
 
     evt.preventDefault();
 
-    // si viene de Excel normalmente trae tabs/saltos o comas/espacios
     if (/[\s,\t\r\n;]/.test(txt)) {
       this.procesarCedulasPegadas(txt);
     } else {
@@ -304,8 +318,7 @@ export class ConsultContractingDocumentationComponent implements OnInit {
   }
 
   /**
-   * ✅ Usa POST siempre (evita 413 por querystring).
-   * Si son demasiadas, parte en lotes para no reventar timeouts.
+   * ✅ Usa POST siempre. Si son demasiadas, parte en lotes.
    */
   private async fetchChecklistPostBatched(
     cedulas: string[],
@@ -343,7 +356,6 @@ export class ConsultContractingDocumentationComponent implements OnInit {
         merged.invalidCedulas = [...(merged.invalidCedulas ?? []), ...part.invalidCedulas];
       }
 
-      // si tu backend reporta duplicatesRemoved/totalReceived por lote:
       merged.duplicatesRemoved = Number(merged.duplicatesRemoved ?? 0) + Number(part?.duplicatesRemoved ?? 0);
       merged.totalReceived = Number(merged.totalReceived ?? cedulas.length);
     }
@@ -371,7 +383,7 @@ export class ConsultContractingDocumentationComponent implements OnInit {
       // normaliza (solo dígitos)
       const digits = s.replace(/\D+/g, '');
 
-      // regla simple (ajústala si quieres). Con 6..15 evitas basura y no eres tan estricto.
+      // regla simple
       if (digits.length < 6 || digits.length > 15) {
         invalid.push(s);
         continue;
@@ -502,7 +514,7 @@ export class ConsultContractingDocumentationComponent implements OnInit {
           const url = window.URL.createObjectURL(blob);
           const a = document.createElement('a');
           a.href = url;
-          a.download = `documentos_union_${new Date().toISOString()}.zip`;
+          a.download = `documentos_union_${new Date().toISOString()}.slice(0, 19).replace(/[:T]/g, '-')}.zip`;
           document.body.appendChild(a);
           a.click();
           document.body.removeChild(a);
@@ -524,14 +536,22 @@ export class ConsultContractingDocumentationComponent implements OnInit {
     const m = ddmmyyyy.exec(s0);
     if (m) return new Date(+m[3], +m[2] - 1, +m[1]);
 
-    // ✅ Normaliza ISO con microsegundos: .824286 -> .824 (Excel/JS trabaja en ms)
+    // ✅ Normaliza ISO con microsegundos: .824286 -> .824
     const s = s0.replace(/(\.\d{3})\d+(?=[Z+-])/, '$1');
 
     const d = new Date(s);
     return isNaN(d.getTime()) ? null : d;
   }
 
-  // ---------- EXCEL (faltantes dinámico por tipos + fecha + links + regla 15 días) ----------
+  private abbrDoc(name: string, max = 8): string {
+    const mapped = this.DOC_ABBR[name];
+    if (mapped) return mapped;
+    const s = String(name ?? '').trim();
+    return s.length <= max ? s : s.slice(0, max - 1) + '…';
+  }
+
+  // ---------- EXCEL (faltantes) ----------
+
   async exportarExcelFaltantes(): Promise<void> {
     const data = this.dataSource.data ?? [];
     if (!data.length) {
@@ -562,28 +582,31 @@ export class ConsultContractingDocumentationComponent implements OnInit {
       views: [{ state: 'frozen', ySplit: 1 }],
     });
 
+    // ✅ headers cortos + columnas compactas
     const baseCols = [
-      { header: 'Cédula', key: 'cedula', width: 16 },
-      { header: 'Tipo de Documento', key: 'tipo_documento', width: 18 },
-      { header: 'Nombre', key: 'nombre', width: 30 },
-      { header: 'Finca', key: 'finca', width: 18 },
-      { header: 'Fecha ingreso', key: 'fecha_ingreso', width: 16, style: { numFmt: 'yyyy-mm-dd' } },
-      { header: 'Código de contrato', key: 'codigo_contrato', width: 20 },
-      { header: 'Fecha de contratación', key: 'fecha_contratacion', width: 18, style: { numFmt: 'yyyy-mm-dd' } },
+      { header: 'Céd.', key: 'cedula', width: 12 },
+      { header: 'T.Doc', key: 'tipo_documento', width: 10 },
+      { header: 'Nombre', key: 'nombre', width: 22 },
+      { header: 'Finca', key: 'finca', width: 14 },
+      { header: 'F.Ing', key: 'fecha_ingreso', width: 12, style: { numFmt: 'yyyy-mm-dd' } },
+      { header: 'Cod.Cto', key: 'codigo_contrato', width: 12 },
     ];
 
-    const tipoCols = this.tipoHeaders.flatMap(t => [
-      { header: t.name, key: `t_${t.id}_estado`, width: 10 },
-      { header: `Fecha ${t.name}`, key: `t_${t.id}_fecha`, width: 20, style: { numFmt: 'yyyy-mm-dd hh:mm' } },
-      { header: `${t.name} (Archivo)`, key: `t_${t.id}_link`, width: 28 },
-    ]);
+    const tipoCols = this.tipoHeaders.flatMap(t => {
+      const n = this.abbrDoc(t.name);
+      return [
+        { header: n, key: `t_${t.id}_estado`, width: 4 }, // ✓ ✗ ⚠
+        { header: `F.${n}`, key: `t_${t.id}_fecha`, width: 16, style: { numFmt: 'yyyy-mm-dd hh:mm' } },
+        { header: `L.${n}`, key: `t_${t.id}_link`, width: 6 }, // Abrir
+      ];
+    });
 
     ws.columns = [...baseCols, ...tipoCols];
 
     const header = ws.getRow(1);
-    header.height = 22;
+    header.height = 26;
     header.font = { bold: true, color: { argb: 'FFFFFFFF' } };
-    header.alignment = { vertical: 'middle', horizontal: 'center' };
+    header.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
     header.eachCell((cell: any) => {
       cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1F2937' } };
       cell.border = { bottom: { style: 'thin', color: { argb: 'FF9CA3AF' } } };
@@ -655,6 +678,7 @@ export class ConsultContractingDocumentationComponent implements OnInit {
       to: { row: 1, column: ws.columnCount },
     };
 
+    // ✅ bordes finos + header borde superior
     const lastRow = ws.lastRow?.number ?? 1;
     for (let r = 1; r <= lastRow; r++) {
       for (let c = 1; c <= ws.columnCount; c++) {
@@ -667,6 +691,45 @@ export class ConsultContractingDocumentationComponent implements OnInit {
         };
       }
     }
+
+    // ✅ autofit con tope (evita columnas eternas)
+    const clamp = (n: number, min: number, max: number) => Math.max(min, Math.min(max, n));
+
+    ws.columns?.forEach((col: any) => {
+      const key = String(col?.key ?? '');
+
+      const isDate =
+        key === 'fecha_ingreso' ||
+        key === 'fecha_contratacion' ||
+        key.endsWith('_fecha');
+
+      const isEstado = key.endsWith('_estado');
+      const isLink = key.endsWith('_link');
+
+      if (isEstado) {
+        col.width = 4;
+        return;
+      }
+      if (isLink) {
+        col.width = 6;
+        return;
+      }
+      if (isDate) {
+        col.width = key.endsWith('_fecha') ? 16 : 12;
+        return;
+      }
+
+      let maxLen = String(col.header ?? '').length;
+      col.eachCell({ includeEmpty: true }, (cell: any) => {
+        let v = cell?.value;
+        if (!v) return;
+        if (typeof v === 'object' && v.text) v = v.text;
+        const len = String(v).length;
+        if (len > maxLen) maxLen = len;
+      });
+
+      col.width = clamp(maxLen + 2, 8, 24);
+    });
 
     const blob = new Blob([await wb.xlsx.writeBuffer()], {
       type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -689,20 +752,14 @@ export class ConsultContractingDocumentationComponent implements OnInit {
       return d ? d : '';
     };
 
-    const baseHeaders = [
-      'Cédula',
-      'Tipo de Documento',
-      'Nombre',
-      'Finca',
-      'Fecha ingreso',
-      'Código de contrato',
-      'Fecha de contratación',
-    ];
+    // ✅ headers cortos
+    const baseHeaders = ['Céd.', 'T.Doc', 'Nombre', 'Finca', 'F.Ing', 'Cod.Cto', 'F.Cto'];
 
     const dynHeaders: string[] = [];
     this.tipoHeaders.forEach(t => {
-      dynHeaders.push(t.name);
-      dynHeaders.push(`Fecha ${t.name}`);
+      const n = this.abbrDoc(t.name);
+      dynHeaders.push(n);       // Ver
+      dynHeaders.push(`F.${n}`); // Fecha
     });
 
     const headers = [...baseHeaders, ...dynHeaders];
@@ -782,7 +839,8 @@ export class ConsultContractingDocumentationComponent implements OnInit {
         const length = val instanceof Date ? 10 : val ? String(val).length : 0;
         if (length > maxLen) maxLen = length;
       }
-      return Math.max(14, Math.min(42, maxLen + 2));
+      // ✅ más compacto
+      return Math.max(8, Math.min(24, maxLen + 2));
     };
 
     ws['!cols'] = headers.map((_, c) => ({ wch: computeWch(c) }));

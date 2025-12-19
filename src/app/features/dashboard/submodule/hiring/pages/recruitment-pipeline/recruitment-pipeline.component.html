@@ -11,7 +11,8 @@
       </div>
       <div class="botones">
         <!-- Botón de documentos -->
-        <button mat-icon-button matTooltip="Generar o subir documentación" aria-label="Generar o subir documentación"
+        <button mat-icon-button matTooltip="Generar o subir documentación"
+          aria-label="Generar o subir documentación"
           [routerLink]="[
     '/dashboard/hiring/generate-contracting-documents',
     candidatoSeleccionado()?.numero_documento
@@ -20,30 +21,36 @@
         </button>
 
         <!-- Botón de tabla -->
-        <button mat-icon-button matTooltip="Ver tabla de registros" aria-label="Ver tabla de registros"
-          (click)="mostrarTabla()" [disabled]="!candidatoSeleccionado()?.numero_documento">
+        <button mat-icon-button matTooltip="Ver tabla de registros"
+          aria-label="Ver tabla de registros"
+          (click)="mostrarTabla()"
+          [disabled]="!candidatoSeleccionado()?.numero_documento">
           <mat-icon>table_chart</mat-icon>
         </button>
         <!-- FOTO (id 89) -->
-        <button mat-icon-button matTooltip="Ver foto" aria-label="Ver foto" (click)="openCamera()"
-          [matBadge]="badge('foto')" [matBadgeColor]="badgeColor('foto')" matBadgeOverlap="false">
+        <button mat-icon-button matTooltip="Ver foto" aria-label="Ver foto"
+          (click)="openCamera()"
+          [matBadge]="badge('foto')" [matBadgeColor]="badgeColor('foto')"
+          matBadgeOverlap="false">
           <mat-icon>photo_camera</mat-icon>
         </button>
 
         <!-- HUELLA (id 88) -->
-        <button mat-icon-button matTooltip="Ver huella" aria-label="Ver huella" class="badge-left-5pt"
-          (click)="ver('huella')" [matBadge]="badge('huella')" [matBadgeColor]="badgeColor('huella')"
+        <button mat-icon-button matTooltip="Ver huella" aria-label="Ver huella"
+          class="badge-left-5pt"
+          (click)="ver('huella')" [matBadge]="badge('huella')"
+          [matBadgeColor]="badgeColor('huella')"
           matBadgeOverlap="false">
           <mat-icon>fingerprint</mat-icon>
         </button>
 
         <!-- FIRMA (id 87) -->
-        <button mat-icon-button matTooltip="Ver firma" aria-label="Ver firma" (click)="ver('firma')"
-          [matBadge]="badge('firma')" [matBadgeColor]="badgeColor('firma')" matBadgeOverlap="false">
+        <button mat-icon-button matTooltip="Ver firma" aria-label="Ver firma"
+          (click)="ver('firma')"
+          [matBadge]="badge('firma')" [matBadgeColor]="badgeColor('firma')"
+          matBadgeOverlap="false">
           <mat-icon>edit</mat-icon>
         </button>
-
-
 
       </div>
     </div>
@@ -57,7 +64,8 @@
           </div>
         </ng-template>
         <div class="tab-content-scrollable">
-          <app-search-for-candidate (candidatoSeleccionado)="onCandidatoSeleccionado($event)">
+          <app-search-for-candidate
+            (candidatoSeleccionado)="onCandidatoSeleccionado($event)">
           </app-search-for-candidate>
         </div>
       </mat-tab>
@@ -70,7 +78,8 @@
           </div>
         </ng-template>
         <div class="tab-content-scrollable">
-          <app-selection-questions [candidatoSeleccionado]="candidatoSeleccionado()">
+          <app-selection-questions
+            [candidatoSeleccionado]="candidatoSeleccionado()">
           </app-selection-questions>
         </div>
       </mat-tab>
@@ -83,7 +92,8 @@
           </div>
         </ng-template>
         <div class="tab-content-scrollable">
-          <app-help-information [candidatoSeleccionado]="candidatoSeleccionado()">
+          <app-help-information
+            [candidatoSeleccionado]="candidatoSeleccionado()">
           </app-help-information>
         </div>
       </mat-tab>
@@ -113,7 +123,8 @@
               <mat-option value="ACR VITAL">ACR VITAL</mat-option>
               <mat-option value="SANILAB">SANILAB</mat-option>
             </mat-select>
-            <mat-error *ngIf="formGroup3.get('ips')?.hasError('required') && formGroup3.get('ips')?.touched">
+            <mat-error
+              *ngIf="formGroup3.get('ips')?.hasError('required') && formGroup3.get('ips')?.touched">
               Este campo es requerido
             </mat-error>
           </mat-form-field>
@@ -139,7 +150,8 @@
           <mat-form-field appearance="outline" class="example-full-width">
             <mat-label>Seleccione los exámenes</mat-label>
             <mat-select formControlName="selectedExams" multiple required>
-              <mat-option *ngFor="let exam of filteredExamOptions" [value]="exam">
+              <mat-option *ngFor="let exam of filteredExamOptions"
+                [value]="exam">
                 {{ exam }}
               </mat-option>
             </mat-select>
@@ -151,7 +163,9 @@
 
           <!-- Campos dinámicos para cada examen seleccionado -->
           <div formArrayName="selectedExamsArray">
-            <div *ngFor="let exam of formGroup3.get('selectedExams')?.value; let i = index" [formGroupName]="i">
+            <div
+              *ngFor="let exam of formGroup3.get('selectedExams')?.value; let i = index"
+              [formGroupName]="i">
               <!-- Estado Apto/No Apto requerido -->
               <mat-form-field appearance="outline" class="example-full-width">
                 <mat-label>{{ exam }}</mat-label>
@@ -159,20 +173,24 @@
                   <mat-option value="APTO">APTO</mat-option>
                   <mat-option value="NO APTO">NO APTO</mat-option>
                 </mat-select>
-                <mat-error *ngIf="formGroup3.get('selectedExamsArray')?.get(i.toString())?.get('aptoStatus')?.hasError('required')
+                <mat-error
+                  *ngIf="formGroup3.get('selectedExamsArray')?.get(i.toString())?.get('aptoStatus')?.hasError('required')
                     && formGroup3.get('selectedExamsArray')?.get(i.toString())?.get('aptoStatus')?.touched">
                   Este campo es requerido
                 </mat-error>
               </mat-form-field>
 
               <!-- Subir PDF -->
-              <input type="file" accept="application/pdf" (change)="onFileSelected($event, i)" />
-              <p *ngIf="examFiles()[i]">Archivo seleccionado: {{ examFiles()[i].name }}</p>
+              <input type="file" accept="application/pdf"
+                (change)="onFileSelected($event, i)" />
+              <p *ngIf="examFiles()[i]">Archivo seleccionado: {{
+                examFiles()[i].name }}</p>
             </div>
           </div>
 
           <!-- Botón para imprimir -->
-          <button mat-flat-button (click)="imprimirSaludOcupacional()" class="example-full-width">
+          <button mat-flat-button (click)="imprimirSaludOcupacional()"
+            class="example-full-width">
             Guardar Salud Ocupacional
           </button>
         </div>
@@ -181,14 +199,16 @@
       <!-- ─────────── TAB • CONTRATACIÓN ─────────── -->
       <mat-tab [disabled]="deshabilitarContratacion()">
         <ng-template mat-tab-label>
-          <div class="tab" [matTooltip]="deshabilitarContratacion() ? 'Hay exámenes NO APTO' : ''">
+          <div class="tab"
+            [matTooltip]="deshabilitarContratacion() ? 'Hay exámenes NO APTO' : ''">
             <mat-icon>how_to_reg</mat-icon>
             Contratación
           </div>
         </ng-template>
 
         <div class="tab-content-scrollable">
-          <app-hiring-questions [candidatoSeleccionado]="candidatoSeleccionado()">
+          <app-hiring-questions
+            [candidatoSeleccionado]="candidatoSeleccionado()">
           </app-hiring-questions>
         </div>
       </mat-tab>
@@ -196,4 +216,5 @@
     </mat-tab-group>
   </mat-card-content>
 </mat-card>
-<div #toastHost style="position:fixed;top:8px;right:8px;z-index:2147483647"></div>
+<div #toastHost
+  style="position:fixed;top:8px;right:8px;z-index:2147483647"></div>

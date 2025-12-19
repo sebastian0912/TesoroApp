@@ -347,7 +347,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     }
     // Ficha técnica
     else if (documento === 'Ficha técnica') {
-      //this.generarFichaTecnica();
+      this.generarFichaTecnica();
     }
   }
 
@@ -868,42 +868,6 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       bytes[i] = binaryString.charCodeAt(i);
     }
     return bytes;
-  }
-
-  // Decodifica base64 (con o sin prefijo data:) y devuelve bytes + mime (si se pudo determinar)
-  private decodeBase64Image(input?: string | null): { bytes: Uint8Array; mime?: string } | null {
-    if (!input || typeof input !== 'string') return null;
-
-    let mime: string | undefined;
-    let b64 = input.trim();
-
-    // ¿Viene como data URL?
-    const m = /^data:([^;]+);base64,(.*)$/i.exec(b64);
-    if (m) {
-      mime = m[1]?.toLowerCase();
-      b64 = m[2] || '';
-    }
-
-    // Limpia espacios/nuevas líneas
-    b64 = b64.replace(/\s+/g, '');
-
-    // Decodifica a Uint8Array
-    let bytes: Uint8Array;
-    try {
-      const bin = atob(b64);
-      bytes = new Uint8Array(bin.length);
-      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-    } catch {
-      return null; // base64 inválido
-    }
-
-    // Si no vino MIME, intenta detectar por firma
-    if (!mime) {
-      const sniff = this.sniffImageMime(bytes);
-      if (sniff) mime = sniff;
-    }
-
-    return { bytes, mime };
   }
 
   // Detecta PNG o JPEG por firma binaria
@@ -1725,7 +1689,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     let y = columnStartY + rowsPerColumn * rowSpacing + 2; // Posición vertical después de los datos
     // Texto adicional
     let texto = 'Entre el EMPLEADOR y el TRABAJADOR arriba indicados, se ha celebrado el contrato regulado por las cláusulas que adelante se indican, aparte de la ley, siendo ellas las siguientes: PRIMERA. El Trabajador, a partir de la fecha de iniciación, se obliga para con el EMPLEADOR a ejecutar la obra arriba indicada, sometiéndose durante su realización en todo a las órdenes de éste. Declara por consiguiente el TRABAJADOR completa y total disponibilidad para con el EMPLEADOR para ejecutar las obras indicadas en el encabezamiento, siempre que así le sean exigidas por sus clientes al EMPLEADOR. Teniendo en cuenta que, la EMPRESA USUARIA, desarrolla su actividad productiva y comercial a nivel nacional, las partes convienen en que la EMPRESA USUARIA podrá trasladar la base de operaciones de EL TRABAJADOR, en cualquier tiempo, a cualquier otro lugar donde desarrolle tales actividades sin que por ello se opere desmejora o modificación sustancial de las condiciones de trabajo ni de la categoría del TRABAJADOR, consideradas en el momento de la suscripción de este contrato. SEGUNDA. DURACIÓN DEL CONTRATO: La necesaria para la realización de la obra o labor contratada y conforme a las necesidades del patrono o establecimiento que requiera la ejecución de la obra, todo conforme a lo previsto en el Art. 45 del CST y teniendo en cuenta la fecha de iniciación de la obra; y la índole de la misma, circunstancias una y otra ya anotadas. PARÁGRAFO PRIMERO: Las partes acuerdan que por ser el TRABAJADOR contratado como trabajador en misión para ser enviado a la empresa la duración de la obra o labor no podrá superar el tiempo establecido en el Art. 77 de la Ley 50 de 1990 en su numeral 3°. PARÁGRAFO SEGUNDO: El término de duración del presente contrato es de carácter temporal por ser el EMPLEADOR una empresa de servicios temporales, y por tanto tendrá vigencia hasta la realización de la obra o labor contratada que sea indicada por las Empresas Usuarias del EMPLEADOR en este contrato, acordando las partes que para todos los efectos legales, la obra o labor contratada termina en la fecha en que la EMPRESA USUARIA, a la que será enviado el TRABAJADOR, comunique la terminación de la misma. PARÁGRAFO TERCERO: La labor se realizará de manera personal en las instalaciones de la EMPRESA.';
-    // this.datoVacante.empresaUsuariaSolicita + CENTRO DE COSTOS + this.datoVacante.finca + DIR. + this.datoVacante.direccion
+    // this.vacante.empresaUsuariaSolicita + CENTRO DE COSTOS + this.vacante.finca + DIR. + this.vacante.direccion
     doc.setFont('helvetica', 'normal');
     // Construir texto dinámico sin null ni undefined
     const partes = [
@@ -1944,6 +1908,507 @@ export class GenerateContractingDocumentsComponent implements OnInit {
 
     this.verPDF({ titulo: 'Contrato' });
   }
+
+
+
+
+// =========================================================
+// === Método principal SOLO con candidato + vacante
+// =========================================================
+async generarFichaTecnica() {
+  try {
+    // =========================================================
+    // 0) Helpers de imagen (PDF-lib) - robustos como en jsPDF
+    // =========================================================
+    const bytesCache = new Map<string, Promise<ArrayBuffer | null>>();
+
+    const isHttp = (u: string) => /^https?:\/\//i.test(u);
+    const isDataUrl = (u: string) => /^data:image\//i.test(u);
+
+    const normalizeUrl = (u: string) => {
+      const s = String(u ?? '').trim();
+      if (!s) return '';
+      if (isHttp(s) || isDataUrl(s)) return s;
+
+      const clean = s.replace(/^\/+/, '');
+      // Si ya viene con assets/, lo dejamos
+      if (clean.startsWith('assets/')) return clean;
+
+      // Muchos de tus recursos parecen estar como "logos/.." o "firma/.." o "Docs/.."
+      // En Angular normalmente deben ir bajo assets/
+      return `assets/${clean}`;
+    };
+
+    const dataUrlToBytes = (dataUrl: string): ArrayBuffer | null => {
+      try {
+        const [meta, b64] = dataUrl.split(',');
+        if (!meta || !b64) return null;
+        const bin = atob(b64);
+        const len = bin.length;
+        const bytes = new Uint8Array(len);
+        for (let i = 0; i < len; i++) bytes[i] = bin.charCodeAt(i);
+        return bytes.buffer;
+      } catch {
+        return null;
+      }
+    };
+
+    const detectImageType = (ab: ArrayBuffer): 'png' | 'jpg' | null => {
+      const b = new Uint8Array(ab);
+      // PNG: 89 50 4E 47 0D 0A 1A 0A
+      if (
+        b.length >= 8 &&
+        b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4E && b[3] === 0x47 &&
+        b[4] === 0x0D && b[5] === 0x0A && b[6] === 0x1A && b[7] === 0x0A
+      ) return 'png';
+
+      // JPG: FF D8 FF
+      if (b.length >= 3 && b[0] === 0xFF && b[1] === 0xD8 && b[2] === 0xFF) return 'jpg';
+
+      return null;
+    };
+
+    const fetchBytesOrNull = async (urlOrData?: string): Promise<ArrayBuffer | null> => {
+      const raw = String(urlOrData ?? '').trim();
+      if (!raw) return null;
+
+      // data:image/*
+      if (isDataUrl(raw)) return dataUrlToBytes(raw);
+
+      const url = normalizeUrl(raw);
+      if (!url) return null;
+
+      // cache por URL para no descargar varias veces
+      if (bytesCache.has(url)) return await bytesCache.get(url)!;
+
+      const p = (async () => {
+        // 1) Intenta con tu helper (si ya está armado con headers, baseUrl, etc.)
+        try {
+          const ab = await this.fetchAsArrayBufferOrNull(url);
+          if (ab) return ab;
+        } catch {}
+
+        // 2) Intento extra: si por alguna razón normalizeUrl “rompió” tu path,
+        //    probamos el raw original (solo cuando era relativo)
+        if (!isHttp(raw) && !raw.startsWith('assets/') && !isDataUrl(raw)) {
+          try {
+            const ab2 = await this.fetchAsArrayBufferOrNull(raw);
+            if (ab2) return ab2;
+          } catch {}
+        }
+
+        return null;
+      })();
+
+      bytesCache.set(url, p);
+      return await p;
+    };
+
+    const embedImageOrNull = async (pdfDoc: PDFDocument, urlOrData?: string) => {
+      const ab = await fetchBytesOrNull(urlOrData);
+      if (!ab) return null;
+
+      const kind = detectImageType(ab);
+      if (!kind) return null;
+
+      try {
+        const u8 = new Uint8Array(ab);
+        return kind === 'png' ? await pdfDoc.embedPng(u8) : await pdfDoc.embedJpg(u8);
+      } catch {
+        return null;
+      }
+    };
+
+    const setButtonImageSafe = async (
+      pdfDoc: PDFDocument,
+      form: any,
+      buttonName: string,
+      urlOrData?: string
+    ) => {
+      const img = await embedImageOrNull(pdfDoc, urlOrData);
+      if (!img) return false;
+      try {
+        form.getButton(buttonName).setImage(img);
+        return true;
+      } catch {
+        return false;
+      }
+    };
+
+    // =========================================================
+    // 1) Normalización desde this.candidato y this.vacante
+    // =========================================================
+    const cand: any = this.candidato ?? {};
+    const vac: any = this.vacante ?? {};
+
+    const contacto: any = cand.contacto ?? {};
+    const residencia: any = cand.residencia ?? {};
+    const infoCc: any = cand.info_cc ?? {};
+
+    const entrevista: any = Array.isArray(cand.entrevistas) ? cand.entrevistas[0] : null;
+    const proceso: any = entrevista?.proceso ?? {};
+    const contrato: any = proceso?.contrato ?? {};
+    const antecedentes: any[] = Array.isArray(proceso?.antecedentes) ? proceso.antecedentes : [];
+
+    const norm = (v: any) => String(v ?? '').trim().toUpperCase();
+
+    const findAnte = (nombre: string) => antecedentes.find(a => norm(a?.nombre) === norm(nombre));
+
+    const eps = String(findAnte('EPS')?.observacion ?? '');
+    const afp = String(findAnte('AFP')?.observacion ?? '');
+
+    const mapEstadoCivil = (code: any): string => {
+      const c = norm(code);
+      if (c === 'SO' || c === 'SOLTERO' || c === 'S') return 'SO';
+      if (c === 'CA' || c === 'CASADO') return 'CA';
+      if (c === 'UN' || c === 'UL' || c === 'UNION LIBRE' || c === 'UNIÓN LIBRE') return 'UN';
+      if (c === 'SE' || c === 'SEP' || c === 'SEPARADO') return 'SE';
+      if (c === 'VI' || c === 'VIUDO') return 'VI';
+      return c || '';
+    };
+
+    const nombreCompleto = [
+      cand.primer_nombre,
+      cand.segundo_nombre,
+      cand.primer_apellido,
+      cand.segundo_apellido,
+    ]
+      .map((x: any) => String(x ?? '').trim())
+      .filter(Boolean)
+      .join(' ');
+
+    const codigoContrato = String(contrato?.codigo_contrato ?? proceso?.contrato_codigo ?? '').trim();
+
+    const fechaIngreso = String(vac?.fechadeIngreso ?? '').trim(); // "2025-12-12"
+    const salario = vac?.salario ?? proceso?.vacante_salario ?? '';
+
+    const formacion0: any = Array.isArray(cand.formaciones) ? cand.formaciones[0] : null;
+    const exp0: any = Array.isArray(cand.experiencias) ? cand.experiencias[0] : null;
+
+    // dv = "datoPersonal" esperado por tu PDF
+    const dv: any = {
+      primer_apellido: cand.primer_apellido ?? '',
+      segundo_apellido: cand.segundo_apellido ?? '',
+      primer_nombre: cand.primer_nombre ?? '',
+      segundo_nombre: cand.segundo_nombre ?? '',
+
+      tipodedocumento: cand.tipo_doc ?? '',
+      numerodeceduladepersona: cand.numero_documento ?? '',
+
+      fecha_expedicion_cc: infoCc?.fecha_expedicion ?? '',
+      departamento_expedicion_cc: infoCc?.depto_expedicion ?? '',
+      municipio_expedicion_cc: infoCc?.mpio_expedicion ?? '',
+
+      genero: cand.sexo ?? '',
+      fecha_nacimiento: cand.fecha_nacimiento ?? '',
+      lugar_nacimiento_departamento: infoCc?.depto_nacimiento ?? '',
+      lugar_nacimiento_municipio: infoCc?.mpio_nacimiento ?? '',
+
+      estado_civil: mapEstadoCivil(cand.estado_civil),
+
+      direccion_residencia: residencia?.direccion ?? '',
+      barrio: residencia?.barrio ?? '',
+      municipio: (vac?.municipio?.[0] ?? entrevista?.oficina ?? '').toString(),
+      departamento: '', // no viene en el JSON
+
+      celular: contacto?.celular ?? '',
+      primercorreoelectronico: contacto?.email ?? '',
+
+      rh: cand.rh ?? '',
+      zurdo_diestro: cand.zurdo_diestro ?? '',
+
+      escolaridad: formacion0?.nivel ?? '',
+      nombre_institucion: formacion0?.institucion ?? '',
+      titulo_obtenido: formacion0?.titulo_obtenido ?? '',
+      ano_finalizacion: formacion0?.anio_finalizacion ?? '',
+
+      nombre_expe_laboral1_empresa: exp0?.empresa ?? '',
+      direccion_empresa1: exp0?.direccion ?? '',
+      telefonos_empresa1: exp0?.telefonos ?? '',
+      nombre_jefe_empresa1: exp0?.nombre_jefe ?? '',
+      cargo_empresa1: exp0?.cargo ?? '',
+      fecha_retiro_empresa1: exp0?.fecha_retiro ?? '',
+      motivo_retiro_empresa1: exp0?.motivo_retiro ?? '',
+    };
+
+    // ds = "datoSeleccion"
+    const ds: any = {
+      fechaIngreso,
+      salario,
+      eps,
+      afp,
+      cargo: vac?.cargo ?? '',
+      centro_costo_entrevista: entrevista?.oficina ?? '',
+      empresa_usuario: vac?.empresaUsuariaSolicita ?? '',
+    };
+
+    // datoInfoContratacion
+    const datoInfoContratacion: any = {
+      codigo_contrato: codigoContrato,
+      forma_pago: contrato?.forma_de_pago ?? '',
+      numero_pagos: contrato?.numero_para_pagos ?? '',
+      porcentaje_arl: contrato?.porcentaje_arl ?? '',
+      cesantias: contrato?.cesantias ?? '',
+      centro_de_costos: contrato?.Ccentro_de_costos ?? contrato?.centro_de_costos ?? '',
+      subCentroCostos: contrato?.subcentro_de_costos ?? '',
+      categoria: contrato?.categoria ?? '',
+      operacion: contrato?.operacion ?? '',
+      grupo: contrato?.grupo ?? '',
+      horas_extras:
+        contrato?.horas_extras === true ? 'SI' :
+        contrato?.horas_extras === false ? 'NO' :
+        (contrato?.horas_extras ?? ''),
+      semanas_cotizadas: '0',
+    };
+
+    // URLs biometría (NO base64)
+    const firmaUrl = cand?.biometria?.firma?.file_url ?? cand?.biometria?.firma?.file ?? '';
+    const fotoUrl = cand?.biometria?.foto?.file_url ?? cand?.biometria?.foto?.file ?? '';
+    const huellaUrl = cand?.biometria?.huella?.file_url ?? cand?.biometria?.huella?.file ?? '';
+
+    // =========================================================
+    // 2) Cargar PDF base y setear campos
+    // =========================================================
+    const pdfUrl = 'Docs/Ficha tecnica.pdf';
+    const arrayBuffer = await this.fetchAsArrayBufferOrNull(pdfUrl);
+    if (!arrayBuffer) throw new Error('No se pudo cargar el PDF base.');
+
+    const pdfDoc = await PDFDocument.load(arrayBuffer);
+    pdfDoc.registerFontkit(fontkit as any);
+
+    const fontBytes = await this.fetchAsArrayBufferOrNull('fonts/Roboto-Regular.ttf');
+    const customFont = fontBytes ? await pdfDoc.embedFont(fontBytes) : undefined;
+
+    const form = pdfDoc.getForm();
+
+    // Branding
+    const { logoPath, nombreEmpresa } = this.getEmpresaInfo();
+
+    // 🔥 LOGO: ahora detecta PNG/JPG y lo pone donde exista el botón
+    await setButtonImageSafe(pdfDoc, form, 'Image16_af_image', logoPath);
+    await setButtonImageSafe(pdfDoc, form, 'Image18_af_image', logoPath);
+
+    // Cabecera / contrato
+    this.setText(form, 'CodContrato', this.safe(codigoContrato), customFont, 7.2);
+    this.setText(form, 'sede', this.safe(this.user?.sede?.nombre), customFont, 7.2);
+    this.setText(form, 'empresa', this.safe(nombreEmpresa), customFont);
+
+    // Identificación
+    this.setText(form, '1er ApellidoRow1', this.safe(dv.primer_apellido), customFont);
+    this.setText(form, '2do ApellidoRow1', this.safe(dv.segundo_apellido), customFont);
+    this.setText(
+      form,
+      'NombresRow1',
+      [this.safe(dv.primer_nombre), this.safe(dv.segundo_nombre)].filter(Boolean).join(' '),
+      customFont
+    );
+    this.setText(form, 'Tipo Documento IdentificaciónRow1', this.safe(dv.tipodedocumento), customFont);
+    this.setText(form, 'Número de IdentificaciónRow1', this.safe(dv.numerodeceduladepersona), customFont);
+
+    // Expedición
+    this.setText(form, 'Fecha de ExpediciónRow1', this.parseDateToDDMMYYYY(dv.fecha_expedicion_cc), customFont);
+    this.setText(form, 'Departamento de ExpediciónRow1', this.safe(dv.departamento_expedicion_cc), customFont);
+    this.setText(form, 'Municipio de ExpediciónRow1', this.safe(dv.municipio_expedicion_cc), customFont);
+
+    // Nacimiento
+    this.setText(form, 'GeneroRow1', this.safe(dv.genero), customFont);
+    this.setText(form, 'Fecha de NacimientoRow1', this.parseDateToDDMMYYYY(dv.fecha_nacimiento), customFont);
+    this.setText(form, 'Departamento de NacimientoRow1', this.safe(dv.lugar_nacimiento_departamento), customFont);
+    this.setText(form, 'Municipio de NacimientoRow1', this.safe(dv.lugar_nacimiento_municipio), customFont);
+
+    // Estado civil (X)
+    const ec = this.safe(dv.estado_civil).toUpperCase();
+    this.setXIf(form, 'SolteroEstado Civil', ec === 'SO');
+    this.setXIf(form, 'CasadoEstado Civil', ec === 'CA');
+    this.setXIf(form, 'Union LibreEstado Civil', ec === 'UN');
+    this.setXIf(form, 'SeparadoEstado Civil', ec === 'SE');
+    this.setXIf(form, 'ViudoEstado Civil', ec === 'VI');
+
+    // Contacto / residencia
+    this.setText(form, 'Dirección de DomicilioRow1', this.safe(dv.direccion_residencia), customFont);
+    this.setText(form, 'BarrioRow1', this.safe(dv.barrio), customFont);
+    this.setText(form, 'Ciudad DomicilioRow1', this.safe(dv.municipio), customFont);
+    this.setText(form, 'DepartamentoRow1', this.safe(dv.departamento), customFont);
+    this.setText(form, 'CelularRow1', this.safe(dv.celular), customFont);
+    this.setText(form, 'Correo ElectrónicoRow1', this.safe(dv.primercorreoelectronico), customFont);
+
+    // RH / mano
+    this.setText(form, 'CelularGrupo Sanguineo y RH', this.safe(dv.rh), customFont);
+    const mano = this.safe(dv.zurdo_diestro).toUpperCase();
+    this.setXIf(form, 'Diestro', mano.includes('DIESTRO'));
+    this.setXIf(form, 'PesoZurdo', !mano.includes('DIESTRO'));
+
+    // Empresa / Clasificadores
+    this.setText(form, 'Empresa Grupo Elite', this.safe(vac.empresaUsuariaSolicita), customFont);
+    this.setText(form, 'Código Compañía', this.safe(vac.codigoElite ?? vac.empresaUsuariaSolicita), customFont);
+    this.setText(form, 'Sucursal', this.safe(ds.centro_costo_entrevista), customFont);
+
+    this.setText(form, 'Centro de Costo', this.safe(datoInfoContratacion.centro_de_costos), customFont);
+    this.setText(form, 'SubCentro de Costo', this.safe(datoInfoContratacion.subCentroCostos), customFont);
+
+    this.setText(form, 'CÓDIGOCiudad de Labor', this.safe(ds.centro_costo_entrevista || dv.municipio), customFont);
+    this.setText(form, 'CÓDIGOClasificador 2Categoría', this.safe(datoInfoContratacion.categoria), customFont);
+    this.setText(form, 'CÓDIGOClasificador 3Operación', this.safe(datoInfoContratacion.operacion), customFont);
+    this.setText(form, 'CÓDIGOClasificador 4Sublador', this.safe(vac.cargo), customFont);
+    this.setText(form, 'Apoyo Laboral TSClasificador 6Grupo', this.safe(datoInfoContratacion.grupo), customFont);
+
+    // Fecha ingreso / salario
+    this.setText(form, 'Fecha de Ingreso', this.formatLongDateES(this.safe(ds.fechaIngreso)), customFont);
+    this.setText(form, 'Sueldo Básico', this.formatMoneyCOP(ds.salario), customFont);
+
+    // Banco / cuenta / ARL
+    this.setText(form, 'Banco', this.safe(datoInfoContratacion.forma_pago), customFont);
+    this.setText(form, 'Cuenta', this.safe(datoInfoContratacion.numero_pagos), customFont);
+    this.setText(form, 'Porcentaje ARLARL SURA', this.safe(datoInfoContratacion.porcentaje_arl), customFont);
+
+    // Seguridad social
+    this.setText(form, 'EPS SaludRow1', this.safe(ds.eps), customFont);
+    this.setText(form, 'AFP PensiónRow1', this.safe(ds.afp), customFont);
+    this.setText(form, 'AFC CesantiasRow1', this.safe(datoInfoContratacion.cesantias), customFont);
+    this.setText(form, 'N de Semanas CotizadasPensionado NO', this.safe(datoInfoContratacion.semanas_cotizadas) || '0', customFont);
+
+    // Auxilio / ruta
+    this.setText(form, 'Nombre de la RutaAuxilio Trasporte', this.safe(vac.auxilioTransporte), customFont);
+    const rutaInfo = this.getRutaInfo(vac.oficinasQueContratan, ds.centro_costo_entrevista || '');
+    this.setText(form, 'Nombre de la RutaUsa Ruta', rutaInfo.usaRuta, customFont);
+
+    // Horas extras
+    this.setText(form, 'Horas extras', this.safe(datoInfoContratacion.horas_extras), customFont);
+
+    // Educación
+    this.setText(form, 'Seleccione el Grado de Escolaridad', this.safe(dv.escolaridad), customFont);
+    this.setText(form, 'Institución', this.safe(dv.nombre_institucion), customFont);
+    this.setText(form, 'Titulo Obtenido o Ultimo año Cursado', this.safe(dv.titulo_obtenido), customFont);
+    this.setText(form, 'Año Finalización', this.parseDateToDDMMYYYY(dv.ano_finalizacion), customFont);
+
+    // Experiencia 1
+    this.setText(form, 'Nombre Empresa 1Row1', this.safe(dv.nombre_expe_laboral1_empresa), customFont);
+    this.setText(form, 'Dirección EmpresaRow1', this.safe(dv.direccion_empresa1), customFont);
+    this.setText(form, 'TeléfonosRow1', this.safe(dv.telefonos_empresa1), customFont);
+    this.setText(form, 'Jefe InmediatoRow1', this.safe(dv.nombre_jefe_empresa1), customFont);
+    this.setText(form, 'CargoRow1', this.safe(dv.cargo_empresa1), customFont);
+    this.setText(form, 'F de RetiroRow1', this.parseDateToDDMMYYYY(dv.fecha_retiro_empresa1), customFont);
+    this.setText(form, 'Motivo de RetiroRow1', this.safe(dv.motivo_retiro_empresa1), customFont);
+
+    // Autorización (1 vez)
+    const empresaTxt = this.safe(vac?.empresaUsuariaSolicita);
+    this.setText(
+      form,
+      'AutorizacionDeEstudiosSeguridad2',
+      empresaTxt
+        ? `estudios de seguridad. De conformidad con lo dispuesto en la ley 1581 de 2012 y el decreto reglamentario 1377 de 2013 autorizo a ${empresaTxt} a consultar en cualquier momento ante las centrales de riesgo la información comercial a mi nombre.`
+        : '',
+      customFont,
+      6
+    );
+    this.setText(form, 'CedulaAutorizacion', this.safe(dv.numerodeceduladepersona), customFont);
+
+    // Persona que firma (usuario del sistema)
+    this.setText(
+      form,
+      'Persona que firma',
+      this.safe(
+        `${this.user?.datos_basicos?.nombres ?? ''} ${this.user?.datos_basicos?.apellidos ?? ''} ${this.user?.tipo_documento ?? ''} ${this.user?.numero_de_documento ?? ''}`.trim()
+      ),
+      customFont
+    );
+
+    // =========================================================
+    // 2.1) IMÁGENES (como en tu jsPDF, pero correcto para PDF-lib)
+    // =========================================================
+
+    // Firma institucional (tu campo / URL / dataURL)
+    await setButtonImageSafe(pdfDoc, form, 'Image15_af_image', this.firmaPersonalAdministrativo);
+
+    // =========================================================
+    // 3) Biométricos del candidato por URL (firma/foto/huella)
+    // =========================================================
+    await setButtonImageSafe(pdfDoc, form, 'Image11_af_image', firmaUrl);
+    await setButtonImageSafe(pdfDoc, form, 'Image17_af_image', fotoUrl);
+    await setButtonImageSafe(pdfDoc, form, 'Image10_af_image', huellaUrl);
+
+    // Fechas adicionales
+    this.setText(form, 'Fecha de EntregaINICIAL', this.formatLongDateES(this.safe(ds.fechaIngreso)), customFont);
+    this.setText(form, 'FechaLocker', this.formatLongDateES(this.safe(ds.fechaIngreso)), customFont);
+
+    // Textos
+    this.setText(
+      form,
+      'TEXTOCARNET',
+      `me comprometo a presentar ante ${this.safe(vac.empresaUsuariaSolicita)} fotocopia del denuncio correspondiente y en el caso de aparecer el carnet perdido lo devolveré a la empresa para su respectiva anulación`,
+      customFont,
+      6
+    );
+
+    this.setText(
+      form,
+      'TEXTOLOCKER5',
+      `Yo, ${nombreCompleto} identificado(a) con Cedula de Ciudadania No ${this.safe(dv.numerodeceduladepersona)} declaro haber recibido el loker relacionado abajo y me comprometo a seguir las recomendaciones y politicas de uso y cuidado de estós, y a devolverer Loker en el mismo estado en que me fue asignado al momento de la finalizaci6n de mi relación laboral y antes de la entrega de la liquidación de contrato`,
+      customFont,
+      6
+    );
+
+    // Bloquear campos
+    form.getFields().forEach((f: any) => { try { f.enableReadOnly(); } catch {} });
+
+    // Guardar PDF
+    const pdfBytes = await pdfDoc.save();
+    const ab = this.toSafeArrayBuffer(pdfBytes);
+    const file = new File([ab], 'Ficha tecnica.pdf', { type: 'application/pdf' });
+
+    this.uploadedFiles['Ficha técnica'] = { file, fileName: 'Ficha tecnica.pdf' };
+    this.verPDF({ titulo: 'Ficha técnica' });
+  } catch (error) {
+    console.error('Error generando ficha técnica:', error);
+    Swal.fire({ icon: 'error', title: 'Error', text: 'Ocurrió un error al generar la ficha técnica.' });
+  }
+}
+
+
+  // =========================================================
+  // ✅ Imagen robusta (URL / base64 / dataURL / bytes)
+  // =========================================================
+  private isDataImageUrl(s: string): boolean {
+    return /^data:image\/(png|jpe?g);base64,/i.test(s.trim());
+  }
+
+  private isLikelyUrl(s: string): boolean {
+    const v = s.trim();
+    return (
+      /^https?:\/\//i.test(v) ||
+      /^blob:/i.test(v) ||
+      v.startsWith('/') ||
+      v.startsWith('assets/') ||
+      v.startsWith('Docs/')
+    );
+  }
+
+  private isLikelyBase64(s: string): boolean {
+    const v = s.trim();
+    if (!v) return false;
+    if (this.isLikelyUrl(v)) return false;
+    if (v.includes('://') || v.includes('.') || v.includes('?') || v.includes('&')) return false;
+
+    const clean = v.replace(/\s+/g, '');
+    if (!/^[A-Za-z0-9+/=_-]+$/.test(clean)) return false;
+    return clean.length > 80;
+  }
+
+  private normalizeBase64(b64: string): string {
+    let s = (b64 ?? '').trim();
+
+    const m = s.match(/^data:image\/[a-zA-Z0-9.+-]+;base64,(.*)$/i);
+    if (m?.[1]) s = m[1];
+
+    s = s.replace(/\s+/g, '');
+    s = s.replace(/-/g, '+').replace(/_/g, '/');
+
+    const pad = s.length % 4;
+    if (pad) s += '='.repeat(4 - pad);
+
+    return s;
+  }
+
 
 
 
