@@ -1,10 +1,13 @@
-<mat-card>
+<mat-card class="container">
   <mat-card-content>
     <div class="tabla">
       <div class="page-header">
         <h1 class="title">Consultar documentación contratación</h1>
 
-        <button mat-icon-button [matMenuTriggerFor]="accionesMenu" aria-label="Acciones">
+        <button
+          mat-icon-button
+          [matMenuTriggerFor]="accionesMenu"
+          aria-label="Acciones">
           <mat-icon>more_vert</mat-icon>
         </button>
 
@@ -19,24 +22,38 @@
             <span>Descargar paquetes</span>
           </button>
 
-          <button mat-menu-item *ngIf="user?.rol.nombre === 'ADMIN' || user?.rol.nombre === 'GERENCIA' || user?.correo_electronico === 'archivotualianza@gmail.com' || user?.correo_electronico === 'archivotualianza2@gmail.com' || user?.correo_electronico === 'archivotualianza3@gmail.com' " (click)="exportarExcelFaltantes()">
+          <button
+            mat-menu-item
+            *ngIf="
+              user?.rol?.nombre === 'ADMIN' ||
+              user?.rol?.nombre === 'GERENCIA' ||
+              user?.correo_electronico === 'archivotualianza@gmail.com' ||
+              user?.correo_electronico === 'archivotualianza2@gmail.com' ||
+              user?.correo_electronico === 'archivotualianza3@gmail.com' ||
+              user?.correo_electronico === 'contratacionzipa.ts@gmail.com' ||
+              user?.correo_electronico === 'Contratacionnorte.ts@gmail.com'
+            "
+            (click)="exportarExcelFaltantes()">
             <mat-icon>table_view</mat-icon>
             <span>Ver faltantes</span>
           </button>
-
         </mat-menu>
       </div>
 
       <!-- Filtro -->
-      <mat-form-field class="filtro">
+      <mat-form-field class="filtro" appearance="outline">
         <mat-label>Filtrar</mat-label>
-        <input matInput #input placeholder="Filtrar en tabla" (keyup)="applyFilters($event)" />
+        <input
+          matInput
+          #input
+          placeholder="Filtrar en tabla"
+          (keyup)="applyFilters($event)"
+          (paste)="onTablePaste($event)" />
       </mat-form-field>
 
       <!-- TABLA -->
       <div class="table-container" tabindex="0" (paste)="onTablePaste($event)">
         <table mat-table [dataSource]="dataSource" class="mat-elevation-z8">
-
           <!-- CÉDULA -->
           <ng-container matColumnDef="cedula">
             <th mat-header-cell *matHeaderCellDef>Cédula</th>
@@ -65,7 +82,11 @@
           <ng-container matColumnDef="fecha_ingreso">
             <th mat-header-cell *matHeaderCellDef>Fecha ingreso</th>
             <td mat-cell *matCellDef="let e">
-              {{ e.fecha_ingreso ? (e.fecha_ingreso | date:'dd-MM-yyyy') : '' }}
+              {{
+              e.fecha_ingreso
+              ? (e.fecha_ingreso | date : 'dd-MM-yyyy')
+              : ''
+              }}
             </td>
           </ng-container>
 
@@ -79,34 +100,49 @@
           <ng-container matColumnDef="fecha_contratacion">
             <th mat-header-cell *matHeaderCellDef>Fecha Contratación</th>
             <td mat-cell *matCellDef="let e">
-              {{ e.fecha_contratacion ? (e.fecha_contratacion | date:'dd-MM-yyyy') : '' }}
+              {{
+              e.fecha_contratacion
+              ? (e.fecha_contratacion | date : 'dd-MM-yyyy')
+              : ''
+              }}
             </td>
           </ng-container>
 
           <!-- ====== COLUMNAS DINÁMICAS POR TIPO DOCUMENTAL ====== -->
-          <ng-container *ngFor="let t of tipoHeaders" [matColumnDef]="'type_' + t.id">
+          <ng-container
+            *ngFor="let t of tipoHeaders"
+            [matColumnDef]="'type_' + t.id">
             <th mat-header-cell *matHeaderCellDef>{{ t.name }}</th>
+
             <td mat-cell *matCellDef="let e">
-              <ng-container *ngIf="e.docs && e.docs[t.id] as cell">
+              <ng-container *ngIf="e.docs && e.docs[t.id] as cell; else noDoc">
                 <!-- Si hay URL, linkea el check; si no, solo check; si no existe, X -->
-                <a *ngIf="cell.url; else checkOrX" [href]="cell.url" target="_blank" matTooltip="Ver documento">
+                <a
+                  *ngIf="cell.url; else checkOrX"
+                  [href]="cell.url"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  matTooltip="Ver documento">
                   <mat-icon color="primary">check_circle</mat-icon>
                 </a>
+
                 <ng-template #checkOrX>
-                  <mat-icon *ngIf="cell.exists" color="primary">check_circle</mat-icon>
+                  <mat-icon *ngIf="cell.exists"
+                    color="primary">check_circle</mat-icon>
                   <mat-icon *ngIf="!cell.exists" color="warn">cancel</mat-icon>
                 </ng-template>
               </ng-container>
-              <ng-container *ngIf="!e.docs || !e.docs[t.id]">
+
+              <ng-template #noDoc>
                 <mat-icon color="warn">cancel</mat-icon>
-              </ng-container>
+              </ng-template>
             </td>
           </ng-container>
           <!-- ==================================================== -->
 
           <!-- FILAS -->
           <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
-          <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
+          <tr mat-row *matRowDef="let row; columns: displayedColumns"></tr>
 
           <!-- SIN DATOS -->
           <tr class="mat-row" *matNoDataRow>

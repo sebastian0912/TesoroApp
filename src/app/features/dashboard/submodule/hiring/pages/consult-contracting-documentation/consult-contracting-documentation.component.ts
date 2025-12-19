@@ -1,13 +1,21 @@
-import { Component, OnInit, DestroyRef, inject } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import {
+  ChangeDetectionStrategy,
+  ChangeDetectorRef,
+  Component,
+  DestroyRef,
+  OnInit,
+  inject,
+} from '@angular/core';
 import { FormControl } from '@angular/forms';
-import { MatDialog } from '@angular/material/dialog';
+import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatTableDataSource } from '@angular/material/table';
 import Swal from 'sweetalert2';
-import { finalize } from 'rxjs';
+import { finalize, firstValueFrom } from 'rxjs';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 import { SharedModule } from '@/app/shared/shared.module';
 import { MatButtonModule } from '@angular/material/button';
-import { MatDialogModule } from '@angular/material/dialog';
 
 import { GestionDocumentalService } from '../../service/gestion-documental/gestion-documental.service';
 import { OrdenUnionDialogComponent } from '../../components/orden-union-dialog/orden-union-dialog.component';
@@ -15,6 +23,15 @@ import { OrdenUnionDialogComponent } from '../../components/orden-union-dialog/o
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 import { UtilityServiceService } from '@/app/shared/services/utilityService/utility-service.service';
+
+// ✅ NUEVO (tablas pendientes)
+import { StandardFilterTable } from '@/app/shared/components/standard-filter-table/standard-filter-table';
+import { ColumnDefinition } from '@/app/shared/models/advanced-table-interface';
+import {
+  RobotsService,
+  PendientesResumenResponse,
+  PendientesPorOficinaResponse,
+} from '../../../robots/services/robots/robots.service';
 
 /** Doc serializado (lo que devuelve el backend por cada tipo) */
 type DocCell = {
@@ -36,20 +53,77 @@ type Row = {
   docs: Record<number, DocCell>;
 };
 
+type TipoHeader = { id: number; name: string };
+
+type ChecklistDocDto = {
+  type_id: number;
+  doc: null | { file_url?: string; uploaded_at?: string };
+};
+
+type ChecklistItemDto = {
+  cedula: string;
+  tipo_documento?: string | null;
+  nombre_completo?: string | null;
+  finca?: string | null;
+  fecha_ingreso?: string | null;
+  codigo_contrato?: string | null;
+  fecha_contratacion?: string | null;
+  docs?: ChecklistDocDto[];
+};
+
+type ChecklistResponseDto = {
+  tipos?: TipoHeader[];
+  items?: ChecklistItemDto[];
+  invalidCedulas?: string[];
+  duplicatesRemoved?: number;
+  totalReceived?: number;
+};
+
+// =========================
+// ✅ NUEVO: PENDIENTES (PIVOT)
+// =========================
+type PivotEstado = 'SIN_CONSULTAR' | 'EN_PROGRESO' | 'PENDIENTES';
+
+type PendientesResumenPivotRow = {
+  label: string;
+  SIN_CONSULTAR: number;
+  EN_PROGRESO: number;
+  PENDIENTES: number;
+};
+
+type PendientesPorOficinaPivotRow = {
+  estado: PivotEstado;
+  [key: string]: any; // of_* => number
+};
+
 @Component({
   selector: 'app-consult-contracting-documentation',
   standalone: true,
-  imports: [SharedModule, MatButtonModule, MatDialogModule],
+  imports: [CommonModule, SharedModule, MatButtonModule, MatDialogModule],
   templateUrl: './consult-contracting-documentation.component.html',
-  styleUrl: './consult-contracting-documentation.component.css'
+  styleUrls: ['./consult-contracting-documentation.component.css'],
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ConsultContractingDocumentationComponent implements OnInit {
-
   // inyección moderna
   private readonly destroyRef = inject(DestroyRef);
+  private readonly cdr = inject(ChangeDetectorRef);
   private readonly gestionDocumentalService = inject(GestionDocumentalService);
   private readonly dialog = inject(MatDialog);
   private readonly utilityService = inject(UtilityServiceService);
+
+  // ✅ NUEVO
+  private readonly robotsService = inject(RobotsService);
+
+  // --------- Ajustes para masivo ----------
+  /**
+   * Tamaño de lote para POST (si backend demora o hay timeouts, esto ayuda).
+   * 1000–2000 suele ir bien. Ajusta según rendimiento.
+   */
+  private readonly MAX_POST_BATCH = 1500;
+
+  /** token para ignorar respuestas viejas (cuando el usuario pega otra lista) */
+  private requestToken = 0;
 
   // --------- UI / estado ----------
   cedulaControl = new FormControl<string>('', { nonNullable: true });
@@ -57,29 +131,77 @@ export class ConsultContractingDocumentationComponent implements OnInit {
 
   // --------- columnas dinámicas ----------
   /** Tipos que devuelve el backend, en orden */
-  tipoHeaders: Array<{ id: number; name: string }> = [];
-  /** Claves de columnas para Material Table (coinciden con los ng-container/defs de la plantilla) */
+  tipoHeaders: TipoHeader[] = [];
+  /** Claves de columnas para Material Table */
   tipoColumnKeys: string[] = [];
 
   // --------- tabla ----------
   dataSource = new MatTableDataSource<Row>([]);
-  /** Columnas base + dinámicas por tipo */
-  displayedColumns: string[] = [
-    'cedula', 'tipo_documento', 'nombre', 'finca', 'fecha_ingreso', 'codigo_contrato', 'fecha_contratacion'
-    // luego se añaden ...tipoColumnKeys
+  displayedColumns: string[] = [];
+
+  private readonly baseColumns: string[] = [
+    'cedula',
+    'tipo_documento',
+    'nombre',
+    'finca',
+    'fecha_ingreso',
+    'codigo_contrato',
+    'fecha_contratacion',
   ];
+
+  // =========================
+  // ✅ NUEVO: TABLAS PENDIENTES
+  // =========================
+  isLoadingPendientesResumen = false;
+  pendientesResumenRows: PendientesResumenPivotRow[] = [];
+  pendientesResumenColumns: ColumnDefinition[] = [];
+
+  isLoadingPendientesPorOficina = false;
+  pendientesPorOficinaRows: PendientesPorOficinaPivotRow[] = [];
+  pendientesPorOficinaColumns: ColumnDefinition[] = [];
+
+  pendientesRowsWithAnyPending = 0;
+  pendientesDistinctCedulasWithAnyPending = 0;
+
+  constructor() {
+    // al destruir el componente, invalida cualquier request en curso
+    this.destroyRef.onDestroy(() => {
+      this.requestToken++;
+    });
+  }
 
   ngOnInit(): void {
     this.user = this.utilityService.getUser();
 
-    // filtro de texto simple sobre todas las props stringificadas
-    this.dataSource.filterPredicate = (row, filter) =>
-      JSON.stringify(row).toLowerCase().includes(filter);
+    this.resetTabla();
+
+    // ✅ filtro eficiente (evita JSON.stringify en 5.000+ filas)
+    this.dataSource.filterPredicate = (row, filter) => {
+      const f = (filter ?? '').trim().toLowerCase();
+      if (!f) return true;
+
+      return (
+        (row.cedula ?? '').toLowerCase().includes(f) ||
+        (row.tipo_documento ?? '').toLowerCase().includes(f) ||
+        (row.nombre ?? '').toLowerCase().includes(f) ||
+        (row.finca ?? '').toLowerCase().includes(f) ||
+        (row.codigo_contrato ?? '').toLowerCase().includes(f)
+      );
+    };
+
+    // ✅ NUEVO
+    this.buildPendientesColumnsBase();
+    void this.loadPendientesWithSwal();
+
+    this.cdr.markForCheck();
   }
+
+  // ✅ Fix para *ngFor trackBy
+  trackByTipo = (_: number, t: TipoHeader) => t.id;
 
   /** ---------- BÚSQUEDA INDIVIDUAL ---------- */
   buscarPorCedula(): void {
-    const cedula = this.cedulaControl.value.trim();
+    const cedula = (this.cedulaControl.value ?? '').trim();
     if (!cedula) {
       Swal.fire({ icon: 'warning', title: 'Cédula vacía', text: 'Ingrese una cédula.' });
       return;
@@ -91,8 +213,11 @@ export class ConsultContractingDocumentationComponent implements OnInit {
   onTablePaste(evt: ClipboardEvent): void {
     const txt = evt.clipboardData?.getData('text') ?? '';
     if (!txt) return;
+
     evt.preventDefault();
-    if (txt.includes('\n') || txt.includes('\t') || txt.includes(',')) {
+
+    // si viene de Excel normalmente trae tabs/saltos o comas/espacios
+    if (/[\s,\t\r\n;]/.test(txt)) {
       this.procesarCedulasPegadas(txt);
     } else {
       this.cedulaControl.setValue(txt.trim());
@@ -100,89 +225,194 @@ export class ConsultContractingDocumentationComponent implements OnInit {
     }
   }
 
-  /** ---------- PROCESAMIENTO MASIVO CON NUEVO ENDPOINT ---------- */
+  /** ---------- PROCESAMIENTO MASIVO (5.000+) ---------- */
   procesarCedulasPegadas(texto: string): void {
-    // limpia tabla y normaliza/deduplica cédulas
-    this.dataSource.data = [];
-    this.tipoHeaders = [];
-    this.tipoColumnKeys = [];
-    this.displayedColumns = [
-      'cedula', 'tipo_documento', 'nombre', 'finca', 'fecha_ingreso', 'codigo_contrato', 'fecha_contratacion'
-    ];
+    void this.procesarCedulasPegadasAsync(texto);
+  }
 
-    const cedulas = Array.from(
-      new Set(
-        texto.split(/[\n,\t;]+/).map(c => c.trim()).filter(Boolean)
-      )
-    );
-    if (!cedulas.length) {
-      Swal.fire({ icon: 'info', title: 'Sin datos', text: 'No se detectaron cédulas.' });
+  private async procesarCedulasPegadasAsync(texto: string): Promise<void> {
+    const token = ++this.requestToken;
+
+    this.resetTabla();
+    this.cdr.markForCheck();
+
+    const parsed = this.parseCedulasBulk(texto);
+
+    if (!parsed.cedulas.length) {
+      Swal.fire({ icon: 'info', title: 'Sin datos', text: 'No se detectaron cédulas válidas.' });
       return;
     }
 
     Swal.fire({
       icon: 'info',
       title: 'Consultando información...',
+      text: `Cédulas únicas: ${parsed.cedulas.length}`,
       allowOutsideClick: false,
-      didOpen: () => Swal.showLoading()
+      allowEscapeKey: false,
+      showConfirmButton: false,
+      didOpen: () => Swal.showLoading(),
     });
 
-    this.gestionDocumentalService
-      .getDocumentosChecklistByGet(cedulas) // 👈 usa el nuevo servicio (tipos por defecto del backend)
-      .pipe(finalize(() => Swal.close()))
-      .subscribe({
-        next: (resp: any) => {
-          // 1) Encabezados de tipos (en orden) -> columnas dinámicas
-          this.tipoHeaders = Array.isArray(resp?.tipos) ? resp.tipos : [];
-          this.tipoColumnKeys = this.tipoHeaders.map(t => `type_${t.id}`);
-          this.displayedColumns = [
-            'cedula', 'tipo_documento', 'nombre', 'finca', 'fecha_ingreso', 'codigo_contrato', 'fecha_contratacion',
-            ...this.tipoColumnKeys
-          ];
+    try {
+      const resp = await this.fetchChecklistPostBatched(parsed.cedulas, token);
 
-          // 2) Items -> filas
-          const rows: Row[] = (resp?.items ?? []).map((it: any) => {
-            const docsMap: Record<number, DocCell> = {};
-            const docsArr: any[] = Array.isArray(it?.docs) ? it.docs : [];
-            docsArr.forEach(d => {
-              const tid = Number(d?.type_id);
-              if (!Number.isFinite(tid)) return;
-              const dd = d?.doc;
-              docsMap[tid] = {
-                exists: !!dd,
-                url: dd?.file_url,
-                uploaded_at: dd?.uploaded_at
-              };
-            });
+      if (token !== this.requestToken) return;
 
-            return {
-              cedula: String(it?.cedula ?? ''),
-              tipo_documento: it?.tipo_documento ?? '',
-              nombre: it?.nombre_completo ?? '',
-              finca: it?.finca ?? '',
-              fecha_ingreso: it?.fecha_ingreso ?? '',
-              codigo_contrato: it?.codigo_contrato ?? '',
-              fecha_contratacion: it?.fecha_contratacion ?? '',
-              docs: docsMap
-            };
-          });
+      // headers dinámicos
+      this.tipoHeaders = Array.isArray(resp?.tipos) ? resp.tipos : [];
+      this.tipoColumnKeys = this.tipoHeaders.map(t => `type_${t.id}`);
+      this.displayedColumns = [...this.baseColumns, ...this.tipoColumnKeys];
 
-          this.dataSource.data = rows;
-        },
-        error: () => {
-          Swal.fire({ icon: 'error', title: 'Error', text: 'Ocurrió un problema consultando datos.' });
+      // filas
+      const rows: Row[] = (resp?.items ?? []).map((it: ChecklistItemDto) => {
+        const docsMap: Record<number, DocCell> = {};
+        const docsArr: ChecklistDocDto[] = Array.isArray(it?.docs) ? it.docs : [];
+
+        for (const d of docsArr) {
+          const tid = Number(d?.type_id);
+          if (!Number.isFinite(tid)) continue;
+
+          const dd = d?.doc;
+          docsMap[tid] = {
+            exists: !!dd,
+            url: dd?.file_url,
+            uploaded_at: dd?.uploaded_at,
+          };
         }
+
+        return {
+          cedula: String(it?.cedula ?? ''),
+          tipo_documento: it?.tipo_documento ?? '',
+          nombre: it?.nombre_completo ?? '',
+          finca: it?.finca ?? '',
+          fecha_ingreso: it?.fecha_ingreso ?? '',
+          codigo_contrato: it?.codigo_contrato ?? '',
+          fecha_contratacion: it?.fecha_contratacion ?? '',
+          docs: docsMap,
+        };
       });
+
+      this.dataSource.data = rows;
+
+      Swal.close();
+      this.cdr.markForCheck();
+    } catch (e) {
+      if (token !== this.requestToken) return;
+      console.error(e);
+      Swal.fire({ icon: 'error', title: 'Error', text: 'Ocurrió un problema consultando datos.' });
+    }
+  }
+
+  /**
+   * ✅ Usa POST siempre (evita 413 por querystring).
+   * Si son demasiadas, parte en lotes para no reventar timeouts.
+   */
+  private async fetchChecklistPostBatched(
+    cedulas: string[],
+    token: number,
+  ): Promise<ChecklistResponseDto> {
+    if (cedulas.length <= this.MAX_POST_BATCH) {
+      return await firstValueFrom(this.gestionDocumentalService.getDocumentosChecklist(cedulas));
+    }
+
+    const chunks = this.chunkArray(cedulas, this.MAX_POST_BATCH);
+
+    const merged: ChecklistResponseDto = {
+      tipos: [],
+      items: [],
+      totalReceived: cedulas.length,
+      duplicatesRemoved: 0,
+      invalidCedulas: [],
+    };
+
+    for (let i = 0; i < chunks.length; i++) {
+      if (token !== this.requestToken) {
+        throw new DOMException('Aborted', 'AbortError');
+      }
+
+      Swal.update({
+        text: `Consultando lote ${i + 1} de ${chunks.length} (${chunks[i].length} cédulas)`,
+      });
+
+      const part = await firstValueFrom(this.gestionDocumentalService.getDocumentosChecklist(chunks[i]));
+
+      if (!merged.tipos?.length && Array.isArray(part?.tipos)) merged.tipos = part.tipos;
+      if (Array.isArray(part?.items)) (merged.items as ChecklistItemDto[]).push(...part.items);
+
+      if (Array.isArray(part?.invalidCedulas) && part.invalidCedulas.length) {
+        merged.invalidCedulas = [...(merged.invalidCedulas ?? []), ...part.invalidCedulas];
+      }
+
+      // si tu backend reporta duplicatesRemoved/totalReceived por lote:
+      merged.duplicatesRemoved = Number(merged.duplicatesRemoved ?? 0) + Number(part?.duplicatesRemoved ?? 0);
+      merged.totalReceived = Number(merged.totalReceived ?? cedulas.length);
+    }
+
+    return merged;
+  }
+
+  /** Parseo masivo: dedupe estable + normaliza + detecta inválidas */
+  private parseCedulasBulk(texto: string) {
+    const tokens = String(texto ?? '').split(/[\s,;\t\r\n]+/g);
+
+    const seen = new Set<string>();
+    const cedulas: string[] = [];
+    const invalid: string[] = [];
+
+    let totalReceived = 0;
+    let duplicatesRemoved = 0;
+
+    for (const raw of tokens) {
+      const s = (raw ?? '').trim();
+      if (!s) continue;
+
+      totalReceived++;
+
+      // normaliza (solo dígitos)
+      const digits = s.replace(/\D+/g, '');
+
+      // regla simple (ajústala si quieres). Con 6..15 evitas basura y no eres tan estricto.
+      if (digits.length < 6 || digits.length > 15) {
+        invalid.push(s);
+        continue;
+      }
+
+      if (seen.has(digits)) {
+        duplicatesRemoved++;
+        continue;
+      }
+
+      seen.add(digits);
+      cedulas.push(digits);
+    }
+
+    return { cedulas, invalid, duplicatesRemoved, totalReceived };
+  }
+
+  private chunkArray<T>(arr: T[], size: number): T[][] {
+    const out: T[][] = [];
+    for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+    return out;
+  }
+
+  private resetTabla(): void {
+    this.dataSource.data = [];
+    this.tipoHeaders = [];
+    this.tipoColumnKeys = [];
+    this.displayedColumns = [...this.baseColumns];
   }
 
   /** ---------- FILTRO DE TABLA ---------- */
   applyFilters(ev: Event): void {
     this.dataSource.filter = (ev.target as HTMLInputElement).value.trim().toLowerCase();
+    this.cdr.markForCheck();
   }
 
   limpiarTabla(): void {
-    this.dataSource.data = [];
+    this.requestToken++;
+    this.resetTabla();
     this.cedulaControl.setValue('');
+    this.cdr.markForCheck();
   }
 
   /** ---------- ZIP DE ARCHIVOS ---------- */
@@ -201,15 +431,14 @@ export class ConsultContractingDocumentationComponent implements OnInit {
       icon: 'question',
       showCancelButton: true,
       confirmButtonText: 'Sí, por favor',
-      cancelButtonText: 'No'
+      cancelButtonText: 'No',
     }).then(r => r.isConfirmed && this.abrirDialogOrden());
   }
 
   abrirDialogOrden(): void {
-    // 🔹 Opción A: todos los tipos que devolvió el backend (en el mismo orden)
     const antecedentes = this.tipoHeaders.map(t => ({
       id: t.id,
-      name: t.name?.toUpperCase?.() || String(t.name)
+      name: t.name?.toUpperCase?.() || String(t.name),
     }));
 
     if (!antecedentes.length) {
@@ -217,40 +446,37 @@ export class ConsultContractingDocumentationComponent implements OnInit {
       return;
     }
 
-    this.dialog.open(OrdenUnionDialogComponent, {
-      panelClass: 'orden-union-dialog-panel',
-      minWidth: '500pt',
-      height: '90vh',
-      maxHeight: '90vh',
-      autoFocus: false,
-      restoreFocus: false,
-      data: { antecedentes }
-    }).afterClosed()
+    this.dialog
+      .open(OrdenUnionDialogComponent, {
+        panelClass: 'orden-union-dialog-panel',
+        minWidth: '500pt',
+        height: '90vh',
+        maxHeight: '90vh',
+        autoFocus: false,
+        restoreFocus: false,
+        data: { antecedentes },
+      })
+      .afterClosed()
+      .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((orden: number[] | null) => orden && this.descargarZipConUnion(orden));
-
   }
 
-
   descargarZipConUnion(ordenSeleccionado: Array<number | string>): void {
-    const cedulasStr = this.dataSource.data
-      .filter(r => r.cedula)
-      .map(r => r.cedula);
+    const cedulasStr = this.dataSource.data.filter(r => r.cedula).map(r => r.cedula);
 
-    const cedulasNum = cedulasStr
-      .map(c => Number(c))
-      .filter(n => Number.isFinite(n));
+    const cedulasNum = cedulasStr.map(c => Number(c)).filter(n => Number.isFinite(n));
 
     const noNumericas = cedulasStr.length - cedulasNum.length;
     if (noNumericas > 0) {
       Swal.fire({
         icon: 'warning',
         title: 'Cédulas no numéricas',
-        text: `Se omitieron ${noNumericas} cédula(s) con formato no numérico.`
+        text: `Se omitieron ${noNumericas} cédula(s) con formato no numérico.`,
       });
     }
 
     const ordenNums = (ordenSeleccionado ?? [])
-      .map(v => typeof v === 'string' ? Number(v) : v)
+      .map(v => (typeof v === 'string' ? Number(v) : v))
       .filter(n => Number.isFinite(n));
 
     if (!cedulasNum.length || !ordenNums.length) {
@@ -262,12 +488,15 @@ export class ConsultContractingDocumentationComponent implements OnInit {
       title: 'Preparando descarga...',
       text: 'Esto puede tardar unos segundos',
       allowOutsideClick: false,
-      didOpen: () => Swal.showLoading()
+      didOpen: () => Swal.showLoading(),
     });
 
     this.gestionDocumentalService
       .descargarZipPorCedulasYOrden(cedulasNum, ordenNums)
-      .pipe(finalize(() => Swal.close())) // 👈 quitamos el paréntesis extra aquí
+      .pipe(
+        takeUntilDestroyed(this.destroyRef),
+        finalize(() => Swal.close()),
+      )
       .subscribe({
         next: (blob: Blob) => {
           const url = window.URL.createObjectURL(blob);
@@ -279,11 +508,11 @@ export class ConsultContractingDocumentationComponent implements OnInit {
           document.body.removeChild(a);
           window.URL.revokeObjectURL(url);
         },
-        error: () => Swal.fire({ icon: 'error', title: 'Error', text: 'No se pudo descargar el archivo.' })
+        error: () => Swal.fire({ icon: 'error', title: 'Error', text: 'No se pudo descargar el archivo.' }),
       });
   }
-  // ---------- Util ----------
 
+  // ---------- Util ----------
   private parseFecha(fecha: string | Date | null | undefined): Date | null {
     if (!fecha) return null;
     if (fecha instanceof Date) return isNaN(fecha.getTime()) ? null : fecha;
@@ -302,7 +531,6 @@ export class ConsultContractingDocumentationComponent implements OnInit {
     return isNaN(d.getTime()) ? null : d;
   }
 
-
   // ---------- EXCEL (faltantes dinámico por tipos + fecha + links + regla 15 días) ----------
   async exportarExcelFaltantes(): Promise<void> {
     const data = this.dataSource.data ?? [];
@@ -311,22 +539,29 @@ export class ConsultContractingDocumentationComponent implements OnInit {
       return;
     }
 
-    const ExcelJS = await import('exceljs');
+    const excelMod: any = await import('exceljs');
+
+    // ✅ Robustez contra "Workbook is not a constructor"
+    const WorkbookCtor = excelMod?.Workbook ?? excelMod?.default?.Workbook ?? excelMod?.default;
+
+    if (!WorkbookCtor) {
+      Swal.fire('Error', 'No se pudo cargar ExcelJS (Workbook). Revisa la instalación/import.', 'error');
+      return;
+    }
 
     // ✅ Vigente si uploaded_at está dentro de los últimos 15 días
     const cutoff = new Date();
     cutoff.setHours(0, 0, 0, 0);
     cutoff.setDate(cutoff.getDate() - 15);
 
-    const wb = new ExcelJS.Workbook();
+    const wb = new WorkbookCtor();
     wb.creator = 'TuAlianza';
     wb.created = new Date();
 
     const ws = wb.addWorksheet('Faltantes', {
-      views: [{ state: 'frozen', ySplit: 1 }]
+      views: [{ state: 'frozen', ySplit: 1 }],
     });
 
-    // Base (incluye fecha_contratacion como en tu tabla)
     const baseCols = [
       { header: 'Cédula', key: 'cedula', width: 16 },
       { header: 'Tipo de Documento', key: 'tipo_documento', width: 18 },
@@ -334,23 +569,22 @@ export class ConsultContractingDocumentationComponent implements OnInit {
       { header: 'Finca', key: 'finca', width: 18 },
       { header: 'Fecha ingreso', key: 'fecha_ingreso', width: 16, style: { numFmt: 'yyyy-mm-dd' } },
       { header: 'Código de contrato', key: 'codigo_contrato', width: 20 },
+      { header: 'Fecha de contratación', key: 'fecha_contratacion', width: 18, style: { numFmt: 'yyyy-mm-dd' } },
     ];
 
-    // Dinámicas por tipo: Estado + Fecha + Link
-    const tipoCols = this.tipoHeaders.flatMap(t => ([
+    const tipoCols = this.tipoHeaders.flatMap(t => [
       { header: t.name, key: `t_${t.id}_estado`, width: 10 },
       { header: `Fecha ${t.name}`, key: `t_${t.id}_fecha`, width: 20, style: { numFmt: 'yyyy-mm-dd hh:mm' } },
-      { header: `${t.name} (Archivo)`, key: `t_${t.id}_link`, width: 28 }
-    ]));
+      { header: `${t.name} (Archivo)`, key: `t_${t.id}_link`, width: 28 },
+    ]);
 
     ws.columns = [...baseCols, ...tipoCols];
 
-    // Header style
     const header = ws.getRow(1);
     header.height = 22;
     header.font = { bold: true, color: { argb: 'FFFFFFFF' } };
     header.alignment = { vertical: 'middle', horizontal: 'center' };
-    header.eachCell(cell => {
+    header.eachCell((cell: any) => {
       cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1F2937' } };
       cell.border = { bottom: { style: 'thin', color: { argb: 'FF9CA3AF' } } };
     });
@@ -371,38 +605,29 @@ export class ConsultContractingDocumentationComponent implements OnInit {
         finca: item.finca ?? '',
         fecha_ingreso: fechaIngreso ?? '',
         codigo_contrato: item.codigo_contrato ?? '',
-        fecha_contratacion: fechaContratacion ?? ''
+        fecha_contratacion: fechaContratacion ?? '',
       };
 
       this.tipoHeaders.forEach(t => {
-        const doc = item.docs?.[t.id]; // DocCell
+        const doc = item.docs?.[t.id];
         const exists = !!doc?.exists;
 
-        const uploadedAt = this.parseFecha(doc?.uploaded_at as any); // ✅ ya parsea microsegundos
+        const uploadedAt = this.parseFecha(doc?.uploaded_at as any);
         const vigente15d = exists && !!uploadedAt && uploadedAt.getTime() >= cutoff.getTime();
 
-        // Estado: ✓ vigente, ⚠ existe pero vencido/fecha inválida, ✗ no existe
-        rowData[`t_${t.id}_estado`] = !exists ? '✗' : (vigente15d ? '✓' : '⚠');
-
-        // Fecha siempre visible (si no parsea, al menos deja el string)
+        rowData[`t_${t.id}_estado`] = !exists ? '✗' : vigente15d ? '✓' : '⚠';
         rowData[`t_${t.id}_fecha`] = uploadedAt ?? (doc?.uploaded_at ?? '');
-
-        // Link (si existe)
-        rowData[`t_${t.id}_link`] = exists && doc?.url
-          ? { text: 'Abrir', hyperlink: String(doc.url) }
-          : '';
+        rowData[`t_${t.id}_link`] = exists && doc?.url ? { text: 'Abrir', hyperlink: String(doc.url) } : '';
       });
 
       const row = ws.addRow(rowData);
 
-      // Zebra
       if (row.number % 2 === 0) {
-        row.eachCell(cell => {
+        row.eachCell((cell: any) => {
           cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF9FAFB' } };
         });
       }
 
-      // Estilos por tipo
       this.tipoHeaders.forEach(t => {
         const estadoCell = row.getCell(`t_${t.id}_estado`);
         const fechaCell = row.getCell(`t_${t.id}_fecha`);
@@ -413,7 +638,7 @@ export class ConsultContractingDocumentationComponent implements OnInit {
         estadoCell.font = {
           name: 'Segoe UI Symbol',
           bold: true,
-          color: v === '✓' ? green : (v === '⚠' ? amber : red)
+          color: v === '✓' ? green : v === '⚠' ? amber : red,
         };
 
         fechaCell.alignment = { vertical: 'middle', horizontal: 'center' };
@@ -427,7 +652,7 @@ export class ConsultContractingDocumentationComponent implements OnInit {
 
     ws.autoFilter = {
       from: { row: 1, column: 1 },
-      to: { row: 1, column: ws.columnCount }
+      to: { row: 1, column: ws.columnCount },
     };
 
     const lastRow = ws.lastRow?.number ?? 1;
@@ -444,12 +669,12 @@ export class ConsultContractingDocumentationComponent implements OnInit {
     }
 
     const blob = new Blob([await wb.xlsx.writeBuffer()], {
-      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     });
+
     const today = new Date().toISOString().slice(0, 10);
     saveAs(blob, `faltantes_${today}.xlsx`);
   }
-
 
   // ---------- EXCEL (auditoría dinámica) ----------
   verReporteAuditoria(): void {
@@ -459,7 +684,6 @@ export class ConsultContractingDocumentationComponent implements OnInit {
       return;
     }
 
-    // ---- helpers locales ----
     const toDateVal = (v: any): Date | '' => {
       const d = this.parseFecha(v);
       return d ? d : '';
@@ -472,10 +696,9 @@ export class ConsultContractingDocumentationComponent implements OnInit {
       'Finca',
       'Fecha ingreso',
       'Código de contrato',
-      'Fecha de contratación'
+      'Fecha de contratación',
     ];
 
-    // Por cada tipo: 2 columnas -> [<NombreTipo>, Fecha <NombreTipo>]
     const dynHeaders: string[] = [];
     this.tipoHeaders.forEach(t => {
       dynHeaders.push(t.name);
@@ -483,8 +706,6 @@ export class ConsultContractingDocumentationComponent implements OnInit {
     });
 
     const headers = [...baseHeaders, ...dynHeaders];
-
-    // ---- construimos la matriz (AOA) con headers + filas ----
     const aoa: any[][] = [headers];
 
     for (const r of data) {
@@ -498,10 +719,8 @@ export class ConsultContractingDocumentationComponent implements OnInit {
         toDateVal(r.fecha_contratacion),
       ];
 
-      // por cada tipo: celda link + celda fecha
       this.tipoHeaders.forEach(t => {
         const cell = r.docs?.[t.id];
-        // Texto minimalista del link
         const linkText = cell?.exists && cell.url ? 'Ver' : '';
         const dateVal = cell?.uploaded_at ? toDateVal(cell.uploaded_at) : '';
 
@@ -512,29 +731,23 @@ export class ConsultContractingDocumentationComponent implements OnInit {
       aoa.push(row);
     }
 
-    // ---- hoja ----
     const ws = XLSX.utils.aoa_to_sheet(aoa);
 
-    // 1) AutoFilter en todo el rango
     const endCol = headers.length - 1;
     const endRow = aoa.length - 1;
     ws['!autofilter'] = {
-      ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: endRow, c: endCol } })
+      ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: endRow, c: endCol } }),
     };
 
-    // 2) Convertir a hipervínculo las celdas "Ver" de cada tipo
-    //    fila de datos comienza en 1 (porque 0 es el header)
     const baseCols = baseHeaders.length;
     for (let rIdx = 1; rIdx < aoa.length; rIdx++) {
       this.tipoHeaders.forEach((t, i) => {
-        const linkColIdx = baseCols + (i * 2);       // columna del link
+        const linkColIdx = baseCols + i * 2;
         const cellAddr = XLSX.utils.encode_cell({ r: rIdx, c: linkColIdx });
         const cell = ws[cellAddr];
-        // La URL está en this.dataSource.data[rIdx-1].docs[t.id]?.url
         const url = this.dataSource.data[rIdx - 1]?.docs?.[t.id]?.url;
 
         if (cell && url) {
-          // Asegura tipo string y añade hipervínculo
           cell.t = 's';
           cell.v = 'Ver';
           (cell as any).l = { Target: String(url) };
@@ -542,39 +755,31 @@ export class ConsultContractingDocumentationComponent implements OnInit {
       });
     }
 
-    // 3) Formato de fecha para las columnas de fecha (base + dinámicas)
-    //    Base: "Fecha ingreso" (col 4) y "Fecha de contratación" (col 6) -> índice 0-based
     const setDateFormat = (rowIdx: number, colIdx: number) => {
       const addr = XLSX.utils.encode_cell({ r: rowIdx, c: colIdx });
       const c = ws[addr];
       if (c && c.v instanceof Date) {
-        c.t = 'd';          // tipo fecha
-        c.z = 'yyyy-mm-dd'; // formato minimalista
+        c.t = 'd';
+        c.z = 'yyyy-mm-dd';
       }
     };
 
     for (let rIdx = 1; rIdx < aoa.length; rIdx++) {
-      // base dates: indices 4 y 6 (0-based dentro de headers)
       setDateFormat(rIdx, 4);
       setDateFormat(rIdx, 6);
 
-      // dinámicas: cada tipo añade [link, fecha] -> la fecha es la columna impar del par
       this.tipoHeaders.forEach((_, i) => {
-        const dateColIdx = baseCols + (i * 2) + 1;
+        const dateColIdx = baseCols + i * 2 + 1;
         setDateFormat(rIdx, dateColIdx);
       });
     }
 
-    // 4) Anchos de columna elegantes (mínimo 14, máximo 42)
     const computeWch = (colIndex: number): number => {
       const headerLen = String(headers[colIndex] ?? '').length;
       let maxLen = headerLen;
       for (let r = 1; r < aoa.length; r++) {
         const val = aoa[r][colIndex];
-        const length =
-          val instanceof Date
-            ? 10 // "yyyy-mm-dd"
-            : (val ? String(val).length : 0);
+        const length = val instanceof Date ? 10 : val ? String(val).length : 0;
         if (length > maxLen) maxLen = length;
       }
       return Math.max(14, Math.min(42, maxLen + 2));
@@ -582,7 +787,6 @@ export class ConsultContractingDocumentationComponent implements OnInit {
 
     ws['!cols'] = headers.map((_, c) => ({ wch: computeWch(c) }));
 
-    // ---- libro y export ----
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Auditoría');
 
@@ -593,4 +797,163 @@ export class ConsultContractingDocumentationComponent implements OnInit {
     XLSX.writeFile(wb, `reporte_auditoria_${yyyy}-${mm}-${dd}.xlsx`);
   }
 
+  // =====================================================================
+  // ✅ NUEVO: PENDIENTES (RESUMEN + POR OFICINA)
+  // =====================================================================
+
+  reloadPendientes(): void {
+    void this.loadPendientesWithSwal();
+  }
+
+  private async loadPendientesWithSwal(): Promise<void> {
+    Swal.fire({
+      icon: 'info',
+      title: 'Cargando pendientes...',
+      allowOutsideClick: false,
+      allowEscapeKey: false,
+      showConfirmButton: false,
+      didOpen: () => Swal.showLoading(),
+    });
+
+    const results = await Promise.allSettled([
+      this.loadPendientesResumen(true),
+      this.loadPendientesPorOficina(true),
+    ]);
+
+    Swal.close();
+
+    const failed = results.filter(r => r.status === 'rejected').length;
+    if (failed > 0) {
+      await Swal.fire({
+        icon: 'warning',
+        title: 'Carga incompleta',
+        text: `Se cargaron algunos datos, pero ${failed} sección(es) fallaron.`,
+      });
+    }
+
+    this.cdr.markForCheck();
+  }
+
+  private buildPendientesColumnsBase(): void {
+    this.pendientesResumenColumns = [
+      { name: 'label', header: 'Cantidades', type: 'text' as const, width: '220px', filterable: false, sortable: false },
+      { name: 'SIN_CONSULTAR', header: 'SIN_CONSULTAR', type: 'number' as const, width: '160px' },
+      { name: 'EN_PROGRESO', header: 'EN_PROGRESO', type: 'number' as const, width: '160px' },
+      { name: 'PENDIENTES', header: 'PENDIENTES', type: 'number' as const, width: '140px' },
+    ];
+
+    this.pendientesPorOficinaColumns = [
+      { name: 'estado', header: 'Estado', type: 'text' as const, width: '180px' },
+    ];
+  }
+
+  private async loadPendientesResumen(silent = false): Promise<void> {
+    this.isLoadingPendientesResumen = true;
+    try {
+      const resp: PendientesResumenResponse = await firstValueFrom(this.robotsService.getPendientesResumen());
+
+      this.pendientesRowsWithAnyPending = Number(resp?.rowsWithAnyPending ?? 0);
+      this.pendientesDistinctCedulasWithAnyPending = Number(resp?.distinctCedulasWithAnyPending ?? 0);
+
+      const t = resp?.totalsByModuleSum ?? { SIN_CONSULTAR: 0, EN_PROGRESO: 0, PENDIENTES: 0 };
+
+      this.pendientesResumenRows = [
+        {
+          label: 'Cantidades',
+          SIN_CONSULTAR: Number(t.SIN_CONSULTAR ?? 0),
+          EN_PROGRESO: Number(t.EN_PROGRESO ?? 0),
+          PENDIENTES: Number(t.PENDIENTES ?? 0),
+        },
+      ];
+    } catch (e) {
+      console.error(e);
+      this.pendientesResumenRows = [];
+      this.pendientesRowsWithAnyPending = 0;
+      this.pendientesDistinctCedulasWithAnyPending = 0;
+
+      if (!silent) {
+        await Swal.fire({ icon: 'error', title: 'Error', text: 'No se pudo cargar /pendientes/resumen/' });
+      } else {
+        throw e;
+      }
+    } finally {
+      this.isLoadingPendientesResumen = false;
+      this.cdr.markForCheck();
+    }
+  }
+
+  private async loadPendientesPorOficina(silent = false): Promise<void> {
+    this.isLoadingPendientesPorOficina = true;
+    try {
+      const resp: PendientesPorOficinaResponse = await firstValueFrom(this.robotsService.getPendientesPorOficina());
+      const items = Array.isArray(resp?.items) ? resp.items : [];
+
+      const officePairs = items.map(it => ({
+        key: this.officeKey(it?.oficina ?? null),
+        label: this.officeLabel(it?.oficina ?? null),
+      }));
+
+      const seen = new Set<string>();
+      const offices = officePairs.filter(o => (seen.has(o.key) ? false : (seen.add(o.key), true)));
+
+      this.pendientesPorOficinaColumns = [
+        { name: 'estado', header: 'Estado', type: 'text' as const, width: '180px' },
+        ...offices.map(o => ({
+          name: o.key,
+          header: o.label,
+          type: 'number' as const,
+          width: '140px',
+        })),
+      ];
+
+      const rows: PendientesPorOficinaPivotRow[] = [
+        { estado: 'SIN_CONSULTAR' },
+        { estado: 'EN_PROGRESO' },
+        { estado: 'PENDIENTES' },
+      ];
+
+      for (const o of offices) {
+        const item = items.find(it => this.officeKey(it?.oficina ?? null) === o.key);
+        const t = item?.totalsByModuleSum ?? { SIN_CONSULTAR: 0, EN_PROGRESO: 0, PENDIENTES: 0 };
+
+        rows[0][o.key] = Number(t.SIN_CONSULTAR ?? 0);
+        rows[1][o.key] = Number(t.EN_PROGRESO ?? 0);
+        rows[2][o.key] = Number(t.PENDIENTES ?? 0);
+      }
+
+      this.pendientesPorOficinaRows = rows;
+    } catch (e) {
+      console.error(e);
+      this.pendientesPorOficinaRows = [];
+      this.pendientesPorOficinaColumns = [
+        { name: 'estado', header: 'Estado', type: 'text' as const, width: '180px' },
+      ];
+
+      if (!silent) {
+        await Swal.fire({ icon: 'error', title: 'Error', text: 'No se pudo cargar /pendientes/por-oficina/' });
+      } else {
+        throw e;
+      }
+    } finally {
+      this.isLoadingPendientesPorOficina = false;
+      this.cdr.markForCheck();
+    }
+  }
+
+  private officeKey(oficina: string | null): string {
+    const raw = (oficina ?? 'SIN_OFICINA').trim() || 'SIN_OFICINA';
+    const normalized = raw
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-zA-Z0-9]+/g, '_')
+      .replace(/^_+|_+$/g, '')
+      .toUpperCase();
+
+    return `of_${normalized}`;
+  }
+
+  private officeLabel(oficina: string | null): string {
+    const raw = (oficina ?? 'SIN_OFICINA').trim();
+    return raw || 'SIN_OFICINA';
+  }
 }

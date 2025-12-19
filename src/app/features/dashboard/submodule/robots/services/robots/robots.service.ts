@@ -93,6 +93,37 @@ export interface RobotFullRow {
   fecha_union_pdf: string | null;
 }
 
+export type PendienteEstado = 'SIN_CONSULTAR' | 'EN_PROGRESO';
+
+export interface PendientesConteo {
+  SIN_CONSULTAR: number;
+  EN_PROGRESO: number;
+  PENDIENTES: number;
+}
+
+export interface PendientesResumenResponse {
+  generatedAt: string;
+  states: PendienteEstado[];
+  rowsWithAnyPending: number;
+  distinctCedulasWithAnyPending: number;
+  totalsByModuleSum: PendientesConteo;
+  byConsulta: Record<string, PendientesConteo>;
+}
+
+export interface PendientesPorOficinaItem {
+  oficina: string | null;
+  rowsWithAnyPending: number;
+  distinctCedulasWithAnyPending: number;
+  totalsByModuleSum: PendientesConteo;
+  byConsulta: Record<string, PendientesConteo>;
+}
+
+export interface PendientesPorOficinaResponse {
+  generatedAt: string;
+  states: PendienteEstado[];
+  items: PendientesPorOficinaItem[];
+}
+
 @Injectable({
   providedIn: 'root'
 })
@@ -172,6 +203,48 @@ export class RobotsService {
   pickProgresoFromAll(all: ProgresoPrioridadesAllResponse, pdf: string): ProgresoPrioridadesResponse | null {
     const key = this.normalizePdfKey(pdf);
     return all?.por_pdf?.[key] ?? null;
+  }
+
+
+    /**
+   * GET /pendientes/resumen/
+   */
+  getPendientesResumen(): Observable<PendientesResumenResponse> {
+    const url = `${this.apiUrl}/EstadosRobots/pendientes/resumen/`;
+
+    // (opcional) por si estás en SSR y quieres evitar llamadas en server
+    if (!isPlatformBrowser(this.platformId)) {
+      return throwError(() => new Error('RobotsService: llamada HTTP en SSR bloqueada'));
+    }
+
+    return this.http.get<PendientesResumenResponse>(url).pipe(
+      catchError((err) => this.handleError(err))
+    );
+  }
+
+  /**
+   * GET /pendientes/por-oficina/
+   */
+  getPendientesPorOficina(): Observable<PendientesPorOficinaResponse> {
+    const url = `${this.apiUrl}/EstadosRobots/pendientes/por-oficina/`;
+
+    if (!isPlatformBrowser(this.platformId)) {
+      return throwError(() => new Error('RobotsService: llamada HTTP en SSR bloqueada'));
+    }
+
+    return this.http.get<PendientesPorOficinaResponse>(url).pipe(
+      catchError((err) => this.handleError(err))
+    );
+  }
+
+  // ===== Helpers si tú prefieres Promise en vez de Observable =====
+
+  getPendientesResumenOnce(): Promise<PendientesResumenResponse> {
+    return firstValueFrom(this.getPendientesResumen());
+  }
+
+  getPendientesPorOficinaOnce(): Promise<PendientesPorOficinaResponse> {
+    return firstValueFrom(this.getPendientesPorOficina());
   }
 
 }

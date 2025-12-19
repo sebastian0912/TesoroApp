@@ -1,5 +1,9 @@
-.table-container{
-  height: 250pt;
+.container {
+  min-height: 70vh !important;
+}
+
+.table-container {
+  height: 450pt;
 }
 
 .page-header {
@@ -13,7 +17,6 @@
   margin: 0;
   font-weight: 600;
   line-height: 1.2;
-  /* hace que el botón se pegue al título sin saltar de línea */
   display: inline-flex;
   align-items: center;
 }
