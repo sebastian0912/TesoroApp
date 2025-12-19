@@ -1,224 +1,617 @@
-import { Component, OnInit } from '@angular/core';
-import { MatTableDataSource } from '@angular/material/table';
+import { isPlatformBrowser } from '@angular/common';
+import { Component, DestroyRef, Inject, OnInit, PLATFORM_ID } from '@angular/core';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
-import { MatButtonModule } from '@angular/material/button';
-import { FormsModule } from '@angular/forms';
-import { MatDatepickerModule } from '@angular/material/datepicker';
-import { MatNativeDateModule } from '@angular/material/core';
-import { MatTooltipModule } from '@angular/material/tooltip';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import Swal from 'sweetalert2';
+import { finalize } from 'rxjs/operators';
 
 import { SharedModule } from '@/app/shared/shared.module';
 import { DateRangeDialogComponent } from '@/app/shared/components/date-rang-dialog/date-rang-dialog.component';
+import { InfoVacantesService } from '../../service/info-vacantes/info-vacantes.service';
+import { StandardFilterTable } from '@/app/shared/components/standard-filter-table/standard-filter-table';
+import { ColumnDefinition } from '@/app/shared/models/advanced-table-interface';
 import { UtilityServiceService } from '@/app/shared/services/utilityService/utility-service.service';
-import { RegistroProcesoContratacion } from '../../service/registro-proceso-contratacion/registro-proceso-contratacion';
+import { ColumnCellTemplateDirective } from '@/app/shared/directives/column-cell-template.directive';
 
-export interface EnEsperaItem {
-  tipo_doc: string | null;
-  numero_documento: string;         // texto (conserva posible 'X...')
-  apellidos_nombres: string | null;
-  tiene_experiencia: 'SI' | 'NO';
-  barrio: string | null;
-  area_experiencia: string | null;
-  celular: string | null;
-  whatsapp: string | null;
-  motivo_espera: string | null;     // <<< NUEVO
-}
+type FlatRow = Record<string, any>;
+type ExportCol = { header: string; key: string; width?: number };
 
 @Component({
   selector: 'app-view-reception-interviews',
   standalone: true,
-  imports: [
-    SharedModule,
-    MatDialogModule,
-    MatButtonModule,
-    FormsModule,
-    MatDatepickerModule,
-    MatNativeDateModule,
-    MatTooltipModule
-  ],
+  imports: [SharedModule, StandardFilterTable, MatDialogModule, ColumnCellTemplateDirective],
   templateUrl: './view-reception-interviews.component.html',
-  styleUrls: ['./view-reception-interviews.component.css']
+  styleUrls: ['./view-reception-interviews.component.css'],
 })
 export class ViewReceptionInterviewsComponent implements OnInit {
-  user: any;
+  private readonly isBrowser: boolean;
 
-  /** Solo columnas del nuevo endpoint EN_ESPERA */
-  displayedColumns: string[] = [
-    'tipo_doc',
-    'numero_documento',
-    'apellidos_nombres',
-    'tiene_experiencia',
-    'barrio',
-    'area_experiencia',
-    'celular',
-    'whatsapp',
-    'motivo_espera'                 // <<< NUEVO
+  title = 'Entrevistas (HOY)';
+  isLoading = false;
+
+  rows: FlatRow[] = [];
+  columns: ColumnDefinition[] = [];
+
+  oficina = '';
+
+  private readonly EXPORT_COLS: ExportCol[] = [
+    { header: 'Entrevista - Fecha/Hora (última)', key: 'entrevista_fecha_ultima', width: 26 },
+    { header: 'Entrevista - Oficina', key: 'entrevista_oficina', width: 18 },
+    { header: 'Entrevista - ¿Cómo se enteró?', key: 'entrevista_como_entero', width: 30 },
+    { header: 'Entrevista - ¿Cómo se proyecta a un año?', key: 'entrevista_como_proyecta', width: 34 },
+
+    { header: 'Candidato - Tipo doc', key: 'cand_tipo_doc', width: 16 },
+    { header: 'Candidato - Nº documento', key: 'cand_num_doc', width: 18 },
+
+    { header: 'Proceso - Entrevistado', key: 'proc_entrevistado', width: 16 },
+    { header: 'Proceso - Prueba técnica', key: 'proc_prueba_tecnica', width: 18 },
+    { header: 'Proceso - Autorizado', key: 'proc_autorizado', width: 14 },
+    { header: 'Proceso - Exámenes médicos', key: 'proc_examenes_medicos', width: 20 },
+    { header: 'Proceso - Contratado', key: 'proc_contratado', width: 14 },
+
+    { header: 'Candidato - Primer apellido', key: 'cand_primer_apellido', width: 18 },
+    { header: 'Candidato - Segundo apellido', key: 'cand_segundo_apellido', width: 18 },
+    { header: 'Candidato - Primer nombre', key: 'cand_primer_nombre', width: 18 },
+    { header: 'Candidato - Segundo nombre', key: 'cand_segundo_nombre', width: 18 },
+
+    { header: 'Candidato - Fecha de nacimiento', key: 'cand_fecha_nac', width: 18 },
+    { header: 'Candidato - Edad', key: 'cand_edad', width: 10 },
+    { header: 'Candidato - Estado civil', key: 'cand_estado_civil', width: 14 },
+
+    { header: 'Info CC - Fecha de expedición', key: 'infocc_fecha_expedicion', width: 18 },
+
+    { header: 'Residencia - Barrio', key: 'res_barrio', width: 22 },
+    { header: 'Residencia - ¿Hace cuánto vive en la zona?', key: 'res_hace_cuanto', width: 28 },
+
+    { header: 'Contacto - WhatsApp', key: 'cont_whatsapp', width: 16 },
+    { header: 'Contacto - Teléfono', key: 'cont_telefono', width: 16 },
+
+    { header: 'Candidato - Sexo', key: 'cand_sexo', width: 10 },
+
+    { header: 'Experiencia - ¿Tiene?', key: 'exp_tiene', width: 14 },
+    { header: 'Contacto - Email', key: 'cont_email', width: 26 },
+
+    { header: 'Experiencias - Empresas (todas)', key: 'exps_empresas', width: 32 },
+    { header: 'Experiencia - Labores realizadas', key: 'exps_labores', width: 40 },
+
+    { header: 'Formación - Nivel', key: 'form_nivel', width: 18 },
+
+    { header: 'Hijos - ¿Tiene?', key: 'hijos_tiene', width: 12 },
+    { header: 'Hijos - ¿Cuántos?', key: 'hijos_cuantos', width: 14 },
+    { header: 'Hijos - Edades (coma)', key: 'hijos_edades', width: 18 },
+
+    { header: 'Vivienda - Responsable hijos', key: 'viv_responsable_hijos', width: 22 },
+    { header: 'Vivienda - Personas con quien convive', key: 'viv_convive', width: 28 },
+    { header: 'Vivienda - ¿Estudia actualmente?', key: 'viv_estudia', width: 20 },
+
+    { header: 'Proceso - Aplica / No aplica', key: 'proc_aplica', width: 18 },
+    { header: 'Proceso - Motivo no aplica', key: 'proc_motivo_no_aplica', width: 26 },
+    { header: 'Proceso - Motivo en espera', key: 'proc_motivo_espera', width: 26 },
+
+    { header: 'Publicación - Finca', key: 'pub_finca', width: 22 },
+    { header: 'Publicación - Cargo', key: 'pub_cargo', width: 22 },
+    { header: 'Publicación - Fecha de prueba', key: 'pub_fecha_prueba', width: 18 },
+
+    { header: 'Proceso - Detalle', key: 'proc_detalle', width: 40 },
   ];
 
-  // Filtros visibles en UI
-  filtroTexto = '';
-  filtroOficina = '';               // se usa para recargar desde backend
-  fechaDesde: Date | null = null;   // solo para Excel por rango
-  fechaHasta: Date | null = null;   // solo para Excel por rango
-  oficinasUnicas: string[] = [];    // llenamos con la sede del usuario si existe
-  filtroCedula = '';
-
-  dataSource = new MatTableDataSource<EnEsperaItem>([]);
-
   constructor(
-    private utilityService: UtilityServiceService,
-    private registroProcesoContratacion: RegistroProcesoContratacion,
-    private dialog: MatDialog
-  ) {}
+    private readonly infoVacantesService: InfoVacantesService,
+    private readonly utilityService: UtilityServiceService,
+    private readonly dialog: MatDialog,
+    private readonly destroyRef: DestroyRef,
+    @Inject(PLATFORM_ID) platformId: Object,
+  ) {
+    this.isBrowser = isPlatformBrowser(platformId);
+
+    this.columns = this.EXPORT_COLS.map((c) => {
+      const type: ColumnDefinition['type'] =
+        c.key === 'entrevista_fecha_ultima'
+          ? 'date'
+          : c.key === 'cand_edad' || c.key === 'hijos_cuantos'
+            ? 'number'
+            : 'text';
+
+      const widthPx = c.width ? Math.min(520, Math.max(120, c.width * 7)) : undefined;
+
+      return {
+        name: c.key,
+        header: c.header,
+        type,
+        width: widthPx ? `${widthPx}px` : undefined,
+        filterable: true,
+        sortable: true,
+      } as ColumnDefinition;
+    });
+  }
 
   ngOnInit(): void {
-    this.user = this.utilityService.getUser() || null;
-
-    // Sugerimos como opción de oficina la sede del usuario (si la hay)
-    const sedeUsuario = (this.user?.sede?.nombre || '').trim();
-    this.oficinasUnicas = sedeUsuario ? [sedeUsuario] : [];
-
-    // Carga inicial (si hay sede la usamos, si no, sin filtro => todas las oficinas del día)
-    this.cargarUltimosEnEspera(sedeUsuario || undefined);
-
-    // Configuramos el predicate de filtros (texto y cédula)
-    this.configFilterPredicate();
+    if (this.isBrowser) {
+      const sedeNombre = this.utilityService.getUser?.()?.sede?.nombre;
+      this.oficina = String(sedeNombre ?? '').trim();
+    }
+    this.loadInterviewsToday();
   }
 
-  /** Llama al endpoint /reporte/ultimos-en-espera?oficina=... (hoy) */
-  private cargarUltimosEnEspera(oficina?: string): void {
-    this.registroProcesoContratacion.getUltimosEnEspera(oficina).subscribe({
-      next: (data) => {
-        this.dataSource.data = data || [];
-        // refresca filtros vigentes
-        this.applyAdvancedFilter();
-      },
-      error: () => {
-        Swal.fire('Error', 'No se pudo cargar la lista de candidatos EN ESPERA.', 'error');
-      }
-    });
-  }
+  loadInterviewsToday(): void {
+    this.isLoading = true;
 
-  /** Cambia de oficina desde el select y recarga desde backend */
-  recargarConOficina(): void {
-    const oficina = (this.filtroOficina || '').trim() || undefined;
-    this.cargarUltimosEnEspera(oficina);
-  }
+    const oficina = this.normalizeOffice(this.oficina);
 
-  // ================= Acciones de UI =================
-
-  limpiarFiltros(): void {
-    this.filtroTexto = '';
-    this.filtroCedula = '';
-    // No reseteamos filtroOficina para no perder el contexto de recarga
-    this.applyAdvancedFilter();
-
-    // Limpia input visual (opcional)
-    const input = document.querySelector('input[placeholder="Buscar"]') as HTMLInputElement | null;
-    if (input) input.value = '';
-  }
-
-  /** Descarga Excel por rango (reutiliza tu endpoint de entrevistas-excel) */
-  downloadReport(): void {
-    const dialogRef = this.dialog.open(DateRangeDialogComponent, {
-      width: '400px',
-      data: { startDate: null, endDate: null }
-    });
-
-    dialogRef.afterClosed().subscribe(result => {
-      if (!result?.start || !result?.end) {
-        Swal.fire('Atención', 'Debes seleccionar ambas fechas para descargar el reporte.', 'warning');
-        return;
-      }
-
-      const start = new Date(result.start);
-      const end   = new Date(result.end);
-
-      Swal.fire({
-        title: 'Generando reporte...',
-        text: 'Por favor espera.',
-        allowOutsideClick: false,
-        didOpen: () => Swal.showLoading()
+    this.infoVacantesService
+      .getCandidatosEntrevistasHoy({ full: true, oficina })
+      .pipe(
+        finalize(() => (this.isLoading = false)),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe({
+        next: (data) => (this.rows = this.flattenCandidates(data || [])),
+        error: (err) => {
+          console.error(err);
+          Swal.fire('Error', 'No se pudo cargar la información de hoy.', 'error');
+          this.rows = [];
+        },
       });
+  }
 
-      const oficina = (this.user?.sede?.nombre || '').trim() || undefined;
+  openRangeDialogAndExport(): void {
+    if (!this.isBrowser) return;
 
-      this.registroProcesoContratacion
-        .downloadEntrevistasExcel(
-          { start, end },
-          oficina,
-          `reporte_candidatos${oficina ? '_' + oficina : ''}_${start.toISOString().split('T')[0]}_${end.toISOString().split('T')[0]}.xlsx`
-        )
-        .subscribe({
-          next: () => Swal.close(),
-          error: () => {
-            Swal.close();
-            Swal.fire('Error', 'No se pudo generar el reporte.', 'error');
+    const ref = this.dialog.open(DateRangeDialogComponent, {
+      width: '420px',
+      data: { title: 'Descargar Excel por rango' },
+    });
+
+    ref
+      .afterClosed()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((raw: any) => {
+        const meta = this.extractRangeMeta(raw);
+
+        if (!meta) {
+          // ✅ ya no “se queda callado” (así te das cuenta si el diálogo no devuelve nada)
+          Swal.fire('Atención', 'Debes seleccionar un rango de fechas válido.', 'info');
+          return;
+        }
+
+        this.exportRangeExcel(meta);
+      });
+  }
+
+  // =========================================================
+  // ✅ Aquí arreglamos el problema: soporta múltiples llaves/formats
+  // =========================================================
+  private extractRangeMeta(raw: any): { from: string; to: string; oficina?: string } | null {
+    if (!raw) return null;
+
+    // soporta: from/to, start/end, startDate/endDate, desde/hasta, fechaInicio/fechaFin
+    const fromRaw =
+      raw.from ?? raw.start ?? raw.startDate ?? raw.dateFrom ?? raw.desde ?? raw.fechaInicio ?? raw.fecha_inicio;
+    const toRaw =
+      raw.to ?? raw.end ?? raw.endDate ?? raw.dateTo ?? raw.hasta ?? raw.fechaFin ?? raw.fecha_fin;
+
+    const fromDate = this.coerceToDate(fromRaw);
+    if (!fromDate) return null;
+
+    const toDate = this.coerceToDate(toRaw) ?? fromDate;
+
+    const from = this.formatDateYYYYMMDD(fromDate);
+    const to = this.formatDateYYYYMMDD(toDate);
+
+    const oficina = this.normalizeOffice(raw.oficina ?? raw.office ?? raw.sede ?? raw.oficinaSeleccionada ?? this.oficina);
+
+    return { from, to, oficina };
+  }
+
+  private coerceToDate(value: any): Date | null {
+    if (!value) return null;
+
+    if (value instanceof Date) {
+      return isNaN(value.getTime()) ? null : value;
+    }
+
+    const s = String(value).trim();
+    if (!s) return null;
+
+    // yyyy-mm-dd -> crear Date LOCAL (evita corrimientos por UTC)
+    const m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (m) {
+      const y = Number(m[1]);
+      const mm = Number(m[2]);
+      const d = Number(m[3]);
+      const dt = new Date(y, mm - 1, d);
+      return isNaN(dt.getTime()) ? null : dt;
+    }
+
+    // fallback
+    const dt = new Date(s);
+    return isNaN(dt.getTime()) ? null : dt;
+  }
+
+  private exportRangeExcel(meta: { from: string; to: string; oficina?: string }): void {
+    if (!this.isBrowser) return;
+
+    const labelOffice = meta.oficina ? ` | Oficina: ${meta.oficina}` : '';
+
+    Swal.fire({
+      title: 'Generando Excel...',
+      text: `Rango ${meta.from} → ${meta.to}${labelOffice}`,
+      allowOutsideClick: false,
+      didOpen: () => Swal.showLoading(),
+    });
+
+    // ✅ AQUÍ es donde debe verse el GET en Network sí o sí
+    this.infoVacantesService
+      .getCandidatosEntrevistasRango({ from: meta.from, to: meta.to, full: true, oficina: meta.oficina })
+      .pipe(
+        finalize(() => Swal.close()),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe({
+        next: async (data) => {
+          const rows = this.flattenCandidates(data || []);
+          await this.buildAndDownloadExcel(rows, meta);
+          Swal.fire('Listo', 'Excel generado correctamente.', 'success');
+        },
+        error: (err) => {
+          console.error(err);
+          Swal.fire('Error', 'No se pudo generar el Excel del rango.', 'error');
+        },
+      });
+  }
+
+  private normalizeOffice(value: unknown): string | undefined {
+    const s = String(value ?? '').trim();
+    return s.length ? s : undefined;
+  }
+
+  private formatDateYYYYMMDD(d: Date): string {
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+  }
+
+  // =========================================================
+  // 👇 Tu lógica existente (sin cambios funcionales)
+  // =========================================================
+  private flattenCandidates(candidatos: any[]): FlatRow[] {
+    return (candidatos || []).map((c) => {
+      const contacto = c?.contacto || {};
+      const residencia = c?.residencia || {};
+      const infoCc = c?.info_cc || {};
+      const vivienda = c?.vivienda || {};
+      const formaciones: any[] = Array.isArray(c?.formaciones) ? c.formaciones : [];
+      const experiencias: any[] = Array.isArray(c?.experiencias) ? c.experiencias : [];
+      const hijos: any[] = Array.isArray(c?.hijos) ? c.hijos : [];
+      const entrevistas: any[] = Array.isArray(c?.entrevistas) ? c.entrevistas : [];
+
+      const lastEnt = this.pickLastInterview(entrevistas);
+      const proceso = lastEnt?.proceso || {};
+      const publicacion = proceso?.publicacion || {};
+
+      const edadCand = this.calcAge(c?.fecha_nacimiento);
+
+      const empresas = this.uniqueJoin(experiencias.map((x) => x?.empresa).filter(Boolean));
+      const labores = this.uniqueJoin(
+        experiencias
+          .map((x) => x?.labores_realizadas || x?.labores_principales || x?.labores_especificas)
+          .filter(Boolean),
+      );
+
+      const formNivel = this.uniqueJoin(
+        formaciones
+          .map((x) => x?.nivel || x?.nivel_educativo || x?.titulo || x?.formacion || x?.grado)
+          .filter(Boolean),
+      );
+
+      const hijosTiene = hijos.length > 0;
+      const hijosEdades = hijos
+        .map((h) => this.calcAge(h?.fecha_nac) ?? h?.edad)
+        .filter((v) => v !== null && v !== undefined && v !== '')
+        .join(', ');
+
+      return {
+        entrevista_fecha_ultima: this.toDate(lastEnt?.updated_at || lastEnt?.created_at),
+        entrevista_oficina: lastEnt?.oficina ?? '',
+        entrevista_como_entero: lastEnt?.como_se_entero ?? '',
+        entrevista_como_proyecta: lastEnt?.como_se_proyecta ?? '',
+
+        cand_tipo_doc: c?.tipo_doc ?? '',
+        cand_num_doc: c?.numero_documento ?? '',
+
+        proc_entrevistado: this.yesNo(proceso?.entrevistado),
+        proc_prueba_tecnica: this.yesNo(proceso?.prueba_tecnica),
+        proc_autorizado: this.yesNo(proceso?.autorizado),
+        proc_examenes_medicos: this.yesNo(proceso?.examenes_medicos ?? proceso?.examen_medico),
+        proc_contratado: this.yesNo(proceso?.contratado),
+
+        cand_primer_apellido: c?.primer_apellido ?? '',
+        cand_segundo_apellido: c?.segundo_apellido ?? '',
+        cand_primer_nombre: c?.primer_nombre ?? '',
+        cand_segundo_nombre: c?.segundo_nombre ?? '',
+
+        cand_fecha_nac: c?.fecha_nacimiento ?? '',
+        cand_edad: edadCand ?? '',
+        cand_estado_civil: c?.estado_civil ?? '',
+
+        infocc_fecha_expedicion: infoCc?.fecha_expedicion ?? '',
+
+        res_barrio: residencia?.barrio ?? '',
+        res_hace_cuanto: residencia?.hace_cuanto_vive ?? '',
+
+        cont_whatsapp: contacto?.whatsapp ?? '',
+        cont_telefono: contacto?.celular ?? contacto?.telefono ?? '',
+        cont_email: contacto?.email ?? '',
+
+        cand_sexo: c?.sexo ?? '',
+        exp_tiene: experiencias.length > 0 ? 'SI' : 'NO',
+
+        exps_empresas: empresas,
+        exps_labores: labores,
+
+        form_nivel: formNivel,
+
+        hijos_tiene: hijosTiene ? 'SI' : 'NO',
+        hijos_cuantos: hijos.length,
+        hijos_edades: hijosEdades,
+
+        viv_responsable_hijos: vivienda?.responsable_hijos ?? '',
+        viv_convive: vivienda?.personas_con_quien_convive ?? vivienda?.convive_con ?? '',
+        viv_estudia: this.yesNo(vivienda?.estudia_actualmente ?? vivienda?.estudia),
+
+        proc_aplica: proceso?.aplica ?? proceso?.aplica_no_aplica ?? '',
+        proc_motivo_no_aplica: proceso?.motivo_no_aplica ?? '',
+        proc_motivo_espera: proceso?.motivo_espera ?? proceso?.motivo_en_espera ?? '',
+
+        pub_finca: publicacion?.finca ?? publicacion?.nombre_finca ?? '',
+        pub_cargo: publicacion?.cargo ?? publicacion?.nombre_cargo ?? '',
+        pub_fecha_prueba: publicacion?.fecha_prueba ?? '',
+
+        proc_detalle: proceso?.detalle ?? proceso?.observaciones ?? '',
+      };
+    });
+  }
+
+  private pickLastInterview(entrevistas: any[]): any | null {
+    if (!entrevistas?.length) return null;
+    return entrevistas.reduce((best, cur) => {
+      const bd = new Date(best?.updated_at || best?.created_at || 0).getTime();
+      const cd = new Date(cur?.updated_at || cur?.created_at || 0).getTime();
+      return cd >= bd ? cur : best;
+    }, entrevistas[0]);
+  }
+
+  private toDate(value: any): Date | null {
+    if (!value) return null;
+    const d = value instanceof Date ? value : new Date(value);
+    return isNaN(d.getTime()) ? null : d;
+  }
+
+  private calcAge(dateStr?: string): number | null {
+    if (!dateStr) return null;
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return null;
+
+    const now = new Date();
+    let age = now.getFullYear() - d.getFullYear();
+    const m = now.getMonth() - d.getMonth();
+    if (m < 0 || (m === 0 && now.getDate() < d.getDate())) age--;
+    return age;
+  }
+
+  private yesNo(v: any): string {
+    if (v === true) return 'SI';
+    if (v === false) return 'NO';
+    if (typeof v === 'string') {
+      const s = v.trim().toUpperCase();
+      if (['SI', 'SÍ', 'YES', 'TRUE', '1'].includes(s)) return 'SI';
+      if (['NO', 'FALSE', '0'].includes(s)) return 'NO';
+      return v;
+    }
+    if (v === 1) return 'SI';
+    if (v === 0) return 'NO';
+    return '';
+  }
+
+  private uniqueJoin(values: any[]): string {
+    const set = new Set<string>();
+    (values || []).forEach((v) => {
+      const s = String(v ?? '').trim();
+      if (s) set.add(s);
+    });
+    return Array.from(set).join(', ');
+  }
+
+  private async buildAndDownloadExcel(
+    rows: FlatRow[],
+    meta: { from: string; to: string; oficina?: string },
+  ): Promise<void> {
+    if (!this.isBrowser) return;
+
+    // ✅ Lazy load (evita SSR + reduce bundle)
+    const excelJSImport: any = await import('exceljs');
+    const WorkbookCtor = excelJSImport?.Workbook ?? excelJSImport?.default?.Workbook;
+    if (!WorkbookCtor) throw new Error('No se pudo cargar ExcelJS.Workbook');
+
+    const fileSaver: any = await import('file-saver');
+    const saveAs: (blob: Blob, filename: string) => void = fileSaver?.saveAs ?? fileSaver?.default?.saveAs;
+    if (!saveAs) throw new Error('No se pudo cargar file-saver.saveAs');
+
+    const workbook = new WorkbookCtor();
+    workbook.creator = 'Sistema';
+    workbook.created = new Date();
+
+    const sheet = workbook.addWorksheet('Entrevistas', {
+      views: [{ state: 'frozen', ySplit: 3 }],
+      properties: { defaultRowHeight: 18 },
+      pageSetup: { orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0 },
+    });
+
+    // ======= Paleta =======
+    const BRAND = 'FF0C2771';
+    const BRAND_2 = 'FF1B46C2';
+    const SOFT = 'FFF4F7FF';
+    const HEADER = BRAND_2;
+    const HEADER_TXT = 'FFFFFFFF';
+    const BORDER = 'FFE5E7EB';
+    const ZEBRA = 'FFF8FAFF';
+    const OK = 'FFD1FAE5';
+    const NO = 'FFFEE2E2';
+
+    const colCount = this.EXPORT_COLS.length;
+
+    // ======= Título / Subtítulo =======
+    const title = 'REPORTE DE ENTREVISTAS';
+    const subtitleParts = [
+      `Rango: ${meta.from} a ${meta.to}`,
+      meta.oficina ? `Oficina: ${meta.oficina}` : null,
+      `Generado: ${new Date().toLocaleString()}`,
+    ].filter(Boolean) as string[];
+
+    sheet.mergeCells(1, 1, 1, colCount);
+    const t = sheet.getCell(1, 1);
+    t.value = title;
+    t.font = { bold: true, size: 16, color: { argb: 'FFFFFFFF' } };
+    t.alignment = { vertical: 'middle', horizontal: 'center' };
+    t.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: BRAND } };
+    sheet.getRow(1).height = 28;
+
+    sheet.mergeCells(2, 1, 2, colCount);
+    const st = sheet.getCell(2, 1);
+    st.value = subtitleParts.join('   |   ');
+    st.font = { italic: true, size: 11, color: { argb: BRAND } };
+    st.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
+    st.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: SOFT } };
+    sheet.getRow(2).height = 20;
+
+    // ======= Columnas =======
+    sheet.columns = this.EXPORT_COLS.map((c) => ({
+      key: c.key,
+      width: c.width ?? 18,
+      style: { alignment: { vertical: 'top', wrapText: true } },
+    }));
+
+    // ======= Header (fila 3) =======
+    const headerRow = sheet.getRow(3);
+    headerRow.values = [null, ...this.EXPORT_COLS.map((c) => c.header)];
+    headerRow.height = 34;
+    headerRow.font = { bold: true, size: 11, color: { argb: HEADER_TXT } };
+    headerRow.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
+
+    for (let c = 1; c <= colCount; c++) {
+      const cell = headerRow.getCell(c);
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: HEADER } };
+      cell.border = {
+        top: { style: 'thin', color: { argb: BORDER } },
+        left: { style: 'thin', color: { argb: BORDER } },
+        bottom: { style: 'thin', color: { argb: BORDER } },
+        right: { style: 'thin', color: { argb: BORDER } },
+      };
+    }
+
+    sheet.autoFilter = { from: { row: 3, column: 1 }, to: { row: 3, column: colCount } };
+
+    // ======= Datos =======
+    const safeRows = (rows || []).map((r) => {
+      const out: any = {};
+      this.EXPORT_COLS.forEach((c) => (out[c.key] = r?.[c.key] ?? ''));
+      return out;
+    });
+
+    safeRows.forEach((obj) => sheet.addRow(obj));
+
+    // ======= Estilos por celda: zebra, bordes, formatos, SI/NO =======
+    const lastRow = sheet.lastRow?.number ?? 3;
+
+    const dateKeys = new Set<string>(['entrevista_fecha_ultima']);
+    const numKeys = new Set<string>(['cand_edad', 'hijos_cuantos']);
+
+    const keyByIndex = (idx: number) => this.EXPORT_COLS[idx - 1]?.key;
+
+    // Ajuste: filas muy largas se ven mejor top-aligned, pero SI/NO centrado
+    for (let r = 4; r <= lastRow; r++) {
+      const row = sheet.getRow(r);
+      row.height = 18;
+
+      const zebraFill = r % 2 === 0 ? ZEBRA : 'FFFFFFFF';
+
+      for (let c = 1; c <= colCount; c++) {
+        const cell = row.getCell(c);
+        const key = keyByIndex(c);
+
+        // base
+        cell.border = {
+          top: { style: 'thin', color: { argb: BORDER } },
+          left: { style: 'thin', color: { argb: BORDER } },
+          bottom: { style: 'thin', color: { argb: BORDER } },
+          right: { style: 'thin', color: { argb: BORDER } },
+        };
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: zebraFill } };
+        cell.alignment = { vertical: 'top', horizontal: 'left', wrapText: true };
+
+        // fecha
+        if (key && dateKeys.has(key)) {
+          const v = cell.value as any;
+          const d = v instanceof Date ? v : v ? new Date(v) : null;
+          if (d && !isNaN(d.getTime())) {
+            cell.value = d;
+            cell.numFmt = 'yyyy-mm-dd hh:mm';
+            cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
           }
-        });
-    });
-  }
+        }
 
-  /** Copia la tabla filtrada al portapapeles en formato tabulado (solo columnas visibles) */
-  copiarTablaExcel(): void {
-    const filas = this.dataSource.filteredData.map((row) =>
-      [
-        row.tipo_doc || '',
-        row.numero_documento || '',
-        row.apellidos_nombres || '',
-        row.tiene_experiencia || '',
-        row.barrio || '',
-        row.area_experiencia || '',
-        row.celular || '',
-        row.whatsapp || '',
-        row.motivo_espera || ''        // <<< NUEVO
-      ]
-      .map(dato => (dato ?? '').toString().toUpperCase())
-      .join('\t')
-    );
+        // número
+        if (key && numKeys.has(key)) {
+          const v = cell.value as any;
+          const n = typeof v === 'number' ? v : String(v).trim() ? Number(v) : NaN;
+          if (!Number.isNaN(n)) {
+            cell.value = n;
+            cell.numFmt = '0';
+            cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
+          }
+        }
 
-    const textoTabla = filas.join('\n');
-    navigator.clipboard.writeText(textoTabla).then(() => {
-      Swal.fire('¡Copiado!', 'La tabla filtrada se copió al portapapeles.', 'success');
-    });
-  }
+        // SI / NO
+        const s = String(cell.value ?? '').trim().toUpperCase();
+        if (s === 'SI' || s === 'SÍ') {
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: OK } };
+          cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
+          cell.font = { bold: true };
+        } else if (s === 'NO') {
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: NO } };
+          cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
+          cell.font = { bold: true };
+        }
+      }
 
-  // ================= Búsqueda / Filtros en cliente =================
+      row.commit();
+    }
 
-  applyFilter(event: Event): void {
-    const filterValue = (event.target as HTMLInputElement).value.trim().toLowerCase();
-    this.filtroTexto = filterValue;
-    this.applyAdvancedFilter();
-  }
-
-  private configFilterPredicate(): void {
-    this.dataSource.filterPredicate = (data: EnEsperaItem, _filter: string) => {
-      const texto  = (this.filtroTexto ?? '').trim().toLowerCase();
-      const cedula = (this.filtroCedula ?? '').trim();
-
-      // Búsqueda general en los campos visibles (incluye motivo_espera)
-      const buscable = [
-        data.tipo_doc,
-        data.numero_documento,
-        data.apellidos_nombres,
-        data.tiene_experiencia,
-        data.barrio,
-        data.area_experiencia,
-        data.celular,
-        data.whatsapp,
-        data.motivo_espera           // <<< NUEVO
-      ].map(v => (v ?? '').toString().toLowerCase()).join(' ');
-
-      const matchesTexto  = !texto || buscable.includes(texto);
-      const matchesCedula = !cedula || (data.numero_documento ?? '').toString().includes(cedula);
-
-      return matchesTexto && matchesCedula;
+    // ======= Ajustes finales =======
+    // Mejor lectura: imprimir en una página de ancho, y márgenes suaves
+    sheet.pageSetup.margins = {
+      left: 0.25,
+      right: 0.25,
+      top: 0.35,
+      bottom: 0.35,
+      header: 0.2,
+      footer: 0.2,
     };
+
+    // ======= Filename =======
+    const baseName =
+      meta.from === meta.to ? `entrevistas_${meta.from}` : `entrevistas_${meta.from}_a_${meta.to}`;
+
+    const safeOffice = meta.oficina ? String(meta.oficina).trim().replace(/\s+/g, '_') : '';
+    const filename = safeOffice ? `${baseName}_${safeOffice}.xlsx` : `${baseName}.xlsx`;
+
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    });
+
+    saveAs(blob, filename);
   }
 
-  applyAdvancedFilter(): void {
-    // dispara el predicate ya configurado
-    this.dataSource.filter = Math.random().toString();
-  }
 }

@@ -201,7 +201,7 @@
             <mat-select formControlName="estado_civil" required>
               @for (estado of (estadoCivilOpciones$ | async) ?? []; track estado['codigo']) {
               <mat-option [value]="estado['codigo']">
-                {{ estado['descripcion'] || estado['codigo'] }}
+                {{ estado['descripcion'] }}
               </mat-option>
               }
             </mat-select>

@@ -1,163 +1,35 @@
 <mat-card>
   <mat-card-content>
-    <div class="tabla">
-      <h1 class="title">Lista de recepción de entrevistas</h1>
-      <br />
-
-      <div class="filtros-barra">
-        <div class="filtros-campos">
-          <!-- Oficina (recarga desde backend, solo día actual) -->
-          <mat-form-field appearance="outline" class="filtro-campo">
-            <mat-label>Oficina</mat-label>
-            <mat-select [(ngModel)]="filtroOficina" (selectionChange)="recargarConOficina()">
-              <mat-option value="">Todas</mat-option>
-              <mat-option *ngFor="let oficina of oficinasUnicas" [value]="oficina">
-                {{ oficina }}
-              </mat-option>
-            </mat-select>
-          </mat-form-field>
-
-          <!-- Cédula (filtro en cliente) -->
-          <mat-form-field appearance="outline" class="filtro-campo">
-            <mat-label>Cédula</mat-label>
-            <input
-              matInput
-              [(ngModel)]="filtroCedula"
-              (keyup)="applyAdvancedFilter()"
-              placeholder="Buscar cédula..."
-            />
-          </mat-form-field>
-
-          <!-- Fecha desde (solo para descarga de Excel) -->
-          <mat-form-field appearance="outline" class="filtro-campo">
-            <mat-label>Fecha desde</mat-label>
-            <input
-              matInput
-              [matDatepicker]="picker1"
-              [(ngModel)]="fechaDesde"
-              (dateChange)="applyAdvancedFilter()"
-            />
-            <mat-datepicker-toggle matSuffix [for]="picker1"></mat-datepicker-toggle>
-            <mat-datepicker #picker1></mat-datepicker>
-          </mat-form-field>
-
-          <!-- Fecha hasta (solo para descarga de Excel) -->
-          <mat-form-field appearance="outline" class="filtro-campo">
-            <mat-label>Fecha hasta</mat-label>
-            <input
-              matInput
-              [matDatepicker]="picker2"
-              [(ngModel)]="fechaHasta"
-              (dateChange)="applyAdvancedFilter()"
-            />
-            <mat-datepicker-toggle matSuffix [for]="picker2"></mat-datepicker-toggle>
-            <mat-datepicker #picker2></mat-datepicker>
-          </mat-form-field>
+    <div class="page">
+      <div class="page-header">
+        <div class="left">
+          <h2 class="title">{{ title }}</h2>
+          <p class="subtitle">Tabla de entrevistas registradas hoy. Descarga por
+            rango en Excel.</p>
         </div>
 
-        <div class="filtros-acciones">
-          <button
-            mat-icon-button
-            color="accent"
-            (click)="copiarTablaExcel()"
-            matTooltip="Copiar tabla para Excel"
-          >
-            <mat-icon>content_copy</mat-icon>
-          </button>
-          <button
-            mat-icon-button
-            color="primary"
-            (click)="downloadReport()"
-            matTooltip="Descargar reporte"
-          >
+        <div class="right">
+
+          <button mat-flat-button color="primary"
+            (click)="openRangeDialogAndExport()">
             <mat-icon>download</mat-icon>
-          </button>
-          <button
-            mat-icon-button
-            color="warn"
-            (click)="limpiarFiltros()"
-            matTooltip="Limpiar filtros"
-          >
-            <mat-icon>filter_alt_off</mat-icon>
+            Descargar Excel (rango)
           </button>
         </div>
       </div>
 
-      <div class="table-container">
-        <table mat-table [dataSource]="dataSource" class="mat-elevation-z8">
+      <app-standard-filter-table
+        [data]="rows"
+        [columnDefinitions]="columns"
+        [tableTitle]="title"
+        [useSwalLoading]="true">
 
-          <!-- Tipo de documento -->
-          <ng-container matColumnDef="tipo_doc">
-            <th mat-header-cell *matHeaderCellDef>T D</th>
-            <td mat-cell *matCellDef="let e">{{ e.tipo_doc }}</td>
-          </ng-container>
+        <!-- Mostrar fecha+hora sin perder type='date' para filtro/sort -->
+        <ng-template appCellTemplate="entrevista_fecha_ultima" let-row>
+          {{ row.entrevista_fecha_ultima | date:'dd-MM-yyyy HH:mm' }}
+        </ng-template>
 
-          <!-- Número de documento (texto, conserva 'X...') -->
-          <ng-container matColumnDef="numero_documento">
-            <th mat-header-cell *matHeaderCellDef>Número</th>
-            <td mat-cell *matCellDef="let e">{{ e.numero_documento }}</td>
-          </ng-container>
-
-          <!-- Apellidos y nombres -->
-          <ng-container matColumnDef="apellidos_nombres">
-            <th mat-header-cell *matHeaderCellDef>Apellidos y nombres</th>
-            <td mat-cell *matCellDef="let e">{{ e.apellidos_nombres }}</td>
-          </ng-container>
-
-          <!-- Tiene experiencia -->
-          <ng-container matColumnDef="tiene_experiencia">
-            <th mat-header-cell *matHeaderCellDef>¿exp?</th>
-            <td mat-cell *matCellDef="let e">
-              <span class="bool-chip" [class.si]="e.tiene_experiencia === 'SI'" [class.no]="e.tiene_experiencia === 'NO'">
-                {{ e.tiene_experiencia }}
-              </span>
-            </td>
-          </ng-container>
-
-          <!-- Barrio -->
-          <ng-container matColumnDef="barrio">
-            <th mat-header-cell *matHeaderCellDef>Barrio</th>
-            <td mat-cell *matCellDef="let e">{{ e.barrio }}</td>
-          </ng-container>
-
-          <!-- Área de experiencia -->
-          <ng-container matColumnDef="area_experiencia">
-            <th mat-header-cell *matHeaderCellDef>Área</th>
-            <td mat-cell *matCellDef="let e">{{ e.area_experiencia }}</td>
-          </ng-container>
-
-          <!-- Celular -->
-          <ng-container matColumnDef="celular">
-            <th mat-header-cell *matHeaderCellDef>Celular</th>
-            <td mat-cell *matCellDef="let e">{{ e.celular }}</td>
-          </ng-container>
-
-          <!-- WhatsApp -->
-          <ng-container matColumnDef="whatsapp">
-            <th mat-header-cell *matHeaderCellDef>WhatsApp</th>
-            <td mat-cell *matCellDef="let e">{{ e.whatsapp }}</td>
-          </ng-container>
-
-          <!-- Motivo de espera -->
-          <ng-container matColumnDef="motivo_espera">
-            <th mat-header-cell *matHeaderCellDef>Motivo de espera</th>
-            <td mat-cell *matCellDef="let e">
-              <span [matTooltip]="e.motivo_espera || ''">{{ e.motivo_espera }}</span>
-            </td>
-          </ng-container>
-
-          <!-- Header y rows -->
-          <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
-          <tr mat-row *matRowDef="let row; columns: displayedColumns"></tr>
-
-          <!-- Sin datos -->
-          <tr class="mat-row" *matNoDataRow>
-            <td class="mat-cell" [attr.colspan]="displayedColumns.length">
-              No hay datos
-            </td>
-          </tr>
-        </table>
-      </div>
+      </app-standard-filter-table>
     </div>
   </mat-card-content>
 </mat-card>
