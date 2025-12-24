@@ -93,7 +93,7 @@ export class LoginComponent implements OnInit {
       }
     } catch (err) {
       const e = err as HttpErrorResponse;
-      if (e.status === 401) {
+      if (e.status === 401 || e.status === 403) {
         await Swal.fire({
           icon: 'error',
           title: 'Credenciales inválidas',

@@ -1,250 +1,172 @@
-import { Injectable, Inject, PLATFORM_ID } from '@angular/core';
-import { HttpClient, HttpHeaders, HttpParams, HttpResponse } from '@angular/common/http';
+import { Inject, Injectable, PLATFORM_ID } from '@angular/core';
 import { isPlatformBrowser } from '@angular/common';
-import { firstValueFrom, Observable, throwError } from 'rxjs';
+import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
+import { Observable, throwError, firstValueFrom } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 import { environment } from '@/environments/environment.development';
 
 // ----------------------------
-// Keys
+// Pendientes (según tu backend Django)
 // ----------------------------
-export type PdfKey =
+export type PendienteEstado = 'SIN_CONSULTAR' | 'EN_PROGRESO';
+
+export type PendientesKey =
   | 'adress'
   | 'policivo'
   | 'ofac'
   | 'contraloria'
   | 'sisben'
   | 'procuraduria'
-  | 'fondo'
-  | 'union';
-
-// si en la UI quieres "any" como opción, que sea SOLO de UI
-export type PdfKeyUI = PdfKey | 'any';
-
-// ----------------------------
-// Response por 1 PDF (por_pdf[pdf])
-// ----------------------------
-export type ProgresoRow = {
-  prioridad: string;
-  total: number;
-  llevas: number;
-  faltan: number;
-};
-
-export type ProgresoPrioridadesResponse = {
-  pdf: PdfKey;
-  type_ids: number[];
-  total: number;
-  llevas: number;
-  faltan: number;
-  por_prioridad: ProgresoRow[];
-};
-
-// ----------------------------
-// Response ALL (caso 2)
-// ----------------------------
-export type ProgresoPrioridadesAllResponse = {
-  scope: 'global';
-  total_registros: number;
-  por_pdf: Record<PdfKey, ProgresoPrioridadesResponse>;
-};
-
-/** ✅ Respuesta esperada de /full/ (ajústala si tu backend devuelve algo distinto) */
-export interface RobotFullRow {
-  oficina: string | null;
-  robot: string | null;
-  cedula: string | null;
-  tipo_documento: string | null;
-
-  estado_adress: string | null;
-  apellido_adress: string | null;
-  entidad_adress: string | null;
-  pdf_adress: string | null;
-  fecha_adress: string | null;
-
-  estado_policivo: string | null;
-  anotacion_policivo: string | null;
-  pdf_policivo: string | null;
-
-  estado_ofac: string | null;
-  anotacion_ofac: string | null;
-  pdf_ofac: string | null;
-
-  estado_contraloria: string | null;
-  anotacion_contraloria: string | null;
-  pdf_contraloria: string | null;
-
-  estado_sisben: string | null;
-  tipo_sisben: string | null;
-  pdf_sisben: string | null;
-  fecha_sisben: string | null;
-
-  estado_procuraduria: string | null;
-  anotacion_procuraduria: string | null;
-  pdf_procuraduria: string | null;
-
-  estado_fondo_pension: string | null;
-  entidad_fondo_pension: string | null;
-  pdf_fondo_pension: string | null;
-  fecha_fondo_pension: string | null;
-
-  estado_union: string | null;
-  union_pdf: string | null;
-  fecha_union_pdf: string | null;
-}
-
-export type PendienteEstado = 'SIN_CONSULTAR' | 'EN_PROGRESO';
-
-export interface PendientesConteo {
-  SIN_CONSULTAR: number;
-  EN_PROGRESO: number;
-  PENDIENTES: number;
-}
+  | 'fondo_pension'
+  | 'medidas_correctivas';
 
 export interface PendientesResumenResponse {
-  generatedAt: string;
-  states: PendienteEstado[];
-  rowsWithAnyPending: number;
-  distinctCedulasWithAnyPending: number;
-  totalsByModuleSum: PendientesConteo;
-  byConsulta: Record<string, PendientesConteo>;
+  estado: 'ok';
+  scope: 'global';
+  filters: {
+    paquete: string | null;
+    oficina: string | null;
+    robot: string | null;
+    prioridad: string | null;
+    consulta: string | null;
+    solo_pendientes: boolean;
+  };
+  faltantes: Record<PendientesKey, number>;
+  total_registros: number;
+  total_con_alguna_pendiente: number;
+  pendiente_definicion: PendienteEstado[];
+  generated_at: string;
 }
 
-export interface PendientesPorOficinaItem {
+export interface PendientesPorOficinaRow {
   oficina: string | null;
-  rowsWithAnyPending: number;
-  distinctCedulasWithAnyPending: number;
-  totalsByModuleSum: PendientesConteo;
-  byConsulta: Record<string, PendientesConteo>;
+  faltantes: Record<PendientesKey, number>;
+  total_registros: number;
+  total_con_alguna_pendiente: number;
 }
 
 export interface PendientesPorOficinaResponse {
-  generatedAt: string;
-  states: PendienteEstado[];
-  items: PendientesPorOficinaItem[];
+  estado: 'ok';
+  scope: 'por_oficina';
+  filters: {
+    paquete: string | null;
+    solo_pendientes: boolean;
+  };
+  pendiente_definicion: PendienteEstado[];
+  rows: PendientesPorOficinaRow[];
+  generated_at: string;
 }
 
-@Injectable({
-  providedIn: 'root'
-})
+@Injectable({ providedIn: 'root' })
 export class RobotsService {
+  private readonly isBrowser: boolean;
+  private readonly baseUrl: string;
 
-  private apiUrl = environment.apiUrl;
+  constructor(
+    private readonly http: HttpClient,
+    @Inject(PLATFORM_ID) platformId: Object
+  ) {
+    this.isBrowser = isPlatformBrowser(platformId);
 
-  constructor(private http: HttpClient, @Inject(PLATFORM_ID) private platformId: Object) { }
+    const raw =
+      (environment as any)?.apiUrl ??
+      (environment as any)?.api?.baseUrl ??
+      '';
 
-  private handleError(error: any): Observable<never> {
+    this.baseUrl = String(raw).replace(/\/$/, '');
+  }
+
+  private handleError(error: unknown): Observable<never> {
     return throwError(() => error);
   }
 
-  // --------------------------------------------
-  // Helpers
-  // --------------------------------------------
-  private normalizePdfKey(pdf: string | null | undefined): PdfKey {
-    const key = (pdf || 'adress').trim().toLowerCase();
-
-    if (key === 'adres' || key === 'address') return 'adress';
-    if (key === 'policivos') return 'policivo';
-    if (key === 'afp' || key === 'fondo_pension' || key === 'fondopension' || key === 'pension') return 'fondo';
-
-    // fallback: si llega uno inválido, no rompas (pero ajusta si prefieres throw)
-    const allowed: PdfKey[] = ['adress', 'policivo', 'ofac', 'contraloria', 'sisben', 'procuraduria', 'fondo', 'union'];
-    return (allowed.includes(key as PdfKey) ? (key as PdfKey) : 'adress');
+  private ensureBrowser(): void {
+    if (!this.isBrowser) {
+      throw new Error('RobotsService: llamada HTTP bloqueada en SSR');
+    }
   }
 
-  // ---------------------------------------------------------------------------
-  // ✅ 1) GET /Robots/full/
-  // ---------------------------------------------------------------------------
-  getRobotsFull(options?: {
-    params?: Record<string, string | number | boolean | null | undefined>;
-    headers?: Record<string, string>;
-    observeResponse?: boolean;
-  }): Observable<RobotFullRow[] | HttpResponse<RobotFullRow[]>> {
-    const url = `${this.apiUrl}/Robots/full/`;
-
+  private buildParams(params?: Record<string, string | number | boolean | null | undefined>): HttpParams {
     let httpParams = new HttpParams();
-    const rawParams = options?.params ?? {};
-    Object.entries(rawParams).forEach(([k, v]) => {
+    Object.entries(params ?? {}).forEach(([k, v]) => {
       if (v === null || v === undefined || v === '') return;
       httpParams = httpParams.set(k, String(v));
     });
+    return httpParams;
+  }
 
-    const httpHeaders = new HttpHeaders(options?.headers ?? {});
+  private buildHeaders(headers?: Record<string, string>): HttpHeaders {
+    return new HttpHeaders(headers ?? {});
+  }
 
-    if (options?.observeResponse) {
-      return this.http
-        .get<RobotFullRow[]>(url, { params: httpParams, headers: httpHeaders, observe: 'response' })
-        .pipe(catchError((e) => this.handleError(e)));
-    }
+  // ---------------------------------------------------------------------------
+  // ✅ 1) GET /EstadosRobots/pendientes/resumen/
+  // ---------------------------------------------------------------------------
+  getPendientesResumen(options?: {
+    paquete?: string;
+    oficina?: string;
+    robot?: string;
+    prioridad?: string;
+    consulta?: string;
+    soloPendientes?: boolean;
+    headers?: Record<string, string>;
+  }): Observable<PendientesResumenResponse> {
+    this.ensureBrowser();
+
+    const url = `${this.baseUrl}/EstadosRobots/pendientes/resumen/`;
+    const params = this.buildParams({
+      paquete: options?.paquete ?? null,
+      oficina: options?.oficina ?? null,
+      robot: options?.robot ?? null,
+      prioridad: options?.prioridad ?? null,
+      consulta: options?.consulta ?? null,
+      solo_pendientes: options?.soloPendientes ?? null,
+    });
+    const headers = this.buildHeaders(options?.headers);
 
     return this.http
-      .get<RobotFullRow[]>(url, { params: httpParams, headers: httpHeaders })
+      .get<PendientesResumenResponse>(url, { params, headers })
       .pipe(catchError((e) => this.handleError(e)));
   }
 
   // ---------------------------------------------------------------------------
-  // ✅ 2) GET /Robots/progreso-prioridades/  (CASO 2: TODO EN UN JSON)
+  // ✅ 2) GET /EstadosRobots/pendientes/por-oficina/
   // ---------------------------------------------------------------------------
-  getProgresoPrioridadesAll(
-    options?: { headers?: Record<string, string> }
-  ): Observable<ProgresoPrioridadesAllResponse> {
-    const url = `${this.apiUrl}/Robots/progreso-prioridades/`;
-    const headers = new HttpHeaders(options?.headers ?? {});
+  getPendientesPorOficina(options?: {
+    paquete?: string;
+    soloPendientes?: boolean;
+    headers?: Record<string, string>;
+  }): Observable<PendientesPorOficinaResponse> {
+    this.ensureBrowser();
+
+    const url = `${this.baseUrl}/EstadosRobots/pendientes/por-oficina/`;
+    const params = this.buildParams({
+      paquete: options?.paquete ?? null,
+      solo_pendientes: options?.soloPendientes ?? null,
+    });
+    const headers = this.buildHeaders(options?.headers);
 
     return this.http
-      .get<ProgresoPrioridadesAllResponse>(url, { headers })
+      .get<PendientesPorOficinaResponse>(url, { params, headers })
       .pipe(catchError((e) => this.handleError(e)));
   }
 
-  // ---------------------------------------------------------------------------
-  // ✅ 3) (Opcional) Si aún necesitas: traer un solo bloque desde el ALL
-  //     (sin pegarle al backend otra vez)
-  // ---------------------------------------------------------------------------
-  pickProgresoFromAll(all: ProgresoPrioridadesAllResponse, pdf: string): ProgresoPrioridadesResponse | null {
-    const key = this.normalizePdfKey(pdf);
-    return all?.por_pdf?.[key] ?? null;
+  // ===== Helpers Promise (si prefieres) =====
+  getPendientesResumenOnce(options?: {
+    paquete?: string;
+    oficina?: string;
+    robot?: string;
+    prioridad?: string;
+    consulta?: string;
+    soloPendientes?: boolean;
+  }): Promise<PendientesResumenResponse> {
+    return firstValueFrom(this.getPendientesResumen(options));
   }
 
-
-    /**
-   * GET /pendientes/resumen/
-   */
-  getPendientesResumen(): Observable<PendientesResumenResponse> {
-    const url = `${this.apiUrl}/EstadosRobots/pendientes/resumen/`;
-
-    // (opcional) por si estás en SSR y quieres evitar llamadas en server
-    if (!isPlatformBrowser(this.platformId)) {
-      return throwError(() => new Error('RobotsService: llamada HTTP en SSR bloqueada'));
-    }
-
-    return this.http.get<PendientesResumenResponse>(url).pipe(
-      catchError((err) => this.handleError(err))
-    );
+  getPendientesPorOficinaOnce(options?: {
+    paquete?: string;
+    soloPendientes?: boolean;
+  }): Promise<PendientesPorOficinaResponse> {
+    return firstValueFrom(this.getPendientesPorOficina(options));
   }
-
-  /**
-   * GET /pendientes/por-oficina/
-   */
-  getPendientesPorOficina(): Observable<PendientesPorOficinaResponse> {
-    const url = `${this.apiUrl}/EstadosRobots/pendientes/por-oficina/`;
-
-    if (!isPlatformBrowser(this.platformId)) {
-      return throwError(() => new Error('RobotsService: llamada HTTP en SSR bloqueada'));
-    }
-
-    return this.http.get<PendientesPorOficinaResponse>(url).pipe(
-      catchError((err) => this.handleError(err))
-    );
-  }
-
-  // ===== Helpers si tú prefieres Promise en vez de Observable =====
-
-  getPendientesResumenOnce(): Promise<PendientesResumenResponse> {
-    return firstValueFrom(this.getPendientesResumen());
-  }
-
-  getPendientesPorOficinaOnce(): Promise<PendientesPorOficinaResponse> {
-    return firstValueFrom(this.getPendientesPorOficina());
-  }
-
 }

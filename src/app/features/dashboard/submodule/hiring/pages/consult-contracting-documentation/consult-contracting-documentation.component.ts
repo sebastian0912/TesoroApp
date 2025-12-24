@@ -29,7 +29,6 @@ import { StandardFilterTable } from '@/app/shared/components/standard-filter-tab
 import { ColumnDefinition } from '@/app/shared/models/advanced-table-interface';
 import {
   RobotsService,
-  PendientesResumenResponse,
   PendientesPorOficinaResponse,
 } from '../../../robots/services/robots/robots.service';
 
@@ -38,6 +37,7 @@ type DocCell = {
   exists: boolean;
   url?: string;
   uploaded_at?: string; // ISO
+  vigente15d?: boolean; // ✅ NUEVO: para la tabla (✓ / ⚠ / ✗)
 };
 
 /** Fila de la tabla */
@@ -204,10 +204,6 @@ export class ConsultContractingDocumentationComponent implements OnInit {
       );
     };
 
-    // ✅ NUEVO
-    this.buildPendientesColumnsBase();
-    void this.loadPendientesWithSwal();
-
     this.cdr.markForCheck();
   }
 
@@ -277,6 +273,11 @@ export class ConsultContractingDocumentationComponent implements OnInit {
       this.tipoColumnKeys = this.tipoHeaders.map(t => `type_${t.id}`);
       this.displayedColumns = [...this.baseColumns, ...this.tipoColumnKeys];
 
+      // ✅ corte: hoy(00:00) - 15 días (para iconos en tabla)
+      const cutoff = new Date();
+      cutoff.setHours(0, 0, 0, 0);
+      cutoff.setDate(cutoff.getDate() - 15);
+
       // filas
       const rows: Row[] = (resp?.items ?? []).map((it: ChecklistItemDto) => {
         const docsMap: Record<number, DocCell> = {};
@@ -287,10 +288,16 @@ export class ConsultContractingDocumentationComponent implements OnInit {
           if (!Number.isFinite(tid)) continue;
 
           const dd = d?.doc;
+
+          const uploadedAt = this.parseFecha(dd?.uploaded_at as any);
+          const vigente15d =
+            !!dd && !!uploadedAt && uploadedAt.getTime() >= cutoff.getTime();
+
           docsMap[tid] = {
             exists: !!dd,
             url: dd?.file_url,
             uploaded_at: dd?.uploaded_at,
+            vigente15d,
           };
         }
 
@@ -514,7 +521,9 @@ export class ConsultContractingDocumentationComponent implements OnInit {
           const url = window.URL.createObjectURL(blob);
           const a = document.createElement('a');
           a.href = url;
-          a.download = `documentos_union_${new Date().toISOString()}.slice(0, 19).replace(/[:T]/g, '-')}.zip`;
+          // ✅ FIX: tu template string estaba roto y el ".slice(...)" estaba dentro del string
+          const ts = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
+          a.download = `documentos_union_${ts}.zip`;
           document.body.appendChild(a);
           a.click();
           document.body.removeChild(a);
@@ -758,7 +767,7 @@ export class ConsultContractingDocumentationComponent implements OnInit {
     const dynHeaders: string[] = [];
     this.tipoHeaders.forEach(t => {
       const n = this.abbrDoc(t.name);
-      dynHeaders.push(n);       // Ver
+      dynHeaders.push(n); // Ver
       dynHeaders.push(`F.${n}`); // Fecha
     });
 
@@ -855,163 +864,8 @@ export class ConsultContractingDocumentationComponent implements OnInit {
     XLSX.writeFile(wb, `reporte_auditoria_${yyyy}-${mm}-${dd}.xlsx`);
   }
 
-  // =====================================================================
-  // ✅ NUEVO: PENDIENTES (RESUMEN + POR OFICINA)
-  // =====================================================================
 
-  reloadPendientes(): void {
-    void this.loadPendientesWithSwal();
-  }
 
-  private async loadPendientesWithSwal(): Promise<void> {
-    Swal.fire({
-      icon: 'info',
-      title: 'Cargando pendientes...',
-      allowOutsideClick: false,
-      allowEscapeKey: false,
-      showConfirmButton: false,
-      didOpen: () => Swal.showLoading(),
-    });
 
-    const results = await Promise.allSettled([
-      this.loadPendientesResumen(true),
-      this.loadPendientesPorOficina(true),
-    ]);
 
-    Swal.close();
-
-    const failed = results.filter(r => r.status === 'rejected').length;
-    if (failed > 0) {
-      await Swal.fire({
-        icon: 'warning',
-        title: 'Carga incompleta',
-        text: `Se cargaron algunos datos, pero ${failed} sección(es) fallaron.`,
-      });
-    }
-
-    this.cdr.markForCheck();
-  }
-
-  private buildPendientesColumnsBase(): void {
-    this.pendientesResumenColumns = [
-      { name: 'label', header: 'Cantidades', type: 'text' as const, width: '220px', filterable: false, sortable: false },
-      { name: 'SIN_CONSULTAR', header: 'SIN_CONSULTAR', type: 'number' as const, width: '160px' },
-      { name: 'EN_PROGRESO', header: 'EN_PROGRESO', type: 'number' as const, width: '160px' },
-      { name: 'PENDIENTES', header: 'PENDIENTES', type: 'number' as const, width: '140px' },
-    ];
-
-    this.pendientesPorOficinaColumns = [
-      { name: 'estado', header: 'Estado', type: 'text' as const, width: '180px' },
-    ];
-  }
-
-  private async loadPendientesResumen(silent = false): Promise<void> {
-    this.isLoadingPendientesResumen = true;
-    try {
-      const resp: PendientesResumenResponse = await firstValueFrom(this.robotsService.getPendientesResumen());
-
-      this.pendientesRowsWithAnyPending = Number(resp?.rowsWithAnyPending ?? 0);
-      this.pendientesDistinctCedulasWithAnyPending = Number(resp?.distinctCedulasWithAnyPending ?? 0);
-
-      const t = resp?.totalsByModuleSum ?? { SIN_CONSULTAR: 0, EN_PROGRESO: 0, PENDIENTES: 0 };
-
-      this.pendientesResumenRows = [
-        {
-          label: 'Cantidades',
-          SIN_CONSULTAR: Number(t.SIN_CONSULTAR ?? 0),
-          EN_PROGRESO: Number(t.EN_PROGRESO ?? 0),
-          PENDIENTES: Number(t.PENDIENTES ?? 0),
-        },
-      ];
-    } catch (e) {
-      console.error(e);
-      this.pendientesResumenRows = [];
-      this.pendientesRowsWithAnyPending = 0;
-      this.pendientesDistinctCedulasWithAnyPending = 0;
-
-      if (!silent) {
-        await Swal.fire({ icon: 'error', title: 'Error', text: 'No se pudo cargar /pendientes/resumen/' });
-      } else {
-        throw e;
-      }
-    } finally {
-      this.isLoadingPendientesResumen = false;
-      this.cdr.markForCheck();
-    }
-  }
-
-  private async loadPendientesPorOficina(silent = false): Promise<void> {
-    this.isLoadingPendientesPorOficina = true;
-    try {
-      const resp: PendientesPorOficinaResponse = await firstValueFrom(this.robotsService.getPendientesPorOficina());
-      const items = Array.isArray(resp?.items) ? resp.items : [];
-
-      const officePairs = items.map(it => ({
-        key: this.officeKey(it?.oficina ?? null),
-        label: this.officeLabel(it?.oficina ?? null),
-      }));
-
-      const seen = new Set<string>();
-      const offices = officePairs.filter(o => (seen.has(o.key) ? false : (seen.add(o.key), true)));
-
-      this.pendientesPorOficinaColumns = [
-        { name: 'estado', header: 'Estado', type: 'text' as const, width: '180px' },
-        ...offices.map(o => ({
-          name: o.key,
-          header: o.label,
-          type: 'number' as const,
-          width: '140px',
-        })),
-      ];
-
-      const rows: PendientesPorOficinaPivotRow[] = [
-        { estado: 'SIN_CONSULTAR' },
-        { estado: 'EN_PROGRESO' },
-        { estado: 'PENDIENTES' },
-      ];
-
-      for (const o of offices) {
-        const item = items.find(it => this.officeKey(it?.oficina ?? null) === o.key);
-        const t = item?.totalsByModuleSum ?? { SIN_CONSULTAR: 0, EN_PROGRESO: 0, PENDIENTES: 0 };
-
-        rows[0][o.key] = Number(t.SIN_CONSULTAR ?? 0);
-        rows[1][o.key] = Number(t.EN_PROGRESO ?? 0);
-        rows[2][o.key] = Number(t.PENDIENTES ?? 0);
-      }
-
-      this.pendientesPorOficinaRows = rows;
-    } catch (e) {
-      console.error(e);
-      this.pendientesPorOficinaRows = [];
-      this.pendientesPorOficinaColumns = [
-        { name: 'estado', header: 'Estado', type: 'text' as const, width: '180px' },
-      ];
-
-      if (!silent) {
-        await Swal.fire({ icon: 'error', title: 'Error', text: 'No se pudo cargar /pendientes/por-oficina/' });
-      } else {
-        throw e;
-      }
-    } finally {
-      this.isLoadingPendientesPorOficina = false;
-      this.cdr.markForCheck();
-    }
-  }
-
-  private officeKey(oficina: string | null): string {
-    const raw = (oficina ?? 'SIN_OFICINA').trim() || 'SIN_OFICINA';
-    const normalized = raw
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .replace(/[^a-zA-Z0-9]+/g, '_')
-      .replace(/^_+|_+$/g, '')
-      .toUpperCase();
-
-    return `of_${normalized}`;
-  }
-
-  private officeLabel(oficina: string | null): string {
-    const raw = (oficina ?? 'SIN_OFICINA').trim();
-    return raw || 'SIN_OFICINA';
-  }
 }

@@ -5,45 +5,24 @@ import { firstValueFrom } from 'rxjs';
 import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
-import { MatTooltipModule } from '@angular/material/tooltip';
-import { MatDialog } from '@angular/material/dialog';
 
 import Swal from 'sweetalert2';
 
 import { StandardFilterTable } from '@/app/shared/components/standard-filter-table/standard-filter-table';
 import { ColumnDefinition } from '@/app/shared/models/advanced-table-interface';
 
-import { UtilityServiceService } from '@/app/shared/services/utilityService/utility-service.service';
 import {
   RobotsService,
   PendientesResumenResponse,
   PendientesPorOficinaResponse,
 } from '../../services/robots/robots.service';
 
-type PdfKey =
-  | 'adress'
-  | 'policivo'
-  | 'ofac'
-  | 'contraloria'
-  | 'sisben'
-  | 'procuraduria'
-  | 'fondo';
-
-type ProgresoRow = {
-  prioridad: string;
-  total: number;
-  llevas: number;
-  faltan: number;
-};
-
-// ===== PIVOT progreso (solo faltan por tipo) =====
-type ProgresoPivotRow = {
-  prioridad: string;
-  [k: string]: any; // p_<pdf>_faltan
-};
-
-// ===== tipos para tablas de pendientes =====
-type PendienteConsultaKey =
+// =========================
+// ✅ PENDIENTES (lo que pides)
+// 1) Resumen = 1 fila con columnas "Cantidad X Faltantes"
+// 2) Oficinas = filas por módulo y columnas por oficina (en el orden del GET)
+// =========================
+type PendienteKey =
   | 'adress'
   | 'policivo'
   | 'ofac'
@@ -52,124 +31,58 @@ type PendienteConsultaKey =
   | 'procuraduria'
   | 'fondo_pension'
   | 'medidas_correctivas'
-  | 'union';
+  | 'union'; // (si no viene del backend, queda en 0)
 
-type PendientesResumenRow = {
-  tipo: string;
-  consulta: PendienteConsultaKey;
-  sin_consultar: number;
-  en_progreso: number;
-  pendientes: number;
+type PendientesResumenFlatRow = {
+  adress: number;
+  policivo: number;
+  ofac: number;
+  contraloria: number;
+  sisben: number;
+  procuraduria: number;
+  fondo_pension: number;
+  union: number;
 };
 
-// ===== PIVOT pendientes por oficina =====
-type PendientesPorOficinaPivotRow = {
-  oficina: string | null;
-  [k: string]: any; // c_<consultaKey> = SIN_CONSULTAR + EN_PROGRESO
+type PendientesOficinasMatrixRow = {
+  tipo: string; // "Adress", "Policivos", etc.
+  key: PendienteKey;
+  [k: string]: any; // o_<slugOficina> => number
 };
 
 @Component({
   selector: 'app-robots',
-  imports: [
-    CommonModule,
-    StandardFilterTable,
-    MatIconModule,
-    MatCardModule,
-    MatButtonModule,
-    MatTooltipModule,
-  ],
+  imports: [CommonModule, StandardFilterTable, MatIconModule, MatCardModule, MatButtonModule],
   templateUrl: './robots.component.html',
   styleUrl: './robots.component.css',
 })
 export class RobotsComponent implements OnInit {
-  constructor(
-    private utilityService: UtilityServiceService,
-    private robots: RobotsService,
-    private dialog: MatDialog,
-  ) {}
+  constructor(private readonly robots: RobotsService) {}
 
   // =========================
-  // FULL
-  // =========================
-  isLoadingFull = false;
-  robotsFull: any[] = [];
-  fullColumns: ColumnDefinition[] = [];
-
-  // =========================
-  // PROGRESO GLOBAL (PIVOT)
-  // =========================
-  isLoadingProgresoAll = false;
-  totalRegistros = 0;
-
-  // 🔁 mismos nombres para no romper el HTML
-  progresoTipoPrioridad: ProgresoPivotRow[] = [];
-  progresoTipoPrioridadColumns: ColumnDefinition[] = [];
-
-  private progresoByPdf: Partial<Record<PdfKey, ProgresoRow[]>> = {};
-
-  private readonly pdfOptions: Array<{ key: PdfKey; label: string }> = [
-    { key: 'adress', label: 'ADRES' },
-    { key: 'policivo', label: 'POLICIVOS' },
-    { key: 'ofac', label: 'OFAC' },
-    { key: 'contraloria', label: 'CONTRALORÍA' },
-    { key: 'sisben', label: 'SISBÉN' },
-    { key: 'procuraduria', label: 'PROCURADURÍA' },
-    { key: 'fondo', label: 'AFP' },
-  ];
-
-  // =========================
-  // PENDIENTES (RESUMEN + POR OFICINA PIVOT)
+  // ✅ PENDIENTES (RESUMEN + OFICINAS)
   // =========================
   isLoadingPendientesResumen = false;
-  pendientesResumenRows: PendientesResumenRow[] = [];
+  pendientesResumenRows: PendientesResumenFlatRow[] = [];
   pendientesResumenColumns: ColumnDefinition[] = [];
 
   isLoadingPendientesPorOficina = false;
-  pendientesPorOficinaRows: PendientesPorOficinaPivotRow[] = [];
+  pendientesPorOficinaRows: PendientesOficinasMatrixRow[] = [];
   pendientesPorOficinaColumns: ColumnDefinition[] = [];
 
-  pendientesRowsWithAnyPending = 0;
-  pendientesDistinctCedulasWithAnyPending = 0;
+  pendientesGeneratedAt: string | null = null;
 
-  private readonly pendientesOptions: Array<{ key: PendienteConsultaKey; label: string }> = [
-    { key: 'adress', label: 'ADRES' },
-    { key: 'policivo', label: 'POLICIVOS' },
+  private readonly pendientesKeys: Array<{ key: PendienteKey; label: string }> = [
+    { key: 'adress', label: 'Adress' },
+    { key: 'policivo', label: 'Policivos' },
     { key: 'ofac', label: 'OFAC' },
-    { key: 'contraloria', label: 'CONTRALORÍA' },
-    { key: 'sisben', label: 'SISBÉN' },
-    { key: 'procuraduria', label: 'PROCURADURÍA' },
-    { key: 'fondo_pension', label: 'AFP (Fondo pensión)' },
-    { key: 'medidas_correctivas', label: 'MEDIDAS CORRECTIVAS' },
-    { key: 'union', label: 'UNIÓN' },
+    { key: 'contraloria', label: 'Contraloría' },
+    { key: 'sisben', label: 'Sisben' },
+    { key: 'procuraduria', label: 'Procuraduría' },
+    { key: 'fondo_pension', label: 'Fondo Pensión' },
+    // { key: 'medidas_correctivas', label: 'Medidas Correctivas' }, // si la quieres en la tabla por oficina, descomenta
+    { key: 'union', label: 'Unión' }, // si tu backend no lo manda, quedará 0
   ];
-
-  private readonly STATUS_OPTIONS = ['SIN_CONSULTAR', 'EN_PROGRESO', 'FINALIZADO', 'ERROR', 'Sin Pasado'];
-
-  private readonly HEADER_ALIASES: Record<string, string[]> = {
-    Identificación: [
-      'identificación',
-      'identificacion',
-      'cédula',
-      'cedula',
-      'documento',
-      'numero_documento',
-      'número de documento',
-      'numero de documento',
-      'id',
-    ],
-    'Tipo documento': ['tipo documento', 'tipo_documento', 'tipo doc', 'tipo'],
-    PAQUETE: ['paquete', 'oficina', 'sede'],
-    'Nombre Y Apellidos': [
-      'nombre y apellidos',
-      'nombres y apellidos',
-      'nombre y apellido',
-      'nombres y apellido',
-    ],
-    'Primer Nombre': ['primer nombre', 'pn'],
-    'Segundo Nombre': ['segundo nombre', 'sn'],
-    'Primer Apellido': ['primer apellido', 'pa'],
-    'Segundo Apellido': ['segundo apellido', 'sa'],
-  };
 
   ngOnInit(): void {
     this.buildColumns();
@@ -183,13 +96,8 @@ export class RobotsComponent implements OnInit {
     void this.loadAllWithSwal();
   }
 
-  openPdf(url?: string | null): void {
-    if (!url || !String(url).trim()) return;
-    window.open(String(url), '_blank', 'noopener,noreferrer');
-  }
-
   // =========================
-  // SWAL LOADING GLOBAL
+  // SWAL GLOBAL
   // =========================
   private async loadAllWithSwal(): Promise<void> {
     Swal.fire({
@@ -204,13 +112,11 @@ export class RobotsComponent implements OnInit {
 
     try {
       const results = await Promise.allSettled([
-        this.cargarRobotsFull(true),
-        this.loadProgresoAll(true),
-        this.loadPendientesResumen(true),
-        this.loadPendientesPorOficina(true),
+        this.loadPendientesResumen(true, false),
+        this.loadPendientesPorOficina(true, false),
       ]);
 
-      const failed = results.filter(r => r.status === 'rejected').length;
+      const failed = results.filter((r) => r.status === 'rejected').length;
       if (failed > 0) {
         await Swal.fire({
           icon: 'warning',
@@ -224,345 +130,196 @@ export class RobotsComponent implements OnInit {
   }
 
   // =========================
-  // DATA LOADERS
-  // (silent=true => no Swal de error aquí, se maneja arriba)
+  // ✅ 1) RESUMEN (1 fila con columnas "Cantidad X Faltantes")
+  //    GET /EstadosRobots/pendientes/resumen/
   // =========================
-  async cargarRobotsFull(silent = false): Promise<void> {
-    this.isLoadingFull = true;
-    try {
-      const resp: any = await firstValueFrom(this.robots.getRobotsFull() as any);
+  async loadPendientesResumen(silent = false, showLoadingSwal = true): Promise<void> {
+    if (this.isLoadingPendientesResumen) return;
 
-      const arr = Array.isArray(resp)
-        ? resp
-        : Array.isArray(resp?.body)
-          ? resp.body
-          : [];
-
-      this.robotsFull = arr.map((r: any) => this.mapFullRow(r));
-    } catch (e) {
-      console.error(e);
-      this.robotsFull = [];
-      if (!silent) {
-        await Swal.fire({ icon: 'error', title: 'Error', text: 'No se pudo cargar /Robots/full/' });
-      } else {
-        throw e;
-      }
-    } finally {
-      this.isLoadingFull = false;
-    }
-  }
-
-  async loadProgresoAll(silent = false): Promise<void> {
-    this.isLoadingProgresoAll = true;
-
-    try {
-      const resp: any = await firstValueFrom(this.robots.getProgresoPrioridadesAll() as any);
-
-      this.totalRegistros = Number(resp?.total_registros ?? 0);
-
-      for (const p of this.pdfOptions) {
-        const block = resp?.por_pdf?.[p.key];
-        const rows = Array.isArray(block?.por_prioridad) ? block.por_prioridad : [];
-
-        this.progresoByPdf[p.key] = rows.map((r: any) => ({
-          prioridad: String(r?.prioridad ?? 'SIN_PRIORIDAD'),
-          total: Number(r?.total ?? 0),
-          llevas: Number(r?.llevas ?? 0),
-          faltan: Number(r?.faltan ?? 0),
-        }));
-      }
-
-      // ✅ PIVOT: filas = prioridad, columnas = tipo (SOLO FALTAN)
-      this.progresoTipoPrioridad = this.pivotProgresoPorPrioridadSoloFaltan();
-    } catch (e) {
-      console.error(e);
-      this.totalRegistros = 0;
-      this.progresoTipoPrioridad = [];
-      for (const p of this.pdfOptions) this.progresoByPdf[p.key] = [];
-
-      if (!silent) {
-        await Swal.fire({
-          icon: 'error',
-          title: 'Error',
-          text: 'No se pudo cargar /Robots/progreso-prioridades/ (ALL).',
-        });
-      } else {
-        throw e;
-      }
-    } finally {
-      this.isLoadingProgresoAll = false;
-    }
-  }
-
-  // ===== Pendientes resumen (igual) =====
-  async loadPendientesResumen(silent = false): Promise<void> {
     this.isLoadingPendientesResumen = true;
+
+    if (!silent && showLoadingSwal) {
+      Swal.fire({
+        icon: 'info',
+        title: 'Actualizando resumen',
+        text: 'Consultando faltantes...',
+        allowOutsideClick: false,
+        allowEscapeKey: false,
+        showConfirmButton: false,
+        didOpen: () => Swal.showLoading(),
+      });
+    }
+
     try {
-      const resp: PendientesResumenResponse = await firstValueFrom(this.robots.getPendientesResumen());
+      const resp: PendientesResumenResponse = await firstValueFrom(
+        this.robots.getPendientesResumen({ soloPendientes: false }) as any
+      );
 
-      this.pendientesRowsWithAnyPending = Number(resp?.rowsWithAnyPending ?? 0);
-      this.pendientesDistinctCedulasWithAnyPending = Number(resp?.distinctCedulasWithAnyPending ?? 0);
+      this.pendientesGeneratedAt = (resp as any)?.generated_at ?? null;
 
-      const by = resp?.byConsulta ?? {};
-      const labelMap = new Map<PendienteConsultaKey, string>(this.pendientesOptions.map(o => [o.key, o.label]));
+      const f: any = (resp as any)?.faltantes ?? {};
 
-      const rows: PendientesResumenRow[] = [];
-      for (const opt of this.pendientesOptions) {
-        const c = by?.[opt.key] ?? { SIN_CONSULTAR: 0, EN_PROGRESO: 0, PENDIENTES: 0 };
-        rows.push({
-          tipo: labelMap.get(opt.key) ?? String(opt.key),
-          consulta: opt.key,
-          sin_consultar: Number(c.SIN_CONSULTAR ?? 0),
-          en_progreso: Number(c.EN_PROGRESO ?? 0),
-          pendientes: Number(c.PENDIENTES ?? 0),
-        });
-      }
+      const row: PendientesResumenFlatRow = {
+        adress: Number(f.adress ?? 0),
+        policivo: Number(f.policivo ?? 0),
+        ofac: Number(f.ofac ?? 0),
+        contraloria: Number(f.contraloria ?? 0),
+        sisben: Number(f.sisben ?? 0),
+        procuraduria: Number(f.procuraduria ?? 0),
+        fondo_pension: Number(f.fondo_pension ?? 0),
+        union: Number(f.union ?? 0), // si no existe, 0
+      };
 
-      this.pendientesResumenRows = rows;
+      this.pendientesResumenRows = [{ ...row }];
     } catch (e) {
       console.error(e);
       this.pendientesResumenRows = [];
-      this.pendientesRowsWithAnyPending = 0;
-      this.pendientesDistinctCedulasWithAnyPending = 0;
+      this.pendientesGeneratedAt = null;
 
       if (!silent) {
         await Swal.fire({
           icon: 'error',
           title: 'Error',
-          text: 'No se pudo cargar /pendientes/resumen/',
+          text: 'No se pudo cargar /EstadosRobots/pendientes/resumen/',
         });
       } else {
         throw e;
       }
     } finally {
       this.isLoadingPendientesResumen = false;
+      if (!silent && showLoadingSwal) Swal.close();
     }
   }
 
-  // ✅ PIVOT: filas = oficina, columnas = tipos, celda = sin_consultar + en_progreso
-  async loadPendientesPorOficina(silent = false): Promise<void> {
+  // =========================
+  // ✅ 2) OFICINAS (matriz: filas=módulos, columnas=oficinas)
+  //    GET /EstadosRobots/pendientes/por-oficina/
+  // =========================
+  async loadPendientesPorOficina(silent = false, showLoadingSwal = true): Promise<void> {
+    if (this.isLoadingPendientesPorOficina) return;
+
     this.isLoadingPendientesPorOficina = true;
-    try {
-      const resp: PendientesPorOficinaResponse = await firstValueFrom(this.robots.getPendientesPorOficina());
-      const items = Array.isArray(resp?.items) ? resp.items : [];
 
-      const rows: PendientesPorOficinaPivotRow[] = items.map((it: any) => {
-        const oficina = it?.oficina ?? null;
-        const by = it?.byConsulta ?? {};
-
-        const row: PendientesPorOficinaPivotRow = { oficina };
-
-        for (const opt of this.pendientesOptions) {
-          const c = by?.[opt.key] ?? { SIN_CONSULTAR: 0, EN_PROGRESO: 0 };
-          const sin = Number(c.SIN_CONSULTAR ?? 0);
-          const pro = Number(c.EN_PROGRESO ?? 0);
-          row[this.pendientesColKey(opt.key)] = sin + pro;
-        }
-
-        return row;
+    if (!silent && showLoadingSwal) {
+      Swal.fire({
+        icon: 'info',
+        title: 'Actualizando por oficina',
+        text: 'Consultando faltantes por oficina...',
+        allowOutsideClick: false,
+        allowEscapeKey: false,
+        showConfirmButton: false,
+        didOpen: () => Swal.showLoading(),
       });
+    }
 
-      rows.sort((a, b) =>
-        String(a.oficina ?? '').toUpperCase().localeCompare(String(b.oficina ?? '').toUpperCase()),
+    try {
+      const resp: PendientesPorOficinaResponse = await firstValueFrom(
+        this.robots.getPendientesPorOficina({ soloPendientes: false }) as any
       );
 
-      this.pendientesPorOficinaRows = rows;
+      const backendRows: any[] = Array.isArray((resp as any)?.rows) ? (resp as any).rows : [];
+
+      // ✅ oficinas en el mismo orden del GET
+      const oficinas = backendRows.map((r: any) => {
+        const o = r?.oficina ?? r?.oficina_norm ?? null;
+        const txt = String(o ?? '').trim();
+        return txt ? txt : 'SIN_OFICINA';
+      });
+
+      // ✅ columnas dinámicas: "Oficinas/ Faltantes" + cada oficina
+      const oficinaCols: ColumnDefinition[] = oficinas.map((of: string) => ({
+        name: this.oficinaColKey(of),
+        header: of,
+        type: 'number' as const,
+        width: '160px',
+      }));
+
+      this.pendientesPorOficinaColumns = [
+        { name: 'tipo', header: 'Oficinas/ Faltantes', type: 'text' as const, width: '220px' },
+        ...oficinaCols,
+      ];
+
+      // ✅ construir matriz (filas = módulos)
+      const out: PendientesOficinasMatrixRow[] = [];
+
+      for (const mod of this.pendientesKeys) {
+        const row: PendientesOficinasMatrixRow = { tipo: mod.label, key: mod.key };
+
+        for (let i = 0; i < backendRows.length; i++) {
+          const oficinaName = oficinas[i];
+          const colKey = this.oficinaColKey(oficinaName);
+
+          const falt: any = backendRows[i]?.faltantes ?? {};
+          row[colKey] = Number(falt?.[mod.key] ?? 0); // si no existe (ej union), 0
+        }
+
+        out.push(row);
+      }
+
+      this.pendientesPorOficinaRows = [...out];
     } catch (e) {
       console.error(e);
       this.pendientesPorOficinaRows = [];
+      this.pendientesPorOficinaColumns = [
+        { name: 'tipo', header: 'Oficinas/ Faltantes', type: 'text' as const, width: '220px' },
+      ];
 
       if (!silent) {
         await Swal.fire({
           icon: 'error',
           title: 'Error',
-          text: 'No se pudo cargar /pendientes/por-oficina/',
+          text: 'No se pudo cargar /EstadosRobots/pendientes/por-oficina/',
         });
       } else {
         throw e;
       }
     } finally {
       this.isLoadingPendientesPorOficina = false;
+      if (!silent && showLoadingSwal) Swal.close();
     }
-  }
-
-  // =========================
-  // PIVOTS
-  // =========================
-  // ✅ SOLO FALTAN
-  private pivotProgresoPorPrioridadSoloFaltan(): ProgresoPivotRow[] {
-    const prioridadSet = new Set<string>();
-
-    for (const opt of this.pdfOptions) {
-      const rows = this.progresoByPdf[opt.key] ?? [];
-      for (const r of rows) prioridadSet.add(String(r?.prioridad ?? 'SIN_PRIORIDAD'));
-    }
-
-    const prioridades = Array.from(prioridadSet);
-
-    const prioridadOrder = (p: string): number => {
-      const s = String(p ?? '').trim();
-      if (!s) return 999999;
-      const n = Number(s);
-      if (Number.isFinite(n) && s === String(n)) return n;
-      return s.toUpperCase() === 'SIN_PRIORIDAD' ? 999998 : 999997;
-    };
-
-    prioridades.sort((a, b) => prioridadOrder(a) - prioridadOrder(b));
-
-    const out: ProgresoPivotRow[] = [];
-
-    for (const prio of prioridades) {
-      const row: ProgresoPivotRow = { prioridad: prio };
-
-      for (const opt of this.pdfOptions) {
-        const list = this.progresoByPdf[opt.key] ?? [];
-        const found = list.find(x => String(x?.prioridad ?? 'SIN_PRIORIDAD') === prio);
-
-        row[this.progresoColKey(opt.key)] = Number(found?.faltan ?? 0);
-      }
-
-      out.push(row);
-    }
-
-    return out;
-  }
-
-  private progresoColKey(pdf: PdfKey): string {
-    return `p_${pdf}_faltan`;
-  }
-
-  private pendientesColKey(consulta: PendienteConsultaKey): string {
-    return `c_${consulta}`;
   }
 
   // =========================
   // COLUMNAS
   // =========================
   private buildColumns(): void {
-    // ===== Pendientes resumen (igual) =====
+    // ✅ Resumen (1 fila)
     this.pendientesResumenColumns = [
-      { name: 'tipo', header: 'Tipo', type: 'text' as const, width: '220px' },
-      { name: 'sin_consultar', header: 'Sin consultar', type: 'number' as const, width: '150px' },
-      { name: 'en_progreso', header: 'En progreso', type: 'number' as const, width: '150px' },
-      { name: 'pendientes', header: 'Pendientes', type: 'number' as const, width: '140px' },
+      { name: 'adress', header: 'Cantidad Adres Faltantes', type: 'number' as const, width: '220px' },
+      { name: 'policivo', header: 'Cantidad Policivo Faltantes', type: 'number' as const, width: '240px' },
+      { name: 'ofac', header: 'Cantidad OFAC Faltantes', type: 'number' as const, width: '220px' },
+      { name: 'contraloria', header: 'Cantidad Contraloria Faltantes', type: 'number' as const, width: '260px' },
+      { name: 'sisben', header: 'Cantidad Sisben Faltantes', type: 'number' as const, width: '240px' },
+      { name: 'procuraduria', header: 'Cantidad Procuraduria Faltantes', type: 'number' as const, width: '280px' },
+      { name: 'fondo_pension', header: 'Cantidad Fondo Pension Faltantes', type: 'number' as const, width: '300px' },
+      { name: 'union', header: 'Cantidad Union Faltantes', type: 'number' as const, width: '240px' },
     ];
 
-    // ✅ Pendientes por oficina (PIVOT): oficina + columnas por tipo (sin+progreso)
-    const pendientesPivotCols: ColumnDefinition[] = this.pendientesOptions.map(opt => ({
-      name: this.pendientesColKey(opt.key),
-      header: opt.label,
-      type: 'number' as const,
-      width: '160px',
-    }));
-
+    // ✅ Oficinas (se arma dinámico cuando llega el GET)
     this.pendientesPorOficinaColumns = [
-      { name: 'oficina', header: 'Oficina', type: 'text' as const, width: '180px' },
-      ...pendientesPivotCols,
-    ];
-
-    // ✅ Progreso por prioridad (PIVOT): prioridad + 1 columna por tipo (FALTAN)
-    const progresoPivotCols: ColumnDefinition[] = this.pdfOptions.map(opt => ({
-      name: this.progresoColKey(opt.key),
-      header: `${opt.label}`, // si quieres: `${opt.label} (Faltan)`
-      type: 'number' as const,
-      width: '160px',
-    }));
-
-    this.progresoTipoPrioridadColumns = [
-      { name: 'prioridad', header: 'Prioridad', type: 'text' as const, width: '140px' },
-      ...progresoPivotCols,
-    ];
-
-    // ===== FULL (igual que tenías) =====
-    this.fullColumns = [
-      { name: 'oficina', header: 'Oficina', type: 'text' as const, width: '140px' },
-      { name: 'robot', header: 'Robot', type: 'text' as const, width: '140px' },
-      { name: 'cedula', header: 'Cédula', type: 'text' as const, width: '140px' },
-      { name: 'tipo_documento', header: 'Tipo documento', type: 'text' as const, width: '160px' },
-
-      { name: 'estado_adress', header: 'Estado ADRES', type: 'status' as const, width: '170px', options: this.STATUS_OPTIONS },
-      { name: 'apellido_adress', header: 'Apellido ADRES', type: 'text' as const, width: '200px' },
-      { name: 'entidad_adress', header: 'Entidad ADRES', type: 'text' as const, width: '240px' },
-      { name: 'pdf_adress', header: 'PDF ADRES', type: 'text' as const, width: '220px', filterable: false },
-      { name: 'fecha_adress', header: 'Fecha ADRES', type: 'text' as const, width: '170px' },
-
-      { name: 'estado_policivo', header: 'Estado Policivo', type: 'status' as const, width: '180px', options: this.STATUS_OPTIONS },
-      { name: 'anotacion_policivo', header: 'Anotación Policivo', type: 'text' as const, width: '260px' },
-      { name: 'pdf_policivo', header: 'PDF Policivo', type: 'text' as const, width: '220px', filterable: false },
-
-      { name: 'estado_ofac', header: 'Estado OFAC', type: 'status' as const, width: '170px', options: this.STATUS_OPTIONS },
-      { name: 'anotacion_ofac', header: 'Anotación OFAC', type: 'text' as const, width: '260px' },
-      { name: 'pdf_ofac', header: 'PDF OFAC', type: 'text' as const, width: '220px', filterable: false },
-
-      { name: 'estado_contraloria', header: 'Estado Contraloría', type: 'status' as const, width: '190px', options: this.STATUS_OPTIONS },
-      { name: 'anotacion_contraloria', header: 'Anotación Contraloría', type: 'text' as const, width: '280px' },
-      { name: 'pdf_contraloria', header: 'PDF Contraloría', type: 'text' as const, width: '220px', filterable: false },
-
-      { name: 'estado_sisben', header: 'Estado Sisben', type: 'status' as const, width: '170px', options: this.STATUS_OPTIONS },
-      { name: 'tipo_sisben', header: 'Tipo Sisben', type: 'text' as const, width: '170px' },
-      { name: 'pdf_sisben', header: 'PDF Sisben', type: 'text' as const, width: '220px', filterable: false },
-      { name: 'fecha_sisben', header: 'Fecha Sisben', type: 'text' as const, width: '170px' },
-
-      { name: 'estado_procuraduria', header: 'Estado Procuraduría', type: 'status' as const, width: '200px', options: this.STATUS_OPTIONS },
-      { name: 'anotacion_procuraduria', header: 'Anotación Procuraduría', type: 'text' as const, width: '280px' },
-      { name: 'pdf_procuraduria', header: 'PDF Procuraduría', type: 'text' as const, width: '220px', filterable: false },
-
-      { name: 'estado_fondo_pension', header: 'Estado AFP', type: 'status' as const, width: '210px', options: this.STATUS_OPTIONS },
-      { name: 'entidad_fondo_pension', header: 'Entidad AFP', type: 'text' as const, width: '280px' },
-      { name: 'pdf_fondo_pension', header: 'PDF AFP', type: 'text' as const, width: '220px', filterable: false },
-      { name: 'fecha_fondo_pension', header: 'Fecha AFP', type: 'text' as const, width: '200px' },
-
-      { name: 'estado_union', header: 'Estado Unión', type: 'status' as const, width: '170px', options: this.STATUS_OPTIONS },
-      { name: 'union_pdf', header: 'Unión PDF', type: 'text' as const, width: '260px', filterable: false },
-      { name: 'fecha_union_pdf', header: 'Fecha Unión PDF', type: 'text' as const, width: '200px' },
-
-      { name: 'actions', header: 'Acciones', type: 'custom' as const, width: '160px', filterable: false, sortable: false },
+      { name: 'tipo', header: 'Oficinas/ Faltantes', type: 'text' as const, width: '220px' },
     ];
   }
 
-  private mapFullRow(r: any): any {
-    return {
-      oficina: r?.oficina ?? null,
+  // =========================
+  // Helpers columnas dinámicas oficinas
+  // =========================
+  private oficinaColKey(oficina: string): string {
+    return `o_${this.slugify(oficina)}`;
+  }
 
-      robot: r?.Robot ?? r?.robot ?? null,
-      cedula: r?.Cedula ?? r?.cedula ?? null,
-      tipo_documento: r?.Tipo_documento ?? r?.tipo_documento ?? null,
+  private slugify(input: string): string {
+    const s = String(input ?? '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .trim()
+      .toLowerCase();
 
-      estado_adress: r?.Estado_Adress ?? r?.estado_adress ?? null,
-      apellido_adress: r?.Apellido_Adress ?? r?.apellido_adress ?? null,
-      entidad_adress: r?.Entidad_Adress ?? r?.entidad_adress ?? null,
-      pdf_adress: r?.PDF_Adress ?? r?.pdf_adress ?? null,
-      fecha_adress: r?.Fecha_Adress ?? r?.fecha_adress ?? null,
+    const cleaned = s
+      .replace(/[^a-z0-9]+/g, '_')
+      .replace(/_+/g, '_')
+      .replace(/^_+|_+$/g, '');
 
-      estado_policivo: r?.Estado_Policivo ?? r?.estado_policivo ?? null,
-      anotacion_policivo: r?.Anotacion_Policivo ?? r?.anotacion_policivo ?? null,
-      pdf_policivo: r?.PDF_Policivo ?? r?.pdf_policivo ?? null,
-
-      estado_ofac: r?.Estado_OFAC ?? r?.estado_ofac ?? null,
-      anotacion_ofac: r?.Anotacion_OFAC ?? r?.anotacion_ofac ?? null,
-      pdf_ofac: r?.PDF_OFAC ?? r?.pdf_ofac ?? null,
-
-      estado_contraloria: r?.Estado_Contraloria ?? r?.estado_contraloria ?? null,
-      anotacion_contraloria: r?.Anotacion_Contraloria ?? r?.anotacion_contraloria ?? null,
-      pdf_contraloria: r?.PDF_Contraloria ?? r?.pdf_contraloria ?? null,
-
-      estado_sisben: r?.Estado_Sisben ?? r?.estado_sisben ?? null,
-      tipo_sisben: r?.Tipo_Sisben ?? r?.tipo_sisben ?? null,
-      pdf_sisben: r?.PDF_Sisben ?? r?.pdf_sisben ?? null,
-      fecha_sisben: r?.Fecha_Sisben ?? r?.fecha_sisben ?? null,
-
-      estado_procuraduria: r?.Estado_Procuraduria ?? r?.estado_procuraduria ?? null,
-      anotacion_procuraduria: r?.Anotacion_Procuraduria ?? r?.anotacion_procuraduria ?? null,
-      pdf_procuraduria: r?.PDF_Procuraduria ?? r?.pdf_procuraduria ?? null,
-
-      estado_fondo_pension: r?.Estado_FondoPension ?? r?.estado_fondo_pension ?? null,
-      entidad_fondo_pension: r?.Entidad_FondoPension ?? r?.entidad_fondo_pension ?? null,
-      pdf_fondo_pension: r?.PDF_FondoPension ?? r?.pdf_fondo_pension ?? null,
-      fecha_fondo_pension: r?.Fecha_FondoPension ?? r?.fecha_fondo_pension ?? null,
-
-      estado_union: r?.Estado_Union ?? r?.estado_union ?? null,
-      union_pdf: r?.Union_PDF ?? r?.union_pdf ?? null,
-      fecha_union_pdf: r?.Fecha_UnionPDF ?? r?.fecha_union_pdf ?? null,
-    };
+    return cleaned || 'sin_oficina';
   }
 }

@@ -1,7 +1,5 @@
 import { SharedModule } from '@/app/shared/shared.module';
 import { Component, ElementRef, OnDestroy, OnInit, ViewChild } from '@angular/core';
-import { DocumentacionService } from '../../service/documentacion/documentacion.service';
-import Swal from 'sweetalert2';
 import {
   FormArray,
   FormBuilder,
@@ -11,11 +9,14 @@ import {
   Validators
 } from '@angular/forms';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
-import { GestionDocumentalService } from '../../../hiring/service/gestion-documental/gestion-documental.service';
-import { Subject, firstValueFrom, takeUntil } from 'rxjs';
-import { MatMenuModule } from '@angular/material/menu';
-import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
+import { MatIconModule } from '@angular/material/icon';
+import { MatMenuModule } from '@angular/material/menu';
+import { Subject, firstValueFrom, takeUntil } from 'rxjs';
+import Swal from 'sweetalert2';
+
+import { DocumentacionService } from '../../service/documentacion/documentacion.service';
+import { GestionDocumentalService } from '../../../hiring/service/gestion-documental/gestion-documental.service';
 
 interface HojaMapa {
   file: File;
@@ -47,6 +48,7 @@ export class UploadDocumentsComponent implements OnInit, OnDestroy {
   /* ───────── reactive form ────────────── */
   formDoc!: FormGroup;
   documentosArray!: FormArray<DocGrupo>;
+
   @ViewChild('zipInput') zipInput!: ElementRef<HTMLInputElement>;
 
   /* ───────── previsualizador ──────────── */
@@ -61,7 +63,7 @@ export class UploadDocumentsComponent implements OnInit, OnDestroy {
     private docSrv: DocumentacionService,
     private gestionDocSrv: GestionDocumentalService,
     private sanitizer: DomSanitizer
-  ) { }
+  ) {}
 
   /* ══════════════════════════════════════ */
   ngOnInit(): void {
@@ -71,37 +73,36 @@ export class UploadDocumentsComponent implements OnInit, OnDestroy {
       codigo_contrato: [''],
       documentos: this.fb.array<DocGrupo>([])
     });
+
     this.documentosArray = this.formDoc.get('documentos') as FormArray<DocGrupo>;
 
     // Carga de la jerarquía
     this.docSrv.mostrar_jerarquia_gestion_documental().subscribe({
       next: (data) => {
         this.gruposHojas = this.agruparHojas(data);
-        this.gruposHojas.forEach((g) =>
-          g.hijos.forEach((h) => (this.hojasPorId[h.id] = h))
-        );
+
+        // mapa rápido por id (para label / flags como codigo_contrato)
+        this.gruposHojas.forEach((g) => g.hijos.forEach((h) => (this.hojasPorId[h.id] = h)));
 
         // Reacciona a selección de tipos documentales
         this.formDoc
           .get('tipo_documental')!
           .valueChanges.pipe(takeUntil(this.destroy$))
-          .subscribe((ids: number[]) => {
-            this.syncDocumentosArray(ids);
-            this.toggleContrato(ids);
+          .subscribe((ids: number[] | null) => {
+            const safeIds = Array.isArray(ids) ? ids : [];
+            this.syncDocumentosArray(safeIds);
+            this.toggleContrato(safeIds);
           });
       },
       error: () =>
-        Swal.fire(
-          'Error',
-          'No se pudo obtener la jerarquía de tipos documentales.',
-          'error'
-        )
+        Swal.fire('Error', 'No se pudo obtener la jerarquía de tipos documentales.', 'error')
     });
   }
 
   /* ───────── agrupa hojas ───────── */
   private agruparHojas(nodos: any[]): { padre: string; hijos: any[] }[] {
     const res: { padre: string; hijos: any[] }[] = [];
+
     const walk = (list: any[], padre: string) => {
       list.forEach((n: any) => {
         if (Array.isArray(n.subtypes) && n.subtypes.length) {
@@ -112,6 +113,7 @@ export class UploadDocumentsComponent implements OnInit, OnDestroy {
         }
       });
     };
+
     walk(nodos, 'Raíz');
     return res;
   }
@@ -120,11 +122,15 @@ export class UploadDocumentsComponent implements OnInit, OnDestroy {
   private toggleContrato(ids: number[]): void {
     const requiere = ids.some((id) => !!this.hojasPorId[id]?.codigo_contrato);
     const ctrl = this.formDoc.get('codigo_contrato');
+
     if (requiere) {
       ctrl?.setValidators([Validators.required]);
     } else {
       ctrl?.clearValidators();
+      // opcional: limpia el valor si ya no se requiere
+      // ctrl?.setValue('', { emitEvent: false });
     }
+
     ctrl?.updateValueAndValidity({ emitEvent: false });
   }
 
@@ -133,10 +139,14 @@ export class UploadDocumentsComponent implements OnInit, OnDestroy {
     // Eliminar controles no seleccionados
     for (let i = this.documentosArray.length - 1; i >= 0; i--) {
       const id = this.documentosArray.at(i).controls.tipoId.value;
+
       if (!ids.includes(id)) {
         this.documentosArray.removeAt(i);
+
+        // limpia recursos asociados
         this.revokeUrl(id);
         delete this.uploadedFiles[id];
+
         if (this.selectedDocId === id) {
           this.selectedDocId = null;
           this.selectedPdfUrl = null;
@@ -146,9 +156,8 @@ export class UploadDocumentsComponent implements OnInit, OnDestroy {
 
     // Agregar controles nuevos
     ids.forEach((id) => {
-      const existe = this.documentosArray.controls.some(
-        (c) => c.controls.tipoId.value === id
-      );
+      const existe = this.documentosArray.controls.some((c) => c.controls.tipoId.value === id);
+
       if (!existe) {
         const grupo = this.fb.group({
           tipoId: this.fb.nonNullable.control(id),
@@ -165,11 +174,7 @@ export class UploadDocumentsComponent implements OnInit, OnDestroy {
     const input = evt.target as HTMLInputElement;
     const file = input.files?.[0];
 
-    if (
-      !file ||
-      file.type !== 'application/pdf' ||
-      !file.name.toLowerCase().endsWith('.pdf')
-    ) {
+    if (!file || file.type !== 'application/pdf' || !file.name.toLowerCase().endsWith('.pdf')) {
       Swal.fire('Archivo no válido', 'Solo se permiten PDF.', 'error');
       input.value = '';
       return;
@@ -189,16 +194,17 @@ export class UploadDocumentsComponent implements OnInit, OnDestroy {
     };
 
     // setea el File al formArray
-    const idx = this.documentosArray.controls.findIndex(
-      (c) => c.controls.tipoId.value === tipoId
-    );
+    const idx = this.documentosArray.controls.findIndex((c) => c.controls.tipoId.value === tipoId);
     if (idx !== -1) {
-      this.documentosArray.at(idx).controls.archivo.setValue(file);
-      this.documentosArray.at(idx).controls.archivo.markAsDirty();
-      this.documentosArray.at(idx).controls.archivo.markAsTouched();
+      const ctrl = this.documentosArray.at(idx).controls.archivo;
+      ctrl.setValue(file);
+      ctrl.markAsDirty();
+      ctrl.markAsTouched();
+      ctrl.updateValueAndValidity({ emitEvent: false });
     }
 
     this.selectPreview(tipoId);
+
     // Limpia el input para permitir volver a seleccionar el mismo archivo si se desea
     input.value = '';
   }
@@ -207,9 +213,11 @@ export class UploadDocumentsComponent implements OnInit, OnDestroy {
   selectPreview(tipoId: number): void {
     const data = this.uploadedFiles[tipoId];
     if (!data) return;
+
     this.selectedDocId = tipoId;
     this.selectedPdfUrl = data.url;
   }
+
   verArchivo(tipoId: number): void {
     this.selectPreview(tipoId);
   }
@@ -243,8 +251,12 @@ export class UploadDocumentsComponent implements OnInit, OnDestroy {
       const results = await Promise.all(
         docs.map(async (docCtrl) => {
           const tipoId = docCtrl.controls.tipoId.value;
-          const file = docCtrl.controls.archivo.value!;
+          const file = docCtrl.controls.archivo.value;
           const hoja = this.hojasPorId[tipoId];
+
+          if (!file) {
+            return { ok: false, tipo: hoja?.name || `Tipo ${tipoId}`, err: 'Archivo vacío' };
+          }
 
           // Si la hoja requiere contrato, lo enviamos; de lo contrario undefined
           const enviarContrato = hoja?.codigo_contrato ? codigo_contrato : undefined;
@@ -252,11 +264,11 @@ export class UploadDocumentsComponent implements OnInit, OnDestroy {
           try {
             await firstValueFrom(
               this.gestionDocSrv.guardarDocumento(
-                file.name,               // fileName real
-                numero_documento,        // cédula / número de documento
-                tipoId,                  // tipo documental
-                file,                    // archivo
-                enviarContrato           // (opcional) contrato
+                file.name, // fileName real
+                numero_documento, // cédula / número de documento
+                tipoId, // tipo documental
+                file, // archivo
+                enviarContrato // (opcional) contrato
               )
             );
             return { ok: true, tipo: hoja?.name || file.name };
@@ -286,22 +298,38 @@ export class UploadDocumentsComponent implements OnInit, OnDestroy {
 
       // Reset completo solo si TODOS subieron
       if (!fallidos.length) {
-        this.formDoc.reset({
-          tipo_documental: [],
-          numero_documento: '',
-          codigo_contrato: ''
-        });
-        // limpia array
-        while (this.documentosArray.length) this.documentosArray.removeAt(0);
-        // limpia urls
-        Object.keys(this.uploadedFiles).forEach((id) => this.revokeUrl(+id));
-        this.uploadedFiles = {};
-        this.selectedDocId = null;
-        this.selectedPdfUrl = null;
+        this.resetAll();
       }
     } catch {
       Swal.fire('Error', 'Ocurrió un error inesperado al subir los documentos.', 'error');
     }
+  }
+
+  /* ───────── reset total ───────── */
+  private resetAll(): void {
+    this.formDoc.reset(
+      {
+        tipo_documental: [],
+        numero_documento: '',
+        codigo_contrato: ''
+      },
+      { emitEvent: false }
+    );
+
+    // limpia array
+    while (this.documentosArray.length) this.documentosArray.removeAt(0);
+
+    // limpia urls
+    Object.keys(this.uploadedFiles).forEach((id) => this.revokeUrl(+id));
+    this.uploadedFiles = {};
+
+    this.selectedDocId = null;
+    this.selectedPdfUrl = null;
+
+    // fuerza validators (por si quedó required en contrato)
+    this.toggleContrato([]);
+
+    // nota: si quieres disparar el valueChanges de tipo_documental, hazlo manual con emitEvent:true
   }
 
   /* ───────── limpia object URLs ───────── */
@@ -317,7 +345,9 @@ export class UploadDocumentsComponent implements OnInit, OnDestroy {
     Object.keys(this.uploadedFiles).forEach((id) => this.revokeUrl(+id));
   }
 
-  trackByIndex(index: number) { return index; }
+  trackByIndex(index: number): number {
+    return index;
+  }
 
   onClickSubidaMasiva(): void {
     // limpia selección previa y abre picker
@@ -356,8 +386,10 @@ export class UploadDocumentsComponent implements OnInit, OnDestroy {
       preConfirm: () => {
         const contract_from_filename =
           (document.getElementById('optContract') as HTMLInputElement)?.checked ?? true;
+
         const default_contract =
           (document.getElementById('optDefault') as HTMLInputElement)?.value?.trim() || '';
+
         return { contract_from_filename, default_contract };
       }
     });
@@ -376,6 +408,7 @@ export class UploadDocumentsComponent implements OnInit, OnDestroy {
         contract_from_filename: !!opts?.contract_from_filename,
         default_contract: opts?.default_contract || undefined
       })
+      .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (res) => {
           Swal.close();
@@ -392,9 +425,9 @@ export class UploadDocumentsComponent implements OnInit, OnDestroy {
 
   private mostrarResumenCarga(res: any): void {
     const processed = res?.processed ?? 0;
-    const created   = res?.created ?? 0;
-    const skipped   = res?.skipped ?? 0;
-    const errors    = res?.errors ?? 0;
+    const created = res?.created ?? 0;
+    const skipped = res?.skipped ?? 0;
+    const errors = res?.errors ?? 0;
 
     const primerosErrores = (res?.items ?? [])
       .filter((x: any) => x.status === 'error')
@@ -416,5 +449,4 @@ export class UploadDocumentsComponent implements OnInit, OnDestroy {
       `
     });
   }
-
 }

@@ -31,9 +31,9 @@
               user?.correo_electronico === 'archivotualianza2@gmail.com' ||
               user?.correo_electronico === 'archivotualianza3@gmail.com' ||
               user?.correo_electronico === 'contratacionzipa.ts@gmail.com' ||
-              user?.correo_electronico === 'Contratacionnorte.ts@gmail.com'||
-              user?.correo_electronico === 'contratacionsuba.ts@gmail.com'||
-              user?.correo_electronico === 'gestionhumanatocancipa1.ts@gmail.com'||
+              user?.correo_electronico === 'contratacionnorte.ts@gmail.com' ||
+              user?.correo_electronico === 'contratacionsuba.ts@gmail.com' ||
+              user?.correo_electronico === 'gestionhumanatocancipa1.ts@gmail.com' ||
               user?.correo_electronico === 'seleccionsuba.ts@gmail.com'
             "
             (click)="exportarExcelFaltantes()">
@@ -85,10 +85,7 @@
           <ng-container matColumnDef="fecha_ingreso">
             <th mat-header-cell *matHeaderCellDef>Fecha ingreso</th>
             <td mat-cell *matCellDef="let e">
-              {{
-              e.fecha_ingreso
-              ? (e.fecha_ingreso | date : 'dd-MM-yyyy')
-              : ''
+              {{ e.fecha_ingreso ? (e.fecha_ingreso | date : 'dd-MM-yyyy') : ''
               }}
             </td>
           </ng-container>
@@ -103,11 +100,8 @@
           <ng-container matColumnDef="fecha_contratacion">
             <th mat-header-cell *matHeaderCellDef>Fecha Contratación</th>
             <td mat-cell *matCellDef="let e">
-              {{
-              e.fecha_contratacion
-              ? (e.fecha_contratacion | date : 'dd-MM-yyyy')
-              : ''
-              }}
+              {{ e.fecha_contratacion ? (e.fecha_contratacion | date :
+              'dd-MM-yyyy') : '' }}
             </td>
           </ng-container>
 
@@ -119,25 +113,60 @@
 
             <td mat-cell *matCellDef="let e">
               <ng-container *ngIf="e.docs && e.docs[t.id] as cell; else noDoc">
-                <!-- Si hay URL, linkea el check; si no, solo check; si no existe, X -->
-                <a
-                  *ngIf="cell.url; else checkOrX"
-                  [href]="cell.url"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  matTooltip="Ver documento">
-                  <mat-icon color="primary">check_circle</mat-icon>
-                </a>
 
-                <ng-template #checkOrX>
-                  <mat-icon *ngIf="cell.exists"
-                    color="primary">check_circle</mat-icon>
-                  <mat-icon *ngIf="!cell.exists" color="warn">cancel</mat-icon>
+                <!-- 1) NO existe => X -->
+                <ng-container *ngIf="!cell.exists; else existeDoc">
+                  <mat-icon color="warn"
+                    matTooltip="No existe">cancel</mat-icon>
+                </ng-container>
+
+                <!-- 2) Existe -->
+                <ng-template #existeDoc>
+
+                  <!-- 2.1) Existe y está vigente (<=15 días) => ✓ -->
+                  <ng-container *ngIf="cell.vigente15d; else existePeroViejo">
+                    <a
+                      *ngIf="cell.url; else checkSinUrl"
+                      [href]="cell.url"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      matTooltip="Documento vigente (<= 15 días)">
+                      <mat-icon color="primary">check_circle</mat-icon>
+                    </a>
+
+                    <ng-template #checkSinUrl>
+                      <mat-icon color="primary"
+                        matTooltip="Documento vigente (<= 15 días)">
+                        check_circle
+                      </mat-icon>
+                    </ng-template>
+                  </ng-container>
+
+                  <!-- 2.2) Existe pero NO está vigente (>15 días) => warning -->
+                  <ng-template #existePeroViejo>
+                    <a
+                      *ngIf="cell.url; else warnSinUrl"
+                      [href]="cell.url"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      matTooltip="Existe, pero supera 15 días">
+                      <mat-icon color="warn">warning_amber</mat-icon>
+                    </a>
+
+                    <ng-template #warnSinUrl>
+                      <mat-icon color="warn"
+                        matTooltip="Existe, pero supera 15 días">
+                        warning_amber
+                      </mat-icon>
+                    </ng-template>
+                  </ng-template>
+
                 </ng-template>
               </ng-container>
 
+              <!-- si no hay cell en el mapa -->
               <ng-template #noDoc>
-                <mat-icon color="warn">cancel</mat-icon>
+                <mat-icon color="warn" matTooltip="No existe">cancel</mat-icon>
               </ng-template>
             </td>
           </ng-container>

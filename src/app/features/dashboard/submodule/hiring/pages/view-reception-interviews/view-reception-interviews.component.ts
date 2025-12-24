@@ -2,8 +2,10 @@ import { isPlatformBrowser } from '@angular/common';
 import { Component, DestroyRef, Inject, OnInit, PLATFORM_ID } from '@angular/core';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import Swal from 'sweetalert2';
 import { finalize } from 'rxjs/operators';
+
+// ❌ NO import estático de Swal (evita problemas SSR/prerender)
+// import Swal from 'sweetalert2';
 
 import { SharedModule } from '@/app/shared/shared.module';
 import { DateRangeDialogComponent } from '@/app/shared/components/date-rang-dialog/date-rang-dialog.component';
@@ -146,9 +148,9 @@ export class ViewReceptionInterviewsComponent implements OnInit {
       )
       .subscribe({
         next: (data) => (this.rows = this.flattenCandidates(data || [])),
-        error: (err) => {
+        error: async (err) => {
           console.error(err);
-          Swal.fire('Error', 'No se pudo cargar la información de hoy.', 'error');
+          await this.swalFire('Error', 'No se pudo cargar la información de hoy.', 'error');
           this.rows = [];
         },
       });
@@ -165,12 +167,11 @@ export class ViewReceptionInterviewsComponent implements OnInit {
     ref
       .afterClosed()
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe((raw: any) => {
+      .subscribe(async (raw: any) => {
         const meta = this.extractRangeMeta(raw);
 
         if (!meta) {
-          // ✅ ya no “se queda callado” (así te das cuenta si el diálogo no devuelve nada)
-          Swal.fire('Atención', 'Debes seleccionar un rango de fechas válido.', 'info');
+          await this.swalFire('Atención', 'Debes seleccionar un rango de fechas válido.', 'info');
           return;
         }
 
@@ -179,16 +180,14 @@ export class ViewReceptionInterviewsComponent implements OnInit {
   }
 
   // =========================================================
-  // ✅ Aquí arreglamos el problema: soporta múltiples llaves/formats
+  // ✅ soporta múltiples llaves/formats
   // =========================================================
   private extractRangeMeta(raw: any): { from: string; to: string; oficina?: string } | null {
     if (!raw) return null;
 
-    // soporta: from/to, start/end, startDate/endDate, desde/hasta, fechaInicio/fechaFin
     const fromRaw =
       raw.from ?? raw.start ?? raw.startDate ?? raw.dateFrom ?? raw.desde ?? raw.fechaInicio ?? raw.fecha_inicio;
-    const toRaw =
-      raw.to ?? raw.end ?? raw.endDate ?? raw.dateTo ?? raw.hasta ?? raw.fechaFin ?? raw.fecha_fin;
+    const toRaw = raw.to ?? raw.end ?? raw.endDate ?? raw.dateTo ?? raw.hasta ?? raw.fechaFin ?? raw.fecha_fin;
 
     const fromDate = this.coerceToDate(fromRaw);
     if (!fromDate) return null;
@@ -198,7 +197,9 @@ export class ViewReceptionInterviewsComponent implements OnInit {
     const from = this.formatDateYYYYMMDD(fromDate);
     const to = this.formatDateYYYYMMDD(toDate);
 
-    const oficina = this.normalizeOffice(raw.oficina ?? raw.office ?? raw.sede ?? raw.oficinaSeleccionada ?? this.oficina);
+    const oficina = this.normalizeOffice(
+      raw.oficina ?? raw.office ?? raw.sede ?? raw.oficinaSeleccionada ?? this.oficina,
+    );
 
     return { from, to, oficina };
   }
@@ -213,7 +214,7 @@ export class ViewReceptionInterviewsComponent implements OnInit {
     const s = String(value).trim();
     if (!s) return null;
 
-    // yyyy-mm-dd -> crear Date LOCAL (evita corrimientos por UTC)
+    // yyyy-mm-dd -> Date LOCAL
     const m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
     if (m) {
       const y = Number(m[1]);
@@ -223,7 +224,6 @@ export class ViewReceptionInterviewsComponent implements OnInit {
       return isNaN(dt.getTime()) ? null : dt;
     }
 
-    // fallback
     const dt = new Date(s);
     return isNaN(dt.getTime()) ? null : dt;
   }
@@ -233,29 +233,23 @@ export class ViewReceptionInterviewsComponent implements OnInit {
 
     const labelOffice = meta.oficina ? ` | Oficina: ${meta.oficina}` : '';
 
-    Swal.fire({
-      title: 'Generando Excel...',
-      text: `Rango ${meta.from} → ${meta.to}${labelOffice}`,
-      allowOutsideClick: false,
-      didOpen: () => Swal.showLoading(),
-    });
+    this.swalLoading('Generando Excel...', `Rango ${meta.from} → ${meta.to}${labelOffice}`);
 
-    // ✅ AQUÍ es donde debe verse el GET en Network sí o sí
     this.infoVacantesService
       .getCandidatosEntrevistasRango({ from: meta.from, to: meta.to, full: true, oficina: meta.oficina })
       .pipe(
-        finalize(() => Swal.close()),
+        finalize(() => this.swalClose()),
         takeUntilDestroyed(this.destroyRef),
       )
       .subscribe({
         next: async (data) => {
           const rows = this.flattenCandidates(data || []);
           await this.buildAndDownloadExcel(rows, meta);
-          Swal.fire('Listo', 'Excel generado correctamente.', 'success');
+          await this.swalFire('Listo', 'Excel generado correctamente.', 'success');
         },
-        error: (err) => {
+        error: async (err) => {
           console.error(err);
-          Swal.fire('Error', 'No se pudo generar el Excel del rango.', 'error');
+          await this.swalFire('Error', 'No se pudo generar el Excel del rango.', 'error');
         },
       });
   }
@@ -273,7 +267,7 @@ export class ViewReceptionInterviewsComponent implements OnInit {
   }
 
   // =========================================================
-  // 👇 Tu lógica existente (sin cambios funcionales)
+  // 👇 Data mapping
   // =========================================================
   private flattenCandidates(candidatos: any[]): FlatRow[] {
     return (candidatos || []).map((c) => {
@@ -300,9 +294,7 @@ export class ViewReceptionInterviewsComponent implements OnInit {
       );
 
       const formNivel = this.uniqueJoin(
-        formaciones
-          .map((x) => x?.nivel || x?.nivel_educativo || x?.titulo || x?.formacion || x?.grado)
-          .filter(Boolean),
+        formaciones.map((x) => x?.nivel || x?.nivel_educativo || x?.titulo || x?.formacion || x?.grado).filter(Boolean),
       );
 
       const hijosTiene = hijos.length > 0;
@@ -360,7 +352,7 @@ export class ViewReceptionInterviewsComponent implements OnInit {
         viv_convive: vivienda?.personas_con_quien_convive ?? vivienda?.convive_con ?? '',
         viv_estudia: this.yesNo(vivienda?.estudia_actualmente ?? vivienda?.estudia),
 
-        proc_aplica: proceso?.aplica ?? proceso?.aplica_no_aplica ?? '',
+        proc_aplica: proceso?.aplica ?? proceso?.aplica_o_no_aplica ?? '',
         proc_motivo_no_aplica: proceso?.motivo_no_aplica ?? '',
         proc_motivo_espera: proceso?.motivo_espera ?? proceso?.motivo_en_espera ?? '',
 
@@ -376,27 +368,76 @@ export class ViewReceptionInterviewsComponent implements OnInit {
   private pickLastInterview(entrevistas: any[]): any | null {
     if (!entrevistas?.length) return null;
     return entrevistas.reduce((best, cur) => {
-      const bd = new Date(best?.updated_at || best?.created_at || 0).getTime();
-      const cd = new Date(cur?.updated_at || cur?.created_at || 0).getTime();
+      const bd = this.parseServerDate(best?.updated_at || best?.created_at)?.getTime() ?? 0;
+      const cd = this.parseServerDate(cur?.updated_at || cur?.created_at)?.getTime() ?? 0;
       return cd >= bd ? cur : best;
     }, entrevistas[0]);
   }
 
   private toDate(value: any): Date | null {
+    return this.parseServerDate(value);
+  }
+
+  /**
+   * - Con zona (Z o +hh:mm) => new Date(...)
+   * - Sin zona (yyyy-mm-ddTHH:mm:ss o "yyyy-mm-dd HH:mm:ss") => se asume UTC
+   * - Solo fecha yyyy-mm-dd => fecha local
+   */
+  private parseServerDate(value: any): Date | null {
     if (!value) return null;
-    const d = value instanceof Date ? value : new Date(value);
+
+    if (value instanceof Date) {
+      return isNaN(value.getTime()) ? null : value;
+    }
+
+    const s0 = String(value).trim();
+    if (!s0) return null;
+
+    const s = s0.includes(' ') && !s0.includes('T') ? s0.replace(' ', 'T') : s0;
+
+    if (/[zZ]$/.test(s) || /[+-]\d{2}:\d{2}$/.test(s) || /[+-]\d{4}$/.test(s)) {
+      const d = new Date(s);
+      return isNaN(d.getTime()) ? null : d;
+    }
+
+    const m = s.match(/^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2})(?::(\d{2}))?(?:\.(\d{1,3}))?)?$/);
+    if (m) {
+      const y = Number(m[1]);
+      const mo = Number(m[2]);
+      const d = Number(m[3]);
+
+      if (!m[4]) {
+        const local = new Date(y, mo - 1, d);
+        return isNaN(local.getTime()) ? null : local;
+      }
+
+      const hh = Number(m[4]);
+      const mm = Number(m[5]);
+      const ss = m[6] ? Number(m[6]) : 0;
+      const ms = m[7] ? Number(String(m[7]).padEnd(3, '0')) : 0;
+
+      const utcMs = Date.UTC(y, mo - 1, d, hh, mm, ss, ms);
+      const utcDate = new Date(utcMs);
+      return isNaN(utcDate.getTime()) ? null : utcDate;
+    }
+
+    const d = new Date(s0);
     return isNaN(d.getTime()) ? null : d;
   }
 
   private calcAge(dateStr?: string): number | null {
     if (!dateStr) return null;
-    const d = new Date(dateStr);
+
+    // Si viene yyyy-mm-dd, usar local sin corrimiento
+    const m = String(dateStr).trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    const d = m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : new Date(dateStr);
+
     if (isNaN(d.getTime())) return null;
 
     const now = new Date();
     let age = now.getFullYear() - d.getFullYear();
-    const m = now.getMonth() - d.getMonth();
-    if (m < 0 || (m === 0 && now.getDate() < d.getDate())) age--;
+    const mm = now.getMonth() - d.getMonth();
+    if (mm < 0 || (mm === 0 && now.getDate() < d.getDate())) age--;
     return age;
   }
 
@@ -423,13 +464,9 @@ export class ViewReceptionInterviewsComponent implements OnInit {
     return Array.from(set).join(', ');
   }
 
-  private async buildAndDownloadExcel(
-    rows: FlatRow[],
-    meta: { from: string; to: string; oficina?: string },
-  ): Promise<void> {
+  private async buildAndDownloadExcel(rows: FlatRow[], meta: { from: string; to: string; oficina?: string }): Promise<void> {
     if (!this.isBrowser) return;
 
-    // ✅ Lazy load (evita SSR + reduce bundle)
     const excelJSImport: any = await import('exceljs');
     const WorkbookCtor = excelJSImport?.Workbook ?? excelJSImport?.default?.Workbook;
     if (!WorkbookCtor) throw new Error('No se pudo cargar ExcelJS.Workbook');
@@ -463,10 +500,21 @@ export class ViewReceptionInterviewsComponent implements OnInit {
 
     // ======= Título / Subtítulo =======
     const title = 'REPORTE DE ENTREVISTAS';
+
+    const generated = new Intl.DateTimeFormat('es-CO', {
+      timeZone: 'America/Bogota',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    }).format(new Date());
+
     const subtitleParts = [
       `Rango: ${meta.from} a ${meta.to}`,
       meta.oficina ? `Oficina: ${meta.oficina}` : null,
-      `Generado: ${new Date().toLocaleString()}`,
+      `Generado: ${generated}`,
     ].filter(Boolean) as string[];
 
     sheet.mergeCells(1, 1, 1, colCount);
@@ -492,15 +540,15 @@ export class ViewReceptionInterviewsComponent implements OnInit {
       style: { alignment: { vertical: 'top', wrapText: true } },
     }));
 
-    // ======= Header (fila 3) =======
+    // ======= Header (fila 3) ✅ sin columna vacía =======
     const headerRow = sheet.getRow(3);
-    headerRow.values = [null, ...this.EXPORT_COLS.map((c) => c.header)];
     headerRow.height = 34;
     headerRow.font = { bold: true, size: 11, color: { argb: HEADER_TXT } };
     headerRow.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
 
-    for (let c = 1; c <= colCount; c++) {
-      const cell = headerRow.getCell(c);
+    this.EXPORT_COLS.forEach((col, idx) => {
+      const cell = headerRow.getCell(idx + 1);
+      cell.value = col.header;
       cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: HEADER } };
       cell.border = {
         top: { style: 'thin', color: { argb: BORDER } },
@@ -508,14 +556,16 @@ export class ViewReceptionInterviewsComponent implements OnInit {
         bottom: { style: 'thin', color: { argb: BORDER } },
         right: { style: 'thin', color: { argb: BORDER } },
       };
-    }
+    });
 
     sheet.autoFilter = { from: { row: 3, column: 1 }, to: { row: 3, column: colCount } };
 
     // ======= Datos =======
+    const normalizeText = (v: any) => (typeof v === 'string' ? v.normalize('NFC') : v);
+
     const safeRows = (rows || []).map((r) => {
       const out: any = {};
-      this.EXPORT_COLS.forEach((c) => (out[c.key] = r?.[c.key] ?? ''));
+      this.EXPORT_COLS.forEach((c) => (out[c.key] = normalizeText(r?.[c.key] ?? '')));
       return out;
     });
 
@@ -524,12 +574,16 @@ export class ViewReceptionInterviewsComponent implements OnInit {
     // ======= Estilos por celda: zebra, bordes, formatos, SI/NO =======
     const lastRow = sheet.lastRow?.number ?? 3;
 
-    const dateKeys = new Set<string>(['entrevista_fecha_ultima']);
+    const dateKeys = new Set<string>([
+      'entrevista_fecha_ultima',
+      'cand_fecha_nac',
+      'infocc_fecha_expedicion',
+      'pub_fecha_prueba',
+    ]);
     const numKeys = new Set<string>(['cand_edad', 'hijos_cuantos']);
 
     const keyByIndex = (idx: number) => this.EXPORT_COLS[idx - 1]?.key;
 
-    // Ajuste: filas muy largas se ven mejor top-aligned, pero SI/NO centrado
     for (let r = 4; r <= lastRow; r++) {
       const row = sheet.getRow(r);
       row.height = 18;
@@ -540,7 +594,6 @@ export class ViewReceptionInterviewsComponent implements OnInit {
         const cell = row.getCell(c);
         const key = keyByIndex(c);
 
-        // base
         cell.border = {
           top: { style: 'thin', color: { argb: BORDER } },
           left: { style: 'thin', color: { argb: BORDER } },
@@ -550,18 +603,17 @@ export class ViewReceptionInterviewsComponent implements OnInit {
         cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: zebraFill } };
         cell.alignment = { vertical: 'top', horizontal: 'left', wrapText: true };
 
-        // fecha
+        // fechas
         if (key && dateKeys.has(key)) {
-          const v = cell.value as any;
-          const d = v instanceof Date ? v : v ? new Date(v) : null;
+          const d = this.parseServerDate(cell.value);
           if (d && !isNaN(d.getTime())) {
             cell.value = d;
-            cell.numFmt = 'yyyy-mm-dd hh:mm';
+            cell.numFmt = key === 'entrevista_fecha_ultima' ? 'yyyy-mm-dd hh:mm' : 'yyyy-mm-dd';
             cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
           }
         }
 
-        // número
+        // números
         if (key && numKeys.has(key)) {
           const v = cell.value as any;
           const n = typeof v === 'number' ? v : String(v).trim() ? Number(v) : NaN;
@@ -572,7 +624,7 @@ export class ViewReceptionInterviewsComponent implements OnInit {
           }
         }
 
-        // SI / NO
+        // SI / NO (colorea)
         const s = String(cell.value ?? '').trim().toUpperCase();
         if (s === 'SI' || s === 'SÍ') {
           cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: OK } };
@@ -588,8 +640,6 @@ export class ViewReceptionInterviewsComponent implements OnInit {
       row.commit();
     }
 
-    // ======= Ajustes finales =======
-    // Mejor lectura: imprimir en una página de ancho, y márgenes suaves
     sheet.pageSetup.margins = {
       left: 0.25,
       right: 0.25,
@@ -599,10 +649,7 @@ export class ViewReceptionInterviewsComponent implements OnInit {
       footer: 0.2,
     };
 
-    // ======= Filename =======
-    const baseName =
-      meta.from === meta.to ? `entrevistas_${meta.from}` : `entrevistas_${meta.from}_a_${meta.to}`;
-
+    const baseName = meta.from === meta.to ? `entrevistas_${meta.from}` : `entrevistas_${meta.from}_a_${meta.to}`;
     const safeOffice = meta.oficina ? String(meta.oficina).trim().replace(/\s+/g, '_') : '';
     const filename = safeOffice ? `${baseName}_${safeOffice}.xlsx` : `${baseName}.xlsx`;
 
@@ -614,4 +661,35 @@ export class ViewReceptionInterviewsComponent implements OnInit {
     saveAs(blob, filename);
   }
 
+  // =========================================================
+  // ✅ SweetAlert2 SSR-safe (lazy load)
+  // =========================================================
+  private async swal(): Promise<any | null> {
+    if (!this.isBrowser) return null;
+    const mod: any = await import('sweetalert2');
+    return mod?.default ?? mod;
+  }
+
+  private async swalFire(title: string, text: string, icon: 'success' | 'error' | 'info' | 'warning' | 'question') {
+    const Swal = await this.swal();
+    if (!Swal) return;
+    return Swal.fire({ title, text, icon });
+  }
+
+  private async swalLoading(title: string, text: string) {
+    const Swal = await this.swal();
+    if (!Swal) return;
+    return Swal.fire({
+      title,
+      text,
+      allowOutsideClick: false,
+      didOpen: () => Swal.showLoading(),
+    });
+  }
+
+  private async swalClose() {
+    const Swal = await this.swal();
+    if (!Swal) return;
+    Swal.close();
+  }
 }

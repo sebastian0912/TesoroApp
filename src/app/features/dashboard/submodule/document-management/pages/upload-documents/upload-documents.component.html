@@ -17,13 +17,14 @@
       </mat-menu>
 
       <!-- file input oculto -->
-      <input type="file" #zipInput accept=".zip" (change)="onZipSelected($event)" hidden>
+      <input type="file" #zipInput accept=".zip" (change)="onZipSelected($event)" hidden />
     </div>
 
     <form [formGroup]="formDoc" (ngSubmit)="onSubmit()">
       <!-- Selección múltiple de tipo documental -->
       <mat-form-field class="w-100">
         <mat-label>Tipo documental</mat-label>
+
         <mat-select formControlName="tipo_documental" multiple>
           <mat-optgroup *ngFor="let grupo of gruposHojas" [label]="grupo.padre">
             <mat-option *ngFor="let hoja of grupo.hijos" [value]="hoja.id">
@@ -31,9 +32,14 @@
             </mat-option>
           </mat-optgroup>
         </mat-select>
+
         <mat-hint>Selecciona uno o varios tipos.</mat-hint>
         <mat-error
-          *ngIf="formDoc.get('tipo_documental')?.hasError('required') && formDoc.get('tipo_documental')?.touched">
+          *ngIf="
+            formDoc.get('tipo_documental')?.hasError('required') &&
+            formDoc.get('tipo_documental')?.touched
+          "
+        >
           Selecciona al menos un tipo documental.
         </mat-error>
       </mat-form-field>
@@ -44,7 +50,11 @@
           <mat-label>Número de documento</mat-label>
           <input matInput formControlName="numero_documento" />
           <mat-error
-            *ngIf="formDoc.get('numero_documento')?.hasError('required') && formDoc.get('numero_documento')?.touched">
+            *ngIf="
+              formDoc.get('numero_documento')?.hasError('required') &&
+              formDoc.get('numero_documento')?.touched
+            "
+          >
             El número de documento es obligatorio.
           </mat-error>
         </mat-form-field>
@@ -52,11 +62,17 @@
         <mat-form-field class="w-100">
           <mat-label>Código de contrato</mat-label>
           <input matInput formControlName="codigo_contrato" />
+
           <mat-hint *ngIf="!formDoc.get('codigo_contrato')?.hasError('required')">
             Solo se exige si alguno de los tipos lo requiere.
           </mat-hint>
+
           <mat-error
-            *ngIf="formDoc.get('codigo_contrato')?.hasError('required') && formDoc.get('codigo_contrato')?.touched">
+            *ngIf="
+              formDoc.get('codigo_contrato')?.hasError('required') &&
+              formDoc.get('codigo_contrato')?.touched
+            "
+          >
             El código de contrato es obligatorio para al menos uno de los seleccionados.
           </mat-error>
         </mat-form-field>
@@ -73,22 +89,34 @@
       <div class="documentos-panel">
         <!-- Sidebar izquierda -->
         <div class="documentos-sidebar" formArrayName="documentos" *ngIf="documentosArray as docs">
-          <div class="upload-item" *ngFor="let docCtrl of docs.controls; let i = index; trackBy: trackByIndex"
-            [formGroupName]="i">
-
-            <!-- Asegura tipoId definido para usarlo en todo el bloque -->
-            <ng-container *ngIf="docCtrl.value.tipoId as tipoId">
-
+          <div
+            class="upload-item"
+            *ngFor="let docCtrl of docs.controls; let i = index; trackBy: trackByIndex"
+            [formGroupName]="i"
+          >
+            <!-- ✅ Lee el tipoId desde el control (más estable que docCtrl.value) -->
+            <ng-container *ngIf="docCtrl.controls.tipoId.value as tipoId">
               <div [class.selected]="selectedDocId === tipoId">
                 <mat-form-field appearance="fill" class="w-100">
                   <mat-label>{{ hojasPorId[tipoId]?.name }}</mat-label>
 
-                  <!-- nombre del archivo (acceso seguro) -->
-                  <input matInput [value]="uploadedFiles[tipoId].fileName" readonly class="clickable"
-                    (click)="uploadedFiles[tipoId] && selectPreview(tipoId)" />
+                  <!-- ✅ nombre del archivo (acceso seguro) -->
+                  <input
+                    matInput
+                    [value]="uploadedFiles[tipoId]?.fileName ?? 'Selecciona un PDF...'"
+                    readonly
+                    class="clickable"
+                    (click)="uploadedFiles[tipoId] && selectPreview(tipoId)"
+                  />
 
-                  <button mat-icon-button matSuffix [matMenuTriggerFor]="menu" aria-label="Opciones de PDF"
-                    type="button" (click)="$event.stopPropagation()">
+                  <button
+                    mat-icon-button
+                    matSuffix
+                    [matMenuTriggerFor]="menu"
+                    aria-label="Opciones de PDF"
+                    type="button"
+                    (click)="$event.stopPropagation()"
+                  >
                     <mat-icon>more_vert</mat-icon>
                   </button>
 
@@ -99,16 +127,25 @@
 
                 <!-- Menú de acciones -->
                 <mat-menu #menu="matMenu">
-                  <button mat-menu-item type="button" (click)="selectPreview(tipoId)"
-                    [disabled]="!uploadedFiles[tipoId]">
+                  <button
+                    mat-menu-item
+                    type="button"
+                    (click)="selectPreview(tipoId)"
+                    [disabled]="!uploadedFiles[tipoId]"
+                  >
                     Ver PDF aquí
                   </button>
 
                   <button mat-menu-item type="button">
                     <label [for]="'fileInput' + tipoId" class="cursor-pointer">
                       Subir PDF
-                      <input type="file" accept="application/pdf" [id]="'fileInput' + tipoId" hidden
-                        (change)="subirArchivo($event, tipoId)" />
+                      <input
+                        type="file"
+                        accept="application/pdf"
+                        [id]="'fileInput' + tipoId"
+                        hidden
+                        (change)="subirArchivo($event, tipoId)"
+                      />
                     </label>
                   </button>
                 </mat-menu>

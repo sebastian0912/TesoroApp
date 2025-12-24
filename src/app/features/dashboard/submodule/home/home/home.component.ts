@@ -18,7 +18,6 @@ import { firstValueFrom } from 'rxjs';
 
 import { UtilityServiceService } from '../../../../../shared/services/utilityService/utility-service.service';
 import { MerchandisingMerchandiseComponent } from '../components/merchandising-merchandise/merchandising-merchandise.component';
-import { RobotTrackingComponent } from '../components/robot-tracking/robot-tracking.component';
 import { InfoCardComponent } from '@/app/shared/components/info-card/info-card.component';
 import {
   HomeService,
@@ -57,7 +56,6 @@ type ProgresoTipoPrioridadRow = {
     MatSelectModule,
 
     MerchandisingMerchandiseComponent,
-    RobotTrackingComponent,
     InfoCardComponent,
   ],
   templateUrl: './home.component.html',
@@ -72,51 +70,19 @@ export class HomeComponent implements OnInit {
   traslado = false;
 
   isSidebarHidden = false;
-  robotsHome = false;
-
-  // ===== FULL =====
-  isLoadingFull = false;
-  robotsFull: any[] = [];
-  fullColumns: ColumnDefinition[] = [];
 
   // ===== PROGRESO (ALL JSON CACHE) =====
   isLoadingProgresoAll = false;
   totalRegistros = 0;
-  private progresoAllCache: ProgresoPrioridadesAllResponse | null = null;
 
-  // ===== PROGRESO (por cada PDF) =====
-  progresoByPdf: Partial<Record<PdfKey, ProgresoRow[]>> = {};
-  isLoadingByPdf: Partial<Record<PdfKey, boolean>> = {};
 
-  // ===== PROGRESO (tabla que te importa: tipo, prioridad, llevas, cuantos) =====
-  progresoTipoPrioridad: ProgresoTipoPrioridadRow[] = [];
-  progresoTipoPrioridadColumns: ColumnDefinition[] = [];
-
-  // ===== PROGRESO (seleccionado - si lo sigues usando) =====
-  isLoadingProgreso = false;
   progreso: ProgresoRow[] = [];
   progresoColumns: ColumnDefinition[] = [];
   currentPdfLabel = '—';
 
-  // ===== SELECTOR PDF =====
-  pdfCtrl = new FormControl<PdfKey>('adress', { nonNullable: true });
-
-  pdfOptions: PdfOption[] = [
-    { key: 'adress', label: 'ADRES' },
-    { key: 'policivo', label: 'POLICIVOS' },
-    { key: 'ofac', label: 'OFAC' },
-    { key: 'contraloria', label: 'CONTRALORÍA' },
-    { key: 'sisben', label: 'SISBÉN' },
-    { key: 'procuraduria', label: 'PROCURADURÍA' },
-    { key: 'fondo', label: 'AFP (Fondo pensión)' },
-  ];
-
   // ====== (esto ya no se usa en el HTML nuevo, pero lo dejo por si lo usas en otros lados) ======
   paqueteCtrl = new FormControl<string>('', { nonNullable: true });
   paquetes: string[] = [];
-
-  // Ojo: tu backend devuelve "Sin Pasado", por eso lo incluyo
-  private readonly STATUS_OPTIONS = ['SIN_CONSULTAR', 'EN_PROGRESO', 'FINALIZADO', 'ERROR', 'Sin Pasado'];
 
   private readonly HEADER_ALIASES: Record<string, string[]> = {
     Identificación: [
@@ -152,290 +118,7 @@ export class HomeComponent implements OnInit {
 
   ngOnInit(): void {
     this.initializeUserRoles();
-    this.buildColumns();
-
-    const first = this.pdfOptions[0]?.key ?? 'adress';
-    if (!this.pdfCtrl.value) this.pdfCtrl.setValue(first);
-
-    void this.initData();
   }
-
-  private async initData(): Promise<void> {
-    void this.cargarRobotsFull();
-
-    // ✅ caso 2: una sola llamada trae TODO
-    await this.loadProgresoAll();
-
-    // si aún mantienes el “selector” (tabla por PDF)
-    await this.loadProgresoSelected();
-  }
-
-  // ===========================
-  // ACCIONES UI
-  // ===========================
-
-  reloadAll(): void {
-    void this.cargarRobotsFull();
-    void this.loadProgresoAll().then(() => this.loadProgresoSelected());
-  }
-
-  openPdf(url?: string | null): void {
-    if (!url || !String(url).trim()) return;
-    window.open(String(url), '_blank', 'noopener,noreferrer');
-  }
-
-  // ===========================
-  // PROGRESO (CASO 2)
-  // ===========================
-
-  // (Opcional) tabla por PDF seleccionado
-  async loadProgresoSelected(): Promise<void> {
-    const pdfKey = this.pdfCtrl.value;
-    const opt = this.pdfOptions.find((o) => o.key === pdfKey);
-    this.currentPdfLabel = opt?.label ?? pdfKey;
-
-    if (!this.progresoAllCache) {
-      await this.loadProgresoAll();
-    }
-
-    this.isLoadingProgreso = true;
-    try {
-      this.progreso = this.progresoByPdf[pdfKey] ?? [];
-    } finally {
-      this.isLoadingProgreso = false;
-    }
-  }
-
-  // ✅ trae TODO y arma:
-  async loadProgresoAll(): Promise<void> {
-    this.isLoadingProgresoAll = true;
-    for (const p of this.pdfOptions) this.isLoadingByPdf[p.key] = true;
-
-    try {
-      const resp = await firstValueFrom(this.homeService.getProgresoPrioridadesAll());
-      this.progresoAllCache = resp ?? null;
-
-      // ✅ según tu JSON real
-      this.totalRegistros = Number((resp as any)?.total_registros ?? 0);
-
-      // 1) normaliza por PDF
-      for (const p of this.pdfOptions) {
-        const block = resp?.por_pdf?.[p.key];
-        const rows = Array.isArray(block?.por_prioridad) ? block!.por_prioridad : [];
-        this.progresoByPdf[p.key] = rows.map((r: any) => ({
-          prioridad: String(r?.prioridad ?? 'SIN_PRIORIDAD'),
-          total: Number(r?.total ?? 0),
-          llevas: Number(r?.llevas ?? 0),
-          faltan: Number(r?.faltan ?? 0),
-        }));
-      }
-
-      // 2) arma tabla plana “tipo/prioridad/llevas/cuantos”
-      this.progresoTipoPrioridad = this.flattenTipoPrioridad();
-    } catch (e) {
-      console.error(e);
-      this.progresoAllCache = null;
-      this.totalRegistros = 0;
-
-      for (const p of this.pdfOptions) this.progresoByPdf[p.key] = [];
-      this.progresoTipoPrioridad = [];
-
-      await Swal.fire({
-        icon: 'error',
-        title: 'Error',
-        text: 'No se pudo cargar /Robots/progreso-prioridades/ (ALL).',
-      });
-    } finally {
-      for (const p of this.pdfOptions) this.isLoadingByPdf[p.key] = false;
-      this.isLoadingProgresoAll = false;
-    }
-  }
-
-  private flattenTipoPrioridad(): ProgresoTipoPrioridadRow[] {
-    const out: ProgresoTipoPrioridadRow[] = [];
-
-    const prioridadOrder = (p: string): number => {
-      const s = String(p ?? '').trim();
-      if (!s) return 999999;
-      const n = Number(s);
-      if (Number.isFinite(n) && s === String(n)) return n;
-      // SIN_PRIORIDAD al final
-      return s.toUpperCase() === 'SIN_PRIORIDAD' ? 999998 : 999997;
-    };
-
-    for (const opt of this.pdfOptions) {
-      const rows = this.progresoByPdf[opt.key] ?? [];
-      for (const r of rows) {
-        out.push({
-          pdf: opt.key,
-          tipo: opt.label,
-          prioridad: String(r?.prioridad ?? 'SIN_PRIORIDAD'),
-          llevas: Number(r?.llevas ?? 0),
-          faltan: Number(r?.faltan ?? 0),
-          total: Number(r?.total ?? 0),
-        });
-      }
-    }
-
-    // ordena por: orden del pdfOptions, luego prioridad numérica
-    const pdfIndex = new Map<PdfKey, number>(this.pdfOptions.map((p, i) => [p.key, i]));
-    out.sort((a, b) => {
-      const ai = pdfIndex.get(a.pdf) ?? 999;
-      const bi = pdfIndex.get(b.pdf) ?? 999;
-      if (ai !== bi) return ai - bi;
-      return prioridadOrder(a.prioridad) - prioridadOrder(b.prioridad);
-    });
-
-    return out;
-  }
-
-  // ===========================
-  // MAPEOS / COLUMNAS
-  // ===========================
-
-  private mapFullRow(r: any): any {
-    return {
-      oficina: r?.oficina ?? null,
-
-      robot: r?.Robot ?? r?.robot ?? null,
-      cedula: r?.Cedula ?? r?.cedula ?? null,
-      tipo_documento: r?.Tipo_documento ?? r?.tipo_documento ?? null,
-
-      estado_adress: r?.Estado_Adress ?? r?.estado_adress ?? null,
-      apellido_adress: r?.Apellido_Adress ?? r?.apellido_adress ?? null,
-      entidad_adress: r?.Entidad_Adress ?? r?.entidad_adress ?? null,
-      pdf_adress: r?.PDF_Adress ?? r?.pdf_adress ?? null,
-      fecha_adress: r?.Fecha_Adress ?? r?.fecha_adress ?? null,
-
-      estado_policivo: r?.Estado_Policivo ?? r?.estado_policivo ?? null,
-      anotacion_policivo: r?.Anotacion_Policivo ?? r?.anotacion_policivo ?? null,
-      pdf_policivo: r?.PDF_Policivo ?? r?.pdf_policivo ?? null,
-
-      estado_ofac: r?.Estado_OFAC ?? r?.estado_ofac ?? null,
-      anotacion_ofac: r?.Anotacion_OFAC ?? r?.anotacion_ofac ?? null,
-      pdf_ofac: r?.PDF_OFAC ?? r?.pdf_ofac ?? null,
-
-      estado_contraloria: r?.Estado_Contraloria ?? r?.estado_contraloria ?? null,
-      anotacion_contraloria: r?.Anotacion_Contraloria ?? r?.anotacion_contraloria ?? null,
-      pdf_contraloria: r?.PDF_Contraloria ?? r?.pdf_contraloria ?? null,
-
-      estado_sisben: r?.Estado_Sisben ?? r?.estado_sisben ?? null,
-      tipo_sisben: r?.Tipo_Sisben ?? r?.tipo_sisben ?? null,
-      pdf_sisben: r?.PDF_Sisben ?? r?.pdf_sisben ?? null,
-      fecha_sisben: r?.Fecha_Sisben ?? r?.fecha_sisben ?? null,
-
-      estado_procuraduria: r?.Estado_Procuraduria ?? r?.estado_procuraduria ?? null,
-      anotacion_procuraduria: r?.Anotacion_Procuraduria ?? r?.anotacion_procuraduria ?? null,
-      pdf_procuraduria: r?.PDF_Procuraduria ?? r?.pdf_procuraduria ?? null,
-
-      estado_fondo_pension: r?.Estado_FondoPension ?? r?.estado_fondo_pension ?? null,
-      entidad_fondo_pension: r?.Entidad_FondoPension ?? r?.entidad_fondo_pension ?? null,
-      pdf_fondo_pension: r?.PDF_FondoPension ?? r?.pdf_fondo_pension ?? null,
-      fecha_fondo_pension: r?.Fecha_FondoPension ?? r?.fecha_fondo_pension ?? null,
-
-      estado_union: r?.Estado_Union ?? r?.estado_union ?? null,
-      union_pdf: r?.Union_PDF ?? r?.union_pdf ?? null,
-      fecha_union_pdf: r?.Fecha_UnionPDF ?? r?.fecha_union_pdf ?? null,
-
-      __raw: r,
-    };
-  }
-
-  private buildColumns(): void {
-    this.fullColumns = [
-      { name: 'oficina', header: 'Oficina', type: 'text', width: '140px' },
-      { name: 'robot', header: 'Robot', type: 'text', width: '140px' },
-      { name: 'cedula', header: 'Cédula', type: 'text', width: '140px' },
-      { name: 'tipo_documento', header: 'Tipo documento', type: 'text', width: '160px' },
-
-      { name: 'estado_adress', header: 'Estado ADRES', type: 'status', width: '170px', options: this.STATUS_OPTIONS },
-      { name: 'apellido_adress', header: 'Apellido ADRES', type: 'text', width: '200px' },
-      { name: 'entidad_adress', header: 'Entidad ADRES', type: 'text', width: '240px' },
-      { name: 'pdf_adress', header: 'PDF ADRES', type: 'text', width: '220px', filterable: false },
-      { name: 'fecha_adress', header: 'Fecha ADRES', type: 'text', width: '170px' },
-
-      { name: 'estado_policivo', header: 'Estado Policivo', type: 'status', width: '180px', options: this.STATUS_OPTIONS },
-      { name: 'anotacion_policivo', header: 'Anotación Policivo', type: 'text', width: '260px' },
-      { name: 'pdf_policivo', header: 'PDF Policivo', type: 'text', width: '220px', filterable: false },
-
-      { name: 'estado_ofac', header: 'Estado OFAC', type: 'status', width: '170px', options: this.STATUS_OPTIONS },
-      { name: 'anotacion_ofac', header: 'Anotación OFAC', type: 'text', width: '260px' },
-      { name: 'pdf_ofac', header: 'PDF OFAC', type: 'text', width: '220px', filterable: false },
-
-      { name: 'estado_contraloria', header: 'Estado Contraloría', type: 'status', width: '190px', options: this.STATUS_OPTIONS },
-      { name: 'anotacion_contraloria', header: 'Anotación Contraloría', type: 'text', width: '280px' },
-      { name: 'pdf_contraloria', header: 'PDF Contraloría', type: 'text', width: '220px', filterable: false },
-
-      { name: 'estado_sisben', header: 'Estado Sisben', type: 'status', width: '170px', options: this.STATUS_OPTIONS },
-      { name: 'tipo_sisben', header: 'Tipo Sisben', type: 'text', width: '170px' },
-      { name: 'pdf_sisben', header: 'PDF Sisben', type: 'text', width: '220px', filterable: false },
-      { name: 'fecha_sisben', header: 'Fecha Sisben', type: 'text', width: '170px' },
-
-      { name: 'estado_procuraduria', header: 'Estado Procuraduría', type: 'status', width: '200px', options: this.STATUS_OPTIONS },
-      { name: 'anotacion_procuraduria', header: 'Anotación Procuraduría', type: 'text', width: '280px' },
-      { name: 'pdf_procuraduria', header: 'PDF Procuraduría', type: 'text', width: '220px', filterable: false },
-
-      { name: 'estado_fondo_pension', header: 'Estado AFP', type: 'status', width: '210px', options: this.STATUS_OPTIONS },
-      { name: 'entidad_fondo_pension', header: 'Entidad AFP', type: 'text', width: '280px' },
-      { name: 'pdf_fondo_pension', header: 'PDF AFP', type: 'text', width: '220px', filterable: false },
-      { name: 'fecha_fondo_pension', header: 'Fecha AFP', type: 'text', width: '200px' },
-
-      { name: 'estado_union', header: 'Estado Unión', type: 'status', width: '170px', options: this.STATUS_OPTIONS },
-      { name: 'union_pdf', header: 'Unión PDF', type: 'text', width: '260px', filterable: false },
-      { name: 'fecha_union_pdf', header: 'Fecha Unión PDF', type: 'text', width: '200px' },
-
-      { name: 'actions', header: 'Acciones', type: 'custom', width: '160px', filterable: false, sortable: false },
-    ];
-
-    // (si aún usas tabla por PDF)
-    this.progresoColumns = [
-      { name: 'prioridad', header: 'Prioridad', type: 'text', width: '160px' },
-      { name: 'total', header: 'Total', type: 'number', width: '120px', filterable: false },
-      { name: 'llevas', header: 'Llevas', type: 'number', width: '120px' },
-      { name: 'faltan', header: 'Faltan', type: 'number', width: '120px' },
-    ];
-
-    // ✅ tabla que te importa: tipo, prioridad, llevas, cuantos
-    this.progresoTipoPrioridadColumns = [
-      { name: 'tipo', header: 'Tipo', type: 'text', width: '170px' },
-      { name: 'prioridad', header: 'Prioridad', type: 'text', width: '160px' },
-      { name: 'total', header: 'Cuántos', type: 'number', width: '120px' },
-      { name: 'llevas', header: 'Llevas', type: 'number', width: '120px' },
-      { name: 'faltan', header: 'Faltan', type: 'number', width: '120px' },
-    ];
-
-  }
-
-  // ===========================
-  // DATA LOADERS
-  // ===========================
-
-  async cargarRobotsFull(): Promise<void> {
-    this.isLoadingFull = true;
-    try {
-      const resp: any = await firstValueFrom(this.homeService.getRobotsFull() as any);
-      const arr = Array.isArray(resp) ? resp : Array.isArray(resp?.body) ? resp.body : [];
-      this.robotsFull = arr.map((r: any) => this.mapFullRow(r));
-
-      const set = new Set<string>();
-      for (const r of this.robotsFull) {
-        const p = (r?.oficina ?? '').toString().trim();
-        if (p) set.add(p);
-      }
-      this.paquetes = Array.from(set).sort((a, b) => a.localeCompare(b));
-      if (!this.paqueteCtrl.value && this.paquetes.length) this.paqueteCtrl.setValue(this.paquetes[0]);
-    } catch (e) {
-      console.error(e);
-      this.robotsFull = [];
-      await Swal.fire({ icon: 'error', title: 'Error', text: 'No se pudo cargar /Robots/full/' });
-    } finally {
-      this.isLoadingFull = false;
-    }
-  }
-
-  // ===========================
-  // ROLES / OTROS (IGUAL)
-  // ===========================
 
   private initializeUserRoles(): void {
     this.user = this.utilityService.getUser();
@@ -602,9 +285,6 @@ export class HomeComponent implements OnInit {
               text: detalle || (ok ? 'OK' : 'Revisa el servidor'),
             });
 
-            void this.cargarRobotsFull();
-            await this.loadProgresoAll();
-            await this.loadProgresoSelected();
           },
           error: async (err) => {
             const msg = err?.error?.message || 'No se pudo cargar el Excel.';

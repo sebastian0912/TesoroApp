@@ -383,3 +383,30 @@ mat-horizontal-stepper, mat-step {
   display: inline-flex;
   gap: 10px; /* ajusta a gusto */
 }
+
+.swal-loading-popup {
+    border-radius: 16px !important;
+}
+
+.swal-loading-title {
+    font-size: 16px !important;
+    font-weight: 700 !important;
+}
+
+.swal-loading-html {
+    margin-top: 8px !important;
+}
+
+.swal-loading-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    font-size: 13px;
+    opacity: .9;
+}
+
+.swal-loading-ico {
+    font-size: 22px;
+    line-height: 1;
+}

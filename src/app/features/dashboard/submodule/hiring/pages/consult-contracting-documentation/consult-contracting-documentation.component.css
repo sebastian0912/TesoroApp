@@ -6,6 +6,7 @@
   height: 450pt;
 }
 
+/* Header */
 .page-header {
   display: flex;
   align-items: center;
@@ -19,4 +20,66 @@
   line-height: 1.2;
   display: inline-flex;
   align-items: center;
+}
+
+/* =====================================================
+   ✅ Estados documentos: ✓ verde / ⚠ amarillo / ✗ rojo
+   (fix: evita que <a> pinte azul + fuerza colores)
+   ===================================================== */
+
+.doc-status-cell {
+  text-align: center;
+  white-space: nowrap;
+}
+
+/* El <a> NO debe pintar azul */
+.doc-link,
+.doc-link:visited,
+.doc-link:hover,
+.doc-link:active {
+  color: inherit !important;
+  text-decoration: none !important;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Tamaño + contraste del icono */
+.doc-status-cell .doc-icon {
+  font-size: 22px !important;
+  width: 22px !important;
+  height: 22px !important;
+  line-height: 22px !important;
+
+  /* se nota sobre cualquier fondo */
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.45));
+}
+
+/* 🔥 Fuerza colores (más especificidad + !important) */
+.doc-status-cell .doc-icon--ok {
+  color: #16a34a !important; /* verde */
+}
+
+.doc-status-cell .doc-icon--warn {
+  color: #f59e0b !important; /* amarillo */
+}
+
+.doc-status-cell .doc-icon--bad {
+  color: #dc2626 !important; /* rojo */
+}
+
+/* Por si algún ícono llega como SVG (mat-icon svgIcon) */
+.doc-status-cell .doc-icon--ok svg,
+.doc-status-cell .doc-icon--warn svg,
+.doc-status-cell .doc-icon--bad svg {
+  fill: currentColor !important;
+}
+
+/* Hover suave cuando es link */
+.doc-link .doc-icon {
+  transition: transform 120ms ease;
+}
+
+.doc-link:hover .doc-icon {
+  transform: scale(1.08);
 }
