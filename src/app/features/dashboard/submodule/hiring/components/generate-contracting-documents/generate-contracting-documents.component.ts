@@ -1888,12 +1888,12 @@ export class GenerateContractingDocumentsComponent implements OnInit {
 
       doc.addImage(firmaConPrefijo, 'PNG', 42, 207, 50, 20);
     } else {
-      Swal.fire({
+      /*Swal.fire({
         icon: 'error',
         title: 'Error',
         text: 'No se encontró la firma',
       });
-      return;
+      return;*/
     }
 
 
