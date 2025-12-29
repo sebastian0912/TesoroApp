@@ -555,8 +555,8 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       const firmaConPrefijo = this.firma;
       doc.addImage(firmaConPrefijo, 'PNG', 10, yFirmaBase - 30, 80, 28);
     } else {
-      Swal.fire({ icon: 'error', title: 'Error', text: 'No se encontró la firma' });
-      return;
+      //Swal.fire({ icon: 'error', title: 'Error', text: 'No se encontró la firma' });
+      //return;
     }
 
     doc.setFont('helvetica', 'bold');
