@@ -15,7 +15,7 @@ import { UtilityServiceService } from '../../../../../../shared/services/utility
 import { RegistroProcesoContratacion } from '../../service/registro-proceso-contratacion/registro-proceso-contratacion';
 import { REFERENCIAS_A, REFERENCIAS_F } from '@/app/shared/model/const';
 import { switchMap, map, take, catchError, tap, finalize } from 'rxjs/operators';
-import { of, forkJoin } from 'rxjs';
+import { of, forkJoin, firstValueFrom } from 'rxjs';
 
 type UploadedInfo = {
   file: File;
@@ -39,7 +39,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
   firmaPersonalAdministrativo: any = '';
   user: any = {};
   sede: any = '';
-  cedulaPersonalAdministrativo: any = {};
+  cedulaPersonalAdministrativo: any = '';
   referenciasA = REFERENCIAS_A;
   referenciasF = REFERENCIAS_F;
   empresa: string = '';
@@ -141,6 +141,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       // 2) Usuario/sede
       this.user = this.utilService.getUser?.() ?? {};
       this.nombreCompletoLogin = `${this.user?.datos_basicos?.nombres ?? ''} ${this.user?.datos_basicos?.apellidos ?? ''}`.trim();
+      this.cedulaPersonalAdministrativo = this.user?.numero_de_documento ?? '';
       this.sede = this.user?.sede?.nombre ?? '';
 
       // 3) Validación temprana
@@ -347,7 +348,12 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     }
     // Ficha técnica
     else if (documento === 'Ficha técnica') {
-      this.generarFichaTecnica();
+      if (this.empresa === 'TU ALIANZA SAS') {
+        this.generarFichaTecnicaTuAlianza();
+      }
+      else if (this.empresa === 'APOYO LABORAL SAS') {
+        this.generarFichaTecnica();
+      }
     }
   }
 
@@ -1539,14 +1545,24 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     let logoPath = '';
     let nit = '';
     let domicilio = '';
+    let codigo = '';
+    let version = '';
+    let fechaEmision = '';
+
     if (this.empresa === 'APOYO LABORAL SAS') {
       logoPath = 'logos/Logo_AL.png';
       nit = '900.814.587-1';
       domicilio = 'CARRERA 2 # 8 - 156 FACATATIVÁ C/MARCA';
+      codigo = 'AL CO-RE-1';
+      version = '07';
+      fechaEmision = 'Enero 06-21';
     } else if (this.empresa === 'TU ALIANZA SAS') {
       logoPath = 'logos/Logo_TA.png';
       nit = '900.864.596-1';
       domicilio = 'CLL 7 4 49 Madrid, Cundinamarca';
+      codigo = 'TA CO-RE-1';
+      version = '06';
+      fechaEmision = 'Mayo 02-2022';
     } else {
       Swal.fire({
         icon: 'error',
@@ -1613,9 +1629,9 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     // **Contenido de las columnas**
     doc.setFontSize(7);
     doc.setFont('helvetica', 'bold');
-    doc.text("Código: AL CO-RE-1", tableStartX + 2, startY + 11.5);
-    doc.text("Versión: 07", col1 + 2, startY + 11.5); // Ajustar dentro de columna
-    doc.text(`Fecha Emisión: Enero 06-21`, col2 + 5, startY + 11.5);
+    doc.text("Código: " + codigo, tableStartX + 2, startY + 11.5);
+    doc.text("Versión: " + version, col1 + 2, startY + 11.5); // Ajustar dentro de columna
+    doc.text(`Fecha Emisión: ${fechaEmision}`, col2 + 5, startY + 11.5);
     doc.text("Página: 1 de 3", col3 + 6, startY + 11.5); // Ajustar dentro de columna
 
     // Representado por
@@ -1909,460 +1925,940 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     this.verPDF({ titulo: 'Contrato' });
   }
 
+  async generarFichaTecnica() {
+    try {
+      // =========================================================
+      // 0) Helpers de imagen (PDF-lib) - robustos como en jsPDF
+      // =========================================================
+      const bytesCache = new Map<string, Promise<ArrayBuffer | null>>();
 
+      const isHttp = (u: string) => /^https?:\/\//i.test(u);
+      const isDataUrl = (u: string) => /^data:image\//i.test(u);
 
+      const normalizeUrl = (u: string) => {
+        const s = String(u ?? '').trim();
+        if (!s) return '';
+        if (isHttp(s) || isDataUrl(s)) return s;
 
-// =========================================================
-// === Método principal SOLO con candidato + vacante
-// =========================================================
-async generarFichaTecnica() {
-  try {
-    // =========================================================
-    // 0) Helpers de imagen (PDF-lib) - robustos como en jsPDF
-    // =========================================================
-    const bytesCache = new Map<string, Promise<ArrayBuffer | null>>();
+        const clean = s.replace(/^\/+/, '');
+        // Si ya viene con assets/, lo dejamos
+        if (clean.startsWith('assets/')) return clean;
 
-    const isHttp = (u: string) => /^https?:\/\//i.test(u);
-    const isDataUrl = (u: string) => /^data:image\//i.test(u);
+        // Muchos de tus recursos parecen estar como "logos/.." o "firma/.." o "Docs/.."
+        // En Angular normalmente deben ir bajo assets/
+        return `assets/${clean}`;
+      };
 
-    const normalizeUrl = (u: string) => {
-      const s = String(u ?? '').trim();
-      if (!s) return '';
-      if (isHttp(s) || isDataUrl(s)) return s;
-
-      const clean = s.replace(/^\/+/, '');
-      // Si ya viene con assets/, lo dejamos
-      if (clean.startsWith('assets/')) return clean;
-
-      // Muchos de tus recursos parecen estar como "logos/.." o "firma/.." o "Docs/.."
-      // En Angular normalmente deben ir bajo assets/
-      return `assets/${clean}`;
-    };
-
-    const dataUrlToBytes = (dataUrl: string): ArrayBuffer | null => {
-      try {
-        const [meta, b64] = dataUrl.split(',');
-        if (!meta || !b64) return null;
-        const bin = atob(b64);
-        const len = bin.length;
-        const bytes = new Uint8Array(len);
-        for (let i = 0; i < len; i++) bytes[i] = bin.charCodeAt(i);
-        return bytes.buffer;
-      } catch {
-        return null;
-      }
-    };
-
-    const detectImageType = (ab: ArrayBuffer): 'png' | 'jpg' | null => {
-      const b = new Uint8Array(ab);
-      // PNG: 89 50 4E 47 0D 0A 1A 0A
-      if (
-        b.length >= 8 &&
-        b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4E && b[3] === 0x47 &&
-        b[4] === 0x0D && b[5] === 0x0A && b[6] === 0x1A && b[7] === 0x0A
-      ) return 'png';
-
-      // JPG: FF D8 FF
-      if (b.length >= 3 && b[0] === 0xFF && b[1] === 0xD8 && b[2] === 0xFF) return 'jpg';
-
-      return null;
-    };
-
-    const fetchBytesOrNull = async (urlOrData?: string): Promise<ArrayBuffer | null> => {
-      const raw = String(urlOrData ?? '').trim();
-      if (!raw) return null;
-
-      // data:image/*
-      if (isDataUrl(raw)) return dataUrlToBytes(raw);
-
-      const url = normalizeUrl(raw);
-      if (!url) return null;
-
-      // cache por URL para no descargar varias veces
-      if (bytesCache.has(url)) return await bytesCache.get(url)!;
-
-      const p = (async () => {
-        // 1) Intenta con tu helper (si ya está armado con headers, baseUrl, etc.)
+      const dataUrlToBytes = (dataUrl: string): ArrayBuffer | null => {
         try {
-          const ab = await this.fetchAsArrayBufferOrNull(url);
-          if (ab) return ab;
-        } catch {}
-
-        // 2) Intento extra: si por alguna razón normalizeUrl “rompió” tu path,
-        //    probamos el raw original (solo cuando era relativo)
-        if (!isHttp(raw) && !raw.startsWith('assets/') && !isDataUrl(raw)) {
-          try {
-            const ab2 = await this.fetchAsArrayBufferOrNull(raw);
-            if (ab2) return ab2;
-          } catch {}
+          const [meta, b64] = dataUrl.split(',');
+          if (!meta || !b64) return null;
+          const bin = atob(b64);
+          const len = bin.length;
+          const bytes = new Uint8Array(len);
+          for (let i = 0; i < len; i++) bytes[i] = bin.charCodeAt(i);
+          return bytes.buffer;
+        } catch {
+          return null;
         }
+      };
+
+      const detectImageType = (ab: ArrayBuffer): 'png' | 'jpg' | null => {
+        const b = new Uint8Array(ab);
+        // PNG: 89 50 4E 47 0D 0A 1A 0A
+        if (
+          b.length >= 8 &&
+          b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4E && b[3] === 0x47 &&
+          b[4] === 0x0D && b[5] === 0x0A && b[6] === 0x1A && b[7] === 0x0A
+        ) return 'png';
+
+        // JPG: FF D8 FF
+        if (b.length >= 3 && b[0] === 0xFF && b[1] === 0xD8 && b[2] === 0xFF) return 'jpg';
 
         return null;
-      })();
+      };
 
-      bytesCache.set(url, p);
-      return await p;
-    };
+      const fetchBytesOrNull = async (urlOrData?: string): Promise<ArrayBuffer | null> => {
+        const raw = String(urlOrData ?? '').trim();
+        if (!raw) return null;
 
-    const embedImageOrNull = async (pdfDoc: PDFDocument, urlOrData?: string) => {
-      const ab = await fetchBytesOrNull(urlOrData);
-      if (!ab) return null;
+        // data:image/*
+        if (isDataUrl(raw)) return dataUrlToBytes(raw);
 
-      const kind = detectImageType(ab);
-      if (!kind) return null;
+        const url = normalizeUrl(raw);
+        if (!url) return null;
 
-      try {
-        const u8 = new Uint8Array(ab);
-        return kind === 'png' ? await pdfDoc.embedPng(u8) : await pdfDoc.embedJpg(u8);
-      } catch {
-        return null;
-      }
-    };
+        // cache por URL para no descargar varias veces
+        if (bytesCache.has(url)) return await bytesCache.get(url)!;
 
-    const setButtonImageSafe = async (
-      pdfDoc: PDFDocument,
-      form: any,
-      buttonName: string,
-      urlOrData?: string
-    ) => {
-      const img = await embedImageOrNull(pdfDoc, urlOrData);
-      if (!img) return false;
-      try {
-        form.getButton(buttonName).setImage(img);
-        return true;
-      } catch {
-        return false;
-      }
-    };
+        const p = (async () => {
+          // 1) Intenta con tu helper (si ya está armado con headers, baseUrl, etc.)
+          try {
+            const ab = await this.fetchAsArrayBufferOrNull(url);
+            if (ab) return ab;
+          } catch { }
 
-    // =========================================================
-    // 1) Normalización desde this.candidato y this.vacante
-    // =========================================================
-    const cand: any = this.candidato ?? {};
-    const vac: any = this.vacante ?? {};
+          // 2) Intento extra: si por alguna razón normalizeUrl “rompió” tu path,
+          //    probamos el raw original (solo cuando era relativo)
+          if (!isHttp(raw) && !raw.startsWith('assets/') && !isDataUrl(raw)) {
+            try {
+              const ab2 = await this.fetchAsArrayBufferOrNull(raw);
+              if (ab2) return ab2;
+            } catch { }
+          }
 
-    const contacto: any = cand.contacto ?? {};
-    const residencia: any = cand.residencia ?? {};
-    const infoCc: any = cand.info_cc ?? {};
+          return null;
+        })();
 
-    const entrevista: any = Array.isArray(cand.entrevistas) ? cand.entrevistas[0] : null;
-    const proceso: any = entrevista?.proceso ?? {};
-    const contrato: any = proceso?.contrato ?? {};
-    const antecedentes: any[] = Array.isArray(proceso?.antecedentes) ? proceso.antecedentes : [];
+        bytesCache.set(url, p);
+        return await p;
+      };
 
-    const norm = (v: any) => String(v ?? '').trim().toUpperCase();
+      const embedImageOrNull = async (pdfDoc: PDFDocument, urlOrData?: string) => {
+        const ab = await fetchBytesOrNull(urlOrData);
+        if (!ab) return null;
 
-    const findAnte = (nombre: string) => antecedentes.find(a => norm(a?.nombre) === norm(nombre));
+        const kind = detectImageType(ab);
+        if (!kind) return null;
 
-    const eps = String(findAnte('EPS')?.observacion ?? '');
-    const afp = String(findAnte('AFP')?.observacion ?? '');
+        try {
+          const u8 = new Uint8Array(ab);
+          return kind === 'png' ? await pdfDoc.embedPng(u8) : await pdfDoc.embedJpg(u8);
+        } catch {
+          return null;
+        }
+      };
 
-    const mapEstadoCivil = (code: any): string => {
-      const c = norm(code);
-      if (c === 'SO' || c === 'SOLTERO' || c === 'S') return 'SO';
-      if (c === 'CA' || c === 'CASADO') return 'CA';
-      if (c === 'UN' || c === 'UL' || c === 'UNION LIBRE' || c === 'UNIÓN LIBRE') return 'UN';
-      if (c === 'SE' || c === 'SEP' || c === 'SEPARADO') return 'SE';
-      if (c === 'VI' || c === 'VIUDO') return 'VI';
-      return c || '';
-    };
+      const setButtonImageSafe = async (
+        pdfDoc: PDFDocument,
+        form: any,
+        buttonName: string,
+        urlOrData?: string
+      ) => {
+        const img = await embedImageOrNull(pdfDoc, urlOrData);
+        if (!img) return false;
+        try {
+          form.getButton(buttonName).setImage(img);
+          return true;
+        } catch {
+          return false;
+        }
+      };
 
-    const nombreCompleto = [
-      cand.primer_nombre,
-      cand.segundo_nombre,
-      cand.primer_apellido,
-      cand.segundo_apellido,
-    ]
-      .map((x: any) => String(x ?? '').trim())
-      .filter(Boolean)
-      .join(' ');
+      // =========================================================
+      // 1) Normalización desde this.candidato y this.vacante
+      // =========================================================
+      const cand: any = this.candidato ?? {};
+      const vac: any = this.vacante ?? {};
 
-    const codigoContrato = String(contrato?.codigo_contrato ?? proceso?.contrato_codigo ?? '').trim();
+      const contacto: any = cand.contacto ?? {};
+      const residencia: any = cand.residencia ?? {};
+      const infoCc: any = cand.info_cc ?? {};
 
-    const fechaIngreso = String(vac?.fechadeIngreso ?? '').trim(); // "2025-12-12"
-    const salario = vac?.salario ?? proceso?.vacante_salario ?? '';
+      const entrevista: any = Array.isArray(cand.entrevistas) ? cand.entrevistas[0] : null;
+      const proceso: any = entrevista?.proceso ?? {};
+      const contrato: any = proceso?.contrato ?? {};
+      const antecedentes: any[] = Array.isArray(proceso?.antecedentes) ? proceso.antecedentes : [];
 
-    const formacion0: any = Array.isArray(cand.formaciones) ? cand.formaciones[0] : null;
-    const exp0: any = Array.isArray(cand.experiencias) ? cand.experiencias[0] : null;
+      const norm = (v: any) => String(v ?? '').trim().toUpperCase();
 
-    // dv = "datoPersonal" esperado por tu PDF
-    const dv: any = {
-      primer_apellido: cand.primer_apellido ?? '',
-      segundo_apellido: cand.segundo_apellido ?? '',
-      primer_nombre: cand.primer_nombre ?? '',
-      segundo_nombre: cand.segundo_nombre ?? '',
+      const findAnte = (nombre: string) => antecedentes.find(a => norm(a?.nombre) === norm(nombre));
 
-      tipodedocumento: cand.tipo_doc ?? '',
-      numerodeceduladepersona: cand.numero_documento ?? '',
+      const eps = String(findAnte('EPS')?.observacion ?? '');
+      const afp = String(findAnte('AFP')?.observacion ?? '');
 
-      fecha_expedicion_cc: infoCc?.fecha_expedicion ?? '',
-      departamento_expedicion_cc: infoCc?.depto_expedicion ?? '',
-      municipio_expedicion_cc: infoCc?.mpio_expedicion ?? '',
+      const mapEstadoCivil = (code: any): string => {
+        const c = norm(code);
+        if (c === 'SO' || c === 'SOLTERO' || c === 'S') return 'SO';
+        if (c === 'CA' || c === 'CASADO') return 'CA';
+        if (c === 'UN' || c === 'UL' || c === 'UNION LIBRE' || c === 'UNIÓN LIBRE') return 'UN';
+        if (c === 'SE' || c === 'SEP' || c === 'SEPARADO') return 'SE';
+        if (c === 'VI' || c === 'VIUDO') return 'VI';
+        return c || '';
+      };
 
-      genero: cand.sexo ?? '',
-      fecha_nacimiento: cand.fecha_nacimiento ?? '',
-      lugar_nacimiento_departamento: infoCc?.depto_nacimiento ?? '',
-      lugar_nacimiento_municipio: infoCc?.mpio_nacimiento ?? '',
+      const nombreCompleto = [
+        cand.primer_nombre,
+        cand.segundo_nombre,
+        cand.primer_apellido,
+        cand.segundo_apellido,
+      ]
+        .map((x: any) => String(x ?? '').trim())
+        .filter(Boolean)
+        .join(' ');
 
-      estado_civil: mapEstadoCivil(cand.estado_civil),
+      const codigoContrato = String(contrato?.codigo_contrato ?? proceso?.contrato_codigo ?? '').trim();
 
-      direccion_residencia: residencia?.direccion ?? '',
-      barrio: residencia?.barrio ?? '',
-      municipio: (vac?.municipio?.[0] ?? entrevista?.oficina ?? '').toString(),
-      departamento: '', // no viene en el JSON
+      const fechaIngreso = String(vac?.fechadeIngreso ?? '').trim(); // "2025-12-12"
+      const salario = vac?.salario ?? proceso?.vacante_salario ?? '';
 
-      celular: contacto?.celular ?? '',
-      primercorreoelectronico: contacto?.email ?? '',
+      const formacion0: any = Array.isArray(cand.formaciones) ? cand.formaciones[0] : null;
+      const exp0: any = Array.isArray(cand.experiencias) ? cand.experiencias[0] : null;
 
-      rh: cand.rh ?? '',
-      zurdo_diestro: cand.zurdo_diestro ?? '',
+      // dv = "datoPersonal" esperado por tu PDF
+      const dv: any = {
+        primer_apellido: cand.primer_apellido ?? '',
+        segundo_apellido: cand.segundo_apellido ?? '',
+        primer_nombre: cand.primer_nombre ?? '',
+        segundo_nombre: cand.segundo_nombre ?? '',
 
-      escolaridad: formacion0?.nivel ?? '',
-      nombre_institucion: formacion0?.institucion ?? '',
-      titulo_obtenido: formacion0?.titulo_obtenido ?? '',
-      ano_finalizacion: formacion0?.anio_finalizacion ?? '',
+        tipodedocumento: cand.tipo_doc ?? '',
+        numerodeceduladepersona: cand.numero_documento ?? '',
 
-      nombre_expe_laboral1_empresa: exp0?.empresa ?? '',
-      direccion_empresa1: exp0?.direccion ?? '',
-      telefonos_empresa1: exp0?.telefonos ?? '',
-      nombre_jefe_empresa1: exp0?.nombre_jefe ?? '',
-      cargo_empresa1: exp0?.cargo ?? '',
-      fecha_retiro_empresa1: exp0?.fecha_retiro ?? '',
-      motivo_retiro_empresa1: exp0?.motivo_retiro ?? '',
-    };
+        fecha_expedicion_cc: infoCc?.fecha_expedicion ?? '',
+        departamento_expedicion_cc: infoCc?.depto_expedicion ?? '',
+        municipio_expedicion_cc: infoCc?.mpio_expedicion ?? '',
 
-    // ds = "datoSeleccion"
-    const ds: any = {
-      fechaIngreso,
-      salario,
-      eps,
-      afp,
-      cargo: vac?.cargo ?? '',
-      centro_costo_entrevista: entrevista?.oficina ?? '',
-      empresa_usuario: vac?.empresaUsuariaSolicita ?? '',
-    };
+        genero: cand.sexo ?? '',
+        fecha_nacimiento: cand.fecha_nacimiento ?? '',
+        lugar_nacimiento_departamento: infoCc?.depto_nacimiento ?? '',
+        lugar_nacimiento_municipio: infoCc?.mpio_nacimiento ?? '',
 
-    // datoInfoContratacion
-    const datoInfoContratacion: any = {
-      codigo_contrato: codigoContrato,
-      forma_pago: contrato?.forma_de_pago ?? '',
-      numero_pagos: contrato?.numero_para_pagos ?? '',
-      porcentaje_arl: contrato?.porcentaje_arl ?? '',
-      cesantias: contrato?.cesantias ?? '',
-      centro_de_costos: contrato?.Ccentro_de_costos ?? contrato?.centro_de_costos ?? '',
-      subCentroCostos: contrato?.subcentro_de_costos ?? '',
-      categoria: contrato?.categoria ?? '',
-      operacion: contrato?.operacion ?? '',
-      grupo: contrato?.grupo ?? '',
-      horas_extras:
-        contrato?.horas_extras === true ? 'SI' :
-        contrato?.horas_extras === false ? 'NO' :
-        (contrato?.horas_extras ?? ''),
-      semanas_cotizadas: '0',
-    };
+        estado_civil: mapEstadoCivil(cand.estado_civil),
 
-    // URLs biometría (NO base64)
-    const firmaUrl = cand?.biometria?.firma?.file_url ?? cand?.biometria?.firma?.file ?? '';
-    const fotoUrl = cand?.biometria?.foto?.file_url ?? cand?.biometria?.foto?.file ?? '';
-    const huellaUrl = cand?.biometria?.huella?.file_url ?? cand?.biometria?.huella?.file ?? '';
+        direccion_residencia: residencia?.direccion ?? '',
+        barrio: residencia?.barrio ?? '',
+        municipio: (vac?.municipio?.[0] ?? entrevista?.oficina ?? '').toString(),
+        departamento: '', // no viene en el JSON
 
-    // =========================================================
-    // 2) Cargar PDF base y setear campos
-    // =========================================================
-    const pdfUrl = 'Docs/Ficha tecnica.pdf';
-    const arrayBuffer = await this.fetchAsArrayBufferOrNull(pdfUrl);
-    if (!arrayBuffer) throw new Error('No se pudo cargar el PDF base.');
+        celular: contacto?.celular ?? '',
+        primercorreoelectronico: contacto?.email ?? '',
 
-    const pdfDoc = await PDFDocument.load(arrayBuffer);
-    pdfDoc.registerFontkit(fontkit as any);
+        rh: cand.rh ?? '',
+        zurdo_diestro: cand.zurdo_diestro ?? '',
 
-    const fontBytes = await this.fetchAsArrayBufferOrNull('fonts/Roboto-Regular.ttf');
-    const customFont = fontBytes ? await pdfDoc.embedFont(fontBytes) : undefined;
+        escolaridad: formacion0?.nivel ?? '',
+        nombre_institucion: formacion0?.institucion ?? '',
+        titulo_obtenido: formacion0?.titulo_obtenido ?? '',
+        ano_finalizacion: formacion0?.anio_finalizacion ?? '',
 
-    const form = pdfDoc.getForm();
+        nombre_expe_laboral1_empresa: exp0?.empresa ?? '',
+        direccion_empresa1: exp0?.direccion ?? '',
+        telefonos_empresa1: exp0?.telefonos ?? '',
+        nombre_jefe_empresa1: exp0?.nombre_jefe ?? '',
+        cargo_empresa1: exp0?.cargo ?? '',
+        fecha_retiro_empresa1: exp0?.fecha_retiro ?? '',
+        motivo_retiro_empresa1: exp0?.motivo_retiro ?? '',
+      };
 
-    // Branding
-    const { logoPath, nombreEmpresa } = this.getEmpresaInfo();
+      // ds = "datoSeleccion"
+      const ds: any = {
+        fechaIngreso,
+        salario,
+        eps,
+        afp,
+        cargo: vac?.cargo ?? '',
+        centro_costo_entrevista: entrevista?.oficina ?? '',
+        empresa_usuario: vac?.empresaUsuariaSolicita ?? '',
+      };
 
-    // 🔥 LOGO: ahora detecta PNG/JPG y lo pone donde exista el botón
-    await setButtonImageSafe(pdfDoc, form, 'Image16_af_image', logoPath);
-    await setButtonImageSafe(pdfDoc, form, 'Image18_af_image', logoPath);
+      // datoInfoContratacion
+      const datoInfoContratacion: any = {
+        codigo_contrato: codigoContrato,
+        forma_pago: contrato?.forma_de_pago ?? '',
+        numero_pagos: contrato?.numero_para_pagos ?? '',
+        porcentaje_arl: contrato?.porcentaje_arl ?? '',
+        cesantias: contrato?.cesantias ?? '',
+        centro_de_costos: contrato?.Ccentro_de_costos ?? contrato?.centro_de_costos ?? '',
+        subCentroCostos: contrato?.subcentro_de_costos ?? '',
+        categoria: contrato?.categoria ?? '',
+        operacion: contrato?.operacion ?? '',
+        grupo: contrato?.grupo ?? '',
+        horas_extras:
+          contrato?.horas_extras === true ? 'SI' :
+            contrato?.horas_extras === false ? 'NO' :
+              (contrato?.horas_extras ?? ''),
+        semanas_cotizadas: '0',
+      };
 
-    // Cabecera / contrato
-    this.setText(form, 'CodContrato', this.safe(codigoContrato), customFont, 7.2);
-    this.setText(form, 'sede', this.safe(this.user?.sede?.nombre), customFont, 7.2);
-    this.setText(form, 'empresa', this.safe(nombreEmpresa), customFont);
+      // URLs biometría (NO base64)
+      const firmaUrl = cand?.biometria?.firma?.file_url ?? cand?.biometria?.firma?.file ?? '';
+      const fotoUrl = cand?.biometria?.foto?.file_url ?? cand?.biometria?.foto?.file ?? '';
+      const huellaUrl = cand?.biometria?.huella?.file_url ?? cand?.biometria?.huella?.file ?? '';
 
-    // Identificación
-    this.setText(form, '1er ApellidoRow1', this.safe(dv.primer_apellido), customFont);
-    this.setText(form, '2do ApellidoRow1', this.safe(dv.segundo_apellido), customFont);
-    this.setText(
-      form,
-      'NombresRow1',
-      [this.safe(dv.primer_nombre), this.safe(dv.segundo_nombre)].filter(Boolean).join(' '),
-      customFont
-    );
-    this.setText(form, 'Tipo Documento IdentificaciónRow1', this.safe(dv.tipodedocumento), customFont);
-    this.setText(form, 'Número de IdentificaciónRow1', this.safe(dv.numerodeceduladepersona), customFont);
+      // =========================================================
+      // 2) Cargar PDF base y setear campos
+      // =========================================================
+      const pdfUrl = 'Docs/Ficha tecnica.pdf';
+      const arrayBuffer = await this.fetchAsArrayBufferOrNull(pdfUrl);
+      if (!arrayBuffer) throw new Error('No se pudo cargar el PDF base.');
 
-    // Expedición
-    this.setText(form, 'Fecha de ExpediciónRow1', this.parseDateToDDMMYYYY(dv.fecha_expedicion_cc), customFont);
-    this.setText(form, 'Departamento de ExpediciónRow1', this.safe(dv.departamento_expedicion_cc), customFont);
-    this.setText(form, 'Municipio de ExpediciónRow1', this.safe(dv.municipio_expedicion_cc), customFont);
+      const pdfDoc = await PDFDocument.load(arrayBuffer);
+      pdfDoc.registerFontkit(fontkit as any);
 
-    // Nacimiento
-    this.setText(form, 'GeneroRow1', this.safe(dv.genero), customFont);
-    this.setText(form, 'Fecha de NacimientoRow1', this.parseDateToDDMMYYYY(dv.fecha_nacimiento), customFont);
-    this.setText(form, 'Departamento de NacimientoRow1', this.safe(dv.lugar_nacimiento_departamento), customFont);
-    this.setText(form, 'Municipio de NacimientoRow1', this.safe(dv.lugar_nacimiento_municipio), customFont);
+      const fontBytes = await this.fetchAsArrayBufferOrNull('fonts/Roboto-Regular.ttf');
+      const customFont = fontBytes ? await pdfDoc.embedFont(fontBytes) : undefined;
 
-    // Estado civil (X)
-    const ec = this.safe(dv.estado_civil).toUpperCase();
-    this.setXIf(form, 'SolteroEstado Civil', ec === 'SO');
-    this.setXIf(form, 'CasadoEstado Civil', ec === 'CA');
-    this.setXIf(form, 'Union LibreEstado Civil', ec === 'UN');
-    this.setXIf(form, 'SeparadoEstado Civil', ec === 'SE');
-    this.setXIf(form, 'ViudoEstado Civil', ec === 'VI');
+      const form = pdfDoc.getForm();
 
-    // Contacto / residencia
-    this.setText(form, 'Dirección de DomicilioRow1', this.safe(dv.direccion_residencia), customFont);
-    this.setText(form, 'BarrioRow1', this.safe(dv.barrio), customFont);
-    this.setText(form, 'Ciudad DomicilioRow1', this.safe(dv.municipio), customFont);
-    this.setText(form, 'DepartamentoRow1', this.safe(dv.departamento), customFont);
-    this.setText(form, 'CelularRow1', this.safe(dv.celular), customFont);
-    this.setText(form, 'Correo ElectrónicoRow1', this.safe(dv.primercorreoelectronico), customFont);
+      // Branding
+      const { logoPath, nombreEmpresa } = this.getEmpresaInfo();
 
-    // RH / mano
-    this.setText(form, 'CelularGrupo Sanguineo y RH', this.safe(dv.rh), customFont);
-    const mano = this.safe(dv.zurdo_diestro).toUpperCase();
-    this.setXIf(form, 'Diestro', mano.includes('DIESTRO'));
-    this.setXIf(form, 'PesoZurdo', !mano.includes('DIESTRO'));
+      // 🔥 LOGO: ahora detecta PNG/JPG y lo pone donde exista el botón
+      await setButtonImageSafe(pdfDoc, form, 'Image16_af_image', logoPath);
+      await setButtonImageSafe(pdfDoc, form, 'Image18_af_image', logoPath);
 
-    // Empresa / Clasificadores
-    this.setText(form, 'Empresa Grupo Elite', this.safe(vac.empresaUsuariaSolicita), customFont);
-    this.setText(form, 'Código Compañía', this.safe(vac.codigoElite ?? vac.empresaUsuariaSolicita), customFont);
-    this.setText(form, 'Sucursal', this.safe(ds.centro_costo_entrevista), customFont);
+      // Cabecera / contrato
+      this.setText(form, 'CodContrato', this.safe(codigoContrato), customFont, 7.2);
+      this.setText(form, 'sede', this.safe(this.user?.sede?.nombre), customFont, 7.2);
+      this.setText(form, 'empresa', this.safe(nombreEmpresa), customFont);
 
-    this.setText(form, 'Centro de Costo', this.safe(datoInfoContratacion.centro_de_costos), customFont);
-    this.setText(form, 'SubCentro de Costo', this.safe(datoInfoContratacion.subCentroCostos), customFont);
+      // Identificación
+      this.setText(form, '1er ApellidoRow1', this.safe(dv.primer_apellido), customFont);
+      this.setText(form, '2do ApellidoRow1', this.safe(dv.segundo_apellido), customFont);
+      this.setText(
+        form,
+        'NombresRow1',
+        [this.safe(dv.primer_nombre), this.safe(dv.segundo_nombre)].filter(Boolean).join(' '),
+        customFont
+      );
+      this.setText(form, 'Tipo Documento IdentificaciónRow1', this.safe(dv.tipodedocumento), customFont);
+      this.setText(form, 'Número de IdentificaciónRow1', this.safe(dv.numerodeceduladepersona), customFont);
 
-    this.setText(form, 'CÓDIGOCiudad de Labor', this.safe(ds.centro_costo_entrevista || dv.municipio), customFont);
-    this.setText(form, 'CÓDIGOClasificador 2Categoría', this.safe(datoInfoContratacion.categoria), customFont);
-    this.setText(form, 'CÓDIGOClasificador 3Operación', this.safe(datoInfoContratacion.operacion), customFont);
-    this.setText(form, 'CÓDIGOClasificador 4Sublador', this.safe(vac.cargo), customFont);
-    this.setText(form, 'Apoyo Laboral TSClasificador 6Grupo', this.safe(datoInfoContratacion.grupo), customFont);
+      // Expedición
+      this.setText(form, 'Fecha de ExpediciónRow1', this.parseDateToDDMMYYYY(dv.fecha_expedicion_cc), customFont);
+      this.setText(form, 'Departamento de ExpediciónRow1', this.safe(dv.departamento_expedicion_cc), customFont);
+      this.setText(form, 'Municipio de ExpediciónRow1', this.safe(dv.municipio_expedicion_cc), customFont);
 
-    // Fecha ingreso / salario
-    this.setText(form, 'Fecha de Ingreso', this.formatLongDateES(this.safe(ds.fechaIngreso)), customFont);
-    this.setText(form, 'Sueldo Básico', this.formatMoneyCOP(ds.salario), customFont);
+      // Nacimiento
+      this.setText(form, 'GeneroRow1', this.safe(dv.genero), customFont);
+      this.setText(form, 'Fecha de NacimientoRow1', this.parseDateToDDMMYYYY(dv.fecha_nacimiento), customFont);
+      this.setText(form, 'Departamento de NacimientoRow1', this.safe(dv.lugar_nacimiento_departamento), customFont);
+      this.setText(form, 'Municipio de NacimientoRow1', this.safe(dv.lugar_nacimiento_municipio), customFont);
 
-    // Banco / cuenta / ARL
-    this.setText(form, 'Banco', this.safe(datoInfoContratacion.forma_pago), customFont);
-    this.setText(form, 'Cuenta', this.safe(datoInfoContratacion.numero_pagos), customFont);
-    this.setText(form, 'Porcentaje ARLARL SURA', this.safe(datoInfoContratacion.porcentaje_arl), customFont);
+      // Estado civil (X)
+      const ec = this.safe(dv.estado_civil).toUpperCase();
+      this.setXIf(form, 'SolteroEstado Civil', ec === 'SO');
+      this.setXIf(form, 'CasadoEstado Civil', ec === 'CA');
+      this.setXIf(form, 'Union LibreEstado Civil', ec === 'UN');
+      this.setXIf(form, 'SeparadoEstado Civil', ec === 'SE');
+      this.setXIf(form, 'ViudoEstado Civil', ec === 'VI');
 
-    // Seguridad social
-    this.setText(form, 'EPS SaludRow1', this.safe(ds.eps), customFont);
-    this.setText(form, 'AFP PensiónRow1', this.safe(ds.afp), customFont);
-    this.setText(form, 'AFC CesantiasRow1', this.safe(datoInfoContratacion.cesantias), customFont);
-    this.setText(form, 'N de Semanas CotizadasPensionado NO', this.safe(datoInfoContratacion.semanas_cotizadas) || '0', customFont);
+      // Contacto / residencia
+      this.setText(form, 'Dirección de DomicilioRow1', this.safe(dv.direccion_residencia), customFont);
+      this.setText(form, 'BarrioRow1', this.safe(dv.barrio), customFont);
+      this.setText(form, 'Ciudad DomicilioRow1', this.safe(dv.municipio), customFont);
+      this.setText(form, 'DepartamentoRow1', this.safe(dv.departamento), customFont);
+      this.setText(form, 'CelularRow1', this.safe(dv.celular), customFont);
+      this.setText(form, 'Correo ElectrónicoRow1', this.safe(dv.primercorreoelectronico), customFont);
 
-    // Auxilio / ruta
-    this.setText(form, 'Nombre de la RutaAuxilio Trasporte', this.safe(vac.auxilioTransporte), customFont);
-    const rutaInfo = this.getRutaInfo(vac.oficinasQueContratan, ds.centro_costo_entrevista || '');
-    this.setText(form, 'Nombre de la RutaUsa Ruta', rutaInfo.usaRuta, customFont);
+      // RH / mano
+      this.setText(form, 'CelularGrupo Sanguineo y RH', this.safe(dv.rh), customFont);
+      const mano = this.safe(dv.zurdo_diestro).toUpperCase();
+      this.setXIf(form, 'Diestro', mano.includes('DIESTRO'));
+      this.setXIf(form, 'PesoZurdo', !mano.includes('DIESTRO'));
 
-    // Horas extras
-    this.setText(form, 'Horas extras', this.safe(datoInfoContratacion.horas_extras), customFont);
+      // Empresa / Clasificadores
+      this.setText(form, 'Empresa Grupo Elite', this.safe(vac.empresaUsuariaSolicita), customFont);
+      this.setText(form, 'Código Compañía', this.safe(vac.codigoElite ?? vac.empresaUsuariaSolicita), customFont);
+      this.setText(form, 'Sucursal', this.safe(ds.centro_costo_entrevista), customFont);
 
-    // Educación
-    this.setText(form, 'Seleccione el Grado de Escolaridad', this.safe(dv.escolaridad), customFont);
-    this.setText(form, 'Institución', this.safe(dv.nombre_institucion), customFont);
-    this.setText(form, 'Titulo Obtenido o Ultimo año Cursado', this.safe(dv.titulo_obtenido), customFont);
-    this.setText(form, 'Año Finalización', this.parseDateToDDMMYYYY(dv.ano_finalizacion), customFont);
+      this.setText(form, 'Centro de Costo', this.safe(datoInfoContratacion.centro_de_costos), customFont);
+      this.setText(form, 'SubCentro de Costo', this.safe(datoInfoContratacion.subCentroCostos), customFont);
 
-    // Experiencia 1
-    this.setText(form, 'Nombre Empresa 1Row1', this.safe(dv.nombre_expe_laboral1_empresa), customFont);
-    this.setText(form, 'Dirección EmpresaRow1', this.safe(dv.direccion_empresa1), customFont);
-    this.setText(form, 'TeléfonosRow1', this.safe(dv.telefonos_empresa1), customFont);
-    this.setText(form, 'Jefe InmediatoRow1', this.safe(dv.nombre_jefe_empresa1), customFont);
-    this.setText(form, 'CargoRow1', this.safe(dv.cargo_empresa1), customFont);
-    this.setText(form, 'F de RetiroRow1', this.parseDateToDDMMYYYY(dv.fecha_retiro_empresa1), customFont);
-    this.setText(form, 'Motivo de RetiroRow1', this.safe(dv.motivo_retiro_empresa1), customFont);
+      this.setText(form, 'CÓDIGOCiudad de Labor', this.safe(ds.centro_costo_entrevista || dv.municipio), customFont);
+      this.setText(form, 'CÓDIGOClasificador 2Categoría', this.safe(datoInfoContratacion.categoria), customFont);
+      this.setText(form, 'CÓDIGOClasificador 3Operación', this.safe(datoInfoContratacion.operacion), customFont);
+      this.setText(form, 'CÓDIGOClasificador 4Sublador', this.safe(vac.cargo), customFont);
+      this.setText(form, 'Apoyo Laboral TSClasificador 6Grupo', this.safe(datoInfoContratacion.grupo), customFont);
 
-    // Autorización (1 vez)
-    const empresaTxt = this.safe(vac?.empresaUsuariaSolicita);
-    this.setText(
-      form,
-      'AutorizacionDeEstudiosSeguridad2',
-      empresaTxt
-        ? `estudios de seguridad. De conformidad con lo dispuesto en la ley 1581 de 2012 y el decreto reglamentario 1377 de 2013 autorizo a ${empresaTxt} a consultar en cualquier momento ante las centrales de riesgo la información comercial a mi nombre.`
-        : '',
-      customFont,
-      6
-    );
-    this.setText(form, 'CedulaAutorizacion', this.safe(dv.numerodeceduladepersona), customFont);
+      // Fecha ingreso / salario
+      this.setText(form, 'Fecha de Ingreso', this.formatLongDateES(this.safe(ds.fechaIngreso)), customFont);
+      this.setText(form, 'Sueldo Básico', this.formatMoneyCOP(ds.salario), customFont);
 
-    // Persona que firma (usuario del sistema)
-    this.setText(
-      form,
-      'Persona que firma',
-      this.safe(
-        `${this.user?.datos_basicos?.nombres ?? ''} ${this.user?.datos_basicos?.apellidos ?? ''} ${this.user?.tipo_documento ?? ''} ${this.user?.numero_de_documento ?? ''}`.trim()
-      ),
-      customFont
-    );
+      // Banco / cuenta / ARL
+      this.setText(form, 'Banco', this.safe(datoInfoContratacion.forma_pago), customFont);
+      this.setText(form, 'Cuenta', this.safe(datoInfoContratacion.numero_pagos), customFont);
+      this.setText(form, 'Porcentaje ARLARL SURA', this.safe(datoInfoContratacion.porcentaje_arl), customFont);
 
-    // =========================================================
-    // 2.1) IMÁGENES (como en tu jsPDF, pero correcto para PDF-lib)
-    // =========================================================
+      // Seguridad social
+      this.setText(form, 'EPS SaludRow1', this.safe(ds.eps), customFont);
+      this.setText(form, 'AFP PensiónRow1', this.safe(ds.afp), customFont);
+      this.setText(form, 'AFC CesantiasRow1', this.safe(datoInfoContratacion.cesantias), customFont);
+      this.setText(form, 'N de Semanas CotizadasPensionado NO', this.safe(datoInfoContratacion.semanas_cotizadas) || '0', customFont);
 
-    // Firma institucional (tu campo / URL / dataURL)
-    await setButtonImageSafe(pdfDoc, form, 'Image15_af_image', this.firmaPersonalAdministrativo);
+      // Auxilio / ruta
+      this.setText(form, 'Nombre de la RutaAuxilio Trasporte', this.safe(vac.auxilioTransporte), customFont);
+      const rutaInfo = this.getRutaInfo(vac.oficinasQueContratan, ds.centro_costo_entrevista || '');
+      this.setText(form, 'Nombre de la RutaUsa Ruta', rutaInfo.usaRuta, customFont);
 
-    // =========================================================
-    // 3) Biométricos del candidato por URL (firma/foto/huella)
-    // =========================================================
-    await setButtonImageSafe(pdfDoc, form, 'Image11_af_image', firmaUrl);
-    await setButtonImageSafe(pdfDoc, form, 'Image17_af_image', fotoUrl);
-    await setButtonImageSafe(pdfDoc, form, 'Image10_af_image', huellaUrl);
+      // Horas extras
+      this.setText(form, 'Horas extras', this.safe(datoInfoContratacion.horas_extras), customFont);
 
-    // Fechas adicionales
-    this.setText(form, 'Fecha de EntregaINICIAL', this.formatLongDateES(this.safe(ds.fechaIngreso)), customFont);
-    this.setText(form, 'FechaLocker', this.formatLongDateES(this.safe(ds.fechaIngreso)), customFont);
+      // Educación
+      this.setText(form, 'Seleccione el Grado de Escolaridad', this.safe(dv.escolaridad), customFont);
+      this.setText(form, 'Institución', this.safe(dv.nombre_institucion), customFont);
+      this.setText(form, 'Titulo Obtenido o Ultimo año Cursado', this.safe(dv.titulo_obtenido), customFont);
+      this.setText(form, 'Año Finalización', this.parseDateToDDMMYYYY(dv.ano_finalizacion), customFont);
 
-    // Textos
-    this.setText(
-      form,
-      'TEXTOCARNET',
-      `me comprometo a presentar ante ${this.safe(vac.empresaUsuariaSolicita)} fotocopia del denuncio correspondiente y en el caso de aparecer el carnet perdido lo devolveré a la empresa para su respectiva anulación`,
-      customFont,
-      6
-    );
+      // Experiencia 1
+      this.setText(form, 'Nombre Empresa 1Row1', this.safe(dv.nombre_expe_laboral1_empresa), customFont);
+      this.setText(form, 'Dirección EmpresaRow1', this.safe(dv.direccion_empresa1), customFont);
+      this.setText(form, 'TeléfonosRow1', this.safe(dv.telefonos_empresa1), customFont);
+      this.setText(form, 'Jefe InmediatoRow1', this.safe(dv.nombre_jefe_empresa1), customFont);
+      this.setText(form, 'CargoRow1', this.safe(dv.cargo_empresa1), customFont);
+      this.setText(form, 'F de RetiroRow1', this.parseDateToDDMMYYYY(dv.fecha_retiro_empresa1), customFont);
+      this.setText(form, 'Motivo de RetiroRow1', this.safe(dv.motivo_retiro_empresa1), customFont);
 
-    this.setText(
-      form,
-      'TEXTOLOCKER5',
-      `Yo, ${nombreCompleto} identificado(a) con Cedula de Ciudadania No ${this.safe(dv.numerodeceduladepersona)} declaro haber recibido el loker relacionado abajo y me comprometo a seguir las recomendaciones y politicas de uso y cuidado de estós, y a devolverer Loker en el mismo estado en que me fue asignado al momento de la finalizaci6n de mi relación laboral y antes de la entrega de la liquidación de contrato`,
-      customFont,
-      6
-    );
+      // Autorización (1 vez)
+      const empresaTxt = this.safe(vac?.empresaUsuariaSolicita);
+      this.setText(
+        form,
+        'AutorizacionDeEstudiosSeguridad2',
+        empresaTxt
+          ? `estudios de seguridad. De conformidad con lo dispuesto en la ley 1581 de 2012 y el decreto reglamentario 1377 de 2013 autorizo a ${empresaTxt} a consultar en cualquier momento ante las centrales de riesgo la información comercial a mi nombre.`
+          : '',
+        customFont,
+        6
+      );
+      this.setText(form, 'CedulaAutorizacion', this.safe(dv.numerodeceduladepersona), customFont);
 
-    // Bloquear campos
-    form.getFields().forEach((f: any) => { try { f.enableReadOnly(); } catch {} });
+      // Persona que firma (usuario del sistema)
+      this.setText(
+        form,
+        'Persona que firma',
+        this.safe(
+          `${this.user?.datos_basicos?.nombres ?? ''} ${this.user?.datos_basicos?.apellidos ?? ''} ${this.user?.tipo_documento ?? ''} ${this.user?.numero_de_documento ?? ''}`.trim()
+        ),
+        customFont
+      );
 
-    // Guardar PDF
-    const pdfBytes = await pdfDoc.save();
-    const ab = this.toSafeArrayBuffer(pdfBytes);
-    const file = new File([ab], 'Ficha tecnica.pdf', { type: 'application/pdf' });
+      // =========================================================
+      // 2.1) IMÁGENES (como en tu jsPDF, pero correcto para PDF-lib)
+      // =========================================================
 
-    this.uploadedFiles['Ficha técnica'] = { file, fileName: 'Ficha tecnica.pdf' };
-    this.verPDF({ titulo: 'Ficha técnica' });
-  } catch (error) {
-    console.error('Error generando ficha técnica:', error);
-    Swal.fire({ icon: 'error', title: 'Error', text: 'Ocurrió un error al generar la ficha técnica.' });
+      // Firma institucional (tu campo / URL / dataURL)
+      await setButtonImageSafe(pdfDoc, form, 'Image15_af_image', this.firmaPersonalAdministrativo);
+
+      // =========================================================
+      // 3) Biométricos del candidato por URL (firma/foto/huella)
+      // =========================================================
+      await setButtonImageSafe(pdfDoc, form, 'Image11_af_image', firmaUrl);
+      await setButtonImageSafe(pdfDoc, form, 'Image17_af_image', fotoUrl);
+      await setButtonImageSafe(pdfDoc, form, 'Image10_af_image', huellaUrl);
+
+      // Fechas adicionales
+      this.setText(form, 'Fecha de EntregaINICIAL', this.formatLongDateES(this.safe(ds.fechaIngreso)), customFont);
+      this.setText(form, 'FechaLocker', this.formatLongDateES(this.safe(ds.fechaIngreso)), customFont);
+
+      // Textos
+      this.setText(
+        form,
+        'TEXTOCARNET',
+        `me comprometo a presentar ante ${this.safe(vac.empresaUsuariaSolicita)} fotocopia del denuncio correspondiente y en el caso de aparecer el carnet perdido lo devolveré a la empresa para su respectiva anulación`,
+        customFont,
+        6
+      );
+
+      this.setText(
+        form,
+        'TEXTOLOCKER5',
+        `Yo, ${nombreCompleto} identificado(a) con Cedula de Ciudadania No ${this.safe(dv.numerodeceduladepersona)} declaro haber recibido el loker relacionado abajo y me comprometo a seguir las recomendaciones y politicas de uso y cuidado de estós, y a devolverer Loker en el mismo estado en que me fue asignado al momento de la finalizaci6n de mi relación laboral y antes de la entrega de la liquidación de contrato`,
+        customFont,
+        6
+      );
+
+      // Bloquear campos
+      form.getFields().forEach((f: any) => { try { f.enableReadOnly(); } catch { } });
+
+      // Guardar PDF
+      const pdfBytes = await pdfDoc.save();
+      const ab = this.toSafeArrayBuffer(pdfBytes);
+      const file = new File([ab], 'Ficha tecnica.pdf', { type: 'application/pdf' });
+
+      this.uploadedFiles['Ficha técnica'] = { file, fileName: 'Ficha tecnica.pdf' };
+      this.verPDF({ titulo: 'Ficha técnica' });
+    } catch (error) {
+      console.error('Error generando ficha técnica:', error);
+      Swal.fire({ icon: 'error', title: 'Error', text: 'Ocurrió un error al generar la ficha técnica.' });
+    }
   }
-}
+
+  // Asegúrate de tener estos imports en el archivo:
+  // import { firstValueFrom, of } from 'rxjs';
+  // import { catchError, take } from 'rxjs/operators';
+
+  async generarFichaTecnicaTuAlianza() {
+    let datoContratacion: any = {};
+
+    try {
+      // =========================================================
+      // 0) ESPERAR a que llegue la contratación ANTES de continuar
+      // =========================================================
+      const numeroDoc = String(this.candidato?.numero_documento ?? '').trim();
+      if (!numeroDoc) throw new Error('El candidato no tiene número de documento.');
+
+      const respContratacion: any = await firstValueFrom(
+        this.contratacionService.buscarEncontratacion(numeroDoc).pipe(
+          take(1),
+          catchError((err) => {
+            console.error('Error buscando contratación:', err);
+            return of({ data: [] });
+          })
+        )
+      );
+
+      console.log('Datos de contratación recibidos:', respContratacion);
+      datoContratacion = respContratacion?.data?.[0] ?? {};
+      console.log('Dato de contratación para ficha técnica Tu Alianza:', datoContratacion);
+
+      // =========================================================
+      // 0) Helpers de imagen (PDF-lib) - robustos como en jsPDF
+      // =========================================================
+      const bytesCache = new Map<string, Promise<ArrayBuffer | null>>();
+
+      const isHttp = (u: string) => /^https?:\/\//i.test(u);
+      const isDataUrl = (u: string) => /^data:image\//i.test(u);
+
+      const normalizeUrl = (u: string) => {
+        const s = String(u ?? '').trim();
+        if (!s) return '';
+        if (isHttp(s) || isDataUrl(s)) return s;
+
+        const clean = s.replace(/^\/+/, '');
+        if (clean.startsWith('assets/')) return clean;
+
+        return `assets/${clean}`;
+      };
+
+      const dataUrlToBytes = (dataUrl: string): ArrayBuffer | null => {
+        try {
+          const [meta, b64] = dataUrl.split(',');
+          if (!meta || !b64) return null;
+          const bin = atob(b64);
+          const len = bin.length;
+          const bytes = new Uint8Array(len);
+          for (let i = 0; i < len; i++) bytes[i] = bin.charCodeAt(i);
+          return bytes.buffer;
+        } catch {
+          return null;
+        }
+      };
+
+      const detectImageType = (ab: ArrayBuffer): 'png' | 'jpg' | null => {
+        const b = new Uint8Array(ab);
+        if (
+          b.length >= 8 &&
+          b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4E && b[3] === 0x47 &&
+          b[4] === 0x0D && b[5] === 0x0A && b[6] === 0x1A && b[7] === 0x0A
+        ) return 'png';
+
+        if (b.length >= 3 && b[0] === 0xFF && b[1] === 0xD8 && b[2] === 0xFF) return 'jpg';
+
+        return null;
+      };
+
+      const fetchBytesOrNull = async (urlOrData?: string): Promise<ArrayBuffer | null> => {
+        const raw = String(urlOrData ?? '').trim();
+        if (!raw) return null;
+
+        if (isDataUrl(raw)) return dataUrlToBytes(raw);
+
+        const url = normalizeUrl(raw);
+        if (!url) return null;
+
+        if (bytesCache.has(url)) return await bytesCache.get(url)!;
+
+        const p = (async () => {
+          try {
+            const ab = await this.fetchAsArrayBufferOrNull(url);
+            if (ab) return ab;
+          } catch { }
+
+          if (!isHttp(raw) && !raw.startsWith('assets/') && !isDataUrl(raw)) {
+            try {
+              const ab2 = await this.fetchAsArrayBufferOrNull(raw);
+              if (ab2) return ab2;
+            } catch { }
+          }
+
+          return null;
+        })();
+
+        bytesCache.set(url, p);
+        return await p;
+      };
+
+      const embedImageOrNull = async (pdfDoc: PDFDocument, urlOrData?: string) => {
+        const ab = await fetchBytesOrNull(urlOrData);
+        if (!ab) return null;
+
+        const kind = detectImageType(ab);
+        if (!kind) return null;
+
+        try {
+          const u8 = new Uint8Array(ab);
+          return kind === 'png' ? await pdfDoc.embedPng(u8) : await pdfDoc.embedJpg(u8);
+        } catch {
+          return null;
+        }
+      };
+
+      const setButtonImageSafe = async (
+        pdfDoc: PDFDocument,
+        form: any,
+        buttonName: string,
+        urlOrData?: string
+      ) => {
+        const img = await embedImageOrNull(pdfDoc, urlOrData);
+        if (!img) return false;
+        try {
+          form.getButton(buttonName).setImage(img);
+          return true;
+        } catch {
+          return false;
+        }
+      };
+
+      // =========================================================
+      // 1) Normalización desde this.candidato y this.vacante
+      // =========================================================
+      const cand: any = this.candidato ?? {};
+      console.log('Candidato para ficha técnica Tu Alianza:', cand);
+      const vac: any = this.vacante ?? {};
+      console.log('Vacante para ficha técnica Tu Alianza:', vac);
+
+      const contacto: any = cand.contacto ?? {};
+      const residencia: any = cand.residencia ?? {};
+      const infoCc: any = cand.info_cc ?? {};
+
+      const entrevista: any = Array.isArray(cand.entrevistas) ? cand.entrevistas[0] : null;
+      const proceso: any = entrevista?.proceso ?? {};
+      const contrato: any = proceso?.contrato ?? {};
+      const antecedentes: any[] = Array.isArray(proceso?.antecedentes) ? proceso.antecedentes : [];
+
+      const norm = (v: any) => String(v ?? '').trim().toUpperCase();
+      const findAnte = (nombre: string) => antecedentes.find(a => norm(a?.nombre) === norm(nombre));
+
+      const eps = String(findAnte('EPS')?.observacion ?? '');
+      const afp = String(findAnte('AFP')?.observacion ?? '');
+
+      const mapEstadoCivil = (code: any): string => {
+        const c = norm(code);
+        if (c === 'SO' || c === 'SOLTERO' || c === 'S') return 'SO';
+        if (c === 'CA' || c === 'CASADO') return 'CA';
+        if (c === 'UN' || c === 'UL' || c === 'UNION LIBRE' || c === 'UNIÓN LIBRE') return 'UN';
+        if (c === 'SE' || c === 'SEP' || c === 'SEPARADO') return 'SE';
+        if (c === 'VI' || c === 'VIUDO') return 'VI';
+        return c || '';
+      };
+
+      const nombreCompleto = [
+        cand.primer_nombre,
+        cand.segundo_nombre,
+        cand.primer_apellido,
+        cand.segundo_apellido,
+      ]
+        .map((x: any) => String(x ?? '').trim())
+        .filter(Boolean)
+        .join(' ');
+
+      const codigoContrato = String(contrato?.codigo_contrato ?? proceso?.contrato_codigo ?? '').trim();
+
+      const fechaIngreso = String(vac?.fechadeIngreso ?? '').trim();
+      const salario = vac?.salario ?? proceso?.vacante_salario ?? '';
+
+      const formacion0: any = Array.isArray(cand.formaciones) ? cand.formaciones[0] : null;
+      const exp0: any = Array.isArray(cand.experiencias) ? cand.experiencias[0] : null;
+
+      const dv: any = {
+        primer_apellido: cand.primer_apellido ?? '',
+        segundo_apellido: cand.segundo_apellido ?? '',
+        primer_nombre: cand.primer_nombre ?? '',
+        segundo_nombre: cand.segundo_nombre ?? '',
+
+        tipodedocumento: cand.tipo_doc ?? '',
+        numerodeceduladepersona: cand.numero_documento ?? '',
+
+        fecha_expedicion_cc: infoCc?.fecha_expedicion ?? '',
+        departamento_expedicion_cc: infoCc?.depto_expedicion ?? '',
+        municipio_expedicion_cc: infoCc?.mpio_expedicion ?? '',
+
+        genero: cand.sexo ?? '',
+        fecha_nacimiento: cand.fecha_nacimiento ?? '',
+        lugar_nacimiento_departamento: infoCc?.depto_nacimiento ?? '',
+        lugar_nacimiento_municipio: infoCc?.mpio_nacimiento ?? '',
+
+        estado_civil: mapEstadoCivil(cand.estado_civil),
+
+        direccion_residencia: residencia?.direccion ?? '',
+        barrio: residencia?.barrio ?? '',
+        municipio: (vac?.municipio?.[0] ?? entrevista?.oficina ?? '').toString(),
+        departamento: '',
+
+        celular: contacto?.celular ?? '',
+        primercorreoelectronico: contacto?.email ?? '',
+
+        rh: cand.rh ?? '',
+        zurdo_diestro: cand.zurdo_diestro ?? '',
+
+        escolaridad: formacion0?.nivel ?? '',
+        nombre_institucion: formacion0?.institucion ?? '',
+        titulo_obtenido: formacion0?.titulo_obtenido ?? '',
+        ano_finalizacion: formacion0?.anio_finalizacion ?? '',
+
+        nombre_expe_laboral1_empresa: exp0?.empresa ?? '',
+        direccion_empresa1: exp0?.direccion ?? '',
+        telefonos_empresa1: exp0?.telefonos ?? '',
+        nombre_jefe_empresa1: exp0?.nombre_jefe ?? '',
+        cargo_empresa1: exp0?.cargo ?? '',
+        fecha_retiro_empresa1: exp0?.fecha_retiro ?? '',
+        motivo_retiro_empresa1: exp0?.motivo_retiro ?? '',
+      };
+
+      const ds: any = {
+        fechaIngreso,
+        salario,
+        eps,
+        afp,
+        cesantias: entrevista.proceso?.contrato?.cesantias ?? '',
+        cargo: vac?.cargo ?? '',
+        centro_costo_entrevista: entrevista?.oficina ?? '',
+        empresa_usuario: vac?.empresaUsuariaSolicita ?? '',
+      };
+
+      // =========================================================
+      // 2) Cargar PDF base y setear campos
+      // =========================================================
+      const pdfUrl = 'Docs/FICHA FORANEOS TU ALIANZA.pdf';
+      const arrayBuffer = await this.fetchAsArrayBufferOrNull(pdfUrl);
+      if (!arrayBuffer) throw new Error('No se pudo cargar el PDF base.');
+
+      const pdfDoc = await PDFDocument.load(arrayBuffer);
+      pdfDoc.registerFontkit(fontkit as any);
+
+      const fontBytes = await this.fetchAsArrayBufferOrNull('fonts/Roboto-Regular.ttf');
+      const customFont = fontBytes ? await pdfDoc.embedFont(fontBytes) : undefined;
+
+      const form = pdfDoc.getForm();
+
+      // Imagen1_af_image
+      await setButtonImageSafe(pdfDoc, form, 'Imagen1_af_image', this.foto);
+
+      this.setText(form, '1er Apellido', this.safe(dv.primer_apellido), customFont);
+      this.setText(form, '2do apellido', this.safe(dv.segundo_apellido), customFont);
+      this.setText(
+        form,
+        'Nombres',
+        [this.safe(dv.primer_nombre), this.safe(dv.segundo_nombre)].filter(Boolean).join(' '),
+        customFont
+      );
+      // num-identificacion
+      this.setText(form, 'num-identificacion', this.safe(dv.numerodeceduladepersona), customFont);
+      // No de Hijos
+      this.setText(form, 'No de Hijos', this.safe(datoContratacion?.num_hijos_dependen_economicamente ?? ''), customFont);
+      // primercorreoelectronico
+      this.setText(form, 'Email', this.safe(datoContratacion?.primercorreoelectronico), customFont);
+
+      this.setText(
+        form,
+        'Fecha y lugar de Expediciòn',
+        this.parseDateToDDMMYYYY(dv.fecha_expedicion_cc) + ' ' + this.safe(dv.municipio_expedicion_cc),
+        customFont
+      );
+      this.setText(
+        form,
+        'Fecha y lugar de Nacimiento',
+        this.parseDateToDDMMYYYY(dv.fecha_nacimiento) + ' ' + this.safe(dv.lugar_nacimiento_municipio),
+        customFont
+      );
+
+      this.setText(form, 'Dirección', this.safe(dv.direccion_residencia), customFont);
+      this.setText(
+        form,
+        'Mun Bar',
+        (this.safe(dv.municipio)?.trim() || this.safe(dv.barrio)?.trim() || ''),
+        customFont
+      );
+      this.setText(form, 'Celular', this.safe(dv.celular), customFont);
+      this.setText(form, 'DiesZurd', this.safe(dv.zurdo_diestro), customFont);
+      this.setText(form, 'RH', this.safe(dv.rh), customFont);
+      this.setText(form, 'Estado Civil', this.safe(dv.estado_civil), customFont);
+      this.setText(form, 'Correo Electrónico', this.safe(dv.primercorreoelectronico), customFont);
+      this.setText(form, 'EPS', this.safe(ds.eps), customFont);
+      this.setText(form, 'AFP', this.safe(ds.afp), customFont);
+      this.setText(form, 'AFC', this.safe(ds.cesantias ?? ''), customFont);
+
+      // escolaridad
+      this.setText(form, 'escolaridad', this.safe(datoContratacion?.escolaridad ?? ''), customFont);
+      this.setText(form, 'Nombre de la Instit', this.safe(datoContratacion?.nombre_institucion ?? ''), customFont);
+      this.setText(form, 'UniversidadAño Finalización', this.safe(datoContratacion?.ano_finalizacion ?? ''), customFont);
+      this.setText(form, 'Titulo Obtenido o Ultimo Cursado', this.safe(datoContratacion?.titulo_obtenido ?? ''), customFont);
+
+      // info familiar
+      this.setText(form, 'Nombre y apellido padre', this.safe(datoContratacion?.nombre_padre ?? ''), customFont);
+      this.setText(form, 'Vive', this.safe(datoContratacion?.vive_padre ?? ''), customFont);
+      this.setText(form, 'Ocupación', this.safe(datoContratacion?.ocupacion_padre ?? ''), customFont);
+      this.setText(form, 'Dirección_2', this.safe(datoContratacion?.direccion_padre ?? ''), customFont);
+      this.setText(form, 'Teléfono', this.safe(datoContratacion?.telefono_padre ?? ''), customFont);
+      this.setText(form, 'BarrioMunicipio', this.safe(datoContratacion?.barrio_padre ?? ''), customFont);
+
+      this.setText(form, 'Nombre y apellido madre', this.safe(datoContratacion?.nombre_madre ?? ''), customFont);
+      this.setText(form, 'Vive_2', this.safe(datoContratacion?.vive_madre ?? ''), customFont);
+      this.setText(form, 'Ocupación_2', this.safe(datoContratacion?.ocupacion_madre ?? ''), customFont);
+      this.setText(form, 'Dirección_3', this.safe(datoContratacion?.direccion_madre ?? ''), customFont);
+      this.setText(form, 'Teléfono_2', this.safe(datoContratacion?.telefono_madre ?? ''), customFont);
+      this.setText(form, 'BarrioMunicipio_2', this.safe(datoContratacion?.barrio_madre ?? ''), customFont);
+
+      this.setText(
+        form,
+        'Nombreyapellidoconyuge',
+        this.safe(`${datoContratacion?.nombre_conyugue ?? ''} ${datoContratacion?.apellido_conyugue ?? ''}`.trim()),
+        customFont
+      );
+      this.setText(form, 'Ocupación_3', this.safe(datoContratacion?.ocupacion_conyugue ?? ''), customFont);
+      this.setText(form, 'Dirección_4', this.safe(datoContratacion?.direccion_conyugue ?? ''), customFont);
+      this.setText(form, 'Teléfono_3', this.safe(datoContratacion?.telefono_conyugue ?? ''), customFont);
+      this.setText(form, 'BarrioMunicipio_3', this.safe(datoContratacion?.barrio_municipio_conyugue ?? ''), customFont);
+
+      this.setText(form, 'Familiar en caso de Emergencia', this.safe(datoContratacion?.familiar_emergencia ?? ''), customFont);
+      this.setText(form, 'Parentesco', this.safe(datoContratacion?.parentesco_familiar_emergencia ?? ''), customFont);
+      this.setText(form, 'Ocupación_4', this.safe(datoContratacion?.ocupacion_familiar_emergencia ?? ''), customFont);
+      this.setText(form, 'Dirección_5', this.safe(datoContratacion?.direccion_familiar_emergencia ?? ''), customFont);
+      this.setText(form, 'Teléfono_4', this.safe(datoContratacion?.telefono_familiar_emergencia ?? ''), customFont);
+      this.setText(form, 'BarrioMunicipio_4', this.safe(datoContratacion?.barrio_familiar_emergencia ?? ''), customFont);
+
+
+      const hijos = Array.isArray(datoContratacion?.hijos) ? datoContratacion!.hijos : [];
+
+      const parseYmd = (ymd: string) => {
+        // espera "YYYY-MM-DD"
+        const [y, m, d] = ymd.split('-').map(n => Number(n));
+        if (!y || !m || !d) return null;
+        return new Date(y, m - 1, d); // local, evita desfases
+      };
+      const formatDate = (ymd: string) => {
+        const dt = parseYmd(ymd);
+        if (!dt) return '';
+        const dd = String(dt.getDate()).padStart(2, '0');
+        const mm = String(dt.getMonth() + 1).padStart(2, '0');
+        const yyyy = dt.getFullYear();
+        return `${dd}/${mm}/${yyyy}`; // cambia si tu PDF quiere YYYY-MM-DD
+      };
+      const calcAge = (ymd: string) => {
+        const birth = parseYmd(ymd);
+        if (!birth) return '';
+        const today = new Date();
+        let age = today.getFullYear() - birth.getFullYear();
+        const m = today.getMonth() - birth.getMonth();
+        if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--;
+        return age < 0 ? '' : String(age);
+      };
+
+      for (let i = 0; i < 5; i++) {
+        const idx = i + 1;
+        const h = hijos[i] ?? {};
+
+        const nombre = norm((h as any).nombre);
+        const sexo = norm((h as any).sexo);
+        const fechaRaw = norm((h as any).fecha_nacimiento);
+        const noDoc = norm((h as any).no_documento);
+        const ocupacion = norm((h as any).estudia_o_trabaja);
+        const curso = norm((h as any).curso);
+
+        this.setText(form, `nombre_hijo_${idx}`, this.safe(nombre), customFont);
+        this.setText(form, `fecha_nac_hijo_${idx}`, this.safe(formatDate(fechaRaw)), customFont);
+        this.setText(form, `no_iden_hijo_${idx}`, this.safe(noDoc), customFont);
+        this.setText(form, `sexo_hijo_${idx}`, this.safe(sexo), customFont);
+        this.setText(form, `edad_hijo_${idx}`, this.safe(calcAge(fechaRaw)), customFont);
+        this.setText(form, `ocupacion_hijo_${idx}`, this.safe(ocupacion), customFont);
+        this.setText(form, `curso_hijo_${idx}`, this.safe(curso), customFont);
+      }
+
+
+      this.setText(form, 'TALLA CHAQUETA', this.safe(datoContratacion.chaqueta ?? ''), customFont);
+      this.setText(form, 'TALLA PANTALON', this.safe(datoContratacion.pantalon ?? ''), customFont);
+      this.setText(form, 'TALLA OVEROL', this.safe(datoContratacion.camisa ?? ''), customFont);
+      this.setText(form, 'No calzado', this.safe(datoContratacion.calzado ?? ''), customFont);
+      this.setText(form, 'No Botas de Caucho', this.safe(datoContratacion.calzado ?? ''), customFont);
+      this.setText(form, 'No Zapatones', this.safe(datoContratacion.calzado ?? ''), customFont);
+      this.setText(form, 'No Botas Material', this.safe(datoContratacion.calzado ?? ''), customFont);
+      this.setText(form, 'No Botas Material', this.safe(datoContratacion.calzado ?? ''), customFont);
+
+      this.setText(form, 'Nombre Empresa', this.safe(datoContratacion.nombre_expe_laboral1_empresa ?? ''), customFont);
+      this.setText(form, 'Dirección Empresa', this.safe(datoContratacion.direccion_empresa1 ?? ''), customFont);
+      this.setText(form, 'Teléfonos', this.safe(datoContratacion.telefonos_empresa1 ?? ''), customFont);
+      this.setText(form, 'Jefe Inmediato', this.safe(datoContratacion.nombre_jefe_empresa1 ?? ''), customFont);
+      this.setText(form, 'Cargo', this.safe(datoContratacion.cargo_empresa1 ?? ''), customFont);
+      this.setText(form, 'F de Retiro', this.safe(datoContratacion.fecha_retiro_empresa1 ?? ''), customFont);
+      // motivoretiro
+      this.setText(
+        form,
+        'motivoretiro',
+        this.safe(`Motivo de retiro: ${datoContratacion?.motivo_retiro_empresa1 ?? ''}`),
+        customFont
+      );
+
+      // referencias personales
+      this.setText(form, '1', this.safe(datoContratacion.nombre_referencia_personal1 ?? ''), customFont);
+      this.setText(form, 'Teléfonos1', this.safe(datoContratacion.telefono_referencia_personal1 ?? ''), customFont);
+      this.setText(form, 'Ocupación1', this.safe(datoContratacion.ocupacion_referencia_personal1 ?? ''), customFont);
+
+      this.setText(form, '2', this.safe(datoContratacion.nombre_referencia_personal2 ?? ''), customFont);
+      this.setText(form, 'Teléfonos2', this.safe(datoContratacion.telefono_referencia_personal2 ?? ''), customFont);
+      this.setText(form, 'Ocupación2', this.safe(datoContratacion.ocupacion_referencia_personal2 ?? ''), customFont);
+
+      // referencias familiares
+      this.setText(form, '1_2', this.safe(datoContratacion.nombre_referencia_familiar1 ?? ''), customFont);
+      this.setText(form, 'Teléfonos1_2', this.safe(datoContratacion.telefono_referencia_familiar1 ?? ''), customFont);
+      this.setText(form, 'Ocupación1_2', this.safe(datoContratacion.ocupacion_referencia_familiar1 ?? ''), customFont);
+
+      this.setText(form, '2_2', this.safe(datoContratacion.nombre_referencia_familiar2 ?? ''), customFont);
+      this.setText(form, 'Teléfonos2_2', this.safe(datoContratacion.telefono_referencia_familiar2 ?? ''), customFont);
+      this.setText(form, 'Ocupación2_2', this.safe(datoContratacion.ocupacion_referencia_familiar2 ?? ''), customFont);
+
+      this.setText(form, 'nombre-referencia-peronal1', this.safe(datoContratacion.nombre_referencia_personal1 ?? ''), customFont);
+      this.setText(form, 'nombre-referencia-peronal2', this.safe(datoContratacion.nombre_referencia_personal2 ?? ''), customFont);
+      this.setText(form, 'nombre-referencia-familiar1', this.safe(datoContratacion.nombre_referencia_familiar1 ?? ''), customFont);
+      this.setText(form, 'nombre-referencia-familiar2', this.safe(datoContratacion.nombre_referencia_familiar2 ?? ''), customFont);
+
+      // aleatorios descripciones
+      const pickRandom = (arr: readonly string[]) => arr[Math.floor(Math.random() * arr.length)];
+
+      const pickTwoDistinct = (arr: readonly string[]): [string, string] => {
+        if (!arr?.length) return ['', ''];
+        if (arr.length === 1) return [arr[0], arr[0]];
+
+        const first = pickRandom(arr);
+        let second = pickRandom(arr);
+        while (second === first) second = pickRandom(arr);
+        return [first, second];
+      };
+
+      const [personal1, personal2] = pickTwoDistinct(this.referenciasA);
+      this.setText(form, 'descripcion-personal1', personal1, customFont);
+      this.setText(form, 'descripcion-personal2', personal2, customFont);
+
+      const [familiar1, familiar2] = pickTwoDistinct(this.referenciasF);
+      this.setText(form, 'descripcion-familiar1', familiar1, customFont);
+      this.setText(form, 'descripcion-familiar2', familiar2, customFont);
+
+      // firmado
+      console.log('Usuario que firma ficha técnica Tu Alianza:', this.nombreCompletoLogin);
+      console.log('Cédula usuario que firma ficha técnica Tu Alianza:', this.cedulaPersonalAdministrativo);
+      this.setText(
+        form,
+        'fimado',
+        `C.C. ${this.safe(this.cedulaPersonalAdministrativo)} ${this.nombreCompletoLogin}`,
+        customFont
+      );
+
+      // Bloquear campos
+      form.getFields().forEach((f: any) => { try { f.enableReadOnly(); } catch { } });
+
+      // Guardar PDF
+      const pdfBytes = await pdfDoc.save();
+      const ab = this.toSafeArrayBuffer(pdfBytes);
+      const file = new File([ab], 'Ficha tecnica.pdf', { type: 'application/pdf' });
+
+      this.uploadedFiles['Ficha técnica'] = { file, fileName: 'Ficha tecnica.pdf' };
+      this.verPDF({ titulo: 'Ficha técnica' });
+    } catch (error) {
+      console.error('Error generando ficha técnica:', error);
+      Swal.fire({ icon: 'error', title: 'Error', text: 'Ocurrió un error al generar la ficha técnica.' });
+    }
+  }
+
 
 
   // =========================================================

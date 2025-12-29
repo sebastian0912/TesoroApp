@@ -326,7 +326,7 @@ export class HomeService {
   }
 
   enviarEstadosRobots(payload: { candidatos_scope: 'nuevos' | 'todos' | 'ninguno'; datos: any[] }): Observable<any> {
-    const url = `${this.apiUrl}/EstadosRobots/cargar_excel`;
+    const url = `${this.apiUrl}/EstadosRobots/cargar-excel/`;
     return this.http.post(url, payload).pipe(catchError((e) => this.handleError(e)));
   }
 
