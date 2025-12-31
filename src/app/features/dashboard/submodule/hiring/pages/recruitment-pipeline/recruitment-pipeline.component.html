@@ -202,11 +202,12 @@
         </div>
       </mat-tab>
 
-      <!-- ─────────── TAB • CONTRATACIÓN ─────────── -->
-      <mat-tab [disabled]="deshabilitarContratacion()">
+      <!-- ─────────── TAB • CONTRATACIÓN ───────────    [disabled]="deshabilitarContratacion()"       [matTooltip]="deshabilitarContratacion() ? 'Hay exámenes NO APTO' : ''">-->
+
+      <mat-tab >
         <ng-template mat-tab-label>
-          <div class="tab"
-            [matTooltip]="deshabilitarContratacion() ? 'Hay exámenes NO APTO' : ''">
+          <div class="tab">
+            
             <mat-icon>how_to_reg</mat-icon>
             Contratación
           </div>

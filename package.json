@@ -1,6 +1,6 @@
 {
   "name": "tesoreria",
-  "version": "6.7.1",
+  "version": "6.8.0",
   "main": "app.js",
   "description": "Programa para control de prestamos a tesoreria",
   "author": "SebastianGuarnizoCampos",

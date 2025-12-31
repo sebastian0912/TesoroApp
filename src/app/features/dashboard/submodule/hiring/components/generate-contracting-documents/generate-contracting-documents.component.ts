@@ -292,41 +292,113 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     }
   }
 
-  cargarpdf() {
-    // Mostrar Swal de carga
+  async cargarpdf() {
     Swal.fire({
       title: 'Cargando...',
       text: 'Por favor, espera mientras se suben los archivos.',
       icon: 'info',
-      allowOutsideClick: false, // Evitar que el usuario cierre el Swal
-      didOpen: () => {
-        Swal.showLoading(); // Mostrar el indicador de carga
-      }
+      allowOutsideClick: false,
+      didOpen: () => Swal.showLoading(),
     });
 
-    // Subir los archivos
-    this.subirTodosLosArchivos().then((allFilesUploaded) => {
-      if (allFilesUploaded) {
-        Swal.close(); // Cerrar el Swal de carga
-        // Mostrar mensaje de éxito
-        Swal.fire({
+    try {
+      const { ok, fallidos } = await this.subirTodosLosArchivos();
+
+      // cerrar SIEMPRE el loading antes de mostrar otro swal
+      Swal.close();
+
+      if (ok) {
+        await Swal.fire({
           title: '¡Éxito!',
           text: 'Datos y archivos guardados exitosamente.',
           icon: 'success',
-          confirmButtonText: 'Ok'
+          confirmButtonText: 'Ok',
         });
+        return;
       }
-    }).catch((error) => {
-      // Cerrar el Swal de carga y mostrar el mensaje de error en caso de fallo al subir archivos
-      Swal.close(); // Asegurar que se cierre el Swal de carga antes de mostrar el error
-      Swal.fire({
-        title: 'Error',
-        text: `Hubo un error al subir los archivos: ${error}`,
-        icon: 'error',
-        confirmButtonText: 'Ok'
+
+      // Si hubo fallidos, muestra resumen (y ya no queda cargando)
+      const htmlFallidos = `
+      <p style="margin:0 0 8px 0">Algunos archivos no se subieron:</p>
+      <ul style="text-align:left;margin:0;padding-left:18px">
+        ${fallidos.map(f => `<li><b>${f.key}</b>: ${this.escapeHtml(f.error)}</li>`).join('')}
+      </ul>
+    `;
+
+      await Swal.fire({
+        icon: 'warning',
+        title: 'Guardado con advertencias',
+        html: htmlFallidos,
+        confirmButtonText: 'Ok',
       });
-    });
+
+    } catch (error: any) {
+      Swal.close();
+      await Swal.fire({
+        title: 'Error',
+        text: `Hubo un error al subir los archivos: ${error?.message ?? String(error)}`,
+        icon: 'error',
+        confirmButtonText: 'Ok',
+      });
+    }
   }
+
+  // Sube y SIEMPRE retorna resumen (nunca se queda “colgada”)
+  async subirTodosLosArchivos(): Promise<{
+    ok: boolean;
+    exitosos: string[];
+    fallidos: { key: string; error: string }[];
+  }> {
+    const archivosAEnviar = Object.keys(this.uploadedFiles)
+      .filter((key) => (key in this.typeMap) && this.uploadedFiles[key]?.file)
+      .map((key) => ({
+        key,
+        ...this.uploadedFiles[key],
+        typeId: this.typeMap[key],
+      }));
+
+    if (archivosAEnviar.length === 0) {
+      return { ok: true, exitosos: [], fallidos: [] };
+    }
+
+    const promesasDeSubida = archivosAEnviar.map(({ key, file, fileName, typeId }) =>
+      new Promise<{ key: string }>((resolveSubida, rejectSubida) => {
+        this.gestionDocumentalService
+          .guardarDocumento(fileName, this.cedula, typeId, file, this.codigoContratacion)
+          .pipe(take(1))
+          .subscribe({
+            next: () => resolveSubida({ key }),
+            error: (err) =>
+              rejectSubida({
+                key,
+                error: err?.error?.message || err?.message || 'Error desconocido',
+              }),
+          });
+      })
+    );
+
+    const results = await Promise.allSettled(promesasDeSubida);
+
+    const exitosos: string[] = [];
+    const fallidos: { key: string; error: string }[] = [];
+
+    results.forEach((r) => {
+      if (r.status === 'fulfilled') {
+        exitosos.push(r.value.key);
+      } else {
+        const info = r.reason as { key: string; error: string };
+        fallidos.push({ key: info.key, error: info.error });
+      }
+    });
+
+    // Si necesitas lógica extra cuando viene "Contrato", hazla aquí,
+    // PERO asegura que al final siempre retornas.
+    // const contratoIncluido = archivosAEnviar.some(a => a.key === 'Contrato' || a.typeId === this.typeMap['Contrato']);
+    // if (contratoIncluido) { ...await algo... }
+
+    return { ok: fallidos.length === 0, exitosos, fallidos };
+  }
+
 
 
   generarPDF(documento: string) {
@@ -344,7 +416,12 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     }
     // contrato
     else if (documento === 'Contrato') {
-      this.generarContratoTrabajo();
+      if (this.empresa === 'TU ALIANZA SAS') {
+        this.generarContratoTrabajoTuAlianza();
+      }
+      else if (this.empresa === 'APOYO LABORAL SAS') {
+        this.generarContratoTrabajo();
+      }
     }
     // Ficha técnica
     else if (documento === 'Ficha técnica') {
@@ -655,7 +732,8 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     x: number,
     y: number,
     maxWidth: number,
-    lineHeight: number
+    lineHeight: number,
+    justifyLastLine: boolean = true // ✅ nuevo
   ): number {
     const pageHeight = doc.internal.pageSize.height;
 
@@ -665,9 +743,11 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     const words = text.split(' ');
     const boldWords = words.map(w => this.isBoldWord(w));
 
-    // Preparar las palabras con sus anchos pre-calculados
-    // Mide cada palabra con la fuente que le corresponde (bold o normal)
+    // Asegurar medición consistente de espacio
+    doc.setFont('helvetica', 'normal');
     const spaceWidthNormal = this.roundTo(doc.getTextWidth(' '), 3);
+
+    // Medir cada palabra con su estilo real
     const wordWidths: number[] = [];
     words.forEach((word, i) => {
       doc.setFont('helvetica', boldWords[i] ? 'bold' : 'normal');
@@ -683,16 +763,14 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       const width = wordWidths[i];
       const bold = boldWords[i];
 
-      // Si no es la primera palabra de la línea, se añade un espacio
       const additionalSpace = currentLine.length > 0 ? spaceWidthNormal : 0;
       const testWidth = currentLineWidth + width + additionalSpace;
 
       if (testWidth > maxWidth && currentLine.length > 0) {
-        // Renderizar la línea actual justificada
+        // Línea completa: justificar
         this.renderJustifiedLine(doc, currentLine, x, y, maxWidth, false);
         y += lineHeight;
 
-        // Verificar salto de página
         if (y > pageHeight - 10) {
           doc.addPage();
           y = 10;
@@ -706,9 +784,10 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       }
     }
 
-    // Renderizar última línea (alineada a la izquierda)
+    // ✅ Última línea: también justificar si se pide y hay espacios
     if (currentLine.length > 0) {
-      this.renderJustifiedLine(doc, currentLine, x, y, maxWidth, true);
+      const canJustifyLast = justifyLastLine && currentLine.length > 1;
+      this.renderJustifiedLine(doc, currentLine, x, y, maxWidth, !canJustifyLast);
     }
 
     return y;
@@ -720,112 +799,49 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     x: number,
     y: number,
     maxWidth: number,
-    isLastLine = false
+    isLastLine = false // si true => NO justificar
   ) {
     const totalTextWidth = lineData.reduce((sum, w) => sum + w.width, 0);
     const totalSpaces = lineData.length - 1;
 
-    // Calcular ancho de espacio
-    let spaceWidth = doc.getTextWidth(' ');
-    // Redondear
-    spaceWidth = this.roundTo(spaceWidth, 3);
+    // Espacio normal (para líneas NO justificadas)
+    doc.setFont('helvetica', 'normal');
+    const normalSpaceWidth = doc.getTextWidth(' ');
 
-    if (!isLastLine && totalSpaces > 0) {
-      // Ajustar el espacio para justificar completamente la línea
-      const extraSpace = (maxWidth - totalTextWidth) / totalSpaces;
-      spaceWidth = this.roundTo(extraSpace, 3);
-    }
+    const shouldJustify = !isLastLine && totalSpaces > 0;
+
+    // Espacio para justificar (sin redondear para evitar drift)
+    const justifySpaceWidth = shouldJustify
+      ? (maxWidth - totalTextWidth) / totalSpaces
+      : normalSpaceWidth;
 
     let currentX = x;
+
+    // ✅ Asegura que la última palabra termine EXACTO en x + maxWidth
+    const lastWordWidth = lineData[lineData.length - 1].width;
+    const xLastWord = x + maxWidth - lastWordWidth;
 
     lineData.forEach((item, index) => {
       doc.setFont('helvetica', item.bold ? 'bold' : 'normal');
       doc.text(item.word, currentX, y);
 
       if (index < totalSpaces) {
-        currentX += item.width + spaceWidth;
+        // si la siguiente palabra es la última, saltamos exacto a xLastWord
+        if (shouldJustify && index === totalSpaces - 1) {
+          currentX = xLastWord;
+        } else {
+          currentX += item.width + justifySpaceWidth;
+        }
       } else {
-        // Última palabra
         currentX += item.width;
       }
     });
 
-    // Restaurar la fuente a normal después de la línea
     doc.setFont('helvetica', 'normal');
   }
 
-  // Método para subir todos los archivos almacenados en uploadedFiles
-  subirTodosLosArchivos(): Promise<boolean> {
-    return new Promise((resolve) => {
-      const archivosAEnviar = Object.keys(this.uploadedFiles)
-        .filter((key) => (key in this.typeMap) && this.uploadedFiles[key]?.file)
-        .map((key) => ({
-          key,
-          ...this.uploadedFiles[key],
-          typeId: this.typeMap[key],
-        }));
 
-      if (archivosAEnviar.length === 0) {
-        resolve(true);
-        return;
-      }
 
-      // Una promesa por archivo
-      const promesasDeSubida = archivosAEnviar.map(({ key, file, fileName, typeId }) =>
-        new Promise<{ key: string }>((resolveSubida, rejectSubida) => {
-          this.gestionDocumentalService
-            .guardarDocumento(fileName, this.cedula, typeId, file, this.codigoContratacion)
-            .pipe(take(1))
-            .subscribe({
-              next: () => resolveSubida({ key }),
-              error: (error) => rejectSubida({ key, error: error?.message || 'Error desconocido' })
-            });
-        })
-      );
-
-      // Procesar todas (exitosas y fallidas)
-      Promise.allSettled(promesasDeSubida)
-        .then((results) => {
-          const exitosos: string[] = [];
-          const fallidos: { key: string; error: string }[] = [];
-
-          results.forEach((r) => {
-            if (r.status === 'fulfilled') {
-              exitosos.push(r.value.key);
-            } else {
-              const info = r.reason as { key: string; error: string };
-              fallidos.push({ key: info.key, error: info.error });
-            }
-          });
-
-          // Mostrar resumen si hubo fallos
-          if (fallidos.length) {
-            const htmlFallidos = `
-            <ul style="text-align:left;margin:0;padding-left:18px">
-              ${fallidos.map(f => `<li><b>${f.key}</b>: ${this.escapeHtml(f.error)}</li>`).join('')}
-            </ul>`;
-            Swal.fire({
-              icon: 'warning',
-              title: 'Algunos archivos no se subieron',
-              html: htmlFallidos
-            });
-          }
-
-          // Continuar con las acciones posteriores aunque haya fallos
-          // ¿Se subió "Contrato"?
-          const contratoIncluido = archivosAEnviar.some(a => a.key === 'Contrato' || a.typeId === this.typeMap['Contrato']);
-
-          if (!contratoIncluido) {
-            resolve(fallidos.length === 0);
-            return;
-          }
-        })
-        .catch((err) => {
-          Swal.fire({ icon: 'error', title: 'Error al subir archivos', text: String(err) });
-          resolve(false);
-        });
-    });
-  }
 
   // Helper pequeño para HTML-safe en mensajes
   private escapeHtml(s: string): string {
@@ -1655,7 +1671,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       { titulo: 'Nombre del Trabajador', valor: this.candidato.primer_nombre + ' ' + (this.candidato.segundo_nombre ?? '') + ' ' + this.candidato.primer_apellido + ' ' + (this.candidato.segundo_apellido ?? '') },
       { titulo: 'Fecha de Nacimiento', valor: this.candidato.fecha_nacimiento },
       { titulo: 'Domicilio del Trabajador', valor: this.candidato.residencia.direccion + ' ' + this.candidato.residencia.barrio + ' ' + 'BOGOTÁ' },
-      { titulo: 'Fecha de Iniciación', valor: this.vacante.fechadeIngreso },
+      { titulo: 'Fecha de Iniciación', valor: this.candidato?.entrevistas?.[0]?.proceso?.contrato?.fecha_ingreso ?? '' },
       { titulo: 'Salario Mensual Ordinario', valor: 'S.M.M.L.V. $1.423.500 — Un millón cuatrocientos veintitrés mil quinientos pesos M/C.' },
       { titulo: 'Periódo de Pago Salario', valor: 'Quincenal' },
       { titulo: 'Subsidio de Transporte', valor: 'SE PAGA EL LEGAL VIGENTE  O SE SUMINISTRA EL TRANSPORTE' },
@@ -1915,6 +1931,261 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       const firmaPersonalAdministrativoConPrefijo = this.firmaPersonalAdministrativo;
       doc.addImage(firmaPersonalAdministrativoConPrefijo, 'PNG', 150, 230, 48, 15);
     }
+
+    // Convertir a Blob y guardar en uploadedFiles
+    const pdfBlob = doc.output('blob');
+    const fileName = `${this.empresa}_Contrato.pdf`;
+    const pdfFile = new File([pdfBlob], fileName, { type: 'application/pdf' });
+    this.uploadedFiles['Contrato'] = { file: pdfFile, fileName };
+
+    this.verPDF({ titulo: 'Contrato' });
+  }
+
+
+  // Generar contrato de trabajo
+  generarContratoTrabajoTuAlianza() {
+    // Determinar la ruta del logo y el NIT
+    let logoPath = '';
+    let nit = '';
+    let domicilio = '';
+    let codigo = '';
+    let version = '';
+    let fechaEmision = '';
+
+    if (this.empresa === 'TU ALIANZA SAS') {
+      logoPath = 'logos/Logo_TA.png';
+      nit = '900.864.596-1';
+      domicilio = 'CLL 7 4 49 Madrid, Cundinamarca';
+      codigo = 'TA CO-RE-1';
+      version = '06';
+      fechaEmision = 'Mayo 02-2022';
+    } else {
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: 'Empresa no reconocida para generar el contrato',
+      });
+      return;
+    }
+
+    // Crear el documento PDF en formato vertical
+    const doc = new jsPDF({
+      orientation: 'portrait',
+      unit: 'mm',
+      format: 'letter',
+    });
+
+    doc.setProperties({
+      title: 'Contrato_Trabajo.pdf',
+      creator: this.empresa,
+      author: this.empresa,
+    });
+
+
+    // Posiciones iniciales
+    const startX = 7;
+    const startY = 7;
+    const tableWidth = 203;
+
+    // **Cuadro para el logo y NIT**
+    doc.setLineWidth(0.1);
+    doc.rect(startX, startY, 50, 13); // Cuadro del logo y NIT
+
+    // Agregar logo
+    doc.addImage(logoPath, 'PNG', startX + 2, startY + 1.5, 27, 10);
+
+    // Agregar NIT
+    doc.setFontSize(7);
+    doc.setFont('helvetica', 'bold');
+    doc.text("NIT", startX + 32, startY + 7);
+    doc.setFont('helvetica', 'normal');
+    doc.text(nit, startX + 32, startY + 10);
+
+    // **Tabla al lado del logo**
+    let tableStartX = startX + 50; // Inicio de la tabla al lado del cuadro
+    doc.rect(tableStartX, startY, tableWidth - 50, 13); // Borde exterior de la tabla
+
+    // Encabezados
+    doc.setFont('helvetica', 'bold');
+    doc.text("PROCESO DE CONTRATACIÓN", tableStartX + 55, startY + 3);
+    doc.text(this.codigoContratacion, tableStartX + 130, startY + 3);
+    doc.text("CONTRATO DE TRABAJO POR OBRA O LABOR", tableStartX + 43, startY + 7);
+
+    // Líneas divisoras
+    let col1 = tableStartX + 30;
+    let col2 = tableStartX + 50;
+    let col3 = tableStartX + 110;
+
+    doc.line(tableStartX, startY + 4, tableStartX + tableWidth - 50, startY + 4); // Línea horizontal bajo el título
+    doc.line(tableStartX, startY + 8, tableStartX + tableWidth - 50, startY + 8); // Línea horizontal bajo el título
+    doc.line(col1, startY + 8, col1, startY + 13); // Línea vertical 1
+    doc.line(col2, startY + 8, col2, startY + 13); // Línea vertical 2
+    doc.line(col3, startY + 8, col3, startY + 13); // Línea vertical 3
+
+    // **Contenido de las columnas**
+    doc.setFontSize(7);
+    doc.setFont('helvetica', 'bold');
+    doc.text("Código: " + codigo, tableStartX + 2, startY + 11.5);
+    doc.text("Versión: " + version, col1 + 2, startY + 11.5); // Ajustar dentro de columna
+    doc.text(`Fecha Emisión: ${fechaEmision}`, col2 + 5, startY + 11.5);
+    doc.text("Página: 1 de 3", col3 + 6, startY + 11.5); // Ajustar dentro de columna
+
+    // Representado por
+    doc.setFontSize(7);
+
+    const fechaISO = this.vacante.fechaIngreso; // '2024-12-04T05:00:00.000Z'
+
+    // Convertir la fecha ISO a un objeto Date
+    const fecha = new Date(fechaISO);
+
+    // Formatear al formato dd/mm/yyyy
+    const fechaFormateada = [
+      String(fecha.getDate()).padStart(2, '0'),  // dd
+      String(fecha.getMonth() + 1).padStart(2, '0'),  // mm
+      fecha.getFullYear()  // yyyy
+    ].join('/');
+
+    // Datos de titulos
+    const datos = [
+      { titulo: 'Representado por', valor: 'HEIDY JACKELINE TORRES SOTELO' },
+      { titulo: 'Nombre del Trabajador', valor: this.candidato.primer_nombre + ' ' + (this.candidato.segundo_nombre ?? '') + ' ' + this.candidato.primer_apellido + ' ' + (this.candidato.segundo_apellido ?? '') },
+      { titulo: 'Fecha de Nacimiento', valor: this.candidato.fecha_nacimiento },
+      { titulo: 'Domicilio del Trabajador', valor: this.candidato.residencia.direccion + ' ' + this.candidato.residencia.barrio + ' ' + 'BOGOTÁ' },
+      { titulo: 'Fecha de Iniciación', valor: this.candidato?.entrevistas?.[0]?.proceso?.contrato?.fecha_ingreso ?? '' },
+      { titulo: 'Salario Mensual Ordinario', valor: 'S.M.M.L.V. $1.423.500 — Un millón cuatrocientos veintitrés mil quinientos pesos M/C.' },
+      { titulo: 'Periódo de Pago Salario', valor: 'Quincenal' },
+      { titulo: 'Subsidio de Transporte', valor: 'SE PAGA EL LEGAL VIGENTE  O SE SUMINISTRA EL TRANSPORTE' },
+      { titulo: 'Forma de Pago', valor: 'Banca Móvil,  Cuenta de Ahorro o Tarjeta Monedero' },
+      { titulo: 'Nombre Empresa Usuria', valor: this.vacante.empresaUsuariaSolicita },
+      { titulo: 'Cargo', valor: this.vacante.cargo },
+      { titulo: 'Descripción de la Obra/Motivo Temporada', valor: this.vacante.descripcion },
+      { titulo: 'Domicilio del patrono', valor: domicilio },
+      { titulo: 'Tipo y No de Identificación', valor: this.candidato.tipo_doc + '        ' + this.cedula },
+      { titulo: 'Email', valor: this.candidato.contacto.email },
+    ];
+    // Configuración de columnas
+    const columnWidth = 110; // Ancho de cada columna
+    const rowSpacing = 3;    // Espaciado entre filas
+    const columnMargin = 10; // Margen entre columnas
+    const columnStartX = 7;  // Posición inicial X
+    const columnStartY = startY + 17; // Posición inicial Y
+    const rowsPerColumn = 15; // Número exacto de filas por columna
+
+    // Iteración para generar el texto
+    datos.forEach((item, index) => {
+      const currentColumn = Math.floor(index / rowsPerColumn); // Columna actual (cada 12 filas)
+      const rowInColumn = index % rowsPerColumn; // Fila dentro de la columna actual
+
+      const x = columnStartX + currentColumn * (columnWidth + columnMargin);
+      const y = (columnStartY + rowInColumn * rowSpacing) + 3;
+
+      // Establecer el título en fuente normal
+      doc.setFont('helvetica', 'normal');
+      doc.text(`${item.titulo}:`, x, y);
+
+      if (index > 14) {
+        // Establecer el valor en fuente negrita
+        doc.setFont('helvetica', 'bold');
+        doc.text(item.valor, x + 30.2, y);
+      }
+      else {
+        // Establecer el valor en fuente negrita
+        doc.setFont('helvetica', 'bold');
+        doc.text(item.valor ?? '', x + 48, y);
+      }
+    });
+
+    // Restaurar la fuente a la normal después del bucle
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(6.5);
+    let y = columnStartY + rowsPerColumn * rowSpacing + 2; // Posición vertical después de los datos
+    // Texto adicional
+    let texto = 'Entre  el  EMPLEADOR  y  el   TRABAJADOR  arriba indicados,  se  ha celebrado el contrato  regulado  por  las cláusulas  que  adelante  se  indican,  aparte  de  la  ley,  siendo  ellas las  siguientes:  PRIMERA.  El Trabajador,  a  partir  de  la  fecha  de  iniciación,  se  obliga  para  con  e l  EMPLEADOR   a ejecutar  la  obra arriba  indicada  sometiéndose  durante  su realización  en  todo  a  las  órdenes  de  éste. Declara  por  consiguiente e l TRABAJADOR completa y total  disponibilidad para con  el  EMPLEADOR   para  ejecutar  las  obras  indicadas  en  el  encabezamiento,  siempre  que así  le  sean  exigidas  por  sus clientes  al   EMPLEADOR,   sin  que  por  ello  se  opere  desmejora  o  modificación  sustancial  de las  condiciones de trabajo tenidas  en  cuenta en  el  momento  de  la  suscripción  de  este  contrato.   SEGUNDA.   DURACIÓN DEL CONTRATO:   La necesaria  para  la  realización de la obra o labor contratada  y  conforme  a  las  necesidades  del  patrono  o  establecimiento  que  requiera  la  ejecución  de  la  obra,  todo  conforme a lo previsto en el Art. 45 del CST y teniendo en cuenta  la  fecha  de  iniciación  de  la  obra;  y  la  índole  de  la  misma,  circunstancias  una  y  otra  ya  anotadas.  PARÁGRAFO PRIMERO:  Las  partes  acuerdan  que  por  ser  el TRABAJADOR contratado como trabajador en misión para ser enviado a la empresa la duración de la obra o labor no podrá superar el tiempo establecido en el Art. 77 de la Ley 50 de 1990 en su numeral 3°. PARÁGRAFO SEGUNDO: El término de duración del presente contrato es de carácter temporal por ser el EMPLEADOR una  empresa  de  servicios temporales,  y  por  tanto tendrá  vigencia  hasta la realización  de  la  obra o  labor  contratada  que  sea  indicada  por  las  Empresas  Usuarias  del  EMPLEADOR  en  este  contrato, acordando  las  partes  que  para  todos  los  efectos  legales,  la  obra  o  labor  contratada  termina  en  la  fecha  en  que  la  EMPRESA  USUARIA, a la que será  enviado el  TRABAJADOR, comunique la terminación de la misma. PARÁGRAFO TERCERO: La labor se  realizará  en  las  instalaciones de la EMPRESA ';
+    // this.vacante.empresaUsuariaSolicita + CENTRO DE COSTOS + this.vacante.finca + DIR. + this.vacante.direccion
+    doc.setFont('helvetica', 'normal');
+    let x = 7;
+    const lineHeight = 3.4;
+    const maxWidth = 203;
+
+    doc.setFontSize(6.5);
+    // Renderizar texto justificado usando `y` como posición inicial
+    y = this.renderJustifiedText(doc, texto, x, y + 5, maxWidth, lineHeight);
+    // Centro de costo en negrita, tamaño 10, si se pasa de la página, se ajusta a la siguiente
+    doc.setFontSize(6.5);
+    // Construir texto dinámico sin null ni undefined
+    const partes = [
+      this.vacante?.empresaUsuariaSolicita,
+      'CENTRO DE COSTOS',
+      this.vacante?.finca || '',
+      this.vacante?.direccion ? `DIR. ${this.vacante.direccion}` : ''
+    ].filter(Boolean); // elimina los vacíos o null
+
+    const textoLinea = partes.join(' ').replace(/\s+/g, ' ').trim();
+
+    // negrita
+    doc.setFont('helvetica', 'bold');
+    doc.text(textoLinea, 15, y + 5, { maxWidth: 195 });
+    doc.setFont('helvetica', 'normal');
+
+    // Segundo parrago
+    y += 10; // Espacio adicional después del contenido
+    doc.setFontSize(6.5);
+    doc.setFont('helvetica', 'normal');
+    let texto2 = 'TERCERA. El salario como contraprestación del servicio será el indicado arriba, según la clasificación de oficios y tarifas determinados por el EMPLEADOR, la cual hace parte de este contrato; sometida sí en su eficiencia a que el valor a recibir corresponda al oficio respectivo efectivamente contratado con el usuario, según el tiempo laborado en la respectiva jornada, inferior a la máxima legal; éste regirá en proporción al número de horas respectivamente trabajadas y en él están los valores incluidos correspondientes a dominicales y festivos reconocidos por la ley como descanso remunerado. PARÁGRAFO PRIMERO: El patrono manifiesta expresamente que el TRABAJADOR tendrá derecho a todas las prestaciones sociales consagradas en la ley 50 de 1990 y demás estipulaciones previstas en el CST. Tales como compensación monetaria por vacaciones y prima de  servicios  proporcional al tiempo laborado, cualquiera que este sea. PARÁGRAFO SEGUNDO: Se conviene por las partes, que en caso de que el TRABAJADOR devengue comisiones o cualquiera otra modalidad de salario variable, el 82.5 % de dichos ingresos constituyen remuneración ordinaria y el 17.5 % restante  está  destinado  a  remunerar  el  descanso  en  días  dominicales y festivos de que tratan los capítulos I y II del título VII del CST. CUARTA. EL TRABAJADOR, se someterá al horario de trabajo que señale el EMPLEADOR de acuerdo con las especificaciones del Usuario. QUINTA. PERÍODO DE PRUEBA: el período de prueba no excederá de dos (2) meses ni podrá ser superior a la quinta parte del término pactado, si el contrato tuviere una duración inferior a un año. SEXTA. EL TRABAJADOR y EL EMPLEADOR podrán convenir en repartir las horas de la jornada diaria en los términos del Art. 164 del CST., teniendo en cuenta que el descanso entre las secciones de la jornada no se computa dentro de la misma, según el art. 167 del estatuto Ibídem.  Así  mismo  todo  trabajador  extra,  suplementario  o  festivo, solo  será reconocido en caso de ser exigido o autorizado a trabajar por el EMPLEADOR a solicitud de la entidad con la cual aquel tenga acuerdo de realización de trabajo o servicio. SÉPTIMA. Son justas causas para dar por terminado este contrato, además de las previstas en el art.7° del decreto 2351, las disposiciones concordantes y las consignadas en el reglamento interno del trabajo del EMPLEADOR, así como las siguientes: 1ª La terminación por cualquier causa, del contrato de prestación de servicios suscritos entre el EMPLEADOR y el USUARIO en donde prestará servicios el TRABAJADOR. 2ª El que la EMPRESA USUARIA en donde prestará servicios el TRABAJADOR, solicite el cambio de este por cualquier causa. 3ª El que la EMPRESA USUARIA en donde prestará servicios el TRABAJADOR, comunique la terminación de la obra o labor contratada. 4ª Que la EMPRESA USUARIA comunique al EMPLEADOR el incumplimiento leve de cualquiera de las obligaciones por parte del TRABAJADOR en TRES oportunidades, dos de las cuales hayan generado SANCIÓN AL TRABAJADOR. OCTAVA. Las partes acuerdan que NO CONSTITUYEN SALARIO, las sumas que ocasionalmente y por mera liberalidad reciba el TRABAJADOR del EMPLEADOR, como auxilios, gratificaciones, bonificaciones, primas extralegales, premios, bonos ocasionales, gastos de transporte adicionales y representación que el EMPLEADOR otorgue o llegue a otorgar en cualquier tiempo al TRABAJADOR, como tampoco no constituyen salario en dinero o en especie, cualquier alimentación, habitación o vestuario que entregue el EMPLEADOR, o un TERCERO al TRABAJADOR, durante la vigencia de este contrato. Tampoco constituirá salario, conforme a los términos del artículo 128 del Código Sustantivo del trabajo, cualquier bonificación o auxilio habitual, que se llegaren a acordar convencional o habitualmente entre las partes. Estos dineros, no se computarán como parte de salario para efectos de prestaciones sociales liquidables o BASE1 de éste. Al efecto el TRABAJADOR y el EMPLEADOR, así lo pactan expresamente en los términos del artículo 128 del C.S. del T. en C. Con. Con el articulo quince (15) de la ley cincuenta (50) de 1990. PARÁGRAFO PRIMERO: Las partes acuerdan que el EMPLEADOR, a su arbitrio y liberalidad podrá en cualquier momento cancelar o retirar el pago de bonificaciones habituales o esporádicas que en algún momento reconozca o hubiese reconocido al trabajador diferentes a su salario, sin que esto constituya desmejora de sus condiciones laborales; toda vez que como salario y retribución directa a favor del trabajador derivada de su actividad o fuerza laboral únicamente se pacta la suma establecida en la caratula del presente contrato. NOVENA.  En caso que el TRABAJADOR requiera ausentarse de su lugar de trabajo, deberá avisar por lo menos con 24 horas de anticipación a la EMPRESA USUARIA o según lo establecido en el Reglamento Interno de la misma.  DÉCIMA. CONFIDENCIALIDAD: El TRABAJADOR en virtud del presente contrato se compromete a 1) Manejar de manera confidencial la información que como tal sea presentada y entregada, y toda aquella que se genere en torno a ella como fruto de la prestación de sus servicios. 2) Guardar confidencialidad sobre esta información y no emplearla en beneficio propio o de terceros mientras conserve sus características de confidencialidad y que pueda perjudicar los intereses del EMPLEADOR o de la EMPRESA USUARIA. 3) Solicitar previamente y por escrito autorización para cualquier publicación relacionada con el tema de contrato, autorización que debe solicitarse ante el empleador. DÉCIMA PRIMERA. AUTORIZACION TRATAMIENTO DE DATOS PERSONALES, 1). De acuerdo a lo establecido en la ley 1581 de 2012, la Constitución Nacional y a las políticas establecidas por el EMPLEADOR para el caso en particular, el trabajador debe guardar reserva respecto a la protección de datos de los clientes, proveedores, compañeros, directivos del EMPLEADOR Y EMPRESA USUARIA, salvo que medie autorización expresa de cada persona para divulgar la información. 2). Guardar completa reserva sobre las operaciones, negocios y procedimientos industriales y comerciales, o cualquier otra clase de datos acerca del EMPLEADOR Y EMPRESA USUARIA que conozca por razón de sus funciones o de sus relaciones con ella, lo que no obsta para denunciar delitos comunes o violaciones del contrato de trabajo o de las normas legales de trabajo ante las autoridades competentes. DÉCIMA SEGUNDA. DECLARACIONES: Autorización Tratamiento Datos Personales “Ley de Protección de Datos 1581 de 2012 – decreto 1733 de 2013” Declaro que he sido informado que conozco y acepto la Política de Uso de Datos Personales e Información del EMPLEADOR, y que la información proporcionada es veraz, completa, exacta, actualizada y verificable. Mediante la firma del presente documento, manifiesto que conoce y acepto que cualquier consulta o reclamación relacionada con el Tratamiento de sus datos personales podrá ser elevada por escrito ante el EMPLEADOR; (¡) Que la Empresa TU ALIANZA S.A.S con NIT. 900.864.596-1, con domicilio principal en la Calle 7 No. 7– 49 de Madrid,  para efectos  de  lo  dispuesto  en  la ley  Estatutaria  1581  de  2012,  el  Decreto  1733  de  2013,  y  demás  normas  que  lo adicionen o modifiquen relativas a la Protección de Datos Personales, es responsable del tratamiento de los datos PERSONALES QUE LE HE SUMINISTRADO. (¡¡). Que, para el ejercicio de mis derechos relacionados con mis datos personales, el EMPLEADOR ha puesto a mi disposición la línea de atención: Afiliados marcando a Bogotá 6017444002; a través del correo electrónico protecciondedatos@tsservicios.co; las oficinas del EMPLEADOR a nivel nacional o en la Carrera 112ª # 18ª 05 de  Bogotá.  En  todo  caso,  he  sido  informado  que  sólo  podré  elevar  queja  por infracciones a lo dispuesto en las normas sobre Protección de Datos ante la Superintendencia de Industria y Comercio una vez haya agotado el trámite ante el EMPLEADOR o sus encargados. Conozco que la normatividad de Protección de Datos Personales tiene por  objeto  el  desarrollo  del  derecho  constitucional  de  todas  las  personas  a  conocer,  actualizar  y  rectificar  de  forma  gratuita  la  información  que  se  recaude  sobre  ellas  en'
+    y = this.renderJustifiedText(doc, texto2, x, y, maxWidth, lineHeight);
+
+    doc.setFontSize(7);
+    // Añadir otra pagina
+    doc.addPage();
+    y = 5; // Posición vertical al inicio de la página
+    // **Cuadro para el logo y NIT**
+    doc.setLineWidth(0.1);
+    doc.rect(startX, startY, 50, 13); // Cuadro del logo y NIT
+
+    // Agregar logo
+    doc.addImage(logoPath, 'PNG', startX + 2, startY + 1.5, 27, 10);
+
+    // Agregar NIT
+    doc.setFontSize(7);
+    doc.setFont('helvetica', 'bold');
+    doc.text("NIT", startX + 32, startY + 7);
+    doc.setFont('helvetica', 'normal');
+    doc.text(nit, startX + 32, startY + 10);
+
+    // **Tabla al lado del logo**
+    tableStartX = startX + 50; // Inicio de la tabla al lado del cuadro
+    doc.rect(tableStartX, startY, tableWidth - 50, 13); // Borde exterior de la tabla
+
+    // Encabezados
+    doc.setFont('helvetica', 'bold');
+    doc.text("PROCESO DE CONTRATACIÓN", tableStartX + 55, startY + 3);
+    doc.text(this.codigoContratacion, tableStartX + 130, startY + 3);
+    doc.text("CONTRATO DE TRABAJO POR OBRA O LABOR", tableStartX + 43, startY + 7);
+
+    // Líneas divisoras
+    col1 = tableStartX + 30;
+    col2 = tableStartX + 50;
+    col3 = tableStartX + 110;
+
+    doc.line(tableStartX, startY + 4, tableStartX + tableWidth - 50, startY + 4); // Línea horizontal bajo el título
+    doc.line(tableStartX, startY + 8, tableStartX + tableWidth - 50, startY + 8); // Línea horizontal bajo el título
+    doc.line(col1, startY + 8, col1, startY + 13); // Línea vertical 1
+    doc.line(col2, startY + 8, col2, startY + 13); // Línea vertical 2
+    doc.line(col3, startY + 8, col3, startY + 13); // Línea vertical 3
+
+    // **Contenido de las columnas**
+    doc.setFontSize(7);
+    doc.setFont('helvetica', 'bold');
+    doc.text("Código: " + codigo, tableStartX + 2, startY + 11.5);
+    doc.text("Versión: " + version, col1 + 2, startY + 11.5); // Ajustar dentro de columna
+    doc.text(`Fecha Emisión: ${fechaEmision}`, col2 + 5, startY + 11.5);
+    doc.text("Página: 2 de 3", col3 + 6, startY + 11.5); // Ajustar dentro de columna
+
+    // texto adicional
+    y = columnStartY; // Posición inicial Y
+    doc.setFontSize(6.5);
+    let texto3 = 'bases de datos o archivos, y los derechos, libertades y garantías a los que se refieren el artículo 15 y 20 de la Constitución Política de Colombia. Autorizo también, de manera expresa, el envío de mensajes a través de cualquier medio que he registrado a mi EMPLEADOR el día de la contratación, para remitir comunicados internos sobre información concerniente a Seguridad Social, así como también, la notificaciones sobre licencias, permisos, cartas laborales, cesantías, citaciones, memorandos, y todos aquellos procesos internos que conlleven a la comunicación entre el EMPLEADOR y el EMPLEADO. (iii) Notificación sobre desprendibles de pagos de Nómina y/ o liquidación final. En adición y complemento de las autorizaciones previamente otorgadas, autorizo de manera expresa y previa sin lugar a pagos ni retribuciones al EMPLEADOR, a sus sucesores, cesionarios a cualquier título o a quien represente los derechos, para que efectúe el Tratamiento de mis Datos Personales de la manera y para las finalidades que se señalan a continuación. Para efectos de la presente autorización, se entiende por “Datos Personales” la información personal que suministre por cualquier medio, incluyendo, pero sin limitarse a, aquella de carácter financiero, crediticio, comercial, profesional, sensible (tales como mis huellas, imagen, voz, entre otros), técnico y administrativo, privada, semiprivada o de cualquier naturaleza pasada, presente o futura, contenida en cualquier medio físico, digital o electrónico, entre otros y sin limitarse a documentos, fotos, memorias USB, grabaciones, datos biométricos, correos electrónicos y video grabaciones. Así mismo, se entiende por “Tratamiento” el recolectar, consultar, recopilar, evaluar, catalogar, clasificar, ordenar, grabar, almacenar, actualizar, modificar, aclarar, reportar, informar, analizar, utilizar, compartir, circular, suministrar, suprimir, procesar, solicitar, verificar, intercambiar, retirar, trasferir, transmitir, o divulgar, y en general, efectuar cualquier operación o conjunto de operaciones sobre mis Datos Personales en medio físicos, digitales, electrónicos, o por cualquier otro medio. La autorización que otorgo por el presente medio para el Tratamiento de mis Datos Personales tendrá las siguientes finalidades: a. Promocionar, comercializar u ofrecer, de manera individual o conjunta productos y/o servicios propios u ofrecidos en alianza comercial, a través de cualquier medio o canal, o para complementar, optimizar o profundizar el portafolio de productos y/o servicios actualmente ofrecidos. Esta autorización para el Tratamiento de mis Datos Personales se hace extensiva a las entidades subordinadas de EL EMPLEADOR, o ante cualquier sociedad en la que éstas tengan participación accionaria directa o indirectamente (en adelante “LAS ENTIDADES AUTORIZADAS”). a. autoriza explícitamente al EMPLEADOR , en forma previa, expresa e informada, para que directamente o a través de sus empleados, asesores, consultores, empresas usuarias, proveedores de servicios de selección, contratación, exámenes ocupacionales, estudios de seguridad, dotación y elementos de protección personal, capacitaciones, cursos, Fondos de empleados, Fondos funerarios, Empresas del Sistema de Seguridad Social: Fondos de Pensiones, EPS, Administradoras de Riesgos Laborales, Cajas de Compensación Familiar, entre otros: 1. A realizar cualquier operación que tenga una finalidad lícita, tales como la recolección, el almacenamiento, el uso, la circulación, supresión, transferencia y transmisión (el “Tratamiento”) de los datos personales relacionados con su vinculación laboral y con la ejecución, desarrollo y terminación del presente contrato de trabajo, cuya finalidad incluye, pero no se limita, a los procesos verificación de la aptitud física del TRABAJADOR para desempeñar en forma eficiente las labores sin impactar negativamente su salud o la de terceros, las afiliaciones del TRABAJADOR y sus beneficiarios al Sistema general de seguridad social y parafiscales, la remisión del TRABAJADOR para que realice apertura de cuenta de nómina, archivo y procesamiento de nómina, gestión y archivo de procesos disciplinarios, archivo de documentos soporte de su vinculación contractual, reporte ante autoridades administrativas, laborales, fiscales o judiciales, entre otras, así como el cumplimiento de obligaciones legales o contractuales del EMPLEADOR con terceros, la debida ejecución del Contrato de trabajo, el cumplimiento de las políticas internas del EMPLEADOR, la verificación del cumplimiento de las obligaciones del TRABAJADOR, la administración de sus sistemas de información y comunicaciones, la generación de copias y archivos de seguridad de la información en los equipos proporcionados por EL EMPLEADOR. Además, la información personal se recibirá y utilizará para efectos de administración del factor humano en temas de capacitación laboral, bienestar social, cumplimiento de normas de seguridad laboral y seguridad social, siendo necesario, en algunos eventos, recibir información sensible sobre estados de salud e información de menores de edad beneficiarios de esquemas de seguridad social, así como la información necesaria para el cumplimiento de obligaciones laborales de orden legal y extralegal. Toda la anterior información se tratará conforme a las exigencias legales en cada caso. 2. EL TRABAJADOR conoce el carácter facultativo de entregar o no al EMPLEADOR sus datos sensibles. 3. EL TRABAJADOR autoriza al responsable del tratamiento de manera expresa a dar tratamiento a los datos sensibles del titular, siendo esto datos los siguientes: origen racial o étnico, orientación sexual, filiación política o religiosa, datos referentes a la salud, datos biométricos, actividad en organizaciones sindicales o de derechos humanos, 4.EL TRABAJADOR da autorización expresa al responsable del tratamiento para que capture y use la información personal y sensible de sus hijos menores de edad. b. Como elemento de análisis en etapas pre-contractuales, contractuales, y post- contractuales para establecer y/o mantener cualquier relación contractual, incluyendo como parte de ello, los siguientes propósitos: (i). Actualizar bases de datos y tramitar la apertura y/o servicios en EL EMPLEADOR o en cualquiera de las ENTIDADES AUTORIZADAS, (ii). Evaluar riesgos derivados de la relación contractual potencial, vigente o concluida. (iii). Realizar, validar, autorizar o verificar transacciones incluyendo, cuando sea requerido, la consulta y reproducción de datos sensibles tales como la huella, imagen o la voz. (iv). Obtener conocimiento del perfil comercial o transaccional del titular, el nacimiento, modificación, celebración y/ o extinción de obligaciones directas, contingentes o indirectas, el incumplimiento de las obligaciones que adquiera con EL EMPLEADOR o con cualquier tercero, así como cualquier novedad en relación con tales obligaciones, hábitos de pago y comportamiento crediticio con EL EMPLEADOR y/o terceros. (v). Conocer información acerca de mi manejo de cuentas corrientes, ahorros, depósitos, tarjetas de crédito, comportamiento comercial, laboral y demás productos o servicios y, en general, del cumplimiento y manejo de mis créditos y obligaciones, cualquiera que sea su naturaleza. Esta autorización comprende información referente al manejo, estado, cumplimiento de las relaciones, contratos y servicios, hábitos de pago, incluyendo aportes al sistema de seguridad social, obligaciones y las deudas vigentes, vencidas sin cancelar, procesos, o la utilización indebida de servicios financieros. (vi). Dar cumplimiento a sus obligaciones legales y contractuales. (vii). Ejercer sus derechos, incluyendo los referentes a actividades de cobranza judicial y extrajudicial y las gestiones conexas para obtener el pago de las obligaciones a cargo del titular o de su empleador, si es el caso. (viii). Implementación de software y servicios tecnológicos. Para efectos de lo dispuesto en el presente literal b, EL EMPLEADOR en lo que resulte aplicable, podrá efectuar el Tratamiento de mis Datos Personales ante entidades de consulta, que manejen o administren bases de datos para los fines legalmente definidos, domiciliadas en Colombia o en el exterior, sean personas naturales o jurídicas, colombianas o extranjeras. c. Realizar ventas cruzadas de productos y/o servicios ofrecidos por EL EMPLEADOR o por cualquiera de LAS ENTIDADES AUTORIZADAS o sus aliados comerciales, incluyendo la celebración de convenios de marca compartida. d. Elaborar y reportar información estadística, encuestas de satisfacción, estudios y análisis de mercado, incluyendo la posibilidad de contactarme para dichos propósitos. e. Enviar mensajes, notificaciones o alertas a través de cualquier medio para remitir extractos, divulgar información legal, de seguridad, promociones, campañas comerciales, publicitarias, de mercadeo, institucionales o de educación financiera, sorteos, eventos u otros beneficios e informar al titular acerca de las innovaciones efectuadas en sus productos y/o servicios, dar a conocer las mejoras o cambios en sus canales de atención, así como dar a conocer otros servicios y/o productos ofrecidos por EL EMPLEADOR; LAS ENTIDADES AUTORIZADAS o sus aliados comerciales. f. Llevar a cabo las gestiones pertinentes, incluyendo la recolección y entrega de información ante autoridades públicas o privadas, nacionales o extranjeras con competencia sobre EL EMPLEADOR, LAS ENTIDADES AUTORIZADAS o sobre sus actividades, productos y /o servicios, cuando se requiera para dar cumplimiento a sus deberes legales o reglamentarios, incluyendo dentro de estos, aquellos referentes a la prevención de la evasión fiscal, lavado de activos y financiación del terrorismo u otros propósitos similares emitidas por autoridades competentes, g. validar información con las diferentes bases de datos de EL EMPLEADOR, de LAS ENTIDADES AUTORIZADAS, de autoridades y/o entidades estatales y de terceros tales como operadores de información y demás entidades que formen parte del Sistema de Seguridad Social Integral, empresas prestadoras de servicios públicos y de telefonía móvil, entre otras, para desarrollar las actividades propias de objeto social principal y conexo y/o cumplir con obligaciones legales. h. Para que mis datos Personales puedan ser utilizados como medio de prueba. Los Datos Personales suministrados podrán circular y transferirse a la totalidad de las áreas de EL EMPLEADOR incluyendo proveedores de servicios, usuarios de red, redes de distribución y personas que realicen la promoción de sus productos y servicios, incluidos call centers, domiciliados en Colombia o en el exterior, sean personas naturales o jurídicas, colombianas o extranjeros a su fuerza comercial, equipos de telemercadeo y/o procesadores de datos que trabajen en nombre de EL EMPLEADOR, incluyendo pero sin limitarse, contratistas, delegados, outsourcing, tercerización, red de oficinas o aliados, con el objeto de desarrollar servicios de alojamiento de sistemas, de mantenimiento, servicios de análisis, servicios de mensajería por e- mail o correo físico, servicios de entrega, gestión de transacciones de pago, cobranza, entre otros. En consecuencia, el titular entiende y acepta que mediante la presentación autorización concede a estos terceros, autorización para acceder a sus Datos Personales en la medida en que así lo requieren para la prestación de los servicios para los cuales fueron contratados y sujeto al cumplimiento de los deberes que les correspondan como encargados del Tratamiento de mis Datos Personales. Igualmente, a EL EMPLEADOR para compartir mis datos Personales con las entidades gremiales a las que pertenezca la entidad, para fines comerciales, estadísticos y de estudio y análisis de mercadeo. Es entendido que las personas naturales y jurídicas, nacionales y extranjeras mencionadas anteriormente ante las cuales EL EMPLEADOR puede llevar a cabo el Tratamiento de mis Datos Personales, también cuentan con mi autorización para permitir dicho Tratamiento. Adicionalmente, mediante el otorgamiento de la presente autorización, manifiesto: (i) que los Datos Personales suministrados son veraces, verificables y completos, (ii) que conozco y entiendo que el suministro de la presente autorización es voluntaria, razón por la cual no me encuentro obligado a otorgar la presenta autorización, (iii) que conozco y entiendo que mediante la simple presentación de una comunicación escrita puedo limitar en todo o en parte el alcance de la presente autorización para que, entre otros, la misma se otorgue únicamente frente a EL EMPLEADOR pero no frente a LAS ENTIDADES AUTORIZADAS y (iv) haber sido informado sobre mis derechos a conocer, actualizar y rectificar mis Datos Personales, el carácter facultativo de mis respuestas a las preguntas que sean hechas cuando versen sobre datos sensibles o sobre datos de los niños, niñas o adolescentes, solicitar prueba de la autorización otorgada para su tratamiento, ser informado sobre el uso que se ha dado a los mismo, presentar quejas ante la autoridad competente por infracción a la ley una vez haya agotado el trámite de consulta o reclamo ante EL EMPLEADOR, revocar la presentación autorización, solicitar la supresión de sus datos en los casos en que sea procedente y ejercer en forma gratuita mis derechos y garantías constitucionales y legales. EL EMPLEADOR informa que el tratamiento de sus Datos Personales se efectuará de acuerdo con la Política de la entidad en esta materia, la cual puede ser consultada en sus instalaciones. DÉCIMA TERCERA. AUTORIZACIÓN DE DESCUENTOS: El TRABAJADOR autoriza expresamente al EMPLEADOR para que se descuenten de mi salario y prestaciones o cualquier otro concepto las sumas que por error haya recibido, permitiendo que el EMPLEADOR compense del valor de los salarios, prestaciones legales o extralegales, indemnizaciones y otro tipo de dinero a pagar al momento de la Nómina y/o liquidación las sumas que yo como TRABAJADOR esté debiendo al EMPLEADOR Y EMPRESA USUARIA por'
+    y = this.renderJustifiedText(doc, texto3, x, y, maxWidth, lineHeight);
 
     // Convertir a Blob y guardar en uploadedFiles
     const pdfBlob = doc.output('blob');
@@ -2670,6 +2941,18 @@ export class GenerateContractingDocumentsComponent implements OnInit {
         (this.safe(dv.municipio)?.trim() || this.safe(dv.barrio)?.trim() || ''),
         customFont
       );
+
+      // PlanFunerario
+      const siNo = this.candidato?.entrevistas?.[0]?.proceso?.contrato?.seguro_funerario ? 'SI' : 'NO';
+
+      this.setText(
+        form,
+        'PlanFunerario',
+        `Desea afiliarse al plan funerario : ${siNo}`,
+        customFont,
+        6
+      );
+
       this.setText(form, 'Celular', this.safe(dv.celular), customFont);
       this.setText(form, 'DiesZurd', this.safe(dv.zurdo_diestro), customFont);
       this.setText(form, 'RH', this.safe(dv.rh), customFont);
