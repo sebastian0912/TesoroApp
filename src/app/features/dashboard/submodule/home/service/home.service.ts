@@ -387,4 +387,128 @@ export class HomeService {
   getEstadosPorOficinaPeriodosArgs(oficina?: string, paquete?: string, robot?: string): Observable<any> {
     return this.getRobotPeriodosUnificado({ oficina, paquete, robot });
   }
+
+
+
+
+    /**
+   * Sube un Excel (.xlsx) con cédulas para dejar en false el último Proceso
+   * de la última Entrevista de cada candidato.
+   *
+   * Backend: /gestion_contratacion/contratacion/bulk-reset-ultimo-proceso/
+   */
+  bulkResetUltimoProceso(file: File): Observable<HttpResponse<any>> {
+    const url = `${this.apiUrl}/gestion_contratacion/contratacion/bulk-reset-ultimo-proceso/`;
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    // Importante: NO seteamos Content-Type aquí (multipart boundary lo pone el browser)
+    const headers = new HttpHeaders();
+
+    return this.http.post<any>(url, formData, {
+      headers,
+      observe: 'response',
+    }).pipe(
+      catchError((err) => {
+        const msg =
+          err?.error?.message ||
+          err?.error?.detail ||
+          err?.message ||
+          'Error subiendo el Excel para resetear el último proceso.';
+        return throwError(() => new Error(msg));
+      })
+    );
+  }
+
+  /**
+   * Variante: permite elegir qué flags poner en false.
+   * Ej: fields = ['contratado'] o ['ingreso','contratado']
+   */
+  bulkResetUltimoProcesoWithFields(file: File, fields: string[]): Observable<HttpResponse<any>> {
+    const url = `${this.apiUrl}/gestion_contratacion/contratacion/bulk-reset-ultimo-proceso/`;
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const cleaned = (fields || [])
+      .map(f => (f ?? '').trim())
+      .filter(f => !!f);
+
+    if (cleaned.length) {
+      formData.append('fields', cleaned.join(','));
+    }
+
+    const headers = new HttpHeaders();
+
+    return this.http.post<any>(url, formData, {
+      headers,
+      observe: 'response',
+    }).pipe(
+      catchError((err) => {
+        const msg =
+          err?.error?.message ||
+          err?.error?.detail ||
+          err?.message ||
+          'Error subiendo el Excel para resetear el último proceso.';
+        return throwError(() => new Error(msg));
+      })
+    );
+  }
+
+    /**
+   * ✅ Descarga el Excel generado por el backend
+   * Endpoint: GET /reporte/candidatos-excel/?cedulas=...&persona=...
+   *
+   * Uso:
+   * this.homeService.descargarCandidatosExcel(['1002683090','123'], 'SEBASTIAN')
+   *   .subscribe(res => this.saveBlob(res.body!, 'candidatos.xlsx'));
+   */
+  descargarCandidatosExcel(
+    cedulas: string[],
+    personaContratacion: string,
+  ): Observable<HttpResponse<Blob>> {
+    const cedulasClean = (cedulas ?? [])
+      .map(c => (c ?? '').toString().trim())
+      .filter(Boolean);
+
+    if (!cedulasClean.length) {
+      return throwError(() => new Error('Debes enviar al menos una cédula.'));
+    }
+
+    let params = new HttpParams()
+      .set('cedulas', cedulasClean.join(','));
+
+    if ((personaContratacion ?? '').trim()) {
+      params = params.set('persona', personaContratacion.trim());
+    }
+
+    // 👇 para blob, NO pongas Content-Type (eso es de request body)
+    const headers = new HttpHeaders({
+      Accept: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    });
+
+    return this.http.get(`${this.apiUrl}/gestion_contratacion/reporte/candidatos-excel/`, {
+      params,
+      headers,
+      observe: 'response',
+      responseType: 'blob',
+    }).pipe(
+      catchError((err) => {
+        return throwError(() => err);
+      })
+    );
+  }
+
+  /**
+   * ✅ Helper opcional: guardar Blob como archivo (browser)
+   */
+  saveBlob(blob: Blob, filename: string) {
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename || 'reporte.xlsx';
+    a.click();
+    window.URL.revokeObjectURL(url);
+  }
 }

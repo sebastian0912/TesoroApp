@@ -733,38 +733,54 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     y: number,
     maxWidth: number,
     lineHeight: number,
-    justifyLastLine: boolean = true // ✅ nuevo
+    justifyLastLine: boolean = true
   ): number {
-    const pageHeight = doc.internal.pageSize.height;
+    const pageHeight =
+      (doc as any)?.internal?.pageSize?.height ??
+      (doc as any)?.internal?.pageSize?.getHeight?.() ??
+      279;
 
-    // Preprocesar el texto: eliminar espacios extras
-    text = text.trim().replace(/\s+/g, ' ');
+    // ✅ Normaliza números para evitar NaN
+    x = Number(x);
+    y = Number(y);
+    maxWidth = Number(maxWidth);
+    lineHeight = Number(lineHeight);
+
+    if (!Number.isFinite(x)) x = 0;
+    if (!Number.isFinite(y)) y = 10;
+    if (!Number.isFinite(maxWidth) || maxWidth <= 0) maxWidth = 180;
+    if (!Number.isFinite(lineHeight) || lineHeight <= 0) lineHeight = 4;
+
+    // ✅ Normaliza texto (evita undefined/null)
+    text = String(text ?? '').replace(/\r/g, '').trim().replace(/\s+/g, ' ');
+    if (!text) return y; // nada que pintar
 
     const words = text.split(' ');
-    const boldWords = words.map(w => this.isBoldWord(w));
+    const boldWords = words.map(w => !!this.isBoldWord(w));
 
-    // Asegurar medición consistente de espacio
+    // Medición consistente de espacio
     doc.setFont('helvetica', 'normal');
-    const spaceWidthNormal = this.roundTo(doc.getTextWidth(' '), 3);
+    const spaceWidthNormal = doc.getTextWidth(' '); // sin roundTo para evitar NaN
 
-    // Medir cada palabra con su estilo real
+    // Medir cada palabra con su estilo real (y blindar NaN)
     const wordWidths: number[] = [];
-    words.forEach((word, i) => {
+    for (let i = 0; i < words.length; i++) {
       doc.setFont('helvetica', boldWords[i] ? 'bold' : 'normal');
-      const w = this.roundTo(doc.getTextWidth(word), 3);
-      wordWidths.push(w);
-    });
+      const w = doc.getTextWidth(words[i]);
+      wordWidths.push(Number.isFinite(w) ? w : 0);
+    }
 
     let currentLine: { word: string; width: number; bold: boolean }[] = [];
     let currentLineWidth = 0;
 
     for (let i = 0; i < words.length; i++) {
-      const word = words[i];
-      const width = wordWidths[i];
+      const word = String(words[i] ?? '');
+      const width = Number(wordWidths[i]);
       const bold = boldWords[i];
 
+      const safeWidth = Number.isFinite(width) ? width : 0;
       const additionalSpace = currentLine.length > 0 ? spaceWidthNormal : 0;
-      const testWidth = currentLineWidth + width + additionalSpace;
+      const testWidth = currentLineWidth + safeWidth + additionalSpace;
 
       if (testWidth > maxWidth && currentLine.length > 0) {
         // Línea completa: justificar
@@ -776,21 +792,21 @@ export class GenerateContractingDocumentsComponent implements OnInit {
           y = 10;
         }
 
-        currentLine = [{ word, width, bold }];
-        currentLineWidth = width;
+        currentLine = [{ word, width: safeWidth, bold }];
+        currentLineWidth = safeWidth;
       } else {
-        currentLine.push({ word, width, bold });
+        currentLine.push({ word, width: safeWidth, bold });
         currentLineWidth = testWidth;
       }
     }
 
-    // ✅ Última línea: también justificar si se pide y hay espacios
+    // Última línea (justificar si se pide)
     if (currentLine.length > 0) {
       const canJustifyLast = justifyLastLine && currentLine.length > 1;
       this.renderJustifiedLine(doc, currentLine, x, y, maxWidth, !canJustifyLast);
     }
 
-    return y;
+    return Number.isFinite(y) ? y : 10;
   }
 
   private renderJustifiedLine(
@@ -799,46 +815,67 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     x: number,
     y: number,
     maxWidth: number,
-    isLastLine = false // si true => NO justificar
+    isLastLine = false
   ) {
-    const totalTextWidth = lineData.reduce((sum, w) => sum + w.width, 0);
-    const totalSpaces = lineData.length - 1;
+    // ✅ Blindaje números
+    x = Number(x);
+    y = Number(y);
+    maxWidth = Number(maxWidth);
 
-    // Espacio normal (para líneas NO justificadas)
+    if (!Number.isFinite(x)) x = 0;
+    if (!Number.isFinite(y)) y = 10;
+    if (!Number.isFinite(maxWidth) || maxWidth <= 0) maxWidth = 180;
+
+    // ✅ Espacio normal
     doc.setFont('helvetica', 'normal');
     const normalSpaceWidth = doc.getTextWidth(' ');
 
-    const shouldJustify = !isLastLine && totalSpaces > 0;
+    // ✅ Normaliza widths para que nunca sean NaN
+    const safeLine = lineData.map(it => ({
+      word: String(it.word ?? ''),
+      bold: !!it.bold,
+      width: Number.isFinite(Number(it.width)) ? Number(it.width) : 0
+    }));
 
-    // Espacio para justificar (sin redondear para evitar drift)
+    const totalTextWidth = safeLine.reduce((sum, w) => sum + w.width, 0);
+    const totalSpaces = safeLine.length - 1;
+
+    // ✅ SOLO justificar si realmente hay espacio extra (si no, NO justificar)
+    const extra = maxWidth - totalTextWidth;
+    const shouldJustify = !isLastLine && totalSpaces > 0 && Number.isFinite(extra) && extra > 0;
+
     const justifySpaceWidth = shouldJustify
-      ? (maxWidth - totalTextWidth) / totalSpaces
+      ? extra / totalSpaces
       : normalSpaceWidth;
 
     let currentX = x;
 
-    // ✅ Asegura que la última palabra termine EXACTO en x + maxWidth
-    const lastWordWidth = lineData[lineData.length - 1].width;
-    const xLastWord = x + maxWidth - lastWordWidth;
+    // ✅ Asegura última palabra alineada solo si vamos a justificar
+    const lastWordWidth = safeLine[safeLine.length - 1]?.width ?? 0;
+    const xLastWord = shouldJustify ? (x + maxWidth - lastWordWidth) : 0;
 
-    lineData.forEach((item, index) => {
+    for (let index = 0; index < safeLine.length; index++) {
+      const item = safeLine[index];
+
+      if (!Number.isFinite(currentX)) currentX = x;
+
       doc.setFont('helvetica', item.bold ? 'bold' : 'normal');
       doc.text(item.word, currentX, y);
 
       if (index < totalSpaces) {
-        // si la siguiente palabra es la última, saltamos exacto a xLastWord
         if (shouldJustify && index === totalSpaces - 1) {
-          currentX = xLastWord;
+          currentX = Number.isFinite(xLastWord) ? xLastWord : (currentX + item.width + justifySpaceWidth);
         } else {
           currentX += item.width + justifySpaceWidth;
         }
       } else {
         currentX += item.width;
       }
-    });
+    }
 
     doc.setFont('helvetica', 'normal');
   }
+
 
 
 
@@ -978,19 +1015,59 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     return v == null ? fallback : String(v);
   }
 
-  private parseDateToDDMMYYYY(input?: string | null): string {
-    if (!input) return '';
-    // Si viene como DD/MM/YYYY ya está
-    const ddmmyyyy = /^(\d{2})\/(\d{2})\/(\d{4})$/;
-    if (ddmmyyyy.test(input)) return input;
-    // ISO o algo que Date entienda
-    const d = new Date(input);
-    if (isNaN(d.getTime())) return '';
-    const dd = String(d.getDate()).padStart(2, '0');
-    const mm = String(d.getMonth() + 1).padStart(2, '0');
-    const yyyy = d.getFullYear();
-    return `${dd}/${mm}/${yyyy}`;
+  parseDateToDDMMYYYY(v: any): string {
+    if (v === null || v === undefined) return '';
+
+    // Si llega como string
+    if (typeof v === 'string') {
+      const s = v.trim();
+      if (!s) return '';
+
+      // ✅ corta hora: "YYYY-MM-DDTHH:mm:ss" o "YYYY-MM-DD HH:mm:ss"
+      const datePart = s.split('T')[0].split(' ')[0].trim();
+
+      // Si viene "YYYY-MM-DD"
+      const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(datePart);
+      if (m) return `${m[3]}/${m[2]}/${m[1]}`;
+
+      // Si ya viene "DD/MM/YYYY"
+      const m2 = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(datePart);
+      if (m2) return `${m2[1]}/${m2[2]}/${m2[3]}`;
+
+      // Fallback: intenta parsear igual (por si viene ISO raro)
+      const d = new Date(s);
+      if (!Number.isNaN(d.getTime())) {
+        const dd = String(d.getDate()).padStart(2, '0');
+        const mm = String(d.getMonth() + 1).padStart(2, '0');
+        const yyyy = d.getFullYear();
+        return `${dd}/${mm}/${yyyy}`;
+      }
+
+      return '';
+    }
+
+    // Si llega Date
+    if (v instanceof Date && !Number.isNaN(v.getTime())) {
+      const dd = String(v.getDate()).padStart(2, '0');
+      const mm = String(v.getMonth() + 1).padStart(2, '0');
+      const yyyy = v.getFullYear();
+      return `${dd}/${mm}/${yyyy}`;
+    }
+
+    // Si llega timestamp numérico
+    if (typeof v === 'number') {
+      const d = new Date(v);
+      if (!Number.isNaN(d.getTime())) {
+        const dd = String(d.getDate()).padStart(2, '0');
+        const mm = String(d.getMonth() + 1).padStart(2, '0');
+        const yyyy = d.getFullYear();
+        return `${dd}/${mm}/${yyyy}`;
+      }
+    }
+
+    return '';
   }
+
 
   private formatLongDateES(input?: string | null): string {
     if (!input) return '';
@@ -1943,7 +2020,20 @@ export class GenerateContractingDocumentsComponent implements OnInit {
 
 
   // Generar contrato de trabajo
-  generarContratoTrabajoTuAlianza() {
+  async generarContratoTrabajoTuAlianza() {
+    const respContratacion: any = await firstValueFrom(
+      this.contratacionService.buscarEncontratacion(this.cedula).pipe(
+        take(1),
+        catchError((err) => {
+          console.error('Error buscando contratación:', err);
+          return of({ data: [] });
+        })
+      )
+    );
+
+    console.log('Datos de contratación recibidos:', respContratacion);
+    const datoContratacion = respContratacion?.data?.[0] ?? {};
+    console.log('Dato de contratación para ficha técnica Tu Alianza:', datoContratacion);
     // Determinar la ruta del logo y el NIT
     let logoPath = '';
     let nit = '';
@@ -2008,7 +2098,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     // Encabezados
     doc.setFont('helvetica', 'bold');
     doc.text("PROCESO DE CONTRATACIÓN", tableStartX + 55, startY + 3);
-    doc.text(this.codigoContratacion, tableStartX + 130, startY + 3);
+    // doc.text(this.codigoContratacion, tableStartX + 130, startY + 3);
     doc.text("CONTRATO DE TRABAJO POR OBRA O LABOR", tableStartX + 43, startY + 7);
 
     // Líneas divisoras
@@ -2044,25 +2134,77 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       String(fecha.getMonth() + 1).padStart(2, '0'),  // mm
       fecha.getFullYear()  // yyyy
     ].join('/');
+    // helper: primer valor NO vacío (null/undefined/''/'   ' => ignora)
+    const pickText = (...vals: any[]) => {
+      for (const v of vals) {
+        const t = (v ?? '').toString().trim();
+        if (t) return t;
+      }
+      return '';
+    };
+
+    // helper: solo fecha (si viene con hora, recorta) y la deja en YYYY-MM-DD
+    const onlyDate = (v: any) => {
+      const s = pickText(v);
+      if (!s) return '';
+      return s.split('T')[0].split(' ')[0].trim();
+    };
+
+    // ✅ úsalo en tu arreglo
 
     // Datos de titulos
+    const U = (v: any) => String(v ?? '').trim().toUpperCase();
+
     const datos = [
-      { titulo: 'Representado por', valor: 'HEIDY JACKELINE TORRES SOTELO' },
-      { titulo: 'Nombre del Trabajador', valor: this.candidato.primer_nombre + ' ' + (this.candidato.segundo_nombre ?? '') + ' ' + this.candidato.primer_apellido + ' ' + (this.candidato.segundo_apellido ?? '') },
-      { titulo: 'Fecha de Nacimiento', valor: this.candidato.fecha_nacimiento },
-      { titulo: 'Domicilio del Trabajador', valor: this.candidato.residencia.direccion + ' ' + this.candidato.residencia.barrio + ' ' + 'BOGOTÁ' },
-      { titulo: 'Fecha de Iniciación', valor: this.candidato?.entrevistas?.[0]?.proceso?.contrato?.fecha_ingreso ?? '' },
-      { titulo: 'Salario Mensual Ordinario', valor: 'S.M.M.L.V. $1.423.500 — Un millón cuatrocientos veintitrés mil quinientos pesos M/C.' },
-      { titulo: 'Periódo de Pago Salario', valor: 'Quincenal' },
-      { titulo: 'Subsidio de Transporte', valor: 'SE PAGA EL LEGAL VIGENTE  O SE SUMINISTRA EL TRANSPORTE' },
-      { titulo: 'Forma de Pago', valor: 'Banca Móvil,  Cuenta de Ahorro o Tarjeta Monedero' },
-      { titulo: 'Nombre Empresa Usuria', valor: this.vacante.empresaUsuariaSolicita },
-      { titulo: 'Cargo', valor: this.vacante.cargo },
-      { titulo: 'Descripción de la Obra/Motivo Temporada', valor: this.vacante.descripcion },
-      { titulo: 'Domicilio del patrono', valor: domicilio },
-      { titulo: 'Tipo y No de Identificación', valor: this.candidato.tipo_doc + '        ' + this.cedula },
-      { titulo: 'Email', valor: this.candidato.contacto.email },
+      { titulo: U('Representado por'), valor: U('HEIDY JACKELINE TORRES SOTELO') },
+
+      {
+        titulo: U('Nombre del Trabajador'),
+        valor: U([
+          this.candidato?.primer_apellido,
+          this.candidato?.segundo_apellido,
+          this.candidato?.primer_nombre,
+          this.candidato?.segundo_nombre
+        ].filter(x => String(x ?? '').trim()).join(' '))
+      },
+
+      { titulo: U('Fecha de Nacimiento'), valor: U(onlyDate(pickText(this.candidato?.fecha_nacimiento, datoContratacion?.fecha_nacimiento))) },
+
+      {
+        titulo: U('Domicilio del Trabajador'),
+        valor: U([
+          this.candidato?.residencia?.direccion,
+          this.candidato?.residencia?.barrio,
+          'BOGOTÁ'
+        ].filter(x => String(x ?? '').trim()).join(' '))
+      },
+
+      { titulo: U('Fecha de Iniciación'), valor: U(this.candidato?.entrevistas?.[0]?.proceso?.contrato?.fecha_ingreso ?? '') },
+
+      {
+        titulo: U('Salario Mensual Ordinario'),
+        valor: U('S.M.M.L.V $ 1.750.905 UN MILLÓN SETECIENTOS CINCUENTA MIL NOVECIENTOS CINCO PESOS M/C')
+      },
+
+      { titulo: U('Periódo de Pago Salario'), valor: U('Quincenal') },
+
+      { titulo: U('Subsidio de Transporte'), valor: U('SE PAGA EL LEGAL VIGENTE O SE SUMINISTRA EL TRANSPORTE') },
+
+      { titulo: U('Forma de Pago'), valor: U('Banca Móvil, Cuenta de Ahorro o Tarjeta Monedero') },
+
+      { titulo: U('Nombre Empresa Usuria'), valor: U(this.vacante?.empresaUsuariaSolicita) },
+
+      { titulo: U('Cargo'), valor: U(this.vacante?.cargo) },
+
+      { titulo: U('Descripción de la Obra/Motivo Tem '), valor: U(this.vacante?.descripcion) },
+
+      { titulo: U('Domicilio del patrono'), valor: U(domicilio) },
+
+      { titulo: U('Tipo y No de Identificación'), valor: U(`${this.candidato?.tipo_doc ?? ''}        ${this.cedula ?? ''}`) },
+
+      { titulo: U('Email'), valor: U(this.candidato?.contacto?.email) },
     ];
+
     // Configuración de columnas
     const columnWidth = 110; // Ancho de cada columna
     const rowSpacing = 3;    // Espaciado entre filas
@@ -2159,7 +2301,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     // Encabezados
     doc.setFont('helvetica', 'bold');
     doc.text("PROCESO DE CONTRATACIÓN", tableStartX + 55, startY + 3);
-    doc.text(this.codigoContratacion, tableStartX + 130, startY + 3);
+    //doc.text(this.codigoContratacion, tableStartX + 130, startY + 3);
     doc.text("CONTRATO DE TRABAJO POR OBRA O LABOR", tableStartX + 43, startY + 7);
 
     // Líneas divisoras
@@ -2921,26 +3063,80 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       // primercorreoelectronico
       this.setText(form, 'Email', this.safe(datoContratacion?.primercorreoelectronico), customFont);
 
+      // helpers
+      const pickText = (...vals: any[]) => {
+        for (const v of vals) {
+          const t = this.safe(v).trim();
+          if (t) return t;
+        }
+        return '';
+      };
+
+      const pickDateDDMM = (...vals: any[]) => {
+        for (const v of vals) {
+          const d = this.parseDateToDDMMYYYY(v);
+          const t = this.safe(d).trim();
+          if (t) return t;
+        }
+        return '';
+      };
+
+      // ===============================
+      // Fecha y lugar de Expedición
+      // ===============================
+      const expFecha = pickDateDDMM(dv?.fecha_expedicion_cc, datoContratacion?.fecha_expedicion_cc);
+      const expLugar = pickText(dv?.municipio_expedicion_cc, datoContratacion?.municipio_expedicion_cc);
+
       this.setText(
         form,
         'Fecha y lugar de Expediciòn',
-        this.parseDateToDDMMYYYY(dv.fecha_expedicion_cc) + ' ' + this.safe(dv.municipio_expedicion_cc),
-        customFont
-      );
-      this.setText(
-        form,
-        'Fecha y lugar de Nacimiento',
-        this.parseDateToDDMMYYYY(dv.fecha_nacimiento) + ' ' + this.safe(dv.lugar_nacimiento_municipio),
+        [expFecha, expLugar].filter(Boolean).join(' '),
         customFont
       );
 
-      this.setText(form, 'Dirección', this.safe(dv.direccion_residencia), customFont);
+      // ===============================
+      // Fecha y lugar de Nacimiento
+      // ===============================
+      const nacFecha = pickDateDDMM(dv?.fecha_nacimiento, datoContratacion?.fecha_nacimiento);
+      const nacLugar = pickText(dv?.lugar_nacimiento_municipio, datoContratacion?.lugar_nacimiento_municipio);
+
       this.setText(
         form,
-        'Mun Bar',
-        (this.safe(dv.municipio)?.trim() || this.safe(dv.barrio)?.trim() || ''),
+        'Fecha y lugar de Nacimiento',
+        [nacFecha, nacLugar].filter(Boolean).join(' '),
         customFont
       );
+
+      // Dirección (dv si tiene contenido; si no, candidato)
+      this.setText(
+        form,
+        'Dirección',
+        pickText(dv?.direccion_residencia, datoContratacion?.direccion_residencia),
+        customFont
+      );
+
+
+      // Mun + Barrio: fallback por campo (dv->candidato) y luego une
+      const munVal = pickText(dv?.municipio, datoContratacion?.municipio);
+      const barVal = pickText(dv?.barrio, datoContratacion?.barrio);
+      this.setText(form, 'Mun Bar', [munVal, barVal].filter(Boolean).join(' - '), customFont);
+
+      // Dies/Zurd (dv si no está vacío; si no, candidato)
+      this.setText(
+        form,
+        'DiesZurd',
+        pickText(dv?.zurdo_diestro, datoContratacion?.zurdo_diestro),
+        customFont
+      );
+
+      // RH (dv si no está vacío; si no, candidato)
+      this.setText(
+        form,
+        'RH',
+        pickText(dv?.rh, datoContratacion?.rh),
+        customFont
+      );
+
 
       // PlanFunerario
       const siNo = this.candidato?.entrevistas?.[0]?.proceso?.contrato?.seguro_funerario ? 'SI' : 'NO';
@@ -2954,8 +3150,6 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       );
 
       this.setText(form, 'Celular', this.safe(dv.celular), customFont);
-      this.setText(form, 'DiesZurd', this.safe(dv.zurdo_diestro), customFont);
-      this.setText(form, 'RH', this.safe(dv.rh), customFont);
       this.setText(form, 'Estado Civil', this.safe(dv.estado_civil), customFont);
       this.setText(form, 'Correo Electrónico', this.safe(dv.primercorreoelectronico), customFont);
       this.setText(form, 'EPS', this.safe(ds.eps), customFont);
@@ -3095,17 +3289,24 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       this.setText(form, 'nombre-referencia-familiar1', this.safe(datoContratacion.nombre_referencia_familiar1 ?? ''), customFont);
       this.setText(form, 'nombre-referencia-familiar2', this.safe(datoContratacion.nombre_referencia_familiar2 ?? ''), customFont);
 
-      // aleatorios descripciones
-      const pickRandom = (arr: readonly string[]) => arr[Math.floor(Math.random() * arr.length)];
+      // aleatorios descripciones (robusto y sin repetidos en el par)
+      const normalize = (s: unknown) => String(s ?? '').trim().replace(/\s+/g, ' ');
 
       const pickTwoDistinct = (arr: readonly string[]): [string, string] => {
-        if (!arr?.length) return ['', ''];
-        if (arr.length === 1) return [arr[0], arr[0]];
+        // 1) Normaliza, limpia vacíos y elimina duplicados reales
+        const unique = Array.from(
+          new Set((arr ?? []).map(normalize).filter(v => v.length > 0))
+        );
 
-        const first = pickRandom(arr);
-        let second = pickRandom(arr);
-        while (second === first) second = pickRandom(arr);
-        return [first, second];
+        // 2) Casos límite
+        if (unique.length === 0) return ['', ''];
+        if (unique.length === 1) return [unique[0], '']; // ✅ NUNCA repite
+
+        // 3) Selección aleatoria sin while infinito
+        const i = Math.floor(Math.random() * unique.length);
+        const j = (i + 1 + Math.floor(Math.random() * (unique.length - 1))) % unique.length;
+
+        return [unique[i], unique[j]];
       };
 
       const [personal1, personal2] = pickTwoDistinct(this.referenciasA);
@@ -3115,6 +3316,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       const [familiar1, familiar2] = pickTwoDistinct(this.referenciasF);
       this.setText(form, 'descripcion-familiar1', familiar1, customFont);
       this.setText(form, 'descripcion-familiar2', familiar2, customFont);
+
 
       // firmado
       console.log('Usuario que firma ficha técnica Tu Alianza:', this.nombreCompletoLogin);

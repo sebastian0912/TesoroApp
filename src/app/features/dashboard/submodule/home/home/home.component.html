@@ -1,15 +1,52 @@
 <div class="cards">
-  <app-info-card title="Cargar solicitudes robots paquete" imageUrl="icons/cards/excel.png" (click)="triggerFileInput()"
+  <app-info-card
+    title="Cargar solicitudes robots paquete"
+    imageUrl="icons/cards/excel.png"
+    (click)="triggerFileInput()"
     style="cursor:pointer"></app-info-card>
-  <app-info-card title="Descargar historial beneficios" imageUrl="icons/cards/excel.png"
-    (click)="extraerHistorialBeneficios()" style="cursor:pointer"></app-info-card>
 
-  <button mat-raised-button color="accent" (click)="descargarLinksExcel(1, 0, 0)">
+  <app-info-card
+    title="Descargar historial beneficios"
+    imageUrl="icons/cards/excel.png"
+    (click)="extraerHistorialBeneficios()"
+    style="cursor:pointer"></app-info-card>
+
+  <app-info-card
+    title="Cargar cedulas para resetear contratado"
+    imageUrl="icons/cards/excel.png"
+    (click)="triggerFileInputResetContratado()"
+    style="cursor:pointer"></app-info-card>
+
+  <!-- ✅ NUEVO: Descargar Excel candidatos por cédulas -->
+  <app-info-card
+    title="Descargar Excel candidatos (por cédulas)"
+    imageUrl="icons/cards/excel.png"
+    (click)="triggerFileInputExcelCandidatos()"
+    style="cursor:pointer"></app-info-card>
+
+  <button mat-raised-button color="accent"
+    (click)="descargarLinksExcel(1, 0, 0)">
     Descargar Excel (cédula + link de Drive)
   </button>
 </div>
 
-<input type="file" id="fileInput" (change)="cargarExcel($event)" accept=".xlsx, .xls" style="display:none" />
+<input type="file" id="fileInput" (change)="cargarExcel($event)"
+  accept=".xlsx, .xls" style="display:none" />
 
+<input
+  type="file"
+  id="fileInputResetContratado"
+  (change)="cargarExcelResetContratado($event)"
+  accept=".xlsx, .xls"
+  style="display:none" />
 
-<app-merchandising-merchandise *ngIf="comercializadora"></app-merchandising-merchandise><br>
+<!-- ✅ NUEVO input oculto: Excel con cédulas para exportar -->
+<input
+  type="file"
+  id="fileInputExcelCandidatos"
+  (change)="cargarExcelParaExportarCandidatos($event)"
+  accept=".xlsx, .xls"
+  style="display:none" />
+
+<app-merchandising-merchandise
+  *ngIf="comercializadora"></app-merchandising-merchandise><br>

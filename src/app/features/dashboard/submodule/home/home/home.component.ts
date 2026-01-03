@@ -15,6 +15,7 @@ import Swal from 'sweetalert2';
 import * as XLSX from 'xlsx';
 
 import { firstValueFrom } from 'rxjs';
+import { REFERENCIAS_A, REFERENCIAS_F } from '@/app/shared/model/const';
 
 import { UtilityServiceService } from '../../../../../shared/services/utilityService/utility-service.service';
 import { MerchandisingMerchandiseComponent } from '../components/merchandising-merchandise/merchandising-merchandise.component';
@@ -32,12 +33,12 @@ type PdfOption = { key: PdfKey; label: string };
 
 // ✅ Tabla que realmente te importa (tipo, prioridad, llevas, cuantos)
 type ProgresoTipoPrioridadRow = {
-  pdf: PdfKey;         // key técnica
-  tipo: string;        // label para mostrar (ADRES, OFAC, etc)
+  pdf: PdfKey;
+  tipo: string;
   prioridad: string;
   llevas: number;
   faltan: number;
-  total: number;       // "cuantos"
+  total: number;
 };
 
 @Component({
@@ -59,7 +60,7 @@ type ProgresoTipoPrioridadRow = {
     InfoCardComponent,
   ],
   templateUrl: './home.component.html',
-  styleUrl: './home.component.css',
+  styleUrls: ['./home.component.css'],
 })
 export class HomeComponent implements OnInit {
   user: any;
@@ -71,10 +72,13 @@ export class HomeComponent implements OnInit {
 
   isSidebarHidden = false;
 
+  // ✅ si quieres pasar "persona" al reporte candidatos:
+  // (puedes setearlo desde UI si luego lo agregas)
+  personaContratacion = '';
+
   // ===== PROGRESO (ALL JSON CACHE) =====
   isLoadingProgresoAll = false;
   totalRegistros = 0;
-
 
   progreso: ProgresoRow[] = [];
   progresoColumns: ColumnDefinition[] = [];
@@ -114,10 +118,15 @@ export class HomeComponent implements OnInit {
     private utilityService: UtilityServiceService,
     private homeService: HomeService,
     private dialog: MatDialog,
-  ) { }
+  ) {}
 
   ngOnInit(): void {
     this.initializeUserRoles();
+
+    // default persona contratación (si no la defines desde UI)
+    if (!this.personaContratacion.trim()) {
+      this.personaContratacion = this.getNombreUsuario() || '';
+    }
   }
 
   private initializeUserRoles(): void {
@@ -146,11 +155,15 @@ export class HomeComponent implements OnInit {
     this.admin = isGerencia || isAdmin;
   }
 
+  // =========================================================
+  // HISTORIAL BENEFICIOS
+  // =========================================================
   extraerHistorialBeneficios(): void {
     const rol = this.user?.rol?.nombre ?? 'SIN-ASIGNAR';
     const correo = (this.user?.correo_electronico ?? '').toString().toLowerCase();
 
-    const autorizadoGlobal = rol === 'ADMIN' || rol === 'GERENCIA' || correo === 'mercarflorats@gmail.com';
+    const autorizadoGlobal =
+      rol === 'ADMIN' || rol === 'GERENCIA' || correo === 'mercarflorats@gmail.com';
 
     this.dialog
       .open(DateRangeDialogComponent, {
@@ -165,14 +178,18 @@ export class HomeComponent implements OnInit {
 
         if (autorizadoGlobal) {
           this.homeService.traerHistorialInformeSoloFecha(start, end, true).subscribe({
-            next: (blob) => this.downloadBlob(blob, `historial_beneficios_${start}_a_${end}.xlsx`),
+            next: (blob) =>
+              this.downloadBlob(blob, `historial_beneficios_${start}_a_${end}.xlsx`),
           });
           return;
         }
 
-        const nombrePersona = `${this.user?.datos_basicos?.nombres ?? ''} ${this.user?.datos_basicos?.apellidos ?? ''}`.trim();
+        const nombrePersona =
+          `${this.user?.datos_basicos?.nombres ?? ''} ${this.user?.datos_basicos?.apellidos ?? ''}`.trim();
+
         this.homeService.traerHistorialInformePersona(start, end, nombrePersona, true).subscribe({
-          next: (blob) => this.downloadBlob(blob, `historial_beneficios_${nombrePersona}_${start}_a_${end}.xlsx`),
+          next: (blob) =>
+            this.downloadBlob(blob, `historial_beneficios_${nombrePersona}_${start}_a_${end}.xlsx`),
         });
       });
   }
@@ -188,9 +205,32 @@ export class HomeComponent implements OnInit {
     window.URL.revokeObjectURL(url);
   }
 
-  // ---------- INPUT FILE (EXCEL) ----------
-  triggerFileInput(): void {
-    (document.getElementById('fileInput') as HTMLInputElement).click();
+  private async saveToDownloads(blob: Blob, filename: string): Promise<void> {
+    const ext = (filename.split('.').pop() || '').toLowerCase();
+    const mime =
+      ext === 'zip'
+        ? 'application/zip'
+        : ext === 'xlsx'
+          ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+          : 'application/octet-stream';
+
+    try {
+      // @ts-ignore
+      if (window.showSaveFilePicker) {
+        // @ts-ignore
+        const handle = await window.showSaveFilePicker({
+          suggestedName: filename,
+          startIn: 'downloads',
+          types: [{ description: ext.toUpperCase(), accept: { [mime]: ['.' + ext] } }],
+        });
+        const writable = await handle.createWritable();
+        await writable.write(blob);
+        await writable.close();
+        return;
+      }
+    } catch (_) {}
+
+    this.downloadBlob(blob, filename);
   }
 
   private normalizeKey(s: string): string {
@@ -210,6 +250,16 @@ export class HomeComponent implements OnInit {
       if (aliases.includes(nk) || this.normalizeKey(canonical) === nk) return canonical;
     }
     return String(h || '').trim();
+  }
+
+  // =========================================================
+  // 1) CARGAR SOLICITUDES ROBOTS (EXCEL) - EXISTENTE
+  // =========================================================
+  triggerFileInput(): void {
+    const input = document.getElementById('fileInput') as HTMLInputElement | null;
+    if (!input) return;
+    input.value = '';
+    input.click();
   }
 
   cargarExcel(evt: any): void {
@@ -235,7 +285,11 @@ export class HomeComponent implements OnInit {
         const canonicalHeaders = headerRow.map((h) => this.toCanonical(h));
 
         if (!canonicalHeaders.some((h) => h === 'Identificación')) {
-          void Swal.fire({ icon: 'error', title: 'Formato incorrecto', text: 'Falta la columna "Identificación".' });
+          void Swal.fire({
+            icon: 'error',
+            title: 'Formato incorrecto',
+            text: 'Falta la columna "Identificación".',
+          });
           return;
         }
 
@@ -254,7 +308,11 @@ export class HomeComponent implements OnInit {
           .filter((o) => !!o && typeof o === 'object' && String(o['Identificación'] || '').trim() !== '');
 
         if (!datos.length) {
-          void Swal.fire({ icon: 'warning', title: 'No hay filas válidas', text: 'Todas las filas carecen de Identificación.' });
+          void Swal.fire({
+            icon: 'warning',
+            title: 'No hay filas válidas',
+            text: 'Todas las filas carecen de Identificación.',
+          });
           return;
         }
 
@@ -284,7 +342,6 @@ export class HomeComponent implements OnInit {
               title: ok ? 'Carga exitosa' : 'Carga con errores',
               text: detalle || (ok ? 'OK' : 'Revisa el servidor'),
             });
-
           },
           error: async (err) => {
             const msg = err?.error?.message || 'No se pudo cargar el Excel.';
@@ -292,45 +349,24 @@ export class HomeComponent implements OnInit {
           },
         });
       } catch {
-        void Swal.fire({ icon: 'error', title: 'Error al procesar', text: 'Verifica el formato del archivo.' });
+        void Swal.fire({
+          icon: 'error',
+          title: 'Error al procesar',
+          text: 'Verifica el formato del archivo.',
+        });
       } finally {
         try {
           (evt.target as HTMLInputElement).value = '';
-        } catch { }
+        } catch {}
       }
     };
 
     reader.readAsArrayBuffer(file);
   }
 
-  private async saveToDownloads(blob: Blob, filename: string): Promise<void> {
-    const ext = (filename.split('.').pop() || '').toLowerCase();
-    const mime =
-      ext === 'zip'
-        ? 'application/zip'
-        : ext === 'xlsx'
-          ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-          : 'application/octet-stream';
-
-    try {
-      // @ts-ignore
-      if (window.showSaveFilePicker) {
-        // @ts-ignore
-        const handle = await window.showSaveFilePicker({
-          suggestedName: filename,
-          startIn: 'downloads',
-          types: [{ description: ext.toUpperCase(), accept: { [mime]: ['.' + ext] } }],
-        });
-        const writable = await handle.createWritable();
-        await writable.write(blob);
-        await writable.close();
-        return;
-      }
-    } catch (_) { }
-
-    this.downloadBlob(blob, filename);
-  }
-
+  // =========================================================
+  // 2) DESCARGAR EXCEL (CÉDULA + LINK) - EXISTENTE
+  // =========================================================
   async descargarLinksExcel(onlyDrive: 1 | 0 = 1, offset = 0, limit = 0): Promise<void> {
     Swal.fire({
       title: 'Generando Excel de links',
@@ -365,5 +401,207 @@ export class HomeComponent implements OnInit {
         text: err?.status === 0 ? 'CORS o red: no se pudo contactar el servidor.' : 'Falló la descarga del Excel.',
       });
     }
+  }
+
+  // =========================================================
+  // 3) RESET CONTRATADO - EXISTENTE
+  // =========================================================
+  triggerFileInputResetContratado(): void {
+    const input = document.getElementById('fileInputResetContratado') as HTMLInputElement | null;
+    if (!input) return;
+    input.value = '';
+    input.click();
+  }
+
+  async cargarExcelResetContratado(evt: any): Promise<void> {
+    const input = evt?.target as HTMLInputElement;
+    const file: File | undefined = input?.files?.[0];
+
+    if (!file) {
+      await Swal.fire({ icon: 'error', title: 'Selecciona un archivo' });
+      return;
+    }
+
+    Swal.fire({
+      title: 'Reseteando contratado...',
+      text: 'Subiendo Excel y aplicando cambios.',
+      allowOutsideClick: false,
+      didOpen: () => Swal.showLoading(),
+    });
+
+    try {
+      const res = await firstValueFrom(
+        this.homeService.bulkResetUltimoProcesoWithFields(file, ['contratado'])
+      );
+
+      const body = res?.body || {};
+      const counts = body?.counts || {};
+
+      const updated = Number(counts.updated || 0);
+      const notFound = Number(counts.not_found || 0);
+      const noInterview = Number(counts.no_interview || 0);
+      const noProcess = Number(counts.no_process || 0);
+      const badRows = Number(counts.bad_rows || 0);
+
+      const detalle =
+        `Actualizados: ${updated}\n` +
+        `No encontrados: ${notFound}\n` +
+        `Sin entrevista: ${noInterview}\n` +
+        `Sin proceso: ${noProcess}\n` +
+        `Filas inválidas: ${badRows}`;
+
+      await Swal.fire({
+        icon: updated > 0 ? 'success' : (notFound + noInterview + noProcess + badRows) > 0 ? 'warning' : 'info',
+        title: updated > 0 ? 'Listo' : 'Sin cambios',
+        text: detalle,
+      });
+    } catch (err: any) {
+      const msg =
+        err?.message ||
+        err?.error?.message ||
+        err?.error?.detail ||
+        'No se pudo procesar el Excel para resetear contratado.';
+      await Swal.fire({ icon: 'error', title: 'Error', text: msg });
+    } finally {
+      try {
+        input.value = '';
+      } catch {}
+    }
+  }
+
+  // =========================================================
+  // ✅ 4) NUEVO: DESCARGAR EXCEL CANDIDATOS (POR CÉDULAS)
+  //  - Card: triggerFileInputExcelCandidatos()
+  //  - Input: fileInputExcelCandidatos
+  // =========================================================
+  triggerFileInputExcelCandidatos(): void {
+    const input = document.getElementById('fileInputExcelCandidatos') as HTMLInputElement | null;
+    if (!input) return;
+    input.value = '';
+    input.click();
+  }
+
+  async cargarExcelParaExportarCandidatos(evt: any): Promise<void> {
+    const input = evt?.target as HTMLInputElement;
+    const file: File | undefined = input?.files?.[0];
+
+    if (!file) {
+      await Swal.fire({ icon: 'error', title: 'Selecciona un archivo' });
+      return;
+    }
+
+    Swal.fire({
+      title: 'Generando Excel de candidatos...',
+      text: 'Leyendo cédulas y consultando al servidor.',
+      allowOutsideClick: false,
+      didOpen: () => Swal.showLoading(),
+    });
+
+    try {
+      const cedulas = await this.extraerCedulasDesdeExcel(file);
+      if (!cedulas.length) {
+        await Swal.fire({ icon: 'warning', title: 'Sin cédulas', text: 'No se encontraron cédulas válidas en el Excel.' });
+        return;
+      }
+
+      const persona = this.personaContratacion.trim() || this.getNombreUsuario() || '';
+
+      const res = await firstValueFrom(this.homeService.descargarCandidatosExcel(cedulas, persona));
+      if (!res.body) throw new Error('Respuesta vacía');
+
+      const filename = this.getFilenameFromResponse(res) || 'candidatos_export.xlsx';
+      await this.saveToDownloads(res.body, filename);
+
+      await Swal.fire({
+        icon: 'success',
+        title: 'Excel descargado',
+        text: `Cédulas procesadas: ${cedulas.length}`,
+      });
+    } catch (err: any) {
+      console.error(err);
+      await Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: err?.status === 0 ? 'CORS o red: no se pudo contactar el servidor.' : 'Falló la descarga del Excel de candidatos.',
+      });
+    } finally {
+      try {
+        input.value = '';
+      } catch {}
+    }
+  }
+
+  /**
+   * ✅ Extrae cédulas desde el Excel:
+   * - Busca columna por header ("CEDULA/CC/DOCUMENTO/IDENTIFICACION")
+   * - si no encuentra header, usa la primera columna
+   */
+  private async extraerCedulasDesdeExcel(file: File): Promise<string[]> {
+    const data = await file.arrayBuffer();
+    const wb = XLSX.read(data, { type: 'array', cellDates: true });
+
+    const sheetName = wb.SheetNames?.[0];
+    if (!sheetName) return [];
+
+    const ws = wb.Sheets[sheetName];
+    const rows: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: '' });
+
+    if (!rows.length) return [];
+
+    const headerRow = (rows[0] || []).map(v => String(v ?? '').trim().toUpperCase());
+    const targets = ['CEDULA', 'CÉDULA', 'CC', 'DOCUMENTO', 'IDENTIFICACION', 'IDENTIFICACIÓN', 'N° CC', 'NRO CC'];
+
+    let colIdx = -1;
+    for (let i = 0; i < headerRow.length; i++) {
+      const h = headerRow[i];
+      if (!h) continue;
+      if (targets.some(t => h.includes(t))) {
+        colIdx = i;
+        break;
+      }
+    }
+    if (colIdx === -1) colIdx = 0;
+
+    const out: string[] = [];
+    const seen = new Set<string>();
+
+    for (let r = 1; r < rows.length; r++) {
+      let v = String(rows[r]?.[colIdx] ?? '').trim();
+      if (!v) continue;
+
+      // limpia espacios/puntos/comas
+      v = v.replace(/\s+/g, '').replace(/[.,]/g, '');
+
+      // deja solo dígitos (tu backend normaliza X, pero aquí mejor enviar solo dígitos)
+      v = v.replace(/\D+/g, '');
+
+      if (!v || v.length < 6) continue;
+
+      if (!seen.has(v)) {
+        seen.add(v);
+        out.push(v);
+      }
+    }
+
+    return out;
+  }
+
+  private getFilenameFromResponse(res: any): string | null {
+    const cd = res?.headers?.get?.('Content-Disposition') || res?.headers?.get?.('content-disposition') || '';
+    if (!cd) return null;
+    const m = cd.match(/filename\*?=(?:UTF-8''|")?([^;"']+)/i);
+    if (!m) return null;
+    try {
+      return decodeURIComponent(String(m[1]).replace(/"/g, '')).trim();
+    } catch {
+      return String(m[1]).replace(/"/g, '').trim();
+    }
+  }
+
+  private getNombreUsuario(): string {
+    const nombres = (this.user?.datos_basicos?.nombres ?? '').toString().trim();
+    const apellidos = (this.user?.datos_basicos?.apellidos ?? '').toString().trim();
+    const full = `${nombres} ${apellidos}`.trim();
+    return full || '';
   }
 }
