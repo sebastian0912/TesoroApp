@@ -2151,91 +2151,193 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     };
 
     // ✅ úsalo en tu arreglo
+    // =========================================================
+    // ✅ Helpers: T = título normal, V = valor en MAYÚSCULAS
+    // ✅ + Normaliza textos con letras/dígitos separados: "C A R A" -> "CARA", "3 0 3 4" -> "3034"
+    // =========================================================
+// =========================================================
+// ✅ FIX: Domicilio del Trabajador quedaba con letras separadas ("C A R A ...")
+// ✅ Solución: normalizar tokens separados (letras sueltas y números sueltos)
+// =========================================================
 
-    // Datos de titulos
-    const U = (v: any) => String(v ?? '').trim().toUpperCase();
+// =========================================================
+// ✅ FIX REAL (2 cosas):
+// 1) Limpia caracteres invisibles (ZWSP, etc.) y une letras/dígitos separados.
+// 2) Resetea charSpacing de jsPDF a 0 antes de pintar texto (si quedó “pegado” de otra parte).
+// =========================================================
 
-    const datos = [
-      { titulo: U('Representado por'), valor: U('HEIDY JACKELINE TORRES SOTELO') },
+// =========================================================
+// ✅ FIX DEFINITIVO:
+// 1) Normaliza el texto (quita invisibles/espacios raros, une letras/dígitos sueltos).
+// 2) Fuerza charSpace: 0 EN CADA doc.text() (no depende del estado global).
+//    (jsPDF soporta options.charSpace en doc.text) :contentReference[oaicite:1]{index=1}
+// =========================================================
 
-      {
-        titulo: U('Nombre del Trabajador'),
-        valor: U([
-          this.candidato?.primer_apellido,
-          this.candidato?.segundo_apellido,
-          this.candidato?.primer_nombre,
-          this.candidato?.segundo_nombre
-        ].filter(x => String(x ?? '').trim()).join(' '))
-      },
+// ✅ Helpers: T = título normal, V = valor en MAYÚSCULAS (normalizado)
+const T = (v: any) => String(v ?? '').trim();
 
-      { titulo: U('Fecha de Nacimiento'), valor: U(onlyDate(pickText(this.candidato?.fecha_nacimiento, datoContratacion?.fecha_nacimiento))) },
+const normalizeText = (v: any): string => {
+  let s = String(v ?? '');
 
-      {
-        titulo: U('Domicilio del Trabajador'),
-        valor: U([
-          this.candidato?.residencia?.direccion,
-          this.candidato?.residencia?.barrio,
-          'BOGOTÁ'
-        ].filter(x => String(x ?? '').trim()).join(' '))
-      },
+  // Normaliza unicode (por si vienen combinaciones raras)
+  if (typeof (s as any).normalize === 'function') {
+    s = s.normalize('NFKD');
+  }
 
-      { titulo: U('Fecha de Iniciación'), valor: U(this.candidato?.entrevistas?.[0]?.proceso?.contrato?.fecha_ingreso ?? '') },
+  // Elimina invisibles típicos (ZWSP/ZWNJ/ZWJ/BOM/WJ/soft-hyphen, etc.)
+  s = s.replace(/[\u200B-\u200D\uFEFF\u2060-\u2064\u00AD]/g, '');
 
-      {
-        titulo: U('Salario Mensual Ordinario'),
-        valor: U('S.M.M.L.V $ 1.750.905 UN MILLÓN SETECIENTOS CINCUENTA MIL NOVECIENTOS CINCO PESOS M/C')
-      },
+  // Quita marcas combinantes (tildes “separadas”)
+  // (si no soporta \p{M}, cae sin problema porque la mayoría no trae esto)
+  try {
+    s = s.replace(/\p{M}+/gu, '');
+  } catch {
+    // fallback: rango común de diacríticos combinantes
+    s = s.replace(/[\u0300-\u036F]+/g, '');
+  }
 
-      { titulo: U('Periódo de Pago Salario'), valor: U('Quincenal') },
+  // Espacios raros -> espacio normal
+  s = s.replace(/[\u00A0\u1680\u180E\u2000-\u200A\u202F\u205F\u3000]/g, ' ');
 
-      { titulo: U('Subsidio de Transporte'), valor: U('SE PAGA EL LEGAL VIGENTE O SE SUMINISTRA EL TRANSPORTE') },
+  // Colapsa whitespace
+  s = s.replace(/\s+/g, ' ').trim();
+  if (!s) return '';
 
-      { titulo: U('Forma de Pago'), valor: U('Banca Móvil, Cuenta de Ahorro o Tarjeta Monedero') },
+  const tokens = s.split(' ');
+  const out: string[] = [];
 
-      { titulo: U('Nombre Empresa Usuria'), valor: U(this.vacante?.empresaUsuariaSolicita) },
+  let buf = '';
+  let kind: 'L' | 'D' | null = null;
 
-      { titulo: U('Cargo'), valor: U(this.vacante?.cargo) },
+  const flush = () => {
+    if (buf) out.push(buf);
+    buf = '';
+    kind = null;
+  };
 
-      { titulo: U('Descripción de la Obra/Motivo Tem '), valor: U(this.vacante?.descripcion) },
+  const isSingleLetter = (t: string) => {
+    // unicode letter si está disponible
+    try { return /^\p{L}$/u.test(t); } catch { return /^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]$/.test(t); }
+  };
 
-      { titulo: U('Domicilio del patrono'), valor: U(domicilio) },
+  for (const t of tokens) {
+    if (!t) continue;
 
-      { titulo: U('Tipo y No de Identificación'), valor: U(`${this.candidato?.tipo_doc ?? ''}        ${this.cedula ?? ''}`) },
+    if (isSingleLetter(t)) {
+      if (kind && kind !== 'L') flush();
+      kind = 'L';
+      buf += t;
+      continue;
+    }
 
-      { titulo: U('Email'), valor: U(this.candidato?.contacto?.email ?? datoContratacion.primercorreoelectronico) },
-    ];
+    if (/^\d$/.test(t)) {
+      if (kind && kind !== 'D') flush();
+      kind = 'D';
+      buf += t;
+      continue;
+    }
 
-    // Configuración de columnas
-    const columnWidth = 110; // Ancho de cada columna
-    const rowSpacing = 3;    // Espaciado entre filas
-    const columnMargin = 10; // Margen entre columnas
-    const columnStartX = 7;  // Posición inicial X
-    const columnStartY = startY + 17; // Posición inicial Y
-    const rowsPerColumn = 15; // Número exacto de filas por columna
+    flush();
+    out.push(t);
+  }
 
-    // Iteración para generar el texto
-    datos.forEach((item, index) => {
-      const currentColumn = Math.floor(index / rowsPerColumn); // Columna actual (cada 12 filas)
-      const rowInColumn = index % rowsPerColumn; // Fila dentro de la columna actual
+  flush();
+  return out.join(' ');
+};
 
-      const x = columnStartX + currentColumn * (columnWidth + columnMargin);
-      const y = (columnStartY + rowInColumn * rowSpacing) + 3;
+const V = (v: any) => normalizeText(v).toUpperCase();
 
-      // Establecer el título en fuente normal
-      doc.setFont('helvetica', 'normal');
-      doc.text(`${item.titulo}:`, x, y);
+const datos = [
+  { titulo: T('Representado por'), valor: V('HEIDY JACKELINE TORRES SOTELO') },
 
-      if (index > 14) {
-        // Establecer el valor en fuente negrita
-        doc.setFont('helvetica', 'bold');
-        doc.text(item.valor, x + 30.2, y);
-      }
-      else {
-        // Establecer el valor en fuente negrita
-        doc.setFont('helvetica', 'bold');
-        doc.text(item.valor ?? '', x + 48, y);
-      }
-    });
+  {
+    titulo: T('Nombre del Trabajador'),
+    valor: V([
+      this.candidato?.primer_apellido,
+      this.candidato?.segundo_apellido,
+      this.candidato?.primer_nombre,
+      this.candidato?.segundo_nombre,
+    ].filter(x => String(x ?? '').trim()).join(' '))
+  },
+
+  {
+    titulo: T('Fecha de Nacimiento'),
+    valor: V(onlyDate(pickText(this.candidato?.fecha_nacimiento, datoContratacion?.fecha_nacimiento)))
+  },
+
+  {
+    titulo: T('Domicilio del Trabajador'),
+    valor: V([
+      this.candidato?.residencia?.direccion + ' - ',
+      this.candidato?.residencia?.barrio,
+      ' - ' + datoContratacion.municipio,
+    ].filter(x => String(x ?? '').trim()).join(' '))
+  },
+
+  { titulo: T('Fecha de Iniciación'), valor: V(this.candidato?.entrevistas?.[0]?.proceso?.contrato?.fecha_ingreso ?? '') },
+
+  {
+    titulo: T('Salario Mensual Ordinario'),
+    valor: V('S.M.M.L.V $ 1.750.905 UN MILLÓN SETECIENTOS CINCUENTA MIL NOVECIENTOS CINCO PESOS M/C')
+  },
+
+  { titulo: T('Periódo de Pago Salario'), valor: V('Quincenal') },
+
+  { titulo: T('Subsidio de Transporte'), valor: V('SE PAGA EL LEGAL VIGENTE O SE SUMINISTRA EL TRANSPORTE') },
+
+  { titulo: T('Forma de Pago'), valor: V('Banca Móvil, Cuenta de Ahorro o Tarjeta Monedero') },
+
+  { titulo: T('Nombre Empresa Usuria'), valor: V(this.vacante?.empresaUsuariaSolicita) },
+
+  { titulo: T('Cargo'), valor: V(this.vacante?.cargo) },
+
+  { titulo: T('Descripción de la Obra/Motivo Temporada '), valor: V(this.vacante?.descripcion) },
+
+  { titulo: T('Domicilio del patrono'), valor: V(domicilio) },
+
+  { titulo: T('Tipo y No de Identificación'), valor: V(`${this.candidato?.tipo_doc ?? ''}        ${this.cedula ?? ''}`) },
+
+  { titulo: T('Email'), valor: V(pickText(this.candidato?.contacto?.email, datoContratacion?.primercorreoelectronico)) },
+];
+
+// =========================================================
+// Render en PDF (FORZANDO charSpace = 0 en CADA texto)
+// =========================================================
+const columnWidth = 110;
+const rowSpacing = 3;
+const columnMargin = 10;
+const columnStartX = 7;
+const columnStartY = startY + 17;
+const rowsPerColumn = 15;
+
+datos.forEach((item, index) => {
+  const currentColumn = Math.floor(index / rowsPerColumn);
+  const rowInColumn = index % rowsPerColumn;
+
+  const x = columnStartX + currentColumn * (columnWidth + columnMargin);
+  const y = (columnStartY + rowInColumn * rowSpacing) + 3;
+
+  // (opcional) también resetea estado global
+  if (typeof (doc as any).setCharSpace === 'function') {
+    (doc as any).setCharSpace(0);
+  }
+
+  // ✅ Título normal (charSpace forzado a 0)
+  doc.setFont('helvetica', 'normal');
+  (doc as any).text(`${item.titulo}:`, x, y, { charSpace: 0 });
+
+  // ✅ Valor negrita (charSpace forzado a 0)
+  doc.setFont('helvetica', 'bold');
+  const valueText = String(item.valor ?? '').trim();
+
+  if (index > 14) {
+    (doc as any).text(valueText, x + 30.2, y, { charSpace: 0 });
+  } else {
+    (doc as any).text(valueText, x + 48, y, { charSpace: 0 });
+  }
+});
+
+
 
     // Restaurar la fuente a la normal después del bucle
     doc.setFont('helvetica', 'normal');
