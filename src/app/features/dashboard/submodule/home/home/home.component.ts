@@ -13,10 +13,6 @@ import { MatSelectModule } from '@angular/material/select';
 
 import Swal from 'sweetalert2';
 import * as XLSX from 'xlsx';
-
-import { firstValueFrom } from 'rxjs';
-import { REFERENCIAS_A, REFERENCIAS_F } from '@/app/shared/model/const';
-
 import { UtilityServiceService } from '../../../../../shared/services/utilityService/utility-service.service';
 import { MerchandisingMerchandiseComponent } from '../components/merchandising-merchandise/merchandising-merchandise.component';
 import { InfoCardComponent } from '@/app/shared/components/info-card/info-card.component';
@@ -28,10 +24,17 @@ import {
 } from '../service/home.service';
 import { DateRangeDialogComponent } from '@/app/shared/components/date-rang-dialog/date-rang-dialog.component';
 import { ColumnDefinition } from '../../../../../shared/models/advanced-table-interface';
+import * as fontkit from 'fontkit';
+import jsPDF from 'jspdf';
+import 'jspdf-autotable';
+import { PDFDocument, PDFTextField, PDFCheckBox } from 'pdf-lib';
+import { firstValueFrom, from, of } from 'rxjs';
+import { concatMap, reduce, catchError } from 'rxjs/operators';
 
 type PdfOption = { key: PdfKey; label: string };
+import JSZip from 'jszip';
+import QRCode from 'qrcode';
 
-// ✅ Tabla que realmente te importa (tipo, prioridad, llevas, cuantos)
 type ProgresoTipoPrioridadRow = {
   pdf: PdfKey;
   tipo: string;
@@ -118,7 +121,7 @@ export class HomeComponent implements OnInit {
     private utilityService: UtilityServiceService,
     private homeService: HomeService,
     private dialog: MatDialog,
-  ) {}
+  ) { }
 
   ngOnInit(): void {
     this.initializeUserRoles();
@@ -228,7 +231,7 @@ export class HomeComponent implements OnInit {
         await writable.close();
         return;
       }
-    } catch (_) {}
+    } catch (_) { }
 
     this.downloadBlob(blob, filename);
   }
@@ -357,7 +360,7 @@ export class HomeComponent implements OnInit {
       } finally {
         try {
           (evt.target as HTMLInputElement).value = '';
-        } catch {}
+        } catch { }
       }
     };
 
@@ -402,6 +405,10 @@ export class HomeComponent implements OnInit {
       });
     }
   }
+
+
+
+
 
   // =========================================================
   // 3) RESET CONTRATADO - EXISTENTE
@@ -465,7 +472,7 @@ export class HomeComponent implements OnInit {
     } finally {
       try {
         input.value = '';
-      } catch {}
+      } catch { }
     }
   }
 
@@ -527,7 +534,7 @@ export class HomeComponent implements OnInit {
     } finally {
       try {
         input.value = '';
-      } catch {}
+      } catch { }
     }
   }
 
@@ -604,4 +611,563 @@ export class HomeComponent implements OnInit {
     const full = `${nombres} ${apellidos}`.trim();
     return full || '';
   }
+
+
+  private async fetchAsArrayBufferOrNull(url?: string): Promise<ArrayBuffer | null> {
+    if (!url) return null;
+    try {
+      const res = await fetch(url);
+      if (!res.ok) return null;
+      return await res.arrayBuffer();
+    } catch { return null; }
+  }
+
+
+
+
+
+
+// ✅ Déjalo como propiedad del componente (arriba, junto a tus flags)
+carnetContext: any = null;
+
+// =========================================================
+// ✅ 5) LEER EXCEL (CEDULA + CODIGO + CENTRO COSTO) PARA GENERAR CARNETS
+// =========================================================
+triggerFileInputCarnets(): void {
+  const input = document.getElementById('fileInputCarnets') as HTMLInputElement | null;
+  if (!input) return;
+  input.value = '';
+  input.click();
+}
+
+async cargarExcelCarnets(evt: any): Promise<void> {
+  const input = evt?.target as HTMLInputElement;
+  const file: File | undefined = input?.files?.[0];
+
+  if (!file) {
+    await Swal.fire({ icon: 'error', title: 'Selecciona un archivo' });
+    return;
+  }
+
+  Swal.fire({
+    title: 'Leyendo Excel para carnets...',
+    text: 'Validando columnas CÉDULA, CÓDIGO y CENTRO COSTO.',
+    allowOutsideClick: false,
+    allowEscapeKey: false,
+    didOpen: () => Swal.showLoading(),
+  });
+
+  try {
+    // 1) Excel -> [{cedula,codigo,centroCosto}]
+    const registros = await this.extraerCedulaCodigoDesdeExcel(file);
+
+    if (!registros.length) {
+      Swal.close();
+      await Swal.fire({
+        icon: 'warning',
+        title: 'Sin datos válidos',
+        text: 'No se encontraron filas con CÉDULA, CÓDIGO y CENTRO COSTO válidos.',
+      });
+      return;
+    }
+
+    // 2) Cédulas únicas (solo para consultar backend 1 vez por cédula)
+    const cedulas: string[] = [];
+    const seenCed = new Set<string>();
+    for (const r of registros) {
+      const ced = String(r?.cedula ?? '').trim();
+      if (!ced) continue;
+      if (seenCed.has(ced)) continue;
+      seenCed.add(ced);
+      cedulas.push(ced);
+    }
+
+    // 3) Lotes para evitar URL muy largo
+    const BATCH_SIZE = 250;
+    const chunks: string[][] = [];
+    for (let i = 0; i < cedulas.length; i += BATCH_SIZE) {
+      chunks.push(cedulas.slice(i, i + BATCH_SIZE));
+    }
+
+    Swal.update({
+      title: 'Consultando candidatos...',
+      text: `Consultando ${cedulas.length} cédulas en ${chunks.length} lote(s)...`,
+    });
+
+    // 4) Consulta por lotes SECUENCIAL
+    const backendItems: any[] = [];
+    for (let idx = 0; idx < chunks.length; idx++) {
+      const chunk = chunks[idx];
+
+      if (Swal.isVisible()) {
+        Swal.update({
+          title: 'Consultando candidatos...',
+          text: `Lote ${idx + 1}/${chunks.length} (${chunk.length} cédulas)`,
+        });
+      }
+
+      let resp: any = null;
+      try {
+        resp = await firstValueFrom(this.homeService.getCandidatosMini(chunk) as any);
+      } catch (err) {
+        console.error(`❌ Error en batch ${idx + 1}/${chunks.length}`, err);
+        resp = null;
+      }
+
+      const items = Array.isArray(resp) ? resp : (resp?.ITEMS ?? resp?.items ?? []);
+      if (Array.isArray(items) && items.length) backendItems.push(...items);
+    }
+
+    // 5) Map por cédula
+    const byCedula = new Map<string, any>();
+    for (const c of backendItems) {
+      const key = String(
+        c?.CEDULA ??
+        c?.cedula ??
+        c?.NUMERO_DOCUMENTO ??
+        c?.numero_documento ??
+        c?.documentNumber ??
+        c?.document_number ??
+        ''
+      ).trim();
+
+      if (key && !byCedula.has(key)) byCedula.set(key, c);
+    }
+
+    // 6) Helper para leer llaves MAYÚSCULAS/minúsculas
+    const pickAny = (obj: any, keys: string[]) => {
+      for (const k of keys) {
+        const v = obj?.[k];
+        if (v !== undefined && v !== null && String(v).trim() !== '') return v;
+      }
+      return '';
+    };
+
+    // 7) Une Excel + candidato (centroCosto viene del Excel)
+    const registrosEnriquecidos = registros.map((r) => {
+      const ced = String(r?.cedula ?? '').trim();
+      const candidato = ced ? (byCedula.get(ced) ?? null) : null;
+      return { ...r, candidato };
+    });
+
+    // 8) FINAL (lo que va directo al PDF)
+    //    ✅ CENTRO_COSTO: SIEMPRE del Excel (ignora el del backend)
+    const finalRows = registrosEnriquecidos.map((r) => {
+      const c = r.candidato || {};
+      return {
+        CEDULA: String(r?.cedula ?? '').trim(),
+        CODIGO: String(r?.codigo ?? '').trim(),
+
+        APELLIDOS: String(pickAny(c, ['APELLIDOS', 'apellidos'])).trim(),
+        NOMBRES: String(pickAny(c, ['NOMBRES', 'nombres'])).trim(),
+        NOMBRE: String(pickAny(c, ['NOMBRE', 'nombre'])).trim(), // fallback
+
+        FECHA_INGRESO: String(pickAny(c, ['FECHA_INGRESO', 'fecha_ingreso'])).trim(),
+
+        // ✅ del Excel (autoridad)
+        CENTRO_COSTO: String(r?.centroCosto ?? '').trim(),
+
+        FAMILIAR_EMERGENCIA_NOMBRE: String(
+          pickAny(c, ['FAMILIAR_EMERGENCIA_NOMBRE', 'familiar_emergencia_nombre'])
+        ).trim(),
+        FAMILIAR_EMERGENCIA_TELEFONO: String(
+          pickAny(c, [
+            'FAMILIAR_EMERGENCIA_TELEFONO',
+            'familiar_emergencia_telefono',
+            'TELEFONO_FAMILIAR_EMERGENCIA',
+            'telefono_familiar_emergencia',
+          ])
+        ).trim(),
+
+        DOCUMENTO_89_URL: String(pickAny(c, ['DOCUMENTO_89_URL', 'documento_89_url'])).trim(),
+      };
+    });
+
+    const encontrados = finalRows.filter(
+      (x) => !!x.APELLIDOS || !!x.NOMBRES || !!x.NOMBRE || !!x.FECHA_INGRESO || !!x.CENTRO_COSTO || !!x.DOCUMENTO_89_URL
+    ).length;
+
+    this.carnetContext = {
+      ARCHIVO: { name: file.name, size: file.size, type: file.type },
+      FINAL: {
+        TOTAL: finalRows.length,
+        ENCONTRADOS: encontrados,
+        NO_ENCONTRADOS: finalRows.length - encontrados,
+        FILAS: finalRows,
+      },
+    };
+
+    console.log('🧾 CARNETS | CONTEXTO', {
+      ARCHIVO: this.carnetContext.ARCHIVO,
+      FINAL: {
+        TOTAL: this.carnetContext.FINAL.TOTAL,
+        ENCONTRADOS: this.carnetContext.FINAL.ENCONTRADOS,
+        NO_ENCONTRADOS: this.carnetContext.FINAL.NO_ENCONTRADOS,
+        SAMPLE: finalRows.slice(0, 10),
+      },
+    });
+
+    await this.generarCarnets(finalRows);
+  } catch (err: any) {
+    console.error('❌ cargarExcelCarnets error:', err);
+    Swal.close();
+    await Swal.fire({
+      icon: 'error',
+      title: 'Error',
+      text: err?.message || 'No se pudo leer el Excel / consultar candidatos-mini.',
+    });
+  } finally {
+    try { input.value = ''; } catch {}
+  }
+}
+
+private async extraerCedulaCodigoDesdeExcel(
+  file: File
+): Promise<Array<{ cedula: string; codigo: string; centroCosto: string }>> {
+  const data = await file.arrayBuffer();
+  const wb = XLSX.read(data, { type: 'array', cellDates: true });
+
+  const sheetName = wb.SheetNames?.[0];
+  if (!sheetName) return [];
+
+  const ws = wb.Sheets[sheetName];
+  const rows: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: '' });
+  if (!rows.length) return [];
+
+  const header = (rows[0] || []).map((v) => String(v ?? '').trim());
+
+  const norm = (x: string) =>
+    (x || '')
+      .replace(/\u00a0|\u2007|\u202f/g, ' ')
+      .normalize('NFD')
+      .replace(/\p{Diacritic}/gu, '')
+      .trim()
+      .replace(/\s+/g, ' ')
+      .toLowerCase();
+
+  const headerN = header.map((h) => norm(h));
+
+  const idxCedula = headerN.findIndex((h) =>
+    ['cedula', 'cédula', 'identificacion', 'identificación', 'documento', 'numero_documento', 'nro documento'].some(
+      (k) => h === norm(k) || h.includes(norm(k))
+    )
+  );
+
+  const idxCodigo = headerN.findIndex((h) =>
+    ['codigo', 'código', 'code', 'cod'].some((k) => h === norm(k) || h.includes(norm(k)))
+  );
+
+  const idxCentroCosto = headerN.findIndex((h) =>
+    ['centro costo', 'centro de costo', 'centro_costo', 'centrocosto', 'ccosto', 'centrocostos'].some(
+      (k) => h === norm(k) || h.includes(norm(k))
+    )
+  );
+
+  if (idxCedula === -1 || idxCodigo === -1 || idxCentroCosto === -1) {
+    throw new Error('Faltan headers: el Excel debe tener columnas CÉDULA, CÓDIGO y CENTRO COSTO.');
+  }
+
+  const out: Array<{ cedula: string; codigo: string; centroCosto: string }> = [];
+  const seen = new Set<string>();
+
+  for (let r = 1; r < rows.length; r++) {
+    let cedula = String(rows[r]?.[idxCedula] ?? '').trim();
+    let codigo = String(rows[r]?.[idxCodigo] ?? '').trim();
+    let centroCosto = String(rows[r]?.[idxCentroCosto] ?? '').trim();
+
+    if (!cedula || !codigo || !centroCosto) continue;
+
+    cedula = cedula.replace(/\s+/g, '').replace(/[.,]/g, '').replace(/\D+/g, '');
+    if (!cedula || cedula.length < 6) continue;
+
+    codigo = codigo
+      .normalize('NFD')
+      .replace(/\p{Diacritic}/gu, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .toUpperCase();
+
+    centroCosto = centroCosto.replace(/\s+/g, ' ').trim(); // respeta texto, solo normaliza espacios
+
+    const key = `${cedula}||${codigo}||${centroCosto}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+
+    out.push({ cedula, codigo, centroCosto });
+  }
+
+  return out;
+}
+
+// =========================================================
+// ✅ GENERAR CARNETS (IMAGEN/QR OK) + FONT SIZE 6 + APELLIDOS/NOMBRES
+// =========================================================
+async generarCarnets(rowsParam?: any[]): Promise<void> {
+  try {
+    const rows: any[] =
+      Array.isArray(rowsParam) && rowsParam.length ? rowsParam : this.carnetContext?.FINAL?.FILAS ?? [];
+
+    if (!Array.isArray(rows) || rows.length === 0) {
+      Swal.close();
+      await Swal.fire({ icon: 'warning', title: 'Sin datos', text: 'Primero carga el Excel (cédula + código + centro costo).' });
+      return;
+    }
+
+    if (!Swal.isVisible()) {
+      Swal.fire({
+        title: 'Generando carnets...',
+        text: `Procesando ${rows.length} registros (9 por PDF)`,
+        allowOutsideClick: false,
+        allowEscapeKey: false,
+        didOpen: () => Swal.showLoading(),
+      });
+    } else {
+      Swal.update({ title: 'Generando carnets...', text: `Procesando ${rows.length} registros (9 por PDF)` });
+      Swal.showLoading();
+    }
+
+    const bytesCache = new Map<string, Promise<ArrayBuffer | null>>();
+    const qrCache = new Map<string, Promise<string>>();
+
+    const isHttp = (u: string) => /^https?:\/\//i.test(u);
+    const isDataUrl = (u: string) => /^data:image\//i.test(u);
+
+    const normalizeUrl = (u: string) => {
+      const s = String(u ?? '').trim();
+      if (!s) return '';
+      if (isHttp(s) || isDataUrl(s)) return s;
+
+      const clean = s.replace(/^\/+/, '');
+      if (clean.startsWith('assets/')) return clean;
+      return `assets/${clean}`;
+    };
+
+    const dataUrlToBytes = (dataUrl: string): ArrayBuffer | null => {
+      try {
+        const [meta, b64] = dataUrl.split(',');
+        if (!meta || !b64) return null;
+        const bin = atob(b64);
+        const len = bin.length;
+        const bytes = new Uint8Array(len);
+        for (let i = 0; i < len; i++) bytes[i] = bin.charCodeAt(i);
+        return bytes.buffer;
+      } catch {
+        return null;
+      }
+    };
+
+    const detectImageType = (ab: ArrayBuffer): 'png' | 'jpg' | null => {
+      const b = new Uint8Array(ab);
+      if (
+        b.length >= 8 &&
+        b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47 &&
+        b[4] === 0x0d && b[5] === 0x0a && b[6] === 0x1a && b[7] === 0x0a
+      ) return 'png';
+      if (b.length >= 3 && b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff) return 'jpg';
+      return null;
+    };
+
+    const fetchBytesOrNull = async (urlOrData?: string): Promise<ArrayBuffer | null> => {
+      const raw = String(urlOrData ?? '').trim();
+      if (!raw) return null;
+
+      if (isDataUrl(raw)) return dataUrlToBytes(raw);
+
+      const url = normalizeUrl(raw);
+      if (!url) return null;
+
+      if (bytesCache.has(url)) return await bytesCache.get(url)!;
+
+      const p = (async () => {
+        try {
+          const ab = await this.fetchAsArrayBufferOrNull(url);
+          if (ab) return ab;
+        } catch {}
+
+        if (!isHttp(raw) && !raw.startsWith('assets/') && !isDataUrl(raw)) {
+          try {
+            const ab2 = await this.fetchAsArrayBufferOrNull(raw);
+            if (ab2) return ab2;
+          } catch {}
+        }
+        return null;
+      })();
+
+      bytesCache.set(url, p);
+      return await p;
+    };
+
+    const embedImageOrNull = async (pdfDoc: PDFDocument, urlOrData?: string) => {
+      const ab = await fetchBytesOrNull(urlOrData);
+      if (!ab) return null;
+
+      const kind = detectImageType(ab);
+      if (!kind) return null;
+
+      try {
+        const u8 = new Uint8Array(ab);
+        return kind === 'png' ? await pdfDoc.embedPng(u8) : await pdfDoc.embedJpg(u8);
+      } catch {
+        return null;
+      }
+    };
+
+    const setButtonImageSafe = async (pdfDoc: PDFDocument, form: any, buttonName: string, urlOrData?: string) => {
+      const img = await embedImageOrNull(pdfDoc, urlOrData);
+      if (!img) return false;
+      try {
+        form.getButton(buttonName).setImage(img);
+        return true;
+      } catch {
+        return false;
+      }
+    };
+
+    const FONT_SIZE = 6;
+
+    const setTextSafe = (form: any, fieldName: string, value: any, font?: any) => {
+      try {
+        const tf = form.getTextField(fieldName);
+        tf.setText(String(value ?? '').trim());
+        try { tf.setFontSize(FONT_SIZE); } catch {}
+        try { if (font) tf.updateAppearances(font); } catch {}
+      } catch {}
+    };
+
+    const buildQrDataUrl = async (payload: string): Promise<string> => {
+      const key = String(payload ?? '').trim();
+      if (!key) return '';
+
+      if (qrCache.has(key)) return await qrCache.get(key)!;
+
+      const p = (async () => {
+        try {
+          return await QRCode.toDataURL(key, { errorCorrectionLevel: 'M', margin: 1, width: 300 });
+        } catch {
+          return '';
+        }
+      })();
+
+      qrCache.set(key, p);
+      return await p;
+    };
+
+    // PDF base + fuente
+    const pdfUrl = 'Docs/formulario_carnets.pdf';
+    const basePdf = await this.fetchAsArrayBufferOrNull(pdfUrl);
+    if (!basePdf) throw new Error('No se pudo cargar el PDF base (Docs/formulario_carnets.pdf).');
+
+    const fontBytes = await this.fetchAsArrayBufferOrNull('fonts/Roboto-Regular.ttf');
+
+    const zip = new JSZip();
+    const CHUNK_SIZE = 9;
+    const totalPdfs = Math.ceil(rows.length / CHUNK_SIZE);
+
+    for (let fileIdx = 0; fileIdx < totalPdfs; fileIdx++) {
+      const start = fileIdx * CHUNK_SIZE;
+      const end = Math.min(start + CHUNK_SIZE, rows.length);
+      const chunk = rows.slice(start, end);
+
+      Swal.update({
+        title: 'Generando carnets...',
+        text: `PDF ${fileIdx + 1}/${totalPdfs} (registros ${start + 1}-${end})`,
+      });
+
+      const pdfDoc = await PDFDocument.load(basePdf);
+      pdfDoc.registerFontkit(fontkit as any);
+
+      const customFont = fontBytes ? await pdfDoc.embedFont(fontBytes) : undefined;
+      const form = pdfDoc.getForm();
+
+      // Fijos (size 6)
+      setTextSafe(form, 'coordinador1', 'Contacto Coordinador de la', customFont);
+      setTextSafe(form, 'coordinador2', 'Temporal 3152306148', customFont);
+
+      for (let slot = 1; slot <= 9; slot++) {
+        const r = chunk[slot - 1];
+
+        if (!r) {
+          setTextSafe(form, `fecha_ingreso${slot}`, '', customFont);
+          setTextSafe(form, slot === 3 ? 'codigo_contrat3' : `codigo_contrato${slot}`, '', customFont);
+          setTextSafe(form, `centro_costo${slot}`, '', customFont);
+          setTextSafe(form, `cedula${slot}`, '', customFont);
+          setTextSafe(form, `emer1_${slot}`, '', customFont);
+          setTextSafe(form, `emer2_${slot}`, '', customFont);
+
+          // ✅ nuevos
+          setTextSafe(form, `apellidos1_${slot}`, '', customFont);
+          setTextSafe(form, `nombres2_${slot}`, '', customFont);
+          continue;
+        }
+
+        const cedula = String(r?.CEDULA ?? '').trim();
+        const codigo = String(r?.CODIGO ?? '').trim();
+
+        const apellidos = String(r?.APELLIDOS ?? '').trim();
+        const nombres = String(r?.NOMBRES ?? '').trim();
+        const nombreFull = String(r?.NOMBRE ?? '').trim();
+
+        const fechaIngreso = String(r?.FECHA_INGRESO ?? '').trim();
+
+        // ✅ viene del Excel (ya fue armado así en finalRows)
+        const centroCosto = String(r?.CENTRO_COSTO ?? '').trim();
+
+        const emerNombre = String(r?.FAMILIAR_EMERGENCIA_NOMBRE ?? '').trim();
+        const emerTel = String(r?.FAMILIAR_EMERGENCIA_TELEFONO ?? '').trim();
+
+        const fotoUrl = String(r?.DOCUMENTO_89_URL ?? '').trim();
+        const qrPayload = `${cedula}|${codigo}`;
+        const qrDataUrl = await buildQrDataUrl(qrPayload);
+
+        // ✅ IMÁGENES (como tu versión que sí funciona)
+        await setButtonImageSafe(pdfDoc, form, `foto${slot}_af_image`, fotoUrl);
+        await setButtonImageSafe(pdfDoc, form, `qr${slot}_af_image`, qrDataUrl);
+
+        // Textos (size 6)
+        setTextSafe(form, `fecha_ingreso${slot}`, fechaIngreso, customFont);
+
+        const contratoField = slot === 3 ? 'codigo_contrat3' : `codigo_contrato${slot}`;
+        setTextSafe(form, contratoField, codigo, customFont);
+
+        setTextSafe(form, `centro_costo${slot}`, centroCosto, customFont);
+        setTextSafe(form, `cedula${slot}`, cedula, customFont);
+        setTextSafe(form, `emer1_${slot}`, emerNombre, customFont);
+        setTextSafe(form, `emer2_${slot}`, emerTel, customFont);
+
+        // ✅ campos separados
+        setTextSafe(form, `apellidos1_${slot}`, apellidos, customFont);
+        setTextSafe(form, `nombres2_${slot}`, (nombres || nombreFull), customFont);
+      }
+
+      // ✅ deja esto (igual que tu versión que sí funciona)
+      try { if (customFont) form.updateFieldAppearances(customFont); } catch {}
+      try { form.getFields().forEach((f: any) => { try { f.enableReadOnly(); } catch {} }); } catch {}
+      try { form.flatten(); } catch {}
+
+      const pdfBytes = await pdfDoc.save();
+      zip.file(`carnets_${String(fileIdx + 1).padStart(3, '0')}.pdf`, pdfBytes);
+    }
+
+    Swal.update({ title: 'Empaquetando ZIP...', text: `Creando ZIP con ${totalPdfs} PDF(s)` });
+
+    const zipBlob = await zip.generateAsync({ type: 'blob' });
+
+    const today = new Date();
+    const y = today.getFullYear();
+    const m = String(today.getMonth() + 1).padStart(2, '0');
+    const d = String(today.getDate()).padStart(2, '0');
+
+    await this.saveToDownloads(zipBlob, `carnets_${y}${m}${d}.zip`);
+
+    Swal.close();
+    await Swal.fire({ icon: 'success', title: 'Listo', text: `Se generaron ${totalPdfs} PDF(s) y se descargó el ZIP.` });
+  } catch (error: any) {
+    console.error('❌ Error generando carnets:', error);
+    Swal.close();
+    await Swal.fire({ icon: 'error', title: 'Error', text: error?.message || 'Ocurrió un error al generar carnets.' });
+  }
+}
+
+
+
 }

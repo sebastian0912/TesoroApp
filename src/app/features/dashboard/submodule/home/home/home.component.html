@@ -24,6 +24,13 @@
     (click)="triggerFileInputExcelCandidatos()"
     style="cursor:pointer"></app-info-card>
 
+  <!-- ✅ NUEVO: Leer Excel (CEDULA + CODIGO) para generar carnets -->
+  <app-info-card
+    title="Cargar Excel para generar carnets (CÉDULA + CÓDIGO)"
+    imageUrl="icons/cards/excel.png"
+    (click)="triggerFileInputCarnets()"
+    style="cursor:pointer"></app-info-card>
+
   <button mat-raised-button color="accent"
     (click)="descargarLinksExcel(1, 0, 0)">
     Descargar Excel (cédula + link de Drive)
@@ -45,6 +52,14 @@
   type="file"
   id="fileInputExcelCandidatos"
   (change)="cargarExcelParaExportarCandidatos($event)"
+  accept=".xlsx, .xls"
+  style="display:none" />
+
+<!-- ✅ NUEVO input oculto: Excel (CEDULA + CODIGO) para carnets -->
+<input
+  type="file"
+  id="fileInputCarnets"
+  (change)="cargarExcelCarnets($event)"
   accept=".xlsx, .xls"
   style="display:none" />
 

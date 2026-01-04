@@ -2202,7 +2202,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
 
       { titulo: U('Tipo y No de Identificación'), valor: U(`${this.candidato?.tipo_doc ?? ''}        ${this.cedula ?? ''}`) },
 
-      { titulo: U('Email'), valor: U(this.candidato?.contacto?.email) },
+      { titulo: U('Email'), valor: U(this.candidato?.contacto?.email ?? datoContratacion.primercorreoelectronico) },
     ];
 
     // Configuración de columnas

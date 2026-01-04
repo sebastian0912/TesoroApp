@@ -511,4 +511,71 @@ export class HomeService {
     a.click();
     window.URL.revokeObjectURL(url);
   }
+
+
+
+    /**
+   * GET JSON: /reporte/candidatos-mini/
+   * Soporta:
+   *  - ?cedulas=100,200,300
+   *  - ?cedula=100&cedula=200
+   */
+  getCandidatosMini(cedulas: Array<string | number>): Observable<any[]> {
+    const normalized = (cedulas ?? [])
+      .map((x) => String(x ?? '').trim())
+      .filter((x) => !!x);
+
+    if (normalized.length === 0) {
+      return throwError(() => new Error('DEBES ENVIAR AL MENOS UNA CÉDULA.'));
+    }
+
+    // ✅ Más óptimo para 500/1000+: una sola key con CSV
+    const params = new HttpParams().set('cedulas', normalized.join(','));
+
+    // Ajusta el path si tu backend tiene prefijo adicional
+    const url = `${this.apiUrl}/gestion_contratacion/reporte/candidatos-mini/`;
+
+    const headers = new HttpHeaders({
+      Accept: 'application/json',
+    });
+
+    return this.http.get<any[]>(url, { params, headers }).pipe(
+      catchError((err) => {
+        const msg =
+          err?.error?.detail ||
+          err?.error?.message ||
+          err?.message ||
+          'ERROR CONSULTANDO CANDIDATOS MINI.';
+        return throwError(() => new Error(msg));
+      })
+    );
+  }
+
+  /**
+   * Variante opcional para obtener headers/status
+   */
+  getCandidatosMiniResponse(cedulas: Array<string | number>): Observable<HttpResponse<any[]>> {
+    const normalized = (cedulas ?? [])
+      .map((x) => String(x ?? '').trim())
+      .filter((x) => !!x);
+
+    if (normalized.length === 0) {
+      return throwError(() => new Error('DEBES ENVIAR AL MENOS UNA CÉDULA.'));
+    }
+
+    const params = new HttpParams().set('cedulas', normalized.join(','));
+    const url = `${this.apiUrl}/gestion_contratacion/reporte/candidatos-mini/`;
+    const headers = new HttpHeaders({ Accept: 'application/json' });
+
+    return this.http.get<any[]>(url, { params, headers, observe: 'response' }).pipe(
+      catchError((err) => {
+        const msg =
+          err?.error?.detail ||
+          err?.error?.message ||
+          err?.message ||
+          'ERROR CONSULTANDO CANDIDATOS MINI (RESPONSE).';
+        return throwError(() => new Error(msg));
+      })
+    );
+  }
 }
