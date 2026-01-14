@@ -1,0 +1,365 @@
+<!-- TITLE (usar directiva, no tag) -->
+<div mat-dialog-title class="vp__title">
+  <div class="vp__title-row">
+    <div class="vp__title-left">
+      <div class="vp__title-main">
+        <mat-icon class="vp__title-ico" aria-hidden="true">fact_check</mat-icon>
+
+        <div class="vp__title-text">
+          <div class="vp__h1">{{ titleText }}</div>
+          <div class="vp__sub">{{ subtitleText }}</div>
+        </div>
+      </div>
+
+      <mat-chip-set class="vp__chips" aria-label="Resumen">
+        <mat-chip>
+          <mat-icon aria-hidden="true">list</mat-icon>
+          {{ filteredCount }} registros
+        </mat-chip>
+
+        <mat-chip class="vp__chip-error" [disabled]="totalErrors === 0">
+          <mat-icon aria-hidden="true">error</mat-icon>
+          {{ totalErrors }} errores
+        </mat-chip>
+
+        <mat-chip class="vp__chip-warn" [disabled]="totalWarns === 0">
+          <mat-icon aria-hidden="true">warning</mat-icon>
+          {{ totalWarns }} alertas
+        </mat-chip>
+
+        <mat-chip class="vp__chip-phase">
+          <mat-icon aria-hidden="true">{{ phase === 'post' ? 'cloud_done' : 'rule' }}</mat-icon>
+          {{ phase === 'post' ? 'Post-validación' : 'Prevalidación' }}
+        </mat-chip>
+
+        @if (externalCount > 0) {
+          <mat-chip class="vp__chip-external">
+            <mat-icon aria-hidden="true">dns</mat-icon>
+            {{ externalCount }} del servidor
+          </mat-chip>
+        }
+      </mat-chip-set>
+    </div>
+
+    <div class="vp__title-actions">
+      <button
+        mat-stroked-button
+        type="button"
+        (click)="applyEdits()"
+        [disabled]="!selected"
+      >
+        <mat-icon aria-hidden="true">done_all</mat-icon>
+        Aplicar
+      </button>
+
+      @if (schema.allowRemove) {
+        <button
+          mat-stroked-button
+          color="warn"
+          type="button"
+          (click)="removeSelected()"
+          [disabled]="!selected"
+        >
+          <mat-icon aria-hidden="true">delete_outline</mat-icon>
+          Quitar
+        </button>
+      }
+    </div>
+  </div>
+
+  <mat-divider></mat-divider>
+</div>
+
+<!-- CONTENT (usar directiva, no tag) -->
+<div mat-dialog-content class="vp__content">
+  <div class="vp__layout">
+    <!-- LEFT -->
+    <section class="vp__left">
+      <div class="vp__toolbar">
+        <mat-form-field appearance="outline" class="vp__search" floatLabel="always">
+          <mat-label>Buscar</mat-label>
+          <mat-icon matPrefix aria-hidden="true">search</mat-icon>
+
+          <input
+            matInput
+            placeholder="Documento, nombre, estado..."
+            [formControl]="filterCtrl"
+            autocomplete="off"
+          />
+
+          @if (filterCtrl.value.length) {
+            <button
+              mat-icon-button
+              matSuffix
+              type="button"
+              (click)="clearFilter()"
+              aria-label="Limpiar"
+            >
+              <mat-icon aria-hidden="true">close</mat-icon>
+            </button>
+          }
+        </mat-form-field>
+
+        <div class="vp__hint">
+          <mat-icon aria-hidden="true">info</mat-icon>
+          <span>Selecciona un registro para editar. Los errores bloquean el envío.</span>
+        </div>
+      </div>
+
+      <div class="vp__table-wrap">
+        <table mat-table [dataSource]="filteredItems()" class="vp__table" matSort>
+          <!-- STATUS -->
+          <ng-container matColumnDef="__status">
+            <th mat-header-cell *matHeaderCellDef class="vp__th vp__th--status">Estado</th>
+            <td mat-cell *matCellDef="let row" class="vp__td vp__td--status">
+              <div class="vp__status">
+                <mat-icon
+                  class="vp__status-ico"
+                  [matTooltip]="issueCount(row) ? 'Hay errores' : (warnCount(row) ? 'Hay alertas' : 'OK')"
+                  aria-hidden="true"
+                >
+                  {{ issueCount(row) ? 'error' : (warnCount(row) ? 'warning' : 'check_circle') }}
+                </mat-icon>
+
+                <div class="vp__status-meta">
+                  @if (issueCount(row) > 0) {
+                    <span class="vp__badge vp__badge--err">{{ issueCount(row) }}</span>
+                  } @else if (warnCount(row) > 0) {
+                    <span class="vp__badge vp__badge--warn">{{ warnCount(row) }}</span>
+                  } @else {
+                    <span class="vp__ok">OK</span>
+                  }
+                </div>
+              </div>
+            </td>
+          </ng-container>
+
+          <!-- DYNAMIC COLUMNS -->
+          @for (col of schema.columns; track col.key) {
+            <ng-container [matColumnDef]="col.key">
+              <th mat-header-cell *matHeaderCellDef class="vp__th">
+                {{ col.header }}
+              </th>
+              <td mat-cell *matCellDef="let row" class="vp__td">
+                <span class="vp__cell">{{ col.cell(row) }}</span>
+              </td>
+            </ng-container>
+          }
+
+          <!-- ACTIONS -->
+          <ng-container matColumnDef="__actions">
+            <th mat-header-cell *matHeaderCellDef class="vp__th vp__th--actions"></th>
+            <td mat-cell *matCellDef="let row" class="vp__td vp__td--actions">
+              <button
+                mat-icon-button
+                type="button"
+                (click)="select(row)"
+                [matTooltip]="schema.itemId(row) === selectedId ? 'Seleccionado' : 'Editar'"
+              >
+                <mat-icon aria-hidden="true">
+                  {{ schema.itemId(row) === selectedId ? 'radio_button_checked' : 'edit' }}
+                </mat-icon>
+              </button>
+
+              @if (schema.allowRemove) {
+                <button
+                  mat-icon-button
+                  type="button"
+                  color="warn"
+                  (click)="select(row); removeSelected()"
+                  matTooltip="Quitar registro"
+                >
+                  <mat-icon aria-hidden="true">delete</mat-icon>
+                </button>
+              }
+            </td>
+          </ng-container>
+
+          <tr
+            mat-header-row
+            *matHeaderRowDef="displayedColumns(); sticky: true"
+            class="vp__tr vp__tr--head"
+          ></tr>
+
+          <tr
+            mat-row
+            *matRowDef="let row; columns: displayedColumns()"
+            class="vp__tr vp__tr--row"
+            [class.vp__tr--active]="schema.itemId(row) === selectedId"
+            (click)="select(row)"
+          ></tr>
+        </table>
+
+        @if (filteredCount === 0) {
+          <div class="vp__empty">
+            <mat-icon aria-hidden="true">inbox</mat-icon>
+            <div>
+              <div class="vp__empty-title">Sin registros</div>
+              <div class="vp__empty-sub">No hay datos para mostrar con el filtro actual.</div>
+            </div>
+          </div>
+        }
+      </div>
+    </section>
+
+    <!-- RIGHT -->
+    <aside class="vp__right">
+      @if (selected) {
+        <div class="vp__panel">
+          <div class="vp__panel-head">
+            <div class="vp__panel-title">
+              <div class="vp__panel-h2">Edición</div>
+              <div class="vp__panel-sub">
+                ID: <b>{{ selectedId }}</b>
+              </div>
+            </div>
+
+            <div class="vp__panel-status">
+              @if (anyBlockingErrors()) {
+                <span class="vp__pill vp__pill--err">
+                  <mat-icon aria-hidden="true">error</mat-icon>
+                  Hay errores
+                </span>
+              } @else {
+                <span class="vp__pill vp__pill--ok">
+                  <mat-icon aria-hidden="true">check_circle</mat-icon>
+                  Listo para continuar
+                </span>
+              }
+            </div>
+          </div>
+
+          <mat-divider></mat-divider>
+
+          <!-- Issues for selected -->
+          <div class="vp__issues">
+            <div class="vp__issues-head">
+              <div class="vp__issues-h3">Hallazgos</div>
+              <div class="vp__issues-sub">Se actualizan en tiempo real mientras editas.</div>
+            </div>
+
+            <div class="vp__issues-list">
+              @if (!hasSelectedIssues()) {
+                <div class="vp__issues-empty">
+                  <mat-icon aria-hidden="true">verified</mat-icon>
+                  <span>Sin hallazgos para este registro.</span>
+                </div>
+              } @else {
+                @for (iss of selectedIssues(); track iss.id) {
+                  <div
+                    class="vp__issue"
+                    [class.vp__issue--err]="iss.severity === 'error'"
+                    [class.vp__issue--warn]="iss.severity === 'warn'"
+                  >
+                    <mat-icon class="vp__issue-ico" aria-hidden="true">
+                      {{ severityIcon(iss.severity) }}
+                    </mat-icon>
+
+                    <div class="vp__issue-body">
+                      <div class="vp__issue-msg">{{ iss.message }}</div>
+
+                      @if (iss.field) {
+                        <div class="vp__issue-meta">
+                          Campo: <b>{{ iss.field }}</b>
+                        </div>
+                      }
+                    </div>
+                  </div>
+                }
+              }
+            </div>
+          </div>
+
+          <mat-divider></mat-divider>
+
+          <!-- Dynamic edit form -->
+          <form class="vp__form" [formGroup]="form">
+            <div class="vp__form-head">
+              <div class="vp__form-h3">Campos editables</div>
+              <div class="vp__form-sub">Solo se muestran los campos configurados para edición.</div>
+            </div>
+
+            <div class="vp__grid">
+              @for (f of schema.editFields; track f.key) {
+                @if (!f.visible || f.visible(selected)) {
+                  <div class="vp__field">
+                    <mat-form-field appearance="outline" class="vp__ff" floatLabel="always">
+                      <mat-label>{{ fieldLabel(f) }}</mat-label>
+
+                      @if (isSelectField(f)) {
+                        <mat-select [formControlName]="f.key">
+                          @for (opt of optionsFor(f); track opt.value) {
+                            <mat-option [value]="opt.value">{{ opt.label }}</mat-option>
+                          }
+                        </mat-select>
+                      } @else {
+                        <input
+                          matInput
+                          [formControlName]="f.key"
+                          [type]="inputTypeFor(f)"
+                          [placeholder]="fieldPlaceholder(f)"
+                          autocomplete="off"
+                        />
+                      }
+
+                      @if (fieldError(f.key)) {
+                        <mat-error>{{ fieldError(f.key) }}</mat-error>
+                      } @else if (fieldHint(f)) {
+                        <mat-hint>{{ fieldHint(f) }}</mat-hint>
+                      }
+                    </mat-form-field>
+                  </div>
+                }
+              }
+            </div>
+
+            <div class="vp__form-actions">
+              <button mat-stroked-button type="button" (click)="applyEdits()" [disabled]="!selected">
+                <mat-icon aria-hidden="true">done</mat-icon>
+                Aplicar cambios
+              </button>
+
+              <button
+                mat-flat-button
+                color="primary"
+                type="button"
+                (click)="accept()"
+                [disabled]="anyBlockingErrors()"
+                matTooltip="Corrige los errores antes de continuar"
+              >
+                <mat-icon aria-hidden="true">check</mat-icon>
+                Confirmar
+              </button>
+            </div>
+          </form>
+        </div>
+      } @else {
+        <div class="vp__panel vp__panel--empty">
+          <mat-icon aria-hidden="true">touch_app</mat-icon>
+          <div>
+            <div class="vp__empty-title">Selecciona un registro</div>
+            <div class="vp__empty-sub">Elige un registro de la tabla para ver detalles y corregir.</div>
+          </div>
+        </div>
+      }
+    </aside>
+  </div>
+</div>
+
+<!-- ACTIONS (usar directiva, no tag) -->
+<div mat-dialog-actions align="end" class="vp__footer">
+  <button mat-button type="button" (click)="cancel()" [disabled]="schema.allowCancel === false">
+    Cancelar
+  </button>
+
+  <button
+    mat-flat-button
+    color="primary"
+    type="button"
+    (click)="accept()"
+    [disabled]="anyBlockingErrors()"
+  >
+    <mat-icon aria-hidden="true">check_circle</mat-icon>
+    Continuar
+  </button>
+</div>

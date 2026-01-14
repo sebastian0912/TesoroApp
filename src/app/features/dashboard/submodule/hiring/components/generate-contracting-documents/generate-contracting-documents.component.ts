@@ -63,6 +63,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     { titulo: 'Autorización de datos' },
     { titulo: 'Entrega de documentos' },
     { titulo: 'Ficha técnica' },
+    { titulo: 'Ficha técnica TA Completa' },
     { titulo: 'Contrato' },
     { titulo: 'Cedula' },
     { titulo: 'ARL' },
@@ -108,6 +109,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     "Autorización de datos": 26,
     "Entrega de documentos": 27,
     'Ficha técnica': 34,
+    'Ficha técnica TA Completa': 34,
     Cedula: 29,
     ARL: 30,
     'Figura Humana': 31,
@@ -209,11 +211,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     }
   }
 
-
-
-
   isSubirPDF(doc: any): boolean {
-    // Devuelve true si el título corresponde a Cedula, ARL o Figura Humana
     return ['Cedula', 'ARL', 'Figura Humana'].includes(doc.titulo);
   }
 
@@ -264,7 +262,6 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     }
   }
 
-  // Método para reiniciar el input en el DOM
   private resetInput(input: HTMLInputElement): void {
     const newInput = input.cloneNode(true) as HTMLInputElement;
     input.parentNode?.replaceChild(newInput, input);
@@ -399,8 +396,6 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     return { ok: fallidos.length === 0, exitosos, fallidos };
   }
 
-
-
   generarPDF(documento: string) {
     // si es Autorización de datos
     if (documento === 'Autorización de datos') {
@@ -430,6 +425,12 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       }
       else if (this.empresa === 'APOYO LABORAL SAS') {
         this.generarFichaTecnica();
+      }
+    }
+    else if (documento === 'Ficha técnica TA Completa') {
+      if (this.empresa === 'TU ALIANZA SAS') {
+        console.log('Generando ficha técnica TA completa...');
+        this.generarFichaTecnicaTuAlianzaCompleta();
       }
     }
   }
@@ -2155,187 +2156,187 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     // ✅ Helpers: T = título normal, V = valor en MAYÚSCULAS
     // ✅ + Normaliza textos con letras/dígitos separados: "C A R A" -> "CARA", "3 0 3 4" -> "3034"
     // =========================================================
-// =========================================================
-// ✅ FIX: Domicilio del Trabajador quedaba con letras separadas ("C A R A ...")
-// ✅ Solución: normalizar tokens separados (letras sueltas y números sueltos)
-// =========================================================
+    // =========================================================
+    // ✅ FIX: Domicilio del Trabajador quedaba con letras separadas ("C A R A ...")
+    // ✅ Solución: normalizar tokens separados (letras sueltas y números sueltos)
+    // =========================================================
 
-// =========================================================
-// ✅ FIX REAL (2 cosas):
-// 1) Limpia caracteres invisibles (ZWSP, etc.) y une letras/dígitos separados.
-// 2) Resetea charSpacing de jsPDF a 0 antes de pintar texto (si quedó “pegado” de otra parte).
-// =========================================================
+    // =========================================================
+    // ✅ FIX REAL (2 cosas):
+    // 1) Limpia caracteres invisibles (ZWSP, etc.) y une letras/dígitos separados.
+    // 2) Resetea charSpacing de jsPDF a 0 antes de pintar texto (si quedó “pegado” de otra parte).
+    // =========================================================
 
-// =========================================================
-// ✅ FIX DEFINITIVO:
-// 1) Normaliza el texto (quita invisibles/espacios raros, une letras/dígitos sueltos).
-// 2) Fuerza charSpace: 0 EN CADA doc.text() (no depende del estado global).
-//    (jsPDF soporta options.charSpace en doc.text) :contentReference[oaicite:1]{index=1}
-// =========================================================
+    // =========================================================
+    // ✅ FIX DEFINITIVO:
+    // 1) Normaliza el texto (quita invisibles/espacios raros, une letras/dígitos sueltos).
+    // 2) Fuerza charSpace: 0 EN CADA doc.text() (no depende del estado global).
+    //    (jsPDF soporta options.charSpace en doc.text) :contentReference[oaicite:1]{index=1}
+    // =========================================================
 
-// ✅ Helpers: T = título normal, V = valor en MAYÚSCULAS (normalizado)
-const T = (v: any) => String(v ?? '').trim();
+    // ✅ Helpers: T = título normal, V = valor en MAYÚSCULAS (normalizado)
+    const T = (v: any) => String(v ?? '').trim();
 
-const normalizeText = (v: any): string => {
-  let s = String(v ?? '');
+    const normalizeText = (v: any): string => {
+      let s = String(v ?? '');
 
-  // Normaliza unicode (por si vienen combinaciones raras)
-  if (typeof (s as any).normalize === 'function') {
-    s = s.normalize('NFKD');
-  }
+      // Normaliza unicode (por si vienen combinaciones raras)
+      if (typeof (s as any).normalize === 'function') {
+        s = s.normalize('NFKD');
+      }
 
-  // Elimina invisibles típicos (ZWSP/ZWNJ/ZWJ/BOM/WJ/soft-hyphen, etc.)
-  s = s.replace(/[\u200B-\u200D\uFEFF\u2060-\u2064\u00AD]/g, '');
+      // Elimina invisibles típicos (ZWSP/ZWNJ/ZWJ/BOM/WJ/soft-hyphen, etc.)
+      s = s.replace(/[\u200B-\u200D\uFEFF\u2060-\u2064\u00AD]/g, '');
 
-  // Quita marcas combinantes (tildes “separadas”)
-  // (si no soporta \p{M}, cae sin problema porque la mayoría no trae esto)
-  try {
-    s = s.replace(/\p{M}+/gu, '');
-  } catch {
-    // fallback: rango común de diacríticos combinantes
-    s = s.replace(/[\u0300-\u036F]+/g, '');
-  }
+      // Quita marcas combinantes (tildes “separadas”)
+      // (si no soporta \p{M}, cae sin problema porque la mayoría no trae esto)
+      try {
+        s = s.replace(/\p{M}+/gu, '');
+      } catch {
+        // fallback: rango común de diacríticos combinantes
+        s = s.replace(/[\u0300-\u036F]+/g, '');
+      }
 
-  // Espacios raros -> espacio normal
-  s = s.replace(/[\u00A0\u1680\u180E\u2000-\u200A\u202F\u205F\u3000]/g, ' ');
+      // Espacios raros -> espacio normal
+      s = s.replace(/[\u00A0\u1680\u180E\u2000-\u200A\u202F\u205F\u3000]/g, ' ');
 
-  // Colapsa whitespace
-  s = s.replace(/\s+/g, ' ').trim();
-  if (!s) return '';
+      // Colapsa whitespace
+      s = s.replace(/\s+/g, ' ').trim();
+      if (!s) return '';
 
-  const tokens = s.split(' ');
-  const out: string[] = [];
+      const tokens = s.split(' ');
+      const out: string[] = [];
 
-  let buf = '';
-  let kind: 'L' | 'D' | null = null;
+      let buf = '';
+      let kind: 'L' | 'D' | null = null;
 
-  const flush = () => {
-    if (buf) out.push(buf);
-    buf = '';
-    kind = null;
-  };
+      const flush = () => {
+        if (buf) out.push(buf);
+        buf = '';
+        kind = null;
+      };
 
-  const isSingleLetter = (t: string) => {
-    // unicode letter si está disponible
-    try { return /^\p{L}$/u.test(t); } catch { return /^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]$/.test(t); }
-  };
+      const isSingleLetter = (t: string) => {
+        // unicode letter si está disponible
+        try { return /^\p{L}$/u.test(t); } catch { return /^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]$/.test(t); }
+      };
 
-  for (const t of tokens) {
-    if (!t) continue;
+      for (const t of tokens) {
+        if (!t) continue;
 
-    if (isSingleLetter(t)) {
-      if (kind && kind !== 'L') flush();
-      kind = 'L';
-      buf += t;
-      continue;
-    }
+        if (isSingleLetter(t)) {
+          if (kind && kind !== 'L') flush();
+          kind = 'L';
+          buf += t;
+          continue;
+        }
 
-    if (/^\d$/.test(t)) {
-      if (kind && kind !== 'D') flush();
-      kind = 'D';
-      buf += t;
-      continue;
-    }
+        if (/^\d$/.test(t)) {
+          if (kind && kind !== 'D') flush();
+          kind = 'D';
+          buf += t;
+          continue;
+        }
 
-    flush();
-    out.push(t);
-  }
+        flush();
+        out.push(t);
+      }
 
-  flush();
-  return out.join(' ');
-};
+      flush();
+      return out.join(' ');
+    };
 
-const V = (v: any) => normalizeText(v).toUpperCase();
+    const V = (v: any) => normalizeText(v).toUpperCase();
 
-const datos = [
-  { titulo: T('Representado por'), valor: V('HEIDY JACKELINE TORRES SOTELO') },
+    const datos = [
+      { titulo: T('Representado por'), valor: V('HEIDY JACKELINE TORRES SOTELO') },
 
-  {
-    titulo: T('Nombre del Trabajador'),
-    valor: V([
-      this.candidato?.primer_apellido,
-      this.candidato?.segundo_apellido,
-      this.candidato?.primer_nombre,
-      this.candidato?.segundo_nombre,
-    ].filter(x => String(x ?? '').trim()).join(' '))
-  },
+      {
+        titulo: T('Nombre del Trabajador'),
+        valor: V([
+          this.candidato?.primer_apellido,
+          this.candidato?.segundo_apellido,
+          this.candidato?.primer_nombre,
+          this.candidato?.segundo_nombre,
+        ].filter(x => String(x ?? '').trim()).join(' '))
+      },
 
-  {
-    titulo: T('Fecha de Nacimiento'),
-    valor: V(onlyDate(pickText(this.candidato?.fecha_nacimiento, datoContratacion?.fecha_nacimiento)))
-  },
+      {
+        titulo: T('Fecha de Nacimiento'),
+        valor: V(onlyDate(pickText(this.candidato?.fecha_nacimiento, datoContratacion?.fecha_nacimiento)))
+      },
 
-  {
-    titulo: T('Domicilio del Trabajador'),
-    valor: V([
-      this.candidato?.residencia?.direccion + ' - ',
-      this.candidato?.residencia?.barrio,
-      ' - ' + datoContratacion.municipio,
-    ].filter(x => String(x ?? '').trim()).join(' '))
-  },
+      {
+        titulo: T('Domicilio del Trabajador'),
+        valor: V([
+          this.candidato?.residencia?.direccion + ' - ',
+          this.candidato?.residencia?.barrio,
+          ' - ' + datoContratacion.municipio,
+        ].filter(x => String(x ?? '').trim()).join(' '))
+      },
 
-  { titulo: T('Fecha de Iniciación'), valor: V(this.candidato?.entrevistas?.[0]?.proceso?.contrato?.fecha_ingreso ?? '') },
+      { titulo: T('Fecha de Iniciación'), valor: V(this.candidato?.entrevistas?.[0]?.proceso?.contrato?.fecha_ingreso ?? '') },
 
-  {
-    titulo: T('Salario Mensual Ordinario'),
-    valor: V('S.M.M.L.V $ 1.750.905 UN MILLÓN SETECIENTOS CINCUENTA MIL NOVECIENTOS CINCO PESOS M/C')
-  },
+      {
+        titulo: T('Salario Mensual Ordinario'),
+        valor: V('S.M.M.L.V $ 1.750.905 UN MILLÓN SETECIENTOS CINCUENTA MIL NOVECIENTOS CINCO PESOS M/C')
+      },
 
-  { titulo: T('Periódo de Pago Salario'), valor: V('Quincenal') },
+      { titulo: T('Periódo de Pago Salario'), valor: V('Quincenal') },
 
-  { titulo: T('Subsidio de Transporte'), valor: V('SE PAGA EL LEGAL VIGENTE O SE SUMINISTRA EL TRANSPORTE') },
+      { titulo: T('Subsidio de Transporte'), valor: V('SE PAGA EL LEGAL VIGENTE O SE SUMINISTRA EL TRANSPORTE') },
 
-  { titulo: T('Forma de Pago'), valor: V('Banca Móvil, Cuenta de Ahorro o Tarjeta Monedero') },
+      { titulo: T('Forma de Pago'), valor: V('Banca Móvil, Cuenta de Ahorro o Tarjeta Monedero') },
 
-  { titulo: T('Nombre Empresa Usuria'), valor: V(this.vacante?.empresaUsuariaSolicita) },
+      { titulo: T('Nombre Empresa Usuria'), valor: V(this.vacante?.empresaUsuariaSolicita) },
 
-  { titulo: T('Cargo'), valor: V(this.vacante?.cargo) },
+      { titulo: T('Cargo'), valor: V(this.vacante?.cargo) },
 
-  { titulo: T('Descripción de la Obra/Motivo Temporada '), valor: V(this.vacante?.descripcion) },
+      { titulo: T('Descripción de la Obra/Motivo Temporada '), valor: V(this.vacante?.descripcion) },
 
-  { titulo: T('Domicilio del patrono'), valor: V(domicilio) },
+      { titulo: T('Domicilio del patrono'), valor: V(domicilio) },
 
-  { titulo: T('Tipo y No de Identificación'), valor: V(`${this.candidato?.tipo_doc ?? ''}        ${this.cedula ?? ''}`) },
+      { titulo: T('Tipo y No de Identificación'), valor: V(`${this.candidato?.tipo_doc ?? ''}        ${this.cedula ?? ''}`) },
 
-  { titulo: T('Email'), valor: V(pickText(this.candidato?.contacto?.email, datoContratacion?.primercorreoelectronico)) },
-];
+      { titulo: T('Email'), valor: V(pickText(this.candidato?.contacto?.email, datoContratacion?.primercorreoelectronico)) },
+    ];
 
-// =========================================================
-// Render en PDF (FORZANDO charSpace = 0 en CADA texto)
-// =========================================================
-const columnWidth = 110;
-const rowSpacing = 3;
-const columnMargin = 10;
-const columnStartX = 7;
-const columnStartY = startY + 17;
-const rowsPerColumn = 15;
+    // =========================================================
+    // Render en PDF (FORZANDO charSpace = 0 en CADA texto)
+    // =========================================================
+    const columnWidth = 110;
+    const rowSpacing = 3;
+    const columnMargin = 10;
+    const columnStartX = 7;
+    const columnStartY = startY + 17;
+    const rowsPerColumn = 15;
 
-datos.forEach((item, index) => {
-  const currentColumn = Math.floor(index / rowsPerColumn);
-  const rowInColumn = index % rowsPerColumn;
+    datos.forEach((item, index) => {
+      const currentColumn = Math.floor(index / rowsPerColumn);
+      const rowInColumn = index % rowsPerColumn;
 
-  const x = columnStartX + currentColumn * (columnWidth + columnMargin);
-  const y = (columnStartY + rowInColumn * rowSpacing) + 3;
+      const x = columnStartX + currentColumn * (columnWidth + columnMargin);
+      const y = (columnStartY + rowInColumn * rowSpacing) + 3;
 
-  // (opcional) también resetea estado global
-  if (typeof (doc as any).setCharSpace === 'function') {
-    (doc as any).setCharSpace(0);
-  }
+      // (opcional) también resetea estado global
+      if (typeof (doc as any).setCharSpace === 'function') {
+        (doc as any).setCharSpace(0);
+      }
 
-  // ✅ Título normal (charSpace forzado a 0)
-  doc.setFont('helvetica', 'normal');
-  (doc as any).text(`${item.titulo}:`, x, y, { charSpace: 0 });
+      // ✅ Título normal (charSpace forzado a 0)
+      doc.setFont('helvetica', 'normal');
+      (doc as any).text(`${item.titulo}:`, x, y, { charSpace: 0 });
 
-  // ✅ Valor negrita (charSpace forzado a 0)
-  doc.setFont('helvetica', 'bold');
-  const valueText = String(item.valor ?? '').trim();
+      // ✅ Valor negrita (charSpace forzado a 0)
+      doc.setFont('helvetica', 'bold');
+      const valueText = String(item.valor ?? '').trim();
 
-  if (index > 14) {
-    (doc as any).text(valueText, x + 30.2, y, { charSpace: 0 });
-  } else {
-    (doc as any).text(valueText, x + 48, y, { charSpace: 0 });
-  }
-});
+      if (index > 14) {
+        (doc as any).text(valueText, x + 30.2, y, { charSpace: 0 });
+      } else {
+        (doc as any).text(valueText, x + 48, y, { charSpace: 0 });
+      }
+    });
 
 
 
@@ -3423,6 +3424,577 @@ datos.forEach((item, index) => {
       // firmado
       console.log('Usuario que firma ficha técnica Tu Alianza:', this.nombreCompletoLogin);
       console.log('Cédula usuario que firma ficha técnica Tu Alianza:', this.cedulaPersonalAdministrativo);
+      this.setText(
+        form,
+        'fimado',
+        `C.C. ${this.safe(this.cedulaPersonalAdministrativo)} ${this.nombreCompletoLogin}`,
+        customFont
+      );
+
+      // Bloquear campos
+      form.getFields().forEach((f: any) => { try { f.enableReadOnly(); } catch { } });
+
+      // Guardar PDF
+      const pdfBytes = await pdfDoc.save();
+      const ab = this.toSafeArrayBuffer(pdfBytes);
+      const file = new File([ab], 'Ficha tecnica.pdf', { type: 'application/pdf' });
+
+      this.uploadedFiles['Ficha técnica'] = { file, fileName: 'Ficha tecnica.pdf' };
+      this.verPDF({ titulo: 'Ficha técnica' });
+    } catch (error) {
+      console.error('Error generando ficha técnica:', error);
+      Swal.fire({ icon: 'error', title: 'Error', text: 'Ocurrió un error al generar la ficha técnica.' });
+    }
+  }
+
+  async generarFichaTecnicaTuAlianzaCompleta() {
+    let datoContratacion: any = {};
+
+    try {
+      // =========================================================
+      // 0) ESPERAR a que llegue la contratación ANTES de continuar
+      // =========================================================
+      const numeroDoc = String(this.candidato?.numero_documento ?? '').trim();
+      if (!numeroDoc) throw new Error('El candidato no tiene número de documento.');
+
+      const respContratacion: any = await firstValueFrom(
+        this.contratacionService.buscarEncontratacion(numeroDoc).pipe(
+          take(1),
+          catchError((err) => {
+            console.error('Error buscando contratación:', err);
+            return of({ data: [] });
+          })
+        )
+      );
+
+      console.log('Datos de contratación recibidos:', respContratacion);
+      datoContratacion = respContratacion?.data?.[0] ?? {};
+      console.log('Dato de contratación para ficha técnica Tu Alianza:', datoContratacion);
+
+      // =========================================================
+      // 0) Helpers de imagen (PDF-lib) - robustos como en jsPDF
+      // =========================================================
+      const bytesCache = new Map<string, Promise<ArrayBuffer | null>>();
+
+      const isHttp = (u: string) => /^https?:\/\//i.test(u);
+      const isDataUrl = (u: string) => /^data:image\//i.test(u);
+
+      const normalizeUrl = (u: string) => {
+        const s = String(u ?? '').trim();
+        if (!s) return '';
+        if (isHttp(s) || isDataUrl(s)) return s;
+
+        const clean = s.replace(/^\/+/, '');
+        if (clean.startsWith('assets/')) return clean;
+
+        return `assets/${clean}`;
+      };
+
+      const dataUrlToBytes = (dataUrl: string): ArrayBuffer | null => {
+        try {
+          const [meta, b64] = dataUrl.split(',');
+          if (!meta || !b64) return null;
+          const bin = atob(b64);
+          const len = bin.length;
+          const bytes = new Uint8Array(len);
+          for (let i = 0; i < len; i++) bytes[i] = bin.charCodeAt(i);
+          return bytes.buffer;
+        } catch {
+          return null;
+        }
+      };
+
+      const detectImageType = (ab: ArrayBuffer): 'png' | 'jpg' | null => {
+        const b = new Uint8Array(ab);
+        if (
+          b.length >= 8 &&
+          b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4E && b[3] === 0x47 &&
+          b[4] === 0x0D && b[5] === 0x0A && b[6] === 0x1A && b[7] === 0x0A
+        ) return 'png';
+
+        if (b.length >= 3 && b[0] === 0xFF && b[1] === 0xD8 && b[2] === 0xFF) return 'jpg';
+
+        return null;
+      };
+
+      const fetchBytesOrNull = async (urlOrData?: string): Promise<ArrayBuffer | null> => {
+        const raw = String(urlOrData ?? '').trim();
+        if (!raw) return null;
+
+        if (isDataUrl(raw)) return dataUrlToBytes(raw);
+
+        const url = normalizeUrl(raw);
+        if (!url) return null;
+
+        if (bytesCache.has(url)) return await bytesCache.get(url)!;
+
+        const p = (async () => {
+          try {
+            const ab = await this.fetchAsArrayBufferOrNull(url);
+            if (ab) return ab;
+          } catch { }
+
+          if (!isHttp(raw) && !raw.startsWith('assets/') && !isDataUrl(raw)) {
+            try {
+              const ab2 = await this.fetchAsArrayBufferOrNull(raw);
+              if (ab2) return ab2;
+            } catch { }
+          }
+
+          return null;
+        })();
+
+        bytesCache.set(url, p);
+        return await p;
+      };
+
+      const embedImageOrNull = async (pdfDoc: PDFDocument, urlOrData?: string) => {
+        const ab = await fetchBytesOrNull(urlOrData);
+        if (!ab) return null;
+
+        const kind = detectImageType(ab);
+        if (!kind) return null;
+
+        try {
+          const u8 = new Uint8Array(ab);
+          return kind === 'png' ? await pdfDoc.embedPng(u8) : await pdfDoc.embedJpg(u8);
+        } catch {
+          return null;
+        }
+      };
+
+      const setButtonImageSafe = async (
+        pdfDoc: PDFDocument,
+        form: any,
+        buttonName: string,
+        urlOrData?: string
+      ) => {
+        const img = await embedImageOrNull(pdfDoc, urlOrData);
+        if (!img) return false;
+        try {
+          form.getButton(buttonName).setImage(img);
+          return true;
+        } catch {
+          return false;
+        }
+      };
+
+      // =========================================================
+      // 1) Normalización desde this.candidato y this.vacante
+      // =========================================================
+      const cand: any = this.candidato ?? {};
+      console.log('Candidato para ficha técnica Tu Alianza:', cand);
+      const vac: any = this.vacante ?? {};
+      console.log('Vacante para ficha técnica Tu Alianza:', vac);
+
+      const contacto: any = cand.contacto ?? {};
+      const residencia: any = cand.residencia ?? {};
+      const infoCc: any = cand.info_cc ?? {};
+
+      const entrevista: any = Array.isArray(cand.entrevistas) ? cand.entrevistas[0] : null;
+      const proceso: any = entrevista?.proceso ?? {};
+      const contrato: any = proceso?.contrato ?? {};
+      const antecedentes: any[] = Array.isArray(proceso?.antecedentes) ? proceso.antecedentes : [];
+
+      const norm = (v: any) => String(v ?? '').trim().toUpperCase();
+      const findAnte = (nombre: string) => antecedentes.find(a => norm(a?.nombre) === norm(nombre));
+
+      const eps = String(findAnte('EPS')?.observacion ?? '');
+      const afp = String(findAnte('AFP')?.observacion ?? '');
+
+      const mapEstadoCivil = (code: any): string => {
+        const c = norm(code);
+        if (c === 'SO' || c === 'SOLTERO' || c === 'S') return 'SO';
+        if (c === 'CA' || c === 'CASADO') return 'CA';
+        if (c === 'UN' || c === 'UL' || c === 'UNION LIBRE' || c === 'UNIÓN LIBRE') return 'UN';
+        if (c === 'SE' || c === 'SEP' || c === 'SEPARADO') return 'SE';
+        if (c === 'VI' || c === 'VIUDO') return 'VI';
+        return c || '';
+      };
+
+      const nombreCompleto = [
+        cand.primer_nombre,
+        cand.segundo_nombre,
+        cand.primer_apellido,
+        cand.segundo_apellido,
+      ]
+        .map((x: any) => String(x ?? '').trim())
+        .filter(Boolean)
+        .join(' ');
+
+      const codigoContrato = String(contrato?.codigo_contrato ?? proceso?.contrato_codigo ?? '').trim();
+
+      const fechaIngreso = String(vac?.fechadeIngreso ?? '').trim();
+      const salario = vac?.salario ?? proceso?.vacante_salario ?? '';
+
+      const formacion0: any = Array.isArray(cand.formaciones) ? cand.formaciones[0] : null;
+      const exp0: any = Array.isArray(cand.experiencias) ? cand.experiencias[0] : null;
+
+      const dv: any = {
+        primer_apellido: cand.primer_apellido ?? '',
+        segundo_apellido: cand.segundo_apellido ?? '',
+        primer_nombre: cand.primer_nombre ?? '',
+        segundo_nombre: cand.segundo_nombre ?? '',
+
+        tipodedocumento: cand.tipo_doc ?? '',
+        numerodeceduladepersona: cand.numero_documento ?? '',
+
+        fecha_expedicion_cc: infoCc?.fecha_expedicion ?? '',
+        departamento_expedicion_cc: infoCc?.depto_expedicion ?? '',
+        municipio_expedicion_cc: infoCc?.mpio_expedicion ?? '',
+
+        genero: cand.sexo ?? '',
+        fecha_nacimiento: cand.fecha_nacimiento ?? '',
+        lugar_nacimiento_departamento: infoCc?.depto_nacimiento ?? '',
+        lugar_nacimiento_municipio: infoCc?.mpio_nacimiento ?? '',
+
+        estado_civil: mapEstadoCivil(cand.estado_civil),
+
+        direccion_residencia: residencia?.direccion ?? '',
+        barrio: residencia?.barrio ?? '',
+        municipio: (vac?.municipio?.[0] ?? entrevista?.oficina ?? '').toString(),
+        departamento: '',
+
+        celular: contacto?.celular ?? '',
+        primercorreoelectronico: contacto?.email ?? '',
+
+        rh: cand.rh ?? '',
+        zurdo_diestro: cand.zurdo_diestro ?? '',
+
+        escolaridad: formacion0?.nivel ?? '',
+        nombre_institucion: formacion0?.institucion ?? '',
+        titulo_obtenido: formacion0?.titulo_obtenido ?? '',
+        ano_finalizacion: formacion0?.anio_finalizacion ?? '',
+
+        nombre_expe_laboral1_empresa: exp0?.empresa ?? '',
+        direccion_empresa1: exp0?.direccion ?? '',
+        telefonos_empresa1: exp0?.telefonos ?? '',
+        nombre_jefe_empresa1: exp0?.nombre_jefe ?? '',
+        cargo_empresa1: exp0?.cargo ?? '',
+        fecha_retiro_empresa1: exp0?.fecha_retiro ?? '',
+        motivo_retiro_empresa1: exp0?.motivo_retiro ?? '',
+      };
+
+      const ds: any = {
+        fechaIngreso,
+        salario,
+        eps,
+        afp,
+        cesantias: entrevista.proceso?.contrato?.cesantias ?? '',
+        cargo: vac?.cargo ?? '',
+        centro_costo_entrevista: entrevista?.oficina ?? '',
+        empresa_usuario: vac?.empresaUsuariaSolicita ?? '',
+      };
+
+      // =========================================================
+      // 2) Cargar PDF base y setear campos
+      // =========================================================
+      const pdfUrl = 'Docs/FICHA FORANEOS TU ALIANZA COMPLETA.pdf';
+      const arrayBuffer = await this.fetchAsArrayBufferOrNull(pdfUrl);
+      if (!arrayBuffer) throw new Error('No se pudo cargar el PDF base.');
+
+      const pdfDoc = await PDFDocument.load(arrayBuffer);
+      pdfDoc.registerFontkit(fontkit as any);
+
+      const fontBytes = await this.fetchAsArrayBufferOrNull('fonts/Roboto-Regular.ttf');
+      const customFont = fontBytes ? await pdfDoc.embedFont(fontBytes) : undefined;
+
+      const form = pdfDoc.getForm();
+
+      // Imagen1_af_image
+      await setButtonImageSafe(pdfDoc, form, 'Imagen1_af_image', this.foto);
+
+      this.setText(form, '1er Apellido', this.safe(dv.primer_apellido), customFont);
+      this.setText(form, '2do apellido', this.safe(dv.segundo_apellido), customFont);
+      this.setText(
+        form,
+        'Nombres',
+        [this.safe(dv.primer_nombre), this.safe(dv.segundo_nombre)].filter(Boolean).join(' '),
+        customFont
+      );
+      // num-identificacion
+      this.setText(form, 'num-identificacion', this.safe(dv.numerodeceduladepersona), customFont);
+      // No de Hijos
+      this.setText(form, 'No de Hijos', this.safe(datoContratacion?.num_hijos_dependen_economicamente ?? ''), customFont);
+      // primercorreoelectronico
+      this.setText(form, 'Email', this.safe(datoContratacion?.primercorreoelectronico), customFont);
+
+      // helpers
+      const pickText = (...vals: any[]) => {
+        for (const v of vals) {
+          const t = this.safe(v).trim();
+          if (t) return t;
+        }
+        return '';
+      };
+
+      const pickDateDDMM = (...vals: any[]) => {
+        for (const v of vals) {
+          const d = this.parseDateToDDMMYYYY(v);
+          const t = this.safe(d).trim();
+          if (t) return t;
+        }
+        return '';
+      };
+
+      // ===============================
+      // Fecha y lugar de Expedición
+      // ===============================
+      const expFecha = pickDateDDMM(dv?.fecha_expedicion_cc, datoContratacion?.fecha_expedicion_cc);
+      const expLugar = pickText(dv?.municipio_expedicion_cc, datoContratacion?.municipio_expedicion_cc);
+
+      this.setText(
+        form,
+        'Fecha y lugar de Expediciòn',
+        [expFecha, expLugar].filter(Boolean).join(' '),
+        customFont
+      );
+
+      // ===============================
+      // Fecha y lugar de Nacimiento
+      // ===============================
+      const nacFecha = pickDateDDMM(dv?.fecha_nacimiento, datoContratacion?.fecha_nacimiento);
+      const nacLugar = pickText(dv?.lugar_nacimiento_municipio, datoContratacion?.lugar_nacimiento_municipio);
+
+      this.setText(
+        form,
+        'Fecha y lugar de Nacimiento',
+        [nacFecha, nacLugar].filter(Boolean).join(' '),
+        customFont
+      );
+
+      // Dirección (dv si tiene contenido; si no, candidato)
+      this.setText(
+        form,
+        'Dirección',
+        pickText(dv?.direccion_residencia, datoContratacion?.direccion_residencia),
+        customFont
+      );
+
+
+      // Mun + Barrio: fallback por campo (dv->candidato) y luego une
+      const munVal = pickText(dv?.municipio, datoContratacion?.municipio);
+      const barVal = pickText(dv?.barrio, datoContratacion?.barrio);
+      this.setText(form, 'Mun Bar', [munVal, barVal].filter(Boolean).join(' - '), customFont);
+
+      // Dies/Zurd (dv si no está vacío; si no, candidato)
+      this.setText(
+        form,
+        'DiesZurd',
+        pickText(dv?.zurdo_diestro, datoContratacion?.zurdo_diestro),
+        customFont
+      );
+
+      // RH (dv si no está vacío; si no, candidato)
+      this.setText(
+        form,
+        'RH',
+        pickText(dv?.rh, datoContratacion?.rh),
+        customFont
+      );
+
+
+      // PlanFunerario
+      const siNo = this.candidato?.entrevistas?.[0]?.proceso?.contrato?.seguro_funerario ? 'SI' : 'NO';
+
+      this.setText(
+        form,
+        'PlanFunerario',
+        `Desea afiliarse al plan funerario : ${siNo}`,
+        customFont,
+        6
+      );
+
+      this.setText(form, 'Celular', this.safe(dv.celular), customFont);
+      this.setText(form, 'Estado Civil', this.safe(dv.estado_civil), customFont);
+      this.setText(form, 'Correo Electrónico', this.safe(dv.primercorreoelectronico), customFont);
+      this.setText(form, 'EPS', this.safe(ds.eps), customFont);
+      this.setText(form, 'AFP', this.safe(ds.afp), customFont);
+      this.setText(form, 'AFC', this.safe(ds.cesantias ?? ''), customFont);
+
+      // escolaridad
+      this.setText(form, 'escolaridad', this.safe(datoContratacion?.escolaridad ?? ''), customFont);
+      this.setText(form, 'Nombre de la Instit', this.safe(datoContratacion?.nombre_institucion ?? ''), customFont);
+      this.setText(form, 'UniversidadAño Finalización', this.safe(datoContratacion?.ano_finalizacion ?? ''), customFont);
+      this.setText(form, 'Titulo Obtenido o Ultimo Cursado', this.safe(datoContratacion?.titulo_obtenido ?? ''), customFont);
+
+      // info familiar
+      this.setText(form, 'Nombre y apellido padre', this.safe(datoContratacion?.nombre_padre ?? ''), customFont);
+      this.setText(form, 'Vive', this.safe(datoContratacion?.vive_padre ?? ''), customFont);
+      this.setText(form, 'Ocupación', this.safe(datoContratacion?.ocupacion_padre ?? ''), customFont);
+      this.setText(form, 'Dirección_2', this.safe(datoContratacion?.direccion_padre ?? ''), customFont);
+      this.setText(form, 'Teléfono', this.safe(datoContratacion?.telefono_padre ?? ''), customFont);
+      this.setText(form, 'BarrioMunicipio', this.safe(datoContratacion?.barrio_padre ?? ''), customFont);
+
+      this.setText(form, 'Nombre y apellido madre', this.safe(datoContratacion?.nombre_madre ?? ''), customFont);
+      this.setText(form, 'Vive_2', this.safe(datoContratacion?.vive_madre ?? ''), customFont);
+      this.setText(form, 'Ocupación_2', this.safe(datoContratacion?.ocupacion_madre ?? ''), customFont);
+      this.setText(form, 'Dirección_3', this.safe(datoContratacion?.direccion_madre ?? ''), customFont);
+      this.setText(form, 'Teléfono_2', this.safe(datoContratacion?.telefono_madre ?? ''), customFont);
+      this.setText(form, 'BarrioMunicipio_2', this.safe(datoContratacion?.barrio_madre ?? ''), customFont);
+
+      this.setText(
+        form,
+        'Nombreyapellidoconyuge',
+        this.safe(`${datoContratacion?.nombre_conyugue ?? ''} ${datoContratacion?.apellido_conyugue ?? ''}`.trim()),
+        customFont
+      );
+      this.setText(form, 'Ocupación_3', this.safe(datoContratacion?.ocupacion_conyugue ?? ''), customFont);
+      this.setText(form, 'Dirección_4', this.safe(datoContratacion?.direccion_conyugue ?? ''), customFont);
+      this.setText(form, 'Teléfono_3', this.safe(datoContratacion?.telefono_conyugue ?? ''), customFont);
+      this.setText(form, 'BarrioMunicipio_3', this.safe(datoContratacion?.barrio_municipio_conyugue ?? ''), customFont);
+
+      this.setText(form, 'Familiar en caso de Emergencia', this.safe(datoContratacion?.familiar_emergencia ?? ''), customFont);
+      this.setText(form, 'Parentesco', this.safe(datoContratacion?.parentesco_familiar_emergencia ?? ''), customFont);
+      this.setText(form, 'Ocupación_4', this.safe(datoContratacion?.ocupacion_familiar_emergencia ?? ''), customFont);
+      this.setText(form, 'Dirección_5', this.safe(datoContratacion?.direccion_familiar_emergencia ?? ''), customFont);
+      this.setText(form, 'Teléfono_4', this.safe(datoContratacion?.telefono_familiar_emergencia ?? ''), customFont);
+      this.setText(form, 'BarrioMunicipio_4', this.safe(datoContratacion?.barrio_familiar_emergencia ?? ''), customFont);
+
+
+      const hijos = Array.isArray(datoContratacion?.hijos) ? datoContratacion!.hijos : [];
+
+      const parseYmd = (ymd: string) => {
+        // espera "YYYY-MM-DD"
+        const [y, m, d] = ymd.split('-').map(n => Number(n));
+        if (!y || !m || !d) return null;
+        return new Date(y, m - 1, d); // local, evita desfases
+      };
+      const formatDate = (ymd: string) => {
+        const dt = parseYmd(ymd);
+        if (!dt) return '';
+        const dd = String(dt.getDate()).padStart(2, '0');
+        const mm = String(dt.getMonth() + 1).padStart(2, '0');
+        const yyyy = dt.getFullYear();
+        return `${dd}/${mm}/${yyyy}`; // cambia si tu PDF quiere YYYY-MM-DD
+      };
+      const calcAge = (ymd: string) => {
+        const birth = parseYmd(ymd);
+        if (!birth) return '';
+        const today = new Date();
+        let age = today.getFullYear() - birth.getFullYear();
+        const m = today.getMonth() - birth.getMonth();
+        if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--;
+        return age < 0 ? '' : String(age);
+      };
+
+      for (let i = 0; i < 5; i++) {
+        const idx = i + 1;
+        const h = hijos[i] ?? {};
+
+        const nombre = norm((h as any).nombre);
+        const sexo = norm((h as any).sexo);
+        const fechaRaw = norm((h as any).fecha_nacimiento);
+        const noDoc = norm((h as any).no_documento);
+        const ocupacion = norm((h as any).estudia_o_trabaja);
+        const curso = norm((h as any).curso);
+
+        this.setText(form, `nombre_hijo_${idx}`, this.safe(nombre), customFont);
+        this.setText(form, `fecha_nac_hijo_${idx}`, this.safe(formatDate(fechaRaw)), customFont);
+        this.setText(form, `no_iden_hijo_${idx}`, this.safe(noDoc), customFont);
+        this.setText(form, `sexo_hijo_${idx}`, this.safe(sexo), customFont);
+        this.setText(form, `edad_hijo_${idx}`, this.safe(calcAge(fechaRaw)), customFont);
+        this.setText(form, `ocupacion_hijo_${idx}`, this.safe(ocupacion), customFont);
+        this.setText(form, `curso_hijo_${idx}`, this.safe(curso), customFont);
+      }
+
+
+      this.setText(form, 'TALLA CHAQUETA', this.safe(datoContratacion.chaqueta ?? ''), customFont);
+      this.setText(form, 'TALLA PANTALON', this.safe(datoContratacion.pantalon ?? ''), customFont);
+      this.setText(form, 'TALLA OVEROL', this.safe(datoContratacion.camisa ?? ''), customFont);
+      this.setText(form, 'No calzado', this.safe(datoContratacion.calzado ?? ''), customFont);
+      this.setText(form, 'No Botas de Caucho', this.safe(datoContratacion.calzado ?? ''), customFont);
+      this.setText(form, 'No Zapatones', this.safe(datoContratacion.calzado ?? ''), customFont);
+      this.setText(form, 'No Botas Material', this.safe(datoContratacion.calzado ?? ''), customFont);
+      this.setText(form, 'No Botas Material', this.safe(datoContratacion.calzado ?? ''), customFont);
+
+      this.setText(form, 'Nombre Empresa', this.safe(datoContratacion.nombre_expe_laboral1_empresa ?? ''), customFont);
+      this.setText(form, 'Dirección Empresa', this.safe(datoContratacion.direccion_empresa1 ?? ''), customFont);
+      this.setText(form, 'Teléfonos', this.safe(datoContratacion.telefonos_empresa1 ?? ''), customFont);
+      this.setText(form, 'Jefe Inmediato', this.safe(datoContratacion.nombre_jefe_empresa1 ?? ''), customFont);
+      this.setText(form, 'Cargo', this.safe(datoContratacion.cargo_empresa1 ?? ''), customFont);
+      this.setText(form, 'F de Retiro', this.safe(datoContratacion.fecha_retiro_empresa1 ?? ''), customFont);
+      // motivoretiro
+      this.setText(
+        form,
+        'motivoretiro',
+        this.safe(`Motivo de retiro: ${datoContratacion?.motivo_retiro_empresa1 ?? ''}`),
+        customFont
+      );
+
+      // referencias personales
+      this.setText(form, '1', this.safe(datoContratacion.nombre_referencia_personal1 ?? ''), customFont);
+      this.setText(form, 'Teléfonos1', this.safe(datoContratacion.telefono_referencia_personal1 ?? ''), customFont);
+      this.setText(form, 'Ocupación1', this.safe(datoContratacion.ocupacion_referencia_personal1 ?? ''), customFont);
+
+      this.setText(form, '2', this.safe(datoContratacion.nombre_referencia_personal2 ?? ''), customFont);
+      this.setText(form, 'Teléfonos2', this.safe(datoContratacion.telefono_referencia_personal2 ?? ''), customFont);
+      this.setText(form, 'Ocupación2', this.safe(datoContratacion.ocupacion_referencia_personal2 ?? ''), customFont);
+
+      // referencias familiares
+      this.setText(form, '1_2', this.safe(datoContratacion.nombre_referencia_familiar1 ?? ''), customFont);
+      this.setText(form, 'Teléfonos1_2', this.safe(datoContratacion.telefono_referencia_familiar1 ?? ''), customFont);
+      this.setText(form, 'Ocupación1_2', this.safe(datoContratacion.ocupacion_referencia_familiar1 ?? ''), customFont);
+
+      this.setText(form, '2_2', this.safe(datoContratacion.nombre_referencia_familiar2 ?? ''), customFont);
+      this.setText(form, 'Teléfonos2_2', this.safe(datoContratacion.telefono_referencia_familiar2 ?? ''), customFont);
+      this.setText(form, 'Ocupación2_2', this.safe(datoContratacion.ocupacion_referencia_familiar2 ?? ''), customFont);
+
+      this.setText(form, 'nombre-referencia-peronal1', this.safe(datoContratacion.nombre_referencia_personal1 ?? ''), customFont);
+      this.setText(form, 'nombre-referencia-peronal2', this.safe(datoContratacion.nombre_referencia_personal2 ?? ''), customFont);
+      this.setText(form, 'nombre-referencia-familiar1', this.safe(datoContratacion.nombre_referencia_familiar1 ?? ''), customFont);
+      this.setText(form, 'nombre-referencia-familiar2', this.safe(datoContratacion.nombre_referencia_familiar2 ?? ''), customFont);
+
+      // aleatorios descripciones (robusto y sin repetidos en el par)
+      const normalize = (s: unknown) => String(s ?? '').trim().replace(/\s+/g, ' ');
+
+      const pickTwoDistinct = (arr: readonly string[]): [string, string] => {
+        // 1) Normaliza, limpia vacíos y elimina duplicados reales
+        const unique = Array.from(
+          new Set((arr ?? []).map(normalize).filter(v => v.length > 0))
+        );
+
+        // 2) Casos límite
+        if (unique.length === 0) return ['', ''];
+        if (unique.length === 1) return [unique[0], '']; // ✅ NUNCA repite
+
+        // 3) Selección aleatoria sin while infinito
+        const i = Math.floor(Math.random() * unique.length);
+        const j = (i + 1 + Math.floor(Math.random() * (unique.length - 1))) % unique.length;
+
+        return [unique[i], unique[j]];
+      };
+
+      const [personal1, personal2] = pickTwoDistinct(this.referenciasA);
+      this.setText(form, 'descripcion-personal1', personal1, customFont);
+      this.setText(form, 'descripcion-personal2', personal2, customFont);
+
+      const [familiar1, familiar2] = pickTwoDistinct(this.referenciasF);
+      this.setText(form, 'descripcion-familiar1', familiar1, customFont);
+      this.setText(form, 'descripcion-familiar2', familiar2, customFont);
+
+
+      this.setText(form, 'finca_a', this.vacante.finca, customFont);
+      this.setText(form, 'nombres_y_apellidos', datoContratacion.primer_nombre + ' ' + datoContratacion.segundo_nombre + ' ' + datoContratacion.primer_apellido + ' ' + datoContratacion.segundo_apellido, customFont);
+      this.setText(form, 'numero_identificacion', this.cedula, customFont);
+
+      // URLs biometría (NO base64)
+      const firmaUrl = cand?.biometria?.firma?.file_url ?? cand?.biometria?.firma?.file ?? '';
+      const fotoUrl = cand?.biometria?.foto?.file_url ?? cand?.biometria?.foto?.file ?? '';
+      const huellaUrl = cand?.biometria?.huella?.file_url ?? cand?.biometria?.huella?.file ?? '';
+
+      await setButtonImageSafe(pdfDoc, form, 'firma', firmaUrl);
+      await setButtonImageSafe(pdfDoc, form, 'huella', huellaUrl);
+
+
+      if (this.firma !== '') {
+        setButtonImageSafe(pdfDoc, form, 'firma', this.firma);
+      } else {
+        Swal.fire({ icon: 'error', title: 'Error', text: 'No se encontró la firma' });
+        return;
+      }
+
+
       this.setText(
         form,
         'fimado',

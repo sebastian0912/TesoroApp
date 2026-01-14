@@ -6,6 +6,7 @@ import { MatTableDataSource } from '@angular/material/table';
 import { MatDatepickerModule } from '@angular/material/datepicker';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatNativeDateModule } from '@angular/material/core';
+import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 
 import { SharedModule } from '@/app/shared/shared.module';
 import { UtilityServiceService } from '@/app/shared/services/utilityService/utility-service.service';
@@ -17,14 +18,83 @@ import * as XLSX from 'xlsx';
 import * as ExcelJS from 'exceljs';
 import * as FileSaver from 'file-saver';
 import { firstValueFrom } from 'rxjs';
+import { ValidationPreviewDialogComponent } from '@/app/shared/components/validation-preview-dialog/validation-preview-dialog.component';
 
 type UploadControl = 'cedulasEscaneadas' | 'cruceDiario' | 'arl' | 'induccionSSO' | 'traslados';
-
 type ErrorRow = { registro: string; errores: any[]; tipo: string };
+
+// ==========================
+// Preview Dialog (tipos mínimos - estructurales)
+// ==========================
+type PreviewSeverity = 'error' | 'warning' | 'info';
+
+type PreviewIssue = {
+  id: string;
+  itemId: string; // rowIndex como string
+  severity: PreviewSeverity;
+  message: string;
+  field?: string;
+  meta?: any;
+};
+
+type PreviewColumn<T> = {
+  key: string;
+  header: string;
+  width?: string;
+  cell: (it: T) => any;
+};
+
+type PreviewEditField<T> = {
+  key: keyof T & string;
+  label: string;
+  type: 'text' | 'number' | 'select' | 'date';
+  required?: boolean;
+  normalize?: (v: any) => any;
+  validate?: (v: any, it?: T) => string | null;
+};
+
+type PreviewSchema<TItem, TResult> = {
+  title: string;
+  subtitle?: string;
+  itemId: (it: TItem) => string;
+
+  columns: PreviewColumn<TItem>[];
+  editFields: PreviewEditField<TItem>[];
+
+  validateItem?: (it: TItem) => PreviewIssue[];
+  buildResult: (items: TItem[]) => TResult;
+
+  allowRemove?: boolean;
+  removeLabel?: string;
+  allowCancel?: boolean;
+};
+
+type PreviewDialogData<TItem, TResult> = {
+  schema: PreviewSchema<TItem, TResult>;
+  items: TItem[];
+  phase?: 'pre' | 'post';
+  externalIssues?: PreviewIssue[];
+  title?: string;
+  subtitle?: string;
+};
+
+type PreviewDialogResult<TResult> = {
+  accepted: boolean;
+  items?: any[];
+  result?: TResult;
+};
+
+type CrucePreviewItem = {
+  rowIndex: number; // 1..N
+  doc: string; // col 1
+  empresa: string; // col 2
+  fechaIngreso: string; // col 8
+  raw: string[]; // 195 cols
+};
 
 @Component({
   selector: 'app-hiring-report',
-  imports: [SharedModule, MatDatepickerModule, MatCheckboxModule, MatNativeDateModule],
+  imports: [SharedModule, MatDatepickerModule, MatCheckboxModule, MatNativeDateModule, MatDialogModule],
   templateUrl: './hiring-report.component.html',
   styleUrl: './hiring-report.component.css',
 })
@@ -60,12 +130,19 @@ export class HiringReportComponent implements OnInit {
 
   private readonly BLOCKED_FILES = new Set(['thumbs.db', 'desktop.ini', '.ds_store']);
 
+  // EPS permitidas (canonical sin espacios)
+  private readonly EPS_ALLOWED = new Map<string, string>([
+    ['saludtotal', 'SALUDTOTAL'],
+    ['nuevaeps', 'NUEVAEPS'],
+  ]);
+
   constructor(
     private readonly fb: FormBuilder,
     private readonly router: Router,
     private readonly utilityService: UtilityServiceService,
     private readonly hiringService: HiringService,
     private readonly reportesService: ReportesService,
+    private readonly dialog: MatDialog, // ✅ Preview dialog
   ) {
     // Inicial mínimo para evitar undefined antes de ngOnInit
     this.reporteForm = this.fb.group({
@@ -117,7 +194,6 @@ export class HiringReportComponent implements OnInit {
       this.reporteForm.get('arl')?.updateValueAndValidity();
       this.reporteForm.get('cruceDiario')?.updateValueAndValidity();
 
-      // si cambia a "no", resetea flags para no bloquear envíos no-aplicables
       if (value !== 'si') {
         this.isCruceValidado = false;
         this.isArlValidado = false;
@@ -132,16 +208,14 @@ export class HiringReportComponent implements OnInit {
       const soloActivas = data.filter((s: any) => s.activa === true);
       const unicas = Array.from(new Map(soloActivas.map((s: any) => [s.nombre, s])).values());
 
-      this.sedes = unicas.sort((a: any, b: any) =>
-        a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base' }),
-      );
+      this.sedes = unicas.sort((a: any, b: any) => a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base' }));
     } catch {
       Swal.fire('Error', 'No se pudieron cargar las sedes', 'error');
     }
   }
 
   // ---------------------------------------------------------------------------
-  // Helpers generales
+  // Helpers Swal (loading + progress)
   // ---------------------------------------------------------------------------
 
   private showLoading(title: string, text: string): void {
@@ -157,12 +231,57 @@ export class HiringReportComponent implements OnInit {
     });
   }
 
+  private openProgress(title: string, subtitle: string, current: number, total: number): void {
+    const pct = total > 0 ? Math.round((current / total) * 100) : 0;
+
+    Swal.fire({
+      icon: 'info',
+      title,
+      html: `
+        <div style="text-align:left; margin-top:6px;">
+          <div id="swalProgressSubtitle" style="font-size:13px; opacity:.85; margin-bottom:10px;">
+            ${subtitle}
+          </div>
+
+          <div style="width:100%; height:12px; background:rgba(0,0,0,.08); border-radius:999px; overflow:hidden;">
+            <div id="swalProgressBar" style="height:12px; width:${pct}%; background:#3085d6;"></div>
+          </div>
+
+          <div style="display:flex; justify-content:space-between; margin-top:8px; font-size:12px; opacity:.9;">
+            <span id="swalProgressDetail">${current} / ${total}</span>
+            <b id="swalProgressPct">${pct}%</b>
+          </div>
+        </div>
+      `,
+      allowOutsideClick: false,
+      allowEscapeKey: false,
+      showConfirmButton: false,
+      heightAuto: false,
+    });
+  }
+
+  private updateProgress(subtitle: string, current: number, total: number): void {
+    const pct = total > 0 ? Math.round((current / total) * 100) : 0;
+    const container = Swal.getHtmlContainer();
+    if (!container) return;
+
+    const bar = container.querySelector('#swalProgressBar') as HTMLElement | null;
+    const detail = container.querySelector('#swalProgressDetail') as HTMLElement | null;
+    const pctEl = container.querySelector('#swalProgressPct') as HTMLElement | null;
+    const sub = container.querySelector('#swalProgressSubtitle') as HTMLElement | null;
+
+    if (bar) bar.style.width = `${pct}%`;
+    if (detail) detail.textContent = `${current} / ${total}`;
+    if (pctEl) pctEl.textContent = `${pct}%`;
+    if (sub) sub.textContent = subtitle;
+  }
+
   private closeSwal(): void {
     Swal.close();
   }
 
   /**
-   * Convierte a Promise tanto Promises como Observables (por si algún día cambias tu service).
+   * Convierte a Promise tanto Promises como Observables.
    * - Si trae .subscribe => Observable => firstValueFrom
    * - Si no => Promise/valor => await normal
    */
@@ -310,10 +429,7 @@ export class HiringReportComponent implements OnInit {
     this.erroresValidacion.data = [];
   }
 
-  private filterFilesByControl(
-    files: File[],
-    controlName: UploadControl,
-  ): { allowed: File[]; ignored: File[] } {
+  private filterFilesByControl(files: File[], controlName: UploadControl): { allowed: File[]; ignored: File[] } {
     const allowed: File[] = [];
     const ignored: File[] = [];
 
@@ -348,7 +464,6 @@ export class HiringReportComponent implements OnInit {
         continue;
       }
 
-      // induccionSSO: por defecto PDF (puedes ampliar si necesitas)
       if (controlName === 'induccionSSO') {
         if (!isPdf(f)) ignored.push(f);
         else allowed.push(f);
@@ -422,12 +537,11 @@ export class HiringReportComponent implements OnInit {
 
   /**
    * ✅ Mantiene X/x al inicio (ej: X1234567)
-   * ✅ Tolera celdas en notación científica (ej: 1.005851505E+9)
+   * ✅ Tolera notación científica (ej: 1.005851505E+9)
    */
   private normalizeCedula(value: any): string {
     if (value == null) return '';
 
-    // si viene numérico, lo pasamos a string sin exponencial (para estos rangos funciona bien)
     if (typeof value === 'number' && Number.isFinite(value)) {
       const asInt = Math.trunc(value);
       return String(asInt);
@@ -436,7 +550,6 @@ export class HiringReportComponent implements OnInit {
     let raw = this.removeSpecialCharacters(String(value ?? '')).trim();
     if (!raw || raw === '-') return '';
 
-    // si viene como notación científica en string
     const sci = raw.replace(/\s+/g, '');
     if (/^[\d.]+e[+-]?\d+$/i.test(sci)) {
       const n = Number(sci);
@@ -453,7 +566,7 @@ export class HiringReportComponent implements OnInit {
     return hasX ? `X${digits}` : digits;
   }
 
-  /** ✅ Para enviar al backend cuando NO debe ir la X */
+  /** Para enviar al backend cuando NO debe ir la X (si lo necesitas en otro flujo) */
   private cedulaToDigits(value: any): string {
     const c = this.normalizeCedula(value);
     return c.startsWith('X') ? c.slice(1) : c;
@@ -466,6 +579,134 @@ export class HiringReportComponent implements OnInit {
     const month = (date.getUTCMonth() + 1).toString().padStart(2, '0');
     const year = date.getUTCFullYear();
     return `${day}/${month}/${year}`;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Normalización nombres PDF antes de enviar (DOC - algo / Traslado DOC - EPS)
+  // ---------------------------------------------------------------------------
+
+  private normEpsToken(value: string): string {
+    return (value ?? '')
+      .toLowerCase()
+      .trim()
+      .replace(/\s+/g, '')
+      .replace(/[^a-z]/g, '');
+  }
+
+  private safeRenameFile(original: File, newName: string): File {
+    try {
+      return new File([original], newName, {
+        type: original.type,
+        lastModified: original.lastModified,
+      });
+    } catch {
+      return original;
+    }
+  }
+
+  /**
+   * Extrae el documento desde un PDF:
+   * - "1005851505 - Juan Perez.pdf" => "1005851505"
+   * - "X548888- algo.pdf" => "X548888"
+   * - "x5897887_nombre.pdf" => "X5897887"
+   */
+  private extractDocumentoFromPdfName(filename: string): string | null {
+    const name = (filename ?? '').trim();
+    const lower = name.toLowerCase();
+
+    if (!name) return null;
+    if (this.BLOCKED_FILES.has(lower)) return null;
+    if (!lower.endsWith('.pdf')) return null;
+
+    const base = name.replace(/\.pdf$/i, '').trim();
+
+    // Documento a la izquierda del primer "-"
+    const left = base.split('-')[0]?.trim() ?? base;
+
+    // Primer token por si viene con espacios/underscores
+    const token = left.split(/[_\s]+/)[0]?.trim() ?? left;
+
+    const doc = this.normalizeCedula(token);
+    return doc || null;
+  }
+
+  /**
+   * Detecta EPS permitida en nombre de traslado.
+   * Acepta variaciones: "SALUD TOTAL", "SALUDTOTAL", "NUEVA EPS", "NUEVAEPS"
+   * Devuelve canonical: "SALUDTOTAL" | "NUEVAEPS"
+   */
+  private extractEpsFromTrasladoName(filename: string): string | null {
+    const name = (filename ?? '').trim();
+    const lower = name.toLowerCase();
+
+    if (!name) return null;
+    if (this.BLOCKED_FILES.has(lower)) return null;
+    if (!lower.endsWith('.pdf')) return null;
+
+    const base = name.replace(/\.pdf$/i, '').trim();
+    const parts = base
+      .split('-')
+      .map((p) => p.trim())
+      .filter(Boolean);
+
+    // parts[0] = doc, el resto puede ser EPS o basura extra
+    for (const p of parts.slice(1)) {
+      const key = this.normEpsToken(p);
+      const canonical = this.EPS_ALLOWED.get(key);
+      if (canonical) return canonical;
+    }
+    return null;
+  }
+
+  private prepareCedulasFilesForBackend(files: File[]): { files: File[]; errors: ErrorRow[] } {
+    const out: File[] = [];
+    const errors: ErrorRow[] = [];
+
+    for (const f of files ?? []) {
+      const doc = this.extractDocumentoFromPdfName(f?.name ?? '');
+      if (!doc) {
+        errors.push({
+          registro: f?.name ?? 'SIN NOMBRE',
+          errores: ['Nombre inválido. Use: DOCUMENTO - NOMBRE.pdf (o DOCUMENTO.pdf).'],
+          tipo: 'Cédulas (nombre inválido)',
+        });
+        continue;
+      }
+      out.push(this.safeRenameFile(f, `${doc}.pdf`));
+    }
+
+    return { files: out, errors };
+  }
+
+  private prepareTrasladosFilesForBackend(files: File[]): { files: File[]; errors: ErrorRow[] } {
+    const out: File[] = [];
+    const errors: ErrorRow[] = [];
+
+    for (const f of files ?? []) {
+      const doc = this.extractDocumentoFromPdfName(f?.name ?? '');
+      if (!doc) {
+        errors.push({
+          registro: f?.name ?? 'SIN NOMBRE',
+          errores: ['Nombre inválido. Use: DOCUMENTO-EPS.pdf (ej: 1005851505-SALUD TOTAL.pdf).'],
+          tipo: 'Traslados (documento inválido)',
+        });
+        continue;
+      }
+
+      const eps = this.extractEpsFromTrasladoName(f?.name ?? '');
+      if (!eps) {
+        errors.push({
+          registro: f?.name ?? 'SIN NOMBRE',
+          errores: ['EPS inválida/no encontrada. Permitidas: SALUD TOTAL, NUEVA EPS. Ej: 1005851505-SALUD TOTAL.pdf'],
+          tipo: 'Traslados (EPS inválida)',
+        });
+        continue;
+      }
+
+      out.push(this.safeRenameFile(f, `${doc}-${eps}.pdf`));
+    }
+
+    return { files: out, errors };
   }
 
   // ---------------------------------------------------------------------------
@@ -493,13 +734,9 @@ export class HiringReportComponent implements OnInit {
       dateNF: 'dd/mm/yyyy',
     }) as any[];
 
-    // Quitamos encabezados
     json.shift();
 
-    // ✅ cédula en columna 2 (index 1) preservando X
-    return json
-      .map((row: any[]) => this.normalizeCedula(row?.[1]))
-      .filter((c) => c !== '');
+    return json.map((row: any[]) => this.normalizeCedula(row?.[1])).filter((c) => c !== '');
   }
 
   private async contarALyTAEnColumna(file: File): Promise<{ AL: number; TA: number }> {
@@ -519,7 +756,6 @@ export class HiringReportComponent implements OnInit {
     let alCount = 0;
     let taCount = 0;
 
-    // Tu lógica: AL/TA en columna 3 (index 2)
     json.forEach((row: any[]) => {
       const valor = (row?.[2] ?? '').toString().trim();
       if (valor === 'AL') alCount++;
@@ -530,20 +766,8 @@ export class HiringReportComponent implements OnInit {
   }
 
   private extractCedulaFromFilename(filename: string): string | null {
-    const name = (filename ?? '').trim();
-    const lower = name.toLowerCase();
-
-    if (!name) return null;
-    if (this.BLOCKED_FILES.has(lower)) return null;
-    if (!lower.endsWith('.pdf')) return null;
-
-    const base = name.replace(/\.pdf$/i, '').trim();
-    const firstToken = base.split(/[-_ ]+/)[0] ?? '';
-
-    // ✅ preserva X si viene al inicio del token
-    const cedula = this.normalizeCedula(firstToken);
-
-    return cedula ? cedula : null;
+    // ✅ ahora soporta "DOC - nombre.pdf"
+    return this.extractDocumentoFromPdfName(filename);
   }
 
   private extraerCedulasDeArchivos(files: File[]): string[] {
@@ -560,43 +784,33 @@ export class HiringReportComponent implements OnInit {
     return this.extraerCedulasDeArchivos(files);
   }
 
-  // ✅ Validación EPS de traslados (retorna errores para tabla + envío)
+  // ✅ Validación EPS de traslados (tabla + envío)
   private validarTrasladosEps(files: File[]): ErrorRow[] {
-    const validEPS = new Set(['saludtotal', 'nuevaeps']);
-
-    const norm = (s: string) =>
-      (s ?? '')
-        .toLowerCase()
-        .replace(/\s+/g, '')
-        .replace(/[^a-z]/g, '');
-
     const errors: ErrorRow[] = [];
 
     for (const file of files ?? []) {
       const name = (file?.name ?? '').trim();
       const lower = name.toLowerCase();
 
+      if (!name) continue;
       if (this.BLOCKED_FILES.has(lower)) continue;
       if (!lower.endsWith('.pdf')) continue;
 
-      const base = name.replace(/\.pdf$/i, '').trim();
-      const parts = base.split('-').map((p) => p.trim()).filter(Boolean);
-
-      if (parts.length < 2) {
+      const doc = this.extractDocumentoFromPdfName(name);
+      if (!doc) {
         errors.push({
           registro: name,
-          errores: ['Nombre inválido. Debe incluir EPS. Ej: 1002299663-SALUD TOTAL.pdf'],
+          errores: ['Nombre inválido. Use: DOCUMENTO-EPS.pdf (ej: 1005851505-SALUD TOTAL.pdf).'],
           tipo: 'Traslado EPS',
         });
         continue;
       }
 
-      const epsEncontrada = parts.slice(1).find((p) => validEPS.has(norm(p)));
-
-      if (!epsEncontrada) {
+      const eps = this.extractEpsFromTrasladoName(name);
+      if (!eps) {
         errors.push({
           registro: name,
-          errores: ['EPS inválida/no encontrada. Solo se permite SALUD TOTAL. Ej: 1002299663-SALUD TOTAL.pdf'],
+          errores: ['EPS inválida/no encontrada. Permitidas: SALUD TOTAL, NUEVA EPS.'],
           tipo: 'Traslado EPS',
         });
       }
@@ -606,11 +820,141 @@ export class HiringReportComponent implements OnInit {
   }
 
   // ---------------------------------------------------------------------------
-  // Botón VALIDAR (aplica reglas antes de enviar a reportes/Django)
+  // Preview Dialog (Cruce)
+  // ---------------------------------------------------------------------------
+
+  private buildCrucePreviewItems(rows: string[][]): CrucePreviewItem[] {
+    return (rows ?? []).map((r, idx) => ({
+      rowIndex: idx + 1,
+      doc: this.normalizeCedula(r?.[1]),
+      empresa: (r?.[2] ?? '').toString(),
+      fechaIngreso: (r?.[8] ?? '').toString(),
+      raw: r,
+    }));
+  }
+
+  private buildExternalIssuesFromBackend(allErrors: any[]): PreviewIssue[] {
+    const out: PreviewIssue[] = [];
+
+    for (let i = 0; i < (allErrors ?? []).length; i++) {
+      const e = allErrors[i];
+      const itemId = String(e?.registro ?? e?.rowIndex ?? e?.itemId ?? '0');
+
+      const msgs = Array.isArray(e?.errores) ? e.errores : [e?.message ?? e?.mensaje ?? 'Error'];
+
+      for (let j = 0; j < msgs.length; j++) {
+        out.push({
+          id: `ext:${itemId}:${i}:${j}`,
+          itemId,
+          severity: 'error',
+          message: String(msgs[j]),
+          field: e?.field ?? e?.campo ?? undefined,
+          meta: e,
+        });
+      }
+    }
+
+    return out;
+  }
+
+  private buildCruceSchema(): PreviewSchema<CrucePreviewItem, { rows: string[][] }> {
+    return {
+      title: 'Previsualización de validación · Cruce Diario',
+      subtitle: 'Corrige los campos y reintenta la validación.',
+      itemId: (it) => String(it.rowIndex),
+
+      columns: [
+        { key: 'rowIndex', header: '#', width: '70px', cell: (it) => it.rowIndex },
+        { key: 'doc', header: 'Documento', width: '160px', cell: (it) => it.doc },
+        { key: 'empresa', header: 'Empresa', width: '240px', cell: (it) => it.empresa },
+        { key: 'fechaIngreso', header: 'Fecha ingreso', width: '160px', cell: (it) => it.fechaIngreso },
+      ],
+
+      editFields: [
+        {
+          key: 'doc',
+          label: 'Documento',
+          type: 'text',
+          required: true,
+          normalize: (v) => this.normalizeCedula(v),
+          validate: (v) => (String(v ?? '').trim() ? null : 'Documento requerido'),
+        },
+        {
+          key: 'empresa',
+          label: 'Empresa',
+          type: 'text',
+          normalize: (v) => this.removeSpecialCharacters(String(v ?? '')).trim(),
+          validate: (v) => (String(v ?? '').trim() ? null : 'Empresa requerida'),
+        },
+        {
+          key: 'fechaIngreso',
+          label: 'Fecha ingreso (dd/mm/yyyy)',
+          type: 'text',
+          normalize: (v) => this.corregirFecha(String(v ?? '').trim()),
+          validate: (v) => (/^\d{2}\/\d{2}\/\d{4}$/.test(String(v ?? '').trim()) ? null : 'Formato inválido (dd/mm/yyyy)'),
+        },
+      ],
+
+      validateItem: (_it) => [],
+      buildResult: (items) => {
+        const rows = items.map((it) => {
+          const r = [...it.raw];
+          r[1] = it.doc;
+          r[2] = it.empresa;
+          r[8] = it.fechaIngreso;
+          return r;
+        });
+        return { rows };
+      },
+
+      allowRemove: true,
+      removeLabel: 'Quitar fila',
+      allowCancel: true,
+    };
+  }
+
+  private async openCrucePreviewDialog(rows: string[][], backendErrors: any[]): Promise<{ ok: boolean; rows: string[][] }> {
+    const items = this.buildCrucePreviewItems(rows);
+    const schema = this.buildCruceSchema();
+    const externalIssues = this.buildExternalIssuesFromBackend(backendErrors);
+
+    const ref = this.dialog.open(ValidationPreviewDialogComponent as any, {
+      width: 'min(1200px, 96vw)',
+      maxWidth: '96vw',
+      height: '90vh',
+      disableClose: true,
+      data: {
+        schema,
+        items,
+        phase: 'post',
+        externalIssues,
+        title: 'Post-validación (backend)',
+        subtitle: 'Corrige y confirma para reintentar.',
+      } satisfies PreviewDialogData<CrucePreviewItem, { rows: string[][] }>,
+    });
+
+    const res = (await firstValueFrom(ref.afterClosed())) as PreviewDialogResult<{ rows: string[][] }> | undefined;
+
+    if (!res?.accepted) return { ok: false, rows };
+
+    // ✅ soporta ambos estilos de retorno: result.rows o items con raw
+    const fixedRows =
+      (res.result as any)?.rows ??
+      (Array.isArray(res.items)
+        ? (res.items as any[]).map((it) => (it?.raw ? it.raw : it))
+        : rows);
+
+    // Normaliza: garantizamos string[][]
+    const normalized = (fixedRows ?? []).map((r: any) => (Array.isArray(r) ? r.map((c) => String(c ?? '-')) : []));
+
+    return { ok: true, rows: normalized };
+  }
+
+  // ---------------------------------------------------------------------------
+  // Botón VALIDAR
   // ---------------------------------------------------------------------------
 
   async validarTodo(): Promise<void> {
-    // reset de estado previo
     this.isCruceValidado = false;
     this.isArlValidado = false;
     this.erroresValidacion.data = [];
@@ -646,7 +990,7 @@ export class HiringReportComponent implements OnInit {
 
       const erroresFormateados: ErrorRow[] = [];
 
-      // cédulas desde PDFs (ya filtradas por selección)
+      // cédulas desde PDFs (soporta DOC - nombre)
       const cedulasEscaneadas = this.extraerCedulasDeArchivos(cedulasEscaneadasFiles);
 
       let cedulasTrasladosExtraidas: string[] = [];
@@ -659,10 +1003,7 @@ export class HiringReportComponent implements OnInit {
           return;
         }
 
-        // ✅ (1) traslados también generan error + tabla + envío
         erroresFormateados.push(...this.validarTrasladosEps(trasladosFiles));
-
-        // ✅ extraemos cédulas de traslados preservando X
         cedulasTrasladosExtraidas = this.extraerCedulasDeArchivos(trasladosFiles);
       }
 
@@ -671,7 +1012,6 @@ export class HiringReportComponent implements OnInit {
       if (cruceChecked) {
         const fileCruce = (this.filesToUpload.cruceDiario ?? [])[0];
 
-        // ✅ (2) NO borrar X/x en lectura excel
         cedulasExcel = await this.extraerCedulasDelArchivo(fileCruce);
 
         const result = await this.contarALyTAEnColumna(fileCruce);
@@ -727,9 +1067,8 @@ export class HiringReportComponent implements OnInit {
         this.erroresValidacion.data = erroresFormateados;
 
         const tipoErrores =
-          [cruceChecked ? 'Cruce Diario' : null, trasladosChecked ? 'Traslado' : null]
-            .filter(Boolean)
-            .join(' + ') || 'Validación';
+          [cruceChecked ? 'Cruce Diario' : null, trasladosChecked ? 'Traslado' : null].filter(Boolean).join(' + ') ||
+          'Validación';
 
         const payload = {
           errores: this.erroresValidacion.data,
@@ -752,14 +1091,12 @@ export class HiringReportComponent implements OnInit {
 
       this.closeSwal();
 
-      // pre-validación OK
-      this.isCruceValidado = cruceChecked ? true : false;
-
       // Validación profunda (cruce + ARL)
       if (cruceChecked) {
         await this.validarCruce();
       } else if (arlChecked) {
-        await this.proccssArl([arlFiles[0]]);
+        const arlFiles = this.filesToUpload.arl ?? [];
+        if (arlFiles.length) await this.proccssArl([arlFiles[0]]);
       }
     } catch {
       this.closeSwal();
@@ -768,7 +1105,7 @@ export class HiringReportComponent implements OnInit {
   }
 
   // ---------------------------------------------------------------------------
-  // Validación profunda de cruce (lotes + ARL + errores de negocio)
+  // Validación profunda de cruce (lotes + progress) + Preview dialog
   // ---------------------------------------------------------------------------
 
   async validarCruce(): Promise<void> {
@@ -783,7 +1120,6 @@ export class HiringReportComponent implements OnInit {
     const arlChecked = !!this.reporteForm.get('arl')?.value;
     const arlFiles = this.filesToUpload.arl ?? [];
 
-    // reset para ejecutar una validación limpia
     this.isCruceValidado = false;
     this.erroresValidacion.data = [];
 
@@ -803,7 +1139,6 @@ export class HiringReportComponent implements OnInit {
         dateNF: 'dd/mm/yyyy',
       }) as any[];
 
-      // Quitamos encabezados
       json.shift();
 
       const formatDate = (date: string): string => {
@@ -824,7 +1159,7 @@ export class HiringReportComponent implements OnInit {
 
       const indicesFechas = [0, 8, 16, 24, 44, 134];
 
-      const rows: string[][] = json.map((row: any[]) => {
+      let rows: string[][] = json.map((row: any[]) => {
         const completeRow = new Array(195).fill('-');
 
         row.forEach((cell, index) => {
@@ -842,7 +1177,7 @@ export class HiringReportComponent implements OnInit {
             return;
           }
 
-          // ✅ (2) preserva X/x en cruce (columnas de cédula)
+          // preserva X/x en cruce (columnas de cédula)
           if (index === 11 || index === 1) {
             completeRow[index] = this.normalizeCedula(cell);
             return;
@@ -861,52 +1196,79 @@ export class HiringReportComponent implements OnInit {
 
       this.datoscruced = rows;
 
-      this.showLoading('Dividiendo los datos en lotes...', 'Por favor, espere...');
-
       const batchSize = 1500;
-      const totalBatches = Math.ceil(rows.length / batchSize);
-      const allErrors: any[] = [];
 
-      for (let i = 0; i < totalBatches; i++) {
-        const batch = rows.slice(i * batchSize, (i + 1) * batchSize);
+      const runValidateBatches = async (inputRows: string[][]): Promise<any[]> => {
+        const totalBatches = Math.ceil(inputRows.length / batchSize);
+        const allErrors: any[] = [];
 
-        this.showLoading('Validando lote...', `Enviando el lote ${i + 1} de ${totalBatches} para validación...`);
+        this.openProgress('Validando lotes...', 'Preparando envío de lotes...', 0, totalBatches);
 
-        const response: any = await this.toPromise(this.hiringService.subirContratacionValidar(batch));
-        if (response?.status === 'error' && Array.isArray(response?.errores)) {
-          allErrors.push(...response.errores);
+        for (let i = 0; i < totalBatches; i++) {
+          const batch = inputRows.slice(i * batchSize, (i + 1) * batchSize);
+          this.updateProgress(`Validando lote ${i + 1} de ${totalBatches}...`, i + 1, totalBatches);
+
+          const response: any = await this.toPromise(this.hiringService.subirContratacionValidar(batch));
+          if (response?.status === 'error' && Array.isArray(response?.errores)) {
+            allErrors.push(...response.errores);
+          }
+        }
+
+        return allErrors;
+      };
+
+      // 1) Validación inicial
+      let allErrors = await runValidateBatches(rows);
+      this.erroresValidacion.data = allErrors;
+
+      // 2) Si hay errores: abrir preview para corregir y revalidar
+      if (allErrors.length > 0) {
+        this.closeSwal();
+
+        const preview = await this.openCrucePreviewDialog(rows, allErrors);
+        if (!preview.ok) {
+          // Usuario canceló: dejamos los errores en tabla y salimos sin enviar nada
+          this.erroresValidacion.data = allErrors;
+          return;
+        }
+
+        rows = preview.rows;
+        this.datoscruced = rows;
+
+        // Revalidación
+        allErrors = await runValidateBatches(rows);
+        this.erroresValidacion.data = allErrors;
+
+        if (allErrors.length > 0) {
+          // ✅ ahora sí: guardamos errores en backend como antes
+          const payload = {
+            errores: allErrors,
+            responsable: this.nombre,
+            tipo: 'Documento de Contratación',
+          };
+
+          this.showLoading('Enviando errores...', 'Guardando errores encontrados...');
+
+          try {
+            await this.toPromise(this.hiringService.enviarErroresValidacion(payload));
+            this.closeSwal();
+            await Swal.fire('Error', 'Aún hay errores tras corregir. Corrija y vuelva a intentar.', 'error');
+          } catch {
+            this.closeSwal();
+            await Swal.fire('Error', 'Error al guardar los errores.', 'error');
+          }
+          return;
         }
       }
 
-      this.erroresValidacion.data = allErrors;
+      // ✅ si llegamos aquí: cruce OK
+      this.closeSwal();
+      this.isCruceValidado = true;
 
-      // Procesa ARL (si aplica) y genera el Excel ARL
+      // Procesa ARL (solo si el cruce ya quedó OK)
       if (arlChecked && arlFiles.length > 0) {
         await this.proccssArl([arlFiles[0]]);
       }
-
-      if (allErrors.length > 0) {
-        const payload = {
-          errores: allErrors,
-          responsable: this.nombre,
-          tipo: 'Documento de Contratación',
-        };
-
-        this.showLoading('Enviando errores...', 'Guardando errores encontrados...');
-
-        try {
-          await this.toPromise(this.hiringService.enviarErroresValidacion(payload));
-          this.closeSwal();
-          await Swal.fire('Error', 'Se han encontrado errores en el cruce diario. Corrija y vuelva a intentar.', 'error');
-        } catch {
-          this.closeSwal();
-          await Swal.fire('Error', 'Error al guardar los errores.', 'error');
-        }
-        return;
-      }
-
-      this.closeSwal();
-      this.isCruceValidado = true;
 
       await Swal.fire('Completado', 'Proceso de validación finalizado correctamente.', 'success');
     } catch {
@@ -1193,7 +1555,6 @@ export class HiringReportComponent implements OnInit {
       ];
 
       const datosMapeados = this.datoscruced.map((cruceRow: any[], index: number) => {
-        // ✅ (3) ARL también con X/x: comparar usando normalizeCedula
         const cedulaCruce = this.normalizeCedula(cruceRow?.[1]);
         const comparativoCruce = cruceRow?.[8];
 
@@ -1269,26 +1630,26 @@ export class HiringReportComponent implements OnInit {
       datosMapeados.forEach((dato) => {
         const row = worksheet.addRow(dato);
 
-        if (dato['Arl'] === 'SATISFACTORIO') row.getCell('Arl').fill = green;
+        if (dato['Arl'] === 'SATISFACTORIO') (row.getCell('Arl') as any).fill = green;
         else {
           this.isArlValidado = false;
-          row.getCell('Arl').fill = red;
+          (row.getCell('Arl') as any).fill = red;
         }
 
-        if (dato['ARL_FECHAS'] === 'SATISFACTORIO') row.getCell('ARL_FECHAS').fill = green;
+        if (dato['ARL_FECHAS'] === 'SATISFACTORIO') (row.getCell('ARL_FECHAS') as any).fill = green;
         else {
           this.isArlValidado = false;
-          row.getCell('ARL_FECHAS').fill = red;
+          (row.getCell('ARL_FECHAS') as any).fill = red;
         }
 
         if (dato['FECHA EN ARL'] === 'NO DISPONIBLE') {
           this.isArlValidado = false;
-          row.getCell('FECHA EN ARL').fill = red;
+          (row.getCell('FECHA EN ARL') as any).fill = red;
         }
 
         if (dato['FECHA INGRESO SUBIDA CONTRATACION'] === 'NO DISPONIBLE') {
           this.isArlValidado = false;
-          row.getCell('FECHA INGRESO SUBIDA CONTRATACION').fill = red;
+          (row.getCell('FECHA INGRESO SUBIDA CONTRATACION') as any).fill = red;
         }
       });
 
@@ -1347,7 +1708,7 @@ export class HiringReportComponent implements OnInit {
   }
 
   // ---------------------------------------------------------------------------
-  // Envío a Django (FormData): metadatos + archivos
+  // Envío a Django (FormData): metadatos + archivos (renombrados)
   // ---------------------------------------------------------------------------
 
   private buildReporteFormData(user: any): FormData {
@@ -1357,7 +1718,6 @@ export class HiringReportComponent implements OnInit {
     const sedeNombre = formValue.sede?.nombre ?? formValue.sede ?? '';
     formData.append('sede', sedeNombre);
 
-    // Si es de hoy, se envía fecha actual; si no, la seleccionada
     if (formValue.esDeHoy === 'true') {
       formData.append('fecha', new Date().toISOString());
     } else if (formValue.fecha instanceof Date) {
@@ -1372,16 +1732,14 @@ export class HiringReportComponent implements OnInit {
     }
 
     const nombreResponsable =
-      user && user.datos_basicos
-        ? `${user.datos_basicos.nombres} ${user.datos_basicos.apellidos}`
-        : this.nombre;
+      user && user.datos_basicos ? `${user.datos_basicos.nombres} ${user.datos_basicos.apellidos}` : this.nombre;
 
     formData.append('nombre', nombreResponsable);
 
     const isBlocked = (name: string) => this.BLOCKED_FILES.has((name ?? '').trim().toLowerCase());
     const isPdfName = (name: string) => (name ?? '').toLowerCase().trim().endsWith('.pdf');
 
-    // Documentos asociados al reporte (sin base64)
+    // Documentos asociados al reporte
     const sstFiles = this.filesToUpload.induccionSSO ?? [];
     if (sstFiles.length > 0 && !isBlocked(sstFiles[0].name) && isPdfName(sstFiles[0].name)) {
       formData.append('sst_document', sstFiles[0]);
@@ -1392,25 +1750,25 @@ export class HiringReportComponent implements OnInit {
       formData.append('cruce_document', cruceFiles[0]);
     }
 
-    const cedulasFiles = (this.filesToUpload.cedulasEscaneadas ?? []).filter(
+    // ✅ Cédulas renombradas: DOCUMENTO.pdf
+    const cedulasRaw = (this.filesToUpload.cedulasEscaneadas ?? []).filter(
       (f) => f && !isBlocked(f.name) && isPdfName(f.name),
     );
-    cedulasFiles.forEach((file) => {
-      formData.append('cedulas', file);
-    });
+    const cedPrep = this.prepareCedulasFilesForBackend(cedulasRaw);
+    cedPrep.files.forEach((file) => formData.append('cedulas', file));
 
-    const trasladosFiles = (this.filesToUpload.traslados ?? []).filter(
+    // ✅ Traslados renombrados: DOCUMENTO-EPS.pdf (EPS canonical)
+    const trasladosRaw = (this.filesToUpload.traslados ?? []).filter(
       (f) => f && !isBlocked(f.name) && isPdfName(f.name),
     );
-    trasladosFiles.forEach((file) => {
-      formData.append('traslados', file);
-    });
+    const traPrep = this.prepareTrasladosFilesForBackend(trasladosRaw);
+    traPrep.files.forEach((file) => formData.append('traslados', file));
 
     return formData;
   }
 
   // ---------------------------------------------------------------------------
-  // Botón ENVIAR (solo cuando reglas se cumplen)
+  // Botón ENVIAR
   // ---------------------------------------------------------------------------
 
   async onSubmit(): Promise<void> {
@@ -1448,6 +1806,36 @@ export class HiringReportComponent implements OnInit {
         icon: 'error',
         title: 'Error',
         text: 'Por favor, complete el formulario correctamente.',
+        confirmButtonText: 'Aceptar',
+        heightAuto: false,
+      });
+      return;
+    }
+
+    // ✅ Validación final de nombres antes de enviar al backend + renombrado
+    const isPdfName = (name: string) => (name ?? '').toLowerCase().trim().endsWith('.pdf');
+    const isBlocked = (name: string) => this.BLOCKED_FILES.has((name ?? '').trim().toLowerCase());
+
+    const cedulasChecked = !!this.reporteForm.get('cedulasEscaneadas')?.value;
+    const trasladosChecked = !!this.reporteForm.get('traslados')?.value;
+
+    const cedulasRaw = (this.filesToUpload.cedulasEscaneadas ?? []).filter(
+      (f) => f && !isBlocked(f.name) && isPdfName(f.name),
+    );
+    const trasladosRaw = (this.filesToUpload.traslados ?? []).filter(
+      (f) => f && !isBlocked(f.name) && isPdfName(f.name),
+    );
+
+    const cedPrep = cedulasChecked ? this.prepareCedulasFilesForBackend(cedulasRaw) : { files: [], errors: [] };
+    const traPrep = trasladosChecked ? this.prepareTrasladosFilesForBackend(trasladosRaw) : { files: [], errors: [] };
+
+    const nameErrors = [...cedPrep.errors, ...traPrep.errors];
+    if (nameErrors.length) {
+      this.erroresValidacion.data = nameErrors;
+      await Swal.fire({
+        icon: 'error',
+        title: 'Archivos con formato inválido',
+        text: 'Revisa la tabla de errores y renombra los PDFs antes de enviar.',
         confirmButtonText: 'Aceptar',
         heightAuto: false,
       });
