@@ -1,178 +1,216 @@
-<mat-card>
-  <mat-card-content>
-    <div class="page-header">
-      <h1 class="title">Subir Documentación</h1>
+<div class="upload-page-container">
 
-      <span class="spacer"></span>
-
-      <button mat-icon-button [matMenuTriggerFor]="accionesMenu" aria-label="Acciones">
-        <mat-icon>more_vert</mat-icon>
-      </button>
-
-      <mat-menu #accionesMenu="matMenu">
-        <button mat-menu-item (click)="onClickSubidaMasiva()">
-          <mat-icon>cloud_upload</mat-icon>
-          <span>Subir masivamente documentación</span>
-        </button>
-      </mat-menu>
-
-      <!-- file input oculto -->
-      <input type="file" #zipInput accept=".zip" (change)="onZipSelected($event)" hidden />
+  <!-- Header & Wizard -->
+  <div class="page-header">
+    <div class="header-text">
+      <h1>Carga de Documentos</h1>
+      <p>Sube y gestiona la documentación de candidatos.</p>
     </div>
 
-    <form [formGroup]="formDoc" (ngSubmit)="onSubmit()">
-      <!-- Selección múltiple de tipo documental -->
-      <mat-form-field class="w-100">
-        <mat-label>Tipo documental</mat-label>
+    <div class="wizard-steps">
+      @for (step of steps; track step.num) {
+      <div class="step-item" [class.active]="step.num === currentStep" [class.completed]="step.num < currentStep">
+        <div class="step-circle">
+          @if (step.num < currentStep) { <mat-icon>check</mat-icon> }
+            @else { {{ step.num }} }
+        </div>
+        <span class="step-label">{{ step.label }}</span>
+        @if ($index < steps.length - 1) { <div class="step-line">
+      </div> }
+    </div>
+    }
+  </div>
+</div>
 
-        <mat-select formControlName="tipo_documental" multiple>
-          <mat-optgroup *ngFor="let grupo of gruposHojas" [label]="grupo.padre">
-            <mat-option *ngFor="let hoja of grupo.hijos" [value]="hoja.id">
-              {{ hoja.name }}
-            </mat-option>
-          </mat-optgroup>
-        </mat-select>
+<div class="upload-content-wrapper">
 
-        <mat-hint>Selecciona uno o varios tipos.</mat-hint>
-        <mat-error
-          *ngIf="
-            formDoc.get('tipo_documental')?.hasError('required') &&
-            formDoc.get('tipo_documental')?.touched
-          "
-        >
-          Selecciona al menos un tipo documental.
-        </mat-error>
-      </mat-form-field>
+  <!-- STEP 1: Upload -->
+  @if (currentStep === 1) {
+  <div class="step-upload fade-in">
+    <div class="dropzone" [class.drag-over]="dragOver" (dragover)="onDragOver($event)" (dragleave)="onDragLeave($event)"
+      (drop)="onDrop($event)">
 
-      <!-- Campos generales -->
-      <div class="form-row">
-        <mat-form-field class="w-100">
-          <mat-label>Número de documento</mat-label>
-          <input matInput formControlName="numero_documento" />
-          <mat-error
-            *ngIf="
-              formDoc.get('numero_documento')?.hasError('required') &&
-              formDoc.get('numero_documento')?.touched
-            "
-          >
-            El número de documento es obligatorio.
-          </mat-error>
-        </mat-form-field>
+      <mat-icon class="cloud-icon">cloud_upload</mat-icon>
+      <h2>Arrastra tus archivos PDF aquí</h2>
+      <p>o selecciona desde tu ordenador</p>
 
-        <mat-form-field class="w-100">
-          <mat-label>Código de contrato</mat-label>
-          <input matInput formControlName="codigo_contrato" />
+      <button mat-flat-button color="primary" (click)="fileInput.click()">
+        <mat-icon>add</mat-icon> Seleccionar Archivos
+      </button>
+      <input #fileInput type="file" multiple accept=".pdf" hidden (change)="onFileSelected($event)">
 
-          <mat-hint *ngIf="!formDoc.get('codigo_contrato')?.hasError('required')">
-            Solo se exige si alguno de los tipos lo requiere.
-          </mat-hint>
-
-          <mat-error
-            *ngIf="
-              formDoc.get('codigo_contrato')?.hasError('required') &&
-              formDoc.get('codigo_contrato')?.touched
-            "
-          >
-            El código de contrato es obligatorio para al menos uno de los seleccionados.
-          </mat-error>
-        </mat-form-field>
+      <div class="drop-footer">
+        <span>Máximo 10MB por archivo</span>
+        <span>•</span>
+        <span>Solo PDF</span>
       </div>
+    </div>
 
-      <div class="actions">
-        <button mat-flat-button color="primary" type="submit" [disabled]="formDoc.invalid">
-          <mat-icon>save</mat-icon>
-          Guardar Documentación
-        </button>
-      </div>
+    <div class="bulk-zip-action">
+      <button mat-stroked-button (click)="onClickSubidaMasiva()">
+        <mat-icon>folder_zip</mat-icon> Carga Masiva ZIP
+      </button>
+      <input #zipInput type="file" accept=".zip" hidden (change)="onZipSelected($event)">
+    </div>
+  </div>
+  }
 
-      <!-- Panel principal -->
-      <div class="documentos-panel">
-        <!-- Sidebar izquierda -->
-        <div class="documentos-sidebar" formArrayName="documentos" *ngIf="documentosArray as docs">
-          <div
-            class="upload-item"
-            *ngFor="let docCtrl of docs.controls; let i = index; trackBy: trackByIndex"
-            [formGroupName]="i"
-          >
-            <!-- ✅ Lee el tipoId desde el control (más estable que docCtrl.value) -->
-            <ng-container *ngIf="docCtrl.controls.tipoId.value as tipoId">
-              <div [class.selected]="selectedDocId === tipoId">
-                <mat-form-field appearance="fill" class="w-100">
-                  <mat-label>{{ hojasPorId[tipoId]?.name }}</mat-label>
+  <!-- STEP 2: Review & Metadata -->
+  @if (currentStep === 2) {
+  <div class="step-review fade-in">
 
-                  <!-- ✅ nombre del archivo (acceso seguro) -->
-                  <input
-                    matInput
-                    [value]="uploadedFiles[tipoId]?.fileName ?? 'Selecciona un PDF...'"
-                    readonly
-                    class="clickable"
-                    (click)="uploadedFiles[tipoId] && selectPreview(tipoId)"
-                  />
+    <!-- Sidebar Metadata -->
+    <div class="metadata-sidebar">
+      <mat-card>
+        <mat-card-header>
+          <mat-card-title>Edición Masiva</mat-card-title>
+        </mat-card-header>
+        <mat-card-content>
+          <form [formGroup]="bulkEditForm" class="bulk-form">
+            <mat-form-field appearance="outline" class="w-100">
+              <mat-label>Tipo Documental</mat-label>
+              <mat-select formControlName="tipoId">
+                <mat-option [value]="null">-- No cambiar --</mat-option>
+                @for (grupo of gruposHojas; track grupo.padre) {
+                <mat-optgroup [label]="grupo.padre">
+                  @for (h of grupo.hijos; track h.id) {
+                  <mat-option [value]="h.id">{{ h.name }}</mat-option>
+                  }
+                </mat-optgroup>
+                }
+              </mat-select>
+            </mat-form-field>
 
-                  <button
-                    mat-icon-button
-                    matSuffix
-                    [matMenuTriggerFor]="menu"
-                    aria-label="Opciones de PDF"
-                    type="button"
-                    (click)="$event.stopPropagation()"
-                  >
-                    <mat-icon>more_vert</mat-icon>
-                  </button>
+            <mat-form-field appearance="outline" class="w-100">
+              <mat-label>Código Contrato (Opcional)</mat-label>
+              <input matInput formControlName="contractCode" placeholder="Ej. CT-2024-001">
+            </mat-form-field>
 
-                  <mat-error *ngIf="docCtrl.get('archivo')?.invalid && docCtrl.get('archivo')?.touched">
-                    Debes cargar un PDF válido para este tipo.
-                  </mat-error>
-                </mat-form-field>
+            <button mat-stroked-button color="primary" class="w-100" (click)="applyBulkMetadata()">
+              Aplicar a Seleccionados
+            </button>
+          </form>
 
-                <!-- Menú de acciones -->
-                <mat-menu #menu="matMenu">
-                  <button
-                    mat-menu-item
-                    type="button"
-                    (click)="selectPreview(tipoId)"
-                    [disabled]="!uploadedFiles[tipoId]"
-                  >
-                    Ver PDF aquí
-                  </button>
+          <mat-divider></mat-divider>
 
-                  <button mat-menu-item type="button">
-                    <label [for]="'fileInput' + tipoId" class="cursor-pointer">
-                      Subir PDF
-                      <input
-                        type="file"
-                        accept="application/pdf"
-                        [id]="'fileInput' + tipoId"
-                        hidden
-                        (change)="subirArchivo($event, tipoId)"
-                      />
-                    </label>
-                  </button>
-                </mat-menu>
-              </div>
-            </ng-container>
+          <div class="doc-form-main">
+            <h3>Datos Globales</h3>
+            <mat-form-field appearance="outline" class="w-100">
+              <mat-label>Número de Documento</mat-label>
+              <input matInput [formControl]="numeroDocumentoControl" placeholder="Cédula del candidato">
+              <mat-error *ngIf="numeroDocumentoControl.invalid">Requerido</mat-error>
+            </mat-form-field>
           </div>
 
-          <!-- Mensaje si no hay tipos seleccionados -->
-          <div class="empty-hint" *ngIf="docs.length === 0">
-            Selecciona al menos un tipo documental para comenzar a adjuntar archivos.
-          </div>
+        </mat-card-content>
+        <mat-card-actions align="end" class="sidebar-actions">
+          <button mat-button color="warn" (click)="currentStep = 1">Atrás</button>
+          <button mat-raised-button color="primary" [disabled]="!canUpload" (click)="startUpload()">
+            <mat-icon>upload</mat-icon> Iniciar Carga
+          </button>
+        </mat-card-actions>
+      </mat-card>
+    </div>
+
+    <!-- File Queue -->
+    <div class="queue-container">
+      <div class="queue-header">
+        <h3>Archivos en Cola ({{ fileQueue.length }})</h3>
+        <div class="queue-actions">
+          <mat-checkbox [checked]="allSelected" (change)="toggleSelectAll()">Seleccionar Todo</mat-checkbox>
+          <button mat-button color="warn" (click)="fileQueue = []; currentStep = 1">Limpiar Todo</button>
+        </div>
+      </div>
+
+      <div class="queue-list">
+        <!-- Table Header (Desktop) -->
+        <div class="q-header-row">
+          <div class="col-check"></div>
+          <div class="col-name">Nombre</div>
+          <div class="col-type">Tipo Documental</div>
+          <div class="col-status">Estado</div>
+          <div class="col-actions"></div>
         </div>
 
-        <!-- Panel de previsualización -->
-        <div class="documento-preview-container" *ngIf="selectedPdfUrl; else noPreview">
-          <object [data]="selectedPdfUrl" type="application/pdf" width="100%" height="100%" class="pdf-object">
-            <span>El PDF no se puede previsualizar en tu navegador.</span>
-          </object>
-        </div>
-
-        <ng-template #noPreview>
-          <div class="documento-preview-placeholder">
-            <mat-icon>picture_as_pdf</mat-icon>
-            <p>Selecciona un documento para previsualizarlo aquí.</p>
+        @for (item of fileQueue; track item.id) {
+        <div class="q-row" [class.selected]="item.selected">
+          <div class="col-check">
+            <mat-checkbox [(ngModel)]="item.selected"></mat-checkbox>
           </div>
-        </ng-template>
+          <div class="col-name" [matTooltip]="item.name">
+            <mat-icon class="pdf-icon">picture_as_pdf</mat-icon>
+            <span>{{ item.name }}</span>
+            <small>{{ (item.size / 1024 / 1024) | number:'1.2-2' }} MB</small>
+          </div>
+          <div class="col-type">
+            <mat-form-field appearance="outline" density="compact" class="no-subscript">
+              <mat-select [(ngModel)]="item.typeId" placeholder="Seleccionar tipo">
+                @for (grupo of gruposHojas; track grupo.padre) {
+                <mat-optgroup [label]="grupo.padre">
+                  @for (h of grupo.hijos; track h.id) {
+                  <mat-option [value]="h.id">{{ h.name }}</mat-option>
+                  }
+                </mat-optgroup>
+                }
+              </mat-select>
+            </mat-form-field>
+          </div>
+          <div class="col-status">
+            @if (item.status === 'pending') {
+            <span class="badge pending">Pendiente</span>
+            } @else if (item.status === 'success') {
+            <span class="badge success">Subido</span>
+            } @else if (item.status === 'error') {
+            <span class="badge error" [matTooltip]="item.errorMessage || ''">Error</span>
+            }
+          </div>
+          <div class="col-actions">
+            <button mat-icon-button color="warn" (click)="removeFromQueue(item)">
+              <mat-icon>delete</mat-icon>
+            </button>
+          </div>
+        </div>
+        }
       </div>
-    </form>
-  </mat-card-content>
-</mat-card>
+    </div>
+  </div>
+  }
+
+  <!-- STEP 3: Result -->
+  @if (currentStep === 3) {
+  <div class="step-result fade-in">
+    <div class="result-card">
+      <h2>Procesando Carga</h2>
+
+      <div class="progress-section">
+        <mat-progress-bar mode="determinate" [value]="overallProgress"></mat-progress-bar>
+        <span>{{ overallProgress | number:'1.0-0' }}%</span>
+      </div>
+
+      <div class="stats-grid">
+        <div class="stat-item">
+          <div class="val">{{ uploadSummary.total }}</div>
+          <div class="label">Total</div>
+        </div>
+        <div class="stat-item success">
+          <div class="val">{{ uploadSummary.success }}</div>
+          <div class="label">Exitosos</div>
+        </div>
+        <div class="stat-item error">
+          <div class="val">{{ uploadSummary.error }}</div>
+          <div class="label">Fallidos</div>
+        </div>
+      </div>
+
+      @if (!isUploading) {
+      <div class="final-actions">
+        <button mat-stroked-button (click)="currentStep = 1; fileQueue = []">Subir Más</button>
+        <!-- Add detailed report link if needed -->
+      </div>
+      }
+    </div>
+  </div>
+  }
+
+</div>
+</div>
