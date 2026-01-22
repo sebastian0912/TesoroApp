@@ -28,6 +28,17 @@ interface ConteoEstados {
   ingreso: number;
   total_con_su_ultimo_registro: number;
 }
+type AuxilioTransporte = 'Si' | 'No';
+
+interface OficinaPayload {
+  nombre: string;
+  ruta: boolean;
+}
+
+interface DistPayload {
+  municipio: string;
+  cantidad: number;
+}
 
 @Component({
   selector: 'app-vacantes',
@@ -233,65 +244,150 @@ export class VacantesComponent implements OnInit {
   }
 
   // ================== Acciones ==================
-  openModalEdit(vacante?: any): void {
-    const dialogRef = this.dialog.open(CrearEditarVacanteComponent, {
-      width: '95vw',
-      maxWidth: '95vw',
-      data: vacante || null
-    });
+openModalEdit(vacante?: any): void {
+  const dialogRef = this.dialog.open(CrearEditarVacanteComponent, {
+    width: '95vw',
+    maxWidth: '95vw',
+    data: vacante ?? null,
+  });
 
-    dialogRef.afterClosed().subscribe(result => {
-      if (!result) return;
+  dialogRef.afterClosed().subscribe((result: any) => {
+    if (!result) return;
 
-      const isPrueba = result.pruebaOContratacion === 'Prueba';
+    const t = (v: unknown): string => (v ?? '').toString().trim();
+    const n = (v: unknown): number => Number(v);
 
-      const payload = {
-        cargo: result.cargo?.trim() || null,
-        temporal: result.temporal?.trim() || null,
-        area: result.area || null,
-        empresaUsuariaSolicita: result.empresaUsuariaSolicita?.trim() || null,
-        finca: result.finca?.trim() || null,
-        direccion: result.direccion?.trim() || null,
+    const id: number | string | null = vacante?.id ?? null;
+    if (!id) {
+      Swal.fire('Error', 'No se encontró el ID de la vacante para actualizar.', 'error');
+      return;
+    }
 
-        experiencia: result.experiencia?.trim() || null,
-        descripcion: result.descripcion?.trim() || null,
-        salario: this.parseCurrency(result.salario),
-        codigoElite: result.codigoElite?.trim() || null,
-        observacion: result.observacionVacante?.trim() || null,
+    const missing: string[] = [];
 
-        pruebaOContratacion: isPrueba ? 'Prueba' : 'Contratación',
-        fechadePruebatecnica: isPrueba ? this.formatDate(result.fechadePruebatecnica) : null,
-        horadePruebatecnica: isPrueba ? (result.horadePruebatecnica || null) : null,
-        fechadeIngreso: this.formatDate(result.fechadeIngreso) || null,
+    // Requeridos
+    if (!t(result.cargo)) missing.push('Cargo');
+    if (!t(result.finca)) missing.push('Centro de costo');
+    if (!t(result.direccion)) missing.push('Dirección');
+    if (!t(result.empresaUsuariaSolicita)) missing.push('Empresa usuaria');
+    if (!t(result.temporal)) missing.push('Temporal');
+    if (!t(result.area)) missing.push('Área');
+    if (!t(result.experiencia)) missing.push('Experiencia');
+    if (!t(result.descripcion)) missing.push('Descripción');
+    if (!t(result.tipoContratacion)) missing.push('Tipo de contratación');
+    if (!t(result.pruebaOContratacion)) missing.push('Prueba o Contratación');
 
-        fechaPublicado: result.fechaPublicado || new Date().toISOString(),
-        quienpublicolavacante: result.quienpublicolavacante || 'Sistema',
-        estadovacante: result.estadovacante || 'Activa',
+    const total: number = Math.trunc(n(result.personasSolicitadas));
+    if (!(total >= 1)) missing.push('Personas solicitadas (mínimo 1)');
 
-        personasSolicitadas: Number(result.personasSolicitadas) || 0,
-        municipiosDistribucion: this.mapMunicipiosDistribucion(result.municipiosDistribucion),
+    const aux: AuxilioTransporte | '' = (t(result.auxilioTransporte) as AuxilioTransporte | '');
+    if (!(aux === 'Si' || aux === 'No')) missing.push('Auxilio Transporte (Si/No)');
 
-        oficinasQueContratan: (result.oficinasQueContratan || []).map((o: any) => ({
-          nombre: o?.nombre?.trim() || '',
-          ruta: !!o?.ruta,
-        })),
+    const municipios: string[] = Array.isArray(result.municipio)
+      ? (result.municipio as unknown[]).map((m: unknown) => t(m)).filter((s: string) => !!s)
+      : [];
+    if (!municipios.length) missing.push('Municipio(s)');
 
-        tipoContratacion: result.tipoContratacion?.trim() || null,
-        municipio: Array.isArray(result.municipio) ? result.municipio : [],
-        auxilioTransporte: result.auxilioTransporte,
-      };
+    // Condicionales
+    const isPrueba: boolean = t(result.pruebaOContratacion) === 'Prueba';
+    if (isPrueba) {
+      if (!result.fechadePruebatecnica) missing.push('Fecha de Prueba Técnica');
+      if (!t(result.horadePruebatecnica)) missing.push('Hora de Prueba Técnica');
+    }
 
-      this.vacantesService.actualizarVacante(vacante?.id, payload).subscribe({
-        next: () => {
-          this.loadData();
-          Swal.fire('¡Vacante actualizada!', 'Los datos se guardaron correctamente', 'success');
-        },
-        error: (error: any) => {
-          Swal.fire('Error al guardar', error?.message || 'Error desconocido al actualizar la vacante', 'error');
-        }
+    const tieneIngreso: string = t(result.tieneFechaIngreso);
+    if (tieneIngreso === 'Si') {
+      if (!result.fechadeIngreso) missing.push('Fecha de Ingreso');
+    }
+
+    // Oficinas
+    const oficinasRaw: unknown[] = Array.isArray(result.oficinasQueContratan) ? (result.oficinasQueContratan as unknown[]) : [];
+    if (!oficinasRaw.length) missing.push('Oficinas que contratan');
+
+    const oficinasLimpias: OficinaPayload[] = oficinasRaw
+      .map((o: any): OficinaPayload => ({ nombre: t(o?.nombre), ruta: !!o?.ruta }))
+      .filter((o: OficinaPayload) => !!o.nombre);
+
+    if (!oficinasLimpias.length) missing.push('Nombre de oficina (vacío)');
+
+    // Distribución
+    const distRaw: unknown[] = Array.isArray(result.municipiosDistribucion) ? (result.municipiosDistribucion as unknown[]) : [];
+
+    const distClean: DistPayload[] = distRaw
+      .map((d: any): DistPayload => ({
+        municipio: t(d?.municipio),
+        cantidad: Math.trunc(n(d?.cantidad)),
+      }))
+      .filter((d: DistPayload) => !!d.municipio && Number.isFinite(d.cantidad) && d.cantidad >= 0);
+
+    const sumaDist: number = distClean.reduce((acc: number, d: DistPayload) => acc + (d.cantidad || 0), 0);
+    if (sumaDist > total) missing.push(`Distribución: suma ${sumaDist} supera total ${total}`);
+
+    const distSet = new Set(distClean.map((d: DistPayload) => d.municipio));
+    const faltanFilas: string[] = municipios.filter((m: string) => !distSet.has(m));
+    if (faltanFilas.length) {
+      missing.push(
+        `Distribución: faltan municipios (${faltanFilas.slice(0, 6).join(', ')}${faltanFilas.length > 6 ? '...' : ''})`
+      );
+    }
+
+    if (missing.length) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'Faltan campos / hay inconsistencias',
+        html: `<ul style="text-align:left; margin:0; padding-left:18px;">
+                ${Array.from(new Set(missing)).map((m: string) => `<li>${m}</li>`).join('')}
+              </ul>`,
       });
+      return;
+    }
+
+    const payload = {
+      cargo: t(result.cargo) || null,
+      temporal: t(result.temporal) || null,
+      area: t(result.area) || null,
+      empresaUsuariaSolicita: t(result.empresaUsuariaSolicita) || null,
+      finca: t(result.finca) || null,
+      direccion: t(result.direccion) || null,
+
+      experiencia: t(result.experiencia) || null,
+      descripcion: t(result.descripcion) || null,
+      salario: this.parseCurrency(result.salario),
+      codigoElite: t(result.codigoElite) || null,
+      observacion: t(result.observacionVacante) || null,
+
+      pruebaOContratacion: isPrueba ? 'Prueba' : 'Contratación',
+      fechadePruebatecnica: isPrueba ? this.formatDate(result.fechadePruebatecnica) : null,
+      horadePruebatecnica: isPrueba ? (t(result.horadePruebatecnica) || null) : null,
+      fechadeIngreso: tieneIngreso === 'Si' ? (this.formatDate(result.fechadeIngreso) || null) : null,
+
+      fechaPublicado: result.fechaPublicado || new Date().toISOString(),
+      quienpublicolavacante: t(result.quienpublicolavacante) || 'Sistema',
+      estadovacante: t(result.estadovacante) || 'Activa',
+
+      personasSolicitadas: total,
+      municipiosDistribucion: distClean,
+
+      oficinasQueContratan: oficinasLimpias,
+
+      tipoContratacion: t(result.tipoContratacion) || null,
+      municipio: municipios,
+      auxilioTransporte: aux,
+    };
+
+    this.vacantesService.actualizarVacante(id, payload).subscribe({
+      next: () => {
+        this.loadData();
+        Swal.fire('¡Vacante actualizada!', 'Los datos se guardaron correctamente', 'success');
+      },
+      error: (error: any) => {
+        Swal.fire('Error al guardar', error?.message || 'Error desconocido al actualizar la vacante', 'error');
+      },
     });
-  }
+  });
+}
+
+
 
   eliminarVacante(vacante: any): void {
     Swal.fire({
@@ -315,68 +411,146 @@ export class VacantesComponent implements OnInit {
     });
   }
 
-  openModal(vacante?: any): void {
-    const dialogRef = this.dialog.open(CrearEditarVacanteComponent, {
-      width: '95vw',
-      maxWidth: '95vw',
-      data: vacante ? vacante : null
-    });
+openModal(vacante?: any): void {
+  const dialogRef = this.dialog.open(CrearEditarVacanteComponent, {
+    width: '95vw',
+    maxWidth: '95vw',
+    data: vacante ?? null,
+  });
 
-    dialogRef.afterClosed().subscribe(result => {
-      if (!result) return;
+  dialogRef.afterClosed().subscribe((result: any) => {
+    if (!result) return;
 
-      const isPrueba = result.pruebaOContratacion === 'Prueba';
-      const oficinas = Array.isArray(result.oficinasQueContratan) ? result.oficinasQueContratan : [];
+    const t = (v: unknown): string => (v ?? '').toString().trim();
+    const n = (v: unknown): number => Number(v);
 
-      const payload = {
-        cargo: result.cargo?.trim() || null,
-        area: result.area || null,
-        empresaUsuariaSolicita: result.empresaUsuariaSolicita?.trim() || null,
-        finca: result.finca?.trim() || null,
-        ubicacionPruebaTecnica: result.ubicacionPruebaTecnica?.trim() || null,
-        experiencia: result.experiencia?.trim() || null,
-        direccion: result.direccion?.trim() || null,
+    const missing: string[] = [];
 
-        fechadePruebatecnica: isPrueba ? this.formatDate(result.fechadePruebatecnica) : null,
-        horadePruebatecnica: isPrueba ? (result.horadePruebatecnica || null) : null,
-        fechadeIngreso: this.formatDate(result.fechadeIngreso) || null,
-        pruebaOContratacion: isPrueba ? 'Prueba' : 'Contratación',
+    // Requeridos
+    if (!t(result.cargo)) missing.push('Cargo');
+    if (!t(result.finca)) missing.push('Centro de costo');
+    if (!t(result.direccion)) missing.push('Dirección');
+    if (!t(result.empresaUsuariaSolicita)) missing.push('Empresa usuaria');
+    if (!t(result.temporal)) missing.push('Temporal');
+    if (!t(result.area)) missing.push('Área');
+    if (!t(result.experiencia)) missing.push('Experiencia');
+    if (!t(result.descripcion)) missing.push('Descripción');
+    if (!t(result.tipoContratacion)) missing.push('Tipo de contratación');
+    if (!t(result.pruebaOContratacion)) missing.push('Prueba o Contratación');
 
-        observacion: result.observacionVacante?.trim() || null,
-        temporal: result.temporal?.trim() || null,
-        descripcion: result.descripcion?.trim() || null,
-        fechaPublicado: this.formatDate(new Date()),
-        quienpublicolavacante: result.quienpublicolavacante?.trim() || 'Usuario Logueado',
-        estadovacante: result.estadovacante?.trim() || 'Activa',
-        salario: this.parseCurrency(result.salario),
-        codigoElite: result.codigoElite?.trim() || null,
+    const total: number = Math.trunc(n(result.personasSolicitadas));
+    if (!(total >= 1)) missing.push('Personas solicitadas (mínimo 1)');
 
-        personasSolicitadas: Number(result.personasSolicitadas) || 0,
-        municipiosDistribucion: this.mapMunicipiosDistribucion(result.municipiosDistribucion),
+    const aux: AuxilioTransporte | '' = (t(result.auxilioTransporte) as AuxilioTransporte | '');
+    if (!(aux === 'Si' || aux === 'No')) missing.push('Auxilio Transporte (Si/No)');
 
-        oficinasQueContratan: oficinas.map((oficina: any) => ({
-          nombre: oficina?.nombre?.trim() || '',
-          ruta: !!oficina?.ruta
-        })),
+    const municipios: string[] = Array.isArray(result.municipio)
+      ? (result.municipio as unknown[]).map((m: unknown) => t(m)).filter((s: string) => !!s)
+      : [];
+    if (!municipios.length) missing.push('Municipio(s)');
 
-        tipoContratacion: result.tipoContratacion?.trim() || null,
-        municipio: Array.isArray(result.municipio) ? result.municipio : [],
-        auxilioTransporte: result.auxilioTransporte,
-      };
+    // Condicionales
+    const isPrueba: boolean = t(result.pruebaOContratacion) === 'Prueba';
+    if (isPrueba) {
+      if (!result.fechadePruebatecnica) missing.push('Fecha de Prueba Técnica');
+      if (!t(result.horadePruebatecnica)) missing.push('Hora de Prueba Técnica');
+    }
 
-      this.vacantesService.enviarVacante(payload).subscribe({
-        next: () => {
-          this.loadData();
-          Swal.fire('¡Éxito!', 'La vacante ha sido enviada correctamente', 'success');
-        },
-        error: (error) => {
-          Swal.fire('Error', `Problema al enviar la vacante: ${error?.message || 'Error desconocido'}`, 'error');
-        }
+    const tieneIngreso: string = t(result.tieneFechaIngreso);
+    if (tieneIngreso === 'Si') {
+      if (!result.fechadeIngreso) missing.push('Fecha de Ingreso');
+    }
+
+    // Oficinas
+    const oficinasRaw: unknown[] = Array.isArray(result.oficinasQueContratan) ? (result.oficinasQueContratan as unknown[]) : [];
+    if (!oficinasRaw.length) missing.push('Oficinas que contratan');
+
+    const oficinasLimpias: OficinaPayload[] = oficinasRaw
+      .map((o: any): OficinaPayload => ({ nombre: t(o?.nombre), ruta: !!o?.ruta }))
+      .filter((o: OficinaPayload) => !!o.nombre);
+
+    if (!oficinasLimpias.length) missing.push('Nombre de oficina (vacío)');
+
+    // Distribución
+    const distRaw: unknown[] = Array.isArray(result.municipiosDistribucion) ? (result.municipiosDistribucion as unknown[]) : [];
+
+    const distClean: DistPayload[] = distRaw
+      .map((d: any): DistPayload => ({
+        municipio: t(d?.municipio),
+        cantidad: Math.trunc(n(d?.cantidad)),
+      }))
+      .filter((d: DistPayload) => !!d.municipio && Number.isFinite(d.cantidad) && d.cantidad >= 0);
+
+    const sumaDist: number = distClean.reduce((acc: number, d: DistPayload) => acc + (d.cantidad || 0), 0);
+    if (sumaDist > total) missing.push(`Distribución: suma ${sumaDist} supera total ${total}`);
+
+    const distSet = new Set(distClean.map((d: DistPayload) => d.municipio));
+    const faltanFilas: string[] = municipios.filter((m: string) => !distSet.has(m));
+    if (faltanFilas.length) {
+      missing.push(
+        `Distribución: faltan municipios (${faltanFilas.slice(0, 6).join(', ')}${faltanFilas.length > 6 ? '...' : ''})`
+      );
+    }
+
+    if (missing.length) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'Faltan campos / hay inconsistencias',
+        html: `<ul style="text-align:left; margin:0; padding-left:18px;">
+                ${Array.from(new Set(missing)).map((m: string) => `<li>${m}</li>`).join('')}
+              </ul>`,
       });
-    });
-  }
+      return;
+    }
 
-    formatDate(date: Date | string | null): string | null {
+    const payload = {
+      cargo: t(result.cargo) || null,
+      area: t(result.area) || null,
+      empresaUsuariaSolicita: t(result.empresaUsuariaSolicita) || null,
+      finca: t(result.finca) || null,
+      ubicacionPruebaTecnica: isPrueba ? (t(result.ubicacionPruebaTecnica) || null) : null,
+      experiencia: t(result.experiencia) || null,
+      direccion: t(result.direccion) || null,
+
+      fechadePruebatecnica: isPrueba ? this.formatDate(result.fechadePruebatecnica) : null,
+      horadePruebatecnica: isPrueba ? (t(result.horadePruebatecnica) || null) : null,
+      fechadeIngreso: tieneIngreso === 'Si' ? (this.formatDate(result.fechadeIngreso) || null) : null,
+      pruebaOContratacion: isPrueba ? 'Prueba' : 'Contratación',
+
+      observacion: t(result.observacionVacante) || null,
+      temporal: t(result.temporal) || null,
+      descripcion: t(result.descripcion) || null,
+      fechaPublicado: this.formatDate(new Date()),
+      quienpublicolavacante: t(result.quienpublicolavacante) || 'Usuario Logueado',
+      estadovacante: t(result.estadovacante) || 'Activa',
+      salario: this.parseCurrency(result.salario),
+      codigoElite: t(result.codigoElite) || null,
+
+      personasSolicitadas: total,
+      municipiosDistribucion: distClean,
+
+      oficinasQueContratan: oficinasLimpias,
+
+      tipoContratacion: t(result.tipoContratacion) || null,
+      municipio: municipios,
+      auxilioTransporte: aux,
+    };
+
+    this.vacantesService.enviarVacante(payload).subscribe({
+      next: () => {
+        this.loadData();
+        Swal.fire('¡Éxito!', 'La vacante ha sido enviada correctamente', 'success');
+      },
+      error: (error: any) => {
+        Swal.fire('Error', `Problema al enviar la vacante: ${error?.message || 'Error desconocido'}`, 'error');
+      },
+    });
+  });
+}
+
+
+
+  formatDate(date: Date | string | null): string | null {
     if (!date) return null;
     const d = new Date(date);
     const day = d.getDate().toString().padStart(2, '0');

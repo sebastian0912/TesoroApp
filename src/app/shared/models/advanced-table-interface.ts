@@ -1,4 +1,4 @@
-export type ColumnType = 'select' | 'text' | 'date' | 'actions';
+export type ColumnType = 'select' | 'text' | 'date' | 'actions' | 'number' | 'status' | 'custom';
 
 export interface ColumnConfig {
   columnDef: string;
@@ -37,7 +37,10 @@ export interface ActiveFilter {
   header: string;
   type: ColumnDefinition['type'] | 'date';
   value: any;
+  operator?: FilterOperator; // Nuevo: para mostrar "Contiene: X" o ">= X"
 }
+
+export type FilterOperator = 'contains' | 'equals' | 'startsWith' | 'range' | 'gte' | 'lte' | 'in';
 
 export interface DynamicTableColumn {
   key: string;   // nombre de la propiedad en el row

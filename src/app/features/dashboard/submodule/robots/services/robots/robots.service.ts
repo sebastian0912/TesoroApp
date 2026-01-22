@@ -1,6 +1,6 @@
 import { Inject, Injectable, PLATFORM_ID } from '@angular/core';
 import { isPlatformBrowser } from '@angular/common';
-import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
+import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable, throwError, firstValueFrom } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 import { environment } from '@/environments/environment.development';
@@ -57,6 +57,95 @@ export interface PendientesPorOficinaResponse {
   generated_at: string;
 }
 
+// ----------------------------
+// ✅ Stats /EstadosRobots/stats/
+// ----------------------------
+export type StatsGroup = 'day' | 'week' | 'month';
+
+export interface EstadoRobotStatsPoint {
+  period: string;
+  registered: number;
+  finalized: number;
+}
+
+export interface EstadoRobotStatsResponse {
+  meta: {
+    from: string;
+    to: string;
+    group: StatsGroup;
+    oficina: string | null;
+  };
+  series: EstadoRobotStatsPoint[];
+}
+
+// ----------------------------
+// Robots/full/ (tipado flexible)
+// ----------------------------
+export interface RobotFullRow {
+  oficina?: string;
+
+  Robot?: string;
+  Cedula?: string;
+  Tipo_documento?: string;
+
+  Nombre_Adress?: string | null;
+  Estado_Adress?: string;
+  Apellido_Adress?: string;
+  Entidad_Adress?: string;
+  PDF_Adress?: string | null;
+  Fecha_Adress?: string | null;
+
+  Estado_Policivo?: string;
+  Anotacion_Policivo?: string;
+  PDF_Policivo?: string | null;
+
+  Estado_OFAC?: string;
+  Anotacion_OFAC?: string;
+  PDF_OFAC?: string | null;
+
+  Estado_Contraloria?: string;
+  Anotacion_Contraloria?: string;
+  PDF_Contraloria?: string | null;
+
+  Estado_Sisben?: string;
+  Tipo_Sisben?: string;
+  PDF_Sisben?: string | null;
+  Fecha_Sisben?: string | null;
+
+  Estado_Procuraduria?: string;
+  Anotacion_Procuraduria?: string;
+  PDF_Procuraduria?: string | null;
+
+  Estado_FondoPension?: string;
+  Entidad_FondoPension?: string;
+  PDF_FondoPension?: string | null;
+  Fecha_FondoPension?: string | null;
+
+  Estado_Union?: string;
+  Union_PDF?: string | null;
+  Fecha_UnionPDF?: string | null;
+}
+
+// ----------------------------
+// ✅ NUEVO: /Robots/ultimos/<antecedente>/
+// ----------------------------
+export type AntecedenteKey =
+  | 'adress'
+  | 'policivo'
+  | 'procuraduria'
+  | 'ofac'
+  | 'contraloria'
+  | 'sisben'
+  | 'fondo-pension'
+  | 'union'
+  | 'medidas-correctivas';
+
+export type UltimosPorMarcaTemporalRow = {
+  cedula: string | null;
+  tipo_documento: string | null;
+  marcaTemporal: string | null; // ISO string o null si viene null
+};
+
 @Injectable({ providedIn: 'root' })
 export class RobotsService {
   private readonly isBrowser: boolean;
@@ -95,10 +184,6 @@ export class RobotsService {
     return httpParams;
   }
 
-  private buildHeaders(headers?: Record<string, string>): HttpHeaders {
-    return new HttpHeaders(headers ?? {});
-  }
-
   // ---------------------------------------------------------------------------
   // ✅ 1) GET /EstadosRobots/pendientes/resumen/
   // ---------------------------------------------------------------------------
@@ -109,7 +194,6 @@ export class RobotsService {
     prioridad?: string;
     consulta?: string;
     soloPendientes?: boolean;
-    headers?: Record<string, string>;
   }): Observable<PendientesResumenResponse> {
     this.ensureBrowser();
 
@@ -122,10 +206,9 @@ export class RobotsService {
       consulta: options?.consulta ?? null,
       solo_pendientes: options?.soloPendientes ?? null,
     });
-    const headers = this.buildHeaders(options?.headers);
 
     return this.http
-      .get<PendientesResumenResponse>(url, { params, headers })
+      .get<PendientesResumenResponse>(url, { params })
       .pipe(catchError((e) => this.handleError(e)));
   }
 
@@ -135,7 +218,6 @@ export class RobotsService {
   getPendientesPorOficina(options?: {
     paquete?: string;
     soloPendientes?: boolean;
-    headers?: Record<string, string>;
   }): Observable<PendientesPorOficinaResponse> {
     this.ensureBrowser();
 
@@ -144,10 +226,82 @@ export class RobotsService {
       paquete: options?.paquete ?? null,
       solo_pendientes: options?.soloPendientes ?? null,
     });
-    const headers = this.buildHeaders(options?.headers);
 
     return this.http
-      .get<PendientesPorOficinaResponse>(url, { params, headers })
+      .get<PendientesPorOficinaResponse>(url, { params })
+      .pipe(catchError((e) => this.handleError(e)));
+  }
+
+  // ---------------------------------------------------------------------------
+  // ✅ 3) GET /Robots/full/?cedula=&paquete=
+  // ---------------------------------------------------------------------------
+  getRobotsFull(options?: {
+    cedula?: string;
+    paquete?: string;
+  }): Observable<RobotFullRow[]> {
+    this.ensureBrowser();
+
+    const url = `${this.baseUrl}/Robots/full/`;
+    const params = this.buildParams({
+      cedula: (options?.cedula ?? '').trim() || null,
+      paquete: (options?.paquete ?? '').trim() || null,
+    });
+
+    return this.http
+      .get<RobotFullRow[]>(url, { params })
+      .pipe(catchError((e) => this.handleError(e)));
+  }
+
+  // ---------------------------------------------------------------------------
+  // ✅ 4) GET /EstadosRobots/stats/?from=&to=&group=&oficina=
+  // ---------------------------------------------------------------------------
+  getEstadosRobotStats(options?: {
+    from?: string;
+    to?: string;
+    group?: StatsGroup;
+    oficina?: string | null;
+  }): Observable<EstadoRobotStatsResponse> {
+    this.ensureBrowser();
+
+    const url = `${this.baseUrl}/EstadosRobots/stats/`;
+    const params = this.buildParams({
+      from: options?.from ?? null,
+      to: options?.to ?? null,
+      group: options?.group ?? null,
+      oficina: (options?.oficina ?? '')?.trim() || null,
+    });
+
+    return this.http
+      .get<EstadoRobotStatsResponse>(url, { params })
+      .pipe(catchError((e) => this.handleError(e)));
+  }
+
+  // ---------------------------------------------------------------------------
+  // ✅ 5) NUEVO: GET /Robots/ultimos/<antecedente>/?estado=&limit=
+  // Ejemplos:
+  //   /Robots/ultimos/adress/?limit=50
+  //   /Robots/ultimos/ofac/?estado=SIN_CONSULTAR&limit=50
+  // ---------------------------------------------------------------------------
+  getUltimosPorMarcaTemporal(options: {
+    antecedente: AntecedenteKey;  // 'adress' | 'policivo' | ...
+    estado?: string | null;       // opcional (SIN_CONSULTAR/EN_PROGRESO/FINALIZADO/etc)
+    limit?: number;               // default 50
+  }): Observable<UltimosPorMarcaTemporalRow[]> {
+    this.ensureBrowser();
+
+    const antecedente = String(options?.antecedente ?? '').trim();
+    if (!antecedente) {
+      return throwError(() => new Error('RobotsService: antecedente es obligatorio'));
+    }
+
+    const url = `${this.baseUrl}/Robots/ultimos/${antecedente}/`;
+    const params = this.buildParams({
+      estado: (options?.estado ?? '')?.trim() || null,
+      limit: options?.limit ?? 50,
+    });
+
+    return this.http
+      .get<UltimosPorMarcaTemporalRow[]>(url, { params })
       .pipe(catchError((e) => this.handleError(e)));
   }
 
@@ -168,5 +322,29 @@ export class RobotsService {
     soloPendientes?: boolean;
   }): Promise<PendientesPorOficinaResponse> {
     return firstValueFrom(this.getPendientesPorOficina(options));
+  }
+
+  getRobotsFullOnce(options?: {
+    cedula?: string;
+    paquete?: string;
+  }): Promise<RobotFullRow[]> {
+    return firstValueFrom(this.getRobotsFull(options));
+  }
+
+  getEstadosRobotStatsOnce(options?: {
+    from?: string;
+    to?: string;
+    group?: StatsGroup;
+    oficina?: string | null;
+  }): Promise<EstadoRobotStatsResponse> {
+    return firstValueFrom(this.getEstadosRobotStats(options));
+  }
+
+  getUltimosPorMarcaTemporalOnce(options: {
+    antecedente: AntecedenteKey;
+    estado?: string | null;
+    limit?: number;
+  }): Promise<UltimosPorMarcaTemporalRow[]> {
+    return firstValueFrom(this.getUltimosPorMarcaTemporal(options));
   }
 }

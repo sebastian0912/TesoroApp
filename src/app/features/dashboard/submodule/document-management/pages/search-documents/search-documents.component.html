@@ -1,107 +1,167 @@
-<mat-card>
-  <mat-card-content>
-    <h1 class="title">Buscar Documentación </h1> <br>
-      <form [formGroup]="form" (ngSubmit)="onSubmit()">
-          <!-- Input para la cédula -->
-          <mat-form-field appearance="fill" class="example-full-width">
-              <mat-label>Cédula</mat-label>
-              <input matInput formControlName="cedula" required />
-              <mat-error *ngIf="form.controls['cedula'].hasError('required')">
-                  La cédula es obligatoria
-              </mat-error>
-          </mat-form-field>
+<mat-card class="search-card">
+  <mat-card-content class="search-card__content">
 
-          <mat-form-field appearance="fill" class="example-full-width">
-              <mat-label>Código de contrato</mat-label>
-              <mat-select formControlName="codigoContrato">
-                  <mat-option *ngFor="let codigo of codigosContrato" [value]="codigo">
-                      {{ codigo }}
-                  </mat-option>
-              </mat-select>
-          </mat-form-field>
-
-
-          <!-- Select para el tipo documental -->
-          <mat-form-field appearance="fill" class="example-full-width">
-              <mat-label>Tipo documental</mat-label>
-              <mat-select formControlName="tipoDocumental">
-                  <ng-container *ngFor="let tipo of tiposDocumentales">
-                      <!-- Nivel principal -->
-                      <mat-option [value]="tipo.id" [ngClass]="'nivel-1'">📁 {{ tipo.name }}</mat-option>
-
-                      <!-- Subtipos (recursivo) -->
-                      <ng-container *ngIf="tipo.subtypes?.length">
-                          <ng-container *ngFor="let subtype of tipo.subtypes">
-                              <mat-option [value]="subtype.id" [ngClass]="'nivel-2'">
-                                  &nbsp;&nbsp;📄 {{ subtype.name }}
-                              </mat-option>
-                              <ng-container *ngIf="subtype.subtypes?.length">
-                                  <ng-container *ngFor="let subsubtype of subtype.subtypes">
-                                      <mat-option [value]="subsubtype.id" [ngClass]="'nivel-3'">
-                                          &nbsp;&nbsp;&nbsp;&nbsp;🔖 {{ subsubtype.name }}
-                                      </mat-option>
-                                  </ng-container>
-                              </ng-container>
-                          </ng-container>
-                      </ng-container>
-                  </ng-container>
-              </mat-select>
-          </mat-form-field>
-
-          <!--texto a buscar-->
-          <mat-form-field appearance="fill" class="example-full-width">
-              <mat-label>Texto a buscar</mat-label>
-              <input matInput formControlName="textoBuscar" />
-          </mat-form-field>
-
-
-
-          <button mat-flat-button type="submit">Buscar</button>
-      </form>
-
-      <!-- Contenedor dividido - usando @for -->
-      <div class="split-container">
-          <!-- Panel izquierdo: Listado de documentos clasificados -->
-          <div class="left-panel">
-              <div class="category-group"
-                  *ngFor="let item of documentosPorCategoria; trackBy: trackByCategoria">
-                  <h3 class="category-title">{{ item.categoria }}</h3>
-
-                  <div class="document-item" *ngFor="let doc of item.documentos; trackBy: trackByDocumento">
-                      <div class="document-details">
-                          <!-- Nombre del tipo documental -->
-                          <span class="document-type">{{ obtenerTipoDocumental(doc) }}</span>
-
-                          <!-- Menú de acciones -->
-                          <button mat-icon-button [matMenuTriggerFor]="menu">
-                              <mat-icon>more_vert</mat-icon>
-                          </button>
-                          <mat-menu #menu="matMenu">
-                              <button mat-menu-item (click)="verPDF(doc.file_url)">
-                                  <mat-icon>visibility</mat-icon>
-                                  <span>Ver PDF</span>
-                              </button>
-                          </mat-menu>
-                      </div>
-                  </div>
-              </div>
-          </div>
-
-          <!-- Panel derecho: Vista previa del PDF -->
-          <!-- Panel derecho: Vista previa del PDF -->
-          <div class="right-panel">
-              <iframe #pdfPreview class="pdf-preview" title="Vista previa PDF"></iframe>
-          </div>
-
+    <!-- Header -->
+    <header class="page-header" role="banner">
+      <div class="page-header__left">
+        <h1 class="title">Buscar Documentación</h1>
+        <p class="subtitle">
+          Filtra por cédula, contrato, tipo documental y texto. Selecciona un resultado para previsualizar.
+        </p>
       </div>
 
+      <div class="page-header__right">
+        <button
+          mat-flat-button
+          color="primary"
+          type="button"
+          (click)="onSubmit()"
+          [disabled]="form.invalid">
+          <mat-icon>search</mat-icon>
+          Buscar
+        </button>
+      </div>
+    </header>
 
+    <!-- Form -->
+    <form [formGroup]="form" (ngSubmit)="onSubmit()" class="search-form">
 
+      <section class="form-grid" aria-label="Filtros de búsqueda">
 
+        <mat-form-field appearance="outline" class="w-100">
+          <mat-label>Cédula</mat-label>
+          <input matInput formControlName="cedula" required autocomplete="off" />
+          <mat-error *ngIf="form.controls['cedula'].hasError('required')">
+            La cédula es obligatoria
+          </mat-error>
+        </mat-form-field>
 
+        <mat-form-field appearance="outline" class="w-100">
+          <mat-label>Código de contrato</mat-label>
+          <mat-select formControlName="codigoContrato">
+            <mat-option *ngFor="let codigo of codigosContrato" [value]="codigo">
+              {{ codigo }}
+            </mat-option>
+          </mat-select>
+          <mat-hint>Opcional</mat-hint>
+        </mat-form-field>
 
+        <mat-form-field appearance="outline" class="w-100 grid-span-2">
+          <mat-label>Tipo documental</mat-label>
+          <mat-select formControlName="tipoDocumental">
+            <ng-container *ngFor="let tipo of tiposDocumentales">
+              <mat-option [value]="tipo.id" class="nivel-1">📁 {{ tipo.name }}</mat-option>
 
+              <ng-container *ngIf="tipo.subtypes?.length">
+                <ng-container *ngFor="let subtype of tipo.subtypes">
+                  <mat-option [value]="subtype.id" class="nivel-2">
+                    &nbsp;&nbsp;📄 {{ subtype.name }}
+                  </mat-option>
 
+                  <ng-container *ngIf="subtype.subtypes?.length">
+                    <ng-container *ngFor="let subsubtype of subtype.subtypes">
+                      <mat-option [value]="subsubtype.id" class="nivel-3">
+                        &nbsp;&nbsp;&nbsp;&nbsp;🔖 {{ subsubtype.name }}
+                      </mat-option>
+                    </ng-container>
+                  </ng-container>
 
+                </ng-container>
+              </ng-container>
+            </ng-container>
+          </mat-select>
+          <mat-hint>Opcional</mat-hint>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="w-100 grid-span-2">
+          <mat-label>Texto a buscar</mat-label>
+          <input matInput formControlName="textoBuscar" autocomplete="off" />
+          <mat-hint>Ej: “cédula”, “contrato”, “firma”, “certificado”</mat-hint>
+        </mat-form-field>
+
+      </section>
+
+      <!-- Botón secundario (mobile/teclado) -->
+      <div class="actions">
+        <button
+          mat-flat-button
+          color="primary"
+          type="submit"
+          [disabled]="form.invalid">
+          <mat-icon>search</mat-icon>
+          Buscar
+        </button>
+      </div>
+    </form>
+
+    <!-- Split -->
+    <section class="split-container" aria-label="Resultados y previsualización">
+
+      <!-- Left -->
+      <aside class="left-panel">
+        <div class="left-panel__header">
+          <h3 class="panel-title">Resultados</h3>
+          <p class="panel-subtitle">Organizados por categoría</p>
+        </div>
+
+        <div
+          class="category-group"
+          *ngFor="let item of documentosPorCategoria; trackBy: trackByCategoria">
+
+          <h3 class="category-title">{{ item.categoria }}</h3>
+
+          <div
+            class="document-item"
+            [class.doc-ok]="!!doc?.file_url"
+            [class.doc-missing]="!doc?.file_url"
+            *ngFor="let doc of item.documentos; trackBy: trackByDocumento">
+
+            <div class="document-details">
+              <div class="document-main">
+                <span class="document-type">{{ obtenerTipoDocumental(doc) }}</span>
+              </div>
+
+              <button
+                mat-icon-button
+                class="kebab-btn"
+                [matMenuTriggerFor]="menu"
+                aria-label="Opciones del documento"
+                type="button">
+                <mat-icon>more_vert</mat-icon>
+              </button>
+
+              <mat-menu #menu="matMenu">
+                <button
+                  mat-menu-item
+                  type="button"
+                  (click)="verPDF(doc.file_url)"
+                  [disabled]="!doc?.file_url">
+                  <mat-icon>visibility</mat-icon>
+                  <span>Ver PDF</span>
+                </button>
+              </mat-menu>
+            </div>
+          </div>
+        </div>
+
+        <!-- Empty state -->
+        <div class="empty-hint" *ngIf="!documentosPorCategoria?.length">
+          No hay resultados para los filtros seleccionados.
+        </div>
+      </aside>
+
+      <!-- Right -->
+      <section class="right-panel">
+        <div class="right-panel__header">
+          <h3 class="panel-title">Vista previa</h3>
+          <p class="panel-subtitle">Selecciona un documento para ver el PDF</p>
+        </div>
+
+        <div class="preview-surface">
+          <iframe #pdfPreview class="pdf-preview" title="Vista previa PDF"></iframe>
+        </div>
+      </section>
+
+    </section>
   </mat-card-content>
 </mat-card>

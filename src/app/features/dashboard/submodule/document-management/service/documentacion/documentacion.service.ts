@@ -19,6 +19,26 @@ export class DocumentacionService {
     throw error;
   }
 
+  guardarDocumento(
+    title: any,
+    owner_id: any,
+    type: number,
+    file: File,
+    contract_number?: string
+  ): Observable<any> {
+    const formData = new FormData();
+    formData.append('title', title);
+    formData.append('owner_id', owner_id);
+    formData.append('type', type.toString());
+    formData.append('file', file);
+    if (contract_number) formData.append('contract_number', contract_number);
+
+    return this.http.post(
+      `${this.apiUrl}/gestion_documental/documentos/`,
+      formData
+    );
+  }
+
   // Buscar en contratacion por cedula para sacar los numeros
   public mostrar_jerarquia_gestion_documental(): Observable<any> {
 

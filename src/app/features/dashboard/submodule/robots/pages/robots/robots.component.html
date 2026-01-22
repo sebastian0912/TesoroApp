@@ -1,13 +1,13 @@
 <!-- =======================
      CARD: HEADER GENERAL
-======================== -->
+========================= -->
 <mat-card>
   <mat-card-content>
-    <div style="display:flex; align-items:center; gap:12px;">
+    <div style="display:flex; align-items:center; gap:12px; flex-wrap: wrap;">
       <h2 style="margin:0;">Robots</h2>
       <span style="flex:1 1 auto;"></span>
 
-      <button mat-stroked-button (click)="reloadAll()">
+      <button mat-stroked-button type="button" (click)="reloadAll()">
         <mat-icon>refresh</mat-icon>
         Recargar todo
       </button>
@@ -18,30 +18,301 @@
 <div style="height:16px;"></div>
 
 <!-- =======================
-     CARD: PENDIENTES (RESUMEN)
-     (1 fila con encabezados)
-======================== -->
+     CARD: GRÁFICA GERENCIAL (LÍNEAS POR ANTECEDENTE)
+========================= -->
+<mat-card class="kpi-card">
+  <div class="kpi-head">
+    <div class="kpi-title">
+      <mat-icon class="kpi-ico">insights</mat-icon>
+      <div>
+        <div class="kpi-h1">Actividad Robots</div>
+        <div class="kpi-sub">
+          Líneas por antecedente ({{ stats?.meta?.group || (statsForm.value.group || 'day') }})
+          — Rango: {{ stats?.meta?.from || statsForm.value.from }} → {{ stats?.meta?.to || statsForm.value.to }}
+        </div>
+      </div>
+    </div>
+
+    <form class="kpi-filters" [formGroup]="statsForm" (ngSubmit)="applyStats()">
+      <mat-form-field appearance="outline" class="ff">
+        <mat-label>Desde</mat-label>
+        <input matInput type="date" formControlName="from" />
+      </mat-form-field>
+
+      <mat-form-field appearance="outline" class="ff">
+        <mat-label>Hasta</mat-label>
+        <input matInput type="date" formControlName="to" />
+      </mat-form-field>
+
+      <mat-form-field appearance="outline" class="ff">
+        <mat-label>Agrupar</mat-label>
+        <mat-select formControlName="group">
+          <mat-option value="day">Día</mat-option>
+          <mat-option value="week">Semana</mat-option>
+          <mat-option value="month">Mes</mat-option>
+        </mat-select>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline" class="ff">
+        <mat-label>Oficina</mat-label>
+        <mat-select formControlName="oficina">
+          <mat-option value="">Todas</mat-option>
+          <mat-option *ngFor="let o of oficinasOptions" [value]="o">{{ o }}</mat-option>
+        </mat-select>
+      </mat-form-field>
+
+      <button
+        mat-flat-button
+        color="primary"
+        class="btn-apply"
+        type="submit"
+        [disabled]="isLoadingStats">
+        <mat-icon>refresh</mat-icon>
+        Aplicar
+      </button>
+    </form>
+  </div>
+
+  <div class="kpi-grid">
+    <div class="kpi-box">
+      <div class="kpi-label">Total (global)</div>
+      <div class="kpi-val">{{ kpiRegistered | number }}</div>
+      <div class="kpi-note">Suma de antecedentes</div>
+    </div>
+
+    <div class="kpi-box">
+      <div class="kpi-label">Finalizados (global)</div>
+      <div class="kpi-val">{{ kpiFinalized | number }}</div>
+      <div class="kpi-note">Suma de finalizados</div>
+    </div>
+
+    <div class="kpi-box">
+      <div class="kpi-label">% Finalización</div>
+      <div class="kpi-val">{{ kpiRate }}%</div>
+      <div class="kpi-note">Finalizados / Total</div>
+    </div>
+
+    <!-- Leyenda por estado -->
+    <div class="kpi-box kpi-legend">
+      <div class="legend-row" style="font-weight:700; opacity:.85;">
+        <span>Líneas</span>
+      </div>
+
+      <div class="legend-row" *ngFor="let s of tooltipStates; trackBy: trackByState">
+        <span
+          class="dot"
+          [style.background]="s.stroke"
+          [style.borderColor]="s.stroke"
+          style="border:1px solid rgba(0,0,0,.12);">
+        </span>
+        <span>{{ s.label }}</span>
+      </div>
+    </div>
+  </div>
+
+  <div
+    class="chart-wrap"
+    #chartWrap
+    (mousemove)="onChartMove($event)"
+    (mouseleave)="onChartLeave()">
+
+    <div class="chart-loading" *ngIf="isLoadingStats">
+      <mat-icon class="spin">progress_activity</mat-icon>
+      <span>Cargando…</span>
+    </div>
+
+    <svg
+      class="chart"
+      [attr.viewBox]="'0 0 ' + chartBox.w + ' ' + chartBox.h"
+      preserveAspectRatio="none"
+      *ngIf="!isLoadingStats">
+
+      <!-- grid + y labels -->
+      <ng-container *ngFor="let t of chartVm.ticks">
+        <line
+          class="grid"
+          [attr.x1]="chartBox.padL"
+          [attr.x2]="chartBox.w - chartBox.padR"
+          [attr.y1]="t.y"
+          [attr.y2]="t.y">
+        </line>
+
+        <text
+          class="y-label"
+          [attr.x]="chartBox.padL - 10"
+          [attr.y]="t.y + 4"
+          text-anchor="end">
+          {{ t.label }}
+        </text>
+      </ng-container>
+
+      <!-- x labels -->
+      <ng-container *ngFor="let xm of chartVm.xMarks">
+        <text
+          class="x-label"
+          [attr.x]="xm.x"
+          [attr.y]="chartBox.h - 12"
+          text-anchor="middle">
+          {{ xm.label }}
+        </text>
+      </ng-container>
+
+      <!-- líneas por estado -->
+      <ng-container *ngFor="let ln of chartVm.paths">
+        <path
+          class="line"
+          [attr.d]="ln.d"
+          fill="none"
+          [attr.stroke]="ln.stroke"
+          stroke-width="2.6"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          vector-effect="non-scaling-stroke">
+        </path>
+      </ng-container>
+
+      <!-- hover -->
+      <ng-container *ngIf="hoverIndex !== null && chartVm.xPoints.length">
+        <line
+          class="hover-line"
+          [attr.x1]="chartVm.xPoints[hoverIndex!]"
+          [attr.x2]="chartVm.xPoints[hoverIndex!]"
+          [attr.y1]="chartBox.padT"
+          [attr.y2]="chartBox.h - chartBox.padB">
+        </line>
+
+        <!-- puntos (uno por línea) -->
+        <ng-container *ngFor="let ln of chartVm.paths">
+          <circle
+            class="pt"
+            [attr.cx]="chartVm.xPoints[hoverIndex!]"
+            [attr.cy]="ln.y[hoverIndex!]"
+            r="4"
+            [attr.fill]="ln.stroke"
+            stroke="#ffffff"
+            stroke-width="1">
+          </circle>
+        </ng-container>
+      </ng-container>
+    </svg>
+
+    <!-- tooltip -->
+    <div
+      class="tooltip"
+      *ngIf="hoverPoint as hp"
+      [style.left.px]="tooltip.leftPx"
+      [style.top.px]="tooltip.topPx"
+      [class.is-left]="tooltipSide === 'left'"
+      [class.is-right]="tooltipSide === 'right'">
+
+      <div class="tt-h">{{ hp.period }}</div>
+
+      <div class="tt-row tt-strong" style="display:flex; gap:10px;">
+        <span class="tt-k" style="min-width:120px;">Antecedente</span>
+        <span class="tt-v" style="min-width:70px; text-align:right;">Total</span>
+        <span class="tt-v" style="min-width:90px; text-align:right;">Finalizados</span>
+        <span class="tt-v" style="min-width:70px; text-align:right;">Pend.</span>
+      </div>
+
+      <div class="tt-row" *ngFor="let st of tooltipStates; trackBy: trackByState" style="display:flex; gap:10px;">
+        <span class="tt-k" style="min-width:120px; display:flex; align-items:center; gap:8px;">
+          <span class="dot" [style.background]="st.stroke" style="width:10px; height:10px; border-radius:999px;"></span>
+          {{ st.label }}
+        </span>
+
+        <span class="tt-v" style="min-width:70px; text-align:right;">
+          {{ getHpTotal(hp, st.key) | number }}
+        </span>
+
+        <span class="tt-v" style="min-width:90px; text-align:right;">
+          {{ getHpFinalized(hp, st.key) | number }}
+        </span>
+
+        <span class="tt-v" style="min-width:70px; text-align:right;">
+          {{ (getHpTotal(hp, st.key) - getHpFinalized(hp, st.key)) | number }}
+        </span>
+      </div>
+    </div>
+
+    <div class="empty" *ngIf="!isLoadingStats && (!statsSeries?.length)">
+      Sin datos para el rango/filtros seleccionados.
+    </div>
+  </div>
+</mat-card>
+
+<div style="height:16px;"></div>
+
+<!-- =======================
+     ✅ CARD: ÚLTIMOS 50 POR MARCA TEMPORAL (POR ANTECEDENTE)
+     - selector antecedente
+     - filtro estado (opcional)
+     - limit (1..200)
+========================= -->
 <mat-card>
   <mat-card-content>
     <div style="display:flex; align-items:center; gap:12px; margin: 4px 0 12px; flex-wrap: wrap;">
       <div style="display:flex; align-items:center; gap:8px;">
-        <mat-icon>pending_actions</mat-icon>
-        <strong>Resumen de faltantes (Sin consultar + En progreso)</strong>
+        <mat-icon>history</mat-icon>
+        <strong>Últimos por antecedente (marca temporal)</strong>
       </div>
 
       <span style="flex:1 1 auto;"></span>
 
-      <button mat-flat-button (click)="loadPendientesResumen()">
+      <button mat-flat-button type="button" (click)="applyUltimos()" [disabled]="isLoadingUltimos">
         <mat-icon>sync</mat-icon>
-        Actualizar resumen
+        Actualizar
       </button>
     </div>
 
+    <form
+      [formGroup]="ultimosForm"
+      (ngSubmit)="applyUltimos()"
+      style="display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end; margin-bottom:12px;"
+    >
+      <mat-form-field appearance="outline" style="min-width:260px; flex: 1 1 260px;">
+        <mat-label>Antecedente</mat-label>
+        <mat-select formControlName="antecedente">
+          <mat-option
+            *ngFor="let a of ultimosAntecedentesOptions; trackBy: trackByUltimosOpt"
+            [value]="a.key"
+          >
+            {{ a.label }}
+          </mat-option>
+        </mat-select>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline" style="min-width:200px; flex: 1 1 200px;">
+        <mat-label>Estado (opcional)</mat-label>
+        <input
+          matInput
+          type="text"
+          formControlName="estado"
+          placeholder="Ej: SIN_CONSULTAR / EN_PROGRESO / FINALIZADO"
+        />
+      </mat-form-field>
+
+      <mat-form-field appearance="outline" style="width:140px;">
+        <mat-label>Límite</mat-label>
+        <input matInput type="number" min="1" max="200" step="1" formControlName="limit" />
+      </mat-form-field>
+
+      <button
+        mat-flat-button
+        color="primary"
+        type="submit"
+        [disabled]="isLoadingUltimos"
+        style="height:56px;"
+      >
+        <mat-icon>search</mat-icon>
+        Consultar
+      </button>
+    </form>
+
     <app-standard-filter-table
-      [tableTitle]="'Resumen de faltantes'"
-      [data]="pendientesResumenRows"
-      [columnDefinitions]="pendientesResumenColumns"
-      [isLoading]="isLoadingPendientesResumen"
+      [tableTitle]="'Últimos por marca temporal'"
+      [data]="ultimosRows"
+      [columnDefinitions]="ultimosColumns"
+      [isLoading]="isLoadingUltimos"
       [defaultPageSize]="20"
       [pageSizeOptions]="[10,20,50,100]">
     </app-standard-filter-table>
@@ -52,8 +323,7 @@
 
 <!-- =======================
      CARD: PENDIENTES POR OFICINA
-     (matriz: filas=módulos, columnas=oficinas)
-======================== -->
+========================= -->
 <mat-card>
   <mat-card-content>
     <div style="display:flex; align-items:center; gap:12px; margin: 4px 0 12px; flex-wrap: wrap;">
@@ -64,7 +334,7 @@
 
       <span style="flex:1 1 auto;"></span>
 
-      <button mat-flat-button (click)="loadPendientesPorOficina()">
+      <button mat-flat-button type="button" (click)="loadPendientesPorOficina()">
         <mat-icon>sync</mat-icon>
         Actualizar por oficina
       </button>
@@ -75,6 +345,38 @@
       [data]="pendientesPorOficinaRows"
       [columnDefinitions]="pendientesPorOficinaColumns"
       [isLoading]="isLoadingPendientesPorOficina"
+      [defaultPageSize]="20"
+      [pageSizeOptions]="[10,20,50,100]">
+    </app-standard-filter-table>
+  </mat-card-content>
+</mat-card>
+
+<div style="height:16px;"></div>
+
+<!-- =======================
+     CARD: ROBOTS FULL (ÚLTIMAS)
+========================= -->
+<mat-card>
+  <mat-card-content>
+    <div style="display:flex; align-items:center; gap:12px; margin: 4px 0 12px; flex-wrap: wrap;">
+      <div style="display:flex; align-items:center; gap:8px;">
+        <mat-icon>table_view</mat-icon>
+        <strong>Últimas consultas (Robots Full)</strong>
+      </div>
+
+      <span style="flex:1 1 auto;"></span>
+
+      <button mat-flat-button type="button" (click)="loadRobotsFull()">
+        <mat-icon>sync</mat-icon>
+        Actualizar últimas
+      </button>
+    </div>
+
+    <app-standard-filter-table
+      [tableTitle]="'Robots Full'"
+      [data]="robotsFullRows"
+      [columnDefinitions]="robotsFullColumns"
+      [isLoading]="isLoadingRobotsFull"
       [defaultPageSize]="20"
       [pageSizeOptions]="[10,20,50,100]">
     </app-standard-filter-table>

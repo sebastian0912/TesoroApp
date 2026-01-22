@@ -1,136 +1,147 @@
-<!-- Botón móvil (hamburguesa) -->
-<button
-  class="mobile-menu-btn"
-  type="button"
-  aria-label="Abrir menú"
-  (click)="openSidebarForMobile()"
->
-  <mat-icon fontSet="material-symbols-outlined">menu</mat-icon>
-</button>
 
 <aside
-  #sidebarRef
+  id="app-sidebar"
   class="sidebar"
-  [class.show-detail]="!!activeRoot"
-  [class.sidebar-hidden]="isSidebarHidden"
-  [class.pinned]="pinOpen"
-  (pointerenter)="cancelClose()"
-  (pointerleave)="scheduleClose($event)"
->
+  [class.is-open]="!isSidebarHidden"
+  [class.show-detail]="!!activeRoot && hasChildren(activeRoot)"
+  [class.right-pinned]="pinOpen">
+
   <!-- PANEL IZQUIERDO -->
-  <div class="left" *ngIf="!isSidebarHidden">
+  <div class="left" (mouseleave)="scheduleClose($event)">
+
+    <!-- BRAND -->
+    <a
+      class="sidebar-brand"
+      routerLink="/dashboard"
+      aria-label="Ir al inicio"
+      (click)="isMobile && closeAll('api')">
+      <img
+        class="sidebar-brand__logo"
+        src="logos/logo_alianza.svg"
+        alt="Tu Apo" />
+    </a>
+
+    <!-- BOTONES DE MÓDULO -->
     <div class="module-buttons">
+
       <!-- HOME fijo -->
       <button
+        type="button"
         routerLink="/dashboard"
         routerLinkActive="active-module-button"
         [routerLinkActiveOptions]="{ exact: true }"
         aria-label="Inicio"
         title="Inicio"
-        type="button"
-      >
-        <mat-icon class="tree-icon" fontSet="material-symbols-outlined">home</mat-icon>
+        (mouseenter)="onRootEnter(null)"
+        (click)="onRootClick(null)">
+        <mat-icon fontSet="material-symbols-outlined">home</mat-icon>
       </button>
 
       <!-- Módulos raíz -->
-      <ng-container *ngFor="let mod of rootModules; trackBy: trackByNodeId">
+      <ng-container
+        *ngFor="let root of visibleRootModules; trackBy: trackByNodeId">
         <button
           type="button"
-          (pointerenter)="onModuleEnter(mod)"
-          (click)="onModuleEnter(mod)"
-          [attr.aria-expanded]="activeRoot?.id === mod.id"
-          [attr.aria-controls]="'right-panel-content'"
-        >
-          <mat-icon class="tree-icon" fontSet="material-symbols-outlined">
-            {{ getModuleIcon(mod.nombre) }}
+          (mouseenter)="onRootEnter(root)"
+          (click)="onRootClick(root)"
+          [title]="root.nombre"
+          [class.active-module-button]="activeRoot?.id === root.id || isTreeActive(root)"
+          [attr.aria-expanded]="activeRoot?.id === root.id && hasChildren(root)"
+          [attr.aria-controls]="activeRoot?.id === root.id && hasChildren(root) ? 'right-panel-content' : null">
+          <mat-icon fontSet="material-symbols-outlined">
+            {{ getModuleIcon(root.nombre) }}
           </mat-icon>
         </button>
       </ng-container>
     </div>
 
+    <!-- BOTONES INFERIORES -->
     <div class="bottom-buttons">
-      <button class="tree-icon" (click)="cerrarSesion()" title="Cerrar sesión" type="button">
+      <button
+        type="button"
+        class="logout-button"
+        (click)="cerrarSesion()"
+        title="Cerrar sesión">
         <mat-icon fontSet="material-symbols-outlined">logout</mat-icon>
       </button>
     </div>
   </div>
 
-  <!-- PANEL DERECHO -->
+  <!-- PANEL DERECHO (flyout / pinned) -->
   <div
     class="right"
-    *ngIf="activeRoot"
+    *ngIf="!!activeRoot && hasChildren(activeRoot)"
     id="right-panel-content"
-    (pointerenter)="onRightPanelEnter()"
-    role="dialog"
-    aria-modal="true"
-    [attr.aria-label]="'Submódulos de ' + activeRoot.nombre"
-  >
+    (mouseenter)="cancelClose()"
+    (mouseleave)="scheduleClose($event)">
     <div class="right-inner">
+
       <!-- Cabecera -->
       <div class="header">
-        <h2 class="header-title">{{ activeRoot.nombre }}</h2>
+        <div class="header-left">
+          <img
+            class="header-logo"
+            src="logos/logo_alianza.svg"
+            alt="Tu Apo" />
+          <div class="header-texts">
+            <span class="header-brand">Tu Apo</span>
+            <h2 class="header-title">{{ activeRoot!.nombre }}</h2>
+          </div>
+        </div>
 
-        <!-- Botón PIN: ancla/desancla el panel derecho -->
         <button
           class="header-pin-button"
-          [class.is-pinned]="pinOpen"
-          [attr.aria-pressed]="pinOpen"
-          (click)="togglePin()"
-          [title]="pinOpen ? 'Desanclar panel' : 'Anclar panel'"
+          [title]="pinOpen ? 'Colapsar' : 'Expandir'"
           type="button"
-        >
-          <mat-icon class="header-icon" fontSet="material-symbols-outlined">
-            {{ pinOpen ? 'keep' : 'push_pin' }}
+          (click)="togglePin()">
+          <mat-icon fontSet="material-symbols-outlined" class="header-icon">
+            {{ pinOpen ? 'expand_less' : 'expand_more' }}
           </mat-icon>
         </button>
       </div>
 
-      <!-- Árbol SIEMPRE VISIBLE -->
-      <nav class="nav-tree" [attr.aria-label]="'Submódulos de ' + activeRoot.nombre">
-        <ng-container *ngTemplateOutlet="nodeListTpl; context: { nodes: activeRoot.hijos, depth: 0 }"></ng-container>
-      </nav>
+      <!-- Árbol -->
+      <nav [attr.aria-label]="'Submódulos de ' + activeRoot!.nombre">
+        <ng-template #tree let-nodes="nodes" let-level="level">
+          <ng-container *ngFor="let node of nodes; trackBy: trackByNodeId">
+            <div class="tree-wrap" [style.paddingLeft.px]="(level - 2) * 14">
 
-      <!-- PLANTILLA RECURSIVA -->
-      <ng-template #nodeListTpl let-nodes="nodes" let-depth="depth">
-        <ul class="tree-level" [class.is-root]="depth === 0">
-          <li *ngFor="let node of nodes; trackBy: trackByNodeId">
-            <ng-container *ngIf="node.hijos?.length; else leafTpl">
-              <div class="tree-item is-parent" [style.paddingLeft.px]="depth * 12">
-                <div class="tree-parent-title">
-                  {{ node.nombre }}
-                  <span class="child-count">({{ node.hijos.length }})</span>
-                </div>
-              </div>
-              <ng-container *ngTemplateOutlet="nodeListTpl; context: { nodes: node.hijos, depth: depth + 1 }"></ng-container>
-            </ng-container>
+              <button
+                type="button"
+                class="submodule-button"
+                i (click)="onNodeClick(node)"
+                [attr.aria-expanded]="hasChildren(node) ? isExpanded(node.id) : null"
+                [class.active-submodule]="!hasChildren(node) && isRouteActive(getNodeRoute(node))">
 
-            <ng-template #leafTpl>
-              <div class="tree-item is-leaf" [style.paddingLeft.px]="depth * 12">
-                <mat-icon class="tree-icon" fontSet="material-symbols-outlined">
-                  {{ getNodeIcon(node.nombre) }}
+                <mat-icon fontSet="material-symbols-outlined">
+                  {{ hasChildren(node) ? 'folder' : getNodeIcon(node.nombre) }}
                 </mat-icon>
 
-                <a
-                  class="tree-link leaf"
-                  [routerLink]="getNodeRoute(node)"
-                  routerLinkActive="active-submodule"
-                  (click)="onLeafClick()"
-                >
-                  {{ node.nombre }}
-                </a>
-              </div>
-            </ng-template>
-          </li>
-        </ul>
-      </ng-template>
+                <span class="submodule-text">{{ node.nombre }}</span>
+
+                <mat-icon
+                  *ngIf="hasChildren(node)"
+                  fontSet="material-symbols-outlined"
+                  class="expand-icon">
+                  {{ isExpanded(node.id) ? 'expand_less' : 'expand_more' }}
+                </mat-icon>
+              </button>
+
+              <ng-container *ngIf="hasChildren(node) && isExpanded(node.id)">
+                <ng-container
+                  *ngTemplateOutlet="tree; context: { nodes: node.hijos || [], level: level + 1 }">
+                </ng-container>
+              </ng-container>
+
+            </div>
+          </ng-container>
+        </ng-template>
+
+        <ng-container
+          *ngTemplateOutlet="tree; context: { nodes: activeRoot!.hijos || [], level: 2 }">
+        </ng-container>
+      </nav>
+
     </div>
   </div>
-
-  <!-- Backdrop móvil -->
-  <div
-    class="sidebar-backdrop"
-    *ngIf="!isSidebarHidden && activeRoot"
-    (click)="closeAll('backdrop')"
-    aria-hidden="true"
-  ></div>
 </aside>

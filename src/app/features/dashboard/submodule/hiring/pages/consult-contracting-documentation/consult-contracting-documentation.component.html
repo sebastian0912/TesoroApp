@@ -4,10 +4,17 @@
       <div class="page-header">
         <h1 class="title">Consultar documentación contratación</h1>
 
-        <button
-          mat-icon-button
-          [matMenuTriggerFor]="accionesMenu"
-          aria-label="Acciones">
+        <!-- ✅ Input opcional para pegar cédulas -->
+        <mat-form-field class="filtro" appearance="outline">
+          <mat-label>Pegar cédulas</mat-label>
+          <input
+            matInput
+            placeholder="Pega aquí una o varias cédulas (enter, coma, espacio...)"
+            (paste)="onTablePaste($event)" />
+          <mat-hint>También puedes hacer click en la tabla y pegar (Ctrl+V)</mat-hint>
+        </mat-form-field>
+
+        <button mat-icon-button [matMenuTriggerFor]="accionesMenu" aria-label="Acciones">
           <mat-icon>more_vert</mat-icon>
         </button>
 
@@ -43,146 +50,56 @@
         </mat-menu>
       </div>
 
-      <!-- Filtro -->
-      <mat-form-field class="filtro" appearance="outline">
-        <mat-label>Filtrar</mat-label>
-        <input
-          matInput
-          #input
-          placeholder="Filtrar en tabla"
-          (keyup)="applyFilters($event)"
-          (paste)="onTablePaste($event)" />
-      </mat-form-field>
+      <!-- ✅ CONTENEDOR CAPTURA-PEGADO (click + Ctrl+V) -->
+      <div
+        class="table-container"
+        tabindex="0"
+        (paste)="onTablePaste($event)"
+        (click)="focusPasteZone($event)"
+        aria-label="Pega aquí cédulas para consultar">
 
-      <!-- TABLA -->
-      <div class="table-container" tabindex="0" (paste)="onTablePaste($event)">
-        <table mat-table [dataSource]="dataSource" class="mat-elevation-z8">
-          <!-- CÉDULA -->
-          <ng-container matColumnDef="cedula">
-            <th mat-header-cell *matHeaderCellDef>Cédula</th>
-            <td mat-cell *matCellDef="let e">{{ e.cedula }}</td>
-          </ng-container>
+        <!-- ✅ TABLA -->
+        <app-standard-filter-table
+          [data]="checklistRows"
+          [columnDefinitions]="checklistColumns"
+          [tableTitle]="'Documentación contratación'"
+          [isLoading]="isLoadingChecklist"
+          [defaultPageSize]="20"
+          [pageSizeOptions]="[10, 20, 50, 100]">
 
-          <!-- TIPO DE DOCUMENTO -->
-          <ng-container matColumnDef="tipo_documento">
-            <th mat-header-cell *matHeaderCellDef>Tipo de Documento</th>
-            <td mat-cell *matCellDef="let e">{{ e.tipo_documento }}</td>
-          </ng-container>
+          <!-- ✅ render de estados (OK/WARN/MISSING) con click para abrir PDF -->
+          <ng-template #estadoTemplate let-row let-col="col">
+            @let cell = row?.[col?.name];
 
-          <!-- NOMBRE -->
-          <ng-container matColumnDef="nombre">
-            <th mat-header-cell *matHeaderCellDef>Nombre</th>
-            <td mat-cell *matCellDef="let e">{{ e.nombre }}</td>
-          </ng-container>
+            <button
+              type="button"
+              class="doc-state-btn"
+              [class.is-ok]="cell?.state === 'OK'"
+              [class.is-warn]="cell?.state === 'WARN'"
+              [class.is-bad]="!cell?.state || cell?.state === 'MISSING'"
+              [disabled]="!cell?.url || cell?.state === 'MISSING'"
+              (click)="openDoc(cell, $event)"
+              [matTooltip]="
+                cell?.state === 'OK'
+                  ? 'Vigente (≤ 15 días)'
+                  : cell?.state === 'WARN'
+                  ? 'Existe, pero vencido (> 15 días)'
+                  : 'No existe'
+              "
+              matTooltipShowDelay="600"
+              aria-label="Estado del documento">
 
-          <!-- FINCA -->
-          <ng-container matColumnDef="finca">
-            <th mat-header-cell *matHeaderCellDef>Finca</th>
-            <td mat-cell *matCellDef="let e">{{ e.finca }}</td>
-          </ng-container>
+              @if (cell?.state === 'OK') {
+                <mat-icon class="doc-state-ico" aria-hidden="true">check</mat-icon>
+              } @else if (cell?.state === 'WARN') {
+                <mat-icon class="doc-state-ico" aria-hidden="true">warning</mat-icon>
+              } @else {
+                <mat-icon class="doc-state-ico" aria-hidden="true">close</mat-icon>
+              }
+            </button>
+          </ng-template>
 
-          <!-- FECHA DE INGRESO -->
-          <ng-container matColumnDef="fecha_ingreso">
-            <th mat-header-cell *matHeaderCellDef>Fecha ingreso</th>
-            <td mat-cell *matCellDef="let e">
-              {{ e.fecha_ingreso ? (e.fecha_ingreso | date : 'dd-MM-yyyy') : ''
-              }}
-            </td>
-          </ng-container>
-
-          <!-- CÓDIGO DE CONTRATO -->
-          <ng-container matColumnDef="codigo_contrato">
-            <th mat-header-cell *matHeaderCellDef>Código de contrato</th>
-            <td mat-cell *matCellDef="let e">{{ e.codigo_contrato }}</td>
-          </ng-container>
-
-          <!-- FECHA DE CONTRATACIÓN -->
-          <ng-container matColumnDef="fecha_contratacion">
-            <th mat-header-cell *matHeaderCellDef>Fecha Contratación</th>
-            <td mat-cell *matCellDef="let e">
-              {{ e.fecha_contratacion ? (e.fecha_contratacion | date :
-              'dd-MM-yyyy') : '' }}
-            </td>
-          </ng-container>
-
-          <!-- ====== COLUMNAS DINÁMICAS POR TIPO DOCUMENTAL ====== -->
-          <ng-container
-            *ngFor="let t of tipoHeaders"
-            [matColumnDef]="'type_' + t.id">
-            <th mat-header-cell *matHeaderCellDef>{{ t.name }}</th>
-
-            <td mat-cell *matCellDef="let e">
-              <ng-container *ngIf="e.docs && e.docs[t.id] as cell; else noDoc">
-
-                <!-- 1) NO existe => X -->
-                <ng-container *ngIf="!cell.exists; else existeDoc">
-                  <mat-icon color="warn"
-                    matTooltip="No existe">cancel</mat-icon>
-                </ng-container>
-
-                <!-- 2) Existe -->
-                <ng-template #existeDoc>
-
-                  <!-- 2.1) Existe y está vigente (<=15 días) => ✓ -->
-                  <ng-container *ngIf="cell.vigente15d; else existePeroViejo">
-                    <a
-                      *ngIf="cell.url; else checkSinUrl"
-                      [href]="cell.url"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      matTooltip="Documento vigente (<= 15 días)">
-                      <mat-icon color="primary">check_circle</mat-icon>
-                    </a>
-
-                    <ng-template #checkSinUrl>
-                      <mat-icon color="primary"
-                        matTooltip="Documento vigente (<= 15 días)">
-                        check_circle
-                      </mat-icon>
-                    </ng-template>
-                  </ng-container>
-
-                  <!-- 2.2) Existe pero NO está vigente (>15 días) => warning -->
-                  <ng-template #existePeroViejo>
-                    <a
-                      *ngIf="cell.url; else warnSinUrl"
-                      [href]="cell.url"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      matTooltip="Existe, pero supera 15 días">
-                      <mat-icon color="warn">warning_amber</mat-icon>
-                    </a>
-
-                    <ng-template #warnSinUrl>
-                      <mat-icon color="warn"
-                        matTooltip="Existe, pero supera 15 días">
-                        warning_amber
-                      </mat-icon>
-                    </ng-template>
-                  </ng-template>
-
-                </ng-template>
-              </ng-container>
-
-              <!-- si no hay cell en el mapa -->
-              <ng-template #noDoc>
-                <mat-icon color="warn" matTooltip="No existe">cancel</mat-icon>
-              </ng-template>
-            </td>
-          </ng-container>
-          <!-- ==================================================== -->
-
-          <!-- FILAS -->
-          <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
-          <tr mat-row *matRowDef="let row; columns: displayedColumns"></tr>
-
-          <!-- SIN DATOS -->
-          <tr class="mat-row" *matNoDataRow>
-            <td class="mat-cell" [attr.colspan]="displayedColumns.length">
-              No hay datos "{{ input.value }}"
-            </td>
-          </tr>
-        </table>
+        </app-standard-filter-table>
       </div>
     </div>
   </mat-card-content>

@@ -1,85 +1,427 @@
-.example-full-width:nth-child(1),
-.example-full-width:nth-child(2) {
-    max-width: 20% !important;
+/* =========================================================
+   Buscar Documentación - Styles (Gerencia-ready)
+   - Fondo blanco, layout limpio, jerarquía clara
+========================================================= */
+
+:host {
+  display: block;
+
+  --r-sm: 12px;
+  --r-md: 14px;
+  --r-lg: 18px;
+
+  --gap-1: 8px;
+  --gap-2: 12px;
+  --gap-3: 14px;
+
+  --pad-1: 12px;
+  --pad-2: 16px;
+
+  --bg: #ffffff;
+  --line: #e5e7eb;
+  --line-soft: #eef2f7;
+
+  --text: #111827;
+  --muted: #6b7280;
+
+  --primary: #1d4ed8;
+  --primary-soft: rgba(29, 78, 216, 0.14);
+
+  --ok: #16a34a;
+  --ok-soft: rgba(22, 163, 74, 0.12);
+
+  --bad: #dc2626;
+  --bad-soft: rgba(220, 38, 38, 0.10);
+
+  --shadow-sm: 0 10px 26px rgba(17, 24, 39, 0.08);
+  --shadow-md: 0 12px 22px rgba(17, 24, 39, 0.08);
+  --shadow-lg: 0 18px 40px rgba(17, 24, 39, 0.12);
+
+  --dur: 140ms;
+  --ease: cubic-bezier(.2, .8, .2, 1);
 }
 
-.example-full-width:nth-child(3) {
-    min-width: 50% !important;
+.w-100 { width: 100%; }
+
+/* Card */
+.search-card {
+  border-radius: var(--r-lg);
+  border: 1px solid var(--line);
+  background: var(--bg);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
 }
 
+:host ::ng-deep .search-card .mat-mdc-card-content {
+  padding: var(--pad-2) !important;
+  background: var(--bg);
+}
 
-/* Contenedor principal que divide la pantalla en dos columnas */
+/* Header */
+.page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--gap-2);
+
+  padding: var(--pad-1);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-lg);
+  background: linear-gradient(180deg, #ffffff 0%, #fafafa 100%);
+  margin-bottom: var(--gap-3);
+}
+
+.page-header__left {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.page-header__right {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--gap-1);
+  flex: 0 0 auto;
+}
+
+.title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 900;
+  letter-spacing: -0.3px;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.title::before {
+  content: "";
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: var(--primary);
+  box-shadow: 0 0 0 4px var(--primary-soft);
+}
+
+.subtitle {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.25;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Form */
+.search-form {
+  margin-bottom: var(--gap-3);
+}
+
+/* ✅ Inputs en una sola línea (desktop) */
+.form-grid {
+  display: grid;
+  grid-template-columns: 200px 240px minmax(320px, 1fr) minmax(260px, 1fr);
+  gap: var(--gap-2);
+  align-items: start;
+}
+
+/* ✅ Ya no ocupa 2 columnas en desktop */
+.grid-span-2 {
+  grid-column: auto;
+}
+
+.actions {
+  display: none;
+  margin-top: 6px;
+}
+
+/* Form fields clean */
+:host ::ng-deep .mat-mdc-form-field .mat-mdc-text-field-wrapper {
+  border-radius: var(--r-md) !important;
+  background: #fafafa;
+  transition: box-shadow var(--dur) var(--ease), background var(--dur) var(--ease);
+}
+
+:host ::ng-deep .mat-mdc-form-field:hover .mat-mdc-text-field-wrapper {
+  background: #f6f7f9;
+}
+
+:host ::ng-deep .mat-mdc-form-field.mat-focused .mat-mdc-text-field-wrapper {
+  background: #ffffff;
+  box-shadow: 0 0 0 4px var(--primary-soft);
+}
+
+:host ::ng-deep .mat-mdc-form-field-hint,
+:host ::ng-deep .mat-mdc-form-field-hint-wrapper {
+  color: var(--muted) !important;
+}
+
+/* Split */
 .split-container {
-    display: flex;
-    gap: 1rem;
-    padding: 1rem;
-    box-sizing: border-box;
-    min-height: 65vh;
+  display: grid;
+  grid-template-columns: 420px 1fr;
+  gap: var(--gap-3);
+  min-height: 62vh;
 }
 
-/* Panel izquierdo: categorías y documentos */
+/* Left panel */
 .left-panel {
-    flex: 1;
-    background-color: #fafafa;
-    padding: 1rem;
-    border-radius: 4px;
-    box-shadow: 0 0 5px rgba(0, 0, 0, 0.1);
-    max-height: 62vh;
-    overflow-y: auto;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-lg);
+  background: #fbfdff;
+  padding: 12px;
+  overflow: auto;
+  max-height: 72vh;
 }
 
-/* Panel derecho: vista previa del PDF */
-.right-panel {
-    flex: 1.5;
-    border-radius: 4px;
-    display: flex;
-    flex-direction: column;
+.left-panel__header {
+  padding: 6px 6px 10px 6px;
+  border-bottom: 1px solid var(--line-soft);
+  margin-bottom: 10px;
 }
 
-.preview-title {
-    margin-top: 0;
-    font-size: 1.2rem;
-    font-weight: 600;
-    color: #333;
+.panel-title {
+  margin: 0;
+  font-size: 13.5px;
+  font-weight: 900;
+  color: var(--text);
 }
 
-/* Contenedor de cada categoría */
+.panel-subtitle {
+  margin: 2px 0 0 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+/* Categories */
 .category-group {
-    margin-bottom: 1.5rem;
+  margin-bottom: 14px;
 }
 
-/* Título de la categoría */
 .category-title {
-    margin: 0 0 0.5rem 0;
-    font-size: 1.1rem;
-    font-weight: 600;
-    color: #555;
+  margin: 10px 0 8px 0;
+  font-size: 12.5px;
+  font-weight: 900;
+  color: #374151;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
 }
 
-/* Contenedor de cada documento */
+/* Document item */
 .document-item {
-    padding: 0.5rem 0;
-    border-bottom: 1px solid #eee;
-    display: flex;
-    flex-direction: column;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: #ffffff;
+  padding: 10px 10px;
+  margin-bottom: 8px;
+
+  transition:
+    transform var(--dur) var(--ease),
+    box-shadow var(--dur) var(--ease),
+    border-color var(--dur) var(--ease);
 }
 
-/* Fila con detalles del documento y menú */
+.document-item:hover {
+  border-color: #d1d5db;
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
+}
+
+/* ✅ Estado del documento:
+   - Verde si existe (file_url)
+   - Rojo si no existe
+*/
+.document-item.doc-ok {
+  border-color: rgba(22, 163, 74, 0.55);
+  box-shadow: 0 0 0 3px var(--ok-soft);
+}
+
+.document-item.doc-missing {
+  border-color: rgba(220, 38, 38, 0.55);
+  box-shadow: 0 0 0 3px var(--bad-soft);
+}
+
+/* Hover respeta el estado */
+.document-item.doc-ok:hover {
+  border-color: var(--ok);
+  box-shadow: 0 0 0 4px var(--ok-soft), var(--shadow-md);
+}
+
+.document-item.doc-missing:hover {
+  border-color: var(--bad);
+  box-shadow: 0 0 0 4px var(--bad-soft), var(--shadow-md);
+}
+
 .document-details {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--gap-2);
 }
 
-/* Nombre del tipo documental */
+.document-main {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
 .document-type {
-    font-weight: 500;
-    color: #424242;
+  font-weight: 800;
+  color: var(--text);
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-/* El iframe con la vista previa del PDF */
+/* Right panel */
+.right-panel {
+  border-radius: var(--r-lg);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.right-panel__header {
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-lg);
+  padding: 12px;
+  background: #ffffff;
+}
+
+.preview-surface {
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-lg);
+  background: #ffffff;
+  overflow: hidden;
+  box-shadow: 0 10px 24px rgba(17, 24, 39, 0.06);
+  flex: 1;
+  min-height: 520px;
+}
+
 .pdf-preview {
-    flex: 1;
+  width: 100%;
+  height: 100%;
+  min-height: 520px;
+  border: none;
+  display: block;
+}
+
+/* Empty hint */
+.empty-hint {
+  margin-top: 10px;
+  padding: 14px;
+  border-radius: var(--r-lg);
+  border: 1px dashed #cbd5e1;
+  background: #f8fafc;
+  color: #64748b;
+  font-weight: 700;
+  text-align: center;
+}
+
+/* ==========================================
+   ✅ SOLO: quitar “cuadro/overlay” del kebab
+========================================== */
+:host ::ng-deep .kebab-btn.mat-mdc-icon-button .mat-mdc-focus-indicator {
+  display: none !important;
+}
+
+:host ::ng-deep .kebab-btn.mat-mdc-icon-button .mat-mdc-button-persistent-ripple,
+:host ::ng-deep .kebab-btn.mat-mdc-icon-button .mat-mdc-button-ripple {
+  border-radius: var(--r-md) !important;
+}
+
+/* Menú (premium) */
+:host ::ng-deep .mat-mdc-menu-panel {
+  border-radius: var(--r-md) !important;
+  border: 1px solid var(--line) !important;
+  box-shadow: var(--shadow-lg) !important;
+  overflow: hidden;
+}
+
+:host ::ng-deep .mat-mdc-menu-content {
+  padding: 6px !important;
+}
+
+:host ::ng-deep .mat-mdc-menu-item {
+  border-radius: 10px !important;
+  min-height: 44px;
+}
+
+:host ::ng-deep .mat-mdc-menu-item:hover {
+  background: #f3f4f6 !important;
+}
+
+/* Responsive */
+@media (max-width: 1100px) {
+  .split-container {
+    grid-template-columns: 1fr;
+  }
+
+  .left-panel {
+    max-height: 360px;
+  }
+
+  .preview-surface,
+  .pdf-preview {
+    min-height: 420px;
+  }
+
+  /* ✅ En pantallas medianas, deja 2 columnas para que respire */
+  .form-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .grid-span-2 {
+    grid-column: span 2;
+  }
+}
+
+@media (max-width: 820px) {
+  :host ::ng-deep .search-card .mat-mdc-card-content {
+    padding: 12px !important;
+  }
+
+  .page-header {
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .subtitle {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: unset;
+  }
+
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .grid-span-2 {
+    grid-column: auto;
+  }
+
+  .actions {
+    display: flex;
+    justify-content: stretch;
+  }
+
+  :host ::ng-deep .actions button[mat-flat-button] {
     width: 100%;
-    border: none;
+    justify-content: center;
+  }
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  :host ::ng-deep * {
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
 }

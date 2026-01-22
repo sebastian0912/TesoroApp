@@ -1,85 +1,473 @@
+/* =========================
+   Consultar documentación contratación (minimal + congruente)
+   ✅ Iconos OK/WARN/MISSING en colores (verde/naranja/rojo)
+========================= */
+:host {
+  display: block;
+
+  --r-sm: 10px;
+  --r-md: 12px;
+  --r-lg: 16px;
+
+  --gap-1: 10px;
+  --gap-2: 14px;
+
+  --line: #e5e7eb;
+  --line-soft: #eef2f7;
+
+  --text: #111827;
+  --muted: #6b7280;
+
+  --ok: #22c55e;
+  --ok-soft: rgba(34, 197, 94, 0.12);
+
+  --warn: #f59e0b; /* ✅ naranja */
+  --warn-soft: rgba(245, 158, 11, 0.14);
+
+  --bad: #ef4444; /* ✅ rojo */
+  --bad-soft: rgba(239, 68, 68, 0.14);
+
+  --primary: #3b82f6;
+  --primary-soft: rgba(59, 130, 246, 0.14);
+
+  --shadow-sm: 0 10px 24px rgba(17, 24, 39, 0.06);
+  --shadow-md: 0 18px 40px rgba(17, 24, 39, 0.12);
+
+  --dur: 140ms;
+  --ease: cubic-bezier(.2, .8, .2, 1);
+}
+
+/* =========================
+   Card full width
+========================= */
 .container {
-  min-height: 70vh !important;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
 }
 
-.table-container {
-  height: 450pt;
+:host ::ng-deep .container.mat-mdc-card {
+  width: 100%;
+  max-width: 100%;
+  border-radius: var(--r-lg);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
 }
 
-/* Header */
+:host ::ng-deep .container .mat-mdc-card-content {
+  padding: 16px !important;
+}
+
+/* =========================
+   Layout interno
+========================= */
+.tabla {
+  width: 100%;
+  display: grid;
+  gap: var(--gap-2);
+  min-width: 0;
+}
+
+/* =========================
+   Header minimal (sin caja)
+========================= */
 .page-header {
-  display: flex;
+  width: 100%;
+  min-width: 0;
+
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) minmax(320px, 560px) auto;
+  gap: 12px;
   align-items: center;
-  gap: 8px;
-  margin-bottom: 12px;
+
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: none;
 }
 
 .page-header .title {
   margin: 0;
-  font-weight: 600;
-  line-height: 1.2;
+  min-width: 0;
+
   display: inline-flex;
   align-items: center;
-}
+  gap: 10px;
 
-/* =====================================================
-   ✅ Estados documentos: ✓ verde / ⚠ amarillo / ✗ rojo
-   (fix: evita que <a> pinte azul + fuerza colores)
-   ===================================================== */
+  font-size: 18px;
+  font-weight: 900;
+  letter-spacing: -0.3px;
+  color: var(--text);
 
-.doc-status-cell {
-  text-align: center;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-/* El <a> NO debe pintar azul */
-.doc-link,
-.doc-link:visited,
-.doc-link:hover,
-.doc-link:active {
-  color: inherit !important;
-  text-decoration: none !important;
+.page-header .title::before {
+  content: "";
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: var(--ok);
+  box-shadow: 0 0 0 4px var(--ok-soft);
+  flex: 0 0 auto;
+}
+
+/* =========================
+   Input de pegado
+========================= */
+.filtro {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  margin: 0 !important;
+}
+
+:host ::ng-deep .filtro .mat-mdc-form-field-subscript-wrapper {
+  display: none !important;
+}
+
+:host ::ng-deep .filtro .mat-mdc-form-field-bottom-align::before {
+  display: none !important;
+}
+
+:host ::ng-deep .filtro .mat-mdc-form-field-infix {
+  padding-top: 10px !important;
+  padding-bottom: 10px !important;
+  min-height: 44px;
+}
+
+:host ::ng-deep .filtro .mat-mdc-text-field-wrapper {
+  background: #fafafa;
+  border-radius: var(--r-md) !important;
+  transition: box-shadow var(--dur) var(--ease), background var(--dur) var(--ease);
+}
+
+:host ::ng-deep .filtro .mat-mdc-text-field-wrapper:hover {
+  background: #f6f7f9;
+}
+
+:host ::ng-deep .filtro .mdc-notched-outline__leading,
+:host ::ng-deep .filtro .mdc-notched-outline__notch,
+:host ::ng-deep .filtro .mdc-notched-outline__trailing {
+  border-color: var(--line) !important;
+}
+
+:host ::ng-deep .filtro:hover .mdc-notched-outline__leading,
+:host ::ng-deep .filtro:hover .mdc-notched-outline__notch,
+:host ::ng-deep .filtro:hover .mdc-notched-outline__trailing {
+  border-color: #d1d5db !important;
+}
+
+:host ::ng-deep .filtro.mat-focused .mat-mdc-text-field-wrapper {
+  background: #ffffff;
+  box-shadow: 0 0 0 4px var(--primary-soft);
+}
+
+:host ::ng-deep .filtro.mat-focused .mdc-notched-outline__leading,
+:host ::ng-deep .filtro.mat-focused .mdc-notched-outline__notch,
+:host ::ng-deep .filtro.mat-focused .mdc-notched-outline__trailing {
+  border-color: var(--primary) !important;
+}
+
+:host ::ng-deep .filtro .mat-mdc-floating-label {
+  font-weight: 800;
+  color: var(--muted);
+}
+
+/* =========================
+   Botón kebab (SIN cuadro)
+========================= */
+:host ::ng-deep .page-header button[mat-icon-button] {
+  justify-self: end;
+
+  border: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+
+  transition: background-color var(--dur) var(--ease), transform var(--dur) var(--ease);
+}
+
+:host ::ng-deep .page-header button[mat-icon-button]:hover {
+  background: rgba(17, 24, 39, 0.06) !important;
+  transform: translateY(-1px);
+}
+
+:host ::ng-deep .page-header button[mat-icon-button]:active {
+  transform: translateY(0);
+  background: rgba(17, 24, 39, 0.10) !important;
+}
+
+:host ::ng-deep .page-header button[mat-icon-button]:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 4px var(--primary-soft) !important;
+}
+
+/* =========================
+   Menú (pro)
+========================= */
+:host ::ng-deep .mat-mdc-menu-panel {
+  border-radius: var(--r-md) !important;
+  border: 1px solid var(--line) !important;
+  box-shadow: var(--shadow-md) !important;
+  overflow: hidden;
+}
+
+:host ::ng-deep .mat-mdc-menu-content {
+  padding: 6px !important;
+}
+
+:host ::ng-deep .mat-mdc-menu-item {
+  border-radius: 10px !important;
+  min-height: 44px;
+}
+
+:host ::ng-deep .mat-mdc-menu-item:hover {
+  background: #f3f4f6 !important;
+}
+
+/* =========================
+   Paste zone + table container
+========================= */
+.table-container {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+
+  border: 1px dashed #cbd5e1;
+  border-radius: var(--r-lg);
+  background: #fbfdff;
+  padding: 10px;
+  outline: none;
+
+  transition:
+    border-color var(--dur) var(--ease),
+    box-shadow var(--dur) var(--ease),
+    background var(--dur) var(--ease);
+}
+
+.table-container:hover {
+  border-color: #94a3b8;
+  background: #f8fbff;
+}
+
+.table-container:focus,
+.table-container:focus-within {
+  border-style: solid;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 4px var(--primary-soft);
+  background: #ffffff;
+}
+
+.table-container::before {
+  content: "Tip: haz click aquí y pega (Ctrl+V)";
+  display: block;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--muted);
+  padding: 6px 8px 10px 8px;
+}
+
+:host ::ng-deep .table-container app-standard-filter-table {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+
+/* =========================
+   StandardFilterTable polishing
+========================= */
+:host ::ng-deep app-standard-filter-table .mat-mdc-card {
+  width: 100% !important;
+  max-width: 100% !important;
+  border-radius: 16px !important;
+  border: 1px solid var(--line-soft) !important;
+  box-shadow: var(--shadow-sm) !important;
+}
+
+/* header look */
+:host ::ng-deep app-standard-filter-table .mat-mdc-header-row,
+:host ::ng-deep app-standard-filter-table .mat-mdc-header-cell {
+  background: #f9fafb;
+}
+
+:host ::ng-deep app-standard-filter-table .mat-mdc-header-cell {
+  color: var(--text);
+  font-weight: 900;
+  letter-spacing: -0.2px;
+}
+
+/* rows hover */
+:host ::ng-deep app-standard-filter-table .mat-mdc-row {
+  transition: background 120ms ease;
+}
+:host ::ng-deep app-standard-filter-table .mat-mdc-row:hover {
+  background: #f8fafc;
+}
+
+:host ::ng-deep app-standard-filter-table .mat-mdc-cell,
+:host ::ng-deep app-standard-filter-table .mat-mdc-header-cell {
+  padding-top: 10px !important;
+  padding-bottom: 10px !important;
+}
+
+:host ::ng-deep app-standard-filter-table .mat-mdc-chip {
+  border-radius: 999px !important;
+}
+
+/* =========================
+   ✅ FIX: sticky header + sticky columns con scroll horizontal
+========================= */
+:host ::ng-deep app-standard-filter-table .sf-table-scroller {
+  overflow: auto;
+  position: relative;
+}
+
+:host ::ng-deep app-standard-filter-table .sf-table {
+  min-width: 100%;
+  width: max-content;
+}
+
+:host ::ng-deep app-standard-filter-table .sf-table .mat-mdc-header-row {
+  z-index: 20;
+}
+
+:host ::ng-deep app-standard-filter-table .sf-table .mat-mdc-header-cell {
+  background: #f9fafb;
+}
+
+:host ::ng-deep app-standard-filter-table .sf-table .mat-mdc-cell.mat-mdc-table-sticky {
+  z-index: 10;
+  background: #ffffff;
+}
+
+:host ::ng-deep app-standard-filter-table .sf-table .mat-mdc-header-cell.mat-mdc-table-sticky {
+  z-index: 30;
+  background: #f9fafb;
+}
+
+:host ::ng-deep app-standard-filter-table .sf-table .mat-mdc-header-cell.mat-mdc-table-sticky:first-child {
+  z-index: 40;
+}
+
+/* =========================================================
+   ✅ Botón estado documento (OK/WARN/MISSING) - colores
+   (usado en estadoTemplate)
+========================================================= */
+:host ::ng-deep .doc-state-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+
+  width: 38px;
+  height: 38px;
+
+  border-radius: 10px;
+  border: 1px solid rgba(17, 24, 39, 0.12);
+  background: #fff;
+
+  cursor: pointer;
+  user-select: none;
+
+  transition:
+    transform var(--dur) var(--ease),
+    box-shadow var(--dur) var(--ease),
+    background var(--dur) var(--ease),
+    border-color var(--dur) var(--ease);
 }
 
-/* Tamaño + contraste del icono */
-.doc-status-cell .doc-icon {
-  font-size: 22px !important;
-  width: 22px !important;
-  height: 22px !important;
-  line-height: 22px !important;
-
-  /* se nota sobre cualquier fondo */
-  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.45));
+:host ::ng-deep .doc-state-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 20px rgba(17, 24, 39, 0.10);
 }
 
-/* 🔥 Fuerza colores (más especificidad + !important) */
-.doc-status-cell .doc-icon--ok {
-  color: #16a34a !important; /* verde */
+:host ::ng-deep .doc-state-btn:active:not(:disabled) {
+  transform: translateY(0);
+  box-shadow: none;
 }
 
-.doc-status-cell .doc-icon--warn {
-  color: #f59e0b !important; /* amarillo */
+:host ::ng-deep .doc-state-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 4px var(--primary-soft);
+  border-color: var(--primary);
 }
 
-.doc-status-cell .doc-icon--bad {
-  color: #dc2626 !important; /* rojo */
+:host ::ng-deep .doc-state-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  box-shadow: none;
 }
 
-/* Por si algún ícono llega como SVG (mat-icon svgIcon) */
-.doc-status-cell .doc-icon--ok svg,
-.doc-status-cell .doc-icon--warn svg,
-.doc-status-cell .doc-icon--bad svg {
-  fill: currentColor !important;
+/* icon dentro */
+:host ::ng-deep .doc-state-ico {
+  font-size: 20px;
+  width: 20px;
+  height: 20px;
+  line-height: 20px;
 }
 
-/* Hover suave cuando es link */
-.doc-link .doc-icon {
-  transition: transform 120ms ease;
+/* ✅ Verde */
+:host ::ng-deep .doc-state-btn.is-ok {
+  border-color: rgba(34, 197, 94, 0.35);
+  background: var(--ok-soft);
+}
+:host ::ng-deep .doc-state-btn.is-ok .doc-state-ico {
+  color: var(--ok);
 }
 
-.doc-link:hover .doc-icon {
-  transform: scale(1.08);
+/* ✅ Naranja */
+:host ::ng-deep .doc-state-btn.is-warn {
+  border-color: rgba(245, 158, 11, 0.40);
+  background: var(--warn-soft);
+}
+:host ::ng-deep .doc-state-btn.is-warn .doc-state-ico {
+  color: var(--warn);
+}
+
+/* ✅ Rojo */
+:host ::ng-deep .doc-state-btn.is-bad {
+  border-color: rgba(239, 68, 68, 0.40);
+  background: var(--bad-soft);
+}
+:host ::ng-deep .doc-state-btn.is-bad .doc-state-ico {
+  color: var(--bad);
+}
+
+/* =========================================================
+   Responsive
+========================================================= */
+@media (max-width: 900px) {
+  :host ::ng-deep .container .mat-mdc-card-content {
+    padding: 12px !important;
+  }
+
+  .page-header {
+    grid-template-columns: 1fr;
+    gap: 10px;
+    align-items: start;
+  }
+
+  :host ::ng-deep .page-header button[mat-icon-button] {
+    justify-self: start;
+  }
+
+  .page-header .title {
+    font-size: 16px;
+  }
+
+  .table-container {
+    border-radius: 16px;
+    padding: 8px;
+  }
+
+  .table-container::before {
+    font-size: 11px;
+  }
 }

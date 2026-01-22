@@ -1,50 +1,90 @@
-<mat-card>
-  <mat-card-content>
-    <mat-tree [dataSource]="dataSource" [treeControl]="treeControl">
+<mat-card class="tree-card">
+  <mat-card-content class="tree-card__content">
+
+    <!-- Header -->
+    <div class="tree-header">
+      <div class="tree-header__left">
+        <h2 class="tree-title">Tipos documentales</h2>
+        <p class="tree-subtitle">Gestiona categorías y subtipos. Edita o agrega hijos desde cada nodo.</p>
+      </div>
+
+      <div class="tree-header__right">
+        <button mat-flat-button color="primary" type="button" (click)="openModal(null, false)">
+          <mat-icon>add</mat-icon>
+          Agregar tipo documental
+        </button>
+      </div>
+    </div>
+
+    <!-- Tree -->
+    <mat-tree class="doc-tree" [dataSource]="dataSource" [treeControl]="treeControl">
+
       <!-- Nodo Hoja -->
-      <mat-tree-node *matTreeNodeDef="let node" matTreeNodePadding>
-        <div class="tree-node-container">
-          <div class="node-content">
-            <button mat-icon-button class="toggle-icon" disabled>
-              <mat-icon style="visibility: hidden">chevron_right</mat-icon>
+      <mat-tree-node *matTreeNodeDef="let node" matTreeNodePadding class="doc-node">
+        <div class="doc-row">
+
+          <div class="doc-left">
+            <!-- placeholder para alinear con expandibles -->
+            <button mat-icon-button class="toggle-btn toggle-btn--placeholder" type="button" disabled>
+              <mat-icon>chevron_right</mat-icon>
             </button>
-            <span>{{ node.name }}</span>
-            <span *ngIf="node.tags.length">({{ node.tags.join(', ') }})</span>
+
+            <div class="doc-info">
+              <div class="doc-name">{{ node.name }}</div>
+
+              <div class="doc-tags" *ngIf="node.tags?.length">
+                <span class="tag-chip" *ngFor="let t of node.tags">{{ t }}</span>
+              </div>
+            </div>
           </div>
-          <div class="actions">
-            <button mat-icon-button (click)="openModal(node, true)">
+
+          <div class="doc-actions">
+            <button mat-icon-button type="button" class="action-btn" (click)="openModal(node, true)" aria-label="Editar">
               <mat-icon>edit</mat-icon>
             </button>
-            <button mat-icon-button (click)="openModal(node, false)">
+
+            <button mat-icon-button type="button" class="action-btn" (click)="openModal(node, false)" aria-label="Agregar hijo">
               <mat-icon>add</mat-icon>
             </button>
           </div>
+
         </div>
       </mat-tree-node>
 
       <!-- Nodo Expandible -->
-      <mat-tree-node *matTreeNodeDef="let node; when: hasChild" matTreeNodePadding>
-        <div class="tree-node-container">
-          <div class="node-content">
-            <button mat-icon-button matTreeNodeToggle class="toggle-icon">
+      <mat-tree-node *matTreeNodeDef="let node; when: hasChild" matTreeNodePadding class="doc-node">
+        <div class="doc-row">
+
+          <div class="doc-left">
+            <button mat-icon-button matTreeNodeToggle class="toggle-btn" type="button" [attr.aria-label]="'Expandir ' + node.name">
               <mat-icon>
                 {{ treeControl.isExpanded(node) ? 'expand_more' : 'chevron_right' }}
               </mat-icon>
             </button>
-            <span>{{ node.name }}</span>
-            <span *ngIf="node.tags.length">({{ node.tags.join(', ') }})</span>
+
+            <div class="doc-info">
+              <div class="doc-name">{{ node.name }}</div>
+
+              <div class="doc-tags" *ngIf="node.tags?.length">
+                <span class="tag-chip" *ngFor="let t of node.tags">{{ t }}</span>
+              </div>
+            </div>
           </div>
-          <div class="actions">
-            <button mat-icon-button (click)="openModal(node, true)">
+
+          <div class="doc-actions">
+            <button mat-icon-button type="button" class="action-btn" (click)="openModal(node, true)" aria-label="Editar">
               <mat-icon>edit</mat-icon>
             </button>
-            <button mat-icon-button (click)="openModal(node, false)">
+
+            <button mat-icon-button type="button" class="action-btn" (click)="openModal(node, false)" aria-label="Agregar hijo">
               <mat-icon>add</mat-icon>
             </button>
           </div>
+
         </div>
       </mat-tree-node>
+
     </mat-tree>
-    <button mat-raised-button (click)="openModal(null, false)">Agregar Tipo Documental</button>
+
   </mat-card-content>
 </mat-card>

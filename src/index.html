@@ -1,11 +1,14 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="es">
   <head>
     <meta charset="utf-8" />
     <title>Gestión Empresa</title>
     <base href="/" />
 
-    <!-- CSP corregida -->
+    <!-- Viewport (CLAVE para que el @media funcione en móvil) -->
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <!-- CSP -->
     <meta
       http-equiv="Content-Security-Policy"
       content="
@@ -15,7 +18,7 @@
         script-src 'self' 'unsafe-inline';
         style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
         font-src 'self' data: https://fonts.gstatic.com;
-        connect-src 'self' https://formulario.tsservicios.co http://10.10.10.60:4545;
+        connect-src 'self' https://formulario.tsservicios.co http://10.10.10.60:4545 http://192.168.1.4:4400 http://192.168.1.4:4200;
         frame-src 'self' blob: data: https://formulario.tsservicios.co;
         img-src 'self' data: blob:;
         media-src 'self' data: blob:;
@@ -25,8 +28,13 @@
     />
 
     <link rel="icon" type="image/x-icon" href="favicon.ico" />
+
+    <!-- Fonts / Icons -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+
     <link
-      href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700;900&display=swap"
       rel="stylesheet"
     />
     <link
