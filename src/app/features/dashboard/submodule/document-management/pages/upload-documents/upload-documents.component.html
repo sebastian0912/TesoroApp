@@ -1,216 +1,194 @@
 <div class="upload-page-container">
 
-  <!-- Header & Wizard -->
-  <div class="page-header">
+  <!-- Semantic Header -->
+  <header class="page-header">
     <div class="header-text">
       <h1>Carga de Documentos</h1>
-      <p>Sube y gestiona la documentación de candidatos.</p>
+      <p>Sube y gestiona la documentación de candidatos de forma centralizada.</p>
     </div>
+  </header>
 
-    <div class="wizard-steps">
-      @for (step of steps; track step.num) {
-      <div class="step-item" [class.active]="step.num === currentStep" [class.completed]="step.num < currentStep">
-        <div class="step-circle">
-          @if (step.num < currentStep) { <mat-icon>check</mat-icon> }
-            @else { {{ step.num }} }
-        </div>
-        <span class="step-label">{{ step.label }}</span>
-        @if ($index < steps.length - 1) { <div class="step-line">
-      </div> }
-    </div>
-    }
-  </div>
-</div>
+  <!-- Main Content Area -->
+  <main>
+    <mat-card class="main-card">
+      <mat-card-content class="main-layout"> <!-- Grid Layout Container -->
 
-<div class="upload-content-wrapper">
+        <!-- SIDEBAR: Upload Controls -->
+        <aside class="control-sidebar" aria-label="Panel de control de subida">
 
-  <!-- STEP 1: Upload -->
-  @if (currentStep === 1) {
-  <div class="step-upload fade-in">
-    <div class="dropzone" [class.drag-over]="dragOver" (dragover)="onDragOver($event)" (dragleave)="onDragLeave($event)"
-      (drop)="onDrop($event)">
+          <!-- Section 1: Configuration (Moved up for better flow on simple layout? No, Dropzone first is intuitive) -->
+          <section class="dropzone-section" aria-labelledby="upload-heading">
+            <h2 id="upload-heading" class="visually-hidden">Zona de carga</h2>
 
-      <mat-icon class="cloud-icon">cloud_upload</mat-icon>
-      <h2>Arrastra tus archivos PDF aquí</h2>
-      <p>o selecciona desde tu ordenador</p>
+            <div class="dropzone" [class.drag-over]="dragOver" (dragover)="onDragOver($event)"
+              (dragleave)="onDragLeave($event)" (drop)="onDrop($event)" (click)="fileInput.click()" role="button"
+              tabindex="0" (keydown.enter)="fileInput.click()"
+              aria-label="Área de carga de archivos. Haz clic o arrastra archivos PDF aquí.">
 
-      <button mat-flat-button color="primary" (click)="fileInput.click()">
-        <mat-icon>add</mat-icon> Seleccionar Archivos
-      </button>
-      <input #fileInput type="file" multiple accept=".pdf" hidden (change)="onFileSelected($event)">
+              <div class="dropzone-content">
+                <mat-icon class="cloud-icon" aria-hidden="true">cloud_upload</mat-icon>
+                <div class="dropzone-text">
+                  <h2>Cargar Archivos</h2>
+                  <p>Clic o arrastrar PDF aquí</p>
+                </div>
+              </div>
 
-      <div class="drop-footer">
-        <span>Máximo 10MB por archivo</span>
-        <span>•</span>
-        <span>Solo PDF</span>
-      </div>
-    </div>
+              <!-- Hidden Inputs -->
+              <input #fileInput type="file" multiple accept=".pdf" hidden (change)="onFileSelected($event)">
+              <input #zipInput type="file" accept=".zip" hidden (change)="onZipSelected($event)">
+            </div>
 
-    <div class="bulk-zip-action">
-      <button mat-stroked-button (click)="onClickSubidaMasiva()">
-        <mat-icon>folder_zip</mat-icon> Carga Masiva ZIP
-      </button>
-      <input #zipInput type="file" accept=".zip" hidden (change)="onZipSelected($event)">
-    </div>
-  </div>
-  }
+            <div style="text-align: right;">
+              <button mat-button class="small-btn" (click)="$event.stopPropagation(); onClickSubidaMasiva()"
+                aria-label="Opción de carga masiva ZIP">
+                <mat-icon class="icon-small">folder_zip</mat-icon> Carga Masiva ZIP
+              </button>
+            </div>
+          </section>
 
-  <!-- STEP 2: Review & Metadata -->
-  @if (currentStep === 2) {
-  <div class="step-review fade-in">
+          <mat-divider style="opacity: 0.5; width: 100%;"></mat-divider>
 
-    <!-- Sidebar Metadata -->
-    <div class="metadata-sidebar">
-      <mat-card>
-        <mat-card-header>
-          <mat-card-title>Edición Masiva</mat-card-title>
-        </mat-card-header>
-        <mat-card-content>
-          <form [formGroup]="bulkEditForm" class="bulk-form">
-            <mat-form-field appearance="outline" class="w-100">
-              <mat-label>Tipo Documental</mat-label>
-              <mat-select formControlName="tipoId">
-                <mat-option [value]="null">-- No cambiar --</mat-option>
-                @for (grupo of gruposHojas; track grupo.padre) {
-                <mat-optgroup [label]="grupo.padre">
-                  @for (h of grupo.hijos; track h.id) {
-                  <mat-option [value]="h.id">{{ h.name }}</mat-option>
+          <!-- Section 2: Configuration Form -->
+          <section class="control-panel" aria-labelledby="config-heading">
+            <div class="panel-header">
+              <h3 id="config-heading">Datos del Proceso</h3>
+            </div>
+
+            <div class="control-body">
+
+              <!-- Doc Number -->
+              <div class="form-group-section">
+                <div class="section-label">
+                  <span class="section-number">1</span>
+                  <span>Candidato</span>
+                </div>
+                <!-- Clean Input -->
+                <mat-form-field appearance="outline" class="w-100" subscriptSizing="dynamic">
+                  <mat-label>Número de Documento</mat-label>
+                  <input matInput [formControl]="numeroDocumentoControl" placeholder="Ingresa la cédula" required>
+                  <mat-icon matSuffix class="text-secondary">badge</mat-icon>
+                  <mat-error *ngIf="numeroDocumentoControl.invalid">Campo obligatorio</mat-error>
+                </mat-form-field>
+              </div>
+
+              <!-- CTA (Attached to form logic) -->
+              <div class="action-footer" style="margin-top: 32px;">
+                <button mat-flat-button class="cta-button" [disabled]="!canUpload" (click)="startUpload()"
+                  aria-label="Iniciar subida de documentos">
+                  <mat-icon style="margin-right: 8px;">upload</mat-icon> SUBIR DOCUMENTOS
+                </button>
+              </div>
+
+            </div>
+          </section>
+
+        </aside>
+
+        <!-- RIGHT: Queue / Content -->
+        <section class="queue-container" aria-label="Lista de archivos subidos">
+          <div class="queue-header">
+            <div class="queue-title">
+              <h3>Archivos en Cola</h3>
+              @if(fileQueue.length > 0) {
+              <span class="queue-meta">{{ fileQueue.length }} item{{fileQueue.length > 1 ? 's' : ''}}</span>
+              }
+            </div>
+
+            <div class="queue-actions">
+              @if(fileQueue.length > 0) {
+              <button mat-button color="primary" (click)="toggleSelectAll()" style="margin-right: 8px;">
+                {{ allSelected ? 'Deseleccionar' : 'Seleccionar' }} Todo
+              </button>
+              <button mat-icon-button color="warn" [matTooltip]="'Eliminar todos'"
+                (click)="fileQueue = []; allSelected = false;">
+                <mat-icon>delete_sweep</mat-icon>
+              </button>
+              }
+            </div>
+          </div>
+
+          <!-- Empty State -->
+          @if (fileQueue.length === 0) {
+          <div class="empty-queue">
+            <mat-icon class="empty-icon">library_add</mat-icon>
+            <h3>La lista está vacía</h3>
+            <p>Arrastra archivos aquí o usa el botón de carga para comenzar.</p>
+          </div>
+          } @else {
+          <!-- Table List -->
+          <div class="table-scroll-wrapper" tabindex="0" aria-label="Tabla desplazable de archivos">
+            <div class="queue-list" role="table">
+              <!-- Header -->
+              <div class="q-header-row" role="rowheader">
+                <div class="col-check header-cell"></div>
+                <div class="col-name header-cell">Nombre del Archivo</div>
+                <div class="col-type header-cell">Tipo Documental *</div>
+                <div class="col-status header-cell">Estado</div>
+                <div class="col-size header-cell">Tamaño</div>
+                <div class="col-actions header-cell"></div>
+              </div>
+
+              <!-- Rows -->
+              @for (item of fileQueue; track item.id) {
+              <div class="q-row" [class.selected]="item.selected" role="row">
+
+                <div class="col-check" role="cell">
+                  <mat-checkbox [(ngModel)]="item.selected" color="primary"
+                    [aria-label]="'Seleccionar ' + item.name"></mat-checkbox>
+                </div>
+
+                <div class="col-name" role="cell">
+                  <mat-icon class="pdf-icon">picture_as_pdf</mat-icon>
+                  <div class="file-info">
+                    <span class="file-name" [matTooltip]="item.name">{{ item.name }}</span>
+                    @if (item.contractCode) { <span class="file-contract">Ref: {{ item.contractCode }}</span> }
+                  </div>
+                </div>
+
+                <div class="col-type" role="cell">
+                  <mat-form-field appearance="outline" density="compact" class="no-subscript w-100 bg-white">
+                    <mat-select [(ngModel)]="item.typeId" placeholder="Seleccionar...">
+                      @for (grupo of gruposHojas; track grupo.padre) {
+                      <mat-optgroup [label]="grupo.padre">
+                        @for (h of grupo.hijos; track h.id) {
+                        <mat-option [value]="h.id">{{ h.name }}</mat-option>
+                        }
+                      </mat-optgroup>
+                      }
+                    </mat-select>
+                  </mat-form-field>
+                </div>
+
+                <div class="col-status" role="cell">
+                  @if (item.status === 'pending') {
+                  <span class="badge pending">Pendiente</span>
+                  } @else if (item.status === 'uploading') {
+                  <span class="badge uploading">Cargando...</span>
+                  } @else if (item.status === 'success') {
+                  <span class="badge success">Subido</span>
+                  } @else if (item.status === 'error') {
+                  <span class="badge error" [matTooltip]="item.errorMessage || 'Error desconocido'">Error</span>
                   }
-                </mat-optgroup>
-                }
-              </mat-select>
-            </mat-form-field>
+                </div>
 
-            <mat-form-field appearance="outline" class="w-100">
-              <mat-label>Código Contrato (Opcional)</mat-label>
-              <input matInput formControlName="contractCode" placeholder="Ej. CT-2024-001">
-            </mat-form-field>
+                <div class="col-size" role="cell">
+                  {{ (item.size / 1024 / 1024) | number:'1.2-2' }} MB
+                </div>
 
-            <button mat-stroked-button color="primary" class="w-100" (click)="applyBulkMetadata()">
-              Aplicar a Seleccionados
-            </button>
-          </form>
+                <div class="col-actions" role="cell">
+                  <button mat-icon-button color="warn" (click)="removeFromQueue(item)" aria-label="Eliminar archivo">
+                    <mat-icon>close</mat-icon>
+                  </button>
+                </div>
 
-          <mat-divider></mat-divider>
-
-          <div class="doc-form-main">
-            <h3>Datos Globales</h3>
-            <mat-form-field appearance="outline" class="w-100">
-              <mat-label>Número de Documento</mat-label>
-              <input matInput [formControl]="numeroDocumentoControl" placeholder="Cédula del candidato">
-              <mat-error *ngIf="numeroDocumentoControl.invalid">Requerido</mat-error>
-            </mat-form-field>
+              </div>
+              }
+            </div>
           </div>
+          }
+        </section> <!-- End Queue -->
 
-        </mat-card-content>
-        <mat-card-actions align="end" class="sidebar-actions">
-          <button mat-button color="warn" (click)="currentStep = 1">Atrás</button>
-          <button mat-raised-button color="primary" [disabled]="!canUpload" (click)="startUpload()">
-            <mat-icon>upload</mat-icon> Iniciar Carga
-          </button>
-        </mat-card-actions>
-      </mat-card>
-    </div>
-
-    <!-- File Queue -->
-    <div class="queue-container">
-      <div class="queue-header">
-        <h3>Archivos en Cola ({{ fileQueue.length }})</h3>
-        <div class="queue-actions">
-          <mat-checkbox [checked]="allSelected" (change)="toggleSelectAll()">Seleccionar Todo</mat-checkbox>
-          <button mat-button color="warn" (click)="fileQueue = []; currentStep = 1">Limpiar Todo</button>
-        </div>
-      </div>
-
-      <div class="queue-list">
-        <!-- Table Header (Desktop) -->
-        <div class="q-header-row">
-          <div class="col-check"></div>
-          <div class="col-name">Nombre</div>
-          <div class="col-type">Tipo Documental</div>
-          <div class="col-status">Estado</div>
-          <div class="col-actions"></div>
-        </div>
-
-        @for (item of fileQueue; track item.id) {
-        <div class="q-row" [class.selected]="item.selected">
-          <div class="col-check">
-            <mat-checkbox [(ngModel)]="item.selected"></mat-checkbox>
-          </div>
-          <div class="col-name" [matTooltip]="item.name">
-            <mat-icon class="pdf-icon">picture_as_pdf</mat-icon>
-            <span>{{ item.name }}</span>
-            <small>{{ (item.size / 1024 / 1024) | number:'1.2-2' }} MB</small>
-          </div>
-          <div class="col-type">
-            <mat-form-field appearance="outline" density="compact" class="no-subscript">
-              <mat-select [(ngModel)]="item.typeId" placeholder="Seleccionar tipo">
-                @for (grupo of gruposHojas; track grupo.padre) {
-                <mat-optgroup [label]="grupo.padre">
-                  @for (h of grupo.hijos; track h.id) {
-                  <mat-option [value]="h.id">{{ h.name }}</mat-option>
-                  }
-                </mat-optgroup>
-                }
-              </mat-select>
-            </mat-form-field>
-          </div>
-          <div class="col-status">
-            @if (item.status === 'pending') {
-            <span class="badge pending">Pendiente</span>
-            } @else if (item.status === 'success') {
-            <span class="badge success">Subido</span>
-            } @else if (item.status === 'error') {
-            <span class="badge error" [matTooltip]="item.errorMessage || ''">Error</span>
-            }
-          </div>
-          <div class="col-actions">
-            <button mat-icon-button color="warn" (click)="removeFromQueue(item)">
-              <mat-icon>delete</mat-icon>
-            </button>
-          </div>
-        </div>
-        }
-      </div>
-    </div>
-  </div>
-  }
-
-  <!-- STEP 3: Result -->
-  @if (currentStep === 3) {
-  <div class="step-result fade-in">
-    <div class="result-card">
-      <h2>Procesando Carga</h2>
-
-      <div class="progress-section">
-        <mat-progress-bar mode="determinate" [value]="overallProgress"></mat-progress-bar>
-        <span>{{ overallProgress | number:'1.0-0' }}%</span>
-      </div>
-
-      <div class="stats-grid">
-        <div class="stat-item">
-          <div class="val">{{ uploadSummary.total }}</div>
-          <div class="label">Total</div>
-        </div>
-        <div class="stat-item success">
-          <div class="val">{{ uploadSummary.success }}</div>
-          <div class="label">Exitosos</div>
-        </div>
-        <div class="stat-item error">
-          <div class="val">{{ uploadSummary.error }}</div>
-          <div class="label">Fallidos</div>
-        </div>
-      </div>
-
-      @if (!isUploading) {
-      <div class="final-actions">
-        <button mat-stroked-button (click)="currentStep = 1; fileQueue = []">Subir Más</button>
-        <!-- Add detailed report link if needed -->
-      </div>
-      }
-    </div>
-  </div>
-  }
-
-</div>
+      </mat-card-content> <!-- End Main Layout -->
+    </mat-card>
+  </main>
 </div>

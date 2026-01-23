@@ -1,90 +1,121 @@
-<mat-card class="tree-card">
-  <mat-card-content class="tree-card__content">
+<div class="explorer-container">
 
-    <!-- Header -->
-    <div class="tree-header">
-      <div class="tree-header__left">
-        <h2 class="tree-title">Tipos documentales</h2>
-        <p class="tree-subtitle">Gestiona categorías y subtipos. Edita o agrega hijos desde cada nodo.</p>
-      </div>
-
-      <div class="tree-header__right">
-        <button mat-flat-button color="primary" type="button" (click)="openModal(null, false)">
-          <mat-icon>add</mat-icon>
-          Agregar tipo documental
-        </button>
-      </div>
+  <!-- Header Section -->
+  <header class="explorer-header">
+    <div class="header-content">
+      <h1>Estructura Documental</h1>
+      <p>Organiza jerárquicamente tipos y subtipos documentales.</p>
     </div>
 
-    <!-- Tree -->
-    <mat-tree class="doc-tree" [dataSource]="dataSource" [treeControl]="treeControl">
+    <!-- Global Actions -->
+    <div class="header-actions">
+      <button mat-flat-button color="primary" class="btn-create" (click)="addCurrentLevel()">
+        <mat-icon>add</mat-icon> Nuevo {{ currentLevelTitle === 'Raíz' ? 'Tipo' : 'Subtipo' }}
+      </button>
+    </div>
+  </header>
 
-      <!-- Nodo Hoja -->
-      <mat-tree-node *matTreeNodeDef="let node" matTreeNodePadding class="doc-node">
-        <div class="doc-row">
+  <!-- Navigation Toolbar -->
+  <div class="nav-toolbar">
 
-          <div class="doc-left">
-            <!-- placeholder para alinear con expandibles -->
-            <button mat-icon-button class="toggle-btn toggle-btn--placeholder" type="button" disabled>
-              <mat-icon>chevron_right</mat-icon>
-            </button>
+    <!-- Breadcrumbs -->
+    <div class="breadcrumbs">
+      <button mat-icon-button class="home-btn" (click)="navigateUpTo(-1)" [disabled]="viewStack.length === 0"
+        matTooltip="Ir al inicio">
+        <mat-icon>home</mat-icon>
+      </button>
 
-            <div class="doc-info">
-              <div class="doc-name">{{ node.name }}</div>
+      <span class="crumb-separator" *ngIf="viewStack.length > 0">/</span>
 
-              <div class="doc-tags" *ngIf="node.tags?.length">
-                <span class="tag-chip" *ngFor="let t of node.tags">{{ t }}</span>
-              </div>
-            </div>
-          </div>
+      @for (crumb of viewStack; track crumb.id; let i = $index) {
+      <div class="crumb" (click)="navigateUpTo(i)" [class.active]="i === viewStack.length - 1">
+        <span class="crumb-text">{{ crumb.name }}</span>
+      </div>
+      <span class="crumb-separator" *ngIf="i < viewStack.length - 1">/</span>
+      }
 
-          <div class="doc-actions">
-            <button mat-icon-button type="button" class="action-btn" (click)="openModal(node, true)" aria-label="Editar">
-              <mat-icon>edit</mat-icon>
-            </button>
+      @if (viewStack.length === 0) {
+      <span class="crumb-text root-label">Nivel Raíz</span>
+      }
+    </div>
 
-            <button mat-icon-button type="button" class="action-btn" (click)="openModal(node, false)" aria-label="Agregar hijo">
-              <mat-icon>add</mat-icon>
-            </button>
-          </div>
+    <!-- Filter -->
+    <div class="search-box">
+      <mat-icon class="search-icon">search</mat-icon>
+      <input type="text" placeholder="Filtrar nivel actual..." [(ngModel)]="searchQuery">
+      <button mat-icon-button *ngIf="searchQuery" (click)="searchQuery = ''" class="clear-btn">
+        <mat-icon>close</mat-icon>
+      </button>
+    </div>
+  </div>
 
+  <!-- Content Grid -->
+  <div class="content-grid" [@listAnimation]="currentLevelNodes.length">
+
+    @for (node of currentLevelNodes; track node.id) {
+    <div class="doc-card" (click)="drillDown(node)" tabindex="0">
+
+      <div class="card-icon-area">
+        <div class="icon-circle" [class.has-children]="node.subtypes && node.subtypes.length > 0">
+          <mat-icon>folder</mat-icon>
         </div>
-      </mat-tree-node>
+      </div>
 
-      <!-- Nodo Expandible -->
-      <mat-tree-node *matTreeNodeDef="let node; when: hasChild" matTreeNodePadding class="doc-node">
-        <div class="doc-row">
+      <div class="card-body">
+        <h3 class="card-title" [matTooltip]="node.name">{{ node.name }}</h3>
 
-          <div class="doc-left">
-            <button mat-icon-button matTreeNodeToggle class="toggle-btn" type="button" [attr.aria-label]="'Expandir ' + node.name">
-              <mat-icon>
-                {{ treeControl.isExpanded(node) ? 'expand_more' : 'chevron_right' }}
-              </mat-icon>
-            </button>
+        <div class="card-meta">
+          @if (node.subtypes && node.subtypes.length > 0) {
+          <span class="meta-badge">
+            {{ node.subtypes.length }} elemento{{ node.subtypes.length !== 1 ? 's' : '' }}
+          </span>
+          } @else {
+          <span class="meta-text text-muted">Sin elementos</span>
+          }
 
-            <div class="doc-info">
-              <div class="doc-name">{{ node.name }}</div>
-
-              <div class="doc-tags" *ngIf="node.tags?.length">
-                <span class="tag-chip" *ngFor="let t of node.tags">{{ t }}</span>
-              </div>
-            </div>
+          @if (node.tags?.length) {
+          <div class="mini-tags">
+            <span class="dot"></span>
+            <span>{{ node.tags.length }} tags</span>
           </div>
-
-          <div class="doc-actions">
-            <button mat-icon-button type="button" class="action-btn" (click)="openModal(node, true)" aria-label="Editar">
-              <mat-icon>edit</mat-icon>
-            </button>
-
-            <button mat-icon-button type="button" class="action-btn" (click)="openModal(node, false)" aria-label="Agregar hijo">
-              <mat-icon>add</mat-icon>
-            </button>
-          </div>
-
+          }
         </div>
-      </mat-tree-node>
+      </div>
 
-    </mat-tree>
+      <div class="card-actions">
+        <button mat-icon-button [matMenuTriggerFor]="menu" (click)="$event.stopPropagation()">
+          <mat-icon>more_vert</mat-icon>
+        </button>
+        <mat-menu #menu="matMenu">
+          <button mat-menu-item (click)="openModal(node, true)">
+            <mat-icon>edit</mat-icon>
+            <span>Editar</span>
+          </button>
+          <button mat-menu-item (click)="addChildToNode(node)">
+            <mat-icon>add</mat-icon>
+            <span>Agregar Subtipo</span>
+          </button>
+        </mat-menu>
+      </div>
 
-  </mat-card-content>
-</mat-card>
+    </div>
+    }
+
+    <!-- Empty State -->
+    @if (currentLevelNodes.length === 0) {
+    <div class="empty-state">
+      <div class="empty-icon-wrapper">
+        <mat-icon>folder_open</mat-icon>
+      </div>
+      <h3>No hay elementos aquí</h3>
+      <p *ngIf="searchQuery">No se encontraron resultados para "{{searchQuery}}"</p>
+      <p *ngIf="!searchQuery">Este nivel está vacío. Comienza agregando un nuevo tipo.</p>
+      <button mat-stroked-button color="primary" (click)="addCurrentLevel()">
+        <mat-icon>add</mat-icon> Crear Nuevo
+      </button>
+    </div>
+    }
+
+  </div>
+
+</div>

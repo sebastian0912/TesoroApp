@@ -1,246 +1,384 @@
+/* --- Variables --- */
 :host {
+  --ds-primary: #21263C;
+  --ds-accent: #8CD50A;
+  --ds-bg: #FFFFFF;
+  /* Changed to White per previous task trend to look "cleaner" if background was distinct */
+  --ds-header-bg: #ffffff;
+  --ds-text: #1e293b;
+  --ds-text-light: #64748b;
+  --ds-border: #e2e8f0;
+
   display: block;
-  background: #ffffff;
-}
-
-/* =========================
-   Card
-========================= */
-.tree-card {
-  border-radius: 18px;
-  border: 1px solid #e5e7eb;
-  box-shadow: 0 10px 26px rgba(17, 24, 39, 0.08);
-  background: #ffffff;
+  min-height: 85vh;
+  background-color: var(--ds-bg);
+  /* Ensuring full white background if needed */
+  padding: 32px;
+  border-radius: 30px !important;
+  /* REQUESTED FIX */
   overflow: hidden;
+  /* REQUESTED FIX: Prevent overflow of borders */
 }
 
-:host ::ng-deep .tree-card .mat-mdc-card-content {
-  padding: 16px !important;
-  background: #ffffff;
-}
-
-/* =========================
-   Header
-========================= */
-.tree-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-
-  padding: 14px;
-  border: 1px solid #eef2f7;
-  border-radius: 16px;
-  background: #ffffff;
-  margin-bottom: 14px;
-}
-
-.tree-title {
-  margin: 0;
-  font-size: 16px;
-  font-weight: 900;
-  color: #111827;
-  letter-spacing: -0.2px;
-}
-
-.tree-subtitle {
-  margin: 4px 0 0 0;
-  font-size: 12.5px;
-  font-weight: 600;
-  color: #6b7280;
-}
-
-.tree-header__right button mat-icon {
-  margin-right: 8px;
-}
-
-/* =========================
-   Tree base
-========================= */
-.doc-tree {
-  background: #ffffff;
-}
-
-:host ::ng-deep .doc-tree .mat-tree-node {
-  background: transparent;
-}
-
-/* =========================
-   Row
-========================= */
-.doc-row {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-
-  padding: 10px 10px;
-  margin: 6px 0;
-
-  border: 1px solid #eef2f7;
-  border-radius: 14px;
-  background: #ffffff;
-
-  transition: transform 140ms ease, box-shadow 140ms ease, border-color 140ms ease;
-}
-
-.doc-row:hover {
-  border-color: #dbe3ef;
-  box-shadow: 0 10px 18px rgba(17, 24, 39, 0.06);
-  transform: translateY(-1px);
-}
-
-/* Left */
-.doc-left {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-width: 0;
-  flex: 1;
-}
-
-.doc-info {
-  min-width: 0;
+/* Container limits */
+.explorer-container {
+  max-width: 100%;
+  /* Full width as requested "usa todo el espacio" */
+  height: 80vh;
+  /* REQUESTED FIX: exact height */
+  margin: 0 auto;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 24px;
 }
 
-.doc-name {
-  font-size: 13.5px;
-  font-weight: 800;
-  color: #111827;
-  line-height: 1.2;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-/* Tags */
-.doc-tags {
+/* --- Header --- */
+.explorer-header {
   display: flex;
+  justify-content: space-between;
+  align-items: center;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 16px;
+  flex-shrink: 0;
+  /* Header doesn't shrink */
 }
 
-.tag-chip {
-  display: inline-flex;
+.header-content h1 {
+  font-size: 28px;
+  font-weight: 800;
+  color: var(--ds-primary);
+  margin: 0 0 4px 0;
+  letter-spacing: -0.5px;
+}
+
+.header-content p {
+  margin: 0;
+  color: var(--ds-text-light);
+  font-size: 15px;
+}
+
+/* --- Navigation Toolbar --- */
+.nav-toolbar {
+  display: flex;
+  justify-content: space-between;
   align-items: center;
+  background: var(--ds-header-bg);
+  padding: 8px 16px;
+  border-radius: 12px;
+  border: 1px solid var(--ds-border);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  flex-wrap: wrap;
+  gap: 16px;
+  flex-shrink: 0;
+  /* Toolbar doesn't shrink */
+}
+
+/* Breadcrumbs */
+.breadcrumbs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding: 4px 0;
+}
+
+.home-btn {
+  color: var(--ds-text-light);
+}
+
+.crumb-separator {
+  color: var(--ds-border);
+  font-size: 18px;
+}
+
+.crumb {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
   padding: 4px 8px;
-  border-radius: 999px;
+  border-radius: 6px;
+  transition: background 0.2s;
+  white-space: nowrap;
+}
 
-  border: 1px solid #e5e7eb;
-  background: #ffffff;
-  color: #475569;
+.crumb:hover {
+  background: #f1f5f9;
+}
 
-  font-size: 11px;
+.crumb-text {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--ds-text-light);
+}
+
+.crumb.active .crumb-text {
+  color: var(--ds-primary);
   font-weight: 700;
 }
 
-/* Actions container */
-.doc-actions {
-  display: inline-flex;
+.root-label {
+  font-weight: 600;
+  color: var(--ds-primary);
+  padding: 0 8px;
+}
+
+/* Search Box */
+.search-box {
+  display: flex;
   align-items: center;
-  gap: 6px;
-  flex: 0 0 auto;
+  background: #f1f5f9;
+  border-radius: 8px;
+  padding: 0 12px;
+  height: 40px;
+  width: 280px;
+  transition: width 0.3s, box-shadow 0.3s;
 }
 
-/* =========================================================
-   ICON BUTTONS SIN CUADRO (editar, agregar, flecha)
-   - quita overlay cuadrado, ripple, focus indicator (MDC)
-========================================================= */
-:host ::ng-deep .toggle-btn.mat-mdc-icon-button,
-:host ::ng-deep .action-btn.mat-mdc-icon-button {
-  width: 36px;
-  height: 36px;
-  border-radius: 999px !important;
-
-  background: transparent !important;
-  border: none !important;
-  box-shadow: none !important;
-  outline: none !important;
-
-  color: rgba(17, 24, 39, 0.72);
-
-  transition:
-    background-color 140ms ease,
-    color 140ms ease,
-    transform 140ms ease;
+.search-box:focus-within {
+  width: 320px;
+  box-shadow: 0 0 0 2px rgba(33, 38, 60, 0.1);
+  background: #fff;
 }
 
-/* Quita el “cuadro”/overlay del MDC */
-:host ::ng-deep .toggle-btn.mat-mdc-icon-button .mat-mdc-focus-indicator,
-:host ::ng-deep .action-btn.mat-mdc-icon-button .mat-mdc-focus-indicator {
-  display: none !important;
+.search-icon {
+  color: var(--ds-text-light);
+  font-size: 20px;
+  width: 20px;
+  height: 20px;
+  margin-right: 8px;
 }
 
-/* Asegura ripple circular (por si se nota) */
-:host ::ng-deep .toggle-btn.mat-mdc-icon-button .mat-mdc-button-persistent-ripple,
-:host ::ng-deep .toggle-btn.mat-mdc-icon-button .mat-mdc-button-ripple,
-:host ::ng-deep .action-btn.mat-mdc-icon-button .mat-mdc-button-persistent-ripple,
-:host ::ng-deep .action-btn.mat-mdc-icon-button .mat-mdc-button-ripple {
-  border-radius: 999px !important;
+.search-box input {
+  border: none;
+  background: transparent;
+  flex: 1;
+  font-size: 14px;
+  color: var(--ds-text);
+  outline: none;
 }
 
-/* Neutraliza focus del navegador */
-:host ::ng-deep .toggle-btn.mat-mdc-icon-button:focus,
-:host ::ng-deep .toggle-btn.mat-mdc-icon-button:focus-visible,
-:host ::ng-deep .action-btn.mat-mdc-icon-button:focus,
-:host ::ng-deep .action-btn.mat-mdc-icon-button:focus-visible {
-  outline: none !important;
-  box-shadow: none !important;
+.clear-btn {
+  width: 24px;
+  height: 24px;
+  line-height: 24px;
 }
 
-/* Hover */
-:host ::ng-deep .toggle-btn.mat-mdc-icon-button:hover,
-:host ::ng-deep .action-btn.mat-mdc-icon-button:hover {
-  background-color: rgba(15, 23, 42, 0.06) !important;
-  color: rgba(17, 24, 39, 0.92);
-  transform: translateY(-1px);
+.clear-btn mat-icon {
+  font-size: 16px;
 }
 
-/* Active */
-:host ::ng-deep .toggle-btn.mat-mdc-icon-button:active,
-:host ::ng-deep .action-btn.mat-mdc-icon-button:active {
-  transform: translateY(0);
-  background-color: rgba(15, 23, 42, 0.10) !important;
+/* --- GRID --- */
+.content-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 20px;
+  position: relative;
+  /* Scrollable Area for Grid */
+  overflow-y: auto;
+  padding-bottom: 24px;
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
+  align-content: start;
+  /* content stacks at top */
 }
 
-/* Placeholder para alinear */
-.toggle-btn--placeholder {
+/* --- CARD --- */
+.doc-card {
+  background: #fff;
+  border-radius: 12px;
+  border: 1px solid var(--ds-border);
+  padding: 20px;
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  cursor: pointer;
+  position: relative;
+  height: fit-content;
+  /* Don't stretch */
+}
+
+.doc-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.08);
+  /* Soft lift */
+  border-color: #cbd5e1;
+}
+
+.doc-card:focus-visible {
+  outline: 2px solid var(--ds-accent);
+  outline-offset: 2px;
+}
+
+.card-icon-area {
+  flex-shrink: 0;
+}
+
+.icon-circle {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  background: #f1f5f9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #94a3b8;
+  transition: all 0.2s;
+}
+
+.icon-circle mat-icon {
+  font-size: 24px;
+}
+
+/* Style for folders with children */
+.icon-circle.has-children {
+  background: #e0f2fe;
+  /* Light blue tint */
+  color: #0284c7;
+  /* Blue icon */
+}
+
+.doc-card:hover .icon-circle.has-children {
+  background: var(--ds-primary);
+  color: white;
+}
+
+/* Body */
+.card-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.card-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--ds-text);
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.4;
+}
+
+.card-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+
+.meta-badge {
+  font-size: 11px;
+  font-weight: 600;
+  background: #f1f5f9;
+  color: var(--ds-text-light);
+  padding: 2px 8px;
+  border-radius: 12px;
+}
+
+.meta-text {
+  font-size: 12px;
+  color: #cbd5e1;
+}
+
+.mini-tags {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--ds-text-light);
+}
+
+.dot {
+  width: 3px;
+  height: 3px;
+  background: currentColor;
+  border-radius: 50%;
+}
+
+/* Actions */
+.card-actions {
   opacity: 0;
-  pointer-events: none;
+  /* Hidden by default */
+  transition: opacity 0.2s;
 }
 
-/* Tamaño de íconos */
-:host ::ng-deep .toggle-btn .mat-icon,
-:host ::ng-deep .action-btn .mat-icon {
-  font-size: 22px;
-  width: 22px;
-  height: 22px;
-  line-height: 22px;
+.doc-card:hover .card-actions,
+.doc-card:focus-within .card-actions {
+  opacity: 1;
 }
 
-/* =========================
-   Responsive
-========================= */
-@media (max-width: 820px) {
-  :host ::ng-deep .tree-card .mat-mdc-card-content {
-    padding: 12px !important;
+/* On mobile, always show actions */
+@media (max-width: 768px) {
+  .card-actions {
+    opacity: 1;
+  }
+}
+
+/* Empty State */
+.empty-state {
+  grid-column: 1 / -1;
+  /* Span all */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 64px;
+  text-align: center;
+  color: var(--ds-text-light);
+}
+
+.empty-icon-wrapper {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  background: #f1f5f9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 24px;
+}
+
+.empty-icon-wrapper mat-icon {
+  font-size: 40px;
+  width: 40px;
+  height: 40px;
+  color: #cbd5e1;
+}
+
+.empty-state h3 {
+  font-size: 18px;
+  font-weight: 700;
+  margin: 0 0 8px 0;
+  color: var(--ds-primary);
+}
+
+.empty-state p {
+  margin: 0 0 24px 0;
+  font-size: 15px;
+}
+
+/* Responsive */
+@media (max-width: 600px) {
+  :host {
+    padding: 16px;
   }
 
-  .tree-header {
-    flex-direction: column;
+  .nav-toolbar {
+    flex-direction: column-reverse;
     align-items: stretch;
   }
 
-  .tree-header__right button {
+  .search-box {
     width: 100%;
-    justify-content: center;
   }
 
-  .doc-name {
-    white-space: normal;
+  .content-grid {
+    grid-template-columns: 1fr;
   }
 }
