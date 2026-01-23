@@ -9,6 +9,7 @@ export interface PreviewIssue {
   message: string;
   field?: string; // clave del campo editable si aplica
   meta?: any; // opcional: rowIndex, code, etc.
+  resolutionAction?: string; // 'upload-pdf' | etc.
 }
 
 export interface PreviewColumn<T = any> {
@@ -77,6 +78,9 @@ export interface PreviewDialogData<TItem = any, TResult = any> {
   // overrides opcionales (si quieres reemplazar el título/subtítulo del schema en el diálogo)
   title?: string;
   subtitle?: string;
+
+  // Handlers opcionales
+  uploadHandler?: (file: File, itemId: string) => Promise<void> | void;
 }
 
 export interface PreviewDialogResult<TResult = any> {

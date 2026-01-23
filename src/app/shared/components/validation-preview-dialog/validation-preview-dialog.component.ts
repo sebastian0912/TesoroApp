@@ -60,8 +60,7 @@ import {
   styleUrl: './validation-preview-dialog.component.css',
 })
 export class ValidationPreviewDialogComponent<TItem = any, TResult = any>
-  implements OnDestroy
-{
+  implements OnDestroy {
   // base
   schema: PreviewSchema<TItem, TResult>;
   items: TItem[];
@@ -75,6 +74,7 @@ export class ValidationPreviewDialogComponent<TItem = any, TResult = any>
 
   // filtro (sin ngModel)
   readonly filterCtrl = new FormControl<string>('', { nonNullable: true });
+  showErrorsOnly = false;
 
   private removedIds = new Set<string>();
 
@@ -111,14 +111,28 @@ export class ValidationPreviewDialogComponent<TItem = any, TResult = any>
     this.titleText = data.title ?? this.schema.title ?? this.titleText;
     this.subtitleText = data.subtitle ?? this.schema.subtitle ?? this.subtitleText;
 
+    this.uploadHandler = data.uploadHandler;
+
     this.recomputeIssues();
 
-    const first = this.filteredItems()[0] ?? null;
+    this.recomputeIssues();
+
+    // Prioridad: Seleccionar el primer registro con errores o issues externos
+    const firstInvalid = this.items.find(it => {
+      const id = this.schema.itemId(it);
+      return this.issues.some(iss => iss.itemId === id && (iss.severity === 'error' || iss.severity === 'warn'));
+    });
+
+    const first = firstInvalid ?? this.filteredItems()[0] ?? null;
     if (first) this.select(first);
   }
 
   ngOnDestroy(): void {
     this.formSub?.unsubscribe();
+  }
+
+  get globalIssues(): PreviewIssue[] {
+    return this.issues.filter((x) => x.itemId === 'GLOBAL' || x.itemId === 'general');
   }
 
   // ----------------------------
@@ -131,11 +145,19 @@ export class ValidationPreviewDialogComponent<TItem = any, TResult = any>
 
   filteredItems(): TItem[] {
     const q = (this.filterCtrl.value ?? '').trim().toLowerCase();
-    const base = this.items.filter((it) => !this.removedIds.has(this.schema.itemId(it)));
 
-    if (!q) return base;
+    // Base filter: not removed
+    let items = this.items.filter((it) => !this.removedIds.has(this.schema.itemId(it)));
 
-    return base.filter((it) => {
+    // Error filter
+    if (this.showErrorsOnly) {
+      items = items.filter(it => this.issueCount(it) > 0 || this.warnCount(it) > 0);
+    }
+
+    // Text filter
+    if (!q) return items;
+
+    return items.filter((it) => {
       const row = this.schema.columns
         .map((c) => String(c.cell(it) ?? '').toLowerCase())
         .join(' | ');
@@ -236,6 +258,8 @@ export class ValidationPreviewDialogComponent<TItem = any, TResult = any>
     });
   }
 
+  showAllFields = false;
+
   fieldError(fieldKey: string): string | null {
     if (!this.selected) return null;
 
@@ -245,6 +269,31 @@ export class ValidationPreviewDialogComponent<TItem = any, TResult = any>
     );
 
     return issue ? issue.message : null;
+  }
+
+  shouldShowField(f: PreviewField<any>): boolean {
+    if (this.showAllFields) return true;
+
+    // Si hay error en el campo, mostrarlo
+    if (this.fieldError(f.key)) return true;
+
+    // Si el item NO tiene ningún error, mostramos todo (para revisión)
+    // O si preferimos, solo mostramos si hay error.
+    // El usuario dijo: "solo los campos que tengo que corregir".
+    // Pero si corregimos uno, y queda valido, desaparece? 
+    // Vamos a permitir que si el item es valido (sin errores bloqueantes), mostremos todo.
+    if (this.selected && !this.anyBlockingErrorsForSelected()) return true;
+
+    return false;
+  }
+
+  anyBlockingErrorsForSelected(): boolean {
+    if (!this.selected) return false;
+    return this.issueCount(this.selected) > 0;
+  }
+
+  toggleShowAll(): void {
+    this.showAllFields = !this.showAllFields;
   }
 
   applyEdits(): void {
@@ -404,5 +453,39 @@ export class ValidationPreviewDialogComponent<TItem = any, TResult = any>
       result,
       items: finalItems,
     });
+  }
+
+  // ----------------------------
+  // Resolution Actions (Upload, etc.)
+  // ----------------------------
+
+  private uploadHandler?: (file: File, itemId: string) => Promise<void> | void;
+  private pendingUploadIssue: PreviewIssue | null = null;
+
+  triggerUpload(issue: PreviewIssue, inputRef: HTMLInputElement): void {
+    if (!this.uploadHandler) return;
+    this.pendingUploadIssue = issue;
+    inputRef.value = ''; // reset
+    inputRef.click();
+  }
+
+  async onFileSelected(event: Event): Promise<void> {
+    const input = event.target as HTMLInputElement;
+    if (!input.files || input.files.length === 0 || !this.pendingUploadIssue) return;
+
+    const file = input.files[0];
+    const itemId = this.pendingUploadIssue.itemId;
+
+    try {
+      if (this.uploadHandler) {
+        await this.uploadHandler(file, itemId);
+      }
+      // Re-run validations
+      this.recomputeIssues();
+    } catch (err) {
+      console.error('Error uploading file from preview:', err);
+    } finally {
+      this.pendingUploadIssue = null;
+    }
   }
 }
