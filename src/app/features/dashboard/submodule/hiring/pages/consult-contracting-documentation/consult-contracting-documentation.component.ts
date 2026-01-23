@@ -13,6 +13,7 @@ import { MatTableDataSource } from '@angular/material/table';
 import Swal from 'sweetalert2';
 import { finalize, firstValueFrom } from 'rxjs';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { Title, Meta } from '@angular/platform-browser';
 
 import { SharedModule } from '@/app/shared/shared.module';
 import { MatButtonModule } from '@angular/material/button';
@@ -96,6 +97,8 @@ export class ConsultContractingDocumentationComponent implements OnInit {
   private readonly gestionDocumentalService = inject(GestionDocumentalService);
   private readonly dialog = inject(MatDialog);
   private readonly utilityService = inject(UtilityServiceService);
+  private readonly titleService = inject(Title);
+  private readonly metaService = inject(Meta);
 
   // --------- Ajustes para masivo ----------
   private readonly MAX_POST_BATCH = 1500;
@@ -161,6 +164,10 @@ export class ConsultContractingDocumentationComponent implements OnInit {
   }
 
   ngOnInit(): void {
+    // SEO
+    this.titleService.setTitle('Consultar documentación de contratación | Contratación');
+    this.metaService.updateTag({ name: 'description', content: 'Consulta el estado y la disponibilidad de documentos asociados al proceso de contratación.' });
+
     this.user = this.utilityService.getUser();
 
     this.resetTabla();

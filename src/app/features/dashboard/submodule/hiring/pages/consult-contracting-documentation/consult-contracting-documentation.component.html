@@ -1,37 +1,26 @@
-<mat-card class="container">
-  <mat-card-content>
-    <div class="tabla">
-      <div class="page-header">
-        <h1 class="title">Consultar documentación contratación</h1>
+<div class="dashboard-shell">
 
-        <!-- ✅ Input opcional para pegar cédulas -->
-        <mat-form-field class="filtro" appearance="outline">
-          <mat-label>Pegar cédulas</mat-label>
-          <input
-            matInput
-            placeholder="Pega aquí una o varias cédulas (enter, coma, espacio...)"
-            (paste)="onTablePaste($event)" />
-          <mat-hint>También puedes hacer click en la tabla y pegar (Ctrl+V)</mat-hint>
-        </mat-form-field>
+  <!-- HEADER -->
+  <header class="page-header" role="banner">
+    <div class="header-content">
+      <h1 class="h1-title">Consultar Documentación</h1>
+      <p class="subtitle">Verifica el estado de documentos de contratación por cédula.</p>
+    </div>
 
-        <button mat-icon-button [matMenuTriggerFor]="accionesMenu" aria-label="Acciones">
-          <mat-icon>more_vert</mat-icon>
+    <div class="header-actions">
+      <button mat-icon-button [matMenuTriggerFor]="accionesMenu" aria-label="Más acciones" class="btn-more">
+        <mat-icon>more_vert</mat-icon>
+      </button>
+      <mat-menu #accionesMenu="matMenu">
+        <button mat-menu-item (click)="limpiarTabla()">
+          <mat-icon>filter_alt_off</mat-icon>
+          <span>Limpiar todo</span>
         </button>
-
-        <mat-menu #accionesMenu="matMenu">
-          <button mat-menu-item (click)="limpiarTabla()">
-            <mat-icon>filter_alt_off</mat-icon>
-            <span>Limpiar</span>
-          </button>
-
-          <button mat-menu-item (click)="descargarZip()">
-            <mat-icon>archive</mat-icon>
-            <span>Descargar paquetes</span>
-          </button>
-
-          <button
-            mat-menu-item
-            *ngIf="
+        <button mat-menu-item (click)="descargarZip()" [disabled]="!dataSource.data.length">
+          <mat-icon>archive</mat-icon>
+          <span>Descargar paquetes (ZIP)</span>
+        </button>
+        <button mat-menu-item *ngIf="
               user?.rol?.nombre === 'ADMIN' ||
               user?.rol?.nombre === 'GERENCIA' ||
               user?.correo_electronico === 'archivotualianza@gmail.com' ||
@@ -42,65 +31,144 @@
               user?.correo_electronico === 'contratacionsuba.ts@gmail.com' ||
               user?.correo_electronico === 'gestionhumanatocancipa1.ts@gmail.com' ||
               user?.correo_electronico === 'seleccionsuba.ts@gmail.com'
-            "
-            (click)="exportarExcelFaltantes()">
-            <mat-icon>table_view</mat-icon>
-            <span>Ver faltantes</span>
-          </button>
-        </mat-menu>
+            " (click)="exportarExcelFaltantes()">
+          <mat-icon>table_view</mat-icon>
+          <span>Exportar Faltantes (Excel)</span>
+        </button>
+      </mat-menu>
+    </div>
+  </header>
+
+  <!-- FILTERS PANEL -->
+  <section class="filters-panel" aria-label="Panel de búsqueda">
+    <mat-expansion-panel [expanded]="true" class="clean-expansion">
+      <mat-expansion-panel-header>
+        <mat-panel-title>
+          <mat-icon class="panel-icon">search</mat-icon>
+          <span>Criterios de Búsqueda</span>
+        </mat-panel-title>
+      </mat-expansion-panel-header>
+
+      <!-- Layout Container: Flex Row on Desktop -->
+      <div class="filter-content-row">
+        <mat-form-field appearance="outline" class="search-field-flex">
+          <mat-label>Ingresar Cédulas</mat-label>
+          <textarea matInput placeholder="Pega una o varias cédulas aquí..." cdkTextareaAutosize cdkAutosizeMinRows="1"
+            cdkAutosizeMaxRows="3" (paste)="onTablePaste($event)" [formControl]="cedulaControl"
+            (keydown.enter)="buscarPorCedula(); $event.preventDefault()">
+          </textarea>
+          <mat-hint>Presiona Enter para buscar o Ctrl+V para pegar lista</mat-hint>
+        </mat-form-field>
+
+        <button mat-flat-button color="primary" class="btn-consultar" (click)="buscarPorCedula()"
+          [disabled]="!cedulaControl.value">
+          <mat-icon>search</mat-icon> CONSULTAR
+        </button>
       </div>
 
-      <!-- ✅ CONTENEDOR CAPTURA-PEGADO (click + Ctrl+V) -->
-      <div
-        class="table-container"
-        tabindex="0"
-        (paste)="onTablePaste($event)"
-        (click)="focusPasteZone($event)"
-        aria-label="Pega aquí cédulas para consultar">
+    </mat-expansion-panel>
+  </section>
 
-        <!-- ✅ TABLA -->
-        <app-standard-filter-table
-          [data]="checklistRows"
-          [columnDefinitions]="checklistColumns"
-          [tableTitle]="'Documentación contratación'"
-          [isLoading]="isLoadingChecklist"
-          [defaultPageSize]="20"
-          [pageSizeOptions]="[10, 20, 50, 100]">
+  <!-- RESULTS: DESKTOP TABLE -->
+  <section class="results-section desktop-view" *ngIf="checklistRows.length > 0; else emptyState">
 
-          <!-- ✅ render de estados (OK/WARN/MISSING) con click para abrir PDF -->
-          <ng-template #estadoTemplate let-row let-col="col">
-            @let cell = row?.[col?.name];
+    <div class="results-header">
+      <h3>Resultados de la Búsqueda</h3>
+      <span class="badge-count">{{ checklistRows.length }} Registros</span>
+    </div>
 
-            <button
-              type="button"
-              class="doc-state-btn"
-              [class.is-ok]="cell?.state === 'OK'"
-              [class.is-warn]="cell?.state === 'WARN'"
-              [class.is-bad]="!cell?.state || cell?.state === 'MISSING'"
-              [disabled]="!cell?.url || cell?.state === 'MISSING'"
-              (click)="openDoc(cell, $event)"
-              [matTooltip]="
+    <div class="table-frame">
+      <app-standard-filter-table [data]="checklistRows" [columnDefinitions]="checklistColumns" [tableTitle]="''"
+        [isLoading]="isLoadingChecklist" [defaultPageSize]="20" [pageSizeOptions]="[10, 20, 50, 100]">
+
+        <!-- Premium Icon Status Render -->
+        <ng-template #estadoTemplate let-row let-col="col">
+          @let cell = row?.[col?.name];
+
+          <!-- Icon Container -->
+          <div class="status-cell-wrapper">
+            <button type="button" mat-icon-button class="status-icon-btn" [class.icon-ok]="cell?.state === 'OK'"
+              [class.icon-warn]="cell?.state === 'WARN'"
+              [class.icon-missing]="!cell?.state || cell?.state === 'MISSING'"
+              [disabled]="!cell?.url || cell?.state === 'MISSING'" (click)="openDoc(cell, $event)" [matTooltip]="
                 cell?.state === 'OK'
-                  ? 'Vigente (≤ 15 días)'
+                  ? 'Entregado (Vigente)'
                   : cell?.state === 'WARN'
-                  ? 'Existe, pero vencido (> 15 días)'
-                  : 'No existe'
-              "
-              matTooltipShowDelay="600"
-              aria-label="Estado del documento">
+                  ? 'Vencido'
+                  : 'Pendiente'
+              " matTooltipPosition="above">
 
+              <!-- Logic for Icons:
+                   OK -> Check Circle (Green)
+                   WARN -> Cancel/Close (Red) -- User said X for Vencido
+                   MISSING -> Help (Yellow) -- User said Question for Pendiente
+              -->
               @if (cell?.state === 'OK') {
-                <mat-icon class="doc-state-ico" aria-hidden="true">check</mat-icon>
+              <mat-icon>check_circle</mat-icon>
               } @else if (cell?.state === 'WARN') {
-                <mat-icon class="doc-state-ico" aria-hidden="true">warning</mat-icon>
+              <mat-icon>cancel</mat-icon> <!-- X mark -->
               } @else {
-                <mat-icon class="doc-state-ico" aria-hidden="true">close</mat-icon>
+              <mat-icon>help</mat-icon> <!-- Question mark -->
               }
             </button>
-          </ng-template>
+          </div>
 
-        </app-standard-filter-table>
-      </div>
+        </ng-template>
+
+      </app-standard-filter-table>
     </div>
-  </mat-card-content>
-</mat-card>
+  </section>
+
+  <!-- RESULTS: MOBILE CARDS -->
+  <section class="results-section mobile-view" *ngIf="checklistRows.length > 0">
+
+    <div class="results-header">
+      <h3>Resultados ({{ checklistRows.length }})</h3>
+    </div>
+
+    <div class="mobile-list">
+      @for (row of checklistRows; track row.cedula) {
+      <div class="candidate-card">
+        <div class="card-header">
+          <div class="candidate-info">
+            <h4 class="c-name">{{ row.nombre || 'Sin Nombre' }}</h4>
+            <span class="c-cedula">CC: {{ row.cedula }}</span>
+          </div>
+        </div>
+
+        <div class="card-body">
+          <!-- Docs Grid with Icons -->
+          <div class="docs-grid">
+            @for (col of checklistColumns; track col.name) {
+            @if (col.type === 'status') {
+            @let cell = row[col.name];
+            <div class="doc-item" (click)="openDoc(cell, $event)" [class.has-link]="cell?.url">
+              <span class="doc-label">{{ col.header }}</span>
+
+              <!-- Mobile Icon -->
+              <span class="mobile-icon" [class.ok]="cell?.state === 'OK'" [class.warn]="cell?.state === 'WARN'"
+                [class.missing]="!cell?.state || cell?.state === 'MISSING'">
+                @if (cell?.state === 'OK') { <mat-icon>check_circle</mat-icon> }
+                @else if (cell?.state === 'WARN') { <mat-icon>cancel</mat-icon> }
+                @else { <mat-icon>help</mat-icon> }
+              </span>
+            </div>
+            }
+            }
+          </div>
+        </div>
+      </div>
+      }
+    </div>
+
+  </section>
+
+  <ng-template #emptyState>
+    <div class="empty-placeholder" *ngIf="!isLoadingChecklist">
+      <mat-icon>search</mat-icon>
+      <h3>Realiza una Consulta</h3>
+      <p>Ingresa cédulas arriba o pega una lista para ver el estado de la documentación.</p>
+    </div>
+  </ng-template>
+
+</div>

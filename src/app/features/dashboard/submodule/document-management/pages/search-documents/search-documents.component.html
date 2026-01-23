@@ -1,167 +1,149 @@
-<mat-card class="search-card">
-  <mat-card-content class="search-card__content">
+<div class="search-page-container">
 
-    <!-- Header -->
-    <header class="page-header" role="banner">
-      <div class="page-header__left">
-        <h1 class="title">Buscar Documentación</h1>
-        <p class="subtitle">
-          Filtra por cédula, contrato, tipo documental y texto. Selecciona un resultado para previsualizar.
-        </p>
-      </div>
+  <!-- Header -->
+  <header class="page-header" role="banner">
+    <div class="header-text">
+      <h1>Buscar Documentación</h1>
+      <p>Filtra por cédula, contrato, tipo documental y texto. Selecciona un resultado para previsualizar.</p>
+    </div>
+  </header>
 
-      <div class="page-header__right">
-        <button
-          mat-flat-button
-          color="primary"
-          type="button"
-          (click)="onSubmit()"
-          [disabled]="form.invalid">
-          <mat-icon>search</mat-icon>
-          Buscar
-        </button>
-      </div>
-    </header>
+  <!-- Filters Section -->
+  <section class="filters-section" aria-label="Filtros de búsqueda">
+    <form [formGroup]="form" (ngSubmit)="onSubmit()" class="filters-form">
 
-    <!-- Form -->
-    <form [formGroup]="form" (ngSubmit)="onSubmit()" class="search-form">
-
-      <section class="form-grid" aria-label="Filtros de búsqueda">
-
-        <mat-form-field appearance="outline" class="w-100">
+      <div class="filters-grid">
+        <!-- Cedula -->
+        <mat-form-field appearance="outline" class="filter-field">
           <mat-label>Cédula</mat-label>
-          <input matInput formControlName="cedula" required autocomplete="off" />
-          <mat-error *ngIf="form.controls['cedula'].hasError('required')">
-            La cédula es obligatoria
-          </mat-error>
+          <input matInput formControlName="cedula" required autocomplete="off" placeholder="Ej. 12345678" />
+          <mat-icon matSuffix class="text-secondary">badge</mat-icon>
+          <mat-error *ngIf="form.controls['cedula'].hasError('required')">Requerido</mat-error>
         </mat-form-field>
 
-        <mat-form-field appearance="outline" class="w-100">
-          <mat-label>Código de contrato</mat-label>
-          <mat-select formControlName="codigoContrato">
-            <mat-option *ngFor="let codigo of codigosContrato" [value]="codigo">
-              {{ codigo }}
-            </mat-option>
+        <!-- Contrato -->
+        <mat-form-field appearance="outline" class="filter-field">
+          <mat-label>Código de Contrato</mat-label>
+          <mat-select formControlName="codigoContrato" placeholder="Seleccionar...">
+            <mat-option *ngFor="let codigo of codigosContrato" [value]="codigo">{{ codigo }}</mat-option>
           </mat-select>
-          <mat-hint>Opcional</mat-hint>
         </mat-form-field>
 
-        <mat-form-field appearance="outline" class="w-100 grid-span-2">
-          <mat-label>Tipo documental</mat-label>
-          <mat-select formControlName="tipoDocumental">
+        <!-- Tipo Documental -->
+        <mat-form-field appearance="outline" class="filter-field span-2-mobile">
+          <mat-label>Tipo Documental</mat-label>
+          <mat-select formControlName="tipoDocumental" placeholder="Todos">
             <ng-container *ngFor="let tipo of tiposDocumentales">
-              <mat-option [value]="tipo.id" class="nivel-1">📁 {{ tipo.name }}</mat-option>
-
-              <ng-container *ngIf="tipo.subtypes?.length">
-                <ng-container *ngFor="let subtype of tipo.subtypes">
-                  <mat-option [value]="subtype.id" class="nivel-2">
-                    &nbsp;&nbsp;📄 {{ subtype.name }}
-                  </mat-option>
-
-                  <ng-container *ngIf="subtype.subtypes?.length">
-                    <ng-container *ngFor="let subsubtype of subtype.subtypes">
-                      <mat-option [value]="subsubtype.id" class="nivel-3">
-                        &nbsp;&nbsp;&nbsp;&nbsp;🔖 {{ subsubtype.name }}
-                      </mat-option>
-                    </ng-container>
-                  </ng-container>
-
+              <mat-option [value]="tipo.id" class="level-1">📁 {{ tipo.name }}</mat-option>
+              <ng-container *ngFor="let sub of tipo.subtypes">
+                <mat-option [value]="sub.id" class="level-2">📄 {{ sub.name }}</mat-option>
+                <ng-container *ngFor="let subsub of sub.subtypes">
+                  <mat-option [value]="subsub.id" class="level-3">🔖 {{ subsub.name }}</mat-option>
                 </ng-container>
               </ng-container>
             </ng-container>
           </mat-select>
-          <mat-hint>Opcional</mat-hint>
         </mat-form-field>
 
-        <mat-form-field appearance="outline" class="w-100 grid-span-2">
-          <mat-label>Texto a buscar</mat-label>
-          <input matInput formControlName="textoBuscar" autocomplete="off" />
-          <mat-hint>Ej: “cédula”, “contrato”, “firma”, “certificado”</mat-hint>
+        <!-- Texto -->
+        <mat-form-field appearance="outline" class="filter-field span-2-mobile">
+          <mat-label>Texto / Palabras Clave</mat-label>
+          <input matInput formControlName="textoBuscar" placeholder="Ej. Certificado, Acta..." autocomplete="off">
+          <mat-icon matSuffix class="text-secondary">search</mat-icon>
         </mat-form-field>
 
-      </section>
-
-      <!-- Botón secundario (mobile/teclado) -->
-      <div class="actions">
-        <button
-          mat-flat-button
-          color="primary"
-          type="submit"
-          [disabled]="form.invalid">
-          <mat-icon>search</mat-icon>
-          Buscar
-        </button>
-      </div>
-    </form>
-
-    <!-- Split -->
-    <section class="split-container" aria-label="Resultados y previsualización">
-
-      <!-- Left -->
-      <aside class="left-panel">
-        <div class="left-panel__header">
-          <h3 class="panel-title">Resultados</h3>
-          <p class="panel-subtitle">Organizados por categoría</p>
+        <!-- Search Button (Desktop: Inline, Mobile: Full) -->
+        <div class="filter-actions">
+          <button mat-flat-button color="primary" type="submit" [disabled]="form.invalid" class="btn-search">
+            <mat-icon>search</mat-icon> BUSCAR
+          </button>
         </div>
 
-        <div
-          class="category-group"
-          *ngFor="let item of documentosPorCategoria; trackBy: trackByCategoria">
+      </div>
+    </form>
+  </section>
 
-          <h3 class="category-title">{{ item.categoria }}</h3>
+  <!-- Main Split Layout -->
+  <main class="results-split-layout">
 
-          <div
-            class="document-item"
-            [class.doc-ok]="!!doc?.file_url"
-            [class.doc-missing]="!doc?.file_url"
-            *ngFor="let doc of item.documentos; trackBy: trackByDocumento">
+    <!-- LEFT: Results List -->
+    <section class="results-panel" aria-label="Resultados de búsqueda">
 
-            <div class="document-details">
-              <div class="document-main">
-                <span class="document-type">{{ obtenerTipoDocumental(doc) }}</span>
+      <div class="panel-header">
+        <h3>Resultados</h3>
+        <span class="results-count" *ngIf="documentosPorCategoria?.length">
+          {{ documentosPorCategoria.length }} Categoría{{ documentosPorCategoria.length !== 1 ? 's' : '' }}
+        </span>
+      </div>
+
+      <!-- Results Content -->
+      <div class="results-list-container">
+
+        @if (documentosPorCategoria && documentosPorCategoria.length > 0) {
+
+        <div class="category-block" *ngFor="let item of documentosPorCategoria; trackBy: trackByCategoria">
+          <div class="category-header">
+            <mat-icon class="folder-icon">folder_open</mat-icon>
+            <h4>{{ item.categoria }}</h4>
+          </div>
+
+          <!-- "Table" Rows for Documents -->
+          <div class="documents-group">
+            <div class="doc-row" *ngFor="let doc of item.documentos; trackBy: trackByDocumento"
+              [class.has-file]="!!doc.file_url" (click)="doc.file_url ? verPDF(doc.file_url) : null">
+
+              <div class="doc-info">
+                <span class="doc-name">{{ obtenerTipoDocumental(doc) }}</span>
+                <!-- Optional: If API returned date or other meta, put here -->
               </div>
 
-              <button
-                mat-icon-button
-                class="kebab-btn"
-                [matMenuTriggerFor]="menu"
-                aria-label="Opciones del documento"
-                type="button">
-                <mat-icon>more_vert</mat-icon>
-              </button>
+              <div class="doc-status">
+                <span class="status-chip" [class.success]="doc.file_url" [class.missing]="!doc.file_url">
+                  {{ doc.file_url ? 'Disponible' : 'Sin Archivo' }}
+                </span>
+              </div>
 
-              <mat-menu #menu="matMenu">
-                <button
-                  mat-menu-item
-                  type="button"
-                  (click)="verPDF(doc.file_url)"
-                  [disabled]="!doc?.file_url">
+              <div class="doc-actions">
+                <button mat-icon-button class="view-btn" *ngIf="doc.file_url"
+                  (click)="$event.stopPropagation(); verPDF(doc.file_url)" matTooltip="Ver Documento">
                   <mat-icon>visibility</mat-icon>
-                  <span>Ver PDF</span>
                 </button>
-              </mat-menu>
+                <!-- Fallback or Help for missing? -->
+                <mat-icon *ngIf="!doc.file_url" class="missing-icon"
+                  matTooltip="No se ha cargado archivo">error_outline</mat-icon>
+              </div>
+
             </div>
           </div>
         </div>
 
-        <!-- Empty state -->
-        <div class="empty-hint" *ngIf="!documentosPorCategoria?.length">
-          No hay resultados para los filtros seleccionados.
+        } @else {
+        <!-- Empty State -->
+        <div class="empty-state">
+          <mat-icon>search_off</mat-icon>
+          <h3>Sin Resultados</h3>
+          <p>Ajusta los filtros para encontrar documentos.</p>
         </div>
-      </aside>
+        }
 
-      <!-- Right -->
-      <section class="right-panel">
-        <div class="right-panel__header">
-          <h3 class="panel-title">Vista previa</h3>
-          <p class="panel-subtitle">Selecciona un documento para ver el PDF</p>
-        </div>
-
-        <div class="preview-surface">
-          <iframe #pdfPreview class="pdf-preview" title="Vista previa PDF"></iframe>
-        </div>
-      </section>
-
+      </div>
     </section>
-  </mat-card-content>
-</mat-card>
+
+    <!-- RIGHT: Preview Panel -->
+    <section class="preview-panel">
+      <div class="panel-header">
+        <h3>Vista Previa</h3>
+      </div>
+      <div class="preview-container">
+        <iframe #pdfPreview class="pdf-frame" title="Vista previa del documento PDF"></iframe>
+        <!-- Overlay hint if empty -->
+        <div class="preview-placeholder" style="display: none;">
+          <!-- Logic to show placeholder if src is empty could be done via TS but keeping simple -->
+          <p>Selecciona un documento</p>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+</div>
