@@ -1,19 +1,23 @@
 import { Component, OnInit } from '@angular/core';
 import { PaymentsService } from '../../services/payments.service';
 import { SharedModule } from '@/app/shared/shared.module';
-import { MatTableDataSource } from '@angular/material/table';
+
 import Swal from 'sweetalert2';
 import * as XLSX from 'xlsx';
 import { InfoCardComponent } from '@/app/shared/components/info-card/info-card.component';
 import { FormsModule } from '@angular/forms';
 import { UtilityServiceService } from '@/app/shared/services/utilityService/utility-service.service';
+import { ColumnDefinition } from '@/app/shared/models/advanced-table-interface';
+import { StandardFilterTable } from '@/app/shared/components/standard-filter-table/standard-filter-table';
 
 @Component({
   selector: 'app-pay-slips',
+  standalone: true,
   imports: [
     SharedModule,
     InfoCardComponent,
-    FormsModule
+    FormsModule,
+    StandardFilterTable
   ],
   templateUrl: './pay-slips.component.html',
   styleUrl: './pay-slips.component.css'
@@ -21,13 +25,31 @@ import { UtilityServiceService } from '@/app/shared/services/utilityService/util
 
 export class PaySlipsComponent implements OnInit {
   cedula: string = '';
-  displayedColumns: string[] = [
-    'no', 'cedula', 'nombre', 'ingreso', 'retiro', 'finca', 'telefono',
-    'concepto', 'desprendibles', 'certificaciones', 'cartas_retiro',
-    'carta_cesantias', 'entrevista_retiro', 'correo', 'confirmacion_envio'
+
+  // Definición de columnas para la tabla estándar
+  columns: ColumnDefinition[] = [
+    { name: 'no', header: 'No', type: 'text', filterable: true },
+    { name: 'cedula', header: 'Cédula', type: 'text', filterable: true },
+    { name: 'nombre', header: 'Nombre', type: 'text', filterable: true },
+    { name: 'ingreso', header: 'Ingreso', type: 'text', filterable: true },
+    { name: 'retiro', header: 'Retiro', type: 'text', filterable: true },
+    { name: 'finca', header: 'Finca', type: 'text', filterable: true },
+    { name: 'telefono', header: 'Teléfono', type: 'text', filterable: true },
+    { name: 'concepto', header: 'Concepto', type: 'text', filterable: true },
+    // Columnas con prefijo 'type_' para usar template personalizado (links)
+    { name: 'type_desprendibles', header: 'Desprendibles', type: 'text', filterable: false },
+    { name: 'type_certificaciones', header: 'Certificaciones', type: 'text', filterable: false },
+    { name: 'type_cartas_retiro', header: 'Cartas Retiro', type: 'text', filterable: false },
+    { name: 'type_carta_cesantias', header: 'Carta Cesantías', type: 'text', filterable: false },
+    { name: 'type_entrevista_retiro', header: 'Entrevista Retiro', type: 'text', filterable: false },
+    { name: 'correo', header: 'Correo', type: 'text', filterable: true },
+    { name: 'confirmacion_envio', header: 'Confirmación Envío', type: 'text', filterable: true }
   ];
-  dataSource = new MatTableDataSource<any>();
-  originalData: any[] = [];
+
+  dataList: any[] = [];
+
+
+
   user: any
   correo: any;
 
@@ -49,11 +71,7 @@ export class PaySlipsComponent implements OnInit {
     }
   }
 
-  applyFilter(event: Event) {
-    const filterValue = (event.target as HTMLInputElement).value;
-    this.dataSource.filter = filterValue.trim().toLowerCase();
-  }
-
+  // isValidLink se usa en el HTML ahora
   isValidLink(url: string): boolean {
     return typeof url === 'string' && url.startsWith('https://');
   }
@@ -86,8 +104,19 @@ export class PaySlipsComponent implements OnInit {
         const desprendibles = response.desprendibles
           .sort((a: any, b: any) => b.id - a.id);
 
-        this.originalData = JSON.parse(JSON.stringify(desprendibles));
-        this.dataSource.data = desprendibles;
+
+
+        // Mapear datos para las columnas type_
+        this.dataList = desprendibles.map((item: any) => ({
+          ...item,
+          type_desprendibles: item.desprendibles,
+          type_certificaciones: item.certificaciones,
+          type_cartas_retiro: item.cartas_retiro,
+          type_carta_cesantias: item.carta_cesantias,
+          type_entrevista_retiro: item.entrevista_retiro
+        }));
+
+
       },
       (error: any) => {
         Swal.fire({

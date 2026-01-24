@@ -1,73 +1,94 @@
-<mat-card>
-  <mat-card-content>
-    <mat-toolbar color="primary">
-      <span>Lista de Trabajadores</span>
-      <span class="spacer"></span>
+<div class="page-container">
+  <!-- ========= HEADER ========= -->
+  <header class="page-header">
+    <div class="header-content">
+      <h1 class="page-title">Gestión de Trabajadores</h1>
+      <p class="page-subtitle">Administra bloqueos y el estado general de la nómina.</p>
+    </div>
+
+    <div class="header-actions">
+      <!-- Search Box -->
+      <mat-form-field appearance="outline" class="search-field" subscriptSizing="dynamic">
+        <mat-label>Buscar por Cédula</mat-label>
+        <mat-icon matPrefix>search</mat-icon>
+        <input matInput type="text" [(ngModel)]="searchCedula" (keyup.enter)="buscarPorCedula()"
+          placeholder="Ej. 1234567890">
+        @if (searchCedula()) {
+        <button mat-icon-button matSuffix (click)="limpiarBusqueda()" aria-label="Limpiar">
+          <mat-icon>close</mat-icon>
+        </button>
+        }
+      </mat-form-field>
+
+      <!-- Stat Card -->
+      <div class="stat-card">
+        <span class="stat-label">Activos</span>
+        <strong class="stat-value">{{ numeroActivo() }}</strong>
+      </div>
 
       <!-- Menú -->
-      <button
-        mat-icon-button
-        [matMenuTriggerFor]="actions"
-        aria-label="Acciones">
+      <button mat-icon-button [matMenuTriggerFor]="actions" class="menu-btn" aria-label="Opciones">
         <mat-icon>more_vert</mat-icon>
       </button>
-    </mat-toolbar>
+    </div>
+  </header>
 
-    <mat-menu #actions="matMenu">
-      <button mat-menu-item (click)="resetearValores()">
-        <mat-icon>refresh</mat-icon>
-        <span>Resetear valores quincena</span>
-      </button>
+  <!-- ========= MENU DEFINITION ========= -->
+  <mat-menu #actions="matMenu" xPosition="before">
+    <button mat-menu-item (click)="resetearValores()">
+      <mat-icon>refresh</mat-icon>
+      <span>Resetear valores quincena</span>
+    </button>
+    <button mat-menu-item (click)="generarExcelDatosBase()">
+      <mat-icon>download</mat-icon>
+      <span>Extraer datos base</span>
+    </button>
+    <mat-divider></mat-divider>
+    <div class="menu-toggle" (click)="$event.stopPropagation()">
+      <mat-slide-toggle [checked]="showInactive()" (change)="toggleShowInactive($event)">
+        {{ showInactive() ? 'Desbloquear trabajadores' : 'Bloquear trabajadores' }}
+      </mat-slide-toggle>
+    </div>
+  </mat-menu>
 
-      <button mat-menu-item (click)="generarExcelDatosBase()">
-        <mat-icon>download</mat-icon>
-        <span>Extraer datos base</span>
-      </button>
-
-      <mat-divider></mat-divider>
-
-      <div class="menu-toggle" (click)="$event.stopPropagation()">
-        <mat-slide-toggle
-          [checked]="showInactive"
-          (change)="toggleShowInactive($event)">
-          {{ showInactive ? 'Desbloquear trabajadores' : 'Bloquear trabajadores'
-          }}
-        </mat-slide-toggle>
+  <!-- ========= CONTENT AREA ========= -->
+  <div class="content-area">
+    @if (loading()) {
+    <div class="loading-overlay">
+      <div class="spinner-box">
+        <mat-spinner diameter="40"></mat-spinner>
+        <span>Cargando trabajadores...</span>
       </div>
-    </mat-menu>
+    </div>
+    } @else {
+    <!-- Data Table -->
+    <div class="table-wrapper">
+      <app-standard-filter-table [data]="rows()" [columnDefinitions]="columns" [pageSizeOptions]="[10, 20, 50, 100]"
+        [defaultPageSize]="10" [tableTitle]="'Lista de Trabajadores'">
 
-    <h1 style="font-size: 14pt;">
-      <strong class="titulo">Trabajadores activos:</strong> {{ numeroActivo }}
-    </h1>
-    <br />
+        <!-- Columna ACCIONES -->
+        <ng-template appCellTemplate="acciones" let-row>
+          <button mat-icon-button color="primary" (click)="openEditDialog(row)" matTooltip="Editar Trabajador">
+            <mat-icon>edit</mat-icon>
+          </button>
+        </ng-template>
 
-    <div class="table-container">
-      <app-standard-filter-table
-        [data]="dataSource.data"
-        [columnDefinitions]="columns"
-        [pageSizeOptions]="[10, 20, 50, 100]"
-        [defaultPageSize]="10"
-        [tableTitle]="'Trabajadores'">
-
-        <!-- ✅ Columna BLOQUEADO -->
+        <!-- Columna BLOQUEADO -->
         <ng-template appCellTemplate="bloqueado" let-row>
-          <mat-slide-toggle
-            [checked]="row.bloqueado"
-            (change)="toggleEstado(row, 'bloqueado')">
+          <mat-slide-toggle [checked]="row.bloqueado" (change)="toggleEstado(row, 'bloqueado')" color="warn">
             {{ row.bloqueado ? 'Sí' : 'No' }}
           </mat-slide-toggle>
         </ng-template>
 
-        <!-- ✅ Columna ACTIVO -->
+        <!-- Columna ACTIVO -->
         <ng-template appCellTemplate="activo" let-row>
-          <mat-slide-toggle
-            [checked]="row.activo"
-            (change)="toggleEstado(row, 'activo')">
+          <mat-slide-toggle [checked]="row.activo" (change)="toggleEstado(row, 'activo')" color="primary">
             {{ row.activo ? 'Sí' : 'No' }}
           </mat-slide-toggle>
         </ng-template>
 
       </app-standard-filter-table>
     </div>
-  </mat-card-content>
-</mat-card>
+    }
+  </div>
+</div>

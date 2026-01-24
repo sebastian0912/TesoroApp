@@ -38,7 +38,7 @@ type DocCell = {
 
 /** ✅ Cell UI para la tabla (abre PDF desde ✓ y ?) */
 type DocUiCell = {
-  state: 'OK' | 'WARN' | 'MISSING';
+  state: 'OK' | 'WARN' | 'MISSING' | 'OLD';
   url?: string | null;
   uploaded_at?: string | null;
 };
@@ -260,6 +260,14 @@ export class ConsultContractingDocumentationComponent implements OnInit {
 
       if (token !== this.requestToken) return;
 
+      // ✅ UX: Avisar que estamos procesando (mapping)
+      Swal.update({
+        title: 'Procesando datos...',
+        text: 'Organizando la información para visualizar.',
+      });
+      // Breve respiro
+      await new Promise(resolve => setTimeout(resolve, 50));
+
       // headers dinámicos
       this.tipoHeaders = Array.isArray(resp?.tipos) ? resp.tipos : [];
       this.tipoColumnKeys = this.tipoHeaders.map(t => `type_${t.id}`);
@@ -270,7 +278,7 @@ export class ConsultContractingDocumentationComponent implements OnInit {
       cutoff.setHours(0, 0, 0, 0);
       cutoff.setDate(cutoff.getDate() - 15);
 
-      // filas base (para ZIP/Excel)
+      // MAPPING (Heavy Sync Operation)
       const rows: Row[] = (resp?.items ?? []).map((it: ChecklistItemDto) => {
         const docsMap: Record<number, DocCell> = {};
         const docsArr: ChecklistDocDto[] = Array.isArray(it?.docs) ? it.docs : [];
@@ -280,7 +288,6 @@ export class ConsultContractingDocumentationComponent implements OnInit {
           if (!Number.isFinite(tid)) continue;
 
           const dd = d?.doc;
-
           const uploadedAt = this.parseFecha(dd?.uploaded_at as any);
           const vigente15d = !!dd && !!uploadedAt && uploadedAt.getTime() >= cutoff.getTime();
 
@@ -304,12 +311,8 @@ export class ConsultContractingDocumentationComponent implements OnInit {
         };
       });
 
-      // ✅ mantiene tu dataSource (ZIP/Excel)
       this.dataSource.data = rows;
 
-      // =========================
-      // ✅ StandardFilterTable (base + columnas dinámicas)
-      // =========================
       const baseCols: ColumnDefinition[] = [
         { name: 'cedula', header: 'Cédula', type: 'text', stickyStart: true, width: '120px' },
         { name: 'tipo_documento', header: 'Tipo Doc', type: 'text', width: '110px' },
@@ -320,7 +323,6 @@ export class ConsultContractingDocumentationComponent implements OnInit {
         { name: 'fecha_contratacion', header: 'Fecha contratación', type: 'date', width: '170px' },
       ];
 
-      // ✅ IMPORTANTE: status/custom para usar tu estadoTemplate (íconos clicables)
       const dynCols: ColumnDefinition[] = this.tipoHeaders.map(t => ({
         name: `type_${t.id}`,
         header: t.name,
@@ -333,8 +335,7 @@ export class ConsultContractingDocumentationComponent implements OnInit {
 
       this.checklistColumns = [...baseCols, ...dynCols];
 
-      // ✅ rows para StandardFilterTable: guarda {state,url,uploaded_at}
-      this.checklistRows = rows.map(r => {
+      const mappedRows = rows.map(r => {
         const out: any = {
           cedula: r.cedula ?? '',
           tipo_documento: r.tipo_documento ?? '',
@@ -347,9 +348,8 @@ export class ConsultContractingDocumentationComponent implements OnInit {
 
         for (const t of this.tipoHeaders) {
           const cell = r.docs?.[t.id];
-
           const state: DocUiCell['state'] =
-            !cell?.exists ? 'MISSING' : cell?.vigente15d ? 'OK' : 'WARN';
+            !cell?.exists ? 'MISSING' : cell?.vigente15d ? 'OK' : 'OLD';
 
           out[`type_${t.id}`] = {
             state,
@@ -357,20 +357,35 @@ export class ConsultContractingDocumentationComponent implements OnInit {
             uploaded_at: cell?.uploaded_at ?? null,
           } satisfies DocUiCell;
         }
-
         return out;
       });
 
-      Swal.close();
+      // ✅ UX: Avisar renderizado (esto suele congelar el UI)
+      Swal.update({
+        title: 'Generando tabla...',
+        text: 'Esto puede tomar unos segundos.',
+      });
+      // Delay para asegurar que el browser pinte el Swal antes del freeze de asignación
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      this.checklistRows = mappedRows;
+      this.isLoadingChecklist = false; // Stop internal table spinner
       this.cdr.markForCheck();
+
+      // ✅ UX: Delay mayor para cubrir el freeze del renderizado de filas
+      // 4000 filas pueden tomar 1-2s en computarse en el DOM aunque estén paginadas (calculos iniciales)
+      setTimeout(() => {
+        if (this.requestToken === token) {
+          if (Swal.isVisible()) Swal.close();
+        }
+      }, 1500);
+
     } catch (e) {
+      this.isLoadingChecklist = false;
       if (token !== this.requestToken) return;
       console.error(e);
       if (Swal.isVisible()) Swal.close();
       Swal.fire({ icon: 'error', title: 'Error', text: 'Ocurrió un problema consultando datos.' });
-    } finally {
-      this.isLoadingChecklist = false;
-      this.cdr.markForCheck();
     }
   }
 

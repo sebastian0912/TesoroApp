@@ -1,0 +1,179 @@
+<h2 mat-dialog-title>Editar Trabajador</h2>
+
+<mat-dialog-content class="edit-dialog-content">
+    <form [formGroup]="form" class="edit-form-grid">
+
+        <!-- SECTION 1: Identificación -->
+        <div class="form-section full-width">
+            <h3>Información Personal</h3>
+            <div class="grid-row">
+                <mat-form-field appearance="outline">
+                    <mat-label>Documento</mat-label>
+                    <input matInput formControlName="numero_de_documento" readonly>
+                </mat-form-field>
+
+                <mat-form-field appearance="outline">
+                    <mat-label>Nombre</mat-label>
+                    <input matInput formControlName="nombre">
+                </mat-form-field>
+
+                <mat-form-field appearance="outline">
+                    <mat-label>Código</mat-label>
+                    <input matInput formControlName="codigo">
+                </mat-form-field>
+            </div>
+
+            <div class="grid-row">
+                <mat-form-field appearance="outline">
+                    <mat-label>Finca</mat-label>
+                    <input matInput formControlName="finca">
+                </mat-form-field>
+
+                <mat-form-field appearance="outline">
+                    <mat-label>Temporal</mat-label>
+                    <input matInput formControlName="temporal">
+                </mat-form-field>
+
+                <mat-form-field appearance="outline">
+                    <mat-label>Fecha Ingreso</mat-label>
+                    <input matInput formControlName="ingreso" placeholder="Texto o Fecha">
+                </mat-form-field>
+            </div>
+        </div>
+
+        <mat-divider class="full-width"></mat-divider>
+
+        <!-- SECTION 2: Financiero -->
+        <div class="form-section full-width">
+            <h3>Datos Financieros</h3>
+            <p class="hint-text">Ingrese valores numéricos (sin comas de miles si es posible, o asegure formato válido).
+            </p>
+
+            <div class="grid-finance">
+                <mat-form-field appearance="outline">
+                    <mat-label>Salario</mat-label>
+                    <input matInput formControlName="salario" type="number">
+                </mat-form-field>
+
+                <mat-form-field appearance="outline">
+                    <mat-label>Saldo Pendiente</mat-label>
+                    <input matInput formControlName="saldoPendiente" type="number">
+                </mat-form-field>
+
+                <mat-form-field appearance="outline">
+                    <mat-label>Saldos</mat-label>
+                    <input matInput formControlName="saldos" type="number">
+                </mat-form-field>
+
+                <mat-form-field appearance="outline">
+                    <mat-label>Fondos</mat-label>
+                    <input matInput formControlName="fondos" type="number">
+                </mat-form-field>
+
+                <mat-form-field appearance="outline">
+                    <mat-label>Mercados</mat-label>
+                    <input matInput formControlName="mercados" type="number">
+                </mat-form-field>
+
+                <mat-form-field appearance="outline">
+                    <mat-label>Cuotas Mercados</mat-label>
+                    <input matInput formControlName="cuotasMercados" type="number">
+                </mat-form-field>
+
+                <mat-form-field appearance="outline">
+                    <mat-label>Prestamo Desc.</mat-label>
+                    <input matInput formControlName="prestamoParaDescontar" type="number">
+                </mat-form-field>
+
+                <mat-form-field appearance="outline">
+                    <mat-label>Cuotas Prest. Desc.</mat-label>
+                    <input matInput formControlName="cuotasPrestamosParaDescontar" type="number">
+                </mat-form-field>
+
+                <mat-form-field appearance="outline">
+                    <mat-label>Casino</mat-label>
+                    <input matInput formControlName="casino" type="number">
+                </mat-form-field>
+
+                <mat-form-field appearance="outline">
+                    <mat-label>Anchetas</mat-label>
+                    <input matInput formControlName="valoranchetas" type="number">
+                </mat-form-field>
+
+                <mat-form-field appearance="outline">
+                    <mat-label>Cuotas Anchetas</mat-label>
+                    <input matInput formControlName="cuotasAnchetas" type="number">
+                </mat-form-field>
+
+                <mat-form-field appearance="outline">
+                    <mat-label>Fondo E.</mat-label>
+                    <input matInput formControlName="fondo" type="number">
+                </mat-form-field>
+
+                <mat-form-field appearance="outline">
+                    <mat-label>Carnet</mat-label>
+                    <input matInput formControlName="carnet" type="number">
+                </mat-form-field>
+
+                <mat-form-field appearance="outline">
+                    <mat-label>Seguro Funerario</mat-label>
+                    <input matInput formControlName="seguroFunerario" type="number">
+                </mat-form-field>
+
+                <mat-form-field appearance="outline">
+                    <mat-label>Prestamo Hacer</mat-label>
+                    <input matInput formControlName="prestamoParaHacer" type="number">
+                </mat-form-field>
+
+                <mat-form-field appearance="outline">
+                    <mat-label>Cuotas Prest. Hacer</mat-label>
+                    <input matInput formControlName="cuotasPrestamoParahacer" type="number">
+                </mat-form-field>
+
+                <mat-form-field appearance="outline">
+                    <mat-label>Anticipo Liq.</mat-label>
+                    <input matInput formControlName="anticipoLiquidacion" type="number">
+                </mat-form-field>
+
+                <mat-form-field appearance="outline">
+                    <mat-label>Cuentas</mat-label>
+                    <input matInput formControlName="cuentas" type="number">
+                </mat-form-field>
+            </div>
+        </div>
+
+        <mat-divider class="full-width"></mat-divider>
+
+        <!-- SECTION 3: Estados (Read-onlyish or editable, keeping logic simple here) -->
+        <div class="form-section full-width">
+            <h3>Estado</h3>
+            <div class="grid-row">
+                <div class="toggle-group">
+                    <mat-slide-toggle formControlName="activo" color="primary">Activo</mat-slide-toggle>
+                    <mat-slide-toggle formControlName="bloqueado" color="warn">Bloqueado</mat-slide-toggle>
+                </div>
+
+                <mat-form-field appearance="outline">
+                    <mat-label>Obs. Bloqueo</mat-label>
+                    <textarea matInput formControlName="observacion_bloqueo" rows="2"></textarea>
+                    <mat-error *ngIf="form.get('observacion_bloqueo')?.hasError('required')">
+                        Es obligatorio indicar el motivo del bloqueo.
+                    </mat-error>
+                </mat-form-field>
+
+                <mat-form-field appearance="outline">
+                    <mat-label>Obs. Desbloqueo</mat-label>
+                    <textarea matInput formControlName="observacion_desbloqueo" rows="2"></textarea>
+                </mat-form-field>
+            </div>
+        </div>
+
+    </form>
+</mat-dialog-content>
+
+<mat-dialog-actions align="end">
+    <button mat-button (click)="close()">Cancelar</button>
+    <button mat-flat-button color="primary" (click)="save()" [disabled]="form.invalid">
+        <mat-icon>save</mat-icon> Guardar Cambios
+    </button>
+</mat-dialog-actions>

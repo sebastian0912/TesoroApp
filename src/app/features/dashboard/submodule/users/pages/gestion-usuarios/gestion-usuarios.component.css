@@ -2,8 +2,76 @@
   display: flex;
   align-items: center;
   padding-right: 8px;
+  border-bottom: 1px solid #f0f0f0;
+  /* Subtle separator */
+  padding-bottom: 12px;
+  margin-bottom: 8px;
+}
+
+.titulo {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #21263c;
+  /* Brand Navy */
 }
 
 .grow {
   flex: 1 1 auto;
+}
+
+.card-content {
+  padding-top: 16px;
+  min-height: 300px;
+  /* Prevent collapse during load */
+  position: relative;
+}
+
+/* Loading State */
+.table-loading-state {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  height: 200px;
+  background: #fcfcfc;
+  border-radius: 8px;
+  color: #64748b;
+  gap: 16px;
+}
+
+.loading-text {
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+/* Action Buttons */
+.actions-flex {
+  display: flex;
+  justify-content: center;
+  gap: 4px;
+}
+
+.action-btn-edit {
+  color: #21263c;
+}
+
+.action-btn-perm {
+  color: #8CD50A;
+  opacity: 0.9;
+}
+
+.action-btn-delete {
+  color: #ef4444;
+}
+
+.action-btn-edit:hover {
+  background-color: rgba(33, 38, 60, 0.05);
+}
+
+.action-btn-perm:hover {
+  background-color: rgba(140, 213, 10, 0.1);
+}
+
+.action-btn-delete:hover {
+  background-color: rgba(239, 68, 68, 0.05);
 }

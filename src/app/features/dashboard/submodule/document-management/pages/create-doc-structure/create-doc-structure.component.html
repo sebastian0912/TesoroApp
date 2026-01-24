@@ -9,14 +9,20 @@
 
     <!-- Global Actions -->
     <div class="header-actions">
-      <button mat-flat-button color="primary" class="btn-create" (click)="addCurrentLevel()">
+      <mat-slide-toggle [(ngModel)]="isTreeView" color="primary">Vista de Árbol</mat-slide-toggle>
+
+      <button mat-flat-button color="primary" class="btn-create" (click)="addCurrentLevel()" *ngIf="!isTreeView">
         <mat-icon>add</mat-icon> Nuevo {{ currentLevelTitle === 'Raíz' ? 'Tipo' : 'Subtipo' }}
+      </button>
+
+      <button mat-flat-button color="primary" class="btn-create" (click)="openModal(null, false)" *ngIf="isTreeView">
+        <mat-icon>add</mat-icon> Nuevo Tipo Raíz
       </button>
     </div>
   </header>
 
-  <!-- Navigation Toolbar -->
-  <div class="nav-toolbar">
+  <!-- Navigation Toolbar (Explorer View) -->
+  <div class="nav-toolbar" *ngIf="!isTreeView">
 
     <!-- Breadcrumbs -->
     <div class="breadcrumbs">
@@ -49,8 +55,8 @@
     </div>
   </div>
 
-  <!-- Content Grid -->
-  <div class="content-grid" [@listAnimation]="currentLevelNodes.length">
+  <!-- Content Grid (Explorer View) -->
+  <div class="content-grid" [@listAnimation]="currentLevelNodes.length" *ngIf="!isTreeView">
 
     @for (node of currentLevelNodes; track node.id) {
     <div class="doc-card" (click)="drillDown(node)" tabindex="0">
@@ -116,6 +122,92 @@
     </div>
     }
 
+  </div>
+
+  <!-- Tree View (Premium Managerial Design) -->
+  <div *ngIf="isTreeView" class="tree-container">
+    <mat-tree [dataSource]="dataSource" [treeControl]="treeControl">
+
+      <!-- Leaf Node -->
+      <mat-tree-node *matTreeNodeDef="let node" matTreeNodePadding>
+        <!-- Connector Placeholder -->
+        <button mat-icon-button disabled></button>
+
+        <!-- Node Card Content -->
+        <div class="node-content-wrapper">
+          <div class="node-icon">
+            <mat-icon>insert_drive_file</mat-icon>
+          </div>
+
+          <div class="node-info">
+            <span class="node-name">{{node.name}}</span>
+            <div class="node-meta-row">
+              <span class="meta-item" *ngIf="node.data.tags?.length">
+                <mat-icon>label</mat-icon> {{node.data.tags.length}}
+              </span>
+              <span class="badge" [class.success]="node.data.estado" [class.inactive]="!node.data.estado">
+                {{node.data.estado ? 'Activo' : 'Inactivo'}}
+              </span>
+            </div>
+          </div>
+
+          <div class="node-actions">
+            <button mat-icon-button [matMenuTriggerFor]="treeMenu" [matMenuTriggerData]="{node: node.data}"
+              aria-label="Opciones">
+              <mat-icon>more_vert</mat-icon>
+            </button>
+          </div>
+        </div>
+      </mat-tree-node>
+
+      <!-- Expandable Node -->
+      <mat-tree-node *matTreeNodeDef="let node; when: hasChild" matTreeNodePadding>
+        <!-- Toggle Button -->
+        <button mat-icon-button matTreeNodeToggle [attr.aria-label]="'Toggle ' + node.name">
+          <mat-icon class="mat-icon-rtl-mirror">
+            {{treeControl.isExpanded(node) ? 'expand_more' : 'chevron_right'}}
+          </mat-icon>
+        </button>
+
+        <!-- Node Card Content -->
+        <div class="node-content-wrapper" [class.active]="treeControl.isExpanded(node)">
+          <div class="node-icon folder">
+            <mat-icon>{{treeControl.isExpanded(node) ? 'folder_open' : 'folder'}}</mat-icon>
+          </div>
+
+          <div class="node-info">
+            <span class="node-name">{{node.name}}</span>
+            <div class="node-meta-row">
+              <span class="meta-item">
+                <mat-icon>filter_none</mat-icon> {{node.data.subtypes?.length || 0}} items
+              </span>
+              <span class="badge" [class.success]="node.data.estado" [class.inactive]="!node.data.estado">
+                {{node.data.estado ? 'Activo' : 'Inactivo'}}
+              </span>
+            </div>
+          </div>
+
+          <div class="node-actions">
+            <button mat-icon-button [matMenuTriggerFor]="treeMenu" [matMenuTriggerData]="{node: node.data}"
+              aria-label="Opciones">
+              <mat-icon>more_vert</mat-icon>
+            </button>
+          </div>
+        </div>
+      </mat-tree-node>
+    </mat-tree>
+
+    <!-- Context Menu Shared -->
+    <mat-menu #treeMenu="matMenu">
+      <ng-template matMenuContent let-node="node">
+        <button mat-menu-item (click)="openModal(node, true)">
+          <mat-icon>edit</mat-icon> <span>Editar</span>
+        </button>
+        <button mat-menu-item (click)="addChildToNode(node)">
+          <mat-icon>add</mat-icon> <span>Agregar Subtipo</span>
+        </button>
+      </ng-template>
+    </mat-menu>
   </div>
 
 </div>

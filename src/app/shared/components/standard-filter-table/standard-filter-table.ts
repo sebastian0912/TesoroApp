@@ -21,6 +21,9 @@ import {
   SimpleChanges,
   TemplateRef,
   ViewChild,
+  ContentChildren,
+  QueryList,
+  AfterContentInit,
 } from '@angular/core';
 import { FormControl, FormGroup, ReactiveFormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
@@ -48,6 +51,7 @@ import { merge, Subscription } from 'rxjs';
 import { debounceTime, startWith } from 'rxjs/operators';
 
 import { ActiveFilter, ColumnDefinition, FilterOperator } from '../../models/advanced-table-interface';
+import { ColumnCellTemplateDirective } from '../../directives/column-cell-template.directive';
 
 type DateRangeGroup = FormGroup<{
   start: FormControl<Date | null>;
@@ -87,7 +91,7 @@ type ViewMode = 'table' | 'cards';
   ],
   changeDetection: ChangeDetectionStrategy.Default,
 })
-export class StandardFilterTable implements OnInit, OnChanges, AfterViewInit, DoCheck, OnDestroy {
+export class StandardFilterTable implements OnInit, OnChanges, AfterViewInit, DoCheck, OnDestroy, AfterContentInit {
   readonly Array = Array;
   readonly String = String;
 
@@ -110,6 +114,10 @@ export class StandardFilterTable implements OnInit, OnChanges, AfterViewInit, Do
   @ContentChild('actionsTemplate') actionsTemplate?: TemplateRef<unknown>;
   @ContentChild('attachmentTemplate') attachmentTemplate?: TemplateRef<unknown>;
   @ContentChild('semaforoTemplate') semaforoTemplate?: TemplateRef<unknown>;
+
+  // Generic column templates
+  @ContentChildren(ColumnCellTemplateDirective) cellTemplatesQuery!: QueryList<ColumnCellTemplateDirective>;
+  customTemplates: Record<string, TemplateRef<any>> = {};
 
   /**
    * ✅ estadoTemplate ahora puede recibir:
@@ -344,6 +352,23 @@ export class StandardFilterTable implements OnInit, OnChanges, AfterViewInit, Do
 
     this.refreshSticky();
     this.cdr.detectChanges();
+  }
+
+
+
+  ngAfterContentInit() {
+    this.updateCustomTemplates();
+    this.cellTemplatesQuery.changes.subscribe(() => {
+      this.updateCustomTemplates();
+      this.cdr.markForCheck();
+    });
+  }
+
+  private updateCustomTemplates() {
+    this.customTemplates = {};
+    this.cellTemplatesQuery.forEach((item) => {
+      this.customTemplates[item.column] = item.template;
+    });
   }
 
   ngOnDestroy(): void {

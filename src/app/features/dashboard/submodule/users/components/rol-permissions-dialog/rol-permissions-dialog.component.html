@@ -1,162 +1,226 @@
-<h2 mat-dialog-title class="titulo">
-  Permisos del rol: <em>{{ rolNombre() }}</em>
-</h2>
+<div class="dialog-layout">
 
-<mat-dialog-content class="dialog-content">
-  <div class="toolbar">
-    <span class="spacer"></span>
-    <span class="counter">Seleccionados: {{ selectedCount() }}</span>
+  <!-- HEADER: Sticky wrapper -->
+  <header class="dialog-header">
+    <div class="header-top">
+      <h2 mat-dialog-title class="dialog-title">
+        Permisos del Rol <span class="role-highlight">{{ rolNombre() }}</span>
+      </h2>
+      <div class="header-meta">
+        <span class="badge-count" [class.has-selection]="selectedModulesCount() > 0" aria-live="polite"
+          [attr.aria-label]="selectedModulesCount() + ' módulos permitidos'">
+          {{ selectedModulesCount() }} módulos permitidos
+        </span>
+        <span class="badge-saving" *ngIf="saving()">
+          <mat-spinner diameter="14" mode="indeterminate" class="spinner-mini"></mat-spinner> Guardando...
+        </span>
+      </div>
+    </div>
+    <p class="dialog-subtitle">Activa permisos por módulo y acción.</p>
+  </header>
+
+  <!-- CONTENT: Scrollable Area -->
+  <div class="dialog-body">
+    <!-- State: Loading -->
+    <div class="state-loading" *ngIf="loading(); else contentTpl">
+      <mat-spinner diameter="40" color="primary"></mat-spinner>
+      <span class="loading-text">Cargando estructura...</span>
+    </div>
+
+    <!-- State: Data Render -->
+    <ng-template #contentTpl>
+      <!-- DESKTOP VIEW: Table -->
+      <div class="desktop-view">
+        <table mat-table [dataSource]="rows()" class="perm-table" [multiTemplateDataRows]="true">
+
+          <!-- ===================== Group Row ===================== -->
+          <ng-container matColumnDef="group">
+            <td mat-cell *matCellDef="let g" class="group-cell" [attr.colspan]="displayedColumns.length">
+              <div class="group-header" [style.padding-left.px]="16 + (g.level * 20)">
+                <mat-icon class="group-icon" aria-hidden="true">{{ g.level === 0 ? 'folder' : 'folder_open'
+                  }}</mat-icon>
+                <span class="group-label">{{ g.titulo }}</span>
+              </div>
+            </td>
+          </ng-container>
+
+          <!-- ===================== Data Columns ===================== -->
+
+          <!-- Module Name -->
+          <ng-container matColumnDef="modulo">
+            <th mat-header-cell *matHeaderCellDef sticky class="col-module">Módulo</th>
+            <td mat-cell *matCellDef="let r" class="cell-module">
+              <div class="module-info" [style.padding-left.px]="12 + (r.level * 20)">
+                <span class="tree-line" aria-hidden="true" *ngIf="r.level > 0"></span>
+                <mat-icon class="module-icon" aria-hidden="true">description</mat-icon>
+                <span class="module-name" [matTooltip]="r.modulo_nombre" matTooltipShowDelay="500">
+                  {{ r.modulo_nombre }}
+                </span>
+
+                <!-- Quick Action: Remove All for Module -->
+                <button type="button" class="btn-remove-module" (click)="quitarModulo(r.modulo_id)"
+                  matTooltip="Desactivar todo el módulo" aria-label="Quitar todos los permisos del módulo">
+                  <mat-icon>close</mat-icon>
+                </button>
+              </div>
+            </td>
+          </ng-container>
+
+          <!-- Action: Leer -->
+          <ng-container matColumnDef="leer">
+            <th mat-header-cell *matHeaderCellDef sticky class="col-action">Leer</th>
+            <td mat-cell *matCellDef="let r" class="cell-action">
+              <ng-container
+                *ngTemplateOutlet="toggleTpl; context: { $implicit: r, action: 'LEER', label: 'Leer' }"></ng-container>
+            </td>
+          </ng-container>
+
+          <!-- Action: Crear -->
+          <ng-container matColumnDef="crear">
+            <th mat-header-cell *matHeaderCellDef sticky class="col-action">Crear</th>
+            <td mat-cell *matCellDef="let r" class="cell-action">
+              <ng-container
+                *ngTemplateOutlet="toggleTpl; context: { $implicit: r, action: 'CREAR', label: 'Crear' }"></ng-container>
+            </td>
+          </ng-container>
+
+          <!-- Action: Actualizar -->
+          <ng-container matColumnDef="actualizar">
+            <th mat-header-cell *matHeaderCellDef sticky class="col-action">Editar</th>
+            <td mat-cell *matCellDef="let r" class="cell-action">
+              <ng-container
+                *ngTemplateOutlet="toggleTpl; context: { $implicit: r, action: 'ACTUALIZAR', label: 'Actualizar' }"></ng-container>
+            </td>
+          </ng-container>
+
+          <!-- Action: Eliminar -->
+          <ng-container matColumnDef="eliminar">
+            <th mat-header-cell *matHeaderCellDef sticky class="col-action">Eliminar</th>
+            <td mat-cell *matCellDef="let r" class="cell-action">
+              <ng-container
+                *ngTemplateOutlet="toggleTpl; context: { $implicit: r, action: 'ELIMINAR', label: 'Eliminar' }"></ng-container>
+            </td>
+          </ng-container>
+
+          <!-- Rows Definition -->
+          <tr mat-header-row *matHeaderRowDef="displayedColumns; sticky: true"></tr>
+          <tr mat-row *matRowDef="let row; columns: ['group']; when: isGroup" class="row-group"></tr>
+          <tr mat-row *matRowDef="let row; columns: displayedColumns; when: isData" class="row-data hover-row"></tr>
+
+          <!-- Empty State -->
+          <tr class="no-data-row" *ngIf="rows().length === 0">
+            <td [attr.colspan]="displayedColumns.length">
+              <div class="empty-state">
+                <mat-icon>layers_clear</mat-icon>
+                <span>No hay módulos configurados.</span>
+              </div>
+            </td>
+          </tr>
+        </table>
+      </div>
+
+      <!-- MOBILE VIEW: Cards Layout -->
+      <div class="mobile-view">
+        <div class="mobile-list">
+          <!-- Iterate over rows manually -->
+          <ng-container *ngFor="let row of rows()">
+            <!-- Group Header -->
+            <div *ngIf="isGroup(0, row)" class="mobile-group-header">
+              <mat-icon class="group-icon">folder_open</mat-icon>
+              <span>{{ row['titulo'] }}</span>
+            </div>
+
+            <!-- Module Card -->
+            <div *ngIf="isData(0, row)" class="mobile-card">
+              <div class="card-header-mobile">
+                <div class="card-title-wrap">
+                  <mat-icon class="module-icon">description</mat-icon>
+                  <span class="card-title">{{ row['modulo_nombre'] }}</span>
+                </div>
+                <button mat-icon-button color="warn" (click)="quitarModulo(row['modulo_id'])"
+                  aria-label="Limpiar módulo">
+                  <mat-icon>delete_outline</mat-icon>
+                </button>
+              </div>
+
+              <div class="card-actions-grid">
+                <div class="action-item">
+                  <ng-container
+                    *ngTemplateOutlet="toggleMobileTpl; context: { $implicit: row, action: 'LEER', label: 'Leer' }"></ng-container>
+                </div>
+                <div class="action-item">
+                  <ng-container
+                    *ngTemplateOutlet="toggleMobileTpl; context: { $implicit: row, action: 'CREAR', label: 'Crear' }"></ng-container>
+                </div>
+                <div class="action-item">
+                  <ng-container
+                    *ngTemplateOutlet="toggleMobileTpl; context: { $implicit: row, action: 'ACTUALIZAR', label: 'Editar' }"></ng-container>
+                </div>
+                <div class="action-item">
+                  <ng-container
+                    *ngTemplateOutlet="toggleMobileTpl; context: { $implicit: row, action: 'ELIMINAR', label: 'Borrar' }"></ng-container>
+                </div>
+              </div>
+            </div>
+          </ng-container>
+
+          <!-- Empty State Mobile -->
+          <div class="empty-state" *ngIf="rows().length === 0">
+            <mat-icon>layers_clear</mat-icon>
+            <span>No hay módulos disponibles.</span>
+          </div>
+        </div>
+      </div>
+
+    </ng-template>
   </div>
 
-  <div class="loading" *ngIf="loading(); else tableTpl">
-    <mat-progress-spinner mode="indeterminate" diameter="36"></mat-progress-spinner>
-  </div>
-
-  <ng-template #tableTpl>
-    <table
-      mat-table
-      [dataSource]="rows()"
-      class="perm-table mat-elevation-z2"
-      [multiTemplateDataRows]="true"
-    >
-
-      <!-- ===================== Fila de GRUPO (módulo padre / intermedio) ===================== -->
-      <ng-container matColumnDef="group">
-        <td
-          mat-cell
-          *matCellDef="let g"
-          class="group-row"
-          [attr.colspan]="displayedColumns.length"
-        >
-          <div
-            class="group-title"
-            [style.paddingLeft.px]="12 + (g.level * 18)"
-          >
-            <mat-icon
-              class="group-icon"
-              [ngClass]="{
-                'icon-root': g.level === 0,
-                'icon-child': g.level === 1,
-                'icon-deep' : g.level >= 2
-              }"
-              aria-hidden="true"
-            >
-              {{ g.level === 0 ? 'folder' : (g.level === 1 ? 'folder_open' : 'folder_copy') }}
-            </mat-icon>
-
-            <strong class="group-text">{{ g.titulo }}</strong>
-          </div>
-        </td>
-      </ng-container>
-
-      <!-- ===================== Columnas de FILA DE DATOS (solo hojas) ===================== -->
-
-      <!-- Módulo -->
-      <ng-container matColumnDef="modulo">
-        <th mat-header-cell *matHeaderCellDef sticky>Módulo</th>
-        <td mat-cell *matCellDef="let r">
-          <div
-            class="mod-name"
-            [style.paddingLeft.px]="8 + (r.level * 18)"
-          >
-            <span class="row-icon-wrap">
-              <mat-icon class="row-icon" aria-hidden="true">
-                {{ r.level > 0 ? 'subdirectory_arrow_right' : 'description' }}
-              </mat-icon>
-            </span>
-
-            <span class="mod-text" [matTooltip]="r.modulo_nombre">
-              {{ r.modulo_nombre }}
-            </span>
-
-            <!-- Quitar todo el módulo (sus permisos) -->
-            <button
-              type="button"
-              class="icon-x"
-              (click)="quitarModulo(r.modulo_id)"
-              matTooltip="Quitar módulo completo"
-              aria-label="Quitar módulo"
-            >
-              <mat-icon>close</mat-icon>
-            </button>
-          </div>
-        </td>
-      </ng-container>
-
-      <!-- Acciones -->
-      <ng-container matColumnDef="leer">
-        <th mat-header-cell *matHeaderCellDef sticky>Leer</th>
-        <td mat-cell *matCellDef="let r">
-          <mat-checkbox
-            [checked]="r.LEER"
-            (change)="toggleCell(r.modulo_id, 'LEER', $event.checked!)"
-            aria-label="Permiso leer"
-          ></mat-checkbox>
-        </td>
-      </ng-container>
-
-      <ng-container matColumnDef="crear">
-        <th mat-header-cell *matHeaderCellDef sticky>Crear</th>
-        <td mat-cell *matCellDef="let r">
-          <mat-checkbox
-            [checked]="r.CREAR"
-            (change)="toggleCell(r.modulo_id, 'CREAR', $event.checked!)"
-            aria-label="Permiso crear"
-          ></mat-checkbox>
-        </td>
-      </ng-container>
-
-      <ng-container matColumnDef="actualizar">
-        <th mat-header-cell *matHeaderCellDef sticky>Actualizar</th>
-        <td mat-cell *matCellDef="let r">
-          <mat-checkbox
-            [checked]="r.ACTUALIZAR"
-            (change)="toggleCell(r.modulo_id, 'ACTUALIZAR', $event.checked!)"
-            aria-label="Permiso actualizar"
-          ></mat-checkbox>
-        </td>
-      </ng-container>
-
-      <ng-container matColumnDef="eliminar">
-        <th mat-header-cell *matHeaderCellDef sticky>Eliminar</th>
-        <td mat-cell *matCellDef="let r">
-          <mat-checkbox
-            [checked]="r.ELIMINAR"
-            (change)="toggleCell(r.modulo_id, 'ELIMINAR', $event.checked!)"
-            aria-label="Permiso eliminar"
-          ></mat-checkbox>
-        </td>
-      </ng-container>
-
-      <!-- ===================== Definiciones de filas ===================== -->
-
-      <!-- Fila de GRUPO (solo columna 'group') -->
-      <tr mat-row *matRowDef="let row; columns: ['group']; when: isGroup"></tr>
-
-      <!-- Encabezado para hojas -->
-      <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
-
-      <!-- Fila de HOJA -->
-      <tr mat-row *matRowDef="let row; columns: displayedColumns; when: isData"></tr>
-
-      <!-- Sin filas -->
-      <tr class="no-rows" *ngIf="rows().length === 0">
-        <td [attr.colspan]="displayedColumns.length" class="no-rows-cell">
-          No hay módulos seleccionados.
-        </td>
-      </tr>
-    </table>
+  <!-- Shared Toggle Template (Desktop) -->
+  <ng-template #toggleTpl let-r let-action="action" let-label="label">
+    @if (hasAction(r.modulo_id, action)) {
+    <mat-slide-toggle color="primary" [checked]="r[action]" (change)="toggleCell(r.modulo_id, action, $event.checked)"
+      [attr.aria-label]="'Activar ' + label + ' para ' + r.modulo_nombre">
+    </mat-slide-toggle>
+    } @else {
+    <span class="action-unavailable" aria-hidden="true" matTooltip="No aplica">—</span>
+    }
   </ng-template>
-</mat-dialog-content>
 
-<mat-divider></mat-divider>
+  <!-- Shared Toggle Template (Mobile) -->
+  <ng-template #toggleMobileTpl let-r let-action="action" let-label="label">
+    @if (hasAction(r['modulo_id'], action)) {
+    <div class="mobile-toggle-wrapper">
+      <span class="mobile-toggle-label">{{ label }}</span>
+      <mat-slide-toggle class="mobile-toggle" color="primary" [checked]="r[action]"
+        (change)="toggleCell(r['modulo_id'], action, $event.checked)">
+      </mat-slide-toggle>
+    </div>
+    } @else {
+    <span class="mobile-unavailable">{{ label }} <small>(N/A)</small></span>
+    }
+  </ng-template>
 
-<mat-dialog-actions align="end">
-  <span class="total">Seleccionados: {{ selectedCount() }}</span>
-  <button mat-button (click)="close()" [disabled]="saving()">Cancelar</button>
-  <button mat-flat-button color="primary" (click)="save()" [disabled]="saving()">
-    <mat-icon *ngIf="!saving()">save</mat-icon>
-    <mat-progress-spinner *ngIf="saving()" diameter="18" mode="indeterminate"></mat-progress-spinner>
-    &nbsp;Guardar
-  </button>
-</mat-dialog-actions>
+  <!-- FOOTER: Actions -->
+  <mat-divider></mat-divider>
+  <div class="dialog-footer">
+    <div class="footer-left">
+      <span class="footer-summary">Módulos permitidos: <strong>{{ selectedModulesCount() }}</strong></span>
+    </div>
+    <div class="footer-actions">
+      <button mat-button type="button" (click)="close()" [disabled]="saving()">Cancelar</button>
+      <button mat-flat-button color="primary" (click)="save()" [disabled]="saving()" class="btn-save">
+        @if (saving()) {
+        <mat-spinner diameter="18" mode="indeterminate" class="spinner-btn"></mat-spinner>
+        <span>Guardando...</span>
+        } @else {
+        <span class="btn-content-flex">
+          <mat-icon>save</mat-icon>
+          <span>Guardar Cambios</span>
+        </span>
+        }
+      </button>
+    </div>
+  </div>
+
+</div>
+```

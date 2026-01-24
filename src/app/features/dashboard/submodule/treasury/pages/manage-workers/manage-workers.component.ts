@@ -1,34 +1,75 @@
-import { SharedModule } from '@/app/shared/shared.module';
-import { Component, OnInit } from '@angular/core';
+
+
+import { Component, OnInit, signal, inject, ChangeDetectionStrategy, computed } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
+import { MatDialog } from '@angular/material/dialog';
 import Swal from 'sweetalert2';
-import { MatTableDataSource } from '@angular/material/table';
-import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import * as XLSX from 'xlsx';
+import { MatSlideToggleModule } from '@angular/material/slide-toggle';
+import { MatMenuModule } from '@angular/material/menu';
+import { MatIconModule } from '@angular/material/icon';
+import { MatButtonModule } from '@angular/material/button';
+import { MatToolbarModule } from '@angular/material/toolbar';
+import { MatCardModule } from '@angular/material/card';
+import { MatDividerModule } from '@angular/material/divider';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatInputModule } from '@angular/material/input';
+import { MatFormFieldModule } from '@angular/material/form-field';
+
 import { StandardFilterTable } from '@/app/shared/components/standard-filter-table/standard-filter-table';
-import { TesoreriaService } from '../../service/teroreria/tesoreria.service';
+import { TesoreriaService, DatosbaseItem } from '../../service/teroreria/tesoreria.service';
 import { ColumnDefinition } from '@/app/shared/models/advanced-table-interface';
 import { ColumnCellTemplateDirective } from '@/app/shared/directives/column-cell-template.directive';
+import { EditWorkerDialogComponent } from './components/edit-worker-dialog/edit-worker-dialog.component';
+
+// Use the service interface directly
+export type Worker = DatosbaseItem;
 
 @Component({
   selector: 'app-manage-workers',
   standalone: true,
   imports: [
-    SharedModule,
+    CommonModule,
+    FormsModule,
     MatSlideToggleModule,
+    MatMenuModule,
+    MatIconModule,
+    MatButtonModule,
+    MatToolbarModule,
+    MatCardModule,
+    MatDividerModule,
+    MatProgressSpinnerModule,
+    MatInputModule,
+    MatFormFieldModule,
     StandardFilterTable,
     ColumnCellTemplateDirective,
   ],
   templateUrl: './manage-workers.component.html',
-  styleUrls: ['./manage-workers.component.css']
+  styleUrls: ['./manage-workers.component.css'],
+  changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class ManageWorkersComponent implements OnInit {
-  /** Dataset que alimenta a la tabla dinámica */
-  dataSource = new MatTableDataSource<any>([]);
-  /** Copia completa para restaurar después de búsquedas */
-  private allRows: any[] = [];
+  private tesoreriaService = inject(TesoreriaService);
+  private dialog = inject(MatDialog);
+
+  // --- State Signals ---
+  rows = signal<Worker[]>([]);
+  loading = signal<boolean>(true);
+  showInactive = signal(false);
+  totalActivos = signal<number>(0);
+
+  // Search State
+  searchCedula = signal<string>('');
+
+  // Computed metric
+  numeroActivo = computed(() => this.totalActivos());
 
   /** Definición de columnas para StandardFilterTable */
-  columns: ColumnDefinition[] = [
+  readonly columns: ColumnDefinition[] = [
+    /** ======= Acciones ======= */
+    { name: 'acciones', header: 'Acciones', type: 'custom', width: '8ch', stickyStart: true, filterable: false },
+
     /** ======= Estados (sticky) ======= */
     { name: 'bloqueado', header: 'Bloqueado', type: 'custom', width: '12ch', stickyStart: true, filterable: false },
     { name: 'fechaBloqueo', header: 'Fecha Bloqueo', type: 'date', width: '18ch' },
@@ -38,12 +79,11 @@ export class ManageWorkersComponent implements OnInit {
     { name: 'codigo', header: 'Código', type: 'text', width: '10ch', filterable: false },
     { name: 'numero_de_documento', header: 'Número Documento', type: 'text', width: '14ch', stickyStart: true },
     { name: 'nombre', header: 'Nombre', type: 'text', width: '26ch' },
-    // Si "ingreso" llega como fecha ISO, cambia type:'date' y (opcional) aumenta a 14–16ch
     { name: 'ingreso', header: 'Ingreso', type: 'text', width: '15ch' },
     { name: 'temporal', header: 'Temporal', type: 'text', width: '20ch' },
     { name: 'finca', header: 'Finca', type: 'text', width: '12ch' },
 
-    /** ======= Números (alineados a la derecha automáticamente por type:'number') ======= */
+    /** ======= Números ======= */
     { name: 'salario', header: 'Salario', type: 'number', width: '12ch', filterable: false },
     { name: 'saldoPendiente', header: 'Saldo Pendiente', type: 'number', width: '14ch', filterable: false },
     { name: 'saldos', header: 'Saldos', type: 'number', width: '12ch', filterable: false },
@@ -69,77 +109,115 @@ export class ManageWorkersComponent implements OnInit {
     { name: 'cuentas', header: 'Cuentas', type: 'number', width: '10ch', filterable: false },
   ];
 
-
-  showInactive = false;
-  numeroActivo = 0;
-
-  constructor(
-    private tesoreriaService: TesoreriaService,
-  ) { }
-
   ngOnInit(): void {
     this.getWorkers();
   }
 
   /** =================== Carga de datos =================== */
   async getWorkers() {
-    Swal.fire({
-      title: 'Cargando',
-      icon: 'info',
-      text: 'Por favor, espera...',
-      allowOutsideClick: false,
-      didOpen: () => Swal.showLoading(),
-    });
+    this.loading.set(true);
 
     try {
       const response = await this.tesoreriaService.traerDatosbaseGeneral();
 
-      if (Array.isArray(response)) {
-        this.allRows = response;
-        this.dataSource.data = response;       // alimenta a la tabla dinámica
-        this.numeroActivo = response.filter((w: any) => w.activo).length;
+      if (response) {
+        const info = Array.isArray(response.datosbase) ? response.datosbase : [];
+        this.rows.set(info);
+        this.totalActivos.set(response.total_activos ?? 0);
       } else {
-        this.allRows = [];
-        this.dataSource.data = [];
-        this.numeroActivo = 0;
+        this.rows.set([]);
+        this.totalActivos.set(0);
       }
     } catch (error) {
-      Swal.fire({
-        icon: 'error',
-        title: 'Error',
-        text: 'No se pudo obtener la información de los trabajadores.',
-      });
-      this.allRows = [];
-      this.dataSource.data = [];
-      this.numeroActivo = 0;
+      this.mostrarErrorCarga();
+      this.rows.set([]);
     } finally {
-      Swal.close();
+      this.loading.set(false);
     }
   }
 
-  /** =================== Buscador rápido =================== */
-  applyFilter(query: string): void {
-    const q = (query ?? '').trim().toLowerCase();
-    if (!q) {
-      this.dataSource.data = this.allRows;
+  /** =================== Buscar por Cédula =================== */
+  async buscarPorCedula() {
+    const cedula = this.searchCedula().trim();
+    if (!cedula) {
+      // Si está vacío, recargar la lista general
+      this.getWorkers();
       return;
     }
 
-    // Filtra por cédula o código (puedes ampliar a nombre si quieres)
-    this.dataSource.data = this.allRows.filter(r => {
-      const cedula = (r?.numero_de_documento ?? '').toString().toLowerCase();
-      const codigo = (r?.codigo ?? '').toString().toLowerCase();
-      return cedula.includes(q) || codigo.includes(q);
+    this.loading.set(true);
+    try {
+      const worker = await this.tesoreriaService.traerDatosbasePorDocumento(cedula);
+      if (worker) {
+        this.rows.set([worker]); // Mostrar solo el encontrado
+      } else {
+        this.rows.set([]);
+        Swal.fire({
+          icon: 'info',
+          title: 'No encontrado',
+          text: `No se encontró ningún trabajador con el documento ${cedula}`,
+          timer: 2000
+        });
+      }
+    } catch (error) {
+      this.mostrarErrorCarga();
+    } finally {
+      this.loading.set(false);
+    }
+  }
+
+  limpiarBusqueda() {
+    this.searchCedula.set('');
+    this.getWorkers();
+  }
+
+  private mostrarErrorCarga() {
+    Swal.fire({
+      icon: 'error',
+      title: 'Error',
+      text: 'No se pudo obtener la información.',
     });
   }
 
-  clearSearch(input: HTMLInputElement): void {
-    input.value = '';
-    this.applyFilter('');
+  /** =================== Edicion =================== */
+  openEditDialog(worker: Worker) {
+    const dialogRef = this.dialog.open(EditWorkerDialogComponent, {
+      width: '900px',
+      maxWidth: '95vw',
+      data: { worker }
+    });
+
+    dialogRef.afterClosed().subscribe(async (result: Worker | undefined) => {
+      if (!result) return; // Cancelado
+
+      this.loading.set(true);
+      try {
+        await this.tesoreriaService.actualizarDatosbaseCompleto(result.numero_de_documento, result);
+
+        // Optimistic Update
+        this.rows.update(current =>
+          current.map(w => w.numero_de_documento === result.numero_de_documento ? result : w)
+        );
+
+        Swal.fire({
+          icon: 'success',
+          title: 'Actualizado',
+          text: 'El trabajador ha sido actualizado correctamente.',
+          timer: 2000,
+          showConfirmButton: false
+        });
+
+      } catch (error) {
+        console.error(error);
+        Swal.fire('Error', 'No se pudo actualizar el trabajador. Verifique que todos los campos sean válidos.', 'error');
+      } finally {
+        this.loading.set(false);
+      }
+    });
   }
 
   /** =================== Lógica de switches =================== */
-  async toggleEstado(worker: any, tipo: 'bloqueado' | 'activo'): Promise<void> {
+  async toggleEstado(worker: Worker, tipo: 'bloqueado' | 'activo'): Promise<void> {
     const nuevoEstado = !worker[tipo];
     let observacion = '';
 
@@ -157,35 +235,31 @@ export class ManageWorkersComponent implements OnInit {
       observacion = comentario;
     }
 
-    const cambios: {
-      bloqueado?: boolean;
-      activo?: boolean;
-      fechaBloqueo?: string | null;
-      fechaDesbloqueo?: string | null;
-      observacion_bloqueo?: string;
-      observacion_desbloqueo?: string;
-    } = { [tipo]: nuevoEstado };
+    const cambios: any = { [tipo]: nuevoEstado };
 
     if (tipo === 'bloqueado') {
       if (nuevoEstado) {
         cambios.fechaBloqueo = new Date().toISOString();
-        cambios.observacion_bloqueo = observacion;
+        cambios.observacion_bloqueo = observacion || undefined;
       } else {
         cambios.fechaBloqueo = null;
         cambios.fechaDesbloqueo = new Date().toISOString();
-        cambios.observacion_desbloqueo = observacion;
+        cambios.observacion_desbloqueo = observacion || undefined;
       }
     }
 
     try {
-      await this.tesoreriaService.actualizarEstado(worker.numero_de_documento, cambios);
+      await this.tesoreriaService.actualizarEstado(String(worker.numero_de_documento), cambios);
 
-      // UI inmediata
-      worker[tipo] = nuevoEstado;
-      if (tipo === 'bloqueado') {
-        worker.fechaBloqueo = cambios.fechaBloqueo;
-        (worker as any).fechaDesbloqueo = cambios.fechaDesbloqueo;
-      }
+      // Optimistic update via Signals
+      this.rows.update(current =>
+        current.map(w => {
+          if (w.numero_de_documento === worker.numero_de_documento) {
+            return { ...w, ...cambios };
+          }
+          return w;
+        })
+      );
 
       Swal.fire('Estado actualizado', `El estado de ${tipo} se ha actualizado correctamente`, 'success');
     } catch (error) {
@@ -194,8 +268,9 @@ export class ManageWorkersComponent implements OnInit {
   }
 
   toggleShowInactive(event: any) {
-    this.showInactive = event.checked;
-    this.tesoreriaService.actualizarEstadoQuincena(!this.showInactive).then(() => { });
+    const isChecked = event.checked;
+    this.showInactive.set(isChecked);
+    this.tesoreriaService.actualizarEstadoQuincena(!isChecked).then(() => { });
   }
 
   /** =================== Utilidades existentes =================== */
@@ -206,21 +281,6 @@ export class ManageWorkersComponent implements OnInit {
         this.getWorkers();
       })
       .catch(() => Swal.fire('Error', 'Error al resetear los valores', 'error'));
-  }
-
-  traerDatosBase() {
-    this.tesoreriaService.traerdatosbaseGeneral2()
-      .then((datos) => {
-        if (!datos.length) Swal.fire('Aviso', 'No se encontraron datos base.', 'info');
-      })
-      .catch(() => Swal.fire('Error', 'Error al extraer los datos base', 'error'));
-  }
-
-  private toNum(v: any) {
-    if (v === null || v === undefined || v === '') return 0;
-    if (typeof v === 'number') return v;
-    const n = Number(String(v).replace(/,/g, '.'));
-    return isNaN(n) ? 0 : n;
   }
 
   generarExcelDatosBase() {
@@ -264,29 +324,20 @@ export class ManageWorkersComponent implements OnInit {
             'TEMPORAL': r?.temporal ?? '',
             'FINCA': r?.finca ?? '',
             'SALARIO': toNum(r?.salario),
-
             ' SALDOS  ': toNum(r?.saldos),
             ' FONDO ': toNum(r?.fondos),
-
             ' MERCADO ': toNum(r?.mercados),
             ' CUOTAS ': toNum(r?.cuotasMercados),
-
             ' PRESTAMO ': toNum(r?.prestamoParaDescontar),
             ' N. CUOTA ': toNum(r?.cuotasPrestamosParaDescontar),
-
             ' CASINOS ': toNum(r?.casino),
-
             ' ANCHETAS ': toNum(r?.valoranchetas),
             ' CUOTAS A ': toNum(r?.cuotasAnchetas),
-
             ' FONDO E': toNum(r?.fondo),
-
             ' CARNET ': toNum(r?.carnet),
             ' SEGURO FUNERARIO ': toNum(r?.seguroFunerario),
-
             ' PRESTAMOS  ': toNum(r?.prestamoParaHacer),
             ' N° CUOTA ': toNum(r?.cuotasPrestamoParahacer),
-
             ' Anticipo liq ': toNum(r?.anticipoLiquidacion),
             ' CUENTAS ': toNum(r?.cuentas),
           };

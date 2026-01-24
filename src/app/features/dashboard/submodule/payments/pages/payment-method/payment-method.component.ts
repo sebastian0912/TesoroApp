@@ -1,19 +1,22 @@
 import { Component, OnInit } from '@angular/core';
 import { PaymentsService } from '../../services/payments.service';
 import { SharedModule } from '@/app/shared/shared.module';
-import { MatTableDataSource } from '@angular/material/table';
 import Swal from 'sweetalert2';
 import * as XLSX from 'xlsx';
 import { InfoCardComponent } from '@/app/shared/components/info-card/info-card.component';
 import { FormsModule } from '@angular/forms';
 import { UtilityServiceService } from '@/app/shared/services/utilityService/utility-service.service';
+import { ColumnDefinition } from '@/app/shared/models/advanced-table-interface';
+import { StandardFilterTable } from '@/app/shared/components/standard-filter-table/standard-filter-table';
 
 @Component({
   selector: 'app-payment-method',
+  standalone: true,
   imports: [
     SharedModule,
     InfoCardComponent,
-    FormsModule
+    FormsModule,
+    StandardFilterTable
   ],
   templateUrl: './payment-method.component.html',
   styleUrl: './payment-method.component.css'
@@ -21,8 +24,22 @@ import { UtilityServiceService } from '@/app/shared/services/utilityService/util
 export class PaymentMethodComponent implements OnInit {
 
   cedula: string = '';
-  displayedColumns: string[] = ['contrato', 'cedula', 'nombre', 'centrodecosto', 'concepto', 'formadepago', 'valor', 'banco', 'fechadepago', 'acciones'];
-  dataSource = new MatTableDataSource<any>();
+
+  columns: ColumnDefinition[] = [
+    { name: 'contrato', header: 'Contrato', type: 'text', filterable: true },
+    { name: 'cedula', header: 'Cédula', type: 'text', filterable: true },
+    { name: 'nombre', header: 'Nombre', type: 'text', filterable: true },
+    { name: 'centrodecosto', header: 'Centro de Costo', type: 'text', filterable: true },
+    { name: 'concepto', header: 'Concepto', type: 'text', filterable: true },
+    // Columnas editables con prefijo type_
+    { name: 'type_formadepago', header: 'Forma de Pago', type: 'text', filterable: true },
+    { name: 'type_valor', header: 'Valor', type: 'text', filterable: true },
+    { name: 'type_banco', header: 'Banco', type: 'text', filterable: true },
+    { name: 'type_fechadepago', header: 'Fecha de Pago', type: 'text', filterable: true },
+    { name: 'actions', header: 'Acciones', type: 'text', filterable: false }
+  ];
+
+  dataList: any[] = [];
   originalData: any[] = [];
   user: any;
   correo: any
@@ -56,10 +73,18 @@ export class PaymentMethodComponent implements OnInit {
         const formasDePago = response.formasdepago
           .sort((a: any, b: any) => b.id - a.id)
           .slice(0, 4)
-          .map((item: any) => ({ ...item, editing: false }));
+          .map((item: any) => ({
+            ...item,
+            editing: false,
+            // Map original values to type_ properties for editing
+            type_formadepago: item.formadepago,
+            type_valor: item.valor,
+            type_banco: item.banco,
+            type_fechadepago: item.fechadepago
+          }));
 
         this.originalData = JSON.parse(JSON.stringify(formasDePago));
-        this.dataSource.data = formasDePago;
+        this.dataList = formasDePago;
       },
       (error: any) => {
         Swal.fire({
@@ -71,11 +96,6 @@ export class PaymentMethodComponent implements OnInit {
     );
   }
 
-  applyFilter(event: Event) {
-    const filterValue = (event.target as HTMLInputElement).value;
-    this.dataSource.filter = filterValue.trim().toLowerCase();
-  }
-
   toggleEdit(element: any): void {
     if (this.correo === "contaduria.rtc@gmail.com" ||
       this.correo === "ghumana.rtc@gmail.com" ||
@@ -85,16 +105,17 @@ export class PaymentMethodComponent implements OnInit {
       element.editing = !element.editing;
 
       if (!element.editing) {
+        // Guardar cambios: usar valores de type_ properties
         this.paymentsService.editarFormaPago(
           element.id,
-          element.banco,
+          element.type_banco,
           element.nombre,
           element.centrodecosto,
           element.concepto,
           element.contrato,
-          element.fechadepago,
-          element.formadepago,
-          element.valor
+          element.type_fechadepago,
+          element.type_formadepago,
+          element.type_valor
         ).then((response: any) => {
           if (response.message === 'success') {
             Swal.fire({
@@ -102,6 +123,11 @@ export class PaymentMethodComponent implements OnInit {
               title: 'Éxito',
               text: 'La información ha sido actualizada correctamente'
             });
+            // Actualizar originalData con los nuevos valores confirmados
+            const index = this.dataList.findIndex(e => e.id === element.id);
+            if (index !== -1) {
+              this.originalData[index] = JSON.parse(JSON.stringify(element));
+            }
           } else {
             Swal.fire({
               icon: 'error',
@@ -117,8 +143,12 @@ export class PaymentMethodComponent implements OnInit {
           });
         });
       } else {
-        const index = this.dataSource.data.indexOf(element);
-        this.dataSource.data[index] = { ...this.originalData[index], editing: true };
+        // Reset data from original when entering edit mode to ensure clean state
+        const index = this.dataList.findIndex(e => e.id === element.id);
+        if (index !== -1) {
+          this.dataList[index] = { ...this.originalData[index], editing: true };
+          this.dataList = [...this.dataList]; // Trigger change detection
+        }
       }
     } else {
       Swal.fire({
@@ -150,9 +180,12 @@ export class PaymentMethodComponent implements OnInit {
                 title: 'Éxito',
                 text: 'La información ha sido eliminada correctamente'
               });
-              const index = this.dataSource.data.indexOf(element);
-              this.dataSource.data.splice(index, 1);
-              this.dataSource._updateChangeSubscription();
+              const index = this.dataList.indexOf(element);
+              if (index !== -1) {
+                this.dataList.splice(index, 1);
+                // Trigger change detection in child list by reference change
+                this.dataList = [...this.dataList];
+              }
             } else {
               Swal.fire({
                 icon: 'error',

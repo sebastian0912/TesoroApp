@@ -21,76 +21,32 @@
     </div>
 
     <div class="tabla">
-      <h1 class="title">Formas de Pago</h1>
-      <mat-form-field class="filtro">
-        <mat-label>Filter</mat-label>
-        <input matInput (keyup)="applyFilter($event)" placeholder="Filter" #input>
-      </mat-form-field>
-      <div class="table-container">
-        <table mat-table [dataSource]="dataSource" class="mat-elevation-z8">
-          <ng-container matColumnDef="contrato">
-            <th mat-header-cell *matHeaderCellDef> Contrato </th>
-            <td mat-cell *matCellDef="let element"> {{element.contrato}} </td>
-          </ng-container>
-          <ng-container matColumnDef="cedula">
-            <th mat-header-cell *matHeaderCellDef> Cédula </th>
-            <td mat-cell *matCellDef="let element"> {{element.cedula}} </td>
-          </ng-container>
-          <ng-container matColumnDef="nombre">
-            <th mat-header-cell *matHeaderCellDef> Nombre </th>
-            <td mat-cell *matCellDef="let element"> {{element.nombre}} </td>
-          </ng-container>
-          <ng-container matColumnDef="centrodecosto">
-            <th mat-header-cell *matHeaderCellDef> Centro de Costo </th>
-            <td mat-cell *matCellDef="let element"> {{element.centrodecosto}} </td>
-          </ng-container>
-          <ng-container matColumnDef="concepto">
-            <th mat-header-cell *matHeaderCellDef> Concepto </th>
-            <td mat-cell *matCellDef="let element"> {{element.concepto}} </td>
-          </ng-container>
-          <ng-container matColumnDef="formadepago">
-            <th mat-header-cell *matHeaderCellDef> Forma de Pago </th>
-            <td mat-cell *matCellDef="let element" [class.editable]="element.editing">
-              <input matInput [(ngModel)]="element.formadepago" [readonly]="!element.editing" class="editado">
-            </td>
-          </ng-container>
-          <ng-container matColumnDef="valor">
-            <th mat-header-cell *matHeaderCellDef> Valor </th>
-            <td mat-cell *matCellDef="let element" [class.editable]="element.editing">
-              <input matInput [(ngModel)]="element.valor" [readonly]="!element.editing" class="editado">
-            </td>
-          </ng-container>
+      <app-standard-filter-table [data]="dataList" [columnDefinitions]="columns" [tableTitle]="'Formas de Pago'"
+        [enableRowClick]="false">
 
-          <ng-container matColumnDef="banco">
-            <th mat-header-cell *matHeaderCellDef> Banco </th>
-            <td mat-cell *matCellDef="let element" [class.editable]="element.editing">
-              <input matInput [(ngModel)]="element.banco" [readonly]="!element.editing" class="editado">
-            </td>
-          </ng-container>
-          <ng-container matColumnDef="fechadepago">
-            <th mat-header-cell *matHeaderCellDef> Fecha de Pago </th>
-            <td mat-cell *matCellDef="let element" [class.editable]="element.editing">
-              <input matInput [(ngModel)]="element.fechadepago" [readonly]="!element.editing" class="editado">
-            </td>
-          </ng-container>
-          <ng-container matColumnDef="acciones">
-            <th mat-header-cell *matHeaderCellDef> Acciones </th>
-            <td mat-cell *matCellDef="let element" class="acciones-cell">
-              <button mat-icon-button color="primary" (click)="toggleEdit(element)">
-                <mat-icon>{{element.editing ? 'save' : 'edit'}}</mat-icon>
-              </button>
-              <button mat-icon-button color="warn" (click)="eliminarFormaPago(element)">
-                <mat-icon>delete</mat-icon>
-              </button>
-            </td>
-          </ng-container>
-          <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
-          <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
-          <tr class="mat-row" *matNoDataRow>
-            <td class="mat-cell" colspan="10">No hay datos "{{input.value}}"</td>
-          </tr>
-        </table>
-      </div>
+        <!-- Template para celdas editables (empiezan por type_) -->
+        <ng-template #estadoTemplate let-row let-col="col">
+          <div *ngIf="row.editing; else viewMode">
+            <!-- Input para editar. Se enlaza a la propiedad del row con el nombre de columna (ej: type_banco) -->
+            <input matInput [(ngModel)]="row[col.name]" class="editado"
+              style="width: 100%; border: 1px solid #ccc; padding: 4px;">
+          </div>
+          <ng-template #viewMode>
+            {{ row[col.name] }}
+          </ng-template>
+        </ng-template>
+
+        <!-- Template para acciones -->
+        <ng-template #actionsTemplate let-row>
+          <button mat-icon-button color="primary" (click)="toggleEdit(row)">
+            <mat-icon>{{row.editing ? 'save' : 'edit'}}</mat-icon>
+          </button>
+          <button mat-icon-button color="warn" (click)="eliminarFormaPago(row)">
+            <mat-icon>delete</mat-icon>
+          </button>
+        </ng-template>
+
+      </app-standard-filter-table>
     </div>
   </mat-card-content>
 </mat-card>

@@ -214,7 +214,7 @@
       <div class="sf-active-filters">
         <span class="sf-active-label">Activos:</span>
         <div class="sf-chips">
-          @if (String(globalSearch.value ?? '').trim()) {
+          @if (String(globalSearch.value).trim()) {
           <span class="sf-chip">
             Buscar: {{ globalSearch.value }}
             <button type="button" class="sf-chip-x" (click)="clearGlobalSearch()"><mat-icon>close</mat-icon></button>
@@ -304,13 +304,19 @@
                 <ng-container [ngTemplateOutlet]="estadoTemplate"
                   [ngTemplateOutletContext]="{ $implicit: row, col: col }"></ng-container>
                 }
+                <!-- Generic Custom Templates -->
+                @if (customTemplates[col.name]) {
+                <ng-container [ngTemplateOutlet]="customTemplates[col.name]"
+                  [ngTemplateOutletContext]="{ $implicit: row, col: col }"></ng-container>
+                }
 
                 <!-- Standard Render -->
                 @if (
                 col.name !== 'actions' &&
                 col.name !== 'attachment' &&
                 col.name !== 'semaforo' &&
-                !((col.name === 'estado' || col.name.startsWith('type_')) && estadoTemplate)
+                !((col.name === 'estado' || col.name.startsWith('type_')) && estadoTemplate) &&
+                !customTemplates[col.name]
                 ) {
                 @if (col.name.startsWith('PDF_') && row[col.name]) {
                 <a class="sf-link" [href]="row[col.name]" target="_blank" (click)="$event.stopPropagation()">
@@ -381,6 +387,9 @@
                   [ngTemplateOutletContext]="{ $implicit: row }"></ng-container>
                 } @else if ((col.name === 'estado' || col.name.startsWith('type_')) && estadoTemplate) {
                 <ng-container [ngTemplateOutlet]="estadoTemplate"
+                  [ngTemplateOutletContext]="{ $implicit: row, col: col }"></ng-container>
+                } @else if (customTemplates[col.name]) {
+                <ng-container [ngTemplateOutlet]="customTemplates[col.name]"
                   [ngTemplateOutletContext]="{ $implicit: row, col: col }"></ng-container>
                 } @else if (col.name.startsWith('PDF_')) {
                 <a *ngIf="row[col.name]" [href]="row[col.name]" target="_blank"

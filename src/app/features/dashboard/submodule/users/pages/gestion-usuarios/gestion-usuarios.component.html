@@ -16,22 +16,31 @@
   </mat-card-header>
 
   <mat-card-content class="card-content">
-    <!-- La tabla solo se muestra cuando los datos están listos -->
-    @if (tableVisible()) {
+    <!-- Loading State: Local Spinner -->
+    @if (loading()) {
+    <div class="table-loading-state">
+      <mat-spinner diameter="48" color="primary"></mat-spinner>
+      <span class="loading-text">Cargando lista de usuarios...</span>
+    </div>
+    } @else {
+    <!-- Data Table -->
     <app-standard-filter-table [data]="rows()" [columnDefinitions]="columns" [tableTitle]="'Usuarios'"
       [pageSizeOptions]="[10, 20, 50]" [defaultPageSize]="10">
 
       <!-- Acciones por fila -->
       <ng-template #actionsTemplate let-row>
-        <button mat-icon-button (click)="openEditDialog(row)" aria-label="Editar">
-          <mat-icon>edit</mat-icon>
-        </button>
-        <button mat-icon-button color="warn" (click)="deleteUser(row)" aria-label="Eliminar">
-          <mat-icon>delete</mat-icon>
-        </button>
-        <button mat-icon-button (click)="openPermsDialog(row)" matTooltip="Ver permisos">
-          <mat-icon>admin_panel_settings</mat-icon>
-        </button>
+        <div class="actions-flex">
+          <button mat-icon-button (click)="openEditDialog(row)" matTooltip="Editar usuario" class="action-btn-edit">
+            <mat-icon>edit</mat-icon>
+          </button>
+          <button mat-icon-button (click)="openPermsDialog(row)" matTooltip="Gestionar permisos"
+            class="action-btn-perm">
+            <mat-icon>admin_panel_settings</mat-icon>
+          </button>
+          <button mat-icon-button (click)="deleteUser(row)" matTooltip="Eliminar" class="action-btn-delete">
+            <mat-icon>delete</mat-icon>
+          </button>
+        </div>
       </ng-template>
     </app-standard-filter-table>
     }

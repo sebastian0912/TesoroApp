@@ -88,27 +88,25 @@
           <!-- Icon Container -->
           <div class="status-cell-wrapper">
             <button type="button" mat-icon-button class="status-icon-btn" [class.icon-ok]="cell?.state === 'OK'"
-              [class.icon-warn]="cell?.state === 'WARN'"
-              [class.icon-missing]="!cell?.state || cell?.state === 'MISSING'"
+              [class.icon-warn]="cell?.state === 'OLD'" [class.icon-missing]="!cell?.state || cell?.state === 'MISSING'"
               [disabled]="!cell?.url || cell?.state === 'MISSING'" (click)="openDoc(cell, $event)" [matTooltip]="
                 cell?.state === 'OK'
                   ? 'Entregado (Vigente)'
-                  : cell?.state === 'WARN'
-                  ? 'Vencido'
-                  : 'Pendiente'
+                  : cell?.state === 'OLD'
+                  ? 'Entregado (> 15 días)'
+                  : 'No existe'
               " matTooltipPosition="above">
 
               <!-- Logic for Icons:
-                   OK -> Check Circle (Green)
-                   WARN -> Cancel/Close (Red) -- User said X for Vencido
-                   MISSING -> Help (Yellow) -- User said Question for Pendiente
+                   MISSING (X) -> Cancel (Red/Warn) -- as requested
+                   OLD (?) -> Help (Yellow/Warn) -- as requested
               -->
               @if (cell?.state === 'OK') {
               <mat-icon>check_circle</mat-icon>
-              } @else if (cell?.state === 'WARN') {
-              <mat-icon>cancel</mat-icon> <!-- X mark -->
+              } @else if (cell?.state === 'MISSING' || !cell?.state) {
+              <mat-icon>cancel</mat-icon> <!-- X mark for missing -->
               } @else {
-              <mat-icon>help</mat-icon> <!-- Question mark -->
+              <mat-icon>priority_high</mat-icon> <!-- Exclamation for Old -->
               }
             </button>
           </div>
@@ -149,8 +147,8 @@
               <span class="mobile-icon" [class.ok]="cell?.state === 'OK'" [class.warn]="cell?.state === 'WARN'"
                 [class.missing]="!cell?.state || cell?.state === 'MISSING'">
                 @if (cell?.state === 'OK') { <mat-icon>check_circle</mat-icon> }
-                @else if (cell?.state === 'WARN') { <mat-icon>cancel</mat-icon> }
-                @else { <mat-icon>help</mat-icon> }
+                @else if (cell?.state === 'MISSING' || !cell?.state) { <mat-icon>cancel</mat-icon> }
+                @else { <mat-icon>priority_high</mat-icon> }
               </span>
             </div>
             }

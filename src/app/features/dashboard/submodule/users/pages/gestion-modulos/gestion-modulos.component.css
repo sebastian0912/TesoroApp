@@ -1,153 +1,282 @@
-/* Card en grid: fila 1 = header, fila 2 = contenido con scroll */
+/* --- MAIN LAYOUT (Managerial Card) --- */
 .card-grid {
   display: grid;
   grid-template-rows: auto 1fr;
-  max-height: 88vh;
-  /* tu límite */
+  height: 100%;
+  max-height: 85vh;
+  /* Viewport constraint */
   overflow: hidden;
-  /* el scroll vive adentro, no aquí */
+  background: #ffffff;
+  border-radius: 16px;
+  /* Logic soft corners */
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  /* Premium elevation */
+  border: 1px solid rgba(0, 0, 0, 0.04);
 }
 
-/* Header fijo, con fondo sólido y z-index alto */
+/* --- HEADER --- */
 .card-header {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 10px 16px;
-  z-index: 10;
-  border-bottom: 1px solid rgba(0, 0, 0, .08);
+  justify-content: space-between;
+  padding: 20px 32px;
+  /* Generous spacing */
+  background: #ffffff;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+  z-index: 20;
 }
 
-/* Cuerpo sin scroll propio */
+.titulo {
+  font-size: 1.5rem;
+  /* Larger, authoritative font */
+  font-weight: 800;
+  /* Bold hierarchy */
+  color: #20253c;
+  /* Brand Dark */
+  letter-spacing: -0.5px;
+}
+
+/* --- BODY & SCROLL --- */
 .card-body {
   padding: 0;
   overflow: hidden;
-  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  background-color: #ffffff;
+  /* Clean white canvas */
 }
 
-/* El único scroll está aquí */
 .scroll {
-  height: 100%;
+  flex: 1;
   overflow: auto;
-  scrollbar-gutter: stable;
+  padding: 24px 32px;
+  /* Enhanced Scrollbar */
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
 }
 
-/* Opcional: barra de progreso finita */
-.card-body>mat-progress-bar {
-  height: 3px;
+.scroll::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
 }
 
-/* Contenido del árbol */
+.scroll::-webkit-scrollbar-thumb {
+  background-color: #cbd5e1;
+  border-radius: 3px;
+}
+
+/* --- TREE CONTAINER --- */
 .tree-container {
-  padding: 8px 6px;
-  min-width: 0;
+  min-width: fit-content;
+  position: relative;
+  /* Add border-left purely for the root level guide if needed, keeping clean for now */
 }
 
-/* Nodos en una línea y sin overflow horizontal */
 mat-tree {
-  width: 100%;
-  min-width: 0;
+  background: transparent;
 }
 
+/* --- TREE NODES (Rows) --- */
 mat-tree-node,
 [matTreeNodePadding] {
-  display: flex !important;
-  align-items: center;
-  gap: 8px;
+  min-height: 52px;
+  /* Taller target for better UX */
+  padding-left: 24px;
+  position: relative;
+  /* Ensure row doesn't break horizontal structure */
   width: 100%;
   box-sizing: border-box;
-  min-width: 0;
 }
 
-/* Botones de icono compactos (MDC) */
-:host {
-  --icon-btn-size: 36px;
-  --icon-size: 22px;
-}
-
-button[mat-icon-button],
-.mat-mdc-icon-button.mat-mdc-button-base {
-  width: var(--icon-btn-size) !important;
-  height: var(--icon-btn-size) !important;
-  padding: 0 !important;
-  display: inline-flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  border-radius: 50%;
-}
-
-.mat-mdc-icon-button .mat-mdc-button-touch-target {
-  width: var(--icon-btn-size) !important;
-  height: var(--icon-btn-size) !important;
-}
-
-button[mat-icon-button] mat-icon {
-  width: var(--icon-size);
-  height: var(--icon-size);
-  font-size: var(--icon-size);
-  line-height: var(--icon-size);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-
-mat-tree-node>button[mat-icon-button] {
-  flex: 0 0 var(--icon-btn-size);
-}
-
-/* Contenido del nodo */
+/* --- ROW CONTENT (Managerial Minimalist) --- */
 .node-content {
   display: flex;
   align-items: center;
-  gap: 10px;
-  flex: 1 1 auto;
-  min-width: 0;
-  padding: 6px 8px;
-  border-radius: 10px;
-  transition: background-color .15s ease;
+  width: 100%;
+  padding: 8px 12px;
+  margin: 2px 0;
+  background: transparent;
+  /* Clean minimalist base */
+  border-radius: 8px;
+  transition: background-color 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  gap: 16px;
+  /* Fixed, generous spacing between elements */
 }
 
+/* Hover: Premium Brand Tint */
+mat-tree-node:hover .node-content {
+  background-color: rgba(140, 213, 10, 0.08);
+  /* #8CD50A subtle tint */
+}
+
+/* Selected/Active: Slightly stronger */
+mat-tree-node:focus-within .node-content {
+  background-color: rgba(140, 213, 10, 0.12);
+}
+
+/* --- ICONS & BUTTONS (Fixed geometry) --- */
+/* Common wrapper for icons to prevent resize/cut-off */
+button[matTreeNodeToggle],
+.action-btn {
+  flex-shrink: 0;
+  /* CRITICAL: Prevent squeezing */
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  border-radius: 8px !important;
+  position: relative;
+}
+
+/* Toggle Arrow */
+button[matTreeNodeToggle] {
+  width: 36px !important;
+  height: 36px !important;
+  color: #20253c;
+  background: transparent;
+}
+
+button[matTreeNodeToggle]:hover {
+  background-color: rgba(32, 37, 60, 0.05);
+}
+
+/* --- TEXT CONTENT --- */
 .node-text {
   display: flex;
   flex-direction: column;
-  flex: 1 1 auto;
+  flex: 1;
+  /* Take remaining space */
   min-width: 0;
-}
-
-.node-title,
-.node-desc {
+  /* Enable ellipsis truncation in flex child */
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  justify-content: center;
 }
 
 .node-title {
-  font-weight: 500;
-  line-height: 1.25;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #20253c;
+  /* Brand Dark */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.4;
 }
 
 .node-desc {
-  font-size: 12px;
-  opacity: .75;
+  font-size: 0.85rem;
+  color: #64748b;
+  /* Muted slate */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.4;
 }
 
-.spacer {
-  flex: 1 1 auto;
-  min-width: 8px;
+/* --- ACTION BUTTONS (Micro-interactions) --- */
+.node-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  /* Consistent gap between icons */
+  flex-shrink: 0;
+  /* Prevent actions squashing */
+  opacity: 0;
+  /* Hidden default */
+  transform: translateX(10px);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  padding-left: 16px;
+  /* Separation from text */
 }
 
-mat-tree-node:hover .node-content {
-  background: rgba(0, 0, 0, .035);
+/* Show logic */
+mat-tree-node:hover .node-actions,
+mat-tree-node:focus-within .node-actions {
+  opacity: 1;
+  transform: translateX(0);
 }
 
-.tree-container.loading .node-content {
-  opacity: .6;
-  pointer-events: none;
+@media (hover: none) {
+  .node-actions {
+    opacity: 1;
+    /* Always visible on touch */
+    transform: none;
+  }
 }
 
+.action-btn {
+  width: 36px !important;
+  height: 36px !important;
+  color: #94a3b8;
+  transition: all 0.2s;
+}
+
+.action-btn:hover {
+  background-color: #ffffff;
+  color: #8CD50A;
+  /* Brand Accent */
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
+  /* Pop effect */
+  transform: translateY(-1px);
+}
+
+.action-btn.btn-delete:hover {
+  color: #ef4444;
+}
+
+.action-btn mat-icon {
+  font-size: 20px;
+  /* Clear legible size */
+  width: 20px;
+  height: 20px;
+  display: block;
+  /* Fix line-height issues */
+}
+
+/* --- EMPTY STATE --- */
 .empty-state {
-  color: rgba(0, 0, 0, .6);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 64px;
+  color: #94a3b8;
   text-align: center;
-  padding: 16px 8px;
-  font-size: 14px;
+}
+
+/* --- HELPERS --- */
+.spacer {
+  flex: 1;
+  min-width: 16px;
+  /* Minimum gap */
+}
+
+/* --- RESPONSIVNESS --- */
+@media (max-width: 768px) {
+  .card-header {
+    padding: 16px 20px;
+  }
+
+  .scroll {
+    padding: 16px;
+  }
+
+  .node-content {
+    gap: 12px;
+    /* Slightly tighter on mobile */
+    padding: 8px;
+  }
+
+  .node-title {
+    font-size: 0.95rem;
+  }
+
+  /* Ensure actions don't overlap text awkwardly */
+  .node-actions {
+    margin-left: auto;
+    background: rgba(255, 255, 255, 0.9);
+    /* Opaque backdrop for actions on mobile */
+    border-radius: 20px;
+    padding: 0 4px;
+  }
 }

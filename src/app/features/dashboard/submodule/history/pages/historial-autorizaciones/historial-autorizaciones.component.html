@@ -19,95 +19,9 @@
     </form>
 
     <div class="tabla">
-      <h1 class="title">Historial de Autorizaciones</h1>
-      <mat-form-field class="filtro">
-        <mat-label>Filter</mat-label>
-        <input
-          matInput
-          (keyup)="applyFilter($event)"
-          placeholder="Filter"
-          #input
-        />
-      </mat-form-field>
-      <div class="table-container">
-        <table mat-table [dataSource]="dataSource" class="mat-elevation-z8">
-          <!-- Concepto -->
-          <ng-container matColumnDef="concepto">
-            <th mat-header-cell *matHeaderCellDef>Concepto</th>
-            <td mat-cell *matCellDef="let element">{{ element.concepto }}</td>
-          </ng-container>
-
-          <!-- Generado por -->
-          <ng-container matColumnDef="generadopor">
-            <th mat-header-cell *matHeaderCellDef>Persona que autorizo</th>
-            <td mat-cell *matCellDef="let element">
-              {{ element.generadopor }}
-            </td>
-          </ng-container>
-
-          <!-- Fecha Efectuado -->
-          <ng-container matColumnDef="fechaEfectuado">
-            <th mat-header-cell *matHeaderCellDef>Fecha Efectuado</th>
-            <td mat-cell *matCellDef="let element">
-              {{ element.fechaEfectuado }}
-            </td>
-          </ng-container>
-
-          <!-- Valor -->
-          <ng-container matColumnDef="valor">
-            <th mat-header-cell *matHeaderCellDef>Valor Autorizado</th>
-            <td mat-cell *matCellDef="let element">
-              {{ element.valor | number : "1.0-0" }}
-            </td>
-          </ng-container>
-
-          <!-- Cuotas -->
-          <ng-container matColumnDef="cuotas">
-            <th mat-header-cell *matHeaderCellDef>Cuotas</th>
-            <td mat-cell *matCellDef="let element">{{ element.cuotas }}</td>
-          </ng-container>
-
-          <!-- conceptoEjecutado -->
-          <ng-container matColumnDef="conceptoEjecutado">
-            <th mat-header-cell *matHeaderCellDef>Concepto ejecutado</th>
-            <td mat-cell *matCellDef="let element">
-              {{ element.conceptoEjecutado }}
-            </td>
-          </ng-container>
-
-          <!-- Nombre quien entrega -->
-          <ng-container matColumnDef="nombreQuienEntrego">
-            <th mat-header-cell *matHeaderCellDef>Persona que ejecuto</th>
-            <td mat-cell *matCellDef="let element">
-              {{ element.nombreQuienEntrego }}
-            </td>
-          </ng-container>
-
-          <!-- Fecha ejecutado -->
-          <ng-container matColumnDef="fechaEjecutado">
-            <th mat-header-cell *matHeaderCellDef>Fecha ejecutado</th>
-            <td mat-cell *matCellDef="let element">
-              {{ element.fechaEjecutado }}
-            </td>
-          </ng-container>
-
-          <!-- valorEjecutado -->
-          <ng-container matColumnDef="valorEjecutado">
-            <th mat-header-cell *matHeaderCellDef>Valor ejecutado</th>
-            <td mat-cell *matCellDef="let element">
-              {{ element.valorEjecutado | number : "1.0-0" }}
-            </td>
-          </ng-container>
-
-          <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
-          <tr mat-row *matRowDef="let row; columns: displayedColumns"></tr>
-          <tr class="mat-row" *matNoDataRow>
-            <td class="mat-cell" colspan="7">
-              No hay datos "{{ input.value }}"
-            </td>
-          </tr>
-        </table>
-      </div>
+      <app-standard-filter-table [data]="dataList" [columnDefinitions]="columns"
+        [tableTitle]="'Historial de Autorizaciones'" [enableRowClick]="false">
+      </app-standard-filter-table>
     </div>
   </mat-card-content>
 </mat-card>

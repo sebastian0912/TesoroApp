@@ -13,6 +13,9 @@ import { MatInputModule } from '@angular/material/input';
 import { FormsModule } from '@angular/forms';
 import { MatChipsModule } from '@angular/material/chips';
 import { animate, style, transition, trigger, query, stagger } from '@angular/animations';
+import { MatTreeModule, MatTreeFlatDataSource, MatTreeFlattener } from '@angular/material/tree';
+import { FlatTreeControl } from '@angular/cdk/tree';
+import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 
 
 /** Interface based on your JSON model */
@@ -22,6 +25,14 @@ export interface DocumentType {
   estado: boolean;
   tags: string[];
   subtypes: DocumentType[];
+}
+
+/** Flat node with expandable and level information */
+interface FlatNode {
+  expandable: boolean;
+  name: string;
+  level: number;
+  data: DocumentType; // Keep reference to original data
 }
 
 @Component({
@@ -37,7 +48,9 @@ export interface DocumentType {
     MatMenuModule,
     MatInputModule,
     FormsModule,
-    MatChipsModule
+    MatChipsModule,
+    MatTreeModule,
+    MatSlideToggleModule
   ],
   templateUrl: './create-doc-structure.component.html',
   styleUrl: './create-doc-structure.component.css',
@@ -66,6 +79,32 @@ export class CreateDocStructureComponent implements OnInit {
   // Local Filter
   searchQuery: string = '';
 
+  // Tree View State
+  isTreeView: boolean = false;
+
+  private _transformer = (node: DocumentType, level: number) => {
+    return {
+      expandable: !!node.subtypes && node.subtypes.length > 0,
+      name: node.name,
+      level: level,
+      data: node
+    };
+  };
+
+  treeControl = new FlatTreeControl<FlatNode>(
+    node => node.level,
+    node => node.expandable,
+  );
+
+  treeFlattener = new MatTreeFlattener(
+    this._transformer,
+    node => node.level,
+    node => node.expandable,
+    node => node.subtypes,
+  );
+
+  dataSource = new MatTreeFlatDataSource(this.treeControl, this.treeFlattener);
+
   constructor(
     private documentacionService: DocumentacionService,
     private dialog: MatDialog
@@ -75,10 +114,13 @@ export class CreateDocStructureComponent implements OnInit {
     this.loadData();
   }
 
+  hasChild = (_: number, node: FlatNode) => node.expandable;
+
   loadData() {
     this.documentacionService.mostrar_jerarquia_gestion_documental().subscribe({
       next: (data) => {
         this.allDocuments = data;
+        this.dataSource.data = this.allDocuments; // Update Tree Data
         // If we are deep in stack, we need to refresh the current stack node reference to get updated children
         this.refreshStackReferences();
       },

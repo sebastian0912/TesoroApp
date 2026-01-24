@@ -1,4 +1,4 @@
-import { Component, computed, inject, Input, OnInit, signal } from '@angular/core';
+import { Component, computed, inject, Input, OnInit, signal, ChangeDetectionStrategy } from '@angular/core';
 import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
 import { MatMenuModule } from '@angular/material/menu';
@@ -16,6 +16,7 @@ import { ColumnDefinition } from '@/app/shared/models/advanced-table-interface';
 
 @Component({
   selector: 'app-gestion-usuarios',
+  standalone: true, // Explicitly standalone
   imports: [
     MatCardModule,
     MatIconModule,
@@ -23,10 +24,12 @@ import { ColumnDefinition } from '@/app/shared/models/advanced-table-interface';
     MatButtonModule,
     MatDialogModule,
     StandardFilterTable,
-    MatProgressSpinnerModule
+    MatProgressSpinnerModule,
+    // CommonModule implicit in standalone but explicitly good for directives
   ],
   templateUrl: './gestion-usuarios.component.html',
-  styleUrl: './gestion-usuarios.component.css'
+  styleUrl: './gestion-usuarios.component.css',
+  changeDetection: ChangeDetectionStrategy.OnPush // Optimization: OnPush
 })
 export class GestionUsuariosComponent implements OnInit {
   // --- INYECCIÓN DE DEPENDENCIAS ---
@@ -35,19 +38,22 @@ export class GestionUsuariosComponent implements OnInit {
   private readonly dialog = inject(MatDialog);
 
   // --- ESTADO REACTIVO CON SIGNALS ---
-  private users = signal<any[]>([]);
-  public readonly tableVisible = signal(false); // Controla si la tabla se muestra
+  // Typed signal for better safety
+  private users = signal<UsuarioDetail[]>([]);
+
+  // Loading state for UI feedback (replaces tableVisible logic)
+  public readonly loading = signal(true);
 
   /** Signal computada que transforma los datos para la tabla */
   public readonly rows = computed(() => {
     return this.users().map(u => ({
-      id: u?.id,
-      correo: u?.correo_electronico ?? '—',
-      cedula: u?.numero_de_documento ?? '—',
-      nombres: u?.datos_basicos?.nombres ?? '—',
-      apellidos: u?.datos_basicos?.apellidos ?? '—',
-      sede: u?.sede?.nombre ?? '—',
-      rol: u?.rol?.nombre ?? '—',
+      id: u.id,
+      correo: u.correo_electronico ?? '—',
+      cedula: u.numero_de_documento ?? '—',
+      nombres: u.datos_basicos?.nombres ?? '—',
+      apellidos: u.datos_basicos?.apellidos ?? '—',
+      sede: u.sede?.nombre ?? '—',
+      rol: u.rol?.nombre ?? '—',
     }));
   });
 
@@ -63,31 +69,33 @@ export class GestionUsuariosComponent implements OnInit {
   ];
 
   ngOnInit(): void {
-    this.reloadUsers();
+    this.reloadUsers(true); // Initial load
   }
 
-  /** Carga/recarga usuarios mostrando feedback con SweetAlert2 */
-  async reloadUsers(): Promise<void> {
-    this.tableVisible.set(false);
-    Swal.fire({
-      title: 'Cargando Usuarios',
-      icon: 'info',
-      text: 'Por favor, espere un momento...',
-      allowOutsideClick: false,
-      didOpen: () => Swal.showLoading(),
-    });
+  /** 
+   * Carga/recarga usuarios.
+   * @param silent Si es true, usa loading local. Si es false (por ej. refresh manual), podría usar feedback más notorio.
+   */
+  async reloadUsers(isInitial = false): Promise<void> {
+    this.loading.set(true);
+
+    // Optional: Show Swal only if likely to take long or purely manual refresh?
+    // For "Managerial Premium", local skeleton/spinner is better than invasive alerts for data fetching.
+    // We'll stick to local loading for UX optimization.
 
     try {
       const usersData = await firstValueFrom(this.utilityService.getAllUsers());
       this.users.set(usersData ?? []);
-      this.tableVisible.set(true); // Muestra la tabla después de cargar los datos
-      Swal.close();
     } catch (err) {
+      console.error(err);
       Swal.fire({
         icon: 'error',
-        title: '¡Error!',
-        text: 'No se pudieron cargar los usuarios. Por favor, inténtelo de nuevo más tarde.',
+        title: 'Error de conexión',
+        text: 'No se pudieron cargar los usuarios. Verifique su conexión.',
+        confirmButtonColor: '#21263c'
       });
+    } finally {
+      this.loading.set(false);
     }
   }
 
@@ -95,12 +103,15 @@ export class GestionUsuariosComponent implements OnInit {
   async openCreateDialog(): Promise<void> {
     const dialogRef = this.dialog.open(UserUpsertDialogComponent, {
       minWidth: '60vw',
+      maxWidth: '96vw',
       data: { mode: 'create' },
       disableClose: true,
+      panelClass: 'dialog-responsive'
     });
+
     const result = await firstValueFrom(dialogRef.afterClosed());
     if (result?.ok) {
-      Swal.fire('¡Éxito!', 'El usuario ha sido creado correctamente.', 'success');
+      this.showSuccessToast('Usuario creado correctamente');
       this.reloadUsers();
     }
   }
@@ -108,55 +119,96 @@ export class GestionUsuariosComponent implements OnInit {
   /** Abre el diálogo de edición */
   async openEditDialog(row: { id: string }): Promise<void> {
     const user = this.users().find(u => u.id === row.id);
+    if (!user) return;
+
     const dialogRef = this.dialog.open(UserUpsertDialogComponent, {
       minWidth: '60vw',
+      maxWidth: '96vw',
       data: { mode: 'edit', user },
       disableClose: true,
+      panelClass: 'dialog-responsive'
     });
+
     const result = await firstValueFrom(dialogRef.afterClosed());
     if (result?.ok) {
-      Swal.fire('¡Éxito!', 'El usuario ha sido actualizado.', 'success');
+      this.showSuccessToast('Usuario actualizado correctamente');
       this.reloadUsers();
     }
   }
 
-  /** Elimina un usuario con confirmación de SweetAlert2 */
+  /** Elimina un usuario con confirmación */
   async deleteUser(row: { id: string }): Promise<void> {
     const result = await Swal.fire({
-      title: '¿Estás seguro?',
-      text: "¡No podrás revertir esta acción!",
+      title: '¿Confirmar eliminación?',
+      text: "Esta acción no se puede deshacer.",
       icon: 'warning',
       showCancelButton: true,
-      confirmButtonColor: '#3085d6',
-      cancelButtonColor: '#d33',
-      confirmButtonText: 'Sí, ¡eliminar!',
+      confirmButtonColor: '#ef4444', // Tailwind red
+      cancelButtonColor: '#64748b',
+      confirmButtonText: 'Sí, eliminar',
       cancelButtonText: 'Cancelar'
     });
 
     if (result.isConfirmed) {
+      // Optimistic UI could be applied here, but safety first: wait for API
+      Swal.fire({
+        title: 'Eliminando...',
+        text: 'Por favor espere',
+        allowOutsideClick: false,
+        didOpen: () => Swal.showLoading(),
+        timerProgressBar: true
+      });
+
       try {
         await firstValueFrom(this.adminService.eliminar(row.id));
-        Swal.fire('¡Eliminado!', 'El usuario ha sido eliminado.', 'success');
+        Swal.close(); // Close loading
+        this.showSuccessToast('Usuario eliminado');
         this.reloadUsers();
       } catch (err) {
-        Swal.fire('¡Error!', 'No se pudo eliminar el usuario.', 'error');
+        Swal.fire('Error', 'No se pudo eliminar el usuario.', 'error');
       }
     }
   }
 
-  openPermsDialog(user: any): void {
-    const userfull = this.users().find(u => u.id === user.id);
+  openPermsDialog(row: { id: string }): void {
+    const userfull = this.users().find(u => u.id === row.id);
     if (!userfull) {
-      Swal.fire('¡Error!', 'No se encontró el usuario.', 'error');
+      this.showErrorToast('No se encontró información detallada del usuario');
       return;
     }
-    // añadir rol id al user
+
     this.dialog.open(UserPermissionsDialogComponent, {
-      width: '920px',
+      width: 'min(920px, 96vw)',
       maxWidth: '96vw',
+      maxHeight: '90vh',
       data: { userfull },
       disableClose: false,
+      panelClass: 'dialog-responsive'
     });
   }
 
+  // --- Helpers UI ---
+  private showSuccessToast(title: string) {
+    Swal.fire({
+      icon: 'success',
+      title: title,
+      toast: true,
+      position: 'top-end',
+      showConfirmButton: false,
+      timer: 3000,
+      timerProgressBar: true
+    });
+  }
+
+  private showErrorToast(msg: string) {
+    Swal.fire({
+      icon: 'error',
+      title: 'Error',
+      text: msg,
+      toast: true,
+      position: 'top-end',
+      showConfirmButton: false,
+      timer: 4000
+    });
+  }
 }

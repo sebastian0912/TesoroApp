@@ -1,77 +1,85 @@
-<h2 mat-dialog-title class="titulo">
-  Ordena y selecciona los documentos
-</h2>
-
-<mat-dialog-content class="content">
-  <div class="toolbar">
-    <button mat-stroked-button (click)="selectAll()" matTooltip="Seleccionar todos">
-      <mat-icon>done_all</mat-icon>&nbsp;Seleccionar todo
-    </button>
-    <button mat-stroked-button (click)="clearAll()" matTooltip="Quitar todos">
-      <mat-icon>remove_done</mat-icon>&nbsp;Limpiar
-    </button>
-    <button mat-stroked-button (click)="resetOrder()" matTooltip="Restablecer orden inicial">
-      <mat-icon>replay</mat-icon>&nbsp;Restablecer
-    </button>
-
-    <span class="spacer"></span>
-
-    <span class="contador"
-          [matBadge]="selectedCount()"
-          matBadgeColor="primary"
-          matBadgeOverlap="false">
-      Seleccionados
+<!-- Header Semántico -->
+<div class="dialog-header" mat-dialog-title>
+  <div class="header-text">
+    <h2>Organizar Documentos</h2>
+    <p class="subtitle">Arrastra para reordenar y selecciona los documentos a incluir.</p>
+  </div>
+  <div class="header-meta">
+    <span class="selection-counter" aria-live="polite">
+      <strong>{{ selectedCount() }}</strong> de {{ items().length }}
     </span>
   </div>
+</div>
 
-  <!-- LISTA VERTICAL (una columna) -->
-  <div cdkDropList
-       class="drop-list"
-       cdkDropListOrientation="vertical"
-       [cdkDropListData]="items()"
-       (cdkDropListDropped)="drop($event)">
+<mat-dialog-content class="dialog-body">
 
-    <div class="row"
-         *ngFor="let item of items(); let i = index"
-         cdkDrag
-         [cdkDragData]="item"
-         [class.unselected]="!selected().has(item.id)">
-
-      <!-- Handle -->
-      <button mat-icon-button
-              cdkDragHandle
-              class="drag-handle"
-              matTooltip="Arrastrar para reordenar"
-              aria-label="Reordenar">
-        <mat-icon>drag_indicator</mat-icon>
+  <!-- Toolbar de Acciones -->
+  <div class="actions-toolbar" role="toolbar" aria-label="Herramientas de selección">
+    <div class="group-left">
+      <button mat-button class="action-btn" (click)="selectAll()">
+        <mat-icon>done_all</mat-icon> Todos
       </button>
+      <button mat-button class="action-btn" (click)="clearAll()">
+        <mat-icon>remove_done</mat-icon> Nada
+      </button>
+    </div>
 
-      <!-- Nombre + check -->
-      <mat-checkbox
-        [checked]="selected().has(item.id)"
-        (change)="toggleSelection(item.id, $event)"
-        class="item-check">
-        {{ item.name }}
-      </mat-checkbox>
-
-      <!-- Badge de orden -->
-      <span class="order-badge"
-            [matBadge]="badgeNumber(item.id)"
-            matBadgeColor="primary"
-            matBadgeOverlap="false"
-            matBadgeSize="medium"
-            matBadgePosition="above after"
-            [matBadgeHidden]="!selected().has(item.id)"
-            matTooltip="Posición en el paquete"></span>
+    <div class="group-right">
+      <button mat-button class="action-btn" (click)="resetOrder()" matTooltip="Volver al orden original">
+        <mat-icon>history</mat-icon> Restablecer
+      </button>
     </div>
   </div>
+
+  <!-- Lista Ordenable -->
+  <div cdkDropList class="drag-list" [cdkDropListData]="items()" (cdkDropListDropped)="drop($event)">
+
+    @for (item of items(); track item.id; let i = $index) {
+    <div class="drag-item-card" cdkDrag [cdkDragData]="item" [class.is-selected]="selected().has(item.id)"
+      [class.is-unselected]="!selected().has(item.id)">
+
+      <!-- Drag Handle -->
+      <div class="handle-area" cdkDragHandle matTooltip="Arrastrar" aria-label="Arrastrar elemento">
+        <mat-icon class="handle-icon">drag_indicator</mat-icon>
+      </div>
+
+      <!-- Contenido Principal -->
+      <div class="card-content">
+        <mat-checkbox [checked]="selected().has(item.id)" (change)="toggleSelection(item.id, $event)" color="primary"
+          class="premium-checkbox">
+          <span class="item-text">{{ item.name }}</span>
+        </mat-checkbox>
+      </div>
+
+      <!-- Meta / Badge -->
+      <div class="card-meta">
+        @if (selected().has(item.id)) {
+        <span class="order-pill" matTooltip="Posición final">
+          #{{ badgeNumber(item.id) }}
+        </span>
+        }
+      </div>
+
+      <!-- Placeholder Customizado -->
+      <div *cdkDragPlaceholder class="drag-placeholder"></div>
+
+      <!-- Preview Customizado (lo que se ve al arrastrar) -->
+      <div *cdkDragPreview class="drag-preview">
+        <mat-icon>drag_indicator</mat-icon>
+        <span>{{ item.name }}</span>
+        <span class="preview-badge" *ngIf="selected().has(item.id)">#{{ badgeNumber(item.id) }}</span>
+      </div>
+
+    </div>
+    }
+  </div>
+
 </mat-dialog-content>
 
-<mat-dialog-actions align="end">
-  <button mat-button (click)="cancelar()">Cancelar</button>
-  <button mat-flat-button color="primary"
-          (click)="confirmar()"
-          [disabled]="selectedCount() === 0">
-    Confirmar
+<!-- Footer de Acciones -->
+<mat-dialog-actions align="end" class="dialog-footer">
+  <button mat-stroked-button (click)="cancelar()">Cancelar</button>
+  <button mat-flat-button color="primary" (click)="confirmar()" [disabled]="selectedCount() === 0">
+    Confirmar Unión
   </button>
 </mat-dialog-actions>
