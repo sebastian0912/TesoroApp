@@ -1194,6 +1194,24 @@ export class HiringReportComponent implements OnInit {
 
       this.datoscruced = rows;
 
+      // ==========================================
+      // CONTAR AL / TA (Columna 2 - TEM)
+      // ==========================================
+      let alCount = 0;
+      let taCount = 0;
+
+      rows.forEach((row) => {
+        // La columna 2 es TEM según CruceValidationHelper.COL_TEM
+        const val = (row[2] ?? '').toString().trim().toUpperCase();
+        if (val === 'AL') alCount++;
+        else if (val === 'TA') taCount++;
+      });
+
+      this.reporteForm.patchValue({
+        cantidadContratosApoyoLaboral: alCount,
+        cantidadContratosTuAlianza: taCount,
+      });
+
       const batchSize = 1500;
 
       const runValidateBatches = async (inputRows: string[][]): Promise<any[]> => {
