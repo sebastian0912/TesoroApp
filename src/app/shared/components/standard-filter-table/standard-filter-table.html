@@ -1,435 +1,424 @@
-<div class="table-container">
+<mat-drawer-container class="sf-drawer-container" autosize>
   <!-- =========================
-       FILTROS MÓVILES
-       ========================= -->
-  <div class="mobile-filters-container">
-    <div class="mobile-filters-header">
-      <h3>Filtros</h3>
-      <button
-        mat-icon-button
-        (click)="toggleFilters()"
-        class="filters-toggle-btn">
-        <mat-icon>{{ showFilters ? 'expand_less' : 'expand_more' }}</mat-icon>
+       DRAWER (Right Side)
+  ========================== -->
+  <mat-drawer #drawer position="end" mode="over" class="sf-filter-drawer">
+    <div class="sf-drawer-header">
+      <div class="sf-drawer-title">
+        <h2>Filtros y Configuración</h2>
+        <span class="sf-drawer-subtitle">Personaliza tu vista</span>
+      </div>
+      <button mat-icon-button (click)="closeDrawer()" aria-label="Cerrar filtros">
+        <mat-icon>close</mat-icon>
       </button>
     </div>
 
-    <div class="mobile-filters-content" [class.show]="showFilters">
-      <div class="filter-grid">
-        @for (col of columnDefinitions; track trackByCol($index, col)) {
-        @if (col.filterable !== false && col.name !== 'actions') {
-        <div class="filter-item">
-          <label class="filter-label">{{ col.header }}</label>
+    <div class="sf-drawer-body">
+      <!-- Sección: Columnas y Filtrabilidad -->
+      <div class="sf-drawer-section">
+        <h3>Columnas</h3>
+        <p class="sf-section-desc">Activa columnas o inhabilita sus filtros.</p>
 
-          <!-- Input -->
-          @if ((col.type === 'text' || col.type === 'number') &&
-          filterControls[col.name]) {
-          <mat-form-field appearance="outline" class="filter-ff mobile">
-            <input
-              matInput
-              [type]="col.type"
-              [placeholder]="col.header"
-              [formControl]="filterControls[col.name]" />
-          </mat-form-field>
+        <div class="sf-cols-list">
+          @for (col of columnDefinitions; track trackByCol($index, col)) {
+          @if (col.name !== 'actions') {
+          <div class="sf-col-item">
+            <div class="sf-col-item-left">
+              <mat-slide-toggle [checked]="isColumnVisible(col.name)" (change)="toggleColumn(col.name, $event.checked)"
+                color="primary">
+                <span class="sf-col-label">{{ col.header }}</span>
+              </mat-slide-toggle>
+            </div>
+
+            @if (col.filterable !== false && isColumnVisible(col.name)) {
+            <button mat-icon-button class="sf-col-filter-toggle" [class.on]="isFilterEnabled(col.name)"
+              (click)="toggleFilterability(col.name, !isFilterEnabled(col.name))"
+              matTooltip="Activar/Desactivar filtro para esta columna">
+              <mat-icon>{{ isFilterEnabled(col.name) ? 'filter_alt' : 'filter_alt_off' }}</mat-icon>
+            </button>
+            }
+          </div>
+          }
+          }
+        </div>
+      </div>
+
+      <mat-divider></mat-divider>
+
+      <!-- Sección: Rango de Fechas Global -->
+      <div class="sf-drawer-section">
+        <h3>Fechas</h3>
+
+        @if (getDateColumns().length > 0) {
+        <mat-form-field appearance="outline" class="sf-drawer-ff">
+          <mat-label>Aplicar rango a</mat-label>
+          <mat-select [formControl]="dateTargetColumn">
+            <mat-option value="ALL">Todas las fechas</mat-option>
+            @for (c of getDateColumns(); track c.name) {
+            <mat-option [value]="c.name">{{ c.header }}</mat-option>
+            }
+          </mat-select>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="sf-drawer-ff">
+          <mat-date-range-input [formGroup]="dateRange" [rangePicker]="pickerDrawer">
+            <input matStartDate formControlName="start" placeholder="Desde">
+            <input matEndDate formControlName="end" placeholder="Hasta">
+          </mat-date-range-input>
+          <mat-datepicker-toggle matSuffix [for]="pickerDrawer"></mat-datepicker-toggle>
+          <mat-date-range-picker #pickerDrawer></mat-date-range-picker>
+        </mat-form-field>
+        } @else {
+        <p class="sf-no-dates">No hay columnas de fecha disponibles.</p>
+        }
+      </div>
+
+      <mat-divider></mat-divider>
+
+      <!-- Sección: Filtros por Columna -->
+      <div class="sf-drawer-section">
+        <h3>Filtros Avanzados</h3>
+
+        @for (col of visibleColumns; track trackByCol($index, col)) {
+        @if (isFilterEnabled(col.name) && filterForms[col.name]) {
+        <div class="sf-filter-block" [formGroup]="filterForms[col.name]">
+          <div class="sf-filter-block-header">{{ col.header }}</div>
+
+          <!-- TEXT -->
+          @if (col.type === 'text') {
+          <div class="sf-filter-row">
+            <mat-form-field appearance="outline" class="sf-filter-op">
+              <mat-select formControlName="operator">
+                @for (op of textOperators; track op.val) {
+                <mat-option [value]="op.val">{{ op.label }}</mat-option>
+                }
+              </mat-select>
+            </mat-form-field>
+
+            <mat-form-field appearance="outline" class="sf-filter-val">
+              <input matInput formControlName="value" placeholder="Valor...">
+            </mat-form-field>
+          </div>
           }
 
-          <!-- Select -->
-          @if ((col.type === 'select' || col.type === 'status') &&
-          filterControls[col.name]) {
-          <mat-form-field appearance="outline" class="filter-ff mobile">
-            <mat-select
-              placeholder="Seleccionar"
-              [formControl]="filterControls[col.name]"
-              multiple>
-              @for (option of (col.options || yesNoOptions); track option) {
-              <mat-option [value]="option">
-                {{ option }}
-              </mat-option>
+          <!-- NUMBER -->
+          @if (col.type === 'number') {
+          <mat-form-field appearance="outline" class="sf-filter-op-full">
+            <mat-select formControlName="operator">
+              @for (op of numberOperators; track op.val) {
+              <mat-option [value]="op.val">{{ op.label }}</mat-option>
+              }
+            </mat-select>
+          </mat-form-field>
+
+          @if (filterForms[col.name].value.operator === 'range') {
+          <div class="sf-filter-row">
+            <mat-form-field appearance="outline" class="sf-filter-val">
+              <input matInput type="number" formControlName="min" placeholder="Min">
+            </mat-form-field>
+            <mat-form-field appearance="outline" class="sf-filter-val">
+              <input matInput type="number" formControlName="max" placeholder="Max">
+            </mat-form-field>
+          </div>
+          } @else {
+          <mat-form-field appearance="outline" class="sf-filter-val-full">
+            <input matInput type="number" formControlName="value" placeholder="Valor...">
+          </mat-form-field>
+          }
+          }
+
+          <!-- SELECT / STATUS -->
+          @if (col.type === 'select' || col.type === 'status') {
+          <mat-form-field appearance="outline" class="sf-filter-val-full">
+            <mat-select formControlName="value" multiple placeholder="Seleccionar...">
+              <!-- TODO: Search input inside header if needed? -->
+              @for (opt of (col.options || yesNoOptions); track opt) {
+              <mat-option [value]="opt">{{ opt }}</mat-option>
               }
             </mat-select>
           </mat-form-field>
           }
-
-          <!-- Fechas (MOBILE) -->
-          @if (col.type === 'date') {
-          <mat-form-field appearance="outline" class="filter-ff mobile">
-            <mat-date-range-picker #pickerRangeMobile></mat-date-range-picker>
-
-            <mat-date-range-input
-              [formGroup]="dateRange"
-              [rangePicker]="pickerRangeMobile"
-              class="date-range-input">
-              <input matStartDate formControlName="start" placeholder="Desde" />
-              <input matEndDate formControlName="end" placeholder="Hasta" />
-            </mat-date-range-input>
-
-            <mat-datepicker-toggle matSuffix
-              [for]="pickerRangeMobile"></mat-datepicker-toggle>
-          </mat-form-field>
-          }
         </div>
         }
         }
       </div>
-
-      <div class="mobile-filter-actions">
-        <button mat-stroked-button (click)="clearFilters()" class="clear-btn">
-          <mat-icon>clear_all</mat-icon>
-          Limpiar
-        </button>
-      </div>
     </div>
-  </div>
+
+    <div class="sf-drawer-footer">
+      <button mat-stroked-button (click)="clearFilters()">Limpiar Todo</button>
+      <button mat-flat-button color="primary" (click)="closeDrawer()">
+        <mat-icon>check</mat-icon> Aplicar
+      </button>
+    </div>
+  </mat-drawer>
 
   <!-- =========================
-       CONTROLES SUPERIORES
-       ========================= -->
-  <div class="paginator-row">
-    <button
-      mat-flat-button
-      class="clear-filters-btn desktop-only"
-      (click)="clearFilters()">
-      <mat-icon fontIcon="filter_alt_off"></mat-icon>
-      Limpiar filtros
-    </button>
+       MAIN CONTENT
+  ========================== -->
+  <mat-drawer-content class="sf-drawer-content">
+    <div class="sf-main-layout">
 
-    <span class="grow"></span>
+      <!-- Toolbar -->
+      <div class="sf-toolbar">
+        <div class="sf-title">
+          <h1 class="sf-h1">{{ tableTitle }}</h1>
+          <span class="sf-badge">
+            {{ (totalCount ?? data.length) | number }}
+          </span>
+        </div>
 
-    <button
-      mat-icon-button
-      [matMenuTriggerFor]="exportMenu"
-      aria-label="Opciones de exportación"
-      class="export-menu-btn">
-      <mat-icon>more_vert</mat-icon>
-    </button>
+        <div class="sf-tools">
+          <!-- Search Global -->
+          <div class="sf-search">
+            <mat-icon class="sf-search-icon">search</mat-icon>
+            <input class="sf-search-input" [formControl]="globalSearch" placeholder="Buscar..." type="text" />
+          </div>
 
-    <mat-menu #exportMenu="matMenu">
-      <button mat-menu-item (click)="exportTable('pdf')">
-        <mat-icon>picture_as_pdf</mat-icon>
-        <span>Exportar PDF</span>
-      </button>
-      <button mat-menu-item (click)="exportTable('xml')">
-        <mat-icon>code</mat-icon>
-        <span>Exportar XML</span>
-      </button>
-      <button mat-menu-item (click)="exportTable('excel')">
-        <mat-icon>table_view</mat-icon>
-        <span>Exportar Excel</span>
-      </button>
-    </mat-menu>
+          <!-- Action Buttons -->
+          <div class="sf-actions-group">
+            <!-- Main Filter Trigger -->
+            <button mat-stroked-button type="button" class="sf-btn-filter" (click)="toggleDrawer()">
+              <mat-icon>tune</mat-icon>
+              Filtros
+            </button>
 
-    <mat-paginator
-      [pageSizeOptions]="pageSizeOptions"
-      [pageSize]="defaultPageSize"
-      showFirstLastButtons
-      aria-label="Paginador de tabla"
-      class="table-paginator">
-    </mat-paginator>
-  </div>
+            <!-- View Mode (Desktop) -->
+            <div class="sf-view-toggle desktop-only">
+              <mat-icon [class.active]="viewMode==='table'">table_rows</mat-icon>
+              <mat-slide-toggle [checked]="viewMode === 'cards'" (change)="setViewMode($event)" color="primary">
+              </mat-slide-toggle>
+              <mat-icon [class.active]="viewMode==='cards'">grid_view</mat-icon>
+            </div>
 
-  <!-- =========================
-       TABLA (DESKTOP)
-       ========================= -->
-  <mat-table
-    ngSkipHydration
-    [dataSource]="dataSource"
-    matSort
-    class="table--compact desktop-table">
+            <!-- Export -->
+            <button mat-icon-button [matMenuTriggerFor]="exportMenu" matTooltip="Exportar">
+              <mat-icon>download</mat-icon>
+            </button>
+            <mat-menu #exportMenu="matMenu">
+              <button mat-menu-item (click)="exportTable('pdf')"><mat-icon>picture_as_pdf</mat-icon> PDF</button>
+              <button mat-menu-item (click)="exportTable('excel')"><mat-icon>table_view</mat-icon> Excel</button>
+            </mat-menu>
 
-    <colgroup>
-      @for (col of columnDefinitions; track trackByCol($index, col)) {
-      <col />
-      }
-    </colgroup>
-
-    @for (col of columnDefinitions; track trackByCol($index, col)) {
-    <ng-container [matColumnDef]="col.name">
-      <mat-header-cell
-        *matHeaderCellDef
-        mat-sort-header
-        [disabled]="!isSortable(col)"
-        [matTooltip]="col.header"
-        matTooltipShowDelay="600"
-        [style.minWidth]="col.width || null">
-        {{ col.header }}
-      </mat-header-cell>
-
-      <mat-cell
-        *matCellDef="let row"
-        [class.cell-right]="col.type === 'number'"
-        [style.minWidth]="col.width || null"
-        [matTooltip]="col.type === 'date'
-            ? (row[col.name] | date:'dd-MM-yyyy HH:mm')
-            : row[col.name]"
-        matTooltipShowDelay="600">
-
-        @let cellTpl = getCellTemplate(col.name);
-
-        <!-- Acciones -->
-        @if (col.name === 'actions') {
-        @if (actionsTemplate) {
-        <ng-container
-          [ngTemplateOutlet]="actionsTemplate"
-          [ngTemplateOutletContext]="{ $implicit: row }">
-        </ng-container>
-        }
-        }
-        <!-- Attachment -->
-        @else if (col.name === 'attachment' && attachmentTemplate) {
-        <ng-container
-          [ngTemplateOutlet]="attachmentTemplate"
-          [ngTemplateOutletContext]="{ $implicit: row }">
-        </ng-container>
-        }
-        <!-- Semáforo -->
-        @else if (col.name === 'semaforo' && semaforoTemplate) {
-        <ng-container
-          [ngTemplateOutlet]="semaforoTemplate"
-          [ngTemplateOutletContext]="{ $implicit: row }">
-        </ng-container>
-        }
-        <!-- Estado custom -->
-        @else if (col.name === 'estado' && estadoTemplate) {
-        <ng-container
-          [ngTemplateOutlet]="estadoTemplate"
-          [ngTemplateOutletContext]="{ $implicit: row }">
-        </ng-container>
-        }
-        <!-- ✅ Template por columna (appCellTemplate="...") -->
-        @else if (cellTpl) {
-        <ng-container
-          [ngTemplateOutlet]="cellTpl"
-          [ngTemplateOutletContext]="{ $implicit: row }">
-        </ng-container>
-        }
-        <!-- Default -->
-        @else {
-        @switch (col.type) {
-        @case ('date') {
-        <span>{{ row[col.name] | date:'dd-MM-yyyy' }}</span>
-        }
-        @case ('status') {
-        <span
-          class="status-chip"
-          [style.color]="getStatusStyles(col.name, row[col.name]).color"
-          [style.backgroundColor]="getStatusStyles(col.name, row[col.name]).background">
-          {{ getStatusLabel(col.name, row[col.name]) }}
-        </span>
-        }
-        @case ('custom') {
-        <span
-          class="custom-chip"
-          [style.color]="getCustomStyles(col.name, row[col.name]).color"
-          [style.backgroundColor]="getCustomStyles(col.name, row[col.name]).background">
-          {{ row[col.name] }}
-        </span>
-        }
-        @default {
-        <span>{{ row[col.name] }}</span>
-        }
-        }
-        }
-      </mat-cell>
-    </ng-container>
-    }
-
-    <!-- =========================
-         FILTROS (DESKTOP)
-         ========================= -->
-    @for (col of columnDefinitions; track trackByCol($index, col)) {
-    <ng-container [matColumnDef]="col.name + '_filter'">
-      <mat-header-cell
-        *matHeaderCellDef
-        class="filter-cell"
-        [style.minWidth]="col.width || null">
-
-        @if ((col.type === 'text' || col.type === 'number') &&
-        filterControls[col.name]) {
-        <mat-form-field appearance="outline" class="filter-ff">
-          <input
-            matInput
-            [type]="col.type"
-            [placeholder]="col.header"
-            [formControl]="filterControls[col.name]" />
-        </mat-form-field>
-        }
-
-        @if ((col.type === 'select' || col.type === 'status') &&
-        filterControls[col.name]) {
-        <mat-form-field appearance="outline" class="filter-ff">
-          <mat-select
-            placeholder="Opción"
-            [formControl]="filterControls[col.name]"
-            multiple>
-            @for (option of (col.options || yesNoOptions); track option) {
-            <mat-option [value]="option">
-              {{ option }}
-            </mat-option>
+            <!-- Create -->
+            @if (createRoute && createRoute.length) {
+            <a mat-mini-fab color="primary" [routerLink]="createRoute" matTooltip="Crear nuevo">
+              <mat-icon>add</mat-icon>
+            </a>
             }
-          </mat-select>
-        </mat-form-field>
-        }
+          </div>
+        </div>
+      </div>
 
-        @if (col.type === 'date') {
-        <mat-form-field appearance="outline" class="filter-ff">
-          <mat-date-range-picker #pickerRangeDesktop></mat-date-range-picker>
+      <!-- Active filters chips -->
+      @if (hasAnyActiveFilters()) {
+      <div class="sf-active-filters">
+        <span class="sf-active-label">Activos:</span>
+        <div class="sf-chips">
+          @if (String(globalSearch.value).trim()) {
+          <span class="sf-chip">
+            Buscar: {{ globalSearch.value }}
+            <button type="button" class="sf-chip-x" (click)="clearGlobalSearch()"><mat-icon>close</mat-icon></button>
+          </span>
+          }
 
-          <mat-date-range-input
-            [formGroup]="dateRange"
-            [rangePicker]="pickerRangeDesktop"
-            class="date-range-input">
-            <input matStartDate formControlName="start" placeholder="Desde" />
-            <input matEndDate formControlName="end" placeholder="Hasta" />
-          </mat-date-range-input>
+          @for (f of getActiveFilters(); track f.name) {
+          <span class="sf-chip">
+            <span class="sf-chip-header">{{ f.header }}</span>
 
-          <mat-datepicker-toggle matSuffix
-            [for]="pickerRangeDesktop"></mat-datepicker-toggle>
-        </mat-form-field>
-        }
+            @if (f.name === '__dateRange__') {
+            <span class="sf-chip-val">{{ f.value.from | date:'shortDate' }} - {{ f.value.to | date:'shortDate'
+              }}</span>
+            } @else {
+            <!-- Operator display if relevant? -->
+            @if (f.operator && f.operator !== 'contains' && f.operator !== 'in' && f.operator !== 'range') {
+            <span class="sf-chip-op">({{ f.operator }})</span>
+            }
+            <span class="sf-chip-val">{{ f.value }}</span>
+            }
 
-      </mat-header-cell>
-    </ng-container>
-    }
+            <button type="button" class="sf-chip-x"
+              (click)="clearSingleFilter(f.name)"><mat-icon>close</mat-icon></button>
+          </span>
+          }
+          <button type="button" class="sf-clear-all" (click)="clearFilters()">Borrar todos</button>
+        </div>
+      </div>
+      }
 
-    <mat-header-row
-      *matHeaderRowDef="displayedColumns; sticky: true"
-      class="header-row-main"></mat-header-row>
+      <!-- CONTENT: Table or Cards -->
+      <div class="sf-content-area">
+        @if (viewMode === 'table') {
+        <div class="sf-table-wrapper">
+          <table mat-table ngSkipHydration [dataSource]="dataSource" matSort class="sf-table"
+            [class.sf-density-compact]="density === 'compact'"
+            [class.sf-density-comfortable]="density === 'comfortable'">
 
-    <mat-header-row
-      *matHeaderRowDef="displayedFilterColumns; sticky: true"
-      class="header-row-filters"></mat-header-row>
+            <!-- Checkbox Column -->
+            @if (enableSelection) {
+            <ng-container matColumnDef="select" sticky>
+              <th mat-header-cell *matHeaderCellDef class="sf-select-cell">
+                <mat-checkbox (change)="$event ? masterToggle() : null"
+                  [checked]="selection.hasValue() && isAllSelected()"
+                  [indeterminate]="selection.hasValue() && !isAllSelected()">
+                </mat-checkbox>
+              </th>
+              <td mat-cell *matCellDef="let row" class="sf-select-cell">
+                <mat-checkbox (click)="$event.stopPropagation()" (change)="$event ? toggleRow(row) : null"
+                  [checked]="selection.isSelected(row)">
+                </mat-checkbox>
+              </td>
+            </ng-container>
+            }
 
-    <mat-row
-      *matRowDef="let row; columns: displayedColumns;"
-      class="data-row"
-      tabindex="0"></mat-row>
+            <!-- Dynamic Columns -->
+            @for (col of visibleColumns; track trackByCol($index, col)) {
+            <ng-container [matColumnDef]="col.name" [sticky]="!!col.stickyStart"
+              [stickyEnd]="!!col.stickyEnd || col.name === 'actions'">
 
-    <tr mat-row *matNoDataRow class="empty-state-row">
-      <td class="mat-mdc-cell" [attr.colspan]="displayedColumns.length || 1">
-        @if (isLoading) {
-        <div class="loading-content">
-          <mat-spinner diameter="40"
-            aria-label="Cargando registros"></mat-spinner>
-          <span class="loading-text">Cargando registros...</span>
+              <th mat-header-cell *matHeaderCellDef mat-sort-header [disabled]="!isSortable(col)"
+                [style.width]="col.width || null" [style.minWidth]="col.width || null">
+                {{ col.header }}
+              </th>
+
+              <td mat-cell *matCellDef="let row" [style.width]="col.width || null" [style.minWidth]="col.width || null"
+                [class.cell-number]="col.type === 'number'">
+
+                <!-- Actions -->
+                @if (col.name === 'actions') {
+                @if (actionsTemplate) {
+                <ng-container [ngTemplateOutlet]="actionsTemplate"
+                  [ngTemplateOutletContext]="{ $implicit: row }"></ng-container>
+                }
+                }
+
+                <!-- Template Projections -->
+                @if (col.name === 'attachment' && attachmentTemplate) {
+                <ng-container [ngTemplateOutlet]="attachmentTemplate"
+                  [ngTemplateOutletContext]="{ $implicit: row }"></ng-container>
+                }
+                @if (col.name === 'semaforo' && semaforoTemplate) {
+                <ng-container [ngTemplateOutlet]="semaforoTemplate"
+                  [ngTemplateOutletContext]="{ $implicit: row }"></ng-container>
+                }
+                @if ((col.name === 'estado' || col.name.startsWith('type_')) && estadoTemplate) {
+                <ng-container [ngTemplateOutlet]="estadoTemplate"
+                  [ngTemplateOutletContext]="{ $implicit: row, col: col }"></ng-container>
+                }
+                <!-- Generic Custom Templates -->
+                @if (customTemplates[col.name]) {
+                <ng-container [ngTemplateOutlet]="customTemplates[col.name]"
+                  [ngTemplateOutletContext]="{ $implicit: row, col: col }"></ng-container>
+                }
+
+                <!-- Standard Render -->
+                @if (
+                col.name !== 'actions' &&
+                col.name !== 'attachment' &&
+                col.name !== 'semaforo' &&
+                !((col.name === 'estado' || col.name.startsWith('type_')) && estadoTemplate) &&
+                !customTemplates[col.name]
+                ) {
+                @if (col.name.startsWith('PDF_') && row[col.name]) {
+                <a class="sf-link" [href]="row[col.name]" target="_blank" (click)="$event.stopPropagation()">
+                  <mat-icon>visibility</mat-icon>
+                </a>
+                } @else {
+                @switch (col.type) {
+                @case ('date') { {{ row[col.name] | date:'dd MMM yyyy' }} }
+                @case ('status') {
+                <span class="sf-status-badge" [style.color]="getStatusStyles(col.name, row[col.name]).color"
+                  [style.backgroundColor]="getStatusStyles(col.name, row[col.name]).background">
+                  {{ getStatusLabel(col.name, row[col.name]) }}
+                </span>
+                }
+                @case ('custom') {
+                <span class="sf-custom-badge" [style.color]="getCustomStyles(col.name, row[col.name]).color"
+                  [style.backgroundColor]="getCustomStyles(col.name, row[col.name]).background">
+                  {{ row[col.name] }}
+                </span>
+                }
+                @default { {{ row[col.name] ?? '-' }} }
+                }
+                }
+                }
+              </td>
+            </ng-container>
+            }
+
+            <tr mat-header-row *matHeaderRowDef="displayedColumns; sticky: true"></tr>
+            <tr mat-row *matRowDef="let row; columns: displayedColumns;" [class.clickable]="enableRowClick"
+              [class.selected-row]="selection.isSelected(row)" (click)="emitRowClick(row, $event)"></tr>
+
+            <tr class="mat-row" *matNoDataRow>
+              <td class="mat-cell" [attr.colspan]="displayedColumns.length">
+                <div class="sf-no-data">
+                  <mat-icon>inbox</mat-icon>
+                  <span>{{ isLoading ? 'Cargando...' : 'No se encontraron registros' }}</span>
+                </div>
+              </td>
+            </tr>
+          </table>
         </div>
         } @else {
-        <div class="no-data-content">
-          <mat-icon class="no-data-icon">inbox</mat-icon>
-          <span class="no-data-text">No se encontraron registros</span>
-        </div>
-        }
-      </td>
-    </tr>
-  </mat-table>
-
-  <!-- =========================
-       VISTA DE TARJETAS (MÓVIL)
-       ========================= -->
-  <div class="mobile-cards-container">
-    @if (isLoading) {
-    <div class="loading-mobile">
-      <mat-spinner diameter="50" aria-label="Cargando registros"></mat-spinner>
-      <p class="loading-text-mobile">Cargando registros...</p>
-    </div>
-    }
-
-    @if (dataSource.data.length === 0 && !isLoading) {
-    <div class="no-data-mobile">
-      <mat-icon>inbox</mat-icon>
-      <p>No se encontraron registros</p>
-    </div>
-    }
-
-    @for (row of getPagedData(); track trackByRow($index, row)) {
-    <div class="mobile-card">
-      <div class="card-content">
-        <div class="card-fields">
-          @for (col of columnDefinitions; track trackByCol($index, col)) {
-          <div class="card-field"
-            [class.card-field-full]="col.name === 'actions'">
-            @let cellTpl = getCellTemplate(col.name);
-
-            <!-- Acciones -->
-            @if (col.name === 'actions') {
-            <div class="card-actions">
-              @if (actionsTemplate) {
-              <ng-container
-                [ngTemplateOutlet]="actionsTemplate"
-                [ngTemplateOutletContext]="{ $implicit: row }">
-              </ng-container>
-              }
-              @if (attachmentTemplate) {
-              <ng-container
-                [ngTemplateOutlet]="attachmentTemplate"
-                [ngTemplateOutletContext]="{ $implicit: row }">
-              </ng-container>
+        <!-- CARDS VIEW (Desktop & Mobile unified logic) -->
+        <div class="sf-cards-grid">
+          @if (dataSource.filteredData.length === 0) {
+          <div class="sf-no-data-card">
+            <mat-icon>inbox</mat-icon>
+            <span>{{ isLoading ? 'Cargando...' : 'No se encontraron registros' }}</span>
+          </div>
+          }
+          @for (row of getPagedData(); track trackByRow($index, row)) {
+          <div class="sf-card-item" [class.clickable]="enableRowClick" (click)="emitRowClick(row, $event)">
+            @for (col of visibleColumns; track col.name) {
+            <div class="sf-card-row" [class.full-width]="col.name === 'actions'">
+              @if (col.name === 'actions') {
+              <div class="sf-card-actions">
+                <ng-container [ngTemplateOutlet]="actionsTemplate || null"
+                  [ngTemplateOutletContext]="{ $implicit: row }"></ng-container>
+              </div>
+              } @else {
+              <div class="sf-card-label">{{ col.header }}</div>
+              <div class="sf-card-val">
+                <!-- Reusing same rendering logic logic implicitly or simplify? -->
+                <!-- For brevity, repeating switch or using template if available -->
+                @if (col.name === 'semaforo' && semaforoTemplate) {
+                <ng-container [ngTemplateOutlet]="semaforoTemplate"
+                  [ngTemplateOutletContext]="{ $implicit: row }"></ng-container>
+                } @else if ((col.name === 'estado' || col.name.startsWith('type_')) && estadoTemplate) {
+                <ng-container [ngTemplateOutlet]="estadoTemplate"
+                  [ngTemplateOutletContext]="{ $implicit: row, col: col }"></ng-container>
+                } @else if (customTemplates[col.name]) {
+                <ng-container [ngTemplateOutlet]="customTemplates[col.name]"
+                  [ngTemplateOutletContext]="{ $implicit: row, col: col }"></ng-container>
+                } @else if (col.name.startsWith('PDF_')) {
+                <a *ngIf="row[col.name]" [href]="row[col.name]" target="_blank"
+                  class="sf-link"><mat-icon>visibility</mat-icon> PDF</a>
+                } @else {
+                @switch (col.type) {
+                @case ('date') { {{ row[col.name] | date:'shortDate' }} }
+                @case ('status') {
+                <span class="sf-status-badge" [style.color]="getStatusStyles(col.name, row[col.name]).color"
+                  [style.backgroundColor]="getStatusStyles(col.name, row[col.name]).background">
+                  {{ getStatusLabel(col.name, row[col.name]) }}
+                </span>
+                }
+                @default { {{ row[col.name] ?? '-' }} }
+                }
+                }
+              </div>
               }
             </div>
-            }
-            <!-- Semáforo -->
-            @else if (col.name === 'semaforo' && semaforoTemplate) {
-            <span class="field-label">{{ col.header }}:</span>
-            <span class="field-value">
-              <ng-container
-                [ngTemplateOutlet]="semaforoTemplate"
-                [ngTemplateOutletContext]="{ $implicit: row }">
-              </ng-container>
-            </span>
-            }
-            <!-- Estado -->
-            @else if (col.name === 'estado' && estadoTemplate) {
-            <span class="field-label">{{ col.header }}:</span>
-            <span class="field-value">
-              <ng-container
-                [ngTemplateOutlet]="estadoTemplate"
-                [ngTemplateOutletContext]="{ $implicit: row }">
-              </ng-container>
-            </span>
-            }
-            <!-- ✅ Template por columna -->
-            @else if (cellTpl) {
-            <span class="field-label">{{ col.header }}:</span>
-            <span class="field-value">
-              <ng-container
-                [ngTemplateOutlet]="cellTpl"
-                [ngTemplateOutletContext]="{ $implicit: row }">
-              </ng-container>
-            </span>
-            }
-            <!-- Default -->
-            @else {
-            <span class="field-label">{{ col.header }}:</span>
-            <span class="field-value">
-              @switch (col.type) {
-              @case ('date') {
-              <span>{{ row[col.name] | date:'dd-MM-yyyy' }}</span>
-              }
-              @case ('status') {
-              <span
-                class="status-chip mobile"
-                [style.color]="getStatusStyles(col.name, row[col.name]).color"
-                [style.backgroundColor]="getStatusStyles(col.name, row[col.name]).background">
-                {{ getStatusLabel(col.name, row[col.name]) }}
-              </span>
-              }
-              @case ('custom') {
-              <span
-                class="custom-chip mobile"
-                [style.color]="getCustomStyles(col.name, row[col.name]).color"
-                [style.backgroundColor]="getCustomStyles(col.name, row[col.name]).background">
-                {{ row[col.name] }}
-              </span>
-              }
-              @default {
-              <span>{{ row[col.name] || '-' }}</span>
-              }
-              }
-            </span>
             }
           </div>
           }
         </div>
+        }
       </div>
+
+      <mat-paginator [pageSizeOptions]="pageSizeOptions" [pageSize]="defaultPageSize"
+        showFirstLastButtons></mat-paginator>
+
     </div>
-    }
-  </div>
-</div>
+  </mat-drawer-content>
+</mat-drawer-container>

@@ -1,86 +1,126 @@
-<div class="modal-container">
-  <h2 mat-dialog-title>{{ data.isEdit ? 'Editar Tipo Documental' : 'Agregar Nuevos Tipos Documentales' }}</h2>
+<div class="modal-wrapper">
 
-  <mat-dialog-content>
-    <!-- Formulario de edición -->
-    <div *ngIf="data.isEdit; else agregarTemplate" [formGroup]="form">
-      <div class="full-width-checkbox">
-        <mat-checkbox formControlName="expandable">¿Es padre?</mat-checkbox>
-        <mat-checkbox formControlName="estado">¿Está activo?</mat-checkbox>
+  <!-- Header -->
+  <div class="modal-header">
+    <div class="header-titles">
+      <h2>{{ data.isEdit ? 'Editar Tipo Documental' : 'Nuevos Tipos Documentales' }}</h2>
+      <p>{{ data.isEdit ? 'Modifica los detalles del elemento existente.' : 'Define y agrega múltiples tipos a la
+        estructura.' }}</p>
+    </div>
+    <button mat-icon-button (click)="cancel()" class="close-btn" tabindex="-1">
+      <mat-icon>close</mat-icon>
+    </button>
+  </div>
+
+  <mat-dialog-content class="modal-body" [class.is-create-mode]="!data.isEdit">
+
+    <!-- EDIT MODE: Single Form -->
+    <div *ngIf="data.isEdit" [formGroup]="form" class="edit-single-panel">
+      <div class="form-row">
+        <mat-checkbox formControlName="expandable" color="primary">¿Puede tener hijos?</mat-checkbox>
+        <mat-checkbox formControlName="estado" color="primary">Activo</mat-checkbox>
       </div>
 
-      <mat-form-field class="example-full-width">
-        <mat-label>Nombre</mat-label>
-        <input matInput formControlName="name" placeholder="Ingrese el nombre"/>
-        <mat-error *ngIf="form.get('name')?.invalid && form.get('name')?.touched">
-          El nombre es requerido.
-        </mat-error>
+      <mat-form-field appearance="outline" class="full-width">
+        <mat-label>Nombre del Tipo</mat-label>
+        <input matInput formControlName="name" placeholder="Ej. Contratos Laborales" autocomplete="off">
+        <mat-error *ngIf="form.get('name')?.hasError('required')">El nombre es obligatorio</mat-error>
       </mat-form-field>
 
-      <mat-form-field class="example-full-width">
-        <mat-label>Tags</mat-label>
-        <mat-select formControlName="tags" multiple (selectionChange)="onTagSelection($event)">
-          <mat-option *ngFor="let tag of availableTags" [value]="tag.id">
-            {{ tag.name }}
-          </mat-option>
+      <mat-form-field appearance="outline" class="full-width">
+        <mat-label>Etiquetas</mat-label>
+        <mat-select formControlName="tags" multiple placeholder="Seleccionar...">
+          <mat-option *ngFor="let t of availableTags" [value]="t.id">{{t.name}}</mat-option>
         </mat-select>
       </mat-form-field>
 
-      <mat-form-field *ngIf="isAddingNewTag" class="example-full-width">
-        <mat-label>Nuevo Tag</mat-label>
-        <input matInput formControlName="newTagName" placeholder="Ingrese el nuevo tag" />
-        <mat-error *ngIf="form.get('newTagName')?.invalid && form.get('newTagName')?.touched">
-          El nuevo tag es requerido.
-        </mat-error>
+      <mat-form-field *ngIf="isAddingNewTag" appearance="outline" class="full-width animate-fade">
+        <mat-label>Nombre Nueva Etiqueta</mat-label>
+        <input matInput formControlName="newTagName" placeholder="Ej. Confidencial">
       </mat-form-field>
-
     </div>
 
-    <!-- Formulario de creación de nuevos documentos -->
-    <ng-template #agregarTemplate>
-      <div *ngFor="let item of nuevosDocumentos.controls; let i = index" [formGroup]="item">
-        <mat-divider></mat-divider>
-        <div class="full-width-checkbox">
-          <mat-checkbox formControlName="estado">¿Está activo?</mat-checkbox>
+
+    <!-- CREATE MODE: Split Layout -->
+    <ng-container *ngIf="!data.isEdit">
+
+      <!-- LEFT: Input Panel -->
+      <div class="panel-left" [formGroup]="inputForm">
+        <div class="panel-header-small">
+          <h3>Definir Elemento</h3>
         </div>
 
-        <mat-form-field class="example-full-width">
-          <mat-label>Nombre</mat-label>
-          <input matInput formControlName="name" placeholder="Ingrese el nombre" />
-        </mat-form-field>
+        <div class="input-area">
+          <mat-form-field appearance="outline" class="full-width density-compact">
+            <mat-label>Nombre</mat-label>
+            <input matInput formControlName="name" placeholder="Ej. Actas de Reunión">
+          </mat-form-field>
 
-        <mat-form-field class="example-full-width">
-          <mat-label>Tags</mat-label>
-          <mat-select formControlName="tags" multiple (selectionChange)="onTagSelection($event)">
-            <mat-option *ngFor="let tag of availableTags" [value]="tag.id">
-              {{ tag.name }}
-            </mat-option>
-          </mat-select>
-        </mat-form-field>
+          <div class="row-inputs">
+            <mat-form-field appearance="outline" class="flex-1 density-compact">
+              <mat-label>Tags (Opcional)</mat-label>
+              <mat-select formControlName="tags" multiple>
+                <mat-option *ngFor="let t of availableTags" [value]="t.id">{{t.name}}</mat-option>
+              </mat-select>
+            </mat-form-field>
 
-        <mat-form-field *ngIf="isAddingNewTag" class="example-full-width">
-          <mat-label>Nuevo Tag</mat-label>
-          <input matInput formControlName="newTagName" placeholder="Ingrese el nuevo tag" />
-          <mat-error *ngIf="form.get('newTagName')?.invalid && form.get('newTagName')?.touched">
-            El nuevo tag es requerido.
-          </mat-error>
-        </mat-form-field>
+            <mat-checkbox formControlName="estado" color="primary" class="status-check">Activo</mat-checkbox>
+          </div>
 
-        <button mat-icon-button color="warn" (click)="eliminarDocumento(i)">
-          <mat-icon>delete</mat-icon>
-        </button>
+          <mat-form-field *ngIf="isAddingNewTagInput" appearance="outline"
+            class="full-width density-compact animate-fade">
+            <mat-label>Nueva Etiqueta</mat-label>
+            <input matInput formControlName="newTagName">
+          </mat-form-field>
+
+          <button mat-flat-button color="accent" class="btn-add-queue" (click)="addToQueue()"
+            [disabled]="inputForm.invalid">
+            <mat-icon>playlist_add</mat-icon> Agregar a la Lista
+          </button>
+        </div>
       </div>
 
-      <button mat-flat-button color="primary" (click)="agregarNuevoDocumento()">
-        Agregar Documento
-      </button>
-    </ng-template>
+      <!-- RIGHT: Queue Panel -->
+      <div class="panel-right">
+        <div class="panel-header-small">
+          <h3>Lista de Creación ({{ nuevosDocumentos.length }})</h3>
+        </div>
+
+        <div class="queue-list" [@listAnimation]="nuevosDocumentos.length">
+
+          <div *ngFor="let item of nuevosDocumentos.controls; let i = index" class="queue-item">
+            <div class="queue-info">
+              <span class="q-name">{{ item.value.name }}</span>
+              <div class="q-meta">
+                <span class="status-dot" [class.active]="item.value.estado"></span>
+                <span *ngIf="item.value.tags?.length">{{ item.value.tags.length }} tags</span>
+              </div>
+            </div>
+            <button mat-icon-button color="warn" class="btn-remove" (click)="removeFromQueue(i)">
+              <mat-icon>close</mat-icon>
+            </button>
+          </div>
+
+          <!-- Empty State -->
+          <div *ngIf="nuevosDocumentos.length === 0" class="empty-queue">
+            <mat-icon>layers</mat-icon>
+            <p>Define un tipo a la izquierda y agrégalo aquí.</p>
+          </div>
+
+        </div>
+      </div>
+
+    </ng-container>
+
   </mat-dialog-content>
 
-  <mat-dialog-actions align="end">
-    <button mat-flat-button (click)="cancel()">Cancelar</button>
-    <button mat-flat-button color="primary" (click)="save()">
-      Guardar
+  <!-- Footer Actions -->
+  <mat-dialog-actions class="modal-footer">
+    <button mat-button (click)="cancel()">Cancelar</button>
+    <button mat-flat-button color="primary" (click)="save()"
+      [disabled]="data.isEdit ? form.invalid : nuevosDocumentos.length === 0">
+      {{ data.isEdit ? 'Guardar Cambios' : 'Crear ' + nuevosDocumentos.length + ' Elementos' }}
     </button>
   </mat-dialog-actions>
+
 </div>

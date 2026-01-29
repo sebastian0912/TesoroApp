@@ -1,15 +1,18 @@
 import { FincaItem } from './../../service/fincas/fincas.service';
-import { Component, ElementRef, Inject, OnInit, ViewChild } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { HttpClient } from '@angular/common/http';
+import { COMMA, ENTER } from '@angular/cdk/keycodes';
+import { Component, ElementRef, Inject, OnDestroy, OnInit, ViewChild } from '@angular/core';
 import {
   AbstractControl,
   FormArray,
   FormBuilder,
+  FormControl,
   FormGroup,
+  ValidatorFn,
   Validators,
   ReactiveFormsModule,
   FormsModule,
-  FormControl,
-  ValidatorFn,
 } from '@angular/forms';
 import { MatDialogRef, MAT_DIALOG_DATA, MatDialogModule } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -20,16 +23,15 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatDatepickerModule } from '@angular/material/datepicker';
 import { MatNativeDateModule, MAT_DATE_FORMATS, DateAdapter, MAT_DATE_LOCALE } from '@angular/material/core';
-import { CommonModule } from '@angular/common';
-import { Observable } from 'rxjs';
-import { map, startWith } from 'rxjs/operators';
 import { MatAutocompleteModule, MatAutocompleteSelectedEvent } from '@angular/material/autocomplete';
-import { UtilityServiceService } from '@/app/shared/services/utilityService/utility-service.service';
-import { VacantesService } from '../../service/vacantes/vacantes.service';
-import { HttpClient } from '@angular/common/http';
 import { MomentDateAdapter } from '@angular/material-moment-adapter';
 import { MatChipsModule } from '@angular/material/chips';
-import { COMMA, ENTER } from '@angular/cdk/keycodes';
+
+import { Observable, Subject, of } from 'rxjs';
+import { catchError, map, startWith, takeUntil } from 'rxjs/operators';
+
+import { UtilityServiceService } from '@/app/shared/services/utilityService/utility-service.service';
+import { VacantesService } from '../../service/vacantes/vacantes.service';
 import { PositionsService } from '../../../positions/services/positions/positions.service';
 import { FincasService } from '../../service/fincas/fincas.service';
 
@@ -49,6 +51,8 @@ interface DistMunControls {
   cantidad: FormControl<number | null>;
 }
 type DistMunGroup = FormGroup<DistMunControls>;
+
+type DepCiudades = { ciudades: string[] };
 
 @Component({
   selector: 'app-crear-editar-vacante',
@@ -76,34 +80,47 @@ type DistMunGroup = FormGroup<DistMunControls>;
     { provide: MAT_DATE_LOCALE, useValue: 'es-CO' },
   ],
 })
-export class CrearEditarVacanteComponent implements OnInit {
+export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
   private readonly SI = 'Si';
   private readonly PRUEBA = 'Prueba';
+  private readonly destroy$ = new Subject<void>();
 
   vacanteForm!: FormGroup;
-  sedes: any[] = [];
+
+  sedes: Array<{ nombre: string; activa?: boolean }> = [];
   user: any;
 
   cargos: string[] = [];
-  filteredCargos!: Observable<string[]>;
+  filteredCargos: Observable<string[]> = of([]);
+
   centrosCostos: string[] = [];
-  filteredCentrosCostos!: Observable<string[]>;
+  filteredCentrosCostos: Observable<string[]> = of([]);
+
   municipiosColombia: string[] = [];
   municipiosFiltrados: string[] = [];
   municipioFiltro = '';
-  municipioCtrl = new FormControl('');
+  municipioCtrl = new FormControl<string>('', { nonNullable: true });
 
   separatorKeysCodes: number[] = [ENTER, COMMA];
   @ViewChild('municipioInput', { static: false }) municipioInput!: ElementRef<HTMLInputElement>;
 
   areas: string[] = [
-    'Rosa', 'Clavel', 'Astromelia', 'Pompon', 'Miniclavel', 'Diversificados', 'Lirios', 'Fumigación', 'Corte de Rosa', 'Oficios Varios', 'Otros',
+    'Rosa',
+    'Clavel',
+    'Astromelia',
+    'Pompon',
+    'Miniclavel',
+    'Diversificados',
+    'Lirios',
+    'Fumigación',
+    'Corte de Rosa',
+    'Oficios Varios',
+    'Otros',
   ];
 
   today: Date = new Date();
 
   private prevMunicipios: string[] = [];
-  exigirIgualdadTotal = false;
 
   constructor(
     private fb: FormBuilder,
@@ -111,7 +128,7 @@ export class CrearEditarVacanteComponent implements OnInit {
     public dialogRef: MatDialogRef<CrearEditarVacanteComponent>,
     @Inject(MAT_DIALOG_DATA) public data: any,
     private adminService: UtilityServiceService,
-    private vacantesService: VacantesService,
+    private vacantesService: VacantesService, // (queda por si lo usas luego)
     private positionsService: PositionsService,
     private fincasService: FincasService,
     private utilityService: UtilityServiceService
@@ -119,9 +136,12 @@ export class CrearEditarVacanteComponent implements OnInit {
     this.today.setHours(0, 0, 0, 0);
   }
 
-  async ngOnInit(): Promise<void> {
-    this.user = this.utilityService.getUser() || 'null';
+  ngOnInit(): void {
+    this.user = this.utilityService.getUser() || null;
 
+    // ✅ VALIDADORES:
+    // - excesoMunicipios: suma > total
+    // - sumaNoIgualTotal: suma !== total (solo cuando ya hay distribución)
     this.vacanteForm = this.fb.group(
       {
         cargo: ['', Validators.required],
@@ -143,13 +163,13 @@ export class CrearEditarVacanteComponent implements OnInit {
 
         // Condicional 1: Fecha de ingreso
         tieneFechaIngreso: ['No', Validators.required],
-        fechadeIngreso: [null], // Date | null
+        fechadeIngreso: [{ value: null, disabled: true }],
 
         // Condicional 2: Prueba o Contratación
         pruebaOContratacion: ['', Validators.required],
-        fechadePruebatecnica: [null],   // Date | null (requerida si Prueba)
-        horadePruebatecnica: [''],      // string HH:mm (requerida si Prueba)
-        ubicacionPruebaTecnica: [''],   // opcional si Prueba
+        fechadePruebatecnica: [{ value: null, disabled: true }],
+        horadePruebatecnica: [{ value: '', disabled: true }],
+        ubicacionPruebaTecnica: [{ value: '', disabled: true }],
 
         tipoContratacion: ['', Validators.required],
 
@@ -166,98 +186,137 @@ export class CrearEditarVacanteComponent implements OnInit {
         oficinasSeleccionadas: [[], Validators.required],
         oficinasQueContratan: this.fb.array([]),
       },
-      { validators: [this.sumNoExcedeTotalValidator()] }
+      {
+        validators: [
+          this.sumNoExcedeTotalValidator(),
+          this.sumIgualTotalValidator(), // ✅ NUEVO: NO deja guardar si la suma no cuadra
+        ],
+      }
     );
 
+    // Si viene data, cargar primero para no pelear con subscribes
     if (this.data) this.cargarParaEdicion(this.data);
 
-    // ---------- Catálogos: CARGOS ----------
-    const cargoCtrl = this.vacanteForm.get('cargo')!;
-
-    // Inicializa para evitar undefined antes de la data
+    // --------- AUTOCOMPLETE CARGOS ----------
+    const cargoCtrl = this.vacanteForm.get('cargo') as FormControl<string>;
     this.filteredCargos = cargoCtrl.valueChanges.pipe(
       startWith(cargoCtrl.value ?? ''),
       map((value: string) => this._filter(value || '', this.cargos))
     );
 
-    this.positionsService.list()
+    this.positionsService
+      .list()
       .pipe(
-        map((rows: any[]) => (rows ?? []).map(c => c.nombre).filter(Boolean))
+        map((rows: any[]) => (rows ?? []).map((c: any) => String(c?.nombre ?? '').trim()).filter(Boolean)),
+        catchError(() => of([] as string[])),
+        takeUntil(this.destroy$)
       )
-      .subscribe({
-        next: (nombres: string[]) => {
-          this.cargos = nombres;
-          // Reengancha el filtro con la lista ya cargada
-          this.filteredCargos = cargoCtrl.valueChanges.pipe(
-            startWith(cargoCtrl.value ?? ''),
-            map((value: string) => this._filter(value || '', this.cargos))
-          );
-        },
-        error: (err) => {
-          this.cargos = [];
-          this.filteredCargos = cargoCtrl.valueChanges.pipe(
-            startWith(cargoCtrl.value ?? ''),
-            map((value: string) => this._filter(value || '', this.cargos))
-          );
-        }
+      .subscribe((nombres: string[]) => {
+        this.cargos = nombres;
+        this.filteredCargos = cargoCtrl.valueChanges.pipe(
+          startWith(cargoCtrl.value ?? ''),
+          map((value: string) => this._filter(value || '', this.cargos))
+        );
       });
 
+    // --------- AUTOCOMPLETE FINCAS ----------
+    this.fincasService
+      .listNombreFincas()
+      .pipe(catchError(() => of([] as string[])), takeUntil(this.destroy$))
+      .subscribe((nombres: string[]) => {
+        this.centrosCostos = nombres ?? [];
+        const fincaCtrl = this.vacanteForm.get('finca') as FormControl<string>;
+        this.filteredCentrosCostos = fincaCtrl.valueChanges.pipe(
+          startWith(fincaCtrl.value ?? ''),
+          map((value: string) => this._filter(value || '', this.centrosCostos))
+        );
+      });
 
+    // --------- SEDES ----------
+    type SedeDto = { nombre: string; activa?: boolean | null };
 
+    this.adminService
+      .traerSucursales()
+      .pipe(
+        takeUntil(this.destroy$),
+        catchError(() => {
+          this.sedes = [];
+          return of([] as SedeDto[]);
+        })
+      )
+      .subscribe((sucursales: SedeDto[]) => {
+        if (!Array.isArray(sucursales)) {
+          this.sedes = [];
+          return;
+        }
 
-
-    // Cargar nombres de fincas para el autocomplete
-    this.fincasService.listNombreFincas().subscribe((nombres) => {
-      console.log('Nombres de fincas:', nombres);
-      this.centrosCostos = nombres ?? [];
-      this.filteredCentrosCostos = this.vacanteForm.get('finca')!.valueChanges.pipe(
-        startWith(''),
-        map((value: string) => this._filter(value || '', this.centrosCostos))
-      );
-    });
-
-    const sucursalesObservable = await this.adminService.traerSucursales();
-    sucursalesObservable.subscribe((sucursales: any[]) => {
-      if (Array.isArray(sucursales)) {
         this.sedes = sucursales
-          .filter(s => s?.activa !== false) // opcional: sólo activas
-          .sort((a, b) => (a.nombre || '').localeCompare(b.nombre || ''));
-      } else {
-        this.sedes = [];
-      }
-    });
+          .filter((s: SedeDto) => s?.activa !== false)
+          .map((s: SedeDto) => ({
+            nombre: String(s?.nombre ?? '').trim(),
+            activa: s?.activa ?? true,
+          }))
+          .filter((s) => !!s.nombre)
+          .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base' }));
+      });
 
+    // --------- OFICINAS SELECCIONADAS => FORMARRAY ----------
+    this.vacanteForm
+      .get('oficinasSeleccionadas')!
+      .valueChanges.pipe(takeUntil(this.destroy$))
+      .subscribe((sel: unknown) => this.actualizarOficinasQueContratan(Array.isArray(sel) ? sel : []));
 
-    // Ofis seleccionadas -> array
-    this.vacanteForm.get('oficinasSeleccionadas')!
-      .valueChanges.subscribe((sel: string[]) => this.actualizarOficinasQueContratan(sel));
+    // --------- MUNICIPIOS (CATÁLOGO + FILTRO) ----------
+    this.http
+      .get<DepCiudades[]>('./util/colombia.json')
+      .pipe(catchError(() => of([] as DepCiudades[])), takeUntil(this.destroy$))
+      .subscribe((data: DepCiudades[]) => {
+        const ciudades = (data ?? []).flatMap((dep) => (Array.isArray(dep?.ciudades) ? dep.ciudades : []));
+        this.municipiosColombia = ciudades
+          .map((c) => String(c ?? '').trim())
+          .filter(Boolean)
+          .sort((a, b) => a.localeCompare(b, 'es', { sensitivity: 'base' }));
 
-    // Municipios (catálogo + filtro)
-    this.http.get<any[]>('./util/colombia.json').subscribe((data) => {
-      this.municipiosColombia = data.flatMap((dep) => dep.ciudades)
-        .sort((a, b) => a.localeCompare(b, 'es', { sensitivity: 'base' }));
-      this.municipiosFiltrados = [...this.municipiosColombia];
-      this.resetFiltroMunicipio();
-    });
-    this.municipioCtrl.valueChanges.pipe(startWith('')).subscribe(() => this.filtrarMunicipios());
+        this.municipiosFiltrados = [...this.municipiosColombia];
+        this.resetFiltroMunicipio();
+      });
 
-    // Sincroniza selección con la distribución
-    this.vacanteForm.get('municipio')!.valueChanges
-      .pipe(startWith(this.vacanteForm.get('municipio')!.value))
-      .subscribe((actual: string[]) => this.syncDistribucionConSeleccion(actual));
+    this.municipioCtrl.valueChanges.pipe(startWith(''), takeUntil(this.destroy$)).subscribe(() => this.filtrarMunicipios());
 
-    // Revalida si cambia el total
-    this.vacanteForm.get('personasSolicitadas')!.valueChanges
+    // --------- SYNC: municipio[] => municipiosDistribucion[] ----------
+    this.vacanteForm
+      .get('municipio')!
+      .valueChanges.pipe(startWith(this.vacanteForm.get('municipio')!.value), takeUntil(this.destroy$))
+      .subscribe((actual: unknown) => this.syncDistribucionConSeleccion(Array.isArray(actual) ? actual : []));
+
+    // ✅ Revalida si cambia el total
+    this.vacanteForm
+      .get('personasSolicitadas')!
+      .valueChanges.pipe(takeUntil(this.destroy$))
+      .subscribe(() => this.vacanteForm.updateValueAndValidity({ emitEvent: false }));
+
+    // ✅ Revalida cuando cambie cualquier cantidad de distribución (para que el mensaje se actualice al instante)
+    this.municipiosDistribucion.valueChanges
+      .pipe(takeUntil(this.destroy$))
       .subscribe(() => this.vacanteForm.updateValueAndValidity({ emitEvent: false }));
 
     // ====== Validaciones condicionales ======
-    this.applyTieneFechaIngreso(this.vacanteForm.get('tieneFechaIngreso')!.value);
-    this.vacanteForm.get('tieneFechaIngreso')!.valueChanges
-      .subscribe(v => this.applyTieneFechaIngreso(v));
+    this.applyTieneFechaIngreso(String(this.vacanteForm.get('tieneFechaIngreso')!.value ?? 'No'));
+    this.vacanteForm
+      .get('tieneFechaIngreso')!
+      .valueChanges.pipe(takeUntil(this.destroy$))
+      .subscribe((v: unknown) => this.applyTieneFechaIngreso(String(v ?? 'No')));
 
-    this.applyPruebaContratacion(this.vacanteForm.get('pruebaOContratacion')!.value);
-    this.vacanteForm.get('pruebaOContratacion')!.valueChanges
-      .subscribe(v => this.applyPruebaContratacion(v));
+    this.applyPruebaContratacion(String(this.vacanteForm.get('pruebaOContratacion')!.value ?? ''));
+    this.vacanteForm
+      .get('pruebaOContratacion')!
+      .valueChanges.pipe(takeUntil(this.destroy$))
+      .subscribe((v: unknown) => this.applyPruebaContratacion(String(v ?? '')));
+  }
+
+  ngOnDestroy(): void {
+    this.destroy$.next();
+    this.destroy$.complete();
   }
 
   // ---------- Validaciones condicionales ----------
@@ -280,23 +339,22 @@ export class CrearEditarVacanteComponent implements OnInit {
     const uPrueba = this.vacanteForm.get('ubicacionPruebaTecnica')!;
 
     if (valor === this.PRUEBA) {
-      // Fecha y hora obligatorias
       fPrueba.enable({ emitEvent: false });
       fPrueba.setValidators([Validators.required]);
+
       hPrueba.enable({ emitEvent: false });
       hPrueba.setValidators([Validators.required]);
 
-      // Ubicación opcional
       uPrueba.enable({ emitEvent: false });
       uPrueba.clearValidators();
     } else {
-      // Limpiar y deshabilitar todo el bloque
-      [fPrueba, hPrueba, uPrueba].forEach(c => {
+      [fPrueba, hPrueba, uPrueba].forEach((c) => {
         c.reset(null, { emitEvent: false });
         c.clearValidators();
         c.disable({ emitEvent: false });
       });
     }
+
     fPrueba.updateValueAndValidity({ emitEvent: false });
     hPrueba.updateValueAndValidity({ emitEvent: false });
     uPrueba.updateValueAndValidity({ emitEvent: false });
@@ -313,16 +371,13 @@ export class CrearEditarVacanteComponent implements OnInit {
 
     const etiqueta = `B - ${raw}`.trim();
 
-    // ¿Ya existe alguna fila "B - ..."?
     const idxBarrio = this.municipiosDistribucion.controls.findIndex((fg) =>
       /^B\s*-\s*/i.test((fg.get('municipio')?.value || '').toString())
     );
 
     if (idxBarrio > -1) {
-      // Actualiza el nombre del barrio en la primera fila "B - ..."
       this.municipiosDistribucion.at(idxBarrio).get('municipio')?.setValue(etiqueta);
     } else {
-      // Si no existe, crea una nueva con cantidad 0
       this.municipiosDistribucion.push(
         this.fb.group<DistMunControls>({
           municipio: this.fb.control<string>(etiqueta, { nonNullable: true }),
@@ -331,14 +386,12 @@ export class CrearEditarVacanteComponent implements OnInit {
       );
     }
 
-    // Limpia el input
     this.vacanteForm.get('barrio')?.setValue('');
+    this.vacanteForm.updateValueAndValidity({ emitEvent: false });
   }
 
-
-
-  private syncDistribucionConSeleccion(actual: string[]): void {
-    const curr = (actual || []).map((s) => (s ?? '').toString().trim());
+  private syncDistribucionConSeleccion(actual: any[]): void {
+    const curr = (actual || []).map((s) => (s ?? '').toString().trim()).filter(Boolean);
     const added = curr.filter((m) => !this.prevMunicipios.includes(m));
     const removed = this.prevMunicipios.filter((m) => !curr.includes(m));
 
@@ -350,6 +403,7 @@ export class CrearEditarVacanteComponent implements OnInit {
         })
       );
     }
+
     for (const m of removed) {
       const idx = this.municipiosDistribucion.controls.findIndex(
         (c) => (c.get('municipio')!.value || '').toString().trim() === m
@@ -364,7 +418,7 @@ export class CrearEditarVacanteComponent implements OnInit {
   get totalAsignado(): number {
     return this.municipiosDistribucion.controls
       .map((c) => Number(c.get('cantidad')!.value) || 0)
-      .reduce((a, b) => a + b, 0);
+      .reduce((a: number, b: number) => a + b, 0);
   }
 
   get restante(): number {
@@ -372,202 +426,282 @@ export class CrearEditarVacanteComponent implements OnInit {
     return Math.max(0, total - this.totalAsignado);
   }
 
+  // ✅ Error 1: no exceder el total
   private sumNoExcedeTotalValidator(): ValidatorFn {
     return (group: AbstractControl) => {
       const total = Number(group.get('personasSolicitadas')?.value) || 0;
       const arr = group.get('municipiosDistribucion') as FormArray | null;
       if (!arr) return null;
+
       const suma = (arr.controls || [])
         .map((c) => Number(c.get('cantidad')?.value) || 0)
-        .reduce((a, b) => a + b, 0);
+        .reduce((a: number, b: number) => a + b, 0);
+
       return suma <= total ? null : { excesoMunicipios: true };
+    };
+  }
+
+  // ✅ Error 2: la suma debe ser IGUAL al total (para el mensaje visible bajo el resumen)
+  private sumIgualTotalValidator(): ValidatorFn {
+    return (group: AbstractControl) => {
+      const total = Number(group.get('personasSolicitadas')?.value) || 0;
+      const arr = group.get('municipiosDistribucion') as FormArray | null;
+      if (!arr) return null;
+
+      // Si no hay distribución todavía, no marcamos este error
+      if (arr.length === 0) return null;
+
+      const suma = (arr.controls || [])
+        .map((c) => Number(c.get('cantidad')?.value) || 0)
+        .reduce((a: number, b: number) => a + b, 0);
+
+      // Si ya excedió, que lo maneje "excesoMunicipios"
+      if (suma > total) return null;
+
+      // Si total no está definido aún, no forzamos igualdad
+      if (total <= 0) return null;
+
+      return suma === total ? null : { sumaNoIgualTotal: true };
     };
   }
 
   // ---------- Filtro de municipios ----------
   filtrarMunicipios(): void {
     const f = (this.municipioFiltro || '').toLowerCase();
-    const seleccionados: string[] = this.vacanteForm.get('municipio')?.value || [];
+    const seleccionados: string[] = Array.isArray(this.vacanteForm.get('municipio')?.value)
+      ? (this.vacanteForm.get('municipio')!.value as string[])
+      : [];
+
     const noSeleccionados = this.municipiosColombia.filter(
       (m) => !seleccionados.includes(m) && m.toLowerCase().includes(f)
     );
+
     this.municipiosFiltrados = [...seleccionados, ...noSeleccionados];
   }
 
   resetFiltroMunicipio(): void {
-    const seleccionados: string[] = this.vacanteForm.get('municipio')?.value || [];
+    const seleccionados: string[] = Array.isArray(this.vacanteForm.get('municipio')?.value)
+      ? (this.vacanteForm.get('municipio')!.value as string[])
+      : [];
+
     const noSeleccionados = this.municipiosColombia.filter((m) => !seleccionados.includes(m));
     this.municipiosFiltrados = [...seleccionados, ...noSeleccionados];
     this.municipioFiltro = '';
   }
 
+  private stripTime(d: Date): Date {
+    return new Date(d.getFullYear(), d.getMonth(), d.getDate()); // local, sin hora
+  }
+
+  private parseApiDate(value: unknown): Date | null {
+    if (!value) return null;
+
+    if (value instanceof Date) return this.stripTime(value);
+
+    const s = String(value).trim();
+
+    // Caso: "YYYY-MM-DD" (DateField típico)
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
+    if (m) {
+      const y = Number(m[1]);
+      const mo = Number(m[2]) - 1;
+      const d = Number(m[3]);
+      return new Date(y, mo, d); // ✅ local, no se corre
+    }
+
+    // Caso: ISO con hora/zona ("2026-01-21T00:00:00Z", etc.)
+    const dt = new Date(s);
+    if (Number.isNaN(dt.getTime())) return null;
+
+    return this.stripTime(dt); // ✅ te quedas con la fecha local
+  }
+
+  private toYmdLocal(d: Date | null | undefined): string | null {
+    if (!d) return null;
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`; // ✅ no usa UTC
+  }
+
+
   // ---------- Edición ----------
   private cargarParaEdicion(v: any): void {
     this.vacanteForm.patchValue({
-      cargo: v.cargo,
-      area: v.area,
-      finca: v.finca,
-      empresaUsuariaSolicita: v.empresaUsuariaSolicita,
-      direccion: v.direccion,
-      temporal: v.temporal,
-      experiencia: v.experiencia,
-      observacionVacante: v.observacion,
-      tieneFechaIngreso: v.fechadeIngreso ? this.SI : 'No',
-      fechadeIngreso: v.fechadeIngreso ? new Date(v.fechadeIngreso) : null,
-      descripcion: v.descripcion,
-      fechaPublicado: new Date(v.fechaPublicado),
-      quienpublicolavacante: v.quienpublicolavacante,
-      estadovacante: v.estadovacante,
-      salario: v.salario,
-      codigoElite: v.codigoElite,
-      oficinasSeleccionadas: (v.oficinasQueContratan || []).map((o: any) => o.nombre),
-      pruebaOContratacion: v.pruebaOContratacion || '',
-      fechadePruebatecnica: v.fechadePruebatecnica ? new Date(v.fechadePruebatecnica) : null,
-      horadePruebatecnica: v.horadePruebatecnica || null,
-      ubicacionPruebaTecnica: v.ubicacionPruebaTecnica || '',
-      tipoContratacion: v.tipoContratacion || '',
-      municipio: v.municipio || [],
-      auxilioTransporte: v.auxilioTransporte,
-      personasSolicitadas: v.personasSolicitadas ?? null,
+      cargo: v?.cargo ?? '',
+      area: v?.area ?? '',
+      finca: v?.finca ?? '',
+      empresaUsuariaSolicita: v?.empresaUsuariaSolicita ?? '',
+      direccion: v?.direccion ?? '',
+      temporal: v?.temporal ?? '',
+      experiencia: v?.experiencia ?? '',
+      observacionVacante: v?.observacion ?? '',
+
+      tieneFechaIngreso: v?.fechadeIngreso ? this.SI : 'No',
+      fechadeIngreso: this.parseApiDate(v?.fechadeIngreso),
+
+      descripcion: v?.descripcion ?? '',
+      fechaPublicado: this.parseApiDate(v?.fechaPublicado) ?? new Date(),
+
+      quienpublicolavacante: v?.quienpublicolavacante ?? '',
+      estadovacante: v?.estadovacante ?? 'Activa',
+      salario: v?.salario ?? 0,
+      codigoElite: v?.codigoElite ?? '',
+
+      oficinasSeleccionadas: Array.isArray(v?.oficinasQueContratan)
+        ? v.oficinasQueContratan.map((o: any) => o?.nombre)
+        : [],
+
+      pruebaOContratacion: v?.pruebaOContratacion ?? '',
+      fechadePruebatecnica: this.parseApiDate(v?.fechadePruebatecnica),
+
+      horadePruebatecnica: v?.horadePruebatecnica ?? '',
+      ubicacionPruebaTecnica: v?.ubicacionPruebaTecnica ?? '',
+      tipoContratacion: v?.tipoContratacion ?? '',
+      municipio: Array.isArray(v?.municipio) ? v.municipio : [],
+      auxilioTransporte: v?.auxilioTransporte ?? 0,
+      personasSolicitadas: v?.personasSolicitadas ?? null,
     });
 
     // Oficinas
     const fa = this.oficinasQueContratan;
     fa.clear();
-    (v.oficinasQueContratan || []).forEach((o: any) =>
-      fa.push(this.fb.group({ nombre: [o.nombre, Validators.required], ruta: [!!o.ruta] }))
+    (Array.isArray(v?.oficinasQueContratan) ? v.oficinasQueContratan : []).forEach((o: any) =>
+      fa.push(this.fb.group({ nombre: [o?.nombre ?? '', Validators.required], ruta: [!!o?.ruta] }))
     );
 
     // Distribución
-    const dist = Array.isArray(v.municipiosDistribucion) ? v.municipiosDistribucion : [];
+    const dist = Array.isArray(v?.municipiosDistribucion) ? v.municipiosDistribucion : [];
     const distFA = this.municipiosDistribucion;
     distFA.clear();
+
     dist.forEach((d: any) => {
       distFA.push(
         this.fb.group<DistMunControls>({
-          municipio: this.fb.control<string>((d.municipio ?? '').toString(), { nonNullable: true }),
-          cantidad: this.fb.control<number | null>(Number(d.cantidad) || 0, [Validators.required, Validators.min(0)]),
+          municipio: this.fb.control<string>((d?.municipio ?? '').toString(), { nonNullable: true }),
+          cantidad: this.fb.control<number | null>(Number(d?.cantidad) || 0, [Validators.required, Validators.min(0)]),
         })
       );
     });
 
-    // --- NUEVO: si hay "B - ...", mostrarlo en el campo barrio sin el prefijo ---
+    // Si hay "B - ...", reflejarlo en el input barrio
     const barrioItem = dist.find((d: any) => typeof d?.municipio === 'string' && /^B\s*-\s*/i.test(d.municipio));
     if (barrioItem) {
       const nombreBarrio = String(barrioItem.municipio).replace(/^B\s*-\s*/i, '').trim();
       this.vacanteForm.get('barrio')?.setValue(nombreBarrio);
     }
 
-    // Reaplicar reglas condicionales...
-    this.applyTieneFechaIngreso(this.vacanteForm.get('tieneFechaIngreso')!.value);
-    this.applyPruebaContratacion(this.vacanteForm.get('pruebaOContratacion')!.value);
-    this.syncDistribucionConSeleccion(this.vacanteForm.get('municipio')!.value || []);
+    this.prevMunicipios = (Array.isArray(v?.municipio) ? v.municipio : [])
+      .map((x: any) => String(x ?? '').trim())
+      .filter(Boolean);
 
+    this.applyTieneFechaIngreso(String(this.vacanteForm.get('tieneFechaIngreso')!.value ?? 'No'));
+    this.applyPruebaContratacion(String(this.vacanteForm.get('pruebaOContratacion')!.value ?? ''));
+
+    this.vacanteForm.updateValueAndValidity({ emitEvent: false });
   }
+
 
   // ---------- Helpers ----------
   private _filter(value: string, list: string[]): string[] {
     const filterValue = (value || '').toLowerCase();
-    return list.filter((item) => item.toLowerCase().includes(filterValue));
+    return (list || []).filter((item) => item.toLowerCase().includes(filterValue));
   }
 
   get oficinasQueContratan(): FormArray {
     return this.vacanteForm.get('oficinasQueContratan') as FormArray;
   }
 
-  // Helper: normaliza y mapea temporal a los dos valores del mat-select
   private canonicalTemporal(raw: string | null | undefined): 'APOYO LABORAL SAS' | 'TU ALIANZA SAS' | null {
     if (!raw) return null;
 
-    // quitar acentos y normalizar
     const norm = String(raw)
-      .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
       .toLowerCase()
       .replace(/\s+/g, ' ')
       .trim();
 
-    // ejemplos que suelen llegar: "Apoyo Laboral TS", "Apoyo", "Apoyo laboral", etc.
-    if (/(^|[^a-z])apoyo([^a-z]|$)/.test(norm)) {
-      return 'APOYO LABORAL SAS';
-    }
+    if (/(^|[^a-z])apoyo([^a-z]|$)/.test(norm)) return 'APOYO LABORAL SAS';
+    if (/(^|[^a-z])alianza([^a-z]|$)/.test(norm)) return 'TU ALIANZA SAS';
 
-    // ejemplos: "Alianza", "Tu Alianza", "Alianza SAS", etc.
-    if (/(^|[^a-z])alianza([^a-z]|$)/.test(norm)) {
-      return 'TU ALIANZA SAS';
-    }
-
-    return null; // si no encaja, no seteamos nada
+    return null;
   }
 
-  // Al seleccionar una finca del autocomplete, rellenar empresa, temporal y dirección
   onCentroCostoSelected(event: MatAutocompleteSelectedEvent): void {
     const nombre = (event.option.value || '').toString();
     if (!nombre) return;
 
-    this.fincasService.getFincaByNombre(nombre).subscribe((finca: FincaItem | undefined) => {
-      const temporalCanon = this.canonicalTemporal(finca?.temporal);
+    this.fincasService
+      .getFincaByNombre(nombre)
+      .pipe(catchError(() => of(undefined)))
+      .subscribe((finca: FincaItem | undefined) => {
+        const temporalCanon = this.canonicalTemporal(finca?.temporal);
 
-      this.vacanteForm.patchValue({
-        empresaUsuariaSolicita: finca?.empresa ?? null,
-        direccion: finca?.direccion ?? null,
-        temporal: temporalCanon, // ← asigna exactamente uno de los dos valores del mat-select
+        this.vacanteForm.patchValue({
+          empresaUsuariaSolicita: finca?.empresa ?? null,
+          direccion: finca?.direccion ?? null,
+          temporal: temporalCanon,
+        });
       });
-    });
   }
 
   actualizarOficinasQueContratan(seleccionadas: any[]): void {
     const formArray = this.oficinasQueContratan;
     formArray.clear();
-    (seleccionadas || []).forEach((sede) => {
-      formArray.push(this.fb.group({ nombre: [sede, Validators.required], ruta: [false] }));
+
+    (seleccionadas || []).forEach((sede: any) => {
+      const nombre = typeof sede === 'string' ? sede : String(sede?.nombre ?? sede ?? '').trim();
+      if (!nombre) return;
+      formArray.push(this.fb.group({ nombre: [nombre, Validators.required], ruta: [false] }));
     });
   }
 
-  formatSalary(event: any): void {
-    const input = event.target;
-    const digits = (input.value || '').replace(/\D/g, '');
-    this.vacanteForm.get('salario')?.setValue(Number(digits), { emitEvent: false });
+  formatSalary(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const digits = (input?.value || '').replace(/\D/g, '');
+
+    // Mantén el formControl NUMÉRICO
+    this.vacanteForm.get('salario')?.setValue(Number(digits || 0), { emitEvent: false });
+
+    // Formatea sólo el input
     input.value = this.formatNumber(digits);
   }
-  onBlur(): void {
-    const value = this.vacanteForm.get('salario')?.value;
-    if (value !== null && value !== undefined) {
-      this.vacanteForm.get('salario')?.setValue(this.formatNumber(value), { emitEvent: false });
-    }
+
+  onBlur(event: FocusEvent): void {
+    const input = event.target as HTMLInputElement;
+    const valueNum = Number(this.vacanteForm.get('salario')?.value) || 0;
+    if (input) input.value = this.formatNumber(valueNum);
   }
+
   formatNumber(value: string | number): string {
     return new Intl.NumberFormat('es-CO').format(Number(value || 0));
   }
 
   eliminarOficina(index: number): void {
     this.oficinasQueContratan.removeAt(index);
+    this.vacanteForm.updateValueAndValidity({ emitEvent: false });
   }
 
   guardar(): void {
     this.vacanteForm.markAllAsTouched();
+    this.vacanteForm.updateValueAndValidity({ emitEvent: false });
+
+    // ✅ Si la suma no cuadra o excede, el form queda INVALID y NO guarda
     if (this.vacanteForm.invalid) return;
 
-    if (this.exigirIgualdadTotal) {
-      const total = Number(this.vacanteForm.get('personasSolicitadas')!.value) || 0;
-      if (this.totalAsignado !== total) {
-        this.vacanteForm.setErrors({ sumaNoIgualTotal: true });
-        return;
-      }
-    }
-    this.dialogRef.close(this.vacanteForm.value);
+    this.dialogRef.close(this.vacanteForm.getRawValue());
   }
-  cancelar(): void { this.dialogRef.close(); }
 
-  // Dentro de la clase CrearEditarVacanteComponent
+  cancelar(): void {
+    this.dialogRef.close();
+  }
+
   isRequired(ctrlOrName: string | AbstractControl | null): boolean {
     const ctrl = typeof ctrlOrName === 'string' ? this.vacanteForm.get(ctrlOrName) : ctrlOrName;
     if (!ctrl || !ctrl.enabled) return false;
 
-    // Angular 14+ trae hasValidator; en Angular 20 está disponible.
     const anyCtrl = ctrl as any;
-    return typeof anyCtrl.hasValidator === 'function'
-      ? anyCtrl.hasValidator(Validators.required)
-      : false;
+    return typeof anyCtrl.hasValidator === 'function' ? anyCtrl.hasValidator(Validators.required) : false;
   }
-
 }

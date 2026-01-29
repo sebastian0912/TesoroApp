@@ -6,12 +6,14 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatDividerModule } from '@angular/material/divider';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatSlideToggleModule } from '@angular/material/slide-toggle';
+import { MatButtonModule } from '@angular/material/button';
 import { forkJoin, of } from 'rxjs';
 import { finalize, map } from 'rxjs/operators';
 
 import { PermisosService } from '../../services/permiso/permisos.service';
 import { SharedModule } from '@/app/shared/shared.module';
-import { ModulosService } from '../../services/modulos/modulos.service';
+import { ModulosService, ModuloPermisosNode } from '../../services/modulos/modulos.service';
 
 export interface UserPermissionsData {
   userfull: {
@@ -32,13 +34,24 @@ type Cell = {
   tooltip: string;
 };
 
-/* ----- Árbol ----- */
-type PermisoNode = { id: string; nombre: string; accion?: { nombre: string; etiqueta: string } };
-type NodoModulo = { id: string; nombre: string; submodulos?: NodoModulo[]; permisos?: PermisoNode[] };
+/* ----- Tipos de API (Flat) ----- */
+type PermisoRaw = {
+  id: string;
+  nombre: string;
+  accion: { nombre: string; etiqueta: string };
+};
+
+/* ----- Árbol Interno (Jerárquico) ----- */
+type NodoTree = {
+  id: string;
+  nombre: string;
+  hijos: NodoTree[];
+  permisos: PermisoRaw[];
+};
 
 /* ----- Filas de la tabla con niveles ----- */
 type GroupRow = { kind: 'group'; id: string; titulo: string; level: number };
-type DataRow  = {
+type DataRow = {
   kind: 'data';
   modulo_id: string;
   modulo_nombre: string;
@@ -61,6 +74,8 @@ type TableRow = GroupRow | DataRow;
     MatTooltipModule,
     MatDividerModule,
     MatProgressSpinnerModule,
+    MatSlideToggleModule,
+    MatButtonModule,
     SharedModule,
   ],
   templateUrl: './user-permissions-dialog.component.html',
@@ -73,10 +88,10 @@ export class UserPermissionsDialogComponent implements OnInit {
     private dialogRef: MatDialogRef<UserPermissionsDialogComponent, null>,
     private permisosSvc: PermisosService,
     private modulosSvc: ModulosService,
-  ) {}
+  ) { }
 
   loading = signal(true);
-  saving  = signal(false);
+  saving = signal(false);
   errorMsg = signal<string | null>(null);
 
   readonly ACTIONS: ActionCanonical[] = ['LEER', 'CREAR', 'ACTUALIZAR', 'ELIMINAR'];
@@ -91,26 +106,36 @@ export class UserPermissionsDialogComponent implements OnInit {
   displayedColumns = ['modulo', 'leer', 'crear', 'actualizar', 'eliminar'];
   rows = signal<TableRow[]>([]);
 
-  // Leyenda (opcional para UI)
-  legend = [
-    { icon: 'check_circle', cls: 'ok',  label: 'Permiso efectivo' },
-    { icon: 'block',        cls: 'bad', label: 'Revocado por excepción' },
-    { icon: 'radio_button_unchecked', cls: 'off', label: 'Sin permiso' },
-  ];
+  // Computed
+  userFullName = computed(() => {
+    const db = this.data.userfull.datos_basicos;
+    if (!db) return 'Usuario';
+    return `${db.nombres || ''} ${db.apellidos || ''}`.trim() || 'Usuario';
+  });
+
+  rolNombre = computed(() => this.data.userfull.rol?.nombre || 'Sin Rol');
+
+  selectedModulesCount = computed(() => {
+    return this.rows().filter(r => {
+      if (r.kind !== 'data') return false;
+      const d = r as DataRow;
+      return d.leer.efectivo || d.crear.efectivo || d.actualizar.efectivo || d.eliminar.efectivo;
+    }).length;
+  });
 
   // Índices
-  private permIndex = new Map<string, string>();     // `${modulo_id}#${accion}` -> permiso_id
+  private permIndex = new Map<string, string>();      // `${modulo_id}#${accion}` -> permiso_id
   private moduleNameById = new Map<string, string>(); // modulo_id -> nombre
   private availableActions = new Map<string, Set<ActionCanonical>>(); // modulo_id -> acciones disponibles
 
   // Conjuntos de estado
-  private roleSet   = new Set<string>(); // permisos del rol
-  private grantSet  = new Set<string>(); // excepciones otorgadas
+  private roleSet = new Set<string>(); // permisos del rol
+  private grantSet = new Set<string>(); // excepciones otorgadas
   private revokeSet = new Set<string>(); // excepciones revocadas
 
-  // Predicados para *matRowDef*
+  // Predicados
   isGroup = (_: number, r: TableRow) => r.kind === 'group';
-  isData  = (_: number, r: TableRow) => r.kind === 'data';
+  isData = (_: number, r: TableRow) => r.kind === 'data';
 
   ngOnInit(): void {
     const user = this.data?.userfull ?? ({} as any);
@@ -127,19 +152,20 @@ export class UserPermissionsDialogComponent implements OnInit {
     this.errorMsg.set(null);
 
     forkJoin({
-      // Catálogo: árbol de módulos con permisos (legibles)
-      catalog: this.modulosSvc.treePermisos(),
-      // IDs del rol (si hay rol)
+      // API devuelve ModuloPermisosNode[] (Ya viene con estructura de árbol interna)
+      rawModules: this.modulosSvc.treePermisos({ include_empty: true }),
       roleIds: rolId ? this.permisosSvc.getRolePermisoIds(rolId) : of<string[]>([]),
-      // Excepciones del usuario: [{ permiso, otorgado }]
       overrides: this.permisosSvc.getUserOverrides(userId),
     })
       .pipe(
-        map(({ catalog, roleIds, overrides }) => {
-          // 1) Indexar árbol (permIndex, moduleNameById, availableActions)
-          this.indexTree(catalog as NodoModulo[]);
+        map(({ rawModules, roleIds, overrides }) => {
+          // 1) Adaptar estructura de árbol
+          const rootNodes = this.adaptTree(rawModules as any[]);
 
-          // 2) Cargar sets (rol / overrides)
+          // 2) Indexar árbol (ahora sí tenemos objeto jerárquico y permisos array)
+          this.indexTree(rootNodes);
+
+          // 3) Cargar sets (rol / overrides)
           this.roleSet.clear();
           for (const id of (roleIds || [])) this.roleSet.add(String(id));
 
@@ -151,8 +177,8 @@ export class UserPermissionsDialogComponent implements OnInit {
             else this.revokeSet.add(pid);
           }
 
-          // 3) Construir filas (grupos + hojas con level)
-          const rows = this.buildRows(catalog as NodoModulo[]);
+          // 4) Construir filas UI
+          const rows = this.buildRows(rootNodes);
           return rows;
         }),
         finalize(() => this.loading.set(false))
@@ -163,9 +189,22 @@ export class UserPermissionsDialogComponent implements OnInit {
       });
   }
 
-  /* ===================== Indexación del árbol ===================== */
+  /* ===================== Adaptación del árbol (API Recursivo -> Internal Tree) ===================== */
+  private adaptTree(nodes: any[]): NodoTree[] {
+    if (!nodes) return [];
+    return nodes.map(n => ({
+      id: n.id,
+      nombre: n.nombre,
+      // 'submodulos' es lo que usa rol-permissions-dialog principal, 'hijos' fallback
+      hijos: this.adaptTree(n.submodulos || n.hijos || []),
+      // 'permisos' viene como array de objetos en el JSON real
+      permisos: n.permisos || []
+    }));
+  }
 
-  private indexTree(roots: NodoModulo[] = []): void {
+
+
+  private indexTree(roots: NodoTree[] = []): void {
     this.permIndex.clear();
     this.moduleNameById.clear();
     this.availableActions.clear();
@@ -176,13 +215,17 @@ export class UserPermissionsDialogComponent implements OnInit {
       return this.actionSynonyms[k];
     };
 
-    const visit = (n: NodoModulo) => {
+    const visit = (n: NodoTree) => {
       this.moduleNameById.set(n.id, n.nombre);
 
       if (n.permisos?.length) {
         const set = this.availableActions.get(n.id) ?? new Set<ActionCanonical>();
+
         for (const p of n.permisos) {
-          const a = canon(p.accion?.nombre || p.accion?.etiqueta);
+          // El API trae accion.nombre (ej: "LEER") o accion.etiqueta
+          // Aseguramos acceso seguro a nombre
+          const rawAction = p.accion?.nombre || (typeof p.accion === 'string' ? p.accion : '');
+          const a = canon(rawAction);
           if (a) {
             this.permIndex.set(`${n.id}#${a}`, p.id);
             set.add(a);
@@ -191,7 +234,7 @@ export class UserPermissionsDialogComponent implements OnInit {
         this.availableActions.set(n.id, set);
       }
 
-      (n.submodulos ?? []).forEach(visit);
+      (n.hijos ?? []).forEach(visit);
     };
 
     (roots ?? []).forEach(visit);
@@ -199,7 +242,7 @@ export class UserPermissionsDialogComponent implements OnInit {
 
   /* ===================== Construcción de filas (DFS con niveles) ===================== */
 
-  private buildRows(roots: NodoModulo[] = []): TableRow[] {
+  private buildRows(roots: NodoTree[] = []): TableRow[] {
     const out: TableRow[] = [];
 
     const makeCell = (permId?: string): Cell => {
@@ -223,20 +266,20 @@ export class UserPermissionsDialogComponent implements OnInit {
         modulo_id: modId,
         modulo_nombre: this.moduleNameById.get(modId) || '—',
         level,
-        leer:       makeCell(pid(modId, 'LEER')),
-        crear:      makeCell(pid(modId, 'CREAR')),
+        leer: makeCell(pid(modId, 'LEER')),
+        crear: makeCell(pid(modId, 'CREAR')),
         actualizar: makeCell(pid(modId, 'ACTUALIZAR')),
-        eliminar:   makeCell(pid(modId, 'ELIMINAR')),
+        eliminar: makeCell(pid(modId, 'ELIMINAR')),
       });
     };
 
-    const dfs = (node: NodoModulo, level = 0) => {
-      const children = node.submodulos ?? [];
+    const dfs = (node: NodoTree, level = 0) => {
+      const children = node.hijos ?? [];
       if (children.length > 0) {
         // Cualquier nodo con hijos es un grupo (título)
         out.push({ kind: 'group', id: node.id, titulo: node.nombre, level });
         for (const ch of children) {
-          if ((ch.submodulos?.length ?? 0) > 0) dfs(ch, level + 1);  // sub-grupo
+          if ((ch.hijos?.length ?? 0) > 0) dfs(ch, level + 1);  // sub-grupo
           else pushLeaf(ch.id, level + 1);                           // hoja
         }
       } else {
@@ -256,47 +299,58 @@ export class UserPermissionsDialogComponent implements OnInit {
     return !!set && set.has(action);
   }
 
-  iconFor(cell: Cell): string {
-    if (cell.revocado) return 'block';
-    if (cell.efectivo) return 'check_circle';
-    return 'radio_button_unchecked';
-  }
-
-  clsFor(cell: Cell): string {
-    if (cell.revocado) return 'bad';
-    if (cell.efectivo) return 'ok';
-    return 'off';
-  }
-
   /* ===================== Interacción ===================== */
 
-  /** Click en celda: clic = otorgar, Alt+clic = revocar, Ctrl+clic = limpiar */
-  onCellClick(row: DataRow, action: ActionCanonical, ev: MouseEvent): void {
-    const pid = this.permIndex.get(`${row.modulo_id}#${action}`);
+  /**
+   * Smart Toggle:
+   * - If Role=ON: Toggle OFF -> Revoke. Toggle ON -> Un-revoke.
+   * - If Role=OFF: Toggle ON -> Grant. Toggle OFF -> Un-grant.
+   */
+  onToggle(row: DataRow | any, action: ActionCanonical, checked: boolean): void {
+    const r = row as DataRow; // Safe cast since logic ensures this
+    const pid = this.permIndex.get(`${r.modulo_id}#${action}`);
     if (!pid) return;
 
-    if (ev.ctrlKey) {
-      // limpiar excepción
-      this.grantSet.delete(pid);
-      this.revokeSet.delete(pid);
-    } else if (ev.altKey) {
-      // toggle revocar
-      if (this.revokeSet.has(pid)) this.revokeSet.delete(pid);
-      else {
-        this.revokeSet.add(pid);
-        this.grantSet.delete(pid);
+    const hasRole = this.roleSet.has(pid);
+
+    if (checked) {
+      // User wants ON
+      if (hasRole) {
+        // Restore role permission (remove revoke)
+        this.revokeSet.delete(pid);
+      } else {
+        // Grant direct permission
+        this.grantSet.add(pid);
       }
     } else {
-      // toggle otorgar
-      if (this.grantSet.has(pid)) this.grantSet.delete(pid);
-      else {
-        this.grantSet.add(pid);
-        this.revokeSet.delete(pid);
+      // User wants OFF
+      if (hasRole) {
+        // Revoke role permission
+        this.revokeSet.add(pid);
+      } else {
+        // Remove direct grant
+        this.grantSet.delete(pid);
       }
     }
 
-    // Recalcular solo la fila impactada
-    this.refreshRow(row.modulo_id, row.level);
+    this.refreshRow(r.modulo_id, r.level);
+  }
+
+  /** Reset all overrides for a module (return to Default/Role state) */
+  resetModule(modulo_id: string): void {
+    const current = this.rows();
+    const row = current.find(r => r.kind === 'data' && r.modulo_id === modulo_id) as DataRow;
+    if (!row) return;
+
+    this.ACTIONS.forEach(a => {
+      const pid = this.permIndex.get(`${modulo_id}#${a}`);
+      if (pid) {
+        this.grantSet.delete(pid);
+        this.revokeSet.delete(pid);
+      }
+    });
+
+    this.refreshRow(modulo_id, row.level);
   }
 
   /** Recalcula una hoja específica (modulo_id) preservando su level */
@@ -324,10 +378,10 @@ export class UserPermissionsDialogComponent implements OnInit {
       modulo_id,
       modulo_nombre: (current[idx] as DataRow).modulo_nombre,
       level,
-      leer:       makeCell(pid('LEER')),
-      crear:      makeCell(pid('CREAR')),
+      leer: makeCell(pid('LEER')),
+      crear: makeCell(pid('CREAR')),
       actualizar: makeCell(pid('ACTUALIZAR')),
-      eliminar:   makeCell(pid('ELIMINAR')),
+      eliminar: makeCell(pid('ELIMINAR')),
     };
 
     const next = current.slice();

@@ -1,108 +1,124 @@
-import { SharedModule } from '@/app/shared/shared.module';
-import { Component, ElementRef, OnDestroy, OnInit, ViewChild } from '@angular/core';
-import {
-  FormArray,
-  FormBuilder,
-  FormControl,
-  FormGroup,
-  FormsModule,
-  Validators
-} from '@angular/forms';
-import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
+
+import { CommonModule, isPlatformBrowser } from '@angular/common';
+import { Component, ElementRef, OnDestroy, OnInit, ViewChild, Inject, PLATFORM_ID } from '@angular/core';
+import { Title } from '@angular/platform-browser';
+import { FormBuilder, FormControl, FormGroup, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
+import { MatCardModule } from '@angular/material/card';
+import { MatCheckboxModule } from '@angular/material/checkbox';
+import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
+import { MatInputModule } from '@angular/material/input';
 import { MatMenuModule } from '@angular/material/menu';
-import { Subject, firstValueFrom, takeUntil } from 'rxjs';
+import { MatProgressBarModule } from '@angular/material/progress-bar';
+import { MatSelectModule } from '@angular/material/select';
+import { MatTooltipModule } from '@angular/material/tooltip';
+import { MatDividerModule } from '@angular/material/divider';
+import { DomSanitizer } from '@angular/platform-browser';
+import { SharedModule } from '@/app/shared/shared.module';
+import { Subject, firstValueFrom } from 'rxjs';
 import Swal from 'sweetalert2';
 
-import { DocumentacionService } from '../../service/documentacion/documentacion.service';
 import { GestionDocumentalService } from '../../../hiring/service/gestion-documental/gestion-documental.service';
+import { DocumentacionService } from '../../service/documentacion/documentacion.service';
 
-interface HojaMapa {
+export interface FileQueueItem {
+  id: string;
   file: File;
-  fileName: string;
-  url: SafeResourceUrl;
-  objectUrl: string;
+  name: string;
+  size: number;
+  typeId: number | null;
+  status: 'pending' | 'uploading' | 'success' | 'error';
+  progress: number;
+  errorMessage?: string;
+  selected: boolean;
+  contractCode?: string;
 }
-
-/** ===== Formularios tipados para los items del array ===== */
-type DocGrupo = FormGroup<{
-  tipoId: FormControl<number>;
-  archivo: FormControl<File | null>;
-}>;
 
 @Component({
   selector: 'app-upload-documents',
-  imports: [SharedModule, FormsModule, MatMenuModule, MatIconModule, MatButtonModule],
+  standalone: true,
+  imports: [
+    CommonModule,
+    SharedModule,
+    FormsModule,
+    ReactiveFormsModule,
+    MatButtonModule,
+    MatIconModule,
+    MatCardModule,
+    MatProgressBarModule,
+    MatMenuModule,
+    MatFormFieldModule,
+    MatInputModule,
+    MatSelectModule,
+    MatCheckboxModule,
+    MatTooltipModule,
+    MatDividerModule
+  ],
   templateUrl: './upload-documents.component.html',
-  styleUrl: './upload-documents.component.css'
+  styleUrls: ['./upload-documents.component.css']
 })
 export class UploadDocumentsComponent implements OnInit, OnDestroy {
-  /* ───────── datos de jerarquía ───────── */
+  // Data
   gruposHojas: { padre: string; hijos: any[] }[] = [];
   hojasPorId: Record<number, any> = {};
 
-  /* ───────── archivos subidos ─────────── */
-  uploadedFiles: Record<number, HojaMapa> = {};
+  // File Queue
+  fileQueue: FileQueueItem[] = [];
+  allSelected = false;
 
-  /* ───────── reactive form ────────────── */
-  formDoc!: FormGroup;
-  documentosArray!: FormArray<DocGrupo>;
+  // Forms
+  bulkEditForm: FormGroup;
+  numeroDocumentoControl = new FormControl('', Validators.required);
 
+  // UI State
+  dragOver = false;
+  isUploading = false;
+
+  // Element Refs
+  @ViewChild('fileInput') fileInput!: ElementRef<HTMLInputElement>;
   @ViewChild('zipInput') zipInput!: ElementRef<HTMLInputElement>;
 
-  /* ───────── previsualizador ──────────── */
-  selectedDocId: number | null = null;
-  selectedPdfUrl: SafeResourceUrl | null = null;
-
-  /* ───────── control de vida ──────────── */
   private destroy$ = new Subject<void>();
 
   constructor(
     private fb: FormBuilder,
     private docSrv: DocumentacionService,
     private gestionDocSrv: GestionDocumentalService,
-    private sanitizer: DomSanitizer
-  ) {}
-
-  /* ══════════════════════════════════════ */
-  ngOnInit(): void {
-    this.formDoc = this.fb.group({
-      tipo_documental: [[], Validators.required],
-      numero_documento: ['', Validators.required],
-      codigo_contrato: [''],
-      documentos: this.fb.array<DocGrupo>([])
-    });
-
-    this.documentosArray = this.formDoc.get('documentos') as FormArray<DocGrupo>;
-
-    // Carga de la jerarquía
-    this.docSrv.mostrar_jerarquia_gestion_documental().subscribe({
-      next: (data) => {
-        this.gruposHojas = this.agruparHojas(data);
-
-        // mapa rápido por id (para label / flags como codigo_contrato)
-        this.gruposHojas.forEach((g) => g.hijos.forEach((h) => (this.hojasPorId[h.id] = h)));
-
-        // Reacciona a selección de tipos documentales
-        this.formDoc
-          .get('tipo_documental')!
-          .valueChanges.pipe(takeUntil(this.destroy$))
-          .subscribe((ids: number[] | null) => {
-            const safeIds = Array.isArray(ids) ? ids : [];
-            this.syncDocumentosArray(safeIds);
-            this.toggleContrato(safeIds);
-          });
-      },
-      error: () =>
-        Swal.fire('Error', 'No se pudo obtener la jerarquía de tipos documentales.', 'error')
+    private sanitizer: DomSanitizer,
+    private titleService: Title,
+    @Inject(PLATFORM_ID) private platformId: Object
+  ) {
+    this.bulkEditForm = this.fb.group({
+      tipoId: [null],
+      contractCode: ['']
     });
   }
 
-  /* ───────── agrupa hojas ───────── */
+  ngOnInit(): void {
+    if (isPlatformBrowser(this.platformId)) {
+      this.titleService.setTitle('Carga de Documentos | Gestión Documental');
+      this.loadHierarchy();
+    }
+  }
+
+  ngOnDestroy(): void {
+    this.destroy$.next();
+    this.destroy$.complete();
+  }
+
+  private loadHierarchy() {
+    this.docSrv.mostrar_jerarquia_gestion_documental().subscribe({
+      next: (data) => {
+        this.gruposHojas = this.agruparHojas(data);
+        this.gruposHojas.forEach((g) => g.hijos.forEach((h) => (this.hojasPorId[h.id] = h)));
+      },
+      error: () => Swal.fire('Error', 'No se pudo cargar la jerarquía de documentos.', 'error')
+    });
+  }
+
   private agruparHojas(nodos: any[]): { padre: string; hijos: any[] }[] {
     const res: { padre: string; hijos: any[] }[] = [];
-
     const walk = (list: any[], padre: string) => {
       list.forEach((n: any) => {
         if (Array.isArray(n.subtypes) && n.subtypes.length) {
@@ -113,340 +129,273 @@ export class UploadDocumentsComponent implements OnInit, OnDestroy {
         }
       });
     };
-
     walk(nodos, 'Raíz');
     return res;
   }
 
-  /* ───────── exige / quita código contrato ─ */
-  private toggleContrato(ids: number[]): void {
-    const requiere = ids.some((id) => !!this.hojasPorId[id]?.codigo_contrato);
-    const ctrl = this.formDoc.get('codigo_contrato');
-
-    if (requiere) {
-      ctrl?.setValidators([Validators.required]);
-    } else {
-      ctrl?.clearValidators();
-      // opcional: limpia el valor si ya no se requiere
-      // ctrl?.setValue('', { emitEvent: false });
-    }
-
-    ctrl?.updateValueAndValidity({ emitEvent: false });
+  // --- Drag & Drop ---
+  onDragOver(event: DragEvent) {
+    event.preventDefault();
+    event.stopPropagation();
+    this.dragOver = true;
   }
 
-  /* ───────── mantiene FormArray en sync ─── */
-  private syncDocumentosArray(ids: number[]): void {
-    // Eliminar controles no seleccionados
-    for (let i = this.documentosArray.length - 1; i >= 0; i--) {
-      const id = this.documentosArray.at(i).controls.tipoId.value;
+  onDragLeave(event: DragEvent) {
+    event.preventDefault();
+    event.stopPropagation();
+    this.dragOver = false;
+  }
 
-      if (!ids.includes(id)) {
-        this.documentosArray.removeAt(i);
+  onDrop(event: DragEvent) {
+    event.preventDefault();
+    event.stopPropagation();
+    this.dragOver = false;
+    const files = event.dataTransfer?.files;
+    if (files) this.handleFiles(files);
+  }
 
-        // limpia recursos asociados
-        this.revokeUrl(id);
-        delete this.uploadedFiles[id];
+  onFileSelected(event: Event) {
+    const input = event.target as HTMLInputElement;
+    if (input.files) {
+      this.handleFiles(input.files);
+      input.value = '';
+    }
+  }
 
-        if (this.selectedDocId === id) {
-          this.selectedDocId = null;
-          this.selectedPdfUrl = null;
-        }
+  handleFiles(fileList: FileList) {
+    const maxBytes = 10 * 1024 * 1024; // 10MB
+    let addedCount = 0;
+
+    Array.from(fileList).forEach(file => {
+      if (!file.name.toLowerCase().endsWith('.pdf')) return;
+      if (file.size > maxBytes) {
+        // Optional: Notify user about skip? For now, we just skip silent or use toast
+        return;
       }
+
+      this.fileQueue.push({
+        id: this.generateId(),
+        file,
+        name: file.name,
+        size: file.size,
+        typeId: null,
+        status: 'pending',
+        progress: 0,
+        selected: false
+      });
+      addedCount++;
+    });
+
+    if (addedCount > 0) {
+      // Little toast feedback could be nice here
+    }
+  }
+
+  generateId() {
+    return Math.random().toString(36).substring(2) + Date.now().toString(36);
+  }
+
+  // --- Queue Actions ---
+  removeFromQueue(item: FileQueueItem) {
+    const idx = this.fileQueue.indexOf(item);
+    if (idx > -1) this.fileQueue.splice(idx, 1);
+  }
+
+  toggleSelectAll() {
+    this.allSelected = !this.allSelected;
+    this.fileQueue.forEach(f => f.selected = this.allSelected);
+  }
+
+  applyBulkMetadata() {
+    const { tipoId, contractCode } = this.bulkEditForm.value;
+    const selected = this.fileQueue.filter(f => f.selected);
+
+    if (selected.length === 0) {
+      Swal.fire('Atención', 'Selecciona archivos de la lista para aplicar cambios.', 'info');
+      return;
     }
 
-    // Agregar controles nuevos
-    ids.forEach((id) => {
-      const existe = this.documentosArray.controls.some((c) => c.controls.tipoId.value === id);
+    selected.forEach(f => {
+      if (tipoId) f.typeId = tipoId;
+      if (contractCode !== '' && contractCode !== null) f.contractCode = contractCode;
+    });
 
-      if (!existe) {
-        const grupo = this.fb.group({
-          tipoId: this.fb.nonNullable.control(id),
-          archivo: this.fb.control<File | null>(null, Validators.required)
-        }) as DocGrupo;
-
-        this.documentosArray.push(grupo);
-      }
+    // Unselect after apply? User preference usually is keep selected.
+    Swal.fire({
+      toast: true,
+      position: 'top-end',
+      icon: 'success',
+      title: 'Datos aplicados',
+      showConfirmButton: false,
+      timer: 1500
     });
   }
 
-  /* ───────── subir PDF ───────── */
-  subirArchivo(evt: Event, tipoId: number): void {
-    const input = evt.target as HTMLInputElement;
-    const file = input.files?.[0];
+  // --- Validation ---
+  get canUpload(): boolean {
+    if (this.isUploading) return false;
+    if (this.fileQueue.length === 0) return false;
+    // Check global requirement
+    if (this.numeroDocumentoControl.invalid) return false;
+    // Check if at least one pending file exists
+    const hasPending = this.fileQueue.some(f => f.status === 'pending' || f.status === 'error');
+    if (!hasPending) return false;
 
-    if (!file || file.type !== 'application/pdf' || !file.name.toLowerCase().endsWith('.pdf')) {
-      Swal.fire('Archivo no válido', 'Solo se permiten PDF.', 'error');
-      input.value = '';
+    // Check mandatory types for pending files
+    const pendingAreValid = this.fileQueue
+      .filter(f => f.status === 'pending' || f.status === 'error')
+      .every(f => !!f.typeId);
+
+    return pendingAreValid;
+  }
+
+  async startUpload() {
+    // Double check just in case
+    if (!this.canUpload) {
+      if (this.numeroDocumentoControl.invalid) {
+        this.numeroDocumentoControl.markAsTouched();
+        return;
+      }
       return;
     }
 
-    // Limpia URL anterior (si existía)
-    this.revokeUrl(tipoId);
+    const pending = this.fileQueue.filter(f => f.status === 'pending' || f.status === 'error');
+    const numeroDoc = this.numeroDocumentoControl.value!;
 
-    const objectUrl = URL.createObjectURL(file);
-    const safeUrl = this.sanitizer.bypassSecurityTrustResourceUrl(objectUrl);
-
-    this.uploadedFiles[tipoId] = {
-      file,
-      fileName: file.name,
-      url: safeUrl,
-      objectUrl
-    };
-
-    // setea el File al formArray
-    const idx = this.documentosArray.controls.findIndex((c) => c.controls.tipoId.value === tipoId);
-    if (idx !== -1) {
-      const ctrl = this.documentosArray.at(idx).controls.archivo;
-      ctrl.setValue(file);
-      ctrl.markAsDirty();
-      ctrl.markAsTouched();
-      ctrl.updateValueAndValidity({ emitEvent: false });
-    }
-
-    this.selectPreview(tipoId);
-
-    // Limpia el input para permitir volver a seleccionar el mismo archivo si se desea
-    input.value = '';
-  }
-
-  /* ───────── preview ───────── */
-  selectPreview(tipoId: number): void {
-    const data = this.uploadedFiles[tipoId];
-    if (!data) return;
-
-    this.selectedDocId = tipoId;
-    this.selectedPdfUrl = data.url;
-  }
-
-  verArchivo(tipoId: number): void {
-    this.selectPreview(tipoId);
-  }
-
-  /* ───────── submit ───────── */
-  async onSubmit(): Promise<void> {
-    if (this.formDoc.invalid) {
-      this.formDoc.markAllAsTouched();
-      return;
-    }
-
-    const numero_documento = (this.formDoc.value.numero_documento || '').toString().trim();
-    const codigo_contrato = (this.formDoc.value.codigo_contrato || '').toString().trim();
-
-    const docs = this.documentosArray.controls;
-    if (!docs.length) {
-      Swal.fire('Error', 'No hay documentos seleccionados para subir.', 'error');
-      return;
-    }
-
+    // 1. Show Loading Swal
     Swal.fire({
-      title: 'Cargando',
-      icon: 'info',
-      html: 'Subiendo documentos, por favor espera...',
+      title: 'Subiendo documentos',
+      text: 'Por favor espere...',
       allowOutsideClick: false,
       allowEscapeKey: false,
       didOpen: () => Swal.showLoading()
     });
 
-    try {
-      const results = await Promise.all(
-        docs.map(async (docCtrl) => {
-          const tipoId = docCtrl.controls.tipoId.value;
-          const file = docCtrl.controls.archivo.value;
-          const hoja = this.hojasPorId[tipoId];
+    this.isUploading = true;
 
-          if (!file) {
-            return { ok: false, tipo: hoja?.name || `Tipo ${tipoId}`, err: 'Archivo vacío' };
-          }
+    // 2. Process Uploads
+    const CONCURRENCY = 3;
+    const pool: Promise<void>[] = [];
 
-          // Si la hoja requiere contrato, lo enviamos; de lo contrario undefined
-          const enviarContrato = hoja?.codigo_contrato ? codigo_contrato : undefined;
-
-          try {
-            await firstValueFrom(
-              this.gestionDocSrv.guardarDocumento(
-                file.name, // fileName real
-                numero_documento, // cédula / número de documento
-                tipoId, // tipo documental
-                file, // archivo
-                enviarContrato // (opcional) contrato
-              )
-            );
-            return { ok: true, tipo: hoja?.name || file.name };
-          } catch (err) {
-            return { ok: false, tipo: hoja?.name || file.name, err };
-          }
-        })
-      );
-
-      const exitosos = results.filter((r) => r.ok).map((r) => r.tipo);
-      const fallidos = results.filter((r) => !r.ok).map((r) => r.tipo);
-
-      let html = '';
-      if (exitosos.length) {
-        html += `<b>Subidos correctamente:</b><br>${exitosos.join('<br>')}`;
-      }
-      if (fallidos.length) {
-        html += `${html ? '<br>' : ''}<b>No subidos:</b><br>${fallidos.join('<br>')}`;
+    for (const item of pending) {
+      while (pool.length >= CONCURRENCY) {
+        await Promise.race(pool);
       }
 
-      Swal.fire({
-        icon: fallidos.length ? 'warning' : 'success',
-        title: fallidos.length ? 'Algunos documentos fallaron' : '¡Documentos subidos!',
-        html,
-        timer: 6000
+      const p = this.uploadSingleFile(item, numeroDoc).then(() => {
+        const idx = pool.indexOf(p);
+        if (idx > -1) pool.splice(idx, 1);
       });
+      pool.push(p);
+    }
+    await Promise.all(pool);
 
-      // Reset completo solo si TODOS subieron
-      if (!fallidos.length) {
+    this.isUploading = false;
+
+    // 3. Final Result Analysis
+    const errors = this.fileQueue.filter(f => f.status === 'error');
+    const success = this.fileQueue.filter(f => f.status === 'success');
+
+    // 4. Show Result Swal
+    if (errors.length > 0) {
+      Swal.fire({
+        title: 'Carga finalizada con errores',
+        text: `Subidos: ${success.length}. Fallidos: ${errors.length}. Revisa la lista.`,
+        icon: 'warning'
+      });
+      // Do NOT reset queue so user can retry errors
+    } else {
+      Swal.fire({
+        title: '¡Operación Exitosa!',
+        text: 'Todos los documentos se cargaron correctamente.',
+        icon: 'success'
+      }).then(() => {
         this.resetAll();
-      }
-    } catch {
-      Swal.fire('Error', 'Ocurrió un error inesperado al subir los documentos.', 'error');
+      });
     }
   }
 
-  /* ───────── reset total ───────── */
-  private resetAll(): void {
-    this.formDoc.reset(
-      {
-        tipo_documental: [],
-        numero_documento: '',
-        codigo_contrato: ''
-      },
-      { emitEvent: false }
-    );
+  // Logic to upload a single file
+  private async uploadSingleFile(item: FileQueueItem, numeroDoc: string) {
+    if (!item.typeId) return;
 
-    // limpia array
-    while (this.documentosArray.length) this.documentosArray.removeAt(0);
+    item.status = 'uploading';
+    // Simulate some granular progress if we could, but here mostly binary
 
-    // limpia urls
-    Object.keys(this.uploadedFiles).forEach((id) => this.revokeUrl(+id));
-    this.uploadedFiles = {};
+    const hoja = this.hojasPorId[item.typeId];
+    const contract = hoja?.codigo_contrato ? (item.contractCode || '') : undefined;
 
-    this.selectedDocId = null;
-    this.selectedPdfUrl = null;
-
-    // fuerza validators (por si quedó required en contrato)
-    this.toggleContrato([]);
-
-    // nota: si quieres disparar el valueChanges de tipo_documental, hazlo manual con emitEvent:true
-  }
-
-  /* ───────── limpia object URLs ───────── */
-  private revokeUrl(id: number): void {
-    const prev = this.uploadedFiles[id]?.objectUrl;
-    if (prev) URL.revokeObjectURL(prev);
-  }
-
-  /* ───────── onDestroy ───────── */
-  ngOnDestroy(): void {
-    this.destroy$.next();
-    this.destroy$.complete();
-    Object.keys(this.uploadedFiles).forEach((id) => this.revokeUrl(+id));
-  }
-
-  trackByIndex(index: number): number {
-    return index;
-  }
-
-  onClickSubidaMasiva(): void {
-    // limpia selección previa y abre picker
-    if (this.zipInput?.nativeElement) {
-      this.zipInput.nativeElement.value = '';
-      this.zipInput.nativeElement.click();
+    try {
+      await firstValueFrom(
+        this.gestionDocSrv.guardarDocumento(
+          item.name,
+          numeroDoc,
+          item.typeId,
+          item.file,
+          contract
+        )
+      );
+      item.status = 'success';
+      item.progress = 100;
+    } catch (err: any) {
+      console.error(err);
+      item.status = 'error';
+      item.errorMessage = 'Error en servidor';
     }
   }
 
-  async onZipSelected(evt: Event): Promise<void> {
-    const file = (evt.target as HTMLInputElement).files?.[0];
+  resetAll() {
+    this.fileQueue = [];
+    this.numeroDocumentoControl.reset();
+    this.bulkEditForm.reset();
+    this.allSelected = false;
+  }
+
+  // --- Legacy ZIP functionality ---
+  onClickSubidaMasiva() {
+    this.zipInput.nativeElement.value = '';
+    this.zipInput.nativeElement.click();
+  }
+
+  onZipSelected(event: Event) {
+    const file = (event.target as HTMLInputElement).files?.[0];
     if (!file) return;
 
-    if (!file.name.toLowerCase().endsWith('.zip')) {
-      Swal.fire('Archivo inválido', 'Debe seleccionar un archivo .zip', 'warning');
+    if (!file.name.endsWith('.zip')) {
+      Swal.fire('Archivo inválido', 'Solo se permiten archivos .zip', 'error');
       return;
     }
 
-    // Opciones de carga (contrato)
-    const { value: opts, isConfirmed } = await Swal.fire({
-      title: 'Opciones de carga',
+    Swal.fire({
+      title: 'Configuración ZIP',
       html: `
-        <div style="text-align:left">
-          <label style="display:flex;align-items:center;gap:.5rem;margin-bottom:.5rem;">
-            <input type="checkbox" id="optContract" checked />
-            Leer número de contrato desde el nombre del PDF
-          </label>
-          <input id="optDefault" class="swal2-input" placeholder="Contrato por defecto (opcional)">
-          <small>Si no se detecta en el nombre y escribes aquí, se usará este valor.</small>
+        <div style="text-align: left; font-size: 14px;">
+           <p>¿Deseas intentar extraer el contrato del nombre del archivo?</p>
         </div>
       `,
-      focusConfirm: false,
+      input: 'text',
+      inputPlaceholder: 'Contrato por defecto (Opcional)',
       showCancelButton: true,
-      confirmButtonText: 'Subir',
-      cancelButtonText: 'Cancelar',
-      preConfirm: () => {
-        const contract_from_filename =
-          (document.getElementById('optContract') as HTMLInputElement)?.checked ?? true;
-
-        const default_contract =
-          (document.getElementById('optDefault') as HTMLInputElement)?.value?.trim() || '';
-
-        return { contract_from_filename, default_contract };
+      confirmButtonText: 'Subir ZIP',
+      cancelButtonText: 'Cancelar'
+    }).then((res) => {
+      if (res.isConfirmed) {
+        this.processZip(file, res.value);
       }
     });
+  }
 
-    if (!isConfirmed) return;
+  processZip(file: File, defaultContract: string) {
+    Swal.fire({ title: 'Subiendo ZIP...', didOpen: () => Swal.showLoading() });
 
-    Swal.fire({
-      title: 'Subiendo...',
-      text: 'Procesando archivos del ZIP',
-      allowOutsideClick: false,
-      didOpen: () => Swal.showLoading()
-    });
-
-    this.docSrv
-      .bulkZipUpload(file, {
-        contract_from_filename: !!opts?.contract_from_filename,
-        default_contract: opts?.default_contract || undefined
-      })
-      .pipe(takeUntil(this.destroy$))
+    this.docSrv.bulkZipUpload(file, { default_contract: defaultContract, contract_from_filename: true })
       .subscribe({
         next: (res) => {
           Swal.close();
-          this.mostrarResumenCarga(res);
-          // si quieres refrescar una tabla/listado después, hazlo aquí
+          const msg = `Procesados: ${res.processed} | Errores: ${res.errors}`;
+          Swal.fire(res.errors > 0 ? 'Completado con Alertas' : 'Éxito', msg, res.errors > 0 ? 'warning' : 'success');
         },
-        error: (err) => {
-          Swal.close();
-          console.error(err);
-          Swal.fire('Error', 'No se pudo subir el ZIP. Revisa la consola para más detalles.', 'error');
-        }
+        error: () => Swal.fire('Error', 'Fallo en la subida del ZIP', 'error')
       });
-  }
-
-  private mostrarResumenCarga(res: any): void {
-    const processed = res?.processed ?? 0;
-    const created = res?.created ?? 0;
-    const skipped = res?.skipped ?? 0;
-    const errors = res?.errors ?? 0;
-
-    const primerosErrores = (res?.items ?? [])
-      .filter((x: any) => x.status === 'error')
-      .slice(0, 5)
-      .map((x: any) => `• ${x.path || x.type_name || '—'} → ${x.reason || 'Error'}`)
-      .join('<br>');
-
-    Swal.fire({
-      icon: errors ? 'warning' : 'success',
-      title: 'Resultado de la carga',
-      html: `
-        <div style="text-align:left">
-          <b>Procesados:</b> ${processed}<br>
-          <b>Creados:</b> ${created}<br>
-          <b>Omitidos:</b> ${skipped}<br>
-          <b>Errores:</b> ${errors}<br>
-          ${primerosErrores ? `<hr><b>Primeros errores:</b><br>${primerosErrores}` : ''}
-        </div>
-      `
-    });
   }
 }

@@ -60,14 +60,14 @@ export class OrdenUnionDialogComponent {
     this.selected.set(s);
   }
 
-  /** Número de orden 1..n para los seleccionados (o '' si no está seleccionado) */
-badgeNumber(id: number): string {
-  const s = this.selected();
-  if (!s.has(id)) return '';
-  const seq = this.items().filter(it => s.has(it.id)).map(it => it.id);
-  return String(seq.indexOf(id) + 1);  // ⬅️ forzamos string
-}
-
+  /** Número de orden 1..n basado en el ORDEN DE SELECCIÓN */
+  badgeNumber(id: number): string {
+    const s = this.selected();
+    if (!s.has(id)) return '';
+    // Convertir Set a Array para obtener índice (orden de inserción)
+    const index = [...s].indexOf(id);
+    return String(index + 1);
+  }
 
   selectAll() {
     this.selected.set(new Set(this.items().map(i => i.id)));
@@ -79,6 +79,10 @@ badgeNumber(id: number): string {
 
   resetOrder() {
     this.items.set(this.initialOrder.map(a => ({ ...a })));
+    // Opcional: ¿Resetear selección también? 
+    // Por UX, "Restablecer" suele referirse a todo (orden + selección original) o solo orden.
+    // Asumiremos que el usuario quiere volver al estado iniciar puro (todo seleccionado en orden original).
+    this.selected.set(new Set<number>(this.initialOrder.map(a => a.id)));
   }
 
   cancelar() {
@@ -86,9 +90,8 @@ badgeNumber(id: number): string {
   }
 
   confirmar() {
-    // Sólo IDs seleccionados, en el orden actual
+    // Devolvemos los IDs en el orden en que fueron SELECCIONADOS
     const s = this.selected();
-    const ordered = this.items().filter(i => s.has(i.id)).map(i => i.id);
-    this.dialogRef.close(ordered);
+    this.dialogRef.close([...s]);
   }
 }

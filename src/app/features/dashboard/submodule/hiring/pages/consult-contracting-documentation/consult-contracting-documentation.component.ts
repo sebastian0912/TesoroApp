@@ -13,6 +13,7 @@ import { MatTableDataSource } from '@angular/material/table';
 import Swal from 'sweetalert2';
 import { finalize, firstValueFrom } from 'rxjs';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { Title, Meta } from '@angular/platform-browser';
 
 import { SharedModule } from '@/app/shared/shared.module';
 import { MatButtonModule } from '@angular/material/button';
@@ -20,27 +21,29 @@ import { MatButtonModule } from '@angular/material/button';
 import { GestionDocumentalService } from '../../service/gestion-documental/gestion-documental.service';
 import { OrdenUnionDialogComponent } from '../../components/orden-union-dialog/orden-union-dialog.component';
 
-import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 import { UtilityServiceService } from '@/app/shared/services/utilityService/utility-service.service';
 
-// ✅ NUEVO (tablas pendientes)
+// ✅ StandardFilterTable (tu tabla nueva)
 import { StandardFilterTable } from '@/app/shared/components/standard-filter-table/standard-filter-table';
 import { ColumnDefinition } from '@/app/shared/models/advanced-table-interface';
-import {
-  RobotsService,
-  PendientesPorOficinaResponse,
-} from '../../../robots/services/robots/robots.service';
 
 /** Doc serializado (lo que devuelve el backend por cada tipo) */
 type DocCell = {
   exists: boolean;
   url?: string;
   uploaded_at?: string; // ISO
-  vigente15d?: boolean; // ✅ NUEVO: para la tabla (✓ / ⚠ / ✗)
+  vigente15d?: boolean; // ✅ para iconos (✓ / ⚠ / ✗)
 };
 
-/** Fila de la tabla */
+/** ✅ Cell UI para la tabla (abre PDF desde ✓ y ?) */
+type DocUiCell = {
+  state: 'OK' | 'WARN' | 'MISSING' | 'OLD';
+  url?: string | null;
+  uploaded_at?: string | null;
+};
+
+/** Fila base (para ZIP/Excel y tu lógica actual) */
 type Row = {
   cedula: string;
   tipo_documento?: string | null;
@@ -79,27 +82,10 @@ type ChecklistResponseDto = {
   totalReceived?: number;
 };
 
-// =========================
-// ✅ NUEVO: PENDIENTES (PIVOT)
-// =========================
-type PivotEstado = 'SIN_CONSULTAR' | 'EN_PROGRESO' | 'PENDIENTES';
-
-type PendientesResumenPivotRow = {
-  label: string;
-  SIN_CONSULTAR: number;
-  EN_PROGRESO: number;
-  PENDIENTES: number;
-};
-
-type PendientesPorOficinaPivotRow = {
-  estado: PivotEstado;
-  [key: string]: any; // of_* => number
-};
-
 @Component({
   selector: 'app-consult-contracting-documentation',
   standalone: true,
-  imports: [CommonModule, SharedModule, MatButtonModule, MatDialogModule],
+  imports: [CommonModule, SharedModule, MatButtonModule, MatDialogModule, StandardFilterTable],
   templateUrl: './consult-contracting-documentation.component.html',
   styleUrls: ['./consult-contracting-documentation.component.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -111,9 +97,8 @@ export class ConsultContractingDocumentationComponent implements OnInit {
   private readonly gestionDocumentalService = inject(GestionDocumentalService);
   private readonly dialog = inject(MatDialog);
   private readonly utilityService = inject(UtilityServiceService);
-
-  // ✅ NUEVO
-  private readonly robotsService = inject(RobotsService);
+  private readonly titleService = inject(Title);
+  private readonly metaService = inject(Meta);
 
   // --------- Ajustes para masivo ----------
   private readonly MAX_POST_BATCH = 1500;
@@ -131,7 +116,7 @@ export class ConsultContractingDocumentationComponent implements OnInit {
   /** Claves de columnas para Material Table */
   tipoColumnKeys: string[] = [];
 
-  // --------- tabla ----------
+  // --------- tabla actual (tu lógica existente: ZIP/Excel/etc.) ----------
   dataSource = new MatTableDataSource<Row>([]);
   displayedColumns: string[] = [];
 
@@ -146,21 +131,14 @@ export class ConsultContractingDocumentationComponent implements OnInit {
   ];
 
   // =========================
-  // ✅ NUEVO: TABLAS PENDIENTES
+  // ✅ tabla con StandardFilterTable
   // =========================
-  isLoadingPendientesResumen = false;
-  pendientesResumenRows: PendientesResumenPivotRow[] = [];
-  pendientesResumenColumns: ColumnDefinition[] = [];
-
-  isLoadingPendientesPorOficina = false;
-  pendientesPorOficinaRows: PendientesPorOficinaPivotRow[] = [];
-  pendientesPorOficinaColumns: ColumnDefinition[] = [];
-
-  pendientesRowsWithAnyPending = 0;
-  pendientesDistinctCedulasWithAnyPending = 0;
+  isLoadingChecklist = false;
+  checklistColumns: ColumnDefinition[] = [];
+  checklistRows: any[] = [];
 
   // =========================
-  // ✅ NUEVO: abreviador de headers Excel
+  // ✅ abreviador de headers Excel
   // =========================
   private readonly DOC_ABBR: Record<string, string> = {
     Procuraduria: 'Proc',
@@ -186,11 +164,15 @@ export class ConsultContractingDocumentationComponent implements OnInit {
   }
 
   ngOnInit(): void {
+    // SEO
+    this.titleService.setTitle('Consultar documentación de contratación | Contratación');
+    this.metaService.updateTag({ name: 'description', content: 'Consulta el estado y la disponibilidad de documentos asociados al proceso de contratación.' });
+
     this.user = this.utilityService.getUser();
 
     this.resetTabla();
 
-    // ✅ filtro eficiente
+    // ✅ filtro eficiente (para tu MatTable actual; si ya no la usas, no molesta)
     this.dataSource.filterPredicate = (row, filter) => {
       const f = (filter ?? '').trim().toLowerCase();
       if (!f) return true;
@@ -209,6 +191,14 @@ export class ConsultContractingDocumentationComponent implements OnInit {
 
   // ✅ Fix para *ngFor trackBy
   trackByTipo = (_: number, t: TipoHeader) => t.id;
+
+  /** ✅ Abrir PDF cuando el estado sea OK o WARN */
+  openDoc(cell: DocUiCell | null | undefined, ev?: MouseEvent): void {
+    ev?.stopPropagation();
+    const url = cell?.url ?? null;
+    if (!url) return;
+    window.open(url, '_blank', 'noopener,noreferrer');
+  }
 
   /** ---------- BÚSQUEDA INDIVIDUAL ---------- */
   buscarPorCedula(): void {
@@ -263,22 +253,32 @@ export class ConsultContractingDocumentationComponent implements OnInit {
       didOpen: () => Swal.showLoading(),
     });
 
+    this.isLoadingChecklist = true;
+
     try {
       const resp = await this.fetchChecklistPostBatched(parsed.cedulas, token);
 
       if (token !== this.requestToken) return;
+
+      // ✅ UX: Avisar que estamos procesando (mapping)
+      Swal.update({
+        title: 'Procesando datos...',
+        text: 'Organizando la información para visualizar.',
+      });
+      // Breve respiro
+      await new Promise(resolve => setTimeout(resolve, 50));
 
       // headers dinámicos
       this.tipoHeaders = Array.isArray(resp?.tipos) ? resp.tipos : [];
       this.tipoColumnKeys = this.tipoHeaders.map(t => `type_${t.id}`);
       this.displayedColumns = [...this.baseColumns, ...this.tipoColumnKeys];
 
-      // ✅ corte: hoy(00:00) - 15 días (para iconos en tabla)
+      // ✅ corte: hoy(00:00) - 15 días
       const cutoff = new Date();
       cutoff.setHours(0, 0, 0, 0);
       cutoff.setDate(cutoff.getDate() - 15);
 
-      // filas
+      // MAPPING (Heavy Sync Operation)
       const rows: Row[] = (resp?.items ?? []).map((it: ChecklistItemDto) => {
         const docsMap: Record<number, DocCell> = {};
         const docsArr: ChecklistDocDto[] = Array.isArray(it?.docs) ? it.docs : [];
@@ -288,10 +288,8 @@ export class ConsultContractingDocumentationComponent implements OnInit {
           if (!Number.isFinite(tid)) continue;
 
           const dd = d?.doc;
-
           const uploadedAt = this.parseFecha(dd?.uploaded_at as any);
-          const vigente15d =
-            !!dd && !!uploadedAt && uploadedAt.getTime() >= cutoff.getTime();
+          const vigente15d = !!dd && !!uploadedAt && uploadedAt.getTime() >= cutoff.getTime();
 
           docsMap[tid] = {
             exists: !!dd,
@@ -315,11 +313,78 @@ export class ConsultContractingDocumentationComponent implements OnInit {
 
       this.dataSource.data = rows;
 
-      Swal.close();
+      const baseCols: ColumnDefinition[] = [
+        { name: 'cedula', header: 'Cédula', type: 'text', stickyStart: true, width: '120px' },
+        { name: 'tipo_documento', header: 'Tipo Doc', type: 'text', width: '110px' },
+        { name: 'nombre', header: 'Nombre', type: 'text', width: '260px' },
+        { name: 'finca', header: 'Finca', type: 'text', width: '160px' },
+        { name: 'fecha_ingreso', header: 'Fecha ingreso', type: 'date', width: '150px' },
+        { name: 'codigo_contrato', header: 'Código contrato', type: 'text', width: '150px' },
+        { name: 'fecha_contratacion', header: 'Fecha contratación', type: 'date', width: '170px' },
+      ];
+
+      const dynCols: ColumnDefinition[] = this.tipoHeaders.map(t => ({
+        name: `type_${t.id}`,
+        header: t.name,
+        type: 'status',
+        width: '110px',
+        align: 'center',
+        filterable: false,
+        sortable: false,
+      }));
+
+      this.checklistColumns = [...baseCols, ...dynCols];
+
+      const mappedRows = rows.map(r => {
+        const out: any = {
+          cedula: r.cedula ?? '',
+          tipo_documento: r.tipo_documento ?? '',
+          nombre: r.nombre ?? '',
+          finca: r.finca ?? '',
+          fecha_ingreso: r.fecha_ingreso ?? '',
+          codigo_contrato: r.codigo_contrato ?? '',
+          fecha_contratacion: r.fecha_contratacion ?? '',
+        };
+
+        for (const t of this.tipoHeaders) {
+          const cell = r.docs?.[t.id];
+          const state: DocUiCell['state'] =
+            !cell?.exists ? 'MISSING' : cell?.vigente15d ? 'OK' : 'OLD';
+
+          out[`type_${t.id}`] = {
+            state,
+            url: cell?.url ?? null,
+            uploaded_at: cell?.uploaded_at ?? null,
+          } satisfies DocUiCell;
+        }
+        return out;
+      });
+
+      // ✅ UX: Avisar renderizado (esto suele congelar el UI)
+      Swal.update({
+        title: 'Generando tabla...',
+        text: 'Esto puede tomar unos segundos.',
+      });
+      // Delay para asegurar que el browser pinte el Swal antes del freeze de asignación
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      this.checklistRows = mappedRows;
+      this.isLoadingChecklist = false; // Stop internal table spinner
       this.cdr.markForCheck();
+
+      // ✅ UX: Delay mayor para cubrir el freeze del renderizado de filas
+      // 4000 filas pueden tomar 1-2s en computarse en el DOM aunque estén paginadas (calculos iniciales)
+      setTimeout(() => {
+        if (this.requestToken === token) {
+          if (Swal.isVisible()) Swal.close();
+        }
+      }, 1500);
+
     } catch (e) {
+      this.isLoadingChecklist = false;
       if (token !== this.requestToken) return;
       console.error(e);
+      if (Swal.isVisible()) Swal.close();
       Swal.fire({ icon: 'error', title: 'Error', text: 'Ocurrió un problema consultando datos.' });
     }
   }
@@ -354,7 +419,9 @@ export class ConsultContractingDocumentationComponent implements OnInit {
         text: `Consultando lote ${i + 1} de ${chunks.length} (${chunks[i].length} cédulas)`,
       });
 
-      const part = await firstValueFrom(this.gestionDocumentalService.getDocumentosChecklist(chunks[i]));
+      const part = await firstValueFrom(
+        this.gestionDocumentalService.getDocumentosChecklist(chunks[i]),
+      );
 
       if (!merged.tipos?.length && Array.isArray(part?.tipos)) merged.tipos = part.tipos;
       if (Array.isArray(part?.items)) (merged.items as ChecklistItemDto[]).push(...part.items);
@@ -363,7 +430,8 @@ export class ConsultContractingDocumentationComponent implements OnInit {
         merged.invalidCedulas = [...(merged.invalidCedulas ?? []), ...part.invalidCedulas];
       }
 
-      merged.duplicatesRemoved = Number(merged.duplicatesRemoved ?? 0) + Number(part?.duplicatesRemoved ?? 0);
+      merged.duplicatesRemoved =
+        Number(merged.duplicatesRemoved ?? 0) + Number(part?.duplicatesRemoved ?? 0);
       merged.totalReceived = Number(merged.totalReceived ?? cedulas.length);
     }
 
@@ -419,9 +487,14 @@ export class ConsultContractingDocumentationComponent implements OnInit {
     this.tipoHeaders = [];
     this.tipoColumnKeys = [];
     this.displayedColumns = [...this.baseColumns];
+
+    // ✅ StandardFilterTable
+    this.checklistRows = [];
+    this.checklistColumns = [];
+    this.isLoadingChecklist = false;
   }
 
-  /** ---------- FILTRO DE TABLA ---------- */
+  /** ---------- FILTRO DE TABLA (si aún usas MatTable) ---------- */
   applyFilters(ev: Event): void {
     this.dataSource.filter = (ev.target as HTMLInputElement).value.trim().toLowerCase();
     this.cdr.markForCheck();
@@ -441,7 +514,11 @@ export class ConsultContractingDocumentationComponent implements OnInit {
       return;
     }
     if (!this.tipoHeaders?.length) {
-      Swal.fire({ icon: 'info', title: 'Tipos no cargados', text: 'No se detectaron tipos documentales.' });
+      Swal.fire({
+        icon: 'info',
+        title: 'Tipos no cargados',
+        text: 'No se detectaron tipos documentales.',
+      });
       return;
     }
 
@@ -512,16 +589,12 @@ export class ConsultContractingDocumentationComponent implements OnInit {
 
     this.gestionDocumentalService
       .descargarZipPorCedulasYOrden(cedulasNum, ordenNums)
-      .pipe(
-        takeUntilDestroyed(this.destroyRef),
-        finalize(() => Swal.close()),
-      )
+      .pipe(takeUntilDestroyed(this.destroyRef), finalize(() => Swal.close()))
       .subscribe({
         next: (blob: Blob) => {
           const url = window.URL.createObjectURL(blob);
           const a = document.createElement('a');
           a.href = url;
-          // ✅ FIX: tu template string estaba roto y el ".slice(...)" estaba dentro del string
           const ts = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
           a.download = `documentos_union_${ts}.zip`;
           document.body.appendChild(a);
@@ -559,8 +632,12 @@ export class ConsultContractingDocumentationComponent implements OnInit {
     return s.length <= max ? s : s.slice(0, max - 1) + '…';
   }
 
-  // ---------- EXCEL (faltantes) ----------
+  focusPasteZone(ev: MouseEvent): void {
+    const el = ev.currentTarget as HTMLElement | null;
+    el?.focus();
+  }
 
+  // ---------- EXCEL (faltantes) ----------
   async exportarExcelFaltantes(): Promise<void> {
     const data = this.dataSource.data ?? [];
     if (!data.length) {
@@ -568,15 +645,140 @@ export class ConsultContractingDocumentationComponent implements OnInit {
       return;
     }
 
-    const excelMod: any = await import('exceljs');
+    if (!this.tipoHeaders?.length) {
+      Swal.fire('Sin tipos', 'Primero consulta para cargar los tipos documentales.', 'info');
+      return;
+    }
 
-    // ✅ Robustez contra "Workbook is not a constructor"
+    const excelMod: any = await import('exceljs');
     const WorkbookCtor = excelMod?.Workbook ?? excelMod?.default?.Workbook ?? excelMod?.default;
 
     if (!WorkbookCtor) {
       Swal.fire('Error', 'No se pudo cargar ExcelJS (Workbook). Revisa la instalación/import.', 'error');
       return;
     }
+
+    // =========================
+    // Helpers inline (sin sacar métodos)
+    // =========================
+    const norm = (s: any) =>
+      String(s ?? '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^A-Z0-9 ]+/gi, ' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .toUpperCase();
+
+    const tokens = (s: any) => norm(s).split(' ').filter(Boolean);
+
+    const scoreByKeywords = (nameNorm: string, keywords: readonly string[]) => {
+      let score = 0;
+      const nTok = new Set(tokens(nameNorm));
+
+      for (const kw of keywords) {
+        const k = norm(kw);
+        if (!k) continue;
+
+        if (nameNorm === k) score += 200;
+        if (nameNorm.startsWith(k)) score += 80;
+        if (nameNorm.includes(k)) score += 50;
+
+        const kTok = tokens(k);
+        let hit = 0;
+        for (const t of kTok) if (nTok.has(t)) hit++;
+        score += hit * 8;
+      }
+      return score;
+    };
+
+    const jaccard = (a: string, b: string) => {
+      const A = new Set(tokens(a));
+      const B = new Set(tokens(b));
+      if (!A.size || !B.size) return 0;
+      let inter = 0;
+      for (const x of A) if (B.has(x)) inter++;
+      const union = A.size + B.size - inter;
+      return union ? inter / union : 0;
+    };
+
+    const pickTipoId = (keywords: readonly string[]) => {
+      const kwJoined = norm((keywords ?? []).join(' '));
+
+      let bestId: number | null = null;
+      let bestScore = -1;
+
+      for (const t of this.tipoHeaders) {
+        const nameNorm = norm(t?.name);
+        if (!nameNorm) continue;
+
+        const s = scoreByKeywords(nameNorm, keywords);
+        if (s > bestScore) {
+          bestScore = s;
+          bestId = Number(t.id);
+        }
+      }
+
+      if (bestId == null || bestScore <= 0) {
+        let bestJ = -1;
+        let bestJId: number | null = null;
+
+        for (const t of this.tipoHeaders) {
+          const name = String(t?.name ?? '');
+          const j = jaccard(name, kwJoined);
+          if (j > bestJ) {
+            bestJ = j;
+            bestJId = Number(t.id);
+          }
+        }
+
+        if (bestJId != null) return bestJId;
+      }
+
+      return bestId;
+    };
+
+    const safeSheetName = (name: string) =>
+      (String(name ?? '').replace(/[\\/?*\[\]:]/g, ' ').slice(0, 31).trim() || 'HOJA');
+
+    const paintHeader = (ws: any) => {
+      const header = ws.getRow(1);
+      header.height = 22;
+      header.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+      header.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
+      header.eachCell((cell: any) => {
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1F2937' } };
+        cell.border = { bottom: { style: 'thin', color: { argb: 'FF9CA3AF' } } };
+      });
+      ws.views = [{ state: 'frozen', ySplit: 1 }];
+    };
+
+    const splitFullName = (full: string) => {
+      const parts = String(full ?? '').trim().split(/\s+/g).filter(Boolean);
+
+      let pn = '';
+      let sn = '';
+      let pa = '';
+      let sa = '';
+
+      if (parts.length === 1) {
+        pn = parts[0];
+      } else if (parts.length === 2) {
+        pn = parts[0];
+        pa = parts[1];
+      } else if (parts.length === 3) {
+        pn = parts[0];
+        sn = parts[1];
+        pa = parts[2];
+      } else if (parts.length >= 4) {
+        pn = parts[0];
+        pa = parts[parts.length - 2];
+        sa = parts[parts.length - 1];
+        sn = parts.slice(1, -2).join(' ');
+      }
+
+      return { pn, sn, pa, sa };
+    };
 
     // ✅ Vigente si uploaded_at está dentro de los últimos 15 días
     const cutoff = new Date();
@@ -587,12 +789,27 @@ export class ConsultContractingDocumentationComponent implements OnInit {
     wb.creator = 'TuAlianza';
     wb.created = new Date();
 
-    const ws = wb.addWorksheet('Faltantes', {
-      views: [{ state: 'frozen', ySplit: 1 }],
-    });
+    const requestedSheets = [
+      { sheet: 'PROCURADURIA', keywords: ['PROCURADURIA', 'PROCURADURÍA', 'PROCURAD'] },
+      { sheet: 'CONTRALORIA', keywords: ['CONTRALORIA', 'CONTRALORÍA', 'CONTRAL'] },
+      { sheet: 'OFAC', keywords: ['OFAC'] },
+      { sheet: 'POLICIVOS', keywords: ['POLICIVO', 'POLICIVOS', 'POLICIA', 'ANTECEDENTE', 'ANTECEDENTES'] },
+      { sheet: 'ADRESS', keywords: ['ADRESS', 'ADDRESS', 'DIRECCION', 'DIRECCIÓN', 'DOMICILIO', 'RESIDENCIA'] },
+      { sheet: 'SISBEN', keywords: ['SISBEN', 'SISBÉN'] },
+      { sheet: 'AFP', keywords: ['AFP', 'FONDO', 'FONDO DE PENSION', 'PENSION', 'PENSIONES'] },
+    ];
 
-    // ✅ headers cortos + columnas compactas
-    const baseCols = [
+    const resolvedDocs = requestedSheets.map(r => ({
+      ...r,
+      tipoId: pickTipoId(r.keywords),
+    }));
+
+    // =========================================================
+    // 1) HOJA GENERAL
+    // =========================================================
+    const wsGeneral = wb.addWorksheet('GENERAL', { views: [{ state: 'frozen', ySplit: 1 }] });
+
+    const baseColsGeneral = [
       { header: 'Céd.', key: 'cedula', width: 12 },
       { header: 'T.Doc', key: 'tipo_documento', width: 10 },
       { header: 'Nombre', key: 'nombre', width: 22 },
@@ -601,25 +818,17 @@ export class ConsultContractingDocumentationComponent implements OnInit {
       { header: 'Cod.Cto', key: 'codigo_contrato', width: 12 },
     ];
 
-    const tipoCols = this.tipoHeaders.flatMap(t => {
+    const tipoColsGeneral = this.tipoHeaders.flatMap(t => {
       const n = this.abbrDoc(t.name);
       return [
-        { header: n, key: `t_${t.id}_estado`, width: 4 }, // ✓ ✗ ⚠
+        { header: n, key: `t_${t.id}_estado`, width: 4 },
         { header: `F.${n}`, key: `t_${t.id}_fecha`, width: 16, style: { numFmt: 'yyyy-mm-dd hh:mm' } },
-        { header: `L.${n}`, key: `t_${t.id}_link`, width: 6 }, // Abrir
+        { header: `L.${n}`, key: `t_${t.id}_link`, width: 6 },
       ];
     });
 
-    ws.columns = [...baseCols, ...tipoCols];
-
-    const header = ws.getRow(1);
-    header.height = 26;
-    header.font = { bold: true, color: { argb: 'FFFFFFFF' } };
-    header.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
-    header.eachCell((cell: any) => {
-      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1F2937' } };
-      cell.border = { bottom: { style: 'thin', color: { argb: 'FF9CA3AF' } } };
-    });
+    wsGeneral.columns = [...baseColsGeneral, ...tipoColsGeneral];
+    paintHeader(wsGeneral);
 
     const green = { argb: 'FF2E7D32' };
     const red = { argb: 'FFC62828' };
@@ -628,7 +837,6 @@ export class ConsultContractingDocumentationComponent implements OnInit {
 
     for (const item of data) {
       const fechaIngreso = this.parseFecha(item.fecha_ingreso as any);
-      const fechaContratacion = this.parseFecha(item.fecha_contratacion as any);
 
       const rowData: any = {
         cedula: item.cedula ?? '',
@@ -637,7 +845,6 @@ export class ConsultContractingDocumentationComponent implements OnInit {
         finca: item.finca ?? '',
         fecha_ingreso: fechaIngreso ?? '',
         codigo_contrato: item.codigo_contrato ?? '',
-        fecha_contratacion: fechaContratacion ?? '',
       };
 
       this.tipoHeaders.forEach(t => {
@@ -649,10 +856,11 @@ export class ConsultContractingDocumentationComponent implements OnInit {
 
         rowData[`t_${t.id}_estado`] = !exists ? '✗' : vigente15d ? '✓' : '⚠';
         rowData[`t_${t.id}_fecha`] = uploadedAt ?? (doc?.uploaded_at ?? '');
-        rowData[`t_${t.id}_link`] = exists && doc?.url ? { text: 'Abrir', hyperlink: String(doc.url) } : '';
+        rowData[`t_${t.id}_link`] =
+          exists && doc?.url ? { text: 'Abrir', hyperlink: String(doc.url) } : '';
       });
 
-      const row = ws.addRow(rowData);
+      const row = wsGeneral.addRow(rowData);
 
       if (row.number % 2 === 0) {
         row.eachCell((cell: any) => {
@@ -682,190 +890,147 @@ export class ConsultContractingDocumentationComponent implements OnInit {
       });
     }
 
-    ws.autoFilter = {
+    wsGeneral.autoFilter = {
       from: { row: 1, column: 1 },
-      to: { row: 1, column: ws.columnCount },
+      to: { row: 1, column: wsGeneral.columnCount },
     };
 
-    // ✅ bordes finos + header borde superior
-    const lastRow = ws.lastRow?.number ?? 1;
-    for (let r = 1; r <= lastRow; r++) {
-      for (let c = 1; c <= ws.columnCount; c++) {
-        const cell = ws.getRow(r).getCell(c);
-        cell.border = {
-          top: cell.border?.top ?? (r === 1 ? { style: 'thin', color: { argb: 'FF9CA3AF' } } : undefined),
-          bottom: { style: 'hair', color: { argb: 'FFE5E7EB' } },
-          left: { style: 'hair', color: { argb: 'FFE5E7EB' } },
-          right: { style: 'hair', color: { argb: 'FFE5E7EB' } },
-        };
+    // =========================================================
+    // 2) HOJAS POR FALTANTES (una hoja por documento)
+    // =========================================================
+    const sheetColumns = [
+      { header: 'Céd.', key: 'cedula', width: 12 },
+      { header: 'T.Doc', key: 'tipo_documento', width: 10 },
+      { header: 'Nombre', key: 'nombre', width: 22 },
+      { header: 'Finca', key: 'finca', width: 14 },
+      { header: 'F.Ing', key: 'fecha_ingreso', width: 12, style: { numFmt: 'yyyy-mm-dd' } },
+      { header: 'Cod.Cto', key: 'codigo_contrato', width: 12 },
+    ];
+
+    for (const req of resolvedDocs) {
+      const tipoId = req.tipoId;
+
+      const ws = wb.addWorksheet(safeSheetName(req.sheet), {
+        views: [{ state: 'frozen', ySplit: 1 }],
+      });
+      ws.columns = sheetColumns;
+      paintHeader(ws);
+
+      const missingRows = data
+        .filter(r => {
+          if (!tipoId) return false;
+          return !(r.docs?.[Number(tipoId)]?.exists === true);
+        })
+        .sort((a, b) => {
+          const fa = String(a.finca ?? '').localeCompare(String(b.finca ?? ''), 'es', { sensitivity: 'base' });
+          if (fa !== 0) return fa;
+          return String(a.cedula ?? '').localeCompare(String(b.cedula ?? ''), 'es', { sensitivity: 'base' });
+        });
+
+      for (const r of missingRows) {
+        const row = ws.addRow({
+          cedula: r.cedula ?? '',
+          tipo_documento: r.tipo_documento ?? '',
+          nombre: r.nombre ?? '',
+          finca: r.finca ?? '',
+          fecha_ingreso: this.parseFecha(r.fecha_ingreso as any) ?? '',
+          codigo_contrato: r.codigo_contrato ?? '',
+        });
+
+        if (row.number % 2 === 0) {
+          row.eachCell((cell: any) => {
+            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF9FAFB' } };
+          });
+        }
+
+        row.eachCell((cell: any) => {
+          cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
+        });
+        row.getCell('nombre').alignment = { vertical: 'middle', horizontal: 'left', wrapText: true };
+        row.getCell('finca').alignment = { vertical: 'middle', horizontal: 'left', wrapText: true };
       }
+
+      ws.autoFilter = {
+        from: { row: 1, column: 1 },
+        to: { row: 1, column: ws.columnCount },
+      };
     }
 
-    // ✅ autofit con tope (evita columnas eternas)
-    const clamp = (n: number, min: number, max: number) => Math.max(min, Math.min(max, n));
+    // =========================================================
+    // 3) HOJA: FALTANTES POR PERSONA
+    // =========================================================
+    const wsPersonas = wb.addWorksheet('FALTANTES_PERSONA', {
+      views: [{ state: 'frozen', ySplit: 1 }],
+    });
 
-    ws.columns?.forEach((col: any) => {
-      const key = String(col?.key ?? '');
+    wsPersonas.columns = [
+      { header: 'Identificación', key: 'identificacion', width: 16 },
+      { header: 'Tipo documento', key: 'tipo_documento', width: 14 },
+      { header: 'Nombre Y Apellidos', key: 'nombre_completo', width: 30 },
+      { header: 'Primer Nombre', key: 'primer_nombre', width: 16 },
+      { header: 'Segundo Nombre', key: 'segundo_nombre', width: 18 },
+      { header: 'Primer Apellido', key: 'primer_apellido', width: 18 },
+      { header: 'Segundo Apellido', key: 'segundo_apellido', width: 18 },
+      { header: 'Documentación faltante', key: 'faltantes', width: 38 },
+    ];
+    paintHeader(wsPersonas);
 
-      const isDate =
-        key === 'fecha_ingreso' ||
-        key === 'fecha_contratacion' ||
-        key.endsWith('_fecha');
+    const personasConFaltantes = data
+      .map(r => {
+        const faltantes = resolvedDocs
+          .filter(d => {
+            if (!d.tipoId) return true;
+            return !(r.docs?.[Number(d.tipoId)]?.exists === true);
+          })
+          .map(d => (d.tipoId ? d.sheet : `${d.sheet} (NO_MAPEADO)`));
 
-      const isEstado = key.endsWith('_estado');
-      const isLink = key.endsWith('_link');
-
-      if (isEstado) {
-        col.width = 4;
-        return;
-      }
-      if (isLink) {
-        col.width = 6;
-        return;
-      }
-      if (isDate) {
-        col.width = key.endsWith('_fecha') ? 16 : 12;
-        return;
-      }
-
-      let maxLen = String(col.header ?? '').length;
-      col.eachCell({ includeEmpty: true }, (cell: any) => {
-        let v = cell?.value;
-        if (!v) return;
-        if (typeof v === 'object' && v.text) v = v.text;
-        const len = String(v).length;
-        if (len > maxLen) maxLen = len;
+        return { r, faltantes };
+      })
+      .filter(x => x.faltantes.length > 0)
+      .sort((a, b) => {
+        const fa = String(a.r.nombre ?? '').localeCompare(String(b.r.nombre ?? ''), 'es', { sensitivity: 'base' });
+        if (fa !== 0) return fa;
+        return String(a.r.cedula ?? '').localeCompare(String(b.r.cedula ?? ''), 'es', { sensitivity: 'base' });
       });
 
-      col.width = clamp(maxLen + 2, 8, 24);
-    });
+    for (const { r, faltantes } of personasConFaltantes) {
+      const nombreCompleto = String(r.nombre ?? '').trim();
+      const { pn, sn, pa, sa } = splitFullName(nombreCompleto);
+
+      const row = wsPersonas.addRow({
+        identificacion: r.cedula ?? '',
+        tipo_documento: r.tipo_documento ?? '',
+        nombre_completo: nombreCompleto,
+        primer_nombre: pn,
+        segundo_nombre: sn,
+        primer_apellido: pa,
+        segundo_apellido: sa,
+        faltantes: faltantes.join(', '),
+      });
+
+      if (row.number % 2 === 0) {
+        row.eachCell((cell: any) => {
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF9FAFB' } };
+        });
+      }
+
+      row.eachCell((cell: any) => {
+        cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
+      });
+      row.getCell('nombre_completo').alignment = { vertical: 'middle', horizontal: 'left', wrapText: true };
+      row.getCell('faltantes').alignment = { vertical: 'middle', horizontal: 'left', wrapText: true };
+    }
+
+    wsPersonas.autoFilter = {
+      from: { row: 1, column: 1 },
+      to: { row: 1, column: wsPersonas.columnCount },
+    };
 
     const blob = new Blob([await wb.xlsx.writeBuffer()], {
       type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     });
 
     const today = new Date().toISOString().slice(0, 10);
-    saveAs(blob, `faltantes_${today}.xlsx`);
+    saveAs(blob, `documentacion_general_y_faltantes_${today}.xlsx`);
   }
-
-  // ---------- EXCEL (auditoría dinámica) ----------
-  verReporteAuditoria(): void {
-    const data = this.dataSource.data ?? [];
-    if (!data.length) {
-      Swal.fire('Sin datos', 'No hay registros para exportar.', 'info');
-      return;
-    }
-
-    const toDateVal = (v: any): Date | '' => {
-      const d = this.parseFecha(v);
-      return d ? d : '';
-    };
-
-    // ✅ headers cortos
-    const baseHeaders = ['Céd.', 'T.Doc', 'Nombre', 'Finca', 'F.Ing', 'Cod.Cto', 'F.Cto'];
-
-    const dynHeaders: string[] = [];
-    this.tipoHeaders.forEach(t => {
-      const n = this.abbrDoc(t.name);
-      dynHeaders.push(n); // Ver
-      dynHeaders.push(`F.${n}`); // Fecha
-    });
-
-    const headers = [...baseHeaders, ...dynHeaders];
-    const aoa: any[][] = [headers];
-
-    for (const r of data) {
-      const row: any[] = [
-        r.cedula ?? '',
-        r.tipo_documento ?? '',
-        r.nombre ?? '',
-        r.finca ?? '',
-        toDateVal(r.fecha_ingreso),
-        r.codigo_contrato ?? '',
-        toDateVal(r.fecha_contratacion),
-      ];
-
-      this.tipoHeaders.forEach(t => {
-        const cell = r.docs?.[t.id];
-        const linkText = cell?.exists && cell.url ? 'Ver' : '';
-        const dateVal = cell?.uploaded_at ? toDateVal(cell.uploaded_at) : '';
-
-        row.push(linkText);
-        row.push(dateVal);
-      });
-
-      aoa.push(row);
-    }
-
-    const ws = XLSX.utils.aoa_to_sheet(aoa);
-
-    const endCol = headers.length - 1;
-    const endRow = aoa.length - 1;
-    ws['!autofilter'] = {
-      ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: endRow, c: endCol } }),
-    };
-
-    const baseCols = baseHeaders.length;
-    for (let rIdx = 1; rIdx < aoa.length; rIdx++) {
-      this.tipoHeaders.forEach((t, i) => {
-        const linkColIdx = baseCols + i * 2;
-        const cellAddr = XLSX.utils.encode_cell({ r: rIdx, c: linkColIdx });
-        const cell = ws[cellAddr];
-        const url = this.dataSource.data[rIdx - 1]?.docs?.[t.id]?.url;
-
-        if (cell && url) {
-          cell.t = 's';
-          cell.v = 'Ver';
-          (cell as any).l = { Target: String(url) };
-        }
-      });
-    }
-
-    const setDateFormat = (rowIdx: number, colIdx: number) => {
-      const addr = XLSX.utils.encode_cell({ r: rowIdx, c: colIdx });
-      const c = ws[addr];
-      if (c && c.v instanceof Date) {
-        c.t = 'd';
-        c.z = 'yyyy-mm-dd';
-      }
-    };
-
-    for (let rIdx = 1; rIdx < aoa.length; rIdx++) {
-      setDateFormat(rIdx, 4);
-      setDateFormat(rIdx, 6);
-
-      this.tipoHeaders.forEach((_, i) => {
-        const dateColIdx = baseCols + i * 2 + 1;
-        setDateFormat(rIdx, dateColIdx);
-      });
-    }
-
-    const computeWch = (colIndex: number): number => {
-      const headerLen = String(headers[colIndex] ?? '').length;
-      let maxLen = headerLen;
-      for (let r = 1; r < aoa.length; r++) {
-        const val = aoa[r][colIndex];
-        const length = val instanceof Date ? 10 : val ? String(val).length : 0;
-        if (length > maxLen) maxLen = length;
-      }
-      // ✅ más compacto
-      return Math.max(8, Math.min(24, maxLen + 2));
-    };
-
-    ws['!cols'] = headers.map((_, c) => ({ wch: computeWch(c) }));
-
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Auditoría');
-
-    const today = new Date();
-    const yyyy = today.getFullYear();
-    const mm = String(today.getMonth() + 1).padStart(2, '0');
-    const dd = String(today.getDate()).padStart(2, '0');
-    XLSX.writeFile(wb, `reporte_auditoria_${yyyy}-${mm}-${dd}.xlsx`);
-  }
-
-
-
-
-
 }

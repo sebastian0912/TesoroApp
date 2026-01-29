@@ -19,7 +19,7 @@ import {
 import { MatAutocompleteSelectedEvent } from '@angular/material/autocomplete';
 import { DateAdapter } from '@angular/material/core';
 import { ActivatedRoute } from '@angular/router';
-import { Observable, firstValueFrom, map, startWith, take,filter } from 'rxjs';
+import { Observable, firstValueFrom, map, startWith, take, filter } from 'rxjs';
 import { MatIconModule } from '@angular/material/icon';
 import Swal from 'sweetalert2';
 
@@ -60,7 +60,7 @@ export class FormEntrevistaComponent implements OnInit {
     });
 
   escolaridadOpciones$: Observable<CatalogValue[]> =
-    this.catalogos.listDatosByTablaCodigo('NIVELES_ESCOLARIDAD', {
+    this.catalogos.listDatosByTablaCodigo('CATALOGO_NIVELES_ESCOLARIDAD', {
       activo: true,
     });
 
@@ -68,7 +68,7 @@ export class FormEntrevistaComponent implements OnInit {
     this.catalogos.listDatosByTablaCodigo('ESTADOS_CIVILES', {
       activo: true,
     });
-  
+
 
   conQuienViveOpciones$: Observable<CatalogValue[]> = this.catalogos
     .listDatosByTablaCodigo('CATALOGO_CON_QUIEN_VIVE', { activo: true })
@@ -317,7 +317,6 @@ export class FormEntrevistaComponent implements OnInit {
     // Cuando cambie el candidato seleccionado, rellenamos el form
     effect(() => {
       const cand = this.candidatoSeleccionado();
-      console.log('Candidato seleccionado cambiado:', cand);
       this.rellenarForm(cand);
     });
   }
@@ -444,15 +443,6 @@ export class FormEntrevistaComponent implements OnInit {
     this.formVacante.statusChanges.subscribe(() => this.refreshSteps());
     this.refreshSteps();
 
-    // Debug opcional
-    this.tipoDocOpciones$.pipe(take(1)).subscribe((opts) => {
-      console.log('Opciones de tipo de documento:', opts);
-    });
-
-    // imprimir estados civiles
-    this.estadoCivilOpciones$.pipe(take(1)).subscribe((opts) => {
-      console.log('Opciones de estado civil:', opts);
-    });
   }
 
   // =======================
@@ -824,307 +814,327 @@ export class FormEntrevistaComponent implements OnInit {
   }
 
   private normalizeCode(v: any): string {
-  return String(v ?? '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .trim()
-    .toUpperCase();
-}
-
-private mapEstadoCivil(raw: any, opts: Array<{ codigo?: string; descripcion?: string }> = []): string {
-  const s = this.normalizeText(raw);
-  if (!s) return '';
-
-  // Si ya viene un código válido
-  const byCode = opts.find(o => this.normalizeText(o?.codigo) === s);
-  if (byCode?.codigo) return String(byCode.codigo);
-
-  // Si viene "SO (Soltero)" u "SO - Soltero"
-  const codeMatch = s.match(/\b(VI|UL|SO|SE|CA)\b/);
-  if (codeMatch) {
-    const code = codeMatch[1];
-    if (opts.some(o => this.normalizeText(o?.codigo) === code)) return code;
+    return String(v ?? '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .trim()
+      .toUpperCase();
   }
 
-  // Si viene solo la palabra (SOLTERO, CASADO, etc.)
-  const dict: Record<string, string> = {
-    'SOLTERO': 'SO',
-    'SOLTERA': 'SO',
-    'CASADO': 'CA',
-    'CASADA': 'CA',
-    'VIUDO': 'VI',
-    'VIUDA': 'VI',
-    'SEPARADO': 'SE',
-    'SEPARADA': 'SE',
-    'UNION LIBRE': 'UL',
-    'UNIONLIBRE': 'UL',
-    'UL': 'UL',
-  };
+  private mapEstadoCivil(raw: any, opts: Array<{ codigo?: string; descripcion?: string }> = []): string {
+    const s = this.normalizeText(raw);
+    if (!s) return '';
 
-  const mapped = dict[s];
-  if (mapped && opts.some(o => this.normalizeText(o?.codigo) === mapped)) return mapped;
+    // Si ya viene un código válido
+    const byCode = opts.find(o => this.normalizeText(o?.codigo) === s);
+    if (byCode?.codigo) return String(byCode.codigo);
 
-  // Último intento: comparar contra descripción
-  const byDesc = opts.find(o => this.normalizeText(o?.descripcion).includes(s));
-  if (byDesc?.codigo) return String(byDesc.codigo);
+    // Si viene "SO (Soltero)" u "SO - Soltero"
+    const codeMatch = s.match(/\b(VI|UL|SO|SE|CA)\b/);
+    if (codeMatch) {
+      const code = codeMatch[1];
+      if (opts.some(o => this.normalizeText(o?.codigo) === code)) return code;
+    }
 
-  return '';
-}
+    // Si viene solo la palabra (SOLTERO, CASADO, etc.)
+    const dict: Record<string, string> = {
+      'SOLTERO': 'SO',
+      'SOLTERA': 'SO',
+      'CASADO': 'CA',
+      'CASADA': 'CA',
+      'VIUDO': 'VI',
+      'VIUDA': 'VI',
+      'SEPARADO': 'SE',
+      'SEPARADA': 'SE',
+      'UNION LIBRE': 'UL',
+      'UNIONLIBRE': 'UL',
+      'UL': 'UL',
+    };
+
+    const mapped = dict[s];
+    if (mapped && opts.some(o => this.normalizeText(o?.codigo) === mapped)) return mapped;
+
+    // Último intento: comparar contra descripción
+    const byDesc = opts.find(o => this.normalizeText(o?.descripcion).includes(s));
+    if (byDesc?.codigo) return String(byDesc.codigo);
+
+    return '';
+  }
 
 
   // =======================
   // Rellenar el form desde el candidato seleccionado
   // =======================
-private rellenarForm(cand: any): void {
-  if (!cand) return;
+  private rellenarForm(cand: any): void {
+    if (!cand) return;
 
-  const toDate = (v: any): Date | null => {
-    if (!v) return null;
-    const d = v instanceof Date ? v : new Date(v);
-    return isNaN(d.getTime()) ? null : d;
-  };
+    console.log('Rellenando formulario con candidato:', cand);
+    const toDate = (v: any): Date | null => {
+      if (!v) return null;
 
-  const onlyDigits = (s: any) =>
-    String(s ?? '')
-      .replace(/\D+/g, '')
-      .trim();
+      // Si llega como "YYYY-MM-DD" (sin hora), parsea en zona local para que NO reste el día
+      if (typeof v === 'string') {
+        const s = v.trim();
 
-  // Normaliza texto (quita tildes raras, espacios, etc.)
-  const normalizeText = (v: any): string =>
-    String(v ?? '')
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .replace(/\s+/g, ' ')
-      .trim()
-      .toUpperCase();
+        const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
+        if (m) {
+          const y = Number(m[1]);
+          const mo = Number(m[2]) - 1; // 0-based
+          const d = Number(m[3]);
 
-  // Mapea estado civil recibido (SOLTERO / "SO (Soltero)" / "SO") -> código (SO, CA, UL, VI, SE)
-  const mapEstadoCivil = (
-    raw: any,
-    opts: Array<{ codigo?: string; descripcion?: string }> = []
-  ): string => {
-    const s = normalizeText(raw);
-    if (!s) return '';
+          const local = new Date(y, mo, d); // local midnight
+          return isNaN(local.getTime()) ? null : local;
+        }
 
-    // 1) Si ya viene el código exacto
-    const byCode = opts.find((o) => normalizeText(o?.codigo) === s);
-    if (byCode?.codigo) return String(byCode.codigo);
+        // Si trae hora/zona (ej. 2026-01-17T05:00:00Z), usa el parse normal
+        const parsed = new Date(s);
+        return isNaN(parsed.getTime()) ? null : parsed;
+      }
 
-    // 2) Si viene mezclado tipo "SO (Soltero)" / "SO - Soltero"
-    const codeMatch = s.match(/\b(VI|UL|SO|SE|CA)\b/);
-    if (codeMatch) {
-      const code = codeMatch[1];
-      if (opts.some((o) => normalizeText(o?.codigo) === code)) return code;
-    }
-
-    // 3) Si viene la palabra
-    const dict: Record<string, string> = {
-      SOLTERO: 'SO',
-      SOLTERA: 'SO',
-      CASADO: 'CA',
-      CASADA: 'CA',
-      VIUDO: 'VI',
-      VIUDA: 'VI',
-      SEPARADO: 'SE',
-      SEPARADA: 'SE',
-      'UNION LIBRE': 'UL',
-      UNIONLIBRE: 'UL',
+      const d = v instanceof Date ? v : new Date(v);
+      return isNaN(d.getTime()) ? null : d;
     };
 
-    const mapped = dict[s];
-    if (mapped && opts.some((o) => normalizeText(o?.codigo) === mapped)) return mapped;
 
-    // 4) Último intento: buscar por descripción
-    const byDesc = opts.find((o) => normalizeText(o?.descripcion).includes(s));
-    if (byDesc?.codigo) return String(byDesc.codigo);
+    const onlyDigits = (s: any) =>
+      String(s ?? '')
+        .replace(/\D+/g, '')
+        .trim();
 
-    return '';
-  };
+    // Normaliza texto (quita tildes raras, espacios, etc.)
+    const normalizeText = (v: any): string =>
+      String(v ?? '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .toUpperCase();
 
-  const info_cc = cand?.info_cc ?? {};
-  const residencia = cand?.residencia ?? {};
-  const contacto = cand?.contacto ?? {};
-  const entrevistas = Array.isArray(cand?.entrevistas) ? cand.entrevistas : [];
-  const oficina = entrevistas[0]?.oficina ?? '';
+    // Mapea estado civil recibido (SOLTERO / "SO (Soltero)" / "SO") -> código (SO, CA, UL, VI, SE)
+    const mapEstadoCivil = (
+      raw: any,
+      opts: Array<{ codigo?: string; descripcion?: string }> = []
+    ): string => {
+      const s = normalizeText(raw);
+      if (!s) return '';
 
-  const fechaNac = toDate(cand?.fecha_nacimiento);
-  const fechaExp = toDate(info_cc?.fecha_expedicion);
-  const haceCuantoVive = this.mapHaceCuantoVive(residencia?.hace_cuanto_vive);
+      // 1) Si ya viene el código exacto
+      const byCode = opts.find((o) => normalizeText(o?.codigo) === s);
+      if (byCode?.codigo) return String(byCode.codigo);
 
-  const estadoCivilRaw = cand?.estado_civil;
-  const estadoCivilNorm = normalizeText(estadoCivilRaw);
-  console.log('Estado civil raw:', estadoCivilRaw, 'normalizado:', estadoCivilNorm);
-  console.log('Rellenando formulario con candidato:', cand);
+      // 2) Si viene mezclado tipo "SO (Soltero)" / "SO - Soltero"
+      const codeMatch = s.match(/\b(VI|UL|SO|SE|CA)\b/);
+      if (codeMatch) {
+        const code = codeMatch[1];
+        if (opts.some((o) => normalizeText(o?.codigo) === code)) return code;
+      }
 
-  // Si ya viene código, lo ponemos de una; si viene "SOLTERO", lo dejamos vacío y lo mapeamos con el catálogo
-  const estadoCivilQuick =
-    ['VI', 'UL', 'SO', 'SE', 'CA'].includes(estadoCivilNorm) ? estadoCivilNorm : '';
+      // 3) Si viene la palabra
+      const dict: Record<string, string> = {
+        SOLTERO: 'SO',
+        SOLTERA: 'SO',
+        CASADO: 'CA',
+        CASADA: 'CA',
+        VIUDO: 'VI',
+        VIUDA: 'VI',
+        SEPARADO: 'SE',
+        SEPARADA: 'SE',
+        'UNION LIBRE': 'UL',
+        UNIONLIBRE: 'UL',
+      };
 
-  // 1) patchValue sin emitir eventos
-  this.formVacante.patchValue(
-    {
-      oficina: oficina || '',
-      tipo_doc: cand?.tipo_doc || '',
-      numero_documento: cand?.numero_documento || '',
-      fecha_expedicion: fechaExp,
-      mpio_expedicion: info_cc?.mpio_expedicion || '',
+      const mapped = dict[s];
+      if (mapped && opts.some((o) => normalizeText(o?.codigo) === mapped)) return mapped;
 
-      primer_apellido: cand?.primer_apellido || '',
-      segundo_apellido: cand?.segundo_apellido || '',
-      primer_nombre: cand?.primer_nombre || '',
-      segundo_nombre: cand?.segundo_nombre || '',
-      fecha_nacimiento: fechaNac,
-      mpio_nacimiento: info_cc?.mpio_nacimiento || '',
-      sexo: cand?.sexo || '',
-      estado_civil: estadoCivilQuick || '',
+      // 4) Último intento: buscar por descripción
+      const byDesc = opts.find((o) => normalizeText(o?.descripcion).includes(s));
+      if (byDesc?.codigo) return String(byDesc.codigo);
 
-      barrio: residencia?.barrio || '',
-      celular: contacto?.celular || '',
-      whatsapp: contacto?.whatsapp || '',
-      hace_cuanto_vive: haceCuantoVive || '',
+      return '';
+    };
 
-      nivel: cand?.formaciones?.[0]?.nivel || '',
-      proyeccion1Ano: entrevistas?.[0]?.como_se_proyecta || '',
-      estudiaActualmente: !!cand?.vivienda?.estudia_actualmente,
-      experienciaFlores: cand?.experiencia_resumen?.tiene_experiencia ? 'Sí' : 'No',
-      tipoExperienciaFlores: cand?.experiencia_resumen?.area_experiencia || '',
+    const info_cc = cand?.info_cc ?? {};
+    const residencia = cand?.residencia ?? {};
+    const contacto = cand?.contacto ?? {};
+    const entrevistas = Array.isArray(cand?.entrevistas) ? cand.entrevistas : [];
+    const oficina = entrevistas[0]?.oficina ?? '';
 
-      comoSeEntero: entrevistas?.[0]?.como_se_entero || '',
-      referenciado: entrevistas?.[0]?.referenciado ? 'SI' : 'NO',
-      nombreReferenciado: entrevistas?.[0]?.nombre_referenciado || '',
-      aplicaObservacion: entrevistas?.[0]?.proceso?.aplica_o_no_aplica || '',
-      motivoEspera: entrevistas?.[0]?.proceso?.motivo_espera || '',
-      motivoNoAplica: entrevistas?.[0]?.proceso?.motivo_no_aplica || '',
-    },
-    { emitEvent: false }
-  );
+    const fechaNac = toDate(cand?.fecha_nacimiento);
+    const fechaExp = toDate(info_cc?.fecha_expedicion);
+    const haceCuantoVive = this.mapHaceCuantoVive(residencia?.hace_cuanto_vive);
 
-  // 1.1) Asegurar estado civil cuando cargue el catálogo (SOLTERO -> SO, etc.)
-this.estadoCivilOpciones$
-  .pipe(
-    filter((opts): opts is any[] => Array.isArray(opts) && opts.length > 0),
-    take(1)
-  )
-  .subscribe((opts) => {
-    const code = mapEstadoCivil(estadoCivilRaw, opts);
-    this.formVacante.get('estado_civil')?.setValue(code || '', { emitEvent: false });
+    const estadoCivilRaw = cand?.estado_civil;
+    const estadoCivilNorm = normalizeText(estadoCivilRaw);
 
-    // Revalida por si tienes validación forzada por steps
-    this.formVacante.get('estado_civil')?.updateValueAndValidity({ emitEvent: false });
-    this.formVacante.updateValueAndValidity({ emitEvent: false });
+    // Si ya viene código, lo ponemos de una; si viene "SOLTERO", lo dejamos vacío y lo mapeamos con el catálogo
+    const estadoCivilQuick =
+      ['VI', 'UL', 'SO', 'SE', 'CA'].includes(estadoCivilNorm) ? estadoCivilNorm : '';
 
-    if (typeof this.refreshSteps === 'function') {
+    // 1) patchValue sin emitir eventos
+    this.formVacante.patchValue(
+      {
+        oficina: oficina || '',
+        tipo_doc: cand?.tipo_doc || '',
+        numero_documento: cand?.numero_documento || '',
+        fecha_expedicion: fechaExp,
+        mpio_expedicion: info_cc?.mpio_expedicion || '',
+
+        primer_apellido: cand?.primer_apellido || '',
+        segundo_apellido: cand?.segundo_apellido || '',
+        primer_nombre: cand?.primer_nombre || '',
+        segundo_nombre: cand?.segundo_nombre || '',
+        fecha_nacimiento: fechaNac,
+        mpio_nacimiento: info_cc?.mpio_nacimiento || '',
+        sexo: cand?.sexo || '',
+        estado_civil: estadoCivilQuick || '',
+
+        barrio: residencia?.barrio || '',
+        celular: contacto?.celular || '',
+        whatsapp: contacto?.whatsapp || '',
+        hace_cuanto_vive: haceCuantoVive || '',
+
+        nivel: cand?.formaciones?.[0]?.nivel || '',
+        proyeccion1Ano: entrevistas?.[0]?.como_se_proyecta || '',
+        estudiaActualmente: !!cand?.vivienda?.estudia_actualmente,
+        experienciaFlores: cand?.experiencia_resumen?.tiene_experiencia ? 'Sí' : 'No',
+        tipoExperienciaFlores: cand?.experiencia_resumen?.area_experiencia || '',
+
+        comoSeEntero: entrevistas?.[0]?.como_se_entero || '',
+        referenciado: entrevistas?.[0]?.referenciado ? 'SI' : 'NO',
+        nombreReferenciado: entrevistas?.[0]?.nombre_referenciado || '',
+        aplicaObservacion: entrevistas?.[0]?.proceso?.aplica_o_no_aplica || '',
+        motivoEspera: entrevistas?.[0]?.proceso?.motivo_espera || '',
+        motivoNoAplica: entrevistas?.[0]?.proceso?.motivo_no_aplica || '',
+      },
+      { emitEvent: false }
+    );
+
+    // 1.1) Asegurar estado civil cuando cargue el catálogo (SOLTERO -> SO, etc.)
+    this.estadoCivilOpciones$
+      .pipe(
+        filter((opts): opts is any[] => Array.isArray(opts) && opts.length > 0),
+        take(1)
+      )
+      .subscribe((opts) => {
+        const code = mapEstadoCivil(estadoCivilRaw, opts);
+        this.formVacante.get('estado_civil')?.setValue(code || '', { emitEvent: false });
+
+        // Revalida por si tienes validación forzada por steps
+        this.formVacante.get('estado_civil')?.updateValueAndValidity({ emitEvent: false });
+        this.formVacante.updateValueAndValidity({ emitEvent: false });
+
+        if (typeof this.refreshSteps === 'function') {
+          this.refreshSteps();
+        }
+      });
+
+    // 2) Validar secciones inmediatamente después del patch
+    this.forceValidateStep(this.step1Ctrl, this.step1Fields);
+    this.forceValidateStep(this.step2Ctrl, this.step2Fields);
+
+    // 3) Campos derivados (recalcula edad)
+    this.ctrl('fecha_nacimiento').setValue(fechaNac, { emitEvent: true });
+
+    // 4) “¿Con quién vive?”
+    const rawConvive = String(cand?.vivienda?.personas_con_quien_convive ?? '');
+    const tokens = rawConvive
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+
+    this.conQuienViveOpciones$.pipe(take(1)).subscribe((opts) => {
+      const up = (x: any) => String(x ?? '').trim().toUpperCase();
+      const selectedCodes = tokens
+        .map((tok) => {
+          const TK = up(tok);
+          const found = opts.find((o) => up(o['codigo']) === TK || up(o['descripcion']) === TK);
+          return found ? String(found['codigo']) : null;
+        })
+        .filter((x): x is string => !!x);
+
+      this.ctrl('personas_con_quien_convive').setValue(selectedCodes, { emitEvent: false });
+      this.forceValidateStep(this.step3Ctrl, this.step3Fields);
       this.refreshSteps();
+    });
+
+    // 5) Información familiar (hijos)
+    const hijosArr = Array.isArray(cand?.hijos) ? cand.hijos : [];
+
+    this.formVacante.patchValue(
+      {
+        tieneHijos: hijosArr.length > 0,
+        cuidadorHijos: cand?.vivienda?.responsable_hijos || '',
+        numeroHijos: hijosArr.length,
+      },
+      { emitEvent: false }
+    );
+
+    this.setHijosCount(hijosArr.length);
+
+    hijosArr.forEach((h: any, i: number) => {
+      const fg = this.hijosFA.at(i) as FormGroup;
+      fg?.patchValue(
+        {
+          numero_de_documento: onlyDigits(h?.numero_de_documento),
+          fecha_nac: toDate(h?.fecha_nac),
+        },
+        { emitEvent: false }
+      );
+    });
+
+    // 6) Historial laboral
+    const exps = Array.isArray(cand?.experiencias) ? cand.experiencias : [];
+    const totalCards = Math.max(exps.length, this.SEED_EXP_COUNT);
+
+    while (this.experienciasFA.length < totalCards) {
+      this.experienciasFA.push(this.buildExperienciaGroup(false));
     }
-  });
+    while (this.experienciasFA.length > totalCards) {
+      this.experienciasFA.removeAt(this.experienciasFA.length - 1);
+    }
 
-  // 2) Validar secciones inmediatamente después del patch
-  this.forceValidateStep(this.step1Ctrl, this.step1Fields);
-  this.forceValidateStep(this.step2Ctrl, this.step2Fields);
+    exps.forEach((e: any, i: number) => {
+      (this.experienciasFA.at(i) as FormGroup)?.patchValue(
+        {
+          empresa: (e?.empresa ?? '').toString(),
+          tiempo_trabajado: (e?.tiempo_trabajado ?? '').toString(),
+          labores_realizadas: (e?.labores_realizadas ?? '').toString(),
+          labores_principales: (e?.labores_principales ?? '').toString(),
+        },
+        { emitEvent: false }
+      );
+    });
 
-  // 3) Campos derivados (recalcula edad)
-  this.ctrl('fecha_nacimiento').setValue(fechaNac, { emitEvent: true });
+    for (let i = exps.length; i < totalCards; i++) {
+      (this.experienciasFA.at(i) as FormGroup)?.patchValue(
+        {
+          empresa: '',
+          tiempo_trabajado: '',
+          labores_realizadas: '',
+          labores_principales: '',
+        },
+        { emitEvent: false }
+      );
+    }
 
-  // 4) “¿Con quién vive?”
-  const rawConvive = String(cand?.vivienda?.personas_con_quien_convive ?? '');
-  const tokens = rawConvive
-    .split(',')
-    .map((s) => s.trim())
-    .filter(Boolean);
+    // 7) Reaplicar reglas dinámicas para que los validadores condicionales coincidan con los valores cargados
+    this.setupHijosValidators(this.ctrl('tieneHijos').value === true);
+    this.applyExperienciaFloresRules(this.ctrl('experienciaFlores').value);
+    this.applyTipoExperienciaFloresRules(this.ctrl('tipoExperienciaFlores').value);
+    this.applyReferenciadoRules(this.ctrl('referenciado').value);
+    this.applyAplicaObservacionRules(this.ctrl('aplicaObservacion').value);
 
-  this.conQuienViveOpciones$.pipe(take(1)).subscribe((opts) => {
-    const up = (x: any) => String(x ?? '').trim().toUpperCase();
-    const selectedCodes = tokens
-      .map((tok) => {
-        const TK = up(tok);
-        const found = opts.find((o) => up(o['codigo']) === TK || up(o['descripcion']) === TK);
-        return found ? String(found['codigo']) : null;
-      })
-      .filter((x): x is string => !!x);
-
-    this.ctrl('personas_con_quien_convive').setValue(selectedCodes, { emitEvent: false });
+    // 8) Forzar validación final de todas las secciones
     this.forceValidateStep(this.step3Ctrl, this.step3Fields);
+    this.step4Ctrl.updateValueAndValidity({ emitEvent: false });
+    this.step5Ctrl.updateValueAndValidity({ emitEvent: false });
+    this.step6Ctrl.updateValueAndValidity({ emitEvent: false });
+    this.step7Ctrl.updateValueAndValidity({ emitEvent: false });
+
+    // 9) Recalcular el formulario completo
+    this.formVacante.updateValueAndValidity({ emitEvent: false });
     this.refreshSteps();
-  });
-
-  // 5) Información familiar (hijos)
-  const hijosArr = Array.isArray(cand?.hijos) ? cand.hijos : [];
-
-  this.formVacante.patchValue(
-    {
-      tieneHijos: hijosArr.length > 0,
-      cuidadorHijos: cand?.vivienda?.responsable_hijos || '',
-      numeroHijos: hijosArr.length,
-    },
-    { emitEvent: false }
-  );
-
-  this.setHijosCount(hijosArr.length);
-
-  hijosArr.forEach((h: any, i: number) => {
-    const fg = this.hijosFA.at(i) as FormGroup;
-    fg?.patchValue(
-      {
-        numero_de_documento: onlyDigits(h?.numero_de_documento),
-        fecha_nac: toDate(h?.fecha_nac),
-      },
-      { emitEvent: false }
-    );
-  });
-
-  // 6) Historial laboral
-  const exps = Array.isArray(cand?.experiencias) ? cand.experiencias : [];
-  const totalCards = Math.max(exps.length, this.SEED_EXP_COUNT);
-
-  while (this.experienciasFA.length < totalCards) {
-    this.experienciasFA.push(this.buildExperienciaGroup(false));
   }
-  while (this.experienciasFA.length > totalCards) {
-    this.experienciasFA.removeAt(this.experienciasFA.length - 1);
-  }
-
-  exps.forEach((e: any, i: number) => {
-    (this.experienciasFA.at(i) as FormGroup)?.patchValue(
-      {
-        empresa: (e?.empresa ?? '').toString(),
-        tiempo_trabajado: (e?.tiempo_trabajado ?? '').toString(),
-        labores_realizadas: (e?.labores_realizadas ?? '').toString(),
-        labores_principales: (e?.labores_principales ?? '').toString(),
-      },
-      { emitEvent: false }
-    );
-  });
-
-  for (let i = exps.length; i < totalCards; i++) {
-    (this.experienciasFA.at(i) as FormGroup)?.patchValue(
-      {
-        empresa: '',
-        tiempo_trabajado: '',
-        labores_realizadas: '',
-        labores_principales: '',
-      },
-      { emitEvent: false }
-    );
-  }
-
-  // 7) Reaplicar reglas dinámicas para que los validadores condicionales coincidan con los valores cargados
-  this.setupHijosValidators(this.ctrl('tieneHijos').value === true);
-  this.applyExperienciaFloresRules(this.ctrl('experienciaFlores').value);
-  this.applyTipoExperienciaFloresRules(this.ctrl('tipoExperienciaFlores').value);
-  this.applyReferenciadoRules(this.ctrl('referenciado').value);
-  this.applyAplicaObservacionRules(this.ctrl('aplicaObservacion').value);
-
-  // 8) Forzar validación final de todas las secciones
-  this.forceValidateStep(this.step3Ctrl, this.step3Fields);
-  this.step4Ctrl.updateValueAndValidity({ emitEvent: false });
-  this.step5Ctrl.updateValueAndValidity({ emitEvent: false });
-  this.step6Ctrl.updateValueAndValidity({ emitEvent: false });
-  this.step7Ctrl.updateValueAndValidity({ emitEvent: false });
-
-  // 9) Recalcular el formulario completo
-  this.formVacante.updateValueAndValidity({ emitEvent: false });
-  this.refreshSteps();
-}
 
 
   // =======================
@@ -1153,8 +1163,6 @@ this.estadoCivilOpciones$
   // Submit
   // =======================
   async onSubmit() {
-    console.log('onSubmit llamado');
-
     if (this.isSubmitting) return;
 
     if (this.formVacante.invalid) {

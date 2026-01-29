@@ -36,15 +36,17 @@
 
               <span class="spacer"></span>
 
-              <button mat-icon-button (click)="crear(node)" matTooltip="Agregar submódulo">
-                <mat-icon>add</mat-icon>
-              </button>
-              <button mat-icon-button (click)="editar(node)" matTooltip="Editar">
-                <mat-icon>edit</mat-icon>
-              </button>
-              <button mat-icon-button color="warn" (click)="eliminar(node)" matTooltip="Eliminar">
-                <mat-icon>delete</mat-icon>
-              </button>
+              <div class="node-actions">
+                <button mat-icon-button class="action-btn" (click)="crear(node)" matTooltip="Agregar submódulo">
+                  <mat-icon>add</mat-icon>
+                </button>
+                <button mat-icon-button class="action-btn" (click)="editar(node)" matTooltip="Editar">
+                  <mat-icon>edit_square</mat-icon>
+                </button>
+                <button mat-icon-button class="action-btn btn-delete" (click)="eliminar(node)" matTooltip="Eliminar">
+                  <mat-icon>delete_outline</mat-icon>
+                </button>
+              </div>
             </div>
           </mat-tree-node>
 
@@ -60,16 +62,18 @@
               </div>
 
               <span class="spacer"></span>
-              <button mat-icon-button (click)="crear(node)" matTooltip="Agregar submódulo">
-                <mat-icon>add</mat-icon>
-              </button>
 
-              <button mat-icon-button (click)="editar(node)" matTooltip="Editar">
-                <mat-icon>edit</mat-icon>
-              </button>
-              <button mat-icon-button color="warn" (click)="eliminar(node)" matTooltip="Eliminar">
-                <mat-icon>delete</mat-icon>
-              </button>
+              <div class="node-actions">
+                <button mat-icon-button class="action-btn" (click)="crear(node)" matTooltip="Agregar submódulo">
+                  <mat-icon>add</mat-icon>
+                </button>
+                <button mat-icon-button class="action-btn" (click)="editar(node)" matTooltip="Editar">
+                  <mat-icon>edit_square</mat-icon>
+                </button>
+                <button mat-icon-button class="action-btn btn-delete" (click)="eliminar(node)" matTooltip="Eliminar">
+                  <mat-icon>delete_outline</mat-icon>
+                </button>
+              </div>
             </div>
           </mat-tree-node>
 

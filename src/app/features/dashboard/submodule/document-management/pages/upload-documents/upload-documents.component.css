@@ -1,196 +1,594 @@
+/* --- VARIABLES & BASE --- */
+:host {
+  /* Corporate Palette */
+  --dm-base: #21263C;
+  --dm-accent: #8CD50A;
+
+  /* Neutrals */
+  --dm-bg-surface: #ffffff;
+  --dm-bg-body: #FFF;
+  /* Pure white as requested/modified by user */
+  --dm-text-primary: #0f172a;
+  /* Darker for better contrast */
+  --dm-text-secondary: #64748b;
+  --dm-border: #e2e8f0;
+  --dm-hover: #f8fafc;
+
+  /* Status Colors (Refined) */
+  --dm-status-pending-bg: #f1f5f9;
+  --dm-status-pending-text: #475569;
+
+  --dm-status-success-bg: #ecfdf5;
+  /* Emerald 50 */
+  --dm-status-success-text: #059669;
+  /* Emerald 600 */
+
+  --dm-status-error-bg: #fef2f2;
+  --dm-status-error-text: #dc2626;
+
+  /* Dimensions */
+  --sidebar-width: 320px;
+  /* Slightly narrower to give more room to table */
+
+  display: block;
+  background-color: var(--dm-bg-body);
+  border-radius: 30px !important;
+  min-height: 100vh;
+}
+
+/* --- LAYOUT CONTAINER --- */
+.upload-page-container {
+  padding: 24px 32px;
+  /* More horizontal padding */
+  max-width: 100%;
+  /* USE ALL SPACE */
+  margin: 0;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  color: var(--dm-text-primary);
+  box-sizing: border-box;
+}
+
+/* --- HEADER --- */
 .page-header {
   display: flex;
-  align-items: center;
-  gap: 8px;
+  justify-content: space-between;
+  align-items: flex-end;
+  margin-bottom: 24px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--dm-border);
+}
+
+.header-text h1 {
+  font-size: 28px;
+  font-weight: 800;
+  /* Bolder */
+  margin: 0 0 8px 0;
+  color: var(--dm-base);
+  letter-spacing: -0.02em;
+}
+
+.header-text p {
+  margin: 0;
+  color: var(--dm-text-secondary);
+  font-size: 15px;
+  max-width: 600px;
+}
+
+/* --- MAIN CARD & LAYOUT --- */
+.main-card {
+  background: var(--dm-bg-surface);
+  border-radius: 20px;
+  /* Soft roundness */
+  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.08);
+  /* Smoother shadow */
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--dm-border);
+}
+
+.main-layout {
+  display: grid;
+  grid-template-columns: var(--sidebar-width) 1fr;
+  gap: 0;
+  align-items: stretch;
+  padding: 0 !important;
+  margin: 0 -16px;
+  /* Negate generic mat-padding if present */
+  min-height: 650px;
+  /* Ensure substantial height */
+}
+
+/* --- SIDEBAR (CONTROLS) --- */
+.control-sidebar {
+  background: #f8fafc;
+  /* Very subtle grey for differentiation */
+  border-right: 1px solid var(--dm-border);
+  padding: 32px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+  height: 100%;
+}
+
+/* Dropzone (Compact & Premium) */
+.dropzone-section {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.dropzone {
+  width: 100%;
+  border: 2px dashed #cbd5e1;
+  border-radius: 16px;
+  background: #ffffff;
+  padding: 32px 24px;
+  text-align: center;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+}
+
+.dropzone:hover,
+.dropzone.drag-over {
+  border-color: var(--dm-accent);
+  background: #f4fce3;
+  /* Brand tint */
+  transform: translateY(-2px);
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05);
+}
+
+.cloud-icon {
+  font-size: 56px;
+  height: 56px;
+  width: 56px;
+  color: #94a3b8;
+  transition: color 0.3s ease;
   margin-bottom: 12px;
 }
 
-.page-header .title {
-  margin: 0;
-  font-weight: 600;
+.dropzone:hover .cloud-icon {
+  color: var(--dm-accent);
 }
 
-.page-header .spacer {
-  flex: 1;
-}
-
-
-.title {
-  margin: 8px 0 12px;
-  font-size: 22px;
-  line-height: 1.2;
+.dropzone-text h2 {
+  font-size: 16px;
   font-weight: 700;
-  color: #0f172a;
+  color: var(--dm-base);
+  margin: 0 0 4px 0;
 }
 
-/* Utilidades */
-.w-100 {
-  width: 100%;
+.dropzone-text p {
+  color: var(--dm-text-secondary);
+  margin: 0;
+  font-size: 13px;
 }
 
-.clickable {
-  cursor: pointer;
-  user-select: none;
+.small-btn {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--dm-base);
+  opacity: 0.8;
+  transition: opacity 0.2s;
 }
 
-.cursor-pointer {
-  cursor: pointer;
+.small-btn:hover {
+  opacity: 1;
 }
 
-/* Fila de campos superiores */
-.form-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-  margin: 8px 0 12px;
+.icon-small {
+  font-size: 18px;
+  width: 18px;
+  height: 18px;
+  vertical-align: middle;
+  margin-right: 4px;
 }
 
-.actions {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin: 6px 0 20px;
+/* Control Panel Labels */
+.panel-header h3 {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--dm-text-secondary);
+  font-weight: 800;
+  margin: 0 0 16px 0;
 }
 
-/* ===== Panel principal (lista izquierda + preview derecha) ===== */
-.documentos-panel {
-  display: grid;
-  grid-template-columns: 360px 1fr;
-  gap: 16px;
-  min-height: 520px;
-}
-
-/* Sidebar izquierda */
-.documentos-sidebar {
+.form-group-section {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  max-height: 70vh;
-  overflow: auto;
-  padding-right: 4px;
-  /* espacio para scrollbar */
 }
 
-/* Tarjetas de cada upload */
-.upload-item {
-  border: 1px solid #e5e7eb;
-  border-radius: 12px;
-  background: #fff;
-  padding: 10px 10px 6px;
-  transition: border-color .2s ease, box-shadow .2s ease, transform .08s ease;
-}
-
-.upload-item:hover {
-  border-color: #cbd5e1;
-  box-shadow: 0 2px 10px rgba(15, 23, 42, .06);
-}
-
-.upload-item.selected {
-  border-color: #3f51b5;
-  box-shadow: 0 0 0 3px rgba(63, 81, 181, .15);
-}
-
-/* Hint cuando no hay items */
-.empty-hint {
-  margin-top: 6px;
-  padding: 16px 14px;
-  border: 1px dashed #cbd5e1;
-  border-radius: 12px;
-  color: #475569;
-  background: #f8fafc;
-  text-align: center;
+.section-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 700;
   font-size: 14px;
+  color: var(--dm-base);
+  margin-bottom: 4px;
 }
 
-/* ===== Panel de previsualización ===== */
-.documento-preview-container {
-  border: 1px solid #e5e7eb;
-  border-radius: 12px;
-  background: #fff;
-  min-height: 520px;
-  padding: 10px;
-  box-shadow: 0 2px 12px rgba(15, 23, 42, .04);
+.section-number {
+  background: var(--dm-base);
+  color: white;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
 }
 
-.pdf-object {
-  display: block;
+/* Action Footer */
+.action-footer {
+  margin-top: auto;
+}
+
+.cta-button {
   width: 100%;
-  height: 100%;
-  min-height: 520px;
-  border-radius: 8px;
-  background: #fbfbfb;
+  height: 56px;
+  /* Taller button */
+  font-size: 15px !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.5px;
+  background-color: var(--dm-accent) !important;
+  color: var(--dm-base) !important;
+  border-radius: 12px !important;
+  box-shadow: 0 4px 6px -1px rgba(140, 213, 10, 0.3);
+  transition: all 0.2s ease;
 }
 
-/* Placeholder cuando no hay preview */
-.documento-preview-placeholder {
-  height: 100%;
-  min-height: 520px;
-  border: 1px dashed #cbd5e1;
-  border-radius: 12px;
-  background: #f8fafc;
-  display: grid;
-  place-items: center;
-  text-align: center;
-  color: #334155;
+.cta-button:hover:not([disabled]) {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 15px -3px rgba(140, 213, 10, 0.4);
 }
 
-.documento-preview-placeholder mat-icon {
-  font-size: 48px;
-  width: 48px;
-  height: 48px;
-  margin-bottom: 6px;
-  color: #3f51b5;
+.cta-button:disabled {
+  background-color: #cbd5e1 !important;
+  color: #94a3b8 !important;
+  box-shadow: none;
 }
 
-.documento-preview-placeholder p {
+/* --- RIGHT SIDE (QUEUE) --- */
+.queue-container {
+  display: flex;
+  flex-direction: column;
+  background: white;
+  position: relative;
+}
+
+.queue-header {
+  padding: 24px 32px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--dm-border);
+  background: white;
+  min-height: 80px;
+}
+
+.queue-title {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.queue-title h3 {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--dm-base);
   margin: 0;
+}
+
+.queue-meta {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 99px;
+  background: #f1f5f9;
+  color: #64748b;
+  border: 1px solid #e2e8f0;
+}
+
+.queue-actions button {
+  font-weight: 600;
+}
+
+/* Table Area */
+.table-scroll-wrapper {
+  flex: 1;
+  overflow-x: auto;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  /* Firefox */
+  scrollbar-color: #cbd5e1 transparent;
+}
+
+.queue-list {
+  min-width: 900px;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Headers */
+.q-header-row {
+  display: grid;
+  grid-template-columns: 50px 2fr 1.5fr 120px 120px 80px;
+  /* Better proportions */
+  align-items: center;
+  padding: 16px 32px;
+  /* Match container padding */
+  background: #ffffff;
+  border-bottom: 2px solid var(--dm-border);
+  position: sticky;
+  top: 0;
+  z-index: 20;
+}
+
+.header-cell {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-weight: 700;
+  color: #94a3b8;
+}
+
+/* Rows */
+.q-row {
+  display: grid;
+  grid-template-columns: 50px 2fr 1.5fr 120px 120px 80px;
+  align-items: center;
+  padding: 20px 32px;
+  /* More vertical breath */
+  border-bottom: 1px solid var(--dm-border);
+  transition: all 0.2s ease;
+  background: white;
+}
+
+.q-row:hover {
+  background-color: #f8fafc;
+  transform: translateX(4px);
+  /* Micro interaction */
+  border-left: 4px solid var(--dm-accent);
+  padding-left: 28px;
+  /* Compensate for border to keep grid aligned? No, keeps spacing */
+}
+
+/* Wait, transform moves the whole row content. 
+   Better interaction: just border-left and bg change without layout shift 
+*/
+.q-row:hover {
+  transform: none;
+  border-left: none;
+  box-shadow: inset 4px 0 0 var(--dm-accent);
+  /* Inset shadow effectively acts as border without layout shift */
+  background-color: #f8fafc;
+  padding-left: 32px;
+  /* Keep consistent */
+}
+
+.q-row.selected {
+  background-color: #f0fdf4 !important;
+  /* Extremely light green */
+  box-shadow: inset 4px 0 0 var(--dm-accent);
+}
+
+/* Content Cells */
+.col-check {
+  display: flex;
+  justify-content: flex-start;
+}
+
+.col-name {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  overflow: hidden;
+  padding-right: 24px;
+}
+
+.pdf-icon {
+  font-size: 36px;
+  width: 36px;
+  height: 36px;
+  color: #ff5252;
+  filter: drop-shadow(0 2px 4px rgba(239, 68, 68, 0.2));
+}
+
+.file-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow: hidden;
+}
+
+.file-name {
+  font-weight: 600;
   font-size: 14px;
+  color: var(--dm-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-/* ===== Scrollbar suave (solo navegadores compatibles) ===== */
-.documentos-sidebar::-webkit-scrollbar {
-  width: 10px;
+.file-contract {
+  font-size: 11px;
+  color: var(--dm-text-secondary);
+  font-weight: 500;
 }
 
-.documentos-sidebar::-webkit-scrollbar-track {
-  background: transparent;
+.col-type {
+  padding-right: 24px;
 }
 
-.documentos-sidebar::-webkit-scrollbar-thumb {
-  background-color: #d1d5db;
-  border-radius: 999px;
-  border: 3px solid transparent;
-  background-clip: content-box;
+/* Style the mat-select to look seamless */
+.col-type mat-form-field {
+  width: 100%;
 }
 
-/* ===== Responsivo ===== */
+.col-status {
+  display: flex;
+  align-items: center;
+}
+
+/* Refined Badges */
+.badge {
+  padding: 6px 12px;
+  border-radius: 99px;
+  /* Pill shape */
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Status Indicators (Dots) */
+.badge::before {
+  content: '';
+  display: block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.badge.pending {
+  background: var(--dm-status-pending-bg);
+  color: var(--dm-status-pending-text);
+}
+
+.badge.uploading {
+  background: #eff6ff;
+  color: #2563eb;
+}
+
+.badge.success {
+  background: var(--dm-status-success-bg);
+  color: var(--dm-status-success-text);
+}
+
+.badge.error {
+  background: var(--dm-status-error-bg);
+  color: var(--dm-status-error-text);
+}
+
+.col-size {
+  font-size: 13px;
+  color: #64748b;
+  font-family: 'Roboto Mono', monospace;
+  /* Tabular if available, else standard */
+  font-weight: 500;
+}
+
+.col-actions {
+  display: flex;
+  justify-content: flex-end;
+  /* Not sticky anymore? Sticky is safer for scroll but user wants aesthetics. 
+     Sticky often creates a shadow artifact. 
+     Given user asked for "use all space", tables might not scroll often horizontally on 1920px. 
+     Keeping sticky for safety on random laptop screens. */
+  position: sticky;
+  right: 0;
+  background: inherit;
+  z-index: 5;
+  padding-right: 32px;
+}
+
+/* Empty State */
+.empty-queue {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 96px 32px;
+  text-align: center;
+  color: #94a3b8;
+  background: linear-gradient(to bottom, #ffffff, #f8fafc);
+  flex: 1;
+}
+
+.empty-icon {
+  font-size: 72px;
+  width: 72px;
+  height: 72px;
+  margin-bottom: 24px;
+  opacity: 0.3;
+  color: var(--dm-base);
+}
+
+.empty-queue h3 {
+  font-size: 18px;
+  font-weight: 700;
+  margin: 0 0 8px 0;
+  color: var(--dm-text-primary);
+}
+
+.empty-queue p {
+  font-size: 15px;
+  margin: 0;
+  max-width: 320px;
+  line-height: 1.6;
+}
+
+/* --- RESPONSIVE --- */
 @media (max-width: 1024px) {
-  .documentos-panel {
-    grid-template-columns: 320px 1fr;
+  .main-layout {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr;
+  }
+
+  .control-sidebar {
+    border-right: none;
+    border-bottom: 1px solid var(--dm-border);
+    flex-direction: row;
+    /* Horizontal layout for controls on tablet */
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 32px;
+  }
+
+  .dropzone-section {
+    flex: 1;
+    min-width: 280px;
+  }
+
+  .control-panel {
+    flex: 1;
+    min-width: 280px;
   }
 }
 
 @media (max-width: 768px) {
-  .form-row {
-    grid-template-columns: 1fr;
+  .upload-page-container {
+    padding: 16px;
   }
 
-  .documentos-panel {
-    grid-template-columns: 1fr;
+  .control-sidebar {
+    flex-direction: column;
+    padding: 24px;
   }
 
-  .documento-preview-container,
-  .pdf-object,
-  .documento-preview-placeholder {
-    min-height: 420px;
+  .q-header-row {
+    display: none;
   }
-}
 
-@media (max-width: 480px) {
+  .q-row {
+    grid-template-columns: 50px 1fr 50px;
+    gap: 16px;
+    padding: 16px;
+  }
 
-  .documento-preview-container,
-  .pdf-object,
-  .documento-preview-placeholder {
-    min-height: 360px;
+  .col-type,
+  .col-status,
+  .col-size {
+    display: none;
   }
 }

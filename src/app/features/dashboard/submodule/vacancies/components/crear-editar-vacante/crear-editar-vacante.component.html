@@ -3,21 +3,16 @@
 <div mat-dialog-content>
   <form [formGroup]="vacanteForm">
 
+    <!-- ===================== Total personas ===================== -->
     <mat-form-field [ngClass]="{'input-obligatorio': isRequired('personasSolicitadas')}">
       <mat-label>Personas solicitadas (total)</mat-label>
       <input matInput type="number" formControlName="personasSolicitadas" min="1" step="1">
+
       <mat-error *ngIf="vacanteForm.get('personasSolicitadas')?.hasError('required')">
         Indique el número total de personas solicitadas.
       </mat-error>
       <mat-error *ngIf="vacanteForm.get('personasSolicitadas')?.hasError('min')">
         Debe ser un valor mayor o igual a 1.
-      </mat-error>
-      <mat-error *ngIf="vacanteForm.hasError('excesoMunicipios')">
-        La suma por municipio ({{ totalAsignado }}) no puede superar el total ({{
-        vacanteForm.get('personasSolicitadas')?.value || 0 }}).
-      </mat-error>
-      <mat-error *ngIf="vacanteForm.hasError('sumaNoIgualTotal')">
-        La suma por municipio debe ser igual al total solicitado.
       </mat-error>
     </mat-form-field>
 
@@ -26,7 +21,7 @@
       <mat-label>Cargo</mat-label>
       <input type="text" matInput formControlName="cargo" [matAutocomplete]="autoCargo">
       <mat-autocomplete #autoCargo="matAutocomplete">
-        <mat-option *ngFor="let cargo of filteredCargos | async" [value]="cargo">
+        <mat-option *ngFor="let cargo of (filteredCargos | async) ?? []" [value]="cargo">
           {{ cargo }}
         </mat-option>
       </mat-autocomplete>
@@ -39,7 +34,7 @@
       <mat-label>Centro de Costo</mat-label>
       <input type="text" matInput formControlName="finca" [matAutocomplete]="autoCentroCosto">
       <mat-autocomplete #autoCentroCosto="matAutocomplete" (optionSelected)="onCentroCostoSelected($event)">
-        <mat-option *ngFor="let centro of filteredCentrosCostos | async" [value]="centro">
+        <mat-option *ngFor="let centro of (filteredCentrosCostos | async) ?? []" [value]="centro">
           {{ centro }}
         </mat-option>
       </mat-autocomplete>
@@ -48,7 +43,6 @@
       </mat-error>
     </mat-form-field>
 
-    <!-- direccion -->
     <mat-form-field [ngClass]="{'input-obligatorio': isRequired('direccion')}">
       <mat-label>Dirección</mat-label>
       <input matInput formControlName="direccion">
@@ -86,9 +80,15 @@
       </mat-error>
     </mat-form-field>
 
+    <!-- salario -->
     <mat-form-field [ngClass]="{'input-obligatorio': isRequired('salario')}">
       <mat-label>Salario</mat-label>
-      <input matInput type="text" formControlName="salario" (input)="formatSalary($event)" (blur)="onBlur()">
+      <input
+        matInput
+        type="text"
+        formControlName="salario"
+        (input)="formatSalary($event)"
+        (blur)="onBlur($event)">
       <mat-error *ngIf="vacanteForm.get('salario')?.hasError('required')">
         El salario es obligatorio.
       </mat-error>
@@ -104,20 +104,23 @@
         <mat-option value="Si">Sí</mat-option>
         <mat-option value="No">No</mat-option>
       </mat-select>
+      <mat-error *ngIf="vacanteForm.get('tieneFechaIngreso')?.hasError('required')">
+        Indique si tiene fecha de ingreso.
+      </mat-error>
     </mat-form-field>
 
-    <mat-form-field *ngIf="vacanteForm.get('tieneFechaIngreso')?.value === 'Si'"
+    <mat-form-field
+      *ngIf="vacanteForm.get('tieneFechaIngreso')?.value === 'Si'"
       [ngClass]="{'input-obligatorio': isRequired('fechadeIngreso')}">
       <mat-label>Fecha de Ingreso</mat-label>
-      <input matInput [matDatepicker]="picker2" formControlName="fechadeIngreso" [min]="today">
+      <input matInput [matDatepicker]="picker2" formControlName="fechadeIngreso">
       <mat-datepicker-toggle matSuffix [for]="picker2"></mat-datepicker-toggle>
       <mat-datepicker #picker2></mat-datepicker>
+
       <mat-error *ngIf="vacanteForm.get('fechadeIngreso')?.hasError('required')">
         La fecha de ingreso es obligatoria.
       </mat-error>
-      <mat-error *ngIf="vacanteForm.get('fechadeIngreso')?.hasError('matDatepickerMin')">
-        La fecha de ingreso no puede ser anterior a hoy.
-      </mat-error>
+
     </mat-form-field>
 
     <mat-form-field [ngClass]="{'input-obligatorio': isRequired('auxilioTransporte')}">
@@ -131,19 +134,30 @@
       </mat-error>
     </mat-form-field>
 
-    <!-- ===================== Municipios + Total general ===================== -->
+    <!-- ===================== Municipios ===================== -->
     <mat-form-field appearance="fill" [ngClass]="{'input-obligatorio': isRequired('municipio')}">
       <mat-label>Municipio(s)</mat-label>
-      <mat-select formControlName="municipio" multiple panelClass="select-panel"
+
+      <mat-select
+        formControlName="municipio"
+        multiple
+        panelClass="select-panel"
         (openedChange)="resetFiltroMunicipio()">
-        <!-- Opción de filtro -->
+
         <mat-option disabled class="no-select filtro-option">
-          <input matInput placeholder="Buscar municipio..." [(ngModel)]="municipioFiltro"
-            (ngModelChange)="filtrarMunicipios()" [ngModelOptions]="{standalone: true}">
+          <input
+            matInput
+            placeholder="Buscar municipio..."
+            [(ngModel)]="municipioFiltro"
+            (ngModelChange)="filtrarMunicipios()"
+            [ngModelOptions]="{standalone: true}"
+            (keydown)="$event.stopPropagation()"
+            (click)="$event.stopPropagation()">
         </mat-option>
-        <!-- Opciones filtradas -->
+
         <mat-option *ngFor="let m of municipiosFiltrados" [value]="m">{{ m }}</mat-option>
       </mat-select>
+
       <mat-error *ngIf="vacanteForm.get('municipio')?.hasError('required')">
         Seleccione al menos un municipio.
       </mat-error>
@@ -152,9 +166,18 @@
     <!-- ===================== Barrio (se agrega a la distribución) ===================== -->
     <mat-form-field appearance="fill">
       <mat-label>Agregar barrio</mat-label>
-      <input matInput placeholder="Escribe el barrio" formControlName="barrio" (keyup.enter)="onAddBarrioFromForm()" />
-      <button mat-icon-button matSuffix aria-label="Agregar barrio" (click)="onAddBarrioFromForm()"
-        [disabled]="!(vacanteForm.get('barrio')?.value || '').toString().trim()" type="button">
+      <input
+        matInput
+        placeholder="Escribe el barrio"
+        formControlName="barrio"
+        (keyup.enter)="onAddBarrioFromForm()">
+      <button
+        mat-icon-button
+        matSuffix
+        aria-label="Agregar barrio"
+        type="button"
+        (click)="onAddBarrioFromForm()"
+        [disabled]="!(vacanteForm.get('barrio')?.value || '').toString().trim()">
         <mat-icon>add</mat-icon>
       </button>
       <mat-hint>Se añadirá abajo como “B - Nombre del barrio”.</mat-hint>
@@ -172,21 +195,22 @@
     </mat-form-field>
 
     <!-- Campos visibles SOLO si es Prueba -->
-    <mat-form-field *ngIf="vacanteForm.get('pruebaOContratacion')?.value === 'Prueba'"
+    <mat-form-field
+      *ngIf="vacanteForm.get('pruebaOContratacion')?.value === 'Prueba'"
       [ngClass]="{'input-obligatorio': isRequired('fechadePruebatecnica')}">
       <mat-label>Fecha de Prueba Técnica</mat-label>
-      <input matInput [matDatepicker]="picker1" formControlName="fechadePruebatecnica" [min]="today">
+      <input matInput [matDatepicker]="picker1" formControlName="fechadePruebatecnica">
       <mat-datepicker-toggle matSuffix [for]="picker1"></mat-datepicker-toggle>
       <mat-datepicker #picker1></mat-datepicker>
+
       <mat-error *ngIf="vacanteForm.get('fechadePruebatecnica')?.hasError('required')">
         La fecha de la prueba es obligatoria.
       </mat-error>
-      <mat-error *ngIf="vacanteForm.get('fechadePruebatecnica')?.hasError('matDatepickerMin')">
-        La fecha de la prueba no puede ser anterior a hoy.
-      </mat-error>
+
     </mat-form-field>
 
-    <mat-form-field *ngIf="vacanteForm.get('pruebaOContratacion')?.value === 'Prueba'"
+    <mat-form-field
+      *ngIf="vacanteForm.get('pruebaOContratacion')?.value === 'Prueba'"
       [ngClass]="{'input-obligatorio': isRequired('horadePruebatecnica')}">
       <mat-label>Hora de Prueba Técnica</mat-label>
       <input matInput type="time" formControlName="horadePruebatecnica">
@@ -198,7 +222,6 @@
     <mat-form-field *ngIf="vacanteForm.get('pruebaOContratacion')?.value === 'Prueba'">
       <mat-label>Ubicación Prueba Técnica</mat-label>
       <input matInput formControlName="ubicacionPruebaTecnica">
-      <!-- opcional, sin error -->
     </mat-form-field>
 
     <mat-form-field [ngClass]="{'input-obligatorio': isRequired('descripcion')}">
@@ -246,8 +269,13 @@
 
     <!-- ===================== Distribución por municipio ===================== -->
     <h3 class="titulo">Distribución por municipio</h3>
+
     <div formArrayName="municipiosDistribucion">
-      <div *ngFor="let fg of municipiosDistribucion.controls; let i = index" [formGroupName]="i" class="row-muni">
+      <div
+        *ngFor="let fg of municipiosDistribucion.controls; let i = index"
+        [formGroupName]="i"
+        class="row-muni">
+
         <mat-form-field>
           <mat-label>Municipio</mat-label>
           <input matInput formControlName="municipio" readonly>
@@ -266,17 +294,36 @@
       </div>
     </div>
 
+    <!-- ===================== Resumen + errores (OPCIÓN B) ===================== -->
     <div class="resumen-muni" style="display:flex; gap:16px; align-items:center; margin:8px 0;">
       <span><strong>Total asignado:</strong> {{ totalAsignado }}</span>
       <span><strong>Restante:</strong> {{ restante }}</span>
     </div>
 
+    <!-- ✅ ERRORES BIEN UBICADOS: debajo del resumen -->
+    <div
+      *ngIf="vacanteForm.hasError('excesoMunicipios') || vacanteForm.hasError('sumaNoIgualTotal')"
+      class="error-dist"
+      style="margin: 6px 0 12px 0; font-size: 12px; color: #d32f2f; font-weight: 700;">
+      <ng-container *ngIf="vacanteForm.hasError('excesoMunicipios'); else sumaNoIgualTpl">
+        La suma por municipio ({{ totalAsignado }}) no puede superar el total ({{ vacanteForm.get('personasSolicitadas')?.value || 0 }}).
+      </ng-container>
+      <ng-template #sumaNoIgualTpl>
+        La suma por municipio ({{ totalAsignado }}) debe ser igual al total solicitado ({{ vacanteForm.get('personasSolicitadas')?.value || 0 }}).
+      </ng-template>
+    </div>
+
     <!-- ===================== Oficinas ===================== -->
     <mat-form-field [ngClass]="{'input-obligatorio': isRequired('oficinasSeleccionadas')}">
       <mat-label>Seleccione las oficinas que pueden contratar</mat-label>
+
       <mat-select formControlName="oficinasSeleccionadas" multiple>
         <mat-option *ngFor="let sede of sedes" [value]="sede.nombre">{{ sede.nombre }}</mat-option>
       </mat-select>
+
+      <mat-error *ngIf="vacanteForm.get('oficinasSeleccionadas')?.hasError('required')">
+        Seleccione al menos una oficina.
+      </mat-error>
     </mat-form-field>
 
     <h3 class="titulo">Oficinas Que Contratan</h3>
@@ -292,7 +339,12 @@
 
         <mat-checkbox formControlName="ruta">¿Tiene Ruta?</mat-checkbox>
 
-        <button mat-icon-button color="warn" (click)="eliminarOficina(i)" matTooltip="Eliminar oficina">
+        <button
+          mat-icon-button
+          color="warn"
+          type="button"
+          (click)="eliminarOficina(i)"
+          matTooltip="Eliminar oficina">
           <mat-icon>delete</mat-icon>
         </button>
       </div>
@@ -302,10 +354,19 @@
 </div>
 
 <div mat-dialog-actions>
-  <button mat-button (click)="cancelar()" style="background-color:#e53935; color:#fff; border-radius:5pt;">
+  <button
+    mat-button
+    type="button"
+    (click)="cancelar()"
+    style="background-color:#e53935; color:#fff; border-radius:5pt;">
     Cancelar
   </button>
-  <button mat-button (click)="guardar()" style="background-color:#003e7f; color:#fff; border-radius:5pt;">
+
+  <button
+    mat-button
+    type="button"
+    (click)="guardar()"
+    style="background-color:#003e7f; color:#fff; border-radius:5pt;">
     Guardar
   </button>
 </div>

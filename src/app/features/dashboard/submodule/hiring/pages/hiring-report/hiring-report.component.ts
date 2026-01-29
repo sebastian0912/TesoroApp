@@ -1,4 +1,19 @@
+import { CruceValidationHelper, CruceRow } from './cruce-validation.helper';
+import {
+  PreviewDialogData,
+  PreviewDialogResult,
+  PreviewIssue,
+  PreviewSchema
+} from 'src/app/shared/model/validation-preview';
+
+type UploadControl = 'cedulasEscaneadas' | 'cruceDiario' | 'arl' | 'induccionSSO' | 'traslados';
+type ErrorRow = { registro: string; errores: any[]; tipo: string };
+
+// ==========================
+// Preview Dialog (tipos mínimos - estructurales)
+// ==========================
 import { Component, OnInit } from '@angular/core';
+import { Title, Meta } from '@angular/platform-browser';
 import { Router } from '@angular/router';
 import { FormBuilder, FormGroup, Validators } from '@angular/forms';
 
@@ -19,82 +34,20 @@ import * as ExcelJS from 'exceljs';
 import * as FileSaver from 'file-saver';
 import { firstValueFrom } from 'rxjs';
 import { ValidationPreviewDialogComponent } from '@/app/shared/components/validation-preview-dialog/validation-preview-dialog.component';
+import { CedulaPreviewItem } from '../../components/cedulas-preview/cedulas-preview.component';
+import { TrasladoPreviewItem } from '../../components/traslados-preview/traslados-preview.component';
 
-type UploadControl = 'cedulasEscaneadas' | 'cruceDiario' | 'arl' | 'induccionSSO' | 'traslados';
-type ErrorRow = { registro: string; errores: any[]; tipo: string };
-
-// ==========================
-// Preview Dialog (tipos mínimos - estructurales)
-// ==========================
-type PreviewSeverity = 'error' | 'warning' | 'info';
-
-type PreviewIssue = {
-  id: string;
-  itemId: string; // rowIndex como string
-  severity: PreviewSeverity;
-  message: string;
-  field?: string;
-  meta?: any;
-};
-
-type PreviewColumn<T> = {
-  key: string;
-  header: string;
-  width?: string;
-  cell: (it: T) => any;
-};
-
-type PreviewEditField<T> = {
-  key: keyof T & string;
-  label: string;
-  type: 'text' | 'number' | 'select' | 'date';
-  required?: boolean;
-  normalize?: (v: any) => any;
-  validate?: (v: any, it?: T) => string | null;
-};
-
-type PreviewSchema<TItem, TResult> = {
-  title: string;
-  subtitle?: string;
-  itemId: (it: TItem) => string;
-
-  columns: PreviewColumn<TItem>[];
-  editFields: PreviewEditField<TItem>[];
-
-  validateItem?: (it: TItem) => PreviewIssue[];
-  buildResult: (items: TItem[]) => TResult;
-
-  allowRemove?: boolean;
-  removeLabel?: string;
-  allowCancel?: boolean;
-};
-
-type PreviewDialogData<TItem, TResult> = {
-  schema: PreviewSchema<TItem, TResult>;
-  items: TItem[];
-  phase?: 'pre' | 'post';
-  externalIssues?: PreviewIssue[];
-  title?: string;
-  subtitle?: string;
-};
-
-type PreviewDialogResult<TResult> = {
-  accepted: boolean;
-  items?: any[];
-  result?: TResult;
-};
-
-type CrucePreviewItem = {
-  rowIndex: number; // 1..N
-  doc: string; // col 1
-  empresa: string; // col 2
-  fechaIngreso: string; // col 8
-  raw: string[]; // 195 cols
-};
+import { FilePreviewDialogComponent } from '../../components/file-preview-dialog/file-preview-dialog.component';
 
 @Component({
   selector: 'app-hiring-report',
-  imports: [SharedModule, MatDatepickerModule, MatCheckboxModule, MatNativeDateModule, MatDialogModule],
+  imports: [
+    SharedModule,
+    MatDatepickerModule,
+    MatCheckboxModule,
+    MatNativeDateModule,
+    MatDialogModule,
+  ],
   templateUrl: './hiring-report.component.html',
   styleUrl: './hiring-report.component.css',
 })
@@ -122,11 +75,21 @@ export class HiringReportComponent implements OnInit {
   // Datos del cruce procesado (filas normalizadas)
   datoscruced: any[] = [];
 
+  // Datos de Previsualización (NUEVO)
+  cedulasPreview: CedulaPreviewItem[] = [];
+  trasladosPreview: TrasladoPreviewItem[] = [];
+
   // Contadores de contratos
   numeroContratosAlianza = 0;
   numeroContratosApoyoLaboral = 0;
 
   nombre = '';
+
+  // UI State for previews (collapsible blocks)
+  previewOpenState: Record<string, boolean> = {
+    cedulas: false,
+    traslados: false
+  };
 
   private readonly BLOCKED_FILES = new Set(['thumbs.db', 'desktop.ini', '.ds_store']);
 
@@ -339,6 +302,8 @@ export class HiringReportComponent implements OnInit {
 
       this.erroresValidacion.data = [];
       this.datoscruced = [];
+      this.cedulasPreview = [];
+      this.trasladosPreview = [];
     }
   }
 
@@ -357,6 +322,9 @@ export class HiringReportComponent implements OnInit {
       }
 
       this.erroresValidacion.data = [];
+
+      if (controlName === 'cedulasEscaneadas') this.cedulasPreview = [];
+      if (controlName === 'traslados') this.trasladosPreview = [];
     }
   }
 
@@ -385,6 +353,15 @@ export class HiringReportComponent implements OnInit {
     }
     if (controlName === 'arl') {
       this.isArlValidado = false;
+    }
+
+    // Generar previews y validar inmediatamente
+    if (controlName === 'cedulasEscaneadas') {
+      this.generateCedulasPreview(allowed);
+      this.checkAndShowPreviewErrors(this.cedulasPreview, 'Cédulas');
+    } else if (controlName === 'traslados') {
+      this.generateTrasladosPreview(allowed);
+      this.checkAndShowPreviewErrors(this.trasladosPreview, 'Traslados');
     }
 
     this.erroresValidacion.data = [];
@@ -604,31 +581,6 @@ export class HiringReportComponent implements OnInit {
     }
   }
 
-  /**
-   * Extrae el documento desde un PDF:
-   * - "1005851505 - Juan Perez.pdf" => "1005851505"
-   * - "X548888- algo.pdf" => "X548888"
-   * - "x5897887_nombre.pdf" => "X5897887"
-   */
-  private extractDocumentoFromPdfName(filename: string): string | null {
-    const name = (filename ?? '').trim();
-    const lower = name.toLowerCase();
-
-    if (!name) return null;
-    if (this.BLOCKED_FILES.has(lower)) return null;
-    if (!lower.endsWith('.pdf')) return null;
-
-    const base = name.replace(/\.pdf$/i, '').trim();
-
-    // Documento a la izquierda del primer "-"
-    const left = base.split('-')[0]?.trim() ?? base;
-
-    // Primer token por si viene con espacios/underscores
-    const token = left.split(/[_\s]+/)[0]?.trim() ?? left;
-
-    const doc = this.normalizeCedula(token);
-    return doc || null;
-  }
 
   /**
    * Detecta EPS permitida en nombre de traslado.
@@ -794,13 +746,21 @@ export class HiringReportComponent implements OnInit {
 
       if (!name) continue;
       if (this.BLOCKED_FILES.has(lower)) continue;
-      if (!lower.endsWith('.pdf')) continue;
-
-      const doc = this.extractDocumentoFromPdfName(name);
-      if (!doc) {
+      if (!lower.endsWith('.pdf')) {
         errors.push({
           registro: name,
-          errores: ['Nombre inválido. Use: DOCUMENTO-EPS.pdf (ej: 1005851505-SALUD TOTAL.pdf).'],
+          errores: ['No es un archivo PDF.'],
+          tipo: 'Traslado EPS',
+        });
+        continue;
+      }
+
+      const doc = this.extractDocumentoFromPdfName(name);
+      // Validar que tenga documento Y que sea válido (números o X)
+      if (!doc || !/^[0-9xX]+$/.test(doc)) {
+        errors.push({
+          registro: name,
+          errores: ['Nombre inválido. Use: DOCUMENTO-EPS.pdf (ej: 1005851505-SALUD TOTAL.pdf). El documento puede contener numeros y X.'],
           tipo: 'Traslado EPS',
         });
         continue;
@@ -815,22 +775,183 @@ export class HiringReportComponent implements OnInit {
         });
       }
     }
-
     return errors;
+  }
+
+  private generateCedulasPreview(files: File[]): void {
+    const preview: CedulaPreviewItem[] = [];
+
+    // Regex global para capturar: (Grupo 1: Documento) - (Grupo 2: Resto).pdf
+    // Permitimos caracteres variados en Grupo 1 para luego validarlos estrictamente.
+    const regex = /^\s*([a-zA-Z0-9-]+)\s*-\s*(.+?)\.pdf$/i;
+
+    // Validación estricta: Solo números O (X/x + números/letras/guiones)
+    // ^\d+$  => solo números
+    // ^[xX]... => X seguido de alfanuméricos/guiones
+    const strictDocRegex = /^(\d+|[xX][a-zA-Z0-9\-]+)$/;
+
+    for (const file of files) {
+      const name = file.name;
+      const match = name.match(regex);
+
+      if (match) {
+        const docPart = match[1];
+        const namePart = match[2];
+
+        if (strictDocRegex.test(docPart)) {
+          preview.push({
+            nombreArchivo: name,
+            documento: docPart,
+            nombre: namePart,
+            esValido: true
+          });
+        } else {
+          preview.push({
+            nombreArchivo: name,
+            documento: docPart,
+            nombre: namePart,
+            esValido: false,
+            error: 'Documento inválido. Solo se permiten números o comenzar con X (ej: 12345 o X12345).'
+          });
+        }
+      } else {
+        let error = 'Formato inválido. Debe ser: "DOCUMENTO - NOMBRE.pdf"';
+        if (!name.toLowerCase().endsWith('.pdf')) error = 'No es un archivo PDF';
+
+        preview.push({
+          nombreArchivo: name,
+          documento: '',
+          nombre: '',
+          esValido: false,
+          error
+        });
+      }
+    }
+
+    this.cedulasPreview = preview;
+  }
+
+  // Helper para extraer documento (usado en validación de traslados y otros)
+  private extractDocumentoFromPdfName(filename: string): string | null {
+    // Reutilizamos la misma lógica estricta: (DOC) - (RESTO).pdf
+    const regex = /^\s*([a-zA-Z0-9-]+)\s*-\s*(.+?)\.pdf$/i;
+    const match = filename.match(regex);
+    if (!match) return null;
+
+    const docPart = match[1];
+    const strictDocRegex = /^(\d+|[xX][a-zA-Z0-9\-]+)$/;
+    if (!strictDocRegex.test(docPart)) return null;
+
+    return docPart;
+  }
+
+  private generateTrasladosPreview(files: File[]): void {
+    const preview: TrasladoPreviewItem[] = [];
+
+    for (const file of files) {
+      const name = file.name;
+      // Validación básica de PDF
+      if (!name.toLowerCase().endsWith('.pdf')) {
+        preview.push({
+          nombreArchivo: name,
+          documento: '',
+          eps: '',
+          esValido: false,
+          error: 'No es un archivo PDF'
+        });
+        continue;
+      }
+
+      // Lógica de parsing para Traslados (Documento - EPS)
+      // Usamos split('-') para ser consistentes con la lógica de negocio, pero validando estrictamente
+      const baseName = name.slice(0, -4); // remove .pdf
+      const parts = baseName.split('-');
+
+      if (parts.length < 2) {
+        preview.push({
+          nombreArchivo: name,
+          documento: '',
+          eps: '',
+          esValido: false,
+          error: 'Formato inválido. Falta el guión separador (-)'
+        });
+        continue;
+      }
+
+      // Asumimos documento es la primera parte, EPS la segunda (o ultima?)
+      // La regla de negocio dice: Documento - EPS
+      const docRaw = parts[0].trim();
+      const epsRaw = parts.slice(1).join('-').trim(); // Join back in case EPS has hyphens? Unlikely but safe.
+
+      // Validar Documento (solo digitos o X)
+      if (!/^[0-9xX]+$/.test(docRaw)) {
+        preview.push({
+          nombreArchivo: name,
+          documento: docRaw,
+          eps: epsRaw,
+          esValido: false,
+          error: 'El documento debe contener solo números o la letra X'
+        });
+        continue;
+      }
+
+      // Validar EPS (Normalizada)
+      const epsNormalized = this.normEpsToken(epsRaw);
+      const epsCanonical = this.EPS_ALLOWED.get(epsNormalized);
+
+      if (epsCanonical) {
+        preview.push({
+          nombreArchivo: name,
+          documento: docRaw,
+          eps: epsCanonical, // Mostrar el nombre bonito (SALUDTOTAL)
+          esValido: true
+        });
+      } else {
+        preview.push({
+          nombreArchivo: name,
+          documento: docRaw,
+          eps: epsRaw,
+          esValido: false,
+          error: `EPS desconocida (${epsRaw}). Use: SALUDTOTAL o NUEVAEPS`
+        });
+      }
+    }
+
+    this.trasladosPreview = preview;
   }
 
   // ---------------------------------------------------------------------------
   // Preview Dialog (Cruce)
   // ---------------------------------------------------------------------------
 
-  private buildCrucePreviewItems(rows: string[][]): CrucePreviewItem[] {
-    return (rows ?? []).map((r, idx) => ({
-      rowIndex: idx + 1,
-      doc: this.normalizeCedula(r?.[1]),
-      empresa: (r?.[2] ?? '').toString(),
-      fechaIngreso: (r?.[8] ?? '').toString(),
-      raw: r,
-    }));
+
+  private checkAndShowPreviewErrors(items: any[], type: string): void {
+    const invalid = items.filter((i) => !i.esValido);
+    if (invalid.length > 0) {
+      const errorHtml = invalid
+        .map(
+          (i) =>
+            `<li style="text-align: left; margin-bottom: 8px;">
+              <strong>${i.nombreArchivo}</strong>: <span style="color: #d32f2f;">${i.error || 'Error desconocido'}</span>
+            </li>`
+        )
+        .join('');
+
+      Swal.fire({
+        icon: 'error',
+        title: `Errores en ${type}`,
+        html: `
+          <p class="mb-2">Se encontraron <strong>${invalid.length}</strong> archivo(s) con errores:</p>
+          <ul style="max-height: 300px; overflow-y: auto; padding-left: 20px; text-align: left;">
+            ${errorHtml}
+          </ul>
+          <p class="mt-2 text-sm text-muted">Corrija los nombres de archivo y vuelva a intentarlo.</p>
+        `,
+        confirmButtonText: 'Entendido',
+        confirmButtonColor: '#d32f2f',
+        width: '500px'
+      });
+    }
   }
 
   private buildExternalIssuesFromBackend(allErrors: any[]): PreviewIssue[] {
@@ -857,66 +978,74 @@ export class HiringReportComponent implements OnInit {
     return out;
   }
 
-  private buildCruceSchema(): PreviewSchema<CrucePreviewItem, { rows: string[][] }> {
-    return {
-      title: 'Previsualización de validación · Cruce Diario',
-      subtitle: 'Corrige los campos y reintenta la validación.',
-      itemId: (it) => String(it.rowIndex),
+  private createUploadHandler(items: CruceRow[], uploadedRef?: { cedulas: string[]; traslados: string[] }) {
+    return async (file: File, itemId: string) => {
+      // 1. Buscamos la fila correspondiente
+      const row = items.find((r) => r._id === itemId);
+      if (!row) return;
 
-      columns: [
-        { key: 'rowIndex', header: '#', width: '70px', cell: (it) => it.rowIndex },
-        { key: 'doc', header: 'Documento', width: '160px', cell: (it) => it.doc },
-        { key: 'empresa', header: 'Empresa', width: '240px', cell: (it) => it.empresa },
-        { key: 'fechaIngreso', header: 'Fecha ingreso', width: '160px', cell: (it) => it.fechaIngreso },
-      ],
+      // 2. Validamos coincidencia (Cedula vs PDF Name)
+      const docPdf = this.extractDocumentoFromPdfName(file.name);
+      if (!docPdf) {
+        await Swal.fire('Error', 'El nombre del archivo no tiene un formato válido (DOC - NOMBRE.pdf).', 'error');
+        return;
+      }
 
-      editFields: [
-        {
-          key: 'doc',
-          label: 'Documento',
-          type: 'text',
-          required: true,
-          normalize: (v) => this.normalizeCedula(v),
-          validate: (v) => (String(v ?? '').trim() ? null : 'Documento requerido'),
-        },
-        {
-          key: 'empresa',
-          label: 'Empresa',
-          type: 'text',
-          normalize: (v) => this.removeSpecialCharacters(String(v ?? '')).trim(),
-          validate: (v) => (String(v ?? '').trim() ? null : 'Empresa requerida'),
-        },
-        {
-          key: 'fechaIngreso',
-          label: 'Fecha ingreso (dd/mm/yyyy)',
-          type: 'text',
-          normalize: (v) => this.corregirFecha(String(v ?? '').trim()),
-          validate: (v) => (/^\d{2}\/\d{2}\/\d{4}$/.test(String(v ?? '').trim()) ? null : 'Formato inválido (dd/mm/yyyy)'),
-        },
-      ],
+      const cedulaExcel = this.normalizeCedula(row.cedula);
+      const cedulaPdf = this.normalizeCedula(docPdf);
 
-      validateItem: (_it) => [],
-      buildResult: (items) => {
-        const rows = items.map((it) => {
-          const r = [...it.raw];
-          r[1] = it.doc;
-          r[2] = it.empresa;
-          r[8] = it.fechaIngreso;
-          return r;
-        });
-        return { rows };
-      },
+      // Permitimos si son iguales
+      if (cedulaPdf !== cedulaExcel) {
+        await Swal.fire(
+          'Error',
+          `El archivo subido (${cedulaPdf}) no coincide con la cédula del registro (${cedulaExcel}).`,
+          'error'
+        );
+        return;
+      }
 
-      allowRemove: true,
-      removeLabel: 'Quitar fila',
-      allowCancel: true,
+      // 3. Agregamos a la lista global (cedulasEscaneadas)
+      // Asumimos que la acción "upload-pdf" es para Cedulas (por ahora)
+      const current = this.filesToUpload['cedulasEscaneadas'] ?? [];
+
+      // Evitar duplicados
+      if (current.some(f => f.name === file.name)) {
+        // Ya existe, no hacemos nada (o avisamos)
+      } else {
+        this.filesToUpload['cedulasEscaneadas'] = [...current, file];
+      }
+
+      // 4. Actualizamos el ref local para revalidación inmediata
+      if (uploadedRef) {
+        // Si no está ya incluido
+        if (!uploadedRef.cedulas.includes(cedulaPdf)) {
+          uploadedRef.cedulas.push(cedulaPdf);
+        }
+      }
+
+      // 5. Toast success
+      const Toast = Swal.mixin({
+        toast: true,
+        position: 'top-end',
+        showConfirmButton: false,
+        timer: 2000,
+        timerProgressBar: true,
+      });
+      Toast.fire({ icon: 'success', title: 'Archivo cargado correctamente.' });
     };
   }
 
-  private async openCrucePreviewDialog(rows: string[][], backendErrors: any[]): Promise<{ ok: boolean; rows: string[][] }> {
-    const items = this.buildCrucePreviewItems(rows);
-    const schema = this.buildCruceSchema();
-    const externalIssues = this.buildExternalIssuesFromBackend(backendErrors);
+  private async openCrucePreviewDialog(
+    rows: string[][],
+    headerRow: string[],
+    uploadedRef?: { cedulas: string[]; traslados: string[] },
+    backendErrors: any[] = [],
+  ): Promise<{ ok: boolean; rows: string[][] }> {
+    const items = CruceValidationHelper.parseRows(rows, headerRow);
+    const schema = CruceValidationHelper.getSchema(headerRow, uploadedRef);
+    const externalIssues = backendErrors.length ? this.buildExternalIssuesFromBackend(backendErrors) : [];
+
+    const phase = backendErrors.length > 0 ? 'post' : 'pre';
 
     const ref = this.dialog.open(ValidationPreviewDialogComponent as any, {
       width: 'min(1200px, 96vw)',
@@ -926,11 +1055,12 @@ export class HiringReportComponent implements OnInit {
       data: {
         schema,
         items,
-        phase: 'post',
+        phase,
         externalIssues,
-        title: 'Post-validación (backend)',
-        subtitle: 'Corrige y confirma para reintentar.',
-      } satisfies PreviewDialogData<CrucePreviewItem, { rows: string[][] }>,
+        title: phase === 'post' ? 'Reporte de Errores (Backend)' : 'Validación Preliminar',
+        subtitle: phase === 'post' ? 'Corrige los datos y reintenta.' : 'Revisa las inconsistencias antes de enviar.',
+        uploadHandler: this.createUploadHandler(items, uploadedRef),
+      } satisfies PreviewDialogData<CruceRow, any>,
     });
 
     const res = (await firstValueFrom(ref.afterClosed())) as PreviewDialogResult<{ rows: string[][] }> | undefined;
@@ -955,153 +1085,9 @@ export class HiringReportComponent implements OnInit {
   // ---------------------------------------------------------------------------
 
   async validarTodo(): Promise<void> {
-    this.isCruceValidado = false;
-    this.isArlValidado = false;
-    this.erroresValidacion.data = [];
-    this.datoscruced = [];
-
-    this.showLoading('Cargando...', 'Extrayendo cédulas y validando archivos...');
-
-    try {
-      const cruceChecked = !!this.reporteForm.get('cruceDiario')?.value;
-      const arlChecked = !!this.reporteForm.get('arl')?.value;
-      const trasladosChecked = !!this.reporteForm.get('traslados')?.value;
-
-      const filesCruce = this.filesToUpload.cruceDiario ?? [];
-      if (cruceChecked && filesCruce.length === 0) {
-        this.closeSwal();
-        await Swal.fire('Error', 'Debe cargar un archivo de cruce diario antes de validar', 'error');
-        return;
-      }
-
-      const arlFiles = this.filesToUpload.arl ?? [];
-      if (arlChecked && arlFiles.length === 0) {
-        this.closeSwal();
-        await Swal.fire('Error', 'Debe cargar un archivo de ARL antes de validar', 'error');
-        return;
-      }
-
-      const cedulasEscaneadasFiles = this.filesToUpload.cedulasEscaneadas ?? [];
-      if (this.reporteForm.get('cedulasEscaneadas')?.value && cedulasEscaneadasFiles.length === 0) {
-        this.closeSwal();
-        await Swal.fire('Error', 'Debe cargar archivos de cédulas escaneadas antes de validar', 'error');
-        return;
-      }
-
-      const erroresFormateados: ErrorRow[] = [];
-
-      // cédulas desde PDFs (soporta DOC - nombre)
-      const cedulasEscaneadas = this.extraerCedulasDeArchivos(cedulasEscaneadasFiles);
-
-      let cedulasTrasladosExtraidas: string[] = [];
-      const trasladosFiles = this.filesToUpload.traslados ?? [];
-
-      if (trasladosChecked) {
-        if (trasladosFiles.length === 0) {
-          this.closeSwal();
-          await Swal.fire('Error', 'Debe cargar archivos de traslados si seleccionó esa opción', 'error');
-          return;
-        }
-
-        erroresFormateados.push(...this.validarTrasladosEps(trasladosFiles));
-        cedulasTrasladosExtraidas = this.extraerCedulasDeArchivos(trasladosFiles);
-      }
-
-      // Excel cruce
-      let cedulasExcel: string[] = [];
-      if (cruceChecked) {
-        const fileCruce = (this.filesToUpload.cruceDiario ?? [])[0];
-
-        cedulasExcel = await this.extraerCedulasDelArchivo(fileCruce);
-
-        const result = await this.contarALyTAEnColumna(fileCruce);
-        this.numeroContratosApoyoLaboral = result.AL;
-        this.numeroContratosAlianza = result.TA;
-        this.reporteForm.controls['cantidadContratosTuAlianza'].setValue(result.TA);
-        this.reporteForm.controls['cantidadContratosApoyoLaboral'].setValue(result.AL);
-      }
-
-      if (cruceChecked) {
-        const cedulasFaltantesEnExcel = cedulasEscaneadas.filter((c) => !cedulasExcel.includes(c));
-        cedulasFaltantesEnExcel.forEach((cedula) => {
-          erroresFormateados.push({
-            registro: '0',
-            errores: ['Cédula no encontrada en el Excel: ' + cedula],
-            tipo: 'Cédula escaneada',
-          });
-        });
-
-        const cedulasExtrasEnExcel = cedulasExcel.filter((c) => !cedulasEscaneadas.includes(c));
-        cedulasExtrasEnExcel.forEach((cedula) => {
-          erroresFormateados.push({
-            registro: '0',
-            errores: ['Cédula en el Excel pero no escaneada: ' + cedula],
-            tipo: 'Cédula escaneada',
-          });
-        });
-
-        if (cedulasTrasladosExtraidas.length > 0) {
-          const cedulasTrasladosNoEnExcel = cedulasTrasladosExtraidas.filter((c) => !cedulasExcel.includes(c));
-          cedulasTrasladosNoEnExcel.forEach((cedula) => {
-            erroresFormateados.push({
-              registro: '0',
-              errores: ['Cédula de traslado no encontrada en el Excel: ' + cedula],
-              tipo: 'Traslado',
-            });
-          });
-        }
-
-        if (cedulasEscaneadas.length !== cedulasExcel.length) {
-          erroresFormateados.push({
-            registro: '0',
-            errores: [
-              `El número de cédulas escaneadas (${cedulasEscaneadas.length}) no coincide con las cédulas del Excel (${cedulasExcel.length}).`,
-            ],
-            tipo: 'Consistencia',
-          });
-        }
-      }
-
-      if (erroresFormateados.length > 0) {
-        this.closeSwal();
-        this.erroresValidacion.data = erroresFormateados;
-
-        const tipoErrores =
-          [cruceChecked ? 'Cruce Diario' : null, trasladosChecked ? 'Traslado' : null].filter(Boolean).join(' + ') ||
-          'Validación';
-
-        const payload = {
-          errores: this.erroresValidacion.data,
-          responsable: this.nombre,
-          tipo: tipoErrores,
-        };
-
-        this.showLoading('Guardando errores...', 'Enviando todos los errores para guardar...');
-
-        try {
-          await this.toPromise(this.hiringService.enviarErroresValidacion(payload));
-          this.closeSwal();
-          await Swal.fire('Error', 'Se han encontrado errores. Corrija los datos y vuelva a intentarlo.', 'error');
-        } catch {
-          this.closeSwal();
-          await Swal.fire('Error', 'Error al guardar los errores.', 'error');
-        }
-        return;
-      }
-
-      this.closeSwal();
-
-      // Validación profunda (cruce + ARL)
-      if (cruceChecked) {
-        await this.validarCruce();
-      } else if (arlChecked) {
-        const arlFiles = this.filesToUpload.arl ?? [];
-        if (arlFiles.length) await this.proccssArl([arlFiles[0]]);
-      }
-    } catch {
-      this.closeSwal();
-      await Swal.fire('Error', 'Error al procesar. Inténtelo de nuevo.', 'error');
-    }
+    this.closeSwal();
+    // Reutilizamos la lógica completa dentro de validarCruce, que ahora incluye pre-validación.
+    await this.validarCruce();
   }
 
   // ---------------------------------------------------------------------------
@@ -1133,6 +1119,9 @@ export class HiringReportComponent implements OnInit {
 
       const sheetName = workbook.SheetNames[0];
       const sheet = workbook.Sheets[sheetName];
+
+      const headerRow = (XLSX.utils.sheet_to_json(sheet, { header: 1, range: 0 }) as string[][])[0];
+
       const json = XLSX.utils.sheet_to_json(sheet, {
         header: 1,
         raw: false,
@@ -1194,6 +1183,15 @@ export class HiringReportComponent implements OnInit {
         return completeRow;
       });
 
+      const cruceRows = CruceValidationHelper.parseRows(rows, headerRow);
+
+      const uploadedRef = {
+        cedulas: (this.filesToUpload['cedulasEscaneadas'] ?? []).map((f: File) => this.normalizeCedula(f.name.split('.')[0])),
+        traslados: (this.filesToUpload['traslados'] ?? []).map((f: File) => this.normalizeCedula(f.name.split('.')[0]))
+      };
+
+      const schema = CruceValidationHelper.getSchema(headerRow, uploadedRef);
+
       this.datoscruced = rows;
 
       const batchSize = 1500;
@@ -1217,7 +1215,26 @@ export class HiringReportComponent implements OnInit {
         return allErrors;
       };
 
-      // 1) Validación inicial
+      // 0) Pre-validación local (Frontend: Consistencia + Filas)
+      // Si hay problemas locales, mostramos el diálogo ANTES de ir al backend.
+      const localIssues = [
+        ...(schema.validateItem ? cruceRows.flatMap(r => schema.validateItem!(r)) : []),
+        ...(schema.validateAll ? schema.validateAll(cruceRows) : [])
+      ].filter(i => i.severity === 'error'); // Solo bloqueamos si hay errores
+
+      if (localIssues.length > 0) {
+        this.closeSwal();
+        const res = await this.openCrucePreviewDialog(rows, headerRow, uploadedRef, []);
+        if (!res.ok) {
+          // Usuario canceló
+          return;
+        }
+        // Usuario corrigió y confirmó
+        rows = res.rows;
+        this.datoscruced = rows;
+      }
+
+      // 1) Validación Backend
       let allErrors = await runValidateBatches(rows);
       this.erroresValidacion.data = allErrors;
 
@@ -1225,14 +1242,33 @@ export class HiringReportComponent implements OnInit {
       if (allErrors.length > 0) {
         this.closeSwal();
 
-        const preview = await this.openCrucePreviewDialog(rows, allErrors);
-        if (!preview.ok) {
-          // Usuario canceló: dejamos los errores en tabla y salimos sin enviar nada
+        const dialogRef = this.dialog.open(ValidationPreviewDialogComponent, {
+          data: {
+            schema: schema,
+            items: cruceRows,
+            phase: 'pre',
+            title: 'Validación Inicial (Frontend)',
+            subtitle: 'Se encontraron errores de formato o consistencia. Corríjalos para continuar.',
+            uploadHandler: this.createUploadHandler(cruceRows, uploadedRef),
+          },
+          width: 'min(1280px, 96vw)',
+          maxWidth: '96vw',
+          height: 'min(860px, 92vh)',
+          maxHeight: '92vh',
+          panelClass: 'vp-dialog',
+          autoFocus: false,
+          restoreFocus: true,
+          disableClose: true,
+        });
+
+        const result = await firstValueFrom(dialogRef.afterClosed());
+        if (!result || !result.accepted) {
           this.erroresValidacion.data = allErrors;
           return;
         }
 
-        rows = preview.rows;
+        // Update rows with corrected data
+        rows = result.result;
         this.datoscruced = rows;
 
         // Revalidación
@@ -1873,6 +1909,33 @@ export class HiringReportComponent implements OnInit {
         confirmButtonText: 'Aceptar',
         heightAuto: false,
       });
+    }
+  }
+
+  openPreview(Type: 'cedulas' | 'traslados'): void {
+    const data: any = {
+      title: Type === 'cedulas' ? 'Cédulas Cargadas' : 'Traslados Cargados',
+      items: Type === 'cedulas' ?
+        this.cedulasPreview.map(p => ({ name: p.nombreArchivo, valid: p.esValido, error: p.error })) :
+        this.trasladosPreview.map(p => ({ name: p.nombreArchivo, valid: p.esValido, error: p.error }))
+    };
+
+    /**
+     * Correction:
+     * CedulaPreviewItem / TrasladoPreviewItem use:
+     * - nombreArchivo
+     * - esValido
+     */
+
+    this.dialog.open(FilePreviewDialogComponent, {
+      width: '600px',
+      data: data
+    });
+  }
+
+  togglePreview(key: string): void {
+    if (this.previewOpenState[key] !== undefined) {
+      this.previewOpenState[key] = !this.previewOpenState[key];
     }
   }
 }

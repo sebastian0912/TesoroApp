@@ -4,41 +4,60 @@
       <h2>Gestión de Parametrización</h2>
       <span class="grow"></span>
 
-      <button mat-flat-button (click)="onNuevaTabla()">
-        <mat-icon>add</mat-icon>
-        Nueva
+      <!-- Menú (acciones globales) -->
+      <button mat-flat-button [matMenuTriggerFor]="accionesMenu">
+        <mat-icon>more_vert</mat-icon>
+        Acciones
       </button>
 
-      <button mat-raised-button color="primary" (click)="descargarExcelServidor()">
-        <mat-icon>table_view</mat-icon>
-        Excel
-      </button>
+      <mat-menu #accionesMenu="matMenu">
+        <button mat-menu-item (click)="onNuevaTabla()">
+          <mat-icon>add</mat-icon>
+          <span>Nueva</span>
+        </button>
 
-      <button mat-raised-button (click)="descargarZipServidor()">
-        <mat-icon>archive</mat-icon>
-        ZIP
-      </button>
+        <button mat-menu-item (click)="descargarExcelServidor()">
+          <mat-icon>table_view</mat-icon>
+          <span>Excel</span>
+        </button>
+
+        <button mat-menu-item (click)="descargarZipServidor()">
+          <mat-icon>archive</mat-icon>
+          <span>ZIP</span>
+        </button>
+      </mat-menu>
     </div>
 
-    <app-standard-filter-table [data]="data()" [columnDefinitions]="columns" [pageSizeOptions]="pageSizeOptions"
-      [defaultPageSize]="defaultPageSize" [tableTitle]="'MetaTablas'" (rowClicked)="onRowClick($event)">
+    <app-standard-filter-table
+      [data]="data()"
+      [columnDefinitions]="columns"
+      [pageSizeOptions]="pageSizeOptions"
+      [defaultPageSize]="defaultPageSize"
+      [tableTitle]="'MetaTablas'"
+      (rowClicked)="onRowClick($event)">
 
-      <!-- Acciones por fila (sin botón de editar) -->
+      <!-- ✅ Acciones por fila (con mat-menu) -->
       <ng-template #actionsTemplate let-row>
-        <!-- Gestionar CAMPOS -->
-        <button mat-icon-button matTooltip="Configurar campos"
-          (click)="$event.stopPropagation(); openMetaConfig(row, 'campos')">
-          <mat-icon>view_list</mat-icon>
+        <button
+          mat-icon-button
+          [matMenuTriggerFor]="rowMenu"
+          (click)="$event.stopPropagation()"
+          matTooltip="Acciones">
+          <mat-icon>more_vert</mat-icon>
         </button>
 
-        <!-- Gestionar VALORES -->
-        <button mat-icon-button matTooltip="Gestionar valores"
-          (click)="$event.stopPropagation(); openMetaConfig(row, 'valores')">
-          <mat-icon>dataset</mat-icon>
-        </button>
+        <mat-menu #rowMenu="matMenu">
+          <button mat-menu-item (click)="$event.stopPropagation(); openMetaConfig(row, 'campos')">
+            <mat-icon>view_list</mat-icon>
+            <span>Configurar campos</span>
+          </button>
+
+          <button mat-menu-item (click)="$event.stopPropagation(); openMetaConfig(row, 'valores')">
+            <mat-icon>dataset</mat-icon>
+            <span>Gestionar valores</span>
+          </button>
+        </mat-menu>
       </ng-template>
     </app-standard-filter-table>
-
-
   </mat-card-content>
 </mat-card>

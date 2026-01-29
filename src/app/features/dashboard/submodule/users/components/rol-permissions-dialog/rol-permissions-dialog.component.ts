@@ -4,6 +4,8 @@ import {
 import { CommonModule, DOCUMENT } from '@angular/common';
 import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
 
+import { MatSlideToggleModule } from '@angular/material/slide-toggle';
+
 import { MatTableModule } from '@angular/material/table';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatIconModule } from '@angular/material/icon';
@@ -44,7 +46,7 @@ type ActionCanonical = 'LEER' | 'CREAR' | 'ACTUALIZAR' | 'ELIMINAR';
 
 /** Filas de la tabla (ahora con level para indentar y elegir icono) */
 type TableGroupRow = { kind: 'group'; id: string; titulo: string; level: number };
-type TableDataRow  = {
+type TableDataRow = {
   kind: 'data';
   modulo_id: string;
   modulo_nombre: string;
@@ -63,6 +65,7 @@ type TableDataRow  = {
     MatDialogModule,
     MatTableModule,
     MatCheckboxModule,
+    MatSlideToggleModule, // Added
     MatIconModule,
     MatButtonModule,
     MatTooltipModule,
@@ -82,19 +85,27 @@ export class RolPermissionsDialogComponent implements OnInit {
     private permisosSvc: PermisosService,
     private modulosSvc: ModulosService,
     @Inject(DOCUMENT) private document: Document,
-  ) {}
+  ) { }
 
   // --------- Estado UI ---------
   loading = signal(true);
-  saving  = signal(false);
+  saving = signal(false);
 
   // --------- Datos base (árbol y selección actual) ---------
-  private tree     = signal<NodoModulo[]>([]);
+  private tree = signal<NodoModulo[]>([]);
   private selected = signal<Set<string>>(new Set<string>()); // IDs de permisos del rol
 
-  selectedCount = computed(() => this.selected().size);
-  rootTitle     = computed(() => (this.tree() ?? []).map(r => r.nombre).join(' · ') || 'Permisos');
-  rolNombre     = computed(() => this.data.rol?.nombre || '—');
+  // Computed count of LEAF MODULES that have at least one permission active
+  selectedModulesCount = computed(() => {
+    return this.rows().filter(r => {
+      if (r.kind !== 'data') return false;
+      const d = r as TableDataRow;
+      return d.LEER || d.CREAR || d.ACTUALIZAR || d.ELIMINAR;
+    }).length;
+  });
+
+  rootTitle = computed(() => (this.tree() ?? []).map(r => r.nombre).join(' · ') || 'Permisos');
+  rolNombre = computed(() => this.data.rol?.nombre || '—');
   // --------- Índices auxiliares ---------
   private readonly ACTIONS: ActionCanonical[] = ['LEER', 'CREAR', 'ACTUALIZAR', 'ELIMINAR'];
 
@@ -106,9 +117,9 @@ export class RolPermissionsDialogComponent implements OnInit {
   };
 
   /** Mapa: modulo_id -> { LEER?: permisoId, ... } (para cualquier nodo, hoja o no) */
-  private permsByModule   = signal<Map<string, Partial<Record<ActionCanonical, string>>>>(new Map());
+  private permsByModule = signal<Map<string, Partial<Record<ActionCanonical, string>>>>(new Map());
   /** Mapa: modulo_id -> nombre (para render en filas data) */
-  private moduleNameById  = signal<Map<string, string>>(new Map());
+  private moduleNameById = signal<Map<string, string>>(new Map());
 
   // --------- Tabla ---------
   displayedColumns: Array<'modulo' | 'leer' | 'crear' | 'actualizar' | 'eliminar'> =
@@ -116,13 +127,13 @@ export class RolPermissionsDialogComponent implements OnInit {
 
   /** Predicados para filas */
   isGroup = (_: number, r: TableGroupRow | TableDataRow) => r?.kind === 'group';
-  isData  = (_: number, r: TableGroupRow | TableDataRow) => r?.kind === 'data';
+  isData = (_: number, r: TableGroupRow | TableDataRow) => r?.kind === 'data';
 
   /** Filas calculadas (grupos + hojas) con niveles para indentación */
   rows = computed<(TableGroupRow | TableDataRow)[]>(() => {
-    const roots    = this.tree() ?? [];
-    const sel      = this.selected();
-    const idx      = this.permsByModule();
+    const roots = this.tree() ?? [];
+    const sel = this.selected();
+    const idx = this.permsByModule();
     const nameById = this.moduleNameById();
 
     const out: (TableGroupRow | TableDataRow)[] = [];
@@ -199,7 +210,7 @@ export class RolPermissionsDialogComponent implements OnInit {
   // ---------- Indexación del árbol ----------
   private buildIndexes(roots: NodoModulo[]) {
     const permsMap = new Map<string, Partial<Record<ActionCanonical, string>>>();
-    const nameMap  = new Map<string, string>();
+    const nameMap = new Map<string, string>();
 
     const toCanonical = (raw?: string | null): ActionCanonical | undefined => {
       if (!raw) return undefined;
@@ -242,7 +253,7 @@ export class RolPermissionsDialogComponent implements OnInit {
   toggleCell(moduloId: string, action: ActionCanonical, checked: boolean) {
     const permId = this.getPermId(moduloId, action);
     if (!permId) {
-      Swal.fire({ icon: 'info', title: 'Acción no disponible', text: `Este módulo no tiene "${action}".` });
+      // UI should prevent this, but fail silently if forced
       return;
     }
     const next = new Set(this.selected());
@@ -265,7 +276,7 @@ export class RolPermissionsDialogComponent implements OnInit {
     this.permisosSvc.assignPermissions(this.data.rol.id, ids)
       .pipe(take(1))
       .subscribe({
-        next: (res) => {
+        next: (res: any) => {
           this.saving.set(false);
           Swal.fire({
             icon: 'success',
@@ -274,7 +285,7 @@ export class RolPermissionsDialogComponent implements OnInit {
           });
           this.dialogRef.close({ ok: true });
         },
-        error: (err) => {
+        error: (err: any) => {
           this.saving.set(false);
           Swal.fire({ icon: 'error', title: 'Error', text: 'No se pudieron guardar los permisos.' });
         }

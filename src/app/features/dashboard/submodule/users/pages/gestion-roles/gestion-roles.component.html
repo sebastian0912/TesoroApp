@@ -4,7 +4,7 @@
 
     <span class="spacer"></span>
 
-    <!-- Menú 3 puntos (acciones secundarias) -->
+    <!-- Menú 3 puntos (acciones secundarias globales) -->
     <button mat-icon-button [matMenuTriggerFor]="menu" aria-label="Más opciones">
       <mat-icon>more_vert</mat-icon>
     </button>
@@ -15,26 +15,49 @@
       </button>
       <button mat-menu-item (click)="nuevo()">
         <mat-icon>person_add</mat-icon>
-        <span>Crear usuario</span>
+        <span>Crear rol</span>
       </button>
     </mat-menu>
   </mat-card-header>
 
   <mat-card-content class="card-content">
-    <app-standard-filter-table [data]="roles()" [columnDefinitions]="columns()" [tableTitle]="'Roles'">
+    <app-standard-filter-table
+      [data]="roles()"
+      [columnDefinitions]="columns()"
+      [tableTitle]="'Roles'">
 
-      <!-- Acciones por fila -->
+      <!-- Acciones por fila (con MatMenu) -->
       <ng-template #actionsTemplate let-row>
-        <button mat-icon-button matTooltip="Permisos" (click)="permisos(row)">
-          <mat-icon>lock</mat-icon>
+        <!-- Trigger -->
+        <button
+          mat-icon-button
+          [matMenuTriggerFor]="rowMenu"
+          matTooltip="Acciones"
+          aria-label="Acciones"
+          data-row-click-ignore="true"
+          (click)="$event.stopPropagation()">
+          <mat-icon>more_vert</mat-icon>
         </button>
-        <button mat-icon-button matTooltip="Editar" (click)="editar(row)">
-          <mat-icon>edit</mat-icon>
-        </button>
-        <button mat-icon-button color="warn" matTooltip="Eliminar" (click)="eliminar(row)">
-          <mat-icon>delete</mat-icon>
-        </button>
+
+        <!-- Menu por fila -->
+        <mat-menu #rowMenu="matMenu">
+          <button mat-menu-item (click)="permisos(row)">
+            <mat-icon>lock</mat-icon>
+            <span>Permisos</span>
+          </button>
+
+          <button mat-menu-item (click)="editar(row)">
+            <mat-icon>edit</mat-icon>
+            <span>Editar</span>
+          </button>
+
+          <button mat-menu-item (click)="eliminar(row)">
+            <mat-icon color="warn">delete</mat-icon>
+            <span>Eliminar</span>
+          </button>
+        </mat-menu>
       </ng-template>
+
     </app-standard-filter-table>
   </mat-card-content>
 </mat-card>

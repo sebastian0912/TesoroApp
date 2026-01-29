@@ -1,119 +1,256 @@
-/* ===== Contenido del diálogo: alto controlado y scroll vertical ===== */
+/* ===== Variables Corporativas (Scope Local) ===== */
+:host {
+  --brand-main: #051b3f;
+  /* Color Principal Obligatorio */
+  --brand-50: #eff3ff;
+  /* Fondo suave */
+  --brand-100: #dbeafe;
+  /* Borde suave */
+  --brand-600: #2563eb;
+  /* Acento/Interacción (azul vibrante compatible) */
+  --text-main: #1e293b;
+  --text-secondary: #64748b;
+  --surface: #ffffff;
+  --border-radius: 12px;
+  --transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ===== Contenedor del Diálogo ===== */
+/* Asegura scroll correcto sin cortar header/footer */
 :host-context(.orden-union-dialog-panel) .mat-mdc-dialog-content {
-  max-height: calc(90vh - 96px) !important; /* espacio para título + acciones */
-  overflow-y: auto !important;
-  overflow-x: hidden !important;
+  max-height: calc(90vh - 130px) !important;
+  padding: 0 !important;
+  /* Reset padding interno material */
+  display: flex;
+  flex-direction: column;
 }
 
-/* ===== Título ===== */
-.titulo {
-  margin: 0 0 8px;
-  font-weight: 600;
-  letter-spacing: .2px;
-  font-size: 18px;
+/* ===== Header ===== */
+.dialog-header {
+  padding: 24px 24px 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  border-bottom: 1px solid var(--brand-100);
+  background: var(--surface);
 }
 
-/* ===== Contenedor del contenido ===== */
-.content {
-  width: min(640px, 92vw);
-  padding-top: 4px;
-  box-sizing: border-box;
+.header-text h2 {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--brand-main);
+  letter-spacing: -0.01em;
 }
 
-/* ===== Toolbar ===== */
-.toolbar {
+.subtitle {
+  margin: 4px 0 0;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+}
+
+.selection-counter {
+  font-size: 0.875rem;
+  color: var(--brand-main);
+  background: var(--brand-50);
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+/* ===== Body Layout ===== */
+.dialog-body {
+  padding: 0;
+  overflow: hidden;
+  /* Flex container controls internal scroll */
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ===== Toolbar de Acciones ===== */
+.actions-toolbar {
+  padding: 12px 24px;
+  background: #f8fafc;
+  border-bottom: 1px solid var(--brand-100);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.action-btn {
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+.action-btn:hover {
+  background-color: rgba(5, 27, 63, 0.04);
+  color: var(--brand-main);
+}
+
+/* ===== Lista Drag & Drop ===== */
+.drag-list {
+  padding: 16px 24px;
+  overflow-y: auto;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* ===== Tarjeta de Ítem ===== */
+.drag-item-card {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-bottom: 12px;
-}
-.spacer { flex: 1; }
-.contador { font-size: .95rem; color: #222; opacity: .85; }
-
-/* ===== Lista: UNA sola columna, orientación vertical ===== */
-.drop-list {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 10px;
-  padding: 0;
-  margin: 0;
+  padding: 12px 16px;
+  background: var(--surface);
+  border: 1px solid var(--brand-100);
+  border-radius: var(--border-radius);
+  transition: var(--transition);
+  position: relative;
 }
 
-/* ===== Ítem ===== */
-.row {
-  display: grid;
-  grid-template-columns: 40px 1fr 56px;  /* handle | texto | badge */
-  align-items: center;
-  padding: 10px 12px;
-  border: 1px solid #e6e6e6;
-  border-radius: 12px;
-  background: #fff;
-  transition: border-color .15s ease, box-shadow .15s ease, opacity .15s ease;
-  box-sizing: border-box;
-  min-height: 56px;
+.drag-item-card:hover {
+  border-color: #cbd5e1;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+  transform: translateY(-1px);
 }
-.row:hover {
-  border-color: #d6d6d6;
-  box-shadow: 0 1px 4px rgba(0,0,0,.04);
-}
-.row.unselected { opacity: .55; }
 
-/* ===== Handle (agarradera) ===== */
-.drag-handle {
+/* Estados de Selección */
+.drag-item-card.is-selected {
+  background-color: #fcfeff;
+  border-color: var(--brand-100);
+}
+
+.drag-item-card.is-unselected {
+  opacity: 0.7;
+  background-color: #f8fafc;
+}
+
+.drag-item-card.is-unselected:hover {
+  opacity: 1;
+}
+
+/* Handle */
+.handle-area {
   cursor: grab;
+  color: var(--text-secondary);
+  margin-right: 12px;
+  display: flex;
+  align-items: center;
+}
+
+.handle-icon {
+  font-size: 20px;
+  width: 20px;
+  height: 20px;
+}
+
+.drag-item-card:active .handle-area {
+  cursor: grabbing;
+}
+
+/* Contenido (Checkbox + Texto) */
+.card-content {
+  flex: 1;
+  min-width: 0;
+  /* Text truncation fix */
+  display: flex;
+  align-items: center;
+}
+
+.premium-checkbox {
+  width: 100%;
+}
+
+.item-text {
+  font-size: 0.95rem;
+  color: var(--text-main);
+  font-weight: 500;
+  display: block;
+  white-space: normal;
+  /* Permitir wrap si es muy largo */
+  line-height: 1.4;
+}
+
+/* Meta / Badge */
+.card-meta {
+  margin-left: 12px;
+}
+
+.order-pill {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  /* Pill style */
+  min-width: 24px;
+  height: 24px;
+  padding: 0 6px;
+  border-radius: 6px;
+  background-color: var(--brand-50);
+  color: var(--brand-main);
+  border: 1px solid var(--brand-100);
+  font-size: 0.75rem;
+  font-weight: 700;
 }
 
-/* ===== Texto multilínea sin montarse ===== */
-.item-check {
-  margin-left: 4px;
-  min-width: 0;
-}
-.item-check .mdc-label {
-  display: block;
-  max-width: 100%;
-  white-space: normal;
-  overflow-wrap: anywhere;
-  line-height: 1.25;
-  font-size: 14px;
-  font-weight: 500;
-  margin-right: 6px; /* respiro antes del badge */
-}
-
-/* ===== Badge (número de orden) ===== */
-.order-badge {
-  justify-self: end;
-  text-align: center;
-  position: relative;
-}
-.order-badge .mat-badge-content {
-  min-width: 22px;
-  height: 22px;
-  line-height: 22px;
-  font-size: 12px;
-  font-weight: 600;
-}
-
-/* ===== Placeholder del drag (ocupa el mismo espacio) ===== */
-.cdk-drag-placeholder {
-  border: 2px dashed #bdbdbd;
-  border-radius: 12px;
-  background: #fafafa;
-  min-height: 56px;
-}
-
-/* ===== Preview y animación de arrastre ===== */
+/* ===== Drag Feedback (CDK) ===== */
 .cdk-drag-preview {
-  box-shadow: 0 6px 16px rgba(0,0,0,.12);
-  border-radius: 12px;
-  background: #fff;
+  box-shadow: 0 10px 25px rgba(5, 27, 63, 0.15);
+  border-radius: var(--border-radius);
+  background: var(--surface);
+  border: 1px solid var(--brand-600);
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-weight: 600;
+  color: var(--brand-main);
+  opacity: 0.95;
 }
-.cdk-drag-animating { transition: transform .15s ease; }
-.drop-list.cdk-drop-list-dragging .row:not(.cdk-drag-placeholder) { opacity: .9; }
 
-/* ===== Ajuste en pantallas pequeñas ===== */
-@media (max-width: 420px) {
-  .content { width: 92vw; }
+.cdk-drag-placeholder {
+  opacity: 0;
+}
+
+.drag-item-card.cdk-drag-animating {
+  transition: transform 250ms cubic-bezier(0, 0, 0.2, 1);
+}
+
+.drag-list.cdk-drop-list-dragging .drag-item-card:not(.cdk-drag-placeholder) {
+  transition: transform 250ms cubic-bezier(0, 0, 0.2, 1);
+}
+
+/* ===== Footer ===== */
+.dialog-footer {
+  padding: 16px 24px;
+  border-top: 1px solid var(--brand-100);
+  background: #f8fafc;
+}
+
+/* ===== Responsiveness ===== */
+@media (max-width: 600px) {
+  .actions-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .group-left,
+  .group-right {
+    display: flex;
+    justify-content: space-between;
+  }
+
+  .dialog-header {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .selection-counter {
+    align-self: flex-start;
+  }
 }

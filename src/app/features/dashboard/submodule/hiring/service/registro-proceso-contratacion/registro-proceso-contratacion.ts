@@ -5,6 +5,171 @@ import { catchError, map, tap } from 'rxjs/operators';
 import { environment } from '@/environments/environment.development';
 import { isPlatformBrowser } from '@angular/common';
 
+export interface CandidatoUpsertPayload {
+  tipoDoc: string;
+  numeroCedula: string;
+
+  pApellido?: string;
+  sApellido?: string;
+  pNombre?: string;
+  sNombre?: string;
+  genero?: string;
+
+  correo?: string;
+  numCelular?: string;
+  numWha?: string;
+
+  departamento?: string;
+  ciudad?: string;
+  estadoCivil?: string;
+
+  direccionResidencia?: string;
+  barrio?: string;
+
+  fechaExpedicionCc?: string;
+  departamentoExpedicionCc?: string;
+  municipioExpedicionCc?: string;
+  lugarNacimientoDepartamento?: string;
+  lugarNacimientoMunicipio?: string;
+
+  rh?: string;
+  zurdoDiestro?: string;
+
+  tiempoResidenciaZona?: string;
+  lugarAnteriorResidencia?: string;
+  razonCambioResidencia?: string;
+  zonasConocidas?: string;
+  preferenciaResidencia?: string;
+
+  fechaNacimiento?: string;
+  estudiaActualmente?: string | boolean;
+
+  familiarEmergencia?: string;
+  parentescoFamiliarEmergencia?: string;
+  direccionFamiliarEmergencia?: string;
+  barrioFamiliarEmergencia?: string;
+  telefonoFamiliarEmergencia?: string;
+  ocupacionFamiliarEmergencia?: string;
+
+  oficina?: string;
+
+  escolaridad?: string;
+  estudiosExtra?: string;
+  nombreInstitucion?: string;
+  anoFinalizacion?: string; // ISO
+  tituloObtenido?: string;
+
+  chaqueta?: string | number;
+  pantalon?: string | number;
+  camisa?: string | number;
+  calzado?: string | number;
+
+  nombreConyugue?: string;
+  apellidoConyugue?: string;
+  numDocIdentidadConyugue?: string;
+  viveConElConyugue?: string;
+  direccionConyugue?: string;
+  telefonoConyugue?: string;
+  barrioMunicipioConyugue?: string;
+  ocupacionConyugue?: string;
+
+  nombrePadre?: string;
+  vivePadre?: boolean;
+  ocupacionPadre?: string;
+  direccionPadre?: string;
+  telefonoPadre?: string;
+  barrioPadre?: string;
+
+  nombreMadre?: string;
+  viveMadre?: boolean;
+  ocupacionMadre?: string;
+  direccionMadre?: string;
+  telefonoMadre?: string;
+  barrioMadre?: string;
+
+  nombreReferenciaPersonal1?: string;
+  telefonoReferenciaPersonal1?: string;
+  ocupacionReferenciaPersonal1?: string;
+  tiempoConoceReferenciaPersonal1?: string;
+  direccionReferenciaPersonal1?: string;
+
+  nombreReferenciaPersonal2?: string;
+  telefonoReferenciaPersonal2?: string;
+  ocupacionReferenciaPersonal2?: string;
+  tiempoConoceReferenciaPersonal2?: string;
+  direccionReferenciaPersonal2?: string;
+
+  nombreReferenciaFamiliar1?: string;
+  telefonoReferenciaFamiliar1?: string;
+  ocupacionReferenciaFamiliar1?: string;
+  parentescoReferenciaFamiliar1?: string;
+  tiempoConoceReferenciaFamiliar1?: string;
+  direccionReferenciaFamiliar1?: string;
+
+  nombreReferenciaFamiliar2?: string;
+  telefonoReferenciaFamiliar2?: string;
+  ocupacionReferenciaFamiliar2?: string;
+  parentescoReferenciaFamiliar2?: string;
+  tiempoConoceReferenciaFamiliar2?: string;
+  direccionReferenciaFamiliar2?: string;
+
+  nombreExpeLaboral1Empresa?: string;
+  direccionEmpresa1?: string;
+  telefonosEmpresa1?: string;
+  nombreJefeEmpresa1?: string;
+  fechaRetiroEmpresa1?: string;
+  motivoRetiroEmpresa1?: string;
+  cargoEmpresa1?: string;
+
+  empresas_laborado?: string;
+  labores_realizadas?: string;
+
+  rendimiento?: string;
+  porqueRendimiento?: string;
+
+  familiaConUnSoloIngreso?: boolean;
+  numHabitaciones?: string | number;
+  numPersonasPorHabitacion?: string | number;
+  tipoVivienda2p?: string;
+  caracteristicasVivienda?: string;
+
+  malentendido?: string;
+  experienciaLaboral?: boolean;
+
+  porqueLofelicitarian?: string;
+  areaExperiencia?: string;
+  areaCultivoPoscosecha?: string;
+
+  laboresRealizadas?: string;
+  tiempoExperiencia?: string;
+
+  actividadesDi?: string;
+  numHijosDependientes?: number;
+  cuidadorHijos?: string;
+
+  experienciaSignificativa?: string;
+  motivacion?: string;
+
+  fuenteVacante?: string;
+  expectativasDeVida?: string;
+  servicios?: string;
+  tipoVivienda?: string;
+  personasConQuienConvive?: string;
+  personas_a_cargo?: string;
+
+  hijos?: any[]; // si luego los manejas
+}
+
+export interface CandidatoUpsertResponse {
+  ok: boolean;
+  created: boolean;
+  candidato_id: number;
+  tipo_doc: string;
+  numero_documento: string;
+}
+
+
+
 // ===== Listado y filtros generales =====
 export interface ListOptions {
   page?: number;
@@ -137,7 +302,7 @@ export interface EnEsperaItem {
   area_experiencia: string | null;
   celular: string | null;
   whatsapp: string | null;
-  motivo_espera: string | null;    
+  motivo_espera: string | null;
 }
 
 export type RangoFechas = { start: string | Date; end: string | Date };
@@ -149,6 +314,30 @@ export class RegistroProcesoContratacion {
   private base = `${this.apiUrl}/gestion_contratacion`;
 
   constructor(private http: HttpClient, @Inject(PLATFORM_ID) private platformId: Object) { }
+
+  /**
+   * POST /gestion_contratacion/candidatos/upsert/
+   * - Backend: upsert idempotente (crea o actualiza, sin duplicar).
+   */
+  upsertCandidato(payload: CandidatoUpsertPayload): Observable<CandidatoUpsertResponse> {
+    const url = `${this.base}/candidatos/upsert/`;
+
+    // (Opcional) Evitar llamadas desde SSR si aplica
+    if (!isPlatformBrowser(this.platformId)) {
+      return new Observable<CandidatoUpsertResponse>((sub) => {
+        sub.next({
+          ok: false,
+          created: false,
+          candidato_id: 0,
+          tipo_doc: payload.tipoDoc,
+          numero_documento: payload.numeroCedula,
+        });
+        sub.complete();
+      });
+    }
+
+    return this.http.post<CandidatoUpsertResponse>(url, payload);
+  }
 
   /** Obtiene el Excel como Blob (con filtro opcional por oficina). */
   getEntrevistasExcel(range: RangoFechas, oficina?: string | string[]): Observable<Blob> {

@@ -1,48 +1,57 @@
-import { MatButtonModule } from '@angular/material/button';
+import { SelectionModel } from '@angular/cdk/collections';
+import { CdkTableModule } from '@angular/cdk/table';
+import { CommonModule, isPlatformBrowser } from '@angular/common';
 import {
+  AfterViewInit,
+  ChangeDetectionStrategy,
+  ChangeDetectorRef,
   Component,
-  Input,
-  OnInit,
-  OnChanges,
-  SimpleChanges,
-  ViewChild,
   ContentChild,
+  DoCheck,
+  EventEmitter,
+  Inject,
+  Input,
+  IterableDiffer,
+  IterableDiffers,
+  OnChanges,
+  OnDestroy,
+  OnInit,
+  Output,
+  PLATFORM_ID,
+  SimpleChanges,
+  TemplateRef,
+  ViewChild,
   ContentChildren,
   QueryList,
-  TemplateRef,
-  AfterViewInit,
   AfterContentInit,
-  OnDestroy,
-  ChangeDetectionStrategy,
 } from '@angular/core';
-import { CommonModule } from '@angular/common';
-import { MatTableDataSource, MatTableModule } from '@angular/material/table';
-import { MatSort, MatSortModule } from '@angular/material/sort';
-import { MatPaginator, MatPaginatorModule } from '@angular/material/paginator';
 import { FormControl, FormGroup, ReactiveFormsModule } from '@angular/forms';
-import * as XLSX from 'xlsx';
-import { CdkTableModule } from '@angular/cdk/table';
+import { MatButtonModule } from '@angular/material/button';
+import { MatCheckboxModule } from '@angular/material/checkbox';
+import { MatNativeDateModule } from '@angular/material/core';
+import { MatDatepickerModule } from '@angular/material/datepicker';
+import { MatSidenavModule, MatDrawer } from '@angular/material/sidenav';
+import { MatDividerModule } from '@angular/material/divider';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatIconModule } from '@angular/material/icon';
+import { MatInputModule } from '@angular/material/input';
+import { MatMenuModule } from '@angular/material/menu';
+import { MatPaginator, MatPaginatorModule } from '@angular/material/paginator';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatSelectModule } from '@angular/material/select';
+import { MatSlideToggleChange, MatSlideToggleModule } from '@angular/material/slide-toggle';
+import { MatSort, MatSortModule } from '@angular/material/sort';
+import { MatTable, MatTableDataSource, MatTableModule } from '@angular/material/table';
+import { MatTooltipModule } from '@angular/material/tooltip';
+import { RouterModule } from '@angular/router';
 import Swal from 'sweetalert2';
+import * as XLSX from 'xlsx';
 
 import { merge, Subscription } from 'rxjs';
 import { debounceTime, startWith } from 'rxjs/operators';
 
-import {
-  ActiveFilter,
-  ColumnDefinition,
-} from '../../models/advanced-table-interface';
-
-import { MatIconModule } from '@angular/material/icon';
-import { MatFormFieldModule } from '@angular/material/form-field';
-import { MatInputModule } from '@angular/material/input';
-import { MatSelectModule } from '@angular/material/select';
-import { MatDatepickerModule } from '@angular/material/datepicker';
-import { MatCommonModule, MatNativeDateModule } from '@angular/material/core';
-import { MatMenuModule } from '@angular/material/menu';
-import { MatTooltipModule } from '@angular/material/tooltip';
-import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { ActiveFilter, ColumnDefinition, FilterOperator } from '../../models/advanced-table-interface';
 import { ColumnCellTemplateDirective } from '../../directives/column-cell-template.directive';
-
 
 type DateRangeGroup = FormGroup<{
   start: FormControl<Date | null>;
@@ -50,16 +59,17 @@ type DateRangeGroup = FormGroup<{
 }>;
 
 type StatusStyle = { color: string; background: string };
+type ViewMode = 'table' | 'cards';
 
 @Component({
   selector: 'app-standard-filter-table',
+  standalone: true,
   templateUrl: './standard-filter-table.html',
-  styleUrl: './standard-filter-table.css',
+  styleUrls: ['./standard-filter-table.css'],
   imports: [
     CommonModule,
     CdkTableModule,
     MatTableModule,
-    MatCommonModule,
     MatIconModule,
     MatFormFieldModule,
     MatInputModule,
@@ -73,85 +83,177 @@ type StatusStyle = { color: string; background: string };
     MatProgressSpinnerModule,
     MatSortModule,
     MatButtonModule,
-    ColumnCellTemplateDirective,
+    MatCheckboxModule,
+    MatSidenavModule,
+    MatSlideToggleModule,
+    MatDividerModule,
+    RouterModule,
   ],
-  changeDetection: ChangeDetectionStrategy.OnPush,
+  changeDetection: ChangeDetectionStrategy.Default,
 })
-export class StandardFilterTable
-  implements OnInit, OnChanges, AfterViewInit, AfterContentInit, OnDestroy {
-  // Templates de contenido proyectado (los que ya tenías)
+export class StandardFilterTable implements OnInit, OnChanges, AfterViewInit, DoCheck, OnDestroy, AfterContentInit {
+  readonly Array = Array;
+  readonly String = String;
+
+  // =========================
+  // differs: detecta mutación de arrays (push/splice) sin cambiar la referencia
+  // =========================
+  private dataDiffer: IterableDiffer<any>;
+  private colsDiffer: IterableDiffer<ColumnDefinition>;
+
+  // =========================
+  // Toggle vista (desktop)
+  // =========================
+  viewMode: ViewMode = 'table';
+  setViewMode(ev: MatSlideToggleChange): void {
+    this.viewMode = ev.checked ? 'cards' : 'table';
+    this.saveState();
+  }
+
+  // Templates proyectados
   @ContentChild('actionsTemplate') actionsTemplate?: TemplateRef<unknown>;
   @ContentChild('attachmentTemplate') attachmentTemplate?: TemplateRef<unknown>;
   @ContentChild('semaforoTemplate') semaforoTemplate?: TemplateRef<unknown>;
-  @ContentChild('estadoTemplate') estadoTemplate?: TemplateRef<unknown>;
 
-  // ✅ Templates genéricos por columna (bloqueado/activo/etc.)
-  @ContentChildren(ColumnCellTemplateDirective)
-  private columnTemplates?: QueryList<ColumnCellTemplateDirective>;
+  // Generic column templates
+  @ContentChildren(ColumnCellTemplateDirective) cellTemplatesQuery!: QueryList<ColumnCellTemplateDirective>;
+  customTemplates: Record<string, TemplateRef<any>> = {};
 
-  private columnTplMap = new Map<string, TemplateRef<any>>();
+  /**
+   * ✅ estadoTemplate ahora puede recibir:
+   * - $implicit: row
+   * - col: ColumnDefinition
+   */
+  @ContentChild('estadoTemplate') estadoTemplate?: TemplateRef<{ $implicit: any; col?: ColumnDefinition }>;
 
-  // Inputs de configuración
+  // Drawer
+  @ViewChild('drawer') drawer?: MatDrawer;
+
+  // Tabla (para recalcular sticky header/body en columnas dinámicas)
+  @ViewChild(MatTable) matTable?: MatTable<any>;
+
+  // Inputs
   @Input() data: any[] = [];
   @Input() columnDefinitions: ColumnDefinition[] = [];
   @Input() pageSizeOptions: number[] = [10, 20, 50];
   @Input() defaultPageSize = 10;
   @Input() tableTitle = 'Tabla de datos';
+  @Input() totalCount: number | null = null;
+
   @Input() customPdfExport?: () => void;
   @Input() isLoading = false;
+  @Input() createRoute?: string[] | null;
 
-  /** ✅ Opcional: overlay global con SweetAlert mientras isLoading=true */
   @Input() useSwalLoading = false;
+  @Input() enableRowClick = false;
 
+  @Input() enableSelection = false;
+
+  // Persistencia
+  @Input() storageKey?: string;
+
+  @Output() rowClicked = new EventEmitter<any>();
+
+  // Tabla
   displayedColumns: string[] = [];
-  displayedFilterColumns: string[] = [];
   dataSource = new MatTableDataSource<any>([]);
 
-  filterControls: Record<string, FormControl<any>> = {};
+  // Advanced Filters: Record<colName, FormGroup>
+  // Estructura del FG: { operator, value, min, max }
+  filterForms: Record<string, FormGroup> = {};
+
+  // Estado de filtrabilidad por columna (usuario puede apagar filtros)
+  // por defecto true, salvo que definition diga false.
+  filterEnabledByCol: Record<string, boolean> = {};
 
   @ViewChild(MatSort) sort?: MatSort;
   @ViewChild(MatPaginator) paginator?: MatPaginator;
 
-  // Rango de fechas global para todas las columnas tipo 'date'
+  // Búsqueda global
+  globalSearch = new FormControl<string>('', { nonNullable: true });
+
+  // Densidad
+  density: 'compact' | 'comfortable' = 'compact';
+
+  // Rango fechas global
   dateRange: DateRangeGroup = new FormGroup({
     start: new FormControl<Date | null>(null),
     end: new FormControl<Date | null>(null),
   });
 
-  readonly yesNoOptions: string[] = ['Activo', 'Inactivo'];
-  showFilters = false;
+  // Target para el rango de fechas: 'ALL' o el nombre de una columna date
+  dateTargetColumn = new FormControl<string>('ALL', { nonNullable: true });
 
-  private subscriptions = new Subscription();
+  // Helper options
+  readonly yesNoOptions: string[] = ['Activo', 'Inactivo'];
+
+  // Operadores disponibles
+  readonly textOperators: { val: FilterOperator, label: string }[] = [
+    { val: 'contains', label: 'Contiene' },
+    { val: 'equals', label: 'Igual a' },
+    { val: 'startsWith', label: 'Empieza con' },
+  ];
+  readonly numberOperators: { val: FilterOperator, label: string }[] = [
+    { val: 'equals', label: 'Igual a' },
+    { val: 'range', label: 'Rango' },
+    { val: 'gte', label: 'Mayor o igual' },
+    { val: 'lte', label: 'Menor o igual' },
+  ];
+
+  // Columnas visibles
+  visibleColumns: ColumnDefinition[] = [];
+  private visibleColumnNames = new Set<string>();
+
+  // Selección
+  selection = new SelectionModel<any>(true, []);
+
+  // Subs separadas
+  private filterSubs = new Subscription();
+  private uiSubs = new Subscription();
 
   // caches
   private colByName = new Map<string, ColumnDefinition>();
   private statusConfigByCol = new Map<string, Record<string, StatusStyle>>();
   private customConfigByCol = new Map<string, Record<string, StatusStyle>>();
 
+  // Select Search Caches
+  selectSearchControls: Record<string, FormControl<string>> = {};
+
+  constructor(
+    private cdr: ChangeDetectorRef,
+    private differs: IterableDiffers,
+    @Inject(PLATFORM_ID) private platformId: Object
+  ) {
+    // ✅ trackBy estable para detectar cambios con fiabilidad
+    this.dataDiffer = this.differs.find([]).create<any>((i, row) => this.trackByRow(i, row));
+    this.colsDiffer = this.differs.find([]).create<ColumnDefinition>((i, c) => c?.name ?? i);
+  }
+
   // trackBy
   trackByCol = (_: number, c: ColumnDefinition) => c?.name;
-  trackByRow = (i: number, row: any) =>
-    row?.id ?? row?.uuid ?? row?.code ?? row?._id ?? i;
+  trackByRow = (i: number, row: any) => row?.id ?? row?.uuid ?? row?.code ?? row?._id ?? i;
 
-  // ======================================================
-  // Ciclo de vida
-  // ======================================================
+  // =========================
+  // ✅ sticky refresher (header + body)
+  // =========================
+  private refreshSticky(): void {
+    queueMicrotask(() => this.matTable?.updateStickyColumnStyles());
+  }
+
+  // =========================
+  // lifecycle
+  // =========================
   ngOnInit(): void {
+    // Restaurar estado si existe key
+    if (this.storageKey) {
+      this.loadState();
+    }
+
     this.initializeTable();
     this.applyFilters();
   }
 
-  ngAfterContentInit(): void {
-    this.rebuildTemplateMap();
-    if (this.columnTemplates) {
-      this.subscriptions.add(
-        this.columnTemplates.changes.subscribe(() => this.rebuildTemplateMap()),
-      );
-    }
-  }
-
   ngOnChanges(changes: SimpleChanges): void {
-    // Swal opcional
     if (this.useSwalLoading && changes['isLoading']) {
       if (this.isLoading) {
         Swal.fire({
@@ -165,18 +267,49 @@ export class StandardFilterTable
       }
     }
 
-    if (
-      changes['columnDefinitions'] &&
-      !changes['columnDefinitions'].firstChange
-    ) {
+    // Si columnDefinitions llega como referencia nueva
+    if (changes['columnDefinitions'] && !changes['columnDefinitions'].firstChange) {
       this.rebuildColumnsAndFilters();
       return;
     }
 
+    if (changes['enableSelection'] && !changes['enableSelection'].firstChange) {
+      if (!this.enableSelection) this.selection.clear();
+      this.recomputeVisibleColumns();
+    }
+
+    // Si data llega como referencia nueva
     if (changes['data'] && !changes['data'].firstChange) {
-      this.dataSource.data = this.data || [];
-      this.applyFilters();
+      this.dataSource.data = (this.data || []).slice();
+
       if (this.paginator) this.dataSource.paginator = this.paginator;
+      if (this.sort) this.dataSource.sort = this.sort;
+
+      this.syncPaginatorLength();
+      this.applyFilters();
+    }
+
+    if (changes['defaultPageSize'] && !changes['defaultPageSize'].firstChange) {
+      if (this.paginator) {
+        this.paginator.pageSize = this.defaultPageSize;
+        this.paginator.firstPage();
+        this.syncPaginatorLength();
+      }
+    }
+  }
+
+  // ✅ esto detecta push/splice sin cambiar referencia (y sin necesidad de click)
+  ngDoCheck(): void {
+    const colsChanged = this.colsDiffer.diff(this.columnDefinitions || []);
+    if (colsChanged) {
+      this.rebuildColumnsAndFilters();
+      return;
+    }
+
+    const dataChanged = this.dataDiffer.diff(this.data || []);
+    if (dataChanged) {
+      this.applyFilters();
+      this.syncPaginatorLength();
     }
   }
 
@@ -184,11 +317,9 @@ export class StandardFilterTable
     if (this.sort) {
       this.dataSource.sort = this.sort;
 
-      // sorting accessor usando cache
       this.dataSource.sortingDataAccessor = (item: any, property: string) => {
         const col = this.colByName.get(property);
         const raw = item?.[property];
-
         if (!col) return raw;
 
         if (col.type === 'date') {
@@ -210,82 +341,142 @@ export class StandardFilterTable
     if (this.paginator) {
       this.dataSource.paginator = this.paginator;
       this.paginator.pageSize = this.defaultPageSize;
+
+      this.syncPaginatorLength();
+      this.uiSubs.add(this.paginator.page.subscribe(() => this.cdr.detectChanges()));
     }
+
+    // primer render con data actual
+    this.dataSource.data = (this.data || []).slice();
+    this.applyFilters();
+
+    this.refreshSticky();
+    this.cdr.detectChanges();
+  }
+
+
+
+  ngAfterContentInit() {
+    this.updateCustomTemplates();
+    this.cellTemplatesQuery.changes.subscribe(() => {
+      this.updateCustomTemplates();
+      this.cdr.markForCheck();
+    });
+  }
+
+  private updateCustomTemplates() {
+    this.customTemplates = {};
+    this.cellTemplatesQuery.forEach((item) => {
+      this.customTemplates[item.column] = item.template;
+    });
   }
 
   ngOnDestroy(): void {
-    this.subscriptions.unsubscribe();
+    this.filterSubs.unsubscribe();
+    this.uiSubs.unsubscribe();
+
     if (this.useSwalLoading && Swal.isVisible()) Swal.close();
   }
 
-  // ======================================================
-  // ✅ Templates por columna
-  // ======================================================
-  private rebuildTemplateMap(): void {
-    this.columnTplMap.clear();
-    (this.columnTemplates?.toArray() ?? []).forEach((t) => {
-      if (t.column) this.columnTplMap.set(t.column, t.template);
-    });
+  emitRowClick(row: any, event?: Event): void {
+    if (!this.enableRowClick) return;
+
+    const target = event?.target as HTMLElement | null;
+    if (target?.closest('button, a, mat-checkbox, [data-row-click-ignore="true"]')) return;
+
+    this.rowClicked.emit(row);
   }
 
-  /** Usado por el HTML: si existe template para la columna, se renderiza */
-  getCellTemplate(columnName: string): TemplateRef<any> | null {
-    return this.columnTplMap.get(columnName) ?? null;
+  // =========================
+  // Drawer & UI
+  // =========================
+  toggleDrawer(): void {
+    this.drawer?.toggle();
   }
 
-  // ======================================================
-  // Inicialización / configuración
-  // ======================================================
+  closeDrawer(): void {
+    this.drawer?.close();
+  }
+
+  // =========================
+  // init / rebuild
+  // =========================
   private initializeTable(): void {
     this.buildColumnCaches();
+    this.ensureVisibleColumnsInitialized();
+    this.recomputeVisibleColumns();
 
-    this.displayedColumns = (this.columnDefinitions || []).map((col) => col.name);
-    this.displayedFilterColumns = (this.columnDefinitions || []).map(
-      (col) => `${col.name}_filter`,
-    );
+    this.dataSource.data = (this.data || []).slice();
 
-    this.dataSource.data = this.data || [];
+    this.filterSubs.unsubscribe();
+    this.filterSubs = new Subscription();
 
-    // Reset controles + subs (ojo: NO toca el map de templates)
-    this.subscriptions.unsubscribe();
-    this.subscriptions = new Subscription();
-    this.filterControls = {};
+    // Rebuild controls preserving values if possible, or init new ones
+    // We clean old controls that probably don't match anymore
+    const oldForms = this.filterForms;
+    this.filterForms = {};
+    this.selectSearchControls = {};
 
-    // Crear controles
     (this.columnDefinitions || []).forEach((col) => {
-      if (col.filterable === false) return;
-      if (col.type === 'date') return; // dateRange global
+      // Init filterEnabledByCol default
+      if (this.filterEnabledByCol[col.name] === undefined) {
+        this.filterEnabledByCol[col.name] = col.filterable !== false;
+      }
 
-      const isMultiSelect = col.type === 'select' || col.type === 'status';
-      this.filterControls[col.name] = new FormControl<any>(isMultiSelect ? [] : '');
+      if (col.filterable === false) return;
+      if (col.type === 'date') return; // Date handled globally or specifically separate
+
+      const existing = oldForms[col.name];
+      const isMulti = col.type === 'select' || col.type === 'status';
+
+      // Default operators
+      let defaultOp: FilterOperator = 'contains';
+      if (col.type === 'number') defaultOp = 'equals';
+      if (isMulti) defaultOp = 'in'; // not really used but consistency
+
+      this.filterForms[col.name] = new FormGroup({
+        operator: new FormControl<FilterOperator>(existing?.value.operator ?? defaultOp),
+        value: new FormControl<any>(existing?.value.value ?? (isMulti ? [] : '')),
+        min: new FormControl<number | null>(existing?.value.min ?? null),
+        max: new FormControl<number | null>(existing?.value.max ?? null),
+      });
+
+      if (isMulti) {
+        this.selectSearchControls[col.name] = new FormControl('', { nonNullable: true });
+      }
     });
 
-    // Una sola suscripción combinada + debounce
     const streams = [
+      this.globalSearch.valueChanges.pipe(startWith(this.globalSearch.value)),
       this.dateRange.valueChanges.pipe(startWith(this.dateRange.value)),
-      ...Object.values(this.filterControls).map((c) =>
-        c.valueChanges.pipe(startWith(c.value)),
-      ),
+      this.dateTargetColumn.valueChanges.pipe(startWith(this.dateTargetColumn.value)),
+      ...Object.values(this.filterForms).map(g => g.valueChanges.pipe(startWith(g.value)))
     ];
 
-    this.subscriptions.add(
-      merge(...streams)
-        .pipe(debounceTime(120))
-        .subscribe(() => this.applyFilters()),
+    this.filterSubs.add(
+      merge(...streams).pipe(debounceTime(120)).subscribe(() => {
+        this.applyFilters();
+        this.refreshSticky();
+        this.cdr.detectChanges();
+      }),
     );
 
-    // volver a enganchar el changes de templates si ya existe QueryList
-    if (this.columnTemplates) {
-      this.subscriptions.add(
-        this.columnTemplates.changes.subscribe(() => this.rebuildTemplateMap()),
-      );
-    }
+    this.syncPaginatorLength();
+    this.refreshSticky();
   }
 
   private rebuildColumnsAndFilters(): void {
-    this.dateRange.reset({ start: null, end: null }, { emitEvent: false });
+    // Reset filters? Maybe keep if column name matches?
+    // User requested persistence, so try to keep.
+
+    // We update the visible columns set based on definitions
+    this.visibleColumnNames = new Set((this.columnDefinitions || []).map((c) => c.name));
+    if (this.columnDefinitions.some((c) => c.name === 'actions')) this.visibleColumnNames.add('actions');
+
     this.initializeTable();
     this.applyFilters();
+    this.refreshSticky();
+    this.cdr.detectChanges();
   }
 
   private buildColumnCaches(): void {
@@ -301,134 +492,291 @@ export class StandardFilterTable
     });
   }
 
-  // ======================================================
-  // Filtros
-  // ======================================================
+  private ensureVisibleColumnsInitialized(): void {
+    const names = (this.columnDefinitions || []).map((c) => c.name);
+
+    if (this.visibleColumnNames.size === 0) {
+      names.forEach((n) => this.visibleColumnNames.add(n));
+    } else {
+      // Clean up names that no longer exist
+      const now = new Set(names);
+      [...this.visibleColumnNames].forEach((n) => {
+        if (!now.has(n)) this.visibleColumnNames.delete(n);
+      });
+      // Add new ones (default visible behavior, or check preference?)
+      // If we are rebuilding, we might ideally respect user pref.
+      names.forEach((n) => {
+        if (!this.visibleColumnNames.has(n) && this.colByName.get(n)?.name) {
+          // If it's a new column, add it? Or leave hidden? 
+          // Behavior: if it wasn't there before, add it.
+          this.visibleColumnNames.add(n);
+        }
+      });
+    }
+
+    if (names.includes('actions')) this.visibleColumnNames.add('actions');
+  }
+
+  private recomputeVisibleColumns(): void {
+    this.visibleColumns = (this.columnDefinitions || []).filter((c) => this.visibleColumnNames.has(c.name));
+
+    const cols = this.visibleColumns.map((c) => c.name);
+    this.displayedColumns = this.enableSelection ? ['select', ...cols] : cols;
+
+    this.refreshSticky();
+    this.saveState();
+  }
+
+  private syncPaginatorLength(): void {
+    if (!this.paginator) return;
+    const len = this.totalCount ?? (this.dataSource.data?.length ?? 0);
+    this.paginator.length = len;
+  }
+
+  // =========================
+  // Columnas visibles (menu)
+  // =========================
+  isColumnVisible(name: string): boolean {
+    return this.visibleColumnNames.has(name);
+  }
+
+  toggleColumn(name: string, checked: boolean): void {
+    if (name === 'actions') return;
+    if (checked) this.visibleColumnNames.add(name);
+    else this.visibleColumnNames.delete(name);
+
+    this.recomputeVisibleColumns();
+    this.applyFilters();
+    this.refreshSticky();
+    this.cdr.detectChanges();
+  }
+
+  // Toggle filterability
+  isFilterEnabled(name: string): boolean {
+    return this.filterEnabledByCol[name] ?? true;
+  }
+
+  toggleFilterability(name: string, checked: boolean): void {
+    this.filterEnabledByCol[name] = checked;
+    this.applyFilters();
+    this.saveState();
+  }
+
+  // =========================
+  // Toolbar helpers
+  // =========================
+  clearGlobalSearch(): void {
+    this.globalSearch.setValue('', { emitEvent: false });
+    this.applyFilters();
+    this.refreshSticky();
+    // this.cdr.detectChanges(); // applyFilters triggers this likely via sync
+  }
+
+  hasAnyActiveFilters(): boolean {
+    return this.String(this.globalSearch.value ?? '').trim().length > 0 || this.getActiveFilters().length > 0;
+  }
+
+  // =========================
+  // Filters
+  // =========================
   applyFilters(): void {
     const sourceData = this.data || [];
 
+    const globalNeedle = this.String(this.globalSearch.value ?? '').trim().toLowerCase();
+
+    // Dates
     const start: Date | null = this.dateRange.get('start')?.value ?? null;
     const end: Date | null = this.dateRange.get('end')?.value ?? null;
-
-    const textFilters: Array<{ name: string; needle: string }> = [];
-    const multiFilters: Array<{ name: string; set: Set<any>; isStatus: boolean }> =
-      [];
-
-    for (const col of this.columnDefinitions || []) {
-      if (col.filterable === false) continue;
-      if (col.type === 'date') continue;
-
-      const ctrl = this.filterControls[col.name];
-      if (!ctrl) continue;
-
-      const val = ctrl.value;
-
-      if (Array.isArray(val)) {
-        if (val.length > 0) {
-          multiFilters.push({
-            name: col.name,
-            set: new Set(val),
-            isStatus: col.type === 'status',
-          });
-        }
-        continue;
-      }
-
-      if (typeof val === 'string') {
-        const needle = val.trim().toLowerCase();
-        if (needle) textFilters.push({ name: col.name, needle });
-        continue;
-      }
-
-      if (typeof val === 'number') {
-        multiFilters.push({
-          name: col.name,
-          set: new Set([val]),
-          isStatus: false,
-        });
-      }
-    }
-
-    const hasDateFilter = !!(start || end);
-    const dateCols = hasDateFilter
-      ? (this.columnDefinitions || []).filter(
-        (c) => c.type === 'date' && c.filterable !== false,
-      )
-      : [];
-
-    const hasAnyFilter =
-      textFilters.length > 0 || multiFilters.length > 0 || dateCols.length > 0;
-
-    if (!hasAnyFilter) {
-      this.dataSource.data = sourceData;
-      return;
-    }
-
-    // End inclusivo
     let inclusiveEnd: Date | null = null;
     if (end) {
       inclusiveEnd = new Date(end);
       inclusiveEnd.setHours(23, 59, 59, 999);
     }
+    const dateTarget = this.dateTargetColumn.value; // 'ALL' or colName
 
+    // Active Forms
+    const activeColFilters: Array<{
+      name: string;
+      op: FilterOperator;
+      val: any;
+      min: number | null;
+      max: number | null;
+      isStatus: boolean;
+      colType: string;
+    }> = [];
+
+    for (const col of this.columnDefinitions) {
+      if (col.filterable === false) continue;
+      if (!this.filterEnabledByCol[col.name]) continue; // User disabled
+      if (col.type === 'date') continue; // Handled separate
+
+      const form = this.filterForms[col.name];
+      if (!form) continue;
+
+      const { operator, value, min, max } = form.value;
+      const op = operator ?? 'contains';
+
+      // Check if filter is active
+      let isActive = false;
+
+      if (col.type === 'text') {
+        if (typeof value === 'string' && value.trim() !== '') isActive = true;
+      } else if (col.type === 'number') {
+        if (operator === 'range') {
+          if (min !== null || max !== null) isActive = true;
+        } else {
+          if (value !== null && value !== '' && value !== undefined) isActive = true;
+        }
+      } else if (col.type === 'select' || col.type === 'status') {
+        if (Array.isArray(value) && value.length > 0) isActive = true;
+      }
+
+      if (isActive) {
+        activeColFilters.push({
+          name: col.name,
+          op: operator,
+          val: value,
+          min: min ?? null,
+          max: max ?? null,
+          isStatus: col.type === 'status',
+          colType: col.type,
+        });
+      }
+    }
+
+    const hasDateFilter = !!(start || end);
+    // Determine which columns to check for date
+    const dateColsToCheck = this.columnDefinitions.filter(c => c.type === 'date' && c.filterable !== false);
+
+    const hasAnyFilter = !!globalNeedle || activeColFilters.length > 0 || hasDateFilter;
+
+    if (!hasAnyFilter) {
+      this.dataSource.data = sourceData.slice();
+      this.syncPaginatorLength();
+      this.pruneSelection();
+      this.refreshSticky();
+      return;
+    }
+
+    const searchCols = this.visibleColumns.filter((c) => !['actions', 'attachment', 'semaforo'].includes(c.name));
     const out: any[] = [];
+
     for (let i = 0; i < sourceData.length; i++) {
       const item = sourceData[i];
-
-      // text
       let ok = true;
-      for (let j = 0; j < textFilters.length; j++) {
-        const f = textFilters[j];
-        const v = (item?.[f.name] ?? '').toString().toLowerCase();
-        if (!v.includes(f.needle)) {
+
+      // 1. Global Search
+      if (globalNeedle) {
+        let hit = false;
+        for (const c of searchCols) {
+          const raw = item?.[c.name];
+          let v: string;
+          if (c.type === 'status') v = this.getStatusLabel(c.name, raw);
+          else if (c.type === 'date') {
+            const d = raw instanceof Date ? raw : raw ? new Date(raw) : null;
+            v = d && !isNaN(d.getTime()) ? d.toLocaleDateString() : '';
+          } else {
+            v = (raw ?? '').toString();
+          }
+          if (v.toLowerCase().includes(globalNeedle)) {
+            hit = true;
+            break;
+          }
+        }
+        if (!hit) {
           ok = false;
-          break;
         }
       }
+
       if (!ok) continue;
 
-      // multi/status
-      for (let j = 0; j < multiFilters.length; j++) {
-        const f = multiFilters[j];
+      // 2. Column Filters
+      for (const f of activeColFilters) {
         const raw = item?.[f.name];
 
-        if (f.isStatus) {
-          const label = this.getStatusLabel(f.name, raw);
-          if (!f.set.has(label)) {
+        // Select/Status
+        if (f.colType === 'select' || f.colType === 'status') {
+          // Usually strict match for options. Multi-select acts as OR/IN
+          const set = new Set(f.val as any[]);
+          let vToCheck = raw;
+          if (f.isStatus) vToCheck = this.getStatusLabel(f.name, raw);
+
+          if (!set.has(vToCheck)) {
             ok = false;
             break;
           }
+          continue;
+        }
+
+        // Number
+        if (f.colType === 'number') {
+          const n = typeof raw === 'number' ? raw : Number(raw);
+          if (isNaN(n)) {
+            ok = false;
+            break;
+          }
+
+          if (f.op === 'range') {
+            if (f.min !== null && n < f.min) { ok = false; break; }
+            if (f.max !== null && n > f.max) { ok = false; break; }
+          } else if (f.op === 'equals') {
+            if (n !== Number(f.val)) { ok = false; break; }
+          } else if (f.op === 'gte') {
+            if (n < Number(f.val)) { ok = false; break; }
+          } else if (f.op === 'lte') {
+            if (n > Number(f.val)) { ok = false; break; }
+          }
+          continue;
+        }
+
+        // Text
+        const s = (raw ?? '').toString().toLowerCase();
+        const needle = (f.val ?? '').toString().toLowerCase();
+
+        if (f.op === 'equals') {
+          if (s !== needle) { ok = false; break; }
+        } else if (f.op === 'startsWith') {
+          if (!s.startsWith(needle)) { ok = false; break; }
         } else {
-          if (!f.set.has(raw)) {
-            ok = false;
-            break;
-          }
+          // Default contains
+          if (!s.includes(needle)) { ok = false; break; }
         }
       }
+
       if (!ok) continue;
 
-      // date
-      if (dateCols.length) {
-        for (let j = 0; j < dateCols.length; j++) {
-          const col = dateCols[j];
+      // 3. Date Range
+      if (hasDateFilter && dateColsToCheck.length > 0) {
+        // Rule: 
+        // If dateTarget === 'ALL', then ANY date column match (OR logic? or AND? usually checks against relevant dates)
+        // "Todas las fechas" implies filtering records where the dates fall in range.
+        // If I choose 1 col, check that col.
+
+        const relevantCols = dateTarget === 'ALL'
+          ? dateColsToCheck
+          : dateColsToCheck.filter(c => c.name === dateTarget);
+
+        // Implementation detail: If ALL, should it be:
+        // A) Record is valid if ALL date columns are in range? (Restrictive)
+        // B) Record is valid if AT LEAST ONE date column is in range? (Permissive)
+        // C) Record is valid if data within specific columns are in range. Typically "Date Range" filters by "Created Date" or similar.
+        // Let's assume ALL targeted columns must be satisfied? Or just one?
+        // Usually strict filter: if I say "Date between X and Y", I want records where that date is X-Y.
+        // If I select "All dates", it's ambiguous. But let's assume valid: 
+        // Check each relevant column. If a column has a value, it MUST be in range.
+
+        for (const col of relevantCols) {
           const raw = item?.[col.name];
-          const d: Date | null =
-            raw instanceof Date ? raw : raw ? new Date(raw) : null;
+          const d: Date | null = raw instanceof Date ? raw : raw ? new Date(raw) : null;
 
           if (!d || isNaN(d.getTime())) {
+            // If date is missing/invalid, strict filter excludes it? Or ignores?
+            // Usually standard table excludes rows with null date if filtering by date.
             ok = false;
             break;
           }
-
-          if (start && d < start) {
-            ok = false;
-            break;
-          }
-
-          if (inclusiveEnd && d > inclusiveEnd) {
-            ok = false;
-            break;
-          }
+          if (start && d < start) { ok = false; break; }
+          if (inclusiveEnd && d > inclusiveEnd) { ok = false; break; }
         }
       }
 
@@ -436,79 +784,112 @@ export class StandardFilterTable
     }
 
     this.dataSource.data = out;
+    this.syncPaginatorLength();
 
     if (this.paginator && this.paginator.pageIndex !== 0) {
       this.paginator.firstPage();
     }
+
+    this.pruneSelection();
+    this.refreshSticky();
   }
 
   clearFilters(): void {
-    Object.keys(this.filterControls).forEach((key) => {
-      const ctrl = this.filterControls[key];
-      if (Array.isArray(ctrl.value)) ctrl.setValue([], { emitEvent: false });
-      else ctrl.setValue('', { emitEvent: false });
+    Object.values(this.filterForms).forEach((fg) => {
+      // Reset values but keep operators? Or reset everything?
+      // Resetting values is safer.
+      fg.patchValue({
+        value: Array.isArray(fg.value.value) ? [] : '',
+        min: null,
+        max: null
+      }, { emitEvent: false });
     });
 
+    this.globalSearch.setValue('', { emitEvent: false });
     this.dateRange.reset({ start: null, end: null }, { emitEvent: false });
+    this.dateTargetColumn.setValue('ALL', { emitEvent: false });
+
     this.applyFilters();
+  }
+
+  clearSingleFilter(name: string): void {
+    if (name === '__dateRange__') {
+      this.dateRange.reset();
+      return;
+    }
+
+    const fg = this.filterForms[name];
+    if (fg) {
+      fg.patchValue({ value: Array.isArray(fg.value.value) ? [] : '', min: null, max: null });
+    }
   }
 
   getActiveFilters(): ActiveFilter[] {
     const filters: ActiveFilter[] = [];
 
-    (this.columnDefinitions || []).forEach((col) => {
-      if (col.filterable === false) return;
+    // global date range
+    const start = this.dateRange.get('start')?.value;
+    const end = this.dateRange.get('end')?.value;
+    if (start || end) {
+      filters.push({
+        name: '__dateRange__',
+        header: 'Fecha (' + (this.dateTargetColumn.value === 'ALL' ? 'Todas' : this.colByName.get(this.dateTargetColumn.value)?.header) + ')',
+        type: 'date',
+        value: { from: start, to: end },
+        operator: 'range'
+      });
+    }
 
-      if (col.type === 'date') {
-        const start = this.dateRange.get('start')?.value;
-        const end = this.dateRange.get('end')?.value;
-        if (start || end) {
-          filters.push({
-            name: col.name,
-            header: col.header,
-            type: 'date',
-            value: { from: start, to: end },
-          });
-        }
-      } else if (this.filterControls[col.name]) {
-        const val = this.filterControls[col.name].value;
-        const hasVal =
-          (Array.isArray(val) && val.length > 0) ||
-          (typeof val === 'string' && val.trim().length > 0) ||
-          typeof val === 'number';
+    Object.keys(this.filterForms).forEach((colName) => {
+      const col = this.colByName.get(colName);
+      if (!col || !this.filterEnabledByCol[colName]) return;
 
-        if (hasVal) {
-          filters.push({
-            name: col.name,
-            header: col.header,
-            type: col.type,
-            value: val,
-          });
+      const form = this.filterForms[colName];
+      if (!form) return;
+
+      const { value, min, max, operator } = form.value;
+      const colType = col.type;
+
+      let hasVal = false;
+      let displayVal = value;
+
+      if (colType === 'number') {
+        if (operator === 'range') {
+          if (min !== null || max !== null) {
+            hasVal = true;
+            displayVal = `${min ?? '...'} - ${max ?? '...'}`;
+          }
+        } else {
+          if (value !== null && value !== '' && value !== undefined) hasVal = true;
         }
+      } else if (colType === 'select' || colType === 'status') {
+        if (Array.isArray(value) && value.length > 0) hasVal = true;
+      } else {
+        if (typeof value === 'string' && value.trim().length > 0) hasVal = true;
+      }
+
+      if (hasVal) {
+        filters.push({
+          name: colName,
+          header: col.header,
+          type: col.type,
+          value: displayVal,
+          operator: operator
+        });
       }
     });
 
     return filters;
   }
 
-  clearSingleFilter(filter: ActiveFilter): void {
-    if (filter.type === 'date') {
-      this.dateRange.reset({ start: null, end: null }, { emitEvent: false });
-    } else if (this.filterControls[filter.name]) {
-      const ctrl = this.filterControls[filter.name];
-      if (Array.isArray(ctrl.value)) ctrl.setValue([], { emitEvent: false });
-      else ctrl.setValue('', { emitEvent: false });
-    }
-    this.applyFilters();
-  }
-
   toggleFilters(): void {
-    this.showFilters = !this.showFilters;
+    // Mobile toggle
+    this.toggleDrawer();
   }
 
-  // ======================================================
-  // Status / custom styles
-  // ======================================================
+  // =========================
+  // status/custom
+  // =========================
   private getStatusConfig(columnName: string): Record<string, StatusStyle> {
     return this.statusConfigByCol.get(columnName) || {};
   }
@@ -540,9 +921,9 @@ export class StandardFilterTable
     return true;
   }
 
-  // ======================================================
-  // Exportaciones
-  // ======================================================
+  // =========================
+  // export
+  // =========================
   exportTable(format: 'pdf' | 'xml' | 'excel'): void {
     switch (format) {
       case 'pdf':
@@ -575,55 +956,92 @@ export class StandardFilterTable
   }
 
   private exportToExcel(): void {
-    const exportData = (this.dataSource.data as any[]).map((row) => {
-      const obj: Record<string, any> = {};
-      (this.columnDefinitions || []).forEach((col) => {
-        let value = row[col.name];
-        if (col.type === 'date') {
-          const d = value instanceof Date ? value : value ? new Date(value) : null;
-          value = d && !isNaN(d.getTime()) ? d.toLocaleString() : '';
-        }
-        obj[col.header] = value;
-      });
-      return obj;
-    });
-
-    if (!exportData.length) {
-      Swal.fire({
-        icon: 'warning',
-        title: 'Sin datos para exportar',
-        text: 'No hay registros que cumplan los filtros actuales.',
-        timer: 2500,
-        showConfirmButton: false,
-      });
-      return;
-    }
-
-    const worksheet: XLSX.WorkSheet = XLSX.utils.json_to_sheet(exportData);
-    const workbook: XLSX.WorkBook = {
-      Sheets: { Datos: worksheet },
-      SheetNames: ['Datos'],
-    };
-
-    const fileName = `${this.tableTitle || 'tabla'}.xlsx`;
-    XLSX.writeFile(workbook, fileName);
-
-    Swal.fire({
-      icon: 'success',
-      title: 'Exportación completada',
-      text: `Se ha generado el archivo ${fileName} con los registros filtrados.`,
-      timer: 2500,
-      showConfirmButton: false,
-    });
+    // Basic implementation
+    const data = this.dataSource.filteredData.length ? this.dataSource.filteredData : this.data;
+    const ws: XLSX.WorkSheet = XLSX.utils.json_to_sheet(data);
+    const wb: XLSX.WorkBook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Datos');
+    XLSX.writeFile(wb, 'export.xlsx');
   }
 
-  // ======================================================
-  // Paginación (vista móvil)
-  // ======================================================
+  // =========================
+  // Selection
+  // =========================
+  isAllSelected(): boolean {
+    const numSelected = this.selection.selected.length;
+    const numRows = this.dataSource.data.length;
+    return numSelected === numRows;
+  }
+
+  masterToggle(): void {
+    this.isAllSelected()
+      ? this.selection.clear()
+      : this.dataSource.data.forEach((row) => this.selection.select(row));
+  }
+
+  toggleRow(row: any): void {
+    this.selection.toggle(row);
+  }
+
+  private pruneSelection(): void {
+    // Si la data cambió, quitar de selection los que ya no existen?
+    // O mantenerlos? Usually keep unless we re-fetch.
+    // Here we just keep standard selection behavior.
+  }
+
   getPagedData(): any[] {
+    // Helper for cards view to respect pagination
     if (!this.paginator) return this.dataSource.data;
     const startIndex = this.paginator.pageIndex * this.paginator.pageSize;
-    const endIndex = startIndex + this.paginator.pageSize;
-    return this.dataSource.data.slice(startIndex, endIndex);
+    return this.dataSource.data.slice(startIndex, startIndex + this.paginator.pageSize);
+  }
+
+  // =========================
+  // Persistence
+  // =========================
+  private saveState(): void {
+    if (!this.storageKey) return;
+    if (!isPlatformBrowser(this.platformId)) return;
+
+    const state = {
+      visibleColumnNames: Array.from(this.visibleColumnNames),
+      filterEnabledByCol: this.filterEnabledByCol,
+      viewMode: this.viewMode,
+      density: this.density
+    };
+
+    try {
+      localStorage.setItem(this.storageKey, JSON.stringify(state));
+    } catch (e) {
+      console.error('Error saving table state', e);
+    }
+  }
+
+  private loadState(): void {
+    if (!this.storageKey) return;
+    if (!isPlatformBrowser(this.platformId)) return;
+
+    try {
+      const raw = localStorage.getItem(this.storageKey);
+      if (!raw) return;
+      const state = JSON.parse(raw);
+
+      if (state.visibleColumnNames) {
+        this.visibleColumnNames = new Set(state.visibleColumnNames);
+      }
+      if (state.filterEnabledByCol) {
+        this.filterEnabledByCol = state.filterEnabledByCol;
+      }
+      if (state.viewMode) this.viewMode = state.viewMode;
+      if (state.density) this.density = state.density;
+
+    } catch (e) {
+      console.error('Error loading table state', e);
+    }
+  }
+
+  // Get date cols for dropdown
+  getDateColumns(): ColumnDefinition[] {
+    return this.columnDefinitions?.filter(c => c.type === 'date') || [];
   }
 }

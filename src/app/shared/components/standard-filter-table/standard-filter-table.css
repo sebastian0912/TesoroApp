@@ -1,765 +1,730 @@
-/* ============================
-   Paleta / alturas - Estandarizada
-   ============================ */
 :host {
-  /* Colores principales del sistema */
-  --primary: #0c2771;
-  --primary-light: #d6e0fa;
-  --primary-hover: #303f9f;
-  --secondary-bg: #f5f7fb;
-  --text-main: #202944;
-  --text-muted: #434a56;
-  --danger: #e53935;
-  --danger-dark: #c62828;
-  --success: #4caf50;
-  --warning: #ff9800;
-  --shadow-main: 0 4px 18px 0 rgba(60, 110, 180, 0.11);
-  --shadow-hover: 0 6px 26px 0 rgba(60, 110, 180, 0.17);
-  --shadow-light: 0 2px 8px 0 rgba(60, 110, 180, 0.08);
-  --border-radius: 20px;
-  --border-radius-small: 8px;
-  --border-radius-medium: 12px;
-  --transition: 0.22s cubic-bezier(0.35, 1.05, 0.68, 0.97);
-  --transition-fast: 0.16s ease;
-  --spacing-xs: 4px;
-  --spacing-sm: 8px;
-  --spacing-md: 16px;
-  --spacing-lg: 24px;
-  --spacing-xl: 32px;
-
-  /* Variables de tabla derivadas */
-  --tbl-surface: #fff;
-  --tbl-on-surface: var(--text-main);
-  --tbl-border: #e2e8f0;
-  --tbl-hover: var(--primary-light);
-  --tbl-sticky-shadow: var(--shadow-light);
-
-  /* Scrollbar theme */
-  --tbl-scroll-thumb: rgba(63, 81, 181, 0.3);
-  --tbl-scroll-thumb-hover: rgba(63, 81, 181, 0.5);
-  --tbl-scroll-track: transparent;
-
-  /* Alturas */
-  --tbl-header-main-h: 88px;
-  --tbl-header-filter-h: 48px;
-  --tbl-toolbar-h: 56px;
-}
-
-/* ============================
-   Contenedor / tabla
-   ============================ */
-.table-container {
-  margin: 0 auto;
-  padding-top: var(--spacing-sm);
+  display: block;
+  height: 100%;
   width: 100%;
-  box-sizing: border-box;
-  max-height: 80vh;
-  overflow-x: auto;
-  /* scroll horizontal si no cabe */
+
+  /* --- PALETA CORPORATIVA --- */
+  --sft-base: #21263C;
+  --sft-accent: #8CD50A;
+
+  /* --- PALETA UI (Derived/Neutral) --- */
+  --sft-bg-app: #f9fafb;
+  --sft-text-main: #333333;
+  --sft-text-secondary: #666666;
+  --sft-border: #e0e0e0;
+
+  /* Tablet Theme Props */
+  --sft-header-bg: var(--sft-base);
+  --sft-header-text: #ffffff;
+  --sft-row-even-bg: #F6F8FB;
+  /* Zebra */
+  --sft-hover-bg: rgba(33, 38, 60, 0.04);
+  --sft-selected-bg: rgba(46, 134, 222, 0.08);
+  /* Azul muy suave */
+  --sft-selected-border: var(--sft-accent);
+
+  /* Drawer specific */
+  --sf-drawer-bg: #ffffff;
+  --sf-drawer-header-bg: var(--sft-base);
+  --sf-drawer-text: #333;
+}
+
+/* =========================================
+   DRAWER CONTAINER & LAYOUT (NO TOCAR)
+   ========================================= */
+.sf-drawer-container {
+  width: 100%;
+  height: 100%;
+  min-height: 500px;
+  background-color: var(--sft-bg-app);
+}
+
+.sf-filter-drawer {
+  width: 400px;
+  max-width: 90vw;
+  background-color: var(--sf-drawer-bg);
+  box-shadow: -4px 0 16px rgba(0, 0, 0, 0.15);
+  display: flex;
+  flex-direction: column;
+}
+
+@media (max-width: 600px) {
+  .sf-filter-drawer {
+    width: 100vw;
+    max-width: 100vw;
+  }
+}
+
+/* DRAWER HEADER */
+.sf-drawer-header {
+  padding: 16px 20px;
+  background-color: var(--sf-drawer-header-bg);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.sf-drawer-title h2 {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 500;
+  color: #fff;
+}
+
+.sf-drawer-subtitle {
+  font-size: 0.85rem;
+  opacity: 0.8;
+  display: block;
+}
+
+.sf-drawer-header button.mat-icon-button {
+  color: #fff;
+}
+
+/* DRAWER BODY */
+.sf-drawer-body {
+  flex: 1;
   overflow-y: auto;
-  /* scroll vertical dentro del contenedor */
-  /* Slim scrollbar (Firefox) */
-  scrollbar-width: thin;
-  scrollbar-color: var(--tbl-scroll-thumb) transparent;
-  scrollbar-gutter: stable;
+  padding: 0;
 }
 
-/* Slim scrollbar (Chromium/WebKit) */
-.table-container::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
+.sf-drawer-section {
+  padding: 20px;
 }
 
-.table-container::-webkit-scrollbar-thumb {
-  background: var(--tbl-scroll-thumb);
-  border-radius: var(--border-radius-small);
-  border: 2px solid transparent;
-  background-clip: content-box;
-  transition: var(--transition-fast);
+.sf-drawer-section h3 {
+  margin: 0 0 8px 0;
+  font-size: 1rem;
+  color: var(--sft-base);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
-.table-container::-webkit-scrollbar-thumb:hover {
-  background: var(--tbl-scroll-thumb-hover);
+.sf-section-desc {
+  margin: 0 0 16px 0;
+  font-size: 0.85rem;
+  color: var(--sft-text-secondary);
 }
 
-.table-container::-webkit-scrollbar-track {
-  background: var(--tbl-scroll-track);
+.sf-drawer-ff {
+  width: 100%;
+  margin-bottom: 12px;
 }
 
-.table-container::-webkit-scrollbar-corner {
-  background: transparent;
+/* Column Toggle List */
+.sf-cols-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
-.table--compact .mat-mdc-table {
-  table-layout: fixed;
-  width: max-content;
-  /* permite crecer más que el contenedor */
-  min-width: 100%;
-  /* al menos ocupar el ancho disponible */
-  border-spacing: 0;
-  border-collapse: collapse;
+.sf-col-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 0;
+  border-bottom: 1px solid transparent;
 }
 
-.table--compact .mat-mdc-header-cell,
-.table--compact .mat-mdc-cell {
-  box-sizing: border-box;
-  padding: var(--spacing-sm) var(--spacing-sm);
-  font-size: 0.94rem;
-  line-height: 1.35rem;
-  white-space: normal;
-  word-break: break-word;
-  overflow-wrap: anywhere;
-  vertical-align: middle;
-  background-clip: padding-box;
+.sf-col-item:hover {
+  background-color: #f5f5f5;
+  border-radius: 4px;
 }
 
-/* ============================
-   1) Encabezados sticky (arriba del todo)
-   ============================ */
-.header-row-main {
-  box-shadow: var(--tbl-sticky-shadow);
-  z-index: 7 !important;
-  height: var(--tbl-header-main-h);
+.sf-col-item-left {
+  flex: 1;
 }
 
-/* El sticky lo aplica Material por celda ⇒ ajustamos top en la celda */
-.header-row-main .mat-mdc-header-cell.mat-mdc-table-sticky {
-  top: 0 !important;
-  z-index: 7 !important;
+.sf-col-label {
+  font-size: 0.95rem;
 }
 
-.header-row-main .mat-mdc-header-cell {
-  background: var(--primary) !important;
-  color: white !important;
-  font-weight: 500 !important;
-  text-align: center;
-  letter-spacing: 0.3px;
-  transition: var(--transition-fast);
+.sf-col-filter-toggle {
+  color: #ccc;
+  transform: scale(0.9);
 }
 
-/* ============================
-   2) Filtros sticky (debajo del header)
-   ============================ */
-.header-row-filters {
-  background: #fff !important;
-  box-shadow: var(--tbl-sticky-shadow);
-  z-index: 6 !important;
-  height: var(--tbl-header-filter-h);
+.sf-col-filter-toggle.on {
+  color: var(--sft-accent);
 }
 
-.header-row-filters .mat-mdc-header-cell.mat-mdc-table-sticky {
-  top: var(--tbl-header-main-h) !important;
-  z-index: 6 !important;
+/* Filter Blocks */
+.sf-filter-block {
+  margin-bottom: 24px;
+  background: #fcfcfc;
+  border: 1px solid #eee;
+  border-radius: 8px;
+  padding: 12px;
 }
 
-.filter-cell {
-  padding: 0 8px;
-  box-sizing: border-box;
+.sf-filter-block-header {
+  font-weight: 600;
+  margin-bottom: 8px;
+  font-size: 0.9rem;
+  color: var(--sft-base);
+}
+
+.sf-filter-row {
+  display: flex;
+  gap: 8px;
+}
+
+.sf-filter-op {
+  flex: 0 0 120px;
+}
+
+.sf-filter-val {
+  flex: 1;
+}
+
+.sf-filter-op-full,
+.sf-filter-val-full {
+  width: 100%;
+}
+
+/* Mat Form Field overrides for compactness in drawer */
+:host ::ng-deep .sf-filter-drawer .mat-mdc-form-field-subscript-wrapper {
+  display: none;
+}
+
+:host ::ng-deep .sf-filter-drawer .mat-mdc-text-field-wrapper {
+  background-color: #fff;
+}
+
+/* DRAWER FOOTER */
+.sf-drawer-footer {
+  padding: 16px 20px;
+  border-top: 1px solid var(--sft-border);
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
   background: #fff;
 }
 
-.filter-cell .mat-mdc-text-field-wrapper {
-  background: var(--tbl-surface);
-  border-radius: var(--border-radius-small);
-  transition: var(--transition-fast);
-}
-
-.filter-cell .mat-mdc-text-field-wrapper:hover {
-  box-shadow: var(--shadow-light);
-}
-
-.filter-ff.dense .mat-mdc-text-field-wrapper {
-  --mdc-shape-small: var(--border-radius-small);
-  padding-top: 0;
-  padding-bottom: 0;
-  min-height: 40px;
-}
-
-.filter-ff.dense .mat-mdc-form-field-subscript-wrapper {
-  display: none;
-}
-
-.filter-cell .mat-mdc-select-trigger {
-  width: 100%;
-  height: 32px;
-  line-height: 32px;
-}
-
-.date-range-input {
-  width: 100%;
-  min-width: 0;
-}
-
-.date-range-input input {
-  font-size: 13px;
-  padding: 4px 6px;
-}
-
-/* ============================
-   3) Paginator-row (encima de la tabla, NO sticky)
-   ============================ */
-.paginator-row {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-md);
-  flex-wrap: wrap;
-  padding: var(--spacing-sm) var(--spacing-md);
-  margin-bottom: var(--spacing-sm);
-  background: var(--tbl-surface);
-  border: 1px solid var(--tbl-border);
-  border-radius: var(--border-radius-medium);
-  box-shadow: var(--shadow-light);
-  transition: var(--transition-fast);
-}
-
-.grow {
-  flex: 1 1 auto;
-}
-
-.table-paginator {
-  min-width: 240px;
-}
-
-/* Asegurar visibilidad del paginador */
-.table-paginator,
-mat-paginator {
-  display: block !important;
-  background: transparent;
-}
-
-.table-paginator .mat-mdc-paginator-container {
-  min-height: 56px;
-  padding: 0 8px;
-}
-
-.clear-filters-btn {
-  background-color: var(--primary) !important;
-}
-
-/* ============================
-   4) Filas (siempre por debajo)
-   ============================ */
-.table--compact .mat-mdc-row,
-mat-row.data-row {
-  position: relative;
-  z-index: 1;
-}
-
-mat-row.data-row:nth-child(even) {
-  background: var(--secondary-bg);
-}
-
-mat-row.data-row:hover {
-  background: var(--tbl-hover);
-  transition: var(--transition-fast);
-  transform: translateY(-1px);
-  box-shadow: var(--shadow-light);
-  cursor: pointer;
-}
-
-mat-row.data-row:focus-visible {
-  outline: 2px solid var(--primary);
-  outline-offset: -2px;
-}
-
-/* Mantener compatibilidad: clase sin truncamiento explícito */
-.cell-ellipsis {
-  white-space: normal;
-  overflow: visible;
-  text-overflow: clip;
-}
-
-.cell-right {
-  text-align: right;
-}
-
-.status-chip,
-.custom-chip {
-  display: inline-flex;
-  align-items: center;
-  padding: var(--spacing-xs) var(--spacing-sm);
-  border-radius: 999px;
-  font-weight: 600;
-  font-size: 0.85rem;
-  letter-spacing: 0.2px;
-  max-width: 100%;
-  white-space: normal;
-  overflow-wrap: anywhere;
-  transition: var(--transition-fast);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
-}
-
-/* ============================
-   Estados: Carga y Sin Datos
-   ============================ */
-
-/* Fila de estado vacío (carga o sin datos) */
-.empty-state-row td {
-  text-align: center;
-  padding: var(--spacing-xl) var(--spacing-lg);
-  background: var(--secondary-bg);
-}
-
-/* Estado de carga en tabla desktop */
-.loading-content {
+/* =========================================
+   MAIN LAYOUT & TOOLBAR
+   ========================================= */
+.sf-drawer-content {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: var(--spacing-md);
-  padding: var(--spacing-lg) 0;
-  animation: fadeIn 0.3s ease-in;
+  height: 100%;
+  background: #fff;
 }
 
-.loading-text {
-  color: var(--text-muted);
-  font-size: 1rem;
+.sf-main-layout {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 16px;
+  gap: 16px;
+}
+
+/* Toolbar */
+.sf-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.sf-title {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.sf-h1 {
+  margin: 0;
+  font-size: 1.5rem;
+  color: var(--sft-base);
+  font-weight: 600;
+}
+
+.sf-badge {
+  background-color: var(--sft-accent);
+  color: #fff;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.sf-tools {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+/* Search */
+.sf-search {
+  position: relative;
+  display: flex;
+  align-items: center;
+  background: #f1f3f4;
+  border-radius: 24px;
+  padding: 0 12px;
+  height: 40px;
+  width: 240px;
+  transition: all 0.2s;
+  border: 1px solid transparent;
+}
+
+.sf-search:focus-within {
+  background: #fff;
+  border-color: var(--sft-base);
+  box-shadow: 0 0 0 2px rgba(33, 38, 60, 0.1);
+}
+
+.sf-search-input {
+  border: none;
+  background: transparent;
+  width: 100%;
+  height: 100%;
+  outline: none;
+  font-size: 0.9rem;
+  color: var(--sft-text-main);
+  padding-left: 8px;
+}
+
+/* Actions Group */
+.sf-actions-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sf-btn-filter {
+  border-color: var(--sft-border);
+  color: var(--sft-base);
+}
+
+/* View toggle */
+.sf-view-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--sft-text-secondary);
+  margin: 0 8px;
+}
+
+.sf-view-toggle .active {
+  color: var(--sft-base);
+}
+
+/* Active Chips */
+.sf-active-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.sf-active-label {
+  font-size: 0.85rem;
+  color: var(--sft-text-secondary);
   font-weight: 500;
 }
 
-::ng-deep .loading-content .mat-mdc-progress-spinner circle {
-  stroke: var(--primary);
+.sf-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
-/* Estado sin datos en tabla desktop */
-.no-data-content {
+.sf-chip {
+  display: inline-flex;
+  align-items: center;
+  background: rgba(33, 38, 60, 0.08);
+  border: 1px solid rgba(33, 38, 60, 0.1);
+  padding: 4px 8px 4px 12px;
+  border-radius: 16px;
+  font-size: 0.85rem;
+  color: var(--sft-base);
+}
+
+.sf-chip-header {
+  font-weight: 600;
+  margin-right: 4px;
+}
+
+.sf-chip-op {
+  color: #666;
+  font-style: italic;
+  margin-right: 4px;
+}
+
+.sf-chip-val {
+  color: var(--sft-base);
+}
+
+/* Chips remove button */
+.sf-chip-x {
+  background: none;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  padding: 0;
+  margin-left: 6px;
+  opacity: 0.6;
+}
+
+.sf-chip-x:hover {
+  opacity: 1;
+  color: #d32f2f;
+}
+
+.sf-chip-x mat-icon {
+  font-size: 16px;
+  width: 16px;
+  height: 16px;
+}
+
+.sf-clear-all {
+  background: none;
+  border: none;
+  color: var(--sft-accent);
+  cursor: pointer;
+  font-size: 0.85rem;
+  text-decoration: underline;
+}
+
+/* =========================================
+   CONTENT AREA (Table / Cards)
+   ========================================= */
+.sf-content-area {
+  flex: 1;
+  overflow: hidden;
+  border-radius: 8px;
+  border: 1px solid var(--sft-border);
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+/* TABLE WRAPPER */
+.sf-table-wrapper {
+  overflow: auto;
+  height: 100%;
+  width: 100%;
+}
+
+.sf-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+/* --- THEAD --- */
+.sf-table th {
+  background-color: var(--sft-header-bg);
+  color: var(--sft-header-text);
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  font-size: 0.9rem;
+  text-transform: uppercase;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  height: 56px;
+  padding: 0 16px;
+  white-space: nowrap;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+  /* subtle shadow for stacking context */
+}
+
+/* Separadores sutiles entre headers */
+.sf-table th:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  top: 25%;
+  height: 50%;
+  width: 1px;
+  background-color: rgba(255, 255, 255, 0.2);
+}
+
+/* Sort Active State */
+.sf-table th.mat-sort-header-sorted {
+  color: #fff;
+}
+
+:host ::ng-deep .sf-table th.mat-sort-header-sorted .mat-sort-header-arrow {
+  color: var(--sft-accent) !important;
+  opacity: 1 !important;
+}
+
+:host ::ng-deep .sf-table th .mat-sort-header-content {
+  color: inherit;
+}
+
+/* Sort Active Text Highlight */
+.sf-table th.mat-sort-header-sorted .mat-sort-header-content {
+  color: var(--sft-accent);
+  text-shadow: 0 0 1px rgba(0, 0, 0, 0.5);
+}
+
+
+/* --- TBODY --- */
+.sf-table td {
+  color: var(--sft-text-main);
+  padding: 0 16px;
+  font-size: 0.9rem;
+  border-bottom: 1px solid var(--sft-border);
+  background-color: #fff;
+  transition: background-color 0.15s ease-in-out;
+
+  /* Text Wrapping */
+  white-space: normal;
+  overflow-wrap: anywhere;
+  max-width: 300px;
+  /* Prevent mega-cells by default */
+}
+
+/* Number cells align right */
+.sf-table .cell-number {
+  text-align: right;
+  justify-content: flex-end;
+}
+
+/* DENSITY */
+.sf-density-compact td,
+.sf-density-compact th {
+  height: 40px;
+  padding: 8px 12px;
+}
+
+.sf-density-comfortable td,
+.sf-density-comfortable th {
+  height: 64px;
+  padding: 12px 16px;
+}
+
+/* ZEBRA STRIPING */
+/* Applies to even rows */
+.sf-table tr:nth-child(even) td {
+  background-color: var(--sft-row-even-bg);
+}
+
+/* CHECKBOX CELL (Sticky Left) */
+.sf-select-cell {
+  width: 48px;
+  min-width: 48px;
+  padding: 0 8px !important;
+  text-align: center;
+}
+
+/* Ensure sticky checkbox sits on top */
+.sf-table .mat-column-select {
+  z-index: 11 !important;
+  /* higher than scrollable cells */
+  position: sticky;
+  left: 0;
+}
+
+/* Header checkbox needs correct bg */
+.sf-table th.mat-column-select {
+  background-color: var(--sft-header-bg);
+  z-index: 20 !important;
+  /* header + sticky left */
+}
+
+/* Body checkbox needs to respect zebra/row bg, handled via local TD styling usually, but sticky overrides defaults */
+.sf-table tr:nth-child(odd) td.mat-column-select {
+  background-color: #fff;
+}
+
+.sf-table tr:nth-child(even) td.mat-column-select {
+  background-color: var(--sft-row-even-bg);
+}
+
+
+/* ROW INTERACTIONS */
+
+/* Hover */
+.sf-table tr:hover td {
+  background-color: var(--sft-hover-bg) !important;
+  cursor: pointer;
+}
+
+/* Add a subtle left accent on hover to the first cell (or sticky cell?) */
+.sf-table tr:hover td:first-child {
+  box-shadow: inset 4px 0 0 0 var(--sft-base);
+}
+
+/* Selected */
+.sf-table tr.selected-row td {
+  background-color: var(--sft-selected-bg) !important;
+  color: #000;
+}
+
+/* Selected Accent */
+.sf-table tr.selected-row td:first-child {
+  box-shadow: inset 4px 0 0 0 var(--sft-selected-border);
+}
+
+
+/* --- STATUS BADGES --- */
+.sf-status-badge {
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+}
+
+.sf-custom-badge {
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 0.8rem;
+}
+
+/* --- LINKS / ACTIONS --- */
+.sf-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--sft-base);
+  text-decoration: none;
+  font-weight: 500;
+  transition: all 0.2s;
+  padding: 4px 8px;
+  border-radius: 4px;
+}
+
+.sf-link:hover {
+  background-color: rgba(33, 38, 60, 0.08);
+  text-decoration: none;
+  /* we use bg instead of underline for premium feel */
+}
+
+.sf-link:focus-visible {
+  outline: 2px solid var(--sft-accent);
+  border-radius: 4px;
+}
+
+.sf-link mat-icon {
+  font-size: 18px;
+  width: 18px;
+  height: 18px;
+}
+
+
+/* NO DATA */
+.sf-no-data {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: var(--spacing-md);
-  padding: var(--spacing-lg) 0;
-  animation: fadeIn 0.3s ease-in;
+  justify-content: center;
+  padding: 64px;
+  color: var(--sft-text-secondary);
+  gap: 16px;
+  background-color: #fff;
 }
 
-.no-data-icon {
-  font-size: 48px;
-  width: 48px;
-  height: 48px;
-  color: var(--text-muted);
-  opacity: 0.5;
+.sf-no-data mat-icon {
+  font-size: 64px;
+  width: 64px;
+  height: 64px;
+  opacity: 0.2;
 }
 
-.no-data-text {
-  color: var(--text-muted);
-  font-size: 1rem;
-  font-style: italic;
+/* =========================================
+   CARDS GRID (Responsive)
+   ========================================= */
+.sf-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+  padding: 16px;
+  overflow-y: auto;
+  background-color: var(--sft-bg-app);
 }
 
-/* Animación suave para transiciones */
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(-10px);
-  }
-
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-/* Refuerzo general para cualquier sticky de Material */
-.table--compact .mat-mdc-table-sticky {
-  background: var(--tbl-surface) !important;
-  box-shadow: var(--shadow-light);
-}
-
-/* ============================
-   Responsive
-   ============================ */
-
-/* Ocultar elementos en desktop por defecto */
-.mobile-filters-container,
-.mobile-cards-container {
-  display: none;
-}
-
-.desktop-only {
+.sf-card-item {
+  border: 1px solid var(--sft-border);
+  border-radius: 8px;
+  padding: 16px;
+  background: #fff;
   display: flex;
+  flex-direction: column;
+  gap: 12px;
+  transition: transform 0.2s, box-shadow 0.2s;
 }
 
-/* Estilos para móviles */
-@media (max-width: 900px) {
+/* Card interactions */
+.sf-card-item.clickable:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.08);
+  border-color: var(--sft-base);
+}
 
-  /* Ocultar tabla desktop y mostrar elementos móviles */
-  .desktop-table,
+.sf-card-item:focus-within {
+  border-color: var(--sft-accent);
+}
+
+.sf-card-row {
+  display: flex;
+  flex-direction: column;
+}
+
+.sf-card-label {
+  font-size: 0.7rem;
+  color: var(--sft-text-secondary);
+  text-transform: uppercase;
+  margin-bottom: 4px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+.sf-card-val {
+  font-size: 0.95rem;
+  color: var(--sft-text-main);
+  word-break: break-word;
+}
+
+.sf-card-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 12px;
+  border-top: 1px solid #f0f0f0;
+  padding-top: 12px;
+}
+
+/* Mobile responsive fixes */
+@media (max-width: 600px) {
+  .sf-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .sf-search {
+    width: 100%;
+  }
+
   .desktop-only {
     display: none !important;
   }
 
-  .mobile-filters-container,
-  .mobile-cards-container {
-    display: block;
-  }
-
-  /* ============================
-     Filtros móviles
-     ============================ */
-  .mobile-filters-container {
-    background: var(--tbl-surface);
-    border: 1px solid var(--tbl-border);
-    border-radius: var(--border-radius-medium);
-    padding: var(--spacing-sm) var(--spacing-md);
-    margin-bottom: var(--spacing-sm);
-    box-shadow: var(--shadow-light);
-  }
-
-  .mobile-filters-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: var(--spacing-md);
-    border-bottom: 1px solid var(--tbl-border);
-    background: var(--secondary-bg);
-    border-radius: var(--border-radius-medium) var(--border-radius-medium) 0 0;
-  }
-
-  .mobile-filters-header h3 {
-    margin: 0;
-    font-size: 1.1rem;
-    font-weight: 500;
-    color: var(--text-main);
-  }
-
-  .filters-toggle-btn {
-    color: var(--primary);
-    transition: var(--transition-fast);
-  }
-
-  .filters-toggle-btn:hover {
-    color: var(--primary-hover);
-    transform: scale(1.1);
-  }
-
-  .mobile-filters-content {
-    max-height: 0;
-    overflow: hidden;
-    transition: max-height 0.3s ease-in-out;
-  }
-
-  .mobile-filters-content.show {
-    max-height: max-content;
-    padding: var(--spacing-sm);
-  }
-
-  .filter-grid {
-    display: grid;
-    gap: var(--spacing-md);
-    grid-template-columns: 1fr;
-  }
-
-  .filter-item {
-    display: flex;
-    flex-direction: column;
-    gap: var(--spacing-sm);
-  }
-
-  .filter-label {
-    font-weight: 500;
-    font-size: 0.9rem;
-    color: var(--text-main);
-  }
-
-  .filter-ff.mobile {
-    width: 100%;
-  }
-
-  .filter-ff.mobile .mat-mdc-text-field-wrapper {
-    background: var(--tbl-surface);
-    border-radius: var(--border-radius-small);
-    transition: var(--transition-fast);
-  }
-
-  .filter-ff.mobile .mat-mdc-text-field-wrapper:focus-within {
-    box-shadow: var(--shadow-light);
-  }
-
-  .mobile-filter-actions {
-    padding-top: var(--spacing-sm);
-    border-top: 1px solid var(--tbl-border);
-    display: flex;
-    justify-content: center;
-  }
-
-  .clear-btn {
-    min-width: 140px;
-    background: var(--primary);
-    color: white;
-    font-weight: 500;
-    border-radius: var(--border-radius-small);
-    transition: var(--transition);
-    box-shadow: var(--shadow-light);
-  }
-
-  .clear-btn:hover {
-    background: var(--primary-hover);
-    box-shadow: var(--shadow-hover);
-    transform: translateY(-2px);
-  }
-
-  /* ============================
-     Tarjetas móviles
-     ============================ */
-  .mobile-cards-container {
-    display: flex;
-    flex-direction: column;
-    padding: var(--spacing-sm);
-    gap: var(--spacing-md);
-  }
-
-  .mobile-card {
-    background: var(--tbl-surface);
-    border: 1px solid var(--tbl-border);
-    border-radius: var(--border-radius-medium);
-    box-shadow: var(--shadow-light);
-    overflow: hidden;
-    transition: var(--transition);
-  }
-
-  .mobile-card:hover {
-    box-shadow: var(--shadow-hover);
-    transform: translateY(-2px);
-  }
-
-  .card-content {
-    padding: var(--spacing-md);
-  }
-
-  .card-fields {
-    display: grid;
-    gap: var(--spacing-md);
-    grid-template-columns: 1fr;
-  }
-
-  .card-field {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    gap: var(--spacing-md);
-    min-height: 24px;
-  }
-
-  .card-field-full {
-    grid-column: 1 / -1;
-    justify-content: center;
-    border-top: 1px solid var(--tbl-border);
-    padding-top: var(--spacing-sm);
-  }
-
-  .field-label {
-    font-weight: 500;
-    font-size: 0.9rem;
-    color: var(--text-muted);
-    flex-shrink: 0;
-    min-width: 100px;
-  }
-
-  .field-value {
-    font-size: 0.95rem;
-    color: var(--text-main);
-    text-align: right;
-    word-break: break-word;
-    flex: 1;
-  }
-
-  /* Chips en móvil */
-  .status-chip.mobile,
-  .custom-chip.mobile {
-    font-size: 0.8rem;
-    padding: var(--spacing-xs) var(--spacing-sm);
-    border-radius: var(--border-radius-small);
-    display: inline-block;
-    min-width: 60px;
-    transition: var(--transition-fast);
-  }
-
-  /* Acciones en tarjetas móviles */
-  .card-actions {
-    display: flex;
-    gap: var(--spacing-md);
-    justify-content: center;
-    flex-wrap: wrap;
-    padding: var(--spacing-sm) 0;
-  }
-
-  /* Botones de acción en tarjetas móviles */
-  .card-actions button {
-    width: 44px !important;
-    height: 44px !important;
-    min-width: 44px !important;
-    border-radius: var(--border-radius-medium);
-    touch-action: manipulation;
-    position: relative;
-    transition: var(--transition-fast);
-  }
-
-  .card-actions button:hover {
-    transform: scale(1.05);
-    box-shadow: var(--shadow-light);
-  }
-
-  .card-actions button mat-icon {
-    font-size: 20px !important;
-    width: 20px !important;
-    height: 20px !important;
-  }
-
-  /* Aumentar área táctil sin cambiar apariencia visual */
-  .card-actions button::before {
-    content: "";
-    position: absolute;
-    top: -8px;
-    left: -8px;
-    right: -8px;
-    bottom: -8px;
-    /* Invisible pero táctil */
-    background: transparent;
-  }
-
-  /* Estado de carga en móvil */
-  .loading-mobile {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    padding: var(--spacing-xl) var(--spacing-lg);
-    gap: var(--spacing-md);
-    background: var(--tbl-surface);
-    border-radius: var(--border-radius-medium);
-    margin-bottom: var(--spacing-md);
-  }
-
-  .loading-text-mobile {
-    color: var(--text-muted);
-    font-size: 1rem;
-    font-weight: 500;
-    margin: 0;
-  }
-
-  ::ng-deep .loading-mobile .mat-mdc-progress-spinner circle {
-    stroke: var(--primary);
-  }
-
-  /* Estado sin datos en móvil */
-  .no-data-mobile {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    padding: var(--spacing-xl) var(--spacing-lg);
-    color: var(--text-muted);
-    text-align: center;
-    background: var(--tbl-surface);
-    border-radius: var(--border-radius-medium);
-    margin-bottom: var(--spacing-md);
-  }
-
-  .no-data-mobile mat-icon {
-    font-size: 48px;
-    width: 48px;
-    height: 48px;
-    margin-bottom: var(--spacing-md);
-    opacity: 0.5;
-    color: var(--primary);
-  }
-
-  .no-data-mobile p {
-    font-size: 1.1rem;
-    margin: 0;
-    color: var(--text-muted);
-  }
-
-  /* Ajustes del paginador en móvil */
-  .paginator-row {
-    flex-direction: column;
-    align-items: stretch;
-    gap: var(--spacing-md);
-  }
-
-  .table-paginator,
-  .export-menu-btn {
-    width: 100%;
-  }
-
-  .table-paginator {
-    display: flex;
-    justify-content: center;
-  }
-
-  /* Ajustes para form fields en móvil */
-  .filter-ff.mobile .mdc-text-field {
-    height: 48px;
-  }
-
-  .filter-ff.mobile .mat-mdc-form-field-subscript-wrapper {
-    display: none;
-  }
-
-  /* Mejorar usabilidad táctil */
-  .mobile-card,
-  .filters-toggle-btn,
-  .clear-btn,
-  .export-menu-btn {
-    touch-action: manipulation;
+  /* On mobile cards, maybe less padding */
+  .sf-cards-grid {
+    padding: 8px;
   }
 }
 
-/* Estilos adicionales para tablets (768px - 900px) */
-@media (min-width: 768px) and (max-width: 900px) {
-  .card-fields {
-    grid-template-columns: 1fr 1fr;
-  }
-
-  .card-field-full {
-    grid-column: 1 / -1;
-  }
-
-  .filter-grid {
-    grid-template-columns: 1fr 1fr;
-  }
-}
-
-/* Breakpoint muy pequeño para móviles pequeños */
-@media (max-width: 480px) {
-  .table-container {
-    margin: 0;
-    padding: 0 var(--spacing-sm);
-  }
-
-  .mobile-card {
-    margin: 0 calc(-1 * var(--spacing-sm));
-    border-radius: var(--border-radius-small);
-  }
-
-  .card-content {
-    padding: var(--spacing-md);
-  }
-
-  .field-label {
-    min-width: 80px;
-    font-size: 0.85rem;
-  }
-
-  .field-value {
-    font-size: 0.9rem;
-  }
-
-  .mobile-filters-content.show {
-    padding: var(--spacing-md);
-  }
-
-  /* Botones de acción para móviles muy pequeños */
-  .card-actions {
-    gap: var(--spacing-sm);
-  }
-
-  .card-actions button {
-    width: 48px !important;
-    height: 48px !important;
-    min-width: 48px !important;
-    border-radius: 14px;
-  }
-
-  .card-actions button mat-icon {
-    font-size: 22px !important;
-    width: 22px !important;
-    height: 22px !important;
+/* ACCESSIBILITY: Reduced Motion */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+    animation: none !important;
   }
 }

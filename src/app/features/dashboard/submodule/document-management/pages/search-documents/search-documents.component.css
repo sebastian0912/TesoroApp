@@ -1,85 +1,365 @@
-.example-full-width:nth-child(1),
-.example-full-width:nth-child(2) {
-    max-width: 20% !important;
+/* --- Variables --- */
+:host {
+  --sd-base: #21263C;
+  --sd-accent: #8CD50A;
+  --sd-bg: #F8FAFC;
+  --sd-surface: #ffffff;
+  --sd-border: #e2e8f0;
+  --sd-text: #1e293b;
+  --sd-text-secondary: #64748b;
+
+  display: block;
+  min-height: 100vh;
+  background-color: var(--sd-bg);
+  padding: 32px;
+  border-radius: 30px;
+  /* Consistent Container Styling */
 }
 
-.example-full-width:nth-child(3) {
-    min-width: 50% !important;
+/* Base Container */
+.search-page-container {
+  max-width: 100%;
+  height: 85vh;
+  /* Fixed height for dashboard feel */
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
 }
 
-
-/* Contenedor principal que divide la pantalla en dos columnas */
-.split-container {
-    display: flex;
-    gap: 1rem;
-    padding: 1rem;
-    box-sizing: border-box;
-    min-height: 65vh;
+/* --- HEADER --- */
+.page-header {
+  flex-shrink: 0;
 }
 
-/* Panel izquierdo: categorías y documentos */
-.left-panel {
-    flex: 1;
-    background-color: #fafafa;
-    padding: 1rem;
-    border-radius: 4px;
-    box-shadow: 0 0 5px rgba(0, 0, 0, 0.1);
-    max-height: 62vh;
-    overflow-y: auto;
+.header-text h1 {
+  font-size: 28px;
+  font-weight: 800;
+  color: var(--sd-base);
+  margin: 0 0 8px 0;
+  letter-spacing: -0.5px;
 }
 
-/* Panel derecho: vista previa del PDF */
-.right-panel {
-    flex: 1.5;
-    border-radius: 4px;
-    display: flex;
+.header-text p {
+  margin: 0;
+  color: var(--sd-text-secondary);
+  font-size: 15px;
+}
+
+/* --- FILTERS --- */
+.filters-section {
+  background: var(--sd-surface);
+  border-radius: 16px;
+  border: 1px solid var(--sd-border);
+  padding: 20px 24px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  flex-shrink: 0;
+}
+
+.filters-form {
+  width: 100%;
+}
+
+.filters-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.filter-field {
+  flex: 1;
+  min-width: 200px;
+}
+
+/* Align button to bottom of inputs */
+.filter-actions {
+  display: flex;
+  align-items: center;
+  /* Center vertically if items have same height */
+  padding-top: 4px;
+  /* Slight adjust for label height */
+  height: 56px;
+  /* Match form field height approx */
+}
+
+.btn-search {
+  height: 52px;
+  border-radius: 12px !important;
+  padding: 0 32px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.5px;
+  background-color: var(--sd-accent) !important;
+  color: var(--sd-base) !important;
+  box-shadow: 0 4px 12px rgba(140, 213, 10, 0.3);
+}
+
+/* Mat Select indentation */
+.level-1 {
+  font-weight: 700;
+  color: var(--sd-text);
+}
+
+.level-2 {
+  padding-left: 24px !important;
+  color: var(--sd-text-secondary);
+}
+
+.level-3 {
+  padding-left: 48px !important;
+  color: var(--sd-text-secondary);
+  font-size: 13px;
+}
+
+/* --- MAIN LAYOUT --- */
+.results-split-layout {
+  display: flex;
+  gap: 24px;
+  flex: 1;
+  overflow: hidden;
+  /* Contains scroll areas */
+}
+
+/* --- RESULTS PANEL (LEFT) --- */
+.results-panel {
+  flex: 1;
+  /* Takes 50-60% typically */
+  background: var(--sd-surface);
+  border-radius: 16px;
+  border: 1px solid var(--sd-border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.panel-header {
+  padding: 16px 24px;
+  border-bottom: 1px solid var(--sd-border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #fdfdfd;
+}
+
+.panel-header h3 {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--sd-base);
+  margin: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.results-count {
+  font-size: 12px;
+  font-weight: 600;
+  background: #f1f5f9;
+  padding: 4px 12px;
+  border-radius: 12px;
+  color: var(--sd-text-secondary);
+}
+
+/* List Container */
+.results-list-container {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+  scrollbar-width: thin;
+}
+
+/* Category Block */
+.category-block {
+  margin-bottom: 24px;
+}
+
+.category-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding-left: 8px;
+}
+
+.folder-icon {
+  color: #94a3b8;
+}
+
+.category-header h4 {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--sd-text-secondary);
+  margin: 0;
+}
+
+/* Documents Group (Table-like rows) */
+.documents-group {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  /* Divider effect */
+  background: var(--sd-border);
+  /* Lines between rows */
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid var(--sd-border);
+}
+
+.doc-row {
+  display: grid;
+  grid-template-columns: 1fr auto 60px;
+  /* Name | Status | Actions */
+  align-items: center;
+  padding: 12px 16px;
+  background: white;
+  gap: 16px;
+  transition: background 0.2s;
+  cursor: default;
+}
+
+.doc-row.has-file {
+  cursor: pointer;
+}
+
+.doc-row.has-file:hover {
+  background: #f0fdf4;
+  /* Green tint */
+}
+
+.doc-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.doc-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--sd-text);
+}
+
+/* Status Chips */
+.status-chip {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 4px 10px;
+  border-radius: 6px;
+  letter-spacing: 0.02em;
+}
+
+.status-chip.success {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.status-chip.missing {
+  background: #f1f5f9;
+  color: #94a3b8;
+}
+
+/* Actions */
+.doc-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.view-btn {
+  color: var(--sd-base);
+}
+
+.missing-icon {
+  color: #cbd5e1;
+  font-size: 20px;
+}
+
+/* Empty State */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 64px 23px;
+  text-align: center;
+  color: var(--sd-text-secondary);
+}
+
+.empty-state mat-icon {
+  font-size: 48px;
+  width: 48px;
+  height: 48px;
+  margin-bottom: 16px;
+  opacity: 0.3;
+}
+
+/* --- PREVIEW PANEL (RIGHT) --- */
+.preview-panel {
+  flex: 1;
+  /* Takes remaining space */
+  background: var(--sd-surface);
+  border-radius: 16px;
+  border: 1px solid var(--sd-border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.preview-container {
+  flex: 1;
+  background: #333;
+  /* Dark background for PDF contrast */
+  position: relative;
+}
+
+.pdf-frame {
+  width: 100%;
+  height: 100%;
+  border: none;
+}
+
+/* --- RESPONSIVE --- */
+@media (max-width: 1024px) {
+  .results-split-layout {
     flex-direction: column;
+  }
+
+  .preview-panel {
+    height: 500px;
+    /* Fixed height when stacked */
+  }
 }
 
-.preview-title {
-    margin-top: 0;
-    font-size: 1.2rem;
-    font-weight: 600;
-    color: #333;
-}
+@media (max-width: 768px) {
+  :host {
+    padding: 16px;
+  }
 
-/* Contenedor de cada categoría */
-.category-group {
-    margin-bottom: 1.5rem;
-}
-
-/* Título de la categoría */
-.category-title {
-    margin: 0 0 0.5rem 0;
-    font-size: 1.1rem;
-    font-weight: 600;
-    color: #555;
-}
-
-/* Contenedor de cada documento */
-.document-item {
-    padding: 0.5rem 0;
-    border-bottom: 1px solid #eee;
-    display: flex;
+  .filters-grid {
     flex-direction: column;
-}
+  }
 
-/* Fila con detalles del documento y menú */
-.document-details {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-}
-
-/* Nombre del tipo documental */
-.document-type {
-    font-weight: 500;
-    color: #424242;
-}
-
-/* El iframe con la vista previa del PDF */
-.pdf-preview {
-    flex: 1;
+  .filter-field,
+  .filter-actions,
+  .btn-search {
     width: 100%;
-    border: none;
+  }
+
+  /* Adjust Row for Mobile */
+  .doc-row {
+    grid-template-columns: 1fr auto;
+    grid-template-areas: "info actions" "status actions";
+    gap: 8px;
+  }
+
+  .doc-info {
+    grid-area: info;
+  }
+
+  .doc-status {
+    grid-area: status;
+  }
+
+  .doc-actions {
+    grid-area: actions;
+    align-self: center;
+  }
 }

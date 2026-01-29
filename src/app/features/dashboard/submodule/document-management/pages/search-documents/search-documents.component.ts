@@ -1,7 +1,7 @@
 import { SharedModule } from '@/app/shared/shared.module';
 import { Component, ElementRef, ViewChild } from '@angular/core';
 import { FormBuilder, FormGroup, Validators } from '@angular/forms';
-import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
+import { DomSanitizer, SafeResourceUrl, Title, Meta } from '@angular/platform-browser';
 import { debounceTime, distinctUntilChanged, switchMap } from 'rxjs';
 import Swal from 'sweetalert2';
 import { DocumentacionService } from '../../service/documentacion/documentacion.service';
@@ -50,8 +50,14 @@ export class SearchDocumentsComponent {
     private fb: FormBuilder,
     private documentacionService: DocumentacionService,
     private utilityService: UtilityServiceService,
-    private sanitizer: DomSanitizer
+    private sanitizer: DomSanitizer,
+    private titleService: Title,
+    private metaService: Meta
   ) {
+    // SEO Init
+    this.titleService.setTitle('Buscar Documentos | Gestión Documental');
+    this.metaService.updateTag({ name: 'description', content: 'Consulta tipos documentales y verifica si existen archivos asociados.' });
+
     this.form = this.fb.group({
       cedula: ['', Validators.required],
       codigoContrato: [''],
@@ -185,10 +191,5 @@ export class SearchDocumentsComponent {
     // Ajusta a "tipoEncontrado?.name" porque la propiedad es "name"
     return tipoEncontrado ? tipoEncontrado.name : 'Tipo documental desconocido';
   }
-
-
-
-
-
 
 }
