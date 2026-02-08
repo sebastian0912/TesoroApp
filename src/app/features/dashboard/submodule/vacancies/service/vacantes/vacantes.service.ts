@@ -3,7 +3,7 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { isPlatformBrowser } from '@angular/common';
 import { Observable, of, throwError } from 'rxjs';
 import { map, catchError, tap } from 'rxjs/operators';
-import { environment } from '@/environments/environment.development';
+import { environment } from '@/environments/environment';
 
 @Injectable({ providedIn: 'root' })
 export class VacantesService {

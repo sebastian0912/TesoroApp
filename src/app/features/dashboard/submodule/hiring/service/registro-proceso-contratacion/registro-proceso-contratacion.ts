@@ -2,7 +2,7 @@ import { Inject, Injectable, PLATFORM_ID } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable, throwError, of } from 'rxjs';
 import { catchError, map, tap } from 'rxjs/operators';
-import { environment } from '@/environments/environment.development';
+import { environment } from '@/environments/environment';
 import { isPlatformBrowser } from '@angular/common';
 
 export interface CandidatoUpsertPayload {
@@ -246,6 +246,7 @@ export interface ProcesoUpdateByDocumentRequest {
     horas_extras?: boolean | null;
     desea_trasladarse?: boolean | null;
     seleccion_eps?: string | null;
+    contrasenia_asignada?: string | null;
   };
 
   examen_medico?: ExamenMedicoUpsertPayload;

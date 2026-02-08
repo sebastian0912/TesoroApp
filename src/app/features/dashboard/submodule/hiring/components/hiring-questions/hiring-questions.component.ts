@@ -98,7 +98,7 @@ export class HiringQuestionsComponent implements OnInit {
       {
         formaPago: ['', Validators.required],
         numeroPagos: ['', []],
-        validacionNumeroCuenta: ['', []],
+        contraseniaAsignada: ['', []],
         seguroFunerario: [false, Validators.required],
         Ccostos: ['', Validators.required],
         salario: [{ value: null, disabled: true }, Validators.required],
@@ -112,7 +112,7 @@ export class HiringQuestionsComponent implements OnInit {
         horasExtras: [false, Validators.required],
         fechaIngreso: [null, Validators.required],
       },
-      { validators: this.numbersMatch('numeroPagos', 'validacionNumeroCuenta') },
+      // { validators: this.numbersMatch('numeroPagos', 'validacionNumeroCuenta') },
     );
 
     this.referenciasForm = this.fb.group({
@@ -134,40 +134,39 @@ export class HiringQuestionsComponent implements OnInit {
   }
 
   // === Validador de coincidencia ===
-  numbersMatch(a: string, b: string): ValidatorFn {
-    return (group: AbstractControl): ValidationErrors | null => {
-      const va = group.get(a)?.value?.toString().trim() ?? '';
-      const vb = group.get(b)?.value?.toString().trim() ?? '';
-      if (!va || !vb) return null;          // no marque error hasta que ambos tengan algo
-      return va === vb ? null : { numbersNotMatch: true };
-    };
-  }
+  // === Validador de coincidencia (YA NO SE USA, PERO SE DEJA O SE BORRA) ===
+  // numbersMatch(...) { ... }
 
   // === Reglas dinámicas según forma de pago (CO) ===
   private setupFormaPagoValidation() {
     const formaCtrl = this.pagoTransporteForm.get('formaPago')!;
     const numCtrl = this.pagoTransporteForm.get('numeroPagos')!;
-    const valCtrl = this.pagoTransporteForm.get('validacionNumeroCuenta')!;
+    // const valCtrl = this.pagoTransporteForm.get('validacionNumeroCuenta')!;
 
-    const phoneCO = /^3\d{9}$/;       // Celular CO: 10 dígitos iniciando en 3 (Daviplata)
-    const acctCO  = /^\d{10,20}$/;    // Cuentas: solo dígitos, 10–20
+    // Daviplata: solo obligatorio (validación básica si quieres)
+    const phoneCO = /^3\d{9}$/;
+    // Otros: Tarjeta -> 16 o 18 dígitos
+    // Otros: Tarjeta -> 16 o 18 dígitos
+    const cardPattern = /^\d{16,18}$/;
+    const passCtrl = this.pagoTransporteForm.get('contraseniaAsignada');
 
     const apply = () => {
       const forma = formaCtrl.value;
       numCtrl.clearValidators();
-      valCtrl.clearValidators();
+      if (passCtrl) passCtrl.clearValidators();
 
       if (forma === 'Daviplata') {
-        numCtrl.setValidators([Validators.required, Validators.pattern(phoneCO)]);
-        valCtrl.setValidators([Validators.required, Validators.pattern(phoneCO)]);
+        // Daviplata => "Número de cuenta" (título en HTML), obligatorio. 
+        // Si quieres pattern de celular, úsalo:
+        numCtrl.setValidators([Validators.required]); // Ó [Validators.required, Validators.pattern(phoneCO)]
       } else if (forma) {
-        // Bancolombia, Davivienda, Colpatria, Otra…
-        numCtrl.setValidators([Validators.required, Validators.pattern(acctCO)]);
-        valCtrl.setValidators([Validators.required, Validators.pattern(acctCO)]);
+        // Otros => "Número de tarjeta", obligatorio, 16-18 dígitos
+        numCtrl.setValidators([Validators.required, Validators.pattern(cardPattern)]);
+        if (passCtrl) passCtrl.setValidators([Validators.required]);
       }
 
       numCtrl.updateValueAndValidity({ emitEvent: false });
-      valCtrl.updateValueAndValidity({ emitEvent: false });
+      if (passCtrl) passCtrl.updateValueAndValidity({ emitEvent: false });
     };
 
     apply();
@@ -215,6 +214,7 @@ export class HiringQuestionsComponent implements OnInit {
       contrato_detalle: {
         forma_de_pago?: string | null;
         numero_para_pagos?: string | null;
+        contrasenia_asignada?: string | null;
         seguro_funerario?: boolean | null;
         Ccentro_de_costos?: string | null;
         porcentaje_arl?: number | null;
@@ -232,6 +232,7 @@ export class HiringQuestionsComponent implements OnInit {
       contrato_detalle: {
         forma_de_pago: v.formaPago ?? null,
         numero_para_pagos: v.numeroPagos ?? null,
+        contrasenia_asignada: v.contraseniaAsignada ?? null,
         seguro_funerario: !!v.seguroFunerario,
         Ccentro_de_costos: v.Ccostos ?? null,
         porcentaje_arl: toNum(v.porcentajeARL),
@@ -582,7 +583,7 @@ export class HiringQuestionsComponent implements OnInit {
     const CONTR_KEYS: Array<keyof typeof contr> = [
       'forma_de_pago', 'numero_para_pagos', 'Ccentro_de_costos', 'porcentaje_arl', 'cesantias',
       'subcentro_de_costos', 'grupo', 'categoria', 'operacion', 'horas_extras', 'seguro_funerario',
-      'desea_trasladarse', 'seleccion_eps',
+      'desea_trasladarse', 'seleccion_eps', 'contrasenia_asignada',
     ];
     const contratoVacio = !contr || CONTR_KEYS.every(k => isEmptyValue((contr as any)?.[k]));
     const toNum = (v: any) => (v === '' || v == null ? null : Number(v));
@@ -591,7 +592,8 @@ export class HiringQuestionsComponent implements OnInit {
     this.pagoTransporteForm.patchValue({
       formaPago: contr?.forma_de_pago ?? '',
       numeroPagos: contr?.numero_para_pagos ?? null,
-      validacionNumeroCuenta: contr?.numero_para_pagos ?? null,
+      contraseniaAsignada: contr?.contrasenia_asignada ?? null,
+      // validacionNumeroCuenta: contr?.numero_para_pagos ?? null, // eliminado
       seguroFunerario: contr?.seguro_funerario ?? false,
       Ccostos: contr?.Ccentro_de_costos ?? '',
       porcentajeARL: contr?.porcentaje_arl != null ? toNum(contr.porcentaje_arl) : null,

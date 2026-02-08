@@ -21,41 +21,33 @@
         </mat-select>
       </mat-form-field>
 
-      <mat-form-field class="example-full-width"
-        *ngIf="pagoTransporteForm.controls['formaPago'].value === 'Otra'">
+      <mat-form-field class="example-full-width" *ngIf="pagoTransporteForm.controls['formaPago'].value === 'Otra'">
         <mat-label>Otra Forma de Pago</mat-label>
         <input matInput formControlName="otraFormaPago">
       </mat-form-field>
 
       <mat-form-field class="example-full-width">
-        <mat-label>Número para Pagos</mat-label>
+        <mat-label>
+          {{ pagoTransporteForm.get('formaPago')?.value === 'Daviplata' ? 'Número de cuenta' : 'Número de tarjeta' }}
+        </mat-label>
         <input matInput formControlName="numeroPagos">
-        <mat-error
-          *ngIf="pagoTransporteForm.controls['numeroPagos'].hasError('required')">
+        <mat-error *ngIf="pagoTransporteForm.controls['numeroPagos'].hasError('required')">
           Obligatorio.
         </mat-error>
-        <mat-error
-          *ngIf="pagoTransporteForm.controls['numeroPagos'].hasError('pattern')">
-          Debe tener 10 dígitos.
+        <mat-error *ngIf="pagoTransporteForm.controls['numeroPagos'].hasError('pattern')">
+          Debe tener 16 o 18 dígitos.
         </mat-error>
       </mat-form-field>
 
-      <mat-form-field class="example-full-width">
-        <mat-label>Validación Número de Cuenta</mat-label>
-        <input matInput formControlName="validacionNumeroCuenta">
-        <mat-error
-          *ngIf="pagoTransporteForm.controls['validacionNumeroCuenta'].hasError('required')">
+      <mat-form-field class="example-full-width" *ngIf="pagoTransporteForm.get('formaPago')?.value !== 'Daviplata'">
+        <mat-label>Contraseña asignada</mat-label>
+        <input matInput formControlName="contraseniaAsignada">
+        <mat-error *ngIf="pagoTransporteForm.controls['contraseniaAsignada']?.hasError('required')">
           Obligatorio.
         </mat-error>
-        <mat-error
-          *ngIf="pagoTransporteForm.controls['validacionNumeroCuenta'].hasError('pattern')">
-          Debe tener 10 dígitos.
-        </mat-error>
-        <mat-error *ngIf="pagoTransporteForm.hasError('numbersNotMatch')"
-          class="error">
-          El número para pagos y la validación deben coincidir.
-        </mat-error>
       </mat-form-field>
+
+      <!-- Eliminado validacion de numero de cuenta -->
 
       <mat-form-field class="example-full-width">
         <mat-label>Seguro Funerario</mat-label>
@@ -133,15 +125,12 @@
       <!-- fecha de ingreso -->
       <mat-form-field class="example-full-width">
         <mat-label>Fecha de Ingreso</mat-label>
-        <input matInput [matDatepicker]="pickerIngreso"
-          formControlName="fechaIngreso">
-        <mat-datepicker-toggle matSuffix
-          [for]="pickerIngreso"></mat-datepicker-toggle>
+        <input matInput [matDatepicker]="pickerIngreso" formControlName="fechaIngreso">
+        <mat-datepicker-toggle matSuffix [for]="pickerIngreso"></mat-datepicker-toggle>
         <mat-datepicker #pickerIngreso></mat-datepicker>
       </mat-form-field>
 
-      <button mat-flat-button color="primary"
-        (click)="cargarPagoTransporte()">Cargar</button>
+      <button mat-flat-button color="primary" (click)="cargarPagoTransporte()">Cargar</button>
     </div>
   </mat-tab>
 
@@ -160,10 +149,8 @@
           <mat-form-field appearance="fill" class="example-full-width">
             <mat-label>Familiar 1</mat-label>
             <input matInput formControlName="familiar1"
-              [value]="uploadedFiles['familiar1'] ? uploadedFiles['familiar1'].fileName : ''"
-              readonly>
-            <button mat-icon-button matSuffix [matMenuTriggerFor]="menuF1"
-              (click)="$event.stopPropagation()">
+              [value]="uploadedFiles['familiar1'] ? uploadedFiles['familiar1'].fileName : ''" readonly>
+            <button mat-icon-button matSuffix [matMenuTriggerFor]="menuF1" (click)="$event.stopPropagation()">
               <mat-icon>more_vert</mat-icon>
             </button>
           </mat-form-field>
@@ -188,10 +175,8 @@
           <mat-form-field appearance="fill" class="example-full-width">
             <mat-label>Familiar 2</mat-label>
             <input matInput formControlName="familiar2"
-              [value]="uploadedFiles['familiar2'] ? uploadedFiles['familiar2'].fileName : ''"
-              readonly>
-            <button mat-icon-button matSuffix [matMenuTriggerFor]="menuF2"
-              (click)="$event.stopPropagation()">
+              [value]="uploadedFiles['familiar2'] ? uploadedFiles['familiar2'].fileName : ''" readonly>
+            <button mat-icon-button matSuffix [matMenuTriggerFor]="menuF2" (click)="$event.stopPropagation()">
               <mat-icon>more_vert</mat-icon>
             </button>
           </mat-form-field>
@@ -216,10 +201,8 @@
           <mat-form-field appearance="fill" class="example-full-width">
             <mat-label>Personal 1</mat-label>
             <input matInput formControlName="personal1"
-              [value]="uploadedFiles['personal1'] ? uploadedFiles['personal1'].fileName : ''"
-              readonly>
-            <button mat-icon-button matSuffix [matMenuTriggerFor]="menuP1"
-              (click)="$event.stopPropagation()">
+              [value]="uploadedFiles['personal1'] ? uploadedFiles['personal1'].fileName : ''" readonly>
+            <button mat-icon-button matSuffix [matMenuTriggerFor]="menuP1" (click)="$event.stopPropagation()">
               <mat-icon>more_vert</mat-icon>
             </button>
           </mat-form-field>
@@ -244,10 +227,8 @@
           <mat-form-field appearance="fill" class="example-full-width">
             <mat-label>Personal 2</mat-label>
             <input matInput formControlName="personal2"
-              [value]="uploadedFiles['personal2'] ? uploadedFiles['personal2'].fileName : ''"
-              readonly>
-            <button mat-icon-button matSuffix [matMenuTriggerFor]="menuP2"
-              (click)="$event.stopPropagation()">
+              [value]="uploadedFiles['personal2'] ? uploadedFiles['personal2'].fileName : ''" readonly>
+            <button mat-icon-button matSuffix [matMenuTriggerFor]="menuP2" (click)="$event.stopPropagation()">
               <mat-icon>more_vert</mat-icon>
             </button>
           </mat-form-field>
@@ -272,10 +253,8 @@
           <mat-form-field appearance="fill" class="example-full-width">
             <mat-label>Laboral 1</mat-label>
             <input matInput formControlName="laboral1"
-              [value]="uploadedFiles['laboral1'] ? uploadedFiles['laboral1'].fileName : ''"
-              readonly>
-            <button mat-icon-button matSuffix [matMenuTriggerFor]="menuL1"
-              (click)="$event.stopPropagation()">
+              [value]="uploadedFiles['laboral1'] ? uploadedFiles['laboral1'].fileName : ''" readonly>
+            <button mat-icon-button matSuffix [matMenuTriggerFor]="menuL1" (click)="$event.stopPropagation()">
               <mat-icon>more_vert</mat-icon>
             </button>
           </mat-form-field>
@@ -285,8 +264,7 @@
             <button mat-menu-item>
               <label for="laboral1File">
                 Subir PDF
-                <input id="laboral1File" type="file" style="display:none"
-                  (change)="subirArchivo($event,'laboral1')" />
+                <input id="laboral1File" type="file" style="display:none" (change)="subirArchivo($event,'laboral1')" />
               </label>
             </button>
           </mat-menu>
@@ -300,10 +278,8 @@
           <mat-form-field appearance="fill" class="example-full-width">
             <mat-label>Laboral 2</mat-label>
             <input matInput formControlName="laboral2"
-              [value]="uploadedFiles['laboral2'] ? uploadedFiles['laboral2'].fileName : ''"
-              readonly>
-            <button mat-icon-button matSuffix [matMenuTriggerFor]="menuL2"
-              (click)="$event.stopPropagation()">
+              [value]="uploadedFiles['laboral2'] ? uploadedFiles['laboral2'].fileName : ''" readonly>
+            <button mat-icon-button matSuffix [matMenuTriggerFor]="menuL2" (click)="$event.stopPropagation()">
               <mat-icon>more_vert</mat-icon>
             </button>
           </mat-form-field>
@@ -313,8 +289,7 @@
             <button mat-menu-item>
               <label for="laboral2File">
                 Subir PDF
-                <input id="laboral2File" type="file" style="display:none"
-                  (change)="subirArchivo($event,'laboral2')" />
+                <input id="laboral2File" type="file" style="display:none" (change)="subirArchivo($event,'laboral2')" />
               </label>
             </button>
           </mat-menu>
@@ -325,8 +300,7 @@
 
       </div>
 
-      <button mat-flat-button color="primary"
-        (click)="cargarReferencias()">Cargar</button>
+      <button mat-flat-button color="primary" (click)="cargarReferencias()">Cargar</button>
     </div>
   </mat-tab>
 
@@ -339,15 +313,13 @@
     <div class="tab-content-scrollable" [formGroup]="trasladosForm">
       <mat-form-field class="example-full-width">
         <mat-label>¿Desea Trasladarse?</mat-label>
-        <mat-select formControlName="opcion_traslado_eps"
-          (selectionChange)="onTrasladoChange($event)">
+        <mat-select formControlName="opcion_traslado_eps" (selectionChange)="onTrasladoChange($event)">
           <mat-option value="NO">No</mat-option>
           <mat-option value="SI">Sí</mat-option>
         </mat-select>
       </mat-form-field>
 
-      <mat-form-field class="example-full-width"
-        *ngIf="trasladosForm.controls['opcion_traslado_eps'].value === 'SI'">
+      <mat-form-field class="example-full-width" *ngIf="trasladosForm.controls['opcion_traslado_eps'].value === 'SI'">
         <mat-label>Seleccione EPS</mat-label>
         <mat-select formControlName="eps_a_trasladar">
           <mat-option value="FAMISANAR">Famisanar</mat-option>
@@ -356,15 +328,12 @@
         </mat-select>
       </mat-form-field>
 
-      <div class="input-container"
-        *ngIf="trasladosForm.controls['opcion_traslado_eps'].value === 'SI'">
+      <div class="input-container" *ngIf="trasladosForm.controls['opcion_traslado_eps'].value === 'SI'">
         <mat-form-field appearance="fill" class="example-full-width">
           <mat-label>Archivo Traslado</mat-label>
           <input matInput formControlName="traslado"
-            [value]="uploadedFiles['traslado'] ? uploadedFiles['traslado'].fileName : ''"
-            readonly>
-          <button mat-icon-button matSuffix [matMenuTriggerFor]="menuTraslado"
-            (click)="$event.stopPropagation()">
+            [value]="uploadedFiles['traslado'] ? uploadedFiles['traslado'].fileName : ''" readonly>
+          <button mat-icon-button matSuffix [matMenuTriggerFor]="menuTraslado" (click)="$event.stopPropagation()">
             <mat-icon>more_vert</mat-icon>
           </button>
         </mat-form-field>
@@ -375,8 +344,7 @@
           <button mat-menu-item>
             <label for="fileTraslado">
               Subir PDF
-              <input id="fileTraslado" type="file" style="display:none"
-                (change)="subirArchivo($event,'traslado')" />
+              <input id="fileTraslado" type="file" style="display:none" (change)="subirArchivo($event,'traslado')" />
             </label>
           </button>
           <button mat-menu-item (click)="descargarArchivo()">Descargar
@@ -388,8 +356,7 @@
         </small>
       </div>
 
-      <button mat-flat-button color="primary"
-        (click)="cargarTraslados()">Cargar</button>
+      <button mat-flat-button color="primary" (click)="cargarTraslados()">Cargar</button>
     </div>
   </mat-tab>
 
@@ -403,8 +370,7 @@
       <mat-card class="fingerprint-card">
         <mat-card-content>
           <h3>Huella: Índice Derecho</h3>
-          <button mat-raised-button color="primary"
-            (click)="captureFingerprintID()">
+          <button mat-raised-button color="primary" (click)="captureFingerprintID()">
             <mat-icon>camera</mat-icon> Capturar Huella
           </button>
           <div *ngIf="messageID" class="status-message">

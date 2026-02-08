@@ -4,7 +4,7 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { isPlatformBrowser } from '@angular/common';
 import { Observable, of, throwError } from 'rxjs';
 import { map, catchError, tap } from 'rxjs/operators';
-import { environment } from '@/environments/environment.development';
+import { environment } from '@/environments/environment';
 
 export interface FincaItem {
   finca: string;
@@ -23,7 +23,7 @@ export class FincasService {
   constructor(
     @Inject(PLATFORM_ID) private platformId: Object,
     private http: HttpClient
-  ) {}
+  ) { }
 
   /** Listado único de fincas (opcionalmente filtrado por `search`). */
   listFincas(search?: string, useCache = true): Observable<FincaItem[]> {

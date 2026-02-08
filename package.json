@@ -1,6 +1,6 @@
 {
   "name": "tesoreria",
-  "version": "7.1.0",
+  "version": "7.1.4",
   "main": "app.js",
   "description": "Programa para control de prestamos a tesoreria",
   "author": "SebastianGuarnizoCampos",
@@ -62,6 +62,9 @@
     "dist": "ng run Tesoreria:build-electron:production && cross-env NODE_ENV=production electron-builder -p always",
     "dist2": "ng run Tesoreria:build-electron:production && cross-env NODE_ENV=production electron-builder",
     "dist3": "ng run Tesoreria:build-electron:production && cross-env NODE_ENV=production electron-builder -p always",
+    "start:prod": "ng serve --configuration production",
+    "build:prod": "ng build --configuration production",
+    "serve:dist": "npx http-server dist/tesoreria/browser -o",
     "serve:ssr:Tesoreria": "node dist/tesoreria/server/server.mjs"
   },
   "private": true,

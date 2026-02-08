@@ -3,7 +3,7 @@ import { isPlatformBrowser } from '@angular/common';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable, throwError, firstValueFrom } from 'rxjs';
 import { catchError } from 'rxjs/operators';
-import { environment } from '@/environments/environment.development';
+import { environment } from '@/environments/environment';
 
 // ----------------------------
 // Pendientes (según tu backend Django)

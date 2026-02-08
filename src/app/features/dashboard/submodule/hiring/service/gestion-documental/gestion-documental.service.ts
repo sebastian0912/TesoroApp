@@ -2,7 +2,7 @@ import { Injectable, Inject, PLATFORM_ID } from '@angular/core';
 import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { isPlatformBrowser } from '@angular/common';
-import { environment } from '@/environments/environment.development';
+import { environment } from '@/environments/environment';
 
 @Injectable({
   providedIn: 'root',
@@ -13,7 +13,7 @@ export class GestionDocumentalService {
   constructor(
     private http: HttpClient,
     @Inject(PLATFORM_ID) private platformId: Object
-  ) {}
+  ) { }
 
   // ------------------ DOCUMENTOS (CRUD) ------------------
 
