@@ -1,0 +1,304 @@
+<div class="scan-layout">
+
+    <!-- 1. HEADER (Sticky) -->
+    <header class="scan-header mat-elevation-z2">
+        <div class="header-left">
+            @if (mode !== 'list') {
+            <button mat-icon-button (click)="mode === 'capture-web' ? cancelWebCapture() : backToList()"
+                matTooltip="Volver" aria-label="Volver atrás">
+                <mat-icon>arrow_back</mat-icon>
+            </button>
+            }
+            <div class="header-title-group">
+                <h2 class="header-title">
+                    @switch (mode) {
+                    @case ('list') { Gestión Documental }
+                    @case ('capture-web') { Captura }
+                    @case ('crop') { Recorte }
+                    @case ('preview') { Edición }
+                    }
+                </h2>
+                <!-- Context Badges -->
+                @if (mode === 'list' && scannedDocs.length > 0) {
+                <span class="badge-count">{{ scannedDocs.length }}</span>
+                }
+                @if (mode === 'capture-web' && tempPages.length > 0) {
+                <span class="badge-count">{{ tempPages.length }}</span>
+                }
+            </div>
+        </div>
+
+        <div class="header-right">
+            @if (mode === 'list') {
+            <button mat-icon-button (click)="close()" matTooltip="Cerrar" aria-label="Cerrar diálogo">
+                <mat-icon>close</mat-icon>
+            </button>
+            }
+        </div>
+    </header>
+
+    <!-- 2. MAIN CONTENT (Scrollable) -->
+    <main class="scan-main" [class.dark-mode]="mode === 'capture-web' || mode === 'crop'">
+
+        <ng-container [ngTemplateOutlet]="
+            mode === 'list' ? tplList :
+            mode === 'capture-web' ? tplCapture :
+            mode === 'crop' ? tplCrop :
+            tplPreview
+        "></ng-container>
+
+    </main>
+
+    <!-- 3. FOOTER (Sticky) -->
+    <footer class="scan-footer mat-elevation-z4">
+        <ng-container [ngTemplateOutlet]="
+            mode === 'list' ? tplFooterList :
+            mode === 'capture-web' ? tplFooterCapture :
+            mode === 'crop' ? tplFooterCrop :
+            tplFooterPreview
+        "></ng-container>
+    </footer>
+
+</div>
+
+<!-- ============================================== -->
+<!--               TEMPLATES                        -->
+<!-- ============================================== -->
+
+<!-- TPL: LIST (Dashboard) -->
+<ng-template #tplList>
+    <div class="dashboard-container fade-in">
+
+        <!-- Summary Cards -->
+        <div class="stats-overview">
+            <div class="stat-card">
+                <div class="stat-icon-bg">
+                    <mat-icon>description</mat-icon>
+                </div>
+                <div class="stat-info">
+                    <span class="stat-value">{{ scannedDocs.length }}</span>
+                    <span class="stat-label">Documentos</span>
+                </div>
+            </div>
+            <div class="stat-divider"></div>
+            <div class="stat-card">
+                <div class="stat-icon-bg">
+                    <mat-icon>filter_none</mat-icon>
+                </div>
+                <div class="stat-info">
+                    <span class="stat-value">{{ totalPages }}</span>
+                    <span class="stat-label">Páginas</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Empty State -->
+        @if (scannedDocs.length === 0) {
+        <div class="empty-state">
+            <div class="empty-icon-circle">
+                <mat-icon>assignment_add</mat-icon>
+            </div>
+            <h3 class="empty-title">Sin documentos escaneados</h3>
+            <p class="empty-subtitle">Utiliza la cámara para digitalizar tus documentos físicos.</p>
+            <button mat-stroked-button color="primary" (click)="onCaptureClick()">
+                <mat-icon>camera_alt</mat-icon> Iniciar Escaneo
+            </button>
+        </div>
+        } @else {
+        <!-- Grid List -->
+        <div class="docs-grid">
+            @for (doc of scannedDocs; track doc.id) {
+            <div class="doc-card mat-elevation-z1" (click)="previewDoc(doc)" matRipple>
+                <div class="doc-thumb">
+                    <img [src]="doc.thumb" alt="Miniatura">
+                </div>
+                <div class="doc-content">
+                    <h4 class="doc-name">{{ doc.name }}</h4>
+                    <div class="doc-meta">
+                        <span class="meta-tag">{{ doc.pages.length }} págs</span>
+                        <span class="meta-date">{{ getFormattedDate(doc.createdAt) }}</span>
+                    </div>
+                </div>
+                <button mat-icon-button color="warn" (click)="$event.stopPropagation(); deleteDoc(doc)"
+                    matTooltip="Eliminar" aria-label="Eliminar documento">
+                    <mat-icon>delete_outline</mat-icon>
+                </button>
+            </div>
+            }
+        </div>
+        }
+    </div>
+</ng-template>
+
+<!-- TPL: CAPTURE (Camera) -->
+<ng-template #tplCapture>
+    <div class="camera-container">
+        <video #video autoplay playsinline muted class="camera-video"></video>
+        <canvas #canvas hidden></canvas>
+
+        <!-- Guides -->
+        <div class="camera-overlay">
+            <div class="camera-guides">
+                <div class="guide-corner tl"></div>
+                <div class="guide-corner tr"></div>
+                <div class="guide-corner bl"></div>
+                <div class="guide-corner br"></div>
+            </div>
+            <div class="camera-hint">Alinea el documento dentro del marco</div>
+        </div>
+
+        <!-- Flash Effect -->
+        <div class="flash-overlay" [class.active]="showFlash"></div>
+    </div>
+</ng-template>
+
+<!-- TPL: CROP (Adjust) -->
+<ng-template #tplCrop>
+    <div class="crop-workspace" (pointermove)="onCropPointerMove($event)" (pointerup)="onCropPointerUp($event)">
+        <div class="crop-stage" #cropStage>
+            <img [src]="cropSourceImage" class="crop-image" #cropImage draggable="false" alt="Imagen a recortar">
+
+            <!-- SVG Overlay lines -->
+            @if (natW && natH) {
+            <svg class="crop-lines" [attr.viewBox]="'0 0 ' + natW + ' ' + natH" preserveAspectRatio="none">
+                <polygon [attr.points]="
+                        cropPoints[0].x + ',' + cropPoints[0].y + ' ' +
+                        cropPoints[1].x + ',' + cropPoints[1].y + ' ' +
+                        cropPoints[2].x + ',' + cropPoints[2].y + ' ' +
+                        cropPoints[3].x + ',' + cropPoints[3].y
+                    " class="crop-poly"></polygon>
+            </svg>
+
+            <!-- Touch Handles -->
+            @for (point of cropPoints; track $index) {
+            <div class="crop-handle" [style.left.%]="(point.x / natW) * 100" [style.top.%]="(point.y / natH) * 100"
+                (pointerdown)="onCropPointerDown($event, $index)" [attr.aria-label]="'Handle ' + $index">
+                <div class="handle-knob" [class.active]="activePointIndex === $index"></div>
+            </div>
+            }
+            }
+        </div>
+
+        <!-- Magnifier -->
+        <div class="magnifier-glass mat-elevation-z4" [class.visible]="isDragging && activePointIndex !== null"
+            [style.left.px]="magnifierPos.x" [style.top.px]="magnifierPos.y">
+            <canvas #magnifierCanvas></canvas>
+        </div>
+
+        @if (isProcessingCrop) {
+        <div class="loading-overlay">
+            <mat-spinner diameter="40" color="accent"></mat-spinner>
+            <span>Procesando...</span>
+        </div>
+        }
+    </div>
+</ng-template>
+
+<!-- TPL: PREVIEW (Edit) -->
+<ng-template #tplPreview>
+    <div class="editor-layout fade-in">
+        <!-- Editor Toolbar -->
+        <div class="editor-toolbar">
+            <mat-form-field appearance="outline" class="full-width-field dense-form-field">
+                <mat-label>Nombre del archivo</mat-label>
+                <input matInput [(ngModel)]="currentDocName" placeholder="Ej: Cédula de Ciudadanía">
+                <mat-icon matSuffix>edit</mat-icon>
+            </mat-form-field>
+        </div>
+
+        <div class="editor-workspace">
+            <!-- Thumbnails List -->
+            <div class="thumbs-list mat-elevation-z2" cdkDropList (cdkDropListDropped)="dropPage($event)">
+                @for (page of currentDocPages; track page; let i = $index) {
+                <div class="thumb-item" cdkDrag [class.active]="selectedPageIndex === i"
+                    (click)="selectedPageIndex = i">
+                    <img [src]="page" alt="Página {{i+1}}">
+                    <span class="page-idx">{{ i + 1 }}</span>
+                    <button class="btn-remove-page" (click)="$event.stopPropagation(); removePageFromCurrent(i)">
+                        <mat-icon>close</mat-icon>
+                    </button>
+                </div>
+                }
+            </div>
+
+            <!-- Main Preview -->
+            <div class="main-preview mat-elevation-z1">
+                @if (currentDocPages.length > 0) {
+                <img [src]="currentDocPages[selectedPageIndex] || currentDocPages[0]" alt="Vista previa">
+
+                <div class="preview-actions-overlay">
+                    <button mat-mini-fab color="primary" (click)="reCropPage()" matTooltip="Recortar de nuevo">
+                        <mat-icon>crop</mat-icon>
+                    </button>
+                </div>
+                }
+            </div>
+        </div>
+
+        <p class="ux-hint"><mat-icon class="tiny-icon">touch_app</mat-icon> Arrastra las miniaturas para reordenar</p>
+    </div>
+</ng-template>
+
+
+<!-- ============================================== -->
+<!--               FOOTERS                          -->
+<!-- ============================================== -->
+
+<ng-template #tplFooterList>
+    <div class="footer-actions">
+        <button mat-flat-button color="primary" class="btn-lg" (click)="onCaptureClick()">
+            <mat-icon>add_a_photo</mat-icon> CAPTURAR NUEVO
+        </button>
+        <button mat-stroked-button color="accent" class="btn-lg" [disabled]="scannedDocs.length === 0"
+            (click)="exportAllAndClose()">
+            <mat-icon>check_circle</mat-icon> FINALIZAR ({{ scannedDocs.length }})
+        </button>
+    </div>
+</ng-template>
+
+<ng-template #tplFooterCapture>
+    <div class="camera-controls">
+        <!-- Gallery Preview -->
+        <div class="cam-space left">
+            @if (tempPages.length > 0) {
+            <div class="last-preview mat-elevation-z2" (click)="finishWebCapture()">
+                <img [src]="tempPages[tempPages.length - 1]" alt="Última captura">
+                <span class="badge-count">{{ tempPages.length }}</span>
+            </div>
+            }
+        </div>
+
+        <!-- Shutter -->
+        <div class="cam-space center">
+            <button class="shutter-btn" (click)="captureWebPage()" aria-label="Tomar foto"></button>
+        </div>
+
+        <!-- Done is redundant if we have top back, but let's keep 'Listo' for clarity -->
+        <div class="cam-space right">
+            <button mat-button color="primary" class="done-text-btn" [disabled]="tempPages.length === 0"
+                (click)="finishWebCapture()">
+                LISTO
+            </button>
+        </div>
+    </div>
+</ng-template>
+
+<ng-template #tplFooterCrop>
+    <div class="footer-actions spaced">
+        <button mat-button color="warn" (click)="cancelCrop()" [disabled]="isProcessingCrop">
+            {{ cropEditMode === 'new' ? 'REPETIR' : 'CANCELAR' }}
+        </button>
+        <button mat-flat-button color="primary" (click)="confirmCrop()" [disabled]="isProcessingCrop">
+            <mat-icon>crop_free</mat-icon> CONFIRMAR
+        </button>
+    </div>
+</ng-template>
+
+<ng-template #tplFooterPreview>
+    <div class="footer-actions spaced-end">
+        <button mat-button (click)="backToList()">Cancelar</button>
+        <button mat-flat-button color="primary" (click)="saveCurrentDocChanges()">
+            <mat-icon>save_alt</mat-icon> Guardar Cambios
+        </button>
+    </div>
+</ng-template>

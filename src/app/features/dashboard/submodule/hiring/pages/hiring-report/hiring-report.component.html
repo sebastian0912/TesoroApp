@@ -19,62 +19,66 @@
                     <span class="metric-value highlight">{{ totalFilesLoaded }} / {{ DOCS.length }}</span>
                 </div>
             </section>
-
+            
             <!-- Documents Loop -->
             <section class="documents-section">
-                <div class="section-header">
-                    <h2 class="section-title">Documentos Requeridos</h2>
-                </div>
-
-                <div class="doc-list">
-                    @for (doc of DOCS; track doc.key) {
-
-                    <div class="doc-card" [class.active]="reporteForm.get(doc.key)?.value">
-
-                        <!-- Checkbox -->
-                        <div class="doc-check-wrapper">
-                            <mat-checkbox [checked]="reporteForm.get(doc.key)?.value"
-                                (change)="onCheckboxChange($event.checked, doc.key)" color="primary">
-                            </mat-checkbox>
-                        </div>
-
-                        <!-- Content -->
-                        <div class="doc-content">
-                            <span class="doc-label">
-                                {{ doc.label }}
-                                @if (fileNames[doc.key]) {
-                                <span class="status-badge success">CARGADO</span>
-                                }
-                            </span>
-                            <span class="doc-hint">
-                                {{ fileNames[doc.key] || doc.hint }}
-                            </span>
-                        </div>
-
-                        <!-- Actions -->
-                        <div class="doc-actions">
-
-                            <!-- Preview Button (Optional) -->
-                            @if (doc.previewType && fileNames[doc.key]) {
-                            <button mat-icon-button type="button" color="accent" (click)="openPreview(doc.previewType!)"
-                                matTooltip="Ver detalle cargado">
-                                <mat-icon>visibility</mat-icon>
-                            </button>
-                            }
-
-                            <input #fileInput type="file" hidden [accept]="doc.accept" [multiple]="doc.multiple"
-                                [attr.webkitdirectory]="doc.directory ? '' : null"
-                                (change)="onFileSelect($event, doc.key)">
-
-                            <button mat-stroked-button color="primary" type="button" (click)="fileInput.click()"
-                                [disabled]="!reporteForm.get(doc.key)?.value">
-                                Seleccionar
-                            </button>
-                        </div>
-
+                <mat-card class="config-card">
+                    <div class="card-header">
+                        <h3 class="card-title">Documentos Requeridos</h3>
                     </div>
-                    }
-                </div>
+
+                    <div class="card-content">
+                        <div class="doc-list">
+                            @for (doc of DOCS; track doc.key) {
+
+                            <div class="doc-card" [class.active]="reporteForm.get(doc.key)?.value">
+
+                                <!-- Checkbox -->
+                                <div class="doc-check-wrapper">
+                                    <mat-checkbox [checked]="reporteForm.get(doc.key)?.value"
+                                        (change)="onCheckboxChange($event.checked, doc.key)" color="primary">
+                                    </mat-checkbox>
+                                </div>
+
+                                <!-- Content -->
+                                <div class="doc-content">
+                                    <span class="doc-label">
+                                        {{ doc.label }}
+                                        @if (fileNames[doc.key]) {
+                                        <span class="status-badge success">CARGADO</span>
+                                        }
+                                    </span>
+                                    <span class="doc-hint">
+                                        {{ fileNames[doc.key] || doc.hint }}
+                                    </span>
+                                </div>
+
+                                <!-- Actions -->
+                                <div class="doc-actions">
+
+                                    <!-- Preview Button (Optional) -->
+                                    @if (doc.previewType && fileNames[doc.key]) {
+                                    <button mat-icon-button type="button" color="accent"
+                                        (click)="openPreview(doc.previewType!)" matTooltip="Ver detalle cargado">
+                                        <mat-icon>visibility</mat-icon>
+                                    </button>
+                                    }
+
+                                    <input #fileInput type="file" hidden [accept]="doc.accept" [multiple]="doc.multiple"
+                                        [attr.webkitdirectory]="doc.directory ? '' : null"
+                                        (change)="onFileSelect($event, doc.key)">
+
+                                    <button mat-stroked-button color="primary" type="button" (click)="fileInput.click()"
+                                        [disabled]="!reporteForm.get(doc.key)?.value">
+                                        Seleccionar
+                                    </button>
+                                </div>
+
+                            </div>
+                            }
+                        </div>
+                    </div>
+                </mat-card>
             </section>
 
             <!-- Additional Info -->
@@ -118,7 +122,7 @@
         <!-- RIGHT COLUMN: SIDEBAR -->
         <aside class="sidebar-column">
 
-            <div class="config-card">
+            <mat-card class="config-card">
                 <div class="card-header">
                     <h3 class="card-title">Configuración del Reporte</h3>
                 </div>
@@ -170,8 +174,8 @@
                     <div class="action-buttons">
                         @if(showValidateButton) {
                         <button mat-stroked-button color="primary" class="btn-block btn-secondary" type="button"
-                            (click)="validarTodo()">
-                            VALIDAR TODO
+                            (click)="validarTodo()" [disabled]="isValidatingAll || !files.cruceDiario?.length">
+                            {{ isValidatingAll ? 'VALIDANDO...' : 'VALIDAR TODO' }}
                         </button>
 
                         @if(isArlValidado && arlRows.length > 0) {
@@ -188,7 +192,7 @@
                     </div>
 
                 </div>
-            </div>
+            </mat-card>
 
         </aside>
 
@@ -196,8 +200,9 @@
         <div class="mobile-spacer"></div>
         <div class="mobile-actions-bar">
             @if(showValidateButton) {
-            <button mat-stroked-button color="primary" type="button" class="btn-block" (click)="validarTodo()">
-                Validar
+            <button mat-stroked-button color="primary" type="button" class="btn-block" (click)="validarTodo()"
+                [disabled]="isValidatingAll || !files.cruceDiario?.length">
+                {{ isValidatingAll ? 'Validando...' : 'Validar' }}
             </button>
             }
             <button mat-flat-button color="primary" type="submit" class="btn-block" [disabled]="reporteForm.invalid">

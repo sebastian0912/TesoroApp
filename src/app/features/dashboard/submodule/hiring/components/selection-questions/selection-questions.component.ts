@@ -21,6 +21,7 @@ type UploadedFileInfo = {
   updatedAtLabel?: string;
   changed?: boolean;
   loading?: boolean;
+  error?: string | null;
 };
 
 type DocKey =
@@ -310,6 +311,7 @@ export class SelectionQuestionsComponent {
         updatedAt: undefined,
         updatedAtLabel: undefined,
         loading: true,
+        error: null,
       };
     });
   }
@@ -319,32 +321,40 @@ export class SelectionQuestionsComponent {
     if (!this.cedula) return tocados;
 
     try {
-      const docs: any[] = await firstValueFrom(this.docsSrv.obtenerDocumentosPorTipo(this.cedula, 2));
+      // Fetch ALL documents for this user (no type filter)
+      const docs: any[] = await firstValueFrom(this.docsSrv.getDocuments(this.cedula));
       if (ctx !== this._ctx || !Array.isArray(docs)) return tocados;
+
+      // Reset all uploadedFiles to default before populating
+      // This ensures we start clean and fill only what exists
+      this.resetUploadedFilesAsNew();
 
       for (const d of docs) {
         if (ctx !== this._ctx) break;
+        // Find which key corresponds to this doc type
         const typeKey = (Object.keys(this.typeMap) as DocKey[]).find(k => this.typeMap[k] === d.type);
         if (!typeKey) continue;
 
-        const nombre = d.title || 'Documento sin título';
-        const file = await this.urlToFile(d.file_url, nombre);
-        if (ctx !== this._ctx) break;
-
+        const nombre = d.original_filename || d.title || 'Documento sin título';
+        const fileUrl = d.file_url; // Use URL directly
         const iso: string | undefined = d.uploaded_at || undefined;
+
+        // Update the file entry
         this.uploadedFiles[typeKey] = {
           fileName: nombre,
-          file,
+          file: fileUrl, // Store string URL
           updatedAt: iso,
           updatedAtLabel: this.formatFecha(iso),
           changed: false,
           loading: false,
+          error: null,
         };
         tocados.add(typeKey);
       }
     } catch (err: any) {
+      // If 404/Not Found, just means no docs, which is fine.
       if (err?.error?.error !== 'No se encontraron documentos') {
-        await Swal.fire('¡Error!', 'No se pudieron obtener los documentos de antecedentes', 'error');
+        console.error('Error loading documents:', err);
       }
     }
     return tocados;
@@ -386,6 +396,7 @@ export class SelectionQuestionsComponent {
       loading: false,
       updatedAt: undefined,
       updatedAtLabel: undefined,
+      error: null,
     };
   }
 
@@ -417,16 +428,7 @@ export class SelectionQuestionsComponent {
     }
   }
 
-  async urlToFile(url: string, fileName: string): Promise<File> {
-    const busted = url + (url.includes('?') ? '&' : '?') + '_=' + Date.now();
-    const res = await fetch(busted, { cache: 'no-store', mode: 'cors', referrerPolicy: 'strict-origin-when-cross-origin' });
-    if (!res.ok) throw new Error(`No se pudo descargar el archivo: ${res.status} ${res.statusText}`);
-    const blob = await res.blob();
-    const ext = (fileName.split('.').pop() || '').toLowerCase();
-    const fallback = ext === 'pdf' ? 'application/pdf' : 'application/octet-stream';
-    const type = blob.type || fallback;
-    return new File([blob], fileName, { type });
-  }
+
 
   onlyInteger(e: KeyboardEvent) {
     const allowed = ['Backspace', 'Tab', 'ArrowLeft', 'ArrowRight', 'Delete', 'Home', 'End'];
@@ -487,15 +489,23 @@ export class SelectionQuestionsComponent {
       await Swal.fire('¡Guardado!', 'Se actualizaron los antecedentes del proceso.', 'success');
 
       const res = await this.subirTodosLosArchivos(Object.keys(this.typeMap) as DocKey[]);
+
       if (res.todosOk) {
         Swal.fire('¡Listo!', 'Todos los documentos se subieron correctamente.', 'success');
       } else {
-        if (res.exitosos.length) {
-          Swal.fire('¡Listo!', 'Algunos documentos se subieron correctamente.', 'success');
-        }
-        if (res.fallidos.length) {
-          Swal.fire('Error', 'Algunos documentos no se pudieron subir.', 'error');
-        }
+        // Build detailed error message
+        const listaErrores = res.fallidos.map(f => `<li><b>${f.key}:</b> ${f.error}</li>`).join('');
+        const htmlMsg = `
+          <p>Algunos documentos no se pudieron subir:</p>
+          <ul style="text-align: left; margin-bottom: 0;">${listaErrores}</ul>
+        `;
+
+        Swal.fire({
+          title: 'Atención',
+          html: htmlMsg,
+          icon: 'warning',
+          confirmButtonText: 'Entendido'
+        });
       }
     } catch (err: any) {
       const msg = err?.error?.detail || 'No fue posible guardar los antecedentes.';
@@ -520,17 +530,41 @@ export class SelectionQuestionsComponent {
 
     if (!aEnviar.length) return { todosOk: true, exitosos: [], fallidos: [] };
 
+    // Reset errors for sending files
+    aEnviar.forEach(({ key }) => {
+      if (this.uploadedFiles[key]) this.uploadedFiles[key].error = null;
+    });
+
     const promesas = aEnviar.map(({ key, file, fileName, typeId }) =>
       new Promise<void>((resolve, reject) => {
         this.docsSrv.guardarDocumento(fileName, ced, typeId, file).subscribe({
           next: () => {
             const entry = this.uploadedFiles[key];
-            entry.changed = false;
-            entry.updatedAt = new Date().toISOString();
-            entry.updatedAtLabel = this.formatFecha(entry.updatedAt as string);
+            if (entry) {
+              entry.changed = false;
+              entry.updatedAt = new Date().toISOString();
+              entry.updatedAtLabel = this.formatFecha(entry.updatedAt as string);
+              entry.error = null;
+            }
             resolve();
           },
-          error: (err) => reject(new Error(err?.error?.detail || err?.message || 'Error desconocido')),
+          error: (err) => {
+            let msg = 'Error desconocido';
+            if (err?.error?.error) {
+              const e = err.error.error;
+              msg = Array.isArray(e) ? e.join(', ') : String(e);
+            } else if (err?.error?.detail) {
+              msg = err.error.detail;
+            } else if (err?.message) {
+              msg = err.message;
+            }
+
+            // Guardar error en estado local también (opcional para mostrar en UI inline)
+            if (this.uploadedFiles[key]) {
+              this.uploadedFiles[key].error = msg;
+            }
+            reject(new Error(msg));
+          },
         });
       })
     );
@@ -540,8 +574,13 @@ export class SelectionQuestionsComponent {
     const fallidos: { key: DocKey; error: string }[] = [];
     settled.forEach((r, i) => {
       const key = aEnviar[i].key;
-      if (r.status === 'fulfilled') exitosos.push(key);
-      else fallidos.push({ key, error: (r as PromiseRejectedResult).reason?.message || String((r as PromiseRejectedResult).reason) });
+      if (r.status === 'fulfilled') {
+        exitosos.push(key);
+      } else {
+        const reason = (r as PromiseRejectedResult).reason;
+        const msg = reason?.message || String(reason);
+        fallidos.push({ key, error: msg });
+      }
     });
 
     return { todosOk: fallidos.length === 0, exitosos, fallidos };

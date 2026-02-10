@@ -359,6 +359,11 @@
 }
 
 /* Mobile specific */
+.mobile-actions-bar,
+.mobile-spacer {
+  display: none;
+}
+
 @media (max-width: 600px) {
   .hiring-wrapper {
     padding: 16px;
@@ -370,18 +375,16 @@
     gap: 12px;
   }
 
-  .doc-check-wrapper {
-    margin-bottom: -8px;
-    /* Visual tweak */
-  }
+  /* ... checks ... */
 
-  .doc-actions {
-    width: 100%;
-    justify-content: flex-end;
+  .mobile-spacer {
+    display: block;
+    height: 80px;
   }
 
   /* Bottom Actions Bar */
   .mobile-actions-bar {
+    display: flex;
     position: fixed;
     bottom: 0;
     left: 0;

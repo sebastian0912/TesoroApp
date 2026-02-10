@@ -97,6 +97,7 @@ export class RecruitmentPipelineComponent {
 
   // Biometría desde backend
   biometria = signal<{ firma?: any; huella?: any; foto?: any; created_at?: string; updated_at?: string } | null>(null);
+  examenMedicoDoc = signal<ServerDocInfo | null>(null); // Signal para el documento ID 32
 
   // Flags (solo backend)
   private tieneFirmaSrv = computed(() => !!this.getBioDoc('firma'));
@@ -107,6 +108,7 @@ export class RecruitmentPipelineComponent {
   tieneFirmaUI = computed(() => !!(this.firmaDataUrl() || this.tieneFirmaSrv()));
   tieneHuellaUI = computed(() => !!(this.huellaDataUrl() || this.tieneHuellaSrv()));
   tieneFotoUI = computed(() => !!(this.fotoDataUrl() || this.tieneFotoSrv()));
+  tieneExamenMedicoUI = computed(() => !!this.examenMedicoDoc());
 
   // Helpers para badges
   badge(kind: BioKind) { return this.tiene(kind) ? '✓' : '✗'; }
@@ -270,6 +272,11 @@ export class RecruitmentPipelineComponent {
       if (ced && (!bio || this.isBioStale(bio))) {
         this.refreshBiometriaForCandidate(ced).catch(() => this.biometria.set(null));
       }
+      if (ced) {
+        this.refreshExamenMedicoForCandidate(ced);
+      } else {
+        this.examenMedicoDoc.set(null);
+      }
 
       this.mostrarTabla();
     });
@@ -417,8 +424,8 @@ export class RecruitmentPipelineComponent {
 
   private _antecedentesCumplen(proc: any): boolean {
     // Regla estricta: EPS = "CUMPLE", PROCURADURIA = "CUMPLE", POLICIVOS = "CUMPLE"
-    const eps  = this._norm(this._antecedenteValor(proc, 'EPS'));
-    const pro  = this._norm(this._antecedenteValor(proc, 'PROCURADURIA'));
+    const eps = this._norm(this._antecedenteValor(proc, 'EPS'));
+    const pro = this._norm(this._antecedenteValor(proc, 'PROCURADURIA'));
     const poli = this._norm(this._antecedenteValor(proc, 'POLICIVOS'));
     return eps === 'CUMPLE' && pro === 'CUMPLE' && poli === 'CUMPLE';
   }
@@ -432,63 +439,63 @@ export class RecruitmentPipelineComponent {
   }
 
   /** Devuelve lista de mensajes con lo que falta para habilitar Contratación */
-private _missingForContratacion(): string[] {
-  const cand = this.candidatoSeleccionado();
-  if (!cand || !Array.isArray(cand.entrevistas) || cand.entrevistas.length === 0) {
-    return ['Debe existir al menos una entrevista (entrevistas[0]).'];
+  private _missingForContratacion(): string[] {
+    const cand = this.candidatoSeleccionado();
+    if (!cand || !Array.isArray(cand.entrevistas) || cand.entrevistas.length === 0) {
+      return ['Debe existir al menos una entrevista (entrevistas[0]).'];
+    }
+
+    const proc = this._firstProceso(cand);
+    if (!proc) return ['La primera entrevista no tiene proceso asociado.'];
+
+    const missing: string[] = [];
+
+    // Antecedentes
+    const vEPS = this._antecedenteValor(proc, 'EPS');
+    const vPROC = this._antecedenteValor(proc, 'PROCURADURIA');
+    const vPOLI = this._antecedenteValor(proc, 'POLICIVOS');
+
+    // ✅ EPS: sólo que NO esté vacío
+    if (!vEPS || this._norm(vEPS).length === 0) {
+      missing.push(`Antecedente EPS no debe estar vacío (actual: ${vEPS ?? 'sin registro'})`);
+    }
+
+    // Se mantienen estos como "CUMPLE"
+    if (this._norm(vPROC) !== 'CUMPLE') {
+      missing.push(`Antecedente PROCURADURIA debe estar en "CUMPLE" (actual: ${vPROC ?? 'sin registro'})`);
+    }
+    if (this._norm(vPOLI) !== 'CUMPLE') {
+      missing.push(`Antecedente POLICIVOS debe estar en "CUMPLE" (actual: ${vPOLI ?? 'sin registro'})`);
+    }
+
+    // Etapas del proceso
+    if (proc?.entrevistado !== true) {
+      missing.push('Marcar proceso.entrevistado en TRUE.');
+    }
+
+    // ❌ remision ya no es requisito
+    // if (proc?.remision !== true) missing.push('Marcar proceso.remision en TRUE.');
+
+    // ✅ Al menos uno: prueba_tecnica o autorizado
+    const tienePruebaTecnica = proc?.prueba_tecnica === true;
+    const tieneAutorizado = proc?.autorizado === true;
+    if (!(tienePruebaTecnica || tieneAutorizado)) {
+      missing.push('Debe estar TRUE al menos uno: "prueba_tecnica" o "autorizado".');
+    }
+
+    if (proc?.examenes_medicos !== true) {
+      missing.push('Marcar proceso.examenes_medicos en TRUE.');
+    }
+
+    // NO APTO local (form)
+    const arr = (this.selectedExamsArray.value ?? []) as ExamenResultadoForm[];
+    const hayNoApto = Array.isArray(arr) && arr.some(x => this.isNoApto(x?.aptoStatus));
+    if (hayNoApto) {
+      missing.push('Hay al menos un examen con resultado "NO APTO".');
+    }
+
+    return missing;
   }
-
-  const proc = this._firstProceso(cand);
-  if (!proc) return ['La primera entrevista no tiene proceso asociado.'];
-
-  const missing: string[] = [];
-
-  // Antecedentes
-  const vEPS  = this._antecedenteValor(proc, 'EPS');
-  const vPROC = this._antecedenteValor(proc, 'PROCURADURIA');
-  const vPOLI = this._antecedenteValor(proc, 'POLICIVOS');
-
-  // ✅ EPS: sólo que NO esté vacío
-  if (!vEPS || this._norm(vEPS).length === 0) {
-    missing.push(`Antecedente EPS no debe estar vacío (actual: ${vEPS ?? 'sin registro'})`);
-  }
-
-  // Se mantienen estos como "CUMPLE"
-  if (this._norm(vPROC) !== 'CUMPLE') {
-    missing.push(`Antecedente PROCURADURIA debe estar en "CUMPLE" (actual: ${vPROC ?? 'sin registro'})`);
-  }
-  if (this._norm(vPOLI) !== 'CUMPLE') {
-    missing.push(`Antecedente POLICIVOS debe estar en "CUMPLE" (actual: ${vPOLI ?? 'sin registro'})`);
-  }
-
-  // Etapas del proceso
-  if (proc?.entrevistado !== true) {
-    missing.push('Marcar proceso.entrevistado en TRUE.');
-  }
-
-  // ❌ remision ya no es requisito
-  // if (proc?.remision !== true) missing.push('Marcar proceso.remision en TRUE.');
-
-  // ✅ Al menos uno: prueba_tecnica o autorizado
-  const tienePruebaTecnica = proc?.prueba_tecnica === true;
-  const tieneAutorizado    = proc?.autorizado === true;
-  if (!(tienePruebaTecnica || tieneAutorizado)) {
-    missing.push('Debe estar TRUE al menos uno: "prueba_tecnica" o "autorizado".');
-  }
-
-  if (proc?.examenes_medicos !== true) {
-    missing.push('Marcar proceso.examenes_medicos en TRUE.');
-  }
-
-  // NO APTO local (form)
-  const arr = (this.selectedExamsArray.value ?? []) as ExamenResultadoForm[];
-  const hayNoApto = Array.isArray(arr) && arr.some(x => this.isNoApto(x?.aptoStatus));
-  if (hayNoApto) {
-    missing.push('Hay al menos un examen con resultado "NO APTO".');
-  }
-
-  return missing;
-}
 
 
   // Usado por la plantilla: <mat-tab [disabled]="deshabilitarContratacion()">
@@ -848,6 +855,15 @@ private _missingForContratacion(): string[] {
   verFirma(): void { this.ver('firma'); }
   verFoto(): void { this.ver('foto'); }
 
+  verExamenMedico(): void {
+    const doc = this.examenMedicoDoc();
+    if (!doc || !doc.file_url) {
+      this.snack.open('No hay examen médico disponible.', 'OK', { duration: 2500 });
+      return;
+    }
+    this.openInNewTab(doc.file_url);
+  }
+
   // Helpers
   private bioLocal(kind: BioKind): string | null {
     switch (kind) {
@@ -940,6 +956,23 @@ private _missingForContratacion(): string[] {
       });
     } catch {
       this.biometria.set(null);
+    }
+  }
+
+  private async refreshExamenMedicoForCandidate(cedula: string): Promise<void> {
+    try {
+      // 32 es el ID para EXAMENES_MEDICOS según typeMap
+      const docs: ServerDocInfo[] = await firstValueFrom(this.docSvc.getDocuments(cedula, 32));
+      // Asumimos que el backend retorna lista ordenada o filtramos el active.
+      // Si retorna lista, tomamos el primero (o el más reciente).
+      // Usualmente getDocuments filtra por is_active=True si no se especifica lo contrario.
+      if (Array.isArray(docs) && docs.length > 0) {
+        this.examenMedicoDoc.set(docs[0]);
+      } else {
+        this.examenMedicoDoc.set(null);
+      }
+    } catch {
+      this.examenMedicoDoc.set(null);
     }
   }
 

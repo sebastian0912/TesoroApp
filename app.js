@@ -22,7 +22,8 @@ function createWindow() {
     mainWindow.loadURL('http://localhost:4400');
     mainWindow.webContents.openDevTools();
   } else {
-    mainWindow.loadURL(`file://${path.join(__dirname, 'dist/tesoreria/browser/index.html')}`);
+    // FIX D3: Use loadFile with hash option for proper routing in prod
+    mainWindow.loadFile(path.join(__dirname, 'dist/tesoreria/browser/index.html'), { hash: '/' });
   }
 
   mainWindow.maximize();
@@ -33,9 +34,11 @@ function createWindow() {
 
   // Prevenir recargas no controladas
   mainWindow.webContents.on('will-navigate', (event, url) => {
-    if (!url.startsWith('file://') && !url.startsWith('http://localhost')) {
-      event.preventDefault();
+    // Allow file protocol reloads or navigations
+    if (url.startsWith('file://') || url.startsWith('http://localhost')) {
+      return;
     }
+    event.preventDefault();
   });
 
   if (process.env.NODE_ENV !== 'development') {

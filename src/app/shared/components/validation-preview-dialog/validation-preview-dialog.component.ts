@@ -125,6 +125,11 @@ export class ValidationPreviewDialogComponent<TItem = any, TResult = any>
 
     const first = firstInvalid ?? this.filteredItems()[0] ?? null;
     if (first) this.select(first);
+
+    // UX Improvement: If there are blocking errors, filter by errors automatically so the user sees them.
+    if (this.totalErrors > 0) {
+      this.showErrorsOnly = true;
+    }
   }
 
   ngOnDestroy(): void {

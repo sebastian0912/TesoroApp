@@ -154,7 +154,9 @@
               "tiny-inflate",
               "brotli/decompress.js",
               "base64-js",
-              "pako"
+              "pako",
+              "sweetalert2",
+              "qrcode"
             ]
           },
           "configurations": {

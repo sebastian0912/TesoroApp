@@ -1,4 +1,4 @@
-import { Component, OnInit, ChangeDetectionStrategy, ChangeDetectorRef, OnDestroy } from '@angular/core';
+import { Component, OnInit, ChangeDetectionStrategy, ChangeDetectorRef, OnDestroy, NgZone, ApplicationRef } from '@angular/core';
 import { FormBuilder, FormGroup, Validators, FormControl, ReactiveFormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { firstValueFrom, Subject } from 'rxjs';
@@ -102,7 +102,7 @@ export class HiringReportComponent implements OnInit, OnDestroy {
 
   // Config
   readonly DOCS: DocConfig[] = [
-    { key: 'cedulasEscaneadas', label: 'Cédulas Escaneadas', accept: '.pdf', multiple: true, directory: true, hint: 'PDFs individuales. Nombre: DOCUMENTO.pdf o DOCUMENTO-NOMBRE.pdf', previewType: 'cedulas' },
+    { key: 'cedulasEscaneadas', label: 'Cédulas Escaneadas', accept: '.pdf', multiple: true, directory: true, hint: 'PDFs individuales. Nombre: DOCUMENTO-Nombre.pdf o DOCUMENTO-algo.pdf', previewType: 'cedulas' },
     { key: 'cruceDiario', label: 'Cruce Diario (Excel)', accept: '.xls,.xlsx', multiple: false, directory: false, hint: 'Excel del día. Columna 3 define si es AL o TA.' },
     { key: 'arl', label: 'Archivo ARL (Excel)', accept: '.xls,.xlsx', multiple: false, directory: false, hint: 'Reporte descargado de ARL. Debe contener "DNI TRABAJADOR".' },
     { key: 'induccionSSO', label: 'Inducción SST', accept: '.pdf', multiple: false, directory: false, hint: 'Constancia de inducción grouping.' },
@@ -122,7 +122,9 @@ export class HiringReportComponent implements OnInit, OnDestroy {
     private readonly reportesService: ReportesService, // Inyectado
     private readonly dialog: MatDialog,
     private readonly router: Router,
-    private readonly cdr: ChangeDetectorRef
+    private readonly cdr: ChangeDetectorRef,
+    private readonly zone: NgZone,
+    private readonly appRef: ApplicationRef
   ) {
     this.initWorker();
   }
@@ -343,24 +345,41 @@ export class HiringReportComponent implements OnInit, OnDestroy {
   }
 
   private generateCedulasPreview(files: File[]) {
-    // Logic from original component
     this.cedulasPreview = files.map(f => {
       const name = f.name;
-      const match = name.match(/^\s*([a-zA-Z0-9-]+)\s*-\s*(.+?)\.pdf$/i);
+
+      // 1. Try "DOC - NOMBRE.pdf" or "DOC-NOMBRE.pdf" or "DOC NOMBRE.pdf"
+      // Capture group 1: The ID (alphanumeric + optional chars)
+      // Capture group 2: The rest (Name)
+      // We accept separators: space, dash, underscore
+      const match = name.match(/^\s*([a-zA-Z0-9]+)\s*[-_\s]\s*(.+?)\.pdf$/i);
+
+      let doc = '';
       if (match) {
-        const doc = match[1];
-        const isValidDoc = /^(\d+|[xX][a-zA-Z0-9\-]+)$/.test(doc);
+        doc = match[1];
+      } else {
+        // 2. Fallback: Check if file is just "DOC.pdf"
+        const simpleMatch = name.match(/^\s*([a-zA-Z0-9]+)\s*\.pdf$/i);
+        if (simpleMatch) {
+          doc = simpleMatch[1];
+        }
+      }
+
+      // 3. Validate extracted doc
+      if (doc) {
+        // Normalize: remove spaces inside if it starts with X
+        const normalized = this.normalizeIdentity(doc);
+        const isValidDoc = /^(\d+|X[a-zA-Z0-9]+)$/i.test(normalized);
+
         return {
-          nombreArchivo: name, documento: doc, valido: isValidDoc,
+          nombreArchivo: name,
+          documento: normalized, // Important: pass normalized doc to preview/validation
+          valido: isValidDoc,
           error: isValidDoc ? null : 'Documento inválido (Solo números o X...)'
         };
       }
-      // Check simple doc.pdf
-      const simpleMatch = name.match(/^(.+)\.pdf$/i);
-      if (simpleMatch && /^(\d+|[xX][a-zA-Z0-9\-]+)$/.test(simpleMatch[1])) {
-        return { nombreArchivo: name, documento: simpleMatch[1], valido: true };
-      }
-      return { nombreArchivo: name, valido: false, error: 'Formato inválido. Use DOC-NOMBRE.pdf' };
+
+      return { nombreArchivo: name, valido: false, error: 'Formato inválido. Use CEDULA-NOMBRE.pdf' };
     });
   }
 
@@ -410,6 +429,8 @@ export class HiringReportComponent implements OnInit, OnDestroy {
   // MAIN ACTION: VALIDAR TODO
   // ---------------------------------------------------------------------------
 
+  public isValidatingAll = false;
+
   async onSubmit() {
     if (this.reporteForm.invalid) return;
 
@@ -421,7 +442,7 @@ export class HiringReportComponent implements OnInit, OnDestroy {
         return;
       }
       if (checks.arl && !this.isArlValidado) {
-        Swal.fire('Falta ARL', 'Debe procesar el archivo ARL antes de enviar (Validar Todo).', 'warning');
+        Swal.fire('Falta ARL', 'Debe procesar el archivo ARL antes de enviar. (Validar Todo)', 'warning');
         return;
       }
     }
@@ -429,15 +450,12 @@ export class HiringReportComponent implements OnInit, OnDestroy {
     Swal.fire({ title: 'Enviando...', didOpen: () => Swal.showLoading() });
 
     try {
-      // Usar nuevo builder y servicio
       const { payload, files } = this.buildReporteRequest();
-
-      // Llamada al nuevo servicio (retorna Observable, usamos firstValueFrom)
       await firstValueFrom(this.reportesService.createReporte(payload, files));
 
       this.closeSwal();
       Swal.fire('Enviado', 'Reporte enviado correctamente', 'success').then(() => {
-        this.router.navigate(['/dashboard/hiring']);
+        this.router.navigate(['/dashboard/hiring/hiring-report']);
       });
 
     } catch (e) {
@@ -448,31 +466,51 @@ export class HiringReportComponent implements OnInit, OnDestroy {
   }
 
   async validarTodo() {
+    if (this.isValidatingAll) return;
+
     if (!this.files.cruceDiario?.length) {
       Swal.fire('Atención', 'Seleccione el archivo de Cruce Diario', 'warning');
       return;
     }
+
+    // Explicitly run inside zone for state update
+    this.zone.run(() => {
+      this.isValidatingAll = true;
+      this.cdr.detectChanges();
+    });
 
     this.showLoading('Validando...', 'Procesando Cruce Diario y ARL...');
 
     try {
       // 1. Validar Cruce
       const cruceOk = await this.processCruce();
-      if (!cruceOk) return; // User cancelled or error
+
+      if (!cruceOk) {
+        // processCruce returns false if cancelled OR if critical errors remain
+        return;
+      }
 
       // 2. Validar ARL (si aplica)
-      if (this.reporteForm.value.arl && this.files.arl?.length) {
+      if (this.reporteForm.controls.arl.value && this.files.arl?.length) {
         await this.processArl(this.files.arl[0]);
       }
 
       this.closeSwal();
-      Swal.fire('Completado', 'Validación finalizada con éxito.', 'success');
-      this.cdr.markForCheck();
+      // Success Swal removed per request
 
     } catch (e) {
       this.closeSwal();
       console.error(e);
       Swal.fire('Error', 'Ocurrió un error inesperado al validar.', 'error');
+    } finally {
+      // Ensure UI update happens in next tick to avoid conflicts with Swal closing
+      this.zone.run(() => {
+        setTimeout(() => {
+          this.isValidatingAll = false;
+          this.cdr.markForCheck(); // Mark for check
+          this.cdr.detectChanges(); // Force check
+        }, 100);
+      });
     }
   }
 
@@ -521,29 +559,79 @@ export class HiringReportComponent implements OnInit, OnDestroy {
       this.closeSwal();
       const res = await this.openCruceDialog(cruceRows, schema, uploadedRef, [], 'pre');
       if (!res) return false; // Cancelled
-      // Update data if allowed
       this.datoscruced = res;
     }
 
-    // 5. Backend Validation (Batches)
+    // 5. Backend Validation
     const backendErrors = await this.validateBatchesBackend(this.datoscruced);
     this.erroresValidacion.data = backendErrors;
 
+    const blockingErrors = backendErrors.filter(e => {
+      let rawMsg = e.mensaje || e.message || (Array.isArray(e.errores) ? e.errores.join('. ') : '');
+      if (!rawMsg) rawMsg = JSON.stringify(e);
+      let fieldVal = e.element || 'general';
+      if (rawMsg.toLowerCase().includes('correo') || rawMsg.toLowerCase().includes('email')) fieldVal = 'email';
+      return !this.isBackendWarning(rawMsg, fieldVal);
+    });
+
     if (backendErrors.length > 0) {
       this.closeSwal();
+
+      // Snapshot for comparison
+      const originalData = this.datoscruced;
+
       const res = await this.openCruceDialog(
         CruceValidationHelper.parseRows(this.datoscruced, headerRow),
         schema, uploadedRef, backendErrors, 'post'
       );
-      if (!res) return false;
+      if (!res) return false; // Cancelled
 
-      // Re-validate backend
-      this.datoscruced = res;
-      const reErrors = await this.validateBatchesBackend(this.datoscruced);
-      if (reErrors.length > 0) {
-        // Save errors to backend...
-        await this.saveErrorsToBackend(reErrors);
+      // Local Comparison Function (Robust string[][])
+      const hasChanged = (d1: string[][], d2: string[][]): boolean => {
+        if (d1.length !== d2.length) return true;
+        for (let i = 0; i < d1.length; i++) {
+          if (d1[i].length !== d2[i].length) return true;
+          for (let j = 0; j < d1[i].length; j++) {
+            if (String(d1[i][j]) !== String(d2[i][j])) return true;
+          }
+        }
         return false;
+      };
+
+      const changed = hasChanged(originalData, res);
+
+      if (changed) {
+        // Data changed, MUST re-validate
+        this.showLoading('Revalidando...', 'Verificando correcciones con el servidor...');
+        this.datoscruced = res;
+        const reErrors = await this.validateBatchesBackend(this.datoscruced);
+
+        // Check new blocking errors
+        const newBlocking = reErrors.filter(e => {
+          let rawMsg = e.mensaje || e.message || (Array.isArray(e.errores) ? e.errores.join('. ') : '');
+          if (!rawMsg) rawMsg = JSON.stringify(e);
+          let fieldVal = e.element || 'general';
+          if (rawMsg.toLowerCase().includes('correo') || rawMsg.toLowerCase().includes('email')) fieldVal = 'email';
+          return !this.isBackendWarning(rawMsg, fieldVal);
+        });
+
+        if (newBlocking.length > 0) {
+          await this.saveErrorsToBackend(newBlocking);
+          this.erroresValidacion.data = newBlocking;
+          return false;
+        }
+      } else {
+        // Data unchanged
+        // Should we assume warnings allow continuation? 
+        // YES, if blockingErrors was 0, it means we only had warnings initially.
+        // If blockingErrors > 0, we still have blocking errors and they weren't fixed (since data didn't change).
+        if (blockingErrors.length > 0) {
+          await this.saveErrorsToBackend(blockingErrors);
+          // Ensure we show the errors even if we don't re-fetch
+          this.erroresValidacion.data = blockingErrors;
+          return false;
+        }
+        // If blockingErrors == 0, we proceed directly.
       }
     }
 
@@ -557,8 +645,8 @@ export class HiringReportComponent implements OnInit, OnDestroy {
 
     // Sanitize Critical Columns
     // Col 1 = Cedula, Col 11 = NIT (Indices 1 and 11)
-    if (safe[1]) safe[1] = this.sanitizeIdentity(safe[1]);
-    if (safe[11]) safe[11] = this.sanitizeIdentity(safe[11]);
+    if (safe[1]) safe[1] = this.normalizeIdentity(safe[1]);
+    if (safe[11]) safe[11] = this.normalizeIdentity(safe[11]);
 
     // Normalize Dates (Col 8, 16, 24, 44 [AnioFin can be date])
     [8, 16, 24, 44].forEach(idx => {
@@ -570,67 +658,52 @@ export class HiringReportComponent implements OnInit, OnDestroy {
     return safe;
   }
 
-  private sanitizeIdentity(val: string): string {
-    // Keep X for PPT, otherwise digits only
-    const upper = val.toUpperCase();
-    if (upper.startsWith('X')) return upper;
-    return val.replace(/[^0-9]/g, '');
-  }
+  /* sanitizeIdentity - removed, use normalizeIdentity */
+
 
   private tryNormalizeDate(val: string): string {
     // 1. Handle Excel Serial Numbers (e.g. "44567" or "44567.123")
     if (/^\d+(\.\d+)?$/.test(val)) {
       const serial = Number(val);
-      // Basic check: dates usually > 10000 (roughly > 1927) and < 60000 (roughly 2064)
       if (serial > 20000 && serial < 80000) {
-        // Excel Epoch: Dec 30 1899
         const excelEpoch = new Date(1899, 11, 30);
         const d = new Date(excelEpoch.getTime() + serial * 24 * 60 * 60 * 1000);
-
         if (!isNaN(d.getTime())) {
           return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
         }
       }
     }
 
-    // 2. If already DD/MM/YYYY
+    // 2. If already valid DD/MM/YYYY (4 digits year)
     if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(val)) return val;
 
-    // 3. Detect MM/DD/YYYY or MM/DD/YY (US format often in Excel text)
+    // 3. Robust Parse for DD/MM/YY or DD-MM-YYYY
     const parts = val.split(/[/-]/);
     if (parts.length === 3) {
-      let d = parseInt(parts[1], 10);
-      let m = parseInt(parts[0], 10);
+      // Assume DD/MM/YYYY for LATAM
+      let d = parseInt(parts[0], 10);
+      let m = parseInt(parts[1], 10);
       let y = parseInt(parts[2], 10);
 
-      // Fix 2-digit year
-      if (y < 100) y += 2000;
+      // Validate assumption: if month > 12 and day <= 12, swap (US format detection)
+      if (m > 12 && d <= 12) {
+        const temp = d;
+        d = m;
+        m = temp;
+      }
 
-      // Heuristic: If 2nd part > 12, it represents Day => MM/DD
-      if (d > 12) {
+      // Handle 2-digit years
+      if (y < 100) {
+        // Pivot logic:
+        // If year is less than 30, assume 20xx (2000-2029)
+        // If year is 30 or more, assume 19xx (1930-1999)
+        // This covers birthdates (1994) and modern dates (2025)
+        y += (y < 30 ? 2000 : 1900);
+      }
+
+      // Basic validity check
+      if (d > 0 && d <= 31 && m > 0 && m <= 12 && y > 1900) {
         return `${String(d).padStart(2, '0')}/${String(m).padStart(2, '0')}/${y}`;
-      }
-
-      // If 1st part > 12, it represents Day => DD/MM (already parsed this way by default in parts 0=M, 1=D? Wait.)
-      // Logic fix: 
-      // parts[0] is usually Day in LATAM. parts[1] Month.
-      // My var naming was: m=parts[0], d=parts[1]. This assumed US format initially.
-      // Let's swap to standard LATAM assumption:
-      // parts[0] = Day, parts[1] = Month.
-
-      let day = parseInt(parts[0], 10);
-      let month = parseInt(parts[1], 10);
-
-      // If Month > 12, swap?
-      if (month > 12 && day <= 12) {
-        // Swap
-        const temp = day;
-        day = month;
-        month = temp;
-      }
-
-      if (day > 0 && month > 0 && y > 1900) {
-        return `${String(day).padStart(2, '0')}/${String(month).padStart(2, '0')}/${y}`;
       }
     }
     return val;
@@ -646,16 +719,18 @@ export class HiringReportComponent implements OnInit, OnDestroy {
         subtitle: 'Revise los datos antes de continuar.',
         uploadHandler: async (f: File) => {
           // Simple handler for adding file to existing list
-          const cedula = this.normalizeCedula(f.name.split('.')[0]);
+          const cedula = this.normalizeIdentity(f.name.split('.')[0]);
           // Add to memory if not exists... simplified for dialog interaction
         }
       }
     });
 
+
     const res = await firstValueFrom(ref.afterClosed());
     if (!res?.accepted) return null;
 
-    return res.items.map((i: any) => i.raw || Object.values(i));
+    // Use raw array if available to prevent field reordering or loss
+    return res.items.map((i: any) => Array.isArray(i.raw) ? i.raw : (Array.isArray(i) ? i : []));
   }
 
   private async validateBatchesBackend(rows: string[][]): Promise<any[]> {
@@ -801,29 +876,91 @@ export class HiringReportComponent implements OnInit, OnDestroy {
     Swal.close();
   }
 
-  private getDocList(key: UploadControl): string[] {
-    const files = this.files[key] || [];
-    return files.map(f => {
-      const m = f.name.match(/^\s*([a-zA-Z0-9-]+)/);
-      return this.normalizeCedula(m ? m[1] : '');
-    }).filter(Boolean);
-  }
-
-  private normalizeCedula(val: any): string {
+  private normalizeIdentity(val: any): string {
     if (!val) return '';
     const s = String(val).trim().toUpperCase();
-    if (s.startsWith('X')) return s.replace(/\s/g, '');
+    if (s.startsWith('X')) {
+      // Remove spaces and dots for special IDs
+      return s.replace(/\./g, '').replace(/\s/g, '');
+    }
+    // Only digits for normal IDs
     return s.replace(/[^\d]/g, '');
   }
 
+  /* 
+   * DEPRECATED: merged into normalizeIdentity
+   * private normalizeCedula...
+   * private sanitizeIdentity...
+   */
+
+  private getDocList(key: UploadControl): string[] {
+    const files = this.files[key] || [];
+    return files.map(f => {
+      // Improved regex to capture the leading ID part
+      const m = f.name.match(/^\s*([a-zA-Z0-9]+)/);
+      return this.normalizeIdentity(m ? m[1] : '');
+    }).filter(Boolean);
+  }
+
+  // ... checkAndShowPreviewErrors ...
+
+  private isBackendWarning(msg: string, field?: string): boolean {
+    if (!msg) return false;
+    const lower = msg.toLowerCase();
+
+    // Palabras clave exactas para duplicados
+    const duplicateKeywords = [
+      'ya está en uso', 'ya esta en uso', 'ya se encuentra en uso',
+      'ya existe', 'ya se encuentra registrado',
+      'duplicad', 'duplicate', 'unique', 'constraint',
+      'already exists', 'already in use'
+    ];
+
+    const isDuplicateMessage = duplicateKeywords.some(kw => lower.includes(kw));
+    return isDuplicateMessage;
+  }
+
   private mapExternalIssues(backendErrors: any[]): PreviewIssue[] {
-    return backendErrors.map((e, idx) => ({
-      id: `ext-${idx}`,
-      itemId: e.registro || '0',
-      severity: 'error',
-      message: e.mensaje || e.message || JSON.stringify(e),
-      field: e.element || 'general'
-    }));
+    return backendErrors.map((e, idx) => {
+      // Backend "registro" is 1-based index
+      let r = String(e.registro || '0');
+
+      if (!r.startsWith('row-')) {
+        const val = parseInt(r, 10);
+        if (!isNaN(val) && val > 0) {
+          r = `row-${val - 1}`;
+        } else {
+          r = `row-${r}`;
+        }
+      }
+
+      // 1. Extract raw message
+      let rawMsg = e.mensaje || e.message;
+      if (!rawMsg && Array.isArray(e.errores)) {
+        rawMsg = e.errores.join('. ');
+      }
+      if (!rawMsg) rawMsg = JSON.stringify(e);
+
+      // 2. Clean Message & Infer Field
+      let finalMsg = rawMsg;
+      let fieldVal = e.element || 'general';
+
+      const lowerMsg = rawMsg.toLowerCase();
+      if (lowerMsg.includes('correo') || lowerMsg.includes('email')) {
+        fieldVal = 'email';
+        finalMsg = rawMsg.replace(/El campo \(Correo electrónico\) contiene '[^']+',\s*/i, '');
+      }
+
+      const isWarn = this.isBackendWarning(finalMsg, fieldVal);
+
+      return {
+        id: `ext-${idx}`,
+        itemId: r,
+        severity: isWarn ? 'warn' : 'error',
+        message: finalMsg,
+        field: fieldVal
+      };
+    });
   }
 
   private buildReporteRequest() {

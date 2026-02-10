@@ -11,6 +11,11 @@ mat-tab-group {
   right: 5pt;            
 }
 
+/* Custom class for Medical Exam badge margin */
+.badge-medical-custom.mat-badge .mat-badge-content {
+  margin-left: -5pt;
+}
+
 
 .tab {
   display: flex;

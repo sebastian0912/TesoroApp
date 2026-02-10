@@ -1,7 +1,7 @@
 import { SharedModule } from '@/app/shared/shared.module';
 import { Component, Inject, OnInit } from '@angular/core';
 import { FormGroup, FormArray, FormBuilder, Validators, ReactiveFormsModule } from '@angular/forms';
-import { MatDialogRef, MAT_DIALOG_DATA, MatDialogActions, MatDialogContent, MatDialogTitle } from '@angular/material/dialog';
+import { MatDialogRef, MAT_DIALOG_DATA, MatDialogActions, MatDialogContent } from '@angular/material/dialog';
 import { DocumentacionService } from '../../service/documentacion/documentacion.service';
 import { MatDividerModule } from '@angular/material/divider';
 import { MatCheckboxModule } from '@angular/material/checkbox';
@@ -31,7 +31,6 @@ export interface ModalData {
     CommonModule,
     ReactiveFormsModule,
     MatDialogContent,
-    MatDialogTitle,
     MatDialogActions,
     MatButtonModule,
     MatIconModule,
@@ -233,54 +232,6 @@ export class DocumentModalComponent implements OnInit {
     });
 
     this.dialogRef.close({ type: 'create', data: resultData });
-    // Previous code expected specific format? 
-    // Wait, create-doc-structure passed "result" to service directly.
-    // If multiple, service call logic in parent needs to handle it?
-    // Parent code (CreateDocStructure):
-    // `this.documentacionService.crear_tipo_documento(result)`
-    // Does `crear_tipo_documento` accept an ARRAY?
-    // Usually standard endpoints take ONE object.
-    // If I return an array, the parent loop might break if it expects one object.
-
-    // CHECK 'document-modal.ts' original logic:
-    // `this.dialogRef.close({ type: 'create', data: nuevosDocumentosData });`
-    // So it DOES return `{ type, data: [...] }`.
-    // Let's check `create-doc-structure.ts` original:
-    // `if(data.id !== null) result.parent = data.id;`
-    // `this.documentacionService.crear_tipo_documento(result)`
-
-    // WAIT. If I pass `{type: 'create', data: [...]}` to `crear_tipo_documento`, it might explode if it expects `{name: string...}`.
-    // The previous `document-modal` logic seemed to indicate it was handling MULTIPLE.
-    // Let me RE-READ `document-modal.ts` original `createData` method.
-    // It closed with `{ type: 'create', data: [...] }`.
-
-    // But `create-doc-structure.ts` (original) had:
-    // `if (result) ... if (!isEdit) ... this.documentacionService.crear_tipo_documento(result)`
-    // If result was `{ type: ..., data: ...}`, then it passed that WHOLE object to service.
-    // Unless `create-doc-structure.ts` logic I SAW in step 444 had logic to handle it?
-    // step 423 `create-doc-structure.component.ts`:
-    // `this.documentacionService.crear_tipo_documento(result).subscribe(...)`
-
-    // IF the service expects a single object, the previous code was BROKEN or the service accepts that envelope. 
-    // OR create-doc-structure logic I saw earlier was just `result`, assuming `result` IS the payload.
-    // BUT `document-modal` (original) returned `{type, data}`.
-    // This implies `create-doc-structure` expects that.
-
-    // Wait, in my Step 436 (the NEW create-doc-structure), I wrote:
-    // `this.documentacionService.crear_tipo_documento(result).subscribe(...)`
-    // If I return `{ type: 'create', data: [...] }`, I am passing that.
-    // Does `crear_tipo_documento` handle an array?
-    // I should ensure I return what is expected.
-    // If `crear_tipo_documento` takes a SINGLE object, I cannot return list.
-    // But the prompt demanded "Add Multiple".
-
-    // I will return ONLY the first item if the service is single-entity, OR I will assume the service handles specific payload. 
-    // FOR SAFETY: The previous modal supported "FormArray". This implies multiple creation was intended. 
-    // I will stick to returning the ARRAY envelope and assume the Service or Parent handles it.
-    // Actually, looking at `create-doc-structure.ts` in step 423:
-    // `this.documentacionService.crear_tipo_documento(result)`
-    // If `result` is `{type:'create', data:[...]}`... that looks like a custom payload.
-    // I will maintain the `{ type: 'create', data: ... }` format.
   }
 
   resolveTags(tagIds: any[], newTagName: string): string[] {
