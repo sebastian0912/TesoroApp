@@ -71,7 +71,7 @@
 
       <div class="panel-header">
         <h3>Resultados</h3>
-        <span class="results-count" *ngIf="documentosPorCategoria?.length">
+        <span class="results-count" *ngIf="documentosPorCategoria.length">
           {{ documentosPorCategoria.length }} Categoría{{ documentosPorCategoria.length !== 1 ? 's' : '' }}
         </span>
       </div>
@@ -79,52 +79,58 @@
       <!-- Results Content -->
       <div class="results-list-container">
 
-        @if (documentosPorCategoria && documentosPorCategoria.length > 0) {
+        <ng-container *ngIf="documentosPorCategoria && documentosPorCategoria.length > 0; else emptyState">
 
-        <div class="category-block" *ngFor="let item of documentosPorCategoria; trackBy: trackByCategoria">
-          <div class="category-header">
-            <mat-icon class="folder-icon">folder_open</mat-icon>
-            <h4>{{ item.categoria }}</h4>
-          </div>
+          <div class="category-block" *ngFor="let item of documentosPorCategoria; trackBy: trackByCategoria">
+            <div class="category-header">
+              <mat-icon class="folder-icon">folder_open</mat-icon>
+              <h4>{{ item.categoria }}</h4>
+            </div>
 
-          <!-- "Table" Rows for Documents -->
-          <div class="documents-group">
-            <div class="doc-row" *ngFor="let doc of item.documentos; trackBy: trackByDocumento"
-              [class.has-file]="!!doc.file_url" (click)="doc.file_url ? verPDF(doc.file_url) : null">
+            <!-- "Table" Rows for Documents -->
+            <div class="documents-group">
+              <div class="doc-row" *ngFor="let doc of item.documentos; trackBy: trackByDocumento"
+                [class.has-file]="!!doc.file_url" (click)="doc.file_url ? verPDF(doc.file_url) : null">
 
-              <div class="doc-info">
-                <span class="doc-name">{{ obtenerTipoDocumental(doc) }}</span>
-                <!-- Optional: If API returned date or other meta, put here -->
+                <div class="doc-info">
+                  <span class="doc-name">{{ obtenerTipoDocumental(doc) }}</span>
+                  <!-- Optional: If API returned date or other meta, put here -->
+                </div>
+
+                <div class="doc-status">
+                  <span class="status-chip" [class.success]="doc.file_url" [class.missing]="!doc.file_url">
+                    {{ doc.file_url ? 'Disponible' : 'Sin Archivo' }}
+                  </span>
+                </div>
+
+                <div class="doc-actions">
+                  <button mat-icon-button class="view-btn" *ngIf="doc.file_url"
+                    (click)="$event.stopPropagation(); verPDF(doc.file_url)" matTooltip="Ver Documento">
+                    <mat-icon>visibility</mat-icon>
+                  </button>
+                  <button mat-icon-button class="edit-btn" *ngIf="doc.file_url"
+                    (click)="$event.stopPropagation(); editarPDF(doc)" matTooltip="Editar Documento">
+                    <mat-icon>edit</mat-icon>
+                  </button>
+                  <!-- Fallback or Help for missing? -->
+                  <mat-icon *ngIf="!doc.file_url" class="missing-icon"
+                    matTooltip="No se ha cargado archivo">error_outline</mat-icon>
+                </div>
+
               </div>
-
-              <div class="doc-status">
-                <span class="status-chip" [class.success]="doc.file_url" [class.missing]="!doc.file_url">
-                  {{ doc.file_url ? 'Disponible' : 'Sin Archivo' }}
-                </span>
-              </div>
-
-              <div class="doc-actions">
-                <button mat-icon-button class="view-btn" *ngIf="doc.file_url"
-                  (click)="$event.stopPropagation(); verPDF(doc.file_url)" matTooltip="Ver Documento">
-                  <mat-icon>visibility</mat-icon>
-                </button>
-                <!-- Fallback or Help for missing? -->
-                <mat-icon *ngIf="!doc.file_url" class="missing-icon"
-                  matTooltip="No se ha cargado archivo">error_outline</mat-icon>
-              </div>
-
             </div>
           </div>
-        </div>
 
-        } @else {
+        </ng-container>
+
         <!-- Empty State -->
-        <div class="empty-state">
-          <mat-icon>search_off</mat-icon>
-          <h3>Sin Resultados</h3>
-          <p>Ajusta los filtros para encontrar documentos.</p>
-        </div>
-        }
+        <ng-template #emptyState>
+          <div class="empty-state">
+            <mat-icon>search_off</mat-icon>
+            <h3>Sin Resultados</h3>
+            <p>Ajusta los filtros para encontrar documentos.</p>
+          </div>
+        </ng-template>
 
       </div>
     </section>

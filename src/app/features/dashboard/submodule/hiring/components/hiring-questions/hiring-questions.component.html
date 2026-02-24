@@ -30,13 +30,30 @@
         <mat-label>
           {{ pagoTransporteForm.get('formaPago')?.value === 'Daviplata' ? 'Número de cuenta' : 'Número de tarjeta' }}
         </mat-label>
-        <input matInput formControlName="numeroPagos">
+        <input matInput formControlName="numeroPagos" (blur)="verificarTarjeta()">
         <mat-error *ngIf="pagoTransporteForm.controls['numeroPagos'].hasError('required')">
           Obligatorio.
         </mat-error>
         <mat-error *ngIf="pagoTransporteForm.controls['numeroPagos'].hasError('pattern')">
           Debe tener 16 o 18 dígitos.
         </mat-error>
+        <mat-error *ngIf="pagoTransporteForm.controls['numeroPagos'].hasError('tarjetaInexistente')">
+          Tarjeta no encontrada o no coincide con la identificación.
+        </mat-error>
+        <mat-error *ngIf="pagoTransporteForm.controls['numeroPagos'].hasError('noCoincide')">
+          El número de tarjeta no coincide con la identificación seleccionada.
+        </mat-error>
+      </mat-form-field>
+
+      <mat-form-field class="example-full-width" *ngIf="pagoTransporteForm.get('formaPago')?.value !== 'Daviplata'">
+        <mat-label>Número Identificación (Tarjeta)</mat-label>
+        <input type="text" matInput formControlName="numeroIdentificacion" [matAutocomplete]="auto">
+        <mat-autocomplete #auto="matAutocomplete" [displayWith]="displayTarjeta"
+          (optionSelected)="onTarjetaSelected($event.option.value)">
+          <mat-option *ngFor="let t of filteredTarjetas | async" [value]="t">
+            {{ t.identification_number }} - {{ t.card_number }}
+          </mat-option>
+        </mat-autocomplete>
       </mat-form-field>
 
       <mat-form-field class="example-full-width" *ngIf="pagoTransporteForm.get('formaPago')?.value !== 'Daviplata'">

@@ -121,6 +121,29 @@ export class DocumentacionService {
       );
   }
 
+  actualizarDocumento(
+    title: string,
+    owner_id: string,
+    type: number,
+    file: Blob,
+    filename: string,
+    contract_number?: string
+  ): Observable<any> {
+    const formData = new FormData();
+    formData.append('title', title);
+    formData.append('owner_id', owner_id);
+    formData.append('type', type.toString());
+    formData.append('file', file, filename);
+    if (contract_number) formData.append('contract_number', contract_number);
+
+    return this.http
+      .post(`${this.apiUrl}/gestion_documental/documentos/`, formData)
+      .pipe(
+        map((response: any) => response),
+        catchError(this.handleError)
+      );
+  }
+
   bulkZipUpload(
     zipFile: File,
     opts?: { contract_from_filename?: boolean; default_contract?: string }

@@ -1,5 +1,4 @@
-import { NgModule } from '@angular/core';
-import { RouterModule, Routes } from '@angular/router';
+import { Routes } from '@angular/router';
 import { AbsencesComponent } from './pages/absences/absences.component';
 import { BannedManagementComponent } from './pages/banned-management/banned-management.component';
 import { BannedReportComponent } from './pages/banned-report/banned-report.component';
@@ -14,6 +13,7 @@ import { RegisterReceptionComponent } from './pages/register-reception/register-
 import { ViewReceptionInterviewsComponent } from './pages/view-reception-interviews/view-reception-interviews.component';
 import { ErrorListingComponent } from './pages/error-listing/error-listing.component';
 import { ConsultContractingDocumentationComponent } from './pages/consult-contracting-documentation/consult-contracting-documentation.component';
+import { TarjetasComponent } from './pages/tarjetas/tarjetas.component';
 
 export const routes: Routes = [
   { path: 'absences', component: AbsencesComponent },
@@ -30,4 +30,5 @@ export const routes: Routes = [
   { path: 'view-reception-interviews', component: ViewReceptionInterviewsComponent },
   { path: 'error-listing', component: ErrorListingComponent },
   { path: 'consult-contracting-documentation', component: ConsultContractingDocumentationComponent },
+  { path: 'tarjetas', component: TarjetasComponent },
 ];

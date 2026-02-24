@@ -32,13 +32,23 @@ function createWindow() {
     mainWindow = null;
   });
 
-  // Prevenir recargas no controladas
-  mainWindow.webContents.on('will-navigate', (event, url) => {
-    // Allow file protocol reloads or navigations
-    if (url.startsWith('file://') || url.startsWith('http://localhost')) {
-      return;
+  // Intercept Ctrl+R / F5 to reload properly (native reload loses index.html path)
+  // Preserves the current hash route so the user stays on the same page
+  mainWindow.webContents.on('before-input-event', (event, input) => {
+    const isReload =
+      (input.control && input.key.toLowerCase() === 'r') ||
+      input.key === 'F5';
+    if (isReload && process.env.NODE_ENV !== 'development') {
+      event.preventDefault();
+      // Extract current hash route from the URL (e.g. "/#/dashboard" → "/dashboard")
+      const currentUrl = mainWindow.webContents.getURL();
+      const hashIndex = currentUrl.indexOf('#');
+      const currentHash = hashIndex !== -1 ? currentUrl.substring(hashIndex + 1) : '/';
+      mainWindow.loadFile(
+        path.join(__dirname, 'dist/tesoreria/browser/index.html'),
+        { hash: currentHash }
+      );
     }
-    event.preventDefault();
   });
 
   if (process.env.NODE_ENV !== 'development') {
@@ -118,4 +128,132 @@ ipcMain.handle('fingerprint:get', async (event) => {
       }
     });
   });
+});
+
+// ─── PDF External Editor ─────────────────────────────────
+const fs = require('fs');
+const os = require('os');
+const https = require('https');
+const http = require('http');
+const { shell } = require('electron');
+
+let currentEditingFile = null;
+let fileWatcher = null;
+
+ipcMain.handle('pdf:edit-external', async (event, fileUrl) => {
+  try {
+    // 1. Create temp file path
+    const tmpDir = path.join(os.tmpdir(), 'tesoreria-pdf-edit');
+    if (!fs.existsSync(tmpDir)) {
+      fs.mkdirSync(tmpDir, { recursive: true });
+    }
+    const tmpFile = path.join(tmpDir, `edit_${Date.now()}.pdf`);
+
+    // 2. Download PDF from URL
+    await new Promise((resolve, reject) => {
+      const client = fileUrl.startsWith('https') ? https : http;
+      const req = client.get(fileUrl, (response) => {
+        // Follow redirects
+        if (response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
+          const redirectClient = response.headers.location.startsWith('https') ? https : http;
+          redirectClient.get(response.headers.location, (res2) => {
+            const fileStream = fs.createWriteStream(tmpFile);
+            res2.pipe(fileStream);
+            fileStream.on('finish', () => { fileStream.close(); resolve(); });
+            fileStream.on('error', reject);
+          }).on('error', reject);
+          return;
+        }
+        const fileStream = fs.createWriteStream(tmpFile);
+        response.pipe(fileStream);
+        fileStream.on('finish', () => { fileStream.close(); resolve(); });
+        fileStream.on('error', reject);
+      });
+      req.on('error', reject);
+    });
+
+    currentEditingFile = tmpFile;
+
+    // 3. Get the initial file stats for comparison
+    const initialStats = fs.statSync(tmpFile);
+    const initialSize = initialStats.size;
+    const initialMtime = initialStats.mtimeMs;
+
+    // 4. Open with system default PDF editor (e.g. Adobe Acrobat)
+    const result = await shell.openPath(tmpFile);
+    if (result) {
+      // result is non-empty string on error
+      return { success: false, error: result };
+    }
+
+    // 5. Watch the file for changes (poll-based for reliability)
+    if (fileWatcher) clearInterval(fileWatcher);
+    fileWatcher = setInterval(() => {
+      try {
+        if (!fs.existsSync(tmpFile)) return;
+        const stats = fs.statSync(tmpFile);
+        if (stats.mtimeMs > initialMtime || stats.size !== initialSize) {
+          // File was modified! Read it and send to renderer
+          const modifiedBytes = fs.readFileSync(tmpFile);
+          if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.webContents.send('pdf:file-changed', {
+              filePath: tmpFile,
+              bytes: modifiedBytes.toString('base64')
+            });
+          }
+          // Update initial values to detect next save
+          const newStats = fs.statSync(tmpFile);
+          // We can't reassign const, so we just clear the interval
+          clearInterval(fileWatcher);
+          // Start watching again with new baseline
+          const newMtime = newStats.mtimeMs;
+          const newSize = newStats.size;
+          fileWatcher = setInterval(() => {
+            try {
+              if (!fs.existsSync(tmpFile)) return;
+              const s = fs.statSync(tmpFile);
+              if (s.mtimeMs > newMtime || s.size !== newSize) {
+                const bytes = fs.readFileSync(tmpFile);
+                if (mainWindow && !mainWindow.isDestroyed()) {
+                  mainWindow.webContents.send('pdf:file-changed', {
+                    filePath: tmpFile,
+                    bytes: bytes.toString('base64')
+                  });
+                }
+              }
+            } catch (e) { /* file may be locked */ }
+          }, 2000);
+        }
+      } catch (e) { /* file may be locked by Adobe */ }
+    }, 2000);
+
+    return { success: true, filePath: tmpFile };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+});
+
+ipcMain.handle('pdf:read-file', async () => {
+  if (currentEditingFile && fs.existsSync(currentEditingFile)) {
+    try {
+      const bytes = fs.readFileSync(currentEditingFile);
+      return { success: true, bytes: bytes.toString('base64') };
+    } catch (e) {
+      return { success: false, error: e.message };
+    }
+  }
+  return { success: false, error: 'No file being edited' };
+});
+
+ipcMain.handle('pdf:finish-edit', async () => {
+  if (fileWatcher) {
+    clearInterval(fileWatcher);
+    fileWatcher = null;
+  }
+  // Clean up temp file
+  if (currentEditingFile && fs.existsSync(currentEditingFile)) {
+    try { fs.unlinkSync(currentEditingFile); } catch (e) { }
+    currentEditingFile = null;
+  }
+  return { success: true };
 });

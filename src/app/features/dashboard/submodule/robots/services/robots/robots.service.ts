@@ -218,6 +218,8 @@ export class RobotsService {
   getPendientesPorOficina(options?: {
     paquete?: string;
     soloPendientes?: boolean;
+    from?: string;
+    to?: string;
   }): Observable<PendientesPorOficinaResponse> {
     this.ensureBrowser();
 
@@ -225,6 +227,8 @@ export class RobotsService {
     const params = this.buildParams({
       paquete: options?.paquete ?? null,
       solo_pendientes: options?.soloPendientes ?? null,
+      from: options?.from ?? null,
+      to: options?.to ?? null,
     });
 
     return this.http

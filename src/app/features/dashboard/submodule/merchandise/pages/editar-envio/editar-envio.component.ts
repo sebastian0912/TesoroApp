@@ -100,8 +100,8 @@ export class EditarEnvioComponent {
       );
       if (response === 'success') {
         Swal.fire('Envio de mercancia', 'Envio realizado con exito', 'success').then(() => {
-          this.router.navigateByUrl('/dashboaard', { skipLocationChange: true }).then(() => {
-            this.router.navigate(["/edit-merchandise"]);
+          this.router.navigateByUrl('/dashboard', { skipLocationChange: true }).then(() => {
+            this.router.navigate(["/dashboard/merchandise/edit-merchandise"]);
           });
         });
       } else {

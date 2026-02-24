@@ -2,7 +2,7 @@ import { SharedModule } from '@/app/shared/shared.module';
 import {
   Component,
   effect, input, computed, signal, inject, DestroyRef, LOCALE_ID,
-  OnInit, ViewChild, ElementRef
+  OnInit
 } from '@angular/core';
 import {
   FormGroup, FormBuilder, Validators
@@ -57,10 +57,12 @@ interface PublicacionDTO {
   tipoContratacion: string | null;
   municipio: string[] | null;
   auxilioTransporte: string | null;
+  conteo_estados?: any;
 }
 
 @Component({
   selector: 'app-help-information',
+  standalone: true,
   imports: [SharedModule, MatTabsModule, MatDatepickerModule, MatNativeDateModule, FormEntrevistaComponent],
   templateUrl: './help-information.component.html',
   styleUrl: './help-information.component.css',
@@ -88,12 +90,6 @@ export class HelpInformationComponent implements OnInit {
   // id seleccionado desde el select o desde el proceso/candidato
   selectedVacanteId = signal<number | null>(null);
 
-  // Filtro por finca (para el mat-select con buscador)
-  filtroFinca = signal<string>('');
-
-  // Para enfocar el input del filtro cuando abre el panel del select
-  @ViewChild('filtroInput') filtroInput!: ElementRef<HTMLInputElement>;
-
   // Vacante actualmente seleccionada (mantiene sincronía entre lista e id)
   vacanteSeleccionada = signal<PublicacionDTO | null>(null);
 
@@ -101,6 +97,10 @@ export class HelpInformationComponent implements OnInit {
   vacantesForm: FormGroup;
 
   sede: string | undefined;
+
+  // ========= Estado de solo lectura =========
+  isRemisionReadOnly = signal<boolean>(false);
+  isPreloadedVacancy = signal<boolean>(false);
 
   // ========= Catálogos a signals =========
   private _estadosCiviles$ = this.gp
@@ -126,12 +126,78 @@ export class HelpInformationComponent implements OnInit {
     return ofs.reduce((acc, o) => acc + this.toInt(o?.numeroDeGenteRequerida), 0);
   });
 
-  // Lista de vacantes filtrada por finca
-  filteredVacantes = computed(() => {
-    const q = this.norm(this.filtroFinca());
+  // ── Árbol de vacantes agrupadas (Empresa → Finca → Vacantes) ──
+  vacantesAgrupadas = computed(() => {
     const list = this.vacantes();
-    if (!q) return list;
-    return list.filter(v => this.norm(v.finca).includes(q));
+    const map = new Map<string, Map<string, PublicacionDTO[]>>();
+
+    const currentSelectedId = this.selectedVacanteId();
+
+    for (const v of list) {
+      // Filtrar las que tienen 0 faltantes, EXCEPTO la ya seleccionada
+      if (this.falt(v) === 0 && Number(v.id) !== currentSelectedId) continue;
+
+      const emp = v.empresaUsuariaSolicita || 'Sin Empresa';
+      const finca = v.finca || 'Sin Finca';
+
+      if (!map.has(emp)) {
+        map.set(emp, new Map());
+      }
+      const fincasMap = map.get(emp)!;
+
+      if (!fincasMap.has(finca)) {
+        fincasMap.set(finca, []);
+      }
+      fincasMap.get(finca)!.push(v);
+    }
+
+    const result = [];
+    for (const [empresa, fincasMap] of map.entries()) {
+      const fincas = [];
+      for (const [finca, vacs] of fincasMap.entries()) {
+        fincas.push({
+          finca,
+          vacantes: vacs.sort((a, b) => (a.cargo || '').localeCompare(b.cargo || '', 'es', { sensitivity: 'base' }))
+        });
+      }
+      fincas.sort((a, b) => a.finca.localeCompare(b.finca, 'es', { sensitivity: 'base' }));
+      result.push({ empresa, fincas });
+    }
+
+    return result.sort((a, b) => a.empresa.localeCompare(b.empresa, 'es', { sensitivity: 'base' }));
+  });
+
+  // ── Turno en cola de antecedentes ──
+  turnoEnCola = computed(() => {
+    const cand = this.candidatoSeleccionado();
+    const cola = cand?.cola_antecedentes ?? cand?.colaAntecedentes;
+    if (!cola) return null;
+
+    // Ignoramos: 'medidas_correctivas' y 'fondo_pension' (AFP)
+    const activeKeys = ['adress', 'policivo', 'ofac', 'contraloria', 'sisben', 'procuraduria'];
+    let faltanMaxima = 0;
+    let hayEnProgreso = false;
+    let allFinished = true;
+
+    for (const key of activeKeys) {
+      const info = cola[key];
+      if (info) {
+        const est = (info.estado || '').toUpperCase();
+        if (est !== 'FINALIZADO' && est !== 'DESCARGADO ROBOT') {
+          allFinished = false;
+          if (est === 'EN_PROGRESO') hayEnProgreso = true;
+
+          if (typeof info.faltan_antes === 'number' && info.faltan_antes > faltanMaxima) {
+            faltanMaxima = info.faltan_antes;
+          }
+        }
+      } else {
+        allFinished = false;
+      }
+    }
+
+    if (allFinished) return { finalizado: true, faltan: 0 };
+    return { finalizado: false, faltan: faltanMaxima, enProgreso: hayEnProgreso };
   });
 
   // ========= Constructor =========
@@ -160,7 +226,37 @@ export class HelpInformationComponent implements OnInit {
       const list = this.vacantes();
       const v = id != null ? (list.find(x => Number(x.id) === Number(id)) || null) : null;
       this.vacanteSeleccionada.set(v);
-      if (v) this.patchVacanteToForm(v);
+
+      if (v) {
+        // Rellenar sólo los campos que estén vacíos en el formulario con los datos de la vacante predeterminada
+        const currentVals = this.vacantesForm.getRawValue();
+        const toDate = (yyyyMmDd: string | null) => yyyyMmDd ? new Date(`${yyyyMmDd}T00:00:00`) : null;
+        const toTime = (hhmmss: string | null) => hhmmss ? hhmmss.slice(0, 5) : null;
+        const salarioNum = v.salario && v.salario !== '0.00' ? Number(v.salario) : null;
+
+        this.vacantesForm.patchValue({
+          tipo: currentVals.tipo || this.mapApiTipoToForm(v.pruebaOContratacion),
+          empresaUsuaria: currentVals.empresaUsuaria || (v.empresaUsuariaSolicita ?? ''),
+          cargo: currentVals.cargo || (v.cargo ?? ''),
+          fechaIngreso: currentVals.fechaIngreso || toDate(v.fechadeIngreso),
+          salario: currentVals.salario || salarioNum,
+          area: currentVals.area || (v.area ?? ''),
+          fechaPruebaEntrevista: currentVals.fechaPruebaEntrevista || toDate(v.fechadePruebatecnica),
+          horaPruebaEntrevista: currentVals.horaPruebaEntrevista || toTime(v.horadePruebatecnica),
+          direccionEmpresa: currentVals.direccionEmpresa || (v.ubicacionPruebaTecnica ?? '')
+        }, { emitEvent: true }); // emitEvent true para que los signals de visibilidad (como isAutorizacion) reaccionen
+      }
+    });
+
+    // --- Effect: deshabilitar el formulario si aplica la restricción
+    effect(() => {
+      const isReadOnly = this.isRemisionReadOnly();
+      const loadedFromDB = this.isPreloadedVacancy();
+      if (isReadOnly && loadedFromDB) {
+        this.vacantesForm.disable({ emitEvent: false });
+      } else {
+        this.vacantesForm.enable({ emitEvent: false });
+      }
     });
   }
 
@@ -168,6 +264,14 @@ export class HelpInformationComponent implements OnInit {
     const user = this.utilService.getUser();
     if (user) {
       this.sede = user.sede?.nombre || null;
+
+      const rolNombre = (user.rol?.nombre || '').toUpperCase();
+      const email = (user.correo_electronico || '').toUpperCase();
+
+      if (!(rolNombre === 'GERENCIA' || rolNombre === 'ADMIN' || email === 'CONTRATACIONSUBA.TS@GMAIL.COM')) {
+        this.isRemisionReadOnly.set(true);
+      }
+
       if (this.sede) {
         this.vacantesService.getVacantesPorOficina(this.sede).pipe(
           takeUntilDestroyed(this.destroyRef)
@@ -186,39 +290,38 @@ export class HelpInformationComponent implements OnInit {
   // ===== Handlers =====
   private onInputsChanged(candidato: any | null) {
     if (candidato && candidato?.id) {
-      // Obtén el id de la publicación (vacante) desde el proceso
-      const vacanteId = candidato.entrevistas?.[0]?.proceso?.publicacion;
-      if (vacanteId != null) this.onVacanteIdChange(vacanteId);
+      // Intenta cargar el proceso del candidato
+      const proceso = candidato.entrevistas?.[0]?.proceso;
+      if (proceso) {
+        this.patchProcesoSeleccionToForms(proceso);
+      } else {
+        // Fallback si no hay proceso directamente anidado, aunque normalmente llega.
+        const vacanteId = candidato.entrevistas?.[0]?.proceso?.publicacion;
+        if (vacanteId != null) this.onVacanteIdChange(vacanteId);
+      }
     }
   }
 
   onVacanteIdChange(id: number | string): void {
     const idNum = Number(id);
     this.selectedVacanteId.set(idNum);
-    // La sincronización y el patch al form lo hace el effect().
-  }
 
-  onOpen(opened: boolean) {
-    if (opened) {
-      // Enfoca el input del filtro cuando abre el panel
-      setTimeout(() => this.filtroInput?.nativeElement?.focus(), 0);
-    } else {
-      // Opcional: limpiar filtro al cerrar
-      // this.filtroFinca.set('');
+    // Cuando el usuario elige del dropdown, rellenamos las fechas/salarios base de la vacante.
+    const list = this.vacantes();
+    const v = list.find(x => Number(x.id) === idNum);
+    if (v) {
+      this.patchVacanteToForm(v);
     }
   }
 
-  clearFiltro() {
-    this.filtroFinca.set('');
-    setTimeout(() => this.filtroInput?.nativeElement?.focus(), 0);
-  }
+
 
   async guardarInfoPersonal(): Promise<void> {
     console.log('Guardando info personal...');
   }
 
   private norm(s: any): string {
-    return (s ?? '').toString().normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase().trim();
+    return this.utilService.normalizeText(s).toLowerCase();
   }
 
   private mapApiTipoToForm(apiVal: any): '' | 'Prueba técnica' | 'Autorización de ingreso' {
@@ -263,7 +366,11 @@ export class HelpInformationComponent implements OnInit {
     }, { emitEvent: true });
 
     // Si el proceso trae id de vacante, sincroniza selección
-    if (p?.vacante != null) {
+    if (p?.publicacion != null) {
+      this.isPreloadedVacancy.set(true);
+      this.selectedVacanteId.set(Number(p.publicacion));
+    } else if (p?.vacante != null) {
+      this.isPreloadedVacancy.set(true);
       this.selectedVacanteId.set(Number(p.vacante));
     }
   }
@@ -394,31 +501,19 @@ export class HelpInformationComponent implements OnInit {
 
   // ── Wrapper para usar en el template con argumento ──
   totalRequeridaOf(v: any): number {
-    const ofs = Array.isArray(v?.oficinasQueContratan) ? v.oficinasQueContratan : [];
-    return ofs.reduce((acc: number, o: any) => acc + this.toInt(o?.numeroDeGenteRequerida), 0);
+    return Number(v?.personasSolicitadas) || 0;
   }
 
-  // ── KPIs/estilos que usa el template ──
-  countPre(v: any): number {
-    const p = v?.preseleccionados;
-    return Array.isArray(p) ? p.length : this.toInt(p);
-  }
-  countCont(v: any): number {
-    const c = v?.contratados;
-    return Array.isArray(c) ? c.length : this.toInt(c);
-  }
-  pillClasePre(v: any): string {
-    const req = this.totalRequeridaOf(v);
-    const pre = this.countPre(v);
-    return pre >= req ? 'pill-ok' : 'pill-error';
-  }
-  pillClaseCont(v: any): string {
-    const req = this.totalRequeridaOf(v);
-    const pre = this.countPre(v);
-    const cont = this.countCont(v);
-    if (cont >= req) return 'pill-ok';
-    if (pre >= req && cont < req) return 'pill-warn';
-    return 'pill-error';
+  // ── KPIs granulares ──
+  private ce(v: any): any { return v?.conteo_estados || {}; }
+  entrev(v: any): number { return this.ce(v).entrevistado || 0; }
+  prue(v: any): number { return this.ce(v).prueba_tecnica || 0; }
+  auto(v: any): number { return this.ce(v).autorizado || 0; }
+  exm(v: any): number { return this.ce(v).examenes_medicos || 0; }
+  firm(v: any): number { return this.ce(v).contratado || 0; }
+
+  falt(v: any): number {
+    return Math.max(0, this.totalRequeridaOf(v) - this.firm(v));
   }
   oficinasResumen(ofs: any[]): string {
     if (!Array.isArray(ofs) || !ofs.length) return '—';

@@ -233,7 +233,7 @@ export class PrestamoParaRealizarComponent {
           confirmButtonText: 'Aceptar',
         });
         this.router.navigateByUrl('/dashboard', { skipLocationChange: true }).then(() => {
-          this.router.navigate(['/prestamo-para-realizar']);
+          this.router.navigate(['/dashboard/money-loan/loan-to-perform']);
         });
       } else {
         await Swal.fire({

@@ -4,15 +4,18 @@ import { FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { DomSanitizer, SafeResourceUrl, Title, Meta } from '@angular/platform-browser';
 import { debounceTime, distinctUntilChanged, switchMap } from 'rxjs';
 import Swal from 'sweetalert2';
+import { MatDialog } from '@angular/material/dialog';
 import { DocumentacionService } from '../../service/documentacion/documentacion.service';
 import { UtilityServiceService } from '@/app/shared/services/utilityService/utility-service.service';
+import { PdfEditorDialogComponent } from '../../components/pdf-editor-dialog/pdf-editor-dialog.component';
 
 interface Documento {
   id: number;
   title: string;
   file_url: string;
-  type: number;  // <- para cruzarlo con tiposDocumentales
-
+  type: number;
+  owner_id?: string;
+  contract_number?: string;
 }
 
 interface Categoria {
@@ -31,6 +34,7 @@ export interface TipoDocumental {
 
 @Component({
   selector: 'app-search-documents',
+  standalone: true,
   imports: [
     SharedModule
   ],
@@ -52,7 +56,8 @@ export class SearchDocumentsComponent {
     private utilityService: UtilityServiceService,
     private sanitizer: DomSanitizer,
     private titleService: Title,
-    private metaService: Meta
+    private metaService: Meta,
+    private dialog: MatDialog
   ) {
     // SEO Init
     this.titleService.setTitle('Buscar Documentos | Gestión Documental');
@@ -192,4 +197,149 @@ export class SearchDocumentsComponent {
     return tipoEncontrado ? tipoEncontrado.name : 'Tipo documental desconocido';
   }
 
+  editarPDF(doc: Documento): void {
+    if (!doc.file_url) return;
+
+    // Use Electron IPC to open in external PDF editor (Adobe Acrobat)
+    const electronApi = (window as any).electron;
+    if (!electronApi?.pdf?.editExternal) {
+      // Fallback for non-Electron environment: open dialog viewer
+      const dialogRef = this.dialog.open(PdfEditorDialogComponent, {
+        maxWidth: '100vw',
+        maxHeight: '100vh',
+        width: '100vw',
+        height: '100vh',
+        panelClass: 'pdf-editor-fullscreen-dialog',
+        disableClose: true,
+        data: {
+          fileUrl: doc.file_url,
+          docId: doc.id,
+          title: doc.title,
+          ownerId: this.form.get('cedula')?.value || doc.owner_id || '',
+          type: doc.type,
+          contractNumber: this.form.get('codigoContrato')?.value || doc.contract_number || ''
+        }
+      });
+      dialogRef.afterClosed().subscribe(result => {
+        if (result?.saved) {
+          this.onSubmit();
+        }
+      });
+      return;
+    }
+
+    // ── Electron path: open in Adobe Acrobat ──
+    Swal.fire({
+      title: 'Abriendo en editor externo…',
+      html: 'Descargando el documento y abriendo Adobe Acrobat.<br><small>Guarda el archivo en Acrobat cuando termines de editar.</small>',
+      allowOutsideClick: false,
+      didOpen: () => Swal.showLoading()
+    });
+
+    electronApi.pdf.editExternal(doc.file_url).then((result: any) => {
+      if (!result.success) {
+        Swal.fire({
+          icon: 'error',
+          title: 'Error',
+          text: result.error || 'No se pudo abrir el editor de PDF.'
+        });
+        return;
+      }
+
+      Swal.fire({
+        icon: 'info',
+        title: 'Editando en Adobe Acrobat',
+        html: `
+          <p style="margin-bottom:8px;">El documento se abrió en tu editor de PDF.</p>
+          <p style="font-weight:700;">Cuando termines de editar:</p>
+          <ol style="text-align:left;font-size:14px;">
+            <li>Guarda el archivo en Adobe (Ctrl+S)</li>
+            <li>Haz clic en <b>"Subir Cambios"</b> abajo</li>
+          </ol>
+        `,
+        showCancelButton: true,
+        confirmButtonText: '📤 Subir Cambios',
+        cancelButtonText: 'Cancelar',
+        confirmButtonColor: '#4CAF50',
+        allowOutsideClick: false
+      }).then(async (swalResult) => {
+        if (swalResult.isConfirmed) {
+          // Read the modified file and upload
+          Swal.fire({
+            title: 'Subiendo documento editado…',
+            allowOutsideClick: false,
+            didOpen: () => Swal.showLoading()
+          });
+
+          try {
+            // Read the modified file via IPC (main process reads it)
+            const readResult = await electronApi.pdf.readFile();
+            if (!readResult.success) {
+              throw new Error(readResult.error || 'No se pudo leer el archivo');
+            }
+
+            // Convert base64 to Blob
+            const byteCharacters = atob(readResult.bytes);
+            const byteNumbers = new Array(byteCharacters.length);
+            for (let i = 0; i < byteCharacters.length; i++) {
+              byteNumbers[i] = byteCharacters.charCodeAt(i);
+            }
+            const byteArray = new Uint8Array(byteNumbers);
+            const blob = new Blob([byteArray], { type: 'application/pdf' });
+
+            const cedula = this.form.get('cedula')?.value || doc.owner_id || '';
+            const contrato = this.form.get('codigoContrato')?.value || doc.contract_number || '';
+
+            this.documentacionService.actualizarDocumento(
+              doc.title,
+              cedula,
+              doc.type,
+              blob,
+              'documento_editado.pdf',
+              contrato
+            )
+              .subscribe({
+                next: () => {
+                  electronApi.pdf.finishEdit();
+                  Swal.fire({
+                    icon: 'success',
+                    title: '¡Guardado!',
+                    text: 'El documento editado fue subido exitosamente.',
+                    timer: 2500,
+                    showConfirmButton: false
+                  });
+                  this.onSubmit();
+                },
+                error: (err: any) => {
+                  console.error('Upload error:', err);
+                  Swal.fire({
+                    icon: 'error',
+                    title: 'Error al Subir',
+                    text: 'No se pudo subir el documento editado.'
+                  });
+                }
+              });
+          } catch (err) {
+            console.error('Error reading modified file:', err);
+            Swal.fire({
+              icon: 'error',
+              title: 'Error',
+              text: 'No se pudo leer el archivo modificado.'
+            });
+            electronApi.pdf.finishEdit();
+          }
+        } else {
+          // User cancelled
+          electronApi.pdf.finishEdit();
+        }
+      });
+    }).catch((err: any) => {
+      console.error('Error opening external editor:', err);
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: 'No se pudo abrir el editor externo.'
+      });
+    });
+  }
 }

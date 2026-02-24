@@ -131,7 +131,6 @@
           @if (col.type === 'select' || col.type === 'status') {
           <mat-form-field appearance="outline" class="sf-filter-val-full">
             <mat-select formControlName="value" multiple placeholder="Seleccionar...">
-              <!-- TODO: Search input inside header if needed? -->
               @for (opt of (col.options || yesNoOptions); track opt) {
               <mat-option [value]="opt">{{ opt }}</mat-option>
               }
@@ -229,7 +228,6 @@
             <span class="sf-chip-val">{{ f.value.from | date:'shortDate' }} - {{ f.value.to | date:'shortDate'
               }}</span>
             } @else {
-            <!-- Operator display if relevant? -->
             @if (f.operator && f.operator !== 'contains' && f.operator !== 'in' && f.operator !== 'range') {
             <span class="sf-chip-op">({{ f.operator }})</span>
             }
@@ -247,6 +245,15 @@
 
       <!-- CONTENT: Table or Cards -->
       <div class="sf-content-area">
+
+        <!-- LOADING OVERLAY -->
+        @if(isLoading) {
+        <div class="sf-loading-overlay">
+          <mat-spinner diameter="40"></mat-spinner>
+          <p style="margin-top: 10px; color: #666; font-size: 0.9rem;">Cargando datos...</p>
+        </div>
+        }
+
         @if (viewMode === 'table') {
         <div class="sf-table-wrapper">
           <table mat-table ngSkipHydration [dataSource]="dataSource" matSort class="sf-table"
@@ -276,7 +283,8 @@
               [stickyEnd]="!!col.stickyEnd || col.name === 'actions'">
 
               <th mat-header-cell *matHeaderCellDef mat-sort-header [disabled]="!isSortable(col)"
-                [style.width]="col.width || null" [style.minWidth]="col.width || null">
+                [class.header-align-right]="col.type === 'number'" [style.width]="col.width || null"
+                [style.minWidth]="col.width || null">
                 {{ col.header }}
               </th>
 
@@ -351,9 +359,11 @@
 
             <tr class="mat-row" *matNoDataRow>
               <td class="mat-cell" [attr.colspan]="displayedColumns.length">
-                <div class="sf-no-data">
-                  <mat-icon>inbox</mat-icon>
-                  <span>{{ isLoading ? 'Cargando...' : 'No se encontraron registros' }}</span>
+                <div class="sf-no-data" *ngIf="!isLoading">
+                  <div class="sf-no-data-illustration">
+                    <mat-icon>inbox</mat-icon>
+                  </div>
+                  <span>No se encontraron registros</span>
                 </div>
               </td>
             </tr>
@@ -362,10 +372,15 @@
         } @else {
         <!-- CARDS VIEW (Desktop & Mobile unified logic) -->
         <div class="sf-cards-grid">
-          @if (dataSource.filteredData.length === 0) {
-          <div class="sf-no-data-card">
-            <mat-icon>inbox</mat-icon>
-            <span>{{ isLoading ? 'Cargando...' : 'No se encontraron registros' }}</span>
+
+          <!-- Loading overlay also works here due to absolute positioning on content-area -->
+
+          @if (dataSource.filteredData.length === 0 && !isLoading) {
+          <div class="sf-no-data">
+            <div class="sf-no-data-illustration">
+              <mat-icon>inbox</mat-icon>
+            </div>
+            <span>No se encontraron registros</span>
           </div>
           }
           @for (row of getPagedData(); track trackByRow($index, row)) {
@@ -380,8 +395,6 @@
               } @else {
               <div class="sf-card-label">{{ col.header }}</div>
               <div class="sf-card-val">
-                <!-- Reusing same rendering logic logic implicitly or simplify? -->
-                <!-- For brevity, repeating switch or using template if available -->
                 @if (col.name === 'semaforo' && semaforoTemplate) {
                 <ng-container [ngTemplateOutlet]="semaforoTemplate"
                   [ngTemplateOutletContext]="{ $implicit: row }"></ng-container>

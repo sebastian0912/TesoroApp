@@ -21,69 +21,111 @@
 
     <form [formGroup]="vacantesForm" class="form-tab">
 
-      <!-- Selector de vacante (usa signals en trigger y en la lista) -->
-      <mat-form-field class="example-full-width" appearance="outline" style="min-width: 90% !important;">
-        <mat-label>Seleccionar vacante</mat-label>
 
-        <mat-select [value]="selectedVacanteId()" (selectionChange)="onVacanteIdChange($event.value)"
-          (openedChange)="onOpen($event)" [disableOptionCentering]="true">
+      <!-- ═══ Selector Único: Empresa → Finca → Cargo ═══ -->
+      <div class="unified-selector" style="margin-bottom: 20px;">
+        <mat-form-field class="example-full-width" appearance="outline" style="width: 100%;">
+          <mat-label>Vacante (Empresa - Finca - Cargo)</mat-label>
+          <mat-select [value]="selectedVacanteId()" (selectionChange)="onVacanteIdChange($event.value)"
+            [disabled]="isRemisionReadOnly() && isPreloadedVacancy()" [disableOptionCentering]="true"
+            panelClass="custom-select-panel">
 
-          <!-- Trigger actual -->
-          <mat-select-trigger>
-            <ng-container *ngIf="vacanteSeleccionada() as v; else placeholderVac">
-              <div class="trigger-wrap">
-                <span class="trigger-title">{{ v.cargo || 'Sin cargo' }}</span>
-                <span class="spacer"></span>
-                <span class="pill pill-req">Req {{ totalRequerida() }}</span>
-                <span class="pill" [ngClass]="pillClasePre(v)">Pre {{ countPre(v) }}</span>
-                <span class="pill" [ngClass]="pillClaseCont(v)">Cont {{ countCont(v) }}</span>
-              </div>
-              <div class="trigger-meta">
-                {{ v.empresaUsuariaSolicita }} — {{ v.finca }} · {{ oficinasResumen(v.oficinasQueContratan) }}
-                · {{ formatShortDate(v.fechaPublicado) }}
-              </div>
+            <mat-select-trigger>
+              <ng-container *ngIf="vacanteSeleccionada() as v; else placeholderVac">
+                <div class="trigger-wrap">
+                  <span class="trigger-title">{{ v.empresaUsuariaSolicita }} - {{ v.finca || 'Sin finca' }} - {{ v.cargo
+                    || 'Sin cargo' }}</span>
+                  <span class="spacer"></span>
+                  <div class="badges-row" style="display: flex; gap: 4px; align-items: center;">
+                    <span class="badge"
+                      style="background: #e0f2fe; color: #0284c7; padding: 2px 6px; border-radius: 4px; font-size: 11px;">Req
+                      {{ totalRequeridaOf(v) }}</span>
+                    <span class="badge"
+                      style="background: #ffedd5; color: #ea580c; padding: 2px 6px; border-radius: 4px; font-size: 11px;">Falt
+                      {{ falt(v) }}</span>
+                    <span class="badge"
+                      style="background: #f3f4f6; color: #4b5563; padding: 2px 6px; border-radius: 4px; font-size: 11px;">Entr
+                      {{ entrev(v) }}</span>
+                    <span class="badge"
+                      style="background: #f3f4f6; color: #4b5563; padding: 2px 6px; border-radius: 4px; font-size: 11px;">Pru
+                      {{ prue(v) }}</span>
+                    <span class="badge"
+                      style="background: #f3f4f6; color: #4b5563; padding: 2px 6px; border-radius: 4px; font-size: 11px;">Auto
+                      {{ auto(v) }}</span>
+                    <span class="badge"
+                      style="background: #f3f4f6; color: #4b5563; padding: 2px 6px; border-radius: 4px; font-size: 11px;">Exm
+                      {{ exm(v) }}</span>
+                    <span class="badge"
+                      style="background: #dcfce3; color: #166534; padding: 2px 6px; border-radius: 4px; font-size: 11px;">Firm
+                      {{ firm(v) }}</span>
+                  </div>
+                </div>
+              </ng-container>
+              <ng-template #placeholderVac>Selecciona…</ng-template>
+            </mat-select-trigger>
+
+            <ng-container *ngFor="let emp of vacantesAgrupadas()">
+              <!-- 1er Nivel: Empresa -->
+              <mat-optgroup [label]="emp.empresa" style="font-weight: bold; color: #1976d2; font-size: 15px;">
+                <ng-container *ngFor="let f of emp.fincas">
+
+                  <!-- 2do Nivel: Finca (simulada como label deshabilitada) -->
+                  <mat-option disabled
+                    style="opacity: 1 !important; color: #555; font-weight: 600; padding-left: 24px; min-height: 40px;">
+                    <mat-icon
+                      style="vertical-align: baseline; margin-right: 4px; font-size: 18px; width: 18px; height: 18px;">business</mat-icon>
+                    Finca: {{ f.finca }}
+                  </mat-option>
+
+                  <!-- 3er Nivel: Cargo / Vacante -->
+                  <mat-option *ngFor="let v of f.vacantes" [value]="v.id" style="padding-left: 48px; min-height: 60px;">
+                    <div class="vacante-option" style="width: 100%; display: flex; flex-direction: column;">
+                      <div class="row-1" style="display: flex; align-items: center; width: 100%;">
+                        <mat-icon
+                          style="margin-right: 8px; font-size: 16px; width: 16px; height: 16px; color: #888;">work_outline</mat-icon>
+                        <span class="cargo"><strong>{{ v.cargo || 'Sin cargo' }}</strong></span>
+                        <span class="spacer"></span>
+                        <div class="badges-row" style="display: flex; gap: 4px; align-items: center;">
+                          <span class="badge"
+                            style="background: #e0f2fe; color: #0284c7; padding: 2px 6px; border-radius: 4px; font-size: 11px;">Req
+                            {{ totalRequeridaOf(v) }}</span>
+                          <span class="badge"
+                            style="background: #ffedd5; color: #ea580c; padding: 2px 6px; border-radius: 4px; font-size: 11px;">Falt
+                            {{ falt(v) }}</span>
+                          <span class="badge"
+                            style="background: #f3f4f6; color: #4b5563; padding: 2px 6px; border-radius: 4px; font-size: 11px;">Entr
+                            {{ entrev(v) }}</span>
+                          <span class="badge"
+                            style="background: #f3f4f6; color: #4b5563; padding: 2px 6px; border-radius: 4px; font-size: 11px;">Pru
+                            {{ prue(v) }}</span>
+                          <span class="badge"
+                            style="background: #f3f4f6; color: #4b5563; padding: 2px 6px; border-radius: 4px; font-size: 11px;">Auto
+                            {{ auto(v) }}</span>
+                          <span class="badge"
+                            style="background: #f3f4f6; color: #4b5563; padding: 2px 6px; border-radius: 4px; font-size: 11px;">Exm
+                            {{ exm(v) }}</span>
+                          <span class="badge"
+                            style="background: #dcfce3; color: #166534; padding: 2px 6px; border-radius: 4px; font-size: 11px;">Firm
+                            {{ firm(v) }}</span>
+                        </div>
+                      </div>
+                      <div class="row-2" style="font-size: 12px; color: gray; margin-left: 24px; margin-top: 4px;">
+                        {{ oficinasResumen(v.oficinasQueContratan) }} · {{ formatShortDate(v.fechaPublicado) }} · Cod:
+                        {{ v.codigoElite || 'N/A' }}
+                      </div>
+                    </div>
+                  </mat-option>
+
+                </ng-container>
+              </mat-optgroup>
             </ng-container>
-            <ng-template #placeholderVac>Selecciona…</ng-template>
-          </mat-select-trigger>
 
-          <!-- Filtro en el panel -->
-          <mat-option class="filter-row" [disabled]="true" (click)="$event.stopPropagation()">
-            <mat-icon>search</mat-icon>
-            <input #filtroInput class="filter-input" type="text" placeholder="Filtrar por finca…"
-              [value]="filtroFinca()" (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()"
-              (input)="filtroFinca.set(filtroInput.value)" />
-            <button mat-icon-button type="button" *ngIf="filtroFinca()"
-              (click)="$event.stopPropagation(); clearFiltro()">
-              <mat-icon>close</mat-icon>
-            </button>
-          </mat-option>
-
-
-          <!-- Opciones filtradas -->
-          <mat-option *ngFor="let v of filteredVacantes()" [value]="v.id">
-            <div class="vacante-option">
-              <div class="row-1">
-                <span class="cargo">{{ v.finca || 'Sin finca' }}</span>
-                <span class="spacer"></span>
-                <span class="pill pill-req">Req {{ totalRequeridaOf(v) }}</span>
-                <span class="pill" [ngClass]="pillClasePre(v)">Pre {{ countPre(v) }}</span>
-                <span class="pill" [ngClass]="pillClaseCont(v)">Cont {{ countCont(v) }}</span>
-              </div>
-              <div class="row-2">
-                <span class="empresa">{{ v.cargo }}</span> —
-                <span class="finca">{{ v.finca }}</span> ·
-                <span class="oficinas">{{ oficinasResumen(v.oficinasQueContratan) }}</span> ·
-                <span class="fecha">{{ formatShortDate(v.fechaPublicado) }}</span>
-              </div>
-            </div>
-          </mat-option>
-
-          <!-- Vacío -->
-          <mat-option *ngIf="!filteredVacantes().length" disabled>
-            Sin resultados para “{{ filtroFinca() }}”
-          </mat-option>
-        </mat-select>
-      </mat-form-field>
+            <mat-option *ngIf="!vacantesAgrupadas().length" disabled>
+              Sin vacantes disponibles
+            </mat-option>
+          </mat-select>
+        </mat-form-field>
+      </div>
 
 
       <!-- Resumen -->
@@ -151,8 +193,9 @@
         </ng-container>
       </div>
 
-      <div class="actions">
-        <button mat-flat-button color="primary" [disabled]="vacantesForm.invalid" (click)="guardarVacantes()">
+      <div class="actions" *ngIf="!(isRemisionReadOnly() && isPreloadedVacancy())">
+        <button mat-flat-button color="primary" [disabled]="vacantesForm.invalid || vacantesForm.disabled"
+          (click)="guardarVacantes()">
           Guardar
         </button>
       </div>

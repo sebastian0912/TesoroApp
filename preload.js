@@ -16,5 +16,11 @@ contextBridge.exposeInMainWorld('electron', {
   },
   fingerprint: {
     get: () => ipcRenderer.invoke('fingerprint:get')
+  },
+  pdf: {
+    editExternal: (fileUrl) => ipcRenderer.invoke('pdf:edit-external', fileUrl),
+    readFile: () => ipcRenderer.invoke('pdf:read-file'),
+    finishEdit: () => ipcRenderer.invoke('pdf:finish-edit'),
+    onFileChanged: (callback) => ipcRenderer.on('pdf:file-changed', (event, data) => callback(data))
   }
 });

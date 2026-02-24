@@ -1,5 +1,7 @@
-<mat-card style="height: 87vh;">
-  <mat-card-content style="height: 100%;">
+<mat-card
+  style="display: flex; flex-direction: column; height: 100%; max-height: 100vh; overflow: hidden; box-sizing: border-box;">
+  <mat-card-content
+    style="display: flex; flex-direction: column; flex: 1; overflow: hidden; padding: 16px; box-sizing: border-box;">
 
     <div class="header">
       <div class="info-candidato-titulo">
@@ -48,6 +50,13 @@
           (click)="verExamenMedico()" [matBadge]="tieneExamenMedicoUI() ? '✓' : '✗'"
           [matBadgeColor]="tieneExamenMedicoUI() ? 'primary' : 'warn'" matBadgeOverlap="true">
           <mat-icon>medical_services</mat-icon>
+        </button>
+
+        <!-- ARL (id 30) -->
+        <button mat-icon-button matTooltip="Ver ARL" aria-label="Ver ARL" (click)="verArl()"
+          [matBadge]="tieneArlUI() ? '✓' : '✗'" [matBadgeColor]="tieneArlUI() ? 'primary' : 'warn'"
+          matBadgeOverlap="true">
+          <mat-icon>health_and_safety</mat-icon>
         </button>
 
       </div>

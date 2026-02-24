@@ -263,6 +263,21 @@ export class SelectionQuestionsComponent {
     return it.estado || null;
   }
 
+  queueDetailFor(fld: FieldDef): { finalizado: boolean, enProgreso: boolean, faltan: number | null } | null {
+    const k = this.colaKeyMap[fld.key];
+    const it = k ? this.colaRaw?.[k] : undefined;
+    if (!it) return null;
+
+    const est = (it.estado || '').toUpperCase();
+    if (est === 'FINALIZADO' || est === 'DESCARGADO ROBOT') {
+      return { finalizado: true, enProgreso: false, faltan: 0 };
+    }
+    if (est === 'EN_PROGRESO') {
+      return { finalizado: false, enProgreso: true, faltan: null };
+    }
+    return { finalizado: false, enProgreso: false, faltan: typeof it.faltan_antes === 'number' ? it.faltan_antes : null };
+  }
+
   queueLabelFor(fld: FieldDef): string {
     const k = this.colaKeyMap[fld.key];
     const it = k ? this.colaRaw?.[k] : undefined;

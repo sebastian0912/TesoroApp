@@ -235,6 +235,7 @@ export interface ProcesoUpdateByDocumentRequest {
   contrato_detalle?: {
     forma_de_pago?: string | null;
     numero_para_pagos?: string | null;
+    numero_identificacion?: string | null; // New field
     seguro_funerario?: boolean | null;
     Ccentro_de_costos?: string | null;
     porcentaje_arl?: number | null;
@@ -521,9 +522,13 @@ export class RegistroProcesoContratacion {
 
   // Detalle por ID (básico o completo con ?full=1)
   getCandidato(id: number | string, full = false): Observable<any> {
-    const options = full ? { params: new HttpParams().set('full', '1') } : {};
+    let params = new HttpParams();
+    if (full) {
+      params = params.set('full', '1');
+      params = params.set('include_queue', '1');
+    }
     return this.http
-      .get<any>(this.url(`candidatos/${id}`), options)
+      .get<any>(this.url(`candidatos/${id}`), { params })
       .pipe(this.handle$());
   }
 
@@ -533,7 +538,10 @@ export class RegistroProcesoContratacion {
   getCandidatoPorDocumento(numeroDocumento: string, full = false) {
     const safe = encodeURIComponent((numeroDocumento ?? '').trim());
     let params = new HttpParams();
-    if (full) params = params.set('full', '1');
+    if (full) {
+      params = params.set('full', '1');
+      params = params.set('include_queue', '1');
+    }
 
     return this.http
       .get<any>(this.url(`candidatos/by-document/${safe}`), { params })
@@ -546,7 +554,10 @@ export class RegistroProcesoContratacion {
   //
   getCandidatoPorDocumentoQ(numeroDocumento: string, full = false) {
     let params = new HttpParams().set('numero_documento', (numeroDocumento ?? '').trim());
-    if (full) params = params.set('full', '1');
+    if (full) {
+      params = params.set('full', '1');
+      params = params.set('include_queue', '1');
+    }
 
     return this.http
       .get<any>(this.url('candidatos/by-document'), { params })

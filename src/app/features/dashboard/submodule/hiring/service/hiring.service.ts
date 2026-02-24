@@ -16,7 +16,7 @@ export class HiringService {
   constructor(private http: HttpClient, @Inject(PLATFORM_ID) private platformId: Object) { }
 
   private handleError(error: any): Observable<never> {
-    throw error;
+    return throwError(() => error);
   }
 
   // Buscar en contratacion por cedula para sacar los numeros

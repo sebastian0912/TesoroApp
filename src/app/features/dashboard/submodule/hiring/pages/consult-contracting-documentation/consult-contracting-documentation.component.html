@@ -74,7 +74,14 @@
 
     <div class="results-header">
       <h3>Resultados de la Búsqueda</h3>
-      <span class="badge-count">{{ checklistRows.length }} Registros</span>
+      <div class="results-header-actions">
+        <button mat-stroked-button color="primary" class="btn-reconsultar" (click)="reconsultar()"
+          [disabled]="!lastQueriedCedulas.length || isLoadingChecklist"
+          matTooltip="Volver a consultar las mismas cédulas" matTooltipPosition="above">
+          <mat-icon>refresh</mat-icon> Reconsultar
+        </button>
+        <span class="badge-count">{{ checklistRows.length }} Registros</span>
+      </div>
     </div>
 
     <div class="table-frame">
@@ -91,9 +98,9 @@
               [class.icon-warn]="cell?.state === 'OLD'" [class.icon-missing]="!cell?.state || cell?.state === 'MISSING'"
               [disabled]="!cell?.url || cell?.state === 'MISSING'" (click)="openDoc(cell, $event)" [matTooltip]="
                 cell?.state === 'OK'
-                  ? 'Entregado (Vigente)'
+                  ? 'Entregado (Menos de 15 días)'
                   : cell?.state === 'OLD'
-                  ? 'Entregado (> 15 días)'
+                  ? 'Entregado (Más de 15 días)'
                   : 'No existe'
               " matTooltipPosition="above">
 

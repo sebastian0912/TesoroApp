@@ -1,67 +1,86 @@
-<div class="cards">
-  <app-info-card
-    title="Cargar solicitudes robots paquete"
-    imageUrl="icons/cards/excel.png"
-    (click)="triggerFileInput()"
-    style="cursor:pointer"></app-info-card>
+<!-- Welcome Header -->
+<header class="home-header">
+  <h1 class="home-greeting">Hola, {{ nombreUsuario }}</h1>
+  <p class="home-date">{{ fechaHoy }}</p>
+</header>
 
-  <app-info-card
-    title="Descargar historial beneficios"
-    imageUrl="icons/cards/excel.png"
-    (click)="extraerHistorialBeneficios()"
-    style="cursor:pointer"></app-info-card>
+<!-- Category Buttons -->
+<div class="category-grid">
+  <button class="category-btn" *ngIf="general" (click)="openPanel('robots')">
+    <mat-icon class="category-icon">smart_toy</mat-icon>
+    <span class="category-label">Robots</span>
+    <mat-icon class="category-arrow">chevron_right</mat-icon>
+  </button>
 
-  <app-info-card
-    title="Cargar cedulas para resetear contratado"
-    imageUrl="icons/cards/excel.png"
-    (click)="triggerFileInputResetContratado()"
-    style="cursor:pointer"></app-info-card>
+  <button class="category-btn" *ngIf="general" (click)="openPanel('reportes')">
+    <mat-icon class="category-icon">assessment</mat-icon>
+    <span class="category-label">Reportes</span>
+    <mat-icon class="category-arrow">chevron_right</mat-icon>
+  </button>
 
-  <!-- ✅ NUEVO: Descargar Excel candidatos por cédulas -->
-  <app-info-card
-    title="Descargar Excel candidatos (por cédulas)"
-    imageUrl="icons/cards/excel.png"
-    (click)="triggerFileInputExcelCandidatos()"
-    style="cursor:pointer"></app-info-card>
-
-  <!-- ✅ NUEVO: Leer Excel (CEDULA + CODIGO) para generar carnets -->
-  <app-info-card
-    title="Cargar Excel para generar carnets (CÉDULA + CÓDIGO)"
-    imageUrl="icons/cards/excel.png"
-    (click)="triggerFileInputCarnets()"
-    style="cursor:pointer"></app-info-card>
-
-  <button mat-raised-button color="accent"
-    (click)="descargarLinksExcel(1, 0, 0)">
-    Descargar Excel (cédula + link de Drive)
+  <button class="category-btn" *ngIf="admin || general" (click)="openPanel('contratacion')">
+    <mat-icon class="category-icon">assignment_ind</mat-icon>
+    <span class="category-label">Contratación</span>
+    <mat-icon class="category-arrow">chevron_right</mat-icon>
   </button>
 </div>
 
-<input type="file" id="fileInput" (change)="cargarExcel($event)"
-  accept=".xlsx, .xls" style="display:none" />
+<!-- Slide Panel Backdrop -->
+<div class="panel-backdrop" [class.open]="activePanel !== null" (click)="closePanel()"></div>
 
-<input
-  type="file"
-  id="fileInputResetContratado"
-  (change)="cargarExcelResetContratado($event)"
-  accept=".xlsx, .xls"
-  style="display:none" />
+<!-- Slide Panel -->
+<div class="slide-panel" [class.open]="activePanel !== null">
+  <div class="panel-header">
+    <button class="panel-back" (click)="closePanel()">
+      <mat-icon>arrow_back</mat-icon>
+    </button>
+    <h2 class="panel-title">{{ panelTitle }}</h2>
+  </div>
 
-<!-- ✅ NUEVO input oculto: Excel con cédulas para exportar -->
-<input
-  type="file"
-  id="fileInputExcelCandidatos"
-  (change)="cargarExcelParaExportarCandidatos($event)"
-  accept=".xlsx, .xls"
-  style="display:none" />
+  <div class="panel-body">
+    <!-- Robots -->
+    <ng-container *ngIf="activePanel === 'robots'">
+      <app-info-card matIcon="upload_file" title="Cargar solicitudes robots paquete"
+        description="Sube un Excel con las solicitudes para robots" (click)="triggerFileInput()">
+      </app-info-card>
+    </ng-container>
 
-<!-- ✅ NUEVO input oculto: Excel (CEDULA + CODIGO) para carnets -->
-<input
-  type="file"
-  id="fileInputCarnets"
-  (change)="cargarExcelCarnets($event)"
-  accept=".xlsx, .xls"
-  style="display:none" />
+    <!-- Reportes -->
+    <ng-container *ngIf="activePanel === 'reportes'">
+      <app-info-card matIcon="download" title="Descargar historial beneficios"
+        description="Genera un Excel con el historial de beneficios por rango de fechas"
+        (click)="extraerHistorialBeneficios()">
+      </app-info-card>
 
-<app-merchandising-merchandise
-  *ngIf="comercializadora"></app-merchandising-merchandise><br>
+      <app-info-card matIcon="file_download" title="Descargar Excel candidatos"
+        description="Sube un Excel con cédulas para exportar datos de candidatos"
+        (click)="triggerFileInputExcelCandidatos()">
+      </app-info-card>
+    </ng-container>
+
+    <!-- Contratación -->
+    <ng-container *ngIf="activePanel === 'contratacion'">
+      <app-info-card matIcon="restart_alt" title="Reset estado contratado"
+        description="Sube un Excel con cédulas para resetear el campo contratado"
+        (click)="triggerFileInputResetContratado()">
+      </app-info-card>
+
+      <app-info-card matIcon="badge" title="Generar carnets"
+        description="Sube un Excel con cédula, código y centro de costo" (click)="triggerFileInputCarnets()">
+      </app-info-card>
+    </ng-container>
+  </div>
+</div>
+
+<!-- Hidden file inputs -->
+<input #fileInput type="file" (change)="cargarExcel($event)" accept=".xlsx, .xls" class="hidden-input" />
+<input #fileInputResetContratado type="file" (change)="cargarExcelResetContratado($event)" accept=".xlsx, .xls"
+  class="hidden-input" />
+<input #fileInputExcelCandidatos type="file" (change)="cargarExcelParaExportarCandidatos($event)" accept=".xlsx, .xls"
+  class="hidden-input" />
+<input #fileInputCarnets type="file" (change)="cargarExcelCarnets($event)" accept=".xlsx, .xls" class="hidden-input" />
+
+<!-- Merchandising (solo si comercializadora) -->
+<div class="merchandising-section" *ngIf="comercializadora">
+  <app-merchandising-merchandise></app-merchandising-merchandise>
+</div>
