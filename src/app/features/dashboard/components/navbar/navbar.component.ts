@@ -107,6 +107,7 @@ export class NavbarComponent implements OnInit, OnDestroy {
     'CARGAS MASIVAS': 'treasury/upload-treasury',
 
     'Robots': 'robots/dashboard-robots',
+    'NOMINA': 'nomina/nomina',
   };
 
   private readonly iconMap: Record<string, string> = {
@@ -186,6 +187,7 @@ export class NavbarComponent implements OnInit, OnDestroy {
 
     'Robots': 'smart_toy',
     'TABLA RETENCIÓN': 'table_chart',
+    'NOMINA': 'table_chart',
   };
 
   private routeMapIndex!: Record<string, string>;
