@@ -3,7 +3,7 @@ import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
 import { isPlatformBrowser } from '@angular/common';
 import { firstValueFrom, Observable, throwError } from 'rxjs';
 import { catchError, map } from 'rxjs/operators';
-import { environment } from '@/environments/environment.development';
+import { environment } from '@/environments/environment';
 
 
 @Injectable({
@@ -16,7 +16,7 @@ export class HiringService {
   constructor(private http: HttpClient, @Inject(PLATFORM_ID) private platformId: Object) { }
 
   private handleError(error: any): Observable<never> {
-    throw error;
+    return throwError(() => error);
   }
 
   // Buscar en contratacion por cedula para sacar los numeros

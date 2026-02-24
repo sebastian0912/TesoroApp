@@ -6,6 +6,10 @@ import { provideAnimationsAsync } from '@angular/platform-browser/animations/asy
 import { provideHttpClient, withFetch, withInterceptors } from '@angular/common/http';
 import { interceptor } from './core/interceptors/auth.interceptor';
 
+/**
+ * Web/SSR config: uses PathLocationStrategy (default).
+ * Hash routing is NOT needed for web deployments.
+ */
 export const appConfig: ApplicationConfig = {
   providers: [
     provideZoneChangeDetection({ eventCoalescing: true }),

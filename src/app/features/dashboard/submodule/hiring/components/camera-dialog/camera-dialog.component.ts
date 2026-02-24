@@ -15,7 +15,6 @@ export type CameraDialogResult = { file: File; previewUrl: string };
     MatDialogModule,
     MatIconModule,
     MatProgressSpinnerModule,
-    MatTabsModule,
     MatButtonModule,
     CommonModule
   ],
@@ -33,7 +32,9 @@ export class CameraDialogComponent implements OnInit, OnDestroy {
   stream?: MediaStream;
   loadingCamera = false;
   cameraError = '';
-  facingMode: 'user' | 'environment' = 'environment';
+  facingMode: 'user' | 'environment' = 'user'; // Default 'user' para selfies
+  isMirror = true; // Espejo activado por defecto
+  isUploadMode = false; // Modo "Adjuntar" recuperado como estado
 
   previewUrl: string | null = null; // Para mostrar antes de confirmar
   capturedFile: File | null = null;
@@ -81,8 +82,8 @@ export class CameraDialogComponent implements OnInit, OnDestroy {
         if (!resp.ok) throw new Error(String(resp.status));
         const blob = await resp.blob();
         const ext = blob.type === 'image/jpeg' ? 'jpg'
-                 : blob.type === 'image/png'  ? 'png'
-                 : 'bin';
+          : blob.type === 'image/png' ? 'png'
+            : 'bin';
         const file = new File([blob], `foto-actual.${ext}`, { type: blob.type || 'application/octet-stream' });
         this.capturedFile = file;
         this.previewUrl = URL.createObjectURL(file);
@@ -133,7 +134,22 @@ export class CameraDialogComponent implements OnInit, OnDestroy {
 
   async toggleFacing(): Promise<void> {
     this.facingMode = this.facingMode === 'environment' ? 'user' : 'environment';
+    this.isMirror = this.facingMode === 'user'; // Espejo solo en modo selfie
     await this.startCamera();
+  }
+
+  toggleMirror(): void {
+    this.isMirror = !this.isMirror;
+  }
+
+  toggleUploadMode(): void {
+    this.isUploadMode = !this.isUploadMode;
+    if (this.isUploadMode) {
+      this.stopCamera();
+    } else {
+      this.clearSelection(); // Limpia foto anterior
+      this.startCamera();
+    }
   }
 
   capture(): void {
@@ -148,6 +164,13 @@ export class CameraDialogComponent implements OnInit, OnDestroy {
 
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
+
+    // Si está en espejo, invertir el canvas horizontalmente antes de dibujar
+    if (this.isMirror) {
+      ctx.translate(w, 0);
+      ctx.scale(-1, 1);
+    }
+
     ctx.drawImage(video, 0, 0, w, h);
 
     canvas.toBlob((blob) => {
@@ -171,6 +194,10 @@ export class CameraDialogComponent implements OnInit, OnDestroy {
     this.previewUrl = null;
     if (this.fileInput?.nativeElement) {
       this.fileInput.nativeElement.value = '';
+    }
+    // Si no es modo subida, reactivar cámara
+    if (!this.isUploadMode) {
+      this.startCamera();
     }
   }
 

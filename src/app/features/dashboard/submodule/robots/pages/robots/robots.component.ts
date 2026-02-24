@@ -1,4 +1,6 @@
-import { CommonModule } from '@angular/common';
+import { CommonModule, TitleCasePipe } from '@angular/common';
+import { MatDatepickerModule } from '@angular/material/datepicker';
+import { MatNativeDateModule, MAT_DATE_LOCALE } from '@angular/material/core';
 import {
   ChangeDetectionStrategy,
   ChangeDetectorRef,
@@ -10,10 +12,11 @@ import {
   inject,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { Title } from '@angular/platform-browser';
 import { of } from 'rxjs';
-import { catchError, finalize, map, take, tap } from 'rxjs/operators';
+import { catchError, finalize, map, take, tap, debounceTime } from 'rxjs/operators';
 
-import { ReactiveFormsModule, FormBuilder, FormGroup } from '@angular/forms';
+import { ReactiveFormsModule, FormBuilder, FormGroup, FormControl } from '@angular/forms';
 
 import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
@@ -22,8 +25,9 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatSelectModule } from '@angular/material/select';
 import { MatInputModule } from '@angular/material/input';
+import { MatTabsModule } from '@angular/material/tabs';
 
-import Swal from 'sweetalert2';
+import Swal, { SweetAlertIcon } from 'sweetalert2';
 
 import { StandardFilterTable } from '@/app/shared/components/standard-filter-table/standard-filter-table';
 import { ColumnDefinition } from '@/app/shared/models/advanced-table-interface';
@@ -50,17 +54,17 @@ type PendienteKey =
   | 'fondo_pension'
   | 'union';
 
-type PendientesOficinasMatrixRow = {
+interface PendientesOficinasMatrixRow {
   tipo: string;
   key: PendienteKey | '__TOTAL__';
   total?: number;
   [k: string]: any;
-};
+}
 
 // =========================
 // ROBOTS FULL
 // =========================
-type RobotFullRow = {
+export interface RobotFullRow {
   oficina: string | null;
   Robot: string | null;
   Cedula: string | null;
@@ -97,11 +101,11 @@ type RobotFullRow = {
   Entidad_FondoPension: string | null;
   PDF_FondoPension: string | null;
   Fecha_FondoPension: string | null;
-};
+}
 
 // =========================
 // ✅ ULTIMOS POR MARCA TEMPORAL (por antecedente)
-/// =========================
+// =========================
 type UltimosAntecedenteUiKey =
   | 'adress'
   | 'policivo'
@@ -110,36 +114,36 @@ type UltimosAntecedenteUiKey =
   | 'contraloria'
   | 'sisben'
   | 'fondo_pension'
-  | 'union'
-  | 'medidas_correctivas';
 
 // =========================
 // STATS MULTILÍNEA
 // =========================
-type StatsPoint = { period: string } & Record<string, any>;
+type StatsPoint = { period: string } & Record<string, { total?: number; finalized?: number; registered?: number } | number>;
 type TooltipState = { key: string; label: string; stroke: string };
 
-type ChartLineVm = {
+interface ChartLineVm {
   key: string;
   label: string;
   stroke: string;
   d: string;
   y: number[]; // y pixel por punto (para hover circles)
-};
+}
 
-type ChartVm = {
+interface ChartVm {
   yMax: number;
   ticks: { y: number; label: string }[];
   xMarks: { x: number; label: string }[];
   xPoints: number[];
   paths: ChartLineVm[];
-};
+}
 
 @Component({
   selector: 'app-robots',
+  standalone: true,
   imports: [
     CommonModule,
     ReactiveFormsModule,
+    TitleCasePipe,
 
     MatIconModule,
     MatCardModule,
@@ -148,9 +152,13 @@ type ChartVm = {
     MatFormFieldModule,
     MatSelectModule,
     MatInputModule,
+    MatTabsModule,
+    MatDatepickerModule,
+    MatNativeDateModule,
 
     StandardFilterTable,
   ],
+  providers: [{ provide: MAT_DATE_LOCALE, useValue: 'es-ES' }],
   templateUrl: './robots.component.html',
   styleUrl: './robots.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -159,10 +167,10 @@ export class RobotsComponent implements OnInit {
   private readonly destroyRef = inject(DestroyRef);
   private readonly cdr = inject(ChangeDetectorRef);
   private readonly fb = inject(FormBuilder);
+  private readonly titleService = inject(Title);
+  private readonly robots = inject(RobotsService);
 
   @ViewChild('chartWrap') chartWrap!: ElementRef<HTMLDivElement>;
-
-  constructor(private readonly robots: RobotsService) {}
 
   // =========================
   // STATE (TABLAS)
@@ -182,8 +190,8 @@ export class RobotsComponent implements OnInit {
   ultimosRows: UltimosPorMarcaTemporalRow[] = [];
   ultimosColumns: ColumnDefinition[] = [];
 
-  ultimosForm: FormGroup = this.fb.group({
-    antecedente: ['adress' as UltimosAntecedenteUiKey],
+  ultimosForm = this.fb.group({
+    antecedente: new FormControl<UltimosAntecedenteUiKey>('adress', { nonNullable: true }),
     estado: [''], // opcional
     limit: [50], // 1..200
   });
@@ -196,15 +204,13 @@ export class RobotsComponent implements OnInit {
     { key: 'contraloria', label: 'Contraloría (marca_temporal_contraloria)' },
     { key: 'sisben', label: 'Sisben (marca_temporal_sisben)' },
     { key: 'fondo_pension', label: 'Fondo Pensión (marca_temporal_fondo_pension)' },
-    { key: 'union', label: 'Unión (marca_temporal_union)' },
-    { key: 'medidas_correctivas', label: 'Medidas Correctivas (marca_temporal_medidas_correctivas)' },
   ];
 
   // =========================
   // STATE (STATS / GRAFICA)
   // =========================
   isLoadingStats = false;
-  stats: EstadoRobotStatsResponse | null = null;
+  stats: EstadoRobotStatsResponse | null = null; // ✅ Relax type for now as backend changed
 
   // ✅ puntos crudos (cada punto trae period + estados)
   statsSeries: StatsPoint[] = [];
@@ -214,12 +220,25 @@ export class RobotsComponent implements OnInit {
 
   oficinasOptions: string[] = [];
 
-  statsForm: FormGroup = this.fb.group({
+  statsForm = this.fb.group({
     from: [''],
     to: [''],
-    group: ['day' as StatsGroup],
+    group: new FormControl<StatsGroup>('day', { nonNullable: true }),
     oficina: [''],
   });
+
+  // ✅ Form para "Faltantes por Oficina"
+  pendientesForm = this.fb.group({
+    from: [null as Date | null],
+    to: [null as Date | null],
+    // paquete, soloPendientes podrases agregarlos aqui si quisieras full binding,
+    // pero por ahora solo fechas.
+  });
+
+  // KPI Pre-calculated values
+  kpiRegistered = 0;
+  kpiFinalized = 0;
+  kpiRate = 0;
 
   // hover/tooltip
   hoverIndex: number | null = null;
@@ -232,23 +251,19 @@ export class RobotsComponent implements OnInit {
   // =========================
   // CONFIG
   // =========================
-  private readonly pendientesKeys: Array<{ key: PendienteKey; label: string }> = [
-    { key: 'adress', label: 'Adress' },
-    { key: 'policivo', label: 'Policivos' },
-    { key: 'ofac', label: 'OFAC' },
-    { key: 'contraloria', label: 'Contraloría' },
-    { key: 'sisben', label: 'Sisben' },
-    { key: 'procuraduria', label: 'Procuraduría' },
-    { key: 'fondo_pension', label: 'Fondo Pensión' },
-    { key: 'union', label: 'Unión' },
+  private readonly robotKeys: Array<{ key: string; label: string; color: string }> = [
+    { key: 'adress', label: 'Adress', color: '#3b82f6' },        // Blue
+    { key: 'policivo', label: 'Policivo', color: '#ef4444' },      // Red
+    { key: 'ofac', label: 'OFAC', color: '#10b981' },          // Green
+    { key: 'contraloria', label: 'Contraloría', color: '#f59e0b' }, // Amber
+    { key: 'sisben', label: 'Sisben', color: '#8b5cf6' },        // Violet
+    { key: 'procuraduria', label: 'Procuraduría', color: '#ec4899' }, // Pink
+    { key: 'fondo_pension', label: 'Fondo P.', color: '#06b6d4' },   // Cyan
+    { key: 'medidas_correctivas', label: 'Medidas C.', color: '#d946ef' }, // Fuchsia (replaced union/generic)
   ];
 
-  // palette (colores garantizados)
-  private readonly palette = [
-    '#2563eb', '#16a34a', '#dc2626', '#f59e0b', '#7c3aed',
-    '#0891b2', '#db2777', '#65a30d', '#ea580c', '#0f766e',
-    '#4f46e5', '#9333ea',
-  ];
+  // Alias for compatibility with loadPendientesPorOficina
+  private readonly pendientesKeys: Array<{ key: any; label: string }> = this.robotKeys.map(r => ({ key: r.key as any, label: r.label }));
 
   // toast
   private readonly toast = Swal.mixin({
@@ -260,13 +275,23 @@ export class RobotsComponent implements OnInit {
   });
 
   ngOnInit(): void {
+    this.titleService.setTitle('Robots Dashboard - Tesoreria');
     this.buildColumns();
     this.initStatsDefaults();
+    // ✅ Escuchar cambios en pendientes form
+    this.pendientesForm.valueChanges
+      .pipe(
+        debounceTime(300),
+        takeUntilDestroyed(this.destroyRef)
+      )
+      .subscribe(() => {
+        this.loadPendientesPorOficina({ showToast: false });
+      });
 
+    // Carga inicial
     this.reloadAll(false);
     this.loadStats({ showToast: false });
 
-    // ✅ carga inicial (puedes quitarla si lo quieres solo manual)
     this.loadUltimosPorMarcaTemporal({ showToast: false });
   }
 
@@ -276,16 +301,34 @@ export class RobotsComponent implements OnInit {
   // =========================
   // ✅ Limpieza de marca temporal (sin microsegundos ni offset)
   // =========================
-  private cleanIsoTimestamp(v: any): string {
-    if (!v) return '';
-    let s = String(v).trim();
+  private cleanIsoTimestamp(v: unknown): string {
+    if (!v || typeof v !== 'string') return '';
 
-    // 2026-01-22T05:57:07.898188+00:00  ->  2026-01-22 05:57:07
-    s = s.replace('T', ' ');
-    s = s.replace(/\.\d+/, ''); // quita .898188
-    s = s.replace(/([+-]\d{2}:\d{2}|Z)$/, ''); // quita +00:00 o Z
+    try {
+      // Intenta parsear la fecha y formatearla usando Intl.DateTimeFormat
+      const date = new Date(v);
+      if (isNaN(date.getTime())) {
+        // Fallback a string manipulation si la fecha es inválida
+        let s = v.trim();
+        s = s.replace('T', ' ');
+        s = s.replace(/\.\d+/, ''); // quita .898188
+        s = s.replace(/([+-]\d{2}:\d{2}|Z)$/, ''); // quita +00:00 o Z
+        return s.trim();
+      }
 
-    return s.trim();
+      // Formato seguro: YYYY-MM-DD HH:mm:ss
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      const hours = String(date.getHours()).padStart(2, '0');
+      const minutes = String(date.getMinutes()).padStart(2, '0');
+      const seconds = String(date.getSeconds()).padStart(2, '0');
+
+      return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+
+    } catch (e) {
+      return String(v);
+    }
   }
 
   // =========================
@@ -340,9 +383,8 @@ export class RobotsComponent implements OnInit {
   loadUltimosPorMarcaTemporal(opts?: { showToast?: boolean }): void {
     if (this.isLoadingUltimos) return;
 
-    const antecedenteUi = String(this.ultimosForm.value?.antecedente ?? '').trim() as UltimosAntecedenteUiKey;
-
-    const estadoRaw = String(this.ultimosForm.value?.estado ?? '').trim();
+    const antecedenteUi = this.ultimosForm.controls.antecedente.value as UltimosAntecedenteUiKey;
+    const estadoRaw = this.ultimosForm.value?.estado?.trim();
     const estado = estadoRaw ? estadoRaw.toUpperCase() : null;
 
     let limit = Number(this.ultimosForm.value?.limit ?? 50);
@@ -362,10 +404,10 @@ export class RobotsComponent implements OnInit {
           const arr = Array.isArray(rows) ? rows : [];
 
           // ✅ aquí se limpia la marca temporal para la tabla
-          this.ultimosRows = arr.map((r: any) => ({
+          this.ultimosRows = arr.map((r) => ({
             ...r,
             marcaTemporal: this.cleanIsoTimestamp(r?.marcaTemporal),
-          })) as UltimosPorMarcaTemporalRow[];
+          }));
 
           this.cdr.markForCheck();
         }),
@@ -402,10 +444,10 @@ export class RobotsComponent implements OnInit {
   loadStats(opts?: { showToast?: boolean }): void {
     if (this.isLoadingStats) return;
 
-    const from = String(this.statsForm.value?.from ?? '').trim();
-    const to = String(this.statsForm.value?.to ?? '').trim();
-    const group = (this.statsForm.value?.group ?? 'day') as StatsGroup;
-    const oficinaRaw = String(this.statsForm.value?.oficina ?? '').trim();
+    const from = this.statsForm.value?.from?.trim();
+    const to = this.statsForm.value?.to?.trim();
+    const group = this.statsForm.controls.group.value;
+    const oficinaRaw = this.statsForm.value?.oficina?.trim();
     const oficina = oficinaRaw ? oficinaRaw : null;
 
     this.isLoadingStats = true;
@@ -415,13 +457,23 @@ export class RobotsComponent implements OnInit {
       .getEstadosRobotStats({ from: from || undefined, to: to || undefined, group, oficina })
       .pipe(
         take(1),
-        tap((resp: any) => {
+        tap((resp: EstadoRobotStatsResponse) => {
           this.stats = resp ?? null;
 
-          const series: StatsPoint[] = Array.isArray(resp?.series) ? resp.series : [];
-          this.statsSeries = series.map((p: any) => ({ ...p, period: String(p?.period ?? '') }));
+          const series: StatsPoint[] = Array.isArray(resp?.series) ? (resp.series as unknown[] as StatsPoint[]) : [];
+          this.statsSeries = series.map((p) => ({ ...p, period: String(p?.period ?? '') }));
 
-          this.tooltipStates = this.detectStates(this.statsSeries);
+          // ✅ Define lines: 1 Ceiling (Total) + N Robot Progress Lines (Finalized)
+          this.tooltipStates = [
+            { key: 'total', label: 'TOTAL (Techo)', stroke: '#111827' }, // Dark line for ceiling
+            ...this.robotKeys.map(r => ({
+              key: r.key,
+              label: r.label,
+              stroke: r.color
+            }))
+          ];
+
+          this.calculateKpis();
 
           this.hoverIndex = null;
           this.cdr.markForCheck();
@@ -432,6 +484,9 @@ export class RobotsComponent implements OnInit {
           this.statsSeries = [];
           this.tooltipStates = [];
           this.hoverIndex = null;
+          this.kpiRegistered = 0;
+          this.kpiFinalized = 0;
+          this.kpiRate = 0;
           this.cdr.markForCheck();
           if (opts?.showToast) void this.toast.fire({ icon: 'error', title: 'Stats: error al cargar' });
           return of(null);
@@ -448,33 +503,42 @@ export class RobotsComponent implements OnInit {
   }
 
   // =========================
-  // KPI helpers (global)
+  // KPI helpers (Calculated once)
   // =========================
-  get kpiRegistered(): number {
+  private calculateKpis(): void {
     const s = this.statsSeries ?? [];
-    if (!s.length || !this.tooltipStates.length) return 0;
-
-    let acc = 0;
-    for (const p of s) {
-      for (const st of this.tooltipStates) acc += this.getHpTotal(p, st.key);
+    if (!s.length) {
+      this.kpiRegistered = 0;
+      this.kpiFinalized = 0;
+      this.kpiRate = 0;
+      return;
     }
-    return acc;
-  }
 
-  get kpiFinalized(): number {
-    const s = this.statsSeries ?? [];
-    if (!s.length || !this.tooltipStates.length) return 0;
-
-    let acc = 0;
-    for (const p of s) {
-      for (const st of this.tooltipStates) acc += this.getHpFinalized(p, st.key);
+    // Global totals from 'summary' if available, or calc manual
+    const statsAny = this.stats as any;
+    if (statsAny?.summary?.total_registros !== undefined) {
+      this.kpiRegistered = Number(statsAny.summary.total_registros || 0);
+      // Sum finalized of all robots
+      let sumFin = 0;
+      for (const k of this.robotKeys) {
+        const robSum = statsAny.summary[k.key]; // { finalized: N, pending: M }
+        if (robSum) sumFin += Number(robSum.finalized || 0);
+      }
+      this.kpiFinalized = sumFin;
+      // Rate? Maybe avg completion rate or just raw finalized count?
+      // User didn't specify global KPI logic change, but let's keep it consistent.
+      // Since 'Total' is "Records Created", and 'Finalized' is sum of all robot completions.
+      // Actually, if 1 record generates 8 robot checks, max completions = 8 * total_registros.
+      // kpiRate = (Finalized / (Total * 8)) * 100? or just show raw numbers.
+      // Let's settle on: Rate = (Finalized / (Total * NumberOfRobots)) * 100 approx.
+      const maxPossible = this.kpiRegistered * this.robotKeys.length;
+      this.kpiRate = maxPossible > 0 ? Math.round((this.kpiFinalized / maxPossible) * 1000) / 10 : 0;
+    } else {
+      // Fallback calc from series
+      this.kpiRegistered = 0;
+      this.kpiFinalized = 0;
+      this.kpiRate = 0;
     }
-    return acc;
-  }
-
-  get kpiRate(): number {
-    const t = this.kpiRegistered;
-    return t > 0 ? Math.round((this.kpiFinalized / t) * 1000) / 10 : 0;
   }
 
   // =========================
@@ -487,17 +551,16 @@ export class RobotsComponent implements OnInit {
     return s[i];
   }
 
-  getHpTotal(hp: StatsPoint, stateKey: string): number {
-    const v = hp?.[stateKey];
-    if (v == null) return 0;
-    if (typeof v === 'object') return Number((v as any)?.total ?? (v as any)?.registered ?? 0) || 0;
-    return Number(v) || 0;
-  }
-
-  getHpFinalized(hp: StatsPoint, stateKey: string): number {
-    const v = hp?.[stateKey];
-    if (v == null) return 0;
-    if (typeof v === 'object') return Number((v as any)?.finalized ?? 0) || 0;
+  // key = 'total' | 'adress' | 'policivo' ...
+  getHpVal(hp: StatsPoint, key: string): number {
+    if (key === 'total') {
+      return Number(hp['total_registros'] ?? 0);
+    }
+    // Robot keys: hp.adress = { total, finalized, pending }
+    const robData = hp[key] as any;
+    if (robData) {
+      return Number(robData.finalized ?? 0);
+    }
     return 0;
   }
 
@@ -522,13 +585,19 @@ export class RobotsComponent implements OnInit {
     const xPoints = Array.from({ length: n }).map((_, i) => xAt(i));
 
     const paths: ChartLineVm[] = (this.tooltipStates ?? []).map((st) => {
-      const yArr = s.map((p) => yAt(this.getHpTotal(p, st.key)));
+      // st.key es 'total', 'adress', 'policivo'...
+      const yArr = s.map((p) => yAt(this.getHpVal(p, st.key)));
+
+      // Dashed for progress lines, Solid for Total? Or all solid?
+      // User said "techo" (ceiling). Maybe make Total dashed or thicker?
+      // Let's keep distinct colors.
+
       const d =
         n === 0
           ? ''
           : yArr
-              .map((yy, i) => `${i === 0 ? 'M' : 'L'} ${xPoints[i].toFixed(2)} ${yy.toFixed(2)}`)
-              .join(' ');
+            .map((yy, i) => `${i === 0 ? 'M' : 'L'} ${xPoints[i].toFixed(2)} ${yy.toFixed(2)}`)
+            .join(' ');
 
       return { key: st.key, label: st.label, stroke: st.stroke, d, y: yArr };
     });
@@ -551,12 +620,10 @@ export class RobotsComponent implements OnInit {
 
   private computeMaxTotal(series: StatsPoint[]): number {
     let maxVal = 0;
-    const states = this.tooltipStates ?? [];
+    // Max is usually 'total_registros'
     for (const p of series) {
-      for (const st of states) {
-        const v = this.getHpTotal(p, st.key);
-        if (v > maxVal) maxVal = v;
-      }
+      const t = Number(p['total_registros'] ?? 0);
+      if (t > maxVal) maxVal = t;
     }
     return maxVal;
   }
@@ -616,41 +683,13 @@ export class RobotsComponent implements OnInit {
   // Detecta estados desde el payload
   // =========================
   private detectStates(series: StatsPoint[]): TooltipState[] {
-    if (!series?.length) return [];
-
-    const first = series[0] ?? {};
-    const banned = new Set(['period', 'from', 'to', 'group', 'meta', 'x', 'y']);
-
-    const keys = Object.keys(first).filter((k) => !banned.has(k));
-
-    const candidates: string[] = [];
-    for (const k of keys) {
-      const v = (first as any)[k];
-      if (typeof v === 'number') candidates.push(k);
-      else if (v && typeof v === 'object' && ('total' in v || 'finalized' in v || 'registered' in v)) candidates.push(k);
-    }
-
-    const ordered: string[] = [];
-    const knownMap = new Map(this.pendientesKeys.map((p) => [p.key, p.label]));
-
-    for (const pk of this.pendientesKeys.map((p) => p.key)) {
-      if (candidates.includes(pk)) ordered.push(pk);
-    }
-    for (const k of candidates) {
-      if (!ordered.includes(k)) ordered.push(k);
-    }
-
-    return ordered.map((key, i) => ({
-      key,
-      label: knownMap.get(key as PendienteKey) ?? this.prettyLabel(key),
-      stroke: this.palette[i % this.palette.length],
-    }));
+    // ✅ No longer needed using manual map
+    return [];
   }
 
   private prettyLabel(key: string): string {
-    return String(key)
-      .replace(/_/g, ' ')
-      .replace(/\b\w/g, (m) => m.toUpperCase());
+    // No longer needed
+    return key;
   }
 
   // =========================
@@ -662,6 +701,7 @@ export class RobotsComponent implements OnInit {
     this.isLoadingRobotsFull = true;
     this.cdr.markForCheck();
 
+    /*
     this.robots
       .getRobotsFull()
       .pipe(
@@ -694,6 +734,9 @@ export class RobotsComponent implements OnInit {
       .subscribe(() => {
         if (opts?.showToast) void this.toast.fire({ icon: 'success', title: 'Robots Full actualizado' });
       });
+      */
+    this.isLoadingRobotsFull = false;
+    this.cdr.markForCheck();
   }
 
   loadPendientesPorOficina(opts?: { showToast?: boolean }): void {
@@ -702,8 +745,22 @@ export class RobotsComponent implements OnInit {
     this.isLoadingPendientesPorOficina = true;
     this.cdr.markForCheck();
 
+    const fVal = this.pendientesForm.value.from;
+    const tVal = this.pendientesForm.value.to;
+
+    let from: string | undefined;
+    let to: string | undefined;
+
+    // Helper u offset fix si quieres, o simple ISO slice
+    if (fVal && fVal instanceof Date) {
+      from = fVal.toISOString().split('T')[0];
+    }
+    if (tVal && tVal instanceof Date) {
+      to = tVal.toISOString().split('T')[0];
+    }
+
     this.robots
-      .getPendientesPorOficina({ soloPendientes: false })
+      .getPendientesPorOficina({ soloPendientes: false, from, to })
       .pipe(
         take(1),
         tap((resp: PendientesPorOficinaResponse) => {
@@ -756,16 +813,19 @@ export class RobotsComponent implements OnInit {
             }
 
             for (const mod of this.pendientesKeys) {
-              faltantesByCol[ck][mod.key] =
-                Number(faltantesByCol[ck][mod.key] ?? 0) + Number(f?.[mod.key] ?? 0);
+              const mk = mod.key as PendienteKey;
+              if (faltantesByCol[ck]) {
+                faltantesByCol[ck][mk] = Number(faltantesByCol[ck][mk] ?? 0) + Number(f?.[mk] ?? 0);
+              }
             }
           }
 
           const matrixRows: PendientesOficinasMatrixRow[] = this.pendientesKeys.map((mod) => {
-            const row: PendientesOficinasMatrixRow = { tipo: mod.label, key: mod.key };
+            const mk = mod.key as PendienteKey;
+            const row: PendientesOficinasMatrixRow = { tipo: mod.label, key: mk };
             let rowTotal = 0;
             for (const ck of colKeys) {
-              const v = Number(faltantesByCol[ck]?.[mod.key] ?? 0);
+              const v = Number(faltantesByCol[ck]?.[mk] ?? 0);
               row[ck] = v;
               rowTotal += v;
             }

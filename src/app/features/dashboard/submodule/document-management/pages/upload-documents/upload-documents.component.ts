@@ -1,8 +1,30 @@
 
 import { CommonModule, isPlatformBrowser } from '@angular/common';
-import { Component, ElementRef, OnDestroy, OnInit, ViewChild, Inject, PLATFORM_ID } from '@angular/core';
+import {
+  Component,
+  ElementRef,
+  OnDestroy,
+  OnInit,
+  ViewChild,
+  Inject,
+  PLATFORM_ID,
+  ChangeDetectionStrategy,
+  ChangeDetectorRef,
+  DestroyRef,
+  inject
+} from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Title } from '@angular/platform-browser';
-import { FormBuilder, FormControl, FormGroup, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
+import {
+  FormBuilder,
+  FormControl,
+  FormGroup,
+  FormArray,
+  FormsModule,
+  ReactiveFormsModule,
+  Validators,
+  AbstractControl
+} from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatCheckboxModule } from '@angular/material/checkbox';
@@ -14,25 +36,23 @@ import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatSelectModule } from '@angular/material/select';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatDividerModule } from '@angular/material/divider';
-import { DomSanitizer } from '@angular/platform-browser';
+import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { SharedModule } from '@/app/shared/shared.module';
-import { Subject, firstValueFrom } from 'rxjs';
+import { firstValueFrom } from 'rxjs';
 import Swal from 'sweetalert2';
 
 import { GestionDocumentalService } from '../../../hiring/service/gestion-documental/gestion-documental.service';
 import { DocumentacionService } from '../../service/documentacion/documentacion.service';
+import { DocumentScanDialogComponent } from '../../components/document-scan-dialog/document-scan-dialog.component';
 
 export interface FileQueueItem {
   id: string;
   file: File;
   name: string;
   size: number;
-  typeId: number | null;
   status: 'pending' | 'uploading' | 'success' | 'error';
   progress: number;
   errorMessage?: string;
-  selected: boolean;
-  contractCode?: string;
 }
 
 @Component({
@@ -53,23 +73,24 @@ export interface FileQueueItem {
     MatSelectModule,
     MatCheckboxModule,
     MatTooltipModule,
-    MatDividerModule
+    MatDividerModule,
+    MatDialogModule
   ],
   templateUrl: './upload-documents.component.html',
-  styleUrls: ['./upload-documents.component.css']
+  styleUrls: ['./upload-documents.component.css'],
+  changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class UploadDocumentsComponent implements OnInit, OnDestroy {
   // Data
   gruposHojas: { padre: string; hijos: any[] }[] = [];
   hojasPorId: Record<number, any> = {};
 
-  // File Queue
-  fileQueue: FileQueueItem[] = [];
-  allSelected = false;
+  // Core State
+  fileQueue: FileQueueItem[] = []; // Immutable list for rendering loop (status/file/progress)
 
   // Forms
-  bulkEditForm: FormGroup;
-  numeroDocumentoControl = new FormControl('', Validators.required);
+  mainForm: FormGroup;
+  queueForm: FormArray;
 
   // UI State
   dragOver = false;
@@ -79,19 +100,20 @@ export class UploadDocumentsComponent implements OnInit, OnDestroy {
   @ViewChild('fileInput') fileInput!: ElementRef<HTMLInputElement>;
   @ViewChild('zipInput') zipInput!: ElementRef<HTMLInputElement>;
 
-  private destroy$ = new Subject<void>();
+  private destroyRef = inject(DestroyRef);
 
   constructor(
     private fb: FormBuilder,
     private docSrv: DocumentacionService,
     private gestionDocSrv: GestionDocumentalService,
-    private sanitizer: DomSanitizer,
     private titleService: Title,
+    private cdr: ChangeDetectorRef,
+    private dialog: MatDialog,
     @Inject(PLATFORM_ID) private platformId: Object
   ) {
-    this.bulkEditForm = this.fb.group({
-      tipoId: [null],
-      contractCode: ['']
+    this.queueForm = this.fb.array([]);
+    this.mainForm = this.fb.group({
+      numeroDocumento: ['', Validators.required]
     });
   }
 
@@ -103,18 +125,25 @@ export class UploadDocumentsComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
-    this.destroy$.next();
-    this.destroy$.complete();
+    // Cleanup handled by takeUntilDestroyed
+  }
+
+  // --- Getters ---
+  get numeroDocumentoControl(): FormControl {
+    return this.mainForm.get('numeroDocumento') as FormControl;
   }
 
   private loadHierarchy() {
-    this.docSrv.mostrar_jerarquia_gestion_documental().subscribe({
-      next: (data) => {
-        this.gruposHojas = this.agruparHojas(data);
-        this.gruposHojas.forEach((g) => g.hijos.forEach((h) => (this.hojasPorId[h.id] = h)));
-      },
-      error: () => Swal.fire('Error', 'No se pudo cargar la jerarquía de documentos.', 'error')
-    });
+    this.docSrv.mostrar_jerarquia_gestion_documental()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (data) => {
+          this.gruposHojas = this.agruparHojas(data);
+          this.gruposHojas.forEach((g) => g.hijos.forEach((h) => (this.hojasPorId[h.id] = h)));
+          this.cdr.markForCheck();
+        },
+        error: () => Swal.fire('Error', 'No se pudo cargar la jerarquía de documentos.', 'error')
+      });
   }
 
   private agruparHojas(nodos: any[]): { padre: string; hijos: any[] }[] {
@@ -135,18 +164,21 @@ export class UploadDocumentsComponent implements OnInit, OnDestroy {
 
   // --- Drag & Drop ---
   onDragOver(event: DragEvent) {
+    if (this.isUploading) return;
     event.preventDefault();
     event.stopPropagation();
     this.dragOver = true;
   }
 
   onDragLeave(event: DragEvent) {
+    if (this.isUploading) return;
     event.preventDefault();
     event.stopPropagation();
     this.dragOver = false;
   }
 
   onDrop(event: DragEvent) {
+    if (this.isUploading) return;
     event.preventDefault();
     event.stopPropagation();
     this.dragOver = false;
@@ -155,6 +187,7 @@ export class UploadDocumentsComponent implements OnInit, OnDestroy {
   }
 
   onFileSelected(event: Event) {
+    if (this.isUploading) return;
     const input = event.target as HTMLInputElement;
     if (input.files) {
       this.handleFiles(input.files);
@@ -165,104 +198,172 @@ export class UploadDocumentsComponent implements OnInit, OnDestroy {
   handleFiles(fileList: FileList) {
     const maxBytes = 10 * 1024 * 1024; // 10MB
     let addedCount = 0;
+    let skippedPdf = 0;
+    let skippedSize = 0;
 
     Array.from(fileList).forEach(file => {
-      if (!file.name.toLowerCase().endsWith('.pdf')) return;
-      if (file.size > maxBytes) {
-        // Optional: Notify user about skip? For now, we just skip silent or use toast
+      if (!file.name.toLowerCase().endsWith('.pdf')) {
+        skippedPdf++;
         return;
       }
-
-      this.fileQueue.push({
-        id: this.generateId(),
-        file,
-        name: file.name,
-        size: file.size,
-        typeId: null,
-        status: 'pending',
-        progress: 0,
-        selected: false
-      });
+      if (file.size > maxBytes) {
+        skippedSize++;
+        return;
+      }
+      this.addPdfToQueue(file);
       addedCount++;
     });
 
-    if (addedCount > 0) {
-      // Little toast feedback could be nice here
+    if (skippedPdf > 0 || skippedSize > 0) {
+      let msg = '';
+      if (skippedPdf > 0) msg += `${skippedPdf} archivo(s) no eran PDF. `;
+      if (skippedSize > 0) msg += `${skippedSize} archivo(s) excedían 10MB.`;
+
+      Swal.fire({
+        toast: true,
+        position: 'top-end',
+        icon: 'warning',
+        title: 'Archivos omitidos',
+        text: msg,
+        timer: 4000
+      });
     }
+
+    this.cdr.markForCheck();
+  }
+
+  addPdfToQueue(file: File) {
+    const id = this.generateId();
+
+    // Add to Visual Queue (Read-only props)
+    this.fileQueue.push({
+      id,
+      file,
+      name: file.name,
+      size: file.size,
+      status: 'pending',
+      progress: 0
+    });
+
+    // Add to Form Queue (Editable props)
+    const group = this.fb.group({
+      id: [id], // Sync key
+      selected: [false],
+      typeId: [null, Validators.required],
+      contractCode: [{ value: '', disabled: true }] // Disabled by default
+    });
+
+    // React to type changes to enforce contract logic
+    group.get('typeId')?.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((typeId) => {
+        this.updateContractValidator(group, typeId);
+      });
+
+    this.queueForm.push(group);
+  }
+
+  private updateContractValidator(group: FormGroup, typeId: number | null) {
+    const contractCtrl = group.get('contractCode')!;
+    const requires = this.requiresContract(typeId);
+
+    if (requires) {
+      contractCtrl.enable({ emitEvent: false });
+      contractCtrl.setValidators([Validators.required]);
+    } else {
+      contractCtrl.disable({ emitEvent: false });
+      contractCtrl.clearValidators();
+      contractCtrl.setValue(''); // Clear value if not required
+    }
+    contractCtrl.updateValueAndValidity({ emitEvent: false });
+    this.cdr.markForCheck();
+  }
+
+  requiresContract(typeId: number | null): boolean {
+    if (!typeId) return false;
+    const hoja = this.hojasPorId[typeId];
+    return !!hoja?.codigo_contrato;
   }
 
   generateId() {
     return Math.random().toString(36).substring(2) + Date.now().toString(36);
   }
 
+  getControl(index: number): FormGroup {
+    return this.queueForm.at(index) as FormGroup;
+  }
+
   // --- Queue Actions ---
-  removeFromQueue(item: FileQueueItem) {
-    const idx = this.fileQueue.indexOf(item);
-    if (idx > -1) this.fileQueue.splice(idx, 1);
+  removeFromQueue(index: number) {
+    if (this.isUploading) return;
+    this.fileQueue.splice(index, 1);
+    this.queueForm.removeAt(index);
+    this.cdr.markForCheck();
+  }
+
+  clearQueue() {
+    if (this.isUploading) return;
+    this.fileQueue = [];
+    this.queueForm.clear();
+    this.cdr.markForCheck();
+  }
+
+  // --- Selection Logic ---
+  get allSelected(): boolean {
+    if (this.queueForm.length === 0) return false;
+    return this.queueForm.controls.every(c => c.get('selected')?.value);
+  }
+
+  get someSelected(): boolean {
+    if (this.queueForm.length === 0) return false;
+    const count = this.queueForm.controls.filter(c => c.get('selected')?.value).length;
+    return count > 0 && count < this.queueForm.length;
   }
 
   toggleSelectAll() {
-    this.allSelected = !this.allSelected;
-    this.fileQueue.forEach(f => f.selected = this.allSelected);
-  }
-
-  applyBulkMetadata() {
-    const { tipoId, contractCode } = this.bulkEditForm.value;
-    const selected = this.fileQueue.filter(f => f.selected);
-
-    if (selected.length === 0) {
-      Swal.fire('Atención', 'Selecciona archivos de la lista para aplicar cambios.', 'info');
-      return;
-    }
-
-    selected.forEach(f => {
-      if (tipoId) f.typeId = tipoId;
-      if (contractCode !== '' && contractCode !== null) f.contractCode = contractCode;
-    });
-
-    // Unselect after apply? User preference usually is keep selected.
-    Swal.fire({
-      toast: true,
-      position: 'top-end',
-      icon: 'success',
-      title: 'Datos aplicados',
-      showConfirmButton: false,
-      timer: 1500
-    });
+    if (this.isUploading) return;
+    const newState = !this.allSelected;
+    this.queueForm.controls.forEach(c => c.get('selected')?.setValue(newState));
   }
 
   // --- Validation ---
   get canUpload(): boolean {
     if (this.isUploading) return false;
-    if (this.fileQueue.length === 0) return false;
-    // Check global requirement
-    if (this.numeroDocumentoControl.invalid) return false;
-    // Check if at least one pending file exists
-    const hasPending = this.fileQueue.some(f => f.status === 'pending' || f.status === 'error');
-    if (!hasPending) return false;
 
-    // Check mandatory types for pending files
-    const pendingAreValid = this.fileQueue
-      .filter(f => f.status === 'pending' || f.status === 'error')
-      .every(f => !!f.typeId);
+    // Check global requirements
+    if (this.mainForm.invalid) return false;
 
-    return pendingAreValid;
+    // Must have at least one pending file
+    const pendingIndices = this.fileQueue
+      .map((item, index) => ({ item, index }))
+      .filter(({ item }) => item.status === 'pending' || item.status === 'error')
+      .map(({ index }) => index);
+
+    if (pendingIndices.length === 0) return false;
+
+    // Check validity of those pending rows
+    const allPendingValid = pendingIndices.every(i => {
+      const g = this.queueForm.at(i) as FormGroup;
+      return g.valid; // Checks typeId and contractCode (if required)
+    });
+
+    return allPendingValid;
   }
 
   async startUpload() {
-    // Double check just in case
     if (!this.canUpload) {
-      if (this.numeroDocumentoControl.invalid) {
-        this.numeroDocumentoControl.markAsTouched();
-        return;
-      }
+      if (this.mainForm.invalid) this.mainForm.markAllAsTouched();
+      this.queueForm.markAllAsTouched(); // Show errors on rows
       return;
     }
 
-    const pending = this.fileQueue.filter(f => f.status === 'pending' || f.status === 'error');
+    const pendingIndices = this.fileQueue
+      .map((item, index) => ({ item, index }))
+      .filter(({ item }) => item.status === 'pending' || item.status === 'error')
+      .map(({ index }) => index);
+
     const numeroDoc = this.numeroDocumentoControl.value!;
 
-    // 1. Show Loading Swal
     Swal.fire({
       title: 'Subiendo documentos',
       text: 'Por favor espere...',
@@ -272,17 +373,19 @@ export class UploadDocumentsComponent implements OnInit, OnDestroy {
     });
 
     this.isUploading = true;
+    this.mainForm.disable(); // Disable inputs during upload
+    this.queueForm.disable();
+    this.cdr.markForCheck();
 
-    // 2. Process Uploads
     const CONCURRENCY = 3;
     const pool: Promise<void>[] = [];
 
-    for (const item of pending) {
+    for (const i of pendingIndices) {
       while (pool.length >= CONCURRENCY) {
         await Promise.race(pool);
       }
 
-      const p = this.uploadSingleFile(item, numeroDoc).then(() => {
+      const p = this.uploadSingleFile(i, numeroDoc).then(() => {
         const idx = pool.indexOf(p);
         if (idx > -1) pool.splice(idx, 1);
       });
@@ -291,19 +394,25 @@ export class UploadDocumentsComponent implements OnInit, OnDestroy {
     await Promise.all(pool);
 
     this.isUploading = false;
+    this.mainForm.enable();
+    this.queueForm.enable();
 
-    // 3. Final Result Analysis
+    // Re-evaluate disabled state for contract codes based on types
+    this.queueForm.controls.forEach(g => {
+      const group = g as FormGroup;
+      this.updateContractValidator(group, group.get('typeId')?.value);
+    });
+
+    // Final Analysis
     const errors = this.fileQueue.filter(f => f.status === 'error');
     const success = this.fileQueue.filter(f => f.status === 'success');
 
-    // 4. Show Result Swal
     if (errors.length > 0) {
       Swal.fire({
         title: 'Carga finalizada con errores',
         text: `Subidos: ${success.length}. Fallidos: ${errors.length}. Revisa la lista.`,
         icon: 'warning'
       });
-      // Do NOT reset queue so user can retry errors
     } else {
       Swal.fire({
         title: '¡Operación Exitosa!',
@@ -313,26 +422,28 @@ export class UploadDocumentsComponent implements OnInit, OnDestroy {
         this.resetAll();
       });
     }
+    this.cdr.markForCheck();
   }
 
-  // Logic to upload a single file
-  private async uploadSingleFile(item: FileQueueItem, numeroDoc: string) {
-    if (!item.typeId) return;
+  private async uploadSingleFile(index: number, numeroDoc: string) {
+    const item = this.fileQueue[index];
+    const formGroup = this.queueForm.at(index);
+    const typeId = formGroup.get('typeId')?.value; // Works even if disabled
+    const contractCode = formGroup.get('contractCode')?.value;
+
+    if (!typeId) return;
 
     item.status = 'uploading';
-    // Simulate some granular progress if we could, but here mostly binary
-
-    const hoja = this.hojasPorId[item.typeId];
-    const contract = hoja?.codigo_contrato ? (item.contractCode || '') : undefined;
+    this.cdr.markForCheck();
 
     try {
       await firstValueFrom(
         this.gestionDocSrv.guardarDocumento(
           item.name,
           numeroDoc,
-          item.typeId,
+          typeId,
           item.file,
-          contract
+          contractCode || undefined
         )
       );
       item.status = 'success';
@@ -342,17 +453,17 @@ export class UploadDocumentsComponent implements OnInit, OnDestroy {
       item.status = 'error';
       item.errorMessage = 'Error en servidor';
     }
+    this.cdr.markForCheck();
   }
 
   resetAll() {
-    this.fileQueue = [];
-    this.numeroDocumentoControl.reset();
-    this.bulkEditForm.reset();
-    this.allSelected = false;
+    this.clearQueue();
+    this.mainForm.reset();
   }
 
-  // --- Legacy ZIP functionality ---
+  // --- ZIP functionality ---
   onClickSubidaMasiva() {
+    if (this.isUploading) return;
     this.zipInput.nativeElement.value = '';
     this.zipInput.nativeElement.click();
   }
@@ -361,7 +472,7 @@ export class UploadDocumentsComponent implements OnInit, OnDestroy {
     const file = (event.target as HTMLInputElement).files?.[0];
     if (!file) return;
 
-    if (!file.name.endsWith('.zip')) {
+    if (!file.name.toLowerCase().endsWith('.zip')) {
       Swal.fire('Archivo inválido', 'Solo se permiten archivos .zip', 'error');
       return;
     }
@@ -369,15 +480,26 @@ export class UploadDocumentsComponent implements OnInit, OnDestroy {
     Swal.fire({
       title: 'Configuración ZIP',
       html: `
-        <div style="text-align: left; font-size: 14px;">
-           <p>¿Deseas intentar extraer el contrato del nombre del archivo?</p>
+        <div style="text-align: left; font-size: 14px; display: flex; flex-direction: column; gap: 12px;">
+           <div>
+             <label for="swal-contract" style="display:block; margin-bottom:4px; font-weight:600;">Contrato por defecto (Opcional)</label>
+             <input id="swal-contract" class="swal2-input" style="margin:0; width: 100%; box-sizing: border-box;" placeholder="Ej. CT-2024-001">
+           </div>
+           <div style="display: flex; align-items: center; gap: 8px;">
+             <input type="checkbox" id="swal-toggle" checked>
+             <label for="swal-toggle">Intentar extraer contrato del nombre del archivo</label>
+           </div>
         </div>
       `,
-      input: 'text',
-      inputPlaceholder: 'Contrato por defecto (Opcional)',
       showCancelButton: true,
       confirmButtonText: 'Subir ZIP',
-      cancelButtonText: 'Cancelar'
+      cancelButtonText: 'Cancelar',
+      preConfirm: () => {
+        return {
+          default_contract: (document.getElementById('swal-contract') as HTMLInputElement).value,
+          contract_from_filename: (document.getElementById('swal-toggle') as HTMLInputElement).checked
+        };
+      }
     }).then((res) => {
       if (res.isConfirmed) {
         this.processZip(file, res.value);
@@ -385,10 +507,11 @@ export class UploadDocumentsComponent implements OnInit, OnDestroy {
     });
   }
 
-  processZip(file: File, defaultContract: string) {
+  processZip(file: File, payload: { default_contract: string, contract_from_filename: boolean }) {
     Swal.fire({ title: 'Subiendo ZIP...', didOpen: () => Swal.showLoading() });
 
-    this.docSrv.bulkZipUpload(file, { default_contract: defaultContract, contract_from_filename: true })
+    this.docSrv.bulkZipUpload(file, payload)
+      .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (res) => {
           Swal.close();
@@ -398,4 +521,28 @@ export class UploadDocumentsComponent implements OnInit, OnDestroy {
         error: () => Swal.fire('Error', 'Fallo en la subida del ZIP', 'error')
       });
   }
+
+  // --- SCANNER ---
+  openScanDialog() {
+    if (this.isUploading) return;
+
+    const dialogRef = this.dialog.open(DocumentScanDialogComponent, {
+      maxWidth: '100vw',
+      maxHeight: '100vh',
+      height: '100%',
+      width: '100%',
+      panelClass: 'full-screen-dialog', // Ensure user adds this CSS or we rely on height/width
+      disableClose: true
+    });
+
+    dialogRef.afterClosed().subscribe((result: File[] | undefined) => {
+      if (result && Array.isArray(result)) {
+        result.forEach(file => {
+          this.addPdfToQueue(file);
+        });
+        this.cdr.markForCheck();
+      }
+    });
+  }
 }
+

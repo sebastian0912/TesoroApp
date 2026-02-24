@@ -3,7 +3,7 @@ import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { isPlatformBrowser } from '@angular/common';
 import { firstValueFrom, Observable, throwError } from 'rxjs';
 import { catchError } from 'rxjs/operators';
-import { environment } from '../../../../../../environments/environment.development';
+import { environment } from '@/environments/environment';
 
 export interface UsuarioDetail {
   id: string;
@@ -55,7 +55,7 @@ export class AdminService {
 
   // Traer sucursales
   traerSucursales(): any {
-    return this.http.get(`${this.apiUrl}/gestion_admin/sedes`, );
+    return this.http.get(`${this.apiUrl}/gestion_admin/sedes`,);
   }
 
   // Subir cedulas
@@ -69,7 +69,7 @@ export class AdminService {
 
     try {
       const response = await firstValueFrom(
-        this.http.post<string>(urlcompleta, requestBody, ).pipe(
+        this.http.post<string>(urlcompleta, requestBody,).pipe(
           catchError((error) => {
             return throwError(error);
           })

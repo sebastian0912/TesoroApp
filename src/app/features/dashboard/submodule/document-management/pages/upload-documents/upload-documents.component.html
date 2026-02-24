@@ -16,31 +16,44 @@
         <!-- SIDEBAR: Upload Controls -->
         <aside class="control-sidebar" aria-label="Panel de control de subida">
 
-          <!-- Section 1: Configuration (Moved up for better flow on simple layout? No, Dropzone first is intuitive) -->
+          <!-- Section 1: Dropzone -->
           <section class="dropzone-section" aria-labelledby="upload-heading">
             <h2 id="upload-heading" class="visually-hidden">Zona de carga</h2>
 
             <div class="dropzone" [class.drag-over]="dragOver" (dragover)="onDragOver($event)"
-              (dragleave)="onDragLeave($event)" (drop)="onDrop($event)" (click)="fileInput.click()" role="button"
-              tabindex="0" (keydown.enter)="fileInput.click()"
+              (dragleave)="onDragLeave($event)" (drop)="onDrop($event)" [attr.aria-disabled]="isUploading"
+              [class.disabled]="isUploading"
               aria-label="Área de carga de archivos. Haz clic o arrastra archivos PDF aquí.">
 
-              <div class="dropzone-content">
-                <mat-icon class="cloud-icon" aria-hidden="true">cloud_upload</mat-icon>
-                <div class="dropzone-text">
-                  <h2>Cargar Archivos</h2>
-                  <p>Clic o arrastrar PDF aquí</p>
+              <!-- Click here triggers file input via TS or explicit click handler overlay -->
+              <div class="dropzone-clickable" (click)="!isUploading && fileInput.click()">
+                <div class="dropzone-content">
+                  <mat-icon class="cloud-icon" aria-hidden="true">cloud_upload</mat-icon>
+                  <div class="dropzone-text">
+                    <h2>Cargar Archivos</h2>
+                    <p>Clic o arrastrar PDF aquí</p>
+                  </div>
                 </div>
               </div>
 
+              <!-- SCAN BUTTON (NEW) -->
+              <div class="scan-action">
+                <button mat-flat-button color="accent" class="scan-btn"
+                  (click)="$event.stopPropagation(); openScanDialog()" [disabled]="isUploading">
+                  <mat-icon>document_scanner</mat-icon> ESCANEAR
+                </button>
+              </div>
+
               <!-- Hidden Inputs -->
-              <input #fileInput type="file" multiple accept=".pdf" hidden (change)="onFileSelected($event)">
-              <input #zipInput type="file" accept=".zip" hidden (change)="onZipSelected($event)">
+              <input #fileInput type="file" multiple accept=".pdf" hidden (change)="onFileSelected($event)"
+                [disabled]="isUploading">
+              <input #zipInput type="file" accept=".zip" hidden (change)="onZipSelected($event)"
+                [disabled]="isUploading">
             </div>
 
             <div style="text-align: right;">
               <button mat-button class="small-btn" (click)="$event.stopPropagation(); onClickSubidaMasiva()"
-                aria-label="Opción de carga masiva ZIP">
+                [disabled]="isUploading" aria-label="Opción de carga masiva ZIP">
                 <mat-icon class="icon-small">folder_zip</mat-icon> Carga Masiva ZIP
               </button>
             </div>
@@ -49,7 +62,7 @@
           <mat-divider style="opacity: 0.5; width: 100%;"></mat-divider>
 
           <!-- Section 2: Configuration Form -->
-          <section class="control-panel" aria-labelledby="config-heading">
+          <section class="control-panel" aria-labelledby="config-heading" [formGroup]="mainForm">
             <div class="panel-header">
               <h3 id="config-heading">Datos del Proceso</h3>
             </div>
@@ -65,17 +78,24 @@
                 <!-- Clean Input -->
                 <mat-form-field appearance="outline" class="w-100" subscriptSizing="dynamic">
                   <mat-label>Número de Documento</mat-label>
-                  <input matInput [formControl]="numeroDocumentoControl" placeholder="Ingresa la cédula" required>
+                  <input matInput formControlName="numeroDocumento" placeholder="Ingresa la cédula" required>
                   <mat-icon matSuffix class="text-secondary">badge</mat-icon>
                   <mat-error *ngIf="numeroDocumentoControl.invalid">Campo obligatorio</mat-error>
                 </mat-form-field>
               </div>
 
-              <!-- CTA (Attached to form logic) -->
+              <!-- CTA -->
               <div class="action-footer" style="margin-top: 32px;">
                 <button mat-flat-button class="cta-button" [disabled]="!canUpload" (click)="startUpload()"
                   aria-label="Iniciar subida de documentos">
-                  <mat-icon style="margin-right: 8px;">upload</mat-icon> SUBIR DOCUMENTOS
+                  <mat-icon style="margin-right: 8px;">upload</mat-icon>
+                  @if (isUploading) {
+                  <mat-progress-bar mode="indeterminate" color="accent"
+                    style="height: 4px; position:absolute; bottom:0; left:0; right:0;"></mat-progress-bar>
+                  <span style="margin-right: 8px;">SUBIENDO...</span>
+                  } @else {
+                  <span>SUBIR DOCUMENTOS</span>
+                  }
                 </button>
               </div>
 
@@ -96,11 +116,15 @@
 
             <div class="queue-actions">
               @if(fileQueue.length > 0) {
-              <button mat-button color="primary" (click)="toggleSelectAll()" style="margin-right: 8px;">
-                {{ allSelected ? 'Deseleccionar' : 'Seleccionar' }} Todo
-              </button>
-              <button mat-icon-button color="warn" [matTooltip]="'Eliminar todos'"
-                (click)="fileQueue = []; allSelected = false;">
+              <div style="display: flex; align-items: center; margin-right: 16px;">
+                <mat-checkbox color="primary" [checked]="allSelected" [indeterminate]="someSelected"
+                  [disabled]="isUploading" (change)="toggleSelectAll()">
+                  Seleccionar Todo
+                </mat-checkbox>
+              </div>
+
+              <button mat-icon-button color="warn" [matTooltip]="'Eliminar todos'" [disabled]="isUploading"
+                (click)="clearQueue()">
                 <mat-icon>delete_sweep</mat-icon>
               </button>
               }
@@ -123,17 +147,20 @@
                 <div class="col-check header-cell"></div>
                 <div class="col-name header-cell">Nombre del Archivo</div>
                 <div class="col-type header-cell">Tipo Documental *</div>
+                <div class="col-contract header-cell">Contrato</div>
                 <div class="col-status header-cell">Estado</div>
                 <div class="col-size header-cell">Tamaño</div>
                 <div class="col-actions header-cell"></div>
               </div>
 
               <!-- Rows -->
-              @for (item of fileQueue; track item.id) {
-              <div class="q-row" [class.selected]="item.selected" role="row">
+              <!-- Loop over fileQueue for layout, but look up FormControl for inputs -->
+              @for (item of fileQueue; track item.id; let i = $index) {
+              <div class="q-row" role="row" [formGroup]="getControl(i)"
+                [class.selected]="getControl(i).get('selected')?.value">
 
                 <div class="col-check" role="cell">
-                  <mat-checkbox [(ngModel)]="item.selected" color="primary"
+                  <mat-checkbox formControlName="selected" color="primary"
                     [aria-label]="'Seleccionar ' + item.name"></mat-checkbox>
                 </div>
 
@@ -141,13 +168,13 @@
                   <mat-icon class="pdf-icon">picture_as_pdf</mat-icon>
                   <div class="file-info">
                     <span class="file-name" [matTooltip]="item.name">{{ item.name }}</span>
-                    @if (item.contractCode) { <span class="file-contract">Ref: {{ item.contractCode }}</span> }
+                    <!-- Contract display if readonly? No, we use input now -->
                   </div>
                 </div>
 
                 <div class="col-type" role="cell">
                   <mat-form-field appearance="outline" density="compact" class="no-subscript w-100 bg-white">
-                    <mat-select [(ngModel)]="item.typeId" placeholder="Seleccionar...">
+                    <mat-select formControlName="typeId" placeholder="Seleccionar...">
                       @for (grupo of gruposHojas; track grupo.padre) {
                       <mat-optgroup [label]="grupo.padre">
                         @for (h of grupo.hijos; track h.id) {
@@ -156,6 +183,13 @@
                       </mat-optgroup>
                       }
                     </mat-select>
+                  </mat-form-field>
+                </div>
+
+                <div class="col-contract" role="cell">
+                  <!-- Only enabled if type requires it. Logic in TS handles disabled state -->
+                  <mat-form-field appearance="outline" density="compact" class="no-subscript w-100 bg-white">
+                    <input matInput formControlName="contractCode" placeholder="Requerido">
                   </mat-form-field>
                 </div>
 
@@ -176,7 +210,8 @@
                 </div>
 
                 <div class="col-actions" role="cell">
-                  <button mat-icon-button color="warn" (click)="removeFromQueue(item)" aria-label="Eliminar archivo">
+                  <button mat-icon-button color="warn" (click)="removeFromQueue(i)" [disabled]="isUploading"
+                    aria-label="Eliminar archivo">
                     <mat-icon>close</mat-icon>
                   </button>
                 </div>

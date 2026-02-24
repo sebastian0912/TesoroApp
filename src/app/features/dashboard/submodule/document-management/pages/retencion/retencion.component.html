@@ -1,26 +1,17 @@
 <mat-card>
     <mat-card-content>
-        <button mat-flat-button color="primary" type="button" (click)="crear()">
-            <mat-icon>add</mat-icon>
-            Crear
-        </button>
-        <app-standard-filter-table
-            [data]="data"
-            [columnDefinitions]="columnDefinitions"
-            [tableTitle]="tableTitle"
-            [defaultPageSize]="20"
-            [pageSizeOptions]="[10, 20, 50, 100]">
+
+        <app-standard-filter-table [data]="data" [columnDefinitions]="columnDefinitions" [tableTitle]="tableTitle"
+            [defaultPageSize]="20" [pageSizeOptions]="[10, 20, 50, 100]">
 
             <!-- ✅ ESTE NOMBRE es el que tu tabla busca: actionsTemplate -->
             <ng-template #actionsTemplate let-row>
                 <div class="row-actions">
-                    <button mat-icon-button type="button" aria-label="Editar"
-                        (click)="editar(row)">
+                    <button mat-icon-button type="button" aria-label="Editar" (click)="editar(row)">
                         <mat-icon>edit</mat-icon>
                     </button>
 
-                    <button mat-icon-button type="button" aria-label="Eliminar"
-                        (click)="eliminar(row)">
+                    <button mat-icon-button type="button" aria-label="Eliminar" (click)="eliminar(row)">
                         <mat-icon>delete</mat-icon>
                     </button>
 

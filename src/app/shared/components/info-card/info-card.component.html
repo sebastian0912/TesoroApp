@@ -1,7 +1,14 @@
-<div class="info-card" (click)="onCardClick()">
-  <img [src]="imageUrl" alt="Icon" class="info-card-icon">
+<div class="info-card" (click)="onCardClick()" role="button" tabindex="0" (keydown.enter)="onCardClick()"
+  (keydown.space)="onCardClick()">
+
+  <div class="info-card-icon-wrapper" *ngIf="matIcon || imageUrl">
+    <mat-icon *ngIf="matIcon" class="info-card-mat-icon">{{ matIcon }}</mat-icon>
+    <img *ngIf="!matIcon && imageUrl" [src]="imageUrl" alt="" class="info-card-icon" />
+  </div>
+
   <div class="info-card-content">
     <p class="info-card-title">{{ title }}</p>
-    <p class="info-card-value">{{ value }}</p>
+    <p class="info-card-description" *ngIf="description">{{ description }}</p>
+    <p class="info-card-value" *ngIf="value !== undefined">{{ value }}</p>
   </div>
 </div>

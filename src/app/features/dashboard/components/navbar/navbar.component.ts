@@ -77,6 +77,7 @@ export class NavbarComponent implements OnInit, OnDestroy {
     'Reporte 901': 'hiring/banned-report',
     'Selección': 'hiring/recruitment-pipeline',
     'Ver entrevistas de recepción': 'hiring/view-reception-interviews',
+    'Tarjetas': 'hiring/tarjetas',  
 
     'Gestión de vacantes': 'vacancies',
     'Gestión de trabajadores': 'treasury/manage-workers',
@@ -188,6 +189,7 @@ export class NavbarComponent implements OnInit, OnDestroy {
     'Robots': 'smart_toy',
     'TABLA RETENCIÓN': 'table_chart',
     'NOMINA': 'table_chart',
+    'Tarjetas': 'credit_card',
   };
 
   private routeMapIndex!: Record<string, string>;

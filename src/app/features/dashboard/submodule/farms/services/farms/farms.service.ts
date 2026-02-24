@@ -1,7 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpParams, HttpResponse } from '@angular/common/http';
 import { map, Observable, tap } from 'rxjs';
-import { environment } from '@/environments/environment.development';
+import { environment } from '@/environments/environment';
 
 type AnyObj = Record<string, any>;
 

@@ -1,4 +1,5 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, PLATFORM_ID, inject } from '@angular/core';
+import { isPlatformBrowser } from '@angular/common';
 import { FormBuilder, FormGroup, Validators, AbstractControl, FormArray } from '@angular/forms';
 import Swal from 'sweetalert2';
 import { Router } from '@angular/router';
@@ -12,6 +13,7 @@ import { MatCheckboxModule } from '@angular/material/checkbox';
 
 @Component({
   selector: 'app-cargar-mercado-ferias',
+  standalone: true,
   imports: [
     SharedModule, MatCheckboxModule
   ],
@@ -19,6 +21,7 @@ import { MatCheckboxModule } from '@angular/material/checkbox';
   styleUrl: './cargar-mercado-ferias.component.css'
 })
 export class CargarMercadoFeriasComponent implements OnInit {
+  private platformId = inject(PLATFORM_ID);
   myForm!: FormGroup;
   datosOperario: any;
   nombreOperario: string = '';
@@ -80,6 +83,7 @@ export class CargarMercadoFeriasComponent implements OnInit {
   }
 
   async ngOnInit() {
+    if (!isPlatformBrowser(this.platformId)) return;
     try {
       // Mostrar swal de carga
       Swal.fire({

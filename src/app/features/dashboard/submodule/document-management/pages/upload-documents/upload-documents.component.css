@@ -7,28 +7,21 @@
   /* Neutrals */
   --dm-bg-surface: #ffffff;
   --dm-bg-body: #FFF;
-  /* Pure white as requested/modified by user */
   --dm-text-primary: #0f172a;
-  /* Darker for better contrast */
   --dm-text-secondary: #64748b;
   --dm-border: #e2e8f0;
   --dm-hover: #f8fafc;
 
-  /* Status Colors (Refined) */
+  /* Status Colors */
   --dm-status-pending-bg: #f1f5f9;
   --dm-status-pending-text: #475569;
-
   --dm-status-success-bg: #ecfdf5;
-  /* Emerald 50 */
   --dm-status-success-text: #059669;
-  /* Emerald 600 */
-
   --dm-status-error-bg: #fef2f2;
   --dm-status-error-text: #dc2626;
 
   /* Dimensions */
   --sidebar-width: 320px;
-  /* Slightly narrower to give more room to table */
 
   display: block;
   background-color: var(--dm-bg-body);
@@ -39,13 +32,16 @@
 /* --- LAYOUT CONTAINER --- */
 .upload-page-container {
   padding: 24px 32px;
-  /* More horizontal padding */
   max-width: 100%;
-  /* USE ALL SPACE */
   margin: 0;
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
   color: var(--dm-text-primary);
   box-sizing: border-box;
+
+  /* Added nice shadow as requested */
+  box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.1);
+  border-radius: 12px;
+  /* Note: :host has border-radius, but container might need it too if it has bg */
 }
 
 /* --- HEADER --- */
@@ -61,7 +57,6 @@
 .header-text h1 {
   font-size: 28px;
   font-weight: 800;
-  /* Bolder */
   margin: 0 0 8px 0;
   color: var(--dm-base);
   letter-spacing: -0.02em;
@@ -78,9 +73,7 @@
 .main-card {
   background: var(--dm-bg-surface);
   border-radius: 20px;
-  /* Soft roundness */
   box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.08);
-  /* Smoother shadow */
   padding: 0;
   overflow: hidden;
   border: 1px solid var(--dm-border);
@@ -93,15 +86,12 @@
   align-items: stretch;
   padding: 0 !important;
   margin: 0 -16px;
-  /* Negate generic mat-padding if present */
   min-height: 650px;
-  /* Ensure substantial height */
 }
 
 /* --- SIDEBAR (CONTROLS) --- */
 .control-sidebar {
   background: #f8fafc;
-  /* Very subtle grey for differentiation */
   border-right: 1px solid var(--dm-border);
   padding: 32px 24px;
   display: flex;
@@ -110,7 +100,7 @@
   height: 100%;
 }
 
-/* Dropzone (Compact & Premium) */
+/* Dropzone */
 .dropzone-section {
   display: flex;
   flex-direction: column;
@@ -122,21 +112,33 @@
   border: 2px dashed #cbd5e1;
   border-radius: 16px;
   background: #ffffff;
-  padding: 32px 24px;
   text-align: center;
   transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-  cursor: pointer;
+  cursor: default;
   position: relative;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
-.dropzone:hover,
-.dropzone.drag-over {
+.dropzone.disabled {
+  opacity: 0.6;
+  background: #f1f5f9;
+}
+
+.dropzone:hover:not(.disabled),
+.dropzone.drag-over:not(.disabled) {
   border-color: var(--dm-accent);
   background: #f4fce3;
-  /* Brand tint */
   transform: translateY(-2px);
   box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05);
+}
+
+/* Clickable Area */
+.dropzone-clickable {
+  padding: 32px 24px 16px 24px;
+  cursor: pointer;
+  flex: 1;
 }
 
 .cloud-icon {
@@ -148,7 +150,7 @@
   margin-bottom: 12px;
 }
 
-.dropzone:hover .cloud-icon {
+.dropzone:hover:not(.disabled) .cloud-icon {
   color: var(--dm-accent);
 }
 
@@ -165,6 +167,20 @@
   font-size: 13px;
 }
 
+/* Scan Action */
+.scan-action {
+  padding: 0 24px 24px 24px;
+  display: flex;
+  justify-content: center;
+}
+
+.scan-btn {
+  width: 100%;
+  border-radius: 8px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.5px;
+}
+
 .small-btn {
   font-size: 13px;
   font-weight: 600;
@@ -173,7 +189,7 @@
   transition: opacity 0.2s;
 }
 
-.small-btn:hover {
+.small-btn:hover:not([disabled]) {
   opacity: 1;
 }
 
@@ -227,12 +243,12 @@
 /* Action Footer */
 .action-footer {
   margin-top: auto;
+  position: relative;
 }
 
 .cta-button {
   width: 100%;
   height: 56px;
-  /* Taller button */
   font-size: 15px !important;
   font-weight: 800 !important;
   letter-spacing: 0.5px;
@@ -241,6 +257,9 @@
   border-radius: 12px !important;
   box-shadow: 0 4px 6px -1px rgba(140, 213, 10, 0.3);
   transition: all 0.2s ease;
+  overflow: hidden;
+  /* For progress bar */
+  position: relative;
 }
 
 .cta-button:hover:not([disabled]) {
@@ -305,7 +324,6 @@
   overflow-x: auto;
   overflow-y: auto;
   scrollbar-width: thin;
-  /* Firefox */
   scrollbar-color: #cbd5e1 transparent;
 }
 
@@ -315,14 +333,19 @@
   flex-direction: column;
 }
 
-/* Headers */
-.q-header-row {
+/* GRID DEFINITIONS - UPDATED */
+/* col-check, col-name, col-type, col-contract, col-status, col-size, col-actions */
+.q-header-row,
+.q-row {
   display: grid;
-  grid-template-columns: 50px 2fr 1.5fr 120px 120px 80px;
-  /* Better proportions */
+  grid-template-columns: 50px 2fr 1.5fr 150px 120px 80px 60px;
   align-items: center;
   padding: 16px 32px;
-  /* Match container padding */
+  border-bottom: 1px solid var(--dm-border);
+}
+
+/* Headers */
+.q-header-row {
   background: #ffffff;
   border-bottom: 2px solid var(--dm-border);
   position: sticky;
@@ -340,41 +363,20 @@
 
 /* Rows */
 .q-row {
-  display: grid;
-  grid-template-columns: 50px 2fr 1.5fr 120px 120px 80px;
-  align-items: center;
-  padding: 20px 32px;
-  /* More vertical breath */
-  border-bottom: 1px solid var(--dm-border);
   transition: all 0.2s ease;
   background: white;
+  padding: 20px 32px;
 }
 
 .q-row:hover {
   background-color: #f8fafc;
-  transform: translateX(4px);
-  /* Micro interaction */
-  border-left: 4px solid var(--dm-accent);
-  padding-left: 28px;
-  /* Compensate for border to keep grid aligned? No, keeps spacing */
-}
-
-/* Wait, transform moves the whole row content. 
-   Better interaction: just border-left and bg change without layout shift 
-*/
-.q-row:hover {
-  transform: none;
-  border-left: none;
   box-shadow: inset 4px 0 0 var(--dm-accent);
-  /* Inset shadow effectively acts as border without layout shift */
-  background-color: #f8fafc;
   padding-left: 32px;
-  /* Keep consistent */
+  /* Maintain padding, no shift */
 }
 
 .q-row.selected {
   background-color: #f0fdf4 !important;
-  /* Extremely light green */
   box-shadow: inset 4px 0 0 var(--dm-accent);
 }
 
@@ -416,31 +418,20 @@
   text-overflow: ellipsis;
 }
 
-.file-contract {
-  font-size: 11px;
-  color: var(--dm-text-secondary);
-  font-weight: 500;
-}
-
-.col-type {
+.col-type,
+.col-contract {
   padding-right: 24px;
 }
 
-/* Style the mat-select to look seamless */
-.col-type mat-form-field {
+.col-type mat-form-field,
+.col-contract mat-form-field {
   width: 100%;
 }
 
-.col-status {
-  display: flex;
-  align-items: center;
-}
-
-/* Refined Badges */
+/* Status Badges */
 .badge {
   padding: 6px 12px;
   border-radius: 99px;
-  /* Pill shape */
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.05em;
@@ -450,7 +441,6 @@
   gap: 6px;
 }
 
-/* Status Indicators (Dots) */
 .badge::before {
   content: '';
   display: block;
@@ -484,22 +474,12 @@
   font-size: 13px;
   color: #64748b;
   font-family: 'Roboto Mono', monospace;
-  /* Tabular if available, else standard */
   font-weight: 500;
 }
 
 .col-actions {
   display: flex;
   justify-content: flex-end;
-  /* Not sticky anymore? Sticky is safer for scroll but user wants aesthetics. 
-     Sticky often creates a shadow artifact. 
-     Given user asked for "use all space", tables might not scroll often horizontally on 1920px. 
-     Keeping sticky for safety on random laptop screens. */
-  position: sticky;
-  right: 0;
-  background: inherit;
-  z-index: 5;
-  padding-right: 32px;
 }
 
 /* Empty State */
@@ -549,17 +529,12 @@
     border-right: none;
     border-bottom: 1px solid var(--dm-border);
     flex-direction: row;
-    /* Horizontal layout for controls on tablet */
     align-items: flex-start;
     flex-wrap: wrap;
     gap: 32px;
   }
 
-  .dropzone-section {
-    flex: 1;
-    min-width: 280px;
-  }
-
+  .dropzone-section,
   .control-panel {
     flex: 1;
     min-width: 280px;
@@ -576,6 +551,7 @@
     padding: 24px;
   }
 
+  /* Simplify table for mobile */
   .q-header-row {
     display: none;
   }
@@ -586,7 +562,9 @@
     padding: 16px;
   }
 
+  /* Hide columns on very small screens, or stack them? Hiding non-essentials */
   .col-type,
+  .col-contract,
   .col-status,
   .col-size {
     display: none;

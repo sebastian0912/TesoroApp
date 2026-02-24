@@ -507,7 +507,7 @@ export class HiringProcessComponent {
     // empresa
     this.guardarFormulariosEnLocalStorage();
     // Redirige a la página de generación de documentos
-    this.router.navigate(['dashboard/hiring/generate-contracting-documents']);
+    this.router.navigate(['dashboard/hiring/generate-contracting-documents', this.cedulaActual]);
   }
 
   guardarFormulariosEnLocalStorage() {

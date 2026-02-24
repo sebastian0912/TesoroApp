@@ -119,8 +119,7 @@ export class FormEntrevistaComponent implements OnInit {
 
   // Listas fijas
   readonly SEED_EXP_COUNT = 0;
-  readonly meses = Array.from({ length: 11 }, (_, i) => i + 1);
-  readonly anios = Array.from({ length: 80 }, (_, i) => i + 1);
+
   readonly sexos = ['M', 'F'] as const;
   readonly oficinas = [
     'VIRTUAL',
@@ -336,24 +335,31 @@ export class FormEntrevistaComponent implements OnInit {
     const s = this.normalizeText(raw);
 
     // Si ya viene en formato del select, respétalo
-    if (/^(LIFETIME|M:\d+|Y:\d+)$/.test(s)) return s;
+    // Normalizamos quitando guiones bajos para comparar texto flexible
+    const textV = s.replace(/_/g, ' ');
 
-    if (s.includes('TODA LA VIDA')) return 'LIFETIME';
+    // 1. Mapeo exacto de valores (o equivalentes con espacios)
+    if (s === 'LIFETIME' || textV.includes('VIDA')) return 'LIFETIME';
+    if (textV.includes('MAS DE 2 MESES')) return 'MAS_DE_2_MESES';
+    if (textV.includes('MAS DE 6 MESES')) return 'MAS_DE_6_MESES';
+    if (textV.includes('MENOS DE UN MES')) return 'MENOS_DE_UN_MES';
+    // "UN MES" debe chequearse después de "MENOS DE UN MES" para evitar falsos positivos
+    if (textV.includes('UN MES')) return 'UN_MES';
 
-    // Captura número si existe
+    // 2. Mapeos de fallback (por si vienen datos viejos tipo "8 MESES", "1 AÑO")
+    // Si contiene "AÑO" o "ANO" -> se asume más de 6 meses
+    if (textV.includes('ANO') || textV.includes('AÑO')) return 'MAS_DE_6_MESES';
+
+    // Si detectamos meses numéricos y no cayó en los anteriores
     const m = s.match(/(\d+)/);
-    const n = m ? parseInt(m[1], 10) : NaN;
-
-    // Casos tipo "6 MESES", "3 AÑOS"
-    if (!Number.isNaN(n)) {
-      if (s.includes('MES')) return `M:${n}`;
-      if (s.includes('ANO') || s.includes('AÑO')) return `Y:${n}`; // "AÑO" ya queda "ANO" tras normalize
+    if (m) {
+      const n = parseInt(m[1], 10);
+      if (n > 6) return 'MAS_DE_6_MESES';
+      if (n > 2) return 'MAS_DE_2_MESES';
+      if (n === 1) return 'UN_MES';
+      // n < 1 no debería pasar si dice "meses", pero por si acaso
+      return 'MENOS_DE_UN_MES';
     }
-
-    // Casos tipo "MAS DE 6 MESES" / "MENOS DE 6 MESES"
-    // (Como tu select no tiene rangos, lo aproximamos a 6 meses / 1 mes)
-    if (s.includes('MAS DE') && s.includes('MES')) return 'M:6';
-    if (s.includes('MENOS DE') && s.includes('MES')) return 'M:1';
 
     return '';
   }

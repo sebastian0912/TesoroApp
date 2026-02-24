@@ -1,3 +1,7 @@
+/* =========================================
+   Standard Filter Table - Professional Styles
+   ========================================= */
+
 :host {
   display: block;
   height: 100%;
@@ -16,11 +20,14 @@
   /* Tablet Theme Props */
   --sft-header-bg: var(--sft-base);
   --sft-header-text: #ffffff;
-  --sft-row-even-bg: #F6F8FB;
-  /* Zebra */
-  --sft-hover-bg: rgba(33, 38, 60, 0.04);
-  --sft-selected-bg: rgba(46, 134, 222, 0.08);
-  /* Azul muy suave */
+  --sft-row-even-bg: #F8FAFC;
+  /* Softer even row */
+
+  /* Zebra / Hover */
+  --sft-hover-bg: #E0E7FF;
+  /* Light Indigo hover */
+  --sft-selected-bg: #DBEAFE;
+  /* Blue 100 */
   --sft-selected-border: var(--sft-accent);
 
   /* Drawer specific */
@@ -124,13 +131,14 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 4px 0;
-  border-bottom: 1px solid transparent;
+  padding: 8px 12px;
+  border-bottom: 1px solid #f0f0f0;
+  border-radius: 6px;
+  transition: background-color 0.2s;
 }
 
 .sf-col-item:hover {
   background-color: #f5f5f5;
-  border-radius: 4px;
 }
 
 .sf-col-item-left {
@@ -405,6 +413,7 @@
   display: flex;
   flex-direction: column;
   position: relative;
+  background: #fff;
 }
 
 /* TABLE WRAPPER */
@@ -412,6 +421,28 @@
   overflow: auto;
   height: 100%;
   width: 100%;
+
+  /* Smooth scrolling */
+  scroll-behavior: smooth;
+}
+
+/* Custom Scrollbar */
+.sf-table-wrapper::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.sf-table-wrapper::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+
+.sf-table-wrapper::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 4px;
+}
+
+.sf-table-wrapper::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
 }
 
 .sf-table {
@@ -426,17 +457,26 @@
   color: var(--sft-header-text);
   font-weight: 600;
   letter-spacing: 0.3px;
-  font-size: 0.9rem;
+  font-size: 0.85rem;
   text-transform: uppercase;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  height: 56px;
+  border-bottom: 2px solid rgba(0, 0, 0, 0.1);
+  height: 52px;
   padding: 0 16px;
   white-space: nowrap;
   position: sticky;
   top: 0;
   z-index: 10;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
-  /* subtle shadow for stacking context */
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* Numeric Header Alignment */
+.sf-table th.header-align-right {
+  text-align: right;
+}
+
+/* Fix for mat-sort-header within a flex container */
+:host ::ng-deep .sf-table th.header-align-right .mat-sort-header-container {
+  justify-content: flex-end;
 }
 
 /* Separadores sutiles entre headers */
@@ -447,12 +487,14 @@
   top: 25%;
   height: 50%;
   width: 1px;
-  background-color: rgba(255, 255, 255, 0.2);
+  background-color: rgba(255, 255, 255, 0.15);
 }
 
 /* Sort Active State */
 .sf-table th.mat-sort-header-sorted {
   color: #fff;
+  background-color: #1a1e30;
+  /* slightly darker for active sort column header */
 }
 
 :host ::ng-deep .sf-table th.mat-sort-header-sorted .mat-sort-header-arrow {
@@ -467,7 +509,6 @@
 /* Sort Active Text Highlight */
 .sf-table th.mat-sort-header-sorted .mat-sort-header-content {
   color: var(--sft-accent);
-  text-shadow: 0 0 1px rgba(0, 0, 0, 0.5);
 }
 
 
@@ -484,19 +525,20 @@
   white-space: normal;
   overflow-wrap: anywhere;
   max-width: 300px;
-  /* Prevent mega-cells by default */
 }
 
 /* Number cells align right */
 .sf-table .cell-number {
   text-align: right;
-  justify-content: flex-end;
+  font-variant-numeric: tabular-nums;
+  font-family: 'Roboto Mono', monospace;
+  /* Monospace for numbers looks pro */
 }
 
 /* DENSITY */
 .sf-density-compact td,
 .sf-density-compact th {
-  height: 40px;
+  height: 44px;
   padding: 8px 12px;
 }
 
@@ -507,7 +549,6 @@
 }
 
 /* ZEBRA STRIPING */
-/* Applies to even rows */
 .sf-table tr:nth-child(even) td {
   background-color: var(--sft-row-even-bg);
 }
@@ -523,16 +564,16 @@
 /* Ensure sticky checkbox sits on top */
 .sf-table .mat-column-select {
   z-index: 11 !important;
-  /* higher than scrollable cells */
   position: sticky;
   left: 0;
+  border-right: 1px solid var(--sft-border);
+  /* separator */
 }
 
 /* Header checkbox needs correct bg */
 .sf-table th.mat-column-select {
   background-color: var(--sft-header-bg);
   z-index: 20 !important;
-  /* header + sticky left */
 }
 
 /* Body checkbox needs to respect zebra/row bg, handled via local TD styling usually, but sticky overrides defaults */
@@ -553,15 +594,9 @@
   cursor: pointer;
 }
 
-/* Add a subtle left accent on hover to the first cell (or sticky cell?) */
-.sf-table tr:hover td:first-child {
-  box-shadow: inset 4px 0 0 0 var(--sft-base);
-}
-
 /* Selected */
 .sf-table tr.selected-row td {
   background-color: var(--sft-selected-bg) !important;
-  color: #000;
 }
 
 /* Selected Accent */
@@ -573,12 +608,16 @@
 /* --- STATUS BADGES --- */
 .sf-status-badge {
   padding: 4px 10px;
-  border-radius: 6px;
+  border-radius: 99px;
+  /* Pill shape */
   font-size: 0.75rem;
-  font-weight: 600;
+  font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.5px;
   white-space: nowrap;
+  display: inline-block;
+  min-width: 80px;
+  text-align: center;
 }
 
 .sf-custom-badge {
@@ -603,12 +642,6 @@
 .sf-link:hover {
   background-color: rgba(33, 38, 60, 0.08);
   text-decoration: none;
-  /* we use bg instead of underline for premium feel */
-}
-
-.sf-link:focus-visible {
-  outline: 2px solid var(--sft-accent);
-  border-radius: 4px;
 }
 
 .sf-link mat-icon {
@@ -617,6 +650,22 @@
   height: 18px;
 }
 
+
+/* LOADIND OVERLAY */
+.sf-loading-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(2px);
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
 
 /* NO DATA */
 .sf-no-data {
@@ -627,14 +676,26 @@
   padding: 64px;
   color: var(--sft-text-secondary);
   gap: 16px;
-  background-color: #fff;
+  min-height: 200px;
+}
+
+.sf-no-data-illustration {
+  width: 120px;
+  height: 120px;
+  background: #f3f4f6;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 12px;
 }
 
 .sf-no-data mat-icon {
-  font-size: 64px;
-  width: 64px;
-  height: 64px;
-  opacity: 0.2;
+  font-size: 48px;
+  width: 48px;
+  height: 48px;
+  color: #9ca3af;
+  opacity: 1;
 }
 
 /* =========================================

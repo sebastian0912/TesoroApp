@@ -2,7 +2,7 @@ import { Injectable, Inject, PLATFORM_ID } from '@angular/core';
 import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { isPlatformBrowser } from '@angular/common';
-import { environment } from '@/environments/environment.development';
+import { environment } from '@/environments/environment';
 
 @Injectable({
   providedIn: 'root',
@@ -13,7 +13,7 @@ export class GestionDocumentalService {
   constructor(
     private http: HttpClient,
     @Inject(PLATFORM_ID) private platformId: Object
-  ) {}
+  ) { }
 
   // ------------------ DOCUMENTOS (CRUD) ------------------
 
@@ -37,24 +37,27 @@ export class GestionDocumentalService {
     );
   }
 
-  obtenerDocumentosPorTipo(
-    owner_id: any,
-    type: number,
-    contract_number?: string,
-  ): Observable<any> {
-    let params = new HttpParams().set('cedula', owner_id);
-    if (contract_number) params = params.set('contract_number', contract_number);
-    params = params.set('type', type.toString());
-
-    return this.http.get(`${this.apiUrl}/gestion_documental/documentos/`, { params });
-  }
-
-  consultarDocumentosPorCedulaYTipo(cedula: string, type?: number): Observable<any> {
+  /**
+   * Obtiene documentos filtrados por cédula (obligatoria) y opcionalmente tipo o contrato.
+   */
+  getDocuments(cedula: string, type?: number, contract_number?: string): Observable<any> {
     let params = new HttpParams().set('cedula', cedula);
     if (type !== undefined && type !== null) {
       params = params.set('type', type.toString());
     }
+    if (contract_number) {
+      params = params.set('contract_number', contract_number);
+    }
     return this.http.get(`${this.apiUrl}/gestion_documental/documentos/`, { params });
+  }
+
+  // Alias para compatibilidad regresiva (si es necesario)
+  obtenerDocumentosPorTipo(owner_id: any, type: number, contract_number?: string): Observable<any> {
+    return this.getDocuments(owner_id, type, contract_number);
+  }
+
+  consultarDocumentosPorCedulaYTipo(cedula: string, type?: number): Observable<any> {
+    return this.getDocuments(cedula, type);
   }
 
   // ------------------ ZIP POR CÉDULAS + ORDEN ------------------

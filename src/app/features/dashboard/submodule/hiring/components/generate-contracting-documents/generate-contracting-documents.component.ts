@@ -71,6 +71,8 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     { titulo: 'EPS' },
     { titulo: 'CAJA' },
     { titulo: 'PAGO SEGURIDAD SOCIAL' },
+    { titulo: 'Entrega carnets' },
+    { titulo: 'Inducción capacitación' },
   ];
 
   nombreCompleto = '';
@@ -115,7 +117,9 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     'Figura Humana': 31,
     EPS: 36,
     CAJA: 37,
-    'PAGO SEGURIDAD SOCIAL': 38
+    'PAGO SEGURIDAD SOCIAL': 38,
+    'Entrega carnets': 95,
+    'Inducción capacitación': 96,
   };
 
   async ngOnInit(): Promise<void> {
@@ -432,6 +436,14 @@ export class GenerateContractingDocumentsComponent implements OnInit {
         console.log('Generando ficha técnica TA completa...');
         this.generarFichaTecnicaTuAlianzaCompleta();
       }
+    }
+    // Entrega de carnets Flores Andes
+    else if (documento === 'Entrega carnets') {
+      this.generarEntregaCarnets();
+    }
+    // Inducción y capacitación Flores Andes
+    else if (documento === 'Inducción capacitación') {
+      this.generarInduccionCapacitacion();
     }
   }
 
@@ -2268,11 +2280,15 @@ export class GenerateContractingDocumentsComponent implements OnInit {
 
       {
         titulo: T('Domicilio del Trabajador'),
-        valor: V([
-          this.candidato?.residencia?.direccion + ' - ',
-          this.candidato?.residencia?.barrio,
-          ' - ' + datoContratacion.municipio,
-        ].filter(x => String(x ?? '').trim()).join(' '))
+        valor: V(
+          [
+            (this.candidato?.residencia?.direccion ?? datoContratacion.direccion_residencia),
+            this.candidato?.residencia?.barrio,
+            datoContratacion.municipio
+          ]
+            .filter(x => String(x ?? '').trim())
+            .join(' - ')
+        )
       },
 
       { titulo: T('Fecha de Iniciación'), valor: V(this.candidato?.entrevistas?.[0]?.proceso?.contrato?.fecha_ingreso ?? '') },
@@ -2894,637 +2910,637 @@ export class GenerateContractingDocumentsComponent implements OnInit {
   // import { firstValueFrom, of } from 'rxjs';
   // import { catchError, take } from 'rxjs/operators';
 
-async generarFichaTecnicaTuAlianza() {
-  let datoContratacion: any = {};
+  async generarFichaTecnicaTuAlianza() {
+    let datoContratacion: any = {};
 
-  try {
-    // =========================================================
-    // 0) ESPERAR a que llegue la contratación ANTES de continuar
-    // =========================================================
-    const numeroDoc = String(this.candidato?.numero_documento ?? '').trim();
-    if (!numeroDoc) throw new Error('El candidato no tiene número de documento.');
+    try {
+      // =========================================================
+      // 0) ESPERAR a que llegue la contratación ANTES de continuar
+      // =========================================================
+      const numeroDoc = String(this.candidato?.numero_documento ?? '').trim();
+      if (!numeroDoc) throw new Error('El candidato no tiene número de documento.');
 
-    const respContratacion: any = await firstValueFrom(
-      this.contratacionService.buscarEncontratacion(numeroDoc).pipe(
-        take(1),
-        catchError((err) => {
-          console.error('Error buscando contratación:', err);
-          return of({ data: [] });
-        })
-      )
-    );
+      const respContratacion: any = await firstValueFrom(
+        this.contratacionService.buscarEncontratacion(numeroDoc).pipe(
+          take(1),
+          catchError((err) => {
+            console.error('Error buscando contratación:', err);
+            return of({ data: [] });
+          })
+        )
+      );
 
-    console.log('Datos de contratación recibidos:', respContratacion);
-    datoContratacion = respContratacion?.data?.[0] ?? {};
-    console.log('Dato de contratación para ficha técnica Tu Alianza:', datoContratacion);
+      console.log('Datos de contratación recibidos:', respContratacion);
+      datoContratacion = respContratacion?.data?.[0] ?? {};
+      console.log('Dato de contratación para ficha técnica Tu Alianza:', datoContratacion);
 
-    // =========================================================
-    // 0) Helpers de imagen (PDF-lib) - robustos + NO SE VOLTEA
-    // =========================================================
-    const bytesCache = new Map<string, Promise<ArrayBuffer | null>>();
+      // =========================================================
+      // 0) Helpers de imagen (PDF-lib) - robustos + NO SE VOLTEA
+      // =========================================================
+      const bytesCache = new Map<string, Promise<ArrayBuffer | null>>();
 
-    const isHttp = (u: string) => /^https?:\/\//i.test(u);
-    const isDataUrl = (u: string) => /^data:image\//i.test(u);
+      const isHttp = (u: string) => /^https?:\/\//i.test(u);
+      const isDataUrl = (u: string) => /^data:image\//i.test(u);
 
-    const normalizeUrl = (u: string) => {
-      const s = String(u ?? '').trim();
-      if (!s) return '';
-      if (isHttp(s) || isDataUrl(s)) return s;
+      const normalizeUrl = (u: string) => {
+        const s = String(u ?? '').trim();
+        if (!s) return '';
+        if (isHttp(s) || isDataUrl(s)) return s;
 
-      const clean = s.replace(/^\/+/, '');
-      if (clean.startsWith('assets/')) return clean;
+        const clean = s.replace(/^\/+/, '');
+        if (clean.startsWith('assets/')) return clean;
 
-      return `assets/${clean}`;
-    };
+        return `assets/${clean}`;
+      };
 
-    const dataUrlToBytes = (dataUrl: string): ArrayBuffer | null => {
-      try {
-        const [meta, b64] = dataUrl.split(',');
-        if (!meta || !b64) return null;
-        const bin = atob(b64);
-        const len = bin.length;
-        const bytes = new Uint8Array(len);
-        for (let i = 0; i < len; i++) bytes[i] = bin.charCodeAt(i);
-        return bytes.buffer;
-      } catch {
-        return null;
-      }
-    };
-
-    const detectImageType = (ab: ArrayBuffer): 'png' | 'jpg' | null => {
-      const b = new Uint8Array(ab);
-      if (
-        b.length >= 8 &&
-        b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4E && b[3] === 0x47 &&
-        b[4] === 0x0D && b[5] === 0x0A && b[6] === 0x1A && b[7] === 0x0A
-      ) return 'png';
-
-      if (b.length >= 3 && b[0] === 0xFF && b[1] === 0xD8 && b[2] === 0xFF) return 'jpg';
-
-      return null;
-    };
-
-    const fetchBytesOrNull = async (urlOrData?: string): Promise<ArrayBuffer | null> => {
-      const raw = String(urlOrData ?? '').trim();
-      if (!raw) return null;
-
-      if (isDataUrl(raw)) return dataUrlToBytes(raw);
-
-      const url = normalizeUrl(raw);
-      if (!url) return null;
-
-      if (bytesCache.has(url)) return await bytesCache.get(url)!;
-
-      const p = (async () => {
+      const dataUrlToBytes = (dataUrl: string): ArrayBuffer | null => {
         try {
-          const ab = await this.fetchAsArrayBufferOrNull(url);
-          if (ab) return ab;
-        } catch { }
-
-        if (!isHttp(raw) && !raw.startsWith('assets/') && !isDataUrl(raw)) {
-          try {
-            const ab2 = await this.fetchAsArrayBufferOrNull(raw);
-            if (ab2) return ab2;
-          } catch { }
-        }
-
-        return null;
-      })();
-
-      bytesCache.set(url, p);
-      return await p;
-    };
-
-    type ImgFixOpts = {
-      forcePortrait?: boolean; // si viene horizontal, lo gira para que quede vertical
-      jpegQuality?: number;    // 0..1
-    };
-
-    const fixImageBytesForPdf = async (
-      ab: ArrayBuffer,
-      kind: 'png' | 'jpg',
-      opts?: ImgFixOpts
-    ): Promise<{ bytes: Uint8Array; outKind: 'png' | 'jpg' }> => {
-      const forcePortrait = opts?.forcePortrait ?? false;
-      const jpegQuality = opts?.jpegQuality ?? 0.92;
-
-      try {
-        const mime = kind === 'png' ? 'image/png' : 'image/jpeg';
-        const blob = new Blob([ab], { type: mime });
-
-        // 1) Decodifica respetando EXIF cuando el browser lo soporta
-        let bitmap: ImageBitmap | null = null;
-        try {
-          bitmap = await createImageBitmap(blob, { imageOrientation: 'from-image' });
+          const [meta, b64] = dataUrl.split(',');
+          if (!meta || !b64) return null;
+          const bin = atob(b64);
+          const len = bin.length;
+          const bytes = new Uint8Array(len);
+          for (let i = 0; i < len; i++) bytes[i] = bin.charCodeAt(i);
+          return bytes.buffer;
         } catch {
-          bitmap = await createImageBitmap(blob).catch(() => null);
+          return null;
         }
+      };
 
-        // 2) Fuente para dibujar (bitmap o <img>)
-        const getSource = async (): Promise<{
-          w: number;
-          h: number;
-          draw: (ctx: CanvasRenderingContext2D) => void;
-          close?: () => void;
-        } | null> => {
-          if (bitmap) {
-            const w = bitmap.width;
-            const h = bitmap.height;
-            return {
-              w,
-              h,
-              draw: (ctx) => ctx.drawImage(bitmap as ImageBitmap, 0, 0),
-              close: () => bitmap?.close?.()
-            };
-          }
+      const detectImageType = (ab: ArrayBuffer): 'png' | 'jpg' | null => {
+        const b = new Uint8Array(ab);
+        if (
+          b.length >= 8 &&
+          b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4E && b[3] === 0x47 &&
+          b[4] === 0x0D && b[5] === 0x0A && b[6] === 0x1A && b[7] === 0x0A
+        ) return 'png';
 
-          const url = URL.createObjectURL(blob);
+        if (b.length >= 3 && b[0] === 0xFF && b[1] === 0xD8 && b[2] === 0xFF) return 'jpg';
+
+        return null;
+      };
+
+      const fetchBytesOrNull = async (urlOrData?: string): Promise<ArrayBuffer | null> => {
+        const raw = String(urlOrData ?? '').trim();
+        if (!raw) return null;
+
+        if (isDataUrl(raw)) return dataUrlToBytes(raw);
+
+        const url = normalizeUrl(raw);
+        if (!url) return null;
+
+        if (bytesCache.has(url)) return await bytesCache.get(url)!;
+
+        const p = (async () => {
           try {
-            const img = await new Promise<HTMLImageElement>((resolve, reject) => {
-              const el = new Image();
-              el.onload = () => resolve(el);
-              el.onerror = reject;
-              el.src = url;
-            });
+            const ab = await this.fetchAsArrayBufferOrNull(url);
+            if (ab) return ab;
+          } catch { }
 
-            const w = img.naturalWidth || img.width;
-            const h = img.naturalHeight || img.height;
-            return { w, h, draw: (ctx) => ctx.drawImage(img, 0, 0) };
-          } finally {
-            URL.revokeObjectURL(url);
+          if (!isHttp(raw) && !raw.startsWith('assets/') && !isDataUrl(raw)) {
+            try {
+              const ab2 = await this.fetchAsArrayBufferOrNull(raw);
+              if (ab2) return ab2;
+            } catch { }
           }
-        };
 
-        const src = await getSource();
-        if (!src) return { bytes: new Uint8Array(ab), outKind: kind };
+          return null;
+        })();
 
-        const canvas = document.createElement('canvas');
-        const ctx = canvas.getContext('2d');
-        if (!ctx) {
+        bytesCache.set(url, p);
+        return await p;
+      };
+
+      type ImgFixOpts = {
+        forcePortrait?: boolean; // si viene horizontal, lo gira para que quede vertical
+        jpegQuality?: number;    // 0..1
+      };
+
+      const fixImageBytesForPdf = async (
+        ab: ArrayBuffer,
+        kind: 'png' | 'jpg',
+        opts?: ImgFixOpts
+      ): Promise<{ bytes: Uint8Array; outKind: 'png' | 'jpg' }> => {
+        const forcePortrait = opts?.forcePortrait ?? false;
+        const jpegQuality = opts?.jpegQuality ?? 0.92;
+
+        try {
+          const mime = kind === 'png' ? 'image/png' : 'image/jpeg';
+          const blob = new Blob([ab], { type: mime });
+
+          // 1) Decodifica respetando EXIF cuando el browser lo soporta
+          let bitmap: ImageBitmap | null = null;
+          try {
+            bitmap = await createImageBitmap(blob, { imageOrientation: 'from-image' });
+          } catch {
+            bitmap = await createImageBitmap(blob).catch(() => null);
+          }
+
+          // 2) Fuente para dibujar (bitmap o <img>)
+          const getSource = async (): Promise<{
+            w: number;
+            h: number;
+            draw: (ctx: CanvasRenderingContext2D) => void;
+            close?: () => void;
+          } | null> => {
+            if (bitmap) {
+              const w = bitmap.width;
+              const h = bitmap.height;
+              return {
+                w,
+                h,
+                draw: (ctx) => ctx.drawImage(bitmap as ImageBitmap, 0, 0),
+                close: () => bitmap?.close?.()
+              };
+            }
+
+            const url = URL.createObjectURL(blob);
+            try {
+              const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+                const el = new Image();
+                el.onload = () => resolve(el);
+                el.onerror = reject;
+                el.src = url;
+              });
+
+              const w = img.naturalWidth || img.width;
+              const h = img.naturalHeight || img.height;
+              return { w, h, draw: (ctx) => ctx.drawImage(img, 0, 0) };
+            } finally {
+              URL.revokeObjectURL(url);
+            }
+          };
+
+          const src = await getSource();
+          if (!src) return { bytes: new Uint8Array(ab), outKind: kind };
+
+          const canvas = document.createElement('canvas');
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            src.close?.();
+            return { bytes: new Uint8Array(ab), outKind: kind };
+          }
+
+          // 3) ✅ FORZAR “VERTICAL” si viene horizontal
+          if (forcePortrait && src.w > src.h) {
+            canvas.width = src.h;
+            canvas.height = src.w;
+            ctx.translate(canvas.width, 0);
+            ctx.rotate(Math.PI / 2);
+            src.draw(ctx);
+          } else {
+            canvas.width = src.w;
+            canvas.height = src.h;
+            src.draw(ctx);
+          }
+
           src.close?.();
+
+          // 4) Exporta al mismo formato (png/png, jpg/jpg)
+          const outMime = kind === 'png' ? 'image/png' : 'image/jpeg';
+          const outBlob = await new Promise<Blob>((resolve, reject) => {
+            canvas.toBlob(
+              (b) => (b ? resolve(b) : reject(new Error('toBlob failed'))),
+              outMime,
+              outMime === 'image/jpeg' ? jpegQuality : undefined
+            );
+          });
+
+          return { bytes: new Uint8Array(await outBlob.arrayBuffer()), outKind: kind };
+        } catch {
           return { bytes: new Uint8Array(ab), outKind: kind };
         }
+      };
 
-        // 3) ✅ FORZAR “VERTICAL” si viene horizontal
-        if (forcePortrait && src.w > src.h) {
-          canvas.width = src.h;
-          canvas.height = src.w;
-          ctx.translate(canvas.width, 0);
-          ctx.rotate(Math.PI / 2);
-          src.draw(ctx);
-        } else {
-          canvas.width = src.w;
-          canvas.height = src.h;
-          src.draw(ctx);
+      const embedImageOrNull = async (
+        pdfDoc: PDFDocument,
+        urlOrData?: string,
+        opts?: ImgFixOpts
+      ) => {
+        const ab = await fetchBytesOrNull(urlOrData);
+        if (!ab) return null;
+
+        const kind = detectImageType(ab);
+        if (!kind) return null;
+
+        try {
+          const fixed = await fixImageBytesForPdf(ab, kind, opts);
+          return fixed.outKind === 'png'
+            ? await pdfDoc.embedPng(fixed.bytes)
+            : await pdfDoc.embedJpg(fixed.bytes);
+        } catch {
+          return null;
         }
+      };
 
-        src.close?.();
+      const setButtonImageSafe = async (
+        pdfDoc: PDFDocument,
+        form: any,
+        buttonName: string,
+        urlOrData?: string,
+        opts?: ImgFixOpts
+      ) => {
+        const img = await embedImageOrNull(pdfDoc, urlOrData, opts);
+        if (!img) return false;
+        try {
+          form.getButton(buttonName).setImage(img);
+          return true;
+        } catch {
+          return false;
+        }
+      };
 
-        // 4) Exporta al mismo formato (png/png, jpg/jpg)
-        const outMime = kind === 'png' ? 'image/png' : 'image/jpeg';
-        const outBlob = await new Promise<Blob>((resolve, reject) => {
-          canvas.toBlob(
-            (b) => (b ? resolve(b) : reject(new Error('toBlob failed'))),
-            outMime,
-            outMime === 'image/jpeg' ? jpegQuality : undefined
-          );
-        });
+      // =========================================================
+      // 1) Normalización desde this.candidato y this.vacante
+      // =========================================================
+      const cand: any = this.candidato ?? {};
+      console.log('Candidato para ficha técnica Tu Alianza:', cand);
+      const vac: any = this.vacante ?? {};
+      console.log('Vacante para ficha técnica Tu Alianza:', vac);
 
-        return { bytes: new Uint8Array(await outBlob.arrayBuffer()), outKind: kind };
-      } catch {
-        return { bytes: new Uint8Array(ab), outKind: kind };
+      const contacto: any = cand.contacto ?? {};
+      const residencia: any = cand.residencia ?? {};
+      const infoCc: any = cand.info_cc ?? {};
+
+      const entrevista: any = Array.isArray(cand.entrevistas) ? cand.entrevistas[0] : null;
+      const proceso: any = entrevista?.proceso ?? {};
+      const contrato: any = proceso?.contrato ?? {};
+      const antecedentes: any[] = Array.isArray(proceso?.antecedentes) ? proceso.antecedentes : [];
+
+      const norm = (v: any) => String(v ?? '').trim().toUpperCase();
+      const findAnte = (nombre: string) => antecedentes.find(a => norm(a?.nombre) === norm(nombre));
+
+      const eps = String(findAnte('EPS')?.observacion ?? '');
+      const afp = String(findAnte('AFP')?.observacion ?? '');
+
+      const mapEstadoCivil = (code: any): string => {
+        const c = norm(code);
+        if (c === 'SO' || c === 'SOLTERO' || c === 'S') return 'SO';
+        if (c === 'CA' || c === 'CASADO') return 'CA';
+        if (c === 'UN' || c === 'UL' || c === 'UNION LIBRE' || c === 'UNIÓN LIBRE') return 'UN';
+        if (c === 'SE' || c === 'SEP' || c === 'SEPARADO') return 'SE';
+        if (c === 'VI' || c === 'VIUDO') return 'VI';
+        return c || '';
+      };
+
+      const nombreCompleto = [
+        cand.primer_nombre,
+        cand.segundo_nombre,
+        cand.primer_apellido,
+        cand.segundo_apellido,
+      ]
+        .map((x: any) => String(x ?? '').trim())
+        .filter(Boolean)
+        .join(' ');
+
+      const codigoContrato = String(contrato?.codigo_contrato ?? proceso?.contrato_codigo ?? '').trim();
+
+      const fechaIngreso = String(vac?.fechadeIngreso ?? '').trim();
+      const salario = vac?.salario ?? proceso?.vacante_salario ?? '';
+
+      const formacion0: any = Array.isArray(cand.formaciones) ? cand.formaciones[0] : null;
+      const exp0: any = Array.isArray(cand.experiencias) ? cand.experiencias[0] : null;
+
+      const dv: any = {
+        primer_apellido: cand.primer_apellido ?? '',
+        segundo_apellido: cand.segundo_apellido ?? '',
+        primer_nombre: cand.primer_nombre ?? '',
+        segundo_nombre: cand.segundo_nombre ?? '',
+
+        tipodedocumento: cand.tipo_doc ?? '',
+        numerodeceduladepersona: cand.numero_documento ?? '',
+
+        fecha_expedicion_cc: infoCc?.fecha_expedicion ?? '',
+        departamento_expedicion_cc: infoCc?.depto_expedicion ?? '',
+        municipio_expedicion_cc: infoCc?.mpio_expedicion ?? '',
+
+        genero: cand.sexo ?? '',
+        fecha_nacimiento: cand.fecha_nacimiento ?? '',
+        lugar_nacimiento_departamento: infoCc?.depto_nacimiento ?? '',
+        lugar_nacimiento_municipio: infoCc?.mpio_nacimiento ?? '',
+
+        estado_civil: mapEstadoCivil(cand.estado_civil),
+
+        direccion_residencia: residencia?.direccion ?? '',
+        barrio: residencia?.barrio ?? '',
+        municipio: (vac?.municipio?.[0] ?? entrevista?.oficina ?? '').toString(),
+        departamento: '',
+
+        celular: contacto?.celular ?? '',
+        primercorreoelectronico: contacto?.email ?? '',
+
+        rh: cand.rh ?? '',
+        zurdo_diestro: cand.zurdo_diestro ?? '',
+
+        escolaridad: formacion0?.nivel ?? '',
+        nombre_institucion: formacion0?.institucion ?? '',
+        titulo_obtenido: formacion0?.titulo_obtenido ?? '',
+        ano_finalizacion: formacion0?.anio_finalizacion ?? '',
+
+        nombre_expe_laboral1_empresa: exp0?.empresa ?? '',
+        direccion_empresa1: exp0?.direccion ?? '',
+        telefonos_empresa1: exp0?.telefonos ?? '',
+        nombre_jefe_empresa1: exp0?.nombre_jefe ?? '',
+        cargo_empresa1: exp0?.cargo ?? '',
+        fecha_retiro_empresa1: exp0?.fecha_retiro ?? '',
+        motivo_retiro_empresa1: exp0?.motivo_retiro ?? '',
+      };
+
+      const ds: any = {
+        fechaIngreso,
+        salario,
+        eps,
+        afp,
+        cesantias: entrevista?.proceso?.contrato?.cesantias ?? '',
+        cargo: vac?.cargo ?? '',
+        centro_costo_entrevista: entrevista?.oficina ?? '',
+        empresa_usuario: vac?.empresaUsuariaSolicita ?? '',
+      };
+
+      // =========================================================
+      // 2) Cargar PDF base y setear campos
+      // =========================================================
+      const pdfUrl = 'Docs/FICHA FORANEOS TU ALIANZA.pdf';
+      const arrayBuffer = await this.fetchAsArrayBufferOrNull(pdfUrl);
+      if (!arrayBuffer) throw new Error('No se pudo cargar el PDF base.');
+
+      const pdfDoc = await PDFDocument.load(arrayBuffer);
+      pdfDoc.registerFontkit(fontkit as any);
+
+      const fontBytes = await this.fetchAsArrayBufferOrNull('fonts/Roboto-Regular.ttf');
+      const customFont = fontBytes ? await pdfDoc.embedFont(fontBytes) : undefined;
+
+      const form = pdfDoc.getForm();
+
+      // ✅ Imagen: nunca se voltea, siempre vertical
+      await setButtonImageSafe(pdfDoc, form, 'Imagen1_af_image', this.foto, { forcePortrait: true });
+
+      this.setText(form, '1er Apellido', this.safe(dv.primer_apellido), customFont);
+      this.setText(form, '2do apellido', this.safe(dv.segundo_apellido), customFont);
+      this.setText(
+        form,
+        'Nombres',
+        [this.safe(dv.primer_nombre), this.safe(dv.segundo_nombre)].filter(Boolean).join(' '),
+        customFont
+      );
+      this.setText(form, 'num-identificacion', this.safe(dv.numerodeceduladepersona), customFont);
+      this.setText(form, 'No de Hijos', this.safe(datoContratacion?.num_hijos_dependen_economicamente ?? ''), customFont);
+      this.setText(form, 'Email', this.safe(datoContratacion?.primercorreoelectronico), customFont);
+
+      // helpers
+      const pickText = (...vals: any[]) => {
+        for (const v of vals) {
+          const t = this.safe(v).trim();
+          if (t) return t;
+        }
+        return '';
+      };
+
+      const pickDateDDMM = (...vals: any[]) => {
+        for (const v of vals) {
+          const d = this.parseDateToDDMMYYYY(v);
+          const t = this.safe(d).trim();
+          if (t) return t;
+        }
+        return '';
+      };
+
+      // Fecha y lugar de Expedición
+      const expFecha = pickDateDDMM(dv?.fecha_expedicion_cc, datoContratacion?.fecha_expedicion_cc);
+      const expLugar = pickText(dv?.municipio_expedicion_cc, datoContratacion?.municipio_expedicion_cc);
+
+      this.setText(
+        form,
+        'Fecha y lugar de Expediciòn',
+        [expFecha, expLugar].filter(Boolean).join(' '),
+        customFont
+      );
+
+      // Fecha y lugar de Nacimiento
+      const nacFecha = pickDateDDMM(dv?.fecha_nacimiento, datoContratacion?.fecha_nacimiento);
+      const nacLugar = pickText(dv?.lugar_nacimiento_municipio, datoContratacion?.lugar_nacimiento_municipio);
+
+      this.setText(
+        form,
+        'Fecha y lugar de Nacimiento',
+        [nacFecha, nacLugar].filter(Boolean).join(' '),
+        customFont
+      );
+
+      // Dirección
+      this.setText(
+        form,
+        'Dirección',
+        pickText(dv?.direccion_residencia, datoContratacion?.direccion_residencia),
+        customFont
+      );
+
+      // Mun + Barrio
+      const munVal = pickText(dv?.municipio, datoContratacion?.municipio);
+      const barVal = pickText(dv?.barrio, datoContratacion?.barrio);
+      this.setText(form, 'Mun Bar', [munVal, barVal].filter(Boolean).join(' - '), customFont);
+
+      // Dies/Zurd
+      this.setText(
+        form,
+        'DiesZurd',
+        pickText(dv?.zurdo_diestro, datoContratacion?.zurdo_diestro),
+        customFont
+      );
+
+      // RH
+      this.setText(
+        form,
+        'RH',
+        pickText(dv?.rh, datoContratacion?.rh),
+        customFont
+      );
+
+      // PlanFunerario
+      const siNo = this.candidato?.entrevistas?.[0]?.proceso?.contrato?.seguro_funerario ? 'SI' : 'NO';
+      this.setText(form, 'PlanFunerario', `Desea afiliarse al plan funerario : ${siNo}`, customFont, 6);
+
+      this.setText(form, 'Celular', this.safe(dv.celular), customFont);
+      this.setText(form, 'Estado Civil', this.safe(dv.estado_civil), customFont);
+      this.setText(form, 'Correo Electrónico', this.safe(dv.primercorreoelectronico), customFont);
+      this.setText(form, 'EPS', this.safe(ds.eps), customFont);
+      this.setText(form, 'AFP', this.safe(ds.afp), customFont);
+      this.setText(form, 'AFC', this.safe(ds.cesantias ?? ''), customFont);
+
+      // escolaridad
+      this.setText(form, 'escolaridad', this.safe(datoContratacion?.escolaridad ?? ''), customFont);
+      this.setText(form, 'Nombre de la Instit', this.safe(datoContratacion?.nombre_institucion ?? ''), customFont);
+      this.setText(form, 'UniversidadAño Finalización', this.safe(datoContratacion?.ano_finalizacion ?? ''), customFont);
+      this.setText(form, 'Titulo Obtenido o Ultimo Cursado', this.safe(datoContratacion?.titulo_obtenido ?? ''), customFont);
+
+      // info familiar
+      this.setText(form, 'Nombre y apellido padre', this.safe(datoContratacion?.nombre_padre ?? ''), customFont);
+      this.setText(form, 'Vive', this.safe(datoContratacion?.vive_padre ?? ''), customFont);
+      this.setText(form, 'Ocupación', this.safe(datoContratacion?.ocupacion_padre ?? ''), customFont);
+      this.setText(form, 'Dirección_2', this.safe(datoContratacion?.direccion_padre ?? ''), customFont);
+      this.setText(form, 'Teléfono', this.safe(datoContratacion?.telefono_padre ?? ''), customFont);
+      this.setText(form, 'BarrioMunicipio', this.safe(datoContratacion?.barrio_padre ?? ''), customFont);
+
+      this.setText(form, 'Nombre y apellido madre', this.safe(datoContratacion?.nombre_madre ?? ''), customFont);
+      this.setText(form, 'Vive_2', this.safe(datoContratacion?.vive_madre ?? ''), customFont);
+      this.setText(form, 'Ocupación_2', this.safe(datoContratacion?.ocupacion_madre ?? ''), customFont);
+      this.setText(form, 'Dirección_3', this.safe(datoContratacion?.direccion_madre ?? ''), customFont);
+      this.setText(form, 'Teléfono_2', this.safe(datoContratacion?.telefono_madre ?? ''), customFont);
+      this.setText(form, 'BarrioMunicipio_2', this.safe(datoContratacion?.barrio_madre ?? ''), customFont);
+
+      this.setText(
+        form,
+        'Nombreyapellidoconyuge',
+        this.safe(`${datoContratacion?.nombre_conyugue ?? ''} ${datoContratacion?.apellido_conyugue ?? ''}`.trim()),
+        customFont
+      );
+      this.setText(form, 'Ocupación_3', this.safe(datoContratacion?.ocupacion_conyugue ?? ''), customFont);
+      this.setText(form, 'Dirección_4', this.safe(datoContratacion?.direccion_conyugue ?? ''), customFont);
+      this.setText(form, 'Teléfono_3', this.safe(datoContratacion?.telefono_conyugue ?? ''), customFont);
+      this.setText(form, 'BarrioMunicipio_3', this.safe(datoContratacion?.barrio_municipio_conyugue ?? ''), customFont);
+
+      this.setText(form, 'Familiar en caso de Emergencia', this.safe(datoContratacion?.familiar_emergencia ?? ''), customFont);
+      this.setText(form, 'Parentesco', this.safe(datoContratacion?.parentesco_familiar_emergencia ?? ''), customFont);
+      this.setText(form, 'Ocupación_4', this.safe(datoContratacion?.ocupacion_familiar_emergencia ?? ''), customFont);
+      this.setText(form, 'Dirección_5', this.safe(datoContratacion?.direccion_familiar_emergencia ?? ''), customFont);
+      this.setText(form, 'Teléfono_4', this.safe(datoContratacion?.telefono_familiar_emergencia ?? ''), customFont);
+      this.setText(form, 'BarrioMunicipio_4', this.safe(datoContratacion?.barrio_familiar_emergencia ?? ''), customFont);
+
+      const hijos = Array.isArray(datoContratacion?.hijos) ? datoContratacion!.hijos : [];
+
+      const parseYmd = (ymd: string) => {
+        const [y, m, d] = ymd.split('-').map(n => Number(n));
+        if (!y || !m || !d) return null;
+        return new Date(y, m - 1, d);
+      };
+      const formatDate = (ymd: string) => {
+        const dt = parseYmd(ymd);
+        if (!dt) return '';
+        const dd = String(dt.getDate()).padStart(2, '0');
+        const mm = String(dt.getMonth() + 1).padStart(2, '0');
+        const yyyy = dt.getFullYear();
+        return `${dd}/${mm}/${yyyy}`;
+      };
+      const calcAge = (ymd: string) => {
+        const birth = parseYmd(ymd);
+        if (!birth) return '';
+        const today = new Date();
+        let age = today.getFullYear() - birth.getFullYear();
+        const m = today.getMonth() - birth.getMonth();
+        if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--;
+        return age < 0 ? '' : String(age);
+      };
+
+      for (let i = 0; i < 5; i++) {
+        const idx = i + 1;
+        const h = hijos[i] ?? {};
+
+        const nombre = norm((h as any).nombre);
+        const sexo = norm((h as any).sexo);
+        const fechaRaw = String((h as any).fecha_nacimiento ?? '').trim();
+        const noDoc = norm((h as any).no_documento);
+        const ocupacion = norm((h as any).estudia_o_trabaja);
+        const curso = norm((h as any).curso);
+
+        this.setText(form, `nombre_hijo_${idx}`, this.safe(nombre), customFont);
+        this.setText(form, `fecha_nac_hijo_${idx}`, this.safe(formatDate(fechaRaw)), customFont);
+        this.setText(form, `no_iden_hijo_${idx}`, this.safe(noDoc), customFont);
+        this.setText(form, `sexo_hijo_${idx}`, this.safe(sexo), customFont);
+        this.setText(form, `edad_hijo_${idx}`, this.safe(calcAge(fechaRaw)), customFont);
+        this.setText(form, `ocupacion_hijo_${idx}`, this.safe(ocupacion), customFont);
+        this.setText(form, `curso_hijo_${idx}`, this.safe(curso), customFont);
       }
-    };
 
-    const embedImageOrNull = async (
-      pdfDoc: PDFDocument,
-      urlOrData?: string,
-      opts?: ImgFixOpts
-    ) => {
-      const ab = await fetchBytesOrNull(urlOrData);
-      if (!ab) return null;
+      this.setText(form, 'TALLA CHAQUETA', this.safe(datoContratacion.chaqueta ?? ''), customFont);
+      this.setText(form, 'TALLA PANTALON', this.safe(datoContratacion.pantalon ?? ''), customFont);
+      this.setText(form, 'TALLA OVEROL', this.safe(datoContratacion.camisa ?? ''), customFont);
+      this.setText(form, 'No calzado', this.safe(datoContratacion.calzado ?? ''), customFont);
+      this.setText(form, 'No Botas de Caucho', this.safe(datoContratacion.calzado ?? ''), customFont);
+      this.setText(form, 'No Zapatones', this.safe(datoContratacion.calzado ?? ''), customFont);
+      this.setText(form, 'No Botas Material', this.safe(datoContratacion.calzado ?? ''), customFont);
+      this.setText(form, 'No Botas Material', this.safe(datoContratacion.calzado ?? ''), customFont);
 
-      const kind = detectImageType(ab);
-      if (!kind) return null;
+      this.setText(form, 'Nombre Empresa', this.safe(datoContratacion.nombre_expe_laboral1_empresa ?? ''), customFont);
+      this.setText(form, 'Dirección Empresa', this.safe(datoContratacion.direccion_empresa1 ?? ''), customFont);
+      this.setText(form, 'Teléfonos', this.safe(datoContratacion.telefonos_empresa1 ?? ''), customFont);
+      this.setText(form, 'Jefe Inmediato', this.safe(datoContratacion.nombre_jefe_empresa1 ?? ''), customFont);
+      this.setText(form, 'Cargo', this.safe(datoContratacion.cargo_empresa1 ?? ''), customFont);
+      this.setText(form, 'F de Retiro', this.safe(datoContratacion.fecha_retiro_empresa1 ?? ''), customFont);
+      this.setText(
+        form,
+        'motivoretiro',
+        this.safe(`Motivo de retiro: ${datoContratacion?.motivo_retiro_empresa1 ?? ''}`),
+        customFont
+      );
 
-      try {
-        const fixed = await fixImageBytesForPdf(ab, kind, opts);
-        return fixed.outKind === 'png'
-          ? await pdfDoc.embedPng(fixed.bytes)
-          : await pdfDoc.embedJpg(fixed.bytes);
-      } catch {
-        return null;
-      }
-    };
+      // referencias personales
+      this.setText(form, '1', this.safe(datoContratacion.nombre_referencia_personal1 ?? ''), customFont);
+      this.setText(form, 'Teléfonos1', this.safe(datoContratacion.telefono_referencia_personal1 ?? ''), customFont);
+      this.setText(form, 'Ocupación1', this.safe(datoContratacion.ocupacion_referencia_personal1 ?? ''), customFont);
 
-    const setButtonImageSafe = async (
-      pdfDoc: PDFDocument,
-      form: any,
-      buttonName: string,
-      urlOrData?: string,
-      opts?: ImgFixOpts
-    ) => {
-      const img = await embedImageOrNull(pdfDoc, urlOrData, opts);
-      if (!img) return false;
-      try {
-        form.getButton(buttonName).setImage(img);
-        return true;
-      } catch {
-        return false;
-      }
-    };
+      this.setText(form, '2', this.safe(datoContratacion.nombre_referencia_personal2 ?? ''), customFont);
+      this.setText(form, 'Teléfonos2', this.safe(datoContratacion.telefono_referencia_personal2 ?? ''), customFont);
+      this.setText(form, 'Ocupación2', this.safe(datoContratacion.ocupacion_referencia_personal2 ?? ''), customFont);
 
-    // =========================================================
-    // 1) Normalización desde this.candidato y this.vacante
-    // =========================================================
-    const cand: any = this.candidato ?? {};
-    console.log('Candidato para ficha técnica Tu Alianza:', cand);
-    const vac: any = this.vacante ?? {};
-    console.log('Vacante para ficha técnica Tu Alianza:', vac);
+      // referencias familiares
+      this.setText(form, '1_2', this.safe(datoContratacion.nombre_referencia_familiar1 ?? ''), customFont);
+      this.setText(form, 'Teléfonos1_2', this.safe(datoContratacion.telefono_referencia_familiar1 ?? ''), customFont);
+      this.setText(form, 'Ocupación1_2', this.safe(datoContratacion.ocupacion_referencia_familiar1 ?? ''), customFont);
 
-    const contacto: any = cand.contacto ?? {};
-    const residencia: any = cand.residencia ?? {};
-    const infoCc: any = cand.info_cc ?? {};
+      this.setText(form, '2_2', this.safe(datoContratacion.nombre_referencia_familiar2 ?? ''), customFont);
+      this.setText(form, 'Teléfonos2_2', this.safe(datoContratacion.telefono_referencia_familiar2 ?? ''), customFont);
+      this.setText(form, 'Ocupación2_2', this.safe(datoContratacion.ocupacion_referencia_familiar2 ?? ''), customFont);
 
-    const entrevista: any = Array.isArray(cand.entrevistas) ? cand.entrevistas[0] : null;
-    const proceso: any = entrevista?.proceso ?? {};
-    const contrato: any = proceso?.contrato ?? {};
-    const antecedentes: any[] = Array.isArray(proceso?.antecedentes) ? proceso.antecedentes : [];
+      this.setText(form, 'nombre-referencia-peronal1', this.safe(datoContratacion.nombre_referencia_personal1 ?? ''), customFont);
+      this.setText(form, 'nombre-referencia-peronal2', this.safe(datoContratacion.nombre_referencia_personal2 ?? ''), customFont);
+      this.setText(form, 'nombre-referencia-familiar1', this.safe(datoContratacion.nombre_referencia_familiar1 ?? ''), customFont);
+      this.setText(form, 'nombre-referencia-familiar2', this.safe(datoContratacion.nombre_referencia_familiar2 ?? ''), customFont);
 
-    const norm = (v: any) => String(v ?? '').trim().toUpperCase();
-    const findAnte = (nombre: string) => antecedentes.find(a => norm(a?.nombre) === norm(nombre));
+      // aleatorios descripciones (robusto y sin repetidos en el par)
+      const normalize = (s: unknown) => String(s ?? '').trim().replace(/\s+/g, ' ');
 
-    const eps = String(findAnte('EPS')?.observacion ?? '');
-    const afp = String(findAnte('AFP')?.observacion ?? '');
+      const pickTwoDistinct = (arr: readonly string[]): [string, string] => {
+        const unique = Array.from(new Set((arr ?? []).map(normalize).filter(v => v.length > 0)));
+        if (unique.length === 0) return ['', ''];
+        if (unique.length === 1) return [unique[0], ''];
+        const i = Math.floor(Math.random() * unique.length);
+        const j = (i + 1 + Math.floor(Math.random() * (unique.length - 1))) % unique.length;
+        return [unique[i], unique[j]];
+      };
 
-    const mapEstadoCivil = (code: any): string => {
-      const c = norm(code);
-      if (c === 'SO' || c === 'SOLTERO' || c === 'S') return 'SO';
-      if (c === 'CA' || c === 'CASADO') return 'CA';
-      if (c === 'UN' || c === 'UL' || c === 'UNION LIBRE' || c === 'UNIÓN LIBRE') return 'UN';
-      if (c === 'SE' || c === 'SEP' || c === 'SEPARADO') return 'SE';
-      if (c === 'VI' || c === 'VIUDO') return 'VI';
-      return c || '';
-    };
+      const [personal1, personal2] = pickTwoDistinct(this.referenciasA);
+      this.setText(form, 'descripcion-personal1', personal1, customFont);
+      this.setText(form, 'descripcion-personal2', personal2, customFont);
 
-    const nombreCompleto = [
-      cand.primer_nombre,
-      cand.segundo_nombre,
-      cand.primer_apellido,
-      cand.segundo_apellido,
-    ]
-      .map((x: any) => String(x ?? '').trim())
-      .filter(Boolean)
-      .join(' ');
+      const [familiar1, familiar2] = pickTwoDistinct(this.referenciasF);
+      this.setText(form, 'descripcion-familiar1', familiar1, customFont);
+      this.setText(form, 'descripcion-familiar2', familiar2, customFont);
 
-    const codigoContrato = String(contrato?.codigo_contrato ?? proceso?.contrato_codigo ?? '').trim();
+      // firmado
+      console.log('Usuario que firma ficha técnica Tu Alianza:', this.nombreCompletoLogin);
+      console.log('Cédula usuario que firma ficha técnica Tu Alianza:', this.cedulaPersonalAdministrativo);
+      this.setText(
+        form,
+        'fimado',
+        `C.C. ${this.safe(this.cedulaPersonalAdministrativo)} ${this.nombreCompletoLogin}`,
+        customFont
+      );
 
-    const fechaIngreso = String(vac?.fechadeIngreso ?? '').trim();
-    const salario = vac?.salario ?? proceso?.vacante_salario ?? '';
+      // Bloquear campos
+      form.getFields().forEach((f: any) => { try { f.enableReadOnly(); } catch { } });
 
-    const formacion0: any = Array.isArray(cand.formaciones) ? cand.formaciones[0] : null;
-    const exp0: any = Array.isArray(cand.experiencias) ? cand.experiencias[0] : null;
+      // Guardar PDF
+      const pdfBytes = await pdfDoc.save();
+      const ab = this.toSafeArrayBuffer(pdfBytes);
+      const file = new File([ab], 'Ficha tecnica.pdf', { type: 'application/pdf' });
 
-    const dv: any = {
-      primer_apellido: cand.primer_apellido ?? '',
-      segundo_apellido: cand.segundo_apellido ?? '',
-      primer_nombre: cand.primer_nombre ?? '',
-      segundo_nombre: cand.segundo_nombre ?? '',
-
-      tipodedocumento: cand.tipo_doc ?? '',
-      numerodeceduladepersona: cand.numero_documento ?? '',
-
-      fecha_expedicion_cc: infoCc?.fecha_expedicion ?? '',
-      departamento_expedicion_cc: infoCc?.depto_expedicion ?? '',
-      municipio_expedicion_cc: infoCc?.mpio_expedicion ?? '',
-
-      genero: cand.sexo ?? '',
-      fecha_nacimiento: cand.fecha_nacimiento ?? '',
-      lugar_nacimiento_departamento: infoCc?.depto_nacimiento ?? '',
-      lugar_nacimiento_municipio: infoCc?.mpio_nacimiento ?? '',
-
-      estado_civil: mapEstadoCivil(cand.estado_civil),
-
-      direccion_residencia: residencia?.direccion ?? '',
-      barrio: residencia?.barrio ?? '',
-      municipio: (vac?.municipio?.[0] ?? entrevista?.oficina ?? '').toString(),
-      departamento: '',
-
-      celular: contacto?.celular ?? '',
-      primercorreoelectronico: contacto?.email ?? '',
-
-      rh: cand.rh ?? '',
-      zurdo_diestro: cand.zurdo_diestro ?? '',
-
-      escolaridad: formacion0?.nivel ?? '',
-      nombre_institucion: formacion0?.institucion ?? '',
-      titulo_obtenido: formacion0?.titulo_obtenido ?? '',
-      ano_finalizacion: formacion0?.anio_finalizacion ?? '',
-
-      nombre_expe_laboral1_empresa: exp0?.empresa ?? '',
-      direccion_empresa1: exp0?.direccion ?? '',
-      telefonos_empresa1: exp0?.telefonos ?? '',
-      nombre_jefe_empresa1: exp0?.nombre_jefe ?? '',
-      cargo_empresa1: exp0?.cargo ?? '',
-      fecha_retiro_empresa1: exp0?.fecha_retiro ?? '',
-      motivo_retiro_empresa1: exp0?.motivo_retiro ?? '',
-    };
-
-    const ds: any = {
-      fechaIngreso,
-      salario,
-      eps,
-      afp,
-      cesantias: entrevista?.proceso?.contrato?.cesantias ?? '',
-      cargo: vac?.cargo ?? '',
-      centro_costo_entrevista: entrevista?.oficina ?? '',
-      empresa_usuario: vac?.empresaUsuariaSolicita ?? '',
-    };
-
-    // =========================================================
-    // 2) Cargar PDF base y setear campos
-    // =========================================================
-    const pdfUrl = 'Docs/FICHA FORANEOS TU ALIANZA.pdf';
-    const arrayBuffer = await this.fetchAsArrayBufferOrNull(pdfUrl);
-    if (!arrayBuffer) throw new Error('No se pudo cargar el PDF base.');
-
-    const pdfDoc = await PDFDocument.load(arrayBuffer);
-    pdfDoc.registerFontkit(fontkit as any);
-
-    const fontBytes = await this.fetchAsArrayBufferOrNull('fonts/Roboto-Regular.ttf');
-    const customFont = fontBytes ? await pdfDoc.embedFont(fontBytes) : undefined;
-
-    const form = pdfDoc.getForm();
-
-    // ✅ Imagen: nunca se voltea, siempre vertical
-    await setButtonImageSafe(pdfDoc, form, 'Imagen1_af_image', this.foto, { forcePortrait: true });
-
-    this.setText(form, '1er Apellido', this.safe(dv.primer_apellido), customFont);
-    this.setText(form, '2do apellido', this.safe(dv.segundo_apellido), customFont);
-    this.setText(
-      form,
-      'Nombres',
-      [this.safe(dv.primer_nombre), this.safe(dv.segundo_nombre)].filter(Boolean).join(' '),
-      customFont
-    );
-    this.setText(form, 'num-identificacion', this.safe(dv.numerodeceduladepersona), customFont);
-    this.setText(form, 'No de Hijos', this.safe(datoContratacion?.num_hijos_dependen_economicamente ?? ''), customFont);
-    this.setText(form, 'Email', this.safe(datoContratacion?.primercorreoelectronico), customFont);
-
-    // helpers
-    const pickText = (...vals: any[]) => {
-      for (const v of vals) {
-        const t = this.safe(v).trim();
-        if (t) return t;
-      }
-      return '';
-    };
-
-    const pickDateDDMM = (...vals: any[]) => {
-      for (const v of vals) {
-        const d = this.parseDateToDDMMYYYY(v);
-        const t = this.safe(d).trim();
-        if (t) return t;
-      }
-      return '';
-    };
-
-    // Fecha y lugar de Expedición
-    const expFecha = pickDateDDMM(dv?.fecha_expedicion_cc, datoContratacion?.fecha_expedicion_cc);
-    const expLugar = pickText(dv?.municipio_expedicion_cc, datoContratacion?.municipio_expedicion_cc);
-
-    this.setText(
-      form,
-      'Fecha y lugar de Expediciòn',
-      [expFecha, expLugar].filter(Boolean).join(' '),
-      customFont
-    );
-
-    // Fecha y lugar de Nacimiento
-    const nacFecha = pickDateDDMM(dv?.fecha_nacimiento, datoContratacion?.fecha_nacimiento);
-    const nacLugar = pickText(dv?.lugar_nacimiento_municipio, datoContratacion?.lugar_nacimiento_municipio);
-
-    this.setText(
-      form,
-      'Fecha y lugar de Nacimiento',
-      [nacFecha, nacLugar].filter(Boolean).join(' '),
-      customFont
-    );
-
-    // Dirección
-    this.setText(
-      form,
-      'Dirección',
-      pickText(dv?.direccion_residencia, datoContratacion?.direccion_residencia),
-      customFont
-    );
-
-    // Mun + Barrio
-    const munVal = pickText(dv?.municipio, datoContratacion?.municipio);
-    const barVal = pickText(dv?.barrio, datoContratacion?.barrio);
-    this.setText(form, 'Mun Bar', [munVal, barVal].filter(Boolean).join(' - '), customFont);
-
-    // Dies/Zurd
-    this.setText(
-      form,
-      'DiesZurd',
-      pickText(dv?.zurdo_diestro, datoContratacion?.zurdo_diestro),
-      customFont
-    );
-
-    // RH
-    this.setText(
-      form,
-      'RH',
-      pickText(dv?.rh, datoContratacion?.rh),
-      customFont
-    );
-
-    // PlanFunerario
-    const siNo = this.candidato?.entrevistas?.[0]?.proceso?.contrato?.seguro_funerario ? 'SI' : 'NO';
-    this.setText(form, 'PlanFunerario', `Desea afiliarse al plan funerario : ${siNo}`, customFont, 6);
-
-    this.setText(form, 'Celular', this.safe(dv.celular), customFont);
-    this.setText(form, 'Estado Civil', this.safe(dv.estado_civil), customFont);
-    this.setText(form, 'Correo Electrónico', this.safe(dv.primercorreoelectronico), customFont);
-    this.setText(form, 'EPS', this.safe(ds.eps), customFont);
-    this.setText(form, 'AFP', this.safe(ds.afp), customFont);
-    this.setText(form, 'AFC', this.safe(ds.cesantias ?? ''), customFont);
-
-    // escolaridad
-    this.setText(form, 'escolaridad', this.safe(datoContratacion?.escolaridad ?? ''), customFont);
-    this.setText(form, 'Nombre de la Instit', this.safe(datoContratacion?.nombre_institucion ?? ''), customFont);
-    this.setText(form, 'UniversidadAño Finalización', this.safe(datoContratacion?.ano_finalizacion ?? ''), customFont);
-    this.setText(form, 'Titulo Obtenido o Ultimo Cursado', this.safe(datoContratacion?.titulo_obtenido ?? ''), customFont);
-
-    // info familiar
-    this.setText(form, 'Nombre y apellido padre', this.safe(datoContratacion?.nombre_padre ?? ''), customFont);
-    this.setText(form, 'Vive', this.safe(datoContratacion?.vive_padre ?? ''), customFont);
-    this.setText(form, 'Ocupación', this.safe(datoContratacion?.ocupacion_padre ?? ''), customFont);
-    this.setText(form, 'Dirección_2', this.safe(datoContratacion?.direccion_padre ?? ''), customFont);
-    this.setText(form, 'Teléfono', this.safe(datoContratacion?.telefono_padre ?? ''), customFont);
-    this.setText(form, 'BarrioMunicipio', this.safe(datoContratacion?.barrio_padre ?? ''), customFont);
-
-    this.setText(form, 'Nombre y apellido madre', this.safe(datoContratacion?.nombre_madre ?? ''), customFont);
-    this.setText(form, 'Vive_2', this.safe(datoContratacion?.vive_madre ?? ''), customFont);
-    this.setText(form, 'Ocupación_2', this.safe(datoContratacion?.ocupacion_madre ?? ''), customFont);
-    this.setText(form, 'Dirección_3', this.safe(datoContratacion?.direccion_madre ?? ''), customFont);
-    this.setText(form, 'Teléfono_2', this.safe(datoContratacion?.telefono_madre ?? ''), customFont);
-    this.setText(form, 'BarrioMunicipio_2', this.safe(datoContratacion?.barrio_madre ?? ''), customFont);
-
-    this.setText(
-      form,
-      'Nombreyapellidoconyuge',
-      this.safe(`${datoContratacion?.nombre_conyugue ?? ''} ${datoContratacion?.apellido_conyugue ?? ''}`.trim()),
-      customFont
-    );
-    this.setText(form, 'Ocupación_3', this.safe(datoContratacion?.ocupacion_conyugue ?? ''), customFont);
-    this.setText(form, 'Dirección_4', this.safe(datoContratacion?.direccion_conyugue ?? ''), customFont);
-    this.setText(form, 'Teléfono_3', this.safe(datoContratacion?.telefono_conyugue ?? ''), customFont);
-    this.setText(form, 'BarrioMunicipio_3', this.safe(datoContratacion?.barrio_municipio_conyugue ?? ''), customFont);
-
-    this.setText(form, 'Familiar en caso de Emergencia', this.safe(datoContratacion?.familiar_emergencia ?? ''), customFont);
-    this.setText(form, 'Parentesco', this.safe(datoContratacion?.parentesco_familiar_emergencia ?? ''), customFont);
-    this.setText(form, 'Ocupación_4', this.safe(datoContratacion?.ocupacion_familiar_emergencia ?? ''), customFont);
-    this.setText(form, 'Dirección_5', this.safe(datoContratacion?.direccion_familiar_emergencia ?? ''), customFont);
-    this.setText(form, 'Teléfono_4', this.safe(datoContratacion?.telefono_familiar_emergencia ?? ''), customFont);
-    this.setText(form, 'BarrioMunicipio_4', this.safe(datoContratacion?.barrio_familiar_emergencia ?? ''), customFont);
-
-    const hijos = Array.isArray(datoContratacion?.hijos) ? datoContratacion!.hijos : [];
-
-    const parseYmd = (ymd: string) => {
-      const [y, m, d] = ymd.split('-').map(n => Number(n));
-      if (!y || !m || !d) return null;
-      return new Date(y, m - 1, d);
-    };
-    const formatDate = (ymd: string) => {
-      const dt = parseYmd(ymd);
-      if (!dt) return '';
-      const dd = String(dt.getDate()).padStart(2, '0');
-      const mm = String(dt.getMonth() + 1).padStart(2, '0');
-      const yyyy = dt.getFullYear();
-      return `${dd}/${mm}/${yyyy}`;
-    };
-    const calcAge = (ymd: string) => {
-      const birth = parseYmd(ymd);
-      if (!birth) return '';
-      const today = new Date();
-      let age = today.getFullYear() - birth.getFullYear();
-      const m = today.getMonth() - birth.getMonth();
-      if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--;
-      return age < 0 ? '' : String(age);
-    };
-
-    for (let i = 0; i < 5; i++) {
-      const idx = i + 1;
-      const h = hijos[i] ?? {};
-
-      const nombre = norm((h as any).nombre);
-      const sexo = norm((h as any).sexo);
-      const fechaRaw = String((h as any).fecha_nacimiento ?? '').trim();
-      const noDoc = norm((h as any).no_documento);
-      const ocupacion = norm((h as any).estudia_o_trabaja);
-      const curso = norm((h as any).curso);
-
-      this.setText(form, `nombre_hijo_${idx}`, this.safe(nombre), customFont);
-      this.setText(form, `fecha_nac_hijo_${idx}`, this.safe(formatDate(fechaRaw)), customFont);
-      this.setText(form, `no_iden_hijo_${idx}`, this.safe(noDoc), customFont);
-      this.setText(form, `sexo_hijo_${idx}`, this.safe(sexo), customFont);
-      this.setText(form, `edad_hijo_${idx}`, this.safe(calcAge(fechaRaw)), customFont);
-      this.setText(form, `ocupacion_hijo_${idx}`, this.safe(ocupacion), customFont);
-      this.setText(form, `curso_hijo_${idx}`, this.safe(curso), customFont);
+      this.uploadedFiles['Ficha técnica'] = { file, fileName: 'Ficha tecnica.pdf' };
+      this.verPDF({ titulo: 'Ficha técnica' });
+    } catch (error) {
+      console.error('Error generando ficha técnica:', error);
+      Swal.fire({ icon: 'error', title: 'Error', text: 'Ocurrió un error al generar la ficha técnica.' });
     }
-
-    this.setText(form, 'TALLA CHAQUETA', this.safe(datoContratacion.chaqueta ?? ''), customFont);
-    this.setText(form, 'TALLA PANTALON', this.safe(datoContratacion.pantalon ?? ''), customFont);
-    this.setText(form, 'TALLA OVEROL', this.safe(datoContratacion.camisa ?? ''), customFont);
-    this.setText(form, 'No calzado', this.safe(datoContratacion.calzado ?? ''), customFont);
-    this.setText(form, 'No Botas de Caucho', this.safe(datoContratacion.calzado ?? ''), customFont);
-    this.setText(form, 'No Zapatones', this.safe(datoContratacion.calzado ?? ''), customFont);
-    this.setText(form, 'No Botas Material', this.safe(datoContratacion.calzado ?? ''), customFont);
-    this.setText(form, 'No Botas Material', this.safe(datoContratacion.calzado ?? ''), customFont);
-
-    this.setText(form, 'Nombre Empresa', this.safe(datoContratacion.nombre_expe_laboral1_empresa ?? ''), customFont);
-    this.setText(form, 'Dirección Empresa', this.safe(datoContratacion.direccion_empresa1 ?? ''), customFont);
-    this.setText(form, 'Teléfonos', this.safe(datoContratacion.telefonos_empresa1 ?? ''), customFont);
-    this.setText(form, 'Jefe Inmediato', this.safe(datoContratacion.nombre_jefe_empresa1 ?? ''), customFont);
-    this.setText(form, 'Cargo', this.safe(datoContratacion.cargo_empresa1 ?? ''), customFont);
-    this.setText(form, 'F de Retiro', this.safe(datoContratacion.fecha_retiro_empresa1 ?? ''), customFont);
-    this.setText(
-      form,
-      'motivoretiro',
-      this.safe(`Motivo de retiro: ${datoContratacion?.motivo_retiro_empresa1 ?? ''}`),
-      customFont
-    );
-
-    // referencias personales
-    this.setText(form, '1', this.safe(datoContratacion.nombre_referencia_personal1 ?? ''), customFont);
-    this.setText(form, 'Teléfonos1', this.safe(datoContratacion.telefono_referencia_personal1 ?? ''), customFont);
-    this.setText(form, 'Ocupación1', this.safe(datoContratacion.ocupacion_referencia_personal1 ?? ''), customFont);
-
-    this.setText(form, '2', this.safe(datoContratacion.nombre_referencia_personal2 ?? ''), customFont);
-    this.setText(form, 'Teléfonos2', this.safe(datoContratacion.telefono_referencia_personal2 ?? ''), customFont);
-    this.setText(form, 'Ocupación2', this.safe(datoContratacion.ocupacion_referencia_personal2 ?? ''), customFont);
-
-    // referencias familiares
-    this.setText(form, '1_2', this.safe(datoContratacion.nombre_referencia_familiar1 ?? ''), customFont);
-    this.setText(form, 'Teléfonos1_2', this.safe(datoContratacion.telefono_referencia_familiar1 ?? ''), customFont);
-    this.setText(form, 'Ocupación1_2', this.safe(datoContratacion.ocupacion_referencia_familiar1 ?? ''), customFont);
-
-    this.setText(form, '2_2', this.safe(datoContratacion.nombre_referencia_familiar2 ?? ''), customFont);
-    this.setText(form, 'Teléfonos2_2', this.safe(datoContratacion.telefono_referencia_familiar2 ?? ''), customFont);
-    this.setText(form, 'Ocupación2_2', this.safe(datoContratacion.ocupacion_referencia_familiar2 ?? ''), customFont);
-
-    this.setText(form, 'nombre-referencia-peronal1', this.safe(datoContratacion.nombre_referencia_personal1 ?? ''), customFont);
-    this.setText(form, 'nombre-referencia-peronal2', this.safe(datoContratacion.nombre_referencia_personal2 ?? ''), customFont);
-    this.setText(form, 'nombre-referencia-familiar1', this.safe(datoContratacion.nombre_referencia_familiar1 ?? ''), customFont);
-    this.setText(form, 'nombre-referencia-familiar2', this.safe(datoContratacion.nombre_referencia_familiar2 ?? ''), customFont);
-
-    // aleatorios descripciones (robusto y sin repetidos en el par)
-    const normalize = (s: unknown) => String(s ?? '').trim().replace(/\s+/g, ' ');
-
-    const pickTwoDistinct = (arr: readonly string[]): [string, string] => {
-      const unique = Array.from(new Set((arr ?? []).map(normalize).filter(v => v.length > 0)));
-      if (unique.length === 0) return ['', ''];
-      if (unique.length === 1) return [unique[0], ''];
-      const i = Math.floor(Math.random() * unique.length);
-      const j = (i + 1 + Math.floor(Math.random() * (unique.length - 1))) % unique.length;
-      return [unique[i], unique[j]];
-    };
-
-    const [personal1, personal2] = pickTwoDistinct(this.referenciasA);
-    this.setText(form, 'descripcion-personal1', personal1, customFont);
-    this.setText(form, 'descripcion-personal2', personal2, customFont);
-
-    const [familiar1, familiar2] = pickTwoDistinct(this.referenciasF);
-    this.setText(form, 'descripcion-familiar1', familiar1, customFont);
-    this.setText(form, 'descripcion-familiar2', familiar2, customFont);
-
-    // firmado
-    console.log('Usuario que firma ficha técnica Tu Alianza:', this.nombreCompletoLogin);
-    console.log('Cédula usuario que firma ficha técnica Tu Alianza:', this.cedulaPersonalAdministrativo);
-    this.setText(
-      form,
-      'fimado',
-      `C.C. ${this.safe(this.cedulaPersonalAdministrativo)} ${this.nombreCompletoLogin}`,
-      customFont
-    );
-
-    // Bloquear campos
-    form.getFields().forEach((f: any) => { try { f.enableReadOnly(); } catch { } });
-
-    // Guardar PDF
-    const pdfBytes = await pdfDoc.save();
-    const ab = this.toSafeArrayBuffer(pdfBytes);
-    const file = new File([ab], 'Ficha tecnica.pdf', { type: 'application/pdf' });
-
-    this.uploadedFiles['Ficha técnica'] = { file, fileName: 'Ficha tecnica.pdf' };
-    this.verPDF({ titulo: 'Ficha técnica' });
-  } catch (error) {
-    console.error('Error generando ficha técnica:', error);
-    Swal.fire({ icon: 'error', title: 'Error', text: 'Ocurrió un error al generar la ficha técnica.' });
   }
-}
 
 
   async generarFichaTecnicaTuAlianzaCompleta() {
@@ -4098,6 +4114,240 @@ async generarFichaTecnicaTuAlianza() {
     }
   }
 
+
+  // =========================================================
+  // ENTREGA_CARNETS_FLORES_ANDES (typeId 95)
+  // Template: Docs/entrega_carnets.pdf
+  // Campos: Nombre Trabajador, numero_identificacion, firma_af_image, fecha_ingreso
+  // =========================================================
+  async generarEntregaCarnets() {
+    try {
+      const cand: any = this.candidato ?? {};
+      const vac: any = this.vacante ?? {};
+
+      // ── Helpers locales de imagen (mismo patrón que generarFichaTecnicaTuAlianzaCompleta) ──
+      const isDataUrl = (u: string) => /^data:image\//i.test(u);
+
+      const dataUrlToBytes = (dataUrl: string): ArrayBuffer | null => {
+        try {
+          const [meta, b64] = dataUrl.split(',');
+          if (!meta || !b64) return null;
+          const bin = atob(b64);
+          const len = bin.length;
+          const bytes = new Uint8Array(len);
+          for (let i = 0; i < len; i++) bytes[i] = bin.charCodeAt(i);
+          return bytes.buffer;
+        } catch { return null; }
+      };
+
+      const detectImageType = (ab: ArrayBuffer): 'png' | 'jpg' | null => {
+        const b = new Uint8Array(ab);
+        if (b.length >= 8 && b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4E && b[3] === 0x47 &&
+          b[4] === 0x0D && b[5] === 0x0A && b[6] === 0x1A && b[7] === 0x0A) return 'png';
+        if (b.length >= 3 && b[0] === 0xFF && b[1] === 0xD8 && b[2] === 0xFF) return 'jpg';
+        return null;
+      };
+
+      const fetchBytesOrNull = async (urlOrData?: string): Promise<ArrayBuffer | null> => {
+        const raw = String(urlOrData ?? '').trim();
+        if (!raw) return null;
+        if (isDataUrl(raw)) return dataUrlToBytes(raw);
+        try { return await this.fetchAsArrayBufferOrNull(raw); } catch { return null; }
+      };
+
+      const embedImageOrNull = async (pdfDoc: PDFDocument, urlOrData?: string) => {
+        const ab = await fetchBytesOrNull(urlOrData);
+        if (!ab) return null;
+        const kind = detectImageType(ab);
+        if (!kind) return null;
+        try {
+          const u8 = new Uint8Array(ab);
+          return kind === 'png' ? await pdfDoc.embedPng(u8) : await pdfDoc.embedJpg(u8);
+        } catch { return null; }
+      };
+
+      const setButtonImageSafe = async (
+        pdfDoc: PDFDocument, form: any, buttonName: string, urlOrData?: string
+      ) => {
+        const img = await embedImageOrNull(pdfDoc, urlOrData);
+        if (!img) return false;
+        try { form.getButton(buttonName).setImage(img); return true; }
+        catch { return false; }
+      };
+      // ── Fin helpers ──
+
+      // Nombre completo: apellidos luego nombres
+      const nombreTrabajador = [
+        cand.primer_apellido, cand.segundo_apellido,
+        cand.primer_nombre, cand.segundo_nombre,
+      ].map((x: any) => String(x ?? '').trim()).filter(Boolean).join(' ').toUpperCase();
+
+      const numIdentificacion = String(cand.numero_documento ?? '').trim();
+
+      // Fecha de ingreso dd/mm/yyyy
+      const fechaRaw = String(
+        vac?.fechadeIngreso ?? vac?.fechaIngreso ?? cand?.entrevistas?.[0]?.proceso?.contrato?.fecha_ingreso ?? ''
+      ).trim();
+      let fechaIngreso = '';
+      if (fechaRaw) {
+        const d = new Date(fechaRaw);
+        if (!isNaN(d.getTime())) {
+          fechaIngreso = [
+            String(d.getDate()).padStart(2, '0'),
+            String(d.getMonth() + 1).padStart(2, '0'),
+            d.getFullYear(),
+          ].join('/');
+        }
+      }
+
+      // 1) Cargar PDF plantilla
+      const pdfUrl = 'Docs/entrega_carnets.pdf';
+      const arrayBuffer = await this.fetchAsArrayBufferOrNull(pdfUrl);
+      if (!arrayBuffer) throw new Error('No se pudo cargar el PDF de entrega de carnets.');
+
+      const pdfDoc = await PDFDocument.load(arrayBuffer);
+      const form = pdfDoc.getForm();
+
+      // 2) Llenar campos de texto
+      this.setText(form, 'Nombre Trabajador', nombreTrabajador);
+      this.setText(form, 'numero_identificacion', numIdentificacion);
+      this.setText(form, 'fecha_ingreso', fechaIngreso);
+
+      // 3) Firma → botón de imagen
+      await setButtonImageSafe(pdfDoc, form, 'firma_af_image', this.firma);
+      await setButtonImageSafe(pdfDoc, form, 'firma_trabajador_af_image', this.firmaPersonalAdministrativo);
+
+      // 4) Bloquear campos y guardar
+      form.getFields().forEach((f: any) => { try { f.enableReadOnly(); } catch { } });
+
+      const pdfBytes = await pdfDoc.save();
+      const ab = this.toSafeArrayBuffer(pdfBytes);
+      const file = new File([ab], 'Entrega_carnets.pdf', { type: 'application/pdf' });
+
+      this.uploadedFiles['Entrega carnets'] = { file, fileName: 'Entrega_carnets.pdf' };
+      this.verPDF({ titulo: 'Entrega carnets' });
+    } catch (error) {
+      console.error('Error generando Entrega de Carnets:', error);
+      Swal.fire({ icon: 'error', title: 'Error', text: 'Ocurrió un error al generar la Entrega de Carnets.' });
+    }
+  }
+
+
+  // =========================================================
+  // INDUCCION_CAPACITACION_FLORES_ANDES (typeId 96)
+  // Template: Docs/induccion_capacitacion_andes.pdf
+  // Campos: numero_documento, nombre_completo, fecha_ingreso, firma_af_image
+  // =========================================================
+  async generarInduccionCapacitacion() {
+    try {
+      const cand: any = this.candidato ?? {};
+      const vac: any = this.vacante ?? {};
+
+      // ── Helpers locales de imagen (mismo patrón que generarFichaTecnicaTuAlianzaCompleta) ──
+      const isDataUrl = (u: string) => /^data:image\//i.test(u);
+
+      const dataUrlToBytes = (dataUrl: string): ArrayBuffer | null => {
+        try {
+          const [meta, b64] = dataUrl.split(',');
+          if (!meta || !b64) return null;
+          const bin = atob(b64);
+          const len = bin.length;
+          const bytes = new Uint8Array(len);
+          for (let i = 0; i < len; i++) bytes[i] = bin.charCodeAt(i);
+          return bytes.buffer;
+        } catch { return null; }
+      };
+
+      const detectImageType = (ab: ArrayBuffer): 'png' | 'jpg' | null => {
+        const b = new Uint8Array(ab);
+        if (b.length >= 8 && b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4E && b[3] === 0x47 &&
+          b[4] === 0x0D && b[5] === 0x0A && b[6] === 0x1A && b[7] === 0x0A) return 'png';
+        if (b.length >= 3 && b[0] === 0xFF && b[1] === 0xD8 && b[2] === 0xFF) return 'jpg';
+        return null;
+      };
+
+      const fetchBytesOrNull = async (urlOrData?: string): Promise<ArrayBuffer | null> => {
+        const raw = String(urlOrData ?? '').trim();
+        if (!raw) return null;
+        if (isDataUrl(raw)) return dataUrlToBytes(raw);
+        try { return await this.fetchAsArrayBufferOrNull(raw); } catch { return null; }
+      };
+
+      const embedImageOrNull = async (pdfDoc: PDFDocument, urlOrData?: string) => {
+        const ab = await fetchBytesOrNull(urlOrData);
+        if (!ab) return null;
+        const kind = detectImageType(ab);
+        if (!kind) return null;
+        try {
+          const u8 = new Uint8Array(ab);
+          return kind === 'png' ? await pdfDoc.embedPng(u8) : await pdfDoc.embedJpg(u8);
+        } catch { return null; }
+      };
+
+      const setButtonImageSafe = async (
+        pdfDoc: PDFDocument, form: any, buttonName: string, urlOrData?: string
+      ) => {
+        const img = await embedImageOrNull(pdfDoc, urlOrData);
+        if (!img) return false;
+        try { form.getButton(buttonName).setImage(img); return true; }
+        catch { return false; }
+      };
+      // ── Fin helpers ──
+
+      const numeroDocumento = String(cand.numero_documento ?? '').trim();
+
+      const nombreCompleto = [
+        cand.primer_apellido, cand.segundo_apellido,
+        cand.primer_nombre, cand.segundo_nombre,
+      ].map((x: any) => String(x ?? '').trim()).filter(Boolean).join(' ').toUpperCase();
+
+      // Fecha de ingreso dd/mm/yyyy
+      const fechaRaw = String(
+        vac?.fechadeIngreso ?? vac?.fechaIngreso ?? cand?.entrevistas?.[0]?.proceso?.contrato?.fecha_ingreso ?? ''
+      ).trim();
+      let fechaIngreso = '';
+      if (fechaRaw) {
+        const d = new Date(fechaRaw);
+        if (!isNaN(d.getTime())) {
+          fechaIngreso = [
+            String(d.getDate()).padStart(2, '0'),
+            String(d.getMonth() + 1).padStart(2, '0'),
+            d.getFullYear(),
+          ].join('/');
+        }
+      }
+
+      // 1) Cargar PDF plantilla
+      const pdfUrl = 'Docs/induccion_capacitacion_andes.pdf';
+      const arrayBuffer = await this.fetchAsArrayBufferOrNull(pdfUrl);
+      if (!arrayBuffer) throw new Error('No se pudo cargar el PDF de inducción y capacitación.');
+
+      const pdfDoc = await PDFDocument.load(arrayBuffer);
+      const form = pdfDoc.getForm();
+
+      // 2) Llenar campos de texto (tamaño 12)
+      this.setText(form, 'numero_documento', numeroDocumento, undefined, 12);
+      this.setText(form, 'nombre_completo', nombreCompleto, undefined, 12);
+      this.setText(form, 'fecha_ingreso', fechaIngreso, undefined, 12);
+
+      // 3) Firma → botón de imagen
+      await setButtonImageSafe(pdfDoc, form, 'firma_af_image', this.firma);
+      await setButtonImageSafe(pdfDoc, form, 'firma_trabajador_af_image', this.firmaPersonalAdministrativo);
+
+      // 4) Bloquear campos y guardar
+      form.getFields().forEach((f: any) => { try { f.enableReadOnly(); } catch { } });
+
+      const pdfBytes = await pdfDoc.save();
+      const ab = this.toSafeArrayBuffer(pdfBytes);
+      const file = new File([ab], 'Induccion_capacitacion.pdf', { type: 'application/pdf' });
+
+      this.uploadedFiles['Inducción capacitación'] = { file, fileName: 'Induccion_capacitacion.pdf' };
+      this.verPDF({ titulo: 'Inducción capacitación' });
+    } catch (error) {
+      console.error('Error generando Inducción y Capacitación:', error);
+      Swal.fire({ icon: 'error', title: 'Error', text: 'Ocurrió un error al generar la Inducción y Capacitación.' });
+    }
+  }
 
 
   // =========================================================

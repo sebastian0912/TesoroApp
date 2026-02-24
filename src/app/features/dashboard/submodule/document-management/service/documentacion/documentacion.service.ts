@@ -2,7 +2,7 @@ import { Injectable, Inject, PLATFORM_ID } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { map, catchError } from 'rxjs/operators';
-import { environment } from '@/environments/environment.development';
+import { environment } from '@/environments/environment';
 
 @Injectable({
   providedIn: 'root',
@@ -115,6 +115,29 @@ export class DocumentacionService {
 
     return this.http
       .post(`${this.apiUrl}/gestion_documental/permisos/`, data,)
+      .pipe(
+        map((response: any) => response),
+        catchError(this.handleError)
+      );
+  }
+
+  actualizarDocumento(
+    title: string,
+    owner_id: string,
+    type: number,
+    file: Blob,
+    filename: string,
+    contract_number?: string
+  ): Observable<any> {
+    const formData = new FormData();
+    formData.append('title', title);
+    formData.append('owner_id', owner_id);
+    formData.append('type', type.toString());
+    formData.append('file', file, filename);
+    if (contract_number) formData.append('contract_number', contract_number);
+
+    return this.http
+      .post(`${this.apiUrl}/gestion_documental/documentos/`, formData)
       .pipe(
         map((response: any) => response),
         catchError(this.handleError)

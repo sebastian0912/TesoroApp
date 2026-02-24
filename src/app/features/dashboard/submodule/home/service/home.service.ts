@@ -1,7 +1,7 @@
 import { HttpClient, HttpHeaders, HttpParams, HttpResponse } from '@angular/common/http';
 import { Inject, Injectable, PLATFORM_ID } from '@angular/core';
 import { Observable, catchError, throwError } from 'rxjs';
-import { environment } from '../../../../../../environments/environment.development';
+import { environment } from '../../../../../../environments/environment';
 
 type Granularidad = 'dia' | 'semana' | 'mes';
 
@@ -100,7 +100,7 @@ export class HomeService {
   constructor(
     private http: HttpClient,
     @Inject(PLATFORM_ID) private platformId: Object,
-  ) {}
+  ) { }
 
   private handleError(error: any): Observable<never> {
     return throwError(() => error);
@@ -391,12 +391,12 @@ export class HomeService {
 
 
 
-    /**
-   * Sube un Excel (.xlsx) con cédulas para dejar en false el último Proceso
-   * de la última Entrevista de cada candidato.
-   *
-   * Backend: /gestion_contratacion/contratacion/bulk-reset-ultimo-proceso/
-   */
+  /**
+ * Sube un Excel (.xlsx) con cédulas para dejar en false el último Proceso
+ * de la última Entrevista de cada candidato.
+ *
+ * Backend: /gestion_contratacion/contratacion/bulk-reset-ultimo-proceso/
+ */
   bulkResetUltimoProceso(file: File): Observable<HttpResponse<any>> {
     const url = `${this.apiUrl}/gestion_contratacion/contratacion/bulk-reset-ultimo-proceso/`;
 
@@ -456,14 +456,14 @@ export class HomeService {
     );
   }
 
-    /**
-   * ✅ Descarga el Excel generado por el backend
-   * Endpoint: GET /reporte/candidatos-excel/?cedulas=...&persona=...
-   *
-   * Uso:
-   * this.homeService.descargarCandidatosExcel(['1002683090','123'], 'SEBASTIAN')
-   *   .subscribe(res => this.saveBlob(res.body!, 'candidatos.xlsx'));
-   */
+  /**
+ * ✅ Descarga el Excel generado por el backend
+ * Endpoint: GET /reporte/candidatos-excel/?cedulas=...&persona=...
+ *
+ * Uso:
+ * this.homeService.descargarCandidatosExcel(['1002683090','123'], 'SEBASTIAN')
+ *   .subscribe(res => this.saveBlob(res.body!, 'candidatos.xlsx'));
+ */
   descargarCandidatosExcel(
     cedulas: string[],
     personaContratacion: string,
@@ -514,12 +514,12 @@ export class HomeService {
 
 
 
-    /**
-   * GET JSON: /reporte/candidatos-mini/
-   * Soporta:
-   *  - ?cedulas=100,200,300
-   *  - ?cedula=100&cedula=200
-   */
+  /**
+ * GET JSON: /reporte/candidatos-mini/
+ * Soporta:
+ *  - ?cedulas=100,200,300
+ *  - ?cedula=100&cedula=200
+ */
   getCandidatosMini(cedulas: Array<string | number>): Observable<any[]> {
     const normalized = (cedulas ?? [])
       .map((x) => String(x ?? '').trim())

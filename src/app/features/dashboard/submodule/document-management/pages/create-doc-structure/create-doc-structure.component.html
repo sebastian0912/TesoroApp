@@ -79,7 +79,7 @@
           <span class="meta-text text-muted">Sin elementos</span>
           }
 
-          @if (node.tags?.length) {
+          @if (node.tags.length) {
           <div class="mini-tags">
             <span class="dot"></span>
             <span>{{ node.tags.length }} tags</span>
@@ -142,7 +142,7 @@
           <div class="node-info">
             <span class="node-name">{{node.name}}</span>
             <div class="node-meta-row">
-              <span class="meta-item" *ngIf="node.data.tags?.length">
+              <span class="meta-item" *ngIf="node.data.tags.length">
                 <mat-icon>label</mat-icon> {{node.data.tags.length}}
               </span>
               <span class="badge" [class.success]="node.data.estado" [class.inactive]="!node.data.estado">

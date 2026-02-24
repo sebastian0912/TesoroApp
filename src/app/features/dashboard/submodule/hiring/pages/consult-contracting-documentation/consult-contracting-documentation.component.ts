@@ -103,12 +103,18 @@ export class ConsultContractingDocumentationComponent implements OnInit {
   // --------- Ajustes para masivo ----------
   private readonly MAX_POST_BATCH = 1500;
 
+  /** Fecha específica que siempre se considera "documento viejo" */
+  private readonly OLD_BATCH_DATE = '2026-02-10';
+
   /** token para ignorar respuestas viejas (cuando el usuario pega otra lista) */
   private requestToken = 0;
 
   // --------- UI / estado ----------
   cedulaControl = new FormControl<string>('', { nonNullable: true });
   user: any;
+
+  /** Últimas cédulas consultadas (para reconsultar sin re-pegar) */
+  lastQueriedCedulas: string[] = [];
 
   // --------- columnas dinámicas ----------
   /** Tipos que devuelve el backend, en orden */
@@ -210,6 +216,15 @@ export class ConsultContractingDocumentationComponent implements OnInit {
     this.procesarCedulasPegadas(cedula);
   }
 
+  /** Reconsultar las mismas cédulas sin tener que volver a pegarlas */
+  reconsultar(): void {
+    if (!this.lastQueriedCedulas.length) {
+      Swal.fire({ icon: 'info', title: 'Sin consulta previa', text: 'No hay cédulas previas para reconsultar.' });
+      return;
+    }
+    this.procesarCedulasPegadas(this.lastQueriedCedulas.join('\n'));
+  }
+
   /** ---------- PEGAR LISTA DIRECTO EN TABLA ---------- */
   onTablePaste(evt: ClipboardEvent): void {
     const txt = evt.clipboardData?.getData('text') ?? '';
@@ -242,6 +257,9 @@ export class ConsultContractingDocumentationComponent implements OnInit {
       Swal.fire({ icon: 'info', title: 'Sin datos', text: 'No se detectaron cédulas válidas.' });
       return;
     }
+
+    // Guardar para reconsultar
+    this.lastQueriedCedulas = parsed.cedulas;
 
     Swal.fire({
       icon: 'info',
@@ -289,7 +307,8 @@ export class ConsultContractingDocumentationComponent implements OnInit {
 
           const dd = d?.doc;
           const uploadedAt = this.parseFecha(dd?.uploaded_at as any);
-          const vigente15d = !!dd && !!uploadedAt && uploadedAt.getTime() >= cutoff.getTime();
+          const isOldBatch = !!uploadedAt && uploadedAt.toISOString().slice(0, 10) === this.OLD_BATCH_DATE;
+          const vigente15d = !!dd && !!uploadedAt && uploadedAt.getTime() >= cutoff.getTime() && !isOldBatch;
 
           docsMap[tid] = {
             exists: !!dd,
@@ -852,7 +871,8 @@ export class ConsultContractingDocumentationComponent implements OnInit {
         const exists = !!doc?.exists;
 
         const uploadedAt = this.parseFecha(doc?.uploaded_at as any);
-        const vigente15d = exists && !!uploadedAt && uploadedAt.getTime() >= cutoff.getTime();
+        const isOldBatch = !!uploadedAt && uploadedAt.toISOString().slice(0, 10) === this.OLD_BATCH_DATE;
+        const vigente15d = exists && !!uploadedAt && uploadedAt.getTime() >= cutoff.getTime() && !isOldBatch;
 
         rowData[`t_${t.id}_estado`] = !exists ? '✗' : vigente15d ? '✓' : '⚠';
         rowData[`t_${t.id}_fecha`] = uploadedAt ?? (doc?.uploaded_at ?? '');
@@ -919,7 +939,14 @@ export class ConsultContractingDocumentationComponent implements OnInit {
       const missingRows = data
         .filter(r => {
           if (!tipoId) return false;
-          return !(r.docs?.[Number(tipoId)]?.exists === true);
+          const doc = r.docs?.[Number(tipoId)];
+          if (!doc?.exists) return true; // missing
+          // Also include OLD docs (>15d or OLD_BATCH_DATE)
+          const uploadedAt = this.parseFecha(doc?.uploaded_at as any);
+          if (!uploadedAt) return true;
+          const isOldBatch = uploadedAt.toISOString().slice(0, 10) === this.OLD_BATCH_DATE;
+          const vigente = uploadedAt.getTime() >= cutoff.getTime() && !isOldBatch;
+          return !vigente; // include if NOT vigente
         })
         .sort((a, b) => {
           const fa = String(a.finca ?? '').localeCompare(String(b.finca ?? ''), 'es', { sensitivity: 'base' });
@@ -980,7 +1007,14 @@ export class ConsultContractingDocumentationComponent implements OnInit {
         const faltantes = resolvedDocs
           .filter(d => {
             if (!d.tipoId) return true;
-            return !(r.docs?.[Number(d.tipoId)]?.exists === true);
+            const doc = r.docs?.[Number(d.tipoId)];
+            if (!doc?.exists) return true; // missing
+            // Also include OLD docs
+            const uploadedAt = this.parseFecha(doc?.uploaded_at as any);
+            if (!uploadedAt) return true;
+            const isOldBatch = uploadedAt.toISOString().slice(0, 10) === this.OLD_BATCH_DATE;
+            const vigente = uploadedAt.getTime() >= cutoff.getTime() && !isOldBatch;
+            return !vigente;
           })
           .map(d => (d.tipoId ? d.sheet : `${d.sheet} (NO_MAPEADO)`));
 

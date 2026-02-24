@@ -289,23 +289,11 @@
           <mat-form-field appearance="outline" class="w-full">
             <mat-label>¿Hace cuánto vive en la zona?</mat-label>
             <mat-select formControlName="hace_cuanto_vive" required>
-              <mat-option [value]="'LIFETIME'">Toda la vida</mat-option>
-
-              <mat-optgroup label="Meses">
-                @for (m of meses; track m) {
-                <mat-option [value]="'M:' + m">
-                  {{ m }} {{ m === 1 ? 'mes' : 'meses' }}
-                </mat-option>
-                }
-              </mat-optgroup>
-
-              <mat-optgroup label="Años">
-                @for (y of anios; track y) {
-                <mat-option [value]="'Y:' + y">
-                  {{ y }} {{ y === 1 ? 'año' : 'años' }}
-                </mat-option>
-                }
-              </mat-optgroup>
+              <mat-option value="MAS_DE_2_MESES">MAS DE 2 MESES</mat-option>
+              <mat-option value="MAS_DE_6_MESES">MAS DE 6 MESES</mat-option>
+              <mat-option value="MENOS_DE_UN_MES">MENOS DE UN MES</mat-option>
+              <mat-option value="LIFETIME">TODO LA VIDA</mat-option>
+              <mat-option value="UN_MES">UN MES</mat-option>
             </mat-select>
             <mat-hint>Ej.: 6 meses, 3 años o “Toda la vida”.</mat-hint>
             <mat-error *ngIf="formVacante.get('hace_cuanto_vive')?.hasError('required')">
@@ -579,105 +567,104 @@
           <mat-divider></mat-divider>
         </div>
 
-        <!-- ¿Cómo se enteró? -->
-        <mat-form-field class="example-full-width" appearance="outline">
-          <mat-label>¿Cómo se enteró de la vacante?</mat-label>
-          <mat-select formControlName="comoSeEntero" required>
-            @for (op of (comoSeEnteroOpciones$ | async) ?? []; track op['codigo']) {
-            <mat-option [value]="op['codigo']">
-              {{ op['descripcion'] || op['codigo'] }}
-            </mat-option>
+        <div class="datos">
+          <!-- ¿Cómo se enteró? -->
+          <mat-form-field appearance="outline">
+            <mat-label>¿Cómo se enteró de la vacante?</mat-label>
+            <mat-select formControlName="comoSeEntero" required>
+              @for (op of (comoSeEnteroOpciones$ | async) ?? []; track op['codigo']) {
+              <mat-option [value]="op['codigo']">
+                {{ op['descripcion'] || op['codigo'] }}
+              </mat-option>
+              }
+            </mat-select>
+            <mat-hint>Seleccione la opción que aplique.</mat-hint>
+            @let cse = formVacante.get('comoSeEntero');
+            @if (cse?.hasError('required') && (cse?.touched || cse?.dirty)) {
+            <mat-error>Requerido.</mat-error>
             }
-          </mat-select>
-          <mat-hint>Seleccione la opción que aplique.</mat-hint>
-          @let cse = formVacante.get('comoSeEntero');
-          @if (cse?.hasError('required') && (cse?.touched || cse?.dirty)) {
-          <mat-error>Requerido.</mat-error>
-          }
-        </mat-form-field>
+          </mat-form-field>
 
-        <!-- Referenciado -->
-        <mat-form-field class="example-full-width" appearance="outline">
-          <mat-label>Referenciado</mat-label>
-          <mat-select formControlName="referenciado">
-            <mat-option value="SI">Sí</mat-option>
-            <mat-option value="NO">No</mat-option>
-          </mat-select>
-        </mat-form-field>
+          <!-- Referenciado -->
+          <mat-form-field appearance="outline">
+            <mat-label>Referenciado</mat-label>
+            <mat-select formControlName="referenciado">
+              <mat-option value="SI">Sí</mat-option>
+              <mat-option value="NO">No</mat-option>
+            </mat-select>
+          </mat-form-field>
 
-        <!-- Nombre del referenciado -->
-        <mat-form-field class="example-full-width" appearance="outline"
-          *ngIf="formVacante.get('referenciado')?.value === 'SI'">
-          <mat-label>Nombre del referenciado</mat-label>
-          <input matInput formControlName="nombreReferenciado" />
-          <mat-error *ngIf="
-              formVacante.get('nombreReferenciado')?.hasError('required') &&
-              (formVacante.get('nombreReferenciado')?.touched ||
-                formVacante.get('nombreReferenciado')?.dirty)
-            ">
-            Requerido cuando es “Sí”.
-          </mat-error>
-          <mat-error *ngIf="
-              formVacante.get('nombreReferenciado')?.hasError('maxlength') &&
-              (formVacante.get('nombreReferenciado')?.touched ||
-                formVacante.get('nombreReferenciado')?.dirty)
-            ">
-            Máximo 120 caracteres.
-          </mat-error>
-        </mat-form-field>
+          <!-- Nombre del referenciado -->
+          <mat-form-field appearance="outline" *ngIf="formVacante.get('referenciado')?.value === 'SI'">
+            <mat-label>Nombre del referenciado</mat-label>
+            <input matInput formControlName="nombreReferenciado" />
+            <mat-error *ngIf="
+                formVacante.get('nombreReferenciado')?.hasError('required') &&
+                (formVacante.get('nombreReferenciado')?.touched ||
+                  formVacante.get('nombreReferenciado')?.dirty)
+              ">
+              Requerido cuando es “Sí”.
+            </mat-error>
+            <mat-error *ngIf="
+                formVacante.get('nombreReferenciado')?.hasError('maxlength') &&
+                (formVacante.get('nombreReferenciado')?.touched ||
+                  formVacante.get('nombreReferenciado')?.dirty)
+              ">
+              Máximo 120 caracteres.
+            </mat-error>
+          </mat-form-field>
 
-        <!-- ¿Observación del evaluador? -->
-        <mat-form-field appearance="outline" class="example-full-width">
-          <mat-label>¿Observación del evaluador?</mat-label>
-          <mat-select formControlName="aplicaObservacion" required>
-            <mat-option value="APLICA">APLICA</mat-option>
-            <mat-option value="NO_APLICA">NO APLICA</mat-option>
-            <mat-option value="EN_ESPERA">EN ESPERA</mat-option>
-          </mat-select>
-          <mat-error *ngIf="
-              formVacante.get('aplicaObservacion')?.hasError('required') &&
-              (formVacante.get('aplicaObservacion')?.touched ||
-                formVacante.get('aplicaObservacion')?.dirty)
-            ">
-            Este campo es requerido.
-          </mat-error>
-        </mat-form-field>
+          <!-- ¿Observación del evaluador? -->
+          <mat-form-field appearance="outline">
+            <mat-label>¿Observación del evaluador?</mat-label>
+            <mat-select formControlName="aplicaObservacion" required>
+              <mat-option value="APLICA">APLICA</mat-option>
+              <mat-option value="NO_APLICA">NO APLICA</mat-option>
+              <mat-option value="EN_ESPERA">EN ESPERA</mat-option>
+            </mat-select>
+            <mat-error *ngIf="
+                formVacante.get('aplicaObservacion')?.hasError('required') &&
+                (formVacante.get('aplicaObservacion')?.touched ||
+                  formVacante.get('aplicaObservacion')?.dirty)
+              ">
+              Este campo es requerido.
+            </mat-error>
+          </mat-form-field>
 
-        <!-- ¿Por qué está en espera? -->
-        <mat-form-field class="example-full-width" appearance="outline"
-          *ngIf="formVacante.get('aplicaObservacion')?.value === 'EN_ESPERA'">
-          <mat-label>¿Por qué está en espera?</mat-label>
-          <input matInput formControlName="motivoEspera" />
-          <mat-hint align="start">Máx. 300 caracteres.</mat-hint>
-          <mat-error *ngIf="
-              formVacante.get('motivoEspera')?.hasError('required') &&
-              (formVacante.get('motivoEspera')?.touched ||
-                formVacante.get('motivoEspera')?.dirty)
-            ">
-            Este campo es obligatorio.
-          </mat-error>
-          <mat-error *ngIf="
-              formVacante.get('motivoEspera')?.hasError('maxlength') &&
-              (formVacante.get('motivoEspera')?.touched ||
-                formVacante.get('motivoEspera')?.dirty)
-            ">
-            Máximo 300 caracteres.
-          </mat-error>
-        </mat-form-field>
+          <!-- ¿Por qué está en espera? -->
+          <mat-form-field appearance="outline" *ngIf="formVacante.get('aplicaObservacion')?.value === 'EN_ESPERA'">
+            <mat-label>¿Por qué está en espera?</mat-label>
+            <input matInput formControlName="motivoEspera" />
+            <mat-hint align="start">Máx. 300 caracteres.</mat-hint>
+            <mat-error *ngIf="
+                formVacante.get('motivoEspera')?.hasError('required') &&
+                (formVacante.get('motivoEspera')?.touched ||
+                  formVacante.get('motivoEspera')?.dirty)
+              ">
+              Este campo es obligatorio.
+            </mat-error>
+            <mat-error *ngIf="
+                formVacante.get('motivoEspera')?.hasError('maxlength') &&
+                (formVacante.get('motivoEspera')?.touched ||
+                  formVacante.get('motivoEspera')?.dirty)
+              ">
+              Máximo 300 caracteres.
+            </mat-error>
+          </mat-form-field>
 
-        <!-- Motivo (NO_APLICA) -->
-        <mat-form-field appearance="outline" class="example-full-width"
-          *ngIf="formVacante.get('aplicaObservacion')?.value === 'NO_APLICA'">
-          <mat-label>Motivo (obligatorio)</mat-label>
-          <input matInput formControlName="motivoNoAplica" />
-          <mat-error *ngIf="
-              formVacante.get('motivoNoAplica')?.hasError('required') &&
-              (formVacante.get('motivoNoAplica')?.touched ||
-                formVacante.get('motivoNoAplica')?.dirty)
-            ">
-            Debe especificar el motivo.
-          </mat-error>
-        </mat-form-field>
+          <!-- Motivo (NO_APLICA) -->
+          <mat-form-field appearance="outline" *ngIf="formVacante.get('aplicaObservacion')?.value === 'NO_APLICA'">
+            <mat-label>Motivo (obligatorio)</mat-label>
+            <input matInput formControlName="motivoNoAplica" />
+            <mat-error *ngIf="
+                formVacante.get('motivoNoAplica')?.hasError('required') &&
+                (formVacante.get('motivoNoAplica')?.touched ||
+                  formVacante.get('motivoNoAplica')?.dirty)
+              ">
+              Debe especificar el motivo.
+            </mat-error>
+          </mat-form-field>
+        </div>
       </section>
 
       <!-- ============================

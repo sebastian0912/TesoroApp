@@ -1,308 +1,218 @@
-<main class="hiring-container">
-    <header class="page-header">
-        <h1 class="page-title">Reporte de Contratación</h1>
-        <p class="page-subtitle">Gestión y validación de documentos diarios</p>
-    </header>
-
-    <form [formGroup]="reporteForm" class="dashboard-grid">
-
-        <!-- LEFT COLUMN: MAIN CONTENT (DOCUMENTS & INFO) -->
-        <div class="main-content">
-
-            <!-- Conditional: Only show if contracts exist -->
-            @if (reporteForm.get('contratosHoy')?.value === 'si') {
-
-            <!-- SUMMARY METRICS -->
-            <section class="summary-section">
-                <div class="metric-card">
-                    <span class="metric-label">Requeridos</span>
-                    <span class="metric-value">5</span>
-                </div>
-                <div class="metric-card">
-                    <span class="metric-label">Cargados</span>
-                    <span class="metric-value success">
-                        {{ (filesToUpload['cedulasEscaneadas']?.length ? 1 : 0) +
-                        (filesToUpload['cruceDiario']?.length ? 1 : 0) +
-                        (filesToUpload['arl']?.length ? 1 : 0) +
-                        (filesToUpload['induccionSSO']?.length ? 1 : 0) +
-                        (filesToUpload['traslados']?.length ? 1 : 0) }}
-                    </span>
-                </div>
-            </section>
-
-            <!-- DOCUMENTS SECTION -->
-            <section class="documents-section">
-                <h2 class="section-title">Documentos Requeridos</h2>
-
-                <div class="doc-list">
-                    <!-- 1. Cédulas -->
-                    <div class="doc-card-row" [class.active]="reporteForm.get('cedulasEscaneadas')?.value">
-                        <mat-checkbox (change)="onCheckboxChange($event, 'cedulasEscaneadas')" color="primary"
-                            class="doc-check">
-                        </mat-checkbox>
-                        <div class="doc-info">
-                            <span class="doc-name">Cédulas Escaneadas</span>
-                            <span class="doc-status" [class.loaded]="cedulasEscaneadasFileName">
-                                {{ cedulasEscaneadasFileName ? 'Cargado' : 'Pendiente' }}
-                            </span>
+<mat-card>
+    <mat-card-content>
+        <div class="hiring-wrapper">
+        
+            <header class="page-header">
+                <h1 class="page-title">Reporte de Contratación</h1>
+                <p class="page-subtitle">Gestión diaria de ingresos, cruces y novedades.</p>
+            </header>
+        
+            <form [formGroup]="reporteForm" class="dashboard-grid" (ngSubmit)="onSubmit()">
+        
+                <!-- LEFT COLUMN: MAIN CONTENT -->
+                <div class="main-column">
+        
+                    @if (showValidateButton) {
+        
+                    <!-- Metrics Section -->
+                    <section class="metrics-row">
+                        <div class="metric-card">
+                            <span class="metric-label">Archivos Cargados</span>
+                            <span class="metric-value highlight">{{ totalFilesLoaded }} / {{ DOCS.length }}</span>
                         </div>
-                        <div class="doc-action">
-                            @if (cedulasEscaneadasFileName) {
-                            <button mat-icon-button color="accent" (click)="openPreview('cedulas')"
-                                matTooltip="Ver Cédulas Cargadas">
-                                <mat-icon>visibility</mat-icon>
-                            </button>
-                            }
-                            <input #fileInputCedulasEscaneadas type="file" webkitdirectory directory multiple
-                                accept=".pdf" (change)="onFilesSelected($event, 'cedulasEscaneadas')" hidden />
-                            <button mat-stroked-button color="primary" type="button"
-                                (click)="fileInputCedulasEscaneadas.click()"
-                                [disabled]="!reporteForm.get('cedulasEscaneadas')?.value"
-                                aria-label="Seleccionar cédulas">
-                                Seleccionar
-                            </button>
-                        </div>
-                    </div>
-
-
-                    <!-- 2. Cruce Diario -->
-                    <div class="doc-card-row" [class.active]="reporteForm.get('cruceDiario')?.value">
-                        <mat-checkbox (change)="onCheckboxChange($event, 'cruceDiario')" color="primary"
-                            class="doc-check">
-                        </mat-checkbox>
-                        <div class="doc-info">
-                            <span class="doc-name">Cruce Diario (Excel)</span>
-                            <span class="doc-status" [class.loaded]="cruceDiarioFileName" [title]="cruceDiarioFileName">
-                                {{ cruceDiarioFileName ? cruceDiarioFileName : 'Pendiente' }}
-                            </span>
-                        </div>
-                        <div class="doc-action">
-                            <input #fileInputCruceDiario type="file" accept=".xls,.xlsx"
-                                (change)="onFileSelected($event, 'cruceDiario')" hidden />
-                            <button mat-stroked-button color="primary" type="button"
-                                (click)="fileInputCruceDiario.click()"
-                                [disabled]="!reporteForm.get('cruceDiario')?.value"
-                                aria-label="Seleccionar cruce diario">
-                                Seleccionar
-                            </button>
-                        </div>
-                    </div>
-
-                    <!-- 3. ARL -->
-                    <div class="doc-card-row" [class.active]="reporteForm.get('arl')?.value">
-                        <mat-checkbox (change)="onCheckboxChange($event, 'arl')" color="primary" class="doc-check">
-                        </mat-checkbox>
-                        <div class="doc-info">
-                            <span class="doc-name">Archivo ARL (Excel)</span>
-                            <span class="doc-status" [class.loaded]="arlFileName" [title]="arlFileName">
-                                {{ arlFileName ? arlFileName : 'Pendiente' }}
-                            </span>
-                        </div>
-                        <div class="doc-action">
-                            <input #fileInputArl type="file" accept=".xls,.xlsx"
-                                (change)="onFileSelected($event, 'arl')" hidden />
-                            <button mat-stroked-button color="primary" type="button" (click)="fileInputArl.click()"
-                                [disabled]="!reporteForm.get('arl')?.value" aria-label="Seleccionar ARL">
-                                Seleccionar
-                            </button>
-                        </div>
-                    </div>
-
-                    <!-- 4. Inducción SST -->
-                    <div class="doc-card-row" [class.active]="reporteForm.get('induccionSSO')?.value">
-                        <mat-checkbox (change)="onCheckboxChange($event, 'induccionSSO')" color="primary"
-                            class="doc-check">
-                        </mat-checkbox>
-                        <div class="doc-info">
-                            <span class="doc-name">Inducción SST</span>
-                            <span class="doc-status" [class.loaded]="induccionSSOFileName"
-                                [title]="induccionSSOFileName">
-                                {{ induccionSSOFileName ? induccionSSOFileName : 'Pendiente' }}
-                            </span>
-                        </div>
-                        <div class="doc-action">
-                            <input #fileInputInduccionSSO type="file" accept=".pdf"
-                                (change)="onFileSelected($event, 'induccionSSO')" hidden />
-                            <button mat-stroked-button color="primary" type="button"
-                                (click)="fileInputInduccionSSO.click()"
-                                [disabled]="!reporteForm.get('induccionSSO')?.value"
-                                aria-label="Seleccionar inducción SST">
-                                Seleccionar
-                            </button>
-                        </div>
-                    </div>
-
-                    <!-- 5. Traslados -->
-                    <div class="doc-card-row" [class.active]="reporteForm.get('traslados')?.value">
-                        <mat-checkbox (change)="onCheckboxChange($event, 'traslados')" color="primary"
-                            class="doc-check">
-                        </mat-checkbox>
-                        <div class="doc-info">
-                            <span class="doc-name">Traslados</span>
-                            <span class="doc-status" [class.loaded]="trasladosFileName">
-                                {{ trasladosFileName ? 'Cargado' : 'Pendiente' }}
-                            </span>
-                        </div>
-                        <div class="doc-action">
-                            @if (trasladosFileName) {
-                            <button mat-icon-button color="accent" (click)="openPreview('traslados')"
-                                matTooltip="Ver Traslados Cargados">
-                                <mat-icon>visibility</mat-icon>
-                            </button>
-                            }
-                            <input #fileInputTraslados type="file" webkitdirectory directory multiple accept=".pdf"
-                                (change)="onFilesSelected($event, 'traslados')" hidden />
-                            <button mat-stroked-button color="primary" type="button"
-                                (click)="fileInputTraslados.click()" [disabled]="!reporteForm.get('traslados')?.value"
-                                aria-label="Seleccionar traslados">
-                                Seleccionar
-                            </button>
-                        </div>
-                    </div>
-
-                    <!-- MERGED ADDITIONAL INFO -->
-                    <div class="merged-additional-info">
-                        <h3 class="subsection-title">Información Adicional</h3>
-                        <div class="info-grid">
-                            <mat-form-field appearance="outline" class="dense-field">
-                                <mat-label># Contratos Tu Alianza</mat-label>
-                                <input matInput type="number" formControlName="cantidadContratosTuAlianza" readonly />
-                            </mat-form-field>
-
-                            <mat-form-field appearance="outline" class="dense-field">
-                                <mat-label># Contratos Apoyo Laboral</mat-label>
-                                <input matInput type="number" formControlName="cantidadContratosApoyoLaboral"
-                                    readonly />
-                            </mat-form-field>
-
-                            <mat-form-field appearance="outline" class="dense-field full-width">
-                                <mat-label>Notas adicionales</mat-label>
-                                <textarea matInput rows="2" formControlName="notas"></textarea>
-                            </mat-form-field>
-                        </div>
-                    </div>
-
-                </div>
-            </section>
-
-            } @else {
-            <!-- Empty State -->
-            <div class="empty-state-card">
-                <h3>Sin carga de documentos</h3>
-                <p>Seleccione "Sí" en "¿Hubo contratos hoy?" para habilitar la carga.</p>
-            </div>
-            }
-
-            <!-- ERRORS SECTION (Oculto - ahora usa Dialog) -->
-            @if (false) {
-            <section class="errors-section">
-                <mat-card class="content-card error-card-border">
-                    <mat-card-header class="error-header">
-                        <mat-icon color="warn">warning</mat-icon>
-                        <mat-card-title class="error-title-text">Errores Detectados</mat-card-title>
-                    </mat-card-header>
-                    <mat-card-content>
-                        <mat-form-field appearance="outline" class="full-width search-field">
-                            <mat-label>Filtrar errores</mat-label>
-                            <input matInput (keyup)="applyFilter('errores', $event)" placeholder="Ej. CAMPO" />
-                            <mat-icon matSuffix>search</mat-icon>
-                        </mat-form-field>
-
-                        <div class="table-container-errors">
-                            <table mat-table [dataSource]="erroresValidacion" class="zebra-table">
-                                <ng-container matColumnDef="registro">
-                                    <th mat-header-cell *matHeaderCellDef>Registro</th>
-                                    <td mat-cell *matCellDef="let element" class="medium-cell">{{ element.registro }}
-                                    </td>
-                                </ng-container>
-                                <ng-container matColumnDef="errores">
-                                    <th mat-header-cell *matHeaderCellDef>Detalle del Error</th>
-                                    <td mat-cell *matCellDef="let element">
-                                        <ul class="error-list-bullets">
-                                            @for (error of element.errores; track $index) {
-                                            <li>{{ error }}</li>
+                    </section>
+                    
+                    <!-- Documents Loop -->
+                    <section class="documents-section">
+                        <mat-card class="config-card">
+                            <div class="card-header">
+                                <h3 class="card-title">Documentos Requeridos</h3>
+                            </div>
+        
+                            <div class="card-content">
+                                <div class="doc-list">
+                                    @for (doc of DOCS; track doc.key) {
+        
+                                    <div class="doc-card" [class.active]="reporteForm.get(doc.key)?.value">
+        
+                                        <!-- Checkbox -->
+                                        <div class="doc-check-wrapper">
+                                            <mat-checkbox [checked]="reporteForm.get(doc.key)?.value"
+                                                (change)="onCheckboxChange($event.checked, doc.key)" color="primary">
+                                            </mat-checkbox>
+                                        </div>
+        
+                                        <!-- Content -->
+                                        <div class="doc-content">
+                                            <span class="doc-label">
+                                                {{ doc.label }}
+                                                @if (fileNames[doc.key]) {
+                                                <span class="status-badge success">CARGADO</span>
+                                                }
+                                            </span>
+                                            <span class="doc-hint">
+                                                {{ fileNames[doc.key] || doc.hint }}
+                                            </span>
+                                        </div>
+        
+                                        <!-- Actions -->
+                                        <div class="doc-actions">
+        
+                                            <!-- Preview Button (Optional) -->
+                                            @if (doc.previewType && fileNames[doc.key]) {
+                                            <button mat-icon-button type="button" color="accent"
+                                                (click)="openPreview(doc.previewType!)" matTooltip="Ver detalle cargado">
+                                                <mat-icon>visibility</mat-icon>
+                                            </button>
                                             }
-                                        </ul>
-                                    </td>
-                                </ng-container>
-                                <tr mat-header-row *matHeaderRowDef="['registro', 'errores']"></tr>
-                                <tr mat-row *matRowDef="let row; columns: ['registro', 'errores'];"></tr>
-                            </table>
+        
+                                            <input #fileInput type="file" hidden [accept]="doc.accept" [multiple]="doc.multiple"
+                                                [attr.webkitdirectory]="doc.directory ? '' : null"
+                                                (change)="onFileSelect($event, doc.key)">
+        
+                                            <button mat-stroked-button color="primary" type="button" (click)="fileInput.click()"
+                                                [disabled]="!reporteForm.get(doc.key)?.value">
+                                                Seleccionar
+                                            </button>
+                                        </div>
+        
+                                    </div>
+                                    }
+                                </div>
+                            </div>
+                        </mat-card>
+                    </section>
+        
+                    <!-- Additional Info -->
+                    <section class="additional-info">
+                        <mat-card class="config-card">
+                            <div class="card-header">
+                                <h3 class="card-title">Información Adicional</h3>
+                            </div>
+                            <div class="card-content">
+                                <div class="form-row two-col">
+                                    <mat-form-field appearance="outline" class="dense-field">
+                                        <mat-label>Contratos Tu Alianza</mat-label>
+                                        <input matInput type="number" formControlName="cantidadContratosTuAlianza" readonly>
+                                    </mat-form-field>
+        
+                                    <mat-form-field appearance="outline" class="dense-field">
+                                        <mat-label>Contratos Apoyo Laboral</mat-label>
+                                        <input matInput type="number" formControlName="cantidadContratosApoyoLaboral" readonly>
+                                    </mat-form-field>
+                                </div>
+        
+                                <div class="form-row">
+                                    <mat-form-field appearance="outline" class="dense-field">
+                                        <mat-label>Notas / Observaciones</mat-label>
+                                        <textarea matInput rows="2" formControlName="notas"></textarea>
+                                    </mat-form-field>
+                                </div>
+                            </div>
+                        </mat-card>
+                    </section>
+        
+                    } @else {
+                    <div class="empty-state">
+                        <h3>Sin actividad de contratación</h3>
+                        <p>Seleccione "Sí" en el panel lateral si hubo contratos hoy.</p>
+                    </div>
+                    }
+        
+                </div>
+        
+                <!-- RIGHT COLUMN: SIDEBAR -->
+                <aside class="sidebar-column">
+        
+                    <mat-card class="config-card">
+                        <div class="card-header">
+                            <h3 class="card-title">Configuración del Reporte</h3>
                         </div>
-                    </mat-card-content>
-                </mat-card>
-            </section>
-            }
-
-        </div>
-
-        <!-- RIGHT COLUMN: SIDEBAR CONFIGURATION -->
-        <aside class="sidebar-config">
-            <mat-card class="config-card">
-                <mat-card-header>
-                    <mat-card-title>Carga de Información</mat-card-title>
-                </mat-card-header>
-                <mat-card-content>
-
-                    <div class="config-grid">
-                        <!-- Sede -->
-                        <mat-form-field appearance="outline" class="dense-field">
-                            <mat-label>Sede</mat-label>
-                            <mat-select formControlName="sede">
-                                @for (sede of sedes; track sede) {
-                                <mat-option [value]="sede">{{ sede.nombre }}</mat-option>
+        
+                        <div class="card-content">
+        
+                            <div class="form-row">
+                                <mat-form-field appearance="outline" class="dense-field">
+                                    <mat-label>Sede</mat-label>
+                                    <mat-select formControlName="sede">
+                                        @for(s of sedes; track s) {
+                                        <mat-option [value]="s">{{ s.nombre }}</mat-option>
+                                        }
+                                    </mat-select>
+                                </mat-form-field>
+                            </div>
+        
+                            <div class="form-row two-col">
+                                <mat-form-field appearance="outline" class="dense-field">
+                                    <mat-label>¿Hubo contratos?</mat-label>
+                                    <mat-select formControlName="contratosHoy">
+                                        <mat-option value="si">Sí</mat-option>
+                                        <mat-option value="no">No</mat-option>
+                                    </mat-select>
+                                </mat-form-field>
+        
+                                @if(showValidateButton) {
+                                <mat-form-field appearance="outline" class="dense-field">
+                                    <mat-label>¿Es de hoy?</mat-label>
+                                    <mat-select formControlName="esDeHoy">
+                                        <mat-option value="true">Sí</mat-option>
+                                        <mat-option value="false">No</mat-option>
+                                    </mat-select>
+                                </mat-form-field>
                                 }
-                            </mat-select>
-                        </mat-form-field>
-
-                        <!-- ¿Hubo contratos? -->
-                        <mat-form-field appearance="outline" class="dense-field">
-                            <mat-label>¿Hubo contratos?</mat-label>
-                            <mat-select formControlName="contratosHoy" (selectionChange)="onContratosHoyChange($event)">
-                                <mat-option value="si">Sí</mat-option>
-                                <mat-option value="no">No</mat-option>
-                            </mat-select>
-                        </mat-form-field>
-
-                        <!-- ¿Es de hoy? -->
-                        @if (reporteForm.get('contratosHoy')?.value === 'si') {
-                        <mat-form-field appearance="outline" class="dense-field">
-                            <mat-label>¿Es de hoy?</mat-label>
-                            <mat-select formControlName="esDeHoy">
-                                <mat-option value="true">Sí</mat-option>
-                                <mat-option value="false">No</mat-option>
-                            </mat-select>
-                        </mat-form-field>
-
-                        <!-- Fecha del Reporte -->
-                        @if (reporteForm.get('esDeHoy')?.value === 'false') {
-                        <mat-form-field appearance="outline" class="dense-field full-width">
-                            <mat-label>Fecha del Reporte</mat-label>
-                            <input matInput [matDatepicker]="picker" formControlName="fecha" required />
-                            <mat-datepicker-toggle matSuffix [for]="picker"></mat-datepicker-toggle>
-                            <mat-datepicker #picker></mat-datepicker>
-                        </mat-form-field>
-                        }
-                        }
-                    </div>
-
-                    <div class="config-actions">
-                        @if (reporteForm.get('contratosHoy')?.value === 'si') {
-                        <button mat-stroked-button color="primary" type="button" class="action-btn secondary-action"
-                            (click)="validarTodo()">
-                            Validar Todo
-                        </button>
-                        }
-
-                        <button mat-flat-button color="primary" type="submit" class="action-btn primary-action"
-                            [disabled]="!reporteForm.valid" (click)="onSubmit()">
-                            Enviar Reporte
-                        </button>
-                    </div>
-
-                </mat-card-content>
-            </mat-card>
-        </aside>
-
-    </form>
-</main>
+                            </div>
+        
+                            @if(showValidateButton && reporteForm.controls.esDeHoy.value === 'false') {
+                            <div class="form-row">
+                                <mat-form-field appearance="outline" class="dense-field">
+                                    <mat-label>Fecha del Reporte</mat-label>
+                                    <input matInput [matDatepicker]="picker" formControlName="fecha">
+                                    <mat-datepicker-toggle matSuffix [for]="picker"></mat-datepicker-toggle>
+                                    <mat-datepicker #picker></mat-datepicker>
+                                </mat-form-field>
+                            </div>
+                            }
+        
+                            <div class="action-buttons">
+                                @if(showValidateButton) {
+                                <button mat-stroked-button color="primary" class="btn-block btn-secondary" type="button"
+                                    (click)="validarTodo()" [disabled]="isValidatingAll || !files.cruceDiario?.length">
+                                    {{ isValidatingAll ? 'VALIDANDO...' : 'VALIDAR TODO' }}
+                                </button>
+        
+                                @if(isArlValidado && arlRows.length > 0) {
+                                <button mat-button color="accent" type="button" (click)="downloadArlReport()">
+                                    <mat-icon>download</mat-icon> Descargar Reporte ARL
+                                </button>
+                                }
+                                }
+        
+                                <button mat-flat-button color="primary" class="btn-block btn-primary" type="submit"
+                                    [disabled]="reporteForm.invalid">
+                                    ENVIAR REPORTE
+                                </button>
+                            </div>
+        
+                        </div>
+                    </mat-card>
+        
+                </aside>
+        
+                <!-- Mobile Bottom Actions (Only visible on small screens due to CSS) -->
+                <div class="mobile-spacer"></div>
+                <div class="mobile-actions-bar">
+                    @if(showValidateButton) {
+                    <button mat-stroked-button color="primary" type="button" class="btn-block" (click)="validarTodo()"
+                        [disabled]="isValidatingAll || !files.cruceDiario?.length">
+                        {{ isValidatingAll ? 'Validando...' : 'Validar' }}
+                    </button>
+                    }
+                    <button mat-flat-button color="primary" type="submit" class="btn-block" [disabled]="reporteForm.invalid">
+                        Enviar
+                    </button>
+                </div>
+        
+            </form>
+        </div>
+    </mat-card-content>
+</mat-card>

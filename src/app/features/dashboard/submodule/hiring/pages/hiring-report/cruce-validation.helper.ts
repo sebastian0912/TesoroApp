@@ -190,7 +190,7 @@ export class CruceValidationHelper {
     static validateRow(item: CruceRow): PreviewIssue[] {
         const issues: PreviewIssue[] = [];
         const addError = (msg: string, field?: string) => {
-            console.log(`[Validation Error][Row ${item.rowIndex}] ${field ? `[${field}] ` : ''}${msg}`);
+            console.debug(`[Validation Error][Row ${item.rowIndex}] ${field ? `[${field}] ` : ''}${msg}`);
             issues.push({ id: `row-${item._id}-${field || 'gen'}`, itemId: item._id, severity: 'error', message: msg, field });
         };
 
@@ -321,7 +321,7 @@ export class CruceValidationHelper {
                 const sample = missingInExcel.slice(0, 5).join(', ');
                 const more = missingInExcel.length > 5 ? ` (+${missingInExcel.length - 5} más)` : '';
                 const msg = `Inconsistencia: ${missingInExcel.length} cédulas subidas no están en el Excel (Cols 1). [${sample}${more}]`;
-                console.log(`[Validation Error][Global] ${msg}`);
+                console.debug(`[Validation Error][Global] ${msg}`);
                 issues.push({
                     id: 'global-missing-excel',
                     itemId: 'GLOBAL',
@@ -335,7 +335,7 @@ export class CruceValidationHelper {
             items.forEach(item => {
                 const c = item.cedula.trim();
                 if (!pdfCedulas.has(c)) {
-                    console.log(`[Validation Error][Row ${item.rowIndex}] Cédula en Excel no tiene archivo PDF correspondiente subido.`);
+                    console.debug(`[Validation Error][Row ${item.rowIndex}] Cédula en Excel no tiene archivo PDF correspondiente subido.`);
                     issues.push({
                         id: `consist-extra-${item._id}`,
                         itemId: item._id,
@@ -354,7 +354,7 @@ export class CruceValidationHelper {
                 const sample = trasladosMissing.slice(0, 5).join(', ');
                 const more = trasladosMissing.length > 5 ? ` (+${trasladosMissing.length - 5} más)` : '';
                 const msg = `Inconsistencia Traslados: ${trasladosMissing.length} traslados no están en el Excel. [${sample}${more}]`;
-                console.log(`[Validation Error][Global] ${msg}`);
+                console.debug(`[Validation Error][Global] ${msg}`);
                 issues.push({
                     id: 'global-missing-traslado',
                     itemId: 'GLOBAL',
@@ -388,7 +388,7 @@ export class CruceValidationHelper {
             if (ids.length > 1) {
                 ids.forEach(id => {
                     const msg = `Código de contrato duplicado en el archivo (${key}).`;
-                    console.log(`[Validation Error][Row ID ${id}] ${msg}`);
+                    console.debug(`[Validation Error][Row ID ${id}] ${msg}`);
                     issues.push({
                         id: `batch-contrato-${id}`,
                         itemId: id,
@@ -412,7 +412,7 @@ export class CruceValidationHelper {
                 if (cedulasInvolved.size > 1) {
                     ids.forEach(id => {
                         const msg = `Correo repetido para cédulas distintas: ${email}`;
-                        console.log(`[Validation Error][Row ID ${id}] ${msg}`);
+                        console.debug(`[Validation Error][Row ID ${id}] ${msg}`);
                         issues.push({
                             id: `batch-email-${id}`,
                             itemId: id,
@@ -438,7 +438,10 @@ export class CruceValidationHelper {
         const month = parseInt(parts[1], 10);
         const year = parseInt(parts[2], 10);
         if (month < 1 || month > 12) return false;
-        if (day < 1 || day > 31) return false;
+        if (day < 1) return false;
+        // Validate days per month
+        const daysInMonth = new Date(year, month, 0).getDate();
+        if (day > daysInMonth) return false;
         return true;
     }
 

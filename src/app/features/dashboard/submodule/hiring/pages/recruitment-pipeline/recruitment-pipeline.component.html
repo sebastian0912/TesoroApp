@@ -1,5 +1,7 @@
-<mat-card style="height: 87vh;">
-  <mat-card-content style="height: 100%;">
+<mat-card
+  style="display: flex; flex-direction: column; height: 100%; max-height: 100vh; overflow: hidden; box-sizing: border-box;">
+  <mat-card-content
+    style="display: flex; flex-direction: column; flex: 1; overflow: hidden; padding: 16px; box-sizing: border-box;">
 
     <div class="header">
       <div class="info-candidato-titulo">
@@ -11,8 +13,7 @@
       </div>
       <div class="botones">
         <!-- Botón de documentos -->
-        <button mat-icon-button matTooltip="Generar o subir documentación"
-          aria-label="Generar o subir documentación"
+        <button mat-icon-button matTooltip="Generar o subir documentación" aria-label="Generar o subir documentación"
           [routerLink]="[
     '/dashboard/hiring/generate-contracting-documents',
     candidatoSeleccionado()?.numero_documento
@@ -21,35 +22,41 @@
         </button>
 
         <!-- Botón de tabla -->
-        <button mat-icon-button matTooltip="Ver tabla de registros"
-          aria-label="Ver tabla de registros"
-          (click)="mostrarTabla()"
-          [disabled]="!candidatoSeleccionado()?.numero_documento">
+        <button mat-icon-button matTooltip="Ver tabla de registros" aria-label="Ver tabla de registros"
+          (click)="mostrarTabla()" [disabled]="!candidatoSeleccionado()?.numero_documento">
           <mat-icon>table_chart</mat-icon>
         </button>
         <!-- FOTO (id 89) -->
-        <button mat-icon-button matTooltip="Ver foto" aria-label="Ver foto"
-          (click)="openCamera()"
-          [matBadge]="badge('foto')" [matBadgeColor]="badgeColor('foto')"
-          matBadgeOverlap="false">
+        <button mat-icon-button matTooltip="Ver foto" aria-label="Ver foto" (click)="openCamera()"
+          [matBadge]="badge('foto')" [matBadgeColor]="badgeColor('foto')" matBadgeOverlap="true">
           <mat-icon>photo_camera</mat-icon>
         </button>
 
         <!-- HUELLA (id 88) -->
-        <button mat-icon-button matTooltip="Ver huella" aria-label="Ver huella"
-          class="badge-left-5pt"
-          (click)="ver('huella')" [matBadge]="badge('huella')"
-          [matBadgeColor]="badgeColor('huella')"
-          matBadgeOverlap="false">
+        <button mat-icon-button matTooltip="Ver huella" aria-label="Ver huella" (click)="ver('huella')"
+          [matBadge]="badge('huella')" [matBadgeColor]="badgeColor('huella')" matBadgeOverlap="true">
           <mat-icon>fingerprint</mat-icon>
         </button>
 
+
         <!-- FIRMA (id 87) -->
-        <button mat-icon-button matTooltip="Ver firma" aria-label="Ver firma"
-          (click)="ver('firma')"
-          [matBadge]="badge('firma')" [matBadgeColor]="badgeColor('firma')"
-          matBadgeOverlap="false">
+        <button mat-icon-button matTooltip="Ver firma" aria-label="Ver firma" (click)="ver('firma')"
+          [matBadge]="badge('firma')" [matBadgeColor]="badgeColor('firma')" matBadgeOverlap="true">
           <mat-icon>edit</mat-icon>
+        </button>
+
+        <!-- EXAMEN MÉDICO (id 32) -->
+        <button mat-icon-button matTooltip="Ver examen médico" aria-label="Ver examen médico"
+          (click)="verExamenMedico()" [matBadge]="tieneExamenMedicoUI() ? '✓' : '✗'"
+          [matBadgeColor]="tieneExamenMedicoUI() ? 'primary' : 'warn'" matBadgeOverlap="true">
+          <mat-icon>medical_services</mat-icon>
+        </button>
+
+        <!-- ARL (id 30) -->
+        <button mat-icon-button matTooltip="Ver ARL" aria-label="Ver ARL" (click)="verArl()"
+          [matBadge]="tieneArlUI() ? '✓' : '✗'" [matBadgeColor]="tieneArlUI() ? 'primary' : 'warn'"
+          matBadgeOverlap="true">
+          <mat-icon>health_and_safety</mat-icon>
         </button>
 
       </div>
@@ -64,8 +71,7 @@
           </div>
         </ng-template>
         <div class="tab-content-scrollable">
-          <app-search-for-candidate
-            (candidatoSeleccionado)="onCandidatoSeleccionado($event)">
+          <app-search-for-candidate (candidatoSeleccionado)="onCandidatoSeleccionado($event)">
           </app-search-for-candidate>
         </div>
       </mat-tab>
@@ -78,8 +84,7 @@
           </div>
         </ng-template>
         <div class="tab-content-scrollable">
-          <app-selection-questions
-            [candidatoSeleccionado]="candidatoSeleccionado()">
+          <app-selection-questions [candidatoSeleccionado]="candidatoSeleccionado()">
           </app-selection-questions>
         </div>
       </mat-tab>
@@ -92,8 +97,7 @@
           </div>
         </ng-template>
         <div class="tab-content-scrollable">
-          <app-help-information
-            [candidatoSeleccionado]="candidatoSeleccionado()">
+          <app-help-information [candidatoSeleccionado]="candidatoSeleccionado()">
           </app-help-information>
         </div>
       </mat-tab>
@@ -126,8 +130,7 @@
               <mat-option value="JOHON VLADIMIR CRISTANCHO">JOHON VLADIMIR
                 CRISTANCHO</mat-option>
             </mat-select>
-            <mat-error
-              *ngIf="formGroup3.get('ips')?.hasError('required') && formGroup3.get('ips')?.touched">
+            <mat-error *ngIf="formGroup3.get('ips')?.hasError('required') && formGroup3.get('ips')?.touched">
               Este campo es requerido
             </mat-error>
           </mat-form-field>
@@ -156,8 +159,7 @@
           <mat-form-field appearance="outline" class="example-full-width">
             <mat-label>Seleccione los exámenes</mat-label>
             <mat-select formControlName="selectedExams" multiple required>
-              <mat-option *ngFor="let exam of filteredExamOptions"
-                [value]="exam">
+              <mat-option *ngFor="let exam of filteredExamOptions" [value]="exam">
                 {{ exam }}
               </mat-option>
             </mat-select>
@@ -169,9 +171,7 @@
 
           <!-- Campos dinámicos para cada examen seleccionado -->
           <div formArrayName="selectedExamsArray">
-            <div
-              *ngFor="let exam of formGroup3.get('selectedExams')?.value; let i = index"
-              [formGroupName]="i">
+            <div *ngFor="let exam of formGroup3.get('selectedExams')?.value; let i = index" [formGroupName]="i">
               <!-- Estado Apto/No Apto requerido -->
               <mat-form-field appearance="outline" class="example-full-width">
                 <mat-label>{{ exam }}</mat-label>
@@ -179,24 +179,21 @@
                   <mat-option value="APTO">APTO</mat-option>
                   <mat-option value="NO APTO">NO APTO</mat-option>
                 </mat-select>
-                <mat-error
-                  *ngIf="formGroup3.get('selectedExamsArray')?.get(i.toString())?.get('aptoStatus')?.hasError('required')
+                <mat-error *ngIf="formGroup3.get('selectedExamsArray')?.get(i.toString())?.get('aptoStatus')?.hasError('required')
                     && formGroup3.get('selectedExamsArray')?.get(i.toString())?.get('aptoStatus')?.touched">
                   Este campo es requerido
                 </mat-error>
               </mat-form-field>
 
               <!-- Subir PDF -->
-              <input type="file" accept="application/pdf"
-                (change)="onFileSelected($event, i)" />
+              <input type="file" accept="application/pdf" (change)="onFileSelected($event, i)" />
               <p *ngIf="examFiles()[i]">Archivo seleccionado: {{
                 examFiles()[i].name }}</p>
             </div>
           </div>
 
           <!-- Botón para imprimir -->
-          <button mat-flat-button (click)="imprimirSaludOcupacional()"
-            class="example-full-width">
+          <button mat-flat-button (click)="imprimirSaludOcupacional()" class="example-full-width">
             Guardar Salud Ocupacional
           </button>
         </div>
@@ -204,18 +201,17 @@
 
       <!-- ─────────── TAB • CONTRATACIÓN ───────────    [disabled]="deshabilitarContratacion()"       [matTooltip]="deshabilitarContratacion() ? 'Hay exámenes NO APTO' : ''">-->
 
-      <mat-tab >
+      <mat-tab>
         <ng-template mat-tab-label>
           <div class="tab">
-            
+
             <mat-icon>how_to_reg</mat-icon>
             Contratación
           </div>
         </ng-template>
 
         <div class="tab-content-scrollable">
-          <app-hiring-questions
-            [candidatoSeleccionado]="candidatoSeleccionado()">
+          <app-hiring-questions [candidatoSeleccionado]="candidatoSeleccionado()">
           </app-hiring-questions>
         </div>
       </mat-tab>
@@ -223,5 +219,4 @@
     </mat-tab-group>
   </mat-card-content>
 </mat-card>
-<div #toastHost
-  style="position:fixed;top:8px;right:8px;z-index:2147483647"></div>
+<div #toastHost style="position:fixed;top:8px;right:8px;z-index:2147483647"></div>

@@ -8,6 +8,7 @@ import Swal from 'sweetalert2';
 
 @Component({
   selector: 'app-merchandising-merchandise',
+  standalone: true,
   imports: [
     SharedModule
   ],

@@ -1,6 +1,8 @@
 import {
-  Component, LOCALE_ID, inject, effect, signal, computed, DestroyRef
+  Component, LOCALE_ID, inject, effect, signal, computed, DestroyRef, PLATFORM_ID,
+  afterNextRender
 } from '@angular/core';
+import { isPlatformBrowser } from '@angular/common';
 import { Router, RouterLink } from '@angular/router';
 
 import { DateAdapter, MAT_DATE_FORMATS, MAT_DATE_LOCALE, MatDateFormats } from '@angular/material/core';
@@ -32,8 +34,9 @@ import { RegistroProcesoContratacion } from '../../service/registro-proceso-cont
 import { TableDialogComponent } from '@/app/shared/components/table-dialog/table-dialog.component';
 import { GestionDocumentalService } from '../../service/gestion-documental/gestion-documental.service';
 
-// ⬇️ Librería para unir PDFs en el navegador
-import { PDFDocument } from 'pdf-lib'; // npm i pdf-lib
+
+import { PdfService } from '@/app/shared/services/pdf/pdf.service';
+
 import { ColumnDefinition } from '@/app/shared/models/advanced-table-interface';
 
 export const MY_DATE_FORMATS: MatDateFormats = {
@@ -97,6 +100,9 @@ export class RecruitmentPipelineComponent {
 
   // Biometría desde backend
   biometria = signal<{ firma?: any; huella?: any; foto?: any; created_at?: string; updated_at?: string } | null>(null);
+  examenMedicoDoc = signal<ServerDocInfo | null>(null); // Signal para el documento ID 32
+  arlDoc = signal<ServerDocInfo | null>(null); // Signal para el documento ID 30
+  fotoDoc = signal<ServerDocInfo | null>(null); // Signal para el documento FOTO ID 89
 
   // Flags (solo backend)
   private tieneFirmaSrv = computed(() => !!this.getBioDoc('firma'));
@@ -106,7 +112,9 @@ export class RecruitmentPipelineComponent {
   // Flags UI
   tieneFirmaUI = computed(() => !!(this.firmaDataUrl() || this.tieneFirmaSrv()));
   tieneHuellaUI = computed(() => !!(this.huellaDataUrl() || this.tieneHuellaSrv()));
-  tieneFotoUI = computed(() => !!(this.fotoDataUrl() || this.tieneFotoSrv()));
+  tieneFotoUI = computed(() => !!(this.fotoDataUrl() || this.fotoDoc() || this.tieneFotoSrv()));
+  tieneExamenMedicoUI = computed(() => !!this.examenMedicoDoc());
+  tieneArlUI = computed(() => !!this.arlDoc());
 
   // Helpers para badges
   badge(kind: BioKind) { return this.tiene(kind) ? '✓' : '✗'; }
@@ -119,7 +127,7 @@ export class RecruitmentPipelineComponent {
   // Un archivo por examen seleccionado (mapeo por índice)
   examFiles = signal<File[]>([]);
 
-  readonly typeMap: Record<string, number> = { examenesMedicos: 32 };
+  readonly typeMap: Record<string, number> = { examenesMedicos: 32, arl: 30 };
 
   readonly filteredExamOptions: string[] = [
     'Exámen Ingreso', 'Colinesterasa', 'Glicemia Basal', 'Perfil lípidico', 'Visiometria', 'Optometría', 'Audiometría',
@@ -146,7 +154,10 @@ export class RecruitmentPipelineComponent {
   private readonly docSvc = inject(GestionDocumentalService);
 
   private util = inject(UtilityServiceService);
+  private pdfSvc = inject(PdfService);
   private registroProceso = inject(RegistroProcesoContratacion);
+  private platformId = inject(PLATFORM_ID);
+  private isBrowser = signal(false);
 
   // ───────── Form Parte 3 ─────────
   formGroup3: FormGroup = this.fb.group({
@@ -219,11 +230,7 @@ export class RecruitmentPipelineComponent {
   }
 
   private isNoApto = (v: unknown) =>
-    String(v ?? '')
-      .normalize('NFD')
-      .replace(/\p{Diacritic}/gu, '')
-      .replace(/[\s_]+/g, '')
-      .toUpperCase() === 'NOAPTO';
+    this.util.normalizeText(v) === 'NOAPTO';
 
   constructor() {
     const safeJson = <T>(raw: any, fallback: T): T => {
@@ -233,6 +240,8 @@ export class RecruitmentPipelineComponent {
         return (Array.isArray(parsed) || typeof parsed === 'object') ? (parsed as T) : fallback;
       } catch { return fallback; }
     };
+
+    this.isBrowser.set(isPlatformBrowser(this.platformId));
 
     // 1) Mantener MISMA instancia de FormArray → clear() + push()
     this.selectedExamsCtrl.valueChanges
@@ -258,6 +267,7 @@ export class RecruitmentPipelineComponent {
 
     // 2) Cédula + biometría (embebida y refresh opcional)
     effect(() => {
+      if (!this.isBrowser()) return;
       this.getFullName();
       this.getNumeroDocumento();
 
@@ -270,12 +280,22 @@ export class RecruitmentPipelineComponent {
       if (ced && (!bio || this.isBioStale(bio))) {
         this.refreshBiometriaForCandidate(ced).catch(() => this.biometria.set(null));
       }
+      if (ced) {
+        this.refreshExamenMedicoForCandidate(ced);
+        this.refreshArlForCandidate(ced);
+        this.refreshFotoForCandidate(ced);
+      } else {
+        this.examenMedicoDoc.set(null);
+        this.arlDoc.set(null);
+        this.fotoDoc.set(null);
+      }
 
       this.mostrarTabla();
     });
 
     // 3) Autollenar Salud Ocupacional desde la PRIMERA entrevista
     effect(() => {
+      if (!this.isBrowser()) return;
       const cand = this.candidatoSeleccionado();
       const formArray = this.selectedExamsArray;
 
@@ -322,6 +342,7 @@ export class RecruitmentPipelineComponent {
 
     // 4) Aviso/lock por “NO APTO”
     effect(() => {
+      if (!this.isBrowser()) return;
       const hay = this.hayNoApto();
       if (hay && !this._warnedNoApto()) {
         this._warnedNoApto.set(true);
@@ -339,6 +360,7 @@ export class RecruitmentPipelineComponent {
 
     // 5) 🔔 Toast AUTOMÁTICO (overlay propio) con detalle de lo que FALTA (top-end)
     effect(() => {
+      if (!this.isBrowser()) return;
       const cand = this.candidatoSeleccionado();
       if (!cand) { this._closeToast(); return; }
 
@@ -388,14 +410,13 @@ export class RecruitmentPipelineComponent {
   }
 
   generacionDocumentos(): void {
-    this.router.navigate(['dashboard/hiring/generate-contracting-documents']);
+    this.router.navigate(['dashboard/hiring/generate-contracting-documents', this.numeroDocumento]);
   }
 
   // ───────── VALIDACIÓN PARA HABILITAR/DESHABILITAR CONTRATACIÓN ─────────
+  // ───────── VALIDACIÓN PARA HABILITAR/DESHABILITAR CONTRATACIÓN ─────────
   private _norm(s: any): string {
-    return String(s ?? '')
-      .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-      .toUpperCase().trim();
+    return this.util.normalizeText(s);
   }
 
   private _firstProceso(cand: any): any | null {
@@ -417,8 +438,8 @@ export class RecruitmentPipelineComponent {
 
   private _antecedentesCumplen(proc: any): boolean {
     // Regla estricta: EPS = "CUMPLE", PROCURADURIA = "CUMPLE", POLICIVOS = "CUMPLE"
-    const eps  = this._norm(this._antecedenteValor(proc, 'EPS'));
-    const pro  = this._norm(this._antecedenteValor(proc, 'PROCURADURIA'));
+    const eps = this._norm(this._antecedenteValor(proc, 'EPS'));
+    const pro = this._norm(this._antecedenteValor(proc, 'PROCURADURIA'));
     const poli = this._norm(this._antecedenteValor(proc, 'POLICIVOS'));
     return eps === 'CUMPLE' && pro === 'CUMPLE' && poli === 'CUMPLE';
   }
@@ -432,63 +453,63 @@ export class RecruitmentPipelineComponent {
   }
 
   /** Devuelve lista de mensajes con lo que falta para habilitar Contratación */
-private _missingForContratacion(): string[] {
-  const cand = this.candidatoSeleccionado();
-  if (!cand || !Array.isArray(cand.entrevistas) || cand.entrevistas.length === 0) {
-    return ['Debe existir al menos una entrevista (entrevistas[0]).'];
+  private _missingForContratacion(): string[] {
+    const cand = this.candidatoSeleccionado();
+    if (!cand || !Array.isArray(cand.entrevistas) || cand.entrevistas.length === 0) {
+      return ['Debe existir al menos una entrevista (entrevistas[0]).'];
+    }
+
+    const proc = this._firstProceso(cand);
+    if (!proc) return ['La primera entrevista no tiene proceso asociado.'];
+
+    const missing: string[] = [];
+
+    // Antecedentes
+    const vEPS = this._antecedenteValor(proc, 'EPS');
+    const vPROC = this._antecedenteValor(proc, 'PROCURADURIA');
+    const vPOLI = this._antecedenteValor(proc, 'POLICIVOS');
+
+    // ✅ EPS: sólo que NO esté vacío
+    if (!vEPS || this._norm(vEPS).length === 0) {
+      missing.push(`Antecedente EPS no debe estar vacío (actual: ${vEPS ?? 'sin registro'})`);
+    }
+
+    // Se mantienen estos como "CUMPLE"
+    if (this._norm(vPROC) !== 'CUMPLE') {
+      missing.push(`Antecedente PROCURADURIA debe estar en "CUMPLE" (actual: ${vPROC ?? 'sin registro'})`);
+    }
+    if (this._norm(vPOLI) !== 'CUMPLE') {
+      missing.push(`Antecedente POLICIVOS debe estar en "CUMPLE" (actual: ${vPOLI ?? 'sin registro'})`);
+    }
+
+    // Etapas del proceso
+    if (proc?.entrevistado !== true) {
+      missing.push('Marcar proceso.entrevistado en TRUE.');
+    }
+
+    // ❌ remision ya no es requisito
+    // if (proc?.remision !== true) missing.push('Marcar proceso.remision en TRUE.');
+
+    // ✅ Al menos uno: prueba_tecnica o autorizado
+    const tienePruebaTecnica = proc?.prueba_tecnica === true;
+    const tieneAutorizado = proc?.autorizado === true;
+    if (!(tienePruebaTecnica || tieneAutorizado)) {
+      missing.push('Debe estar TRUE al menos uno: "prueba_tecnica" o "autorizado".');
+    }
+
+    if (proc?.examenes_medicos !== true) {
+      missing.push('Marcar proceso.examenes_medicos en TRUE.');
+    }
+
+    // NO APTO local (form)
+    const arr = (this.selectedExamsArray.value ?? []) as ExamenResultadoForm[];
+    const hayNoApto = Array.isArray(arr) && arr.some(x => this.isNoApto(x?.aptoStatus));
+    if (hayNoApto) {
+      missing.push('Hay al menos un examen con resultado "NO APTO".');
+    }
+
+    return missing;
   }
-
-  const proc = this._firstProceso(cand);
-  if (!proc) return ['La primera entrevista no tiene proceso asociado.'];
-
-  const missing: string[] = [];
-
-  // Antecedentes
-  const vEPS  = this._antecedenteValor(proc, 'EPS');
-  const vPROC = this._antecedenteValor(proc, 'PROCURADURIA');
-  const vPOLI = this._antecedenteValor(proc, 'POLICIVOS');
-
-  // ✅ EPS: sólo que NO esté vacío
-  if (!vEPS || this._norm(vEPS).length === 0) {
-    missing.push(`Antecedente EPS no debe estar vacío (actual: ${vEPS ?? 'sin registro'})`);
-  }
-
-  // Se mantienen estos como "CUMPLE"
-  if (this._norm(vPROC) !== 'CUMPLE') {
-    missing.push(`Antecedente PROCURADURIA debe estar en "CUMPLE" (actual: ${vPROC ?? 'sin registro'})`);
-  }
-  if (this._norm(vPOLI) !== 'CUMPLE') {
-    missing.push(`Antecedente POLICIVOS debe estar en "CUMPLE" (actual: ${vPOLI ?? 'sin registro'})`);
-  }
-
-  // Etapas del proceso
-  if (proc?.entrevistado !== true) {
-    missing.push('Marcar proceso.entrevistado en TRUE.');
-  }
-
-  // ❌ remision ya no es requisito
-  // if (proc?.remision !== true) missing.push('Marcar proceso.remision en TRUE.');
-
-  // ✅ Al menos uno: prueba_tecnica o autorizado
-  const tienePruebaTecnica = proc?.prueba_tecnica === true;
-  const tieneAutorizado    = proc?.autorizado === true;
-  if (!(tienePruebaTecnica || tieneAutorizado)) {
-    missing.push('Debe estar TRUE al menos uno: "prueba_tecnica" o "autorizado".');
-  }
-
-  if (proc?.examenes_medicos !== true) {
-    missing.push('Marcar proceso.examenes_medicos en TRUE.');
-  }
-
-  // NO APTO local (form)
-  const arr = (this.selectedExamsArray.value ?? []) as ExamenResultadoForm[];
-  const hayNoApto = Array.isArray(arr) && arr.some(x => this.isNoApto(x?.aptoStatus));
-  if (hayNoApto) {
-    missing.push('Hay al menos un examen con resultado "NO APTO".');
-  }
-
-  return missing;
-}
 
 
   // Usado por la plantilla: <mat-tab [disabled]="deshabilitarContratacion()">
@@ -497,8 +518,9 @@ private _missingForContratacion(): string[] {
   }
 
   // ───────── Salud ocupacional (PDF) ─────────
+  // ───────── Salud ocupacional (PDF) ─────────
   private isPdf(file?: File | null): file is File {
-    return !!file && (file.type === 'application/pdf' || /\.pdf$/i.test(file.name));
+    return this.pdfSvc.isPdf(file);
   }
 
   private normalizarSedeAbbr(raw: string | undefined | null): string {
@@ -507,18 +529,16 @@ private _missingForContratacion(): string[] {
   }
 
   // ========= Utilidades nombres/fechas =========
+  // ========= Utilidades nombres/fechas =========
   private slug(input: string): string {
-    return (input ?? '')
-      .toString()
-      .normalize('NFD').replace(/\p{Diacritic}/gu, '')
-      .replace(/[^a-zA-Z0-9]+/g, '_')
-      .replace(/^_+|_+$/g, '')
-      .toUpperCase();
+    return this.util.normalizeText(input)
+      .replace(/[^A-Z0-9]+/g, '_')
+      .replace(/^_+|_+$/g, '');
   }
 
   private yyyymmdd(d = new Date()): string {
-    const pad = (n: number) => String(n).padStart(2, '0');
-    return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}`;
+    const iso = this.util.formatDateForBackend(d);
+    return iso ? iso.replace(/-/g, '') : '';
   }
 
   private buildExamFilename(examName: string, cedula: string): string {
@@ -535,33 +555,13 @@ private _missingForContratacion(): string[] {
   }
 
   // ========= Unir todos los PDFs de exámenes en uno solo =========
+  // ========= Unir todos los PDFs de exámenes en uno solo =========
   private async mergeExamPdfs(
     pairs: { name: string; file: File }[],
     mergedName: string,
     onProgress?: (i: number, total: number) => void
   ): Promise<File> {
-    const pdfDoc = await PDFDocument.create();
-    const total = pairs.length;
-
-    // Lee los ArrayBuffer en paralelo para acelerar I/O
-    const buffers = await Promise.all(pairs.map(p => p.file.arrayBuffer()));
-
-    for (let i = 0; i < total; i++) {
-      const src = await PDFDocument.load(buffers[i], { updateMetadata: false });
-      const copiedPages = await pdfDoc.copyPages(src, src.getPageIndices());
-      copiedPages.forEach(p => pdfDoc.addPage(p));
-      onProgress?.(i + 1, total);
-      await this.yieldUI(); // cede tiempo al UI
-    }
-
-    // Uint8Array con el PDF final
-    const bytes = await pdfDoc.save({ addDefaultPage: false });
-
-    // ArrayBuffer "puro"
-    const ab = new ArrayBuffer(bytes.byteLength);
-    new Uint8Array(ab).set(bytes);
-
-    return new File([ab], mergedName, { type: 'application/pdf' });
+    return this.pdfSvc.mergePdfs(pairs.map(p => p.file), mergedName, onProgress);
   }
 
   // ========= Guardar + Unir + Subir =========
@@ -793,7 +793,7 @@ private _missingForContratacion(): string[] {
 
   // ───────── Cámara ─────────
   async openCamera(): Promise<void> {
-    const initialPreview = this.fotoDataUrl() || this.getBioUrl('foto') || null;
+    const initialPreview = this.fotoDataUrl() || this.fotoDoc()?.file_url || this.getBioUrl('foto') || null;
 
     const ref = this.dialog.open<
       CameraDialogComponent,
@@ -823,6 +823,7 @@ private _missingForContratacion(): string[] {
       Swal.close();
       await Swal.fire('Éxito', 'Foto subida correctamente', 'success');
       await this.refreshBiometriaForCandidate(String(numero));
+      await this.refreshFotoForCandidate(String(numero)); // Actualizar también el doc 89
     } catch (err) {
       console.error(err);
       Swal.close();
@@ -846,7 +847,31 @@ private _missingForContratacion(): string[] {
 
   verHuella(): void { this.ver('huella'); }
   verFirma(): void { this.ver('firma'); }
-  verFoto(): void { this.ver('foto'); }
+  verFoto(): void {
+    if (this.fotoDoc()) {
+      this.openInNewTab(this.fotoDoc()!.file_url);
+      return;
+    }
+    this.ver('foto');
+  }
+
+  verExamenMedico(): void {
+    const doc = this.examenMedicoDoc();
+    if (!doc || !doc.file_url) {
+      this.snack.open('No hay examen médico disponible.', 'OK', { duration: 2500 });
+      return;
+    }
+    this.openInNewTab(doc.file_url);
+  }
+
+  verArl(): void {
+    const doc = this.arlDoc();
+    if (!doc || !doc.file_url) {
+      this.snack.open('No hay ARL disponible.', 'OK', { duration: 2500 });
+      return;
+    }
+    this.openInNewTab(doc.file_url);
+  }
 
   // Helpers
   private bioLocal(kind: BioKind): string | null {
@@ -940,6 +965,51 @@ private _missingForContratacion(): string[] {
       });
     } catch {
       this.biometria.set(null);
+    }
+  }
+
+  private async refreshExamenMedicoForCandidate(cedula: string): Promise<void> {
+    try {
+      // 32 es el ID para EXAMENES_MEDICOS según typeMap
+      const docs: ServerDocInfo[] = await firstValueFrom(this.docSvc.getDocuments(cedula, 32));
+      // Asumimos que el backend retorna lista ordenada o filtramos el active.
+      // Si retorna lista, tomamos el primero (o el más reciente).
+      // Usualmente getDocuments filtra por is_active=True si no se especifica lo contrario.
+      if (Array.isArray(docs) && docs.length > 0) {
+        this.examenMedicoDoc.set(docs[0]);
+      } else {
+        this.examenMedicoDoc.set(null);
+      }
+    } catch {
+      this.examenMedicoDoc.set(null);
+    }
+  }
+
+  private async refreshArlForCandidate(cedula: string): Promise<void> {
+    try {
+      // 30 es el ID para ARL
+      const docs: ServerDocInfo[] = await firstValueFrom(this.docSvc.getDocuments(cedula, 30));
+      if (Array.isArray(docs) && docs.length > 0) {
+        this.arlDoc.set(docs[0]);
+      } else {
+        this.arlDoc.set(null);
+      }
+    } catch {
+      this.arlDoc.set(null);
+    }
+  }
+
+  private async refreshFotoForCandidate(cedula: string): Promise<void> {
+    try {
+      // 89 es el ID para FOTO
+      const docs: ServerDocInfo[] = await firstValueFrom(this.docSvc.getDocuments(cedula, 89));
+      if (Array.isArray(docs) && docs.length > 0) {
+        this.fotoDoc.set(docs[0]);
+      } else {
+        this.fotoDoc.set(null);
+      }
+    } catch {
+      this.fotoDoc.set(null);
     }
   }
 

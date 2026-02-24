@@ -22,17 +22,7 @@
   </div>
 </div>
 
-<!-- ejemplo: view-reception-interviews.component.html -->
-<app-standard-filter-table [data]="registros" [columnDefinitions]="columns" [pageSizeOptions]="[5,10,25,100]"
-  [defaultPageSize]="10" [tableTitle]="'Candidatos recientes'">
 
-  <!-- Botón 'Escoger' en la columna actions -->
-  <ng-template #actionsTemplate let-row>
-    <button mat-flat-button color="primary" (click)="onOk(row)">
-      ok
-    </button>
-  </ng-template>
-</app-standard-filter-table>
 
 <!-- Observación -->
 <div *ngIf="mostrarObservacion" class="observacion-container">
