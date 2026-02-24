@@ -108,7 +108,7 @@ export class NavbarComponent implements OnInit, OnDestroy {
     'CARGAS MASIVAS': 'treasury/upload-treasury',
 
     'Robots': 'robots/dashboard-robots',
-    'NOMINA': 'nomina/nomina',
+    'NOMINA': 'nomina',
   };
 
   private readonly iconMap: Record<string, string> = {
