@@ -69,7 +69,33 @@ export class HiringQuestionsComponent implements OnInit {
     'TU ALIANZA SAS': 'TUALIANZACARTAAUTORIZACIONTRASLADO_2024.pdf',
   };
 
-  // Huellas (solo UI)
+  // ── Consentimiento Biométrico — Huella (Ley 1581 de 2012) ──
+  private static readonly EMPRESAS_HUELLA: Record<string, { nombre: string }> = {
+    'apoyo-laboral': { nombre: 'APOYO LABORAL T.S. S.A.S.' },
+    'tu-alianza': { nombre: 'TU ALIANZA SAS' },
+  };
+  private readonly VERSION_CONSENTIMIENTO_HUELLA = 'v1.0-2026';
+
+  private buildTextoConsentimientoHuella(empresa: string): string {
+    return (
+      'En cumplimiento de la Ley Estatutaria 1581 de 2012 "Por la cual se dictan disposiciones generales ' +
+      'para la protección de datos personales" y su Decreto Reglamentario 1377 de 2013, autorizo de manera ' +
+      `libre, expresa, previa e informada a ${empresa} para que realice la recolección, ` +
+      'almacenamiento, uso, circulación, supresión y en general, el tratamiento de mis datos biométricos ' +
+      '(huella dactilar) que voluntariamente suministro en este proceso, con la finalidad de validar mi ' +
+      'identidad, formalizar mi vinculación laboral y generar soporte probatorio contractual. ' +
+      'Declaro que he sido informado(a) de mis derechos como titular de datos personales, incluyendo el ' +
+      'derecho a conocer, actualizar, rectificar y solicitar la supresión de mis datos, así como a revocar ' +
+      'la autorización otorgada, mediante comunicación dirigida al responsable del tratamiento.'
+    );
+  }
+
+  // Huellas (per-company UI state)
+  messageApoyo = '';
+  messageTuAlianza = '';
+  fingerprintImageApoyo: string | null = null;
+  fingerprintImageTuAlianza: string | null = null;
+  // Legacy (kept for PD if needed)
   messageID = '';
   messagePD = '';
   fingerprintImageID: string | null = null;
@@ -98,6 +124,8 @@ export class HiringQuestionsComponent implements OnInit {
     this.initForms();
     this.setupFormaPagoValidation(); // ← aplica validación dinámica CO
     this.loadTarjetas();
+    // Consentimiento: autocompletar UserAgent
+    this.huellaForm.patchValue({ userAgent: navigator.userAgent });
 
     this.filteredTarjetas = this.pagoTransporteForm.get('numeroIdentificacion')!.valueChanges.pipe(
       startWith(''),
@@ -164,7 +192,14 @@ export class HiringQuestionsComponent implements OnInit {
       traslado: [''],
     });
 
-    this.huellaForm = this.fb.group({});
+    this.huellaForm = this.fb.group({
+      consentimientoHuella: [false],
+      versionConsentimiento: [this.VERSION_CONSENTIMIENTO_HUELLA],
+      timestampConsentimiento: [''],
+      consentimientoHash: [''],
+      imageHash: [''],
+      userAgent: [''],
+    });
   }
 
   // === Validador de coincidencia ===
@@ -564,12 +599,101 @@ export class HiringQuestionsComponent implements OnInit {
   }
 
   // ───────── Huellas (Electron) ─────────
-  async captureFingerprintID(): Promise<void> { await this.captureFingerprint('ID'); }
+  async captureFingerprintApoyo(): Promise<void> { await this.captureFingerprint('ID', 'apoyo-laboral'); }
+  async captureFingerprintTuAlianza(): Promise<void> { await this.captureFingerprint('ID', 'tu-alianza'); }
   async captureFingerprintPD(): Promise<void> { await this.captureFingerprint('PD'); }
 
-  private async captureFingerprint(kind: 'ID' | 'PD'): Promise<void> {
-    const setMsg = (t: string) => (kind === 'ID' ? (this.messageID = t) : (this.messagePD = t));
-    const setImg = (d: string | null) => (kind === 'ID' ? (this.fingerprintImageID = d) : (this.fingerprintImagePD = d));
+  // ── SHA-256 genérico ──
+  private async generateHash(data: string): Promise<string> {
+    const encoded = new TextEncoder().encode(data);
+    const buffer = await crypto.subtle.digest('SHA-256', encoded);
+    return Array.from(new Uint8Array(buffer))
+      .map(b => b.toString(16).padStart(2, '0'))
+      .join('');
+  }
+
+  private async generateFileHash(file: File): Promise<string> {
+    const buffer = await file.arrayBuffer();
+    const hashBuffer = await crypto.subtle.digest('SHA-256', buffer);
+    return Array.from(new Uint8Array(hashBuffer))
+      .map(b => b.toString(16).padStart(2, '0'))
+      .join('');
+  }
+
+  // ── Dialog de consentimiento biométrico (huella) ──
+  private async mostrarConsentimientoHuella(empresaSlug: string): Promise<boolean> {
+    const cfg = HiringQuestionsComponent.EMPRESAS_HUELLA[empresaSlug]
+      ?? HiringQuestionsComponent.EMPRESAS_HUELLA['apoyo-laboral'];
+    const texto = this.buildTextoConsentimientoHuella(cfg.nombre);
+
+    const { isConfirmed } = await Swal.fire({
+      title: '',
+      html: `
+        <div class="consent-dialog-content">
+          <div class="consent-dialog-header">
+            <div class="consent-dialog-icon">
+              <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="#2e7d32" stroke-width="2">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+              </svg>
+            </div>
+            <h2 class="consent-dialog-title">Autorización de Tratamiento de Datos Biométricos — Huella Dactilar</h2>
+            <span class="consent-dialog-badge">Ley 1581 de 2012</span>
+            <span class="consent-dialog-badge" style="background:#e8f5e9;color:#2e7d32">${cfg.nombre}</span>
+          </div>
+          <div class="consent-dialog-text">${texto}</div>
+          <label class="consent-dialog-check" id="consent-label">
+            <input type="checkbox" id="swal-consent-cb" />
+            <span></span>
+            <span>He leído y <strong>autorizo</strong> la captura, almacenamiento y tratamiento de mi huella dactilar conforme a lo anterior.</span>
+          </label>
+          <p class="consent-dialog-version">Versión: ${this.VERSION_CONSENTIMIENTO_HUELLA}</p>
+        </div>
+      `,
+      width: '540px',
+      showCancelButton: true,
+      confirmButtonText: '🔒 Autorizar y Capturar',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#2e7d32',
+      customClass: { popup: 'consent-popup' },
+      didOpen: () => {
+        const btn = Swal.getConfirmButton();
+        if (btn) btn.disabled = true;
+        const cb = document.getElementById('swal-consent-cb') as HTMLInputElement;
+        cb?.addEventListener('change', () => {
+          if (btn) btn.disabled = !cb.checked;
+        });
+      },
+      preConfirm: () => {
+        const cb = document.getElementById('swal-consent-cb') as HTMLInputElement;
+        if (!cb?.checked) {
+          Swal.showValidationMessage('Debes marcar la casilla para continuar.');
+          return false;
+        }
+        return true;
+      },
+    });
+    return isConfirmed;
+  }
+
+  private async captureFingerprint(kind: 'ID' | 'PD', empresaSlug?: string): Promise<void> {
+    // Per-company UI state helpers
+    const setMsg = (t: string) => {
+      if (empresaSlug === 'apoyo-laboral') this.messageApoyo = t;
+      else if (empresaSlug === 'tu-alianza') this.messageTuAlianza = t;
+      if (kind === 'ID') this.messageID = t; else this.messagePD = t;
+    };
+    const setImg = (d: string | null) => {
+      if (empresaSlug === 'apoyo-laboral') this.fingerprintImageApoyo = d;
+      else if (empresaSlug === 'tu-alianza') this.fingerprintImageTuAlianza = d;
+      if (kind === 'ID') this.fingerprintImageID = d; else this.fingerprintImagePD = d;
+    };
+
+    // ── Consentimiento obligatorio para Índice Derecho ──
+    if (kind === 'ID' && empresaSlug) {
+      const aceptado = await this.mostrarConsentimientoHuella(empresaSlug);
+      if (!aceptado) return;
+      this.huellaForm.patchValue({ consentimientoHuella: true });
+    }
 
     type FingerprintGetResult = { success: boolean; data?: string; error?: string };
     const electron = (window as any)?.electron as { fingerprint?: { get: () => Promise<FingerprintGetResult> } };
@@ -592,30 +716,55 @@ export class HiringQuestionsComponent implements OnInit {
       setMsg('Huella capturada exitosamente.');
 
       // Subir automáticamente solo la Índice Derecho
-      if (kind === 'ID') {
+      if (kind === 'ID' && empresaSlug) {
         const cedula = this.candidatoSeleccionado()?.numero_documento;
         if (!cedula) {
           this.alert('warning', 'Cédula requerida', 'No hay cédula para asociar la huella.');
           return;
         }
 
+        const cfg = HiringQuestionsComponent.EMPRESAS_HUELLA[empresaSlug]
+          ?? HiringQuestionsComponent.EMPRESAS_HUELLA['apoyo-laboral'];
+        const textoConsentimiento = this.buildTextoConsentimientoHuella(cfg.nombre);
+
         // DataURL → File
         const filename = this.buildHuellaFilename('ID');
         const file = this.dataUrlToFile(dataUrl, filename);
 
+        // ── Generar hashes ──
+        const timestampISO = new Date().toISOString();
+        const consentimientoHash = await this.generateHash(
+          String(cedula) + textoConsentimiento + timestampISO
+        );
+        const imageHash = await this.generateFileHash(file);
+
+        this.huellaForm.patchValue({
+          consentimientoHash,
+          timestampConsentimiento: timestampISO,
+          imageHash,
+        });
+
         Swal.fire({
           icon: 'info',
           title: 'Subiendo huella…',
-          text: 'Guardando Índice Derecho en el servidor.',
+          text: `Guardando Índice Derecho (${cfg.nombre}) en el servidor.`,
           allowOutsideClick: false,
           didOpen: () => Swal.showLoading(),
         });
 
         try {
-          await firstValueFrom(this.procesosService.uploadHuella(cedula, file));
+          await firstValueFrom(
+            this.procesosService.uploadHuella(cedula, file, {
+              consentimiento_hash: consentimientoHash,
+              consentimiento_version: this.VERSION_CONSENTIMIENTO_HUELLA,
+              consentimiento_timestamp: timestampISO,
+              user_agent: this.huellaForm.value.userAgent,
+              image_hash: imageHash,
+            })
+          );
           Swal.close();
           setMsg('Huella capturada y guardada.');
-          this.alert('success', '¡Listo!', 'La huella (Índice Derecho) se guardó correctamente.');
+          this.alert('success', '¡Listo!', `La huella (Índice Derecho — ${cfg.nombre}) se guardó correctamente.`);
         } catch (e) {
           Swal.close();
           setMsg('Huella capturada, pero no se pudo guardar.');

@@ -73,6 +73,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     { titulo: 'PAGO SEGURIDAD SOCIAL' },
     { titulo: 'Entrega carnets' },
     { titulo: 'Inducción capacitación' },
+    { titulo: 'Formato solicitud' },
   ];
 
   nombreCompleto = '';
@@ -120,6 +121,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     'PAGO SEGURIDAD SOCIAL': 38,
     'Entrega carnets': 95,
     'Inducción capacitación': 96,
+    'Formato solicitud': 97,
   };
 
   async ngOnInit(): Promise<void> {
@@ -444,6 +446,10 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     // Inducción y capacitación Flores Andes
     else if (documento === 'Inducción capacitación') {
       this.generarInduccionCapacitacion();
+    }
+    // Formato solicitud Flores Andes
+    else if (documento === 'Formato solicitud') {
+      this.generarFormatoSolicitud();
     }
   }
 
@@ -4395,7 +4401,274 @@ export class GenerateContractingDocumentsComponent implements OnInit {
   }
 
 
+  // ==============================
+  //  FORMATO SOLICITUD FLORES ANDES (typeId 97)
+  // ==============================
+  async generarFormatoSolicitud() {
+    try {
+      const cand: any = this.candidato ?? {};
+      const vac: any = this.vacante ?? {};
 
+      // ── Helpers locales de imagen ──
+      const isDataUrl = (u: string) => /^data:image\//i.test(u);
+
+      const dataUrlToBytes = (dataUrl: string): ArrayBuffer | null => {
+        try {
+          const [meta, b64] = dataUrl.split(',');
+          if (!meta || !b64) return null;
+          const bin = atob(b64);
+          const len = bin.length;
+          const bytes = new Uint8Array(len);
+          for (let i = 0; i < len; i++) bytes[i] = bin.charCodeAt(i);
+          return bytes.buffer;
+        } catch { return null; }
+      };
+
+      const detectImageType = (ab: ArrayBuffer): 'png' | 'jpg' | null => {
+        const b = new Uint8Array(ab);
+        if (b.length >= 8 && b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4E && b[3] === 0x47 &&
+          b[4] === 0x0D && b[5] === 0x0A && b[6] === 0x1A && b[7] === 0x0A) return 'png';
+        if (b.length >= 3 && b[0] === 0xFF && b[1] === 0xD8 && b[2] === 0xFF) return 'jpg';
+        return null;
+      };
+
+      const fetchBytesOrNull = async (urlOrData?: string): Promise<ArrayBuffer | null> => {
+        const raw = String(urlOrData ?? '').trim();
+        if (!raw) return null;
+        if (isDataUrl(raw)) return dataUrlToBytes(raw);
+        try { return await this.fetchAsArrayBufferOrNull(raw); } catch { return null; }
+      };
+
+      const embedImageOrNull = async (pdfDoc: PDFDocument, urlOrData?: string) => {
+        const ab = await fetchBytesOrNull(urlOrData);
+        if (!ab) return null;
+        const kind = detectImageType(ab);
+        if (!kind) return null;
+        try {
+          const u8 = new Uint8Array(ab);
+          return kind === 'png' ? await pdfDoc.embedPng(u8) : await pdfDoc.embedJpg(u8);
+        } catch { return null; }
+      };
+
+      const setButtonImageSafe = async (
+        pdfDoc: PDFDocument, form: any, buttonName: string, urlOrData?: string
+      ) => {
+        const img = await embedImageOrNull(pdfDoc, urlOrData);
+        if (!img) return false;
+        try { form.getButton(buttonName).setImage(img); return true; }
+        catch { return false; }
+      };
+      // ── Fin helpers ──
+
+      const norm = (v: any) => String(v ?? '').trim().toUpperCase();
+
+      // ── Datos del candidato ──
+      const contacto: any = cand.contacto ?? {};
+      const residencia: any = cand.residencia ?? {};
+      const infoCc: any = cand.info_cc ?? {};
+      const vivienda: any = cand.vivienda ?? {};
+
+      const entrevista: any = Array.isArray(cand.entrevistas) ? cand.entrevistas[0] : null;
+      const proceso: any = entrevista?.proceso ?? {};
+      const contrato: any = proceso?.contrato ?? {};
+      const antecedentes: any[] = Array.isArray(proceso?.antecedentes) ? proceso.antecedentes : [];
+
+      const findAnte = (nombre: string) => antecedentes.find((a: any) => norm(a?.nombre) === norm(nombre));
+
+      const apellidos = [cand.primer_apellido, cand.segundo_apellido]
+        .map((x: any) => String(x ?? '').trim()).filter(Boolean).join(' ').toUpperCase();
+      const nombres = [cand.primer_nombre, cand.segundo_nombre]
+        .map((x: any) => String(x ?? '').trim()).filter(Boolean).join(' ').toUpperCase();
+      const numeroCedula = String(cand.numero_documento ?? '').trim();
+      const lugarExpedicion = String(infoCc?.mpio_expedicion ?? '').trim().toUpperCase();
+
+      // Fecha de nacimiento
+      const fechaNacRaw = String(cand.fecha_nacimiento ?? '').trim();
+      let diaNac = '', mesNac = '', anioNac = '';
+      if (fechaNacRaw) {
+        const d = new Date(fechaNacRaw);
+        if (!isNaN(d.getTime())) {
+          diaNac = String(d.getDate()).padStart(2, '0');
+          mesNac = String(d.getMonth() + 1).padStart(2, '0');
+          anioNac = String(d.getFullYear());
+        }
+      }
+
+      const lugarNacimiento = String(infoCc?.mpio_nacimiento ?? '').trim().toUpperCase();
+
+      // Fecha de ingreso dd/mm/yyyy
+      const fechaRaw = String(
+        vac?.fechadeIngreso ?? vac?.fechaIngreso ?? contrato?.fecha_ingreso ?? ''
+      ).trim();
+      let fechaIngreso = '';
+      if (fechaRaw) {
+        const d = new Date(fechaRaw);
+        if (!isNaN(d.getTime())) {
+          fechaIngreso = [
+            String(d.getDate()).padStart(2, '0'),
+            String(d.getMonth() + 1).padStart(2, '0'),
+            d.getFullYear(),
+          ].join('/');
+        }
+      }
+
+      // Género
+      const sexo = norm(cand.sexo ?? cand.genero ?? '');
+      const esMasculino = sexo === 'M' || sexo === 'MASCULINO';
+      const esFemenino = sexo === 'F' || sexo === 'FEMENINO';
+
+      // ── Obtener datos de contratación ──
+      let datoContratacion: any = {};
+      try {
+        const numeroDoc = numeroCedula;
+        if (numeroDoc) {
+          const respContratacion: any = await firstValueFrom(
+            this.contratacionService.buscarEncontratacion(numeroDoc).pipe(
+              take(1),
+              catchError((err) => {
+                console.error('[FormatoSolicitud] Error buscando contratación:', err);
+                return of({ data: [] });
+              })
+            )
+          );
+          datoContratacion = respContratacion?.data?.[0] ?? {};
+        }
+      } catch (e) {
+        console.error('[FormatoSolicitud] Error obteniendo contratación:', e);
+      }
+
+      // Tallas
+      const tallaCamiseta = String(datoContratacion?.camisa ?? '').trim();
+      const tallaCalzado = String(datoContratacion?.calzado ?? '').trim();
+      const numHijos = String(datoContratacion?.num_hijos_dependen_economicamente ?? '').trim();
+
+      // Estado civil
+      const estadoCivil = norm(cand.estado_civil ?? '');
+
+      // Vivienda
+      const tipoViviendaAlt = norm(vivienda?.tipo_vivienda_alt ?? datoContratacion?.tipo_vivienda_alt ?? '');
+      const tipoVivienda = norm(vivienda?.tipo_vivienda ?? datoContratacion?.tipo_vivienda ?? '');
+
+      // Quién cuida los hijos
+      const cuidadorHijos = String(vivienda?.responsable_hijos ?? datoContratacion?.responsable_hijos ?? '').trim();
+
+      // Dirección y barrio
+      const direccion = String(residencia?.direccion ?? datoContratacion?.direccion_residencia ?? '').trim();
+      const barrio = String(residencia?.barrio ?? datoContratacion?.barrio ?? '').trim();
+      const direccionCompleta = [direccion, barrio].filter(Boolean).join(' - ');
+
+      // Teléfono
+      const telefono = String(contacto?.celular ?? contacto?.telefono ?? datoContratacion?.celular ?? '').trim();
+
+      // Ciudad (municipio de residencia)
+      const ciudad = String(residencia?.municipio ?? datoContratacion?.municipio ?? '').trim().toUpperCase();
+
+      // Experiencias laborales (hasta 3)
+      const experiencias: any[] = Array.isArray(cand.experiencias) ? cand.experiencias : [];
+
+      // Cómo supo del trabajo
+      const comoSeEntero = String(entrevista?.como_se_entero ?? datoContratacion?.como_se_entero ?? '').trim();
+
+      // EPS / AFP / Cesantías
+      const eps = String(findAnte('EPS')?.observacion ?? '').trim();
+      const afp = String(findAnte('AFP')?.observacion ?? '').trim();
+      const cesantias = String(contrato?.cesantias ?? '').trim();
+
+      // ── Cargar PDF ──
+      const pdfUrl = 'Docs/formato_empleo_andes.pdf';
+      const arrayBuffer = await this.fetchAsArrayBufferOrNull(pdfUrl);
+      if (!arrayBuffer) throw new Error('No se pudo cargar el PDF formato solicitud.');
+
+      const pdfDoc = await PDFDocument.load(arrayBuffer);
+      const form = pdfDoc.getForm();
+
+      // ── Campos de texto ──
+      this.setText(form, 'Fecha de Ingreso', fechaIngreso);
+      this.setText(form, 'Apellidos', apellidos);
+      this.setText(form, 'Nombres', nombres);
+      this.setText(form, 'Numero Cédula', numeroCedula);
+      this.setText(form, 'Lugar Expedición', lugarExpedicion);
+
+      this.setText(form, 'Día', diaNac);
+      this.setText(form, 'Mes', mesNac);
+      this.setText(form, 'Año', anioNac);
+
+      this.setText(form, 'Lugar de Nac', lugarNacimiento);
+
+      this.setText(form, 'Talla', tallaCamiseta);
+      this.setText(form, 'Calzado', tallaCalzado);
+      this.setText(form, 'Numero de Hijos', numHijos);
+
+      this.setText(form, 'Quien cuida de sus hijos', cuidadorHijos);
+      this.setText(form, 'Dirección de Vivienda y Barrio', direccionCompleta);
+      this.setText(form, 'Teléfono', telefono);
+      this.setText(form, 'Ciudad', ciudad);
+
+      // ── Género (X en campo correspondiente) ──
+      if (esMasculino) this.setText(form, 'masculino', 'X');
+      if (esFemenino) this.setText(form, 'Femenino', 'X');
+
+      // ── Estado civil checkboxes (X en campo correspondiente) ──
+      const ecMap: { [key: string]: string } = {
+        SO: 'Solteroa', SOLTERO: 'Solteroa', S: 'Solteroa',
+        CA: 'Casadoa', CASADO: 'Casadoa', CASADA: 'Casadoa',
+        UL: 'Unión Libre', UNION_LIBRE: 'Unión Libre', UN: 'Unión Libre',
+        SE: 'Separadoa', SEPARADO: 'Separadoa', SEPARADA: 'Separadoa',
+        VI: 'Viudoa', VIUDO: 'Viudoa', VIUDA: 'Viudoa',
+      };
+      const ecField = ecMap[estadoCivil];
+      if (ecField) this.setText(form, ecField, 'X');
+
+      // ── Tipo vivienda alt (propiedad): Propia / Familiar / Arriendo ──
+      if (tipoViviendaAlt === 'PROPIA') this.setText(form, 'propia', 'X');
+      else if (tipoViviendaAlt === 'FAMILIAR' || tipoViviendaAlt === 'AMIGOS') this.setText(form, 'Familiar', 'X');
+      else if (tipoViviendaAlt === 'ARRIENDO') this.setText(form, 'Arriendo', 'X');
+
+      // ── Tipo vivienda (estructura) ──
+      const tvNorm = tipoVivienda.replace(/[,\s]+/g, ' ').trim();
+      if (tvNorm.includes('CASA') && tvNorm.includes('LOTE')) this.setText(form, 'Casa Lote', 'X');
+      else if (tvNorm.includes('APARTAMENTO')) this.setText(form, 'Apartamento', 'X');
+      else if (tvNorm.includes('HABITACIÓN') || tvNorm.includes('HABITACION') || tvNorm === 'PIEZA') this.setText(form, 'Pieza', 'X');
+      else if (tvNorm.includes('FINCA') || tvNorm.includes('LOTE')) this.setText(form, 'Lote con Cimientos', 'X');
+      else if (tvNorm.includes('CASA')) this.setText(form, 'Casa', 'X');
+
+      // ── Experiencias laborales (hasta 3 filas) ──
+      for (let i = 0; i < 3; i++) {
+        const exp = experiencias[i] ?? {};
+        const rowSuffix = `Row${i + 1}`;
+        this.setText(form, `Nombre de la Empresa${rowSuffix}`, String(exp.empresa ?? '').trim());
+        this.setText(form, `Tiempo Laborado${rowSuffix}`, String(exp.tiempo_trabajado ?? exp.tiempo ?? '').trim());
+        this.setText(form, `Cargo${rowSuffix}`, String(exp.cargo ?? '').trim());
+        this.setText(form, `Sueldo${rowSuffix}`, String(exp.sueldo ?? '').trim());
+        this.setText(form, `Motivo del Retiro${rowSuffix}`, String(exp.motivo_retiro ?? '').trim());
+      }
+
+      // ── Cómo supo del trabajo ──
+      this.setText(form, 'Como supo del trabajo', comoSeEntero);
+
+      // ── EPS / Fondo de Pensiones / Cesantías ──
+      this.setText(form, 'Nombre de EPS', eps);
+      this.setText(form, 'Nombre de Fondo de Pensiones', afp);
+      this.setText(form, 'Nombre de Fondo de Cesantías', cesantias);
+
+      // ── Firmas ──
+      await setButtonImageSafe(pdfDoc, form, 'Firma del Trabajador_af_image', this.firma);
+      await setButtonImageSafe(pdfDoc, form, 'Firma de RRHH_af_image', this.firmaPersonalAdministrativo);
+
+      // ── Bloquear campos y guardar ──
+      form.getFields().forEach((f: any) => { try { f.enableReadOnly(); } catch { } });
+
+      const pdfBytes = await pdfDoc.save();
+      const ab = this.toSafeArrayBuffer(pdfBytes);
+      const file = new File([ab], 'Formato_solicitud.pdf', { type: 'application/pdf' });
+
+      this.uploadedFiles['Formato solicitud'] = { file, fileName: 'Formato_solicitud.pdf' };
+      this.verPDF({ titulo: 'Formato solicitud' });
+    } catch (error) {
+      console.error('Error generando Formato Solicitud:', error);
+      Swal.fire({ icon: 'error', title: 'Error', text: 'Ocurrió un error al generar el Formato de Solicitud.' });
+    }
+  }
 
 
 }

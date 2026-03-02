@@ -363,19 +363,29 @@ export class HomeComponent implements OnInit {
         this.homeService.enviarEstadosRobots(payload).subscribe({
           next: async (r: any) => {
             const ok = r?.message === 'success';
-            const detalle = [
-              r?.estado_robot_creados != null ? `Estados creados: ${r.estado_robot_creados}` : null,
-              r?.candidatos_creados != null ? `Candidatos creados: ${r.candidatos_creados}` : null,
-              r?.candidatos_actualizados != null ? `Candidatos actualizados: ${r.candidatos_actualizados}` : null,
-              Array.isArray(r?.omitidos_por_15d) ? `Omitidos 15d: ${r.omitidos_por_15d.length}` : null,
-            ]
-              .filter(Boolean)
-              .join('\n');
+
+            const lines: string[] = [];
+            if (r?.recibidos != null)
+              lines.push(`📋 Filas recibidas: <b>${r.recibidos}</b>`);
+            if (r?.tasks_unicos != null)
+              lines.push(`🔑 Registros únicos: <b>${r.tasks_unicos}</b>`);
+            if (r?.estado_robot_creados != null)
+              lines.push(`🆕 Estados creados: <b>${r.estado_robot_creados}</b>`);
+            if (r?.estado_robot_actualizados != null)
+              lines.push(`🔄 Estados actualizados: <b>${r.estado_robot_actualizados}</b>`);
+            if (r?.candidatos_creados != null)
+              lines.push(`👤 Candidatos creados: <b>${r.candidatos_creados}</b>`);
+            if (r?.candidatos_actualizados != null)
+              lines.push(`✏️ Candidatos actualizados: <b>${r.candidatos_actualizados}</b>`);
+            if (r?.skipped)
+              lines.push(`⚠️ Filas omitidas (sin ID): <b>${r.skipped}</b>`);
+            if (Array.isArray(r?.errores) && r.errores.length)
+              lines.push(`❌ Errores: <b>${r.errores.length}</b>`);
 
             await Swal.fire({
               icon: ok ? 'success' : 'error',
               title: ok ? 'Carga exitosa' : 'Carga con errores',
-              text: detalle || (ok ? 'OK' : 'Revisa el servidor'),
+              html: lines.length ? lines.join('<br>') : (ok ? 'OK' : 'Revisa el servidor'),
             });
           },
           error: async (err) => {

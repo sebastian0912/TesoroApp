@@ -771,11 +771,25 @@ export class RegistroProcesoContratacion {
   uploadBiometria(
     tipo: TipoBio,
     numero_documento: string | number,
-    file: File
+    file: File,
+    consent?: {
+      consentimiento_hash?: string;
+      consentimiento_version?: string;
+      consentimiento_timestamp?: string;
+      user_agent?: string;
+      image_hash?: string;
+    },
   ) {
     const fd = new FormData();
     fd.append('numero_documento', String(numero_documento));
     fd.append('file', file);
+
+    // Append consent metadata if provided
+    if (consent) {
+      Object.entries(consent).forEach(([k, v]) => {
+        if (v != null) fd.append(k, v);
+      });
+    }
 
     // POST /biometria/upload/{tipo}
     return this.http
@@ -787,8 +801,18 @@ export class RegistroProcesoContratacion {
   uploadFirma(numero_documento: string | number, file: File) {
     return this.uploadBiometria('firma', numero_documento, file);
   }
-  uploadHuella(numero_documento: string | number, file: File) {
-    return this.uploadBiometria('huella', numero_documento, file);
+  uploadHuella(
+    numero_documento: string | number,
+    file: File,
+    consent?: {
+      consentimiento_hash?: string;
+      consentimiento_version?: string;
+      consentimiento_timestamp?: string;
+      user_agent?: string;
+      image_hash?: string;
+    },
+  ) {
+    return this.uploadBiometria('huella', numero_documento, file, consent);
   }
   uploadFoto(numero_documento: string | number, file: File) {
     return this.uploadBiometria('foto', numero_documento, file);

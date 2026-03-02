@@ -13,7 +13,7 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Title } from '@angular/platform-browser';
-import { of } from 'rxjs';
+import { of, interval } from 'rxjs';
 import { catchError, finalize, map, take, tap, debounceTime } from 'rxjs/operators';
 
 import { ReactiveFormsModule, FormBuilder, FormGroup, FormControl } from '@angular/forms';
@@ -274,6 +274,9 @@ export class RobotsComponent implements OnInit {
     showConfirmButton: false,
   });
 
+  /** Intervalo en ms para auto-refresh (30 s) */
+  private readonly AUTO_POLL_MS = 30_000;
+
   ngOnInit(): void {
     this.titleService.setTitle('Robots Dashboard - Tesoreria');
     this.buildColumns();
@@ -291,8 +294,15 @@ export class RobotsComponent implements OnInit {
     // Carga inicial
     this.reloadAll(false);
     this.loadStats({ showToast: false });
-
     this.loadUltimosPorMarcaTemporal({ showToast: false });
+
+    // ✅ Auto-polling: refresca datos cada 30 s para mostrar cambios en tiempo real
+    interval(this.AUTO_POLL_MS)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => {
+        this.reloadAll(false);
+        this.loadStats({ showToast: false });
+      });
   }
 
   trackByState = (_: number, s: TooltipState) => s.key;

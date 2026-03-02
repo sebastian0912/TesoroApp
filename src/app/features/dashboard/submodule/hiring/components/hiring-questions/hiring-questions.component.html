@@ -384,17 +384,34 @@
     </ng-template>
 
     <div class="tab-content-scrollable">
+      <!-- APOYO LABORAL T.S. S.A.S. -->
       <mat-card class="fingerprint-card">
         <mat-card-content>
-          <h3>Huella: Índice Derecho</h3>
-          <button mat-raised-button color="primary" (click)="captureFingerprintID()">
+          <h3>Huella: Índice Derecho — APOYO LABORAL T.S. S.A.S.</h3>
+          <button mat-raised-button color="primary" (click)="captureFingerprintApoyo()">
             <mat-icon>camera</mat-icon> Capturar Huella
           </button>
-          <div *ngIf="messageID" class="status-message">
-            <mat-icon>info</mat-icon> {{ messageID }}
+          <div *ngIf="messageApoyo" class="status-message">
+            <mat-icon>info</mat-icon> {{ messageApoyo }}
           </div>
-          <div *ngIf="fingerprintImageID" class="fingerprint-image-container">
-            <img [src]="fingerprintImageID" alt="Huella índice derecho">
+          <div *ngIf="fingerprintImageApoyo" class="fingerprint-image-container">
+            <img [src]="fingerprintImageApoyo" alt="Huella índice derecho — Apoyo Laboral">
+          </div>
+        </mat-card-content>
+      </mat-card>
+
+      <!-- TU ALIANZA SAS -->
+      <mat-card class="fingerprint-card" style="margin-top: 16px;">
+        <mat-card-content>
+          <h3>Huella: Índice Derecho — TU ALIANZA SAS</h3>
+          <button mat-raised-button color="accent" (click)="captureFingerprintTuAlianza()">
+            <mat-icon>camera</mat-icon> Capturar Huella
+          </button>
+          <div *ngIf="messageTuAlianza" class="status-message">
+            <mat-icon>info</mat-icon> {{ messageTuAlianza }}
+          </div>
+          <div *ngIf="fingerprintImageTuAlianza" class="fingerprint-image-container">
+            <img [src]="fingerprintImageTuAlianza" alt="Huella índice derecho — Tu Alianza">
           </div>
         </mat-card-content>
       </mat-card>
