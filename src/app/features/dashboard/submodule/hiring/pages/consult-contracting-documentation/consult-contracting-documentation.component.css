@@ -128,9 +128,44 @@
 .results-header {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 16px;
   margin-bottom: 16px;
   padding: 0 4px;
+}
+
+.results-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.btn-reconsultar {
+  border-radius: 10px !important;
+  font-weight: 600;
+  font-size: 13px;
+  letter-spacing: 0.3px;
+  border-color: var(--cc-accent) !important;
+  color: var(--cc-base) !important;
+  transition: all 0.2s ease !important;
+}
+
+.btn-reconsultar:hover:not(:disabled) {
+  background-color: var(--cc-accent) !important;
+  color: white !important;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(140, 213, 10, 0.25);
+}
+
+.btn-reconsultar:disabled {
+  opacity: 0.5;
+}
+
+.btn-reconsultar mat-icon {
+  font-size: 18px;
+  width: 18px;
+  height: 18px;
+  margin-right: 4px;
 }
 
 .results-header h3 {

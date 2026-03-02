@@ -185,4 +185,45 @@ export class UtilityServiceService {
 
 
 
+
+  /* ──────────  Refactor Utilities (Nuevas)  ────────── */
+
+  /**
+   * Normaliza un texto: sin acentos/diacríticos, sin espacios extra y mayúsculas.
+   * Útil para comparaciones o claves.
+   */
+  normalizeText(s: any): string {
+    return (s ?? '')
+      .toString()
+      .normalize('NFD')
+      .replace(/\p{Diacritic}/gu, '')
+      .replace(/[\u0300-\u036f]/g, '') // redundancia defensiva
+      .replace(/\s+/g, ' ')
+      .trim()
+      .toUpperCase();
+  }
+
+  /**
+   * Convierte valores booleanos, numéricos o strings a 'Sí' o 'No'.
+   */
+  toSiNo(v: any): boolean {
+    if (typeof v === 'boolean') return v;
+    if (typeof v === 'number') return v > 0;
+    if (typeof v === 'string') {
+      const s = this.normalizeText(v);
+      return ['SI', 'YES', 'TRUE', '1', 'S', 'X'].includes(s);
+    }
+    return false;
+  }
+
+  /**
+   * Formatea un objeto Date a string YYYY-MM-DD para el backend.
+   */
+  formatDateForBackend(d: Date | string | null | undefined): string | null {
+    if (!d) return null;
+    const date = new Date(d);
+    if (isNaN(date.getTime())) return null;
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+  }
 }

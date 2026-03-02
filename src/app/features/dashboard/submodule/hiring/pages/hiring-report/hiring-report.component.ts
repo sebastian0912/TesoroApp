@@ -94,6 +94,7 @@ export class HiringReportComponent implements OnInit, OnDestroy {
   // Processed Data
   datoscruced: string[][] = []; // Rows normalizadas del cruce
   arlRows: any[][] = []; // Rows leídas del ARL
+  private cruceHeaderRow: string[] = []; // Headers originales del cruce
 
   // Errors & Previews
   erroresValidacion = new MatTableDataSource<any>([]);
@@ -527,6 +528,7 @@ export class HiringReportComponent implements OnInit, OnDestroy {
     if (rawJson.length < 2) throw new Error('Excel vacío o sin datos');
 
     const headerRow = rawJson[0] as string[]; // Fila 0 de headers
+    this.cruceHeaderRow = headerRow; // Guardar para uso posterior (ARL report)
     const dataRows = rawJson.slice(1) as any[][];
 
     // 1. Normalizar filas
@@ -641,7 +643,7 @@ export class HiringReportComponent implements OnInit, OnDestroy {
 
   private normalizeRow(row: any[]): string[] {
     const safe = row.map(c => (c === null || c === undefined) ? '-' : String(c).trim());
-    while (safe.length < 50) safe.push('-');
+    while (safe.length < 56) safe.push('-');
 
     // Sanitize Critical Columns
     // Col 1 = Cedula, Col 11 = NIT (Indices 1 and 11)
@@ -817,7 +819,9 @@ export class HiringReportComponent implements OnInit, OnDestroy {
 
     this.showLoading('Generando Excel...', 'El worker está procesando el reporte ARL...');
 
-    const headerRow = CruceValidationHelper.getSchema([], undefined).columns.map(c => c.header);
+    const headerRow = this.cruceHeaderRow.length > 0
+      ? this.cruceHeaderRow
+      : CruceValidationHelper.getSchema([], undefined).columns.map(c => c.header);
 
     const errorsMap: Record<string, string[]> = {};
     this.erroresValidacion.data.forEach(e => {
@@ -908,7 +912,7 @@ export class HiringReportComponent implements OnInit, OnDestroy {
     if (!msg) return false;
     const lower = msg.toLowerCase();
 
-    // Palabras clave exactas para duplicados
+    // Palabras clave para duplicados
     const duplicateKeywords = [
       'ya está en uso', 'ya esta en uso', 'ya se encuentra en uso',
       'ya existe', 'ya se encuentra registrado',
@@ -916,8 +920,14 @@ export class HiringReportComponent implements OnInit, OnDestroy {
       'already exists', 'already in use'
     ];
 
-    const isDuplicateMessage = duplicateKeywords.some(kw => lower.includes(kw));
-    return isDuplicateMessage;
+    // Palabras clave para advertencias generales
+    const warningKeywords = [
+      'opcional', 'recomendado', 'sugerencia',
+      'advertencia', 'warning', 'informativo'
+    ];
+
+    return duplicateKeywords.some(kw => lower.includes(kw))
+      || warningKeywords.some(kw => lower.includes(kw));
   }
 
   private mapExternalIssues(backendErrors: any[]): PreviewIssue[] {

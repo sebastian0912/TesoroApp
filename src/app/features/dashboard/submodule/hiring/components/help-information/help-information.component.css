@@ -1,24 +1,69 @@
 /* ========== Layout base ========== */
 :host {
-  display: block;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  /* Evita que pequeños desbordes activen barras */
+  box-sizing: border-box;
 }
 
 /* Contenedor de tabs */
 .help-tabs {
-  display: block;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  /* Ocupa el espacio restante del host */
+  overflow: hidden;
+  /* Mantiene las barras dentro si fueran necesarias, pero no en el host */
+}
+
+/* Asegurar que el cuerpo de los tabs se expanda y llene el espacio */
+:host ::ng-deep .help-tabs .mat-mdc-tab-body-wrapper {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: auto;
+  /* El scroll debe ir SOLO en el cuerpo del tab si hace falta */
 }
 
 /* Formulario dentro del tab "Remisión" */
 .form-tab {
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: 16px;
+  width: auto;
+  /* Para evitar desbordes con padding */
+  flex: 1;
+  box-sizing: border-box;
+  padding: 16px;
+  /* Retorna el padding pero dentro del modelo box-sizing */
+}
+
+/* ── Selector cascada (Empresa → Finca → Cargo) ── */
+.cascade-selectors {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.cascade-field {
+  flex: 1 1 200px;
+  min-width: 160px;
+}
+
+.cascade-field-cargo {
+  flex: 2 1 320px;
 }
 
 /* Grid de campos (auto-fit columnas fluidas) */
 .grid {
   display: grid;
   gap: 16px;
-  grid-template-columns: 1fr; 
+  grid-template-columns: 1fr;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .example-full-width {
@@ -30,7 +75,8 @@
   display: flex;
   justify-content: flex-end;
   gap: 12px;
-  margin-top: 8px;
+  margin-top: auto;
+  /* Empuja los botones hacia abajo del todo */
 }
 
 /* Mat form fields siempre al 100% dentro del form */
@@ -51,7 +97,8 @@
 }
 
 :host ::ng-deep .help-tabs .mdc-tab__content {
-  gap: 8px; /* separa el icono del texto */
+  gap: 8px;
+  /* separa el icono del texto */
 }
 
 :host ::ng-deep .help-tabs .mdc-tab__text-label,
@@ -76,12 +123,17 @@
   font-weight: 600;
   min-width: 0;
 }
+
 .trigger-title {
-  max-width: 42ch;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  white-space: normal;
+  line-height: 1.3;
 }
+
+/* Fuerza el color del select deshabilitado para que sea más legible */
+::ng-deep .mat-mdc-select-disabled .mat-mdc-select-value {
+  color: rgba(0, 0, 0, 0.75) !important;
+}
+
 .trigger-meta {
   display: block;
   font-size: 12px;
@@ -103,8 +155,9 @@
   z-index: 1;
   background: var(--mat-select-panel-background, #fff);
   cursor: default !important;
-  border-bottom: 1px solid rgba(0,0,0,.06);
+  border-bottom: 1px solid rgba(0, 0, 0, .06);
 }
+
 .filter-input {
   flex: 1 1 auto;
   border: none;
@@ -120,6 +173,7 @@
   gap: 2px;
   max-width: 100%;
 }
+
 .vacante-option .row-1 {
   display: flex;
   align-items: center;
@@ -127,6 +181,7 @@
   font-weight: 600;
   min-width: 0;
 }
+
 .vacante-option .row-2 {
   display: flex;
   align-items: center;
@@ -137,12 +192,14 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
 .vacante-option .cargo {
   max-width: 40ch;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
 .vacante-option .spacer,
 .trigger-wrap .spacer {
   flex: 1 1 auto;
@@ -159,10 +216,22 @@
   background-color: #eee;
   white-space: nowrap;
 }
-.pill-req   { background-color: #e6e6e6; }
-.pill-ok    { background-color: #c8e6c9; }
-.pill-warn  { background-color: #ffecb3; }
-.pill-error { background-color: #ffcdd2; }
+
+.pill-req {
+  background-color: #e6e6e6;
+}
+
+.pill-ok {
+  background-color: #c8e6c9;
+}
+
+.pill-warn {
+  background-color: #ffecb3;
+}
+
+.pill-error {
+  background-color: #ffcdd2;
+}
 
 /* ========== Secciones y cards reutilizables ========== */
 .section {
@@ -171,14 +240,16 @@
   border-radius: 12px;
   padding: 16px;
   margin: 16px 0;
-  box-shadow: 0 1px 6px rgba(0,0,0,.06);
+  box-shadow: 0 1px 6px rgba(0, 0, 0, .06);
 }
+
 .section-head {
   display: flex;
   align-items: center;
   gap: 12px;
   margin-bottom: 12px;
 }
+
 .section-title {
   margin: 0;
   font-weight: 600;
@@ -190,18 +261,21 @@
   gap: 12px;
   padding: 10pt;
 }
+
 .card {
   padding: 12px;
   border-radius: 12px;
   background: #fff;
   box-shadow: 0 1px 6px rgba(0, 0, 0, .06);
 }
+
 .card-title {
   font-weight: 600;
   margin-bottom: 8px;
   display: flex;
   align-items: center;
 }
+
 .section-header {
   flex: 1 1 auto;
   display: flex;
@@ -209,6 +283,7 @@
   gap: 12px;
   margin: 16px 0 8px;
 }
+
 .section-header .spacer,
 .card-title .spacer {
   flex: 1 1 auto;
@@ -234,6 +309,7 @@
 
 /* ========== Responsividad ========== */
 @media (min-width: 600px) {
+
   /* Grid pasa a 2 columnas fluidas */
   .grid {
     grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
@@ -242,12 +318,24 @@
 
 
 /* ====== (Opcional) Ajustes heredados de otros layouts ====== */
-.logo { max-width: 100%; height: auto; }
-.title h1 { line-height: 1.2; }
-h3 { margin-bottom: 0; }
+.logo {
+  max-width: 100%;
+  height: auto;
+}
+
+.title h1 {
+  line-height: 1.2;
+}
+
+h3 {
+  margin-bottom: 0;
+}
 
 /* Botoneras antiguas (si las usas) */
-.botones button { width: 150px; margin: 0 10px 0 0; }
+.botones button {
+  width: 150px;
+  margin: 0 10px 0 0;
+}
 
 /* Caja de búsqueda (si existe en otras vistas) */
 .cajabusqueda {
@@ -256,7 +344,13 @@ h3 { margin-bottom: 0; }
   align-items: flex-end;
   flex-wrap: wrap;
 }
-.cajabusqueda mat-form-field { width: 100%; }
+
+.cajabusqueda mat-form-field {
+  width: 100%;
+}
+
 @media (min-width: 900px) {
-  .cajabusqueda mat-form-field { width: 48%; }
+  .cajabusqueda mat-form-field {
+    width: 48%;
+  }
 }

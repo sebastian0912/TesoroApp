@@ -1,67 +1,90 @@
-<h2 mat-dialog-title class="dialog-title">
-  <mat-icon>photo_camera</mat-icon>
-  <span>Tomar o adjuntar foto</span>
-</h2>
+<div class="camera-dialog-container">
+  <!-- Top Bar -->
+  <div class="dialog-header">
+    <div class="header-title">
+      <mat-icon>photo_camera</mat-icon>
+      <span>{{ isUploadMode ? 'Adjuntar imagen' : 'Tomar foto' }}</span>
+    </div>
+    <button mat-icon-button (click)="cancel()" class="close-btn">
+      <mat-icon>close</mat-icon>
+    </button>
+  </div>
 
-<mat-dialog-content class="dialog-content">
-  <mat-tab-group>
-    <!-- TAB: Cámara -->
-    <mat-tab label="Cámara">
-      <div class="camera-wrap">
-        <div class="video-area" *ngIf="!cameraError; else cameraErrorTpl">
-          <div class="video-frame" *ngIf="!previewUrl; else previewTpl">
-            <video #videoEl playsinline muted></video>
-            <div class="video-overlay" *ngIf="loadingCamera">
-              <mat-spinner diameter="36"></mat-spinner>
-              <span>Activando cámara…</span>
-            </div>
-          </div>
+  <!-- Main Content Area -->
+  <div class="viewport">
 
-          <ng-template #previewTpl>
-            <img class="preview" [src]="previewUrl" alt="Previsualización" />
-          </ng-template>
-
-          <canvas #canvasEl class="hidden-canvas"></canvas>
-        </div>
-
-        <ng-template #cameraErrorTpl>
-          <div class="camera-error">
-            <mat-icon>warning</mat-icon>
-            <p>{{ cameraError }}</p>
-            <p>Prueba el tab <strong>Adjuntar</strong>.</p>
-          </div>
-        </ng-template>
-
-        <div class="actions-row">
-          <button mat-stroked-button color="primary" (click)="toggleFacing()" [disabled]="!!previewUrl || !!cameraError">
-            <mat-icon>cameraswitch</mat-icon>
-            Voltear cámara
-          </button>
-
-          <span class="spacer"></span>
-
-          <button mat-raised-button color="primary" (click)="capture()" [disabled]="!!previewUrl || !!cameraError || loadingCamera">
-            <mat-icon>photo_camera</mat-icon>
-            Capturar
-          </button>
-        </div>
+    <!-- MODE: UPLOAD -->
+    <div class="upload-area" *ngIf="isUploadMode; else cameraTpl">
+      <div class="upload-placeholder" *ngIf="!previewUrl" (click)="fileInput.click()">
+        <mat-icon>cloud_upload</mat-icon>
+        <span>Toca para seleccionar archivo</span>
       </div>
-    </mat-tab>
+      <input #fileInput type="file" accept="image/*" class="hidden-input" (change)="onFileSelected($event)">
 
-    <!-- TAB: Adjuntar -->
-    <mat-tab label="Adjuntar">
-      <div class="attach-wrap">
-        <input #fileInput type="file" accept="image/*" capture="environment" (change)="onFileSelected($event)">
-        <div class="attach-preview" *ngIf="previewUrl">
-          <img [src]="previewUrl" alt="Previsualización" />
+      <img *ngIf="previewUrl" [src]="previewUrl" class="preview-image" alt="Vista previa">
+    </div>
+
+    <!-- MODE: CAMERA -->
+    <ng-template #cameraTpl>
+      <div class="camera-area">
+        <!-- Video Feed -->
+        <video #videoEl playsinline muted [class.mirror]="isMirror" [class.hidden]="!!previewUrl"></video>
+
+        <!-- Captured Image Preview (in place of video) -->
+        <img *ngIf="previewUrl" [src]="previewUrl" class="preview-image" alt="Captura">
+
+        <!-- Loading Spinner -->
+        <div class="video-loader" *ngIf="loadingCamera">
+          <mat-spinner diameter="40" mode="indeterminate"></mat-spinner>
         </div>
-      </div>
-    </mat-tab>
-  </mat-tab-group>
-</mat-dialog-content>
 
-<mat-dialog-actions align="end" class="dialog-actions">
-  <button mat-button (click)="cancel()">Cancelar</button>
-  <button mat-stroked-button color="warn" (click)="clearSelection()" [disabled]="!previewUrl">Borrar</button>
-  <button mat-raised-button color="primary" (click)="confirm()" [disabled]="!capturedFile">Usar esta imagen</button>
-</mat-dialog-actions>
+        <!-- Error Message -->
+        <div class="camera-error" *ngIf="cameraError">
+          <mat-icon>error_outline</mat-icon>
+          <p>{{ cameraError }}</p>
+          <button mat-stroked-button (click)="toggleUploadMode()">Usar adjunto</button>
+        </div>
+
+        <canvas #canvasEl class="hidden-canvas"></canvas>
+      </div>
+    </ng-template>
+
+    <!-- Bottom Control Bar (Overlay) -->
+    <div class="controls-overlay">
+
+      <!-- STATE: PREVIEW (Captured or Uploaded) -->
+      <div class="controls-row" *ngIf="previewUrl">
+        <button mat-flat-button color="warn" (click)="clearSelection()">
+          <mat-icon>refresh</mat-icon> {{ isUploadMode ? 'Otra' : 'Repetir' }}
+        </button>
+        <button mat-flat-button color="primary" (click)="confirm()">
+          <mat-icon>check</mat-icon> Confirmar
+        </button>
+      </div>
+
+      <!-- STATE: CAMERA ACTIVE (No preview) -->
+      <div class="controls-row camera-controls" *ngIf="!previewUrl && !isUploadMode">
+        <!-- Left: Upload Toggle -->
+        <button mat-icon-button class="secondary-btn" (click)="toggleUploadMode()" matTooltip="Adjuntar archivo">
+          <mat-icon>perm_media</mat-icon>
+        </button>
+
+        <!-- Center: Shutter -->
+        <button class="shutter-btn" (click)="capture()" [disabled]="loadingCamera || !!cameraError"></button>
+
+        <!-- Right: Facing/Mirror -->
+        <button mat-icon-button class="secondary-btn" (click)="toggleFacing()" matTooltip="Cambiar cámara">
+          <mat-icon>cameraswitch</mat-icon>
+        </button>
+      </div>
+
+      <!-- STATE: UPLOAD ACTIVE (No preview) -->
+      <div class="controls-row" *ngIf="!previewUrl && isUploadMode">
+        <button mat-stroked-button (click)="toggleUploadMode()">
+          <mat-icon>camera_alt</mat-icon> Usar Cámara
+        </button>
+      </div>
+
+    </div>
+  </div>
+</div>

@@ -1,5 +1,5 @@
 import { Component, OnDestroy, OnInit } from '@angular/core';
-import { firstValueFrom, map, Subject, take } from 'rxjs';
+import { firstValueFrom, Subject, take } from 'rxjs';
 import Swal from 'sweetalert2';
 import { MatTableDataSource, MatTableModule } from '@angular/material/table';
 import { MatButtonModule } from '@angular/material/button';
@@ -8,25 +8,14 @@ import { VetadosService } from '../../service/vetados/vetados.service';
 import { UtilityServiceService } from '@/app/shared/services/utilityService/utility-service.service';
 
 import { EventEmitter, Output } from '@angular/core';
-import { StandardFilterTable } from '@/app/shared/components/standard-filter-table/standard-filter-table';
 import { SharedModule } from '@/app/shared/shared.module';
 import { RegistroProcesoContratacion } from '../../service/registro-proceso-contratacion/registro-proceso-contratacion';
-import { ColumnDefinition } from '@/app/shared/models/advanced-table-interface';
-
-/* ========== Fila que muestra StandardFilterTable ========== */
-type RegistroUI = {
-  turno: number | null;
-  cedula: string;
-  nombre_completo: string;
-  created_at: string | Date;
-  raw: any; // objeto completo para el botón OK
-};
 
 @Component({
   selector: 'app-search-for-candidate',
+  standalone: true,
   imports: [
     SharedModule,
-    StandardFilterTable,
     MatTableModule,
     MatButtonModule
   ],
@@ -38,18 +27,6 @@ export class SearchForCandidateComponent implements OnInit, OnDestroy {
     'Sí': { color: '#065f46', background: '#d1fae5' },
     'No': { color: '#991b1b', background: '#fee2e2' },
   };
-
-  // Columnas del StandardFilterTable (agrego 'turno')
-  columns: ColumnDefinition[] = [
-    { name: 'actions', header: 'Acción', type: 'custom', filterable: false, width: '80px', stickyStart: true },
-    { name: 'turno', header: 'Turno', type: 'text', width: '90px' },
-    { name: 'cedula', header: 'Número de Cédula', type: 'text', width: '180px' },
-    { name: 'nombre_completo', header: 'Nombre Completo', type: 'text' },
-    { name: 'created_at', header: 'Fecha de Registro', type: 'date', width: '200px' },
-  ];
-
-  // AHORA sí: esto es lo que lee tu <app-standard-filter-table [data]="registros">
-  registros: RegistroUI[] = [];
 
   /* ──────────  Outputs  ────────── */
   @Output() codigoContratoChange = new EventEmitter<string>();
@@ -66,9 +43,6 @@ export class SearchForCandidateComponent implements OnInit, OnDestroy {
   procesoValido = false;
   datosSeleccion: any = null;
   sede = '';
-
-  /* Material table secundaria (no usada por tu HTML actual, la dejo por si la necesitas) */
-  simpleDisplayedColumns = ['turno', 'cedula', 'nombre_completo', 'created_at', 'ok'];
 
   /* Tabla vetados (se mantiene) */
   displayedColumns: string[] = [
@@ -90,7 +64,6 @@ export class SearchForCandidateComponent implements OnInit, OnDestroy {
   /* ──────────  Ciclo de vida  ────────── */
   async ngOnInit(): Promise<void> {
     await this.initUsuarioYAbreviacion();
-    this.loadCandidatos();
   }
 
   ngOnDestroy(): void {
@@ -105,74 +78,6 @@ export class SearchForCandidateComponent implements OnInit, OnDestroy {
     } catch {
       this.sede = '';
     }
-  }
-
-  /* ──────────  Cargar candidatos en 'registros'  ────────── */
-  private loadCandidatos(): void {
-    const normalize = (s: string) =>
-      (s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
-
-    const sedeFilter = (c: any): boolean => {
-      if (!this.sede) return true;
-      const entrevistas: any[] = Array.isArray(c.entrevistas) ? c.entrevistas : [];
-      const ordered = entrevistas.slice().sort(
-        (a, b) => new Date(b?.created_at ?? 0).getTime() - new Date(a?.created_at ?? 0).getTime()
-      );
-      const oficina = ordered.find(e => !!e?.oficina)?.oficina ?? '';
-      return normalize(oficina) === normalize(this.sede);
-    };
-
-    const getTurno = (c: any): number | null => {
-      const entrevistas: any[] = Array.isArray(c.entrevistas) ? c.entrevistas : [];
-      const entrevistasOrdenadas = entrevistas.slice().sort(
-        (a, b) => new Date(b?.created_at ?? 0).getTime() - new Date(a?.created_at ?? 0).getTime()
-      );
-      const abierta = entrevistasOrdenadas.find(e =>
-        e?.proceso && e.proceso.rechazado === false && e.proceso.contratado === false && e.proceso.turno != null
-      );
-      if (abierta?.proceso?.turno != null) return abierta.proceso.turno;
-      const cualquiera = entrevistasOrdenadas.find(e => e?.proceso?.turno != null);
-      return cualquiera?.proceso?.turno ?? null;
-    };
-
-    const fullName = (c: any): string =>
-      [c.primer_nombre, c.segundo_nombre, c.primer_apellido, c.segundo_apellido]
-        .filter(Boolean)
-        .join(' ')
-        .replace(/\s+/g, ' ')
-        .trim();
-
-    this.registroProcesoContratacion
-      .listCandidatosFull({ ordering: '-created_at' })
-      .pipe(take(1))
-      .subscribe({
-        next: (candidatos: any[] = []) => {
-          const rows: RegistroUI[] = candidatos
-            .filter(sedeFilter)
-            .map((c) => ({
-              turno: getTurno(c),
-              cedula: String(c.numero_documento ?? '').trim(),
-              nombre_completo: fullName(c),
-              created_at: c.created_at ?? '',
-              raw: c,
-            }))
-            .sort(
-              (a, b) =>
-                new Date(b.created_at ?? 0).getTime() -
-                new Date(a.created_at ?? 0).getTime()
-            );
-
-          // AQUÍ llenamos lo que usa tu StandardFilterTable
-          this.registros = rows;
-
-        },
-        error: () => Swal.fire('Error', 'No se pudieron cargar los candidatos.', 'error'),
-      });
-  }
-
-  /* Botón OK (solo console.log del objeto completo) */
-  onOk(row: RegistroUI): void {
-    this.candidatoSeleccionado.emit(row.raw);
   }
 
   buscarCandidato(): void {

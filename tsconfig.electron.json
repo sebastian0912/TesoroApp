@@ -1,0 +1,22 @@
+/* Extends the base app tsconfig but excludes SSR entry points (not used by Electron). */
+{
+    "extends": "./tsconfig.json",
+    "compilerOptions": {
+        "outDir": "./out-tsc/app",
+        "types": [
+            "node"
+        ]
+    },
+    "files": [
+        "src/main.ts"
+    ],
+    "include": [
+        "src/**/*.d.ts"
+    ],
+    "exclude": [
+        "src/main.server.ts",
+        "src/server.ts",
+        "src/app/app.config.server.ts",
+        "src/app/app.routes.server.ts"
+    ]
+}

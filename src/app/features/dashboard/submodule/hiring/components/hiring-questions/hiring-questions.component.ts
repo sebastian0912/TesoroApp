@@ -1,8 +1,8 @@
 import { Component, OnInit, input, effect, inject, DestroyRef } from '@angular/core';
 import { AbstractControl, FormBuilder, FormGroup, ValidationErrors, ValidatorFn, Validators } from '@angular/forms';
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
-import { firstValueFrom, forkJoin, of, throwError } from 'rxjs';
-import { catchError } from 'rxjs/operators';
+import { firstValueFrom, forkJoin, of, throwError, Observable } from 'rxjs';
+import { catchError, startWith, map } from 'rxjs/operators';
 import { SharedModule } from '@/app/shared/shared.module';
 import { MatTabsModule } from '@angular/material/tabs';
 import Swal from 'sweetalert2';
@@ -13,6 +13,7 @@ import {
   RegistroProcesoContratacion,
 } from '../../service/registro-proceso-contratacion/registro-proceso-contratacion';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { TarjetasService } from '../../service/tarjetas.service';
 
 type LocalFile = { file: File | string; fileName: string };
 type ServerDocInfo = {
@@ -58,13 +59,43 @@ export class HiringQuestionsComponent implements OnInit {
     laboral1: 86, laboral2: 86,
   };
 
+  // Lista de tarjetas disponibles (objetos completos)
+  tarjetasDisponibles: any[] = [];
+  filteredTarjetas!: Observable<any[]>;
+
   // PDFs por empresa
   private readonly DOCS: Record<string, string> = {
     'APOYO LABORAL TS SAS': 'APOYOLABORALCARTAAUTORIZACIONTRASLADO2024.pdf',
     'TU ALIANZA SAS': 'TUALIANZACARTAAUTORIZACIONTRASLADO_2024.pdf',
   };
 
-  // Huellas (solo UI)
+  // ── Consentimiento Biométrico — Huella (Ley 1581 de 2012) ──
+  private static readonly EMPRESAS_HUELLA: Record<string, { nombre: string }> = {
+    'apoyo-laboral': { nombre: 'APOYO LABORAL T.S. S.A.S.' },
+    'tu-alianza': { nombre: 'TU ALIANZA SAS' },
+  };
+  private readonly VERSION_CONSENTIMIENTO_HUELLA = 'v1.0-2026';
+
+  private buildTextoConsentimientoHuella(empresa: string): string {
+    return (
+      'En cumplimiento de la Ley Estatutaria 1581 de 2012 "Por la cual se dictan disposiciones generales ' +
+      'para la protección de datos personales" y su Decreto Reglamentario 1377 de 2013, autorizo de manera ' +
+      `libre, expresa, previa e informada a ${empresa} para que realice la recolección, ` +
+      'almacenamiento, uso, circulación, supresión y en general, el tratamiento de mis datos biométricos ' +
+      '(huella dactilar) que voluntariamente suministro en este proceso, con la finalidad de validar mi ' +
+      'identidad, formalizar mi vinculación laboral y generar soporte probatorio contractual. ' +
+      'Declaro que he sido informado(a) de mis derechos como titular de datos personales, incluyendo el ' +
+      'derecho a conocer, actualizar, rectificar y solicitar la supresión de mis datos, así como a revocar ' +
+      'la autorización otorgada, mediante comunicación dirigida al responsable del tratamiento.'
+    );
+  }
+
+  // Huellas (per-company UI state)
+  messageApoyo = '';
+  messageTuAlianza = '';
+  fingerprintImageApoyo: string | null = null;
+  fingerprintImageTuAlianza: string | null = null;
+  // Legacy (kept for PD if needed)
   messageID = '';
   messagePD = '';
   fingerprintImageID: string | null = null;
@@ -76,6 +107,7 @@ export class HiringQuestionsComponent implements OnInit {
   private readonly docSvc = inject(GestionDocumentalService);
   private readonly vacantesService = inject(VacantesService);
   private readonly procesosService = inject(RegistroProcesoContratacion);
+  private readonly tarjetasService = inject(TarjetasService);
   private readonly destroyRef = inject(DestroyRef);
 
   constructor() {
@@ -91,13 +123,43 @@ export class HiringQuestionsComponent implements OnInit {
   ngOnInit(): void {
     this.initForms();
     this.setupFormaPagoValidation(); // ← aplica validación dinámica CO
+    this.loadTarjetas();
+    // Consentimiento: autocompletar UserAgent
+    this.huellaForm.patchValue({ userAgent: navigator.userAgent });
+
+    this.filteredTarjetas = this.pagoTransporteForm.get('numeroIdentificacion')!.valueChanges.pipe(
+      startWith(''),
+      map(value => this._filterTarjetas(value || '')),
+    );
+  }
+
+  private loadTarjetas() {
+    this.tarjetasService.list().pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+      next: (res: any) => {
+        const items = Array.isArray(res) ? res : (res.results || []);
+        this.tarjetasDisponibles = items;
+      },
+      error: (err) => console.error('Error cargando tarjetas', err)
+    });
+  }
+
+  private _filterTarjetas(value: string | any): any[] {
+    // Después de seleccionar, el autocomplete puede pasar el objeto completo
+    const raw = typeof value === 'string' ? value : (value?.identification_number || '');
+    const filterValue = raw.toLowerCase();
+    return this.tarjetasDisponibles.filter(t =>
+      (t.identification_number || '').toLowerCase().includes(filterValue) ||
+      (t.card_number || '').includes(filterValue)
+    );
   }
 
   private initForms(): void {
     this.pagoTransporteForm = this.fb.group(
       {
         formaPago: ['', Validators.required],
+        otraFormaPago: [''],
         numeroPagos: ['', []],
+        numeroIdentificacion: ['', []], // Restored field
         contraseniaAsignada: ['', []],
         seguroFunerario: [false, Validators.required],
         Ccostos: ['', Validators.required],
@@ -130,7 +192,14 @@ export class HiringQuestionsComponent implements OnInit {
       traslado: [''],
     });
 
-    this.huellaForm = this.fb.group({});
+    this.huellaForm = this.fb.group({
+      consentimientoHuella: [false],
+      versionConsentimiento: [this.VERSION_CONSENTIMIENTO_HUELLA],
+      timestampConsentimiento: [''],
+      consentimientoHash: [''],
+      imageHash: [''],
+      userAgent: [''],
+    });
   }
 
   // === Validador de coincidencia ===
@@ -138,39 +207,141 @@ export class HiringQuestionsComponent implements OnInit {
   // numbersMatch(...) { ... }
 
   // === Reglas dinámicas según forma de pago (CO) ===
+  // === Reglas dinámicas según forma de pago (CO) ===
   private setupFormaPagoValidation() {
     const formaCtrl = this.pagoTransporteForm.get('formaPago')!;
     const numCtrl = this.pagoTransporteForm.get('numeroPagos')!;
-    // const valCtrl = this.pagoTransporteForm.get('validacionNumeroCuenta')!;
+    const idCtrl = this.pagoTransporteForm.get('numeroIdentificacion');
+    const passCtrl = this.pagoTransporteForm.get('contraseniaAsignada');
 
-    // Daviplata: solo obligatorio (validación básica si quieres)
+    // Daviplata: solo obligatorio
     const phoneCO = /^3\d{9}$/;
     // Otros: Tarjeta -> 16 o 18 dígitos
-    // Otros: Tarjeta -> 16 o 18 dígitos
     const cardPattern = /^\d{16,18}$/;
-    const passCtrl = this.pagoTransporteForm.get('contraseniaAsignada');
 
     const apply = () => {
       const forma = formaCtrl.value;
       numCtrl.clearValidators();
+      if (idCtrl) idCtrl.clearValidators();
       if (passCtrl) passCtrl.clearValidators();
 
       if (forma === 'Daviplata') {
-        // Daviplata => "Número de cuenta" (título en HTML), obligatorio. 
-        // Si quieres pattern de celular, úsalo:
-        numCtrl.setValidators([Validators.required]); // Ó [Validators.required, Validators.pattern(phoneCO)]
+        // Daviplata => "Número de cuenta"
+        numCtrl.setValidators([Validators.required]); // O pattern phoneCO
       } else if (forma) {
-        // Otros => "Número de tarjeta", obligatorio, 16-18 dígitos
+        // Otros => Tarjeta
         numCtrl.setValidators([Validators.required, Validators.pattern(cardPattern)]);
+        // ID de la tarjeta (si aplica)
+        if (idCtrl) idCtrl.setValidators([Validators.required]);
+        // Contraseña
         if (passCtrl) passCtrl.setValidators([Validators.required]);
       }
 
       numCtrl.updateValueAndValidity({ emitEvent: false });
+      if (idCtrl) idCtrl.updateValueAndValidity({ emitEvent: false });
       if (passCtrl) passCtrl.updateValueAndValidity({ emitEvent: false });
     };
 
     apply();
     formaCtrl.valueChanges.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(apply);
+
+    // Validación extra: verificar si la tarjeta existe
+    // Escuchar cambios en numeroPagos + numeroIdentificacion
+    if (idCtrl) {
+      numCtrl.valueChanges.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+        next: () => this.verificarTarjeta(),
+        error: (err) => console.error('💥 numCtrl.valueChanges subscription crashed:', err),
+      });
+      idCtrl.valueChanges.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+        next: () => this.verificarTarjeta(),
+        error: (err) => console.error('💥 idCtrl.valueChanges subscription crashed:', err),
+      });
+    }
+  }
+
+  // Verificar existencia de tarjeta (local, sin API call)
+  verificarTarjeta() {
+    try {
+      const forma = this.pagoTransporteForm.get('formaPago')?.value;
+      console.log('[verificarTarjeta] forma:', forma);
+      if (forma === 'Daviplata' || !forma) return;
+
+      const numCtrl = this.pagoTransporteForm.get('numeroPagos')!;
+      const numRaw = numCtrl.value;
+      const num = (typeof numRaw === 'string' ? numRaw : '').trim();
+
+      const idRaw = this.pagoTransporteForm.get('numeroIdentificacion')?.value;
+      const id = (typeof idRaw === 'string' ? idRaw : (idRaw?.identification_number || '')).trim();
+
+      console.log('[verificarTarjeta] num:', num, '| id:', id, '| tarjetasDisponibles:', this.tarjetasDisponibles.length);
+      console.log('[verificarTarjeta] errores ANTES:', JSON.stringify(numCtrl.errors));
+
+      // Si faltan datos o no cumplen longitud mínima, limpiamos los errores custom y salimos
+      if (!num || num.length < 16 || !id) {
+        this._clearCustomError(numCtrl, 'tarjetaInexistente');
+        this._clearCustomError(numCtrl, 'noCoincide');
+        console.log('[verificarTarjeta] datos incompletos, errores DESPUÉS:', JSON.stringify(numCtrl.errors));
+        return;
+      }
+
+      // Buscar tarjetas que coincidan con la identificación
+      const tarjetasDelId = this.tarjetasDisponibles.filter(
+        t => (t.identification_number || '').trim() === id
+      );
+
+      console.log('[verificarTarjeta] tarjetasDelId:', tarjetasDelId.length);
+
+      if (tarjetasDelId.length === 0) {
+        this._setCustomError(numCtrl, 'tarjetaInexistente');
+        this._clearCustomError(numCtrl, 'noCoincide');
+        console.log('[verificarTarjeta] tarjetaInexistente SET, errores:', JSON.stringify(numCtrl.errors));
+        return;
+      }
+
+      const coincide = tarjetasDelId.some(
+        t => (t.card_number || '').trim() === num
+      );
+
+      if (!coincide) {
+        this._clearCustomError(numCtrl, 'tarjetaInexistente');
+        this._setCustomError(numCtrl, 'noCoincide');
+        console.log('[verificarTarjeta] noCoincide SET, errores:', JSON.stringify(numCtrl.errors));
+      } else {
+        this._clearCustomError(numCtrl, 'tarjetaInexistente');
+        this._clearCustomError(numCtrl, 'noCoincide');
+        console.log('[verificarTarjeta] TODO OK, errores:', JSON.stringify(numCtrl.errors));
+      }
+    } catch (err) {
+      console.error('💥 verificarTarjeta crashed:', err);
+    }
+  }
+
+  /** Cuando el usuario selecciona una tarjeta del autocomplete, verifica que numeroPagos coincida */
+  onTarjetaSelected(tarjeta: any): void {
+    // Guardamos solo el identification_number como valor del control
+    if (tarjeta?.identification_number) {
+      this.pagoTransporteForm.get('numeroIdentificacion')?.setValue(tarjeta.identification_number, { emitEvent: false });
+    }
+    // Disparamos la verificación cruzada con lo que el usuario ya escribió en numeroPagos
+    this.verificarTarjeta();
+  }
+
+  /** displayWith del autocomplete: muestra el identification_number en el input */
+  displayTarjeta(value: any): string {
+    if (!value) return '';
+    return typeof value === 'string' ? value : (value.identification_number || '');
+  }
+
+  // Helpers para manejar errores custom sin borrar los validators nativos (required, pattern)
+  private _setCustomError(ctrl: AbstractControl, errorKey: string): void {
+    const existing = ctrl.errors || {};
+    ctrl.setErrors({ ...existing, [errorKey]: true });
+  }
+
+  private _clearCustomError(ctrl: AbstractControl, errorKey: string): void {
+    if (!ctrl.errors || !ctrl.errors[errorKey]) return;
+    const { [errorKey]: _, ...rest } = ctrl.errors;
+    ctrl.setErrors(Object.keys(rest).length ? rest : null);
   }
 
   // (Opcional) Limpia caracteres no numéricos al teclear/pegar
@@ -206,7 +377,7 @@ export class HiringQuestionsComponent implements OnInit {
     const codigoContrato: string | null =
       (proc?.contrato_codigo as string) || (contr?.codigo_contrato as string) || null;
 
-    const v = this.pagoTransporteForm.value;
+    const v = this.pagoTransporteForm.getRawValue(); // getRawValue incluye disabled fields (salario, auxilioTransporte)
     const toNum = (x: any) => (x === '' || x == null ? null : Number(x));
 
     const payload: ProcesoUpdateByDocumentRequest & {
@@ -214,6 +385,7 @@ export class HiringQuestionsComponent implements OnInit {
       contrato_detalle: {
         forma_de_pago?: string | null;
         numero_para_pagos?: string | null;
+        numero_identificacion?: string | null;
         contrasenia_asignada?: string | null;
         seguro_funerario?: boolean | null;
         Ccentro_de_costos?: string | null;
@@ -232,6 +404,7 @@ export class HiringQuestionsComponent implements OnInit {
       contrato_detalle: {
         forma_de_pago: v.formaPago ?? null,
         numero_para_pagos: v.numeroPagos ?? null,
+        numero_identificacion: v.numeroIdentificacion ?? null,
         contrasenia_asignada: v.contraseniaAsignada ?? null,
         seguro_funerario: !!v.seguroFunerario,
         Ccentro_de_costos: v.Ccostos ?? null,
@@ -426,12 +599,101 @@ export class HiringQuestionsComponent implements OnInit {
   }
 
   // ───────── Huellas (Electron) ─────────
-  async captureFingerprintID(): Promise<void> { await this.captureFingerprint('ID'); }
+  async captureFingerprintApoyo(): Promise<void> { await this.captureFingerprint('ID', 'apoyo-laboral'); }
+  async captureFingerprintTuAlianza(): Promise<void> { await this.captureFingerprint('ID', 'tu-alianza'); }
   async captureFingerprintPD(): Promise<void> { await this.captureFingerprint('PD'); }
 
-  private async captureFingerprint(kind: 'ID' | 'PD'): Promise<void> {
-    const setMsg = (t: string) => (kind === 'ID' ? (this.messageID = t) : (this.messagePD = t));
-    const setImg = (d: string | null) => (kind === 'ID' ? (this.fingerprintImageID = d) : (this.fingerprintImagePD = d));
+  // ── SHA-256 genérico ──
+  private async generateHash(data: string): Promise<string> {
+    const encoded = new TextEncoder().encode(data);
+    const buffer = await crypto.subtle.digest('SHA-256', encoded);
+    return Array.from(new Uint8Array(buffer))
+      .map(b => b.toString(16).padStart(2, '0'))
+      .join('');
+  }
+
+  private async generateFileHash(file: File): Promise<string> {
+    const buffer = await file.arrayBuffer();
+    const hashBuffer = await crypto.subtle.digest('SHA-256', buffer);
+    return Array.from(new Uint8Array(hashBuffer))
+      .map(b => b.toString(16).padStart(2, '0'))
+      .join('');
+  }
+
+  // ── Dialog de consentimiento biométrico (huella) ──
+  private async mostrarConsentimientoHuella(empresaSlug: string): Promise<boolean> {
+    const cfg = HiringQuestionsComponent.EMPRESAS_HUELLA[empresaSlug]
+      ?? HiringQuestionsComponent.EMPRESAS_HUELLA['apoyo-laboral'];
+    const texto = this.buildTextoConsentimientoHuella(cfg.nombre);
+
+    const { isConfirmed } = await Swal.fire({
+      title: '',
+      html: `
+        <div class="consent-dialog-content">
+          <div class="consent-dialog-header">
+            <div class="consent-dialog-icon">
+              <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="#2e7d32" stroke-width="2">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+              </svg>
+            </div>
+            <h2 class="consent-dialog-title">Autorización de Tratamiento de Datos Biométricos — Huella Dactilar</h2>
+            <span class="consent-dialog-badge">Ley 1581 de 2012</span>
+            <span class="consent-dialog-badge" style="background:#e8f5e9;color:#2e7d32">${cfg.nombre}</span>
+          </div>
+          <div class="consent-dialog-text">${texto}</div>
+          <label class="consent-dialog-check" id="consent-label">
+            <input type="checkbox" id="swal-consent-cb" />
+            <span></span>
+            <span>He leído y <strong>autorizo</strong> la captura, almacenamiento y tratamiento de mi huella dactilar conforme a lo anterior.</span>
+          </label>
+          <p class="consent-dialog-version">Versión: ${this.VERSION_CONSENTIMIENTO_HUELLA}</p>
+        </div>
+      `,
+      width: '540px',
+      showCancelButton: true,
+      confirmButtonText: '🔒 Autorizar y Capturar',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#2e7d32',
+      customClass: { popup: 'consent-popup' },
+      didOpen: () => {
+        const btn = Swal.getConfirmButton();
+        if (btn) btn.disabled = true;
+        const cb = document.getElementById('swal-consent-cb') as HTMLInputElement;
+        cb?.addEventListener('change', () => {
+          if (btn) btn.disabled = !cb.checked;
+        });
+      },
+      preConfirm: () => {
+        const cb = document.getElementById('swal-consent-cb') as HTMLInputElement;
+        if (!cb?.checked) {
+          Swal.showValidationMessage('Debes marcar la casilla para continuar.');
+          return false;
+        }
+        return true;
+      },
+    });
+    return isConfirmed;
+  }
+
+  private async captureFingerprint(kind: 'ID' | 'PD', empresaSlug?: string): Promise<void> {
+    // Per-company UI state helpers
+    const setMsg = (t: string) => {
+      if (empresaSlug === 'apoyo-laboral') this.messageApoyo = t;
+      else if (empresaSlug === 'tu-alianza') this.messageTuAlianza = t;
+      if (kind === 'ID') this.messageID = t; else this.messagePD = t;
+    };
+    const setImg = (d: string | null) => {
+      if (empresaSlug === 'apoyo-laboral') this.fingerprintImageApoyo = d;
+      else if (empresaSlug === 'tu-alianza') this.fingerprintImageTuAlianza = d;
+      if (kind === 'ID') this.fingerprintImageID = d; else this.fingerprintImagePD = d;
+    };
+
+    // ── Consentimiento obligatorio para Índice Derecho ──
+    if (kind === 'ID' && empresaSlug) {
+      const aceptado = await this.mostrarConsentimientoHuella(empresaSlug);
+      if (!aceptado) return;
+      this.huellaForm.patchValue({ consentimientoHuella: true });
+    }
 
     type FingerprintGetResult = { success: boolean; data?: string; error?: string };
     const electron = (window as any)?.electron as { fingerprint?: { get: () => Promise<FingerprintGetResult> } };
@@ -454,30 +716,55 @@ export class HiringQuestionsComponent implements OnInit {
       setMsg('Huella capturada exitosamente.');
 
       // Subir automáticamente solo la Índice Derecho
-      if (kind === 'ID') {
+      if (kind === 'ID' && empresaSlug) {
         const cedula = this.candidatoSeleccionado()?.numero_documento;
         if (!cedula) {
           this.alert('warning', 'Cédula requerida', 'No hay cédula para asociar la huella.');
           return;
         }
 
+        const cfg = HiringQuestionsComponent.EMPRESAS_HUELLA[empresaSlug]
+          ?? HiringQuestionsComponent.EMPRESAS_HUELLA['apoyo-laboral'];
+        const textoConsentimiento = this.buildTextoConsentimientoHuella(cfg.nombre);
+
         // DataURL → File
         const filename = this.buildHuellaFilename('ID');
         const file = this.dataUrlToFile(dataUrl, filename);
 
+        // ── Generar hashes ──
+        const timestampISO = new Date().toISOString();
+        const consentimientoHash = await this.generateHash(
+          String(cedula) + textoConsentimiento + timestampISO
+        );
+        const imageHash = await this.generateFileHash(file);
+
+        this.huellaForm.patchValue({
+          consentimientoHash,
+          timestampConsentimiento: timestampISO,
+          imageHash,
+        });
+
         Swal.fire({
           icon: 'info',
           title: 'Subiendo huella…',
-          text: 'Guardando Índice Derecho en el servidor.',
+          text: `Guardando Índice Derecho (${cfg.nombre}) en el servidor.`,
           allowOutsideClick: false,
           didOpen: () => Swal.showLoading(),
         });
 
         try {
-          await firstValueFrom(this.procesosService.uploadHuella(cedula, file));
+          await firstValueFrom(
+            this.procesosService.uploadHuella(cedula, file, {
+              consentimiento_hash: consentimientoHash,
+              consentimiento_version: this.VERSION_CONSENTIMIENTO_HUELLA,
+              consentimiento_timestamp: timestampISO,
+              user_agent: this.huellaForm.value.userAgent,
+              image_hash: imageHash,
+            })
+          );
           Swal.close();
           setMsg('Huella capturada y guardada.');
-          this.alert('success', '¡Listo!', 'La huella (Índice Derecho) se guardó correctamente.');
+          this.alert('success', '¡Listo!', `La huella (Índice Derecho — ${cfg.nombre}) se guardó correctamente.`);
         } catch (e) {
           Swal.close();
           setMsg('Huella capturada, pero no se pudo guardar.');
@@ -583,7 +870,7 @@ export class HiringQuestionsComponent implements OnInit {
     const CONTR_KEYS: Array<keyof typeof contr> = [
       'forma_de_pago', 'numero_para_pagos', 'Ccentro_de_costos', 'porcentaje_arl', 'cesantias',
       'subcentro_de_costos', 'grupo', 'categoria', 'operacion', 'horas_extras', 'seguro_funerario',
-      'desea_trasladarse', 'seleccion_eps', 'contrasenia_asignada',
+      'desea_trasladarse', 'seleccion_eps', 'contrasenia_asignada', 'numero_identificacion'
     ];
     const contratoVacio = !contr || CONTR_KEYS.every(k => isEmptyValue((contr as any)?.[k]));
     const toNum = (v: any) => (v === '' || v == null ? null : Number(v));
@@ -592,6 +879,7 @@ export class HiringQuestionsComponent implements OnInit {
     this.pagoTransporteForm.patchValue({
       formaPago: contr?.forma_de_pago ?? '',
       numeroPagos: contr?.numero_para_pagos ?? null,
+      numeroIdentificacion: (contr as any)?.numero_identificacion ?? null,
       contraseniaAsignada: contr?.contrasenia_asignada ?? null,
       // validacionNumeroCuenta: contr?.numero_para_pagos ?? null, // eliminado
       seguroFunerario: contr?.seguro_funerario ?? false,
@@ -681,7 +969,7 @@ export class HiringQuestionsComponent implements OnInit {
             uploaded_at: doc.uploaded_at, size: head.size, etag: head.etag, lastModified: head.lastModified,
           };
           this.uploadedFiles[key] = { file: doc.file_url, fileName: doc.title || 'Documento' };
-          if (baseKey === 'personal' || baseKey === 'familiar') {
+          if (baseKey === 'personal' || baseKey === 'familiar' || baseKey === 'laboral') {
             this.referenciasForm.patchValue({ [key]: doc.title || 'Documento' });
           }
           i++;

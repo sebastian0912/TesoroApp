@@ -123,6 +123,7 @@ html:focus-within {
     scroll-behavior: auto;
   }
 
+
   * {
     animation: none !important;
     transition: none !important;
@@ -284,6 +285,7 @@ mat-step {
 .table-container tr:nth-child(even) {
   background: var(--table-row-even);
 }
+
 
 .table-container tr:nth-child(odd) {
   background: var(--table-row-odd);
@@ -547,6 +549,7 @@ mat-card-content p {
   border-radius: 12px;
 }
 
+
 .mat-mdc-dialog-panel.sf-filters-dialog-panel .sf-filters-dialog__close:hover {
   background: rgba(15, 23, 42, 0.06);
 }
@@ -560,6 +563,7 @@ mat-card-content p {
 }
 
 /* FIX: date-range-picker no ocupa espacio */
+.mat-mdc-dialog-panel.sf-filters-dialog-panel .sf-filters-dialog__item mat-date-range-picker {
 .mat-mdc-dialog-panel.sf-filters-dialog-panel .sf-filters-dialog__item mat-date-range-picker {
   display: none !important;
   height: 0 !important;
@@ -581,11 +585,13 @@ mat-card-content p {
   }
 }
 
+
 @media (max-width: 900px) {
   .mat-mdc-dialog-panel.sf-filters-dialog-panel .sf-filters-dialog__grid {
     grid-template-columns: repeat(2, minmax(180px, 1fr));
   }
 }
+
 
 @media (max-width: 640px) {
   .mat-mdc-dialog-panel.sf-filters-dialog-panel .sf-filters-dialog__grid {

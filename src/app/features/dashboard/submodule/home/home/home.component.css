@@ -1,0 +1,214 @@
+/* ── Home Page Layout ── */
+:host {
+    display: block;
+    padding: 24px 28px 40px;
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+/* ── Welcome Header ── */
+.home-header {
+    margin-bottom: 32px;
+}
+
+.home-greeting {
+    font-size: 26px;
+    font-weight: 700;
+    color: #1a1a2e;
+    margin: 0 0 4px;
+    line-height: 1.3;
+}
+
+.home-date {
+    font-size: 14px;
+    color: #64748b;
+    margin: 0;
+    font-weight: 400;
+}
+
+/* ── Category Buttons Grid ── */
+.category-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 14px;
+}
+
+.category-btn {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 20px 22px;
+    border: 1px solid rgba(0, 0, 0, 0.06);
+    border-radius: 16px;
+    background: #ffffff;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
+    cursor: pointer;
+    transition: all 0.22s ease;
+    outline: none;
+    font-family: inherit;
+    text-align: left;
+    min-height: 72px;
+}
+
+.category-btn:hover {
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.1), 0 2px 6px rgba(0, 0, 0, 0.06);
+    transform: translateY(-2px);
+    border-color: rgba(25, 118, 210, 0.3);
+}
+
+.category-btn:focus-visible {
+    box-shadow: 0 0 0 3px rgba(25, 118, 210, 0.3);
+    border-color: #1976d2;
+}
+
+.category-btn:active {
+    transform: translateY(0);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+
+.category-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 48px;
+    height: 48px;
+    min-width: 48px;
+    border-radius: 14px;
+    background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
+    color: #1565c0;
+    font-size: 26px;
+}
+
+.category-label {
+    flex: 1;
+    font-size: 16px;
+    font-weight: 600;
+    color: #1a1a2e;
+}
+
+.category-arrow {
+    color: #94a3b8;
+    font-size: 22px;
+    transition: transform 0.2s ease;
+}
+
+.category-btn:hover .category-arrow {
+    transform: translateX(3px);
+    color: #1976d2;
+}
+
+/* ── Panel Backdrop ── */
+.panel-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.35);
+    backdrop-filter: blur(2px);
+    z-index: 999;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
+}
+
+.panel-backdrop.open {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+/* ── Slide Panel ── */
+.slide-panel {
+    position: fixed;
+    top: 0;
+    right: 0;
+    width: 380px;
+    max-width: 90vw;
+    height: 100vh;
+    background: #fafbfc;
+    box-shadow: -4px 0 24px rgba(0, 0, 0, 0.12);
+    z-index: 1000;
+    transform: translateX(100%);
+    transition: transform 0.32s cubic-bezier(0.4, 0, 0.2, 1);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.slide-panel.open {
+    transform: translateX(0);
+}
+
+/* ── Panel Header ── */
+.panel-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 20px 22px 16px;
+    border-bottom: 1px solid #e2e8f0;
+    background: #ffffff;
+}
+
+.panel-back {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 38px;
+    height: 38px;
+    border: none;
+    border-radius: 10px;
+    background: #f1f5f9;
+    color: #475569;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.panel-back:hover {
+    background: #e2e8f0;
+    color: #1976d2;
+}
+
+.panel-title {
+    font-size: 18px;
+    font-weight: 700;
+    color: #1a1a2e;
+    margin: 0;
+}
+
+/* ── Panel Body ── */
+.panel-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 18px 20px 32px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+/* ── Merchandising Section ── */
+.merchandising-section {
+    margin-top: 36px;
+}
+
+/* ── Hidden Inputs ── */
+.hidden-input {
+    display: none;
+}
+
+/* ── Responsive ── */
+@media (max-width: 640px) {
+    :host {
+        padding: 16px 16px 32px;
+    }
+
+    .home-greeting {
+        font-size: 22px;
+    }
+
+    .category-grid {
+        grid-template-columns: 1fr;
+        gap: 10px;
+    }
+
+    .slide-panel {
+        width: 100vw;
+        max-width: 100vw;
+    }
+}

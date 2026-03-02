@@ -1,5 +1,13 @@
 mat-tab-group {
   height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+::ng-deep .mat-mdc-tab-body-wrapper {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
 }
 
 .example-full-width {
@@ -8,7 +16,7 @@ mat-tab-group {
 
 /* Nudge del badge 5pt hacia la izquierda (posición por defecto: above after) */
 .badge-left-5pt.mat-badge .mat-badge-content {
-  right: 5pt;            
+  right: 5pt;
 }
 
 /* Custom class for Medical Exam badge margin */
@@ -30,7 +38,8 @@ mat-tab-group {
 }
 
 .tab-content-scrollable {
-  min-height: 75vh;
+  flex: 1;
+  height: 100%;
   overflow-y: auto;
   padding: 16px;
   box-sizing: border-box;
@@ -91,7 +100,7 @@ mat-tab-group {
   font-weight: 600;
 }
 
-.header{
+.header {
   display: flex;
   align-items: center;
   justify-content: space-between;
