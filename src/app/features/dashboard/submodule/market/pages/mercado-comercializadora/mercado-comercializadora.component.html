@@ -1,194 +1,224 @@
-<mat-card>
-  <mat-card-content>
+<div class="page-container">
+  <div class="page-header">
+    <div class="header-content">
+      <h1 class="page-title">Mercado Comercializadora</h1>
+      <p class="page-subtitle">Seleccione autorizaciones y productos del inventario para ejecutar</p>
+    </div>
+    <div class="header-icon">
+      <mat-icon>store</mat-icon>
+    </div>
+  </div>
 
-    <form [formGroup]="myForm" (ngSubmit)="onSubmit()">
-      <h1 class="titulo">Digite el número de identificación del empleado a validar:</h1>
-
-      <div class="encabezado">
-        <!-- Campo "cedula" registrado en myForm -->
-        <mat-form-field class="example-full-width cedula">
-          <mat-label>Número de identificación</mat-label>
-          <input matInput formControlName="cedula" />
-          <mat-error *ngIf="myForm.get('cedula')?.hasError('required')">
-            El número de identificación es requerido
-          </mat-error>
-        </mat-form-field>
-
-        <h1 class="nombre">
-          <strong>Nombre Operario:  </strong>{{ nombreOperario }}
-        </h1>
-        <h1 class="nombre">
-          <strong>Fecha ingreso: </strong>{{ fechaIngreso }}
-        </h1>
-
-        <button mat-flat-button type="submit" class="boton comercializadora" [disabled]="myForm.invalid">
-          Cargar
-        </button>
-      </div>
-
-      <!-- TABLA DE CÓDIGOS Y MONTOS -->
-      <div class="tabla" *ngIf="!isInventarioVisible">
-        <h1 class="title"> Autorizaciones</h1>
-        <div class="table-container">
-          <!-- Asignamos [dataSource]="dataSource" donde dataSource.data = codigosFormArray.controls -->
-          <table mat-table [dataSource]="dataSource" class="mat-elevation-z8">
-            <!-- Columna de selección -->
-            <ng-container matColumnDef="seleccion">
-              <th mat-header-cell *matHeaderCellDef>Acción</th>
-              <td mat-cell *matCellDef="let row">
-                <!-- row es un FormGroup. Accedemos a su control "seleccionado" -->
-                <mat-checkbox [formControl]="row.get('seleccionado')"></mat-checkbox>
-              </td>
-            </ng-container>
-
-            <!-- Columna código -->
-            <ng-container matColumnDef="codigo">
-              <th mat-header-cell *matHeaderCellDef>Código</th>
-              <td mat-cell *matCellDef="let row">
-                {{ row.get('codigo')?.value }}
-              </td>
-            </ng-container>
-
-            <!-- Columna cuotas -->
-            <ng-container matColumnDef="cuotas">
-              <th mat-header-cell *matHeaderCellDef>Cuotas</th>
-              <td mat-cell *matCellDef="let row">
-                {{ row.get('cuotas')?.value }}
-              </td>
-            </ng-container>
-
-            <!-- Columna monto -->
-            <ng-container matColumnDef="monto">
-              <th mat-header-cell *matHeaderCellDef>Monto</th>
-              <td mat-cell *matCellDef="let row">
-                <!-- Si quieres formatear como moneda: -->
-                {{ row.get('monto')?.value | currency }}
-              </td>
-            </ng-container>
-
-            <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
-            <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
-          </table>
+  <form [formGroup]="myForm" (ngSubmit)="onSubmit()">
+    <!-- BUSCAR EMPLEADO -->
+    <mat-card class="premium-card" *ngIf="!datosOperario">
+      <mat-card-header>
+        <div mat-card-avatar class="card-avatar">
+          <mat-icon>badge</mat-icon>
         </div>
-      </div>
+        <mat-card-title>Búsqueda de Empleado</mat-card-title>
+        <mat-card-subtitle>Ingrese el número de identificación para buscar al empleado</mat-card-subtitle>
+      </mat-card-header>
+      <mat-card-content>
+        <div style="display: flex; gap: 16px; align-items: start; margin-top: 16px;">
+          <mat-form-field appearance="outline" style="flex: 1;">
+            <mat-label>Número de Identificación</mat-label>
+            <mat-icon matPrefix>badge</mat-icon>
+            <input matInput formControlName="cedula" placeholder="Ej: 1005851505"
+              (keydown.enter)="buscarEmpleadoManual($event)" />
+            <mat-error *ngIf="myForm.get('cedula')?.hasError('required')">El documento es obligatorio</mat-error>
+          </mat-form-field>
+          <button mat-flat-button type="button" (click)="buscarEmpleadoManual()"
+            style="background-color: #059669; color: white; height: 56px; border-radius: 8px; padding: 0 24px;">
+            <mat-icon>search</mat-icon> Buscar
+          </button>
+        </div>
+      </mat-card-content>
+    </mat-card>
 
-
-
-      <!-- TABLA DE INVENTARIO DE PRODUCTOS -->
-      <div class="tabla" *ngIf="isInventarioVisible">
-        <h1 class="title">Inventario de Productos Comercializados</h1>
-
-        <!-- Filtro -->
-        <mat-form-field class="filtro">
-          <mat-label>Filtrar</mat-label>
-          <input matInput (keyup)="applyFilterInventario($event)" placeholder="Filtrar" #inputInventario />
-        </mat-form-field>
-
-        <div class="table-container">
-          <table mat-table [dataSource]="dataSourceInventario" class="mat-elevation-z8">
-            <!-- Seleccionar -->
-            <ng-container matColumnDef="seleccion">
-              <th mat-header-cell *matHeaderCellDef>Acción</th>
-              <td mat-cell *matCellDef="let row">
-                <mat-checkbox [formControl]="row.get('seleccionado')"></mat-checkbox>
-              </td>
-            </ng-container>
-
-            <ng-container matColumnDef="concepto">
-              <th mat-header-cell *matHeaderCellDef>Concepto</th>
-              <td mat-cell *matCellDef="let row">
-                {{ row.get('concepto')?.value }}
-              </td>
-            </ng-container>
-
-            <ng-container matColumnDef="cantidadSeleccionada">
-              <th mat-header-cell *matHeaderCellDef>Cantidad</th>
-              <td mat-cell *matCellDef="let row; let i = index">
-                <div class="cantidad-container">
-                  <button mat-icon-button color="primary" type="button" (click)="decrementarCantidad(i)"
-                    [disabled]="!row.get('seleccionado')?.value">
-                    <mat-icon>remove</mat-icon>
-                  </button>
-
-                  <span class="cantidad">{{ row.get('cantidadSeleccionada')?.value || 0 }}</span>
-
-                  <button mat-icon-button color="primary" type="button" (click)="incrementarCantidad(i)"
-                    [disabled]="!row.get('seleccionado')?.value">
-                    <mat-icon>add</mat-icon>
-                  </button>
+    <!-- CONTENIDO PRINCIPAL -->
+    <ng-container *ngIf="datosOperario">
+      <div style="display: flex; gap: 24px; align-items: flex-start;">
+        <!-- COLUMNA IZQUIERDA: EMPLEADO Y AUTORIZACIONES -->
+        <div style="flex: 1; display: flex; flex-direction: column; gap: 24px; min-width: 0;">
+          <!-- FILA SUPERIOR: EMPLEADO + ACCIONES -->
+          <mat-card class="premium-card">
+            <mat-card-header>
+              <div mat-card-avatar class="card-avatar">
+                <mat-icon>person</mat-icon>
+              </div>
+              <mat-card-title>{{ nombreOperario }}</mat-card-title>
+              <mat-card-subtitle>Doc: {{ myForm.get('cedula')?.value }} · Ingreso: {{ fechaIngreso || 'N/A'
+                }}</mat-card-subtitle>
+            </mat-card-header>
+            <mat-card-content>
+              <div class="employee-info-chips">
+                <div class="info-chip warning">
+                  <mat-icon>credit_score</mat-icon>
+                  <span>Cupo: <strong>$ {{ limiteDisponible | number:'1.0-0' }}</strong></span>
                 </div>
-              </td>
-            </ng-container>
+              </div>
+            </mat-card-content>
+            <mat-card-actions style="padding: 8px 16px 16px; display: flex; gap: 8px; flex-wrap: wrap;">
+              <button mat-stroked-button color="primary" type="button" (click)="abrirHistorial()"
+                style="border-radius: 8px;">
+                <mat-icon>history</mat-icon> Historial
+              </button>
+              <button mat-button type="button" (click)="cancelar()">
+                <mat-icon>arrow_back</mat-icon> Cambiar Empleado
+              </button>
+            </mat-card-actions>
+          </mat-card>
 
+          <!-- PASO 1: TABLA DE AUTORIZACIONES -->
+          <mat-card class="premium-card" style="margin-bottom: 0;">
+            <mat-card-header>
+              <div mat-card-avatar class="card-avatar" style="background-color: #dbeafe; color: #2563eb;">
+                <mat-icon>qr_code_2</mat-icon>
+              </div>
+              <mat-card-title>Paso 1 — Seleccionar Autorizaciones</mat-card-title>
+              <mat-card-subtitle>Marque los códigos de autorización a utilizar</mat-card-subtitle>
+            </mat-card-header>
+            <mat-card-content>
+              <div class="cards-grid mt-3" style="max-height: 300px; overflow-y: auto;">
+                <mat-card *ngFor="let row of codigosFormArray.controls; let i = index" class="auth-card"
+                  [ngClass]="{'selected': row.get('seleccionado')?.value}"
+                  (click)="toggleSeleccionAutorizacion($any(row))">
 
-            <ng-container matColumnDef="cantidadEnvio">
-              <th mat-header-cell *matHeaderCellDef>Cantidad Enviada</th>
-              <td mat-cell *matCellDef="let row">
-                {{ row.get('cantidadEnvio')?.value }}
-              </td>
-            </ng-container>
+                  <div class="checkbox-wrapper" (click)="$event.stopPropagation()">
+                    <mat-checkbox [formControl]="$any(row.get('seleccionado'))"></mat-checkbox>
+                  </div>
 
-            <ng-container matColumnDef="cantidadRecibida">
-              <th mat-header-cell *matHeaderCellDef>Cantidad Recibida</th>
-              <td mat-cell *matCellDef="let row">
-                {{ row.get('cantidadRecibida')?.value }}
-              </td>
-            </ng-container>
+                  <mat-card-content>
+                    <div class="auth-monto">
+                      $ {{ row.get('monto')?.value | number:'1.0-0' }}
+                    </div>
+                    <div class="auth-cuotas">
+                      {{ row.get('cuotas')?.value }} cuotas
+                    </div>
+                    <div class="auth-codigo">
+                      <mat-icon inline="true" style="font-size: 14px; margin-right: 4px;">qr_code</mat-icon>
+                      {{ row.get('codigo')?.value }}
+                    </div>
+                  </mat-card-content>
+                </mat-card>
 
-            <ng-container matColumnDef="valorUnidad">
-              <th mat-header-cell *matHeaderCellDef>Valor Unidad</th>
-              <td mat-cell *matCellDef="let row">
-                {{ row.get('valorUnidad')?.value | currency }}
-              </td>
-            </ng-container>
-
-            <ng-container matColumnDef="cantidadTotalVendida">
-              <th mat-header-cell *matHeaderCellDef>Cantidad Vendida</th>
-              <td mat-cell *matCellDef="let row">
-                {{ row.get('cantidadTotalVendida')?.value }}
-              </td>
-            </ng-container>
-
-            <ng-container matColumnDef="PersonaEnvia">
-              <th mat-header-cell *matHeaderCellDef>Persona quien envió</th>
-              <td mat-cell *matCellDef="let row">
-                {{ row.get('PersonaEnvia')?.value }}
-              </td>
-            </ng-container>
-
-            <ng-container matColumnDef="PersonaRecibe">
-              <th mat-header-cell *matHeaderCellDef>Persona quien recibe</th>
-              <td mat-cell *matCellDef="let row">
-                {{ row.get('PersonaRecibe')?.value }}
-              </td>
-            </ng-container>
-
-            <ng-container matColumnDef="fechaRecibida">
-              <th mat-header-cell *matHeaderCellDef>Fecha de recibido</th>
-              <td mat-cell *matCellDef="let row">
-                {{ row.get('fechaRecibida')?.value || '' }}
-              </td>
-            </ng-container>
-
-            <tr mat-header-row *matHeaderRowDef="displayedColumnsInventario"></tr>
-            <tr mat-row *matRowDef="let row; columns: displayedColumnsInventario;"></tr>
-
-            <!-- Fila que aparece cuando NO hay datos -->
-            <tr class="mat-row" *matNoDataRow>
-              <td class="mat-cell" colspan="12">
-                No hay datos para "{{ inputInventario.value }}"
-              </td>
-            </tr>
-          </table>
+                <div *ngIf="codigosFormArray.length === 0" class="no-data-message">
+                  <mat-icon>info</mat-icon> No hay autorizaciones disponibles.
+                </div>
+              </div>
+            </mat-card-content>
+          </mat-card>
         </div>
+
+        <!-- PASO 2: INVENTARIO -->
+        <mat-card class="premium-card" style="flex: 2; min-width: 0;">
+          <mat-card-header>
+            <div mat-card-avatar class="card-avatar" style="background-color: #fef3c7; color: #d97706;">
+              <mat-icon>inventory_2</mat-icon>
+            </div>
+            <mat-card-title>Paso 2 — Seleccionar Productos</mat-card-title>
+            <mat-card-subtitle>Marque productos y ajuste cantidades del inventario</mat-card-subtitle>
+          </mat-card-header>
+          <mat-card-content>
+            <mat-form-field appearance="outline" class="full-width" style="margin-top: 12px;">
+              <mat-label>Filtrar productos</mat-label>
+              <mat-icon matPrefix>search</mat-icon>
+              <input matInput (keyup)="applyFilterInventario($event)" placeholder="Buscar..." #inputInventario />
+            </mat-form-field>
+
+            <div class="table-container mt-3">
+              <table mat-table [dataSource]="dataSourceInventario" class="mat-elevation-z8">
+                <ng-container matColumnDef="seleccion">
+                  <th mat-header-cell *matHeaderCellDef>Sel.</th>
+                  <td mat-cell *matCellDef="let element">
+                    <mat-checkbox [formControl]="$any(element.get('seleccionado'))"
+                      (change)="onProductSelectionChange(element)" (click)="$event.stopPropagation()"></mat-checkbox>
+                  </td>
+                </ng-container>
+                <ng-container matColumnDef="cantidadSeleccionada">
+                  <th mat-header-cell *matHeaderCellDef>Cant.</th>
+                  <td mat-cell *matCellDef="let element">
+                    <div class="cantidad-container"
+                      style="display: flex; align-items: center; justify-content: center; gap: 8px;"
+                      (click)="$event.stopPropagation()">
+                      <button mat-icon-button color="primary" type="button" (click)="decrementarCantidadPorRow(element)"
+                        [disabled]="!element.get('seleccionado')?.value || element.get('cantidadSeleccionada')?.value <= 1">
+                        <mat-icon>remove_circle_outline</mat-icon>
+                      </button>
+                      <span class="cantidad" style="min-width: 24px; text-align: center; font-weight: 600;">{{
+                        element.get('cantidadSeleccionada')?.value || 0 }}</span>
+                      <button mat-icon-button color="primary" type="button" (click)="incrementarCantidadPorRow(element)"
+                        [disabled]="!element.get('seleccionado')?.value || element.get('cantidadSeleccionada')?.value >= element.get('disponible')?.value">
+                        <mat-icon>add_circle_outline</mat-icon>
+                      </button>
+                    </div>
+                  </td>
+                </ng-container>
+                <ng-container matColumnDef="concepto">
+                  <th mat-header-cell *matHeaderCellDef>Concepto</th>
+                  <td mat-cell *matCellDef="let element">{{ element.get('concepto')?.value }}</td>
+                </ng-container>
+
+                <ng-container matColumnDef="disponible">
+                  <th mat-header-cell *matHeaderCellDef>Disponible</th>
+                  <td mat-cell *matCellDef="let element">
+                    <span class="badge"
+                      [ngClass]="element.get('disponible')?.value > 0 ? 'badge-success' : 'badge-danger'">
+                      Disp: {{ element.get('disponible')?.value }}
+                    </span>
+                  </td>
+                </ng-container>
+
+                <ng-container matColumnDef="valorUnidad">
+                  <th mat-header-cell *matHeaderCellDef>Valor Und.</th>
+                  <td mat-cell *matCellDef="let element">{{ element.get('valorUnidad')?.value |
+                    currency:'COP':'symbol-narrow':'1.0-0' }}</td>
+                </ng-container>
+
+                <ng-container matColumnDef="fechaRecibida">
+                  <th mat-header-cell *matHeaderCellDef>F. Recibido</th>
+                  <td mat-cell *matCellDef="let element">{{ (element.get('fechaRecibida')?.value | date:'dd-MM-yyyy
+                    HH:mm') || '' }}</td>
+                </ng-container>
+
+                <tr mat-header-row *matHeaderRowDef="displayedColumnsInventario"></tr>
+                <tr mat-row *matRowDef="let row; columns: displayedColumnsInventario"
+                  [class.row-selected]="row.get('seleccionado')?.value" (click)="toggleRowSelection(row)"
+                  style="cursor: pointer;">
+                </tr>
+                <tr class="mat-row" *matNoDataRow>
+                  <td class="mat-cell" colspan="6">No hay datos "{{ inputInventario.value }}"</td>
+                </tr>
+              </table>
+            </div>
+
+          </mat-card-content>
+
+          <!-- RESUMEN DE SELECCIÓN -->
+          <div *ngIf="totalProductosSeleccionados > 0"
+            style="margin: 0 16px; padding: 12px 16px; background: linear-gradient(135deg, #ecfdf5, #d1fae5); border-radius: 10px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #a7f3d0;">
+            <div style="display: flex; gap: 24px; align-items: center;">
+              <div style="display: flex; align-items: center; gap: 6px; color: #065f46;">
+                <mat-icon style="font-size: 20px; width: 20px; height: 20px;">shopping_cart</mat-icon>
+                <span style="font-weight: 600;">{{ totalProductosSeleccionados }} unidades</span>
+              </div>
+              <div style="display: flex; align-items: center; gap: 6px; color: #065f46;">
+                <mat-icon style="font-size: 20px; width: 20px; height: 20px;">payments</mat-icon>
+                <span style="font-weight: 700; font-size: 18px;">{{ valorTotalSeleccionado |
+                  currency:'COP':'symbol-narrow':'1.0-0' }}</span>
+              </div>
+            </div>
+          </div>
+
+          <mat-card-actions align="end" style="padding: 16px;">
+            <button mat-flat-button type="submit" class="btn-large" [disabled]="myForm.invalid"
+              style="background: #059669; color: white;">
+              <mat-icon>check_circle</mat-icon> EJECUTAR CARGA
+            </button>
+          </mat-card-actions>
+        </mat-card>
       </div>
-
-      <!-- boton para continuar -->
-      <button mat-flat-button type="button" class="boton comercializadora" (click)="toggleInventario()"
-        style="margin-top: 10pt; float: right;">
-        {{ isInventarioVisible ? 'Anterior' : 'Continuar' }}
-      </button>
-
-    </form>
-  </mat-card-content>
-</mat-card>
+    </ng-container>
+  </form>
+</div>

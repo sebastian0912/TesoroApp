@@ -1,6 +1,5 @@
 import { Injectable, Inject, PLATFORM_ID } from '@angular/core';
-import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
-import { isPlatformBrowser } from '@angular/common';
+import { HttpClient } from '@angular/common/http';
 import { firstValueFrom, Observable } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 import Swal from 'sweetalert2';
@@ -11,10 +10,14 @@ import { UtilityServiceService } from '@/app/shared/services/utilityService/util
 @Injectable({
   providedIn: 'root'
 })
-
 export class AutorizacionesService {
 
   private apiUrl = environment.apiUrl;
+
+  // NUEVOS ENDPOINTS PARA TESORERIA
+  private readonly TESORERIA_BASE_URL = `${this.apiUrl}/gestion_tesoreria`;
+  private readonly URL_PERSONAS = `${this.TESORERIA_BASE_URL}/personas`;
+  private readonly URL_TRANSACCIONES = `${this.TESORERIA_BASE_URL}/transacciones`;
 
   constructor(private http: HttpClient, @Inject(PLATFORM_ID) private platformId: Object, private utilityService: UtilityServiceService) { }
 
@@ -31,19 +34,23 @@ export class AutorizacionesService {
     });
   }
 
+  normalizeDoc(doc: string): string {
+    return doc ? doc.trim().toUpperCase() : '';
+  }
+
   traerSaldoPendiente(operario: any): number {
     const campos = [
       'saldos',
       'fondos',
       'mercados',
-      'prestamoParaDescontar',
+      'prestamo_para_descontar',
       'casino',
-      'valoranchetas',
+      'valor_anchetas',
       'fondo',
       'carnet',
-      'seguroFunerario',
-      'prestamoParaHacer',
-      'anticipoLiquidacion',
+      'seguro_funerario',
+      'prestamo_para_hacer',
+      'anticipo_liquidacion',
       'cuentas',
     ];
 
@@ -57,9 +64,100 @@ export class AutorizacionesService {
     return sumaPrestamos;
   }
 
+  /**
+   * Calcula el cupo disponible para mercado o préstamo,
+   * usando la MISMA lógica de límites que verificarCondiciones.
+   */
+  calcularCupoDisponible(operario: any, tipo: 'prestamo' | 'mercado'): number {
+    if (!operario) return 0;
+
+    const sumaTotal = this.traerSaldoPendiente(operario);
+    const user = this.utilityService.getUser?.() || {};
+
+    if (tipo === 'mercado') {
+      // Calcular días trabajados
+      const parsed = this.parsearIngreso(operario?.ingreso);
+      if (!parsed) return 0;
+      const fechaIngreso = new Date(parsed.anio, parsed.mes - 1, parsed.dia);
+      const hoy = new Date();
+      const ms = Math.max(0, hoy.getTime() - fechaIngreso.getTime());
+      const diasTrabajados = Math.ceil(ms / (1000 * 60 * 60 * 24));
+
+      let limite = 0;
+      if (diasTrabajados >= 8 && diasTrabajados <= 15) limite = 80000;
+      else if (diasTrabajados <= 30) limite = 150000;
+      else if (diasTrabajados <= 45) limite = 230000;
+      else limite = 350000;
+
+      const rol = user?.rol?.nombre ?? '';
+      if (rol === 'TIENDA' || rol === 'ESPECIAL') {
+        limite += 50000;
+      }
+      if (diasTrabajados > 60 && rol !== 'TIENDA' && rol !== 'ESPECIAL') {
+        limite += 150000;
+      }
+      if (diasTrabajados > 90 && user?.correo_electronico === 'servicioalcliente.tuapo1@gmail.com') {
+        limite = 400000;
+      }
+
+      return Math.max(0, limite - sumaTotal);
+    }
+
+    if (tipo === 'prestamo') {
+      return Math.max(0, 250000 - sumaTotal);
+    }
+
+    return 0;
+  }
+
+  /**
+   * Parsea la fecha de ingreso (helper extraído de verificarCondiciones)
+   */
+  private parsearIngreso(raw: any): { dia: number; mes: number; anio: number } | null {
+    if (!raw) return null;
+    const s = String(raw).trim();
+    const toInt = (str: string) => Number.parseInt(str, 10);
+    const isValidYMD = (y: number, m: number, d: number): boolean => {
+      if (!Number.isFinite(y) || !Number.isFinite(m) || !Number.isFinite(d)) return false;
+      if (m < 1 || m > 12) return false;
+      if (d < 1 || d > 31) return false;
+      const dt = new Date(y, m - 1, d);
+      return dt.getFullYear() === y && (dt.getMonth() + 1) === m && dt.getDate() === d;
+    };
+
+    const sep = s.includes('/') ? '/' : (s.includes('-') ? '-' : null);
+    if (!sep) return null;
+    const parts = s.split(sep);
+    if (parts.length !== 3) return null;
+    const [a, b, c] = parts.map(p => p.trim());
+
+    if (a.length === 4) {
+      const y = toInt(a), m = toInt(b), d = toInt(c);
+      if (!isValidYMD(y, m, d)) return null;
+      return { dia: d, mes: m, anio: y };
+    }
+
+    const yy = toInt(c);
+    const y = (c.length <= 2) ? (2000 + yy) : yy;
+    const n1 = toInt(a), n2 = toInt(b);
+
+    if (sep === '/') {
+      if (n1 <= 12 && n2 > 12) {
+        if (!isValidYMD(y, n1, n2)) return null;
+        return { dia: n2, mes: n1, anio: y };
+      } else {
+        if (!isValidYMD(y, n2, n1)) return null;
+        return { dia: n1, mes: n2, anio: y };
+      }
+    } else {
+      if (!isValidYMD(y, n2, n1)) return null;
+      return { dia: n1, mes: n2, anio: y };
+    }
+  }
+
   // verificar fondos
   verificarFondos(operario: any): boolean {
-    if (parseInt(operario.fondos) <= 0) {
+    if (Number(operario.fondos ?? 0) <= 0) {
       return true;
     }
     else {
@@ -127,24 +225,17 @@ export class AutorizacionesService {
       const n2 = toInt(b);
 
       // Heurística:
-      // - Si n1 <= 12 y n2 > 12 -> MM/DD/YY
-      // - Si n1 > 12 y n2 <= 12 -> DD/MM/YY
-      // - Si ambos <= 12 -> por defecto DD/MM/YY (estándar local)
-      // - Si viene con '-' asumimos DD-MM-YY como tenías
       if (sep === '/') {
         if (n1 <= 12 && n2 > 12) {
-          // MM/DD/YY  (tu caso: 10/22/25)
           const m = n1, d = n2;
           if (!isValidYMD(y, m, d)) return null;
           return { dia: d, mes: m, anio: y };
         } else {
-          // DD/MM/YY
           const d = n1, m = n2;
           if (!isValidYMD(y, m, d)) return null;
           return { dia: d, mes: m, anio: y };
         }
       } else {
-        // '-' → asume DD-MM-YY (como tu formato original)
         const d = n1, m = n2;
         if (!isValidYMD(y, m, d)) return null;
         return { dia: d, mes: m, anio: y };
@@ -246,7 +337,7 @@ export class AutorizacionesService {
       }
 
       // Sin deudas de mercado/anchetas
-      if ((operario?.mercados ?? 0) > 0 || (operario?.valoranchetas ?? 0) > 0) {
+      if ((operario?.mercados ?? 0) > 0 || (operario?.valor_anchetas ?? 0) > 0) {
         this.aviso('Ups no se pueden generar préstamos si el operario tiene mercados o valor de anchetas pendiente', 'error');
         return false;
       }
@@ -264,102 +355,108 @@ export class AutorizacionesService {
     return false;
   }
 
+  // ============================================
+  // NUEVAS LLAMADAS AL BACKEND (GESTION TESORERIA)
+  // ============================================
 
-
-
-
-
-
-
-
-  // buscarOperario
-  traerOperarios(cedula: string): Observable<any> {
-    return this.http.get(`${this.apiUrl}/Datosbase/tesoreria/${cedula}`,)
-      .pipe(catchError(this.handleError));
+  async traerPersonaTesoreria(numeroDocumento: string): Promise<any> {
+    const docNorm = this.normalizeDoc(numeroDocumento);
+    return firstValueFrom(this.http.get(`${this.URL_PERSONAS}/${docNorm}/`).pipe(catchError(this.handleError)));
   }
 
-  // buscarCodigo
+  async traerAutorizacionesActivasOperario(numeroDocumento: string): Promise<any> {
+    const docNorm = this.normalizeDoc(numeroDocumento);
+    // Transacciones activas = pendientes
+    return firstValueFrom(this.http.get(`${this.URL_TRANSACCIONES}/?numero_documento=${docNorm}&estado=PENDIENTE`).pipe(catchError(this.handleError)));
+  }
+
   async buscarCodigo(codigo: string): Promise<any> {
-    return firstValueFrom(this.http.get(`${this.apiUrl}/Codigo/jefedearea/leercodigo/${codigo}`)
-      .pipe(catchError(this.handleError)));
+    return firstValueFrom(this.http.get(`${this.URL_TRANSACCIONES}/buscar-codigo/?codigo=${codigo}`).pipe(catchError(this.handleError)));
   }
 
-  // escribirHistorial
+  async autorizarTransaccion(numeroDocumento: string, monto: number, cuotas: number, tipo: string, nombreAutorizador: string, sedeAutorizacion: string = ''): Promise<any> {
+    const docNorm = this.normalizeDoc(numeroDocumento);
+    const body = {
+      numero_documento: docNorm,
+      autorizacion_concepto: tipo,
+      autorizacion_monto: monto,
+      autorizacion_cuotas: cuotas,
+      autorizado_por: nombreAutorizador,
+      sede_autorizacion: sedeAutorizacion
+    };
+
+    return firstValueFrom(this.http.post(`${this.URL_TRANSACCIONES}/autorizar/`, body).pipe(catchError(this.handleError)));
+  }
+
+  async ejecutarTransaccion(codigoAutorizacion: string, monto: number, ejecutadoPor: string, sedeEjecucion: string = '', ejecucionConcepto: string = ''): Promise<any> {
+    const body: any = {
+      codigo_autorizacion: codigoAutorizacion,
+      ejecucion_monto: monto,
+      ejecutado_por: ejecutadoPor,
+      sede_ejecucion: sedeEjecucion
+    };
+    if (ejecucionConcepto) {
+      body.ejecucion_concepto = ejecucionConcepto;
+    }
+    return firstValueFrom(this.http.post(`${this.URL_TRANSACCIONES}/ejecutar/`, body).pipe(catchError(this.handleError)));
+  }
+
+  /**
+   * Atomic endpoint: autorizar + ejecutar + vender lotes en una sola transacción.
+   * Modo ferias (crear nueva auth):  enviar numero_documento + autorizacion_monto + ventas
+   * Modo comercializadora (auth existentes): enviar codigos_autorizacion + ejecucion_monto + ventas
+   */
+  async ejecutarMercadoCompleto(data: {
+    numero_documento?: string;
+    autorizacion_monto?: number;
+    autorizacion_cuotas?: number;
+    autorizacion_concepto?: string;
+    autorizado_por?: string;
+    sede_autorizacion?: string;
+    ejecucion_concepto?: string;
+    ejecutado_por?: string;
+    sede_ejecucion?: string;
+    ejecucion_monto?: number;
+    codigos_autorizacion?: string[];
+    ventas?: { lote_id: number; cantidad: number }[];
+  }): Promise<any> {
+    return firstValueFrom(
+      this.http.post(`${this.URL_TRANSACCIONES}/ejecutar-mercado-completo/`, data)
+        .pipe(catchError(this.handleError))
+    );
+  }
+
+  // ============================================
+  // DEPRECATED: Llamadas legacy (mantener vacías/error)
+  // ============================================
+
+  /** @deprecated Usar traerPersonaTesoreria */
+  traerOperarios(cedula: string): Observable<any> {
+    return new Observable(obs => {
+      obs.error(new Error("traerOperarios is deprecated. Usa traerPersonaTesoreria."));
+    });
+  }
+
+  /** @deprecated Usar autorizarTransaccion */
   async escribirHistorial(cedulaEmpleado: string, nuevovalor: number, cuotas: number, tipo: string, codigo: string, nombre: string): Promise<any> {
-
-    const fecha = new Date().toISOString().split('T')[0]; // Obtiene la fecha en formato yyyy-mm-dd
-
-    const urlcompleta = `${this.apiUrl}/Historial/jefedearea/crearHistorialPrestamo/${cedulaEmpleado}`;
-
-
-    const requestBody = {
-      codigo: codigo,
-      cedula: cedulaEmpleado,
-      nombreQuienEntrego: '',
-      generadopor: nombre,
-      valor: nuevovalor,
-      cuotas: cuotas,
-      fechaEfectuado: fecha,
-      concepto: tipo,
-    };
-
-    try {
-      const response = await firstValueFrom(this.http.post(urlcompleta, requestBody).pipe(
-        catchError(this.handleError)
-      ));
-      return response;
-    } catch (error) {
-      throw error;
-    }
+    throw new Error("escribirHistorial está deprecado. Usa autorizarTransaccion.");
   }
 
-  // escribir codigo
+  /** @deprecated Usar autorizarTransaccion */
   async escribirCodigo(cedula: string, nuevovalor: string, codigo: string, cuotasAux: string, tipo: string, historial_id: Number, nombre: string, cedulaLogin: string): Promise<any> {
-    const fecha = new Date().toISOString().split('T')[0]; // Obtiene la fecha en formato yyyy-mm-dd
-
-    const urlcompleta = `${this.apiUrl}/Codigo/crearCodigoNuevo`;
-
-    const requestBody = {
-      codigo: codigo,
-      monto: nuevovalor,
-      cuotas: cuotasAux,
-      estado: true,
-      Concepto: tipo + ' Autorizacion',
-      cedulaQuienPide: cedula,
-      generadoPor: nombre,
-      ceduladelGenerador: cedulaLogin,
-      formasdepago: 'none',
-      numerodepago: 'none',
-      historial_id: historial_id,
-    };
-
-    try {
-      const response = await firstValueFrom(this.http.post(urlcompleta, requestBody).pipe(
-        catchError(this.handleError)
-      ));
-      return response;
-    } catch (error) {
-      throw error;
-    }
+    throw new Error("escribirCodigo está deprecado. Usa autorizarTransaccion.");
   }
 
-  // activos/<str:cedula>/
-  async traerAutorizacionesActivasOperario(cedula: string): Promise<any> {
-    return firstValueFrom(this.http.get(`${this.apiUrl}/Codigo/activos/${cedula}/`)
-      .pipe(catchError(this.handleError)));
-  }
+  // ============================================
+  // GENERACIÓN DE PDF
+  // ============================================
 
-
-
-
-  //
-
-  public generatePdf(datos: any, valor: number, nuevovalor: string, formaPago: any, celular: any, codigoOH: string, cuotas: string, concepto: string, nombre: string): void {
-    const docPdf = new jsPDF();
-    const margin = 15;
+  public async generatePdf(datos: any, valor: number, nuevovalor: string, formaPago: any, celular: any, codigoOH: string, cuotas: string, concepto: string, nombre: string): Promise<void> {
+    const docPdf = new jsPDF({ format: 'letter' });
+    const margin = 12;
     const pageWidth = docPdf.internal.pageSize.getWidth();
     const usableWidth = pageWidth - 2 * margin;
-    const lineHeight = 10;
+    const lineHeight = 6;
     let y = margin;
 
     const empresas = {
@@ -385,92 +482,118 @@ export class AutorizacionesService {
       }
     };
 
-    const key = (Object.keys(empresas) as Array<keyof typeof empresas>).find(key => datos.temporal.toUpperCase().startsWith(key)) || 'DEFAULT';
+    const docNumero = datos.numero_documento || datos.numero_de_documento;
+
+    const temporalValue = datos.temporal ? datos.temporal.toUpperCase() : '';
+    const key = (Object.keys(empresas) as Array<keyof typeof empresas>).find(key => temporalValue.startsWith(key)) || 'DEFAULT';
     const empresaInfo = empresas[key];
 
+    let imgElement: HTMLImageElement | null = null;
+    try {
+      const logoUrl = (key === 'APOYO') ? 'logos/Logo_AL.png' : 'logos/Logo_TA.png';
+      imgElement = await new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = () => reject();
+        img.src = logoUrl;
+      });
+    } catch (e) {
+      console.warn("No se pudo cargar el logo", e);
+    }
+
     // Title and header
-    docPdf.setFontSize(9);
-    docPdf.text('_________________________________________________________________________________________________', margin, y);
-    y += lineHeight - 6;
+    y += 2;
+    docPdf.setDrawColor(0);
+    docPdf.line(margin, y, pageWidth - margin, y);
+    y += lineHeight - 3;
     y += lineHeight;
 
-    docPdf.setFont('Helvetica', 'bold');
-    docPdf.setFontSize(18);
-    docPdf.text(empresaInfo.nombre, margin, y);
-    docPdf.setFontSize(9);
+    if (imgElement) {
+      docPdf.addImage(imgElement, 'PNG', margin, y - 8, 30, 12);
+    } else {
+      docPdf.setFont('Helvetica', 'bold');
+      docPdf.setFontSize(14);
+      docPdf.text(empresaInfo.nombre, margin, y);
+    }
+
+    // Right-aligned header info
+    docPdf.setFontSize(8);
     docPdf.setFont('Helvetica', 'normal');
-    docPdf.text('AUTORIZACION DE LIBRANZA', pageWidth / 2 + margin, y - 5);
-    docPdf.text(empresaInfo.nit, pageWidth / 2 + margin, y);
-    docPdf.text(empresaInfo.direccion, pageWidth / 2 + margin, y + 5);
-    y += lineHeight;
-    docPdf.text('_________________________________________________________________________________________________', margin, y);
+    docPdf.text('AUTORIZACION DE LIBRANZA', pageWidth / 2 + 10, y - 4);
+    docPdf.text(empresaInfo.nit, pageWidth / 2 + 10, y);
+    docPdf.text(empresaInfo.direccion, pageWidth / 2 + 10, y + 4);
+
+    y += 8;
+    docPdf.line(margin, y, pageWidth - margin, y);
     y += 1;
+    docPdf.line(margin, y, pageWidth - margin, y);
 
-    docPdf.text('_________________________________________________________________________________________________', margin, y);
-
-    y += lineHeight;
+    y += lineHeight + 2;
 
     // Body
-    docPdf.setFontSize(9);
+    docPdf.setFontSize(8);
     docPdf.text('Fecha de Solicitud: ' + new Date().toLocaleDateString(), margin, y);
     y += lineHeight;
     docPdf.setFont('Helvetica', 'bold');
     docPdf.text('ASUNTO: CREDITO (PRESTAMO)', margin, y);
-    y += lineHeight;
+    y += lineHeight - 2;
     docPdf.setFont('Helvetica', 'normal');
 
-    const bodyText = `Yo, ${datos.nombre}, mayor de edad, identificado con la cédula de ciudadanía No. ${datos.numero_de_documento}, autorizo expresa e irrevocablemente para que del sueldo, salario, prestaciones sociales o de cualquier suma de la que sea acreedor; me sean descontados la cantidad de ${valor} (${this.NumeroALetras(parseInt(nuevovalor))}) por concepto de ${concepto}, en ${cuotas} cuota(s) quincenal del crédito del que soy deudor ante ${empresaInfo.nombre}, aún en el evento de encontrarme disfrutando de mis licencias o incapacidades.`;
+    const bodyText = `Yo, ${datos.nombre || ''}, mayor de edad, identificado con la cédula de ciudadanía No. ${docNumero}, autorizo expresa e irrevocablemente para que del sueldo, salario, prestaciones sociales o de cualquier suma de la que sea acreedor; me sean descontados la cantidad de ${valor} (${this.NumeroALetras(parseInt(nuevovalor))}) por concepto de ${concepto}, en ${cuotas} cuota(s) quincenal del crédito del que soy deudor ante ${empresaInfo.nombre}, aún en el evento de encontrarme disfrutando de mis licencias o incapacidades.`;
     const lines = docPdf.splitTextToSize(bodyText, usableWidth);
     lines.forEach((line: string | string[]) => {
       docPdf.text(line, margin, y);
-      y += lineHeight * 0.6;
+      y += lineHeight * 0.75;
     });
 
     y += 4;
 
-    docPdf.text('Fecha de ingreso: ' + datos.ingreso, margin, y);
-    docPdf.text('Centro de Costo: ' + datos.finca, pageWidth / 2 + margin, y);
+    const ingresoFmt = datos.ingreso ? datos.ingreso.split(' ')[0] : 'No registrado';
+    docPdf.text('Fecha de ingreso: ' + ingresoFmt, margin, y);
+    docPdf.text('Centro de Costo: ' + (datos.finca || 'No registrado'), pageWidth / 2 + margin, y);
+
+    const valFormaPago = (formaPago && formaPago !== 'N/A') ? formaPago : '';
+    const valCelular = (celular && celular !== 'N/A') ? celular : '';
+
     y += lineHeight * 0.5;
-    docPdf.text('Forma de pago: ' + (formaPago), margin, y);
-    docPdf.text('Teléfono: ' + (celular), pageWidth / 2 + margin, y);
+    docPdf.text('Forma de pago: ' + valFormaPago, margin, y);
+    docPdf.text('Teléfono: ' + valCelular, pageWidth / 2 + margin, y);
+
     y += lineHeight;
 
     docPdf.setFont('Helvetica', 'bold');
     docPdf.text('Cordialmente,', margin, y);
-    y += lineHeight * 1.2;
+    y += lineHeight;
     docPdf.setFont('Helvetica', 'normal');
+
+    // Almacenamos Y para que la firma y el cuadro se alineen bien
+    const startYFirma = y;
+
     docPdf.text('Firma de Autorización', margin, y);
     y += lineHeight * 0.5;
-    docPdf.text('C.C. ' + datos.numero_de_documento, margin, y);
-    y += lineHeight;
+    docPdf.text('C.C. ' + docNumero, margin, y);
+    y += lineHeight * 0.5;
 
-    docPdf.rect(pageWidth - margin - 40 - 20, y - lineHeight - 20, 25, 30);
     docPdf.text('Código de autorización nómina: ' + codigoOH, margin, y);
     y += lineHeight * 0.5;
     docPdf.text('Responsable Administrativo: ' + nombre, margin, y);
 
-    y += lineHeight * 1.5;
-    docPdf.text('___________________________________', margin, y);
-    y += lineHeight * 0.5;
-    docPdf.text(datos.nombre, margin, y);
-    y += lineHeight * 1.5;
-
+    // Caja Huella Dactilar
+    // la posicionamos a la derecha pero alineada con la coordenada Y de firma
+    docPdf.rect(pageWidth - margin - 25, startYFirma, 20, 25);
     docPdf.setFont('Helvetica', 'bold');
-    docPdf.setFontSize(8);
-    docPdf.text('Huella Índice Derecho', pageWidth - margin - 40 - 20, y - lineHeight - 15);
+    docPdf.setFontSize(7);
+    docPdf.text('Huella Índice', pageWidth - margin - 25 + 2, startYFirma + 28);
 
-    docPdf.save(`PrestamoDescontar_${datos.nombre}_${codigoOH}.pdf`);
+    y += lineHeight * 2.5;
+
+    // Línea de firma
+    docPdf.setDrawColor(0);
+    docPdf.line(margin, y - 4, margin + 60, y - 4);
+    docPdf.text(datos.nombre || '', margin, y);
+
+    docPdf.save(`PrestamoDescontar_${datos.nombre || 'Desconocido'}_${codigoOH}.pdf`);
   }
-
-
-
-
-
-
-
-
-  //
-
 
   Unidades(num: number): string {
     switch (num) {
@@ -631,16 +754,5 @@ export class AutorizacionesService {
       return this.Millones(data.enteros) + " " + data.letrasMonedaPlural + " " + data.letrasCentavos;
     }
   }
-
-
-
-
-
-
-
-
-
-
-
 
 }

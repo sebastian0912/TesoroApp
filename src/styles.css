@@ -122,6 +122,7 @@ html:focus-within {
   html:focus-within {
     scroll-behavior: auto;
   }
+
   * {
     animation: none !important;
     transition: none !important;
@@ -283,6 +284,7 @@ mat-step {
 .table-container tr:nth-child(even) {
   background: var(--table-row-even);
 }
+
 .table-container tr:nth-child(odd) {
   background: var(--table-row-odd);
 }
@@ -544,6 +546,7 @@ mat-card-content p {
   height: 40px;
   border-radius: 12px;
 }
+
 .mat-mdc-dialog-panel.sf-filters-dialog-panel .sf-filters-dialog__close:hover {
   background: rgba(15, 23, 42, 0.06);
 }
@@ -557,9 +560,7 @@ mat-card-content p {
 }
 
 /* FIX: date-range-picker no ocupa espacio */
-.mat-mdc-dialog-panel.sf-filters-dialog-panel
-  .sf-filters-dialog__item
-  mat-date-range-picker {
+.mat-mdc-dialog-panel.sf-filters-dialog-panel .sf-filters-dialog__item mat-date-range-picker {
   display: none !important;
   height: 0 !important;
   width: 0 !important;
@@ -579,11 +580,13 @@ mat-card-content p {
     grid-template-columns: repeat(3, minmax(180px, 1fr));
   }
 }
+
 @media (max-width: 900px) {
   .mat-mdc-dialog-panel.sf-filters-dialog-panel .sf-filters-dialog__grid {
     grid-template-columns: repeat(2, minmax(180px, 1fr));
   }
 }
+
 @media (max-width: 640px) {
   .mat-mdc-dialog-panel.sf-filters-dialog-panel .sf-filters-dialog__grid {
     grid-template-columns: 1fr;
@@ -710,4 +713,78 @@ mat-card-content p {
 
 .mat-mdc-dialog-panel.sf-filters-dialog-panel .sf-filters-btn-ghost:hover {
   background: rgba(15, 23, 42, 0.06) !important;
+}
+
+/* =========================================================
+   CrudManagerDialog — Panel styles (GLOBAL)
+   panelClass: crud-manager-dialog-panel
+   ========================================================= */
+
+/* Backdrop */
+.cdk-overlay-backdrop.crud-manager-backdrop {
+  background: rgba(2, 6, 23, 0.42) !important;
+  backdrop-filter: blur(8px);
+}
+
+/* Panel sizing */
+.mat-mdc-dialog-panel.crud-manager-dialog-panel {
+  max-width: 96vw !important;
+}
+
+/* Surface */
+.mat-mdc-dialog-panel.crud-manager-dialog-panel .mat-mdc-dialog-surface {
+  padding: 0 !important;
+  border-radius: 18px !important;
+  overflow: hidden !important;
+  background: #ffffff !important;
+  box-shadow:
+    0 24px 70px rgba(15, 23, 42, 0.22),
+    0 10px 26px rgba(15, 23, 42, 0.12) !important;
+}
+
+/* Remove default Material dialog spacing so component controls all padding */
+.mat-mdc-dialog-panel.crud-manager-dialog-panel .mat-mdc-dialog-content {
+  padding: 0 !important;
+  max-height: none !important;
+}
+
+/* Form field compact fixes inside the dialog */
+.mat-mdc-dialog-panel.crud-manager-dialog-panel .mat-mdc-text-field-wrapper {
+  border-radius: 12px !important;
+}
+
+.mat-mdc-dialog-panel.crud-manager-dialog-panel .mdc-notched-outline__leading,
+.mat-mdc-dialog-panel.crud-manager-dialog-panel .mdc-notched-outline__notch,
+.mat-mdc-dialog-panel.crud-manager-dialog-panel .mdc-notched-outline__trailing {
+  border-color: rgba(15, 23, 42, 0.16) !important;
+}
+
+@media (max-width: 640px) {
+  .mat-mdc-dialog-panel.crud-manager-dialog-panel {
+    max-width: 100vw !important;
+    margin: 8px !important;
+  }
+
+  .mat-mdc-dialog-panel.crud-manager-dialog-panel .mat-mdc-dialog-surface {
+    border-radius: 14px !important;
+  }
+}
+
+/* =========================================================
+   Historial Dialog — Panel styles (GLOBAL)
+   panelClass: historial-dialog-panel
+   ========================================================= */
+.mat-mdc-dialog-panel.historial-dialog-panel .mat-mdc-dialog-surface {
+  padding: 0 !important;
+  overflow: hidden !important;
+  border-radius: 12px !important;
+}
+
+.mat-mdc-dialog-panel.historial-dialog-panel .mat-mdc-dialog-container {
+  padding: 0 !important;
+  overflow: hidden !important;
+}
+
+.mat-mdc-dialog-panel.historial-dialog-panel .mdc-dialog__surface {
+  overflow: hidden !important;
 }

@@ -22,6 +22,13 @@ export class ComercializadoraService {
     throw error;
   }
 
+  // Traer estado de PersonaTesoreria por documento
+  getPersonaTesoreriaStatus(numeroDocumento: string): Observable<any> {
+    return this.http.get(`${this.apiUrl}/gestion_tesoreria/personas/${encodeURIComponent(numeroDocumento)}/status/`).pipe(
+      catchError(this.handleError)
+    );
+  }
+
   // Traer datos de la comercializadora por codigo
   traerComercializadoraPorCodigo(producto: any, codigo: string): any {
     // buscar en la base de datos la comercializadora por codigo
@@ -86,7 +93,7 @@ export class ComercializadoraService {
       destino,
       personaQueLleva,
       comentariosEnvio,
-      PersonaEnvia: this.utilityService.getUser().datos_basicos.nombres + ' ' + this.utilityService.getUser().datos_basicos.apellido,
+      PersonaEnvia: this.utilityService.getUser().datos_basicos.nombres + ' ' + this.utilityService.getUser().datos_basicos.apellidos,
     };
 
     try {
@@ -173,7 +180,7 @@ export class ComercializadoraService {
     const urlcompleta = `${this.apiUrl}/Comercio/jefedearea/recibirenvio/${cod}`;
 
     const PersonaRecibe =
-      this.utilityService.getUser().datos_basicos.nombres + ' ' + this.utilityService.getUser().datos_basicos.apellido;
+      this.utilityService.getUser().datos_basicos.nombres + ' ' + this.utilityService.getUser().datos_basicos.apellidos;
     const dataToSend = {
       cod,
       cantidadRecibida,
@@ -199,6 +206,106 @@ export class ComercializadoraService {
       const response = await firstValueFrom(
         this.http
           .get(`${this.apiUrl}/opciones_formulario/categorias/${int}`)
+          .pipe(catchError(this.handleError))
+      );
+      return response;
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  // --- NUEVOS MÉTODOS TESORERÍA --- 
+
+  async buscarMovimiento(id: number): Promise<any> {
+    try {
+      const response = await firstValueFrom(
+        this.http.get(`${this.apiUrl}/gestion_tesoreria/movimientos/${id}/`)
+          .pipe(catchError(this.handleError))
+      );
+      return response;
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  async enviarMercanciaNuevo(data: any): Promise<any> {
+    try {
+      const response = await firstValueFrom(
+        this.http.post(`${this.apiUrl}/gestion_tesoreria/movimientos/enviar/`, data)
+          .pipe(catchError(this.handleError))
+      );
+      return response;
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  async editarEnvioNuevo(id: number, data: any): Promise<any> {
+    try {
+      const response = await firstValueFrom(
+        this.http.patch(`${this.apiUrl}/gestion_tesoreria/movimientos/${id}/editar-envio/`, data)
+          .pipe(catchError(this.handleError))
+      );
+      return response;
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  async listarPendientesRecepcion(sede: string = ''): Promise<any> {
+    try {
+      let params = new HttpParams();
+      if (sede) {
+        params = params.set('sede', sede);
+      }
+      const response = await firstValueFrom(
+        this.http.get(`${this.apiUrl}/gestion_tesoreria/movimientos/pendientes-recepcion/`, { params })
+          .pipe(catchError(this.handleError))
+      );
+      return response;
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  async recibirMercanciaNuevo(data: any): Promise<any> {
+    try {
+      const response = await firstValueFrom(
+        this.http.post(`${this.apiUrl}/gestion_tesoreria/movimientos/recibir/`, data)
+          .pipe(catchError(this.handleError))
+      );
+      return response;
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  async listarInventarioLotes(sede: string): Promise<any> {
+    try {
+      let params = new HttpParams();
+      if (sede) {
+        params = params.set('sede', sede);
+      }
+      const response = await firstValueFrom(
+        this.http.get(`${this.apiUrl}/gestion_tesoreria/movimientos/inventario-lotes/`, { params })
+          .pipe(catchError(this.handleError))
+      );
+      return response;
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  async venderLote(lote_id: number, cantidad: number, persona_vende: string, comentario: string = ''): Promise<any> {
+    try {
+      const payload = {
+        lote_id,
+        cantidad,
+        persona_vende,
+        comentario
+      };
+      const response = await firstValueFrom(
+        this.http.post(`${this.apiUrl}/gestion_tesoreria/movimientos/vender-lote/`, payload)
           .pipe(catchError(this.handleError))
       );
       return response;

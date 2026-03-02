@@ -1,123 +1,118 @@
-<mat-card>
-  <mat-card-content>
-    <div class="tabla">
-      <h1 class="titulo">Tabla de Inventario de Productos Comercializados</h1>
+<div class="page-container">
+  <div class="page-header">
+    <div class="header-content">
+      <h1 class="page-title">Recibir Envío</h1>
+      <p class="page-subtitle">Confirme la recepción de productos enviados a su sede</p>
+    </div>
+    <div class="header-icon">
+      <mat-icon>move_to_inbox</mat-icon>
+    </div>
+  </div>
 
-      <!-- Filtro -->
-      <mat-form-field class="filtro">
-        <mat-label>Filter</mat-label>
-        <input matInput (keyup)="applyFilterInventario($event)" placeholder="Filter" #inputInventario />
+  <mat-card class="premium-card">
+    <mat-card-header>
+      <div mat-card-avatar class="card-avatar">
+        <mat-icon>inventory</mat-icon>
+      </div>
+      <mat-card-title>Productos Pendientes de Recepción</mat-card-title>
+      <mat-card-subtitle>Seleccione los productos, ajuste cantidades y confirme</mat-card-subtitle>
+    </mat-card-header>
+    <mat-card-content>
+      <mat-form-field appearance="outline" class="full-width" style="margin-top: 12px;">
+        <mat-label>Filtrar productos</mat-label>
+        <mat-icon matPrefix>search</mat-icon>
+        <input matInput (keyup)="applyFilterInventario($event)" placeholder="Buscar..." #inputInventario />
       </mat-form-field>
 
-      <!-- Formulario con formGroup -->
       <form [formGroup]="cantidadForm">
         <div class="table-container">
           <table mat-table [dataSource]="dataSourceInventario" class="mat-elevation-z8">
-
-            <!-- Columna para el checkbox de selección -->
+            <!-- Checkbox -->
             <ng-container matColumnDef="select">
-              <th mat-header-cell *matHeaderCellDef>Seleccionar</th>
+              <th mat-header-cell *matHeaderCellDef>Sel.</th>
               <td mat-cell *matCellDef="let element">
                 <mat-checkbox [checked]="seleccionados[element.codigo]"
-                  (change)="toggleSelection($event, element.codigo)">
-                </mat-checkbox>
+                  (change)="toggleSelection($event, element.codigo)"></mat-checkbox>
               </td>
             </ng-container>
-
             <!-- Código -->
             <ng-container matColumnDef="codigo">
               <th mat-header-cell *matHeaderCellDef>Código</th>
-              <td mat-cell *matCellDef="let element">{{ element.codigo }}</td>
+              <td mat-cell *matCellDef="let element">
+                <span class="badge-code">{{ element.codigo }}</span>
+              </td>
             </ng-container>
-
             <!-- Concepto -->
             <ng-container matColumnDef="concepto">
               <th mat-header-cell *matHeaderCellDef>Concepto</th>
               <td mat-cell *matCellDef="let element">{{ element.concepto }}</td>
             </ng-container>
-
             <!-- Cantidad Enviada -->
             <ng-container matColumnDef="cantidadEnvio">
-              <th mat-header-cell *matHeaderCellDef>Cantidad Enviada</th>
-              <td mat-cell *matCellDef="let element">{{ element.cantidadEnvio }}</td>
+              <th mat-header-cell *matHeaderCellDef>Enviada</th>
+              <td mat-cell *matCellDef="let element">
+                <span class="badge-enviada">{{ element.cantidadEnvio }}</span>
+              </td>
             </ng-container>
-
-            <!-- Cantidad Recibida con botones y formControlName -->
+            <!-- Cantidad Recibida -->
             <ng-container matColumnDef="cantidadRecibida">
-              <th mat-header-cell *matHeaderCellDef>Cantidad Recibida</th>
+              <th mat-header-cell *matHeaderCellDef>Cant. Recibida</th>
               <td mat-cell *matCellDef="let element">
                 <div class="cantidad-container">
-                  <!-- Botón para decrementar -->
-                  <button
-                    mat-icon-button
-                    color="primary"
-                    type="button"
-                    (click)="decrementarCantidad(element.codigo)"
-                    [disabled]="!seleccionados[element.codigo]"
-                  >
+                  <button mat-icon-button color="primary" type="button" (click)="decrementarCantidad(element.codigo)"
+                    [disabled]="!seleccionados[element.codigo]">
                     <mat-icon>remove</mat-icon>
                   </button>
-
-                  <!-- Mostrar la cantidad: 0 si no está seleccionado, cantidad enviada si está activo -->
                   <span class="cantidad">
-                    {{ seleccionados[element.codigo] ? (cantidadForm.get(element.codigo)?.value ?? element.cantidadEnvio) : 0 }}
+                    {{ seleccionados[element.codigo] ? (cantidadForm.get(element.codigo)?.value ??
+                    element.cantidadEnvio) : 0 }}
                   </span>
-
-                  <!-- Botón para incrementar -->
-                  <button
-                    mat-icon-button
-                    color="primary"
-                    type="button"
-                    (click)="incrementarCantidad(element.codigo)"
-                    [disabled]="!seleccionados[element.codigo]"
-                  >
+                  <button mat-icon-button color="primary" type="button" (click)="incrementarCantidad(element.codigo)"
+                    [disabled]="!seleccionados[element.codigo]">
                     <mat-icon>add</mat-icon>
                   </button>
                 </div>
               </td>
             </ng-container>
-
-
             <!-- Valor Unidad -->
             <ng-container matColumnDef="valorUnidad">
-              <th mat-header-cell *matHeaderCellDef>Valor Unidad</th>
-              <td mat-cell *matCellDef="let element">{{ element.valorUnidad }}</td>
+              <th mat-header-cell *matHeaderCellDef>Valor Und.</th>
+              <td mat-cell *matCellDef="let element">{{ element.valorUnidad | currency:'COP':'symbol-narrow':'1.0-0' }}
+              </td>
             </ng-container>
-
-            <!-- Persona Envia -->
+            <!-- Persona Envía -->
             <ng-container matColumnDef="PersonaEnvia">
-              <th mat-header-cell *matHeaderCellDef>Persona quien lo envió</th>
+              <th mat-header-cell *matHeaderCellDef>Envía</th>
               <td mat-cell *matCellDef="let element">{{ element.PersonaEnvia }}</td>
             </ng-container>
-
             <!-- Persona Recibe -->
             <ng-container matColumnDef="PersonaRecibe">
-              <th mat-header-cell *matHeaderCellDef>Persona quien recibe</th>
+              <th mat-header-cell *matHeaderCellDef>Recibe</th>
               <td mat-cell *matCellDef="let element">{{ element.PersonaRecibe }}</td>
             </ng-container>
-
             <!-- Comentarios -->
             <ng-container matColumnDef="comentariosEnvio">
-              <th mat-header-cell *matHeaderCellDef>Comentario del que envía</th>
+              <th mat-header-cell *matHeaderCellDef>Comentarios</th>
               <td mat-cell *matCellDef="let element">{{ element.comentariosEnvio }}</td>
             </ng-container>
 
-            <!-- Filas de encabezado y datos -->
             <tr mat-header-row *matHeaderRowDef="displayedColumnsInventario"></tr>
-            <tr mat-row *matRowDef="let row; columns: displayedColumnsInventario"></tr>
-
-            <!-- Fila de "No data" -->
+            <tr mat-row *matRowDef="let row; columns: displayedColumnsInventario"
+              [class.row-selected]="seleccionados[row.codigo]"></tr>
             <tr class="mat-row" *matNoDataRow>
               <td class="mat-cell" colspan="12">
-                No hay datos "{{ inputInventario.value }}"
+                No hay envíos pendientes{{ inputInventario.value ? ' para "' + inputInventario.value + '"' : '' }}
               </td>
             </tr>
           </table>
         </div>
       </form>
-
-      <!-- Botón para confirmar la recepción -->
-      <button mat-flat-button class="boton" (click)="confirmarRecepcion()">Confirmar Recepción</button>
-    </div>
-  </mat-card-content>
-</mat-card>
+    </mat-card-content>
+    <mat-card-actions align="end" style="padding: 16px;">
+      <button mat-flat-button class="btn-large" (click)="confirmarRecepcion()"
+        style="background: #7c3aed; color: white;">
+        <mat-icon>check_circle</mat-icon> CONFIRMAR RECEPCIÓN
+      </button>
+    </mat-card-actions>
+  </mat-card>
+</div>

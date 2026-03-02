@@ -1,0 +1,176 @@
+<!-- ═══════════════════════════════════════════════════════════
+     CrudManagerDialog — Premium CRUD form dialog
+     ═══════════════════════════════════════════════════════════ -->
+
+<!-- ── HEADER ──────────────────────────────────────────────── -->
+<div class="cmd-header" [style.--accent]="modeColor">
+  <div class="cmd-header__left">
+    <div class="cmd-header__icon-wrap" [style.background]="modeColor + '18'" [style.color]="modeColor">
+      <mat-icon>{{ modeIcon }}</mat-icon>
+    </div>
+    <div class="cmd-header__text">
+      <h2 class="cmd-header__title">{{ data.title }}</h2>
+      <p class="cmd-header__subtitle" *ngIf="data.subtitle">{{ data.subtitle }}</p>
+    </div>
+  </div>
+  <button mat-icon-button class="cmd-header__close" (click)="cancel()" matTooltip="Cerrar">
+    <mat-icon>close</mat-icon>
+  </button>
+</div>
+
+<!-- ── PROGRESS BAR ────────────────────────────────────────── -->
+<div class="cmd-progress" *ngIf="mode !== 'view' && totalFields() > 0">
+  <div class="cmd-progress__bar">
+    <div class="cmd-progress__fill" [style.width.%]="progressPercent()"
+         [style.background]="modeColor"></div>
+  </div>
+  <span class="cmd-progress__label">
+    {{ filledFields() }}/{{ totalFields() }} campos completados
+  </span>
+</div>
+
+<!-- ── BODY ────────────────────────────────────────────────── -->
+<div mat-dialog-content class="cmd-body" [formGroup]="form">
+
+  <!-- Empty state -->
+  <div class="cmd-empty" *ngIf="data.fields.length === 0">
+    <mat-icon class="cmd-empty__icon">inbox</mat-icon>
+    <p>No hay campos configurados</p>
+  </div>
+
+  <!-- Groups -->
+  <ng-container *ngFor="let group of resolvedGroups; let gi = index">
+
+    <!-- Section header (skip default group label) -->
+    <div class="cmd-section" *ngIf="group.label">
+      <mat-divider *ngIf="gi > 0" class="cmd-section__divider"></mat-divider>
+      <h3 class="cmd-section__title">
+        <mat-icon *ngIf="group.icon" class="cmd-section__icon">{{ group.icon }}</mat-icon>
+        {{ group.label }}
+      </h3>
+    </div>
+
+    <!-- Fields grid -->
+    <div class="cmd-grid">
+      <ng-container *ngFor="let f of group.fields; let fi = index">
+
+        <div class="cmd-field"
+             [class.cmd-field--full]="isFullWidth(f)"
+             [style.animation-delay]="(gi * group.fields.length + fi) * 40 + 'ms'">
+
+          <ng-container [ngSwitch]="f.type">
+
+            <!-- TEXT -->
+            <mat-form-field *ngSwitchCase="'text'" appearance="outline" class="cmd-ff">
+              <mat-label>{{ f.label }}</mat-label>
+              <input matInput
+                     [placeholder]="f.placeholder ?? ''"
+                     [formControlName]="f.name"
+                     [attr.inputmode]="f.inputMode ?? 'text'" />
+              <span matTextPrefix *ngIf="f.prefix">&nbsp;{{ f.prefix }}&nbsp;</span>
+              <span matTextSuffix *ngIf="f.suffix">&nbsp;{{ f.suffix }}&nbsp;</span>
+              <mat-hint *ngIf="f.hint">{{ f.hint }}</mat-hint>
+              <mat-error *ngIf="showError(f.name)">{{ errorMsg(f.name, f) }}</mat-error>
+            </mat-form-field>
+
+            <!-- PASSWORD -->
+            <mat-form-field *ngSwitchCase="'password'" appearance="outline" class="cmd-ff">
+              <mat-label>{{ f.label }}</mat-label>
+              <input matInput
+                     [type]="showPwd[f.name] ? 'text' : 'password'"
+                     [placeholder]="f.placeholder ?? ''"
+                     [formControlName]="f.name" />
+              <button mat-icon-button matSuffix type="button"
+                      (click)="togglePwd(f.name)"
+                      [attr.aria-label]="'toggle ' + f.name">
+                <mat-icon>{{ showPwd[f.name] ? 'visibility_off' : 'visibility' }}</mat-icon>
+              </button>
+              <mat-hint *ngIf="f.hint">{{ f.hint }}</mat-hint>
+              <mat-error *ngIf="showError(f.name)">{{ errorMsg(f.name, f) }}</mat-error>
+            </mat-form-field>
+
+            <!-- NUMBER -->
+            <mat-form-field *ngSwitchCase="'number'" appearance="outline" class="cmd-ff">
+              <mat-label>{{ f.label }}</mat-label>
+              <input matInput type="text" inputmode="decimal"
+                     [step]="f.step ?? 0.01"
+                     [placeholder]="f.placeholder ?? ''"
+                     [formControlName]="f.name" />
+              <span matTextPrefix *ngIf="f.prefix">&nbsp;{{ f.prefix }}&nbsp;</span>
+              <span matTextSuffix *ngIf="f.suffix">&nbsp;{{ f.suffix }}&nbsp;</span>
+              <mat-hint *ngIf="f.hint">{{ f.hint }}</mat-hint>
+              <mat-error *ngIf="showError(f.name)">{{ errorMsg(f.name, f) }}</mat-error>
+            </mat-form-field>
+
+            <!-- TEXTAREA -->
+            <mat-form-field *ngSwitchCase="'textarea'" appearance="outline" class="cmd-ff">
+              <mat-label>{{ f.label }}</mat-label>
+              <textarea matInput rows="3"
+                        [placeholder]="f.placeholder ?? ''"
+                        [formControlName]="f.name"></textarea>
+              <mat-hint *ngIf="f.hint">{{ f.hint }}</mat-hint>
+              <mat-error *ngIf="showError(f.name)">{{ errorMsg(f.name, f) }}</mat-error>
+            </mat-form-field>
+
+            <!-- SELECT -->
+            <mat-form-field *ngSwitchCase="'select'" appearance="outline" class="cmd-ff">
+              <mat-label>{{ f.label }}</mat-label>
+              <mat-select [formControlName]="f.name"
+                          [placeholder]="f.placeholder ?? ''"
+                          [multiple]="!!f.multiple">
+                <mat-option *ngFor="let opt of (f.options || [])" [value]="opt.value">
+                  {{ opt.label }}
+                </mat-option>
+              </mat-select>
+              <mat-hint *ngIf="f.hint">{{ f.hint }}</mat-hint>
+              <mat-error *ngIf="showError(f.name)">{{ errorMsg(f.name, f) }}</mat-error>
+            </mat-form-field>
+
+            <!-- CHECKBOX -->
+            <div *ngSwitchCase="'checkbox'" class="cmd-checkbox-wrap">
+              <mat-checkbox [formControlName]="f.name" color="primary">
+                {{ f.label }}
+              </mat-checkbox>
+              <span class="cmd-checkbox-hint" *ngIf="f.hint">{{ f.hint }}</span>
+            </div>
+
+            <!-- DATE -->
+            <mat-form-field *ngSwitchCase="'date'" appearance="outline" class="cmd-ff">
+              <mat-label>{{ f.label }}</mat-label>
+              <input matInput [matDatepicker]="picker"
+                     [placeholder]="f.placeholder ?? ''"
+                     [formControlName]="f.name" />
+              <mat-datepicker-toggle matSuffix [for]="picker"></mat-datepicker-toggle>
+              <mat-datepicker #picker></mat-datepicker>
+              <mat-hint *ngIf="f.hint">{{ f.hint }}</mat-hint>
+              <mat-error *ngIf="showError(f.name)">{{ errorMsg(f.name, f) }}</mat-error>
+            </mat-form-field>
+
+          </ng-container>
+        </div>
+
+      </ng-container>
+    </div>
+
+  </ng-container>
+</div>
+
+<!-- ── FOOTER ──────────────────────────────────────────────── -->
+<div class="cmd-footer">
+  <button mat-stroked-button class="cmd-footer__btn cmd-footer__btn--cancel" (click)="cancel()">
+    <mat-icon>close</mat-icon>
+    {{ data.cancelText || (mode === 'view' ? 'Cerrar' : 'Cancelar') }}
+  </button>
+
+  <span class="cmd-footer__spacer"></span>
+
+  <button *ngIf="mode !== 'view'"
+          mat-flat-button color="primary"
+          class="cmd-footer__btn cmd-footer__btn--submit"
+          [disabled]="form.invalid || saving()"
+          (click)="submit()">
+    <mat-spinner *ngIf="saving()" diameter="18" class="cmd-footer__spinner"></mat-spinner>
+    <mat-icon *ngIf="!saving()">{{ mode === 'create' ? 'save' : 'check_circle' }}</mat-icon>
+    {{ data.submitText || (mode === 'create' ? 'Crear' : 'Guardar') }}
+  </button>
+</div>

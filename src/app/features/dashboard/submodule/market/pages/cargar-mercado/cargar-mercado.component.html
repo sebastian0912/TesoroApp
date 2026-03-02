@@ -1,49 +1,187 @@
-<mat-card>
-  <mat-card-content>
-    <form [formGroup]="myForm" (ngSubmit)="onSubmit()">
-      <h1 class="titulo">
-        Digite el número de identificación del empleado a validar:
-      </h1>
+<div class="page-container">
+  <div class="page-header">
+    <div class="header-content">
+      <h1 class="page-title">Ejecutar Mercado</h1>
+      <p class="page-subtitle">Seleccione un código de autorización pendiente para ejecutar la entrega</p>
+    </div>
+    <div class="header-icon">
+      <mat-icon>storefront</mat-icon>
+    </div>
+  </div>
 
-      <ng-container>
-        <div class="encabezado">
-          <mat-form-field class="example-full-width cedula">
-            <mat-label>Número de identificación</mat-label>
-            <input matInput formControlName="cedula">
-            <mat-error *ngIf="myForm.get('cedula')?.hasError('required')">
-              El número de identificación es requerido
-            </mat-error>
-          </mat-form-field>
-          <h1 class="nombre">
-            <strong>Nombre Operario: </strong>{{ nombreOperario }}
-          </h1>
-          <h1 class="nombre">
-            <strong>Fecha ingreso: </strong>{{ fechaIngreso }}
-          </h1>
+  <!-- BUSCAR EMPLEADO -->
+  <mat-card class="premium-card" *ngIf="!datosOperario">
+    <mat-card-header>
+      <div mat-card-avatar class="card-avatar">
+        <mat-icon>badge</mat-icon>
+      </div>
+      <mat-card-title>Búsqueda de Empleado</mat-card-title>
+      <mat-card-subtitle>Ingrese el documento de identidad del solicitante</mat-card-subtitle>
+    </mat-card-header>
+    <mat-card-content>
+      <form [formGroup]="searchForm" (ngSubmit)="buscarEmpleado()">
+        <mat-form-field appearance="outline" class="full-width mt-3">
+          <mat-label>Número de Identificación</mat-label>
+          <mat-icon matPrefix>badge</mat-icon>
+          <input matInput formControlName="numero_documento" placeholder="Ej: 1005851505" />
+          <mat-hint>Ingrese cédula o documento sin puntos ni comas</mat-hint>
+          <mat-error *ngIf="searchForm.get('numero_documento')?.hasError('required')">El documento es
+            obligatorio</mat-error>
+          <mat-error *ngIf="searchForm.get('numero_documento')?.hasError('pattern')">Formato
+            inválido</mat-error>
+        </mat-form-field>
+      </form>
+    </mat-card-content>
+    <mat-card-actions align="end" style="padding: 0 16px 16px;">
+      <button mat-flat-button color="primary" class="btn-large" (click)="buscarEmpleado()"
+        [disabled]="!searchForm.get('numero_documento')?.valid" style="background: #0d9488; color: white;">
+        <mat-icon>search</mat-icon> BUSCAR EMPLEADO
+      </button>
+    </mat-card-actions>
+  </mat-card>
+
+  <!-- CONTENIDO PRINCIPAL: EMPLEADO + AUTORIZACIONES LADO A LADO -->
+  <ng-container *ngIf="datosOperario">
+    <div class="two-column-layout">
+
+      <!-- COLUMNA IZQUIERDA: INFO EMPLEADO -->
+      <mat-card class="premium-card employee-card">
+        <mat-card-header>
+          <div mat-card-avatar class="card-avatar">
+            <mat-icon>person</mat-icon>
+          </div>
+          <mat-card-title>{{ nombreOperario }}</mat-card-title>
+          <mat-card-subtitle>Doc: {{ datosOperario.numero_documento }}</mat-card-subtitle>
+        </mat-card-header>
+        <mat-card-content>
+          <div class="employee-info-list">
+            <div class="info-row">
+              <div class="info-row-icon success">
+                <mat-icon>event_available</mat-icon>
+              </div>
+              <div>
+                <span class="info-row-label">Ingreso</span>
+                <span class="info-row-value">{{ datosOperario.ingreso ? datosOperario.ingreso.split(' ')[0] : 'N/A'
+                  }}</span>
+              </div>
+            </div>
+            <div class="info-row">
+              <div class="info-row-icon info">
+                <mat-icon>location_on</mat-icon>
+              </div>
+              <div>
+                <span class="info-row-label">Finca / Centro</span>
+                <span class="info-row-value">{{ datosOperario.finca || 'N/A' }}</span>
+              </div>
+            </div>
+            <div class="info-row" *ngIf="limiteDisponible > 0">
+              <div class="info-row-icon warning">
+                <mat-icon>credit_score</mat-icon>
+              </div>
+              <div>
+                <span class="info-row-label">Cupo Disponible Mercado</span>
+                <span class="info-row-value" style="color: #d97706; font-size: 18px;">$ {{
+                  formatCurrency(limiteDisponible) }}</span>
+              </div>
+            </div>
+          </div>
+        </mat-card-content>
+        <mat-card-actions style="padding: 8px 16px 16px; display: flex; gap: 8px; flex-wrap: wrap;">
+          <button mat-stroked-button color="primary" type="button" (click)="abrirHistorial()"
+            style="border-radius: 8px; flex: 1;">
+            <mat-icon>history</mat-icon> Historial
+          </button>
+          <button mat-button (click)="cancelar()" style="flex: 1;">
+            <mat-icon>arrow_back</mat-icon> Cambiar
+          </button>
+        </mat-card-actions>
+      </mat-card>
+
+      <!-- COLUMNA DERECHA: SELECCIÓN DE CÓDIGO -->
+      <mat-card class="premium-card auth-card">
+        <mat-card-header>
+          <div mat-card-avatar class="card-avatar" style="background-color: #fef3c7; color: #d97706;">
+            <mat-icon>qr_code_2</mat-icon>
+          </div>
+          <mat-card-title>Autorizaciones Pendientes</mat-card-title>
+          <mat-card-subtitle>Seleccione la autorización a ejecutar</mat-card-subtitle>
+        </mat-card-header>
+        <mat-card-content style="max-height: 350px; overflow-y: auto;">
+          <div *ngIf="transaccionesPendientes.length === 0 && !loadingTransacciones" class="empty-state">
+            <mat-icon>inbox</mat-icon>
+            <p>Sin autorizaciones de mercado pendientes.</p>
+          </div>
+
+          <div *ngIf="loadingTransacciones" style="text-align: center; padding: 24px;">
+            <mat-spinner diameter="36" style="margin: 0 auto;"></mat-spinner>
+            <p style="margin-top: 8px; color: #64748b;">Cargando...</p>
+          </div>
+
+          <mat-radio-group *ngIf="transaccionesPendientes.length > 0" [(ngModel)]="transaccionSeleccionada"
+            (change)="onCodigoSeleccionado()">
+            <div *ngFor="let tx of transaccionesPendientes" class="transaction-card"
+              [class.selected]="transaccionSeleccionada?.id === tx.id"
+              (click)="transaccionSeleccionada = tx; onCodigoSeleccionado()">
+              <mat-radio-button [value]="tx" color="primary">
+                <strong>{{ tx.codigo_autorizacion }}</strong>
+              </mat-radio-button>
+              <div class="transaction-info" style="margin-top: 8px; padding-left: 32px;">
+                <div class="info-item">
+                  <span class="info-label">Monto</span>
+                  <span class="info-value highlight">$ {{ formatCurrency(tx.autorizacion_monto) }}</span>
+                </div>
+                <div class="info-item">
+                  <span class="info-label">Cuotas</span>
+                  <span class="info-value">{{ tx.autorizacion_cuotas }}</span>
+                </div>
+                <div class="info-item">
+                  <span class="info-label">Por</span>
+                  <span class="info-value">{{ tx.autorizado_por || 'N/A' }}</span>
+                </div>
+                <div class="info-item">
+                  <span class="info-label">Fecha</span>
+                  <span class="info-value">{{ tx.autorizado_en | date:'dd/MM/yyyy' }}</span>
+                </div>
+              </div>
+            </div>
+          </mat-radio-group>
+        </mat-card-content>
+      </mat-card>
+    </div>
+
+    <!-- CONFIRMAR EJECUCIÓN (ABAJO, ANCHO COMPLETO) -->
+    <mat-card class="premium-card" *ngIf="transaccionSeleccionada">
+      <mat-card-header>
+        <div mat-card-avatar class="card-avatar" style="background-color: #dcfce7; color: #16a34a;">
+          <mat-icon>check_circle</mat-icon>
         </div>
-      </ng-container>
-
-      <ng-container>
-        <mat-form-field class="example-full-width">
-          <mat-label>Valor</mat-label>
-          <input matInput formControlName="valor" (input)="formatCurrency($event)" />
-          <mat-error *ngIf="myForm.get('valor')?.hasError('required')">
-            El valor es requerido
-          </mat-error>
-        </mat-form-field>
-
-        <mat-form-field class="example-full-width">
-          <mat-label>Codigo autorización</mat-label>
-          <input matInput formControlName="codigo" />
-          <mat-error *ngIf="myForm.get('codigo')?.hasError('required')">
-            El codigo de autorización es requerido
-          </mat-error>
-        </mat-form-field>
-
-        <button mat-flat-button type="submit" class="boton" [disabled]="myForm.invalid">
-          Cargar
+        <mat-card-title>Confirmar Ejecución</mat-card-title>
+        <mat-card-subtitle>Código: {{ transaccionSeleccionada.codigo_autorizacion }} — Monto autorizado: ${{
+          formatCurrency(transaccionSeleccionada.autorizacion_monto) }}</mat-card-subtitle>
+      </mat-card-header>
+      <mat-card-content>
+        <form [formGroup]="executeForm">
+          <div class="form-grid">
+            <mat-form-field appearance="outline" class="full-width">
+              <mat-label>Valor a Ejecutar</mat-label>
+              <span matTextPrefix>$&nbsp;</span>
+              <input matInput formControlName="valor" (input)="formatCurrencyInput($event)" placeholder="Ej: 50.000" />
+              <mat-error *ngIf="executeForm.get('valor')?.hasError('required')">El valor es
+                requerido</mat-error>
+            </mat-form-field>
+          </div>
+        </form>
+      </mat-card-content>
+      <mat-card-actions align="end" style="padding: 16px;">
+        <button mat-button (click)="transaccionSeleccionada = null" style="margin-right: 8px;">
+          CANCELAR
         </button>
-      </ng-container>
-    </form>
-  </mat-card-content>
-</mat-card>
+        <button mat-flat-button class="btn-large" (click)="ejecutarMercado()" [disabled]="executeForm.invalid"
+          style="background: #16a34a; color: white;">
+          <mat-icon>check_circle</mat-icon> EJECUTAR MERCADO
+        </button>
+      </mat-card-actions>
+    </mat-card>
+
+  </ng-container>
+</div>

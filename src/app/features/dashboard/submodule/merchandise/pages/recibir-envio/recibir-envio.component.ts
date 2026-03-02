@@ -51,44 +51,47 @@ export class RecibirEnvioComponent implements OnInit {
       const sedeUsuario = user.sede.nombre;
       const userEmail = user.correo_electronico;
 
-      this.utilityService.traerInventarioProductos().subscribe(
-        (data: any) => {
-          // Filtramos la data según tu lógica
-          this.productos = data.comercio.filter((producto: any) =>
-            producto.cantidadRecibida === "0" &&
-            (
-              userEmail === 'contaduria.rtc@gmail.com'
-                ? ['ROSAL', 'CARTAGENITA'].includes(producto.destino)
-                : producto.destino.toLowerCase() === sedeUsuario.toLowerCase()
-            )
-          );
+      let sede_filtro = sedeUsuario;
+      if (userEmail === 'contaduria.rtc@gmail.com') {
+        // Si es admin, puede que queramos ver todos, dejamos vacío
+        sede_filtro = '';
+      }
 
-          // Ordenar por fecha descendente, por ejemplo
-          this.productos.sort(
-            (a: any, b: any) => new Date(b.fechaRecibida).getTime() - new Date(a.fechaRecibida).getTime()
-          );
+      const response = await this.comercializadoraService.listarPendientesRecepcion(sede_filtro);
 
-          // Inicializamos selección y FormControl por cada producto
-          this.productos.forEach((producto: any) => {
-            // Inicialmente sin seleccionar
-            this.seleccionados[producto.codigo] = false;
+      this.productos = response.map((item: any) => ({
+        codigo: item.id.toString(), // usamos id como el código único del envío (como string para FormControl)
+        concepto: item.producto_nombre,
+        cantidadEnvio: item.cantidad,
+        valorUnidad: item.valor_unitario,
+        PersonaEnvia: item.realizado_por,
+        comentariosEnvio: item.comentario,
+        PersonaRecibe: '',
+        fechaRecibida: item.realizado_en // usamos la fecha de salida como orden
+      }));
 
-            // Creamos un control con la cantidad enviada y lo deshabilitamos
-            this.cantidadForm.addControl(
-              producto.codigo,
-              new FormControl({
-                value: producto.cantidadEnvio,
-                disabled: true
-              })
-            );
-          });
-
-          this.dataSourceInventario.data = this.productos;
-        },
-        () => this.showError('Hubo un error al obtener los productos, por favor intente de nuevo')
+      // Ordenar por fecha descendente
+      this.productos.sort(
+        (a: any, b: any) => new Date(b.fechaRecibida).getTime() - new Date(a.fechaRecibida).getTime()
       );
-    } catch {
-      this.showError('Hubo un error al obtener los productos, por favor intente de nuevo');
+
+      // Inicializamos selección y FormControl por cada producto
+      this.productos.forEach((producto: any) => {
+        this.seleccionados[producto.codigo] = false;
+        this.cantidadForm.addControl(
+          producto.codigo.toString(),
+          new FormControl({
+            value: producto.cantidadEnvio,
+            disabled: true
+          })
+        );
+      });
+
+      this.dataSourceInventario.data = this.productos;
+
+    } catch (error) {
+      console.error('Error cargando productos pendientes:', error);
+      this.showError('Hubo un error al obtener los envíos pendientes, por favor intente de nuevo');
     }
   }
 
@@ -139,7 +142,7 @@ export class RecibirEnvioComponent implements OnInit {
   /**
    * Confirmar la recepción
    */
-  confirmarRecepcion() {
+  async confirmarRecepcion() {
     // Obtener solo los productos seleccionados
     const seleccionados = this.productos.filter(
       producto => this.seleccionados[producto.codigo]
@@ -150,19 +153,29 @@ export class RecibirEnvioComponent implements OnInit {
       return;
     }
 
-    // Por cada producto seleccionado, llamar a tu servicio
-    seleccionados.forEach(producto => {
-      const cantidad = this.cantidadForm.get(producto.codigo)?.value;
-      this.comercializadoraService.recibirMercancia(producto.codigo, cantidad, 'Recibido correctamente')
-        .then(() => {
-          Swal.fire('¡Éxito!', 'Se ha recibido la mercancía correctamente.', 'success');
-          // Recargamos los productos
-          this.loadProductos();
-        })
-        .catch(() =>
-          this.showError('Hubo un error al recibir la mercancía, por favor intente de nuevo')
-        );
-    });
+    const user = this.utilityService.getUser();
+    const personaRecibe = user ? `${user.datos_basicos.nombres} ${user.datos_basicos.apellidos}` : 'Usuario';
+
+    try {
+      let successCount = 0;
+      for (const producto of seleccionados) {
+        const cantidad = this.cantidadForm.get(producto.codigo.toString())?.value;
+        const payload = {
+          envio_id: producto.codigo,
+          cantidad: cantidad,
+          persona_recibe: personaRecibe,
+          comentario: 'Recibido correctamente'
+        };
+        await this.comercializadoraService.recibirMercanciaNuevo(payload);
+        successCount++;
+      }
+
+      Swal.fire('¡Éxito!', `Se han recibido ${successCount} envíos correctamente.`, 'success');
+      this.loadProductos();
+    } catch (error) {
+      console.error('Error al recibir envíos:', error);
+      this.showError('Hubo un error al recibir la mercancía, por favor intente de nuevo');
+    }
   }
 
   applyFilterInventario(event: Event) {

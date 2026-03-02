@@ -9,6 +9,8 @@ import { AutorizacionesService } from '../../../authorizations/services/autoriza
 import { UtilityServiceService } from '../../../../../../shared/services/utilityService/utility-service.service';
 import { ComercializadoraService } from '../../../merchandise/service/comercializadora/comercializadora.service';
 import { MatCheckboxModule } from '@angular/material/checkbox';
+import { MatDialog } from '@angular/material/dialog';
+import { HistorialDialogComponent } from '../../../authorizations/pages/autorizacion-dinamica/historial-dialog/historial-dialog.component';
 
 @Component({
   selector: 'app-cargar-mercado-ferias',
@@ -29,6 +31,7 @@ export class CargarMercadoFeriasComponent implements OnInit {
   productos: any[] = [];
   selectedProducts: any[] = []; // Productos seleccionados con checkbox
   fechaIngreso: string = '';
+  limiteDisponible: number = 0;
 
   displayedColumnsInventario: string[] = [
     'select', 'cantidadSeleccionada',
@@ -36,6 +39,11 @@ export class CargarMercadoFeriasComponent implements OnInit {
     'cantidadRecibida', 'valorUnidad',
     'cantidadTotalVendida', 'PersonaEnvia',
     'PersonaRecibe', 'fechaRecibida'];
+
+  displayedColumnsInventarioSimple: string[] = [
+    'select', 'cantidadSeleccionada',
+    'concepto', 'disponible', 'valorUnidad',
+    'PersonaEnvia', 'fechaRecibida'];
 
   dataSourceInventario = new MatTableDataSource<any>();
 
@@ -68,14 +76,15 @@ export class CargarMercadoFeriasComponent implements OnInit {
     private mercadoService: MercadoService,
     private comercializadoraService: ComercializadoraService,
     private utilityServiceService: UtilityServiceService,
-    private router: Router
+    private router: Router,
+    private dialog: MatDialog
   ) {
 
     this.myForm = this.fb.group({
       cedula: ['', Validators.required],
-      cuotas: ['', [Validators.min(1), Validators.max(2)]],
+      cuotas: ['', [Validators.required, Validators.min(1), Validators.max(2)]],
       valor: ['', [Validators.required, this.currencyValidator]],
-      concepto: [''],
+      concepto: ['', Validators.required],
     });
   }
 
@@ -110,23 +119,23 @@ export class CargarMercadoFeriasComponent implements OnInit {
         celularControl?.updateValueAndValidity();
       });
 
-      // Llamar datos de la comercializadora
-      const data: any = await this.utilityServiceService.traerInventarioProductos().toPromise();
+      // Llamar datos desde el nuevo sistema de Tesorería
       const sedeUsuario = this.utilityServiceService.getUser().sede.nombre;
+      const lotes: any = await this.comercializadoraService.listarInventarioLotes(sedeUsuario);
 
-      if (data && data.comercio) {
-        // Filtrar productos según sede y disponibilidad
-        this.productos = data.comercio.filter((producto: any) =>
-          producto.cantidadRecibida !== producto.cantidadTotalVendida &&
-          producto.destino === sedeUsuario
-        );
+      if (lotes && lotes.length > 0) {
+        // Mapear al formato que usa la tabla actualmente
+        this.productos = lotes.map((lote: any) => ({
+          codigo: lote.codigo,
+          concepto: lote.producto_nombre,
+          disponible: lote.disponible, // la tabla usa este si lo modificamos, pero vamos a mapear
+          valorUnidad: lote.valor_unitario,
+          fechaRecibida: lote.fecha_recepcion,
+          PersonaEnvia: lote.realizado_por,
+          // Guardamos el id del lote para consumir luego
+          lote_id: lote.id,
+        }));
 
-        // Ordenar de mayor a menor por fechaRecibida
-        this.productos.sort((a: any, b: any) =>
-          new Date(b.fechaRecibida).getTime() - new Date(a.fechaRecibida).getTime()
-        );
-
-        // Asignar datos al dataSource
         this.dataSourceInventario.data = this.productos;
       }
 
@@ -144,292 +153,139 @@ export class CargarMercadoFeriasComponent implements OnInit {
 
 
   currencyValidator(control: AbstractControl) {
+    if (!control.value) return { required: true };
     const value = control.value.replace(/\D/g, '');
     return value ? null : { required: true };
   }
 
   // Función para enviar el formulario
   async onSubmit() {
-    // Variables para almacenar códigos y conceptos
-    let codigoOH: string = '';
-    let codigoMOH: string = '';
-    let conceptoMOH: string = '';
-    const concepto = 'Mercado'; // Puedes cambiarlo si necesitas otro valor por defecto
-
     // 1. Validar el formulario
     if (this.myForm.invalid) {
       this.myForm.markAllAsTouched();
       return;
     }
 
-    // 2. Mostrar Swal de carga antes de iniciar la lógica
+    // 2. Mostrar Swal de carga
     Swal.fire({
       title: 'Procesando...',
       icon: 'info',
       text: 'Por favor, espera mientras se realiza la operación.',
-      allowOutsideClick: false,
-      allowEscapeKey: false,
-      showConfirmButton: false,
-      didOpen: () => {
-        Swal.showLoading();
-      }
+      allowOutsideClick: false, allowEscapeKey: false, showConfirmButton: false,
+      didOpen: () => { Swal.showLoading(); }
     });
 
-    // 3. Iniciar bloque try-catch para capturar errores globales
     try {
-      // 3.1 Obtener valores del formulario, quitando caracteres no numéricos de 'valor'
-      const formValues = {
-        ...this.myForm.value,
-        valor: this.myForm.value.valor.replace(/\D/g, '')
-      };
+      const valorStr = this.myForm.value.valor.replace(/\D/g, '');
+      const valorNumerico = parseInt(valorStr);
+      const cuotas = this.myForm.get('cuotas')?.value || 1;
+      const conceptoForm = this.myForm.get('concepto')?.value;
+      const doc = this.datosOperario.numero_documento;
+      const userName = `${this.usuario.datos_basicos.nombres} ${this.usuario.datos_basicos.apellidos}`;
+      const sedeAutorizacion = this.usuario?.sede?.nombre || '';
 
-      // 3.2 Calcular saldo pendiente del operario (si aplica en tu lógica)
+      // 3. Calcular saldo y verificar condiciones
       this.sumaPrestamos = this.autorizacionesService.traerSaldoPendiente(this.datosOperario);
 
-      // 3.3 Validar condiciones si no es GERENCIA
       if (this.rolUsuario != "GERENCIA" && this.correoUsuario != "mercarflorats@gmail.com" && this.correoUsuario != "mercarflora2.ts@gmail.com" && this.correoUsuario != "servicioalcliente.tuapo1@gmail.com") {
         const verifica = this.autorizacionesService.verificarCondiciones(
-          this.datosOperario,
-          parseInt(formValues.valor),
-          this.sumaPrestamos,
-          'mercado'
+          this.datosOperario, valorNumerico, this.sumaPrestamos, 'mercado'
         );
-        if (!verifica) {
-          return;
-        }
+        if (!verifica) return;
       }
 
-      // 3.4 Generar código 'codigoOH' que no exista en base de datos
-      while (true) {
-        codigoOH = 'M' + Math.floor(Math.random() * 1000000);
-        try {
-          const data = await this.autorizacionesService.buscarCodigo(codigoOH);
-          if (data.codigo.length === 0) {
-            // Si el código no existe, salimos del bucle
-            break;
-          }
-        } catch (error) {
-          // Si hay error en la solicitud, salimos igual
-          break;
-        }
-      }
-
-      // 3.5 Generar segundo código 'codigoMOH'
-      codigoMOH = 'MOH' + Math.floor(Math.random() * 1000000);
-
-      // 4. Si el concepto seleccionado es "Mercado", manejar la lógica de la comercializadora
-      if (formValues.concepto === 'Mercado') {
-        const valorTotal = formValues.valor; // Ya está limpio de caracteres no numéricos
-
-        // 4.1 Generar la descripción de los productos seleccionados (nombre + cantidad)
-        const conceptoProductos = this.selectedProducts
-          .map((p) => `${p.concepto} (x${p.cantidadSeleccionada})`)
-          .join(', ');
-
-        // verificar que la cantidad seleccionada + la cantidad total vendida no sea mayor a la cantidad recibida
+      // 4. Si es Mercado, validar inventario
+      if (conceptoForm === 'Mercado') {
         for (const product of this.selectedProducts) {
-          if (parseInt(product.cantidadSeleccionada) + parseInt(product.cantidadTotalVendida) > parseInt(product.cantidadRecibida)) {
+          if (parseInt(product.cantidadSeleccionada) > product.disponible) {
             Swal.close();
             await Swal.fire({
-              icon: 'error',
-              title: 'Oops...',
-              text: `La cantidad seleccionada para ${product.concepto} supera la cantidad disponible en inventario, por favor intente de nuevo.`,
+              icon: 'error', title: 'Inventario insuficiente',
+              text: `La cantidad seleccionada para ${product.concepto} supera la cantidad disponible (${product.disponible}).`,
             });
             return;
           }
         }
-
-        // 4.2 Construir el mensaje final del concepto
-        conceptoMOH = `Compra tienda de Ferias respecto a: ${conceptoProductos} en ${this.utilityServiceService.getUser().sede.nombre}`;
-
-        // 4.3 Escribir en historial
-        const historialData = await this.autorizacionesService.escribirHistorial(
-          formValues.cedula,
-          valorTotal,
-          formValues.cuotas,
-          'Autorizacion de Mercado',
-          codigoOH,
-          this.usuario.datos_basicos.nombres + ' ' + this.usuario.datos_basicos.apellidos
-        );
-
-        this.historial_id = historialData.historial_id;
-
-        // 4.4 Escribir código
-        await this.autorizacionesService.escribirCodigo(
-          formValues.cedula,
-          String(valorTotal),
-          codigoOH,
-          formValues.cuotas,
-          'Autorizacion de Mercado',
-          this.historial_id,
-          this.usuario.datos_basicos.nombres + ' ' + this.usuario.datos_basicos.apellidos,
-          this.usuario.numero_de_documento
-        );
-
-        // 4.5 Actualizar inventario para cada producto seleccionado
-        for (const product of this.selectedProducts) {
-          // cantidadSeleccionada tiene que ser string para la API
-          product.cantidadSeleccionada = String(product.cantidadSeleccionada);
-          await this.comercializadoraService
-            .ActualizarInventario(product.cantidadSeleccionada, product.codigo)
-            .catch(async (error) => {
-              Swal.close();
-              await Swal.fire({
-                icon: 'error',
-                title: 'Oops...',
-                text: `Hubo un error al actualizar el inventario para ${product.concepto}, por favor intente de nuevo.`,
-              });
-              return;
-            });
-        }
-
-        // 4.6 Ejecutar la lógica de mercado en la comercializadora
-        const response = await this.mercadoService.ejecutarMercadoComercializadora(
-          codigoOH,
-          formValues.cedula,
-          valorTotal,
-          codigoMOH,
-          conceptoMOH,
-          this.historial_id
-        );
-
-        // 4.7 Cerrar el Swal de carga
-        Swal.close();
-
-        // 4.8 Verificar respuesta
-        if (response.message === 'Actualización exitosa') {
-          await Swal.fire({
-            icon: 'success',
-            title: '¡Éxito!',
-            text: 'El préstamo ha sido cargado exitosamente',
-            confirmButtonText: 'Aceptar',
-          });
-          // Redirección
-          this.router.navigateByUrl('/dashboard', { skipLocationChange: true }).then(() => {
-            this.router.navigate(['/dashboard/market/load-fair-market']);
-          });
-        } else {
-          await Swal.fire({
-            icon: 'error',
-            title: 'Oops...',
-            text: 'Hubo un error al realizar el cargue, por favor intente de nuevo',
-          });
-        }
-
-        // 4.9 Generar PDF
-        this.autorizacionesService.generatePdf(
-          this.datosOperario,
-          valorTotal,
-          String(valorTotal),
-          formValues.formaPago || '',
-          formValues.celular || '',
-          codigoOH,
-          formValues.cuotas,
-          'Mercado',
-          this.usuario.datos_basicos.nombres + ' ' + this.usuario.datos_basicos.apellidos
-        );
-
-        return; // Termina la ejecución porque ya procesaste el caso de "Mercado"
       }
 
-      // 5. Si NO es "Mercado", procesar la lógica estándar
-      const valorNormal = parseInt(formValues.valor);
-
-      // 5.1 Escribir en historial
-      const historialData = await this.autorizacionesService.escribirHistorial(
-        formValues.cedula,
-        valorNormal,
-        formValues.cuotas,
-        'Autorizacion de Mercado',
-        codigoOH,
-        this.usuario.datos_basicos.nombres + ' ' + this.usuario.datos_basicos.apellidos
-      );
-      this.historial_id = historialData.historial_id;
-
-      // 5.2 Escribir código
-      await this.autorizacionesService.escribirCodigo(
-        formValues.cedula,
-        String(valorNormal),
-        codigoOH,
-        formValues.cuotas,
-        'Autorizacion de Mercado',
-        this.historial_id,
-        this.usuario.datos_basicos.nombres + ' ' + this.usuario.datos_basicos.apellidos,
-        this.usuario.numero_de_documento
-      );
-
-      // 5.3 Construir el mensaje para MOH
-      conceptoMOH = `Compra tienda de Ferias respecto a : ${formValues.concepto} en ${this.utilityServiceService.getUser().sede.nombre}`;
-      if (formValues.concepto === 'Otro') {
-        conceptoMOH = `Compra tienda de Ferias respecto a : ${formValues.otroConcepto} en ${this.utilityServiceService.getUser().sede.nombre}`;
-      }
-
-      // 5.4 Ejecutar en tienda
-      const responseTienda = await this.mercadoService.ejecutarMercadoTienda(
-        codigoOH,
-        formValues.cedula,
-        valorNormal,
-        codigoMOH,
-        conceptoMOH,
-        this.historial_id
-      );
-
-      // 5.5 Cerrar Swal de carga
-      Swal.close();
-
-      // 5.6 Validar respuesta
-      if (responseTienda.message === 'Actualización exitosa') {
-        await Swal.fire({
-          icon: 'success',
-          title: '¡Éxito!',
-          text: 'El préstamo ha sido cargado exitosamente',
-          confirmButtonText: 'Aceptar',
-        });
-        this.router.navigateByUrl('/dashboard', { skipLocationChange: true }).then(() => {
-          this.router.navigate(['/dashboard/market/load-fair-market']);
-        });
+      // 5. Armar concepto detallado
+      let ejecucionConcepto = '';
+      if (conceptoForm === 'Mercado' && this.selectedProducts.length > 0) {
+        const detalles = this.selectedProducts
+          .map((p: any) => `${p.concepto} (x${p.cantidadSeleccionada})`)
+          .join(', ');
+        ejecucionConcepto = `Mercado feria: ${detalles} en ${sedeAutorizacion}`;
       } else {
-        await Swal.fire({
-          icon: 'error',
-          title: 'Oops...',
-          text: 'Hubo un error al realizar el cargue, por favor intente de nuevo',
-        });
+        ejecucionConcepto = `${conceptoForm} por $${valorNumerico.toLocaleString('es-CO')} en ${sedeAutorizacion}`;
       }
 
-      // 5.7 Generar PDF
-      this.autorizacionesService.generatePdf(
-        this.datosOperario,
-        valorNormal,
-        String(valorNormal),
-        formValues.formaPago || '',
-        formValues.celular || '',
-        codigoOH,
-        formValues.cuotas,
-        'Mercado',
-        this.usuario.datos_basicos.nombres + ' ' + this.usuario.datos_basicos.apellidos,
-      );
+      // 6. Armar ventas de lotes
+      const ventas = (conceptoForm === 'Mercado' && this.selectedProducts.length > 0)
+        ? this.selectedProducts.map((p: any) => ({
+          lote_id: p.lote_id,
+          cantidad: parseInt(p.cantidadSeleccionada)
+        }))
+        : [];
 
-    } catch (error) {
-      // 6. Manejo de errores global
+      // 7. Ejecutar TODO atómicamente en un solo request
+      const response = await this.autorizacionesService.ejecutarMercadoCompleto({
+        numero_documento: doc,
+        autorizacion_monto: valorNumerico,
+        autorizacion_cuotas: cuotas,
+        autorizacion_concepto: 'Mercado',
+        autorizado_por: userName,
+        sede_autorizacion: sedeAutorizacion,
+        ejecucion_concepto: ejecucionConcepto,
+        ejecutado_por: userName,
+        sede_ejecucion: sedeAutorizacion,
+        ejecucion_monto: valorNumerico,
+        ventas: ventas
+      });
+
+      // 8. Generar PDF (no bloquear si falla)
+      try {
+        await this.autorizacionesService.generatePdf(
+          this.datosOperario,
+          valorNumerico,
+          valorStr,
+          '',
+          '',
+          ejecucionConcepto,
+          String(cuotas),
+          'Mercado',
+          userName
+        );
+      } catch (pdfError) {
+        console.warn('Error generando PDF:', pdfError);
+      }
+
+      // 9. Éxito
       Swal.close();
       await Swal.fire({
-        icon: 'error',
-        title: 'Oops...',
-        text: 'Hubo un error al realizar el cargue, por favor intente de nuevo',
+        icon: 'success',
+        title: '¡Éxito!',
+        text: `Mercado cargado exitosamente.`,
+        confirmButtonText: 'Aceptar',
+        confirmButtonColor: '#ea580c'
       });
+
+      this.cancelar();
+      return; // Salir limpiamente
+
+    } catch (error: any) {
+      console.error('Error en onSubmit mercado-ferias:', error);
+      Swal.close();
+      const msg = error?.error?.error || error?.message || 'Hubo un error al realizar el cargue. Intente de nuevo.';
+      await Swal.fire({ icon: 'error', title: 'Error', text: msg });
     }
   }
 
 
   // Función para buscar operario
-  buscarOperario() {
-    // si cedula no es válida
-    if (this.myForm.value.cedula === '') {
-      Swal.fire({
-        icon: 'error',
-        title: 'Error',
-        text: 'Por favor, ingrese una cédula válida.',
-      });
+  async buscarOperario() {
+    const cedula = this.myForm.value.cedula?.trim();
+    if (!cedula) {
+      Swal.fire({ icon: 'error', title: 'Error', text: 'Por favor, ingrese una cédula válida.' });
       this.myForm.markAllAsTouched();
       return;
     }
@@ -438,79 +294,74 @@ export class CargarMercadoFeriasComponent implements OnInit {
       title: 'Buscando trabajador...',
       icon: 'info',
       text: 'Por favor, espera mientras se procesa la información.',
-      allowOutsideClick: false,
-      allowEscapeKey: false,
-      showConfirmButton: false,
-      didOpen: () => {
-        Swal.showLoading();
-      }
+      allowOutsideClick: false, allowEscapeKey: false, showConfirmButton: false,
+      didOpen: () => { Swal.showLoading(); }
     });
 
-    this.autorizacionesService.traerOperarios(this.myForm.value.cedula).subscribe(
-      (data: any) => {
-        Swal.close();
+    try {
+      // Validar si existe, está activo y no bloqueado usando getPersonaTesoreriaStatus
+      const statusData: any = await this.comercializadoraService.getPersonaTesoreriaStatus(cedula).toPromise();
 
-        // Validar si el operario existe
-        if (data.datosbase === "No se encontró el registro para el ID proporcionado") {
-          this.datosOperario = null;
-          Swal.fire({
-            icon: 'error',
-            title: 'Oops...',
-            text: 'No se encontró el empleado con la cédula proporcionada',
-            showConfirmButton: true, // Muestra un botón para cerrar
-            allowOutsideClick: false, // Evita que se cierre al hacer clic fuera
-            allowEscapeKey: false, // Evita que se cierre con la tecla Esc
-          });
-          return;
+      if (!statusData || statusData.error) {
+        this.datosOperario = null;
+        Swal.fire({
+          icon: 'error', title: 'Empleado no encontrado',
+          text: 'Este empleado no existe, no está registrado en esta quincena o no pertenece a la empresa.',
+        });
+        return;
+      }
+
+      if (statusData.activo === false) {
+        this.datosOperario = null;
+        Swal.fire({
+          icon: 'error', title: 'Empleado Inactivo',
+          text: 'El empleado con el número de documento proporcionado se encuentra inactivo y no es válido para procesar autorizaciones.',
+        });
+        return;
+      }
+
+      if (statusData.bloqueado === true) {
+        this.datosOperario = null;
+        let fechaStr = 'fecha desconocida';
+        if (statusData.fecha_bloqueo) {
+          const d = new Date(statusData.fecha_bloqueo);
+          fechaStr = d.toLocaleDateString('es-CO') + ' a las ' + d.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
         }
-        // 🔵 Función para mostrar errores sin permitir que el usuario cierre el Swal fuera de él
-
-
-        this.datosOperario = data.datosbase[0];
-        this.nombreOperario = `${this.datosOperario.nombre} `;
-        this.fechaIngreso = this.datosOperario.ingreso;
-
-        if (!this.datosOperario.activo) {
-          this.datosOperario = null;
-          Swal.fire({
-            icon: 'error',
-            title: 'Empleado retirado',
-            text: 'El empleado con la cédula proporcionada se encuentra retirado y no puede solicitar autorizaciones.',
-            showConfirmButton: true, // Muestra un botón para cerrar
-            allowOutsideClick: false, // Evita que se cierre al hacer clic fuera
-            allowEscapeKey: false, // Evita que se cierre con la tecla Esc
-          });
-          return;
-        }
-
-        if (this.datosOperario?.bloqueado) {
-          const motivo = this.datosOperario?.observacion_bloqueo ?? 'Sin observación';
-          const safeMotivo = this.escapeHtml(motivo);
-
-          Swal.fire({
-            icon: 'error',
-            title: 'Empleado bloqueado',
-            html: `
-      El empleado con la cédula proporcionada se encuentra bloqueado y no puede solicitar autorizaciones.
-      <br><br><b>Motivo:</b> ${safeMotivo}
-    `
-          });
-
-          this.datosOperario = null;
-          return;
-        }
-
-      },
-      (error: any) => {
-        Swal.close();
+        const motivo = statusData.observacion_bloqueo ? statusData.observacion_bloqueo : 'Sin motivo especificado';
 
         Swal.fire({
-          icon: 'error',
-          title: 'Error de conexión',
-          text: 'Hubo un problema al buscar el operario. Intente nuevamente.',
+          icon: 'error', title: 'Empleado Bloqueado',
+          text: `El empleado se encuentra bloqueado desde: ${fechaStr}.\n\nMotivo: ${motivo}`,
         });
+        return;
       }
-    );
+
+      // Traer la info del operario si pasó las validaciones
+      const data = await this.autorizacionesService.traerPersonaTesoreria(cedula);
+      Swal.close();
+
+      this.datosOperario = data;
+      this.nombreOperario = data.nombre || '';
+      this.fechaIngreso = data.ingreso || '';
+      this.limiteDisponible = this.autorizacionesService.calcularCupoDisponible(data, 'mercado');
+
+    } catch (error: any) {
+      Swal.close();
+      let title = 'Error al buscar empleado';
+      let msg = 'Hubo un problema al buscar el registro del empleado. Intente nuevamente.';
+
+      if (error?.status === 404) {
+        title = 'Empleado no registrado';
+        msg = 'Este empleado no existe en la base de datos (puede que no esté registrado en la quincena actual o no pertenezca a la empresa).';
+      }
+
+      Swal.fire({
+        icon: 'error',
+        title: title,
+        text: msg,
+      });
+      this.datosOperario = null;
+    }
   }
 
   private escapeHtml(value: string): string {
@@ -594,6 +445,85 @@ export class CargarMercadoFeriasComponent implements OnInit {
     this.myForm.get("valor")?.setValue(formattedValue, { emitEvent: false });
   }
 
+  cancelar() {
+    this.datosOperario = null;
+    this.nombreOperario = '';
+    this.fechaIngreso = '';
+    this.limiteDisponible = 0;
+    this.selectedProducts = [];
+    this.myForm.reset();
+  }
 
+  abrirHistorial() {
+    if (!this.datosOperario) return;
+    const doc = this.datosOperario.numero_documento || this.myForm.get('cedula')?.value;
+    this.dialog.open(HistorialDialogComponent, {
+      width: '80vw', maxWidth: '90vw', height: '80vh',
+      panelClass: 'historial-dialog-panel',
+      data: { numeroDocumento: doc }
+    });
+  }
 
+  // === MEJORAS UX PARA PREVENIR ERRORES ===
+
+  get totalProductos(): number {
+    return this.selectedProducts.reduce((sum, p) =>
+      sum + (parseFloat(p.valorUnidad) * (p.cantidadSeleccionada || 0)), 0
+    );
+  }
+
+  get valorNumericoActual(): number {
+    const val = this.myForm.get('valor')?.value;
+    if (!val) return 0;
+    return parseInt(String(val).replace(/\D/g, '')) || 0;
+  }
+
+  puedeEnviar(): boolean {
+    // Formulario válido
+    if (this.myForm.invalid) return false;
+    if (!this.datosOperario) return false;
+    // Si es Mercado, requiere productos seleccionados
+    if (this.myForm.get('concepto')?.value === 'Mercado' && this.selectedProducts.length === 0) return false;
+    return true;
+  }
+
+  async confirmarYEnviar() {
+    if (!this.puedeEnviar()) return;
+
+    const concepto = this.myForm.get('concepto')?.value;
+    const valor = this.valorNumericoActual;
+    const cuotas = this.myForm.get('cuotas')?.value;
+
+    let detalleHtml = `
+      <div style="text-align:left; font-size:14px;">
+        <p><strong>Empleado:</strong> ${this.nombreOperario}</p>
+        <p><strong>Concepto:</strong> ${concepto}</p>
+        <p><strong>Valor:</strong> $ ${valor.toLocaleString('es-CO')}</p>
+        <p><strong>Cuotas:</strong> ${cuotas}</p>
+    `;
+
+    if (concepto === 'Mercado' && this.selectedProducts.length > 0) {
+      detalleHtml += `<hr><p><strong>Productos:</strong></p><ul style="margin:0; padding-left:20px;">`;
+      this.selectedProducts.forEach(p => {
+        detalleHtml += `<li>${p.concepto} x${p.cantidadSeleccionada} = $ ${(p.valorUnidad * p.cantidadSeleccionada).toLocaleString('es-CO')}</li>`;
+      });
+      detalleHtml += `</ul>`;
+    }
+    detalleHtml += `</div>`;
+
+    const result = await Swal.fire({
+      title: '¿Confirmar carga?',
+      html: detalleHtml,
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonText: 'Sí, Cargar',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#ea580c',
+      reverseButtons: true
+    });
+
+    if (result.isConfirmed) {
+      await this.onSubmit();
+    }
+  }
 }

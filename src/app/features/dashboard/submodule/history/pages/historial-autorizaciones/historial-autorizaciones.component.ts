@@ -21,15 +21,20 @@ export class HistorialAutorizacionesComponent implements OnInit {
   myForm!: FormGroup;
 
   columns: ColumnDefinition[] = [
-    { name: 'concepto', header: 'Concepto', type: 'text', filterable: true },
-    { name: 'generadopor', header: 'Persona que autorizo', type: 'text', filterable: true },
-    { name: 'fechaEfectuado', header: 'Fecha Efectuado', type: 'text', filterable: true },
-    { name: 'valor', header: 'Valor Autorizado', type: 'text', filterable: true },
-    { name: 'cuotas', header: 'Cuotas', type: 'text', filterable: true },
-    { name: 'conceptoEjecutado', header: 'Concepto ejecutado', type: 'text', filterable: true },
-    { name: 'valorEjecutado', header: 'Valor ejecutado', type: 'text', filterable: true },
-    { name: 'nombreQuienEntrego', header: 'Persona que ejecuto', type: 'text', filterable: true },
-    { name: 'fechaEjecutado', header: 'Fecha ejecutado', type: 'text', filterable: true }
+    { name: 'codigo_autorizacion', header: 'Código', type: 'text', filterable: true },
+    { name: 'autorizacion_concepto', header: 'Concepto Aut.', type: 'text', filterable: true },
+    { name: 'autorizacion_monto', header: 'Valor Autorizado', type: 'text', filterable: true },
+    { name: 'autorizacion_cuotas', header: 'Cuotas Aut.', type: 'number', filterable: true },
+    { name: 'autorizado_por', header: 'Autorizado Por', type: 'text', filterable: true },
+    { name: 'sede_autorizacion', header: 'Sede Aut.', type: 'text', filterable: true },
+    { name: 'autorizado_en', header: 'Fecha Autorizado', type: 'date', filterable: true },
+    { name: 'estado', header: 'Estado', type: 'text', filterable: true },
+    { name: 'codigo_ejecucion', header: 'Cod. Ejecución', type: 'text', filterable: true },
+    { name: 'ejecucion_concepto', header: 'Concepto Eje.', type: 'text', filterable: true },
+    { name: 'ejecucion_monto', header: 'Valor Ejecutado', type: 'text', filterable: true },
+    { name: 'ejecutado_por', header: 'Ejecutado Por', type: 'text', filterable: true },
+    { name: 'sede_ejecucion', header: 'Sede Eje.', type: 'text', filterable: true },
+    { name: 'ejecutado_en', header: 'Fecha Ejecutado', type: 'date', filterable: true }
   ];
 
   dataList: any[] = [];
@@ -42,64 +47,33 @@ export class HistorialAutorizacionesComponent implements OnInit {
 
   ngOnInit(): void {
     this.myForm = this.fb.group({
-      cedula: ['', Validators.required],
+      numero_documento: ['', [Validators.required, Validators.pattern(/^[A-Za-z]?\d+$/)]],
     });
   }
 
   private trimField(fieldName: string) {
     const control = this.myForm.get(fieldName);
     if (control && control.value && typeof control.value === 'string') {
-      control.setValue(control.value.trim());
+      control.setValue(control.value.trim().toUpperCase());
     }
   }
 
   onSubmit(): void {
-    if (this.myForm.valid) {
-      this.trimField('cedula');
-      this.historialService.getHistorialOperario(this.myForm.value.cedula).subscribe(
-        (data: any) => {
-          if (data.historial.length === 0) {
-            Swal.fire({
-              icon: 'error',
-              title: 'Oops...',
-              text: 'No se encontraron registros para este empleado',
-            });
-            return;
-          }
-
-          // ordenar de mayor a menor por id
-          data.historial.sort((a: any, b: any) => {
-            return b.id - a.id;
-          });
-
-          // Map and format currency values
-          this.dataList = data.historial.map((item: any) => ({
-            ...item,
-            // Format numbers using Intl.NumberFormat or simple toLocaleString if sufficient
-            valor: this.formatCurrency(item.valor),
-            valorEjecutado: this.formatCurrency(item.valorEjecutado)
-          }));
-
-          this.buscarOperario();
-        },
-        (error: any) => {
-        }
-      );
+    if (this.myForm.invalid) {
+      this.myForm.markAllAsTouched();
+      return;
     }
+
+    this.trimField('numero_documento');
+    const doc = this.myForm.value.numero_documento;
+
+    this.buscarOperarioYTransacciones(doc);
   }
 
-  formatCurrency(value: any): string {
-    if (value === null || value === undefined) return '';
-    // Format similar to '1.0-0' pipe: integer with thousands separators
-    return Number(value).toLocaleString('es-CO', { maximumFractionDigits: 0 });
-  }
-
-  buscarOperario(): void {
-    // si cedula no es válida
+  buscarOperarioYTransacciones(numeroDocumento: string): void {
     Swal.fire({
-      title: 'Buscando trabajador...',
-      icon: 'info',
-      text: 'Por favor, espera mientras se procesa la información.',
+      title: 'Buscando información...',
+      text: 'Por favor, espera mientras se procesa la consulta.',
       allowOutsideClick: false,
       allowEscapeKey: false,
       showConfirmButton: false,
@@ -108,35 +82,107 @@ export class HistorialAutorizacionesComponent implements OnInit {
       }
     });
 
-    if (this.myForm.valid) {
-      this.autorizacionesService.traerOperarios(this.myForm.value.cedula).subscribe(
-        (data: any) => {
-          if (data.datosbase === "No se encontró el registro para el ID proporcionado") {
-            Swal.fire({
-              icon: 'error',
-              title: 'Oops...',
-              text: 'Este empleado no existe, esta retirado o no pertenece a la empresa',
-            });
-          }
-          if (data.activo == false) {
-            Swal.fire({
-              icon: 'error',
-              title: 'Empleado retirado',
-              text: 'El empleado con la cédula proporcionada se encuentra retirado.',
-            });
-            return;
-          }
-          Swal.close();
-        },
-        (error: any) => {
-          Swal.close();
+    // 1. Validar estado del operario utilizando el nuevo servicio de tesoreria
+    this.historialService.getPersonaTesoreriaStatus(numeroDocumento).subscribe(
+      (data: any) => {
+        if (!data || data.error) {
           Swal.fire({
             icon: 'error',
-            title: 'Error de conexión',
-            text: 'Hubo un problema al buscar el operario. Intente nuevamente.',
+            title: 'Empleado no encontrado',
+            text: 'Este empleado no existe, no está registrado en esta quincena o no pertenece a la empresa.',
           });
+          return;
         }
-      );
-    }
+
+        if (data.activo === false) {
+          Swal.fire({
+            icon: 'error',
+            title: 'Empleado Inactivo',
+            text: 'El empleado con el número de documento proporcionado se encuentra inactivo y no es válido para procesar autorizaciones.',
+          });
+          return;
+        }
+
+        if (data.bloqueado === true) {
+          let fechaStr = 'fecha desconocida';
+          if (data.fecha_bloqueo) {
+            const d = new Date(data.fecha_bloqueo);
+            fechaStr = d.toLocaleDateString('es-CO') + ' a las ' + d.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
+          }
+          const motivo = data.observacion_bloqueo ? data.observacion_bloqueo : 'Sin motivo especificado';
+
+          Swal.fire({
+            icon: 'error',
+            title: 'Empleado Bloqueado',
+            text: `El empleado se encuentra bloqueado desde: ${fechaStr}.\n\nMotivo: ${motivo}`,
+          });
+          return;
+        }
+
+        // 2. Si es válido (existe, activo y no bloqueado), buscar transacciones
+        this.cargarTransacciones(numeroDocumento);
+      },
+      (error: any) => {
+        let title = 'Error al buscar empleado';
+        let msg = 'Hubo un problema al buscar el registro del empleado. Intente nuevamente.';
+
+        if (error?.status === 404) {
+          title = 'Empleado no registrado';
+          msg = 'Este empleado no existe en la base de datos (puede que no esté registrado en la quincena actual o no pertenezca a la empresa).';
+        }
+
+        Swal.fire({
+          icon: 'error',
+          title: title,
+          text: msg,
+        });
+      }
+    );
+  }
+
+  cargarTransacciones(numeroDocumento: string): void {
+    this.historialService.getHistorialTransaccionesPorDocumento(numeroDocumento).subscribe(
+      (data: any) => {
+        // En caso de que el API devuelva array o paginación { results: [] }
+        const rawDataList = Array.isArray(data) ? data : (data.results || data.data || []);
+
+        if (rawDataList.length === 0) {
+          Swal.fire({
+            icon: 'warning',
+            title: 'Sin transacciones',
+            text: 'No se encontraron registros de transacciones para este empleado.',
+          });
+          this.dataList = [];
+          return;
+        }
+
+        // Ordenar de más reciente a más antiguo basándose en autorizado_en (con fallback a created_at)
+        rawDataList.sort((a: any, b: any) => {
+          const dateA = new Date(a.autorizado_en || a.created_at || 0).getTime();
+          const dateB = new Date(b.autorizado_en || b.created_at || 0).getTime();
+          return dateB - dateA;
+        });
+
+        this.dataList = rawDataList.map((item: any) => ({
+          ...item,
+          autorizacion_monto: this.formatCurrency(item.autorizacion_monto),
+          ejecucion_monto: this.formatCurrency(item.ejecucion_monto)
+        }));
+
+        Swal.close();
+      },
+      (error: any) => {
+        Swal.fire({
+          icon: 'error',
+          title: 'Error de conexión',
+          text: 'Hubo un problema al traer las transacciones. Intente nuevamente.',
+        });
+      }
+    );
+  }
+
+  formatCurrency(value: any): string {
+    if (value === null || value === undefined || value === '') return '';
+    return Number(value).toLocaleString('es-CO', { maximumFractionDigits: 0 });
   }
 }

@@ -1,309 +1,247 @@
-import { Component, OnInit } from '@angular/core';
-import { FormBuilder, FormGroup, Validators, AbstractControl } from '@angular/forms';
+import { Component, OnInit, OnDestroy } from '@angular/core';
+import { FormBuilder, FormGroup, Validators } from '@angular/forms';
 import Swal from 'sweetalert2';
-import { catchError, debounceTime, distinctUntilChanged, switchMap, takeUntil } from 'rxjs/operators';
 import { Router } from '@angular/router';
 import { SharedModule } from '../../../../../../shared/shared.module';
-import { PrestamoService } from '../../service/prestamo/prestamo.service';
 import { AutorizacionesService } from '../../../authorizations/services/autorizaciones/autorizaciones.service';
+import { HistorialService } from '../../../history/service/historial/historial.service';
 import { UtilityServiceService } from '../../../../../../shared/services/utilityService/utility-service.service';
-import { of, Observable, Subject } from 'rxjs';
-
+import { FormsModule } from '@angular/forms';
+import { MatDialog } from '@angular/material/dialog';
+import { HistorialDialogComponent } from '../../../authorizations/pages/autorizacion-dinamica/historial-dialog/historial-dialog.component';
 
 @Component({
   selector: 'app-prestamo-calamidad',
-  imports: [
-    SharedModule
-  ],
+  imports: [SharedModule, FormsModule],
   templateUrl: './prestamo-calamidad.component.html',
   styleUrl: './prestamo-calamidad.component.css'
 })
-export class PrestamoCalamidadComponent implements OnInit {
-  myForm!: FormGroup;
-  datosOperario: any;
+export class PrestamoCalamidadComponent implements OnInit, OnDestroy {
+  searchForm!: FormGroup;
+  executeForm!: FormGroup;
+
+  datosOperario: any = null;
   nombreOperario: string = '';
-  sumaPrestamos: number = 0;
-  historial_id: number = 0;
+
+  transaccionesPendientes: any[] = [];
+  transaccionSeleccionada: any = null;
+  loadingTransacciones = false;
+  limiteDisponible: number = 0;
+
+  user: any;
   rolUsuario: string = '';
   correoUsuario: string = '';
-  private destroy$ = new Subject<void>();
-  fechaIngreso: string = '';
 
   constructor(
     private fb: FormBuilder,
     private autorizacionesService: AutorizacionesService,
-    private prestamoService: PrestamoService,
+    private historialService: HistorialService,
     private utilityService: UtilityServiceService,
-    private router: Router
-  ) {
-
-    this.myForm = this.fb.group({
-      cedula: ['', Validators.required],
-      cuotas: ['', [Validators.required, Validators.min(1), Validators.max(4)]],
-      valor: ['', [Validators.required, this.currencyValidator]],
-      codigoAutorizacion: ['', Validators.required],
-    });
-
-  }
+    private router: Router,
+    private dialog: MatDialog
+  ) { }
 
   ngOnInit() {
-    let user = this.utilityService.getUser();
-    if (user) {
-      this.rolUsuario = user.rol.nombre;
-      this.correoUsuario = user.correo_electronico;
+    this.user = this.utilityService.getUser();
+    if (this.user) {
+      this.rolUsuario = this.user.rol?.nombre ?? '';
+      this.correoUsuario = this.user.correo_electronico ?? '';
     }
-    this.myForm.get('cedula')?.valueChanges
-      .pipe(
-        debounceTime(2500), // Espera 1 segundo después del último cambio
-        distinctUntilChanged(), // Evita búsquedas innecesarias si el usuario escribe el mismo valor
-        switchMap(value => {
-          this.trimField('cedula');
-          return this.buscarOperario(value);
-        }),
-        catchError(() => of(null)), // Si hay error, simplemente no hace nada
-        takeUntil(this.destroy$) // Limpia la suscripción cuando se destruye el componente
-      )
-      .subscribe(result => {
-        Swal.close(); // 🔴 Cierra Swal de carga antes de mostrar cualquier error
 
-        if (!result || result.datosbase === "No se encontró el registro para el ID proporcionado") {
-          this.datosOperario = null;
-          this.mostrarError('No se encontró el empleado con la cédula proporcionada.');
-          return;
-        }
+    this.searchForm = this.fb.group({
+      numero_documento: ['', [Validators.required, Validators.pattern(/^[A-Za-z]?\d+$/)]]
+    });
 
-        this.datosOperario = result.datosbase[0];
-        this.nombreOperario = `${this.datosOperario.nombre} `;
-        this.fechaIngreso = this.datosOperario.ingreso;
-
-        // 🔴 Validar si el operario está inactivo (retirado)
-        if (!this.datosOperario.activo) {
-          this.datosOperario = null;
-          this.mostrarError('El empleado se encuentra retirado y no puede solicitar autorizaciones.');
-          return;
-        }
-
-        if (this.datosOperario.bloqueado) {
-          this.datosOperario = null;
-          this.mostrarError('El empleado se encuentra bloqueado y no puede solicitar autorizaciones.');
-          return;
-        }
-
-        if (this.rolUsuario !== "GERENCIA" || this.correoUsuario === 'antcontable6.ts@gmail.com') {
-          if (!this.autorizacionesService.verificarFondos(this.datosOperario)) {
-            this.datosOperario = null;
-            this.mostrarError('El operario pertenece al fondo');
-            return;
-          }
-        }
-      });
+    this.executeForm = this.fb.group({
+      valor: ['', [Validators.required]],
+      cuotas: ['', [Validators.required, Validators.min(1), Validators.max(4)]]
+    });
   }
 
-  formatCurrency(event: any) {
+  ngOnDestroy() { }
+
+  formatCurrency(value: any): string {
+    if (value === null || value === undefined || value === '') return '0';
+    return Number(value).toLocaleString('es-CO', { maximumFractionDigits: 0 });
+  }
+
+  formatCurrencyInput(event: any) {
     const input = event.target;
     let value = input.value.replace(/\D/g, '');
-    value = Number(value).toLocaleString();
+    value = Number(value).toLocaleString('es-CO');
     input.value = value;
   }
 
-  currencyValidator(control: AbstractControl) {
-    const value = control.value.replace(/\D/g, '');
-    return value ? null : { required: true };
-  }
-
-  private trimFormFields() {
-    Object.keys(this.myForm.controls).forEach(field => {
-      const control = this.myForm.get(field);
-      if (control && control.value && typeof control.value === 'string') {
-        control.setValue(control.value.trim());
-      }
-    });
-  }
-
-  private trimField(fieldName: string) {
-    const control = this.myForm.get(fieldName);
-    if (control && control.value && typeof control.value === 'string') {
-      control.setValue(control.value.trim());
-    }
-  }
-
-  // Función para enviar el formulario
-  async onSubmit() {
-    let codigoOH: string = '';
-    let conceptoHistorial: string = 'Prestamo_Dinero_Libranza';
-
-    if (this.myForm.invalid) {
-      this.myForm.markAllAsTouched();
+  async buscarEmpleado() {
+    if (this.searchForm.invalid) {
+      this.searchForm.markAllAsTouched();
       return;
     }
 
-    this.trimFormFields();
+    const doc = this.searchForm.value.numero_documento.trim().toUpperCase();
 
     Swal.fire({
-      title: 'Procesando...',
-      icon: 'info',
-      text: 'Por favor, espera mientras se valida la información.',
-      allowOutsideClick: false,
-      allowEscapeKey: false,
-      showConfirmButton: false,
-      didOpen: () => {
-        Swal.showLoading();
-      }
+      title: 'Buscando trabajador...',
+      text: 'Por favor, espera.',
+      allowOutsideClick: false, allowEscapeKey: false, showConfirmButton: false,
+      didOpen: () => { Swal.showLoading(); }
     });
 
     try {
-      const formValues = { ...this.myForm.value, valor: this.myForm.value.valor.replace(/\D/g, '') };
+      // Validar si existe, está activo y no bloqueado
+      const statusData: any = await this.historialService.getPersonaTesoreriaStatus(doc).toPromise();
 
-      // Buscar si el código ya existe
-      const data = await this.autorizacionesService.buscarCodigo(formValues.codigoAutorizacion);
-      this.sumaPrestamos = this.autorizacionesService.traerSaldoPendiente(this.datosOperario);
-
-      if (data.codigo.length === 0) {
-        Swal.close();
-        await Swal.fire({
-          icon: 'error',
-          title: 'Oops...',
-          text: 'El código no existe',
+      if (!statusData || statusData.error) {
+        Swal.fire({
+          icon: 'error', title: 'Empleado no encontrado',
+          text: 'Este empleado no existe, no está registrado en esta quincena o no pertenece a la empresa.',
         });
         return;
       }
 
-      if (data.codigo[0].estado === false) {
-        Swal.close();
-        await Swal.fire({
-          icon: 'error',
-          title: 'Oops...',
-          text: 'El código ya ha sido utilizado',
+      if (statusData.activo === false) {
+        Swal.fire({
+          icon: 'error', title: 'Empleado Inactivo',
+          text: 'El empleado con el número de documento proporcionado se encuentra inactivo y no es válido para procesar autorizaciones.',
         });
         return;
       }
 
-      // Verificar si la cédula pertenece al código
-      const cedulaValida = await this.utilityService.verificarCedulaCodigo(formValues.codigoAutorizacion, formValues.cedula).toPromise();
-      if (cedulaValida === "false") {
-        Swal.close();
-        await Swal.fire({
-          icon: 'error',
-          title: 'Oops...',
-          text: 'El código no pertenece a la cédula proporcionada',
-        });
-        return;
-      }
-
-      if (this.rolUsuario !== "GERENCIA") {
-        if (!this.autorizacionesService.verificarCondiciones(this.datosOperario, parseInt(formValues.valor), this.sumaPrestamos, "prestamo")) {
-          Swal.close();
-          return;
+      if (statusData.bloqueado === true) {
+        let fechaStr = 'fecha desconocida';
+        if (statusData.fecha_bloqueo) {
+          const d = new Date(statusData.fecha_bloqueo);
+          fechaStr = d.toLocaleDateString('es-CO') + ' a las ' + d.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
         }
+        const motivo = statusData.observacion_bloqueo ? statusData.observacion_bloqueo : 'Sin motivo especificado';
 
-        if (!this.utilityService.verificarMontoCodigo(data, parseInt(formValues.valor))) {
-          Swal.close();
-          await Swal.fire({
-            icon: 'error',
-            title: 'Oops...',
-            text: 'El monto escrito supera el monto del código',
-
-          });
-          return;
-        }
+        Swal.fire({
+          icon: 'error', title: 'Empleado Bloqueado',
+          text: `El empleado se encuentra bloqueado desde: ${fechaStr}.\n\nMotivo: ${motivo}`,
+        });
+        return;
       }
 
-      // Generar un nuevo código
-      codigoOH = 'OH' + Math.floor(Math.random() * 1000000);
-
-      // Determinar el concepto según el código
-      if (data.codigo[0].codigo.startsWith('SF')) {
-        conceptoHistorial = 'Seguro_Funerario_Libranza';
-      } else if (data.codigo[0].codigo.startsWith('OT')) {
-        conceptoHistorial = 'Otro_Concepto_Libranza';
-      }
-
-      // Ejecutar préstamo de calamidad
-      const response = await this.prestamoService.ejecutarPrestamoCalamidad(
-        formValues.codigoAutorizacion,
-        formValues.cedula,
-        parseInt(formValues.valor),
-        codigoOH,
-        conceptoHistorial,
-        data.codigo[0].historial,
-        parseInt(formValues.cuotas)
-      );
-
+      const data = await this.autorizacionesService.traerPersonaTesoreria(doc);
       Swal.close();
 
-      if (response.message === "Actualización exitosa") {
-        await Swal.fire({
-          icon: 'success',
-          title: '¡Éxito!',
-          text: 'El préstamo ha sido cargado exitosamente',
-          confirmButtonText: 'Aceptar'
-        });
-        this.router.navigateByUrl('/dashboard', { skipLocationChange: true }).then(() => {
-          this.router.navigate(["/dashboard/money-loan/emergency-loan"]);
-        });
+      this.datosOperario = data;
+      this.nombreOperario = data.nombre || '';
+
+      // Cupo disponible (misma lógica que verificarCondiciones)
+      this.limiteDisponible = this.autorizacionesService.calcularCupoDisponible(data, 'prestamo');
+
+      this.cargarTransaccionesPendientes(doc);
+    } catch (error: any) {
+      Swal.close();
+      if (error?.status === 404) {
+        Swal.fire('No encontrado', 'Este empleado no existe en la base de datos (puede que no esté registrado en la quincena actual o no pertenezca a la empresa).', 'error');
       } else {
-        await Swal.fire({
-          icon: 'error',
-          title: 'Oops...',
-          text: 'Hubo un error al realizar el cargue, por favor intente de nuevo',
-        });
+        Swal.fire('Error', 'Hubo un problema al buscar el operario.', 'error');
       }
-    } catch (error) {
-      Swal.close();
-      await Swal.fire({
-        icon: 'error',
-        title: 'Oops...',
-        text: 'Hubo un error al realizar el cargue, por favor intente de nuevo',
+    }
+  }
+
+  cargarTransaccionesPendientes(doc: string) {
+    this.loadingTransacciones = true;
+    this.transaccionesPendientes = [];
+    this.transaccionSeleccionada = null;
+
+    this.historialService.getHistorialTransaccionesPorDocumento(doc).subscribe(
+      (res: any) => {
+        const rawList = Array.isArray(res) ? res : (res.results || res.data || []);
+        // Filtrar pendientes de tipo préstamo (dinero, seguro funerario, otro)
+        this.transaccionesPendientes = rawList.filter(
+          (tx: any) => tx.estado === 'PENDIENTE' && (tx.autorizacion_concepto || '').toLowerCase() !== 'mercado'
+        ).sort((a: any, b: any) => {
+          return new Date(b.autorizado_en || 0).getTime() - new Date(a.autorizado_en || 0).getTime();
+        });
+        this.loadingTransacciones = false;
+      },
+      () => { this.loadingTransacciones = false; }
+    );
+  }
+
+  onCodigoSeleccionado() {
+    if (this.transaccionSeleccionada) {
+      this.executeForm.patchValue({
+        valor: Number(this.transaccionSeleccionada.autorizacion_monto).toLocaleString('es-CO', { maximumFractionDigits: 0 }),
+        cuotas: this.transaccionSeleccionada.autorizacion_cuotas || 1
       });
     }
   }
 
+  cancelar() {
+    this.datosOperario = null;
+    this.nombreOperario = '';
+    this.transaccionesPendientes = [];
+    this.transaccionSeleccionada = null;
+    this.limiteDisponible = 0;
+    this.searchForm.reset();
+    this.executeForm.reset();
+  }
 
-  // Función para buscar operario
-  buscarOperario(cedula: string): Observable<any> {
-    if (!cedula) {
-      return of(null); // Evita hacer la solicitud si la cédula está vacía
+  abrirHistorial() {
+    if (!this.datosOperario) return;
+    this.dialog.open(HistorialDialogComponent, {
+      width: '80vw', maxWidth: '90vw', height: '80vh',
+      panelClass: 'historial-dialog-panel',
+      data: { numeroDocumento: this.datosOperario.numero_documento }
+    });
+  }
+
+  async ejecutarPrestamo() {
+    if (!this.transaccionSeleccionada || this.executeForm.invalid) return;
+
+    const valorStr = this.executeForm.value.valor.replace(/\D/g, '');
+    const valorNumerico = parseInt(valorStr, 10);
+    const montoAutorizado = Number(this.transaccionSeleccionada.autorizacion_monto);
+
+    if (valorNumerico <= 0) { Swal.fire('Error', 'El valor debe ser mayor a 0.', 'error'); return; }
+    if (valorNumerico > montoAutorizado) {
+      Swal.fire('Error', `El valor ($${this.formatCurrency(valorNumerico)}) excede el autorizado ($${this.formatCurrency(montoAutorizado)}).`, 'error');
+      return;
     }
 
-    // 🔵 Mostrar Swal de carga
-    Swal.fire({
-      title: 'Buscando trabajador...',
-      text: 'Por favor, espera mientras se procesa la información.',
-      allowOutsideClick: false,
-      allowEscapeKey: false,
-      showConfirmButton: false,
-      didOpen: () => {
-        Swal.showLoading();
-      }
+    const confirmar = await Swal.fire({
+      icon: 'question', title: '¿Confirmar ejecución?',
+      html: `<p><strong>Concepto:</strong> ${this.transaccionSeleccionada.autorizacion_concepto}</p>
+             <p><strong>Empleado:</strong> ${this.nombreOperario}</p>
+             <p><strong>Valor:</strong> $${this.formatCurrency(valorNumerico)}</p>
+             <p><strong>Cuotas:</strong> ${this.executeForm.value.cuotas}</p>`,
+      showCancelButton: true, confirmButtonText: 'Sí, Ejecutar', cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#7c3aed'
     });
 
-    return this.autorizacionesService.traerOperarios(cedula).pipe(
-      catchError(error => {
-        Swal.close(); // 🔴 Cierra Swal en caso de error
-        this.mostrarError('Hubo un problema al buscar el operario. Intente nuevamente.');
-        return of(null); // Evita que la aplicación falle
-      })
-    );
-  }
+    if (!confirmar.isConfirmed) return;
 
-  // 🔵 Función para mostrar errores sin bloquear la interfaz
-  mostrarError(mensaje: string) {
     Swal.fire({
-      icon: 'error',
-      title: 'Aviso',
-      text: mensaje,
-      showConfirmButton: true, // Muestra un botón para cerrar
-      allowOutsideClick: false, // Evita que se cierre al hacer clic fuera
-      allowEscapeKey: false, // Evita que se cierre con la tecla Esc
+      title: 'Procesando...', icon: 'info', text: 'Ejecutando la autorización...',
+      allowOutsideClick: false, allowEscapeKey: false, showConfirmButton: false,
+      didOpen: () => { Swal.showLoading(); }
     });
+
+    try {
+      const userName = `${this.user.datos_basicos.nombres} ${this.user.datos_basicos.apellidos}`;
+      const sedeEjecucion = this.user?.sede?.nombre || '';
+
+      const response = await this.autorizacionesService.ejecutarTransaccion(
+        this.transaccionSeleccionada.codigo_autorizacion,
+        valorNumerico,
+        userName,
+        sedeEjecucion
+      );
+
+      Swal.close();
+      Swal.fire({
+        icon: 'success', title: '¡Éxito!',
+        text: `Préstamo ejecutado. Código: ${response.codigo_ejecucion || 'N/A'}`,
+        confirmButtonText: 'Aceptar', confirmButtonColor: '#7c3aed'
+      }).then(() => { this.cancelar(); });
+    } catch (error: any) {
+      Swal.close();
+      const msg = error.error?.error || 'Ocurrió un problema al ejecutar.';
+      Swal.fire('Error', msg, 'error');
+    }
   }
-
-
-  // 🔹 Limpieza de suscripción al destruir el componente
-  ngOnDestroy() {
-    this.destroy$.next();
-    this.destroy$.complete();
-  }
-
-
 }
