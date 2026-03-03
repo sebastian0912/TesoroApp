@@ -1,10 +1,16 @@
 <div class="search-page-container">
 
   <!-- Header -->
-  <header class="page-header" role="banner">
-    <div class="header-text">
-      <h1>Buscar Documentación</h1>
-      <p>Filtra por cédula, contrato, tipo documental y texto. Selecciona un resultado para previsualizar.</p>
+  <header class="card-header-premium" role="banner">
+    <div class="header-content">
+      <div class="header-icon-container">
+        <mat-icon class="header-icon">plagiarism</mat-icon>
+      </div>
+      <div class="header-text">
+        <mat-card-title class="titulo">Buscar Documentación</mat-card-title>
+        <mat-card-subtitle class="subtitulo">Filtra por cédula, contrato, tipo documental y texto. Selecciona un
+          resultado para previsualizar.</mat-card-subtitle>
+      </div>
     </div>
   </header>
 
@@ -54,7 +60,7 @@
 
         <!-- Search Button (Desktop: Inline, Mobile: Full) -->
         <div class="filter-actions">
-          <button mat-flat-button color="primary" type="submit" [disabled]="form.invalid" class="btn-search">
+          <button mat-flat-button type="submit" [disabled]="form.invalid" class="btn-managerial">
             <mat-icon>search</mat-icon> BUSCAR
           </button>
         </div>

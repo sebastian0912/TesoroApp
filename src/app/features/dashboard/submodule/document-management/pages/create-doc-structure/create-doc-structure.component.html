@@ -1,21 +1,29 @@
 <div class="explorer-container">
 
   <!-- Header Section -->
-  <header class="explorer-header">
+  <header class="card-header-premium" style="margin-bottom: 24px;">
     <div class="header-content">
-      <h1>Estructura Documental</h1>
-      <p>Organiza jerárquicamente tipos y subtipos documentales.</p>
+      <div class="header-icon-container">
+        <mat-icon class="header-icon">account_tree</mat-icon>
+      </div>
+      <div class="header-text">
+        <mat-card-title class="titulo">Estructura Documental</mat-card-title>
+        <mat-card-subtitle class="subtitulo">Organiza jerárquicamente tipos y subtipos documentales.</mat-card-subtitle>
+      </div>
     </div>
 
-    <!-- Global Actions -->
-    <div class="header-actions">
-      <mat-slide-toggle [(ngModel)]="isTreeView" color="primary">Vista de Árbol</mat-slide-toggle>
+    <span class="grow"></span>
 
-      <button mat-flat-button color="primary" class="btn-create" (click)="addCurrentLevel()" *ngIf="!isTreeView">
+    <!-- Global Actions -->
+    <div class="header-actions" style="display: flex; gap: 12px; align-items: center; z-index: 1;">
+      <mat-slide-toggle [(ngModel)]="isTreeView" color="primary" style="margin-right: 16px;"><span
+          style="color: white;">Vista de Árbol</span></mat-slide-toggle>
+
+      <button mat-flat-button class="btn-managerial" (click)="addCurrentLevel()" *ngIf="!isTreeView">
         <mat-icon>add</mat-icon> Nuevo {{ currentLevelTitle === 'Raíz' ? 'Tipo' : 'Subtipo' }}
       </button>
 
-      <button mat-flat-button color="primary" class="btn-create" (click)="openModal(null, false)" *ngIf="isTreeView">
+      <button mat-flat-button class="btn-managerial" (click)="openModal(null, false)" *ngIf="isTreeView">
         <mat-icon>add</mat-icon> Nuevo Tipo Raíz
       </button>
     </div>
@@ -79,10 +87,10 @@
           <span class="meta-text text-muted">Sin elementos</span>
           }
 
-          @if (node.tags.length) {
+          @if (node.tags?.length) {
           <div class="mini-tags">
             <span class="dot"></span>
-            <span>{{ node.tags.length }} tags</span>
+            <span>{{ node.tags?.length }} tags</span>
           </div>
           }
         </div>
@@ -142,8 +150,8 @@
           <div class="node-info">
             <span class="node-name">{{node.name}}</span>
             <div class="node-meta-row">
-              <span class="meta-item" *ngIf="node.data.tags.length">
-                <mat-icon>label</mat-icon> {{node.data.tags.length}}
+              <span class="meta-item" *ngIf="node.data.tags?.length">
+                <mat-icon>label</mat-icon> {{node.data.tags?.length}}
               </span>
               <span class="badge" [class.success]="node.data.estado" [class.inactive]="!node.data.estado">
                 {{node.data.estado ? 'Activo' : 'Inactivo'}}

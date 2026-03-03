@@ -1,105 +1,124 @@
-import { Component, OnInit } from '@angular/core';
-import { SharedModule } from '../../../../../../shared/shared.module';
-import { HomeService } from '../../service/home.service';
-import { catchError } from 'rxjs/operators';
-import { of } from 'rxjs/internal/observable/of';
+import { Component, OnInit, inject } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { MatCardModule } from '@angular/material/card';
+import { MatIconModule } from '@angular/material/icon';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatTableDataSource, MatTableModule } from '@angular/material/table';
-import Swal from 'sweetalert2';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatInputModule } from '@angular/material/input';
+import { ComercializadoraService } from '../../../merchandise/service/comercializadora/comercializadora.service';
+import { UtilityServiceService } from '../../../../../../shared/services/utilityService/utility-service.service';
 
 @Component({
   selector: 'app-merchandising-merchandise',
   standalone: true,
   imports: [
-    SharedModule
+    CommonModule,
+    MatCardModule,
+    MatIconModule,
+    MatProgressSpinnerModule,
+    MatTableModule,
+    MatFormFieldModule,
+    MatInputModule
   ],
   templateUrl: './merchandising-merchandise.component.html',
   styleUrl: './merchandising-merchandise.component.css'
 })
 export class MerchandisingMerchandiseComponent implements OnInit {
-  dataSourceInventarioGeneral = new MatTableDataSource<any>();
-  dataSourceTraslados = new MatTableDataSource<any>();
-  dataSourceInventario = new MatTableDataSource<any>();
-  displayedColumnsInventario: string[] = ['codigo', 'concepto', 'destino', 'cantidadEnvio',
-    'cantidadRecibida', 'valorUnidad', 'cantidadTotalVendida', 'PersonaEnvia', 'PersonaRecibe',
-    'fechaEnviada', 'fechaRecibida', 'comentariosEnvio'];
-  displayedColumnsInventarioGeneral: string[] = ['concepto', 'destino', 'cantidadEnvio',
-    'cantidadRecibida', 'cantidadPendiente', 'valorUnidad', 'cantidadPorVender'];
+  private comercializadoraService = inject(ComercializadoraService);
+  private utilityService = inject(UtilityServiceService);
 
+  loading = false;
 
-  constructor(private homeService: HomeService) { }
+  // Tabla detallada (por lote)
+  dataSourceDetallado = new MatTableDataSource<any>();
+  displayedColumnsDetallado: string[] = [
+    'producto_nombre', 'codigo', 'cantidad_inicial',
+    'cantidad_vendida', 'disponible', 'valor_unitario',
+    'fecha_recepcion', 'realizado_por'
+  ];
+
+  // Tabla resumen (agrupada por producto)
+  dataSourceResumen = new MatTableDataSource<any>();
+  displayedColumnsResumen: string[] = [
+    'producto_nombre', 'total_recibido', 'total_vendido',
+    'total_disponible', 'valor_unitario', 'valor_total'
+  ];
+
+  // Métricas
+  totalLotes = 0;
+  totalDisponible = 0;
+  totalValorInventario = 0;
 
   ngOnInit(): void {
-    this.homeService.traerInventarioProductos().pipe(
-      catchError(error => {
-        return of({ comercio: [] }); // Se asegura de devolver un array vacío en caso de error
-      })
-    ).subscribe(inventarioProductos => {
-      try {
-        if (!inventarioProductos || !Array.isArray(inventarioProductos.comercio)) {
-          inventarioProductos = { comercio: [] }; // Validación para evitar errores si la respuesta no es la esperada
-        }
-
-        const sortedData = inventarioProductos.comercio
-          .filter((p: { fechaEnviada?: string | number | Date }) => p.fechaEnviada) // Evita valores nulos/undefined
-          .sort((a: { fechaEnviada: string | number | Date }, b: { fechaEnviada: string | number | Date }) =>
-            new Date(b.fechaEnviada).getTime() - new Date(a.fechaEnviada).getTime()
-          );
-
-        const filteredData = sortedData
-          .map((p: { fechaRecibida?: any }) => ({
-            ...p,
-            fechaRecibida: p.fechaRecibida || '' // Asegura que fechaRecibida tenga un valor
-          }))
-          .filter((p: { cantidadRecibida?: number; cantidadTotalVendida?: number; cantidadEnvio?: number }) =>
-            (p.cantidadRecibida ?? 0) !== (p.cantidadTotalVendida ?? 0) || (p.cantidadEnvio ?? 0) !== (p.cantidadRecibida ?? 0)
-          );
-
-        this.dataSourceInventario.data = filteredData;
-        this.dataSourceInventarioGeneral.data = this.agruparDatos(filteredData);
-      } catch (error) {
-        Swal.fire({
-          icon: 'error',
-          title: 'Error al cargar los datos del inventario',
-          text: 'Por favor, intenta de nuevo más tarde.'
-        });
-        this.dataSourceInventario.data = [];
-        this.dataSourceInventarioGeneral.data = [];
-      }
-    });
+    this.cargarInventario();
   }
 
+  async cargarInventario() {
+    this.loading = true;
+    try {
+      // User's sede is no longer used for filtering to display global inventory on Home
+      const data: any = await this.comercializadoraService.listarInventarioLotes('');
+      const lotes = Array.isArray(data) ? data : (data?.results || []);
 
+      // Tabla detallada
+      this.dataSourceDetallado.data = lotes;
 
-  applyFilterInventario(event: Event) {
-    const filterValue = (event.target as HTMLInputElement).value;
-    this.dataSourceInventario.filter = filterValue.trim().toLowerCase();
-    this.dataSourceInventarioGeneral.filter = filterValue.trim().toLowerCase();
+      // Tabla resumen (agrupada por producto_nombre)
+      this.dataSourceResumen.data = this.agruparPorProducto(lotes);
+
+      // Métricas
+      this.totalLotes = lotes.length;
+      this.totalDisponible = lotes.reduce((sum: number, l: any) => sum + (l.disponible || 0), 0);
+      this.totalValorInventario = lotes.reduce(
+        (sum: number, l: any) => sum + ((l.disponible || 0) * Number(l.valor_unitario || 0)), 0
+      );
+    } catch (error) {
+      console.error('Error cargando inventario:', error);
+      this.dataSourceDetallado.data = [];
+      this.dataSourceResumen.data = [];
+    } finally {
+      this.loading = false;
+    }
   }
 
-  agruparDatos(data: any[]): any[] {
-    let agrupado = data.reduce((acumulador, item) => {
-      let clave = `${item.concepto}-${item.destino}-${item.valorUnidad}`;
+  applyFilter(event: Event): void {
+    const filterValue = (event.target as HTMLInputElement).value.trim().toLowerCase();
+    this.dataSourceDetallado.filter = filterValue;
+    this.dataSourceResumen.filter = filterValue;
+  }
 
-      if (!acumulador[clave]) {
-        acumulador[clave] = { ...item, cantidadEnvio: 0, cantidadTotalVendida: 0, cantidadRecibida: 0 };
+  private agruparPorProducto(lotes: any[]): any[] {
+    const agrupado: Record<string, any> = {};
+
+    for (const lote of lotes) {
+      const key = `${lote.producto_nombre}-${lote.valor_unitario}`;
+      if (!agrupado[key]) {
+        agrupado[key] = {
+          producto_nombre: lote.producto_nombre,
+          valor_unitario: Number(lote.valor_unitario || 0),
+          total_recibido: 0,
+          total_vendido: 0,
+          total_disponible: 0,
+          valor_total: 0,
+        };
       }
+      agrupado[key].total_recibido += (lote.cantidad_inicial || 0);
+      agrupado[key].total_vendido += (lote.cantidad_vendida || 0);
+      agrupado[key].total_disponible += (lote.disponible || 0);
+    }
 
-      acumulador[clave].cantidadEnvio += Number(item.cantidadEnvio);
-      acumulador[clave].cantidadTotalVendida += Number(item.cantidadTotalVendida);
-      acumulador[clave].cantidadRecibida += Number(item.cantidadRecibida);
-
-      return acumulador;
-    }, {});
-
-    let agrupadoArray = Object.values(agrupado);
-
-    agrupadoArray.sort((a: any, b: any) => a.destino.localeCompare(b.destino));
-
-    agrupadoArray.forEach((p: any) => {
-      p.cantidadPendiente = Math.abs(p.cantidadEnvio - p.cantidadRecibida);
-      p.cantidadPorVender = Math.abs(p.cantidadEnvio - (p.cantidadTotalVendida == 0 ? 0 : p.cantidadTotalVendida));
+    const resultado = Object.values(agrupado);
+    resultado.forEach((r: any) => {
+      r.valor_total = r.total_disponible * r.valor_unitario;
     });
 
-    return agrupadoArray;
+    resultado.sort((a: any, b: any) => a.producto_nombre.localeCompare(b.producto_nombre));
+    return resultado;
+  }
+
+  formatCurrency(value: any): string {
+    const n = Number(value || 0);
+    return n.toLocaleString('es-CO', { maximumFractionDigits: 0 });
   }
 }

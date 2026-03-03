@@ -228,14 +228,13 @@ export class HomeService {
       .set('fecha_fin', fechaFin);
 
     if (excel) {
-      params = params.set('excel', '1');
       return this.http
-        .get(`${this.apiUrl}/Historial/informe`, { params, responseType: 'blob' })
+        .get(`${this.apiUrl}/gestion_tesoreria/transacciones/descargar-historial/`, { params, responseType: 'blob' })
         .pipe(catchError((e) => this.handleError(e)));
     }
 
     return this.http
-      .get(`${this.apiUrl}/Historial/informe`, { params })
+      .get(`${this.apiUrl}/gestion_tesoreria/transacciones/descargar-historial/`, { params })
       .pipe(catchError((e) => this.handleError(e)));
   }
 
@@ -249,16 +248,16 @@ export class HomeService {
       .set('fecha_fin', fechaFin);
 
     if (excel) {
-      params = params.set('excel', '1');
       return this.http
-        .get(`${this.apiUrl}/Historial/informeFecha`, { params, responseType: 'blob' })
+        .get(`${this.apiUrl}/gestion_tesoreria/transacciones/descargar-historial/`, { params, responseType: 'blob' })
         .pipe(catchError((e) => this.handleError(e)));
     }
 
     return this.http
-      .get(`${this.apiUrl}/Historial/informeFecha`, { params })
+      .get(`${this.apiUrl}/gestion_tesoreria/transacciones/descargar-historial/`, { params })
       .pipe(catchError((e) => this.handleError(e)));
   }
+
 
   // ---------------------------------------------------------------------------
   // Home cards / conteos / inventario / etc (tal cual lo tenías)

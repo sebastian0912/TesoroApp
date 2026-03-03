@@ -72,7 +72,7 @@ body {
   margin: 0;
   font-family: var(--font-sans);
   color: var(--text);
-  background: linear-gradient(120deg, #eeeeee 50%, #febb2e 40%);
+  background: var(--bg);
   min-height: 100vh;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
@@ -137,33 +137,24 @@ html:focus-within {
 .dashboard-container {
   display: flex;
   min-height: 100vh;
+  width: 100%;
 }
 
 .dashboard-content {
   flex: 1;
-  padding: var(--pad);
+  display: flex;
+  flex-direction: column;
   overflow: auto;
+  min-width: 0;
+  /* Prevent flex overflow */
+  margin-left: 64px;
+  /* Default sidebar width to prevent overlap */
 }
 
-/* Navbar (solo móvil) */
-.navbar {
-  display: none;
-  align-items: center;
-  height: 20pt;
-  width: 100%;
-  z-index: 4;
-}
-
-.sidebar-toggle {
-  background: transparent;
-  border: none;
-  color: #fff;
-  cursor: pointer;
-}
-
-/* Componente navbar */
-app-navbar {
-  min-width: 45pt;
+.dashboard-page-wrapper {
+  padding: 1.5rem 2rem;
+  flex: 1;
+  transition: padding 0.3s ease;
 }
 
 /* ======================
@@ -417,18 +408,15 @@ mat-card-content p {
 /* ======================
    Responsive
 ====================== */
-@media (max-width: 933px) {
-  .navbar {
-    display: flex;
-  }
-
+@media (max-width: 900px) {
   .dashboard-container {
     flex-direction: column;
   }
 
-  app-navbar {
-    margin-top: 0;
-    width: 100%;
+  .dashboard-content {
+    margin-left: 0;
+    padding: 1rem 1rem 80px 1rem;
+    /* Extra padding bottom for mobile bottom-bar */
   }
 
   .nombre {
@@ -563,7 +551,6 @@ mat-card-content p {
 }
 
 /* FIX: date-range-picker no ocupa espacio */
-.mat-mdc-dialog-panel.sf-filters-dialog-panel .sf-filters-dialog__item mat-date-range-picker {
 .mat-mdc-dialog-panel.sf-filters-dialog-panel .sf-filters-dialog__item mat-date-range-picker {
   display: none !important;
   height: 0 !important;

@@ -1,14 +1,19 @@
 <div class="dashboard-shell">
 
   <!-- HEADER -->
-  <header class="page-header" role="banner">
+  <header class="card-header-premium">
     <div class="header-content">
-      <h1 class="h1-title">Consultar Documentación</h1>
-      <p class="subtitle">Verifica el estado de documentos de contratación por cédula.</p>
+      <div class="header-icon-container">
+        <mat-icon class="header-icon">plagiarism</mat-icon>
+      </div>
+      <div class="header-text">
+        <h1 class="titulo" style="margin: 0 !important;">Consultar Documentación</h1>
+        <p class="subtitulo" style="margin: 0 !important;">Verifica el estado de documentos de contratación por cédula.</p>
+      </div>
     </div>
-
-    <div class="header-actions">
-      <button mat-icon-button [matMenuTriggerFor]="accionesMenu" aria-label="Más acciones" class="btn-more">
+    <span class="grow"></span>
+    <div class="header-actions" style="z-index: 1;">
+      <button mat-icon-button class="btn-managerial-icon" [matMenuTriggerFor]="accionesMenu" aria-label="Más acciones" class="btn-more">
         <mat-icon>more_vert</mat-icon>
       </button>
       <mat-menu #accionesMenu="matMenu">
@@ -60,7 +65,7 @@
           <mat-hint>Presiona Enter para buscar o Ctrl+V para pegar lista</mat-hint>
         </mat-form-field>
 
-        <button mat-flat-button color="primary" class="btn-consultar" (click)="buscarPorCedula()"
+        <button mat-flat-button class="btn-managerial btn-consultar" (click)="buscarPorCedula()"
           [disabled]="!cedulaControl.value">
           <mat-icon>search</mat-icon> CONSULTAR
         </button>

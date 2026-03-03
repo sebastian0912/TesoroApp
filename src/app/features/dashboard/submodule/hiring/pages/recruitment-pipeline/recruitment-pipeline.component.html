@@ -12,6 +12,25 @@
         <span class="info-candidato-valor">{{ nombreCandidato }}</span>
       </div>
       <div class="botones">
+        <!-- Botón enviar correo bienvenida -->
+        <button mat-icon-button matTooltip="Confirmar Correo de Bienvenida" aria-label="Confirmar Correo de Bienvenida"
+          (click)="confirmarCorreoBienvenida()" [disabled]="!candidatoSeleccionado()?.numero_documento"
+          [matBadge]="candidatoSeleccionado()?.contacto?.correo_confirmado ? '✓' : ''"
+          [matBadgeColor]="candidatoSeleccionado()?.contacto?.correo_confirmado ? 'primary' : 'warn'"
+          matBadgeOverlap="true" [matBadgeHidden]="!candidatoSeleccionado()?.contacto?.correo_confirmado">
+          <mat-icon>email</mat-icon>
+        </button>
+
+        <!-- Botón enviar whatsapp bienvenida -->
+        <button mat-icon-button matTooltip="Confirmar WhatsApp de Bienvenida"
+          aria-label="Confirmar WhatsApp de Bienvenida" (click)="confirmarWhatsAppBienvenida()"
+          [disabled]="!candidatoSeleccionado()?.numero_documento"
+          [matBadge]="candidatoSeleccionado()?.contacto?.whatsapp_confirmado ? '✓' : ''"
+          [matBadgeColor]="candidatoSeleccionado()?.contacto?.whatsapp_confirmado ? 'primary' : 'warn'"
+          matBadgeOverlap="true" [matBadgeHidden]="!candidatoSeleccionado()?.contacto?.whatsapp_confirmado">
+          <mat-icon>chat</mat-icon>
+        </button>
+
         <!-- Botón de documentos -->
         <button mat-icon-button matTooltip="Generar o subir documentación" aria-label="Generar o subir documentación"
           [routerLink]="[

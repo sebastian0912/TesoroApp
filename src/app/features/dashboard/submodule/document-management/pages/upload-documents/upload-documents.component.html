@@ -1,10 +1,16 @@
 <div class="upload-page-container">
 
   <!-- Semantic Header -->
-  <header class="page-header">
-    <div class="header-text">
-      <h1>Carga de Documentos</h1>
-      <p>Sube y gestiona la documentación de candidatos de forma centralizada.</p>
+  <header class="card-header-premium">
+    <div class="header-content">
+      <div class="header-icon-container">
+        <mat-icon class="header-icon">cloud_upload</mat-icon>
+      </div>
+      <div class="header-text">
+        <mat-card-title class="titulo">Carga de Documentos</mat-card-title>
+        <mat-card-subtitle class="subtitulo">Sube y gestiona la documentación de candidatos de forma
+          centralizada.</mat-card-subtitle>
+      </div>
     </div>
   </header>
 
@@ -38,7 +44,7 @@
 
               <!-- SCAN BUTTON (NEW) -->
               <div class="scan-action">
-                <button mat-flat-button color="accent" class="scan-btn"
+                <button mat-flat-button class="btn-managerial" style="width: 100%; border: 1px solid #192030;"
                   (click)="$event.stopPropagation(); openScanDialog()" [disabled]="isUploading">
                   <mat-icon>document_scanner</mat-icon> ESCANEAR
                 </button>
@@ -86,8 +92,9 @@
 
               <!-- CTA -->
               <div class="action-footer" style="margin-top: 32px;">
-                <button mat-flat-button class="cta-button" [disabled]="!canUpload" (click)="startUpload()"
-                  aria-label="Iniciar subida de documentos">
+                <button mat-flat-button class="btn-managerial"
+                  style="width: 100%; height: 50px !important; font-size: 16px !important;" [disabled]="!canUpload"
+                  (click)="startUpload()" aria-label="Iniciar subida de documentos">
                   <mat-icon style="margin-right: 8px;">upload</mat-icon>
                   @if (isUploading) {
                   <mat-progress-bar mode="indeterminate" color="accent"

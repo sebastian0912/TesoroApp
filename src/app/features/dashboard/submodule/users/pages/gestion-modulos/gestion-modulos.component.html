@@ -1,16 +1,27 @@
-<mat-card>
-  <mat-card-header class="card-header">
-    <mat-card-title class="titulo">Gestión de módulos</mat-card-title>
-    <span class="spacer"></span>
+<mat-card class="premium-card">
+  <mat-card-header class="card-header-premium">
+    <div class="header-content">
+      <div class="header-icon-container">
+        <mat-icon class="header-icon">view_module</mat-icon>
+      </div>
+      <div class="header-text">
+        <mat-card-title class="titulo">Gestión de Módulos</mat-card-title>
+        <mat-card-subtitle class="subtitulo">Configuración estructural del árbol de aplicaciones y
+          navegación.</mat-card-subtitle>
+      </div>
+    </div>
+    <span class="grow"></span>
 
     <!-- Crear módulo raíz -->
-    <button mat-flat-button (click)="crear()">
-      <mat-icon>add</mat-icon>
-      Crear módulo (raíz)
-    </button>
+    <div class="header-actions">
+      <button mat-flat-button class="btn-managerial" (click)="crear()">
+        <mat-icon>create_new_folder</mat-icon>
+        <span>Crear módulo (Raíz)</span>
+      </button>
+    </div>
   </mat-card-header>
 
-  <mat-card-content class="card-body">
+  <mat-card-content class="card-content">
     <!-- Loader superior opcional -->
     <mat-progress-bar *ngIf="loading" mode="indeterminate"></mat-progress-bar>
     <div class="scroll">

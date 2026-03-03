@@ -123,9 +123,9 @@ export class CargarMercadoFeriasComponent implements OnInit {
         celularControl?.updateValueAndValidity();
       });
 
-      // Llamar datos desde el nuevo sistema de Tesorería
+      // Llamar datos desde el nuevo sistema de Tesorería (global)
       const sedeUsuario = this.utilityServiceService.getUser().sede.nombre;
-      const lotes: any = await this.comercializadoraService.listarInventarioLotes(sedeUsuario);
+      const lotes: any = await this.comercializadoraService.listarInventarioLotes('');
 
       if (lotes && lotes.length > 0) {
         // Mapear al formato que usa la tabla actualmente

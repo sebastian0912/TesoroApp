@@ -1,13 +1,17 @@
 <div class="modal-wrapper">
 
   <!-- Header -->
-  <div class="modal-header">
-    <div class="header-titles">
-      <h2>{{ data.isEdit ? 'Editar Tipo Documental' : 'Nuevos Tipos Documentales' }}</h2>
-      <p>{{ data.isEdit ? 'Modifica los detalles del elemento existente.' : 'Define y agrega múltiples tipos a la
-        estructura.' }}</p>
+  <div class="modal-header-premium">
+    <div class="header-content">
+      <div class="header-icon-container">
+        <mat-icon class="header-icon">folder_special</mat-icon>
+      </div>
+      <div class="header-text">
+        <h2 class="titulo" style="margin: 0 !important;">{{ data.isEdit ? 'Editar Tipo Documental' : 'Nuevos Tipos Documentales' }}</h2>
+        <p class="subtitulo" style="margin: 0 !important;">{{ data.isEdit ? 'Modifica los detalles del elemento existente.' : 'Define y agrega múltiples tipos a la estructura.' }}</p>
+      </div>
     </div>
-    <button mat-icon-button (click)="cancel()" class="close-btn" tabindex="-1">
+    <button mat-icon-button (click)="cancel()" class="close-btn btn-managerial-icon" tabindex="-1" style="z-index: 1;">
       <mat-icon>close</mat-icon>
     </button>
   </div>
@@ -117,7 +121,7 @@
   <!-- Footer Actions -->
   <mat-dialog-actions class="modal-footer">
     <button mat-button (click)="cancel()">Cancelar</button>
-    <button mat-flat-button color="primary" (click)="save()"
+    <button mat-flat-button class="btn-managerial" style="height: 40px !important;" (click)="save()"
       [disabled]="data.isEdit ? form.invalid : nuevosDocumentos.length === 0">
       {{ data.isEdit ? 'Guardar Cambios' : 'Crear ' + nuevosDocumentos.length + ' Elementos' }}
     </button>

@@ -1,10 +1,21 @@
 /* ===== Título ===== */
-.dlg-title {
-  margin: 0 0 12px;
-  font-size: 18px;
-  font-weight: 600;
-  color: #1f2937; /* gris 800 */
-  letter-spacing: .2px;
+.dlg-title.dlg-header-premium {
+  display: flex !important;
+  align-items: center;
+  margin: 0 0 16px 0 !important;
+  padding: 24px 32px 20px 32px !important;
+      background: linear-gradient(135deg, #0f172a 0%, #1e293b 60%, #334155 100%);
+    position: relative;
+    overflow: hidden;
+  color: #ffffff !important;
+}
+
+.dlg-header-premium .header-icon {
+  font-size: 28px;
+  width: 28px;
+  height: 28px;
+  margin-right: 12px;
+  color: #ffffff !important;
 }
 
 /* ===== Contenido del diálogo (capado en alto) ===== */
@@ -16,7 +27,8 @@
   padding-top: 2px;
   /* Evita que el diálogo crezca demasiado en alto */
   max-height: calc(100vh - 180px);
-  overflow: hidden; /* el scroll lo maneja cada bloque interno */
+  overflow: hidden;
+  /* el scroll lo maneja cada bloque interno */
 }
 
 .dlg-content.loading {
@@ -30,15 +42,20 @@
   align-items: center;
   gap: 12px;
   padding: 4px 0 8px;
-  border-bottom: 1px solid #e5e7eb; /* gris 200 */
+  border-bottom: 1px solid #e5e7eb;
+  /* gris 200 */
 }
-.grow { flex: 1 1 auto; }
+
+.grow {
+  flex: 1 1 auto;
+}
 
 /* ===== Contenedor scrolleable para tablas ===== */
 .table-scroll {
   /* Altura razonable para que no expanda el diálogo */
   max-height: 38vh;
-  overflow: auto;            /* X e Y según se necesite */
+  overflow: auto;
+  /* X e Y según se necesite */
   border: 1px solid #ececec;
   border-radius: 12px;
   background: #fff;
@@ -47,7 +64,8 @@
 /* ===== Tabla (Material) ===== */
 table[mat-table] {
   width: 100%;
-  min-width: 640px;          /* permite scroll horizontal con muchas columnas */
+  min-width: 640px;
+  /* permite scroll horizontal con muchas columnas */
   border-radius: 12px;
   border-collapse: separate;
   border-spacing: 0;
@@ -56,7 +74,8 @@ table[mat-table] {
 
 th[mat-header-cell] {
   font-weight: 600;
-  color: #6b7280;            /* gris 500 */
+  color: #6b7280;
+  /* gris 500 */
   background: #fafafa;
   border-bottom: 1px solid #ececec;
   white-space: nowrap;
@@ -67,13 +86,15 @@ th[mat-header-cell] {
   z-index: 1;
 }
 
-td[mat-cell], th[mat-header-cell] {
+td[mat-cell],
+th[mat-header-cell] {
   padding: 10px 14px !important;
   line-height: 1.25;
 }
 
 td[mat-cell] {
-  color: #1f2937;            /* gris 800 */
+  color: #1f2937;
+  /* gris 800 */
   border-bottom: 1px solid #ececec;
   vertical-align: middle;
   white-space: nowrap;
@@ -85,9 +106,14 @@ tr[mat-row]:hover td[mat-cell] {
   background: #f5f6f8;
 }
 
-.right { text-align: right; }
+.right {
+  text-align: right;
+}
 
-.mat-column-acciones { width: 120px; }
+.mat-column-acciones {
+  width: 120px;
+}
+
 td.mat-column-acciones {
   display: flex;
   justify-content: flex-end;
@@ -108,6 +134,7 @@ button[mat-icon-button] {
   height: 36px;
   line-height: 36px;
 }
+
 button[mat-icon-button] mat-icon {
   font-size: 20px;
 }
@@ -129,16 +156,27 @@ button[mat-icon-button] mat-icon {
   gap: 12px;
 }
 
-.ff { display: flex; align-items: center; }
-.editor .row .grow { grid-column: span 1; }
-.w100 { width: 100%; }
+.ff {
+  display: flex;
+  align-items: center;
+}
+
+.editor .row .grow {
+  grid-column: span 1;
+}
+
+.w100 {
+  width: 100%;
+}
 
 .mono {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
   font-size: 13px;
 }
 
-.muted { color: #6b7280; }
+.muted {
+  color: #6b7280;
+}
 
 .actions {
   display: flex;
@@ -148,8 +186,13 @@ button[mat-icon-button] mat-icon {
 }
 
 /* Ajustes Material */
-.mat-mdc-form-field-subscript-wrapper { margin-top: 2px; }
-mat-form-field { width: 100%; }
+.mat-mdc-form-field-subscript-wrapper {
+  margin-top: 2px;
+}
+
+mat-form-field {
+  width: 100%;
+}
 
 /* ===== Footer del diálogo ===== */
 .dlg-actions {
@@ -161,12 +204,28 @@ mat-form-field { width: 100%; }
 
 /* ===== Responsive ===== */
 @media (max-width: 1024px) {
-  .editor .row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .editor .row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 820px) {
-  .editor { padding: 12px; }
-  .editor .row { grid-template-columns: 1fr; }
-  td[mat-cell], th[mat-header-cell] { padding: 8px 12px !important; }
-  .table-scroll { max-height: 44vh; } /* un poco más de alto en móviles */
+  .editor {
+    padding: 12px;
+  }
+
+  .editor .row {
+    grid-template-columns: 1fr;
+  }
+
+  td[mat-cell],
+  th[mat-header-cell] {
+    padding: 8px 12px !important;
+  }
+
+  .table-scroll {
+    max-height: 44vh;
+  }
+
+  /* un poco más de alto en móviles */
 }

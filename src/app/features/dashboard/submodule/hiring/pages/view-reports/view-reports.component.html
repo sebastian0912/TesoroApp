@@ -1,15 +1,19 @@
-<mat-card>
-  <mat-card-content>
-
-    <!-- HEADER GENERAL -->
-    <div class="reports-header">
-      <div class="header-left">
-        <h1 class="title">Reportes de contratación</h1>
+<mat-card class="premium-card">
+  <mat-card-header class="card-header-premium">
+    <div class="header-content">
+      <div class="header-icon-container">
+        <mat-icon class="header-icon">analytics</mat-icon>
       </div>
-
-      <div class="header-right">
+      <div class="header-text">
+        <mat-card-title class="titulo">Reportes de Contratación</mat-card-title>
+        <mat-card-subtitle class="subtitulo">Visualización y exportación de reportes de personal.</mat-card-subtitle>
+      </div>
+    </div>
+    <span class="grow"></span>
+    <div class="header-right" style="z-index: 1; display: flex; align-items: center; gap: 8px;">
         <button
           mat-flat-button
+          class="btn-managerial"
           (click)="descargarCedulasZip()">
           Descargar todas las cédulas por oficina
         </button>
@@ -18,13 +22,14 @@
         <button
           mat-icon-button
           [matMenuTriggerFor]="menu"
-          class="menu"
+          class="menu btn-managerial-icon"
           matTooltip="Acciones de reportes">
           <mat-icon>more_vert</mat-icon>
         </button>
         }
-      </div>
     </div>
+  </mat-card-header>
+  <mat-card-content class="card-content">
 
     @if (isAdminReportUser) {
     <mat-menu #menu="matMenu">

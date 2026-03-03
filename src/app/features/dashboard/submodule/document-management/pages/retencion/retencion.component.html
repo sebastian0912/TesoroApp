@@ -1,5 +1,16 @@
-<mat-card>
-    <mat-card-content>
+<mat-card class="premium-card">
+    <mat-card-header class="card-header-premium">
+      <div class="header-content">
+        <div class="header-icon-container">
+          <mat-icon class="header-icon">inventory_2</mat-icon>
+        </div>
+        <div class="header-text">
+          <mat-card-title class="titulo">Tiempo de Retención</mat-card-title>
+          <mat-card-subtitle class="subtitulo">Configura el tiempo de almacenamiento físico y magnético del expediente.</mat-card-subtitle>
+        </div>
+      </div>
+    </mat-card-header>
+    <mat-card-content class="card-content">
 
         <app-standard-filter-table [data]="data" [columnDefinitions]="columnDefinitions" [tableTitle]="tableTitle"
             [defaultPageSize]="20" [pageSizeOptions]="[10, 20, 50, 100]">

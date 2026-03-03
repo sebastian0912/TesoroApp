@@ -5,13 +5,11 @@ import { AutorizacionesService } from '../../../authorizations/services/autoriza
 import { HistorialService } from '../../service/historial/historial.service';
 import { SharedModule } from '../../../../../../shared/shared.module';
 import { ColumnDefinition } from '@/app/shared/models/advanced-table-interface';
-import { StandardFilterTable } from '@/app/shared/components/standard-filter-table/standard-filter-table';
 
 @Component({
   selector: 'app-historial-autorizaciones',
   imports: [
-    SharedModule,
-    StandardFilterTable
+    SharedModule
   ],
   templateUrl: './historial-autorizaciones.component.html',
   styleUrls: ['./historial-autorizaciones.component.css']
@@ -94,32 +92,7 @@ export class HistorialAutorizacionesComponent implements OnInit {
           return;
         }
 
-        if (data.activo === false) {
-          Swal.fire({
-            icon: 'error',
-            title: 'Empleado Inactivo',
-            text: 'El empleado con el número de documento proporcionado se encuentra inactivo y no es válido para procesar autorizaciones.',
-          });
-          return;
-        }
-
-        if (data.bloqueado === true) {
-          let fechaStr = 'fecha desconocida';
-          if (data.fecha_bloqueo) {
-            const d = new Date(data.fecha_bloqueo);
-            fechaStr = d.toLocaleDateString('es-CO') + ' a las ' + d.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
-          }
-          const motivo = data.observacion_bloqueo ? data.observacion_bloqueo : 'Sin motivo especificado';
-
-          Swal.fire({
-            icon: 'error',
-            title: 'Empleado Bloqueado',
-            text: `El empleado se encuentra bloqueado desde: ${fechaStr}.\n\nMotivo: ${motivo}`,
-          });
-          return;
-        }
-
-        // 2. Si es válido (existe, activo y no bloqueado), buscar transacciones
+        // 2. Si existe el operario, buscamos transacciones (sin importar su estado activo/inactivo/bloqueado)
         this.cargarTransacciones(numeroDocumento);
       },
       (error: any) => {

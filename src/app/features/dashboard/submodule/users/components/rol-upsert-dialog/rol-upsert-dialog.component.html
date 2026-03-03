@@ -1,4 +1,7 @@
-<h2 mat-dialog-title>{{ title() }}</h2>
+<h2 mat-dialog-title class="dlg-header-premium">
+  <mat-icon class="header-icon">manage_accounts</mat-icon>
+  <span>{{ title() }}</span>
+</h2>
 
 <mat-dialog-content>
   <form [formGroup]="form" class="form" (ngSubmit)="guardar()" id="rolForm">

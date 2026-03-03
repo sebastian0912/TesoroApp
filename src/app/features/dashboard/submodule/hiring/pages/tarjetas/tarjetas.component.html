@@ -1,11 +1,16 @@
 <div class="tarjetas-container">
-    <!-- Header -->
-    <div class="page-header">
-        <div>
-            <h1>Tarjetas</h1>
-            <p class="subtitle">Gestión y carga masiva</p>
+    <div class="card-header-premium">
+        <div class="header-content">
+            <div class="header-icon-container">
+                <mat-icon class="header-icon">credit_card</mat-icon>
+            </div>
+            <div class="header-text">
+                <h1 class="titulo" style="margin: 0 !important;">Tarjetas</h1>
+                <p class="subtitulo" style="margin: 0 !important;">Gestión y carga masiva de tarjetas.</p>
+            </div>
         </div>
-        <button mat-raised-button color="primary" (click)="onCreate()">
+        <span class="grow"></span>
+        <button mat-raised-button class="btn-managerial" style="z-index: 1;" (click)="onCreate()">
             <mat-icon>add</mat-icon> Crear Tarjeta
         </button>
     </div>
@@ -13,7 +18,7 @@
     <!-- Section A: Bulk Upload -->
     <mat-card class="upload-section">
         <mat-card-header>
-            <mat-card-title>Carga Masiva</mat-card-title>
+            <mat-card-title class="titulo" style="color: #192030 !important;">Carga Masiva</mat-card-title>
         </mat-card-header>
         <mat-card-content>
             <div class="upload-controls">

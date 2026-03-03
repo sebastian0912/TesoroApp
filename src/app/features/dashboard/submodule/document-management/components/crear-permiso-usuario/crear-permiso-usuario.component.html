@@ -1,6 +1,14 @@
-<h2 mat-dialog-title class="titulo">
-  Seleccionar Usuario y Tipo Documental al que se le dará permisos
-</h2>
+<div class="modal-header-premium" style="margin: -24px -24px 24px -24px; padding: 24px;">
+  <div class="header-content">
+    <div class="header-icon-container">
+      <mat-icon class="header-icon">security</mat-icon>
+    </div>
+    <div class="header-text">
+      <h2 class="titulo" style="margin: 0 !important;">Nuevo Permiso</h2>
+      <p class="subtitulo" style="margin: 0 !important;">Asignación de lectura a tipos documentales específicos.</p>
+    </div>
+  </div>
+</div>
 <mat-dialog-content [formGroup]="form">
   <!-- Campo de usuario deshabilitado -->
   <mat-form-field class="example-full-width">
@@ -28,6 +36,7 @@
   <button mat-button mat-dialog-close>Cerrar</button>
   <button
     mat-flat-button
+    class="btn-managerial"
     [mat-dialog-close]="getFormValue()"
     [disabled]="form.invalid"
   >

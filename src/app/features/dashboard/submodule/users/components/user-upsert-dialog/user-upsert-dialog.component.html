@@ -1,4 +1,7 @@
-<h2 mat-dialog-title>{{ title() }}</h2>
+<h2 mat-dialog-title class="dlg-header-premium">
+  <mat-icon class="header-icon">person</mat-icon>
+  <span>{{ title() }}</span>
+</h2>
 
 <mat-dialog-content>
   <div class="dialog-content" *ngIf="!loading(); else loadingTpl">
@@ -12,7 +15,8 @@
         <input matInput formControlName="correo_electronico" placeholder="ejemplo@correo.com" autocomplete="email">
         <mat-icon matPrefix>alternate_email</mat-icon>
         <mat-error *ngIf="form.get('correo_electronico')?.hasError('required')">El correo es requerido</mat-error>
-        <mat-error *ngIf="form.get('correo_electronico')?.hasError('email')">El formato del correo es inválido</mat-error>
+        <mat-error *ngIf="form.get('correo_electronico')?.hasError('email')">El formato del correo es
+          inválido</mat-error>
       </mat-form-field>
 
       <!-- Tipo de documento -->
@@ -101,10 +105,7 @@
       <!-- Toggle de cambio de contraseña (solo en edición) -->
       <ng-container *ngIf="!isCreate()">
         <div class="toggle-section span-2">
-          <mat-slide-toggle
-            [checked]="changePw()"
-            (change)="onToggleChangePw($event.checked)"
-            color="primary">
+          <mat-slide-toggle [checked]="changePw()" (change)="onToggleChangePw($event.checked)" color="primary">
             Cambiar contraseña
           </mat-slide-toggle>
           <small class="hint">Actívalo para definir una nueva contraseña.</small>
@@ -117,8 +118,10 @@
 
         <mat-form-field appearance="outline">
           <mat-label>Contraseña</mat-label>
-          <input matInput [type]="hidePw() ? 'password' : 'text'" formControlName="password" autocomplete="new-password">
-          <button mat-icon-button matSuffix type="button" (click)="hidePw.set(!hidePw())" [attr.aria-label]="'Mostrar/Ocultar contraseña'">
+          <input matInput [type]="hidePw() ? 'password' : 'text'" formControlName="password"
+            autocomplete="new-password">
+          <button mat-icon-button matSuffix type="button" (click)="hidePw.set(!hidePw())"
+            [attr.aria-label]="'Mostrar/Ocultar contraseña'">
             <mat-icon>{{ hidePw() ? 'visibility_off' : 'visibility' }}</mat-icon>
           </button>
           <mat-error *ngIf="form.get('password')?.hasError('required')">La contraseña es requerida</mat-error>
@@ -127,8 +130,10 @@
 
         <mat-form-field appearance="outline">
           <mat-label>Confirmar contraseña</mat-label>
-          <input matInput [type]="hidePw2() ? 'password' : 'text'" formControlName="password2" autocomplete="new-password">
-          <button mat-icon-button matSuffix type="button" (click)="hidePw2.set(!hidePw2())" [attr.aria-label]="'Mostrar/Ocultar confirmación'">
+          <input matInput [type]="hidePw2() ? 'password' : 'text'" formControlName="password2"
+            autocomplete="new-password">
+          <button mat-icon-button matSuffix type="button" (click)="hidePw2.set(!hidePw2())"
+            [attr.aria-label]="'Mostrar/Ocultar confirmación'">
             <mat-icon>{{ hidePw2() ? 'visibility_off' : 'visibility' }}</mat-icon>
           </button>
           <mat-error *ngIf="form.get('password2')?.hasError('required')">Confirma la contraseña</mat-error>
@@ -149,12 +154,7 @@
 
 <mat-dialog-actions align="end">
   <button mat-stroked-button mat-dialog-close>Cancelar</button>
-  <button
-    mat-flat-button
-    color="primary"
-    [disabled]="form.invalid || saving()"
-    type="submit"
-    [attr.form]="'userForm'">
+  <button mat-flat-button color="primary" [disabled]="form.invalid || saving()" type="submit" [attr.form]="'userForm'">
     <span *ngIf="!saving()">Guardar Cambios</span>
     <span *ngIf="saving()" class="saving-indicator">
       <mat-progress-spinner mode="indeterminate" diameter="20"></mat-progress-spinner>

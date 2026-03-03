@@ -1,33 +1,36 @@
 <!-- Tarjeta para búsqueda de cédula -->
 <div class="seleccion">
 
-  <mat-card>
-    <mat-card-content>
-      <!-- Encabezado de documentos -->
-      <header class="doc-header">
+  <mat-card class="premium-card">
+    <mat-card-header class="card-header-premium">
+      <div class="header-content">
         <!-- Flecha a la izquierda -->
-        <button mat-flat-button class="back-button" 
-          aria-label="Devolver a contratación" routerLink="/dashboard/hiring/recruitment-pipeline">
+        <button mat-icon-button class="btn-managerial-icon" style="flex-shrink: 0;" aria-label="Devolver a contratación"
+          routerLink="/dashboard/hiring/recruitment-pipeline">
           <mat-icon>arrow_back</mat-icon>
         </button>
 
-        <!-- Título -->
-        <div class="doc-header__title">
-          <h1>Documentos para generar o subir</h1>
+        <div class="header-icon-container">
+          <mat-icon class="header-icon">file_copy</mat-icon>
         </div>
 
-        <!-- Datos meta -->
-        <div class="doc-header__meta">
-          <span class="meta-label">Cédula:</span>
-          <span class="meta-chip">{{ cedula || '—' }}</span>
-
-          <span class="meta-sep">•</span>
-
-          <span class="meta-label">Código de contratación:</span>
-          <span class="meta-chip">{{ codigoContratacion || '—' }}</span>
+        <div class="header-text">
+          <mat-card-title class="titulo">Documentos para generar o subir</mat-card-title>
+          <mat-card-subtitle class="subtitulo"
+            style="display: flex; gap: 8px; align-items: center; margin-top: 4px !important;">
+            <span style="color: #cbd5e1;">Cédula: <strong
+                style="color: #fff; background: rgba(255,255,255,0.15); padding: 2px 8px; border-radius: 12px; font-weight: 500;">{{
+                cedula || '—' }}</strong></span>
+            <span style="color: rgba(255,255,255,0.3);">•</span>
+            <span style="color: #cbd5e1;">Contratación: <strong
+                style="color: #fff; background: rgba(255,255,255,0.15); padding: 2px 8px; border-radius: 12px; font-weight: 500;">{{
+                codigoContratacion || '—' }}</strong></span>
+          </mat-card-subtitle>
         </div>
-      </header>
+      </div>
+    </mat-card-header>
 
+    <mat-card-content class="card-content">
       <!-- Contenedor dividido - usando *ngFor -->
       <div class="split-container">
         <!-- Lado izquierdo: Lista de documentos -->
@@ -58,7 +61,7 @@
             </mat-menu>
           </div>
           <!-- Botón para cargar PDFs -->
-          <button mat-flat-button class="btn-with-arrow2" (click)="cargarpdf()">
+          <button mat-flat-button class="btn-managerial" style="margin-top: 10px; width: 100%;" (click)="cargarpdf()">
             <span class="text">Cargar PDF</span>
             <mat-icon class="arrow">arrow_forward</mat-icon>
           </button>

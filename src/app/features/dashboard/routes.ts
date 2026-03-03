@@ -23,6 +23,7 @@ export const routes: Routes = [
       { path: 'farms', loadChildren: () => import('./submodule/farms/farms.routes').then(m => m.routes) },
       { path: 'robots', loadChildren: () => import('./submodule/robots/robots.routes').then(m => m.routes) },
       { path: 'nomina', loadChildren: () => import('./submodule/nomina/nomina.routes').then(m => m.routes) },
+      { path: 'metricas', loadChildren: () => import('./submodule/metricas/metricas.routes').then(m => m.routes) },
       { path: '**', redirectTo: '' },
     ],
   },

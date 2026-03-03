@@ -1,15 +1,20 @@
-<mat-card>
-  <mat-card-content>
-    <h1 class="titulo">Usuarios con Permisos Asignados</h1>
-    <!-- Botón para crear un nuevo permiso -->
-    <button
-      mat-flat-button
-      color="primary"
-      (click)="openDialog()"
-      style="margin-bottom: 10pt"
-    >
-      Crear Permiso
+<mat-card class="premium-card">
+  <mat-card-header class="card-header-premium">
+    <div class="header-content">
+      <div class="header-icon-container">
+        <mat-icon class="header-icon">admin_panel_settings</mat-icon>
+      </div>
+      <div class="header-text">
+        <mat-card-title class="titulo">Accesos Documentales</mat-card-title>
+        <mat-card-subtitle class="subtitulo">Gestión de usuarios con permisos lectura a expedientes.</mat-card-subtitle>
+      </div>
+    </div>
+    <span class="grow"></span>
+    <button mat-flat-button class="btn-managerial" (click)="openDialog()" style="z-index: 1;">
+      <mat-icon>add</mat-icon> Crear Permiso
     </button>
+  </mat-card-header>
+  <mat-card-content class="card-content">
 
     <!-- Acordeón para mostrar permisos -->
     <mat-accordion *ngIf="usuariosPermisos?.length > 0; else noData">

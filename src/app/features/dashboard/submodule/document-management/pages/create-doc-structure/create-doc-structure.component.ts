@@ -23,8 +23,8 @@ export interface DocumentType {
   id: number;
   name: string;
   estado: boolean;
-  tags: string[];
-  subtypes: DocumentType[];
+  tags?: string[];
+  subtypes?: DocumentType[];
 }
 
 /** Flat node with expandable and level information */

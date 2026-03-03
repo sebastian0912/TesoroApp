@@ -1,0 +1,46 @@
+<div class="tesoreria-dashboard-layout">
+    <!-- Bar de Filtros Principal -->
+    <app-metricas-filters-bar (rangeChanged)="onRangeChanged($event)">
+    </app-metricas-filters-bar>
+
+    <!-- KPI Strip (Resumenes numéricos importantes) -->
+    <app-kpi-strip [kpis]="store.kpiSummary$ | async"></app-kpi-strip>
+
+    <div class="dashboard-grid">
+        <!-- Primera Fila: Transacciones -->
+        <div class="grid-col span-8 span-lg-8">
+            <app-chart-card title="Monto Ejecutado vs Autorizado"
+                subtitle="Serie de tiempo para transacciones aprobadas o desembolsadas"
+                [loading]="!(store.transacciones$ | async)">
+                <app-tx-timeseries-chart [rawTransactions]="store.transacciones$ | async">
+                </app-tx-timeseries-chart>
+            </app-chart-card>
+        </div>
+
+        <div class="grid-col span-4 span-lg-4">
+            <app-chart-card title="Embudo Transaccional" subtitle="Cantidad de Tx por Estados"
+                [loading]="!(store.transacciones$ | async)">
+                <app-tx-funnel-chart [data]="store.funnelChartData$ | async">
+                </app-tx-funnel-chart>
+            </app-chart-card>
+        </div>
+
+        <!-- Segunda Fila: Personas e Inventario -->
+        <div class="grid-col span-6 span-lg-6">
+            <app-chart-card title="Saldos Pendientes" subtitle="Distribución de la deuda en trabajadores"
+                [loading]="!(store.personasSaldos$ | async)">
+                <app-personas-distribution-chart [rawPersonas]="store.personasSaldos$ | async">
+                </app-personas-distribution-chart>
+            </app-chart-card>
+        </div>
+
+        <div class="grid-col span-6 span-lg-6">
+            <app-chart-card title="Top Salidas de Inventario" subtitle="Productos más solicitados/entregados (Aprox)"
+                [loading]="!(store.transacciones$ | async)">
+                <app-inventario-top-products-chart [rawTransactions]="store.transacciones$ | async">
+                </app-inventario-top-products-chart>
+            </app-chart-card>
+        </div>
+
+    </div>
+</div>

@@ -1,9 +1,15 @@
-<mat-card>
-  <mat-card-content>
-    <!-- HEADER -->
-    <div class="page-header">
-      <h1 class="title">Listado de Vacantes</h1>
-      <span class="spacer"></span>
+<mat-card class="premium-card">
+  <mat-card-header class="card-header-premium">
+    <div class="header-content">
+      <div class="header-icon-container">
+        <mat-icon class="header-icon">work_outline</mat-icon>
+      </div>
+      <div class="header-text">
+        <mat-card-title class="titulo">Listado de Vacantes</mat-card-title>
+        <mat-card-subtitle class="subtitulo">Gestión y control de ofertas de empleo.</mat-card-subtitle>
+      </div>
+    </div>
+    <span class="spacer grow" style="flex: 1 1 auto;"></span>
 
       <mat-button-toggle-group
         [value]="viewMode"
@@ -27,7 +33,7 @@
         </mat-button-toggle>
       </mat-button-toggle-group>
 
-      <button mat-icon-button [matMenuTriggerFor]="accionesMenu" aria-label="Acciones de vacantes">
+      <button mat-icon-button class="btn-managerial-icon" style="z-index: 1; margin-left: 16pt;" [matMenuTriggerFor]="accionesMenu" aria-label="Acciones de vacantes">
         <mat-icon>more_vert</mat-icon>
       </button>
 
@@ -54,7 +60,8 @@
       </mat-menu>
 
       <input type="file" #fileInput (change)="onFileSelected($event)" hidden />
-    </div>
+  </mat-card-header>
+  <mat-card-content class="card-content">
 
     <!-- MENU POR FILA (1 SOLO) -->
     <mat-menu #rowMenu="matMenu">

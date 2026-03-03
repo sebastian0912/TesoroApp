@@ -202,7 +202,8 @@ export class MercadoComercializadoraComponent implements OnInit, OnDestroy {
   private async loadProductos() {
     try {
       const sedeUsuario = this.utilityServiceService.getUser()?.sede?.nombre || '';
-      const lotes: any[] = await this.comercializadoraService.listarInventarioLotes(sedeUsuario);
+      // Se ignora sedeUsuario para mostrar inventario global
+      const lotes: any[] = await this.comercializadoraService.listarInventarioLotes('');
 
       // Limpiamos el FormArray "inventario"
       this.inventarioFormArray.clear();

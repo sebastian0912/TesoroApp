@@ -635,6 +635,10 @@ export class RegistroProcesoContratacion {
   patchContacto(id: number | string, data: any) { return this.http.patch(this.url(`contactos/${id}`), data).pipe(this.handle$()); }
   deleteContacto(id: number | string) { return this.http.delete(this.url(`contactos/${id}`)).pipe(this.handle$()); }
 
+  confirmarContacto(candidatoId: number | string, payload: { correo_confirmado?: boolean, whatsapp_confirmado?: boolean }): Observable<any> {
+    return this.http.patch(this.url(`candidatos/${candidatoId}/confirmar-contacto`), payload).pipe(this.handle$());
+  }
+
   // =========================================================
   // RESIDENCIAS
   // =========================================================

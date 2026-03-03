@@ -2,12 +2,15 @@ import { InfoCardComponent } from '@/app/shared/components/info-card/info-card.c
 import { CommonModule } from '@angular/common';
 import { Component, ElementRef, ViewChild } from '@angular/core';
 import { MatCardModule } from '@angular/material/card';
+import { MatIconModule } from '@angular/material/icon';
+import { MatButtonModule } from '@angular/material/button';
 import Swal from 'sweetalert2';
+import * as XLSX from 'xlsx';
 import { TesoreriaService, ExcelImportResponse } from '../../service/teroreria/tesoreria.service';
 
 @Component({
   selector: 'app-upload-treasury',
-  imports: [InfoCardComponent, CommonModule, MatCardModule],
+  imports: [InfoCardComponent, CommonModule, MatCardModule, MatIconModule, MatButtonModule],
   templateUrl: './upload-treasury.component.html',
   styleUrl: './upload-treasury.component.css'
 })
@@ -34,6 +37,99 @@ export class UploadTreasuryComponent {
     if (cardId === 'eliminar') this.fileEliminar?.nativeElement.click();
   }
 
+  downloadTemplate(id: 'insert' | 'saldos' | 'eliminar') {
+    let url = '';
+    let filename = '';
+    if (id === 'insert') {
+      url = 'templates/BASE.xlsx';
+      filename = 'BASE.xlsx';
+    } else if (id === 'saldos') {
+      url = 'templates/tesoreria_template_saldos_fondos.xlsx';
+      filename = 'tesoreria_template_saldos_fondos.xlsx';
+    } else if (id === 'eliminar') {
+      url = 'templates/tesoreria_template_estados_min.xlsx';
+      filename = 'tesoreria_template_estados_min.xlsx';
+    }
+
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }
+
+  private async validateInsertExcel(file: File): Promise<string[]> {
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const data = e.target?.result;
+          const workbook = XLSX.read(data, { type: 'array' });
+          const sheetName = workbook.SheetNames[0];
+          const sheet = workbook.Sheets[sheetName];
+          const rows = XLSX.utils.sheet_to_json<any[]>(sheet, { header: 1, defval: '' });
+          const errors: string[] = [];
+
+          let headerRowIdx = -1;
+          let cedulaColIdx = -1;
+          let ingresoColIdx = -1;
+
+          // Buscar la fila de encabezados en las primeras 20 filas
+          for (let i = 0; i < Math.min(20, rows.length); i++) {
+            const row = rows[i];
+            const cIdx = row.findIndex(c => String(c).trim().toUpperCase() === 'CEDULA');
+            const iIdx = row.findIndex(c => String(c).trim().toUpperCase() === 'INGRESO');
+            if (cIdx !== -1 && iIdx !== -1) {
+              headerRowIdx = i;
+              cedulaColIdx = cIdx;
+              ingresoColIdx = iIdx;
+              break;
+            }
+          }
+
+          // Si no encontramos explícitamente, asumimos la estructura de la foto
+          if (headerRowIdx === -1) {
+            headerRowIdx = 2; // Fila 3 de Excel
+            cedulaColIdx = 1; // Columna B (CEDULA)
+            ingresoColIdx = 5; // Columna F (INGRESO) aprox
+          }
+
+          for (let i = headerRowIdx + 1; i < rows.length; i++) {
+            const row = rows[i];
+            if (!row || row.length === 0 || row.every(c => !c)) continue; // omitir vacías
+
+            const cedula = String(row[cedulaColIdx] || '').trim();
+            const ingreso = ingresoColIdx !== -1 ? String(row[ingresoColIdx] || '').trim() : '';
+
+            // Si es una fila donde cédula e ingreso están vacíos y tal vez tenga algo más suelto al final, omitir
+            if (!cedula && !ingreso) {
+              const hasOtherData = row.some((c, index) => index > 0 && String(c).trim() !== '');
+              if (!hasOtherData) continue;
+            }
+
+            // Regla 1: Cédula solo números o inicia con X / x
+            if (cedula && !/^([xX][a-zA-Z0-9]+|\d+)$/.test(cedula)) {
+              errors.push(`Fila ${i + 1}: Cédula inválida "${cedula}". Debe ser numérico o iniciar con X.`);
+            }
+
+            // Regla 2: INGRESO no puede estar vacío
+            if (ingresoColIdx !== -1) {
+              if (!ingreso) {
+                errors.push(`Fila ${i + 1}: La fecha de INGRESO está vacía (Cédula: ${cedula || 'N/A'}).`);
+              }
+            }
+          }
+          resolve(errors);
+        } catch (err) {
+          resolve(['Error al leer el archivo Excel para validación. Verifique que no esté corrupto o protegido.']);
+        }
+      };
+      reader.onerror = () => resolve(['Error al intentar cargar el archivo.']);
+      reader.readAsArrayBuffer(file);
+    });
+  }
+
   async handleFile(kind: 'insert' | 'saldos' | 'eliminar', ev: Event) {
     const input = ev.target as HTMLInputElement;
     const file = input.files?.[0];
@@ -49,7 +145,28 @@ export class UploadTreasuryComponent {
 
     try {
       this.busy = true;
-      Swal.fire({ icon: 'info', title: 'Procesando archivo...', html: 'El backend está leyendo y validando el archivo Excel.', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+
+      // 1) PRE-VALIDATION EN EL FRONTEND (Solo para insert)
+      if (kind === 'insert') {
+        Swal.fire({ icon: 'info', title: 'Validando formato...', html: 'Revisando reglas de Excel (Cédula e Ingreso)...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+        const validationErrors = await this.validateInsertExcel(file);
+        if (validationErrors.length > 0) {
+          this.busy = false;
+          input.value = '';
+          Swal.fire({
+            icon: 'error',
+            title: 'Errores pre-validación Excel',
+            html: `<div style="text-align: left; max-height: 200px; overflow-y: auto;">
+                     <ul style="padding-left: 20px;">${validationErrors.map(e => `<li>${e}</li>`).join('')}</ul>
+                   </div>
+                   <br><small>Corrija estos errores en su Excel antes de intentar subirlo de nuevo.</small>`,
+            width: '600px'
+          });
+          return;
+        }
+      }
+
+      Swal.fire({ icon: 'info', title: 'Procesando archivo...', html: 'El backend está importando y mapeando el archivo Excel.', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
 
       let res: ExcelImportResponse;
 

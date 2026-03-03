@@ -1,41 +1,37 @@
-<mat-card>
-  <mat-card-header class="card-header">
-    <mat-card-title class="titulo">Gestión de roles</mat-card-title>
+<mat-card class="premium-card">
+  <mat-card-header class="card-header-premium">
+    <div class="header-content">
+      <div class="header-icon-container">
+        <mat-icon class="header-icon">admin_panel_settings</mat-icon>
+      </div>
+      <div class="header-text">
+        <mat-card-title class="titulo">Gestión de Roles</mat-card-title>
+        <mat-card-subtitle class="subtitulo">Diseño de roles y mapeo estructurado de permisos de
+          seguridad.</mat-card-subtitle>
+      </div>
+    </div>
+    <span class="grow"></span>
 
-    <span class="spacer"></span>
-
-    <!-- Menú 3 puntos (acciones secundarias globales) -->
-    <button mat-icon-button [matMenuTriggerFor]="menu" aria-label="Más opciones">
-      <mat-icon>more_vert</mat-icon>
-    </button>
-    <mat-menu #menu="matMenu">
-      <button mat-menu-item (click)="refresh()">
+    <!-- Acciones Generales -->
+    <div class="header-actions">
+      <button mat-icon-button (click)="refresh()" matTooltip="Recargar tabla" class="btn-refresh">
         <mat-icon>refresh</mat-icon>
-        <span>Recargar</span>
       </button>
-      <button mat-menu-item (click)="nuevo()">
+      <button mat-flat-button class="btn-managerial" (click)="nuevo()">
         <mat-icon>person_add</mat-icon>
-        <span>Crear rol</span>
+        <span>Crear Rol</span>
       </button>
-    </mat-menu>
+    </div>
   </mat-card-header>
 
   <mat-card-content class="card-content">
-    <app-standard-filter-table
-      [data]="roles()"
-      [columnDefinitions]="columns()"
-      [tableTitle]="'Roles'">
+    <app-standard-filter-table [data]="roles()" [columnDefinitions]="columns()">
 
       <!-- Acciones por fila (con MatMenu) -->
       <ng-template #actionsTemplate let-row>
         <!-- Trigger -->
-        <button
-          mat-icon-button
-          [matMenuTriggerFor]="rowMenu"
-          matTooltip="Acciones"
-          aria-label="Acciones"
-          data-row-click-ignore="true"
-          (click)="$event.stopPropagation()">
+        <button mat-icon-button [matMenuTriggerFor]="rowMenu" matTooltip="Acciones" aria-label="Acciones"
+          data-row-click-ignore="true" (click)="$event.stopPropagation()">
           <mat-icon>more_vert</mat-icon>
         </button>
 

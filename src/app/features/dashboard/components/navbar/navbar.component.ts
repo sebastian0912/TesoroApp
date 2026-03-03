@@ -77,7 +77,7 @@ export class NavbarComponent implements OnInit, OnDestroy {
     'Reporte 901': 'hiring/banned-report',
     'Selección': 'hiring/recruitment-pipeline',
     'Ver entrevistas de recepción': 'hiring/view-reception-interviews',
-    'Tarjetas': 'hiring/tarjetas',  
+    'Tarjetas': 'hiring/tarjetas',
 
     'Gestión de vacantes': 'vacancies',
     'Gestión de trabajadores': 'treasury/manage-workers',
@@ -109,6 +109,8 @@ export class NavbarComponent implements OnInit, OnDestroy {
 
     'Robots': 'robots/dashboard-robots',
     'NOMINA': 'nomina',
+    "Metricas Tesoreria": 'metricas/tesoreria',
+    "Metricas contratacion": 'metricas/contratacion',
   };
 
   private readonly iconMap: Record<string, string> = {
@@ -190,6 +192,8 @@ export class NavbarComponent implements OnInit, OnDestroy {
     'TABLA RETENCIÓN': 'table_chart',
     'NOMINA': 'table_chart',
     'Tarjetas': 'credit_card',
+    'Metricas Tesoreria': 'insert_chart',
+    'Metricas contratacion': 'people',
   };
 
   private routeMapIndex!: Record<string, string>;

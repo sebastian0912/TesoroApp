@@ -1,0 +1,32 @@
+﻿[33mÔØ»[39m Building...
+[32mÔ£ö[39m Building...
+[35mPrerendered 0 static routes.[39m
+Application bundle generation failed. [16.061 seconds]
+
+node.exe : [1m[31m[31mX [41;31m[[41;97mERROR[41;31m][0m [1mNG8001: 'mat-icon' is not a known 
+element:
+En C:\nvm4w\nodejs\ng.ps1: 16 Carácter: 5
++     & "$basedir/node$exe"  "$basedir/node_modules/@angular/cli/bin/ng ...
++     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: ([1m[31m[31mX... known element::String) [], RemoteExcepti 
+   on
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+1. If 'mat-icon' is an Angular component, then verify that it is included in the '@Component.imports' of 
+this component.
+2. If 'mat-icon' is a Web Component then add 'CUSTOM_ELEMENTS_SCHEMA' to the '@Component.schemas' of 
+this component to suppress this message.[0m [1m[35m[plugin angular-compiler][0m
+
+    src/app/features/dashboard/submodule/document-management/components/crear-permiso-usuario/crear-permi
+so-usuario.component.html:4:6:
+[37m      4 Ôöé       [32m<mat-icon class="header-icon">[37msecurity</mat-icon>
+        ÔòÁ       [32m~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~[0m
+
+  Error occurs in the template of component CrearPermisoUsuarioComponent.
+
+    src/app/features/dashboard/submodule/document-management/components/crear-permiso-usuario/crear-permi
+so-usuario.component.ts:23:15:
+[37m      23 Ôöé   templateUrl: [32m'./crear-permiso-usuario.component.html'[37m,
+         ÔòÁ                [32m~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~[0m
+
+[39m[22m

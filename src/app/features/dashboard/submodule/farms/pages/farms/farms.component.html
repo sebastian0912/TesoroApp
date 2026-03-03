@@ -1,10 +1,18 @@
-<mat-card class="full-card">
-  <mat-card-header class="card-header">
-    <mat-card-title class="titulo">Gestión de Centros de Costo</mat-card-title>
-    <span class="spacer"></span>
+<mat-card class="premium-card">
+  <mat-card-header class="card-header-premium">
+    <div class="header-content">
+      <div class="header-icon-container">
+        <mat-icon class="header-icon">location_city</mat-icon>
+      </div>
+      <div class="header-text">
+        <mat-card-title class="titulo">Centros de Costo</mat-card-title>
+        <mat-card-subtitle class="subtitulo">Gestión de sucursales, fincas y unidades de negocio.</mat-card-subtitle>
+      </div>
+    </div>
+    <span class="spacer grow" style="flex: 1 1 auto;"></span>
 
     <!-- Menú principal (3 puntos) -->
-    <button mat-icon-button [matMenuTriggerFor]="mainMenu" aria-label="Abrir acciones">
+    <button mat-icon-button class="btn-managerial-icon" style="z-index: 1;" [matMenuTriggerFor]="mainMenu" aria-label="Abrir acciones">
       <mat-icon>more_vert</mat-icon>
     </button>
     <mat-menu #mainMenu="matMenu">

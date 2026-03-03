@@ -1,0 +1,71 @@
+:host {
+    display: block;
+    height: 100%;
+    width: 100%;
+    /* Premium subtle background gradient */
+    background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+}
+
+.metricas-home-container {
+    position: relative;
+    overflow: visible;
+}
+
+/* Optional ambient reflection for a modern UI feel */
+.metricas-home-container::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+        background: linear-gradient(135deg, #0f172a 0%, #1e293b 60%, #334155 100%);
+    position: relative;
+    overflow: hidden;
+    pointer-events: none;
+    z-index: 0;
+}
+
+.metricas-header {
+        background: linear-gradient(135deg, #0f172a 0%, #1e293b 60%, #334155 100%);
+    position: relative;
+    overflow: hidden;
+    padding: 1.5rem 2rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.header-content {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.page-title {
+    margin: 0;
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: white;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    letter-spacing: -0.025em;
+}
+
+.title-icon {
+    color: #fff;
+    font-size: 1.75rem;
+    width: 1.75rem;
+    height: 1.75rem;
+}
+
+.page-subtitle {
+    margin: 0;
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 0.95rem;
+}
+
+.metricas-content {
+    padding: 1.5rem;
+}

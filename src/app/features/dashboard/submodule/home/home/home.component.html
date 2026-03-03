@@ -1,27 +1,49 @@
-<!-- Welcome Header -->
-<header class="home-header">
-  <h1 class="home-greeting">Hola, {{ nombreUsuario }}</h1>
-  <p class="home-date">{{ fechaHoy }}</p>
+<!-- Hero Header -->
+<header class="hero">
+  <div class="hero-content">
+    <div class="hero-text">
+      <h1 class="hero-greeting">Hola, {{ nombreUsuario }} 👋</h1>
+      <p class="hero-date">{{ fechaHoy }}</p>
+    </div>
+    <div class="hero-icon">
+      <mat-icon>dashboard</mat-icon>
+    </div>
+  </div>
 </header>
 
-<!-- Category Buttons -->
+<!-- Category Cards -->
 <div class="category-grid">
-  <button class="category-btn" *ngIf="general" (click)="openPanel('robots')">
-    <mat-icon class="category-icon">smart_toy</mat-icon>
-    <span class="category-label">Robots</span>
-    <mat-icon class="category-arrow">chevron_right</mat-icon>
+  <button class="category-card" *ngIf="general" (click)="openPanel('robots')">
+    <div class="cat-icon robots">
+      <mat-icon>smart_toy</mat-icon>
+    </div>
+    <div class="cat-info">
+      <span class="cat-title">Robots</span>
+      <span class="cat-desc">Gestión de solicitudes</span>
+    </div>
+    <mat-icon class="cat-arrow">chevron_right</mat-icon>
   </button>
 
-  <button class="category-btn" *ngIf="general" (click)="openPanel('reportes')">
-    <mat-icon class="category-icon">assessment</mat-icon>
-    <span class="category-label">Reportes</span>
-    <mat-icon class="category-arrow">chevron_right</mat-icon>
+  <button class="category-card" *ngIf="general" (click)="openPanel('reportes')">
+    <div class="cat-icon reportes">
+      <mat-icon>assessment</mat-icon>
+    </div>
+    <div class="cat-info">
+      <span class="cat-title">Reportes</span>
+      <span class="cat-desc">Historiales y descargas</span>
+    </div>
+    <mat-icon class="cat-arrow">chevron_right</mat-icon>
   </button>
 
-  <button class="category-btn" *ngIf="admin || general" (click)="openPanel('contratacion')">
-    <mat-icon class="category-icon">assignment_ind</mat-icon>
-    <span class="category-label">Contratación</span>
-    <mat-icon class="category-arrow">chevron_right</mat-icon>
+  <button class="category-card" *ngIf="admin || general" (click)="openPanel('contratacion')">
+    <div class="cat-icon contratacion">
+      <mat-icon>assignment_ind</mat-icon>
+    </div>
+    <div class="cat-info">
+      <span class="cat-title">Contratación</span>
+      <span class="cat-desc">Carnets y gestión</span>
+    </div>
+    <mat-icon class="cat-arrow">chevron_right</mat-icon>
   </button>
 </div>
 

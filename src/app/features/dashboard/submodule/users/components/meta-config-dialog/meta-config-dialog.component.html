@@ -1,6 +1,7 @@
 <!-- src/app/features/parametrizacion/components/meta-config-dialog/meta-config-dialog.component.html -->
-<h2 mat-dialog-title class="dlg-title">
-  {{ mode() === 'campos' ? 'Campos de ' + tablaCodigo() : 'Valores de ' + tablaCodigo() }}
+<h2 mat-dialog-title class="dlg-title dlg-header-premium">
+  <mat-icon class="header-icon">settings</mat-icon>
+  <span>{{ mode() === 'campos' ? 'Campos de ' + tablaCodigo() : 'Valores de ' + tablaCodigo() }}</span>
 </h2>
 
 <div mat-dialog-content class="dlg-content" [class.loading]="loading()">
@@ -199,7 +200,8 @@
             <!-- JSON -->
             <mat-form-field *ngSwitchCase="'JSON'" appearance="outline" class="w100">
               <mat-label>{{ c.campo }} (JSON)</mat-label>
-              <textarea matInput rows="4" class="mono" [formControlName]="c.campo" [required]="c.obligatorio"></textarea>
+              <textarea matInput rows="4" class="mono" [formControlName]="c.campo"
+                [required]="c.obligatorio"></textarea>
             </mat-form-field>
 
             <!-- Fallback -->

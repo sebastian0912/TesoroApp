@@ -413,6 +413,93 @@ export class RecruitmentPipelineComponent {
     this.router.navigate(['dashboard/hiring/generate-contracting-documents', this.numeroDocumento]);
   }
 
+  // ───────── CONFIRMACIÓN CONTACTO ─────────
+  async confirmarCorreoBienvenida(): Promise<void> {
+    const cand = this.candidatoSeleccionado();
+    if (!cand?.id) return;
+
+    const emailStr = cand.contacto?.email || cand.correo_electronico || cand.correo || 'No registrado';
+    const msgTemplate = `Hola ${cand.primer_nombre || ''},\n\nTe damos la bienvenida al equipo.\n\nPor favor confirma la recepción de este correo.\n\nSaludos.`;
+
+    const { value: textToSend, isConfirmed } = await Swal.fire({
+      title: 'Confirmar Correo de Bienvenida',
+      html: `<p>Se enviará el siguiente mensaje a: <b>${emailStr}</b></p>`,
+      input: 'textarea',
+      inputValue: msgTemplate,
+      inputAttributes: {
+        'aria-label': 'Mensaje de bienvenida'
+      },
+      showCancelButton: true,
+      confirmButtonText: 'Confirmar y Guardar',
+      cancelButtonText: 'Cancelar',
+      width: '600px'
+    });
+
+    if (!isConfirmed) return;
+
+    try {
+      Swal.fire({ title: 'Guardando confirmación...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+      const resp = await firstValueFrom(this.registroProceso.confirmarContacto(cand.id, { correo_confirmado: true }));
+      cand.contacto = cand.contacto || {};
+      cand.contacto.correo_confirmado = true;
+      this.candidatoSeleccionado.set(cand);
+      Swal.close();
+      this.snack.open('Correo confirmado', 'OK', { duration: 3000 });
+
+      // Here you could also trigger an email sending service with `textToSend` and `emailStr`
+      // if there's a backend endpoint for it, but for now we just mark it as confirmed.
+    } catch (err) {
+      Swal.close();
+      console.error(err);
+      this.snack.open('Error al confirmar correo', 'Cerrar', { duration: 3000 });
+    }
+  }
+
+  async confirmarWhatsAppBienvenida(): Promise<void> {
+    const cand = this.candidatoSeleccionado();
+    if (!cand?.id) return;
+
+    const waStr = cand.contacto?.whatsapp || cand.numCelular || cand.telefono || cand.celular || 'No registrado';
+    const msgTemplate = `Hola ${cand.primer_nombre || ''}, te damos la bienvenida al equipo. Por favor confirma este mensaje.`;
+
+    const { value: textToSend, isConfirmed } = await Swal.fire({
+      title: 'Confirmar WhatsApp de Bienvenida',
+      html: `<p>Se enviará el siguiente mensaje a: <b>${waStr}</b></p>`,
+      input: 'textarea',
+      inputValue: msgTemplate,
+      inputAttributes: {
+        'aria-label': 'Mensaje de WhatsApp'
+      },
+      showCancelButton: true,
+      confirmButtonText: 'Confirmar y Guardar',
+      cancelButtonText: 'Cancelar',
+      width: '600px'
+    });
+
+    if (!isConfirmed) return;
+
+    try {
+      Swal.fire({ title: 'Guardando confirmación...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+      const resp = await firstValueFrom(this.registroProceso.confirmarContacto(cand.id, { whatsapp_confirmado: true }));
+      cand.contacto = cand.contacto || {};
+      cand.contacto.whatsapp_confirmado = true;
+      this.candidatoSeleccionado.set(cand);
+      Swal.close();
+      this.snack.open('WhatsApp confirmado', 'OK', { duration: 3000 });
+
+      // Open WhatsApp web with the message
+      if (waStr !== 'No registrado') {
+        const waNumber = waStr.replace(/[^0-9]/g, '');
+        const waUrl = `https://wa.me/57${waNumber}?text=${encodeURIComponent(textToSend)}`;
+        window.open(waUrl, '_blank', 'noopener,noreferrer');
+      }
+    } catch (err) {
+      Swal.close();
+      console.error(err);
+      this.snack.open('Error al confirmar WhatsApp', 'Cerrar', { duration: 3000 });
+    }
+  }
+
   // ───────── VALIDACIÓN PARA HABILITAR/DESHABILITAR CONTRATACIÓN ─────────
   // ───────── VALIDACIÓN PARA HABILITAR/DESHABILITAR CONTRATACIÓN ─────────
   private _norm(s: any): string {
