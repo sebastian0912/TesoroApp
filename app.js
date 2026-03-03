@@ -3,6 +3,9 @@ const path = require('path');
 const { autoUpdater } = require('electron-updater');
 const { execFile } = require('child_process'); // Asegúrate de importar execFile aquí
 
+// Suppress Content-Security-Policy warning from Electron in lower environments
+process.env['ELECTRON_DISABLE_SECURITY_WARNINGS'] = 'true';
+
 let mainWindow;
 
 autoUpdater.autoDownload = true; // Descargar automáticamente

@@ -60,8 +60,12 @@ export class ThousandSeparatorDirective implements ControlValueAccessor {
     this.el.nativeElement.value = this._value !== null ? this.format(this._value) : '';
   }
 
-  @HostListener('input', ['$event.target.value'])
-  onInput(viewVal: string) {
+  @HostListener('input', ['$event'])
+  onInput(event: Event) {
+    const inputElement = event.target as HTMLInputElement;
+    if (!inputElement) return;
+
+    const viewVal = inputElement.value;
     // Mantén el valor del formulario como número, sin separadores
     const num = this.unformat(viewVal);
     this._value = num;
