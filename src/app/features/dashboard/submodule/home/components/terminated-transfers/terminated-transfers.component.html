@@ -36,7 +36,8 @@
             <th mat-header-cell *matHeaderCellDef> Solicitud de Traslado </th>
             <td mat-cell *matCellDef="let element">
               <ng-container *ngIf="element.solicitud_disponible === 1; else noDisponibleSolicitud">
-                <a (click)="imprimirSolicitudTraslado(element.codigo_traslado)" style="cursor: pointer; text-decoration: underline;">
+                <a (click)="imprimirSolicitudTraslado(element.codigo_traslado)"
+                  style="cursor: pointer; text-decoration: underline;">
                   Ver Solicitud
                 </a>
               </ng-container>

@@ -185,18 +185,7 @@
     border-collapse: collapse;
 }
 
-/* Header row */
-.premium-table th.mat-header-cell {
-    background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%) !important;
-    color: #475569 !important;
-    font-size: 11px !important;
-    font-weight: 700 !important;
-    text-transform: uppercase !important;
-    letter-spacing: 0.6px !important;
-    padding: 14px 16px !important;
-    border-bottom: 2px solid #e2e8f0 !important;
-    white-space: nowrap;
-}
+/* Header row - Uses global styles from styles.css */
 
 /* Data cells */
 .premium-table td.mat-cell {

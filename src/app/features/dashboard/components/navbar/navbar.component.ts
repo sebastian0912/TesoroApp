@@ -14,12 +14,18 @@ import { filter } from 'rxjs/operators';
 import { Subscription } from 'rxjs';
 import Swal from 'sweetalert2';
 
+import { HttpClient } from '@angular/common/http';
+import { environment } from '../../../../../environments/environment';
+
 import { MatIconModule } from '@angular/material/icon';
 import { SharedModule } from '../../../../shared/shared.module';
 
 export interface PermNode {
   id: string;
   nombre: string;
+  ruta?: string;
+  icono?: string;
+  orden?: number;
   acciones?: string[];
   permiso_ids?: Record<string, string>;
   hijos?: PermNode[];
@@ -52,160 +58,12 @@ export class NavbarComponent implements OnInit, OnDestroy {
 
   private readonly isBrowser: boolean;
 
-  private readonly routeMap: Record<string, string> = {
-    'ADMINISTRACIÓN': 'users/manage-users',
-
-    'Adjuntar documentación': 'document-management/upload-documents',
-    'Buscar documentación': 'document-management/search-documents',
-    'Estructura documental': 'document-management/create-doc-structure',
-    'Permisos de documentación de empresas usuarias': 'document-management/company-docs-access',
-    'TABLA RETENCIÓN': 'document-management/withholding-table',
-
-    'Comprobantes de pago': 'payments/pay-slips',
-    'Formas de pago': 'payments/payments-method',
-
-    'Envío de mercancía': 'merchandise/send-merchandise',
-    'Edición de mercancía': 'merchandise/edit-merchandise',
-    'Recepción de mercancía': 'merchandise/receive-merchandise',
-
-    'Formulario de consulta': 'hiring/query-form',
-    'Listado de errores': 'hiring/error-listing',
-    'Reporte de contratación': 'hiring/hiring-report',
-    'Ver reporte de contratación': 'hiring/view-reports',
-    'Consultar documentación': 'hiring/consult-contracting-documentation',
-    'Gerencia 901': 'hiring/banned-management',
-    'Reporte 901': 'hiring/banned-report',
-    'Selección': 'hiring/recruitment-pipeline',
-    'Ver entrevistas de recepción': 'hiring/view-reception-interviews',
-    'Tarjetas': 'hiring/tarjetas',
-
-    'Gestión de vacantes': 'vacancies',
-    'Gestión de trabajadores': 'treasury/manage-workers',
-
-    'Carga de mercado': 'market/load-market',
-    'Carga de mercado (ferias)': 'market/load-fair-market',
-    'Carga de mercado (comercializadora)': 'market/marketing-market',
-
-    'Bono de mercado': 'authorizations/market-bonus',
-    'Prestado de dinero': 'authorizations/money-loan',
-
-    'PRESTADO PARA REALIZAR': 'money-loan/loan-to-perform',
-    'PRESTAMO POR CALAMIDAD': 'money-loan/emergency-loan',
-
-    'Procesos de traslados': 'eps-transfers/process-transfers',
-    'Consulta de traslados': 'eps-transfers/transfer-query',
-
-    'Historial de autorizaciones': 'history/authorizations-history',
-    'Historial de modificaciones': 'history/modifications-history',
-
-    'GESTIÓN ROLES': 'users/manage-roles',
-    'GESTIÓN MÓDULOS': 'users/manage-modules',
-    'PARAMETRIZACIÓN': 'users/manage-parameterization',
-    'GESTIÓN CARGOS': 'positions/manage-positions',
-    'GESTIÓN CENTRO DE COSTOS': 'farms/management-farms',
-
-    'AUSENTISMOS': 'hiring/absences',
-    'CARGAS MASIVAS': 'treasury/upload-treasury',
-
-    'Robots': 'robots/dashboard-robots',
-    'NOMINA': 'nomina',
-    "Metricas Tesoreria": 'metricas/tesoreria',
-    "Metricas contratacion": 'metricas/contratacion',
-  };
-
-  private readonly iconMap: Record<string, string> = {
-    'Comercializadora': 'storefront',
-    'Gestión del programa': 'manage_accounts',
-    'Procesos empresa': 'work',
-    'Procesos empresariales': 'work',
-    'Tesoreria': 'account_balance',
-
-    'Mercancía': 'inventory_2',
-    'Edición de mercancía': 'edit',
-    'Envío de mercancía': 'local_shipping',
-    'Recepción de mercancía': 'assignment_turned_in',
-
-    'Administración': 'admin_panel_settings',
-
-    'Gestión documental': 'folder',
-    'Adjuntar documentación': 'upload_file',
-    'Buscar documentación': 'search',
-    'Estructura documental': 'schema',
-    'Permisos de documentación de empresas usuarias': 'lock',
-
-    'Pagos': 'payments',
-    'CARGOS': 'assignment',
-    'Comprobantes de pago': 'receipt_long',
-    'Formas de pago': 'credit_card',
-
-    'Selección y contratación': 'how_to_reg',
-    'Contratación 1.0': 'assignment',
-    'Formulario de consulta': 'fact_check',
-    'Listado de errores': 'bug_report',
-    'Reporte de contratación': 'insert_chart',
-    'Ver reporte de contratación': 'visibility',
-    'Contratación 2.0': 'assignment_turned_in',
-    'Consultar documentación': 'find_in_page',
-    'Gerencia 901': 'workspace_premium',
-    'Reporte 901': 'insert_chart',
-    'Selección': 'person_search',
-    'Ver entrevistas de recepción': 'record_voice_over',
-
-    'Vacantes': 'work',
-    'Gestión de vacantes': 'work',
-
-    'Autorizaciones': 'approval',
-    'Bono de mercado': 'redeem',
-    'Prestado de dinero': 'paid',
-    'Ayudas': 'volunteer_activism',
-    'Cargar mercados con código': 'qr_code_scanner',
-    'Cargar mercados sin código': 'shopping_cart',
-    'Historial': 'history',
-    'Historial de autorizaciones': 'history',
-    'Historial de modificaciones': 'manage_history',
-    'Mercado': 'shopping_bag',
-    'Carga de mercado': 'upload_file',
-    'Carga de mercado (comercializadora)': 'storefront',
-    'Carga de mercado (ferias)': 'festival',
-    'Operaciones de tesorería': 'calculate',
-    'Cargas masivas': 'dataset',
-    'Gestión de trabajadores': 'group',
-
-    'Prestamo de dinero': 'savings',
-    'Prestado para realizar': 'schedule',
-    'Prestamo por calamidad': 'warning_amber',
-    'Préstamos': 'savings',
-    'Prestamo para realizar': 'schedule',
-    'Traslados': 'swap_horiz',
-    'Consulta de traslados': 'search',
-    'Procesos de traslados': 'sync_alt',
-
-    'GESTIÓN ROLES': 'security',
-    'GESTIÓN MÓDULOS': 'view_module',
-    'GESTIÓN CARGOS': 'assignment',
-    'GESTIÓN CENTRO DE COSTOS': 'account_balance_wallet',
-    'PARAMETRIZACIÓN': 'settings',
-
-    'AUSENTISMOS': 'event_busy',
-
-    'Robots': 'smart_toy',
-    'TABLA RETENCIÓN': 'table_chart',
-    'NOMINA': 'table_chart',
-    'Tarjetas': 'credit_card',
-    'Metricas Tesoreria': 'insert_chart',
-    'Metricas contratacion': 'people',
-  };
-
-  private routeMapIndex!: Record<string, string>;
-  private iconMapIndex!: Record<string, string>;
-
   constructor(
     @Inject(PLATFORM_ID) platformId: object,
-    private router: Router
+    private router: Router,
+    private http: HttpClient
   ) {
     this.isBrowser = isPlatformBrowser(platformId);
-    this.routeMapIndex = this.indexByUpper(this.routeMap);
-    this.iconMapIndex = this.indexByUpper(this.iconMap);
   }
 
   async ngOnInit(): Promise<void> {
@@ -306,6 +164,14 @@ export class NavbarComponent implements OnInit, OnDestroy {
 
       if (rawUser) {
         const user = JSON.parse(rawUser);
+
+        // Fix for old storage payloads without 'icono'
+        if (user?.permisos_tree?.length > 0 && user.permisos_tree[0].icono === undefined) {
+          this.lsClear();
+          this.router.navigate(['']);
+          return;
+        }
+
         tree = (user?.permisos_tree ?? null);
       }
 
@@ -334,6 +200,32 @@ export class NavbarComponent implements OnInit, OnDestroy {
           text: 'No se pudo cargar el árbol de permisos.',
         });
       }
+    }
+  }
+
+  public refreshPermisos(): void {
+    const rawUser = this.lsGet('user');
+    if (!rawUser) return;
+    try {
+      const user = JSON.parse(rawUser);
+      if (!user?.id) return;
+
+      const apiUrl = environment.apiUrl.replace(/\/$/, '');
+      this.http.get<any>(`${apiUrl}/gestion_admin/usuarios/${user.id}/`).subscribe({
+        next: (resp) => {
+          this.lsSet('user', JSON.stringify(resp));
+          this.loadPermTreeFromStorage();
+
+          if (!this.isMobile && this.visibleRootModules.length > 0 && !this.activeRoot) {
+            this.activeRoot = this.visibleRootModules[0];
+          }
+        },
+        error: (err) => {
+          console.error('Error fetching dynamic perms', err);
+        }
+      });
+    } catch (e) {
+      console.error('Error loading user perms', e);
     }
   }
 
@@ -399,20 +291,12 @@ export class NavbarComponent implements OnInit, OnDestroy {
   }
 
   // ===== rutas =====
-  private indexByUpper<T extends Record<string, string>>(obj: T): Record<string, string> {
-    const out: Record<string, string> = {};
-    for (const k of Object.keys(obj)) out[k.toUpperCase()] = obj[k];
-    return out;
-  }
-
   public getNodeRoute(node: PermNode): string {
     const base = '/dashboard';
-    const key = (node?.nombre ?? '').toUpperCase();
-    const mapped = this.routeMapIndex[key];
 
-    if (mapped) {
-      if (mapped.startsWith('/')) return mapped;
-      return `${base}/${mapped}`;
+    if (node.ruta) {
+      if (node.ruta.startsWith('/')) return node.ruta;
+      return `${base}/${node.ruta}`;
     }
 
     return `${base}/${this.slug(node.nombre)}`;
@@ -443,12 +327,12 @@ export class NavbarComponent implements OnInit, OnDestroy {
   }
 
   // ===== iconos =====
-  public getModuleIcon(nombre: string): string {
-    return this.iconMapIndex[(nombre ?? '').toUpperCase()] || 'widgets';
+  public getModuleIcon(node: PermNode): string {
+    return node?.icono && node.icono !== 'widgets' ? node.icono : 'widgets';
   }
 
-  public getNodeIcon(nombre: string): string {
-    return this.iconMapIndex[(nombre ?? '').toUpperCase()] || 'radio_button_unchecked';
+  public getNodeIcon(node: PermNode): string {
+    return node?.icono && node.icono !== 'widgets' ? node.icono : 'radio_button_unchecked';
   }
 
   // ===== responsive =====

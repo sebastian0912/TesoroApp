@@ -397,6 +397,10 @@
           <div *ngIf="fingerprintImageApoyo" class="fingerprint-image-container">
             <img [src]="fingerprintImageApoyo" alt="Huella índice derecho — Apoyo Laboral">
           </div>
+          <button *ngIf="fingerprintImageApoyo" mat-stroked-button color="primary" class="view-docs-btn"
+            (click)="generarPreviewsHuella('apoyo-laboral')">
+            <mat-icon>description</mat-icon> Ver Documentos con Huella
+          </button>
         </mat-card-content>
       </mat-card>
 
@@ -413,9 +417,73 @@
           <div *ngIf="fingerprintImageTuAlianza" class="fingerprint-image-container">
             <img [src]="fingerprintImageTuAlianza" alt="Huella índice derecho — Tu Alianza">
           </div>
+          <button *ngIf="fingerprintImageTuAlianza" mat-stroked-button color="accent" class="view-docs-btn"
+            (click)="generarPreviewsHuella('tu-alianza')">
+            <mat-icon>description</mat-icon> Ver Documentos con Huella
+          </button>
         </mat-card-content>
       </mat-card>
     </div>
   </mat-tab>
 
 </mat-tab-group>
+
+<!-- ═══ DOCUMENTS DIALOG / OVERLAY ═══ -->
+<div class="docs-dialog-overlay" *ngIf="showDocumentsDialog" (click)="closeDocumentsDialog()">
+  <div class="docs-dialog" (click)="$event.stopPropagation()">
+
+    <!-- Dialog Header -->
+    <header class="docs-dialog-header">
+      <div class="docs-dialog-title-area">
+        <mat-icon class="docs-dialog-icon">folder_open</mat-icon>
+        <div>
+          <h2 class="docs-dialog-title">Documentos con Huella</h2>
+          <p class="docs-dialog-subtitle">{{ huellaDocsList.length }} documentos generados con la huella capturada</p>
+        </div>
+      </div>
+      <button mat-icon-button class="docs-dialog-close" (click)="closeDocumentsDialog()">
+        <mat-icon>close</mat-icon>
+      </button>
+    </header>
+
+    <!-- Dialog Body -->
+    <div class="docs-dialog-body">
+
+      <!-- Sidebar: Lista documentos -->
+      <nav class="docs-sidebar">
+        <div class="docs-sidebar-item" *ngFor="let doc of huellaDocsList; let i = index"
+          [class.active]="i === currentDocIndex" (click)="currentDocIndex = i">
+          <mat-icon class="doc-item-icon">description</mat-icon>
+          <span class="doc-item-label">{{ doc.title }}</span>
+          <mat-icon class="doc-item-check" *ngIf="i === currentDocIndex">chevron_right</mat-icon>
+        </div>
+      </nav>
+
+      <!-- Viewer: Preview -->
+      <div class="docs-viewer" *ngIf="huellaDocsList.length > 0">
+        <div class="docs-viewer-header">
+          <h3 class="docs-viewer-title">{{ huellaDocsList[currentDocIndex].title | uppercase }}</h3>
+          <span class="docs-viewer-counter">{{ currentDocIndex + 1 }} / {{ huellaDocsList.length }}</span>
+        </div>
+        <div class="docs-viewer-frame">
+          <iframe [src]="huellaDocsList[currentDocIndex].safeUrl" class="doc-iframe" frameborder="0"></iframe>
+        </div>
+        <div class="docs-viewer-nav">
+          <button mat-stroked-button class="carousel-btn" (click)="prevDocument()" [disabled]="currentDocIndex === 0">
+            <mat-icon>chevron_left</mat-icon> Anterior
+          </button>
+          <div class="carousel-dots">
+            <span class="carousel-dot" *ngFor="let doc of huellaDocsList; let i = index"
+              [class.active]="i === currentDocIndex" (click)="currentDocIndex = i"></span>
+          </div>
+          <button mat-stroked-button class="carousel-btn" (click)="nextDocument()"
+            [disabled]="currentDocIndex === huellaDocsList.length - 1">
+            Siguiente <mat-icon>chevron_right</mat-icon>
+          </button>
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+</div>
