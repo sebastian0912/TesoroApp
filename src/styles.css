@@ -248,6 +248,12 @@ mat-step {
   border-radius: var(--r-lg);
   box-shadow: var(--shadow-sm);
   background: var(--surface);
+
+  /* Angular Material MDC overrides */
+  --mat-table-header-container-color: var(--table-head) !important;
+  --mat-table-header-headline-color: #ffffff !important;
+  --mat-sort-header-label-text-color: #ffffff !important;
+  --mat-sort-header-arrow-color: #ffffff !important;
 }
 
 /* table itself */
@@ -258,17 +264,28 @@ mat-step {
 }
 
 /* sticky headers */
-.table-container th {
+.table-container th,
+.mat-header-cell,
+.mat-mdc-header-cell,
+.table-container th.mat-header-cell,
+.table-container th.mat-mdc-header-cell,
+.table-container .mat-table th.mat-header-cell,
+.table-container .mat-mdc-table th.mat-mdc-header-cell {
   position: sticky;
   top: 0;
   z-index: 2;
-  background: var(--table-head) !important;
-  color: #fff;
-  text-align: center;
+  background-color: var(--table-head) !important;
+  color: #ffffff !important;
+  text-align: center !important;
+  font-size: 14px !important;
+  font-weight: 700 !important;
+  border-bottom: 2px solid #e2e8f0 !important;
 }
 
-.mat-table th.mat-header-cell {
-  background: var(--table-head) !important;
+.mat-table th.mat-header-cell,
+.mat-mdc-table th.mat-mdc-header-cell {
+  background-color: var(--table-head) !important;
+  color: #ffffff !important;
   z-index: 8;
 }
 
