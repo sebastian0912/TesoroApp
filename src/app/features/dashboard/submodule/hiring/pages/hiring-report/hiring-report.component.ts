@@ -5,6 +5,7 @@ import { firstValueFrom, Subject } from 'rxjs';
 import { takeUntil } from 'rxjs/operators';
 import * as XLSX from 'xlsx';
 import * as FileSaver from 'file-saver';
+import * as ExcelJS from 'exceljs';
 import Swal from 'sweetalert2';
 
 // Models & Shared
@@ -100,6 +101,7 @@ export class HiringReportComponent implements OnInit, OnDestroy {
   erroresValidacion = new MatTableDataSource<any>([]);
   cedulasPreview: any[] = [];
   trasladosPreview: any[] = [];
+  arlErrors: { cedula: string; error: string }[] = [];
 
   // Config
   readonly DOCS: DocConfig[] = [
@@ -440,6 +442,10 @@ export class HiringReportComponent implements OnInit, OnDestroy {
     if (checks.contratosHoy === 'si') {
       if (checks.cruceDiario && !this.isCruceValidado) {
         Swal.fire('Falta Validar', 'Debe validar el Cruce Diario antes de enviar.', 'warning');
+        return;
+      }
+      if (checks.arl && this.arlErrors.length > 0) {
+        Swal.fire('Errores ARL', `Hay ${this.arlErrors.length} error(es) en la validación ARL. Revise la tabla de errores.`, 'error');
         return;
       }
       if (checks.arl && !this.isArlValidado) {
@@ -805,6 +811,63 @@ export class HiringReportComponent implements OnInit, OnDestroy {
     this.arlIndices = { dni: idxDni, vig: idxVig };
 
     this.isArlValidado = true;
+
+    // Recolectar errores ARL inmediatamente para mostrar en la UI
+    this.collectArlErrors();
+    this.cdr.markForCheck();
+  }
+
+  private collectArlErrors() {
+    this.arlErrors = [];
+    if (!this.datoscruced.length || !this.arlRows.length) return;
+
+    const { dni, vig } = this.arlIndices;
+
+    // Indexar ARL por cédula
+    const arlMap = new Map<string, any[]>();
+    this.arlRows.forEach(row => {
+      const cedula = this.normalizeIdentity(row[dni]);
+      if (cedula) arlMap.set(cedula, row);
+    });
+
+    // Comparar cada fila del cruce contra ARL
+    this.datoscruced.forEach(cruceRow => {
+      const cedula = this.normalizeIdentity(cruceRow[1]);
+      const fechaIngreso = cruceRow[8];
+      const arlRow = arlMap.get(cedula);
+
+      if (!arlRow) {
+        this.arlErrors.push({ cedula, error: 'No existe en ARL' });
+      } else {
+        // Comparar fechas
+        const dCruce = CruceValidationHelper.parseDate(fechaIngreso);
+        let dArl: Date | null = null;
+        const rawFechaArl = arlRow[vig];
+        const strArl = String(rawFechaArl || '').trim();
+
+        if (strArl.includes('/')) {
+          dArl = CruceValidationHelper.parseDate(strArl);
+        } else if (strArl.includes('-')) {
+          const parts = strArl.split('-');
+          if (parts[0].length === 4) {
+            dArl = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+          } else {
+            dArl = new Date(Number(parts[2]), Number(parts[1]) - 1, Number(parts[0]));
+          }
+        } else if (typeof rawFechaArl === 'number') {
+          const excelEpoch = new Date(1899, 11, 30);
+          dArl = new Date(excelEpoch.getTime() + rawFechaArl * 24 * 60 * 60 * 1000);
+        }
+
+        const fmtArl = dArl && !isNaN(dArl.getTime())
+          ? `${String(dArl.getDate()).padStart(2, '0')}/${String(dArl.getMonth() + 1).padStart(2, '0')}/${dArl.getFullYear()}`
+          : strArl;
+
+        if (!dCruce || !dArl || isNaN(dArl.getTime()) || dCruce.getTime() !== dArl.getTime()) {
+          this.arlErrors.push({ cedula, error: `Fecha de ingreso (${fechaIngreso}) diferente a fecha ARL (${fmtArl})` });
+        }
+      }
+    });
   }
 
   // Helper state for ARL indices
@@ -812,12 +875,6 @@ export class HiringReportComponent implements OnInit, OnDestroy {
 
   downloadArlReport() {
     if (!this.datoscruced.length || !this.arlRows.length) return;
-    if (!this.arlWorker) {
-      Swal.fire('Error', 'Worker no soportado', 'error');
-      return;
-    }
-
-    this.showLoading('Generando Excel...', 'El worker está procesando el reporte ARL...');
 
     const headerRow = this.cruceHeaderRow.length > 0
       ? this.cruceHeaderRow
@@ -830,15 +887,154 @@ export class HiringReportComponent implements OnInit, OnDestroy {
       errorsMap[id].push(e.mensaje || e.message);
     });
 
-    // Use stored indices
     const { dni, vig } = this.arlIndices;
 
-    this.arlWorker.postMessage({
+    const workerData = {
       cruceRows: this.datoscruced,
       arlRows: this.arlRows,
       headerRowCruce: headerRow,
       indices: { dniTrabajador: dni, inicioVigencia: vig },
       errorsMap
+    };
+
+    if (this.arlWorker) {
+      // Worker disponible (browser estándar)
+      this.showLoading('Generando Excel...', 'El worker está procesando el reporte ARL...');
+      this.arlWorker.postMessage(workerData);
+    } else {
+      // Fallback inline (Electron o entornos sin soporte de Worker)
+      this.showLoading('Generando Excel...', 'Procesando el reporte ARL...');
+      setTimeout(() => {
+        try {
+          this.generateArlInline(workerData);
+        } catch (e) {
+          this.closeSwal();
+          console.error(e);
+          Swal.fire('Error', 'Falló la generación del Excel ARL: ' + e, 'error');
+        }
+      }, 100);
+    }
+  }
+
+  private generateArlInline(data: any) {
+    const { cruceRows, arlRows, headerRowCruce, indices, errorsMap } = data;
+
+    // Indexar ARL
+    const arlMap = new Map<string, any[]>();
+    arlRows.forEach((row: any[]) => {
+      const cedula = this.normalizeIdentity(row[indices.dniTrabajador]);
+      if (cedula) arlMap.set(cedula, row);
+    });
+
+    // Headers de salida
+    const outputHeaders = ['Numero de Cedula', 'Arl', 'ARL_FECHAS', 'FECHA EN ARL', 'FECHA INGRESO SUBIDA CONTRATACION', 'Errores', ...headerRowCruce];
+    const outputData: any[][] = [outputHeaders];
+
+    cruceRows.forEach((cruceRow: string[]) => {
+      const cedulaCruce = this.normalizeIdentity(cruceRow[1]);
+      const fechaIngresoCruce = cruceRow[8];
+      const arlRow = arlMap.get(cedulaCruce);
+
+      let estadoArl = 'NO', estadoFechas = 'NO', fechaEnArl = 'SIN DATA';
+
+      if (arlRow) {
+        estadoArl = 'SI';
+        const rawFechaArl = arlRow[indices.inicioVigencia];
+        const dCruce = CruceValidationHelper.parseDate(fechaIngresoCruce);
+        let dArl: Date | null = null;
+
+        const strArl = String(rawFechaArl || '').trim();
+        if (strArl.includes('/')) {
+          dArl = CruceValidationHelper.parseDate(strArl);
+        } else if (typeof rawFechaArl === 'number') {
+          const excelEpoch = new Date(1899, 11, 30);
+          dArl = new Date(excelEpoch.getTime() + rawFechaArl * 24 * 60 * 60 * 1000);
+        } else if (strArl.includes('-')) {
+          const parts = strArl.split('-');
+          if (parts[0].length === 4) {
+            // YYYY-MM-DD
+            dArl = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+          } else {
+            // DD-MM-YYYY
+            dArl = new Date(Number(parts[2]), Number(parts[1]) - 1, Number(parts[0]));
+          }
+        }
+
+        if (dArl && !isNaN(dArl.getTime())) {
+          const dd = String(dArl.getDate()).padStart(2, '0');
+          const mm = String(dArl.getMonth() + 1).padStart(2, '0');
+          fechaEnArl = `${dd}/${mm}/${dArl.getFullYear()}`;
+        } else {
+          fechaEnArl = strArl || 'SIN DATA';
+        }
+
+        if (dCruce && dArl && !isNaN(dArl.getTime()) && dCruce.getTime() === dArl.getTime()) {
+          estadoFechas = 'SI';
+        }
+      }
+
+      const erroresPrevios = errorsMap[cedulaCruce] ? errorsMap[cedulaCruce].join('; ') : '';
+      outputData.push([cedulaCruce, estadoArl, estadoFechas, fechaEnArl, fechaIngresoCruce, erroresPrevios, ...cruceRow]);
+    });
+
+    // Recolectar errores ARL para mostrar en la UI
+    this.arlErrors = [];
+    for (let i = 1; i < outputData.length; i++) {
+      const row = outputData[i];
+      const cedula = row[0];
+      const arl = row[1];
+      const arlFechas = row[2];
+      if (arl === 'NO') {
+        this.arlErrors.push({ cedula, error: 'No existe en ARL' });
+      } else if (arlFechas === 'NO') {
+        this.arlErrors.push({ cedula, error: `Fecha de ingreso (${row[4]}) diferente a fecha ARL (${row[3]})` });
+      }
+    }
+
+    // Generar Excel con ExcelJS (soporte de estilos)
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('Reporte ARL');
+
+    // Agregar filas
+    outputData.forEach((row, rowIdx) => {
+      const excelRow = ws.addRow(row);
+      if (rowIdx === 0) {
+        // Header styling
+        excelRow.eachCell(cell => {
+          cell.font = { bold: true };
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD9E1F2' } };
+        });
+      } else {
+        // Columna B (Arl) = col 2, Columna C (ARL_FECHAS) = col 3
+        const cellArl = excelRow.getCell(2);
+        const cellFechas = excelRow.getCell(3);
+
+        const redFill: ExcelJS.Fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFF0000' } };
+        const whiteFont: Partial<ExcelJS.Font> = { color: { argb: 'FFFFFFFF' }, bold: true };
+
+        if (cellArl.value === 'NO') {
+          cellArl.fill = redFill;
+          cellArl.font = whiteFont;
+        }
+        if (cellFechas.value === 'NO') {
+          cellFechas.fill = redFill;
+          cellFechas.font = whiteFont;
+        }
+      }
+    });
+
+    // Anchos de columna
+    ws.getColumn(1).width = 18;  // Cedula
+    ws.getColumn(2).width = 8;   // ARL
+    ws.getColumn(3).width = 14;  // ARL_FECHAS
+    ws.getColumn(4).width = 18;  // FECHA EN ARL
+    ws.getColumn(5).width = 18;  // FECHA INGRESO
+    ws.getColumn(6).width = 45;  // Errores
+
+    // Escribir archivo
+    wb.xlsx.writeBuffer().then(buffer => {
+      this.handleWorkerSuccess(buffer);
+      this.cdr.markForCheck();
     });
   }
 

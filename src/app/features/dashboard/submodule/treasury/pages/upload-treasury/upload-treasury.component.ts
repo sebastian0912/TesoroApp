@@ -37,7 +37,7 @@ export class UploadTreasuryComponent {
     if (cardId === 'eliminar') this.fileEliminar?.nativeElement.click();
   }
 
-  downloadTemplate(id: 'insert' | 'saldos' | 'eliminar') {
+  async downloadTemplate(id: 'insert' | 'saldos' | 'eliminar') {
     let url = '';
     let filename = '';
     if (id === 'insert') {
@@ -51,12 +51,21 @@ export class UploadTreasuryComponent {
       filename = 'tesoreria_template_estados_min.xlsx';
     }
 
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = filename;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    try {
+      const response = await fetch(url);
+      if (!response.ok) throw new Error('No se pudo descargar el template');
+      const blob = await response.blob();
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(a.href);
+    } catch (e) {
+      console.error('Error descargando template:', e);
+      Swal.fire('Error', 'No se pudo descargar el template. Verifique que el archivo exista.', 'error');
+    }
   }
 
   private async validateInsertExcel(file: File): Promise<string[]> {
