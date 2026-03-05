@@ -6,12 +6,17 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { ChangeDetectorRef } from '@angular/core';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
+import { MatDialog } from '@angular/material/dialog';
+import { ModuloDialogComponent } from './components/modulo-dialog/modulo-dialog.component';
 import Swal from 'sweetalert2';
 
 interface ModuloNode {
   id: string;
   nombre: string;
   descripcion?: string | null;
+  ruta?: string | null;
+  icono?: string | null;
+  orden?: number;
   modulo_padre?: string | null;
   submodulos?: ModuloNode[];
 }
@@ -31,7 +36,8 @@ export class GestionModulosComponent implements OnInit {
 
   constructor(
     private modulosService: ModulosService,
-    private cdr: ChangeDetectorRef
+    private cdr: ChangeDetectorRef,
+    private dialog: MatDialog
   ) { }
 
   ngOnInit(): void { this.cargar(); }
@@ -94,8 +100,14 @@ export class GestionModulosComponent implements OnInit {
 
     const tmpId = `tmp-${Date.now()}`;
     const nuevo: ModuloNode = {
-      id: tmpId, nombre: vals.nombre, descripcion: vals.descripcion || null,
-      modulo_padre: parent?.id ?? null, submodulos: []
+      id: tmpId,
+      nombre: vals.nombre,
+      descripcion: vals.descripcion || null,
+      ruta: vals.ruta || null,
+      icono: vals.icono || 'widgets',
+      orden: vals.orden || 0,
+      modulo_padre: parent?.id ?? null,
+      submodulos: []
     };
 
     this.dataSource = this.withInsertedChild(this.dataSource, parent?.id ?? null, nuevo);
@@ -104,6 +116,9 @@ export class GestionModulosComponent implements OnInit {
     const dto: ModuloCreateDTO = {
       nombre: vals.nombre,
       descripcion: vals.descripcion || null,
+      ruta: vals.ruta || null,
+      icono: vals.icono || 'widgets',
+      orden: vals.orden || 0,
       modulo_padre: parent?.id ?? null
     };
 
@@ -124,17 +139,31 @@ export class GestionModulosComponent implements OnInit {
 
   async editar(node: ModuloNode): Promise<void> {
     const original: ModuloNode = { ...node };
-    const vals = await this.promptModulo('Editar módulo', { nombre: node.nombre, descripcion: node.descripcion ?? '' });
+    const vals = await this.promptModulo('Editar módulo', {
+      nombre: node.nombre,
+      descripcion: node.descripcion ?? '',
+      ruta: node.ruta ?? '',
+      icono: node.icono ?? 'widgets',
+      orden: node.orden ?? 0
+    });
     if (!vals) return;
 
     this.dataSource = this.withUpdatedNode(this.dataSource, node.id, n => ({
-      ...n, nombre: vals.nombre, descripcion: vals.descripcion || null
+      ...n,
+      nombre: vals.nombre,
+      descripcion: vals.descripcion || null,
+      ruta: vals.ruta || null,
+      icono: vals.icono || 'widgets',
+      orden: vals.orden || 0
     }));
     this.flashNode(node.id);
 
     const dto: ModuloCreateDTO = {
       nombre: vals.nombre,
       descripcion: vals.descripcion || null,
+      ruta: vals.ruta || null,
+      icono: vals.icono || 'widgets',
+      orden: vals.orden || 0,
       modulo_padre: node.modulo_padre ?? null
     };
 
@@ -251,37 +280,26 @@ export class GestionModulosComponent implements OnInit {
     return null;
   }
 
-  // ===== SweetAlert prompt =====
   private async promptModulo(
     title: string,
-    initial?: { nombre?: string; descripcion?: string }
-  ): Promise<{ nombre: string; descripcion: string } | null> {
-    const { value } = await Swal.fire({
-      title,
-      html: `
-        <div style="text-align:left">
-          <label for="swal-nombre" style="font-weight:600;">Nombre</label>
-          <input id="swal-nombre" class="swal2-input" placeholder="Nombre" maxlength="50"
-                 value="${(initial?.nombre ?? '').replace(/"/g, '&quot;')}">
-          <label for="swal-desc" style="font-weight:600;">Descripción (opcional)</label>
-          <input id="swal-desc" class="swal2-input" placeholder="Descripción" maxlength="150"
-                 value="${(initial?.descripcion ?? '').replace(/"/g, '&quot;')}">
-        </div>
-      `,
-      focusConfirm: false,
-      showCancelButton: true,
-      confirmButtonText: 'Guardar',
-      cancelButtonText: 'Cancelar',
-      preConfirm: () => {
-        const nombre = (document.getElementById('swal-nombre') as HTMLInputElement)?.value.trim();
-        const descripcion = (document.getElementById('swal-desc') as HTMLInputElement)?.value.trim();
-        if (!nombre) {
-          Swal.showValidationMessage('El nombre es obligatorio');
-          return null as any;
-        }
-        return { nombre, descripcion };
+    initial?: { nombre?: string; descripcion?: string; ruta?: string; icono?: string; orden?: number }
+  ): Promise<{ nombre: string; descripcion: string; ruta?: string; icono?: string; orden?: number } | null> {
+    const dialogRef = this.dialog.open(ModuloDialogComponent, {
+      width: '450px',
+      panelClass: 'sf-filters-dialog-panel',
+      backdropClass: 'sf-filters-backdrop',
+      disableClose: true,
+      data: {
+        title,
+        nombre: initial?.nombre,
+        descripcion: initial?.descripcion,
+        ruta: initial?.ruta,
+        icono: initial?.icono,
+        orden: initial?.orden
       }
     });
-    return value ?? null;
+
+    const result = await dialogRef.afterClosed().toPromise();
+    return result || null;
   }
 }

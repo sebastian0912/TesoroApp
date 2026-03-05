@@ -27,7 +27,6 @@ export interface TipoDocumental {
   id: number;
   name: string;
   estado: boolean;
-  tags?: string[];
   subtypes?: TipoDocumental[]; // subtipos anidados
 }
 

@@ -323,7 +323,7 @@ export class MercadoComercializadoraComponent implements OnInit, OnDestroy {
       const montoTotal = codigosSeleccionados.reduce((total: number, item: { monto: string; }) => total + parseFloat(item.monto), 0);
 
       // Validaciones de montos
-      if (valorTotal > montoTotal) {
+      if (this.rolUsuario !== 'TIENDA' && valorTotal > montoTotal) {
         Swal.fire({
           icon: 'error',
           title: 'Oops...',

@@ -286,20 +286,8 @@
   color: #cbd5e1;
 }
 
-.mini-tags {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 11px;
-  color: var(--ds-text-light);
-}
 
-.dot {
-  width: 3px;
-  height: 3px;
-  background: currentColor;
-  border-radius: 50%;
-}
+
 
 /* Actions */
 .card-actions {
@@ -387,21 +375,49 @@
 .tree-container {
   overflow-y: auto;
   overflow-x: hidden;
-  /* Prevent horizontal scroll */
   border: 1px solid var(--ds-border);
   border-radius: 16px;
-  /* Slightly rounder */
   background-color: #ffffff;
   height: 100%;
   padding: 0 !important;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
-  /* Subtle depth */
+}
+
+/* === Tree Header === */
+.tree-header {
+  display: flex;
+  align-items: center;
+  background-color: var(--table-head, #0f172a);
+  color: #ffffff;
+  padding: 12px 16px 12px 52px;
+  font-size: 14px;
+  font-weight: 700;
+  border-bottom: 2px solid var(--ds-border);
+}
+
+.th-col {
+  display: flex;
+  align-items: center;
+}
+
+.th-name {
+  flex: 1;
+}
+
+.th-meta {
+  width: 250px;
+}
+
+.th-actions {
+  flex-shrink: 0;
+  width: 80px;
+  justify-content: flex-end;
+  padding-right: 16px;
 }
 
 mat-tree {
   background: transparent;
-  min-width: 100%;
-  /* Ensure full width */
+  width: 100%;
 }
 
 mat-tree-node {
@@ -410,9 +426,18 @@ mat-tree-node {
   background: transparent;
   position: relative;
   width: 100%;
-  /* Ensure it takes full width */
   overflow: hidden;
-  /* text overflow protection */
+  border-radius: 8px;
+  margin: 2px 0;
+  transition: background-color 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+mat-tree-node:hover {
+  background-color: rgba(140, 213, 10, 0.08);
+}
+
+mat-tree-node:focus-within {
+  background-color: rgba(140, 213, 10, 0.12);
 }
 
 /* Node Content Wrapper */
@@ -421,24 +446,16 @@ mat-tree-node {
   align-items: center;
   flex: 1;
   min-width: 0;
-  /* Critical for text-overflow in flex children */
   background: transparent;
   border: none;
-  border-bottom: 1px solid #f1f5f9;
+  border-bottom: 1px solid transparent;
+  /* Remove underline for seamless look */
   padding: 10px 16px;
   margin-left: 0;
-  transition: background-color 0.2s ease, transform 0.2s ease;
   cursor: pointer;
 }
 
-.node-content-wrapper:hover {
-  background-color: #f8fafc;
-}
-
-.node-content-wrapper.active {
-  background-color: #f0f9ff;
-  border-bottom-color: rgba(33, 38, 60, 0.1);
-}
+/* Legacy Active marker (optional, can just use focus state) */
 
 /* Icon */
 .node-icon {

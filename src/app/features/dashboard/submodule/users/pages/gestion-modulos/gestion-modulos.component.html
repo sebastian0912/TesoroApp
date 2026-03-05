@@ -27,6 +27,12 @@
     <div class="scroll">
 
       <div class="tree-container" [class.loading]="loading">
+        <!-- Pseudo Table Header -->
+        <div class="tree-header">
+          <div class="th-col th-name">Nombre del Módulo</div>
+          <div class="th-col th-actions">Acciones</div>
+        </div>
+
         <mat-tree #tree [dataSource]="dataSource" [childrenAccessor]="childrenAccessor">
 
           <!-- PADRE / EXPANDIBLE -->

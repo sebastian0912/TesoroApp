@@ -7,18 +7,27 @@ export interface Modulo {
   id: string;
   nombre: string;
   descripcion?: string | null;
+  ruta?: string | null;
+  icono?: string | null;
+  orden?: number;
   modulo_padre?: string | null; // UUID del padre
 }
 
 export interface ModuloCreateDTO {
   nombre: string;
   descripcion?: string | null;
+  ruta?: string | null;
+  icono?: string | null;
+  orden?: number;
   modulo_padre?: string | null;
 }
 
 export interface ModuloUpdateDTO {
   nombre?: string;
   descripcion?: string | null;
+  ruta?: string | null;
+  icono?: string | null;
+  orden?: number;
   modulo_padre?: string | null;
 }
 

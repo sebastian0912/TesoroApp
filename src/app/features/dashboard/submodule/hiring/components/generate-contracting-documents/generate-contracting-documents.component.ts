@@ -1,6 +1,6 @@
 import { SharedModule } from '@/app/shared/shared.module';
 import { isPlatformBrowser } from '@angular/common';
-import { Component, inject, OnInit, PLATFORM_ID } from '@angular/core';
+import { Component, inject, OnInit, PLATFORM_ID, ViewChild, ElementRef } from '@angular/core';
 import { PDFDocument, PDFTextField, PDFCheckBox } from 'pdf-lib';
 import Swal from 'sweetalert2';
 import { GestionDocumentalService } from '../../service/gestion-documental/gestion-documental.service';
@@ -16,6 +16,7 @@ import { RegistroProcesoContratacion } from '../../service/registro-proceso-cont
 import { REFERENCIAS_A, REFERENCIAS_F } from '@/app/shared/model/const';
 import { switchMap, map, take, catchError, tap, finalize } from 'rxjs/operators';
 import { of, forkJoin, firstValueFrom } from 'rxjs';
+import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 
 type UploadedInfo = {
   file: File;
@@ -33,6 +34,9 @@ type UploadedInfo = {
 })
 
 export class GenerateContractingDocumentsComponent implements OnInit {
+  @ViewChild('pdfPreviewIframe') pdfPreviewIframe!: ElementRef<HTMLIFrameElement>;
+  pdfSafeUrl: SafeResourceUrl | null = null;
+
   cedula: string = '';
   nombreCompletoLogin: string = '';
   codigoContratacion: any = '';
@@ -57,6 +61,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
   private vacantesService = inject(VacantesService);
   private contratacionService = inject(HiringService);
   private gestionDocumentalService = inject(GestionDocumentalService);
+  private sanitizer = inject(DomSanitizer);
 
 
   documentos = [
@@ -65,15 +70,21 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     { titulo: 'Ficha técnica' },
     { titulo: 'Ficha técnica TA Completa' },
     { titulo: 'Contrato' },
+    { titulo: 'Entrega carnets' },
+    { titulo: 'Inducción capacitación' },
+    { titulo: 'Formato solicitud' },
+    { titulo: 'MANEJO_IMAGEN' },
+    { titulo: 'FICHA_SOCIAL' },
     { titulo: 'Cedula' },
     { titulo: 'ARL' },
     { titulo: 'Figura Humana' },
     { titulo: 'EPS' },
     { titulo: 'CAJA' },
     { titulo: 'PAGO SEGURIDAD SOCIAL' },
-    { titulo: 'Entrega carnets' },
-    { titulo: 'Inducción capacitación' },
-    { titulo: 'Formato solicitud' },
+    { titulo: 'PRUEBAS PSICOLOGICAS' },
+    { titulo: 'PRUEBA LECTRO ESCRITURA' },
+    { titulo: 'VISITA DOMICILIARIA' },
+    { titulo: 'PRUEBA SST' },
   ];
 
   nombreCompleto = '';
@@ -108,20 +119,26 @@ export class GenerateContractingDocumentsComponent implements OnInit {
   uploadedFiles: { [key: string]: UploadedInfo } = {};
 
   typeMap: { [key: string]: number } = {
-    Contrato: 25,
-    "Autorización de datos": 26,
-    "Entrega de documentos": 27,
-    'Ficha técnica': 34,
-    'Ficha técnica TA Completa': 34,
-    Cedula: 29,
-    ARL: 30,
-    'Figura Humana': 31,
-    EPS: 36,
-    CAJA: 37,
-    'PAGO SEGURIDAD SOCIAL': 38,
-    'Entrega carnets': 95,
-    'Inducción capacitación': 96,
-    'Formato solicitud': 97,
+    Contrato: 42,
+    "Autorización de datos": 37,
+    "Entrega de documentos": 16,
+    'Ficha técnica': 39,
+    'Ficha técnica TA Completa': 39,
+    Cedula: 3,
+    ARL: 50,
+    'Figura Humana': 32,
+    EPS: 48,
+    CAJA: 47,
+    'PAGO SEGURIDAD SOCIAL': 52,
+    'Entrega carnets': 81,
+    'Inducción capacitación': 82,
+    'Formato solicitud': 83,
+    'PRUEBAS PSICOLOGICAS': 30,
+    'PRUEBA LECTRO ESCRITURA': 31,
+    'VISITA DOMICILIARIA': 22,
+    'PRUEBA SST': 33,
+    'MANEJO_IMAGEN': 14,
+    'FICHA_SOCIAL': 17,
   };
 
   async ngOnInit(): Promise<void> {
@@ -218,7 +235,10 @@ export class GenerateContractingDocumentsComponent implements OnInit {
   }
 
   isSubirPDF(doc: any): boolean {
-    return ['Cedula', 'ARL', 'Figura Humana'].includes(doc.titulo);
+    return [
+      'Cedula', 'ARL', 'Figura Humana', 'EPS', 'CAJA', 'PAGO SEGURIDAD SOCIAL',
+      'PRUEBAS PSICOLOGICAS', 'PRUEBA LECTRO ESCRITURA', 'VISITA DOMICILIARIA', 'PRUEBA SST'
+    ].includes(doc.titulo);
   }
 
   subirArchivo(event: Event, campo: string) {
@@ -262,9 +282,8 @@ export class GenerateContractingDocumentsComponent implements OnInit {
   }
 
   private setPdfPreview(url: string) {
-    const iframe: HTMLIFrameElement | null = document.querySelector('#pdfPreview');
-    if (iframe) {
-      iframe.src = url;
+    if (this.pdfPreviewIframe && this.pdfPreviewIframe.nativeElement) {
+      this.pdfPreviewIframe.nativeElement.src = url;
     }
   }
 
@@ -280,10 +299,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       fileReader.onload = () => {
         const blob = new Blob([fileReader.result as ArrayBuffer], { type: 'application/pdf' });
         const pdfUrl = URL.createObjectURL(blob);
-        const iframe: HTMLIFrameElement | null = document.querySelector('#pdfPreview');
-        if (iframe) {
-          iframe.src = pdfUrl;
-        }
+        this.setPdfPreview(pdfUrl);
       };
       fileReader.readAsArrayBuffer(fileData.file);
     } else {
@@ -403,57 +419,652 @@ export class GenerateContractingDocumentsComponent implements OnInit {
   }
 
   generarPDF(documento: string) {
-    // si es Autorización de datos
+    if (!this.empresa || this.empresa.trim() === '') {
+      Swal.fire('Atención', 'Selecciona el candidato, la empresa no está definida.', 'warning');
+      return;
+    }
+
+    const emp = this.empresa.toUpperCase().trim();
+
     if (documento === 'Autorización de datos') {
       this.generarAutorizacionDatos();
     }
     else if (documento === 'Entrega de documentos') {
-      if (this.empresa === 'APOYO LABORAL SAS') {
+      if (emp.includes('APOYO LINEA')) {
+        this.generarEntregaDocsApoyo(); // TODO: If Alianza has its own, change it later
+      } else if (emp.includes('APOYO')) {
         this.generarEntregaDocsApoyo();
-      }
-      else if (this.empresa === 'TU ALIANZA SAS') {
-        //this.generarEntregaDocsAlianza();
+      } else if (emp.includes('ALIANZA')) {
+        // this.generarEntregaDocsAlianza(); // Pending if it exists
+      } else {
+        Swal.fire('Atención', 'Falta seleccionar la remision', 'info');
       }
     }
-    // contrato
     else if (documento === 'Contrato') {
-      if (this.empresa === 'TU ALIANZA SAS') {
+      if (emp.includes('ALIANZA')) {
         this.generarContratoTrabajoTuAlianza();
-      }
-      else if (this.empresa === 'APOYO LABORAL SAS') {
+      } else {
         this.generarContratoTrabajo();
       }
     }
-    // Ficha técnica
     else if (documento === 'Ficha técnica') {
-      if (this.empresa === 'TU ALIANZA SAS') {
+      if (emp.includes('ALIANZA')) {
         this.generarFichaTecnicaTuAlianza();
-      }
-      else if (this.empresa === 'APOYO LABORAL SAS') {
+      } else {
         this.generarFichaTecnica();
       }
     }
     else if (documento === 'Ficha técnica TA Completa') {
-      if (this.empresa === 'TU ALIANZA SAS') {
-        console.log('Generando ficha técnica TA completa...');
+      if (emp.includes('ALIANZA')) {
         this.generarFichaTecnicaTuAlianzaCompleta();
+      } else {
+        Swal.fire('Atención', 'Este formato es exclusivo para Tu Alianza.', 'info');
       }
     }
-    // Entrega de carnets Flores Andes
     else if (documento === 'Entrega carnets') {
       this.generarEntregaCarnets();
     }
-    // Inducción y capacitación Flores Andes
     else if (documento === 'Inducción capacitación') {
       this.generarInduccionCapacitacion();
     }
-    // Formato solicitud Flores Andes
     else if (documento === 'Formato solicitud') {
       this.generarFormatoSolicitud();
     }
+    else if (documento === 'MANEJO_IMAGEN') {
+      this.generarManejoImagen();
+    }
+    else if (documento === 'FICHA_SOCIAL') {
+      this.generarFichaSocial();
+    } else {
+      Swal.fire('Error', 'Funcionalidad de PDF no implementada para: ' + documento, 'error');
+    }
   }
 
-  // Generar autorización de datos para Apoyo Laboral TS S.A.S y Tu Alianza
+  // --- Manejo Imagen Modificado con Textos Formateados en Negrita ---
+  async generarManejoImagen() {
+    try {
+      const cand: any = this.candidato ?? {};
+      const vac: any = this.vacante ?? {};
+
+      // ── Mapeo de Variables ──
+      const nombreTrabajador = [
+        cand.primer_apellido, cand.segundo_apellido,
+        cand.primer_nombre, cand.segundo_nombre,
+      ].map((x: any) => String(x ?? '').trim()).filter(Boolean).join(' ').toUpperCase();
+      const numIdentificacion = String(cand.numero_documento ?? '').trim();
+      const domicilioTrabajador = String(cand.residencia?.municipio ?? '').toUpperCase();
+
+      const empresaUsuaria = this.safe(vac.empresaUsuariaSolicita).toUpperCase();
+      const nitEmpresaUsuaria = this.safe(vac.nitEmpresaUsuaria ?? vac.nit ?? '');
+      const domicilioEmpresaUsuaria = this.safe(vac.domicilioEmpresaUsuaria ?? vac.direccion ?? '');
+      const representanteEmpresaUsuaria = this.safe(vac.representanteLegalEmpresaUsuaria ?? vac.representanteLegal ?? '').toUpperCase();
+      const ccRepresentanteEmpresaUsuaria = this.safe(vac.ccRepresentanteEmpresaUsuaria ?? vac.ccRepresentante ?? '');
+
+      const fechaActual = new Date();
+      const opcionesFecha: Intl.DateTimeFormatOptions = { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' };
+      const fechaFirmaTexto = fechaActual.toLocaleDateString('es-CO', opcionesFecha);
+
+      const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'letter' });
+      doc.setProperties({ title: `MANEJO_IMAGEN_${nombreTrabajador}.pdf`, author: 'Tu Alianza SAS / Apoyo Laboral' });
+
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+      const marginLeft = 12;
+      const anchoTabla = pageWidth - (marginLeft * 2);
+
+      const { logoPath } = this.getEmpresaInfo();
+
+      autoTable(doc, {
+        startY: 10,
+        margin: { left: marginLeft },
+        tableWidth: anchoTabla,
+        theme: 'grid',
+        styles: { font: 'helvetica', fontSize: 7, halign: 'center', valign: 'middle', textColor: [0, 0, 0], lineColor: [0, 0, 0], lineWidth: 0.2, cellPadding: 0.5 },
+        body: [
+          [
+            { content: '', rowSpan: 3, styles: { cellWidth: 28 } },
+            { content: 'PROCESO DE CONTRATACIÓN', colSpan: 3, styles: { fontStyle: 'bold' } },
+            { content: 'Página: 1 de 1', rowSpan: 3, styles: { fontStyle: 'bold', cellWidth: 22 } }
+          ],
+          [
+            { content: 'ACUERDO Y AUTORIZACIÓN DE USO DE IMAGEN', colSpan: 3, styles: { fontStyle: 'bold' } }
+          ],
+          [
+            { content: 'Código: AL CO-RE-12', styles: { fontStyle: 'bold' } },
+            { content: 'Versión: 01', styles: { fontStyle: 'bold' } },
+            { content: 'Fecha Emisión: Agosto 26-25', styles: { fontStyle: 'bold' } }
+          ]
+        ],
+        didDrawCell: (data) => {
+          if (data.row.index === 0 && data.column.index === 0 && logoPath) {
+            try {
+              const dimHeight = data.cell.height - 1;
+              const dimWidth = 24;
+              const posX = data.cell.x + (data.cell.width - dimWidth) / 2;
+              const posY = data.cell.y + 0.5;
+              doc.addImage(logoPath, 'PNG', posX, posY, dimWidth, dimHeight);
+            } catch (e) { }
+          }
+        }
+      });
+
+      const finalYTabla = (doc as any).lastAutoTable.finalY;
+      let currentY = finalYTabla + 6;
+
+      // Mini-renderizador de Negritas justificado simple
+      const printFormattedJustified = (textRaw: string, pSize = 7.5, indentLeft = 0) => {
+        const words = textRaw.split(/(\s+)/); // separa espacios manteniendo para ancho
+        doc.setFontSize(pSize);
+        const espacioW = doc.getTextWidth(' ');
+
+        let lineWords: any[] = [];
+        let lineWidth = 0;
+        const lineMaxW = anchoTabla - indentLeft;
+
+        // Medir palabras y aplicar formatos primitivos **texto** para negrita
+        let lines: any[][] = [];
+
+        for (let i = 0; i < words.length; i++) {
+          let word = words[i];
+          if (/^\s+$/.test(word)) {
+            // Es un bloque de espacio
+            if (lineWidth > 0) { // no añadir el primer espacio a una linea vacia
+              lineWords.push({ text: ' ', isSpace: true, bold: false, width: espacioW });
+              lineWidth += espacioW;
+            }
+            continue;
+          }
+
+          let isBold = false;
+          let wToPrint = word;
+          if (wToPrint.includes('**')) {
+            isBold = true;
+            wToPrint = wToPrint.replace(/\*\*/g, '');
+          }
+
+          doc.setFont('helvetica', isBold ? 'bold' : 'normal');
+          let textW = doc.getTextWidth(wToPrint);
+
+          if (lineWidth + textW > lineMaxW && lineWords.length > 0) {
+            // Remover último espacio si lo hay
+            if (lineWords[lineWords.length - 1].isSpace) lineWords.pop();
+            lines.push([...lineWords]);
+            lineWords = [];
+            lineWidth = 0;
+          }
+
+          lineWords.push({ text: wToPrint, isSpace: false, bold: isBold, width: textW });
+          lineWidth += textW;
+        }
+        if (lineWords.length > 0) lines.push(lineWords);
+
+        // Escribir líneas justificadas
+        for (let l = 0; l < lines.length; l++) {
+          let cLine = lines[l];
+          let wordsOnly = cLine.filter(w => !w.isSpace);
+          let rawLineWidth = wordsOnly.reduce((acc, curr) => acc + curr.width, 0);
+
+          // Si no es la última línea de párrafo, calcula delta de espacios justificados
+          let spaceExtraWidth = espacioW;
+          if (l < lines.length - 1 && wordsOnly.length > 1) {
+            const gapTotal = lineMaxW - rawLineWidth;
+            spaceExtraWidth = gapTotal / (wordsOnly.length - 1);
+          }
+
+          let curX = marginLeft + indentLeft;
+          for (let j = 0; j < cLine.length; j++) {
+            const itm = cLine[j];
+            if (itm.isSpace) {
+              curX += spaceExtraWidth;
+            } else {
+              doc.setFont('helvetica', itm.bold ? 'bold' : 'normal');
+              doc.text(itm.text, curX, currentY);
+              curX += itm.width;
+            }
+          }
+
+          currentY += (pSize * 0.35 + 0.8);
+        }
+        currentY += 1.5; // salto extra párrafo
+      };
+
+      const centerText = (text: string, size = 9) => {
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(size);
+        const split = doc.splitTextToSize(text, anchoTabla);
+        doc.text(split, marginLeft + (anchoTabla / 2), currentY, { align: 'center', maxWidth: anchoTabla });
+        currentY += (split.length * (size * 0.35 + 0.5)) + 1.5;
+      };
+
+      // == Contenido del Documento ==
+
+      centerText('ACUERDO USO DE IMAGEN', 9);
+
+      const pIntro = `Entre los suscritos a saber, **APOYO LABORAL TS**, persona jurídica identificada con NIT 900.814.587-1, con domicilio en la Carrera 2 # 8 - 156, Facatativá, Cundinamarca, debidamente representada por la señora MAYRA HUAMANÍ LÓPEZ, identificada con la cédula de extranjería N° 332.318 en su calidad de Representante Legal, quien para los efectos del presente documento se denominará **EL EMPLEADOR**; Y por otra parte, **${empresaUsuaria || '_________________'}**, persona jurídica con NIT **${nitEmpresaUsuaria || '___________'}**, con domicilio en la **${domicilioEmpresaUsuaria || '_________________'}**, legalmente representada por el señor(a) **${representanteEmpresaUsuaria || '_________________'}**, identificado con la cédula de ciudadanía No. **${ccRepresentanteEmpresaUsuaria || '___________'}**, quien en adelante se denominará **LA EMPRESA USUARIA**; Y por otra parte, el señor **${nombreTrabajador || '_________________'}**, identificado con la cédula de ciudadanía No. **${numIdentificacion || '___________'}**, mayor de edad, con domicilio en **${domicilioTrabajador || '___________'}**, quien en adelante se denominará **EL TRABAJADOR**; hemos celebrado el presente acuerdo de uso de imagen, conforme a la Ley Estatutaria 1581 de 2012 de protección de datos y normas reglamentarias y a las demás normas concordantes, previa a las siguientes consideraciones:`;
+      printFormattedJustified(pIntro, 7.5);
+
+      centerText('CONSIDERACIONES', 8.5);
+
+      printFormattedJustified(`**I.** **EL EMPLEADOR Y LA EMPRESA USUARIA** en ejercicio de su objeto social desarrolla diversas campañas, tendientes a fortalecer su imagen corporativa, efectuar capacitaciones, en las cuales elabora material audiovisual en el que eventualmente puede utilizar el nombre, imagen, voz y/o apariencia **DEL TRABAJADOR**, las cuales pueden ser incluidas en las imágenes, fotos, grabaciones de video, cintas de audio, imágenes digitales, y similares tomadas o hechas por **EL EMPLEADOR Y/O EMPRESA USUARIA** o su personal, las cuáles serán incluidas en obras audiovisuales.`, 7.5);
+      printFormattedJustified(`**II.** Que **EL EMPLEADOR Y/O LA EMPRESA USUARIA** es el titular de todos y cada uno de los derechos patrimoniales de autor sobre las obras audiovisuales señaladas en el numeral anterior, situación que declara y reconoce expresamente **EL TRABAJADOR**.`, 7.5);
+      printFormattedJustified(`**III.** Que las partes convienen en celebrar el presente Acuerdo de Uso de Imagen, por medio del cual **EL TRABAJADOR** acepta su eventual participación en la ejecución y desarrollo de las obras audiovisuales anteriormente mencionadas.`, 7.5);
+
+      printFormattedJustified(`En razón de lo expuesto, las Partes suscriben el presente documento, el cual está regido por la Legislación Colombiana, la Ley Estatutaria 1581 de 2012 y la Ley 23 de 1982 y por las siguientes:`, 7.5);
+
+      centerText('CLÁUSULAS', 8.5);
+
+      printFormattedJustified(`**1.** **OBJETO** - **EL TRABAJADOR** en uso de sus plenas facultades, autoriza irrevocablemente **AL EMPLEADOR Y /O LA EMPRESA USUARIA**, para que utilice su nombre, imagen, voz y/o apariencia, como tal, las cuales pueden ser incluidas en las imágenes, fotos, grabaciones de video, cintas de audio, imágenes digitales, y similares tomadas o hechas por el **EMPLEADOR Y/O LA EMPRESA USUARIA** o su personal, las cuáles serán incluidas en las Obras audiovisuales que este desarrolle en ejercicio de las campañas antes mencionadas y en consecuencia, acepta que el **EMPLEADOR Y/O LA EMPRESA USUARIA**, tiene la propiedad de tales imágenes, grabaciones de video y audio realizadas en ejercicio de las campañas antes mencionadas incluyendo la totalidad de derechos de autor, y puede usarlos para el propósito de publicarlos, reproducirlos y ponerlos a disposición del público en cualquier medio conocido o por conocerse. Estos usos incluyen, pero no se limitan a las ilustraciones, exhibiciones, grabaciones de videos, audio, transmisiones, reproducciones (totales o parciales), publicaciones, anuncios y materiales promocionales o educativos a través de cualquier plataforma de distribución existente o por inventarse, incluidas redes sociales. Así mismo, **EL TRABAJADOR** otorga esta autorización para los exclusivos efectos de emitir, publicar, divulgar y promocionar en cualquier lugar del mundo, y por el máximo tiempo permitido por la ley, las imágenes y datos antes mencionados.`, 7.5, 4);
+      printFormattedJustified(`**2.** **MODALIDAD DE USO** - Tal utilización podrá realizarse mediante la divulgación a través de su reproducción, tanto en medios impresos como electrónicos/digitales, así como su comunicación, emisión y divulgación pública, a través de los medios existentes, o por inventarse, incluidos aquellos de acceso remoto, conocidos como internet, para los fines de presentación de las campañas y proyectos y los fines promocionales e informativos que **AL EMPLEADOR Y/O LA EMPRESA USUARIA** o un tercero autorizado por éste, estime convenientes.`, 7.5, 4);
+      printFormattedJustified(`**3.** **VALOR** - **EL TRABAJADOR** manifiesta expresamente que esta autorización la otorga con carácter gratuito, por cuanto la obtención de su imagen para los fines antes previstos se efectúa en ejercicio del Contrato de Trabajo, por lo que expresamente entiende que no recibirá ningún tipo de compensación, bonificación o pago de ninguna naturaleza, ni para la realización de las obras audiovisuales en que estas se utilicen. Así mismo, **EL TRABAJADOR** reconoce que no existe ninguna expectativa sobre los eventuales efectos económicos de la divulgación o sobre el tipo de documento audiovisual que pueda realizar **AL EMPLEADOR Y/O LA EMPRESA USUARIA** o un tercero autorizado por éste para la realización del Proyecto.`, 7.5, 4);
+      printFormattedJustified(`**4.** **VIGENCIA DE LA AUTORIZACIÓN** - La vigencia de la autorización de uso de imagen corresponde al máximo término establecido en la legislación vigente en Colombia en materia derechos de autor, con autorización para el territorio del mundo, durante el cual **EL EMPLEADOR Y/O LA EMPRESA USUARIA** es titular de los derechos sobre los videos resultado del Proyecto, quien podrá cederlos a un tercero.`, 7.5, 4);
+      printFormattedJustified(`**5.** **PERFECCIONAMIENTO** - El presente convenio se rige por las normas de la República de Colombia y se perfecciona desde la firma del mismo.`, 7.5, 4);
+
+      printFormattedJustified(`Las Partes suscriben el presente documento en dos (2) originales del mismo tenor y valor, el día      **${fechaFirmaTexto}**.`, 7.5);
+
+      // Agregar sección de firmas, subiendo un poco más para que quepa en la misma plana
+      currentY += 8;
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8);
+      doc.text('Por EL EMPLEADOR', marginLeft, currentY);
+      doc.text('Por EL TRABAJADOR', marginLeft + 90, currentY);
+
+      const yLineaFirma = currentY + 22; // Reducido el salto de la firma
+
+      // Inserción de firma del Empleador (MAYRA HUMANI LOPEZ), ahora apuntando a FirmaMayra.png
+      const firmaAdmin = await this.fetchAsArrayBufferOrNull('firma/FirmaMayra.png');
+      if (firmaAdmin) {
+        try {
+          const kind = (new Uint8Array(firmaAdmin)[0] === 0xFF) ? 'JPEG' : 'PNG';
+          // Se redujo la Y y se amplió el Width para que se vea mas estirada como la firma de verdad
+          doc.addImage(new Uint8Array(firmaAdmin), kind, marginLeft + 5, currentY + 1, 35, 20);
+        } catch (e) { console.error('Error insertando firma admin Manejo Imagen', e); }
+      }
+
+      // Inserción de firma del Trabajador
+      const firmaCand = await this.fetchAsArrayBufferOrNull(cand?.biometria?.firma?.file_url ?? this.firma);
+      if (firmaCand) {
+        try {
+          const kind = (new Uint8Array(firmaCand)[0] === 0xFF) ? 'JPEG' : 'PNG';
+          doc.addImage(new Uint8Array(firmaCand), kind, marginLeft + 95, currentY + 1, 35, 20);
+        } catch (e) { console.error('Error insertando firma candidato Manejo Imagen', e); }
+      }
+
+      // Dibujar lineas de firma principales (Acortadas un poco para encajar en margins)
+      doc.setLineWidth(0.3);
+      const mWidth = anchoTabla / 2 - 10;
+      doc.line(marginLeft, yLineaFirma, marginLeft + mWidth, yLineaFirma);
+      doc.line(marginLeft + 90, yLineaFirma, marginLeft + 90 + mWidth, yLineaFirma);
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8);
+      doc.text('MAYRA HUMANÍ LÓPEZ', marginLeft, yLineaFirma + 4);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7.5);
+      doc.text('Cedula de extranjería 332.318', marginLeft, yLineaFirma + 8);
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8);
+      doc.text(nombreTrabajador, marginLeft + 90, yLineaFirma + 4);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7.5);
+      doc.text(`C.C                                            ${numIdentificacion}`, marginLeft + 90, yLineaFirma + 8);
+
+      // Inserción de huella si la hay
+      const huella = await this.fetchAsArrayBufferOrNull(cand?.biometria?.huella_dactilar?.file_url);
+      if (huella) {
+        try {
+          const kind = (new Uint8Array(huella)[0] === 0xFF) ? 'JPEG' : 'PNG';
+          doc.addImage(new Uint8Array(huella), kind, marginLeft + 90 + mWidth + 2, yLineaFirma - 20, 16, 22);
+        } catch (e) { console.error('Error insertando huella en Manejo Imagen', e); }
+      }
+
+      // ---------------------------------------------------------
+      // --- PÁGINA 2: Autorización de uso de Derechos de Imagen ---
+      // ---------------------------------------------------------
+      doc.addPage();
+      currentY = 10;
+      doc.setPage(2);
+
+      // Tabla Encabezado Página 2
+      autoTable(doc, {
+        startY: currentY,
+        margin: { left: marginLeft },
+        tableWidth: anchoTabla,
+        theme: 'grid',
+        styles: { font: 'helvetica', fontSize: 7, halign: 'center', valign: 'middle', textColor: [0, 0, 0], lineColor: [0, 0, 0], lineWidth: 0.2, cellPadding: 0.5 },
+        body: [
+          [
+            { content: '', rowSpan: 3, styles: { cellWidth: 28 } },
+            { content: 'PROCESO DE CONTRATACIÓN', colSpan: 3 },
+            { content: 'Página: 1 de 1', rowSpan: 3, styles: { cellWidth: 22 } }
+          ],
+          [
+            { content: 'AUTORIZACIÓN DE USO DE DERECHOS DE IMAGEN', colSpan: 3, styles: { fontStyle: 'bold' } }
+          ],
+          [
+            { content: 'Código: AL CO-RE-13' },
+            { content: 'Versión: 01' },
+            { content: 'Fecha Emisión: Agosto 26-25' }
+          ]
+        ],
+        didDrawCell: (data) => {
+          if (data.row.index === 0 && data.column.index === 0 && logoPath) {
+            try {
+              const dimHeight = data.cell.height - 1;
+              const dimWidth = 24;
+              const posX = data.cell.x + (data.cell.width - dimWidth) / 2;
+              const posY = data.cell.y + 0.5;
+              doc.addImage(logoPath, 'PNG', posX, posY, dimWidth, dimHeight);
+            } catch (e) { }
+          }
+        }
+      });
+
+      currentY = (doc as any).lastAutoTable.finalY + 8;
+
+      // Titulo Centrado
+      centerText('Autorización de uso de Derechos de Imagen sobre fotografías y producciones audiovisuales (videos) y de propiedad intelectual otorgado', 10);
+
+      currentY += 4;
+
+      // Párrafos Justificados Pág 2
+      const p2_1 = `Yo, ${nombreTrabajador} , con documento de identidad No. ${numIdentificacion} de ${domicilioTrabajador} , mediante el presente formato autorizo a la empresa Apoyo Laboral T.S. S.A.S., en adelante la Empresa Temporal y la empresa ${empresaUsuaria} S.A.S. en adelante Empresa Usuaria , para que hagan el uso y tratamiento de mis derechos de imagen para incluirlos sobre fotografías y producciones audiovisuales (videos); así como de los Derechos de Autor; los Derechos Conexos y en general todos aquellos derechos de propiedad intelectual que tengan que ver con el derecho de imagen. Todo esto con sujeción a la Ley 1581 de 2012 y por las normas legales aplicables, para las siguientes finalidades:`;
+      printFormattedJustified(p2_1, 9);
+
+      const p2_2 = `Este(os) video(os)/foto(s) podrá(n) ser utilizado(s) con fines informativos en diferentes escenarios y plataformas de comunicación internas y externas de la Empresa.`;
+      printFormattedJustified(p2_2, 9);
+
+      const p2_3 = `Este(os) video(os)/foto(s) es(son) sin ánimo de lucro y en ningún momento será utilizado para objetivos distintos a los requerimientos empresariales. La Empresa queda exenta de cualquier responsabilidad que se pueda derivar de la presente actividad con la firma de la autorización.`;
+      printFormattedJustified(p2_3, 9);
+
+      const p2_4 = `La presente autorización no tiene ámbito geográfico determinado, por lo que las imágenes en las que aparezca podrán ser utilizadas en el territorio del mundo, así mismo, tampoco tiene ningún límite de tiempo para su concesión, ni para explotación de las imágenes, o parte de estas, por lo que mi autorización se considera concedida por un plazo de tiempo ilimitado.`;
+      printFormattedJustified(p2_4, 9);
+
+      const p2_5 = `Declaro que soy responsable de la veracidad de los datos suministrados y que he sido informado que EMPRESA TEMPORAL Y LA EMPRESA USUARIA son responsable de los datos personales por mi suministrados y entiendo que los canales de atención al titular a mi disposición son: EMPRESA TEMPORAL Correo electrónico: protecciondedatos@tsservicios.co, Telefono: 6017444002 y EMPRESA USUARIA Correo Electrónico: datospersonales@eliteflower.com y Teléfono: 6018910444.`;
+      printFormattedJustified(p2_5, 9);
+
+      currentY += 4;
+      const p2_6 = `Para constancia de lo anterior se firma y otorga esta autorización de manera voluntaria en la ciudad de ${domicilioTrabajador.toUpperCase()} el día     **${fechaFirmaTexto}**`;
+      printFormattedJustified(p2_6, 9);
+
+      // Firma del Trabajador (Pág 2 - Abajo a la izquierda)
+      currentY = pageHeight - 50;
+
+      const firmaCand2 = await this.fetchAsArrayBufferOrNull(cand?.biometria?.firma?.file_url ?? this.firma);
+      if (firmaCand2) {
+        try {
+          const kind = (new Uint8Array(firmaCand2)[0] === 0xFF) ? 'JPEG' : 'PNG';
+          doc.addImage(new Uint8Array(firmaCand2), kind, marginLeft + 5, currentY + 1, 35, 20);
+        } catch (e) { console.error('Error insertando firma candidato Manejo Imagen Pag2', e); }
+      }
+
+      const yLineaFirma2 = currentY + 22;
+      doc.setLineWidth(0.3);
+      doc.line(marginLeft, yLineaFirma2, marginLeft + 75, yLineaFirma2);
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8);
+      doc.text(`Nombres: ${nombreTrabajador}`, marginLeft, yLineaFirma2 + 4);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7.5);
+      doc.text(`C.C ${numIdentificacion}`, marginLeft, yLineaFirma2 + 8);
+
+
+      const pdfBlob = doc.output('blob');
+      const file = new File([pdfBlob], 'MANEJO_IMAGEN.pdf', { type: 'application/pdf' });
+
+      this.uploadedFiles['MANEJO_IMAGEN'] = { file, fileName: 'MANEJO_IMAGEN.pdf' };
+      this.verPDF({ titulo: 'MANEJO_IMAGEN' });
+
+    } catch (error) {
+      console.error('Error generando MANEJO_IMAGEN:', error);
+      Swal.fire({ icon: 'error', title: 'Error', text: 'Ocurrió un error al generar el PDF de Manejo de Imagen' });
+    }
+  }
+
+  async generarFichaSocial() {
+    try {
+      const pdfBytes = await this.fetchAsArrayBufferOrNull('Docs/Ficha social.pdf');
+      if (!pdfBytes) {
+        Swal.fire('Error', 'No se encontró el formato Ficha social.pdf', 'error');
+        return;
+      }
+      const pdfDoc = await PDFDocument.load(pdfBytes);
+      const form = pdfDoc.getForm();
+      const cand = this.candidato;
+      const db = cand?.datos_basicos || {};
+
+      const setText = (campo: string, valor: any) => {
+        try {
+          const field = form.getTextField(campo);
+          if (field && valor) field.setText(String(valor));
+        } catch (e) {
+          // Ignorar silenciosamente si el campo no existe.
+        }
+      };
+
+      const setConditionalText = (campo: string, valor: any, condicion: boolean) => {
+        if (condicion) setText(campo, valor);
+      };
+
+      const normalizeDate = (d: any) => d ? new Date(d).toISOString().split('T')[0] : '';
+      const normalizeText = (text: any) => text ? String(text).toUpperCase().trim() : '';
+
+      // ======== 1. DATOS BÁSICOS ========
+      // Split names
+      const nombresArr = normalizeText(db.nombres).split(' ');
+      const apellidosArr = normalizeText(db.apellidos).split(' ');
+      setText('NombresRow1', db.nombres);
+      setText('1er ApellidoRow1', apellidosArr[0] || '');
+      setText('2do ApellidoRow1', apellidosArr.slice(1).join(' ') || '');
+
+      const tipoDoc = normalizeText(db.tipo_de_identificacion);
+      setText('Row1', tipoDoc); // Tipo DOC (asumiendo que Row1 general es Tipo Doc dada la convención de otras fichas)
+      setText('DOCUMENTO No', db.numero_de_documento);
+
+      // ======== 2. DATOS DE CONTACTO ========
+      setText('TeléfonoRow1', db.telefono ?? '');
+      setText('Correo ElectrónicoRow1', db.correo_electronico ?? '');
+      setText('Dirección de DomicilioRow1', db.direccion_de_residencia ?? '');
+      setText('BarrioRow1', db.barrio ?? '');
+      setText('Ciudad DomicilioRow1', cand?.municipio?.nombre ?? '');
+      setText('DepartamentoRow1', cand?.departamento?.nombre ?? '');
+
+      // ======== 3. ESTADO CIVIL Y TECNOLOGÍA ========
+      setText('Estado CivilRow1', db.estado_civil ?? '');
+      // Asumimos variables personalizadas si existen, o vacíos si no se preguntan
+      setText('Teléfono InteligenteRow1', cand?.estudio_socioeconomico?.telefonoInteligente ?? 'SI');
+      setText('Posee Plan de DatosRow1', cand?.estudio_socioeconomico?.planDatos ?? 'SI');
+
+      // ======== 4. COMPOSICIÓN FAMILIAR ========
+      // Checkboxes nativos de PDFText en Ficha Social (se cruzan con "X" en campos de texto según el mapper)
+      const compFam = cand?.estudio_socioeconomico?.composicionFamiliar || [];
+      const hasComp = (val: string) => compFam.includes(val) ? 'X' : '';
+      setText('ConyugueCompañeroaRow1', hasComp('CONYUGE') || hasComp('COMPAÑERO(A)'));
+      setText('Hijo aRow1', hasComp('HIJO(A)'));
+      setText('MadreRow1', hasComp('MADRE'));
+      setText('PadreRow1', hasComp('PADRE'));
+      setText('HermanoaRow1', hasComp('HERMANO(A)'));
+      setText('TíoRow1', hasComp('TIO(A)'));
+      setText('SobrinoRow1', hasComp('SOBRINO(A)'));
+      setText('CuñadoaRow1', hasComp('CUÑADO(A)'));
+      setText('SuegroaRow1', hasComp('SUEGRO(A)'));
+      setText('OtroRow1', hasComp('OTRO'));
+      setText('CúalRow1', cand?.estudio_socioeconomico?.composicionFamiliarCual ?? '');
+      setText('Familia con un solo ingresoRow1', cand?.estudio_socioeconomico?.unicoIngreso ? 'SI' : 'NO');
+
+      // ======== 5. VIVIENDA ========
+      const tipoVivienda = normalizeText(cand?.estudio_socioeconomico?.tipoVivienda);
+      setText('CasaRow1', tipoVivienda === 'CASA' ? 'X' : '');
+      setText('ApartamentoRow1', tipoVivienda === 'APARTAMENTO' ? 'X' : '');
+      setText('FincaRow1', tipoVivienda === 'FINCA' ? 'X' : '');
+      setText('HabitaciónRow1', tipoVivienda === 'HABITACION' || tipoVivienda === 'HABITACIÓN' ? 'X' : '');
+
+      setText('No HabitacionesRow1', cand?.estudio_socioeconomico?.numHabitaciones ?? '');
+      setText('No Personas por habitaciónRow1', cand?.estudio_socioeconomico?.personasPorHabitacion ?? '');
+
+      const tenencia = normalizeText(cand?.estudio_socioeconomico?.tenenciaVivienda);
+      setText('Propia Totalmente PagaRow1', tenencia.includes('PAGA') ? 'X' : '');
+      setText('Propia la están pagandoRow1', tenencia.includes('PAGANDO') ? 'X' : '');
+      setText('ArriendoRow1', tenencia === 'ARRIENDO' ? 'X' : '');
+      setText('FamiliarRow1', tenencia === 'FAMILIAR' ? 'X' : '');
+
+      const estadoVivienda = normalizeText(cand?.estudio_socioeconomico?.estadoVivienda);
+      setText('Obra NegraRow1', estadoVivienda === 'OBRA NEGRA' ? 'X' : '');
+      setText('Obra GrisRow1', estadoVivienda === 'OBRA GRIS' ? 'X' : '');
+      setText('TerminadaRow1', estadoVivienda === 'TERMINADA' ? 'X' : '');
+
+      const servs = cand?.estudio_socioeconomico?.serviciosPublicos || [];
+      const hasServ = (val: string) => servs.includes(val) ? 'X' : '';
+      setText('EnergíaRow1', hasServ('ENERGIA') || hasServ('ENERGÍA'));
+      setText('AcueductoRow1', hasServ('ACUEDUCTO'));
+      setText('AlcantarilladoRow1', hasServ('ALCANTARILLADO'));
+      setText('Recolección BasurasRow1', hasServ('BASURAS') || hasServ('RECOLECCION BASURAS'));
+      setText('Gas NaturalRow1', hasServ('GAS') || hasServ('GAS NATURAL'));
+      setText('Teléfono FijoRow1', hasServ('TELEFONO') || hasServ('TELÉFONO FIJO'));
+      setText('InternetRow1', hasServ('INTERNET'));
+
+      const equip = cand?.estudio_socioeconomico?.equipamiento || [];
+      const hasEquip = (val: string) => equip.includes(val) ? 'X' : '';
+      setText('BañoEquipamiento de Casa', hasEquip('BAÑO'));
+      setText('CocinaEquipamiento de Casa', hasEquip('COCINA'));
+      setText('LavaderoEquipamiento de Casa', hasEquip('LAVADERO'));
+      setText('PatioEquipamiento de Casa', hasEquip('PATIO'));
+
+      // ======== 6. EDUCACIÓN ========
+      if (cand?.educacion && cand?.educacion.length > 0) {
+        // Tomamos la educación más reciente / superior
+        const lastEd = cand.educacion[cand.educacion.length - 1];
+        setText('Grado Escolaridad', normalizeText(lastEd?.nivel));
+        setText('Institución', normalizeText(lastEd?.institucion));
+        setText('Titulo Obtenido o Último Año Cursado', normalizeText(lastEd?.titulo));
+        setText('Año Finalización', normalizeDate(lastEd?.fecha_finalizacion).substring(0, 4));
+      }
+
+      // ======== 7. CONTACTO DE EMERGENCIA ========
+      if (cand?.referencias && cand?.referencias.length > 0) {
+        // Priorizamos familiar como emergencia si no hay otro flag
+        const refEm = cand.referencias.find((r: any) => r.tipo === 'Familiar') || cand.referencias[0];
+        setText('Apellidos y NombresRow1', normalizeText(`${refEm?.nombres || ''} ${refEm?.apellidos || ''}`));
+        setText('ParentescoRow1', normalizeText(refEm?.parentesco));
+        setText('TeléfonoRow1_2', refEm?.telefono_1);
+        setText('DirecciónRow1', refEm?.direccion);
+        setText('Barrio MunicipioRow1', refEm?.barrio); // municipio no siempre está en ref nativa
+      }
+
+      // ======== 8. CÓNYUGE ========
+      const conyuge = cand?.padres_conyuge?.find((p: any) => p.es_padre === 'Conyuge');
+      if (conyuge) {
+        setText('NombresRow1_2', normalizeText(conyuge.nombres));
+        setText('ApellidosRow1', normalizeText(conyuge.apellidos));
+        setText('No Doc IdentidadRow1', conyuge.identificacion);
+        setText('Vive SNRow1', conyuge.vive === 'Si' ? 'SI' : 'NO');
+        setText('DirecciónRow1_2', normalizeText(conyuge.direccion));
+        setText('TeléfonoRow1_3', conyuge.telefono_1);
+        setText('Barrio MunicipioRow1_2', normalizeText(conyuge.barrio));
+        setText('OcupaciónRow1', normalizeText(conyuge.ocupacion));
+        setText('Teléfono LaboralRow1', conyuge.telefono_2); // Asumiendo tel2 como laboral
+        // Dirección Laboral no provista nativamente, omitida o vacía
+      }
+
+      // ======== 9. HIJOS ========
+      const hijos = Array.isArray(cand?.hijos) ? cand.hijos : [];
+      // Row1_2, Row2, Row3, Row4, Row5, Row6
+      const suffixHijos = ['Row1_2', 'Row2', 'Row3', 'Row4', 'Row5', 'Row6'];
+      hijos.slice(0, 6).forEach((h: any, i: number) => {
+        const rowSuffix = suffixHijos[i];
+        setText(`Apellidos y Nombres${rowSuffix}`, normalizeText(`${h.apellidos || ''} ${h.nombres || ''}`));
+        setText(`Fecha de Nacimiento${rowSuffix.replace('_2', '')}`, normalizeDate(h.fecha_nacimiento)); // el map reporta "NacimientoRow1" (no _2)
+        setText(`No Documento de Identidad${rowSuffix.replace('_2', '')}`, h.identificacion);
+        setText(`Género${rowSuffix.replace('_2', '')}`, normalizeText(h.genero).substring(0, 1)); // M o F
+        setText(`Vive con el Trabajador SN${rowSuffix.replace('_2', '')}`, h.vive_con_usted === 'Si' ? 'SI' : 'NO');
+        setText(`Estudia en la Fundación SN${rowSuffix.replace('_2', '')}`, 'NO'); // Default
+        setText(`Ocupación EstudiaTrabaja${rowSuffix.replace('_2', '')}`, normalizeText(h.ocupacion));
+      });
+
+      // ======== 10. PADRES (Sección Extendida en el PDF) ========
+      // Según el JSON, la sección extendida de hijos comparte filas Row1..Row6 en Nivel Educativo / Padre
+      const padres = cand?.padres_conyuge?.filter((p: any) => p.es_padre === 'Padre' || p.es_padre === 'Madre') || [];
+      padres.slice(0, 2).forEach((p: any, i: number) => {
+        const rIndex = i + 1; // Row1, Row2
+        setText(`Nivel EducativoRow${rIndex}`, normalizeText(p.ocupacion)); // Adaptado
+        setText(`Es Empleado de la Compañía SNRow${rIndex}`, 'NO');
+        setText(`Nombre Otro PadreRow${rIndex}`, normalizeText(`${p.nombres} ${p.apellidos}`));
+        setText(`Documento Identidad Otro PadreRow${rIndex}`, p.identificacion);
+      });
+
+      // ======== 11. EXPECTATIVAS DE VIDA ========
+      const exp = cand?.estudio_socioeconomico?.expectativas || [];
+      const hasExp = (val: string) => exp.includes(val) ? 'X' : '';
+      setText('Educación PropiaRow1', hasExp('EDUCACION PROPIA'));
+      setText('Educación de los hijosRow1', hasExp('EDUCACION HIJOS'));
+      setText('Compra de ViviendaRow1', hasExp('COMPRA VIVIENDA'));
+      setText('Compra de AutomóvilRow1', hasExp('COMPRA AUTOMOVIL') || hasExp('VEHICULO'));
+      setText('ViajarRow1', hasExp('VIAJAR'));
+      setText('Otro CuálRow1', cand?.estudio_socioeconomico?.expectativasOtro ?? '');
+
+      // ======== 12. METADATOS Y FIRMAS ========
+      const now = new Date();
+      const txtFecha = `${now.getDate().toString().padStart(2, '0')}/${(now.getMonth() + 1).toString().padStart(2, '0')}/${now.getFullYear()}`;
+      setText('fechaactual', txtFecha);
+      setText('nombre_empresa_usuaria', normalizeText(this.vacante?.empresaUsuariaSolicita || this.empresa || 'LA EMPRESA'));
+
+      // FIRMAS Y SELLOS (Imágenes)
+      try {
+        const paginas = pdfDoc.getPages();
+        const ultimaPag = paginas[paginas.length - 1]; // Firmas suelen ir al final
+
+        // Firma Candidato -> image11_af_image se reemplaza por inyección manual donde iba la caja "firma_af_image"
+        const firmaCandBytes = await this.fetchAsArrayBufferOrNull(this.firma);
+        if (firmaCandBytes) {
+          const fieldFirma = form.getTextField('firma_af_image');
+          if (fieldFirma) {
+            const widget = fieldFirma.acroField.getWidgets()[0];
+            const rect = widget.getRectangle();
+            const bytesArray = new Uint8Array(firmaCandBytes) as any;
+            const isJpg = bytesArray[0] === 0xFF;
+            const img = isJpg ? await pdfDoc.embedJpg(bytesArray) : await pdfDoc.embedPng(bytesArray);
+            // Asignar en la coordenada PDF original
+            ultimaPag.drawImage(img, {
+              x: rect.x, y: rect.y, width: rect.width, height: rect.height
+            });
+          }
+        }
+
+        // Firma Administrativa
+        const firmaAdminBytes = await this.fetchAsArrayBufferOrNull(this.firmaPersonalAdministrativo);
+        if (firmaAdminBytes) {
+          const fieldAdcFirma = form.getTextField('firma_administrativa');
+          if (fieldAdcFirma) {
+            const widget2 = fieldAdcFirma.acroField.getWidgets()[0];
+            const rect2 = widget2.getRectangle();
+            const bytesArray2 = new Uint8Array(firmaAdminBytes) as any;
+            const isJpg = bytesArray2[0] === 0xFF;
+            const img2 = isJpg ? await pdfDoc.embedJpg(bytesArray2) : await pdfDoc.embedPng(bytesArray2);
+            ultimaPag.drawImage(img2, {
+              x: rect2.x, y: rect2.y, width: rect2.width, height: rect2.height
+            });
+          }
+        }
+
+      } catch (e) {
+        console.error('Error inyectando firmas biometría Ficha Social', e);
+      }
+
+      form.flatten(); // Evitar que siga siendo editable
+
+      const resultBytes = await pdfDoc.save();
+      const file = new File([resultBytes as any], 'FICHA_SOCIAL.pdf', { type: 'application/pdf' });
+      this.uploadedFiles['FICHA_SOCIAL'] = { file, fileName: 'FICHA_SOCIAL.pdf' };
+      this.verPDF({ titulo: 'FICHA_SOCIAL' });
+
+    } catch (error) {
+      console.error('Error generando FICHA_SOCIAL:', error);
+      Swal.fire({ icon: 'error', title: 'Error', text: 'Ocurrió un error al generar la Ficha Social.' });
+    }
+  }
+
   generarAutorizacionDatos() {
     const EMP_APOYO = 'APOYO LABORAL TS S.A.S';
     const EMP_TA = 'TU ALIANZA SAS';
@@ -2729,27 +3340,21 @@ export class GenerateContractingDocumentsComponent implements OnInit {
 
       const form = pdfDoc.getForm();
 
-      // Branding
+      // Branding Apoyo Laboral
       const { logoPath, nombreEmpresa } = this.getEmpresaInfo();
+      const empUsuaria = this.safe(vac.empresaUsuariaSolicita);
 
-      // 🔥 LOGO: ahora detecta PNG/JPG y lo pone donde exista el botón
       await setButtonImageSafe(pdfDoc, form, 'Image16_af_image', logoPath);
       await setButtonImageSafe(pdfDoc, form, 'Image18_af_image', logoPath);
 
       // Cabecera / contrato
       this.setText(form, 'CodContrato', this.safe(codigoContrato), customFont, 7.2);
       this.setText(form, 'sede', this.safe(this.user?.sede?.nombre), customFont, 7.2);
-      this.setText(form, 'empresa', this.safe(nombreEmpresa), customFont);
 
       // Identificación
       this.setText(form, '1er ApellidoRow1', this.safe(dv.primer_apellido), customFont);
       this.setText(form, '2do ApellidoRow1', this.safe(dv.segundo_apellido), customFont);
-      this.setText(
-        form,
-        'NombresRow1',
-        [this.safe(dv.primer_nombre), this.safe(dv.segundo_nombre)].filter(Boolean).join(' '),
-        customFont
-      );
+      this.setText(form, 'NombresRow1', [this.safe(dv.primer_nombre), this.safe(dv.segundo_nombre)].filter(Boolean).join(' '), customFont);
       this.setText(form, 'Tipo Documento IdentificaciónRow1', this.safe(dv.tipodedocumento), customFont);
       this.setText(form, 'Número de IdentificaciónRow1', this.safe(dv.numerodeceduladepersona), customFont);
 
@@ -2766,11 +3371,12 @@ export class GenerateContractingDocumentsComponent implements OnInit {
 
       // Estado civil (X)
       const ec = this.safe(dv.estado_civil).toUpperCase();
-      this.setXIf(form, 'SolteroEstado Civil', ec === 'SO');
-      this.setXIf(form, 'CasadoEstado Civil', ec === 'CA');
-      this.setXIf(form, 'Union LibreEstado Civil', ec === 'UN');
-      this.setXIf(form, 'SeparadoEstado Civil', ec === 'SE');
-      this.setXIf(form, 'ViudoEstado Civil', ec === 'VI');
+      this.setXIf(form, 'SolteroEstado Civil', ['SO', 'SOLTERO', 'S'].includes(ec));
+      this.setXIf(form, 'CasadoEstado Civil', ['CA', 'CASADO'].includes(ec));
+      this.setXIf(form, 'Unión LibreEstado Civil', ['UN', 'UL', 'UNION LIBRE', 'UNIÓN LIBRE'].includes(ec));
+      this.setXIf(form, 'SeparadoEstado Civil', ['SE', 'SEP', 'SEPARADO'].includes(ec));
+      this.setXIf(form, 'ViudoEstado Civil', ['VI', 'VIUDO'].includes(ec));
+      this.setXIf(form, 'OtroEstado Civil', !['SO', 'SOLTERO', 'S', 'CA', 'CASADO', 'UN', 'UL', 'UNION LIBRE', 'UNIÓN LIBRE', 'SE', 'SEP', 'SEPARADO', 'VI', 'VIUDO'].includes(ec) && ec !== '');
 
       // Contacto / residencia
       this.setText(form, 'Dirección de DomicilioRow1', this.safe(dv.direccion_residencia), customFont);
@@ -2781,47 +3387,26 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       this.setText(form, 'Correo ElectrónicoRow1', this.safe(dv.primercorreoelectronico), customFont);
 
       // RH / mano
-      this.setText(form, 'CelularGrupo Sanguineo y RH', this.safe(dv.rh), customFont);
       const mano = this.safe(dv.zurdo_diestro).toUpperCase();
       this.setXIf(form, 'Diestro', mano.includes('DIESTRO'));
-      this.setXIf(form, 'PesoZurdo', !mano.includes('DIESTRO'));
+      this.setXIf(form, 'Zurdo', !mano.includes('DIESTRO') && mano !== '');
 
-      // Empresa / Clasificadores
-      this.setText(form, 'Empresa Grupo Elite', this.safe(vac.empresaUsuariaSolicita), customFont);
-      this.setText(form, 'Código Compañía', this.safe(vac.codigoElite ?? vac.empresaUsuariaSolicita), customFont);
-      this.setText(form, 'Sucursal', this.safe(ds.centro_costo_entrevista), customFont);
-
-      this.setText(form, 'Centro de Costo', this.safe(datoInfoContratacion.centro_de_costos), customFont);
-      this.setText(form, 'SubCentro de Costo', this.safe(datoInfoContratacion.subCentroCostos), customFont);
-
-      this.setText(form, 'CÓDIGOCiudad de Labor', this.safe(ds.centro_costo_entrevista || dv.municipio), customFont);
-      this.setText(form, 'CÓDIGOClasificador 2Categoría', this.safe(datoInfoContratacion.categoria), customFont);
-      this.setText(form, 'CÓDIGOClasificador 3Operación', this.safe(datoInfoContratacion.operacion), customFont);
-      this.setText(form, 'CÓDIGOClasificador 4Sublador', this.safe(vac.cargo), customFont);
-      this.setText(form, 'Apoyo Laboral TSClasificador 6Grupo', this.safe(datoInfoContratacion.grupo), customFont);
-
-      // Fecha ingreso / salario
-      this.setText(form, 'Fecha de Ingreso', this.formatLongDateES(this.safe(ds.fechaIngreso)), customFont);
+      // Empresa / Laboral
+      this.setText(form, 'Fecha de Ingreso', this.parseDateToDDMMYYYY(ds.fechaIngreso) || ds.fechaIngreso, customFont);
       this.setText(form, 'Sueldo Básico', this.formatMoneyCOP(ds.salario), customFont);
 
-      // Banco / cuenta / ARL
+      const rutaInfo = this.getRutaInfo(vac.oficinasQueContratan, ds.centro_costo_entrevista || '');
+      this.setText(form, 'Nombre de la RutaUsa Ruta', rutaInfo.usaRuta, customFont);
+      this.setText(form, 'Nombre de la RutaAuxilio Trasporte', this.safe(vac.auxilioTransporte), customFont);
+      this.setText(form, 'Horas extras', this.safe(datoInfoContratacion.horas_extras), customFont);
+
       this.setText(form, 'Banco', this.safe(datoInfoContratacion.forma_pago), customFont);
       this.setText(form, 'Cuenta', this.safe(datoInfoContratacion.numero_pagos), customFont);
-      this.setText(form, 'Porcentaje ARLARL SURA', this.safe(datoInfoContratacion.porcentaje_arl), customFont);
 
-      // Seguridad social
       this.setText(form, 'EPS SaludRow1', this.safe(ds.eps), customFont);
       this.setText(form, 'AFP PensiónRow1', this.safe(ds.afp), customFont);
       this.setText(form, 'AFC CesantiasRow1', this.safe(datoInfoContratacion.cesantias), customFont);
-      this.setText(form, 'N de Semanas CotizadasPensionado NO', this.safe(datoInfoContratacion.semanas_cotizadas) || '0', customFont);
-
-      // Auxilio / ruta
-      this.setText(form, 'Nombre de la RutaAuxilio Trasporte', this.safe(vac.auxilioTransporte), customFont);
-      const rutaInfo = this.getRutaInfo(vac.oficinasQueContratan, ds.centro_costo_entrevista || '');
-      this.setText(form, 'Nombre de la RutaUsa Ruta', rutaInfo.usaRuta, customFont);
-
-      // Horas extras
-      this.setText(form, 'Horas extras', this.safe(datoInfoContratacion.horas_extras), customFont);
+      this.setText(form, 'Porcentaje ARLARL SURA', this.safe(datoInfoContratacion.porcentaje_arl), customFont);
 
       // Educación
       this.setText(form, 'Seleccione el Grado de Escolaridad', this.safe(dv.escolaridad), customFont);
@@ -2829,7 +3414,59 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       this.setText(form, 'Titulo Obtenido o Ultimo año Cursado', this.safe(dv.titulo_obtenido), customFont);
       this.setText(form, 'Año Finalización', this.parseDateToDDMMYYYY(dv.ano_finalizacion), customFont);
 
-      // Experiencia 1
+      // Info Relacional Familiar
+      const mapVive = (v: any) => v === true || norm(v) === 'SI' ? 'SI' : (v === false || norm(v) === 'NO' ? 'NO' : '');
+      const familiares: any[] = Array.isArray(cand.familiares) ? cand.familiares : [];
+
+      const padre = familiares.find(f => norm(f.parentesco).includes('PADRE') || norm(f.parentesco) === 'PA') ?? {};
+      const madre = familiares.find(f => norm(f.parentesco).includes('MADRE') || norm(f.parentesco) === 'MA') ?? {};
+      const conyuge = familiares.find(f => norm(f.parentesco).includes('CONYUG') || norm(f.parentesco) === 'COMPAÑER' || norm(f.parentesco) === 'ESPOS') ?? {};
+
+      // Padre
+      this.setText(form, 'Nombre y Apellido PadreRow1', this.safe(padre.nombre_completo ?? padre.nombres ?? ''), customFont);
+      this.setText(form, 'ViveRow1', mapVive(padre.vive), customFont);
+      this.setText(form, 'OcupaciónRow1', this.safe(padre.ocupacion), customFont);
+      this.setText(form, 'DirecciónRow1', this.safe(padre.direccion), customFont);
+      this.setText(form, 'TeléfonoRow1', this.safe(padre.telefono_celular ?? padre.telefono), customFont);
+      this.setText(form, 'BarrioMunicipioRow1', this.safe(padre.barrio ?? padre.municipio), customFont);
+
+      // Madre
+      this.setText(form, 'Nombre y Apellido MadreRow1', this.safe(madre.nombre_completo ?? madre.nombres ?? ''), customFont);
+      this.setText(form, 'ViveRow1_2', mapVive(madre.vive), customFont);
+      this.setText(form, 'OcupaciónRow1_2', this.safe(madre.ocupacion), customFont);
+      this.setText(form, 'DirecciónRow1_2', this.safe(madre.direccion), customFont);
+      this.setText(form, 'TeléfonoRow1_2', this.safe(madre.telefono_celular ?? madre.telefono), customFont);
+      this.setText(form, 'BarrioMunicipioRow1_2', this.safe(madre.barrio ?? madre.municipio), customFont);
+
+      // Cónyuge
+      this.setText(form, 'Nombre y ApellidoconyugeRow1', this.safe(conyuge.nombre_completo ?? conyuge.nombres ?? ''), customFont);
+      this.setText(form, 'ViveRow1_3', mapVive(conyuge.vive), customFont);
+      this.setText(form, 'OcupaciónRow1_3', this.safe(conyuge.ocupacion), customFont);
+      this.setText(form, 'DirecciónRow1_3', this.safe(conyuge.direccion), customFont);
+      this.setText(form, 'TeléfonoRow1_3', this.safe(conyuge.telefono_celular ?? conyuge.telefono), customFont);
+      this.setText(form, 'BarrioMunicipioRow1_3', this.safe(conyuge.barrio ?? conyuge.municipio), customFont);
+
+      // Hijos
+      const hijos = familiares.filter(f => norm(f.parentesco).includes('HIJ') || norm(f.parentesco) === 'HI');
+      for (let i = 0; i < Math.min(6, hijos.length); i++) {
+        const h = hijos[i];
+        const idx = i + 1;
+        this.setText(form, `Apellidos y Nombres${idx}`, this.safe(h.nombre_completo ?? h.nombres ?? ''), customFont);
+        this.setText(form, `F de Nacimiento${idx}`, this.parseDateToDDMMYYYY(h.fecha_nacimiento), customFont);
+        this.setText(form, ` de Identificación${idx}`, this.safe(h.numero_documento), customFont);
+        this.setText(form, `Gen${idx}`, this.safe(h.sexo ?? h.genero), customFont);
+        this.setText(form, `Vive con el Trabajador${idx}`, mapVive(h.vive_con_candidato ?? h.vive), customFont);
+        this.setText(form, `Estudia en la Fundación SN${idx}`, mapVive(h.estudia), customFont);
+        this.setText(form, `Ocupación${idx}`, this.safe(h.ocupacion), customFont);
+        this.setText(form, `Curso${idx}`, this.safe(h.nivel_escolaridad ?? h.curso), customFont);
+      }
+
+      // Contacto de Emergencia
+      const emerg = cand.contacto_emergencia ?? cand.contacto ?? {};
+      this.setText(form, 'Apellidos y NombresRow1', this.safe(emerg.nombres ?? emerg.nombre_contacto ?? ''), customFont);
+      this.setText(form, 'Número de ContactoRow1', this.safe(emerg.telefono ?? emerg.celular_contacto ?? emerg.celular ?? ''), customFont);
+
+      // Experiencia
       this.setText(form, 'Nombre Empresa 1Row1', this.safe(dv.nombre_expe_laboral1_empresa), customFont);
       this.setText(form, 'Dirección EmpresaRow1', this.safe(dv.direccion_empresa1), customFont);
       this.setText(form, 'TeléfonosRow1', this.safe(dv.telefonos_empresa1), customFont);
@@ -2838,63 +3475,77 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       this.setText(form, 'F de RetiroRow1', this.parseDateToDDMMYYYY(dv.fecha_retiro_empresa1), customFont);
       this.setText(form, 'Motivo de RetiroRow1', this.safe(dv.motivo_retiro_empresa1), customFont);
 
-      // Autorización (1 vez)
-      const empresaTxt = this.safe(vac?.empresaUsuariaSolicita);
-      this.setText(
-        form,
-        'AutorizacionDeEstudiosSeguridad2',
-        empresaTxt
-          ? `estudios de seguridad. De conformidad con lo dispuesto en la ley 1581 de 2012 y el decreto reglamentario 1377 de 2013 autorizo a ${empresaTxt} a consultar en cualquier momento ante las centrales de riesgo la información comercial a mi nombre.`
-          : '',
-        customFont,
-        6
+      // Referencias Personales y Familiares
+      const referencias: any[] = Array.isArray(cand.referencias) ? cand.referencias : [];
+      const refPer = referencias.filter(r => norm(r.tipo_referencia_nombre ?? r.tipo).includes('PERSONAL'));
+      const refFam = referencias.filter(r => norm(r.tipo_referencia_nombre ?? r.tipo).includes('FAMILIAR'));
+
+      if (refPer[0]) {
+        this.setText(form, 'Nombre Referencia 1Row1', this.safe(refPer[0].nombre_completo ?? refPer[0].nombre), customFont);
+        this.setText(form, 'TeléfonosRow1_3', this.safe(refPer[0].celular ?? refPer[0].telefono), customFont);
+        this.setText(form, 'OcupaciónRow1_4', this.safe(refPer[0].profesion ?? refPer[0].ocupacion), customFont);
+        this.setText(form, 'PersonaRefencia1P', this.safe(refPer[0].nombre_completo ?? refPer[0].nombre), customFont);
+        this.setText(form, 'Comentarios de las Referencias Pesonales 1', this.safe(refPer[0].observacion), customFont);
+      }
+      if (refPer[1]) {
+        this.setText(form, 'Nombre Referencia 2Row1', this.safe(refPer[1].nombre_completo ?? refPer[1].nombre), customFont);
+        this.setText(form, 'TeléfonosRow1_4', this.safe(refPer[1].celular ?? refPer[1].telefono), customFont);
+        this.setText(form, 'OcupaciónRow1_5', this.safe(refPer[1].profesion ?? refPer[1].ocupacion), customFont);
+        this.setText(form, 'PersonaRefencia2P', this.safe(refPer[1].nombre_completo ?? refPer[1].nombre), customFont);
+        this.setText(form, 'Comentarios de las Referencias Pesonales 2', this.safe(refPer[1].observacion), customFont);
+      }
+      if (refFam[0]) {
+        this.setText(form, 'Nombre Referencia 1Row1_2', this.safe(refFam[0].nombre_completo ?? refFam[0].nombre), customFont);
+        this.setText(form, 'TeléfonosRow1_5', this.safe(refFam[0].celular ?? refFam[0].telefono), customFont);
+        this.setText(form, 'OcupaciónRow1_6', this.safe(refFam[0].profesion ?? refFam[0].ocupacion), customFont);
+        this.setText(form, 'PersonaRefencia1F', this.safe(refFam[0].nombre_completo ?? refFam[0].nombre), customFont);
+        this.setText(form, 'Comentario referencia Familiar', this.safe(refFam[0].observacion), customFont);
+      }
+      if (refFam[1]) {
+        this.setText(form, 'Nombre Referencia 1Row1_3', this.safe(refFam[1].nombre_completo ?? refFam[1].nombre), customFont);
+        this.setText(form, 'TeléfonosRow1_6', this.safe(refFam[1].celular ?? refFam[1].telefono), customFont);
+        this.setText(form, 'OcupaciónRow1_7', this.safe(refFam[1].profesion ?? refFam[1].ocupacion), customFont);
+        this.setText(form, 'PersonaRefencia2F', this.safe(refFam[1].nombre_completo ?? refFam[1].nombre), customFont);
+        this.setText(form, 'Comentario referencia Familiar 2', this.safe(refFam[1].observacion), customFont);
+      }
+
+      // Dotación / Tallas
+      const tallas = cand.informacion_tallas_dotacion ?? cand.tallas ?? {};
+      this.setText(form, 'TALLA CHAQUETARow1', this.safe(tallas.talla_camisa ?? tallas.chaqueta), customFont);
+      this.setText(form, 'TALLA PANTALONRow1', this.safe(tallas.talla_pantalon ?? tallas.pantalon), customFont);
+      this.setText(form, 'TALLA OVEROLRow1', this.safe(tallas.talla_overol ?? tallas.overol), customFont);
+      this.setText(form, 'No calzadoRow1', this.safe(tallas.talla_zapatos ?? tallas.calzado), customFont);
+      this.setText(form, 'No Botas de CauchoRow1', this.safe(tallas.botas_caucho), customFont);
+      this.setText(form, 'No ZapatonesRow1', this.safe(tallas.zapatones), customFont);
+      this.setText(form, 'No Botas MaterialRow1', this.safe(tallas.botas_material), customFont);
+
+      // Textos Especiales / Autorización Empresa
+      const nombreCand = [this.safe(dv.primer_nombre), this.safe(dv.segundo_nombre), this.safe(dv.primer_apellido), this.safe(dv.segundo_apellido)].filter(Boolean).join(' ');
+
+      this.setText(form, 'AutorizacionDeEstudiosSeguridad2',
+        empUsuaria ? `estudios de seguridad. De conformidad con lo dispuesto en la ley 1581 de 2012 y el decreto reglamentario 1377 de 2013 autorizo a ${empUsuaria} a consultar en cualquier momento ante las centrales de riesgo la información comercial a mi nombre.` : '',
+        customFont, 6
       );
+      this.setText(form, 'empresa', empUsuaria, customFont);
       this.setText(form, 'CedulaAutorizacion', this.safe(dv.numerodeceduladepersona), customFont);
 
-      // Persona que firma (usuario del sistema)
-      this.setText(
-        form,
-        'Persona que firma',
-        this.safe(
-          `${this.user?.datos_basicos?.nombres ?? ''} ${this.user?.datos_basicos?.apellidos ?? ''} ${this.user?.tipo_documento ?? ''} ${this.user?.numero_de_documento ?? ''}`.trim()
-        ),
-        customFont
-      );
+      this.setText(form, 'TEXTOCARNET', `me comprometo a presentar ante ${empUsuaria} fotocopia del denuncio correspondiente y en el caso de aparecer el carnet perdido lo devolveré a la empresa para su respectiva anulación.`, customFont, 6);
 
-      // =========================================================
-      // 2.1) IMÁGENES (como en tu jsPDF, pero correcto para PDF-lib)
-      // =========================================================
+      let tipoDoc = this.safe(dv.tipodedocumento).toUpperCase();
+      if (tipoDoc.includes('CC') || tipoDoc.includes('CIUDADAN')) tipoDoc = 'Cedula de Ciudadania';
+      else if (tipoDoc.includes('CE') || tipoDoc.includes('EXTRANJE')) tipoDoc = 'Cedula de Extranjeria';
+      else if (tipoDoc.includes('PEP')) tipoDoc = 'Permiso Especial de Permanencia';
+      else if (tipoDoc.includes('PA')) tipoDoc = 'Pasaporte';
 
-      // Firma institucional (tu campo / URL / dataURL)
+      this.setText(form, 'TEXTOLOCKER5', `Yo, ${nombreCand} identificado(a) con ${tipoDoc} No ${this.safe(dv.numerodeceduladepersona)} declaro haber recibido el Loker relacionado abajo y me comprometo a seguir las recomendaciones y políticas de uso y cuidado de estós, y a devolver el Loker en el mismo estado en que me fue asignado al momento de la finalización de mi relación laboral y antes de la entrega de la liquidación de contrato`, customFont, 6);
+
+      // Firmas Biométricas y Administrativas
+      this.setText(form, 'Persona que firma', this.safe(`${this.user?.datos_basicos?.nombres ?? ''} ${this.user?.datos_basicos?.apellidos ?? ''}`.trim()), customFont);
+
       await setButtonImageSafe(pdfDoc, form, 'Image15_af_image', this.firmaPersonalAdministrativo);
-
-      // =========================================================
-      // 3) Biométricos del candidato por URL (firma/foto/huella)
-      // =========================================================
       await setButtonImageSafe(pdfDoc, form, 'Image11_af_image', firmaUrl);
-      await setButtonImageSafe(pdfDoc, form, 'Image17_af_image', fotoUrl);
       await setButtonImageSafe(pdfDoc, form, 'Image10_af_image', huellaUrl);
-
-      // Fechas adicionales
-      this.setText(form, 'Fecha de EntregaINICIAL', this.formatLongDateES(this.safe(ds.fechaIngreso)), customFont);
-      this.setText(form, 'FechaLocker', this.formatLongDateES(this.safe(ds.fechaIngreso)), customFont);
-
-      // Textos
-      this.setText(
-        form,
-        'TEXTOCARNET',
-        `me comprometo a presentar ante ${this.safe(vac.empresaUsuariaSolicita)} fotocopia del denuncio correspondiente y en el caso de aparecer el carnet perdido lo devolveré a la empresa para su respectiva anulación`,
-        customFont,
-        6
-      );
-
-      this.setText(
-        form,
-        'TEXTOLOCKER5',
-        `Yo, ${nombreCompleto} identificado(a) con Cedula de Ciudadania No ${this.safe(dv.numerodeceduladepersona)} declaro haber recibido el loker relacionado abajo y me comprometo a seguir las recomendaciones y politicas de uso y cuidado de estós, y a devolverer Loker en el mismo estado en que me fue asignado al momento de la finalizaci6n de mi relación laboral y antes de la entrega de la liquidación de contrato`,
-        customFont,
-        6
-      );
+      await setButtonImageSafe(pdfDoc, form, 'Image17_af_image', fotoUrl);
 
       // Bloquear campos
       form.getFields().forEach((f: any) => { try { f.enableReadOnly(); } catch { } });

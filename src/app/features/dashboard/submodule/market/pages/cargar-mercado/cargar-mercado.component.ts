@@ -209,10 +209,12 @@ export class CargarMercadoComponent implements OnInit {
       return;
     }
 
-    if (valorNumerico > montoAutorizado) {
+    const rolUsuario = this.user?.rol?.nombre || '';
+    if (rolUsuario !== 'TIENDA' && valorNumerico > montoAutorizado) {
       Swal.fire('Error', `El valor ($${this.formatCurrency(valorNumerico)}) supera el monto autorizado ($${this.formatCurrency(montoAutorizado)}).`, 'error');
       return;
     }
+
 
     const confirmar = await Swal.fire({
       icon: 'question',

@@ -23,7 +23,6 @@ export interface DocumentType {
   id: number;
   name: string;
   estado: boolean;
-  tags?: string[];
   subtypes?: DocumentType[];
 }
 
@@ -237,17 +236,13 @@ export class CreateDocStructureComponent implements OnInit {
         id: node.id,
         name: node.name,
         estado: node.estado,
-        expandable: !!(node.subtypes?.length), // or just allow expandable option
-        tags: node.tags || [],
+        expandable: !!(node.subtypes?.length),
         isEdit,
       }
       : {
-        id: currentParentId, // Pass parent ID here so `result.parent` logic works? 
-        // Actually the previous code used `data.id` as parent for new items. 
-        // See: `if(data.id !== null){ result.parent = data.id; }`
+        id: currentParentId,
         name: '',
         expandable: false,
-        tags: [],
         estado: true,
         isEdit,
       };

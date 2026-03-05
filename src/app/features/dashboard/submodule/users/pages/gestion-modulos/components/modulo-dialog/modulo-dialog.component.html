@@ -1,0 +1,72 @@
+<div class="sf-filters-dialog">
+    <div class="sf-filters-dialog__header">
+        <div class="sf-filters-dialog__title">
+            <h2>
+                <mat-icon>{{ data.nombre ? 'edit_square' : 'add_circle' }}</mat-icon>
+                {{ data.title }}
+            </h2>
+            <p>Completa los campos para aplicar los cambios.</p>
+        </div>
+        <button mat-icon-button class="sf-filters-dialog__close" (click)="close()">
+            <mat-icon>close</mat-icon>
+        </button>
+    </div>
+
+    <div class="sf-filters-dialog__body">
+        <form [formGroup]="form" (ngSubmit)="save()" class="dialog-form-grid">
+            <div class="form-field-wrapper">
+                <label class="field-label">Nombre del Módulo <span class="text-danger">*</span></label>
+                <mat-form-field appearance="outline" class="sf-ff text-field-managerial">
+                    <mat-icon matPrefix>label</mat-icon>
+                    <input matInput formControlName="nombre" placeholder="Ej. Inicio">
+                    <mat-error *ngIf="form.get('nombre')?.hasError('required')">Requerido</mat-error>
+                    <mat-error *ngIf="form.get('nombre')?.hasError('maxlength')">Max 50 caracteres</mat-error>
+                </mat-form-field>
+            </div>
+
+            <div class="form-field-wrapper">
+                <label class="field-label">Descripción (Opcional)</label>
+                <mat-form-field appearance="outline" class="sf-ff text-field-managerial">
+                    <mat-icon matPrefix>description</mat-icon>
+                    <input matInput formControlName="descripcion" placeholder="Detalle breve del módulo">
+                    <mat-error *ngIf="form.get('descripcion')?.hasError('maxlength')">Max 150 caracteres</mat-error>
+                </mat-form-field>
+            </div>
+
+            <div class="form-field-wrapper">
+                <label class="field-label">Ruta (Opcional)</label>
+                <mat-form-field appearance="outline" class="sf-ff text-field-managerial">
+                    <mat-icon matPrefix>link</mat-icon>
+                    <input matInput formControlName="ruta" placeholder="Ej. /dashboard/usuarios">
+                    <mat-error *ngIf="form.get('ruta')?.hasError('maxlength')">Max 255 caracteres</mat-error>
+                </mat-form-field>
+            </div>
+
+            <div class="form-field-wrapper">
+                <label class="field-label">Ícono Material (Opcional)</label>
+                <mat-form-field appearance="outline" class="sf-ff text-field-managerial">
+                    <mat-icon matPrefix>face</mat-icon>
+                    <input matInput formControlName="icono" placeholder="Ej. group">
+                </mat-form-field>
+            </div>
+
+            <div class="form-field-wrapper">
+                <label class="field-label">Orden (Prioridad)</label>
+                <mat-form-field appearance="outline" class="sf-ff text-field-managerial">
+                    <mat-icon matPrefix>sort</mat-icon>
+                    <input matInput type="number" formControlName="orden" placeholder="Ej. 0, 1, 2">
+                </mat-form-field>
+            </div>
+        </form>
+    </div>
+
+    <div class="sf-filters-dialog__footer">
+        <button mat-flat-button class="sf-filters-btn-ghost" style="background:#f1f5f9; color:#475569;"
+            (click)="close()">
+            Cancelar
+        </button>
+        <button mat-flat-button color="primary" (click)="save()" [disabled]="form.invalid">
+            <mat-icon>save</mat-icon> Guardar
+        </button>
+    </div>
+</div>

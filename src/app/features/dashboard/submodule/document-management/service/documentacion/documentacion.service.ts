@@ -50,16 +50,7 @@ export class DocumentacionService {
       );
   }
 
-  // traer todos los tags
-  public mostrar_tags(): Observable<any> {
 
-    return this.http
-      .get(`${this.apiUrl}/gestion_documental/tags/`,)
-      .pipe(
-        map((response: any) => response),
-        catchError(this.handleError)
-      );
-  }
 
   // document-type/ put
   public editar_tipo_documento(id: number, data: any): Observable<any> {

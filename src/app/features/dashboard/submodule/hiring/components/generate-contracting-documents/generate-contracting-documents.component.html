@@ -1,77 +1,104 @@
-<!-- Tarjeta para búsqueda de cédula -->
-<div class="seleccion">
-
+<main class="hiring-docs-container">
   <mat-card class="premium-card">
     <mat-card-header class="card-header-premium">
       <div class="header-content">
-        <!-- Flecha a la izquierda -->
-        <button mat-icon-button class="btn-managerial-icon" style="flex-shrink: 0;" aria-label="Devolver a contratación"
-          routerLink="/dashboard/hiring/recruitment-pipeline">
+        <button mat-icon-button class="btn-back" aria-label="Volver a contratación"
+          routerLink="/dashboard/hiring/recruitment-pipeline" matTooltip="Volver">
           <mat-icon>arrow_back</mat-icon>
         </button>
-
         <div class="header-icon-container">
-          <mat-icon class="header-icon">file_copy</mat-icon>
+          <mat-icon class="header-icon">description</mat-icon>
         </div>
-
         <div class="header-text">
-          <mat-card-title class="titulo">Documentos para generar o subir</mat-card-title>
-          <mat-card-subtitle class="subtitulo"
-            style="display: flex; gap: 8px; align-items: center; margin-top: 4px !important;">
-            <span style="color: #cbd5e1;">Cédula: <strong
-                style="color: #fff; background: rgba(255,255,255,0.15); padding: 2px 8px; border-radius: 12px; font-weight: 500;">{{
-                cedula || '—' }}</strong></span>
-            <span style="color: rgba(255,255,255,0.3);">•</span>
-            <span style="color: #cbd5e1;">Contratación: <strong
-                style="color: #fff; background: rgba(255,255,255,0.15); padding: 2px 8px; border-radius: 12px; font-weight: 500;">{{
-                codigoContratacion || '—' }}</strong></span>
-          </mat-card-subtitle>
+          <h1 class="titulo">Documentos de Contratación</h1>
+          <p class="subtitulo">
+            <span>Cédula:</span> <span class="badge">{{ cedula || '—' }}</span>
+            <span class="dot-separator">•</span>
+            <span>Contratación:</span> <span class="badge">{{ codigoContratacion || '—' }}</span>
+            <span class="dot-separator">•</span>
+            <span>Empresa Usuaria:</span> <span class="badge">{{ vacante?.empresaUsuariaSolicita || '—' }}</span>
+          </p>
         </div>
       </div>
     </mat-card-header>
 
-    <mat-card-content class="card-content">
-      <!-- Contenedor dividido - usando *ngFor -->
-      <div class="split-container">
-        <!-- Lado izquierdo: Lista de documentos -->
-        <div class="left-panel">
-          <div *ngFor="let doc of documentos" class="document-item">
-            <span>{{ doc.titulo }}</span>
-            <button mat-icon-button [matMenuTriggerFor]="menu">
-              <mat-icon>more_vert</mat-icon>
-            </button>
-            <mat-menu #menu="matMenu">
-              <button mat-menu-item (click)="verPDF(doc)">
-                <mat-icon>visibility</mat-icon>
-                <span>Ver PDF</span>
-              </button>
+    <mat-card-content class="card-content" style="padding: 24px;">
+      <section class="documents-layout">
 
-              <!-- Botón Subir PDF con input tipo file -->
-              <label mat-menu-item>
-                <input type="file" hidden (change)="subirArchivo($event, doc.titulo)" accept=".pdf" />
-                <mat-icon>cloud_upload</mat-icon>
-                <span>Subir PDF</span>
-              </label>
+        <!-- Left Panel: Document List -->
+        <article class="docs-list-panel">
 
-              <!-- Botón Generar PDF para otros documentos -->
-              <button mat-menu-item (click)="generarPDF(doc.titulo)">
-                <mat-icon>download</mat-icon>
-                <span>Generar PDF</span>
-              </button>
-            </mat-menu>
+          <header class="panel-header">
+            <h2 class="panel-title">Lista de Documentos</h2>
+            <span class="doc-count">{{ documentos.length }} elementos</span>
+          </header>
+
+          <div class="docs-list" role="list">
+            <div class="doc-item" *ngFor="let doc of documentos" role="listitem">
+
+              <div class="doc-item-icon" [ngClass]="{'has-file': uploadedFiles[doc.titulo]}">
+                <mat-icon>{{ uploadedFiles[doc.titulo] ? 'task' : 'insert_drive_file' }}</mat-icon>
+              </div>
+
+              <div class="doc-item-info">
+                <h3 class="doc-item-title" [matTooltip]="doc.titulo">{{ doc.titulo }}</h3>
+                <p class="doc-item-status">
+                  <span *ngIf="uploadedFiles[doc.titulo]" class="status-badge success">Completado</span>
+                  <span *ngIf="!uploadedFiles[doc.titulo]" class="status-badge pending">Pendiente</span>
+                </p>
+              </div>
+
+              <div class="doc-item-actions">
+                <ng-container *ngIf="!isSubirPDF(doc)">
+                  <button mat-icon-button class="action-btn" matTooltip="Generar PDF Automático"
+                    (click)="generarPDF(doc.titulo)">
+                    <mat-icon class="text-primary">auto_awesome</mat-icon>
+                  </button>
+                </ng-container>
+
+                <button mat-icon-button class="action-btn" matTooltip="Ver PDF" (click)="verPDF(doc)"
+                  [disabled]="!uploadedFiles[doc.titulo]">
+                  <mat-icon>visibility</mat-icon>
+                </button>
+
+                <button mat-icon-button class="action-btn" [matMenuTriggerFor]="docMenu"
+                  aria-label="Opciones de documento">
+                  <mat-icon>more_vert</mat-icon>
+                </button>
+
+                <mat-menu #docMenu="matMenu">
+                  <label mat-menu-item class="upload-label-menu"
+                    style="cursor: pointer; width: 100%; display: flex; align-items: center;">
+                    <input type="file" hidden (change)="subirArchivo($event, doc.titulo)" accept=".pdf" />
+                    <mat-icon class="text-accent">cloud_upload</mat-icon>
+                    <span>Subir PDF Manual</span>
+                  </label>
+                </mat-menu>
+              </div>
+
+            </div>
           </div>
-          <!-- Botón para cargar PDFs -->
-          <button mat-flat-button class="btn-managerial" style="margin-top: 10px; width: 100%;" (click)="cargarpdf()">
-            <span class="text">Cargar PDF</span>
-            <mat-icon class="arrow">arrow_forward</mat-icon>
-          </button>
-        </div>
 
-        <!-- Lado derecho: Vista previa del PDF -->
-        <div class="right-panel">
-          <iframe id="pdfPreview" class="pdf-preview" title="Vista previa PDF"></iframe>
-        </div>
-      </div>
+          <!-- Bottom Action -->
+          <footer class="panel-actions">
+            <button mat-flat-button class="btn-managerial w-100" (click)="cargarpdf()">
+              <mat-icon>cloud_sync</mat-icon>
+              <span>Guardar y Cargar al Servidor</span>
+            </button>
+          </footer>
+        </article>
+
+        <!-- Right Panel: PDF Preview -->
+        <article class="preview-panel">
+          <header class="preview-header">
+            <h2 class="panel-title">Vista Previa del Documento</h2>
+          </header>
+          <div class="iframe-container">
+            <iframe #pdfPreviewIframe class="pdf-iframe" title="Vista previa PDF"></iframe>
+          </div>
+        </article>
+
+      </section>
     </mat-card-content>
   </mat-card>
-</div>
+</main>

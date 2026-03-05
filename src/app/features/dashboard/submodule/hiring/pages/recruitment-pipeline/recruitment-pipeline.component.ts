@@ -127,7 +127,7 @@ export class RecruitmentPipelineComponent {
   // Un archivo por examen seleccionado (mapeo por índice)
   examFiles = signal<File[]>([]);
 
-  readonly typeMap: Record<string, number> = { examenesMedicos: 32, arl: 30 };
+  readonly typeMap: Record<string, number> = { examenesMedicos: 56, arl: 50 };
 
   readonly filteredExamOptions: string[] = [
     'Exámen Ingreso', 'Colinesterasa', 'Glicemia Basal', 'Perfil lípidico', 'Visiometria', 'Optometría', 'Audiometría',
@@ -717,7 +717,7 @@ export class RecruitmentPipelineComponent {
     const selectedExams: string[] = (this.formGroup3.get('selectedExams')?.value || []) as string[];
     const files: File[] = this.examFiles() || [];
     const cedula = String(numeroDocumento);
-    const TYPE_EXAM = 32;
+    const TYPE_EXAM = 56;
 
     // Pares (nombre, archivo) válidos
     const pairs = selectedExams

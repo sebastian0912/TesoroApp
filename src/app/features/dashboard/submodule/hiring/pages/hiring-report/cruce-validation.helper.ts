@@ -19,6 +19,7 @@ export interface CruceRow {
     nombres: string;        // Combined
     fechaNac: string;       // 16
     estadoCivil: string;    // 18
+    celular: string;        // 21
     fechaExp: string;       // 24
     rh: string;             // 29
     zurdo: string;          // 30
@@ -91,6 +92,7 @@ export class CruceValidationHelper {
                 nombres: [get(12), get(13), get(14), get(15)].filter(Boolean).join(' '),
                 fechaNac: get(this.COL_FECHA_NAC),
                 estadoCivil: get(this.COL_ESTADO_CIVIL),
+                celular: get(21),
                 fechaExp: get(this.COL_FECHA_EXP),
                 rh: get(this.COL_RH),
                 zurdo: get(this.COL_ZURDO),
@@ -159,6 +161,10 @@ export class CruceValidationHelper {
                     onChange: (i) => i.raw[this.COL_ESTADO_CIVIL] = i.estadoCivil
                 },
                 {
+                    key: 'celular', label: 'Celular (Col 21)', type: 'text', required: true,
+                    onChange: (i) => i.raw[21] = i.celular
+                },
+                {
                     key: 'rh', label: 'RH (Col 29)', type: 'select',
                     options: ['A+', 'A-', 'B+', 'B-', 'O+', 'O-', 'AB+', 'AB-'].map(v => ({ value: v, label: v })),
                     onChange: (i) => i.raw[this.COL_RH] = i.rh
@@ -207,6 +213,15 @@ export class CruceValidationHelper {
         // Estado Civil
         if (!['SO', 'UL', 'CA', 'SE', 'VI'].includes(item.estadoCivil)) {
             addError(`Estado Civil inválido (Col 18). Valor: '${item.estadoCivil}'. Permitidos: SO, UL, CA, SE, VI.`, 'estadoCivil');
+        }
+
+        // Celular (Col 21)
+        if (item.celular) {
+            if (!/^\d+$/.test(item.celular)) {
+                addError(`Teléfono móvil inválido (Col 21). Valor: '${item.celular}'. Solo debe contener números.`, 'celular');
+            }
+        } else {
+            addError(`El Teléfono móvil (Col 21) es obligatorio.`, 'celular');
         }
 
         // RH
@@ -368,6 +383,7 @@ export class CruceValidationHelper {
         // C. BATCH INTERNO
         const mapContratos = new Map<string, string[]>(); // key -> itemIds[]
         const mapCorreos = new Map<string, string[]>();   // email -> itemIds[] 
+        const mapCelulares = new Map<string, string[]>(); // celular -> itemIds[]
 
         items.forEach(it => {
             // Contrato duplicado
@@ -381,13 +397,21 @@ export class CruceValidationHelper {
                 if (!mapCorreos.has(e)) mapCorreos.set(e, []);
                 mapCorreos.get(e)?.push(it._id);
             }
+
+            // Celular duplicado
+            if (it.celular) {
+                const c = it.celular.trim();
+                if (!mapCelulares.has(c)) mapCelulares.set(c, []);
+                mapCelulares.get(c)?.push(it._id);
+            }
         });
 
         // Generar issues contrato
         mapContratos.forEach((ids, key) => {
             if (ids.length > 1) {
+                const [contrato, tem] = key.split('-');
                 ids.forEach(id => {
-                    const msg = `Código de contrato duplicado en el archivo (${key}).`;
+                    const msg = `Código de contrato duplicado en el archivo para la temporal ${tem} (${contrato}).`;
                     console.debug(`[Validation Error][Row ID ${id}] ${msg}`);
                     issues.push({
                         id: `batch-contrato-${id}`,
@@ -397,6 +421,31 @@ export class CruceValidationHelper {
                         field: 'contrato'
                     });
                 });
+            }
+        });
+
+        // Generar issues celular
+        mapCelulares.forEach((ids, celular) => {
+            if (ids.length > 1) {
+                const cedulasInvolved = new Set<string>();
+                ids.forEach(id => {
+                    const row = items.find(r => r._id === id);
+                    if (row) cedulasInvolved.add(row.cedula.trim());
+                });
+
+                if (cedulasInvolved.size > 1) {
+                    ids.forEach(id => {
+                        const msg = `Teléfono móvil (${celular}) repetido en el archivo para cédulas distintas.`;
+                        console.debug(`[Validation Error][Row ID ${id}] ${msg}`);
+                        issues.push({
+                            id: `batch-celular-${id}`,
+                            itemId: id,
+                            severity: 'error',
+                            message: msg,
+                            field: 'celular'
+                        });
+                    });
+                }
             }
         });
 

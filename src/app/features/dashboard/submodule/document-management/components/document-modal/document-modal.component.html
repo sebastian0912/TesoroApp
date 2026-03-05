@@ -7,8 +7,10 @@
         <mat-icon class="header-icon">folder_special</mat-icon>
       </div>
       <div class="header-text">
-        <h2 class="titulo" style="margin: 0 !important;">{{ data.isEdit ? 'Editar Tipo Documental' : 'Nuevos Tipos Documentales' }}</h2>
-        <p class="subtitulo" style="margin: 0 !important;">{{ data.isEdit ? 'Modifica los detalles del elemento existente.' : 'Define y agrega múltiples tipos a la estructura.' }}</p>
+        <h2 class="titulo" style="margin: 0 !important;">{{ data.isEdit ? 'Editar Tipo Documental' : 'Nuevos Tipos
+          Documentales' }}</h2>
+        <p class="subtitulo" style="margin: 0 !important;">{{ data.isEdit ? 'Modifica los detalles del elemento
+          existente.' : 'Define y agrega múltiples tipos a la estructura.' }}</p>
       </div>
     </div>
     <button mat-icon-button (click)="cancel()" class="close-btn btn-managerial-icon" tabindex="-1" style="z-index: 1;">
@@ -30,18 +32,6 @@
         <input matInput formControlName="name" placeholder="Ej. Contratos Laborales" autocomplete="off">
         <mat-error *ngIf="form.get('name')?.hasError('required')">El nombre es obligatorio</mat-error>
       </mat-form-field>
-
-      <mat-form-field appearance="outline" class="full-width">
-        <mat-label>Etiquetas</mat-label>
-        <mat-select formControlName="tags" multiple placeholder="Seleccionar...">
-          <mat-option *ngFor="let t of availableTags" [value]="t.id">{{t.name}}</mat-option>
-        </mat-select>
-      </mat-form-field>
-
-      <mat-form-field *ngIf="isAddingNewTag" appearance="outline" class="full-width animate-fade">
-        <mat-label>Nombre Nueva Etiqueta</mat-label>
-        <input matInput formControlName="newTagName" placeholder="Ej. Confidencial">
-      </mat-form-field>
     </div>
 
 
@@ -61,21 +51,8 @@
           </mat-form-field>
 
           <div class="row-inputs">
-            <mat-form-field appearance="outline" class="flex-1 density-compact">
-              <mat-label>Tags (Opcional)</mat-label>
-              <mat-select formControlName="tags" multiple>
-                <mat-option *ngFor="let t of availableTags" [value]="t.id">{{t.name}}</mat-option>
-              </mat-select>
-            </mat-form-field>
-
             <mat-checkbox formControlName="estado" color="primary" class="status-check">Activo</mat-checkbox>
           </div>
-
-          <mat-form-field *ngIf="isAddingNewTagInput" appearance="outline"
-            class="full-width density-compact animate-fade">
-            <mat-label>Nueva Etiqueta</mat-label>
-            <input matInput formControlName="newTagName">
-          </mat-form-field>
 
           <button mat-flat-button color="accent" class="btn-add-queue" (click)="addToQueue()"
             [disabled]="inputForm.invalid">
@@ -97,7 +74,6 @@
               <span class="q-name">{{ item.value.name }}</span>
               <div class="q-meta">
                 <span class="status-dot" [class.active]="item.value.estado"></span>
-                <span *ngIf="item.value.tags?.length">{{ item.value.tags.length }} tags</span>
               </div>
             </div>
             <button mat-icon-button color="warn" class="btn-remove" (click)="removeFromQueue(i)">

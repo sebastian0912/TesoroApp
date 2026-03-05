@@ -1,0 +1,114 @@
+.dialog-form-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    padding: 8px 0;
+}
+
+.form-field-wrapper {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.field-label {
+    font-size: 13px;
+    font-weight: 700;
+    color: #334155;
+    margin: 0;
+}
+
+.text-danger {
+    color: #ef4444;
+}
+
+.text-field-managerial {
+    width: 100%;
+}
+
+::ng-deep .text-field-managerial .mat-mdc-text-field-wrapper {
+    background-color: #f8fafc !important;
+}
+
+::ng-deep .text-field-managerial.mat-focused .mat-mdc-text-field-wrapper {
+    background-color: #ffffff !important;
+}
+
+::ng-deep .text-field-managerial .mat-mdc-form-field-error-wrapper {
+    padding: 0;
+    margin-top: -16px;
+}
+
+::ng-deep .text-field-managerial .mat-icon {
+    color: #94a3b8;
+    margin-right: 8px;
+}
+
+::ng-deep .text-field-managerial.mat-focused .mat-icon {
+    color: #3b82f6;
+}
+
+/* --- PREMIUM DIALOG HEADER --- */
+.sf-filters-dialog__header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    padding: 24px 32px;
+    background: linear-gradient(135deg, #0f172a 0%, #1e293b 60%, #334155 100%);
+    border-radius: 12px 12px 0 0;
+    margin: -24px -24px 24px -24px;
+    /* Compensate for mat-dialog-container padding if any, although we might rely on global dialog padding zeroing. Let's assume standard container padding. Assuming mat-dialog-content handles inner padding, we can just style the header */
+}
+
+/* If the dialog doesn't have 0 padding by default, we pull negative margins */
+:host {
+    display: block;
+    margin: -24px;
+    background: #ffffff;
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+.sf-filters-dialog__body {
+    padding: 24px;
+}
+
+.sf-filters-dialog__footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    padding: 16px 24px;
+    background-color: #f8fafc;
+    border-top: 1px solid #e2e8f0;
+}
+
+.sf-filters-dialog__title h2 {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 1.25rem !important;
+    font-weight: 700;
+    color: #ffffff;
+    margin: 0;
+}
+
+.sf-filters-dialog__title h2 mat-icon {
+    color: #8CD50A;
+    /* Use the brand accent color for the icon instead of blue */
+}
+
+.sf-filters-dialog__title p {
+    font-size: 0.85rem;
+    color: #cbd5e1;
+    margin-top: 4px;
+    margin-bottom: 0;
+}
+
+.sf-filters-dialog__close {
+    color: #94a3b8 !important;
+}
+
+.sf-filters-dialog__close:hover {
+    color: #ffffff !important;
+    background-color: rgba(255, 255, 255, 0.1);
+}
