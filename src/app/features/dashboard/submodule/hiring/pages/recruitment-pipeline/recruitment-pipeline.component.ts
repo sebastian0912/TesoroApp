@@ -127,7 +127,7 @@ export class RecruitmentPipelineComponent {
   // Un archivo por examen seleccionado (mapeo por índice)
   examFiles = signal<File[]>([]);
 
-  readonly typeMap: Record<string, number> = { examenesMedicos: 56, arl: 50 };
+  readonly typeMap: Record<string, number> = { examenesMedicos: 32, arl: 30 };
 
   readonly filteredExamOptions: string[] = [
     'Exámen Ingreso', 'Colinesterasa', 'Glicemia Basal', 'Perfil lípidico', 'Visiometria', 'Optometría', 'Audiometría',

@@ -56,10 +56,10 @@ export class HiringQuestionsComponent implements OnInit {
   serverDocs: Record<string, ServerDocInfo> = {};
 
   private readonly typeMap: Record<string, number> = {
-    personal1: 28, personal2: 28,
-    familiar1: 27, familiar2: 27,
-    traslado: 62,
-    laboral1: 26, laboral2: 26,
+    personal1: 16, personal2: 16,
+    familiar1: 17, familiar2: 17,
+    traslado: 18,
+    laboral1: 86, laboral2: 86,
   };
 
   // Lista de tarjetas disponibles (objetos completos)

@@ -191,7 +191,8 @@ export class CargarMercadoFeriasComponent implements OnInit {
       // 3. Calcular saldo y verificar condiciones
       this.sumaPrestamos = this.autorizacionesService.traerSaldoPendiente(this.datosOperario);
 
-      if (this.rolUsuario != "GERENCIA" && this.correoUsuario != "mercarflorats@gmail.com" && this.correoUsuario != "mercarflora2.ts@gmail.com" && this.correoUsuario != "servicioalcliente.tuapo1@gmail.com") {
+      const rolesLibres = ['TIENDA', 'ADMIN', 'GERENCIA'];
+      if (!rolesLibres.includes(this.rolUsuario) && this.correoUsuario != "mercarflorats@gmail.com" && this.correoUsuario != "mercarflora2.ts@gmail.com" && this.correoUsuario != "servicioalcliente.tuapo1@gmail.com") {
         const verifica = this.autorizacionesService.verificarCondiciones(
           this.datosOperario, valorNumerico, this.sumaPrestamos, 'mercado'
         );

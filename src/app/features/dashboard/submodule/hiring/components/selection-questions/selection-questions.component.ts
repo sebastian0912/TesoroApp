@@ -150,8 +150,8 @@ export class SelectionQuestionsComponent {
 
   /* -------- Documentos -------- */
   readonly typeMap: Record<DocKey, number> = {
-    eps: 48, policivos: 8, procuraduria: 5, contraloria: 6, medidasCorrectivas: 11,
-    afp: 49, ramaJudicial: 8, sisben: 10, ofac: 7, figuraHumana: 32, pensionSemanas: 53
+    eps: 36, policivos: 6, procuraduria: 3, contraloria: 4, medidasCorrectivas: 10,
+    afp: 11, ramaJudicial: 12, sisben: 8, ofac: 5, figuraHumana: 31, pensionSemanas: 33
   };
   uploadedFiles: Record<DocKey, UploadedFileInfo> = { ...DEFAULT_UPLOADED_FILES };
 

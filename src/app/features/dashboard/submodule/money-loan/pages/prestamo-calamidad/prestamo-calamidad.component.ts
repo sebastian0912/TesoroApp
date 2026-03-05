@@ -198,7 +198,8 @@ export class PrestamoCalamidadComponent implements OnInit, OnDestroy {
     const montoAutorizado = Number(this.transaccionSeleccionada.autorizacion_monto);
 
     if (valorNumerico <= 0) { Swal.fire('Error', 'El valor debe ser mayor a 0.', 'error'); return; }
-    if (valorNumerico > montoAutorizado) {
+    const rolesLibres = ['TIENDA', 'ADMIN', 'GERENCIA'];
+    if (!rolesLibres.includes(this.rolUsuario) && valorNumerico > montoAutorizado) {
       Swal.fire('Error', `El valor ($${this.formatCurrency(valorNumerico)}) excede el autorizado ($${this.formatCurrency(montoAutorizado)}).`, 'error');
       return;
     }
