@@ -36,15 +36,23 @@
           <div class="docs-list" role="list">
             <div class="doc-item" *ngFor="let doc of documentos" role="listitem">
 
-              <div class="doc-item-icon" [ngClass]="{'has-file': uploadedFiles[doc.titulo]}">
-                <mat-icon>{{ uploadedFiles[doc.titulo] ? 'task' : 'insert_drive_file' }}</mat-icon>
+              <div class="doc-item-icon"
+                [ngClass]="{'has-file': uploadedFiles[doc.titulo] || existingDocs[doc.titulo]}">
+                <mat-icon>{{ (uploadedFiles[doc.titulo] || existingDocs[doc.titulo]) ? 'task' : 'insert_drive_file'
+                  }}</mat-icon>
               </div>
 
               <div class="doc-item-info">
                 <h3 class="doc-item-title" [matTooltip]="doc.titulo">{{ doc.titulo }}</h3>
                 <p class="doc-item-status">
-                  <span *ngIf="uploadedFiles[doc.titulo]" class="status-badge success">Completado</span>
-                  <span *ngIf="!uploadedFiles[doc.titulo]" class="status-badge pending">Pendiente</span>
+                  <span *ngIf="uploadedFiles[doc.titulo] || existingDocs[doc.titulo]"
+                    class="status-badge success">Completado</span>
+                  <span *ngIf="!uploadedFiles[doc.titulo] && !existingDocs[doc.titulo]"
+                    class="status-badge pending">Pendiente</span>
+                </p>
+                <p class="doc-item-date" *ngIf="uploadedFiles[doc.titulo] || existingDocs[doc.titulo]?.date">
+                  Actualizado: {{ uploadedFiles[doc.titulo] ? (today | date:'shortDate') :
+                  (existingDocs[doc.titulo].date | date:'shortDate') }}
                 </p>
               </div>
 
@@ -57,7 +65,7 @@
                 </ng-container>
 
                 <button mat-icon-button class="action-btn" matTooltip="Ver PDF" (click)="verPDF(doc)"
-                  [disabled]="!uploadedFiles[doc.titulo]">
+                  [disabled]="!uploadedFiles[doc.titulo] && !existingDocs[doc.titulo]">
                   <mat-icon>visibility</mat-icon>
                 </button>
 

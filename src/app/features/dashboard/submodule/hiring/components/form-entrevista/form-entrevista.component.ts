@@ -156,6 +156,9 @@ export class FormEntrevistaComponent implements OnInit {
     'estado_civil',
   ];
   private readonly step3Fields = [
+    'correo_electronico',
+    'password',
+    'direccion_de_residencia',
     'barrio',
     'celular',
     'whatsapp',
@@ -211,6 +214,15 @@ export class FormEntrevistaComponent implements OnInit {
       estado_civil: ['', Validators.required],
 
       // Contacto / domicilio
+      correo_electronico: [
+        '',
+        [
+          Validators.required,
+          Validators.pattern(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)
+        ]
+      ],
+      password: [''],
+      direccion_de_residencia: ['', Validators.required],
       barrio: [
         '',
         [
@@ -993,7 +1005,8 @@ export class FormEntrevistaComponent implements OnInit {
         mpio_nacimiento: info_cc?.mpio_nacimiento || '',
         sexo: cand?.sexo || '',
         estado_civil: estadoCivilQuick || '',
-
+        correo_electronico: contacto?.email || contacto?.correo_electronico || '',
+        direccion_de_residencia: residencia?.direccion || residencia?.direccion_de_residencia || '',
         barrio: residencia?.barrio || '',
         celular: contacto?.celular || '',
         whatsapp: contacto?.whatsapp || '',

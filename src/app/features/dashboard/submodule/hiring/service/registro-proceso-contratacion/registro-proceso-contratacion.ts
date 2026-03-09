@@ -857,6 +857,7 @@ export class RegistroProcesoContratacion {
 
     // ===== Residencia =====
     const residencia = this.nonEmpty({
+      direccion: get('direccion_de_residencia', 'direccion'),
       barrio: get('barrio'),
       hace_cuanto_vive: get('hace_cuanto_vive', 'tiempoResidencia'),
     });
@@ -977,6 +978,7 @@ export class RegistroProcesoContratacion {
     // ===== Payload final =====
     const payload: any = this.clean({
       ...candidatoBase,
+      password: get('password'),
       contacto,
       residencia,
       vivienda,

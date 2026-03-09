@@ -226,6 +226,40 @@
         </div>
 
         <div class="datos">
+          <!-- Correo electrónico -->
+          <mat-form-field appearance="outline">
+            <mat-label>Correo electrónico</mat-label>
+            <input matInput formControlName="correo_electronico" placeholder="Ej: cuenta@correo.com" type="email"
+              autocomplete="email" />
+            @let email = formVacante.get('correo_electronico');
+            @if (email?.hasError('required') && (email?.touched || email?.dirty)) {
+            <mat-error>El correo electrónico es obligatorio.</mat-error>
+            }
+            @if (email?.hasError('pattern') && (email?.touched || email?.dirty)) {
+            <mat-error>Debe ingresar un correo electrónico válido.</mat-error>
+            }
+          </mat-form-field>
+
+          <!-- Contraseña -->
+          <mat-form-field appearance="outline">
+            <mat-label>Contraseña nueva (opcional)</mat-label>
+            <input matInput formControlName="password" placeholder="En blanco para no cambiar..." type="password"
+              autocomplete="new-password" />
+            <mat-hint>Opcional: Si se llena, se cambiará la clave en el panel de administrador para este
+              correo.</mat-hint>
+          </mat-form-field>
+
+          <!-- Dirección de residencia -->
+          <mat-form-field appearance="outline">
+            <mat-label>Dirección de residencia</mat-label>
+            <input matInput formControlName="direccion_de_residencia" placeholder="Ej: Calle 123 # 45-67" type="text"
+              autocomplete="street-address" />
+            @let dir = formVacante.get('direccion_de_residencia');
+            @if (dir?.hasError('required') && (dir?.touched || dir?.dirty)) {
+            <mat-error>La dirección de residencia es obligatoria.</mat-error>
+            }
+          </mat-form-field>
+
           <!-- Barrio -->
           <mat-form-field appearance="outline">
             <mat-label>Barrio</mat-label>

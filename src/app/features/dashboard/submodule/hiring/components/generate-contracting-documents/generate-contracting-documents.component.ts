@@ -36,6 +36,7 @@ type UploadedInfo = {
 export class GenerateContractingDocumentsComponent implements OnInit {
   @ViewChild('pdfPreviewIframe') pdfPreviewIframe!: ElementRef<HTMLIFrameElement>;
   pdfSafeUrl: SafeResourceUrl | null = null;
+  today = new Date();
 
   cedula: string = '';
   nombreCompletoLogin: string = '';
@@ -150,6 +151,9 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     'FICHA_SOCIAL': 98,
   };
 
+  // Diccionario para almacenar info de documentos ya existentes en base de datos
+  existingDocs: { [key: string]: { date: string, url: string } } = {};
+
   async ngOnInit(): Promise<void> {
     // SSR: no hagas nada del navegador
     if (!isPlatformBrowser(this.platformId)) {
@@ -195,12 +199,41 @@ export class GenerateContractingDocumentsComponent implements OnInit {
           .pipe(take(1), catchError(() => of(null)))
         : of(null);
 
+      const docsBackend$ = this.cedula
+        ? this.gestionDocumentalService.getDocuments(this.cedula).pipe(take(1), catchError(() => of([])))
+        : of([]);
+
       // 5) Ejecutar, cargar vacante (si hay), y setear estado
-      forkJoin({ datoCandidato: datoCandidato$, datoAdministrativo: datoAdministrativo$ })
+      forkJoin({ datoCandidato: datoCandidato$, datoAdministrativo: datoAdministrativo$, docsBackend: docsBackend$ })
         .pipe(
-          switchMap(({ datoCandidato, datoAdministrativo }) => {
+          switchMap(({ datoCandidato, datoAdministrativo, docsBackend }) => {
             this.candidato = datoCandidato;
             console.log('datoCandidato', datoCandidato);
+
+            // Mapear documentos existentes
+            this.existingDocs = {};
+            if (Array.isArray(docsBackend)) {
+              // Invertir typeMap para buscar título por ID
+              const idToTitle: { [key: number]: string } = {};
+              for (const [title, typeId] of Object.entries(this.typeMap)) {
+                idToTitle[typeId] = title;
+              }
+
+              docsBackend.forEach((doc: any) => {
+                const title = idToTitle[doc.type];
+                if (title) {
+                  // Si ya existe (pueden haber varias versiones), guardamos la más reciente
+                  // assuming they come sorted or we just overwrite (the last one usually is the newest or oldest depending on backend order)
+                  // Usually it's better to verify if it has a date
+                  this.existingDocs[title] = {
+                    date: doc.created_at || doc.updated_at || '',
+                    url: doc.file_url || doc.file || doc.current_file?.url || ''
+                  };
+                }
+              });
+
+              console.log('existingDocs cargados:', this.existingDocs);
+            }
 
             this.firma = datoCandidato?.biometria?.firma?.file_url ?? '';
             this.huella = datoCandidato?.biometria?.huella?.file_url ?? '';
@@ -303,6 +336,8 @@ export class GenerateContractingDocumentsComponent implements OnInit {
 
   verPDF(doc: { titulo: string }) {
     const fileData = this.uploadedFiles[doc.titulo];
+    const existingDateUrl = this.existingDocs[doc.titulo]?.url;
+
     if (fileData?.file) {
       const fileReader = new FileReader();
       fileReader.onload = () => {
@@ -311,6 +346,9 @@ export class GenerateContractingDocumentsComponent implements OnInit {
         this.setPdfPreview(pdfUrl);
       };
       fileReader.readAsArrayBuffer(fileData.file);
+    } else if (existingDateUrl) {
+      // Si existe en el backend, se muestra la URL remota
+      this.setPdfPreview(existingDateUrl);
     } else {
       Swal.fire({
         icon: 'error',
