@@ -529,7 +529,7 @@ export class HiringReportComponent implements OnInit, OnDestroy {
     const file = this.files.cruceDiario![0];
     const wb = await this.readExcel(file);
     const sheet = wb.Sheets[wb.SheetNames[0]];
-    const rawJson = XLSX.utils.sheet_to_json<any[]>(sheet, { header: 1, defval: '-', raw: false, dateNF: 'dd/mm/yyyy' });
+    const rawJson = XLSX.utils.sheet_to_json<any[]>(sheet, { header: 1, defval: '-', raw: true });
 
     if (rawJson.length < 2) throw new Error('Excel vacío o sin datos');
 
@@ -658,7 +658,7 @@ export class HiringReportComponent implements OnInit, OnDestroy {
 
     // Normalize Dates (Col 8, 16, 24, 44 [AnioFin can be date])
     [8, 16, 24, 44].forEach(idx => {
-      if (safe[idx] && safe[idx] !== '-' && safe[idx].length > 5) {
+      if (safe[idx] && safe[idx] !== '-' && safe[idx].length >= 4) {
         safe[idx] = this.tryNormalizeDate(safe[idx]);
       }
     });
@@ -674,10 +674,13 @@ export class HiringReportComponent implements OnInit, OnDestroy {
     if (/^\d+(\.\d+)?$/.test(val)) {
       const serial = Number(val);
       if (serial > 20000 && serial < 80000) {
-        const excelEpoch = new Date(1899, 11, 30);
-        const d = new Date(excelEpoch.getTime() + serial * 24 * 60 * 60 * 1000);
+        // Excel epoch is Jan 1, 1900, but falsely treats 1900 as a leap year.
+        // Therefore, dates after Feb 28, 1900 can be treated as if the epoch was Dec 30, 1899.
+        // We use UTC to prevent timezone offsets from pushing midnight backwards into the previous day.
+        const ms = Date.UTC(1899, 11, 30) + (serial * 24 * 60 * 60 * 1000);
+        const d = new Date(ms);
         if (!isNaN(d.getTime())) {
-          return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+          return `${String(d.getUTCDate()).padStart(2, '0')}/${String(d.getUTCMonth() + 1).padStart(2, '0')}/${d.getUTCFullYear()}`;
         }
       }
     }
@@ -776,7 +779,7 @@ export class HiringReportComponent implements OnInit, OnDestroy {
   private async processArl(file: File) {
     const wb = await this.readExcel(file);
     const sheet = wb.Sheets[wb.SheetNames[0]];
-    const data = XLSX.utils.sheet_to_json<any[]>(sheet, { header: 1, defval: '', raw: false, dateNF: 'dd/mm/yyyy' });
+    const data = XLSX.utils.sheet_to_json<any[]>(sheet, { header: 1, defval: '', raw: true });
 
     if (data.length < 2) throw new Error('ARL vacío');
 
@@ -855,8 +858,13 @@ export class HiringReportComponent implements OnInit, OnDestroy {
             dArl = new Date(Number(parts[2]), Number(parts[1]) - 1, Number(parts[0]));
           }
         } else if (typeof rawFechaArl === 'number') {
-          const excelEpoch = new Date(1899, 11, 30);
-          dArl = new Date(excelEpoch.getTime() + rawFechaArl * 24 * 60 * 60 * 1000);
+          const ms = Date.UTC(1899, 11, 30) + (rawFechaArl * 24 * 60 * 60 * 1000);
+          const d = new Date(ms);
+          // CruceValidationHelper.parseDate returns local midnight Date(Y, M, D).
+          // We must match it exactly, so we build a local midnight Date from the UTC Y/M/D.
+          if (!isNaN(d.getTime())) {
+            dArl = new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+          }
         }
 
         const fmtArl = dArl && !isNaN(dArl.getTime())
@@ -947,8 +955,11 @@ export class HiringReportComponent implements OnInit, OnDestroy {
         if (strArl.includes('/')) {
           dArl = CruceValidationHelper.parseDate(strArl);
         } else if (typeof rawFechaArl === 'number') {
-          const excelEpoch = new Date(1899, 11, 30);
-          dArl = new Date(excelEpoch.getTime() + rawFechaArl * 24 * 60 * 60 * 1000);
+          const ms = Date.UTC(1899, 11, 30) + (rawFechaArl * 24 * 60 * 60 * 1000);
+          const d = new Date(ms);
+          if (!isNaN(d.getTime())) {
+            dArl = new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+          }
         } else if (strArl.includes('-')) {
           const parts = strArl.split('-');
           if (parts[0].length === 4) {

@@ -3,15 +3,23 @@
   <mat-card-content
     style="display: flex; flex-direction: column; flex: 1; overflow: hidden; padding: 16px; box-sizing: border-box;">
 
-    <div class="header">
-      <div class="info-candidato-titulo">
-        <mat-icon>person</mat-icon>
-        <span class="info-candidato-label">Cédula:</span>
-        <span class="info-candidato-valor">{{ numeroDocumento }}</span>
-        <span class="info-candidato-label">| Nombre:</span>
-        <span class="info-candidato-valor">{{ nombreCandidato }}</span>
+    <div class="header premium-pipeline-header">
+      <div class="info-candidato-titulo candidate-info-badge">
+        <div class="avatar-placeholder">
+          <mat-icon>person</mat-icon>
+        </div>
+        <div class="candidate-details">
+          <div class="detail-row">
+            <span class="info-candidato-label">Cédula:</span>
+            <span class="info-candidato-valor">{{ numeroDocumento || 'Sin selección' }}</span>
+          </div>
+          <div class="detail-row">
+            <span class="info-candidato-label" style="margin-left:0 !important">Nombre:</span>
+            <span class="info-candidato-valor">{{ nombreCandidato || 'Seleccione un candidato' }}</span>
+          </div>
+        </div>
       </div>
-      <div class="botones">
+      <div class="botones premium-toolbar">
         <!-- Botón enviar correo bienvenida -->
         <button mat-icon-button matTooltip="Confirmar Correo de Bienvenida" aria-label="Confirmar Correo de Bienvenida"
           (click)="confirmarCorreoBienvenida()" [disabled]="!candidatoSeleccionado()?.numero_documento"
@@ -29,6 +37,12 @@
           [matBadgeColor]="candidatoSeleccionado()?.contacto?.whatsapp_confirmado ? 'primary' : 'warn'"
           matBadgeOverlap="true" [matBadgeHidden]="!candidatoSeleccionado()?.contacto?.whatsapp_confirmado">
           <mat-icon>chat</mat-icon>
+        </button>
+
+        <!-- Botón generar carnet individual -->
+        <button mat-icon-button matTooltip="Generar Carnet (PDF)" aria-label="Generar Carnet (PDF)"
+          (click)="generarCarnetIndividual()" [disabled]="!candidatoSeleccionado()?.numero_documento">
+          <mat-icon>badge</mat-icon>
         </button>
 
         <!-- Botón de documentos -->
@@ -189,25 +203,44 @@
           </mat-form-field>
 
           <!-- Campos dinámicos para cada examen seleccionado -->
-          <div formArrayName="selectedExamsArray">
-            <div *ngFor="let exam of formGroup3.get('selectedExams')?.value; let i = index" [formGroupName]="i">
+          <div formArrayName="selectedExamsArray" class="medical-exams-grid">
+            <div class="medical-exam-item" *ngFor="let exam of formGroup3.get('selectedExams')?.value; let i = index"
+              [formGroupName]="i">
+
+              <div class="exam-item-header">
+                <mat-icon class="exam-icon">medical_information</mat-icon>
+                <div class="exam-title">{{ exam }}</div>
+              </div>
+
               <!-- Estado Apto/No Apto requerido -->
-              <mat-form-field appearance="outline" class="example-full-width">
-                <mat-label>{{ exam }}</mat-label>
+              <mat-form-field appearance="outline" class="exam-status-field">
+                <mat-label>Estado</mat-label>
                 <mat-select formControlName="aptoStatus" required>
                   <mat-option value="APTO">APTO</mat-option>
                   <mat-option value="NO APTO">NO APTO</mat-option>
                 </mat-select>
                 <mat-error *ngIf="formGroup3.get('selectedExamsArray')?.get(i.toString())?.get('aptoStatus')?.hasError('required')
                     && formGroup3.get('selectedExamsArray')?.get(i.toString())?.get('aptoStatus')?.touched">
-                  Este campo es requerido
+                  Requerido
                 </mat-error>
               </mat-form-field>
 
-              <!-- Subir PDF -->
-              <input type="file" accept="application/pdf" (change)="onFileSelected($event, i)" />
-              <p *ngIf="examFiles()[i]">Archivo seleccionado: {{
-                examFiles()[i].name }}</p>
+              <!-- Subir PDF Compacto -->
+              <div class="medical-upload-compact" (click)="fileInput.click()" [class.has-file]="examFiles()[i]">
+                <input type="file" accept="application/pdf" (change)="onFileSelected($event, i)"
+                  class="file-upload-input" #fileInput />
+
+                <ng-container *ngIf="!examFiles()[i]">
+                  <mat-icon>upload_file</mat-icon>
+                  <span>Adjuntar PDF</span>
+                </ng-container>
+
+                <ng-container *ngIf="examFiles()[i]">
+                  <mat-icon class="success-icon">check_circle</mat-icon>
+                  <span class="file-name-text" [title]="examFiles()[i].name">{{ examFiles()[i].name }}</span>
+                </ng-container>
+              </div>
+
             </div>
           </div>
 

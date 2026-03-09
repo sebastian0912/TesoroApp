@@ -1,7 +1,12 @@
 /* ===== Tipografías ===== */
-@import url('https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600;700;800&display=swap');
-@import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;600;700&display=swap');
-@import url('https://fonts.googleapis.com/icon?family=Material+Icons');
+@import "@fontsource/open-sans/400.css";
+@import "@fontsource/open-sans/600.css";
+@import "@fontsource/open-sans/700.css";
+@import "@fontsource/open-sans/800.css";
+
+@import "@fontsource/oswald/400.css";
+@import "@fontsource/oswald/600.css";
+@import "@fontsource/oswald/700.css";
 
 /* ========= Base ========= */
 html,
@@ -48,14 +53,11 @@ h1 {
 .cards-stack {
   display: grid;
   gap: 12px;
-  padding: 10pt;
+  padding: 10pt 0;
 }
 
 .card {
-  padding: 12px;
-  border-radius: 12px;
-  background: #fff;
-  box-shadow: 0 1px 6px rgba(0, 0, 0, .06);
+  padding: 16px 0;
 }
 
 .card-title {
@@ -67,10 +69,8 @@ h1 {
 
 .section {
   width: 100%;
-  border-radius: 12px;
-  padding: 16px;
+  padding: 24px 0;
   margin: 16px 0;
-  box-shadow: 0 1px 6px rgba(0, 0, 0, .06);
   box-sizing: border-box;
 }
 
@@ -82,7 +82,10 @@ h1 {
 }
 
 .section-title {
-  font-weight: 600;
+  font-weight: 700;
+  color: #1e293b;
+  font-size: 1.1rem;
+  letter-spacing: -0.01em;
 }
 
 /* Grids utilitarias */
@@ -223,6 +226,9 @@ mat-icon,
   scroll-snap-type: x proximity;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: thin;
+
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 60%, #334155 100%) !important;
+  border-radius: 12px 12px 0 0;
 }
 
 /* Sin línea conectora */
@@ -249,10 +255,26 @@ mat-icon,
   /* estilo "pill" opcional */
   white-space: normal;
   /* permitir salto de línea en el texto */
+  color: #cbd5e1 !important;
+}
+
+:host ::ng-deep .mat-step-header .mat-step-icon {
+  background-color: rgba(255, 255, 255, 0.1) !important;
+  color: #cbd5e1 !important;
 }
 
 :host ::ng-deep .mat-step-header:hover {
-  background: rgba(0, 0, 0, 0.04);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+:host ::ng-deep .mat-step-header[aria-selected="true"] {
+  color: #ffffff !important;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+:host ::ng-deep .mat-step-header[aria-selected="true"] .mat-step-icon {
+  background-color: #3b82f6 !important;
+  color: #ffffff !important;
 }
 
 /* Tamaño del círculo del número */
@@ -334,4 +356,34 @@ mat-icon,
   :host ::ng-deep .mat-horizontal-stepper-header-container {
     padding: 10px 16px 12px;
   }
+}
+
+/* ==================================
+   NOVEDAD: Estilos Especiales Managerial
+   (Entrevista & Confirmación)
+===================================== */
+.outline-section {
+  padding: 24px 0;
+}
+
+.centered-title {
+  text-align: center;
+  color: #1e293b;
+  font-size: 1.15rem;
+  margin-bottom: 24px;
+}
+
+.grid-managerial-entrevista {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: flex-start;
+  width: 100%;
+}
+
+.grid-managerial-entrevista>mat-form-field {
+  flex: 1 1 200px;
+  min-width: 0;
+  /* Prevent overflow */
+  margin: 0 !important;
 }

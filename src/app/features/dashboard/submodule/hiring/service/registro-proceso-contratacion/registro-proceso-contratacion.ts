@@ -235,7 +235,7 @@ export interface ProcesoUpdateByDocumentRequest {
   contrato_detalle?: {
     forma_de_pago?: string | null;
     numero_para_pagos?: string | null;
-    numero_identificacion?: string | null; // New field
+    identification_number_tarjeta?: string | null; // New field
     seguro_funerario?: boolean | null;
     Ccentro_de_costos?: string | null;
     porcentaje_arl?: number | null;

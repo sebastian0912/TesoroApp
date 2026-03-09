@@ -5,6 +5,7 @@
   gap: 4px;
   min-width: 280px;
   max-width: 100%;
+  padding: 16px 0;
 }
 
 mat-form-field.example-full-width {
@@ -32,6 +33,41 @@ mat-tab-group {
   height: 100%;
 }
 
+::ng-deep .mat-mdc-tab-header {
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 60%, #334155 100%) !important;
+  border-radius: 12px 12px 0 0;
+  border: none;
+  padding: 0 8px;
+}
+
+::ng-deep .mat-mdc-tab .mdc-tab__text-label {
+  font-family: inherit;
+  font-weight: 600 !important;
+  letter-spacing: 0.3px;
+  color: #cbd5e1 !important;
+  transition: all 0.3s !important;
+}
+
+::ng-deep .mat-mdc-tab .mat-icon {
+  font-weight: 600 !important;
+  color: #cbd5e1 !important;
+  transition: all 0.3s !important;
+}
+
+::ng-deep .mat-mdc-tab.mdc-tab--active .mdc-tab__text-label,
+::ng-deep .mat-mdc-tab.mdc-tab--active .mat-icon {
+  color: #ffffff !important;
+}
+
+::ng-deep .mat-mdc-tab.mdc-tab--active {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 12px 12px 0 0;
+}
+
+::ng-deep .mat-mdc-tab-indicator__inner--theme-demo {
+  border-color: #3b82f6 !important;
+}
+
 .tab {
   display: flex;
   flex-direction: column;
@@ -45,22 +81,42 @@ mat-tab-group {
 }
 
 .tab-content-scrollable {
-  min-height: 75vh;
-  max-height: 80vh;
+  flex: 1;
+  min-height: 0;
   width: 100%;
   max-width: 100%;
   overflow-y: auto;
-  padding: 16px 8px 16px 16px;
+  padding: 24px 16px 16px;
   box-sizing: border-box;
+}
+
+/* Managerial Grid for forms */
+.grid-managerial {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 16px 24px;
+  align-items: start;
+}
+
+/* Neutralizar estilos globales heredados (max-width 30%) */
+:host ::ng-deep .grid-managerial .example-full-width {
+  max-width: 100% !important;
+  height: auto !important;
+  margin: 0 !important;
 }
 
 /*─────────────────────  TARJETA DE HUELLAS  ───────────────*/
 .fingerprint-card {
   margin: 16px 0;
-  border-radius: 8px;
-  padding: 16px;
+  padding: 24px 0;
   width: 65% !important;
-  box-shadow: 0px 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.fingerprint-card h3 {
+  color: #1e293b;
+  font-weight: 700;
+  margin-bottom: 20px;
+  font-size: 1.1rem;
 }
 
 .left-section {
@@ -88,12 +144,17 @@ button {
 
 /*─────────────────────  IMAGEN DE HUELLAS  ───────────────*/
 .fingerprint-image-container img {
-  margin-left: 10pt;
+  margin-top: 16px;
   width: 100pt;
   height: auto;
-  border-radius: 8px;
-  border: 1px solid #ddd;
-  box-shadow: 0px 1px 3px rgba(0, 0, 0, 0.2);
+  border-radius: 12px;
+  border: 2px solid #e2e8f0;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  transition: transform 0.2s ease;
+}
+
+.fingerprint-image-container img:hover {
+  transform: scale(1.05);
 }
 
 /*─────────────────────  REFERENCIAS  ───────────────*/
@@ -101,8 +162,9 @@ button {
 .referencias {
   display: flex;
   flex-wrap: wrap;
-  justify-content: center;
-  gap: 16px;
+  justify-content: flex-start;
+  gap: 20px;
+  padding: 24px 0;
 }
 
 /*─────────────────────  AJUSTES RESPONSIVOS Y CAMPOS  ───────────────*/

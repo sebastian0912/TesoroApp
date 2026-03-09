@@ -118,12 +118,13 @@
 .documents-layout {
   display: flex;
   gap: 24px;
-  min-height: 70vh;
+  height: calc(100vh - 220px);
+  min-height: 600px;
 }
 
 /* === LEFT PANEL: DOCUMENTS LIST === */
 .docs-list-panel {
-  flex: 0 0 380px;
+  flex: 0 0 420px;
   display: flex;
   flex-direction: column;
   background: #f8fafc;
@@ -234,9 +235,7 @@
   font-size: 0.9rem;
   font-weight: 600;
   color: #334155;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  line-height: 1.3;
 }
 
 .doc-item-status {

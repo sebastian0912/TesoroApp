@@ -394,7 +394,7 @@ export class HiringQuestionsComponent implements OnInit {
       contrato_detalle: {
         forma_de_pago?: string | null;
         numero_para_pagos?: string | null;
-        numero_identificacion?: string | null;
+        identification_number_tarjeta?: string | null;
         contrasenia_asignada?: string | null;
         seguro_funerario?: boolean | null;
         Ccentro_de_costos?: string | null;
@@ -413,7 +413,7 @@ export class HiringQuestionsComponent implements OnInit {
       contrato_detalle: {
         forma_de_pago: v.formaPago ?? null,
         numero_para_pagos: v.numeroPagos ?? null,
-        numero_identificacion: v.numeroIdentificacion ?? null,
+        identification_number_tarjeta: v.numeroIdentificacion ?? null,
         contrasenia_asignada: v.contraseniaAsignada ?? null,
         seguro_funerario: !!v.seguroFunerario,
         Ccentro_de_costos: v.Ccostos ?? null,
@@ -880,7 +880,7 @@ export class HiringQuestionsComponent implements OnInit {
     const CONTR_KEYS: Array<keyof typeof contr> = [
       'forma_de_pago', 'numero_para_pagos', 'Ccentro_de_costos', 'porcentaje_arl', 'cesantias',
       'subcentro_de_costos', 'grupo', 'categoria', 'operacion', 'horas_extras', 'seguro_funerario',
-      'desea_trasladarse', 'seleccion_eps', 'contrasenia_asignada', 'numero_identificacion'
+      'desea_trasladarse', 'seleccion_eps', 'contrasenia_asignada', 'identification_number_tarjeta'
     ];
     const contratoVacio = !contr || CONTR_KEYS.every(k => isEmptyValue((contr as any)?.[k]));
     const toNum = (v: any) => (v === '' || v == null ? null : Number(v));
@@ -889,7 +889,7 @@ export class HiringQuestionsComponent implements OnInit {
     this.pagoTransporteForm.patchValue({
       formaPago: contr?.forma_de_pago ?? '',
       numeroPagos: contr?.numero_para_pagos ?? null,
-      numeroIdentificacion: (contr as any)?.numero_identificacion ?? null,
+      numeroIdentificacion: (contr as any)?.identification_number_tarjeta ?? null,
       contraseniaAsignada: contr?.contrasenia_asignada ?? null,
       // validacionNumeroCuenta: contr?.numero_para_pagos ?? null, // eliminado
       seguroFunerario: contr?.seguro_funerario ?? false,

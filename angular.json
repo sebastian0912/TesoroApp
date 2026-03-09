@@ -190,7 +190,14 @@
                   "maximumError": "16MB"
                 }
               ],
-              "optimization": true,
+              "optimization": {
+                "scripts": true,
+                "styles": {
+                  "minify": true,
+                  "inlineCritical": true
+                },
+                "fonts": false
+              },
               "buildOptimizer": true,
               "aot": true,
               "extractLicenses": true,

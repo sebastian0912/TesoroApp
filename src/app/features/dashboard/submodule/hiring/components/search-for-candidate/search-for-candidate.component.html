@@ -1,88 +1,47 @@
-<h1 class="titulo">
-  Ingrese la cédula del usuario a buscar:
-</h1>
+<div class="search-candidate-container">
+  <div class="outline-section">
+    <h3 class="section-title centered-title">
+      <mat-icon style="vertical-align: middle; color: #ffffff; margin-right: 8px;">person_search</mat-icon>
+      Buscar Candidato
+    </h3>
+    <p style="text-align: center; margin-bottom: 24px; color: #475569; font-size: 0.95rem;">
+      Ingrese la cédula del usuario a buscar.
+    </p>
 
-<div class="busqueda-container">
-  <!-- Input -->
-  <mat-form-field appearance="fill" class="input-cedula">
-    <mat-label>Cédula</mat-label>
-    <input matInput type="text" [(ngModel)]="cedula" placeholder="Cédula">
-  </mat-form-field>
+    <div class="grid-managerial-entrevista">
+      <!-- Input de Cédula -->
+      <mat-form-field appearance="outline" class="input-cedula" style="flex: 2 1 300px;">
+        <mat-label>Cédula de Ciudadanía</mat-label>
+        <input matInput type="text" [(ngModel)]="cedula" placeholder="Ej: 1010101010" (keyup.enter)="buscarCandidato()">
+        <button mat-icon-button matSuffix (click)="buscarCandidato()" [disabled]="!cedula" color="primary">
+          <mat-icon>search</mat-icon>
+        </button>
+      </mat-form-field>
+    </div>
 
-  <!-- Botones -->
-  <div class="acciones">
-    <button mat-flat-button color="primary" (click)="buscarCandidato()">
-      Buscar
-    </button>
+    <!-- Botonera Principal -->
+    <div class="form-actions" style="margin-top: 16px; display: flex; justify-content: center; gap: 12px;">
+      <button mat-flat-button color="primary" (click)="buscarCandidato()">
+        Buscar
+      </button>
+      <button mat-flat-button color="accent" (click)="mostrarCampoObservacion()"
+        *ngIf="!mostrarObservacion && procesoValido">
+        Reportar Problema
+      </button>
+    </div>
 
-    <button mat-flat-button color="accent" (click)="mostrarCampoObservacion()"
-      *ngIf="!mostrarObservacion && procesoValido">
-      Reportar
-    </button>
-  </div>
-</div>
+    <!-- Sección de Observación -->
+    <div *ngIf="mostrarObservacion" style="margin-top: 24px; animation: fadeIn 0.3s ease;">
+      <mat-form-field appearance="outline" style="width: 100%;">
+        <mat-label>Escriba su observación detallada</mat-label>
+        <textarea matInput [(ngModel)]="observacion" rows="3" placeholder="Escriba su observación aquí..."></textarea>
+      </mat-form-field>
 
-
-
-<!-- Observación -->
-<div *ngIf="mostrarObservacion" class="observacion-container">
-  <mat-form-field appearance="fill" class="input-observacion">
-    <mat-label>Escriba su observación</mat-label>
-    <textarea matInput [(ngModel)]="observacion" placeholder="Escriba su observación aquí"></textarea>
-  </mat-form-field>
-
-  <button mat-flat-button color="primary" (click)="enviarObservacion()">
-    Enviar Observación
-  </button>
-</div>
-
-<div class="tabla">
-  <h1 class="titulo" *ngIf="dataSource.data.length > 0">
-    Reporte 901
-  </h1>
-
-  <div class="table-container">
-    <table mat-table [dataSource]="dataSource" class="mat-elevation-z8">
-      <ng-container matColumnDef="cedula">
-        <th mat-header-cell *matHeaderCellDef> Cédula </th>
-        <td mat-cell *matCellDef="let element"> {{element.cedula}} </td>
-      </ng-container>
-
-      <ng-container matColumnDef="nombre_completo">
-        <th mat-header-cell *matHeaderCellDef> Nombre Completo </th>
-        <td mat-cell *matCellDef="let element"> {{element.nombre_completo}} </td>
-      </ng-container>
-
-      <ng-container matColumnDef="clasificacion">
-        <th mat-header-cell *matHeaderCellDef> Clasificación </th>
-        <td mat-cell *matCellDef="let element"> {{element.clasificacion}} </td>
-      </ng-container>
-
-      <ng-container matColumnDef="descripcion">
-        <th mat-header-cell *matHeaderCellDef> Descripción </th>
-        <td mat-cell *matCellDef="let element"> {{element.descripcion}} </td>
-      </ng-container>
-
-      <ng-container matColumnDef="observacion">
-        <th mat-header-cell *matHeaderCellDef> Observación </th>
-        <td mat-cell *matCellDef="let element"> {{element.observacion}} </td>
-      </ng-container>
-
-      <ng-container matColumnDef="estado">
-        <th mat-header-cell *matHeaderCellDef> Estado </th>
-        <td mat-cell *matCellDef="let element"> {{element.estado}} </td>
-      </ng-container>
-
-      <ng-container matColumnDef="sede">
-        <th mat-header-cell *matHeaderCellDef> Sede </th>
-        <td mat-cell *matCellDef="let element"> {{element.sede}} </td>
-      </ng-container>
-
-      <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
-      <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
-      <tr class="mat-row" *matNoDataRow>
-        <td class="mat-cell" colspan="8">No hay datos </td>
-      </tr>
-    </table>
+      <div class="form-actions" style="margin-top: 12px; text-align: right;">
+        <button mat-flat-button color="primary" (click)="enviarObservacion()">
+          Enviar Reporte
+        </button>
+      </div>
+    </div>
   </div>
 </div>

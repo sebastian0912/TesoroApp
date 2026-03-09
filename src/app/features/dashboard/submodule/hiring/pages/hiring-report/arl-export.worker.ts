@@ -179,8 +179,11 @@ function parseDateAny(val: any): Date | null {
 
     // Fallback if formatting was missed
     if (typeof val === 'number') {
-        const excelEpoch = new Date(1899, 11, 30);
-        return new Date(excelEpoch.getTime() + val * 24 * 60 * 60 * 1000);
+        const ms = Date.UTC(1899, 11, 30) + (val * 24 * 60 * 60 * 1000);
+        const d = new Date(ms);
+        if (!isNaN(d.getTime())) {
+            return new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+        }
     }
 
     // YYYY-MM-DD

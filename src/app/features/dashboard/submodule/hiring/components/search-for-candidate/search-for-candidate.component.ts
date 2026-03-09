@@ -1,7 +1,6 @@
 import { Component, OnDestroy, OnInit } from '@angular/core';
 import { firstValueFrom, Subject, take } from 'rxjs';
 import Swal from 'sweetalert2';
-import { MatTableDataSource, MatTableModule } from '@angular/material/table';
 import { MatButtonModule } from '@angular/material/button';
 
 import { VetadosService } from '../../service/vetados/vetados.service';
@@ -16,7 +15,6 @@ import { RegistroProcesoContratacion } from '../../service/registro-proceso-cont
   standalone: true,
   imports: [
     SharedModule,
-    MatTableModule,
     MatButtonModule
   ],
   templateUrl: './search-for-candidate.component.html',
@@ -44,12 +42,7 @@ export class SearchForCandidateComponent implements OnInit, OnDestroy {
   datosSeleccion: any = null;
   sede = '';
 
-  /* Tabla vetados (se mantiene) */
-  displayedColumns: string[] = [
-    'cedula', 'nombre_completo', 'clasificacion',
-    'descripcion', 'observacion', 'estado', 'sede'
-  ];
-  dataSource = new MatTableDataSource<any>([]);
+  /* Propiedades eliminadas tabla vetados */
   showTable = false;
   filtroCedula: string = '';
 
@@ -114,20 +107,7 @@ export class SearchForCandidateComponent implements OnInit, OnDestroy {
   /* vetados */
   private procesarVetado(vetado: any[] | null): void {
     if (!vetado?.length) return;
-
     this.procesoValido = true;
-    this.dataSource.data = vetado
-      .filter(v => v.categoria)
-      .map(v => ({
-        cedula: v.cedula,
-        nombre_completo: v.nombre_completo,
-        clasificacion: v.categoria?.clasificacion ?? '',
-        descripcion: v.categoria?.descripcion ?? '',
-        observacion: v.observacion,
-        estado: v.estado,
-        sede: v.sede,
-        autorizado_por: v.autorizado_por
-      }));
   }
 
   /* ──────────  Observación  ────────── */

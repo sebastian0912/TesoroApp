@@ -7,147 +7,153 @@
     </ng-template>
 
     <div class="tab-content-scrollable" [formGroup]="pagoTransporteForm">
+      <div class="grid-managerial">
+        <mat-form-field appearance="outline" class="example-full-width">
+          <mat-label>Forma de Pago</mat-label>
+          <mat-select formControlName="formaPago">
+            <mat-option value="Daviplata">Daviplata</mat-option>
+            <mat-option value="Davivienda cta ahorros">Davivienda cta
+              ahorros</mat-option>
+            <mat-option value="Colpatria cta ahorros">Colpatria cta
+              ahorros</mat-option>
+            <mat-option value="Bancolombia">Bancolombia</mat-option>
+            <mat-option value="Otra">Otra</mat-option>
+          </mat-select>
+        </mat-form-field>
 
-      <mat-form-field class="example-full-width">
-        <mat-label>Forma de Pago</mat-label>
-        <mat-select formControlName="formaPago">
-          <mat-option value="Daviplata">Daviplata</mat-option>
-          <mat-option value="Davivienda cta ahorros">Davivienda cta
-            ahorros</mat-option>
-          <mat-option value="Colpatria cta ahorros">Colpatria cta
-            ahorros</mat-option>
-          <mat-option value="Bancolombia">Bancolombia</mat-option>
-          <mat-option value="Otra">Otra</mat-option>
-        </mat-select>
-      </mat-form-field>
+        <mat-form-field appearance="outline" class="example-full-width"
+          *ngIf="pagoTransporteForm.controls['formaPago'].value === 'Otra'">
+          <mat-label>Otra Forma de Pago</mat-label>
+          <input matInput formControlName="otraFormaPago">
+        </mat-form-field>
 
-      <mat-form-field class="example-full-width" *ngIf="pagoTransporteForm.controls['formaPago'].value === 'Otra'">
-        <mat-label>Otra Forma de Pago</mat-label>
-        <input matInput formControlName="otraFormaPago">
-      </mat-form-field>
+        <mat-form-field appearance="outline" class="example-full-width">
+          <mat-label>
+            {{ pagoTransporteForm.get('formaPago')?.value === 'Daviplata' ? 'Número de cuenta' : 'Número de tarjeta' }}
+          </mat-label>
+          <input matInput formControlName="numeroPagos" (blur)="verificarTarjeta()">
+          <mat-error *ngIf="pagoTransporteForm.controls['numeroPagos'].hasError('required')">
+            Obligatorio.
+          </mat-error>
+          <mat-error *ngIf="pagoTransporteForm.controls['numeroPagos'].hasError('pattern')">
+            Debe tener 16 o 18 dígitos.
+          </mat-error>
+          <mat-error *ngIf="pagoTransporteForm.controls['numeroPagos'].hasError('tarjetaInexistente')">
+            Tarjeta no encontrada o no coincide con la identificación.
+          </mat-error>
+          <mat-error *ngIf="pagoTransporteForm.controls['numeroPagos'].hasError('noCoincide')">
+            El número de tarjeta no coincide con la identificación seleccionada.
+          </mat-error>
+        </mat-form-field>
 
-      <mat-form-field class="example-full-width">
-        <mat-label>
-          {{ pagoTransporteForm.get('formaPago')?.value === 'Daviplata' ? 'Número de cuenta' : 'Número de tarjeta' }}
-        </mat-label>
-        <input matInput formControlName="numeroPagos" (blur)="verificarTarjeta()">
-        <mat-error *ngIf="pagoTransporteForm.controls['numeroPagos'].hasError('required')">
-          Obligatorio.
-        </mat-error>
-        <mat-error *ngIf="pagoTransporteForm.controls['numeroPagos'].hasError('pattern')">
-          Debe tener 16 o 18 dígitos.
-        </mat-error>
-        <mat-error *ngIf="pagoTransporteForm.controls['numeroPagos'].hasError('tarjetaInexistente')">
-          Tarjeta no encontrada o no coincide con la identificación.
-        </mat-error>
-        <mat-error *ngIf="pagoTransporteForm.controls['numeroPagos'].hasError('noCoincide')">
-          El número de tarjeta no coincide con la identificación seleccionada.
-        </mat-error>
-      </mat-form-field>
+        <mat-form-field appearance="outline" class="example-full-width"
+          *ngIf="pagoTransporteForm.get('formaPago')?.value !== 'Daviplata'">
+          <mat-label>Número Identificación (Tarjeta)</mat-label>
+          <input type="text" matInput formControlName="numeroIdentificacion" [matAutocomplete]="auto">
+          <mat-autocomplete #auto="matAutocomplete" [displayWith]="displayTarjeta"
+            (optionSelected)="onTarjetaSelected($event.option.value)">
+            <mat-option *ngFor="let t of filteredTarjetas | async" [value]="t">
+              {{ t.identification_number }} - {{ t.card_number }}
+            </mat-option>
+          </mat-autocomplete>
+        </mat-form-field>
 
-      <mat-form-field class="example-full-width" *ngIf="pagoTransporteForm.get('formaPago')?.value !== 'Daviplata'">
-        <mat-label>Número Identificación (Tarjeta)</mat-label>
-        <input type="text" matInput formControlName="numeroIdentificacion" [matAutocomplete]="auto">
-        <mat-autocomplete #auto="matAutocomplete" [displayWith]="displayTarjeta"
-          (optionSelected)="onTarjetaSelected($event.option.value)">
-          <mat-option *ngFor="let t of filteredTarjetas | async" [value]="t">
-            {{ t.identification_number }} - {{ t.card_number }}
-          </mat-option>
-        </mat-autocomplete>
-      </mat-form-field>
+        <mat-form-field appearance="outline" class="example-full-width"
+          *ngIf="pagoTransporteForm.get('formaPago')?.value !== 'Daviplata'">
+          <mat-label>Contraseña asignada</mat-label>
+          <input matInput formControlName="contraseniaAsignada">
+          <mat-error *ngIf="pagoTransporteForm.controls['contraseniaAsignada']?.hasError('required')">
+            Obligatorio.
+          </mat-error>
+        </mat-form-field>
 
-      <mat-form-field class="example-full-width" *ngIf="pagoTransporteForm.get('formaPago')?.value !== 'Daviplata'">
-        <mat-label>Contraseña asignada</mat-label>
-        <input matInput formControlName="contraseniaAsignada">
-        <mat-error *ngIf="pagoTransporteForm.controls['contraseniaAsignada']?.hasError('required')">
-          Obligatorio.
-        </mat-error>
-      </mat-form-field>
+        <!-- Eliminado validacion de numero de cuenta -->
 
-      <!-- Eliminado validacion de numero de cuenta -->
+        <mat-form-field appearance="outline" class="example-full-width">
+          <mat-label>Seguro Funerario</mat-label>
 
-      <mat-form-field class="example-full-width">
-        <mat-label>Seguro Funerario</mat-label>
+          <mat-select formControlName="seguroFunerario">
+            <mat-option [value]="true">SI</mat-option>
+            <mat-option [value]="false">NO</mat-option>
+          </mat-select>
+        </mat-form-field>
 
-        <mat-select formControlName="seguroFunerario">
-          <mat-option [value]="true">SI</mat-option>
-          <mat-option [value]="false">NO</mat-option>
-        </mat-select>
-      </mat-form-field>
+        <mat-form-field appearance="outline" class="example-full-width">
+          <mat-label>Ccostos</mat-label>
+          <input matInput formControlName="Ccostos">
+        </mat-form-field>
 
-      <mat-form-field class="example-full-width">
-        <mat-label>Ccostos</mat-label>
-        <input matInput formControlName="Ccostos">
-      </mat-form-field>
+        <mat-form-field appearance="outline" class="example-full-width">
+          <mat-label>Salario</mat-label>
+          <input matInput formControlName="salario" thousandSeparator>
+        </mat-form-field>
 
-      <mat-form-field class="example-full-width">
-        <mat-label>Salario</mat-label>
-        <input matInput formControlName="salario" thousandSeparator>
-      </mat-form-field>
+        <mat-form-field appearance="outline" class="example-full-width">
+          <mat-label>Auxilio de Transporte</mat-label>
+          <input matInput formControlName="auxilioTransporte" type="text">
+        </mat-form-field>
 
-      <mat-form-field class="example-full-width">
-        <mat-label>Auxilio de Transporte</mat-label>
-        <input matInput formControlName="auxilioTransporte" type="text">
-      </mat-form-field>
+        <mat-form-field appearance="outline" class="example-full-width">
+          <mat-label>Porcentaje ARL</mat-label>
+          <input matInput formControlName="porcentajeARL" type="text">
+        </mat-form-field>
 
-      <mat-form-field class="example-full-width">
-        <mat-label>Porcentaje ARL</mat-label>
-        <input matInput formControlName="porcentajeARL" type="text">
-      </mat-form-field>
+        <!-- Cesantías PORVENIR, FONDO NACIONAL DEL AHORRO, PROTECCIÓN -->
+        <mat-form-field appearance="outline" class="example-full-width">
+          <mat-label>Cesantías</mat-label>
+          <mat-select formControlName="cesantias">
+            <mat-option value="PORVENIR">PORVENIR</mat-option>
+            <mat-option value="FONDO NACIONAL DEL AHORRO">FONDO NACIONAL DEL
+              AHORRO</mat-option>
+            <mat-option value="PROTECCIÓN">PROTECCIÓN</mat-option>
+          </mat-select>
+        </mat-form-field>
 
-      <!-- Cesantías PORVENIR, FONDO NACIONAL DEL AHORRO, PROTECCIÓN -->
-      <mat-form-field class="example-full-width">
-        <mat-label>Cesantías</mat-label>
-        <mat-select formControlName="cesantias">
-          <mat-option value="PORVENIR">PORVENIR</mat-option>
-          <mat-option value="FONDO NACIONAL DEL AHORRO">FONDO NACIONAL DEL
-            AHORRO</mat-option>
-          <mat-option value="PROTECCIÓN">PROTECCIÓN</mat-option>
-        </mat-select>
-      </mat-form-field>
+        <!-- Sub centro -->
+        <mat-form-field appearance="outline" class="example-full-width">
+          <mat-label>Sub centro de costos</mat-label>
+          <input matInput formControlName="subCentroCostos">
+        </mat-form-field>
 
-      <!-- Sub centro -->
-      <mat-form-field class="example-full-width">
-        <mat-label>Sub centro de costos</mat-label>
-        <input matInput formControlName="subCentroCostos">
-      </mat-form-field>
+        <!-- GRUPO -->
+        <mat-form-field appearance="outline" class="example-full-width">
+          <mat-label>Grupo</mat-label>
+          <input matInput formControlName="grupo">
+        </mat-form-field>
 
-      <!-- GRUPO -->
-      <mat-form-field class="example-full-width">
-        <mat-label>Grupo</mat-label>
-        <input matInput formControlName="grupo">
-      </mat-form-field>
+        <!-- CATEGORIA -->
+        <mat-form-field appearance="outline" class="example-full-width">
+          <mat-label>Categoría</mat-label>
+          <input matInput formControlName="categoria">
+        </mat-form-field>
 
-      <!-- CATEGORIA -->
-      <mat-form-field class="example-full-width">
-        <mat-label>Categoría</mat-label>
-        <input matInput formControlName="categoria">
-      </mat-form-field>
+        <!-- OPERACION -->
+        <mat-form-field appearance="outline" class="example-full-width">
+          <mat-label>Operación</mat-label>
+          <input matInput formControlName="operacion">
+        </mat-form-field>
 
-      <!-- OPERACION -->
-      <mat-form-field class="example-full-width">
-        <mat-label>Operación</mat-label>
-        <input matInput formControlName="operacion">
-      </mat-form-field>
+        <!--horas_extras-->
+        <mat-form-field appearance="outline" class="example-full-width">
+          <mat-label>Horas Extras</mat-label>
+          <mat-select formControlName="horasExtras">
+            <mat-option [value]="true">SI</mat-option>
+            <mat-option [value]="false">NO</mat-option>
+          </mat-select>
+        </mat-form-field>
 
-      <!--horas_extras-->
-      <mat-form-field class="example-full-width">
-        <mat-label>Horas Extras</mat-label>
-        <mat-select formControlName="horasExtras">
-          <mat-option [value]="true">SI</mat-option>
-          <mat-option [value]="false">NO</mat-option>
-        </mat-select>
-      </mat-form-field>
+        <!-- fecha de ingreso -->
+        <mat-form-field appearance="outline" class="example-full-width">
+          <mat-label>Fecha de Ingreso</mat-label>
+          <input matInput [matDatepicker]="pickerIngreso" formControlName="fechaIngreso">
+          <mat-datepicker-toggle matSuffix [for]="pickerIngreso"></mat-datepicker-toggle>
+          <mat-datepicker #pickerIngreso></mat-datepicker>
+        </mat-form-field>
+      </div>
 
-      <!-- fecha de ingreso -->
-      <mat-form-field class="example-full-width">
-        <mat-label>Fecha de Ingreso</mat-label>
-        <input matInput [matDatepicker]="pickerIngreso" formControlName="fechaIngreso">
-        <mat-datepicker-toggle matSuffix [for]="pickerIngreso"></mat-datepicker-toggle>
-        <mat-datepicker #pickerIngreso></mat-datepicker>
-      </mat-form-field>
-
-      <button mat-flat-button color="primary" (click)="cargarPagoTransporte()">Cargar</button>
+      <div style="margin-top: 24px; display: flex; justify-content: flex-end;">
+        <button mat-flat-button color="primary" (click)="cargarPagoTransporte()">Cargar</button>
+      </div>
     </div>
   </mat-tab>
 
@@ -328,52 +334,57 @@
     </ng-template>
 
     <div class="tab-content-scrollable" [formGroup]="trasladosForm">
-      <mat-form-field class="example-full-width">
-        <mat-label>¿Desea Trasladarse?</mat-label>
-        <mat-select formControlName="opcion_traslado_eps" (selectionChange)="onTrasladoChange($event)">
-          <mat-option value="NO">No</mat-option>
-          <mat-option value="SI">Sí</mat-option>
-        </mat-select>
-      </mat-form-field>
-
-      <mat-form-field class="example-full-width" *ngIf="trasladosForm.controls['opcion_traslado_eps'].value === 'SI'">
-        <mat-label>Seleccione EPS</mat-label>
-        <mat-select formControlName="eps_a_trasladar">
-          <mat-option value="FAMISANAR">Famisanar</mat-option>
-          <mat-option value="SALUD_TOTAL">Salud Total</mat-option>
-          <mat-option value="NUEVA_EPS">Nueva EPS</mat-option>
-        </mat-select>
-      </mat-form-field>
-
-      <div class="input-container" *ngIf="trasladosForm.controls['opcion_traslado_eps'].value === 'SI'">
-        <mat-form-field appearance="fill" class="example-full-width">
-          <mat-label>Archivo Traslado</mat-label>
-          <input matInput formControlName="traslado"
-            [value]="uploadedFiles['traslado'] ? uploadedFiles['traslado'].fileName : ''" readonly>
-          <button mat-icon-button matSuffix [matMenuTriggerFor]="menuTraslado" (click)="$event.stopPropagation()">
-            <mat-icon>more_vert</mat-icon>
-          </button>
+      <div class="grid-managerial">
+        <mat-form-field appearance="outline" class="example-full-width">
+          <mat-label>¿Desea Trasladarse?</mat-label>
+          <mat-select formControlName="opcion_traslado_eps" (selectionChange)="onTrasladoChange($event)">
+            <mat-option value="NO">No</mat-option>
+            <mat-option value="SI">Sí</mat-option>
+          </mat-select>
         </mat-form-field>
 
-        <mat-menu #menuTraslado="matMenu">
-          <button mat-menu-item (click)="verArchivo('traslado')">Ver
-            PDF</button>
-          <button mat-menu-item>
-            <label for="fileTraslado">
-              Subir PDF
-              <input id="fileTraslado" type="file" style="display:none" (change)="subirArchivo($event,'traslado')" />
-            </label>
-          </button>
-          <button mat-menu-item (click)="descargarArchivo()">Descargar
-            plantilla</button>
-        </mat-menu>
+        <mat-form-field appearance="outline" class="example-full-width"
+          *ngIf="trasladosForm.controls['opcion_traslado_eps'].value === 'SI'">
+          <mat-label>Seleccione EPS</mat-label>
+          <mat-select formControlName="eps_a_trasladar">
+            <mat-option value="FAMISANAR">Famisanar</mat-option>
+            <mat-option value="SALUD_TOTAL">Salud Total</mat-option>
+            <mat-option value="NUEVA_EPS">Nueva EPS</mat-option>
+          </mat-select>
+        </mat-form-field>
 
-        <small *ngIf="uploadedFiles['traslado']" class="uploaded-file-name">
-          {{ uploadedFiles['traslado'].fileName }}
-        </small>
+        <div class="input-container" *ngIf="trasladosForm.controls['opcion_traslado_eps'].value === 'SI'">
+          <mat-form-field appearance="fill" class="example-full-width">
+            <mat-label>Archivo Traslado</mat-label>
+            <input matInput formControlName="traslado"
+              [value]="uploadedFiles['traslado'] ? uploadedFiles['traslado'].fileName : ''" readonly>
+            <button mat-icon-button matSuffix [matMenuTriggerFor]="menuTraslado" (click)="$event.stopPropagation()">
+              <mat-icon>more_vert</mat-icon>
+            </button>
+          </mat-form-field>
+
+          <mat-menu #menuTraslado="matMenu">
+            <button mat-menu-item (click)="verArchivo('traslado')">Ver
+              PDF</button>
+            <button mat-menu-item>
+              <label for="fileTraslado">
+                Subir PDF
+                <input id="fileTraslado" type="file" style="display:none" (change)="subirArchivo($event,'traslado')" />
+              </label>
+            </button>
+            <button mat-menu-item (click)="descargarArchivo()">Descargar
+              plantilla</button>
+          </mat-menu>
+
+          <small *ngIf="uploadedFiles['traslado']" class="uploaded-file-name">
+            {{ uploadedFiles['traslado'].fileName }}
+          </small>
+        </div>
       </div>
 
-      <button mat-flat-button color="primary" (click)="cargarTraslados()">Cargar</button>
+      <div style="margin-top: 24px; display: flex; justify-content: flex-end;">
+        <button mat-flat-button color="primary" (click)="cargarTraslados()">Cargar</button>
+      </div>
     </div>
   </mat-tab>
 

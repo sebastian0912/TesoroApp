@@ -105,3 +105,229 @@ mat-tab-group {
   align-items: center;
   justify-content: space-between;
 }
+
+/* === PREMIUM UI ADDITIONS === */
+.premium-pipeline-header {
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 60%, #334155 100%) !important;
+  color: #ffffff;
+  padding: 16px 24px;
+  border-radius: 12px;
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
+}
+
+.candidate-info-badge {
+  display: flex !important;
+  align-items: center;
+  gap: 16px;
+}
+
+.avatar-placeholder {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 10px rgba(37, 99, 235, 0.2);
+}
+
+.avatar-placeholder mat-icon {
+  font-size: 28px;
+  width: 28px;
+  height: 28px;
+}
+
+.candidate-details {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.detail-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.info-candidato-label {
+  color: #cbd5e1;
+  font-size: 0.85rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin: 0 !important;
+}
+
+.info-candidato-valor {
+  color: #ffffff;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.premium-toolbar {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.premium-toolbar button {
+  border-radius: 8px;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  color: #475569;
+}
+
+.premium-toolbar button:hover:not([disabled]) {
+  background-color: #f1f5f9;
+  color: #2563eb;
+  transform: translateY(-2px);
+}
+
+.premium-toolbar button[disabled] {
+  opacity: 0.5;
+}
+
+/* Tab Group modifications */
+::ng-deep .mat-mdc-tab-header {
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 60%, #334155 100%) !important;
+  border-radius: 12px 12px 0 0;
+  border: none;
+  padding: 0 8px;
+}
+
+::ng-deep .mat-mdc-tab .mdc-tab__text-label {
+  font-family: inherit;
+  font-weight: 600 !important;
+  letter-spacing: 0.3px;
+  color: #cbd5e1 !important;
+  transition: all 0.3s !important;
+}
+
+::ng-deep .mat-mdc-tab .mat-icon {
+  font-weight: 600 !important;
+  color: #cbd5e1 !important;
+  transition: all 0.3s !important;
+}
+
+::ng-deep .mat-mdc-tab.mdc-tab--active .mdc-tab__text-label,
+::ng-deep .mat-mdc-tab.mdc-tab--active .mat-icon {
+  color: #ffffff !important;
+}
+
+::ng-deep .mat-mdc-tab.mdc-tab--active {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 12px 12px 0 0;
+}
+
+::ng-deep .mat-mdc-tab-indicator__inner--theme-demo {
+  border-color: #2563eb !important;
+}
+
+/* Compact Medical Exam Grid */
+.medical-exams-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.medical-exam-item {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
+  transition: all 0.2s ease;
+}
+
+.medical-exam-item:hover {
+  border-color: #cbd5e1;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+  transform: translateY(-2px);
+}
+
+.exam-item-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.exam-icon {
+  color: #3b82f6;
+  font-size: 20px;
+  width: 20px;
+  height: 20px;
+}
+
+.exam-title {
+  font-weight: 600;
+  color: #1e293b;
+  font-size: 0.95rem;
+  line-height: 1.2;
+}
+
+.exam-status-field {
+  width: 100%;
+  margin: 0 !important;
+}
+
+.medical-upload-compact {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px;
+  border: 1px dashed #cbd5e1;
+  border-radius: 8px;
+  background-color: #f8fafc;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  color: #475569;
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.medical-upload-compact:hover {
+  border-color: #3b82f6;
+  background-color: #eff6ff;
+  color: #2563eb;
+}
+
+.medical-upload-compact.has-file {
+  border: 1px solid #bbf7d0;
+  background-color: #f0fdf4;
+  color: #166534;
+}
+
+.medical-upload-compact mat-icon {
+  font-size: 20px;
+  width: 20px;
+  height: 20px;
+}
+
+.success-icon {
+  color: #16a34a !important;
+}
+
+.file-name-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 200px;
+}
+
+.file-upload-input {
+  display: none !important;
+}

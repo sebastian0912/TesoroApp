@@ -33,7 +33,9 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { RegistroProcesoContratacion } from '../../service/registro-proceso-contratacion/registro-proceso-contratacion';
 import { TableDialogComponent } from '@/app/shared/components/table-dialog/table-dialog.component';
 import { GestionDocumentalService } from '../../service/gestion-documental/gestion-documental.service';
-
+import jsPDF from 'jspdf';
+import JSZip from 'jszip';
+import QRCode from 'qrcode';
 
 import { PdfService } from '@/app/shared/services/pdf/pdf.service';
 
@@ -717,7 +719,7 @@ export class RecruitmentPipelineComponent {
     const selectedExams: string[] = (this.formGroup3.get('selectedExams')?.value || []) as string[];
     const files: File[] = this.examFiles() || [];
     const cedula = String(numeroDocumento);
-    const TYPE_EXAM = 56;
+    const TYPE_EXAM = 32;
 
     // Pares (nombre, archivo) válidos
     const pairs = selectedExams
@@ -1132,5 +1134,331 @@ export class RecruitmentPipelineComponent {
     const doc = this.getBioDoc(kind);
     if (!doc) return null;
     return doc.file_url || doc.file || null;
+  }
+
+  // =========================================================
+  // ✅ GENERAR CARNET INDIVIDUAL (Recruitment Pipeline)
+  // =========================================================
+  async generarCarnetIndividual(): Promise<void> {
+    const cand = this.candidatoSeleccionado();
+    if (!cand) {
+      await Swal.fire({ icon: 'warning', title: 'Aviso', text: 'No hay candidato seleccionado.' });
+      return;
+    }
+
+    const ent0 = cand?.entrevistas?.[0];
+    const proc0 = ent0?.proceso;
+    const contratoBE = proc0?.contrato;
+
+    const cedula = String(cand.numero_documento ?? '').trim();
+    // Prioritize the frontend mapped UI, fallback to backend contract
+    let codigo = String(contratoBE?.codigo_contrato ?? '').trim();
+    let centroCosto = String(contratoBE?.Ccentro_de_costos ?? '').trim();
+    const fechaIng = String(contratoBE?.fecha_ingreso ?? '').trim();
+    const familiarNombre = String(cand.familiar_emergencia_nombre ?? '').trim();
+    const familiarTel = String(cand.familiar_emergencia_telefono ?? '').trim();
+
+    const { value: formValues, isConfirmed } = await Swal.fire({
+      title: 'Datos del Carnet',
+      html: `
+        <label style="display:block;text-align:left;font-size:14px;margin-bottom:4px;font-weight:bold;">Fecha de Ingreso</label>
+        <input id="swal-fecha" class="swal2-input" style="max-width:90%;margin:0 auto 16px;display:block;" type="date" value="${fechaIng}">
+        
+        <label style="display:block;text-align:left;font-size:14px;margin-bottom:4px;font-weight:bold;">Código de Contrato</label>
+        <input id="swal-codigo" class="swal2-input" style="max-width:90%;margin:0 auto 16px;display:block;" type="text" value="${codigo}">
+        
+        <label style="display:block;text-align:left;font-size:14px;margin-bottom:4px;font-weight:bold;">Centro de Costo</label>
+        <input id="swal-ccosto" class="swal2-input" style="max-width:90%;margin:0 auto 16px;display:block;" type="text" value="${centroCosto}">
+      `,
+      focusConfirm: false,
+      showCancelButton: true,
+      confirmButtonText: 'Generar',
+      cancelButtonText: 'Cancelar',
+      preConfirm: () => {
+        const f = (document.getElementById('swal-fecha') as HTMLInputElement).value;
+        const c = (document.getElementById('swal-codigo') as HTMLInputElement).value;
+        const cc = (document.getElementById('swal-ccosto') as HTMLInputElement).value;
+        if (!f || !c || !cc) {
+          Swal.showValidationMessage('Todos los campos son obligatorios');
+          return false;
+        }
+        return { fecha: f, codigo: c, ccosto: cc };
+      }
+    });
+
+    if (!isConfirmed || !formValues) return;
+
+    // Build the "row"
+    const row = {
+      CEDULA: cedula,
+      CODIGO: String(formValues.codigo).trim(),
+      APELLIDOS: String((cand.primer_apellido ?? '') + ' ' + (cand.segundo_apellido ?? '')).trim(),
+      NOMBRES: String((cand.primer_nombre ?? '') + ' ' + (cand.segundo_nombre ?? '')).trim(),
+      FECHA_INGRESO: String(formValues.fecha).trim(),
+      CENTRO_COSTO: String(formValues.ccosto).trim(),
+      FAMILIAR_EMERGENCIA_NOMBRE: familiarNombre,
+      FAMILIAR_EMERGENCIA_TELEFONO: familiarTel,
+      DOCUMENTO_89_URL: String(this.fotoDoc()?.file_url ?? '').trim()
+    };
+
+    if (!Swal.isVisible()) {
+      Swal.fire({
+        title: 'Generando carnet...',
+        text: 'Preparando PDF...',
+        allowOutsideClick: false,
+        allowEscapeKey: false,
+        didOpen: () => Swal.showLoading(),
+      });
+    }
+
+    try {
+      const PAGE_W = 612; // pt (8.5 inch)
+      const PAGE_H = 792; // pt (11.0 inch)
+      const MARGIN = 18;
+      const GAP = 12;
+
+      const CARD_W = Math.floor((PAGE_W - 2 * MARGIN - 2 * GAP) / 3);
+      const CARD_H = Math.floor((PAGE_H - 2 * MARGIN - 2 * GAP) / 3);
+
+      const BLUE_CORP = '#1E54C7';
+      const BLUE_SUBTLE = '#EBFOFA';
+      const TEXT_MAIN = '#1A1A1A';
+      const TEXT_MUTED = '#737373';
+      const BLACK = '#000000';
+
+      const isHttp = (u: string) => /^https?:\/\//i.test(u);
+      const isDataUrl = (u: string) => /^data:image\//i.test(u);
+
+      const fetchBase64WithFallback = async (mainUrl: string, alts: string[] = []): Promise<string | null> => {
+        const tryFetch = async (u: string) => {
+          try {
+            const res = await fetch(u);
+            if (res.ok) {
+              const arrayBuffer = await res.arrayBuffer();
+              const base64 = btoa(new Uint8Array(arrayBuffer).reduce((data, byte) => data + String.fromCharCode(byte), ''));
+              let mime = 'image/jpeg';
+              if (u.toLowerCase().endsWith('.png')) mime = 'image/png';
+              const bv = new Uint8Array(arrayBuffer);
+              if (bv.length >= 8 && bv[0] === 0x89 && bv[1] === 0x50 && bv[2] === 0x4e && bv[3] === 0x47) mime = 'image/png';
+              return `data:${mime};base64,${base64}`;
+            }
+          } catch { }
+          return null;
+        };
+        let b64 = await tryFetch(mainUrl);
+        if (b64) return b64;
+        for (const alt of alts) {
+          b64 = await tryFetch(alt);
+          if (b64) return b64;
+        }
+        return null;
+      };
+
+      const fetchImageBase64 = async (urlOrData?: string): Promise<string | null> => {
+        const raw = String(urlOrData ?? '').trim();
+        if (!raw) return null;
+        if (isDataUrl(raw)) return raw;
+        const clean = raw.replace(/^\/+/, '').replace(/^assets\//, '');
+        if (isHttp(raw)) return await fetchBase64WithFallback(raw);
+        return await fetchBase64WithFallback(clean, [`assets/${clean}`, `/${clean}`, `./${clean}`]);
+      };
+
+      const buildQrDataUrl = async (payload: string): Promise<string> => {
+        const key = String(payload ?? '').trim();
+        if (!key) return '';
+        try {
+          return await (QRCode as any).toDataURL(key, { type: 'image/jpeg', errorCorrectionLevel: 'M', margin: 1, width: 300, color: { light: '#ffffffff' } });
+        } catch { return ''; }
+      };
+
+      const safeTxt = (txt: any) => {
+        let s = String(txt ?? '').trim().toUpperCase();
+        s = s.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        return s.replace(/[^\x20-\x7E\xA0-\xFF]/g, ' ');
+      };
+      const safeTxtMixed = (txt: any) => {
+        let s = String(txt ?? '').trim();
+        s = s.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        return s.replace(/[^\x20-\x7E\xA0-\xFF]/g, ' ');
+      }
+
+      const logoB64 = await fetchImageBase64('logos/Logo_TA.png');
+      const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'letter', compress: true });
+
+      const fotoUrl = row.DOCUMENTO_89_URL;
+      const qrKey = `${row.CEDULA}|${row.CODIGO}`;
+      const [fotoB64, qrB64] = await Promise.all([
+        fetchImageBase64(fotoUrl),
+        buildQrDataUrl(qrKey)
+      ]);
+
+      const processCardSide = (isFront: boolean) => {
+        const col = isFront ? 0 : 2;
+        const cx = MARGIN + col * (CARD_W + GAP);
+        const cy = MARGIN;
+
+        // Bordes
+        doc.setDrawColor(BLACK);
+        doc.setLineWidth(1.4);
+        doc.rect(cx, cy, CARD_W, CARD_H);
+        doc.setLineWidth(0.8);
+        doc.rect(cx + 3, cy + 3, CARD_W - 6, CARD_H - 6);
+
+        const innerPad = 10;
+        const contentX = cx + innerPad;
+        const contentW = CARD_W - 2 * innerPad;
+        let cursorY = cy + innerPad;
+
+        if (isFront) {
+          const HEADER_H = 30;
+          if (logoB64) {
+            const format = logoB64.includes('image/png') ? 'PNG' : 'JPEG';
+            doc.addImage(logoB64, format, contentX + (contentW - 80) / 2, cursorY, 80, HEADER_H);
+          }
+          cursorY += HEADER_H + 4;
+
+          const PHOTO_H = CARD_H * 0.36;
+          if (fotoB64) {
+            const format = fotoB64.includes('image/png') ? 'PNG' : 'JPEG';
+            try { doc.addImage(fotoB64, format, contentX + (contentW - 60) / 2, cursorY, 60, PHOTO_H); } catch (e) { }
+          } else {
+            doc.setFillColor(BLUE_SUBTLE);
+            doc.rect(contentX, cursorY, contentW, PHOTO_H, 'F');
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(8);
+            doc.setTextColor(TEXT_MUTED);
+            doc.text('SIN FOTO', contentX + contentW / 2, cursorY + PHOTO_H / 2, { align: 'center', baseline: 'middle' });
+          }
+          cursorY += PHOTO_H + 8;
+
+          doc.setFont('helvetica', 'bold');
+          doc.setFontSize(9.5);
+          doc.setTextColor(TEXT_MAIN);
+          doc.text(safeTxt(row.APELLIDOS), contentX + contentW / 2, cursorY, { align: 'center', maxWidth: contentW });
+          cursorY += 10;
+          doc.setFont('helvetica', 'normal');
+          doc.setFontSize(8.5);
+          doc.text(safeTxt(row.NOMBRES), contentX + contentW / 2, cursorY, { align: 'center', maxWidth: contentW });
+          cursorY += 8;
+
+          const colQrW = contentW * 0.38;
+          const colGap = 5;
+          const colDataW = contentW - colQrW - colGap;
+          const hAvail = (cy + CARD_H - innerPad) - cursorY;
+          const qrSize = Math.min(colQrW, hAvail - 10, 60);
+          const qrX = contentX + (colQrW - qrSize) / 2;
+          const qrY = cursorY;
+
+          if (qrB64) doc.addImage(qrB64, 'JPEG', qrX, qrY, qrSize, qrSize);
+
+          doc.setFont('helvetica', 'bold');
+          doc.setFontSize(8);
+          doc.text(safeTxt(row.CEDULA), contentX + colQrW / 2, qrY + qrSize + 8, { align: 'center', maxWidth: colQrW });
+
+          const dataX = contentX + colQrW + colGap;
+          let rowY = cursorY + 6;
+          const fields = [
+            { l: 'Fecha de Ingreso', v: safeTxtMixed(row.FECHA_INGRESO) },
+            { l: 'Código', v: safeTxtMixed(row.CODIGO) },
+            { l: 'Centro de Costos', v: safeTxtMixed(row.CENTRO_COSTO) },
+          ];
+
+          for (const f of fields) {
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(6);
+            doc.setTextColor(TEXT_MUTED);
+            doc.text(safeTxt(f.l), dataX, rowY);
+            rowY += 8;
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(7.5);
+            doc.setTextColor(TEXT_MAIN);
+            doc.text(f.v, dataX, rowY, { maxWidth: colDataW });
+            rowY += 12;
+          }
+        } else {
+          if (logoB64) {
+            const format = logoB64.includes('image/png') ? 'PNG' : 'JPEG';
+            doc.addImage(logoB64, format, contentX + (contentW - 60) / 2, cursorY, 60, 20);
+          }
+          cursorY += 28;
+
+          doc.setFontSize(6.5);
+          doc.setFont('helvetica', 'normal');
+          doc.setTextColor(TEXT_MUTED);
+          doc.text('Contacto Coordinador de la', cx + CARD_W / 2, cursorY, { align: 'center' });
+          cursorY += 8;
+          doc.setFont('helvetica', 'bold');
+          doc.setTextColor(BLUE_CORP);
+          doc.text('Temporal 3152306148', cx + CARD_W / 2, cursorY, { align: 'center' });
+          cursorY += 14;
+
+          doc.setFontSize(9);
+          doc.setTextColor(TEXT_MAIN);
+          doc.text('ARL', contentX, cursorY);
+          doc.setTextColor(BLUE_CORP);
+          doc.text('SURA', contentX + contentW, cursorY, { align: 'right' });
+          cursorY += 16;
+
+          doc.setFontSize(6);
+          doc.setTextColor(BLUE_CORP);
+          doc.text('FAMILIAR EN CASO DE EMERGENCIA', cx + CARD_W / 2, cursorY, { align: 'center' });
+          cursorY += 6;
+
+          const emStr = [row.FAMILIAR_EMERGENCIA_NOMBRE, row.FAMILIAR_EMERGENCIA_TELEFONO].filter(Boolean).join(' - ') || '—';
+          doc.setFillColor(BLUE_SUBTLE);
+          doc.rect(contentX, cursorY, contentW, 20, 'F');
+          doc.setFontSize(7.5);
+          doc.setTextColor(TEXT_MAIN);
+          doc.text(safeTxt(emStr), cx + CARD_W / 2, cursorY + 12, { align: 'center', maxWidth: contentW - 4 });
+          cursorY += 28;
+
+          doc.setDrawColor(200, 200, 200);
+          doc.setLineWidth(0.5);
+          doc.line(contentX, cursorY, contentX + contentW, cursorY);
+          cursorY += 8;
+
+          const legal = 'Este carnet es de uso exclusivo del trabajador. En caso de pérdida, reportar inmediatamente al coordinador de la temporal. El uso indebido de este documento acarreará sanciones disciplinarias.';
+          doc.setFont('helvetica', 'normal');
+          doc.setFontSize(6.5);
+          doc.setTextColor(TEXT_MUTED);
+          doc.text(safeTxtMixed(legal), contentX, cursorY, { maxWidth: contentW, align: 'justify' });
+        }
+      };
+
+      // FRONT
+      processCardSide(true);
+      // BACK
+      doc.addPage();
+      processCardSide(false);
+
+      doc.save(`carnet_${row.CEDULA}.pdf`);
+
+      Swal.close();
+      const sendWa = await Swal.fire({
+        icon: 'success',
+        title: 'Carnet Generado',
+        text: `El carnet de ${row.NOMBRES} se descargó correctamente. ¿Quieres enviar un mensaje por WhatsApp diciéndole que adjuntarás el carnet?`,
+        showCancelButton: true,
+        confirmButtonText: 'Enviar por WhatsApp',
+        cancelButtonText: 'Cerrar'
+      });
+
+      if (sendWa.isConfirmed) {
+        const waStr = cand.contacto?.whatsapp || cand.numCelular || cand.telefono || cand.celular || '';
+        let numUrl = '';
+        if (waStr) {
+          const waNumber = String(waStr).replace(/[^0-9]/g, '');
+          numUrl = waNumber ? `57${waNumber}` : '';
+        }
+        const textToSend = `Hola ${row.NOMBRES}, te damos la bienvenida al equipo. A continuación, adjunto tu carnet digital.`;
+        const waUrl = `https://wa.me/${numUrl}?text=${encodeURIComponent(textToSend)}`;
+        window.open(waUrl, '_blank', 'noopener,noreferrer');
+      }
+
+    } catch (error: any) {
+      console.error('❌ Error generando carnet:', error);
+      Swal.close();
+      await Swal.fire({ icon: 'error', title: 'Error', text: error?.message || 'Ocurrió un error al generar carnet.' });
+    }
   }
 }

@@ -558,19 +558,15 @@
       <!-- ============================
            7. Entrevista
       ============================= -->
-      <section class="section">
-        <div class="section-head">
-          <h3 class="section-title">
-            <mat-icon inline="true" aria-hidden="true">interview</mat-icon>
-            &nbsp;Entrevista
-          </h3>
-          <mat-divider></mat-divider>
-        </div>
+      <section class="section outline-section">
+        <h3 class="section-title centered-title">
+          Entrevista
+        </h3>
 
-        <div class="datos">
+        <div class="grid-managerial-entrevista">
           <!-- ¿Cómo se enteró? -->
           <mat-form-field appearance="outline">
-            <mat-label>¿Cómo se enteró de la vacante?</mat-label>
+            <mat-label>¿Cómo se enteró de la vacante?*</mat-label>
             <mat-select formControlName="comoSeEntero" required>
               @for (op of (comoSeEnteroOpciones$ | async) ?? []; track op['codigo']) {
               <mat-option [value]="op['codigo']">
@@ -587,7 +583,7 @@
 
           <!-- Referenciado -->
           <mat-form-field appearance="outline">
-            <mat-label>Referenciado</mat-label>
+            <mat-label>Referenciado*</mat-label>
             <mat-select formControlName="referenciado">
               <mat-option value="SI">Sí</mat-option>
               <mat-option value="NO">No</mat-option>
@@ -596,7 +592,7 @@
 
           <!-- Nombre del referenciado -->
           <mat-form-field appearance="outline" *ngIf="formVacante.get('referenciado')?.value === 'SI'">
-            <mat-label>Nombre del referenciado</mat-label>
+            <mat-label>Nombre del referenciado*</mat-label>
             <input matInput formControlName="nombreReferenciado" />
             <mat-error *ngIf="
                 formVacante.get('nombreReferenciado')?.hasError('required') &&
@@ -616,7 +612,7 @@
 
           <!-- ¿Observación del evaluador? -->
           <mat-form-field appearance="outline">
-            <mat-label>¿Observación del evaluador?</mat-label>
+            <mat-label>¿Observación del evaluador?*</mat-label>
             <mat-select formControlName="aplicaObservacion" required>
               <mat-option value="APLICA">APLICA</mat-option>
               <mat-option value="NO_APLICA">NO APLICA</mat-option>
@@ -633,7 +629,7 @@
 
           <!-- ¿Por qué está en espera? -->
           <mat-form-field appearance="outline" *ngIf="formVacante.get('aplicaObservacion')?.value === 'EN_ESPERA'">
-            <mat-label>¿Por qué está en espera?</mat-label>
+            <mat-label>¿Por qué está en espera?*</mat-label>
             <input matInput formControlName="motivoEspera" />
             <mat-hint align="start">Máx. 300 caracteres.</mat-hint>
             <mat-error *ngIf="
@@ -654,7 +650,7 @@
 
           <!-- Motivo (NO_APLICA) -->
           <mat-form-field appearance="outline" *ngIf="formVacante.get('aplicaObservacion')?.value === 'NO_APLICA'">
-            <mat-label>Motivo (obligatorio)</mat-label>
+            <mat-label>Motivo (obligatorio)*</mat-label>
             <input matInput formControlName="motivoNoAplica" />
             <mat-error *ngIf="
                 formVacante.get('motivoNoAplica')?.hasError('required') &&
@@ -670,19 +666,18 @@
       <!-- ============================
            8. Confirmación y Envío
       ============================= -->
-      <section class="section">
-        <div class="section-head">
-          <h3 class="section-title">
-            <mat-icon inline="true" aria-hidden="true">check_circle</mat-icon>
-            &nbsp;Confirmación
-          </h3>
-          <mat-divider></mat-divider>
-        </div>
+      <section class="section outline-section">
+        <h3 class="section-title">
+          <mat-icon style="vertical-align: middle; color: #1e293b; margin-right: 8px;">check_circle</mat-icon>
+          Confirmación
+        </h3>
+        <p style="margin-top: 8px; color: #475569; font-size: 0.95rem;">
+          Revisa que la información sea correcta antes de enviar.
+        </p>
 
-        <p>Revisa que la información sea correcta antes de enviar.</p>
-
-        <div class="form-actions">
-          <button type="submit" mat-flat-button color="primary" class="submit-button">
+        <div class="form-actions" style="margin-top: 24px; text-align: right; display: block; padding-bottom: 60px;">
+          <button type="submit" mat-flat-button color="primary" class="submit-button"
+            style="width: auto; padding: 0 40px;">
             Enviar
           </button>
         </div>
