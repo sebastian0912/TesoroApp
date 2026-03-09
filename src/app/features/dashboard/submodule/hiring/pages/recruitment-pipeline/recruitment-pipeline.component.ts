@@ -38,6 +38,7 @@ import JSZip from 'jszip';
 import QRCode from 'qrcode';
 
 import { PdfService } from '@/app/shared/services/pdf/pdf.service';
+import { HomeService } from '../../../home/service/home.service';
 
 import { ColumnDefinition } from '@/app/shared/models/advanced-table-interface';
 
@@ -158,6 +159,7 @@ export class RecruitmentPipelineComponent {
   private util = inject(UtilityServiceService);
   private pdfSvc = inject(PdfService);
   private registroProceso = inject(RegistroProcesoContratacion);
+  private homeService = inject(HomeService);
   private platformId = inject(PLATFORM_ID);
   private isBrowser = signal(false);
 
@@ -1155,8 +1157,78 @@ export class RecruitmentPipelineComponent {
     let codigo = String(contratoBE?.codigo_contrato ?? '').trim();
     let centroCosto = String(contratoBE?.Ccentro_de_costos ?? '').trim();
     const fechaIng = String(contratoBE?.fecha_ingreso ?? '').trim();
-    const familiarNombre = String(cand.familiar_emergencia_nombre ?? '').trim();
-    const familiarTel = String(cand.familiar_emergencia_telefono ?? '').trim();
+
+    // Consultar HomeService para obtener exactamente los mismos campos que la vista de Home
+    let cMini: any = {};
+    if (cedula) {
+      try {
+        const resp = await firstValueFrom(this.homeService.getCandidatosMini([cedula]));
+        const items = Array.isArray(resp) ? resp : ((resp as any)?.ITEMS ?? (resp as any)?.items ?? []);
+        if (items.length > 0) cMini = items[0];
+      } catch (e) {
+        console.warn('No se pudo obtener el candidato mini para el carnet', e);
+      }
+    }
+
+    // Replicando la lógica exacta ("pickAny") que usa el Home component
+    const pickAny = (obj: any, keys: string[]) => {
+      for (const k of keys) {
+        const v = obj?.[k];
+        if (v !== undefined && v !== null && String(v).trim() !== '') return v;
+      }
+      return '';
+    };
+
+    const searchIn = [cMini, cand]; // Buscar primero en cMini (el de Home), luego en cand (el del Pipeline)
+
+    let familiarNombre = '';
+    let familiarTel = '';
+
+    for (const data of searchIn) {
+      if (!data) continue;
+
+      if (!familiarNombre) {
+        familiarNombre = String(
+          pickAny(data?.contacto_emergencia, ['NOMBRES', 'nombres', 'NOMBRE_CONTACTO', 'nombre_contacto', 'NOMBRE', 'nombre']) ||
+          pickAny(data?.contacto, ['NOMBRE_CONTACTO', 'nombre_contacto', 'NOMBRES', 'nombres', 'NOMBRE', 'nombre']) ||
+          pickAny(data, [
+            'FAMILIAR_EMERGENCIA', 'familiar_emergencia',
+            'FAMILIAR_EMERGENCIA_NOMBRE', 'familiar_emergencia_nombre',
+            'CONTACTO_EMERGENCIA_NOMBRE', 'contacto_emergencia_nombre',
+            'NOMBRE_CONTACTO_EMERGENCIA', 'nombre_contacto_emergencia'
+          ]) || pickAny(data?.datos_basicos, [
+            'FAMILIAR_EMERGENCIA', 'familiar_emergencia',
+            'FAMILIAR_EMERGENCIA_NOMBRE', 'familiar_emergencia_nombre',
+            'CONTACTO_EMERGENCIA_NOMBRE', 'contacto_emergencia_nombre',
+            'NOMBRE_CONTACTO_EMERGENCIA', 'nombre_contacto_emergencia'
+          ])
+        ).trim();
+      }
+
+      if (!familiarTel) {
+        familiarTel = String(
+          pickAny(data?.contacto_emergencia, ['TELEFONO', 'telefono', 'CELULAR', 'celular', 'CELULAR_CONTACTO', 'celular_contacto']) ||
+          pickAny(data?.contacto, ['CELULAR_CONTACTO', 'celular_contacto', 'TELEFONO', 'telefono', 'CELULAR', 'celular']) ||
+          pickAny(data, [
+            'FAMILIAR_EMERGENCIA_TELEFONO', 'familiar_emergencia_telefono',
+            'TELEFONO_FAMILIAR_EMERGENCIA', 'telefono_familiar_emergencia',
+            'CONTACTO_EMERGENCIA_TELEFONO', 'contacto_emergencia_telefono',
+            'TELEFONO_CONTACTO_EMERGENCIA', 'telefono_contacto_emergencia'
+          ]) || pickAny(data?.datos_basicos, [
+            'FAMILIAR_EMERGENCIA_TELEFONO', 'familiar_emergencia_telefono',
+            'TELEFONO_FAMILIAR_EMERGENCIA', 'telefono_familiar_emergencia',
+            'CONTACTO_EMERGENCIA_TELEFONO', 'contacto_emergencia_telefono',
+            'TELEFONO_CONTACTO_EMERGENCIA', 'telefono_contacto_emergencia'
+          ])
+        ).trim();
+      }
+    }
+
+    console.log('--- ENCONTRADOS PARA CARNET INDIVIDUAL ---');
+    console.log('cMini:', cMini);
+    console.log('cand:', cand);
+    console.log('Familiar Nombre:', familiarNombre);
+    console.log('Familiar Tel:', familiarTel);
 
     const { value: formValues, isConfirmed } = await Swal.fire({
       title: 'Datos del Carnet',
@@ -1221,7 +1293,7 @@ export class RecruitmentPipelineComponent {
       const CARD_H = Math.floor((PAGE_H - 2 * MARGIN - 2 * GAP) / 3);
 
       const BLUE_CORP = '#1E54C7';
-      const BLUE_SUBTLE = '#EBFOFA';
+      const BLUE_SUBTLE = '#EBF0FA';
       const TEXT_MAIN = '#1A1A1A';
       const TEXT_MUTED = '#737373';
       const BLACK = '#000000';
@@ -1385,11 +1457,11 @@ export class RecruitmentPipelineComponent {
           doc.setFontSize(6.5);
           doc.setFont('helvetica', 'normal');
           doc.setTextColor(TEXT_MUTED);
-          doc.text('Contacto Coordinador de la', cx + CARD_W / 2, cursorY, { align: 'center' });
+          doc.text('CONTACTO COORDINADOR DE LA', cx + CARD_W / 2, cursorY, { align: 'center' });
           cursorY += 8;
           doc.setFont('helvetica', 'bold');
           doc.setTextColor(BLUE_CORP);
-          doc.text('Temporal 3152306148', cx + CARD_W / 2, cursorY, { align: 'center' });
+          doc.text('TEMPORAL 3152306148', cx + CARD_W / 2, cursorY, { align: 'center' });
           cursorY += 14;
 
           doc.setFontSize(9);
@@ -1408,6 +1480,7 @@ export class RecruitmentPipelineComponent {
           doc.setFillColor(BLUE_SUBTLE);
           doc.rect(contentX, cursorY, contentW, 20, 'F');
           doc.setFontSize(7.5);
+          doc.setFont('helvetica', 'bold');
           doc.setTextColor(TEXT_MAIN);
           doc.text(safeTxt(emStr), cx + CARD_W / 2, cursorY + 12, { align: 'center', maxWidth: contentW - 4 });
           cursorY += 28;
@@ -1417,7 +1490,7 @@ export class RecruitmentPipelineComponent {
           doc.line(contentX, cursorY, contentX + contentW, cursorY);
           cursorY += 8;
 
-          const legal = 'Este carnet es de uso exclusivo del trabajador. En caso de pérdida, reportar inmediatamente al coordinador de la temporal. El uso indebido de este documento acarreará sanciones disciplinarias.';
+          const legal = 'ESTE CARNET ES DE USO EXCLUSIVO DEL TRABAJADOR. EN CASO DE PERDIDA, REPORTAR INMEDIATAMENTE AL COORDINADOR DE LA TEMPORAL. EL USO INDEBIDO DE ESTE DOCUMENTO ACARREARA SANCIONES DISCIPLINARIAS.';
           doc.setFont('helvetica', 'normal');
           doc.setFontSize(6.5);
           doc.setTextColor(TEXT_MUTED);

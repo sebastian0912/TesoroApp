@@ -742,8 +742,10 @@ export class HomeComponent implements OnInit {
 
       // 8) FINAL (lo que va directo al PDF)
       //    ✅ CENTRO_COSTO: SIEMPRE del Excel (ignora el del backend)
-      const finalRows = registrosEnriquecidos.map((r) => {
+      const finalRows = registrosEnriquecidos.map((r, i) => {
         const c = r.candidato || {};
+        if (i === 0) console.log('--- DEBUG HOME CANDIDATO DATA ---', c);
+
         return {
           CEDULA: String(r?.cedula ?? '').trim(),
           CODIGO: String(r?.codigo ?? '').trim(),
@@ -758,14 +760,33 @@ export class HomeComponent implements OnInit {
           CENTRO_COSTO: String(r?.centroCosto ?? '').trim(),
 
           FAMILIAR_EMERGENCIA_NOMBRE: String(
-            pickAny(c, ['FAMILIAR_EMERGENCIA_NOMBRE', 'familiar_emergencia_nombre'])
+            pickAny(c?.contacto_emergencia, ['NOMBRES', 'nombres', 'NOMBRE_CONTACTO', 'nombre_contacto', 'NOMBRE', 'nombre']) ||
+            pickAny(c?.contacto, ['NOMBRE_CONTACTO', 'nombre_contacto', 'NOMBRES', 'nombres', 'NOMBRE', 'nombre']) ||
+            pickAny(c, [
+              'FAMILIAR_EMERGENCIA', 'familiar_emergencia',
+              'FAMILIAR_EMERGENCIA_NOMBRE', 'familiar_emergencia_nombre',
+              'CONTACTO_EMERGENCIA_NOMBRE', 'contacto_emergencia_nombre',
+              'NOMBRE_CONTACTO_EMERGENCIA', 'nombre_contacto_emergencia'
+            ]) || pickAny(c?.datos_basicos, [
+              'FAMILIAR_EMERGENCIA', 'familiar_emergencia',
+              'FAMILIAR_EMERGENCIA_NOMBRE', 'familiar_emergencia_nombre',
+              'CONTACTO_EMERGENCIA_NOMBRE', 'contacto_emergencia_nombre',
+              'NOMBRE_CONTACTO_EMERGENCIA', 'nombre_contacto_emergencia'
+            ])
           ).trim(),
           FAMILIAR_EMERGENCIA_TELEFONO: String(
+            pickAny(c?.contacto_emergencia, ['TELEFONO', 'telefono', 'CELULAR', 'celular', 'CELULAR_CONTACTO', 'celular_contacto']) ||
+            pickAny(c?.contacto, ['CELULAR_CONTACTO', 'celular_contacto', 'TELEFONO', 'telefono', 'CELULAR', 'celular']) ||
             pickAny(c, [
-              'FAMILIAR_EMERGENCIA_TELEFONO',
-              'familiar_emergencia_telefono',
-              'TELEFONO_FAMILIAR_EMERGENCIA',
-              'telefono_familiar_emergencia',
+              'FAMILIAR_EMERGENCIA_TELEFONO', 'familiar_emergencia_telefono',
+              'TELEFONO_FAMILIAR_EMERGENCIA', 'telefono_familiar_emergencia',
+              'CONTACTO_EMERGENCIA_TELEFONO', 'contacto_emergencia_telefono',
+              'TELEFONO_CONTACTO_EMERGENCIA', 'telefono_contacto_emergencia'
+            ]) || pickAny(c?.datos_basicos, [
+              'FAMILIAR_EMERGENCIA_TELEFONO', 'familiar_emergencia_telefono',
+              'TELEFONO_FAMILIAR_EMERGENCIA', 'telefono_familiar_emergencia',
+              'CONTACTO_EMERGENCIA_TELEFONO', 'contacto_emergencia_telefono',
+              'TELEFONO_CONTACTO_EMERGENCIA', 'telefono_contacto_emergencia'
             ])
           ).trim(),
 
@@ -925,7 +946,7 @@ export class HomeComponent implements OnInit {
       const CARD_H = Math.floor((PAGE_H - 2 * MARGIN - 2 * GAP) / 3);
 
       const BLUE_CORP = '#1E54C7';
-      const BLUE_SUBTLE = '#EBFOFA';
+      const BLUE_SUBTLE = '#EBF0FA';
       const TEXT_MAIN = '#1A1A1A';
       const TEXT_MUTED = '#737373';
       const WHITE = '#FFFFFF';
@@ -1177,11 +1198,11 @@ export class HomeComponent implements OnInit {
           doc.setFontSize(6.5);
           doc.setFont('helvetica', 'normal');
           doc.setTextColor(TEXT_MUTED);
-          doc.text('Contacto Coordinador de la', cx + CARD_W / 2, cursorY, { align: 'center' });
+          doc.text('CONTACTO COORDINADOR DE LA', cx + CARD_W / 2, cursorY, { align: 'center' });
           cursorY += 8;
           doc.setFont('helvetica', 'bold');
           doc.setTextColor(BLUE_CORP);
-          doc.text('Temporal 3152306148', cx + CARD_W / 2, cursorY, { align: 'center' });
+          doc.text('TEMPORAL 3152306148', cx + CARD_W / 2, cursorY, { align: 'center' });
           cursorY += 14;
 
           doc.setFontSize(9);
@@ -1203,6 +1224,7 @@ export class HomeComponent implements OnInit {
           doc.setFillColor(BLUE_SUBTLE);
           doc.rect(contentX, cursorY, contentW, 20, 'F');
           doc.setFontSize(7.5);
+          doc.setFont('helvetica', 'bold');
           doc.setTextColor(TEXT_MAIN);
           doc.text(emStr, cx + CARD_W / 2, cursorY + 12, { align: 'center', maxWidth: contentW - 4 });
           cursorY += 28;
@@ -1212,7 +1234,7 @@ export class HomeComponent implements OnInit {
           doc.line(contentX, cursorY, contentX + contentW, cursorY);
           cursorY += 8;
 
-          const legal = 'Este carnet es de uso exclusivo del trabajador. En caso de pérdida, reportar inmediatamente al coordinador de la temporal. El uso indebido de este documento acarreará sanciones disciplinarias.';
+          const legal = 'ESTE CARNET ES DE USO EXCLUSIVO DEL TRABAJADOR. EN CASO DE PERDIDA, REPORTAR INMEDIATAMENTE AL COORDINADOR DE LA TEMPORAL. EL USO INDEBIDO DE ESTE DOCUMENTO ACARREARA SANCIONES DISCIPLINARIAS.';
           doc.setFont('helvetica', 'normal');
           doc.setFontSize(6.5);
           doc.setTextColor(TEXT_MUTED);
