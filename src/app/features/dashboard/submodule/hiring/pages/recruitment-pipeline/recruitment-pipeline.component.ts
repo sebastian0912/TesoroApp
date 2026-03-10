@@ -1284,13 +1284,12 @@ export class RecruitmentPipelineComponent {
     }
 
     try {
-      const PAGE_W = 612; // pt (8.5 inch)
-      const PAGE_H = 792; // pt (11.0 inch)
-      const MARGIN = 18;
-      const GAP = 12;
-
-      const CARD_W = Math.floor((PAGE_W - 2 * MARGIN - 2 * GAP) / 3);
-      const CARD_H = Math.floor((PAGE_H - 2 * MARGIN - 2 * GAP) / 3);
+      const CARD_W = 280;
+      const CARD_H = 440;
+      const PAGE_W = CARD_W;
+      const PAGE_H = CARD_H;
+      const MARGIN = 0;
+      const GAP = 0;
 
       const BLUE_CORP = '#1E54C7';
       const BLUE_SUBTLE = '#EBF0FA';
@@ -1355,7 +1354,7 @@ export class RecruitmentPipelineComponent {
       }
 
       const logoB64 = await fetchImageBase64('logos/Logo_TA.png');
-      const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'letter', compress: true });
+      const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: [PAGE_W, PAGE_H], compress: true });
 
       const fotoUrl = row.DOCUMENTO_89_URL;
       const qrKey = `${row.CEDULA}|${row.CODIGO}`;
@@ -1365,9 +1364,12 @@ export class RecruitmentPipelineComponent {
       ]);
 
       const processCardSide = (isFront: boolean) => {
-        const col = isFront ? 0 : 2;
-        const cx = MARGIN + col * (CARD_W + GAP);
-        const cy = MARGIN;
+        const cx = 0;
+        const cy = 0;
+
+        // Background
+        doc.setFillColor('#8CD50A');
+        doc.rect(0, 0, CARD_W, CARD_H, 'F');
 
         // Bordes
         doc.setDrawColor(BLACK);
@@ -1376,59 +1378,60 @@ export class RecruitmentPipelineComponent {
         doc.setLineWidth(0.8);
         doc.rect(cx + 3, cy + 3, CARD_W - 6, CARD_H - 6);
 
-        const innerPad = 10;
+        const innerPad = 14;
         const contentX = cx + innerPad;
         const contentW = CARD_W - 2 * innerPad;
         let cursorY = cy + innerPad;
 
         if (isFront) {
-          const HEADER_H = 30;
+          const HEADER_H = 40;
           if (logoB64) {
             const format = logoB64.includes('image/png') ? 'PNG' : 'JPEG';
-            doc.addImage(logoB64, format, contentX + (contentW - 80) / 2, cursorY, 80, HEADER_H);
+            doc.addImage(logoB64, format, contentX + (contentW - 100) / 2, cursorY, 100, HEADER_H);
           }
-          cursorY += HEADER_H + 4;
+          cursorY += HEADER_H + 10;
 
           const PHOTO_H = CARD_H * 0.36;
+          const PHOTO_W = 100;
           if (fotoB64) {
             const format = fotoB64.includes('image/png') ? 'PNG' : 'JPEG';
-            try { doc.addImage(fotoB64, format, contentX + (contentW - 60) / 2, cursorY, 60, PHOTO_H); } catch (e) { }
+            try { doc.addImage(fotoB64, format, contentX + (contentW - PHOTO_W) / 2, cursorY, PHOTO_W, PHOTO_H); } catch (e) { }
           } else {
             doc.setFillColor(BLUE_SUBTLE);
             doc.rect(contentX, cursorY, contentW, PHOTO_H, 'F');
             doc.setFont('helvetica', 'bold');
-            doc.setFontSize(8);
+            doc.setFontSize(10);
             doc.setTextColor(TEXT_MUTED);
             doc.text('SIN FOTO', contentX + contentW / 2, cursorY + PHOTO_H / 2, { align: 'center', baseline: 'middle' });
           }
-          cursorY += PHOTO_H + 8;
+          cursorY += PHOTO_H + 16;
 
           doc.setFont('helvetica', 'bold');
-          doc.setFontSize(9.5);
+          doc.setFontSize(14);
           doc.setTextColor(TEXT_MAIN);
           doc.text(safeTxt(row.APELLIDOS), contentX + contentW / 2, cursorY, { align: 'center', maxWidth: contentW });
-          cursorY += 10;
+          cursorY += 15;
           doc.setFont('helvetica', 'normal');
-          doc.setFontSize(8.5);
+          doc.setFontSize(12);
           doc.text(safeTxt(row.NOMBRES), contentX + contentW / 2, cursorY, { align: 'center', maxWidth: contentW });
-          cursorY += 8;
+          cursorY += 12;
 
           const colQrW = contentW * 0.38;
-          const colGap = 5;
+          const colGap = 8;
           const colDataW = contentW - colQrW - colGap;
           const hAvail = (cy + CARD_H - innerPad) - cursorY;
-          const qrSize = Math.min(colQrW, hAvail - 10, 60);
+          const qrSize = Math.min(colQrW, hAvail - 15, 85);
           const qrX = contentX + (colQrW - qrSize) / 2;
           const qrY = cursorY;
 
           if (qrB64) doc.addImage(qrB64, 'JPEG', qrX, qrY, qrSize, qrSize);
 
           doc.setFont('helvetica', 'bold');
-          doc.setFontSize(8);
-          doc.text(safeTxt(row.CEDULA), contentX + colQrW / 2, qrY + qrSize + 8, { align: 'center', maxWidth: colQrW });
+          doc.setFontSize(9);
+          doc.text(safeTxt(row.CEDULA), contentX + colQrW / 2, qrY + qrSize + 12, { align: 'center', maxWidth: colQrW });
 
           const dataX = contentX + colQrW + colGap;
-          let rowY = cursorY + 6;
+          let rowY = cursorY + 8;
           const fields = [
             { l: 'Fecha de Ingreso', v: safeTxtMixed(row.FECHA_INGRESO) },
             { l: 'Código', v: safeTxtMixed(row.CODIGO) },
@@ -1437,62 +1440,64 @@ export class RecruitmentPipelineComponent {
 
           for (const f of fields) {
             doc.setFont('helvetica', 'bold');
-            doc.setFontSize(6);
+            doc.setFontSize(8);
             doc.setTextColor(TEXT_MUTED);
             doc.text(safeTxt(f.l), dataX, rowY);
-            rowY += 8;
+            rowY += 11;
             doc.setFont('helvetica', 'normal');
-            doc.setFontSize(7.5);
+            doc.setFontSize(10);
             doc.setTextColor(TEXT_MAIN);
             doc.text(f.v, dataX, rowY, { maxWidth: colDataW });
-            rowY += 12;
+            rowY += 16;
           }
         } else {
+          cursorY += 10;
           if (logoB64) {
             const format = logoB64.includes('image/png') ? 'PNG' : 'JPEG';
-            doc.addImage(logoB64, format, contentX + (contentW - 60) / 2, cursorY, 60, 20);
+            doc.addImage(logoB64, format, contentX + (contentW - 90) / 2, cursorY, 90, 30);
           }
-          cursorY += 28;
+          cursorY += 50;
 
-          doc.setFontSize(6.5);
+          doc.setFontSize(9);
           doc.setFont('helvetica', 'normal');
           doc.setTextColor(TEXT_MUTED);
           doc.text('CONTACTO COORDINADOR DE LA', cx + CARD_W / 2, cursorY, { align: 'center' });
-          cursorY += 8;
+          cursorY += 12;
           doc.setFont('helvetica', 'bold');
+          doc.setFontSize(12);
           doc.setTextColor(BLUE_CORP);
           doc.text('TEMPORAL 3152306148', cx + CARD_W / 2, cursorY, { align: 'center' });
-          cursorY += 14;
+          cursorY += 25;
 
-          doc.setFontSize(9);
+          doc.setFontSize(13);
           doc.setTextColor(TEXT_MAIN);
           doc.text('ARL', contentX, cursorY);
           doc.setTextColor(BLUE_CORP);
           doc.text('SURA', contentX + contentW, cursorY, { align: 'right' });
-          cursorY += 16;
+          cursorY += 30;
 
-          doc.setFontSize(6);
+          doc.setFontSize(10);
           doc.setTextColor(BLUE_CORP);
           doc.text('FAMILIAR EN CASO DE EMERGENCIA', cx + CARD_W / 2, cursorY, { align: 'center' });
-          cursorY += 6;
+          cursorY += 10;
 
           const emStr = [row.FAMILIAR_EMERGENCIA_NOMBRE, row.FAMILIAR_EMERGENCIA_TELEFONO].filter(Boolean).join(' - ') || '—';
           doc.setFillColor(BLUE_SUBTLE);
-          doc.rect(contentX, cursorY, contentW, 20, 'F');
-          doc.setFontSize(7.5);
+          doc.rect(contentX, cursorY, contentW, 30, 'F');
+          doc.setFontSize(11);
           doc.setFont('helvetica', 'bold');
           doc.setTextColor(TEXT_MAIN);
-          doc.text(safeTxt(emStr), cx + CARD_W / 2, cursorY + 12, { align: 'center', maxWidth: contentW - 4 });
-          cursorY += 28;
+          doc.text(safeTxt(emStr), cx + CARD_W / 2, cursorY + 18, { align: 'center', maxWidth: contentW - 6 });
+          cursorY += 45;
 
           doc.setDrawColor(200, 200, 200);
-          doc.setLineWidth(0.5);
+          doc.setLineWidth(1);
           doc.line(contentX, cursorY, contentX + contentW, cursorY);
-          cursorY += 8;
+          cursorY += 15;
 
           const legal = 'ESTE CARNET ES DE USO EXCLUSIVO DEL TRABAJADOR. EN CASO DE PERDIDA, REPORTAR INMEDIATAMENTE AL COORDINADOR DE LA TEMPORAL. EL USO INDEBIDO DE ESTE DOCUMENTO ACARREARA SANCIONES DISCIPLINARIAS.';
           doc.setFont('helvetica', 'normal');
-          doc.setFontSize(6.5);
+          doc.setFontSize(8.5);
           doc.setTextColor(TEXT_MUTED);
           doc.text(safeTxtMixed(legal), contentX, cursorY, { maxWidth: contentW, align: 'justify' });
         }
@@ -1526,6 +1531,24 @@ export class RecruitmentPipelineComponent {
         const textToSend = `Hola ${row.NOMBRES}, te damos la bienvenida al equipo. A continuación, adjunto tu carnet digital.`;
         const waUrl = `https://wa.me/${numUrl}?text=${encodeURIComponent(textToSend)}`;
         window.open(waUrl, '_blank', 'noopener,noreferrer');
+      }
+
+      // Guardar bandera en backend
+      if (cedula && ent0?.proceso?.id) {
+        try {
+          await firstValueFrom(this.registroProceso.updateProcesoByDocumento({
+            numero_documento: cedula,
+            contrato: { carnet_generado: true } as any
+          }, 'PATCH'));
+          let proc = cand?.entrevistas?.[0]?.proceso;
+          if (proc) {
+            if (!proc.contrato) proc.contrato = {};
+            proc.contrato.carnet_generado = true;
+            this.candidatoSeleccionado.set({ ...cand }); // trigger ui reference update
+          }
+        } catch (e) {
+          console.error('Error actualizando bandera carnet_generado', e);
+        }
       }
 
     } catch (error: any) {

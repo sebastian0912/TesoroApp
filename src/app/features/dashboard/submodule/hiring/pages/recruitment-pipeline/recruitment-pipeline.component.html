@@ -19,7 +19,7 @@
           </div>
         </div>
       </div>
-      
+
       <div class="botones premium-toolbar">
         <!-- Botón enviar correo bienvenida -->
         <button mat-icon-button matTooltip="Confirmar Correo de Bienvenida" aria-label="Confirmar Correo de Bienvenida"
@@ -42,7 +42,11 @@
 
         <!-- Botón generar carnet individual -->
         <button mat-icon-button matTooltip="Generar Carnet (PDF)" aria-label="Generar Carnet (PDF)"
-          (click)="generarCarnetIndividual()" [disabled]="!candidatoSeleccionado()?.numero_documento">
+          (click)="generarCarnetIndividual()" [disabled]="!candidatoSeleccionado()?.numero_documento"
+          [matBadge]="candidatoSeleccionado()?.entrevistas?.[0]?.proceso?.contrato?.carnet_generado ? '✓' : ''"
+          [matBadgeColor]="candidatoSeleccionado()?.entrevistas?.[0]?.proceso?.contrato?.carnet_generado ? 'primary' : 'warn'"
+          matBadgeOverlap="true"
+          [matBadgeHidden]="!candidatoSeleccionado()?.entrevistas?.[0]?.proceso?.contrato?.carnet_generado">
           <mat-icon>badge</mat-icon>
         </button>
 
