@@ -1511,11 +1511,28 @@ export class RecruitmentPipelineComponent {
 
       doc.save(`carnet_${row.CEDULA}.pdf`);
 
+      let backMsg = '';
+      try {
+        const pdfBlob = doc.output('blob');
+        const pdfFile = new File([pdfBlob], `carnet_${row.CEDULA}.pdf`, { type: 'application/pdf' });
+        const codigoContrato = row.CODIGO || cand.contrato?.codigo_contrato;
+        
+        await firstValueFrom(
+          codigoContrato 
+            ? this.docSvc.guardarDocumento(`carnet_${row.CEDULA}.pdf`, cedula, 102, pdfFile, codigoContrato)
+            : this.docSvc.guardarDocumento(`carnet_${row.CEDULA}.pdf`, cedula, 102, pdfFile)
+        );
+        backMsg = '<br><br><small style="color:green;">El carnet también se guardó correctamente en el historial del candidato.</small>';
+      } catch (err) {
+        console.error('Error guardando carnet en el backend', err);
+        backMsg = '<br><br><small style="color:red;">El carnet se descargó, pero hubo un error al guardarlo en el historial.</small>';
+      }
+
       Swal.close();
       const sendWa = await Swal.fire({
         icon: 'success',
         title: 'Carnet Generado',
-        text: `El carnet de ${row.NOMBRES} se descargó correctamente. ¿Quieres enviar un mensaje por WhatsApp diciéndole que adjuntarás el carnet?`,
+        html: `El carnet de ${row.NOMBRES} se descargó correctamente. ¿Quieres enviar un mensaje por WhatsApp diciéndole que adjuntarás el carnet?${backMsg}`,
         showCancelButton: true,
         confirmButtonText: 'Enviar por WhatsApp',
         cancelButtonText: 'Cerrar'

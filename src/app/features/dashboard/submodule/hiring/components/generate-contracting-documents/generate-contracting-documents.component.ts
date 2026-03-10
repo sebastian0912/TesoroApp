@@ -17,6 +17,7 @@ import { REFERENCIAS_A, REFERENCIAS_F } from '@/app/shared/model/const';
 import { switchMap, map, take, catchError, tap, finalize } from 'rxjs/operators';
 import { of, forkJoin, firstValueFrom } from 'rxjs';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
+import moment from 'moment';
 
 type UploadedInfo = {
   file: File;
@@ -131,17 +132,18 @@ export class GenerateContractingDocumentsComponent implements OnInit {
 
   typeMap: { [key: string]: number } = {
     Contrato: 25,
+    "Contrato TA": 25,
     "Autorización de datos": 26,
     "Entrega de documentos": 27,
-    "Entrega de documentos Agricola": 27,
+    "Entrega documentos Agricola": 27,
     "Entrega documentos Jardines de los andes": 27,
     "Entrega documentos Sagaro": 27,
     "Entrega documentos Flores de los andes": 27,
     "Entrega documentos Ipanema": 27,
+    "Entrega documentos administrativos": 27,
     "Entrega documentos rebaño": 27,
     "Entrega documentos melody": 27,
     "Entrega documentos Tu Alianza Sin Casino": 27,
-    "Entrega documentos administrativos": 27,
     'Ficha técnica': 34,
     'Ficha técnica TA Completa': 34,
     Cedula: 29,
@@ -2335,7 +2337,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     doc.text('Duración: 30 Minutos. Responsable de la socialización:', marginLeft + 85, y);
 
     // Sello / imagen final
-    const selloData = await toDataURL('firma/FirmaEntregaDocApoyo.png');
+    const selloData = await toDataURL('firma/CARLOS.png');
     if (selloData) {
       doc.addImage(selloData, 'PNG', marginLeft + 85, y - 10, 55, 18);
     }
@@ -5651,16 +5653,14 @@ export class GenerateContractingDocumentsComponent implements OnInit {
 
     // Duración y firma del responsable
     doc.setFont('helvetica', 'italic').setFontSize(6.5);
-    doc.text('Duración: 30 Minutos. Responsable de la socialización:', marginLeft + 85, y);
 
     // Sello
-    const selloData = await toDataURL('firma/FirmaEntregaDocApoyo.png');
+    const selloData = await toDataURL('firma/CARLOS.png');
     if (selloData) {
       doc.addImage(selloData, 'PNG', marginLeft + 135, y - 17, 50, 16);
     }
     // Añadimos el texto Carlos A. Rojas para simular la firma de la imagen
     doc.setFont('helvetica', 'normal').setFontSize(6.5);
-    doc.text('Carlos A. Rojas - Gestión Humana', marginLeft + 140, y + 2.5);
 
     // ───────── Exportar y previsualizar ─────────
     const pdfBlob = doc.output('blob');
@@ -6287,7 +6287,12 @@ export class GenerateContractingDocumentsComponent implements OnInit {
 
     // negrita
     doc.setFont('helvetica', 'bold');
+    // tamaño letra 14 
+    doc.setFontSize(8.5);
     doc.text(textoLinea, 5, y + 41.3, { maxWidth: 195 });
+    // tamaño letra 12
+    doc.setFontSize(6.5);
+
     doc.setFont('helvetica', 'normal');
 
     let x = 5; // Margen izquierdo
@@ -6824,7 +6829,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     // Renderizar texto justificado usando `y` como posición inicial
     y = this.renderJustifiedText(doc, texto, x, y + 5, maxWidth, lineHeight);
     // Centro de costo en negrita, tamaño 10, si se pasa de la página, se ajusta a la siguiente
-    doc.setFontSize(6.5);
+    doc.setFontSize(8.5);
     // Construir texto dinámico sin null ni undefined
     const partes = [
       this.vacante?.empresaUsuariaSolicita,
@@ -6838,6 +6843,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     // negrita
     doc.setFont('helvetica', 'bold');
     doc.text(textoLinea, 15, y + 5, { maxWidth: 195 });
+    doc.setFontSize(6.5);
     doc.setFont('helvetica', 'normal');
 
     // Segundo parrago
@@ -6998,7 +7004,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
 
     // El Empleador (Izquierda)
     try {
-      doc.addImage('firma/heidyTorres.png', 'PNG', 4, y - 18, 28, 14);
+      doc.addImage('firma/firmaselloalianza.jpeg', 'PNG', 4, y - 18, 28, 14);
     } catch (e) { }
     doc.setFont('helvetica', 'bold');
     doc.text('El Empleador', 11, y);
@@ -7389,7 +7395,9 @@ export class GenerateContractingDocumentsComponent implements OnInit {
 
     // negrita
     doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8.5);
     doc.text(textoLinea, 15, y + 5, { maxWidth: 195 });
+    doc.setFontSize(6.5);
     doc.setFont('helvetica', 'normal');
 
     // Segundo parrago
@@ -9117,7 +9125,14 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       this.setText(form, 'descripcion-familiar2', familiar2, customFont);
       this.setText(form, 'parentesco_familiar_1', this.safe(datoContratacion.parentesco_referencia_familiar1 ?? '').toUpperCase(), customFont);
       this.setText(form, 'parentesco_familiar_2', this.safe(datoContratacion.parentesco_referencia_familiar2 ?? '').toUpperCase(), customFont);
-
+      // descripcion-laboral1 en este tengo que dejar la info de 
+      const descripcionLaboral1Str = [
+        exp0?.empresa,
+        exp0?.tiempo_trabajado,
+        exp0?.labores_realizadas,
+        exp0?.labores_principales
+      ].filter(x => !!String(x || '').trim()).join(' - ');
+      this.setText(form, 'descripcion-laboral1', this.safe(descripcionLaboral1Str), customFont);
       this.setText(form, 'finca_a', this.vacante.finca, customFont);
       this.setText(form, 'nombres_y_apellidos', datoContratacion.primer_nombre + ' ' + datoContratacion.segundo_nombre + ' ' + datoContratacion.primer_apellido + ' ' + datoContratacion.segundo_apellido, customFont);
       this.setText(form, 'numero_identificacion', this.cedula, customFont);
@@ -9232,21 +9247,10 @@ export class GenerateContractingDocumentsComponent implements OnInit {
 
       const numIdentificacion = String(cand.numero_documento ?? '').trim();
 
-      // Fecha de ingreso dd/mm/yyyy
-      const fechaRaw = String(
-        vac?.fechadeIngreso ?? vac?.fechaIngreso ?? cand?.entrevistas?.[0]?.proceso?.contrato?.fecha_ingreso ?? ''
-      ).trim();
-      let fechaIngreso = '';
-      if (fechaRaw) {
-        const d = new Date(fechaRaw);
-        if (!isNaN(d.getTime())) {
-          fechaIngreso = [
-            String(d.getDate()).padStart(2, '0'),
-            String(d.getMonth() + 1).padStart(2, '0'),
-            d.getFullYear(),
-          ].join('/');
-        }
-      }
+
+      // fecha actual dd/mm/yyyy
+      let fechaIngreso = moment().format('DD/MM/YYYY');
+
 
       // 1) Cargar PDF plantilla
       const pdfUrl = 'Docs/entrega_carnets.pdf';
@@ -9351,18 +9355,14 @@ export class GenerateContractingDocumentsComponent implements OnInit {
 
       // Fecha de ingreso dd/mm/yyyy
       const fechaRaw = String(
-        vac?.fechadeIngreso ?? vac?.fechaIngreso ?? cand?.entrevistas?.[0]?.proceso?.contrato?.fecha_ingreso ?? ''
+        cand?.entrevistas?.[0]?.proceso?.contrato?.fecha_ingreso ?? ''
       ).trim();
+
       let fechaIngreso = '';
+
       if (fechaRaw) {
-        const d = new Date(fechaRaw);
-        if (!isNaN(d.getTime())) {
-          fechaIngreso = [
-            String(d.getDate()).padStart(2, '0'),
-            String(d.getMonth() + 1).padStart(2, '0'),
-            d.getFullYear(),
-          ].join('/');
-        }
+        const [year, month, day] = fechaRaw.split('-');
+        fechaIngreso = `${day}/${month}/${year}`;
       }
 
       // 1) Cargar PDF plantilla
@@ -9540,18 +9540,14 @@ export class GenerateContractingDocumentsComponent implements OnInit {
 
       // Fecha de ingreso dd/mm/yyyy
       const fechaRaw = String(
-        vac?.fechadeIngreso ?? vac?.fechaIngreso ?? contrato?.fecha_ingreso ?? ''
+        cand?.entrevistas?.[0]?.proceso?.contrato?.fecha_ingreso ?? ''
       ).trim();
+
       let fechaIngreso = '';
+
       if (fechaRaw) {
-        const d = new Date(fechaRaw);
-        if (!isNaN(d.getTime())) {
-          fechaIngreso = [
-            String(d.getDate()).padStart(2, '0'),
-            String(d.getMonth() + 1).padStart(2, '0'),
-            d.getFullYear(),
-          ].join('/');
-        }
+        const [year, month, day] = fechaRaw.split('-');
+        fechaIngreso = `${day}/${month}/${year}`;
       }
 
       // Género
