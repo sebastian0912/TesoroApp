@@ -285,10 +285,12 @@ export class GestionModulosComponent implements OnInit {
     initial?: { nombre?: string; descripcion?: string; ruta?: string; icono?: string; orden?: number }
   ): Promise<{ nombre: string; descripcion: string; ruta?: string; icono?: string; orden?: number } | null> {
     const dialogRef = this.dialog.open(ModuloDialogComponent, {
-      width: '450px',
+      width: '520px',
+      maxWidth: '95vw',
       panelClass: 'sf-filters-dialog-panel',
       backdropClass: 'sf-filters-backdrop',
       disableClose: true,
+      autoFocus: 'first-tabbable',
       data: {
         title,
         nombre: initial?.nombre,

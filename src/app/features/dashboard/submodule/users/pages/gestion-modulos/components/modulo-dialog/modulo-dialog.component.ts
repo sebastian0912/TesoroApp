@@ -22,18 +22,21 @@ export interface ModuloDialogData {
 })
 export class ModuloDialogComponent {
     form: FormGroup;
+    isEdit: boolean;
 
     constructor(
         public dialogRef: MatDialogRef<ModuloDialogComponent>,
         @Inject(MAT_DIALOG_DATA) public data: ModuloDialogData,
         private fb: FormBuilder
     ) {
+        this.isEdit = !!data.nombre;
+
         this.form = this.fb.group({
             nombre: [data.nombre || '', [Validators.required, Validators.maxLength(50)]],
             descripcion: [data.descripcion || '', [Validators.maxLength(150)]],
             ruta: [data.ruta || '', [Validators.maxLength(255)]],
             icono: [data.icono || 'widgets', [Validators.maxLength(50)]],
-            orden: [data.orden || 0]
+            orden: [data.orden ?? 0]
         });
     }
 
