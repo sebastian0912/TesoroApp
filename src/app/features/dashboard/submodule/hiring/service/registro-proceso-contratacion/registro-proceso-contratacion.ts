@@ -979,6 +979,15 @@ export class RegistroProcesoContratacion {
       return { ...(procesoFromForm || {}), ...(pArg || {}) };
     })();
 
+    // ===== Evaluacion (Opcional) =====
+    const evaluacion = this.nonEmpty({
+      relacion_familiar: get('relacionFamiliar'),
+      rendimiento_laboral: get('desempenoLaboral'),
+       porque_lo_felicitarian: get('felicitaciones'),
+      malentendido: get('situacionConflictiva'),
+      actividades_diarias: get('actividadesDiferentes'),
+    });
+
     // ===== Payload final =====
     const payload: any = this.clean({
       ...candidatoBase,
@@ -992,6 +1001,7 @@ export class RegistroProcesoContratacion {
       experiencias: experiencias.length ? experiencias : undefined,
       hijos: hijos.length ? hijos : undefined,
       entrevistas,
+      evaluacion,
       // solo añadimos 'proceso' si hay algo
       proceso: procesoMerged,
     });

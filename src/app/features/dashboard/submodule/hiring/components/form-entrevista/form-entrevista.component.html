@@ -736,6 +736,55 @@
             </mat-error>
           </mat-form-field>
         </div>
+
+        <div class="optional-evaluation-container">
+          <div class="optional-evaluation-header">
+            <mat-icon>psychology</mat-icon>
+            <h4>Evaluación (Opcional)</h4>
+          </div>
+
+          <div class="optional-grid">
+            <!-- ¿Cómo es su relación familiar? -->
+            <mat-form-field appearance="outline">
+              <mat-label>¿Cómo es su relación familiar?</mat-label>
+              <input matInput formControlName="relacionFamiliar" />
+            </mat-form-field>
+
+            <!-- ¿Cómo considera su desempeño laboral? -->
+            <mat-form-field appearance="outline">
+              <mat-label>¿Cómo considera su desempeño laboral?</mat-label>
+              <input matInput formControlName="desempenoLaboral" />
+            </mat-form-field>
+
+            <!-- ¿Ha recibido un reconocimiento o felicitación por el rendimiento? -->
+            <mat-form-field appearance="outline">
+              <mat-label>¿Reconocimiento/felicitación por rendimiento?</mat-label>
+              <input matInput formControlName="felicitaciones" />
+            </mat-form-field>
+
+            <!-- ¿Ha tenido usted alguna situación conflictiva? -->
+            <mat-form-field appearance="outline">
+              <mat-label>¿Ha tenido situación conflictiva?</mat-label>
+              <input matInput formControlName="situacionConflictiva" />
+            </mat-form-field>
+
+            <!-- Está dispuesto a realizar actividades diferentes al cargo? -->
+            <mat-form-field appearance="outline">
+              <mat-label>¿Dispuesto a realizar actividades diferentes?</mat-label>
+              <mat-select formControlName="actividadesDiferentes">
+                <mat-option value=""></mat-option>
+                <mat-option value="SI">Sí</mat-option>
+                <mat-option value="NO">No</mat-option>
+              </mat-select>
+            </mat-form-field>
+
+            <!-- Firma Entrevistador -->
+            <mat-form-field appearance="outline">
+              <mat-label>Nombre Entrevistador / Evaluador</mat-label>
+              <input matInput [value]="firma" readonly disabled />
+            </mat-form-field>
+          </div>
+        </div>
       </section>
 
       <!-- ============================

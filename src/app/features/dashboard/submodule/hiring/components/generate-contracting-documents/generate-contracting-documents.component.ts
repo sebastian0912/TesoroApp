@@ -87,6 +87,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     { titulo: 'Formato solicitud' },
     { titulo: 'MANEJO_IMAGEN' },
     { titulo: 'FICHA_SOCIAL' },
+    { titulo: 'Entrevista de Ingreso' },
     { titulo: 'Cedula' },
     { titulo: 'ARL' },
     { titulo: 'Figura Humana' },
@@ -96,7 +97,8 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     { titulo: 'PRUEBAS PSICOLOGICAS' },
     { titulo: 'PRUEBA LECTRO ESCRITURA' },
     { titulo: 'VISITA DOMICILIARIA' },
-    { titulo: 'PRUEBA SST' },
+    { titulo: 'PRUEBA SST' }
+
   ];
 
   nombreCompleto = '';
@@ -146,6 +148,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     "Entrega documentos Tu Alianza Sin Casino": 27,
     'Ficha técnica': 34,
     'Ficha técnica TA Completa': 34,
+    'Entrevista de Ingreso': 103,
     Cedula: 29,
     ARL: 30,
     'Figura Humana': 31,
@@ -160,7 +163,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     'VISITA DOMICILIARIA': 41,
     'PRUEBA SST': 24,
     'MANEJO_IMAGEN': 46,
-    'FICHA_SOCIAL': 98,
+    'FICHA_SOCIAL': 98
   };
 
   // Diccionario para almacenar info de documentos ya existentes en base de datos
@@ -558,8 +561,339 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     }
     else if (documento === 'FICHA_SOCIAL') {
       this.generarFichaSocial();
+    }
+    else if (documento === 'Entrevista de Ingreso') {
+      this.generarEntrevistaDeIngreso();
     } else {
       Swal.fire('Error', 'Funcionalidad de PDF no implementada para: ' + documento, 'error');
+    }
+  }
+
+  // --- Entrevista de Ingreso ---
+  async generarEntrevistaDeIngreso() {
+    try {
+      const cand: any = this.candidato ?? {};
+      const vac: any = this.vacante ?? {};
+      const refFamiliarArr: any[] = cand.referencias?.filter((r: any) => r.tipo === 'FAMILIAR1' || r.tipo === 'FAMILIAR2') || [];
+
+      // Extracción de datos Personales
+      const nombres = [cand.primer_nombre, cand.segundo_nombre].filter(Boolean).join(' ').toUpperCase();
+      const apellidos = [cand.primer_apellido, cand.segundo_apellido].filter(Boolean).join(' ').toUpperCase();
+      const nombreCompleto = `${apellidos} ${nombres}`.trim();
+
+      const numIdentificacion = String(cand.numero_documento ?? '').trim();
+      const estadoCivil = String(cand.estado_civil ?? '').toUpperCase();
+      const calcEdadLocal = (fNac: any): string => {
+        if (!fNac) return '';
+        const dob = new Date(fNac);
+        if (isNaN(dob.getTime())) return '';
+        const diffMS = Date.now() - dob.getTime();
+        const ageDT = new Date(diffMS);
+        return String(Math.abs(ageDT.getUTCFullYear() - 1970));
+      };
+
+      const fmtFechaLocal = (f: any): string => {
+        if (!f) return '';
+        const d = new Date(f);
+        if (isNaN(d.getTime())) return String(f);
+        return `${d.getDate().toString().padStart(2, '0')}/${(d.getMonth() + 1).toString().padStart(2, '0')}/${d.getFullYear()}`;
+      };
+
+      const fechaExpedicion = cand.info_cc?.fecha_expedicion ? fmtFechaLocal(cand.info_cc?.fecha_expedicion) : '';
+      const lugarExpedicion = [cand.info_cc?.mpio_expedicion, cand.info_cc?.depto_expedicion].filter(Boolean).join(' - ').toUpperCase();
+      const fechaNacimiento = cand.fecha_nacimiento ? fmtFechaLocal(cand.fecha_nacimiento) : '';
+      const lugarNacimiento = [cand.info_cc?.mpio_nacimiento, cand.info_cc?.depto_nacimiento].filter(Boolean).join(' - ').toUpperCase();
+
+      const edadStr = calcEdadLocal(cand.fecha_nacimiento);
+      const genero = cand.sexo === 'Masculino' ? 'M' : (cand.sexo === 'Femenino' ? 'F' : String(cand.sexo || ''));
+      const celular = cand.contacto?.celular || cand.numCelular || cand.telefono || '';
+      
+      const ent0 = cand.entrevistas?.[0] || {};
+      const antecedentes = ent0.proceso?.antecedentes || [];
+      const epsObj = antecedentes.find((a: any) => a.nombre?.toUpperCase() === 'EPS');
+      const eps = epsObj ? String(epsObj.observacion).toUpperCase() : '';
+
+      const email = String(cand.contacto?.email || cand.correo_electronico || '').toUpperCase();
+      const noWhatsapp = celular; // "no whatsapp es el mismo numero de celular"
+      const whaStr = cand.contacto?.whatsapp || celular; 
+      const direccion = String(cand.residencia?.direccion ?? '').toUpperCase();
+      const barrio = String(cand.residencia?.barrio ?? '').toUpperCase();
+      const ciudad = String(cand.municipio ?? cand.residencia?.municipio ?? cand.info_cc?.mpio_expedicion ?? '').toUpperCase();
+
+      // Familiar
+      const haceCuantoVive = String(cand.residencia?.hace_cuanto_vive ?? '').toUpperCase();
+      const tipoVivienda = String(cand.vivienda?.tipo_vivienda ?? '').toUpperCase();
+      const conQuienVive = String(cand.vivienda?.personas_con_quien_convive ?? '').toUpperCase();
+      const laViviendaEs = String(cand.vivienda?.caracteristicas_vivienda ?? '').toUpperCase(); // O similar si aplica
+      const cantidadHijos = cand.hijos?.length?.toString() || '0';
+      const edadesHijos = Array.isArray(cand.hijos) ? cand.hijos.map((h: any) => calcEdadLocal(h.fecha_nac)).join(', ') : '';
+      const cuidaHijos = String(cand.vivienda?.responsable_hijos ?? '').toUpperCase();
+
+      const evalCand = cand.evaluacion || {};
+      const relacionFamiliar = String(evalCand.relacion_familiar ?? '').toUpperCase();
+      const motivacion = String(ent0.como_se_proyecta ?? '').toUpperCase();
+
+      // Academica y Laboral
+      const formaciones = cand.formaciones || [];
+      const formacion = formaciones.length > 0 ? formaciones[0] : {};
+      const nivelAcademico = String(formacion.nivel ?? formacion.nivel_educativo ?? '').toUpperCase();
+      const estudiaActualmente = cand.vivienda?.estudia_actualmente ? 'SI' : 'NO';
+      const nombreInst = String(formacion.institucion ?? '').toUpperCase();
+      const anioFin = formacion.anio_finalizacion ? String(formacion.anio_finalizacion) : (formacion.fecha_fin ? String(new Date(formacion.fecha_fin).getFullYear()) : '');
+
+      const exprResumen = cand.experiencia_resumen || {};
+      const historialExp = cand.experiencias || [];
+      const tieneExp = (historialExp.length > 0 || exprResumen.tiene_experiencia) ? 'SI' : 'NO';
+      
+      const areaExp = String(ent0.tipo_experiencia_flores ?? '').toUpperCase();
+      
+      const empresasArr = historialExp.map((e: any) => e.empresa).filter(Boolean);
+      const empresas = empresasArr.length > 0 ? empresasArr.join(', ').toUpperCase() : String(exprResumen.empresas_laborado ?? '').toUpperCase();
+
+      const desempeno = String(evalCand.rendimiento_laboral ?? evalCand.rendimiento ?? '').toUpperCase();
+      const felicitaciones = String(evalCand.porque_lo_felicitarian ?? '').toUpperCase();
+      const situacionConflicto = String(evalCand.malentendido ?? '').toUpperCase();
+      const actividadesDiferentes = String(evalCand.actividades_diarias ?? '').toUpperCase(); // Map as requested or fallback
+
+      const nombreEvaluador = String(ent0.proceso?.nombre_evaluador ?? this.nombreCompletoLogin).toUpperCase();
+      const observaciones = String(evalCand.observaciones ?? 'SIN OBSERVACIONES').substring(0, 300);
+
+      // --- Setup del Documento ---
+      const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'letter' });
+      doc.setProperties({ title: `ENTREVISTA_INGRESO_${numIdentificacion}.pdf` });
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const mLeft = 14;
+      const anchoTabla = pageWidth - (mLeft * 2);
+
+      const { logoPath } = this.getEmpresaInfo();
+      const grayTit = [210, 210, 210] as [number, number, number];
+
+      // --- 1) Encabezado ---
+      autoTable(doc, {
+        startY: 10,
+        margin: { left: mLeft, right: mLeft },
+        theme: 'grid',
+        body: [
+          [
+            { content: '', rowSpan: 3, styles: { cellWidth: 50, minCellHeight: 20 } },
+            { content: 'PROCESO DE GESTIÓN HUMANA Y BIENESTAR', colSpan: 4, styles: { halign: 'center', fontStyle: 'bold', fontSize: 9 } }
+          ],
+          [
+            { content: 'ENTREVISTA DE INGRESO', colSpan: 4, styles: { halign: 'center', fontStyle: 'bold', fontSize: 9 } }
+          ],
+          [
+            { content: 'Código: TA SE-RE-2', styles: { halign: 'center', fontSize: 8 } },
+            { content: 'Versión: 02', styles: { halign: 'center', fontSize: 8 } },
+            { content: 'Fecha: Mayo 02-22', styles: { halign: 'center', fontSize: 8 } },
+            { content: 'Página: 1 de 1', styles: { halign: 'center', fontSize: 8 } }
+          ]
+        ],
+        didDrawCell: (data) => {
+          if (data.row.index === 0 && data.column.index === 0 && logoPath) {
+            try {
+              const x = data.cell.x + 2;
+              const y = data.cell.y + 2;
+              const w = data.cell.width - 4;
+              const h = data.cell.height - 4;
+              doc.addImage(logoPath, 'PNG', x, y, w, h);
+            } catch (e) { }
+          }
+        }
+      });
+
+      let finalY = (doc as any).lastAutoTable.finalY + 3;
+
+      const secTitle = (title: string, yPos: number) => {
+        doc.setFillColor(grayTit[0], grayTit[1], grayTit[2]);
+        doc.rect(mLeft, yPos, anchoTabla, 6, 'F');
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(11);
+        doc.setTextColor(0, 0, 0);
+        doc.text(title, pageWidth / 2, yPos + 4.5, { align: 'center' });
+        // Double wrapper frame simulation
+        doc.setDrawColor(0);
+        doc.setLineWidth(0.3);
+        doc.rect(mLeft, yPos, anchoTabla, 6, 'S');
+        doc.rect(mLeft + 0.6, yPos + 0.6, anchoTabla - 1.2, 4.8, 'S');
+        return yPos + 8;
+      };
+
+      const mkLabelVal = (lbl: string, val: string, xLbl: number, xVal: number, y: number) => {
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(8);
+        doc.text(lbl, xLbl, y);
+        doc.setFont('helvetica', 'normal');
+        doc.text(val || '', xVal, y);
+      };
+
+      // --- 2) Información Personal ---
+      finalY = secTitle('Información Personal', finalY);
+      let px1 = mLeft, pxV1 = mLeft + 25;
+      let px2 = mLeft + 85, pxV2 = mLeft + 115;
+      let px3 = mLeft + 150, pxV3 = mLeft + 168;
+
+      mkLabelVal('Nombre:', nombreCompleto, px1, pxV1, finalY + 4);
+      mkLabelVal('No. Identificación:', numIdentificacion, px2, pxV2, finalY + 4);
+      mkLabelVal('Estado Civil:', estadoCivil, px3, pxV3, finalY + 4);
+      finalY += 10;
+      
+      px1 = mLeft; pxV1 = mLeft + 28;
+      mkLabelVal('Fecha Expedición:', fechaExpedicion, px1, pxV1, finalY);
+      mkLabelVal('Lugar Expedición:', lugarExpedicion, px2, pxV2, finalY);
+      finalY += 6;
+      
+      mkLabelVal('Fecha Nacimiento:', fechaNacimiento, px1, pxV1, finalY);
+      mkLabelVal('Lugar Nacimiento:', lugarNacimiento, px2, pxV2, finalY);
+      finalY += 6;
+      
+      px1 = mLeft; pxV1 = mLeft + 10;
+      px2 = mLeft + 35; pxV2 = mLeft + 50;
+      px3 = mLeft + 80; let pxV3_2 = mLeft + 95;
+      let px4 = mLeft + 130, pxV4 = mLeft + 140;
+      mkLabelVal('Edad:', edadStr, px1, pxV1, finalY);
+      mkLabelVal('Genero:', genero, px2, pxV2, finalY);
+      mkLabelVal('Celular:', celular, px3, pxV3_2, finalY);
+      mkLabelVal('EPS:', eps, px4, pxV4, finalY);
+      finalY += 6;
+      
+      px1 = mLeft; pxV1 = mLeft + 12;
+      px2 = mLeft + 80; pxV2 = mLeft + 100;
+      px3 = mLeft + 130; pxV3_2 = mLeft + 148;
+      mkLabelVal('Email:', email, px1, pxV1, finalY);
+      mkLabelVal('No WhatsApp:', noWhatsapp, px2, pxV2, finalY);
+      mkLabelVal('WhatsApp:', whaStr, px3, pxV3_2, finalY);
+      finalY += 6;
+      
+      px1 = mLeft; pxV1 = mLeft + 15;
+      px2 = mLeft + 65; pxV2 = mLeft + 80;
+      px3 = mLeft + 125; pxV3_2 = mLeft + 140;
+      mkLabelVal('Dirección:', direccion, px1, pxV1, finalY);
+      mkLabelVal('Barrio:', barrio, px2, pxV2, finalY);
+      mkLabelVal('Ciudad:', ciudad, px3, pxV3_2, finalY);
+      finalY += 5;
+
+      // --- 3) Información Familiar ---
+      finalY = secTitle('Información Familiar', finalY);
+      const fx1 = mLeft, fxV1 = mLeft + 55;
+      const fx2 = mLeft + 105, fxV2 = mLeft + 130;
+
+      mkLabelVal('¿Hace cuanto vive en la zona?', haceCuantoVive, fx1, fxV1, finalY + 4);
+      mkLabelVal('Tipo de vivienda:', tipoVivienda, fx2, fxV2, finalY + 4);
+      finalY += 10;
+      mkLabelVal('¿Con quién vive?', conQuienVive, fx1, fxV1, finalY);
+      mkLabelVal('La vivienda es:', laViviendaEs, fx2, fxV2, finalY);
+      finalY += 6;
+      mkLabelVal('¿Cantidad hijos?', cantidadHijos, fx1, fxV1, finalY);
+      mkLabelVal('Edades de los hijos:', edadesHijos, fx2, fx2 + 32, finalY);
+      finalY += 6;
+      mkLabelVal('¿Quién cuida de sus hijos menores de edad cuando usted se encuentra trabajando?', cuidaHijos, fx1, mLeft + 115, finalY);
+      finalY += 6;
+      mkLabelVal('¿Cómo es su relación familiar?', relacionFamiliar, fx1, fxV1, finalY);
+      finalY += 6;
+      mkLabelVal('¿Cuál es su motivación?', motivacion, fx1, fxV1, finalY);
+      finalY += 9;
+
+      // --- 4) Información Académica y Laboral ---
+      finalY = secTitle('Información Académica y Laboral', finalY);
+      let ax1 = mLeft, axV1 = mLeft + 65;
+      let ax2 = mLeft + 115, axV2 = mLeft + 148;
+
+      mkLabelVal('Nivel académico:', nivelAcademico, ax1, axV1, finalY + 4);
+      mkLabelVal('¿Estudia actualmente?', estudiaActualmente, ax2, axV2, finalY + 4);
+      finalY += 10;
+      mkLabelVal('Nombre de la institución:', nombreInst, ax1, axV1, finalY);
+      mkLabelVal('Año de finalización:', anioFin, ax2, axV2, finalY);
+      finalY += 6;
+      mkLabelVal('¿Tiene experiencia Laboral?', tieneExp, ax1, axV1, finalY);
+      finalY += 6;
+      mkLabelVal('¿En que area tiene experiencia?', areaExp, ax1, axV1, finalY);
+      finalY += 6;
+      mkLabelVal('¿En que empresas ha trabajado?', empresas, ax1, axV1, finalY);
+      finalY += 6;
+      mkLabelVal('¿Cómo considera su desempeño laboral?', desempeno, ax1, axV1, finalY);
+      finalY += 6;
+      mkLabelVal('¿Ha recibido un reconocimiento o felicitación por el rendimiento?', felicitaciones, ax1, ax1 + 95, finalY);
+      finalY += 8;
+      mkLabelVal('¿Ha tenido usted alguna situación conflictiva?', situacionConflicto, ax1, ax1 + 65, finalY);
+      finalY += 8;
+      mkLabelVal('Está dispuesto a realizar actividades diferentes al cargo?', actividadesDiferentes, ax1, ax1 + 80, finalY);
+      finalY += 6;
+
+      // --- 5) Observaciones del Evaluador ---
+      finalY = secTitle('Observaciones del Evaluador', finalY);
+      
+      // Rectángulo gris solo para el título "Nombre del evaluador:"
+      doc.setFillColor(230, 230, 230);
+      doc.rect(mLeft, finalY + 2, 36, 5, 'F');
+      
+      doc.setFont('helvetica', 'normal');
+      doc.text('Nombre del evaluador:', mLeft + 1, finalY + 5.5);
+      doc.text(nombreEvaluador, mLeft + 38, finalY + 5.5);
+
+      finalY += 10;
+      
+      // Rectángulo gris solo para el título "Observaciones:"
+      doc.setFillColor(230, 230, 230);
+      doc.rect(mLeft, finalY, 25, 5, 'F');
+      
+      doc.setFont('helvetica', 'normal');
+      doc.text('Observaciones:', mLeft + 1, finalY + 3.5);
+      doc.text(observaciones, mLeft + 27, finalY + 3.5, { maxWidth: 140 });
+
+      finalY += 40;
+      // ───────── Firmas ─────────
+      const toDataURL = async (url?: string): Promise<string | null> => {
+        if (!url) return null;
+        if (url.startsWith('data:')) return url;
+        try {
+          const res = await fetch(url);
+          const blob = await res.blob();
+          return new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result as string);
+            reader.onerror = () => resolve(null);
+            reader.readAsDataURL(blob);
+          });
+        } catch {
+          return null;
+        }
+      };
+
+      const firmaData = await toDataURL(this.firma);
+      if (firmaData) {
+        doc.addImage(firmaData, 'PNG', mLeft + 25, finalY - 18, 50, 18);
+      }
+      
+      const selloData = await toDataURL('firma/gestion_entrevista.png');
+      if (selloData) {
+        doc.addImage(selloData, 'PNG', mLeft + 105, finalY - 18, 50, 18);
+      }
+
+      doc.setDrawColor(0);
+      doc.setLineWidth(0.4);
+      doc.line(mLeft + 20, finalY, mLeft + 80, finalY);
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Firma del Entrevistado', mLeft + 50, finalY + 4, { align: 'center' });
+
+      doc.line(mLeft + 100, finalY, mLeft + 160, finalY);
+      doc.text('Firma de Gestión Humana', mLeft + 130, finalY + 4, { align: 'center' });
+
+      // doc.save(`ENTREVISTA_INGRESO_${numIdentificacion}.pdf`); // Eliminado por instrucción del usuario
+      const blob = doc.output('blob');
+      const mockFile = new File([blob], `ENTREVISTA_INGRESO_${numIdentificacion}.pdf`, { type: 'application/pdf' });
+
+      // Guardarlo usando la estructura que utiliza el componente
+      this.uploadedFiles['Entrevista de Ingreso'] = {
+        file: mockFile,
+        fileName: `ENTREVISTA_INGRESO_${numIdentificacion}.pdf`,
+      };
+
+      this.setPdfPreview(URL.createObjectURL(blob));
+
+    } catch (error) {
+      console.error(error);
+      Swal.fire('Error', 'Hubo un error al generar la Entrevista de Ingreso.', 'error');
     }
   }
 

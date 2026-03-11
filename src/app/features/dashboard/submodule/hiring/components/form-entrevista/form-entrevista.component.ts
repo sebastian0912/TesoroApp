@@ -101,6 +101,7 @@ export class FormEntrevistaComponent implements OnInit {
   formVacante!: FormGroup;
   isSubmitting = false;
   lockedOffice?: string;
+  firma = '';
 
   // Agrupadores lógicos (ex "steps") para validación seccional
   step1Ctrl = new FormGroup({});
@@ -282,6 +283,16 @@ export class FormEntrevistaComponent implements OnInit {
 
       // Aux
       brigadaDe: [''],
+
+      // Evaluacion (Opcionales)
+      relacionFamiliar: [''],
+      desempenoLaboral: [''],
+      felicitaciones: [''],
+      situacionConflictiva: [''],
+      actividadesDiferentes: [''],
+
+      // Firma
+      firmaEvaluador: [{ value: '', disabled: true }],
     });
 
     // =======================
@@ -339,6 +350,12 @@ export class FormEntrevistaComponent implements OnInit {
       const cand = this.candidatoSeleccionado();
       this.rellenarForm(cand);
     });
+
+    // Populate signature
+    const u: any = this.util.getUser();
+    if (u) {
+      this.firma = `${u?.datos_basicos?.nombres ?? ''} ${u?.datos_basicos?.apellidos ?? ''} - ${u?.rol?.nombre ?? ''}`.trim();
+    }
   }
 
   private normalizeText(v: any): string {
@@ -985,6 +1002,7 @@ export class FormEntrevistaComponent implements OnInit {
     const contacto = cand?.contacto ?? {};
     const entrevistas = Array.isArray(cand?.entrevistas) ? cand.entrevistas : [];
     const oficina = entrevistas[0]?.oficina ?? '';
+    const evalAux = cand?.evaluacion ?? {};
 
     const fechaNac = toDate(cand?.fecha_nacimiento);
     const fechaExp = toDate(info_cc?.fecha_expedicion);
@@ -1022,7 +1040,7 @@ export class FormEntrevistaComponent implements OnInit {
         hace_cuanto_vive: haceCuantoVive || '',
 
         nivel: cand?.formaciones?.[0]?.nivel || '',
-        proyeccion1Ano: entrevistas?.[0]?.como_se_proyecta || '',
+        proyeccion1Ano: entrevistas?.[0]?.como_se_proyecta || evalAux?.motivacion || '',
         estudiaActualmente: !!cand?.vivienda?.estudia_actualmente,
         experienciaFlores: cand?.experiencia_resumen?.tiene_experiencia ? 'Sí' : 'No',
         tipoExperienciaFlores: cand?.experiencia_resumen?.area_experiencia || '',
@@ -1033,6 +1051,13 @@ export class FormEntrevistaComponent implements OnInit {
         aplicaObservacion: entrevistas?.[0]?.proceso?.aplica_o_no_aplica || '',
         motivoEspera: entrevistas?.[0]?.proceso?.motivo_espera || '',
         motivoNoAplica: entrevistas?.[0]?.proceso?.motivo_no_aplica || '',
+
+        // Opcionales evaluacion
+        relacionFamiliar: evalAux?.relacion_familiar || '',
+        desempenoLaboral: evalAux?.rendimiento_laboral || evalAux?.rendimiento || '',
+        felicitaciones: evalAux?.porque_lo_felicitarian || '',
+        situacionConflictiva: evalAux?.malentendido || '',
+        actividadesDiferentes: evalAux?.actividades_diarias || '',
       },
       { emitEvent: false }
     );
