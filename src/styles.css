@@ -836,6 +836,24 @@ mat-card-content p {
   pointer-events: none;
 }
 
+/* =========================================================
+   Plantillas Modal (SweetAlert) responsive
+   ========================================================= */
+.modal-responsive-plantillas {
+  width: 95% !important;
+  max-width: 850px !important;
+  border-radius: 12px !important;
+}
+
+@media (max-width: 640px) {
+  .modal-responsive-plantillas {
+    width: 100% !important;
+    max-width: 100vw !important;
+    margin: 0 !important;
+    border-radius: 0 !important;
+  }
+}
+
 .hero-text {
   position: relative;
   z-index: 1;

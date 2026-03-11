@@ -430,4 +430,157 @@ export class HiringService {
       catchError(this.handleError)
     );
   }
+
+  // -------------------------
+  // Módulo de Ausentismos
+  // -------------------------
+
+  public obtenerAusentismos(): Observable<any> {
+    return this.http.get(`${this.apiUrl}/gestion_ausentismios/ausentismos/`,).pipe(
+      map((response: any) => response),
+      catchError(this.handleError)
+    );
+  }
+
+  async gestionarAusentismo(id: string | number, data: any): Promise<any> {
+    const url = `${this.apiUrl}/gestion_ausentismios/ausentismos/${id}/gestionar/`;
+    try {
+      const response = await firstValueFrom(this.http.patch<any>(url, data).pipe(
+        catchError(this.handleError)
+      ));
+      return response;
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  async enviarNotificacionMasivaAusentismos(ids: (string | number)[], plantilla_id?: number | null): Promise<any> {
+    const url = `${this.apiUrl}/gestion_ausentismios/ausentismos/notificar-masivo/`;
+    const payload: any = { ids };
+    if (plantilla_id) {
+      payload.plantilla_id = plantilla_id;
+    }
+    try {
+      const response = await firstValueFrom(this.http.post<any>(url, payload).pipe(
+        catchError(this.handleError)
+      ));
+      return response;
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  async subirAusentismosExcel(file: File): Promise<any> {
+    const url = `${this.apiUrl}/gestion_ausentismios/ausentismos/importar-excel/`;
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    try {
+      const response = await firstValueFrom(this.http.post<any>(url, formData).pipe(
+        catchError(this.handleError)
+      ));
+      return response;
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  // -------------------------
+  // Módulo de Ausentismos NUEVOS
+  // -------------------------
+
+  public obtenerAusentismosNuevos(): Observable<any> {
+    return this.http.get(`${this.apiUrl}/gestion_ausentismios/ausentismos-nuevos/`,).pipe(
+      map((response: any) => response),
+      catchError(this.handleError)
+    );
+  }
+
+  async gestionarAusentismoNuevo(id: string | number, data: any): Promise<any> {
+    const url = `${this.apiUrl}/gestion_ausentismios/ausentismos-nuevos/${id}/gestionar/`;
+    try {
+      const response = await firstValueFrom(this.http.patch<any>(url, data).pipe(
+        catchError(this.handleError)
+      ));
+      return response;
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  async enviarNotificacionMasivaAusentismosNuevos(ids: (string | number)[], plantilla_id?: number | null): Promise<any> {
+    const url = `${this.apiUrl}/gestion_ausentismios/ausentismos-nuevos/notificar-masivo/`;
+    const payload: any = { ids };
+    if (plantilla_id) {
+      payload.plantilla_id = plantilla_id;
+    }
+    try {
+      const response = await firstValueFrom(this.http.post<any>(url, payload).pipe(
+        catchError(this.handleError)
+      ));
+      return response;
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  async subirAusentismosNuevosExcel(file: File): Promise<any> {
+    const url = `${this.apiUrl}/gestion_ausentismios/ausentismos-nuevos/importar-excel/`;
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    try {
+      const response = await firstValueFrom(this.http.post<any>(url, formData).pipe(
+        catchError(this.handleError)
+      ));
+      return response;
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  descargarPlantillaAusentismosNuevos(): Observable<Blob> {
+    return this.http.get(`${this.apiUrl}/gestion_ausentismios/ausentismos-nuevos/descargar-plantilla/`, {
+      responseType: 'blob'
+    }).pipe(
+      catchError(this.handleError)
+    );
+  }
+
+  // -------------------------
+  // Módulo de Mensajes Predeterminados
+  // -------------------------
+
+  public obtenerMensajes(tipo?: string): Observable<any> {
+    let url = `${this.apiUrl}/gestion_ausentismios/mensajes/`;
+    if (tipo) {
+      // Si el backend permite filtrado por tipo
+      url += `?tipo=${tipo}`;
+    }
+    return this.http.get(url).pipe(
+      map((response: any) => response),
+      catchError(this.handleError)
+    );
+  }
+
+  async crearMensaje(data: any): Promise<any> {
+    const url = `${this.apiUrl}/gestion_ausentismios/mensajes/`;
+    try {
+      return await firstValueFrom(this.http.post<any>(url, data).pipe(catchError(this.handleError)));
+    } catch (error) { throw error; }
+  }
+
+  async actualizarMensaje(id: string | number, data: any): Promise<any> {
+    const url = `${this.apiUrl}/gestion_ausentismios/mensajes/${id}/`;
+    try {
+      return await firstValueFrom(this.http.patch<any>(url, data).pipe(catchError(this.handleError)));
+    } catch (error) { throw error; }
+  }
+
+  async eliminarMensaje(id: string | number): Promise<any> {
+    const url = `${this.apiUrl}/gestion_ausentismios/mensajes/${id}/`;
+    try {
+      return await firstValueFrom(this.http.delete<any>(url).pipe(catchError(this.handleError)));
+    } catch (error) { throw error; }
+  }
 }

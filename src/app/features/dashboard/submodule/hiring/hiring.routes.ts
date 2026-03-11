@@ -11,6 +11,7 @@ import { ViewReceptionInterviewsComponent } from './pages/view-reception-intervi
 import { ErrorListingComponent } from './pages/error-listing/error-listing.component';
 import { ConsultContractingDocumentationComponent } from './pages/consult-contracting-documentation/consult-contracting-documentation.component';
 import { TarjetasComponent } from './pages/tarjetas/tarjetas.component';
+import { AbsencesNew } from './pages/absences-new/absences-new';
 
 export const routes: Routes = [
   { path: 'absences', component: AbsencesComponent },
@@ -24,5 +25,6 @@ export const routes: Routes = [
   { path: 'view-reception-interviews', component: ViewReceptionInterviewsComponent },
   { path: 'error-listing', component: ErrorListingComponent },
   { path: 'consult-contracting-documentation', component: ConsultContractingDocumentationComponent },
-  { path: 'tarjetas', component: TarjetasComponent }
+  { path: 'tarjetas', component: TarjetasComponent },
+  { path: 'absences-new', component: AbsencesNew }
 ];

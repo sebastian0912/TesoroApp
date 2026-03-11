@@ -16,7 +16,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { firstValueFrom } from 'rxjs';
 
 @Component({
-  selector: 'app-absences',
+  selector: 'app-absences-new',
   standalone: true,
   imports: [
     SharedModule,
@@ -28,10 +28,10 @@ import { firstValueFrom } from 'rxjs';
     MatSortModule,
     MatTableModule
   ],
-  templateUrl: './absences.component.html',
-  styleUrl: './absences.component.css'
+  templateUrl: './absences-new.html',
+  styleUrl: './absences-new.css'
 })
-export class AbsencesComponent implements OnInit {
+export class AbsencesNew implements OnInit {
   displayedColumns: string[] = [
     'select',
     'fecha_diligenciamiento',
@@ -97,7 +97,7 @@ export class AbsencesComponent implements OnInit {
       });
     }
 
-    this.hiringService.obtenerAusentismos().subscribe({
+    this.hiringService.obtenerAusentismosNuevos().subscribe({
       next: (data) => {
         this.dataSource.data = data;
         
@@ -187,7 +187,7 @@ export class AbsencesComponent implements OnInit {
     XLSX.utils.book_append_sheet(wb, wsActual, 'Ausentismos Actuales');
     XLSX.utils.book_append_sheet(wb, wsHistorial, 'Historial de Casos');
 
-    const fileName = `Reporte_Ausentismos_${new Date().toISOString().slice(0,10)}.xlsx`;
+    const fileName = `Reporte_Nuevos_Ausentismos_${new Date().toISOString().slice(0,10)}.xlsx`;
     XLSX.writeFile(wb, fileName);
   }
 
@@ -250,7 +250,7 @@ export class AbsencesComponent implements OnInit {
       
       try {
         const plantilla_id = selectedTemplateId ? Number(selectedTemplateId) : null;
-        const res = await this.hiringService.enviarNotificacionMasivaAusentismos(ids, plantilla_id);
+        const res = await this.hiringService.enviarNotificacionMasivaAusentismosNuevos(ids, plantilla_id);
         Swal.fire({
           icon: 'success',
           title: 'Envíos Completados',
@@ -336,7 +336,7 @@ export class AbsencesComponent implements OnInit {
       if (result.isConfirmed) {
         try {
           Swal.fire({ title: 'Guardando...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
-          await this.hiringService.gestionarAusentismo(element.id, result.value);
+          await this.hiringService.gestionarAusentismoNuevo(element.id, result.value);
           Swal.fire('Guardado', 'La gestión se ha actualizado correctamente.', 'success');
           this.cargarDatos(); // Recargar para ver historial
         } catch (error) {
@@ -348,6 +348,32 @@ export class AbsencesComponent implements OnInit {
 
   triggerFileInput(): void {
     this.fileInputRef?.nativeElement?.click();
+  }
+
+  descargarPlantilla(): void {
+    Swal.fire({
+      title: 'Descargando...',
+      text: 'Preparando la plantilla Excel.',
+      allowOutsideClick: false,
+      didOpen: () => Swal.showLoading()
+    });
+
+    this.hiringService.descargarPlantillaAusentismosNuevos().subscribe({
+      next: (blob) => {
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'Plantilla_Ausentismos.xlsx';
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+        Swal.close();
+      },
+      error: () => {
+        Swal.fire('Error', 'No se pudo descargar la plantilla.', 'error');
+      }
+    });
   }
 
   cargarExcelAusentismos(event: Event): void {
@@ -363,7 +389,7 @@ export class AbsencesComponent implements OnInit {
       didOpen: () => Swal.showLoading()
     });
 
-    this.hiringService.subirAusentismosExcel(file)
+    this.hiringService.subirAusentismosNuevosExcel(file)
       .then((response: any) => {
         Swal.fire({
           icon: 'success',
@@ -431,7 +457,6 @@ export class AbsencesComponent implements OnInit {
       if (plantilla) {
         let textoFinal = plantilla.mensaje.replace(/\[NOMBRE\]/g, element.nombre_completo);
         textoFinal = textoFinal.replace(/\[DIAS\]/g, String(element.total_dias || 0));
-        // Codificamos texto para la url de Whatsapp
         const mensajeCodificado = encodeURIComponent(textoFinal);
         window.open(`https://wa.me/57${element.numero_contacto}?text=${mensajeCodificado}`, '_blank');
       }
@@ -564,18 +589,13 @@ export class AbsencesComponent implements OnInit {
         const btns = document.querySelectorAll('.borrar-mensaje-btn');
         btns.forEach(btn => {
           btn.addEventListener('click', async (e: any) => {
-            let target = e.target;
-            while(target && target.tagName !== 'BUTTON') {
-              target = target.parentElement;
-            }
-            if(!target) return;
-            const id = target.getAttribute('data-id');
-            const confirmar = await Swal.fire({ title: '¿Eliminar mensaje?', icon: 'warning', showCancelButton: true, confirmButtonText: 'Sí, Eliminar' });
+            const id = e.target.getAttribute('data-id');
+            const confirmar = await Swal.fire({ title: '¿Eliminar mensaje?', icon: 'warning', showCancelButton: true, confirmButtonText: 'Sí' });
             if (confirmar.isConfirmed) {
               Swal.fire({ title: 'Eliminando...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
               try {
                 await this.hiringService.eliminarMensaje(id);
-                this.configurarMensajes(); // reabrir para refrescar
+                this.configurarMensajes();
               } catch {
                 Swal.fire('Error', 'No se pudo eliminar el mensaje.', 'error');
               }
@@ -589,7 +609,7 @@ export class AbsencesComponent implements OnInit {
         try {
           await this.hiringService.crearMensaje(result.value);
           Swal.fire('Éxito', 'Mensaje creado correctamente', 'success').then(() => {
-            this.configurarMensajes(); // Volver a abrir para ver el cambio
+            this.configurarMensajes();
           });
         } catch (error) {
           Swal.fire('Error', 'No se pudo guardar el mensaje', 'error');
