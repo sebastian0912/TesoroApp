@@ -1152,6 +1152,48 @@ export class RecruitmentPipelineComponent {
     const proc0 = ent0?.proceso;
     const contratoBE = proc0?.contrato;
 
+    const carnetGenerado = contratoBE?.carnet_generado === true;
+
+    if (carnetGenerado) {
+      const result = await Swal.fire({
+        title: 'Carnet ya generado',
+        text: 'Este candidato ya tiene un carnet generado previamente. ¿Qué deseas hacer?',
+        icon: 'question',
+        showCancelButton: true,
+        showDenyButton: true,
+        confirmButtonText: 'Visualizar',
+        denyButtonText: 'Volver a generar',
+        cancelButtonText: 'Cancelar'
+      });
+
+      if (result.isConfirmed) {
+        // VISUALIZAR
+        try {
+          Swal.fire({ title: 'Buscando carnet...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+          const cedulaQuery = String(cand.numero_documento ?? '').trim();
+          const docsResp = await firstValueFrom(this.docSvc.getDocuments(cedulaQuery, 102));
+          const docs = Array.isArray(docsResp) ? docsResp : (docsResp?.results || []);
+          const carnetDoc = docs.find((d: any) => d.type === 102);
+
+          Swal.close();
+          if (carnetDoc && carnetDoc.file_url) {
+            window.open(carnetDoc.file_url, '_blank');
+          } else {
+            await Swal.fire({ icon: 'warning', title: 'No encontrado', text: 'No se encontró el archivo del carnet en el servidor.' });
+          }
+        } catch (e) {
+          Swal.close();
+          console.error(e);
+          await Swal.fire({ icon: 'error', title: 'Error', text: 'Ocurrió un error al buscar el carnet.' });
+        }
+        return;
+      } else if (result.isDenied) {
+        // Continua con la generacion
+      } else {
+        return; // Cancelar
+      }
+    }
+
     const cedula = String(cand.numero_documento ?? '').trim();
     // Prioritize the frontend mapped UI, fallback to backend contract
     let codigo = String(contratoBE?.codigo_contrato ?? '').trim();

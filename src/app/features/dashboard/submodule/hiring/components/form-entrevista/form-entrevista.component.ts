@@ -92,6 +92,11 @@ export class FormEntrevistaComponent implements OnInit {
       activo: true,
     });
 
+  parentescosOpciones$: Observable<CatalogValue[]> =
+    this.catalogos.listDatosByTablaCodigo('PARENTESCOS_FAMILIARES', {
+      activo: true,
+    });
+
   // ====== Form / estado ======
   formVacante!: FormGroup;
   isSubmitting = false;
@@ -251,6 +256,10 @@ export class FormEntrevistaComponent implements OnInit {
       cuidadorHijos: [''],
       numeroHijos: [0],
       hijos: this.fb.array([]),
+      nombreReferenciaFamiliar1: [{ value: '', disabled: true }],
+      parentescoReferenciaFamiliar1: ['', [Validators.maxLength(70)]],
+      nombreReferenciaFamiliar2: [{ value: '', disabled: true }],
+      parentescoReferenciaFamiliar2: ['', [Validators.maxLength(70)]],
 
       // Formación / experiencia
       nivel: [null, Validators.required],
@@ -1078,12 +1087,21 @@ export class FormEntrevistaComponent implements OnInit {
 
     // 5) Información familiar (hijos)
     const hijosArr = Array.isArray(cand?.hijos) ? cand.hijos : [];
+    
+    // Referencias vienen en formato array por el backend
+    const refs = Array.isArray(cand?.referencias) ? cand.referencias : [];
+    const fam1 = refs.find((r: any) => r.tipo === 'FAMILIAR1');
+    const fam2 = refs.find((r: any) => r.tipo === 'FAMILIAR2');
 
     this.formVacante.patchValue(
       {
         tieneHijos: hijosArr.length > 0,
         cuidadorHijos: cand?.vivienda?.responsable_hijos || '',
         numeroHijos: hijosArr.length,
+        nombreReferenciaFamiliar1: fam1?.nombre || '',
+        parentescoReferenciaFamiliar1: fam1?.parentesco || '',
+        nombreReferenciaFamiliar2: fam2?.nombre || '',
+        parentescoReferenciaFamiliar2: fam2?.parentesco || '',
       },
       { emitEvent: false }
     );
@@ -1186,11 +1204,39 @@ export class FormEntrevistaComponent implements OnInit {
 
     if (this.formVacante.invalid) {
       this.formVacante.markAllAsTouched();
+
       await Swal.fire(
         'Error',
-        'Por favor complete todos los campos requeridos.',
+        'Por favor verifique los campos en rojo. Faltan datos obligatorios o hay errores.',
         'error'
       );
+
+      setTimeout(() => {
+        const firstInvalidControl = document.querySelector(
+          'mat-form-field.mat-form-field-invalid, .ng-invalid[formControlName], .ng-invalid[formGroupName], .ng-invalid[formArrayName]'
+        ) as HTMLElement;
+
+        if (firstInvalidControl) {
+          // Destaca visualmente el control temporalmente
+          firstInvalidControl.classList.add('error-pulse');
+          setTimeout(() => firstInvalidControl.classList.remove('error-pulse'), 2000);
+
+          // Hacer focus si es posible (inputs/selects de Angular)
+          const focusable = firstInvalidControl.querySelector('input, select, textarea') as HTMLElement;
+          if (focusable) focusable.focus();
+
+          // Scroll más suave y calculando el offset para evitar el header fijo
+          const headerOffset = 100;
+          const elementPosition = firstInvalidControl.getBoundingClientRect().top;
+          const offsetPosition = elementPosition + window.pageYOffset - headerOffset;
+
+          window.scrollTo({
+            top: offsetPosition,
+            behavior: 'smooth'
+          });
+        }
+      }, 150);
+
       return;
     }
 

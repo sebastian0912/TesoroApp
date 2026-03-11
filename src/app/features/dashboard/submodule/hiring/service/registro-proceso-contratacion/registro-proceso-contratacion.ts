@@ -846,6 +846,10 @@ export class RegistroProcesoContratacion {
       sexo: get('sexo', 'genero'),
       fecha_nacimiento: this.toYYYYMMDD(get('fecha_nacimiento', 'fechaNacimiento')),
       estado_civil: get('estado_civil', 'estadoCivil'),
+      nombreReferenciaFamiliar1: get('nombreReferenciaFamiliar1'),
+      parentescoReferenciaFamiliar1: get('parentescoReferenciaFamiliar1'),
+      nombreReferenciaFamiliar2: get('nombreReferenciaFamiliar2'),
+      parentescoReferenciaFamiliar2: get('parentescoReferenciaFamiliar2'),
     });
 
     // ===== Contacto =====

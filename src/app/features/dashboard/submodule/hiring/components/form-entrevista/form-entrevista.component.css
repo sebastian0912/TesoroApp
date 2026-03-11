@@ -387,3 +387,27 @@ mat-icon,
   /* Prevent overflow */
   margin: 0 !important;
 }
+
+/* ==================================
+   NOVEDAD: Animación de Error
+===================================== */
+@keyframes error-pulse-anim {
+  0% {
+    box-shadow: 0 0 0 0px rgba(239, 68, 68, 0.7);
+    background-color: rgba(239, 68, 68, 0.05);
+  }
+
+  70% {
+    box-shadow: 0 0 0 10px rgba(239, 68, 68, 0);
+    background-color: transparent;
+  }
+
+  100% {
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
+  }
+}
+
+.error-pulse {
+  animation: error-pulse-anim 2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  border-radius: 4px;
+}
