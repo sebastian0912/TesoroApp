@@ -239,30 +239,81 @@ export class AbsencesComponent implements OnInit {
     });
 
     if (isConfirmed) {
-      Swal.fire({
-        title: 'Enviando...',
-        text: 'Por favor espera mientras se procesan los envíos',
-        allowOutsideClick: false,
-        didOpen: () => Swal.showLoading()
+      // Nueva Lógica: Vista Previa
+      const plantillaSeleccionada = plantillasCorreo.find(p => String(p.id) === String(selectedTemplateId));
+      let previewHTML = '';
+      
+      if (plantillaSeleccionada) {
+         let tempHTML = plantillaSeleccionada.mensaje;
+         // Toma el primer empleado como ejemplo para la vista previa
+         const testEmp = selected[0];
+         tempHTML = tempHTML.replace(/\[NOMBRE\]/g, testEmp.nombre_completo);
+         tempHTML = tempHTML.replace(/\[DIAS\]/g, String(testEmp.total_dias || 0));
+         tempHTML = tempHTML.replace(/\[CEDULA\]/g, testEmp.cedula);
+         tempHTML = tempHTML.replace(/\[FINCA\]/g, testEmp.finca || '');
+         tempHTML = tempHTML.replace(/\[ITEMS\]/g, testEmp.items || '');
+         tempHTML = tempHTML.replace(/\[INICIO\]/g, String(testEmp.fecha_inicio || ''));
+         tempHTML = tempHTML.replace(/\[FIN\]/g, String(testEmp.fecha_fin || ''));
+         
+         previewHTML = `
+          <div style="background:#f1f5f9; padding: 10px; border-radius: 6px; text-align: left; font-size: 13px; max-height: 200px; overflow-y: auto;">
+             <p style="margin:0 0 5px 0; color:#475569;"><b>Asunto:</b> ${plantillaSeleccionada.asunto.replace(/\[NOMBRE\]/g, testEmp.nombre_completo)}</p>
+             <hr style="margin: 5px 0;">
+             ${tempHTML}
+          </div>
+         `;
+      } else {
+         const testEmp = selected[0];
+         previewHTML = `
+          <div style="background:#f1f5f9; padding: 10px; border-radius: 6px; text-align: left; font-size: 13px; max-height: 200px; overflow-y: auto;">
+             <p style="margin:0 0 5px 0; color:#475569;"><b>Asunto:</b> Notificación de Ausentismo: ${testEmp.items || 'Registro'}</p>
+             <hr style="margin: 5px 0;">
+             Hola ${testEmp.nombre_completo},<br><br>
+             Se ha registrado una novedad de ausentismo bajo el concepto de '<b>${testEmp.items || 'NO ASIGNADO'}</b>'.<br>
+             Fechas: ${testEmp.fecha_inicio} al ${testEmp.fecha_fin}.<br>
+             Días de ausencia: ${testEmp.total_dias}<br><br>
+             Por favor, revisa esta novedad y comunícate con tu gestor o la oficina correspondiente.
+          </div>
+         `;
+      }
+
+      const confirmPreview = await Swal.fire({
+         title: 'Vista Previa del Correo',
+         text: `Así se verá el correo (ejemplo usando a ${selected[0].nombre_completo}). ¿Deseas enviarlo a los ${selected.length} colaboradores?`,
+         html: previewHTML,
+         icon: 'info',
+         showCancelButton: true,
+         confirmButtonText: 'Sí, Enviar a Todos',
+         cancelButtonText: 'Cancelar',
+         width: '600px'
       });
 
-      const ids = selected.map(s => s.id);
-      
-      try {
-        const plantilla_id = selectedTemplateId ? Number(selectedTemplateId) : null;
-        const res = await this.hiringService.enviarNotificacionMasivaAusentismos(ids, plantilla_id);
+      if (confirmPreview.isConfirmed) {
         Swal.fire({
-          icon: 'success',
-          title: 'Envíos Completados',
-          html: `
-            <strong>Exitosos:</strong> ${res.notificados}<br>
-            <strong>Fallidos:</strong> ${res.fallidos}
-            ${res.errores?.length ? `<br><small style="color:red">${res.errores[0]}</small>` : ''}
-          `
+          title: 'Enviando...',
+          text: 'Por favor espera mientras se procesan los envíos por Gmail API',
+          allowOutsideClick: false,
+          didOpen: () => Swal.showLoading()
         });
-        this.selection.clear();
-      } catch (error) {
-        Swal.fire('Error', 'Hubo un problema enviando las notificaciones.', 'error');
+
+        const ids = selected.map(s => s.id);
+        
+        try {
+          const plantilla_id = selectedTemplateId ? Number(selectedTemplateId) : null;
+          const res = await this.hiringService.enviarNotificacionMasivaAusentismos(ids, plantilla_id);
+          Swal.fire({
+            icon: 'success',
+            title: 'Envíos Completados',
+            html: `
+              <strong>Exitosos:</strong> ${res.notificados}<br>
+              <strong>Fallidos:</strong> ${res.fallidos}
+              ${res.errores?.length ? `<br><small style="color:red; max-height:100px; overflow:auto; display:block;">${res.errores.join('<br>')}</small>` : ''}
+            `
+          });
+          this.selection.clear();
+        } catch (error) {
+          Swal.fire('Error', 'Hubo un problema enviando las notificaciones.', 'error');
+        }
       }
     }
   }
