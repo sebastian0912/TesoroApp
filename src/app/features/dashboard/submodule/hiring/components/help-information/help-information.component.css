@@ -144,6 +144,13 @@
   color: rgba(0, 0, 0, 0.75) !important;
 }
 
+/* Evitar espacio blanco en el panel desplegable para que el buscador pegue arriba, y aumentar el alto del panel */
+::ng-deep .custom-select-panel.mat-mdc-select-panel {
+  padding-top: 0 !important;
+  min-height: 50vh !important;
+  max-height: 50vh !important;
+}
+
 .trigger-meta {
   display: block;
   font-size: 12px;

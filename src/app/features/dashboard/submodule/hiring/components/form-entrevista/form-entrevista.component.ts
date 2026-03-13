@@ -257,9 +257,9 @@ export class FormEntrevistaComponent implements OnInit {
       cuidadorHijos: [''],
       numeroHijos: [0],
       hijos: this.fb.array([]),
-      nombreReferenciaFamiliar1: [{ value: '', disabled: true }],
+      nombreReferenciaFamiliar1: [''],
       parentescoReferenciaFamiliar1: ['', [Validators.maxLength(70)]],
-      nombreReferenciaFamiliar2: [{ value: '', disabled: true }],
+      nombreReferenciaFamiliar2: [''],
       parentescoReferenciaFamiliar2: ['', [Validators.maxLength(70)]],
 
       // Formación / experiencia

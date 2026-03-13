@@ -46,6 +46,21 @@ p {
   line-height: 1;
 }
 
+/* High contrast for dark header */
+::ng-deep .view-toggle .mat-button-toggle-appearance-standard .mat-button-toggle-label-content {
+  color: #cbd5e1 !important;
+}
+::ng-deep .view-toggle .mat-button-toggle-appearance-standard.mat-button-toggle-checked {
+  background-color: rgba(255, 255, 255, 0.15) !important;
+}
+::ng-deep .view-toggle .mat-button-toggle-appearance-standard.mat-button-toggle-checked .mat-button-toggle-label-content {
+  color: #ffffff !important;
+  font-weight: 600;
+}
+::ng-deep .view-toggle .mat-button-toggle-appearance-standard.mat-button-toggle-checked .mat-button-toggle-label-content .mat-icon {
+  color: #ffffff !important;
+}
+
 /* ====== Campo filtro ====== */
 .filtro {
   width: 100%;

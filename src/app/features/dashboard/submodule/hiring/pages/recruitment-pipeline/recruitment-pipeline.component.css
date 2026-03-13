@@ -181,7 +181,7 @@ mat-tab-group {
 .premium-toolbar button {
   border-radius: 8px;
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  color: #475569;
+  color: #ffffff;
 }
 
 .premium-toolbar button:hover:not([disabled]) {

@@ -64,6 +64,19 @@
               <ng-template #placeholderVac>Selecciona…</ng-template>
             </mat-select-trigger>
 
+            <!-- Buscador interno con FormControl -->
+            <div style="padding: 10px 16px; position: sticky; top: 0; background: white; z-index: 10; border-bottom: 1px solid #eee;"
+              (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()">
+              <mat-form-field appearance="outline" style="width: 100%; margin-bottom: -1.25em;">
+                <mat-icon matPrefix style="color: #666;">search</mat-icon>
+                <input matInput [formControl]="searchVacanteCtrl" placeholder="Buscar empresa, finca o cargo...">
+                <button *ngIf="searchVacanteCtrl.value" matSuffix mat-icon-button aria-label="Limpiar"
+                  (click)="searchVacanteCtrl.setValue(''); $event.stopPropagation()">
+                  <mat-icon>close</mat-icon>
+                </button>
+              </mat-form-field>
+            </div>
+
             <ng-container *ngFor="let emp of vacantesAgrupadas()">
               <!-- 1er Nivel: Empresa -->
               <mat-optgroup [label]="emp.empresa" style="font-weight: bold; color: #1976d2; font-size: 15px;">
@@ -71,14 +84,14 @@
 
                   <!-- 2do Nivel: Finca (simulada como label deshabilitada) -->
                   <mat-option disabled
-                    style="opacity: 1 !important; color: #555; font-weight: 600; padding-left: 24px; min-height: 40px;">
+                    style="opacity: 1 !important; color: #555; font-weight: 600; padding-left: 24px; min-height: 48px; padding-top: 12px; padding-bottom: 12px;">
                     <mat-icon
                       style="vertical-align: baseline; margin-right: 4px; font-size: 18px; width: 18px; height: 18px;">business</mat-icon>
                     Finca: {{ f.finca }}
                   </mat-option>
 
                   <!-- 3er Nivel: Cargo / Vacante -->
-                  <mat-option *ngFor="let v of f.vacantes" [value]="v.id" style="padding-left: 48px; min-height: 60px;">
+                  <mat-option *ngFor="let v of f.vacantes" [value]="v.id" style="padding-left: 48px; min-height: auto; padding-top: 24px; padding-bottom: 24px; line-height: normal;">
                     <div class="vacante-option" style="width: 100%; display: flex; flex-direction: column;">
                       <div class="row-1" style="display: flex; align-items: center; width: 100%;">
                         <mat-icon

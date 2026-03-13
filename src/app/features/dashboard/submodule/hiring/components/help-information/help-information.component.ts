@@ -58,6 +58,7 @@ interface PublicacionDTO {
   municipio: string[] | null;
   auxilioTransporte: string | null;
   conteo_estados?: any;
+  activo?: boolean;
 }
 
 @Component({
@@ -92,6 +93,10 @@ export class HelpInformationComponent implements OnInit {
 
   // Vacante actualmente seleccionada (mantiene sincronía entre lista e id)
   vacanteSeleccionada = signal<PublicacionDTO | null>(null);
+
+  // ========= Filtro y Búsqueda =========
+  searchVacanteCtrl = this.fb.control<string>('', { nonNullable: true });
+  searchVacanteSig = toSignal(this.searchVacanteCtrl.valueChanges.pipe(startWith('')));
 
   // ========= Formularios =========
   vacantesForm: FormGroup;
@@ -132,13 +137,29 @@ export class HelpInformationComponent implements OnInit {
     const map = new Map<string, Map<string, PublicacionDTO[]>>();
 
     const currentSelectedId = this.selectedVacanteId();
+    const searchVal = this.utilService.normalizeText(this.searchVacanteSig() || '').toLowerCase();
 
     for (const v of list) {
-      // Filtrar las que tienen 0 faltantes, EXCEPTO la ya seleccionada
-      if (this.falt(v) === 0 && Number(v.id) !== currentSelectedId) continue;
+      // 1) Filtrar inactivos EXCEPTUANDO si ya es la vacante seleccionada
+      const isSelected = Number(v.id) === currentSelectedId;
+      if (v.activo === false && !isSelected) continue;
+
+      // 2) Filtrar las que tienen 0 faltantes, EXCEPTO la ya seleccionada
+      if (this.falt(v) === 0 && !isSelected) continue;
 
       const emp = v.empresaUsuariaSolicita || 'Sin Empresa';
       const finca = v.finca || 'Sin Finca';
+      const cargo = v.cargo || 'Sin Cargo';
+
+      // 3) Filtro de búsqueda textual (Empresa, Finca, Cargo)
+      if (searchVal && !isSelected) {
+        const strEmp = this.utilService.normalizeText(emp).toLowerCase();
+        const strFinca = this.utilService.normalizeText(finca).toLowerCase();
+        const strCargo = this.utilService.normalizeText(cargo).toLowerCase();
+        if (!strEmp.includes(searchVal) && !strFinca.includes(searchVal) && !strCargo.includes(searchVal)) {
+          continue;
+        }
+      }
 
       if (!map.has(emp)) {
         map.set(emp, new Map());
