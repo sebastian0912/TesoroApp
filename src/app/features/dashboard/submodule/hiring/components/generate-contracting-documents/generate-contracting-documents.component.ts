@@ -88,6 +88,9 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     { titulo: 'MANEJO_IMAGEN' },
     { titulo: 'FICHA_SOCIAL' },
     { titulo: 'Entrevista de Ingreso' },
+    { titulo: 'Contratos Otros Si' },
+    { titulo: 'Auxilio Alimentación' },
+    { titulo: 'Autorización Daños Pérdidas' },
     { titulo: 'Cedula' },
     { titulo: 'ARL' },
     { titulo: 'Figura Humana' },
@@ -98,7 +101,6 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     { titulo: 'PRUEBA LECTRO ESCRITURA' },
     { titulo: 'VISITA DOMICILIARIA' },
     { titulo: 'PRUEBA SST' }
-
   ];
 
   nombreCompleto = '';
@@ -149,6 +151,9 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     'Ficha técnica': 34,
     'Ficha técnica TA Completa': 34,
     'Entrevista de Ingreso': 103,
+    'Contratos Otros Si': 104,
+    'Auxilio Alimentación': 105,
+    'Autorización Daños Pérdidas': 106,
     Cedula: 29,
     ARL: 30,
     'Figura Humana': 31,
@@ -163,7 +168,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     'VISITA DOMICILIARIA': 41,
     'PRUEBA SST': 24,
     'MANEJO_IMAGEN': 46,
-    'FICHA_SOCIAL': 98
+    'FICHA_SOCIAL': 98,
   };
 
   // Diccionario para almacenar info de documentos ya existentes en base de datos
@@ -481,6 +486,22 @@ export class GenerateContractingDocumentsComponent implements OnInit {
   }
 
   generarPDF(documento: string) {
+    // Contratos Otros Si no depende de la empresa
+    if (documento === 'Contratos Otros Si') {
+      this.generarContratosOtroSi();
+      return;
+    }
+    // Auxilio Alimentación no depende de la empresa
+    if (documento === 'Auxilio Alimentación') {
+      this.generarAuxilioAlimentacion();
+      return;
+    }
+    // Autorización Daños Pérdidas no depende de la empresa
+    if (documento === 'Autorización Daños Pérdidas') {
+      this.generarAutorizacionDanosPerdidas();
+      return;
+    }
+
     if (!this.empresa || this.empresa.trim() === '') {
       Swal.fire('Atención', 'Selecciona el candidato, la empresa no está definida.', 'warning');
       return;
@@ -564,6 +585,9 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     }
     else if (documento === 'Entrevista de Ingreso') {
       this.generarEntrevistaDeIngreso();
+    }
+    else if (documento === 'Contratos Otros Si') {
+      this.generarContratosOtroSi();
     } else {
       Swal.fire('Error', 'Funcionalidad de PDF no implementada para: ' + documento, 'error');
     }
@@ -10039,6 +10063,691 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     } catch (error) {
       console.error('Error generando Formato Solicitud:', error);
       Swal.fire({ icon: 'error', title: 'Error', text: 'Ocurrió un error al generar el Formato de Solicitud.' });
+    }
+  }
+
+
+  // ─────────────────────────────────────────────────────────────────────
+  // Contratos Otros Si – PDF generado con jsPDF
+  // ─────────────────────────────────────────────────────────────────────
+  async generarContratosOtroSi() {
+    try {
+      const cand: any = this.candidato ?? {};
+      const nombres = [cand.primer_nombre, cand.segundo_nombre].filter(Boolean).join(' ').toUpperCase();
+      const apellidos = [cand.primer_apellido, cand.segundo_apellido].filter(Boolean).join(' ').toUpperCase();
+      const nombreCompleto = `${nombres} ${apellidos}`.trim();
+      const cedula = String(cand.numero_documento ?? this.cedula ?? '').trim();
+      const ciudadExpedicion = [cand.info_cc?.mpio_expedicion, cand.info_cc?.depto_expedicion].filter(Boolean).join(', ').toUpperCase() || '';
+
+      // ─── Helpers de fecha ───
+      const mesesEs = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+      const hoy = new Date();
+      const dia = hoy.getDate();
+      const mes = mesesEs[hoy.getMonth()];
+      const anio = hoy.getFullYear();
+
+      const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'letter' });
+      doc.setProperties({ title: `CONTRATOS_OTROS_SI_${cedula}.pdf` });
+
+      const pageW = doc.internal.pageSize.getWidth();   // ~215.9
+      // ─── Márgenes APA: 2.54 cm = 25.4 mm ───
+      const mL = 25.4;
+      const mR = 25.4;
+      const mTop = 25.4;
+      const maxW = pageW - mL - mR;
+
+      // ─── Helper: texto justificado ───
+      const lineH = 4.2;
+      const justifyText = (text: string, x: number, yStart: number, width: number, fontSize?: number): number => {
+        if (fontSize) doc.setFontSize(fontSize);
+        const lines: string[] = doc.splitTextToSize(text, width);
+        let cy = yStart;
+        for (let i = 0; i < lines.length; i++) {
+          const line = lines[i].trim();
+          const isLast = i === lines.length - 1;
+          if (isLast || !line) {
+            // Última línea: alineación izquierda normal
+            doc.text(line, x, cy);
+          } else {
+            // Justificar: distribuir espacio extra entre palabras
+            const words = line.split(/\s+/);
+            if (words.length <= 1) {
+              doc.text(line, x, cy);
+            } else {
+              const totalTextW = words.reduce((sum, w) => sum + doc.getTextWidth(w), 0);
+              const extraSpace = (width - totalTextW) / (words.length - 1);
+              let wx = x;
+              for (let j = 0; j < words.length; j++) {
+                doc.text(words[j], wx, cy);
+                wx += doc.getTextWidth(words[j]) + extraSpace;
+              }
+            }
+          }
+          cy += lineH;
+        }
+        return cy;
+      };
+
+      let y = mTop;
+
+      // ───── Título centrado ─────
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(11);
+      doc.text('OTRO SI A CONTRATOS CELEBRADOS ENTRE TU ALIANZA S.A.S.CON', pageW / 2, y, { align: 'center' });
+      y += 5;
+      doc.text('SUS COLABORADORES EN MISIÓN', pageW / 2, y, { align: 'center' });
+      y += 10;
+
+      // ───── Párrafo introductorio (justificado) ─────
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(9);
+      const introText = `OTRO SI al contrato en misión celebrado el día ${dia} de ${mes} de ${anio} entre la empresa temporal TU ALIANZA S.A.S. NIT. 900.864.596-1 y ${nombreCompleto || '________________________________'} identificado con Cédula de Ciudadanía ${cedula || '_______________'} de ${ciudadExpedicion || '__________________________'} se ha convenido celebrarse este OTRO SI en los siguientes términos:`;
+      y = justifyText(introText, mL + 4, y, maxW - 4, 9);
+      y += 3;
+
+      // ───── i) ─────
+      doc.setFont('helvetica', 'bold');
+      doc.text('i)', mL, y);
+      doc.setFont('helvetica', 'normal');
+      y = justifyText(
+        'Entre las partes existe una relación de trabajo regida por un contrato de trabajo por obra o labor al cual se entiende incorporado este documento.',
+        mL + 8, y, maxW - 8
+      );
+      y += 3;
+
+      // ───── ii) ─────
+      doc.setFont('helvetica', 'bold');
+      doc.text('ii)', mL, y);
+      doc.setFont('helvetica', 'normal');
+      y = justifyText(
+        'Que el EMPLEADOR tiene establecido un concurso de ventas en el cual el TRABAJADOR podrá participar y eventualmente hacerse acreedor de premios o bonificaciones, en caso de cumplir con las políticas y condiciones del concurso.',
+        mL + 8, y, maxW - 8
+      );
+      y += 3;
+
+      // ───── iii) Artículo 128 ─────
+      doc.setFont('helvetica', 'bold');
+      doc.text('iii)', mL, y);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(9);
+      doc.text('El artículo 128 del Código Sustantivo del Trabajo, establece: ', mL + 8, y);
+      y += lineH;
+
+      // Art. 128 en itálica justificado
+      doc.setFont('helvetica', 'italic');
+      doc.setFontSize(8.5);
+      y = justifyText(
+        `"No constituyen salario las sumas que ocasional y por mera liberalidad recibe el trabajador del empleador, como primas, bonificaciones o gratificaciones ocasionales, participación de utilidades, excedentes de las empresas de economía solidaria y lo que recibe en dinero o en especie no para su beneficio, ni para enriquecer su patrimonio, sino para desempeñar a cabalidad sus funciones, como gastos de representación o medios de transporte, elementos de trabajo y otros semejantes. Tampoco las prestaciones sociales de que tratan los títulos VIII y IX, ni los beneficios o auxilios habituales u ocasionales acordados convencional o contractualmente u otorgados en forma extralegal por el empleador, cuando las partes hayan dispuesto expresamente que no constituyen salario en dinero o en especie, tales como la alimentación, habitación o vestuario, las primas extralegales, de vacaciones, de servicios o de navidad."`,
+        mL + 8, y, maxW - 8, 8.5
+      );
+      y += 4;
+
+      // ───── Preámbulo ─────
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(9);
+      doc.text('De conformidad con lo anterior', mL + 4, y);
+      let xLP = mL + 4 + doc.getTextWidth('De conformidad con lo anterior ');
+      doc.setFont('helvetica', 'bold');
+      doc.text('LAS PARTES', xLP, y);
+      xLP += doc.getTextWidth('LAS PARTES ');
+      doc.setFont('helvetica', 'normal');
+      doc.text('acuerdan las siguientes cláusulas adicionales:', xLP, y);
+      y += 7;
+
+      // ───── PRIMERA ─────
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(9);
+      y = justifyText(
+        'PRIMERA. EXCLUSIÓN SALARIAL BONIFICACION PREMIO A LA EXCELENCIA, U OTRO TIPO DE PREMIO POR CUMPLIMIENTO DE METAS POR PRODUCTIVIDAD POR CUMPLIMIENTO DE PARAMETROS DE CALIDAD, 0 POR CUMPLIMIENTO DE PORCENTAJES DE ASISTENCIA AL TRABAJO O POR OTROS QUE SE CREEN.',
+        mL, y, maxW
+      );
+
+      doc.setFont('helvetica', 'normal');
+      y = justifyText(
+        'LAS PARTES acuerdan que en caso de que EL EMPLEADOR reconozca al TRABAJADOR un premio o bonificación como resultado de la participación en el concurso de ventas por él establecido, dicho premio o bonificación, el cual podrá ser entregado en dinero, en especie o en bonos para compra de producto, no constituyen factor salarial de ninguna índole conforme lo establecen los artículo 128 del CST.',
+        mL, y, maxW
+      );
+      y += 3;
+
+      // ───── SEGUNDA ─────
+      doc.setFont('helvetica', 'bold');
+      doc.text('SEGUNDA. BASE PARA CALCULAR PRESTACIONES Y COTIZACIONES.', mL, y);
+      doc.setFont('helvetica', 'normal');
+      y += lineH;
+      y = justifyText(
+        'Por no constituir factor salarial, el premio o bonificación entregado por el EMPLEADOR en el marco del concurso de ventas, no se tendrá en cuenta para integrar la base para calcular prestaciones sociales, indemnizaciones, ni cotizaciones al sistema de seguridad social.',
+        mL, y, maxW
+      );
+      y += 3;
+
+      // ───── TERCERA ─────
+      doc.setFont('helvetica', 'bold');
+      doc.text('TERCERA. EL TRABAJADOR', mL + 4, y);
+      let xT = mL + 4 + doc.getTextWidth('TERCERA. EL TRABAJADOR ');
+      doc.setFont('helvetica', 'normal');
+      doc.text('autoriza expresamente a', xT, y);
+      xT += doc.getTextWidth('autoriza expresamente a ');
+      doc.setFont('helvetica', 'bold');
+      doc.text('EL EMPLEADOR,', xT, y);
+      doc.setFont('helvetica', 'normal');
+      y += lineH;
+      y = justifyText(
+        'para que en cualquier momento y sin necesidad de preaviso alguno, se abstenga de reconocer y/o pagar el premio o bonificación, sea total o proporcional de concurso de ventas que se tienen establecido de manera libre y voluntaria.',
+        mL, y, maxW
+      );
+      y += 6;
+
+      // ───── Cierre con fecha real ─────
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(9);
+      y = justifyText(
+        `En señal de conformidad a satisfacción las partes lo suscriben en dos ejemplares de un mismo tenor, en la ciudad de Bogotá D.C. a los ${dia} del mes de ${mes} del año ${anio}`,
+        mL, y, maxW
+      );
+      y += 10;
+
+      // ───── Área de firmas ─────
+      const toDataURL = async (url?: string): Promise<string | null> => {
+        if (!url) return null;
+        if (url.startsWith('data:')) return url;
+        try {
+          const res = await fetch(url);
+          const blob = await res.blob();
+          return new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result as string);
+            reader.onerror = () => resolve(null);
+            reader.readAsDataURL(blob);
+          });
+        } catch {
+          return null;
+        }
+      };
+
+      // Encabezados
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(10);
+      doc.text('EL EMPLEADOR', mL + 10, y);
+      doc.text('EL TRABAJADOR', pageW / 2 + 20, y);
+      y += 4;
+
+      // Sello empleador (izquierda)
+      try {
+        const selloData = await toDataURL('firma/firmaselloalianza.jpeg');
+        if (selloData) {
+          doc.addImage(selloData, 'JPEG', mL, y, 45, 20);
+        }
+      } catch { }
+
+      // Firma candidato (derecha) — usa this.firma
+      try {
+        const firmaData = await toDataURL(this.firma);
+        if (firmaData) {
+          doc.addImage(firmaData, 'PNG', pageW / 2 + 15, y, 45, 20);
+        }
+      } catch { }
+
+      y += 22;
+
+      // Líneas de firma
+      doc.setLineWidth(0.4);
+      doc.line(mL, y, mL + 55, y);
+      doc.line(pageW / 2 + 10, y, pageW - mR, y);
+      y += 5;
+
+      // Datos bajo firma empleador
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(9);
+      doc.text('TU ALIANZA S.A.S', mL, y);
+      y += 4;
+      doc.text('NIT. 900.864.596-1', mL, y);
+
+      // Datos bajo firma trabajador
+      let yRight = y - 4;
+      doc.setFont('helvetica', 'bold');
+      doc.text('FIRMA', pageW / 2 + 10, yRight);
+      yRight += 4;
+      doc.setFont('helvetica', 'normal');
+      doc.text(`No de Identificación: ${cedula}`, pageW / 2 + 10, yRight);
+
+      // ───── Guardar PDF ─────
+      const pdfBlob = doc.output('blob');
+      const fileName = `CONTRATOS_OTROS_SI_${cedula}.pdf`;
+      const pdfFile = new File([pdfBlob], fileName, { type: 'application/pdf' });
+      this.uploadedFiles['Contratos Otros Si'] = { file: pdfFile, fileName };
+      this.verPDF({ titulo: 'Contratos Otros Si' });
+
+    } catch (error) {
+      console.error('Error generando Contratos Otros Si:', error);
+      Swal.fire({ icon: 'error', title: 'Error', text: 'Ocurrió un error al generar el documento Contratos Otros Si.' });
+    }
+  }
+
+
+  // ─────────────────────────────────────────────────────────────────────
+  // Auxilio Extralegal de Alimentación y Hospedaje – PDF generado con jsPDF
+  // ─────────────────────────────────────────────────────────────────────
+  async generarAuxilioAlimentacion() {
+    try {
+      const cand: any = this.candidato ?? {};
+      const vac: any = this.vacante ?? {};
+      const cedula = String(cand.numero_documento ?? this.cedula ?? '').trim();
+      const empresaUsuaria = (vac.empresaUsuariaSolicita ?? vac.finca ?? '').toString().toUpperCase().trim();
+
+      // ─── Helpers de fecha ───
+      const mesesEs = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+      const hoy = new Date();
+      const dia = hoy.getDate();
+      const mes = mesesEs[hoy.getMonth()];
+      const anio = hoy.getFullYear();
+
+      const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'letter' });
+      doc.setProperties({ title: `AUXILIO_ALIMENTACION_${cedula}.pdf` });
+
+      const pageW = doc.internal.pageSize.getWidth();
+      const pageH = doc.internal.pageSize.getHeight();
+      // Márgenes APA: 25.4 mm
+      const mL = 25.4;
+      const mR = 25.4;
+      const mTop = 25.4;
+      const maxW = pageW - mL - mR;
+
+      // ─── Helper: texto justificado ───
+      const lineH = 4.2;
+      const justifyText = (text: string, x: number, yStart: number, width: number, fontSize?: number): number => {
+        if (fontSize) doc.setFontSize(fontSize);
+        const lines: string[] = doc.splitTextToSize(text, width);
+        let cy = yStart;
+        for (let i = 0; i < lines.length; i++) {
+          const line = lines[i].trim();
+          const isLast = i === lines.length - 1;
+          if (isLast || !line) {
+            doc.text(line, x, cy);
+          } else {
+            const words = line.split(/\s+/);
+            if (words.length <= 1) {
+              doc.text(line, x, cy);
+            } else {
+              const totalTextW = words.reduce((sum, w) => sum + doc.getTextWidth(w), 0);
+              const extraSpace = (width - totalTextW) / (words.length - 1);
+              let wx = x;
+              for (let j = 0; j < words.length; j++) {
+                doc.text(words[j], wx, cy);
+                wx += doc.getTextWidth(words[j]) + extraSpace;
+              }
+            }
+          }
+          cy += lineH;
+        }
+        return cy;
+      };
+
+      let y = mTop;
+
+      // ───── Logo Tu Alianza ─────
+      try {
+        doc.addImage('logos/Logo_TA.png', 'PNG', mL, y, 40, 14);
+      } catch { }
+      y += 16;
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8);
+      doc.text('NIT 900. 864.596-1', mL, y);
+      y += 10;
+
+      // ───── Título centrado ─────
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(12);
+      doc.text('AUXILIO EXTRALEGAL DE ALIMENTACIÓN Y HOSPEDAJE', pageW / 2, y, { align: 'center' });
+      y += 10;
+
+      // ─── Helper: texto justificado con negritas inline ───
+      type MixedToken = { word: string; bold: boolean };
+      const justifyMixed = (segments: { t: string; b: boolean }[], x: number, yStart: number, width: number): number => {
+        // Flatten segments into word-level tokens
+        const tokens: MixedToken[] = [];
+        for (const seg of segments) {
+          const words = seg.t.split(/\s+/).filter(w => w);
+          for (const w of words) tokens.push({ word: w, bold: seg.b });
+        }
+        // Build lines respecting actual widths
+        const lines: MixedToken[][] = [];
+        let curLine: MixedToken[] = [];
+        let curW = 0;
+        doc.setFont('helvetica', 'normal');
+        const sw = doc.getTextWidth(' ');
+        for (const tk of tokens) {
+          doc.setFont('helvetica', tk.bold ? 'bold' : 'normal');
+          const ww = doc.getTextWidth(tk.word);
+          const need = curLine.length > 0 ? sw + ww : ww;
+          if (curW + need > width && curLine.length > 0) {
+            lines.push(curLine);
+            curLine = [tk]; curW = ww;
+          } else {
+            curLine.push(tk); curW += need;
+          }
+        }
+        if (curLine.length > 0) lines.push(curLine);
+        // Render
+        let cy = yStart;
+        for (let i = 0; i < lines.length; i++) {
+          const ln = lines[i];
+          const isLast = i === lines.length - 1;
+          let totalTW = 0;
+          for (const tk of ln) {
+            doc.setFont('helvetica', tk.bold ? 'bold' : 'normal');
+            totalTW += doc.getTextWidth(tk.word);
+          }
+          const gap = (isLast || ln.length <= 1) ? sw : (width - totalTW) / (ln.length - 1);
+          let wx = x;
+          for (const tk of ln) {
+            doc.setFont('helvetica', tk.bold ? 'bold' : 'normal');
+            doc.text(tk.word, wx, cy);
+            wx += doc.getTextWidth(tk.word) + gap;
+          }
+          cy += lineH;
+        }
+        doc.setFont('helvetica', 'normal');
+        return cy;
+      };
+
+      // ───── Párrafo 1 (con negritas) ─────
+      doc.setFontSize(9);
+      const eu = empresaUsuaria || '________________________';
+      y = justifyMixed([
+        { t: 'Convienen los contratantes que los beneficios de alimentación suministrados, como son bebida caliente y pan en la mañana y el almuerzo serán gratuitos, la comida dependerá de las horas laborales durante los turnos, al', b: false },
+        { t: 'TRABAJADOR EN MISION', b: true },
+        { t: 'por la empresa usuaria', b: false },
+        { t: eu + ',', b: true },
+        { t: 'cuyo monto autoriza deducir de su nómina quincenalmente, así como el hospedaje que le otorga esa sociedad en sus dependencias o fuera de estas, no constituye remuneración por el servicio prestado ni se concede para el beneficio o enriquecimiento del', b: false },
+        { t: 'TRABAJADOR EN MISION', b: true },
+        { t: 'y por tanto no se tendrán en cuenta como factor salarial, para la liquidación de acreencias laborales, ni el pago de aportes parafiscales, de conformidad con lo establecido en el Art. 17 de la Ley344 de 1.996 y el Artículo 30 de la Ley 1393 de 2010. Así mismo las partes estipulan que por tratarse de un beneficio extralegal no constitutivo de salario, reconocido por mera liberalidad de la citada empresa, ésta se reservará el derecho de modificarlos o suprimirlos en forma unilateral en cualquier momento cuando las condiciones de la empresa así lo exijan, sin que ello implique desmejora alguna en las condiciones laborales del', b: false },
+        { t: 'TRABAJADOR EN MISION.', b: true },
+      ], mL, y, maxW);
+      y += 3;
+
+      // ───── Párrafo 2 (con negritas) ─────
+      y = justifyMixed([
+        { t: 'El beneficio de hospedaje cesará una vez terminado por cualquier causa el presente contrato de trabajo, o cuando la empresa usuaria así lo disponga; por tanto en el evento de que no se desalojen por el', b: false },
+        { t: 'TRABAJADOR EN MISION', b: true },
+        { t: 'las dependencias mencionadas, se procederá a lanzamiento por las autoridades de policía, en cumplimiento del procedimiento señalado en la Ley 1801.', b: false },
+      ], mL, y, maxW);
+      y += 4;
+
+      // ───── Párrafo 3 (fecha) ─────
+      y = justifyText(
+        `Para constancia de su celebración y aceptación se suscribe la presente cláusula adicional al contrato de trabajo, a los ${dia} días del mes de ${mes} del ${anio}.`,
+        mL, y, maxW
+      );
+      y += 10;
+
+      // ───── Área de firmas ─────
+      const toDataURL = async (url?: string): Promise<string | null> => {
+        if (!url) return null;
+        if (url.startsWith('data:')) return url;
+        try {
+          const res = await fetch(url);
+          const blob = await res.blob();
+          return new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result as string);
+            reader.onerror = () => resolve(null);
+            reader.readAsDataURL(blob);
+          });
+        } catch {
+          return null;
+        }
+      };
+
+      // Encabezados
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(10);
+      doc.text('LA EMPLEADORA', mL, y);
+      doc.text('EL EMPLEADO', pageW / 2 + 15, y);
+      y += 5;
+
+      // Sello empleador (izquierda)
+      try {
+        const selloData = await toDataURL('firma/firmaselloalianza.jpeg');
+        if (selloData) {
+          doc.addImage(selloData, 'JPEG', mL, y, 45, 20);
+        }
+      } catch { }
+
+      // Firma candidato (derecha) — usa this.firma
+      try {
+        const firmaData = await toDataURL(this.firma);
+        if (firmaData) {
+          doc.addImage(firmaData, 'PNG', pageW / 2 + 10, y, 45, 20);
+        }
+      } catch { }
+
+      y += 22;
+
+      // Líneas de firma
+      doc.setLineWidth(0.4);
+      doc.line(mL, y, mL + 55, y);
+      doc.line(pageW / 2 + 10, y, pageW - mR, y);
+      y += 5;
+
+      // Datos bajo firma empleador
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(9);
+      doc.text('REPRESENTANTE LEGAL', mL, y);
+      y += 4;
+      doc.setFont('helvetica', 'normal');
+      doc.text('Heidi Jackeline Torres Sotelo', mL, y);
+
+      // Datos bajo firma trabajador
+      let yRight = y - 4;
+      doc.setFont('helvetica', 'bold');
+      doc.text('Firma del Trabajador', pageW / 2 + 10, yRight);
+      yRight += 4;
+      doc.setFont('helvetica', 'normal');
+      doc.text(`N° de Identificación: ${cedula}`, pageW / 2 + 10, yRight);
+
+      // ───── Footer ─────
+      doc.setFontSize(7);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(100, 100, 100);
+      const footerY = pageH - 15;
+      doc.text('Tu Alianza S.A.S., Oficina Madrid: Cl 7 #4-49 Centro, PBX 744 4002;', pageW / 2, footerY, { align: 'center' });
+      doc.text('Oficina Facatativá Cra. 2 # 8-156 Centro Tel: 890 29 70. Mail: servicioalcliente@tsservicios.co', pageW / 2, footerY + 3.5, { align: 'center' });
+      doc.setTextColor(0, 0, 0);
+
+      // ───── Guardar PDF ─────
+      const pdfBlob = doc.output('blob');
+      const fileName = `AUXILIO_ALIMENTACION_${cedula}.pdf`;
+      const pdfFile = new File([pdfBlob], fileName, { type: 'application/pdf' });
+      this.uploadedFiles['Auxilio Alimentación'] = { file: pdfFile, fileName };
+      this.verPDF({ titulo: 'Auxilio Alimentación' });
+
+    } catch (error) {
+      console.error('Error generando Auxilio Alimentación:', error);
+      Swal.fire({ icon: 'error', title: 'Error', text: 'Ocurrió un error al generar el documento Auxilio Alimentación.' });
+    }
+  }
+
+
+  // ─────────────────────────────────────────────────────────────────────
+  // Autorización Descuento por Nómina por Daños o Pérdidas – jsPDF
+  // ─────────────────────────────────────────────────────────────────────
+  async generarAutorizacionDanosPerdidas() {
+    try {
+      const cand: any = this.candidato ?? {};
+      const vac: any = this.vacante ?? {};
+      const cedula = String(cand.numero_documento ?? this.cedula ?? '').trim();
+      const empresaUsuaria = (vac.empresaUsuariaSolicita ?? vac.finca ?? '').toString().trim();
+      const municipio = (cand.residencia?.municipio ?? '').toString().trim();
+      const departamento = (cand.residencia?.departamento ?? '').toString().trim();
+      const ubicacion = [municipio, departamento].filter(Boolean).join('– ') || 'Bogotá D.C.';
+
+      // ─── Fecha ───
+      const mesesEs = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+      const hoy = new Date();
+      const dia = hoy.getDate();
+      const mes = mesesEs[hoy.getMonth()];
+      const anio = hoy.getFullYear();
+
+      const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'letter' });
+      doc.setProperties({ title: `AUTORIZACION_DANOS_PERDIDAS_${cedula}.pdf` });
+
+      const pageW = doc.internal.pageSize.getWidth();
+      const pageH = doc.internal.pageSize.getHeight();
+      const mL = 25.4;
+      const mR = 25.4;
+      const maxW = pageW - mL - mR;
+
+      // ─── Helper: texto justificado ───
+      const lineH = 4.2;
+      const justifyText = (text: string, x: number, yStart: number, width: number, fontSize?: number): number => {
+        if (fontSize) doc.setFontSize(fontSize);
+        const lines: string[] = doc.splitTextToSize(text, width);
+        let cy = yStart;
+        for (let i = 0; i < lines.length; i++) {
+          const line = lines[i].trim();
+          const isLast = i === lines.length - 1;
+          if (isLast || !line) {
+            doc.text(line, x, cy);
+          } else {
+            const words = line.split(/\s+/);
+            if (words.length <= 1) {
+              doc.text(line, x, cy);
+            } else {
+              const totalTextW = words.reduce((sum, w) => sum + doc.getTextWidth(w), 0);
+              const extraSpace = (width - totalTextW) / (words.length - 1);
+              let wx = x;
+              for (let j = 0; j < words.length; j++) {
+                doc.text(words[j], wx, cy);
+                wx += doc.getTextWidth(words[j]) + extraSpace;
+              }
+            }
+          }
+          cy += lineH;
+        }
+        return cy;
+      };
+
+      let y = 25.4;
+
+      // ───── Logo Tu Alianza ─────
+      try {
+        doc.addImage('logos/Logo_TA.png', 'PNG', mL, y, 40, 14);
+      } catch { }
+      y += 16;
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8);
+      doc.text('NIT 900. 864.596-1', mL, y);
+      y += 8;
+
+      // ───── Título centrado ─────
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(11);
+      doc.text('AUTORIZACIÓN DESCUENTO POR NÓMINA POR DAÑOS O PÉRDIDAS', pageW / 2, y, { align: 'center' });
+      y += 12;
+
+      // ───── Lugar y fecha ─────
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(9);
+      doc.text(`${ubicacion}; ${dia} de ${mes} de ${anio}`, mL, y);
+      y += 8;
+
+      // ───── Señores: ─────
+      doc.text('Señores:', mL, y);
+      y += 6;
+
+      // ───── TU ALIANZA S.A.S (bold) ─────
+      doc.setFont('helvetica', 'bold');
+      doc.text('TU ALIANZA S.A.S', mL, y);
+      y += 10;
+
+      // ───── Apreciados señores: ─────
+      doc.setFont('helvetica', 'normal');
+      doc.text('Apreciados señores:', mL, y);
+      y += 8;
+
+      // ───── Párrafo 1 ─────
+      y = justifyText(
+        `Por medio de la presente autorizo a la empresa para que descuente del valor que haya de pagarme por concepto de salarios, cesantías, intereses de cesantías, primas de servicios, vacaciones, bonificaciones, premios, indemnizaciones o cualquier otra suma, el valor correspondiente a favor del hotel ${empresaUsuaria || 'las Ramblas'} por los daños o perdidas de las cuales soy responsable y que realice durante el tiempo que me encuentre al servicio de la misma. Manifiesto expresamente que asumo plenamente el valor fijado por la empresa y autorizo su descuento por nómina o en la liquidación final del contrato de trabajo. De la misma manera, manifiesto expresamente que estoy enterado(a) que en caso de que no se realice el descuento de mi salario por cualquier motivo, es mi obligación informar y pagar a Tu alianza S.A.S. el valor de la cuota correspondiente.`,
+        mL, y, maxW
+      );
+      y += 3;
+
+      // ───── Párrafo 2 ─────
+      y = justifyText(
+        'Lo anterior, teniendo en cuenta lo prescrito en los artículos 139 y 151 del Código Sustantivo del Trabajo que permite autorizar el pago del salario del trabajador a un tercero y realizar descuentos.',
+        mL, y, maxW
+      );
+      y += 4;
+
+      // ───── Párrafo 3 (fecha) ─────
+      y = justifyText(
+        `Como constancia y aceptación de lo anterior, suscribo la presente autorización a los ${dia} días del mes de ${mes} de ${anio}.`,
+        mL, y, maxW
+      );
+      y += 8;
+
+      // ───── Cordialmente ─────
+      doc.text('Cordialmente,', mL, y);
+      y += 15;
+
+      // ───── Firma del trabajador ─────
+      const toDataURL = async (url?: string): Promise<string | null> => {
+        if (!url) return null;
+        if (url.startsWith('data:')) return url;
+        try {
+          const res = await fetch(url);
+          const blob = await res.blob();
+          return new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result as string);
+            reader.onerror = () => resolve(null);
+            reader.readAsDataURL(blob);
+          });
+        } catch {
+          return null;
+        }
+      };
+
+      // Firma candidato
+      try {
+        const firmaData = await toDataURL(this.firma);
+        if (firmaData) {
+          doc.addImage(firmaData, 'PNG', mL, y - 10, 45, 18);
+        }
+      } catch { }
+
+      // Línea de firma
+      doc.setLineWidth(0.4);
+      doc.line(mL, y, mL + 55, y);
+      y += 5;
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(9);
+      doc.text('Firma del trabajador', mL, y);
+      y += 4;
+      doc.text('N° de Documento:', mL, y);
+      doc.setFont('helvetica', 'normal');
+      doc.text(` ${cedula}`, mL + doc.getTextWidth('N° de Documento: '), y);
+
+      // ───── Footer ─────
+      doc.setFontSize(7);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(100, 100, 100);
+      const footerY = pageH - 15;
+      doc.text('Tu Alianza S.A.S., Oficina Madrid: Cl 7 #4-49 Centro, PBX 744 4002;', pageW / 2, footerY, { align: 'center' });
+      doc.text('Oficina Facatativá Cra. 2 # 8-156 Centro Tel: 890 29 70. Mail: servicioalcliente@tsservicios.co', pageW / 2, footerY + 3.5, { align: 'center' });
+      doc.setTextColor(0, 0, 0);
+
+      // ───── Guardar PDF ─────
+      const pdfBlob = doc.output('blob');
+      const fileName = `AUTORIZACION_DANOS_PERDIDAS_${cedula}.pdf`;
+      const pdfFile = new File([pdfBlob], fileName, { type: 'application/pdf' });
+      this.uploadedFiles['Autorización Daños Pérdidas'] = { file: pdfFile, fileName };
+      this.verPDF({ titulo: 'Autorización Daños Pérdidas' });
+
+    } catch (error) {
+      console.error('Error generando Autorización Daños Pérdidas:', error);
+      Swal.fire({ icon: 'error', title: 'Error', text: 'Ocurrió un error al generar el documento Autorización Daños Pérdidas.' });
     }
   }
 
