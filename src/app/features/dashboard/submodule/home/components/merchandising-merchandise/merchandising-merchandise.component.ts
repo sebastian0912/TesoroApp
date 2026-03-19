@@ -33,7 +33,7 @@ export class MerchandisingMerchandiseComponent implements OnInit {
   // Tabla detallada (por lote)
   dataSourceDetallado = new MatTableDataSource<any>();
   displayedColumnsDetallado: string[] = [
-    'producto_nombre', 'codigo', 'cantidad_inicial',
+    'producto_nombre', 'destino', 'codigo', 'cantidad_inicial',
     'cantidad_vendida', 'disponible', 'valor_unitario',
     'fecha_recepcion', 'realizado_por'
   ];
@@ -41,7 +41,7 @@ export class MerchandisingMerchandiseComponent implements OnInit {
   // Tabla resumen (agrupada por producto)
   dataSourceResumen = new MatTableDataSource<any>();
   displayedColumnsResumen: string[] = [
-    'producto_nombre', 'total_recibido', 'total_vendido',
+    'producto_nombre', 'destino', 'total_recibido', 'total_vendido',
     'total_disponible', 'valor_unitario', 'valor_total'
   ];
 
@@ -92,10 +92,11 @@ export class MerchandisingMerchandiseComponent implements OnInit {
     const agrupado: Record<string, any> = {};
 
     for (const lote of lotes) {
-      const key = `${lote.producto_nombre}-${lote.valor_unitario}`;
+      const key = `${lote.producto_nombre}-${lote.valor_unitario}-${lote.destino}`;
       if (!agrupado[key]) {
         agrupado[key] = {
           producto_nombre: lote.producto_nombre,
+          destino: lote.destino,
           valor_unitario: Number(lote.valor_unitario || 0),
           total_recibido: 0,
           total_vendido: 0,

@@ -74,6 +74,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     { titulo: 'Entrega documentos Sagaro' },
     { titulo: 'Entrega documentos Flores de los andes' },
     { titulo: 'Entrega documentos Ipanema' },
+    { titulo: 'Entrega documentos Ipanema Foraneos' },
     { titulo: 'Entrega documentos rebaño' },
     { titulo: 'Entrega documentos melody' },
     { titulo: 'Entrega documentos Tu Alianza Sin Casino' },
@@ -144,6 +145,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     "Entrega documentos Sagaro": 27,
     "Entrega documentos Flores de los andes": 27,
     "Entrega documentos Ipanema": 27,
+    "Entrega documentos Ipanema Foraneos": 27,
     "Entrega documentos administrativos": 27,
     "Entrega documentos rebaño": 27,
     "Entrega documentos melody": 27,
@@ -535,6 +537,9 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     }
     else if (documento === 'Entrega documentos Ipanema') {
       this.generarEntregaDocsTuAlianzaIpanema();
+    }
+    else if (documento === 'Entrega documentos Ipanema Foraneos') {
+      this.generarEntregaDocsTuAlianzaIpanemaForaneos();
     }
     else if (documento === 'Entrega documentos rebaño') {
       this.generarEntregaDocsTuAlianzaRebano();
@@ -4867,6 +4872,432 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     const pdfFile = new File([pdfBlob], fileName, { type: 'application/pdf' });
     this.uploadedFiles['Entrega documentos Ipanema'] = { file: pdfFile, fileName };
     this.verPDF({ titulo: 'Entrega documentos Ipanema' });
+  }
+
+  async generarEntregaDocsTuAlianzaIpanemaForaneos() {
+    // ───────── Helpers ─────────
+    const H_CENTER = 'center' as const;
+    const BOLD = 'bold' as const;
+    const ITALIC = 'italic' as const;
+
+    // Carga URL → DataURL (necesario para doc.addImage en navegador)
+    const toDataURL = async (url?: string): Promise<string | null> => {
+      if (!url) return null;
+      try {
+        const r = await fetch(url, { cache: 'no-store' });
+        if (!r.ok) throw new Error('fetch fail');
+        const b = await r.blob();
+        return await new Promise<string>((res, rej) => {
+          const fr = new FileReader();
+          fr.onload = () => res(String(fr.result));
+          fr.onerror = () => rej(new Error('reader fail'));
+          fr.readAsDataURL(b);
+        });
+      } catch {
+        return null; // si no carga, omitimos la imagen
+      }
+    };
+
+    const renderJustifiedLine = (
+      doc: jsPDF,
+      linea: string,
+      x: number,
+      y: number,
+      anchoDisponible: number,
+      ultimaLinea: boolean
+    ) => {
+      const palabras = linea.split(' ').filter(Boolean);
+      if (palabras.length <= 1 || ultimaLinea) { doc.text(linea, x, y); return; }
+      const widths = palabras.map(p => doc.getTextWidth(p));
+      const totalPalabras = widths.reduce((a, b) => a + b, 0);
+      const espacios = palabras.length - 1;
+      const extra = (anchoDisponible - totalPalabras) / espacios;
+      let cursorX = x;
+      palabras.forEach((p, i) => {
+        doc.text(p, cursorX, y);
+        if (i < espacios) cursorX += widths[i] + extra;
+      });
+    };
+
+    // ───────── PDF base y layout ─────────
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'letter' });
+    doc.setProperties({
+      title: 'Tu_Alianza_Entrega_Documentos_Ipanema_Foraneos.pdf',
+      author: this.empresa,
+      creator: this.empresa,
+    });
+
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+
+    const leftMargin = 10;
+    const rightMargin = 10;
+    const contentWidth = pageWidth - leftMargin - rightMargin;
+
+    let y = 10; // cursor vertical global
+    const marginLeft = leftMargin;
+
+    // ───────── Encabezado (logo + tabla) ─────────
+    const startX = leftMargin;
+    const startY = y;
+    const headerHeight = 13;
+    const logoBoxWidth = 50;
+    const tableWidth = contentWidth;
+
+    // Cuadro de logo/NIT
+    doc.setLineWidth(0.1);
+    doc.rect(startX, startY, logoBoxWidth, headerHeight);
+
+    // Logo (si no carga, se omite)
+    const logoData = await toDataURL('logos/Logo_TA.png');
+    if (logoData) {
+      doc.addImage(logoData, 'PNG', startX + 2, startY + 1.5, 27, 10);
+    }
+
+    // NIT
+    doc.setFontSize(7);
+
+    // Tabla derecha del encabezado
+    const tableStartX = startX + logoBoxWidth;
+    const rightHeaderWidth = tableWidth - logoBoxWidth;
+    doc.rect(tableStartX, startY, rightHeaderWidth, headerHeight);
+
+    doc.setFont('helvetica', 'bold');
+    doc.text('PROCESO DE CONTRATACIÓN', tableStartX + 54, startY + 3);
+    doc.text('ENTREGA DE DOCUMENTOS Y AUTORIZACIONES IPANEMA FORÁNEOS', tableStartX + 30, startY + 7);
+
+    // Líneas y columnas
+    const h1Y = startY + 4;
+    const h2Y = startY + 8;
+    doc.line(tableStartX, h1Y, tableStartX + rightHeaderWidth, h1Y);
+    doc.line(tableStartX, h2Y, tableStartX + rightHeaderWidth, h2Y);
+
+    const col1 = tableStartX + 30;
+    const col2 = tableStartX + 50;
+    const col3 = tableStartX + 110;
+
+    doc.line(col1, h2Y, col1, startY + headerHeight);
+    doc.line(col2, h2Y, col2, startY + headerHeight);
+    doc.line(col3, h2Y, col3, startY + headerHeight);
+
+    // Contenido columnas
+    doc.setFontSize(7);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Código: TA CO-RE-6', tableStartX + 2, startY + 11.5);
+    doc.text('Versión: 18', col1 + 2, startY + 11.5);
+    doc.text('Fecha de Emisión: Marzo 9-26', col2 + 5, startY + 11.5);
+    doc.text('Página: 1 de 1', col3 + 6, startY + 11.5);
+
+    y = startY + headerHeight + 7;
+
+    // ───────── Intro ─────────
+    doc.setFontSize(8).setFont('helvetica', 'normal');
+    const maxWidth = contentWidth;
+    const intro = 'Reciba un cordial saludo, por medio del presente documento afirmo haber recibido, leido y comprendido los documentos relacionados a continuación:';
+    doc.text(intro, marginLeft, y, { maxWidth });
+    doc.setFontSize(7);
+    y += 4;
+
+    // Lista 1) 2)
+    const lista = [
+      'Copia del Contrato Individual de Trabajo.',
+      'Inducción General de nuestra Compañía e Información General de la Empresa Usuaria el cual incluye información sobre:'
+    ];
+    lista.forEach((item, index) => {
+      const numero = `${index + 1}) `;
+      doc.setFont('helvetica', 'bold'); doc.text(numero, marginLeft, y);
+      doc.setFont('helvetica', 'normal');
+      const numW = doc.getTextWidth(numero);
+      doc.text(item, marginLeft + numW, y);
+      y += 5;
+    });
+
+    // Subtítulo tabla
+    doc.setFontSize(8).setFont('helvetica', 'bold');
+    doc.text(
+      'Fechas de Pago de Nómina y Valor del almuerzo que es descontado por Nómina o Liquidación final:',
+      marginLeft + 20,
+      y
+    );
+    const startYForTable = y + 3;
+
+    // ───────── Tabla (autotable) ─────────
+    const head: RowInput[] = [[
+      { content: 'EMPRESA USUARIA', styles: { halign: H_CENTER, fontStyle: BOLD, fillColor: [255, 128, 0], textColor: 255 } },
+      { content: 'FECHA DE PAGO', styles: { halign: H_CENTER, fontStyle: BOLD, fillColor: [255, 128, 0], textColor: 255 } },
+      { content: 'SERVICION DE CASINO', styles: { halign: H_CENTER, fontStyle: BOLD, fillColor: [255, 128, 0], textColor: 255 } }
+    ]];
+
+    const body: RowInput[] = [
+      [
+        { content: 'FLORES IPANEMA S.A.S', styles: { fontStyle: BOLD, fontSize: 6.5, halign: H_CENTER } },
+        { content: '05 y 20 de cada mes', styles: { fontSize: 6.5, halign: H_CENTER } },
+        { content: 'Valor de Almuerzo $ 6.040\nDescuento quincenal por nómina y/o Liquidacion Final', styles: { fontSize: 6.5, halign: H_CENTER } }
+      ]
+    ];
+
+    autoTable(doc, {
+      head, body,
+      startY: startYForTable,
+      theme: 'grid',
+      margin: { left: leftMargin, right: rightMargin },
+      styles: { font: 'helvetica', fontSize: 6.5, cellPadding: { top: 1.2, bottom: 1.2, left: 2, right: 2 } },
+      headStyles: { lineWidth: 0.2, lineColor: [120, 120, 120] },
+      bodyStyles: { lineWidth: 0.2, lineColor: [180, 180, 180], valign: 'middle' },
+      columnStyles: { 0: { cellWidth: 95 }, 1: { cellWidth: 45 }, 2: { cellWidth: 'auto' as const } },
+    });
+
+    const finalYTabla = (doc as any).lastAutoTable?.finalY ?? (startYForTable + 30);
+    doc.setDrawColor(0).setLineWidth(0.2);
+    doc.line(leftMargin, finalYTabla, pageWidth - rightMargin, finalYTabla);
+
+    y = finalYTabla + 3;
+
+    // (Sin notas para Sagaro)
+    doc.setFontSize(7).setFont('helvetica', 'normal');
+
+    // Autorización casino
+    doc.setFontSize(8).setFont('helvetica', 'italic');
+    doc.text('Teniendo en cuenta la anterior información, autorizo descuento de casino:', marginLeft, y);
+    doc.setFont('helvetica', 'bold');
+    doc.text('SI ( X )', 140, y);
+    doc.text('NO (   )', 155, y);
+    doc.text('No Aplica (   )', 170, y);
+
+    // Forma de pago
+    y += 4;
+    doc.setFont('helvetica', 'bold').setFontSize(7);
+    doc.text('3) FORMA DE PAGO:', marginLeft, y);
+    y += 4;
+
+    const contrato = this.candidato?.entrevistas?.[0]?.proceso?.contrato || {};
+    const formaPagoSeleccionada: string = contrato?.forma_de_pago ?? '';
+    const numeroPagos: string = contrato?.numero_para_pagos ?? '';
+    const codigoTarjeta: string = contrato?.identification_number_tarjeta ?? '';
+
+    const opciones = [
+      { nombre: 'Daviplata', x: marginLeft, y: y },
+      { nombre: 'Davivienda cta ahorros', x: marginLeft + 20, y: y },
+      { nombre: 'Davivienda Tarjeta Master', x: marginLeft + 60, y: y },
+      { nombre: 'Otra', x: marginLeft + 105, y: y },
+    ];
+
+    opciones.forEach((op) => {
+      doc.rect(op.x, op.y - 3, 4, 4);
+      doc.setFont('helvetica', 'normal').text(op.nombre, op.x + 6, op.y);
+      if (formaPagoSeleccionada === op.nombre) {
+        doc.setFont('helvetica', 'bold').text('X', op.x + 1, op.y);
+      }
+    });
+
+    doc.text('¿Cuál?', 130, y);
+    doc.line(140, y, 200, y);
+    if (formaPagoSeleccionada === 'Otra') {
+      doc.text('Especificar aquí...', 150, y + 10);
+    }
+
+    // Número TJT / Código
+    y += 8;
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'bold').text('Número TJT ó', marginLeft, y);
+    doc.setFont('helvetica', 'normal').text('Celular', marginLeft, y + 3);
+    doc.setFont('helvetica', 'normal').text(numeroPagos, marginLeft + 25, y + 1.5);
+
+    doc.setFont('helvetica', 'bold').text('Código de Tarjeta', 110, y);
+    doc.setFont('helvetica', 'normal').text(codigoTarjeta, 140, y);
+    y += 4; // advance past "Celular" at y+3
+
+    // IMPORTANTE (justificado)
+    y += 4;
+    doc.setFont('helvetica', 'bold').setFontSize(6.5);
+    const importante =
+      'IMPORTANTE: Recuerde que si usted cuenta con su forma de pago Daviplata, cualquier cambio realizado en la misma debe ser notificado a la Emp. Temporal. También tenga presente que la entrega de la tarjeta Master por parte de la Emp. Temporal es provisional, y se reemplaza por la forma de pago DAVIPLATA; tan pronto Davivienda nos informa que usted activó su DAVIPLATA, se le genera automáticamente el cambio de forma de pago. CUIDADO! El manejo de estas cuentas es responsabilidad de usted como trabajador, por eso son personales e intransferibles.';
+    const anchoJust = contentWidth, margenJust = marginLeft, lineHeight = 3;
+    doc.setFont('helvetica', 'normal');
+    const lineas = doc.splitTextToSize(importante.trim().replace(/\s+/g, ' '), anchoJust) as string[];
+    lineas.forEach((ln, i) => {
+      const last = i === lineas.length - 1;
+      renderJustifiedLine(doc, ln, margenJust, y, anchoJust, last);
+      y += lineHeight;
+    });
+
+    // Acepto cambio
+    y += 2;
+    doc.setFont('helvetica', 'bold').setFontSize(7.5);
+    doc.text('ACEPTO CAMBIO SIN PREVIO AVISO YA QUE HE SIDO INFORMADO (A) :', marginLeft, y);
+    doc.setFont('helvetica', 'normal');
+    doc.text('SI (  X  )', 170, y);
+    doc.text('NO (     )', 190, y);
+    y += 4; // advance past ACEPTO line
+
+    // Contenido final numerado
+    doc.setFontSize(6.5);
+    const contenidoFinal = [
+      { numero: '4)', texto: 'Entrega y Manejo del Carné de la Empresa de Servicios Temporales TU ALIANZA S.A.S.' },
+      { numero: '5)', texto: 'Capacitación de Ley 1010 DEL 2006 (Acosos laboral) y mecanismo para interponer una queja general o frente al acoso.' },
+      { numero: '6)', texto: 'Socialización de las políticas vigentes y aplicables de la Empresa Temporal.' },
+      { numero: '7)', texto: 'Curso de Seguridad y Salud en el Trabajo "SST" de la Empresa Temporal.' },
+      {
+        numero: '8)',
+        texto: 'Se hace entrega de la documentación requerida para la vinculación de beneficiarios a la Caja de Compensación Familiar y se establece compromiso de 15 días para la entrega sobre la documentación para afiliación de beneficiarios a la Caja de Compensación y EPS si aplica.\nDe lo contrario se entenderá que usted no desea recibir este beneficio, recuerde que es su responsabilidad el registro de los mismos.'
+      },
+      {
+        numero: '9)',
+        texto: 'Plan funeral Coorserpark: AUTORIZO la afiliación y descuento VOLUNTARIO al plan, por un valor de $4.095 descontados quincenalmente por Nómina. La afiliación se hace efectiva a partir del primer descuento.'
+      }
+    ];
+
+    const bottomSafe = 12;
+    const ensureSpace = (need: number) => {
+      if (y + need > pageHeight - bottomSafe) { doc.addPage(); y = 15; }
+    };
+
+    doc.setFontSize(6.5);
+    contenidoFinal.forEach((item) => {
+      ensureSpace(10);
+      doc.setFont('helvetica', 'bold').text(item.numero, marginLeft, y);
+      doc.setFont('helvetica', 'normal');
+      const textoLineas = doc.splitTextToSize(item.texto, contentWidth - 10) as string[];
+      doc.text(textoLineas, marginLeft + 10, y);
+      y += textoLineas.length * 3 + 1;
+    });
+
+    // SI / NO del seguro
+    const seguro = !!contrato?.seguro_funerario;
+    console.log('Seguro funerario?', seguro);
+    if (seguro) {
+      doc.text('SI (  x  )', 170, y - 3);
+      doc.text('NO (     )', 190, y - 3);
+    } else {
+      doc.text('SI (     )', 170, y - 3);
+      doc.text('NO (  x  )', 190, y - 3);
+    }
+
+    // Nota
+    y += 1;
+    doc.setFont('helvetica', 'bold').text('Nota:', marginLeft, y);
+    doc.setFont('helvetica', 'normal').setFontSize(6.5);
+    const notaLines = doc.splitTextToSize(
+      'Si usted autorizó este descuento debe presentar una carta en la oficina de la Temporal solicitando el retiro, para la desafiliación de este plan.',
+      contentWidth - 12
+    ) as string[];
+    doc.text(notaLines, marginLeft + 12, y);
+    y += notaLines.length * 3;
+
+    // Banner "Recuerde que:"
+    y += 2;
+    ensureSpace(10);
+    doc.setFillColor(230, 230, 230);
+    doc.rect(marginLeft, y - 2, contentWidth, 5, 'F');
+    doc.setFont('helvetica', 'bold').setFontSize(7).setTextColor(0, 0, 0);
+    doc.text('Recuerde que:', marginLeft + 2, y + 1);
+    doc.setFont('helvetica', 'normal').setTextColor(0, 0, 0);
+    doc.text('Puede encontrar esta información disponible en:', marginLeft + 25, y + 1);
+    doc.setTextColor(0, 0, 255);
+    doc.textWithLink('http://tualianza.co', marginLeft + 95, y + 1, { url: 'http://tualianza.co' });
+    doc.setTextColor(0, 0, 0);
+    doc.setFont('helvetica', 'normal');
+    doc.text('Documentos de interés, Ingresando el código:', marginLeft + 125, y + 1);
+    doc.setFont('helvetica', 'bold').setFontSize(7);
+    doc.text('9876', marginLeft + 180, y + 1);
+    y += 4; // advance past banner
+
+    // DEL COLABORADOR
+    y += 2;
+    ensureSpace(20);
+
+    const contenidoFinalColaborador = [
+      { numero: 'a)', texto: 'Por medio de la presente manifiesto que recibí lo anteriormente mencionado y que acepto el mismo.' },
+      { numero: 'b)', texto: 'Leí y comprendí  el curso de inducción General y de Seguridad y Salud en el Trabajo, así como  el contrato y las recomendaciones laborales y todas las cláusulas establecidas.' },
+      { numero: 'c)', texto: 'Información Condiciones de Salud: Manifiesto que conozco los resultados de mis exámenes médicos de ingreso dadas.' },
+    ];
+
+    doc.setFont('helvetica', 'bold').setFontSize(7);
+    doc.text('DEL COLABORADOR:', marginLeft, y);
+    y += 4;
+
+    doc.setFontSize(6.5);
+    const lh = 3;
+    const gapAfterItem = 1;
+
+    doc.setFont('helvetica', 'bold');
+    const bulletBoxWidth =
+      Math.max(doc.getTextWidth('a) '), doc.getTextWidth('b) '), doc.getTextWidth('c) ')) + 1.5;
+
+    const xBullet = marginLeft;
+    const xText = xBullet + bulletBoxWidth;
+    const availWidth = pageWidth - rightMargin - xText;
+
+    contenidoFinalColaborador.forEach(({ numero, texto }) => {
+      ensureSpace(10);
+      doc.setFont('helvetica', 'bold');
+      doc.text(numero, xBullet, y);
+
+      doc.setFont('helvetica', 'normal');
+      const parrafos = String(texto).split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+      const partes = parrafos.length ? parrafos : [''];
+
+      partes.forEach((p, pi) => {
+        const lines = doc.splitTextToSize(p, availWidth) as string[];
+        lines.forEach((ln) => {
+          ensureSpace(lh);
+          doc.text(ln, xText, y);
+          y += lh;
+        });
+        if (pi < partes.length - 1) y += 1;
+      });
+
+      y += gapAfterItem;
+    });
+
+    // Firma + datos
+    y += 16;
+    ensureSpace(50);
+    const firmaLineY = y;
+
+    // Firma line + label
+    doc.setFont('helvetica', 'bold').setFontSize(8);
+    doc.line(marginLeft, firmaLineY, marginLeft + 65, firmaLineY);
+    doc.text('Firma de Aceptación', marginLeft, firmaLineY + 4);
+
+    const firmaData = await toDataURL(this.firma);
+    if (firmaData) {
+      doc.addImage(firmaData, 'PNG', marginLeft, firmaLineY - 18, 50, 20);
+    } else {
+      Swal.fire({ icon: 'error', title: 'Error', text: 'No se pudo cargar la firma' });
+    }
+
+    // No de Identificación
+    y = firmaLineY + 12;
+    doc.setFont('helvetica', 'bold').setFontSize(8);
+    doc.text('No de Identificación:', marginLeft, y);
+    doc.setFont('helvetica', 'normal').text(String(this.candidato?.numero_documento ?? ''), marginLeft + 38, y - 1);
+    doc.line(marginLeft + 35, y, marginLeft + 80, y);
+
+    // Fecha de Recibido
+    y += 8;
+    doc.setFont('helvetica', 'bold').text('Fecha de Recibido', marginLeft, y);
+    const dateObj = new Date();
+    const dateStr = `${dateObj.getDate().toString().padStart(2, '0')}/${(dateObj.getMonth() + 1).toString().padStart(2, '0')}/${dateObj.getFullYear()}`;
+    doc.setFont('helvetica', 'normal').text(dateStr, marginLeft + 38, y - 1);
+    doc.line(marginLeft + 33, y, marginLeft + 80, y);
+
+    // Duración y firma del responsable - at Fecha level, center-right
+    doc.setFont('helvetica', 'italic').setFontSize(7);
+    doc.text('Duración: 30 Minutos. Responsable de la socialización:', marginLeft + 85, y);
+
+    // Sello / imagen final
+    const selloData = await toDataURL('firma/FirmaEntregaDocApoyo.png');
+    if (selloData) {
+      doc.addImage(selloData, 'PNG', marginLeft + 85, y - 10, 55, 18);
+    }
+
+    // ───────── Exportar y previsualizar ─────────
+    const pdfBlobForaneos = doc.output('blob');
+    const fileNameForaneos = `${this.empresa || 'Tu_Alianza'}_Entrega_documentos_Ipanema_Foraneos.pdf`;
+    const pdfFileForaneos = new File([pdfBlobForaneos], fileNameForaneos, { type: 'application/pdf' });
+    this.uploadedFiles['Entrega documentos Ipanema Foraneos'] = { file: pdfFileForaneos, fileName: fileNameForaneos };
+    this.verPDF({ titulo: 'Entrega documentos Ipanema Foraneos' });
   }
 
   async generarEntregaDocsTuAlianzaAdministrativos() {

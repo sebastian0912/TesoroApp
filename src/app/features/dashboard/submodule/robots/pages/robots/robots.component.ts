@@ -39,6 +39,7 @@ import {
   StatsGroup,
   AntecedenteKey,
   UltimosPorMarcaTemporalRow,
+  RobotLockRow,
 } from '../../services/robots/robots.service';
 
 // =========================
@@ -207,6 +208,13 @@ export class RobotsComponent implements OnInit {
   ];
 
   // =========================
+  // ✅ STATE (MONITOREO LOCKS)
+  // =========================
+  isLoadingLocks = false;
+  locksRows: RobotLockRow[] = [];
+  locksColumns: ColumnDefinition[] = [];
+
+  // =========================
   // STATE (STATS / GRAFICA)
   // =========================
   isLoadingStats = false;
@@ -295,6 +303,7 @@ export class RobotsComponent implements OnInit {
     this.reloadAll(false);
     this.loadStats({ showToast: false });
     this.loadUltimosPorMarcaTemporal({ showToast: false });
+    this.loadLocks();
 
     // ✅ Auto-polling: refresca datos cada 30 s para mostrar cambios en tiempo real
     interval(this.AUTO_POLL_MS)
@@ -880,6 +889,29 @@ export class RobotsComponent implements OnInit {
       });
   }
 
+  // ======================================
+  // CARGA DE MONITOREO DE LOCKS (NUEVO TAB)
+  // ======================================
+  loadLocks() {
+    if (this.isLoadingLocks) return;
+
+    this.isLoadingLocks = true;
+    this.cdr.markForCheck();
+
+    this.robots.getMonitoreoLocks().subscribe({
+      next: (data) => {
+        this.locksRows = data;
+        this.isLoadingLocks = false;
+        this.cdr.markForCheck();
+      },
+      error: (err) => {
+        console.error('Error cargando Monitoreo Locks', err);
+        this.isLoadingLocks = false;
+        this.cdr.markForCheck();
+      },
+    });
+  }
+
   // =========================
   // COLUMNAS
   // =========================
@@ -908,6 +940,16 @@ export class RobotsComponent implements OnInit {
       { name: 'cedula', header: 'Cédula', type: 'text' as const, width: '180px', stickyStart: true },
       { name: 'tipo_documento', header: 'Tipo doc', type: 'text' as const, width: '140px' },
       { name: 'marcaTemporal', header: 'Marca temporal', type: 'text' as const, width: '260px' },
+    ];
+
+    this.locksColumns = [
+      { name: 'antecedente', header: 'Antecedente', type: 'text' as const },
+      { name: 'cedula', header: 'Cédula', type: 'text' as const },
+      { name: 'tipo_documento', header: 'Tipo Doc', type: 'text' as const },
+      { name: 'locked_by', header: 'Locked By', type: 'text' as const },
+      { name: 'locked_at', header: 'Locked At', type: 'date' as const },
+      { name: 'ultima_consulta_estado', header: 'F. Consulta', type: 'date' as const },
+      { name: 'ultima_marca_temporal', header: 'M. Temporal', type: 'date' as const },
     ];
   }
 

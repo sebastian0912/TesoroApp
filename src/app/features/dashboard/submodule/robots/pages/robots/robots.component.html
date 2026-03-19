@@ -252,9 +252,38 @@
       </div>
     </mat-tab>
 
+    <!-- =======================
+         TAB 3: LOCKS Y ESTADOS (NUEVO)
+    ========================= -->
+    <mat-tab>
+      <ng-template mat-tab-label>
+        <mat-icon class="tab-icon">lock</mat-icon>
+        Locks y Estados
+      </ng-template>
+
+      <div class="tab-content fade-in">
+        <mat-card class="content-card">
+          <div class="card-bar">
+            <div class="flex flex-row items-center justify-between w-full" style="width: 100%; display: flex; justify-content: space-between;">
+              <p style="margin: 0; color: #666; font-size: 0.9rem;">Consulta general de todos los registros actualmente bloqueados en cualquier antecedente.</p>
+              <button mat-stroked-button color="primary" (click)="loadLocks()" [disabled]="isLoadingLocks">
+                <mat-icon>sync</mat-icon>
+                Actualizar Tabla
+              </button>
+            </div>
+          </div>
+
+          <div class="card-body-table">
+            <app-standard-filter-table [tableTitle]="''" [data]="locksRows" [columnDefinitions]="locksColumns"
+              [isLoading]="isLoadingLocks" [defaultPageSize]="20" [pageSizeOptions]="[10,20,50]">
+            </app-standard-filter-table>
+          </div>
+        </mat-card>
+      </div>
+    </mat-tab>
 
     <!-- =======================
-         TAB 3: FALTANTES POR OFICINA
+         TAB 4: FALTANTES POR OFICINA
     ========================= -->
     <mat-tab>
       <ng-template mat-tab-label>

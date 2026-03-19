@@ -105,7 +105,7 @@ export class HiringReportComponent implements OnInit, OnDestroy {
 
   // Config
   readonly DOCS: DocConfig[] = [
-    { key: 'cedulasEscaneadas', label: 'Cédulas Escaneadas', accept: '.pdf', multiple: true, directory: true, hint: 'PDFs individuales. Nombre: DOCUMENTO-Nombre.pdf o DOCUMENTO-algo.pdf', previewType: 'cedulas' },
+    { key: 'cedulasEscaneadas', label: 'Cédulas Escaneadas', accept: '.pdf', multiple: true, directory: true, hint: 'PDFs individuales. Obligatorio: DOCUMENTO-Nombre.pdf', previewType: 'cedulas' },
     { key: 'cruceDiario', label: 'Cruce Diario (Excel)', accept: '.xls,.xlsx', multiple: false, directory: false, hint: 'Excel del día. Columna 3 define si es AL o TA.' },
     { key: 'arl', label: 'Archivo ARL (Excel)', accept: '.xls,.xlsx', multiple: false, directory: false, hint: 'Reporte descargado de ARL. Debe contener "DNI TRABAJADOR".' },
     { key: 'induccionSSO', label: 'Inducción SST', accept: '.pdf', multiple: false, directory: false, hint: 'Constancia de inducción grouping.' },
@@ -303,8 +303,18 @@ export class HiringReportComponent implements OnInit, OnDestroy {
       if (key === 'arl') this.isArlValidado = false;
 
       // Direct Previews
-      if (key === 'cedulasEscaneadas') this.generateCedulasPreview(allowed);
-      if (key === 'traslados') this.generateTrasladosPreview(allowed);
+      if (key === 'cedulasEscaneadas') {
+        this.generateCedulasPreview(allowed);
+        if (this.cedulasPreview.some(p => !p.valido)) {
+          this.checkAndShowPreviewErrors(this.cedulasPreview, 'cedulas');
+        }
+      }
+      if (key === 'traslados') {
+        this.generateTrasladosPreview(allowed);
+        if (this.trasladosPreview.some(p => !p.valido)) {
+          this.checkAndShowPreviewErrors(this.trasladosPreview, 'traslados');
+        }
+      }
     }
 
     this.cdr.markForCheck();
@@ -351,26 +361,11 @@ export class HiringReportComponent implements OnInit, OnDestroy {
     this.cedulasPreview = files.map(f => {
       const name = f.name;
 
-      // 1. Try "DOC - NOMBRE.pdf" or "DOC-NOMBRE.pdf" or "DOC NOMBRE.pdf"
-      // Capture group 1: The ID (alphanumeric + optional chars)
-      // Capture group 2: The rest (Name)
-      // We accept separators: space, dash, underscore
-      const match = name.match(/^\s*([a-zA-Z0-9]+)\s*[-_\s]\s*(.+?)\.pdf$/i);
+      // Obligatorio que tenga un guión
+      const match = name.match(/^\s*([a-zA-Z0-9]+)\s*-\s*(.+?)\.pdf$/i);
 
-      let doc = '';
       if (match) {
-        doc = match[1];
-      } else {
-        // 2. Fallback: Check if file is just "DOC.pdf"
-        const simpleMatch = name.match(/^\s*([a-zA-Z0-9]+)\s*\.pdf$/i);
-        if (simpleMatch) {
-          doc = simpleMatch[1];
-        }
-      }
-
-      // 3. Validate extracted doc
-      if (doc) {
-        // Normalize: remove spaces inside if it starts with X
+        const doc = match[1];
         const normalized = this.normalizeIdentity(doc);
         const isValidDoc = /^(\d+|X[a-zA-Z0-9]+)$/i.test(normalized);
 
@@ -382,7 +377,7 @@ export class HiringReportComponent implements OnInit, OnDestroy {
         };
       }
 
-      return { nombreArchivo: name, valido: false, error: 'Formato inválido. Use CEDULA-NOMBRE.pdf' };
+      return { nombreArchivo: name, valido: false, error: 'Formato inválido. Use CEDULA-Nombre.pdf (requiere guión)' };
     });
   }
 
@@ -746,18 +741,40 @@ export class HiringReportComponent implements OnInit, OnDestroy {
 
   private async validateBatchesBackend(rows: string[][]): Promise<any[]> {
     const BATCH = 1500;
+    const CONCURRENCY = 3; // Enviar hasta 3 lotes al mismo tiempo
     const errors: any[] = [];
     const chunks = Math.ceil(rows.length / BATCH);
 
-    for (let i = 0; i < chunks; i++) {
-      this.updateSwalProgress(`Validando lote ${i + 1}/${chunks}`, i + 1, chunks);
-      const chunk = rows.slice(i * BATCH, (i + 1) * BATCH);
-      // Fix: Service method returns Promise<any>, removed firstValueFrom
-      const res: any = await this.hiringService.subirContratacionValidar(chunk);
-      if (res?.status === 'error' && Array.isArray(res.errores)) {
-        errors.push(...res.errores);
+    for (let i = 0; i < chunks; i += CONCURRENCY) {
+      const top = Math.min(i + CONCURRENCY, chunks);
+      this.updateSwalProgress(`Validando lotes ${i + 1} a ${top} de ${chunks}...`, top, chunks);
+
+      const batchPromises = [];
+      for (let j = 0; j < CONCURRENCY && (i + j) < chunks; j++) {
+        const chunkIndex = i + j;
+        const chunk = rows.slice(chunkIndex * BATCH, (chunkIndex + 1) * BATCH);
+        
+        batchPromises.push(
+          this.hiringService.subirContratacionValidar(chunk)
+            .then((res: any) => {
+              if (res?.status === 'error' && Array.isArray(res.errores)) {
+                return res.errores;
+              }
+              return [];
+            })
+            .catch(err => {
+              console.error(`Error en lote ${chunkIndex}`, err);
+              return [{ mensaje: `Error fatal al validar el lote ${chunkIndex + 1}` }];
+            })
+        );
+      }
+
+      const results = await Promise.all(batchPromises);
+      for (const errArray of results) {
+        errors.push(...errArray);
       }
     }
+    
     return errors;
   }
 
@@ -827,52 +844,69 @@ export class HiringReportComponent implements OnInit, OnDestroy {
     const { dni, vig } = this.arlIndices;
 
     // Indexar ARL por cédula
-    const arlMap = new Map<string, any[]>();
+    const arlMap = new Map<string, any[][]>();
     this.arlRows.forEach(row => {
       const cedula = this.normalizeIdentity(row[dni]);
-      if (cedula) arlMap.set(cedula, row);
+      if (cedula) {
+        if (!arlMap.has(cedula)) {
+          arlMap.set(cedula, []);
+        }
+        arlMap.get(cedula)!.push(row);
+      }
     });
 
     // Comparar cada fila del cruce contra ARL
     this.datoscruced.forEach(cruceRow => {
       const cedula = this.normalizeIdentity(cruceRow[1]);
       const fechaIngreso = cruceRow[8];
-      const arlRow = arlMap.get(cedula);
+      const arlRowsForCedula = arlMap.get(cedula);
 
-      if (!arlRow) {
+      if (!arlRowsForCedula || arlRowsForCedula.length === 0) {
         this.arlErrors.push({ cedula, error: 'No existe en ARL' });
       } else {
         // Comparar fechas
         const dCruce = CruceValidationHelper.parseDate(fechaIngreso);
-        let dArl: Date | null = null;
-        const rawFechaArl = arlRow[vig];
-        const strArl = String(rawFechaArl || '').trim();
+        let matchFound = false;
+        let fechasArlTexto: string[] = [];
 
-        if (strArl.includes('/')) {
-          dArl = CruceValidationHelper.parseDate(strArl);
-        } else if (strArl.includes('-')) {
-          const parts = strArl.split('-');
-          if (parts[0].length === 4) {
-            dArl = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
-          } else {
-            dArl = new Date(Number(parts[2]), Number(parts[1]) - 1, Number(parts[0]));
+        for (const arlRow of arlRowsForCedula) {
+          let dArl: Date | null = null;
+          const rawFechaArl = arlRow[vig];
+          const strArl = String(rawFechaArl || '').trim();
+
+          if (strArl.includes('/')) {
+            dArl = CruceValidationHelper.parseDate(strArl);
+          } else if (strArl.includes('-')) {
+            const parts = strArl.split('-');
+            if (parts[0].length === 4) {
+              dArl = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+            } else {
+              dArl = new Date(Number(parts[2]), Number(parts[1]) - 1, Number(parts[0]));
+            }
+          } else if (typeof rawFechaArl === 'number') {
+            const ms = Date.UTC(1899, 11, 30) + (rawFechaArl * 24 * 60 * 60 * 1000);
+            const d = new Date(ms);
+            // CruceValidationHelper.parseDate returns local midnight Date(Y, M, D).
+            if (!isNaN(d.getTime())) {
+              dArl = new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+            }
           }
-        } else if (typeof rawFechaArl === 'number') {
-          const ms = Date.UTC(1899, 11, 30) + (rawFechaArl * 24 * 60 * 60 * 1000);
-          const d = new Date(ms);
-          // CruceValidationHelper.parseDate returns local midnight Date(Y, M, D).
-          // We must match it exactly, so we build a local midnight Date from the UTC Y/M/D.
-          if (!isNaN(d.getTime())) {
-            dArl = new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+
+          const fmtArl = dArl && !isNaN(dArl.getTime())
+            ? `${String(dArl.getDate()).padStart(2, '0')}/${String(dArl.getMonth() + 1).padStart(2, '0')}/${dArl.getFullYear()}`
+            : strArl;
+
+          fechasArlTexto.push(fmtArl);
+
+          if (dCruce && dArl && !isNaN(dArl.getTime()) && dCruce.getTime() === dArl.getTime()) {
+            matchFound = true;
+            break;
           }
         }
 
-        const fmtArl = dArl && !isNaN(dArl.getTime())
-          ? `${String(dArl.getDate()).padStart(2, '0')}/${String(dArl.getMonth() + 1).padStart(2, '0')}/${dArl.getFullYear()}`
-          : strArl;
-
-        if (!dCruce || !dArl || isNaN(dArl.getTime()) || dCruce.getTime() !== dArl.getTime()) {
-          this.arlErrors.push({ cedula, error: `Fecha de ingreso (${fechaIngreso}) diferente a fecha ARL (${fmtArl})` });
+        if (!matchFound) {
+          const unicas = Array.from(new Set(fechasArlTexto));
+          this.arlErrors.push({ cedula, error: `Fecha de ingreso (${fechaIngreso}) diferente a fecha(s) ARL (${unicas.join(' o ')})` });
         }
       }
     });
@@ -928,10 +962,15 @@ export class HiringReportComponent implements OnInit, OnDestroy {
     const { cruceRows, arlRows, headerRowCruce, indices, errorsMap } = data;
 
     // Indexar ARL
-    const arlMap = new Map<string, any[]>();
+    const arlMap = new Map<string, any[][]>();
     arlRows.forEach((row: any[]) => {
       const cedula = this.normalizeIdentity(row[indices.dniTrabajador]);
-      if (cedula) arlMap.set(cedula, row);
+      if (cedula) {
+        if (!arlMap.has(cedula)) {
+          arlMap.set(cedula, []);
+        }
+        arlMap.get(cedula)!.push(row);
+      }
     });
 
     // Headers de salida
@@ -941,45 +980,56 @@ export class HiringReportComponent implements OnInit, OnDestroy {
     cruceRows.forEach((cruceRow: string[]) => {
       const cedulaCruce = this.normalizeIdentity(cruceRow[1]);
       const fechaIngresoCruce = cruceRow[8];
-      const arlRow = arlMap.get(cedulaCruce);
+      const arlRowsForCedula = arlMap.get(cedulaCruce);
 
       let estadoArl = 'NO', estadoFechas = 'NO', fechaEnArl = 'SIN DATA';
 
-      if (arlRow) {
+      if (arlRowsForCedula && arlRowsForCedula.length > 0) {
         estadoArl = 'SI';
-        const rawFechaArl = arlRow[indices.inicioVigencia];
         const dCruce = CruceValidationHelper.parseDate(fechaIngresoCruce);
-        let dArl: Date | null = null;
+        let matchFound = false;
+        let fechasArlTexto: string[] = [];
 
-        const strArl = String(rawFechaArl || '').trim();
-        if (strArl.includes('/')) {
-          dArl = CruceValidationHelper.parseDate(strArl);
-        } else if (typeof rawFechaArl === 'number') {
-          const ms = Date.UTC(1899, 11, 30) + (rawFechaArl * 24 * 60 * 60 * 1000);
-          const d = new Date(ms);
-          if (!isNaN(d.getTime())) {
-            dArl = new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+        for (const arlRow of arlRowsForCedula) {
+          const rawFechaArl = arlRow[indices.inicioVigencia];
+          let dArl: Date | null = null;
+
+          const strArl = String(rawFechaArl || '').trim();
+          if (strArl.includes('/')) {
+            dArl = CruceValidationHelper.parseDate(strArl);
+          } else if (typeof rawFechaArl === 'number') {
+            const ms = Date.UTC(1899, 11, 30) + (rawFechaArl * 24 * 60 * 60 * 1000);
+            const d = new Date(ms);
+            if (!isNaN(d.getTime())) {
+              dArl = new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+            }
+          } else if (strArl.includes('-')) {
+            const parts = strArl.split('-');
+            if (parts[0].length === 4) {
+              dArl = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+            } else {
+              dArl = new Date(Number(parts[2]), Number(parts[1]) - 1, Number(parts[0]));
+            }
           }
-        } else if (strArl.includes('-')) {
-          const parts = strArl.split('-');
-          if (parts[0].length === 4) {
-            // YYYY-MM-DD
-            dArl = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
-          } else {
-            // DD-MM-YYYY
-            dArl = new Date(Number(parts[2]), Number(parts[1]) - 1, Number(parts[0]));
+
+          let formattedDate = strArl || 'SIN DATA';
+          if (dArl && !isNaN(dArl.getTime())) {
+            const dd = String(dArl.getDate()).padStart(2, '0');
+            const mm = String(dArl.getMonth() + 1).padStart(2, '0');
+            formattedDate = `${dd}/${mm}/${dArl.getFullYear()}`;
+          }
+
+          fechasArlTexto.push(formattedDate);
+
+          if (dCruce && dArl && !isNaN(dArl.getTime()) && dCruce.getTime() === dArl.getTime()) {
+            matchFound = true;
           }
         }
 
-        if (dArl && !isNaN(dArl.getTime())) {
-          const dd = String(dArl.getDate()).padStart(2, '0');
-          const mm = String(dArl.getMonth() + 1).padStart(2, '0');
-          fechaEnArl = `${dd}/${mm}/${dArl.getFullYear()}`;
-        } else {
-          fechaEnArl = strArl || 'SIN DATA';
-        }
+        const unicas = Array.from(new Set(fechasArlTexto));
+        fechaEnArl = unicas.join(' o ');
 
-        if (dCruce && dArl && !isNaN(dArl.getTime()) && dCruce.getTime() === dArl.getTime()) {
+        if (matchFound) {
           estadoFechas = 'SI';
         }
       }
@@ -1105,6 +1155,12 @@ export class HiringReportComponent implements OnInit, OnDestroy {
    */
 
   private getDocList(key: UploadControl): string[] {
+    if (key === 'cedulasEscaneadas') {
+      return this.cedulasPreview.filter(p => p.valido).map(p => String(p.documento));
+    }
+    if (key === 'traslados') {
+      return this.trasladosPreview.filter(p => p.valido).map(p => String(p.documento));
+    }
     const files = this.files[key] || [];
     return files.map(f => {
       // Improved regex to capture the leading ID part
