@@ -36,7 +36,7 @@
       </section>
 
       <!-- Inputs ocultos: SOLO EXCEL -->
-      <input #fileInsert type="file" accept=".xlsx,.xls" (change)="handleFile('insert', $event)" hidden>
+      <input #fileInsert type="file" accept=".xlsx" (change)="handleFile('insert', $event)" hidden>
       <input #fileSaldos type="file" accept=".xlsx,.xls" (change)="handleFile('saldos', $event)" hidden>
       <input #fileEliminar type="file" accept=".xlsx,.xls" (change)="handleFile('eliminar', $event)" hidden>
     </mat-card-content>

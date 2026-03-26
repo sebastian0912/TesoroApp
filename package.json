@@ -1,6 +1,6 @@
 {
   "name": "tesoreria",
-  "version": "7.6.7",
+  "version": "7.6.8",
   "main": "app.js",
   "description": "Programa para control de prestamos a tesoreria",
   "author": "SebastianGuarnizoCampos",
@@ -86,6 +86,7 @@
     "@angular/ssr": "^21.2.0",
     "@capacitor/android": "^7.5.0",
     "@capacitor/core": "^7.5.0",
+    "@capgo/capacitor-document-scanner": "^8.3.18",
     "@fontsource/open-sans": "^5.2.7",
     "@fontsource/oswald": "^5.2.8",
     "@fontsource/roboto": "^5.2.10",

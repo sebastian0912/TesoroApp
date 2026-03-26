@@ -75,58 +75,77 @@ export class UploadTreasuryComponent {
         try {
           const data = e.target?.result;
           const workbook = XLSX.read(data, { type: 'array' });
-          const sheetName = workbook.SheetNames[0];
+          const sheetName = workbook.SheetNames[0]; // O BASE
           const sheet = workbook.Sheets[sheetName];
           const rows = XLSX.utils.sheet_to_json<any[]>(sheet, { header: 1, defval: '' });
           const errors: string[] = [];
 
           let headerRowIdx = -1;
-          let cedulaColIdx = -1;
-          let ingresoColIdx = -1;
+          const colIndices = { CODIGO: -1, CEDULA: -1, NOMBRE: -1, INGRESO: -1 };
 
-          // Buscar la fila de encabezados en las primeras 20 filas
+          // Buscar la fila de encabezados en las primeras 20 filas (Normalizando cabeceras)
           for (let i = 0; i < Math.min(20, rows.length); i++) {
             const row = rows[i];
-            const cIdx = row.findIndex(c => String(c).trim().toUpperCase() === 'CEDULA');
-            const iIdx = row.findIndex(c => String(c).trim().toUpperCase() === 'INGRESO');
-            if (cIdx !== -1 && iIdx !== -1) {
+            const normalizedRow = row.map(c => String(c).trim().replace(/\s+/g, ' ').toUpperCase());
+            
+            const reqCols = ['CODIGO', 'CEDULA', 'NOMBRE', 'INGRESO'];
+            const hasAllReq = reqCols.every(req => normalizedRow.includes(req));
+            
+            if (hasAllReq) {
               headerRowIdx = i;
-              cedulaColIdx = cIdx;
-              ingresoColIdx = iIdx;
+              colIndices.CODIGO = normalizedRow.indexOf('CODIGO');
+              colIndices.CEDULA = normalizedRow.indexOf('CEDULA');
+              colIndices.NOMBRE = normalizedRow.indexOf('NOMBRE');
+              colIndices.INGRESO = normalizedRow.indexOf('INGRESO');
               break;
             }
           }
 
-          // Si no encontramos explícitamente, asumimos la estructura de la foto
           if (headerRowIdx === -1) {
-            headerRowIdx = 2; // Fila 3 de Excel
-            cedulaColIdx = 1; // Columna B (CEDULA)
-            ingresoColIdx = 5; // Columna F (INGRESO) aprox
+            errors.push('No se encontró la fila de cabeceras válida (Debe contener CODIGO, CEDULA, NOMBRE e INGRESO) en las primeras 20 filas.');
+            return resolve(errors);
           }
+
+          const seenCedulas = new Set<string>();
 
           for (let i = headerRowIdx + 1; i < rows.length; i++) {
             const row = rows[i];
-            if (!row || row.length === 0 || row.every(c => !c)) continue; // omitir vacías
+            if (!row || row.length === 0 || row.every(c => String(c).trim() === '')) continue; // omitir vacías
 
-            const cedula = String(row[cedulaColIdx] || '').trim();
-            const ingreso = ingresoColIdx !== -1 ? String(row[ingresoColIdx] || '').trim() : '';
+            const cedula = String(row[colIndices.CEDULA] || '').trim().toUpperCase();
+            const ingreso = String(row[colIndices.INGRESO] || '').trim();
 
-            // Si es una fila donde cédula e ingreso están vacíos y tal vez tenga algo más suelto al final, omitir
-            if (!cedula && !ingreso) {
+            if (!cedula) {
               const hasOtherData = row.some((c, index) => index > 0 && String(c).trim() !== '');
-              if (!hasOtherData) continue;
+              if (hasOtherData) {
+                  // If it has data but no cedula, we can flag it as skipped/error, the user wants us to be serious. 
+                  // Let's flag row as error if it has other data but no cedula
+                  errors.push(`Fila ${i + 1}: Fila contiene datos pero no tiene CÉDULA.`);
+              }
+              continue;
+            }
+
+            // Duplicados
+            if (seenCedulas.has(cedula)) {
+                errors.push(`Fila ${i + 1}: Cédula duplicada en este Excel "${cedula}".`);
+            } else {
+                seenCedulas.add(cedula);
             }
 
             // Regla 1: Cédula solo números o inicia con X / x
-            if (cedula && !/^([xX][a-zA-Z0-9]+|\d+)$/.test(cedula)) {
-              errors.push(`Fila ${i + 1}: Cédula inválida "${cedula}". Debe ser numérico o iniciar con X.`);
+            if (!/^([xX][a-zA-Z0-9]+|\d+)$/.test(cedula)) {
+              errors.push(`Fila ${i + 1}: Cédula inválida "${cedula}". Debe ser numérica o iniciar con X.`);
             }
 
-            // Regla 2: INGRESO no puede estar vacío
-            if (ingresoColIdx !== -1) {
-              if (!ingreso) {
-                errors.push(`Fila ${i + 1}: La fecha de INGRESO está vacía (Cédula: ${cedula || 'N/A'}).`);
-              }
+            // Regla 2: INGRESO no vacío, no solo "00:00:00", numérico de Excel o fecha de String válida
+            if (!ingreso) {
+              errors.push(`Fila ${i + 1}: La fecha de INGRESO está vacía (Cédula: ${cedula}).`);
+            } else if (ingreso === '00:00:00' || ingreso === '0') {
+               errors.push(`Fila ${i + 1}: La fecha de INGRESO es inválida (solo hora o cero) (Cédula: ${cedula}).`);
+            } else {
+               if (!this.isValidDateOrExcelSerial(row[colIndices.INGRESO])) {
+                   errors.push(`Fila ${i + 1}: La fecha de INGRESO "${ingreso}" no parece ser válida (Cédula: ${cedula}).`);
+               }
             }
           }
           resolve(errors);
@@ -139,6 +158,24 @@ export class UploadTreasuryComponent {
     });
   }
 
+  private isValidDateOrExcelSerial(value: any): boolean {
+    if (value === null || value === undefined) return false;
+    if (typeof value === 'number') {
+        return value > 1; // Simple heuristic for valid excel numbers (which act as dates)
+    }
+    const strVal = String(value).trim();
+    if (/^\d+(\.\d*)?$/.test(strVal) && Number(strVal) > 1) return true;
+    // Check YYYY-MM-DD
+    const d = new Date(strVal);
+    if (!isNaN(d.getTime())) return true;
+    
+    // Other common patterns DD/MM/YYYY or YYYY/MM/DD
+    if (/^\d{1,2}[\/\-]\d{1,2}[\/\-]\d{4}$/.test(strVal)) return true;
+    if (/^\d{4}[\/\-]\d{1,2}[\/\-]\d{1,2}$/.test(strVal)) return true;
+    
+    return false;
+  }
+
   async handleFile(kind: 'insert' | 'saldos' | 'eliminar', ev: Event) {
     const input = ev.target as HTMLInputElement;
     const file = input.files?.[0];
@@ -146,7 +183,12 @@ export class UploadTreasuryComponent {
 
     // Validate extension
     const name = file.name.toLowerCase();
-    if (!(name.endsWith('.xlsx') || name.endsWith('.xls'))) {
+    if (kind === 'insert' && !name.endsWith('.xlsx')) {
+      Swal.fire({ icon: 'error', title: 'Archivo inválido', text: 'Para insertar empleados solo se permiten archivos .xlsx.' });
+      input.value = '';
+      return;
+    }
+    if (kind !== 'insert' && !(name.endsWith('.xlsx') || name.endsWith('.xls'))) {
       Swal.fire({ icon: 'error', title: 'Archivo inválido', text: 'Solo se permiten archivos Excel (.xlsx, .xls).' });
       input.value = '';
       return;
@@ -224,12 +266,21 @@ export class UploadTreasuryComponent {
     `;
 
     if (hasErrors && Array.isArray(res.errors_sample)) {
+      
+      const escapeHtml = (unsafe: string) => {
+        return unsafe.replace(/&/g, "&amp;")
+                     .replace(/</g, "&lt;")
+                     .replace(/>/g, "&gt;")
+                     .replace(/"/g, "&quot;")
+                     .replace(/'/g, "&#039;");
+      };
+
       html += `
         <hr/>
         <div style="text-align: left; color: red;">
           <p><b>Errores Encontrados: ${res.errors_count}</b></p>
           <ul style="max-height: 150px; overflow-y: auto;">
-            ${res.errors_sample.map(e => `<li>Fila ${e.row}: ${e.error}</li>`).join('')}
+            ${res.errors_sample.map(e => `<li>Fila ${e.row}: ${escapeHtml(String(e.error))}</li>`).join('')}
           </ul>
         </div>
       `;

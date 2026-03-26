@@ -70,7 +70,9 @@
               "tiny-inflate",
               "brotli/decompress.js",
               "base64-js",
-              "pako"
+              "pako",
+              "qrcode",
+              "uuid"
             ]
           },
           "configurations": {
@@ -166,7 +168,8 @@
               "base64-js",
               "pako",
               "sweetalert2",
-              "qrcode"
+              "qrcode",
+              "uuid"
             ],
             "fileReplacements": [
               {
