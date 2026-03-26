@@ -547,6 +547,91 @@ export class HiringService {
     );
   }
 
+  /**
+   * Genera el documento legal (Apertura Proceso / Terminación Contrato) en PDF
+   * y lo envía por correo al trabajador, o lo descarga directamente.
+   *
+   * @param ausentismoId  ID del registro AusentismoNuevo
+   * @param payload       Campos del documento (tipo, empresa, fechas, teléfonos, etc.)
+   * @param soloPdf       true → descarga el PDF directamente en el navegador
+   */
+  async generarDocumentoAusentismo(
+    ausentismoId: number | string,
+    payload: {
+      tipo_documento: 'apertura' | 'terminacion';
+      empresa: 'APOYO' | 'ALIANZA';
+      numero_familiar: string;
+      // Apertura
+      fecha_citacion?: string;
+      hora_citacion?: string;
+      lugar_citacion?: string;
+      // Terminación
+      fecha_envio_correo?: string;
+      fecha_citacion_previa?: string;
+      hora_citacion_previa?: string;
+      lugar_citacion_previa?: string;
+      fecha_terminacion?: string;
+      fecha_liquidacion?: string;
+      // Control
+      enviar_correo?: boolean;
+      solo_pdf?: boolean;
+    }
+  ): Promise<any> {
+    const solo_pdf = payload.solo_pdf ?? false;
+    const url = `${this.apiUrl}/gestion_ausentismios/ausentismos-nuevos/${ausentismoId}/generar-documento/`;
+
+    if (solo_pdf) {
+      // Descarga directa del PDF — compatible con navegador y Electron.
+      // responseType='blob' hace que los errores HTTP lleguen también como Blob.
+      let respBlob: Blob;
+      try {
+        respBlob = await firstValueFrom(
+          this.http.post(url, payload, { responseType: 'blob' })
+        ) as Blob;
+      } catch (httpError: any) {
+        console.error('[HiringService] generarDocumentoAusentismo HTTP error:', httpError);
+        if (httpError?.error instanceof Blob) {
+          const text = await (httpError.error as Blob).text();
+          let detail = 'Error generando el PDF en el servidor.';
+          try { detail = JSON.parse(text)?.detail || text; } catch { detail = text || detail; }
+          throw { error: { detail } };
+        }
+        throw httpError;
+      }
+
+      // Verificar que la respuesta realmente es un PDF
+      if (!respBlob || respBlob.size === 0) {
+        throw { error: { detail: 'El servidor devolvió una respuesta vacía.' } };
+      }
+
+      console.log('[HiringService] PDF recibido, size:', respBlob.size, 'type:', respBlob.type);
+
+      // Forzar el tipo correcto en caso de que venga sin Content-Type
+      const pdfBlob = respBlob.type === 'application/pdf'
+        ? respBlob
+        : new Blob([respBlob], { type: 'application/pdf' });
+
+      const objectUrl = URL.createObjectURL(pdfBlob);
+      const a = document.createElement('a');
+      a.href = objectUrl;
+      a.download = `Documento_Ausentismo_${ausentismoId}.pdf`;
+      a.style.display = 'none';
+      document.body.appendChild(a);
+      a.click();
+      // Esperar un tick antes de revocar para que Electron procese la descarga
+      setTimeout(() => {
+        URL.revokeObjectURL(objectUrl);
+        document.body.removeChild(a);
+      }, 1000);
+      return { detail: 'PDF descargado.' };
+    }
+
+    // Envío por correo
+    return firstValueFrom(
+      this.http.post<any>(url, payload).pipe(catchError(this.handleError))
+    );
+  }
+
   // -------------------------
   // Módulo de Mensajes Predeterminados
   // -------------------------

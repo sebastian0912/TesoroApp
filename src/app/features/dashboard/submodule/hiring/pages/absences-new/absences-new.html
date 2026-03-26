@@ -92,6 +92,10 @@
         <mat-icon>mail</mat-icon>
         Notificar Seleccionados ({{selection.selected.length}})
       </button>
+      <button mat-raised-button style="background-color:#7c3aed; color:white;" [disabled]="selection.selected.length === 0" (click)="cambioMasivoEstado()">
+        <mat-icon>update</mat-icon>
+        Cambiar Estado ({{selection.selected.length}})
+      </button>
       <button mat-raised-button color="primary" class="reload-btn" (click)="cargarDatos()">
         <mat-icon>refresh</mat-icon>
       </button>
@@ -206,6 +210,9 @@
             <button mat-icon-button color="primary" (click)="abrirModalGestion(element)" matTooltip="Ver historial y Modificar">
               <mat-icon>manage_history</mat-icon>
             </button>
+            <button mat-icon-button style="color: #d97706;" (click)="abrirModalGenerarDocumento(element)" matTooltip="Generar Documento Legal">
+              <mat-icon>description</mat-icon>
+            </button>
           </td>
         </ng-container>
 
@@ -235,8 +242,11 @@
             <span class="card-name">{{element.nombre_completo}}</span>
             <span class="card-cedula">CC. {{element.cedula}} ({{element.codigo_empleado}})</span>
           </div>
-          <button mat-icon-button color="primary" class="edit-btn" (click)="abrirModalGestion(element)" matTooltip="Gestionar">
+          <button mat-icon-button color="primary" class="edit-btn" (click)="abrirModalGestion(element)" matTooltip="Gestionar / Ver historial">
             <mat-icon>manage_history</mat-icon>
+          </button>
+          <button mat-icon-button style="color: #d97706;" (click)="abrirModalGenerarDocumento(element)" matTooltip="Generar Documento Legal">
+            <mat-icon>description</mat-icon>
           </button>
         </div>
 

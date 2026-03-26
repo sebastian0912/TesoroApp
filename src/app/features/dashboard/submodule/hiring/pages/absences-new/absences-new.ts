@@ -668,4 +668,210 @@ export class AbsencesNew implements OnInit {
       }
     });
   }
+
+  async abrirModalGenerarDocumento(element: any): Promise<void> {
+    const correoStr = element.correo
+      ? element.correo
+      : '<em style="color:#ef4444">Sin correo registrado</em>';
+    const celularStr = element.numero_contacto
+      ? element.numero_contacto
+      : '<em style="color:#ef4444">Sin número registrado</em>';
+
+    const htmlForm = `
+      <div style="text-align:left; font-size:13px;">
+        <div style="background:#f1f5f9; border-radius:6px; padding:10px 12px; margin-bottom:12px;">
+          <p style="margin:2px 0;"><strong>Colaborador:</strong> ${element.nombre_completo}</p>
+          <p style="margin:2px 0;"><strong>Cédula:</strong> ${element.cedula}</p>
+          <p style="margin:2px 0;"><strong>Correo:</strong> ${correoStr}</p>
+          <p style="margin:2px 0;"><strong>Celular:</strong> ${celularStr}</p>
+          <p style="margin:2px 0;"><strong>Fecha inicio ausencia:</strong> ${element.fecha_inicio || ''}</p>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:8px;">
+          <label><strong>Empresa:</strong></label>
+          <select id="doc-empresa" class="swal2-select" style="margin:0; width:100%;">
+            <option value="APOYO">Apoyo Laboral TS S.A.S.</option>
+            <option value="ALIANZA">Tu Alianza S.A.S.</option>
+          </select>
+
+          <label><strong>Tipo de Documento:</strong></label>
+          <select id="doc-tipo" class="swal2-select" style="margin:0; width:100%;" onchange="
+            var tipo = this.value;
+            document.getElementById('campos-apertura').style.display = tipo === 'apertura' ? 'block' : 'none';
+            document.getElementById('campos-terminacion').style.display = tipo === 'terminacion' ? 'block' : 'none';
+          ">
+            <option value="apertura">Apertura de Proceso Disciplinario</option>
+            <option value="terminacion">Terminación de Contrato</option>
+          </select>
+
+          <label><strong>Número de familiar (contacto emergencia):</strong></label>
+          <input id="doc-num-familiar" class="swal2-input" style="margin:0; width:100%;" placeholder="Ej. 3001234567">
+
+          <div id="campos-apertura">
+            <label><strong>Fecha citación a descargos:</strong></label>
+            <input id="doc-fecha-citacion" type="date" class="swal2-input" style="margin:0; width:100%;">
+            <label><strong>Hora citación:</strong></label>
+            <input id="doc-hora-citacion" type="time" class="swal2-input" style="margin:0; width:100%;" value="09:00">
+            <label><strong>Lugar citación:</strong></label>
+            <input id="doc-lugar-citacion" class="swal2-input" style="margin:0; width:100%;" placeholder="Ej. Oficina Apoyo Laboral TS, Madrid Cundinamarca">
+          </div>
+
+          <div id="campos-terminacion" style="display:none;">
+            <label><strong>Fecha en que se envió el correo previo:</strong></label>
+            <input id="doc-fecha-envio-correo" type="date" class="swal2-input" style="margin:0; width:100%;">
+            <label><strong>Fecha de citación previa (no se presentó):</strong></label>
+            <input id="doc-fecha-citacion-previa" type="date" class="swal2-input" style="margin:0; width:100%;">
+            <label><strong>Hora citación previa:</strong></label>
+            <input id="doc-hora-citacion-previa" type="time" class="swal2-input" style="margin:0; width:100%;" value="09:00">
+            <label><strong>Lugar citación previa:</strong></label>
+            <input id="doc-lugar-citacion-previa" class="swal2-input" style="margin:0; width:100%;" placeholder="Ej. Oficina Apoyo Laboral TS, Madrid Cundinamarca">
+            <label><strong>Fecha de terminación del contrato:</strong></label>
+            <input id="doc-fecha-terminacion" type="date" class="swal2-input" style="margin:0; width:100%;">
+            <label><strong>Fecha estimada de liquidación:</strong></label>
+            <input id="doc-fecha-liquidacion" type="date" class="swal2-input" style="margin:0; width:100%;">
+          </div>
+
+          <label><strong>Acción:</strong></label>
+          <div style="display:flex; gap:20px; align-items:center; padding:4px 0;">
+            <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
+              <input type="radio" name="doc-accion" value="descargar" checked> Descargar PDF
+            </label>
+            <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
+              <input type="radio" name="doc-accion" value="correo"> Enviar por Correo
+            </label>
+          </div>
+        </div>
+      </div>
+    `;
+
+    const result = await Swal.fire({
+      title: 'Generar Documento Legal',
+      html: htmlForm,
+      showCancelButton: true,
+      confirmButtonText: 'Generar',
+      cancelButtonText: 'Cancelar',
+      width: '640px',
+      focusConfirm: false,
+      preConfirm: () => {
+        const empresa = (document.getElementById('doc-empresa') as HTMLSelectElement).value;
+        const tipo = (document.getElementById('doc-tipo') as HTMLSelectElement).value;
+        const numFamiliar = (document.getElementById('doc-num-familiar') as HTMLInputElement).value.trim();
+        const accion = (document.querySelector('input[name="doc-accion"]:checked') as HTMLInputElement)?.value;
+
+        if (!numFamiliar) {
+          Swal.showValidationMessage('El número de familiar es requerido.');
+          return false;
+        }
+
+        const payload: any = {
+          empresa,
+          tipo_documento: tipo,
+          numero_familiar: numFamiliar,
+          solo_pdf: accion === 'descargar',
+          enviar_correo: accion === 'correo'
+        };
+
+        if (tipo === 'apertura') {
+          const fechaCitacion = (document.getElementById('doc-fecha-citacion') as HTMLInputElement).value;
+          const horaCitacion = (document.getElementById('doc-hora-citacion') as HTMLInputElement).value;
+          const lugarCitacion = (document.getElementById('doc-lugar-citacion') as HTMLInputElement).value.trim();
+          if (!fechaCitacion || !horaCitacion || !lugarCitacion) {
+            Swal.showValidationMessage('Complete la fecha, hora y lugar de citación a descargos.');
+            return false;
+          }
+          payload.fecha_citacion = fechaCitacion;
+          payload.hora_citacion = horaCitacion;
+          payload.lugar_citacion = lugarCitacion;
+        } else {
+          const fechaEnvioCorreo = (document.getElementById('doc-fecha-envio-correo') as HTMLInputElement).value;
+          const fechaCitacionPrevia = (document.getElementById('doc-fecha-citacion-previa') as HTMLInputElement).value;
+          const horaCitacionPrevia = (document.getElementById('doc-hora-citacion-previa') as HTMLInputElement).value;
+          const lugarCitacionPrevia = (document.getElementById('doc-lugar-citacion-previa') as HTMLInputElement).value.trim();
+          const fechaTerminacion = (document.getElementById('doc-fecha-terminacion') as HTMLInputElement).value;
+          const fechaLiquidacion = (document.getElementById('doc-fecha-liquidacion') as HTMLInputElement).value;
+          if (!fechaEnvioCorreo || !fechaCitacionPrevia || !horaCitacionPrevia || !lugarCitacionPrevia || !fechaTerminacion || !fechaLiquidacion) {
+            Swal.showValidationMessage('Complete todos los campos de terminación de contrato.');
+            return false;
+          }
+          payload.fecha_envio_correo = fechaEnvioCorreo;
+          payload.fecha_citacion_previa = fechaCitacionPrevia;
+          payload.hora_citacion_previa = horaCitacionPrevia;
+          payload.lugar_citacion_previa = lugarCitacionPrevia;
+          payload.fecha_terminacion = fechaTerminacion;
+          payload.fecha_liquidacion = fechaLiquidacion;
+        }
+
+        return payload;
+      }
+    });
+
+    if (!result.isConfirmed || !result.value) return;
+
+    Swal.fire({ title: 'Generando documento...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+
+    try {
+      await this.hiringService.generarDocumentoAusentismo(element.id, result.value);
+      if (result.value.solo_pdf) {
+        Swal.close();
+      } else {
+        Swal.fire('Éxito', 'El documento fue enviado por correo correctamente.', 'success');
+      }
+    } catch (error: any) {
+      console.error('[GenerarDocumento] Error completo:', error);
+      const msg = error?.error?.detail
+        || error?.message
+        || (typeof error?.error === 'string' ? error.error : null)
+        || JSON.stringify(error?.error ?? error)?.slice(0, 300)
+        || 'No se pudo generar el documento.';
+      Swal.fire('Error al generar', msg, 'error');
+    }
+  }
+
+  async cambioMasivoEstado(): Promise<void> {
+    const selected = this.selection.selected;
+    if (selected.length === 0) return;
+
+    const { value: nuevoEstado, isConfirmed } = await Swal.fire({
+      title: 'Cambiar Estado Masivo',
+      text: `Se aplicará el estado seleccionado a los ${selected.length} registros seleccionados.`,
+      input: 'select',
+      inputOptions: {
+        '': '-- No especificado --',
+        'NO_CONTESTA_1': 'No contesta primera',
+        'NO_CONTESTA_2': 'No contesta segunda',
+        'NO_CONTESTA_3': 'No contesta tercera',
+        'NOTIFICACION_1': 'Notificación primera',
+        'NOTIFICACION_2': 'Notificación segunda',
+        'NOTIFICACION_3': 'Notificación tercera',
+        'NOTIFICACION_RETIRO': 'Notificación de retiro enviada'
+      },
+      inputPlaceholder: 'Selecciona un estado',
+      showCancelButton: true,
+      confirmButtonText: `Aplicar a ${selected.length} registros`,
+      cancelButtonText: 'Cancelar'
+    });
+
+    if (!isConfirmed) return;
+
+    Swal.fire({ title: 'Aplicando cambios...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+
+    let exitosos = 0;
+    let fallidos = 0;
+    for (const item of selected) {
+      try {
+        await this.hiringService.gestionarAusentismoNuevo(item.id, { estado_actual: nuevoEstado });
+        exitosos++;
+      } catch {
+        fallidos++;
+      }
+    }
+
+    await Swal.fire({
+      icon: exitosos > 0 ? 'success' : 'error',
+      title: 'Cambio Masivo Completado',
+      html: `<strong>Actualizados:</strong> ${exitosos}<br><strong>Fallidos:</strong> ${fallidos}`
+    });
+
+    this.selection.clear();
+    this.cargarDatos();
+  }
 }
