@@ -1196,9 +1196,9 @@ export class RecruitmentPipelineComponent {
 
     const cedula = String(cand.numero_documento ?? '').trim();
     // Prioritize the frontend mapped UI, fallback to backend contract
-    let codigo = String(contratoBE?.codigo_contrato ?? '').trim();
-    let centroCosto = String(contratoBE?.Ccentro_de_costos ?? '').trim();
-    const fechaIng = String(contratoBE?.fecha_ingreso ?? '').trim();
+    let codigo = String(contratoBE?.carnet_codigo || contratoBE?.codigo_contrato || '').trim();
+    let centroCosto = String(contratoBE?.carnet_centro_costo || contratoBE?.Ccentro_de_costos || '').trim();
+    let fechaIng = String(contratoBE?.carnet_fecha_ingreso || contratoBE?.fecha_ingreso || '').trim();
 
     // Consultar HomeService para obtener exactamente los mismos campos que la vista de Home
     let cMini: any = {};
@@ -1211,6 +1211,10 @@ export class RecruitmentPipelineComponent {
         console.warn('No se pudo obtener el candidato mini para el carnet', e);
       }
     }
+
+    if (cMini?.CARNET_CODIGO) codigo = String(cMini.CARNET_CODIGO).trim();
+    if (cMini?.CARNET_CENTRO_COSTO) centroCosto = String(cMini.CARNET_CENTRO_COSTO).trim();
+    if (cMini?.CARNET_FECHA_INGRESO) fechaIng = String(cMini.CARNET_FECHA_INGRESO).trim();
 
     // Replicando la lógica exacta ("pickAny") que usa el Home component
     const pickAny = (obj: any, keys: string[]) => {
@@ -1678,30 +1682,8 @@ export class RecruitmentPipelineComponent {
         backMsg = '<br><br><small style="color:red;">El carnet se descargó, pero hubo un error al guardarlo en el historial.</small>';
       }
 
-      Swal.close();
-      const sendWa = await Swal.fire({
-        icon: 'success',
-        title: 'Carnet Generado',
-        html: `El carnet de ${row.NOMBRES} se descargó correctamente. ¿Quieres enviar un mensaje por WhatsApp diciéndole que adjuntarás el carnet?${backMsg}`,
-        showCancelButton: true,
-        confirmButtonText: 'Enviar por WhatsApp',
-        cancelButtonText: 'Cerrar'
-      });
-
-      if (sendWa.isConfirmed) {
-        const waStr = cand.contacto?.whatsapp || cand.numCelular || cand.telefono || cand.celular || '';
-        let numUrl = '';
-        if (waStr) {
-          const waNumber = String(waStr).replace(/[^0-9]/g, '');
-          numUrl = waNumber ? `57${waNumber}` : '';
-        }
-        const textToSend = `Hola ${row.NOMBRES}, te damos la bienvenida al equipo. A continuación, adjunto tu carnet digital.`;
-        const waUrl = `https://wa.me/${numUrl}?text=${encodeURIComponent(textToSend)}`;
-        window.open(waUrl, '_blank', 'noopener,noreferrer');
-      }
-
-      // Guardar bandera en backend
-      if (cedula && ent0?.proceso?.id) {
+      // Guardar bandera en backend INMEDIATAMENTE
+      if (cedula) {
         try {
           await firstValueFrom(this.registroProceso.updateProcesoByDocumento({
             numero_documento: cedula,
@@ -1724,6 +1706,28 @@ export class RecruitmentPipelineComponent {
         } catch (e) {
           console.error('Error actualizando bandera carnet_generado', e);
         }
+      }
+
+      Swal.close();
+      const sendWa = await Swal.fire({
+        icon: 'success',
+        title: 'Carnet Generado',
+        html: `El carnet de ${row.NOMBRES} se descargó correctamente. ¿Quieres enviar un mensaje por WhatsApp diciéndole que adjuntarás el carnet?${backMsg}`,
+        showCancelButton: true,
+        confirmButtonText: 'Enviar por WhatsApp',
+        cancelButtonText: 'Cerrar'
+      });
+
+      if (sendWa.isConfirmed) {
+        const waStr = cand.contacto?.whatsapp || cand.numCelular || cand.telefono || cand.celular || '';
+        let numUrl = '';
+        if (waStr) {
+          const waNumber = String(waStr).replace(/[^0-9]/g, '');
+          numUrl = waNumber ? `57${waNumber}` : '';
+        }
+        const textToSend = `Hola ${row.NOMBRES}, te damos la bienvenida al equipo. A continuación, adjunto tu carnet digital.`;
+        const waUrl = `https://wa.me/${numUrl}?text=${encodeURIComponent(textToSend)}`;
+        window.open(waUrl, '_blank', 'noopener,noreferrer');
       }
 
     } catch (error: any) {
