@@ -1,18 +1,18 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 
-import { DateRangDialogComponent } from './date-rang-dialog.component';
+import { DateRangeDialogComponent } from './date-rang-dialog.component';
 
-describe('DateRangDialogComponent', () => {
-  let component: DateRangDialogComponent;
-  let fixture: ComponentFixture<DateRangDialogComponent>;
+describe('DateRangeDialogComponent', () => {
+  let component: DateRangeDialogComponent;
+  let fixture: ComponentFixture<DateRangeDialogComponent>;
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [DateRangDialogComponent]
+      imports: [DateRangeDialogComponent]
     })
     .compileComponents();
 
-    fixture = TestBed.createComponent(DateRangDialogComponent);
+    fixture = TestBed.createComponent(DateRangeDialogComponent);
     component = fixture.componentInstance;
     fixture.detectChanges();
   });

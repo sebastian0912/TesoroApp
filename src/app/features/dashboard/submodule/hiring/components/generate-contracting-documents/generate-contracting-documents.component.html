@@ -93,6 +93,10 @@
               <mat-icon>cloud_sync</mat-icon>
               <span>Guardar y Cargar al Servidor</span>
             </button>
+            <button mat-stroked-button color="accent" class="w-100 mt-2" (click)="abrirModalLote()" style="margin-top: 10px; border: 2px solid currentColor;">
+              <mat-icon>library_add_check</mat-icon>
+              <span>Generar Lote TA (Masivo)</span>
+            </button>
           </footer>
         </article>
 
@@ -110,3 +114,85 @@
     </mat-card-content>
   </mat-card>
 </main>
+
+<!-- MODAL BATCH OVERLAY -->
+<div *ngIf="batchMode" class="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+  <div class="bg-slate-900 border border-slate-700 shadow-2xl rounded-xl w-11/12 h-[85vh] flex flex-col max-w-7xl overflow-hidden relative font-sans">
+     
+     <div class="p-4 border-b border-slate-700 flex justify-between items-center text-white bg-slate-800">
+        <h2 class="text-2xl font-extrabold bg-clip-text text-transparent bg-gradient-to-r from-orange-400 to-yellow-500 flex items-center gap-2 m-0">
+          <mat-icon class="text-orange-400">burst_mode</mat-icon>
+          Generación Masiva - Contrato TU ALIANZA
+        </h2>
+        <button mat-icon-button (click)="cerrarBatch()" class="text-slate-400 hover:text-white">
+          <mat-icon>close</mat-icon>
+        </button>
+     </div>
+
+     <div class="flex flex-1 overflow-hidden">
+        
+        <div class="w-1/3 border-r border-slate-700 overflow-y-auto p-4 space-y-3 bg-slate-900/50">
+          <div *ngFor="let item of batchCedulas" 
+               (click)="blockSeleccionado = item"
+               class="p-4 rounded-lg border border-slate-700 bg-slate-800 flex items-center justify-between cursor-pointer transition-all"
+               [ngClass]="{
+                 'border-yellow-500/50 bg-yellow-900/20': item.status === 'Processing',
+                 'border-green-500/50 bg-green-900/20': item.status === 'Done',
+                 'border-red-500/50 bg-red-900/20': item.status === 'Error',
+                 'ring-2 ring-orange-500': item === blockSeleccionado
+               }">
+               <div class="flex flex-col overflow-hidden">
+                  <p class="font-bold text-gray-100 text-base m-0 flex items-center gap-2">
+                    <mat-icon class="text-sm text-slate-400">badge</mat-icon>
+                    {{item.cedula}}
+                  </p>
+                  <p class="text-xs font-semibold uppercase tracking-wider m-0 mt-1" 
+                     [ngClass]="{
+                       'text-yellow-400': item.status === 'Processing',
+                       'text-green-400': item.status === 'Done',
+                       'text-red-400': item.status === 'Error',
+                       'text-slate-400': item.status === 'Pending'
+                     }">
+                     {{item.guardado ? 'SUBIDO' : item.status}}
+                  </p>
+                  <p *ngIf="item.error" class="text-xs text-red-400 mt-1 max-w-[200px] truncate m-0" [title]="item.error">{{item.error}}</p>
+               </div>
+               
+               <div class="flex-shrink-0 ml-2">
+                  <mat-icon *ngIf="item.status === 'Processing'" class="text-yellow-400 animate-spin">refresh</mat-icon>
+                  <mat-icon *ngIf="item.status === 'Done'" class="text-green-400">check_circle</mat-icon>
+                  <mat-icon *ngIf="item.status === 'Error'" class="text-red-400">error</mat-icon>
+                  <mat-icon *ngIf="item.status === 'Pending'" class="text-slate-500">schedule</mat-icon>
+               </div>
+          </div>
+        </div>
+
+        <div class="w-2/3 bg-slate-200 flex flex-col relative items-center justify-center p-3">
+           <iframe *ngIf="blockSeleccionado?.blobUrl" [src]="blockSeleccionado.blobUrl" class="w-full h-full rounded shadow-xl bg-white border border-slate-300"></iframe>
+           
+           <div *ngIf="!blockSeleccionado?.blobUrl" class="flex flex-col items-center justify-center text-slate-400 h-full">
+              <mat-icon style="font-size: 64px; width: 64px; height: 64px; opacity: 0.5;" class="mb-4">picture_as_pdf</mat-icon>
+              <p class="text-lg font-medium text-slate-500 m-0">
+                 {{ blockSeleccionado?.status === 'Processing' ? 'Generando contrato...' : 'Selecciona un contrato completado para revisarlo' }}
+              </p>
+           </div>
+        </div>
+     </div>
+
+     <div class="p-4 border-t border-slate-700 bg-slate-800 flex justify-end gap-3 items-center">
+        <div class="mr-auto text-slate-400 text-sm font-medium">
+           Total: {{batchCedulas.length}} | Listos: {{(batchCedulas | keyvalue).length === 0 ? 0 : _getExitosos()}}
+        </div>
+        
+        <button mat-stroked-button (click)="guardarBatch()" [disabled]="!todoGenerado || guardandoBatch" class="bg-gradient-to-r from-orange-500 to-yellow-500 text-white font-bold px-6 py-2 rounded-lg disabled:opacity-50" style="border:none">
+           <mat-icon class="mr-2">cloud_upload</mat-icon>
+           {{ guardandoBatch ? 'Subiendo...' : 'Subir Lote' }}
+        </button>
+        
+        <button mat-flat-button color="primary" (click)="ejecutarBatch()" [disabled]="procesandoBatch" class="px-6 py-2 font-bold rounded-lg shadow-lg shadow-blue-500/30">
+           <mat-icon class="mr-2">play_arrow</mat-icon>
+           Comenzar
+        </button>
+     </div>
+  </div>
+</div>

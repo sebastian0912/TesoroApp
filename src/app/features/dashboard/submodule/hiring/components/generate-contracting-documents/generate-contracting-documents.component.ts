@@ -15,7 +15,7 @@ import { UtilityServiceService } from '../../../../../../shared/services/utility
 import { RegistroProcesoContratacion } from '../../service/registro-proceso-contratacion/registro-proceso-contratacion';
 import { REFERENCIAS_A, REFERENCIAS_F } from '@/app/shared/model/const';
 import { switchMap, map, take, catchError, tap, finalize } from 'rxjs/operators';
-import { of, forkJoin, firstValueFrom } from 'rxjs';
+import { of, forkJoin, firstValueFrom, throwError } from 'rxjs';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import moment from 'moment';
 
@@ -55,6 +55,17 @@ export class GenerateContractingDocumentsComponent implements OnInit {
   vacante: any = {};
   huella: any = '';
   foto: any = '';
+
+  batchMode = false;
+  batchCedulas: any[] = [];
+  blockSeleccionado: any = null;
+  procesandoBatch = false;
+  guardandoBatch = false;
+  todoGenerado = false;
+  
+  _getExitosos(): number {
+    return this.batchCedulas?.filter?.((x: any) => x?.status === 'Done' && !x?.guardado)?.length || 0;
+  }
 
   private platformId = inject(PLATFORM_ID);
   private route = inject(ActivatedRoute);
@@ -221,14 +232,19 @@ export class GenerateContractingDocumentsComponent implements OnInit {
           .pipe(take(1), catchError(() => of(null)))
         : of(null);
 
+      const datoAdministrativoBiometria$ = this.user?.numero_de_documento
+        ? this.registroProcesoContratacion.getCandidatoPorDocumento(this.user.numero_de_documento, true)
+          .pipe(take(1), catchError(() => of(null)))
+        : of(null);
+
       const docsBackend$ = this.cedula
         ? this.gestionDocumentalService.getDocuments(this.cedula).pipe(take(1), catchError(() => of([])))
         : of([]);
 
       // 5) Ejecutar, cargar vacante (si hay), y setear estado
-      forkJoin({ datoCandidato: datoCandidato$, datoAdministrativo: datoAdministrativo$, docsBackend: docsBackend$ })
+      forkJoin({ datoCandidato: datoCandidato$, datoAdministrativo: datoAdministrativo$, datoAdministrativoBiometria: datoAdministrativoBiometria$, docsBackend: docsBackend$ })
         .pipe(
-          switchMap(({ datoCandidato, datoAdministrativo, docsBackend }) => {
+          switchMap(({ datoCandidato, datoAdministrativo, datoAdministrativoBiometria, docsBackend }) => {
             this.candidato = datoCandidato;
             console.log('datoCandidato', datoCandidato);
 
@@ -264,7 +280,10 @@ export class GenerateContractingDocumentsComponent implements OnInit {
             this.codigoContratacion =
               datoCandidato?.entrevistas?.[0]?.proceso?.contrato?.codigo_contrato ?? null;
 
-            this.firmaPersonalAdministrativo = datoAdministrativo?.data?.[0]?.firmaSolicitante ?? '';
+            this.firmaPersonalAdministrativo = datoAdministrativoBiometria?.biometria?.firma?.file_url 
+              ?? datoAdministrativoBiometria?.biometria?.firma?.file 
+              ?? datoAdministrativo?.data?.[0]?.firmaSolicitante 
+              ?? '';
 
             const vacanteId = datoCandidato?.entrevistas?.[0]?.proceso?.publicacion ?? null;
             const vacante$ = vacanteId
@@ -7287,7 +7306,141 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     this.verPDF({ titulo: 'Contrato' });
   }
 
-  async generarContratoCompletoTrabajoTuAlianza() {
+  async abrirModalLote() {
+    const { value: text } = await Swal.fire({
+      title: 'Generar Lote TA',
+      input: 'textarea',
+      inputLabel: 'Pegue las cédulas separadas por salto de línea',
+      inputPlaceholder: 'Ej:\n1004507044\n1065612553',
+      showCancelButton: true,
+      confirmButtonText: 'Procesar',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#3085d6',
+      cancelButtonColor: '#d33',
+    });
+
+    if (text) {
+      const cedulas = text.split('\n').map((c: string) => c.trim()).filter((c: string) => c.length > 0);
+      if (cedulas.length === 0) return;
+      
+      this.batchCedulas = cedulas.map((c: string) => ({
+        cedula: c,
+        status: 'Pending',
+        blobUrl: null,
+        file: null,
+        error: null,
+        guardado: false
+      }));
+      this.blockSeleccionado = this.batchCedulas[0];
+      this.batchMode = true;
+      this.todoGenerado = false;
+    }
+  }
+
+  cerrarBatch() {
+    this.batchMode = false;
+    this.batchCedulas = [];
+    this.blockSeleccionado = null;
+  }
+
+  async ejecutarBatch() {
+    this.procesandoBatch = true;
+    
+    // Backup del estado actual
+    const bCedula = this.cedula;
+    const bCandidato = this.candidato;
+    const bVacante = this.vacante;
+    const bEmpresa = this.empresa;
+    const bFirma = this.firma;
+    const bCodigo = this.codigoContratacion;
+
+    for (let item of this.batchCedulas) {
+      if (item.status === 'Done') continue;
+      
+      item.status = 'Processing';
+      this.blockSeleccionado = item;
+      
+      try {
+        const datoCandidato = await firstValueFrom(
+          this.registroProcesoContratacion.getCandidatoPorDocumento(item.cedula, true)
+            .pipe(catchError(() => of(null)))
+        );
+        if (!datoCandidato) throw new Error('Candidato no encontrado');
+
+        const vacId = datoCandidato?.entrevistas?.[0]?.proceso?.publicacion;
+        const vacData = vacId ? await firstValueFrom(this.vacantesService.obtenerVacante(vacId).pipe(catchError(() => of(null)))) : null;
+        
+        this.cedula = item.cedula;
+        this.candidato = datoCandidato;
+        this.vacante = vacData || {};
+        this.empresa = this.vacante?.temporal || '';
+        this.firma = datoCandidato?.biometria?.firma?.file_url ?? '';
+        this.codigoContratacion = datoCandidato?.entrevistas?.[0]?.proceso?.contrato?.codigo_contrato ?? '';
+
+        const result: any = await this.generarContratoCompletoTrabajoTuAlianza(true);
+        if (result && result.file) {
+          item.file = result.file;
+          item.blobUrl = this.sanitizer.bypassSecurityTrustResourceUrl(result.blobUrl);
+          item.status = 'Done';
+        } else {
+          throw new Error('Retorno vacío al generar PDF');
+        }
+      } catch (err: any) {
+        item.status = 'Error';
+        item.error = err?.message || 'Error desconocido';
+      }
+    }
+
+    // Restaurar estado
+    this.cedula = bCedula;
+    this.candidato = bCandidato;
+    this.vacante = bVacante;
+    this.empresa = bEmpresa;
+    this.firma = bFirma;
+    this.codigoContratacion = bCodigo;
+    this.procesandoBatch = false;
+    this.todoGenerado = this.batchCedulas.some(x => x.status === 'Done');
+  }
+
+  async guardarBatch() {
+    this.guardandoBatch = true;
+    let success = 0;
+    let failed = 0;
+
+    const items = this.batchCedulas.filter(x => x.status === 'Done' && !x.guardado && x.file);
+    if (items.length === 0) {
+      Swal.fire('Info', 'No hay contratos nuevos para guardar', 'info');
+      this.guardandoBatch = false;
+      return;
+    }
+
+    Swal.fire({
+      title: 'Guardando...',
+      text: 'Subiendo los contratos generados al sistema.',
+      allowOutsideClick: false,
+      didOpen: () => Swal.showLoading()
+    });
+
+    const typeId = this.typeMap['Contrato'] || 25; 
+
+    for (let item of items) {
+      try {
+        await firstValueFrom(this.gestionDocumentalService.guardarDocumento(
+          item.file.name, item.cedula, typeId, item.file, this.codigoContratacion
+        ).pipe(catchError((err) => throwError(() => err))));
+        item.guardado = true;
+        success++;
+      } catch (e) {
+        failed++;
+      }
+    }
+    
+    Swal.close();
+    this.guardandoBatch = false;
+    Swal.fire('Carga Finalizada', `Se subieron correctamente: ${success}.<br>Fallaron: ${failed}.`, failed > 0 ? 'warning' : 'success');
+  }
+
+  async generarContratoCompletoTrabajoTuAlianza(isBatch: boolean = false) {
     const respContratacion: any = await firstValueFrom(
       this.contratacionService.buscarEncontratacion(this.cedula).pipe(
         take(1),
@@ -7776,9 +7929,23 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     // Firma del Trabajador (Izquierda)
     doc.text('Firma del Trabajador', 20, y);
     doc.line(50, y, 122, y);
-    if (this.firma !== '') {
-      const firmaConPrefijo = this.firma;
-      doc.addImage(firmaConPrefijo, 'PNG', 65, y - 15, 45, 14);
+    if (this.firma && this.firma !== '') {
+      try {
+        const rFirma = await fetch(this.firma);
+        if (rFirma.ok) {
+          const bFirma = await rFirma.blob();
+          const base64Firma = await new Promise<string>((resolve) => {
+            const fr = new FileReader();
+            fr.onload = () => resolve(String(fr.result));
+            fr.readAsDataURL(bFirma);
+          });
+          doc.addImage(base64Firma, 'PNG', 65, y - 15, 45, 14);
+        } else {
+          doc.addImage(this.firma, 'PNG', 65, y - 15, 45, 14);
+        }
+      } catch (e) {
+        try { doc.addImage(this.firma, 'PNG', 65, y - 15, 45, 14); } catch(ex) {}
+      }
     }
 
     // No de Identificación (Derecha)
@@ -7812,9 +7979,23 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     doc.text('Firma y CC Testigo 2', 135, y);
     doc.line(165, y, 203, y);
 
-    if (this.firmaPersonalAdministrativo !== '') {
-      const firmaPersonalAdministrativoConPrefijo = this.firmaPersonalAdministrativo;
-      doc.addImage(firmaPersonalAdministrativoConPrefijo, 'PNG', 165, y - 16, 35, 14);
+    if (this.firmaPersonalAdministrativo && this.firmaPersonalAdministrativo !== '') {
+      try {
+        const rAdmin = await fetch(this.firmaPersonalAdministrativo);
+        if (rAdmin.ok) {
+          const bAdmin = await rAdmin.blob();
+          const base64Admin = await new Promise<string>((resolve) => {
+            const fr = new FileReader();
+            fr.onload = () => resolve(String(fr.result));
+            fr.readAsDataURL(bAdmin);
+          });
+          doc.addImage(base64Admin, 'PNG', 165, y - 16, 35, 14);
+        } else {
+          doc.addImage(this.firmaPersonalAdministrativo, 'PNG', 165, y - 16, 35, 14);
+        }
+      } catch (e) {
+        try { doc.addImage(this.firmaPersonalAdministrativo, 'PNG', 165, y - 16, 35, 14); } catch(ex) {}
+      }
     }
 
     const user = this.utilService.getUser();
@@ -7826,9 +8007,15 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     const pdfBlob = doc.output('blob');
     const fileName = `${this.empresa}_Contrato.pdf`;
     const pdfFile = new File([pdfBlob], fileName, { type: 'application/pdf' });
+    
+    if (isBatch) {
+      return { file: pdfFile, blobUrl: URL.createObjectURL(pdfBlob) };
+    }
+
     this.uploadedFiles['Contrato'] = { file: pdfFile, fileName };
 
     this.verPDF({ titulo: 'Contrato' });
+    return;
   }
 
   // Generar contrato de trabajo

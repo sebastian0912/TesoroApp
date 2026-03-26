@@ -1333,10 +1333,10 @@ export class RecruitmentPipelineComponent {
       const MARGIN = 0;
       const GAP = 0;
 
-      const BLUE_CORP = '#1E54C7';
-      const BLUE_SUBTLE = '#EBF0FA';
-      const TEXT_MAIN = '#1A1A1A';
-      const TEXT_MUTED = '#737373';
+      const BLUE_CORP = '#1B4FD9';
+      const BLUE_DARK = '#152C70';
+      const GREEN_BG = '#9BE114';  // Ajustado al mockup
+      const WHITE = '#FFFFFF';
       const BLACK = '#000000';
 
       const isHttp = (u: string) => /^https?:\/\//i.test(u);
@@ -1347,6 +1347,20 @@ export class RecruitmentPipelineComponent {
           try {
             const res = await fetch(u);
             if (res.ok) {
+              if (u.toLowerCase().endsWith('.svg')) {
+                const text = await res.text();
+                const blob = new Blob([text], { type: 'image/svg+xml;charset=utf-8' });
+                const url = URL.createObjectURL(blob);
+                const img = new Image();
+                await new Promise((resolve, reject) => { img.onload = resolve; img.onerror = reject; img.src = url; });
+                const canvas = document.createElement('canvas');
+                canvas.width = img.width || 300;
+                canvas.height = img.height || 100;
+                const ctx = canvas.getContext('2d');
+                ctx?.drawImage(img, 0, 0);
+                URL.revokeObjectURL(url);
+                return canvas.toDataURL('image/png');
+              }
               const arrayBuffer = await res.arrayBuffer();
               const base64 = btoa(new Uint8Array(arrayBuffer).reduce((data, byte) => data + String.fromCharCode(byte), ''));
               let mime = 'image/jpeg';
@@ -1395,7 +1409,8 @@ export class RecruitmentPipelineComponent {
         return s.replace(/[^\x20-\x7E\xA0-\xFF]/g, ' ');
       }
 
-      const logoB64 = await fetchImageBase64('logos/Logo_TA.png');
+      // Cambiado a la nueva ruta
+      const logoB64 = await fetchImageBase64('logos/Group.svg');
       const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: [PAGE_W, PAGE_H], compress: true });
 
       const fotoUrl = row.DOCUMENTO_89_URL;
@@ -1405,20 +1420,33 @@ export class RecruitmentPipelineComponent {
         buildQrDataUrl(qrKey)
       ]);
 
-      const processCardSide = (isFront: boolean) => {
-        const cx = 0;
-        const cy = 0;
+      const drawGeometricsTopRight = () => {
+        doc.setFillColor(BLUE_CORP);
+        doc.triangle(CARD_W - 80, 0, CARD_W - 30, 0, CARD_W, 30, 'F');
+        doc.triangle(CARD_W, 30, CARD_W, 80, CARD_W - 50, 30, 'F');
+        doc.setFillColor(WHITE);
+        doc.triangle(CARD_W - 30, 0, CARD_W, 0, CARD_W, 30, 'F');
+      };
 
+      const drawGeometricsBottomLeft = () => {
+        doc.setFillColor(BLUE_CORP);
+        doc.triangle(0, CARD_H - 100, 30, CARD_H - 70, 0, CARD_H - 40, 'F');
+        doc.triangle(30, CARD_H - 70, 80, CARD_H, 0, CARD_H, 'F');
+        doc.setFillColor(WHITE);
+        doc.triangle(0, CARD_H - 40, 30, CARD_H - 70, 0, CARD_H, 'F');
+      };
+
+      const processCardSide = (isFront: boolean) => {
+        const cx = 0; const cy = 0;
+        
         // Background
-        doc.setFillColor('#8CD50A');
+        doc.setFillColor(GREEN_BG);
         doc.rect(0, 0, CARD_W, CARD_H, 'F');
 
-        // Bordes
-        doc.setDrawColor(BLACK);
-        doc.setLineWidth(1.4);
-        doc.rect(cx, cy, CARD_W, CARD_H);
-        doc.setLineWidth(0.8);
-        doc.rect(cx + 3, cy + 3, CARD_W - 6, CARD_H - 6);
+        // Borde Exterior Oscuro (Negro/Morado oscuro)
+        doc.setDrawColor('#1A0F2E');
+        doc.setLineWidth(3);
+        doc.rect(cx+1.5, cy+1.5, CARD_W - 3, CARD_H - 3);
 
         const innerPad = 14;
         const contentX = cx + innerPad;
@@ -1426,122 +1454,168 @@ export class RecruitmentPipelineComponent {
         let cursorY = cy + innerPad;
 
         if (isFront) {
-          const HEADER_H = 40;
+          drawGeometricsTopRight();
+
+          const HEADER_H = 35;
           if (logoB64) {
             const format = logoB64.includes('image/png') ? 'PNG' : 'JPEG';
-            doc.addImage(logoB64, format, contentX + (contentW - 100) / 2, cursorY, 100, HEADER_H);
+            doc.addImage(logoB64, format, contentX + (contentW - 120) / 2, cursorY + 10, 120, HEADER_H);
           }
-          cursorY += HEADER_H + 10;
+          cursorY += HEADER_H + 30;
 
-          const PHOTO_H = CARD_H * 0.36;
-          const PHOTO_W = 100;
+          // Dibujar Foto Circular usando enmascaramiento por borde
+          const PHOTO_R = 75; // Radio
+          const PHOTO_D = PHOTO_R * 2;
+          const photoCenterX = CARD_W / 2;
+          const photoCenterY = cursorY + PHOTO_R;
+          
           if (fotoB64) {
             const format = fotoB64.includes('image/png') ? 'PNG' : 'JPEG';
-            try { doc.addImage(fotoB64, format, contentX + (contentW - PHOTO_W) / 2, cursorY, PHOTO_W, PHOTO_H); } catch (e) { }
+            // Dibujar imagen centrada
+            try { 
+              doc.addImage(fotoB64, format, photoCenterX - PHOTO_R, photoCenterY - PHOTO_R, PHOTO_D, PHOTO_D); 
+            } catch (e) { }
+            // Dibujar borde verde extremadamente grueso para tapar las esquinas cuadradas y simular un círculo
+            doc.setDrawColor(GREEN_BG);
+            doc.setLineWidth(80); // Borde ultra grueso
+            doc.circle(photoCenterX, photoCenterY, PHOTO_R + 40, 'S');
+            // Borde muy sutil blanquecino/gris sobre la foto circular
+            doc.setLineWidth(1.5);
+            doc.setDrawColor(WHITE);
+            doc.circle(photoCenterX, photoCenterY, PHOTO_R, 'S');
           } else {
-            doc.setFillColor(BLUE_SUBTLE);
-            doc.rect(contentX, cursorY, contentW, PHOTO_H, 'F');
+            doc.setFillColor(WHITE);
+            doc.circle(photoCenterX, photoCenterY, PHOTO_R, 'F');
             doc.setFont('helvetica', 'bold');
-            doc.setFontSize(10);
-            doc.setTextColor(TEXT_MUTED);
-            doc.text('SIN FOTO', contentX + contentW / 2, cursorY + PHOTO_H / 2, { align: 'center', baseline: 'middle' });
+            doc.setFontSize(12);
+            doc.setTextColor(BLUE_CORP);
+            doc.text('SIN FOTO', photoCenterX, photoCenterY, { align: 'center', baseline: 'middle' });
           }
-          cursorY += PHOTO_H + 16;
+          cursorY += PHOTO_D + 25;
 
+          // Nombres
           doc.setFont('helvetica', 'bold');
-          doc.setFontSize(14);
-          doc.setTextColor(TEXT_MAIN);
-          doc.text(safeTxt(row.APELLIDOS), contentX + contentW / 2, cursorY, { align: 'center', maxWidth: contentW });
-          cursorY += 15;
+          doc.setFontSize(16);
+          doc.setTextColor(BLUE_DARK);
+          doc.text(safeTxtMixed(row.NOMBRES), CARD_W / 2, cursorY, { align: 'center', maxWidth: contentW });
+          cursorY += 18;
+          
           doc.setFont('helvetica', 'normal');
-          doc.setFontSize(12);
-          doc.text(safeTxt(row.NOMBRES), contentX + contentW / 2, cursorY, { align: 'center', maxWidth: contentW });
-          cursorY += 12;
+          doc.setFontSize(14);
+          doc.text(safeTxtMixed(row.APELLIDOS), CARD_W / 2, cursorY, { align: 'center', maxWidth: contentW });
+          cursorY += 35;
 
-          const colQrW = contentW * 0.38;
-          const colGap = 8;
-          const colDataW = contentW - colQrW - colGap;
-          const hAvail = (cy + CARD_H - innerPad) - cursorY;
-          const qrSize = Math.min(colQrW, hAvail - 15, 85);
-          const qrX = contentX + (colQrW - qrSize) / 2;
-          const qrY = cursorY;
-
-          if (qrB64) doc.addImage(qrB64, 'JPEG', qrX, qrY, qrSize, qrSize);
-
-          doc.setFont('helvetica', 'bold');
-          doc.setFontSize(9);
-          doc.text(safeTxt(row.CEDULA), contentX + colQrW / 2, qrY + qrSize + 12, { align: 'center', maxWidth: colQrW });
-
-          const dataX = contentX + colQrW + colGap;
-          let rowY = cursorY + 8;
+          // Datos a la izquierda
+          const dataX = 65;
+          const labelWidth = 55;
+          let rowY = cursorY;
+          
           const fields = [
-            { l: 'Fecha de Ingreso', v: safeTxtMixed(row.FECHA_INGRESO) },
-            { l: 'Código', v: safeTxtMixed(row.CODIGO) },
-            { l: 'Centro de Costos', v: safeTxtMixed(row.CENTRO_COSTO) },
+            { l: 'C.C', v: safeTxtMixed(row.CEDULA) },
+            { l: 'ingreso', v: safeTxtMixed(row.FECHA_INGRESO) },
+            { l: 'Codigo', v: safeTxtMixed(row.CODIGO) },
           ];
 
           for (const f of fields) {
             doc.setFont('helvetica', 'bold');
-            doc.setFontSize(8);
-            doc.setTextColor(TEXT_MUTED);
-            doc.text(safeTxt(f.l), dataX, rowY);
-            rowY += 11;
+            doc.setFontSize(12);
+            doc.setTextColor(BLUE_CORP);
+            doc.text(f.l, dataX, rowY);
+            
             doc.setFont('helvetica', 'normal');
-            doc.setFontSize(10);
-            doc.setTextColor(TEXT_MAIN);
-            doc.text(f.v, dataX, rowY, { maxWidth: colDataW });
-            rowY += 16;
+            doc.setTextColor(BLUE_DARK);
+            doc.text(f.v, dataX + labelWidth, rowY);
+            rowY += 18;
           }
         } else {
+          drawGeometricsBottomLeft();
+          
           cursorY += 10;
           if (logoB64) {
             const format = logoB64.includes('image/png') ? 'PNG' : 'JPEG';
-            doc.addImage(logoB64, format, contentX + (contentW - 90) / 2, cursorY, 90, 30);
+            doc.addImage(logoB64, format, contentX + (contentW - 100) / 2, cursorY, 100, 30);
           }
-          cursorY += 50;
-
-          doc.setFontSize(9);
-          doc.setFont('helvetica', 'normal');
-          doc.setTextColor(TEXT_MUTED);
-          doc.text('CONTACTO COORDINADOR DE LA', cx + CARD_W / 2, cursorY, { align: 'center' });
-          cursorY += 12;
-          doc.setFont('helvetica', 'bold');
-          doc.setFontSize(12);
-          doc.setTextColor(BLUE_CORP);
-          doc.text('TEMPORAL 3152306148', cx + CARD_W / 2, cursorY, { align: 'center' });
-          cursorY += 25;
-
-          doc.setFontSize(13);
-          doc.setTextColor(TEXT_MAIN);
-          doc.text('ARL', contentX, cursorY);
-          doc.setTextColor(BLUE_CORP);
-          doc.text('SURA', contentX + contentW, cursorY, { align: 'right' });
-          cursorY += 30;
-
-          doc.setFontSize(10);
-          doc.setTextColor(BLUE_CORP);
-          doc.text('FAMILIAR EN CASO DE EMERGENCIA', cx + CARD_W / 2, cursorY, { align: 'center' });
-          cursorY += 10;
-
-          const emStr = [row.FAMILIAR_EMERGENCIA_NOMBRE, row.FAMILIAR_EMERGENCIA_TELEFONO].filter(Boolean).join(' - ') || '—';
-          doc.setFillColor(BLUE_SUBTLE);
-          doc.rect(contentX, cursorY, contentW, 30, 'F');
-          doc.setFontSize(11);
-          doc.setFont('helvetica', 'bold');
-          doc.setTextColor(TEXT_MAIN);
-          doc.text(safeTxt(emStr), cx + CARD_W / 2, cursorY + 18, { align: 'center', maxWidth: contentW - 6 });
           cursorY += 45;
 
-          doc.setDrawColor(200, 200, 200);
-          doc.setLineWidth(1);
-          doc.line(contentX, cursorY, contentX + contentW, cursorY);
-          cursorY += 15;
-
-          const legal = 'ESTE CARNET ES DE USO EXCLUSIVO DEL TRABAJADOR. EN CASO DE PERDIDA, REPORTAR INMEDIATAMENTE AL COORDINADOR DE LA TEMPORAL. EL USO INDEBIDO DE ESTE DOCUMENTO ACARREARA SANCIONES DISCIPLINARIAS.';
+          doc.setFontSize(11);
           doc.setFont('helvetica', 'normal');
-          doc.setFontSize(8.5);
-          doc.setTextColor(TEXT_MUTED);
-          doc.text(safeTxtMixed(legal), contentX, cursorY, { maxWidth: contentW, align: 'justify' });
+          doc.setTextColor(BLUE_CORP);
+          doc.text('Nit 900864596-1', CARD_W / 2, cursorY, { align: 'center' });
+          cursorY += 40;
+
+          // Datos
+          const dataX = 35;
+          
+          // Arl
+          doc.setFontSize(12);
+          doc.setFont('helvetica', 'bold');
+          doc.setTextColor(BLUE_CORP);
+          doc.text('Arl:', dataX, cursorY);
+          doc.setFont('helvetica', 'normal');
+          doc.setTextColor(BLUE_DARK);
+          doc.text('Sura', dataX + 25, cursorY);
+          cursorY += 25;
+
+          // Número Coordinador
+          doc.setFont('helvetica', 'bold');
+          doc.setTextColor(BLUE_CORP);
+          doc.text('Número coordinador', dataX, cursorY);
+          cursorY += 16;
+          doc.setFont('helvetica', 'normal');
+          doc.setTextColor(BLUE_DARK);
+          // Este dato fijo según mockup
+          doc.text('Jimmy Lorenzo Ballesteros', dataX, cursorY);
+          cursorY += 25;
+
+          // Contacto emergencia
+          doc.setFont('helvetica', 'bold');
+          doc.setTextColor(BLUE_CORP);
+          doc.text('Contacto de emergencia', dataX, cursorY);
+          cursorY += 16;
+          doc.setFont('helvetica', 'normal');
+          doc.setTextColor(BLUE_DARK);
+          const emName = row.FAMILIAR_EMERGENCIA_NOMBRE || 'No registrado';
+          doc.text(safeTxtMixed(emName), dataX, cursorY);
+          cursorY += 20;
+
+          doc.setFont('helvetica', 'bold');
+          doc.setTextColor(BLUE_CORP);
+          doc.text('Tel:', dataX, cursorY);
+          doc.setFont('helvetica', 'normal');
+          doc.setTextColor(BLUE_DARK);
+          const emTel = row.FAMILIAR_EMERGENCIA_TELEFONO || 'No registrado';
+          doc.text(safeTxtMixed(emTel), dataX + 25, cursorY);
+
+          // QR Code y Barcode placeholder
+          const bottomY = CARD_H - 50;
+          // QR a la derecha
+          if (qrB64) {
+            doc.addImage(qrB64, 'JPEG', CARD_W - 60, bottomY - 15, 45, 45);
+            doc.setDrawColor(WHITE);
+            doc.setLineWidth(2);
+            doc.rect(CARD_W - 60, bottomY - 15, 45, 45, 'S'); // Borde blanco alrededor del QR
+          }
+
+          // ID a la izquierda con diseño tipo barcode
+          doc.setFillColor(WHITE);
+          doc.roundedRect(30, bottomY - 15, 100, 30, 4, 4, 'F');
+          
+          // Simulación de Barcode usando líneas
+          doc.setDrawColor(BLUE_CORP);
+          doc.setLineWidth(1.5);
+          for(let i=0; i<30; i++) {
+             // Generar líneas aleatorias o espaciadas para aparentar barcode
+             let draw = i % 3 !== 0; // omitir algunas para crear ritmo
+             if(draw) {
+               // i * 3 pts de separación
+               doc.line(36 + (i * 3), bottomY - 10, 36 + (i * 3), bottomY + 10);
+             }
+          }
+
+          doc.setFont('helvetica', 'bold');
+          doc.setFontSize(10);
+          doc.setTextColor(BLUE_CORP);
+          doc.text('ID: ' + safeTxtMixed(row.CEDULA), 80, bottomY + 28, { align: 'center' });
         }
       };
 
