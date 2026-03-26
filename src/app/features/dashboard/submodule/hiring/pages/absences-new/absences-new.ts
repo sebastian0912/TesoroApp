@@ -14,6 +14,7 @@ import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { firstValueFrom } from 'rxjs';
+import { generarPdfAusentismo } from './pdf-generator';
 
 @Component({
   selector: 'app-absences-new',
@@ -809,19 +810,11 @@ export class AbsencesNew implements OnInit {
     Swal.fire({ title: 'Generando documento...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
 
     try {
-      await this.hiringService.generarDocumentoAusentismo(element.id, result.value);
-      if (result.value.solo_pdf) {
-        Swal.close();
-      } else {
-        Swal.fire('Éxito', 'El documento fue enviado por correo correctamente.', 'success');
-      }
+      await generarPdfAusentismo(element, result.value);
+      Swal.close();
     } catch (error: any) {
       console.error('[GenerarDocumento] Error completo:', error);
-      const msg = error?.error?.detail
-        || error?.message
-        || (typeof error?.error === 'string' ? error.error : null)
-        || JSON.stringify(error?.error ?? error)?.slice(0, 300)
-        || 'No se pudo generar el documento.';
+      const msg = error?.message || 'No se pudo generar el documento.';
       Swal.fire('Error al generar', msg, 'error');
     }
   }
