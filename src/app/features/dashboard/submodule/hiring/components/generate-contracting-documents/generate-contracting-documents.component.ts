@@ -8258,6 +8258,44 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     this.verPDF({ titulo: 'Contrato' });
   }
 
+  async promptCodigoContrato(codigoGenerado: string): Promise<string | null> {
+    const resultSwal = await Swal.fire({
+      title: 'Código de Contrato',
+      html: `¿Qué código deseas usar para la Ficha Técnica?<br><br><b>Generado:</b> ${codigoGenerado || 'Ninguno'}`,
+      icon: 'question',
+      showCancelButton: true,
+      showDenyButton: true,
+      confirmButtonColor: '#3085d6',
+      denyButtonColor: '#10b981',
+      cancelButtonColor: '#d33',
+      confirmButtonText: 'Usar Generado',
+      denyButtonText: 'Escribir Código',
+      cancelButtonText: 'Vacio (Blanco)'
+    });
+
+    if (resultSwal.isDenied) {
+      const { value: codigoEscrito } = await Swal.fire({
+        title: 'Especificar Código',
+        input: 'text',
+        inputPlaceholder: 'Ingresa el código...',
+        showCancelButton: true,
+        confirmButtonText: 'Aceptar',
+        cancelButtonText: 'Cancelar'
+      });
+      if (codigoEscrito !== undefined) {
+        return codigoEscrito;
+      } else {
+        return null;
+      }
+    } else if (resultSwal.dismiss === Swal.DismissReason.cancel) {
+      return '';
+    } else if (resultSwal.isDismissed) {
+      return null;
+    }
+    
+    return codigoGenerado;
+  }
+
   async generarFichaTecnica() {
     try {
       // =========================================================
@@ -8420,7 +8458,17 @@ export class GenerateContractingDocumentsComponent implements OnInit {
         .filter(Boolean)
         .join(' ');
 
-      const codigoContrato = String(contrato?.codigo_contrato ?? proceso?.contrato_codigo ?? '').trim();
+      let codigoGenerado = String(contrato?.codigo_contrato ?? proceso?.contrato_codigo ?? '').trim();
+      let codigoContrato = codigoGenerado;
+
+      if (String(this.empresa).toUpperCase().includes('ALIANZA')) {
+        const codigoContratoRes = await this.promptCodigoContrato(codigoGenerado);
+        if (codigoContratoRes === null) {
+          Swal.close();
+          return;
+        }
+        codigoContrato = codigoContratoRes;
+      }
 
       const fechaIngreso = String(vac?.fechadeIngreso ?? '').trim(); // "2025-12-12"
       const salario = vac?.salario ?? proceso?.vacante_salario ?? '';
@@ -8533,6 +8581,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
 
       // Cabecera / contrato
       this.setText(form, 'CodContrato', this.safe(codigoContrato), customFont, 7.2);
+      try { this.setText(form, 'codigo_contrato', this.safe(codigoContrato), customFont, 7.2); } catch(e) {}
       this.setText(form, 'sede', this.safe(this.user?.sede?.nombre), customFont, 7.2);
 
       // Identificación
@@ -9034,7 +9083,13 @@ export class GenerateContractingDocumentsComponent implements OnInit {
         .filter(Boolean)
         .join(' ');
 
-      const codigoContrato = String(contrato?.codigo_contrato ?? proceso?.contrato_codigo ?? '').trim();
+      let codigoGenerado = String(contrato?.codigo_contrato ?? proceso?.contrato_codigo ?? '').trim();
+      const codigoContratoRes = await this.promptCodigoContrato(codigoGenerado);
+      if (codigoContratoRes === null) {
+        Swal.close();
+        return;
+      }
+      const codigoContrato = codigoContratoRes;
 
       const fechaIngreso = String(vac?.fechadeIngreso ?? '').trim();
       const salario = vac?.salario ?? proceso?.vacante_salario ?? '';
@@ -9112,6 +9167,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       const customFont = fontBytes ? await pdfDoc.embedFont(fontBytes) : undefined;
 
       const form = pdfDoc.getForm();
+      try { this.setText(form, 'codigo_contrato', this.safe(codigoContrato), customFont); } catch(e) {}
 
       // ✅ Imagen: nunca se voltea, siempre vertical
       await setButtonImageSafe(pdfDoc, form, 'Imagen1_af_image', this.foto, { forcePortrait: true });
@@ -9559,7 +9615,13 @@ export class GenerateContractingDocumentsComponent implements OnInit {
         .filter(Boolean)
         .join(' ');
 
-      const codigoContrato = String(contrato?.codigo_contrato ?? proceso?.contrato_codigo ?? '').trim();
+      let codigoGenerado = String(contrato?.codigo_contrato ?? proceso?.contrato_codigo ?? '').trim();
+      const codigoContratoRes = await this.promptCodigoContrato(codigoGenerado);
+      if (codigoContratoRes === null) {
+        Swal.close();
+        return;
+      }
+      const codigoContrato = codigoContratoRes;
 
       const fechaIngreso = String(vac?.fechadeIngreso ?? '').trim();
       const salario = vac?.salario ?? proceso?.vacante_salario ?? '';
@@ -9637,6 +9699,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       const customFont = fontBytes ? await pdfDoc.embedFont(fontBytes) : undefined;
 
       const form = pdfDoc.getForm();
+      try { this.setText(form, 'codigo_contrato', this.safe(codigoContrato), customFont); } catch(e) {}
 
       // Imagen1_af_image
       await setButtonImageSafe(pdfDoc, form, 'Imagen1_af_image', this.foto);
