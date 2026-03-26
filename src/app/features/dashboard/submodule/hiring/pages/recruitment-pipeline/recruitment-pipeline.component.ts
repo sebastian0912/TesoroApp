@@ -1335,39 +1335,84 @@ export class RecruitmentPipelineComponent {
 
       const BLUE_CORP = '#1B4FD9';
       const BLUE_DARK = '#152C70';
-      const GREEN_BG = '#9BE114';  // Ajustado al mockup
+      const GREEN_BG = '#9BE114';
       const WHITE = '#FFFFFF';
       const BLACK = '#000000';
 
       const isHttp = (u: string) => /^https?:\/\//i.test(u);
       const isDataUrl = (u: string) => /^data:image\//i.test(u);
 
-      const fetchBase64WithFallback = async (mainUrl: string, alts: string[] = []): Promise<string | null> => {
+      const fetchBase64WithFallback = async (mainUrl: string, alts: string[] = [], isPhoto = false): Promise<string | null> => {
         const tryFetch = async (u: string) => {
           try {
             const res = await fetch(u);
             if (res.ok) {
+              const domUrl = URL.createObjectURL(await res.blob());
+              
               if (u.toLowerCase().endsWith('.svg')) {
-                const text = await res.text();
-                const blob = new Blob([text], { type: 'image/svg+xml;charset=utf-8' });
-                const url = URL.createObjectURL(blob);
+                let text = await (await fetch(u)).text();
+                if (!text.includes('xmlns=')) text = text.replace('<svg ', '<svg xmlns="http://www.w3.org/2000/svg" ');
+                
+                const svg64 = btoa(unescape(encodeURIComponent(text)));
+                const svgDataUrl = `data:image/svg+xml;base64,${svg64}`;
+                
                 const img = new Image();
-                await new Promise((resolve, reject) => { img.onload = resolve; img.onerror = reject; img.src = url; });
+                img.crossOrigin = 'Anonymous';
+                await new Promise((resolve, reject) => { img.onload = resolve; img.onerror = reject; img.src = svgDataUrl; });
+                
                 const canvas = document.createElement('canvas');
-                canvas.width = img.width || 300;
-                canvas.height = img.height || 100;
+                const w = img.width || 156;
+                const h = img.height || 35;
+                canvas.width = w * 4;
+                canvas.height = h * 4;
                 const ctx = canvas.getContext('2d');
-                ctx?.drawImage(img, 0, 0);
-                URL.revokeObjectURL(url);
+                ctx?.scale(4, 4);
+                ctx?.drawImage(img, 0, 0, w, h);
+                URL.revokeObjectURL(domUrl);
                 return canvas.toDataURL('image/png');
+              } else {
+                const img = new Image();
+                img.crossOrigin = 'Anonymous';
+                await new Promise((resolve, reject) => { img.onload = resolve; img.onerror = reject; img.src = domUrl; });
+                
+                const canvas = document.createElement('canvas');
+                
+                if (isPhoto) {
+                  // Para fotos: Recortar al centro (sin distorsión) y hacerla circular con un fondo igual al PDF
+                  const size = Math.min(img.width, img.height);
+                  canvas.width = size;
+                  canvas.height = size;
+                  const ctx = canvas.getContext('2d');
+                  if (ctx) {
+                    ctx.fillStyle = GREEN_BG; // Fondo idéntico al PDF para fusíon perfecta
+                    ctx.fillRect(0, 0, size, size);
+                    
+                    ctx.beginPath();
+                    ctx.arc(size/2, size/2, size/2, 0, Math.PI * 2);
+                    ctx.clip();
+                    
+                    ctx.fillStyle = WHITE;
+                    ctx.fillRect(0, 0, size, size);
+                    
+                    const offsetX = (img.width - size) / 2;
+                    const offsetY = img.height > img.width ? (img.height - size) * 0.15 : (img.height - size) / 2;
+                    ctx.drawImage(img, offsetX, offsetY, size, size, 0, 0, size, size);
+                  }
+                } else {
+                  // Para otras imágenes (ej. QR)
+                  canvas.width = img.width;
+                  canvas.height = img.height;
+                  const ctx = canvas.getContext('2d');
+                  if (ctx) {
+                    ctx.fillStyle = WHITE;
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+                    ctx.drawImage(img, 0, 0);
+                  }
+                }
+                
+                URL.revokeObjectURL(domUrl);
+                return canvas.toDataURL('image/jpeg', 0.95);
               }
-              const arrayBuffer = await res.arrayBuffer();
-              const base64 = btoa(new Uint8Array(arrayBuffer).reduce((data, byte) => data + String.fromCharCode(byte), ''));
-              let mime = 'image/jpeg';
-              if (u.toLowerCase().endsWith('.png')) mime = 'image/png';
-              const bv = new Uint8Array(arrayBuffer);
-              if (bv.length >= 8 && bv[0] === 0x89 && bv[1] === 0x50 && bv[2] === 0x4e && bv[3] === 0x47) mime = 'image/png';
-              return `data:${mime};base64,${base64}`;
             }
           } catch { }
           return null;
@@ -1381,13 +1426,13 @@ export class RecruitmentPipelineComponent {
         return null;
       };
 
-      const fetchImageBase64 = async (urlOrData?: string): Promise<string | null> => {
+      const fetchImageBase64 = async (urlOrData?: string, isPhoto = false): Promise<string | null> => {
         const raw = String(urlOrData ?? '').trim();
         if (!raw) return null;
         if (isDataUrl(raw)) return raw;
         const clean = raw.replace(/^\/+/, '').replace(/^assets\//, '');
-        if (isHttp(raw)) return await fetchBase64WithFallback(raw);
-        return await fetchBase64WithFallback(clean, [`assets/${clean}`, `/${clean}`, `./${clean}`]);
+        if (isHttp(raw)) return await fetchBase64WithFallback(raw, [], isPhoto);
+        return await fetchBase64WithFallback(clean, [`assets/${clean}`, `/${clean}`, `./${clean}`], isPhoto);
       };
 
       const buildQrDataUrl = async (payload: string): Promise<string> => {
@@ -1409,31 +1454,32 @@ export class RecruitmentPipelineComponent {
         return s.replace(/[^\x20-\x7E\xA0-\xFF]/g, ' ');
       }
 
-      // Cambiado a la nueva ruta
       const logoB64 = await fetchImageBase64('logos/Group.svg');
       const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: [PAGE_W, PAGE_H], compress: true });
 
       const fotoUrl = row.DOCUMENTO_89_URL;
       const qrKey = `${row.CEDULA}|${row.CODIGO}`;
       const [fotoB64, qrB64] = await Promise.all([
-        fetchImageBase64(fotoUrl),
+        fetchImageBase64(fotoUrl, true), // isPhoto = true
         buildQrDataUrl(qrKey)
       ]);
 
       const drawGeometricsTopRight = () => {
         doc.setFillColor(BLUE_CORP);
-        doc.triangle(CARD_W - 80, 0, CARD_W - 30, 0, CARD_W, 30, 'F');
-        doc.triangle(CARD_W, 30, CARD_W, 80, CARD_W - 50, 30, 'F');
+        doc.triangle(CARD_W - 90, 0, CARD_W, 0, CARD_W, 90, 'F');
         doc.setFillColor(WHITE);
+        doc.triangle(CARD_W - 60, 0, CARD_W, 0, CARD_W, 60, 'F');
+        doc.setFillColor(BLUE_CORP);
         doc.triangle(CARD_W - 30, 0, CARD_W, 0, CARD_W, 30, 'F');
       };
 
       const drawGeometricsBottomLeft = () => {
         doc.setFillColor(BLUE_CORP);
-        doc.triangle(0, CARD_H - 100, 30, CARD_H - 70, 0, CARD_H - 40, 'F');
-        doc.triangle(30, CARD_H - 70, 80, CARD_H, 0, CARD_H, 'F');
+        doc.triangle(0, CARD_H - 90, 90, CARD_H, 0, CARD_H, 'F');
         doc.setFillColor(WHITE);
-        doc.triangle(0, CARD_H - 40, 30, CARD_H - 70, 0, CARD_H, 'F');
+        doc.triangle(0, CARD_H - 60, 60, CARD_H, 0, CARD_H, 'F');
+        doc.setFillColor(BLUE_CORP);
+        doc.triangle(0, CARD_H - 30, 30, CARD_H, 0, CARD_H, 'F');
       };
 
       const processCardSide = (isFront: boolean) => {
@@ -1443,7 +1489,7 @@ export class RecruitmentPipelineComponent {
         doc.setFillColor(GREEN_BG);
         doc.rect(0, 0, CARD_W, CARD_H, 'F');
 
-        // Borde Exterior Oscuro (Negro/Morado oscuro)
+        // Borde Exterior Oscuro
         doc.setDrawColor('#1A0F2E');
         doc.setLineWidth(3);
         doc.rect(cx+1.5, cy+1.5, CARD_W - 3, CARD_H - 3);
@@ -1463,7 +1509,6 @@ export class RecruitmentPipelineComponent {
           }
           cursorY += HEADER_H + 30;
 
-          // Dibujar Foto Circular usando enmascaramiento por borde
           const PHOTO_R = 75; // Radio
           const PHOTO_D = PHOTO_R * 2;
           const photoCenterX = CARD_W / 2;
@@ -1471,23 +1516,20 @@ export class RecruitmentPipelineComponent {
           
           if (fotoB64) {
             const format = fotoB64.includes('image/png') ? 'PNG' : 'JPEG';
-            // Dibujar imagen centrada
             try { 
+              // La imagen ya viene recortada sin distorsión y con fondo verde circular desde el Canvas
               doc.addImage(fotoB64, format, photoCenterX - PHOTO_R, photoCenterY - PHOTO_R, PHOTO_D, PHOTO_D); 
             } catch (e) { }
-            // Dibujar borde verde extremadamente grueso para tapar las esquinas cuadradas y simular un círculo
-            doc.setDrawColor(GREEN_BG);
-            doc.setLineWidth(80); // Borde ultra grueso
-            doc.circle(photoCenterX, photoCenterY, PHOTO_R + 40, 'S');
-            // Borde muy sutil blanquecino/gris sobre la foto circular
-            doc.setLineWidth(1.5);
+            
+            // Borde sutil blanco para resaltar el círculo
+            doc.setLineWidth(2.5);
             doc.setDrawColor(WHITE);
             doc.circle(photoCenterX, photoCenterY, PHOTO_R, 'S');
           } else {
             doc.setFillColor(WHITE);
             doc.circle(photoCenterX, photoCenterY, PHOTO_R, 'F');
             doc.setFont('helvetica', 'bold');
-            doc.setFontSize(12);
+            doc.setFontSize(10);
             doc.setTextColor(BLUE_CORP);
             doc.text('SIN FOTO', photoCenterX, photoCenterY, { align: 'center', baseline: 'middle' });
           }
@@ -1495,19 +1537,19 @@ export class RecruitmentPipelineComponent {
 
           // Nombres
           doc.setFont('helvetica', 'bold');
-          doc.setFontSize(16);
-          doc.setTextColor(BLUE_DARK);
+          doc.setFontSize(18);
+          doc.setTextColor(BLUE_CORP);
           doc.text(safeTxtMixed(row.NOMBRES), CARD_W / 2, cursorY, { align: 'center', maxWidth: contentW });
-          cursorY += 18;
+          cursorY += 20;
           
           doc.setFont('helvetica', 'normal');
           doc.setFontSize(14);
+          doc.setTextColor(BLUE_DARK);
           doc.text(safeTxtMixed(row.APELLIDOS), CARD_W / 2, cursorY, { align: 'center', maxWidth: contentW });
-          cursorY += 35;
+          cursorY += 40;
 
           // Datos a la izquierda
-          const dataX = 65;
-          const labelWidth = 55;
+          const dataX = 65; 
           let rowY = cursorY;
           
           const fields = [
@@ -1518,14 +1560,14 @@ export class RecruitmentPipelineComponent {
 
           for (const f of fields) {
             doc.setFont('helvetica', 'bold');
-            doc.setFontSize(12);
+            doc.setFontSize(14);
             doc.setTextColor(BLUE_CORP);
             doc.text(f.l, dataX, rowY);
             
             doc.setFont('helvetica', 'normal');
             doc.setTextColor(BLUE_DARK);
-            doc.text(f.v, dataX + labelWidth, rowY);
-            rowY += 18;
+            doc.text(f.v, dataX + 60, rowY);
+            rowY += 22;
           }
         } else {
           drawGeometricsBottomLeft();
@@ -1537,46 +1579,42 @@ export class RecruitmentPipelineComponent {
           }
           cursorY += 45;
 
-          doc.setFontSize(11);
+          doc.setFontSize(12);
           doc.setFont('helvetica', 'normal');
           doc.setTextColor(BLUE_CORP);
           doc.text('Nit 900864596-1', CARD_W / 2, cursorY, { align: 'center' });
-          cursorY += 40;
+          cursorY += 45;
 
           // Datos
           const dataX = 35;
           
-          // Arl
-          doc.setFontSize(12);
+          doc.setFontSize(13);
           doc.setFont('helvetica', 'bold');
           doc.setTextColor(BLUE_CORP);
           doc.text('Arl:', dataX, cursorY);
           doc.setFont('helvetica', 'normal');
           doc.setTextColor(BLUE_DARK);
-          doc.text('Sura', dataX + 25, cursorY);
+          doc.text('Sura', dataX + doc.getTextWidth('Arl:') + 5, cursorY);
           cursorY += 25;
 
-          // Número Coordinador
           doc.setFont('helvetica', 'bold');
           doc.setTextColor(BLUE_CORP);
           doc.text('Número coordinador', dataX, cursorY);
-          cursorY += 16;
+          cursorY += 18;
           doc.setFont('helvetica', 'normal');
           doc.setTextColor(BLUE_DARK);
-          // Este dato fijo según mockup
           doc.text('Jimmy Lorenzo Ballesteros', dataX, cursorY);
           cursorY += 25;
 
-          // Contacto emergencia
           doc.setFont('helvetica', 'bold');
           doc.setTextColor(BLUE_CORP);
           doc.text('Contacto de emergencia', dataX, cursorY);
-          cursorY += 16;
+          cursorY += 18;
           doc.setFont('helvetica', 'normal');
           doc.setTextColor(BLUE_DARK);
           const emName = row.FAMILIAR_EMERGENCIA_NOMBRE || 'No registrado';
           doc.text(safeTxtMixed(emName), dataX, cursorY);
-          cursorY += 20;
+          cursorY += 22;
 
           doc.setFont('helvetica', 'bold');
           doc.setTextColor(BLUE_CORP);
@@ -1584,38 +1622,34 @@ export class RecruitmentPipelineComponent {
           doc.setFont('helvetica', 'normal');
           doc.setTextColor(BLUE_DARK);
           const emTel = row.FAMILIAR_EMERGENCIA_TELEFONO || 'No registrado';
-          doc.text(safeTxtMixed(emTel), dataX + 25, cursorY);
+          doc.text(safeTxtMixed(emTel), dataX + doc.getTextWidth('Tel:') + 5, cursorY);
 
-          // QR Code y Barcode placeholder
           const bottomY = CARD_H - 50;
-          // QR a la derecha
           if (qrB64) {
             doc.addImage(qrB64, 'JPEG', CARD_W - 60, bottomY - 15, 45, 45);
             doc.setDrawColor(WHITE);
             doc.setLineWidth(2);
-            doc.rect(CARD_W - 60, bottomY - 15, 45, 45, 'S'); // Borde blanco alrededor del QR
+            doc.rect(CARD_W - 60, bottomY - 15, 45, 45, 'S'); 
           }
 
-          // ID a la izquierda con diseño tipo barcode
+          // Movido barcode un poco a la derecha para no pisar el triángulo
+          const barcodeX = 55;
           doc.setFillColor(WHITE);
-          doc.roundedRect(30, bottomY - 15, 100, 30, 4, 4, 'F');
+          doc.roundedRect(barcodeX, bottomY - 15, 100, 30, 4, 4, 'F');
           
-          // Simulación de Barcode usando líneas
           doc.setDrawColor(BLUE_CORP);
           doc.setLineWidth(1.5);
           for(let i=0; i<30; i++) {
-             // Generar líneas aleatorias o espaciadas para aparentar barcode
-             let draw = i % 3 !== 0; // omitir algunas para crear ritmo
+             let draw = i % 3 !== 0; 
              if(draw) {
-               // i * 3 pts de separación
-               doc.line(36 + (i * 3), bottomY - 10, 36 + (i * 3), bottomY + 10);
+               doc.line(barcodeX + 6 + (i * 3), bottomY - 10, barcodeX + 6 + (i * 3), bottomY + 10);
              }
           }
 
           doc.setFont('helvetica', 'bold');
-          doc.setFontSize(10);
+          doc.setFontSize(11);
           doc.setTextColor(BLUE_CORP);
-          doc.text('ID: ' + safeTxtMixed(row.CEDULA), 80, bottomY + 28, { align: 'center' });
+          doc.text(safeTxtMixed(row.CEDULA), barcodeX + 50, bottomY + 28, { align: 'center' });
         }
       };
 
@@ -1671,12 +1705,20 @@ export class RecruitmentPipelineComponent {
         try {
           await firstValueFrom(this.registroProceso.updateProcesoByDocumento({
             numero_documento: cedula,
-            contrato: { carnet_generado: true } as any
+            contrato: { 
+              carnet_generado: true,
+              carnet_fecha_ingreso: formValues.fecha,
+              carnet_codigo: formValues.codigo,
+              carnet_centro_costo: formValues.ccosto
+            } as any
           }, 'PATCH'));
           let proc = cand?.entrevistas?.[0]?.proceso;
           if (proc) {
             if (!proc.contrato) proc.contrato = {};
             proc.contrato.carnet_generado = true;
+            proc.contrato.carnet_fecha_ingreso = formValues.fecha;
+            proc.contrato.carnet_codigo = formValues.codigo;
+            proc.contrato.carnet_centro_costo = formValues.ccosto;
             this.candidatoSeleccionado.set({ ...cand }); // trigger ui reference update
           }
         } catch (e) {
