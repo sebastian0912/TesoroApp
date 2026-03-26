@@ -539,6 +539,13 @@ export class HiringService {
     }
   }
 
+  crearAusentismoNuevo(data: any): Promise<any> {
+    const url = `${this.apiUrl}/gestion_ausentismios/ausentismos-nuevos/`;
+    return firstValueFrom(
+      this.http.post<any>(url, data).pipe(catchError(this.handleError))
+    );
+  }
+
   descargarPlantillaAusentismosNuevos(): Observable<Blob> {
     return this.http.get(`${this.apiUrl}/gestion_ausentismios/ausentismos-nuevos/descargar-plantilla/`, {
       responseType: 'blob'
