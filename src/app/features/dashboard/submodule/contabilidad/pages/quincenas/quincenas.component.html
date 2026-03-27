@@ -1,0 +1,228 @@
+<div class="quincenas-container">
+  <!-- Alerta de archivos grandes -->
+  <mat-card class="info-card">
+    <mat-card-content>
+      <div class="info-row">
+        <mat-icon class="info-icon">info</mat-icon>
+        <div class="info-text">
+          <strong>Archivos grandes (+100MB):</strong> Usa el comando de backend para importar.
+          <code>python manage.py importar_consolidado "ruta/archivo.xlsx" --tipo GENERAL --empresa "Nombre"</code>
+        </div>
+      </div>
+    </mat-card-content>
+  </mat-card>
+
+  <!-- Header -->
+  <mat-toolbar class="quincenas-header">
+    <mat-icon>cloud_upload</mat-icon>
+    <span class="header-title">Carga de Información Contable</span>
+    <span class="spacer"></span>
+
+    @if (hasData()) {
+      <div class="header-stats">
+        <mat-chip-set>
+          <mat-chip>
+            <mat-icon matChipAvatar>description</mat-icon>
+            {{ totalSheets() }} Hojas
+          </mat-chip>
+          <mat-chip>
+            <mat-icon matChipAvatar>table_rows</mat-icon>
+            {{ totalRows() | number }} Registros
+          </mat-chip>
+        </mat-chip-set>
+      </div>
+
+      <!-- Botones de vista -->
+      <div class="view-toggle">
+        <button mat-icon-button
+          [class.active-view]="viewMode() === 'consolidado'"
+          (click)="switchView('consolidado')"
+          matTooltip="Vista consolidada">
+          <mat-icon>dashboard</mat-icon>
+        </button>
+        <button mat-icon-button
+          [class.active-view]="viewMode() === 'detalle'"
+          (click)="switchView('detalle')"
+          matTooltip="Vista detalle por hoja">
+          <mat-icon>table_chart</mat-icon>
+        </button>
+      </div>
+    }
+  </mat-toolbar>
+
+  <!-- Opciones de carga -->
+  <mat-card class="options-card">
+    <mat-card-content>
+      <div class="options-row">
+        <mat-form-field appearance="outline" class="option-field">
+          <mat-label>Tipo de archivo</mat-label>
+          <mat-select [value]="tipoCarga()" (selectionChange)="tipoCarga.set($event.value)">
+            <mat-option value="GENERAL">Consolidado General</mat-option>
+            <mat-option value="QUINCENA">Quincena por Empresa</mat-option>
+          </mat-select>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="option-field">
+          <mat-label>Empresa (opcional)</mat-label>
+          <input matInput [value]="empresaCarga()" (input)="empresaCarga.set($any($event.target).value)" placeholder="Ej: Empresa S.A.S">
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="option-field">
+          <mat-label>Periodo (opcional)</mat-label>
+          <input matInput [value]="periodoCarga()" (input)="periodoCarga.set($any($event.target).value)" placeholder="Ej: 1Q ENERO 2025">
+        </mat-form-field>
+      </div>
+    </mat-card-content>
+  </mat-card>
+
+  <!-- Upload Section -->
+  <mat-card class="upload-card" [class.compact]="hasData()">
+    <mat-card-content>
+      <div class="upload-area" [class.compact]="hasData()" (click)="fileInput.click()">
+        <input
+          #fileInput
+          type="file"
+          accept=".xlsx,.xls"
+          (change)="onFileSelected($event)"
+          hidden
+        />
+
+        @if (loading()) {
+          <div class="progress-container">
+            <div class="progress-header">
+              <mat-icon class="progress-icon spin">sync</mat-icon>
+              <div class="progress-texts">
+                <p class="progress-title">{{ loadingSheet() }}</p>
+                <p class="progress-sub">Hoja {{ sheetsProcessed() }} de {{ totalSheetsToProcess() }}</p>
+              </div>
+              <span class="progress-pct">{{ loadProgress() }}%</span>
+            </div>
+            <mat-progress-bar
+              mode="determinate"
+              [value]="loadProgress()"
+              class="progress-bar"
+            ></mat-progress-bar>
+          </div>
+        } @else if (fileName()) {
+          @if (hasData()) {
+            <!-- Compact view when data is loaded -->
+            <mat-icon class="upload-icon-sm uploaded">check_circle</mat-icon>
+            <span class="upload-file-name">{{ fileName() }}</span>
+            <button mat-stroked-button class="reload-btn" (click)="$event.stopPropagation(); fileInput.click()">
+              <mat-icon>refresh</mat-icon>
+              Cargar otro
+            </button>
+          } @else {
+            <mat-icon class="upload-icon uploaded">check_circle</mat-icon>
+            <p class="upload-text uploaded">{{ fileName() }}</p>
+            <p class="upload-hint">Click para cargar otro archivo</p>
+          }
+        } @else {
+          <mat-icon class="upload-icon">cloud_upload</mat-icon>
+          <p class="upload-text">Haz click para cargar el archivo Excel de consolidado de quincenas</p>
+          <p class="upload-hint">Formatos aceptados: .xlsx, .xls</p>
+        }
+      </div>
+    </mat-card-content>
+  </mat-card>
+
+  <!-- Botón guardar en backend -->
+  @if (hasData() && !saving()) {
+    <div class="save-section">
+      <button mat-raised-button class="btn-save" (click)="guardarEnBackend()">
+        <mat-icon>save</mat-icon>
+        Guardar en Base de Datos
+      </button>
+      <span class="save-hint">Los datos del Excel se almacenarán en el servidor para consulta y reportes</span>
+    </div>
+  }
+  @if (saving()) {
+    <div class="save-section">
+      <mat-spinner diameter="24"></mat-spinner>
+      <span class="save-hint">Guardando datos en el servidor...</span>
+    </div>
+  }
+
+  <!-- ============ VISTA CONSOLIDADO ============ -->
+  @if (hasData() && viewMode() === 'consolidado') {
+    <div class="consolidado-section">
+      <h2 class="section-title">
+        <mat-icon>inventory_2</mat-icon>
+        Hojas cargadas - Consolidado
+      </h2>
+
+      <div class="consolidado-grid">
+        @for (tab of sheetTabs(); track tab.name; let i = $index) {
+          <mat-card class="sheet-card" (click)="goToSheet(i)">
+            <div class="sheet-card-header">
+              <mat-icon class="sheet-card-icon">{{ getTabIcon(tab.name) }}</mat-icon>
+              <span class="sheet-card-index">#{{ i + 1 }}</span>
+            </div>
+            <h3 class="sheet-card-title" [matTooltip]="tab.name">{{ tab.name }}</h3>
+            <div class="sheet-card-stats">
+              <div class="stat">
+                <mat-icon>table_rows</mat-icon>
+                <span>{{ tab.rowCount | number }} filas</span>
+              </div>
+              <div class="stat">
+                <mat-icon>view_column</mat-icon>
+                <span>{{ tab.colCount }} columnas</span>
+              </div>
+            </div>
+            <div class="sheet-card-action">
+              <span>Ver tabla</span>
+              <mat-icon>arrow_forward</mat-icon>
+            </div>
+          </mat-card>
+        }
+      </div>
+    </div>
+  }
+
+  <!-- ============ VISTA DETALLE CON TABS ============ -->
+  @if (hasData() && viewMode() === 'detalle') {
+    <mat-card class="tabs-card">
+      <mat-tab-group
+        [selectedIndex]="activeTabIndex()"
+        (selectedIndexChange)="activeTabIndex.set($event)"
+        animationDuration="200ms"
+        class="sheet-tabs"
+        mat-stretch-tabs="false"
+        mat-align-tabs="start"
+      >
+        @for (tab of sheetTabs(); track tab.name) {
+          <mat-tab>
+            <ng-template mat-tab-label>
+              <div class="tab-label">
+                <mat-icon>{{ getTabIcon(tab.name) }}</mat-icon>
+                <span class="tab-name">{{ tab.name }}</span>
+                <span class="tab-badge">{{ tab.rowCount }}</span>
+              </div>
+            </ng-template>
+
+            <div class="tab-content">
+              <div class="tab-info-bar">
+                <span class="tab-info-title">
+                  <mat-icon>{{ getTabIcon(tab.name) }}</mat-icon>
+                  {{ tab.name }}
+                </span>
+                <span class="tab-info-count">
+                  {{ tab.rowCount | number }} registros &middot; {{ tab.colCount }} columnas
+                </span>
+              </div>
+
+              <app-standard-filter-table
+                [data]="tab.data"
+                [columnDefinitions]="tab.columns"
+                [tableTitle]="tab.name"
+                [defaultPageSize]="20"
+                [pageSizeOptions]="[10, 20, 50, 100]"
+                [storageKey]="'quincenas_' + tab.name"
+              ></app-standard-filter-table>
+            </div>
+          </mat-tab>
+        }
+      </mat-tab-group>
+    </mat-card>
+  }
+</div>
