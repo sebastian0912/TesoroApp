@@ -108,7 +108,8 @@ export class NavbarComponent implements OnInit, OnDestroy {
     'CARGAS MASIVAS': 'treasury/upload-treasury',
 
     'Robots': 'robots/dashboard-robots',
-    'NOMINA': 'nomina',
+    'EMPLEADOS': 'nomina/empleados',
+    'CÁLCULO DE NÓMINA': 'nomina/calculo-nomina',
   };
 
   private readonly iconMap: Record<string, string> = {
@@ -188,7 +189,8 @@ export class NavbarComponent implements OnInit, OnDestroy {
 
     'Robots': 'smart_toy',
     'TABLA RETENCIÓN': 'table_chart',
-    'NOMINA': 'table_chart',
+    'EMPLEADOS': 'people',
+    'CÁLCULO DE NÓMINA': 'calculate',
     'Tarjetas': 'credit_card',
   };
 
@@ -320,6 +322,25 @@ export class NavbarComponent implements OnInit, OnDestroy {
         });
 
         this.permTree = (tree as PermNode[]).map(normalize);
+
+        // Helper para normalizar nombres (sin tildes, uppercase)
+        const norm = (s: string) => (s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase();
+
+        // Inyectar "CÁLCULO DE NÓMINA" si no existe para asegurar visibilidad inmediata
+        const nominaRoot = this.permTree.find(n => norm(n.nombre) === 'NOMINA');
+        if (nominaRoot) {
+          if (!nominaRoot.hijos) nominaRoot.hijos = [];
+          const exists = nominaRoot.hijos.some(h => norm(h.nombre) === 'CALCULO DE NOMINA');
+          if (!exists) {
+            nominaRoot.hijos.push({
+              id: 'frontend_calculo_nomina',
+              nombre: 'CÁLCULO DE NÓMINA',
+              acciones: ['VER'],
+              hijos: []
+            });
+          }
+        }
+
         console.log('Loaded permTree:', this.permTree);
       }
     } catch {

@@ -1,15 +1,12 @@
 // src/app/app.routes.server.ts
 import { RenderMode, type ServerRoute } from '@angular/ssr';
 
-// Importante: reglas específicas arriba, comodín al final
+// Toda la app se renderiza en el cliente (CSR).
+// Prerender causaba NG0401 porque el servidor no dispone
+// de contexto de plataforma browser al inspeccionar rutas lazy.
 export const serverRoutes: ServerRoute[] = [
   {
-    path: 'dashboard/hiring/generate-contracting-documents/:numeroDocumento',
-    // evita prerender en ruta con parámetro
-    renderMode: RenderMode.Client, // (o RenderMode.Server si quieres SSR en runtime)
-  },
-  {
     path: '**',
-    renderMode: RenderMode.Prerender, // lo demás sí se prerenderiza
+    renderMode: RenderMode.Client,
   },
 ];

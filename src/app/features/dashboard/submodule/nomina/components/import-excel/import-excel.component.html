@@ -1,0 +1,152 @@
+<div class="import-page">
+
+  <!-- ─────────────── HEADER ─────────────── -->
+  <div class="import-header">
+    <div class="import-header__icon">
+      <mat-icon>table_view</mat-icon>
+    </div>
+    <div class="import-header__text">
+      <h1 class="import-header__title">Carga Masiva de Empleados</h1>
+      <p class="import-header__sub">Importa el archivo BASE GENERAL, revisa y edita los datos antes de confirmar.</p>
+    </div>
+
+    <!-- Stepper -->
+    <div class="wizard-steps">
+      <div class="wizard-step" [class.active]="isStep('select') || isStep('error')"
+        [class.done]="isStep('importing') || isStep('done')">
+        <span class="wizard-step__num">1</span>
+        <span class="wizard-step__lbl">Archivo</span>
+      </div>
+      <div class="wizard-step__sep"></div>
+      <div class="wizard-step" [class.active]="false" [class.done]="isStep('importing') || isStep('done')">
+        <span class="wizard-step__num">2</span>
+        <span class="wizard-step__lbl">Revisar</span>
+      </div>
+      <div class="wizard-step__sep"></div>
+      <div class="wizard-step" [class.active]="isStep('importing') || isStep('done')">
+        <span class="wizard-step__num">3</span>
+        <span class="wizard-step__lbl">Importar</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─────────────── PASO 1: SELECCIÓN ─────────────── -->
+  @if (isStep('select') || isStep('error')) {
+  <div class="import-card">
+
+    <!-- Opciones -->
+    <div class="import-options">
+      <div class="import-options__field">
+        <label class="import-options__label">Hoja de Excel</label>
+        <input class="import-options__input" [(ngModel)]="sheetName" placeholder="BASE GENERAL" />
+      </div>
+      <div class="import-options__field">
+        <label class="import-options__label">Fila de encabezados (0 = primera fila)</label>
+        <input class="import-options__input" type="number" [(ngModel)]="headerRow" min="0" max="10" />
+      </div>
+    </div>
+
+    <!-- Drop zone -->
+    <div class="drop-zone" [class.drop-zone--dragging]="isDragging" [class.drop-zone--has-file]="!!selectedFile"
+      (dragover)="onDragOver($event)" (dragleave)="onDragLeave($event)" (drop)="onDrop($event)"
+      (click)="!selectedFile && openFilePicker()">
+      <input #fileInput type="file" accept=".xlsx,.xls" class="hidden-input" (change)="onFileSelected($event)" />
+
+      <!-- Sin archivo -->
+      @if (!selectedFile) {
+      <div class="drop-zone__empty">
+        <div class="drop-zone__ico-wrap">
+          <mat-icon class="drop-zone__ico">upload_file</mat-icon>
+        </div>
+        <p class="drop-zone__title">Arrastra el archivo aquí</p>
+        <p class="drop-zone__hint">o haz clic para seleccionar</p>
+        <p class="drop-zone__formats">Formatos: <strong>.xlsx</strong> · <strong>.xls</strong></p>
+      </div>
+      }
+
+      <!-- Archivo seleccionado -->
+      @if (selectedFile) {
+      <div class="drop-zone__file">
+        <div class="file-pill">
+          <mat-icon class="file-pill__icon">description</mat-icon>
+          <div class="file-pill__info">
+            <span class="file-pill__name">{{ selectedFile.name }}</span>
+            <span class="file-pill__size">{{ fileSizeLabel }}</span>
+          </div>
+          <button class="file-pill__remove" (click)="$event.stopPropagation(); reset()" matTooltip="Quitar archivo">
+            <mat-icon>close</mat-icon>
+          </button>
+        </div>
+        <p class="drop-zone__replace">Haz clic o arrastra para reemplazar el archivo</p>
+      </div>
+      }
+    </div>
+
+    <!-- Error -->
+    @if (isStep('error') && errorMsg) {
+    <div class="result-banner result-banner--error">
+      <mat-icon>error_outline</mat-icon>
+      <div><strong>Error</strong>
+        <p>{{ errorMsg }}</p>
+      </div>
+    </div>
+    }
+
+    <!-- Botón acción -->
+    <div class="import-actions">
+      <button mat-flat-button color="primary" class="btn-main" [disabled]="!selectedFile || isParsing"
+        (click)="runPreview()">
+        <mat-icon [class.spin-icon]="isParsing">{{ isParsing ? 'sync' : 'preview' }}</mat-icon>
+        {{ isParsing ? 'Procesando Excel…' : 'Extraer y Previsualizar' }}
+      </button>
+    </div>
+  </div>
+  }
+
+  <!-- ─────────────── PASO 2a: IMPORTANDO ─────────────── -->
+  @if (isStep('importing')) {
+  <div class="import-card import-card--center">
+    <mat-icon class="upload-spin">sync</mat-icon>
+    <p class="upload-label">Importando datos al sistema…</p>
+    <div class="progress-wrap">
+      <mat-progress-bar mode="determinate" [value]="progress" color="primary"></mat-progress-bar>
+      <span class="progress-pct">{{ progress }}%</span>
+    </div>
+    <p class="upload-hint">Por favor no cierres esta ventana</p>
+  </div>
+  }
+
+  <!-- ─────────────── PASO 2b: COMPLETADO ─────────────── -->
+  @if (isStep('done')) {
+  <div class="result-section">
+    <div class="result-banner result-banner--success">
+      <mat-icon>check_circle</mat-icon>
+      <div>
+        <strong>Importación completada</strong>
+        <p>{{ importResult?.mensaje ?? importResult?.message ?? 'Datos cargados correctamente.' }}</p>
+      </div>
+    </div>
+
+    <div class="kpi-grid">
+      <div class="kpi-card kpi-card--blue">
+        <span class="kpi-card__num">{{ importResult?.filas ?? 0 }}</span>
+        <span class="kpi-card__lbl">Filas procesadas</span>
+      </div>
+    </div>
+
+    @if (importResult?.log && importResult!.log!.length > 0) {
+    <details class="log-block">
+      <summary>Ver log detallado ({{ importResult!.log!.length }} líneas)</summary>
+      <pre class="log-pre">{{ importResult!.log!.join('\n') }}</pre>
+    </details>
+    }
+
+    <div class="import-actions">
+      <button mat-flat-button color="primary" class="btn-main" (click)="reset()">
+        <mat-icon>add</mat-icon> Nueva importación
+      </button>
+    </div>
+  </div>
+  }
+
+</div>

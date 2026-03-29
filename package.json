@@ -52,6 +52,7 @@
   },
   "scripts": {
     "ng": "ng",
+    "dev": "ng serve --configuration development --no-ssr",
     "start": "concurrently \"ng serve\" \"wait-on http://localhost:4200 && cross-env NODE_ENV=development electron .\"",
     "build": "ng build --configuration production",
     "watch": "ng build --watch --configuration development",
