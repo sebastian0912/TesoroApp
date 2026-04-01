@@ -306,16 +306,28 @@ export class ConsultContractingDocumentationComponent implements OnInit {
           if (!Number.isFinite(tid)) continue;
 
           const dd = d?.doc;
+          
           const uploadedAt = this.parseFecha(dd?.uploaded_at as any);
           const isOldBatch = !!uploadedAt && uploadedAt.toISOString().slice(0, 10) === this.OLD_BATCH_DATE;
           const vigente15d = !!dd && !!uploadedAt && uploadedAt.getTime() >= cutoff.getTime() && !isOldBatch;
 
-          docsMap[tid] = {
-            exists: !!dd,
-            url: dd?.file_url,
-            uploaded_at: dd?.uploaded_at,
-            vigente15d,
-          };
+          if (docsMap[tid] && docsMap[tid].exists && dd) {
+             const existingDate = this.parseFecha(docsMap[tid].uploaded_at as any);
+             if (!uploadedAt || (existingDate && existingDate.getTime() >= uploadedAt.getTime())) {
+               continue; 
+             }
+          }
+
+          // Si no había doc previo para este tipo, pero recibimos vacío, solo lo agregamos 
+          // si no hay nada en el mapa (lo que evitaria sobreescribir un vacío sobre uno vacío, que no importa) 
+          if (!docsMap[tid] || dd) {
+            docsMap[tid] = {
+              exists: !!dd,
+              url: dd?.file_url,
+              uploaded_at: dd?.uploaded_at,
+              vigente15d,
+            };
+          }
         }
 
         return {

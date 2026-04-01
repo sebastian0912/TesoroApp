@@ -201,6 +201,39 @@
   margin-right: 4px;
 }
 
+/* External Actions outside Dropzone */
+.external-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 16px;
+  width: 100%;
+}
+
+.btn-external {
+  height: 48px !important;
+  border-radius: 12px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.5px;
+  border: 1px solid var(--dm-border) !important;
+  color: var(--dm-base) !important;
+  background: var(--dm-bg-surface) !important;
+  transition: all 0.2s ease !important;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-external:hover:not([disabled]) {
+  background: #f8fafc !important;
+  border-color: var(--dm-accent) !important;
+  color: #5ba800 !important;
+  box-shadow: 0 4px 12px rgba(140, 213, 10, 0.15);
+}
+
+.btn-external mat-icon {
+  margin-right: 8px;
+}
+
 /* Control Panel Labels */
 .panel-header h3 {
   font-size: 12px;

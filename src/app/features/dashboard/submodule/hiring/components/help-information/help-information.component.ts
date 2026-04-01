@@ -289,7 +289,7 @@ export class HelpInformationComponent implements OnInit {
       const rolNombre = (user.rol?.nombre || '').toUpperCase();
       const email = (user.correo_electronico || '').toUpperCase();
 
-      if (!(rolNombre === 'GERENCIA' || rolNombre === 'ADMIN' || email === 'CONTRATACIONSUBA.TS@GMAIL.COM')) {
+      if (!(rolNombre === 'GERENCIA' || rolNombre === 'ADMIN' || email === 'CONTRATACIONSUBA.TS@GMAIL.COM' || email === 'seleccionsuba.ts@gmail.com')) {
         this.isRemisionReadOnly.set(true);
       }
 

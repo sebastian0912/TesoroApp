@@ -186,9 +186,9 @@ export class HomeComponent implements OnInit {
     const isComercial = rol === 'COMERCIALIZADORA';
     const isAliasTuAfiliacion = correo === 'tuafiliacion@tsservicios.co';
 
-    this.general = !(isGerencia || isTraslados);
-    this.comercializadora = isComercial || isAdmin || isAliasTuAfiliacion;
-    this.traslado = isTraslados || isAdmin || isAliasTuAfiliacion;
+    this.general = !isTraslados;
+    this.comercializadora = isComercial || isAdmin || isGerencia || isAliasTuAfiliacion;
+    this.traslado = isTraslados || isAdmin || isGerencia || isAliasTuAfiliacion;
     this.admin = isGerencia || isAdmin;
   }
 

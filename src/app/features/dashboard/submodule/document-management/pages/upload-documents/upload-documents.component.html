@@ -28,11 +28,10 @@
 
             <div class="dropzone" [class.drag-over]="dragOver" (dragover)="onDragOver($event)"
               (dragleave)="onDragLeave($event)" (drop)="onDrop($event)" [attr.aria-disabled]="isUploading"
-              [class.disabled]="isUploading"
+              [class.disabled]="isUploading" (click)="!isUploading && fileInput.click()"
               aria-label="Área de carga de archivos. Haz clic o arrastra archivos PDF aquí.">
 
-              <!-- Click here triggers file input via TS or explicit click handler overlay -->
-              <div class="dropzone-clickable" (click)="!isUploading && fileInput.click()">
+              <div class="dropzone-clickable">
                 <div class="dropzone-content">
                   <mat-icon class="cloud-icon" aria-hidden="true">cloud_upload</mat-icon>
                   <div class="dropzone-text">
@@ -42,14 +41,6 @@
                 </div>
               </div>
 
-              <!-- SCAN BUTTON (NEW) -->
-              <div class="scan-action">
-                <button mat-flat-button class="btn-managerial" style="width: 100%; border: 1px solid #192030;"
-                  (click)="$event.stopPropagation(); openScanDialog()" [disabled]="isUploading">
-                  <mat-icon>document_scanner</mat-icon> ESCANEAR
-                </button>
-              </div>
-
               <!-- Hidden Inputs -->
               <input #fileInput type="file" multiple accept=".pdf" hidden (change)="onFileSelected($event)"
                 [disabled]="isUploading">
@@ -57,10 +48,16 @@
                 [disabled]="isUploading">
             </div>
 
-            <div style="text-align: right;">
-              <button mat-button class="small-btn" (click)="$event.stopPropagation(); onClickSubidaMasiva()"
+            <!-- ACTION BUTTONS OUTSIDE DROPZONE -->
+            <div class="external-actions" style="display: flex; gap: 12px; margin-top: 16px;">
+              <button mat-stroked-button class="btn-external" style="flex: 1;"
+                (click)="openScanDialog()" [disabled]="isUploading">
+                <mat-icon>document_scanner</mat-icon> Escanear
+              </button>
+              
+              <button mat-stroked-button class="btn-external" style="flex: 1;" (click)="onClickSubidaMasiva()"
                 [disabled]="isUploading" aria-label="Opción de carga masiva ZIP">
-                <mat-icon class="icon-small">folder_zip</mat-icon> Carga Masiva ZIP
+                <mat-icon>folder_zip</mat-icon> ZIP Masivo
               </button>
             </div>
           </section>

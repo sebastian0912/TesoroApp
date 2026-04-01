@@ -147,12 +147,12 @@
         <h3>Vista Previa</h3>
       </div>
       <div class="preview-container">
-        <iframe #pdfPreview class="pdf-frame" title="Vista previa del documento PDF"></iframe>
-        <!-- Overlay hint if empty -->
-        <div class="preview-placeholder" style="display: none;">
-          <!-- Logic to show placeholder if src is empty could be done via TS but keeping simple -->
-          <p>Selecciona un documento</p>
+        <!-- Overlay hint always behind the iframe -->
+        <div class="preview-placeholder">
+          <mat-icon>picture_as_pdf</mat-icon>
+          <p>Selecciona un documento para visualizarlo</p>
         </div>
+        <iframe #pdfPreview class="pdf-frame" title="Vista previa del documento PDF"></iframe>
       </div>
     </section>
 

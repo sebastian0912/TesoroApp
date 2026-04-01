@@ -7267,7 +7267,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       // Asegúrate de que this.firma solo sea el base64 sin el 'data:image/png;base64,'
       const firmaConPrefijo = this.firma;
 
-      doc.addImage(firmaConPrefijo, 'PNG', 42, 207, 50, 20);
+      doc.addImage(firmaConPrefijo, 'PNG', 42, 211, 35, 15);
     } else {
       /*Swal.fire({
         icon: 'error',
@@ -7939,12 +7939,12 @@ export class GenerateContractingDocumentsComponent implements OnInit {
             fr.onload = () => resolve(String(fr.result));
             fr.readAsDataURL(bFirma);
           });
-          doc.addImage(base64Firma, 'PNG', 65, y - 15, 45, 14);
+          doc.addImage(base64Firma, 'PNG', 65, y - 12, 35, 11);
         } else {
-          doc.addImage(this.firma, 'PNG', 65, y - 15, 45, 14);
+          doc.addImage(this.firma, 'PNG', 65, y - 12, 35, 11);
         }
       } catch (e) {
-        try { doc.addImage(this.firma, 'PNG', 65, y - 15, 45, 14); } catch(ex) {}
+        try { doc.addImage(this.firma, 'PNG', 65, y - 12, 35, 11); } catch(ex) {}
       }
     }
 
@@ -10964,7 +10964,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       try {
         const firmaData = await toDataURL(this.firma);
         if (firmaData) {
-          doc.addImage(firmaData, 'PNG', pageW / 2 + 15, y, 45, 20);
+          doc.addImage(firmaData, 'PNG', pageW / 2 + 15, y + 6, 32, 14);
         }
       } catch { }
 

@@ -79,7 +79,7 @@ export class CreateDocStructureComponent implements OnInit {
   searchQuery: string = '';
 
   // Tree View State
-  isTreeView: boolean = false;
+  isTreeView: boolean = true;
 
   private _transformer = (node: DocumentType, level: number) => {
     return {
