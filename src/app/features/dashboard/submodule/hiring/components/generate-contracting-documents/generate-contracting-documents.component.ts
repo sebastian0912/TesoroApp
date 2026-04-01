@@ -112,7 +112,10 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     { titulo: 'PRUEBAS PSICOLOGICAS' },
     { titulo: 'PRUEBA LECTRO ESCRITURA' },
     { titulo: 'VISITA DOMICILIARIA' },
-    { titulo: 'PRUEBA SST' }
+    { titulo: 'PRUEBA SST' },
+    { titulo: '108 SAGARO_LOCKERS' },
+    { titulo: '109 SAGARO_IMAGEN' },
+    { titulo: '110 SAGARO_CELULAR' }
   ];
 
   nombreCompleto = '';
@@ -182,6 +185,9 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     'PRUEBA SST': 24,
     'MANEJO_IMAGEN': 46,
     'FICHA_SOCIAL': 98,
+    '108 SAGARO_LOCKERS': 108,
+    '109 SAGARO_IMAGEN': 109,
+    '110 SAGARO_CELULAR': 110,
   };
 
   // Diccionario para almacenar info de documentos ya existentes en base de datos
@@ -612,8 +618,350 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     }
     else if (documento === 'Contratos Otros Si') {
       this.generarContratosOtroSi();
+    }
+    else if (documento === '108 SAGARO_LOCKERS') {
+      this.generarSagaroLockers();
+    }
+    else if (documento === '110 SAGARO_CELULAR') {
+      this.generarSagaroCelular();
+    }
+    else if (documento === '109 SAGARO_IMAGEN') {
+      this.generarSagaroImagen();
     } else {
       Swal.fire('Error', 'Funcionalidad de PDF no implementada para: ' + documento, 'error');
+    }
+  }
+
+  // --- Entrevista de Ingreso ---
+  async generarSagaroLockers() {
+    try {
+      const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'letter' });
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const marginLeft = 20;
+      const marginRigth = 20;
+      const maxWidth = pageWidth - marginLeft - marginRigth;
+
+      const cand = this.candidato ?? {};
+      const numIdentificacion = String(cand.numero_documento ?? '').trim();
+
+      const nombres = [cand.primer_nombre, cand.segundo_nombre].filter(Boolean).join(' ').toUpperCase();
+      const apellidos = [cand.primer_apellido, cand.segundo_apellido].filter(Boolean).join(' ').toUpperCase();
+      const nombreCompleto = `${nombres} ${apellidos}`.trim();
+
+      const cargo = (this.vacante?.cargo?.nombre_cargo_empresa || this.vacante?._id_cargo?.nombre_cargo_empresa || this.vacante?.nombre_cargo || '').toUpperCase();
+
+      doc.setProperties({ title: `108_SAGARO_LOCKERS_${numIdentificacion}.pdf` });
+
+      let currentY = 30;
+
+      // Titulo
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(12);
+      doc.text('CONSENTIMIENTO INFORMADO', pageWidth / 2, currentY, { align: 'center' });
+      currentY += 8;
+      doc.text('AUTORIZACIÓN PARA INSPECCIÓN DE LOCKERS Y ELEMENTOS', pageWidth / 2, currentY, { align: 'center' });
+      currentY += 6;
+      doc.text('PERSONALES', pageWidth / 2, currentY, { align: 'center' });
+      currentY += 15;
+
+      // Párrafos
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(11);
+
+      const p1 = `En mi condición de trabajador(a) de FLORES SAGARO S.A., mediante el presente documento manifiesto libre y espontáneamente mi consentimiento informado y autorización expresa para la implementación de mecanismos de inspección de lockers y elementos personales, conforme a las políticas corporativas del empleador y el Reglamento Interno de Trabajo, bajo los siguientes términos:`;
+      const p1Lines = doc.splitTextToSize(p1, maxWidth);
+      doc.text(p1Lines, marginLeft, currentY, { maxWidth, align: 'justify' });
+      currentY += (p1Lines.length * 5) + 5;
+
+      const p2 = `1. Declaro que otorgo este consentimiento de manera libre, voluntaria e informada para participar en la implementación de medidas de seguridad, prevención y control establecidas por el empleador. En consecuencia, exonero al empleador de responsabilidad civil derivada del uso adecuado y legal de dichos mecanismos.`;
+      const p2Lines = doc.splitTextToSize(p2, maxWidth);
+      doc.text(p2Lines, marginLeft, currentY, { maxWidth, align: 'justify' });
+      currentY += (p2Lines.length * 5);
+
+      const p3 = `2. Autorizo al empleador, como mecanismo de seguridad, prevención y/o control, a realizar inspecciones en los lockers y/o elementos personales ubicados dentro de las instalaciones de la empresa cuando existan razones objetivas relacionadas con:`;
+      const p3Lines = doc.splitTextToSize(p3, maxWidth);
+      doc.text(p3Lines, marginLeft, currentY, { maxWidth, align: 'justify' });
+      currentY += (p3Lines.length * 5);
+
+      const p4 = `   1. protección de los bienes de la empresa,`;
+      doc.text(p4, marginLeft, currentY); currentY += 5;
+      const p5 = `   2. seguridad de los trabajadores, o`;
+      doc.text(p5, marginLeft, currentY); currentY += 5;
+      const p6 = `   3. verificación del cumplimiento de obligaciones laborales.`;
+      doc.text(p6, marginLeft, currentY); currentY += 8;
+
+      const p7 = `Estas inspecciones se realizarán de manera proporcional, razonable, necesaria y basada en criterios previamente definidos.`;
+      const p7Lines = doc.splitTextToSize(p7, maxWidth);
+      doc.text(p7Lines, marginLeft, currentY, { maxWidth, align: 'justify' });
+      currentY += (p7Lines.length * 5) + 5;
+
+      const p8 = `3. Las inspecciones no requieren previo aviso; sin embargo, se garantiza que el trabajador estará presente durante su realización, para salvaguardar sus derechos y evitar cualquier actuación arbitraria.`;
+      const p8Lines = doc.splitTextToSize(p8, maxWidth);
+      doc.text(p8Lines, marginLeft, currentY, { maxWidth, align: 'justify' });
+      currentY += (p8Lines.length * 5);
+
+      const p9 = `4. Se informa que la negativa injustificada a participar en las medidas de seguridad, prevención y/o control podrá considerarse como falta grave, conforme al Reglamento Interno de Trabajo y demás normatividad aplicable.`;
+      const p9Lines = doc.splitTextToSize(p9, maxWidth);
+      doc.text(p9Lines, marginLeft, currentY, { maxWidth, align: 'justify' });
+      currentY += (p9Lines.length * 5);
+
+      const p10 = `5. Declaro que mis derechos a la intimidad, integridad personal, libre desarrollo de la personalidad, igualdad, debido proceso, defensa y trato digno han sido y serán plenamente respetados por la compañía.`;
+      const p10Lines = doc.splitTextToSize(p10, maxWidth);
+      doc.text(p10Lines, marginLeft, currentY, { maxWidth, align: 'justify' });
+      currentY += (p10Lines.length * 5);
+
+      const p11 = `6. En caso de que durante una inspección se acceda incidentalmente a información o elementos que contengan datos personales, FLORES SAGARO S.A. garantiza el cumplimiento de la Ley 1581 de 2012 y el Decreto 1377 de 2013, especialmente en lo relacionado con el uso, custodia y confidencialidad de dichos datos.`;
+      const p11Lines = doc.splitTextToSize(p11, maxWidth);
+      doc.text(p11Lines, marginLeft, currentY, { maxWidth, align: 'justify' });
+      currentY += (p11Lines.length * 5) + 8;
+
+      const fechaActual = new Date();
+      const dia = fechaActual.getDate().toString();
+      const meses = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+      const mes = meses[fechaActual.getMonth()];
+      const yearStr = fechaActual.getFullYear().toString();
+      const lastDigit = yearStr.substring(3, 4);
+
+      const fechaText = `En constancia se firma a los  ${dia}  días del mes de  ${mes}  de 202 ${lastDigit} .`;
+      doc.text(fechaText, marginLeft, currentY);
+      currentY += 15;
+
+      doc.setFont('helvetica', 'bold');
+      doc.text('NOMBRE:', marginLeft, currentY);
+      doc.setFont('helvetica', 'normal');
+      doc.text(nombreCompleto, marginLeft + 25, currentY);
+      currentY += 6;
+
+      doc.setFont('helvetica', 'bold');
+      doc.text('CARGO:', marginLeft, currentY);
+      doc.setFont('helvetica', 'normal');
+      doc.text(cargo, marginLeft + 25, currentY);
+      currentY += 6;
+
+      doc.setFont('helvetica', 'bold');
+      doc.text('CÉDULA:', marginLeft, currentY);
+      doc.setFont('helvetica', 'normal');
+      doc.text(numIdentificacion, marginLeft + 25, currentY);
+      currentY += 12;
+
+      doc.setFont('helvetica', 'bold');
+      doc.text('FIRMA:', marginLeft, currentY);
+      // Signature will be drawn above FIRMA if it responds
+      const fetchAsArrayBufferOrNull = async (url: any) => {
+          if (!url) return null;
+          try {
+            const res = await fetch(url);
+            if (!res.ok) return null;
+            return await res.arrayBuffer();
+          } catch {
+            return null;
+          }
+      };
+
+      const firmaCand = await fetchAsArrayBufferOrNull(cand?.biometria?.firma?.file_url ?? this.firma);
+      if (firmaCand) {
+        try {
+          const kind = (new Uint8Array(firmaCand)[0] === 0xFF) ? 'JPEG' : 'PNG';
+          // Use currentY - 15 so signature sits on top of FIRMA
+          doc.addImage(new Uint8Array(firmaCand), kind, marginLeft + 20, currentY - 12, 35, 20);
+        } catch (e) { console.error('Error insertando firma candidato Sagaro Lockers', e); }
+      }
+
+      const pdfBlob = doc.output('blob');
+      const file = new File([pdfBlob], '108_SAGARO_LOCKERS.pdf', { type: 'application/pdf' });
+
+      this.uploadedFiles['108 SAGARO_LOCKERS'] = { file, fileName: '108_SAGARO_LOCKERS.pdf' };
+      this.verPDF({ titulo: '108 SAGARO_LOCKERS' });
+
+    } catch (error) {
+      console.error('Error generando 108 SAGARO_LOCKERS:', error);
+      Swal.fire({ icon: 'error', title: 'Error', text: 'Ocurrió un error al generar el PDF de 108 SAGARO_LOCKERS' });
+    }
+  }
+
+  async generarSagaroCelular() {
+    try {
+      const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'letter' });
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const marginLeft = 20;
+      const marginRigth = 20;
+      const maxWidth = pageWidth - marginLeft - marginRigth;
+
+      const cand = this.candidato ?? {};
+      const numIdentificacion = String(cand.numero_documento ?? '').trim();
+
+      const nombres = [cand.primer_nombre, cand.segundo_nombre].filter(Boolean).join(' ').toUpperCase();
+      const apellidos = [cand.primer_apellido, cand.segundo_apellido].filter(Boolean).join(' ').toUpperCase();
+      const nombreCompleto = `${nombres} ${apellidos}`.trim();
+
+      const cargo = (this.vacante?.cargo?.nombre_cargo_empresa || this.vacante?._id_cargo?.nombre_cargo_empresa || this.vacante?.nombre_cargo || '').toUpperCase();
+
+      doc.setProperties({ title: `110_SAGARO_CELULAR_${numIdentificacion}.pdf` });
+
+      let currentY = 20;
+
+      // Titulo
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(11);
+      doc.text('POLÍTICA INTERNA LINEAMIENTOS PARA EL USO DE CELULAR Y/O', pageWidth / 2, currentY, { align: 'center' });
+      currentY += 6;
+      doc.text('DISPOSITIVOS ELECTRÓNICOS PERSONALES', pageWidth / 2, currentY, { align: 'center' });
+      currentY += 12;
+
+      // Párrafos
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+
+      const p1 = `FLORES SAGARO S.A. en cumplimiento de sus deberes de protección, prevención y control dentro del Sistema de Gestión de Seguridad y Salud en el Trabajo (SG-SST), así como de lo establecido en el artículo 58 del Código Sustantivo del Trabajo, adopta la siguiente política interna sobre el uso de teléfonos celulares y/o electrónicos personales durante la jornada laboral y/o el desarrollo de actividades laborales, conforme a lo siguiente:`;
+      const p1Lines = doc.splitTextToSize(p1, maxWidth);
+      doc.text(p1Lines, marginLeft, currentY, { maxWidth, align: 'justify' });
+      currentY += (p1Lines.length * 5) + 6;
+
+      const p2 = `1. Durante la jornada laboral y en la ejecución de funciones asignadas, no está permitido el uso de teléfonos celulares, radios, audífonos, cámaras, relojes inteligentes u otros dispositivos electrónicos personales.`;
+      const p2Lines = doc.splitTextToSize(p2, maxWidth);
+      doc.text(p2Lines, marginLeft + 5, currentY, { maxWidth: maxWidth - 5, align: 'justify' });
+      currentY += (p2Lines.length * 5) + 4;
+
+      const p3 = `2. La utilización de dispositivos electrónicos personales durante la prestación del servicio puede generar distracciones, reducción del rendimiento laboral y riesgos de accidentalidad. De acuerdo con el artículo 58 numeral 1 del CST, el trabajador tiene la obligación de poner a disposición del empleador su capacidad de trabajo de forma efectiva y adecuada para la ejecución de sus funciones. Asimismo, conforme al SG-SST, el uso indebido de estos dispositivos se considera una práctica insegura que incrementa el riesgo de incidentes y accidentes laborales.`;
+      const p3Lines = doc.splitTextToSize(p3, maxWidth);
+      doc.text(p3Lines, marginLeft + 5, currentY, { maxWidth: maxWidth - 5, align: 'justify' });
+      currentY += (p3Lines.length * 5) + 4;
+
+      const p4 = `3. Los dispositivos electrónicos personales deberán permanecer guardados durante la jornada. Se permitirá su uso únicamente:`;
+      const p4Lines = doc.splitTextToSize(p4, maxWidth);
+      doc.text(p4Lines, marginLeft + 5, currentY, { maxWidth: maxWidth - 5, align: 'justify' });
+      currentY += (p4Lines.length * 5);
+
+      doc.setFont('helvetica', 'bold');
+      doc.text('a. En horarios destinados a descanso', marginLeft + 10, currentY);
+      doc.setFont('helvetica', 'normal');
+      doc.text(' (pausas, refrigerio o almuerzo),', marginLeft + 73, currentY);
+      currentY += 5;
+      doc.text('siempre fuera de áreas peligrosas o zonas restringidas.', marginLeft + 15, currentY);
+      currentY += 5;
+
+      doc.setFont('helvetica', 'bold');
+      doc.text('b. Por autorización expresa del jefe inmediato,', marginLeft + 10, currentY);
+      doc.setFont('helvetica', 'normal');
+      doc.text(' cuando existan', marginLeft + 91, currentY);
+      currentY += 5;
+      doc.text('situaciones de urgencia, fuerza mayor o asuntos personales de carácter', marginLeft + 15, currentY);
+      currentY += 5;
+      doc.text('inaplazable.', marginLeft + 15, currentY);
+      currentY += 5;
+
+      doc.setFont('helvetica', 'bold');
+      doc.text('c. En casos de emergencia,', marginLeft + 10, currentY);
+      doc.setFont('helvetica', 'normal');
+      doc.text(' cuando el trabajador requiera comunicarse o', marginLeft + 56, currentY);
+      currentY += 5;
+      doc.text('informar una situación crítica.', marginLeft + 15, currentY);
+      currentY += 6;
+
+      const p5 = `En todo caso, los trabajadores deberán cumplir con los protocolos de seguridad establecidos por la empresa.`;
+      const p5Lines = doc.splitTextToSize(p5, maxWidth);
+      doc.text(p5Lines, marginLeft, currentY, { maxWidth, align: 'justify' });
+      currentY += (p5Lines.length * 5) + 6;
+
+      const p6 = `4. El incumplimiento de esta política constituye falta disciplinaria, la cual podrá ser calificada como falta grave cuando:`;
+      const p6Lines = doc.splitTextToSize(p6, maxWidth);
+      doc.text(p6Lines, marginLeft + 5, currentY, { maxWidth: maxWidth - 5, align: 'justify' });
+      currentY += (p6Lines.length * 5) + 2;
+
+      const bullets = [
+        `• genere riesgo para el trabajador o para terceros;`,
+        `• afecte la seguridad industrial;`,
+        `• comprometa la productividad o la calidad del trabajo;`,
+        `• implique desobediencia a órdenes legítimas;`,
+        `• se realice en zonas críticas, de alto riesgo o prohibidas.`
+      ];
+
+      bullets.forEach(bullet => {
+        doc.text(bullet, marginLeft + 5, currentY);
+        currentY += 5;
+      });
+      currentY += 4;
+
+      const p7 = `Cualquier proceso disciplinario se adelantará respetando el debido proceso (art. 29 Constitución Política) y lo dispuesto en el Reglamento Interno de Trabajo.`;
+      const p7Lines = doc.splitTextToSize(p7, maxWidth);
+      doc.text(p7Lines, marginLeft, currentY, { maxWidth, align: 'justify' });
+      currentY += (p7Lines.length * 5) + 7;
+
+      const p8pt1 = `5. Las directrices establecidas en este documento aplican para los trabajadores asignados a las áreas de: ____________________________________________________, sin perjuicio de actualizaciones o modificaciones posteriores, las cuales serán comunicadas de manera previa, escrita y oportuna por parte de la empresa.`;
+      const p8Lines = doc.splitTextToSize(p8pt1, maxWidth);
+      doc.text(p8Lines, marginLeft + 5, currentY, { maxWidth: maxWidth - 5, align: 'justify' });
+      currentY += (p8Lines.length * 5) + 6;
+
+      const p9 = `Esta política se entiende conocida y aceptada desde el momento de su socialización, firma de recibido o publicación en los medios institucionales establecidos por la compañía.`;
+      const p9Lines = doc.splitTextToSize(p9, maxWidth);
+      doc.text(p9Lines, marginLeft, currentY, { maxWidth, align: 'justify' });
+      currentY += (p9Lines.length * 5) + 8;
+      
+      const fechaActual = new Date();
+      const dia = fechaActual.getDate().toString();
+      const meses = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+      const mes = meses[fechaActual.getMonth()];
+      const yearStr = fechaActual.getFullYear().toString();
+      const lastDigit = yearStr.substring(3, 4);
+
+      const fechaText = `En constancia se firma a los  ${dia}  días del mes de  ${mes}  de 202 ${lastDigit} .`;
+      doc.text(fechaText, marginLeft, currentY);
+      currentY += 15;
+
+      doc.setFont('helvetica', 'bold');
+      doc.text('_________________________________', marginLeft, currentY);
+      currentY += 5;
+      doc.text('FLORES SAGARO S.A.', marginLeft, currentY);
+      currentY += 10;
+
+      doc.text('NOMBRE:', marginLeft, currentY);
+      doc.setFont('helvetica', 'normal');
+      doc.text(nombreCompleto, marginLeft + 25, currentY);
+      currentY += 6;
+
+      doc.setFont('helvetica', 'bold');
+      doc.text('CÉDULA:', marginLeft, currentY);
+      doc.setFont('helvetica', 'normal');
+      doc.text(numIdentificacion, marginLeft + 25, currentY);
+      currentY += 6;
+
+      doc.setFont('helvetica', 'bold');
+      doc.text('CARGO:', marginLeft, currentY);
+      doc.setFont('helvetica', 'normal');
+      doc.text(cargo, marginLeft + 25, currentY);
+      currentY += 12;
+
+      doc.setFont('helvetica', 'bold');
+      doc.text('FIRMA:', marginLeft, currentY);
+      // Signature will be drawn above FIRMA if it responds
+      const fetchAsArrayBufferOrNull = async (url: any) => {
+          if (!url) return null;
+          try {
+            const res = await fetch(url);
+            if (!res.ok) return null;
+            return await res.arrayBuffer();
+          } catch {
+            return null;
+          }
+      };
+
+      const firmaCand = await fetchAsArrayBufferOrNull(cand?.biometria?.firma?.file_url ?? this.firma);
+      if (firmaCand) {
+        try {
+          const kind = (new Uint8Array(firmaCand)[0] === 0xFF) ? 'JPEG' : 'PNG';
+          doc.addImage(new Uint8Array(firmaCand), kind, marginLeft + 20, currentY - 12, 35, 20);
+        } catch (e) { console.error('Error insertando firma candidato Sagaro Celular', e); }
+      }
+
+      const pdfBlob = doc.output('blob');
+      const file = new File([pdfBlob], '110_SAGARO_CELULAR.pdf', { type: 'application/pdf' });
+
+      this.uploadedFiles['110 SAGARO_CELULAR'] = { file, fileName: '110_SAGARO_CELULAR.pdf' };
+      this.verPDF({ titulo: '110 SAGARO_CELULAR' });
+
+    } catch (error) {
+      console.error('Error generando 110 SAGARO_CELULAR:', error);
+      Swal.fire({ icon: 'error', title: 'Error', text: 'Ocurrió un error al generar el PDF de 110 SAGARO_CELULAR' });
     }
   }
 
@@ -1285,6 +1633,142 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     } catch (error) {
       console.error('Error generando MANEJO_IMAGEN:', error);
       Swal.fire({ icon: 'error', title: 'Error', text: 'Ocurrió un error al generar el PDF de Manejo de Imagen' });
+    }
+  }
+
+  async generarSagaroImagen() {
+    try {
+      const cand: any = this.candidato ?? {};
+      const nombres = [cand.primer_nombre, cand.segundo_nombre].filter(Boolean).join(' ').toUpperCase();
+      const apellidos = [cand.primer_apellido, cand.segundo_apellido].filter(Boolean).join(' ').toUpperCase();
+      const nombreTrabajador = `${nombres} ${apellidos}`.trim();
+      const numIdentificacion = String(cand.numero_documento ?? '').trim();
+      let cargoTrabajador = '';
+      if (this.vacante?.cargo?.nombre_cargo_empresa) {
+        cargoTrabajador = this.vacante.cargo.nombre_cargo_empresa;
+      } else if (this.vacante?.cargo?.nombre_cargo) {
+        cargoTrabajador = this.vacante.cargo.nombre_cargo;
+      } else if (typeof this.vacante?.cargo === 'string') {
+        cargoTrabajador = this.vacante.cargo;
+      }
+      cargoTrabajador = String(cargoTrabajador).toUpperCase();
+
+      const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'letter' });
+      doc.setProperties({ title: `109_SAGARO_IMAGEN_${nombreTrabajador}.pdf` });
+
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+      const mLeft = 20;
+      const mRight = 20;
+      const anchoLinea = pageWidth - mLeft - mRight;
+      
+      let currentY = 25;
+
+      // Titles
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(12);
+      doc.text('CONSENTIMIENTO INFORMADO', pageWidth / 2, currentY, { align: 'center' });
+      currentY += 10;
+      doc.text('AUTORIZACIÓN PARA USO DE IMAGEN, VIDEOGRABACIONES Y', pageWidth / 2, currentY, { align: 'center' });
+      currentY += 6;
+      doc.text('SISTEMAS DE MONITOREO CORPORATIVO', pageWidth / 2, currentY, { align: 'center' });
+      currentY += 15;
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+      
+      const p1 = `En mi calidad de trabajador(a) de FLORES SAGARO S.A., manifiesto de manera libre, voluntaria e informada mi consentimiento y otorgo autorización expresa para el tratamiento y uso de mi imagen captada mediante fotografías, videograbaciones y sistemas de monitoreo o videovigilancia instalados por el empleador, bajo los siguientes términos:`;
+      const linesP1 = doc.splitTextToSize(p1, anchoLinea);
+      doc.text(linesP1, mLeft, currentY, { align: 'justify', maxWidth: anchoLinea });
+      currentY += (linesP1.length * 5) + 5;
+
+      const items1 = [
+        "1. FLORES SAGARO S.A. actúa como responsable del tratamiento de las imágenes y datos personales captados mediante los sistemas de vigilancia instalados dentro de las áreas autorizadas de la empresa.",
+        "2. Autorizo el uso de mi imagen, fotografías y/o videos para fines:"
+      ];
+      
+      for (const item of items1) {
+        const lines = doc.splitTextToSize(item, anchoLinea);
+        doc.text(lines, mLeft, currentY, { align: 'justify', maxWidth: anchoLinea });
+        currentY += (lines.length * 5) + 2;
+      }
+      
+      currentY += 2;
+      const subItems = [
+        "1. corporativos y administrativos,",
+        "2. laborales,",
+        "3. disciplinarios,",
+        "4. de seguridad física y patrimonial,",
+        "5. de cumplimiento de normas legales, contractuales y reglamentarias."
+      ];
+      
+      for (const sItem of subItems) {
+        doc.text(sItem, mLeft + 10, currentY);
+        currentY += 5;
+      }
+      
+      currentY += 5;
+      const p2 = `Estas imágenes podrán constituir prueba dentro de procesos administrativos o disciplinarios internos.`;
+      const linesP2 = doc.splitTextToSize(p2, anchoLinea);
+      doc.text(linesP2, mLeft, currentY, { align: 'justify', maxWidth: anchoLinea });
+      currentY += (linesP2.length * 5) + 5;
+
+      const items2 = [
+        "3. Reconozco que el empleador es autónomo para instalar y administrar sistemas de cámaras de seguridad dentro de las instalaciones laborales, siempre que su ubicación no vulnere espacios de privacidad protegida constitucionalmente.",
+        "4. Las imágenes no serán empleadas para fines distintos a los autorizados, ni se entregarán a terceros, salvo requerimiento de autoridad judicial, administrativa o legalmente competente.",
+        "5. Podré ejercer mis derechos de acceso, corrección, actualización o supresión de datos personales, mediante solicitud escrita al área de Talento Humano o al correo institucional habilitado para protección de datos.",
+        "6. Las grabaciones serán conservadas únicamente por el tiempo necesario para cumplir con las finalidades aquí descritas o por el período exigido por normas legales aplicables.",
+        "7. Declaro que mis derechos a la intimidad, integridad personal, libre desarrollo de la personalidad, igualdad, debido proceso, defensa y trato digno han sido garantizados por el empleador y no considero vulnerado ninguno de ellos con motivo de la implementación de sistemas de videovigilancia.",
+        "8. Otorgo este consentimiento de forma libre y consciente, y exonero al empleador de responsabilidad civil derivada del uso adecuado y legal de estos sistemas."
+      ];
+
+      for (const item of items2) {
+        if (currentY > pageHeight - 30) {
+          doc.addPage();
+          currentY = 20;
+        }
+        const lines = doc.splitTextToSize(item, anchoLinea);
+        doc.text(lines, mLeft, currentY, { align: 'justify', maxWidth: anchoLinea });
+        currentY += (lines.length * 5) + 3;
+      }
+      
+      currentY += 5;
+      const fechaActual = new Date();
+      const dia = fechaActual.getDate();
+      const mes = fechaActual.toLocaleString('es-CO', { month: 'long' });
+      const anio = fechaActual.getFullYear();
+      
+      const txtFecha = `En constancia se firma a los ${dia} días del mes de ${mes} de ${anio}.`;
+      doc.text(txtFecha, mLeft, currentY);
+      currentY += 15;
+
+      doc.setFont('helvetica', 'bold');
+      doc.text(`NOMBRE: ${nombreTrabajador}`, mLeft, currentY);
+      currentY += 6;
+      doc.text(`CARGO: ${cargoTrabajador}`, mLeft, currentY);
+      currentY += 6;
+      doc.text(`CÉDULA: ${numIdentificacion}`, mLeft, currentY);
+      currentY += 6;
+      doc.text('FIRMA:', mLeft, currentY);
+      
+      // Firma
+      const firmaCand = await this.fetchAsArrayBufferOrNull(cand?.biometria?.firma?.file_url ?? this.firma);
+      if (firmaCand) {
+        try {
+          const kind = (new Uint8Array(firmaCand)[0] === 0xFF) ? 'JPEG' : 'PNG';
+          doc.addImage(new Uint8Array(firmaCand), kind, mLeft + 20, currentY - 10, 35, 20);
+        } catch (e) { console.error('Error insertando firma candidato', e); }
+      }
+
+      const pdfBlob = doc.output('blob');
+      const file = new File([pdfBlob], '109_SAGARO_IMAGEN.pdf', { type: 'application/pdf' });
+
+      this.uploadedFiles['109 SAGARO_IMAGEN'] = { file, fileName: '109_SAGARO_IMAGEN.pdf' };
+      this.verPDF({ titulo: '109 SAGARO_IMAGEN' });
+
+    } catch (error) {
+      console.error('Error generando 109 SAGARO_IMAGEN:', error);
+      Swal.fire({ icon: 'error', title: 'Error', text: 'Ocurrió un error al generar el documento' });
     }
   }
 

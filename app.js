@@ -2,6 +2,7 @@ const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
 const { autoUpdater } = require('electron-updater');
 const { execFile } = require('child_process'); // Asegúrate de importar execFile aquí
+const { initDatabase } = require('./electron-db');
 
 // Suppress Content-Security-Policy warning from Electron in lower environments
 process.env['ELECTRON_DISABLE_SECURITY_WARNINGS'] = 'true';
@@ -93,7 +94,10 @@ ipcMain.on('restart-app', () => {
   autoUpdater.quitAndInstall();
 });
 
-app.on('ready', createWindow);
+app.on('ready', () => {
+  initDatabase();
+  createWindow();
+});
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
@@ -143,8 +147,22 @@ const { shell } = require('electron');
 let currentEditingFile = null;
 let fileWatcher = null;
 
+function cleanupPdfContext() {
+  if (fileWatcher) {
+    clearInterval(fileWatcher);
+    fileWatcher = null;
+  }
+  if (currentEditingFile && fs.existsSync(currentEditingFile)) {
+    try { fs.unlinkSync(currentEditingFile); } catch (e) { }
+    currentEditingFile = null;
+  }
+}
+
 ipcMain.handle('pdf:edit-external', async (event, fileUrl) => {
   try {
+    // Si el usuario abre otro PDF sin haber cerrado el anterior,
+    // limpiamos explícitamente el reloj de memoria previo para evitar fugas.
+    cleanupPdfContext();
     // 1. Create temp file path
     const tmpDir = path.join(os.tmpdir(), 'tesoreria-pdf-edit');
     if (!fs.existsSync(tmpDir)) {
@@ -249,14 +267,6 @@ ipcMain.handle('pdf:read-file', async () => {
 });
 
 ipcMain.handle('pdf:finish-edit', async () => {
-  if (fileWatcher) {
-    clearInterval(fileWatcher);
-    fileWatcher = null;
-  }
-  // Clean up temp file
-  if (currentEditingFile && fs.existsSync(currentEditingFile)) {
-    try { fs.unlinkSync(currentEditingFile); } catch (e) { }
-    currentEditingFile = null;
-  }
+  cleanupPdfContext();
   return { success: true };
 });

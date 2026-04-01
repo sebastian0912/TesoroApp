@@ -34,6 +34,10 @@
 
     <!-- BOTONES INFERIORES -->
     <div class="bottom-buttons">
+      <div class="logout-button network-status" [title]="isOnline ? 'En línea' : 'Sin conexión (Offline)'" [class.offline]="!isOnline">
+        <mat-icon fontSet="material-symbols-outlined">{{ isOnline ? 'cloud_done' : 'cloud_off' }}</mat-icon>
+        <span class="pending-badge" *ngIf="pendingCount > 0" title="Sincronizando automáticamente al reconectar...">{{ pendingCount }}</span>
+      </div>
       <button type="button" class="logout-button" (click)="refreshPermisos()" title="Actualizar menú">
         <mat-icon fontSet="material-symbols-outlined">sync</mat-icon>
       </button>

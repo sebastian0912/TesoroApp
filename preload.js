@@ -22,5 +22,12 @@ contextBridge.exposeInMainWorld('electron', {
     readFile: () => ipcRenderer.invoke('pdf:read-file'),
     finishEdit: () => ipcRenderer.invoke('pdf:finish-edit'),
     onFileChanged: (callback) => ipcRenderer.on('pdf:file-changed', (event, data) => callback(data))
+  },
+  db: {
+    saveRequestQueue: (req) => ipcRenderer.invoke('db:save-request-queue', req),
+    getPendingRequests: () => ipcRenderer.invoke('db:get-pending-requests'),
+    deleteRequest: (id) => ipcRenderer.invoke('db:delete-request', id),
+    cacheSave: (cacheData) => ipcRenderer.invoke('db:cache-save', cacheData),
+    cacheGet: (url) => ipcRenderer.invoke('db:cache-get', url),
   }
 });

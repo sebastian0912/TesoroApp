@@ -19,6 +19,8 @@ import { environment } from '../../../../../environments/environment';
 
 import { MatIconModule } from '@angular/material/icon';
 import { SharedModule } from '../../../../shared/shared.module';
+import { NetworkStatusService } from '../../../../core/services/network-status.service';
+import { OfflineSyncService } from '../../../../core/services/offline-sync.service';
 
 export interface PermNode {
   id: string;
@@ -45,6 +47,8 @@ export class NavbarComponent implements OnInit, OnDestroy {
   public isMobile = false;
   public pinOpen = false;
   public currentRoute?: string;
+  public isOnline = true;
+  public pendingCount = 0;
 
   public permTree: PermNode[] = [];
   public activeRoot: PermNode | null = null;
@@ -61,9 +65,22 @@ export class NavbarComponent implements OnInit, OnDestroy {
   constructor(
     @Inject(PLATFORM_ID) platformId: object,
     private router: Router,
-    private http: HttpClient
+    private http: HttpClient,
+    private networkStatus: NetworkStatusService,
+    private offlineSync: OfflineSyncService
   ) {
     this.isBrowser = isPlatformBrowser(platformId);
+    if (this.isBrowser) {
+      this.networkStatus.isOnline$.subscribe(status => {
+        this.isOnline = status;
+      });
+      this.offlineSync.pendingCount$.subscribe(count => {
+        this.pendingCount = count;
+      });
+      window.addEventListener('offline-queue-updated', () => {
+        this.offlineSync.updatePendingCount();
+      });
+    }
   }
 
   async ngOnInit(): Promise<void> {
