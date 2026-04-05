@@ -1,4 +1,4 @@
-import { Component, OnInit, input, effect, inject, DestroyRef } from '@angular/core';
+import {  Component, OnInit, input, effect, inject, DestroyRef , ChangeDetectionStrategy } from '@angular/core';
 import { AbstractControl, FormBuilder, FormGroup, ValidationErrors, ValidatorFn, Validators } from '@angular/forms';
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { firstValueFrom, forkJoin, of, throwError, Observable } from 'rxjs';
@@ -31,12 +31,13 @@ type ServerDocInfo = {
 };
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-hiring-questions',
   standalone: true,
   imports: [SharedModule, MatTabsModule],
   templateUrl: './hiring-questions.component.html',
   styleUrls: ['./hiring-questions.component.css'],
-})
+} )
 export class HiringQuestionsComponent implements OnInit {
   // ───────── Input con signals ─────────
   candidatoSeleccionado = input<any>(null);

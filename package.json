@@ -1,6 +1,6 @@
 {
   "name": "tesoreria",
-  "version": "7.7.1",
+  "version": "7.7.9",
   "main": "app.js",
   "description": "Programa para control de prestamos a tesoreria",
   "author": "SebastianGuarnizoCampos",
@@ -19,6 +19,7 @@
       "dist/tesoreria/**/*",
       "app.js",
       "preload.js",
+      "electron-db.js",
       {
         "from": "csharp",
         "to": "csharp",
@@ -61,6 +62,7 @@
     "lint": "ng lint",
     "e2e": "ng e2e",
     "dist": "ng run Tesoreria:build-electron:production --base-href ./ && cross-env NODE_ENV=production electron-builder -p always",
+    "release": "npm version patch --no-git-tag-version && npm run dist",
     "dist2": "ng run Tesoreria:build-electron:production --base-href ./ && cross-env NODE_ENV=production electron-builder",
     "dist3": "ng run Tesoreria:build-electron:production && cross-env NODE_ENV=production electron-builder -p always",
     "start:prod": "ng serve --configuration production --host 0.0.0.0 --port 4400",

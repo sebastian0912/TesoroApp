@@ -1,4 +1,4 @@
-import { Component, Inject, PLATFORM_ID } from '@angular/core';
+import {  Component, Inject, PLATFORM_ID , ChangeDetectionStrategy } from '@angular/core';
 import { SharedModule } from '../../../../shared/shared.module';
 import { isPlatformBrowser } from '@angular/common';
 import { Router } from '@angular/router';
@@ -7,13 +7,14 @@ import { UtilityServiceService } from '../../../../shared/services/utilityServic
 import { firstValueFrom } from 'rxjs';
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-sidebar',
   imports: [
     SharedModule
   ],
   templateUrl: './sidebar.component.html',
   styleUrl: './sidebar.component.css'
-})
+} )
 export class SidebarComponent {
   role: string = '';
   username: string = '';

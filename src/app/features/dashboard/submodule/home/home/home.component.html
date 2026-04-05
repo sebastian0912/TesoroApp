@@ -13,38 +13,44 @@
 
 <!-- Category Cards -->
 <div class="category-grid">
-  <button class="category-card" *ngIf="general" (click)="openPanel('robots')">
-    <div class="cat-icon robots">
-      <mat-icon>smart_toy</mat-icon>
-    </div>
-    <div class="cat-info">
-      <span class="cat-title">Robots</span>
-      <span class="cat-desc">Gestión de solicitudes</span>
-    </div>
-    <mat-icon class="cat-arrow">chevron_right</mat-icon>
-  </button>
+  @if (general) {
+    <button class="category-card" (click)="openPanel('robots')">
+      <div class="cat-icon robots">
+        <mat-icon>smart_toy</mat-icon>
+      </div>
+      <div class="cat-info">
+        <span class="cat-title">Robots</span>
+        <span class="cat-desc">Gestión de solicitudes</span>
+      </div>
+      <mat-icon class="cat-arrow">chevron_right</mat-icon>
+    </button>
+  }
 
-  <button class="category-card" *ngIf="general" (click)="openPanel('reportes')">
-    <div class="cat-icon reportes">
-      <mat-icon>assessment</mat-icon>
-    </div>
-    <div class="cat-info">
-      <span class="cat-title">Reportes</span>
-      <span class="cat-desc">Historiales y descargas</span>
-    </div>
-    <mat-icon class="cat-arrow">chevron_right</mat-icon>
-  </button>
+  @if (general) {
+    <button class="category-card" (click)="openPanel('reportes')">
+      <div class="cat-icon reportes">
+        <mat-icon>assessment</mat-icon>
+      </div>
+      <div class="cat-info">
+        <span class="cat-title">Reportes</span>
+        <span class="cat-desc">Historiales y descargas</span>
+      </div>
+      <mat-icon class="cat-arrow">chevron_right</mat-icon>
+    </button>
+  }
 
-  <button class="category-card" *ngIf="admin || general" (click)="openPanel('contratacion')">
-    <div class="cat-icon contratacion">
-      <mat-icon>assignment_ind</mat-icon>
-    </div>
-    <div class="cat-info">
-      <span class="cat-title">Contratación</span>
-      <span class="cat-desc">Carnets y gestión</span>
-    </div>
-    <mat-icon class="cat-arrow">chevron_right</mat-icon>
-  </button>
+  @if (admin || general) {
+    <button class="category-card" (click)="openPanel('contratacion')">
+      <div class="cat-icon contratacion">
+        <mat-icon>assignment_ind</mat-icon>
+      </div>
+      <div class="cat-info">
+        <span class="cat-title">Contratación</span>
+        <span class="cat-desc">Carnets y gestión</span>
+      </div>
+      <mat-icon class="cat-arrow">chevron_right</mat-icon>
+    </button>
+  }
 </div>
 
 <!-- Slide Panel Backdrop -->
@@ -61,36 +67,34 @@
 
   <div class="panel-body">
     <!-- Robots -->
-    <ng-container *ngIf="activePanel === 'robots'">
+    @if (activePanel === 'robots') {
       <app-info-card matIcon="upload_file" title="Cargar solicitudes robots paquete"
         description="Sube un Excel con las solicitudes para robots" (click)="triggerFileInput()">
       </app-info-card>
-    </ng-container>
+    }
 
     <!-- Reportes -->
-    <ng-container *ngIf="activePanel === 'reportes'">
+    @if (activePanel === 'reportes') {
       <app-info-card matIcon="download" title="Descargar historial beneficios"
         description="Genera un Excel con el historial de beneficios por rango de fechas"
         (click)="extraerHistorialBeneficios()">
       </app-info-card>
-
       <app-info-card matIcon="file_download" title="Descargar Excel candidatos"
         description="Sube un Excel con cédulas para exportar datos de candidatos"
         (click)="triggerFileInputExcelCandidatos()">
       </app-info-card>
-    </ng-container>
+    }
 
     <!-- Contratación -->
-    <ng-container *ngIf="activePanel === 'contratacion'">
+    @if (activePanel === 'contratacion') {
       <app-info-card matIcon="restart_alt" title="Reset estado contratado"
         description="Sube un Excel con cédulas para resetear el campo contratado"
         (click)="triggerFileInputResetContratado()">
       </app-info-card>
-
       <app-info-card matIcon="badge" title="Generar carnets"
         description="Sube un Excel con cédula, código y centro de costo" (click)="triggerFileInputCarnets()">
       </app-info-card>
-    </ng-container>
+    }
   </div>
 </div>
 
@@ -98,11 +102,13 @@
 <input #fileInput type="file" (change)="cargarExcel($event)" accept=".xlsx, .xls" class="hidden-input" />
 <input #fileInputResetContratado type="file" (change)="cargarExcelResetContratado($event)" accept=".xlsx, .xls"
   class="hidden-input" />
-<input #fileInputExcelCandidatos type="file" (change)="cargarExcelParaExportarCandidatos($event)" accept=".xlsx, .xls"
-  class="hidden-input" />
-<input #fileInputCarnets type="file" (change)="cargarExcelCarnets($event)" accept=".xlsx, .xls" class="hidden-input" />
+  <input #fileInputExcelCandidatos type="file" (change)="cargarExcelParaExportarCandidatos($event)" accept=".xlsx, .xls"
+    class="hidden-input" />
+    <input #fileInputCarnets type="file" (change)="cargarExcelCarnets($event)" accept=".xlsx, .xls" class="hidden-input" />
 
-<!-- Merchandising (solo si comercializadora) -->
-<div class="merchandising-section" *ngIf="comercializadora">
-  <app-merchandising-merchandise></app-merchandising-merchandise>
-</div>
+    <!-- Merchandising (solo si comercializadora) -->
+    @if (comercializadora) {
+      <div class="merchandising-section">
+        <app-merchandising-merchandise></app-merchandising-merchandise>
+      </div>
+    }

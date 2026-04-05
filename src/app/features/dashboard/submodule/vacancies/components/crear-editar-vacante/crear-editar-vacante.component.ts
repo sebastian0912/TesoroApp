@@ -2,7 +2,7 @@ import { FincaItem } from './../../service/fincas/fincas.service';
 import { CommonModule } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
 import { COMMA, ENTER } from '@angular/cdk/keycodes';
-import { Component, ElementRef, Inject, OnDestroy, OnInit, ViewChild } from '@angular/core';
+import {  Component, ElementRef, Inject, OnDestroy, OnInit, ViewChild , ChangeDetectionStrategy } from '@angular/core';
 import {
   AbstractControl,
   FormArray,

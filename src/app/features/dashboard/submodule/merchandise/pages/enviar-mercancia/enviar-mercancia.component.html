@@ -25,18 +25,24 @@
             <mat-label>Concepto</mat-label>
             <mat-icon matPrefix>category</mat-icon>
             <mat-select formControlName="concepto" (selectionChange)="updateOtroConceptoValidator($event.value)">
-              <mat-option *ngFor="let concepto of conceptos" [value]="concepto.valor">
-                {{ concepto.valor }}
-              </mat-option>
+              @for (concepto of conceptos; track concepto) {
+                <mat-option [value]="concepto.valor">
+                  {{ concepto.valor }}
+                </mat-option>
+              }
             </mat-select>
-            <mat-error *ngIf="myForm.get('concepto')?.hasError('required')">Seleccione un concepto</mat-error>
+            @if (myForm.get('concepto')?.hasError('required')) {
+              <mat-error>Seleccione un concepto</mat-error>
+            }
           </mat-form-field>
 
-          <mat-form-field appearance="outline" class="full-width" *ngIf="myForm.get('concepto')?.value === 'Otro'">
-            <mat-label>Otro Concepto</mat-label>
-            <input matInput formControlName="otroConcepto" />
-            <mat-error>El concepto es requerido</mat-error>
-          </mat-form-field>
+          @if (myForm.get('concepto')?.value === 'Otro') {
+            <mat-form-field appearance="outline" class="full-width">
+              <mat-label>Otro Concepto</mat-label>
+              <input matInput formControlName="otroConcepto" />
+              <mat-error>El concepto es requerido</mat-error>
+            </mat-form-field>
+          }
 
           <div class="form-grid">
             <mat-form-field appearance="outline" class="full-width">
@@ -69,9 +75,11 @@
             <mat-label>Sede Destino</mat-label>
             <mat-icon matPrefix>location_on</mat-icon>
             <mat-select formControlName="sede">
-              <mat-option *ngFor="let sede of sedes" [value]="sede.nombre">
-                {{ sede.nombre }}
-              </mat-option>
+              @for (sede of sedes; track sede) {
+                <mat-option [value]="sede.nombre">
+                  {{ sede.nombre }}
+                </mat-option>
+              }
             </mat-select>
             <mat-error>Seleccione una sede</mat-error>
           </mat-form-field>

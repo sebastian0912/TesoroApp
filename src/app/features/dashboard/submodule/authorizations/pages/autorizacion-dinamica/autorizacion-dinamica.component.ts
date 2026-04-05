@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import {  Component, OnInit , ChangeDetectionStrategy } from '@angular/core';
 import { FormBuilder, FormGroup, Validators, AbstractControl } from '@angular/forms';
 import { AutorizacionesService } from '../../services/autorizaciones/autorizaciones.service';
 import Swal from 'sweetalert2';
@@ -9,13 +9,14 @@ import { MatDialog } from '@angular/material/dialog';
 import { HistorialDialogComponent } from './historial-dialog/historial-dialog.component';
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-autorizacion-dinamica',
   imports: [
     SharedModule
   ],
   templateUrl: './autorizacion-dinamica.component.html',
   styleUrl: './autorizacion-dinamica.component.css'
-})
+} )
 export class AutorizacionDinamicaComponent implements OnInit {
   myForm!: FormGroup;
   datosOperario: any;

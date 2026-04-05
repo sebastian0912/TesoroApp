@@ -17,47 +17,57 @@
           <mat-label>Antigua Contraseña</mat-label>
           <input matInput [type]="hideOldPassword ? 'password' : 'text'" formControlName="oldPassword"
             placeholder="Ingresa tu contraseña actual">
-          <button mat-icon-button matSuffix (click)="toggleOldPasswordVisibility()" type="button" tabindex="-1">
-            <mat-icon>{{ hideOldPassword ? 'visibility_off' : 'visibility' }}</mat-icon>
-          </button>
-          <mat-error *ngIf="myForm.get('oldPassword')?.hasError('required')">La antigua contraseña es
-            obligatoria</mat-error>
-        </mat-form-field>
+            <button mat-icon-button matSuffix (click)="toggleOldPasswordVisibility()" type="button" tabindex="-1">
+              <mat-icon>{{ hideOldPassword ? 'visibility_off' : 'visibility' }}</mat-icon>
+            </button>
+            @if (myForm.get('oldPassword')?.hasError('required')) {
+              <mat-error>La antigua contraseña es
+              obligatoria</mat-error>
+            }
+          </mat-form-field>
 
-        <mat-form-field appearance="outline" class="full-width">
-          <mat-label>Nueva Contraseña</mat-label>
-          <input matInput [type]="hideNewPassword ? 'password' : 'text'" formControlName="newPassword"
-            placeholder="Ingresa la nueva contraseña">
-          <button mat-icon-button matSuffix (click)="toggleNewPasswordVisibility()" type="button" tabindex="-1">
-            <mat-icon>{{ hideNewPassword ? 'visibility_off' : 'visibility' }}</mat-icon>
-          </button>
-          <mat-error *ngIf="myForm.get('newPassword')?.hasError('required')">La nueva contraseña es
-            obligatoria</mat-error>
-          <mat-error *ngIf="myForm.get('newPassword')?.hasError('minlength')">Debe tener al menos 6
-            caracteres</mat-error>
-        </mat-form-field>
+          <mat-form-field appearance="outline" class="full-width">
+            <mat-label>Nueva Contraseña</mat-label>
+            <input matInput [type]="hideNewPassword ? 'password' : 'text'" formControlName="newPassword"
+              placeholder="Ingresa la nueva contraseña">
+              <button mat-icon-button matSuffix (click)="toggleNewPasswordVisibility()" type="button" tabindex="-1">
+                <mat-icon>{{ hideNewPassword ? 'visibility_off' : 'visibility' }}</mat-icon>
+              </button>
+              @if (myForm.get('newPassword')?.hasError('required')) {
+                <mat-error>La nueva contraseña es
+                obligatoria</mat-error>
+              }
+              @if (myForm.get('newPassword')?.hasError('minlength')) {
+                <mat-error>Debe tener al menos 6
+                caracteres</mat-error>
+              }
+            </mat-form-field>
 
-        <mat-form-field appearance="outline" class="full-width">
-          <mat-label>Confirmar Nueva Contraseña</mat-label>
-          <input matInput [type]="hideConfirmPassword ? 'password' : 'text'" formControlName="confirmNewPassword"
-            placeholder="Repite la nueva contraseña">
-          <button mat-icon-button matSuffix (click)="toggleConfirmPasswordVisibility()" type="button" tabindex="-1">
-            <mat-icon>{{ hideConfirmPassword ? 'visibility_off' : 'visibility' }}</mat-icon>
-          </button>
-          <mat-error *ngIf="myForm.get('confirmNewPassword')?.hasError('required')">Confirmar la nueva contraseña es
-            obligatorio</mat-error>
-          <mat-error *ngIf="myForm.hasError('mismatch') && myForm.get('confirmNewPassword')?.touched">Las contraseñas no
-            coinciden</mat-error>
-        </mat-form-field>
+            <mat-form-field appearance="outline" class="full-width">
+              <mat-label>Confirmar Nueva Contraseña</mat-label>
+              <input matInput [type]="hideConfirmPassword ? 'password' : 'text'" formControlName="confirmNewPassword"
+                placeholder="Repite la nueva contraseña">
+                <button mat-icon-button matSuffix (click)="toggleConfirmPasswordVisibility()" type="button" tabindex="-1">
+                  <mat-icon>{{ hideConfirmPassword ? 'visibility_off' : 'visibility' }}</mat-icon>
+                </button>
+                @if (myForm.get('confirmNewPassword')?.hasError('required')) {
+                  <mat-error>Confirmar la nueva contraseña es
+                  obligatorio</mat-error>
+                }
+                @if (myForm.hasError('mismatch') && myForm.get('confirmNewPassword')?.touched) {
+                  <mat-error>Las contraseñas no
+                  coinciden</mat-error>
+                }
+              </mat-form-field>
 
-        <div class="form-btn-block mt-4">
-          <button mat-flat-button type="submit" class="btn-managerial full-width" [disabled]="myForm.invalid">
-            <mat-icon>save</mat-icon>
-            Guardar Cambios
-          </button>
+              <div class="form-btn-block mt-4">
+                <button mat-flat-button type="submit" class="btn-managerial full-width" [disabled]="myForm.invalid">
+                  <mat-icon>save</mat-icon>
+                  Guardar Cambios
+                </button>
+              </div>
+
+            </form>
+          </div>
         </div>
-
-      </form>
-    </div>
-  </div>
-</div>
+      </div>

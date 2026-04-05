@@ -26,6 +26,8 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatSelectModule } from '@angular/material/select';
 import { MatInputModule } from '@angular/material/input';
 import { MatTabsModule } from '@angular/material/tabs';
+import { MatMenuModule } from '@angular/material/menu';
+import { MatTooltipModule } from '@angular/material/tooltip';
 
 import Swal, { SweetAlertIcon } from 'sweetalert2';
 
@@ -156,6 +158,8 @@ interface ChartVm {
     MatTabsModule,
     MatDatepickerModule,
     MatNativeDateModule,
+    MatMenuModule,
+    MatTooltipModule,
 
     StandardFilterTable,
   ],
@@ -183,6 +187,13 @@ export class RobotsComponent implements OnInit {
   isLoadingPendientesPorOficina = false;
   pendientesPorOficinaRows: PendientesOficinasMatrixRow[] = [];
   pendientesPorOficinaColumns: ColumnDefinition[] = [];
+
+  // =========================
+  // EXCEL ANTECEDENTES
+  // =========================
+  selectedAntecedenteForExcel: string = '';
+  isUploadingExcel = false;
+  @ViewChild('excelFileInput') excelFileInput!: ElementRef<HTMLInputElement>;
 
   // =========================
   // ✅ STATE (ÚLTIMOS POR ANTECEDENTE)
@@ -394,6 +405,76 @@ export class RobotsComponent implements OnInit {
 
   applyUltimos(): void {
     this.loadUltimosPorMarcaTemporal({ showToast: true });
+  }
+
+  // =========================
+  // ✅ EXCEL DOWNLOAD METHODS
+  // =========================
+  onCargarExcelAntecedente(antecedente: string): void {
+    this.selectedAntecedenteForExcel = antecedente;
+    // reset input to allow uploading same file again
+    if (this.excelFileInput?.nativeElement) {
+      this.excelFileInput.nativeElement.value = '';
+      this.excelFileInput.nativeElement.click();
+    }
+  }
+
+  onExcelFileSelected(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    if (!input.files?.length) {
+      return;
+    }
+    
+    const file = input.files[0];
+    const antecedente = this.selectedAntecedenteForExcel;
+    
+    if (!antecedente) {
+      void this.toast.fire({ icon: 'warning', title: 'Seleccione un antecedente primero.' });
+      return;
+    }
+
+    this.isUploadingExcel = true;
+    this.cdr.markForCheck();
+    void this.toast.fire({ icon: 'info', title: `Cargando archivo para ${antecedente}...`, timer: 10000 });
+
+    this.robots.uploadExcelAntecedentes(file, antecedente).subscribe({
+      next: (blob: Blob) => {
+        // Create an object URL containing the blob
+        const downloadURL = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = downloadURL;
+        link.download = `resultados_${antecedente}.xlsx`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(downloadURL);
+
+        void this.toast.fire({ icon: 'success', title: 'Excel descargado exitosamente.' });
+        this.isUploadingExcel = false;
+        this.cdr.markForCheck();
+      },
+      error: (err) => {
+        console.error('Error procesando Excel:', err);
+        const msg = err?.error?.detail || 'Error procesando el Excel';
+        
+        // Sometimes Blob response type masks JSON errors, try to extract error text 
+        if (err?.error instanceof Blob) {
+            err.error.text().then((text: string) => {
+                let detail = msg;
+                try {
+                    const parsed = JSON.parse(text);
+                    detail = parsed.detail || msg;
+                } catch(e) {}
+                void this.toast.fire({ icon: 'error', title: 'Oops...', text: detail });
+            });
+        } else {
+            void this.toast.fire({ icon: 'error', title: 'Oops...', text: msg });
+        }
+        
+        this.isUploadingExcel = false;
+        this.cdr.markForCheck();
+      }
+    });
   }
 
   // =========================
@@ -720,7 +801,6 @@ export class RobotsComponent implements OnInit {
     this.isLoadingRobotsFull = true;
     this.cdr.markForCheck();
 
-    /*
     this.robots
       .getRobotsFull()
       .pipe(
@@ -753,7 +833,7 @@ export class RobotsComponent implements OnInit {
       .subscribe(() => {
         if (opts?.showToast) void this.toast.fire({ icon: 'success', title: 'Robots Full actualizado' });
       });
-      */
+      
     this.isLoadingRobotsFull = false;
     this.cdr.markForCheck();
   }

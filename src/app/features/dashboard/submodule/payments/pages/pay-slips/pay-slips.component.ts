@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import {  Component, OnInit , ChangeDetectionStrategy } from '@angular/core';
 import { PaymentsService } from '../../services/payments.service';
 import { SharedModule } from '@/app/shared/shared.module';
 
@@ -11,6 +11,7 @@ import { ColumnDefinition } from '@/app/shared/models/advanced-table-interface';
 import { StandardFilterTable } from '@/app/shared/components/standard-filter-table/standard-filter-table';
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-pay-slips',
   standalone: true,
   imports: [
@@ -21,7 +22,7 @@ import { StandardFilterTable } from '@/app/shared/components/standard-filter-tab
   ],
   templateUrl: './pay-slips.component.html',
   styleUrl: './pay-slips.component.css'
-})
+} )
 
 export class PaySlipsComponent implements OnInit {
   cedula: string = '';

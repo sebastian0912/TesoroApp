@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import {  Component, OnInit , ChangeDetectionStrategy } from '@angular/core';
 import {
   FormBuilder,
   FormGroup,
@@ -6,7 +6,7 @@ import {
   AbstractControl,
   ValidationErrors
 } from '@angular/forms';
-import { CommonModule } from '@angular/common';
+
 import { ReactiveFormsModule } from '@angular/forms';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
@@ -18,20 +18,20 @@ import { finalize } from 'rxjs/operators';
 import { AdminService } from '../../services/admin.service';
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-cambiar-contrasena',
   standalone: true,
   imports: [
-    CommonModule,
     ReactiveFormsModule,
     MatInputModule,
     MatSelectModule,
     MatButtonModule,
     MatCardModule,
-    MatIconModule,
-  ],
+    MatIconModule
+],
   templateUrl: './cambiar-contrasena.component.html',
   styleUrls: ['./cambiar-contrasena.component.css']
-})
+} )
 export class CambiarContrasenaComponent implements OnInit {
   myForm!: FormGroup;
   hideOldPassword = true;

@@ -1,5 +1,5 @@
 import { isPlatformBrowser } from '@angular/common';
-import { Component, ElementRef, OnInit, ViewChild, Inject, PLATFORM_ID } from '@angular/core';
+import {  Component, ElementRef, OnInit, ViewChild, Inject, PLATFORM_ID , ChangeDetectionStrategy } from '@angular/core';
 import { UtilityServiceService } from '@/app/shared/services/utilityService/utility-service.service';
 import { SharedModule } from '@/app/shared/shared.module';
 import { FormsModule } from '@angular/forms';
@@ -17,6 +17,7 @@ import { firstValueFrom } from 'rxjs';
 import { generarPdfAusentismo } from './pdf-generator';
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-absences-new',
   standalone: true,
   imports: [
@@ -31,7 +32,7 @@ import { generarPdfAusentismo } from './pdf-generator';
   ],
   templateUrl: './absences-new.html',
   styleUrl: './absences-new.css'
-})
+} )
 export class AbsencesNew implements OnInit {
   displayedColumns: string[] = [
     'select',

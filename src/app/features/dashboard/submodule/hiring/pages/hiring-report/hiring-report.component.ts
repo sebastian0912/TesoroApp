@@ -15,7 +15,7 @@ import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatDatepickerModule } from '@angular/material/datepicker';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatNativeDateModule } from '@angular/material/core';
-import { CommonModule } from '@angular/common';
+
 
 import { ValidationPreviewDialogComponent } from '@/app/shared/components/validation-preview-dialog/validation-preview-dialog.component';
 import {
@@ -63,14 +63,13 @@ interface DocConfig {
   selector: 'app-hiring-report',
   standalone: true,
   imports: [
-    CommonModule,
     SharedModule,
     ReactiveFormsModule,
     MatDatepickerModule,
     MatCheckboxModule,
     MatNativeDateModule,
-    MatDialogModule,
-  ],
+    MatDialogModule
+],
   templateUrl: './hiring-report.component.html',
   styleUrls: ['./hiring-report.component.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,

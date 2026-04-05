@@ -1,12 +1,12 @@
-import { Injectable, NgZone } from '@angular/core';
-import { BehaviorSubject, Observable } from 'rxjs';
+import {  Injectable, NgZone , signal } from '@angular/core';
+import {  Observable } from 'rxjs';
 import { environment } from '../../../environments/environment';
 
 @Injectable({
   providedIn: 'root'
 })
 export class NetworkStatusService {
-  private onlineStatus = new BehaviorSubject<boolean>(navigator.onLine);
+  public onlineStatus = signal(navigator.onLine);
   private heartbeatInterval: any;
 
   constructor(private ngZone: NgZone) {
@@ -18,7 +18,7 @@ export class NetworkStatusService {
   }
 
   get isOnline(): boolean {
-    return this.onlineStatus.value;
+    return this.onlineStatus();
   }
 
   private initEventListeners() {
@@ -35,14 +35,14 @@ export class NetworkStatusService {
   }
 
   private setOffline() {
-    if (this.onlineStatus.value !== false) {
-      this.ngZone.run(() => this.onlineStatus.next(false));
+    if (this.onlineStatus() !== false) {
+      this.ngZone.run(() => this.onlineStatus.set(false));
     }
   }
 
   private setOnline() {
-    if (this.onlineStatus.value !== true) {
-      this.ngZone.run(() => this.onlineStatus.next(true));
+    if (this.onlineStatus() !== true) {
+      this.ngZone.run(() => this.onlineStatus.set(true));
     }
   }
 

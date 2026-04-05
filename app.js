@@ -4,9 +4,7 @@ const { autoUpdater } = require('electron-updater');
 const { execFile } = require('child_process'); // Asegúrate de importar execFile aquí
 const { initDatabase } = require('./electron-db');
 
-// Suppress Content-Security-Policy warning from Electron in lower environments
-process.env['ELECTRON_DISABLE_SECURITY_WARNINGS'] = 'true';
-
+// Removed global ELECTRON_DISABLE_SECURITY_WARNINGS to enforce CSP in production
 let mainWindow;
 
 autoUpdater.autoDownload = true; // Descargar automáticamente
@@ -23,6 +21,7 @@ function createWindow() {
   });
 
   if (process.env.NODE_ENV === 'development') {
+    process.env['ELECTRON_DISABLE_SECURITY_WARNINGS'] = 'true'; // Suppress CSP only in Dev
     mainWindow.loadURL('http://localhost:4400');
     mainWindow.webContents.openDevTools();
   } else {
@@ -149,7 +148,8 @@ let fileWatcher = null;
 
 function cleanupPdfContext() {
   if (fileWatcher) {
-    clearInterval(fileWatcher);
+    if (typeof fileWatcher.close === 'function') fileWatcher.close();
+    else clearInterval(fileWatcher); // Fallback if it was setInterval
     fileWatcher = null;
   }
   if (currentEditingFile && fs.existsSync(currentEditingFile)) {
@@ -207,46 +207,36 @@ ipcMain.handle('pdf:edit-external', async (event, fileUrl) => {
       return { success: false, error: result };
     }
 
-    // 5. Watch the file for changes (poll-based for reliability)
-    if (fileWatcher) clearInterval(fileWatcher);
-    fileWatcher = setInterval(() => {
-      try {
-        if (!fs.existsSync(tmpFile)) return;
-        const stats = fs.statSync(tmpFile);
-        if (stats.mtimeMs > initialMtime || stats.size !== initialSize) {
-          // File was modified! Read it and send to renderer
-          const modifiedBytes = fs.readFileSync(tmpFile);
-          if (mainWindow && !mainWindow.isDestroyed()) {
-            mainWindow.webContents.send('pdf:file-changed', {
-              filePath: tmpFile,
-              bytes: modifiedBytes.toString('base64')
-            });
-          }
-          // Update initial values to detect next save
-          const newStats = fs.statSync(tmpFile);
-          // We can't reassign const, so we just clear the interval
-          clearInterval(fileWatcher);
-          // Start watching again with new baseline
-          const newMtime = newStats.mtimeMs;
-          const newSize = newStats.size;
-          fileWatcher = setInterval(() => {
-            try {
-              if (!fs.existsSync(tmpFile)) return;
-              const s = fs.statSync(tmpFile);
-              if (s.mtimeMs > newMtime || s.size !== newSize) {
-                const bytes = fs.readFileSync(tmpFile);
-                if (mainWindow && !mainWindow.isDestroyed()) {
-                  mainWindow.webContents.send('pdf:file-changed', {
-                    filePath: tmpFile,
-                    bytes: bytes.toString('base64')
-                  });
-                }
+    // 5. Watch the file for changes (Event-Driven for CPU efficiency)
+    if (fileWatcher) {
+      if (typeof fileWatcher.close === 'function') fileWatcher.close();
+    }
+    
+    let lastSize = initialSize;
+    let debounceTimer = null;
+    
+    fileWatcher = fs.watch(tmpFile, (eventType) => {
+      if (eventType === 'change') {
+        if (debounceTimer) clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(() => {
+          try {
+            if (!fs.existsSync(tmpFile)) return;
+            const stats = fs.statSync(tmpFile);
+            
+            if (stats.size !== lastSize || stats.size > 0) {
+              lastSize = stats.size;
+              const modifiedBytes = fs.readFileSync(tmpFile);
+              if (mainWindow && !mainWindow.isDestroyed()) {
+                mainWindow.webContents.send('pdf:file-changed', {
+                  filePath: tmpFile,
+                  bytes: modifiedBytes.toString('base64')
+                });
               }
-            } catch (e) { /* file may be locked */ }
-          }, 2000);
-        }
-      } catch (e) { /* file may be locked by Adobe */ }
-    }, 2000);
+            }
+          } catch (e) { /* file may be locked by Adobe */ }
+        }, 800); // Debounce to allow Acrobat to finish writing
+      }
+    });
 
     return { success: true, filePath: tmpFile };
   } catch (err) {

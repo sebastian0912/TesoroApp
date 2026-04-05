@@ -1,4 +1,4 @@
-import { Component, inject } from '@angular/core';
+import {  Component, inject , ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ContratacionMetricasApiService } from '../../services/contratacion-metricas-api.service';
 import { MetricasContratacionFiltersBarComponent } from '../../components/filters/metricas-contratacion-filters-bar/metricas-contratacion-filters-bar.component';
@@ -10,6 +10,7 @@ import { PipelinePorOficinaChartComponent } from '../../components/charts/pipeli
 import { SinCelularTableComponent } from '../../components/charts/sin-celular-table/sin-celular-table.component';
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
     selector: 'app-contratacion-dashboard',
     standalone: true,
     imports: [
@@ -24,7 +25,7 @@ import { SinCelularTableComponent } from '../../components/charts/sin-celular-ta
     ],
     templateUrl: './contratacion-dashboard.component.html',
     styleUrls: ['./contratacion-dashboard.component.css']
-})
+} )
 export class ContratacionDashboardComponent {
     public apiService = inject(ContratacionMetricasApiService);
 

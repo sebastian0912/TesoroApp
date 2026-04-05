@@ -1,4 +1,4 @@
-import { Component, OnInit, ViewChild } from '@angular/core';
+import {  Component, OnInit, ViewChild , ChangeDetectionStrategy } from '@angular/core';
 import { MatTableDataSource } from '@angular/material/table';
 import { MatDialog } from '@angular/material/dialog';
 import { TrasladosService } from '../../service/traslados.service';
@@ -17,6 +17,7 @@ import { MatDatepickerModule } from '@angular/material/datepicker';
 import { MatNativeDateModule } from '@angular/material/core';
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-traslados',
   imports: [
     InfoCardComponent,
@@ -27,7 +28,7 @@ import { MatNativeDateModule } from '@angular/material/core';
   ],
   templateUrl: './traslados.component.html',
   styleUrls: ['./traslados.component.css'],
-})
+} )
 export class TrasladosComponent implements OnInit {
   displayedColumns: string[] = [
     'codigo_traslado',

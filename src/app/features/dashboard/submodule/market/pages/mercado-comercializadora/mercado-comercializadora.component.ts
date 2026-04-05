@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy } from '@angular/core';
+import {  Component, OnInit, OnDestroy , ChangeDetectionStrategy } from '@angular/core';
 import {
   FormBuilder,
   FormGroup,
@@ -24,11 +24,12 @@ import { SharedModule } from '../../../../../../shared/shared.module'; // si lo 
 import { MatCheckboxModule } from '@angular/material/checkbox';
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-mercado-comercializadora',
   templateUrl: './mercado-comercializadora.component.html',
   styleUrls: ['./mercado-comercializadora.component.css'],
   imports: [SharedModule, MatCheckboxModule] // si usas Standalone Components
-})
+} )
 export class MercadoComercializadoraComponent implements OnInit, OnDestroy {
   myForm: FormGroup;
   datosOperario: any;

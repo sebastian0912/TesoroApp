@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import {  Component, OnInit , ChangeDetectionStrategy } from '@angular/core';
 import { AbstractControl, FormBuilder, FormGroup, Validators } from '@angular/forms';
 import Swal from 'sweetalert2';
 import { firstValueFrom } from 'rxjs';
@@ -8,13 +8,14 @@ import { SharedModule } from '../../../../../../shared/shared.module';
 import { UtilityServiceService } from '@/app/shared/services/utilityService/utility-service.service';
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-editar-envio',
   imports: [
     SharedModule
   ],
   templateUrl: './editar-envio.component.html',
   styleUrl: './editar-envio.component.css'
-})
+} )
 
 export class EditarEnvioComponent implements OnInit {
   myForm: FormGroup;

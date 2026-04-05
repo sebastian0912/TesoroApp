@@ -1,9 +1,9 @@
 import { SharedModule } from '@/app/shared/shared.module';
-import {
+import { 
   Component,
   effect, input, computed, signal, inject, DestroyRef, LOCALE_ID,
   OnInit
-} from '@angular/core';
+, ChangeDetectionStrategy } from '@angular/core';
 import {
   FormGroup, FormBuilder, Validators
 } from '@angular/forms';
@@ -289,7 +289,7 @@ export class HelpInformationComponent implements OnInit {
       const rolNombre = (user.rol?.nombre || '').toUpperCase();
       const email = (user.correo_electronico || '').toUpperCase();
 
-      if (!(rolNombre === 'GERENCIA' || rolNombre === 'ADMIN' || email === 'CONTRATACIONSUBA.TS@GMAIL.COM' || email === 'seleccionsuba.ts@gmail.com')) {
+      if (!(rolNombre === 'GERENCIA' || rolNombre === 'ADMIN' || email === 'CONTRATACIONSUBA.TS@GMAIL.COM' || email === 'SELECCIONSUBA.TS@GMAIL.COM')) {
         this.isRemisionReadOnly.set(true);
       }
 

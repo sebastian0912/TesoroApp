@@ -1,6 +1,6 @@
 import { InfoCardComponent } from '@/app/shared/components/info-card/info-card.component';
-import { CommonModule } from '@angular/common';
-import { Component, ElementRef, ViewChild } from '@angular/core';
+
+import {  Component, ElementRef, ViewChild , ChangeDetectionStrategy } from '@angular/core';
 import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
@@ -9,11 +9,12 @@ import * as XLSX from 'xlsx';
 import { TesoreriaService, ExcelImportResponse } from '../../service/teroreria/tesoreria.service';
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-upload-treasury',
-  imports: [InfoCardComponent, CommonModule, MatCardModule, MatIconModule, MatButtonModule],
+  imports: [InfoCardComponent, MatCardModule, MatIconModule, MatButtonModule],
   templateUrl: './upload-treasury.component.html',
   styleUrl: './upload-treasury.component.css'
-})
+} )
 export class UploadTreasuryComponent {
 
   constructor(private tesoreriaService: TesoreriaService) { }

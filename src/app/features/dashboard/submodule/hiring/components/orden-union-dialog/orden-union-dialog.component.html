@@ -35,42 +35,44 @@
   <div cdkDropList class="drag-list" [cdkDropListData]="items()" (cdkDropListDropped)="drop($event)">
 
     @for (item of items(); track item.id; let i = $index) {
-    <div class="drag-item-card" cdkDrag [cdkDragData]="item" [class.is-selected]="selected().has(item.id)"
-      [class.is-unselected]="!selected().has(item.id)">
+      <div class="drag-item-card" cdkDrag [cdkDragData]="item" [class.is-selected]="selected().has(item.id)"
+        [class.is-unselected]="!selected().has(item.id)">
 
-      <!-- Drag Handle -->
-      <div class="handle-area" cdkDragHandle matTooltip="Arrastrar" aria-label="Arrastrar elemento">
-        <mat-icon class="handle-icon">drag_indicator</mat-icon>
+        <!-- Drag Handle -->
+        <div class="handle-area" cdkDragHandle matTooltip="Arrastrar" aria-label="Arrastrar elemento">
+          <mat-icon class="handle-icon">drag_indicator</mat-icon>
+        </div>
+
+        <!-- Contenido Principal -->
+        <div class="card-content">
+          <mat-checkbox [checked]="selected().has(item.id)" (change)="toggleSelection(item.id, $event)" color="primary"
+            class="premium-checkbox">
+            <span class="item-text">{{ item.name }}</span>
+          </mat-checkbox>
+        </div>
+
+        <!-- Meta / Badge -->
+        <div class="card-meta">
+          @if (selected().has(item.id)) {
+            <span class="order-pill" matTooltip="Posición final">
+              #{{ badgeNumber(item.id) }}
+            </span>
+          }
+        </div>
+
+        <!-- Placeholder Customizado -->
+        <div *cdkDragPlaceholder class="drag-placeholder"></div>
+
+        <!-- Preview Customizado (lo que se ve al arrastrar) -->
+        <div *cdkDragPreview class="drag-preview">
+          <mat-icon>drag_indicator</mat-icon>
+          <span>{{ item.name }}</span>
+          @if (selected().has(item.id)) {
+            <span class="preview-badge">#{{ badgeNumber(item.id) }}</span>
+          }
+        </div>
+
       </div>
-
-      <!-- Contenido Principal -->
-      <div class="card-content">
-        <mat-checkbox [checked]="selected().has(item.id)" (change)="toggleSelection(item.id, $event)" color="primary"
-          class="premium-checkbox">
-          <span class="item-text">{{ item.name }}</span>
-        </mat-checkbox>
-      </div>
-
-      <!-- Meta / Badge -->
-      <div class="card-meta">
-        @if (selected().has(item.id)) {
-        <span class="order-pill" matTooltip="Posición final">
-          #{{ badgeNumber(item.id) }}
-        </span>
-        }
-      </div>
-
-      <!-- Placeholder Customizado -->
-      <div *cdkDragPlaceholder class="drag-placeholder"></div>
-
-      <!-- Preview Customizado (lo que se ve al arrastrar) -->
-      <div *cdkDragPreview class="drag-preview">
-        <mat-icon>drag_indicator</mat-icon>
-        <span>{{ item.name }}</span>
-        <span class="preview-badge" *ngIf="selected().has(item.id)">#{{ badgeNumber(item.id) }}</span>
-      </div>
-
-    </div>
     }
   </div>
 

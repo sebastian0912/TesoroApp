@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import {  Component, OnInit , ChangeDetectionStrategy } from '@angular/core';
 import { FormBuilder, FormGroup, Validators, FormArray } from '@angular/forms';
 import Swal from 'sweetalert2';
 import { debounceTime } from 'rxjs/operators';
@@ -10,13 +10,14 @@ import { SharedModule } from '../../../../../../shared/shared.module';
 
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-creacion-usuarios-traslados',
   imports: [
     SharedModule
   ],
   templateUrl: './creacion-usuarios-traslados.component.html',
   styleUrls: ['./creacion-usuarios-traslados.component.css']
-})
+} )
 export class CreacionUsuariosTrasladosComponent implements OnInit {
   myForm!: FormGroup;
   users: any[] = [];

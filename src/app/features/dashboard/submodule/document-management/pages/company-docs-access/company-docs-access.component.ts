@@ -1,5 +1,5 @@
 import { SharedModule } from '@/app/shared/shared.module';
-import { Component } from '@angular/core';
+import {  Component , ChangeDetectionStrategy } from '@angular/core';
 import { MatExpansionModule } from '@angular/material/expansion';
 import { DocumentacionService } from '../../service/documentacion/documentacion.service';
 import { MatDialog } from '@angular/material/dialog';
@@ -7,6 +7,7 @@ import Swal from 'sweetalert2';
 import { CrearPermisoUsuarioComponent } from '../../components/crear-permiso-usuario/crear-permiso-usuario.component';
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-company-docs-access',
   imports: [
     SharedModule,
@@ -14,7 +15,7 @@ import { CrearPermisoUsuarioComponent } from '../../components/crear-permiso-usu
   ],
   templateUrl: './company-docs-access.component.html',
   styleUrl: './company-docs-access.component.css'
-})
+} )
 
 export class CompanyDocsAccessComponent {
   usuariosPermisos: any;

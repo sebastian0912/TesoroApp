@@ -1,3 +1,0 @@
-﻿src/app/features/dashboard/submodule/hiring/components/generate-contracting-documents/generate-contracting-documents.component.ts(7430,36): error TS2304: Cannot find name 'throwError'.
-src/app/features/dashboard/submodule/hiring/components/generate-contracting-documents/generate-contracting-documents.component.ts(7443,9): error TS7030: Not all code paths return a value.
-src/app/shared/components/date-rang-dialog/date-rang-dialog.component.spec.ts(3,10): error TS2724: '"./date-rang-dialog.component"' has no exported member named 'DateRangDialogComponent'. Did you mean 'DateRangeDialogComponent'?

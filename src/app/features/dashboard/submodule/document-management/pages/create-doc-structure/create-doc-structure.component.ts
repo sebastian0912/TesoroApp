@@ -1,10 +1,10 @@
 import { SharedModule } from '@/app/shared/shared.module';
-import { Component, OnInit } from '@angular/core';
+import {  Component, OnInit , ChangeDetectionStrategy } from '@angular/core';
 import { DocumentacionService } from '../../service/documentacion/documentacion.service';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import Swal from 'sweetalert2';
 import { DocumentModalComponent, ModalData } from '../../components/document-modal/document-modal.component';
-import { CommonModule } from '@angular/common'; // Important for ngFor/ngIf
+ // Important for ngFor/ngIf
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
@@ -35,10 +35,10 @@ interface FlatNode {
 }
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-create-doc-structure',
   standalone: true,
   imports: [
-    CommonModule,
     SharedModule,
     MatDialogModule,
     MatButtonModule,
@@ -50,14 +50,14 @@ interface FlatNode {
     MatChipsModule,
     MatTreeModule,
     MatSlideToggleModule
-  ],
+],
   templateUrl: './create-doc-structure.component.html',
   styleUrl: './create-doc-structure.component.css',
   animations: [
     trigger('listAnimation', [
       transition('* => *', [
         query(':enter', [
-          style({ opacity: 0, transform: 'translateY(10px)' }),
+          style({ opacity: 0, transform: 'translateY(10px)' } ),
           stagger(50, [
             animate('300ms cubic-bezier(0.35, 0, 0.25, 1)', style({ opacity: 1, transform: 'none' }))
           ])

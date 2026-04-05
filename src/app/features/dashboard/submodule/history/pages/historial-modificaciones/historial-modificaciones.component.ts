@@ -1,20 +1,20 @@
-import { Component, OnInit } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import {  Component, OnInit , ChangeDetectionStrategy } from '@angular/core';
+
 import { MatCardModule } from '@angular/material/card';
 import { HistorialService } from '../../service/historial/historial.service';
 import { ColumnDefinition } from '@/app/shared/models/advanced-table-interface';
 import { StandardFilterTable } from '@/app/shared/components/standard-filter-table/standard-filter-table';
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-historial-modificaciones',
   imports: [
-    CommonModule,
     MatCardModule,
     StandardFilterTable
-  ],
+],
   templateUrl: './historial-modificaciones.component.html',
   styleUrl: './historial-modificaciones.component.css'
-})
+} )
 export class HistorialModificacionesComponent implements OnInit {
 
   columns: ColumnDefinition[] = [

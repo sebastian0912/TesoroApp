@@ -1,7 +1,7 @@
-import {
+import { 
   Component, LOCALE_ID, inject, effect, signal, computed, DestroyRef, PLATFORM_ID,
   afterNextRender
-} from '@angular/core';
+, ChangeDetectionStrategy } from '@angular/core';
 import { isPlatformBrowser } from '@angular/common';
 import { Router, RouterLink } from '@angular/router';
 

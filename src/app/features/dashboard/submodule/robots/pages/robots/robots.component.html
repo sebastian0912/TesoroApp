@@ -1,5 +1,5 @@
 <!-- =======================
-     HEADER GENERAL
+HEADER GENERAL
 ========================= -->
 <div class="header-section">
   <div class="header-content">
@@ -37,6 +37,27 @@
       <mat-icon>refresh</mat-icon>
       Actualizar
     </button>
+
+    <button mat-icon-button [matMenuTriggerFor]="excelMenu" class="btn-more" [disabled]="isUploadingExcel" matTooltip="Subir Excel y Descargar">
+      @if (!isUploadingExcel) {
+        <mat-icon>more_vert</mat-icon>
+      }
+      @if (isUploadingExcel) {
+        <mat-icon class="spin">sync</mat-icon>
+      }
+    </button>
+    <mat-menu #excelMenu="matMenu">
+      <button mat-menu-item disabled style="font-weight: bold; color: #333;">Subir Excel por Antecedente:</button>
+      <button mat-menu-item (click)="onCargarExcelAntecedente('adres')"><mat-icon>upload_file</mat-icon> Adres</button>
+      <button mat-menu-item (click)="onCargarExcelAntecedente('policivo')"><mat-icon>upload_file</mat-icon> Policivo</button>
+      <button mat-menu-item (click)="onCargarExcelAntecedente('procuraduria')"><mat-icon>upload_file</mat-icon> Procuraduría</button>
+      <button mat-menu-item (click)="onCargarExcelAntecedente('ofac')"><mat-icon>upload_file</mat-icon> OFAC</button>
+      <button mat-menu-item (click)="onCargarExcelAntecedente('contraloria')"><mat-icon>upload_file</mat-icon> Contraloría</button>
+      <button mat-menu-item (click)="onCargarExcelAntecedente('sisben')"><mat-icon>upload_file</mat-icon> Sisben</button>
+      <button mat-menu-item (click)="onCargarExcelAntecedente('fondo_pension')"><mat-icon>upload_file</mat-icon> Fondo de Pensión</button>
+    </mat-menu>
+    <input type="file" #excelFileInput style="display: none" accept=".xlsx,.xls" (change)="onExcelFileSelected($event)">
+
   </div>
 </div>
 
@@ -44,7 +65,7 @@
   <mat-tab-group animationDuration="300ms" mat-stretch-tabs="false" class="custom-tabs" dynamicHeight>
 
     <!-- =======================
-         TAB 1: TENDENCIAS (CHART)
+    TAB 1: TENDENCIAS (CHART)
     ========================= -->
     <mat-tab>
       <ng-template mat-tab-label>
@@ -89,7 +110,9 @@
                 <mat-label>Oficina</mat-label>
                 <mat-select formControlName="oficina">
                   <mat-option value="">Todas</mat-option>
-                  <mat-option *ngFor="let o of oficinasOptions" [value]="o">{{ o }}</mat-option>
+                  @for (o of oficinasOptions; track o) {
+                    <mat-option [value]="o">{{ o }}</mat-option>
+                  }
                 </mat-select>
               </mat-form-field>
 
@@ -105,98 +128,112 @@
             <!-- CHART -->
             <div class="chart-container" #chartWrap (mousemove)="onChartMove($event)" (mouseleave)="onChartLeave()">
 
-              <div class="chart-loading-overlay" *ngIf="isLoadingStats">
-                <mat-icon class="spin">sync</mat-icon>
-                <span>Analizando datos...</span>
-              </div>
+              @if (isLoadingStats) {
+                <div class="chart-loading-overlay">
+                  <mat-icon class="spin">sync</mat-icon>
+                  <span>Analizando datos...</span>
+                </div>
+              }
 
-              <svg class="chart-svg" [attr.viewBox]="'0 0 ' + chartBox.w + ' ' + chartBox.h" preserveAspectRatio="none"
-                *ngIf="!isLoadingStats">
-
-                <!-- Gradients -->
-                <defs>
-                  <linearGradient id="grid-fade" x1="0" x2="0" y1="0" y2="1">
-                    <stop offset="0%" stop-color="#e5e7eb" stop-opacity="0.5" />
-                    <stop offset="100%" stop-color="#e5e7eb" stop-opacity="0.1" />
-                  </linearGradient>
-                </defs>
-
-                <!-- Grid -->
-                <g class="grid-group">
-                  <line *ngFor="let t of chartVm.ticks" class="grid-line" [attr.x1]="chartBox.padL"
-                    [attr.x2]="chartBox.w - chartBox.padR" [attr.y1]="t.y" [attr.y2]="t.y">
-                  </line>
-                </g>
-
-                <!-- Y Axis -->
-                <g class="axis-y">
-                  <text *ngFor="let t of chartVm.ticks" [attr.x]="chartBox.padL - 10" [attr.y]="t.y + 4"
-                    text-anchor="end">
-                    {{ t.label }}
-                  </text>
-                </g>
-
-                <!-- X Axis -->
-                <g class="axis-x">
-                  <text *ngFor="let xm of chartVm.xMarks" [attr.x]="xm.x" [attr.y]="chartBox.h - 12"
-                    text-anchor="middle">
-                    {{ xm.label }}
-                  </text>
-                </g>
-
-                <!-- Paths -->
-                <g class="paths-group">
-                  <path *ngFor="let ln of chartVm.paths" class="data-line" [attr.d]="ln.d" fill="none"
-                    [attr.stroke]="ln.stroke" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
-                  </path>
-                </g>
-
-                <!-- Hover -->
-                <g class="hover-group" *ngIf="hoverIndex !== null && chartVm.xPoints.length">
-                  <line class="hover-cursor" [attr.x1]="chartVm.xPoints[hoverIndex!]"
-                    [attr.x2]="chartVm.xPoints[hoverIndex!]" [attr.y1]="chartBox.padT"
-                    [attr.y2]="chartBox.h - chartBox.padB">
-                  </line>
-
-                  <circle *ngFor="let ln of chartVm.paths" class="hover-point" [attr.cx]="chartVm.xPoints[hoverIndex!]"
-                    [attr.cy]="ln.y[hoverIndex!]" r="5" [attr.fill]="ln.stroke">
-                  </circle>
-                </g>
-              </svg>
+              @if (!isLoadingStats) {
+                <svg class="chart-svg" [attr.viewBox]="'0 0 ' + chartBox.w + ' ' + chartBox.h" preserveAspectRatio="none"
+                  >
+                  <!-- Gradients -->
+                  <defs>
+                    <linearGradient id="grid-fade" x1="0" x2="0" y1="0" y2="1">
+                      <stop offset="0%" stop-color="#e5e7eb" stop-opacity="0.5" />
+                      <stop offset="100%" stop-color="#e5e7eb" stop-opacity="0.1" />
+                    </linearGradient>
+                  </defs>
+                  <!-- Grid -->
+                  <g class="grid-group">
+                    @for (t of chartVm.ticks; track t) {
+                      <line class="grid-line" [attr.x1]="chartBox.padL"
+                        [attr.x2]="chartBox.w - chartBox.padR" [attr.y1]="t.y" [attr.y2]="t.y">
+                      </line>
+                    }
+                  </g>
+                  <!-- Y Axis -->
+                  <g class="axis-y">
+                    @for (t of chartVm.ticks; track t) {
+                      <text [attr.x]="chartBox.padL - 10" [attr.y]="t.y + 4"
+                        text-anchor="end">
+                        {{ t.label }}
+                      </text>
+                    }
+                  </g>
+                  <!-- X Axis -->
+                  <g class="axis-x">
+                    @for (xm of chartVm.xMarks; track xm) {
+                      <text [attr.x]="xm.x" [attr.y]="chartBox.h - 12"
+                        text-anchor="middle">
+                        {{ xm.label }}
+                      </text>
+                    }
+                  </g>
+                  <!-- Paths -->
+                  <g class="paths-group">
+                    @for (ln of chartVm.paths; track ln) {
+                      <path class="data-line" [attr.d]="ln.d" fill="none"
+                        [attr.stroke]="ln.stroke" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                      </path>
+                    }
+                  </g>
+                  <!-- Hover -->
+                  @if (hoverIndex !== null && chartVm.xPoints.length) {
+                    <g class="hover-group">
+                      <line class="hover-cursor" [attr.x1]="chartVm.xPoints[hoverIndex!]"
+                        [attr.x2]="chartVm.xPoints[hoverIndex!]" [attr.y1]="chartBox.padT"
+                        [attr.y2]="chartBox.h - chartBox.padB">
+                      </line>
+                      @for (ln of chartVm.paths; track ln) {
+                        <circle class="hover-point" [attr.cx]="chartVm.xPoints[hoverIndex!]"
+                          [attr.cy]="ln.y[hoverIndex!]" r="5" [attr.fill]="ln.stroke">
+                        </circle>
+                      }
+                    </g>
+                  }
+                </svg>
+              }
 
               <!-- Tooltip -->
-              <div class="chart-tooltip" *ngIf="hoverPoint as hp" [style.left.px]="tooltip.leftPx"
-                [style.top.px]="tooltip.topPx" [class.align-left]="tooltipSide === 'left'"
-                [class.align-right]="tooltipSide === 'right'">
-
-                <div class="tt-header">{{ hp.period }}</div>
-
-                <div class="tt-grid-head">
-                  <span>Métrica</span>
-                  <span class="text-right">Valor</span>
-                </div>
-
-                <div class="tt-grid-row" *ngFor="let st of tooltipStates; trackBy: trackByState">
-                  <div class="tt-label">
-                    <span class="tt-dot" [style.background]="st.stroke"></span>
-                    {{ st.label }}
+              @if (hoverPoint; as hp) {
+                <div class="chart-tooltip" [style.left.px]="tooltip.leftPx"
+                  [style.top.px]="tooltip.topPx" [class.align-left]="tooltipSide === 'left'"
+                  [class.align-right]="tooltipSide === 'right'">
+                  <div class="tt-header">{{ hp.period }}</div>
+                  <div class="tt-grid-head">
+                    <span>Métrica</span>
+                    <span class="text-right">Valor</span>
                   </div>
-                  <div class="tt-val">{{ getHpVal(hp, st.key) | number }}</div>
+                  @for (st of tooltipStates; track trackByState($index, st)) {
+                    <div class="tt-grid-row">
+                      <div class="tt-label">
+                        <span class="tt-dot" [style.background]="st.stroke"></span>
+                        {{ st.label }}
+                      </div>
+                      <div class="tt-val">{{ getHpVal(hp, st.key) | number }}</div>
+                    </div>
+                  }
                 </div>
-              </div>
+              }
 
-              <div class="empty-state" *ngIf="!isLoadingStats && (!statsSeries.length)">
-                <mat-icon>bar_chart_off</mat-icon>
-                <p>No hay datos para el rango seleccionado</p>
-              </div>
+              @if (!isLoadingStats && (!statsSeries.length)) {
+                <div class="empty-state">
+                  <mat-icon>bar_chart_off</mat-icon>
+                  <p>No hay datos para el rango seleccionado</p>
+                </div>
+              }
             </div>
 
             <!-- LEGEND -->
             <div class="chart-legend">
-              <div class="legend-item" *ngFor="let s of tooltipStates; trackBy: trackByState">
-                <span class="legend-dot" [style.background]="s.stroke"></span>
-                {{ s.label }}
-              </div>
+              @for (s of tooltipStates; track trackByState($index, s)) {
+                <div class="legend-item">
+                  <span class="legend-dot" [style.background]="s.stroke"></span>
+                  {{ s.label }}
+                </div>
+              }
             </div>
           </div>
         </mat-card>
@@ -205,7 +242,7 @@
 
 
     <!-- =======================
-         TAB 2: HISTORIAL (ULTIMOS)
+    TAB 2: HISTORIAL (ULTIMOS)
     ========================= -->
     <mat-tab>
       <ng-template mat-tab-label>
@@ -220,9 +257,11 @@
               <mat-form-field appearance="outline" class="ff-grow subscript-hide">
                 <mat-label>Antecedente</mat-label>
                 <mat-select formControlName="antecedente">
-                  <mat-option *ngFor="let a of ultimosAntecedentesOptions; trackBy: trackByUltimosOpt" [value]="a.key">
-                    {{ a.label }}
-                  </mat-option>
+                  @for (a of ultimosAntecedentesOptions; track trackByUltimosOpt($index, a)) {
+                    <mat-option [value]="a.key">
+                      {{ a.label }}
+                    </mat-option>
+                  }
                 </mat-select>
               </mat-form-field>
 
@@ -253,7 +292,7 @@
     </mat-tab>
 
     <!-- =======================
-         TAB 3: LOCKS Y ESTADOS (NUEVO)
+    TAB 3: LOCKS Y ESTADOS (NUEVO)
     ========================= -->
     <mat-tab>
       <ng-template mat-tab-label>
@@ -283,7 +322,7 @@
     </mat-tab>
 
     <!-- =======================
-         TAB 4: FALTANTES POR OFICINA
+    TAB 4: FALTANTES POR OFICINA
     ========================= -->
     <mat-tab>
       <ng-template mat-tab-label>
@@ -332,7 +371,7 @@
 
 
     <!-- =======================
-         TAB 4: CONSULTA GENERAL (FULL)
+    TAB 4: CONSULTA GENERAL (FULL)
     ========================= -->
     <mat-tab>
       <ng-template mat-tab-label>

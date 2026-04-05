@@ -159,12 +159,12 @@
         </ng-container>
 
         <!-- Generar 6 columnas vacías -->
-        <ng-container *ngFor="let empty of ['empty1', 'empty2', 'empty3', 'empty4', 'empty5', 'empty6']">
+        @for (empty of ['empty1', 'empty2', 'empty3', 'empty4', 'empty5', 'empty6']; track empty) {
           <ng-container [matColumnDef]="empty">
             <th mat-header-cell *matHeaderCellDef></th>
             <td mat-cell *matCellDef="let element"></td>
           </ng-container>
-        </ng-container>
+        }
 
         <!-- Escolaridad -->
         <ng-container matColumnDef="escolaridad">
@@ -173,12 +173,12 @@
         </ng-container>
 
         <!-- Generar 6 columnas vacías -->
-        <ng-container *ngFor="let empty of ['empty56', 'empty57', 'empty58', 'empty59', 'empty60']">
+        @for (empty of ['empty56', 'empty57', 'empty58', 'empty59', 'empty60']; track empty) {
           <ng-container [matColumnDef]="empty">
             <th mat-header-cell *matHeaderCellDef></th>
             <td mat-cell *matCellDef="let element"></td>
           </ng-container>
-        </ng-container>
+        }
 
         <!-- Nombre de la Institución -->
         <ng-container matColumnDef="nombre_institucion">
@@ -301,8 +301,7 @@
         </ng-container>
 
         <!-- Definimos un array de 5 hijos (puede ser dinámico según la cantidad máxima de hijos) -->
-        <ng-container *ngFor="let index of [0, 1, 2, 3, 4]">
-
+        @for (index of [0, 1, 2, 3, 4]; track index) {
           <!-- Nombre del Hijo -->
           <ng-container matColumnDef="nombre_hijo_{{index + 1}}">
             <th mat-header-cell *matHeaderCellDef> Nombre del Hijo {{index + 1}} </th>
@@ -310,7 +309,6 @@
               {{element.hijos[index]?.nombre || 'N/A'}}
             </td>
           </ng-container>
-
           <!-- Sexo del Hijo -->
           <ng-container matColumnDef="sexo_hijo_{{index + 1}}">
             <th mat-header-cell *matHeaderCellDef> Sexo del Hijo {{index + 1}} </th>
@@ -318,7 +316,6 @@
               {{element.hijos[index]?.sexo || 'N/A'}}
             </td>
           </ng-container>
-
           <!-- Fecha de Nacimiento del Hijo -->
           <ng-container matColumnDef="fecha_nacimiento_hijo_{{index + 1}}">
             <th mat-header-cell *matHeaderCellDef> Fecha de Nacimiento del Hijo {{index + 1}} </th>
@@ -326,7 +323,6 @@
               {{element.hijos[index]?.fecha_nacimiento || 'N/A'}}
             </td>
           </ng-container>
-
           <!-- Número de Documento del Hijo -->
           <ng-container matColumnDef="no_documento_hijo_{{index + 1}}">
             <th mat-header-cell *matHeaderCellDef> N° Documento del Hijo {{index + 1}} </th>
@@ -334,7 +330,6 @@
               {{element.hijos[index]?.no_documento || 'N/A'}}
             </td>
           </ng-container>
-
           <!-- Estudia o Trabaja el Hijo -->
           <ng-container matColumnDef="estudia_o_trabaja_hijo_{{index + 1}}">
             <th mat-header-cell *matHeaderCellDef> Estudia o Trabaja Hijo {{index + 1}} </th>
@@ -342,7 +337,6 @@
               {{element.hijos[index]?.estudia_o_trabaja || 'N/A'}}
             </td>
           </ng-container>
-
           <!-- Curso del Hijo -->
           <ng-container matColumnDef="curso_hijo_{{index + 1}}">
             <th mat-header-cell *matHeaderCellDef> Curso del Hijo {{index + 1}} </th>
@@ -350,18 +344,16 @@
               {{element.hijos[index]?.curso || 'N/A'}}
             </td>
           </ng-container>
-
-        </ng-container>
+        }
 
 
         <!-- Generar 12 columnas vacías para los hijos -->
-        <ng-container
-          *ngFor="let empty of ['empty7', 'empty8', 'empty9', 'empty10', 'empty11', 'empty12', 'empty13', 'empty14', 'empty15', 'empty16', 'empty17', 'empty18']">
+        @for (empty of ['empty7', 'empty8', 'empty9', 'empty10', 'empty11', 'empty12', 'empty13', 'empty14', 'empty15', 'empty16', 'empty17', 'empty18']; track empty) {
           <ng-container [matColumnDef]="empty">
             <th mat-header-cell *matHeaderCellDef></th>
             <td mat-cell *matCellDef="let element"></td>
           </ng-container>
-        </ng-container>
+        }
 
         <!-- Nombre del Padre -->
         <ng-container matColumnDef="nombre_padre">
@@ -550,19 +542,19 @@
         </ng-container>
 
         <!-- Generar 37 columnas vacías para las experiencias laborales -->
-        <ng-container *ngFor="let empty of [
-'empty20', 'empty21', 'empty22', 'empty23', 'empty24',
-'empty25', 'empty26', 'empty27', 'empty28', 'empty29', 'empty30',
-'empty31', 'empty32', 'empty33', 'empty34', 'empty35', 'empty36',
-'empty37', 'empty38', 'empty39', 'empty40', 'empty41', 'empty42',
-'empty43', 'empty44', 'empty45', 'empty46', 'empty47', 'empty48',
-'empty49', 'empty50', 'empty51', 'empty52', 'empty53', 'empty54',
-'empty55']">
+        @for (empty of [
+          'empty20', 'empty21', 'empty22', 'empty23', 'empty24',
+          'empty25', 'empty26', 'empty27', 'empty28', 'empty29', 'empty30',
+          'empty31', 'empty32', 'empty33', 'empty34', 'empty35', 'empty36',
+          'empty37', 'empty38', 'empty39', 'empty40', 'empty41', 'empty42',
+          'empty43', 'empty44', 'empty45', 'empty46', 'empty47', 'empty48',
+          'empty49', 'empty50', 'empty51', 'empty52', 'empty53', 'empty54',
+          'empty55']; track empty) {
           <ng-container [matColumnDef]="empty">
             <th mat-header-cell *matHeaderCellDef></th>
             <td mat-cell *matCellDef="let element"></td>
           </ng-container>
-        </ng-container>
+        }
 
         <!-- ¿Cómo se enteró? -->
         <ng-container matColumnDef="como_se_entero">

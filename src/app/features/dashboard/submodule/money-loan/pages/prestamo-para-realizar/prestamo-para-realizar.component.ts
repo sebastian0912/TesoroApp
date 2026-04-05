@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy } from '@angular/core';
+import {  Component, OnInit, OnDestroy , ChangeDetectionStrategy } from '@angular/core';
 import { FormBuilder, FormGroup, Validators } from '@angular/forms';
 import Swal from 'sweetalert2';
 import { Router } from '@angular/router';
@@ -11,11 +11,12 @@ import { HistorialDialogComponent } from '../../../authorizations/pages/autoriza
 import { HistorialService } from '../../../history/service/historial/historial.service';
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-prestamo-para-realizar',
   imports: [SharedModule],
   templateUrl: './prestamo-para-realizar.component.html',
   styleUrl: './prestamo-para-realizar.component.css',
-})
+} )
 export class PrestamoParaRealizarComponent implements OnInit, OnDestroy {
   searchForm!: FormGroup;
   loanForm!: FormGroup;

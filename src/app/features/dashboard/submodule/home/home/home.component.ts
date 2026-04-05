@@ -1,5 +1,5 @@
-import { Component, ElementRef, OnInit, ViewChild } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import {  Component, ElementRef, OnInit, ViewChild , ChangeDetectionStrategy } from '@angular/core';
+
 import { FormControl, ReactiveFormsModule } from '@angular/forms';
 
 import { MatCardModule } from '@angular/material/card';
@@ -45,12 +45,11 @@ type ProgresoTipoPrioridadRow = {
 };
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-home',
   standalone: true,
   imports: [
-    CommonModule,
     ReactiveFormsModule,
-
     MatCardModule,
     MatIconModule,
     MatDialogModule,
@@ -59,13 +58,12 @@ type ProgresoTipoPrioridadRow = {
     MatInputModule,
     MatTooltipModule,
     MatSelectModule,
-
     MerchandisingMerchandiseComponent,
-    InfoCardComponent,
-  ],
+    InfoCardComponent
+],
   templateUrl: './home.component.html',
   styleUrls: ['./home.component.css'],
-})
+} )
 export class HomeComponent implements OnInit {
   user: any;
 

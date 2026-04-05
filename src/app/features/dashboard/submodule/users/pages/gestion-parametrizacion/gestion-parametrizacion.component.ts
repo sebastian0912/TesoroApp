@@ -1,6 +1,6 @@
 // src/app/features/parametrizacion/components/gestion-parametrizacion/gestion-parametrizacion.component.ts
-import { Component, OnInit, inject, signal } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import {  Component, OnInit, inject, signal , ChangeDetectionStrategy } from '@angular/core';
+
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatIconModule } from '@angular/material/icon';
@@ -14,15 +14,20 @@ import { GestionParametrizacionService, MetaTabla } from '../../services/gestion
 import { ColumnDefinition } from '@/app/shared/models/advanced-table-interface';
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-gestion-parametrizacion',
   standalone: true,
   imports: [
-    SharedModule, CommonModule, StandardFilterTable, MatSnackBarModule,
-    MatDialogModule, MatIconModule, MatButtonModule
-  ],
+    SharedModule,
+    StandardFilterTable,
+    MatSnackBarModule,
+    MatDialogModule,
+    MatIconModule,
+    MatButtonModule
+],
   templateUrl: './gestion-parametrizacion.component.html',
   styleUrls: ['./gestion-parametrizacion.component.css'] // ✅ styleUrls (plural)
-})
+} )
 export class GestionParametrizacionComponent implements OnInit {
   private svc = inject(GestionParametrizacionService);
   private snack = inject(MatSnackBar);

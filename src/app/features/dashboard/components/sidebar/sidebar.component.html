@@ -42,9 +42,11 @@
         </mat-menu>
 
         <mat-menu #sedeMenu="matMenu">
-          <button mat-menu-item *ngFor="let sede of sedes" (click)="onSedeSeleccionada(sede.id)">
-            {{ sede.nombre }}
-          </button>
+          @for (sede of sedes; track sede) {
+            <button mat-menu-item (click)="onSedeSeleccionada(sede.id)">
+              {{ sede.nombre }}
+            </button>
+          }
         </mat-menu>
       </div>
     </div>

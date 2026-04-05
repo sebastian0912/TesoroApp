@@ -1,0 +1,23 @@
+.title {
+    margin-top: 10px;
+    margin-bottom: 10px;
+    font-size: 20pt;
+    font-weight: bold;
+}
+
+button{
+    line-height: 1.1;
+    font-size: 10pt;
+    width: 250pt;
+    height: 30pt;
+    margin-top: 5pt;
+    border-radius: 5pt;
+
+}
+
+.conjunto{
+    display: flex;
+    margin-top: 10px;
+    flex-direction: column;
+    align-items: center;
+}

@@ -1,19 +1,21 @@
 import { Component, Input, ChangeDetectionStrategy } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { MatIconModule } from '@angular/material/icon';
 
 @Component({
     selector: 'app-empty-state',
     standalone: true,
-    imports: [CommonModule, MatIconModule],
+    imports: [MatIconModule],
     template: `
     <div class="empty-state">
       <mat-icon class="icon">{{ icon }}</mat-icon>
       <h4 class="title">{{ title }}</h4>
-      <p class="description" *ngIf="description">{{ description }}</p>
+      @if (description) {
+        <p class="description">{{ description }}</p>
+      }
       <ng-content></ng-content>
     </div>
-  `,
+    `,
     styles: [`
     :host {
       display: block;

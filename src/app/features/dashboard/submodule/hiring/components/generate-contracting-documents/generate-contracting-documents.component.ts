@@ -1,6 +1,6 @@
 import { SharedModule } from '@/app/shared/shared.module';
 import { isPlatformBrowser } from '@angular/common';
-import { Component, inject, OnInit, PLATFORM_ID, ViewChild, ElementRef } from '@angular/core';
+import {  Component, inject, OnInit, PLATFORM_ID, ViewChild, ElementRef , ChangeDetectionStrategy } from '@angular/core';
 import { PDFDocument, PDFTextField, PDFCheckBox } from 'pdf-lib';
 import Swal from 'sweetalert2';
 import { GestionDocumentalService } from '../../service/gestion-documental/gestion-documental.service';
@@ -26,13 +26,14 @@ type UploadedInfo = {
 };
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-generate-contracting-documents',
   imports: [
     SharedModule, RouterLink
   ],
   templateUrl: './generate-contracting-documents.component.html',
   styleUrl: './generate-contracting-documents.component.css'
-})
+} )
 
 export class GenerateContractingDocumentsComponent implements OnInit {
   @ViewChild('pdfPreviewIframe') pdfPreviewIframe!: ElementRef<HTMLIFrameElement>;
@@ -648,7 +649,13 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       const apellidos = [cand.primer_apellido, cand.segundo_apellido].filter(Boolean).join(' ').toUpperCase();
       const nombreCompleto = `${nombres} ${apellidos}`.trim();
 
-      const cargo = (this.vacante?.cargo?.nombre_cargo_empresa || this.vacante?._id_cargo?.nombre_cargo_empresa || this.vacante?.nombre_cargo || '').toUpperCase();
+      let cargo = '';
+      if(this.vacante?.cargo?.nombre_cargo_empresa) cargo = this.vacante.cargo.nombre_cargo_empresa;
+      else if(this.vacante?._id_cargo?.nombre_cargo_empresa) cargo = this.vacante._id_cargo.nombre_cargo_empresa;
+      else if(this.vacante?.cargo?.nombre_cargo) cargo = this.vacante.cargo.nombre_cargo;
+      else if(this.vacante?.nombre_cargo) cargo = this.vacante.nombre_cargo;
+      else if(typeof this.vacante?.cargo === 'string') cargo = this.vacante.cargo;
+      cargo = String(cargo).toUpperCase();
 
       doc.setProperties({ title: `108_SAGARO_LOCKERS_${numIdentificacion}.pdf` });
 
@@ -794,7 +801,13 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       const apellidos = [cand.primer_apellido, cand.segundo_apellido].filter(Boolean).join(' ').toUpperCase();
       const nombreCompleto = `${nombres} ${apellidos}`.trim();
 
-      const cargo = (this.vacante?.cargo?.nombre_cargo_empresa || this.vacante?._id_cargo?.nombre_cargo_empresa || this.vacante?.nombre_cargo || '').toUpperCase();
+      let cargo = '';
+      if(this.vacante?.cargo?.nombre_cargo_empresa) cargo = this.vacante.cargo.nombre_cargo_empresa;
+      else if(this.vacante?._id_cargo?.nombre_cargo_empresa) cargo = this.vacante._id_cargo.nombre_cargo_empresa;
+      else if(this.vacante?.cargo?.nombre_cargo) cargo = this.vacante.cargo.nombre_cargo;
+      else if(this.vacante?.nombre_cargo) cargo = this.vacante.nombre_cargo;
+      else if(typeof this.vacante?.cargo === 'string') cargo = this.vacante.cargo;
+      cargo = String(cargo).toUpperCase();
 
       doc.setProperties({ title: `110_SAGARO_CELULAR_${numIdentificacion}.pdf` });
 
@@ -818,19 +831,19 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       currentY += (p1Lines.length * 5) + 6;
 
       const p2 = `1. Durante la jornada laboral y en la ejecución de funciones asignadas, no está permitido el uso de teléfonos celulares, radios, audífonos, cámaras, relojes inteligentes u otros dispositivos electrónicos personales.`;
-      const p2Lines = doc.splitTextToSize(p2, maxWidth);
-      doc.text(p2Lines, marginLeft + 5, currentY, { maxWidth: maxWidth - 5, align: 'justify' });
+      const p2Lines = doc.splitTextToSize(p2, maxWidth - 5);
+      doc.text(p2, marginLeft + 5, currentY, { maxWidth: maxWidth - 5, align: 'justify' });
       currentY += (p2Lines.length * 5) + 4;
 
       const p3 = `2. La utilización de dispositivos electrónicos personales durante la prestación del servicio puede generar distracciones, reducción del rendimiento laboral y riesgos de accidentalidad. De acuerdo con el artículo 58 numeral 1 del CST, el trabajador tiene la obligación de poner a disposición del empleador su capacidad de trabajo de forma efectiva y adecuada para la ejecución de sus funciones. Asimismo, conforme al SG-SST, el uso indebido de estos dispositivos se considera una práctica insegura que incrementa el riesgo de incidentes y accidentes laborales.`;
-      const p3Lines = doc.splitTextToSize(p3, maxWidth);
-      doc.text(p3Lines, marginLeft + 5, currentY, { maxWidth: maxWidth - 5, align: 'justify' });
+      const p3Lines = doc.splitTextToSize(p3, maxWidth - 5);
+      doc.text(p3, marginLeft + 5, currentY, { maxWidth: maxWidth - 5, align: 'justify' });
       currentY += (p3Lines.length * 5) + 4;
 
       const p4 = `3. Los dispositivos electrónicos personales deberán permanecer guardados durante la jornada. Se permitirá su uso únicamente:`;
-      const p4Lines = doc.splitTextToSize(p4, maxWidth);
-      doc.text(p4Lines, marginLeft + 5, currentY, { maxWidth: maxWidth - 5, align: 'justify' });
-      currentY += (p4Lines.length * 5);
+      const p4Lines = doc.splitTextToSize(p4, maxWidth - 5);
+      doc.text(p4, marginLeft + 5, currentY, { maxWidth: maxWidth - 5, align: 'justify' });
+      currentY += (p4Lines.length * 5) + 2;
 
       doc.setFont('helvetica', 'bold');
       doc.text('a. En horarios destinados a descanso', marginLeft + 10, currentY);
@@ -864,8 +877,8 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       currentY += (p5Lines.length * 5) + 6;
 
       const p6 = `4. El incumplimiento de esta política constituye falta disciplinaria, la cual podrá ser calificada como falta grave cuando:`;
-      const p6Lines = doc.splitTextToSize(p6, maxWidth);
-      doc.text(p6Lines, marginLeft + 5, currentY, { maxWidth: maxWidth - 5, align: 'justify' });
+      const p6Lines = doc.splitTextToSize(p6, maxWidth - 5);
+      doc.text(p6, marginLeft + 5, currentY, { maxWidth: maxWidth - 5, align: 'justify' });
       currentY += (p6Lines.length * 5) + 2;
 
       const bullets = [
@@ -885,28 +898,19 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       const p7 = `Cualquier proceso disciplinario se adelantará respetando el debido proceso (art. 29 Constitución Política) y lo dispuesto en el Reglamento Interno de Trabajo.`;
       const p7Lines = doc.splitTextToSize(p7, maxWidth);
       doc.text(p7Lines, marginLeft, currentY, { maxWidth, align: 'justify' });
-      currentY += (p7Lines.length * 5) + 7;
+      
+      doc.addPage();
+      currentY = 20;
 
       const p8pt1 = `5. Las directrices establecidas en este documento aplican para los trabajadores asignados a las áreas de: ____________________________________________________, sin perjuicio de actualizaciones o modificaciones posteriores, las cuales serán comunicadas de manera previa, escrita y oportuna por parte de la empresa.`;
-      const p8Lines = doc.splitTextToSize(p8pt1, maxWidth);
-      doc.text(p8Lines, marginLeft + 5, currentY, { maxWidth: maxWidth - 5, align: 'justify' });
+      const p8Lines = doc.splitTextToSize(p8pt1, maxWidth - 5);
+      doc.text(p8pt1, marginLeft + 5, currentY, { maxWidth: maxWidth - 5, align: 'justify' });
       currentY += (p8Lines.length * 5) + 6;
 
       const p9 = `Esta política se entiende conocida y aceptada desde el momento de su socialización, firma de recibido o publicación en los medios institucionales establecidos por la compañía.`;
       const p9Lines = doc.splitTextToSize(p9, maxWidth);
       doc.text(p9Lines, marginLeft, currentY, { maxWidth, align: 'justify' });
-      currentY += (p9Lines.length * 5) + 8;
-      
-      const fechaActual = new Date();
-      const dia = fechaActual.getDate().toString();
-      const meses = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
-      const mes = meses[fechaActual.getMonth()];
-      const yearStr = fechaActual.getFullYear().toString();
-      const lastDigit = yearStr.substring(3, 4);
-
-      const fechaText = `En constancia se firma a los  ${dia}  días del mes de  ${mes}  de 202 ${lastDigit} .`;
-      doc.text(fechaText, marginLeft, currentY);
-      currentY += 15;
+      currentY += (p9Lines.length * 5) + 20;
 
       doc.setFont('helvetica', 'bold');
       doc.text('_________________________________', marginLeft, currentY);
@@ -10081,8 +10085,21 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       this.setText(form, 'descripcion-personal2', personal2, customFont);
 
       const [familiar1, familiar2] = pickTwoDistinct(this.referenciasF);
+      // parentesco_familiar_1
+      this.setText(form, 'parentesco_familiar_1', this.safe(datoContratacion.parentesco_familiar_1 ?? '').toUpperCase(), customFont);
+      this.setText(form, 'parentesco_familiar_2', this.safe(datoContratacion.parentesco_familiar_2 ?? '').toUpperCase(), customFont);
       this.setText(form, 'descripcion-familiar1', familiar1, customFont);
       this.setText(form, 'descripcion-familiar2', familiar2, customFont);
+      this.setText(form, 'parentesco_familiar_1', this.safe(datoContratacion.parentesco_referencia_familiar1 ?? '').toUpperCase(), customFont);
+      this.setText(form, 'parentesco_familiar_2', this.safe(datoContratacion.parentesco_referencia_familiar2 ?? '').toUpperCase(), customFont);
+      // descripcion-laboral1 en este tengo que dejar la info de 
+      const descripcionLaboral1Str = [
+        exp0?.empresa,
+        exp0?.tiempo_trabajado,
+        exp0?.labores_realizadas,
+        exp0?.labores_principales
+      ].filter(x => !!String(x || '').trim()).join(' - ');
+      this.setText(form, 'descripcion-laboral1', this.safe(descripcionLaboral1Str), customFont);
 
       // firmado
       console.log('Usuario que firma ficha técnica Tu Alianza:', this.nombreCompletoLogin);

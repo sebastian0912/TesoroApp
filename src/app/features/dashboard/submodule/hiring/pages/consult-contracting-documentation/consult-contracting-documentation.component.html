@@ -25,21 +25,23 @@
           <mat-icon>archive</mat-icon>
           <span>Descargar paquetes (ZIP)</span>
         </button>
-        <button mat-menu-item *ngIf="
-              user?.rol?.nombre === 'ADMIN' ||
-              user?.rol?.nombre === 'GERENCIA' ||
-              user?.correo_electronico === 'archivotualianza@gmail.com' ||
-              user?.correo_electronico === 'archivotualianza2@gmail.com' ||
-              user?.correo_electronico === 'archivotualianza3@gmail.com' ||
-              user?.correo_electronico === 'contratacionzipa.ts@gmail.com' ||
-              user?.correo_electronico === 'contratacionnorte.ts@gmail.com' ||
-              user?.correo_electronico === 'contratacionsuba.ts@gmail.com' ||
-              user?.correo_electronico === 'gestionhumanatocancipa1.ts@gmail.com' ||
-              user?.correo_electronico === 'seleccionsuba.ts@gmail.com'
-            " (click)="exportarExcelFaltantes()">
-          <mat-icon>table_view</mat-icon>
-          <span>Exportar Faltantes (Excel)</span>
-        </button>
+        @if (
+          user?.rol?.nombre === 'ADMIN' ||
+          user?.rol?.nombre === 'GERENCIA' ||
+          user?.correo_electronico === 'archivotualianza@gmail.com' ||
+          user?.correo_electronico === 'archivotualianza2@gmail.com' ||
+          user?.correo_electronico === 'archivotualianza3@gmail.com' ||
+          user?.correo_electronico === 'contratacionzipa.ts@gmail.com' ||
+          user?.correo_electronico === 'contratacionnorte.ts@gmail.com' ||
+          user?.correo_electronico === 'contratacionsuba.ts@gmail.com' ||
+          user?.correo_electronico === 'gestionhumanatocancipa1.ts@gmail.com' ||
+          user?.correo_electronico === 'seleccionsuba.ts@gmail.com'
+          ) {
+          <button mat-menu-item (click)="exportarExcelFaltantes()">
+            <mat-icon>table_view</mat-icon>
+            <span>Exportar Faltantes (Excel)</span>
+          </button>
+        }
       </mat-menu>
     </div>
   </header>
@@ -75,32 +77,29 @@
   </section>
 
   <!-- RESULTS: DESKTOP TABLE -->
-  <section class="results-section desktop-view" *ngIf="checklistRows.length > 0; else emptyState">
-
-    <div class="results-header">
-      <h3>Resultados de la Búsqueda</h3>
-      <div class="results-header-actions">
-        <button mat-stroked-button color="primary" class="btn-reconsultar" (click)="reconsultar()"
-          [disabled]="!lastQueriedCedulas.length || isLoadingChecklist"
-          matTooltip="Volver a consultar las mismas cédulas" matTooltipPosition="above">
-          <mat-icon>refresh</mat-icon> Reconsultar
-        </button>
-        <span class="badge-count">{{ checklistRows.length }} Registros</span>
+  @if (checklistRows.length > 0) {
+    <section class="results-section desktop-view">
+      <div class="results-header">
+        <h3>Resultados de la Búsqueda</h3>
+        <div class="results-header-actions">
+          <button mat-stroked-button color="primary" class="btn-reconsultar" (click)="reconsultar()"
+            [disabled]="!lastQueriedCedulas.length || isLoadingChecklist"
+            matTooltip="Volver a consultar las mismas cédulas" matTooltipPosition="above">
+            <mat-icon>refresh</mat-icon> Reconsultar
+          </button>
+          <span class="badge-count">{{ checklistRows.length }} Registros</span>
+        </div>
       </div>
-    </div>
-
-    <div class="table-frame">
-      <app-standard-filter-table [data]="checklistRows" [columnDefinitions]="checklistColumns" [tableTitle]="''"
-        [isLoading]="isLoadingChecklist" [defaultPageSize]="20" [pageSizeOptions]="[10, 20, 50, 100]">
-
-        <!-- Premium Icon Status Render -->
-        <ng-template #estadoTemplate let-row let-col="col">
-          @let cell = row?.[col?.name];
-
-          <!-- Icon Container -->
-          <div class="status-cell-wrapper">
-            <button type="button" mat-icon-button class="status-icon-btn" [class.icon-ok]="cell?.state === 'OK'"
-              [class.icon-warn]="cell?.state === 'OLD'" [class.icon-missing]="!cell?.state || cell?.state === 'MISSING'"
+      <div class="table-frame">
+        <app-standard-filter-table [data]="checklistRows" [columnDefinitions]="checklistColumns" [tableTitle]="''"
+          [isLoading]="isLoadingChecklist" [defaultPageSize]="20" [pageSizeOptions]="[10, 20, 50, 100]">
+          <!-- Premium Icon Status Render -->
+          <ng-template #estadoTemplate let-row let-col="col">
+            @let cell = row?.[col?.name];
+            <!-- Icon Container -->
+            <div class="status-cell-wrapper">
+              <button type="button" mat-icon-button class="status-icon-btn" [class.icon-ok]="cell?.state === 'OK'"
+                [class.icon-warn]="cell?.state === 'OLD'" [class.icon-missing]="!cell?.state || cell?.state === 'MISSING'"
               [disabled]="!cell?.url || cell?.state === 'MISSING'" (click)="openDoc(cell, $event)" [matTooltip]="
                 cell?.state === 'OK'
                   ? 'Entregado (Menos de 15 días)'
@@ -108,77 +107,73 @@
                   ? 'Entregado (Más de 15 días)'
                   : 'No existe'
               " matTooltipPosition="above">
-
-              <!-- Logic for Icons:
-                   MISSING (X) -> Cancel (Red/Warn) -- as requested
-                   OLD (?) -> Help (Yellow/Warn) -- as requested
-              -->
-              @if (cell?.state === 'OK') {
-              <mat-icon>check_circle</mat-icon>
-              } @else if (cell?.state === 'MISSING' || !cell?.state) {
-              <mat-icon>cancel</mat-icon> <!-- X mark for missing -->
-              } @else {
-              <mat-icon>priority_high</mat-icon> <!-- Exclamation for Old -->
-              }
-            </button>
-          </div>
-
-        </ng-template>
-
-      </app-standard-filter-table>
-    </div>
-  </section>
+                <!-- Logic for Icons:
+                MISSING (X) -> Cancel (Red/Warn) -- as requested
+                OLD (?) -> Help (Yellow/Warn) -- as requested
+                -->
+                @if (cell?.state === 'OK') {
+                  <mat-icon>check_circle</mat-icon>
+                } @else if (cell?.state === 'MISSING' || !cell?.state) {
+                  <mat-icon>cancel</mat-icon> <!-- X mark for missing -->
+                } @else {
+                  <mat-icon>priority_high</mat-icon> <!-- Exclamation for Old -->
+                }
+              </button>
+            </div>
+          </ng-template>
+        </app-standard-filter-table>
+      </div>
+    </section>
+  } @else {
+    @if (!isLoadingChecklist) {
+      <div class="empty-placeholder">
+        <mat-icon>search</mat-icon>
+        <h3>Realiza una Consulta</h3>
+        <p>Ingresa cédulas arriba o pega una lista para ver el estado de la documentación.</p>
+      </div>
+    }
+  }
 
   <!-- RESULTS: MOBILE CARDS -->
-  <section class="results-section mobile-view" *ngIf="checklistRows.length > 0">
-
-    <div class="results-header">
-      <h3>Resultados ({{ checklistRows.length }})</h3>
-    </div>
-
-    <div class="mobile-list">
-      @for (row of checklistRows; track row.cedula) {
-      <div class="candidate-card">
-        <div class="card-header">
-          <div class="candidate-info">
-            <h4 class="c-name">{{ row.nombre || 'Sin Nombre' }}</h4>
-            <span class="c-cedula">CC: {{ row.cedula }}</span>
-          </div>
-        </div>
-
-        <div class="card-body">
-          <!-- Docs Grid with Icons -->
-          <div class="docs-grid">
-            @for (col of checklistColumns; track col.name) {
-            @if (col.type === 'status') {
-            @let cell = row[col.name];
-            <div class="doc-item" (click)="openDoc(cell, $event)" [class.has-link]="cell?.url">
-              <span class="doc-label">{{ col.header }}</span>
-
-              <!-- Mobile Icon -->
-              <span class="mobile-icon" [class.ok]="cell?.state === 'OK'" [class.warn]="cell?.state === 'WARN'"
-                [class.missing]="!cell?.state || cell?.state === 'MISSING'">
-                @if (cell?.state === 'OK') { <mat-icon>check_circle</mat-icon> }
-                @else if (cell?.state === 'MISSING' || !cell?.state) { <mat-icon>cancel</mat-icon> }
-                @else { <mat-icon>priority_high</mat-icon> }
-              </span>
-            </div>
-            }
-            }
-          </div>
-        </div>
+  @if (checklistRows.length > 0) {
+    <section class="results-section mobile-view">
+      <div class="results-header">
+        <h3>Resultados ({{ checklistRows.length }})</h3>
       </div>
-      }
-    </div>
+      <div class="mobile-list">
+        @for (row of checklistRows; track row.cedula) {
+          <div class="candidate-card">
+            <div class="card-header">
+              <div class="candidate-info">
+                <h4 class="c-name">{{ row.nombre || 'Sin Nombre' }}</h4>
+                <span class="c-cedula">CC: {{ row.cedula }}</span>
+              </div>
+            </div>
+            <div class="card-body">
+              <!-- Docs Grid with Icons -->
+              <div class="docs-grid">
+                @for (col of checklistColumns; track col.name) {
+                  @if (col.type === 'status') {
+                    @let cell = row[col.name];
+                    <div class="doc-item" (click)="openDoc(cell, $event)" [class.has-link]="cell?.url">
+                      <span class="doc-label">{{ col.header }}</span>
+                      <!-- Mobile Icon -->
+                      <span class="mobile-icon" [class.ok]="cell?.state === 'OK'" [class.warn]="cell?.state === 'WARN'"
+                        [class.missing]="!cell?.state || cell?.state === 'MISSING'">
+                        @if (cell?.state === 'OK') { <mat-icon>check_circle</mat-icon> }
+                        @else if (cell?.state === 'MISSING' || !cell?.state) { <mat-icon>cancel</mat-icon> }
+                        @else { <mat-icon>priority_high</mat-icon> }
+                      </span>
+                    </div>
+                  }
+                }
+              </div>
+            </div>
+          </div>
+        }
+      </div>
+    </section>
+  }
 
-  </section>
-
-  <ng-template #emptyState>
-    <div class="empty-placeholder" *ngIf="!isLoadingChecklist">
-      <mat-icon>search</mat-icon>
-      <h3>Realiza una Consulta</h3>
-      <p>Ingresa cédulas arriba o pega una lista para ver el estado de la documentación.</p>
-    </div>
-  </ng-template>
 
 </div>

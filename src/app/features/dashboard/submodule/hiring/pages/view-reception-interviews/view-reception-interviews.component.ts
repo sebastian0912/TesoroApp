@@ -1,5 +1,5 @@
 import { isPlatformBrowser } from '@angular/common';
-import { Component, DestroyRef, Inject, OnInit, PLATFORM_ID } from '@angular/core';
+import {  Component, DestroyRef, Inject, OnInit, PLATFORM_ID , ChangeDetectionStrategy } from '@angular/core';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { finalize } from 'rxjs/operators';
@@ -19,12 +19,13 @@ type FlatRow = Record<string, any>;
 type ExportCol = { header: string; key: string; width?: number };
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-view-reception-interviews',
   standalone: true,
   imports: [SharedModule, StandardFilterTable, MatDialogModule, ColumnCellTemplateDirective],
   templateUrl: './view-reception-interviews.component.html',
   styleUrls: ['./view-reception-interviews.component.css'],
-})
+} )
 export class ViewReceptionInterviewsComponent implements OnInit {
   private readonly isBrowser: boolean;
 

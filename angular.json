@@ -85,8 +85,8 @@
                 },
                 {
                   "type": "anyComponentStyle",
-                  "maximumWarning": "8MB",
-                  "maximumError": "16MB"
+                  "maximumWarning": "150kb",
+                  "maximumError": "500kb"
                 }
               ],
               "sourceMap": {
@@ -189,8 +189,8 @@
                 },
                 {
                   "type": "anyComponentStyle",
-                  "maximumWarning": "8MB",
-                  "maximumError": "16MB"
+                  "maximumWarning": "150kb",
+                  "maximumError": "500kb"
                 }
               ],
               "optimization": {

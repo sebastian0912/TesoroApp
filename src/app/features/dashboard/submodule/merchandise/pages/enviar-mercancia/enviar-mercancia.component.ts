@@ -1,4 +1,4 @@
-import { Component } from '@angular/core';
+import {  Component , ChangeDetectionStrategy } from '@angular/core';
 import { AbstractControl, FormBuilder, FormGroup, Validators } from '@angular/forms';
 import Swal from 'sweetalert2';
 import { Router } from '@angular/router';
@@ -7,13 +7,14 @@ import { SharedModule } from '../../../../../../shared/shared.module';
 import { UtilityServiceService } from '../../../../../../shared/services/utilityService/utility-service.service';
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-enviar-mercancia',
   imports: [
     SharedModule
   ],
   templateUrl: './enviar-mercancia.component.html',
   styleUrls: ['./enviar-mercancia.component.css']
-})
+} )
 export class EnviarMercanciaComponent {
   myForm: FormGroup;
   sedes: any

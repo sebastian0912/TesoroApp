@@ -1,6 +1,6 @@
 import { ColumnDefinition } from '@/app/shared/models/advanced-table-interface';
-import { Component, OnInit } from '@angular/core';
-import { NgIf } from '@angular/common';
+import {  Component, OnInit , ChangeDetectionStrategy } from '@angular/core';
+
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatButtonToggleModule } from '@angular/material/button-toggle';
@@ -41,23 +41,23 @@ interface DistPayload {
 }
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-vacantes',
   standalone: true,
   imports: [
     SharedModule,
     StandardFilterTable,
-    NgIf,
     MatMenuModule,
     MatDialogModule,
     MatButtonToggleModule,
     MatIconModule,
     MatSlideToggleModule,
     MatButtonModule,
-    MatDividerModule,
-  ],
+    MatDividerModule
+],
   templateUrl: './vacantes.component.html',
   styleUrl: './vacantes.component.css',
-})
+} )
 export class VacantesComponent implements OnInit {
   // Data
   private allRows: any[] = [];

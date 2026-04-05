@@ -1,4 +1,4 @@
-import { CommonModule } from '@angular/common';
+
 import {
   ChangeDetectionStrategy,
   ChangeDetectorRef,
@@ -85,7 +85,7 @@ type ChecklistResponseDto = {
 @Component({
   selector: 'app-consult-contracting-documentation',
   standalone: true,
-  imports: [CommonModule, SharedModule, MatButtonModule, MatDialogModule, StandardFilterTable],
+  imports: [SharedModule, MatButtonModule, MatDialogModule, StandardFilterTable],
   templateUrl: './consult-contracting-documentation.component.html',
   styleUrls: ['./consult-contracting-documentation.component.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,

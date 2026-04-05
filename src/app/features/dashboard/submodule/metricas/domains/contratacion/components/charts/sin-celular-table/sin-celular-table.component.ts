@@ -1,5 +1,5 @@
 import { Component, Input, ChangeDetectionStrategy, ViewChild, OnChanges, SimpleChanges } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { MatTableModule, MatTableDataSource } from '@angular/material/table';
 import { MatPaginator, MatPaginatorModule } from '@angular/material/paginator';
 import { CandidatoSinCelular } from '../../../models/contratacion-metricas.models';
@@ -8,48 +8,45 @@ import { EmptyStateComponent } from '../../../../../shared/components/empty-stat
 @Component({
     selector: 'app-sin-celular-table',
     standalone: true,
-    imports: [CommonModule, MatTableModule, MatPaginatorModule, EmptyStateComponent],
+    imports: [MatTableModule, MatPaginatorModule, EmptyStateComponent],
     template: `
-    <div class="table-container" *ngIf="hasData; else empty">
-      <table mat-table [dataSource]="dataSource" class="mat-elevation-z0 neat-table">
-        <!-- Nombres -->
-        <ng-container matColumnDef="nombre">
-          <th mat-header-cell *matHeaderCellDef> Candidato </th>
-          <td mat-cell *matCellDef="let element"> 
-            <div class="fw-bold">{{element.nombres}} {{element.apellidos}}</div>
-            <div class="text-xs text-muted">{{element.numero_documento}}</div>
-          </td>
-        </ng-container>
-
-        <!-- Oficina -->
-        <ng-container matColumnDef="oficina">
-          <th mat-header-cell *matHeaderCellDef> Oficina Origen </th>
-          <td mat-cell *matCellDef="let element"> {{element.oficina}} </td>
-        </ng-container>
-
-        <!-- Status Pill (To show why it is here) -->
-        <ng-container matColumnDef="status">
-          <th mat-header-cell *matHeaderCellDef> Observación </th>
-          <td mat-cell *matCellDef="let element"> 
-            <span class="status-pill warn">Sin Celular Válido</span> 
-          </td>
-        </ng-container>
-
-        <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
-        <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
-      </table>
-      
-      <mat-paginator [pageSizeOptions]="[5, 10, 25]" showFirstLastButtons aria-label="Select page of candidates"></mat-paginator>
-    </div>
-
-    <ng-template #empty>
-      <app-empty-state 
-        icon="check_circle" 
+    @if (hasData) {
+      <div class="table-container">
+        <table mat-table [dataSource]="dataSource" class="mat-elevation-z0 neat-table">
+          <!-- Nombres -->
+          <ng-container matColumnDef="nombre">
+            <th mat-header-cell *matHeaderCellDef> Candidato </th>
+            <td mat-cell *matCellDef="let element">
+              <div class="fw-bold">{{element.nombres}} {{element.apellidos}}</div>
+              <div class="text-xs text-muted">{{element.numero_documento}}</div>
+            </td>
+          </ng-container>
+          <!-- Oficina -->
+          <ng-container matColumnDef="oficina">
+            <th mat-header-cell *matHeaderCellDef> Oficina Origen </th>
+            <td mat-cell *matCellDef="let element"> {{element.oficina}} </td>
+          </ng-container>
+          <!-- Status Pill (To show why it is here) -->
+          <ng-container matColumnDef="status">
+            <th mat-header-cell *matHeaderCellDef> Observación </th>
+            <td mat-cell *matCellDef="let element">
+              <span class="status-pill warn">Sin Celular Válido</span>
+            </td>
+          </ng-container>
+          <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+          <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
+        </table>
+        <mat-paginator [pageSizeOptions]="[5, 10, 25]" showFirstLastButtons aria-label="Select page of candidates"></mat-paginator>
+      </div>
+    } @else {
+      <app-empty-state
+        icon="check_circle"
         title="Todo al día"
         description="Todos los candidatos en este rango tienen celular confirmado.">
       </app-empty-state>
-    </ng-template>
-  `,
+    }
+    
+    `,
     styles: [`
     .table-container {
       width: 100%;

@@ -24,24 +24,27 @@
       <button mat-flat-button color="primary" (click)="buscarCandidato()">
         Buscar
       </button>
-      <button mat-flat-button color="accent" (click)="mostrarCampoObservacion()"
-        *ngIf="!mostrarObservacion && procesoValido">
-        Reportar Problema
-      </button>
+      @if (!mostrarObservacion && procesoValido) {
+        <button mat-flat-button color="accent" (click)="mostrarCampoObservacion()"
+          >
+          Reportar Problema
+        </button>
+      }
     </div>
 
     <!-- Sección de Observación -->
-    <div *ngIf="mostrarObservacion" style="margin-top: 24px; animation: fadeIn 0.3s ease;">
-      <mat-form-field appearance="outline" style="width: 100%;">
-        <mat-label>Escriba su observación detallada</mat-label>
-        <textarea matInput [(ngModel)]="observacion" rows="3" placeholder="Escriba su observación aquí..."></textarea>
-      </mat-form-field>
-
-      <div class="form-actions" style="margin-top: 12px; text-align: right;">
-        <button mat-flat-button color="primary" (click)="enviarObservacion()">
-          Enviar Reporte
-        </button>
+    @if (mostrarObservacion) {
+      <div style="margin-top: 24px; animation: fadeIn 0.3s ease;">
+        <mat-form-field appearance="outline" style="width: 100%;">
+          <mat-label>Escriba su observación detallada</mat-label>
+          <textarea matInput [(ngModel)]="observacion" rows="3" placeholder="Escriba su observación aquí..."></textarea>
+        </mat-form-field>
+        <div class="form-actions" style="margin-top: 12px; text-align: right;">
+          <button mat-flat-button color="primary" (click)="enviarObservacion()">
+            Enviar Reporte
+          </button>
+        </div>
       </div>
-    </div>
+    }
   </div>
 </div>

@@ -1,4 +1,4 @@
-import { Component, OnInit, ViewChild, ElementRef, inject } from '@angular/core';
+import {  Component, OnInit, ViewChild, ElementRef, inject , ChangeDetectionStrategy } from '@angular/core';
 import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
@@ -13,12 +13,13 @@ import { MatMenuModule } from '@angular/material/menu';
 import { ColumnDefinition } from '@/app/shared/models/advanced-table-interface';
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-manage-positions',
   standalone: true,
   imports: [MatCardModule, MatIconModule, MatButtonModule, MatTooltipModule, StandardFilterTable, MatMenuModule],
   templateUrl: './manage-positions.component.html',
   styleUrls: ['./manage-positions.component.css']
-})
+} )
 export class ManagePositionsComponent implements OnInit {
   private svc = inject(PositionsService);
   private dialog = inject(MatDialog);

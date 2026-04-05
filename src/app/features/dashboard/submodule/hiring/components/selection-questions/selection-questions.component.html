@@ -6,122 +6,131 @@
 <br />
 
 <div class="seccion" [formGroup]="antecedentes">
-  <ng-container *ngFor="let fld of fields; let i = index; trackBy: trackByIndex">
+  @for (fld of fields; track $index; let i = $index) {
     <div class="input-container">
       <mat-form-field appearance="outline" class="example-full-width">
         <mat-label>{{ fld.label }}</mat-label>
-
-        <ng-container [ngSwitch]="fld.type">
-
+        @switch (fld.type) {
           <!-- ===== ESTADO ===== -->
-          <ng-container *ngSwitchCase="'estado'">
-            <mat-select [formControlName]="controlName(fld)">
-              <mat-option *ngFor="let estado of estados" [value]="estado">
-                {{ estado }}
-              </mat-option>
-            </mat-select>
-
-            <!-- ÚNICO matSuffix: menú + icono de estado -->
-            <div matSuffix class="acciones-suffix" (click)="$event.stopPropagation()" aria-label="Acciones del campo">
-              <button mat-icon-button [matMenuTriggerFor]="menu" aria-label="Opciones PDF">
-                <mat-icon>more_vert</mat-icon>
-              </button>
-
-              <mat-icon class="estado-icon"
-                [style.--estado-color]="estadoColor(antecedentes.get(controlName(fld))?.value)"
-                aria-label="Estado del documento">
-                {{ estadoIcon(antecedentes.get(controlName(fld))?.value) }}
-              </mat-icon>
-            </div>
-          </ng-container>
-
+          @case ('estado') {
+            <ng-container>
+              <mat-select [formControlName]="controlName(fld)">
+                @for (estado of estados; track estado) {
+                  <mat-option [value]="estado">
+                    {{ estado }}
+                  </mat-option>
+                }
+              </mat-select>
+              <!-- ÚNICO matSuffix: menú + icono de estado -->
+              <div matSuffix class="acciones-suffix" (click)="$event.stopPropagation()" aria-label="Acciones del campo">
+                <button mat-icon-button [matMenuTriggerFor]="menu" aria-label="Opciones PDF">
+                  <mat-icon>more_vert</mat-icon>
+                </button>
+                <mat-icon class="estado-icon"
+                  [style.--estado-color]="estadoColor(antecedentes.get(controlName(fld))?.value)"
+                  aria-label="Estado del documento">
+                  {{ estadoIcon(antecedentes.get(controlName(fld))?.value) }}
+                </mat-icon>
+              </div>
+            </ng-container>
+          }
           <!-- ===== LISTA ===== -->
-          <ng-container *ngSwitchCase="'list'">
-            <mat-select [formControlName]="controlName(fld)" [placeholder]="fld.placeholder || ''">
-              <mat-option *ngFor="let opt of getOptions(fld)" [value]="opt">
-                {{ opt }}
-              </mat-option>
-            </mat-select>
-
-            <div matSuffix class="acciones-suffix" (click)="$event.stopPropagation()" aria-label="Acciones del campo">
-              <button mat-icon-button [matMenuTriggerFor]="menu" aria-label="Opciones PDF">
-                <mat-icon>more_vert</mat-icon>
-              </button>
-            </div>
-          </ng-container>
-
+          @case ('list') {
+            <ng-container>
+              <mat-select [formControlName]="controlName(fld)" [placeholder]="fld.placeholder || ''">
+                @for (opt of getOptions(fld); track opt) {
+                  <mat-option [value]="opt">
+                    {{ opt }}
+                  </mat-option>
+                }
+              </mat-select>
+              <div matSuffix class="acciones-suffix" (click)="$event.stopPropagation()" aria-label="Acciones del campo">
+                <button mat-icon-button [matMenuTriggerFor]="menu" aria-label="Opciones PDF">
+                  <mat-icon>more_vert</mat-icon>
+                </button>
+              </div>
+            </ng-container>
+          }
           <!-- ===== NÚMERO ===== -->
-          <ng-container *ngSwitchCase="'number'">
-            <input matInput type="number" [formControlName]="controlName(fld)" min="1" step="1" inputmode="numeric"
-              pattern="[0-9]*" (keydown)="onlyInteger($event)" />
-
-            <div matSuffix class="acciones-suffix" (click)="$event.stopPropagation()" aria-label="Acciones del campo">
-              <button mat-icon-button [matMenuTriggerFor]="menu" aria-label="Opciones PDF">
-                <mat-icon>more_vert</mat-icon>
-              </button>
-            </div>
-          </ng-container>
-
-        </ng-container>
-      </mat-form-field>
-
-      <!-- Menú por campo (referencia local por iteración) -->
-      <mat-menu #menu="matMenu">
-        <button mat-menu-item (click)="verArchivo(fld.key)">Ver PDF</button>
-        <button mat-menu-item>
-          <label [for]="'fileInput_' + fld.key" style="cursor: pointer; margin-bottom: 0;">
-            Subir PDF
-            <input type="file" [id]="'fileInput_' + fld.key" style="display: none;"
-              (change)="subirArchivo($event, fld.key)" accept=".pdf" />
-          </label>
-        </button>
-      </mat-menu>
-
-      <!-- Nombre del archivo + fecha + Cola Robots -->
-      <div style="display: flex; flex-wrap: wrap; align-items: center; line-height: 1.4; margin-top: 4px;">
-        <!-- Nombre y fecha de actualización -->
-        <small *ngIf="$any(uploadedFiles)[fld.key]" class="uploaded-file-name"
-          [ngClass]="{ 'text-danger': $any(uploadedFiles)[fld.key].fileName === 'Adjuntar documento' }"
-          style="margin-bottom: 0;">
-          {{ $any(uploadedFiles)[fld.key].fileName }}
-          <ng-container *ngIf="$any(uploadedFiles)[fld.key].updatedAtLabel">
-            &nbsp;•&nbsp;
-            <span class="text-muted">
-              Actualizado: {{ $any(uploadedFiles)[fld.key].updatedAtLabel }}
-            </span>
-          </ng-container>
-        </small>
-
-        <!-- Píldora de cola (Robots) Inline -->
-        <ng-container *ngIf="queueDetailFor(fld) as turno">
-          <span style="color: #cbd5e1; font-size: 14px; margin-left: 6px; margin-right: 6px;">•</span>
-          <div style="display: flex; align-items: center; gap: 4px;"
-            [ngStyle]="{'color': turno.finalizado ? '#166534' : (turno.enProgreso ? '#b45309' : '#4b5563')}">
-            <mat-icon [ngStyle]="{'color': turno.finalizado ? '#16a34a' : (turno.enProgreso ? '#d97706' : '#6b7280')}"
-              style="font-size: 14px; width: 14px; height: 14px; line-height: 14px;">
-              {{ turno.finalizado ? 'check_circle' : (turno.enProgreso ? 'hourglass_top' : 'queue') }}
-            </mat-icon>
-            <span style="font-size: 11.5px; font-weight: 600;">
-              <ng-container *ngIf="turno.finalizado">FINALIZADO</ng-container>
-              <ng-container *ngIf="!turno.finalizado && turno.enProgreso">EN PROGRESO...</ng-container>
-              <ng-container *ngIf="!turno.finalizado && !turno.enProgreso">
-                <span *ngIf="turno.faltan !== null">Faltan <b>{{ turno.faltan }}</b> antes que tú</span>
-                <span *ngIf="turno.faltan === null">SIN CONSULTAR</span>
-              </ng-container>
-            </span>
+          @case ('number') {
+            <ng-container>
+              <input matInput type="number" [formControlName]="controlName(fld)" min="1" step="1" inputmode="numeric"
+                pattern="[0-9]*" (keydown)="onlyInteger($event)" />
+                <div matSuffix class="acciones-suffix" (click)="$event.stopPropagation()" aria-label="Acciones del campo">
+                  <button mat-icon-button [matMenuTriggerFor]="menu" aria-label="Opciones PDF">
+                    <mat-icon>more_vert</mat-icon>
+                  </button>
+                </div>
+            </ng-container>
+            }
+          }
+        </mat-form-field>
+        <!-- Menú por campo (referencia local por iteración) -->
+        <mat-menu #menu="matMenu">
+          <button mat-menu-item (click)="verArchivo(fld.key)">Ver PDF</button>
+          <button mat-menu-item>
+            <label [for]="'fileInput_' + fld.key" style="cursor: pointer; margin-bottom: 0;">
+              Subir PDF
+              <input type="file" [id]="'fileInput_' + fld.key" style="display: none;"
+                (change)="subirArchivo($event, fld.key)" accept=".pdf" />
+              </label>
+            </button>
+          </mat-menu>
+          <!-- Nombre del archivo + fecha + Cola Robots -->
+          <div style="display: flex; flex-wrap: wrap; align-items: center; line-height: 1.4; margin-top: 4px;">
+            <!-- Nombre y fecha de actualización -->
+            @if ($any(uploadedFiles)[fld.key]) {
+              <small class="uploaded-file-name"
+                [ngClass]="{ 'text-danger': $any(uploadedFiles)[fld.key].fileName === 'Adjuntar documento' }"
+                style="margin-bottom: 0;">
+                {{ $any(uploadedFiles)[fld.key].fileName }}
+                @if ($any(uploadedFiles)[fld.key].updatedAtLabel) {
+                  &nbsp;•&nbsp;
+                  <span class="text-muted">
+                    Actualizado: {{ $any(uploadedFiles)[fld.key].updatedAtLabel }}
+                  </span>
+                }
+              </small>
+            }
+            <!-- Píldora de cola (Robots) Inline -->
+            @if (queueDetailFor(fld); as turno) {
+              <span style="color: #cbd5e1; font-size: 14px; margin-left: 6px; margin-right: 6px;">•</span>
+              <div style="display: flex; align-items: center; gap: 4px;"
+                [ngStyle]="{'color': turno.finalizado ? '#166534' : (turno.enProgreso ? '#b45309' : '#4b5563')}">
+                <mat-icon [ngStyle]="{'color': turno.finalizado ? '#16a34a' : (turno.enProgreso ? '#d97706' : '#6b7280')}"
+                  style="font-size: 14px; width: 14px; height: 14px; line-height: 14px;">
+                  {{ turno.finalizado ? 'check_circle' : (turno.enProgreso ? 'hourglass_top' : 'queue') }}
+                </mat-icon>
+                <span style="font-size: 11.5px; font-weight: 600;">
+                  @if (turno.finalizado) {
+                    FINALIZADO
+                  }
+                  @if (!turno.finalizado && turno.enProgreso) {
+                    EN PROGRESO...
+                  }
+                  @if (!turno.finalizado && !turno.enProgreso) {
+                    @if (turno.faltan !== null) {
+                      <span>Faltan <b>{{ turno.faltan }}</b> antes que tú</span>
+                    }
+                    @if (turno.faltan === null) {
+                      <span>SIN CONSULTAR</span>
+                    }
+                  }
+                </span>
+              </div>
+            }
           </div>
-        </ng-container>
-      </div>
+          <!-- Alerta documento antiguo -->
+          @if (isOlderThan(fld.key, 15)) {
+            <div class="doc-warning">
+              <mat-icon class="warn-icon" color="warn">warning</mat-icon>
+              <span>El documento tiene más de 15 días.</span>
+            </div>
+          }
+        </div>
+      }
 
-      <!-- Alerta documento antiguo -->
-      <div class="doc-warning" *ngIf="isOlderThan(fld.key, 15)">
-        <mat-icon class="warn-icon" color="warn">warning</mat-icon>
-        <span>El documento tiene más de 15 días.</span>
-      </div>
+      <button mat-flat-button (click)="imprimirVerificacionesAplicacion()" class="example-full-width">
+        Cargar
+      </button>
     </div>
-  </ng-container>
-
-  <button mat-flat-button (click)="imprimirVerificacionesAplicacion()" class="example-full-width">
-    Cargar
-  </button>
-</div>

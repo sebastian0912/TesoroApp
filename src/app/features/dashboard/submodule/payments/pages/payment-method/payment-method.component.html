@@ -21,14 +21,16 @@
         </mat-form-field>
         <button mat-flat-button (click)="buscarFormasPago(cedula)" class="boton btn-managerial">Buscar</button>
       </div>
-      <app-info-card title="Cargar formas de pago" imageUrl="icons/cards/excel.png" (click)="triggerFileInput()" *ngIf="
+      @if (
         correo == 'contaduria.rtc@gmail.com' ||
         correo == 'ghumana.rtc@gmail.com' ||
         correo == 'programador.ts@gmail.com' ||
         correo == 'antcontable5.ts@gmail.com' ||
         correo == 'asistconta.rtc@gmail.com'
-        " style="cursor: pointer;">
-      </app-info-card>
+        ) {
+        <app-info-card title="Cargar formas de pago" imageUrl="icons/cards/excel.png" (click)="triggerFileInput()" style="cursor: pointer;">
+        </app-info-card>
+      }
     </div>
 
     <div class="tabla">
@@ -37,27 +39,28 @@
 
         <!-- Template para celdas editables (empiezan por type_) -->
         <ng-template #estadoTemplate let-row let-col="col">
-          <div *ngIf="row.editing; else viewMode">
-            <!-- Input para editar. Se enlaza a la propiedad del row con el nombre de columna (ej: type_banco) -->
-            <input matInput [(ngModel)]="row[col.name]" class="editado"
-              style="width: 100%; border: 1px solid #ccc; padding: 4px;">
-          </div>
-          <ng-template #viewMode>
-            {{ row[col.name] }}
+          @if (row.editing) {
+            <div>
+              <!-- Input para editar. Se enlaza a la propiedad del row con el nombre de columna (ej: type_banco) -->
+              <input matInput [(ngModel)]="row[col.name]" class="editado"
+                style="width: 100%; border: 1px solid #ccc; padding: 4px;">
+              </div>
+            } @else {
+              {{ row[col.name] }}
+            }
           </ng-template>
-        </ng-template>
 
-        <!-- Template para acciones -->
-        <ng-template #actionsTemplate let-row>
-          <button mat-icon-button color="primary" (click)="toggleEdit(row)">
-            <mat-icon>{{row.editing ? 'save' : 'edit'}}</mat-icon>
-          </button>
-          <button mat-icon-button color="warn" (click)="eliminarFormaPago(row)">
-            <mat-icon>delete</mat-icon>
-          </button>
-        </ng-template>
+          <!-- Template para acciones -->
+          <ng-template #actionsTemplate let-row>
+            <button mat-icon-button color="primary" (click)="toggleEdit(row)">
+              <mat-icon>{{row.editing ? 'save' : 'edit'}}</mat-icon>
+            </button>
+            <button mat-icon-button color="warn" (click)="eliminarFormaPago(row)">
+              <mat-icon>delete</mat-icon>
+            </button>
+          </ng-template>
 
-      </app-standard-filter-table>
-    </div>
-  </mat-card-content>
-</mat-card>
+        </app-standard-filter-table>
+      </div>
+    </mat-card-content>
+  </mat-card>

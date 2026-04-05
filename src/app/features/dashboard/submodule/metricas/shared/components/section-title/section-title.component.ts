@@ -1,19 +1,21 @@
 import { Component, Input, ChangeDetectionStrategy } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 
 @Component({
     selector: 'app-section-title',
     standalone: true,
-    imports: [CommonModule],
+    imports: [],
     template: `
     <div class="section-title-container">
       <div class="title-row">
         <h3 class="title">{{ title }}</h3>
         <ng-content select="[actions]"></ng-content>
       </div>
-      <p class="subtitle" *ngIf="subtitle">{{ subtitle }}</p>
+      @if (subtitle) {
+        <p class="subtitle">{{ subtitle }}</p>
+      }
     </div>
-  `,
+    `,
     styles: [`
     :host {
       display: block;

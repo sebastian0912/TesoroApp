@@ -1,4 +1,4 @@
-import {
+import { 
   Component,
   EventEmitter,
   OnInit,
@@ -7,7 +7,7 @@ import {
   Inject,
   PLATFORM_ID,
   HostListener,
-} from '@angular/core';
+, ChangeDetectionStrategy } from '@angular/core';
 import { isPlatformBrowser } from '@angular/common';
 import { Router, NavigationEnd, RouterModule } from '@angular/router';
 import { filter } from 'rxjs/operators';
@@ -34,12 +34,13 @@ export interface PermNode {
 }
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-navbar',
   standalone: true,
   imports: [SharedModule, RouterModule, MatIconModule],
   templateUrl: './navbar.component.html',
   styleUrls: ['./navbar.component.css'],
-})
+} )
 export class NavbarComponent implements OnInit, OnDestroy {
   @Output() public menuToggle = new EventEmitter<boolean>();
 
