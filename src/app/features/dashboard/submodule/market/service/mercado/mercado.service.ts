@@ -19,32 +19,8 @@ export class MercadoService {
     throw error;
   }
   // verificar estado del codigo
-  public verificarCodigo(codigo: string): Observable<string> {
-    return this.http.get<{ message: string }>(`${this.apiUrl}/Codigo/verificarestado/${codigo}`)
-      .pipe(
-        map(response => response.message),
-        catchError(this.handleError)
-      );
-  }
-
   // Cambiar estado del codigo
-  public cambiarEstadoCodigo(codigo: string): Observable<string> {
-    return this.http.put<{ message: string }>(`${this.apiUrl}/Codigo/cambiarestado/${codigo}`, {},)
-      .pipe(
-        map(response => response.message),
-        catchError(this.handleError)
-      );
-  }
-
   // Escribe el codigo de ejecutado en el codigo de Autorizacion
-  public escribirCodigo(codigo: string, cedula: string, valor: number): Observable<string> {
-    return this.http.post<{ message: string }>(`${this.apiUrl}/Codigo/escribircodigo`, { codigo, cedula, valor })
-      .pipe(
-        map(response => response.message),
-        catchError(this.handleError)
-      );
-  }
-
   // ejecutar mercado tienda
   async ejecutarMercadoTienda(
     codigo: string,

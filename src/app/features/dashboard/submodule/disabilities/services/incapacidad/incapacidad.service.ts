@@ -25,13 +25,7 @@ export class IncapacidadService {
   private handleError(error: any): Observable<never> {
     throw error;
   }
-  getIncapacidades(): Observable<Incapacidad[]> {
-    return this.http.get<Incapacidad[]>(this.apiUrl);
-  }
 
-  getIncapacidad(id: number): Observable<Incapacidad> {
-    return this.http.get<Incapacidad>(`${this.apiUrl}/${id}`);
-  }
   private getToken(): string | null {
     if (isPlatformBrowser(this.platformId)) {
       return localStorage.getItem('token');
@@ -89,35 +83,7 @@ export class IncapacidadService {
 
     return this.http.post<any>(urlcompleta, body, { headers });
   }
-  public traerDatosReporte(cedula: string): Observable<any> {
-    const headers = this.createAuthorizationHeader();
-    return this.http
-      .get(`${this.apiUrl}/Incapacidades/datosReporte/${cedula}`, { headers })
-      .pipe(
-        map((response: any) => response),
-        catchError(this.handleError)
-      );
-  }
-  public traerDatosIncapacidad(cedula: string): Observable<any> {
-    const headers = this.createAuthorizationHeader();
-    return this.http
-      .get(`${this.apiUrl}/Incapacidades/datosIncapacidad/${cedula}`, {
-        headers,
-      })
-      .pipe(
-        map((response: any) => response),
-        catchError(this.handleError)
-      );
-  }
-  public traerDatosLogs(cedula: string): Observable<any> {
-    const headers = this.createAuthorizationHeader();
-    return this.http
-      .get(`${this.apiUrl}/Incapacidades/datosLogs/${cedula}`, { headers })
-      .pipe(
-        map((response: any) => response),
-        catchError(this.handleError)
-      );
-  }
+
   public traerDatosListas(): Observable<any> {
     const headers = this.createAuthorizationHeader();
     return this.http
@@ -145,79 +111,6 @@ export class IncapacidadService {
         map((response: any) => response),
         catchError(this.handleError)
       );
-  }
-
-  processFiles(files: FileList): Observable<any> {
-    if (files.length !== 2) {
-      return new Observable((observer) => {
-        observer.error('Por favor, selecciona exactamente 2 archivos.');
-      });
-    }
-
-    const fileData: { [key: string]: any[] } = {};
-    const fileNames: { [key: string]: string } = {
-      arl: '',
-      sst: '',
-    };
-    const fileReaders: FileReader[] = [];
-
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i];
-      const reader = new FileReader();
-      fileReaders.push(reader);
-
-      const fileName = file.name.toLowerCase();
-      if (fileName.includes('arl')) {
-        fileNames['arl'] = file.name;
-      } else if (fileName.includes('sst')) {
-        fileNames['sst'] = file.name;
-      }
-
-      reader.onload = (e: any) => {
-        const bstr: string = e.target.result;
-        const wb: XLSX.WorkBook = XLSX.read(bstr, { type: 'binary' });
-        const wsname: string = wb.SheetNames[0];
-        const ws: XLSX.WorkSheet = wb.Sheets[wsname];
-        const data = XLSX.utils.sheet_to_json(ws, { header: 1 });
-
-        const key = fileName.includes('arl') ? 'arl' : 'sst';
-        fileData[key] = data;
-
-        // Si todos los archivos han sido procesados, envía los datos
-        if (Object.keys(fileData).length === 2) {
-          this.uploadFiles(fileData, fileNames).subscribe(
-            (response) => {
-              Swal.fire({
-                title: 'Éxito',
-                text: 'Datos enviados con éxito.',
-                icon: 'success', // Ícono de éxito
-                confirmButtonText: 'Aceptar',
-              });
-            },
-            (error) => {
-              Swal.fire({
-                title: 'Error',
-                text: 'Hubo un problema al enviar los datos. Por favor, intenta nuevamente.',
-                icon: 'error', // Ícono de error
-                confirmButtonText: 'Aceptar',
-              });
-            }
-          );
-        } else {
-          Swal.fire({
-            title: 'Archivos incompletos',
-            text: 'Por favor, procesa y sube los archivos requeridos antes de enviar.',
-            icon: 'warning', // Ícono de advertencia
-            confirmButtonText: 'Aceptar',
-          });
-        }
-      };
-
-      reader.readAsBinaryString(file);
-    }
-
-    // Devuelve un observable vacío para evitar errores
-    return new Observable();
   }
 
   uploadFiles(
@@ -258,66 +151,6 @@ export class IncapacidadService {
     );
   }
 
-  deleteIncapacidad(id: number): Observable<void> {
-    return this.http.delete<void>(`${this.apiUrl}/${id}`);
-  }
-
-  async subirExcelSST(datos: any): Promise<any> {
-    const token = this.getToken();
-
-    if (!token) {
-      throw new Error('No token found');
-    }
-
-    const urlcompleta = `${this.apiUrl}/FormasdePago/crearformasDePago`;
-
-    const headers = this.createAuthorizationHeader();
-
-    const data = {
-      datos: datos,
-      mensaje: 'mcuhos',
-      jwt: token,
-    };
-    try {
-      const response = await firstValueFrom(
-        this.http
-          .post<string>(urlcompleta, data, { headers })
-          .pipe(catchError(this.handleError))
-      );
-      return response;
-    } catch (error) {
-      throw error;
-    }
-  }
-
-  async subirExcelARL(datos: any): Promise<any> {
-    const token = this.getToken();
-
-    if (!token) {
-      throw new Error('No token found');
-    }
-
-    const urlcompleta = `${this.apiUrl}/FormasdePago/crearformasDePago`;
-
-    const headers = this.createAuthorizationHeader();
-
-    const data = {
-      datos: datos,
-      mensaje: 'mcuhos',
-      jwt: token,
-    };
-    try {
-      const response = await firstValueFrom(
-        this.http
-          .post<string>(urlcompleta, data, { headers })
-          .pipe(catchError(this.handleError))
-      );
-      return response;
-    } catch (error) {
-      throw error;
-    }
-  }
-
   // actualizar-codigos-diagnostico/
   // Servicio en Angular (IncapacidadService)
   async actualizarCodigosDiagnostico(datos: any[]): Promise<any> {
@@ -346,23 +179,6 @@ export class IncapacidadService {
       console.error('❌ Error en la solicitud:', error);
       throw error;
     }
-  }
-
-  traerTodosDocumentos(fechaInicio?: string): Observable<any[]> {
-    const headers = this.createAuthorizationHeader();
-    let url = `${this.apiUrl}/Incapacidades/descargarIncapacidades`;
-
-    if (fechaInicio) {
-      url += `?inicio=${fechaInicio}`;
-      console.log('URL con fechaInicio:', url);
-    }
-    return this.http.get<any[]>(url, { headers });
-  }
-
-  traerTodosDocumentosPorRango(inicio: string, fin: string): Observable<any[]> {
-    const headers = this.createAuthorizationHeader();
-    const url = `${this.apiUrl}/Incapacidades/descargarIncapacidades?inicio=${inicio}&fin=${fin}`;
-    return this.http.get<any[]>(url, { headers });
   }
 
   // Utiliza el método anterior para descargar y crear el ZIP desde base64

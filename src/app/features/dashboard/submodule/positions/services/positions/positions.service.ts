@@ -69,13 +69,6 @@ export class PositionsService {
   }
 
   // ---------- EXPORTAR EXCEL (Blob) ----------
-  exportExcel(params?: CargoListParams): Observable<Blob> {
-    return this.http.get(this.base + 'exportar-excel/', {
-      params: this.buildParams(params),
-      responseType: 'blob' as const,
-    });
-  }
-
   // ---------- Helper: descargar directo ----------
   downloadExcel(params?: CargoListParams, filename = this.makeFilename()): void {
     this.exportExcel(params).subscribe({

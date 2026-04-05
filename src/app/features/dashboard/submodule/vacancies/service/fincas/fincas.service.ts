@@ -25,27 +25,6 @@ export class FincasService {
     private http: HttpClient
   ) { }
 
-  /** Listado único de fincas (opcionalmente filtrado por `search`). */
-  listFincas(search?: string, useCache = true): Observable<FincaItem[]> {
-    const q = (search || '').trim();
-
-    let params = new HttpParams();
-    if (q) params = params.set('search', q);
-
-    return this.http.get<FincaItem[]>(this.base, { params }).pipe(
-      map(arr => Array.isArray(arr) ? arr : []),
-      tap(arr => {
-        if (!q) {
-          this.memCache = arr;
-          this.setToLS(arr);
-        }
-      }),
-      catchError(err => {
-        return throwError(() => err);
-      })
-    );
-  }
-
   /** Solo nombres de finca (útil para autocompletar). */
   listNombreFincas(search?: string): Observable<string[]> {
     return this.listFincas(search).pipe(

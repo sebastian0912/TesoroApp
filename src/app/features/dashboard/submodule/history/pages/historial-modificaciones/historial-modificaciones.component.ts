@@ -18,10 +18,11 @@ import { StandardFilterTable } from '@/app/shared/components/standard-filter-tab
 export class HistorialModificacionesComponent implements OnInit {
 
   columns: ColumnDefinition[] = [
-    { name: 'concepto', header: 'Concepto', type: 'text', filterable: true },
-    { name: 'fechaEfectuado', header: 'Fecha Efectuado', type: 'text', filterable: true },
-    { name: 'horaEfectuado', header: 'Hora Efectuado', type: 'text', filterable: true },
-    { name: 'username', header: 'Nombre de usuario', type: 'text', filterable: true }
+    { name: 'accion', header: 'Acción', type: 'text', filterable: true },
+    { name: 'modulo_afectado', header: 'Módulo', type: 'text', filterable: true },
+    { name: 'entidad_id', header: 'ID (Entidad)', type: 'text', filterable: true },
+    { name: 'usuario_responsable', header: 'Usuario', type: 'text', filterable: true },
+    { name: 'fecha_evento', header: 'Fecha Evento', type: 'text', filterable: true }
   ];
 
   dataList: any[] = [];
@@ -33,13 +34,17 @@ export class HistorialModificacionesComponent implements OnInit {
   ngOnInit(): void {
     this.historialService.getHistorialComercializadoraTesorero().subscribe(
       (data: any) => {
-        // ordenar por fechaEfectuado de mayor a menor
-        data.historialModificaciones.sort((a: any, b: any) => {
-          return new Date(b.fechaEfectuado).getTime() - new Date(a.fechaEfectuado).getTime();
-        });
-        this.dataList = data.historialModificaciones;
+        const results = data.results || data || [];
+        this.dataList = results.map((item: any) => ({
+          accion: item.accion,
+          modulo_afectado: item.modulo_afectado,
+          entidad_id: item.entidad_id || 'N/A',
+          usuario_responsable: item.usuario_responsable || 'SISTEMA',
+          fecha_evento: new Date(item.fecha_evento).toLocaleString()
+        }));
       },
       (error: any) => {
+          console.error(error);
       }
     );
 

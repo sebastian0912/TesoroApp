@@ -85,12 +85,6 @@ export class VacantesService {
   }
 
   // GET -> /publicacion/vacantes-por-nombre-oficina/<nombre_oficina>/
-  buscarPorOficina(nombreOficina: string): Observable<any> {
-    const seg = encodeURIComponent((nombreOficina || '').trim());
-    const url = this.base(`/publicacion/vacantes-por-nombre-oficina/${seg}/`);
-    return this.http.get(url).pipe(map(res => res), catchError(this.handleError));
-  }
-
   // ========= Excel =========
   getVacantesExcel(start?: string, end?: string, oficina?: string | string[]): Observable<Blob> {
     const url = this.base('/publicacion/publicaciones-excel/');

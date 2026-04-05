@@ -161,60 +161,11 @@ export class TesoreriaService {
 
   // --- Old endpoints kept for compatibility or not yet refactored ---
 
-  async eliminarEmpleados(cedulaEmpleado: string): Promise<any> {
-    // A standard DRF approach would be DELETE a personas/<id>/.
-    const urlcompleta = `${this.apiUrl}/gestion_tesoreria/personas/${encodeURIComponent(cedulaEmpleado)}/`;
-    return firstValueFrom(
-      this.http.delete<any>(urlcompleta).pipe(
-        catchError(this.handleError)
-      )
-    );
-  }
-
-  async actualizarEmpleado(cedulaEmpleado: string, saldos: string): Promise<any> {
-    const url = `${this.apiUrl}/gestion_tesoreria/personas/${encodeURIComponent(cedulaEmpleado)}/`;
-    return firstValueFrom(
-      this.http.patch<any>(url, { saldos }).pipe(
-        catchError(this.handleError)
-      )
-    );
-  }
-
-  async actualizarSaldoPendienteEmpleado(cedulaEmpleado: string, saldo_pendiente: string): Promise<any> {
-    const url = `${this.apiUrl}/gestion_tesoreria/personas/${encodeURIComponent(cedulaEmpleado)}/`;
-    return firstValueFrom(
-      this.http.patch<any>(url, { saldo_pendiente: saldo_pendiente }).pipe(
-        catchError(this.handleError)
-      )
-    );
-  }
-
   async resetearValoresQuincena(): Promise<any> {
     // Si tienes un endpoint para esto, sino dejar el original
-    const urlcompleta = `${this.apiUrl}/Datosbase/reiniciarValores`;
+    const urlcompleta = `${this.apiUrl}/gestion_tesoreria/personas/reset-quincena/`;
     return firstValueFrom(
       this.http.post<any>(urlcompleta, {}).pipe(
-        catchError(this.handleError)
-      )
-    );
-  }
-
-  traerHistorialPorFecha(fechaInicio: string, fechaFin: string, nombre: string): Observable<any> {
-    // Si mantienes el app Historial, este queda igual. Sino, referenciar al nuevo endpoint.
-    const params = new HttpParams()
-      .set('nombre', nombre)
-      .set('fecha_inicio', fechaInicio)
-      .set('fecha_fin', fechaFin);
-
-    return this.http.get(`${this.apiUrl}/Historial/informeFecha`, { params }).pipe(
-      catchError(this.handleError)
-    );
-  }
-
-  async actualizarEstadoQuincena(estado: boolean): Promise<any> {
-    const url = `${this.apiUrl}/usuarios/tesoreria/cambioEstado`;
-    return firstValueFrom(
-      this.http.post<any>(url, { estado }).pipe(
         catchError(this.handleError)
       )
     );

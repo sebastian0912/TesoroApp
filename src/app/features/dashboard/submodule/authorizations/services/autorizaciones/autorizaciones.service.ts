@@ -364,16 +364,6 @@ export class AutorizacionesService {
     return firstValueFrom(this.http.get(`${this.URL_PERSONAS}/${docNorm}/`).pipe(catchError(this.handleError)));
   }
 
-  async traerAutorizacionesActivasOperario(numeroDocumento: string): Promise<any> {
-    const docNorm = this.normalizeDoc(numeroDocumento);
-    // Transacciones activas = pendientes
-    return firstValueFrom(this.http.get(`${this.URL_TRANSACCIONES}/?numero_documento=${docNorm}&estado=PENDIENTE`).pipe(catchError(this.handleError)));
-  }
-
-  async buscarCodigo(codigo: string): Promise<any> {
-    return firstValueFrom(this.http.get(`${this.URL_TRANSACCIONES}/buscar-codigo/?codigo=${codigo}`).pipe(catchError(this.handleError)));
-  }
-
   async autorizarTransaccion(numeroDocumento: string, monto: number, cuotas: number, tipo: string, nombreAutorizador: string, sedeAutorizacion: string = ''): Promise<any> {
     const docNorm = this.normalizeDoc(numeroDocumento);
     const body = {

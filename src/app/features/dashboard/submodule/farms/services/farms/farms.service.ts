@@ -46,17 +46,9 @@ export class FarmsService {
   }
 
   // ========== DETALLE (GET) ==========
-  getById(id: number): Observable<AnyObj> {
-    return this.http.get<AnyObj>(`${this.base}/${id}/`);
-  }
-
   // ========== ACTUALIZAR (PATCH / PUT) ==========
   updatePartial(id: number, partial: AnyObj): Observable<{ detail: string }> {
     return this.http.patch<{ detail: string }>(`${this.base}/${id}/`, partial);
-  }
-
-  updateReplace(id: number, payload: AnyObj): Observable<{ detail: string }> {
-    return this.http.put<{ detail: string }>(`${this.base}/${id}/`, payload);
   }
 
   // ========== ELIMINAR (DELETE) ==========
