@@ -125,6 +125,7 @@ export class StandardFilterTable implements OnInit, OnChanges, AfterViewInit, Do
    * - col: ColumnDefinition
    */
   @ContentChild('estadoTemplate') estadoTemplate?: TemplateRef<{ $implicit: any; col?: ColumnDefinition }>;
+  @ContentChild('headerActionTemplate') headerActionTemplate?: TemplateRef<{ $implicit: ColumnDefinition }>;
 
   // Drawer
   @ViewChild('drawer') drawer?: MatDrawer;

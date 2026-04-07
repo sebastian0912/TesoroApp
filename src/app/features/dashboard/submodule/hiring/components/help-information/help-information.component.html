@@ -36,28 +36,14 @@
                   <span class="trigger-title">{{ v.empresaUsuariaSolicita }} - {{ v.finca || 'Sin finca' }} - {{ v.cargo
                   || 'Sin cargo' }}</span>
                   <span class="spacer"></span>
-                  <div class="badges-row" style="display: flex; gap: 4px; align-items: center;">
-                    <span class="badge"
-                      style="background: #e0f2fe; color: #0284c7; padding: 2px 6px; border-radius: 4px; font-size: 11px;">Req
-                    {{ totalRequeridaOf(v) }}</span>
-                    <span class="badge"
-                      style="background: #ffedd5; color: #ea580c; padding: 2px 6px; border-radius: 4px; font-size: 11px;">Falt
-                    {{ falt(v) }}</span>
-                    <span class="badge"
-                      style="background: #f3f4f6; color: #4b5563; padding: 2px 6px; border-radius: 4px; font-size: 11px;">Entr
-                    {{ entrev(v) }}</span>
-                    <span class="badge"
-                      style="background: #f3f4f6; color: #4b5563; padding: 2px 6px; border-radius: 4px; font-size: 11px;">Pru
-                    {{ prue(v) }}</span>
-                    <span class="badge"
-                      style="background: #f3f4f6; color: #4b5563; padding: 2px 6px; border-radius: 4px; font-size: 11px;">Auto
-                    {{ auto(v) }}</span>
-                    <span class="badge"
-                      style="background: #f3f4f6; color: #4b5563; padding: 2px 6px; border-radius: 4px; font-size: 11px;">Exm
-                    {{ exm(v) }}</span>
-                    <span class="badge"
-                      style="background: #dcfce3; color: #166534; padding: 2px 6px; border-radius: 4px; font-size: 11px;">Firm
-                    {{ firm(v) }}</span>
+                  <div class="badges-row">
+                    <span class="pill pill-req">Req {{ totalRequeridaOf(v) }}</span>
+                    <span class="pill pill-warn">Falt {{ falt(v) }}</span>
+                    <span class="pill pill-neutral">Entr {{ entrev(v) }}</span>
+                    <span class="pill pill-neutral">Pru {{ prue(v) }}</span>
+                    <span class="pill pill-neutral">Auto {{ auto(v) }}</span>
+                    <span class="pill pill-neutral">Exm {{ exm(v) }}</span>
+                    <span class="pill pill-ok">Firm {{ firm(v) }}</span>
                   </div>
                 </div>
               } @else {
@@ -101,28 +87,14 @@
                           style="margin-right: 8px; font-size: 16px; width: 16px; height: 16px; color: #888;">work_outline</mat-icon>
                           <span class="cargo"><strong>{{ v.cargo || 'Sin cargo' }}</strong></span>
                           <span class="spacer"></span>
-                          <div class="badges-row" style="display: flex; gap: 4px; align-items: center;">
-                            <span class="badge"
-                              style="background: #e0f2fe; color: #0284c7; padding: 2px 6px; border-radius: 4px; font-size: 11px;">Req
-                            {{ totalRequeridaOf(v) }}</span>
-                            <span class="badge"
-                              style="background: #ffedd5; color: #ea580c; padding: 2px 6px; border-radius: 4px; font-size: 11px;">Falt
-                            {{ falt(v) }}</span>
-                            <span class="badge"
-                              style="background: #f3f4f6; color: #4b5563; padding: 2px 6px; border-radius: 4px; font-size: 11px;">Entr
-                            {{ entrev(v) }}</span>
-                            <span class="badge"
-                              style="background: #f3f4f6; color: #4b5563; padding: 2px 6px; border-radius: 4px; font-size: 11px;">Pru
-                            {{ prue(v) }}</span>
-                            <span class="badge"
-                              style="background: #f3f4f6; color: #4b5563; padding: 2px 6px; border-radius: 4px; font-size: 11px;">Auto
-                            {{ auto(v) }}</span>
-                            <span class="badge"
-                              style="background: #f3f4f6; color: #4b5563; padding: 2px 6px; border-radius: 4px; font-size: 11px;">Exm
-                            {{ exm(v) }}</span>
-                            <span class="badge"
-                              style="background: #dcfce3; color: #166534; padding: 2px 6px; border-radius: 4px; font-size: 11px;">Firm
-                            {{ firm(v) }}</span>
+                          <div class="badges-row">
+                            <span class="pill pill-req">Req {{ totalRequeridaOf(v) }}</span>
+                            <span class="pill pill-warn">Falt {{ falt(v) }}</span>
+                            <span class="pill pill-neutral">Entr {{ entrev(v) }}</span>
+                            <span class="pill pill-neutral">Pru {{ prue(v) }}</span>
+                            <span class="pill pill-neutral">Auto {{ auto(v) }}</span>
+                            <span class="pill pill-neutral">Exm {{ exm(v) }}</span>
+                            <span class="pill pill-ok">Firm {{ firm(v) }}</span>
                           </div>
                         </div>
                         <div class="row-2" style="font-size: 12px; color: gray; margin-left: 24px; margin-top: 4px;">

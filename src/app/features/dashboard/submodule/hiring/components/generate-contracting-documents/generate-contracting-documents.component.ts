@@ -92,7 +92,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     { titulo: 'Entrega documentos Tu Alianza Sin Casino' },
     { titulo: 'Entrega documentos administrativos' },
     { titulo: 'Ficha técnica' },
-    { titulo: 'Ficha técnica TA Completa' },
+    { titulo: 'Ficha Ta Completa' },
     { titulo: 'Contrato' },
     { titulo: 'Contrato TA' },
     { titulo: 'Entrega carnets' },
@@ -166,7 +166,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     "Entrega documentos melody": 27,
     "Entrega documentos Tu Alianza Sin Casino": 27,
     'Ficha técnica': 34,
-    'Ficha técnica TA Completa': 34,
+    'Ficha Ta Completa': 111,
     'Entrevista de Ingreso': 103,
     'Contratos Otros Si': 104,
     'Auxilio Alimentación': 105,
@@ -596,7 +596,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
         this.generarFichaTecnica();
       }
     }
-    else if (documento === 'Ficha técnica TA Completa') {
+    else if (documento === 'Ficha Ta Completa') {
       this.generarFichaTecnicaTuAlianzaCompleta();
     }
     else if (documento === 'Entrega carnets') {
@@ -10709,8 +10709,8 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       const ab = this.toSafeArrayBuffer(pdfBytes);
       const file = new File([ab], 'Ficha tecnica.pdf', { type: 'application/pdf' });
 
-      this.uploadedFiles['Ficha técnica'] = { file, fileName: 'Ficha tecnica.pdf' };
-      this.verPDF({ titulo: 'Ficha técnica' });
+      this.uploadedFiles['Ficha Ta Completa'] = { file, fileName: 'Ficha tecnica.pdf' };
+      this.verPDF({ titulo: 'Ficha Ta Completa' });
     } catch (error) {
       console.error('Error generando ficha técnica:', error);
       Swal.fire({ icon: 'error', title: 'Error', text: 'Ocurrió un error al generar la ficha técnica.' });

@@ -3,7 +3,8 @@ import {
   Inject,
   OnInit,
   ViewChild,
-, ChangeDetectionStrategy } from '@angular/core';
+  ChangeDetectionStrategy 
+} from '@angular/core';
 import { isPlatformBrowser } from '@angular/common';
 import { PLATFORM_ID } from '@angular/core';
 import { MatDialog } from '@angular/material/dialog';
@@ -206,6 +207,7 @@ export class ViewReportsComponent implements OnInit {
     'programador.ts@gmail.com',
     'a.seguridad.ts@gmail.com',
     'a.sotelotualianza@gmail.com',
+    'nominacentral9@gmail.com'
   ]);
 
   get isAdminReportUser(): boolean {

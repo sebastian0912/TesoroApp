@@ -1,5 +1,6 @@
 import {  Injectable, NgZone , signal } from '@angular/core';
 import {  Observable } from 'rxjs';
+import { toObservable } from '@angular/core/rxjs-interop';
 import { environment } from '../../../environments/environment';
 
 @Injectable({
@@ -14,7 +15,7 @@ export class NetworkStatusService {
   }
 
   get isOnline$(): Observable<boolean> {
-    return this.onlineStatus.asObservable();
+    return toObservable(this.onlineStatus);
   }
 
   get isOnline(): boolean {

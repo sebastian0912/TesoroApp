@@ -7,7 +7,8 @@ import {
   Inject,
   PLATFORM_ID,
   HostListener,
-, ChangeDetectionStrategy } from '@angular/core';
+  ChangeDetectionStrategy 
+} from '@angular/core';
 import { isPlatformBrowser } from '@angular/common';
 import { Router, NavigationEnd, RouterModule } from '@angular/router';
 import { filter } from 'rxjs/operators';

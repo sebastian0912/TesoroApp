@@ -5,8 +5,9 @@
     <ng-template mat-tab-label>
       <div class="tab"><mat-icon>payments</mat-icon> Pago y Transporte</div>
     </ng-template>
-
-    <div class="tab-content-scrollable" [formGroup]="pagoTransporteForm">
+    
+    <ng-template matTabContent>
+      <div class="tab-content-scrollable" [formGroup]="pagoTransporteForm">
       <div class="grid-managerial">
         <mat-form-field appearance="outline" class="example-full-width">
           <mat-label>Forma de Pago</mat-label>
@@ -173,6 +174,7 @@
         <button mat-flat-button color="primary" (click)="cargarPagoTransporte()">Cargar</button>
       </div>
     </div>
+    </ng-template>
   </mat-tab>
 
   <!-- TAB 2 ▸ Referencias (familiares, personales, laborales) -->
@@ -181,7 +183,8 @@
       <div class="tab"><mat-icon>groups</mat-icon> Referencias</div>
     </ng-template>
 
-    <div class="tab-content-scrollable" [formGroup]="referenciasForm">
+    <ng-template matTabContent>
+      <div class="tab-content-scrollable" [formGroup]="referenciasForm">
 
       <div class="referencias">
 
@@ -355,6 +358,7 @@
 
                           <button mat-flat-button color="primary" (click)="cargarReferencias()">Cargar</button>
                         </div>
+    </ng-template>
                       </mat-tab>
 
                       <!-- TAB 3 ▸ Traslados -->
@@ -363,7 +367,8 @@
                           <div class="tab"><mat-icon>swap_horiz</mat-icon> Traslados</div>
                         </ng-template>
 
-                        <div class="tab-content-scrollable" [formGroup]="trasladosForm">
+                        <ng-template matTabContent>
+                          <div class="tab-content-scrollable" [formGroup]="trasladosForm">
                           <div class="grid-managerial">
                             <mat-form-field appearance="outline" class="example-full-width">
                               <mat-label>¿Desea Trasladarse?</mat-label>
@@ -420,6 +425,7 @@
                               <button mat-flat-button color="primary" (click)="cargarTraslados()">Cargar</button>
                             </div>
                           </div>
+                        </ng-template>
                         </mat-tab>
 
                         <!-- TAB 4 ▸ Huellas -->
@@ -428,7 +434,8 @@
                             <div class="tab"><mat-icon>fingerprint</mat-icon> Cédula & Huella</div>
                           </ng-template>
 
-                          <div class="tab-content-scrollable">
+                          <ng-template matTabContent>
+                            <div class="tab-content-scrollable">
                             <!-- APOYO LABORAL T.S. S.A.S. -->
                             <mat-card class="fingerprint-card">
                               <mat-card-content>
@@ -479,9 +486,10 @@
                                   </button>
                                 }
                               </mat-card-content>
-                            </mat-card>
-                          </div>
-                        </mat-tab>
+                              </mat-card>
+                            </div>
+                          </ng-template>
+                          </mat-tab>
 
                       </mat-tab-group>
 

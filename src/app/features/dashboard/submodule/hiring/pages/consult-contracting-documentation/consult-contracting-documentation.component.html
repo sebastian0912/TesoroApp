@@ -93,6 +93,17 @@
       <div class="table-frame">
         <app-standard-filter-table [data]="checklistRows" [columnDefinitions]="checklistColumns" [tableTitle]="''"
           [isLoading]="isLoadingChecklist" [defaultPageSize]="20" [pageSizeOptions]="[10, 20, 50, 100]">
+          <!-- Action Template para Columna de Tipos -->
+          <ng-template #headerActionTemplate let-col>
+            @if (col.type === 'status') {
+              <button type="button" mat-icon-button
+                (click)="$event.stopPropagation(); viewColumnDocs(col)"
+                matTooltip="Visualizar / Descargar PDFs de esta columna" matTooltipPosition="above"
+                style="color: #6b7280; transform: scale(0.85); width: 32px; height: 32px; flex-shrink: 0;">
+                <mat-icon style="font-size: 20px; width: 20px; height: 20px; line-height: 20px;">visibility</mat-icon>
+              </button>
+            }
+          </ng-template>
           <!-- Premium Icon Status Render -->
           <ng-template #estadoTemplate let-row let-col="col">
             @let cell = row?.[col?.name];

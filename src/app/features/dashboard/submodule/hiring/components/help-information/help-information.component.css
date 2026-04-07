@@ -255,6 +255,30 @@
   color: #dc2626;
 }
 
+.pill-neutral {
+  background-color: #f3f4f6;
+  color: #4b5563;
+}
+
+.badges-row {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.badges-row .pill {
+  padding: 2px 6px;
+  font-size: 11px;
+  border-radius: 4px;
+  transition: all 0.2s ease-in-out;
+}
+
+.badges-row .pill:hover {
+  filter: brightness(0.95);
+  transform: translateY(-1px);
+}
+
 /* ========== Secciones y cards reutilizables ========== */
 .section {
   width: 100%;

@@ -75,6 +75,10 @@
 
     <!-- Reportes -->
     @if (activePanel === 'reportes') {
+      <app-info-card matIcon="cleaning_services" title="Limpiar Excel"
+        description="Sube un Excel para remover tildes y caracteres especiales"
+        (click)="triggerFileInputLimpiarExcel()">
+      </app-info-card>
       <app-info-card matIcon="download" title="Descargar historial beneficios"
         description="Genera un Excel con el historial de beneficios por rango de fechas"
         (click)="extraerHistorialBeneficios()">
@@ -102,10 +106,10 @@
 <input #fileInput type="file" (change)="cargarExcel($event)" accept=".xlsx, .xls" class="hidden-input" />
 <input #fileInputResetContratado type="file" (change)="cargarExcelResetContratado($event)" accept=".xlsx, .xls"
   class="hidden-input" />
-  <input #fileInputExcelCandidatos type="file" (change)="cargarExcelParaExportarCandidatos($event)" accept=".xlsx, .xls"
-    class="hidden-input" />
-    <input #fileInputCarnets type="file" (change)="cargarExcelCarnets($event)" accept=".xlsx, .xls" class="hidden-input" />
-
+<input #fileInputExcelCandidatos type="file" (change)="cargarExcelParaExportarCandidatos($event)" accept=".xlsx, .xls"
+  class="hidden-input" />
+<input #fileInputCarnets type="file" (change)="cargarExcelCarnets($event)" accept=".xlsx, .xls" class="hidden-input" />
+<input #fileInputLimpiarExcel type="file" (change)="procesarYLimpiarExcel($event)" accept=".xlsx, .xls" class="hidden-input" />
     <!-- Merchandising (solo si comercializadora) -->
     @if (comercializadora) {
       <div class="merchandising-section">

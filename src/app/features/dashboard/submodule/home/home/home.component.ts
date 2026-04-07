@@ -103,6 +103,7 @@ export class HomeComponent implements OnInit {
   @ViewChild('fileInputResetContratado') fileInputResetRef!: ElementRef<HTMLInputElement>;
   @ViewChild('fileInputExcelCandidatos') fileInputCandidatosRef!: ElementRef<HTMLInputElement>;
   @ViewChild('fileInputCarnets') fileInputCarnetsRef!: ElementRef<HTMLInputElement>;
+  @ViewChild('fileInputLimpiarExcel') fileInputLimpiarExcelRef!: ElementRef<HTMLInputElement>;
 
   // Progreso
   isLoadingProgresoAll = false;
@@ -477,6 +478,88 @@ export class HomeComponent implements OnInit {
     if (!el) return;
     el.value = '';
     el.click();
+  }
+
+  // Limpiar Excel de caracteres especiales
+  triggerFileInputLimpiarExcel(): void {
+    const el = this.fileInputLimpiarExcelRef?.nativeElement;
+    if (!el) return;
+    el.value = '';
+    el.click();
+  }
+
+  async procesarYLimpiarExcel(evt: any): Promise<void> {
+    const input = evt?.target as HTMLInputElement;
+    const file: File | undefined = input?.files?.[0];
+
+    if (!file) {
+      await Swal.fire({ icon: 'error', title: 'Selecciona un archivo' });
+      return;
+    }
+
+    Swal.fire({
+      title: 'Limpiando Excel...',
+      text: 'Removiendo tildes y caracteres especiales, preservando fechas.',
+      allowOutsideClick: false,
+      didOpen: () => Swal.showLoading(),
+    });
+
+    try {
+      const data = await file.arrayBuffer();
+      // Leemos sin alterar formatos (cellDates no es necesario aquí para preservar el raw value y format de excel)
+      const wb = XLSX.read(data, { type: 'array' });
+
+      for (const sheetName of wb.SheetNames) {
+        const ws = wb.Sheets[sheetName];
+        
+        for (const cellAddress in ws) {
+          if (!ws.hasOwnProperty(cellAddress) || cellAddress[0] === '!') continue;
+          
+          const cell = ws[cellAddress];
+          // Solo modificar texto
+          if (cell && cell.t === 's' && typeof cell.v === 'string') {
+            let val = cell.v;
+            
+            // Check si es una fecha como 20260330, 2026-03-30, 2026/03/30, 30-03-2026, etc.
+            const valTrimmed = val.trim();
+            const isDateString = /^\d{2,4}[-/]?\d{2}[-/]?\d{2,4}(?:\s+\d{1,2}:\d{2}(:\d{2})?)?$/.test(valTrimmed);
+
+            if (isDateString) {
+              // Si es fecha pura, no la tocamos para respetar el formato u separaciones
+            } else {
+              // Quitamos tildes, ñ -> n (normalize separa acentos)
+              val = val.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+              // Conservamos SOLO letras, números y espacios. REMOVEMOS puntos, comas, punto y coma, etc.
+              val = val.replace(/[^a-zA-Z0-9\s]/g, '');
+              cell.v = val;
+            }
+          }
+        }
+      }
+
+      const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+      const blob = new Blob([wbout], { type: 'application/octet-stream' });
+      
+      const newFilename = file.name.replace(/\.[^/.]+$/, "") + "_limpio.xlsx";
+      await this.saveToDownloads(blob, newFilename);
+
+      await Swal.fire({
+        icon: 'success',
+        title: 'Excel limpio',
+        text: `El archivo ${newFilename} se ha generado correctamente.`,
+      });
+    } catch (err: any) {
+      console.error(err);
+      await Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: 'No se pudo procesar el archivo Excel.',
+      });
+    } finally {
+      try {
+        input.value = '';
+      } catch { }
+    }
   }
 
   async cargarExcelParaExportarCandidatos(evt: any): Promise<void> {

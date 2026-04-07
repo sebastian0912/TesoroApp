@@ -459,10 +459,15 @@ export class HiringReportComponent implements OnInit, OnDestroy {
         this.router.navigate(['/dashboard/hiring/hiring-report']);
       });
 
-    } catch (e) {
+    } catch (e: any) {
       this.closeSwal();
       console.error(e);
-      Swal.fire('Error', 'No se pudo enviar el reporte', 'error');
+      const errorMsg = this.parseBackendError(e);
+      Swal.fire({
+        title: 'Error de Validación', 
+        html: errorMsg || 'No se pudo enviar el reporte. Ocurrió un error inesperado.', 
+        icon: 'error'
+      });
     }
   }
 
@@ -531,16 +536,20 @@ export class HiringReportComponent implements OnInit, OnDestroy {
     this.cruceHeaderRow = headerRow; // Guardar para uso posterior (ARL report)
     const dataRows = rawJson.slice(1) as any[][];
 
-    // 1. Normalizar filas
-    this.datoscruced = dataRows.map(row => this.normalizeRow(row));
-
-    // 2. COUNT AL/TA (Requirement)
+    // 1 & 2. Normalizar filas y Contar AL/TA simultáneamente (O(N))
+    const totalRows = dataRows.length;
+    this.datoscruced = new Array(totalRows);
     let al = 0, ta = 0;
-    this.datoscruced.forEach(r => {
-      const tem = (r[2] || '').toUpperCase().trim(); // Col 2 = TEM
-      if (tem === 'AL') al++;
-      else if (tem === 'TA') ta++;
-    });
+
+    for (let i = 0; i < totalRows; i++) {
+        const normalized = this.normalizeRow(dataRows[i]);
+        this.datoscruced[i] = normalized;
+        
+        const tem = (normalized[2] || '').toUpperCase().trim();
+        if (tem === 'AL') al++;
+        else if (tem === 'TA') ta++;
+    }
+
     this.reporteForm.patchValue({ cantidadContratosApoyoLaboral: al, cantidadContratosTuAlianza: ta });
 
     // 3. Pre-Validation (Frontend)
@@ -664,23 +673,29 @@ export class HiringReportComponent implements OnInit, OnDestroy {
 
 
   private tryNormalizeDate(val: string): string {
+    // Si tiene letras o formato no apto, devolver crudo para que el validador estricto lo atrape
+    if (!val || /[a-zA-Z]/.test(val)) return val;
+
     // 1. Handle Excel Serial Numbers (e.g. "44567" or "44567.123")
-    if (/^\d+(\.\d+)?$/.test(val)) {
-      const serial = Number(val);
-      if (serial > 20000 && serial < 80000) {
-        // Excel epoch is Jan 1, 1900, but falsely treats 1900 as a leap year.
-        // Therefore, dates after Feb 28, 1900 can be treated as if the epoch was Dec 30, 1899.
-        // We use UTC to prevent timezone offsets from pushing midnight backwards into the previous day.
-        const ms = Date.UTC(1899, 11, 30) + (serial * 24 * 60 * 60 * 1000);
-        const d = new Date(ms);
-        if (!isNaN(d.getTime())) {
-          return `${String(d.getUTCDate()).padStart(2, '0')}/${String(d.getUTCMonth() + 1).padStart(2, '0')}/${d.getUTCFullYear()}`;
+    // Pre check sin RegEx: si no tiene / ni -
+    if (val.indexOf('/') === -1 && val.indexOf('-') === -1) {
+      const isNum = /^\d+(\.\d+)?$/.test(val);
+      if (isNum) {
+        const serial = Number(val);
+        if (serial > 20000 && serial < 80000) {
+          const ms = Date.UTC(1899, 11, 30) + (serial * 24 * 60 * 60 * 1000);
+          const d = new Date(ms);
+          if (!isNaN(d.getTime())) {
+            return `${String(d.getUTCDate()).padStart(2, '0')}/${String(d.getUTCMonth() + 1).padStart(2, '0')}/${d.getUTCFullYear()}`;
+          }
         }
       }
     }
 
-    // 2. If already valid DD/MM/YYYY (4 digits year)
-    if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(val)) return val;
+    // 2. Si ya es una fecha colombiana clásica con 4 dígitos, la validamos rápido por longitud
+    if (val.length >= 8 && val.length <= 10 && val.indexOf('/') > 0) {
+        if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(val)) return val;
+    }
 
     // 3. Robust Parse for DD/MM/YY or DD-MM-YYYY
     const parts = val.split(/[/-]/);
@@ -1265,5 +1280,41 @@ export class HiringReportComponent implements OnInit, OnDestroy {
         traslados: traslados.length ? traslados : undefined
       }
     };
+  }
+
+  // ---------------------------------------------------------------------------
+  // ERROR PARSER
+  // ---------------------------------------------------------------------------
+  private parseBackendError(err: any): string {
+    if (!err) return '';
+    let obj = err;
+    if (err.error) obj = err.error; // Si viene envuelto por HttpErrorResponse
+    if (typeof obj === 'string') return obj;
+
+    const issues: string[] = [];
+    const extract = (data: any, path: string) => {
+      if (!data) return;
+      if (typeof data === 'string') {
+        issues.push(path ? `<b>${path}</b>: ${data}` : data);
+      } else if (Array.isArray(data)) {
+        data.forEach((item) => extract(item, path));
+      } else if (typeof data === 'object') {
+        Object.keys(data).forEach(key => {
+          let fieldName = key;
+          // Traducciones de DRF internas
+          if (key === 'non_field_errors' || key === 'detail') fieldName = '';
+          extract(data[key], fieldName);
+        });
+      }
+    };
+
+    extract(obj, '');
+    
+    if (issues.length === 0) return 'Ocurrió un error en el servidor al intentar guardar los datos.';
+    if (issues.length === 1) return issues[0];
+    
+    return `<ul style="text-align:left; max-height:200px; overflow:auto;">` + 
+           issues.map(msg => `<li>${msg}</li>`).join('') + 
+           `</ul>`;
   }
 }

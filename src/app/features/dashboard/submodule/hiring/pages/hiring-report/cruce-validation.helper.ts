@@ -180,8 +180,8 @@ export class CruceValidationHelper {
                 }
             ],
 
-            // B. Validaciones por fila
-            validateItem: (item) => this.validateRow(item),
+            // B. Validaciones por fila (Pre-calcula el año actual para mayor velocidad O(n))
+            validateItem: (item) => this.validateRow(item, new Date().getFullYear()),
 
             // A & C. Validaciones por lote / consistencia
             validateAll: (items) => this.validateBatch(items, uploadedRef),
@@ -193,10 +193,10 @@ export class CruceValidationHelper {
     /**
      * B. VALIDACIONES POR FILA
      */
-    static validateRow(item: CruceRow): PreviewIssue[] {
+    static validateRow(item: CruceRow, currentYear: number): PreviewIssue[] {
         const issues: PreviewIssue[] = [];
         const addError = (msg: string, field?: string) => {
-            console.debug(`[Validation Error][Row ${item.rowIndex}] ${field ? `[${field}] ` : ''}${msg}`);
+            // console.debug REMOVED FOR PERFORMANCE
             issues.push({ id: `row-${item._id}-${field || 'gen'}`, itemId: item._id, severity: 'error', message: msg, field });
         };
 
@@ -254,8 +254,7 @@ export class CruceValidationHelper {
         // Año Fin
         if (item.anioFin && item.anioFin !== '-') {
             const y = this.parseYear(item.anioFin);
-            const cur = new Date().getFullYear();
-            if (!y || y > cur) addError(`Año de finalización inválido (Col 44). Valor: '${item.anioFin}'.`, 'anioFin');
+            if (!y || y > currentYear) addError(`Año de finalización inválido (Col 44). Valor: '${item.anioFin}'.`, 'anioFin');
         }
 
         // Familiar (50-55)
@@ -336,7 +335,6 @@ export class CruceValidationHelper {
                 const sample = missingInExcel.slice(0, 5).join(', ');
                 const more = missingInExcel.length > 5 ? ` (+${missingInExcel.length - 5} más)` : '';
                 const msg = `Inconsistencia: ${missingInExcel.length} cédulas subidas no están en el Excel (Cols 1). [${sample}${more}]`;
-                console.debug(`[Validation Error][Global] ${msg}`);
                 issues.push({
                     id: 'global-missing-excel',
                     itemId: 'GLOBAL',
@@ -350,7 +348,6 @@ export class CruceValidationHelper {
             items.forEach(item => {
                 const c = item.cedula.trim();
                 if (!pdfCedulas.has(c)) {
-                    console.debug(`[Validation Error][Row ${item.rowIndex}] Cédula en Excel no tiene archivo PDF correspondiente subido.`);
                     issues.push({
                         id: `consist-extra-${item._id}`,
                         itemId: item._id,
@@ -369,7 +366,6 @@ export class CruceValidationHelper {
                 const sample = trasladosMissing.slice(0, 5).join(', ');
                 const more = trasladosMissing.length > 5 ? ` (+${trasladosMissing.length - 5} más)` : '';
                 const msg = `Inconsistencia Traslados: ${trasladosMissing.length} traslados no están en el Excel. [${sample}${more}]`;
-                console.debug(`[Validation Error][Global] ${msg}`);
                 issues.push({
                     id: 'global-missing-traslado',
                     itemId: 'GLOBAL',
@@ -412,7 +408,6 @@ export class CruceValidationHelper {
                 const [contrato, tem] = key.split('-');
                 ids.forEach(id => {
                     const msg = `Código de contrato duplicado en el archivo para la temporal ${tem} (${contrato}).`;
-                    console.debug(`[Validation Error][Row ID ${id}] ${msg}`);
                     issues.push({
                         id: `batch-contrato-${id}`,
                         itemId: id,
@@ -436,7 +431,6 @@ export class CruceValidationHelper {
                 if (cedulasInvolved.size > 1) {
                     ids.forEach(id => {
                         const msg = `Teléfono móvil (${celular}) repetido en el archivo para cédulas distintas.`;
-                        console.debug(`[Validation Error][Row ID ${id}] ${msg}`);
                         issues.push({
                             id: `batch-celular-${id}`,
                             itemId: id,
@@ -461,7 +455,6 @@ export class CruceValidationHelper {
                 if (cedulasInvolved.size > 1) {
                     ids.forEach(id => {
                         const msg = `Correo repetido para cédulas distintas: ${email}`;
-                        console.debug(`[Validation Error][Row ID ${id}] ${msg}`);
                         issues.push({
                             id: `batch-email-${id}`,
                             itemId: id,

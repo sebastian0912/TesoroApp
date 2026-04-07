@@ -271,11 +271,11 @@ export class HomeService {
   // ---------------------------------------------------------------------------
 
   getEstadosPorOficinaPeriodos(opts?: { oficina?: string; paquete?: string; robot?: string }): Observable<any> {
-    return this.getRobotPeriodosUnificado(opts);
+    return this.http.get(this.apiUrl + '/Robots/periodos-unificados/', { params: opts as any });
   }
 
   getEstadosPorOficinaPeriodosArgs(oficina?: string, paquete?: string, robot?: string): Observable<any> {
-    return this.getRobotPeriodosUnificado({ oficina, paquete, robot });
+    return this.http.get(this.apiUrl + '/Robots/periodos-unificados/', { params: { oficina, paquete, robot } as any });
   }
 
   /**

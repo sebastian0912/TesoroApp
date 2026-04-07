@@ -25,6 +25,10 @@ export class OfflineSyncService {
     this.updatePendingCount();
   }
 
+  private async syncQueue() {
+    // TODO: Implementar lógica de sincronización
+  }
+
   public async updatePendingCount() {
     if ((window as any).electron && (window as any).electron.db) {
       try {
