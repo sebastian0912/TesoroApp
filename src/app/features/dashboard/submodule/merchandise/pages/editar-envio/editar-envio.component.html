@@ -1,89 +1,147 @@
-<mat-card>
-  <mat-card-content>
-    <form [formGroup]="myForm" (ngSubmit)="onSubmit()">
-      <h1 class="titulo">Digite los campos del cargamento a enviar:</h1>
+<div class="page-container">
+  <div class="page-header">
+    <div class="header-content">
+      <h1 class="page-title">Editar Envío</h1>
+      <p class="page-subtitle">Busque un envío por código y modifique sus datos</p>
+    </div>
+    <div class="header-icon">
+      <mat-icon>edit_note</mat-icon>
+    </div>
+  </div>
 
-      <ng-container *ngIf="!datosEnvio">
-        <mat-form-field class="example-full-width">
-          <mat-label>Código de envio</mat-label>
-          <input matInput formControlName="codigoEnvio" />
-          <mat-error *ngIf="myForm.get('codigoEnvio')?.hasError('required')">
-            El codigo de envio es requerido
-          </mat-error>
-        </mat-form-field>
-
-        <button mat-flat-button type="button" (click)="buscarEnvio()">
-          Buscar
-        </button>
-      </ng-container>
-
-      <ng-container *ngIf="datosEnvio">
-        <mat-form-field class="example-full-width">
-          <mat-label>Cantidad</mat-label>
-          <input matInput formControlName="cantidad" type="number" />
-          <mat-error *ngIf="myForm.get('cantidad')?.hasError('required')">
-            La cantidad es requerida
-          </mat-error>
-        </mat-form-field>
-
-        <mat-form-field class="example-full-width">
-          <mat-label>Valor</mat-label>
-          <input
-            matInput
-            formControlName="valor"
-            (input)="formatCurrency($event)"
-          />
-          <mat-error *ngIf="myForm.get('valor')?.hasError('required')">
-            El valor es requerido
-          </mat-error>
-        </mat-form-field>
-
-        <mat-form-field class="example-full-width">
-          <mat-label>Seleccione un Concepto</mat-label>
-          <mat-select
-            formControlName="concepto"
-            (selectionChange)="updateOtroConceptoValidator($event.value)"
-          >
-            <mat-option *ngFor="let concepto of conceptos" [value]="concepto.valor">
-              {{ concepto.valor }}
-            </mat-option>
-          </mat-select>
-          <mat-error *ngIf="myForm.get('concepto')?.hasError('required')">
-            Seleccione un concepto
-          </mat-error>
-        </mat-form-field>
-
-        <div *ngIf="myForm.get('concepto')?.value === 'Otro'">
-          <mat-form-field class="example-full-width">
-            <mat-label>Otro Concepto</mat-label>
-            <input matInput formControlName="otroConcepto" />
-            <mat-error *ngIf="myForm.get('otroConcepto')?.hasError('required')">
-              El concepto es requerido
-            </mat-error>
+  <form [formGroup]="myForm" (ngSubmit)="onSubmit()">
+    <!-- ELEGIR ENVÍO -->
+    @if (!datosEnvio) {
+      <mat-card class="premium-card">
+        <mat-card-header>
+          <div mat-card-avatar class="card-avatar">
+            <mat-icon>format_list_bulleted</mat-icon>
+          </div>
+          <mat-card-title>Seleccionar Envío</mat-card-title>
+          <mat-card-subtitle>Haga clic en un envío de la lista para editarlo</mat-card-subtitle>
+        </mat-card-header>
+        <mat-card-content>
+          <mat-form-field appearance="outline" class="full-width" style="margin-top: 16px;">
+            <mat-label>Filtrar envíos</mat-label>
+            <mat-icon matPrefix>search</mat-icon>
+            <input matInput (keyup)="applyFilter($event)" placeholder="Buscar por código, concepto o destino..." />
           </mat-form-field>
-        </div>
+          @if (enviosFiltrados.length > 0) {
+            <div class="envios-grid">
+              @for (envio of enviosFiltrados; track envio) {
+                <mat-card class="envio-card" (click)="seleccionarEnvio(envio)">
+                  <div class="envio-card-header">
+                    <span class="badge-code">Cód. {{ envio.codigo }}</span>
+                    <span class="envio-fecha">{{ envio.fecha | date:'dd/MM/yyyy HH:mm' }}</span>
+                  </div>
+                  <div class="envio-card-body">
+                    <h3 class="envio-concepto">{{ envio.concepto }}</h3>
+                    <p class="envio-destino"><mat-icon inline>location_on</mat-icon> {{ envio.sede }}</p>
+                    <div class="envio-stats">
+                      <span><strong>Cant:</strong> {{ envio.cantidad }}</span>
+                      <span><strong>Valor:</strong> {{ envio.valor_unitario | currency:'COP':'symbol-narrow':'1.0-0' }}</span>
+                    </div>
+                    @if (envio.comentario) {
+                      <p class="envio-comentario"><mat-icon inline>comment</mat-icon> {{
+                    envio.comentario }}</p>
+                  }
+                </div>
+              </mat-card>
+            }
+          </div>
+        } @else {
+          <div class="no-data-msg">
+            <mat-icon>inbox</mat-icon>
+            <p>No hay envíos pendientes disponibles que coincidan con su búsqueda.</p>
+          </div>
+        }
+      </mat-card-content>
+    </mat-card>
+  }
 
-        <mat-form-field class="example-full-width">
-          <mat-label>Seleccione una Sede</mat-label>
-          <mat-select formControlName="sede">
-            <mat-option *ngFor="let sede of sedes" [value]="sede.nombre">
-              {{ sede.nombre }}
-            </mat-option>
-          </mat-select>
-          <mat-error *ngIf="myForm.get('sede')?.hasError('required')">
-            Seleccione una sede
-          </mat-error>
-        </mat-form-field>
-
-        <button
-          mat-flat-button
-          type="submit"
-          class="boton"
-          [disabled]="myForm.invalid"
-        >
-          Cargar
-        </button>
-      </ng-container>
-    </form>
-  </mat-card-content>
-</mat-card>
+  <!-- EDITAR DATOS -->
+  @if (datosEnvio) {
+    <div class="two-column-layout">
+      <!-- DATOS DEL PRODUCTO -->
+      <mat-card class="premium-card">
+        <mat-card-header>
+          <div mat-card-avatar class="card-avatar">
+            <mat-icon>inventory_2</mat-icon>
+          </div>
+          <mat-card-title>Datos del Producto</mat-card-title>
+          <mat-card-subtitle>Código: {{ myForm.get('codigoEnvio')?.value }}</mat-card-subtitle>
+        </mat-card-header>
+        <mat-card-content>
+          <mat-form-field appearance="outline" class="full-width" style="margin-top: 16px;">
+            <mat-label>Concepto</mat-label>
+            <mat-icon matPrefix>category</mat-icon>
+            <mat-select formControlName="concepto" (selectionChange)="updateOtroConceptoValidator($event.value)">
+              @for (concepto of conceptos; track concepto) {
+                <mat-option [value]="concepto.valor">
+                  {{ concepto.valor }}
+                </mat-option>
+              }
+            </mat-select>
+            <mat-error>Seleccione un concepto</mat-error>
+          </mat-form-field>
+          @if (myForm.get('concepto')?.value === 'Otro') {
+            <mat-form-field appearance="outline" class="full-width">
+              <mat-label>Otro Concepto</mat-label>
+              <input matInput formControlName="otroConcepto" />
+              <mat-error>El concepto es requerido</mat-error>
+            </mat-form-field>
+          }
+          <div class="form-grid">
+            <mat-form-field appearance="outline" class="full-width">
+              <mat-label>Cantidad</mat-label>
+              <mat-icon matPrefix>numbers</mat-icon>
+              <input matInput formControlName="cantidad" type="number" min="1" />
+              <mat-error>La cantidad es requerida</mat-error>
+            </mat-form-field>
+            <mat-form-field appearance="outline" class="full-width">
+              <mat-label>Valor Unitario</mat-label>
+              <span matTextPrefix>$&nbsp;</span>
+              <input matInput formControlName="valor" (input)="formatCurrency($event)" />
+              <mat-error>El valor es requerido</mat-error>
+            </mat-form-field>
+          </div>
+        </mat-card-content>
+      </mat-card>
+      <!-- SEDE -->
+      <mat-card class="premium-card">
+        <mat-card-header>
+          <div mat-card-avatar class="card-avatar" style="background-color: #fef3c7; color: #d97706;">
+            <mat-icon>local_shipping</mat-icon>
+          </div>
+          <mat-card-title>Sede Destino</mat-card-title>
+          <mat-card-subtitle>Modifique la sede si es necesario</mat-card-subtitle>
+        </mat-card-header>
+        <mat-card-content>
+          <mat-form-field appearance="outline" class="full-width" style="margin-top: 16px;">
+            <mat-label>Sede</mat-label>
+            <mat-icon matPrefix>location_on</mat-icon>
+            <mat-select formControlName="sede">
+              @for (sede of sedes; track sede) {
+                <mat-option [value]="sede.nombre">
+                  {{ sede.nombre }}
+                </mat-option>
+              }
+            </mat-select>
+            <mat-error>Seleccione una sede</mat-error>
+          </mat-form-field>
+        </mat-card-content>
+        <mat-card-actions style="padding: 8px 16px 16px; display:flex; gap: 8px; flex-wrap:wrap;">
+          <button mat-button type="button" (click)="volver()">
+            <mat-icon>arrow_back</mat-icon> Volver a la lista
+          </button>
+          <span style="flex:1;"></span>
+          <button mat-flat-button type="submit" class="btn-large" [disabled]="myForm.invalid"
+            style="background: #d97706; color: white;">
+            <mat-icon>save</mat-icon> GUARDAR CAMBIOS
+          </button>
+        </mat-card-actions>
+      </mat-card>
+    </div>
+  }
+</form>
+</div>

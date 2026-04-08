@@ -1,12 +1,28 @@
 /* Define variables de estilo para el componente */
 :host {
-  display: block;                 /* <- asegura que el host respete paddings/vars */
+  display: block;
+  /* <- asegura que el host respete paddings/vars */
   --form-gap: 16px;
   --form-padding: 24px;
 }
 
-h2 {
-  font-weight: 500 !important;
+.dlg-header-premium {
+  display: flex !important;
+  align-items: center;
+  margin: 0 0 24px 0 !important;
+  padding: 24px 32px 20px 32px !important;
+      background: linear-gradient(135deg, #0f172a 0%, #1e293b 60%, #334155 100%);
+    position: relative;
+    overflow: hidden;
+  color: #ffffff !important;
+}
+
+.dlg-header-premium .header-icon {
+  font-size: 28px;
+  width: 28px;
+  height: 28px;
+  margin-right: 12px;
+  color: #ffffff !important;
 }
 
 /* Contenido del diálogo con padding estándar */
@@ -40,7 +56,8 @@ h2 {
 .form-section-title {
   font-size: 1rem;
   font-weight: 500;
-  color: #616161; /* Gris oscuro para el título */
+  color: #616161;
+  /* Gris oscuro para el título */
   margin: calc(var(--form-gap) * 1.5) 0 calc(var(--form-gap) / 2);
   padding-bottom: 8px;
   border-bottom: 1px solid #eee;

@@ -1,67 +1,49 @@
-
-<aside
-  id="app-sidebar"
-  class="sidebar"
-  [class.is-open]="!isSidebarHidden"
-  [class.show-detail]="!!activeRoot && hasChildren(activeRoot)"
-  [class.right-pinned]="pinOpen">
+<aside id="app-sidebar" class="sidebar" [class.is-open]="!isSidebarHidden"
+  [class.show-detail]="!!activeRoot && hasChildren(activeRoot)" [class.right-pinned]="pinOpen">
 
   <!-- PANEL IZQUIERDO -->
   <div class="left" (mouseleave)="scheduleClose($event)">
 
     <!-- BRAND -->
-    <a
-      class="sidebar-brand"
-      routerLink="/dashboard"
-      aria-label="Ir al inicio"
-      (click)="isMobile && closeAll('api')">
-      <img
-        class="sidebar-brand__logo"
-        src="logos/logo_alianza.svg"
-        alt="Tu Apo" />
+    <a class="sidebar-brand" routerLink="/dashboard" aria-label="Ir al inicio" (click)="isMobile && closeAll('api')">
+      <img class="sidebar-brand__logo" src="logos/logo_alianza.svg" alt="Tu Apo" />
     </a>
 
     <!-- BOTONES DE MÓDULO -->
     <div class="module-buttons">
 
       <!-- HOME fijo -->
-      <button
-        type="button"
-        routerLink="/dashboard"
-        routerLinkActive="active-module-button"
-        [routerLinkActiveOptions]="{ exact: true }"
-        aria-label="Inicio"
-        title="Inicio"
-        (mouseenter)="onRootEnter(null)"
+      <button type="button" routerLink="/dashboard" routerLinkActive="active-module-button"
+        [routerLinkActiveOptions]="{ exact: true }" aria-label="Inicio" title="Inicio" (mouseenter)="onRootEnter(null)"
         (click)="onRootClick(null)">
         <mat-icon fontSet="material-symbols-outlined">home</mat-icon>
       </button>
 
       <!-- Módulos raíz -->
-      <ng-container
-        *ngFor="let root of visibleRootModules; trackBy: trackByNodeId">
-        <button
-          type="button"
-          (mouseenter)="onRootEnter(root)"
-          (click)="onRootClick(root)"
-          [title]="root.nombre"
+      @for (root of visibleRootModules; track trackByNodeId($index, root)) {
+        <button type="button" (mouseenter)="onRootEnter(root)" (click)="onRootClick(root)" [title]="root.nombre"
           [class.active-module-button]="activeRoot?.id === root.id || isTreeActive(root)"
           [attr.aria-expanded]="activeRoot?.id === root.id && hasChildren(root)"
           [attr.aria-controls]="activeRoot?.id === root.id && hasChildren(root) ? 'right-panel-content' : null">
           <mat-icon fontSet="material-symbols-outlined">
-            {{ getModuleIcon(root.nombre) }}
+            {{ getModuleIcon(root) }}
           </mat-icon>
         </button>
-      </ng-container>
+      }
     </div>
 
     <!-- BOTONES INFERIORES -->
     <div class="bottom-buttons">
-      <button
-        type="button"
-        class="logout-button"
-        (click)="cerrarSesion()"
-        title="Cerrar sesión">
+      <div class="logout-button network-status" [title]="isOnline ? 'En línea' : 'Sin conexión (Offline)'" [class.offline]="!isOnline">
+        <mat-icon fontSet="material-symbols-outlined">{{ isOnline ? 'cloud_done' : 'cloud_off' }}</mat-icon>
+        @if (pendingCount > 0) {
+          <span class="pending-badge" title="Sincronizando automáticamente al reconectar...">{{ pendingCount }}</span>
+        }
+      </div>
+      <button type="button" class="logout-button" (click)="refreshPermisos()" title="Actualizar menú">
+        <mat-icon fontSet="material-symbols-outlined">sync</mat-icon>
+      </button>
+      <button type="button" class="logout-button" (click)="cerrarSesion()" title="Cerrar sesión">
         <mat-icon fontSet="material-symbols-outlined">logout</mat-icon>
       </button>
     </div>
@@ -134,14 +116,43 @@
               </ng-container>
 
             </div>
+          </div>
+          <button class="header-pin-button" [title]="pinOpen ? 'Colapsar' : 'Expandir'" type="button"
+            (click)="togglePin()">
+            <mat-icon fontSet="material-symbols-outlined" class="header-icon">
+              {{ pinOpen ? 'expand_less' : 'expand_more' }}
+            </mat-icon>
+          </button>
+        </div>
+        <!-- Árbol -->
+        <nav [attr.aria-label]="'Submódulos de ' + activeRoot!.nombre">
+          <ng-template #tree let-nodes="nodes" let-level="level">
+            @for (node of nodes; track trackByNodeId($index, node)) {
+              <div class="tree-wrap" [style.paddingLeft.px]="(level - 2) * 14">
+                <button type="button" class="submodule-button" i (click)="onNodeClick(node)"
+                  [attr.aria-expanded]="hasChildren(node) ? isExpanded(node.id) : null"
+                  [class.active-submodule]="!hasChildren(node) && isRouteActive(getNodeRoute(node))">
+                  <mat-icon fontSet="material-symbols-outlined">
+                    {{ hasChildren(node) ? 'folder' : getNodeIcon(node) }}
+                  </mat-icon>
+                  <span class="submodule-text">{{ node.nombre }}</span>
+                  @if (hasChildren(node)) {
+                    <mat-icon fontSet="material-symbols-outlined" class="expand-icon">
+                      {{ isExpanded(node.id) ? 'expand_less' : 'expand_more' }}
+                    </mat-icon>
+                  }
+                </button>
+                @if (hasChildren(node) && isExpanded(node.id)) {
+                  <ng-container *ngTemplateOutlet="tree; context: { nodes: node.hijos || [], level: level + 1 }">
+                  </ng-container>
+                }
+              </div>
+            }
+          </ng-template>
+          <ng-container *ngTemplateOutlet="tree; context: { nodes: activeRoot!.hijos || [], level: 2 }">
           </ng-container>
-        </ng-template>
-
-        <ng-container
-          *ngTemplateOutlet="tree; context: { nodes: activeRoot!.hijos || [], level: 2 }">
-        </ng-container>
-      </nav>
-
+        </nav>
+      </div>
     </div>
-  </div>
+  }
 </aside>

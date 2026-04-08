@@ -1,4 +1,4 @@
-import { CommonModule } from '@angular/common';
+
 import {
   ChangeDetectionStrategy,
   ChangeDetectorRef,
@@ -85,7 +85,7 @@ type ChecklistResponseDto = {
 @Component({
   selector: 'app-consult-contracting-documentation',
   standalone: true,
-  imports: [CommonModule, SharedModule, MatButtonModule, MatDialogModule, StandardFilterTable],
+  imports: [SharedModule, MatButtonModule, MatDialogModule, StandardFilterTable],
   templateUrl: './consult-contracting-documentation.component.html',
   styleUrls: ['./consult-contracting-documentation.component.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -206,6 +206,148 @@ export class ConsultContractingDocumentationComponent implements OnInit {
     window.open(url, '_blank', 'noopener,noreferrer');
   }
 
+  /** ✅ Visualizar todos los documentos válidos de esta columna (Max 40 para browser merge) */
+  async viewColumnDocs(col: ColumnDefinition): Promise<void> {
+    const validUrls = this.checklistRows
+      .map(r => (r[col.name] as DocUiCell)?.url)
+      .filter((url): url is string => !!url);
+
+    if (!validUrls.length) {
+      Swal.fire({ icon: 'info', title: 'Vacío', text: `No hay documentos de tipo "${col.header}" en los resultados actuales.` });
+      return;
+    }
+
+    // El usuario pidió unir "x cantidad que pueda", así que siempre intentaremos unirlos
+    // Puedes comentar la opción de ZIP, pero opcionalmente le preguntamos si son muchos (mayor a 50)
+    // para darle la opción del ZIP, pero la primera será siempre unir.
+    if (validUrls.length > 50) {
+      const resp = await Swal.fire({
+        title: `Se unirán ${validUrls.length} documentos`,
+        text: 'Son bastantes documentos. ¿Deseas generar y abrir un único archivo PDF uniendo todos, o prefieres descargarlos en un ZIP?',
+        icon: 'question',
+        showCancelButton: true,
+        showDenyButton: true,
+        confirmButtonText: 'Sí, Unir en un solo PDF',
+        denyButtonText: 'Descargar en ZIP (Separados)',
+        cancelButtonText: 'Cancelar'
+      });
+
+      if (resp.isDenied) {
+        // Opción de descargar ZIP (archivos separados, no unidos)
+        const idStr = col.name.replace('type_', '');
+        const id = parseInt(idStr, 10);
+        if (!isNaN(id)) {
+          this.descargarZipConUnion([id]);
+        }
+        return;
+      } else if (!resp.isConfirmed) {
+        return; // Canceló
+      }
+    }
+
+    Swal.fire({
+      title: 'Uniendo Documentos',
+      text: 'Descargando y combinando archivos a máxima velocidad...',
+      allowOutsideClick: false,
+      didOpen: () => Swal.showLoading()
+    });
+
+    try {
+      const { PDFDocument } = await import('pdf-lib');
+      const mergedPdf = await PDFDocument.create();
+      let mergedCount = 0;
+
+      // Set metadata to prevent weird title in viewers
+      mergedPdf.setTitle(`Consolidado - ${col.header}`);
+      mergedPdf.setCreator('TesoroApp');
+
+      // Descarga paralela en bloques (chunks) para no ahogar las conexiones del navegador
+      const CHUNK_SIZE = 15;
+      
+      for (let i = 0; i < validUrls.length; i += CHUNK_SIZE) {
+        const chunkUrls = validUrls.slice(i, i + CHUNK_SIZE);
+        
+        Swal.update({ 
+          text: `Procesando bloque ${Math.ceil(i/CHUNK_SIZE) + 1} de ${Math.ceil(validUrls.length/CHUNK_SIZE)} (Docs ${i+1}-${Math.min(i+CHUNK_SIZE, validUrls.length)} / ${validUrls.length})` 
+        });
+
+        // Ejecutar fetches concurrentes
+        const fetchPromises = chunkUrls.map(async (url) => {
+          const res = await fetch(url);
+          if (!res.ok) throw new Error('Network error');
+          const contentType = res.headers.get('content-type') || '';
+          const buffer = await res.arrayBuffer();
+          return { url, contentType, buffer };
+        });
+
+        const results = await Promise.allSettled(fetchPromises);
+
+        // Procesar buffers secuencialmente para no desordenar el PDF
+        for (const result of results) {
+          if (result.status === 'fulfilled') {
+            const { url, contentType, buffer } = result.value;
+            try {
+              if (contentType.includes('image/') || url.toLowerCase().match(/\.(jpeg|jpg|png|gif)$/)) {
+                 let img = (contentType.includes('png') || url.toLowerCase().endsWith('.png'))
+                   ? await mergedPdf.embedPng(buffer)
+                   : await mergedPdf.embedJpg(buffer);
+                 const page = mergedPdf.addPage([img.width, img.height]);
+                 page.drawImage(img, { x: 0, y: 0, width: img.width, height: img.height });
+                 mergedCount++;
+              } else {
+                 const doc = await PDFDocument.load(buffer);
+                 
+                 // Aplanar el formulario para incrustar de forma permanente cualquier 
+                 // campo interactivo, firma o texto autocompletado antes de copiar.
+                 try {
+                   const form = doc.getForm();
+                   form.flatten();
+                 } catch (e) {
+                   console.warn('El PDF no tenía formulario o no se pudo aplanar', e);
+                 }
+
+                 const copiedPages = await mergedPdf.copyPages(doc, doc.getPageIndices());
+                 copiedPages.forEach((p) => mergedPdf.addPage(p));
+                 mergedCount++;
+              }
+            } catch (e) {
+              console.warn('No se pudo anexar archivo', url, e);
+            }
+          }
+        }
+      }
+
+      if (mergedCount === 0) {
+        Swal.fire({ icon: 'error', title: 'Error', text: 'No se pudieron procesar los documentos (Formato inválido o inaccesibles).' });
+        return;
+      }
+
+      Swal.update({ text: 'Compilando el archivo PDF unificado...' });
+      
+      const pdfBytes = await mergedPdf.save();
+      const blob = new Blob([pdfBytes as any], { type: 'application/pdf' });
+      const finalUrl = URL.createObjectURL(blob);
+
+      Swal.close();
+      
+      // Usamos un tag <a> en vez de window.open para asignar un nombre explícito e impedir 
+      // que el navegador descargue un archivo con nombre UUID "blob:XXXX.pdf"
+      const a = document.createElement('a');
+      a.href = finalUrl;
+      const safeName = String(col.header).replace(/[^a-zA-Z0-9]/g, '_');
+      a.download = `Consolidado_${safeName}_${new Date().toISOString().slice(0, 10)}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      
+      // Liberar memoria luego de un rato
+      setTimeout(() => URL.revokeObjectURL(finalUrl), 10000);
+    } catch(err) {
+      console.error(err);
+      Swal.fire({ icon: 'error', title: 'Error', text: 'Falló la generacion del PDF combinado.' });
+    }
+  }
+
   /** ---------- BÚSQUEDA INDIVIDUAL ---------- */
   buscarPorCedula(): void {
     const cedula = (this.cedulaControl.value ?? '').trim();
@@ -296,29 +438,56 @@ export class ConsultContractingDocumentationComponent implements OnInit {
       cutoff.setHours(0, 0, 0, 0);
       cutoff.setDate(cutoff.getDate() - 15);
 
-      // MAPPING (Heavy Sync Operation)
-      const rows: Row[] = (resp?.items ?? []).map((it: ChecklistItemDto) => {
+      // MAPPING (Heavy Sync Operation) - Optimizado O(N)
+      const itemsList = resp?.items ?? [];
+      const len = itemsList.length;
+      const rows: Row[] = new Array(len);
+      const mappedRows: any[] = new Array(len);
+
+      // Pre-computamos el timestamp límite para rapidez de fecha
+      const cutoffTime = cutoff.getTime();
+      const oldBatchIso = this.OLD_BATCH_DATE;
+
+      for (let i = 0; i < len; i++) {
+        const it = itemsList[i];
         const docsMap: Record<number, DocCell> = {};
         const docsArr: ChecklistDocDto[] = Array.isArray(it?.docs) ? it.docs : [];
 
-        for (const d of docsArr) {
+        for (let j = 0; j < docsArr.length; j++) {
+          const d = docsArr[j];
           const tid = Number(d?.type_id);
           if (!Number.isFinite(tid)) continue;
 
           const dd = d?.doc;
-          const uploadedAt = this.parseFecha(dd?.uploaded_at as any);
-          const isOldBatch = !!uploadedAt && uploadedAt.toISOString().slice(0, 10) === this.OLD_BATCH_DATE;
-          const vigente15d = !!dd && !!uploadedAt && uploadedAt.getTime() >= cutoff.getTime() && !isOldBatch;
+          
+          let uploadedAt: Date | null = null;
+          let vigente15d = false;
 
-          docsMap[tid] = {
-            exists: !!dd,
-            url: dd?.file_url,
-            uploaded_at: dd?.uploaded_at,
-            vigente15d,
-          };
+          if (dd) {
+            uploadedAt = this.parseFecha(dd.uploaded_at as any);
+            const isOldBatch = !!uploadedAt && uploadedAt.toISOString().slice(0, 10) === oldBatchIso;
+            vigente15d = !!uploadedAt && uploadedAt.getTime() >= cutoffTime && !isOldBatch;
+          }
+
+          if (docsMap[tid] && docsMap[tid].exists && dd) {
+             const existingDateStr = docsMap[tid].uploaded_at;
+             const existingDate = existingDateStr ? this.parseFecha(existingDateStr as any) : null;
+             if (!uploadedAt || (existingDate && existingDate.getTime() >= uploadedAt.getTime())) {
+               continue; 
+             }
+          }
+
+          if (!docsMap[tid] || dd) {
+            docsMap[tid] = {
+              exists: !!dd,
+              url: dd?.file_url,
+              uploaded_at: dd?.uploaded_at,
+              vigente15d,
+            };
+          }
         }
 
-        return {
+        const baseRow = {
           cedula: String(it?.cedula ?? ''),
           tipo_documento: it?.tipo_documento ?? '',
           nombre: it?.nombre_completo ?? '',
@@ -326,9 +495,28 @@ export class ConsultContractingDocumentationComponent implements OnInit {
           fecha_ingreso: it?.fecha_ingreso ?? '',
           codigo_contrato: it?.codigo_contrato ?? '',
           fecha_contratacion: it?.fecha_contratacion ?? '',
-          docs: docsMap,
         };
-      });
+
+        // Asignación principal 
+        rows[i] = { ...baseRow, docs: docsMap };
+
+        // Output en un solo pase para `checklistRows`
+        const out: any = { ...baseRow };
+        const theHeaders = this.tipoHeaders;
+        for (let t = 0; t < theHeaders.length; t++) {
+          const tid = theHeaders[t].id;
+          const cell = docsMap[tid];
+          const state: DocUiCell['state'] = !cell?.exists ? 'MISSING' : cell?.vigente15d ? 'OK' : 'OLD';
+
+          out[`type_${tid}`] = {
+            state,
+            url: cell?.url ?? null,
+            uploaded_at: cell?.uploaded_at ?? null,
+          } satisfies DocUiCell;
+        }
+        
+        mappedRows[i] = out;
+      }
 
       this.dataSource.data = rows;
 
@@ -353,31 +541,6 @@ export class ConsultContractingDocumentationComponent implements OnInit {
       }));
 
       this.checklistColumns = [...baseCols, ...dynCols];
-
-      const mappedRows = rows.map(r => {
-        const out: any = {
-          cedula: r.cedula ?? '',
-          tipo_documento: r.tipo_documento ?? '',
-          nombre: r.nombre ?? '',
-          finca: r.finca ?? '',
-          fecha_ingreso: r.fecha_ingreso ?? '',
-          codigo_contrato: r.codigo_contrato ?? '',
-          fecha_contratacion: r.fecha_contratacion ?? '',
-        };
-
-        for (const t of this.tipoHeaders) {
-          const cell = r.docs?.[t.id];
-          const state: DocUiCell['state'] =
-            !cell?.exists ? 'MISSING' : cell?.vigente15d ? 'OK' : 'OLD';
-
-          out[`type_${t.id}`] = {
-            state,
-            url: cell?.url ?? null,
-            uploaded_at: cell?.uploaded_at ?? null,
-          } satisfies DocUiCell;
-        }
-        return out;
-      });
 
       // ✅ UX: Avisar renderizado (esto suele congelar el UI)
       Swal.update({

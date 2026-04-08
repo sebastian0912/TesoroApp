@@ -5,6 +5,7 @@ import { firstValueFrom, Subject } from 'rxjs';
 import { takeUntil } from 'rxjs/operators';
 import * as XLSX from 'xlsx';
 import * as FileSaver from 'file-saver';
+import * as ExcelJS from 'exceljs';
 import Swal from 'sweetalert2';
 
 // Models & Shared
@@ -14,7 +15,7 @@ import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatDatepickerModule } from '@angular/material/datepicker';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatNativeDateModule } from '@angular/material/core';
-import { CommonModule } from '@angular/common';
+
 
 import { ValidationPreviewDialogComponent } from '@/app/shared/components/validation-preview-dialog/validation-preview-dialog.component';
 import {
@@ -62,14 +63,13 @@ interface DocConfig {
   selector: 'app-hiring-report',
   standalone: true,
   imports: [
-    CommonModule,
     SharedModule,
     ReactiveFormsModule,
     MatDatepickerModule,
     MatCheckboxModule,
     MatNativeDateModule,
-    MatDialogModule,
-  ],
+    MatDialogModule
+],
   templateUrl: './hiring-report.component.html',
   styleUrls: ['./hiring-report.component.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -100,10 +100,11 @@ export class HiringReportComponent implements OnInit, OnDestroy {
   erroresValidacion = new MatTableDataSource<any>([]);
   cedulasPreview: any[] = [];
   trasladosPreview: any[] = [];
+  arlErrors: { cedula: string; error: string }[] = [];
 
   // Config
   readonly DOCS: DocConfig[] = [
-    { key: 'cedulasEscaneadas', label: 'Cédulas Escaneadas', accept: '.pdf', multiple: true, directory: true, hint: 'PDFs individuales. Nombre: DOCUMENTO-Nombre.pdf o DOCUMENTO-algo.pdf', previewType: 'cedulas' },
+    { key: 'cedulasEscaneadas', label: 'Cédulas Escaneadas', accept: '.pdf', multiple: true, directory: true, hint: 'PDFs individuales. Obligatorio: DOCUMENTO-Nombre.pdf', previewType: 'cedulas' },
     { key: 'cruceDiario', label: 'Cruce Diario (Excel)', accept: '.xls,.xlsx', multiple: false, directory: false, hint: 'Excel del día. Columna 3 define si es AL o TA.' },
     { key: 'arl', label: 'Archivo ARL (Excel)', accept: '.xls,.xlsx', multiple: false, directory: false, hint: 'Reporte descargado de ARL. Debe contener "DNI TRABAJADOR".' },
     { key: 'induccionSSO', label: 'Inducción SST', accept: '.pdf', multiple: false, directory: false, hint: 'Constancia de inducción grouping.' },
@@ -301,8 +302,18 @@ export class HiringReportComponent implements OnInit, OnDestroy {
       if (key === 'arl') this.isArlValidado = false;
 
       // Direct Previews
-      if (key === 'cedulasEscaneadas') this.generateCedulasPreview(allowed);
-      if (key === 'traslados') this.generateTrasladosPreview(allowed);
+      if (key === 'cedulasEscaneadas') {
+        this.generateCedulasPreview(allowed);
+        if (this.cedulasPreview.some(p => !p.valido)) {
+          this.checkAndShowPreviewErrors(this.cedulasPreview, 'cedulas');
+        }
+      }
+      if (key === 'traslados') {
+        this.generateTrasladosPreview(allowed);
+        if (this.trasladosPreview.some(p => !p.valido)) {
+          this.checkAndShowPreviewErrors(this.trasladosPreview, 'traslados');
+        }
+      }
     }
 
     this.cdr.markForCheck();
@@ -349,26 +360,11 @@ export class HiringReportComponent implements OnInit, OnDestroy {
     this.cedulasPreview = files.map(f => {
       const name = f.name;
 
-      // 1. Try "DOC - NOMBRE.pdf" or "DOC-NOMBRE.pdf" or "DOC NOMBRE.pdf"
-      // Capture group 1: The ID (alphanumeric + optional chars)
-      // Capture group 2: The rest (Name)
-      // We accept separators: space, dash, underscore
-      const match = name.match(/^\s*([a-zA-Z0-9]+)\s*[-_\s]\s*(.+?)\.pdf$/i);
+      // Obligatorio que tenga un guión
+      const match = name.match(/^\s*([a-zA-Z0-9]+)\s*-\s*(.+?)\.pdf$/i);
 
-      let doc = '';
       if (match) {
-        doc = match[1];
-      } else {
-        // 2. Fallback: Check if file is just "DOC.pdf"
-        const simpleMatch = name.match(/^\s*([a-zA-Z0-9]+)\s*\.pdf$/i);
-        if (simpleMatch) {
-          doc = simpleMatch[1];
-        }
-      }
-
-      // 3. Validate extracted doc
-      if (doc) {
-        // Normalize: remove spaces inside if it starts with X
+        const doc = match[1];
         const normalized = this.normalizeIdentity(doc);
         const isValidDoc = /^(\d+|X[a-zA-Z0-9]+)$/i.test(normalized);
 
@@ -380,7 +376,7 @@ export class HiringReportComponent implements OnInit, OnDestroy {
         };
       }
 
-      return { nombreArchivo: name, valido: false, error: 'Formato inválido. Use CEDULA-NOMBRE.pdf' };
+      return { nombreArchivo: name, valido: false, error: 'Formato inválido. Use CEDULA-Nombre.pdf (requiere guión)' };
     });
   }
 
@@ -442,6 +438,10 @@ export class HiringReportComponent implements OnInit, OnDestroy {
         Swal.fire('Falta Validar', 'Debe validar el Cruce Diario antes de enviar.', 'warning');
         return;
       }
+      if (checks.arl && this.arlErrors.length > 0) {
+        Swal.fire('Errores ARL', `Hay ${this.arlErrors.length} error(es) en la validación ARL. Revise la tabla de errores.`, 'error');
+        return;
+      }
       if (checks.arl && !this.isArlValidado) {
         Swal.fire('Falta ARL', 'Debe procesar el archivo ARL antes de enviar. (Validar Todo)', 'warning');
         return;
@@ -459,10 +459,15 @@ export class HiringReportComponent implements OnInit, OnDestroy {
         this.router.navigate(['/dashboard/hiring/hiring-report']);
       });
 
-    } catch (e) {
+    } catch (e: any) {
       this.closeSwal();
       console.error(e);
-      Swal.fire('Error', 'No se pudo enviar el reporte', 'error');
+      const errorMsg = this.parseBackendError(e);
+      Swal.fire({
+        title: 'Error de Validación', 
+        html: errorMsg || 'No se pudo enviar el reporte. Ocurrió un error inesperado.', 
+        icon: 'error'
+      });
     }
   }
 
@@ -523,7 +528,7 @@ export class HiringReportComponent implements OnInit, OnDestroy {
     const file = this.files.cruceDiario![0];
     const wb = await this.readExcel(file);
     const sheet = wb.Sheets[wb.SheetNames[0]];
-    const rawJson = XLSX.utils.sheet_to_json<any[]>(sheet, { header: 1, defval: '-', raw: false, dateNF: 'dd/mm/yyyy' });
+    const rawJson = XLSX.utils.sheet_to_json<any[]>(sheet, { header: 1, defval: '-', raw: true });
 
     if (rawJson.length < 2) throw new Error('Excel vacío o sin datos');
 
@@ -531,16 +536,20 @@ export class HiringReportComponent implements OnInit, OnDestroy {
     this.cruceHeaderRow = headerRow; // Guardar para uso posterior (ARL report)
     const dataRows = rawJson.slice(1) as any[][];
 
-    // 1. Normalizar filas
-    this.datoscruced = dataRows.map(row => this.normalizeRow(row));
-
-    // 2. COUNT AL/TA (Requirement)
+    // 1 & 2. Normalizar filas y Contar AL/TA simultáneamente (O(N))
+    const totalRows = dataRows.length;
+    this.datoscruced = new Array(totalRows);
     let al = 0, ta = 0;
-    this.datoscruced.forEach(r => {
-      const tem = (r[2] || '').toUpperCase().trim(); // Col 2 = TEM
-      if (tem === 'AL') al++;
-      else if (tem === 'TA') ta++;
-    });
+
+    for (let i = 0; i < totalRows; i++) {
+        const normalized = this.normalizeRow(dataRows[i]);
+        this.datoscruced[i] = normalized;
+        
+        const tem = (normalized[2] || '').toUpperCase().trim();
+        if (tem === 'AL') al++;
+        else if (tem === 'TA') ta++;
+    }
+
     this.reporteForm.patchValue({ cantidadContratosApoyoLaboral: al, cantidadContratosTuAlianza: ta });
 
     // 3. Pre-Validation (Frontend)
@@ -652,7 +661,7 @@ export class HiringReportComponent implements OnInit, OnDestroy {
 
     // Normalize Dates (Col 8, 16, 24, 44 [AnioFin can be date])
     [8, 16, 24, 44].forEach(idx => {
-      if (safe[idx] && safe[idx] !== '-' && safe[idx].length > 5) {
+      if (safe[idx] && safe[idx] !== '-' && safe[idx].length >= 4) {
         safe[idx] = this.tryNormalizeDate(safe[idx]);
       }
     });
@@ -664,20 +673,29 @@ export class HiringReportComponent implements OnInit, OnDestroy {
 
 
   private tryNormalizeDate(val: string): string {
+    // Si tiene letras o formato no apto, devolver crudo para que el validador estricto lo atrape
+    if (!val || /[a-zA-Z]/.test(val)) return val;
+
     // 1. Handle Excel Serial Numbers (e.g. "44567" or "44567.123")
-    if (/^\d+(\.\d+)?$/.test(val)) {
-      const serial = Number(val);
-      if (serial > 20000 && serial < 80000) {
-        const excelEpoch = new Date(1899, 11, 30);
-        const d = new Date(excelEpoch.getTime() + serial * 24 * 60 * 60 * 1000);
-        if (!isNaN(d.getTime())) {
-          return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+    // Pre check sin RegEx: si no tiene / ni -
+    if (val.indexOf('/') === -1 && val.indexOf('-') === -1) {
+      const isNum = /^\d+(\.\d+)?$/.test(val);
+      if (isNum) {
+        const serial = Number(val);
+        if (serial > 20000 && serial < 80000) {
+          const ms = Date.UTC(1899, 11, 30) + (serial * 24 * 60 * 60 * 1000);
+          const d = new Date(ms);
+          if (!isNaN(d.getTime())) {
+            return `${String(d.getUTCDate()).padStart(2, '0')}/${String(d.getUTCMonth() + 1).padStart(2, '0')}/${d.getUTCFullYear()}`;
+          }
         }
       }
     }
 
-    // 2. If already valid DD/MM/YYYY (4 digits year)
-    if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(val)) return val;
+    // 2. Si ya es una fecha colombiana clásica con 4 dígitos, la validamos rápido por longitud
+    if (val.length >= 8 && val.length <= 10 && val.indexOf('/') > 0) {
+        if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(val)) return val;
+    }
 
     // 3. Robust Parse for DD/MM/YY or DD-MM-YYYY
     const parts = val.split(/[/-]/);
@@ -737,18 +755,40 @@ export class HiringReportComponent implements OnInit, OnDestroy {
 
   private async validateBatchesBackend(rows: string[][]): Promise<any[]> {
     const BATCH = 1500;
+    const CONCURRENCY = 3; // Enviar hasta 3 lotes al mismo tiempo
     const errors: any[] = [];
     const chunks = Math.ceil(rows.length / BATCH);
 
-    for (let i = 0; i < chunks; i++) {
-      this.updateSwalProgress(`Validando lote ${i + 1}/${chunks}`, i + 1, chunks);
-      const chunk = rows.slice(i * BATCH, (i + 1) * BATCH);
-      // Fix: Service method returns Promise<any>, removed firstValueFrom
-      const res: any = await this.hiringService.subirContratacionValidar(chunk);
-      if (res?.status === 'error' && Array.isArray(res.errores)) {
-        errors.push(...res.errores);
+    for (let i = 0; i < chunks; i += CONCURRENCY) {
+      const top = Math.min(i + CONCURRENCY, chunks);
+      this.updateSwalProgress(`Validando lotes ${i + 1} a ${top} de ${chunks}...`, top, chunks);
+
+      const batchPromises = [];
+      for (let j = 0; j < CONCURRENCY && (i + j) < chunks; j++) {
+        const chunkIndex = i + j;
+        const chunk = rows.slice(chunkIndex * BATCH, (chunkIndex + 1) * BATCH);
+        
+        batchPromises.push(
+          this.hiringService.subirContratacionValidar(chunk)
+            .then((res: any) => {
+              if (res?.status === 'error' && Array.isArray(res.errores)) {
+                return res.errores;
+              }
+              return [];
+            })
+            .catch(err => {
+              console.error(`Error en lote ${chunkIndex}`, err);
+              return [{ mensaje: `Error fatal al validar el lote ${chunkIndex + 1}` }];
+            })
+        );
+      }
+
+      const results = await Promise.all(batchPromises);
+      for (const errArray of results) {
+        errors.push(...errArray);
       }
     }
+    
     return errors;
   }
 
@@ -770,7 +810,7 @@ export class HiringReportComponent implements OnInit, OnDestroy {
   private async processArl(file: File) {
     const wb = await this.readExcel(file);
     const sheet = wb.Sheets[wb.SheetNames[0]];
-    const data = XLSX.utils.sheet_to_json<any[]>(sheet, { header: 1, defval: '', raw: false, dateNF: 'dd/mm/yyyy' });
+    const data = XLSX.utils.sheet_to_json<any[]>(sheet, { header: 1, defval: '', raw: true });
 
     if (data.length < 2) throw new Error('ARL vacío');
 
@@ -805,6 +845,85 @@ export class HiringReportComponent implements OnInit, OnDestroy {
     this.arlIndices = { dni: idxDni, vig: idxVig };
 
     this.isArlValidado = true;
+
+    // Recolectar errores ARL inmediatamente para mostrar en la UI
+    this.collectArlErrors();
+    this.cdr.markForCheck();
+  }
+
+  private collectArlErrors() {
+    this.arlErrors = [];
+    if (!this.datoscruced.length || !this.arlRows.length) return;
+
+    const { dni, vig } = this.arlIndices;
+
+    // Indexar ARL por cédula
+    const arlMap = new Map<string, any[][]>();
+    this.arlRows.forEach(row => {
+      const cedula = this.normalizeIdentity(row[dni]);
+      if (cedula) {
+        if (!arlMap.has(cedula)) {
+          arlMap.set(cedula, []);
+        }
+        arlMap.get(cedula)!.push(row);
+      }
+    });
+
+    // Comparar cada fila del cruce contra ARL
+    this.datoscruced.forEach(cruceRow => {
+      const cedula = this.normalizeIdentity(cruceRow[1]);
+      const fechaIngreso = cruceRow[8];
+      const arlRowsForCedula = arlMap.get(cedula);
+
+      if (!arlRowsForCedula || arlRowsForCedula.length === 0) {
+        this.arlErrors.push({ cedula, error: 'No existe en ARL' });
+      } else {
+        // Comparar fechas
+        const dCruce = CruceValidationHelper.parseDate(fechaIngreso);
+        let matchFound = false;
+        let fechasArlTexto: string[] = [];
+
+        for (const arlRow of arlRowsForCedula) {
+          let dArl: Date | null = null;
+          const rawFechaArl = arlRow[vig];
+          const strArl = String(rawFechaArl || '').trim();
+
+          if (strArl.includes('/')) {
+            dArl = CruceValidationHelper.parseDate(strArl);
+          } else if (strArl.includes('-')) {
+            const parts = strArl.split('-');
+            if (parts[0].length === 4) {
+              dArl = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+            } else {
+              dArl = new Date(Number(parts[2]), Number(parts[1]) - 1, Number(parts[0]));
+            }
+          } else if (typeof rawFechaArl === 'number') {
+            const ms = Date.UTC(1899, 11, 30) + (rawFechaArl * 24 * 60 * 60 * 1000);
+            const d = new Date(ms);
+            // CruceValidationHelper.parseDate returns local midnight Date(Y, M, D).
+            if (!isNaN(d.getTime())) {
+              dArl = new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+            }
+          }
+
+          const fmtArl = dArl && !isNaN(dArl.getTime())
+            ? `${String(dArl.getDate()).padStart(2, '0')}/${String(dArl.getMonth() + 1).padStart(2, '0')}/${dArl.getFullYear()}`
+            : strArl;
+
+          fechasArlTexto.push(fmtArl);
+
+          if (dCruce && dArl && !isNaN(dArl.getTime()) && dCruce.getTime() === dArl.getTime()) {
+            matchFound = true;
+            break;
+          }
+        }
+
+        if (!matchFound) {
+          const unicas = Array.from(new Set(fechasArlTexto));
+          this.arlErrors.push({ cedula, error: `Fecha de ingreso (${fechaIngreso}) diferente a fecha(s) ARL (${unicas.join(' o ')})` });
+        }
+      }
+    });
   }
 
   // Helper state for ARL indices
@@ -812,12 +931,6 @@ export class HiringReportComponent implements OnInit, OnDestroy {
 
   downloadArlReport() {
     if (!this.datoscruced.length || !this.arlRows.length) return;
-    if (!this.arlWorker) {
-      Swal.fire('Error', 'Worker no soportado', 'error');
-      return;
-    }
-
-    this.showLoading('Generando Excel...', 'El worker está procesando el reporte ARL...');
 
     const headerRow = this.cruceHeaderRow.length > 0
       ? this.cruceHeaderRow
@@ -830,15 +943,173 @@ export class HiringReportComponent implements OnInit, OnDestroy {
       errorsMap[id].push(e.mensaje || e.message);
     });
 
-    // Use stored indices
     const { dni, vig } = this.arlIndices;
 
-    this.arlWorker.postMessage({
+    const workerData = {
       cruceRows: this.datoscruced,
       arlRows: this.arlRows,
       headerRowCruce: headerRow,
       indices: { dniTrabajador: dni, inicioVigencia: vig },
       errorsMap
+    };
+
+    if (this.arlWorker) {
+      // Worker disponible (browser estándar)
+      this.showLoading('Generando Excel...', 'El worker está procesando el reporte ARL...');
+      this.arlWorker.postMessage(workerData);
+    } else {
+      // Fallback inline (Electron o entornos sin soporte de Worker)
+      this.showLoading('Generando Excel...', 'Procesando el reporte ARL...');
+      setTimeout(() => {
+        try {
+          this.generateArlInline(workerData);
+        } catch (e) {
+          this.closeSwal();
+          console.error(e);
+          Swal.fire('Error', 'Falló la generación del Excel ARL: ' + e, 'error');
+        }
+      }, 100);
+    }
+  }
+
+  private generateArlInline(data: any) {
+    const { cruceRows, arlRows, headerRowCruce, indices, errorsMap } = data;
+
+    // Indexar ARL
+    const arlMap = new Map<string, any[][]>();
+    arlRows.forEach((row: any[]) => {
+      const cedula = this.normalizeIdentity(row[indices.dniTrabajador]);
+      if (cedula) {
+        if (!arlMap.has(cedula)) {
+          arlMap.set(cedula, []);
+        }
+        arlMap.get(cedula)!.push(row);
+      }
+    });
+
+    // Headers de salida
+    const outputHeaders = ['Numero de Cedula', 'Arl', 'ARL_FECHAS', 'FECHA EN ARL', 'FECHA INGRESO SUBIDA CONTRATACION', 'Errores', ...headerRowCruce];
+    const outputData: any[][] = [outputHeaders];
+
+    cruceRows.forEach((cruceRow: string[]) => {
+      const cedulaCruce = this.normalizeIdentity(cruceRow[1]);
+      const fechaIngresoCruce = cruceRow[8];
+      const arlRowsForCedula = arlMap.get(cedulaCruce);
+
+      let estadoArl = 'NO', estadoFechas = 'NO', fechaEnArl = 'SIN DATA';
+
+      if (arlRowsForCedula && arlRowsForCedula.length > 0) {
+        estadoArl = 'SI';
+        const dCruce = CruceValidationHelper.parseDate(fechaIngresoCruce);
+        let matchFound = false;
+        let fechasArlTexto: string[] = [];
+
+        for (const arlRow of arlRowsForCedula) {
+          const rawFechaArl = arlRow[indices.inicioVigencia];
+          let dArl: Date | null = null;
+
+          const strArl = String(rawFechaArl || '').trim();
+          if (strArl.includes('/')) {
+            dArl = CruceValidationHelper.parseDate(strArl);
+          } else if (typeof rawFechaArl === 'number') {
+            const ms = Date.UTC(1899, 11, 30) + (rawFechaArl * 24 * 60 * 60 * 1000);
+            const d = new Date(ms);
+            if (!isNaN(d.getTime())) {
+              dArl = new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+            }
+          } else if (strArl.includes('-')) {
+            const parts = strArl.split('-');
+            if (parts[0].length === 4) {
+              dArl = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+            } else {
+              dArl = new Date(Number(parts[2]), Number(parts[1]) - 1, Number(parts[0]));
+            }
+          }
+
+          let formattedDate = strArl || 'SIN DATA';
+          if (dArl && !isNaN(dArl.getTime())) {
+            const dd = String(dArl.getDate()).padStart(2, '0');
+            const mm = String(dArl.getMonth() + 1).padStart(2, '0');
+            formattedDate = `${dd}/${mm}/${dArl.getFullYear()}`;
+          }
+
+          fechasArlTexto.push(formattedDate);
+
+          if (dCruce && dArl && !isNaN(dArl.getTime()) && dCruce.getTime() === dArl.getTime()) {
+            matchFound = true;
+          }
+        }
+
+        const unicas = Array.from(new Set(fechasArlTexto));
+        fechaEnArl = unicas.join(' o ');
+
+        if (matchFound) {
+          estadoFechas = 'SI';
+        }
+      }
+
+      const erroresPrevios = errorsMap[cedulaCruce] ? errorsMap[cedulaCruce].join('; ') : '';
+      outputData.push([cedulaCruce, estadoArl, estadoFechas, fechaEnArl, fechaIngresoCruce, erroresPrevios, ...cruceRow]);
+    });
+
+    // Recolectar errores ARL para mostrar en la UI
+    this.arlErrors = [];
+    for (let i = 1; i < outputData.length; i++) {
+      const row = outputData[i];
+      const cedula = row[0];
+      const arl = row[1];
+      const arlFechas = row[2];
+      if (arl === 'NO') {
+        this.arlErrors.push({ cedula, error: 'No existe en ARL' });
+      } else if (arlFechas === 'NO') {
+        this.arlErrors.push({ cedula, error: `Fecha de ingreso (${row[4]}) diferente a fecha ARL (${row[3]})` });
+      }
+    }
+
+    // Generar Excel con ExcelJS (soporte de estilos)
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('Reporte ARL');
+
+    // Agregar filas
+    outputData.forEach((row, rowIdx) => {
+      const excelRow = ws.addRow(row);
+      if (rowIdx === 0) {
+        // Header styling
+        excelRow.eachCell(cell => {
+          cell.font = { bold: true };
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD9E1F2' } };
+        });
+      } else {
+        // Columna B (Arl) = col 2, Columna C (ARL_FECHAS) = col 3
+        const cellArl = excelRow.getCell(2);
+        const cellFechas = excelRow.getCell(3);
+
+        const redFill: ExcelJS.Fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFF0000' } };
+        const whiteFont: Partial<ExcelJS.Font> = { color: { argb: 'FFFFFFFF' }, bold: true };
+
+        if (cellArl.value === 'NO') {
+          cellArl.fill = redFill;
+          cellArl.font = whiteFont;
+        }
+        if (cellFechas.value === 'NO') {
+          cellFechas.fill = redFill;
+          cellFechas.font = whiteFont;
+        }
+      }
+    });
+
+    // Anchos de columna
+    ws.getColumn(1).width = 18;  // Cedula
+    ws.getColumn(2).width = 8;   // ARL
+    ws.getColumn(3).width = 14;  // ARL_FECHAS
+    ws.getColumn(4).width = 18;  // FECHA EN ARL
+    ws.getColumn(5).width = 18;  // FECHA INGRESO
+    ws.getColumn(6).width = 45;  // Errores
+
+    // Escribir archivo
+    wb.xlsx.writeBuffer().then(buffer => {
+      this.handleWorkerSuccess(buffer);
+      this.cdr.markForCheck();
     });
   }
 
@@ -898,6 +1169,12 @@ export class HiringReportComponent implements OnInit, OnDestroy {
    */
 
   private getDocList(key: UploadControl): string[] {
+    if (key === 'cedulasEscaneadas') {
+      return this.cedulasPreview.filter(p => p.valido).map(p => String(p.documento));
+    }
+    if (key === 'traslados') {
+      return this.trasladosPreview.filter(p => p.valido).map(p => String(p.documento));
+    }
     const files = this.files[key] || [];
     return files.map(f => {
       // Improved regex to capture the leading ID part
@@ -1003,5 +1280,41 @@ export class HiringReportComponent implements OnInit, OnDestroy {
         traslados: traslados.length ? traslados : undefined
       }
     };
+  }
+
+  // ---------------------------------------------------------------------------
+  // ERROR PARSER
+  // ---------------------------------------------------------------------------
+  private parseBackendError(err: any): string {
+    if (!err) return '';
+    let obj = err;
+    if (err.error) obj = err.error; // Si viene envuelto por HttpErrorResponse
+    if (typeof obj === 'string') return obj;
+
+    const issues: string[] = [];
+    const extract = (data: any, path: string) => {
+      if (!data) return;
+      if (typeof data === 'string') {
+        issues.push(path ? `<b>${path}</b>: ${data}` : data);
+      } else if (Array.isArray(data)) {
+        data.forEach((item) => extract(item, path));
+      } else if (typeof data === 'object') {
+        Object.keys(data).forEach(key => {
+          let fieldName = key;
+          // Traducciones de DRF internas
+          if (key === 'non_field_errors' || key === 'detail') fieldName = '';
+          extract(data[key], fieldName);
+        });
+      }
+    };
+
+    extract(obj, '');
+    
+    if (issues.length === 0) return 'Ocurrió un error en el servidor al intentar guardar los datos.';
+    if (issues.length === 1) return issues[0];
+    
+    return `<ul style="text-align:left; max-height:200px; overflow:auto;">` + 
+           issues.map(msg => `<li>${msg}</li>`).join('') + 
+           `</ul>`;
   }
 }

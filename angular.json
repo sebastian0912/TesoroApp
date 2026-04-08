@@ -16,6 +16,7 @@
             "outputPath": "dist/tesoreria",
             "index": "src/index.html",
             "browser": "src/main.ts",
+            "prerender": false,
             "baseHref": "./",
             "polyfills": [
               "zone.js"
@@ -39,7 +40,6 @@
             ],
             "scripts": [],
             "server": "src/main.server.ts",
-            "outputMode": "server",
             "ssr": {
               "entry": "src/server.ts"
             },
@@ -70,7 +70,9 @@
               "tiny-inflate",
               "brotli/decompress.js",
               "base64-js",
-              "pako"
+              "pako",
+              "qrcode",
+              "uuid"
             ]
           },
           "configurations": {
@@ -83,8 +85,8 @@
                 },
                 {
                   "type": "anyComponentStyle",
-                  "maximumWarning": "8MB",
-                  "maximumError": "16MB"
+                  "maximumWarning": "150kb",
+                  "maximumError": "500kb"
                 }
               ],
               "sourceMap": {
@@ -166,7 +168,8 @@
               "base64-js",
               "pako",
               "sweetalert2",
-              "qrcode"
+              "qrcode",
+              "uuid"
             ],
             "fileReplacements": [
               {
@@ -186,11 +189,18 @@
                 },
                 {
                   "type": "anyComponentStyle",
-                  "maximumWarning": "8MB",
-                  "maximumError": "16MB"
+                  "maximumWarning": "150kb",
+                  "maximumError": "500kb"
                 }
               ],
-              "optimization": true,
+              "optimization": {
+                "scripts": true,
+                "styles": {
+                  "minify": true,
+                  "inlineCritical": true
+                },
+                "fonts": false
+              },
               "buildOptimizer": true,
               "aot": true,
               "extractLicenses": true,
@@ -212,6 +222,10 @@
                 {
                   "replace": "src/environments/environment.ts",
                   "with": "src/environments/environment.development.ts"
+                },
+                {
+                  "replace": "src/app/app.config.ts",
+                  "with": "src/app/app.config.electron.ts"
                 }
               ]
             }

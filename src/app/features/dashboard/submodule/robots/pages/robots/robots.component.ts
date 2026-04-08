@@ -13,7 +13,7 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Title } from '@angular/platform-browser';
-import { of } from 'rxjs';
+import { of, interval } from 'rxjs';
 import { catchError, finalize, map, take, tap, debounceTime } from 'rxjs/operators';
 
 import { ReactiveFormsModule, FormBuilder, FormGroup, FormControl } from '@angular/forms';
@@ -26,6 +26,8 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatSelectModule } from '@angular/material/select';
 import { MatInputModule } from '@angular/material/input';
 import { MatTabsModule } from '@angular/material/tabs';
+import { MatMenuModule } from '@angular/material/menu';
+import { MatTooltipModule } from '@angular/material/tooltip';
 
 import Swal, { SweetAlertIcon } from 'sweetalert2';
 
@@ -39,6 +41,7 @@ import {
   StatsGroup,
   AntecedenteKey,
   UltimosPorMarcaTemporalRow,
+  RobotLockRow,
 } from '../../services/robots/robots.service';
 
 // =========================
@@ -155,6 +158,8 @@ interface ChartVm {
     MatTabsModule,
     MatDatepickerModule,
     MatNativeDateModule,
+    MatMenuModule,
+    MatTooltipModule,
 
     StandardFilterTable,
   ],
@@ -184,6 +189,13 @@ export class RobotsComponent implements OnInit {
   pendientesPorOficinaColumns: ColumnDefinition[] = [];
 
   // =========================
+  // EXCEL ANTECEDENTES
+  // =========================
+  selectedAntecedenteForExcel: string = '';
+  isUploadingExcel = false;
+  @ViewChild('excelFileInput') excelFileInput!: ElementRef<HTMLInputElement>;
+
+  // =========================
   // ✅ STATE (ÚLTIMOS POR ANTECEDENTE)
   // =========================
   isLoadingUltimos = false;
@@ -205,6 +217,13 @@ export class RobotsComponent implements OnInit {
     { key: 'sisben', label: 'Sisben (marca_temporal_sisben)' },
     { key: 'fondo_pension', label: 'Fondo Pensión (marca_temporal_fondo_pension)' },
   ];
+
+  // =========================
+  // ✅ STATE (MONITOREO LOCKS)
+  // =========================
+  isLoadingLocks = false;
+  locksRows: RobotLockRow[] = [];
+  locksColumns: ColumnDefinition[] = [];
 
   // =========================
   // STATE (STATS / GRAFICA)
@@ -274,6 +293,9 @@ export class RobotsComponent implements OnInit {
     showConfirmButton: false,
   });
 
+  /** Intervalo en ms para auto-refresh (30 s) */
+  private readonly AUTO_POLL_MS = 30_000;
+
   ngOnInit(): void {
     this.titleService.setTitle('Robots Dashboard - Tesoreria');
     this.buildColumns();
@@ -291,8 +313,16 @@ export class RobotsComponent implements OnInit {
     // Carga inicial
     this.reloadAll(false);
     this.loadStats({ showToast: false });
-
     this.loadUltimosPorMarcaTemporal({ showToast: false });
+    this.loadLocks();
+
+    // ✅ Auto-polling: refresca datos cada 30 s para mostrar cambios en tiempo real
+    interval(this.AUTO_POLL_MS)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => {
+        this.reloadAll(false);
+        this.loadStats({ showToast: false });
+      });
   }
 
   trackByState = (_: number, s: TooltipState) => s.key;
@@ -375,6 +405,76 @@ export class RobotsComponent implements OnInit {
 
   applyUltimos(): void {
     this.loadUltimosPorMarcaTemporal({ showToast: true });
+  }
+
+  // =========================
+  // ✅ EXCEL DOWNLOAD METHODS
+  // =========================
+  onCargarExcelAntecedente(antecedente: string): void {
+    this.selectedAntecedenteForExcel = antecedente;
+    // reset input to allow uploading same file again
+    if (this.excelFileInput?.nativeElement) {
+      this.excelFileInput.nativeElement.value = '';
+      this.excelFileInput.nativeElement.click();
+    }
+  }
+
+  onExcelFileSelected(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    if (!input.files?.length) {
+      return;
+    }
+    
+    const file = input.files[0];
+    const antecedente = this.selectedAntecedenteForExcel;
+    
+    if (!antecedente) {
+      void this.toast.fire({ icon: 'warning', title: 'Seleccione un antecedente primero.' });
+      return;
+    }
+
+    this.isUploadingExcel = true;
+    this.cdr.markForCheck();
+    void this.toast.fire({ icon: 'info', title: `Cargando archivo para ${antecedente}...`, timer: 10000 });
+
+    this.robots.uploadExcelAntecedentes(file, antecedente).subscribe({
+      next: (blob: Blob) => {
+        // Create an object URL containing the blob
+        const downloadURL = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = downloadURL;
+        link.download = `resultados_${antecedente}.xlsx`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(downloadURL);
+
+        void this.toast.fire({ icon: 'success', title: 'Excel descargado exitosamente.' });
+        this.isUploadingExcel = false;
+        this.cdr.markForCheck();
+      },
+      error: (err) => {
+        console.error('Error procesando Excel:', err);
+        const msg = err?.error?.detail || 'Error procesando el Excel';
+        
+        // Sometimes Blob response type masks JSON errors, try to extract error text 
+        if (err?.error instanceof Blob) {
+            err.error.text().then((text: string) => {
+                let detail = msg;
+                try {
+                    const parsed = JSON.parse(text);
+                    detail = parsed.detail || msg;
+                } catch(e) {}
+                void this.toast.fire({ icon: 'error', title: 'Oops...', text: detail });
+            });
+        } else {
+            void this.toast.fire({ icon: 'error', title: 'Oops...', text: msg });
+        }
+        
+        this.isUploadingExcel = false;
+        this.cdr.markForCheck();
+      }
+    });
   }
 
   // =========================
@@ -701,7 +801,6 @@ export class RobotsComponent implements OnInit {
     this.isLoadingRobotsFull = true;
     this.cdr.markForCheck();
 
-    /*
     this.robots
       .getRobotsFull()
       .pipe(
@@ -734,7 +833,7 @@ export class RobotsComponent implements OnInit {
       .subscribe(() => {
         if (opts?.showToast) void this.toast.fire({ icon: 'success', title: 'Robots Full actualizado' });
       });
-      */
+      
     this.isLoadingRobotsFull = false;
     this.cdr.markForCheck();
   }
@@ -870,6 +969,29 @@ export class RobotsComponent implements OnInit {
       });
   }
 
+  // ======================================
+  // CARGA DE MONITOREO DE LOCKS (NUEVO TAB)
+  // ======================================
+  loadLocks() {
+    if (this.isLoadingLocks) return;
+
+    this.isLoadingLocks = true;
+    this.cdr.markForCheck();
+
+    this.robots.getMonitoreoLocks().subscribe({
+      next: (data) => {
+        this.locksRows = data;
+        this.isLoadingLocks = false;
+        this.cdr.markForCheck();
+      },
+      error: (err) => {
+        console.error('Error cargando Monitoreo Locks', err);
+        this.isLoadingLocks = false;
+        this.cdr.markForCheck();
+      },
+    });
+  }
+
   // =========================
   // COLUMNAS
   // =========================
@@ -898,6 +1020,16 @@ export class RobotsComponent implements OnInit {
       { name: 'cedula', header: 'Cédula', type: 'text' as const, width: '180px', stickyStart: true },
       { name: 'tipo_documento', header: 'Tipo doc', type: 'text' as const, width: '140px' },
       { name: 'marcaTemporal', header: 'Marca temporal', type: 'text' as const, width: '260px' },
+    ];
+
+    this.locksColumns = [
+      { name: 'antecedente', header: 'Antecedente', type: 'text' as const },
+      { name: 'cedula', header: 'Cédula', type: 'text' as const },
+      { name: 'tipo_documento', header: 'Tipo Doc', type: 'text' as const },
+      { name: 'locked_by', header: 'Locked By', type: 'text' as const },
+      { name: 'locked_at', header: 'Locked At', type: 'date' as const },
+      { name: 'ultima_consulta_estado', header: 'F. Consulta', type: 'date' as const },
+      { name: 'ultima_marca_temporal', header: 'M. Temporal', type: 'date' as const },
     ];
   }
 

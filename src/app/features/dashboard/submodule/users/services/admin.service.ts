@@ -59,40 +59,12 @@ export class AdminService {
   }
 
   // Subir cedulas
-  async subirCedulasMasivas(datos: any): Promise<any> {
-    const urlcompleta = `${this.apiUrl}/traslados/cargar-cedulas`;
-
-    const requestBody = {
-      datos,
-      mensaje: 'muchos',
-    };
-
-    try {
-      const response = await firstValueFrom(
-        this.http.post<string>(urlcompleta, requestBody,).pipe(
-          catchError((error) => {
-            return throwError(error);
-          })
-        )
-      );
-      return response;
-    } catch (error) {
-      throw error;
-    }
-  }
 
   cambiarContrasenaMe(oldPassword: string, newPassword: string) {
     const url = `${this.apiUrl}/gestion_admin/usuarios/cambiar_contrasena/`;
     const body = { old_password: oldPassword, new_password: newPassword };
     return this.http.post<{ ok: boolean; message: string }>(url, body);
   }
-
-  cambiarContrasenaPorUsuarioId(usuarioId: string, oldPassword: string, newPassword: string) {
-    const url = `${this.apiUrl}/gestion_admin/usuarios/${usuarioId}/cambiar_contrasena/`;
-    const body = { old_password: oldPassword, new_password: newPassword };
-    return this.http.post<{ ok: boolean; message: string }>(url, body);
-  }
-
 
   /** Quita sólo keys con `undefined` (conserva null o '') */
   private compact<T extends Record<string, any>>(obj: T): T {
@@ -122,35 +94,6 @@ export class AdminService {
   }
 
   // Extras útiles con tus acciones del ViewSet:
-
-  cambiarRol(id: string, rol: string): Observable<{ ok: boolean; rol: string }> {
-    return this.http.post<{ ok: boolean; rol: string }>(
-      `${this.apiUrl}/gestion_admin/usuarios/${id}/cambiar_rol/`,
-      { rol } // también acepta rol_id
-    );
-  }
-
-  cambiarSede(id: string, sede: string | null): Observable<{ ok: boolean; sede: string | null }> {
-    return this.http.post<{ ok: boolean; sede: string | null }>(
-      `${this.apiUrl}/gestion_admin/usuarios/${id}/cambiar_sede/`,
-      { sede } // null para limpiar
-    );
-  }
-
-  cambiarEmpresa(id: string, empresa: string | null): Observable<{ ok: boolean; empresa: string | null }> {
-    return this.http.post<{ ok: boolean; empresa: string | null }>(
-      `${this.apiUrl}/gestion_admin/usuarios/${id}/cambiar_empresa/`,
-      { empresa } // null para limpiar
-    );
-  }
-
-  toggleActivo(id: string, activo?: boolean): Observable<{ ok: boolean; estado_solicitudes: boolean }> {
-    const body = activo === undefined ? {} : { activo };
-    return this.http.post<{ ok: boolean; estado_solicitudes: boolean }>(
-      `${this.apiUrl}/gestion_admin/usuarios/${id}/inactivar/`,
-      body
-    );
-  }
 
   actualizarDatosBasicos(
     id: string,

@@ -3,110 +3,151 @@
 </h2>
 
 <div mat-dialog-content class="dlg-content" [formGroup]="form">
-  <ng-container *ngFor="let f of data.fields">
-    <ng-container [ngSwitch]="f.type">
+  @for (f of data.fields; track f) {
+    @switch (f.type) {
       <!-- TEXT -->
-      <mat-form-field *ngSwitchCase="'text'" appearance="outline" class="ff">
-        <mat-label>{{ f.label }}</mat-label>
-        <input
-          matInput
-          [placeholder]="f.placeholder ?? ''"
-          [formControlName]="f.name"
-          [attr.inputmode]="f.inputMode ?? 'text'"/>
-        <span matTextPrefix *ngIf="f.prefix">&nbsp;{{ f.prefix }}&nbsp;</span>
-        <span matTextSuffix *ngIf="f.suffix">&nbsp;{{ f.suffix }}&nbsp;</span>
-        <mat-hint *ngIf="f.hint">{{ f.hint }}</mat-hint>
-        <mat-error *ngIf="showError(f.name)">{{ errorMsg(f.name, f) }}</mat-error>
-      </mat-form-field>
+      @case ('text') {
+        <mat-form-field appearance="outline" class="ff">
+          <mat-label>{{ f.label }}</mat-label>
+          <input
+            matInput
+            [placeholder]="f.placeholder ?? ''"
+            [formControlName]="f.name"
+            [attr.inputmode]="f.inputMode ?? 'text'"/>
+            @if (f.prefix) {
+              <span matTextPrefix>&nbsp;{{ f.prefix }}&nbsp;</span>
+            }
+            @if (f.suffix) {
+              <span matTextSuffix>&nbsp;{{ f.suffix }}&nbsp;</span>
+            }
+            @if (f.hint) {
+              <mat-hint>{{ f.hint }}</mat-hint>
+            }
+            @if (showError(f.name)) {
+              <mat-error>{{ errorMsg(f.name, f) }}</mat-error>
+            }
+          </mat-form-field>
+        }
+        <!-- PASSWORD -->
+        @case ('password') {
+          <mat-form-field appearance="outline" class="ff">
+            <mat-label>{{ f.label }}</mat-label>
+            <input
+              matInput
+              [type]="showPwd[f.name] ? 'text' : 'password'"
+              [placeholder]="f.placeholder ?? ''"
+              [formControlName]="f.name"/>
+              <button mat-icon-button matSuffix type="button" (click)="togglePwd(f.name)" [attr.aria-label]="'toggle '+f.name">
+                <mat-icon>{{ showPwd[f.name] ? 'visibility_off' : 'visibility' }}</mat-icon>
+              </button>
+              @if (f.hint) {
+                <mat-hint>{{ f.hint }}</mat-hint>
+              }
+              @if (showError(f.name)) {
+                <mat-error>{{ errorMsg(f.name, f) }}</mat-error>
+              }
+            </mat-form-field>
+          }
+          <!-- NUMBER (texto + inputmode decimal) -->
+          @case ('number') {
+            <mat-form-field appearance="outline" class="ff">
+              <mat-label>{{ f.label }}</mat-label>
+              <input
+                matInput
+                type="text"
+                inputmode="decimal"
+                [step]="f.step ?? 0.01"
+                [placeholder]="f.placeholder ?? ''"
+                [formControlName]="f.name"/>
+                @if (f.prefix) {
+                  <span matTextPrefix>&nbsp;{{ f.prefix }}&nbsp;</span>
+                }
+                @if (f.suffix) {
+                  <span matTextSuffix>&nbsp;{{ f.suffix }}&nbsp;</span>
+                }
+                @if (f.hint) {
+                  <mat-hint>{{ f.hint }}</mat-hint>
+                }
+                @if (showError(f.name)) {
+                  <mat-error>{{ errorMsg(f.name, f) }}</mat-error>
+                }
+              </mat-form-field>
+            }
+            <!-- TEXTAREA -->
+            @case ('textarea') {
+              <mat-form-field appearance="outline" class="ff">
+                <mat-label>{{ f.label }}</mat-label>
+                <textarea
+                  matInput
+                  rows="3"
+                  [placeholder]="f.placeholder ?? ''"
+                [formControlName]="f.name"></textarea>
+                @if (f.hint) {
+                  <mat-hint>{{ f.hint }}</mat-hint>
+                }
+                @if (showError(f.name)) {
+                  <mat-error>{{ errorMsg(f.name, f) }}</mat-error>
+                }
+              </mat-form-field>
+            }
+            <!-- SELECT -->
+            @case ('select') {
+              <mat-form-field appearance="outline" class="ff">
+                <mat-label>{{ f.label }}</mat-label>
+                <mat-select
+                  [formControlName]="f.name"
+                  [placeholder]="f.placeholder ?? ''"
+                  [multiple]="!!f.multiple">
+                  @for (opt of (f.options || []); track opt) {
+                    <mat-option [value]="opt.value">
+                      {{ opt.label }}
+                    </mat-option>
+                  }
+                </mat-select>
+                @if (f.hint) {
+                  <mat-hint>{{ f.hint }}</mat-hint>
+                }
+                @if (showError(f.name)) {
+                  <mat-error>{{ errorMsg(f.name, f) }}</mat-error>
+                }
+              </mat-form-field>
+            }
+            <!-- CHECKBOX -->
+            @case ('checkbox') {
+              <mat-checkbox [formControlName]="f.name" class="ff">
+                {{ f.label }}
+              </mat-checkbox>
+            }
+            <!-- DATE -->
+            @case ('date') {
+              <mat-form-field appearance="outline" class="ff">
+                <mat-label>{{ f.label }}</mat-label>
+                <input
+                  matInput
+                  [matDatepicker]="picker"
+                  [placeholder]="f.placeholder ?? ''"
+                  [formControlName]="f.name" />
+                  <mat-datepicker-toggle matSuffix [for]="picker"></mat-datepicker-toggle>
+                  <!-- Un solo datepicker reutilizado para todos los campos 'date' -->
+                  <mat-datepicker #picker></mat-datepicker>
+                  @if (f.hint) {
+                    <mat-hint>{{ f.hint }}</mat-hint>
+                  }
+                  @if (showError(f.name)) {
+                    <mat-error>{{ errorMsg(f.name, f) }}</mat-error>
+                  }
+                </mat-form-field>
+              }
+            }
+          }
+        </div>
 
-      <!-- PASSWORD -->
-      <mat-form-field *ngSwitchCase="'password'" appearance="outline" class="ff">
-        <mat-label>{{ f.label }}</mat-label>
-        <input
-          matInput
-          [type]="showPwd[f.name] ? 'text' : 'password'"
-          [placeholder]="f.placeholder ?? ''"
-          [formControlName]="f.name"/>
-        <button mat-icon-button matSuffix type="button" (click)="togglePwd(f.name)" [attr.aria-label]="'toggle '+f.name">
-          <mat-icon>{{ showPwd[f.name] ? 'visibility_off' : 'visibility' }}</mat-icon>
-        </button>
-        <mat-hint *ngIf="f.hint">{{ f.hint }}</mat-hint>
-        <mat-error *ngIf="showError(f.name)">{{ errorMsg(f.name, f) }}</mat-error>
-      </mat-form-field>
-
-      <!-- NUMBER (texto + inputmode decimal) -->
-      <mat-form-field *ngSwitchCase="'number'" appearance="outline" class="ff">
-        <mat-label>{{ f.label }}</mat-label>
-        <input
-          matInput
-          type="text"
-          inputmode="decimal"
-          [step]="f.step ?? 0.01"
-          [placeholder]="f.placeholder ?? ''"
-          [formControlName]="f.name"/>
-        <span matTextPrefix *ngIf="f.prefix">&nbsp;{{ f.prefix }}&nbsp;</span>
-        <span matTextSuffix *ngIf="f.suffix">&nbsp;{{ f.suffix }}&nbsp;</span>
-        <mat-hint *ngIf="f.hint">{{ f.hint }}</mat-hint>
-        <mat-error *ngIf="showError(f.name)">{{ errorMsg(f.name, f) }}</mat-error>
-      </mat-form-field>
-
-      <!-- TEXTAREA -->
-      <mat-form-field *ngSwitchCase="'textarea'" appearance="outline" class="ff">
-        <mat-label>{{ f.label }}</mat-label>
-        <textarea
-          matInput
-          rows="3"
-          [placeholder]="f.placeholder ?? ''"
-          [formControlName]="f.name"></textarea>
-        <mat-hint *ngIf="f.hint">{{ f.hint }}</mat-hint>
-        <mat-error *ngIf="showError(f.name)">{{ errorMsg(f.name, f) }}</mat-error>
-      </mat-form-field>
-
-      <!-- SELECT -->
-      <mat-form-field *ngSwitchCase="'select'" appearance="outline" class="ff">
-        <mat-label>{{ f.label }}</mat-label>
-        <mat-select
-          [formControlName]="f.name"
-          [placeholder]="f.placeholder ?? ''"
-          [multiple]="!!f.multiple">
-          <mat-option *ngFor="let opt of (f.options || [])" [value]="opt.value">
-            {{ opt.label }}
-          </mat-option>
-        </mat-select>
-        <mat-hint *ngIf="f.hint">{{ f.hint }}</mat-hint>
-        <mat-error *ngIf="showError(f.name)">{{ errorMsg(f.name, f) }}</mat-error>
-      </mat-form-field>
-
-      <!-- CHECKBOX -->
-      <mat-checkbox *ngSwitchCase="'checkbox'" [formControlName]="f.name" class="ff">
-        {{ f.label }}
-      </mat-checkbox>
-
-      <!-- DATE -->
-      <mat-form-field *ngSwitchCase="'date'" appearance="outline" class="ff">
-        <mat-label>{{ f.label }}</mat-label>
-        <input
-          matInput
-          [matDatepicker]="picker"
-          [placeholder]="f.placeholder ?? ''"
-          [formControlName]="f.name" />
-        <mat-datepicker-toggle matSuffix [for]="picker"></mat-datepicker-toggle>
-        <!-- Un solo datepicker reutilizado para todos los campos 'date' -->
-        <mat-datepicker #picker></mat-datepicker>
-        <mat-hint *ngIf="f.hint">{{ f.hint }}</mat-hint>
-        <mat-error *ngIf="showError(f.name)">{{ errorMsg(f.name, f) }}</mat-error>
-      </mat-form-field>
-
-    </ng-container>
-  </ng-container>
-</div>
-
-<div mat-dialog-actions class="dlg-actions">
-  <button mat-stroked-button mat-dialog-close>
-    {{ data.cancelText || 'Cancelar' }}
-  </button>
-  <span class="grow"></span>
-  <button mat-flat-button color="primary" (click)="submit()" [disabled]="form.invalid">
-    {{ data.submitText || 'Guardar' }}
-  </button>
-</div>
+        <div mat-dialog-actions class="dlg-actions">
+          <button mat-stroked-button mat-dialog-close>
+            {{ data.cancelText || 'Cancelar' }}
+          </button>
+          <span class="grow"></span>
+          <button mat-flat-button color="primary" (click)="submit()" [disabled]="form.invalid">
+            {{ data.submitText || 'Guardar' }}
+          </button>
+        </div>

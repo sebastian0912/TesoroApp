@@ -1,4 +1,4 @@
-import {
+import { 
   Component,
   EventEmitter,
   OnInit,
@@ -7,6 +7,7 @@ import {
   Inject,
   PLATFORM_ID,
   HostListener,
+  ChangeDetectionStrategy 
 } from '@angular/core';
 import { isPlatformBrowser } from '@angular/common';
 import { Router, NavigationEnd, RouterModule } from '@angular/router';
@@ -14,24 +15,33 @@ import { filter } from 'rxjs/operators';
 import { Subscription } from 'rxjs';
 import Swal from 'sweetalert2';
 
+import { HttpClient } from '@angular/common/http';
+import { environment } from '../../../../../environments/environment';
+
 import { MatIconModule } from '@angular/material/icon';
 import { SharedModule } from '../../../../shared/shared.module';
+import { NetworkStatusService } from '../../../../core/services/network-status.service';
+import { OfflineSyncService } from '../../../../core/services/offline-sync.service';
 
 export interface PermNode {
   id: string;
   nombre: string;
+  ruta?: string;
+  icono?: string;
+  orden?: number;
   acciones?: string[];
   permiso_ids?: Record<string, string>;
   hijos?: PermNode[];
 }
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-navbar',
   standalone: true,
   imports: [SharedModule, RouterModule, MatIconModule],
   templateUrl: './navbar.component.html',
   styleUrls: ['./navbar.component.css'],
-})
+} )
 export class NavbarComponent implements OnInit, OnDestroy {
   @Output() public menuToggle = new EventEmitter<boolean>();
 
@@ -39,6 +49,8 @@ export class NavbarComponent implements OnInit, OnDestroy {
   public isMobile = false;
   public pinOpen = false;
   public currentRoute?: string;
+  public isOnline = true;
+  public pendingCount = 0;
 
   public permTree: PermNode[] = [];
   public activeRoot: PermNode | null = null;
@@ -209,11 +221,28 @@ export class NavbarComponent implements OnInit, OnDestroy {
 
   constructor(
     @Inject(PLATFORM_ID) platformId: object,
-    private router: Router
+    private router: Router,
+    private http: HttpClient,
+    private networkStatus: NetworkStatusService,
+    private offlineSync: OfflineSyncService
   ) {
     this.isBrowser = isPlatformBrowser(platformId);
+<<<<<<< HEAD
     this.routeMapIndex = this.indexByMenuKey(this.routeMap);
     this.iconMapIndex = this.indexByMenuKey(this.iconMap);
+=======
+    if (this.isBrowser) {
+      this.networkStatus.isOnline$.subscribe(status => {
+        this.isOnline = status;
+      });
+      this.offlineSync.pendingCount$.subscribe(count => {
+        this.pendingCount = count;
+      });
+      window.addEventListener('offline-queue-updated', () => {
+        this.offlineSync.updatePendingCount();
+      });
+    }
+>>>>>>> b80341dddcfa0a0344e54ccc74923b51cbd8e950
   }
 
   async ngOnInit(): Promise<void> {
@@ -314,6 +343,14 @@ export class NavbarComponent implements OnInit, OnDestroy {
 
       if (rawUser) {
         const user = JSON.parse(rawUser);
+
+        // Fix for old storage payloads without 'icono'
+        if (user?.permisos_tree?.length > 0 && user.permisos_tree[0].icono === undefined) {
+          this.lsClear();
+          this.router.navigate(['']);
+          return;
+        }
+
         tree = (user?.permisos_tree ?? null);
       }
 
@@ -381,6 +418,32 @@ export class NavbarComponent implements OnInit, OnDestroy {
     }
   }
 
+  public refreshPermisos(): void {
+    const rawUser = this.lsGet('user');
+    if (!rawUser) return;
+    try {
+      const user = JSON.parse(rawUser);
+      if (!user?.id) return;
+
+      const apiUrl = environment.apiUrl.replace(/\/$/, '');
+      this.http.get<any>(`${apiUrl}/gestion_admin/usuarios/${user.id}/`).subscribe({
+        next: (resp) => {
+          this.lsSet('user', JSON.stringify(resp));
+          this.loadPermTreeFromStorage();
+
+          if (!this.isMobile && this.visibleRootModules.length > 0 && !this.activeRoot) {
+            this.activeRoot = this.visibleRootModules[0];
+          }
+        },
+        error: (err) => {
+          console.error('Error fetching dynamic perms', err);
+        }
+      });
+    } catch (e) {
+      console.error('Error loading user perms', e);
+    }
+  }
+
   // ===== roots =====
   public get rootModules(): PermNode[] {
     return (this.permTree || []).filter((n) => this.canRead(n));
@@ -443,6 +506,7 @@ export class NavbarComponent implements OnInit, OnDestroy {
   }
 
   // ===== rutas =====
+<<<<<<< HEAD
   private normalizeMenuKey(value: string): string {
     return (value ?? '')
       .normalize('NFD')
@@ -466,10 +530,14 @@ export class NavbarComponent implements OnInit, OnDestroy {
     const base = '/dashboard';
     const key = this.normalizeMenuKey(node?.nombre ?? '');
     const mapped = this.routeMapIndex[key];
+=======
+  public getNodeRoute(node: PermNode): string {
+    const base = '/dashboard';
+>>>>>>> b80341dddcfa0a0344e54ccc74923b51cbd8e950
 
-    if (mapped) {
-      if (mapped.startsWith('/')) return mapped;
-      return `${base}/${mapped}`;
+    if (node.ruta) {
+      if (node.ruta.startsWith('/')) return node.ruta;
+      return `${base}/${node.ruta}`;
     }
 
     return `${base}/${this.slug(node.nombre)}`;
@@ -500,12 +568,21 @@ export class NavbarComponent implements OnInit, OnDestroy {
   }
 
   // ===== iconos =====
+<<<<<<< HEAD
   public getModuleIcon(nombre: string): string {
     return this.iconMapIndex[this.normalizeMenuKey(nombre)] || 'widgets';
   }
 
   public getNodeIcon(nombre: string): string {
     return this.iconMapIndex[this.normalizeMenuKey(nombre)] || 'radio_button_unchecked';
+=======
+  public getModuleIcon(node: PermNode): string {
+    return node?.icono && node.icono !== 'widgets' ? node.icono : 'widgets';
+  }
+
+  public getNodeIcon(node: PermNode): string {
+    return node?.icono && node.icono !== 'widgets' ? node.icono : 'radio_button_unchecked';
+>>>>>>> b80341dddcfa0a0344e54ccc74923b51cbd8e950
   }
 
   // ===== responsive =====

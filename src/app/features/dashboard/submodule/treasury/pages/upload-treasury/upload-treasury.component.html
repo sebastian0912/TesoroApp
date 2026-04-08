@@ -1,17 +1,46 @@
-<mat-card>
-  <mat-card-content>
-    <h2 class="section-title">Cargar información de tesorería</h2>
+<div class="page-container">
+  <header class="hero">
+    <div class="hero-content">
+      <div class="hero-text">
+        <h1 class="hero-greeting">Cargar Información de Tesorería</h1>
+        <p class="hero-date">Importe datos de empleados, actualice saldos de fondos y gestione estados de forma masiva
+        </p>
+      </div>
+      <div class="hero-icon">
+        <mat-icon>cloud_upload</mat-icon>
+      </div>
+    </div>
+  </header>
 
-    <section class="cards-grid">
-      <app-info-card *ngFor="let c of cards" [title]="c.title" [imageUrl]="c.imageUrl"
-        (cardClicked)="onCardClick(c.id)">
-      </app-info-card>
-    </section>
+  <mat-card class="premium-card">
+    <mat-card-header class="card-header-premium">
+      <div class="header-content-premium">
+        <mat-icon class="header-icon-premium">file_upload</mat-icon>
+        <div class="header-text">
+          <mat-card-title>Opciones de Carga Masiva</mat-card-title>
+          <mat-card-subtitle>Seleccione el proceso que desea realizar y descargue la plantilla correspondiente si es
+          necesario.</mat-card-subtitle>
+        </div>
+      </div>
+    </mat-card-header>
 
-    <!-- Inputs ocultos: SOLO EXCEL -->
-    <input #fileInsert type="file" accept=".xlsx,.xls" (change)="handleFile('insert', $event)" hidden>
-    <input #fileSaldos type="file" accept=".xlsx,.xls" (change)="handleFile('saldos', $event)" hidden>
-    <input #fileEliminar type="file" accept=".xlsx,.xls" (change)="handleFile('eliminar', $event)" hidden>
+    <mat-card-content class="premium-content">
+      <section class="cards-grid">
+        @for (c of cards; track c) {
+          <div class="upload-action-card">
+            <app-info-card [title]="c.title" [imageUrl]="c.imageUrl" (cardClicked)="onCardClick(c.id)">
+            </app-info-card>
+            <button mat-flat-button class="btn-managerial download-template-btn" (click)="downloadTemplate(c.id)">
+              <mat-icon>download</mat-icon> Descargar Plantilla
+            </button>
+          </div>
+        }
+      </section>
 
-  </mat-card-content>
-</mat-card>
+      <!-- Inputs ocultos: SOLO EXCEL -->
+      <input #fileInsert type="file" accept=".xlsx" (change)="handleFile('insert', $event)" hidden>
+      <input #fileSaldos type="file" accept=".xlsx,.xls" (change)="handleFile('saldos', $event)" hidden>
+      <input #fileEliminar type="file" accept=".xlsx,.xls" (change)="handleFile('eliminar', $event)" hidden>
+    </mat-card-content>
+  </mat-card>
+</div>

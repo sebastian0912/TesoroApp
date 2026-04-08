@@ -1,5 +1,5 @@
-import { Component, Input } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import {  Component, Input , ChangeDetectionStrategy } from '@angular/core';
+
 import { MatCardModule } from '@angular/material/card';
 import { MatTableModule } from '@angular/material/table';
 import { MatIconModule } from '@angular/material/icon';
@@ -15,19 +15,19 @@ export interface CedulaPreviewItem {
 }
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
     selector: 'app-cedulas-preview',
     standalone: true,
     imports: [
-        CommonModule,
-        MatCardModule,
-        MatTableModule,
-        MatIconModule,
-        MatButtonModule,
-        MatTooltipModule
-    ],
+    MatCardModule,
+    MatTableModule,
+    MatIconModule,
+    MatButtonModule,
+    MatTooltipModule
+],
     templateUrl: './cedulas-preview.component.html',
     styleUrls: ['./cedulas-preview.component.css']
-})
+} )
 export class CedulasPreviewComponent {
     @Input() data: CedulaPreviewItem[] = [];
 

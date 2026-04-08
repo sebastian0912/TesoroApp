@@ -1,104 +1,51 @@
 :host {
   display: block;
-  padding: 16px;
+  padding: 24px;
   box-sizing: border-box;
 }
 
+.search-candidate-container {
+  max-width: 900px;
+  margin: 0 auto;
+}
 
-/* Contenedor búsqueda */
-.busqueda-container {
+.outline-section {
+  padding: 24px 0;
+}
+
+.centered-title {
+  text-align: center;
+  color: #ffffff;
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 60%, #334155 100%) !important;
+  padding: 16px 24px;
+  border-radius: 12px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
+  font-size: 1.35rem;
+  font-weight: 700;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.grid-managerial-entrevista {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 16px;
-  margin-bottom: 24px;
-}
-
-.input-cedula{
-  margin-top: 15pt;
-}
-
-
-
-/* Botones */
-.acciones {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-/* Observación */
-.observacion-container {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  margin-bottom: 24px;
-}
-
-.input-observacion {
+  justify-content: center;
   width: 100%;
+  margin-top: 16px;
 }
 
-/* Botones generales */
-button.mat-flat-button {
-  background-color: #1976d2;
-  color: white;
-}
-
-button.mat-flat-button:hover {
-  background-color: #1565c0;
-}
-
-/* Filtro */
-.filtro {
-  width: 100%;
-  max-width: 400px;
-  margin-bottom: 16px;
-}
-
-/* Tabla */
-.tabla {
-  margin-top: 32px;
-}
-
-.table-container {
-  overflow-x: auto;
-  max-height: 60vh;
-  border-radius: 8px;
-
-}
-
-table {
-  width: 100%;
-  min-width: 800px;
-}
-
-.mat-row td[colspan] {
-  text-align: center;
-  font-style: italic;
-}
-
-/* Responsive */
-@media (max-width: 768px) {
-  .titulo {
-    font-size: 1.2rem;
-    text-align: left;
+/* Animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
   }
 
-  .busqueda-container {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .filtro {
-    width: 100%;
-  }
-
-  .table-container {
-    max-height: 50vh;
-  }
-
-  table {
-    min-width: 100%;
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }

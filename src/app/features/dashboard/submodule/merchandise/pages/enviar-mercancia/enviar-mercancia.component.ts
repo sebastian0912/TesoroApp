@@ -1,4 +1,4 @@
-import { Component } from '@angular/core';
+import {  Component , ChangeDetectionStrategy } from '@angular/core';
 import { AbstractControl, FormBuilder, FormGroup, Validators } from '@angular/forms';
 import Swal from 'sweetalert2';
 import { Router } from '@angular/router';
@@ -7,13 +7,14 @@ import { SharedModule } from '../../../../../../shared/shared.module';
 import { UtilityServiceService } from '../../../../../../shared/services/utilityService/utility-service.service';
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-enviar-mercancia',
   imports: [
     SharedModule
   ],
   templateUrl: './enviar-mercancia.component.html',
   styleUrls: ['./enviar-mercancia.component.css']
-})
+} )
 export class EnviarMercanciaComponent {
   myForm: FormGroup;
   sedes: any
@@ -71,58 +72,58 @@ export class EnviarMercanciaComponent {
   }
 
   currencyValidator(control: AbstractControl) {
+    if (!control.value) return { required: true };
     const value = control.value.replace(/\D/g, '');
     return value ? null : { required: true };
   }
 
   async onSubmit() {
-    let codigo: number;
-    let encontrado: boolean = false;
-
     if (this.myForm.invalid) {
       return;
     }
 
     const formValues = { ...this.myForm.value, valor: this.myForm.value.valor.replace(/\D/g, '') };
 
-    do {
-      codigo = Math.floor(Math.random() * 1000000);
-      try {
-        const response = await this.comercializadoraService.traerComercio(codigo).toPromise();
-        if (response.message === 'error') {
-          encontrado = true;
-        }
-      } catch (error) {
-        encontrado = true;  // Dependiendo de la lógica, puedes decidir si terminas el bucle en caso de error
-      }
-    } while (!encontrado);
-
     if (formValues.concepto === 'Otro') {
       formValues.concepto = formValues.otroConcepto;
     }
 
+    // Generar un código aleatorio como SKU/Código de envío
+    const codigoSku = Math.floor(Math.random() * 1000000).toString();
+
+    // Obtener datos del usuario logueado
+    const user = this.utilityService.getUser();
+    let personaEnvia = formValues.nombrePersonaEnvio;
+    if (!personaEnvia && user) {
+      personaEnvia = `${user.datos_basicos.nombres} ${user.datos_basicos.apellidos}`;
+    }
+
+    const payload = {
+      codigo_sku: codigoSku,
+      concepto: formValues.concepto,
+      cantidad: formValues.cantidad,
+      valor_unitario: formValues.valor,
+      destino: formValues.sede,
+      persona_envia: personaEnvia,
+      comentario: formValues.comentarioEnvio || ''
+    };
+
     try {
-      const response = await this.comercializadoraService.enviarMercancia(
-        codigo.toString(),
-        formValues.sede,
-        formValues.concepto,
-        formValues.cantidad,
-        formValues.valor,
-        formValues.nombrePersonaEnvio,
-        formValues.comentarioEnvio
-      );
-      if (response === 'success') {
-        Swal.fire('Envio de mercancia', 'Envio realizado con exito', 'success').then(() => {
-          this.router.navigateByUrl('/dashboard', { skipLocationChange: true }).then(() => {
-            this.router.navigate(["/dashboard/merchandise/send-merchandise"]);
+      const response = await this.comercializadoraService.enviarMercanciaNuevo(payload);
+      // El backend retorna 201 Created si fue exitoso
+      if (response && response.id) {
+        Swal.fire('Envío de mercancía', `Envío realizado con éxito. Código: ${codigoSku}`, 'success').then(() => {
+          this.myForm.reset();
+          Object.keys(this.myForm.controls).forEach(key => {
+            this.myForm.get(key)?.setErrors(null);
           });
         });
       } else {
-        Swal.fire('Envio de mercancia', 'Error al realizar el envio', 'error');
+        Swal.fire('Envío de mercancía', 'Error inesperado al realizar el envío', 'error');
       }
-
     } catch (error) {
-      Swal.fire('Envio de mercancia', 'Error al realizar el envio', 'error');
+      console.error('Error al realizar envío:', error);
+      Swal.fire('Envío de mercancía', 'Error al realizar el envío', 'error');
     }
   }
 

@@ -1,5 +1,5 @@
 // src/app/features/dashboard/submodule/users/components/meta-config-dialog/meta-config-dialog.component.ts
-import { Component, Inject, OnInit, signal, inject, ChangeDetectorRef } from '@angular/core';
+import {  Component, Inject, OnInit, signal, inject, ChangeDetectorRef , ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
 import { MatTableModule } from '@angular/material/table';
@@ -34,6 +34,7 @@ export interface MetaConfigDialogData {
 }
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-meta-config-dialog',
   standalone: true,
   templateUrl: './meta-config-dialog.component.html',
@@ -44,7 +45,7 @@ export interface MetaConfigDialogData {
     MatInputModule, MatCheckboxModule, MatSelectModule, MatSnackBarModule,
     MatDatepickerModule, MatNativeDateModule
   ]
-})
+} )
 export class MetaConfigDialogComponent implements OnInit {
   // cabecera
   mode = signal<DialogMode>('campos');

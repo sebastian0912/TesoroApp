@@ -22,16 +22,14 @@ export class ComercializadoraService {
     throw error;
   }
 
-  // Traer datos de la comercializadora por codigo
-  traerComercializadoraPorCodigo(producto: any, codigo: string): any {
-    // buscar en la base de datos la comercializadora por codigo
-    let productoComercializadora = producto.find(
-      (comercializadora: { codigo: string }) =>
-        comercializadora.codigo === codigo
+  // Traer estado de PersonaTesoreria por documento
+  getPersonaTesoreriaStatus(numeroDocumento: string): Observable<any> {
+    return this.http.get(`${this.apiUrl}/gestion_tesoreria/personas/${encodeURIComponent(numeroDocumento)}/status/`).pipe(
+      catchError(this.handleError)
     );
-    return productoComercializadora;
   }
 
+  // Traer datos de la comercializadora por codigo
   // Actualizar inventario con la cantidad vendida
   async ActualizarInventario(
     cantidadTotalVendida: string,
@@ -58,12 +56,6 @@ export class ComercializadoraService {
   }
 
   // Traer datos de la comercializadora por codigo
-  traerComercio(codigo: number): Observable<any> {
-    return this.http
-      .get(`${this.apiUrl}/Comercio/comercio/${codigo}`)
-      .pipe(catchError(this.handleError));
-  }
-
   // Realizar envio de mercancia
   async enviarMercancia(
     codigo: string,
@@ -86,7 +78,7 @@ export class ComercializadoraService {
       destino,
       personaQueLleva,
       comentariosEnvio,
-      PersonaEnvia: this.utilityService.getUser().datos_basicos.nombres + ' ' + this.utilityService.getUser().datos_basicos.apellido,
+      PersonaEnvia: this.utilityService.getUser().datos_basicos.nombres + ' ' + this.utilityService.getUser().datos_basicos.apellidos,
     };
 
     try {
@@ -173,7 +165,7 @@ export class ComercializadoraService {
     const urlcompleta = `${this.apiUrl}/Comercio/jefedearea/recibirenvio/${cod}`;
 
     const PersonaRecibe =
-      this.utilityService.getUser().datos_basicos.nombres + ' ' + this.utilityService.getUser().datos_basicos.apellido;
+      this.utilityService.getUser().datos_basicos.nombres + ' ' + this.utilityService.getUser().datos_basicos.apellidos;
     const dataToSend = {
       cod,
       cantidadRecibida,
@@ -207,4 +199,73 @@ export class ComercializadoraService {
     }
   }
 
+  // --- NUEVOS MÉTODOS TESORERÍA --- 
+
+  async enviarMercanciaNuevo(data: any): Promise<any> {
+    try {
+      const response = await firstValueFrom(
+        this.http.post(`${this.apiUrl}/gestion_tesoreria/movimientos/enviar/`, data)
+          .pipe(catchError(this.handleError))
+      );
+      return response;
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  async editarEnvioNuevo(id: number, data: any): Promise<any> {
+    try {
+      const response = await firstValueFrom(
+        this.http.patch(`${this.apiUrl}/gestion_tesoreria/movimientos/${id}/editar-envio/`, data)
+          .pipe(catchError(this.handleError))
+      );
+      return response;
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  async listarPendientesRecepcion(sede: string = ''): Promise<any> {
+    try {
+      let params = new HttpParams();
+      if (sede) {
+        params = params.set('sede', sede);
+      }
+      const response = await firstValueFrom(
+        this.http.get(`${this.apiUrl}/gestion_tesoreria/movimientos/pendientes-recepcion/`, { params })
+          .pipe(catchError(this.handleError))
+      );
+      return response;
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  async recibirMercanciaNuevo(data: any): Promise<any> {
+    try {
+      const response = await firstValueFrom(
+        this.http.post(`${this.apiUrl}/gestion_tesoreria/movimientos/recibir/`, data)
+          .pipe(catchError(this.handleError))
+      );
+      return response;
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  async listarInventarioLotes(sede: string): Promise<any> {
+    try {
+      let params = new HttpParams();
+      if (sede) {
+        params = params.set('sede', sede);
+      }
+      const response = await firstValueFrom(
+        this.http.get(`${this.apiUrl}/gestion_tesoreria/movimientos/inventario-lotes/`, { params })
+          .pipe(catchError(this.handleError))
+      );
+      return response;
+    } catch (error) {
+      throw error;
+    }
+  }
 }

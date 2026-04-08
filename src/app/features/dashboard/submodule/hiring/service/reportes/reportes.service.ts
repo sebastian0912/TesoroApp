@@ -80,23 +80,6 @@ export class ReportesService {
   }
 
   /**
-   * GET /reportes/:id/
-   */
-  getReporteById(id: number): Observable<any> {
-    const url = `${this.apiUrl}/reportes/${id}/`;
-
-    return this.http.get<any>(url).pipe(
-      map((resp: any) => {
-        if (resp?.status !== 'success' || !resp.reporte) {
-          throw { status: 404, error: resp };
-        }
-        return resp.reporte;
-      }),
-      catchError((error) => this.handleError(error, 'getReporteById')),
-    );
-  }
-
-  /**
    * POST /reportes/
    * ✅ Django:
    * - Si hay archivos -> multipart/form-data (FormData)

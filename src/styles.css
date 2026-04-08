@@ -11,7 +11,13 @@
    - Usa 1 sola familia base (Roboto) + fallbacks.
    - Si de verdad necesitas Oswald/Open Sans, vuelve a agregarlas.
 ====================== */
-@import url("https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700;900&display=swap");
+@import "@fontsource/roboto/300.css";
+@import "@fontsource/roboto/400.css";
+@import "@fontsource/roboto/500.css";
+@import "@fontsource/roboto/700.css";
+@import "@fontsource/roboto/900.css";
+@import "material-icons/iconfont/material-icons.css";
+@import "material-symbols/outlined.css";
 
 /* ======================
    Design tokens
@@ -49,7 +55,7 @@
   --ring: 0 0 0 4px rgba(59, 130, 246, 0.14);
 
   /* Table */
-  --table-head: #5e6a75;
+  --table-head: #0f172a;
   --table-row-even: #f3f4f6;
   --table-row-odd: #ffffff;
 }
@@ -72,7 +78,7 @@ body {
   margin: 0;
   font-family: var(--font-sans);
   color: var(--text);
-  background: linear-gradient(120deg, #eeeeee 50%, #febb2e 40%);
+  background: var(--bg);
   min-height: 100vh;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
@@ -123,6 +129,7 @@ html:focus-within {
     scroll-behavior: auto;
   }
 
+
   * {
     animation: none !important;
     transition: none !important;
@@ -136,33 +143,24 @@ html:focus-within {
 .dashboard-container {
   display: flex;
   min-height: 100vh;
+  width: 100%;
 }
 
 .dashboard-content {
   flex: 1;
-  padding: var(--pad);
+  display: flex;
+  flex-direction: column;
   overflow: auto;
+  min-width: 0;
+  /* Prevent flex overflow */
+  margin-left: 64px;
+  /* Default sidebar width to prevent overlap */
 }
 
-/* Navbar (solo móvil) */
-.navbar {
-  display: none;
-  align-items: center;
-  height: 20pt;
-  width: 100%;
-  z-index: 4;
-}
-
-.sidebar-toggle {
-  background: transparent;
-  border: none;
-  color: #fff;
-  cursor: pointer;
-}
-
-/* Componente navbar */
-app-navbar {
-  min-width: 45pt;
+.dashboard-page-wrapper {
+  padding: 1.5rem 2rem;
+  flex: 1;
+  transition: padding 0.3s ease;
 }
 
 /* ======================
@@ -256,6 +254,12 @@ mat-step {
   border-radius: var(--r-lg);
   box-shadow: var(--shadow-sm);
   background: var(--surface);
+
+  /* Angular Material MDC overrides */
+  --mat-table-header-container-color: var(--table-head) !important;
+  --mat-table-header-headline-color: #ffffff !important;
+  --mat-sort-header-label-text-color: #ffffff !important;
+  --mat-sort-header-arrow-color: #ffffff !important;
 }
 
 /* table itself */
@@ -266,17 +270,28 @@ mat-step {
 }
 
 /* sticky headers */
-.table-container th {
+.table-container th,
+.mat-header-cell,
+.mat-mdc-header-cell,
+.table-container th.mat-header-cell,
+.table-container th.mat-mdc-header-cell,
+.table-container .mat-table th.mat-header-cell,
+.table-container .mat-mdc-table th.mat-mdc-header-cell {
   position: sticky;
   top: 0;
   z-index: 2;
-  background: var(--table-head) !important;
-  color: #fff;
-  text-align: center;
+  background-color: var(--table-head) !important;
+  color: #ffffff !important;
+  text-align: center !important;
+  font-size: 14px !important;
+  font-weight: 700 !important;
+  border-bottom: 2px solid #e2e8f0 !important;
 }
 
-.mat-table th.mat-header-cell {
-  background: var(--table-head) !important;
+.mat-table th.mat-header-cell,
+.mat-mdc-table th.mat-mdc-header-cell {
+  background-color: var(--table-head) !important;
+  color: #ffffff !important;
   z-index: 8;
 }
 
@@ -284,6 +299,7 @@ mat-step {
 .table-container tr:nth-child(even) {
   background: var(--table-row-even);
 }
+
 
 .table-container tr:nth-child(odd) {
   background: var(--table-row-odd);
@@ -415,18 +431,15 @@ mat-card-content p {
 /* ======================
    Responsive
 ====================== */
-@media (max-width: 933px) {
-  .navbar {
-    display: flex;
-  }
-
+@media (max-width: 900px) {
   .dashboard-container {
     flex-direction: column;
   }
 
-  app-navbar {
-    margin-top: 0;
-    width: 100%;
+  .dashboard-content {
+    margin-left: 0;
+    padding: 1rem 1rem 80px 1rem;
+    /* Extra padding bottom for mobile bottom-bar */
   }
 
   .nombre {
@@ -547,6 +560,7 @@ mat-card-content p {
   border-radius: 12px;
 }
 
+
 .mat-mdc-dialog-panel.sf-filters-dialog-panel .sf-filters-dialog__close:hover {
   background: rgba(15, 23, 42, 0.06);
 }
@@ -581,11 +595,13 @@ mat-card-content p {
   }
 }
 
+
 @media (max-width: 900px) {
   .mat-mdc-dialog-panel.sf-filters-dialog-panel .sf-filters-dialog__grid {
     grid-template-columns: repeat(2, minmax(180px, 1fr));
   }
 }
+
 
 @media (max-width: 640px) {
   .mat-mdc-dialog-panel.sf-filters-dialog-panel .sf-filters-dialog__grid {
@@ -716,16 +732,214 @@ mat-card-content p {
 }
 
 /* =========================================================
-   PDF Editor - Fullscreen Dialog
-   panelClass: pdf-editor-fullscreen-dialog
-========================================================= */
-.pdf-editor-fullscreen-dialog .mat-mdc-dialog-surface {
+   CrudManagerDialog — Panel styles (GLOBAL)
+   panelClass: crud-manager-dialog-panel
+   ========================================================= */
+
+/* Backdrop */
+.cdk-overlay-backdrop.crud-manager-backdrop {
+  background: rgba(2, 6, 23, 0.42) !important;
+  backdrop-filter: blur(8px);
+}
+
+/* Panel sizing */
+.mat-mdc-dialog-panel.crud-manager-dialog-panel {
+  max-width: 96vw !important;
+}
+
+/* Surface */
+.mat-mdc-dialog-panel.crud-manager-dialog-panel .mat-mdc-dialog-surface {
   padding: 0 !important;
-  border-radius: 0 !important;
+  border-radius: 18px !important;
+  overflow: hidden !important;
+  background: #ffffff !important;
+  box-shadow:
+    0 24px 70px rgba(15, 23, 42, 0.22),
+    0 10px 26px rgba(15, 23, 42, 0.12) !important;
+}
+
+/* Remove default Material dialog spacing so component controls all padding */
+.mat-mdc-dialog-panel.crud-manager-dialog-panel .mat-mdc-dialog-content {
+  padding: 0 !important;
+  max-height: none !important;
+}
+
+/* Form field compact fixes inside the dialog */
+.mat-mdc-dialog-panel.crud-manager-dialog-panel .mat-mdc-text-field-wrapper {
+  border-radius: 12px !important;
+}
+
+.mat-mdc-dialog-panel.crud-manager-dialog-panel .mdc-notched-outline__leading,
+.mat-mdc-dialog-panel.crud-manager-dialog-panel .mdc-notched-outline__notch,
+.mat-mdc-dialog-panel.crud-manager-dialog-panel .mdc-notched-outline__trailing {
+  border-color: rgba(15, 23, 42, 0.16) !important;
+}
+
+@media (max-width: 640px) {
+  .mat-mdc-dialog-panel.crud-manager-dialog-panel {
+    max-width: 100vw !important;
+    margin: 8px !important;
+  }
+
+  .mat-mdc-dialog-panel.crud-manager-dialog-panel .mat-mdc-dialog-surface {
+    border-radius: 14px !important;
+  }
+}
+
+/* =========================================================
+   Historial Dialog — Panel styles (GLOBAL)
+   panelClass: historial-dialog-panel
+   ========================================================= */
+.mat-mdc-dialog-panel.historial-dialog-panel .mat-mdc-dialog-surface {
+  padding: 0 !important;
+  overflow: hidden !important;
+  border-radius: 12px !important;
+}
+
+.mat-mdc-dialog-panel.historial-dialog-panel .mat-mdc-dialog-container {
+  padding: 0 !important;
   overflow: hidden !important;
 }
 
-.pdf-editor-fullscreen-dialog {
-  max-width: 100vw !important;
-  max-height: 100vh !important;
+.mat-mdc-dialog-panel.historial-dialog-panel .mdc-dialog__surface {
+  overflow: hidden !important;
+}
+
+/* =========================================================
+   Global Hero Header Styles
+   ========================================================= */
+.hero {
+  margin-bottom: 28px;
+}
+
+.hero-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 28px 32px;
+  border-radius: 18px;
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 60%, #334155 100%);
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.2);
+  position: relative;
+  overflow: hidden;
+}
+
+.hero-content::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  right: -20%;
+  width: 400px;
+  height: 400px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(140, 213, 10, 0.08) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+/* =========================================================
+   Plantillas Modal (SweetAlert) responsive
+   ========================================================= */
+.modal-responsive-plantillas {
+  width: 95% !important;
+  max-width: 850px !important;
+  border-radius: 12px !important;
+}
+
+@media (max-width: 640px) {
+  .modal-responsive-plantillas {
+    width: 100% !important;
+    max-width: 100vw !important;
+    margin: 0 !important;
+    border-radius: 0 !important;
+  }
+}
+
+.hero-text {
+  position: relative;
+  z-index: 1;
+}
+
+.hero-greeting {
+  font-size: 26px;
+  font-weight: 800;
+  color: white;
+  margin: 0 0 4px;
+  letter-spacing: -0.5px;
+}
+
+.hero-date {
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.5);
+  margin: 0;
+}
+
+.hero-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 14px;
+  background: rgba(140, 213, 10, 0.12);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  z-index: 1;
+}
+
+.hero-icon mat-icon {
+  font-size: 30px;
+  width: 30px;
+  height: 30px;
+  color: #8CD50A;
+}
+
+@media (max-width: 640px) {
+  .hero-content {
+    padding: 20px 22px;
+  }
+  .hero-greeting {
+    font-size: 22px;
+  }
+}
+
+/* ========================================================= */
+/* 🔥 GLOBAL RESPONSIVE RULES (ANGULAR AGENT SKILLS UX)  🔥 */
+/* ========================================================= */
+
+mat-card {
+  max-width: 100vw;
+  box-sizing: border-box;
+}
+
+/* Tablas Fluidas en Mobile */
+.responsive-table-container,
+.table-container {
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 2px;
+}
+
+/* Modo oscuro base ajustes UI */
+body.dark-theme mat-card {
+  box-shadow: 0 1px 3px rgba(0,0,0,0.3) !important;
+  border: 1px solid #334155;
+}
+
+/* Responsividad formularios - flexbox natural */
+.form-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 15px;
+  width: 100%;
+}
+
+.form-field {
+  flex: 1 1 300px;
+  min-width: 0;
+}
+
+/* Botones amigables en tap */
+button {
+  min-height: 48px !important;
 }

@@ -1,18 +1,22 @@
-<mat-card>
-  <mat-card-header class="card-header">
-    <mat-card-title class="titulo">Gestión de usuarios</mat-card-title>
+<mat-card class="premium-card">
+  <mat-card-header class="card-header-premium">
+    <div class="header-content">
+      <div class="header-icon-container">
+        <mat-icon class="header-icon">group</mat-icon>
+      </div>
+      <div class="header-text">
+        <mat-card-title class="titulo">Gestión de Usuarios</mat-card-title>
+        <mat-card-subtitle class="subtitulo">Administración del ciclo de vida y niveles de acceso del personal
+          integrado.</mat-card-subtitle>
+      </div>
+    </div>
     <span class="grow"></span>
 
-    <!-- Menú 3 puntos -->
-    <button mat-icon-button [matMenuTriggerFor]="menu" aria-label="Más opciones">
-      <mat-icon>more_vert</mat-icon>
+    <!-- Acciones Generales -->
+    <button mat-flat-button class="btn-managerial" (click)="openCreateDialog()">
+      <mat-icon>person_add</mat-icon>
+      <span>Nuevo Usuario</span>
     </button>
-    <mat-menu #menu="matMenu">
-      <button mat-menu-item (click)="openCreateDialog()">
-        <mat-icon>person_add</mat-icon>
-        <span>Crear usuario</span>
-      </button>
-    </mat-menu>
   </mat-card-header>
 
   <mat-card-content class="card-content">
@@ -24,8 +28,8 @@
     </div>
     } @else {
     <!-- Data Table -->
-    <app-standard-filter-table [data]="rows()" [columnDefinitions]="columns" [tableTitle]="'Usuarios'"
-      [pageSizeOptions]="[10, 20, 50]" [defaultPageSize]="10">
+    <app-standard-filter-table [data]="rows()" [columnDefinitions]="columns" [pageSizeOptions]="[10, 20, 50]"
+      [defaultPageSize]="10">
 
       <!-- Acciones por fila -->
       <ng-template #actionsTemplate let-row>

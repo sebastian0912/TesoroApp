@@ -307,6 +307,13 @@
   color: var(--base-color) !important;
 }
 
+.btn-primary:disabled {
+  background-color: #ccc !important;
+  color: #888 !important;
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
 .btn-secondary {
   color: var(--base-color) !important;
   border-color: var(--border-subtle) !important;
@@ -414,4 +421,80 @@
 
 .text-right {
   text-align: right;
+}
+
+/* -------------------------------------------------------------------------
+   ARL ERRORS MINI TABLE
+   ------------------------------------------------------------------------- */
+.arl-errors-panel {
+  margin-top: 8px;
+  border: 1px solid var(--error-bg);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--card-bg);
+}
+
+.arl-errors-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: var(--error-bg);
+  color: var(--error-text);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.arl-errors-icon {
+  font-size: 18px;
+  width: 18px;
+  height: 18px;
+}
+
+.arl-errors-table-wrapper {
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.arl-errors-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.arl-errors-table thead th {
+  position: sticky;
+  top: 0;
+  background: var(--base-color);
+  color: #fff;
+  padding: 8px 12px;
+  text-align: left;
+  font-weight: 600;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.arl-errors-table tbody td {
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.arl-errors-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.arl-errors-table tbody tr:hover {
+  background: #fafafa;
+}
+
+.arl-cedula {
+  font-weight: 600;
+  color: var(--base-color);
+  white-space: nowrap;
+}
+
+.arl-error-msg {
+  color: var(--error-text);
+  font-weight: 500;
 }

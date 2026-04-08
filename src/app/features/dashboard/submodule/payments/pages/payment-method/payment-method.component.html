@@ -1,23 +1,36 @@
 <input type="file" id="fileInput" (change)="cargarExcel($event)" accept=".xlsx, .xls" style="display: none;">
 
-<mat-card>
-  <mat-card-content>
+<mat-card class="premium-card">
+  <mat-card-header class="card-header-premium">
+    <div class="header-content">
+      <div class="header-icon-container">
+        <mat-icon class="header-icon">account_balance</mat-icon>
+      </div>
+      <div class="header-text">
+        <mat-card-title class="titulo">Formas de Pago</mat-card-title>
+        <mat-card-subtitle class="subtitulo">Gestione los métodos de dispersión bancaria.</mat-card-subtitle>
+      </div>
+    </div>
+  </mat-card-header>
+  <mat-card-content class="card-content">
     <div class="search-container">
       <div class="buscar">
         <mat-form-field appearance="fill" class="example-full-width">
           <mat-label>Ingrese la cédula</mat-label>
           <input matInput [(ngModel)]="cedula">
         </mat-form-field>
-        <button mat-flat-button (click)="buscarFormasPago(cedula)" class="boton">Buscar</button>
+        <button mat-flat-button (click)="buscarFormasPago(cedula)" class="boton btn-managerial">Buscar</button>
       </div>
-      <app-info-card title="Cargar formas de pago" imageUrl="icons/cards/excel.png" (click)="triggerFileInput()" *ngIf="
+      @if (
         correo == 'contaduria.rtc@gmail.com' ||
         correo == 'ghumana.rtc@gmail.com' ||
         correo == 'programador.ts@gmail.com' ||
         correo == 'antcontable5.ts@gmail.com' ||
         correo == 'asistconta.rtc@gmail.com'
-        " style="cursor: pointer;">
-      </app-info-card>
+        ) {
+        <app-info-card title="Cargar formas de pago" imageUrl="icons/cards/excel.png" (click)="triggerFileInput()" style="cursor: pointer;">
+        </app-info-card>
+      }
     </div>
 
     <div class="tabla">
@@ -26,27 +39,28 @@
 
         <!-- Template para celdas editables (empiezan por type_) -->
         <ng-template #estadoTemplate let-row let-col="col">
-          <div *ngIf="row.editing; else viewMode">
-            <!-- Input para editar. Se enlaza a la propiedad del row con el nombre de columna (ej: type_banco) -->
-            <input matInput [(ngModel)]="row[col.name]" class="editado"
-              style="width: 100%; border: 1px solid #ccc; padding: 4px;">
-          </div>
-          <ng-template #viewMode>
-            {{ row[col.name] }}
+          @if (row.editing) {
+            <div>
+              <!-- Input para editar. Se enlaza a la propiedad del row con el nombre de columna (ej: type_banco) -->
+              <input matInput [(ngModel)]="row[col.name]" class="editado"
+                style="width: 100%; border: 1px solid #ccc; padding: 4px;">
+              </div>
+            } @else {
+              {{ row[col.name] }}
+            }
           </ng-template>
-        </ng-template>
 
-        <!-- Template para acciones -->
-        <ng-template #actionsTemplate let-row>
-          <button mat-icon-button color="primary" (click)="toggleEdit(row)">
-            <mat-icon>{{row.editing ? 'save' : 'edit'}}</mat-icon>
-          </button>
-          <button mat-icon-button color="warn" (click)="eliminarFormaPago(row)">
-            <mat-icon>delete</mat-icon>
-          </button>
-        </ng-template>
+          <!-- Template para acciones -->
+          <ng-template #actionsTemplate let-row>
+            <button mat-icon-button color="primary" (click)="toggleEdit(row)">
+              <mat-icon>{{row.editing ? 'save' : 'edit'}}</mat-icon>
+            </button>
+            <button mat-icon-button color="warn" (click)="eliminarFormaPago(row)">
+              <mat-icon>delete</mat-icon>
+            </button>
+          </ng-template>
 
-      </app-standard-filter-table>
-    </div>
-  </mat-card-content>
-</mat-card>
+        </app-standard-filter-table>
+      </div>
+    </mat-card-content>
+  </mat-card>

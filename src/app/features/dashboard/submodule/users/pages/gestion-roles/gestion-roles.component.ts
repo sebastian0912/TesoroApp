@@ -1,18 +1,19 @@
 import { StandardFilterTable } from '@/app/shared/components/standard-filter-table/standard-filter-table';
-import { Component, computed, inject, OnInit, signal } from '@angular/core';
+import {  Component, computed, inject, OnInit, signal , ChangeDetectionStrategy } from '@angular/core';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { MatMenuModule } from '@angular/material/menu';
 import { GestionRolesSService, Rol } from '../../services/gestion-roles/gestion-roles-s.service';
-import { RolUpsertDialogComponent } from '../../components/rol-upsert-dialog/rol-upsert-dialog.component';
 import { MatDialog } from '@angular/material/dialog';
 import { ColumnConfig, ColumnDefinition, ColumnType } from '../../../../../../shared/models/advanced-table-interface';
 import { MatCardModule } from '@angular/material/card';
 import Swal from 'sweetalert2';
 import { finalize } from 'rxjs/operators';
 import { RolPermissionsDialogComponent } from '../../components/rol-permissions-dialog/rol-permissions-dialog.component';
+import { RolUpsertDialogComponent } from '../../components/rol-upsert-dialog/rol-upsert-dialog.component';
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-gestion-roles',
   imports: [
     StandardFilterTable,
@@ -23,7 +24,7 @@ import { RolPermissionsDialogComponent } from '../../components/rol-permissions-
   ],
   templateUrl: './gestion-roles.component.html',
   styleUrl: './gestion-roles.component.css'
-})
+} )
 export class GestionRolesComponent implements OnInit {
   private rolesSvc = inject(GestionRolesSService);
   private dialog = inject(MatDialog);

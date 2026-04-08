@@ -1,5 +1,5 @@
 import { SharedModule } from '@/app/shared/shared.module';
-import { Component, ElementRef, ViewChild } from '@angular/core';
+import {  Component, ElementRef, ViewChild , ChangeDetectionStrategy } from '@angular/core';
 import { FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { DomSanitizer, SafeResourceUrl, Title, Meta } from '@angular/platform-browser';
 import { debounceTime, distinctUntilChanged, switchMap } from 'rxjs';
@@ -27,12 +27,12 @@ export interface TipoDocumental {
   id: number;
   name: string;
   estado: boolean;
-  tags: string[];
-  subtypes: TipoDocumental[]; // subtipos anidados
+  subtypes?: TipoDocumental[]; // subtipos anidados
 }
 
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-search-documents',
   standalone: true,
   imports: [
@@ -40,7 +40,7 @@ export interface TipoDocumental {
   ],
   templateUrl: './search-documents.component.html',
   styleUrl: './search-documents.component.css'
-})
+} )
 export class SearchDocumentsComponent {
   tiposDocumentales: any[] = [];
   codigosContrato: string[] = [];

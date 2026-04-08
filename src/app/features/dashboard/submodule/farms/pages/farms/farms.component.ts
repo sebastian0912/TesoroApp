@@ -1,4 +1,4 @@
-import { Component, OnInit, ViewChild, ElementRef, inject } from '@angular/core';
+import {  Component, OnInit, ViewChild, ElementRef, inject , ChangeDetectionStrategy } from '@angular/core';
 import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
@@ -34,6 +34,7 @@ interface CentroCostoView {
 }
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-farms',
   standalone: true,
   imports: [
@@ -41,7 +42,7 @@ interface CentroCostoView {
   ],
   templateUrl: './farms.component.html',
   styleUrls: ['./farms.component.css']
-})
+} )
 export class FarmsComponent implements OnInit {
   private svc = inject(FarmsService);
   private dialog = inject(MatDialog);

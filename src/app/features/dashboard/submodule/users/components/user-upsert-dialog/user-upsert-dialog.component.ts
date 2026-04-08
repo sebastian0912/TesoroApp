@@ -1,5 +1,5 @@
 import { Component, Inject, OnInit, ChangeDetectionStrategy, signal, computed } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { FormBuilder, Validators, ReactiveFormsModule, FormGroup } from '@angular/forms';
 import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
 import { MatButtonModule } from '@angular/material/button';
@@ -36,7 +36,6 @@ export interface UserUpsertData {
 @Component({
   selector: 'app-user-upsert-dialog',
   imports: [
-    CommonModule,
     ReactiveFormsModule,
     MatDialogModule,
     MatButtonModule,
@@ -46,8 +45,8 @@ export interface UserUpsertData {
     MatSlideToggleModule,
     MatIconModule,
     MatDividerModule,
-    MatProgressSpinnerModule,
-  ],
+    MatProgressSpinnerModule
+],
   templateUrl: './user-upsert-dialog.component.html',
   styleUrl: './user-upsert-dialog.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush,

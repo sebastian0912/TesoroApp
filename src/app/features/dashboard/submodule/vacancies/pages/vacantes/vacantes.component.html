@@ -1,60 +1,72 @@
-<mat-card>
-  <mat-card-content>
-    <!-- HEADER -->
-    <div class="page-header">
-      <h1 class="title">Listado de Vacantes</h1>
-      <span class="spacer"></span>
+<mat-card class="premium-card">
+  <mat-card-header class="card-header-premium">
+    <div class="header-content">
+      <div class="header-icon-container">
+        <mat-icon class="header-icon">work_outline</mat-icon>
+      </div>
+      <div class="header-text">
+        <mat-card-title class="titulo">Listado de Vacantes</mat-card-title>
+        <mat-card-subtitle class="subtitulo">Gestión y control de ofertas de empleo.</mat-card-subtitle>
+      </div>
+    </div>
+    <span class="spacer grow" style="flex: 1 1 auto;"></span>
 
-      <mat-button-toggle-group
-        [value]="viewMode"
-        (change)="onToggleView($event.value)"
-        aria-label="Cambiar vista"
-        class="view-toggle">
+    <mat-button-toggle-group
+      [value]="viewMode"
+      (change)="onToggleView($event.value)"
+      aria-label="Cambiar vista"
+      class="view-toggle">
 
-        <mat-button-toggle value="table">
-          <mat-icon>table_chart</mat-icon>
-          <span class="toggle-text">Todos</span>
-        </mat-button-toggle>
+      <mat-button-toggle value="table">
+        <mat-icon>table_chart</mat-icon>
+        <span class="toggle-text">Todos</span>
+      </mat-button-toggle>
 
-        <mat-button-toggle value="faltantes">
-          <mat-icon>warning</mat-icon>
-          <span class="toggle-text">Faltantes</span>
-        </mat-button-toggle>
+      <mat-button-toggle value="faltantes">
+        <mat-icon>warning</mat-icon>
+        <span class="toggle-text">Faltantes</span>
+      </mat-button-toggle>
 
-        <mat-button-toggle value="completados">
-          <mat-icon>check_circle</mat-icon>
-          <span class="toggle-text">Completados</span>
-        </mat-button-toggle>
-      </mat-button-toggle-group>
+      <mat-button-toggle value="completados">
+        <mat-icon>check_circle</mat-icon>
+        <span class="toggle-text">Completados</span>
+      </mat-button-toggle>
 
-      <button mat-icon-button [matMenuTriggerFor]="accionesMenu" aria-label="Acciones de vacantes">
-        <mat-icon>more_vert</mat-icon>
+      <mat-button-toggle value="inactivas">
+        <mat-icon>block</mat-icon>
+        <span class="toggle-text">Inactivas</span>
+      </mat-button-toggle>
+    </mat-button-toggle-group>
+
+    <button mat-icon-button class="btn-managerial-icon" style="z-index: 1; margin-left: 16pt;" [matMenuTriggerFor]="accionesMenu" aria-label="Acciones de vacantes">
+      <mat-icon>more_vert</mat-icon>
+    </button>
+
+    <mat-menu #accionesMenu="matMenu">
+      <button mat-menu-item (click)="openModal()">
+        <mat-icon>add</mat-icon>
+        <span>Añadir Vacante</span>
       </button>
 
-      <mat-menu #accionesMenu="matMenu">
-        <button mat-menu-item (click)="openModal()">
-          <mat-icon>add</mat-icon>
-          <span>Añadir Vacante</span>
-        </button>
+      <button mat-menu-item (click)="fileInput.click()">
+        <mat-icon>upload_file</mat-icon>
+        <span>Subir Excel Vacantes</span>
+      </button>
 
-        <button mat-menu-item (click)="fileInput.click()">
-          <mat-icon>upload_file</mat-icon>
-          <span>Subir Excel Vacantes</span>
-        </button>
+      <button mat-menu-item (click)="descargarExcelVacantes($event)">
+        <mat-icon>download</mat-icon>
+        <span>Descargar Excel Vacantes</span>
+      </button>
 
-        <button mat-menu-item (click)="descargarExcelVacantes($event)">
-          <mat-icon>download</mat-icon>
-          <span>Descargar Excel Vacantes</span>
-        </button>
+      <button mat-menu-item (click)="abrirFormularioPreRegistroVacantes()">
+        <mat-icon>open_in_new</mat-icon>
+        <span>Formulario Pre Registro Vacantes</span>
+      </button>
+    </mat-menu>
 
-        <button mat-menu-item (click)="abrirFormularioPreRegistroVacantes()">
-          <mat-icon>open_in_new</mat-icon>
-          <span>Formulario Pre Registro Vacantes</span>
-        </button>
-      </mat-menu>
-
-      <input type="file" #fileInput (change)="onFileSelected($event)" hidden />
-    </div>
+    <input type="file" #fileInput (change)="onFileSelected($event)" hidden />
+  </mat-card-header>
+  <mat-card-content class="card-content">
 
     <!-- MENU POR FILA (1 SOLO) -->
     <mat-menu #rowMenu="matMenu">
@@ -64,10 +76,12 @@
           <span>Editar</span>
         </button>
 
-        <button mat-menu-item (click)="eliminarVacante(row)" *ngIf="permitido">
-          <mat-icon>delete</mat-icon>
-          <span>Eliminar</span>
-        </button>
+        @if (permitido) {
+          <button mat-menu-item (click)="eliminarVacante(row)">
+            <mat-icon>delete</mat-icon>
+            <span>Eliminar</span>
+          </button>
+        }
 
         <mat-divider></mat-divider>
 

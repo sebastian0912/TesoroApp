@@ -1,22 +1,25 @@
-<mat-card>
-  <mat-card-content>
-    <div class="page">
-      <div class="page-header">
-        <div class="left">
-          <h2 class="title">{{ title }}</h2>
-          <p class="subtitle">Tabla de entrevistas registradas hoy. Descarga por
-            rango en Excel.</p>
-        </div>
-
-        <div class="right">
-
-          <button mat-flat-button color="primary"
+<mat-card class="premium-card">
+  <mat-card-header class="card-header-premium">
+    <div class="header-content">
+      <div class="header-icon-container">
+        <mat-icon class="header-icon">recent_actors</mat-icon>
+      </div>
+      <div class="header-text">
+        <mat-card-title class="titulo">{{ title }}</mat-card-title>
+        <mat-card-subtitle class="subtitulo">Tabla de entrevistas registradas hoy. Descarga por rango en Excel.</mat-card-subtitle>
+      </div>
+    </div>
+    <span class="grow"></span>
+    <div class="right" style="z-index: 1;">
+        <button mat-flat-button class="btn-managerial"
             (click)="openRangeDialogAndExport()">
             <mat-icon>download</mat-icon>
             Descargar Excel (rango)
-          </button>
-        </div>
-      </div>
+        </button>
+    </div>
+  </mat-card-header>
+  <mat-card-content class="card-content">
+    <div class="page">
 
       <app-standard-filter-table
         [data]="rows"

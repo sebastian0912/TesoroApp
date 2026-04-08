@@ -92,10 +92,16 @@ export class FormEntrevistaComponent implements OnInit {
       activo: true,
     });
 
+  parentescosOpciones$: Observable<CatalogValue[]> =
+    this.catalogos.listDatosByTablaCodigo('PARENTESCOS_FAMILIARES', {
+      activo: true,
+    });
+
   // ====== Form / estado ======
   formVacante!: FormGroup;
   isSubmitting = false;
   lockedOffice?: string;
+  firma = '';
 
   // Agrupadores lógicos (ex "steps") para validación seccional
   step1Ctrl = new FormGroup({});
@@ -156,6 +162,9 @@ export class FormEntrevistaComponent implements OnInit {
     'estado_civil',
   ];
   private readonly step3Fields = [
+    'correo_electronico',
+    'password',
+    'direccion_de_residencia',
     'barrio',
     'celular',
     'whatsapp',
@@ -211,6 +220,15 @@ export class FormEntrevistaComponent implements OnInit {
       estado_civil: ['', Validators.required],
 
       // Contacto / domicilio
+      correo_electronico: [
+        '',
+        [
+          Validators.required,
+          Validators.pattern(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)
+        ]
+      ],
+      password: [''],
+      direccion_de_residencia: ['', Validators.required],
       barrio: [
         '',
         [
@@ -239,6 +257,10 @@ export class FormEntrevistaComponent implements OnInit {
       cuidadorHijos: [''],
       numeroHijos: [0],
       hijos: this.fb.array([]),
+      nombreReferenciaFamiliar1: [''],
+      parentescoReferenciaFamiliar1: ['', [Validators.maxLength(70)]],
+      nombreReferenciaFamiliar2: [''],
+      parentescoReferenciaFamiliar2: ['', [Validators.maxLength(70)]],
 
       // Formación / experiencia
       nivel: [null, Validators.required],
@@ -261,6 +283,16 @@ export class FormEntrevistaComponent implements OnInit {
 
       // Aux
       brigadaDe: [''],
+
+      // Evaluacion (Opcionales)
+      relacionFamiliar: [''],
+      desempenoLaboral: [''],
+      felicitaciones: [''],
+      situacionConflictiva: [''],
+      actividadesDiferentes: [''],
+
+      // Firma
+      firmaEvaluador: [{ value: '', disabled: true }],
     });
 
     // =======================
@@ -318,6 +350,12 @@ export class FormEntrevistaComponent implements OnInit {
       const cand = this.candidatoSeleccionado();
       this.rellenarForm(cand);
     });
+
+    // Populate signature
+    const u: any = this.util.getUser();
+    if (u) {
+      this.firma = `${u?.datos_basicos?.nombres ?? ''} ${u?.datos_basicos?.apellidos ?? ''} - ${u?.rol?.nombre ?? ''}`.trim();
+    }
   }
 
   private normalizeText(v: any): string {
@@ -964,6 +1002,7 @@ export class FormEntrevistaComponent implements OnInit {
     const contacto = cand?.contacto ?? {};
     const entrevistas = Array.isArray(cand?.entrevistas) ? cand.entrevistas : [];
     const oficina = entrevistas[0]?.oficina ?? '';
+    const evalAux = cand?.evaluacion ?? {};
 
     const fechaNac = toDate(cand?.fecha_nacimiento);
     const fechaExp = toDate(info_cc?.fecha_expedicion);
@@ -993,14 +1032,15 @@ export class FormEntrevistaComponent implements OnInit {
         mpio_nacimiento: info_cc?.mpio_nacimiento || '',
         sexo: cand?.sexo || '',
         estado_civil: estadoCivilQuick || '',
-
+        correo_electronico: contacto?.email || contacto?.correo_electronico || '',
+        direccion_de_residencia: residencia?.direccion || residencia?.direccion_de_residencia || '',
         barrio: residencia?.barrio || '',
         celular: contacto?.celular || '',
         whatsapp: contacto?.whatsapp || '',
         hace_cuanto_vive: haceCuantoVive || '',
 
         nivel: cand?.formaciones?.[0]?.nivel || '',
-        proyeccion1Ano: entrevistas?.[0]?.como_se_proyecta || '',
+        proyeccion1Ano: entrevistas?.[0]?.como_se_proyecta || evalAux?.motivacion || '',
         estudiaActualmente: !!cand?.vivienda?.estudia_actualmente,
         experienciaFlores: cand?.experiencia_resumen?.tiene_experiencia ? 'Sí' : 'No',
         tipoExperienciaFlores: cand?.experiencia_resumen?.area_experiencia || '',
@@ -1011,6 +1051,13 @@ export class FormEntrevistaComponent implements OnInit {
         aplicaObservacion: entrevistas?.[0]?.proceso?.aplica_o_no_aplica || '',
         motivoEspera: entrevistas?.[0]?.proceso?.motivo_espera || '',
         motivoNoAplica: entrevistas?.[0]?.proceso?.motivo_no_aplica || '',
+
+        // Opcionales evaluacion
+        relacionFamiliar: evalAux?.relacion_familiar || '',
+        desempenoLaboral: evalAux?.rendimiento_laboral || evalAux?.rendimiento || '',
+        felicitaciones: evalAux?.porque_lo_felicitarian || '',
+        situacionConflictiva: evalAux?.malentendido || '',
+        actividadesDiferentes: evalAux?.actividades_diarias || '',
       },
       { emitEvent: false }
     );
@@ -1065,12 +1112,21 @@ export class FormEntrevistaComponent implements OnInit {
 
     // 5) Información familiar (hijos)
     const hijosArr = Array.isArray(cand?.hijos) ? cand.hijos : [];
+    
+    // Referencias vienen en formato array por el backend
+    const refs = Array.isArray(cand?.referencias) ? cand.referencias : [];
+    const fam1 = refs.find((r: any) => r.tipo === 'FAMILIAR1');
+    const fam2 = refs.find((r: any) => r.tipo === 'FAMILIAR2');
 
     this.formVacante.patchValue(
       {
         tieneHijos: hijosArr.length > 0,
         cuidadorHijos: cand?.vivienda?.responsable_hijos || '',
         numeroHijos: hijosArr.length,
+        nombreReferenciaFamiliar1: fam1?.nombre || '',
+        parentescoReferenciaFamiliar1: fam1?.parentesco || '',
+        nombreReferenciaFamiliar2: fam2?.nombre || '',
+        parentescoReferenciaFamiliar2: fam2?.parentesco || '',
       },
       { emitEvent: false }
     );
@@ -1173,11 +1229,39 @@ export class FormEntrevistaComponent implements OnInit {
 
     if (this.formVacante.invalid) {
       this.formVacante.markAllAsTouched();
+
       await Swal.fire(
         'Error',
-        'Por favor complete todos los campos requeridos.',
+        'Por favor verifique los campos en rojo. Faltan datos obligatorios o hay errores.',
         'error'
       );
+
+      setTimeout(() => {
+        const firstInvalidControl = document.querySelector(
+          'mat-form-field.mat-form-field-invalid, .ng-invalid[formControlName], .ng-invalid[formGroupName], .ng-invalid[formArrayName]'
+        ) as HTMLElement;
+
+        if (firstInvalidControl) {
+          // Destaca visualmente el control temporalmente
+          firstInvalidControl.classList.add('error-pulse');
+          setTimeout(() => firstInvalidControl.classList.remove('error-pulse'), 2000);
+
+          // Hacer focus si es posible (inputs/selects de Angular)
+          const focusable = firstInvalidControl.querySelector('input, select, textarea') as HTMLElement;
+          if (focusable) focusable.focus();
+
+          // Scroll más suave y calculando el offset para evitar el header fijo
+          const headerOffset = 100;
+          const elementPosition = firstInvalidControl.getBoundingClientRect().top;
+          const offsetPosition = elementPosition + window.pageYOffset - headerOffset;
+
+          window.scrollTo({
+            top: offsetPosition,
+            behavior: 'smooth'
+          });
+        }
+      }, 150);
+
       return;
     }
 
@@ -1224,12 +1308,77 @@ export class FormEntrevistaComponent implements OnInit {
         text: 'Datos guardados y entrevista marcada.',
       });
     } catch (e: any) {
-      const msg =
-        e?.error?.detail || e?.message || 'No se pudo guardar.';
+      let title = 'Error al guardar';
+      let htmlMessage = '';
+
+      const errBody = e?.error;
+
+      if (errBody) {
+        if (errBody.detail) {
+          htmlMessage += `<b>${errBody.detail}</b><br/>`;
+        }
+
+        // Mostrar errores de validación de formulario del backend de Django (DRF)
+        if (errBody.errors && typeof errBody.errors === 'object') {
+          htmlMessage += `<ul style="text-align: left; font-size: 0.9em; margin-top: 10px; max-height: 200px; overflow-y: auto; padding-right: 10px;">`;
+          
+          const parseErrors = (obj: any, parentKey = ''): void => {
+            if (Array.isArray(obj)) {
+              obj.forEach((item, idx) => {
+                if (typeof item === 'object' && item !== null) {
+                  // Elemento de una lista de objetos (ej. experiencias[0])
+                  parseErrors(item, `${parentKey} (#${idx + 1})`);
+                } else if (String(item).trim()) {
+                  // Mensaje de error final en un arreglo 
+                  let k = parentKey.trim();
+                  if (parentKey.includes('Error general')) {
+                     htmlMessage += `<li>${item}</li>`; // Omitir el nombre si es un error general sin llave
+                  } else {
+                     htmlMessage += `<li>${k ? `<b>${k}:</b> ` : ''}${item}</li>`;
+                  }
+                }
+              });
+            } else if (typeof obj === 'object' && obj !== null) {
+              for (const [k, v] of Object.entries(obj)) {
+                let fieldName = k === 'non_field_errors' ? 'Error general' : k.replace(/_/g, ' ');
+                fieldName = fieldName.charAt(0).toUpperCase() + fieldName.slice(1);
+                const prefix = parentKey ? `${parentKey} ➔ ${fieldName}` : fieldName;
+                parseErrors(v, prefix);
+              }
+            } else if (String(obj).trim()) {
+              let k = parentKey.trim();
+              htmlMessage += `<li>${k ? `<b>${k}:</b> ` : ''}${obj}</li>`;
+            }
+          };
+
+          parseErrors(errBody.errors);
+          htmlMessage += `</ul>`;
+        }
+
+        // Mostrar detalles crudos de BD u otros mapeados del backend
+        if (errBody.db_error) {
+          htmlMessage += `<div style="font-size: 0.85em; margin-top: 10px; color: #666; text-align: left; max-height: 100px; overflow-y: auto;"><i>Detalle técnico:</i> ${errBody.db_error}</div>`;
+        }
+        if (errBody.hint) {
+          htmlMessage += `<div style="font-size: 0.85em; color: dimgrey; margin-top: 5px; text-align: left;"><b>Sugerencia:</b> ${errBody.hint}</div>`;
+        }
+
+        // Fallback catch-all del backend
+        if (errBody.error && !errBody.details && !errBody.errors) {
+          htmlMessage += `<div style="font-size: 0.85em; margin-top: 10px; color: #666; text-align: left;"><i>Error de sistema:</i> ${errBody.error}</div>`;
+        }
+      }
+
+      if (!htmlMessage) {
+         htmlMessage = e?.message || 'No se pudo guardar debido a un error de conexión o del servidor.';
+      }
+
       await Swal.fire({
         icon: 'error',
-        title: 'Error',
-        text: msg,
+        title: title,
+        html: htmlMessage,
+        confirmButtonText: 'Entendido',
+        confirmButtonColor: '#3085d6',
       });
     } finally {
       this.isSubmitting = false;

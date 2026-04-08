@@ -1,4 +1,4 @@
-import { Component } from '@angular/core';
+import {  Component , ChangeDetectionStrategy } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
 import Swal from 'sweetalert2';
 
@@ -25,11 +25,12 @@ declare global {
 }
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-root',
   imports: [RouterOutlet],
   templateUrl: './app.component.html',
   styleUrl: './app.component.css'
-})
+} )
 export class AppComponent {
   title = 'Tesoreria';
   updateAvailable: boolean = false;

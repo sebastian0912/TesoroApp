@@ -146,6 +146,16 @@ export type UltimosPorMarcaTemporalRow = {
   marcaTemporal: string | null; // ISO string o null si viene null
 };
 
+export interface RobotLockRow {
+  antecedente: string;
+  cedula: string | null;
+  tipo_documento: string | null;
+  locked_by: string | null;
+  locked_at: string | null;
+  ultima_consulta_estado: string | null;
+  ultima_marca_temporal: string | null;
+}
+
 @Injectable({ providedIn: 'root' })
 export class RobotsService {
   private readonly isBrowser: boolean;
@@ -306,6 +316,36 @@ export class RobotsService {
 
     return this.http
       .get<UltimosPorMarcaTemporalRow[]>(url, { params })
+      .pipe(catchError((e) => this.handleError(e)));
+  }
+
+  // ---------------------------------------------------------------------------
+  // ✅ 6) NUEVO: GET /Robots/locks/
+  // ---------------------------------------------------------------------------
+  getMonitoreoLocks(): Observable<RobotLockRow[]> {
+    this.ensureBrowser();
+
+    const url = `${this.baseUrl}/Robots/locks/`;
+    
+    return this.http
+      .get<RobotLockRow[]>(url)
+      .pipe(catchError((e) => this.handleError(e)));
+  }
+
+  makeExcelRequest(url: string, params: HttpParams){ /* unused placeholder */ }
+
+  // ---------------------------------------------------------------------------
+  // ✅ 7) NUEVO: POST /Robots/excel-antecedentes/
+  // ---------------------------------------------------------------------------
+  uploadExcelAntecedentes(file: File, antecedente: string): Observable<Blob> {
+    this.ensureBrowser();
+    const url = `${this.baseUrl}/Robots/excel-antecedentes/`;
+    
+    const formData = new FormData();
+    formData.append('excel_file', file);
+    formData.append('antecedente', antecedente);
+
+    return this.http.post(url, formData, { responseType: 'blob' })
       .pipe(catchError((e) => this.handleError(e)));
   }
 

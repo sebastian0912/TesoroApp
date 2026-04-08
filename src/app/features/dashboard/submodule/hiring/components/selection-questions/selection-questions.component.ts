@@ -1,4 +1,4 @@
-import { Component, effect, input } from '@angular/core';
+import {  Component, effect, input , ChangeDetectionStrategy } from '@angular/core';
 import { FormBuilder, FormGroup } from '@angular/forms';
 import { firstValueFrom } from 'rxjs';
 import Swal from 'sweetalert2';
@@ -96,12 +96,13 @@ const MAP_NOMBRE_TO_KEY: Record<string, FormPatchKeys> = {
 };
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-selection-questions',
   standalone: true,
   imports: [SharedModule, MatTabsModule, MatDatepickerModule, MatNativeDateModule],
   templateUrl: './selection-questions.component.html',
   styleUrls: ['./selection-questions.component.css'],
-})
+} )
 export class SelectionQuestionsComponent {
   /* -------- Input (signal) -------- */
   candidatoSeleccionado = input<any | null>(null);

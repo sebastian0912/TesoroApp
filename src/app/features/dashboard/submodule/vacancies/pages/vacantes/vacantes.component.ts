@@ -1,6 +1,6 @@
 import { ColumnDefinition } from '@/app/shared/models/advanced-table-interface';
-import { Component, OnInit } from '@angular/core';
-import { NgIf } from '@angular/common';
+import {  Component, OnInit , ChangeDetectionStrategy } from '@angular/core';
+
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatButtonToggleModule } from '@angular/material/button-toggle';
@@ -41,23 +41,23 @@ interface DistPayload {
 }
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-vacantes',
   standalone: true,
   imports: [
     SharedModule,
     StandardFilterTable,
-    NgIf,
     MatMenuModule,
     MatDialogModule,
     MatButtonToggleModule,
     MatIconModule,
     MatSlideToggleModule,
     MatButtonModule,
-    MatDividerModule,
-  ],
+    MatDividerModule
+],
   templateUrl: './vacantes.component.html',
   styleUrl: './vacantes.component.css',
-})
+} )
 export class VacantesComponent implements OnInit {
   // Data
   private allRows: any[] = [];
@@ -86,6 +86,7 @@ export class VacantesComponent implements OnInit {
 
     { name: 'finca', header: 'Centro de costo', type: 'text', filterable: true, sortable: true, width: '170px' },
     { name: 'cargo', header: 'Cargo', type: 'text', filterable: true, sortable: true, width: '170px' },
+    { name: 'empresaUsuariaSolicita', header: 'Empresa usuaria', type: 'text', filterable: true, sortable: true, width: '170px' },
 
     { name: 'municipioLabel', header: 'Municipio', type: 'text', filterable: true, sortable: true, width: '200px' },
 
@@ -100,7 +101,7 @@ export class VacantesComponent implements OnInit {
 
   displayedColumns: string[] = this.columnDefinitions.map(c => c.name);
 
-  viewMode: 'table' | 'faltantes' | 'completados' = 'table';
+  viewMode: 'table' | 'faltantes' | 'completados' | 'inactivas' = 'table';
   loading = false;
 
   permitido = false;
@@ -116,7 +117,7 @@ export class VacantesComponent implements OnInit {
   ngOnInit(): void {
     const saved =
       typeof window !== 'undefined'
-        ? (localStorage.getItem('vacantes:viewMode') as 'table' | 'faltantes' | 'completados' | null)
+        ? (localStorage.getItem('vacantes:viewMode') as 'table' | 'faltantes' | 'completados' | 'inactivas' | null)
         : null;
     if (saved) this.viewMode = saved;
 
@@ -127,7 +128,7 @@ export class VacantesComponent implements OnInit {
     this.loadData();
   }
 
-  onToggleView(mode: 'table' | 'faltantes' | 'completados'): void {
+  onToggleView(mode: 'table' | 'faltantes' | 'completados' | 'inactivas'): void {
     this.viewMode = mode;
     try { localStorage.setItem('vacantes:viewMode', mode); } catch { }
     this.applyViewMode();
@@ -136,17 +137,24 @@ export class VacantesComponent implements OnInit {
   private applyViewMode(): void {
     const rows = this.allRows ?? [];
 
+    if (this.viewMode === 'inactivas') {
+      this.visibleRows = rows.filter(r => r.activo === false);
+      return;
+    }
+
+    const activas = rows.filter(r => r.activo !== false);
+
     if (this.viewMode === 'faltantes') {
-      this.visibleRows = rows.filter(r => (Number(r?.falt) || 0) > 0);
+      this.visibleRows = activas.filter(r => (Number(r?.falt) || 0) > 0);
       return;
     }
 
     if (this.viewMode === 'completados') {
-      this.visibleRows = rows.filter(r => (Number(r?.req) || 0) > 0 && (Number(r?.falt) || 0) === 0);
+      this.visibleRows = activas.filter(r => (Number(r?.req) || 0) > 0 && (Number(r?.falt) || 0) === 0);
       return;
     }
 
-    this.visibleRows = rows;
+    this.visibleRows = activas;
   }
 
   loadData(): void {
@@ -613,10 +621,12 @@ export class VacantesComponent implements OnInit {
     this.vacantesService.cambiarEstadoActivo(row.id, nuevoActivo, motivo ?? undefined).subscribe({
       next: () => {
         if (nuevoActivo === false) {
-          this.allRows = (this.allRows ?? []).filter(r => r.id !== row.id);
+          // Ya no quitamos de allRows; solo reaplicamos la vista
           this.applyViewMode();
           Swal.fire('Desactivada', 'La publicación fue desactivada.', 'success');
         } else {
+          // Reaplicamos vista (por si estábamos en Inactivas y la activamos, debería salir de la vista actual)
+          this.applyViewMode();
           Swal.fire('Activada', 'La publicación fue activada.', 'success');
         }
       },

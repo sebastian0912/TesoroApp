@@ -18,16 +18,6 @@ export class RobotsService {
   }
 
   // EstadosRobots
-  consultarEstadosRobots(cedula: string): Observable<any> {
-
-    return this.http.get(`${this.apiUrl}/EstadosRobots/sin_consultar`, {
-      params: { cedula }
-    }).pipe(
-      map((response: any) => response),
-      catchError(this.handleError)
-    );
-  }
-
   // Método para enviar Estados Robots de forma masiva
   enviarEstadosRobots(datos: any[]): Observable<any> {
     const url = `${this.apiUrl}/EstadosRobots/cargar_excel`; // Ajusta según tu endpoint real
@@ -47,45 +37,5 @@ export class RobotsService {
 
 
   // EstadosRobots/pendientes_por_oficina
-  consultarEstadosRobotsPendientesPorOficina(): Observable<any> {
-
-    return this.http.get(`${this.apiUrl}/EstadosRobots/pendientes_por_oficina`, {
-
-    })
-      .pipe(catchError(this.handleError));
-  }
-
   // EstadosRobots/pendientes_generales
-  consultarEstadosRobotsPendientesGenerales(): Observable<any> {
-    return this.http.get(`${this.apiUrl}/EstadosRobots/pendientes_paquete`, {
-    })
-      .pipe(catchError(this.handleError));
-  }
-
-  actualizarPrioridad(paquete: string, prioridad: string): Observable<any> {
-    const body = { paquete, prioridad };
-    // esto debe retornar un HttpHeaders válido con Authorization
-
-    return this.http.put(`${this.apiUrl}/EstadosRobots/actualizar-prioridad/`, body, {});
-  }
-
-
-  descargarZipPaquete(paquete: string, unir: boolean, orden: number[] = []): Observable<Blob> {
-
-    const params = new HttpParams()
-      .set('unir', unir.toString())
-      .set('orden', orden.join(','));
-
-    const url = `${this.apiUrl}/EstadosRobots/descargar-zip/${encodeURIComponent(paquete)}/`;
-
-    return this.http.get(url, {
-      params,
-      responseType: 'blob'
-    }).pipe(
-      catchError(this.handleError)
-    );
-  }
-
-
-
 }

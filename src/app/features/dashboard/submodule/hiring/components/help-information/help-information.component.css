@@ -3,9 +3,6 @@
   display: flex;
   flex-direction: column;
   width: 100%;
-  height: 100%;
-  overflow: hidden;
-  /* Evita que pequeños desbordes activen barras */
   box-sizing: border-box;
 }
 
@@ -13,32 +10,25 @@
 .help-tabs {
   display: flex;
   flex-direction: column;
-  flex: 1;
-  /* Ocupa el espacio restante del host */
-  overflow: hidden;
-  /* Mantiene las barras dentro si fueran necesarias, pero no en el host */
+  /* Resets height clipping */
 }
 
 /* Asegurar que el cuerpo de los tabs se expanda y llene el espacio */
 :host ::ng-deep .help-tabs .mat-mdc-tab-body-wrapper {
-  flex: 1;
   display: flex;
   flex-direction: column;
-  overflow: auto;
-  /* El scroll debe ir SOLO en el cuerpo del tab si hace falta */
 }
 
 /* Formulario dentro del tab "Remisión" */
 .form-tab {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 24px;
   width: auto;
-  /* Para evitar desbordes con padding */
   flex: 1;
   box-sizing: border-box;
-  padding: 16px;
-  /* Retorna el padding pero dentro del modelo box-sizing */
+  padding: 24px 0;
+  margin-top: 16px;
 }
 
 /* ── Selector cascada (Empresa → Finca → Cargo) ── */
@@ -60,7 +50,7 @@
 /* Grid de campos (auto-fit columnas fluidas) */
 .grid {
   display: grid;
-  gap: 16px;
+  gap: 20px;
   grid-template-columns: 1fr;
   width: 100%;
   box-sizing: border-box;
@@ -89,6 +79,10 @@
 /* Nota: para ajustar tipografía/espaciados de etiquetas de tab,
    usamos ::ng-deep para llegar a internals de Angular Material */
 :host ::ng-deep .help-tabs .mat-mdc-tab-header {
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 60%, #334155 100%) !important;
+  border-radius: 12px 12px 0 0;
+  border: none;
+  padding: 0 8px;
   margin-bottom: 12px;
 }
 
@@ -101,10 +95,26 @@
   /* separa el icono del texto */
 }
 
-:host ::ng-deep .help-tabs .mdc-tab__text-label,
-:host ::ng-deep .help-tabs .mat-mdc-tab .mdc-tab__text-label {
+:host ::ng-deep .help-tabs .mat-mdc-tab .mdc-tab__text-label,
+:host ::ng-deep .help-tabs .mat-mdc-tab .mat-icon {
   font-weight: 600;
   letter-spacing: .2px;
+  color: #cbd5e1 !important;
+  transition: all 0.3s !important;
+}
+
+:host ::ng-deep .help-tabs .mat-mdc-tab.mdc-tab--active .mdc-tab__text-label,
+:host ::ng-deep .help-tabs .mat-mdc-tab.mdc-tab--active .mat-icon {
+  color: #ffffff !important;
+}
+
+:host ::ng-deep .help-tabs .mat-mdc-tab.mdc-tab--active {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 12px 12px 0 0;
+}
+
+:host ::ng-deep .mat-mdc-tab-indicator__inner--theme-demo {
+  border-color: #3b82f6 !important;
 }
 
 /* Icono en la etiqueta del tab */
@@ -132,6 +142,13 @@
 /* Fuerza el color del select deshabilitado para que sea más legible */
 ::ng-deep .mat-mdc-select-disabled .mat-mdc-select-value {
   color: rgba(0, 0, 0, 0.75) !important;
+}
+
+/* Evitar espacio blanco en el panel desplegable para que el buscador pegue arriba, y aumentar el alto del panel */
+::ng-deep .custom-select-panel.mat-mdc-select-panel {
+  padding-top: 0 !important;
+  min-height: 50vh !important;
+  max-height: 50vh !important;
 }
 
 .trigger-meta {
@@ -209,38 +226,64 @@
 .pill {
   display: inline-flex;
   align-items: center;
-  padding: 2px 8px;
-  border-radius: 999px;
-  font-size: 12px;
-  line-height: 1.6;
-  background-color: #eee;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.4;
   white-space: nowrap;
+  letter-spacing: 0.03em;
 }
 
 .pill-req {
-  background-color: #e6e6e6;
+  background-color: #e0f2fe;
+  color: #0284c7;
 }
 
 .pill-ok {
-  background-color: #c8e6c9;
+  background-color: #dcfce7;
+  color: #166534;
 }
 
 .pill-warn {
-  background-color: #ffecb3;
+  background-color: #fef08a;
+  color: #ca8a04;
 }
 
 .pill-error {
-  background-color: #ffcdd2;
+  background-color: #fee2e2;
+  color: #dc2626;
+}
+
+.pill-neutral {
+  background-color: #f3f4f6;
+  color: #4b5563;
+}
+
+.badges-row {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.badges-row .pill {
+  padding: 2px 6px;
+  font-size: 11px;
+  border-radius: 4px;
+  transition: all 0.2s ease-in-out;
+}
+
+.badges-row .pill:hover {
+  filter: brightness(0.95);
+  transform: translateY(-1px);
 }
 
 /* ========== Secciones y cards reutilizables ========== */
 .section {
   width: 100%;
-  background: #fafafa;
-  border-radius: 12px;
-  padding: 16px;
+  padding: 16px 0;
   margin: 16px 0;
-  box-shadow: 0 1px 6px rgba(0, 0, 0, .06);
 }
 
 .section-head {
@@ -263,10 +306,7 @@
 }
 
 .card {
-  padding: 12px;
-  border-radius: 12px;
-  background: #fff;
-  box-shadow: 0 1px 6px rgba(0, 0, 0, .06);
+  padding: 12px 0;
 }
 
 .card-title {

@@ -33,15 +33,16 @@ addEventListener('message', async ({ data }: { data: ArlWorkerData }) => {
         // Vamos a usar la lógica de cruce original.
 
         // 2. Indexar ARL para búsqueda O(1)
-        const arlMap = new Map<string, any[]>();
-        // Asumimos fila 0 son headers en arlRows, saltamos si es necesario o data viene pura.
-        // La data viene slice(1) según el componente original?
-        // Asumiremos que nos pasan dataArl completa o ya recortada.
-        // El componente original pasaba: dataArl.slice(1)...
+        const arlMap = new Map<string, any[][]>();
 
         arlRows.forEach((row) => {
             const cedula = normalizeCedula(row[indices.dniTrabajador]);
-            if (cedula) arlMap.set(cedula, row);
+            if (cedula) {
+                if (!arlMap.has(cedula)) {
+                    arlMap.set(cedula, []);
+                }
+                arlMap.get(cedula)!.push(row);
+            }
         });
 
         // 3. Construir filas de salida
@@ -70,33 +71,37 @@ addEventListener('message', async ({ data }: { data: ArlWorkerData }) => {
             const fechaIngresoCruce = cruceRow[8];
 
             // Buscar en ARL
-            const arlRow = arlMap.get(cedulaCruce);
+            const arlRowsForCedula = arlMap.get(cedulaCruce);
 
             let estadoArl = 'NO';
             let estadoFechas = 'NO';
             let fechaEnArl = 'SIN DATA';
 
             // Lógica de validación
-            if (arlRow) {
+            if (arlRowsForCedula && arlRowsForCedula.length > 0) {
                 estadoArl = 'SI';
-                const rawFechaArl = arlRow[indices.inicioVigencia]; // string o fecha ya parseada?
-                // En worker recibimos datos serializables. Si eran Date, llegan como string JSON o similar.
-                // Asumiremos que se pasó string o timestamp.
-
-                // Normalizamos fechas para comparar
-                // fechaIngresoCruce viene dd/mm/yyyy
-                // rawFechaArl viene del Excel ARL
-
                 const dCruce = parseDateStr(fechaIngresoCruce);
-                const dArl = parseDateAny(rawFechaArl);
+                let matchFound = false;
+                let fechasArlTexto: string[] = [];
 
-                if (dArl) {
-                    fechaEnArl = formatDate(dArl); // mostrar bonito
-                } else {
-                    fechaEnArl = String(rawFechaArl || '');
+                for (const arlRow of arlRowsForCedula) {
+                    const rawFechaArl = arlRow[indices.inicioVigencia];
+                    const dArl = parseDateAny(rawFechaArl);
+
+                    if (dArl) {
+                        fechasArlTexto.push(formatDate(dArl));
+                    } else {
+                        fechasArlTexto.push(String(rawFechaArl || ''));
+                    }
+
+                    if (dCruce && dArl && dCruce.getTime() === dArl.getTime()) {
+                        matchFound = true;
+                    }
                 }
 
-                if (dCruce && dArl && dCruce.getTime() === dArl.getTime()) {
+                fechaEnArl = Array.from(new Set(fechasArlTexto)).join(' o ');
+
+                if (matchFound) {
                     estadoFechas = 'SI';
                 }
             }
@@ -179,8 +184,11 @@ function parseDateAny(val: any): Date | null {
 
     // Fallback if formatting was missed
     if (typeof val === 'number') {
-        const excelEpoch = new Date(1899, 11, 30);
-        return new Date(excelEpoch.getTime() + val * 24 * 60 * 60 * 1000);
+        const ms = Date.UTC(1899, 11, 30) + (val * 24 * 60 * 60 * 1000);
+        const d = new Date(ms);
+        if (!isNaN(d.getTime())) {
+            return new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+        }
     }
 
     // YYYY-MM-DD

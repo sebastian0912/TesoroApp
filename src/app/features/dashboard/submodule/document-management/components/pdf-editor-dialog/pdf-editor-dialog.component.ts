@@ -1,11 +1,11 @@
-import {
+import { 
   Component,
   Inject,
   ChangeDetectorRef,
   ViewChild,
   OnInit
-} from '@angular/core';
-import { CommonModule, isPlatformBrowser } from '@angular/common';
+, ChangeDetectionStrategy } from '@angular/core';
+import { isPlatformBrowser } from '@angular/common';
 import { PLATFORM_ID } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
@@ -26,18 +26,18 @@ export interface PdfEditorDialogData {
 }
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-pdf-editor-dialog',
   standalone: true,
   imports: [
-    CommonModule,
     MatIconModule,
     MatButtonModule,
     MatTooltipModule,
     NgxExtendedPdfViewerModule
-  ],
+],
   templateUrl: './pdf-editor-dialog.component.html',
   styleUrl: './pdf-editor-dialog.component.css'
-})
+} )
 export class PdfEditorDialogComponent implements OnInit {
   @ViewChild('pdfViewer') pdfViewer?: NgxExtendedPdfViewerComponent;
 

@@ -1,5 +1,5 @@
-import { CommonModule } from '@angular/common';
-import { Component, ElementRef, OnDestroy, OnInit, ViewChild, inject } from '@angular/core';
+
+import {  Component, ElementRef, OnDestroy, OnInit, ViewChild, inject , ChangeDetectionStrategy } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDialogModule, MatDialogRef, MAT_DIALOG_DATA } from '@angular/material/dialog';
 import { MatIconModule } from '@angular/material/icon';
@@ -9,18 +9,18 @@ import { MatTabsModule } from '@angular/material/tabs';
 export type CameraDialogResult = { file: File; previewUrl: string };
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-camera-dialog',
   standalone: true,
   imports: [
     MatDialogModule,
     MatIconModule,
     MatProgressSpinnerModule,
-    MatButtonModule,
-    CommonModule
-  ],
+    MatButtonModule
+],
   templateUrl: './camera-dialog.component.html',
   styleUrl: './camera-dialog.component.css'
-})
+} )
 export class CameraDialogComponent implements OnInit, OnDestroy {
   private dialogRef = inject(MatDialogRef<CameraDialogComponent>);
   private dialogData = inject(MAT_DIALOG_DATA, { optional: true }) as { initialPreviewUrl?: string | null } | null;

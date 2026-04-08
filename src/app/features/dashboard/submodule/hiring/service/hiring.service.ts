@@ -28,50 +28,10 @@ export class HiringService {
   }
 
   // Buscar en contratacion por cedula para sacar los datos bio
-  public buscarEncontratacionDatosBiometricos(cedula: any): Observable<any> {
-    return this.http.get(`${this.apiUrl}/contratacion/candidato/${cedula}`,).pipe(
-      map((response: any) => response),
-      catchError(this.handleError)
-    );
-  }
-
   // check-contract/<str:codigo_contrato>/
-  public checkContract(codigo_contrato: any): Observable<any> {
-    return this.http.get(`${this.apiUrl}/contratacion/check-contract/${codigo_contrato}/`,).pipe(
-      map((response: any) => response),
-      catchError(this.handleError)
-    );
-  }
-
   //
-  public buscarEnContratacionFormulario(): Observable<any> {
-    return this.http.get(`${this.apiUrl}/contratacion/buscarPorMarcaTemporal/`,).pipe(
-      map((response: any) => response),
-      catchError(this.handleError)
-    );
-  }
-
   // Buscar datos seleccion  /Seleccion/traerDatosSeleccion/{cedula}
-  public traerDatosSeleccion(cedula: string): Observable<any> {
-    return this.http.get(`${this.apiUrl}/Seleccion/traerDatosSeleccion/${cedula}`,).pipe(
-      map((response: any) => response),
-      catchError(this.handleError)
-    );
-  }
-
   // Servicio para traer datos de contratación
-  public traerDatosContratacion(cedula: string, contrato: string): Observable<any> {
-    const url = `${this.apiUrl}/contratacion/traerDatosContratacion/${cedula}/${contrato}`;
-    // Realizar la solicitud GET
-    return this.http.get(url,).pipe(
-      map((response: any) => response), // Mapear la respuesta directamente
-      catchError(this.handleError) // Manejar errores
-    );
-  }
-
-
-
-
 
   public traerDatosEncontratacion(cedula: string): Observable<any> {
     return this.http.get(`${this.apiUrl}/contratacion/datosIncapacidadContratacion/${cedula}`,).pipe(
@@ -187,109 +147,12 @@ export class HiringService {
   }
 
   // Cargar una única cédula
-  async cargarCedula(dato: any): Promise<any> {
-    const urlcompleta = `${this.apiUrl}/traslados/cargar-cedula`;
-
-    const data = {
-      dato: dato,
-    };
-
-    try {
-      const response = await firstValueFrom(this.http.post<string>(urlcompleta, data,).pipe(
-        catchError(this.handleError)
-      ));
-      return response;
-    } catch (error) {
-      throw error;
-    }
-  }
-
-
   // Enviar archivos de traslados
-  async enviarTraslado(data: any): Promise<any> {
-    const urlcompleta = `${this.apiUrl}/traslados/formulario-solicitud`;
-
-    // Crear FormData y agregar los datos
-    const formData = new FormData();
-    formData.append('numero_cedula', data.numero_cedula);
-    formData.append('eps_a_trasladar', data.eps_a_trasladar);
-    formData.append('solicitud_traslado', data.solicitud_traslado);
-
-    try {
-      const response = await firstValueFrom(this.http.post<string>(urlcompleta, formData, {
-      }).pipe(
-        catchError(this.handleError)
-      ));
-      return response;
-    } catch (error) {
-      throw error;
-    }
-  }
-
   // actualizarProcesoContratacion (data)
-  async actualizarProcesoContratacion(data: any): Promise<any> {
-    const urlcompleta = `${this.apiUrl}/contratacion/actualizarProcesoContratacion/`;
-
-    const data2 = {
-      ...data,
-    };
-    delete data2.traslado; // Eliminar campo innecesario
-    try {
-      const response = await firstValueFrom(this.http.post<string>(urlcompleta, data2,).pipe(
-        catchError(this.handleError)
-      ));
-      return response;
-    } catch (error) {
-      throw error;
-    }
-  }
-
-
   // --------------------------------------------------------------------------------------------
   // ------------------------- Métodos para el módulo de reportes --------------------------------
 
   // Subir reporte completo
-  async cargarReporte(datos: any): Promise<any> {
-    const urlcompleta = `${this.apiUrl}/reportes/cargarReporte`;
-
-    const data = {
-      ...datos, // Todos los campos que envías, como cedulas, traslados, etc.
-    };
-
-    try {
-      const response = await firstValueFrom(this.http.post<string>(urlcompleta, data,).pipe(
-        catchError(this.handleError)
-      ));
-      return response;
-    } catch (error) {
-      throw error;
-    }
-  }
-
-
-
-  public obtenerTodosLosReportes(nombre: string): Observable<any> {
-    // Usar una sola ruta para obtener todos o filtrar por nombre
-    const url = nombre === 'todos'
-      ? `${this.apiUrl}/reportes/obtenerReportes`
-      : `${this.apiUrl}/reportes/obtenerReportes/${nombre}`;
-
-    return this.http.get(url,).pipe(
-      map((response: any) => response),  // Mapea la respuesta
-      catchError(this.handleError)       // Manejo de errores
-    );
-  }
-
-
-  public obtenerReportesPorFechas(start: string, end: string): Observable<any> {
-    const params = { start, end };  // Parámetros para enviar el rango de fechas
-
-    return this.http.get(`${this.apiUrl}/reportes/obtenerReportesFechas`, { params }).pipe(
-      map((response: any) => response),  // Mapea la respuesta
-      catchError(this.handleError)       // Manejo de errores
-    );
-  }
-
 
   public obtenerReportesPorFechasCentroCosto(start: string, end: string): Observable<any> {
     const params = { start, end };  // Parámetros para enviar el rango de fechas
@@ -401,33 +264,242 @@ export class HiringService {
     }
   }
 
-  async guardarOActualizarContratacion(data: any): Promise<any> {
+  // contratacion/traerCompletoContratacion/<str:codigo_contrato>/
+  // -------------------------
+  // Módulo de Ausentismos
+  // -------------------------
 
-    const urlcompleta = `${this.apiUrl}/contratacion/guardar-o-actualizar-contratacion/`;
+  public obtenerAusentismos(): Observable<any> {
+    return this.http.get(`${this.apiUrl}/gestion_ausentismios/ausentismos/`,).pipe(
+      map((response: any) => response),
+      catchError(this.handleError)
+    );
+  }
 
-    // Agregar el token JWT a los datos
-    const dataConToken = {
-      ...data,
-    };
-
+  async gestionarAusentismo(id: string | number, data: any): Promise<any> {
+    const url = `${this.apiUrl}/gestion_ausentismios/ausentismos/${id}/gestionar/`;
     try {
-      const response = await firstValueFrom(
-        this.http.post<string>(urlcompleta, dataConToken,).pipe(
-          catchError(this.handleError)
-        )
-      );
+      const response = await firstValueFrom(this.http.patch<any>(url, data).pipe(
+        catchError(this.handleError)
+      ));
       return response;
     } catch (error) {
       throw error;
     }
   }
 
-  // contratacion/traerCompletoContratacion/<str:codigo_contrato>/
-  public traerCompletoContratacion(codigo_contrato: string): Observable<any> {
+  async enviarNotificacionMasivaAusentismos(ids: (string | number)[], plantilla_id?: number | null): Promise<any> {
+    const url = `${this.apiUrl}/gestion_ausentismios/ausentismos/notificar-masivo/`;
+    const payload: any = { ids };
+    if (plantilla_id) {
+      payload.plantilla_id = plantilla_id;
+    }
+    try {
+      const response = await firstValueFrom(this.http.post<any>(url, payload).pipe(
+        catchError(this.handleError)
+      ));
+      return response;
+    } catch (error) {
+      throw error;
+    }
+  }
 
-    return this.http.get(`${this.apiUrl}/contratacion/traerCompletoContratacion/${codigo_contrato}/`,).pipe(
+  async subirAusentismosExcel(file: File): Promise<any> {
+    const url = `${this.apiUrl}/gestion_ausentismios/ausentismos/importar-excel/`;
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    try {
+      const response = await firstValueFrom(this.http.post<any>(url, formData).pipe(
+        catchError(this.handleError)
+      ));
+      return response;
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  // -------------------------
+  // Módulo de Ausentismos NUEVOS
+  // -------------------------
+
+  public obtenerAusentismosNuevos(): Observable<any> {
+    return this.http.get(`${this.apiUrl}/gestion_ausentismios/ausentismos-nuevos/`,).pipe(
       map((response: any) => response),
       catchError(this.handleError)
     );
+  }
+
+  async gestionarAusentismoNuevo(id: string | number, data: any): Promise<any> {
+    const url = `${this.apiUrl}/gestion_ausentismios/ausentismos-nuevos/${id}/gestionar/`;
+    try {
+      const response = await firstValueFrom(this.http.patch<any>(url, data).pipe(
+        catchError(this.handleError)
+      ));
+      return response;
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  async enviarNotificacionMasivaAusentismosNuevos(ids: (string | number)[], plantilla_id?: number | null): Promise<any> {
+    const url = `${this.apiUrl}/gestion_ausentismios/ausentismos-nuevos/notificar-masivo/`;
+    const payload: any = { ids };
+    if (plantilla_id) {
+      payload.plantilla_id = plantilla_id;
+    }
+    try {
+      const response = await firstValueFrom(this.http.post<any>(url, payload).pipe(
+        catchError(this.handleError)
+      ));
+      return response;
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  async subirAusentismosNuevosExcel(file: File): Promise<any> {
+    const url = `${this.apiUrl}/gestion_ausentismios/ausentismos-nuevos/importar-excel/`;
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    try {
+      const response = await firstValueFrom(this.http.post<any>(url, formData).pipe(
+        catchError(this.handleError)
+      ));
+      return response;
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  crearAusentismoNuevo(data: any): Promise<any> {
+    const url = `${this.apiUrl}/gestion_ausentismios/ausentismos-nuevos/`;
+    return firstValueFrom(
+      this.http.post<any>(url, data).pipe(catchError(this.handleError))
+    );
+  }
+
+  descargarPlantillaAusentismosNuevos(): Observable<Blob> {
+    return this.http.get(`${this.apiUrl}/gestion_ausentismios/ausentismos-nuevos/descargar-plantilla/`, {
+      responseType: 'blob'
+    }).pipe(
+      catchError(this.handleError)
+    );
+  }
+
+  /**
+   * Genera el documento legal (Apertura Proceso / Terminación Contrato) en PDF
+   * y lo envía por correo al trabajador, o lo descarga directamente.
+   *
+   * @param ausentismoId  ID del registro AusentismoNuevo
+   * @param payload       Campos del documento (tipo, empresa, fechas, teléfonos, etc.)
+   * @param soloPdf       true → descarga el PDF directamente en el navegador
+   */
+  async generarDocumentoAusentismo(
+    ausentismoId: number | string,
+    payload: {
+      tipo_documento: 'apertura' | 'terminacion';
+      empresa: 'APOYO' | 'ALIANZA';
+      numero_familiar: string;
+      // Apertura
+      fecha_citacion?: string;
+      hora_citacion?: string;
+      lugar_citacion?: string;
+      // Terminación
+      fecha_envio_correo?: string;
+      fecha_citacion_previa?: string;
+      hora_citacion_previa?: string;
+      lugar_citacion_previa?: string;
+      fecha_terminacion?: string;
+      fecha_liquidacion?: string;
+      // Control
+      enviar_correo?: boolean;
+      solo_pdf?: boolean;
+    }
+  ): Promise<any> {
+    const solo_pdf = payload.solo_pdf ?? false;
+    const url = `${this.apiUrl}/gestion_ausentismios/ausentismos-nuevos/${ausentismoId}/generar-documento/`;
+
+    if (solo_pdf) {
+      // Descarga directa del PDF — compatible con navegador y Electron.
+      // responseType='blob' hace que los errores HTTP lleguen también como Blob.
+      let respBlob: Blob;
+      try {
+        respBlob = await firstValueFrom(
+          this.http.post(url, payload, { responseType: 'blob' })
+        ) as Blob;
+      } catch (httpError: any) {
+        console.error('[HiringService] generarDocumentoAusentismo HTTP error:', httpError);
+        if (httpError?.error instanceof Blob) {
+          const text = await (httpError.error as Blob).text();
+          let detail = 'Error generando el PDF en el servidor.';
+          try { detail = JSON.parse(text)?.detail || text; } catch { detail = text || detail; }
+          throw { error: { detail } };
+        }
+        throw httpError;
+      }
+
+      // Verificar que la respuesta realmente es un PDF
+      if (!respBlob || respBlob.size === 0) {
+        throw { error: { detail: 'El servidor devolvió una respuesta vacía.' } };
+      }
+
+      console.log('[HiringService] PDF recibido, size:', respBlob.size, 'type:', respBlob.type);
+
+      // Forzar el tipo correcto en caso de que venga sin Content-Type
+      const pdfBlob = respBlob.type === 'application/pdf'
+        ? respBlob
+        : new Blob([respBlob], { type: 'application/pdf' });
+
+      const objectUrl = URL.createObjectURL(pdfBlob);
+      const a = document.createElement('a');
+      a.href = objectUrl;
+      a.download = `Documento_Ausentismo_${ausentismoId}.pdf`;
+      a.style.display = 'none';
+      document.body.appendChild(a);
+      a.click();
+      // Esperar un tick antes de revocar para que Electron procese la descarga
+      setTimeout(() => {
+        URL.revokeObjectURL(objectUrl);
+        document.body.removeChild(a);
+      }, 1000);
+      return { detail: 'PDF descargado.' };
+    }
+
+    // Envío por correo
+    return firstValueFrom(
+      this.http.post<any>(url, payload).pipe(catchError(this.handleError))
+    );
+  }
+
+  // -------------------------
+  // Módulo de Mensajes Predeterminados
+  // -------------------------
+
+  public obtenerMensajes(tipo?: string): Observable<any> {
+    let url = `${this.apiUrl}/gestion_ausentismios/mensajes/`;
+    if (tipo) {
+      // Si el backend permite filtrado por tipo
+      url += `?tipo=${tipo}`;
+    }
+    return this.http.get(url).pipe(
+      map((response: any) => response),
+      catchError(this.handleError)
+    );
+  }
+
+  async crearMensaje(data: any): Promise<any> {
+    const url = `${this.apiUrl}/gestion_ausentismios/mensajes/`;
+    try {
+      return await firstValueFrom(this.http.post<any>(url, data).pipe(catchError(this.handleError)));
+    } catch (error) { throw error; }
+  }
+
+  async eliminarMensaje(id: string | number): Promise<any> {
+    const url = `${this.apiUrl}/gestion_ausentismios/mensajes/${id}/`;
+    try {
+      return await firstValueFrom(this.http.delete<any>(url).pipe(catchError(this.handleError)));
+    } catch (error) { throw error; }
   }
 }

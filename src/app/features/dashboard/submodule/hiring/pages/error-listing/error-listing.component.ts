@@ -1,12 +1,13 @@
-import { Component, OnInit } from '@angular/core';
+import {  Component, OnInit , ChangeDetectionStrategy } from '@angular/core';
 import { ErroresService } from '../../service/errores/errores.service';
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-error-listing',
   imports: [],
   templateUrl: './error-listing.component.html',
   styleUrl: './error-listing.component.css'
-})
+} )
 export class ErrorListingComponent implements OnInit {
 
 

@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import {  Component, OnInit , ChangeDetectionStrategy } from '@angular/core';
 import { PaymentsService } from '../../services/payments.service';
 import { SharedModule } from '@/app/shared/shared.module';
 import Swal from 'sweetalert2';
@@ -10,6 +10,7 @@ import { ColumnDefinition } from '@/app/shared/models/advanced-table-interface';
 import { StandardFilterTable } from '@/app/shared/components/standard-filter-table/standard-filter-table';
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-payment-method',
   standalone: true,
   imports: [
@@ -20,7 +21,7 @@ import { StandardFilterTable } from '@/app/shared/components/standard-filter-tab
   ],
   templateUrl: './payment-method.component.html',
   styleUrl: './payment-method.component.css'
-})
+} )
 export class PaymentMethodComponent implements OnInit {
 
   cedula: string = '';

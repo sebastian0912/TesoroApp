@@ -24,25 +24,7 @@ export class SeleccionService {
     return throwError(() => error);
   }
 
-  public getSeleccion(cedula: any): Observable<any> {
-    return this.http.get(`${this.apiUrl}/Seleccion/traerDatosSeleccion/${cedula}`).pipe(
-      map((response: any) => response),
-      catchError(this.handleError)
-    );
-  }
-
   // Método para generar el código de contratación
-  public generarCodigoContratacion(officePrefix: string, cedula: string): Observable<any> {
-    // Agregar el prefijo de oficina y cedula como parámetros de la query string
-    let params = new HttpParams()
-      .set('office_prefix', officePrefix)
-      .set('cedula', cedula);  // Añadir cedula al parámetro
-    return this.http.get(`${this.apiUrl}/contratacion/generarCodigoContratacion/`, { params }).pipe(
-      map((response: any) => response),  // Procesa la respuesta
-      catchError(this.handleError)       // Manejo de errores
-    );
-  }
-
   // Mandar parte uno de la selección
   public crearSeleccionParteUnoCandidato(
     formData: any,
@@ -225,29 +207,6 @@ export class SeleccionService {
 
 
   // Mandar parte cuatro de la selección
-  public crearSeleccionParteCuatroCandidato(formData: any, cedula: string, numeroContrato: string): Observable<any> {
-
-
-    // Mapear los nombres de los campos del formulario a los nombres esperados por Django
-    const requestData = {
-      numerodeceduladepersona: cedula,              // Cédula
-      codigo_contrato: numeroContrato,              // Número de contrato
-      empresa_usuario: formData.empresaUsuaria,     // Mapeo correcto
-      fecha_ingreso_usuario: formData.fechaIngreso, // Mapeo correcto
-      salario: formData.salario,
-      aux_transporte: formData.auxTransporte,       // Mapeo correcto
-      rodamiento: formData.rodamiento,
-      aux_movilidad: formData.auxMovilidad,         // Mapeo correcto
-      bonificacion: formData.bonificacion
-    };
-
-    return this.http.post(`${this.apiUrl}/Seleccion/crearSeleccionparteCuatrocandidato`, requestData,).pipe(
-      map((response: any) => response),
-      catchError(this.handleError)
-    );
-  }
-
-
 
   public guardarInfoPersonal(data: any): Observable<any> {
 
@@ -258,63 +217,10 @@ export class SeleccionService {
   }
 
   // --- Guardar Entrevista ---
-  public guardarEntrevista(data: any): Observable<any> {
-
-    return this.http.post(`${this.apiUrl}/entrevista/entrevista/`, data,).pipe(
-      map((response: any) => response),
-      catchError(this.handleError)
-    );
-  }
-
   // --- Guardar Observaciones ---
-  public guardarObservaciones(data: any): Observable<any> {
-
-    return this.http.post(`${this.apiUrl}/entrevista/observaciones/`, data,).pipe(
-      map((response: any) => response),
-      catchError(this.handleError)
-    );
-  }
-
   // --- Guardar Vacantes ---
-  public guardarVacantes(data: any): Observable<any> {
-
-    return this.http.post(`${this.apiUrl}/entrevista/vacantes/`, data,).pipe(
-      map((response: any) => response),
-      catchError(this.handleError)
-    );
-  }
-
   // listado-candidatos/
-  public getCandidatos(): Observable<any> {
-
-    return this.http.get(`${this.apiUrl}/entrevista/listado-candidatos/`,).pipe(
-      map((response: any) => response),
-      catchError(this.handleError)
-    );
-  }
-
   // exportar-candidatos-excel/
-  public exportarCandidatosExcel(rangoFechas: { start: string; end: string }): Observable<Blob> {
-
-    return this.http.post(`${this.apiUrl}/entrevista/exportar-candidatos-excel/`, rangoFechas, {
-
-      responseType: 'blob',
-    }).pipe(
-      catchError(this.handleError)
-    );
-  }
-
-  public exportarCandidatosPorOficinaExcel(payload: { start: string; end: string; oficina: string }): Observable<Blob> {
-
-    return this.http.post(`${this.apiUrl}/entrevista/exportar-candidatos-por-oficina-excel/`, payload, {
-
-      responseType: 'blob',
-    }).pipe(
-      catchError(this.handleError)
-    );
-  }
-
-
   // Buscar en contratacion por cedula para sacar los numeros
   public buscarEncontratacion(cedula: any): Observable<any> {
     return this.http.get(`${this.apiUrl}/contratacion/traerNombreCompletoCandidatoSin/${cedula}`, {}).pipe(
@@ -324,48 +230,4 @@ export class SeleccionService {
   }
 
   // 'seleccion/<int:id>/'
-  public getSeleccionPorId(id: any): Observable<any> {
-
-    return this.http.get(`${this.apiUrl}/Seleccion/seleccion/${id}/`,).pipe(
-      map((response: any) => response),
-      catchError(this.handleError)
-    );
-  }
-
-
-  /**
- * Setea la vacante para un candidato dado su número de cédula.
- * @param cedula - Número de cédula del candidato
- * @param vacante - ID de la vacante a asignar
- * @param codigoContrato - (opcional) código de contrato
- */
-  setVacante(cedula: any, vacante: any, codigoContrato?: string): Observable<any> {
-    const url = `${this.apiUrl}/contratacion/proceso-seleccion/${cedula}/set-vacante/`;
-    const body: any = { vacante };
-    if (codigoContrato) {
-      body.codigo_contrato = codigoContrato;
-    }
-
-    return this.http.post(url, body).pipe(
-      catchError(err => {
-        return throwError(() => err);
-      })
-    );
-  }
-
-
-  subirFotoBase64(pk: number | string, fotoBase64: string): Observable<UploadFotoResponse> {
-    const url = `${this.apiUrl}/contratacion/candidatos/${pk}/foto/`;
-    const body = { foto_base64: fotoBase64 };
-    // Sin headers explícitos: HttpClient envía JSON por defecto
-    return this.http.post<UploadFotoResponse>(url, body);
-  }
-
-  subirHuellaBase64(pk: number | string, huellaBase64: string): Observable<UploadFotoResponse> {
-    const url = `${this.apiUrl}/contratacion/candidatos/${pk}/huella-indice/`;
-    const body = { huella_base64: huellaBase64 };
-    // Sin headers explícitos: HttpClient envía JSON por defecto
-    return this.http.post<UploadFotoResponse>(url, body);
-  }
-
 }

@@ -47,9 +47,6 @@ export class UtilityServiceService {
   }
 
   // traer permisos
-  traerPermisos(): Observable<any> {
-    return this.http.get(`${this.apiUrl}/gestion_admin/permisos`);
-  }
 
   /**
    * Variante directa cuando ya tienes el UUID del usuario.
@@ -72,20 +69,7 @@ export class UtilityServiceService {
     return this.http.get(`${this.apiUrl}/gestion_admin/usuarios`);
   }
 
-  traerInventarioProductos(): Observable<any> {
-    return this.http.get(`${this.apiUrl}/Comercio/comercio`);
-  }
-
   // Traer datos de la comercializadora por codigo
-  traerComercializadoraPorCodigo(producto: any, codigo: string): any {
-    // buscar en la base de datos la comercializadora por codigo
-    let productoComercializadora = producto.find(
-      (comercializadora: { codigo: string }) =>
-        comercializadora.codigo === codigo
-    );
-    return productoComercializadora;
-  }
-
   // verificar cedula si pertenece al codigo
   public verificarCedulaCodigo(
     codigo: string,
@@ -124,10 +108,6 @@ export class UtilityServiceService {
   // Buscar operario por cedula
   async buscarOperarioPorCedula(cedula: string): Promise<any> {
     return this.http.get(`${this.apiUrl}/contratacion/buscarCandidato/${cedula}`);
-  }
-
-  traerAutorizaciones(): Observable<any> {
-    return this.http.get(`${this.apiUrl}/Codigo/codigos`);
   }
 
   public obtenerCodigosContrato(cedula: string): Observable<any> {

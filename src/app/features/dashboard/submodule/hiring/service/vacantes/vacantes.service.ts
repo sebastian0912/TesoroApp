@@ -30,36 +30,8 @@ export class VacantesService {
   }
 
   // Listar los cargos
-  public listarCargos(): Observable<any> {
-    return this.http.get(`${this.apiUrl}/infoCentrosCosto/sublabores/`).pipe(
-      map((response: any) => response),
-      catchError(this.handleError)
-    );
-  }
-
   // Listar centro de costos
-  public listarCentrosCostos(): Observable<any> {
-    return this.http.get(`${this.apiUrl}/infoCentrosCosto/listar-centros-costo/`).pipe(
-      map((response: any) => response),
-      catchError(this.handleError)
-    );
-  }
-
   // centro-costos/
-  public filtrarFinca(costo: string): Observable<any> {
-    if (!costo) return of([]); // Si el costo está vacío, devolver un array vacío
-
-    const params = new HttpParams().set('centro_costo_carnet', costo.trim()); // Crear parámetros limpios
-
-    return this.http.get(`${this.apiUrl}/infoCentrosCosto/centro-costos/`, { params }).pipe(
-      map((response: any) => response.data || []), // Extraer data de la respuesta
-      catchError(error => {
-        return of([]); // En caso de error, devolver un array vacío
-      })
-    );
-  }
-
-
   // Enviar los datos de la vacante
   enviarVacante(vacanteData: any): Observable<any> {
     // agergar el token a vacanteData
@@ -136,56 +108,7 @@ export class VacantesService {
   //--------------------------------------------------------------------
 
   // Obtener centros de costos agrupados por empresa usuaria y finca
-  public obtenerCentrosCostos(): Observable<any> {
-
-    return this.http.get(`${this.apiUrl}/infoCentrosCosto/centros-costos/`).pipe(
-      map((response: any) => response),
-      catchError(this.handleError)
-    );
-  }
-
   // Obtener sublabores
-  public obtenerSublabores(): Observable<any> {
-
-    return this.http.get(`${this.apiUrl}/infoCentrosCosto/sublabores/`).pipe(
-      map((response: any) => response),
-      catchError(this.handleError)
-    );
-  }
-
   // Crear detalles laborales
-  public crearDetalleLaboral(datos: any): Observable<any> {
-
-    const payload = {
-
-      datos: datos // Array de objetos de detalle laboral
-    };
-
-    return this.http.post(`${this.apiUrl}/infoCentrosCosto/crear-detalle-laboral/`, payload).pipe(
-      map((response: any) => response),
-      catchError(this.handleError)
-    );
-  }
-
-
   // Obtener detalles laborales por empresa, finca y sublabor
-  public obtenerDetalleLaboral(empresaUsuaria: string, finca: string, sublabor: string): Observable<any> {
-
-
-    // Construir los parámetros de la solicitud
-    const params = new HttpParams()
-      .set('empresa_usuaria', empresaUsuaria)
-      .set('finca', finca)
-      .set('sublabor', sublabor);
-
-    // Hacer la solicitud GET
-    return this.http.get(`${this.apiUrl}/infoCentrosCosto/detalle-laboral/`, { params }).pipe(
-      map((response: any) => response),  // Procesar la respuesta
-      catchError(this.handleError)       // Manejar errores
-    );
-  }
-
-
-
-
 }

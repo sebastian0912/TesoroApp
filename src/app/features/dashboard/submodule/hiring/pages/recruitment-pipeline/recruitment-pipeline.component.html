@@ -3,15 +3,62 @@
   <mat-card-content
     style="display: flex; flex-direction: column; flex: 1; overflow: hidden; padding: 16px; box-sizing: border-box;">
 
-    <div class="header">
-      <div class="info-candidato-titulo">
-        <mat-icon>person</mat-icon>
-        <span class="info-candidato-label">Cédula:</span>
-        <span class="info-candidato-valor">{{ numeroDocumento }}</span>
-        <span class="info-candidato-label">| Nombre:</span>
-        <span class="info-candidato-valor">{{ nombreCandidato }}</span>
+    <div class="header premium-pipeline-header">
+      <div class="info-candidato-titulo candidate-info-badge">
+        <div class="avatar-placeholder">
+          <mat-icon>person</mat-icon>
+        </div>
+        <div class="candidate-details">
+          <div class="detail-row">
+            <span class="info-candidato-label">Cédula:</span>
+            <span class="info-candidato-valor">{{ numeroDocumento || 'Sin selección' }}</span>
+          </div>
+          <div class="detail-row">
+            <span class="info-candidato-label" style="margin-left:0 !important">Nombre:</span>
+            <span class="info-candidato-valor">{{ nombreCandidato || 'Seleccione un candidato' }}</span>
+          </div>
+          <div class="detail-row" *ngIf="candidatoSeleccionado()?.entrevistas?.[0]?.proceso?.contrato">
+             <span class="info-candidato-label" style="margin-left:0 !important">Contrato Activo:</span>
+             <span class="info-candidato-valor" [ngClass]="{'text-success': candidatoSeleccionado()?.entrevistas?.[0]?.proceso?.contrato?.contrato_activo, 'text-danger': !candidatoSeleccionado()?.entrevistas?.[0]?.proceso?.contrato?.contrato_activo}">
+               {{ candidatoSeleccionado()?.entrevistas?.[0]?.proceso?.contrato?.contrato_activo ? 'Sí' : 'No' }}
+             </span>
+             <span *ngIf="!candidatoSeleccionado()?.entrevistas?.[0]?.proceso?.contrato?.contrato_activo && candidatoSeleccionado()?.entrevistas?.[0]?.proceso?.contrato?.fecha_retiro" class="info-candidato-valor" style="margin-left: 8px;">
+               (Baja: {{ candidatoSeleccionado()?.entrevistas?.[0]?.proceso?.contrato?.fecha_retiro | date:'dd/MM/yyyy' }})
+             </span>
+          </div>
+        </div>
       </div>
-      <div class="botones">
+
+      <div class="botones premium-toolbar">
+        <!-- Botón enviar correo bienvenida -->
+        <button mat-icon-button matTooltip="Confirmar Correo de Bienvenida" aria-label="Confirmar Correo de Bienvenida"
+          (click)="confirmarCorreoBienvenida()" [disabled]="!candidatoSeleccionado()?.numero_documento"
+          [matBadge]="candidatoSeleccionado()?.contacto?.correo_confirmado ? '✓' : ''"
+          [matBadgeColor]="candidatoSeleccionado()?.contacto?.correo_confirmado ? 'primary' : 'warn'"
+          matBadgeOverlap="true" [matBadgeHidden]="!candidatoSeleccionado()?.contacto?.correo_confirmado">
+          <mat-icon>email</mat-icon>
+        </button>
+
+        <!-- Botón enviar whatsapp bienvenida -->
+        <button mat-icon-button matTooltip="Confirmar WhatsApp de Bienvenida"
+          aria-label="Confirmar WhatsApp de Bienvenida" (click)="confirmarWhatsAppBienvenida()"
+          [disabled]="!candidatoSeleccionado()?.numero_documento"
+          [matBadge]="candidatoSeleccionado()?.contacto?.whatsapp_confirmado ? '✓' : ''"
+          [matBadgeColor]="candidatoSeleccionado()?.contacto?.whatsapp_confirmado ? 'primary' : 'warn'"
+          matBadgeOverlap="true" [matBadgeHidden]="!candidatoSeleccionado()?.contacto?.whatsapp_confirmado">
+          <mat-icon>chat</mat-icon>
+        </button>
+
+        <!-- Botón generar carnet individual -->
+        <button mat-icon-button matTooltip="Generar Carnet (PDF)" aria-label="Generar Carnet (PDF)"
+          (click)="generarCarnetIndividual()" [disabled]="!candidatoSeleccionado()?.numero_documento"
+          [matBadge]="candidatoSeleccionado()?.entrevistas?.[0]?.proceso?.contrato?.carnet_generado ? '✓' : ''"
+          [matBadgeColor]="candidatoSeleccionado()?.entrevistas?.[0]?.proceso?.contrato?.carnet_generado ? 'primary' : 'warn'"
+          matBadgeOverlap="true"
+          [matBadgeHidden]="!candidatoSeleccionado()?.entrevistas?.[0]?.proceso?.contrato?.carnet_generado">
+          <mat-icon>badge</mat-icon>
+        </button>
+
         <!-- Botón de documentos -->
         <button mat-icon-button matTooltip="Generar o subir documentación" aria-label="Generar o subir documentación"
           [routerLink]="[
@@ -19,6 +66,15 @@
     candidatoSeleccionado()?.numero_documento
   ]" [disabled]="!candidatoSeleccionado()?.numero_documento">
           <mat-icon>description</mat-icon>
+        </button>
+
+        <!-- Botón dar de baja individual -->
+        <button mat-icon-button matTooltip="Dar de Baja Contrato" aria-label="Dar de Baja Contrato"
+           (click)="darDeBajaManual()" 
+           [disabled]="!candidatoSeleccionado()?.numero_documento || !candidatoSeleccionado()?.entrevistas?.[0]?.proceso?.contrato"
+           [matBadge]="!candidatoSeleccionado()?.entrevistas?.[0]?.proceso?.contrato?.contrato_activo && candidatoSeleccionado()?.entrevistas?.[0]?.proceso?.contrato ? '✗' : ''"
+           >
+           <mat-icon>block</mat-icon>
         </button>
 
         <!-- Botón de tabla -->
@@ -112,111 +168,134 @@
         </ng-template>
         <br>
 
-        <div class="tab-content-scrollable" [formGroup]="formGroup3">
-          <!-- IPS -->
-          <mat-form-field appearance="outline" class="example-full-width">
-            <mat-label>IPS</mat-label>
-            <mat-select formControlName="ips" placeholder="IPS" required>
-              <mat-option value="JAVAP">JAVAP</mat-option>
-              <mat-option value="ESTRATEGO">ESTRATEGO</mat-option>
-              <mat-option value="HELSEN">HELSEN</mat-option>
-              <mat-option value="ASISTIR">ASISTIR</mat-option>
-              <mat-option value="SIGMEDICAL">SIGMEDICAL</mat-option>
-              <mat-option value="PORSALUD">PORSALUD</mat-option>
-              <mat-option value="ASTON MEDICAL">ASTON MEDICAL</mat-option>
-              <mat-option value="ACR VITAL">ACR VITAL</mat-option>
-              <mat-option value="SANILAB">SANILAB</mat-option>
-              <mat-option value="KAREN SOTELO">KAREN SOTELO</mat-option>
-              <mat-option value="JOHON VLADIMIR CRISTANCHO">JOHON VLADIMIR
+          <div class="tab-content-scrollable" [formGroup]="formGroup3">
+            <!-- IPS -->
+            <mat-form-field appearance="outline" class="example-full-width">
+              <mat-label>IPS</mat-label>
+              <mat-select formControlName="ips" placeholder="IPS" required>
+                <mat-option value="JAVAP">JAVAP</mat-option>
+                <mat-option value="ESTRATEGO">ESTRATEGO</mat-option>
+                <mat-option value="HELSEN">HELSEN</mat-option>
+                <mat-option value="ASISTIR">ASISTIR</mat-option>
+                <mat-option value="SIGMEDICAL">SIGMEDICAL</mat-option>
+                <mat-option value="PORSALUD">PORSALUD</mat-option>
+                <mat-option value="ASTON MEDICAL">ASTON MEDICAL</mat-option>
+                <mat-option value="ACR VITAL">ACR VITAL</mat-option>
+                <mat-option value="SANILAB">SANILAB</mat-option>
+                <mat-option value="KAREN SOTELO">KAREN SOTELO</mat-option>
+                <mat-option value="JOHON VLADIMIR CRISTANCHO">JOHON VLADIMIR
                 CRISTANCHO</mat-option>
-            </mat-select>
-            <mat-error *ngIf="formGroup3.get('ips')?.hasError('required') && formGroup3.get('ips')?.touched">
-              Este campo es requerido
-            </mat-error>
-          </mat-form-field>
-
-          <!-- IPSLAB -->
-          <mat-form-field appearance="outline" class="example-full-width">
-            <mat-label>IPSLAB</mat-label>
-            <mat-select formControlName="ipsLab" placeholder="IPSLAB">
-              <mat-option value="JAVAP">JAVAP</mat-option>
-              <mat-option value="ESTRATEGO">ESTRATEGO</mat-option>
-              <mat-option value="HELSEN">HELSEN</mat-option>
-              <mat-option value="ASISTIR">ASISTIR</mat-option>
-              <mat-option value="SIGMEDICAL">SIGMEDICAL</mat-option>
-              <mat-option value="PORSALUD">PORSALUD</mat-option>
-              <mat-option value="ASTON MEDICAL">ASTON MEDICAL</mat-option>
-              <mat-option value="ACR VITAL">ACR VITAL</mat-option>
-              <mat-option value="SANILAB">SANILAB</mat-option>
-              <mat-option value="NO APLICA">NO APLICA</mat-option>
-              <mat-option value="KAREN SOTELO">KAREN SOTELO</mat-option>
-              <mat-option value="JOHON VLADIMIR CRISTANCHO">JOHON VLADIMIR
-                CRISTANCHO</mat-option>
-            </mat-select>
-          </mat-form-field>
-
-          <!-- Selección de exámenes -->
-          <mat-form-field appearance="outline" class="example-full-width">
-            <mat-label>Seleccione los exámenes</mat-label>
-            <mat-select formControlName="selectedExams" multiple required>
-              <mat-option *ngFor="let exam of filteredExamOptions" [value]="exam">
-                {{ exam }}
-              </mat-option>
-            </mat-select>
-            <mat-error
-              *ngIf="formGroup3.get('selectedExams')?.hasError('required') && formGroup3.get('selectedExams')?.touched">
-              Debe seleccionar al menos un examen
-            </mat-error>
-          </mat-form-field>
-
-          <!-- Campos dinámicos para cada examen seleccionado -->
-          <div formArrayName="selectedExamsArray">
-            <div *ngFor="let exam of formGroup3.get('selectedExams')?.value; let i = index" [formGroupName]="i">
-              <!-- Estado Apto/No Apto requerido -->
-              <mat-form-field appearance="outline" class="example-full-width">
-                <mat-label>{{ exam }}</mat-label>
-                <mat-select formControlName="aptoStatus" required>
-                  <mat-option value="APTO">APTO</mat-option>
-                  <mat-option value="NO APTO">NO APTO</mat-option>
-                </mat-select>
-                <mat-error *ngIf="formGroup3.get('selectedExamsArray')?.get(i.toString())?.get('aptoStatus')?.hasError('required')
-                    && formGroup3.get('selectedExamsArray')?.get(i.toString())?.get('aptoStatus')?.touched">
+              </mat-select>
+              @if (formGroup3.get('ips')?.hasError('required') && formGroup3.get('ips')?.touched) {
+                <mat-error>
                   Este campo es requerido
                 </mat-error>
-              </mat-form-field>
+              }
+            </mat-form-field>
 
-              <!-- Subir PDF -->
-              <input type="file" accept="application/pdf" (change)="onFileSelected($event, i)" />
-              <p *ngIf="examFiles()[i]">Archivo seleccionado: {{
-                examFiles()[i].name }}</p>
+            <!-- IPSLAB -->
+            <mat-form-field appearance="outline" class="example-full-width">
+              <mat-label>IPSLAB</mat-label>
+              <mat-select formControlName="ipsLab" placeholder="IPSLAB">
+                <mat-option value="JAVAP">JAVAP</mat-option>
+                <mat-option value="ESTRATEGO">ESTRATEGO</mat-option>
+                <mat-option value="HELSEN">HELSEN</mat-option>
+                <mat-option value="ASISTIR">ASISTIR</mat-option>
+                <mat-option value="SIGMEDICAL">SIGMEDICAL</mat-option>
+                <mat-option value="PORSALUD">PORSALUD</mat-option>
+                <mat-option value="ASTON MEDICAL">ASTON MEDICAL</mat-option>
+                <mat-option value="ACR VITAL">ACR VITAL</mat-option>
+                <mat-option value="SANILAB">SANILAB</mat-option>
+                <mat-option value="NO APLICA">NO APLICA</mat-option>
+                <mat-option value="KAREN SOTELO">KAREN SOTELO</mat-option>
+                <mat-option value="JOHON VLADIMIR CRISTANCHO">JOHON VLADIMIR
+                CRISTANCHO</mat-option>
+              </mat-select>
+            </mat-form-field>
+
+            <!-- Selección de exámenes -->
+            <mat-form-field appearance="outline" class="example-full-width">
+              <mat-label>Seleccione los exámenes</mat-label>
+              <mat-select formControlName="selectedExams" multiple required>
+                @for (exam of filteredExamOptions; track exam) {
+                  <mat-option [value]="exam">
+                    {{ exam }}
+                  </mat-option>
+                }
+              </mat-select>
+              @if (formGroup3.get('selectedExams')?.hasError('required') && formGroup3.get('selectedExams')?.touched) {
+                <mat-error
+                  >
+                  Debe seleccionar al menos un examen
+                </mat-error>
+              }
+            </mat-form-field>
+
+            <!-- Campos dinámicos para cada examen seleccionado -->
+            <div formArrayName="selectedExamsArray" class="medical-exams-grid">
+              @for (exam of formGroup3.get('selectedExams')?.value; track exam; let i = $index) {
+                <div class="medical-exam-item"
+                  [formGroupName]="i">
+                  <div class="exam-item-header">
+                    <mat-icon class="exam-icon">medical_information</mat-icon>
+                    <div class="exam-title">{{ exam }}</div>
+                  </div>
+                  <!-- Estado Apto/No Apto requerido -->
+                  <mat-form-field appearance="outline" class="exam-status-field">
+                    <mat-label>Estado</mat-label>
+                    <mat-select formControlName="aptoStatus" required>
+                      <mat-option value="APTO">APTO</mat-option>
+                      <mat-option value="NO APTO">NO APTO</mat-option>
+                    </mat-select>
+                    @if (formGroup3.get('selectedExamsArray')?.get(i.toString())?.get('aptoStatus')?.hasError('required')
+                      && formGroup3.get('selectedExamsArray')?.get(i.toString())?.get('aptoStatus')?.touched) {
+                      <mat-error>
+                        Requerido
+                      </mat-error>
+                    }
+                  </mat-form-field>
+                  <!-- Subir PDF Compacto -->
+                  <div class="medical-upload-compact" (click)="fileInput.click()" [class.has-file]="examFiles()[i]">
+                    <input type="file" accept="application/pdf" (change)="onFileSelected($event, i)"
+                      class="file-upload-input" #fileInput />
+                      @if (!examFiles()[i]) {
+                        <mat-icon>upload_file</mat-icon>
+                        <span>Adjuntar PDF</span>
+                      }
+                      @if (examFiles()[i]) {
+                        <mat-icon class="success-icon">check_circle</mat-icon>
+                        <span class="file-name-text" [title]="examFiles()[i].name">{{ examFiles()[i].name }}</span>
+                      }
+                    </div>
+                  </div>
+                }
+              </div>
+
+              <!-- Botón para imprimir -->
+              <button mat-flat-button (click)="imprimirSaludOcupacional()" class="example-full-width">
+                Guardar Salud Ocupacional
+              </button>
             </div>
-          </div>
+          </mat-tab>
 
-          <!-- Botón para imprimir -->
-          <button mat-flat-button (click)="imprimirSaludOcupacional()" class="example-full-width">
-            Guardar Salud Ocupacional
-          </button>
-        </div>
-      </mat-tab>
+          <!-- ─────────── TAB • CONTRATACIÓN ───────────    [disabled]="deshabilitarContratacion()"       [matTooltip]="deshabilitarContratacion() ? 'Hay exámenes NO APTO' : ''">-->
 
-      <!-- ─────────── TAB • CONTRATACIÓN ───────────    [disabled]="deshabilitarContratacion()"       [matTooltip]="deshabilitarContratacion() ? 'Hay exámenes NO APTO' : ''">-->
+          <mat-tab>
+            <ng-template mat-tab-label>
+              <div class="tab">
 
-      <mat-tab>
-        <ng-template mat-tab-label>
-          <div class="tab">
+                <mat-icon>how_to_reg</mat-icon>
+                Contratación
+              </div>
+            </ng-template>
 
-            <mat-icon>how_to_reg</mat-icon>
-            Contratación
-          </div>
-        </ng-template>
+            <div class="tab-content-scrollable">
+              <app-hiring-questions [candidatoSeleccionado]="candidatoSeleccionado()">
+              </app-hiring-questions>
+            </div>
+          </mat-tab>
 
-        <div class="tab-content-scrollable">
-          <app-hiring-questions [candidatoSeleccionado]="candidatoSeleccionado()">
-          </app-hiring-questions>
-        </div>
-      </mat-tab>
-
-    </mat-tab-group>
-  </mat-card-content>
-</mat-card>
-<div #toastHost style="position:fixed;top:8px;right:8px;z-index:2147483647"></div>
+        </mat-tab-group>
+      </mat-card-content>
+    </mat-card>
+    <div #toastHost style="position:fixed;top:8px;right:8px;z-index:2147483647"></div>

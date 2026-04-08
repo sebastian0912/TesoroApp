@@ -109,18 +109,6 @@ export class HomeService {
   // --------------------------------------------
   // Helpers
   // --------------------------------------------
-  private normalizePdfKey(pdf: string | null | undefined): PdfKey {
-    const key = (pdf || 'adress').trim().toLowerCase();
-
-    if (key === 'adres' || key === 'address') return 'adress';
-    if (key === 'policivos') return 'policivo';
-    if (key === 'afp' || key === 'fondo_pension' || key === 'fondopension' || key === 'pension') return 'fondo';
-
-    // fallback: si llega uno inválido, no rompas (pero ajusta si prefieres throw)
-    const allowed: PdfKey[] = ['adress', 'policivo', 'ofac', 'contraloria', 'sisben', 'procuraduria', 'fondo', 'union'];
-    return (allowed.includes(key as PdfKey) ? (key as PdfKey) : 'adress');
-  }
-
   // ---------------------------------------------------------------------------
   // ✅ 1) GET /Robots/full/
   // ---------------------------------------------------------------------------
@@ -169,11 +157,6 @@ export class HomeService {
   // ✅ 3) (Opcional) Si aún necesitas: traer un solo bloque desde el ALL
   //     (sin pegarle al backend otra vez)
   // ---------------------------------------------------------------------------
-  pickProgresoFromAll(all: ProgresoPrioridadesAllResponse, pdf: string): ProgresoPrioridadesResponse | null {
-    const key = this.normalizePdfKey(pdf);
-    return all?.por_pdf?.[key] ?? null;
-  }
-
   // ---------------------------------------------------------------------------
   // ✅ Excel Links (tu endpoint)
   // ---------------------------------------------------------------------------
@@ -200,19 +183,6 @@ export class HomeService {
     });
   }
 
-  /** Extrae filename del header Content-Disposition */
-  getFilename(resp: HttpResponse<Blob>, fallback = 'cedulas_links.xlsx'): string {
-    const cd = resp.headers.get('Content-Disposition') || '';
-    const m = cd.match(/filename\*?=(?:UTF-8''|")?([^;"']+)/i);
-    if (!m) return fallback;
-
-    try {
-      return decodeURIComponent(m[1].replace(/"/g, ''));
-    } catch {
-      return m[1].replace(/"/g, '') || fallback;
-    }
-  }
-
   // ---------------------------------------------------------------------------
   // Historial
   // ---------------------------------------------------------------------------
@@ -228,14 +198,13 @@ export class HomeService {
       .set('fecha_fin', fechaFin);
 
     if (excel) {
-      params = params.set('excel', '1');
       return this.http
-        .get(`${this.apiUrl}/Historial/informe`, { params, responseType: 'blob' })
+        .get(`${this.apiUrl}/gestion_tesoreria/transacciones/descargar-historial/`, { params, responseType: 'blob' })
         .pipe(catchError((e) => this.handleError(e)));
     }
 
     return this.http
-      .get(`${this.apiUrl}/Historial/informe`, { params })
+      .get(`${this.apiUrl}/gestion_tesoreria/transacciones/descargar-historial/`, { params })
       .pipe(catchError((e) => this.handleError(e)));
   }
 
@@ -249,16 +218,16 @@ export class HomeService {
       .set('fecha_fin', fechaFin);
 
     if (excel) {
-      params = params.set('excel', '1');
       return this.http
-        .get(`${this.apiUrl}/Historial/informeFecha`, { params, responseType: 'blob' })
+        .get(`${this.apiUrl}/gestion_tesoreria/transacciones/descargar-historial/`, { params, responseType: 'blob' })
         .pipe(catchError((e) => this.handleError(e)));
     }
 
     return this.http
-      .get(`${this.apiUrl}/Historial/informeFecha`, { params })
+      .get(`${this.apiUrl}/gestion_tesoreria/transacciones/descargar-historial/`, { params })
       .pipe(catchError((e) => this.handleError(e)));
   }
+
 
   // ---------------------------------------------------------------------------
   // Home cards / conteos / inventario / etc (tal cual lo tenías)
@@ -266,18 +235,6 @@ export class HomeService {
   traerTraladosPorFecha(): Observable<any> {
     return this.http
       .get(`${this.apiUrl}/traslados/traer_todo_base_general`)
-      .pipe(catchError((e) => this.handleError(e)));
-  }
-
-  traerEmpleados(): Observable<any> {
-    return this.http
-      .get(`${this.apiUrl}/Datosbase/datosbase`)
-      .pipe(catchError((e) => this.handleError(e)));
-  }
-
-  traerAutorizaciones(): Observable<any> {
-    return this.http
-      .get(`${this.apiUrl}/Codigo/codigos`)
       .pipe(catchError((e) => this.handleError(e)));
   }
 
@@ -295,30 +252,6 @@ export class HomeService {
     return (usuarios ?? []).filter((usuario: { rol: string }) => usuario.rol === rol).length;
   }
 
-  traerAutorizacionesPorUsuario(): Observable<any> {
-    return this.http
-      .get(`${this.apiUrl}/Codigo/roles/codigosactivos`)
-      .pipe(catchError((e) => this.handleError(e)));
-  }
-
-  traerInventarioProductos(): Observable<any> {
-    return this.http
-      .get(`${this.apiUrl}/Comercio/comercio`)
-      .pipe(catchError((e) => this.handleError(e)));
-  }
-
-  async traerTralados(concepto: any, nombre: string): Promise<Observable<any>> {
-    const ano = new Date().getFullYear();
-    if (concepto === 'Todos') {
-      return this.http
-        .get(`${this.apiUrl}/traslados/traer_todo_base_general?ano=${encodeURIComponent(ano.toString())}`)
-        .pipe(catchError((e) => this.handleError(e)));
-    }
-
-    const url = `${this.apiUrl}/traslados/buscar-filtro/?responsable=${encodeURIComponent(nombre)}&ano=${encodeURIComponent(ano.toString())}`;
-    return this.http.get(url).pipe(catchError((e) => this.handleError(e)));
-  }
-
   traerTraladosAceptados(nombre: string): any {
     const ano = new Date().getFullYear();
     const url = `${this.apiUrl}/traslados/buscar-aceptados/?responsable=${encodeURIComponent(nombre)}&ano=${encodeURIComponent(ano.toString())}`;
@@ -333,92 +266,16 @@ export class HomeService {
   // ---------------------------------------------------------------------------
   // Promedios
   // ---------------------------------------------------------------------------
-  getPromedios(granularidad?: Granularidad, oficina?: string): Observable<any> {
-    let params = new HttpParams();
-    if (granularidad) params = params.set('granularidad', granularidad);
-    if (oficina) params = params.set('oficina', oficina);
-
-    const url = `${this.apiUrl}/EstadosRobots/promedios/`;
-    return this.http.get<any>(url, { params }).pipe(catchError((e) => this.handleError(e)));
-  }
-
-  getPromediosResumen(oficina?: string): Observable<any> {
-    let params = new HttpParams();
-    if (oficina) params = params.set('oficina', oficina);
-
-    const url = `${this.apiUrl}/EstadosRobots/promedios/resumen/`;
-    return this.http.get<any>(url, { params }).pipe(catchError((e) => this.handleError(e)));
-  }
-
-  getPromediosTodos(oficina?: string): Observable<any> {
-    let params = new HttpParams();
-    if (oficina) params = params.set('oficina', oficina);
-
-    const url = `${this.apiUrl}/EstadosRobots/promedios/todos/`;
-    return this.http.get<any>(url, { params }).pipe(catchError((e) => this.handleError(e)));
-  }
-
-  getPromedioPorEstado(estado: string, granularidad?: Granularidad, oficina?: string): Observable<any> {
-    let params = new HttpParams();
-    if (granularidad) params = params.set('granularidad', granularidad);
-    if (oficina) params = params.set('oficina', oficina);
-
-    const url = `${this.apiUrl}/EstadosRobots/promedios/estado/${encodeURIComponent(estado)}/`;
-    return this.http.get<any>(url, { params }).pipe(catchError((e) => this.handleError(e)));
-  }
-
   // ---------------------------------------------------------------------------
   // Periodos unificado + compat
   // ---------------------------------------------------------------------------
-  getRobotPeriodosUnificado(opts?: { oficina?: string; paquete?: string; robot?: string }): Observable<any> {
-    let params = new HttpParams().set('format', 'combined');
-    if (opts?.oficina) params = params.set('oficina', opts.oficina);
-    if (opts?.paquete) params = params.set('paquete', opts.paquete);
-    if (opts?.robot) params = params.set('robot', opts.robot);
-
-    const url = `${this.apiUrl}/EstadosRobots/periodos-unificado/`;
-    return this.http.get<any>(url, { params }).pipe(catchError((e) => this.handleError(e)));
-  }
 
   getEstadosPorOficinaPeriodos(opts?: { oficina?: string; paquete?: string; robot?: string }): Observable<any> {
-    return this.getRobotPeriodosUnificado(opts);
+    return this.http.get(this.apiUrl + '/Robots/periodos-unificados/', { params: opts as any });
   }
 
   getEstadosPorOficinaPeriodosArgs(oficina?: string, paquete?: string, robot?: string): Observable<any> {
-    return this.getRobotPeriodosUnificado({ oficina, paquete, robot });
-  }
-
-
-
-
-  /**
- * Sube un Excel (.xlsx) con cédulas para dejar en false el último Proceso
- * de la última Entrevista de cada candidato.
- *
- * Backend: /gestion_contratacion/contratacion/bulk-reset-ultimo-proceso/
- */
-  bulkResetUltimoProceso(file: File): Observable<HttpResponse<any>> {
-    const url = `${this.apiUrl}/gestion_contratacion/contratacion/bulk-reset-ultimo-proceso/`;
-
-    const formData = new FormData();
-    formData.append('file', file);
-
-    // Importante: NO seteamos Content-Type aquí (multipart boundary lo pone el browser)
-    const headers = new HttpHeaders();
-
-    return this.http.post<any>(url, formData, {
-      headers,
-      observe: 'response',
-    }).pipe(
-      catchError((err) => {
-        const msg =
-          err?.error?.message ||
-          err?.error?.detail ||
-          err?.message ||
-          'Error subiendo el Excel para resetear el último proceso.';
-        return throwError(() => new Error(msg));
-      })
-    );
+    return this.http.get(this.apiUrl + '/Robots/periodos-unificados/', { params: { oficina, paquete, robot } as any });
   }
 
   /**
@@ -546,34 +403,6 @@ export class HomeService {
           err?.error?.message ||
           err?.message ||
           'ERROR CONSULTANDO CANDIDATOS MINI.';
-        return throwError(() => new Error(msg));
-      })
-    );
-  }
-
-  /**
-   * Variante opcional para obtener headers/status
-   */
-  getCandidatosMiniResponse(cedulas: Array<string | number>): Observable<HttpResponse<any[]>> {
-    const normalized = (cedulas ?? [])
-      .map((x) => String(x ?? '').trim())
-      .filter((x) => !!x);
-
-    if (normalized.length === 0) {
-      return throwError(() => new Error('DEBES ENVIAR AL MENOS UNA CÉDULA.'));
-    }
-
-    const params = new HttpParams().set('cedulas', normalized.join(','));
-    const url = `${this.apiUrl}/gestion_contratacion/reporte/candidatos-mini/`;
-    const headers = new HttpHeaders({ Accept: 'application/json' });
-
-    return this.http.get<any[]>(url, { params, headers, observe: 'response' }).pipe(
-      catchError((err) => {
-        const msg =
-          err?.error?.detail ||
-          err?.error?.message ||
-          err?.message ||
-          'ERROR CONSULTANDO CANDIDATOS MINI (RESPONSE).';
         return throwError(() => new Error(msg));
       })
     );

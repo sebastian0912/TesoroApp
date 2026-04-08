@@ -1,7 +1,7 @@
-import {
+import { 
   Component, LOCALE_ID, inject, effect, signal, computed, DestroyRef, PLATFORM_ID,
   afterNextRender
-} from '@angular/core';
+, ChangeDetectionStrategy } from '@angular/core';
 import { isPlatformBrowser } from '@angular/common';
 import { Router, RouterLink } from '@angular/router';
 
@@ -33,9 +33,12 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { RegistroProcesoContratacion } from '../../service/registro-proceso-contratacion/registro-proceso-contratacion';
 import { TableDialogComponent } from '@/app/shared/components/table-dialog/table-dialog.component';
 import { GestionDocumentalService } from '../../service/gestion-documental/gestion-documental.service';
-
+import jsPDF from 'jspdf';
+import JSZip from 'jszip';
+import QRCode from 'qrcode';
 
 import { PdfService } from '@/app/shared/services/pdf/pdf.service';
+import { HomeService } from '../../../home/service/home.service';
 
 import { ColumnDefinition } from '@/app/shared/models/advanced-table-interface';
 
@@ -156,6 +159,7 @@ export class RecruitmentPipelineComponent {
   private util = inject(UtilityServiceService);
   private pdfSvc = inject(PdfService);
   private registroProceso = inject(RegistroProcesoContratacion);
+  private homeService = inject(HomeService);
   private platformId = inject(PLATFORM_ID);
   private isBrowser = signal(false);
 
@@ -411,6 +415,145 @@ export class RecruitmentPipelineComponent {
 
   generacionDocumentos(): void {
     this.router.navigate(['dashboard/hiring/generate-contracting-documents', this.numeroDocumento]);
+  }
+
+  // ───────── CONFIRMACIÓN CONTACTO ─────────
+  async confirmarCorreoBienvenida(): Promise<void> {
+    const cand = this.candidatoSeleccionado();
+    if (!cand?.id) return;
+
+    const emailStr = cand.contacto?.email || cand.correo_electronico || cand.correo || 'No registrado';
+    const msgTemplate = `Hola ${cand.primer_nombre || ''},\n\nTe damos la bienvenida al equipo.\n\nPor favor confirma la recepción de este correo.\n\nSaludos.`;
+
+    const { value: textToSend, isConfirmed } = await Swal.fire({
+      title: 'Confirmar Correo de Bienvenida',
+      html: `<p>Se enviará el siguiente mensaje a: <b>${emailStr}</b></p>`,
+      input: 'textarea',
+      inputValue: msgTemplate,
+      inputAttributes: {
+        'aria-label': 'Mensaje de bienvenida'
+      },
+      showCancelButton: true,
+      confirmButtonText: 'Confirmar y Guardar',
+      cancelButtonText: 'Cancelar',
+      width: '600px'
+    });
+
+    if (!isConfirmed) return;
+
+    try {
+      Swal.fire({ title: 'Guardando confirmación...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+      const resp = await firstValueFrom(this.registroProceso.confirmarContacto(cand.id, { correo_confirmado: true }));
+      cand.contacto = cand.contacto || {};
+      cand.contacto.correo_confirmado = true;
+      this.candidatoSeleccionado.set(cand);
+      Swal.close();
+      this.snack.open('Correo confirmado', 'OK', { duration: 3000 });
+
+      // Here you could also trigger an email sending service with `textToSend` and `emailStr`
+      // if there's a backend endpoint for it, but for now we just mark it as confirmed.
+    } catch (err) {
+      Swal.close();
+      console.error(err);
+      this.snack.open('Error al confirmar correo', 'Cerrar', { duration: 3000 });
+    }
+  }
+
+  async confirmarWhatsAppBienvenida(): Promise<void> {
+    const cand = this.candidatoSeleccionado();
+    if (!cand?.id) return;
+
+    const waStr = cand.contacto?.whatsapp || cand.numCelular || cand.telefono || cand.celular || 'No registrado';
+    const msgTemplate = `Hola ${cand.primer_nombre || ''}, te damos la bienvenida al equipo. Por favor confirma este mensaje.`;
+
+    const { value: textToSend, isConfirmed } = await Swal.fire({
+      title: 'Confirmar WhatsApp de Bienvenida',
+      html: `<p>Se enviará el siguiente mensaje a: <b>${waStr}</b></p>`,
+      input: 'textarea',
+      inputValue: msgTemplate,
+      inputAttributes: {
+        'aria-label': 'Mensaje de WhatsApp'
+      },
+      showCancelButton: true,
+      confirmButtonText: 'Confirmar y Guardar',
+      cancelButtonText: 'Cancelar',
+      width: '600px'
+    });
+
+    if (!isConfirmed) return;
+
+    try {
+      Swal.fire({ title: 'Guardando confirmación...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+      const resp = await firstValueFrom(this.registroProceso.confirmarContacto(cand.id, { whatsapp_confirmado: true }));
+      cand.contacto = cand.contacto || {};
+      cand.contacto.whatsapp_confirmado = true;
+      this.candidatoSeleccionado.set(cand);
+      Swal.close();
+      this.snack.open('WhatsApp confirmado', 'OK', { duration: 3000 });
+
+      // Open WhatsApp web with the message
+      if (waStr !== 'No registrado') {
+        const waNumber = waStr.replace(/[^0-9]/g, '');
+        const waUrl = `https://wa.me/57${waNumber}?text=${encodeURIComponent(textToSend)}`;
+        window.open(waUrl, '_blank', 'noopener,noreferrer');
+      }
+    } catch (err) {
+      Swal.close();
+      console.error(err);
+      this.snack.open('Error al confirmar WhatsApp', 'Cerrar', { duration: 3000 });
+    }
+  }
+
+  async darDeBajaManual() {
+    const cc = this.candidatoSeleccionado()?.numero_documento;
+    if (!cc) return;
+    
+    const { value: formValues } = await Swal.fire({
+      title: 'Dar de Baja Contrato',
+      html: `
+        <div style="text-align: left; margin-bottom: 8px;">
+          <label>Fecha de Retiro:</label>
+          <input type="date" id="swal-fecha-baja" class="swal2-input" value="${new Date().toISOString().split('T')[0]}">
+        </div>
+      `,
+      focusConfirm: false,
+      showCancelButton: true,
+      confirmButtonText: 'Confirmar Baja',
+      confirmButtonColor: '#d33',
+      cancelButtonText: 'Cancelar',
+      preConfirm: () => {
+        const d = (document.getElementById('swal-fecha-baja') as HTMLInputElement).value;
+        if (!d) Swal.showValidationMessage('La fecha es obligatoria');
+        return d;
+      }
+    });
+
+    if (formValues) {
+      Swal.fire({ title: 'Actualizando estado...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+      try {
+        const payload = {
+          numero_documento: cc,
+          contrato_detalle: {
+            contrato_activo: false,
+            fecha_retiro: formValues
+          }
+        };
+        await firstValueFrom(this.registroProceso.updateProcesoByDocumento(payload as any));
+        
+        // Actualizamos estado local
+        const cand = this.candidatoSeleccionado();
+        if (cand?.entrevistas?.[0]?.proceso?.contrato) {
+           cand.entrevistas[0].proceso.contrato.contrato_activo = false;
+           cand.entrevistas[0].proceso.contrato.fecha_retiro = formValues;
+           this.candidatoSeleccionado.set({ ...cand });
+        }
+        Swal.fire('¡Baja exitosa!', `El contrato de ${this.nombreCandidato} ha sido desactivado.`, 'success');
+      } catch (err) {
+        Swal.close();
+        console.error(err);
+        Swal.fire('Error', 'No se pudo desactivar el contrato', 'error');
+      }
+    }
   }
 
   // ───────── VALIDACIÓN PARA HABILITAR/DESHABILITAR CONTRATACIÓN ─────────
@@ -1045,5 +1188,604 @@ export class RecruitmentPipelineComponent {
     const doc = this.getBioDoc(kind);
     if (!doc) return null;
     return doc.file_url || doc.file || null;
+  }
+
+  // =========================================================
+  // ✅ GENERAR CARNET INDIVIDUAL (Recruitment Pipeline)
+  // =========================================================
+  async generarCarnetIndividual(): Promise<void> {
+    const cand = this.candidatoSeleccionado();
+    if (!cand) {
+      await Swal.fire({ icon: 'warning', title: 'Aviso', text: 'No hay candidato seleccionado.' });
+      return;
+    }
+
+    const ent0 = cand?.entrevistas?.[0];
+    const proc0 = ent0?.proceso;
+    const contratoBE = proc0?.contrato;
+
+    const carnetGenerado = contratoBE?.carnet_generado === true;
+
+    if (carnetGenerado) {
+      const result = await Swal.fire({
+        title: 'Carnet ya generado',
+        text: 'Este candidato ya tiene un carnet generado previamente. ¿Qué deseas hacer?',
+        icon: 'question',
+        showCancelButton: true,
+        showDenyButton: true,
+        confirmButtonText: 'Visualizar',
+        denyButtonText: 'Volver a generar',
+        cancelButtonText: 'Cancelar'
+      });
+
+      if (result.isConfirmed) {
+        // VISUALIZAR
+        try {
+          Swal.fire({ title: 'Buscando carnet...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+          const cedulaQuery = String(cand.numero_documento ?? '').trim();
+          const docsResp = await firstValueFrom(this.docSvc.getDocuments(cedulaQuery, 102));
+          const docs = Array.isArray(docsResp) ? docsResp : (docsResp?.results || []);
+          const carnetDoc = docs.find((d: any) => d.type === 102);
+
+          Swal.close();
+          if (carnetDoc && carnetDoc.file_url) {
+            window.open(carnetDoc.file_url, '_blank');
+          } else {
+            await Swal.fire({ icon: 'warning', title: 'No encontrado', text: 'No se encontró el archivo del carnet en el servidor.' });
+          }
+        } catch (e) {
+          Swal.close();
+          console.error(e);
+          await Swal.fire({ icon: 'error', title: 'Error', text: 'Ocurrió un error al buscar el carnet.' });
+        }
+        return;
+      } else if (result.isDenied) {
+        // Continua con la generacion
+      } else {
+        return; // Cancelar
+      }
+    }
+
+    const cedula = String(cand.numero_documento ?? '').trim();
+    // Prioritize the frontend mapped UI, fallback to backend contract
+    let codigo = String(contratoBE?.carnet_codigo || contratoBE?.codigo_contrato || '').trim();
+    let centroCosto = String(contratoBE?.carnet_centro_costo || contratoBE?.Ccentro_de_costos || '').trim();
+    let fechaIng = String(contratoBE?.carnet_fecha_ingreso || contratoBE?.fecha_ingreso || '').trim();
+
+    // Consultar HomeService para obtener exactamente los mismos campos que la vista de Home
+    let cMini: any = {};
+    if (cedula) {
+      try {
+        const resp = await firstValueFrom(this.homeService.getCandidatosMini([cedula]));
+        const items = Array.isArray(resp) ? resp : ((resp as any)?.ITEMS ?? (resp as any)?.items ?? []);
+        if (items.length > 0) cMini = items[0];
+      } catch (e) {
+        console.warn('No se pudo obtener el candidato mini para el carnet', e);
+      }
+    }
+
+    if (cMini?.CARNET_CODIGO) codigo = String(cMini.CARNET_CODIGO).trim();
+    if (cMini?.CARNET_CENTRO_COSTO) centroCosto = String(cMini.CARNET_CENTRO_COSTO).trim();
+    if (cMini?.CARNET_FECHA_INGRESO) fechaIng = String(cMini.CARNET_FECHA_INGRESO).trim();
+
+    // Replicando la lógica exacta ("pickAny") que usa el Home component
+    const pickAny = (obj: any, keys: string[]) => {
+      for (const k of keys) {
+        const v = obj?.[k];
+        if (v !== undefined && v !== null && String(v).trim() !== '') return v;
+      }
+      return '';
+    };
+
+    const searchIn = [cMini, cand]; // Buscar primero en cMini (el de Home), luego en cand (el del Pipeline)
+
+    let familiarNombre = '';
+    let familiarTel = '';
+
+    for (const data of searchIn) {
+      if (!data) continue;
+
+      if (!familiarNombre) {
+        familiarNombre = String(
+          pickAny(data?.contacto_emergencia, ['NOMBRES', 'nombres', 'NOMBRE_CONTACTO', 'nombre_contacto', 'NOMBRE', 'nombre']) ||
+          pickAny(data?.contacto, ['NOMBRE_CONTACTO', 'nombre_contacto', 'NOMBRES', 'nombres', 'NOMBRE', 'nombre']) ||
+          pickAny(data, [
+            'FAMILIAR_EMERGENCIA', 'familiar_emergencia',
+            'FAMILIAR_EMERGENCIA_NOMBRE', 'familiar_emergencia_nombre',
+            'CONTACTO_EMERGENCIA_NOMBRE', 'contacto_emergencia_nombre',
+            'NOMBRE_CONTACTO_EMERGENCIA', 'nombre_contacto_emergencia'
+          ]) || pickAny(data?.datos_basicos, [
+            'FAMILIAR_EMERGENCIA', 'familiar_emergencia',
+            'FAMILIAR_EMERGENCIA_NOMBRE', 'familiar_emergencia_nombre',
+            'CONTACTO_EMERGENCIA_NOMBRE', 'contacto_emergencia_nombre',
+            'NOMBRE_CONTACTO_EMERGENCIA', 'nombre_contacto_emergencia'
+          ])
+        ).trim();
+      }
+
+      if (!familiarTel) {
+        familiarTel = String(
+          pickAny(data?.contacto_emergencia, ['TELEFONO', 'telefono', 'CELULAR', 'celular', 'CELULAR_CONTACTO', 'celular_contacto']) ||
+          pickAny(data?.contacto, ['CELULAR_CONTACTO', 'celular_contacto', 'TELEFONO', 'telefono', 'CELULAR', 'celular']) ||
+          pickAny(data, [
+            'FAMILIAR_EMERGENCIA_TELEFONO', 'familiar_emergencia_telefono',
+            'TELEFONO_FAMILIAR_EMERGENCIA', 'telefono_familiar_emergencia',
+            'CONTACTO_EMERGENCIA_TELEFONO', 'contacto_emergencia_telefono',
+            'TELEFONO_CONTACTO_EMERGENCIA', 'telefono_contacto_emergencia'
+          ]) || pickAny(data?.datos_basicos, [
+            'FAMILIAR_EMERGENCIA_TELEFONO', 'familiar_emergencia_telefono',
+            'TELEFONO_FAMILIAR_EMERGENCIA', 'telefono_familiar_emergencia',
+            'CONTACTO_EMERGENCIA_TELEFONO', 'contacto_emergencia_telefono',
+            'TELEFONO_CONTACTO_EMERGENCIA', 'telefono_contacto_emergencia'
+          ])
+        ).trim();
+      }
+    }
+
+    console.log('--- ENCONTRADOS PARA CARNET INDIVIDUAL ---');
+    console.log('cMini:', cMini);
+    console.log('cand:', cand);
+    console.log('Familiar Nombre:', familiarNombre);
+    console.log('Familiar Tel:', familiarTel);
+
+    const { value: formValues, isConfirmed } = await Swal.fire({
+      title: 'Datos del Carnet',
+      html: `
+        <label style="display:block;text-align:left;font-size:14px;margin-bottom:4px;font-weight:bold;">Fecha de Ingreso</label>
+        <input id="swal-fecha" class="swal2-input" style="max-width:90%;margin:0 auto 16px;display:block;" type="date" value="${fechaIng}">
+        
+        <label style="display:block;text-align:left;font-size:14px;margin-bottom:4px;font-weight:bold;">Código de Contrato</label>
+        <input id="swal-codigo" class="swal2-input" style="max-width:90%;margin:0 auto 16px;display:block;" type="text" value="${codigo}">
+        
+        <label style="display:block;text-align:left;font-size:14px;margin-bottom:4px;font-weight:bold;">Centro de Costo</label>
+        <input id="swal-ccosto" class="swal2-input" style="max-width:90%;margin:0 auto 16px;display:block;" type="text" value="${centroCosto}">
+      `,
+      focusConfirm: false,
+      showCancelButton: true,
+      confirmButtonText: 'Generar',
+      cancelButtonText: 'Cancelar',
+      preConfirm: () => {
+        const f = (document.getElementById('swal-fecha') as HTMLInputElement).value;
+        const c = (document.getElementById('swal-codigo') as HTMLInputElement).value;
+        const cc = (document.getElementById('swal-ccosto') as HTMLInputElement).value;
+        if (!f || !c || !cc) {
+          Swal.showValidationMessage('Todos los campos son obligatorios');
+          return false;
+        }
+        return { fecha: f, codigo: c, ccosto: cc };
+      }
+    });
+
+    if (!isConfirmed || !formValues) return;
+
+    // Build the "row"
+    const row = {
+      CEDULA: cedula,
+      CODIGO: String(formValues.codigo).trim(),
+      APELLIDOS: String((cand.primer_apellido ?? '') + ' ' + (cand.segundo_apellido ?? '')).trim(),
+      NOMBRES: String((cand.primer_nombre ?? '') + ' ' + (cand.segundo_nombre ?? '')).trim(),
+      FECHA_INGRESO: String(formValues.fecha).trim(),
+      CENTRO_COSTO: String(formValues.ccosto).trim(),
+      FAMILIAR_EMERGENCIA_NOMBRE: familiarNombre,
+      FAMILIAR_EMERGENCIA_TELEFONO: familiarTel,
+      DOCUMENTO_89_URL: String(this.fotoDoc()?.file_url ?? '').trim()
+    };
+
+    if (!Swal.isVisible()) {
+      Swal.fire({
+        title: 'Generando carnet...',
+        text: 'Preparando PDF...',
+        allowOutsideClick: false,
+        allowEscapeKey: false,
+        didOpen: () => Swal.showLoading(),
+      });
+    }
+
+    try {
+      const CARD_W = 280;
+      const CARD_H = 440;
+      const PAGE_W = CARD_W;
+      const PAGE_H = CARD_H;
+      const MARGIN = 0;
+      const GAP = 0;
+
+      const BLUE_CORP = '#1B4FD9';
+      const BLUE_DARK = '#152C70';
+      const GREEN_BG = '#9BE114';
+      const WHITE = '#FFFFFF';
+      const BLACK = '#000000';
+
+      const isHttp = (u: string) => /^https?:\/\//i.test(u);
+      const isDataUrl = (u: string) => /^data:image\//i.test(u);
+
+      const fetchBase64WithFallback = async (mainUrl: string, alts: string[] = [], isPhoto = false): Promise<string | null> => {
+        const tryFetch = async (u: string) => {
+          try {
+            const res = await fetch(u);
+            if (res.ok) {
+              const domUrl = URL.createObjectURL(await res.blob());
+              
+              if (u.toLowerCase().endsWith('.svg')) {
+                let text = await (await fetch(u)).text();
+                if (!text.includes('xmlns=')) text = text.replace('<svg ', '<svg xmlns="http://www.w3.org/2000/svg" ');
+                
+                const svg64 = btoa(unescape(encodeURIComponent(text)));
+                const svgDataUrl = `data:image/svg+xml;base64,${svg64}`;
+                
+                const img = new Image();
+                img.crossOrigin = 'Anonymous';
+                await new Promise((resolve, reject) => { img.onload = resolve; img.onerror = reject; img.src = svgDataUrl; });
+                
+                const canvas = document.createElement('canvas');
+                const w = img.width || 156;
+                const h = img.height || 35;
+                canvas.width = w * 4;
+                canvas.height = h * 4;
+                const ctx = canvas.getContext('2d');
+                ctx?.scale(4, 4);
+                ctx?.drawImage(img, 0, 0, w, h);
+                URL.revokeObjectURL(domUrl);
+                return canvas.toDataURL('image/png');
+              } else {
+                const img = new Image();
+                img.crossOrigin = 'Anonymous';
+                await new Promise((resolve, reject) => { img.onload = resolve; img.onerror = reject; img.src = domUrl; });
+                
+                const canvas = document.createElement('canvas');
+                
+                if (isPhoto) {
+                  // Para fotos: Recortar al centro (sin distorsión) y hacerla circular con un fondo igual al PDF
+                  const size = Math.min(img.width, img.height);
+                  canvas.width = size;
+                  canvas.height = size;
+                  const ctx = canvas.getContext('2d');
+                  if (ctx) {
+                    ctx.fillStyle = GREEN_BG; // Fondo idéntico al PDF para fusíon perfecta
+                    ctx.fillRect(0, 0, size, size);
+                    
+                    ctx.beginPath();
+                    ctx.arc(size/2, size/2, size/2, 0, Math.PI * 2);
+                    ctx.clip();
+                    
+                    ctx.fillStyle = WHITE;
+                    ctx.fillRect(0, 0, size, size);
+                    
+                    const offsetX = (img.width - size) / 2;
+                    const offsetY = img.height > img.width ? (img.height - size) * 0.15 : (img.height - size) / 2;
+                    ctx.drawImage(img, offsetX, offsetY, size, size, 0, 0, size, size);
+                  }
+                } else {
+                  // Para otras imágenes (ej. QR)
+                  canvas.width = img.width;
+                  canvas.height = img.height;
+                  const ctx = canvas.getContext('2d');
+                  if (ctx) {
+                    ctx.fillStyle = WHITE;
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+                    ctx.drawImage(img, 0, 0);
+                  }
+                }
+                
+                URL.revokeObjectURL(domUrl);
+                return canvas.toDataURL('image/jpeg', 0.95);
+              }
+            }
+          } catch { }
+          return null;
+        };
+        let b64 = await tryFetch(mainUrl);
+        if (b64) return b64;
+        for (const alt of alts) {
+          b64 = await tryFetch(alt);
+          if (b64) return b64;
+        }
+        return null;
+      };
+
+      const fetchImageBase64 = async (urlOrData?: string, isPhoto = false): Promise<string | null> => {
+        const raw = String(urlOrData ?? '').trim();
+        if (!raw) return null;
+        if (isDataUrl(raw)) return raw;
+        const clean = raw.replace(/^\/+/, '').replace(/^assets\//, '');
+        if (isHttp(raw)) return await fetchBase64WithFallback(raw, [], isPhoto);
+        return await fetchBase64WithFallback(clean, [`assets/${clean}`, `/${clean}`, `./${clean}`], isPhoto);
+      };
+
+      const buildQrDataUrl = async (payload: string): Promise<string> => {
+        const key = String(payload ?? '').trim();
+        if (!key) return '';
+        try {
+          return await (QRCode as any).toDataURL(key, { type: 'image/jpeg', errorCorrectionLevel: 'M', margin: 1, width: 300, color: { light: '#ffffffff' } });
+        } catch { return ''; }
+      };
+
+      const safeTxt = (txt: any) => {
+        let s = String(txt ?? '').trim().toUpperCase();
+        s = s.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        return s.replace(/[^\x20-\x7E\xA0-\xFF]/g, ' ');
+      };
+      const safeTxtMixed = (txt: any) => {
+        let s = String(txt ?? '').trim();
+        s = s.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        return s.replace(/[^\x20-\x7E\xA0-\xFF]/g, ' ');
+      }
+
+      const logoB64 = await fetchImageBase64('logos/Group.svg');
+      const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: [PAGE_W, PAGE_H], compress: true });
+
+      const fotoUrl = row.DOCUMENTO_89_URL;
+      const qrKey = `${row.CEDULA}|${row.CODIGO}`;
+      const [fotoB64, qrB64] = await Promise.all([
+        fetchImageBase64(fotoUrl, true), // isPhoto = true
+        buildQrDataUrl(qrKey)
+      ]);
+
+      const drawGeometricsTopRight = () => {
+        doc.setFillColor(BLUE_CORP);
+        doc.triangle(CARD_W - 90, 0, CARD_W, 0, CARD_W, 90, 'F');
+        doc.setFillColor(WHITE);
+        doc.triangle(CARD_W - 60, 0, CARD_W, 0, CARD_W, 60, 'F');
+        doc.setFillColor(BLUE_CORP);
+        doc.triangle(CARD_W - 30, 0, CARD_W, 0, CARD_W, 30, 'F');
+      };
+
+      const drawGeometricsBottomLeft = () => {
+        doc.setFillColor(BLUE_CORP);
+        doc.triangle(0, CARD_H - 90, 90, CARD_H, 0, CARD_H, 'F');
+        doc.setFillColor(WHITE);
+        doc.triangle(0, CARD_H - 60, 60, CARD_H, 0, CARD_H, 'F');
+        doc.setFillColor(BLUE_CORP);
+        doc.triangle(0, CARD_H - 30, 30, CARD_H, 0, CARD_H, 'F');
+      };
+
+      const processCardSide = (isFront: boolean) => {
+        const cx = 0; const cy = 0;
+        
+        // Background
+        doc.setFillColor(GREEN_BG);
+        doc.rect(0, 0, CARD_W, CARD_H, 'F');
+
+        // Borde Exterior Oscuro
+        doc.setDrawColor('#1A0F2E');
+        doc.setLineWidth(3);
+        doc.rect(cx+1.5, cy+1.5, CARD_W - 3, CARD_H - 3);
+
+        const innerPad = 14;
+        const contentX = cx + innerPad;
+        const contentW = CARD_W - 2 * innerPad;
+        let cursorY = cy + innerPad;
+
+        if (isFront) {
+          drawGeometricsTopRight();
+
+          const HEADER_H = 35;
+          if (logoB64) {
+            const format = logoB64.includes('image/png') ? 'PNG' : 'JPEG';
+            doc.addImage(logoB64, format, contentX + (contentW - 120) / 2, cursorY + 10, 120, HEADER_H);
+          }
+          cursorY += HEADER_H + 30;
+
+          const PHOTO_R = 75; // Radio
+          const PHOTO_D = PHOTO_R * 2;
+          const photoCenterX = CARD_W / 2;
+          const photoCenterY = cursorY + PHOTO_R;
+          
+          if (fotoB64) {
+            const format = fotoB64.includes('image/png') ? 'PNG' : 'JPEG';
+            try { 
+              // La imagen ya viene recortada sin distorsión y con fondo verde circular desde el Canvas
+              doc.addImage(fotoB64, format, photoCenterX - PHOTO_R, photoCenterY - PHOTO_R, PHOTO_D, PHOTO_D); 
+            } catch (e) { }
+            
+            // Borde sutil blanco para resaltar el círculo
+            doc.setLineWidth(2.5);
+            doc.setDrawColor(WHITE);
+            doc.circle(photoCenterX, photoCenterY, PHOTO_R, 'S');
+          } else {
+            doc.setFillColor(WHITE);
+            doc.circle(photoCenterX, photoCenterY, PHOTO_R, 'F');
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(10);
+            doc.setTextColor(BLUE_CORP);
+            doc.text('SIN FOTO', photoCenterX, photoCenterY, { align: 'center', baseline: 'middle' });
+          }
+          cursorY += PHOTO_D + 25;
+
+          // Nombres
+          doc.setFont('helvetica', 'bold');
+          doc.setFontSize(18);
+          doc.setTextColor(BLUE_CORP);
+          doc.text(safeTxtMixed(row.NOMBRES), CARD_W / 2, cursorY, { align: 'center', maxWidth: contentW });
+          cursorY += 20;
+          
+          doc.setFont('helvetica', 'normal');
+          doc.setFontSize(14);
+          doc.setTextColor(BLUE_DARK);
+          doc.text(safeTxtMixed(row.APELLIDOS), CARD_W / 2, cursorY, { align: 'center', maxWidth: contentW });
+          cursorY += 40;
+
+          // Datos a la izquierda
+          const dataX = 65; 
+          let rowY = cursorY;
+          
+          const fields = [
+            { l: 'C.C', v: safeTxtMixed(row.CEDULA) },
+            { l: 'ingreso', v: safeTxtMixed(row.FECHA_INGRESO) },
+            { l: 'Codigo', v: safeTxtMixed(row.CODIGO) },
+          ];
+
+          for (const f of fields) {
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(14);
+            doc.setTextColor(BLUE_CORP);
+            doc.text(f.l, dataX, rowY);
+            
+            doc.setFont('helvetica', 'normal');
+            doc.setTextColor(BLUE_DARK);
+            doc.text(f.v, dataX + 60, rowY);
+            rowY += 22;
+          }
+        } else {
+          drawGeometricsBottomLeft();
+          
+          cursorY += 10;
+          if (logoB64) {
+            const format = logoB64.includes('image/png') ? 'PNG' : 'JPEG';
+            doc.addImage(logoB64, format, contentX + (contentW - 100) / 2, cursorY, 100, 30);
+          }
+          cursorY += 45;
+
+          doc.setFontSize(12);
+          doc.setFont('helvetica', 'normal');
+          doc.setTextColor(BLUE_CORP);
+          doc.text('Nit 900864596-1', CARD_W / 2, cursorY, { align: 'center' });
+          cursorY += 45;
+
+          // Datos
+          const dataX = 35;
+          
+          doc.setFontSize(13);
+          doc.setFont('helvetica', 'bold');
+          doc.setTextColor(BLUE_CORP);
+          doc.text('Arl:', dataX, cursorY);
+          doc.setFont('helvetica', 'normal');
+          doc.setTextColor(BLUE_DARK);
+          doc.text('Sura', dataX + doc.getTextWidth('Arl:') + 5, cursorY);
+          cursorY += 25;
+
+          doc.setFont('helvetica', 'bold');
+          doc.setTextColor(BLUE_CORP);
+          doc.text('Número coordinador', dataX, cursorY);
+          cursorY += 18;
+          doc.setFont('helvetica', 'normal');
+          doc.setTextColor(BLUE_DARK);
+          doc.text('Jimmy Lorenzo Ballesteros', dataX, cursorY);
+          cursorY += 25;
+
+          doc.setFont('helvetica', 'bold');
+          doc.setTextColor(BLUE_CORP);
+          doc.text('Contacto de emergencia', dataX, cursorY);
+          cursorY += 18;
+          doc.setFont('helvetica', 'normal');
+          doc.setTextColor(BLUE_DARK);
+          const emName = row.FAMILIAR_EMERGENCIA_NOMBRE || 'No registrado';
+          doc.text(safeTxtMixed(emName), dataX, cursorY);
+          cursorY += 22;
+
+          doc.setFont('helvetica', 'bold');
+          doc.setTextColor(BLUE_CORP);
+          doc.text('Tel:', dataX, cursorY);
+          doc.setFont('helvetica', 'normal');
+          doc.setTextColor(BLUE_DARK);
+          const emTel = row.FAMILIAR_EMERGENCIA_TELEFONO || 'No registrado';
+          doc.text(safeTxtMixed(emTel), dataX + doc.getTextWidth('Tel:') + 5, cursorY);
+
+          const bottomY = CARD_H - 50;
+          if (qrB64) {
+            doc.addImage(qrB64, 'JPEG', CARD_W - 60, bottomY - 15, 45, 45);
+            doc.setDrawColor(WHITE);
+            doc.setLineWidth(2);
+            doc.rect(CARD_W - 60, bottomY - 15, 45, 45, 'S'); 
+          }
+
+          // Movido barcode un poco a la derecha para no pisar el triángulo
+          const barcodeX = 55;
+          doc.setFillColor(WHITE);
+          doc.roundedRect(barcodeX, bottomY - 15, 100, 30, 4, 4, 'F');
+          
+          doc.setDrawColor(BLUE_CORP);
+          doc.setLineWidth(1.5);
+          for(let i=0; i<30; i++) {
+             let draw = i % 3 !== 0; 
+             if(draw) {
+               doc.line(barcodeX + 6 + (i * 3), bottomY - 10, barcodeX + 6 + (i * 3), bottomY + 10);
+             }
+          }
+
+          doc.setFont('helvetica', 'bold');
+          doc.setFontSize(11);
+          doc.setTextColor(BLUE_CORP);
+          doc.text(safeTxtMixed(row.CEDULA), barcodeX + 50, bottomY + 28, { align: 'center' });
+        }
+      };
+
+      // FRONT
+      processCardSide(true);
+      // BACK
+      doc.addPage();
+      processCardSide(false);
+
+      doc.save(`carnet_${row.CEDULA}.pdf`);
+
+      let backMsg = '';
+      try {
+        const pdfBlob = doc.output('blob');
+        const pdfFile = new File([pdfBlob], `carnet_${row.CEDULA}.pdf`, { type: 'application/pdf' });
+        const codigoContrato = row.CODIGO || cand.contrato?.codigo_contrato;
+        
+        await firstValueFrom(
+          codigoContrato 
+            ? this.docSvc.guardarDocumento(`carnet_${row.CEDULA}.pdf`, cedula, 102, pdfFile, codigoContrato)
+            : this.docSvc.guardarDocumento(`carnet_${row.CEDULA}.pdf`, cedula, 102, pdfFile)
+        );
+        backMsg = '<br><br><small style="color:green;">El carnet también se guardó correctamente en el historial del candidato.</small>';
+      } catch (err) {
+        console.error('Error guardando carnet en el backend', err);
+        backMsg = '<br><br><small style="color:red;">El carnet se descargó, pero hubo un error al guardarlo en el historial.</small>';
+      }
+
+      // Guardar bandera en backend INMEDIATAMENTE
+      if (cedula) {
+        try {
+          await firstValueFrom(this.registroProceso.updateProcesoByDocumento({
+            numero_documento: cedula,
+            contrato: { 
+              carnet_generado: true,
+              carnet_fecha_ingreso: formValues.fecha,
+              carnet_codigo: formValues.codigo,
+              carnet_centro_costo: formValues.ccosto
+            } as any
+          }, 'PATCH'));
+          let proc = cand?.entrevistas?.[0]?.proceso;
+          if (proc) {
+            if (!proc.contrato) proc.contrato = {};
+            proc.contrato.carnet_generado = true;
+            proc.contrato.carnet_fecha_ingreso = formValues.fecha;
+            proc.contrato.carnet_codigo = formValues.codigo;
+            proc.contrato.carnet_centro_costo = formValues.ccosto;
+            this.candidatoSeleccionado.set({ ...cand }); // trigger ui reference update
+          }
+        } catch (e) {
+          console.error('Error actualizando bandera carnet_generado', e);
+        }
+      }
+
+      Swal.close();
+      const sendWa = await Swal.fire({
+        icon: 'success',
+        title: 'Carnet Generado',
+        html: `El carnet de ${row.NOMBRES} se descargó correctamente. ¿Quieres enviar un mensaje por WhatsApp diciéndole que adjuntarás el carnet?${backMsg}`,
+        showCancelButton: true,
+        confirmButtonText: 'Enviar por WhatsApp',
+        cancelButtonText: 'Cerrar'
+      });
+
+      if (sendWa.isConfirmed) {
+        const waStr = cand.contacto?.whatsapp || cand.numCelular || cand.telefono || cand.celular || '';
+        let numUrl = '';
+        if (waStr) {
+          const waNumber = String(waStr).replace(/[^0-9]/g, '');
+          numUrl = waNumber ? `57${waNumber}` : '';
+        }
+        const textToSend = `Hola ${row.NOMBRES}, te damos la bienvenida al equipo. A continuación, adjunto tu carnet digital.`;
+        const waUrl = `https://wa.me/${numUrl}?text=${encodeURIComponent(textToSend)}`;
+        window.open(waUrl, '_blank', 'noopener,noreferrer');
+      }
+
+    } catch (error: any) {
+      console.error('❌ Error generando carnet:', error);
+      Swal.close();
+      await Swal.fire({ icon: 'error', title: 'Error', text: error?.message || 'Ocurrió un error al generar carnet.' });
+    }
   }
 }

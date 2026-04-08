@@ -7,18 +7,27 @@ export interface Modulo {
   id: string;
   nombre: string;
   descripcion?: string | null;
+  ruta?: string | null;
+  icono?: string | null;
+  orden?: number;
   modulo_padre?: string | null; // UUID del padre
 }
 
 export interface ModuloCreateDTO {
   nombre: string;
   descripcion?: string | null;
+  ruta?: string | null;
+  icono?: string | null;
+  orden?: number;
   modulo_padre?: string | null;
 }
 
 export interface ModuloUpdateDTO {
   nombre?: string;
   descripcion?: string | null;
+  ruta?: string | null;
+  icono?: string | null;
+  orden?: number;
   modulo_padre?: string | null;
 }
 
@@ -60,9 +69,6 @@ export class ModulosService {
   }
 
   // Para combos (sin paginar)
-  listAll(): Observable<Modulo[] | Paginated<Modulo>> {
-    return this.http.get<Modulo[] | Paginated<Modulo>>(this.base);
-  }
 
   get(id: string): Observable<Modulo> {
     return this.http.get<Modulo>(`${this.base}${id}/`);

@@ -2,50 +2,67 @@
 <input type="file" id="fileInputEmails" (change)="cargarCorreosMasivos($event)" accept=".xlsx, .xls"
   style="display: none;">
 
-<mat-card>
-  <mat-card-content>
+  <mat-card class="premium-card">
+    <mat-card-header class="card-header-premium">
+      <div class="header-content">
+        <div class="header-icon-container">
+          <mat-icon class="header-icon">request_quote</mat-icon>
+        </div>
+        <div class="header-text">
+          <mat-card-title class="titulo">Desprendibles de Pago</mat-card-title>
+          <mat-card-subtitle class="subtitulo">Consulte y administre los comprobantes de nómina.</mat-card-subtitle>
+        </div>
+      </div>
+    </mat-card-header>
+    <mat-card-content class="card-content">
 
-    <div class="search-container">
-      <div class="buscar">
-        <mat-form-field appearance="fill" class="example-full-width">
-          <mat-label>Ingrese la cédula</mat-label>
-          <input matInput [(ngModel)]="cedula">
-        </mat-form-field>
-        <button mat-flat-button (click)="buscarDesprendibles(cedula)" class="boton">Buscar</button>
+      <div class="search-container">
+        <div class="buscar">
+          <mat-form-field appearance="fill" class="example-full-width">
+            <mat-label>Ingrese la cédula</mat-label>
+            <input matInput [(ngModel)]="cedula">
+          </mat-form-field>
+          <button mat-flat-button (click)="buscarDesprendibles(cedula)" class="boton btn-managerial">Buscar</button>
+        </div>
+
+        @if (correo == 'nominacentral4@gmail.com' ||
+          correo == 'nomina.rtc@gmail.com' ||
+          correo == 'programador.ts@gmail.com' ||
+          correo == 'nomina.gandes@gmail.com' ||
+          correo == 'nominacentral7@gmail.com' ||
+          correo == 'antcontable4.ts@gmail.com' ||
+          correo == 'nominacentral4@gmail.com' ||
+          correo == 'nominacentral6@gmail.com' ||
+          correo == 'nomina.gandes@gmail.com' ) {
+          <app-info-card title="Cargar desprendibles de pago" imageUrl="icons/cards/excel.png"
+            (click)="triggerFileInput('desprendibles')" style="cursor: pointer;">
+          </app-info-card>
+        }
+
+
+        <app-info-card title="Cambiar masivamente los correos" imageUrl="icons/cards/excel.png"
+          (click)="triggerFileInput('correos')" style="cursor: pointer;">
+        </app-info-card>
       </div>
 
-      <app-info-card title="Cargar desprendibles de pago" imageUrl="icons/cards/excel.png"
-        (click)="triggerFileInput('desprendibles')" *ngIf="correo == 'nominacentral4@gmail.com' ||
-         correo == 'nomina.rtc@gmail.com' ||
-         correo == 'programador.ts@gmail.com' ||
-         correo == 'nomina.gandes@gmail.com' ||
-         correo == 'nominacentral7@gmail.com' ||
-         correo == 'antcontable4.ts@gmail.com' ||
-         correo == 'nominacentral4@gmail.com' ||
-         correo == 'nominacentral6@gmail.com' ||
-         correo == 'nomina.gandes@gmail.com' " style="cursor: pointer;">
-      </app-info-card>
+      <div class="tabla">
+        <app-standard-filter-table [data]="dataList" [columnDefinitions]="columns" [tableTitle]="'Desprendibles de pago'"
+          [enableRowClick]="false">
 
+          <ng-template #estadoTemplate let-row let-col="col">
+            @if (isValidLink(row[col.name])) {
+              <a [href]="row[col.name]" target="_blank" class="link-style">
+                Ver link
+              </a>
+            }
+            @if (!isValidLink(row[col.name])) {
+              <span>
+                {{ row[col.name] || '-' }}
+              </span>
+            }
+          </ng-template>
 
-      <app-info-card title="Cambiar masivamente los correos" imageUrl="icons/cards/excel.png"
-        (click)="triggerFileInput('correos')" style="cursor: pointer;">
-      </app-info-card>
-    </div>
-
-    <div class="tabla">
-      <app-standard-filter-table [data]="dataList" [columnDefinitions]="columns" [tableTitle]="'Desprendibles de pago'"
-        [enableRowClick]="false">
-
-        <ng-template #estadoTemplate let-row let-col="col">
-          <a *ngIf="isValidLink(row[col.name])" [href]="row[col.name]" target="_blank" class="link-style">
-            Ver link
-          </a>
-          <span *ngIf="!isValidLink(row[col.name])">
-            {{ row[col.name] || '-' }}
-          </span>
-        </ng-template>
-
-      </app-standard-filter-table>
-    </div>
-  </mat-card-content>
-</mat-card>
+        </app-standard-filter-table>
+      </div>
+    </mat-card-content>
+  </mat-card>

@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import {  Component, OnInit , ChangeDetectionStrategy } from '@angular/core';
 import { SharedModule } from '../../../../../../shared/shared.module';
 import * as XLSX from 'xlsx';
 import Swal from 'sweetalert2';
@@ -17,13 +17,14 @@ interface Traslado {
 }
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-terminated-transfers',
   imports: [
     SharedModule
   ],
   templateUrl: './terminated-transfers.component.html',
   styleUrl: './terminated-transfers.component.css'
-})
+} )
 export class TerminatedTransfersComponent implements OnInit {
   user: any;
   dataSourceTraslados = new MatTableDataSource<any>();

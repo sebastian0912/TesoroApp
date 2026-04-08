@@ -1,27 +1,128 @@
 <mat-card>
   <mat-card-content>
-    <form [formGroup]="myForm" (ngSubmit)="onSubmit()">
-      <h1 class="titulo">
-        Digite el número de identificación del empleado a validar:
-      </h1>
+    <div class="page-container">
+      <div class="page-header">
+        <div class="header-content">
+          <h1 class="page-title">Historial de Autorizaciones</h1>
+          <p class="page-subtitle">Consulte el registro de autorizaciones y ejecuciones por empleado</p>
+        </div>
+        <div class="header-icon">
+          <mat-icon>history_edu</mat-icon>
+        </div>
+      </div>
 
-      <ng-container>
-        <mat-form-field class="example-full-width">
-          <mat-label>Número de identificación</mat-label>
-          <input matInput formControlName="cedula" />
-          <mat-error *ngIf="myForm.get('cedula')?.hasError('required')">
-            El número de identificación es requerido
-          </mat-error>
-        </mat-form-field>
+      <form [formGroup]="myForm" (ngSubmit)="onSubmit()">
+        <mat-card class="premium-card search-card">
+          <mat-card-content>
+            <div class="search-row">
+              <mat-form-field appearance="outline" class="search-field">
+                <mat-label>Número de identificación</mat-label>
+                <mat-icon matPrefix>search</mat-icon>
+                <input matInput formControlName="numero_documento" placeholder="Ej: 1005851505"
+                  (keydown.enter)="onSubmit()" />
+                  @if (myForm.get('numero_documento')?.hasError('required')) {
+                    <mat-error>Requerido</mat-error>
+                  }
+                  @if (myForm.get('numero_documento')?.hasError('pattern')) {
+                    <mat-error>Formato inválido</mat-error>
+                  }
+                </mat-form-field>
+                <button mat-flat-button type="submit" class="search-btn">
+                  <mat-icon>search</mat-icon> Consultar
+                </button>
+              </div>
+            </mat-card-content>
+          </mat-card>
+        </form>
 
-        <button mat-flat-button type="submit">Buscar</button>
-      </ng-container>
-    </form>
-
-    <div class="tabla">
-      <app-standard-filter-table [data]="dataList" [columnDefinitions]="columns"
-        [tableTitle]="'Historial de Autorizaciones'" [enableRowClick]="false">
-      </app-standard-filter-table>
+        <!-- RESULTADOS -->
+        @if (dataList.length > 0) {
+          <div class="results-section">
+            <div class="results-header">
+              <div class="results-title">
+                <mat-icon>receipt_long</mat-icon>
+                <span>{{ dataList.length }} registro{{ dataList.length > 1 ? 's' : '' }} encontrado{{ dataList.length > 1 ? 's'
+                : '' }}</span>
+              </div>
+            </div>
+            <div class="history-grid">
+              @for (item of dataList; track item; let i = $index) {
+                <div class="card-wrapper" [style.animation-delay]="(i * 60) + 'ms'">
+                  <div class="history-card"
+                    [ngClass]="item.estado === 'EJECUTADA' ? 'ejecutada' : (item.estado === 'RECHAZADA' ? 'rechazada' : 'pendiente')">
+                    <!-- HEADER DE LA CARD -->
+                    <div class="card-top">
+                      <div class="card-code">
+                        <mat-icon class="code-icon">qr_code_2</mat-icon>
+                        <span>{{ item.codigo_autorizacion }}</span>
+                      </div>
+                      <div class="status-chip">
+                        <span class="status-dot"></span>
+                        {{ item.estado || 'PENDIENTE' }}
+                      </div>
+                    </div>
+                    <!-- SECCIÓN AUTORIZACIÓN -->
+                    <div class="section auth-section">
+                      <div class="section-label">
+                        <mat-icon>verified_user</mat-icon>
+                        <span>Autorización</span>
+                      </div>
+                      <div class="section-body">
+                        <div class="concept-tag">{{ item.autorizacion_concepto | uppercase }}</div>
+                        <div class="amount-row">
+                          <span class="amount">${{ item.autorizacion_monto }}</span>
+                          @if (item.autorizacion_cuotas > 1) {
+                            <span class="cuotas">{{ item.autorizacion_cuotas }} cuotas</span>
+                          }
+                        </div>
+                        <div class="meta-line">
+                          <span><mat-icon inline>person</mat-icon> {{ item.autorizado_por || 'N/A' }}</span>
+                          <span><mat-icon inline>location_on</mat-icon> {{ item.sede_autorizacion || '—' }}</span>
+                        </div>
+                        <div class="meta-line date-line">
+                          <span><mat-icon inline>event</mat-icon> {{ item.autorizado_en | date:'dd/MM/yyyy HH:mm' }}</span>
+                        </div>
+                      </div>
+                    </div>
+                    <!-- SECCIÓN EJECUCIÓN (solo si ejecutada) -->
+                    @if (item.estado === 'EJECUTADA') {
+                      <div class="section exec-section">
+                        <div class="section-label">
+                          <mat-icon>check_circle</mat-icon>
+                          <span>Ejecución</span>
+                        </div>
+                        <div class="section-body">
+                          @if (item.ejecucion_concepto) {
+                            <div class="concept-detail">
+                              {{ item.ejecucion_concepto }}
+                            </div>
+                          }
+                          <div class="amount-row">
+                            <span class="amount exec-amount">${{ item.ejecucion_monto }}</span>
+                          </div>
+                          <div class="meta-line">
+                            <span><mat-icon inline>person_check</mat-icon> {{ item.ejecutado_por || 'N/A' }}</span>
+                            <span><mat-icon inline>location_on</mat-icon> {{ item.sede_ejecucion || '—' }}</span>
+                          </div>
+                          <div class="meta-line date-line">
+                            <span><mat-icon inline>event_available</mat-icon> {{ item.ejecutado_en | date:'dd/MM/yyyy HH:mm'
+                          }}</span>
+                        </div>
+                        @if (item.codigo_ejecucion) {
+                          <div class="exec-code">
+                            <mat-icon inline>receipt</mat-icon> {{ item.codigo_ejecucion }}
+                          </div>
+                        }
+                      </div>
+                    </div>
+                  }
+                </div>
+              </div>
+            }
+          </div>
+        </div>
+      }
     </div>
   </mat-card-content>
 </mat-card>
+

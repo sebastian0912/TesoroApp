@@ -1,15 +1,25 @@
-<h2 mat-dialog-title class="titulo">
-  Seleccionar Usuario y Tipo Documental al que se le dará permisos
-</h2>
+<div class="modal-header-premium" style="margin: -24px -24px 24px -24px; padding: 24px;">
+  <div class="header-content">
+    <div class="header-icon-container">
+      <mat-icon class="header-icon">security</mat-icon>
+    </div>
+    <div class="header-text">
+      <h2 class="titulo" style="margin: 0 !important;">Nuevo Permiso</h2>
+      <p class="subtitulo" style="margin: 0 !important;">Asignación de lectura a tipos documentales específicos.</p>
+    </div>
+  </div>
+</div>
 <mat-dialog-content [formGroup]="form">
   <!-- Campo de usuario deshabilitado -->
   <mat-form-field class="example-full-width">
     <mat-label>Usuario Seleccionado</mat-label>
     <mat-select formControlName="usuario">
-      <mat-option *ngFor="let usuario of usuariosEmpresas" [value]="usuario">
-        {{ usuario.primer_nombre }} {{ usuario.primer_apellido }} -
-        {{ usuario.username }}
-      </mat-option>
+      @for (usuario of usuariosEmpresas; track usuario) {
+        <mat-option [value]="usuario">
+          {{ usuario.primer_nombre }} {{ usuario.primer_apellido }} -
+          {{ usuario.username }}
+        </mat-option>
+      }
     </mat-select>
   </mat-form-field>
 
@@ -17,9 +27,11 @@
   <mat-form-field class="example-full-width">
     <mat-label>Seleccione Tipo Documental</mat-label>
     <mat-select formControlName="tipoDocumental">
-      <mat-option *ngFor="let tipo of tiposDocumentos" [value]="tipo">
-        {{ tipo.name }}
-      </mat-option>
+      @for (tipo of tiposDocumentos; track tipo) {
+        <mat-option [value]="tipo">
+          {{ tipo.name }}
+        </mat-option>
+      }
     </mat-select>
   </mat-form-field>
 </mat-dialog-content>
@@ -28,9 +40,10 @@
   <button mat-button mat-dialog-close>Cerrar</button>
   <button
     mat-flat-button
+    class="btn-managerial"
     [mat-dialog-close]="getFormValue()"
     [disabled]="form.invalid"
-  >
+    >
     Confirmar
   </button>
 </mat-dialog-actions>

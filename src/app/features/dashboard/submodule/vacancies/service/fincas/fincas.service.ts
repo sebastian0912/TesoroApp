@@ -25,32 +25,21 @@ export class FincasService {
     private http: HttpClient
   ) { }
 
-  /** Listado único de fincas (opcionalmente filtrado por `search`). */
-  listFincas(search?: string, useCache = true): Observable<FincaItem[]> {
-    const q = (search || '').trim();
-
+  /** Solo nombres de finca (útil para autocompletar). */
+  listFincas(search?: string): Observable<FincaItem[]> {
     let params = new HttpParams();
-    if (q) params = params.set('search', q);
-
+    if (search) {
+      params = params.set('search', search);
+    }
     return this.http.get<FincaItem[]>(this.base, { params }).pipe(
-      map(arr => Array.isArray(arr) ? arr : []),
-      tap(arr => {
-        if (!q) {
-          this.memCache = arr;
-          this.setToLS(arr);
-        }
-      }),
-      catchError(err => {
-        return throwError(() => err);
-      })
+      catchError(err => throwError(() => err))
     );
   }
 
-  /** Solo nombres de finca (útil para autocompletar). */
   listNombreFincas(search?: string): Observable<string[]> {
     return this.listFincas(search).pipe(
-      map(items =>
-        Array.from(new Set(items.map(i => (i.finca || '').trim().toString()))).filter(Boolean)
+      map((items: FincaItem[]) =>
+        Array.from(new Set(items.map((i: FincaItem) => (i.finca || '').trim().toString()))).filter(Boolean)
       )
     );
   }
@@ -60,7 +49,7 @@ export class FincasService {
     const q = (nombre || '').trim();
     if (!q) return of(undefined);
     return this.listFincas(q).pipe(
-      map(items => items.find(i => (i.finca || '').toLowerCase() === q.toLowerCase()))
+      map((items: FincaItem[]) => items.find((i: FincaItem) => (i.finca || '').toLowerCase() === q.toLowerCase()))
     );
   }
 

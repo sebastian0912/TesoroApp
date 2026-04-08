@@ -1,5 +1,5 @@
-import { Component, Inject } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import {  Component, Inject , ChangeDetectionStrategy } from '@angular/core';
+
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -57,14 +57,13 @@ export interface DynamicDialogData {
 }
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-dynamic-form-dialog',
   standalone: true,
   templateUrl: './dynamic-form-dialog.component.html',
   styleUrl: './dynamic-form-dialog.component.css',
   imports: [
-    CommonModule,
     ReactiveFormsModule,
-    // Material
     MatDialogModule,
     MatFormFieldModule,
     MatInputModule,
@@ -73,9 +72,9 @@ export interface DynamicDialogData {
     MatButtonModule,
     MatIconModule,
     MatDatepickerModule,
-    MatNativeDateModule,
-  ]
-})
+    MatNativeDateModule
+]
+} )
 export class DynamicFormDialogComponent {
   form!: FormGroup;
 

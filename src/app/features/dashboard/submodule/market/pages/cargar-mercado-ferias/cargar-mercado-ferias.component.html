@@ -1,178 +1,267 @@
-<mat-card>
-  <mat-card-content>
-    <form [formGroup]="myForm" (ngSubmit)="onSubmit()">
-      <h1 class="titulo">
-        Digite el número de identificación del empleado a validar:
-      </h1>
-
-      <ng-container *ngIf="!datosOperario">
-        <mat-form-field class="example-full-width">
-          <mat-label>Número de identificación</mat-label>
-          <input matInput formControlName="cedula" />
-          <mat-error *ngIf="myForm.get('cedula')?.hasError('required')">
-            El número de identificación es requerido
-          </mat-error>
-        </mat-form-field>
-
-        <button mat-flat-button type="button" (click)="buscarOperario()">
-          Buscar
-        </button>
-      </ng-container>
-
-      <ng-container *ngIf="datosOperario">
-        <mat-form-field class="example-full-width">
-          <mat-label>Valor</mat-label>
-          <input matInput formControlName="valor" (input)="formatCurrency($event)" />
-          <mat-error *ngIf="myForm.get('valor')?.hasError('required')">
-            El valor es requerido
-          </mat-error>
-        </mat-form-field>
-
-
-        <mat-form-field class="example-full-width">
-          <mat-label>Número de cuotas</mat-label>
-          <input matInput formControlName="cuotas" type="number" />
-          <mat-error *ngIf="myForm.get('cuotas')?.hasError('max')">
-            El número de cuotas no puede ser mayor a 2
-          </mat-error>
-          <mat-error *ngIf="myForm.get('cuotas')?.hasError('min')">
-            El número de cuotas no puede ser menor a 1
-          </mat-error>
-        </mat-form-field>
-
-        <mat-form-field class="example-full-width">
-          <mat-label>Seleccione un concepto</mat-label>
-          <mat-select formControlName="concepto">
-            <mat-option *ngFor="let dato of datos2" [value]="dato">{{
-              dato
-              }}</mat-option>
-          </mat-select>
-          <mat-error *ngIf="myForm.get('concepto')?.hasError('required')">
-            Seleccione un concepto
-          </mat-error>
-        </mat-form-field>
-
-
-        <button mat-flat-button type="submit" class="boton" [disabled]="myForm.invalid"
-          style="margin-top: 2pt; margin-bottom: 15pt;">
-          Cargar
-        </button>
-
-        <h1 class="nombre">
-          <strong>Nombre Operario:  </strong>{{ nombreOperario }}
-        </h1>
-        <h1 class="nombre">
-          <strong>Fecha ingreso: </strong>{{ fechaIngreso }}
-        </h1>
-      </ng-container>
-    </form>
-
-    <div class="tabla" *ngIf="myForm.get('concepto')?.value === 'Mercado'" style="margin-top: 10pt;">
-      <h1 class="title">Tabla de Inventario de Productos Comercializados</h1>
-      <mat-form-field class="filtro">
-        <mat-label>Filter</mat-label>
-        <input matInput (keyup)="applyFilterInventario($event)" placeholder="Filter" #inputInventario />
-      </mat-form-field>
-      <div class="table-container">
-        <table mat-table [dataSource]="dataSourceInventario" class="mat-elevation-z8">
-
-          <!-- Checkbox -->
-          <ng-container matColumnDef="select">
-            <th mat-header-cell *matHeaderCellDef>Seleccionar</th>
-            <td mat-cell *matCellDef="let element">
-              <mat-checkbox (change)="onProductSelectionChange(element, $event)"></mat-checkbox>
-            </td>
-          </ng-container>
-
-          <ng-container matColumnDef="cantidadSeleccionada">
-            <th mat-header-cell *matHeaderCellDef>Cantidad</th>
-            <td mat-cell *matCellDef="let element">
-              <div class="cantidad-container">
-                <button mat-icon-button color="primary" type="button" (click)="decrementarCantidad(element)"
-                  [disabled]="!element.seleccionado || element.cantidadSeleccionada <= 1">
-                  <mat-icon>remove</mat-icon>
-                </button>
-
-                <span class="cantidad">{{ element.cantidadSeleccionada || 0 }}</span>
-
-                <button mat-icon-button color="primary" type="button" (click)="incrementarCantidad(element)"
-                  [disabled]="!element.seleccionado">
-                  <mat-icon>add</mat-icon>
-                </button>
-              </div>
-            </td>
-          </ng-container>
-
-
-
-          <ng-container matColumnDef="concepto">
-            <th mat-header-cell *matHeaderCellDef>Concepto</th>
-            <td mat-cell *matCellDef="let element">{{ element.concepto }}</td>
-          </ng-container>
-
-          <ng-container matColumnDef="cantidadEnvio">
-            <th mat-header-cell *matHeaderCellDef>Cantidad Enviada</th>
-            <td mat-cell *matCellDef="let element">
-              {{ element.cantidadEnvio }}
-            </td>
-          </ng-container>
-          <ng-container matColumnDef="cantidadRecibida">
-            <th mat-header-cell *matHeaderCellDef>Cantidad Recibida</th>
-            <td mat-cell *matCellDef="let element">
-              {{ element.cantidadRecibida }}
-            </td>
-          </ng-container>
-          <ng-container matColumnDef="valorUnidad">
-            <th mat-header-cell *matHeaderCellDef>Valor Unidad</th>
-            <td mat-cell *matCellDef="let element">
-              {{ element.valorUnidad | currency}}
-            </td>
-          </ng-container>
-          <ng-container matColumnDef="cantidadTotalVendida">
-            <th mat-header-cell *matHeaderCellDef>Cantidad Vendida</th>
-            <td mat-cell *matCellDef="let element">
-              {{ element.cantidadTotalVendida }}
-            </td>
-          </ng-container>
-          <ng-container matColumnDef="PersonaEnvia">
-            <th mat-header-cell *matHeaderCellDef>Persona quien lo envió</th>
-            <td mat-cell *matCellDef="let element">
-              {{ element.PersonaEnvia }}
-            </td>
-          </ng-container>
-          <ng-container matColumnDef="PersonaRecibe">
-            <th mat-header-cell *matHeaderCellDef>Persona quien recibe</th>
-            <td mat-cell *matCellDef="let element">
-              {{ element.PersonaRecibe }}
-            </td>
-          </ng-container>
-          <ng-container matColumnDef="fechaEnviada">
-            <th mat-header-cell *matHeaderCellDef>Fecha de envío</th>
-            <td mat-cell *matCellDef="let element">
-              {{ element.fechaEnviada }}
-            </td>
-          </ng-container>
-          <ng-container matColumnDef="fechaRecibida">
-            <th mat-header-cell *matHeaderCellDef>Fecha de recibido</th>
-            <td mat-cell *matCellDef="let element">
-              {{ element.fechaRecibida || "" }}
-            </td>
-          </ng-container>
-          <ng-container matColumnDef="comentariosEnvio">
-            <th mat-header-cell *matHeaderCellDef>Comentario</th>
-            <td mat-cell *matCellDef="let element">
-              {{ element.comentariosEnvio }}
-            </td>
-          </ng-container>
-          <tr mat-header-row *matHeaderRowDef="displayedColumnsInventario"></tr>
-          <tr mat-row *matRowDef="let row; columns: displayedColumnsInventario"></tr>
-          <tr class="mat-row" *matNoDataRow>
-            <td class="mat-cell" colspan="12">
-              No hay datos "{{ inputInventario.value }}"
-            </td>
-          </tr>
-        </table>
-      </div>
+<div class="page-container">
+  <div class="page-header">
+    <div class="header-content">
+      <h1 class="page-title">Mercado Ferias</h1>
+      <p class="page-subtitle">Registre compras de tienda de ferias para el empleado</p>
     </div>
-  </mat-card-content>
-</mat-card>
+    <div class="header-icon">
+      <mat-icon>storefront</mat-icon>
+    </div>
+  </div>
+
+  <!-- BUSCAR EMPLEADO -->
+  @if (!datosOperario) {
+    <mat-card class="premium-card">
+      <mat-card-header>
+        <div mat-card-avatar class="card-avatar">
+          <mat-icon>badge</mat-icon>
+        </div>
+        <mat-card-title>Búsqueda de Empleado</mat-card-title>
+        <mat-card-subtitle>Ingrese el documento de identidad del solicitante</mat-card-subtitle>
+      </mat-card-header>
+      <mat-card-content>
+        <form [formGroup]="myForm">
+          <mat-form-field appearance="outline" class="full-width mt-3">
+            <mat-label>Número de Identificación</mat-label>
+            <mat-icon matPrefix>badge</mat-icon>
+            <input matInput formControlName="cedula" placeholder="Ej: 1005851505" />
+            @if (myForm.get('cedula')?.hasError('required')) {
+              <mat-error>El documento es obligatorio</mat-error>
+            }
+          </mat-form-field>
+        </form>
+      </mat-card-content>
+      <mat-card-actions align="end" style="padding: 0 16px 16px;">
+        <button mat-flat-button class="btn-large" (click)="buscarOperario()" style="background: #ea580c; color: white;">
+          <mat-icon>search</mat-icon> BUSCAR EMPLEADO
+        </button>
+      </mat-card-actions>
+    </mat-card>
+  }
+
+  <!-- CONTENIDO PRINCIPAL -->
+  @if (datosOperario) {
+    <div class="two-column-layout">
+      <!-- INFO EMPLEADO -->
+      <mat-card class="premium-card employee-card">
+        <mat-card-header>
+          <div mat-card-avatar class="card-avatar">
+            <mat-icon>person</mat-icon>
+          </div>
+          <mat-card-title>{{ nombreOperario }}</mat-card-title>
+          <mat-card-subtitle>Doc: {{ myForm.get('cedula')?.value }}</mat-card-subtitle>
+        </mat-card-header>
+        <mat-card-content>
+          <div class="employee-info-list">
+            <div class="info-row">
+              <div class="info-row-icon success">
+                <mat-icon>event_available</mat-icon>
+              </div>
+              <div>
+                <span class="info-row-label">Ingreso</span>
+                <span class="info-row-value">{{ fechaIngreso || 'N/A' }}</span>
+              </div>
+            </div>
+            <div class="info-row">
+              <div class="info-row-icon warning">
+                <mat-icon>credit_score</mat-icon>
+              </div>
+              <div>
+                <span class="info-row-label">Cupo Disponible Mercado</span>
+                <span class="info-row-value" style="color: #d97706; font-size: 18px;">$ {{ limiteDisponible |
+                number:'1.0-0' }}</span>
+              </div>
+            </div>
+          </div>
+          <!-- RESUMEN DE SELECCIÓN (solo si concepto = Mercado y hay productos) -->
+          @if (myForm.get('concepto')?.value === 'Mercado' && selectedProducts.length > 0) {
+            <div class="selection-summary"
+              >
+              <div class="summary-header">
+                <mat-icon>shopping_cart</mat-icon>
+                <span>Productos seleccionados ({{ selectedProducts.length }})</span>
+              </div>
+              <div class="summary-items">
+                @for (p of selectedProducts; track p) {
+                  <div class="summary-item">
+                    <span class="summary-item-name">{{ p.concepto }}</span>
+                    <span class="summary-item-qty">x{{ p.cantidadSeleccionada }}</span>
+                    <span class="summary-item-price">{{ (p.valorUnidad * p.cantidadSeleccionada) |
+                    currency:'COP':'symbol-narrow':'1.0-0' }}</span>
+                  </div>
+                }
+              </div>
+              <div class="summary-total">
+                <span>Total:</span>
+                <strong>{{ totalProductos | currency:'COP':'symbol-narrow':'1.0-0' }}</strong>
+              </div>
+            </div>
+          }
+          <!-- WARNING: valor excede cupo -->
+          @if (valorNumericoActual > 0 && valorNumericoActual > limiteDisponible) {
+            <div class="cupo-warning">
+              <mat-icon>warning</mat-icon>
+              <span>⚠️ El valor <strong>$ {{ valorNumericoActual | number:'1.0-0' }}</strong> excede el cupo disponible de
+              <strong>$ {{ limiteDisponible | number:'1.0-0' }}</strong></span>
+            </div>
+          }
+        </mat-card-content>
+        <mat-card-actions style="padding: 8px 16px 16px; display: flex; gap: 8px; flex-wrap: wrap;">
+          <button mat-stroked-button color="primary" type="button" (click)="abrirHistorial()"
+            style="border-radius: 8px; flex: 1;">
+            <mat-icon>history</mat-icon> Historial
+          </button>
+          <button mat-button (click)="cancelar()" style="flex: 1;">
+            <mat-icon>arrow_back</mat-icon> Cambiar
+          </button>
+        </mat-card-actions>
+      </mat-card>
+      <!-- FORMULARIO DE CARGA -->
+      <mat-card class="premium-card">
+        <mat-card-header>
+          <div mat-card-avatar class="card-avatar" style="background-color: #fff7ed; color: #ea580c;">
+            <mat-icon>receipt_long</mat-icon>
+          </div>
+          <mat-card-title>Datos de la Compra</mat-card-title>
+          <mat-card-subtitle>Seleccione concepto primero, luego valor y cuotas</mat-card-subtitle>
+        </mat-card-header>
+        <mat-card-content>
+          <form [formGroup]="myForm">
+            <!-- CONCEPTO PRIMERO para que la tabla aparezca antes de escribir -->
+            <mat-form-field appearance="outline" class="full-width" style="margin-top: 16px;">
+              <mat-label>Concepto</mat-label>
+              <mat-icon matPrefix>category</mat-icon>
+              <mat-select formControlName="concepto">
+                @for (dato of datos2; track dato) {
+                  <mat-option [value]="dato">{{ dato }}</mat-option>
+                }
+              </mat-select>
+              @if (myForm.get('concepto')?.hasError('required')) {
+                <mat-error>Seleccione un concepto</mat-error>
+              }
+            </mat-form-field>
+            <!-- Aviso si es Mercado y no hay productos seleccionados -->
+            @if (myForm.get('concepto')?.value === 'Mercado' && selectedProducts.length === 0) {
+              <div class="info-banner"
+                >
+                <mat-icon>info</mat-icon>
+                <span>Seleccione al menos un producto de la tabla de inventario de abajo</span>
+              </div>
+            }
+            <div class="form-grid">
+              <mat-form-field appearance="outline" class="full-width">
+                <mat-label>Valor</mat-label>
+                <span matTextPrefix>$&nbsp;</span>
+                <input matInput formControlName="valor" (input)="formatCurrency($event)" placeholder="Ej: 50.000"
+                  [readonly]="myForm.get('concepto')?.value === 'Mercado'" />
+                  @if (myForm.get('concepto')?.value === 'Mercado') {
+                    <mat-hint>Se calcula automáticamente</mat-hint>
+                  }
+                  @if (myForm.get('valor')?.hasError('required')) {
+                    <mat-error>El valor es requerido</mat-error>
+                  }
+                </mat-form-field>
+                <mat-form-field appearance="outline" class="full-width">
+                  <mat-label>Cuotas</mat-label>
+                  <mat-icon matPrefix>calendar_month</mat-icon>
+                  <input matInput formControlName="cuotas" type="number" min="1" max="2" />
+                  <mat-hint>Máximo 2 cuotas</mat-hint>
+                  @if (myForm.get('cuotas')?.hasError('max')) {
+                    <mat-error>Máximo 2 cuotas</mat-error>
+                  }
+                  @if (myForm.get('cuotas')?.hasError('min')) {
+                    <mat-error>Mínimo 1 cuota</mat-error>
+                  }
+                  @if (myForm.get('cuotas')?.hasError('required')) {
+                    <mat-error>Las cuotas son requeridas</mat-error>
+                  }
+                </mat-form-field>
+              </div>
+            </form>
+          </mat-card-content>
+          <mat-card-actions align="end" style="padding: 16px;">
+            <button mat-flat-button class="btn-large" (click)="confirmarYEnviar()" [disabled]="!puedeEnviar()"
+              style="background: #ea580c; color: white;">
+              <mat-icon>check_circle</mat-icon> CARGAR MERCADO
+            </button>
+          </mat-card-actions>
+        </mat-card>
+      </div>
+      <!-- TABLA DE INVENTARIO (solo cuando concepto es Mercado) -->
+      @if (myForm.get('concepto')?.value === 'Mercado') {
+        <mat-card class="premium-card" style="margin-top: 0;">
+          <mat-card-header>
+            <div mat-card-avatar class="card-avatar" style="background-color: #fef3c7; color: #d97706;">
+              <mat-icon>inventory_2</mat-icon>
+            </div>
+            <mat-card-title>Inventario de Productos</mat-card-title>
+            <mat-card-subtitle>Seleccione y ajuste cantidades — disponible = Recibida - Vendida</mat-card-subtitle>
+          </mat-card-header>
+          <mat-card-content>
+            <mat-form-field appearance="outline" class="full-width" style="margin-top: 12px;">
+              <mat-label>Filtrar productos</mat-label>
+              <mat-icon matPrefix>search</mat-icon>
+              <input matInput (keyup)="applyFilterInventario($event)" placeholder="Buscar..." #inputInventario />
+            </mat-form-field>
+            <div class="table-container">
+              <table mat-table [dataSource]="dataSourceInventario" class="mat-elevation-z8">
+                <ng-container matColumnDef="select">
+                  <th mat-header-cell *matHeaderCellDef>Sel.</th>
+                  <td mat-cell *matCellDef="let element">
+                    <mat-checkbox (change)="onProductSelectionChange(element, $event)"
+                    [checked]="element.seleccionado"></mat-checkbox>
+                  </td>
+                </ng-container>
+                <ng-container matColumnDef="cantidadSeleccionada">
+                  <th mat-header-cell *matHeaderCellDef>Cant.</th>
+                  <td mat-cell *matCellDef="let element">
+                    <div class="cantidad-container">
+                      <button mat-icon-button color="primary" type="button" (click)="decrementarCantidad(element)"
+                        [disabled]="!element.seleccionado || element.cantidadSeleccionada <= 1">
+                        <mat-icon>remove</mat-icon>
+                      </button>
+                      <span class="cantidad">{{ element.cantidadSeleccionada || 0 }}</span>
+                      <button mat-icon-button color="primary" type="button" (click)="incrementarCantidad(element)"
+                        [disabled]="!element.seleccionado || element.cantidadSeleccionada >= element.disponible">
+                        <mat-icon>add</mat-icon>
+                      </button>
+                    </div>
+                  </td>
+                </ng-container>
+                <ng-container matColumnDef="concepto">
+                  <th mat-header-cell *matHeaderCellDef>Concepto</th>
+                  <td mat-cell *matCellDef="let element">{{ element.concepto }}</td>
+                </ng-container>
+                <ng-container matColumnDef="disponible">
+                  <th mat-header-cell *matHeaderCellDef>Disponible</th>
+                  <td mat-cell *matCellDef="let element">
+                    <span class="badge-disponible">{{ element.disponible }}</span>
+                  </td>
+                </ng-container>
+                <ng-container matColumnDef="valorUnidad">
+                  <th mat-header-cell *matHeaderCellDef>Valor Und.</th>
+                  <td mat-cell *matCellDef="let element">{{ element.valorUnidad | currency:'COP':'symbol-narrow':'1.0-0' }}
+                  </td>
+                </ng-container>
+                <ng-container matColumnDef="PersonaEnvia">
+                  <th mat-header-cell *matHeaderCellDef>Envía</th>
+                  <td mat-cell *matCellDef="let element">{{ element.PersonaEnvia }}</td>
+                </ng-container>
+                <ng-container matColumnDef="fechaRecibida">
+                  <th mat-header-cell *matHeaderCellDef>F. Recibido</th>
+                  <td mat-cell *matCellDef="let element">{{ (element.fechaRecibida | date:'dd-MM-yyyy HH:mm') || '' }}</td>
+                </ng-container>
+                <tr mat-header-row *matHeaderRowDef="displayedColumnsInventarioSimple"></tr>
+                <tr mat-row *matRowDef="let row; columns: displayedColumnsInventarioSimple"
+                  [class.row-selected]="row.seleccionado">
+                </tr>
+                <tr class="mat-row" *matNoDataRow>
+                  <td class="mat-cell" colspan="12">No hay datos "{{ inputInventario.value }}"</td>
+                </tr>
+              </table>
+            </div>
+          </mat-card-content>
+        </mat-card>
+      }
+    }
+  </div>

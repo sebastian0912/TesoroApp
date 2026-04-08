@@ -1,4 +1,4 @@
-import { Injectable } from '@angular/core';
+import { inject, Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from '@/environments/environment';
@@ -24,7 +24,8 @@ export interface ImportResult {
 export class TarjetasService {
     private apiUrl = `${environment.apiUrl}/tarjetas`;
 
-    constructor(private http: HttpClient) { }
+    private http = inject(HttpClient);
+  constructor() {}
 
     list(params: any = {}): Observable<any> {
         return this.http.get<any>(`${this.apiUrl}/`, { params });

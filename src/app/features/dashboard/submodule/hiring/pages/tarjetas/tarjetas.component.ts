@@ -1,5 +1,5 @@
-import { Component, ViewChild, AfterViewInit } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import {  Component, ViewChild, AfterViewInit , ChangeDetectionStrategy } from '@angular/core';
+
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
@@ -16,10 +16,10 @@ import { TarjetasService, Tarjeta, ImportResult } from '../../service/tarjetas.s
 import Swal from 'sweetalert2';
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-tarjetas',
   standalone: true,
   imports: [
-    CommonModule,
     MatButtonModule,
     MatCardModule,
     MatIconModule,
@@ -29,10 +29,10 @@ import Swal from 'sweetalert2';
     MatTooltipModule,
     MatChipsModule,
     StandardFilterTable
-  ],
+],
   templateUrl: './tarjetas.component.html',
   styleUrls: ['./tarjetas.component.css']
-})
+} )
 export class TarjetasComponent implements AfterViewInit {
   @ViewChild(StandardFilterTable) table!: StandardFilterTable;
 

@@ -4,69 +4,59 @@ import { firstValueFrom, Observable, throwError } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 import { environment } from '@/environments/environment';
 
-export interface SaldosMasivoRow {
-  cedula: string;
-  saldos?: string | null;
-  fondos?: string | null;
+export interface PersonaTesoreriaPage {
+  count: number;
+  next: string | null;
+  previous: string | null;
+  results: PersonaTesoreriaItem[];
 }
 
-export interface SaldosMasivoResponse {
-  message: 'success' | 'error';
-  total_recibidos: number;
-  actualizados: number;
-  sin_cambios: number;
-  no_encontrados: string[];
-  errores: number;
-  detalles: Array<{ documento: string; ok: boolean; cambios?: any; error?: string }>;
-}
-
-export interface DatosbasePage<T = any> {
-  total_general: number;
-  total_activos: number;
-  limit: number;
-  offset: number;
-  datosbase: T[];
-}
-
-export interface DatosbaseItem {
-  numero_de_documento: string;
-
+export interface PersonaTesoreriaItem {
+  numero_documento: string;
   codigo?: string | null;
   nombre?: string | null;
   ingreso?: string | null;
   temporal?: string | null;
   finca?: string | null;
-  salario?: string | null;
-  saldos?: string | null;
-  fondos?: string | null;
-  mercados?: string | null;
-  cuotasMercados?: string | null;
-  prestamoParaDescontar?: string | null;
-  cuotasPrestamosParaDescontar?: string | null;
-  casino?: string | null;
-  valoranchetas?: string | null;
-  cuotasAnchetas?: string | null;
-  fondo?: string | null;
-  carnet?: string | null;
-  seguroFunerario?: string | null;
-  prestamoParaHacer?: string | null;
-  cuotasPrestamoParahacer?: string | null;
-  anticipoLiquidacion?: string | null;
-  cuentas?: string | null;
+
+  salario?: number | string | null;
+  saldos?: number | string | null;
+  fondos?: number | string | null;
+  mercados?: number | string | null;
+  cuotas_mercados?: number | string | null;
+  prestamo_para_descontar?: number | string | null;
+  cuotas_prestamos_para_descontar?: number | string | null;
+  casino?: number | string | null;
+  valor_anchetas?: number | string | null;
+  cuotas_anchetas?: number | string | null;
+  fondo?: number | string | null;
+  carnet?: number | string | null;
+  seguro_funerario?: number | string | null;
+  prestamo_para_hacer?: number | string | null;
+  cuotas_prestamo_para_hacer?: number | string | null;
+  anticipo_liquidacion?: number | string | null;
+  cuentas?: number | string | null;
 
   bloqueado?: boolean;
-  fechaBloqueo?: string | null;
+  fecha_bloqueo?: string | null;
   observacion_bloqueo?: string | null;
   observacion_desbloqueo?: string | null;
-  fechaDesbloqueo?: string | null;
+  fecha_desbloqueo?: string | null;
 
   activo?: boolean;
-  saldoPendiente?: string | null;
+  saldo_pendiente?: number | string | null;
+  created_at?: string;
+  updated_at?: string;
 }
 
-export interface DatosbaseSingleResponse<T = DatosbaseItem> {
-  datosbase: T[]; // backend devuelve [row]
-  message?: string;
+export interface ExcelImportResponse {
+  total_rows: number;
+  processed: number;
+  created: number;
+  updated: number;
+  skipped: number;
+  errors_count: number;
+  errors_sample: { row: number, error: string }[];
 }
 
 @Injectable({ providedIn: 'root' })
@@ -82,32 +72,67 @@ export class TesoreriaService {
     return throwError(() => error);
   }
 
-  // Añadir empleados
-  async añadirEmpleado(datos: any): Promise<any> {
-    const urlcompleta = `${this.apiUrl}/Datosbase/datosbase`;
-    const requestBody = { datos, mensaje: 'muchos' };
+  // --- Mass Excel Imports ---
 
-    return firstValueFrom(
-      this.http.post<any>(urlcompleta, requestBody).pipe(
+  async importarPersonasExcel(file: File): Promise<ExcelImportResponse> {
+    const url = `${this.apiUrl}/gestion_tesoreria/personas/import-excel/`;
+    const formData = new FormData();
+    formData.append('file', file);
+    return firstValueFrom(this.http.post<ExcelImportResponse>(url, formData).pipe(catchError(this.handleError)));
+  }
+
+  async importarSaldosFondosExcel(file: File): Promise<ExcelImportResponse> {
+    const url = `${this.apiUrl}/gestion_tesoreria/personas/saldos/import-excel/`;
+    const formData = new FormData();
+    formData.append('file', file);
+    return firstValueFrom(this.http.post<ExcelImportResponse>(url, formData).pipe(catchError(this.handleError)));
+  }
+
+  async importarEstadosExcel(file: File): Promise<ExcelImportResponse> {
+    const url = `${this.apiUrl}/gestion_tesoreria/personas/estados/import-excel/`;
+    const formData = new FormData();
+    formData.append('file', file);
+    return firstValueFrom(this.http.post<ExcelImportResponse>(url, formData).pipe(catchError(this.handleError)));
+  }
+
+  // --- CRUD PersonaTesoreria ---
+
+  async traerDatosbaseGeneral(limit = 500, offset = 0, search: string = ''): Promise<PersonaTesoreriaPage> {
+    const page = Math.floor(offset / limit) + 1;
+    let params = new HttpParams()
+      .set('limit', String(limit))
+      .set('page', String(page));
+
+    if (search && search.trim() !== '') {
+      params = params.set('search', search.trim());
+    }
+
+    const response = await firstValueFrom(
+      this.http.get<PersonaTesoreriaPage>(`${this.apiUrl}/gestion_tesoreria/personas/`, { params }).pipe(
         catchError(this.handleError)
       )
     );
+
+    return response;
   }
 
-  // Eliminar empleados
-  async eliminarEmpleados(cedulaEmpleado: string): Promise<any> {
-    const urlcompleta = `${this.apiUrl}/Datosbase/eliminardatos/${encodeURIComponent(cedulaEmpleado)}`;
-    return firstValueFrom(
-      this.http.delete<any>(urlcompleta).pipe(
-        catchError(this.handleError)
-      )
-    );
+  async traerDatosbasePorDocumento(doc: string): Promise<PersonaTesoreriaItem | null> {
+    const url = `${this.apiUrl}/gestion_tesoreria/personas/${encodeURIComponent(doc)}/`;
+    try {
+      const response = await firstValueFrom(
+        this.http.get<PersonaTesoreriaItem>(url).pipe(
+          catchError(this.handleError)
+        )
+      );
+      return response;
+    } catch (e: any) {
+      if (e.status === 404) return null;
+      throw e;
+    }
   }
 
-  async actualizarDatosbaseCompleto(id: string, payload: DatosbaseItem): Promise<any> {
-    const url = `${this.apiUrl}/Datosbase/datosbase/${encodeURIComponent(id)}`;
-
-    // OJO: tu backend espera TODAS las llaves en el PUT (por cómo usas jd['campo'])
+  async actualizarDatosbaseCompleto(numero_documento: string, payload: PersonaTesoreriaItem): Promise<any> {
+    const url = `${this.apiUrl}/gestion_tesoreria/personas/${encodeURIComponent(numero_documento)}/`;
     return firstValueFrom(
       this.http.put<any>(url, payload).pipe(
         catchError(this.handleError)
@@ -115,19 +140,18 @@ export class TesoreriaService {
     );
   }
 
-
   async actualizarEstado(
-    numero_de_documento: string,
+    numero_documento: string,
     cambios: {
       bloqueado?: boolean;
       activo?: boolean;
-      fechaBloqueo?: string | null;
-      fechaDesbloqueo?: string | null;
+      fecha_bloqueo?: string | null;
+      fecha_desbloqueo?: string | null;
       observacion_bloqueo?: string;
       observacion_desbloqueo?: string;
     }
   ): Promise<any> {
-    const url = `${this.apiUrl}/Datosbase/actualizar-estados/${encodeURIComponent(numero_de_documento)}/`;
+    const url = `${this.apiUrl}/gestion_tesoreria/personas/${encodeURIComponent(numero_documento)}/`;
     return firstValueFrom(
       this.http.patch<any>(url, cambios).pipe(
         catchError(this.handleError)
@@ -135,158 +159,13 @@ export class TesoreriaService {
     );
   }
 
-  // Masivo estados
-  async actualizarEstadosMasivo(payload: {
-    documentos: string[];
-    activo?: boolean;
-    bloqueado?: boolean;
-    fechaBloqueo?: string;
-    observacion_bloqueo?: string;
-    observacion_desbloqueo?: string;
-  }): Promise<{
-    total_recibidos: number;
-    actualizados: number;
-    ya_en_estado: number;
-    no_encontrados: string[];
-    errores: number;
-    detalles: Array<{ documento: string; ok: boolean; cambios?: any; error?: string }>;
-  }> {
-    const url = `${this.apiUrl}/Datosbase/actualizar-estados/masivo/`;
-    return firstValueFrom(
-      this.http.post<any>(url, payload).pipe(
-        catchError(this.handleError)
-      )
-    );
-  }
+  // --- Old endpoints kept for compatibility or not yet refactored ---
 
-  // Actualizar empleado (saldos)
-  async actualizarEmpleado(cedulaEmpleado: string, saldos: string): Promise<any> {
-    const urlcompleta = `${this.apiUrl}/Datosbase/actualizarSaldos/${encodeURIComponent(cedulaEmpleado)}`;
-    const requestBody = { saldos };
-
-    return firstValueFrom(
-      this.http.post<any>(urlcompleta, requestBody).pipe(
-        catchError(this.handleError)
-      )
-    );
-  }
-
-  // Masivo saldos
-  async actualizarSaldosMasivo(rows: SaldosMasivoRow[]): Promise<SaldosMasivoResponse> {
-    const url = `${this.apiUrl}/Datosbase/actualizar-saldos/`;
-    const body = { rows };
-
-    return firstValueFrom(
-      this.http.post<SaldosMasivoResponse>(url, body).pipe(
-        catchError(this.handleError)
-      )
-    );
-  }
-
-  // Actualizar saldo pendiente
-  async actualizarSaldoPendienteEmpleado(cedulaEmpleado: string, saldoPendiente: string): Promise<any> {
-    const urlcompleta = `${this.apiUrl}/Datosbase/actualizar-saldo-pendiente/${encodeURIComponent(cedulaEmpleado)}/`;
-    const requestBody = { saldoPendiente };
-
-    return firstValueFrom(
-      this.http.post<any>(urlcompleta, requestBody).pipe(
-        catchError(this.handleError)
-      )
-    );
-  }
-
-  // Reset valores
   async resetearValoresQuincena(): Promise<any> {
-    const urlcompleta = `${this.apiUrl}/Datosbase/reiniciarValores`;
+    // Si tienes un endpoint para esto, sino dejar el original
+    const urlcompleta = `${this.apiUrl}/gestion_tesoreria/personas/reset-quincena/`;
     return firstValueFrom(
       this.http.post<any>(urlcompleta, {}).pipe(
-        catchError(this.handleError)
-      )
-    );
-  }
-
-  // Filtrar en memoria (si ya tienes la base cargada)
-  async traerDatosBase(base: any[], ceduladelapersona: string): Promise<any[]> {
-    return base.filter((item: any) => item.numero_de_documento === ceduladelapersona);
-  }
-
-  // Traer paginado
-  async traerDatosbaseGeneral(limit = 500, offset = 0): Promise<DatosbasePage<DatosbaseItem>> {
-    const params = new HttpParams()
-      .set('limit', String(limit))
-      .set('offset', String(offset));
-
-    const response = await firstValueFrom(
-      this.http.get<DatosbasePage<DatosbaseItem>>(`${this.apiUrl}/Datosbase/tesoreria`, { params }).pipe(
-        catchError(this.handleError)
-      )
-    );
-
-    return {
-      total_general: response.total_general ?? 0,
-      total_activos: response.total_activos ?? 0,
-      limit: response.limit ?? limit,
-      offset: response.offset ?? offset,
-      datosbase: response.datosbase ?? []
-    };
-  }
-
-  // Traer uno solo (por documento) - requiere ruta /tesoreria/<id>
-  async traerDatosbasePorDocumento(doc: string): Promise<DatosbaseItem | null> {
-    const url = `${this.apiUrl}/Datosbase/tesoreria/${encodeURIComponent(doc)}`;
-
-    const response = await firstValueFrom(
-      this.http.get<DatosbaseSingleResponse<DatosbaseItem>>(url).pipe(
-        catchError(this.handleError)
-      )
-    );
-
-    const row = response?.datosbase?.[0];
-    return row ?? null;
-  }
-
-  // Si aún usas este endpoint alterno
-  async traerdatosbaseGeneral2(): Promise<any[]> {
-    const response = await firstValueFrom(
-      this.http.get<any>(`${this.apiUrl}/Datosbase/tesoreria2`).pipe(
-        catchError(this.handleError)
-      )
-    );
-    return response.datosbase || [];
-  }
-
-  // Verificar si se puede eliminar
-  verificaInfo(datos: any): boolean {
-    const sumaTotal =
-      parseInt(datos.mercados) +
-      parseInt(datos.prestamoParaDescontar) +
-      parseInt(datos.casino) +
-      parseInt(datos.valoranchetas) +
-      parseInt(datos.fondo) +
-      parseInt(datos.carnet) +
-      parseInt(datos.seguroFunerario) +
-      parseInt(datos.anticipoLiquidacion) +
-      parseInt(datos.cuentas);
-
-    return !(sumaTotal > 0);
-  }
-
-  traerHistorialPorFecha(fechaInicio: string, fechaFin: string, nombre: string): Observable<any> {
-    const params = new HttpParams()
-      .set('nombre', nombre)
-      .set('fecha_inicio', fechaInicio)
-      .set('fecha_fin', fechaFin);
-
-    return this.http.get(`${this.apiUrl}/Historial/informeFecha`, { params }).pipe(
-      catchError(this.handleError)
-    );
-  }
-
-  // Cambio estado quincena
-  async actualizarEstadoQuincena(estado: boolean): Promise<any> {
-    const url = `${this.apiUrl}/usuarios/tesoreria/cambioEstado`;
-    return firstValueFrom(
-      this.http.post<any>(url, { estado }).pipe(
         catchError(this.handleError)
       )
     );

@@ -1,62 +1,68 @@
-<div class="editor-wrapper" *ngIf="isBrowser">
-
-  <!-- ═══ HEADER ═══ -->
-  <header class="editor-header">
-    <div class="header-left">
-      <mat-icon class="header-icon">picture_as_pdf</mat-icon>
-      <div class="header-titles">
-        <h2>Editor de Documentos</h2>
-        <p>Usa los iconos de la barra para agregar texto, resaltar, dibujar o estampar sobre el PDF</p>
+@if (isBrowser) {
+  <div class="editor-wrapper">
+    <!-- ═══ HEADER ═══ -->
+    <header class="editor-header">
+      <div class="header-left">
+        <mat-icon class="header-icon">picture_as_pdf</mat-icon>
+        <div class="header-titles">
+          <h2>Editor de Documentos</h2>
+          <p>Usa los iconos de la barra para agregar texto, resaltar, dibujar o estampar sobre el PDF</p>
+        </div>
       </div>
-    </div>
-    <div class="header-actions">
-      <button mat-stroked-button class="btn-cancel" (click)="cancel()">
-        <mat-icon>close</mat-icon> Cancelar
-      </button>
-      <button mat-flat-button class="btn-save" (click)="savePdf()" [disabled]="isSaving || isLoading">
-        <mat-icon>{{ isSaving ? 'hourglass_empty' : 'save' }}</mat-icon>
-        {{ isSaving ? 'Guardando...' : 'Guardar Cambios' }}
-      </button>
-    </div>
-  </header>
-
-  <!-- ═══ LOADING ═══ -->
-  <div class="loading-container" *ngIf="isLoading">
-    <mat-icon class="spin-icon">sync</mat-icon>
-    <p>Cargando documento…</p>
+      <div class="header-actions">
+        <button mat-stroked-button class="btn-cancel" (click)="cancel()">
+          <mat-icon>close</mat-icon> Cancelar
+        </button>
+        <button mat-flat-button class="btn-save" (click)="savePdf()" [disabled]="isSaving || isLoading">
+          <mat-icon>{{ isSaving ? 'hourglass_empty' : 'save' }}</mat-icon>
+          {{ isSaving ? 'Guardando...' : 'Guardar Cambios' }}
+        </button>
+      </div>
+    </header>
+    <!-- ═══ LOADING ═══ -->
+    @if (isLoading) {
+      <div class="loading-container">
+        <mat-icon class="spin-icon">sync</mat-icon>
+        <p>Cargando documento…</p>
+      </div>
+    }
+    <!-- ═══ ERROR ═══ -->
+    @if (loadError && !isLoading) {
+      <div class="error-container">
+        <mat-icon class="error-icon">error_outline</mat-icon>
+        <p>No se pudo cargar el documento PDF.</p>
+        <button mat-stroked-button (click)="cancel()">Cerrar</button>
+      </div>
+    }
+    <!-- ═══ PDF VIEWER WITH BUILT-IN EDITOR ═══ -->
+    @if (pdfBytes && !isLoading && !loadError) {
+      <div class="viewer-container">
+        <ngx-extended-pdf-viewer #pdfViewer [src]="pdfBytes" [showToolbar]="true" [showSidebarButton]="true"
+          [showFindButton]="true" [showPagingButtons]="true" [showZoomButtons]="true" [showPresentationModeButton]="false"
+          [showOpenFileButton]="false" [showPrintButton]="true" [showDownloadButton]="true" [showStampEditor]="true"
+          [showDrawEditor]="true" [showTextEditor]="true" [showHighlightEditor]="true" [textLayer]="true"
+          [showHandToolButton]="true" [showRotateButton]="true" [showScrollingButtons]="false" [showSpreadButton]="false"
+          [showPropertiesButton]="false" [enableDragAndDrop]="true" [zoom]="'page-width'" [language]="'es'"
+          [height]="'100%'" [backgroundColor]="'#f1f3f8'" [theme]="'light'">
+        </ngx-extended-pdf-viewer>
+      </div>
+    }
+    <!-- ═══ SAVING OVERLAY ═══ -->
+    @if (isSaving) {
+      <div class="saving-overlay">
+        <div class="saving-card">
+          <mat-icon class="spin-icon">sync</mat-icon>
+          <p>Guardando cambios en el PDF…</p>
+        </div>
+      </div>
+    }
   </div>
-
-  <!-- ═══ ERROR ═══ -->
-  <div class="error-container" *ngIf="loadError && !isLoading">
-    <mat-icon class="error-icon">error_outline</mat-icon>
-    <p>No se pudo cargar el documento PDF.</p>
-    <button mat-stroked-button (click)="cancel()">Cerrar</button>
-  </div>
-
-  <!-- ═══ PDF VIEWER WITH BUILT-IN EDITOR ═══ -->
-  <div class="viewer-container" *ngIf="pdfBytes && !isLoading && !loadError">
-    <ngx-extended-pdf-viewer #pdfViewer [src]="pdfBytes" [showToolbar]="true" [showSidebarButton]="true"
-      [showFindButton]="true" [showPagingButtons]="true" [showZoomButtons]="true" [showPresentationModeButton]="false"
-      [showOpenFileButton]="false" [showPrintButton]="true" [showDownloadButton]="true" [showStampEditor]="true"
-      [showDrawEditor]="true" [showTextEditor]="true" [showHighlightEditor]="true" [textLayer]="true"
-      [showHandToolButton]="true" [showRotateButton]="true" [showScrollingButtons]="false" [showSpreadButton]="false"
-      [showPropertiesButton]="false" [enableDragAndDrop]="true" [zoom]="'page-width'" [language]="'es'"
-      [height]="'100%'" [backgroundColor]="'#f1f3f8'" [theme]="'light'">
-    </ngx-extended-pdf-viewer>
-  </div>
-
-  <!-- ═══ SAVING OVERLAY ═══ -->
-  <div class="saving-overlay" *ngIf="isSaving">
-    <div class="saving-card">
-      <mat-icon class="spin-icon">sync</mat-icon>
-      <p>Guardando cambios en el PDF…</p>
-    </div>
-  </div>
-
-</div>
+}
 
 <!-- SSR fallback -->
-<div *ngIf="!isBrowser" class="ssr-fallback">
-  <mat-icon>picture_as_pdf</mat-icon>
-  <p>El editor de PDF solo está disponible en el navegador.</p>
-</div>
+@if (!isBrowser) {
+  <div class="ssr-fallback">
+    <mat-icon>picture_as_pdf</mat-icon>
+    <p>El editor de PDF solo está disponible en el navegador.</p>
+  </div>
+}

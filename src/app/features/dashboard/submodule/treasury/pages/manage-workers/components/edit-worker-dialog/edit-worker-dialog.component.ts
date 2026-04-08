@@ -1,5 +1,5 @@
-import { Component, Inject, OnInit } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import {  Component, Inject, OnInit , ChangeDetectionStrategy } from '@angular/core';
+
 import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatDialogRef, MAT_DIALOG_DATA, MatDialogModule } from '@angular/material/dialog';
 import { MatButtonModule } from '@angular/material/button';
@@ -11,45 +11,44 @@ import { MatDividerModule } from '@angular/material/divider';
 import { MatDatepickerModule } from '@angular/material/datepicker';
 import { MatNativeDateModule } from '@angular/material/core';
 
-import { DatosbaseItem } from '../../../../service/teroreria/tesoreria.service';
+import { PersonaTesoreriaItem } from '../../../../service/teroreria/tesoreria.service';
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
     selector: 'app-edit-worker-dialog',
     standalone: true,
     imports: [
-        CommonModule,
-        ReactiveFormsModule,
-        MatDialogModule,
-        MatButtonModule,
-        MatFormFieldModule,
-        MatInputModule,
-        MatSlideToggleModule,
-        MatIconModule,
-        MatDividerModule,
-        MatDatepickerModule,
-        MatNativeDateModule
-    ],
+    ReactiveFormsModule,
+    MatDialogModule,
+    MatButtonModule,
+    MatFormFieldModule,
+    MatInputModule,
+    MatSlideToggleModule,
+    MatIconModule,
+    MatDividerModule,
+    MatDatepickerModule,
+    MatNativeDateModule
+],
     templateUrl: './edit-worker-dialog.component.html',
     styleUrls: ['./edit-worker-dialog.component.css']
-})
+} )
 export class EditWorkerDialogComponent implements OnInit {
     form: FormGroup;
 
-    // List of all keys that are strictly "money/numbers" in text format
-    // to ensure we initialize them nicely
+    // List of all keys that are strictly "money/numbers"
     private numberFields = [
-        'salario', 'saldoPendiente', 'saldos', 'fondos',
-        'mercados', 'cuotasMercados', 'prestamoParaDescontar',
-        'cuotasPrestamosParaDescontar', 'casino', 'valoranchetas',
-        'cuotasAnchetas', 'fondo', 'carnet', 'seguroFunerario',
-        'prestamoParaHacer', 'cuotasPrestamoParahacer',
-        'anticipoLiquidacion', 'cuentas'
+        'salario', 'saldo_pendiente', 'saldos', 'fondos',
+        'mercados', 'cuotas_mercados', 'prestamo_para_descontar',
+        'cuotas_prestamos_para_descontar', 'casino', 'valor_anchetas',
+        'cuotas_anchetas', 'fondo', 'carnet', 'seguro_funerario',
+        'prestamo_para_hacer', 'cuotas_prestamo_para_hacer',
+        'anticipo_liquidacion', 'cuentas'
     ];
 
     constructor(
         private fb: FormBuilder,
         private dialogRef: MatDialogRef<EditWorkerDialogComponent>,
-        @Inject(MAT_DIALOG_DATA) public data: { worker: DatosbaseItem }
+        @Inject(MAT_DIALOG_DATA) public data: { worker: PersonaTesoreriaItem }
     ) {
         this.form = this.buildForm();
     }
@@ -59,15 +58,11 @@ export class EditWorkerDialogComponent implements OnInit {
             this.patchForm(this.data.worker);
         }
 
-        // Dynamic validation: 'observacion_bloqueo' is required if 'bloqueado' is true
         const bloqueadoCtrl = this.form.get('bloqueado');
         const obsCtrl = this.form.get('observacion_bloqueo');
 
         if (bloqueadoCtrl && obsCtrl) {
-            // Initial check
             this.toggleObservacionValidator(bloqueadoCtrl.value);
-
-            // Listen for changes
             bloqueadoCtrl.valueChanges.subscribe((checked: boolean) => {
                 this.toggleObservacionValidator(checked);
             });
@@ -89,7 +84,7 @@ export class EditWorkerDialogComponent implements OnInit {
     private buildForm(): FormGroup {
         return this.fb.group({
             // -- Identificación --
-            numero_de_documento: [{ value: '', disabled: true }, Validators.required], // PK uneditable via PUT usually
+            numero_documento: [{ value: '', disabled: true }, Validators.required],
             codigo: [''],
             nombre: ['', Validators.required],
             ingreso: [''],
@@ -98,38 +93,37 @@ export class EditWorkerDialogComponent implements OnInit {
 
             // -- Valores Financieros (Strings) --
             salario: ['0'],
-            saldoPendiente: ['0'],
+            saldo_pendiente: ['0'],
             saldos: ['0'],
             fondos: ['0'],
             mercados: ['0'],
-            cuotasMercados: ['0'],
-            prestamoParaDescontar: ['0'],
-            cuotasPrestamosParaDescontar: ['0'],
+            cuotas_mercados: ['0'],
+            prestamo_para_descontar: ['0'],
+            cuotas_prestamos_para_descontar: ['0'],
             casino: ['0'],
-            valoranchetas: ['0'],
-            cuotasAnchetas: ['0'],
+            valor_anchetas: ['0'],
+            cuotas_anchetas: ['0'],
             fondo: ['0'],
             carnet: ['0'],
-            seguroFunerario: ['0'],
-            prestamoParaHacer: ['0'],
-            cuotasPrestamoParahacer: ['0'],
-            anticipoLiquidacion: ['0'],
+            seguro_funerario: ['0'],
+            prestamo_para_hacer: ['0'],
+            cuotas_prestamo_para_hacer: ['0'],
+            anticipo_liquidacion: ['0'],
             cuentas: ['0'],
 
             // -- Estados / Booleans / Dates --
             bloqueado: [false],
-            fechaBloqueo: [null],
+            fecha_bloqueo: [null],
             observacion_bloqueo: [''],
             observacion_desbloqueo: [''],
-            fechaDesbloqueo: [null],
+            fecha_desbloqueo: [null],
             activo: [true],
         });
     }
 
-    private patchForm(w: DatosbaseItem) {
+    private patchForm(w: PersonaTesoreriaItem) {
         const patch: any = { ...w };
 
-        // Ensure nulls become "0" or "" for form display
         this.numberFields.forEach(key => {
             const val = (w as any)[key];
             if (val === null || val === undefined || val === '') {
@@ -147,51 +141,37 @@ export class EditWorkerDialogComponent implements OnInit {
         this.form.patchValue(patch);
     }
 
-    getPayload(): DatosbaseItem {
-        const raw = this.form.getRawValue(); // include disabled fields like numero_de_documento
-
-        // Construct full payload compliant with backend strictness
-        // Backend expects all keys.
-        // Ensure "0" for numbers if empty/null
+    getPayload(): PersonaTesoreriaItem {
+        const raw = this.form.getRawValue();
 
         const payload: any = { ...raw };
 
-        // Sanitize number fields
         this.numberFields.forEach(key => {
             let val = payload[key];
             if (!val || val === '') {
                 payload[key] = '0';
             } else {
-                payload[key] = String(val); // ensure string type
+                payload[key] = String(val);
             }
         });
 
-        // Sanitize text fields
         payload.codigo = payload.codigo || '';
         payload.nombre = payload.nombre || '';
         payload.ingreso = payload.ingreso || '';
         payload.temporal = payload.temporal || '';
         payload.finca = payload.finca || '';
 
-        // Dates & Obs
         payload.observacion_bloqueo = payload.observacion_bloqueo || '';
         payload.observacion_desbloqueo = payload.observacion_desbloqueo || '';
 
-        // Dates: if null send null? or backend expects string?
-        // Usually Django DRF handles null if field is nullable. 
-        // If invalid date object, make it null.
-        // The datepicker returns Date object? 
-        // We should convert to ISO string if needed, or null.
-        // Assuming backend takes YYYY-MM-DD or ISO.
-
-        if (payload.fechaBloqueo instanceof Date) {
-            payload.fechaBloqueo = payload.fechaBloqueo.toISOString();
+        if (payload.fecha_bloqueo instanceof Date) {
+            payload.fecha_bloqueo = payload.fecha_bloqueo.toISOString();
         }
-        if (payload.fechaDesbloqueo instanceof Date) {
-            payload.fechaDesbloqueo = payload.fechaDesbloqueo.toISOString();
+        if (payload.fecha_desbloqueo instanceof Date) {
+            payload.fecha_desbloqueo = payload.fecha_desbloqueo.toISOString();
         }
 
-        return payload as DatosbaseItem;
+        return payload as PersonaTesoreriaItem;
     }
 
     save() {

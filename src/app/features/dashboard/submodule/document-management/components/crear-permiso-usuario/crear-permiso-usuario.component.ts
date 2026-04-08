@@ -1,28 +1,30 @@
-import { Component, Inject, InjectionToken, OnInit } from '@angular/core';
+import {  Component, Inject, InjectionToken, OnInit , ChangeDetectionStrategy } from '@angular/core';
 import { DocumentacionService } from '../../service/documentacion/documentacion.service';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatSelectModule } from '@angular/material/select';
 import { MatDialogModule } from '@angular/material/dialog';
-import { CommonModule } from '@angular/common';
+import { MatIconModule } from '@angular/material/icon';
+
 import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MAT_DIALOG_DATA } from '@angular/material/dialog';
 import { UtilityServiceService } from '@/app/shared/services/utilityService/utility-service.service';
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-crear-permiso-usuario',
   standalone: true,
   imports: [
     MatFormFieldModule,
     MatSelectModule,
     MatDialogModule,
-    CommonModule,
+    MatIconModule,
     ReactiveFormsModule,
     MatButtonModule
-  ],
+],
   templateUrl: './crear-permiso-usuario.component.html',
   styleUrl: './crear-permiso-usuario.component.css'
-})
+} )
 export class CrearPermisoUsuarioComponent implements OnInit {
   usuariosEmpresas: any;
   tiposDocumentos: any;

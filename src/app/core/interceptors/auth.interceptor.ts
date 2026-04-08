@@ -10,7 +10,9 @@ import { Router } from '@angular/router';
 import { Observable, EMPTY, throwError } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 
-const API_BASE = 'http://10.10.10.60:4545';
+import { environment } from '../../../environments/environment';
+
+const API_BASE = environment.apiUrl;
 const API_ORIGIN = new URL(API_BASE).host;
 
 // 🔓 RUTAS PÚBLICAS (¡con "/" inicial!)

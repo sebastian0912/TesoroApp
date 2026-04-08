@@ -1,314 +1,240 @@
-import { Component } from '@angular/core';
-import { FormBuilder, FormGroup, Validators, AbstractControl } from '@angular/forms';
+import {  Component, OnInit, OnDestroy , ChangeDetectionStrategy } from '@angular/core';
+import { FormBuilder, FormGroup, Validators } from '@angular/forms';
 import Swal from 'sweetalert2';
-import { catchError, debounceTime, distinctUntilChanged, switchMap, takeUntil } from 'rxjs/operators';
 import { Router } from '@angular/router';
 import { SharedModule } from '../../../../../../shared/shared.module';
-import { MercadoService } from '../../../market/service/mercado/mercado.service';
 import { PrestamoService } from '../../service/prestamo/prestamo.service';
 import { AutorizacionesService } from '../../../authorizations/services/autorizaciones/autorizaciones.service';
 import { UtilityServiceService } from '../../../../../../shared/services/utilityService/utility-service.service';
-import { Observable, of, Subject } from 'rxjs';
+import { MatDialog } from '@angular/material/dialog';
+import { HistorialDialogComponent } from '../../../authorizations/pages/autorizacion-dinamica/historial-dialog/historial-dialog.component';
+import { HistorialService } from '../../../history/service/historial/historial.service';
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-prestamo-para-realizar',
   imports: [SharedModule],
   templateUrl: './prestamo-para-realizar.component.html',
   styleUrl: './prestamo-para-realizar.component.css',
-})
-export class PrestamoParaRealizarComponent {
-  myForm!: FormGroup;
-  datosOperario: any;
-  nombreOperario: string = '';
-  sumaPrestamos: number = 0;
-  user: any;
-  historial_id: number = 0;
+} )
+export class PrestamoParaRealizarComponent implements OnInit, OnDestroy {
+  searchForm!: FormGroup;
+  loanForm!: FormGroup;
 
+  datosOperario: any = null;
+  nombreOperario: string = '';
+  limiteDisponible: number = 0;
+
+  user: any;
   rolUsuario: string = '';
   correoUsuario: string = '';
-  private destroy$ = new Subject<void>();
-  fechaIngreso: string = '';
 
   constructor(
     private fb: FormBuilder,
     private autorizacionesService: AutorizacionesService,
-    private mercadoService: MercadoService,
     private prestamoService: PrestamoService,
     private utilityService: UtilityServiceService,
-    private router: Router
-  ) {
-    this.myForm = this.fb.group({
-      cedula: ['', Validators.required],
-      cuotas: ['', [Validators.required, Validators.min(1), Validators.max(4)]],
-      valor: ['', [Validators.required, this.currencyValidator]],
-    });
-  }
+    private historialService: HistorialService,
+    private router: Router,
+    private dialog: MatDialog
+  ) { }
 
   ngOnInit() {
     this.user = this.utilityService.getUser();
-    if (!this.user) {
-      return;
+    if (this.user) {
+      this.rolUsuario = this.user.rol?.nombre ?? '';
+      this.correoUsuario = this.user.correo_electronico ?? '';
     }
-    this.rolUsuario = this.user.rol.nombre;
-    this.correoUsuario = this.user.correo_electronico;
 
-    this.myForm.get('cedula')?.valueChanges
-      .pipe(
-        debounceTime(2500), // Espera 1 segundo después del último cambio
-        distinctUntilChanged(), // Evita búsquedas innecesarias si el usuario escribe el mismo valor
-        switchMap(value => {
-          this.trimField('cedula');
+    this.searchForm = this.fb.group({
+      numero_documento: ['', [Validators.required, Validators.pattern(/^[A-Za-z]?\d+$/)]]
+    });
 
-
-
-          return this.buscarOperario(value);
-        }),
-        catchError(() => of(null)), // Si hay error, simplemente no hace nada
-        takeUntil(this.destroy$) // Limpia la suscripción cuando se destruye el componente
-      )
-      .subscribe(result => {
-        Swal.close(); // 🔴 Cierra Swal de carga antes de mostrar cualquier error
-
-        if (!result || result.datosbase === "No se encontró el registro para el ID proporcionado") {
-          this.datosOperario = null;
-          this.mostrarError('No se encontró el empleado con la cédula proporcionada.');
-          return;
-        }
-
-        this.datosOperario = result.datosbase[0];
-        this.nombreOperario = `${this.datosOperario.nombre} `;
-        this.fechaIngreso = this.datosOperario.ingreso;
-
-        // 🔴 Validar si el operario está inactivo (retirado)
-        if (!this.datosOperario.activo) {
-          this.datosOperario = null;
-          this.mostrarError('El empleado se encuentra retirado y no puede solicitar autorizaciones.');
-          return;
-        }
-
-        if (this.datosOperario.bloqueado) {
-          this.datosOperario = null;
-          this.mostrarError('El empleado se encuentra bloqueado y no puede solicitar autorizaciones.');
-          return;
-        }
-
-        if (this.rolUsuario !== "GERENCIA" || this.correoUsuario === 'antcontable6.ts@gmail.com') {
-          if (!this.autorizacionesService.verificarFondos(this.datosOperario)) {
-            this.datosOperario = null;
-            this.mostrarError('El operario pertenece al fondo');
-            return;
-          }
-        }
-      });
+    this.loanForm = this.fb.group({
+      valor: ['', [Validators.required]],
+      cuotas: ['', [Validators.required, Validators.min(1), Validators.max(4)]]
+    });
   }
 
-  formatCurrency(event: any) {
+  ngOnDestroy() { }
+
+  formatCurrencyValue(value: any): string {
+    if (value === null || value === undefined || value === '') return '0';
+    return Number(value).toLocaleString('es-CO', { maximumFractionDigits: 0 });
+  }
+
+  formatCurrencyInput(event: any) {
     const input = event.target;
     let value = input.value.replace(/\D/g, '');
-    value = Number(value).toLocaleString();
+    value = Number(value).toLocaleString('es-CO');
     input.value = value;
   }
 
-  currencyValidator(control: AbstractControl) {
-    const value = control.value.replace(/\D/g, '');
-    return value ? null : { required: true };
-  }
-
-  private trimFormFields() {
-    Object.keys(this.myForm.controls).forEach((field) => {
-      const control = this.myForm.get(field);
-      if (control && control.value && typeof control.value === 'string') {
-        control.setValue(control.value.trim());
-      }
-    });
-  }
-
-  private trimField(fieldName: string) {
-    const control = this.myForm.get(fieldName);
-    if (control && control.value && typeof control.value === 'string') {
-      control.setValue(control.value.trim());
-    }
-  }
-
-  // Función para enviar el formulario
-  async onSubmit() {
-    let codigoOH: string = '';
-    let concepto: string = 'Préstamo para hacer';
-
-    if (this.myForm.invalid) {
-      this.myForm.markAllAsTouched();
+  async buscarEmpleado() {
+    if (this.searchForm.invalid) {
+      this.searchForm.markAllAsTouched();
       return;
     }
 
-    this.trimFormFields();
+    const doc = this.searchForm.value.numero_documento.trim().toUpperCase();
 
     Swal.fire({
-      title: 'Procesando...',
-      icon: 'info',
-      text: 'Por favor, espera mientras se realiza la operación.',
-      allowOutsideClick: false,
-      allowEscapeKey: false,
-      showConfirmButton: false,
-      didOpen: () => {
-        Swal.showLoading();
-      }
+      title: 'Buscando trabajador...',
+      text: 'Por favor, espera.',
+      allowOutsideClick: false, allowEscapeKey: false, showConfirmButton: false,
+      didOpen: () => { Swal.showLoading(); }
     });
 
     try {
-      const formValues = {
-        ...this.myForm.value,
-        valor: this.myForm.value.valor.replace(/\D/g, ''),
-      };
+      // Validar si existe, está activo y no bloqueado
+      const statusData: any = await this.historialService.getPersonaTesoreriaStatus(doc).toPromise();
 
-      this.sumaPrestamos = this.autorizacionesService.traerSaldoPendiente(this.datosOperario);
-
-      // Verificar si la cédula pertenece al código
-      if (this.rolUsuario !== 'GERENCIA') {
-        Swal.close();
-        const validacion = this.autorizacionesService.verificarCondiciones(
-          this.datosOperario,
-          parseInt(formValues.valor),
-          this.sumaPrestamos,
-          'prestamo'
-        );
-        if (!validacion) {
-          return;
-        }
+      if (!statusData || statusData.error) {
+        Swal.fire({
+          icon: 'error', title: 'Empleado no encontrado',
+          text: 'Este empleado no existe, no está registrado en esta quincena o no pertenece a la empresa.',
+        });
+        return;
       }
 
-      // Generar un código único
-      while (true) {
-        codigoOH = 'OR' + Math.floor(Math.random() * 1000000);
-
-        try {
-          const data = await this.autorizacionesService.buscarCodigo(codigoOH);
-          if (data.codigo.length === 0) break; // Salir del bucle si el código no existe
-        } catch (error) {
-          break; // Salir del bucle si hay un error en la solicitud
-        }
+      if (statusData.activo === false) {
+        Swal.fire({
+          icon: 'error', title: 'Empleado Inactivo',
+          text: 'El empleado con el número de documento proporcionado se encuentra inactivo y no es válido para procesar autorizaciones.',
+        });
+        return;
       }
 
-      // Escritura en historial
-      const historialData = await this.autorizacionesService.escribirHistorial(
-        formValues.cedula,
-        parseInt(formValues.valor),
-        formValues.cuotas,
-        concepto,
-        codigoOH,
-        this.user.datos_basicos.nombres + ' ' + this.user.datos_basicos.apellidos
-      );
+      if (statusData.bloqueado === true) {
+        let fechaStr = 'fecha desconocida';
+        if (statusData.fecha_bloqueo) {
+          const d = new Date(statusData.fecha_bloqueo);
+          fechaStr = d.toLocaleDateString('es-CO') + ' a las ' + d.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
+        }
+        const motivo = statusData.observacion_bloqueo ? statusData.observacion_bloqueo : 'Sin motivo especificado';
 
-      this.historial_id = historialData.historial_id;
+        Swal.fire({
+          icon: 'error', title: 'Empleado Bloqueado',
+          text: `El empleado se encuentra bloqueado desde: ${fechaStr}.\n\nMotivo: ${motivo}`,
+        });
+        return;
+      }
 
-      // Escritura de código
-      await this.autorizacionesService.escribirCodigo(
-        formValues.cedula,
-        formValues.valor,
-        codigoOH,
-        formValues.cuotas,
-        concepto,
-        this.historial_id,
-        this.user.datos_basicos.nombres + ' ' + this.user.datos_basicos.apellidos,
-        this.user.numero_de_documento
-      );
-
-      // Ejecutar préstamo
-      const response = await this.prestamoService.ejecutarPrestamoParaHacer(
-        codigoOH,
-        formValues.cedula,
-        parseInt(formValues.valor),
-        codigoOH,
-        concepto,
-        this.historial_id,
-        parseInt(formValues.cuotas)
-      );
-
+      const data = await this.autorizacionesService.traerPersonaTesoreria(doc);
       Swal.close();
 
-      if (response.message === 'Actualización exitosa') {
-        await Swal.fire({
-          icon: 'success',
-          title: '¡Éxito!',
-          text: 'El préstamo ha sido cargado exitosamente',
-          confirmButtonText: 'Aceptar',
-        });
-        this.router.navigateByUrl('/dashboard', { skipLocationChange: true }).then(() => {
-          this.router.navigate(['/dashboard/money-loan/loan-to-perform']);
-        });
-      } else {
-        await Swal.fire({
-          icon: 'error',
-          title: 'Oops...',
-          text: 'Hubo un error al realizar el cargue, por favor intente de nuevo.',
-        });
-      }
+      this.datosOperario = data;
+      this.nombreOperario = data.nombre || '';
 
-      // Generar PDF
+      // Cupo disponible (misma lógica que verificarCondiciones)
+      this.limiteDisponible = this.autorizacionesService.calcularCupoDisponible(data, 'prestamo');
+
+    } catch (error: any) {
+      Swal.close();
+      if (error?.status === 404) {
+        Swal.fire('No encontrado', 'Este empleado no existe en la base de datos (puede que no esté registrado en la quincena actual o no pertenezca a la empresa).', 'error');
+      } else {
+        Swal.fire('Error', 'Hubo un problema al buscar el operario.', 'error');
+      }
+    }
+  }
+
+  cancelar() {
+    this.datosOperario = null;
+    this.nombreOperario = '';
+    this.limiteDisponible = 0;
+    this.searchForm.reset();
+    this.loanForm.reset();
+  }
+
+  abrirHistorial() {
+    if (!this.datosOperario) return;
+    this.dialog.open(HistorialDialogComponent, {
+      width: '80vw', maxWidth: '90vw', height: '80vh',
+      panelClass: 'historial-dialog-panel',
+      data: { numeroDocumento: this.datosOperario.numero_documento }
+    });
+  }
+
+  async onSubmit() {
+    if (this.loanForm.invalid || !this.datosOperario) {
+      this.loanForm.markAllAsTouched();
+      return;
+    }
+
+    const valorStr = this.loanForm.value.valor.replace(/\D/g, '');
+    const valorNumerico = parseInt(valorStr, 10);
+    const cuotas = parseInt(this.loanForm.value.cuotas);
+
+    if (valorNumerico <= 0) { Swal.fire('Error', 'El valor debe ser mayor a 0.', 'error'); return; }
+
+    // Verificar condiciones
+    const sumaPrestamos = this.autorizacionesService.traerSaldoPendiente(this.datosOperario);
+    if (this.rolUsuario !== 'GERENCIA') {
+      if (!this.autorizacionesService.verificarCondiciones(this.datosOperario, valorNumerico, sumaPrestamos, 'prestamo')) {
+        return;
+      }
+    }
+
+    const confirmar = await Swal.fire({
+      icon: 'question', title: '¿Confirmar préstamo?',
+      html: `<p><strong>Empleado:</strong> ${this.nombreOperario}</p>
+             <p><strong>Valor:</strong> $${this.formatCurrencyValue(valorNumerico)}</p>
+             <p><strong>Cuotas:</strong> ${cuotas}</p>`,
+      showCancelButton: true, confirmButtonText: 'Sí, Generar', cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#0369a1'
+    });
+
+    if (!confirmar.isConfirmed) return;
+
+    Swal.fire({
+      title: 'Procesando...', icon: 'info', text: 'Generando el préstamo...',
+      allowOutsideClick: false, allowEscapeKey: false, showConfirmButton: false,
+      didOpen: () => { Swal.showLoading(); }
+    });
+
+    try {
+      const userName = `${this.user.datos_basicos.nombres} ${this.user.datos_basicos.apellidos}`;
+      const sedeAutorizacion = this.user?.sede?.nombre || '';
+      const doc = this.datosOperario.numero_documento;
+
+      // 1. Autorizar (crea transacción PENDIENTE)
+      const authResponse = await this.autorizacionesService.autorizarTransaccion(
+        doc, valorNumerico, cuotas, 'Préstamo para hacer', userName, sedeAutorizacion
+      );
+
+      // 2. Ejecutar inmediatamente
+      const execResponse = await this.autorizacionesService.ejecutarTransaccion(
+        authResponse.codigo_autorizacion,
+        valorNumerico,
+        userName,
+        sedeAutorizacion
+      );
+
+      // 3. Generar PDF
       this.autorizacionesService.generatePdf(
         this.datosOperario,
-        formValues.valor,
-        formValues.valor,
-        formValues.formaPago || '',
-        formValues.celular || '',
-        codigoOH,
-        formValues.cuotas,
+        valorNumerico,
+        valorNumerico.toString(),
+        '',
+        '',
+        authResponse.codigo_autorizacion,
+        cuotas.toString(),
         'Préstamo',
-        this.user.datos_basicos.nombres + ' ' + this.user.datos_basicos.apellidos
+        userName
       );
 
-    } catch (error) {
       Swal.close();
-      await Swal.fire({
-        icon: 'error',
-        title: 'Oops...',
-        text: 'Hubo un error al realizar el cargue, por favor intente de nuevo.',
-      });
+      Swal.fire({
+        icon: 'success', title: '¡Éxito!',
+        text: `Préstamo generado y ejecutado. Código: ${execResponse.codigo_ejecucion || authResponse.codigo_autorizacion}`,
+        confirmButtonText: 'Aceptar', confirmButtonColor: '#0369a1'
+      }).then(() => { this.cancelar(); });
+
+    } catch (error: any) {
+      Swal.close();
+      const msg = error.error?.error || 'Hubo un error al generar el préstamo.';
+      Swal.fire('Error', msg, 'error');
     }
   }
-
-  // Función para buscar operario
-  buscarOperario(cedula: string): Observable<any> {
-    if (!cedula) {
-      return of(null); // Evita hacer la solicitud si la cédula está vacía
-    }
-
-    // 🔵 Mostrar Swal de carga
-    Swal.fire({
-      title: 'Buscando trabajador...',
-      text: 'Por favor, espera mientras se procesa la información.',
-      allowOutsideClick: false,
-      allowEscapeKey: false,
-      showConfirmButton: false,
-      didOpen: () => {
-        Swal.showLoading();
-      }
-    });
-
-    return this.autorizacionesService.traerOperarios(cedula).pipe(
-      catchError(error => {
-        Swal.close(); // 🔴 Cierra Swal en caso de error
-        this.mostrarError('Hubo un problema al buscar el operario. Intente nuevamente.');
-        return of(null); // Evita que la aplicación falle
-      })
-    );
-  }
-
-  // 🔵 Función para mostrar errores sin permitir que el usuario cierre el Swal fuera de él
-  mostrarError(mensaje: string) {
-    Swal.fire({
-      icon: 'error',
-      title: 'Aviso',
-      text: mensaje,
-      showConfirmButton: true, // Muestra un botón para cerrar
-      allowOutsideClick: false, // Evita que se cierre al hacer clic fuera
-      allowEscapeKey: false, // Evita que se cierre con la tecla Esc
-    });
-  }
-
-  // 🔹 Limpieza de suscripción al destruir el componente
-  ngOnDestroy() {
-    this.destroy$.next();
-    this.destroy$.complete();
-  }
-
 }

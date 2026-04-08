@@ -112,14 +112,6 @@ export class TrasladosService {
   }
 
   // Cuantos traslados disponibles
-  traerTodosLosCorreos(usernameLocal: string): Observable<any> {
-    const url = `${this.apiUrl
-      }/traslados/traer_todo_correos_raul?responsable=${encodeURIComponent(
-        usernameLocal
-      )}`;
-    return this.http.get(url).pipe(catchError(this.handleError));
-  }
-
   // obtener-solicitud-por-codigo/<int:codigo_traslado>/
   traerSolicitudPorCodigo(codigo: any): Observable<any> {
     return this.http.get(`${this.apiUrl}/traslados/obtener-solicitud-por-codigo/${codigo}/`)

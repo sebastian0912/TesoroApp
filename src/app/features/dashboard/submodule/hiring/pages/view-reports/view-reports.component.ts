@@ -1,8 +1,9 @@
-import {
+import { 
   Component,
   Inject,
   OnInit,
   ViewChild,
+  ChangeDetectionStrategy 
 } from '@angular/core';
 import { isPlatformBrowser } from '@angular/common';
 import { PLATFORM_ID } from '@angular/core';
@@ -36,11 +37,12 @@ type DateRangeAction =
   | 'exportFincas';
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-view-reports',
   imports: [SharedModule, StandardFilterTable, MatButtonModule],
   templateUrl: './view-reports.component.html',
   styleUrl: './view-reports.component.css',
-})
+} )
 export class ViewReportsComponent implements OnInit {
   // Evita el error de tipo en [matMenuTriggerFor]="menu"
   @ViewChild(MatMenu) menu!: MatMenu;
@@ -205,6 +207,7 @@ export class ViewReportsComponent implements OnInit {
     'programador.ts@gmail.com',
     'a.seguridad.ts@gmail.com',
     'a.sotelotualianza@gmail.com',
+    'nominacentral9@gmail.com'
   ]);
 
   get isAdminReportUser(): boolean {

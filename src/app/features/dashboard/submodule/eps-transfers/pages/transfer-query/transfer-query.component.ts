@@ -1,4 +1,4 @@
-import { Component } from '@angular/core';
+import {  Component , ChangeDetectionStrategy } from '@angular/core';
 import { TrasladosService } from '../../service/traslados.service';
 import { SharedModule } from '@/app/shared/shared.module';
 import { FormBuilder, FormGroup, Validators } from '@angular/forms';
@@ -6,6 +6,7 @@ import Swal from 'sweetalert2';
 import { MatTableDataSource, MatTableModule } from '@angular/material/table';
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-transfer-query',
   imports: [
     SharedModule,
@@ -13,7 +14,7 @@ import { MatTableDataSource, MatTableModule } from '@angular/material/table';
   ],
   templateUrl: './transfer-query.component.html',
   styleUrl: './transfer-query.component.css'
-})
+} )
 export class TransferQueryComponent {
   myForm!: FormGroup;
   dataSource = new MatTableDataSource<any>([]);

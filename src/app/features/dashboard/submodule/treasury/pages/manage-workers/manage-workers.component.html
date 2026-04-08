@@ -1,39 +1,55 @@
-<div class="page-container">
-  <!-- ========= HEADER ========= -->
-  <header class="page-header">
-    <div class="header-content">
-      <h1 class="page-title">Gestión de Trabajadores</h1>
-      <p class="page-subtitle">Administra bloqueos y el estado general de la nómina.</p>
+<div class="page-shell">
+  <!-- ========= HEADER BAR ========= -->
+  <header class="top-bar">
+    <div class="top-bar-left">
+      <div class="title-icon">
+        <mat-icon>groups</mat-icon>
+      </div>
+      <div class="title-text">
+        <h1>Gestión de Trabajadores</h1>
+        <p>Administra bloqueos, estados y datos financieros de la nómina</p>
+      </div>
     </div>
 
-    <div class="header-actions">
-      <!-- Search Box -->
-      <mat-form-field appearance="outline" class="search-field" subscriptSizing="dynamic">
-        <mat-label>Buscar por Cédula</mat-label>
-        <mat-icon matPrefix>search</mat-icon>
-        <input matInput type="text" [(ngModel)]="searchCedula" (keyup.enter)="buscarPorCedula()"
-          placeholder="Ej. 1234567890">
-        @if (searchCedula()) {
-        <button mat-icon-button matSuffix (click)="limpiarBusqueda()" aria-label="Limpiar">
-          <mat-icon>close</mat-icon>
-        </button>
-        }
-      </mat-form-field>
-
-      <!-- Stat Card -->
-      <div class="stat-card">
-        <span class="stat-label">Activos</span>
-        <strong class="stat-value">{{ numeroActivo() }}</strong>
+    <div class="top-bar-right">
+      <!-- Search -->
+      <div class="search-box">
+        <mat-form-field appearance="outline" subscriptSizing="dynamic" class="search-input">
+          <mat-icon matPrefix>search</mat-icon>
+          <input matInput type="text" [(ngModel)]="searchCedula" (keyup.enter)="buscarPorCedula()"
+            placeholder="Buscar por cédula...">
+          @if (searchCedula()) {
+          <button mat-icon-button matSuffix (click)="limpiarBusqueda()" aria-label="Limpiar">
+            <mat-icon>close</mat-icon>
+          </button>
+          }
+        </mat-form-field>
       </div>
 
-      <!-- Menú -->
-      <button mat-icon-button [matMenuTriggerFor]="actions" class="menu-btn" aria-label="Opciones">
+      <!-- Stats -->
+      <div class="stat-pill">
+        <mat-icon>people</mat-icon>
+        <div class="stat-info">
+          <span class="stat-num">{{ numeroActivo() }}</span>
+          <span class="stat-lbl">activos</span>
+        </div>
+      </div>
+
+      <!-- Toggle inactivos -->
+      <div class="toggle-inactive" (click)="$event.stopPropagation()">
+        <mat-slide-toggle [checked]="showInactive()" (change)="toggleShowInactive($event)" color="primary">
+          Inactivos
+        </mat-slide-toggle>
+      </div>
+
+      <!-- Actions Menu -->
+      <button mat-icon-button [matMenuTriggerFor]="actions" class="actions-btn" matTooltip="Más opciones">
         <mat-icon>more_vert</mat-icon>
       </button>
     </div>
   </header>
 
-  <!-- ========= MENU DEFINITION ========= -->
+  <!-- ========= MENU ========= -->
   <mat-menu #actions="matMenu" xPosition="before">
     <button mat-menu-item (click)="resetearValores()">
       <mat-icon>refresh</mat-icon>
@@ -41,34 +57,25 @@
     </button>
     <button mat-menu-item (click)="generarExcelDatosBase()">
       <mat-icon>download</mat-icon>
-      <span>Extraer datos base</span>
+      <span>Exportar datos base (Excel)</span>
     </button>
-    <mat-divider></mat-divider>
-    <div class="menu-toggle" (click)="$event.stopPropagation()">
-      <mat-slide-toggle [checked]="showInactive()" (change)="toggleShowInactive($event)">
-        {{ showInactive() ? 'Desbloquear trabajadores' : 'Bloquear trabajadores' }}
-      </mat-slide-toggle>
-    </div>
   </mat-menu>
 
-  <!-- ========= CONTENT AREA ========= -->
-  <div class="content-area">
+  <!-- ========= CONTENT ========= -->
+  <div class="content">
     @if (loading()) {
-    <div class="loading-overlay">
-      <div class="spinner-box">
-        <mat-spinner diameter="40"></mat-spinner>
-        <span>Cargando trabajadores...</span>
-      </div>
+    <div class="loading-state">
+      <mat-spinner diameter="44"></mat-spinner>
+      <span>Cargando trabajadores...</span>
     </div>
     } @else {
-    <!-- Data Table -->
-    <div class="table-wrapper">
+    <div class="table-card">
       <app-standard-filter-table [data]="rows()" [columnDefinitions]="columns" [pageSizeOptions]="[10, 20, 50, 100]"
         [defaultPageSize]="10" [tableTitle]="'Lista de Trabajadores'">
 
         <!-- Columna ACCIONES -->
         <ng-template appCellTemplate="acciones" let-row>
-          <button mat-icon-button color="primary" (click)="openEditDialog(row)" matTooltip="Editar Trabajador">
+          <button mat-icon-button (click)="openEditDialog(row)" matTooltip="Editar" class="edit-action-btn">
             <mat-icon>edit</mat-icon>
           </button>
         </ng-template>
@@ -76,14 +83,14 @@
         <!-- Columna BLOQUEADO -->
         <ng-template appCellTemplate="bloqueado" let-row>
           <mat-slide-toggle [checked]="row.bloqueado" (change)="toggleEstado(row, 'bloqueado')" color="warn">
-            {{ row.bloqueado ? 'Sí' : 'No' }}
+            <span class="toggle-text" [class.blocked]="row.bloqueado">{{ row.bloqueado ? 'Sí' : 'No' }}</span>
           </mat-slide-toggle>
         </ng-template>
 
         <!-- Columna ACTIVO -->
         <ng-template appCellTemplate="activo" let-row>
           <mat-slide-toggle [checked]="row.activo" (change)="toggleEstado(row, 'activo')" color="primary">
-            {{ row.activo ? 'Sí' : 'No' }}
+            <span class="toggle-text" [class.active-yes]="row.activo">{{ row.activo ? 'Sí' : 'No' }}</span>
           </mat-slide-toggle>
         </ng-template>
 

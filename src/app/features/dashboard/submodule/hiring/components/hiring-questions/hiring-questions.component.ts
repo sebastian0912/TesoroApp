@@ -1,4 +1,4 @@
-import { Component, OnInit, input, effect, inject, DestroyRef } from '@angular/core';
+import {  Component, OnInit, input, effect, inject, DestroyRef , ChangeDetectionStrategy } from '@angular/core';
 import { AbstractControl, FormBuilder, FormGroup, ValidationErrors, ValidatorFn, Validators } from '@angular/forms';
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { firstValueFrom, forkJoin, of, throwError, Observable } from 'rxjs';
@@ -6,6 +6,9 @@ import { catchError, startWith, map } from 'rxjs/operators';
 import { SharedModule } from '@/app/shared/shared.module';
 import { MatTabsModule } from '@angular/material/tabs';
 import Swal from 'sweetalert2';
+import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
+import type jsPDF from 'jspdf';
+import type { RowInput } from 'jspdf-autotable';
 import { GestionDocumentalService } from '../../service/gestion-documental/gestion-documental.service';
 import { VacantesService } from '../../service/vacantes/vacantes.service';
 import {
@@ -28,12 +31,13 @@ type ServerDocInfo = {
 };
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-hiring-questions',
   standalone: true,
   imports: [SharedModule, MatTabsModule],
   templateUrl: './hiring-questions.component.html',
   styleUrls: ['./hiring-questions.component.css'],
-})
+} )
 export class HiringQuestionsComponent implements OnInit {
   // ───────── Input con signals ─────────
   candidatoSeleccionado = input<any>(null);
@@ -69,7 +73,38 @@ export class HiringQuestionsComponent implements OnInit {
     'TU ALIANZA SAS': 'TUALIANZACARTAAUTORIZACIONTRASLADO_2024.pdf',
   };
 
-  // Huellas (solo UI)
+  // ── Documentos con Huella (dialog preview) ──
+  showDocumentsDialog = false;
+  huellaDocsList: { title: string; safeUrl: SafeResourceUrl }[] = [];
+  currentDocIndex = 0;
+
+  // ── Consentimiento Biométrico — Huella (Ley 1581 de 2012) ──
+  private static readonly EMPRESAS_HUELLA: Record<string, { nombre: string }> = {
+    'apoyo-laboral': { nombre: 'APOYO LABORAL T.S. S.A.S.' },
+    'tu-alianza': { nombre: 'TU ALIANZA SAS' },
+  };
+  private readonly VERSION_CONSENTIMIENTO_HUELLA = 'v1.0-2026';
+
+  private buildTextoConsentimientoHuella(empresa: string): string {
+    return (
+      'En cumplimiento de la Ley Estatutaria 1581 de 2012 "Por la cual se dictan disposiciones generales ' +
+      'para la protección de datos personales" y su Decreto Reglamentario 1377 de 2013, autorizo de manera ' +
+      `libre, expresa, previa e informada a ${empresa} para que realice la recolección, ` +
+      'almacenamiento, uso, circulación, supresión y en general, el tratamiento de mis datos biométricos ' +
+      '(huella dactilar) que voluntariamente suministro en este proceso, con la finalidad de validar mi ' +
+      'identidad, formalizar mi vinculación laboral y generar soporte probatorio contractual. ' +
+      'Declaro que he sido informado(a) de mis derechos como titular de datos personales, incluyendo el ' +
+      'derecho a conocer, actualizar, rectificar y solicitar la supresión de mis datos, así como a revocar ' +
+      'la autorización otorgada, mediante comunicación dirigida al responsable del tratamiento.'
+    );
+  }
+
+  // Huellas (per-company UI state)
+  messageApoyo = '';
+  messageTuAlianza = '';
+  fingerprintImageApoyo: string | null = null;
+  fingerprintImageTuAlianza: string | null = null;
+  // Legacy (kept for PD if needed)
   messageID = '';
   messagePD = '';
   fingerprintImageID: string | null = null;
@@ -83,6 +118,7 @@ export class HiringQuestionsComponent implements OnInit {
   private readonly procesosService = inject(RegistroProcesoContratacion);
   private readonly tarjetasService = inject(TarjetasService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly sanitizer = inject(DomSanitizer);
 
   constructor() {
     // Reacciona a cambios del candidato seleccionado
@@ -98,6 +134,8 @@ export class HiringQuestionsComponent implements OnInit {
     this.initForms();
     this.setupFormaPagoValidation(); // ← aplica validación dinámica CO
     this.loadTarjetas();
+    // Consentimiento: autocompletar UserAgent
+    this.huellaForm.patchValue({ userAgent: navigator.userAgent });
 
     this.filteredTarjetas = this.pagoTransporteForm.get('numeroIdentificacion')!.valueChanges.pipe(
       startWith(''),
@@ -116,13 +154,23 @@ export class HiringQuestionsComponent implements OnInit {
   }
 
   private _filterTarjetas(value: string | any): any[] {
-    // Después de seleccionar, el autocomplete puede pasar el objeto completo
     const raw = typeof value === 'string' ? value : (value?.identification_number || '');
     const filterValue = raw.toLowerCase();
-    return this.tarjetasDisponibles.filter(t =>
-      (t.identification_number || '').toLowerCase().includes(filterValue) ||
-      (t.card_number || '').includes(filterValue)
-    );
+    
+    // Optimización V8: Limitar a 50 resultados para evitar colapso del DOM (mat-option rendering)
+    // El FOR loop clásico con Break destruye el bottleneck cuando hay miles de tarjetas
+    const matchCount = 50;
+    const result = [];
+    
+    for (const t of this.tarjetasDisponibles) {
+      if ((t.identification_number || '').toLowerCase().includes(filterValue) ||
+          (t.card_number || '').includes(filterValue)) {
+        result.push(t);
+        if (result.length >= matchCount) break;
+      }
+    }
+    
+    return result;
   }
 
   private initForms(): void {
@@ -164,7 +212,14 @@ export class HiringQuestionsComponent implements OnInit {
       traslado: [''],
     });
 
-    this.huellaForm = this.fb.group({});
+    this.huellaForm = this.fb.group({
+      consentimientoHuella: [false],
+      versionConsentimiento: [this.VERSION_CONSENTIMIENTO_HUELLA],
+      timestampConsentimiento: [''],
+      consentimientoHash: [''],
+      imageHash: [''],
+      userAgent: [''],
+    });
   }
 
   // === Validador de coincidencia ===
@@ -350,7 +405,7 @@ export class HiringQuestionsComponent implements OnInit {
       contrato_detalle: {
         forma_de_pago?: string | null;
         numero_para_pagos?: string | null;
-        numero_identificacion?: string | null;
+        identification_number_tarjeta?: string | null;
         contrasenia_asignada?: string | null;
         seguro_funerario?: boolean | null;
         Ccentro_de_costos?: string | null;
@@ -369,7 +424,7 @@ export class HiringQuestionsComponent implements OnInit {
       contrato_detalle: {
         forma_de_pago: v.formaPago ?? null,
         numero_para_pagos: v.numeroPagos ?? null,
-        numero_identificacion: v.numeroIdentificacion ?? null,
+        identification_number_tarjeta: v.numeroIdentificacion ?? null,
         contrasenia_asignada: v.contraseniaAsignada ?? null,
         seguro_funerario: !!v.seguroFunerario,
         Ccentro_de_costos: v.Ccostos ?? null,
@@ -564,12 +619,102 @@ export class HiringQuestionsComponent implements OnInit {
   }
 
   // ───────── Huellas (Electron) ─────────
-  async captureFingerprintID(): Promise<void> { await this.captureFingerprint('ID'); }
+  async captureFingerprintApoyo(): Promise<void> { await this.captureFingerprint('ID', 'apoyo-laboral'); }
+  async captureFingerprintTuAlianza(): Promise<void> { await this.captureFingerprint('ID', 'tu-alianza'); }
   async captureFingerprintPD(): Promise<void> { await this.captureFingerprint('PD'); }
 
-  private async captureFingerprint(kind: 'ID' | 'PD'): Promise<void> {
-    const setMsg = (t: string) => (kind === 'ID' ? (this.messageID = t) : (this.messagePD = t));
-    const setImg = (d: string | null) => (kind === 'ID' ? (this.fingerprintImageID = d) : (this.fingerprintImagePD = d));
+  // ── SHA-256 genérico ──
+  private async generateHash(data: string): Promise<string> {
+    const encoded = new TextEncoder().encode(data);
+    const buffer = await crypto.subtle.digest('SHA-256', encoded);
+    return Array.from(new Uint8Array(buffer))
+      .map(b => b.toString(16).padStart(2, '0'))
+      .join('');
+  }
+
+  private async generateFileHash(file: File): Promise<string> {
+    const buffer = await file.arrayBuffer();
+    const hashBuffer = await crypto.subtle.digest('SHA-256', buffer);
+    return Array.from(new Uint8Array(hashBuffer))
+      .map(b => b.toString(16).padStart(2, '0'))
+      .join('');
+  }
+
+  // ── Dialog de consentimiento biométrico (huella) ──
+  private async mostrarConsentimientoHuella(empresaSlug: string): Promise<boolean> {
+    const cfg = HiringQuestionsComponent.EMPRESAS_HUELLA[empresaSlug]
+      ?? HiringQuestionsComponent.EMPRESAS_HUELLA['apoyo-laboral'];
+    const texto = this.buildTextoConsentimientoHuella(cfg.nombre);
+
+    const { isConfirmed } = await Swal.fire({
+      title: '',
+      html: `
+        <div class="consent-dialog-content">
+          <div class="consent-dialog-header">
+            <div class="consent-dialog-icon">
+              <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="#2e7d32" stroke-width="2">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+              </svg>
+            </div>
+            <h2 class="consent-dialog-title">Autorización de Tratamiento de Datos Biométricos — Huella Dactilar</h2>
+            <span class="consent-dialog-badge">Ley 1581 de 2012</span>
+            <span class="consent-dialog-badge" style="background:#e8f5e9;color:#2e7d32">${cfg.nombre}</span>
+          </div>
+          <div class="consent-dialog-body-inner">
+            <div class="consent-dialog-text">${texto}</div>
+            <label class="consent-dialog-check" id="consent-label">
+              <input type="checkbox" id="swal-consent-cb" />
+              <span>He leído y <strong>autorizo</strong> la captura, almacenamiento y tratamiento de mi huella dactilar conforme a lo anterior.</span>
+            </label>
+            <p class="consent-dialog-version">Versión: ${this.VERSION_CONSENTIMIENTO_HUELLA}</p>
+          </div>
+        </div>
+      `,
+      width: '540px',
+      showCancelButton: true,
+      confirmButtonText: '🔒 Autorizar y Capturar',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#2e7d32',
+      customClass: { popup: 'consent-popup' },
+      didOpen: () => {
+        const btn = Swal.getConfirmButton();
+        if (btn) btn.disabled = true;
+        const cb = document.getElementById('swal-consent-cb') as HTMLInputElement;
+        cb?.addEventListener('change', () => {
+          if (btn) btn.disabled = !cb.checked;
+        });
+      },
+      preConfirm: () => {
+        const cb = document.getElementById('swal-consent-cb') as HTMLInputElement;
+        if (!cb?.checked) {
+          Swal.showValidationMessage('Debes marcar la casilla para continuar.');
+          return false;
+        }
+        return true;
+      },
+    });
+    return isConfirmed;
+  }
+
+  private async captureFingerprint(kind: 'ID' | 'PD', empresaSlug?: string): Promise<void> {
+    // Per-company UI state helpers
+    const setMsg = (t: string) => {
+      if (empresaSlug === 'apoyo-laboral') this.messageApoyo = t;
+      else if (empresaSlug === 'tu-alianza') this.messageTuAlianza = t;
+      if (kind === 'ID') this.messageID = t; else this.messagePD = t;
+    };
+    const setImg = (d: string | null) => {
+      if (empresaSlug === 'apoyo-laboral') this.fingerprintImageApoyo = d;
+      else if (empresaSlug === 'tu-alianza') this.fingerprintImageTuAlianza = d;
+      if (kind === 'ID') this.fingerprintImageID = d; else this.fingerprintImagePD = d;
+    };
+
+    // ── Consentimiento obligatorio para Índice Derecho ──
+    if (kind === 'ID' && empresaSlug) {
+      const aceptado = await this.mostrarConsentimientoHuella(empresaSlug);
+      if (!aceptado) return;
+      this.huellaForm.patchValue({ consentimientoHuella: true });
+    }
 
     type FingerprintGetResult = { success: boolean; data?: string; error?: string };
     const electron = (window as any)?.electron as { fingerprint?: { get: () => Promise<FingerprintGetResult> } };
@@ -592,30 +737,55 @@ export class HiringQuestionsComponent implements OnInit {
       setMsg('Huella capturada exitosamente.');
 
       // Subir automáticamente solo la Índice Derecho
-      if (kind === 'ID') {
+      if (kind === 'ID' && empresaSlug) {
         const cedula = this.candidatoSeleccionado()?.numero_documento;
         if (!cedula) {
           this.alert('warning', 'Cédula requerida', 'No hay cédula para asociar la huella.');
           return;
         }
 
+        const cfg = HiringQuestionsComponent.EMPRESAS_HUELLA[empresaSlug]
+          ?? HiringQuestionsComponent.EMPRESAS_HUELLA['apoyo-laboral'];
+        const textoConsentimiento = this.buildTextoConsentimientoHuella(cfg.nombre);
+
         // DataURL → File
         const filename = this.buildHuellaFilename('ID');
         const file = this.dataUrlToFile(dataUrl, filename);
 
+        // ── Generar hashes ──
+        const timestampISO = new Date().toISOString();
+        const consentimientoHash = await this.generateHash(
+          String(cedula) + textoConsentimiento + timestampISO
+        );
+        const imageHash = await this.generateFileHash(file);
+
+        this.huellaForm.patchValue({
+          consentimientoHash,
+          timestampConsentimiento: timestampISO,
+          imageHash,
+        });
+
         Swal.fire({
           icon: 'info',
           title: 'Subiendo huella…',
-          text: 'Guardando Índice Derecho en el servidor.',
+          text: `Guardando Índice Derecho (${cfg.nombre}) en el servidor.`,
           allowOutsideClick: false,
           didOpen: () => Swal.showLoading(),
         });
 
         try {
-          await firstValueFrom(this.procesosService.uploadHuella(cedula, file));
+          await firstValueFrom(
+            this.procesosService.uploadHuella(cedula, file, {
+              consentimiento_hash: consentimientoHash,
+              consentimiento_version: this.VERSION_CONSENTIMIENTO_HUELLA,
+              consentimiento_timestamp: timestampISO,
+              user_agent: this.huellaForm.value.userAgent,
+              image_hash: imageHash,
+            })
+          );
           Swal.close();
           setMsg('Huella capturada y guardada.');
-          this.alert('success', '¡Listo!', 'La huella (Índice Derecho) se guardó correctamente.');
+          this.alert('success', '¡Listo!', `La huella (Índice Derecho — ${cfg.nombre}) se guardó correctamente.`);
         } catch (e) {
           Swal.close();
           setMsg('Huella capturada, pero no se pudo guardar.');
@@ -721,7 +891,7 @@ export class HiringQuestionsComponent implements OnInit {
     const CONTR_KEYS: Array<keyof typeof contr> = [
       'forma_de_pago', 'numero_para_pagos', 'Ccentro_de_costos', 'porcentaje_arl', 'cesantias',
       'subcentro_de_costos', 'grupo', 'categoria', 'operacion', 'horas_extras', 'seguro_funerario',
-      'desea_trasladarse', 'seleccion_eps', 'contrasenia_asignada', 'numero_identificacion'
+      'desea_trasladarse', 'seleccion_eps', 'contrasenia_asignada', 'identification_number_tarjeta'
     ];
     const contratoVacio = !contr || CONTR_KEYS.every(k => isEmptyValue((contr as any)?.[k]));
     const toNum = (v: any) => (v === '' || v == null ? null : Number(v));
@@ -730,7 +900,7 @@ export class HiringQuestionsComponent implements OnInit {
     this.pagoTransporteForm.patchValue({
       formaPago: contr?.forma_de_pago ?? '',
       numeroPagos: contr?.numero_para_pagos ?? null,
-      numeroIdentificacion: (contr as any)?.numero_identificacion ?? null,
+      numeroIdentificacion: (contr as any)?.identification_number_tarjeta ?? null,
       contraseniaAsignada: contr?.contrasenia_asignada ?? null,
       // validacionNumeroCuenta: contr?.numero_para_pagos ?? null, // eliminado
       seguroFunerario: contr?.seguro_funerario ?? false,
@@ -849,5 +1019,365 @@ export class HiringQuestionsComponent implements OnInit {
     } finally {
       if (ctx === this._docsCtx && Swal.isVisible()) Swal.close();
     }
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  //  DOCUMENT PREVIEW DIALOG (Huella)
+  // ═══════════════════════════════════════════════════════════════
+
+  openDocumentsDialog(): void {
+    this.currentDocIndex = 0;
+    this.showDocumentsDialog = true;
+  }
+
+  closeDocumentsDialog(): void {
+    this.showDocumentsDialog = false;
+  }
+
+  nextDocument(): void {
+    if (this.currentDocIndex < this.huellaDocsList.length - 1) this.currentDocIndex++;
+  }
+
+  prevDocument(): void {
+    if (this.currentDocIndex > 0) this.currentDocIndex--;
+  }
+
+  private pushHuellaDoc(title: string, buffer: ArrayBuffer): void {
+    const blob = new Blob([buffer], { type: 'application/pdf' });
+    this.huellaDocsList.push({
+      title,
+      safeUrl: this.sanitizer.bypassSecurityTrustResourceUrl(URL.createObjectURL(blob))
+    });
+  }
+
+  /** Genera previews de los documentos que usan la huella */
+  async generarPreviewsHuella(empresaSlug: string): Promise<void> {
+    this.huellaDocsList = [];
+    this.currentDocIndex = 0;
+
+    const huellaImage = empresaSlug === 'tu-alianza'
+      ? this.fingerprintImageTuAlianza
+      : this.fingerprintImageApoyo;
+
+    if (!huellaImage) {
+      Swal.fire('Atención', 'Primero debes capturar la huella.', 'info');
+      return;
+    }
+
+    Swal.fire({
+      icon: 'info', title: 'Generando documentos…',
+      text: 'Creando las vistas previas con la huella capturada.',
+      allowOutsideClick: false, didOpen: () => Swal.showLoading(),
+    });
+
+    const cand = this.candidatoSeleccionado();
+    const cedula = cand?.numero_documento ?? '';
+
+    try {
+      // 1. Entrega de Documentos (jsPDF – usa huella)
+      try {
+        const buf = await this.generarEntregaDocsHuella(cedula, cand, huellaImage);
+        if (buf) this.pushHuellaDoc('Entrega de documentos', buf);
+      } catch (e) { console.warn('No se pudo generar Entrega de Documentos:', e); }
+
+      this.currentDocIndex = 0;
+      Swal.close();
+
+      if (this.huellaDocsList.length > 0) {
+        this.openDocumentsDialog();
+      } else {
+        Swal.fire('Info', 'No se generaron documentos con la huella.', 'info');
+      }
+    } catch (error) {
+      Swal.close();
+      console.error('Error generando previews de huella:', error);
+      Swal.fire('Error', 'No se pudieron generar los documentos.', 'error');
+    }
+  }
+
+  // ═════ ENTREGA DE DOCUMENTOS con Huella (jsPDF) ═════
+  private async generarEntregaDocsHuella(
+    cedula: string, cand: any, huellaDataUrl: string
+  ): Promise<ArrayBuffer | null> {
+    const H_CENTER = 'center' as const;
+    const BOLD = 'bold' as const;
+    const ITALIC = 'italic' as const;
+
+    const toDataURL = async (url?: string): Promise<string | null> => {
+      if (!url) return null;
+      try {
+        const r = await fetch(url, { cache: 'no-store' });
+        if (!r.ok) throw new Error('fetch fail');
+        const b = await r.blob();
+        return await new Promise<string>((res, rej) => {
+          const fr = new FileReader();
+          fr.onload = () => res(String(fr.result));
+          fr.onerror = () => rej(new Error('reader fail'));
+          fr.readAsDataURL(b);
+        });
+      } catch { return null; }
+    };
+
+    const renderJustifiedLine = (
+      doc: jsPDF, linea: string, x: number, y: number,
+      anchoDisponible: number, ultimaLinea: boolean
+    ) => {
+      const palabras = linea.split(' ').filter(Boolean);
+      if (palabras.length <= 1 || ultimaLinea) { doc.text(linea, x, y); return; }
+      const widths = palabras.map(p => doc.getTextWidth(p));
+      const totalPalabras = widths.reduce((a, b) => a + b, 0);
+      const espacios = palabras.length - 1;
+      const extra = (anchoDisponible - totalPalabras) / espacios;
+      let cursorX = x;
+      palabras.forEach((p, i) => {
+        doc.text(p, cursorX, y);
+        if (i < espacios) cursorX += widths[i] + extra;
+      });
+    };
+
+    const { jsPDF } = await import('jspdf');
+    const { default: autoTable } = await import('jspdf-autotable');
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'letter' });
+    const empresaNombre = 'APOYO LABORAL T.S. S.A.S.';
+    doc.setProperties({ title: 'Entrega_Documentos.pdf', author: empresaNombre, creator: empresaNombre });
+
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const leftMargin = 10, rightMargin = 10;
+    const contentWidth = pageWidth - leftMargin - rightMargin;
+    let y = 10;
+    const marginLeft = leftMargin;
+
+    // ── Encabezado ──
+    const startX = leftMargin, startY = y, headerHeight = 13;
+    const logoBoxWidth = 50, tableWidth = contentWidth;
+    doc.setLineWidth(0.1);
+    doc.rect(startX, startY, logoBoxWidth, headerHeight);
+    const logoData = await toDataURL('logos/Logo_AL.png');
+    if (logoData) doc.addImage(logoData, 'PNG', startX + 2, startY + 1.5, 27, 10);
+    doc.setFontSize(7);
+    const tableStartX = startX + logoBoxWidth;
+    const rightHeaderWidth = tableWidth - logoBoxWidth;
+    doc.rect(tableStartX, startY, rightHeaderWidth, headerHeight);
+    doc.setFont('helvetica', 'bold');
+    doc.text('PROCESO DE CONTRATACIÓN', tableStartX + 54, startY + 3);
+    doc.text('ENTREGA DE DOCUMENTOS Y AUTORIZACIONES', tableStartX + 44, startY + 7);
+    const h1Y = startY + 4, h2Y = startY + 8;
+    doc.line(tableStartX, h1Y, tableStartX + rightHeaderWidth, h1Y);
+    doc.line(tableStartX, h2Y, tableStartX + rightHeaderWidth, h2Y);
+    const col1 = tableStartX + 30, col2 = tableStartX + 50, col3 = tableStartX + 110;
+    doc.line(col1, h2Y, col1, startY + headerHeight);
+    doc.line(col2, h2Y, col2, startY + headerHeight);
+    doc.line(col3, h2Y, col3, startY + headerHeight);
+    doc.setFontSize(7).setFont('helvetica', 'bold');
+    doc.text('Código: AL CO-RE-6', tableStartX + 2, startY + 11.5);
+    doc.text('Versión: 23', col1 + 2, startY + 11.5);
+    doc.text('Fecha Emisión: Julio 9-25', col2 + 5, startY + 11.5);
+    doc.text('Página: 1 de 1', col3 + 6, startY + 11.5);
+    y = startY + headerHeight + 7;
+
+    // ── Intro ──
+    doc.setFontSize(8).setFont('helvetica', 'normal');
+    doc.text('Reciba un cordial saludo, por medio del presente documento afirmo haber recibido, leído y comprendido los documentos relacionados a continuación:', marginLeft, y, { maxWidth: contentWidth });
+    doc.setFontSize(7);
+    y += 4;
+
+    ['Copia del Contrato individual de Trabajo',
+      'Inducción General de nuestra Compañía e Información General de la Empresa Usuaria el cual incluye información sobre:'
+    ].forEach((item, idx) => {
+      const n = `${idx + 1}) `;
+      doc.setFont('helvetica', 'bold'); doc.text(n, marginLeft, y);
+      doc.setFont('helvetica', 'normal'); doc.text(item, marginLeft + doc.getTextWidth(n), y);
+      y += 5;
+    });
+
+    // ── Tabla (autoTable) ──
+    doc.setFontSize(8).setFont('helvetica', 'bold');
+    doc.text('Fechas de Pago de Nómina y Valor del almuerzo que es descontado por Nómina o Liquidación final:', marginLeft + 20, y);
+    const startYForTable = y + 3;
+
+    const head: RowInput[] = [[
+      { content: 'EMPRESA USUARIA', styles: { halign: H_CENTER, fontStyle: BOLD, fillColor: [255, 128, 0], textColor: 255 } },
+      { content: 'FECHA DE PAGO', styles: { halign: H_CENTER, fontStyle: BOLD, fillColor: [255, 128, 0], textColor: 255 } },
+      { content: 'SERVICIO DE CASINO', styles: { halign: H_CENTER, fontStyle: BOLD, fillColor: [255, 128, 0], textColor: 255 } }
+    ]];
+    const body: RowInput[] = [
+      [{ content: 'The Elite Flower S.A.S C.I *\nFundación Fernando Borrero Caicedo', styles: { fontStyle: ITALIC, fontSize: 6.5, halign: H_CENTER } }, { content: '01 y 16 de cada mes', styles: { fontSize: 6.5, halign: H_CENTER } }, { content: 'Valor de Almuerzo $ 1,945\nDescuento quincenal por nómina y/o Liquidación Final', styles: { fontSize: 6.5, halign: H_CENTER } }],
+      [{ content: 'Luisiana Farms S.A.S.', styles: { fontStyle: ITALIC, fontSize: 6.5, halign: H_CENTER } }, { content: '01 y 16 de cada mes', styles: { fontSize: 6.5, halign: H_CENTER } }, { content: 'Valor de Almuerzo $ 3,700\nDescuento quincenal por nómina y/o Liquidación Final', styles: { fontSize: 6.5, halign: H_CENTER } }],
+      [{ content: 'Petalia S.A.S', styles: { fontStyle: ITALIC, fontSize: 6.5, halign: H_CENTER } }, { content: '01 y 16 de cada mes', styles: { fontSize: 6.5, halign: H_CENTER } }, { content: 'No cuenta con servicio de casino, se debe llevar el almuerzo', styles: { fontSize: 6.5, halign: H_CENTER } }],
+      [{ content: 'Fantasy Flower S.A.S. \nMercedes S.A.S. \nWayuu Flowers S.A.S', styles: { fontStyle: ITALIC, fontSize: 6.5, halign: H_CENTER } }, { content: '06 y 21 de cada mes', styles: { fontSize: 6.5, halign: H_CENTER } }, { content: 'Valor de Almuerzo $ 1,945 \n Descuento quincenal por nómina y/o Liquidación Final', styles: { fontSize: 6.5, halign: H_CENTER } }]
+    ];
+    autoTable(doc, { head, body, startY: startYForTable, theme: 'grid', margin: { left: leftMargin, right: rightMargin }, styles: { font: 'helvetica', fontSize: 6.5, cellPadding: { top: 1.2, bottom: 1.2, left: 2, right: 2 } }, headStyles: { lineWidth: 0.2, lineColor: [120, 120, 120] }, bodyStyles: { lineWidth: 0.2, lineColor: [180, 180, 180], valign: 'middle' }, columnStyles: { 0: { cellWidth: 95 }, 1: { cellWidth: 45 }, 2: { cellWidth: 'auto' as const } } });
+    const finalY = (doc as any).lastAutoTable?.finalY ?? (startYForTable + 30);
+    doc.setDrawColor(0).setLineWidth(0.2);
+    doc.line(leftMargin, finalY, pageWidth - rightMargin, finalY);
+    y = finalY + 4;
+
+    // ── Notas ──
+    doc.setFontSize(7).setFont('helvetica', 'normal');
+    const nota1 = 'Nota: * Para los centros de costo de la empresa usuaria The Elite Flower S.A.S. C.I.: Carnations, Florex, Jardines de Colombia Normandía, Tinzuque, Tikya, Chuzacá; su fecha de pago son 06 y 21 de cada mes.';
+    const nota2 = '** Para los centros de costo de la empresa usuaria Wayuu Flowers S.A.S.: Pozo Azul, Postcosecha Excellence, Belchite; su fecha de pago son 01 y 16 de cada mes.';
+    const l1 = doc.splitTextToSize(nota1, contentWidth) as string[]; doc.text(l1, marginLeft, y); y += l1.length * 4;
+    const l2 = doc.splitTextToSize(nota2, contentWidth) as string[]; doc.text(l2, marginLeft, y); y += l2.length * 4;
+
+    // ── Autorización casino ──
+    doc.setFontSize(8).setFont('helvetica', 'bold');
+    doc.text('Teniendo en cuenta la anterior información, autorizo descuento de casino:', marginLeft, y);
+    doc.setFont('helvetica', 'normal');
+    doc.text('SI (  X  )', 130, y); doc.text('NO (     )', 155, y); doc.text('No aplica (     )', 175, y);
+
+    // ── Forma de pago ──
+    y += 5;
+    doc.setFont('helvetica', 'bold').setFontSize(7);
+    doc.text('3) FORMA DE PAGO:', marginLeft, y); y += 5;
+    const contrato = cand?.entrevistas?.[0]?.proceso?.contrato || {};
+    const formaPago: string = contrato?.forma_de_pago ?? '';
+    const numPagos: string = contrato?.numero_para_pagos ?? '';
+    const opciones = [
+      { nombre: 'Daviplata', x: marginLeft, y }, { nombre: 'Davivienda cta ahorros', x: marginLeft + 20, y },
+      { nombre: 'Davivienda Tarjeta Master', x: marginLeft + 60, y }, { nombre: 'Otra', x: marginLeft + 105, y },
+    ];
+    opciones.forEach(op => {
+      doc.rect(op.x, op.y - 3, 4, 4);
+      doc.setFont('helvetica', 'normal').text(op.nombre, op.x + 6, op.y);
+      if (formaPago === op.nombre) doc.setFont('helvetica', 'bold').text('X', op.x + 1, op.y);
+    });
+    doc.text('¿Cuál?', 130, y); doc.line(140, y, 200, y);
+    y += 5;
+    doc.setFontSize(8).setFont('helvetica', 'bold').text('Número TJT ó Celular:', marginLeft, y);
+    doc.text('Código de Tarjeta:', 110, y);
+    doc.setFont('helvetica', 'normal');
+    if (formaPago === 'Daviplata') doc.text(String(numPagos), 60, y);
+    else doc.text(String(numPagos), 150, y);
+
+    // ── IMPORTANTE (justificado) ──
+    y += 5;
+    doc.setFont('helvetica', 'bold').setFontSize(7);
+    const importante = 'IMPORTANTE: Recuerde que si usted cuenta con su forma de pago Daviplata, cualquier cambio realizado en la misma debe ser notificado a la Emp. Temporal. También tenga presente que la entrega de la tarjeta Master por parte de la Emp. Temporal es provisional, y se reemplaza por la forma de pago DAVIPLATA; tan pronto Davivienda nos informa que usted activó su DAVIPLATA, se le genera automáticamente el cambio de forma de pago. CUIDADO! El manejo de estas cuentas es responsabilidad de usted como trabajador, por eso son personales e intransferibles.';
+    doc.setFont('helvetica', 'normal');
+    const lineas = doc.splitTextToSize(importante.trim().replace(/\s+/g, ' '), contentWidth) as string[];
+    lineas.forEach((ln, i) => { renderJustifiedLine(doc, ln, marginLeft, y, contentWidth, i === lineas.length - 1); y += 3; });
+
+    // ── Acepto cambio ──
+    y += 5;
+    doc.setFont('helvetica', 'bold').setFontSize(8);
+    doc.text('ACEPTO CAMBIO SIN PREVIO AVISO YA QUE HE SIDO INFORMADO (A):', marginLeft, y - 4);
+    doc.setFont('helvetica', 'normal'); doc.text('SI (  x  )', 170, y - 4); doc.text('NO (     )', 190, y - 4);
+    doc.setFontSize(6.5);
+
+    // ── Contenido final ──
+    const contenidoFinal = [
+      { numero: '4)', texto: 'Entrega y Manejo del Carné de la Empresa de Servicios Temporales APOYO LABORAL TS S.A.S.' },
+      { numero: '5)', texto: 'Capacitación de Ley 1010 DEL 2006 (Acosos laboral) y mecanismo para interponer una queja general o frente al acoso.' },
+      { numero: '6)', texto: 'Socialización de las políticas vigentes y aplicables de la Empresa Temporal.' },
+      { numero: '7)', texto: 'Curso de Seguridad y Salud en el Trabajo "SST" de la Empresa Temporal.' },
+      { numero: '8)', texto: 'Se hace entrega de la documentación requerida para la vinculación de beneficiarios a la Caja de Compensación Familiar y se establece compromiso de 15 días para la entrega sobre la documentación para afiliación de beneficiarios a la Caja de Compensación y EPS si aplica.\nDe lo contrario se entenderá que usted no desea recibir este beneficio, recuerde que es su responsabilidad el registro de los mismos.' },
+      { numero: '9)', texto: 'Plan funeral Coorserpark: AUTORIZO la afiliación y descuento VOLUNTARIO al plan, por un valor de $4.095 descontados quincenalmente por Nómina. La afiliación se hace efectiva a partir del primer descuento.' }
+    ];
+    const bottomSafe = 12;
+    const ensureSpace = (need: number) => { if (y + need > pageHeight - bottomSafe) { doc.addPage(); y = 15; } };
+    doc.setFontSize(7);
+    contenidoFinal.forEach(item => {
+      ensureSpace(10);
+      doc.setFont('helvetica', 'bold').text(item.numero, marginLeft, y);
+      doc.setFont('helvetica', 'normal');
+      const tl = doc.splitTextToSize(item.texto, contentWidth) as string[];
+      doc.text(tl, marginLeft + 10, y); y += tl.length * 4 + 1;
+    });
+
+    // Seguro funerario
+    const seguro = !!contrato?.seguro_funerario;
+    if (seguro) { doc.text('SI (  x  )', 170, y - 4); doc.text('NO (     )', 190, y - 4); }
+    else { doc.text('SI (     )', 170, y - 4); doc.text('NO (  x  )', 190, y - 4); }
+
+    doc.setFont('helvetica', 'bold').text('Nota:', marginLeft, y + 1);
+    doc.setFont('helvetica', 'normal').setFontSize(7).text(
+      'Si usted autorizó este descuento debe presentar una carta en la oficina de la Temporal solicitando el retiro, para la desafiliación de este plan.',
+      marginLeft + 10, y + 1, { maxWidth: contentWidth - 10 }
+    );
+
+    // ── Banner Recuerde que ──
+    y += 5; ensureSpace(10);
+    doc.setFillColor(230, 230, 230); doc.rect(marginLeft, y - 2, contentWidth, 5, 'F');
+    doc.setFont('helvetica', 'bold').setFontSize(7.5).setTextColor(0, 0, 0);
+    doc.text('Recuerde que:', marginLeft + 2, y + 1);
+    doc.setFont('helvetica', 'normal').setTextColor(0, 0, 0);
+    doc.text('Puede encontrar esta información disponible en:', marginLeft + 25, y + 1);
+    doc.setTextColor(0, 0, 255);
+    doc.textWithLink('http://www.apoyolaboralts.com/', marginLeft + 95, y + 1, { url: 'http://www.apoyolaboralts.com/' });
+    doc.setTextColor(0, 0, 0);
+    doc.setFont('helvetica', 'bold').text('Ingresando la clave:', marginLeft + 145, y + 1);
+    doc.setFont('helvetica', 'bold').setFontSize(8).text('9876', marginLeft + 180, y + 1);
+
+    // ── DEL COLABORADOR ──
+    y += 8; ensureSpace(20);
+    const contenidoColaborador = [
+      { numero: 'a)', texto: 'Por medio de la presente manifiesto que recibí lo anteriormente mencionado y que acepto el mismo.' },
+      { numero: 'b)', texto: 'Leí y comprendí  el curso de inducción General y de Seguridad y Salud en el Trabajo, así como  el contrato laboral   y todas las cláusulas y condiciones establecidas.' },
+      { numero: 'c)', texto: 'Información Condiciones de Salud: Manifiesto que conozco los resultados de mis exámenes médicos de ingreso y las recomendaciones dadas por el médico ocupacional.' },
+    ];
+    doc.setFont('helvetica', 'bold').setFontSize(8).text('DEL COLABORADOR:', marginLeft, y); y += 5;
+    doc.setFontSize(7.5);
+    const lh = 4, gapAfterItem = 1;
+    doc.setFont('helvetica', 'bold');
+    const bulletBoxWidth = Math.max(doc.getTextWidth('a) '), doc.getTextWidth('b) '), doc.getTextWidth('c) ')) + 1.5;
+    const xBullet = marginLeft, xText = xBullet + bulletBoxWidth;
+    const availWidth = pageWidth - rightMargin - xText;
+
+    contenidoColaborador.forEach(({ numero, texto }) => {
+      ensureSpace(10);
+      doc.setFont('helvetica', 'bold').text(numero, xBullet, y);
+      doc.setFont('helvetica', 'normal');
+      const partes = String(texto).split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+      (partes.length ? partes : ['']).forEach((p, pi) => {
+        const lines = doc.splitTextToSize(p, availWidth) as string[];
+        lines.forEach(ln => { ensureSpace(lh); doc.text(ln, xText, y); y += lh; });
+        if (pi < partes.length - 1) y += 1.5;
+      });
+      y += gapAfterItem;
+    });
+
+    // ── Firma + Huella ──
+    y += 10; ensureSpace(30);
+    doc.setFont('helvetica', 'bold').setFontSize(8);
+    doc.line(marginLeft, y, marginLeft + 60, y);
+    doc.text('Firma de Aceptación', marginLeft, y + 4);
+
+    // Firma del candidato (si existe en biometría)
+    const firmaUrl = cand?.biometria?.firma?.file_url;
+    if (firmaUrl) {
+      const firmaData = await toDataURL(firmaUrl);
+      if (firmaData) doc.addImage(firmaData, 'PNG', marginLeft, y - 18, 50, 20);
+    }
+
+    y += 8;
+    doc.setFont('helvetica', 'bold').setFontSize(8);
+    doc.text(`No de Identificación: ${cedula ?? ''}`, marginLeft, y);
+    doc.text(`Fecha de Recibido: ${new Date().toISOString().split('T')[0]}`, marginLeft, y + 4);
+
+    // Tabla de huella
+    const huellaTableWidth = 82, huellaTableHeight = 30, huellaHeaderHeight = 8;
+    const huellaStartX = pageWidth - rightMargin - huellaTableWidth;
+    const huellaStartY = y - 10;
+    doc.setFillColor(230, 230, 230);
+    doc.rect(huellaStartX, huellaStartY, huellaTableWidth / 2, huellaHeaderHeight, 'F');
+    doc.setDrawColor(0);
+    doc.rect(huellaStartX, huellaStartY, huellaTableWidth / 2, huellaHeaderHeight);
+    doc.setFont('helvetica', 'bold').setFontSize(8);
+    doc.text('Huella Indice Derecho', huellaStartX + 5, huellaStartY + 5);
+    doc.rect(huellaStartX, huellaStartY + huellaHeaderHeight, huellaTableWidth / 2, huellaTableHeight);
+
+    // Insertar la huella capturada directamente desde el dataURL en memoria
+    if (huellaDataUrl) {
+      const imageWidth = huellaTableWidth / 2 - 10;
+      const imageHeight = huellaTableHeight - 3;
+      doc.addImage(huellaDataUrl, 'PNG', huellaStartX + 5, huellaStartY + huellaHeaderHeight + 2, imageWidth, imageHeight);
+    }
+
+    // Sello
+    const selloData = await toDataURL('firma/FirmaEntregaDocApoyo.png');
+    if (selloData) { y += 5; doc.addImage(selloData, 'PNG', marginLeft, y, 95, 10); }
+
+    return doc.output('arraybuffer');
   }
 }

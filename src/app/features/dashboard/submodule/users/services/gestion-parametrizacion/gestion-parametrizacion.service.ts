@@ -127,10 +127,6 @@ export class GestionParametrizacionService {
     return this.http.patch<MetaTabla>(`${this.base}/meta/tablas/${encodeURIComponent(codigo)}/`, partial);
   }
 
-  deleteMetaTabla(codigo: string): Observable<void> {
-    return this.http.delete<void>(`${this.base}/meta/tablas/${encodeURIComponent(codigo)}/`);
-  }
-
   /** ===========================
    *  MetaCampos (CRUD)
    *  =========================== */
@@ -179,10 +175,6 @@ export class GestionParametrizacionService {
       .pipe(this.unwrapMaybePaginated<MetaValor>());
   }
 
-  getMetaValor(id: string): Observable<MetaValor> {
-    return this.http.get<MetaValor>(`${this.base}/meta/valores/${encodeURIComponent(id)}/`);
-  }
-
   createMetaValor(payload: Pick<MetaValor, 'tabla' | 'datos'> & { activo?: boolean }): Observable<MetaValor> {
     return this.http.post<MetaValor>(`${this.base}/meta/valores/`, payload);
   }
@@ -194,10 +186,6 @@ export class GestionParametrizacionService {
     return this.getMetaTablaByCodigo(tablaCodigo).pipe(
       switchMap(tabla => this.createMetaValor({ tabla: tabla.id, datos: body.datos, activo: (body as any).activo }))
     );
-  }
-
-  updateMetaValor(id: string, payload: Partial<MetaValor>): Observable<MetaValor> {
-    return this.http.put<MetaValor>(`${this.base}/meta/valores/${encodeURIComponent(id)}/`, payload);
   }
 
   patchMetaValor(id: string, partial: Partial<MetaValor>): Observable<MetaValor> {

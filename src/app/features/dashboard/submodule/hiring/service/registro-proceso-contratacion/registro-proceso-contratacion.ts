@@ -235,7 +235,7 @@ export interface ProcesoUpdateByDocumentRequest {
   contrato_detalle?: {
     forma_de_pago?: string | null;
     numero_para_pagos?: string | null;
-    numero_identificacion?: string | null; // New field
+    identification_number_tarjeta?: string | null; // New field
     seguro_funerario?: boolean | null;
     Ccentro_de_costos?: string | null;
     porcentaje_arl?: number | null;
@@ -635,6 +635,10 @@ export class RegistroProcesoContratacion {
   patchContacto(id: number | string, data: any) { return this.http.patch(this.url(`contactos/${id}`), data).pipe(this.handle$()); }
   deleteContacto(id: number | string) { return this.http.delete(this.url(`contactos/${id}`)).pipe(this.handle$()); }
 
+  confirmarContacto(candidatoId: number | string, payload: { correo_confirmado?: boolean, whatsapp_confirmado?: boolean }): Observable<any> {
+    return this.http.patch(this.url(`candidatos/${candidatoId}/confirmar-contacto`), payload).pipe(this.handle$());
+  }
+
   // =========================================================
   // RESIDENCIAS
   // =========================================================
@@ -771,11 +775,25 @@ export class RegistroProcesoContratacion {
   uploadBiometria(
     tipo: TipoBio,
     numero_documento: string | number,
-    file: File
+    file: File,
+    consent?: {
+      consentimiento_hash?: string;
+      consentimiento_version?: string;
+      consentimiento_timestamp?: string;
+      user_agent?: string;
+      image_hash?: string;
+    },
   ) {
     const fd = new FormData();
     fd.append('numero_documento', String(numero_documento));
     fd.append('file', file);
+
+    // Append consent metadata if provided
+    if (consent) {
+      Object.entries(consent).forEach(([k, v]) => {
+        if (v != null) fd.append(k, v);
+      });
+    }
 
     // POST /biometria/upload/{tipo}
     return this.http
@@ -787,8 +805,18 @@ export class RegistroProcesoContratacion {
   uploadFirma(numero_documento: string | number, file: File) {
     return this.uploadBiometria('firma', numero_documento, file);
   }
-  uploadHuella(numero_documento: string | number, file: File) {
-    return this.uploadBiometria('huella', numero_documento, file);
+  uploadHuella(
+    numero_documento: string | number,
+    file: File,
+    consent?: {
+      consentimiento_hash?: string;
+      consentimiento_version?: string;
+      consentimiento_timestamp?: string;
+      user_agent?: string;
+      image_hash?: string;
+    },
+  ) {
+    return this.uploadBiometria('huella', numero_documento, file, consent);
   }
   uploadFoto(numero_documento: string | number, file: File) {
     return this.uploadBiometria('foto', numero_documento, file);
@@ -818,6 +846,10 @@ export class RegistroProcesoContratacion {
       sexo: get('sexo', 'genero'),
       fecha_nacimiento: this.toYYYYMMDD(get('fecha_nacimiento', 'fechaNacimiento')),
       estado_civil: get('estado_civil', 'estadoCivil'),
+      nombreReferenciaFamiliar1: get('nombreReferenciaFamiliar1'),
+      parentescoReferenciaFamiliar1: get('parentescoReferenciaFamiliar1'),
+      nombreReferenciaFamiliar2: get('nombreReferenciaFamiliar2'),
+      parentescoReferenciaFamiliar2: get('parentescoReferenciaFamiliar2'),
     });
 
     // ===== Contacto =====
@@ -829,6 +861,7 @@ export class RegistroProcesoContratacion {
 
     // ===== Residencia =====
     const residencia = this.nonEmpty({
+      direccion: get('direccion_de_residencia', 'direccion'),
       barrio: get('barrio'),
       hace_cuanto_vive: get('hace_cuanto_vive', 'tiempoResidencia'),
     });
@@ -946,9 +979,19 @@ export class RegistroProcesoContratacion {
       return { ...(procesoFromForm || {}), ...(pArg || {}) };
     })();
 
+    // ===== Evaluacion (Opcional) =====
+    const evaluacion = this.nonEmpty({
+      relacion_familiar: get('relacionFamiliar'),
+      rendimiento_laboral: get('desempenoLaboral'),
+       porque_lo_felicitarian: get('felicitaciones'),
+      malentendido: get('situacionConflictiva'),
+      actividades_diarias: get('actividadesDiferentes'),
+    });
+
     // ===== Payload final =====
     const payload: any = this.clean({
       ...candidatoBase,
+      password: get('password'),
       contacto,
       residencia,
       vivienda,
@@ -958,6 +1001,7 @@ export class RegistroProcesoContratacion {
       experiencias: experiencias.length ? experiencias : undefined,
       hijos: hijos.length ? hijos : undefined,
       entrevistas,
+      evaluacion,
       // solo añadimos 'proceso' si hay algo
       proceso: procesoMerged,
     });

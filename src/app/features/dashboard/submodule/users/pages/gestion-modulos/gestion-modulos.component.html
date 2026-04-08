@@ -1,21 +1,40 @@
-<mat-card>
-  <mat-card-header class="card-header">
-    <mat-card-title class="titulo">Gestión de módulos</mat-card-title>
-    <span class="spacer"></span>
+<mat-card class="premium-card">
+  <mat-card-header class="card-header-premium">
+    <div class="header-content">
+      <div class="header-icon-container">
+        <mat-icon class="header-icon">view_module</mat-icon>
+      </div>
+      <div class="header-text">
+        <mat-card-title class="titulo">Gestión de Módulos</mat-card-title>
+        <mat-card-subtitle class="subtitulo">Configuración estructural del árbol de aplicaciones y
+        navegación.</mat-card-subtitle>
+      </div>
+    </div>
+    <span class="grow"></span>
 
     <!-- Crear módulo raíz -->
-    <button mat-flat-button (click)="crear()">
-      <mat-icon>add</mat-icon>
-      Crear módulo (raíz)
-    </button>
+    <div class="header-actions">
+      <button mat-flat-button class="btn-managerial" (click)="crear()">
+        <mat-icon>create_new_folder</mat-icon>
+        <span>Crear módulo (Raíz)</span>
+      </button>
+    </div>
   </mat-card-header>
 
-  <mat-card-content class="card-body">
+  <mat-card-content class="card-content">
     <!-- Loader superior opcional -->
-    <mat-progress-bar *ngIf="loading" mode="indeterminate"></mat-progress-bar>
+    @if (loading) {
+      <mat-progress-bar mode="indeterminate"></mat-progress-bar>
+    }
     <div class="scroll">
 
       <div class="tree-container" [class.loading]="loading">
+        <!-- Pseudo Table Header -->
+        <div class="tree-header">
+          <div class="th-col th-name">Nombre del Módulo</div>
+          <div class="th-col th-actions">Acciones</div>
+        </div>
+
         <mat-tree #tree [dataSource]="dataSource" [childrenAccessor]="childrenAccessor">
 
           <!-- PADRE / EXPANDIBLE -->
@@ -31,7 +50,9 @@
             <div class="node-content" [attr.data-node-id]="node.id">
               <div class="node-text">
                 <div class="node-title">{{ node.nombre || node.name }}</div>
-                <div class="node-desc" *ngIf="node.descripcion">{{ node.descripcion }}</div>
+                @if (node.descripcion) {
+                  <div class="node-desc">{{ node.descripcion }}</div>
+                }
               </div>
 
               <span class="spacer"></span>
@@ -58,7 +79,9 @@
             <div class="node-content" [attr.data-node-id]="node.id">
               <div class="node-text">
                 <div class="node-title">{{ node.nombre || node.name }}</div>
-                <div class="node-desc" *ngIf="node.descripcion">{{ node.descripcion }}</div>
+                @if (node.descripcion) {
+                  <div class="node-desc">{{ node.descripcion }}</div>
+                }
               </div>
 
               <span class="spacer"></span>
@@ -80,9 +103,11 @@
         </mat-tree>
 
         <!-- Estado vacío -->
-        <div *ngIf="!loading && (!dataSource || dataSource.length === 0)" class="empty-state">
-          No hay módulos todavía. Crea el primero con el botón “Crear módulo (raíz)”.
-        </div>
+        @if (!loading && (!dataSource || dataSource.length === 0)) {
+          <div class="empty-state">
+            No hay módulos todavía. Crea el primero con el botón “Crear módulo (raíz)”.
+          </div>
+        }
       </div>
     </div>
   </mat-card-content>

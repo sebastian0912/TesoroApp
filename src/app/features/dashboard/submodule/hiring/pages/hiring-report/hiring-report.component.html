@@ -1,19 +1,19 @@
 <mat-card>
     <mat-card-content>
         <div class="hiring-wrapper">
-        
+
             <header class="page-header">
                 <h1 class="page-title">Reporte de Contratación</h1>
                 <p class="page-subtitle">Gestión diaria de ingresos, cruces y novedades.</p>
             </header>
-        
+
             <form [formGroup]="reporteForm" class="dashboard-grid" (ngSubmit)="onSubmit()">
-        
+
                 <!-- LEFT COLUMN: MAIN CONTENT -->
                 <div class="main-column">
-        
+
                     @if (showValidateButton) {
-        
+
                     <!-- Metrics Section -->
                     <section class="metrics-row">
                         <div class="metric-card">
@@ -21,27 +21,27 @@
                             <span class="metric-value highlight">{{ totalFilesLoaded }} / {{ DOCS.length }}</span>
                         </div>
                     </section>
-                    
+
                     <!-- Documents Loop -->
                     <section class="documents-section">
                         <mat-card class="config-card">
                             <div class="card-header">
                                 <h3 class="card-title">Documentos Requeridos</h3>
                             </div>
-        
+
                             <div class="card-content">
                                 <div class="doc-list">
                                     @for (doc of DOCS; track doc.key) {
-        
+
                                     <div class="doc-card" [class.active]="reporteForm.get(doc.key)?.value">
-        
+
                                         <!-- Checkbox -->
                                         <div class="doc-check-wrapper">
                                             <mat-checkbox [checked]="reporteForm.get(doc.key)?.value"
                                                 (change)="onCheckboxChange($event.checked, doc.key)" color="primary">
                                             </mat-checkbox>
                                         </div>
-        
+
                                         <!-- Content -->
                                         <div class="doc-content">
                                             <span class="doc-label">
@@ -54,35 +54,38 @@
                                                 {{ fileNames[doc.key] || doc.hint }}
                                             </span>
                                         </div>
-        
+
                                         <!-- Actions -->
                                         <div class="doc-actions">
-        
+
                                             <!-- Preview Button (Optional) -->
                                             @if (doc.previewType && fileNames[doc.key]) {
                                             <button mat-icon-button type="button" color="accent"
-                                                (click)="openPreview(doc.previewType!)" matTooltip="Ver detalle cargado">
+                                                (click)="openPreview(doc.previewType!)"
+                                                matTooltip="Ver detalle cargado">
                                                 <mat-icon>visibility</mat-icon>
                                             </button>
                                             }
-        
-                                            <input #fileInput type="file" hidden [accept]="doc.accept" [multiple]="doc.multiple"
+
+                                            <input #fileInput type="file" hidden [accept]="doc.accept"
+                                                [multiple]="doc.multiple"
                                                 [attr.webkitdirectory]="doc.directory ? '' : null"
                                                 (change)="onFileSelect($event, doc.key)">
-        
-                                            <button mat-stroked-button color="primary" type="button" (click)="fileInput.click()"
+
+                                            <button mat-stroked-button color="primary" type="button"
+                                                (click)="fileInput.click()"
                                                 [disabled]="!reporteForm.get(doc.key)?.value">
                                                 Seleccionar
                                             </button>
                                         </div>
-        
+
                                     </div>
                                     }
                                 </div>
                             </div>
                         </mat-card>
                     </section>
-        
+
                     <!-- Additional Info -->
                     <section class="additional-info">
                         <mat-card class="config-card">
@@ -93,15 +96,17 @@
                                 <div class="form-row two-col">
                                     <mat-form-field appearance="outline" class="dense-field">
                                         <mat-label>Contratos Tu Alianza</mat-label>
-                                        <input matInput type="number" formControlName="cantidadContratosTuAlianza" readonly>
+                                        <input matInput type="number" formControlName="cantidadContratosTuAlianza"
+                                            readonly>
                                     </mat-form-field>
-        
+
                                     <mat-form-field appearance="outline" class="dense-field">
                                         <mat-label>Contratos Apoyo Laboral</mat-label>
-                                        <input matInput type="number" formControlName="cantidadContratosApoyoLaboral" readonly>
+                                        <input matInput type="number" formControlName="cantidadContratosApoyoLaboral"
+                                            readonly>
                                     </mat-form-field>
                                 </div>
-        
+
                                 <div class="form-row">
                                     <mat-form-field appearance="outline" class="dense-field">
                                         <mat-label>Notas / Observaciones</mat-label>
@@ -111,26 +116,26 @@
                             </div>
                         </mat-card>
                     </section>
-        
+
                     } @else {
                     <div class="empty-state">
                         <h3>Sin actividad de contratación</h3>
                         <p>Seleccione "Sí" en el panel lateral si hubo contratos hoy.</p>
                     </div>
                     }
-        
+
                 </div>
-        
+
                 <!-- RIGHT COLUMN: SIDEBAR -->
                 <aside class="sidebar-column">
-        
+
                     <mat-card class="config-card">
                         <div class="card-header">
                             <h3 class="card-title">Configuración del Reporte</h3>
                         </div>
-        
+
                         <div class="card-content">
-        
+
                             <div class="form-row">
                                 <mat-form-field appearance="outline" class="dense-field">
                                     <mat-label>Sede</mat-label>
@@ -141,7 +146,7 @@
                                     </mat-select>
                                 </mat-form-field>
                             </div>
-        
+
                             <div class="form-row two-col">
                                 <mat-form-field appearance="outline" class="dense-field">
                                     <mat-label>¿Hubo contratos?</mat-label>
@@ -150,7 +155,7 @@
                                         <mat-option value="no">No</mat-option>
                                     </mat-select>
                                 </mat-form-field>
-        
+
                                 @if(showValidateButton) {
                                 <mat-form-field appearance="outline" class="dense-field">
                                     <mat-label>¿Es de hoy?</mat-label>
@@ -161,7 +166,7 @@
                                 </mat-form-field>
                                 }
                             </div>
-        
+
                             @if(showValidateButton && reporteForm.controls.esDeHoy.value === 'false') {
                             <div class="form-row">
                                 <mat-form-field appearance="outline" class="dense-field">
@@ -172,32 +177,59 @@
                                 </mat-form-field>
                             </div>
                             }
-        
+
                             <div class="action-buttons">
                                 @if(showValidateButton) {
                                 <button mat-stroked-button color="primary" class="btn-block btn-secondary" type="button"
                                     (click)="validarTodo()" [disabled]="isValidatingAll || !files.cruceDiario?.length">
                                     {{ isValidatingAll ? 'VALIDANDO...' : 'VALIDAR TODO' }}
                                 </button>
-        
+
                                 @if(isArlValidado && arlRows.length > 0) {
                                 <button mat-button color="accent" type="button" (click)="downloadArlReport()">
                                     <mat-icon>download</mat-icon> Descargar Reporte ARL
                                 </button>
                                 }
+
+                                @if(arlErrors.length > 0) {
+                                <div class="arl-errors-panel">
+                                    <div class="arl-errors-header">
+                                        <mat-icon class="arl-errors-icon">warning</mat-icon>
+                                        <span>{{ arlErrors.length }} error(es) ARL</span>
+                                    </div>
+                                    <div class="arl-errors-table-wrapper">
+                                        <table class="arl-errors-table">
+                                            <thead>
+                                                <tr>
+                                                    <th>Cédula</th>
+                                                    <th>Error</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                @for(err of arlErrors; track err.cedula) {
+                                                <tr>
+                                                    <td class="arl-cedula">{{ err.cedula }}</td>
+                                                    <td class="arl-error-msg">{{ err.error }}</td>
+                                                </tr>
+                                                }
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
                                 }
-        
-                                <button mat-flat-button color="primary" class="btn-block btn-primary" type="submit"
-                                    [disabled]="reporteForm.invalid">
+                                }
+
+                                <button matButton="filled" class="btn-block btn-primary" type="submit"
+                                    [disabled]="reporteForm.invalid || arlErrors.length > 0">
                                     ENVIAR REPORTE
                                 </button>
                             </div>
-        
+
                         </div>
                     </mat-card>
-        
+
                 </aside>
-        
+
                 <!-- Mobile Bottom Actions (Only visible on small screens due to CSS) -->
                 <div class="mobile-spacer"></div>
                 <div class="mobile-actions-bar">
@@ -207,11 +239,11 @@
                         {{ isValidatingAll ? 'Validando...' : 'Validar' }}
                     </button>
                     }
-                    <button mat-flat-button color="primary" type="submit" class="btn-block" [disabled]="reporteForm.invalid">
+                    <button mat-flat-button color="primary" type="submit" class="btn-block"
+                        [disabled]="reporteForm.invalid">
                         Enviar
                     </button>
                 </div>
-        
             </form>
         </div>
     </mat-card-content>

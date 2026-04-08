@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy } from '@angular/core';
+import {  Component, OnInit, OnDestroy , ChangeDetectionStrategy } from '@angular/core';
 import {
   FormBuilder,
   FormGroup,
@@ -10,27 +10,26 @@ import Swal from 'sweetalert2';
 import { Router } from '@angular/router';
 import { MatTableDataSource } from '@angular/material/table';
 import {
-  catchError,
-  debounceTime,
-  distinctUntilChanged,
-  switchMap,
-  takeUntil,
-  tap
+  takeUntil
 } from 'rxjs/operators';
-import { of, Observable, Subject } from 'rxjs';
+import { Subject } from 'rxjs';
+import { MatDialog } from '@angular/material/dialog';
+import { HistorialDialogComponent } from '../../../authorizations/pages/autorizacion-dinamica/historial-dialog/historial-dialog.component';
 import { ComercializadoraService } from '../../../merchandise/service/comercializadora/comercializadora.service';
-import { MercadoService } from '../../service/mercado/mercado.service';
+
 import { AutorizacionesService } from '../../../authorizations/services/autorizaciones/autorizaciones.service';
+import { HistorialService } from '../../../history/service/historial/historial.service';
 import { UtilityServiceService } from '../../../../../../shared/services/utilityService/utility-service.service';
 import { SharedModule } from '../../../../../../shared/shared.module'; // si lo usas
 import { MatCheckboxModule } from '@angular/material/checkbox';
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-mercado-comercializadora',
   templateUrl: './mercado-comercializadora.component.html',
   styleUrls: ['./mercado-comercializadora.component.css'],
   imports: [SharedModule, MatCheckboxModule] // si usas Standalone Components
-})
+} )
 export class MercadoComercializadoraComponent implements OnInit, OnDestroy {
   myForm: FormGroup;
   datosOperario: any;
@@ -41,27 +40,25 @@ export class MercadoComercializadoraComponent implements OnInit, OnDestroy {
   // Columnas para la tabla "Inventario"
   displayedColumnsInventario: string[] = [
     'seleccion', 'cantidadSeleccionada',
-    'concepto', 'cantidadEnvio',
-    'cantidadRecibida', 'valorUnidad',
-    'cantidadTotalVendida', 'PersonaEnvia',
-    'PersonaRecibe', 'fechaRecibida'
+    'concepto', 'disponible', 'valorUnidad', 'fechaRecibida'
   ];
   dataSourceInventario = new MatTableDataSource<any>();
-  isInventarioVisible: boolean = false;
   concepto: string = '';
   historial_id: number = 0;
   rolUsuario: string = '';
   correoUsuario: string = '';
-  private destroy$ = new Subject<void>();
   fechaIngreso: string = '';
+  limiteDisponible: number = 0;
+  private destroy$ = new Subject<void>();
 
   constructor(
     private fb: FormBuilder,
     private autorizacionesService: AutorizacionesService,
-    private mercadoService: MercadoService,
     private utilityServiceService: UtilityServiceService,
     private comercializadoraService: ComercializadoraService,
-    private router: Router
+    private historialService: HistorialService,
+    private router: Router,
+    private dialog: MatDialog
   ) {
     // Creamos el FormGroup principal con dos FormArray vacíos (codigos e inventario)
     this.myForm = this.fb.group({
@@ -75,19 +72,16 @@ export class MercadoComercializadoraComponent implements OnInit, OnDestroy {
     this.dataSourceInventario = new MatTableDataSource<any>([]);
   }
 
+  user: any;
+
   ngOnInit() {
-    // Extraemos usuario actual
-    const user = this.utilityServiceService.getUser();
-    if (user) {
-      this.rolUsuario = user.rol.nombre;
-      this.correoUsuario = user.correo_electronico;
+    this.user = this.utilityServiceService.getUser();
+    if (this.user) {
+      this.rolUsuario = this.user.rol?.nombre ?? '';
+      this.correoUsuario = this.user.correo_electronico ?? '';
     }
 
-    // Cargamos inventario de productos
     this.loadProductos();
-
-    // Seteamos la suscripción a los cambios en el campo "cedula"
-    this.setupFormValueChanges();
   }
 
   // Getters para acceder más fácil a los FormArray
@@ -98,129 +92,151 @@ export class MercadoComercializadoraComponent implements OnInit, OnDestroy {
     return this.myForm.get('inventario') as FormArray;
   }
 
-  private setupFormValueChanges() {
-    this.myForm.get('cedula')?.valueChanges
-      .pipe(
-        takeUntil(this.destroy$),
-        tap(() => {
-          // Limpiar la tabla de códigos al cambiar la cédula
-          this.codigosFormArray.clear();
-          this.dataSource.data = this.codigosFormArray.controls;
-        }),
-        debounceTime(3000),
-        distinctUntilChanged(),
-        tap(() => this.trimField('cedula')),
-        switchMap(value => this.buscarOperario(value)),
-        catchError(() => of(null))
-      )
-      .subscribe((result: any) => {
-        Swal.close(); // Cierra la alerta de carga
+  async buscarEmpleadoManual(event?: Event) {
+    if (event) {
+      event.preventDefault();
+    }
 
-        if (!result || result.datosbase === 'No se encontró el registro para el ID proporcionado') {
-          this.datosOperario = null;
-          this.mostrarError('No se encontró el empleado con la cédula proporcionada.');
-          return;
-        }
+    this.trimField('cedula');
+    const cedulaControl = this.myForm.get('cedula');
 
-        // Si el resultado es correcto:
-        this.datosOperario = result.datosbase[0];
-        this.nombreOperario = `${this.datosOperario.nombre}`;
-        this.fechaIngreso = this.datosOperario.ingreso;
+    if (cedulaControl?.invalid || !cedulaControl?.value) {
+      cedulaControl?.markAsTouched();
+      return;
+    }
 
-        // Validaciones adicionales
-        if (!this.datosOperario.activo) {
-          this.datosOperario = null;
-          this.mostrarError('El empleado se encuentra retirado y no puede solicitar autorizaciones.');
-          return;
-        }
+    const doc = cedulaControl.value;
 
-        if (this.datosOperario.bloqueado) {
-          this.datosOperario = null;
-          this.mostrarError('El empleado se encuentra bloqueado y no puede solicitar autorizaciones.');
-          return;
-        }
+    // Limpiar la tabla de códigos
+    this.codigosFormArray.clear();
+    this.dataSource.data = this.codigosFormArray.controls;
 
-        // Cargar autorizaciones activas
-        this.autorizacionesService
-          .traerAutorizacionesActivasOperario(this.datosOperario.numero_de_documento)
-          .then((data: any) => {
-            this.codigosFormArray.clear();
-            data.codigo.forEach((item: any) => {
-              const grupo = this.fb.group({
-                codigo: [item.codigo],
-                cuotas: [item.cuotas],
-                monto: [item.monto],
-                seleccionado: [false], // Checkbox
-                historial_id: [item.historial_id],
-              });
-              this.codigosFormArray.push(grupo);
-            });
-            this.dataSource.data = this.codigosFormArray.controls;
-          });
+    Swal.fire({
+      title: 'Buscando empleado...',
+      text: 'Por favor, espere',
+      allowOutsideClick: false,
+      didOpen: () => {
+        Swal.showLoading();
+      },
+    });
 
+    try {
+      // Validar si existe, está activo y no bloqueado
+      const statusData: any = await this.historialService.getPersonaTesoreriaStatus(doc).toPromise();
 
+      if (!statusData || statusData.error) {
+        Swal.fire({
+          icon: 'error', title: 'Aviso',
+          text: 'Este empleado no existe en la base de datos (puede que no esté registrado en la quincena actual o no pertenezca a la empresa).',
+        });
+        return;
+      }
+
+      if (statusData.activo === false) {
+        this.datosOperario = null;
+        this.mostrarError('El empleado se encuentra retirado y no puede solicitar autorizaciones.');
+        return;
+      }
+
+      if (statusData.bloqueado === true) {
+        this.datosOperario = null;
+        this.mostrarError('El empleado se encuentra bloqueado y no puede solicitar autorizaciones.');
+        return;
+      }
+
+      const data = await this.autorizacionesService.traerPersonaTesoreria(doc);
+      Swal.close();
+
+      this.datosOperario = data;
+      this.nombreOperario = `${this.datosOperario.nombre}`;
+      // Format date-only (no time)
+      const rawIngreso = this.datosOperario.ingreso;
+      if (rawIngreso) {
+        const d = new Date(rawIngreso);
+        const dd = String(d.getDate()).padStart(2, '0');
+        const mm = String(d.getMonth() + 1).padStart(2, '0');
+        const yyyy = d.getFullYear();
+        this.fechaIngreso = `${dd}-${mm}-${yyyy}`;
+      } else {
+        this.fechaIngreso = 'N/A';
+      }
+      this.limiteDisponible = this.autorizacionesService.calcularCupoDisponible(this.datosOperario, 'mercado');
+
+      // Cargar autorizaciones activas pendientes de mercancia
+      const transaccionesRes: any = await this.historialService.getHistorialTransaccionesPorDocumento(doc).toPromise();
+      const rawList = Array.isArray(transaccionesRes) ? transaccionesRes : (transaccionesRes.results || transaccionesRes.data || []);
+
+      const authsData = rawList.filter(
+        (tx: any) => tx.estado === 'PENDIENTE' && (tx.autorizacion_concepto || '').toLowerCase() === 'mercado'
+      ).sort((a: any, b: any) => {
+        return new Date(b.autorizado_en || 0).getTime() - new Date(a.autorizado_en || 0).getTime();
       });
+
+      this.codigosFormArray.clear();
+      if (authsData && authsData.length > 0) {
+        const autoSelect = authsData.length === 1;
+        authsData.forEach((item: any) => {
+          const grupo = this.fb.group({
+            codigo: [item.codigo_autorizacion],
+            cuotas: [item.autorizacion_cuotas],
+            monto: [item.autorizacion_monto],
+            seleccionado: [autoSelect], // Checkbox
+            historial_id: [item.id],
+          });
+          this.codigosFormArray.push(grupo);
+        });
+      }
+      this.dataSource.data = this.codigosFormArray.controls;
+
+    } catch (error: any) {
+      Swal.close();
+      this.datosOperario = null;
+      if (error?.status === 404) {
+        this.mostrarError('Este empleado no existe en la base de datos (puede que no esté registrado en la quincena actual o no pertenezca a la empresa).');
+      } else {
+        this.mostrarError('Hubo un problema al buscar el operario. Intente nuevamente.');
+      }
+    }
   }
 
 
-  private loadProductos() {
-    this.utilityServiceService.traerInventarioProductos().subscribe(
-      (data: any) => {
-        const sedeUsuario = this.utilityServiceService.getUser().sede.nombre;
-        const userEmail = this.utilityServiceService.getUser().correo_electronico;
+  private async loadProductos() {
+    try {
+      const sedeUsuario = this.utilityServiceService.getUser()?.sede?.nombre || '';
+      // Se ignora sedeUsuario para mostrar inventario global
+      const lotes: any[] = await this.comercializadoraService.listarInventarioLotes('');
 
-        // Filtramos según la lógica que tenías
-        let productosFiltrados: any[] = [];
-        if (userEmail === 'contaduria.rtc@gmail.com') {
-          productosFiltrados = data.comercio.filter((producto: any) =>
-            producto.cantidadRecibida !== producto.cantidadTotalVendida &&
-            (producto.destino === 'ROSAL' || producto.destino === 'CARTAGENITA')
-          );
-        } else {
-          productosFiltrados = data.comercio.filter((producto: any) =>
-            producto.cantidadRecibida !== producto.cantidadTotalVendida &&
-            producto.destino === sedeUsuario
-          );
-        }
+      // Limpiamos el FormArray "inventario"
+      this.inventarioFormArray.clear();
 
-        // Ordenar por fechaRecibida descendente
-        productosFiltrados.sort(
-          (a: any, b: any) =>
-            new Date(b.fechaRecibida).getTime() - new Date(a.fechaRecibida).getTime()
-        );
-
-        // Limpiamos el FormArray "inventario"
-        this.inventarioFormArray.clear();
-
-        // Creamos un FormGroup por producto
-        productosFiltrados.forEach(prod => {
-          const g = this.fb.group({
-            codigo: [prod.codigo],
-            concepto: [prod.concepto],
-            cantidadEnvio: [prod.cantidadEnvio],
-            cantidadRecibida: [prod.cantidadRecibida],
-            valorUnidad: [prod.valorUnidad],
-            cantidadTotalVendida: [prod.cantidadTotalVendida],
-            PersonaEnvia: [prod.PersonaEnvia],
-            PersonaRecibe: [prod.PersonaRecibe],
-            fechaRecibida: [prod.fechaRecibida],
-            seleccionado: [false], // checkbox
-            cantidadSeleccionada: new FormControl({ value: '1', disabled: true }) // Inicialmente deshabilitado
-          });
-          this.inventarioFormArray.push(g);
+      // Creamos un FormGroup por lote
+      (lotes || []).forEach((lote: any) => {
+        const g = this.fb.group({
+          lote_id: [lote.id],              // ID del lote Django (para vender-lote)
+          codigo: [lote.codigo],
+          concepto: [lote.producto_nombre],
+          cantidadEnvio: [lote.cantidad_inicial],
+          cantidadRecibida: [lote.cantidad_inicial],
+          valorUnidad: [lote.valor_unitario],
+          cantidadTotalVendida: [lote.cantidad_vendida],
+          PersonaEnvia: [''],
+          PersonaRecibe: [lote.realizado_por],
+          fechaRecibida: [lote.fecha_recepcion],
+          disponible: [lote.disponible],
+          seleccionado: [false],
+          cantidadSeleccionada: new FormControl({ value: 1, disabled: true })
         });
+        this.inventarioFormArray.push(g);
+      });
 
-        // Ahora "dataSourceInventario" mostrará cada control como una fila
-        this.dataSourceInventario.data = this.inventarioFormArray.controls;
-      },
-      (error: any) => {
-        Swal.fire({
-          icon: 'error',
-          title: 'Oops...',
-          text: 'Hubo un error al cargar los productos',
-        });
-      }
-    );
+      this.dataSourceInventario.data = this.inventarioFormArray.controls;
+    } catch (error: any) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Oops...',
+        text: 'Hubo un error al cargar los productos del inventario.',
+      });
+    }
   }
 
   private trimField(fieldName: string) {
@@ -228,33 +244,6 @@ export class MercadoComercializadoraComponent implements OnInit, OnDestroy {
     if (control && control.value && typeof control.value === 'string') {
       control.setValue(control.value.trim());
     }
-  }
-
-  // Función para buscar operario
-  buscarOperario(cedula: string): Observable<any> {
-    if (!cedula) {
-      return of(null);
-    }
-    // Mostrar Swal de carga
-    Swal.fire({
-      title: 'Buscando trabajador...',
-      icon: 'info',
-      text: 'Por favor, espera mientras se procesa la información.',
-      allowOutsideClick: false,
-      allowEscapeKey: false,
-      showConfirmButton: false,
-      didOpen: () => {
-        Swal.showLoading();
-      },
-    });
-
-    return this.autorizacionesService.traerOperarios(cedula).pipe(
-      catchError(error => {
-        Swal.close();
-        this.mostrarError('Hubo un problema al buscar el operario. Intente nuevamente.');
-        return of(null);
-      })
-    );
   }
 
   mostrarError(mensaje: string) {
@@ -308,9 +297,9 @@ export class MercadoComercializadoraComponent implements OnInit, OnDestroy {
         this.mostrarError('Debe seleccionar al menos un producto para continuar.');
         return;
       }
-      // que la cantidadseleccionada sea menor o igual a cantidadrecibida
+      // Validar que la cantidad seleccionada no exceda disponible
       const cantidadSeleccionadaInvalida = inventarioSeleccionados.some(
-        (item: any) => (parseInt(item.cantidadSeleccionada) + parseInt(item.cantidadTotalVendida)) > parseInt(item.cantidadRecibida)
+        (item: any) => parseInt(item.cantidadSeleccionada) > parseInt(item.disponible)
       );
 
 
@@ -320,7 +309,6 @@ export class MercadoComercializadoraComponent implements OnInit, OnDestroy {
       }
 
       this.sumaPrestamos = this.autorizacionesService.traerSaldoPendiente(this.datosOperario);
-      const codigoMOH = 'MOH' + Math.floor(Math.random() * 1000000);
       let valorTotal = 0;
       let concepto = 'Compra tienda respecto a: ';
 
@@ -336,7 +324,8 @@ export class MercadoComercializadoraComponent implements OnInit, OnDestroy {
       const montoTotal = codigosSeleccionados.reduce((total: number, item: { monto: string; }) => total + parseFloat(item.monto), 0);
 
       // Validaciones de montos
-      if (valorTotal > montoTotal) {
+      const rolesLibres = ['TIENDA', 'ADMIN', 'GERENCIA'];
+      if (!rolesLibres.includes(this.rolUsuario) && valorTotal > montoTotal) {
         Swal.fire({
           icon: 'error',
           title: 'Oops...',
@@ -353,45 +342,33 @@ export class MercadoComercializadoraComponent implements OnInit, OnDestroy {
       }
 
 
-      // ✅ Actualizar inventario de manera asincrónica
+      // Datos del usuario actual
+      const user = this.utilityServiceService.getUser();
+      const nombreUsuario = `${user?.datos_basicos?.nombres || ''} ${user?.datos_basicos?.apellidos || ''}`.trim()
+        || user?.correo_electronico || 'Usuario';
+      const sedeEjecucion = user?.sede?.nombre || '';
+
+      // Armar ventas de lotes
+      const ventas = inventarioSeleccionados.map((item: any) => ({
+        lote_id: item.lote_id,
+        cantidad: item.cantidadSeleccionada
+      }));
+
+      // ✅ Ejecutar TODO atómicamente en un solo request
       try {
-        await Promise.all(
-          inventarioSeleccionados.map((item: any) =>
-            this.comercializadoraService.ActualizarInventario(item.cantidadSeleccionada, item.codigo)
-          )
-        );
-      } catch (error) {
-        Swal.fire({
-          icon: 'error',
-          title: 'Oops...',
-          text: 'Hubo un error al realizar el cargue del inventario. Intente nuevamente.',
+        await this.autorizacionesService.ejecutarMercadoCompleto({
+          codigos_autorizacion: codigosSeleccionados.map((c: any) => c.codigo),
+          ejecucion_monto: valorTotal,
+          ejecucion_concepto: concepto,
+          ejecutado_por: nombreUsuario,
+          sede_ejecucion: sedeEjecucion,
+          ventas: ventas
         });
-        return;
-      }
 
-      // ✅ Ejecutar todas las autorizaciones de manera concurrente
-      try {
-        await Promise.all(
-          codigosSeleccionados.map(async (codigo: { codigo: string; historial_id: number; }) => {
-            const response = await this.mercadoService.ejecutarMercadoComercializadora(
-              codigo.codigo,
-              this.myForm.get('cedula')?.value,
-              valorTotal,
-              codigoMOH,
-              concepto,
-              codigo.historial_id
-            );
-
-            if (response.message !== "Actualización exitosa") {
-              throw new Error(`Error en código ${codigo.codigo}`);
-            }
-          })
-        );
-        // ✅ Si todas las operaciones fueron exitosas, se muestra éxito y se espera la confirmación del usuario
         Swal.fire({
           icon: 'success',
           title: 'Proceso completado',
-          text: 'Todas las autorizaciones y actualizaciones se han realizado con éxito.',
+          text: 'Todas las autorizaciones y ventas se han registrado con éxito.',
           confirmButtonText: 'Aceptar',
         }).then((result) => {
           if (result.isConfirmed) {
@@ -400,15 +377,14 @@ export class MercadoComercializadoraComponent implements OnInit, OnDestroy {
             });
           }
         });
-      } catch (error) {
+      } catch (error: any) {
+        const msg = error?.error?.error || error?.message || 'Hubo un problema al procesar la operación. Nada fue modificado.';
         Swal.fire({
           icon: 'error',
           title: 'Error',
-          text: 'Hubo un problema con alguna autorización. Revise los detalles en consola.',
+          text: msg,
         });
       }
-
-
 
     } catch (error) {
       Swal.fire({
@@ -424,36 +400,93 @@ export class MercadoComercializadoraComponent implements OnInit, OnDestroy {
     this.destroy$.complete();
   }
 
-  incrementarCantidad(index: number) {
-    const formArray = this.myForm.get('inventario') as FormArray; // Cambiado a 'inventario'
-    if (!formArray || index < 0 || index >= formArray.length) {
-      return;
-    }
-
-    const row = formArray.at(index) as FormGroup;
-    if (row.get('seleccionado')?.value) {
-      let currentValue = row.get('cantidadSeleccionada')?.value || 0;
-      row.get('cantidadSeleccionada')?.setValue(parseInt(currentValue) + 1);
+  toggleSeleccionAutorizacion(codigo: FormGroup) {
+    const control = codigo.get('seleccionado');
+    if (control) {
+      control.setValue(!control.value);
     }
   }
 
-  decrementarCantidad(index: number) {
-    const formArray = this.myForm.get('inventario') as FormArray; // Cambiado a 'inventario'
-    if (!formArray || index < 0 || index >= formArray.length) {
-      return;
-    }
-
-    const row = formArray.at(index) as FormGroup;
+  incrementarCantidadPorRow(row: FormGroup) {
     if (row.get('seleccionado')?.value) {
       let currentValue = row.get('cantidadSeleccionada')?.value || 0;
-      if (currentValue > 1) { // Para evitar valores negativos
+      let disponible = row.get('disponible')?.value || 0;
+      if (currentValue < disponible) {
+        row.get('cantidadSeleccionada')?.setValue(parseInt(currentValue) + 1);
+      }
+    }
+  }
+
+  decrementarCantidadPorRow(row: FormGroup) {
+    if (row.get('seleccionado')?.value) {
+      let currentValue = row.get('cantidadSeleccionada')?.value || 0;
+      if (currentValue > 1) { // Para evitar valores negativos o cero
         row.get('cantidadSeleccionada')?.setValue(parseInt(currentValue) - 1);
       }
     }
   }
 
-  toggleInventario() {
-    this.isInventarioVisible = !this.isInventarioVisible;
+  onProductSelectionChange(row: FormGroup) {
+    const control = row.get('seleccionado');
+    if (control) {
+      const cantidadControl = row.get('cantidadSeleccionada');
+      if (control.value) {
+        cantidadControl?.enable();
+        if (!cantidadControl?.value || cantidadControl.value === '0' || cantidadControl.value < 1) {
+          cantidadControl?.setValue('1');
+        }
+      } else {
+        cantidadControl?.disable();
+        cantidadControl?.setValue('1');
+      }
+    }
+  }
+
+
+  toggleRowSelection(row: FormGroup) {
+    const control = row.get('seleccionado');
+    if (control) {
+      control.setValue(!control.value);
+      this.onProductSelectionChange(row);
+    }
+  }
+
+  get totalProductosSeleccionados(): number {
+    return this.inventarioFormArray.controls
+      .filter((c: any) => c.get('seleccionado')?.value)
+      .reduce((sum: number, c: any) => sum + (parseInt(c.get('cantidadSeleccionada')?.value) || 0), 0);
+  }
+
+  get valorTotalSeleccionado(): number {
+    return this.inventarioFormArray.controls
+      .filter((c: any) => c.get('seleccionado')?.value)
+      .reduce((sum: number, c: any) => {
+        const cant = parseInt(c.get('cantidadSeleccionada')?.value) || 0;
+        const val = parseFloat(c.get('valorUnidad')?.value) || 0;
+        return sum + (cant * val);
+      }, 0);
+  }
+
+  cancelar() {
+    this.datosOperario = null;
+    this.nombreOperario = '';
+    this.fechaIngreso = '';
+    this.limiteDisponible = 0;
+    this.codigosFormArray.clear();
+    this.dataSource.data = [];
+    this.inventarioFormArray.clear();
+    this.dataSourceInventario.data = [];
+    this.myForm.reset();
+  }
+
+  abrirHistorial() {
+    const doc = this.datosOperario?.numero_documento || this.myForm.get('cedula')?.value;
+    if (!doc) return;
+    this.dialog.open(HistorialDialogComponent, {
+      width: '80vw', maxWidth: '90vw', height: '80vh',
+      panelClass: 'historial-dialog-panel',
+      data: { numeroDocumento: doc }
+    });
   }
 
 }
