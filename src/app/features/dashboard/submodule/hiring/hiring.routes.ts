@@ -12,6 +12,7 @@ import { ErrorListingComponent } from './pages/error-listing/error-listing.compo
 import { ConsultContractingDocumentationComponent } from './pages/consult-contracting-documentation/consult-contracting-documentation.component';
 import { TarjetasComponent } from './pages/tarjetas/tarjetas.component';
 import { AbsencesNew } from './pages/absences-new/absences-new';
+import { ManageContractsComponent } from './pages/manage-contracts/manage-contracts.component';
 
 export const routes: Routes = [
   { path: 'absences', component: AbsencesComponent },
@@ -26,5 +27,6 @@ export const routes: Routes = [
   { path: 'error-listing', component: ErrorListingComponent },
   { path: 'consult-contracting-documentation', component: ConsultContractingDocumentationComponent },
   { path: 'tarjetas', component: TarjetasComponent },
-  { path: 'absences-new', component: AbsencesNew }
+  { path: 'absences-new', component: AbsencesNew },
+  { path: 'manage-contracts', component: ManageContractsComponent }
 ];

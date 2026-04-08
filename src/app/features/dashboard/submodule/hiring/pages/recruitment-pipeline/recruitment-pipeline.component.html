@@ -17,6 +17,15 @@
             <span class="info-candidato-label" style="margin-left:0 !important">Nombre:</span>
             <span class="info-candidato-valor">{{ nombreCandidato || 'Seleccione un candidato' }}</span>
           </div>
+          <div class="detail-row" *ngIf="candidatoSeleccionado()?.entrevistas?.[0]?.proceso?.contrato">
+             <span class="info-candidato-label" style="margin-left:0 !important">Contrato Activo:</span>
+             <span class="info-candidato-valor" [ngClass]="{'text-success': candidatoSeleccionado()?.entrevistas?.[0]?.proceso?.contrato?.contrato_activo, 'text-danger': !candidatoSeleccionado()?.entrevistas?.[0]?.proceso?.contrato?.contrato_activo}">
+               {{ candidatoSeleccionado()?.entrevistas?.[0]?.proceso?.contrato?.contrato_activo ? 'Sí' : 'No' }}
+             </span>
+             <span *ngIf="!candidatoSeleccionado()?.entrevistas?.[0]?.proceso?.contrato?.contrato_activo && candidatoSeleccionado()?.entrevistas?.[0]?.proceso?.contrato?.fecha_retiro" class="info-candidato-valor" style="margin-left: 8px;">
+               (Baja: {{ candidatoSeleccionado()?.entrevistas?.[0]?.proceso?.contrato?.fecha_retiro | date:'dd/MM/yyyy' }})
+             </span>
+          </div>
         </div>
       </div>
 
@@ -59,6 +68,14 @@
           <mat-icon>description</mat-icon>
         </button>
 
+        <!-- Botón dar de baja individual -->
+        <button mat-icon-button matTooltip="Dar de Baja Contrato" aria-label="Dar de Baja Contrato"
+           (click)="darDeBajaManual()" 
+           [disabled]="!candidatoSeleccionado()?.numero_documento || !candidatoSeleccionado()?.entrevistas?.[0]?.proceso?.contrato"
+           [matBadge]="!candidatoSeleccionado()?.entrevistas?.[0]?.proceso?.contrato?.contrato_activo && candidatoSeleccionado()?.entrevistas?.[0]?.proceso?.contrato ? '✗' : ''"
+           >
+           <mat-icon>block</mat-icon>
+        </button>
 
         <!-- Botón de tabla -->
         <button mat-icon-button matTooltip="Ver tabla de registros" aria-label="Ver tabla de registros"

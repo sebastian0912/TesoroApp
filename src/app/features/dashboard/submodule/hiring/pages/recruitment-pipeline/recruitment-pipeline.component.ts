@@ -504,6 +504,58 @@ export class RecruitmentPipelineComponent {
     }
   }
 
+  async darDeBajaManual() {
+    const cc = this.candidatoSeleccionado()?.numero_documento;
+    if (!cc) return;
+    
+    const { value: formValues } = await Swal.fire({
+      title: 'Dar de Baja Contrato',
+      html: `
+        <div style="text-align: left; margin-bottom: 8px;">
+          <label>Fecha de Retiro:</label>
+          <input type="date" id="swal-fecha-baja" class="swal2-input" value="${new Date().toISOString().split('T')[0]}">
+        </div>
+      `,
+      focusConfirm: false,
+      showCancelButton: true,
+      confirmButtonText: 'Confirmar Baja',
+      confirmButtonColor: '#d33',
+      cancelButtonText: 'Cancelar',
+      preConfirm: () => {
+        const d = (document.getElementById('swal-fecha-baja') as HTMLInputElement).value;
+        if (!d) Swal.showValidationMessage('La fecha es obligatoria');
+        return d;
+      }
+    });
+
+    if (formValues) {
+      Swal.fire({ title: 'Actualizando estado...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+      try {
+        const payload = {
+          numero_documento: cc,
+          contrato_detalle: {
+            contrato_activo: false,
+            fecha_retiro: formValues
+          }
+        };
+        await firstValueFrom(this.registroProceso.updateProcesoByDocumento(payload as any));
+        
+        // Actualizamos estado local
+        const cand = this.candidatoSeleccionado();
+        if (cand?.entrevistas?.[0]?.proceso?.contrato) {
+           cand.entrevistas[0].proceso.contrato.contrato_activo = false;
+           cand.entrevistas[0].proceso.contrato.fecha_retiro = formValues;
+           this.candidatoSeleccionado.set({ ...cand });
+        }
+        Swal.fire('¡Baja exitosa!', `El contrato de ${this.nombreCandidato} ha sido desactivado.`, 'success');
+      } catch (err) {
+        Swal.close();
+        console.error(err);
+        Swal.fire('Error', 'No se pudo desactivar el contrato', 'error');
+      }
+    }
+  }
+
   // ───────── VALIDACIÓN PARA HABILITAR/DESHABILITAR CONTRATACIÓN ─────────
   // ───────── VALIDACIÓN PARA HABILITAR/DESHABILITAR CONTRATACIÓN ─────────
   private _norm(s: any): string {
