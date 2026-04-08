@@ -1,0 +1,198 @@
+<div class="param-container">
+
+  <!-- ENCABEZADO -->
+  <mat-card class="premium-card header-card">
+    <mat-card-header>
+      <div mat-card-avatar class="header-icon">
+        <mat-icon>tune</mat-icon>
+      </div>
+      <mat-card-title>Parametrización de Novedades</mat-card-title>
+      <mat-card-subtitle>Catálogo de conceptos de nómina medidos en días y horas</mat-card-subtitle>
+    </mat-card-header>
+
+    <mat-card-content>
+      <div class="filter-row">
+
+        <!-- Buscador -->
+        <mat-form-field appearance="outline" class="flex-grow">
+          <mat-label>Buscar por código / descripción</mat-label>
+          <input matInput [(ngModel)]="filterSearch" placeholder="Ej: AUSENCIA o AUS_INJ"
+                 (keyup.enter)="cargarConceptos()">
+          <mat-icon matPrefix>search</mat-icon>
+          <button *ngIf="filterSearch" matSuffix mat-icon-button (click)="filterSearch=''; cargarConceptos()">
+            <mat-icon>close</mat-icon>
+          </button>
+        </mat-form-field>
+
+        <!-- Filtro Unidad -->
+        <mat-form-field appearance="outline" style="width:160px">
+          <mat-label>Unidad</mat-label>
+          <mat-select [(ngModel)]="filterUnidad" (ngModelChange)="cargarConceptos()">
+            <mat-option value="">Todas</mat-option>
+            <mat-option value="DIA">
+              <mat-icon>today</mat-icon> Día
+            </mat-option>
+            <mat-option value="HORA">
+              <mat-icon>schedule</mat-icon> Hora
+            </mat-option>
+          </mat-select>
+        </mat-form-field>
+
+        <!-- Filtro Naturaleza -->
+        <mat-form-field appearance="outline" style="width:210px">
+          <mat-label>Naturaleza</mat-label>
+          <mat-select [(ngModel)]="filterNaturaleza" (ngModelChange)="cargarConceptos()">
+            <mat-option value="">Todas</mat-option>
+            <mat-option value="DEVENGO">Devengo</mat-option>
+            <mat-option value="DEDUCCION">Deducción</mat-option>
+            <mat-option value="APORTE_EMPLEADO">Aporte Empleado</mat-option>
+            <mat-option value="APORTE_EMPLEADOR">Aporte Empleador</mat-option>
+            <mat-option value="PROVISION">Provisión</mat-option>
+            <mat-option value="OTRO">Otro</mat-option>
+          </mat-select>
+        </mat-form-field>
+
+        <div class="actions-row">
+          <button mat-stroked-button (click)="limpiarFiltros()" [disabled]="isLoading">
+            <mat-icon>filter_alt_off</mat-icon> Limpiar
+          </button>
+          <button mat-flat-button color="primary" (click)="abrirDialogoCrear()">
+            <mat-icon>add</mat-icon> Nueva Novedad
+          </button>
+        </div>
+
+      </div>
+    </mat-card-content>
+  </mat-card>
+
+  <!-- ESTADÍSTICAS RÁPIDAS -->
+  <div class="stats-row" *ngIf="!isLoading && dataSource.data.length > 0">
+    <div class="stat-chip">
+      <mat-icon>today</mat-icon>
+      <span>{{ contarPor('unidad', 'DIA') }} por Día</span>
+    </div>
+    <div class="stat-chip">
+      <mat-icon>schedule</mat-icon>
+      <span>{{ contarPor('unidad', 'HORA') }} por Hora</span>
+    </div>
+    <div class="stat-chip activas">
+      <mat-icon>check_circle</mat-icon>
+      <span>{{ contarPor('activo', true) }} activas</span>
+    </div>
+    <div class="stat-chip inactivas">
+      <mat-icon>cancel</mat-icon>
+      <span>{{ contarPor('activo', false) }} inactivas</span>
+    </div>
+  </div>
+
+  <!-- TABLA -->
+  <div class="table-container mat-elevation-z4">
+    <div class="loading-shade" *ngIf="isLoading">
+      <mat-spinner></mat-spinner>
+    </div>
+
+    <table mat-table [dataSource]="dataSource" matSort class="full-width">
+
+      <!-- CÓDIGO -->
+      <ng-container matColumnDef="codigo">
+        <th mat-header-cell *matHeaderCellDef mat-sort-header>Código</th>
+        <td mat-cell *matCellDef="let row">
+          <code class="code-chip">{{ row.codigo }}</code>
+        </td>
+      </ng-container>
+
+      <!-- DESCRIPCIÓN -->
+      <ng-container matColumnDef="descripcion">
+        <th mat-header-cell *matHeaderCellDef mat-sort-header>Descripción</th>
+        <td mat-cell *matCellDef="let row">
+          <strong>{{ row.descripcion }}</strong>
+        </td>
+      </ng-container>
+
+      <!-- ABREVIATURA -->
+      <ng-container matColumnDef="abreviatura">
+        <th mat-header-cell *matHeaderCellDef mat-sort-header>Abreviatura</th>
+        <td mat-cell *matCellDef="let row">
+          <span *ngIf="row.abreviatura" class="abrev-tag">{{ row.abreviatura }}</span>
+          <span *ngIf="!row.abreviatura" class="text-muted">—</span>
+        </td>
+      </ng-container>
+
+      <!-- NATURALEZA -->
+      <ng-container matColumnDef="naturaleza">
+        <th mat-header-cell *matHeaderCellDef mat-sort-header>Naturaleza</th>
+        <td mat-cell *matCellDef="let row">
+          <span class="badge-naturaleza" [ngClass]="NATURALEZA_LABELS[row.naturaleza] ? NATURALEZA_LABELS[row.naturaleza].color : ''">
+            {{ NATURALEZA_LABELS[row.naturaleza] ? NATURALEZA_LABELS[row.naturaleza].label : row.naturaleza }}
+          </span>
+        </td>
+      </ng-container>
+
+      <!-- UNIDAD -->
+      <ng-container matColumnDef="unidad">
+        <th mat-header-cell *matHeaderCellDef mat-sort-header>Unidad</th>
+        <td mat-cell *matCellDef="let row">
+          <span class="badge-unidad" [ngClass]="row.unidad === 'DIA' ? 'unidad-dia' : 'unidad-hora'">
+            <mat-icon>{{ row.unidad === 'DIA' ? 'today' : 'schedule' }}</mat-icon>
+            {{ row.unidad === 'DIA' ? 'Día' : 'Hora' }}
+          </span>
+        </td>
+      </ng-container>
+
+      <!-- AFECTA IBC -->
+      <ng-container matColumnDef="afecta_ibc">
+        <th mat-header-cell *matHeaderCellDef mat-sort-header>Afecta IBC</th>
+        <td mat-cell *matCellDef="let row">
+          <mat-icon [class]="row.afecta_ibc ? 'icon-si' : 'icon-no'"
+                    [matTooltip]="row.afecta_ibc ? 'Sí afecta la base de seguridad social' : 'No afecta IBC'">
+            {{ row.afecta_ibc ? 'check_circle' : 'remove_circle_outline' }}
+          </mat-icon>
+        </td>
+      </ng-container>
+
+      <!-- ACTIVO -->
+      <ng-container matColumnDef="activo">
+        <th mat-header-cell *matHeaderCellDef mat-sort-header>Estado</th>
+        <td mat-cell *matCellDef="let row">
+          <mat-slide-toggle
+            [checked]="row.activo"
+            (change)="toggleActivo(row)"
+            color="primary"
+            [matTooltip]="row.activo ? 'Activo — clic para desactivar' : 'Inactivo — clic para activar'">
+          </mat-slide-toggle>
+        </td>
+      </ng-container>
+
+      <!-- ACCIONES -->
+      <ng-container matColumnDef="acciones">
+        <th mat-header-cell *matHeaderCellDef>Acciones</th>
+        <td mat-cell *matCellDef="let row">
+          <button mat-icon-button color="primary" (click)="abrirDialogoEditar(row)"
+                  matTooltip="Editar novedad">
+            <mat-icon>edit</mat-icon>
+          </button>
+        </td>
+      </ng-container>
+
+      <tr mat-header-row *matHeaderRowDef="displayedColumns; sticky: true"></tr>
+      <tr mat-row *matRowDef="let row; columns: displayedColumns;"
+          [class.row-inactiva]="!row.activo"></tr>
+
+      <tr class="mat-row" *matNoDataRow>
+        <td class="mat-cell" colspan="8">
+          <div class="empty-state" *ngIf="!isLoading">
+            <mat-icon>inbox</mat-icon>
+            <p>No se encontraron novedades con los filtros aplicados.</p>
+            <button mat-stroked-button color="primary" (click)="abrirDialogoCrear()">
+              <mat-icon>add</mat-icon> Crear primera novedad
+            </button>
+          </div>
+        </td>
+      </tr>
+    </table>
+
+    <mat-paginator [pageSizeOptions]="[10, 25, 50]" showFirstLastButtons
+                   aria-label="Seleccionar página"></mat-paginator>
+  </div>
+
+</div>

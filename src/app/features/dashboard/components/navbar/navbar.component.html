@@ -109,7 +109,7 @@
               <button
                 type="button"
                 class="submodule-button"
-                i (click)="onNodeClick(node)"
+                (click)="onNodeClick(node)"
                 [attr.aria-expanded]="hasChildren(node) ? isExpanded(node.id) : null"
                 [class.active-submodule]="!hasChildren(node) && isRouteActive(getNodeRoute(node))">
 

@@ -3,6 +3,19 @@ import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from 'src/environments/environment';
 
+export interface ConceptoNomina {
+  id_concepto?: number;
+  codigo: string;
+  descripcion: string;
+  abreviatura?: string | null;
+  naturaleza: 'DEVENGO' | 'DEDUCCION' | 'APORTE_EMPLEADO' | 'APORTE_EMPLEADOR' | 'PROVISION' | 'OTRO';
+  unidad: 'HORA' | 'DIA';
+  afecta_ibc: boolean;
+  activo: boolean;
+  naturaleza_display?: string;
+  unidad_display?: string;
+}
+
 export interface Client {
   id_entidad: number;
   id_org?: number; // Alias para compatibilidad
@@ -45,6 +58,9 @@ export interface ImportResult {
   success: boolean;
   message: string;
   count?: number;
+  mensaje?: string;
+  filas?: number;
+  log?: string[];
 }
 
 @Injectable({
@@ -115,5 +131,26 @@ export class NominaService {
 
   actualizarPeriodo(id: number, data: any): Observable<any> {
     return this.http.patch(`${this.baseNom}/periodos/${id}/`, data);
+  }
+
+  getHistorico(params: any): Observable<any[]> {
+    return this.http.get<any[]>(`${this.baseNom}/payroll/get_historico/`, { params });
+  }
+
+  // --- Conceptos / Parametrización de Novedades ---
+  getConceptos(params: any = {}): Observable<ConceptoNomina[]> {
+    return this.http.get<ConceptoNomina[]>(`${this.baseNom}/conceptos/`, { params });
+  }
+
+  crearConcepto(data: ConceptoNomina): Observable<ConceptoNomina> {
+    return this.http.post<ConceptoNomina>(`${this.baseNom}/conceptos/`, data);
+  }
+
+  actualizarConcepto(id: number, data: Partial<ConceptoNomina>): Observable<ConceptoNomina> {
+    return this.http.patch<ConceptoNomina>(`${this.baseNom}/conceptos/${id}/`, data);
+  }
+
+  eliminarConcepto(id: number): Observable<void> {
+    return this.http.delete<void>(`${this.baseNom}/conceptos/${id}/`);
   }
 }

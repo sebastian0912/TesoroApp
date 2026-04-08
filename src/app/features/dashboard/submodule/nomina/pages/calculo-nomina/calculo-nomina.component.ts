@@ -343,9 +343,10 @@ export class CalculoNominaComponent implements OnInit {
         Swal.fire('Éxito', res.mensaje || 'Guardado exitoso', 'success');
         this.cargarPeriodos();
       },
-      error: () => {
+      error: (err) => {
         this.guardando = false;
-        Swal.fire('Error', 'No se pudo guardar en el histórico', 'error');
+        const msg = err.error?.error || err.error?.mensaje || 'No se pudo guardar la liquidación';
+        Swal.fire('Error', msg, 'error');
       }
     });
   }
@@ -356,32 +357,68 @@ export class CalculoNominaComponent implements OnInit {
     
     // Configuración básica columnas
     const columns = [
-      { header: 'Empresa', key: 'empresa', width: 25 },
-      { header: 'Centro de Costo', key: 'ceco', width: 20 },
-      { header: 'Código Contrato', key: 'codigo', width: 12 },
-      { header: 'Empleado', key: 'empleado', width: 30 },
-      { header: 'Tipo Doc', key: 'tipo_doc', width: 8 },
-      { header: 'Num Doc', key: 'num_doc', width: 12 },
-      { header: 'Salario Mes', key: 'salario', width: 14 },
-      { header: 'Días', key: 'dias', width: 8 },
-      { header: 'Horas', key: 'horas', width: 8 },
-      { header: 'Sueldo Q', key: 'devengado', width: 14 },
-      { header: 'Aux. Transporte', key: 'aux_trans', width: 14 },
-      { header: 'Salud (4%)', key: 'salud', width: 12 },
-      { header: 'Pensión (4%)', key: 'pension', width: 12 },
-      { header: 'Neto a Pagar', key: 'neto', width: 16 },
-      { header: 'Estado', key: 'estado', width: 15 },
+      { header: 'Contrato', key: 'codigo', width: 12 },
+      { header: 'Cedula', key: 'num_doc', width: 15 },
+      { header: 'Apellido y nombres', key: 'empleado', width: 35 },
+      { header: 'Ingreso', key: 'ingreso', width: 12 },
+      { header: 'Retiro', key: 'retiro', width: 12 },
+      { header: 'Empresa Usuaria', key: 'empresa', width: 25 },
+      { header: 'Unidad de Negocio', key: 'ceco_nombre', width: 20 },
+      { header: 'Centro de Costo', key: 'ceco_codigo', width: 15 },
+      { header: 'Sede', key: 'sede', width: 10 },
+      { header: 'Cod Archivo', key: 'cod_archivo', width: 12 },
+      { header: 'Salario Básico (Mes)', key: 'salario_mes', width: 15 },
+      { header: 'Auxilio Tr. (Mes)', key: 'aux_mes', width: 15 },
+      { header: 'Sueldo Calculado', key: 'sueldo_q', width: 15 },
+      { header: 'Auxilio Calculado', key: 'aux_q', width: 15 },
+      { header: 'Dias Laborados', key: 'dias', width: 8 },
+      { header: 'Dias Transporte', key: 'dias_t', width: 8 },
     ];
 
     const cecosMap = new Map<number, any[]>();
+    
+    // 1. Hoja GENERAL
+    const generalSheet = workbook.addWorksheet('GENERAL');
+    generalSheet.columns = columns;
+    const headerRowGen = generalSheet.getRow(1);
+    headerRowGen.height = 25;
+    headerRowGen.eachCell((cell) => {
+      cell.font = { bold: true, color: { argb: 'FFFFFF' }, size: 11 };
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: '2C3E50' } };
+      cell.alignment = { vertical: 'middle', horizontal: 'center' };
+    });
+
     this.contratos.forEach(c => {
-      // Usar id_ceco (nuevo campor en API) o ceco (relación base) como fallback
+      // Poblar GENERAL
+      const nombreCompleto = `${c.primer_apellido} ${c.segundo_apellido || ''} ${c.primer_nombre} ${c.segundo_nombre || ''}`.replace(/\s+/g, ' ').trim();
+      generalSheet.addRow({
+        codigo: c.codigo_contrato,
+        num_doc: c.numero_documento,
+        empleado: nombreCompleto,
+        ingreso: c.fecha_ingreso,
+        retiro: c.fecha_retiro,
+        empresa: c.cliente,
+        ceco_nombre: c.centro_de_costo,
+        ceco_codigo: c.ceco_codigo,
+        sede: c.ceco_sede,
+        cod_archivo: '',
+        salario_mes: Number(c.salario),
+        aux_mes: Number(c.auxilio_transporte),
+        sueldo_q: this.getDevengadoBasico(c),
+        aux_q: this.getAuxilioTransporte(c),
+        dias: c.dias_laborados,
+        dias_t: c.auxilio_transporte_ley ? c.dias_laborados : 0
+      });
+
+      // Mapear para hojas individuales
       const cecoId = c.id_ceco || c.ceco || 0;
       const list = cecosMap.get(cecoId) || [];
       list.push(c);
       cecosMap.set(cecoId, list);
     });
+    ['K', 'L', 'M', 'N'].forEach(k => generalSheet.getColumn(k).numFmt = '#,##0');
 
+    // 2. Hojas por CECO
     cecosMap.forEach((empleados, id_ceco) => {
       const cecoName = empleados[0].centro_de_costo || `CECO ${id_ceco}`;
       const cecoSheet = workbook.addWorksheet(cecoName.substring(0, 31).replace(/[\/*?\[\]:]/g, ' '));
@@ -401,36 +438,29 @@ export class CalculoNominaComponent implements OnInit {
       });
 
       empleados.forEach(c => {
+        const nombreCompleto = `${c.primer_apellido} ${c.segundo_apellido || ''} ${c.primer_nombre} ${c.segundo_nombre || ''}`.replace(/\s+/g, ' ').trim();
         const row = cecoSheet.addRow({
-          empresa: c.cliente,
-          ceco: c.centro_de_costo,
           codigo: c.codigo_contrato,
-          empleado: `${c.primer_nombre} ${c.primer_apellido}`,
-          tipo_doc: c.tipo_documento,
           num_doc: c.numero_documento,
-          salario: c.salario,
+          empleado: nombreCompleto,
+          ingreso: c.fecha_ingreso,
+          retiro: c.fecha_retiro,
+          empresa: c.cliente,
+          ceco_nombre: c.centro_de_costo,
+          ceco_codigo: c.ceco_codigo,
+          sede: c.ceco_sede,
+          cod_archivo: '',
+          salario_mes: Number(c.salario),
+          aux_mes: Number(c.auxilio_transporte),
+          sueldo_q: this.getDevengadoBasico(c),
+          aux_q: this.getAuxilioTransporte(c),
           dias: c.dias_laborados,
-          horas: (c.dias_laborados * this.HORAS_DIARIAS).toFixed(2),
-          devengado: this.getDevengadoBasico(c),
-          aux_trans: this.getAuxilioTransporte(c),
-          salud: this.getDeduccionSalud(c),
-          pension: this.getDeduccionPension(c),
-          neto: this.getNetoQuincena(c),
-          estado: c.estado
+          dias_t: c.auxilio_transporte_ley ? c.dias_laborados : 0
         });
         row.alignment = { vertical: 'middle' };
       });
 
-      // Totales al final de la hoja
-      const totalRow = cecoSheet.addRow({});
-      totalRow.getCell('D').value = 'SUBTOTALES:';
-      totalRow.getCell('D').font = { bold: true };
-      ['J', 'K', 'L', 'M', 'N'].forEach(col => {
-        totalRow.getCell(col).value = { formula: `SUM(${col}2:${col}${cecoSheet.rowCount - 1})` };
-        totalRow.getCell(col).font = { bold: true };
-        totalRow.getCell(col).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'F2F4F4' } };
-      });
-      ['G', 'J', 'K', 'L', 'M', 'N'].forEach(k => cecoSheet.getColumn(k).numFmt = '"$"#,##0');
+      ['K', 'L', 'M', 'N'].forEach(k => cecoSheet.getColumn(k).numFmt = '#,##0');
     });
 
     // Hoja de FACTURAS (Resumen)

@@ -49,6 +49,10 @@ export class NavbarComponent implements OnInit, OnDestroy {
 
   private routerSubscription?: Subscription;
   private readonly MOBILE_BREAKPOINT = 900;
+  private readonly PARAMETRIZACION_NOVEDADES_KEYS = new Set([
+    'PARAMETRIZACION NOVEDADES',
+    'PARAMETRIZACION DE NOVEDADES',
+  ]);
 
   private readonly isBrowser: boolean;
 
@@ -110,6 +114,9 @@ export class NavbarComponent implements OnInit, OnDestroy {
     'Robots': 'robots/dashboard-robots',
     'EMPLEADOS': 'nomina/empleados',
     'CÁLCULO DE NÓMINA': 'nomina/calculo-nomina',
+    'HISTORIAL NÓMINA': 'nomina/historico-nomina',
+    'PARAMETRIZACIÓN NOVEDADES': 'nomina/parametrizacion-novedades',
+    'PARAMETRIZACIÓN DE NOVEDADES': 'nomina/parametrizacion-novedades',
   };
 
   private readonly iconMap: Record<string, string> = {
@@ -191,6 +198,9 @@ export class NavbarComponent implements OnInit, OnDestroy {
     'TABLA RETENCIÓN': 'table_chart',
     'EMPLEADOS': 'people',
     'CÁLCULO DE NÓMINA': 'calculate',
+    'HISTORIAL NÓMINA': 'history',
+    'PARAMETRIZACIÓN NOVEDADES': 'tune',
+    'PARAMETRIZACIÓN DE NOVEDADES': 'tune',
     'Tarjetas': 'credit_card',
   };
 
@@ -202,8 +212,8 @@ export class NavbarComponent implements OnInit, OnDestroy {
     private router: Router
   ) {
     this.isBrowser = isPlatformBrowser(platformId);
-    this.routeMapIndex = this.indexByUpper(this.routeMap);
-    this.iconMapIndex = this.indexByUpper(this.iconMap);
+    this.routeMapIndex = this.indexByMenuKey(this.routeMap);
+    this.iconMapIndex = this.indexByMenuKey(this.iconMap);
   }
 
   async ngOnInit(): Promise<void> {
@@ -323,18 +333,35 @@ export class NavbarComponent implements OnInit, OnDestroy {
 
         this.permTree = (tree as PermNode[]).map(normalize);
 
-        // Helper para normalizar nombres (sin tildes, uppercase)
-        const norm = (s: string) => (s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase();
-
         // Inyectar "CÁLCULO DE NÓMINA" si no existe para asegurar visibilidad inmediata
-        const nominaRoot = this.permTree.find(n => norm(n.nombre) === 'NOMINA');
+        const nominaRoot = this.permTree.find(n => this.normalizeMenuKey(n.nombre) === 'NOMINA');
+        console.log('[NOMINA DEBUG] nominaRoot:', nominaRoot ? nominaRoot.nombre : 'NO ENCONTRADO');
+        console.log('[NOMINA DEBUG] hijos actuales:', nominaRoot?.hijos?.map(h => h.nombre));
         if (nominaRoot) {
           if (!nominaRoot.hijos) nominaRoot.hijos = [];
-          const exists = nominaRoot.hijos.some(h => norm(h.nombre) === 'CALCULO DE NOMINA');
+          const exists = nominaRoot.hijos.some(h => this.normalizeMenuKey(h.nombre) === 'CALCULO DE NOMINA');
           if (!exists) {
             nominaRoot.hijos.push({
               id: 'frontend_calculo_nomina',
               nombre: 'CÁLCULO DE NÓMINA',
+              acciones: ['VER'],
+              hijos: []
+            });
+          }
+          const existsHist = nominaRoot.hijos.some(h => this.normalizeMenuKey(h.nombre) === 'HISTORIAL NOMINA');
+          if (!existsHist) {
+            nominaRoot.hijos.push({
+              id: 'frontend_historico_nomina',
+              nombre: 'HISTORIAL NÓMINA',
+              acciones: ['VER'],
+              hijos: []
+            });
+          }
+          const existsParam = nominaRoot.hijos.some(h => this.isParametrizacionNovedadesNode(h.nombre));
+          if (!existsParam) {
+            nominaRoot.hijos.push({
+              id: 'frontend_parametrizacion_novedades',
+              nombre: 'PARAMETRIZACIÓN NOVEDADES',
               acciones: ['VER'],
               hijos: []
             });
@@ -416,15 +443,28 @@ export class NavbarComponent implements OnInit, OnDestroy {
   }
 
   // ===== rutas =====
-  private indexByUpper<T extends Record<string, string>>(obj: T): Record<string, string> {
+  private normalizeMenuKey(value: string): string {
+    return (value ?? '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .toUpperCase();
+  }
+
+  private isParametrizacionNovedadesNode(value: string): boolean {
+    return this.PARAMETRIZACION_NOVEDADES_KEYS.has(this.normalizeMenuKey(value));
+  }
+
+  private indexByMenuKey<T extends Record<string, string>>(obj: T): Record<string, string> {
     const out: Record<string, string> = {};
-    for (const k of Object.keys(obj)) out[k.toUpperCase()] = obj[k];
+    for (const k of Object.keys(obj)) out[this.normalizeMenuKey(k)] = obj[k];
     return out;
   }
 
   public getNodeRoute(node: PermNode): string {
     const base = '/dashboard';
-    const key = (node?.nombre ?? '').toUpperCase();
+    const key = this.normalizeMenuKey(node?.nombre ?? '');
     const mapped = this.routeMapIndex[key];
 
     if (mapped) {
@@ -461,11 +501,11 @@ export class NavbarComponent implements OnInit, OnDestroy {
 
   // ===== iconos =====
   public getModuleIcon(nombre: string): string {
-    return this.iconMapIndex[(nombre ?? '').toUpperCase()] || 'widgets';
+    return this.iconMapIndex[this.normalizeMenuKey(nombre)] || 'widgets';
   }
 
   public getNodeIcon(nombre: string): string {
-    return this.iconMapIndex[(nombre ?? '').toUpperCase()] || 'radio_button_unchecked';
+    return this.iconMapIndex[this.normalizeMenuKey(nombre)] || 'radio_button_unchecked';
   }
 
   // ===== responsive =====
