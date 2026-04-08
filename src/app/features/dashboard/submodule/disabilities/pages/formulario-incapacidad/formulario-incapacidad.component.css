@@ -1,0 +1,312 @@
+.aumentar {
+  width: 100%;
+  margin: 10px;
+}
+
+mat-card {
+  margin-bottom: 10pt;
+}
+
+/* Contenedor de la fila de formularios */
+.form-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+  align-items: center;
+  justify-content: space-between; /* Distribuye los elementos */
+  width: 100%;
+  padding: 10px;
+}
+
+.button-row {
+  flex-wrap: wrap;
+  gap: 20px;
+  align-items: center;
+  justify-content: space-between; /* Distribuye los elementos */
+  width: 100%;
+  padding: 10px;
+}
+
+/* Campos individuales del formulario */
+.form-field {
+  flex: 1 1 calc(30% - 20px); /* Ajuste flexible de 3 columnas con espacio entre ellas */
+  min-width: 250px; /* Ancho mínimo para mejor responsividad */
+  display: flex;
+  align-items: center;
+}
+
+.button-field {
+  display: flex;
+  flex-direction: row;       /* Botón y archivos en misma fila */
+  align-items: flex-start;
+  width: 100%;
+  gap: 20px;                 /* Espacio entre botón y lista de archivos */
+}
+
+/* El botón siempre del mismo ancho */
+.button-field > button {
+  width: 350px;              /* AJUSTA AQUÍ el ancho fijo */
+  min-width: 350px;
+}
+
+.file-item {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: flex-start !important;
+  overflow: visible !important;
+  height: auto !important;
+  white-space: normal !important;
+}
+
+.file-item span[mat-line] {
+  word-break: break-word !important;
+  white-space: normal !important;
+  width: 100% !important;
+}
+
+.file-item button {
+  align-self: flex-end;
+  margin-top: 4px;
+}
+
+.file-item .mdc-list-item__content {
+  align-self: flex-start !important;
+  white-space: normal !important;
+  overflow: visible !important;
+}
+
+
+.cedula{
+  margin-top: 10pt;
+  align-items: center;
+  width: 80%;
+}
+
+/* Ajuste flexible de los campos */
+.flex {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 15px; /* Espacio entre columnas */
+  width: 100%;
+  justify-content: space-between;
+}
+
+.example-full-width2 {
+  flex: 1 1 calc(33.33% - 10px); /* 3 columnas en escritorio */
+}
+
+.example-full-width {
+  width: 100% !important;
+  min-width: 100% !important;
+}
+
+.notification-button {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  z-index: 1000;
+  width: 60px;
+  height: 60px;
+  background-color: #4a90e2;
+  border-radius: 50%;
+  box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  outline: none;
+  cursor: pointer;
+}
+
+.notification-button:hover {
+  background-color: #357abd;
+}
+
+.notification-badge {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  background-color: red;
+  color: white;
+  border-radius: 50%;
+  padding: 2px 6px;
+  font-size: 14px;
+  font-weight: bold;
+  box-shadow: 0px 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.notification-icon {
+  color: white;
+  font-size: 28px;
+}
+
+/* media queries */
+@media (max-width: 768px) {
+
+  mat-card {
+    min-width: 90vw;
+  }
+
+  .card {
+    margin-left: -2pt;
+    width: 70vw   !important;
+  }
+
+  .example-full-width {
+    margin-left: -1pt;
+    width: 80% !important;
+  }
+
+  .example-full-width2 {
+    flex: 1 1 100%;
+  }
+
+  /* Tabla: estilos para mejorar visibilidad, scroll y responsividad */
+.table-container {
+  overflow-x: auto;
+  margin-top: 20px;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+  background: #fff;
+  padding: 12px;
+}
+
+/* Angular Material Table Header */
+.mat-table {
+  width: 100%;
+  min-width: 900px;
+  background: #fff;
+  border-radius: 8px;
+  border-collapse: collapse;
+  margin-bottom: 30px;
+}
+
+.mat-header-row {
+  background-color: #1976d2;
+  color: #fff;
+  font-weight: bold;
+  font-size: 1.1em;
+}
+
+.mat-header-cell {
+  padding: 10px;
+  background: #1976d2;
+  color: #fff;
+  border-bottom: 2px solid #1565c0;
+  text-align: left;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+.mat-row {
+  background: #fafbfc;
+  transition: background 0.2s;
+}
+.mat-row:nth-child(even) {
+  background: #f1f4f8;
+}
+.mat-cell {
+  padding: 10px;
+  border-bottom: 1px solid #e0e3e8;
+  font-size: 0.95em;
+}
+
+/* Hover en la fila */
+.mat-row:hover {
+  background-color: #e3f2fd !important;
+}
+
+/* Sin datos */
+.mat-no-data-row .mat-cell {
+  text-align: center;
+  color: #888;
+  font-style: italic;
+  font-size: 1em;
+}
+
+/* Responsive para tabla */
+@media (max-width: 900px) {
+  .mat-table {
+    min-width: 650px;
+  }
+  .table-container {
+    padding: 4px;
+  }
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .filter-container {
+    flex-direction: column;
+  }
+  .mat-form-field {
+    margin: 10px 0;
+    min-width: 100%;
+  }
+  button.mat-button,
+  button.mat-flat-button,
+  button.mat-stroked-button {
+    margin-top: 20px;
+    width: 100%;
+  }
+  .mat-table {
+    min-width: 400px;
+  }
+}
+
+/* Layout global */
+.app-layout {
+  display: flex;
+  flex-direction: row;
+}
+.contenedor {
+  flex-grow: 1;
+  padding: 16px;
+}
+.main-card {
+  margin: 16px;
+}
+.filter-header {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+.filter-form {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.filter-container {
+  transition: max-height 0.3s ease;
+  overflow: hidden;
+}
+.filter-container.collapsed {
+  max-height: 0;
+}
+.filter-container.expanded {
+  max-height: 500px;
+}
+
+.download-button {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+}
+
+@media (max-width: 768px) {
+  .filter-header {
+    flex-direction: column;
+  }
+  .filter-form {
+    flex-direction: column;
+  }
+  .download-button {
+    margin-top: 20px;
+    margin-left: 0;
+  }
+}
+
+}

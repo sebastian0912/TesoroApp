@@ -1,0 +1,97 @@
+<div class="modulo-dialog">
+  <!-- ═══════ HEADER ═══════ -->
+  <div class="dialog-header">
+    <div class="dialog-header__left">
+      <div class="dialog-header__icon-wrap">
+        <mat-icon class="dialog-header__icon">{{ isEdit ? 'edit_square' : 'add_circle' }}</mat-icon>
+      </div>
+      <div class="dialog-header__text">
+        <h2 id="modulo-dialog-title">{{ data.title }}</h2>
+        <p>{{ isEdit ? 'Modifica los campos necesarios.' : 'Completa los campos para crear el módulo.' }}</p>
+      </div>
+    </div>
+    <button mat-icon-button class="dialog-header__close" (click)="close()" aria-label="Cerrar diálogo">
+      <mat-icon>close</mat-icon>
+    </button>
+  </div>
+
+  <!-- ═══════ BODY ═══════ -->
+  <div class="dialog-body">
+    <form [formGroup]="form" (ngSubmit)="save()" id="modulo-form">
+
+      <!-- Nombre -->
+      <div class="form-field-wrapper">
+        <label class="field-label" for="input-nombre">Nombre del Módulo <span class="required">*</span></label>
+        <mat-form-field appearance="outline" class="sf-ff field-modern">
+          <mat-icon matPrefix>label</mat-icon>
+          <input matInput formControlName="nombre" placeholder="Ej. Inicio" id="input-nombre"
+            autocomplete="off">
+            @if (form.get('nombre')?.hasError('required')) {
+              <mat-error>Campo requerido</mat-error>
+            }
+            @if (form.get('nombre')?.hasError('maxlength')) {
+              <mat-error>Máximo 50 caracteres</mat-error>
+            }
+          </mat-form-field>
+        </div>
+
+        <!-- Descripción -->
+        <div class="form-field-wrapper">
+          <label class="field-label" for="input-descripcion">Descripción <span
+          class="optional">(Opcional)</span></label>
+          <mat-form-field appearance="outline" class="sf-ff field-modern">
+            <mat-icon matPrefix>description</mat-icon>
+            <input matInput formControlName="descripcion" placeholder="Detalle breve del módulo"
+              id="input-descripcion" autocomplete="off">
+              @if (form.get('descripcion')?.hasError('maxlength')) {
+                <mat-error>Máximo 150 caracteres</mat-error>
+              }
+            </mat-form-field>
+          </div>
+
+          <!-- Ruta -->
+          <div class="form-field-wrapper">
+            <label class="field-label" for="input-ruta">Ruta <span class="optional">(Opcional)</span></label>
+            <mat-form-field appearance="outline" class="sf-ff field-modern">
+              <mat-icon matPrefix>link</mat-icon>
+              <input matInput formControlName="ruta" placeholder="Ej. /dashboard/usuarios" id="input-ruta"
+                autocomplete="off">
+                @if (form.get('ruta')?.hasError('maxlength')) {
+                  <mat-error>Máximo 255 caracteres</mat-error>
+                }
+              </mat-form-field>
+            </div>
+
+            <!-- Ícono -->
+            <div class="form-field-wrapper">
+              <label class="field-label" for="input-icono">Ícono Material <span
+              class="optional">(Opcional)</span></label>
+              <mat-form-field appearance="outline" class="sf-ff field-modern">
+                <mat-icon matPrefix>{{ form.get('icono')?.value || 'widgets' }}</mat-icon>
+                <input matInput formControlName="icono" placeholder="Ej. group" id="input-icono" autocomplete="off">
+              </mat-form-field>
+            </div>
+
+            <!-- Orden -->
+            <div class="form-field-wrapper">
+              <label class="field-label" for="input-orden">Orden (Prioridad)</label>
+              <mat-form-field appearance="outline" class="sf-ff field-modern">
+                <mat-icon matPrefix>sort</mat-icon>
+                <input matInput type="number" formControlName="orden" placeholder="Ej. 0, 1, 2" id="input-orden">
+              </mat-form-field>
+            </div>
+
+          </form>
+        </div>
+
+        <!-- ═══════ FOOTER ═══════ -->
+        <div class="dialog-footer">
+          <button mat-flat-button class="btn-cancel" (click)="close()" type="button">
+            Cancelar
+          </button>
+          <button mat-flat-button class="btn-save" (click)="save()" [disabled]="form.invalid" type="submit">
+            <mat-icon>{{ isEdit ? 'save' : 'add_circle' }}</mat-icon>
+            {{ isEdit ? 'Guardar cambios' : 'Crear módulo' }}
+          </button>
+        </div>
+      </div>

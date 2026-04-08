@@ -1,0 +1,326 @@
+/* ═══════════════════════════════════════════════════════════
+   CrudManagerDialog — Component Styles
+   ═══════════════════════════════════════════════════════════ */
+
+/* ── Header ───────────────────────────────────────────────── */
+.cmd-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 20px;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+  background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(12px);
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  animation: cmdFadeIn 0.3s ease-out;
+}
+
+.cmd-header__left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.cmd-header__icon-wrap {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  flex-shrink: 0;
+  transition: transform 0.2s ease;
+}
+
+.cmd-header__icon-wrap:hover {
+  transform: scale(1.08);
+}
+
+.cmd-header__icon-wrap mat-icon {
+  font-size: 22px;
+  width: 22px;
+  height: 22px;
+}
+
+.cmd-header__text {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.cmd-header__title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 900;
+  line-height: 1.25;
+  color: #0f172a;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cmd-header__subtitle {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(15, 23, 42, 0.55);
+  line-height: 1.3;
+}
+
+.cmd-header__close {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  flex-shrink: 0;
+  transition: background 0.2s ease;
+}
+
+.cmd-header__close:hover {
+  background: rgba(15, 23, 42, 0.06);
+}
+
+/* ── Progress ─────────────────────────────────────────────── */
+.cmd-progress {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 20px;
+  background: rgba(248, 250, 252, 0.9);
+  border-bottom: 1px solid rgba(15, 23, 42, 0.05);
+  animation: cmdFadeIn 0.3s ease-out 0.1s both;
+}
+
+.cmd-progress__bar {
+  flex: 1;
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.08);
+  overflow: hidden;
+}
+
+.cmd-progress__fill {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  background: var(--primary, #3b82f6);
+}
+
+.cmd-progress__label {
+  font-size: 11px;
+  font-weight: 700;
+  color: rgba(15, 23, 42, 0.5);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* ── Body ─────────────────────────────────────────────────── */
+.cmd-body {
+  padding: 16px 20px 20px;
+  max-height: min(68vh, 640px);
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* ── Empty state ──────────────────────────────────────────── */
+.cmd-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 40px 20px;
+  color: rgba(15, 23, 42, 0.4);
+}
+
+.cmd-empty__icon {
+  font-size: 48px;
+  width: 48px;
+  height: 48px;
+  opacity: 0.4;
+}
+
+.cmd-empty p {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+/* ── Section headers ──────────────────────────────────────── */
+.cmd-section {
+  margin-top: 8px;
+  margin-bottom: 6px;
+}
+
+.cmd-section__divider {
+  margin-bottom: 14px;
+}
+
+.cmd-section__title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 800;
+  color: rgba(15, 23, 42, 0.65);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.cmd-section__icon {
+  font-size: 16px;
+  width: 16px;
+  height: 16px;
+  opacity: 0.7;
+}
+
+/* ── Grid ─────────────────────────────────────────────────── */
+.cmd-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 6px 16px;
+  align-items: start;
+}
+
+/* ── Field wrappers ───────────────────────────────────────── */
+.cmd-field {
+  animation: cmdFieldIn 0.35s ease-out both;
+}
+
+.cmd-field--full {
+  grid-column: 1 / -1;
+}
+
+/* ── Form field overrides ─────────────────────────────────── */
+.cmd-ff {
+  width: 100%;
+}
+
+/* ── Checkbox wrapper ─────────────────────────────────────── */
+.cmd-checkbox-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 0;
+}
+
+.cmd-checkbox-hint {
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(15, 23, 42, 0.5);
+  padding-left: 32px;
+}
+
+/* ── Footer ───────────────────────────────────────────────── */
+.cmd-footer {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 20px;
+  border-top: 1px solid rgba(15, 23, 42, 0.08);
+  background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(12px);
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+  animation: cmdFadeIn 0.3s ease-out 0.15s both;
+}
+
+.cmd-footer__spacer {
+  flex: 1 1 auto;
+}
+
+.cmd-footer__btn {
+  border-radius: 10px !important;
+  font-weight: 700 !important;
+  font-size: 13px !important;
+  letter-spacing: 0.01em;
+  display: inline-flex !important;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+}
+
+.cmd-footer__btn--cancel {
+  color: rgba(15, 23, 42, 0.7);
+}
+
+.cmd-footer__btn--submit {
+  padding-left: 18px !important;
+  padding-right: 18px !important;
+}
+
+.cmd-footer__spinner {
+  display: inline-block;
+}
+
+/* ── Keyframes ────────────────────────────────────────────── */
+@keyframes cmdFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes cmdFieldIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ── Responsive ───────────────────────────────────────────── */
+@media (max-width: 640px) {
+  .cmd-header {
+    padding: 12px 14px;
+  }
+
+  .cmd-header__title {
+    font-size: 14px;
+  }
+
+  .cmd-header__icon-wrap {
+    width: 36px;
+    height: 36px;
+  }
+
+  .cmd-body {
+    padding: 12px 14px 16px;
+    max-height: 60vh;
+  }
+
+  .cmd-grid {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+
+  .cmd-progress {
+    padding: 6px 14px;
+  }
+
+  .cmd-footer {
+    padding: 10px 14px;
+    flex-wrap: wrap;
+  }
+
+  .cmd-footer__spacer {
+    display: none;
+  }
+
+  .cmd-footer__btn {
+    flex: 1;
+    justify-content: center;
+  }
+}

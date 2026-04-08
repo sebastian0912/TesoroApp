@@ -1,0 +1,230 @@
+<!-- ═══════════════════════════════════════════════════════════
+CrudManagerDialog — Premium CRUD form dialog
+═══════════════════════════════════════════════════════════ -->
+
+<!-- ── HEADER ──────────────────────────────────────────────── -->
+<div class="cmd-header" [style.--accent]="modeColor">
+  <div class="cmd-header__left">
+    <div class="cmd-header__icon-wrap" [style.background]="modeColor + '18'" [style.color]="modeColor">
+      <mat-icon>{{ modeIcon }}</mat-icon>
+    </div>
+    <div class="cmd-header__text">
+      <h2 class="cmd-header__title">{{ data.title }}</h2>
+      @if (data.subtitle) {
+        <p class="cmd-header__subtitle">{{ data.subtitle }}</p>
+      }
+    </div>
+  </div>
+  <button mat-icon-button class="cmd-header__close" (click)="cancel()" matTooltip="Cerrar">
+    <mat-icon>close</mat-icon>
+  </button>
+</div>
+
+<!-- ── PROGRESS BAR ────────────────────────────────────────── -->
+@if (mode !== 'view' && totalFields() > 0) {
+  <div class="cmd-progress">
+    <div class="cmd-progress__bar">
+      <div class="cmd-progress__fill" [style.width.%]="progressPercent()"
+      [style.background]="modeColor"></div>
+    </div>
+    <span class="cmd-progress__label">
+      {{ filledFields() }}/{{ totalFields() }} campos completados
+    </span>
+  </div>
+}
+
+<!-- ── BODY ────────────────────────────────────────────────── -->
+<div mat-dialog-content class="cmd-body" [formGroup]="form">
+
+  <!-- Empty state -->
+  @if (data.fields.length === 0) {
+    <div class="cmd-empty">
+      <mat-icon class="cmd-empty__icon">inbox</mat-icon>
+      <p>No hay campos configurados</p>
+    </div>
+  }
+
+  <!-- Groups -->
+  @for (group of resolvedGroups; track group; let gi = $index) {
+    <!-- Section header (skip default group label) -->
+    @if (group.label) {
+      <div class="cmd-section">
+        @if (gi > 0) {
+          <mat-divider class="cmd-section__divider"></mat-divider>
+        }
+        <h3 class="cmd-section__title">
+          @if (group.icon) {
+            <mat-icon class="cmd-section__icon">{{ group.icon }}</mat-icon>
+          }
+          {{ group.label }}
+        </h3>
+      </div>
+    }
+    <!-- Fields grid -->
+    <div class="cmd-grid">
+      @for (f of group.fields; track f; let fi = $index) {
+        <div class="cmd-field"
+          [class.cmd-field--full]="isFullWidth(f)"
+          [style.animation-delay]="(gi * group.fields.length + fi) * 40 + 'ms'">
+          @switch (f.type) {
+            <!-- TEXT -->
+            @case ('text') {
+              <mat-form-field appearance="outline" class="cmd-ff">
+                <mat-label>{{ f.label }}</mat-label>
+                <input matInput
+                  [placeholder]="f.placeholder ?? ''"
+                  [formControlName]="f.name"
+                  [attr.inputmode]="f.inputMode ?? 'text'" />
+                  @if (f.prefix) {
+                    <span matTextPrefix>&nbsp;{{ f.prefix }}&nbsp;</span>
+                  }
+                  @if (f.suffix) {
+                    <span matTextSuffix>&nbsp;{{ f.suffix }}&nbsp;</span>
+                  }
+                  @if (f.hint) {
+                    <mat-hint>{{ f.hint }}</mat-hint>
+                  }
+                  @if (showError(f.name)) {
+                    <mat-error>{{ errorMsg(f.name, f) }}</mat-error>
+                  }
+                </mat-form-field>
+              }
+              <!-- PASSWORD -->
+              @case ('password') {
+                <mat-form-field appearance="outline" class="cmd-ff">
+                  <mat-label>{{ f.label }}</mat-label>
+                  <input matInput
+                    [type]="showPwd[f.name] ? 'text' : 'password'"
+                    [placeholder]="f.placeholder ?? ''"
+                    [formControlName]="f.name" />
+                    <button mat-icon-button matSuffix type="button"
+                      (click)="togglePwd(f.name)"
+                      [attr.aria-label]="'toggle ' + f.name">
+                      <mat-icon>{{ showPwd[f.name] ? 'visibility_off' : 'visibility' }}</mat-icon>
+                    </button>
+                    @if (f.hint) {
+                      <mat-hint>{{ f.hint }}</mat-hint>
+                    }
+                    @if (showError(f.name)) {
+                      <mat-error>{{ errorMsg(f.name, f) }}</mat-error>
+                    }
+                  </mat-form-field>
+                }
+                <!-- NUMBER -->
+                @case ('number') {
+                  <mat-form-field appearance="outline" class="cmd-ff">
+                    <mat-label>{{ f.label }}</mat-label>
+                    <input matInput type="text" inputmode="decimal"
+                      [step]="f.step ?? 0.01"
+                      [placeholder]="f.placeholder ?? ''"
+                      [formControlName]="f.name" />
+                      @if (f.prefix) {
+                        <span matTextPrefix>&nbsp;{{ f.prefix }}&nbsp;</span>
+                      }
+                      @if (f.suffix) {
+                        <span matTextSuffix>&nbsp;{{ f.suffix }}&nbsp;</span>
+                      }
+                      @if (f.hint) {
+                        <mat-hint>{{ f.hint }}</mat-hint>
+                      }
+                      @if (showError(f.name)) {
+                        <mat-error>{{ errorMsg(f.name, f) }}</mat-error>
+                      }
+                    </mat-form-field>
+                  }
+                  <!-- TEXTAREA -->
+                  @case ('textarea') {
+                    <mat-form-field appearance="outline" class="cmd-ff">
+                      <mat-label>{{ f.label }}</mat-label>
+                      <textarea matInput rows="3"
+                        [placeholder]="f.placeholder ?? ''"
+                      [formControlName]="f.name"></textarea>
+                      @if (f.hint) {
+                        <mat-hint>{{ f.hint }}</mat-hint>
+                      }
+                      @if (showError(f.name)) {
+                        <mat-error>{{ errorMsg(f.name, f) }}</mat-error>
+                      }
+                    </mat-form-field>
+                  }
+                  <!-- SELECT -->
+                  @case ('select') {
+                    <mat-form-field appearance="outline" class="cmd-ff">
+                      <mat-label>{{ f.label }}</mat-label>
+                      <mat-select [formControlName]="f.name"
+                        [placeholder]="f.placeholder ?? ''"
+                        [multiple]="!!f.multiple">
+                        @for (opt of (f.options || []); track opt) {
+                          <mat-option [value]="opt.value">
+                            {{ opt.label }}
+                          </mat-option>
+                        }
+                      </mat-select>
+                      @if (f.hint) {
+                        <mat-hint>{{ f.hint }}</mat-hint>
+                      }
+                      @if (showError(f.name)) {
+                        <mat-error>{{ errorMsg(f.name, f) }}</mat-error>
+                      }
+                    </mat-form-field>
+                  }
+                  <!-- CHECKBOX -->
+                  @case ('checkbox') {
+                    <div class="cmd-checkbox-wrap">
+                      <mat-checkbox [formControlName]="f.name" color="primary">
+                        {{ f.label }}
+                      </mat-checkbox>
+                      @if (f.hint) {
+                        <span class="cmd-checkbox-hint">{{ f.hint }}</span>
+                      }
+                    </div>
+                  }
+                  <!-- DATE -->
+                  @case ('date') {
+                    <mat-form-field appearance="outline" class="cmd-ff">
+                      <mat-label>{{ f.label }}</mat-label>
+                      <input matInput [matDatepicker]="picker"
+                        [placeholder]="f.placeholder ?? ''"
+                        [formControlName]="f.name" />
+                        <mat-datepicker-toggle matSuffix [for]="picker"></mat-datepicker-toggle>
+                        <mat-datepicker #picker></mat-datepicker>
+                        @if (f.hint) {
+                          <mat-hint>{{ f.hint }}</mat-hint>
+                        }
+                        @if (showError(f.name)) {
+                          <mat-error>{{ errorMsg(f.name, f) }}</mat-error>
+                        }
+                      </mat-form-field>
+                    }
+                  }
+                </div>
+              }
+            </div>
+          }
+        </div>
+
+        <!-- ── FOOTER ──────────────────────────────────────────────── -->
+        <div class="cmd-footer">
+          <button mat-stroked-button class="cmd-footer__btn cmd-footer__btn--cancel" (click)="cancel()">
+            <mat-icon>close</mat-icon>
+            {{ data.cancelText || (mode === 'view' ? 'Cerrar' : 'Cancelar') }}
+          </button>
+
+          <span class="cmd-footer__spacer"></span>
+
+          @if (mode !== 'view') {
+            <button
+              mat-flat-button color="primary"
+              class="cmd-footer__btn cmd-footer__btn--submit"
+              [disabled]="form.invalid || saving()"
+              (click)="submit()">
+              @if (saving()) {
+                <mat-spinner diameter="18" class="cmd-footer__spinner"></mat-spinner>
+              }
+              @if (!saving()) {
+                <mat-icon>{{ mode === 'create' ? 'save' : 'check_circle' }}</mat-icon>
+              }
+              {{ data.submitText || (mode === 'create' ? 'Crear' : 'Guardar') }}
+            </button>
+          }
+        </div>

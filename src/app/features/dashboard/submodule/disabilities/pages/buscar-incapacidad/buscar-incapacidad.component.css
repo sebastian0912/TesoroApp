@@ -1,0 +1,123 @@
+.title {
+  margin-top: 20px;
+  margin-bottom: 20px;
+  font-size: 20pt;
+  font-weight: bold;
+  line-height: 1;
+}
+
+
+.hidden-file-input {
+  display: none;
+}
+
+input[readonly] {
+  border: none;
+  background: transparent;
+  text-align: center;
+  pointer-events: none;
+  width: 130px;
+}
+
+.editado {
+  width: 130px;
+  min-width: 130px;
+  border: 1px solid #ccc;
+  border-radius: 5px;
+}
+
+input[readonly]:focus {
+  outline: none;
+}
+
+input.editable {
+  border: 1px solid #ccc;
+  padding: 4px;
+  text-align: left;
+  width: 130px;
+  min-width: 130px;
+}
+
+.mat-cell .editable {
+  width: 130px;
+  min-width: 130px;
+}
+
+.filter-container {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  background-color: #f7f9fc;
+  padding: 20px;
+  border-radius: 10px;
+  box-shadow: 0px 4px 12px rgba(0, 0, 0, 0.1);
+  margin-bottom: 20px;
+  gap: 10px;
+  /* Espaciado entre elementos */
+  transition: max-height 0.3s ease, opacity 0.3s ease;
+  overflow: hidden;
+}
+
+.filter-container.collapsed {
+  max-height: 0;
+  opacity: 0;
+  padding: 0;
+  margin-bottom: 0;
+}
+
+.filter-container.expanded {
+  max-height: 500px;
+  /* Ajusta según sea necesario */
+  opacity: 1;
+}
+
+.filter-container h3 {
+  flex-basis: 100%;
+  margin-bottom: 15px;
+  font-size: 1.5rem;
+  color: #333;
+  font-weight: bold;
+}
+
+.mat-form-field {
+  flex-grow: 1;
+  min-width: 220px;
+}
+
+button.mat-button {
+  background-color: #1e88e5;
+  color: #ffffff;
+  padding: 10px 20px;
+  border-radius: 20px;
+  text-transform: uppercase;
+  font-weight: 600;
+  margin-left: auto;
+  transition: background-color 0.3s ease;
+  box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+button.mat-button:hover {
+  background-color: #1565c0;
+}
+
+button.mat-button:focus {
+  outline: none;
+  box-shadow: 0px 0px 8px rgba(33, 150, 243, 0.5);
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .filter-container {
+    flex-direction: column;
+  }
+
+  .mat-form-field {
+    margin: 10px 0;
+    min-width: 100%;
+  }
+
+  button.mat-button {
+    margin-top: 20px;
+    width: 100%;
+  }
+}
