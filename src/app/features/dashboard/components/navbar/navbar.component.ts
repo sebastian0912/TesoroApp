@@ -227,10 +227,8 @@ export class NavbarComponent implements OnInit, OnDestroy {
     private offlineSync: OfflineSyncService
   ) {
     this.isBrowser = isPlatformBrowser(platformId);
-<<<<<<< HEAD
     this.routeMapIndex = this.indexByMenuKey(this.routeMap);
     this.iconMapIndex = this.indexByMenuKey(this.iconMap);
-=======
     if (this.isBrowser) {
       this.networkStatus.isOnline$.subscribe(status => {
         this.isOnline = status;
@@ -242,7 +240,6 @@ export class NavbarComponent implements OnInit, OnDestroy {
         this.offlineSync.updatePendingCount();
       });
     }
->>>>>>> b80341dddcfa0a0344e54ccc74923b51cbd8e950
   }
 
   async ngOnInit(): Promise<void> {
@@ -506,7 +503,6 @@ export class NavbarComponent implements OnInit, OnDestroy {
   }
 
   // ===== rutas =====
-<<<<<<< HEAD
   private normalizeMenuKey(value: string): string {
     return (value ?? '')
       .normalize('NFD')
@@ -530,10 +526,7 @@ export class NavbarComponent implements OnInit, OnDestroy {
     const base = '/dashboard';
     const key = this.normalizeMenuKey(node?.nombre ?? '');
     const mapped = this.routeMapIndex[key];
-=======
-  public getNodeRoute(node: PermNode): string {
-    const base = '/dashboard';
->>>>>>> b80341dddcfa0a0344e54ccc74923b51cbd8e950
+    if (mapped) return `${base}/${mapped}`;
 
     if (node.ruta) {
       if (node.ruta.startsWith('/')) return node.ruta;
@@ -568,21 +561,14 @@ export class NavbarComponent implements OnInit, OnDestroy {
   }
 
   // ===== iconos =====
-<<<<<<< HEAD
-  public getModuleIcon(nombre: string): string {
-    return this.iconMapIndex[this.normalizeMenuKey(nombre)] || 'widgets';
-  }
-
-  public getNodeIcon(nombre: string): string {
-    return this.iconMapIndex[this.normalizeMenuKey(nombre)] || 'radio_button_unchecked';
-=======
   public getModuleIcon(node: PermNode): string {
-    return node?.icono && node.icono !== 'widgets' ? node.icono : 'widgets';
+    if (node?.icono && node.icono !== 'widgets') return node.icono;
+    return this.iconMapIndex[this.normalizeMenuKey(node?.nombre ?? '')] || 'widgets';
   }
 
   public getNodeIcon(node: PermNode): string {
-    return node?.icono && node.icono !== 'widgets' ? node.icono : 'radio_button_unchecked';
->>>>>>> b80341dddcfa0a0344e54ccc74923b51cbd8e950
+    if (node?.icono && node.icono !== 'widgets') return node.icono;
+    return this.iconMapIndex[this.normalizeMenuKey(node?.nombre ?? '')] || 'radio_button_unchecked';
   }
 
   // ===== responsive =====

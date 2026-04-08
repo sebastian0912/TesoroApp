@@ -1,4 +1,4 @@
-import { Component } from '@angular/core';
+import { Component, ChangeDetectionStrategy } from '@angular/core';
 import { ImportExcelComponent } from '../../components/import-excel/import-excel.component';
 
 @Component({

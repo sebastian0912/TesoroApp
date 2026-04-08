@@ -85,74 +85,31 @@
       <!-- Árbol -->
       <nav [attr.aria-label]="'Submódulos de ' + activeRoot!.nombre">
         <ng-template #tree let-nodes="nodes" let-level="level">
-          <ng-container *ngFor="let node of nodes; trackBy: trackByNodeId">
+          @for (node of nodes; track trackByNodeId($index, node)) {
             <div class="tree-wrap" [style.paddingLeft.px]="(level - 2) * 14">
-
-              <button
-                type="button"
-                class="submodule-button"
-                (click)="onNodeClick(node)"
+              <button type="button" class="submodule-button" (click)="onNodeClick(node)"
                 [attr.aria-expanded]="hasChildren(node) ? isExpanded(node.id) : null"
                 [class.active-submodule]="!hasChildren(node) && isRouteActive(getNodeRoute(node))">
-
                 <mat-icon fontSet="material-symbols-outlined">
-                  {{ hasChildren(node) ? 'folder' : getNodeIcon(node.nombre) }}
+                  {{ hasChildren(node) ? 'folder' : getNodeIcon(node) }}
                 </mat-icon>
-
                 <span class="submodule-text">{{ node.nombre }}</span>
-
-                <mat-icon
-                  *ngIf="hasChildren(node)"
-                  fontSet="material-symbols-outlined"
-                  class="expand-icon">
-                  {{ isExpanded(node.id) ? 'expand_less' : 'expand_more' }}
-                </mat-icon>
-              </button>
-
-              <ng-container *ngIf="hasChildren(node) && isExpanded(node.id)">
-                <ng-container
-                  *ngTemplateOutlet="tree; context: { nodes: node.hijos || [], level: level + 1 }">
-                </ng-container>
-              </ng-container>
-
-            </div>
-          </div>
-          <button class="header-pin-button" [title]="pinOpen ? 'Colapsar' : 'Expandir'" type="button"
-            (click)="togglePin()">
-            <mat-icon fontSet="material-symbols-outlined" class="header-icon">
-              {{ pinOpen ? 'expand_less' : 'expand_more' }}
-            </mat-icon>
-          </button>
-        </div>
-        <!-- Árbol -->
-        <nav [attr.aria-label]="'Submódulos de ' + activeRoot!.nombre">
-          <ng-template #tree let-nodes="nodes" let-level="level">
-            @for (node of nodes; track trackByNodeId($index, node)) {
-              <div class="tree-wrap" [style.paddingLeft.px]="(level - 2) * 14">
-                <button type="button" class="submodule-button" i (click)="onNodeClick(node)"
-                  [attr.aria-expanded]="hasChildren(node) ? isExpanded(node.id) : null"
-                  [class.active-submodule]="!hasChildren(node) && isRouteActive(getNodeRoute(node))">
-                  <mat-icon fontSet="material-symbols-outlined">
-                    {{ hasChildren(node) ? 'folder' : getNodeIcon(node) }}
+                @if (hasChildren(node)) {
+                  <mat-icon fontSet="material-symbols-outlined" class="expand-icon">
+                    {{ isExpanded(node.id) ? 'expand_less' : 'expand_more' }}
                   </mat-icon>
-                  <span class="submodule-text">{{ node.nombre }}</span>
-                  @if (hasChildren(node)) {
-                    <mat-icon fontSet="material-symbols-outlined" class="expand-icon">
-                      {{ isExpanded(node.id) ? 'expand_less' : 'expand_more' }}
-                    </mat-icon>
-                  }
-                </button>
-                @if (hasChildren(node) && isExpanded(node.id)) {
-                  <ng-container *ngTemplateOutlet="tree; context: { nodes: node.hijos || [], level: level + 1 }">
-                  </ng-container>
                 }
-              </div>
-            }
-          </ng-template>
-          <ng-container *ngTemplateOutlet="tree; context: { nodes: activeRoot!.hijos || [], level: 2 }">
-          </ng-container>
-        </nav>
-      </div>
+              </button>
+              @if (hasChildren(node) && isExpanded(node.id)) {
+                <ng-container *ngTemplateOutlet="tree; context: { nodes: node.hijos || [], level: level + 1 }">
+                </ng-container>
+              }
+            </div>
+          }
+        </ng-template>
+        <ng-container *ngTemplateOutlet="tree; context: { nodes: activeRoot!.hijos || [], level: 2 }">
+        </ng-container>
+      </nav>
     </div>
-  }
+  </div>
 </aside>
