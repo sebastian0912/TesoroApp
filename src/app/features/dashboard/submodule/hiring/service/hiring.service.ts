@@ -27,6 +27,14 @@ export class HiringService {
     );
   }
 
+  // Buscar en contratacion 2.0 por cédula (con datos completos)
+  public buscarEnContratacion2(cedula: string): Observable<any> {
+    return this.http.get(`${this.apiUrl}/gestion_contratacion/candidatos/by-document/${cedula}/?full=1`).pipe(
+      map((response: any) => response),
+      catchError(this.handleError)
+    );
+  }
+
   // Buscar en contratacion por cedula para sacar los datos bio
   // check-contract/<str:codigo_contrato>/
   //

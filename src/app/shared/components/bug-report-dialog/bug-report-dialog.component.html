@@ -1,0 +1,126 @@
+<h2 mat-dialog-title class="dialog-title">
+  <mat-icon class="title-icon">bug_report</mat-icon>
+  Reportar Bug
+</h2>
+
+<mat-dialog-content class="dialog-content">
+  <!-- Indicador de captura -->
+  @if (capturando) {
+    <div class="capturando-banner">
+      <mat-spinner diameter="20"></mat-spinner>
+      <span>Capturando datos del sistema...</span>
+    </div>
+  }
+
+  <!-- Info auto-capturada -->
+  <div class="auto-info-section">
+    <h4 class="section-label">Datos capturados automáticamente</h4>
+    <div class="auto-info-grid">
+      <div class="info-chip">
+        <mat-icon>person</mat-icon>
+        <span>{{ autoData.usuario || '...' }}</span>
+      </div>
+      <div class="info-chip">
+        <mat-icon>badge</mat-icon>
+        <span>{{ autoData.documento || '...' }}</span>
+      </div>
+      <div class="info-chip">
+        <mat-icon>link</mat-icon>
+        <span class="url-text">{{ autoData.url_actual || '...' }}</span>
+      </div>
+      <div class="info-chip">
+        <mat-icon>web</mat-icon>
+        <span>{{ autoData.navegador || '...' }}</span>
+      </div>
+      <div class="info-chip">
+        <mat-icon>aspect_ratio</mat-icon>
+        <span>{{ autoData.resolucion || '...' }}</span>
+      </div>
+      <div class="info-chip">
+        <mat-icon>location_city</mat-icon>
+        <span>{{ autoData.sede || '...' }}</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Screenshot preview -->
+  @if (screenshotPreview) {
+    <div class="screenshot-section">
+      <h4 class="section-label">Captura de pantalla</h4>
+      <img [src]="screenshotPreview" alt="Screenshot" class="screenshot-preview" />
+    </div>
+  }
+
+  <!-- Console logs indicator -->
+  @if (autoData.console_logs) {
+    <div class="console-section">
+      <h4 class="section-label">Logs de consola</h4>
+      <div class="console-preview">
+        <mat-icon>terminal</mat-icon>
+        <span>{{ autoData.console_logs!.split('\n').length }} entradas capturadas</span>
+      </div>
+    </div>
+  }
+
+  <mat-divider class="divider"></mat-divider>
+
+  <!-- Formulario del usuario -->
+  <h4 class="section-label">Describe el problema</h4>
+  <form [formGroup]="form" class="bug-form">
+    <mat-form-field appearance="outline" class="full-width">
+      <mat-label>Título del bug</mat-label>
+      <input matInput formControlName="titulo" placeholder="Ej: El botón de exportar no funciona" />
+      @if (form.get('titulo')?.hasError('required') && form.get('titulo')?.touched) {
+        <mat-error>El título es obligatorio</mat-error>
+      }
+      @if (form.get('titulo')?.hasError('minlength') && form.get('titulo')?.touched) {
+        <mat-error>Mínimo 3 caracteres</mat-error>
+      }
+    </mat-form-field>
+
+    <mat-form-field appearance="outline" class="full-width">
+      <mat-label>Descripción detallada</mat-label>
+      <textarea matInput formControlName="descripcion" rows="4"
+        placeholder="Describe qué estabas haciendo y qué pasó..."></textarea>
+      @if (form.get('descripcion')?.hasError('required') && form.get('descripcion')?.touched) {
+        <mat-error>La descripción es obligatoria</mat-error>
+      }
+    </mat-form-field>
+
+    <div class="form-row">
+      <mat-form-field appearance="outline" class="half-width">
+        <mat-label>Categoría</mat-label>
+        <mat-select formControlName="categoria">
+          @for (cat of categorias; track $index) {
+            <mat-option [value]="cat">{{ cat }}</mat-option>
+          }
+        </mat-select>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline" class="half-width">
+        <mat-label>Prioridad</mat-label>
+        <mat-select formControlName="prioridad">
+          @for (p of prioridades; track $index) {
+            <mat-option [value]="p">
+              <span [class]="'prioridad-' + p.toLowerCase()">{{ p }}</span>
+            </mat-option>
+          }
+        </mat-select>
+      </mat-form-field>
+    </div>
+  </form>
+</mat-dialog-content>
+
+<mat-dialog-actions align="end" class="dialog-actions">
+  <button mat-button (click)="cancelar()" [disabled]="loading" class="btn-cancelar">
+    Cancelar
+  </button>
+  <button mat-flat-button color="warn" (click)="enviar()" [disabled]="loading || capturando" class="btn-enviar">
+    @if (loading) {
+      <mat-spinner diameter="20" class="btn-spinner"></mat-spinner>
+    } @else {
+      <mat-icon>send</mat-icon>
+    }
+    Enviar Reporte
+  </button>
+</mat-dialog-actions>

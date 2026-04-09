@@ -887,89 +887,172 @@ export class AbsencesNew implements OnInit {
 
     if (!isConfirmed || !cedula) return;
 
-    Swal.fire({ title: 'Buscando...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+    Swal.fire({ title: 'Buscando en Contratación 2.0...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
 
     let persona: any = null;
+    let fuenteDatos = '';
+
+    // Intentar primero con Contratación 2.0
     try {
-      const resp = await firstValueFrom(this.hiringService.buscarEncontratacion(cedula.trim()));
-      if (resp && typeof resp === 'object' && (resp.numerodeceduladepersona || resp.primer_nombre || resp.primer_apellido)) {
+      const resp = await firstValueFrom(this.hiringService.buscarEnContratacion2(cedula.trim()));
+      if (resp && typeof resp === 'object' && (resp.numero_documento || resp.primer_nombre)) {
         persona = resp;
+        fuenteDatos = '2.0';
       }
     } catch (e) {
-      console.warn('[NuevoAusentismo] buscarEncontratacion falló:', e);
+      console.warn('[NuevoAusentismo] Contratación 2.0 no encontró:', e);
+    }
+
+    // Fallback: contratación legacy
+    if (!persona) {
+      try {
+        const resp = await firstValueFrom(this.hiringService.buscarEncontratacion(cedula.trim()));
+        if (resp && typeof resp === 'object' && (resp.numerodeceduladepersona || resp.primer_nombre || resp.primer_apellido)) {
+          persona = resp;
+          fuenteDatos = 'legacy';
+        }
+      } catch (e) {
+        console.warn('[NuevoAusentismo] Contratación legacy tampoco encontró:', e);
+      }
     }
 
     Swal.close();
 
-    // ─── Paso 2: Mostrar formulario con datos precargados ───
-    const nombreCompleto = persona
-      ? [persona.primer_nombre, persona.segundo_nombre, persona.primer_apellido, persona.segundo_apellido].filter(Boolean).join(' ')
-      : '';
-    const celular = persona?.celular || '';
-    const correo = persona?.primercorreoelectronico || '';
-    const codigoEmpleado = persona?.codigo_ultimo_contrato || '';
-    const fechaIngreso = persona?.fecha_ultimo_ingreso || '';
-    const cedulaVal = persona?.numerodeceduladepersona || cedula.trim();
+    // ─── Extraer datos según la fuente ───
+    let nombreCompleto = '';
+    let celular = '';
+    let correoVal = '';
+    let codigoEmpleado = '';
+    let fechaIngreso = '';
+    let fincaVal = '';
+    let cedulaVal = cedula.trim();
 
-    const infoPersona = persona
-      ? `<div style="background:#ecfdf5; border-left:4px solid #059669; border-radius:6px; padding:10px 14px; margin-bottom:14px;">
-           <p style="margin:2px 0; font-size:13px;"><strong>Nombre:</strong> ${nombreCompleto}</p>
-           <p style="margin:2px 0; font-size:13px;"><strong>Cédula:</strong> ${cedulaVal}</p>
-           <p style="margin:2px 0; font-size:13px;"><strong>Celular:</strong> ${celular || '<em style="color:#ef4444">No registrado</em>'}</p>
-           <p style="margin:2px 0; font-size:13px;"><strong>Correo:</strong> ${correo || '<em style="color:#ef4444">No registrado</em>'}</p>
-           <p style="margin:2px 0; font-size:13px;"><strong>Código contrato:</strong> ${codigoEmpleado || '<em style="color:#94a3b8">N/A</em>'}</p>
-           <p style="margin:2px 0; font-size:13px;"><strong>Fecha ingreso:</strong> ${fechaIngreso || '<em style="color:#94a3b8">N/A</em>'}</p>
-         </div>`
-      : `<div style="background:#fef3c7; border-left:4px solid #f59e0b; border-radius:6px; padding:10px 14px; margin-bottom:14px;">
-           <p style="margin:0; font-size:13px;"><strong>No se encontró</strong> en contratación. Puede llenar los datos manualmente.</p>
-         </div>`;
+    if (persona && fuenteDatos === '2.0') {
+      nombreCompleto = [persona.primer_nombre, persona.segundo_nombre, persona.primer_apellido, persona.segundo_apellido].filter(Boolean).join(' ');
+      cedulaVal = persona.numero_documento || cedulaVal;
+      celular = persona.contacto?.celular || persona.contacto?.whatsapp || '';
+      correoVal = persona.contacto?.email || '';
+      // Obtener código y finca del último proceso/contrato
+      const ultimaEntrevista = Array.isArray(persona.entrevistas) ? persona.entrevistas[0] : null;
+      const proceso = ultimaEntrevista?.proceso;
+      codigoEmpleado = proceso?.contrato?.codigo_contrato || '';
+      fechaIngreso = proceso?.contrato?.fecha_ingreso || '';
+      fincaVal = ultimaEntrevista?.oficina || '';
+    } else if (persona && fuenteDatos === 'legacy') {
+      nombreCompleto = [persona.primer_nombre, persona.segundo_nombre, persona.primer_apellido, persona.segundo_apellido].filter(Boolean).join(' ');
+      cedulaVal = persona.numerodeceduladepersona || cedulaVal;
+      celular = persona.celular || '';
+      correoVal = persona.primercorreoelectronico || '';
+      codigoEmpleado = persona.codigo_ultimo_contrato || '';
+      fechaIngreso = persona.fecha_ultimo_ingreso || '';
+    }
 
+    // ─── Paso 2: Confirmación de datos encontrados ───
+    if (persona) {
+      const confirmHtml = `
+        <div style="text-align:left; font-size:13px;">
+          <div style="background:#ecfdf5; border-left:4px solid #059669; border-radius:8px; padding:14px 16px; margin-bottom:10px;">
+            <p style="margin:0 0 8px 0; font-size:12px; color:#059669; font-weight:700; text-transform:uppercase; letter-spacing:0.5px;">
+              Encontrado en Contratación ${fuenteDatos === '2.0' ? '2.0' : 'Legacy'}
+            </p>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px 16px;">
+              <p style="margin:0; font-size:13px;"><strong>Nombre:</strong> ${nombreCompleto}</p>
+              <p style="margin:0; font-size:13px;"><strong>Cédula:</strong> ${cedulaVal}</p>
+              <p style="margin:0; font-size:13px;"><strong>Celular:</strong> ${celular || '<em style="color:#ef4444">No registrado</em>'}</p>
+              <p style="margin:0; font-size:13px;"><strong>Correo:</strong> ${correoVal || '<em style="color:#ef4444">No registrado</em>'}</p>
+              <p style="margin:0; font-size:13px;"><strong>Código:</strong> ${codigoEmpleado || '<em style="color:#94a3b8">N/A</em>'}</p>
+              <p style="margin:0; font-size:13px;"><strong>F. Ingreso:</strong> ${fechaIngreso || '<em style="color:#94a3b8">N/A</em>'}</p>
+              ${fincaVal ? `<p style="margin:0; font-size:13px;"><strong>Finca:</strong> ${fincaVal}</p>` : ''}
+            </div>
+          </div>
+          <p style="margin:6px 0 0; color:#475569; font-size:13px;">¿Desea usar estos datos para registrar el ausentismo? Podrá editarlos en el siguiente paso.</p>
+        </div>`;
+
+      const confirmResult = await Swal.fire({
+        title: 'Datos del Colaborador',
+        html: confirmHtml,
+        showCancelButton: true,
+        showDenyButton: true,
+        confirmButtonText: 'Usar estos datos',
+        denyButtonText: 'Llenar desde cero',
+        cancelButtonText: 'Cancelar',
+        confirmButtonColor: '#059669',
+        denyButtonColor: '#6366f1',
+      });
+
+      if (confirmResult.isDismissed) return;
+
+      if (confirmResult.isDenied) {
+        // Limpiar datos para llenar manualmente
+        nombreCompleto = '';
+        celular = '';
+        correoVal = '';
+        codigoEmpleado = '';
+        fincaVal = '';
+      }
+    } else {
+      // No encontrado en ninguna fuente
+      const noFoundResult = await Swal.fire({
+        title: 'Colaborador no encontrado',
+        html: `<div style="background:#fef3c7; border-left:4px solid #f59e0b; border-radius:8px; padding:12px 16px;">
+                 <p style="margin:0; font-size:13px;"><strong>No se encontró</strong> la cédula <strong>${cedulaVal}</strong> en el sistema de contratación.</p>
+                 <p style="margin:6px 0 0; font-size:13px; color:#92400e;">Puede llenar todos los datos manualmente.</p>
+               </div>`,
+        showCancelButton: true,
+        confirmButtonText: 'Llenar manualmente',
+        cancelButtonText: 'Cancelar',
+        confirmButtonColor: '#6366f1',
+      });
+
+      if (!noFoundResult.isConfirmed) return;
+    }
+
+    // ─── Paso 3: Formulario de registro ───
     const htmlForm = `
       <div style="text-align:left; font-size:13px;">
-        ${infoPersona}
         <div style="display:flex; flex-direction:column; gap:6px;">
           <label><strong>Nombre completo:</strong></label>
           <input id="aus-nombre" class="swal2-input" style="margin:0; width:100%;" value="${nombreCompleto}" placeholder="Apellidos y Nombres">
 
-          <div style="display:flex; gap:8px;">
-            <div style="flex:1;">
+          <div style="display:flex; gap:8px; flex-wrap:wrap;">
+            <div style="flex:1; min-width:140px;">
               <label><strong>Cédula:</strong></label>
               <input id="aus-cedula" class="swal2-input" style="margin:0; width:100%;" value="${cedulaVal}" readonly>
             </div>
-            <div style="flex:1;">
+            <div style="flex:1; min-width:140px;">
               <label><strong>Código empleado:</strong></label>
               <input id="aus-codigo" class="swal2-input" style="margin:0; width:100%;" value="${codigoEmpleado}" placeholder="Código">
             </div>
           </div>
 
-          <div style="display:flex; gap:8px;">
-            <div style="flex:1;">
+          <div style="display:flex; gap:8px; flex-wrap:wrap;">
+            <div style="flex:1; min-width:140px;">
               <label><strong>Celular:</strong></label>
               <input id="aus-celular" class="swal2-input" style="margin:0; width:100%;" value="${celular}" placeholder="3001234567">
             </div>
-            <div style="flex:1;">
+            <div style="flex:1; min-width:140px;">
               <label><strong>Correo:</strong></label>
-              <input id="aus-correo" class="swal2-input" style="margin:0; width:100%;" value="${correo}" placeholder="correo@ejemplo.com">
+              <input id="aus-correo" class="swal2-input" style="margin:0; width:100%;" value="${correoVal}" placeholder="correo@ejemplo.com">
             </div>
           </div>
 
-          <div style="display:flex; gap:8px;">
-            <div style="flex:1;">
+          <div style="display:flex; gap:8px; flex-wrap:wrap;">
+            <div style="flex:1; min-width:140px;">
               <label><strong>Fecha inicio ausencia:</strong></label>
               <input id="aus-fecha-inicio" type="date" class="swal2-input" style="margin:0; width:100%;">
             </div>
-            <div style="flex:1;">
+            <div style="flex:1; min-width:140px;">
               <label><strong>Fecha fin ausencia:</strong></label>
               <input id="aus-fecha-fin" type="date" class="swal2-input" style="margin:0; width:100%;">
             </div>
           </div>
 
-          <div style="display:flex; gap:8px;">
-            <div style="flex:1;">
+          <div style="display:flex; gap:8px; flex-wrap:wrap;">
+            <div style="flex:1; min-width:140px;">
               <label><strong>Finca / Sede:</strong></label>
-              <input id="aus-finca" class="swal2-input" style="margin:0; width:100%;" placeholder="Nombre de finca o sede">
+              <input id="aus-finca" class="swal2-input" style="margin:0; width:100%;" value="${fincaVal}" placeholder="Nombre de finca o sede">
             </div>
-            <div style="flex:1;">
+            <div style="flex:1; min-width:140px;">
               <label><strong>Temporal:</strong></label>
               <input id="aus-temporal" class="swal2-input" style="margin:0; width:100%;" placeholder="Temporal">
             </div>

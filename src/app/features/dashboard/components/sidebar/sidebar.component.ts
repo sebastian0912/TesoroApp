@@ -2,8 +2,10 @@ import {  Component, Inject, PLATFORM_ID , ChangeDetectionStrategy } from '@angu
 import { SharedModule } from '../../../../shared/shared.module';
 import { isPlatformBrowser } from '@angular/common';
 import { Router } from '@angular/router';
+import { MatDialog } from '@angular/material/dialog';
 import Swal from 'sweetalert2';
 import { UtilityServiceService } from '../../../../shared/services/utilityService/utility-service.service';
+import { ConsoleLoggerService } from '../../../../shared/services/console-logger/console-logger.service';
 import { firstValueFrom } from 'rxjs';
 
 @Component({
@@ -29,8 +31,14 @@ export class SidebarComponent {
   constructor(
     @Inject(PLATFORM_ID) private platformId: Object,
     private adminService: UtilityServiceService,
-    private router: Router
-  ) {}
+    private router: Router,
+    private dialog: MatDialog,
+    private consoleLogger: ConsoleLoggerService
+  ) {
+    if (isPlatformBrowser(this.platformId)) {
+      this.consoleLogger.init();
+    }
+  }
 
   async ngOnInit(): Promise<void> {
     const user: any = this.adminService.getUser?.()  || 'null';
@@ -119,5 +127,17 @@ export class SidebarComponent {
 
   prueba(): void {
     this.router.navigate(['/dashboard/users/change-password']);
+  }
+
+  abrirReporteBug(): void {
+    import('../../../../shared/components/bug-report-dialog/bug-report-dialog.component').then(
+      (m) => {
+        this.dialog.open(m.BugReportDialogComponent, {
+          width: '600px',
+          maxHeight: '90vh',
+          disableClose: true,
+        });
+      }
+    );
   }
 }
