@@ -1,5 +1,5 @@
 import { Component, Input, ChangeDetectionStrategy, OnChanges, SimpleChanges } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { NgxEchartsDirective, provideEchartsCore } from 'ngx-echarts';
 import type { EChartsOption } from 'echarts';
 import { ChartDataPoint } from '../../../models/tesoreria-metricas.models';
@@ -8,20 +8,21 @@ import { EmptyStateComponent } from '../../../../../shared/components/empty-stat
 @Component({
     selector: 'app-tx-funnel-chart',
     standalone: true,
-    imports: [CommonModule, NgxEchartsDirective, EmptyStateComponent],
+    imports: [NgxEchartsDirective, EmptyStateComponent],
     providers: [provideEchartsCore({ echarts: () => import('echarts') })],
     template: `
-    <div class="chart-container" *ngIf="hasData; else empty">
-      <div echarts [options]="chartOption" [merge]="chartUpdate" class="echarts-wrapper"></div>
-    </div>
-    <ng-template #empty>
-      <app-empty-state 
-        icon="filter_alt" 
+    @if (hasData) {
+      <div class="chart-container">
+        <div echarts [options]="chartOption" [merge]="chartUpdate" class="echarts-wrapper"></div>
+      </div>
+    } @else {
+      <app-empty-state
+        icon="filter_alt"
         title="Sin Transacciones"
         description="No hay datos de estados (funnel) para este rango de fechas.">
       </app-empty-state>
-    </ng-template>
-  `,
+    }
+    `,
     styles: [`
     :host { display: block; height: 100%; width: 100%; }
     .chart-container { height: 100%; width: 100%; }

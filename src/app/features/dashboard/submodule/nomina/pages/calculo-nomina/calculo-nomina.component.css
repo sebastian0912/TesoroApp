@@ -1,0 +1,262 @@
+.calculo-nomina-container {
+  padding: 32px;
+  max-width: 1400px;
+  margin: 0 auto;
+  background-color: #fcfcfc;
+  min-height: 100vh;
+}
+
+.header {
+  margin-bottom: 24px;
+}
+
+.header h1 {
+  font-size: 2.2rem;
+  font-weight: 800;
+  color: #1a237e;
+  margin-bottom: 8px;
+}
+
+.header p {
+  color: #666;
+  font-size: 1.1rem;
+}
+
+/* Card Premium */
+.card-premium {
+  border-radius: 16px;
+  border: none;
+  box-shadow: 0 10px 40px rgba(0,0,0,0.06) !important;
+  margin-bottom: 32px;
+  background: white;
+  position: relative;
+  z-index: 1; /* Bajo para que el overlay de Material quede encima */
+}
+
+.filter-grid-simple {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 16px 8px;
+}
+
+.filter-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+}
+
+.filter-row-bottom {
+  display: grid;
+  grid-template-columns: 1fr 300px;
+  gap: 24px;
+  align-items: start;
+}
+
+.actions-flat {
+  display: flex;
+  align-items: center;
+  padding-top: 4px;
+}
+
+.btns-suffix {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.btn-large {
+  height: 54px;
+  padding: 0 32px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  border-radius: 12px;
+  box-shadow: 0 4px 14px rgba(25, 118, 210, 0.3);
+}
+
+/* Select Search Header */
+.select-search-header {
+  position: sticky;
+  top: 0;
+  background: white;
+  z-index: 15 !important;
+  display: flex;
+  align-items: center;
+  padding: 10px 16px;
+  border-bottom: 1px solid #edf2f7;
+}
+
+.select-search-header mat-icon {
+  margin-right: 8px;
+  color: #94a3b8;
+  font-size: 20px;
+  width: 20px;
+  height: 20px;
+}
+
+.select-search-header input {
+  border: none;
+  outline: none;
+  width: 100%;
+  font-size: 0.95rem;
+  color: #1e293b;
+}
+
+.p-12 {
+  padding: 12px !important;
+}
+
+/* Tabla Frame */
+.table-frame {
+  background: white;
+  border-radius: 16px;
+  overflow: hidden;
+  border: 1px solid #edf2f7;
+  margin-bottom: 40px; 
+}
+
+.table-scroll-container {
+  max-height: 550px;
+  overflow: auto;
+}
+
+table {
+  width: 100%;
+}
+
+th.mat-header-cell,
+.mat-mdc-table-sticky,
+.mat-mdc-header-row {
+  z-index: 10 !important; /* Fuerza el nivel bajo sobre los estilos inline de Material (100) */
+}
+
+th.mat-header-cell {
+  background-color: #f7fafc !important;
+  color: #4a5568;
+  font-weight: 700;
+  padding: 18px 12px;
+  text-transform: uppercase;
+  font-size: 0.75rem;
+  letter-spacing: 0.05em;
+  border-bottom: 2px solid #edf2f7;
+}
+
+td.mat-cell {
+  padding: 16px 12px;
+  color: #2d3748;
+  font-size: 0.9rem;
+  border-bottom: 1px solid #edf2f7;
+}
+
+tr.mat-row:hover {
+  background-color: #f9fafb;
+}
+
+/* Elementos de Celda */
+.emp-name {
+  font-weight: 700;
+  color: #2b6cb0;
+  font-size: 0.95rem;
+}
+
+.text-subtle {
+  color: #a0aec0;
+  display: block;
+  margin-top: 2px;
+}
+
+.salary-cell {
+  font-family: 'Roboto Mono', monospace;
+  color: #4a5568;
+}
+
+.dias-pill {
+  background-color: #ebf8ff;
+  color: #2b6cb0;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-weight: 800;
+  font-size: 0.85rem;
+  border: 1px solid #bee3f8;
+}
+
+.deduction-val {
+  color: #e53e3e;
+  font-weight: 500;
+}
+
+.net-val {
+  font-weight: 800;
+  color: #2f855a;
+  font-size: 1.05rem;
+  background-color: #f0fff4;
+}
+
+.center-header, .center-cell {
+  text-align: center !important;
+}
+
+/* Footer Control */
+.footer-control {
+  position: sticky;
+  bottom: 24px;
+  width: 100%;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(10px);
+  padding: 16px 24px;
+  border-radius: 20px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  z-index: 20 !important; /* Reducido a 20 para quedar bajo el detalle del navbar (z-index 25) */
+  box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+  border: 1px solid rgba(25, 118, 210, 0.1);
+  box-sizing: border-box;
+}
+
+.summary-pill {
+  background: #edf2f7;
+  padding: 8px 16px;
+  border-radius: 12px;
+  color: #4a5568;
+}
+
+.spacer {
+  flex: 1;
+}
+
+/* Otros */
+.loading-full {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-top: 100px;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 80px 0;
+  color: #a0aec0;
+}
+
+.empty-state mat-icon {
+  font-size: 64px;
+  width: 64px;
+  height: 64px;
+  margin-bottom: 16px;
+  opacity: 0.4;
+}
+
+.gap-12 {
+  gap: 12px;
+}
+
+.flex-grow {
+  flex: 1;
+}
+
+mat-hint {
+  color: #3182ce !important;
+  font-weight: 600;
+  opacity: 1 !important;
+}

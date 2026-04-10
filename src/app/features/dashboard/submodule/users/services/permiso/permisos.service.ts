@@ -34,23 +34,6 @@ export class PermisosService {
     return this.http.delete<void>(`${this.apiUrl}/gestion_admin/roles/${id}/`);
   }
 
-  /** Catálogo completo de permisos (con modulo y acción) */
-  listAllPermisos(): Observable<Permiso[]> {
-    return this.http
-      .get<any[]>(`${this.apiUrl}/gestion_admin/permisos/`)
-      .pipe(
-        map(rows => (rows ?? []).map(r => ({
-          id: r.id,
-          nombre: r.nombre,
-          // OJO: el backend manda 'accion' (UUID) y 'accion_nombre' (string legible)
-          accion: r.accion_nombre ?? r.accion,
-          // OJO: el backend manda 'modulo' (UUID) y 'modulo_nombre' (string)
-          modulo_id: r.modulo ?? r.modulo_id,
-          modulo_nombre: r.modulo_nombre ?? ''
-        }) as Permiso))
-      );
-  }
-
   /**
    * IDs de permisos asignados actualmente al rol.
    * Usamos el endpoint de la tabla intermedia `rol_permiso` filtrando por rol.

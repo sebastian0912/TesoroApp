@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import {  Component, OnInit , ChangeDetectionStrategy } from '@angular/core';
 import { FormBuilder, FormGroup, Validators } from '@angular/forms';
 import Swal from 'sweetalert2';
 import { Router } from '@angular/router';
@@ -11,6 +11,7 @@ import { MatDialog } from '@angular/material/dialog';
 import { HistorialDialogComponent } from '../../../authorizations/pages/autorizacion-dinamica/historial-dialog/historial-dialog.component';
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-cargar-mercado',
   imports: [
     SharedModule,
@@ -18,7 +19,7 @@ import { HistorialDialogComponent } from '../../../authorizations/pages/autoriza
   ],
   templateUrl: './cargar-mercado.component.html',
   styleUrls: ['./cargar-mercado.component.css']
-})
+} )
 export class CargarMercadoComponent implements OnInit {
   searchForm!: FormGroup;
   executeForm!: FormGroup;

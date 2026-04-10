@@ -17,13 +17,5 @@ export interface Tarjeta {
 export class TarjetasService {
     private http = inject(HttpClient);
     private apiUrl = `${environment.apiUrl}/tarjetas/`;
-
-    getTarjetas(): Observable<Tarjeta[]> {
-        return this.http.get<Tarjeta[]>(this.apiUrl);
-    }
-
     // Si necesitas buscar por ID o cédula específicamente
-    searchTarjetas(query: string): Observable<Tarjeta[]> {
-        return this.http.get<Tarjeta[]>(`${this.apiUrl}?search=${query}`);
-    }
 }

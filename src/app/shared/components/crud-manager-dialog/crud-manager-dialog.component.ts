@@ -1,5 +1,5 @@
-import { Component, Inject, signal, computed } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import {  Component, Inject, signal, computed , ChangeDetectionStrategy } from '@angular/core';
+
 import {
     FormControl,
     FormGroup,
@@ -92,28 +92,28 @@ interface ResolvedGroup {
 }
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
     selector: 'app-crud-manager-dialog',
     standalone: true,
     templateUrl: './crud-manager-dialog.component.html',
     styleUrl: './crud-manager-dialog.component.css',
     imports: [
-        CommonModule,
-        ReactiveFormsModule,
-        MatDialogModule,
-        MatFormFieldModule,
-        MatInputModule,
-        MatSelectModule,
-        MatCheckboxModule,
-        MatButtonModule,
-        MatIconModule,
-        MatDatepickerModule,
-        MatNativeDateModule,
-        MatProgressBarModule,
-        MatProgressSpinnerModule,
-        MatTooltipModule,
-        MatDividerModule,
-    ],
-})
+    ReactiveFormsModule,
+    MatDialogModule,
+    MatFormFieldModule,
+    MatInputModule,
+    MatSelectModule,
+    MatCheckboxModule,
+    MatButtonModule,
+    MatIconModule,
+    MatDatepickerModule,
+    MatNativeDateModule,
+    MatProgressBarModule,
+    MatProgressSpinnerModule,
+    MatTooltipModule,
+    MatDividerModule
+],
+} )
 export class CrudManagerDialogComponent {
     form!: FormGroup;
     showPwd: Record<string, boolean> = {};

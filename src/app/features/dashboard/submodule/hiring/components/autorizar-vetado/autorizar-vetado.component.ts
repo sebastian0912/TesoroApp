@@ -1,25 +1,25 @@
-import { Component, Inject, OnInit } from '@angular/core';
+import {  Component, Inject, OnInit , ChangeDetectionStrategy } from '@angular/core';
 import { MatDialogRef, MAT_DIALOG_DATA } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatSelectModule } from '@angular/material/select';
-import { NgFor } from '@angular/common';
+
 import { FormGroup, FormControl, Validators, ReactiveFormsModule } from '@angular/forms';
 import { MatInputModule } from '@angular/material/input';
 import { VetadosService } from '../../service/vetados/vetados.service';
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-autorizar-vetado',
   standalone: true,
   imports: [
     MatFormFieldModule,
     MatSelectModule,
-    NgFor,
     ReactiveFormsModule,
     MatInputModule
-  ],
+],
   templateUrl: './autorizar-vetado.component.html',
   styleUrls: ['./autorizar-vetado.component.css']
-})
+} )
 export class AutorizarVetadoComponent implements OnInit {
   categorias: any[] = [];
 

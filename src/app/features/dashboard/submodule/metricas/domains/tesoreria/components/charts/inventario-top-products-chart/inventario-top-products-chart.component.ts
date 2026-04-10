@@ -1,5 +1,5 @@
 import { Component, Input, ChangeDetectionStrategy, OnChanges, SimpleChanges } from '@angular/core';
-import { CommonModule, CurrencyPipe } from '@angular/common';
+import { CurrencyPipe } from '@angular/common';
 import { NgxEchartsDirective, provideEchartsCore } from 'ngx-echarts';
 import type { EChartsOption } from 'echarts';
 import { EmptyStateComponent } from '../../../../../shared/components/empty-state/empty-state.component';
@@ -7,20 +7,21 @@ import { EmptyStateComponent } from '../../../../../shared/components/empty-stat
 @Component({
     selector: 'app-inventario-top-products-chart',
     standalone: true,
-    imports: [CommonModule, NgxEchartsDirective, EmptyStateComponent],
+    imports: [NgxEchartsDirective, EmptyStateComponent],
     providers: [provideEchartsCore({ echarts: () => import('echarts') }), CurrencyPipe],
     template: `
-    <div class="chart-container" *ngIf="hasData; else empty">
-      <div echarts [options]="chartOption" [merge]="chartUpdate" class="echarts-wrapper"></div>
-    </div>
-    <ng-template #empty>
-      <app-empty-state 
-        icon="inventory_2" 
+    @if (hasData) {
+      <div class="chart-container">
+        <div echarts [options]="chartOption" [merge]="chartUpdate" class="echarts-wrapper"></div>
+      </div>
+    } @else {
+      <app-empty-state
+        icon="inventory_2"
         title="Sin Top Productos"
         description="No hay transacciones de inventario con salida de productos para el periodo.">
       </app-empty-state>
-    </ng-template>
-  `,
+    }
+    `,
     styles: [`
     :host { display: block; height: 100%; width: 100%; }
     .chart-container { height: 100%; width: 100%; }

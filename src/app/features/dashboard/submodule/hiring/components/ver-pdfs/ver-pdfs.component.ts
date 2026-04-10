@@ -9,7 +9,7 @@ import {
   MatDialogModule,
   MatDialogRef,
 } from '@angular/material/dialog';
-import { CommonModule } from '@angular/common';
+
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatListModule } from '@angular/material/list';
@@ -34,14 +34,13 @@ export interface VerPdfsData {
   selector: 'app-ver-pdfs',
   standalone: true,
   imports: [
-    CommonModule,
     MatDialogModule,
     MatButtonModule,
     MatIconModule,
     MatListModule,
     MatDividerModule,
-    MatTooltipModule,
-  ],
+    MatTooltipModule
+],
   templateUrl: './ver-pdfs.component.html',
   styleUrls: ['./ver-pdfs.component.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,

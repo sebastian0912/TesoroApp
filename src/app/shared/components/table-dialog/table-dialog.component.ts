@@ -1,5 +1,5 @@
-import { Component, Inject, Input, Optional, Output, EventEmitter } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import {  Component, Inject, Input, Optional, Output, EventEmitter , ChangeDetectionStrategy } from '@angular/core';
+
 
 import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
 import { MatIconModule } from '@angular/material/icon';
@@ -20,17 +20,17 @@ export interface TableDialogData {
 }
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-table-dialog',
   imports: [
-    CommonModule,
     MatDialogModule,
     MatIconModule,
     MatButtonModule,
-    StandardFilterTable,
-  ],
+    StandardFilterTable
+],
   templateUrl: './table-dialog.component.html',
   styleUrl: './table-dialog.component.css',
-})
+} )
 export class TableDialogComponent {
   // Permite usar este componente tanto embebido (con @Input) como dentro de un MatDialog (vía MAT_DIALOG_DATA)
   @Input() title = 'Registros';

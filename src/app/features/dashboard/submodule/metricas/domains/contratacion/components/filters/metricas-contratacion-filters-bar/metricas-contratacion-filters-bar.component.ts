@@ -1,5 +1,5 @@
 import { Component, Output, EventEmitter, OnInit, ChangeDetectionStrategy } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
@@ -18,16 +18,15 @@ import { MetricasContratacionDateRange } from '../../../models/contratacion-metr
     selector: 'app-metricas-contratacion-filters-bar',
     standalone: true,
     imports: [
-        CommonModule,
-        MatCardModule,
-        MatButtonModule,
-        MatIconModule,
-        MatDatepickerModule,
-        MatNativeDateModule,
-        MatFormFieldModule,
-        MatInputModule,
-        FormsModule
-    ],
+    MatCardModule,
+    MatButtonModule,
+    MatIconModule,
+    MatDatepickerModule,
+    MatNativeDateModule,
+    MatFormFieldModule,
+    MatInputModule,
+    FormsModule
+],
     template: `
     <mat-card class="filters-card">
       <mat-card-content class="filters-content">

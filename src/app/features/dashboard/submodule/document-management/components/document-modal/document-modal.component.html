@@ -8,9 +8,9 @@
       </div>
       <div class="header-text">
         <h2 class="titulo" style="margin: 0 !important;">{{ data.isEdit ? 'Editar Tipo Documental' : 'Nuevos Tipos
-          Documentales' }}</h2>
+        Documentales' }}</h2>
         <p class="subtitulo" style="margin: 0 !important;">{{ data.isEdit ? 'Modifica los detalles del elemento
-          existente.' : 'Define y agrega múltiples tipos a la estructura.' }}</p>
+        existente.' : 'Define y agrega múltiples tipos a la estructura.' }}</p>
       </div>
     </div>
     <button mat-icon-button (click)="cancel()" class="close-btn btn-managerial-icon" tabindex="-1" style="z-index: 1;">
@@ -21,76 +21,73 @@
   <mat-dialog-content class="modal-body" [class.is-create-mode]="!data.isEdit">
 
     <!-- EDIT MODE: Single Form -->
-    <div *ngIf="data.isEdit" [formGroup]="form" class="edit-single-panel">
-      <div class="form-row">
-        <mat-checkbox formControlName="expandable" color="primary">¿Puede tener hijos?</mat-checkbox>
-        <mat-checkbox formControlName="estado" color="primary">Activo</mat-checkbox>
+    @if (data.isEdit) {
+      <div [formGroup]="form" class="edit-single-panel">
+        <div class="form-row">
+          <mat-checkbox formControlName="expandable" color="primary">¿Puede tener hijos?</mat-checkbox>
+          <mat-checkbox formControlName="estado" color="primary">Activo</mat-checkbox>
+        </div>
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label>Nombre del Tipo</mat-label>
+          <input matInput formControlName="name" placeholder="Ej. Contratos Laborales" autocomplete="off">
+          @if (form.get('name')?.hasError('required')) {
+            <mat-error>El nombre es obligatorio</mat-error>
+          }
+        </mat-form-field>
       </div>
-
-      <mat-form-field appearance="outline" class="full-width">
-        <mat-label>Nombre del Tipo</mat-label>
-        <input matInput formControlName="name" placeholder="Ej. Contratos Laborales" autocomplete="off">
-        <mat-error *ngIf="form.get('name')?.hasError('required')">El nombre es obligatorio</mat-error>
-      </mat-form-field>
-    </div>
+    }
 
 
     <!-- CREATE MODE: Split Layout -->
-    <ng-container *ngIf="!data.isEdit">
-
+    @if (!data.isEdit) {
       <!-- LEFT: Input Panel -->
       <div class="panel-left" [formGroup]="inputForm">
         <div class="panel-header-small">
           <h3>Definir Elemento</h3>
         </div>
-
         <div class="input-area">
           <mat-form-field appearance="outline" class="full-width density-compact">
             <mat-label>Nombre</mat-label>
             <input matInput formControlName="name" placeholder="Ej. Actas de Reunión">
           </mat-form-field>
-
           <div class="row-inputs">
             <mat-checkbox formControlName="estado" color="primary" class="status-check">Activo</mat-checkbox>
           </div>
-
           <button mat-flat-button color="accent" class="btn-add-queue" (click)="addToQueue()"
             [disabled]="inputForm.invalid">
             <mat-icon>playlist_add</mat-icon> Agregar a la Lista
           </button>
         </div>
       </div>
-
       <!-- RIGHT: Queue Panel -->
       <div class="panel-right">
         <div class="panel-header-small">
           <h3>Lista de Creación ({{ nuevosDocumentos.length }})</h3>
         </div>
-
         <div class="queue-list" [@listAnimation]="nuevosDocumentos.length">
-
-          <div *ngFor="let item of nuevosDocumentos.controls; let i = index" class="queue-item">
-            <div class="queue-info">
-              <span class="q-name">{{ item.value.name }}</span>
-              <div class="q-meta">
-                <span class="status-dot" [class.active]="item.value.estado"></span>
+          @for (item of nuevosDocumentos.controls; track item; let i = $index) {
+            <div class="queue-item">
+              <div class="queue-info">
+                <span class="q-name">{{ item.value.name }}</span>
+                <div class="q-meta">
+                  <span class="status-dot" [class.active]="item.value.estado"></span>
+                </div>
               </div>
+              <button mat-icon-button color="warn" class="btn-remove" (click)="removeFromQueue(i)">
+                <mat-icon>close</mat-icon>
+              </button>
             </div>
-            <button mat-icon-button color="warn" class="btn-remove" (click)="removeFromQueue(i)">
-              <mat-icon>close</mat-icon>
-            </button>
-          </div>
-
+          }
           <!-- Empty State -->
-          <div *ngIf="nuevosDocumentos.length === 0" class="empty-queue">
-            <mat-icon>layers</mat-icon>
-            <p>Define un tipo a la izquierda y agrégalo aquí.</p>
-          </div>
-
+          @if (nuevosDocumentos.length === 0) {
+            <div class="empty-queue">
+              <mat-icon>layers</mat-icon>
+              <p>Define un tipo a la izquierda y agrégalo aquí.</p>
+            </div>
+          }
         </div>
       </div>
-
-    </ng-container>
+    }
 
   </mat-dialog-content>
 

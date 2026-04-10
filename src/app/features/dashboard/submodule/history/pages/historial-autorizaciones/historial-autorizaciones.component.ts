@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import {  Component, OnInit , ChangeDetectionStrategy } from '@angular/core';
 import { FormBuilder, FormGroup, Validators } from '@angular/forms';
 import Swal from 'sweetalert2';
 import { AutorizacionesService } from '../../../authorizations/services/autorizaciones/autorizaciones.service';
@@ -7,13 +7,14 @@ import { SharedModule } from '../../../../../../shared/shared.module';
 import { ColumnDefinition } from '@/app/shared/models/advanced-table-interface';
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-historial-autorizaciones',
   imports: [
     SharedModule
   ],
   templateUrl: './historial-autorizaciones.component.html',
   styleUrls: ['./historial-autorizaciones.component.css']
-})
+} )
 export class HistorialAutorizacionesComponent implements OnInit {
 
   myForm!: FormGroup;

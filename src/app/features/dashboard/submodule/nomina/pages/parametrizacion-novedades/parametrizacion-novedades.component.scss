@@ -1,0 +1,191 @@
+.param-container {
+  padding: 24px;
+  max-width: 1400px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* ── Encabezado ── */
+.premium-card {
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+  background: white;
+}
+
+.header-card {
+  margin-bottom: 8px;
+  border-left: 6px solid #1a73e8;
+  position: relative;
+  z-index: 10;
+}
+
+.header-icon {
+  background: #e8f0fe;
+  color: #1a73e8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+}
+
+.filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
+  padding-top: 12px;
+}
+
+.flex-grow { flex: 1 1 220px; }
+
+.actions-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding-top: 8px;
+  border-top: 1px solid #eee;
+  justify-content: flex-end;
+  flex-basis: 100%;
+}
+
+/* ── Estadísticas ── */
+.stats-row {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.stat-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  background: #edf2f7;
+  border-radius: 20px;
+  font-size: 13px;
+  color: #4a5568;
+
+  mat-icon { font-size: 18px; width: 18px; height: 18px; color: #1a73e8; }
+  &.activas mat-icon { color: #2e7d32; }
+  &.inactivas mat-icon { color: #c62828; }
+}
+
+/* ── Tabla ── */
+.table-container {
+  position: relative;
+  border-radius: 16px;
+  overflow: auto;
+  background: white;
+  min-height: 400px;
+  max-height: 60vh;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.05);
+  z-index: 1;
+
+  .loading-shade {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 56px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255,255,255,0.7);
+    z-index: 200;
+  }
+
+  .full-width { width: 100%; }
+
+  tr.row-inactiva td { opacity: 0.5; }
+
+  .empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 48px 16px;
+    color: #a0aec0;
+    gap: 8px;
+
+    mat-icon { font-size: 48px; width: 48px; height: 48px; opacity: 0.5; }
+    p { margin: 0; font-size: 14px; }
+  }
+}
+
+.mat-mdc-header-row {
+  background: #f8f9fa !important;
+}
+
+.mat-mdc-header-cell {
+  background: #f8f9fa !important;
+  color: #475569 !important;
+  font-weight: 700 !important;
+  font-size: 0.75rem !important;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border-bottom: 2px solid #e2e8f0 !important;
+  padding: 16px 12px !important;
+}
+
+.mat-mdc-row:hover {
+  background-color: #f1f3f4;
+}
+
+.mat-mdc-cell {
+  padding: 14px 12px !important;
+  color: #2d3748;
+  font-size: 0.9rem;
+  border-bottom: 1px solid #edf2f7 !important;
+}
+
+/* ── Chips / badges ── */
+.code-chip {
+  background: #e8f0fe;
+  color: #1a73e8;
+  padding: 3px 9px;
+  border-radius: 6px;
+  font-family: 'Roboto Mono', monospace;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.abrev-tag {
+  background: #f3f4f6;
+  border: 1px solid #e2e8f0;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  color: #4a5568;
+}
+
+.text-muted { color: #a0aec0; }
+
+.badge-naturaleza {
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+
+  &.nat-devengo       { background: #e8f5e9; color: #2e7d32; }
+  &.nat-deduccion     { background: #fce4ec; color: #c62828; }
+  &.nat-aporte-emp    { background: #e3f2fd; color: #1565c0; }
+  &.nat-provision     { background: #fff3e0; color: #e65100; }
+  &.nat-otro          { background: #f5f5f5; color: #616161; }
+}
+
+.badge-unidad {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 700;
+
+  mat-icon { font-size: 14px; width: 14px; height: 14px; }
+  &.unidad-dia  { background: #e8f0fe; color: #1a73e8; }
+  &.unidad-hora { background: #fff3e0; color: #e65100; }
+}
+
+.icon-si  { color: #2e7d32; }
+.icon-no  { color: #bdbdbd; }

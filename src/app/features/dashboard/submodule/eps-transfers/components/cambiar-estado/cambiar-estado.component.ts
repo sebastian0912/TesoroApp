@@ -1,7 +1,7 @@
-import { Component, Inject } from '@angular/core';
+import {  Component, Inject , ChangeDetectionStrategy } from '@angular/core';
 import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angular/forms';
-import { DatePipe, CommonModule } from '@angular/common';
+import { DatePipe } from '@angular/common';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
@@ -11,9 +11,9 @@ import { MatNativeDateModule } from '@angular/material/core';
 import Swal from 'sweetalert2';
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-cambiar-estado',
   imports: [
-    CommonModule,
     ReactiveFormsModule,
     MatFormFieldModule,
     MatInputModule,
@@ -21,11 +21,11 @@ import Swal from 'sweetalert2';
     MatButtonModule,
     MatDatepickerModule,
     MatNativeDateModule
-  ],
+],
   templateUrl: './cambiar-estado.component.html',
   styleUrls: ['./cambiar-estado.component.css'],
   providers: [DatePipe]
-})
+} )
 export class CambiarEstadoComponent {
   estados: string[] = [
     'En proceso', 'Personal Activo EPS Adress', 'No cumple tiempo EPS Activa',

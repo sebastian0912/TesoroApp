@@ -20,6 +20,7 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { DragDropModule, CdkDragDrop, moveItemInArray } from '@angular/cdk/drag-drop';
 import { Capacitor } from '@capacitor/core';
+import { DocumentScanner, ResponseType } from '@capgo/capacitor-document-scanner';
 import Swal from 'sweetalert2';
 import jsPDF from 'jspdf';
 import dayjs from 'dayjs';
@@ -160,34 +161,41 @@ export class DocumentScanDialogComponent implements OnInit, OnDestroy {
     // --- NATIVE SCANNER (Capacitor) ---
     async scanNative() {
         try {
-            const Plugins = (window as any).Capacitor?.Plugins;
-            const DocumentScanner = Plugins?.DocumentScanner;
-
-            if (!DocumentScanner) {
-                console.warn('DocumentScanner plugin not found.');
-                Swal.fire('Error', 'Plugin de escáner no disponible.', 'error');
-                return;
-            }
-
-            // Launch Native Scanner
-            const { scannedImages } = await DocumentScanner.scanDocument({
-                responseType: 'BASE64',
+            // Launch Native Scanner via @capgo/capacitor-document-scanner
+            const result = await DocumentScanner.scanDocument({
+                responseType: ResponseType.Base64,
                 letUserAdjustCrop: true,
                 maxNumDocuments: 24
-            });
+            }) as any;
 
-            if (scannedImages && scannedImages.length > 0) {
-                const newPages = scannedImages.map((img: string) =>
-                    img.startsWith('data:image') ? img : `data:image/jpeg;base64,${img}`
+            const images: string[] = result.scannedImages || result.scannedFilePaths || [];
+
+            if (images && images.length > 0) {
+                const newPages = images.map((img: string) =>
+                    // El plugin a veces devuelve la cadena ya con "data:image/jpeg;base64," o solo la cadena b64 cruda
+                    img.startsWith('data:image') || img.startsWith('file://') ? img : `data:image/jpeg;base64,${img}`
                 );
 
                 // Native creates a doc immediately
                 this.addScannedDoc(newPages);
             }
 
-        } catch (e) {
-            console.error('Scan error', e);
-            // User cancelled or error
+        } catch (e: any) {
+            console.error('Scan error natively:', e);
+            // Capturamos si el user simplemente se arrepintió y le dio "Atrás" en Android,
+            // para no molestar con "Errores", a menos que sea un error de incompatibilidad real.
+            if (e && e.message) {
+                 const msg = e.message.toLowerCase();
+                 if (msg.includes('not implemented') || msg.includes('implementation missing')) {
+                     Swal.fire({
+                         icon: 'warning',
+                         title: 'Modo Web',
+                         text: 'Esta función requiere correr como App (Android/iOS). Cambiando a cámara web automática.'
+                     }).then(() => {
+                         this.startWebCaptureSession();
+                     });
+                 }
+            }
         }
     }
 

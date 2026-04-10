@@ -1,4 +1,4 @@
-import { Component, Inject, OnInit } from '@angular/core';
+import {  Component, Inject, OnInit , ChangeDetectionStrategy } from '@angular/core';
 import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
 import { SharedModule } from '../../../../../../../shared/shared.module';
 import { ColumnDefinition } from '@/app/shared/models/advanced-table-interface';
@@ -70,31 +70,37 @@ import { HistorialService } from '../../../../history/service/historial/historia
           <p>Documento: {{ data.numeroDocumento }}</p>
         </div>
       </div>
-
+    
       <div class="dialog-body">
-        <div *ngIf="loading" style="text-align: center; padding: 48px;">
-          <mat-spinner diameter="40" style="margin: 0 auto;"></mat-spinner>
-          <p style="margin-top: 12px; color: #64748b;">Cargando historial...</p>
-        </div>
-        <div *ngIf="!loading && dataList.length === 0" style="text-align: center; padding: 48px; color: #64748b;">
-          <mat-icon style="font-size: 56px; width: 56px; height: 56px; color: #cbd5e1;">inbox</mat-icon>
-          <p style="font-size: 16px; margin-top: 12px;">No se encontraron registros de transacciones.</p>
-        </div>
-        <app-standard-filter-table *ngIf="!loading && dataList.length > 0"
-          [data]="dataList"
-          [columnDefinitions]="columns"
-          [tableTitle]="''"
-          [enableRowClick]="false">
-        </app-standard-filter-table>
+        @if (loading) {
+          <div style="text-align: center; padding: 48px;">
+            <mat-spinner diameter="40" style="margin: 0 auto;"></mat-spinner>
+            <p style="margin-top: 12px; color: #64748b;">Cargando historial...</p>
+          </div>
+        }
+        @if (!loading && dataList.length === 0) {
+          <div style="text-align: center; padding: 48px; color: #64748b;">
+            <mat-icon style="font-size: 56px; width: 56px; height: 56px; color: #cbd5e1;">inbox</mat-icon>
+            <p style="font-size: 16px; margin-top: 12px;">No se encontraron registros de transacciones.</p>
+          </div>
+        }
+        @if (!loading && dataList.length > 0) {
+          <app-standard-filter-table
+            [data]="dataList"
+            [columnDefinitions]="columns"
+            [tableTitle]="''"
+            [enableRowClick]="false">
+          </app-standard-filter-table>
+        }
       </div>
-
+    
       <div class="dialog-footer">
         <button mat-flat-button mat-dialog-close color="primary" style="border-radius: 8px;">
           <mat-icon>close</mat-icon> CERRAR
         </button>
       </div>
     </div>
-  `
+    `
 })
 export class HistorialDialogComponent implements OnInit {
 

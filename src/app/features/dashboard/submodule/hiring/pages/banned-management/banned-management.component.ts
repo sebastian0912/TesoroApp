@@ -1,5 +1,5 @@
 import { SharedModule } from '@/app/shared/shared.module';
-import { Component, ElementRef, OnInit, ViewChild } from '@angular/core';
+import {  Component, ElementRef, OnInit, ViewChild , ChangeDetectionStrategy } from '@angular/core';
 import { MatDialog } from '@angular/material/dialog';
 import { MatTableDataSource } from '@angular/material/table';
 import { VetadosService } from '../../service/vetados/vetados.service';
@@ -7,13 +7,14 @@ import { AutorizarVetadoComponent } from '../../components/autorizar-vetado/auto
 import Swal from 'sweetalert2';
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-banned-management',
   imports: [
     SharedModule,
   ],
   templateUrl: './banned-management.component.html',
   styleUrl: './banned-management.component.css'
-})
+} )
 export class BannedManagementComponent implements OnInit {
 
   // Columnas para la primera tabla de reportados

@@ -1,5 +1,5 @@
-import { Component, Inject, computed, signal } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import {  Component, Inject, computed, signal , ChangeDetectionStrategy } from '@angular/core';
+
 import { MatDialogModule, MatDialogRef, MAT_DIALOG_DATA } from '@angular/material/dialog';
 import { DragDropModule, CdkDragDrop, moveItemInArray } from '@angular/cdk/drag-drop';
 import { MatButtonModule } from '@angular/material/button';
@@ -11,9 +11,9 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 type Item = { id: number; name: string };
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-orden-union-dialog',
   imports: [
-    CommonModule,
     MatDialogModule,
     DragDropModule,
     MatButtonModule,
@@ -21,10 +21,10 @@ type Item = { id: number; name: string };
     MatIconModule,
     MatBadgeModule,
     MatTooltipModule
-  ],
+],
   templateUrl: './orden-union-dialog.component.html',
   styleUrl: './orden-union-dialog.component.css'
-})
+} )
 export class OrdenUnionDialogComponent {
   /** Orden editable en la vista */
   readonly items = signal<Item[]>([]);

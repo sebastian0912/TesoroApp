@@ -35,9 +35,9 @@ export class HistorialService {
     );
   }
 
-  // Traer historial comercializadora y tesorero
+  // Traer historial de auditoría unificado
   getHistorialComercializadoraTesorero(): Observable<any> {
-    return this.http.get(`${this.apiUrl}/HistorialModificaciones/Comercializadora/verModificaciones`).pipe(
+    return this.http.get(`${this.apiUrl}/gestion_tesoreria/auditoria/`).pipe(
       catchError(this.handleError)
     );
   }

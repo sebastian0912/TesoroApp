@@ -8,55 +8,52 @@ import { MatIconModule } from '@angular/material/icon';
   standalone: true,
   imports: [CommonModule, MatIconModule],
   template: `
-    <div class="kpi-strip" *ngIf="kpis">
-      
-      <!-- Saldos Pendientes -->
-      <div class="kpi-card danger">
-        <div class="kpi-icon-wrapper">
-          <mat-icon>account_balance_wallet</mat-icon>
+    @if (kpis) {
+      <div class="kpi-strip">
+        <!-- Saldos Pendientes -->
+        <div class="kpi-card danger">
+          <div class="kpi-icon-wrapper">
+            <mat-icon>account_balance_wallet</mat-icon>
+          </div>
+          <div class="kpi-data">
+            <p class="kpi-label">Saldos Pendientes</p>
+            <h3 class="kpi-value">{{ kpis.saldosPendientes | currency:'COP':'symbol-narrow':'1.0-0' }}</h3>
+          </div>
         </div>
-        <div class="kpi-data">
-          <p class="kpi-label">Saldos Pendientes</p>
-          <h3 class="kpi-value">{{ kpis.saldosPendientes | currency:'COP':'symbol-narrow':'1.0-0' }}</h3>
+        <!-- Ejecutadas (Monto) -->
+        <div class="kpi-card success">
+          <div class="kpi-icon-wrapper">
+            <mat-icon>check_circle</mat-icon>
+          </div>
+          <div class="kpi-data">
+            <p class="kpi-label">Monto Ejecutado</p>
+            <h3 class="kpi-value">{{ kpis.transaccionesEjecutadasMonto | currency:'COP':'symbol-narrow':'1.0-0' }}</h3>
+            <p class="kpi-sub">{{ kpis.transaccionesEjecutadasCount }} transacciones</p>
+          </div>
         </div>
-      </div>
-
-      <!-- Ejecutadas (Monto) -->
-      <div class="kpi-card success">
-        <div class="kpi-icon-wrapper">
-          <mat-icon>check_circle</mat-icon>
+        <!-- Pendientes -->
+        <div class="kpi-card warning">
+          <div class="kpi-icon-wrapper">
+            <mat-icon>pending_actions</mat-icon>
+          </div>
+          <div class="kpi-data">
+            <p class="kpi-label">Monto Pendiente/Solicitado</p>
+            <h3 class="kpi-value">{{ kpis.transaccionesPendientesMonto | currency:'COP':'symbol-narrow':'1.0-0' }}</h3>
+          </div>
         </div>
-        <div class="kpi-data">
-          <p class="kpi-label">Monto Ejecutado</p>
-          <h3 class="kpi-value">{{ kpis.transaccionesEjecutadasMonto | currency:'COP':'symbol-narrow':'1.0-0' }}</h3>
-          <p class="kpi-sub">{{ kpis.transaccionesEjecutadasCount }} transacciones</p>
-        </div>
-      </div>
-
-      <!-- Pendientes -->
-      <div class="kpi-card warning">
-        <div class="kpi-icon-wrapper">
-          <mat-icon>pending_actions</mat-icon>
-        </div>
-        <div class="kpi-data">
-          <p class="kpi-label">Monto Pendiente/Solicitado</p>
-          <h3 class="kpi-value">{{ kpis.transaccionesPendientesMonto | currency:'COP':'symbol-narrow':'1.0-0' }}</h3>
-        </div>
-      </div>
-
-      <!-- Autorizadas -->
-      <div class="kpi-card info">
-        <div class="kpi-icon-wrapper">
-          <mat-icon>verified_user</mat-icon>
-        </div>
-        <div class="kpi-data">
-          <p class="kpi-label">Monto Autorizado</p>
-          <h3 class="kpi-value">{{ kpis.transaccionesAutorizadasMonto | currency:'COP':'symbol-narrow':'1.0-0' }}</h3>
+        <!-- Autorizadas -->
+        <div class="kpi-card info">
+          <div class="kpi-icon-wrapper">
+            <mat-icon>verified_user</mat-icon>
+          </div>
+          <div class="kpi-data">
+            <p class="kpi-label">Monto Autorizado</p>
+            <h3 class="kpi-value">{{ kpis.transaccionesAutorizadasMonto | currency:'COP':'symbol-narrow':'1.0-0' }}</h3>
+          </div>
         </div>
       </div>
-
-    </div>
-  `,
+    }
+    `,
   styles: [`
     :host {
       display: block;

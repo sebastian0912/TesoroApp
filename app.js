@@ -2,10 +2,9 @@ const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
 const { autoUpdater } = require('electron-updater');
 const { execFile } = require('child_process'); // Asegúrate de importar execFile aquí
+const { initDatabase } = require('./electron-db');
 
-// Suppress Content-Security-Policy warning from Electron in lower environments
-process.env['ELECTRON_DISABLE_SECURITY_WARNINGS'] = 'true';
-
+// Removed global ELECTRON_DISABLE_SECURITY_WARNINGS to enforce CSP in production
 let mainWindow;
 
 autoUpdater.autoDownload = true; // Descargar automáticamente
@@ -22,6 +21,7 @@ function createWindow() {
   });
 
   if (process.env.NODE_ENV === 'development') {
+    process.env['ELECTRON_DISABLE_SECURITY_WARNINGS'] = 'true'; // Suppress CSP only in Dev
     mainWindow.loadURL('http://localhost:4400');
     mainWindow.webContents.openDevTools();
   } else {
@@ -93,7 +93,10 @@ ipcMain.on('restart-app', () => {
   autoUpdater.quitAndInstall();
 });
 
-app.on('ready', createWindow);
+app.on('ready', () => {
+  initDatabase();
+  createWindow();
+});
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
@@ -143,8 +146,23 @@ const { shell } = require('electron');
 let currentEditingFile = null;
 let fileWatcher = null;
 
+function cleanupPdfContext() {
+  if (fileWatcher) {
+    if (typeof fileWatcher.close === 'function') fileWatcher.close();
+    else clearInterval(fileWatcher); // Fallback if it was setInterval
+    fileWatcher = null;
+  }
+  if (currentEditingFile && fs.existsSync(currentEditingFile)) {
+    try { fs.unlinkSync(currentEditingFile); } catch (e) { }
+    currentEditingFile = null;
+  }
+}
+
 ipcMain.handle('pdf:edit-external', async (event, fileUrl) => {
   try {
+    // Si el usuario abre otro PDF sin haber cerrado el anterior,
+    // limpiamos explícitamente el reloj de memoria previo para evitar fugas.
+    cleanupPdfContext();
     // 1. Create temp file path
     const tmpDir = path.join(os.tmpdir(), 'tesoreria-pdf-edit');
     if (!fs.existsSync(tmpDir)) {
@@ -189,46 +207,36 @@ ipcMain.handle('pdf:edit-external', async (event, fileUrl) => {
       return { success: false, error: result };
     }
 
-    // 5. Watch the file for changes (poll-based for reliability)
-    if (fileWatcher) clearInterval(fileWatcher);
-    fileWatcher = setInterval(() => {
-      try {
-        if (!fs.existsSync(tmpFile)) return;
-        const stats = fs.statSync(tmpFile);
-        if (stats.mtimeMs > initialMtime || stats.size !== initialSize) {
-          // File was modified! Read it and send to renderer
-          const modifiedBytes = fs.readFileSync(tmpFile);
-          if (mainWindow && !mainWindow.isDestroyed()) {
-            mainWindow.webContents.send('pdf:file-changed', {
-              filePath: tmpFile,
-              bytes: modifiedBytes.toString('base64')
-            });
-          }
-          // Update initial values to detect next save
-          const newStats = fs.statSync(tmpFile);
-          // We can't reassign const, so we just clear the interval
-          clearInterval(fileWatcher);
-          // Start watching again with new baseline
-          const newMtime = newStats.mtimeMs;
-          const newSize = newStats.size;
-          fileWatcher = setInterval(() => {
-            try {
-              if (!fs.existsSync(tmpFile)) return;
-              const s = fs.statSync(tmpFile);
-              if (s.mtimeMs > newMtime || s.size !== newSize) {
-                const bytes = fs.readFileSync(tmpFile);
-                if (mainWindow && !mainWindow.isDestroyed()) {
-                  mainWindow.webContents.send('pdf:file-changed', {
-                    filePath: tmpFile,
-                    bytes: bytes.toString('base64')
-                  });
-                }
+    // 5. Watch the file for changes (Event-Driven for CPU efficiency)
+    if (fileWatcher) {
+      if (typeof fileWatcher.close === 'function') fileWatcher.close();
+    }
+    
+    let lastSize = initialSize;
+    let debounceTimer = null;
+    
+    fileWatcher = fs.watch(tmpFile, (eventType) => {
+      if (eventType === 'change') {
+        if (debounceTimer) clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(() => {
+          try {
+            if (!fs.existsSync(tmpFile)) return;
+            const stats = fs.statSync(tmpFile);
+            
+            if (stats.size !== lastSize || stats.size > 0) {
+              lastSize = stats.size;
+              const modifiedBytes = fs.readFileSync(tmpFile);
+              if (mainWindow && !mainWindow.isDestroyed()) {
+                mainWindow.webContents.send('pdf:file-changed', {
+                  filePath: tmpFile,
+                  bytes: modifiedBytes.toString('base64')
+                });
               }
-            } catch (e) { /* file may be locked */ }
-          }, 2000);
-        }
-      } catch (e) { /* file may be locked by Adobe */ }
-    }, 2000);
+            }
+          } catch (e) { /* file may be locked by Adobe */ }
+        }, 800); // Debounce to allow Acrobat to finish writing
+      }
+    });
 
     return { success: true, filePath: tmpFile };
   } catch (err) {
@@ -249,14 +257,6 @@ ipcMain.handle('pdf:read-file', async () => {
 });
 
 ipcMain.handle('pdf:finish-edit', async () => {
-  if (fileWatcher) {
-    clearInterval(fileWatcher);
-    fileWatcher = null;
-  }
-  // Clean up temp file
-  if (currentEditingFile && fs.existsSync(currentEditingFile)) {
-    try { fs.unlinkSync(currentEditingFile); } catch (e) { }
-    currentEditingFile = null;
-  }
+  cleanupPdfContext();
   return { success: true };
 });

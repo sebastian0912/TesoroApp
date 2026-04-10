@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import {  Component, OnInit , ChangeDetectionStrategy } from '@angular/core';
 import { FormGroup, FormControl } from '@angular/forms';
 import Swal from 'sweetalert2';
 import { MatTableDataSource } from '@angular/material/table';
@@ -8,11 +8,12 @@ import { SharedModule } from '../../../../../../shared/shared.module';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-recibir-envio',
   imports: [SharedModule, MatCheckboxModule],
   templateUrl: './recibir-envio.component.html',
   styleUrl: './recibir-envio.component.css'
-})
+} )
 export class RecibirEnvioComponent implements OnInit {
 
   displayedColumnsInventario: string[] = [

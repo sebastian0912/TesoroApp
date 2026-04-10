@@ -34,57 +34,58 @@
           </header>
 
           <div class="docs-list" role="list">
-            <div class="doc-item" *ngFor="let doc of documentos" role="listitem">
-
-              <div class="doc-item-icon"
-                [ngClass]="{'has-file': uploadedFiles[doc.titulo] || existingDocs[doc.titulo]}">
-                <mat-icon>{{ (uploadedFiles[doc.titulo] || existingDocs[doc.titulo]) ? 'task' : 'insert_drive_file'
+            @for (doc of documentos; track doc) {
+              <div class="doc-item" role="listitem">
+                <div class="doc-item-icon"
+                  [ngClass]="{'has-file': uploadedFiles[doc.titulo] || existingDocs[doc.titulo]}">
+                  <mat-icon>{{ (uploadedFiles[doc.titulo] || existingDocs[doc.titulo]) ? 'task' : 'insert_drive_file'
                   }}</mat-icon>
-              </div>
-
-              <div class="doc-item-info">
-                <h3 class="doc-item-title" [matTooltip]="doc.titulo">{{ doc.titulo }}</h3>
-                <p class="doc-item-status">
-                  <span *ngIf="uploadedFiles[doc.titulo] || existingDocs[doc.titulo]"
-                    class="status-badge success">Completado</span>
-                  <span *ngIf="!uploadedFiles[doc.titulo] && !existingDocs[doc.titulo]"
-                    class="status-badge pending">Pendiente</span>
-                </p>
-                <p class="doc-item-date" *ngIf="uploadedFiles[doc.titulo] || existingDocs[doc.titulo]?.date">
-                  Actualizado: {{ uploadedFiles[doc.titulo] ? (today | date:'shortDate') :
-                  (existingDocs[doc.titulo].date | date:'shortDate') }}
-                </p>
-              </div>
-
-              <div class="doc-item-actions">
-                <ng-container *ngIf="!isSubirPDF(doc)">
-                  <button mat-icon-button class="action-btn" matTooltip="Generar PDF Automático"
-                    (click)="generarPDF(doc.titulo)">
-                    <mat-icon class="text-primary">auto_awesome</mat-icon>
+                </div>
+                <div class="doc-item-info">
+                  <h3 class="doc-item-title" [matTooltip]="doc.titulo">{{ doc.titulo }}</h3>
+                  <p class="doc-item-status">
+                    @if (uploadedFiles[doc.titulo] || existingDocs[doc.titulo]) {
+                      <span
+                      class="status-badge success">Completado</span>
+                    }
+                    @if (!uploadedFiles[doc.titulo] && !existingDocs[doc.titulo]) {
+                      <span
+                      class="status-badge pending">Pendiente</span>
+                    }
+                  </p>
+                  @if (uploadedFiles[doc.titulo] || existingDocs[doc.titulo]?.date) {
+                    <p class="doc-item-date">
+                      Actualizado: {{ uploadedFiles[doc.titulo] ? (today | date:'shortDate') :
+                      (existingDocs[doc.titulo].date | date:'shortDate') }}
+                    </p>
+                  }
+                </div>
+                <div class="doc-item-actions">
+                  @if (!isSubirPDF(doc)) {
+                    <button mat-icon-button class="action-btn" matTooltip="Generar PDF Automático"
+                      (click)="generarPDF(doc.titulo)">
+                      <mat-icon class="text-primary">auto_awesome</mat-icon>
+                    </button>
+                  }
+                  <button mat-icon-button class="action-btn" matTooltip="Ver PDF" (click)="verPDF(doc)"
+                    [disabled]="!uploadedFiles[doc.titulo] && !existingDocs[doc.titulo]">
+                    <mat-icon>visibility</mat-icon>
                   </button>
-                </ng-container>
-
-                <button mat-icon-button class="action-btn" matTooltip="Ver PDF" (click)="verPDF(doc)"
-                  [disabled]="!uploadedFiles[doc.titulo] && !existingDocs[doc.titulo]">
-                  <mat-icon>visibility</mat-icon>
-                </button>
-
-                <button mat-icon-button class="action-btn" [matMenuTriggerFor]="docMenu"
-                  aria-label="Opciones de documento">
-                  <mat-icon>more_vert</mat-icon>
-                </button>
-
-                <mat-menu #docMenu="matMenu">
-                  <label mat-menu-item class="upload-label-menu"
-                    style="cursor: pointer; width: 100%; display: flex; align-items: center;">
-                    <input type="file" hidden (change)="subirArchivo($event, doc.titulo)" accept=".pdf" />
-                    <mat-icon class="text-accent">cloud_upload</mat-icon>
-                    <span>Subir PDF Manual</span>
-                  </label>
-                </mat-menu>
+                  <button mat-icon-button class="action-btn" [matMenuTriggerFor]="docMenu"
+                    aria-label="Opciones de documento">
+                    <mat-icon>more_vert</mat-icon>
+                  </button>
+                  <mat-menu #docMenu="matMenu">
+                    <label mat-menu-item class="upload-label-menu"
+                      style="cursor: pointer; width: 100%; display: flex; align-items: center;">
+                      <input type="file" hidden (change)="subirArchivo($event, doc.titulo)" accept=".pdf" />
+                      <mat-icon class="text-accent">cloud_upload</mat-icon>
+                      <span>Subir PDF Manual</span>
+                    </label>
+                  </mat-menu>
+                </div>
               </div>
-
-            </div>
+            }
           </div>
 
           <!-- Bottom Action -->
@@ -92,6 +93,10 @@
             <button mat-flat-button class="btn-managerial w-100" (click)="cargarpdf()">
               <mat-icon>cloud_sync</mat-icon>
               <span>Guardar y Cargar al Servidor</span>
+            </button>
+            <button mat-stroked-button color="accent" class="w-100 mt-2" (click)="abrirModalLote()" style="margin-top: 10px; border: 2px solid currentColor;">
+              <mat-icon>library_add_check</mat-icon>
+              <span>Generar Lote TA (Masivo)</span>
             </button>
           </footer>
         </article>
@@ -110,3 +115,94 @@
     </mat-card-content>
   </mat-card>
 </main>
+
+<!-- MODAL BATCH OVERLAY -->
+@if (batchMode) {
+  <div class="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-700 shadow-2xl rounded-xl w-11/12 h-[85vh] flex flex-col max-w-7xl overflow-hidden relative font-sans">
+      <div class="p-4 border-b border-slate-700 flex justify-between items-center text-white bg-slate-800">
+        <h2 class="text-2xl font-extrabold bg-clip-text text-transparent bg-gradient-to-r from-orange-400 to-yellow-500 flex items-center gap-2 m-0">
+          <mat-icon class="text-orange-400">burst_mode</mat-icon>
+          Generación Masiva - Contrato TU ALIANZA
+        </h2>
+        <button mat-icon-button (click)="cerrarBatch()" class="text-slate-400 hover:text-white">
+          <mat-icon>close</mat-icon>
+        </button>
+      </div>
+      <div class="flex flex-1 overflow-hidden">
+        <div class="w-1/3 border-r border-slate-700 overflow-y-auto p-4 space-y-3 bg-slate-900/50">
+          @for (item of batchCedulas; track item) {
+            <div
+              (click)="blockSeleccionado = item"
+              class="p-4 rounded-lg border border-slate-700 bg-slate-800 flex items-center justify-between cursor-pointer transition-all"
+               [ngClass]="{
+                 'border-yellow-500/50 bg-yellow-900/20': item.status === 'Processing',
+                 'border-green-500/50 bg-green-900/20': item.status === 'Done',
+                 'border-red-500/50 bg-red-900/20': item.status === 'Error',
+                 'ring-2 ring-orange-500': item === blockSeleccionado
+               }">
+              <div class="flex flex-col overflow-hidden">
+                <p class="font-bold text-gray-100 text-base m-0 flex items-center gap-2">
+                  <mat-icon class="text-sm text-slate-400">badge</mat-icon>
+                  {{item.cedula}}
+                </p>
+                <p class="text-xs font-semibold uppercase tracking-wider m-0 mt-1"
+                     [ngClass]="{
+                       'text-yellow-400': item.status === 'Processing',
+                       'text-green-400': item.status === 'Done',
+                       'text-red-400': item.status === 'Error',
+                       'text-slate-400': item.status === 'Pending'
+                     }">
+                  {{item.guardado ? 'SUBIDO' : item.status}}
+                </p>
+                @if (item.error) {
+                  <p class="text-xs text-red-400 mt-1 max-w-[200px] truncate m-0" [title]="item.error">{{item.error}}</p>
+                }
+              </div>
+              <div class="flex-shrink-0 ml-2">
+                @if (item.status === 'Processing') {
+                  <mat-icon class="text-yellow-400 animate-spin">refresh</mat-icon>
+                }
+                @if (item.status === 'Done') {
+                  <mat-icon class="text-green-400">check_circle</mat-icon>
+                }
+                @if (item.status === 'Error') {
+                  <mat-icon class="text-red-400">error</mat-icon>
+                }
+                @if (item.status === 'Pending') {
+                  <mat-icon class="text-slate-500">schedule</mat-icon>
+                }
+              </div>
+            </div>
+          }
+        </div>
+        <div class="w-2/3 bg-slate-200 flex flex-col relative items-center justify-center p-3">
+          @if (blockSeleccionado?.blobUrl) {
+            <iframe [src]="blockSeleccionado.blobUrl" class="w-full h-full rounded shadow-xl bg-white border border-slate-300"></iframe>
+          }
+          @if (!blockSeleccionado?.blobUrl) {
+            <div class="flex flex-col items-center justify-center text-slate-400 h-full">
+              <mat-icon style="font-size: 64px; width: 64px; height: 64px; opacity: 0.5;" class="mb-4">picture_as_pdf</mat-icon>
+              <p class="text-lg font-medium text-slate-500 m-0">
+                {{ blockSeleccionado?.status === 'Processing' ? 'Generando contrato...' : 'Selecciona un contrato completado para revisarlo' }}
+              </p>
+            </div>
+          }
+        </div>
+      </div>
+      <div class="p-4 border-t border-slate-700 bg-slate-800 flex justify-end gap-3 items-center">
+        <div class="mr-auto text-slate-400 text-sm font-medium">
+          Total: {{batchCedulas.length}} | Listos: {{(batchCedulas | keyvalue).length === 0 ? 0 : _getExitosos()}}
+        </div>
+        <button mat-stroked-button (click)="guardarBatch()" [disabled]="!todoGenerado || guardandoBatch" class="bg-gradient-to-r from-orange-500 to-yellow-500 text-white font-bold px-6 py-2 rounded-lg disabled:opacity-50" style="border:none">
+          <mat-icon class="mr-2">cloud_upload</mat-icon>
+          {{ guardandoBatch ? 'Subiendo...' : 'Subir Lote' }}
+        </button>
+        <button mat-flat-button color="primary" (click)="ejecutarBatch()" [disabled]="procesandoBatch" class="px-6 py-2 font-bold rounded-lg shadow-lg shadow-blue-500/30">
+          <mat-icon class="mr-2">play_arrow</mat-icon>
+          Comenzar
+        </button>
+      </div>
+    </div>
+  </div>
+}

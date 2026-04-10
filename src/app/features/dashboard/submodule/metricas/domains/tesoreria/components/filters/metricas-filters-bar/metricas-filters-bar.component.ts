@@ -1,5 +1,5 @@
 import { Component, Output, EventEmitter, ChangeDetectionStrategy, inject } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { FormsModule, ReactiveFormsModule, FormControl, FormGroup } from '@angular/forms';
 import { MatDatepickerModule } from '@angular/material/datepicker';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -17,7 +17,6 @@ import { MetricasDateRange } from '../../../models/tesoreria-metricas.models';
   selector: 'app-metricas-filters-bar',
   standalone: true,
   imports: [
-    CommonModule,
     FormsModule,
     ReactiveFormsModule,
     MatDatepickerModule,
@@ -27,7 +26,7 @@ import { MetricasDateRange } from '../../../models/tesoreria-metricas.models';
     MatButtonModule,
     MatIconModule,
     SharedModule
-  ],
+],
   template: `
     <div class="filters-bar" [formGroup]="dateForm">
       

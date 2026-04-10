@@ -19,24 +19,26 @@
         <div class="header-text">
           <mat-card-title>Opciones de Carga Masiva</mat-card-title>
           <mat-card-subtitle>Seleccione el proceso que desea realizar y descargue la plantilla correspondiente si es
-            necesario.</mat-card-subtitle>
+          necesario.</mat-card-subtitle>
         </div>
       </div>
     </mat-card-header>
 
     <mat-card-content class="premium-content">
       <section class="cards-grid">
-        <div class="upload-action-card" *ngFor="let c of cards">
-          <app-info-card [title]="c.title" [imageUrl]="c.imageUrl" (cardClicked)="onCardClick(c.id)">
-          </app-info-card>
-          <button mat-flat-button class="btn-managerial download-template-btn" (click)="downloadTemplate(c.id)">
-            <mat-icon>download</mat-icon> Descargar Plantilla
-          </button>
-        </div>
+        @for (c of cards; track c) {
+          <div class="upload-action-card">
+            <app-info-card [title]="c.title" [imageUrl]="c.imageUrl" (cardClicked)="onCardClick(c.id)">
+            </app-info-card>
+            <button mat-flat-button class="btn-managerial download-template-btn" (click)="downloadTemplate(c.id)">
+              <mat-icon>download</mat-icon> Descargar Plantilla
+            </button>
+          </div>
+        }
       </section>
 
       <!-- Inputs ocultos: SOLO EXCEL -->
-      <input #fileInsert type="file" accept=".xlsx,.xls" (change)="handleFile('insert', $event)" hidden>
+      <input #fileInsert type="file" accept=".xlsx" (change)="handleFile('insert', $event)" hidden>
       <input #fileSaldos type="file" accept=".xlsx,.xls" (change)="handleFile('saldos', $event)" hidden>
       <input #fileEliminar type="file" accept=".xlsx,.xls" (change)="handleFile('eliminar', $event)" hidden>
     </mat-card-content>

@@ -1,5 +1,5 @@
 import { isPlatformBrowser } from '@angular/common';
-import { Component, ElementRef, OnInit, ViewChild, Inject, PLATFORM_ID } from '@angular/core';
+import {  Component, ElementRef, OnInit, ViewChild, Inject, PLATFORM_ID , ChangeDetectionStrategy } from '@angular/core';
 import { UtilityServiceService } from '@/app/shared/services/utilityService/utility-service.service';
 import { SharedModule } from '@/app/shared/shared.module';
 import { FormsModule } from '@angular/forms';
@@ -14,8 +14,10 @@ import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { firstValueFrom } from 'rxjs';
+import { generarPdfAusentismo } from './pdf-generator';
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-absences-new',
   standalone: true,
   imports: [
@@ -30,7 +32,7 @@ import { firstValueFrom } from 'rxjs';
   ],
   templateUrl: './absences-new.html',
   styleUrl: './absences-new.css'
-})
+} )
 export class AbsencesNew implements OnInit {
   displayedColumns: string[] = [
     'select',
@@ -809,19 +811,11 @@ export class AbsencesNew implements OnInit {
     Swal.fire({ title: 'Generando documento...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
 
     try {
-      await this.hiringService.generarDocumentoAusentismo(element.id, result.value);
-      if (result.value.solo_pdf) {
-        Swal.close();
-      } else {
-        Swal.fire('Éxito', 'El documento fue enviado por correo correctamente.', 'success');
-      }
+      await generarPdfAusentismo(element, result.value);
+      Swal.close();
     } catch (error: any) {
       console.error('[GenerarDocumento] Error completo:', error);
-      const msg = error?.error?.detail
-        || error?.message
-        || (typeof error?.error === 'string' ? error.error : null)
-        || JSON.stringify(error?.error ?? error)?.slice(0, 300)
-        || 'No se pudo generar el documento.';
+      const msg = error?.message || 'No se pudo generar el documento.';
       Swal.fire('Error al generar', msg, 'error');
     }
   }
@@ -873,5 +867,265 @@ export class AbsencesNew implements OnInit {
 
     this.selection.clear();
     this.cargarDatos();
+  }
+
+  // ══════════════════════════════════════════════════════════════
+  // Modal: Registrar Ausentismo buscando por cédula
+  // ══════════════════════════════════════════════════════════════
+  async abrirModalNuevoAusentismo(): Promise<void> {
+    // ─── Paso 1: Pedir cédula y buscar ───
+    const { value: cedula, isConfirmed } = await Swal.fire({
+      title: 'Buscar Colaborador',
+      input: 'text',
+      inputLabel: 'Ingrese el número de cédula',
+      inputPlaceholder: 'Ej. 1019034641',
+      showCancelButton: true,
+      confirmButtonText: 'Buscar',
+      cancelButtonText: 'Cancelar',
+      inputValidator: (val) => (!val || !val.trim()) ? 'Debe ingresar un número de cédula.' : null
+    });
+
+    if (!isConfirmed || !cedula) return;
+
+    Swal.fire({ title: 'Buscando en Contratación 2.0...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+
+    let persona: any = null;
+    let fuenteDatos = '';
+
+    // Intentar primero con Contratación 2.0
+    try {
+      const resp = await firstValueFrom(this.hiringService.buscarEnContratacion2(cedula.trim()));
+      if (resp && typeof resp === 'object' && (resp.numero_documento || resp.primer_nombre)) {
+        persona = resp;
+        fuenteDatos = '2.0';
+      }
+    } catch (e) {
+      console.warn('[NuevoAusentismo] Contratación 2.0 no encontró:', e);
+    }
+
+    // Fallback: contratación legacy
+    if (!persona) {
+      try {
+        const resp = await firstValueFrom(this.hiringService.buscarEncontratacion(cedula.trim()));
+        if (resp && typeof resp === 'object' && (resp.numerodeceduladepersona || resp.primer_nombre || resp.primer_apellido)) {
+          persona = resp;
+          fuenteDatos = 'legacy';
+        }
+      } catch (e) {
+        console.warn('[NuevoAusentismo] Contratación legacy tampoco encontró:', e);
+      }
+    }
+
+    Swal.close();
+
+    // ─── Extraer datos según la fuente ───
+    let nombreCompleto = '';
+    let celular = '';
+    let correoVal = '';
+    let codigoEmpleado = '';
+    let fechaIngreso = '';
+    let fincaVal = '';
+    let cedulaVal = cedula.trim();
+
+    if (persona && fuenteDatos === '2.0') {
+      nombreCompleto = [persona.primer_nombre, persona.segundo_nombre, persona.primer_apellido, persona.segundo_apellido].filter(Boolean).join(' ');
+      cedulaVal = persona.numero_documento || cedulaVal;
+      celular = persona.contacto?.celular || persona.contacto?.whatsapp || '';
+      correoVal = persona.contacto?.email || '';
+      // Obtener código y finca del último proceso/contrato
+      const ultimaEntrevista = Array.isArray(persona.entrevistas) ? persona.entrevistas[0] : null;
+      const proceso = ultimaEntrevista?.proceso;
+      codigoEmpleado = proceso?.contrato?.codigo_contrato || '';
+      fechaIngreso = proceso?.contrato?.fecha_ingreso || '';
+      fincaVal = ultimaEntrevista?.oficina || '';
+    } else if (persona && fuenteDatos === 'legacy') {
+      nombreCompleto = [persona.primer_nombre, persona.segundo_nombre, persona.primer_apellido, persona.segundo_apellido].filter(Boolean).join(' ');
+      cedulaVal = persona.numerodeceduladepersona || cedulaVal;
+      celular = persona.celular || '';
+      correoVal = persona.primercorreoelectronico || '';
+      codigoEmpleado = persona.codigo_ultimo_contrato || '';
+      fechaIngreso = persona.fecha_ultimo_ingreso || '';
+    }
+
+    // ─── Paso 2: Confirmación de datos encontrados ───
+    if (persona) {
+      const confirmHtml = `
+        <div style="text-align:left; font-size:13px;">
+          <div style="background:#ecfdf5; border-left:4px solid #059669; border-radius:8px; padding:14px 16px; margin-bottom:10px;">
+            <p style="margin:0 0 8px 0; font-size:12px; color:#059669; font-weight:700; text-transform:uppercase; letter-spacing:0.5px;">
+              Encontrado en Contratación ${fuenteDatos === '2.0' ? '2.0' : 'Legacy'}
+            </p>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px 16px;">
+              <p style="margin:0; font-size:13px;"><strong>Nombre:</strong> ${nombreCompleto}</p>
+              <p style="margin:0; font-size:13px;"><strong>Cédula:</strong> ${cedulaVal}</p>
+              <p style="margin:0; font-size:13px;"><strong>Celular:</strong> ${celular || '<em style="color:#ef4444">No registrado</em>'}</p>
+              <p style="margin:0; font-size:13px;"><strong>Correo:</strong> ${correoVal || '<em style="color:#ef4444">No registrado</em>'}</p>
+              <p style="margin:0; font-size:13px;"><strong>Código:</strong> ${codigoEmpleado || '<em style="color:#94a3b8">N/A</em>'}</p>
+              <p style="margin:0; font-size:13px;"><strong>F. Ingreso:</strong> ${fechaIngreso || '<em style="color:#94a3b8">N/A</em>'}</p>
+              ${fincaVal ? `<p style="margin:0; font-size:13px;"><strong>Finca:</strong> ${fincaVal}</p>` : ''}
+            </div>
+          </div>
+          <p style="margin:6px 0 0; color:#475569; font-size:13px;">¿Desea usar estos datos para registrar el ausentismo? Podrá editarlos en el siguiente paso.</p>
+        </div>`;
+
+      const confirmResult = await Swal.fire({
+        title: 'Datos del Colaborador',
+        html: confirmHtml,
+        showCancelButton: true,
+        showDenyButton: true,
+        confirmButtonText: 'Usar estos datos',
+        denyButtonText: 'Llenar desde cero',
+        cancelButtonText: 'Cancelar',
+        confirmButtonColor: '#059669',
+        denyButtonColor: '#6366f1',
+      });
+
+      if (confirmResult.isDismissed) return;
+
+      if (confirmResult.isDenied) {
+        // Limpiar datos para llenar manualmente
+        nombreCompleto = '';
+        celular = '';
+        correoVal = '';
+        codigoEmpleado = '';
+        fincaVal = '';
+      }
+    } else {
+      // No encontrado en ninguna fuente
+      const noFoundResult = await Swal.fire({
+        title: 'Colaborador no encontrado',
+        html: `<div style="background:#fef3c7; border-left:4px solid #f59e0b; border-radius:8px; padding:12px 16px;">
+                 <p style="margin:0; font-size:13px;"><strong>No se encontró</strong> la cédula <strong>${cedulaVal}</strong> en el sistema de contratación.</p>
+                 <p style="margin:6px 0 0; font-size:13px; color:#92400e;">Puede llenar todos los datos manualmente.</p>
+               </div>`,
+        showCancelButton: true,
+        confirmButtonText: 'Llenar manualmente',
+        cancelButtonText: 'Cancelar',
+        confirmButtonColor: '#6366f1',
+      });
+
+      if (!noFoundResult.isConfirmed) return;
+    }
+
+    // ─── Paso 3: Formulario de registro ───
+    const htmlForm = `
+      <div style="text-align:left; font-size:13px;">
+        <div style="display:flex; flex-direction:column; gap:6px;">
+          <label><strong>Nombre completo:</strong></label>
+          <input id="aus-nombre" class="swal2-input" style="margin:0; width:100%;" value="${nombreCompleto}" placeholder="Apellidos y Nombres">
+
+          <div style="display:flex; gap:8px; flex-wrap:wrap;">
+            <div style="flex:1; min-width:140px;">
+              <label><strong>Cédula:</strong></label>
+              <input id="aus-cedula" class="swal2-input" style="margin:0; width:100%;" value="${cedulaVal}" readonly>
+            </div>
+            <div style="flex:1; min-width:140px;">
+              <label><strong>Código empleado:</strong></label>
+              <input id="aus-codigo" class="swal2-input" style="margin:0; width:100%;" value="${codigoEmpleado}" placeholder="Código">
+            </div>
+          </div>
+
+          <div style="display:flex; gap:8px; flex-wrap:wrap;">
+            <div style="flex:1; min-width:140px;">
+              <label><strong>Celular:</strong></label>
+              <input id="aus-celular" class="swal2-input" style="margin:0; width:100%;" value="${celular}" placeholder="3001234567">
+            </div>
+            <div style="flex:1; min-width:140px;">
+              <label><strong>Correo:</strong></label>
+              <input id="aus-correo" class="swal2-input" style="margin:0; width:100%;" value="${correoVal}" placeholder="correo@ejemplo.com">
+            </div>
+          </div>
+
+          <div style="display:flex; gap:8px; flex-wrap:wrap;">
+            <div style="flex:1; min-width:140px;">
+              <label><strong>Fecha inicio ausencia:</strong></label>
+              <input id="aus-fecha-inicio" type="date" class="swal2-input" style="margin:0; width:100%;">
+            </div>
+            <div style="flex:1; min-width:140px;">
+              <label><strong>Fecha fin ausencia:</strong></label>
+              <input id="aus-fecha-fin" type="date" class="swal2-input" style="margin:0; width:100%;">
+            </div>
+          </div>
+
+          <div style="display:flex; gap:8px; flex-wrap:wrap;">
+            <div style="flex:1; min-width:140px;">
+              <label><strong>Finca / Sede:</strong></label>
+              <input id="aus-finca" class="swal2-input" style="margin:0; width:100%;" value="${fincaVal}" placeholder="Nombre de finca o sede">
+            </div>
+            <div style="flex:1; min-width:140px;">
+              <label><strong>Temporal:</strong></label>
+              <input id="aus-temporal" class="swal2-input" style="margin:0; width:100%;" placeholder="Temporal">
+            </div>
+          </div>
+
+          <label><strong>Motivo / Clasificación:</strong></label>
+          <select id="aus-items" class="swal2-select" style="margin:0; width:100%;">
+            <option value="">-- Seleccione --</option>
+            <option value="INCAPACIDAD">Incapacidad</option>
+            <option value="SIN_COMUNICACION">Sin comunicación</option>
+            <option value="DEJO_RUTA">Dejó ruta</option>
+            <option value="ENFERMO">Enfermo</option>
+            <option value="NOVEDAD_PERSONAL">Novedad personal</option>
+            <option value="SE_RETIRA">Se retira</option>
+            <option value="TRABAJANDO_FINCA">Trabajando en finca</option>
+          </select>
+
+          <label><strong>Observación:</strong></label>
+          <textarea id="aus-observacion" class="swal2-textarea" style="margin:0; width:100%; min-height:60px;" placeholder="Observaciones adicionales..."></textarea>
+        </div>
+      </div>
+    `;
+
+    const result = await Swal.fire({
+      title: 'Registrar Ausentismo',
+      html: htmlForm,
+      showCancelButton: true,
+      confirmButtonText: 'Registrar',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#059669',
+      width: '680px',
+      focusConfirm: false,
+      preConfirm: () => {
+        const nombre = (document.getElementById('aus-nombre') as HTMLInputElement).value.trim();
+        const ced = (document.getElementById('aus-cedula') as HTMLInputElement).value.trim();
+        const fechaInicio = (document.getElementById('aus-fecha-inicio') as HTMLInputElement).value;
+        const fechaFin = (document.getElementById('aus-fecha-fin') as HTMLInputElement).value;
+
+        if (!nombre) { Swal.showValidationMessage('El nombre es requerido.'); return false; }
+        if (!ced) { Swal.showValidationMessage('La cédula es requerida.'); return false; }
+        if (!fechaInicio) { Swal.showValidationMessage('La fecha de inicio es requerida.'); return false; }
+        if (!fechaFin) { Swal.showValidationMessage('La fecha fin es requerida.'); return false; }
+
+        return {
+          nombre_completo: nombre,
+          cedula: ced,
+          codigo_empleado: (document.getElementById('aus-codigo') as HTMLInputElement).value.trim(),
+          numero_contacto: (document.getElementById('aus-celular') as HTMLInputElement).value.trim(),
+          correo: (document.getElementById('aus-correo') as HTMLInputElement).value.trim(),
+          fecha_inicio: fechaInicio,
+          fecha_fin: fechaFin,
+          finca: (document.getElementById('aus-finca') as HTMLInputElement).value.trim(),
+          temporal: (document.getElementById('aus-temporal') as HTMLInputElement).value.trim(),
+          items: (document.getElementById('aus-items') as HTMLSelectElement).value,
+          observacion: (document.getElementById('aus-observacion') as HTMLTextAreaElement).value.trim(),
+          gestor: this.nombreUsuario,
+          fecha_diligenciamiento: new Date().toISOString().split('T')[0]
+        };
+      }
+    });
+
+    if (!result.isConfirmed || !result.value) return;
+
+    Swal.fire({ title: 'Registrando ausentismo...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+
+    try {
+      await this.hiringService.crearAusentismoNuevo(result.value);
+      await Swal.fire('Registrado', 'El ausentismo fue creado exitosamente.', 'success');
+      this.cargarDatos();
+    } catch (error: any) {
+      console.error('[NuevoAusentismo] Error:', error);
+      const msg = error?.error?.detail || error?.message || JSON.stringify(error?.error ?? error)?.slice(0, 300) || 'Error al registrar.';
+      Swal.fire('Error', msg, 'error');
+    }
   }
 }

@@ -9,9 +9,11 @@
         <mat-form-field class="example-full-width">
           <mat-label>Número de identificación</mat-label>
           <input matInput formControlName="cedula" />
-          <mat-error *ngIf="myForm.get('cedula')?.hasError('required')">
-            El número de identificación es requerido
-          </mat-error>
+          @if (myForm.get('cedula')?.hasError('required')) {
+            <mat-error>
+              El número de identificación es requerido
+            </mat-error>
+          }
         </mat-form-field>
 
         <button mat-flat-button type="submit">Buscar</button>
@@ -31,10 +33,14 @@
         <ng-container matColumnDef="solicitud_traslado">
           <th mat-header-cell *matHeaderCellDef> Solicitud </th>
           <td mat-cell *matCellDef="let element">
-            <button *ngIf="element.solicitud_traslado" mat-button (click)="verDocumento(element.solicitud_traslado)">
-              Ver Documento
-            </button>
-            <span *ngIf="!element.solicitud_traslado">Sin documento</span>
+            @if (element.solicitud_traslado) {
+              <button mat-button (click)="verDocumento(element.solicitud_traslado)">
+                Ver Documento
+              </button>
+            }
+            @if (!element.solicitud_traslado) {
+              <span>Sin documento</span>
+            }
           </td>
         </ng-container>
 

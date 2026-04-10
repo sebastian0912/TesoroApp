@@ -1,6 +1,6 @@
 import { SharedModule } from '@/app/shared/shared.module';
 import { isPlatformBrowser } from '@angular/common';
-import { Component, Inject, PLATFORM_ID } from '@angular/core';
+import {  Component, Inject, PLATFORM_ID , ChangeDetectionStrategy } from '@angular/core';
 import { FormGroup, FormBuilder, Validators } from '@angular/forms';
 import { debounceTime, distinctUntilChanged } from 'rxjs';
 import Swal from 'sweetalert2';
@@ -9,13 +9,14 @@ import { VetadosService } from '../../service/vetados/vetados.service';
 import { UtilityServiceService } from '../../../../../../shared/services/utilityService/utility-service.service';
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-banned-report',
   imports: [
     SharedModule
   ],
   templateUrl: './banned-report.component.html',
   styleUrl: './banned-report.component.css'
-})
+} )
 export class BannedReportComponent {
   reporteForm!: FormGroup;
   sedes: any[] = [];

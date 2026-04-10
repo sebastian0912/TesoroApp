@@ -1,4 +1,4 @@
-import { Component, Inject } from '@angular/core';
+import {  Component, Inject , ChangeDetectionStrategy } from '@angular/core';
 import { MAT_DIALOG_DATA, MatDialogRef, MatDialogModule } from '@angular/material/dialog';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angular/forms';
 import { SharedModule } from '@/app/shared/shared.module';
@@ -15,11 +15,12 @@ export interface ModuloDialogData {
 }
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
     selector: 'app-modulo-dialog',
     imports: [SharedModule, MatDialogModule, ReactiveFormsModule, MatButtonModule, MatIconModule],
     templateUrl: './modulo-dialog.component.html',
     styleUrl: './modulo-dialog.component.css'
-})
+} )
 export class ModuloDialogComponent {
     form: FormGroup;
     isEdit: boolean;

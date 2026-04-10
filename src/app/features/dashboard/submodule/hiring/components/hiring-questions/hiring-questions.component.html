@@ -5,67 +5,86 @@
     <ng-template mat-tab-label>
       <div class="tab"><mat-icon>payments</mat-icon> Pago y Transporte</div>
     </ng-template>
-
-    <div class="tab-content-scrollable" [formGroup]="pagoTransporteForm">
+    
+    <ng-template matTabContent>
+      <div class="tab-content-scrollable" [formGroup]="pagoTransporteForm">
       <div class="grid-managerial">
         <mat-form-field appearance="outline" class="example-full-width">
           <mat-label>Forma de Pago</mat-label>
           <mat-select formControlName="formaPago">
             <mat-option value="Daviplata">Daviplata</mat-option>
             <mat-option value="Davivienda cta ahorros">Davivienda cta
-              ahorros</mat-option>
+            ahorros</mat-option>
             <mat-option value="Colpatria cta ahorros">Colpatria cta
-              ahorros</mat-option>
+            ahorros</mat-option>
             <mat-option value="Bancolombia">Bancolombia</mat-option>
             <mat-option value="Otra">Otra</mat-option>
           </mat-select>
         </mat-form-field>
 
-        <mat-form-field appearance="outline" class="example-full-width"
-          *ngIf="pagoTransporteForm.controls['formaPago'].value === 'Otra'">
-          <mat-label>Otra Forma de Pago</mat-label>
-          <input matInput formControlName="otraFormaPago">
-        </mat-form-field>
+        @if (pagoTransporteForm.controls['formaPago'].value === 'Otra') {
+          <mat-form-field appearance="outline" class="example-full-width"
+            >
+            <mat-label>Otra Forma de Pago</mat-label>
+            <input matInput formControlName="otraFormaPago">
+          </mat-form-field>
+        }
 
         <mat-form-field appearance="outline" class="example-full-width">
           <mat-label>
             {{ pagoTransporteForm.get('formaPago')?.value === 'Daviplata' ? 'Número de cuenta' : 'Número de tarjeta' }}
           </mat-label>
           <input matInput formControlName="numeroPagos" (blur)="verificarTarjeta()">
-          <mat-error *ngIf="pagoTransporteForm.controls['numeroPagos'].hasError('required')">
-            Obligatorio.
-          </mat-error>
-          <mat-error *ngIf="pagoTransporteForm.controls['numeroPagos'].hasError('pattern')">
-            Debe tener 16 o 18 dígitos.
-          </mat-error>
-          <mat-error *ngIf="pagoTransporteForm.controls['numeroPagos'].hasError('tarjetaInexistente')">
-            Tarjeta no encontrada o no coincide con la identificación.
-          </mat-error>
-          <mat-error *ngIf="pagoTransporteForm.controls['numeroPagos'].hasError('noCoincide')">
-            El número de tarjeta no coincide con la identificación seleccionada.
-          </mat-error>
+          @if (pagoTransporteForm.controls['numeroPagos'].hasError('required')) {
+            <mat-error>
+              Obligatorio.
+            </mat-error>
+          }
+          @if (pagoTransporteForm.controls['numeroPagos'].hasError('pattern')) {
+            <mat-error>
+              Debe tener 16 o 18 dígitos.
+            </mat-error>
+          }
+          @if (pagoTransporteForm.controls['numeroPagos'].hasError('tarjetaInexistente')) {
+            <mat-error>
+              Tarjeta no encontrada o no coincide con la identificación.
+            </mat-error>
+          }
+          @if (pagoTransporteForm.controls['numeroPagos'].hasError('noCoincide')) {
+            <mat-error>
+              El número de tarjeta no coincide con la identificación seleccionada.
+            </mat-error>
+          }
         </mat-form-field>
 
-        <mat-form-field appearance="outline" class="example-full-width"
-          *ngIf="pagoTransporteForm.get('formaPago')?.value !== 'Daviplata'">
-          <mat-label>Número Identificación (Tarjeta)</mat-label>
-          <input type="text" matInput formControlName="numeroIdentificacion" [matAutocomplete]="auto">
-          <mat-autocomplete #auto="matAutocomplete" [displayWith]="displayTarjeta"
-            (optionSelected)="onTarjetaSelected($event.option.value)">
-            <mat-option *ngFor="let t of filteredTarjetas | async" [value]="t">
-              {{ t.identification_number }} - {{ t.card_number }}
-            </mat-option>
-          </mat-autocomplete>
-        </mat-form-field>
+        @if (pagoTransporteForm.get('formaPago')?.value !== 'Daviplata') {
+          <mat-form-field appearance="outline" class="example-full-width"
+            >
+            <mat-label>Número Identificación (Tarjeta)</mat-label>
+            <input type="text" matInput formControlName="numeroIdentificacion" [matAutocomplete]="auto">
+            <mat-autocomplete #auto="matAutocomplete" [displayWith]="displayTarjeta"
+              (optionSelected)="onTarjetaSelected($event.option.value)">
+              @for (t of filteredTarjetas | async; track t) {
+                <mat-option [value]="t">
+                  {{ t.identification_number }} - {{ t.card_number }}
+                </mat-option>
+              }
+            </mat-autocomplete>
+          </mat-form-field>
+        }
 
-        <mat-form-field appearance="outline" class="example-full-width"
-          *ngIf="pagoTransporteForm.get('formaPago')?.value !== 'Daviplata'">
-          <mat-label>Contraseña asignada</mat-label>
-          <input matInput formControlName="contraseniaAsignada">
-          <mat-error *ngIf="pagoTransporteForm.controls['contraseniaAsignada']?.hasError('required')">
-            Obligatorio.
-          </mat-error>
-        </mat-form-field>
+        @if (pagoTransporteForm.get('formaPago')?.value !== 'Daviplata') {
+          <mat-form-field appearance="outline" class="example-full-width"
+            >
+            <mat-label>Contraseña asignada</mat-label>
+            <input matInput formControlName="contraseniaAsignada">
+            @if (pagoTransporteForm.controls['contraseniaAsignada']?.hasError('required')) {
+              <mat-error>
+                Obligatorio.
+              </mat-error>
+            }
+          </mat-form-field>
+        }
 
         <!-- Eliminado validacion de numero de cuenta -->
 
@@ -104,7 +123,7 @@
           <mat-select formControlName="cesantias">
             <mat-option value="PORVENIR">PORVENIR</mat-option>
             <mat-option value="FONDO NACIONAL DEL AHORRO">FONDO NACIONAL DEL
-              AHORRO</mat-option>
+            AHORRO</mat-option>
             <mat-option value="PROTECCIÓN">PROTECCIÓN</mat-option>
           </mat-select>
         </mat-form-field>
@@ -155,6 +174,7 @@
         <button mat-flat-button color="primary" (click)="cargarPagoTransporte()">Cargar</button>
       </div>
     </div>
+    </ng-template>
   </mat-tab>
 
   <!-- TAB 2 ▸ Referencias (familiares, personales, laborales) -->
@@ -163,7 +183,8 @@
       <div class="tab"><mat-icon>groups</mat-icon> Referencias</div>
     </ng-template>
 
-    <div class="tab-content-scrollable" [formGroup]="referenciasForm">
+    <ng-template matTabContent>
+      <div class="tab-content-scrollable" [formGroup]="referenciasForm">
 
       <div class="referencias">
 
@@ -173,328 +194,365 @@
             <mat-label>Familiar 1</mat-label>
             <input matInput formControlName="familiar1"
               [value]="uploadedFiles['familiar1'] ? uploadedFiles['familiar1'].fileName : ''" readonly>
-            <button mat-icon-button matSuffix [matMenuTriggerFor]="menuF1" (click)="$event.stopPropagation()">
-              <mat-icon>more_vert</mat-icon>
-            </button>
-          </mat-form-field>
-          <mat-menu #menuF1="matMenu">
-            <button mat-menu-item (click)="verArchivo('familiar1')">Ver
+              <button mat-icon-button matSuffix [matMenuTriggerFor]="menuF1" (click)="$event.stopPropagation()">
+                <mat-icon>more_vert</mat-icon>
+              </button>
+            </mat-form-field>
+            <mat-menu #menuF1="matMenu">
+              <button mat-menu-item (click)="verArchivo('familiar1')">Ver
               PDF</button>
-            <button mat-menu-item>
-              <label for="familiar1File">
-                Subir PDF
-                <input id="familiar1File" type="file" style="display:none"
-                  (change)="subirArchivo($event,'familiar1')" />
-              </label>
-            </button>
-          </mat-menu>
-          <small *ngIf="uploadedFiles['familiar1']" class="uploaded-file-name">
-            {{ uploadedFiles['familiar1'].fileName }}
-          </small>
-        </div>
+              <button mat-menu-item>
+                <label for="familiar1File">
+                  Subir PDF
+                  <input id="familiar1File" type="file" style="display:none"
+                    (change)="subirArchivo($event,'familiar1')" />
+                  </label>
+                </button>
+              </mat-menu>
+              @if (uploadedFiles['familiar1']) {
+                <small class="uploaded-file-name">
+                  {{ uploadedFiles['familiar1'].fileName }}
+                </small>
+              }
+            </div>
 
-        <!-- Familiar 2 -->
-        <div class="input-container">
-          <mat-form-field appearance="fill" class="example-full-width">
-            <mat-label>Familiar 2</mat-label>
-            <input matInput formControlName="familiar2"
-              [value]="uploadedFiles['familiar2'] ? uploadedFiles['familiar2'].fileName : ''" readonly>
-            <button mat-icon-button matSuffix [matMenuTriggerFor]="menuF2" (click)="$event.stopPropagation()">
-              <mat-icon>more_vert</mat-icon>
-            </button>
-          </mat-form-field>
-          <mat-menu #menuF2="matMenu">
-            <button mat-menu-item (click)="verArchivo('familiar2')">Ver
-              PDF</button>
-            <button mat-menu-item>
-              <label for="familiar2File">
-                Subir PDF
-                <input id="familiar2File" type="file" style="display:none"
-                  (change)="subirArchivo($event,'familiar2')" />
-              </label>
-            </button>
-          </mat-menu>
-          <small *ngIf="uploadedFiles['familiar2']" class="uploaded-file-name">
-            {{ uploadedFiles['familiar2'].fileName }}
-          </small>
-        </div>
+            <!-- Familiar 2 -->
+            <div class="input-container">
+              <mat-form-field appearance="fill" class="example-full-width">
+                <mat-label>Familiar 2</mat-label>
+                <input matInput formControlName="familiar2"
+                  [value]="uploadedFiles['familiar2'] ? uploadedFiles['familiar2'].fileName : ''" readonly>
+                  <button mat-icon-button matSuffix [matMenuTriggerFor]="menuF2" (click)="$event.stopPropagation()">
+                    <mat-icon>more_vert</mat-icon>
+                  </button>
+                </mat-form-field>
+                <mat-menu #menuF2="matMenu">
+                  <button mat-menu-item (click)="verArchivo('familiar2')">Ver
+                  PDF</button>
+                  <button mat-menu-item>
+                    <label for="familiar2File">
+                      Subir PDF
+                      <input id="familiar2File" type="file" style="display:none"
+                        (change)="subirArchivo($event,'familiar2')" />
+                      </label>
+                    </button>
+                  </mat-menu>
+                  @if (uploadedFiles['familiar2']) {
+                    <small class="uploaded-file-name">
+                      {{ uploadedFiles['familiar2'].fileName }}
+                    </small>
+                  }
+                </div>
 
-        <!-- Personal 1 -->
-        <div class="input-container">
-          <mat-form-field appearance="fill" class="example-full-width">
-            <mat-label>Personal 1</mat-label>
-            <input matInput formControlName="personal1"
-              [value]="uploadedFiles['personal1'] ? uploadedFiles['personal1'].fileName : ''" readonly>
-            <button mat-icon-button matSuffix [matMenuTriggerFor]="menuP1" (click)="$event.stopPropagation()">
-              <mat-icon>more_vert</mat-icon>
-            </button>
-          </mat-form-field>
-          <mat-menu #menuP1="matMenu">
-            <button mat-menu-item (click)="verArchivo('personal1')">Ver
-              PDF</button>
-            <button mat-menu-item>
-              <label for="personal1File">
-                Subir PDF
-                <input id="personal1File" type="file" style="display:none"
-                  (change)="subirArchivo($event,'personal1')" />
-              </label>
-            </button>
-          </mat-menu>
-          <small *ngIf="uploadedFiles['personal1']" class="uploaded-file-name">
-            {{ uploadedFiles['personal1'].fileName }}
-          </small>
-        </div>
+                <!-- Personal 1 -->
+                <div class="input-container">
+                  <mat-form-field appearance="fill" class="example-full-width">
+                    <mat-label>Personal 1</mat-label>
+                    <input matInput formControlName="personal1"
+                      [value]="uploadedFiles['personal1'] ? uploadedFiles['personal1'].fileName : ''" readonly>
+                      <button mat-icon-button matSuffix [matMenuTriggerFor]="menuP1" (click)="$event.stopPropagation()">
+                        <mat-icon>more_vert</mat-icon>
+                      </button>
+                    </mat-form-field>
+                    <mat-menu #menuP1="matMenu">
+                      <button mat-menu-item (click)="verArchivo('personal1')">Ver
+                      PDF</button>
+                      <button mat-menu-item>
+                        <label for="personal1File">
+                          Subir PDF
+                          <input id="personal1File" type="file" style="display:none"
+                            (change)="subirArchivo($event,'personal1')" />
+                          </label>
+                        </button>
+                      </mat-menu>
+                      @if (uploadedFiles['personal1']) {
+                        <small class="uploaded-file-name">
+                          {{ uploadedFiles['personal1'].fileName }}
+                        </small>
+                      }
+                    </div>
 
-        <!-- Personal 2 -->
-        <div class="input-container">
-          <mat-form-field appearance="fill" class="example-full-width">
-            <mat-label>Personal 2</mat-label>
-            <input matInput formControlName="personal2"
-              [value]="uploadedFiles['personal2'] ? uploadedFiles['personal2'].fileName : ''" readonly>
-            <button mat-icon-button matSuffix [matMenuTriggerFor]="menuP2" (click)="$event.stopPropagation()">
-              <mat-icon>more_vert</mat-icon>
-            </button>
-          </mat-form-field>
-          <mat-menu #menuP2="matMenu">
-            <button mat-menu-item (click)="verArchivo('personal2')">Ver
-              PDF</button>
-            <button mat-menu-item>
-              <label for="personal2File">
-                Subir PDF
-                <input id="personal2File" type="file" style="display:none"
-                  (change)="subirArchivo($event,'personal2')" />
-              </label>
-            </button>
-          </mat-menu>
-          <small *ngIf="uploadedFiles['personal2']" class="uploaded-file-name">
-            {{ uploadedFiles['personal2'].fileName }}
-          </small>
-        </div>
+                    <!-- Personal 2 -->
+                    <div class="input-container">
+                      <mat-form-field appearance="fill" class="example-full-width">
+                        <mat-label>Personal 2</mat-label>
+                        <input matInput formControlName="personal2"
+                          [value]="uploadedFiles['personal2'] ? uploadedFiles['personal2'].fileName : ''" readonly>
+                          <button mat-icon-button matSuffix [matMenuTriggerFor]="menuP2" (click)="$event.stopPropagation()">
+                            <mat-icon>more_vert</mat-icon>
+                          </button>
+                        </mat-form-field>
+                        <mat-menu #menuP2="matMenu">
+                          <button mat-menu-item (click)="verArchivo('personal2')">Ver
+                          PDF</button>
+                          <button mat-menu-item>
+                            <label for="personal2File">
+                              Subir PDF
+                              <input id="personal2File" type="file" style="display:none"
+                                (change)="subirArchivo($event,'personal2')" />
+                              </label>
+                            </button>
+                          </mat-menu>
+                          @if (uploadedFiles['personal2']) {
+                            <small class="uploaded-file-name">
+                              {{ uploadedFiles['personal2'].fileName }}
+                            </small>
+                          }
+                        </div>
 
-        <!-- Laboral 1 -->
-        <div class="input-container">
-          <mat-form-field appearance="fill" class="example-full-width">
-            <mat-label>Laboral 1</mat-label>
-            <input matInput formControlName="laboral1"
-              [value]="uploadedFiles['laboral1'] ? uploadedFiles['laboral1'].fileName : ''" readonly>
-            <button mat-icon-button matSuffix [matMenuTriggerFor]="menuL1" (click)="$event.stopPropagation()">
-              <mat-icon>more_vert</mat-icon>
-            </button>
-          </mat-form-field>
-          <mat-menu #menuL1="matMenu">
-            <button mat-menu-item (click)="verArchivo('laboral1')">Ver
-              PDF</button>
-            <button mat-menu-item>
-              <label for="laboral1File">
-                Subir PDF
-                <input id="laboral1File" type="file" style="display:none" (change)="subirArchivo($event,'laboral1')" />
-              </label>
-            </button>
-          </mat-menu>
-          <small *ngIf="uploadedFiles['laboral1']" class="uploaded-file-name">
-            {{ uploadedFiles['laboral1'].fileName }}
-          </small>
-        </div>
+                        <!-- Laboral 1 -->
+                        <div class="input-container">
+                          <mat-form-field appearance="fill" class="example-full-width">
+                            <mat-label>Laboral 1</mat-label>
+                            <input matInput formControlName="laboral1"
+                              [value]="uploadedFiles['laboral1'] ? uploadedFiles['laboral1'].fileName : ''" readonly>
+                              <button mat-icon-button matSuffix [matMenuTriggerFor]="menuL1" (click)="$event.stopPropagation()">
+                                <mat-icon>more_vert</mat-icon>
+                              </button>
+                            </mat-form-field>
+                            <mat-menu #menuL1="matMenu">
+                              <button mat-menu-item (click)="verArchivo('laboral1')">Ver
+                              PDF</button>
+                              <button mat-menu-item>
+                                <label for="laboral1File">
+                                  Subir PDF
+                                  <input id="laboral1File" type="file" style="display:none" (change)="subirArchivo($event,'laboral1')" />
+                                </label>
+                              </button>
+                            </mat-menu>
+                            @if (uploadedFiles['laboral1']) {
+                              <small class="uploaded-file-name">
+                                {{ uploadedFiles['laboral1'].fileName }}
+                              </small>
+                            }
+                          </div>
 
-        <!-- Laboral 2 -->
-        <div class="input-container">
-          <mat-form-field appearance="fill" class="example-full-width">
-            <mat-label>Laboral 2</mat-label>
-            <input matInput formControlName="laboral2"
-              [value]="uploadedFiles['laboral2'] ? uploadedFiles['laboral2'].fileName : ''" readonly>
-            <button mat-icon-button matSuffix [matMenuTriggerFor]="menuL2" (click)="$event.stopPropagation()">
-              <mat-icon>more_vert</mat-icon>
-            </button>
-          </mat-form-field>
-          <mat-menu #menuL2="matMenu">
-            <button mat-menu-item (click)="verArchivo('laboral2')">Ver
-              PDF</button>
-            <button mat-menu-item>
-              <label for="laboral2File">
-                Subir PDF
-                <input id="laboral2File" type="file" style="display:none" (change)="subirArchivo($event,'laboral2')" />
-              </label>
-            </button>
-          </mat-menu>
-          <small *ngIf="uploadedFiles['laboral2']" class="uploaded-file-name">
-            {{ uploadedFiles['laboral2'].fileName }}
-          </small>
-        </div>
+                          <!-- Laboral 2 -->
+                          <div class="input-container">
+                            <mat-form-field appearance="fill" class="example-full-width">
+                              <mat-label>Laboral 2</mat-label>
+                              <input matInput formControlName="laboral2"
+                                [value]="uploadedFiles['laboral2'] ? uploadedFiles['laboral2'].fileName : ''" readonly>
+                                <button mat-icon-button matSuffix [matMenuTriggerFor]="menuL2" (click)="$event.stopPropagation()">
+                                  <mat-icon>more_vert</mat-icon>
+                                </button>
+                              </mat-form-field>
+                              <mat-menu #menuL2="matMenu">
+                                <button mat-menu-item (click)="verArchivo('laboral2')">Ver
+                                PDF</button>
+                                <button mat-menu-item>
+                                  <label for="laboral2File">
+                                    Subir PDF
+                                    <input id="laboral2File" type="file" style="display:none" (change)="subirArchivo($event,'laboral2')" />
+                                  </label>
+                                </button>
+                              </mat-menu>
+                              @if (uploadedFiles['laboral2']) {
+                                <small class="uploaded-file-name">
+                                  {{ uploadedFiles['laboral2'].fileName }}
+                                </small>
+                              }
+                            </div>
 
-      </div>
+                          </div>
 
-      <button mat-flat-button color="primary" (click)="cargarReferencias()">Cargar</button>
-    </div>
-  </mat-tab>
-
-  <!-- TAB 3 ▸ Traslados -->
-  <mat-tab>
-    <ng-template mat-tab-label>
-      <div class="tab"><mat-icon>swap_horiz</mat-icon> Traslados</div>
+                          <button mat-flat-button color="primary" (click)="cargarReferencias()">Cargar</button>
+                        </div>
     </ng-template>
+                      </mat-tab>
 
-    <div class="tab-content-scrollable" [formGroup]="trasladosForm">
-      <div class="grid-managerial">
-        <mat-form-field appearance="outline" class="example-full-width">
-          <mat-label>¿Desea Trasladarse?</mat-label>
-          <mat-select formControlName="opcion_traslado_eps" (selectionChange)="onTrasladoChange($event)">
-            <mat-option value="NO">No</mat-option>
-            <mat-option value="SI">Sí</mat-option>
-          </mat-select>
-        </mat-form-field>
+                      <!-- TAB 3 ▸ Traslados -->
+                      <mat-tab>
+                        <ng-template mat-tab-label>
+                          <div class="tab"><mat-icon>swap_horiz</mat-icon> Traslados</div>
+                        </ng-template>
 
-        <mat-form-field appearance="outline" class="example-full-width"
-          *ngIf="trasladosForm.controls['opcion_traslado_eps'].value === 'SI'">
-          <mat-label>Seleccione EPS</mat-label>
-          <mat-select formControlName="eps_a_trasladar">
-            <mat-option value="FAMISANAR">Famisanar</mat-option>
-            <mat-option value="SALUD_TOTAL">Salud Total</mat-option>
-            <mat-option value="NUEVA_EPS">Nueva EPS</mat-option>
-          </mat-select>
-        </mat-form-field>
+                        <ng-template matTabContent>
+                          <div class="tab-content-scrollable" [formGroup]="trasladosForm">
+                          <div class="grid-managerial">
+                            <mat-form-field appearance="outline" class="example-full-width">
+                              <mat-label>¿Desea Trasladarse?</mat-label>
+                              <mat-select formControlName="opcion_traslado_eps" (selectionChange)="onTrasladoChange($event)">
+                                <mat-option value="NO">No</mat-option>
+                                <mat-option value="SI">Sí</mat-option>
+                              </mat-select>
+                            </mat-form-field>
 
-        <div class="input-container" *ngIf="trasladosForm.controls['opcion_traslado_eps'].value === 'SI'">
-          <mat-form-field appearance="fill" class="example-full-width">
-            <mat-label>Archivo Traslado</mat-label>
-            <input matInput formControlName="traslado"
-              [value]="uploadedFiles['traslado'] ? uploadedFiles['traslado'].fileName : ''" readonly>
-            <button mat-icon-button matSuffix [matMenuTriggerFor]="menuTraslado" (click)="$event.stopPropagation()">
-              <mat-icon>more_vert</mat-icon>
-            </button>
-          </mat-form-field>
+                            @if (trasladosForm.controls['opcion_traslado_eps'].value === 'SI') {
+                              <mat-form-field appearance="outline" class="example-full-width"
+                                >
+                                <mat-label>Seleccione EPS</mat-label>
+                                <mat-select formControlName="eps_a_trasladar">
+                                  <mat-option value="FAMISANAR">Famisanar</mat-option>
+                                  <mat-option value="SALUD_TOTAL">Salud Total</mat-option>
+                                  <mat-option value="NUEVA_EPS">Nueva EPS</mat-option>
+                                </mat-select>
+                              </mat-form-field>
+                            }
 
-          <mat-menu #menuTraslado="matMenu">
-            <button mat-menu-item (click)="verArchivo('traslado')">Ver
-              PDF</button>
-            <button mat-menu-item>
-              <label for="fileTraslado">
-                Subir PDF
-                <input id="fileTraslado" type="file" style="display:none" (change)="subirArchivo($event,'traslado')" />
-              </label>
-            </button>
-            <button mat-menu-item (click)="descargarArchivo()">Descargar
-              plantilla</button>
-          </mat-menu>
+                            @if (trasladosForm.controls['opcion_traslado_eps'].value === 'SI') {
+                              <div class="input-container">
+                                <mat-form-field appearance="fill" class="example-full-width">
+                                  <mat-label>Archivo Traslado</mat-label>
+                                  <input matInput formControlName="traslado"
+                                    [value]="uploadedFiles['traslado'] ? uploadedFiles['traslado'].fileName : ''" readonly>
+                                    <button mat-icon-button matSuffix [matMenuTriggerFor]="menuTraslado" (click)="$event.stopPropagation()">
+                                      <mat-icon>more_vert</mat-icon>
+                                    </button>
+                                  </mat-form-field>
+                                  <mat-menu #menuTraslado="matMenu">
+                                    <button mat-menu-item (click)="verArchivo('traslado')">Ver
+                                    PDF</button>
+                                    <button mat-menu-item>
+                                      <label for="fileTraslado">
+                                        Subir PDF
+                                        <input id="fileTraslado" type="file" style="display:none" (change)="subirArchivo($event,'traslado')" />
+                                      </label>
+                                    </button>
+                                    <button mat-menu-item (click)="descargarArchivo()">Descargar
+                                    plantilla</button>
+                                  </mat-menu>
+                                  @if (uploadedFiles['traslado']) {
+                                    <small class="uploaded-file-name">
+                                      {{ uploadedFiles['traslado'].fileName }}
+                                    </small>
+                                  }
+                                </div>
+                              }
+                            </div>
 
-          <small *ngIf="uploadedFiles['traslado']" class="uploaded-file-name">
-            {{ uploadedFiles['traslado'].fileName }}
-          </small>
-        </div>
-      </div>
+                            <div style="margin-top: 24px; display: flex; justify-content: flex-end;">
+                              <button mat-flat-button color="primary" (click)="cargarTraslados()">Cargar</button>
+                            </div>
+                          </div>
+                        </ng-template>
+                        </mat-tab>
 
-      <div style="margin-top: 24px; display: flex; justify-content: flex-end;">
-        <button mat-flat-button color="primary" (click)="cargarTraslados()">Cargar</button>
-      </div>
-    </div>
-  </mat-tab>
+                        <!-- TAB 4 ▸ Huellas -->
+                        <mat-tab>
+                          <ng-template mat-tab-label>
+                            <div class="tab"><mat-icon>fingerprint</mat-icon> Cédula & Huella</div>
+                          </ng-template>
 
-  <!-- TAB 4 ▸ Huellas -->
-  <mat-tab>
-    <ng-template mat-tab-label>
-      <div class="tab"><mat-icon>fingerprint</mat-icon> Cédula & Huella</div>
-    </ng-template>
+                          <ng-template matTabContent>
+                            <div class="tab-content-scrollable">
+                            <!-- APOYO LABORAL T.S. S.A.S. -->
+                            <mat-card class="fingerprint-card">
+                              <mat-card-content>
+                                <h3>Huella: Índice Derecho — APOYO LABORAL T.S. S.A.S.</h3>
+                                <button mat-raised-button color="primary" (click)="captureFingerprintApoyo()">
+                                  <mat-icon>camera</mat-icon> Capturar Huella
+                                </button>
+                                @if (messageApoyo) {
+                                  <div class="status-message">
+                                    <mat-icon>info</mat-icon> {{ messageApoyo }}
+                                  </div>
+                                }
+                                @if (fingerprintImageApoyo) {
+                                  <div class="fingerprint-image-container">
+                                    <img [src]="fingerprintImageApoyo" alt="Huella índice derecho — Apoyo Laboral">
+                                  </div>
+                                }
+                                @if (fingerprintImageApoyo) {
+                                  <button mat-stroked-button color="primary" class="view-docs-btn"
+                                    (click)="generarPreviewsHuella('apoyo-laboral')">
+                                    <mat-icon>description</mat-icon> Ver Documentos con Huella
+                                  </button>
+                                }
+                              </mat-card-content>
+                            </mat-card>
 
-    <div class="tab-content-scrollable">
-      <!-- APOYO LABORAL T.S. S.A.S. -->
-      <mat-card class="fingerprint-card">
-        <mat-card-content>
-          <h3>Huella: Índice Derecho — APOYO LABORAL T.S. S.A.S.</h3>
-          <button mat-raised-button color="primary" (click)="captureFingerprintApoyo()">
-            <mat-icon>camera</mat-icon> Capturar Huella
-          </button>
-          <div *ngIf="messageApoyo" class="status-message">
-            <mat-icon>info</mat-icon> {{ messageApoyo }}
-          </div>
-          <div *ngIf="fingerprintImageApoyo" class="fingerprint-image-container">
-            <img [src]="fingerprintImageApoyo" alt="Huella índice derecho — Apoyo Laboral">
-          </div>
-          <button *ngIf="fingerprintImageApoyo" mat-stroked-button color="primary" class="view-docs-btn"
-            (click)="generarPreviewsHuella('apoyo-laboral')">
-            <mat-icon>description</mat-icon> Ver Documentos con Huella
-          </button>
-        </mat-card-content>
-      </mat-card>
+                            <!-- TU ALIANZA SAS -->
+                            <mat-card class="fingerprint-card" style="margin-top: 16px;">
+                              <mat-card-content>
+                                <h3>Huella: Índice Derecho — TU ALIANZA SAS</h3>
+                                <button mat-raised-button color="accent" (click)="captureFingerprintTuAlianza()">
+                                  <mat-icon>camera</mat-icon> Capturar Huella
+                                </button>
+                                @if (messageTuAlianza) {
+                                  <div class="status-message">
+                                    <mat-icon>info</mat-icon> {{ messageTuAlianza }}
+                                  </div>
+                                }
+                                @if (fingerprintImageTuAlianza) {
+                                  <div class="fingerprint-image-container">
+                                    <img [src]="fingerprintImageTuAlianza" alt="Huella índice derecho — Tu Alianza">
+                                  </div>
+                                }
+                                @if (fingerprintImageTuAlianza) {
+                                  <button mat-stroked-button color="accent" class="view-docs-btn"
+                                    (click)="generarPreviewsHuella('tu-alianza')">
+                                    <mat-icon>description</mat-icon> Ver Documentos con Huella
+                                  </button>
+                                }
+                              </mat-card-content>
+                              </mat-card>
+                            </div>
+                          </ng-template>
+                          </mat-tab>
 
-      <!-- TU ALIANZA SAS -->
-      <mat-card class="fingerprint-card" style="margin-top: 16px;">
-        <mat-card-content>
-          <h3>Huella: Índice Derecho — TU ALIANZA SAS</h3>
-          <button mat-raised-button color="accent" (click)="captureFingerprintTuAlianza()">
-            <mat-icon>camera</mat-icon> Capturar Huella
-          </button>
-          <div *ngIf="messageTuAlianza" class="status-message">
-            <mat-icon>info</mat-icon> {{ messageTuAlianza }}
-          </div>
-          <div *ngIf="fingerprintImageTuAlianza" class="fingerprint-image-container">
-            <img [src]="fingerprintImageTuAlianza" alt="Huella índice derecho — Tu Alianza">
-          </div>
-          <button *ngIf="fingerprintImageTuAlianza" mat-stroked-button color="accent" class="view-docs-btn"
-            (click)="generarPreviewsHuella('tu-alianza')">
-            <mat-icon>description</mat-icon> Ver Documentos con Huella
-          </button>
-        </mat-card-content>
-      </mat-card>
-    </div>
-  </mat-tab>
+                      </mat-tab-group>
 
-</mat-tab-group>
-
-<!-- ═══ DOCUMENTS DIALOG / OVERLAY ═══ -->
-<div class="docs-dialog-overlay" *ngIf="showDocumentsDialog" (click)="closeDocumentsDialog()">
-  <div class="docs-dialog" (click)="$event.stopPropagation()">
-
-    <!-- Dialog Header -->
-    <header class="docs-dialog-header">
-      <div class="docs-dialog-title-area">
-        <mat-icon class="docs-dialog-icon">folder_open</mat-icon>
-        <div>
-          <h2 class="docs-dialog-title">Documentos con Huella</h2>
-          <p class="docs-dialog-subtitle">{{ huellaDocsList.length }} documentos generados con la huella capturada</p>
-        </div>
-      </div>
-      <button mat-icon-button class="docs-dialog-close" (click)="closeDocumentsDialog()">
-        <mat-icon>close</mat-icon>
-      </button>
-    </header>
-
-    <!-- Dialog Body -->
-    <div class="docs-dialog-body">
-
-      <!-- Sidebar: Lista documentos -->
-      <nav class="docs-sidebar">
-        <div class="docs-sidebar-item" *ngFor="let doc of huellaDocsList; let i = index"
-          [class.active]="i === currentDocIndex" (click)="currentDocIndex = i">
-          <mat-icon class="doc-item-icon">description</mat-icon>
-          <span class="doc-item-label">{{ doc.title }}</span>
-          <mat-icon class="doc-item-check" *ngIf="i === currentDocIndex">chevron_right</mat-icon>
-        </div>
-      </nav>
-
-      <!-- Viewer: Preview -->
-      <div class="docs-viewer" *ngIf="huellaDocsList.length > 0">
-        <div class="docs-viewer-header">
-          <h3 class="docs-viewer-title">{{ huellaDocsList[currentDocIndex].title | uppercase }}</h3>
-          <span class="docs-viewer-counter">{{ currentDocIndex + 1 }} / {{ huellaDocsList.length }}</span>
-        </div>
-        <div class="docs-viewer-frame">
-          <iframe [src]="huellaDocsList[currentDocIndex].safeUrl" class="doc-iframe" frameborder="0"></iframe>
-        </div>
-        <div class="docs-viewer-nav">
-          <button mat-stroked-button class="carousel-btn" (click)="prevDocument()" [disabled]="currentDocIndex === 0">
-            <mat-icon>chevron_left</mat-icon> Anterior
-          </button>
-          <div class="carousel-dots">
-            <span class="carousel-dot" *ngFor="let doc of huellaDocsList; let i = index"
-              [class.active]="i === currentDocIndex" (click)="currentDocIndex = i"></span>
-          </div>
-          <button mat-stroked-button class="carousel-btn" (click)="nextDocument()"
-            [disabled]="currentDocIndex === huellaDocsList.length - 1">
-            Siguiente <mat-icon>chevron_right</mat-icon>
-          </button>
-        </div>
-      </div>
-
-    </div>
-
-  </div>
-</div>
+                      <!-- ═══ DOCUMENTS DIALOG / OVERLAY ═══ -->
+                      @if (showDocumentsDialog) {
+                        <div class="docs-dialog-overlay" (click)="closeDocumentsDialog()">
+                          <div class="docs-dialog" (click)="$event.stopPropagation()">
+                            <!-- Dialog Header -->
+                            <header class="docs-dialog-header">
+                              <div class="docs-dialog-title-area">
+                                <mat-icon class="docs-dialog-icon">folder_open</mat-icon>
+                                <div>
+                                  <h2 class="docs-dialog-title">Documentos con Huella</h2>
+                                  <p class="docs-dialog-subtitle">{{ huellaDocsList.length }} documentos generados con la huella capturada</p>
+                                </div>
+                              </div>
+                              <button mat-icon-button class="docs-dialog-close" (click)="closeDocumentsDialog()">
+                                <mat-icon>close</mat-icon>
+                              </button>
+                            </header>
+                            <!-- Dialog Body -->
+                            <div class="docs-dialog-body">
+                              <!-- Sidebar: Lista documentos -->
+                              <nav class="docs-sidebar">
+                                @for (doc of huellaDocsList; track doc; let i = $index) {
+                                  <div class="docs-sidebar-item"
+                                    [class.active]="i === currentDocIndex" (click)="currentDocIndex = i">
+                                    <mat-icon class="doc-item-icon">description</mat-icon>
+                                    <span class="doc-item-label">{{ doc.title }}</span>
+                                    @if (i === currentDocIndex) {
+                                      <mat-icon class="doc-item-check">chevron_right</mat-icon>
+                                    }
+                                  </div>
+                                }
+                              </nav>
+                              <!-- Viewer: Preview -->
+                              @if (huellaDocsList.length > 0) {
+                                <div class="docs-viewer">
+                                  <div class="docs-viewer-header">
+                                    <h3 class="docs-viewer-title">{{ huellaDocsList[currentDocIndex].title | uppercase }}</h3>
+                                    <span class="docs-viewer-counter">{{ currentDocIndex + 1 }} / {{ huellaDocsList.length }}</span>
+                                  </div>
+                                  <div class="docs-viewer-frame">
+                                    <iframe [src]="huellaDocsList[currentDocIndex].safeUrl" class="doc-iframe" frameborder="0"></iframe>
+                                  </div>
+                                  <div class="docs-viewer-nav">
+                                    <button mat-stroked-button class="carousel-btn" (click)="prevDocument()" [disabled]="currentDocIndex === 0">
+                                      <mat-icon>chevron_left</mat-icon> Anterior
+                                    </button>
+                                    <div class="carousel-dots">
+                                      @for (doc of huellaDocsList; track doc; let i = $index) {
+                                        <span class="carousel-dot"
+                                        [class.active]="i === currentDocIndex" (click)="currentDocIndex = i"></span>
+                                      }
+                                    </div>
+                                    <button mat-stroked-button class="carousel-btn" (click)="nextDocument()"
+                                      [disabled]="currentDocIndex === huellaDocsList.length - 1">
+                                      Siguiente <mat-icon>chevron_right</mat-icon>
+                                    </button>
+                                  </div>
+                                </div>
+                              }
+                            </div>
+                          </div>
+                        </div>
+                      }

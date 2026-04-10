@@ -1,14 +1,15 @@
-import { Component, EventEmitter, Input, Output } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import {  Component, EventEmitter, Input, Output , ChangeDetectionStrategy } from '@angular/core';
+
 import { MatIconModule } from '@angular/material/icon';
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-info-card',
   standalone: true,
-  imports: [CommonModule, MatIconModule],
+  imports: [MatIconModule],
   templateUrl: './info-card.component.html',
   styleUrl: './info-card.component.css',
-})
+} )
 export class InfoCardComponent {
   @Input() title = '';
   @Input() description = '';

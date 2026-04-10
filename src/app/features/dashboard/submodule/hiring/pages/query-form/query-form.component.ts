@@ -1,5 +1,5 @@
 import { SharedModule } from '@/app/shared/shared.module';
-import { Component, ViewChild } from '@angular/core';
+import {  Component, ViewChild , ChangeDetectionStrategy } from '@angular/core';
 import Swal from 'sweetalert2';
 import { HiringService } from '../../service/hiring.service';
 import { MatSort } from '@angular/material/sort';
@@ -7,6 +7,7 @@ import { MatTableDataSource } from '@angular/material/table';
 import { MatPaginator, MatPaginatorModule } from '@angular/material/paginator';
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-query-form',
   imports: [
     SharedModule,
@@ -14,7 +15,7 @@ import { MatPaginator, MatPaginatorModule } from '@angular/material/paginator';
   ],
   templateUrl: './query-form.component.html',
   styleUrl: './query-form.component.css'
-})
+} )
 export class QueryFormComponent {
   cedula: string = '';
   dataSource = new MatTableDataSource<any>([]); // MatTableDataSource

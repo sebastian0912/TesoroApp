@@ -1,5 +1,5 @@
 import { Component, Input, ChangeDetectionStrategy, OnChanges, SimpleChanges } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { NgxEchartsDirective, provideEchartsCore } from 'ngx-echarts';
 import type { EChartsOption } from 'echarts';
 import { EmptyStateComponent } from '../../../../../shared/components/empty-state/empty-state.component';
@@ -10,20 +10,21 @@ const moment = _moment.default || _moment;
 @Component({
     selector: 'app-tx-timeseries-chart',
     standalone: true,
-    imports: [CommonModule, NgxEchartsDirective, EmptyStateComponent],
+    imports: [NgxEchartsDirective, EmptyStateComponent],
     providers: [provideEchartsCore({ echarts: () => import('echarts') })],
     template: `
-    <div class="chart-container" *ngIf="hasData; else empty">
-      <div echarts [options]="chartOption" [merge]="chartUpdate" class="echarts-wrapper"></div>
-    </div>
-    <ng-template #empty>
-      <app-empty-state 
-        icon="show_chart" 
+    @if (hasData) {
+      <div class="chart-container">
+        <div echarts [options]="chartOption" [merge]="chartUpdate" class="echarts-wrapper"></div>
+      </div>
+    } @else {
+      <app-empty-state
+        icon="show_chart"
         title="Sin Datos de Tiempo"
         description="No encontramos transacciones ejecutadas ni autorizadas en este rango.">
       </app-empty-state>
-    </ng-template>
-  `,
+    }
+    `,
     styles: [`
     :host { display: block; height: 100%; width: 100%; }
     .chart-container { height: 100%; width: 100%; }

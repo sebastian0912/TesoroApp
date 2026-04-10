@@ -1,4 +1,4 @@
-import { Component, OnInit, input, effect, inject, DestroyRef } from '@angular/core';
+import {  Component, OnInit, input, effect, inject, DestroyRef , ChangeDetectionStrategy } from '@angular/core';
 import { AbstractControl, FormBuilder, FormGroup, ValidationErrors, ValidatorFn, Validators } from '@angular/forms';
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { firstValueFrom, forkJoin, of, throwError, Observable } from 'rxjs';
@@ -7,8 +7,8 @@ import { SharedModule } from '@/app/shared/shared.module';
 import { MatTabsModule } from '@angular/material/tabs';
 import Swal from 'sweetalert2';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
-import jsPDF from 'jspdf';
-import autoTable, { RowInput } from 'jspdf-autotable';
+import type jsPDF from 'jspdf';
+import type { RowInput } from 'jspdf-autotable';
 import { GestionDocumentalService } from '../../service/gestion-documental/gestion-documental.service';
 import { VacantesService } from '../../service/vacantes/vacantes.service';
 import {
@@ -31,12 +31,13 @@ type ServerDocInfo = {
 };
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-hiring-questions',
   standalone: true,
   imports: [SharedModule, MatTabsModule],
   templateUrl: './hiring-questions.component.html',
   styleUrls: ['./hiring-questions.component.css'],
-})
+} )
 export class HiringQuestionsComponent implements OnInit {
   // ───────── Input con signals ─────────
   candidatoSeleccionado = input<any>(null);
@@ -153,13 +154,23 @@ export class HiringQuestionsComponent implements OnInit {
   }
 
   private _filterTarjetas(value: string | any): any[] {
-    // Después de seleccionar, el autocomplete puede pasar el objeto completo
     const raw = typeof value === 'string' ? value : (value?.identification_number || '');
     const filterValue = raw.toLowerCase();
-    return this.tarjetasDisponibles.filter(t =>
-      (t.identification_number || '').toLowerCase().includes(filterValue) ||
-      (t.card_number || '').includes(filterValue)
-    );
+    
+    // Optimización V8: Limitar a 50 resultados para evitar colapso del DOM (mat-option rendering)
+    // El FOR loop clásico con Break destruye el bottleneck cuando hay miles de tarjetas
+    const matchCount = 50;
+    const result = [];
+    
+    for (const t of this.tarjetasDisponibles) {
+      if ((t.identification_number || '').toLowerCase().includes(filterValue) ||
+          (t.card_number || '').includes(filterValue)) {
+        result.push(t);
+        if (result.length >= matchCount) break;
+      }
+    }
+    
+    return result;
   }
 
   private initForms(): void {
@@ -1124,6 +1135,8 @@ export class HiringQuestionsComponent implements OnInit {
       });
     };
 
+    const { jsPDF } = await import('jspdf');
+    const { default: autoTable } = await import('jspdf-autotable');
     const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'letter' });
     const empresaNombre = 'APOYO LABORAL T.S. S.A.S.';
     doc.setProperties({ title: 'Entrega_Documentos.pdf', author: empresaNombre, creator: empresaNombre });

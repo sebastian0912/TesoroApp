@@ -8,9 +8,15 @@
     <mat-form-field appearance="outline" class="full">
       <mat-label>Nombre del rol</mat-label>
       <input matInput formControlName="nombre" maxlength="30" autofocus>
-      <mat-error *ngIf="form.get('nombre')?.hasError('required')">El nombre es obligatorio</mat-error>
-      <mat-error *ngIf="form.get('nombre')?.hasError('minlength')">Mínimo 2 caracteres</mat-error>
-      <mat-error *ngIf="form.get('nombre')?.hasError('server')">El nombre ya existe</mat-error>
+      @if (form.get('nombre')?.hasError('required')) {
+        <mat-error>El nombre es obligatorio</mat-error>
+      }
+      @if (form.get('nombre')?.hasError('minlength')) {
+        <mat-error>Mínimo 2 caracteres</mat-error>
+      }
+      @if (form.get('nombre')?.hasError('server')) {
+        <mat-error>El nombre ya existe</mat-error>
+      }
     </mat-form-field>
   </form>
 </mat-dialog-content>
@@ -18,16 +24,19 @@
 <mat-dialog-actions align="end">
   <button mat-stroked-button (click)="cancelar()">Cancelar</button>
   <button mat-flat-button color="primary" type="submit" [attr.form]="'rolForm'" [disabled]="form.invalid || saving()">
-    <ng-container *ngIf="!saving(); else savingTpl">
-      <mat-icon>save</mat-icon>
-      Guardar
-    </ng-container>
+    @if (!saving()) {
+      <ng-container>
+        <mat-icon>save</mat-icon>
+        Guardar
+      </ng-container>
+    } @else {
+      <ng-container>
+        <span class="saving">
+          <mat-progress-spinner mode="indeterminate" diameter="18"></mat-progress-spinner>
+          Guardando...
+        </span>
+      </ng-container>
+    }
   </button>
 </mat-dialog-actions>
 
-<ng-template #savingTpl>
-  <span class="saving">
-    <mat-progress-spinner mode="indeterminate" diameter="18"></mat-progress-spinner>
-    Guardando...
-  </span>
-</ng-template>

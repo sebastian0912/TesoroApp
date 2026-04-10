@@ -1,22 +1,22 @@
-import { Component, Inject } from '@angular/core';
+import {  Component, Inject , ChangeDetectionStrategy } from '@angular/core';
 import { MAT_DIALOG_DATA } from '@angular/material/dialog';
-import { CommonModule } from '@angular/common';
+
 import { MatDialogModule } from '@angular/material/dialog';
 import { MatTableModule } from '@angular/material/table'; // Importa MatTableModule
-import { NgFor, NgIf } from '@angular/common';
+
 import { MatButtonModule } from '@angular/material/button';
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-trabajador',
   imports: [
-    CommonModule,
     MatDialogModule,
     MatTableModule,
     MatButtonModule
-  ],
+],
   templateUrl: './trabajador.component.html',
   styleUrl: './trabajador.component.css'
-})
+} )
 export class TrabajadorComponent {
   displayedColumns: string[] = [
     'numerodeceduladepersona', 'primer_apellido', 'segundo_apellido',

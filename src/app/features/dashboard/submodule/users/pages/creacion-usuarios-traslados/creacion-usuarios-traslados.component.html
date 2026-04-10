@@ -9,47 +9,49 @@
           type="number"
           formControlName="numUsuarios"
           (input)="onNumUsuariosChange()"
-        />
-      </mat-form-field>
+          />
+        </mat-form-field>
 
-      <div formArrayName="usuarios" class="usuarios-container">
-        <div
-          *ngFor="let user of usuarios.controls; let i = index"
-          class="usuario-item"
-          [ngClass]="{ 'hidden-user': i === usuarios.controls.length - 1 }"
-        >
-          <ng-container [formGroupName]="i">
-            <mat-form-field appearance="fill" class="example-full-width">
-              <mat-label>Usuario</mat-label>
-              <input
-                matInput
-                [matAutocomplete]="auto"
-                formControlName="usuario"
-              />
-              <mat-autocomplete
-                #auto="matAutocomplete"
-                [displayWith]="displayUser"
+        <div formArrayName="usuarios" class="usuarios-container">
+          @for (user of usuarios.controls; track user; let i = $index) {
+            <div
+              class="usuario-item"
+              [ngClass]="{ 'hidden-user': i === usuarios.controls.length - 1 }"
               >
-                <mat-option
-                  *ngFor="let user of filteredUsers[i]"
-                  [value]="user"
-                >
-                  {{ user.primer_nombre }} {{ user.primer_apellido }}
-                </mat-option>
-              </mat-autocomplete>
-            </mat-form-field>
-          </ng-container>
-        </div>
-      </div>
+              <ng-container [formGroupName]="i">
+                <mat-form-field appearance="fill" class="example-full-width">
+                  <mat-label>Usuario</mat-label>
+                  <input
+                    matInput
+                    [matAutocomplete]="auto"
+                    formControlName="usuario"
+                    />
+                    <mat-autocomplete
+                      #auto="matAutocomplete"
+                      [displayWith]="displayUser"
+                      >
+                      @for (user of filteredUsers[i]; track user) {
+                        <mat-option
+                          [value]="user"
+                          >
+                          {{ user.primer_nombre }} {{ user.primer_apellido }}
+                        </mat-option>
+                      }
+                    </mat-autocomplete>
+                  </mat-form-field>
+                </ng-container>
+              </div>
+            }
+          </div>
 
-      <button
-        mat-flat-button
-        type="submit"
-        class="boton"
-        [disabled]="myForm.invalid"
-      >
-        Registrar Usuarios y Generar Excel
-      </button>
-    </form>
-  </mat-card-content>
-</mat-card>
+          <button
+            mat-flat-button
+            type="submit"
+            class="boton"
+            [disabled]="myForm.invalid"
+            >
+            Registrar Usuarios y Generar Excel
+          </button>
+        </form>
+      </mat-card-content>
+    </mat-card>

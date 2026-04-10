@@ -70,7 +70,9 @@
               "tiny-inflate",
               "brotli/decompress.js",
               "base64-js",
-              "pako"
+              "pako",
+              "qrcode",
+              "uuid"
             ]
           },
           "configurations": {
@@ -83,8 +85,8 @@
                 },
                 {
                   "type": "anyComponentStyle",
-                  "maximumWarning": "8MB",
-                  "maximumError": "16MB"
+                  "maximumWarning": "150kb",
+                  "maximumError": "500kb"
                 }
               ],
               "sourceMap": {
@@ -166,7 +168,8 @@
               "base64-js",
               "pako",
               "sweetalert2",
-              "qrcode"
+              "qrcode",
+              "uuid"
             ],
             "fileReplacements": [
               {
@@ -186,8 +189,8 @@
                 },
                 {
                   "type": "anyComponentStyle",
-                  "maximumWarning": "8MB",
-                  "maximumError": "16MB"
+                  "maximumWarning": "150kb",
+                  "maximumError": "500kb"
                 }
               ],
               "optimization": {

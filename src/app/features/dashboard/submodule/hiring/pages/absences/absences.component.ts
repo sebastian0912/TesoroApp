@@ -1,5 +1,5 @@
 import { isPlatformBrowser } from '@angular/common';
-import { Component, ElementRef, OnInit, ViewChild, Inject, PLATFORM_ID } from '@angular/core';
+import {  Component, ElementRef, OnInit, ViewChild, Inject, PLATFORM_ID , ChangeDetectionStrategy } from '@angular/core';
 import { UtilityServiceService } from '@/app/shared/services/utilityService/utility-service.service';
 import { SharedModule } from '@/app/shared/shared.module';
 import { FormsModule } from '@angular/forms';
@@ -16,6 +16,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { firstValueFrom } from 'rxjs';
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-absences',
   standalone: true,
   imports: [
@@ -30,7 +31,7 @@ import { firstValueFrom } from 'rxjs';
   ],
   templateUrl: './absences.component.html',
   styleUrl: './absences.component.css'
-})
+} )
 export class AbsencesComponent implements OnInit {
   displayedColumns: string[] = [
     'select',

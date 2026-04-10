@@ -1,7 +1,7 @@
-import {
+import { 
   Component, LOCALE_ID, inject, effect, signal, computed, DestroyRef, PLATFORM_ID,
   afterNextRender
-} from '@angular/core';
+, ChangeDetectionStrategy } from '@angular/core';
 import { isPlatformBrowser } from '@angular/common';
 import { Router, RouterLink } from '@angular/router';
 
@@ -504,6 +504,58 @@ export class RecruitmentPipelineComponent {
     }
   }
 
+  async darDeBajaManual() {
+    const cc = this.candidatoSeleccionado()?.numero_documento;
+    if (!cc) return;
+    
+    const { value: formValues } = await Swal.fire({
+      title: 'Dar de Baja Contrato',
+      html: `
+        <div style="text-align: left; margin-bottom: 8px;">
+          <label>Fecha de Retiro:</label>
+          <input type="date" id="swal-fecha-baja" class="swal2-input" value="${new Date().toISOString().split('T')[0]}">
+        </div>
+      `,
+      focusConfirm: false,
+      showCancelButton: true,
+      confirmButtonText: 'Confirmar Baja',
+      confirmButtonColor: '#d33',
+      cancelButtonText: 'Cancelar',
+      preConfirm: () => {
+        const d = (document.getElementById('swal-fecha-baja') as HTMLInputElement).value;
+        if (!d) Swal.showValidationMessage('La fecha es obligatoria');
+        return d;
+      }
+    });
+
+    if (formValues) {
+      Swal.fire({ title: 'Actualizando estado...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+      try {
+        const payload = {
+          numero_documento: cc,
+          contrato_detalle: {
+            contrato_activo: false,
+            fecha_retiro: formValues
+          }
+        };
+        await firstValueFrom(this.registroProceso.updateProcesoByDocumento(payload as any));
+        
+        // Actualizamos estado local
+        const cand = this.candidatoSeleccionado();
+        if (cand?.entrevistas?.[0]?.proceso?.contrato) {
+           cand.entrevistas[0].proceso.contrato.contrato_activo = false;
+           cand.entrevistas[0].proceso.contrato.fecha_retiro = formValues;
+           this.candidatoSeleccionado.set({ ...cand });
+        }
+        Swal.fire('¡Baja exitosa!', `El contrato de ${this.nombreCandidato} ha sido desactivado.`, 'success');
+      } catch (err) {
+        Swal.close();
+        console.error(err);
+        Swal.fire('Error', 'No se pudo desactivar el contrato', 'error');
+      }
+    }
+  }
+
   // ───────── VALIDACIÓN PARA HABILITAR/DESHABILITAR CONTRATACIÓN ─────────
   // ───────── VALIDACIÓN PARA HABILITAR/DESHABILITAR CONTRATACIÓN ─────────
   private _norm(s: any): string {
@@ -842,20 +894,54 @@ export class RecruitmentPipelineComponent {
 
         const data = Array.isArray(rows) ? rows : (rows ? [rows] : []);
 
+        const mappedData = data.map((row: any) => {
+          // Remisión
+          const isRemision = row.prueba_tecnica === true || row.autorizado === true;
+          row._remision_ui = isRemision ? 'Sí' : 'No';
+          row._remision_date = isRemision ? (row.prueba_tecnica_at || row.autorizado_at || row.updated_at || row.entrevista_created_at) : null;
+
+          // Exámenes
+          const isExamenes = row.examenes_medicos === true;
+          row._examenes_ui = isExamenes ? 'Sí' : 'No';
+          row._examenes_date = isExamenes ? (row.examenes_medicos_at || row.updated_at || row.entrevista_created_at) : null;
+
+          // Contratado
+          const isContratado = row.contratado === true;
+          row._contratado_ui = isContratado ? 'Sí' : 'No';
+          row._contratado_date = isContratado ? (row.contratado_at || row.contrato?.fecha_ingreso || row.updated_at || row.entrevista_created_at) : null;
+
+          // Aplica / No Aplica "Rechazado"
+          let apl = String(row.aplica_o_no_aplica || '').toUpperCase();
+          if (apl === 'NO_APLICA' || apl === 'NO APLICA') {
+            row._aplica_ui = 'Rechazado';
+            row._aplica_date = row.rechazado_at || row.updated_at || row.entrevista_created_at; 
+          } else {
+            row._aplica_ui = row.aplica_o_no_aplica;
+            row._aplica_date = null;
+          }
+
+          // Fecha de ingreso
+          row._ingreso_date = row.contrato_fecha_ingreso || row.ingreso_at || null;
+
+          return row;
+        });
+
         const columns: ColumnDefinition[] = [
           { name: 'oficina', header: 'Oficina', type: 'text', width: '140px' },
           { name: 'entrevista_created_at', header: 'Fecha entrevista', type: 'date', width: '200px' },
           { name: 'empresaUsuariaSolicita', header: 'Empresa usuaria', type: 'text', width: '180px' },
           { name: 'finca', header: 'Finca', type: 'text', width: '160px' },
-          {
-            name: 'aplica_o_no_aplica',
-            header: 'Aplica/No aplica',
-            type: 'select',
-            width: '180px',
-            options: ['APLICA', 'NO_APLICA', 'EN_ESPERA'],
-          },
+          { name: '_ingreso_date', header: 'Fecha de ingreso', type: 'date', width: '160px' },
+          { name: '_aplica_ui', header: 'Aplica/No aplica', type: 'text', width: '150px' },
+          { name: '_aplica_date', header: 'Fecha Rta.', type: 'date', width: '140px' },
           { name: 'motivo_no_aplica', header: 'Motivo no aplica', type: 'text', width: '240px' },
           { name: 'motivo_espera', header: 'Motivo espera', type: 'text', width: '220px' },
+          { name: '_remision_ui', header: 'Remisión', type: 'text', width: '120px' },
+          { name: '_remision_date', header: 'Fecha Remisión', type: 'date', width: '140px' },
+          { name: '_examenes_ui', header: 'Exámenes', type: 'text', width: '120px' },
+          { name: '_examenes_date', header: 'Fecha Exámenes', type: 'date', width: '140px' },
+          { name: '_contratado_ui', header: 'Contratado', type: 'text', width: '120px' },
+          { name: '_contratado_date', header: 'F. Contratado', type: 'date', width: '140px' },
           { name: 'detalle', header: 'Detalle', type: 'text', width: '260px' },
           { name: 'actions', header: 'Acciones', type: 'custom', width: '120px', stickyEnd: true },
         ];
@@ -865,7 +951,7 @@ export class RecruitmentPipelineComponent {
           height: '80vh',
           data: {
             title: `Procesos de ${this.nombreCandidato || ced}`,
-            rows: data,
+            rows: mappedData,
             columns,
             pageSize: 12,
             pageSizeOptions: [12, 24, 36],
@@ -1196,9 +1282,9 @@ export class RecruitmentPipelineComponent {
 
     const cedula = String(cand.numero_documento ?? '').trim();
     // Prioritize the frontend mapped UI, fallback to backend contract
-    let codigo = String(contratoBE?.codigo_contrato ?? '').trim();
-    let centroCosto = String(contratoBE?.Ccentro_de_costos ?? '').trim();
-    const fechaIng = String(contratoBE?.fecha_ingreso ?? '').trim();
+    let codigo = String(contratoBE?.carnet_codigo || contratoBE?.codigo_contrato || '').trim();
+    let centroCosto = String(contratoBE?.carnet_centro_costo || contratoBE?.Ccentro_de_costos || '').trim();
+    let fechaIng = String(contratoBE?.carnet_fecha_ingreso || contratoBE?.fecha_ingreso || '').trim();
 
     // Consultar HomeService para obtener exactamente los mismos campos que la vista de Home
     let cMini: any = {};
@@ -1211,6 +1297,10 @@ export class RecruitmentPipelineComponent {
         console.warn('No se pudo obtener el candidato mini para el carnet', e);
       }
     }
+
+    if (cMini?.CARNET_CODIGO) codigo = String(cMini.CARNET_CODIGO).trim();
+    if (cMini?.CARNET_CENTRO_COSTO) centroCosto = String(cMini.CARNET_CENTRO_COSTO).trim();
+    if (cMini?.CARNET_FECHA_INGRESO) fechaIng = String(cMini.CARNET_FECHA_INGRESO).trim();
 
     // Replicando la lógica exacta ("pickAny") que usa el Home component
     const pickAny = (obj: any, keys: string[]) => {
@@ -1333,27 +1423,86 @@ export class RecruitmentPipelineComponent {
       const MARGIN = 0;
       const GAP = 0;
 
-      const BLUE_CORP = '#1E54C7';
-      const BLUE_SUBTLE = '#EBF0FA';
-      const TEXT_MAIN = '#1A1A1A';
-      const TEXT_MUTED = '#737373';
+      const BLUE_CORP = '#1B4FD9';
+      const BLUE_DARK = '#152C70';
+      const GREEN_BG = '#9BE114';
+      const WHITE = '#FFFFFF';
       const BLACK = '#000000';
 
       const isHttp = (u: string) => /^https?:\/\//i.test(u);
       const isDataUrl = (u: string) => /^data:image\//i.test(u);
 
-      const fetchBase64WithFallback = async (mainUrl: string, alts: string[] = []): Promise<string | null> => {
+      const fetchBase64WithFallback = async (mainUrl: string, alts: string[] = [], isPhoto = false): Promise<string | null> => {
         const tryFetch = async (u: string) => {
           try {
             const res = await fetch(u);
             if (res.ok) {
-              const arrayBuffer = await res.arrayBuffer();
-              const base64 = btoa(new Uint8Array(arrayBuffer).reduce((data, byte) => data + String.fromCharCode(byte), ''));
-              let mime = 'image/jpeg';
-              if (u.toLowerCase().endsWith('.png')) mime = 'image/png';
-              const bv = new Uint8Array(arrayBuffer);
-              if (bv.length >= 8 && bv[0] === 0x89 && bv[1] === 0x50 && bv[2] === 0x4e && bv[3] === 0x47) mime = 'image/png';
-              return `data:${mime};base64,${base64}`;
+              const domUrl = URL.createObjectURL(await res.blob());
+              
+              if (u.toLowerCase().endsWith('.svg')) {
+                let text = await (await fetch(u)).text();
+                if (!text.includes('xmlns=')) text = text.replace('<svg ', '<svg xmlns="http://www.w3.org/2000/svg" ');
+                
+                const svg64 = btoa(unescape(encodeURIComponent(text)));
+                const svgDataUrl = `data:image/svg+xml;base64,${svg64}`;
+                
+                const img = new Image();
+                img.crossOrigin = 'Anonymous';
+                await new Promise((resolve, reject) => { img.onload = resolve; img.onerror = reject; img.src = svgDataUrl; });
+                
+                const canvas = document.createElement('canvas');
+                const w = img.width || 156;
+                const h = img.height || 35;
+                canvas.width = w * 4;
+                canvas.height = h * 4;
+                const ctx = canvas.getContext('2d');
+                ctx?.scale(4, 4);
+                ctx?.drawImage(img, 0, 0, w, h);
+                URL.revokeObjectURL(domUrl);
+                return canvas.toDataURL('image/png');
+              } else {
+                const img = new Image();
+                img.crossOrigin = 'Anonymous';
+                await new Promise((resolve, reject) => { img.onload = resolve; img.onerror = reject; img.src = domUrl; });
+                
+                const canvas = document.createElement('canvas');
+                
+                if (isPhoto) {
+                  // Para fotos: Recortar al centro (sin distorsión) y hacerla circular con un fondo igual al PDF
+                  const size = Math.min(img.width, img.height);
+                  canvas.width = size;
+                  canvas.height = size;
+                  const ctx = canvas.getContext('2d');
+                  if (ctx) {
+                    ctx.fillStyle = GREEN_BG; // Fondo idéntico al PDF para fusíon perfecta
+                    ctx.fillRect(0, 0, size, size);
+                    
+                    ctx.beginPath();
+                    ctx.arc(size/2, size/2, size/2, 0, Math.PI * 2);
+                    ctx.clip();
+                    
+                    ctx.fillStyle = WHITE;
+                    ctx.fillRect(0, 0, size, size);
+                    
+                    const offsetX = (img.width - size) / 2;
+                    const offsetY = img.height > img.width ? (img.height - size) * 0.15 : (img.height - size) / 2;
+                    ctx.drawImage(img, offsetX, offsetY, size, size, 0, 0, size, size);
+                  }
+                } else {
+                  // Para otras imágenes (ej. QR)
+                  canvas.width = img.width;
+                  canvas.height = img.height;
+                  const ctx = canvas.getContext('2d');
+                  if (ctx) {
+                    ctx.fillStyle = WHITE;
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+                    ctx.drawImage(img, 0, 0);
+                  }
+                }
+                
+                URL.revokeObjectURL(domUrl);
+                return canvas.toDataURL('image/jpeg', 0.95);
+              }
             }
           } catch { }
           return null;
@@ -1367,13 +1516,13 @@ export class RecruitmentPipelineComponent {
         return null;
       };
 
-      const fetchImageBase64 = async (urlOrData?: string): Promise<string | null> => {
+      const fetchImageBase64 = async (urlOrData?: string, isPhoto = false): Promise<string | null> => {
         const raw = String(urlOrData ?? '').trim();
         if (!raw) return null;
         if (isDataUrl(raw)) return raw;
         const clean = raw.replace(/^\/+/, '').replace(/^assets\//, '');
-        if (isHttp(raw)) return await fetchBase64WithFallback(raw);
-        return await fetchBase64WithFallback(clean, [`assets/${clean}`, `/${clean}`, `./${clean}`]);
+        if (isHttp(raw)) return await fetchBase64WithFallback(raw, [], isPhoto);
+        return await fetchBase64WithFallback(clean, [`assets/${clean}`, `/${clean}`, `./${clean}`], isPhoto);
       };
 
       const buildQrDataUrl = async (payload: string): Promise<string> => {
@@ -1395,30 +1544,45 @@ export class RecruitmentPipelineComponent {
         return s.replace(/[^\x20-\x7E\xA0-\xFF]/g, ' ');
       }
 
-      const logoB64 = await fetchImageBase64('logos/Logo_TA.png');
+      const logoB64 = await fetchImageBase64('logos/Group.svg');
       const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: [PAGE_W, PAGE_H], compress: true });
 
       const fotoUrl = row.DOCUMENTO_89_URL;
       const qrKey = `${row.CEDULA}|${row.CODIGO}`;
       const [fotoB64, qrB64] = await Promise.all([
-        fetchImageBase64(fotoUrl),
+        fetchImageBase64(fotoUrl, true), // isPhoto = true
         buildQrDataUrl(qrKey)
       ]);
 
-      const processCardSide = (isFront: boolean) => {
-        const cx = 0;
-        const cy = 0;
+      const drawGeometricsTopRight = () => {
+        doc.setFillColor(BLUE_CORP);
+        doc.triangle(CARD_W - 90, 0, CARD_W, 0, CARD_W, 90, 'F');
+        doc.setFillColor(WHITE);
+        doc.triangle(CARD_W - 60, 0, CARD_W, 0, CARD_W, 60, 'F');
+        doc.setFillColor(BLUE_CORP);
+        doc.triangle(CARD_W - 30, 0, CARD_W, 0, CARD_W, 30, 'F');
+      };
 
+      const drawGeometricsBottomLeft = () => {
+        doc.setFillColor(BLUE_CORP);
+        doc.triangle(0, CARD_H - 90, 90, CARD_H, 0, CARD_H, 'F');
+        doc.setFillColor(WHITE);
+        doc.triangle(0, CARD_H - 60, 60, CARD_H, 0, CARD_H, 'F');
+        doc.setFillColor(BLUE_CORP);
+        doc.triangle(0, CARD_H - 30, 30, CARD_H, 0, CARD_H, 'F');
+      };
+
+      const processCardSide = (isFront: boolean) => {
+        const cx = 0; const cy = 0;
+        
         // Background
-        doc.setFillColor('#8CD50A');
+        doc.setFillColor(GREEN_BG);
         doc.rect(0, 0, CARD_W, CARD_H, 'F');
 
-        // Bordes
-        doc.setDrawColor(BLACK);
-        doc.setLineWidth(1.4);
-        doc.rect(cx, cy, CARD_W, CARD_H);
-        doc.setLineWidth(0.8);
-        doc.rect(cx + 3, cy + 3, CARD_W - 6, CARD_H - 6);
+        // Borde Exterior Oscuro
+        doc.setDrawColor('#1A0F2E');
+        doc.setLineWidth(3);
+        doc.rect(cx+1.5, cy+1.5, CARD_W - 3, CARD_H - 3);
 
         const innerPad = 14;
         const contentX = cx + innerPad;
@@ -1426,122 +1590,156 @@ export class RecruitmentPipelineComponent {
         let cursorY = cy + innerPad;
 
         if (isFront) {
-          const HEADER_H = 40;
+          drawGeometricsTopRight();
+
+          const HEADER_H = 35;
           if (logoB64) {
             const format = logoB64.includes('image/png') ? 'PNG' : 'JPEG';
-            doc.addImage(logoB64, format, contentX + (contentW - 100) / 2, cursorY, 100, HEADER_H);
+            doc.addImage(logoB64, format, contentX + (contentW - 120) / 2, cursorY + 10, 120, HEADER_H);
           }
-          cursorY += HEADER_H + 10;
+          cursorY += HEADER_H + 30;
 
-          const PHOTO_H = CARD_H * 0.36;
-          const PHOTO_W = 100;
+          const PHOTO_R = 75; // Radio
+          const PHOTO_D = PHOTO_R * 2;
+          const photoCenterX = CARD_W / 2;
+          const photoCenterY = cursorY + PHOTO_R;
+          
           if (fotoB64) {
             const format = fotoB64.includes('image/png') ? 'PNG' : 'JPEG';
-            try { doc.addImage(fotoB64, format, contentX + (contentW - PHOTO_W) / 2, cursorY, PHOTO_W, PHOTO_H); } catch (e) { }
+            try { 
+              // La imagen ya viene recortada sin distorsión y con fondo verde circular desde el Canvas
+              doc.addImage(fotoB64, format, photoCenterX - PHOTO_R, photoCenterY - PHOTO_R, PHOTO_D, PHOTO_D); 
+            } catch (e) { }
+            
+            // Borde sutil blanco para resaltar el círculo
+            doc.setLineWidth(2.5);
+            doc.setDrawColor(WHITE);
+            doc.circle(photoCenterX, photoCenterY, PHOTO_R, 'S');
           } else {
-            doc.setFillColor(BLUE_SUBTLE);
-            doc.rect(contentX, cursorY, contentW, PHOTO_H, 'F');
+            doc.setFillColor(WHITE);
+            doc.circle(photoCenterX, photoCenterY, PHOTO_R, 'F');
             doc.setFont('helvetica', 'bold');
             doc.setFontSize(10);
-            doc.setTextColor(TEXT_MUTED);
-            doc.text('SIN FOTO', contentX + contentW / 2, cursorY + PHOTO_H / 2, { align: 'center', baseline: 'middle' });
+            doc.setTextColor(BLUE_CORP);
+            doc.text('SIN FOTO', photoCenterX, photoCenterY, { align: 'center', baseline: 'middle' });
           }
-          cursorY += PHOTO_H + 16;
+          cursorY += PHOTO_D + 25;
 
+          // Nombres
           doc.setFont('helvetica', 'bold');
-          doc.setFontSize(14);
-          doc.setTextColor(TEXT_MAIN);
-          doc.text(safeTxt(row.APELLIDOS), contentX + contentW / 2, cursorY, { align: 'center', maxWidth: contentW });
-          cursorY += 15;
+          doc.setFontSize(18);
+          doc.setTextColor(BLUE_CORP);
+          doc.text(safeTxtMixed(row.NOMBRES), CARD_W / 2, cursorY, { align: 'center', maxWidth: contentW });
+          cursorY += 20;
+          
           doc.setFont('helvetica', 'normal');
-          doc.setFontSize(12);
-          doc.text(safeTxt(row.NOMBRES), contentX + contentW / 2, cursorY, { align: 'center', maxWidth: contentW });
-          cursorY += 12;
+          doc.setFontSize(14);
+          doc.setTextColor(BLUE_DARK);
+          doc.text(safeTxtMixed(row.APELLIDOS), CARD_W / 2, cursorY, { align: 'center', maxWidth: contentW });
+          cursorY += 40;
 
-          const colQrW = contentW * 0.38;
-          const colGap = 8;
-          const colDataW = contentW - colQrW - colGap;
-          const hAvail = (cy + CARD_H - innerPad) - cursorY;
-          const qrSize = Math.min(colQrW, hAvail - 15, 85);
-          const qrX = contentX + (colQrW - qrSize) / 2;
-          const qrY = cursorY;
-
-          if (qrB64) doc.addImage(qrB64, 'JPEG', qrX, qrY, qrSize, qrSize);
-
-          doc.setFont('helvetica', 'bold');
-          doc.setFontSize(9);
-          doc.text(safeTxt(row.CEDULA), contentX + colQrW / 2, qrY + qrSize + 12, { align: 'center', maxWidth: colQrW });
-
-          const dataX = contentX + colQrW + colGap;
-          let rowY = cursorY + 8;
+          // Datos a la izquierda
+          const dataX = 65; 
+          let rowY = cursorY;
+          
           const fields = [
-            { l: 'Fecha de Ingreso', v: safeTxtMixed(row.FECHA_INGRESO) },
-            { l: 'Código', v: safeTxtMixed(row.CODIGO) },
-            { l: 'Centro de Costos', v: safeTxtMixed(row.CENTRO_COSTO) },
+            { l: 'C.C', v: safeTxtMixed(row.CEDULA) },
+            { l: 'ingreso', v: safeTxtMixed(row.FECHA_INGRESO) },
+            { l: 'Codigo', v: safeTxtMixed(row.CODIGO) },
           ];
 
           for (const f of fields) {
             doc.setFont('helvetica', 'bold');
-            doc.setFontSize(8);
-            doc.setTextColor(TEXT_MUTED);
-            doc.text(safeTxt(f.l), dataX, rowY);
-            rowY += 11;
+            doc.setFontSize(14);
+            doc.setTextColor(BLUE_CORP);
+            doc.text(f.l, dataX, rowY);
+            
             doc.setFont('helvetica', 'normal');
-            doc.setFontSize(10);
-            doc.setTextColor(TEXT_MAIN);
-            doc.text(f.v, dataX, rowY, { maxWidth: colDataW });
-            rowY += 16;
+            doc.setTextColor(BLUE_DARK);
+            doc.text(f.v, dataX + 60, rowY);
+            rowY += 22;
           }
         } else {
+          drawGeometricsBottomLeft();
+          
           cursorY += 10;
           if (logoB64) {
             const format = logoB64.includes('image/png') ? 'PNG' : 'JPEG';
-            doc.addImage(logoB64, format, contentX + (contentW - 90) / 2, cursorY, 90, 30);
+            doc.addImage(logoB64, format, contentX + (contentW - 100) / 2, cursorY, 100, 30);
           }
-          cursorY += 50;
-
-          doc.setFontSize(9);
-          doc.setFont('helvetica', 'normal');
-          doc.setTextColor(TEXT_MUTED);
-          doc.text('CONTACTO COORDINADOR DE LA', cx + CARD_W / 2, cursorY, { align: 'center' });
-          cursorY += 12;
-          doc.setFont('helvetica', 'bold');
-          doc.setFontSize(12);
-          doc.setTextColor(BLUE_CORP);
-          doc.text('TEMPORAL 3152306148', cx + CARD_W / 2, cursorY, { align: 'center' });
-          cursorY += 25;
-
-          doc.setFontSize(13);
-          doc.setTextColor(TEXT_MAIN);
-          doc.text('ARL', contentX, cursorY);
-          doc.setTextColor(BLUE_CORP);
-          doc.text('SURA', contentX + contentW, cursorY, { align: 'right' });
-          cursorY += 30;
-
-          doc.setFontSize(10);
-          doc.setTextColor(BLUE_CORP);
-          doc.text('FAMILIAR EN CASO DE EMERGENCIA', cx + CARD_W / 2, cursorY, { align: 'center' });
-          cursorY += 10;
-
-          const emStr = [row.FAMILIAR_EMERGENCIA_NOMBRE, row.FAMILIAR_EMERGENCIA_TELEFONO].filter(Boolean).join(' - ') || '—';
-          doc.setFillColor(BLUE_SUBTLE);
-          doc.rect(contentX, cursorY, contentW, 30, 'F');
-          doc.setFontSize(11);
-          doc.setFont('helvetica', 'bold');
-          doc.setTextColor(TEXT_MAIN);
-          doc.text(safeTxt(emStr), cx + CARD_W / 2, cursorY + 18, { align: 'center', maxWidth: contentW - 6 });
           cursorY += 45;
 
-          doc.setDrawColor(200, 200, 200);
-          doc.setLineWidth(1);
-          doc.line(contentX, cursorY, contentX + contentW, cursorY);
-          cursorY += 15;
-
-          const legal = 'ESTE CARNET ES DE USO EXCLUSIVO DEL TRABAJADOR. EN CASO DE PERDIDA, REPORTAR INMEDIATAMENTE AL COORDINADOR DE LA TEMPORAL. EL USO INDEBIDO DE ESTE DOCUMENTO ACARREARA SANCIONES DISCIPLINARIAS.';
+          doc.setFontSize(12);
           doc.setFont('helvetica', 'normal');
-          doc.setFontSize(8.5);
-          doc.setTextColor(TEXT_MUTED);
-          doc.text(safeTxtMixed(legal), contentX, cursorY, { maxWidth: contentW, align: 'justify' });
+          doc.setTextColor(BLUE_CORP);
+          doc.text('Nit 900864596-1', CARD_W / 2, cursorY, { align: 'center' });
+          cursorY += 45;
+
+          // Datos
+          const dataX = 35;
+          
+          doc.setFontSize(13);
+          doc.setFont('helvetica', 'bold');
+          doc.setTextColor(BLUE_CORP);
+          doc.text('Arl:', dataX, cursorY);
+          doc.setFont('helvetica', 'normal');
+          doc.setTextColor(BLUE_DARK);
+          doc.text('Sura', dataX + doc.getTextWidth('Arl:') + 5, cursorY);
+          cursorY += 25;
+
+          doc.setFont('helvetica', 'bold');
+          doc.setTextColor(BLUE_CORP);
+          doc.text('Número coordinador', dataX, cursorY);
+          cursorY += 18;
+          doc.setFont('helvetica', 'normal');
+          doc.setTextColor(BLUE_DARK);
+          doc.text('Jimmy Lorenzo Ballesteros', dataX, cursorY);
+          cursorY += 25;
+
+          doc.setFont('helvetica', 'bold');
+          doc.setTextColor(BLUE_CORP);
+          doc.text('Contacto de emergencia', dataX, cursorY);
+          cursorY += 18;
+          doc.setFont('helvetica', 'normal');
+          doc.setTextColor(BLUE_DARK);
+          const emName = row.FAMILIAR_EMERGENCIA_NOMBRE || 'No registrado';
+          doc.text(safeTxtMixed(emName), dataX, cursorY);
+          cursorY += 22;
+
+          doc.setFont('helvetica', 'bold');
+          doc.setTextColor(BLUE_CORP);
+          doc.text('Tel:', dataX, cursorY);
+          doc.setFont('helvetica', 'normal');
+          doc.setTextColor(BLUE_DARK);
+          const emTel = row.FAMILIAR_EMERGENCIA_TELEFONO || 'No registrado';
+          doc.text(safeTxtMixed(emTel), dataX + doc.getTextWidth('Tel:') + 5, cursorY);
+
+          const bottomY = CARD_H - 50;
+          if (qrB64) {
+            doc.addImage(qrB64, 'JPEG', CARD_W - 60, bottomY - 15, 45, 45);
+            doc.setDrawColor(WHITE);
+            doc.setLineWidth(2);
+            doc.rect(CARD_W - 60, bottomY - 15, 45, 45, 'S'); 
+          }
+
+          // Movido barcode un poco a la derecha para no pisar el triángulo
+          const barcodeX = 55;
+          doc.setFillColor(WHITE);
+          doc.roundedRect(barcodeX, bottomY - 15, 100, 30, 4, 4, 'F');
+          
+          doc.setDrawColor(BLUE_CORP);
+          doc.setLineWidth(1.5);
+          for(let i=0; i<30; i++) {
+             let draw = i % 3 !== 0; 
+             if(draw) {
+               doc.line(barcodeX + 6 + (i * 3), bottomY - 10, barcodeX + 6 + (i * 3), bottomY + 10);
+             }
+          }
+
+          doc.setFont('helvetica', 'bold');
+          doc.setFontSize(11);
+          doc.setTextColor(BLUE_CORP);
+          doc.text(safeTxtMixed(row.CEDULA), barcodeX + 50, bottomY + 28, { align: 'center' });
         }
       };
 
@@ -1570,6 +1768,32 @@ export class RecruitmentPipelineComponent {
         backMsg = '<br><br><small style="color:red;">El carnet se descargó, pero hubo un error al guardarlo en el historial.</small>';
       }
 
+      // Guardar bandera en backend INMEDIATAMENTE
+      if (cedula) {
+        try {
+          await firstValueFrom(this.registroProceso.updateProcesoByDocumento({
+            numero_documento: cedula,
+            contrato: { 
+              carnet_generado: true,
+              carnet_fecha_ingreso: formValues.fecha,
+              carnet_codigo: formValues.codigo,
+              carnet_centro_costo: formValues.ccosto
+            } as any
+          }, 'PATCH'));
+          let proc = cand?.entrevistas?.[0]?.proceso;
+          if (proc) {
+            if (!proc.contrato) proc.contrato = {};
+            proc.contrato.carnet_generado = true;
+            proc.contrato.carnet_fecha_ingreso = formValues.fecha;
+            proc.contrato.carnet_codigo = formValues.codigo;
+            proc.contrato.carnet_centro_costo = formValues.ccosto;
+            this.candidatoSeleccionado.set({ ...cand }); // trigger ui reference update
+          }
+        } catch (e) {
+          console.error('Error actualizando bandera carnet_generado', e);
+        }
+      }
+
       Swal.close();
       const sendWa = await Swal.fire({
         icon: 'success',
@@ -1590,24 +1814,6 @@ export class RecruitmentPipelineComponent {
         const textToSend = `Hola ${row.NOMBRES}, te damos la bienvenida al equipo. A continuación, adjunto tu carnet digital.`;
         const waUrl = `https://wa.me/${numUrl}?text=${encodeURIComponent(textToSend)}`;
         window.open(waUrl, '_blank', 'noopener,noreferrer');
-      }
-
-      // Guardar bandera en backend
-      if (cedula && ent0?.proceso?.id) {
-        try {
-          await firstValueFrom(this.registroProceso.updateProcesoByDocumento({
-            numero_documento: cedula,
-            contrato: { carnet_generado: true } as any
-          }, 'PATCH'));
-          let proc = cand?.entrevistas?.[0]?.proceso;
-          if (proc) {
-            if (!proc.contrato) proc.contrato = {};
-            proc.contrato.carnet_generado = true;
-            this.candidatoSeleccionado.set({ ...cand }); // trigger ui reference update
-          }
-        } catch (e) {
-          console.error('Error actualizando bandera carnet_generado', e);
-        }
       }
 
     } catch (error: any) {

@@ -1,48 +1,48 @@
 <div class="contratacion-dashboard-layout">
 
-    <app-metricas-contratacion-filters-bar (rangeChanged)="onDateRangeChanged($event)">
-    </app-metricas-contratacion-filters-bar>
+  <app-metricas-contratacion-filters-bar (rangeChanged)="onDateRangeChanged($event)">
+  </app-metricas-contratacion-filters-bar>
 
-    <app-contratacion-kpi-strip [kpis]="kpiSummary$ | async">
-    </app-contratacion-kpi-strip>
+  <app-contratacion-kpi-strip [kpis]="kpiSummary$ | async">
+  </app-contratacion-kpi-strip>
 
-    <!-- PRIMERA FILA: FORMULARIOS Y DONA DE CELULARES -->
-    <div class="chart-grid main-charts">
-        <app-chart-card title="Formularios por Oficina"
-            subtitle="Total de candidatos actualizados agrupados por sede de entrevista." [loading]="false">
-            <app-formularios-por-oficina-chart
-                [data]="formulariosPorOficina$ | async"></app-formularios-por-oficina-chart>
-        </app-chart-card>
+  <!-- PRIMERA FILA: FORMULARIOS Y DONA DE CELULARES -->
+  <div class="chart-grid main-charts">
+    <app-chart-card title="Formularios por Oficina"
+      subtitle="Total de candidatos actualizados agrupados por sede de entrevista." [loading]="false">
+      <app-formularios-por-oficina-chart
+      [data]="formulariosPorOficina$ | async"></app-formularios-por-oficina-chart>
+    </app-chart-card>
 
-        <app-chart-card title="Estado Contacto Celular"
-            subtitle="Porcentaje de candidatos con número de teléfono integrado." [loading]="false">
-            <!-- Calculando on the fly the array needed for pie. We just map the KPI values. -->
-            <ng-container *ngIf="kpiSummary$ | async as k">
+    <app-chart-card title="Estado Contacto Celular"
+      subtitle="Porcentaje de candidatos con número de teléfono integrado." [loading]="false">
+      <!-- Calculando on the fly the array needed for pie. We just map the KPI values. -->
+      @if (kpiSummary$ | async; as k) {
                 <app-celular-confirmado-chart [data]="[
             { name: 'Con Celular', value: k.totalConCelular },
             { name: 'Sin Celular o Inválido', value: k.totalCandidatos - k.totalConCelular }
           ]">
-                </app-celular-confirmado-chart>
-            </ng-container>
-        </app-chart-card>
-    </div>
+        </app-celular-confirmado-chart>
+      }
+    </app-chart-card>
+  </div>
 
-    <!-- SEGUNDA FILA: PIPELINE STACKED BAR -->
-    <div class="chart-grid full-width-chart">
-        <app-chart-card title="Pipeline de Contratación"
-            subtitle="Visualización de flujo de eventos para cada etapa dentro del rango consultado." [loading]="false">
-            <app-pipeline-por-oficina-chart [seriesData]="pipelinePorOficina$ | async"
-                [xAxisCategories]="(pipelineXAxis$ | async) || []">
-            </app-pipeline-por-oficina-chart>
-        </app-chart-card>
-    </div>
+  <!-- SEGUNDA FILA: PIPELINE STACKED BAR -->
+  <div class="chart-grid full-width-chart">
+    <app-chart-card title="Pipeline de Contratación"
+      subtitle="Visualización de flujo de eventos para cada etapa dentro del rango consultado." [loading]="false">
+      <app-pipeline-por-oficina-chart [seriesData]="pipelinePorOficina$ | async"
+        [xAxisCategories]="(pipelineXAxis$ | async) || []">
+      </app-pipeline-por-oficina-chart>
+    </app-chart-card>
+  </div>
 
-    <!-- TERCERA FILA: LISTADO DE PERSONAS SIN CELULAR -->
-    <div class="chart-grid full-width-chart mt-grid">
-        <app-chart-card title="Candidatos Pendientes Contacto Celular"
-            subtitle="Candidatos en el rango que no tienen cargado un teléfono válido." [loading]="false">
-            <app-sin-celular-table [data]="sinCelularList$ | async"></app-sin-celular-table>
-        </app-chart-card>
-    </div>
+  <!-- TERCERA FILA: LISTADO DE PERSONAS SIN CELULAR -->
+  <div class="chart-grid full-width-chart mt-grid">
+    <app-chart-card title="Candidatos Pendientes Contacto Celular"
+      subtitle="Candidatos en el rango que no tienen cargado un teléfono válido." [loading]="false">
+      <app-sin-celular-table [data]="sinCelularList$ | async"></app-sin-celular-table>
+    </app-chart-card>
+  </div>
 
 </div>

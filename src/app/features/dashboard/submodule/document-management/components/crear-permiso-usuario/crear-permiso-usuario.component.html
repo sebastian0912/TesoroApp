@@ -14,10 +14,12 @@
   <mat-form-field class="example-full-width">
     <mat-label>Usuario Seleccionado</mat-label>
     <mat-select formControlName="usuario">
-      <mat-option *ngFor="let usuario of usuariosEmpresas" [value]="usuario">
-        {{ usuario.primer_nombre }} {{ usuario.primer_apellido }} -
-        {{ usuario.username }}
-      </mat-option>
+      @for (usuario of usuariosEmpresas; track usuario) {
+        <mat-option [value]="usuario">
+          {{ usuario.primer_nombre }} {{ usuario.primer_apellido }} -
+          {{ usuario.username }}
+        </mat-option>
+      }
     </mat-select>
   </mat-form-field>
 
@@ -25,9 +27,11 @@
   <mat-form-field class="example-full-width">
     <mat-label>Seleccione Tipo Documental</mat-label>
     <mat-select formControlName="tipoDocumental">
-      <mat-option *ngFor="let tipo of tiposDocumentos" [value]="tipo">
-        {{ tipo.name }}
-      </mat-option>
+      @for (tipo of tiposDocumentos; track tipo) {
+        <mat-option [value]="tipo">
+          {{ tipo.name }}
+        </mat-option>
+      }
     </mat-select>
   </mat-form-field>
 </mat-dialog-content>
@@ -39,7 +43,7 @@
     class="btn-managerial"
     [mat-dialog-close]="getFormValue()"
     [disabled]="form.invalid"
-  >
+    >
     Confirmar
   </button>
 </mat-dialog-actions>

@@ -1,5 +1,5 @@
-import { Component, Inject, OnDestroy } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import {  Component, Inject, OnDestroy , ChangeDetectionStrategy } from '@angular/core';
+
 import {
   FormBuilder,
   FormControl,
@@ -36,29 +36,25 @@ import {
 } from './../../model/validation-preview';
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-validation-preview-dialog',
   imports: [
-    CommonModule,
     ReactiveFormsModule,
-
     MatDialogModule,
     MatTableModule,
     MatSortModule,
     MatDividerModule,
-
     MatIconModule,
     MatButtonModule,
-
     MatFormFieldModule,
     MatInputModule,
     MatSelectModule,
-
     MatChipsModule,
-    MatTooltipModule,
-  ],
+    MatTooltipModule
+],
   templateUrl: './validation-preview-dialog.component.html',
   styleUrl: './validation-preview-dialog.component.css',
-})
+} )
 export class ValidationPreviewDialogComponent<TItem = any, TResult = any>
   implements OnDestroy {
   // base

@@ -1,0 +1,207 @@
+.title {
+  margin-top: 10px;
+  margin-bottom: 10px;
+  font-size: 20pt;
+  font-weight: bold;
+  line-height: 1;
+}
+
+.filter-container {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  background-color: #f7f9fc;
+  padding: 20px;
+  border-radius: 10px;
+  box-shadow: 0px 4px 12px rgba(0, 0, 0, 0.1);
+  margin-bottom: 20px;
+  gap: 10px;
+  /* Espaciado entre elementos */
+  transition: max-height 0.3s ease, opacity 0.3s ease;
+  overflow: hidden;
+}
+
+.filter-container.collapsed {
+  max-height: 0;
+  opacity: 0;
+  padding: 0;
+  margin-bottom: 0;
+}
+
+.filter-container.expanded {
+  max-height: 500px;
+  /* Ajusta según sea necesario */
+  opacity: 1;
+}
+
+.filter-container h3 {
+  flex-basis: 100%;
+  margin-bottom: 15px;
+  font-size: 1.5rem;
+  color: #333;
+  font-weight: bold;
+}
+
+.mat-form-field {
+  flex-grow: 1;
+  min-width: 220px;
+}
+
+button.mat-button {
+  background-color: #1e88e5;
+  color: #ffffff;
+  padding: 10px 20px;
+  border-radius: 20px;
+  text-transform: uppercase;
+  font-weight: 600;
+  margin-left: auto;
+  transition: background-color 0.3s ease;
+  box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+button.mat-button:hover {
+  background-color: #1565c0;
+}
+
+button.mat-button:focus {
+  outline: none;
+  box-shadow: 0px 0px 8px rgba(33, 150, 243, 0.5);
+}
+
+/* Distribuye en fila, alineado y con espacio */
+.fila {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  flex-wrap: wrap;
+}
+
+/* Cada campo "Desde" y "Hasta" aparece ordenado */
+.campo {
+  display: flex;
+  flex-direction: column;
+  font-size: 14px;
+}
+
+/* Botones grandes */
+.btn-full {
+  width: 100%;
+  max-width: 400px;
+}
+
+/* Deshabilitar visiblemente un card */
+.card-disabled-wrapper.disabled {
+  pointer-events: none;
+  opacity: 0.5;
+  filter: grayscale(100%);
+}
+
+/* Botón deshabilitado */
+button:disabled {
+  opacity: 0.6 !important;
+  cursor: not-allowed !important;
+}
+
+/* Cuando el card está habilitado */
+.card-disabled-wrapper:not(.disabled) {
+  cursor: pointer;
+}
+
+/* Cuando está deshabilitado */
+.card-disabled-wrapper.disabled {
+  cursor: not-allowed;
+  pointer-events: none;
+  opacity: 0.5;
+  filter: grayscale(100%);
+}
+
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .filter-container {
+    flex-direction: column;
+  }
+
+  .mat-form-field {
+    margin: 10px 0;
+    min-width: 100%;
+  }
+
+  button.mat-button {
+    margin-top: 20px;
+    width: 100%;
+  }
+}
+.app-layout {
+  display: flex;
+  flex-direction: row;
+}
+
+.contenedor {
+  flex-grow: 1;
+  padding: 16px;
+}
+
+.main-card {
+  margin: 16px;
+}
+
+.filter-header {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+
+.filter-form {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.filter-container {
+  transition: max-height 0.3s ease;
+  overflow: hidden;
+}
+
+.filter-container.collapsed {
+  max-height: 0;
+}
+
+.filter-container.expanded {
+  max-height: 500px;
+  /* Ajusta según sea necesario */
+}
+
+.table-container {
+  overflow-x: auto;
+  margin-top: 20px;
+}
+
+.title {
+  margin: 20px 0;
+  font-weight: bold;
+}
+
+.download-button {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+}
+
+
+@media (max-width: 768px) {
+  .filter-header {
+    flex-direction: column;
+  }
+
+  .filter-form {
+    flex-direction: column;
+  }
+
+  .download-button {
+    margin-top: 20px;
+    margin-left: 0;
+  }
+}

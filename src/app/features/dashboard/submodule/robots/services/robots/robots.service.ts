@@ -332,6 +332,23 @@ export class RobotsService {
       .pipe(catchError((e) => this.handleError(e)));
   }
 
+  makeExcelRequest(url: string, params: HttpParams){ /* unused placeholder */ }
+
+  // ---------------------------------------------------------------------------
+  // ✅ 7) NUEVO: POST /Robots/excel-antecedentes/
+  // ---------------------------------------------------------------------------
+  uploadExcelAntecedentes(file: File, antecedente: string): Observable<Blob> {
+    this.ensureBrowser();
+    const url = `${this.baseUrl}/Robots/excel-antecedentes/`;
+    
+    const formData = new FormData();
+    formData.append('excel_file', file);
+    formData.append('antecedente', antecedente);
+
+    return this.http.post(url, formData, { responseType: 'blob' })
+      .pipe(catchError((e) => this.handleError(e)));
+  }
+
   // ===== Helpers Promise (si prefieres) =====
   getPendientesResumenOnce(options?: {
     paquete?: string;

@@ -421,23 +421,26 @@ mat-tree {
 }
 
 mat-tree-node {
-  min-height: 52px;
+  min-height: 56px;
   padding: 0;
   background: transparent;
   position: relative;
   width: 100%;
-  overflow: hidden;
   border-radius: 8px;
-  margin: 2px 0;
-  transition: background-color 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  margin: 4px 0;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  border: 1px solid transparent;
 }
 
 mat-tree-node:hover {
-  background-color: rgba(140, 213, 10, 0.08);
+  background-color: #f8fafc;
+  border-color: #e2e8f0;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
 }
 
 mat-tree-node:focus-within {
-  background-color: rgba(140, 213, 10, 0.12);
+  background-color: rgba(140, 213, 10, 0.05);
+  border-color: rgba(140, 213, 10, 0.3);
 }
 
 /* Node Content Wrapper */
@@ -448,35 +451,38 @@ mat-tree-node:focus-within {
   min-width: 0;
   background: transparent;
   border: none;
-  border-bottom: 1px solid transparent;
-  /* Remove underline for seamless look */
+  border-left: 3px solid transparent;
   padding: 10px 16px;
   margin-left: 0;
   cursor: pointer;
+  border-radius: 6px;
+  transition: all 0.2s;
 }
 
-/* Legacy Active marker (optional, can just use focus state) */
+mat-tree-node:hover .node-content-wrapper {
+  border-left-color: var(--ds-accent);
+}
 
 /* Icon */
 .node-icon {
   margin-right: 16px;
   flex-shrink: 0;
-  /* Icon never shrinks */
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #94a3b8;
-  width: 32px;
-  height: 32px;
-  border-radius: 8px;
-  background-color: #f8fafc;
-  transition: all 0.2s;
+  color: #64748b;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background-color: #f1f5f9;
+  transition: all 0.2s ease;
+  box-shadow: inset 0 1px 2px rgba(0,0,0,0.05);
 }
 
 .node-content-wrapper:hover .node-icon {
-  background-color: #fff;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-  color: var(--ds-primary);
+  background-color: var(--ds-primary);
+  color: #ffffff;
+  transform: scale(1.05);
 }
 
 .node-icon.folder {

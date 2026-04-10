@@ -69,9 +69,6 @@ export class ModulosService {
   }
 
   // Para combos (sin paginar)
-  listAll(): Observable<Modulo[] | Paginated<Modulo>> {
-    return this.http.get<Modulo[] | Paginated<Modulo>>(this.base);
-  }
 
   get(id: string): Observable<Modulo> {
     return this.http.get<Modulo>(`${this.base}${id}/`);

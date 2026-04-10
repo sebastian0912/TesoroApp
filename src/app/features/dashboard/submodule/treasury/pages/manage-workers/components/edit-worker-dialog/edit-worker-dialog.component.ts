@@ -1,5 +1,5 @@
-import { Component, Inject, OnInit } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import {  Component, Inject, OnInit , ChangeDetectionStrategy } from '@angular/core';
+
 import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatDialogRef, MAT_DIALOG_DATA, MatDialogModule } from '@angular/material/dialog';
 import { MatButtonModule } from '@angular/material/button';
@@ -14,24 +14,24 @@ import { MatNativeDateModule } from '@angular/material/core';
 import { PersonaTesoreriaItem } from '../../../../service/teroreria/tesoreria.service';
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
     selector: 'app-edit-worker-dialog',
     standalone: true,
     imports: [
-        CommonModule,
-        ReactiveFormsModule,
-        MatDialogModule,
-        MatButtonModule,
-        MatFormFieldModule,
-        MatInputModule,
-        MatSlideToggleModule,
-        MatIconModule,
-        MatDividerModule,
-        MatDatepickerModule,
-        MatNativeDateModule
-    ],
+    ReactiveFormsModule,
+    MatDialogModule,
+    MatButtonModule,
+    MatFormFieldModule,
+    MatInputModule,
+    MatSlideToggleModule,
+    MatIconModule,
+    MatDividerModule,
+    MatDatepickerModule,
+    MatNativeDateModule
+],
     templateUrl: './edit-worker-dialog.component.html',
     styleUrls: ['./edit-worker-dialog.component.css']
-})
+} )
 export class EditWorkerDialogComponent implements OnInit {
     form: FormGroup;
 

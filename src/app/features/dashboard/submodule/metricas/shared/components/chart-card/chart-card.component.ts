@@ -1,33 +1,39 @@
 import { Component, Input, ChangeDetectionStrategy } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { MatCardModule } from '@angular/material/card';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 
 @Component({
   selector: 'app-chart-card',
   standalone: true,
-  imports: [CommonModule, MatCardModule, MatProgressSpinnerModule],
+  imports: [MatCardModule, MatProgressSpinnerModule],
   template: `
     <mat-card class="chart-card">
-      <mat-card-header class="chart-header" *ngIf="title">
-        <mat-card-title class="card-title">{{ title }}</mat-card-title>
-        <mat-card-subtitle class="card-subtitle" *ngIf="subtitle">{{ subtitle }}</mat-card-subtitle>
-        <div class="header-actions">
-          <ng-content select="[actions]"></ng-content>
-        </div>
-      </mat-card-header>
-      
+      @if (title) {
+        <mat-card-header class="chart-header">
+          <mat-card-title class="card-title">{{ title }}</mat-card-title>
+          @if (subtitle) {
+            <mat-card-subtitle class="card-subtitle">{{ subtitle }}</mat-card-subtitle>
+          }
+          <div class="header-actions">
+            <ng-content select="[actions]"></ng-content>
+          </div>
+        </mat-card-header>
+      }
+    
       <mat-card-content class="chart-content">
         <!-- Overlay Loading -->
-        <div class="loading-overlay" *ngIf="loading">
-          <mat-spinner diameter="40" color="primary"></mat-spinner>
-        </div>
-        
+        @if (loading) {
+          <div class="loading-overlay">
+            <mat-spinner diameter="40" color="primary"></mat-spinner>
+          </div>
+        }
+    
         <!-- Contenido principal (ECharts component) -->
         <ng-content></ng-content>
       </mat-card-content>
     </mat-card>
-  `,
+    `,
   styles: [`
     :host {
       display: block;

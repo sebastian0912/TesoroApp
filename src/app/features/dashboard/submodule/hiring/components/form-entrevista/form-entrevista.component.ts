@@ -1308,12 +1308,77 @@ export class FormEntrevistaComponent implements OnInit {
         text: 'Datos guardados y entrevista marcada.',
       });
     } catch (e: any) {
-      const msg =
-        e?.error?.detail || e?.message || 'No se pudo guardar.';
+      let title = 'Error al guardar';
+      let htmlMessage = '';
+
+      const errBody = e?.error;
+
+      if (errBody) {
+        if (errBody.detail) {
+          htmlMessage += `<b>${errBody.detail}</b><br/>`;
+        }
+
+        // Mostrar errores de validación de formulario del backend de Django (DRF)
+        if (errBody.errors && typeof errBody.errors === 'object') {
+          htmlMessage += `<ul style="text-align: left; font-size: 0.9em; margin-top: 10px; max-height: 200px; overflow-y: auto; padding-right: 10px;">`;
+          
+          const parseErrors = (obj: any, parentKey = ''): void => {
+            if (Array.isArray(obj)) {
+              obj.forEach((item, idx) => {
+                if (typeof item === 'object' && item !== null) {
+                  // Elemento de una lista de objetos (ej. experiencias[0])
+                  parseErrors(item, `${parentKey} (#${idx + 1})`);
+                } else if (String(item).trim()) {
+                  // Mensaje de error final en un arreglo 
+                  let k = parentKey.trim();
+                  if (parentKey.includes('Error general')) {
+                     htmlMessage += `<li>${item}</li>`; // Omitir el nombre si es un error general sin llave
+                  } else {
+                     htmlMessage += `<li>${k ? `<b>${k}:</b> ` : ''}${item}</li>`;
+                  }
+                }
+              });
+            } else if (typeof obj === 'object' && obj !== null) {
+              for (const [k, v] of Object.entries(obj)) {
+                let fieldName = k === 'non_field_errors' ? 'Error general' : k.replace(/_/g, ' ');
+                fieldName = fieldName.charAt(0).toUpperCase() + fieldName.slice(1);
+                const prefix = parentKey ? `${parentKey} ➔ ${fieldName}` : fieldName;
+                parseErrors(v, prefix);
+              }
+            } else if (String(obj).trim()) {
+              let k = parentKey.trim();
+              htmlMessage += `<li>${k ? `<b>${k}:</b> ` : ''}${obj}</li>`;
+            }
+          };
+
+          parseErrors(errBody.errors);
+          htmlMessage += `</ul>`;
+        }
+
+        // Mostrar detalles crudos de BD u otros mapeados del backend
+        if (errBody.db_error) {
+          htmlMessage += `<div style="font-size: 0.85em; margin-top: 10px; color: #666; text-align: left; max-height: 100px; overflow-y: auto;"><i>Detalle técnico:</i> ${errBody.db_error}</div>`;
+        }
+        if (errBody.hint) {
+          htmlMessage += `<div style="font-size: 0.85em; color: dimgrey; margin-top: 5px; text-align: left;"><b>Sugerencia:</b> ${errBody.hint}</div>`;
+        }
+
+        // Fallback catch-all del backend
+        if (errBody.error && !errBody.details && !errBody.errors) {
+          htmlMessage += `<div style="font-size: 0.85em; margin-top: 10px; color: #666; text-align: left;"><i>Error de sistema:</i> ${errBody.error}</div>`;
+        }
+      }
+
+      if (!htmlMessage) {
+         htmlMessage = e?.message || 'No se pudo guardar debido a un error de conexión o del servidor.';
+      }
+
       await Swal.fire({
         icon: 'error',
-        title: 'Error',
-        text: msg,
+        title: title,
+        html: htmlMessage,
+        confirmButtonText: 'Entendido',
+        confirmButtonColor: '#3085d6',
       });
     } finally {
       this.isSubmitting = false;

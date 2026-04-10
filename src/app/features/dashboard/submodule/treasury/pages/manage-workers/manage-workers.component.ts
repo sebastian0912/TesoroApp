@@ -1,6 +1,6 @@
 
 import { Component, OnInit, signal, inject, ChangeDetectionStrategy, computed } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { FormsModule } from '@angular/forms';
 import { MatDialog } from '@angular/material/dialog';
 import Swal from 'sweetalert2';
@@ -29,7 +29,6 @@ export type Worker = PersonaTesoreriaItem;
   selector: 'app-manage-workers',
   standalone: true,
   imports: [
-    CommonModule,
     FormsModule,
     MatSlideToggleModule,
     MatMenuModule,
@@ -42,8 +41,8 @@ export type Worker = PersonaTesoreriaItem;
     MatInputModule,
     MatFormFieldModule,
     StandardFilterTable,
-    ColumnCellTemplateDirective,
-  ],
+    ColumnCellTemplateDirective
+],
   templateUrl: './manage-workers.component.html',
   styleUrls: ['./manage-workers.component.css'],
   changeDetection: ChangeDetectionStrategy.OnPush

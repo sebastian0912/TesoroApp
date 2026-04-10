@@ -1,5 +1,5 @@
 import { SharedModule } from '@/app/shared/shared.module';
-import { Component, Inject, OnInit } from '@angular/core';
+import {  Component, Inject, OnInit , ChangeDetectionStrategy } from '@angular/core';
 import { FormGroup, FormArray, FormBuilder, Validators, ReactiveFormsModule } from '@angular/forms';
 import { MatDialogRef, MAT_DIALOG_DATA, MatDialogActions, MatDialogContent } from '@angular/material/dialog';
 import { DocumentacionService } from '../../service/documentacion/documentacion.service';
@@ -11,7 +11,7 @@ import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatTooltipModule } from '@angular/material/tooltip';
-import { CommonModule } from '@angular/common';
+
 import { animate, style, transition, trigger, query, stagger } from '@angular/animations';
 
 
@@ -24,10 +24,10 @@ export interface ModalData {
 }
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-document-modal',
   standalone: true,
   imports: [
-    CommonModule,
     ReactiveFormsModule,
     MatDialogContent,
     MatDialogActions,
@@ -39,14 +39,14 @@ export interface ModalData {
     MatCheckboxModule,
     MatDividerModule,
     MatTooltipModule
-  ],
+],
   templateUrl: './document-modal.component.html',
   styleUrl: './document-modal.component.css',
   animations: [
     trigger('listAnimation', [
       transition('* => *', [
         query(':enter', [
-          style({ opacity: 0, transform: 'translateY(10px)' }),
+          style({ opacity: 0, transform: 'translateY(10px)' } ),
           stagger(50, [
             animate('300ms ease-out', style({ opacity: 1, transform: 'none' }))
           ])

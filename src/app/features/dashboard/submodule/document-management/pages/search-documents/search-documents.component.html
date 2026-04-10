@@ -9,7 +9,7 @@
       <div class="header-text">
         <mat-card-title class="titulo">Buscar Documentación</mat-card-title>
         <mat-card-subtitle class="subtitulo">Filtra por cédula, contrato, tipo documental y texto. Selecciona un
-          resultado para previsualizar.</mat-card-subtitle>
+        resultado para previsualizar.</mat-card-subtitle>
       </div>
     </div>
   </header>
@@ -24,14 +24,18 @@
           <mat-label>Cédula</mat-label>
           <input matInput formControlName="cedula" required autocomplete="off" placeholder="Ej. 12345678" />
           <mat-icon matSuffix class="text-secondary">badge</mat-icon>
-          <mat-error *ngIf="form.controls['cedula'].hasError('required')">Requerido</mat-error>
+          @if (form.controls['cedula'].hasError('required')) {
+            <mat-error>Requerido</mat-error>
+          }
         </mat-form-field>
 
         <!-- Contrato -->
         <mat-form-field appearance="outline" class="filter-field">
           <mat-label>Código de Contrato</mat-label>
           <mat-select formControlName="codigoContrato" placeholder="Seleccionar...">
-            <mat-option *ngFor="let codigo of codigosContrato" [value]="codigo">{{ codigo }}</mat-option>
+            @for (codigo of codigosContrato; track codigo) {
+              <mat-option [value]="codigo">{{ codigo }}</mat-option>
+            }
           </mat-select>
         </mat-form-field>
 
@@ -39,15 +43,15 @@
         <mat-form-field appearance="outline" class="filter-field span-2-mobile">
           <mat-label>Tipo Documental</mat-label>
           <mat-select formControlName="tipoDocumental" placeholder="Todos">
-            <ng-container *ngFor="let tipo of tiposDocumentales">
+            @for (tipo of tiposDocumentales; track tipo) {
               <mat-option [value]="tipo.id" class="level-1">📁 {{ tipo.name }}</mat-option>
-              <ng-container *ngFor="let sub of tipo.subtypes">
+              @for (sub of tipo.subtypes; track sub) {
                 <mat-option [value]="sub.id" class="level-2">📄 {{ sub.name }}</mat-option>
-                <ng-container *ngFor="let subsub of sub.subtypes">
+                @for (subsub of sub.subtypes; track subsub) {
                   <mat-option [value]="subsub.id" class="level-3">🔖 {{ subsub.name }}</mat-option>
-                </ng-container>
-              </ng-container>
-            </ng-container>
+                }
+              }
+            }
           </mat-select>
         </mat-form-field>
 
@@ -77,66 +81,70 @@
 
       <div class="panel-header">
         <h3>Resultados</h3>
-        <span class="results-count" *ngIf="documentosPorCategoria.length">
-          {{ documentosPorCategoria.length }} Categoría{{ documentosPorCategoria.length !== 1 ? 's' : '' }}
-        </span>
+        @if (documentosPorCategoria.length) {
+          <span class="results-count">
+            {{ documentosPorCategoria.length }} Categoría{{ documentosPorCategoria.length !== 1 ? 's' : '' }}
+          </span>
+        }
       </div>
 
       <!-- Results Content -->
       <div class="results-list-container">
 
-        <ng-container *ngIf="documentosPorCategoria && documentosPorCategoria.length > 0; else emptyState">
-
-          <div class="category-block" *ngFor="let item of documentosPorCategoria; trackBy: trackByCategoria">
-            <div class="category-header">
-              <mat-icon class="folder-icon">folder_open</mat-icon>
-              <h4>{{ item.categoria }}</h4>
-            </div>
-
-            <!-- "Table" Rows for Documents -->
-            <div class="documents-group">
-              <div class="doc-row" *ngFor="let doc of item.documentos; trackBy: trackByDocumento"
-                [class.has-file]="!!doc.file_url" (click)="doc.file_url ? verPDF(doc.file_url) : null">
-
-                <div class="doc-info">
-                  <span class="doc-name">{{ obtenerTipoDocumental(doc) }}</span>
-                  <!-- Optional: If API returned date or other meta, put here -->
-                </div>
-
-                <div class="doc-status">
-                  <span class="status-chip" [class.success]="doc.file_url" [class.missing]="!doc.file_url">
-                    {{ doc.file_url ? 'Disponible' : 'Sin Archivo' }}
-                  </span>
-                </div>
-
-                <div class="doc-actions">
-                  <button mat-icon-button class="view-btn" *ngIf="doc.file_url"
-                    (click)="$event.stopPropagation(); verPDF(doc.file_url)" matTooltip="Ver Documento">
-                    <mat-icon>visibility</mat-icon>
-                  </button>
-                  <button mat-icon-button class="edit-btn" *ngIf="doc.file_url"
-                    (click)="$event.stopPropagation(); editarPDF(doc)" matTooltip="Editar Documento">
-                    <mat-icon>edit</mat-icon>
-                  </button>
-                  <!-- Fallback or Help for missing? -->
-                  <mat-icon *ngIf="!doc.file_url" class="missing-icon"
-                    matTooltip="No se ha cargado archivo">error_outline</mat-icon>
-                </div>
-
+        @if (documentosPorCategoria && documentosPorCategoria.length > 0) {
+          @for (item of documentosPorCategoria; track trackByCategoria($index, item)) {
+            <div class="category-block">
+              <div class="category-header">
+                <mat-icon class="folder-icon">folder_open</mat-icon>
+                <h4>{{ item.categoria }}</h4>
+              </div>
+              <!-- "Table" Rows for Documents -->
+              <div class="documents-group">
+                @for (doc of item.documentos; track trackByDocumento($index, doc)) {
+                  <div class="doc-row"
+                    [class.has-file]="!!doc.file_url" (click)="doc.file_url ? verPDF(doc.file_url) : null">
+                    <div class="doc-info">
+                      <span class="doc-name">{{ obtenerTipoDocumental(doc) }}</span>
+                      <!-- Optional: If API returned date or other meta, put here -->
+                    </div>
+                    <div class="doc-status">
+                      <span class="status-chip" [class.success]="doc.file_url" [class.missing]="!doc.file_url">
+                        {{ doc.file_url ? 'Disponible' : 'Sin Archivo' }}
+                      </span>
+                    </div>
+                    <div class="doc-actions">
+                      @if (doc.file_url) {
+                        <button mat-icon-button class="view-btn"
+                          (click)="$event.stopPropagation(); verPDF(doc.file_url)" matTooltip="Ver Documento">
+                          <mat-icon>visibility</mat-icon>
+                        </button>
+                      }
+                      @if (doc.file_url) {
+                        <button mat-icon-button class="edit-btn"
+                          (click)="$event.stopPropagation(); editarPDF(doc)" matTooltip="Editar Documento">
+                          <mat-icon>edit</mat-icon>
+                        </button>
+                      }
+                      <!-- Fallback or Help for missing? -->
+                      @if (!doc.file_url) {
+                        <mat-icon class="missing-icon"
+                        matTooltip="No se ha cargado archivo">error_outline</mat-icon>
+                      }
+                    </div>
+                  </div>
+                }
               </div>
             </div>
-          </div>
-
-        </ng-container>
-
-        <!-- Empty State -->
-        <ng-template #emptyState>
+          }
+        } @else {
           <div class="empty-state">
             <mat-icon>search_off</mat-icon>
             <h3>Sin Resultados</h3>
             <p>Ajusta los filtros para encontrar documentos.</p>
           </div>
-        </ng-template>
+        }
+
+        <!-- Empty State -->
 
       </div>
     </section>
@@ -147,12 +155,12 @@
         <h3>Vista Previa</h3>
       </div>
       <div class="preview-container">
-        <iframe #pdfPreview class="pdf-frame" title="Vista previa del documento PDF"></iframe>
-        <!-- Overlay hint if empty -->
-        <div class="preview-placeholder" style="display: none;">
-          <!-- Logic to show placeholder if src is empty could be done via TS but keeping simple -->
-          <p>Selecciona un documento</p>
+        <!-- Overlay hint always behind the iframe -->
+        <div class="preview-placeholder">
+          <mat-icon>picture_as_pdf</mat-icon>
+          <p>Selecciona un documento para visualizarlo</p>
         </div>
+        <iframe #pdfPreview class="pdf-frame" title="Vista previa del documento PDF"></iframe>
       </div>
     </section>
 

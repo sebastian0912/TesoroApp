@@ -30,15 +30,6 @@ export class ComercializadoraService {
   }
 
   // Traer datos de la comercializadora por codigo
-  traerComercializadoraPorCodigo(producto: any, codigo: string): any {
-    // buscar en la base de datos la comercializadora por codigo
-    let productoComercializadora = producto.find(
-      (comercializadora: { codigo: string }) =>
-        comercializadora.codigo === codigo
-    );
-    return productoComercializadora;
-  }
-
   // Actualizar inventario con la cantidad vendida
   async ActualizarInventario(
     cantidadTotalVendida: string,
@@ -65,12 +56,6 @@ export class ComercializadoraService {
   }
 
   // Traer datos de la comercializadora por codigo
-  traerComercio(codigo: number): Observable<any> {
-    return this.http
-      .get(`${this.apiUrl}/Comercio/comercio/${codigo}`)
-      .pipe(catchError(this.handleError));
-  }
-
   // Realizar envio de mercancia
   async enviarMercancia(
     codigo: string,
@@ -216,18 +201,6 @@ export class ComercializadoraService {
 
   // --- NUEVOS MÉTODOS TESORERÍA --- 
 
-  async buscarMovimiento(id: number): Promise<any> {
-    try {
-      const response = await firstValueFrom(
-        this.http.get(`${this.apiUrl}/gestion_tesoreria/movimientos/${id}/`)
-          .pipe(catchError(this.handleError))
-      );
-      return response;
-    } catch (error) {
-      throw error;
-    }
-  }
-
   async enviarMercanciaNuevo(data: any): Promise<any> {
     try {
       const response = await firstValueFrom(
@@ -295,23 +268,4 @@ export class ComercializadoraService {
       throw error;
     }
   }
-
-  async venderLote(lote_id: number, cantidad: number, persona_vende: string, comentario: string = ''): Promise<any> {
-    try {
-      const payload = {
-        lote_id,
-        cantidad,
-        persona_vende,
-        comentario
-      };
-      const response = await firstValueFrom(
-        this.http.post(`${this.apiUrl}/gestion_tesoreria/movimientos/vender-lote/`, payload)
-          .pipe(catchError(this.handleError))
-      );
-      return response;
-    } catch (error) {
-      throw error;
-    }
-  }
-
 }

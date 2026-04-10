@@ -1,4 +1,4 @@
-import { Component, OnInit, inject } from '@angular/core';
+import {  Component, OnInit, inject , ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
@@ -10,6 +10,7 @@ import { ComercializadoraService } from '../../../merchandise/service/comerciali
 import { UtilityServiceService } from '../../../../../../shared/services/utilityService/utility-service.service';
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-merchandising-merchandise',
   standalone: true,
   imports: [
@@ -23,7 +24,7 @@ import { UtilityServiceService } from '../../../../../../shared/services/utility
   ],
   templateUrl: './merchandising-merchandise.component.html',
   styleUrl: './merchandising-merchandise.component.css'
-})
+} )
 export class MerchandisingMerchandiseComponent implements OnInit {
   private comercializadoraService = inject(ComercializadoraService);
   private utilityService = inject(UtilityServiceService);

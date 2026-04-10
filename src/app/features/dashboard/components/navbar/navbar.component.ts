@@ -1,4 +1,4 @@
-import {
+import { 
   Component,
   EventEmitter,
   OnInit,
@@ -7,6 +7,7 @@ import {
   Inject,
   PLATFORM_ID,
   HostListener,
+  ChangeDetectionStrategy 
 } from '@angular/core';
 import { isPlatformBrowser } from '@angular/common';
 import { Router, NavigationEnd, RouterModule } from '@angular/router';
@@ -19,6 +20,8 @@ import { environment } from '../../../../../environments/environment';
 
 import { MatIconModule } from '@angular/material/icon';
 import { SharedModule } from '../../../../shared/shared.module';
+import { NetworkStatusService } from '../../../../core/services/network-status.service';
+import { OfflineSyncService } from '../../../../core/services/offline-sync.service';
 
 export interface PermNode {
   id: string;
@@ -32,12 +35,13 @@ export interface PermNode {
 }
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-navbar',
   standalone: true,
   imports: [SharedModule, RouterModule, MatIconModule],
   templateUrl: './navbar.component.html',
   styleUrls: ['./navbar.component.css'],
-})
+} )
 export class NavbarComponent implements OnInit, OnDestroy {
   @Output() public menuToggle = new EventEmitter<boolean>();
 
@@ -45,6 +49,8 @@ export class NavbarComponent implements OnInit, OnDestroy {
   public isMobile = false;
   public pinOpen = false;
   public currentRoute?: string;
+  public isOnline = true;
+  public pendingCount = 0;
 
   public permTree: PermNode[] = [];
   public activeRoot: PermNode | null = null;
@@ -55,15 +61,185 @@ export class NavbarComponent implements OnInit, OnDestroy {
 
   private routerSubscription?: Subscription;
   private readonly MOBILE_BREAKPOINT = 900;
+  private readonly PARAMETRIZACION_NOVEDADES_KEYS = new Set([
+    'PARAMETRIZACION NOVEDADES',
+    'PARAMETRIZACION DE NOVEDADES',
+  ]);
 
   private readonly isBrowser: boolean;
+
+  private readonly routeMap: Record<string, string> = {
+    'ADMINISTRACIÓN': 'users/manage-users',
+
+    'Adjuntar documentación': 'document-management/upload-documents',
+    'Buscar documentación': 'document-management/search-documents',
+    'Estructura documental': 'document-management/create-doc-structure',
+    'Permisos de documentación de empresas usuarias': 'document-management/company-docs-access',
+    'TABLA RETENCIÓN': 'document-management/withholding-table',
+
+    'Comprobantes de pago': 'payments/pay-slips',
+    'Formas de pago': 'payments/payments-method',
+
+    'Envío de mercancía': 'merchandise/send-merchandise',
+    'Edición de mercancía': 'merchandise/edit-merchandise',
+    'Recepción de mercancía': 'merchandise/receive-merchandise',
+
+    'Formulario de consulta': 'hiring/query-form',
+    'Listado de errores': 'hiring/error-listing',
+    'Reporte de contratación': 'hiring/hiring-report',
+    'Ver reporte de contratación': 'hiring/view-reports',
+    'Consultar documentación': 'hiring/consult-contracting-documentation',
+    'Gerencia 901': 'hiring/banned-management',
+    'Reporte 901': 'hiring/banned-report',
+    'Selección': 'hiring/recruitment-pipeline',
+    'Ver entrevistas de recepción': 'hiring/view-reception-interviews',
+    'Tarjetas': 'hiring/tarjetas',  
+
+    'Gestión de vacantes': 'vacancies',
+    'Gestión de trabajadores': 'treasury/manage-workers',
+
+    'Carga de mercado': 'market/load-market',
+    'Carga de mercado (ferias)': 'market/load-fair-market',
+    'Carga de mercado (comercializadora)': 'market/marketing-market',
+
+    'Bono de mercado': 'authorizations/market-bonus',
+    'Prestado de dinero': 'authorizations/money-loan',
+
+    'PRESTADO PARA REALIZAR': 'money-loan/loan-to-perform',
+    'PRESTAMO POR CALAMIDAD': 'money-loan/emergency-loan',
+
+    'Procesos de traslados': 'eps-transfers/process-transfers',
+    'Consulta de traslados': 'eps-transfers/transfer-query',
+
+    'Historial de autorizaciones': 'history/authorizations-history',
+    'Historial de modificaciones': 'history/modifications-history',
+
+    'GESTIÓN ROLES': 'users/manage-roles',
+    'GESTIÓN MÓDULOS': 'users/manage-modules',
+    'PARAMETRIZACIÓN': 'users/manage-parameterization',
+    'GESTIÓN CARGOS': 'positions/manage-positions',
+    'GESTIÓN CENTRO DE COSTOS': 'farms/management-farms',
+
+    'AUSENTISMOS': 'hiring/absences',
+    'CARGAS MASIVAS': 'treasury/upload-treasury',
+
+    'Robots': 'robots/dashboard-robots',
+    'EMPLEADOS': 'nomina/empleados',
+    'CÁLCULO DE NÓMINA': 'nomina/calculo-nomina',
+    'HISTORIAL NÓMINA': 'nomina/historico-nomina',
+    'PARAMETRIZACIÓN NOVEDADES': 'nomina/parametrizacion-novedades',
+    'PARAMETRIZACIÓN DE NOVEDADES': 'nomina/parametrizacion-novedades',
+  };
+
+  private readonly iconMap: Record<string, string> = {
+    'Comercializadora': 'storefront',
+    'Gestión del programa': 'manage_accounts',
+    'Procesos empresa': 'work',
+    'Procesos empresariales': 'work',
+    'Tesoreria': 'account_balance',
+
+    'Mercancía': 'inventory_2',
+    'Edición de mercancía': 'edit',
+    'Envío de mercancía': 'local_shipping',
+    'Recepción de mercancía': 'assignment_turned_in',
+
+    'Administración': 'admin_panel_settings',
+
+    'Gestión documental': 'folder',
+    'Adjuntar documentación': 'upload_file',
+    'Buscar documentación': 'search',
+    'Estructura documental': 'schema',
+    'Permisos de documentación de empresas usuarias': 'lock',
+
+    'Pagos': 'payments',
+    'CARGOS': 'assignment',
+    'Comprobantes de pago': 'receipt_long',
+    'Formas de pago': 'credit_card',
+
+    'Selección y contratación': 'how_to_reg',
+    'Contratación 1.0': 'assignment',
+    'Formulario de consulta': 'fact_check',
+    'Listado de errores': 'bug_report',
+    'Reporte de contratación': 'insert_chart',
+    'Ver reporte de contratación': 'visibility',
+    'Contratación 2.0': 'assignment_turned_in',
+    'Consultar documentación': 'find_in_page',
+    'Gerencia 901': 'workspace_premium',
+    'Reporte 901': 'insert_chart',
+    'Selección': 'person_search',
+    'Ver entrevistas de recepción': 'record_voice_over',
+
+    'Vacantes': 'work',
+    'Gestión de vacantes': 'work',
+
+    'Autorizaciones': 'approval',
+    'Bono de mercado': 'redeem',
+    'Prestado de dinero': 'paid',
+    'Ayudas': 'volunteer_activism',
+    'Cargar mercados con código': 'qr_code_scanner',
+    'Cargar mercados sin código': 'shopping_cart',
+    'Historial': 'history',
+    'Historial de autorizaciones': 'history',
+    'Historial de modificaciones': 'manage_history',
+    'Mercado': 'shopping_bag',
+    'Carga de mercado': 'upload_file',
+    'Carga de mercado (comercializadora)': 'storefront',
+    'Carga de mercado (ferias)': 'festival',
+    'Operaciones de tesorería': 'calculate',
+    'Cargas masivas': 'dataset',
+    'Gestión de trabajadores': 'group',
+
+    'Prestamo de dinero': 'savings',
+    'Prestado para realizar': 'schedule',
+    'Prestamo por calamidad': 'warning_amber',
+    'Préstamos': 'savings',
+    'Prestamo para realizar': 'schedule',
+    'Traslados': 'swap_horiz',
+    'Consulta de traslados': 'search',
+    'Procesos de traslados': 'sync_alt',
+
+    'GESTIÓN ROLES': 'security',
+    'GESTIÓN MÓDULOS': 'view_module',
+    'GESTIÓN CARGOS': 'assignment',
+    'GESTIÓN CENTRO DE COSTOS': 'account_balance_wallet',
+    'PARAMETRIZACIÓN': 'settings',
+
+    'AUSENTISMOS': 'event_busy',
+
+    'Robots': 'smart_toy',
+    'TABLA RETENCIÓN': 'table_chart',
+    'EMPLEADOS': 'people',
+    'CÁLCULO DE NÓMINA': 'calculate',
+    'HISTORIAL NÓMINA': 'history',
+    'PARAMETRIZACIÓN NOVEDADES': 'tune',
+    'PARAMETRIZACIÓN DE NOVEDADES': 'tune',
+    'Tarjetas': 'credit_card',
+  };
+
+  private routeMapIndex!: Record<string, string>;
+  private iconMapIndex!: Record<string, string>;
 
   constructor(
     @Inject(PLATFORM_ID) platformId: object,
     private router: Router,
-    private http: HttpClient
+    private http: HttpClient,
+    private networkStatus: NetworkStatusService,
+    private offlineSync: OfflineSyncService
   ) {
     this.isBrowser = isPlatformBrowser(platformId);
+    this.routeMapIndex = this.indexByMenuKey(this.routeMap);
+    this.iconMapIndex = this.indexByMenuKey(this.iconMap);
+    if (this.isBrowser) {
+      this.networkStatus.isOnline$.subscribe(status => {
+        this.isOnline = status;
+      });
+      this.offlineSync.pendingCount$.subscribe(count => {
+        this.pendingCount = count;
+      });
+      window.addEventListener('offline-queue-updated', () => {
+        this.offlineSync.updatePendingCount();
+      });
+    }
   }
 
   async ngOnInit(): Promise<void> {
@@ -190,6 +366,42 @@ export class NavbarComponent implements OnInit, OnDestroy {
         });
 
         this.permTree = (tree as PermNode[]).map(normalize);
+
+        // Inyectar "CÁLCULO DE NÓMINA" si no existe para asegurar visibilidad inmediata
+        const nominaRoot = this.permTree.find(n => this.normalizeMenuKey(n.nombre) === 'NOMINA');
+        console.log('[NOMINA DEBUG] nominaRoot:', nominaRoot ? nominaRoot.nombre : 'NO ENCONTRADO');
+        console.log('[NOMINA DEBUG] hijos actuales:', nominaRoot?.hijos?.map(h => h.nombre));
+        if (nominaRoot) {
+          if (!nominaRoot.hijos) nominaRoot.hijos = [];
+          const exists = nominaRoot.hijos.some(h => this.normalizeMenuKey(h.nombre) === 'CALCULO DE NOMINA');
+          if (!exists) {
+            nominaRoot.hijos.push({
+              id: 'frontend_calculo_nomina',
+              nombre: 'CÁLCULO DE NÓMINA',
+              acciones: ['VER'],
+              hijos: []
+            });
+          }
+          const existsHist = nominaRoot.hijos.some(h => this.normalizeMenuKey(h.nombre) === 'HISTORIAL NOMINA');
+          if (!existsHist) {
+            nominaRoot.hijos.push({
+              id: 'frontend_historico_nomina',
+              nombre: 'HISTORIAL NÓMINA',
+              acciones: ['VER'],
+              hijos: []
+            });
+          }
+          const existsParam = nominaRoot.hijos.some(h => this.isParametrizacionNovedadesNode(h.nombre));
+          if (!existsParam) {
+            nominaRoot.hijos.push({
+              id: 'frontend_parametrizacion_novedades',
+              nombre: 'PARAMETRIZACIÓN NOVEDADES',
+              acciones: ['VER'],
+              hijos: []
+            });
+          }
+        }
+
         console.log('Loaded permTree:', this.permTree);
       }
     } catch {
@@ -291,8 +503,30 @@ export class NavbarComponent implements OnInit, OnDestroy {
   }
 
   // ===== rutas =====
+  private normalizeMenuKey(value: string): string {
+    return (value ?? '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .toUpperCase();
+  }
+
+  private isParametrizacionNovedadesNode(value: string): boolean {
+    return this.PARAMETRIZACION_NOVEDADES_KEYS.has(this.normalizeMenuKey(value));
+  }
+
+  private indexByMenuKey<T extends Record<string, string>>(obj: T): Record<string, string> {
+    const out: Record<string, string> = {};
+    for (const k of Object.keys(obj)) out[this.normalizeMenuKey(k)] = obj[k];
+    return out;
+  }
+
   public getNodeRoute(node: PermNode): string {
     const base = '/dashboard';
+    const key = this.normalizeMenuKey(node?.nombre ?? '');
+    const mapped = this.routeMapIndex[key];
+    if (mapped) return `${base}/${mapped}`;
 
     if (node.ruta) {
       if (node.ruta.startsWith('/')) return node.ruta;
@@ -328,11 +562,13 @@ export class NavbarComponent implements OnInit, OnDestroy {
 
   // ===== iconos =====
   public getModuleIcon(node: PermNode): string {
-    return node?.icono && node.icono !== 'widgets' ? node.icono : 'widgets';
+    if (node?.icono && node.icono !== 'widgets') return node.icono;
+    return this.iconMapIndex[this.normalizeMenuKey(node?.nombre ?? '')] || 'widgets';
   }
 
   public getNodeIcon(node: PermNode): string {
-    return node?.icono && node.icono !== 'widgets' ? node.icono : 'radio_button_unchecked';
+    if (node?.icono && node.icono !== 'widgets') return node.icono;
+    return this.iconMapIndex[this.normalizeMenuKey(node?.nombre ?? '')] || 'radio_button_unchecked';
   }
 
   // ===== responsive =====

@@ -1,4 +1,4 @@
-import { Component, OnDestroy, OnInit } from '@angular/core';
+import {  Component, OnDestroy, OnInit , ChangeDetectionStrategy } from '@angular/core';
 import { firstValueFrom, Subject, take } from 'rxjs';
 import Swal from 'sweetalert2';
 import { MatButtonModule } from '@angular/material/button';
@@ -11,6 +11,7 @@ import { SharedModule } from '@/app/shared/shared.module';
 import { RegistroProcesoContratacion } from '../../service/registro-proceso-contratacion/registro-proceso-contratacion';
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-search-for-candidate',
   standalone: true,
   imports: [
@@ -19,7 +20,7 @@ import { RegistroProcesoContratacion } from '../../service/registro-proceso-cont
   ],
   templateUrl: './search-for-candidate.component.html',
   styleUrl: './search-for-candidate.component.css',
-})
+} )
 export class SearchForCandidateComponent implements OnInit, OnDestroy {
   readonly yesNoStatusConfig: Record<string, { color: string; background: string }> = {
     'Sí': { color: '#065f46', background: '#d1fae5' },

@@ -1,5 +1,5 @@
-import { CommonModule } from '@angular/common';
-import { Component, ElementRef, OnDestroy, OnInit, ViewChild, inject } from '@angular/core';
+
+import {  Component, ElementRef, OnDestroy, OnInit, ViewChild, inject , ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDialogModule, MatDialogRef, MAT_DIALOG_DATA } from '@angular/material/dialog';
 import { MatIconModule } from '@angular/material/icon';
@@ -9,21 +9,22 @@ import { MatTabsModule } from '@angular/material/tabs';
 export type CameraDialogResult = { file: File; previewUrl: string };
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-camera-dialog',
   standalone: true,
   imports: [
     MatDialogModule,
     MatIconModule,
     MatProgressSpinnerModule,
-    MatButtonModule,
-    CommonModule
-  ],
+    MatButtonModule
+],
   templateUrl: './camera-dialog.component.html',
   styleUrl: './camera-dialog.component.css'
-})
+} )
 export class CameraDialogComponent implements OnInit, OnDestroy {
   private dialogRef = inject(MatDialogRef<CameraDialogComponent>);
   private dialogData = inject(MAT_DIALOG_DATA, { optional: true }) as { initialPreviewUrl?: string | null } | null;
+  private cdr = inject(ChangeDetectorRef);
 
   @ViewChild('videoEl', { static: false }) videoEl?: ElementRef<HTMLVideoElement>;
   @ViewChild('canvasEl', { static: false }) canvasEl?: ElementRef<HTMLCanvasElement>;
@@ -50,10 +51,12 @@ export class CameraDialogComponent implements OnInit, OnDestroy {
       (typeof window === 'undefined' || (window as any).isSecureContext !== false);
 
     if (supportsCamera) {
-      try {
-        await this.startCamera();
-      } catch {
-        this.cameraError = 'No fue posible acceder a la cámara. Puedes adjuntar una imagen.';
+      if (!this.previewUrl) {
+        try {
+          await this.startCamera();
+        } catch {
+          this.cameraError = 'No fue posible acceder a la cámara. Puedes adjuntar una imagen.';
+        }
       }
     } else {
       this.cameraError = 'La cámara no está disponible (permiso/HTTPS). Puedes adjuntar una imagen.';
@@ -72,26 +75,27 @@ export class CameraDialogComponent implements OnInit, OnDestroy {
     if (initial.startsWith('data:')) {
       this.previewUrl = initial;
       this.capturedFile = this.dataURLToFile(initial, 'foto-actual.png');
+      this.cdr.markForCheck();
       return;
     }
 
-    // 2) Si es http/https: intenta descargarla como blob -> File -> objectURL
-    if (/^https?:\/\//i.test(initial)) {
-      try {
-        const resp = await fetch(initial, { mode: 'cors' });
-        if (!resp.ok) throw new Error(String(resp.status));
-        const blob = await resp.blob();
-        const ext = blob.type === 'image/jpeg' ? 'jpg'
-          : blob.type === 'image/png' ? 'png'
-            : 'bin';
-        const file = new File([blob], `foto-actual.${ext}`, { type: blob.type || 'application/octet-stream' });
-        this.capturedFile = file;
-        this.previewUrl = URL.createObjectURL(file);
-      } catch {
-        // Si CORS falla, al menos mostrar la URL directamente (no habrá File)
-        this.capturedFile = null;
-        this.previewUrl = initial;
-      }
+    // 2) Intenta descargarla como blob -> File -> objectURL
+    try {
+      const resp = await fetch(initial, { mode: 'cors' });
+      if (!resp.ok) throw new Error(String(resp.status));
+      const blob = await resp.blob();
+      const ext = blob.type === 'image/jpeg' ? 'jpg'
+        : blob.type === 'image/png' ? 'png'
+          : 'bin';
+      const file = new File([blob], `foto-actual.${ext}`, { type: blob.type || 'application/octet-stream' });
+      this.capturedFile = file;
+      this.previewUrl = URL.createObjectURL(file);
+    } catch {
+      // Si CORS falla, al menos mostrar la URL directamente (no habrá File)
+      this.capturedFile = null;
+      this.previewUrl = initial;
+    } finally {
+      this.cdr.markForCheck();
     }
   }
 
@@ -119,6 +123,7 @@ export class CameraDialogComponent implements OnInit, OnDestroy {
       this.cameraError = 'No fue posible acceder a la cámara. Puedes adjuntar una imagen.';
     } finally {
       this.loadingCamera = false;
+      this.cdr.markForCheck();
     }
   }
 
@@ -199,6 +204,7 @@ export class CameraDialogComponent implements OnInit, OnDestroy {
     if (!this.isUploadMode) {
       this.startCamera();
     }
+    this.cdr.markForCheck();
   }
 
   confirm(): void {
@@ -216,6 +222,7 @@ export class CameraDialogComponent implements OnInit, OnDestroy {
     this.revokePreview();
     this.capturedFile = file;
     this.previewUrl = URL.createObjectURL(file);
+    this.cdr.markForCheck();
   }
 
   private revokePreview(): void {

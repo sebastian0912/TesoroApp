@@ -1,9 +1,9 @@
 import { SharedModule } from '@/app/shared/shared.module';
-import {
+import { 
   Component,
   effect, input, computed, signal, inject, DestroyRef, LOCALE_ID,
   OnInit
-} from '@angular/core';
+, ChangeDetectionStrategy } from '@angular/core';
 import {
   FormGroup, FormBuilder, Validators
 } from '@angular/forms';
@@ -173,16 +173,28 @@ export class HelpInformationComponent implements OnInit {
     }
 
     const result = [];
+    let totalItems = 0;
+    const MAX_ITEMS = 60;
+
     for (const [empresa, fincasMap] of map.entries()) {
+      if (totalItems >= MAX_ITEMS) break;
       const fincas = [];
       for (const [finca, vacs] of fincasMap.entries()) {
+        if (totalItems >= MAX_ITEMS) break;
+
+        let sortedVacs = vacs.sort((a, b) => (a.cargo || '').localeCompare(b.cargo || '', 'es', { sensitivity: 'base' }));
+        if (totalItems + sortedVacs.length > MAX_ITEMS) {
+          sortedVacs = sortedVacs.slice(0, MAX_ITEMS - totalItems);
+        }
+
         fincas.push({
           finca,
-          vacantes: vacs.sort((a, b) => (a.cargo || '').localeCompare(b.cargo || '', 'es', { sensitivity: 'base' }))
+          vacantes: sortedVacs
         });
+        totalItems += sortedVacs.length;
       }
       fincas.sort((a, b) => a.finca.localeCompare(b.finca, 'es', { sensitivity: 'base' }));
-      result.push({ empresa, fincas });
+      if (fincas.length > 0) result.push({ empresa, fincas });
     }
 
     return result.sort((a, b) => a.empresa.localeCompare(b.empresa, 'es', { sensitivity: 'base' }));
@@ -289,7 +301,7 @@ export class HelpInformationComponent implements OnInit {
       const rolNombre = (user.rol?.nombre || '').toUpperCase();
       const email = (user.correo_electronico || '').toUpperCase();
 
-      if (!(rolNombre === 'GERENCIA' || rolNombre === 'ADMIN' || email === 'CONTRATACIONSUBA.TS@GMAIL.COM')) {
+      if (!(rolNombre === 'GERENCIA' || rolNombre === 'ADMIN' || email === 'CONTRATACIONSUBA.TS@GMAIL.COM' || email === 'SELECCIONSUBA.TS@GMAIL.COM')) {
         this.isRemisionReadOnly.set(true);
       }
 

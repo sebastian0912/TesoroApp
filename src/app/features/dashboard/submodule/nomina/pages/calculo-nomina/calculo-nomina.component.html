@@ -1,0 +1,177 @@
+<div class="calculo-nomina-container">
+  <div class="header">
+    <h1>Cálculo de Nómina</h1>
+    <p>Visualice y procese la quincena de sus empleados de manera automatizada.</p>
+  </div>
+
+  <mat-card class="filter-card card-premium">
+    <mat-card-content>
+      <div class="filter-grid-simple">
+        <div class="filter-row">
+          <!-- 1. Empresa -->
+          <mat-form-field appearance="outline" class="flex-grow">
+            <mat-label>Empresa Usuaria</mat-label>
+            <input type="text" matInput [formControl]="clientControl" [matAutocomplete]="auto">
+            <mat-icon matPrefix>business</mat-icon>
+            <mat-autocomplete #auto="matAutocomplete" [displayWith]="displayClient" (optionSelected)="onClienteSelected($event.option.value)">
+              <mat-option *ngFor="let cli of filteredClientes$ | async" [value]="cli">
+                {{ cli.nombre_legal }}
+              </mat-option>
+            </mat-autocomplete>
+          </mat-form-field>
+
+          <!-- 2. Centros de Costo -->
+          <mat-form-field appearance="outline" class="flex-grow">
+            <mat-label>Centros de Costo</mat-label>
+            <mat-select [(ngModel)]="selectedCecoIds" multiple [disabled]="!selectedCliente">
+              <mat-select-trigger>
+                <mat-icon>location_on</mat-icon>
+                {{isAllCecosSelected() ? 'Todos los Centros' : selectedCecoIds.length + ' centros'}}
+              </mat-select-trigger>
+              
+              <div class="select-search-header">
+                <mat-icon>search</mat-icon>
+                <input matInput [formControl]="cecoFilterCtrl" placeholder="Buscar centro..." (keydown)="$event.stopPropagation()">
+              </div>
+
+              <mat-checkbox class="select-all-checkbox p-12" [checked]="isAllCecosSelected()" (change)="toggleAllCecos($event.checked)">
+                Seleccionar Todo
+              </mat-checkbox>
+              <mat-divider></mat-divider>
+              <mat-option *ngFor="let ceco of filteredCecos$ | async" [value]="ceco.id_ceco">
+                {{ ceco.nombre }}
+              </mat-option>
+            </mat-select>
+          </mat-form-field>
+        </div>
+
+        <div class="filter-row-bottom">
+          <!-- 3. Periodo de Nómina (Autocomplete) -->
+          <div class="periodo-selector-wrapper flex-grow">
+            <mat-form-field appearance="outline" class="full-width">
+              <mat-label>Periodo de Nómina</mat-label>
+              <mat-icon matPrefix>event_repeat</mat-icon>
+              <input type="text" matInput [formControl]="periodoControl" [matAutocomplete]="autoP" placeholder="Escriba para buscar periodo...">
+              <mat-autocomplete #autoP="matAutocomplete" [displayWith]="displayPeriodo">
+                <mat-option *ngFor="let p of filteredPeriodos$ | async" [value]="p">
+                  {{ p.descripcion }} 
+                  <small class="text-subtle">
+                    ({{ p.fecha_inicio | date:'dd/MM' }} - {{ p.fecha_fin | date:'dd/MM' }})
+                  </small>
+                </mat-option>
+              </mat-autocomplete>
+              
+              <div matSuffix class="btns-suffix">
+                <button mat-icon-button (click)="abrirDialogoPeriodo(periodoControl.value)" [disabled]="!periodoControl.value" matTooltip="Editar Periodo">
+                  <mat-icon color="accent">edit</mat-icon>
+                </button>
+                <button mat-icon-button (click)="abrirDialogoPeriodo()" matTooltip="Nuevo Periodo">
+                  <mat-icon color="primary">add_circle</mat-icon>
+                </button>
+              </div>
+
+              <mat-hint *ngIf="startDate.value">
+                Rango: {{startDate.value | date:'dd/MM'}} - {{endDate.value | date:'dd/MM'}} ({{diasCalculados}} días)
+              </mat-hint>
+            </mat-form-field>
+          </div>
+
+          <div class="actions-flat">
+            <button mat-raised-button color="primary" class="btn-large full-width" (click)="buscarEmpleados()" [disabled]="!selectedCliente || loading || !periodoControl.value">
+              <mat-icon>calculate</mat-icon>
+              CALCULAR NÓMINA
+            </button>
+          </div>
+        </div>
+      </div>
+    </mat-card-content>
+  </mat-card>
+
+  <div *ngIf="loading" class="loading-full">
+    <mat-spinner diameter="60"></mat-spinner>
+    <p>Procesando nómina...</p>
+  </div>
+
+  <div *ngIf="!loading && contratos.length > 0" class="table-frame mat-elevation-z3">
+    <div class="table-scroll-container">
+      <table mat-table [dataSource]="contratos">
+        
+        <ng-container matColumnDef="empleado">
+          <th mat-header-cell *matHeaderCellDef> Empleado </th>
+          <td mat-cell *matCellDef="let element"> 
+            <div class="emp-name">{{element.primer_nombre}} {{element.primer_apellido}}</div>
+            <small class="text-subtle">{{element.centro_de_costo}}</small>
+          </td>
+        </ng-container>
+
+        <ng-container matColumnDef="num_doc">
+          <th mat-header-cell *matHeaderCellDef> Documento </th>
+          <td mat-cell *matCellDef="let element"> {{element.numero_documento}} </td>
+        </ng-container>
+
+        <ng-container matColumnDef="salario">
+          <th mat-header-cell *matHeaderCellDef> Salario Mes </th>
+          <td mat-cell *matCellDef="let element" class="salary-cell"> 
+            {{element.salario | currency:'$':'symbol':'1.0-0'}}
+          </td>
+        </ng-container>
+
+        <ng-container matColumnDef="dias">
+          <th mat-header-cell *matHeaderCellDef class="center-header"> Días </th>
+          <td mat-cell *matCellDef="let element" class="center-cell"> 
+            <span class="dias-pill">{{element.dias_laborados}}</span>
+          </td>
+        </ng-container>
+
+        <ng-container matColumnDef="devengado">
+          <th mat-header-cell *matHeaderCellDef> Sueldo Q </th>
+          <td mat-cell *matCellDef="let element"> {{ getDevengadoBasico(element) | currency:'$':'symbol':'1.0-0' }} </td>
+        </ng-container>
+
+        <ng-container matColumnDef="aux_trans">
+          <th mat-header-cell *matHeaderCellDef> Aux. Trans </th>
+          <td mat-cell *matCellDef="let element"> {{ getAuxilioTransporte(element) | currency:'$':'symbol':'1.0-0' }} </td>
+        </ng-container>
+
+        <ng-container matColumnDef="salud">
+          <th mat-header-cell *matHeaderCellDef> Salud </th>
+          <td mat-cell *matCellDef="let element" class="deduction-val"> -{{ getDeduccionSalud(element) | currency:'$':'symbol':'1.0-0' }} </td>
+        </ng-container>
+
+        <ng-container matColumnDef="pension">
+          <th mat-header-cell *matHeaderCellDef> Pensión </th>
+          <td mat-cell *matCellDef="let element" class="deduction-val"> -{{ getDeduccionPension(element) | currency:'$':'symbol':'1.0-0' }} </td>
+        </ng-container>
+
+        <ng-container matColumnDef="neto">
+          <th mat-header-cell *matHeaderCellDef> Neto a Pagar </th>
+          <td mat-cell *matCellDef="let element" class="net-val"> {{ getNetoQuincena(element) | currency:'$':'symbol':'1.0-0' }} </td>
+        </ng-container>
+
+        <tr mat-header-row *matHeaderRowDef="displayedColumns; sticky: true"></tr>
+        <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
+      </table>
+    </div>
+  </div>
+
+  <div *ngIf="!loading && contratos.length > 0" class="footer-control mat-elevation-z1">
+    <div class="summary-pill">
+      Total Registros: <strong>{{contratos.length}}</strong>
+    </div>
+    <div class="spacer"></div>
+    <button mat-flat-button color="primary" (click)="guardarEnHistorico()" [disabled]="guardando">
+      <mat-icon *ngIf="!guardando">cloud_upload</mat-icon>
+      <mat-spinner *ngIf="guardando" diameter="20"></mat-spinner>
+      GUARDAR EN HISTÓRICO
+    </button>
+    <button mat-stroked-button color="accent" (click)="exportToExcel()">
+      <mat-icon>file_download</mat-icon>
+      EXPORTAR EXCEL
+    </button>
+  </div>
+
+  <div *ngIf="!loading && contratos.length === 0 && selectedCliente" class="empty-state">
+    <mat-icon>person_search</mat-icon>
+    <p>No se encontraron contratos activos para los filtros aplicados.</p>
+  </div>
+</div>

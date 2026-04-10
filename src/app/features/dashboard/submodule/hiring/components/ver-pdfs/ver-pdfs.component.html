@@ -3,14 +3,18 @@
     <div class="title-block">
       <h2>{{ data.title }}</h2>
 
-      <p class="subtitle" *ngIf="hasDocuments">
-        {{ data.documents.length }}
-        documento{{ data.documents.length === 1 ? '' : 's' }}
-      </p>
+      @if (hasDocuments) {
+        <p class="subtitle">
+          {{ data.documents.length }}
+          documento{{ data.documents.length === 1 ? '' : 's' }}
+        </p>
+      }
 
-      <p class="subtitle" *ngIf="!hasDocuments">
-        No hay documentos para mostrar.
-      </p>
+      @if (!hasDocuments) {
+        <p class="subtitle">
+          No hay documentos para mostrar.
+        </p>
+      }
     </div>
 
     <button
@@ -24,117 +28,85 @@
 
   <mat-divider></mat-divider>
 
-  <div class="viewer-body" *ngIf="hasDocuments; else emptyState">
-    <!-- Lista de documentos (izquierda) -->
-    <aside class="doc-list">
-      <mat-nav-list dense>
-        <a
-          mat-list-item
-          *ngFor="let doc of data.documents; let i = index"
-          (click)="selectDoc(i)"
-          [class.active]="i === selectedIndex">
-          <mat-icon matListItemIcon>
-            {{ getIcon(doc) }}
-          </mat-icon>
-
-          <div matListItemTitle>
-            {{ doc.title }}
-          </div>
-
-          <div matListItemLine class="doc-meta">
-            <span class="chip">
-              {{ getChipLabel(doc) }}
-            </span>
-          </div>
-        </a>
-      </mat-nav-list>
-    </aside>
-
-    <!-- Preview (derecha) -->
-    <section class="preview">
-      <ng-container *ngIf="selectedDoc as doc">
-        <header class="preview-header">
-          <div>
-            <h3 class="doc-title">{{ doc.title }}</h3>
-            <span class="doc-chip">{{ getChipLabel(doc) }}</span>
-          </div>
-
-          <div class="preview-actions">
-            <!-- Solo mostrar "Abrir" en pestaña nueva si NO es PDF -->
-            <button
-              *ngIf="!isPdf(doc)"
-              mat-stroked-button
-              color="primary"
-              type="button"
-              (click)="openInNewTab(doc)"
-              matTooltip="Abrir en pestaña nueva">
-              <mat-icon>open_in_new</mat-icon>
-              Abrir
-            </button>
-
-            <button
-              mat-stroked-button
-              type="button"
-              (click)="download(doc)"
-              matTooltip="Descargar documento">
-              <mat-icon>download</mat-icon>
-              Descargar
-            </button>
-          </div>
-        </header>
-
-        <div class="preview-content">
-          <!-- Loader mientras se carga -->
-          <div *ngIf="loading" class="loading-state">
-            <span class="loader"></span><br />
-            <p class="loading-text" aria-label="Cargando documento…">
-              <span>C</span><span>a</span><span>r</span><span>g</span><span>a</span
-              ><span>n</span><span>d</span><span>o</span>
-              <span>&nbsp;</span>
-              <span>d</span><span>o</span><span>c</span><span>u</span><span>m</span
-              ><span>e</span><span>n</span><span>t</span><span>o</span><span>…</span>
-            </p>
-          </div>
-
-          <!-- PDF -->
-          <ng-container *ngIf="isPdf(doc); else nonPdf">
-            <!-- Error específico de carga -->
-            <ng-container *ngIf="loadError; else pdfContent">
-              <div class="generic-preview">
-                <mat-icon class="big-icon">error_outline</mat-icon>
-                <p class="info-text">
-                  {{ loadError }}
-                </p>
-
+  @if (hasDocuments) {
+    <div class="viewer-body">
+      <!-- Lista de documentos (izquierda) -->
+      <aside class="doc-list">
+        <mat-nav-list dense>
+          @for (doc of data.documents; track doc; let i = $index) {
+            <a
+              mat-list-item
+              (click)="selectDoc(i)"
+              [class.active]="i === selectedIndex">
+              <mat-icon matListItemIcon>
+                {{ getIcon(doc) }}
+              </mat-icon>
+              <div matListItemTitle>
+                {{ doc.title }}
+              </div>
+              <div matListItemLine class="doc-meta">
+                <span class="chip">
+                  {{ getChipLabel(doc) }}
+                </span>
+              </div>
+            </a>
+          }
+        </mat-nav-list>
+      </aside>
+      <!-- Preview (derecha) -->
+      <section class="preview">
+        @if (selectedDoc; as doc) {
+          <header class="preview-header">
+            <div>
+              <h3 class="doc-title">{{ doc.title }}</h3>
+              <span class="doc-chip">{{ getChipLabel(doc) }}</span>
+            </div>
+            <div class="preview-actions">
+              <!-- Solo mostrar "Abrir" en pestaña nueva si NO es PDF -->
+              @if (!isPdf(doc)) {
                 <button
-                  mat-raised-button
+                  mat-stroked-button
                   color="primary"
                   type="button"
-                  (click)="download(doc)">
-                  Descargar PDF
+                  (click)="openInNewTab(doc)"
+                  matTooltip="Abrir en pestaña nueva">
+                  <mat-icon>open_in_new</mat-icon>
+                  Abrir
                 </button>
+              }
+              <button
+                mat-stroked-button
+                type="button"
+                (click)="download(doc)"
+                matTooltip="Descargar documento">
+                <mat-icon>download</mat-icon>
+                Descargar
+              </button>
+            </div>
+          </header>
+          <div class="preview-content">
+            <!-- Loader mientras se carga -->
+            @if (loading) {
+              <div class="loading-state">
+                <span class="loader"></span><br />
+                <p class="loading-text" aria-label="Cargando documento…">
+                  <span>C</span><span>a</span><span>r</span><span>g</span><span>a</span
+                  ><span>n</span><span>d</span><span>o</span>
+                  <span>&nbsp;</span>
+                  <span>d</span><span>o</span><span>c</span><span>u</span><span>m</span
+                  ><span>e</span><span>n</span><span>t</span><span>o</span><span>…</span>
+                </p>
               </div>
-            </ng-container>
-
-            <!-- PDF sin error -->
-            <ng-template #pdfContent>
-              <ng-container *ngIf="currentSafeUrl; else pdfFallback">
-                <iframe
-                  class="pdf-frame"
-                  [src]="currentSafeUrl"
-                  title="Vista previa PDF"
-                  (load)="onIframeLoaded()">
-                </iframe>
-              </ng-container>
-
-              <!-- No se pudo construir la URL -->
-              <ng-template #pdfFallback>
+            }
+            <!-- PDF -->
+            @if (isPdf(doc)) {
+              <!-- Error específico de carga -->
+              @if (loadError) {
                 <div class="generic-preview">
-                  <mat-icon class="big-icon">picture_as_pdf</mat-icon>
+                  <mat-icon class="big-icon">error_outline</mat-icon>
                   <p class="info-text">
-                    No fue posible cargar la vista previa del PDF.
+                    {{ loadError }}
                   </p>
-
                   <button
                     mat-raised-button
                     color="primary"
@@ -143,50 +115,68 @@
                     Descargar PDF
                   </button>
                 </div>
-              </ng-template>
-            </ng-template>
-          </ng-container>
+              } @else {
+                @if (currentSafeUrl) {
+                  <iframe
+                    class="pdf-frame"
+                    [src]="currentSafeUrl"
+                    title="Vista previa PDF"
+                    (load)="onIframeLoaded()">
+                  </iframe>
+                } @else {
+                  <div class="generic-preview">
+                    <mat-icon class="big-icon">picture_as_pdf</mat-icon>
+                    <p class="info-text">
+                      No fue posible cargar la vista previa del PDF.
+                    </p>
+                    <button
+                      mat-raised-button
+                      color="primary"
+                      type="button"
+                      (click)="download(doc)">
+                      Descargar PDF
+                    </button>
+                  </div>
+                }
+                <!-- No se pudo construir la URL -->
+              }
+              <!-- PDF sin error -->
+            } @else {
+              <!-- Imagen -->
+              @if (isImage(doc)) {
+                <img
+                  class="image-preview"
+                  [src]="doc.file_url"
+                  [alt]="doc.title" />
+                } @else {
+                  <div class="generic-preview">
+                    <mat-icon class="big-icon">
+                      {{ getIcon(doc) }}
+                    </mat-icon>
+                    <p class="info-text">
+                      Vista previa no disponible para este tipo de archivo.
+                    </p>
+                    <button
+                      mat-raised-button
+                      color="primary"
+                      type="button"
+                      (click)="openInNewTab(doc)">
+                      Abrir en nueva pestaña
+                    </button>
+                  </div>
+                }
+                <!-- Excel / otros -->
+              }
+              <!-- NO PDF -->
+            </div>
+          }
+        </section>
+      </div>
+    } @else {
+      <div class="empty-state">
+        <mat-icon class="empty-icon">folder_off</mat-icon>
+        <p>No hay documentos para visualizar.</p>
+      </div>
+    }
 
-          <!-- NO PDF -->
-          <ng-template #nonPdf>
-            <!-- Imagen -->
-            <ng-container *ngIf="isImage(doc); else genericPreview">
-              <img
-                class="image-preview"
-                [src]="doc.file_url"
-                [alt]="doc.title" />
-            </ng-container>
-
-            <!-- Excel / otros -->
-            <ng-template #genericPreview>
-              <div class="generic-preview">
-                <mat-icon class="big-icon">
-                  {{ getIcon(doc) }}
-                </mat-icon>
-
-                <p class="info-text">
-                  Vista previa no disponible para este tipo de archivo.
-                </p>
-
-                <button
-                  mat-raised-button
-                  color="primary"
-                  type="button"
-                  (click)="openInNewTab(doc)">
-                  Abrir en nueva pestaña
-                </button>
-              </div>
-            </ng-template>
-          </ng-template>
-        </div>
-      </ng-container>
-    </section>
   </div>
-
-  <ng-template #emptyState>
-    <div class="empty-state">
-      <mat-icon class="empty-icon">folder_off</mat-icon>
-      <p>No hay documentos para visualizar.</p>
-    </div>
-  </ng-template>
-</div>

@@ -1,4 +1,4 @@
-import { Component, OnInit, PLATFORM_ID, inject } from '@angular/core';
+import {  Component, OnInit, PLATFORM_ID, inject , ChangeDetectionStrategy } from '@angular/core';
 import { isPlatformBrowser } from '@angular/common';
 import { FormBuilder, FormGroup, Validators, AbstractControl, FormArray } from '@angular/forms';
 import Swal from 'sweetalert2';
@@ -14,6 +14,7 @@ import { MatDialog } from '@angular/material/dialog';
 import { HistorialDialogComponent } from '../../../authorizations/pages/autorizacion-dinamica/historial-dialog/historial-dialog.component';
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-cargar-mercado-ferias',
   standalone: true,
   imports: [
@@ -21,7 +22,7 @@ import { HistorialDialogComponent } from '../../../authorizations/pages/autoriza
   ],
   templateUrl: './cargar-mercado-ferias.component.html',
   styleUrl: './cargar-mercado-ferias.component.css'
-})
+} )
 export class CargarMercadoFeriasComponent implements OnInit {
   private platformId = inject(PLATFORM_ID);
   myForm!: FormGroup;

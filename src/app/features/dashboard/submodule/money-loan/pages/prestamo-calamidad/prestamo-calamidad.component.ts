@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy } from '@angular/core';
+import {  Component, OnInit, OnDestroy , ChangeDetectionStrategy } from '@angular/core';
 import { FormBuilder, FormGroup, Validators } from '@angular/forms';
 import Swal from 'sweetalert2';
 import { Router } from '@angular/router';
@@ -11,11 +11,12 @@ import { MatDialog } from '@angular/material/dialog';
 import { HistorialDialogComponent } from '../../../authorizations/pages/autorizacion-dinamica/historial-dialog/historial-dialog.component';
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-prestamo-calamidad',
   imports: [SharedModule, FormsModule],
   templateUrl: './prestamo-calamidad.component.html',
   styleUrl: './prestamo-calamidad.component.css'
-})
+} )
 export class PrestamoCalamidadComponent implements OnInit, OnDestroy {
   searchForm!: FormGroup;
   executeForm!: FormGroup;
