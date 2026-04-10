@@ -515,6 +515,10 @@ export class RecruitmentPipelineComponent {
           <label>Fecha de Retiro:</label>
           <input type="date" id="swal-fecha-baja" class="swal2-input" value="${new Date().toISOString().split('T')[0]}">
         </div>
+        <div style="text-align: left; margin-bottom: 8px;">
+          <label>Motivo de Retiro:</label>
+          <input type="text" id="swal-motivo-baja" class="swal2-input" placeholder="Ingrese el motivo de retiro">
+        </div>
       `,
       focusConfirm: false,
       showCancelButton: true,
@@ -523,8 +527,10 @@ export class RecruitmentPipelineComponent {
       cancelButtonText: 'Cancelar',
       preConfirm: () => {
         const d = (document.getElementById('swal-fecha-baja') as HTMLInputElement).value;
-        if (!d) Swal.showValidationMessage('La fecha es obligatoria');
-        return d;
+        const m = (document.getElementById('swal-motivo-baja') as HTMLInputElement).value;
+        if (!d) { Swal.showValidationMessage('La fecha es obligatoria'); return; }
+        if (!m) { Swal.showValidationMessage('El motivo es obligatorio'); return; }
+        return { fecha: d, motivo: m };
       }
     });
 
@@ -535,16 +541,22 @@ export class RecruitmentPipelineComponent {
           numero_documento: cc,
           contrato_detalle: {
             contrato_activo: false,
-            fecha_retiro: formValues
+            fecha_retiro: formValues.fecha,
+            motivo_retiro: formValues.motivo
           }
         };
         await firstValueFrom(this.registroProceso.updateProcesoByDocumento(payload as any));
         
         // Actualizamos estado local
         const cand = this.candidatoSeleccionado();
-        if (cand?.entrevistas?.[0]?.proceso?.contrato) {
-           cand.entrevistas[0].proceso.contrato.contrato_activo = false;
-           cand.entrevistas[0].proceso.contrato.fecha_retiro = formValues;
+        if (cand?.entrevistas?.[0]?.proceso) {
+           const proceso = cand.entrevistas[0].proceso;
+           if (proceso.contrato) {
+             proceso.contrato.contrato_activo = false;
+             proceso.contrato.fecha_retiro = formValues.fecha;
+             proceso.contrato.motivo_retiro = formValues.motivo;
+           }
+           proceso.rechazado = true;
            this.candidatoSeleccionado.set({ ...cand });
         }
         Swal.fire('¡Baja exitosa!', `El contrato de ${this.nombreCandidato} ha sido desactivado.`, 'success');
@@ -894,56 +906,57 @@ export class RecruitmentPipelineComponent {
 
         const data = Array.isArray(rows) ? rows : (rows ? [rows] : []);
 
-        const mappedData = data.map((row: any) => {
-          // Remisión
-          const isRemision = row.prueba_tecnica === true || row.autorizado === true;
-          row._remision_ui = isRemision ? 'Sí' : 'No';
-          row._remision_date = isRemision ? (row.prueba_tecnica_at || row.autorizado_at || row.updated_at || row.entrevista_created_at) : null;
+        // Encontrar el proceso contratado más reciente (primer elemento con contratado=true, ya que vienen ordenados por -created_at)
+        let lastContratadoIdx = -1;
+        for (let i = 0; i < data.length; i++) {
+          if (data[i].contratado === true) { lastContratadoIdx = i; break; }
+        }
 
-          // Exámenes
-          const isExamenes = row.examenes_medicos === true;
-          row._examenes_ui = isExamenes ? 'Sí' : 'No';
-          row._examenes_date = isExamenes ? (row.examenes_medicos_at || row.updated_at || row.entrevista_created_at) : null;
-
-          // Contratado
-          const isContratado = row.contratado === true;
-          row._contratado_ui = isContratado ? 'Sí' : 'No';
-          row._contratado_date = isContratado ? (row.contratado_at || row.contrato?.fecha_ingreso || row.updated_at || row.entrevista_created_at) : null;
-
-          // Aplica / No Aplica "Rechazado"
-          let apl = String(row.aplica_o_no_aplica || '').toUpperCase();
-          if (apl === 'NO_APLICA' || apl === 'NO APLICA') {
-            row._aplica_ui = 'Rechazado';
-            row._aplica_date = row.rechazado_at || row.updated_at || row.entrevista_created_at; 
+        const mappedData = data.map((row: any, idx: number) => {
+          // Estado del proceso
+          if (row.contratado === true) {
+            row._estado = idx === lastContratadoIdx ? 'Contratado' : 'Retirado';
+          } else if (row.rechazado === true || String(row.aplica_o_no_aplica || '').toUpperCase() === 'NO_APLICA') {
+            row._estado = 'Rechazado';
+          } else if (String(row.aplica_o_no_aplica || '').toUpperCase() === 'EN_ESPERA') {
+            row._estado = 'Espera de vacante';
           } else {
-            row._aplica_ui = row.aplica_o_no_aplica;
-            row._aplica_date = null;
+            row._estado = 'Pendiente';
           }
 
           // Fecha de ingreso
-          row._ingreso_date = row.contrato_fecha_ingreso || row.ingreso_at || null;
+          row._ingreso_date = row.contrato_fecha_ingreso || row.contrato?.fecha_ingreso || row.ingreso_at || null;
+
+          // Datos de retiro (del contrato)
+          row._fecha_retiro = row.contrato?.fecha_retiro || null;
+          row._motivo_retiro = row.contrato?.motivo_retiro || '-';
+
+          // Motivo (combinar motivo_no_aplica y motivo_espera)
+          const partes = [row.motivo_no_aplica, row.motivo_espera].filter(Boolean);
+          row._motivo = partes.join(' | ') || '-';
 
           return row;
         });
 
         const columns: ColumnDefinition[] = [
           { name: 'oficina', header: 'Oficina', type: 'text', width: '140px' },
-          { name: 'entrevista_created_at', header: 'Fecha entrevista', type: 'date', width: '200px' },
+          { name: 'entrevista_created_at', header: 'Fecha entrevista', type: 'date', width: '180px' },
+          {
+            name: '_estado', header: 'Estado', type: 'status', width: '150px',
+            statusConfig: {
+              'Contratado':  { color: '#fff', background: '#2e7d32' },
+              'Espera de vacante': { color: '#fff', background: '#f57c00' },
+              'Retirado':    { color: '#fff', background: '#4a148c' },
+              'Rechazado':   { color: '#fff', background: '#c62828' },
+              'Pendiente':   { color: '#fff', background: '#757575' },
+            }
+          },
           { name: 'empresaUsuariaSolicita', header: 'Empresa usuaria', type: 'text', width: '180px' },
           { name: 'finca', header: 'Finca', type: 'text', width: '160px' },
           { name: '_ingreso_date', header: 'Fecha de ingreso', type: 'date', width: '160px' },
-          { name: '_aplica_ui', header: 'Aplica/No aplica', type: 'text', width: '150px' },
-          { name: '_aplica_date', header: 'Fecha Rta.', type: 'date', width: '140px' },
-          { name: 'motivo_no_aplica', header: 'Motivo no aplica', type: 'text', width: '240px' },
-          { name: 'motivo_espera', header: 'Motivo espera', type: 'text', width: '220px' },
-          { name: '_remision_ui', header: 'Remisión', type: 'text', width: '120px' },
-          { name: '_remision_date', header: 'Fecha Remisión', type: 'date', width: '140px' },
-          { name: '_examenes_ui', header: 'Exámenes', type: 'text', width: '120px' },
-          { name: '_examenes_date', header: 'Fecha Exámenes', type: 'date', width: '140px' },
-          { name: '_contratado_ui', header: 'Contratado', type: 'text', width: '120px' },
-          { name: '_contratado_date', header: 'F. Contratado', type: 'date', width: '140px' },
-          { name: 'detalle', header: 'Detalle', type: 'text', width: '260px' },
-          { name: 'actions', header: 'Acciones', type: 'custom', width: '120px', stickyEnd: true },
+          { name: '_motivo', header: 'Motivo', type: 'text', width: '260px' },
+          { name: '_fecha_retiro', header: 'Fecha de retiro', type: 'date', width: '160px' },
+          { name: '_motivo_retiro', header: 'Motivo de retiro', type: 'text', width: '220px' },
         ];
 
         this.dialog.open(TableDialogComponent, {

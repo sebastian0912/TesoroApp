@@ -1,0 +1,136 @@
+<ng-container *ngIf="!loading; else loadingState">
+  <div class="favorites-shell">
+    <main class="favorites-content">
+      <header class="hero executive-glass">
+        <div class="hero-copy">
+          <p class="eyebrow">Favorites index</p>
+          <h1>Tableros destacados</h1>
+          <p class="hero-text">
+            Esta vista concentra tus boards mas importantes para que puedas volver a ellos rapido sin navegar por todos tus workspaces.
+          </p>
+
+          <div class="hero-actions">
+            <button mat-stroked-button type="button" (click)="goToDashboard()">
+              Volver al dashboard
+            </button>
+            <button mat-raised-button color="primary" type="button" (click)="goToBoards()">
+              Elegir favoritos
+            </button>
+          </div>
+        </div>
+
+        <div class="profile-card">
+          <span class="status-pill">{{ filteredFavoriteBoards.length }} destacados</span>
+          <h3>{{ selectedWorkspaceLabel }}</h3>
+          <p>{{ hasActiveFilters ? 'Filtros activos para refinar tus accesos rapidos.' : 'Los favoritos se guardan para volver directo a los tableros donde mas trabajas.' }}</p>
+        </div>
+      </header>
+
+      <section class="stats-grid">
+        <article class="stat-card executive-glass" *ngFor="let stat of stats">
+          <div class="stat-icon">
+            <mat-icon>{{ stat.icon }}</mat-icon>
+          </div>
+          <div>
+            <p class="stat-label">{{ stat.label }}</p>
+            <h3>{{ stat.value }}</h3>
+            <p class="stat-caption">{{ stat.caption }}</p>
+          </div>
+        </article>
+      </section>
+
+      <section class="filters-card executive-glass">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Filtros</p>
+            <h2>Encuentra un favorito</h2>
+          </div>
+          <button mat-stroked-button type="button" (click)="clearFilters()" [disabled]="!hasActiveFilters">
+            Limpiar filtros
+          </button>
+        </div>
+
+        <form class="filters-form" [formGroup]="filtersForm">
+          <mat-form-field appearance="outline">
+            <mat-label>Buscar favorito</mat-label>
+            <input matInput formControlName="query" placeholder="Nombre, descripcion o workspace">
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>Workspace</mat-label>
+            <mat-select formControlName="workspaceId">
+              <mat-option value="all">Todos los workspaces</mat-option>
+              <mat-option *ngFor="let workspace of favoriteWorkspaces" [value]="workspace.id.toString()">
+                {{ workspace.name }}
+              </mat-option>
+            </mat-select>
+          </mat-form-field>
+        </form>
+      </section>
+
+      <ng-container *ngIf="favoriteBoards.length; else emptyState">
+        <ng-container *ngIf="filteredFavoriteBoards.length; else emptyFilteredState">
+        <section class="favorites-grid">
+          <article class="board-card executive-glass" *ngFor="let board of filteredFavoriteBoards; trackBy: trackBoard" [style.--board-accent]="board.accent">
+            <div class="board-topline">
+              <span>{{ board.workspaceName }}</span>
+              <button mat-icon-button type="button" aria-label="Quitar de favoritos" (click)="toggleFavorite(board.id)">
+                <mat-icon>star</mat-icon>
+              </button>
+            </div>
+
+            <h3>{{ board.name }}</h3>
+            <p>{{ board.description || 'Este tablero ya esta listo para listas, cards y flujo Kanban.' }}</p>
+
+            <div class="board-footer">
+              <span class="board-badge">{{ board.updatedAt | date: 'd MMM y' }}</span>
+            </div>
+            <button
+              mat-raised-button
+              color="primary"
+              type="button"
+              class="preview-btn"
+              (click)="openBoardPreview(board.id)"
+            >
+              <mat-icon>open_in_new</mat-icon>
+              Abrir preview
+            </button>
+          </article>
+        </section>
+        </ng-container>
+      </ng-container>
+
+      <ng-template #emptyState>
+        <article class="empty-state executive-glass">
+          <mat-icon>star_outline</mat-icon>
+          <h3>Aun no tienes favoritos</h3>
+          <p>Marca tableros desde la vista general para reunir aqui tus accesos mas importantes.</p>
+          <button mat-raised-button color="primary" type="button" (click)="goToBoards()">
+            Ir a tableros
+          </button>
+        </article>
+      </ng-template>
+
+      <ng-template #emptyFilteredState>
+        <article class="empty-state executive-glass">
+          <mat-icon>filter_alt_off</mat-icon>
+          <h3>No encontramos favoritos con ese filtro</h3>
+          <p>Ajusta la busqueda o limpia los filtros para volver a ver todos tus destacados.</p>
+          <button mat-stroked-button type="button" (click)="clearFilters()">
+            Limpiar filtros
+          </button>
+        </article>
+      </ng-template>
+    </main>
+  </div>
+</ng-container>
+
+<ng-template #loadingState>
+  <div class="loading-state">
+    <div class="loading-card executive-glass">
+      <div class="brand-mark">M</div>
+      <h2>Cargando favoritos</h2>
+      <p>Estamos reuniendo tus accesos rapidos dentro de MatDer.</p>
+    </div>
+  </div>
+</ng-template>

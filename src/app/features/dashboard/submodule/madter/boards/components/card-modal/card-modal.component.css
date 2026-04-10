@@ -1,0 +1,301 @@
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: rgba(2, 6, 23, 0.72);
+  backdrop-filter: blur(8px);
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+
+.modal-panel {
+  width: min(100%, 720px);
+  padding: 28px;
+  max-height: calc(100vh - 48px);
+  overflow: auto;
+  color: #f8fafc;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: start;
+}
+
+.modal-header h2 {
+  margin: 0;
+  color: #f8fafc;
+}
+
+.eyebrow {
+  margin: 0 0 8px;
+  color: #93c5fd;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.modal-text {
+  margin: 12px 0 18px;
+  color: var(--text-muted);
+  line-height: 1.55;
+}
+
+.modal-text strong,
+.section-title h3,
+.autocomplete-option strong {
+  color: #f8fafc;
+}
+
+.modal-form {
+  display: grid;
+  gap: 18px;
+}
+
+.form-section,
+.field-grid,
+.form-meta,
+.modal-actions {
+  display: grid;
+  gap: 12px;
+}
+
+.field-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.field-grid--dates {
+  align-items: start;
+}
+
+.form-section {
+  padding: 18px;
+  border-radius: 22px;
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  background:
+    linear-gradient(180deg, rgba(15, 23, 42, 0.48), rgba(15, 23, 42, 0.74)),
+    radial-gradient(circle at top right, rgba(56, 189, 248, 0.12), transparent 45%);
+}
+
+.planner-section {
+  background:
+    linear-gradient(180deg, rgba(15, 23, 42, 0.58), rgba(15, 23, 42, 0.82)),
+    radial-gradient(circle at top left, rgba(245, 158, 11, 0.12), transparent 42%);
+}
+
+.labels-section {
+  background:
+    linear-gradient(180deg, rgba(15, 23, 42, 0.52), rgba(15, 23, 42, 0.82)),
+    radial-gradient(circle at top right, rgba(99, 102, 241, 0.12), transparent 40%);
+}
+
+.section-title {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 4px;
+}
+
+.section-title h3 {
+  margin: 0;
+}
+
+.section-eyebrow {
+  margin: 0;
+  color: #7dd3fc;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.autocomplete-option {
+  display: grid;
+  gap: 4px;
+}
+
+.label-option {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+}
+
+.label-option__swatch,
+.selected-label-pill__swatch,
+.suggested-label-pill__swatch {
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  box-shadow: 0 0 0 3px rgba(15, 23, 42, 0.28);
+}
+
+.label-option__swatch--new {
+  background: linear-gradient(135deg, #38bdf8, #2563eb);
+}
+
+.label-option__copy {
+  display: grid;
+  gap: 2px;
+}
+
+.label-option__copy strong {
+  color: #f8fafc;
+}
+
+.label-option__copy span {
+  color: #94a3b8;
+  font-size: 12px;
+}
+
+.autocomplete-option span {
+  color: #94a3b8;
+  font-size: 12px;
+}
+
+.selected-labels,
+.suggested-labels {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.selected-labels--empty {
+  padding: 14px 16px;
+  border-radius: 18px;
+  border: 1px dashed rgba(148, 163, 184, 0.2);
+  background: rgba(15, 23, 42, 0.3);
+}
+
+.selected-labels--empty p {
+  margin: 0;
+  color: #94a3b8;
+  line-height: 1.5;
+}
+
+.selected-label-pill,
+.suggested-label-pill {
+  --label-accent: #38bdf8;
+  border: 1px solid color-mix(in srgb, var(--label-accent) 40%, rgba(255, 255, 255, 0.1));
+  background:
+    linear-gradient(180deg, rgba(15, 23, 42, 0.7), rgba(15, 23, 42, 0.92)),
+    radial-gradient(circle at top left, color-mix(in srgb, var(--label-accent) 22%, transparent), transparent 55%);
+  color: #e2e8f0;
+  border-radius: 999px;
+  padding: 10px 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  font: inherit;
+  transition: transform 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.selected-label-pill:hover,
+.suggested-label-pill:hover,
+.suggested-label-pill--active {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--label-accent) 62%, rgba(255, 255, 255, 0.16));
+  box-shadow: 0 16px 28px -24px color-mix(in srgb, var(--label-accent) 70%, transparent);
+}
+
+.selected-label-pill mat-icon,
+.suggested-label-pill mat-icon {
+  width: 16px;
+  height: 16px;
+  font-size: 16px;
+  color: color-mix(in srgb, var(--label-accent) 65%, #ffffff);
+}
+
+.suggested-label-pill {
+  padding-right: 16px;
+}
+
+:host ::ng-deep .mat-mdc-form-field .mdc-floating-label,
+:host ::ng-deep .mat-mdc-form-field .mat-mdc-select-placeholder,
+:host ::ng-deep .mat-mdc-form-field .mat-mdc-select-value,
+:host ::ng-deep .mat-mdc-form-field .mat-mdc-select-arrow,
+:host ::ng-deep .mat-mdc-form-field .mat-datepicker-toggle-default-icon,
+:host ::ng-deep .mat-mdc-form-field .mat-mdc-input-element,
+:host ::ng-deep .mat-mdc-form-field .mat-mdc-input-element::placeholder,
+:host ::ng-deep .mat-mdc-form-field .mat-mdc-form-field-hint,
+:host ::ng-deep .mat-mdc-form-field .mdc-text-field__input,
+:host ::ng-deep .mat-mdc-form-field textarea {
+  color: #f8fafc !important;
+}
+
+:host ::ng-deep .mat-mdc-form-field .mdc-floating-label {
+  color: #cbd5e1 !important;
+}
+
+:host ::ng-deep .mat-mdc-form-field.mat-focused .mdc-floating-label {
+  color: #ffffff !important;
+}
+
+.planner-note {
+  display: flex;
+  gap: 12px;
+  align-items: start;
+  padding: 14px 16px;
+  border-radius: 18px;
+  background: rgba(15, 118, 110, 0.12);
+  border: 1px solid rgba(45, 212, 191, 0.14);
+}
+
+.planner-note mat-icon {
+  color: #99f6e4;
+  margin-top: 2px;
+}
+
+.planner-note p {
+  margin: 0;
+  color: #ccfbf1;
+  line-height: 1.5;
+}
+
+.form-meta {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  color: #94a3b8;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.form-error {
+  margin: 0;
+  color: #fca5a5;
+  font-size: 14px;
+}
+
+.modal-actions {
+  grid-auto-flow: column;
+  justify-content: end;
+}
+
+@media (max-width: 720px) {
+  .modal-backdrop {
+    padding: 14px;
+  }
+
+  .modal-panel {
+    padding: 22px;
+  }
+
+  .form-section {
+    padding: 16px;
+  }
+
+  .field-grid,
+  .form-meta,
+  .modal-actions {
+    grid-template-columns: 1fr;
+    grid-auto-flow: row;
+  }
+
+  .selected-labels,
+  .suggested-labels {
+    gap: 8px;
+  }
+}

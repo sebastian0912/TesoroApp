@@ -77,6 +77,40 @@ export class OrdenUnionDialogComponent {
     this.selected.set(new Set());
   }
 
+  /** Orden predeterminado de paquete de contratación */
+  private readonly PRESET_ORDER: number[] = [
+    34, 29, 6, 3, 4, 5, 103, 32, 107,
+    25, 104, 30, 27, 7, 11,
+    15, 16, 17, 86,
+  ];
+
+  aplicarOrdenPredeterminado() {
+    const allItems = this.items();
+    const idMap = new Map(allItems.map(i => [i.id, i]));
+
+    // Primero los del preset que existan, luego el resto en su orden actual
+    const ordered: Item[] = [];
+    const selectedIds = new Set<number>();
+
+    for (const id of this.PRESET_ORDER) {
+      const item = idMap.get(id);
+      if (item) {
+        ordered.push(item);
+        selectedIds.add(id);
+        idMap.delete(id);
+      }
+    }
+    // Agregar los restantes al final (no seleccionados)
+    for (const item of allItems) {
+      if (idMap.has(item.id)) {
+        ordered.push(item);
+      }
+    }
+
+    this.items.set(ordered);
+    this.selected.set(selectedIds);
+  }
+
   resetOrder() {
     this.items.set(this.initialOrder.map(a => ({ ...a })));
     // Opcional: ¿Resetear selección también? 

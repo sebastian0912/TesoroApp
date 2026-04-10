@@ -1,0 +1,272 @@
+<div class="modal-backdrop" *ngIf="visible" (click)="requestClose()">
+  <section class="modal-panel executive-glass" (click)="$event.stopPropagation()">
+    <div class="modal-header">
+      <div>
+        <p class="eyebrow">Task Studio</p>
+        <h2>{{ isEditing ? 'Editar tarea' : 'Crear tarea' }}</h2>
+      </div>
+      <button mat-icon-button type="button" aria-label="Cerrar modal" (click)="requestClose()">
+        <mat-icon>close</mat-icon>
+      </button>
+    </div>
+
+    <p class="modal-text">
+      {{ isEditing ? 'Actualiza' : 'Agrega' }} una tarea dentro de <strong>{{ listName || 'esta lista' }}</strong>
+      y deja listo su contexto, prioridad, responsable y fecha desde una sola vista.
+    </p>
+
+    <form [formGroup]="form" (ngSubmit)="submitted.emit()" class="modal-form">
+      <section class="form-section">
+        <div class="section-title">
+          <p class="section-eyebrow">Contexto</p>
+          <h3>Base de la tarea</h3>
+        </div>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Titulo</mat-label>
+          <input matInput formControlName="title" maxlength="120" placeholder="Ej. Implementar login con sesiones">
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Descripcion</mat-label>
+          <textarea
+            matInput
+            formControlName="description"
+            rows="5"
+            maxlength="600"
+            placeholder="Contexto, alcance o detalles que ayudaran a ejecutar esta tarea"
+          ></textarea>
+        </mat-form-field>
+      </section>
+
+      <section class="form-section labels-section">
+        <div class="section-title">
+          <p class="section-eyebrow">Clasificacion</p>
+          <h3>Categorias y etiquetas</h3>
+        </div>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Etiquetas de trabajo</mat-label>
+          <input
+            matInput
+            type="text"
+            placeholder="Busca o crea etiquetas como Frontend, Bug o QA"
+            [formControl]="labelControl"
+            [matAutocomplete]="labelAuto"
+            (keydown.enter)="$event.preventDefault(); addCurrentLabel()"
+          >
+
+          <button mat-icon-button matSuffix type="button" aria-label="Agregar etiqueta" (click)="addCurrentLabel()">
+            <mat-icon>add_circle</mat-icon>
+          </button>
+
+          <mat-autocomplete #labelAuto="matAutocomplete" (optionSelected)="handleLabelOptionSelected($event)">
+            <mat-option *ngFor="let option of filteredLabelOptions" [value]="option.name">
+              <div class="label-option">
+                <span class="label-option__swatch" [style.background-color]="option.color"></span>
+                <div class="label-option__copy">
+                  <strong>{{ option.name }}</strong>
+                  <span>{{ option.source === 'board' ? 'Ya existe en este tablero' : 'Sugerencia de trabajo' }}</span>
+                </div>
+              </div>
+            </mat-option>
+
+            <mat-option *ngIf="canCreateCurrentLabel" [value]="labelControl.value.trim()">
+              <div class="label-option">
+                <span class="label-option__swatch label-option__swatch--new"></span>
+                <div class="label-option__copy">
+                  <strong>Crear etiqueta "{{ labelControl.value.trim() }}"</strong>
+                  <span>Se agregara al tablero y quedara disponible para futuras tareas.</span>
+                </div>
+              </div>
+            </mat-option>
+          </mat-autocomplete>
+
+          <mat-hint>
+            Puedes elegir etiquetas del tablero o crear nuevas sin salir del formulario.
+          </mat-hint>
+        </mat-form-field>
+
+        <div class="selected-labels" *ngIf="selectedLabels.length">
+          <button
+            type="button"
+            class="selected-label-pill"
+            *ngFor="let label of selectedLabels"
+            [style.--label-accent]="label.color"
+            (click)="removeLabel(label)"
+          >
+            <span class="selected-label-pill__swatch" [style.background-color]="label.color"></span>
+            <span>{{ label.name }}</span>
+            <mat-icon>close</mat-icon>
+          </button>
+        </div>
+
+        <div class="selected-labels selected-labels--empty" *ngIf="!selectedLabels.length">
+          <p>Aun no hay etiquetas seleccionadas para esta tarea.</p>
+        </div>
+
+        <div class="suggested-labels">
+          <button
+            type="button"
+            class="suggested-label-pill"
+            *ngFor="let label of suggestedLabels"
+            [style.--label-accent]="label.color"
+            [class.suggested-label-pill--active]="isSelectedLabel(label.name)"
+            (click)="toggleSuggestedLabel(label)"
+          >
+            <span class="suggested-label-pill__swatch" [style.background-color]="label.color"></span>
+            <span>{{ label.name }}</span>
+          </button>
+        </div>
+      </section>
+
+      <section class="form-section planner-section">
+        <div class="section-title">
+          <p class="section-eyebrow">Planificacion</p>
+          <h3>Responsable y fecha</h3>
+        </div>
+
+        <div class="field-grid">
+          <mat-form-field appearance="outline">
+            <mat-label>Estado</mat-label>
+            <mat-select formControlName="status">
+              <mat-option *ngFor="let option of statusOptions" [value]="option.value">
+                {{ option.label }}
+              </mat-option>
+            </mat-select>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>Equipo / Grupo</mat-label>
+            <mat-select formControlName="assigneeGroupId">
+              <mat-option [value]="null">Sin grupo asignado</mat-option>
+              <mat-option *ngFor="let group of userGroups" [value]="group.id">
+                {{ group.name }}
+              </mat-option>
+            </mat-select>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>Prioridad</mat-label>
+            <mat-select formControlName="priority">
+              <mat-option *ngFor="let option of priorityOptions" [value]="option.value">
+                {{ option.label }}
+              </mat-option>
+            </mat-select>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>Responsable</mat-label>
+            <input
+              matInput
+              type="text"
+              placeholder="Escribe un correo o usuario"
+              [formControl]="assigneeControl"
+              [matAutocomplete]="assigneeAuto"
+              #assigneeAutoTrigger="matAutocompleteTrigger"
+              (focus)="assigneeAutoTrigger.openPanel()"
+            >
+
+            <button
+              *ngIf="selectedAssignee"
+              mat-icon-button
+              matSuffix
+              type="button"
+              aria-label="Quitar responsable"
+              (click)="clearAssignee()"
+            >
+              <mat-icon>close</mat-icon>
+            </button>
+
+            <mat-icon matSuffix *ngIf="!selectedAssignee && !assigneeLoading">manage_search</mat-icon>
+            <mat-icon matSuffix *ngIf="assigneeLoading">hourglass_top</mat-icon>
+
+            <mat-autocomplete
+              #assigneeAuto="matAutocomplete"
+              [displayWith]="displayAssignee.bind(this)"
+              (optionSelected)="handleAssigneeSelection($event)"
+            >
+              <mat-option *ngFor="let option of assigneeOptions" [value]="option">
+                <div class="autocomplete-option">
+                  <strong>{{ option.fullName || option.username }}</strong>
+                  <span>{{ option.email }}</span>
+                </div>
+              </mat-option>
+            </mat-autocomplete>
+
+            <mat-hint *ngIf="selectedAssignee">
+              Responsable actual: {{ selectedAssignee.fullName || selectedAssignee.username }}
+            </mat-hint>
+            <mat-hint *ngIf="!selectedAssignee">
+              Busca por correo. Solo aparecen usuarios activos con correo verificado.
+            </mat-hint>
+          </mat-form-field>
+        </div>
+
+        <div class="field-grid field-grid--dates">
+          <mat-form-field appearance="outline" (click)="dateMenuTrigger.openMenu()" style="cursor: pointer;">
+            <mat-label>Fecha limite</mat-label>
+            <input
+              matInput
+              readonly
+              style="cursor: pointer;"
+              [value]="form.get('dueDate')?.value | date:'dd/MM/yyyy'"
+              placeholder="Selecciona una fecha"
+              [matMenuTriggerFor]="dateMenu"
+              #dateMenuTrigger="matMenuTrigger"
+            >
+            <button
+              mat-icon-button
+              matSuffix
+              type="button"
+              aria-label="Quitar fecha"
+              [disabled]="!form.get('dueDate')?.value"
+              [style.visibility]="form.get('dueDate')?.value ? 'visible' : 'hidden'"
+              (click)="clearDueDate(); $event.stopPropagation()"
+            >
+              <mat-icon>close</mat-icon>
+            </button>
+            <mat-icon matSuffix (click)="dateMenuTrigger.openMenu(); $event.stopPropagation()">calendar_today</mat-icon>
+          </mat-form-field>
+          <mat-menu #dateMenu="matMenu" class="calendar-menu">
+            <mat-calendar
+              [selected]="form.get('dueDate')?.value"
+              (selectedChange)="onDateSelected($event, dateMenuTrigger)"
+              (click)="$event.stopPropagation()"
+            ></mat-calendar>
+          </mat-menu>
+
+          <mat-form-field appearance="outline">
+            <mat-label>Hora</mat-label>
+            <mat-select formControlName="dueTime">
+              <mat-option *ngFor="let option of timeOptions" [value]="option">
+                {{ option }}
+              </mat-option>
+            </mat-select>
+          </mat-form-field>
+        </div>
+
+        <div class="planner-note">
+          <mat-icon>event_available</mat-icon>
+          <p>Selecciona una fecha desde el calendario y asigna la tarea solo a usuarios activos y verificados.</p>
+        </div>
+      </section>
+
+      <div class="form-meta">
+        <span>{{ getControlLength('title') }}/120</span>
+        <span>{{ getControlLength('description') }}/600</span>
+      </div>
+
+      <p class="form-error" *ngIf="error">{{ error }}</p>
+
+      <div class="modal-actions">
+        <button mat-stroked-button type="button" (click)="requestClose()" [disabled]="saving">
+          Cancelar
+        </button>
+        <button mat-raised-button color="primary" type="submit" [disabled]="form.invalid || saving">
+          {{ saving ? 'Guardando...' : (isEditing ? 'Guardar cambios' : 'Crear tarea') }}
+        </button>
+      </div>
+    </form>
+  </section>
+</div>

@@ -1,0 +1,146 @@
+<ng-container *ngIf="!loading; else loadingState">
+  <div class="workspaces-shell">
+    <main class="workspaces-content">
+      <header class="hero executive-glass">
+        <div class="hero-copy">
+          <p class="eyebrow">Workspace index</p>
+          <h1>Todos tus workspaces</h1>
+          <p class="hero-text">
+            Aqui manejas los espacios base de MatDer y decides desde cual contexto seguir hacia los tableros y el flujo del equipo.
+          </p>
+
+          <div class="hero-actions">
+            <button mat-stroked-button type="button" (click)="goToDashboard()">
+              Volver al dashboard
+            </button>
+            <button mat-raised-button color="primary" type="button" (click)="openWorkspaceModal()">
+              Crear workspace
+            </button>
+          </div>
+        </div>
+
+        <div class="profile-card">
+          <span class="status-pill">{{ filteredWorkspaces.length }} visibles</span>
+          <h3>Espacios listos para trabajar</h3>
+          <p>
+            {{ hasActiveFilters ? 'Estas viendo un subconjunto filtrado de tus workspaces.' : 'Estas viendo el panorama completo de tus espacios.' }}
+          </p>
+        </div>
+      </header>
+
+      <section class="filters-card executive-glass">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Busqueda</p>
+            <h2>Encuentra tu workspace</h2>
+          </div>
+          <button mat-stroked-button type="button" (click)="clearFilters()" [disabled]="!hasActiveFilters">
+            Limpiar filtro
+          </button>
+        </div>
+
+        <form [formGroup]="filtersForm" class="filters-form">
+          <mat-form-field appearance="outline">
+            <mat-label>Buscar workspace</mat-label>
+            <input matInput formControlName="query" placeholder="Nombre, descripcion o ultimo board">
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>Estado del workspace</mat-label>
+            <mat-select formControlName="boardState">
+              <mat-option value="all">Todos</mat-option>
+              <mat-option value="withBoards">Con tableros</mat-option>
+              <mat-option value="empty">Sin tableros</mat-option>
+            </mat-select>
+          </mat-form-field>
+        </form>
+      </section>
+
+      <ng-container *ngIf="workspaceCards.length; else emptyState">
+        <ng-container *ngIf="filteredWorkspaces.length; else emptyFilteredState">
+          <section class="workspaces-grid">
+            <article class="workspace-card executive-glass" *ngFor="let workspace of filteredWorkspaces; trackBy: trackWorkspace">
+              <div class="workspace-topline">
+                <span>Propietario: {{ workspace.ownerUsername }}</span>
+                <strong>Actualizado el {{ workspace.updatedAt | date: 'd MMM, y' }}</strong>
+              </div>
+
+              <h3>{{ workspace.name }}</h3>
+              <p class="description-text" [class.description-empty]="!workspace.description">{{ workspace.description || 'Sin descripcion provista.' }}</p>
+
+              <div class="workspace-metrics">
+                <span class="workspace-badge">{{ workspace.currentUserRole }}</span>
+                <span>{{ workspace.memberCount }} miembros</span>
+                <span>{{ workspace.boardCount }} tableros</span>
+              </div>
+
+              <div class="workspace-metrics">
+                <span>Creado el {{ workspace.createdAt | date: 'd MMM, y' }}</span>
+              </div>
+
+              <div class="workspace-actions">
+                <button mat-stroked-button type="button" (click)="goToBoards(workspace.id)">
+                  Ver tableros
+                </button>
+                <button mat-button type="button" (click)="openWorkspaceMembers(workspace.id)">
+                  {{ workspace.canManageMembers ? 'Gestionar miembros' : 'Ver miembros' }}
+                </button>
+                <button
+                  mat-icon-button
+                  type="button"
+                  *ngIf="workspace.canDeleteWorkspace"
+                  aria-label="Eliminar workspace"
+                  [disabled]="deletingWorkspaceId === workspace.id"
+                  (click)="deleteWorkspace(workspace)"
+                >
+                  <mat-icon>{{ deletingWorkspaceId === workspace.id ? 'hourglass_top' : 'delete' }}</mat-icon>
+                </button>
+              </div>
+            </article>
+          </section>
+        </ng-container>
+      </ng-container>
+
+      <ng-template #emptyState>
+        <article class="empty-state executive-glass">
+          <mat-icon>workspaces</mat-icon>
+          <h3>Aun no tienes workspaces</h3>
+          <p>Crea tu primer workspace para agrupar tableros, miembros y procesos dentro de MatDer.</p>
+          <button mat-raised-button color="primary" type="button" (click)="openWorkspaceModal()">
+            Crear workspace
+          </button>
+        </article>
+      </ng-template>
+
+      <ng-template #emptyFilteredState>
+        <article class="empty-state executive-glass">
+          <mat-icon>search_off</mat-icon>
+          <h3>No encontramos workspaces con ese filtro</h3>
+          <p>Ajusta la busqueda o limpia el filtro para volver a ver todos tus espacios.</p>
+          <button mat-stroked-button type="button" (click)="clearFilters()">
+            Limpiar filtro
+          </button>
+        </article>
+      </ng-template>
+    </main>
+  </div>
+
+  <app-workspace-modal
+    [visible]="isWorkspaceModalOpen"
+    [form]="workspaceForm"
+    [saving]="workspaceSaving"
+    [error]="workspaceError"
+    (closed)="closeWorkspaceModal()"
+    (submitted)="submitWorkspace()"
+  />
+</ng-container>
+
+<ng-template #loadingState>
+  <div class="loading-state">
+    <div class="loading-card executive-glass">
+      <div class="brand-mark">M</div>
+      <h2>Cargando tus workspaces</h2>
+      <p>Estamos reuniendo la estructura principal de tus espacios dentro de MatDer.</p>
+    </div>
+  </div>
+</ng-template>

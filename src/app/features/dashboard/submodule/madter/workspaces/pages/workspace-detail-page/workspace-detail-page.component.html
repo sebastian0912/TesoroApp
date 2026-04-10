@@ -1,0 +1,186 @@
+<ng-container *ngIf="!loading; else loadingState">
+  <div class="workspace-detail-shell" *ngIf="!notFound; else notFoundState">
+    <main class="workspace-detail-content" *ngIf="workspace">
+      <header class="hero executive-glass">
+        <div class="hero-copy">
+          <p class="eyebrow">Workspace permissions</p>
+          <h1>{{ workspace.name }}</h1>
+          <p class="hero-text">
+            {{ workspace.description || 'Este workspace aun no tiene una descripcion ampliada.' }}
+          </p>
+
+          <div class="hero-actions">
+            <button mat-stroked-button type="button" (click)="goToWorkspaces()">
+              Volver a workspaces
+            </button>
+            <button mat-stroked-button type="button" (click)="goToBoards()">
+              Ver tableros
+            </button>
+            <button
+              mat-raised-button
+              color="warn"
+              type="button"
+              *ngIf="canDeleteWorkspace"
+              [disabled]="deletingWorkspace"
+              (click)="deleteWorkspace()"
+            >
+              {{ deletingWorkspace ? 'Eliminando...' : 'Eliminar workspace' }}
+            </button>
+          </div>
+        </div>
+
+        <div class="profile-card">
+          <span class="role-pill">{{ roleLabel(workspace.currentUserRole) }}</span>
+          <h3>{{ workspace.memberCount }} miembros activos</h3>
+          <p>
+            {{ workspace.canManageMembers ? 'Puedes administrar miembros y roles en este workspace.' : 'Tienes acceso a este workspace segun tu rol actual.' }}
+          </p>
+        </div>
+      </header>
+
+      <section class="member-composer executive-glass" *ngIf="canManageMembers">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Miembros</p>
+            <h2>Agregar nuevo miembro</h2>
+          </div>
+        </div>
+
+        <div class="composer-grid">
+          <mat-form-field appearance="outline">
+            <mat-label>Buscar usuario</mat-label>
+            <input
+              matInput
+              [formControl]="memberControl"
+              [matAutocomplete]="candidateAutocomplete"
+              placeholder="Escribe correo, usuario o documento"
+            >
+            <button
+              *ngIf="selectedCandidate"
+              mat-icon-button
+              matSuffix
+              type="button"
+              aria-label="Limpiar usuario"
+              (click)="clearCandidate()"
+            >
+              <mat-icon>close</mat-icon>
+            </button>
+            <mat-hint>{{ candidateLoading ? 'Buscando usuarios...' : 'Solo se mostraran perfiles que aun no pertenecen a este workspace.' }}</mat-hint>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline" [formGroup]="addMemberForm">
+            <mat-label>Rol inicial</mat-label>
+            <mat-select formControlName="role">
+              <mat-option *ngFor="let option of roleOptions" [value]="option.value" [disabled]="option.value === 'OWNER'">
+                {{ option.label }}
+              </mat-option>
+            </mat-select>
+          </mat-form-field>
+
+          <button mat-raised-button color="primary" type="button" [disabled]="addDisabled" (click)="addMember()">
+            {{ saving ? 'Guardando...' : 'Agregar miembro' }}
+          </button>
+        </div>
+
+        <mat-autocomplete #candidateAutocomplete="matAutocomplete" [displayWith]="displayCandidate.bind(this)" (optionSelected)="handleCandidateSelected($event)">
+          <mat-option *ngFor="let option of candidateOptions" [value]="option">
+            <strong>{{ option.fullName || option.username }}</strong>
+            <span class="option-copy">{{ option.email }}</span>
+          </mat-option>
+        </mat-autocomplete>
+      </section>
+
+      <section class="members-section executive-glass">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Equipo</p>
+            <h2>Miembros del workspace</h2>
+          </div>
+        </div>
+
+        <p class="error-copy" *ngIf="error">{{ error }}</p>
+        <p class="helper-copy" *ngIf="!error">{{ uiMessage }}</p>
+
+        <div class="members-grid" *ngIf="filteredMembers.length; else emptyMembersState">
+          <article class="member-card" *ngFor="let member of filteredMembers">
+            <div class="member-topline">
+              <div>
+                <h3>{{ member.fullName || member.username }}</h3>
+                <p>{{ member.email }}</p>
+              </div>
+              <span class="availability-pill" [class.availability-pill--ready]="member.assignable">
+                {{ memberStatusLabel(member) }}
+              </span>
+            </div>
+
+            <div class="member-meta">
+              <span>{{ member.username }}</span>
+              <span *ngIf="member.documentNumber">Doc. {{ member.documentNumber }}</span>
+              <span>{{ member.status }}</span>
+            </div>
+
+            <div class="member-controls">
+              <mat-form-field appearance="outline">
+                <mat-label>Rol</mat-label>
+                <mat-select
+                  [value]="member.role"
+                  [disabled]="!canManageMembers || member.owner || isUpdating(member.membershipId)"
+                  (selectionChange)="updateMemberRole(member, $event.value)"
+                >
+                  <mat-option *ngFor="let option of roleOptions" [value]="option.value" [disabled]="option.value === 'OWNER' && !member.owner">
+                    {{ option.label }}
+                  </mat-option>
+                </mat-select>
+              </mat-form-field>
+
+              <button
+                mat-stroked-button
+                type="button"
+                [disabled]="!canManageMembers || member.owner || isUpdating(member.membershipId)"
+                (click)="toggleMemberActive(member)"
+              >
+                {{ member.active ? 'Desactivar' : 'Reactivar' }}
+              </button>
+            </div>
+
+            <div class="member-footer">
+              <span>{{ member.emailVerified ? 'Email verificado' : 'Email pendiente' }}</span>
+              <span>Desde {{ member.joinedAt | date: 'd MMM, y' }}</span>
+            </div>
+          </article>
+        </div>
+      </section>
+    </main>
+  </div>
+</ng-container>
+
+<ng-template #emptyMembersState>
+  <article class="empty-state">
+    <mat-icon>groups</mat-icon>
+    <h3>Aun no hay miembros adicionales</h3>
+    <p>Empieza agregando personas al workspace para que luego puedan participar en tableros y tareas.</p>
+  </article>
+</ng-template>
+
+<ng-template #notFoundState>
+  <div class="loading-state">
+    <article class="empty-state executive-glass">
+      <mat-icon>folder_off</mat-icon>
+      <h3>Workspace no encontrado</h3>
+      <p>Ese workspace no existe o ya no tienes acceso a el.</p>
+      <button mat-raised-button color="primary" type="button" (click)="goToWorkspaces()">
+        Volver a workspaces
+      </button>
+    </article>
+  </div>
+</ng-template>
+
+<ng-template #loadingState>
+  <div class="loading-state">
+    <div class="loading-card executive-glass">
+      <div class="brand-mark">M</div>
+      <h2>Cargando workspace</h2>
+      <p>Estamos reuniendo miembros, roles y permisos del workspace.</p>
+    </div>
+  </div>
+</ng-template>

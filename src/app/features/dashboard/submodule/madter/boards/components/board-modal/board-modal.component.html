@@ -1,0 +1,90 @@
+﻿    <div class="modal-backdrop" *ngIf="visible" (click)="requestClose()">
+      <section class="modal-panel executive-glass" (click)="$event.stopPropagation()">
+        <div class="modal-header">
+          <div>
+            <p class="eyebrow">{{ isEditing ? 'Editar tablero' : 'Nuevo tablero' }}</p>
+            <h2>{{ isEditing ? 'Editar tablero' : 'Crear tablero' }}</h2>
+          </div>
+          <button mat-icon-button type="button" aria-label="Cerrar modal" (click)="requestClose()">
+            <mat-icon>close</mat-icon>
+          </button>
+        </div>
+
+        <p class="modal-text">
+          {{ isEditing
+            ? 'Actualiza el nombre, la descripcion y el color del tablero sin perder su flujo actual.'
+            : 'Elige el workspace donde vivira este tablero y dale un color que lo haga facil de reconocer.' }}
+        </p>
+
+        <form [formGroup]="form" (ngSubmit)="submitted.emit()" class="modal-form">
+          <mat-form-field appearance="outline" *ngIf="!isEditing; else workspaceLockedState">
+            <mat-label>Workspace</mat-label>
+            <select matNativeControl formControlName="workspaceId">
+              <option value="">Selecciona un workspace</option>
+              <option *ngFor="let workspace of workspaces" [value]="workspace.id">
+                {{ workspace.name }}
+              </option>
+            </select>
+          </mat-form-field>
+
+          <ng-template #workspaceLockedState>
+            <div class="workspace-lock">
+              <span class="workspace-lock__label">Workspace</span>
+              <strong>{{ workspaceName || 'Workspace actual' }}</strong>
+              <p>Para mantener intactas las listas, tareas y miembros, este tablero se edita dentro de su workspace actual.</p>
+            </div>
+          </ng-template>
+
+          <mat-form-field appearance="outline">
+            <mat-label>Nombre del tablero</mat-label>
+            <input matInput formControlName="name" maxlength="80" placeholder="Ej. Sprint de Abril">
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>Descripcion</mat-label>
+            <textarea
+              matInput
+              formControlName="description"
+              rows="4"
+              maxlength="280"
+              placeholder="Que flujo o proyecto se organizara dentro de este tablero"
+            ></textarea>
+          </mat-form-field>
+
+          <div class="palette-header">
+            <span>Color del tablero</span>
+            <span>{{ getControlLength('description') }}/280</span>
+          </div>
+
+          <div class="color-palette">
+            <button
+              *ngFor="let option of colorOptions"
+              type="button"
+              class="color-swatch"
+              [class.color-swatch--active]="form.get('accent')?.value === option.value"
+              (click)="accentSelected.emit(option.value)"
+            >
+              <span class="color-dot" [style.background]="option.value"></span>
+              <span>{{ option.label }}</span>
+            </button>
+          </div>
+
+          <div class="form-meta">
+            <span>{{ getControlLength('name') }}/80</span>
+            <span>{{ form.get('accent')?.value }}</span>
+          </div>
+
+          <p class="form-error" *ngIf="error">{{ error }}</p>
+
+          <div class="modal-actions">
+            <button mat-stroked-button type="button" (click)="requestClose()" [disabled]="saving">
+              Cancelar
+            </button>
+            <button mat-raised-button color="primary" type="submit" [disabled]="form.invalid || saving">
+              {{ saving ? (isEditing ? 'Guardando...' : 'Creando...') : (isEditing ? 'Guardar tablero' : 'Crear tablero') }}
+            </button>
+          </div>
+        </form>
+      </section>
+    </div>
+  

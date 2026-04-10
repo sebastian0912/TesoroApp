@@ -16,7 +16,7 @@ const API_BASE = environment.apiUrl;
 const API_ORIGIN = new URL(API_BASE).host;
 
 // 🔓 RUTAS PÚBLICAS (¡con "/" inicial!)
-const PUBLIC_PATHS = ['/gestion_admin/auth/login/'];
+const PUBLIC_PATHS = ['/gestion_admin/auth/login/', '/api/matder/'];
 
 // Prefijo del header Authorization. Si tu backend requiere otro esquema,
 // cambia a 'Token' o deja '' si NO usa prefijo.

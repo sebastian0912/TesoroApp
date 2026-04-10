@@ -19,6 +19,12 @@
 @import "material-icons/iconfont/material-icons.css";
 @import "material-symbols/outlined.css";
 
+/* MatDer (madter) submodule styles */
+@import "./styles/madter/_base.css";
+@import "./styles/madter/_components.css";
+@import "./styles/madter/_buttons.css";
+@import "./styles/madter/_material-overrides.css";
+
 /* ======================
    Design tokens
 ====================== */
@@ -943,3 +949,4 @@ body.dark-theme mat-card {
 button {
   min-height: 48px !important;
 }
+

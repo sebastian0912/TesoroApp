@@ -1,0 +1,284 @@
+:host { display: block; min-height: 100vh; }
+
+.board-shell {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 24px;
+  padding: 24px;
+  background:
+    radial-gradient(circle at top left, var(--bg-radial-1), transparent 30%),
+    radial-gradient(circle at bottom right, var(--bg-radial-2), transparent 26%);
+}
+
+.board-content { display: grid; gap: 24px; min-width: 0; }
+
+.board-hero, .message-banner, .summary-card, .column-card { padding: 28px; }
+
+.board-hero {
+  --board-accent: var(--primary);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: 24px; align-items: center;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--board-accent) 6%, var(--surface)), var(--surface-card)),
+    var(--surface-card);
+}
+
+.eyebrow {
+  margin: 0 0 8px; color: var(--eyebrow-color);
+  letter-spacing: 0.16em; text-transform: uppercase; font-size: 11px; font-weight: 700;
+}
+
+.hero-copy h1, .section-heading h2, .profile-meta h3, .summary-card h3,
+.column-card h3, .empty-card h2, .loading-card h2, .task-placeholder h4 { margin: 0; }
+
+.hero-copy h1 { font-size: clamp(1.8rem, 4vw, 3.2rem); line-height: 1; margin-bottom: 14px; }
+
+.hero-text, .profile-meta p, .summary-card p, .workflow-card p, .workflow-guide__copy,
+.section-copy, .column-card p, .task-placeholder p, .loading-card p,
+.empty-card p, .composer-copy {
+  margin: 0; color: var(--text-muted); line-height: 1.55;
+}
+
+.hero-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 24px; }
+
+.hero-path {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+  margin-bottom: 16px; color: var(--text-muted); font-size: 13px;
+}
+.hero-path mat-icon { width: 16px; height: 16px; font-size: 16px; color: var(--eyebrow-color); }
+
+/* Profile card (sidebar) */
+.profile-card {
+  padding: 24px; border-radius: 24px; background: var(--surface-card);
+  border: 1px solid var(--glass-border); display: grid; gap: 14px; justify-items: start;
+}
+
+/* Badges */
+.status-pill, .task-badge, .task-status-badge, .column-badge {
+  display: inline-flex; align-items: center;
+  padding: 5px 10px; border-radius: 999px; font-size: 11px; font-weight: 700;
+}
+
+.status-pill { background: var(--chip-sky-bg); color: var(--chip-sky-text); margin-bottom: 8px; }
+.task-badge, .task-status-badge, .column-badge { background: var(--chip-done-bg); color: var(--chip-done-text); }
+
+.task-status-badge--todo        { background: var(--chip-todo-bg);     color: var(--chip-todo-text); }
+.task-status-badge--in-progress { background: var(--chip-progress-bg); color: var(--chip-progress-text); }
+.task-status-badge--blocked     { background: var(--chip-blocked-bg);  color: var(--chip-blocked-text); }
+.task-status-badge--done        { background: var(--chip-done-bg);     color: var(--chip-done-text); }
+
+.task-badge--low    { background: var(--chip-low-bg);  color: var(--chip-low-text); }
+.task-badge--medium { background: var(--chip-med-bg);  color: var(--chip-med-text); }
+.task-badge--high   { background: var(--chip-high-bg); color: var(--chip-high-text); }
+.task-badge--urgent { background: var(--chip-urg-bg);  color: var(--chip-urg-text); }
+
+/* Board summary */
+.board-summary, .kanban-grid { display: grid; gap: 20px; }
+.board-summary { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+
+.summary-card { background: var(--surface-card); }
+
+.summary-label {
+  margin: 0 0 10px; font-size: 12px; letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--text-muted);
+}
+.summary-card h3 { margin-bottom: 10px; font-size: 1.4rem; }
+
+/* Workflow guide */
+.workflow-guide {
+  padding: 28px; display: grid; gap: 20px; background: var(--surface-card);
+  border: 1px solid var(--glass-border); border-radius: 24px;
+}
+
+.workflow-guide__head {
+  display: flex; justify-content: space-between; gap: 20px; align-items: end;
+}
+
+.workflow-guide__grid {
+  display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px;
+}
+
+.workflow-card {
+  padding: 18px; border-radius: 18px;
+  border: 1px solid var(--glass-border); background: var(--surface-raised);
+  display: grid; gap: 12px;
+}
+.workflow-card h3 { margin: 0; font-size: 14px; }
+.workflow-guide__head h2 { margin: 0 0 10px; }
+.workflow-card strong { color: var(--text-main); font-size: 14px; }
+
+.workflow-card__step, .column-kind {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: fit-content; padding: 4px 10px; border-radius: 999px;
+  font-size: 11px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase;
+  background: var(--primary-muted); color: var(--primary);
+}
+
+.section-heading {
+  display: flex; justify-content: space-between; gap: 16px; align-items: end; margin-bottom: 18px;
+}
+.section-copy { max-width: 720px; }
+
+/* Kanban */
+.kanban-grid {
+  display: flex; flex-direction: row; overflow-x: auto; gap: 18px;
+  padding: 8px 4px 18px; align-items: start;
+  scrollbar-width: thin; scrollbar-color: var(--scrollbar-thumb) transparent;
+}
+.kanban-grid::-webkit-scrollbar { height: 6px; }
+.kanban-grid::-webkit-scrollbar-track { background: transparent; }
+.kanban-grid::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 20px; }
+
+/* Column */
+.column-card {
+  display: flex; flex-direction: column; flex: 0 0 300px;
+  gap: 14px; align-content: start; min-height: 100%; padding: 22px; min-width: 0;
+}
+
+.column-topline {
+  display: flex; justify-content: space-between; gap: 12px; align-items: center; min-width: 0;
+}
+
+.column-card--moving {
+  opacity: 0.5; background: var(--drag-active-bg); border-style: dashed;
+}
+
+.column-drag-handle {
+  height: 26px; display: flex; justify-content: center; align-items: center;
+  cursor: grab; background: var(--surface-raised);
+  border-radius: 12px 12px 0 0; margin: -22px -22px 8px -22px;
+  color: var(--text-subtle); border-bottom: 1px solid var(--glass-border);
+  transition: all 0.2s ease;
+}
+.column-drag-handle:hover { background: var(--primary-muted); color: var(--primary); }
+.column-drag-handle:active { cursor: grabbing; }
+
+.column-actions { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; justify-content: flex-end; }
+.column-header { display: grid; gap: 10px; min-width: 0; }
+
+.task-list {
+  display: grid; gap: 10px; min-height: 120px; width: 100%; min-width: 0;
+  padding: 6px; border-radius: 18px;
+  transition: background 160ms ease, outline-color 160ms ease;
+}
+
+.task-list.cdk-drop-list-dragging,
+.task-list.cdk-drop-list-receiving {
+  background: var(--drag-active-bg);
+  outline: 1px dashed var(--drag-active-border);
+}
+
+.add-card-inline { justify-self: center; width: 100%; max-width: 150px; }
+
+.task-placeholder {
+  width: 100%; padding: 14px; border-radius: 16px;
+  background: var(--surface-card); border: 1px solid var(--glass-border);
+  display: grid; gap: 8px;
+}
+
+.task-card {
+  width: 100%; min-width: 0; padding: 14px; border-radius: 16px;
+  background: var(--surface-raised);
+  border: 1px solid var(--glass-border);
+  display: grid; gap: 10px; cursor: grab;
+  transition: box-shadow 0.18s ease, transform 0.18s ease;
+}
+.task-card:hover { box-shadow: var(--shadow-card); transform: translateY(-1px); }
+.task-card:active { cursor: grabbing; }
+.task-card--moving { opacity: 0.75; }
+.task-card h4 { margin: 0; font-size: 14px; line-height: 1.35; color: var(--text-main); }
+
+.task-card p {
+  display: -webkit-box; -webkit-line-clamp: 3; line-clamp: 3;
+  -webkit-box-orient: vertical; overflow: hidden;
+}
+
+.task-card-top, .task-card-meta {
+  display: flex; justify-content: space-between; gap: 10px; align-items: center; min-width: 0;
+}
+
+.task-card-badges, .task-card-actions {
+  display: flex; align-items: center; gap: 4px; min-width: 0; flex-wrap: wrap;
+}
+.task-card-badges { flex: 1 1 auto; }
+.task-card-actions { justify-content: flex-end; }
+
+.task-card-assignee {
+  width: 26px; height: 26px; border-radius: 50%;
+  background: var(--primary-muted); color: var(--primary);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 10px; font-weight: 700;
+  border: 1px solid color-mix(in srgb, var(--primary) 30%, transparent);
+  margin-right: 4px;
+}
+
+.task-card-labels { display: flex; flex-wrap: wrap; gap: 4px; margin-right: 4px; }
+.task-label-dot { width: 10px; height: 10px; border-radius: 3px; }
+
+.drag-handle {
+  width: 32px; height: 32px; border-radius: 10px; border: 0;
+  background: var(--surface-raised); color: var(--text-muted);
+  display: inline-grid; place-items: center; cursor: grab;
+}
+.drag-handle:active { cursor: grabbing; }
+.drag-handle mat-icon { width: 16px; height: 16px; font-size: 16px; }
+
+.task-card-meta { flex-wrap: wrap; color: var(--text-muted); font-size: 12px; }
+.task-card-meta span { display: inline-flex; gap: 5px; align-items: center; }
+.task-card-meta mat-icon { width: 14px; height: 14px; font-size: 14px; }
+
+.cdk-drag-preview {
+  box-sizing: border-box; border-radius: 16px;
+  box-shadow: var(--shadow-overlay);
+}
+.cdk-drag-placeholder { opacity: 0.25; }
+
+/* Add list */
+.list-form { display: grid; gap: 12px; }
+.list-form mat-form-field { width: 100%; }
+.empty-list-form { margin-top: 18px; text-align: left; }
+.composer-head { display: grid; gap: 4px; }
+.form-actions, .empty-actions { display: flex; flex-wrap: wrap; gap: 12px; }
+
+.column-card--composer {
+  border: 1px dashed var(--glass-border);
+  background: var(--surface);
+}
+
+.add-list-btn {
+  border: 0; background: var(--primary-muted); color: var(--primary);
+  border-radius: 18px; padding: 16px; display: grid; gap: 8px;
+  justify-items: center; cursor: pointer; font: inherit;
+  transition: background 0.18s ease;
+}
+.add-list-btn:hover { background: color-mix(in srgb, var(--primary-muted) 100%, var(--primary) 8%); }
+.add-list-btn mat-icon { width: 38px; height: 38px; font-size: 38px; }
+
+.loading-state { min-height: 100vh; display: grid; place-items: center; padding: 24px; }
+.loading-card, .empty-card { width: min(100%, 520px); padding: 36px; text-align: center; }
+.loading-card .brand-mark, .empty-card .brand-mark { margin: 0 auto 18px; }
+
+/* ─── Responsive ─── */
+@media (max-width: 900px) {
+  .board-hero, .board-summary, .workflow-guide__grid { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 860px) {
+  .board-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .workflow-guide__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 760px) {
+  .board-shell { padding: 12px; gap: 14px; }
+  .board-hero, .message-banner, .workflow-guide, .summary-card { padding: 16px; }
+  .column-card { flex: 0 0 260px; padding: 14px; }
+  .section-heading, .workflow-guide__head, .column-topline { flex-direction: column; align-items: flex-start; gap: 8px; }
+  .board-hero { padding: 16px; }
+}
+
+@media (max-width: 480px) {
+  .column-card { flex: 0 0 240px; }
+  .board-shell { padding: 10px; }
+}

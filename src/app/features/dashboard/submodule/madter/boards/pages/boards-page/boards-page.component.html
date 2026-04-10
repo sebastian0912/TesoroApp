@@ -1,0 +1,192 @@
+<ng-container *ngIf="!loading; else loadingState">
+  <div class="boards-shell">
+    <main class="boards-content">
+      <header class="hero executive-glass">
+        <div class="hero-copy">
+          <p class="eyebrow">Board index</p>
+          <h1>Todos tus tableros</h1>
+          <p class="hero-text">
+            Reune los boards de todos tus workspaces en una sola vista para buscar, filtrar y empezar a trabajar mas rapido.
+          </p>
+
+          <div class="hero-actions">
+            <button mat-stroked-button type="button" (click)="goToDashboard()">
+              Volver al dashboard
+            </button>
+            <button mat-stroked-button type="button" (click)="goToWorkspaces()">
+              Ir a workspaces
+            </button>
+            <button mat-raised-button color="primary" type="button" (click)="openBoardModal()">
+              Crear tablero
+            </button>
+          </div>
+        </div>
+
+        <div class="profile-card">
+          <div class="profile-avatar">{{ userInitials }}</div>
+          <div class="profile-meta">
+            <span class="status-pill">
+              {{ filteredBoards.length }} visibles
+            </span>
+            <h3>{{ selectedWorkspaceLabel }}</h3>
+            <p>
+              {{ hasActiveFilters ? 'Filtros activos para enfocar tu busqueda.' : 'Sin filtros activos. Estas viendo todo.' }}
+            </p>
+          </div>
+        </div>
+      </header>
+
+
+      <section class="filters-card executive-glass">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Filtros</p>
+            <h2>Explora tus tableros</h2>
+          </div>
+          <button mat-stroked-button type="button" (click)="clearFilters()" [disabled]="!hasActiveFilters">
+            Limpiar filtros
+          </button>
+        </div>
+
+        <form class="filters-form" [formGroup]="filtersForm">
+          <mat-form-field appearance="outline" class="filter-field filter-field--search">
+            <mat-label>Buscar tablero</mat-label>
+            <input matInput formControlName="query" placeholder="Nombre, descripcion o workspace">
+          </mat-form-field>
+
+          <mat-form-field appearance="outline" class="filter-field filter-field--select">
+            <mat-label>Workspace</mat-label>
+            <mat-select formControlName="workspaceId">
+              <mat-option value="all">Todos los workspaces</mat-option>
+              <mat-option *ngFor="let workspace of workspaces" [value]="workspace.id.toString()">
+                {{ workspace.name }}
+              </mat-option>
+            </mat-select>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline" class="filter-field filter-field--select">
+            <mat-label>Estado de favorito</mat-label>
+            <mat-select formControlName="favoriteState">
+              <mat-option value="all">Todos</mat-option>
+              <mat-option value="favorites">Solo favoritos</mat-option>
+              <mat-option value="regular">Solo no favoritos</mat-option>
+            </mat-select>
+          </mat-form-field>
+        </form>
+      </section>
+
+      <ng-container *ngIf="boards.length; else emptyBoardsState">
+        <ng-container *ngIf="filteredBoards.length; else emptyFilteredState">
+          <section class="boards-grid">
+            <article
+              class="board-card executive-glass"
+              *ngFor="let board of filteredBoards; trackBy: trackBoard"
+              [style.--board-accent]="board.accent"
+            >
+              <div class="board-topline">
+                <span>{{ board.workspaceName }}</span>
+                <strong>Actualizado el {{ board.updatedAt | date: 'd MMM, y, h:mm a' }}</strong>
+              </div>
+
+              <h3>{{ board.name }}</h3>
+              <p>{{ board.description || 'Este tablero ya esta listo para listas, cards y flujo Kanban.' }}</p>
+
+              <div class="board-footer">
+                <span class="board-badge">Creado el {{ board.createdAt | date: 'd MMM, y' }}</span>
+                <div class="board-actions">
+                  <button mat-icon-button type="button" [attr.aria-label]="isBoardFavorite(board.id) ? 'Quitar de favoritos' : 'Agregar a favoritos'" (click)="toggleBoardFavorite(board)">
+                    <mat-icon>{{ isBoardFavorite(board.id) ? 'star' : 'star_outline' }}</mat-icon>
+                  </button>
+                  <button mat-icon-button type="button" *ngIf="board.canManageContent" aria-label="Editar tablero" (click)="openEditBoardModal(board)">
+                    <mat-icon>edit</mat-icon>
+                  </button>
+                  <button
+                    mat-icon-button
+                    type="button"
+                    *ngIf="board.canManageContent"
+                    aria-label="Eliminar tablero"
+                    [disabled]="deletingBoardId === board.id"
+                    (click)="deleteBoard(board)"
+                  >
+                    <mat-icon>{{ deletingBoardId === board.id ? 'hourglass_top' : 'delete' }}</mat-icon>
+                  </button>
+                </div>
+              </div>
+              <button
+                mat-raised-button
+                color="primary"
+                type="button"
+                class="preview-btn"
+                (click)="openBoardPreview(board.id)"
+              >
+                <mat-icon>open_in_new</mat-icon>
+                Abrir preview
+              </button>
+            </article>
+
+            <article class="board-card board-card--new" (click)="openBoardModal()">
+              <mat-icon>add</mat-icon>
+              <h3>Nuevo tablero</h3>
+              <p>Crea otro tablero sin salir de esta vista general.</p>
+            </article>
+          </section>
+        </ng-container>
+      </ng-container>
+
+      <ng-template #emptyBoardsState>
+        <article class="empty-state executive-glass">
+          <mat-icon>dashboard_customize</mat-icon>
+          <h3>Aun no tienes tableros</h3>
+          <p>
+            Crea tu primer tablero dentro de un workspace para empezar a organizar listas, cards y procesos.
+          </p>
+          <div class="empty-actions">
+            <button mat-raised-button color="primary" type="button" (click)="openBoardModal()">
+              Crear tablero
+            </button>
+            <button mat-stroked-button type="button" (click)="goToDashboard()">
+              Ir al dashboard
+            </button>
+          </div>
+        </article>
+      </ng-template>
+
+      <ng-template #emptyFilteredState>
+        <article class="empty-state executive-glass">
+          <mat-icon>filter_alt_off</mat-icon>
+          <h3>No encontramos tableros con ese filtro</h3>
+          <p>
+            Cambia la busqueda o limpia los filtros para volver a ver el listado completo.
+          </p>
+          <button mat-stroked-button type="button" (click)="clearFilters()">
+            Limpiar filtros
+          </button>
+        </article>
+      </ng-template>
+    </main>
+  </div>
+
+  <app-board-modal
+  [visible]="isBoardModalOpen"
+  [form]="boardForm"
+  [saving]="boardSaving"
+  [error]="boardError"
+  [workspaces]="creatableWorkspaces"
+  [colorOptions]="boardColorOptions"
+  [isEditing]="!!editingBoard"
+  [workspaceName]="editingBoard?.workspaceName ?? ''"
+  (closed)="closeBoardModal()"
+  (submitted)="submitBoard()"
+  (accentSelected)="setBoardAccent($event)"
+  />
+</ng-container>
+
+<ng-template #loadingState>
+  <div class="loading-state">
+    <div class="loading-card executive-glass">
+      <div class="brand-mark">M</div>
+      <h2>Cargando tus tableros</h2>
+      <p>Estamos reuniendo todos los boards de tus workspaces dentro de MatDer.</p>
+    </div>
+  </div>
+</ng-template>

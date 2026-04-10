@@ -31,6 +31,7 @@ export interface PermNode {
   orden?: number;
   acciones?: string[];
   permiso_ids?: Record<string, string>;
+  permisoIds?: Record<string, string>;
   hijos?: PermNode[];
 }
 
@@ -129,6 +130,16 @@ export class NavbarComponent implements OnInit, OnDestroy {
     'HISTORIAL NÓMINA': 'nomina/historico-nomina',
     'PARAMETRIZACIÓN NOVEDADES': 'nomina/parametrizacion-novedades',
     'PARAMETRIZACIÓN DE NOVEDADES': 'nomina/parametrizacion-novedades',
+
+    // ── MATDER ──
+    'Dashboard Matder': 'madter/dashboard',
+    'Espacios de trabajo': 'madter/workspaces',
+    'Tableros': 'madter/boards',
+    'Calendario': 'madter/calendar',
+    'Analíticas': 'madter/analytics',
+    'Favoritos': 'madter/favorites',
+    'Admin Matder': 'madter/admin/users',
+    'Importación Matder': 'madter/import',
   };
 
   private readonly iconMap: Record<string, string> = {
@@ -214,6 +225,17 @@ export class NavbarComponent implements OnInit, OnDestroy {
     'PARAMETRIZACIÓN NOVEDADES': 'tune',
     'PARAMETRIZACIÓN DE NOVEDADES': 'tune',
     'Tarjetas': 'credit_card',
+
+    // ── MATDER ──
+    'MATDER': 'dashboard_customize',
+    'Dashboard Matder': 'space_dashboard',
+    'Espacios de trabajo': 'workspaces',
+    'Tableros': 'view_kanban',
+    'Calendario': 'calendar_month',
+    'Analíticas': 'analytics',
+    'Favoritos': 'star',
+    'Admin Matder': 'admin_panel_settings',
+    'Importación Matder': 'upload_file',
   };
 
   private routeMapIndex!: Record<string, string>;
@@ -341,14 +363,16 @@ export class NavbarComponent implements OnInit, OnDestroy {
       if (rawUser) {
         const user = JSON.parse(rawUser);
 
+        const rawPerms = user?.permisosTree ?? user?.permisos_tree ?? null;
+
         // Fix for old storage payloads without 'icono'
-        if (user?.permisos_tree?.length > 0 && user.permisos_tree[0].icono === undefined) {
+        if (Array.isArray(rawPerms) && rawPerms.length > 0 && rawPerms[0].icono === undefined) {
           this.lsClear();
           this.router.navigate(['']);
           return;
         }
 
-        tree = (user?.permisos_tree ?? null);
+        tree = rawPerms;
       }
 
       if (!Array.isArray(tree) && rawTree) {
@@ -361,7 +385,7 @@ export class NavbarComponent implements OnInit, OnDestroy {
         const normalize = (n: PermNode): PermNode => ({
           ...n,
           acciones: n.acciones ?? [],
-          permiso_ids: n.permiso_ids ?? {},
+          permiso_ids: n.permiso_ids ?? n.permisoIds ?? {},
           hijos: (n.hijos ?? []).map(normalize),
         });
 
@@ -639,7 +663,8 @@ export class NavbarComponent implements OnInit, OnDestroy {
     const acc = (n.acciones ?? []).map((a) => (a || '').toUpperCase());
     const hasAction = acc.some((a) => this.READ_KEYS.has(a));
 
-    const permKeys = Object.keys(n.permiso_ids ?? {}).map((k) => k.toUpperCase());
+    const perms = n.permiso_ids ?? n.permisoIds ?? {};
+    const permKeys = Object.keys(perms).map((k) => k.toUpperCase());
     const hasPerm = permKeys.some((k) => this.READ_KEYS.has(k));
 
     if (hasAction || hasPerm) return true;

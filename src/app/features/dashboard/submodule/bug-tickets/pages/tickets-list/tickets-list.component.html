@@ -261,7 +261,7 @@
               <div class="chat-header">
                 <mat-icon>forum</mat-icon>
                 <span>Conversacion</span>
-                @if (ticketSeleccionado.comentarios?.length) {
+                @if (ticketSeleccionado.comentarios.length) {
                   <span class="chat-count">{{ ticketSeleccionado.comentarios.length }}</span>
                 }
               </div>
@@ -385,7 +385,7 @@
             </div>
 
             <!-- Linea de tiempo / Trazabilidad -->
-            @if (ticketSeleccionado.historial?.length) {
+            @if (ticketSeleccionado.historial.length) {
               <div class="timeline-card">
                 <div class="timeline-header">
                   <mat-icon>timeline</mat-icon>

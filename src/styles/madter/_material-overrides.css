@@ -1,0 +1,266 @@
+/* ─── Cards ─────────────────────────────────── */
+:root .mat-mdc-card {
+  --mdc-elevated-card-container-color: transparent;
+  --mdc-filled-card-container-color: transparent;
+  --mdc-outlined-card-container-color: transparent;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+/* ─── Form Fields ────────────────────────────── */
+:root .mat-mdc-form-field {
+  width: 100%;
+  margin-bottom: 12px;
+  --mat-form-field-state-layer-color: transparent;
+  --mat-form-field-hover-state-layer-opacity: 0;
+  --mat-form-field-focus-state-layer-opacity: 0;
+  --mat-select-enabled-trigger-text-color: var(--input-text);
+  --mat-select-enabled-arrow-color: var(--input-placeholder);
+  --mat-select-focused-arrow-color: var(--primary);
+  --mat-select-placeholder-text-color: var(--input-placeholder);
+}
+
+:root .mat-mdc-form-field-flex,
+:root .mdc-text-field,
+:root .mdc-text-field--outlined,
+:root .mat-mdc-form-field-infix,
+:root .mdc-notched-outline__leading,
+:root .mdc-notched-outline__notch,
+:root .mdc-notched-outline__trailing {
+  background-color: transparent !important;
+  background: transparent !important;
+}
+
+/* Autofill */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+input:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 30px var(--autofill-bg) inset !important;
+  -webkit-text-fill-color: var(--input-text) !important;
+  color: var(--input-text) !important;
+}
+
+/* Outlined inputs */
+:root .mdc-text-field--outlined {
+  --mdc-outlined-text-field-container-shape: 12px;
+  --mdc-outlined-text-field-outline-color: var(--input-outline);
+  --mdc-outlined-text-field-hover-outline-color: var(--input-outline-hover);
+  --mdc-outlined-text-field-focus-outline-color: var(--input-outline-focus);
+  --mdc-outlined-text-field-input-text-color: var(--input-text);
+  --mdc-outlined-text-field-label-text-color: var(--input-label);
+  --mdc-outlined-text-field-hover-label-text-color: var(--text-main);
+  --mdc-outlined-text-field-focus-label-text-color: var(--primary);
+  --mdc-outlined-text-field-caret-color: var(--input-text);
+}
+
+:root .mdc-text-field--outlined:not(.mdc-text-field--disabled) .mdc-text-field__input {
+  color: var(--input-text) !important;
+  background-color: transparent !important;
+}
+
+/* Input/Select text & icons */
+:root .mat-mdc-input-element,
+:root .mat-mdc-input-element::placeholder,
+:root .mdc-text-field__input,
+:root .mdc-text-field__input::placeholder,
+:root .mat-mdc-select-value-text,
+:root .mat-mdc-select-placeholder,
+:root .mat-mdc-form-field .mdc-floating-label,
+:root .mat-mdc-form-field .mat-mdc-form-field-hint,
+:root .mat-mdc-form-field .mat-mdc-form-field-error,
+:root .mat-mdc-form-field .mat-icon,
+:root .mat-mdc-form-field-icon-suffix,
+:root .mat-mdc-form-field-icon-prefix,
+.mat-datepicker-toggle-default-icon {
+  color: var(--input-text) !important;
+}
+
+:root .mat-mdc-input-element::placeholder,
+:root .mdc-text-field__input::placeholder,
+:root .mat-mdc-select-placeholder,
+:root .mat-mdc-form-field .mdc-floating-label,
+:root .mat-mdc-form-field .mat-mdc-form-field-hint {
+  color: var(--input-placeholder) !important;
+}
+
+:root .mat-mdc-form-field.mat-focused .mdc-floating-label,
+:root .mat-mdc-form-field.mat-focused .mat-mdc-select-arrow,
+:root .mat-mdc-form-field.mat-focused .mat-datepicker-toggle-default-icon {
+  color: var(--primary) !important;
+}
+
+:root .mat-mdc-select-arrow svg,
+.mat-datepicker-toggle-default-icon {
+  fill: currentColor !important;
+}
+
+:root .mat-mdc-form-field-error { color: #f87171 !important; }
+
+/* ─── Overlay Panels (dropdowns, menus, datepicker) ─────── */
+:root .mat-mdc-select-panel,
+:root .mat-mdc-autocomplete-panel,
+.mat-datepicker-content,
+:root .mat-mdc-menu-panel,
+.calendar-menu {
+  background: var(--surface-overlay) !important;
+  color: var(--text-main) !important;
+  border: 1px solid var(--glass-border) !important;
+  border-radius: 16px !important;
+  box-shadow: var(--shadow-overlay) !important;
+  backdrop-filter: none !important;
+}
+
+:root .mat-mdc-menu-content,
+:root .mat-mdc-select-panel .mdc-list,
+:root .mat-mdc-autocomplete-panel .mdc-list,
+.mat-datepicker-content .mat-calendar,
+.calendar-menu .mat-calendar {
+  background: transparent !important;
+  color: var(--text-main) !important;
+}
+
+:root .mat-mdc-select-panel .mat-mdc-option,
+:root .mat-mdc-autocomplete-panel .mat-mdc-option {
+  min-height: 44px;
+  color: var(--text-main) !important;
+}
+
+:root .mat-mdc-option .mdc-list-item__primary-text,
+:root .mat-mdc-option .mdc-list-item__secondary-text,
+:root .mat-mdc-select-panel .mat-mdc-option,
+:root .mat-mdc-autocomplete-panel .mat-mdc-option,
+.mat-calendar-body-cell-content,
+.mat-calendar-table-header th,
+.mat-calendar-body-label,
+.mat-calendar-header,
+.mat-calendar-controls,
+.mat-calendar-period-button,
+.mat-calendar-arrow,
+.mat-calendar-previous-button,
+.mat-calendar-next-button {
+  color: var(--text-main) !important;
+}
+
+:root .mat-mdc-option:hover:not(.mdc-list-item--disabled),
+:root .mat-mdc-option.mat-mdc-option-active {
+  background: var(--primary-muted) !important;
+}
+
+:root .mat-mdc-option.mdc-list-item--selected:not(.mdc-list-item--disabled) {
+  background: var(--primary-muted) !important;
+}
+
+:root .mat-mdc-option.mdc-list-item--selected .mdc-list-item__primary-text,
+:root .mat-mdc-option.mat-mdc-option-active .mdc-list-item__primary-text {
+  color: var(--primary) !important;
+  font-weight: 600;
+}
+
+:root .mat-mdc-select-panel .mat-pseudo-checkbox,
+:root .mat-mdc-autocomplete-panel .mat-pseudo-checkbox {
+  --mat-minimal-pseudo-checkbox-selected-checkmark-color: var(--primary);
+  --mat-minimal-pseudo-checkbox-selected-icon-color: var(--primary);
+}
+
+/* ─── Calendar Cells ─────────────────────────── */
+.mat-calendar-body-cell-content {
+  border-radius: 8px !important;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  font-weight: 500;
+}
+
+.mat-calendar-body-cell:not(.mat-calendar-body-disabled):hover .mat-calendar-body-cell-content {
+  background-color: var(--primary-muted) !important;
+  color: var(--primary) !important;
+  transform: scale(1.05);
+}
+
+.mat-calendar-body-selected {
+  background: var(--brand-gradient) !important;
+  color: #ffffff !important;
+  box-shadow: 0 4px 12px var(--primary-glow) !important;
+  border-radius: 8px !important;
+  border: none !important;
+  font-weight: 700;
+}
+
+.mat-calendar-body-today:not(.mat-calendar-body-selected) {
+  border-color: color-mix(in srgb, var(--primary) 40%, transparent) !important;
+  background-color: var(--primary-muted) !important;
+}
+
+/* Calendar menu */
+.calendar-menu.mat-mdc-menu-panel {
+  padding: 8px;
+  width: min(100vw - 48px, 360px) !important;
+  max-width: min(100vw - 48px, 360px) !important;
+  overflow: hidden;
+}
+
+.calendar-menu .mat-mdc-menu-content {
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+}
+
+.calendar-menu .mat-calendar {
+  width: 100% !important;
+  min-width: 0 !important;
+  height: auto !important;
+}
+
+.calendar-menu .mat-calendar-body-cell-content {
+  width: 38px;
+  height: 38px;
+  line-height: 38px;
+}
+
+/* ─── Chips ──────────────────────────────────── */
+:root .mat-mdc-chip {
+  --mdc-chip-label-text-color: var(--text-main);
+}
+
+/* ─── Checkbox & Radio ───────────────────────── */
+:root .mat-mdc-checkbox .mdc-checkbox__background,
+:root .mat-mdc-radio-button .mdc-radio__outer-circle {
+  border-color: var(--input-outline) !important;
+}
+
+/* ─── Snackbar / Toast ───────────────────────── */
+:root .mat-mdc-snack-bar-container {
+  --mdc-snackbar-container-color: var(--surface-overlay);
+  --mdc-snackbar-supporting-text-color: var(--text-main);
+}
+
+@media (max-width: 760px) {
+  .calendar-menu.mat-mdc-menu-panel {
+    width: min(100vw - 32px, 340px) !important;
+    max-width: min(100vw - 32px, 340px) !important;
+  }
+
+  /* Full-screen overlay panels on small screens */
+  .mat-mdc-select-panel,
+  .mat-mdc-autocomplete-panel {
+    max-height: 60vh !important;
+  }
+
+  /* Bigger touch targets for options */
+  .mat-mdc-select-panel .mat-mdc-option,
+  .mat-mdc-autocomplete-panel .mat-mdc-option {
+    min-height: 48px !important;
+    font-size: 15px;
+  }
+
+  /* Snackbar full-width on mobile */
+  .mat-mdc-snack-bar-container {
+    margin: 0 8px 80px !important;
+    border-radius: 14px !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .mat-mdc-form-field { margin-bottom: 8px; }
+
+  /* Reduce input height slightly on very small screens */
+  .mdc-text-field { min-height: 52px; }
+}

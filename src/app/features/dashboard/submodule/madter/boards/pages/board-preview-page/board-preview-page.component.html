@@ -1,0 +1,449 @@
+<ng-container *ngIf="!loading; else loadingState">
+  <ng-container *ngIf="!notFound && board; else notFoundState">
+    <div class="board-shell">
+      <main class="board-content">
+        <header class="board-hero executive-glass" [style.--board-accent]="board.accent">
+          <div class="hero-copy">
+            <p class="eyebrow">Board workspace</p>
+            <h1>{{ board.name }}</h1>
+            <div class="hero-path">
+              <span>Workspace: {{ board.workspaceName }}</span>
+              <mat-icon>chevron_right</mat-icon>
+              <span>Tablero: {{ board.name }}</span>
+              <mat-icon>chevron_right</mat-icon>
+              <span>Listas = columnas</span>
+              <mat-icon>chevron_right</mat-icon>
+              <span>Tareas = cards</span>
+            </div>
+            <p class="hero-text" [class.hero-text--empty]="!board.description">
+              {{ board.description || 'Sin descripción provista.' }}
+            </p>
+
+            <div class="hero-actions">
+              <button mat-stroked-button type="button" (click)="goToBoards()">
+                Volver a tableros
+              </button>
+              <button mat-stroked-button type="button" *ngIf="canManageContent" (click)="goToWorkspaceManagement()">
+                Asignar usuarios
+              </button>
+              <button mat-stroked-button type="button" (click)="toggleFavorite(board)">
+                {{ isBoardFavorite(board.id) ? 'Quitar favorito' : 'Guardar favorito' }}
+              </button>
+              <button mat-raised-button color="primary" type="button" *ngIf="canManageContent" (click)="openListComposer()">
+                Nueva lista
+              </button>
+            </div>
+          </div>
+
+          <div class="profile-card">
+            <div class="profile-avatar">{{ userInitials }}</div>
+            <div class="profile-meta">
+              <span class="status-pill">{{ canManageContent ? 'Board editable' : 'Solo lectura' }}</span>
+              <h3>{{ board.workspaceName }}</h3>
+              <p>Actualizado el {{ board.updatedAt | date: 'd MMM, y, h:mm a' }}</p>
+              <p>Tu rol en este workspace es {{ board.workspaceRole }}.</p>
+            </div>
+          </div>
+        </header>
+
+        <section class="board-summary">
+          <article class="summary-card executive-glass">
+            <p class="summary-label">Workspace</p>
+            <h3>{{ board.workspaceName }}</h3>
+            <p>Workspace de trabajo asociado a este tablero.</p>
+          </article>
+
+          <article class="summary-card executive-glass">
+            <p class="summary-label">Tablero</p>
+            <h3>{{ board.name }}</h3>
+            <p class="description-text" [class.description-empty]="!board.description">{{ board.description || 'Sin descripción provista.' }}</p>
+          </article>
+
+          <article class="summary-card executive-glass">
+            <p class="summary-label">Flujo actual</p>
+            <h3>{{ boardListCount }} listas</h3>
+            <p>{{ totalCardCount }} tareas viven hoy dentro de este tablero.</p>
+          </article>
+        </section>
+
+        <section class="kanban-shell">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Tablero de trabajo</p>
+              <h2>Columnas y tareas del proyecto</h2>
+              <p class="section-copy">
+                <ng-container *ngIf="canManageContent; else readOnlyFlowCopy">
+                  Crea una lista para cada estado del flujo. Luego agrega tareas dentro de la lista y abre el icono de ojo para ver su detalle.
+                </ng-container>
+              </p>
+            </div>
+          </div>
+
+          <ng-template #readOnlyFlowCopy>
+            Explora listas y tareas de este tablero. Tu acceso actual es de solo lectura, pero puedes abrir el detalle y seguir el avance del equipo.
+          </ng-template>
+
+          <ng-container *ngIf="boardLists.length; else emptyListsState">
+            <div
+              class="kanban-grid"
+              cdkDropList
+              cdkDropListOrientation="horizontal"
+              [cdkDropListData]="boardLists"
+              [cdkDropListDisabled]="movingListId !== null || !canManageContent"
+              (cdkDropListDropped)="dropList($event)"
+            >
+              <article
+                class="column-card executive-glass"
+                *ngFor="let boardList of boardLists; trackBy: trackList"
+                cdkDrag
+                [cdkDragData]="boardList"
+                [cdkDragDisabled]="movingListId !== null || !canManageContent"
+                [class.column-card--moving]="movingListId === boardList.id"
+              >
+                <!-- Drag Handle for Column -->
+                <div class="column-drag-handle" cdkDragHandle *ngIf="canManageContent">
+                  <mat-icon>drag_handle</mat-icon>
+                </div>
+
+                <div class="column-topline">
+                  <span class="column-badge">Lista {{ boardList.position }}</span>
+                  <div class="column-actions" *ngIf="canManageContent">
+                    <button mat-icon-button type="button" aria-label="Crear card" (click)="openCreateCardModal(boardList)">
+                      <mat-icon>add</mat-icon>
+                    </button>
+                    <button mat-icon-button type="button" aria-label="Editar lista" (click)="startEditingList(boardList)">
+                      <mat-icon>edit</mat-icon>
+                    </button>
+                    <button
+                      mat-icon-button
+                      type="button"
+                      aria-label="Eliminar lista"
+                      [disabled]="deletingListId === boardList.id"
+                      (click)="deleteList(boardList)"
+                    >
+                      <mat-icon>{{ deletingListId === boardList.id ? 'hourglass_top' : 'delete' }}</mat-icon>
+                    </button>
+                  </div>
+                </div>
+
+                <ng-container *ngIf="editingListId === boardList.id; else listViewMode">
+                  <form [formGroup]="editListForm" (ngSubmit)="submitListEdition(boardList.id)" class="list-form">
+                    <mat-form-field appearance="outline">
+                      <mat-label>Nombre de la lista</mat-label>
+                      <input matInput formControlName="name" maxlength="80" placeholder="Ej. Backlog">
+                    </mat-form-field>
+
+                    <p class="form-error" *ngIf="editingListError">{{ editingListError }}</p>
+
+                    <div class="form-actions">
+                      <button mat-stroked-button type="button" (click)="cancelEditingList()" [disabled]="editingListSaving">
+                        Cancelar
+                      </button>
+                      <button mat-raised-button color="primary" type="submit" [disabled]="editListForm.invalid || editingListSaving">
+                        {{ editingListSaving ? 'Guardando...' : 'Guardar' }}
+                      </button>
+                    </div>
+                  </form>
+                </ng-container>
+
+                <ng-template #listViewMode>
+                  <div class="column-header">
+                    <span class="column-kind">Columna del tablero</span>
+                    <h3>{{ boardList.name }}</h3>
+                    <p>{{ cardsForList(boardList.id).length }} tareas dentro de esta columna.</p>
+                  </div>
+
+                  <div
+                    class="task-list"
+                    cdkDropList
+                    [id]="dropListId(boardList.id)"
+                    [cdkDropListData]="cardsForList(boardList.id)"
+                    [cdkDropListConnectedTo]="connectedDropListIds"
+                    [cdkDropListDisabled]="movingCardId !== null || !canManageContent"
+                    (cdkDropListDropped)="dropCard($event, boardList)"
+                  >
+                    <button
+                      mat-stroked-button
+                      type="button"
+                      class="add-card-inline"
+                      *ngIf="canManageContent"
+                      (click)="openCreateCardModal(boardList)"
+                    >
+                      Nueva tarea
+                    </button>
+
+                    <ng-container *ngIf="cardsForList(boardList.id).length; else emptyCardsState">
+                      <article
+                        class="task-card"
+                        *ngFor="let card of cardsForList(boardList.id); trackBy: trackCard"
+                        cdkDrag
+                        [cdkDragData]="card"
+                        [cdkDragDisabled]="movingCardId !== null || deletingCardId === card.id || !canManageContent"
+                        [class.task-card--moving]="movingCardId === card.id"
+                      >
+                        <div class="task-card-top">
+                          <div class="task-card-badges">
+                            <button type="button" class="drag-handle" cdkDragHandle aria-label="Mover card" *ngIf="canManageContent">
+                              <mat-icon>drag_indicator</mat-icon>
+                            </button>
+                            <span class="task-status-badge" [ngClass]="'task-status-badge--' + statusTone(card.status)">
+                              {{ statusLabel(card.status) }}
+                            </span>
+                            <span class="task-badge" [ngClass]="'task-badge--' + priorityTone(card.priority)">
+                              {{ priorityLabel(card.priority) }}
+                            </span>
+                          </div>
+                          <div class="task-card-actions">
+                            <div class="task-card-assignee" *ngIf="card.assignee" [title]="'Asignado a: ' + assigneeLabel(card.assignee)">
+                              {{ assigneeInitials(card.assignee) }}
+                            </div>
+                            <div class="task-card-group" *ngIf="card.assigneeGroup" [title]="'Equipo: ' + card.assigneeGroup.name">
+                              <mat-icon>groups</mat-icon>
+                            </div>
+                            <div class="task-card-labels" *ngIf="card.labels?.length">
+                              <span
+                                *ngFor="let label of card.labels"
+                                class="task-label-dot"
+                                [style.background-color]="label.color"
+                                [title]="label.name"
+                              ></span>
+                            </div>
+                            <button
+                              mat-icon-button
+                              type="button"
+                              aria-label="Ver detalle"
+                              (click)="openCardDetail(card)"
+                            >
+                              <mat-icon>visibility</mat-icon>
+                            </button>
+                            <button
+                              mat-icon-button
+                              type="button"
+                              aria-label="Editar card"
+                              *ngIf="canManageContent"
+                              (click)="openEditCardModal(boardList, card)"
+                            >
+                              <mat-icon>edit</mat-icon>
+                            </button>
+                            <button
+                              mat-icon-button
+                              type="button"
+                              aria-label="Eliminar card"
+                              *ngIf="canManageContent"
+                              [disabled]="deletingCardId === card.id"
+                              (click)="deleteCard(boardList, card)"
+                            >
+                              <mat-icon>{{ deletingCardId === card.id ? 'hourglass_top' : 'delete' }}</mat-icon>
+                            </button>
+                          </div>
+                        </div>
+
+                        <h4>{{ card.title }}</h4>
+                        <p *ngIf="card.description">{{ card.description }}</p>
+
+                        <div class="task-card-meta">
+                          <span *ngIf="card.dueAt">
+                            <mat-icon title="Vencimiento">event</mat-icon>
+                            Vencimiento el {{ card.dueAt | date: 'd MMM, y, h:mm a' }}
+                          </span>
+                          <span>
+                            <mat-icon title="Actualizado">schedule</mat-icon>
+                            Actualizado el {{ card.updatedAt | date: 'd MMM, y' }}
+                          </span>
+                        </div>
+                      </article>
+                    </ng-container>
+
+                    <ng-template #emptyCardsState>
+                      <article class="task-placeholder">
+                        <span class="task-badge">Nueva columna</span>
+                        <h4>Sin tareas todavia</h4>
+                        <p>
+                          {{ canManageContent
+                            ? 'Aqui van las tareas de esta columna. Puedes crear la primera o mover una desde otra lista.'
+                            : 'Esta columna aun no tiene tareas visibles para ti.' }}
+                        </p>
+                        <button mat-stroked-button type="button" *ngIf="canManageContent" (click)="openCreateCardModal(boardList)">
+                          Crear primera tarea
+                        </button>
+                      </article>
+                    </ng-template>
+                  </div>
+                </ng-template>
+              </article>
+
+              <article class="column-card column-card--composer executive-glass" *ngIf="canManageContent">
+                <ng-container *ngIf="isListComposerOpen; else addListPrompt">
+                  <form [formGroup]="listForm" (ngSubmit)="submitList()" class="list-form">
+                    <div class="composer-head">
+                      <p class="eyebrow">Nueva lista</p>
+                      <h3>Crear lista</h3>
+                    </div>
+
+                    <mat-form-field appearance="outline">
+                      <mat-label>Nombre de la lista</mat-label>
+                      <input matInput formControlName="name" maxlength="80" placeholder="Ej. Backlog">
+                    </mat-form-field>
+
+                    <p class="form-error" *ngIf="listError">{{ listError }}</p>
+
+                    <div class="form-actions">
+                      <button mat-stroked-button type="button" (click)="closeListComposer()" [disabled]="listSaving">
+                        Cancelar
+                      </button>
+                      <button mat-raised-button color="primary" type="submit" [disabled]="listForm.invalid || listSaving">
+                        {{ listSaving ? 'Creando...' : 'Crear lista' }}
+                      </button>
+                    </div>
+                  </form>
+                </ng-container>
+
+                <ng-template #addListPrompt>
+                  <button type="button" class="add-list-btn" (click)="openListComposer()">
+                    <mat-icon>add</mat-icon>
+                    <span>Nueva columna</span>
+                  </button>
+                  <p class="composer-copy">
+                    Agrega otra columna al tablero y sigue armando el flujo real del proyecto.
+                  </p>
+                </ng-template>
+              </article>
+            </div>
+          </ng-container>
+        </section>
+      </main>
+    </div>
+  </ng-container>
+</ng-container>
+
+<ng-template #emptyListsState>
+  <article class="empty-card executive-glass">
+    <ng-container *ngIf="isListComposerOpen; else emptyBoardPrompt">
+      <div class="brand-mark">M</div>
+      <h2>Crea la primera columna del tablero</h2>
+      <p>
+        Una lista es una columna del flujo. Puedes empezar con algo como `Backlog`, `En progreso` o `Hecho`.
+      </p>
+
+      <form [formGroup]="listForm" (ngSubmit)="submitList()" class="list-form empty-list-form">
+        <mat-form-field appearance="outline">
+          <mat-label>Nombre de la lista</mat-label>
+          <input matInput formControlName="name" maxlength="80" placeholder="Ej. Backlog">
+        </mat-form-field>
+
+        <p class="form-error" *ngIf="listError">{{ listError }}</p>
+
+        <div class="empty-actions">
+          <button mat-stroked-button type="button" (click)="closeListComposer()" [disabled]="listSaving">
+            Cancelar
+          </button>
+          <button mat-raised-button color="primary" type="submit" [disabled]="listForm.invalid || listSaving">
+            {{ listSaving ? 'Creando...' : 'Crear lista' }}
+          </button>
+        </div>
+      </form>
+    </ng-container>
+
+    <ng-template #emptyBoardPrompt>
+      <div class="brand-mark">M</div>
+      <h2>Este tablero aun no tiene listas</h2>
+      <p>
+        {{ canManageContent
+          ? 'Empieza creando columnas como `Backlog`, `En progreso` y `Hecho`. Despues podras agregar tareas dentro de cada una.'
+          : 'Aun no hay columnas visibles en este tablero. Necesitas permisos de edicion para crear la primera.' }}
+      </p>
+      <div class="empty-actions">
+        <button mat-raised-button color="primary" type="button" *ngIf="canManageContent" (click)="openListComposer()">
+          Crear primera lista
+        </button>
+        <button mat-stroked-button type="button" (click)="goToBoards()">
+          Volver a tableros
+        </button>
+      </div>
+    </ng-template>
+  </article>
+</ng-template>
+
+<app-card-modal
+  [visible]="isCardModalOpen"
+  [form]="cardForm"
+  [assigneeControl]="assigneeControl"
+  [saving]="cardSaving"
+  [error]="cardError"
+  [listName]="selectedListForCard?.name ?? ''"
+  [isEditing]="!!editingCard"
+  [priorityOptions]="priorityOptions"
+  [statusOptions]="statusOptions"
+  [assigneeOptions]="assigneeOptions"
+  [assigneeLoading]="assigneeLoading"
+  [selectedAssignee]="selectedAssignee"
+  [userGroups]="userGroups"
+  [availableLabels]="availableCardLabelChoices"
+  [selectedLabels]="selectedCardLabels"
+  [suggestedLabels]="suggestedLabels"
+  (closed)="closeCardModal()"
+  (submitted)="submitCard()"
+  (assigneeSelected)="handleAssigneeSelected($event)"
+  (assigneeCleared)="clearCardAssignee()"
+  (labelAdded)="handleCardLabelAdded($event)"
+  (labelRemoved)="handleCardLabelRemoved($event)"
+/>
+
+<app-card-detail-modal
+  [visible]="isCardDetailOpen"
+  [loading]="cardDetailLoading"
+  [error]="cardDetailError"
+  [detail]="selectedCardDetail"
+  [currentUserId]="user?.id ?? null"
+  [commentForm]="commentForm"
+  [checklistForm]="checklistForm"
+  [commentSaving]="commentSaving"
+  [checklistSaving]="checklistSaving"
+  [assignmentSaving]="assignmentSaving"
+  [allBoardLabels]="allBoardLabels"
+  [labelsSaving]="labelsSaving"
+  [readOnly]="!canManageContent"
+  [pendingUploads]="pendingUploads"
+  [uploadingFile]="uploadingFile"
+  (closed)="closeCardDetail()"
+  (editRequested)="openEditFromDetail()"
+  (assignRequested)="assignSelectedCardToMe()"
+  (unassignRequested)="unassignSelectedCard()"
+  (commentSubmitted)="submitCardComment()"
+  (commentDeleted)="deleteCardComment($event)"
+  (checklistSubmitted)="submitChecklistItem()"
+  (checklistDeleted)="deleteChecklistItem($event)"
+  (checklistToggled)="toggleChecklistItem($event)"
+  (labelAssigned)="handleLabelAssigned($event)"
+  (labelUnassigned)="handleLabelUnassigned($event)"
+  (fileSelected)="handleFileSelected($event)"
+  (attachmentRemoved)="removePendingUpload($event)"
+/>
+
+<ng-template #notFoundState>
+  <div class="loading-state">
+    <article class="empty-card executive-glass">
+      <div class="brand-mark">M</div>
+      <h2>Tablero no encontrado</h2>
+      <p>Ese tablero no existe, no te pertenece o aun no esta disponible en tu cuenta.</p>
+      <div class="empty-actions">
+        <button mat-raised-button color="primary" type="button" (click)="goToBoards()">
+          Volver a tableros
+        </button>
+        <button mat-stroked-button type="button" (click)="goToDashboard()">
+          Ir al dashboard
+        </button>
+      </div>
+    </article>
+  </div>
+</ng-template>
+
+<ng-template #loadingState>
+  <div class="loading-state">
+    <div class="loading-card executive-glass">
+      <div class="brand-mark">M</div>
+      <h2>Cargando tablero</h2>
+      <p>Estamos preparando la vista de trabajo real del tablero dentro de MatDer.</p>
+    </div>
+  </div>
+</ng-template>

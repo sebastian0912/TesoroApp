@@ -1,0 +1,171 @@
+/* ─────────────────────────────────────────────
+   MatDer Design Tokens — Dark (default)
+   ───────────────────────────────────────────── */
+:root {
+  /* Background */
+  --bg-gradient: linear-gradient(150deg, #141e33 0%, #0e1624 100%);
+  --bg-radial-1: rgba(37, 99, 235, 0.07);
+  --bg-radial-2: rgba(220, 170, 30, 0.04);
+
+  /* Surfaces */
+  --surface:          rgba(255, 255, 255, 0.05);
+  --surface-raised:   rgba(255, 255, 255, 0.08);
+  --surface-overlay:  #1a2440;          /* dropdown / popover bg */
+  --surface-card:     rgba(20, 30, 51, 0.68);
+  --surface-input:    rgba(255, 255, 255, 0.04);
+  --glass-border:     rgba(255, 255, 255, 0.09);
+  --shadow-card:      0 20px 44px -12px rgba(5, 10, 20, 0.55);
+  --shadow-overlay:   0 16px 48px -16px rgba(5, 10, 20, 0.72);
+
+  /* Text */
+  --text-main:    #d6e4f7;
+  --text-muted:   #8a9bb5;
+  --text-subtle:  #526070;
+  --eyebrow-color:#7ea0cc;
+  --link-color:   #6ea8e8;
+
+  /* Brand / Primary */
+  --primary:        #4a74d8;
+  --primary-hover:  #3b63c4;
+  --primary-glow:   rgba(74, 116, 216, 0.22);
+  --primary-muted:  rgba(74, 116, 216, 0.1);
+  --brand-gradient: linear-gradient(135deg, #5b86e5, #2b5bd8);
+
+  /* Status chips */
+  --chip-todo-bg:       rgba(100, 116, 139, 0.18);
+  --chip-todo-text:     #a0b4cc;
+  --chip-progress-bg:   rgba(74, 116, 216, 0.16);
+  --chip-progress-text: #91b6f0;
+  --chip-blocked-bg:    rgba(168, 85, 247, 0.16);
+  --chip-blocked-text:  #c4a0f0;
+  --chip-done-bg:       rgba(20, 184, 166, 0.16);
+  --chip-done-text:     #80e8d8;
+  --chip-sky-bg:        rgba(56, 189, 248, 0.14);
+  --chip-sky-text:      #8dd4f8;
+
+  /* Priority chips */
+  --chip-low-bg:    rgba(52, 211, 153, 0.12);
+  --chip-low-text:  #6ee7b7;
+  --chip-med-bg:    rgba(56, 189, 248, 0.12);
+  --chip-med-text:  #7dd3fc;
+  --chip-high-bg:   rgba(245, 158, 11, 0.14);
+  --chip-high-text: #fcd34d;
+  --chip-urg-bg:    rgba(251, 113, 133, 0.14);
+  --chip-urg-text:  #fda4af;
+
+  /* UI elements */
+  --progress-track-bg: rgba(15, 23, 42, 0.55);
+  --scrollbar-thumb:   rgba(255, 255, 255, 0.1);
+  --drag-active-bg:    rgba(74, 116, 216, 0.08);
+  --drag-active-border:rgba(74, 116, 216, 0.32);
+
+  /* Form fields */
+  --input-outline:       rgba(255, 255, 255, 0.22);
+  --input-outline-hover: rgba(255, 255, 255, 0.48);
+  --input-outline-focus: var(--primary);
+  --input-text:          #d6e4f7;
+  --input-placeholder:   #8a9bb5;
+  --input-label:         #8a9bb5;
+  --autofill-bg:         #1a2440;
+}
+
+/* ─────────────────────────────────────────────
+   Light Mode Overrides
+   ───────────────────────────────────────────── */
+:root[data-theme="light"] :root {
+  /* Background */
+  --bg-gradient: linear-gradient(150deg, #e8eef8 0%, #f3f6fc 100%);
+  --bg-radial-1: rgba(37, 99, 235, 0.05);
+  --bg-radial-2: rgba(220, 170, 30, 0.03);
+
+  /* Surfaces */
+  --surface:          rgba(255, 255, 255, 0.72);
+  --surface-raised:   rgba(255, 255, 255, 0.9);
+  --surface-overlay:  #ffffff;
+  --surface-card:     rgba(255, 255, 255, 0.8);
+  --surface-input:    rgba(255, 255, 255, 0.75);
+  --glass-border:     rgba(30, 41, 59, 0.1);
+  --shadow-card:      0 4px 24px -4px rgba(30, 41, 59, 0.1);
+  --shadow-overlay:   0 8px 32px -8px rgba(30, 41, 59, 0.18);
+
+  /* Text */
+  --text-main:    #1a2540;
+  --text-muted:   #4a5f7a;
+  --text-subtle:  #647a96;
+  --eyebrow-color:#2563eb;
+  --link-color:   #2563eb;
+
+  /* Brand / Primary */
+  --primary:        #2563eb;
+  --primary-hover:  #1d4ed8;
+  --primary-glow:   rgba(37, 99, 235, 0.18);
+  --primary-muted:  rgba(37, 99, 235, 0.08);
+  --brand-gradient: linear-gradient(135deg, #4a74d8, #1e56d4);
+
+  /* Status chips */
+  --chip-todo-bg:       rgba(100, 116, 139, 0.12);
+  --chip-todo-text:     #475569;
+  --chip-progress-bg:   rgba(37, 99, 235, 0.1);
+  --chip-progress-text: #1d4ed8;
+  --chip-blocked-bg:    rgba(124, 58, 237, 0.1);
+  --chip-blocked-text:  #6d28d9;
+  --chip-done-bg:       rgba(20, 184, 166, 0.1);
+  --chip-done-text:     #0f766e;
+  --chip-sky-bg:        rgba(3, 105, 161, 0.1);
+  --chip-sky-text:      #0369a1;
+
+  /* Priority chips */
+  --chip-low-bg:    rgba(16, 185, 129, 0.1);
+  --chip-low-text:  #047857;
+  --chip-med-bg:    rgba(3, 105, 161, 0.1);
+  --chip-med-text:  #0369a1;
+  --chip-high-bg:   rgba(217, 119, 6, 0.1);
+  --chip-high-text: #b45309;
+  --chip-urg-bg:    rgba(225, 29, 72, 0.1);
+  --chip-urg-text:  #be123c;
+
+  /* UI elements */
+  --progress-track-bg: rgba(30, 41, 59, 0.08);
+  --scrollbar-thumb:   rgba(30, 41, 59, 0.12);
+  --drag-active-bg:    rgba(37, 99, 235, 0.05);
+  --drag-active-border:rgba(37, 99, 235, 0.28);
+
+  /* Form fields */
+  --input-outline:       rgba(30, 41, 59, 0.22);
+  --input-outline-hover: rgba(30, 41, 59, 0.5);
+  --input-outline-focus: var(--primary);
+  --input-text:          #1a2540;
+  --input-placeholder:   #647a96;
+  --input-label:         #4a5f7a;
+  --autofill-bg:         #f8fafc;
+}
+
+/* ─────────────────────────────────────────────
+   Base Reset & Typography (scoped to MatDer)
+   ───────────────────────────────────────────── */
+:root {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  background: var(--bg-gradient);
+  background-attachment: fixed;
+  color: var(--text-main);
+  min-height: 100vh;
+  transition: background 0.3s ease, color 0.3s ease;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+:root * { box-sizing: border-box; }
+
+/* ─────────────────────────────────────────────
+   Scrollbar (scoped to MatDer)
+   ───────────────────────────────────────────── */
+:root ::-webkit-scrollbar { width: 6px; height: 6px; }
+:root ::-webkit-scrollbar-track { background: transparent; }
+:root ::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: 20px;
+}
+:root ::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--scrollbar-thumb) 100%, var(--primary) 30%);
+}
+:root * { scrollbar-width: thin; scrollbar-color: var(--scrollbar-thumb) transparent; }
