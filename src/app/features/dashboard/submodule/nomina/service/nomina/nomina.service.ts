@@ -9,7 +9,7 @@ export interface ConceptoNomina {
   descripcion: string;
   abreviatura?: string | null;
   naturaleza: 'DEVENGO' | 'DEDUCCION' | 'APORTE_EMPLEADO' | 'APORTE_EMPLEADOR' | 'PROVISION' | 'OTRO';
-  unidad: 'HORA' | 'DIA';
+  unidad: 'HORA' | 'DIA' | 'VALOR';
   afecta_ibc: boolean;
   activo: boolean;
   naturaleza_display?: string;

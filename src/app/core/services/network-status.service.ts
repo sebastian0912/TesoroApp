@@ -59,7 +59,7 @@ export class NetworkStatusService {
       
       // Un simple GET a la raíz del entorno.
       // Así el backend responda 403 o 401, sabremos que logramos alcanzar la IP del backend.
-      await fetch(environment.apiUrl, { 
+      await fetch(environment.apiUrl + 'health/', {
         method: 'HEAD', 
         cache: 'no-store',
         mode: 'no-cors', // Evita errores restrictivos de CORS al hacer ping
