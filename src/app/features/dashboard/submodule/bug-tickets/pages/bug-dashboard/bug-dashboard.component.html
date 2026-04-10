@@ -1,0 +1,309 @@
+<div class="bug-dashboard">
+  <!-- Header -->
+  <div class="page-header">
+    <div class="header-left">
+      <div class="header-icon-wrap">
+        <mat-icon>bug_report</mat-icon>
+      </div>
+      <div>
+        <h1 class="page-title">Dashboard de Soporte</h1>
+        <p class="page-subtitle">Panel de control y seguimiento de tickets reportados</p>
+      </div>
+    </div>
+    <button mat-flat-button color="primary" (click)="irATickets()" class="btn-ver-tickets">
+      <mat-icon>list_alt</mat-icon>
+      Ver Todos los Tickets
+    </button>
+  </div>
+
+  @if (loading) {
+    <div class="loading-container">
+      <mat-spinner diameter="44"></mat-spinner>
+      <p>Cargando estadísticas...</p>
+    </div>
+  } @else {
+
+    <!-- KPI Cards principales -->
+    <div class="kpi-grid">
+      <div class="kpi-card kpi-total" (click)="irATickets()">
+        <div class="kpi-icon-wrap">
+          <mat-icon>confirmation_number</mat-icon>
+        </div>
+        <div class="kpi-info">
+          <span class="kpi-value">{{ stats?.total || 0 }}</span>
+          <span class="kpi-label">Total Tickets</span>
+        </div>
+      </div>
+
+      <div class="kpi-card kpi-abiertos" (click)="irATicketsFiltrado('estado', 'Abierto')">
+        <div class="kpi-icon-wrap">
+          <mat-icon>report_problem</mat-icon>
+        </div>
+        <div class="kpi-info">
+          <span class="kpi-value">{{ stats?.abiertos || 0 }}</span>
+          <span class="kpi-label">Abiertos</span>
+        </div>
+        <div class="kpi-trend kpi-trend-warning">Pendientes</div>
+      </div>
+
+      <div class="kpi-card kpi-progreso" (click)="irATicketsFiltrado('estado', 'En Progreso')">
+        <div class="kpi-icon-wrap">
+          <mat-icon>autorenew</mat-icon>
+        </div>
+        <div class="kpi-info">
+          <span class="kpi-value">{{ stats?.en_progreso || 0 }}</span>
+          <span class="kpi-label">En Progreso</span>
+        </div>
+        <div class="kpi-trend kpi-trend-info">En atención</div>
+      </div>
+
+      <div class="kpi-card kpi-resueltos" (click)="irATicketsFiltrado('estado', 'Resuelto')">
+        <div class="kpi-icon-wrap">
+          <mat-icon>check_circle</mat-icon>
+        </div>
+        <div class="kpi-info">
+          <span class="kpi-value">{{ stats?.resueltos || 0 }}</span>
+          <span class="kpi-label">Resueltos</span>
+        </div>
+        <div class="kpi-trend kpi-trend-success">Solucionados</div>
+      </div>
+
+      <div class="kpi-card kpi-cerrados" (click)="irATicketsFiltrado('estado', 'Cerrado')">
+        <div class="kpi-icon-wrap">
+          <mat-icon>archive</mat-icon>
+        </div>
+        <div class="kpi-info">
+          <span class="kpi-value">{{ stats?.cerrados || 0 }}</span>
+          <span class="kpi-label">Cerrados</span>
+        </div>
+        <div class="kpi-trend kpi-trend-neutral">Finalizados</div>
+      </div>
+    </div>
+
+    <!-- Resumen rápido -->
+    <div class="summary-row">
+      <!-- Donut de estados -->
+      <div class="summary-card donut-card">
+        <h3 class="card-title">
+          <mat-icon>donut_large</mat-icon>
+          Distribución por Estado
+        </h3>
+        <div class="donut-container">
+          <div class="donut-chart" [style.background]="getConicGradient()">
+            <div class="donut-hole">
+              <span class="donut-value">{{ stats?.total || 0 }}</span>
+              <span class="donut-label">Total</span>
+            </div>
+          </div>
+          <div class="donut-legend">
+            @for (seg of estadoSegmentos; track seg.label) {
+              <div class="legend-item">
+                <span class="legend-dot" [style.background]="seg.color"></span>
+                <span class="legend-text">{{ seg.label }}</span>
+                <span class="legend-value">{{ seg.valor }}</span>
+                <span class="legend-pct">{{ seg.porcentaje | number:'1.0-0' }}%</span>
+              </div>
+            }
+          </div>
+        </div>
+      </div>
+
+      <!-- Progreso general + métricas -->
+      <div class="summary-card metrics-card">
+        <h3 class="card-title">
+          <mat-icon>speed</mat-icon>
+          Métricas de Rendimiento
+        </h3>
+
+        <div class="metric-block">
+          <div class="metric-header">
+            <span>Tasa de Resolución</span>
+            <span class="metric-pct" [class.good]="tasaResolucion >= 70" [class.warning]="tasaResolucion >= 40 && tasaResolucion < 70" [class.bad]="tasaResolucion < 40">{{ tasaResolucion }}%</span>
+          </div>
+          <div class="progress-bar-container">
+            <div class="progress-bar-fill" [style.width.%]="tasaResolucion"
+              [class.fill-good]="tasaResolucion >= 70"
+              [class.fill-warning]="tasaResolucion >= 40 && tasaResolucion < 70"
+              [class.fill-bad]="tasaResolucion < 40"></div>
+          </div>
+          <p class="metric-detail">{{ (stats?.resueltos || 0) + (stats?.cerrados || 0) }} de {{ stats?.total || 0 }} tickets resueltos o cerrados</p>
+        </div>
+
+        <div class="metric-row">
+          <div class="mini-metric">
+            <mat-icon class="mm-icon mm-pending">pending_actions</mat-icon>
+            <div>
+              <span class="mm-value">{{ getPendientes() }}</span>
+              <span class="mm-label">Pendientes</span>
+            </div>
+          </div>
+          <div class="mini-metric">
+            <mat-icon class="mm-icon mm-unassigned">person_off</mat-icon>
+            <div>
+              <span class="mm-value">{{ ticketsSinAsignar }}</span>
+              <span class="mm-label">Sin Asignar</span>
+            </div>
+          </div>
+          <div class="mini-metric">
+            <mat-icon class="mm-icon mm-critical">error</mat-icon>
+            <div>
+              <span class="mm-value">{{ ticketsCriticos.length }}</span>
+              <span class="mm-label">Críticos Abiertos</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tickets Críticos Abiertos -->
+    @if (ticketsCriticos.length > 0) {
+      <div class="alert-section">
+        <div class="alert-header">
+          <mat-icon class="alert-icon">warning</mat-icon>
+          <h3>Tickets Críticos Abiertos</h3>
+          <span class="alert-count">{{ ticketsCriticos.length }}</span>
+        </div>
+        <div class="alert-cards">
+          @for (t of ticketsCriticos; track t.id) {
+            <div class="alert-card" (click)="irATickets()">
+              <div class="alert-card-top">
+                <span class="alert-titulo">{{ t.titulo }}</span>
+                <span class="badge prioridad-crítica">Crítica</span>
+              </div>
+              <div class="alert-card-bottom">
+                <span class="alert-meta">
+                  <mat-icon>person</mat-icon> {{ t.usuario }}
+                </span>
+                <span class="alert-meta">
+                  <mat-icon>location_city</mat-icon> {{ t.sede }}
+                </span>
+                <span class="alert-time">{{ getTiempoRelativo(t.fecha_reporte) }}</span>
+              </div>
+            </div>
+          }
+        </div>
+      </div>
+    }
+
+    <!-- Charts row -->
+    <div class="charts-row">
+      <!-- Por categoría -->
+      <div class="chart-card">
+        <h3 class="card-title">
+          <mat-icon>category</mat-icon>
+          Tickets por Categoría
+        </h3>
+        <div class="chart-bars">
+          @for (cat of getCategoriaKeys(); track cat) {
+            <div class="bar-row" (click)="irATickets()">
+              <span class="bar-label">{{ cat }}</span>
+              <div class="bar-track">
+                <div class="bar-fill bar-fill-categoria"
+                  [style.width.%]="maxCategoria > 0 ? (stats!.por_categoria[cat] / maxCategoria * 100) : 0">
+                </div>
+              </div>
+              <span class="bar-value">{{ stats!.por_categoria[cat] }}</span>
+            </div>
+          }
+          @if (getCategoriaKeys().length === 0) {
+            <p class="no-data">Sin datos de categorías</p>
+          }
+        </div>
+      </div>
+
+      <!-- Por prioridad -->
+      <div class="chart-card">
+        <h3 class="card-title">
+          <mat-icon>priority_high</mat-icon>
+          Tickets por Prioridad
+        </h3>
+        <div class="chart-bars">
+          @for (p of getPrioridadKeys(); track p) {
+            <div class="bar-row">
+              <span class="bar-label bar-label-badge" [class]="getPrioridadClass(p)">{{ p }}</span>
+              <div class="bar-track">
+                <div class="bar-fill" [class]="'bar-fill-' + p.toLowerCase()"
+                  [style.width.%]="stats!.total > 0 ? (stats!.por_prioridad[p] / stats!.total * 100) : 0">
+                </div>
+              </div>
+              <span class="bar-value">{{ stats!.por_prioridad[p] }}</span>
+            </div>
+          }
+          @if (getPrioridadKeys().length === 0) {
+            <p class="no-data">Sin datos de prioridad</p>
+          }
+        </div>
+      </div>
+
+      <!-- Por sede -->
+      <div class="chart-card">
+        <h3 class="card-title">
+          <mat-icon>location_city</mat-icon>
+          Tickets por Sede
+        </h3>
+        <div class="chart-bars">
+          @for (s of getSedeKeys(); track s) {
+            <div class="bar-row">
+              <span class="bar-label">{{ s || 'Sin sede' }}</span>
+              <div class="bar-track">
+                <div class="bar-fill bar-fill-sede"
+                  [style.width.%]="maxSede > 0 ? (stats!.por_sede[s] / maxSede * 100) : 0">
+                </div>
+              </div>
+              <span class="bar-value">{{ stats!.por_sede[s] }}</span>
+            </div>
+          }
+          @if (getSedeKeys().length === 0) {
+            <p class="no-data">Sin datos por sede</p>
+          }
+        </div>
+      </div>
+    </div>
+
+    <!-- Tickets recientes -->
+    <div class="recientes-section">
+      <div class="section-header">
+        <h3 class="card-title">
+          <mat-icon>schedule</mat-icon>
+          Últimos Tickets Reportados
+        </h3>
+        <button mat-stroked-button (click)="irATickets()" class="btn-ver-todos">
+          Ver todos
+          <mat-icon>arrow_forward</mat-icon>
+        </button>
+      </div>
+
+      @if (ticketsRecientes.length > 0) {
+        <div class="tickets-grid">
+          @for (t of ticketsRecientes; track t.id) {
+            <div class="ticket-card" (click)="irATickets()">
+              <div class="ticket-card-header">
+                <span class="ticket-titulo">{{ t.titulo }}</span>
+                <span class="badge" [class]="getPrioridadClass(t.prioridad)">{{ t.prioridad }}</span>
+              </div>
+              <p class="ticket-desc">{{ t.descripcion }}</p>
+              <div class="ticket-card-footer">
+                <div class="ticket-meta-left">
+                  <span class="badge badge-sm" [class]="getEstadoClass(t.estado)">{{ t.estado }}</span>
+                  <span class="ticket-cat">{{ t.categoria }}</span>
+                </div>
+                <div class="ticket-meta-right">
+                  <span class="ticket-user">
+                    <mat-icon>person</mat-icon>
+                    {{ t.usuario }}
+                  </span>
+                  <span class="ticket-time">{{ getTiempoRelativo(t.fecha_reporte) }}</span>
+                </div>
+              </div>
+            </div>
+          }
+        </div>
+      } @else {
+        <div class="empty-state">
+          <mat-icon>inbox</mat-icon>
+          <p>No hay tickets recientes</p>
+        </div>
+      }
+    </div>
+  }
+</div>

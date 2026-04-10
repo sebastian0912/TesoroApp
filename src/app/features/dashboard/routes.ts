@@ -26,6 +26,7 @@ export const routes: Routes = [
       { path: 'metricas', loadChildren: () => import('./submodule/metricas/metricas.routes').then(m => m.routes) },
       { path: 'afiliaciones', loadChildren: () => import('./submodule/afiliaciones/afiliaciones.routes').then(m => m.routes) },
       { path: 'financiera', loadChildren: () => import('./submodule/financiera/financiera.routes').then(m => m.routes) },
+      { path: 'bug-tickets', loadChildren: () => import('./submodule/bug-tickets/bug-tickets.routes').then(m => m.routes) },
       { path: '**', redirectTo: '' },
     ],
   },

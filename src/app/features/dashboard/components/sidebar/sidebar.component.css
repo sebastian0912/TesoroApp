@@ -173,6 +173,10 @@ button.mat-icon-button:hover {
   margin-right: 12px;
 }
 
+.mat-mdc-menu-item .icon-bug {
+  color: #ef4444;
+}
+
 .spanAux {
   font-size: 0.9rem;
   font-weight: 500;

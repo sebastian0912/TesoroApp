@@ -1,30 +1,34 @@
 <mat-card class="premium-card">
   <mat-card-header class="card-header-premium">
     <div class="header-content">
-      <div class="header-icon-container">
-        <mat-icon class="header-icon">event_busy</mat-icon>
+      <div class="header-left">
+        <div class="header-icon-container">
+          <mat-icon class="header-icon">event_busy</mat-icon>
+        </div>
+        <div class="header-text">
+          <mat-card-title class="titulo">Gestión de Ausentismos</mat-card-title>
+          <mat-card-subtitle class="subtitulo">Control individual y masivo de ausentismos.</mat-card-subtitle>
+        </div>
       </div>
-      <div class="header-text">
-        <mat-card-title class="titulo">Gestión de Ausentismos</mat-card-title>
-        <mat-card-subtitle class="subtitulo">Control individual y masivo de ausentismos.</mat-card-subtitle>
+      <div class="header-buttons">
+        <button class="btn-managerial btn-blue" (click)="configurarMensajes()">
+          <mat-icon>settings</mat-icon>
+          <span class="btn-label">Configurar Mensajes</span>
+        </button>
+        <button class="btn-managerial btn-green" (click)="abrirModalNuevoAusentismo()">
+          <mat-icon>person_add</mat-icon>
+          <span class="btn-label">Registrar Ausentismo</span>
+        </button>
+        <button class="btn-managerial" (click)="descargarPlantilla()">
+          <mat-icon>download</mat-icon>
+          <span class="btn-label">Descargar Plantilla</span>
+        </button>
+        <button class="btn-managerial" (click)="triggerFileInput()">
+          <mat-icon>upload_file</mat-icon>
+          <span class="btn-label">Subir Excel</span>
+        </button>
+        <input #fileInput type="file" accept=".xlsx,.xls" (change)="cargarExcelAusentismos($event)" hidden />
       </div>
-      <div class="grow"></div>
-      <button class="btn-managerial" style="background-color: #3b82f6 !important; color: white !important;" (click)="configurarMensajes()">
-        <mat-icon>settings</mat-icon> Configurar Mensajes
-      </button>
-      <button class="btn-managerial" style="margin-left: 10px; background-color: #059669 !important; color: white !important;" (click)="abrirModalNuevoAusentismo()">
-        <mat-icon>person_add</mat-icon>
-        Registrar Ausentismo
-      </button>
-      <button class="btn-managerial" style="margin-left: 10px;" (click)="descargarPlantilla()">
-        <mat-icon>download</mat-icon>
-        Descargar Plantilla
-      </button>
-      <button class="btn-managerial" style="margin-left: 10px;" (click)="triggerFileInput()">
-        <mat-icon>upload_file</mat-icon>
-        Subir Plantilla Excel
-      </button>
-      <input #fileInput type="file" accept=".xlsx,.xls" (change)="cargarExcelAusentismos($event)" hidden />
     </div>
   </mat-card-header>
   <mat-card-content class="card-content">
@@ -68,6 +72,7 @@
       </div>
     </div>
 
+    <!-- Barra de acciones -->
     <div class="actions-container">
       <mat-form-field appearance="outline" class="filtro">
         <mat-label>Buscar Ausentismo...</mat-label>
@@ -77,32 +82,36 @@
 
       <div class="grow"></div>
 
-      <!-- Toggles View -->
-      <div class="view-toggles">
-        <button mat-icon-button [color]="vistaActual === 'tabla' ? 'primary' : ''" (click)="vistaActual = 'tabla'" matTooltip="Vista Tabla">
-          <mat-icon>table_chart</mat-icon>
+      <div class="actions-right">
+        <!-- Toggles View -->
+        <div class="view-toggles">
+          <button mat-icon-button [color]="vistaActual === 'tabla' ? 'primary' : ''" (click)="vistaActual = 'tabla'" matTooltip="Vista Tabla">
+            <mat-icon>table_chart</mat-icon>
+          </button>
+          <button mat-icon-button [color]="vistaActual === 'tarjetas' ? 'primary' : ''" (click)="vistaActual = 'tarjetas'" matTooltip="Vista Tarjetas">
+            <mat-icon>view_module</mat-icon>
+          </button>
+        </div>
+
+        <button mat-raised-button class="action-btn export-btn" (click)="exportarExcel()">
+          <mat-icon>file_download</mat-icon>
+          <span class="btn-label">Exportar</span>
         </button>
-        <button mat-icon-button [color]="vistaActual === 'tarjetas' ? 'primary' : ''" (click)="vistaActual = 'tarjetas'" matTooltip="Vista Tarjetas">
-          <mat-icon>view_module</mat-icon>
+
+        <button mat-raised-button class="action-btn notify-btn" [disabled]="selection.selected.length === 0" (click)="enviarNotificacionSeleccionados()">
+          <mat-icon>mail</mat-icon>
+          <span class="btn-label">Notificar ({{selection.selected.length}})</span>
+        </button>
+
+        <button mat-raised-button class="action-btn status-btn" [disabled]="selection.selected.length === 0" (click)="cambioMasivoEstado()">
+          <mat-icon>update</mat-icon>
+          <span class="btn-label">Estado ({{selection.selected.length}})</span>
+        </button>
+
+        <button mat-icon-button color="primary" class="reload-btn" (click)="cargarDatos()" matTooltip="Recargar datos">
+          <mat-icon>refresh</mat-icon>
         </button>
       </div>
-
-      <button mat-raised-button color="accent" style="background-color: #10b981; color: white;" class="export-btn" (click)="exportarExcel()">
-        <mat-icon>file_download</mat-icon>
-        Exportar Datos
-      </button>
-
-      <button mat-raised-button color="accent" class="notify-btn" [disabled]="selection.selected.length === 0" (click)="enviarNotificacionSeleccionados()">
-        <mat-icon>mail</mat-icon>
-        Notificar Seleccionados ({{selection.selected.length}})
-      </button>
-      <button mat-raised-button style="background-color:#7c3aed; color:white;" [disabled]="selection.selected.length === 0" (click)="cambioMasivoEstado()">
-        <mat-icon>update</mat-icon>
-        Cambiar Estado ({{selection.selected.length}})
-      </button>
-      <button mat-raised-button color="primary" class="reload-btn" (click)="cargarDatos()">
-        <mat-icon>refresh</mat-icon>
-      </button>
     </div>
 
     <!-- TABLA VISTA -->

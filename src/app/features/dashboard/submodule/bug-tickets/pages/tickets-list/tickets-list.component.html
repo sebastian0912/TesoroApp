@@ -1,0 +1,554 @@
+<div class="tickets-page">
+  <!-- Header -->
+  <div class="page-header">
+    <div class="header-left">
+      <div class="header-icon-wrap">
+        <mat-icon>confirmation_number</mat-icon>
+      </div>
+      <div>
+        <h1 class="page-title">Gestion de Tickets</h1>
+        <p class="page-subtitle">Administra y da seguimiento a los reportes de bugs</p>
+      </div>
+    </div>
+  </div>
+
+  @if (!mostrarDetalle) {
+    <!-- Filtros -->
+    <div class="filtros-bar">
+      <mat-form-field appearance="outline" class="filtro-field search-field">
+        <mat-label>Buscar ticket...</mat-label>
+        <input matInput [formControl]="filtroBusqueda" placeholder="Titulo, usuario, categoria..." />
+        <mat-icon matSuffix>search</mat-icon>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline" class="filtro-field">
+        <mat-label>Estado</mat-label>
+        <mat-select [formControl]="filtroEstado">
+          <mat-option value="">Todos</mat-option>
+          @for (e of estados; track e) {
+            <mat-option [value]="e">{{ e }}</mat-option>
+          }
+        </mat-select>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline" class="filtro-field">
+        <mat-label>Prioridad</mat-label>
+        <mat-select [formControl]="filtroPrioridad">
+          <mat-option value="">Todas</mat-option>
+          @for (p of prioridades; track p) {
+            <mat-option [value]="p">{{ p }}</mat-option>
+          }
+        </mat-select>
+      </mat-form-field>
+
+      <div class="filtro-actions">
+        <button mat-flat-button color="primary" (click)="filtrar()" class="btn-filtrar">
+          <mat-icon>filter_list</mat-icon>
+          Filtrar
+        </button>
+        <button mat-stroked-button (click)="limpiarFiltros()" class="btn-limpiar">
+          <mat-icon>clear_all</mat-icon>
+          Limpiar
+        </button>
+      </div>
+    </div>
+
+    <!-- Table -->
+    @if (loading) {
+      <div class="loading-container">
+        <mat-spinner diameter="36"></mat-spinner>
+        <p>Cargando tickets...</p>
+      </div>
+    } @else {
+      <div class="table-container">
+        <table mat-table [dataSource]="dataSource" matSort class="tickets-table">
+
+          <!-- Titulo -->
+          <ng-container matColumnDef="titulo">
+            <th mat-header-cell *matHeaderCellDef mat-sort-header>Ticket</th>
+            <td mat-cell *matCellDef="let t" class="col-titulo">
+              <div class="titulo-cell">
+                <span class="titulo-text" (click)="verDetalle(t)">{{ t.titulo }}</span>
+                <span class="titulo-sub">{{ t.categoria || 'Sin categoria' }} &middot; {{ t.sede || 'Sin sede' }}</span>
+              </div>
+            </td>
+          </ng-container>
+
+          <!-- Prioridad -->
+          <ng-container matColumnDef="prioridad">
+            <th mat-header-cell *matHeaderCellDef mat-sort-header>Prioridad</th>
+            <td mat-cell *matCellDef="let t">
+              <span class="badge" [class]="getPrioridadClass(t.prioridad)">{{ t.prioridad }}</span>
+            </td>
+          </ng-container>
+
+          <!-- Estado -->
+          <ng-container matColumnDef="estado">
+            <th mat-header-cell *matHeaderCellDef mat-sort-header>Estado</th>
+            <td mat-cell *matCellDef="let t">
+              <span class="badge badge-estado" [class]="getEstadoClass(t.estado)">
+                <mat-icon class="badge-icon">{{ getEstadoIcon(t.estado) }}</mat-icon>
+                {{ t.estado }}
+              </span>
+            </td>
+          </ng-container>
+
+          <!-- Reportado por -->
+          <ng-container matColumnDef="usuario">
+            <th mat-header-cell *matHeaderCellDef mat-sort-header>Reportado por</th>
+            <td mat-cell *matCellDef="let t">
+              <div class="user-cell">
+                <span class="user-name">{{ t.usuario }}</span>
+                @if (t.asignado_a) {
+                  <span class="asignado-tag">
+                    <mat-icon>person_pin</mat-icon> {{ t.asignado_a }}
+                  </span>
+                }
+              </div>
+            </td>
+          </ng-container>
+
+          <!-- Fecha -->
+          <ng-container matColumnDef="fecha_reporte">
+            <th mat-header-cell *matHeaderCellDef mat-sort-header>Fecha</th>
+            <td mat-cell *matCellDef="let t">
+              <div class="fecha-cell">
+                <span>{{ t.fecha_reporte | date:'dd/MM/yy' }}</span>
+                <span class="fecha-hora">{{ t.fecha_reporte | date:'HH:mm' }}</span>
+              </div>
+            </td>
+          </ng-container>
+
+          <!-- Acciones -->
+          <ng-container matColumnDef="acciones" stickyEnd>
+            <th mat-header-cell *matHeaderCellDef>Acciones</th>
+            <td mat-cell *matCellDef="let t">
+              <div class="acciones-cell">
+                <button mat-flat-button color="primary" (click)="verDetalle(t)" class="btn-ver-detalle">
+                  <mat-icon>visibility</mat-icon>
+                  Ver
+                </button>
+                <button mat-icon-button [matMenuTriggerFor]="accionesMenu" matTooltip="Mas opciones" class="btn-mas">
+                  <mat-icon>more_vert</mat-icon>
+                </button>
+                <mat-menu #accionesMenu="matMenu">
+                  <button mat-menu-item (click)="asignarTicket(t)">
+                    <mat-icon>person_add</mat-icon>
+                    <span>Asignar</span>
+                  </button>
+                  <mat-divider></mat-divider>
+                  <p class="menu-label">Cambiar estado a:</p>
+                  @for (e of estados; track e) {
+                    <button mat-menu-item (click)="cambiarEstado(t, e)" [disabled]="t.estado === e">
+                      <mat-icon>{{ getEstadoIcon(e) }}</mat-icon>
+                      <span>{{ e }}</span>
+                    </button>
+                  }
+                </mat-menu>
+              </div>
+            </td>
+          </ng-container>
+
+          <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+          <tr mat-row *matRowDef="let row; columns: displayedColumns" class="ticket-row" (click)="verDetalle(row)"></tr>
+        </table>
+
+        @if (dataSource.data.length === 0) {
+          <div class="empty-state">
+            <mat-icon>inbox</mat-icon>
+            <h3>No se encontraron tickets</h3>
+            <p>Intenta cambiar los filtros de busqueda</p>
+          </div>
+        }
+
+        <mat-paginator [pageSizeOptions]="[10, 25, 50]" showFirstLastButtons></mat-paginator>
+      </div>
+    }
+
+  } @else {
+    <!-- ====== DETALLE DEL TICKET ====== -->
+    <div class="ticket-detail">
+      <button mat-button (click)="cerrarDetalle()" class="btn-volver">
+        <mat-icon>arrow_back</mat-icon>
+        Volver a la lista
+      </button>
+
+      @if (cargandoDetalle) {
+        <div class="loading-container">
+          <mat-spinner diameter="36"></mat-spinner>
+          <p>Cargando detalle del ticket...</p>
+        </div>
+      }
+
+      @if (ticketSeleccionado) {
+        <div class="detail-layout">
+          <!-- Panel principal -->
+          <div class="detail-main">
+            <div class="detail-card">
+              <!-- Header del detalle -->
+              <div class="detail-header">
+                <div class="detail-title-area">
+                  <h2>{{ ticketSeleccionado.titulo }}</h2>
+                  <span class="detail-id">ID: {{ ticketSeleccionado.id | slice:0:8 }}...</span>
+                </div>
+                <div class="detail-badges">
+                  <span class="badge" [class]="getPrioridadClass(ticketSeleccionado.prioridad)">
+                    {{ ticketSeleccionado.prioridad }}
+                  </span>
+                  <span class="badge badge-estado" [class]="getEstadoClass(ticketSeleccionado.estado)">
+                    <mat-icon class="badge-icon">{{ getEstadoIcon(ticketSeleccionado.estado) }}</mat-icon>
+                    {{ ticketSeleccionado.estado }}
+                  </span>
+                </div>
+              </div>
+
+              <!-- Acciones rapidas -->
+              <div class="detail-actions">
+                <button mat-stroked-button (click)="asignarTicket(ticketSeleccionado)" class="da-btn">
+                  <mat-icon>person_add</mat-icon>
+                  {{ ticketSeleccionado.asignado_a ? 'Reasignar' : 'Asignar' }}
+                </button>
+                <button mat-stroked-button [matMenuTriggerFor]="detailEstadoMenu" class="da-btn">
+                  <mat-icon>swap_horiz</mat-icon>
+                  Cambiar Estado
+                </button>
+                <mat-menu #detailEstadoMenu="matMenu">
+                  @for (e of estados; track e) {
+                    <button mat-menu-item (click)="cambiarEstado(ticketSeleccionado, e)" [disabled]="ticketSeleccionado.estado === e">
+                      <mat-icon>{{ getEstadoIcon(e) }}</mat-icon>
+                      {{ e }}
+                    </button>
+                  }
+                </mat-menu>
+              </div>
+
+              <!-- Descripcion -->
+              <div class="detail-section">
+                <h3>
+                  <mat-icon>description</mat-icon>
+                  Descripcion
+                </h3>
+                <p class="detail-descripcion">{{ ticketSeleccionado.descripcion }}</p>
+              </div>
+
+              <!-- Screenshot -->
+              @if (ticketSeleccionado.screenshot_base64) {
+                <div class="detail-section">
+                  <h3>
+                    <mat-icon>image</mat-icon>
+                    Captura de Pantalla
+                  </h3>
+                  <div class="screenshot-container">
+                    <img [src]="ticketSeleccionado.screenshot_base64" alt="Screenshot del bug" class="detail-screenshot" />
+                  </div>
+                </div>
+              }
+
+              <!-- Console logs -->
+              @if (ticketSeleccionado.console_logs) {
+                <div class="detail-section">
+                  <h3>
+                    <mat-icon>terminal</mat-icon>
+                    Logs de Consola
+                  </h3>
+                  <pre class="console-logs">{{ ticketSeleccionado.console_logs }}</pre>
+                </div>
+              }
+            </div>
+
+            <!-- Seccion de comentarios tipo chat -->
+            <div class="chat-card">
+              <div class="chat-header">
+                <mat-icon>forum</mat-icon>
+                <span>Conversacion</span>
+                @if (ticketSeleccionado.comentarios?.length) {
+                  <span class="chat-count">{{ ticketSeleccionado.comentarios.length }}</span>
+                }
+              </div>
+
+              <!-- Mensajes del chat (comentarios + eventos) -->
+              <div class="chat-messages" #chatContainer>
+                @if (chatItems.length) {
+                  @for (item of chatItems; track item.id) {
+                    @if (item.tipo === 'comentario') {
+                      <!-- Burbuja de comentario -->
+                      <div class="chat-bubble">
+                        <div class="bubble-avatar">
+                          <mat-icon>account_circle</mat-icon>
+                        </div>
+                        <div class="bubble-content">
+                          <div class="bubble-top">
+                            <span class="bubble-author">{{ item.autor }}</span>
+                            <span class="bubble-time">{{ item.fecha | date:'dd/MM/yy HH:mm' }} &middot; {{ getTiempoRelativo(item.fecha) }}</span>
+                          </div>
+
+                          @if (item.mensaje) {
+                            <p class="bubble-text">{{ item.mensaje }}</p>
+                          }
+
+                          @if (item.archivo_url) {
+                            <div class="bubble-attachment">
+                              @if (esImagen(item.archivo_tipo)) {
+                                <a [href]="item.archivo_url" target="_blank" class="attachment-image-link">
+                                  <img [src]="item.archivo_url" [alt]="item.archivo_nombre" class="attachment-image" />
+                                </a>
+                              } @else {
+                                <a [href]="item.archivo_url" target="_blank" class="attachment-file">
+                                  <mat-icon class="file-icon">{{ getArchivoIcono(item.archivo_tipo) }}</mat-icon>
+                                  <div class="file-info">
+                                    <span class="file-name">{{ item.archivo_nombre }}</span>
+                                    <span class="file-type">{{ item.archivo_tipo }}</span>
+                                  </div>
+                                  <mat-icon class="download-icon">download</mat-icon>
+                                </a>
+                              }
+                            </div>
+                          }
+                        </div>
+                      </div>
+                    } @else {
+                      <!-- Evento del sistema (cambio de estado, asignacion, etc.) -->
+                      <div class="chat-event">
+                        <div class="event-line"></div>
+                        <div class="event-pill" [class]="'pill-' + item.eventoTipo">
+                          <mat-icon class="event-icon">{{ getTimelineIcon(item.eventoTipo) }}</mat-icon>
+                          <span class="event-text">{{ item.descripcion }}</span>
+                          @if (item.valor_anterior && item.valor_nuevo && item.eventoTipo !== 'creado') {
+                            <span class="event-change">
+                              <span class="ev-old">{{ item.valor_anterior }}</span>
+                              <mat-icon class="ev-arrow">arrow_forward</mat-icon>
+                              <span class="ev-new">{{ item.valor_nuevo }}</span>
+                            </span>
+                          }
+                        </div>
+                        <div class="event-line"></div>
+                        <span class="event-meta">{{ item.autor }} &middot; {{ item.fecha | date:'dd/MM/yy HH:mm' }}</span>
+                      </div>
+                    }
+                  }
+                } @else {
+                  <div class="chat-empty">
+                    <mat-icon>chat_bubble_outline</mat-icon>
+                    <p>No hay mensajes aun. Inicia la conversacion.</p>
+                  </div>
+                }
+              </div>
+
+              <!-- Preview de archivo seleccionado -->
+              @if (archivoSeleccionado) {
+                <div class="file-preview-bar">
+                  <div class="file-preview-info">
+                    @if (archivoPreview) {
+                      <img [src]="archivoPreview" class="file-preview-thumb" />
+                    } @else {
+                      <mat-icon class="file-preview-icon">{{ getArchivoIcono(archivoSeleccionado.type) }}</mat-icon>
+                    }
+                    <div class="file-preview-detail">
+                      <span class="file-preview-name">{{ archivoSeleccionado.name }}</span>
+                      <span class="file-preview-size">{{ formatFileSize(archivoSeleccionado.size) }}</span>
+                    </div>
+                  </div>
+                  <button mat-icon-button (click)="limpiarArchivo()" class="file-preview-remove" matTooltip="Quitar archivo">
+                    <mat-icon>close</mat-icon>
+                  </button>
+                </div>
+              }
+
+              <!-- Input del chat -->
+              <div class="chat-input-bar">
+                <input type="file" #fileInput (change)="onArchivoSeleccionado($event)" hidden
+                  accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.csv" />
+
+                <button mat-icon-button (click)="abrirSelectorArchivo()" matTooltip="Adjuntar archivo" class="btn-attach"
+                  [disabled]="enviandoComentario">
+                  <mat-icon>attach_file</mat-icon>
+                </button>
+
+                <textarea
+                  class="chat-textarea"
+                  [(ngModel)]="nuevoComentario"
+                  placeholder="Escribe un mensaje..."
+                  rows="1"
+                  [disabled]="enviandoComentario"
+                  (keydown.enter)="enviarComentario()"
+                ></textarea>
+
+                <button mat-icon-button (click)="enviarComentario()" class="btn-send"
+                  [disabled]="(!nuevoComentario.trim() && !archivoSeleccionado) || enviandoComentario">
+                  @if (enviandoComentario) {
+                    <mat-spinner diameter="20"></mat-spinner>
+                  } @else {
+                    <mat-icon>send</mat-icon>
+                  }
+                </button>
+              </div>
+            </div>
+
+            <!-- Linea de tiempo / Trazabilidad -->
+            @if (ticketSeleccionado.historial?.length) {
+              <div class="timeline-card">
+                <div class="timeline-header">
+                  <mat-icon>timeline</mat-icon>
+                  <span>Historial de Actividad</span>
+                  <span class="timeline-count">{{ ticketSeleccionado.historial.length }}</span>
+                </div>
+
+                <div class="timeline-list">
+                  @for (h of ticketSeleccionado.historial; track h.id) {
+                    <div class="timeline-item">
+                      <div class="timeline-line-wrap">
+                        <div class="timeline-dot" [class]="'dot-' + h.tipo"></div>
+                        <div class="timeline-connector"></div>
+                      </div>
+                      <div class="timeline-content">
+                        <div class="timeline-top">
+                          <mat-icon class="timeline-icon" [class]="'ti-' + h.tipo">{{ getTimelineIcon(h.tipo) }}</mat-icon>
+                          <span class="timeline-desc">{{ h.descripcion }}</span>
+                        </div>
+                        @if (h.valor_anterior && h.valor_nuevo) {
+                          <div class="timeline-change">
+                            <span class="change-old">{{ h.valor_anterior }}</span>
+                            <mat-icon class="change-arrow">arrow_forward</mat-icon>
+                            <span class="change-new">{{ h.valor_nuevo }}</span>
+                          </div>
+                        }
+                        <div class="timeline-meta">
+                          <span class="timeline-user">
+                            <mat-icon>person</mat-icon>
+                            {{ h.usuario }}
+                          </span>
+                          <span class="timeline-date">{{ h.fecha | date:'dd/MM/yy HH:mm' }}</span>
+                        </div>
+                      </div>
+                    </div>
+                  }
+                </div>
+              </div>
+            }
+          </div>
+
+          <!-- Panel lateral - Info del ticket -->
+          <div class="detail-sidebar">
+            <div class="sidebar-card">
+              <h4 class="sidebar-title">Informacion del Reporte</h4>
+
+              <div class="info-group">
+                <div class="info-item">
+                  <span class="info-label">
+                    <mat-icon>person</mat-icon>
+                    Reportado por
+                  </span>
+                  <span class="info-value">{{ ticketSeleccionado.usuario }}</span>
+                </div>
+
+                <div class="info-item">
+                  <span class="info-label">
+                    <mat-icon>badge</mat-icon>
+                    Documento
+                  </span>
+                  <span class="info-value">{{ ticketSeleccionado.documento }}</span>
+                </div>
+
+                <div class="info-item">
+                  <span class="info-label">
+                    <mat-icon>work</mat-icon>
+                    Rol
+                  </span>
+                  <span class="info-value">{{ ticketSeleccionado.rol || '--' }}</span>
+                </div>
+
+                <div class="info-item">
+                  <span class="info-label">
+                    <mat-icon>location_city</mat-icon>
+                    Sede
+                  </span>
+                  <span class="info-value">{{ ticketSeleccionado.sede || '--' }}</span>
+                </div>
+              </div>
+
+              <div class="info-divider"></div>
+
+              <div class="info-group">
+                <div class="info-item">
+                  <span class="info-label">
+                    <mat-icon>category</mat-icon>
+                    Categoria
+                  </span>
+                  <span class="info-value">{{ ticketSeleccionado.categoria || '--' }}</span>
+                </div>
+
+                <div class="info-item">
+                  <span class="info-label">
+                    <mat-icon>person_pin</mat-icon>
+                    Asignado a
+                  </span>
+                  <span class="info-value" [class.text-muted]="!ticketSeleccionado.asignado_a">
+                    {{ ticketSeleccionado.asignado_a || 'Sin asignar' }}
+                  </span>
+                </div>
+              </div>
+
+              <div class="info-divider"></div>
+
+              <div class="info-group">
+                <div class="info-item">
+                  <span class="info-label">
+                    <mat-icon>schedule</mat-icon>
+                    Fecha reporte
+                  </span>
+                  <span class="info-value">{{ ticketSeleccionado.fecha_reporte | date:'dd/MM/yyyy HH:mm' }}</span>
+                </div>
+
+                @if (ticketSeleccionado.fecha_actualizacion) {
+                  <div class="info-item">
+                    <span class="info-label">
+                      <mat-icon>update</mat-icon>
+                      Ultima actualizacion
+                    </span>
+                    <span class="info-value">{{ ticketSeleccionado.fecha_actualizacion | date:'dd/MM/yyyy HH:mm' }}</span>
+                  </div>
+                }
+              </div>
+
+              <div class="info-divider"></div>
+
+              <div class="info-group">
+                <div class="info-item">
+                  <span class="info-label">
+                    <mat-icon>link</mat-icon>
+                    URL del error
+                  </span>
+                  <span class="info-value info-url">{{ ticketSeleccionado.url_actual || '--' }}</span>
+                </div>
+
+                <div class="info-item">
+                  <span class="info-label">
+                    <mat-icon>web</mat-icon>
+                    Navegador
+                  </span>
+                  <span class="info-value">{{ ticketSeleccionado.navegador || '--' }}</span>
+                </div>
+
+                <div class="info-item">
+                  <span class="info-label">
+                    <mat-icon>aspect_ratio</mat-icon>
+                    Resolucion
+                  </span>
+                  <span class="info-value">{{ ticketSeleccionado.resolucion || '--' }}</span>
+                </div>
+
+                <div class="info-item">
+                  <span class="info-label">
+                    <mat-icon>info</mat-icon>
+                    Version App
+                  </span>
+                  <span class="info-value">{{ ticketSeleccionado.version_app || '--' }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      }
+    </div>
+  }
+</div>
