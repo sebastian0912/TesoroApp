@@ -894,20 +894,54 @@ export class RecruitmentPipelineComponent {
 
         const data = Array.isArray(rows) ? rows : (rows ? [rows] : []);
 
+        const mappedData = data.map((row: any) => {
+          // Remisión
+          const isRemision = row.prueba_tecnica === true || row.autorizado === true;
+          row._remision_ui = isRemision ? 'Sí' : 'No';
+          row._remision_date = isRemision ? (row.prueba_tecnica_at || row.autorizado_at || row.updated_at || row.entrevista_created_at) : null;
+
+          // Exámenes
+          const isExamenes = row.examenes_medicos === true;
+          row._examenes_ui = isExamenes ? 'Sí' : 'No';
+          row._examenes_date = isExamenes ? (row.examenes_medicos_at || row.updated_at || row.entrevista_created_at) : null;
+
+          // Contratado
+          const isContratado = row.contratado === true;
+          row._contratado_ui = isContratado ? 'Sí' : 'No';
+          row._contratado_date = isContratado ? (row.contratado_at || row.contrato?.fecha_ingreso || row.updated_at || row.entrevista_created_at) : null;
+
+          // Aplica / No Aplica "Rechazado"
+          let apl = String(row.aplica_o_no_aplica || '').toUpperCase();
+          if (apl === 'NO_APLICA' || apl === 'NO APLICA') {
+            row._aplica_ui = 'Rechazado';
+            row._aplica_date = row.rechazado_at || row.updated_at || row.entrevista_created_at; 
+          } else {
+            row._aplica_ui = row.aplica_o_no_aplica;
+            row._aplica_date = null;
+          }
+
+          // Fecha de ingreso
+          row._ingreso_date = row.contrato_fecha_ingreso || row.ingreso_at || null;
+
+          return row;
+        });
+
         const columns: ColumnDefinition[] = [
           { name: 'oficina', header: 'Oficina', type: 'text', width: '140px' },
           { name: 'entrevista_created_at', header: 'Fecha entrevista', type: 'date', width: '200px' },
           { name: 'empresaUsuariaSolicita', header: 'Empresa usuaria', type: 'text', width: '180px' },
           { name: 'finca', header: 'Finca', type: 'text', width: '160px' },
-          {
-            name: 'aplica_o_no_aplica',
-            header: 'Aplica/No aplica',
-            type: 'select',
-            width: '180px',
-            options: ['APLICA', 'NO_APLICA', 'EN_ESPERA'],
-          },
+          { name: '_ingreso_date', header: 'Fecha de ingreso', type: 'date', width: '160px' },
+          { name: '_aplica_ui', header: 'Aplica/No aplica', type: 'text', width: '150px' },
+          { name: '_aplica_date', header: 'Fecha Rta.', type: 'date', width: '140px' },
           { name: 'motivo_no_aplica', header: 'Motivo no aplica', type: 'text', width: '240px' },
           { name: 'motivo_espera', header: 'Motivo espera', type: 'text', width: '220px' },
+          { name: '_remision_ui', header: 'Remisión', type: 'text', width: '120px' },
+          { name: '_remision_date', header: 'Fecha Remisión', type: 'date', width: '140px' },
+          { name: '_examenes_ui', header: 'Exámenes', type: 'text', width: '120px' },
+          { name: '_examenes_date', header: 'Fecha Exámenes', type: 'date', width: '140px' },
+          { name: '_contratado_ui', header: 'Contratado', type: 'text', width: '120px' },
+          { name: '_contratado_date', header: 'F. Contratado', type: 'date', width: '140px' },
           { name: 'detalle', header: 'Detalle', type: 'text', width: '260px' },
           { name: 'actions', header: 'Acciones', type: 'custom', width: '120px', stickyEnd: true },
         ];
@@ -917,7 +951,7 @@ export class RecruitmentPipelineComponent {
           height: '80vh',
           data: {
             title: `Procesos de ${this.nombreCandidato || ced}`,
-            rows: data,
+            rows: mappedData,
             columns,
             pageSize: 12,
             pageSizeOptions: [12, 24, 36],
