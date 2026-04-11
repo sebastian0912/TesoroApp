@@ -115,7 +115,7 @@ export class MerchandisingMerchandiseComponent implements OnInit {
       r.valor_total = r.total_disponible * r.valor_unitario;
     });
 
-    resultado.sort((a: any, b: any) => (a.producto_nombre ?? '').localeCompare(b.producto_nombre ?? ''));
+    resultado.sort((a: any, b: any) => a.producto_nombre.localeCompare(b.producto_nombre));
     return resultado;
   }
 
