@@ -139,7 +139,7 @@
       }
       <div class="add-row comment-form">
         <textarea class="inline-input grow" [(ngModel)]="newComment" placeholder="Escribe un comentario..."
-                  rows="2" (keyup.enter)="$event.ctrlKey && addComment()"></textarea>
+                  rows="2" (keyup.enter)="$any($event).ctrlKey && addComment()"></textarea>
         <button mat-icon-button color="primary" (click)="addComment()" [disabled]="!newComment.trim()">
           <mat-icon>send</mat-icon>
         </button>
