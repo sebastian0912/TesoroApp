@@ -1,0 +1,32 @@
+.loading-container { display: flex; justify-content: center; padding: 40px; }
+.card-header { display: flex; align-items: center; justify-content: space-between; }
+.card-content { min-width: 400px; }
+.full-width { width: 100%; }
+.field-sm { width: 200px; }
+.field-row { margin-bottom: 12px; }
+
+.info-row { display: flex; flex-wrap: wrap; gap: 16px; margin: 12px 0; font-size: .85rem; color: rgba(0,0,0,.6); }
+.info-row span { display: flex; align-items: center; gap: 4px; }
+.info-row mat-icon { font-size: 16px; width: 16px; height: 16px; }
+
+.section { margin: 16px 0; }
+.section h4 { display: flex; align-items: center; gap: 6px; font-weight: 600; margin: 0 0 8px; font-size: .95rem; }
+.section h4 mat-icon { font-size: 18px; width: 18px; height: 18px; }
+
+.checklist-row { margin: 4px 0; }
+.completed-text { text-decoration: line-through; color: rgba(0,0,0,.35); }
+
+.add-row { display: flex; align-items: center; gap: 4px; margin-top: 8px; }
+.inline-input {
+  flex: 1; padding: 6px 10px; border: 1px solid #ccc; border-radius: 4px;
+  font-size: .875rem;
+}
+.flex-grow { flex: 1; }
+
+.comment { margin-bottom: 12px; padding: 8px; background: #f9f9f9; border-radius: 6px; }
+.comment strong { font-size: .85rem; }
+.comment-date { font-size: .75rem; color: rgba(0,0,0,.4); margin-left: 8px; }
+.comment p { margin: 4px 0 0; font-size: .875rem; }
+
+.upload-row { display: flex; align-items: center; gap: 8px; margin: 4px 0; font-size: .875rem; }
+.upload-row mat-icon { font-size: 18px; width: 18px; height: 18px; color: rgba(0,0,0,.45); }

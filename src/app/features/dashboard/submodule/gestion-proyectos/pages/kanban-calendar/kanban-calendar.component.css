@@ -1,0 +1,10 @@
+h2 { font-weight: 500; margin-bottom: 16px; }
+.loading-container { display: flex; justify-content: center; min-height: 200px; align-items: center; }
+.empty-state { text-align: center; padding: 64px 0; color: rgba(0,0,0,.45); }
+.empty-state mat-icon { font-size: 64px; width: 64px; height: 64px; }
+.calendar-list { display: flex; flex-direction: column; gap: 8px; }
+.calendar-card { transition: box-shadow .15s; }
+.calendar-card.overdue { border-left: 4px solid #f44336; }
+.card-row { display: flex; align-items: center; gap: 12px; }
+.card-info { flex: 1; display: flex; flex-direction: column; }
+.card-date { font-size: .8rem; color: rgba(0,0,0,.54); }

@@ -1,0 +1,49 @@
+<div class="boards-header">
+  <h2>Tableros Kanban</h2>
+  <div class="header-actions">
+    <mat-form-field appearance="outline" class="search-field">
+      <mat-label>Buscar tablero</mat-label>
+      <input matInput [(ngModel)]="searchTerm" placeholder="Nombre o descripción...">
+      <mat-icon matSuffix>search</mat-icon>
+    </mat-form-field>
+    <button mat-raised-button color="primary" (click)="openCreateDialog()">
+      <mat-icon>add</mat-icon> Nuevo tablero
+    </button>
+  </div>
+</div>
+
+@if (loading()) {
+  <div class="loading-container">
+    <mat-spinner diameter="48"></mat-spinner>
+  </div>
+} @else if (filteredBoards.length === 0) {
+  <div class="empty-state">
+    <mat-icon>view_kanban</mat-icon>
+    <p>No hay tableros aún. Crea el primero.</p>
+  </div>
+} @else {
+  <div class="boards-grid">
+    @for (board of filteredBoards; track board.id) {
+      <mat-card class="board-card" (click)="openBoard(board.id)"
+                [style.border-top]="'4px solid ' + board.color_acento">
+        <mat-card-header>
+          <mat-card-title>{{ board.nombre }}</mat-card-title>
+        </mat-card-header>
+        <mat-card-content>
+          <p class="board-desc">{{ board.descripcion || 'Sin descripción' }}</p>
+          <div class="board-meta">
+            <span class="meta-item">
+              <mat-icon>list</mat-icon>
+              {{ board.listas?.length ?? 0 }} listas
+            </span>
+          </div>
+        </mat-card-content>
+        <mat-card-actions align="end">
+          <button mat-icon-button color="warn" (click)="deleteBoard($event, board)" matTooltip="Eliminar">
+            <mat-icon>delete</mat-icon>
+          </button>
+        </mat-card-actions>
+      </mat-card>
+    }
+  </div>
+}

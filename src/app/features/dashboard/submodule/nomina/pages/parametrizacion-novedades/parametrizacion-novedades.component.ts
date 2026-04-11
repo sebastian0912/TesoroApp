@@ -61,6 +61,12 @@ export class ParametrizacionNovedadesComponent implements OnInit, AfterViewInit 
   filterNaturaleza = '';
   filterSearch = '';
 
+  readonly UNIDAD_LABELS: Record<string, { label: string; icon: string; color: string }> = {
+    DIA:   { label: 'Día',   icon: 'today',        color: 'unidad-dia' },
+    HORA:  { label: 'Hora',  icon: 'schedule',     color: 'unidad-hora' },
+    VALOR: { label: 'Valor', icon: 'attach_money', color: 'unidad-valor' },
+  };
+
   readonly NATURALEZA_LABELS: Record<string, { label: string; color: string }> = {
     DEVENGO:          { label: 'Devengo',          color: 'nat-devengo' },
     DEDUCCION:        { label: 'Deducción',         color: 'nat-deduccion' },

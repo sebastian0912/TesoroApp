@@ -1,0 +1,114 @@
+<div class="import-container">
+  <div class="header">
+    <h2>Importar Datos Kanban</h2>
+    <button mat-stroked-button (click)="downloadTemplate()">
+      <mat-icon>download</mat-icon> Descargar Plantilla
+    </button>
+  </div>
+
+  <mat-card class="upload-card">
+    <mat-card-header>
+      <mat-card-title>Subir archivo Excel</mat-card-title>
+    </mat-card-header>
+    <mat-card-content>
+      <mat-form-field appearance="outline" class="full-width">
+        <mat-label>Proyecto destino</mat-label>
+        <mat-select [(ngModel)]="selectedProyecto">
+          @for (p of proyectos(); track p.id) {
+            <mat-option [value]="p.id">{{ p.nombre }}</mat-option>
+          }
+        </mat-select>
+      </mat-form-field>
+
+      <div class="drop-zone"
+           [class.drag-over]="dragOver"
+           (dragover)="onDragOver($event)"
+           (dragleave)="onDragLeave()"
+           (drop)="onDrop($event)">
+        @if (!selectedFile) {
+          <mat-icon class="drop-icon">cloud_upload</mat-icon>
+          <p>Arrastra un archivo Excel aquí o</p>
+          <label class="file-label">
+            <input type="file" accept=".xlsx,.xls" (change)="onFileSelected($event)" hidden />
+            <span class="file-button">Seleccionar archivo</span>
+          </label>
+        } @else {
+          <mat-icon class="drop-icon selected">description</mat-icon>
+          <p class="file-name">{{ selectedFile.name }}</p>
+          <button mat-button color="warn" (click)="clearFile()">
+            <mat-icon>close</mat-icon> Quitar
+          </button>
+        }
+      </div>
+
+      @if (importing()) {
+        <mat-progress-bar mode="indeterminate" class="import-progress"></mat-progress-bar>
+      }
+    </mat-card-content>
+    <mat-card-actions align="end">
+      <button mat-raised-button color="primary"
+              (click)="doImport()"
+              [disabled]="!selectedFile || !selectedProyecto || importing()">
+        <mat-icon>upload_file</mat-icon> Importar
+      </button>
+    </mat-card-actions>
+  </mat-card>
+
+  @if (result(); as res) {
+    <mat-card class="result-card" [class.success]="res.estado === 'completado'" [class.error]="res.estado === 'fallido'">
+      <mat-card-header>
+        <mat-card-title>Resultado de la importación</mat-card-title>
+      </mat-card-header>
+      <mat-card-content>
+        <div class="result-stats">
+          <div class="stat"><strong>{{ res.boards_creados }}</strong><span>Boards creados</span></div>
+          <div class="stat"><strong>{{ res.cards_creados }}</strong><span>Cards creados</span></div>
+          <div class="stat"><strong>{{ res.errores.length }}</strong><span>Errores</span></div>
+        </div>
+        @if (res.errores.length > 0) {
+          <div class="error-list">
+            <p><strong>Errores encontrados:</strong></p>
+            @for (err of res.errores; track $index) {
+              <p class="error-item">{{ err }}</p>
+            }
+          </div>
+        }
+      </mat-card-content>
+    </mat-card>
+  }
+
+  @if (importLogs().length > 0) {
+    <h3>Historial de importaciones</h3>
+    <table mat-table [dataSource]="importLogs()" class="logs-table">
+      <ng-container matColumnDef="nombre_archivo">
+        <th mat-header-cell *matHeaderCellDef>Archivo</th>
+        <td mat-cell *matCellDef="let log">{{ log.nombre_archivo }}</td>
+      </ng-container>
+      <ng-container matColumnDef="estado">
+        <th mat-header-cell *matHeaderCellDef>Estado</th>
+        <td mat-cell *matCellDef="let log">
+          <mat-chip-set>
+            <mat-chip [style.background-color]="getEstadoColor(log.estado)" style="color:white;">
+              {{ log.estado }}
+            </mat-chip>
+          </mat-chip-set>
+        </td>
+      </ng-container>
+      <ng-container matColumnDef="boards_creados">
+        <th mat-header-cell *matHeaderCellDef>Boards</th>
+        <td mat-cell *matCellDef="let log">{{ log.boards_creados }}</td>
+      </ng-container>
+      <ng-container matColumnDef="cards_creados">
+        <th mat-header-cell *matHeaderCellDef>Cards</th>
+        <td mat-cell *matCellDef="let log">{{ log.cards_creados }}</td>
+      </ng-container>
+      <ng-container matColumnDef="created_at">
+        <th mat-header-cell *matHeaderCellDef>Fecha</th>
+        <td mat-cell *matCellDef="let log">{{ log.created_at | date:'short' }}</td>
+      </ng-container>
+
+      <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+      <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
+    </table>
+  }
+</div>

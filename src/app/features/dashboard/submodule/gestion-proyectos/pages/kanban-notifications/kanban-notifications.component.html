@@ -1,0 +1,53 @@
+<div class="notifications-container">
+  <div class="header">
+    <h2>
+      Notificaciones
+      @if (unreadCount() > 0) {
+        <span class="badge">{{ unreadCount() }}</span>
+      }
+    </h2>
+    @if (unreadCount() > 0) {
+      <button mat-raised-button color="primary" (click)="markAllRead()">
+        <mat-icon>done_all</mat-icon> Marcar todas como leídas
+      </button>
+    }
+  </div>
+
+  @if (loading()) {
+    <div class="loading-container">
+      <mat-spinner diameter="40"></mat-spinner>
+    </div>
+  }
+
+  @if (!loading() && notifications().length === 0) {
+    <mat-card class="empty-state">
+      <mat-icon>notifications_off</mat-icon>
+      <p>No tienes notificaciones.</p>
+    </mat-card>
+  }
+
+  @if (!loading() && notifications().length > 0) {
+    <mat-list>
+      @for (notif of notifications(); track notif.id) {
+        <mat-list-item
+          class="notif-item"
+          [class.unread]="!notif.leida"
+          (click)="markAsRead(notif)">
+          <mat-icon matListItemIcon [style.color]="getColor(notif.tipo)">
+            {{ getIcon(notif.tipo) }}
+          </mat-icon>
+          <div matListItemTitle class="notif-title">{{ notif.titulo }}</div>
+          <div matListItemLine class="notif-message">{{ notif.mensaje }}</div>
+          <div matListItemMeta class="notif-meta">
+            <mat-chip-set>
+              <mat-chip [style.background-color]="getColor(notif.tipo)" style="color:white; font-size:11px;">
+                {{ notif.tipo }}
+              </mat-chip>
+            </mat-chip-set>
+            <span class="notif-date">{{ notif.created_at | date:'short' }}</span>
+          </div>
+        </mat-list-item>
+      }
+    </mat-list>
+  }
+</div>

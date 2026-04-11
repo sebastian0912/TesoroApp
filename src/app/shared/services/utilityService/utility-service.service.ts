@@ -26,8 +26,13 @@ export class UtilityServiceService {
   }
 
   /**
-   * Trae la lista de sucursales.
+   * Limpia todo el localStorage, verificando si se está ejecutando en el navegador.
    */
+  clearLocalStorage(): void {
+    if (typeof window !== 'undefined' && typeof localStorage !== 'undefined') {
+      localStorage.clear();
+    }
+  }
   traerSucursales(): Observable<any> {
     return this.http.get(`${this.apiUrl}/gestion_admin/sedes`);
   }

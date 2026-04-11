@@ -1,0 +1,81 @@
+@if (loading()) {
+  <div class="loading-container"><mat-spinner diameter="48"></mat-spinner></div>
+} @else if (board(); as b) {
+  <div class="board-header" [style.border-bottom]="'3px solid ' + b.color_acento">
+    <h2>{{ b.nombre }}</h2>
+    @if (b.descripcion) { <p class="board-desc">{{ b.descripcion }}</p> }
+  </div>
+
+  <div class="board-columns" cdkDropListGroup>
+    @for (lista of b.listas; track lista.id) {
+      <div class="kanban-column">
+        <div class="column-header">
+          <span class="column-title">{{ lista.nombre }}</span>
+          <span class="card-count">{{ lista.cards?.length ?? 0 }}</span>
+          <button mat-icon-button [matMenuTriggerFor]="listMenu" class="column-menu-btn">
+            <mat-icon>more_vert</mat-icon>
+          </button>
+          <mat-menu #listMenu="matMenu">
+            <button mat-menu-item (click)="deleteList(lista)">
+              <mat-icon color="warn">delete</mat-icon> Eliminar lista
+            </button>
+          </mat-menu>
+        </div>
+
+        <div class="cards-container"
+             cdkDropList
+             [cdkDropListData]="lista.cards ?? []"
+             [id]="'list-' + lista.id"
+             [cdkDropListConnectedTo]="getListIds()"
+             (cdkDropListDropped)="onCardDrop($event, lista)">
+          @for (card of lista.cards; track card.id) {
+            <div class="kanban-card" cdkDrag (click)="openCardDetail(card)">
+              <div class="card-title">{{ card.titulo }}</div>
+              <div class="card-meta">
+                @if (card.fecha_vencimiento) {
+                  <span class="meta-chip"><mat-icon>schedule</mat-icon> {{ card.fecha_vencimiento | date:'shortDate' }}</span>
+                }
+                @if (card.favorita) {
+                  <mat-icon class="fav-icon">star</mat-icon>
+                }
+              </div>
+            </div>
+          }
+        </div>
+
+        @if (addingToListId === lista.id) {
+          <div class="add-card-form">
+            <input class="card-input" [(ngModel)]="newCardTitle" placeholder="Título de la tarjeta..."
+                   (keyup.enter)="addCard(lista)" (keyup.escape)="cancelAddCard()" autofocus>
+            <div class="add-card-actions">
+              <button mat-flat-button color="primary" (click)="addCard(lista)">Agregar</button>
+              <button mat-icon-button (click)="cancelAddCard()"><mat-icon>close</mat-icon></button>
+            </div>
+          </div>
+        } @else {
+          <button mat-button class="add-card-btn" (click)="startAddCard(lista.id)">
+            <mat-icon>add</mat-icon> Agregar tarjeta
+          </button>
+        }
+      </div>
+    }
+
+    <!-- Nueva lista -->
+    <div class="kanban-column new-list-column">
+      @if (showNewListInput) {
+        <div class="add-card-form">
+          <input class="card-input" [(ngModel)]="newListName" placeholder="Nombre de la lista..."
+                 (keyup.enter)="addList()" (keyup.escape)="showNewListInput = false" autofocus>
+          <div class="add-card-actions">
+            <button mat-flat-button color="primary" (click)="addList()">Agregar</button>
+            <button mat-icon-button (click)="showNewListInput = false"><mat-icon>close</mat-icon></button>
+          </div>
+        </div>
+      } @else {
+        <button mat-button class="add-list-btn" (click)="showNewListInput = true">
+          <mat-icon>add</mat-icon> Agregar lista
+        </button>
+      }
+    </div>
+  </div>
+}

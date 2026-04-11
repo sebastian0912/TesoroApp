@@ -1,0 +1,31 @@
+<h2>Calendario de Tarjetas</h2>
+
+@if (loading()) {
+  <div class="loading-container"><mat-spinner diameter="48"></mat-spinner></div>
+} @else if (cards().length === 0) {
+  <div class="empty-state">
+    <mat-icon>event_busy</mat-icon>
+    <p>No hay tarjetas con fecha de vencimiento.</p>
+  </div>
+} @else {
+  <div class="calendar-list">
+    @for (card of cards(); track card.id) {
+      <mat-card class="calendar-card" [class.overdue]="isOverdue(card)">
+        <mat-card-content>
+          <div class="card-row">
+            <mat-icon [style.color]="isOverdue(card) ? '#f44336' : '#4caf50'">
+              {{ isOverdue(card) ? 'warning' : 'event' }}
+            </mat-icon>
+            <div class="card-info">
+              <strong>{{ card.titulo }}</strong>
+              <span class="card-date">{{ card.fecha_vencimiento | date:'mediumDate' }}</span>
+            </div>
+            <mat-chip-set>
+              <mat-chip>{{ card.estado }}</mat-chip>
+            </mat-chip-set>
+          </div>
+        </mat-card-content>
+      </mat-card>
+    }
+  </div>
+}

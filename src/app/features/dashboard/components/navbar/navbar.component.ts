@@ -1,4 +1,4 @@
-import { 
+import {
   Component,
   EventEmitter,
   OnInit,
@@ -7,7 +7,8 @@ import {
   Inject,
   PLATFORM_ID,
   HostListener,
-  ChangeDetectionStrategy 
+  ChangeDetectionStrategy,
+  ChangeDetectorRef,
 } from '@angular/core';
 import { isPlatformBrowser } from '@angular/common';
 import { Router, NavigationEnd, RouterModule } from '@angular/router';
@@ -129,6 +130,7 @@ export class NavbarComponent implements OnInit, OnDestroy {
     'HISTORIAL NÓMINA': 'nomina/historico-nomina',
     'PARAMETRIZACIÓN NOVEDADES': 'nomina/parametrizacion-novedades',
     'PARAMETRIZACIÓN DE NOVEDADES': 'nomina/parametrizacion-novedades',
+    'CONVALIDADOR': 'nomina/convalidador',
   };
 
   private readonly iconMap: Record<string, string> = {
@@ -213,6 +215,7 @@ export class NavbarComponent implements OnInit, OnDestroy {
     'HISTORIAL NÓMINA': 'history',
     'PARAMETRIZACIÓN NOVEDADES': 'tune',
     'PARAMETRIZACIÓN DE NOVEDADES': 'tune',
+    'CONVALIDADOR': 'sync_alt',
     'Tarjetas': 'credit_card',
   };
 
@@ -224,7 +227,8 @@ export class NavbarComponent implements OnInit, OnDestroy {
     private router: Router,
     private http: HttpClient,
     private networkStatus: NetworkStatusService,
-    private offlineSync: OfflineSyncService
+    private offlineSync: OfflineSyncService,
+    private cdr: ChangeDetectorRef,
   ) {
     this.isBrowser = isPlatformBrowser(platformId);
     this.routeMapIndex = this.indexByMenuKey(this.routeMap);
@@ -400,9 +404,19 @@ export class NavbarComponent implements OnInit, OnDestroy {
               hijos: []
             });
           }
+          const existsConv = nominaRoot.hijos.some(h => this.normalizeMenuKey(h.nombre) === 'CONVALIDADOR');
+          if (!existsConv) {
+            nominaRoot.hijos.push({
+              id: 'frontend_convalidador',
+              nombre: 'CONVALIDADOR',
+              acciones: ['VER'],
+              hijos: []
+            });
+          }
         }
 
         console.log('Loaded permTree:', this.permTree);
+        this.cdr.markForCheck();
       }
     } catch {
       if (this.isBrowser) {
@@ -431,6 +445,7 @@ export class NavbarComponent implements OnInit, OnDestroy {
           if (!this.isMobile && this.visibleRootModules.length > 0 && !this.activeRoot) {
             this.activeRoot = this.visibleRootModules[0];
           }
+          this.cdr.markForCheck();
         },
         error: (err) => {
           console.error('Error fetching dynamic perms', err);
