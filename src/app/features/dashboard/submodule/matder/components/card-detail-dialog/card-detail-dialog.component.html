@@ -1,0 +1,75 @@
+@if (loading()) {
+  <div class="center"><mat-spinner diameter="36"></mat-spinner></div>
+} @else if (card(); as c) {
+  <h2 mat-dialog-title>{{ c.title }}</h2>
+  <mat-dialog-content class="content">
+    <div class="row">
+      <mat-form-field appearance="outline" class="sm">
+        <mat-label>Status</mat-label>
+        <mat-select [value]="c.status" (selectionChange)="updateField('status', $event.value)">
+          @for (s of statuses; track s) { <mat-option [value]="s">{{ s }}</mat-option> }
+        </mat-select>
+      </mat-form-field>
+      <mat-form-field appearance="outline" class="sm">
+        <mat-label>Priority</mat-label>
+        <mat-select [value]="c.priority" (selectionChange)="updateField('priority', $event.value)">
+          @for (p of priorities; track p) { <mat-option [value]="p">{{ p }}</mat-option> }
+        </mat-select>
+      </mat-form-field>
+    </div>
+
+    <mat-form-field appearance="outline" class="fw">
+      <mat-label>Description</mat-label>
+      <textarea matInput [value]="c.description ?? ''" rows="3" (blur)="updateField('description', $any($event.target).value)"></textarea>
+    </mat-form-field>
+
+    <div class="info">
+      @if (c.assignee_name) { <span><mat-icon>person</mat-icon>{{ c.assignee_name }}</span> }
+      @if (c.assignee_group_name) { <span><mat-icon>group</mat-icon>{{ c.assignee_group_name }}</span> }
+      @if (c.due_at) { <span><mat-icon>schedule</mat-icon>{{ c.due_at | date:'mediumDate' }}</span> }
+    </div>
+
+    <mat-divider></mat-divider>
+
+    @if (c.card_labels && c.card_labels.length > 0) {
+      <div class="section"><h4>Labels</h4>
+        <mat-chip-set>@for (cl of c.card_labels; track cl.id) { <mat-chip [style.background]="cl.label_color" style="color:white">{{ cl.label_name }}</mat-chip> }</mat-chip-set>
+      </div>
+    }
+
+    <div class="section"><h4><mat-icon>checklist</mat-icon> Checklist</h4>
+      @for (item of c.checklist_items; track item.id) {
+        <div class="check-row"><mat-checkbox [checked]="item.completed" (change)="toggleChecklistItem(item.id, item.completed)"><span [class.done-text]="item.completed">{{ item.content }}</span></mat-checkbox></div>
+      }
+      <div class="add-row">
+        <input class="inline-input" [(ngModel)]="newChecklistItem" placeholder="New item..." (keyup.enter)="addChecklistItem()">
+        <button mat-icon-button color="primary" (click)="addChecklistItem()" [disabled]="!newChecklistItem.trim()"><mat-icon>add</mat-icon></button>
+      </div>
+    </div>
+
+    <mat-divider></mat-divider>
+
+    <div class="section"><h4><mat-icon>chat</mat-icon> Comments</h4>
+      @for (comment of c.comments; track comment.id) {
+        <div class="comment"><strong>{{ comment.author_name ?? 'User' }}</strong><span class="date">{{ comment.created_at | date:'short' }}</span><p>{{ comment.body }}</p></div>
+      }
+      <div class="add-row">
+        <input class="inline-input grow" [(ngModel)]="newComment" placeholder="Write a comment..." (keyup.enter)="addComment()">
+        <button mat-icon-button color="primary" (click)="addComment()" [disabled]="!newComment.trim()"><mat-icon>send</mat-icon></button>
+      </div>
+    </div>
+
+    <mat-divider></mat-divider>
+
+    <div class="section"><h4><mat-icon>attach_file</mat-icon> Attachments</h4>
+      @for (u of c.uploads; track u.id) { <div class="upload-row"><mat-icon>insert_drive_file</mat-icon>{{ u.original_name }}</div> }
+      <input type="file" #fi (change)="uploadFile($event)" hidden>
+      <button mat-stroked-button (click)="fi.click()"><mat-icon>upload</mat-icon> Attach file</button>
+    </div>
+  </mat-dialog-content>
+
+  <mat-dialog-actions align="end">
+    <button mat-button color="warn" (click)="deleteCard()"><mat-icon>delete</mat-icon> Delete</button>
+    <button mat-raised-button color="primary" (click)="close()">Close</button>
+  </mat-dialog-actions>
+}

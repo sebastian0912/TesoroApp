@@ -1,0 +1,40 @@
+<div class="header">
+  <h2>Workspaces</h2>
+  <button mat-raised-button color="primary" (click)="showForm.set(true)"><mat-icon>add</mat-icon> Nuevo Workspace</button>
+</div>
+
+@if (showForm()) {
+  <mat-card class="form-card">
+    <mat-form-field appearance="outline" class="fw"><mat-label>Nombre</mat-label><input matInput [(ngModel)]="formName"></mat-form-field>
+    <mat-form-field appearance="outline" class="fw"><mat-label>Descripción</mat-label><input matInput [(ngModel)]="formDesc"></mat-form-field>
+    <div class="form-actions">
+      <button mat-raised-button color="primary" [disabled]="!formName.trim()" (click)="create()">Crear</button>
+      <button mat-button (click)="showForm.set(false)">Cancelar</button>
+    </div>
+  </mat-card>
+}
+
+@if (loading()) {
+  <div class="center"><mat-spinner diameter="40"></mat-spinner></div>
+} @else if (workspaces().length === 0) {
+  <mat-card class="empty"><mat-icon>workspaces</mat-icon><p>No hay workspaces. Crea el primero.</p></mat-card>
+} @else {
+  <div class="ws-grid">
+    @for (ws of workspaces(); track ws.id) {
+      <mat-card class="ws-card" (click)="open(ws)">
+        <div class="ws-top">
+          <strong>{{ ws.name }}</strong>
+          <mat-chip-set><mat-chip>{{ roleLabel(ws.current_user_role) }}</mat-chip></mat-chip-set>
+        </div>
+        <p class="ws-desc">{{ ws.description || 'Sin descripción' }}</p>
+        <div class="ws-meta">
+          <span><mat-icon>people</mat-icon> {{ ws.member_count }}</span>
+          <span><mat-icon>dashboard_customize</mat-icon> {{ ws.board_count }}</span>
+        </div>
+        @if (ws.can_delete_workspace) {
+          <button mat-icon-button color="warn" class="del-btn" (click)="remove(ws); $event.stopPropagation()"><mat-icon>delete</mat-icon></button>
+        }
+      </mat-card>
+    }
+  </div>
+}

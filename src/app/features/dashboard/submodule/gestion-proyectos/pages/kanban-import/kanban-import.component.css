@@ -1,0 +1,30 @@
+.import-container { padding: 24px; max-width: 800px; margin: 0 auto; }
+.header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+.header h2 { margin: 0; font-size: 1.5rem; font-weight: 500; }
+.upload-card { margin-bottom: 24px; }
+.full-width { width: 100%; }
+.drop-zone {
+  border: 2px dashed #bdbdbd; border-radius: 8px; padding: 40px; text-align: center;
+  transition: all 0.2s; cursor: pointer; margin-top: 16px;
+}
+.drop-zone.drag-over { border-color: #1976d2; background: #e3f2fd; }
+.drop-icon { font-size: 48px; width: 48px; height: 48px; color: #9e9e9e; }
+.drop-icon.selected { color: #1976d2; }
+.file-label { display: inline-block; margin-top: 8px; }
+.file-button {
+  background: #1976d2; color: white; padding: 8px 16px; border-radius: 4px;
+  cursor: pointer; font-size: 14px;
+}
+.file-name { font-weight: 500; color: #1976d2; }
+.import-progress { margin-top: 16px; }
+.result-card { margin-bottom: 24px; }
+.result-card.success { border-left: 4px solid #388e3c; }
+.result-card.error { border-left: 4px solid #d32f2f; }
+.result-stats { display: flex; gap: 32px; margin: 16px 0; }
+.stat { display: flex; flex-direction: column; align-items: center; }
+.stat strong { font-size: 1.5rem; }
+.stat span { font-size: 0.8rem; color: #757575; }
+.error-list { margin-top: 16px; padding: 12px; background: #fff3e0; border-radius: 4px; }
+.error-item { color: #d32f2f; font-size: 0.85rem; margin: 4px 0; }
+.logs-table { width: 100%; }
+h3 { margin-top: 32px; font-weight: 500; }

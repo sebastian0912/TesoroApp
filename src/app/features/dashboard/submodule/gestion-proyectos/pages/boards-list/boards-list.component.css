@@ -1,0 +1,17 @@
+.boards-header {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 24px; flex-wrap: wrap; gap: 12px;
+}
+.boards-header h2 { margin: 0; font-size: 1.5rem; font-weight: 500; }
+.header-actions { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.search-field { width: 260px; }
+.loading-container { display: flex; justify-content: center; min-height: 200px; align-items: center; }
+.empty-state { text-align: center; padding: 64px 0; color: rgba(0,0,0,.45); }
+.empty-state mat-icon { font-size: 64px; width: 64px; height: 64px; }
+.boards-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
+.board-card { cursor: pointer; transition: box-shadow .2s; }
+.board-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,.15); }
+.board-desc { color: rgba(0,0,0,.54); font-size: .875rem; min-height: 40px; }
+.board-meta { display: flex; gap: 16px; font-size: .8rem; color: rgba(0,0,0,.45); }
+.meta-item { display: flex; align-items: center; gap: 4px; }
+.meta-item mat-icon { font-size: 16px; width: 16px; height: 16px; }

@@ -1,0 +1,48 @@
+@if (loading()) {
+  <div class="center"><mat-spinner diameter="48"></mat-spinner></div>
+} @else {
+  <div class="header">
+    <h2>MatDer — Dashboard</h2>
+    <div class="actions">
+      <button mat-raised-button color="primary" (click)="nav('workspaces')"><mat-icon>workspaces</mat-icon> Workspaces</button>
+      <button mat-stroked-button (click)="nav('boards')"><mat-icon>dashboard_customize</mat-icon> Tableros</button>
+      <button mat-stroked-button (click)="nav('calendar')"><mat-icon>calendar_month</mat-icon> Calendario</button>
+      <button mat-stroked-button (click)="nav('favorites')"><mat-icon>star</mat-icon> Favoritos</button>
+      <button mat-stroked-button (click)="nav('analytics')"><mat-icon>analytics</mat-icon> Analíticas</button>
+    </div>
+  </div>
+
+  @if (overview(); as o) {
+    <div class="kpi-grid">
+      <mat-card class="kpi"><mat-icon style="color:#1976d2">workspaces</mat-icon><div class="kpi-val">{{ o.total_workspaces }}</div><div class="kpi-lbl">Workspaces</div></mat-card>
+      <mat-card class="kpi"><mat-icon style="color:#38bdf8">dashboard_customize</mat-icon><div class="kpi-val">{{ o.total_boards }}</div><div class="kpi-lbl">Tableros</div></mat-card>
+      <mat-card class="kpi"><mat-icon style="color:#f59e0b">assignment</mat-icon><div class="kpi-val">{{ o.total_tasks }}</div><div class="kpi-lbl">Tareas</div></mat-card>
+      <mat-card class="kpi"><mat-icon style="color:#14b8a6">check_circle</mat-icon><div class="kpi-val">{{ o.completion_rate }}%</div><div class="kpi-lbl">Completado</div></mat-card>
+      <mat-card class="kpi"><mat-icon style="color:#ef4444">warning</mat-icon><div class="kpi-val">{{ o.overdue_tasks }}</div><div class="kpi-lbl">Vencidas</div></mat-card>
+      <mat-card class="kpi"><mat-icon style="color:#8b5cf6">person_off</mat-icon><div class="kpi-val">{{ o.unassigned_tasks }}</div><div class="kpi-lbl">Sin asignar</div></mat-card>
+    </div>
+
+    @if (o.board_indicators.length > 0) {
+      <h3>Tableros activos</h3>
+      <div class="board-grid">
+        @for (b of o.board_indicators; track b.id) {
+          <mat-card class="board-ind" [style.border-left]="'4px solid ' + b.accent" (click)="nav('boards/' + b.id)">
+            <strong>{{ b.name }}</strong>
+            <span class="ws-name">{{ b.workspace_name }}</span>
+            <mat-progress-bar mode="determinate" [value]="b.progress_percent"></mat-progress-bar>
+            <span class="prog-lbl">{{ b.progress_percent }}% completado · {{ b.task_count }} tareas</span>
+          </mat-card>
+        }
+      </div>
+    }
+  } @else {
+    <div class="empty">
+      <mat-card class="empty-card">
+        <mat-icon>rocket_launch</mat-icon>
+        <h3>Bienvenido a MatDer</h3>
+        <p>Crea tu primer workspace para empezar a gestionar proyectos.</p>
+        <button mat-raised-button color="primary" (click)="nav('workspaces')"><mat-icon>add</mat-icon> Ir a Workspaces</button>
+      </mat-card>
+    </div>
+  }
+}

@@ -1,0 +1,54 @@
+.loading-container { display: flex; justify-content: center; min-height: 300px; align-items: center; }
+.board-header { margin-bottom: 16px; padding-bottom: 12px; }
+.board-header h2 { margin: 0 0 4px; font-weight: 500; }
+.board-desc { color: rgba(0,0,0,.54); margin: 0; font-size: .875rem; }
+
+.board-columns { display: flex; gap: 16px; overflow-x: auto; padding-bottom: 16px; align-items: flex-start; min-height: 60vh; }
+
+.kanban-column {
+  min-width: 280px; max-width: 320px; flex-shrink: 0;
+  background: #f5f5f5; border-radius: 8px; padding: 12px;
+  display: flex; flex-direction: column;
+}
+
+.column-header {
+  display: flex; align-items: center; gap: 8px;
+  margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid #e0e0e0;
+}
+.column-title { font-weight: 600; font-size: .95rem; flex: 1; }
+.card-count {
+  background: #e0e0e0; border-radius: 12px; padding: 0 8px;
+  font-size: .75rem; font-weight: 600; min-width: 20px; text-align: center;
+}
+.column-menu-btn { width: 28px; height: 28px; line-height: 28px; }
+.column-menu-btn mat-icon { font-size: 18px; }
+
+.cards-container { min-height: 40px; flex: 1; }
+
+.kanban-card {
+  background: white; border-radius: 6px; padding: 10px 12px;
+  margin-bottom: 8px; cursor: pointer;
+  box-shadow: 0 1px 3px rgba(0,0,0,.1);
+  transition: box-shadow .15s;
+}
+.kanban-card:hover { box-shadow: 0 2px 8px rgba(0,0,0,.15); }
+.card-title { font-size: .875rem; font-weight: 500; }
+.card-meta { display: flex; align-items: center; gap: 8px; margin-top: 6px; font-size: .75rem; color: rgba(0,0,0,.45); }
+.meta-chip { display: flex; align-items: center; gap: 2px; }
+.meta-chip mat-icon { font-size: 14px; width: 14px; height: 14px; }
+.fav-icon { font-size: 16px; width: 16px; height: 16px; color: #ff9800; }
+
+.add-card-form { padding: 8px 0; }
+.card-input {
+  width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;
+  font-size: .875rem; box-sizing: border-box;
+}
+.add-card-actions { display: flex; align-items: center; gap: 4px; margin-top: 6px; }
+.add-card-btn, .add-list-btn { width: 100%; justify-content: flex-start; color: rgba(0,0,0,.54); }
+
+.new-list-column { background: rgba(0,0,0,.04); min-height: auto; }
+
+/* CDK drag styles */
+.cdk-drag-preview { box-shadow: 0 4px 16px rgba(0,0,0,.2); border-radius: 6px; }
+.cdk-drag-placeholder { opacity: .3; }
+.cdk-drag-animating { transition: transform 200ms cubic-bezier(0,0,.2,1); }

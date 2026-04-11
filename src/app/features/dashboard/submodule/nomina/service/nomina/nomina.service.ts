@@ -1,6 +1,7 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
+import { shareReplay } from 'rxjs/operators';
 import { environment } from 'src/environments/environment';
 
 export interface ConceptoNomina {
@@ -14,6 +15,30 @@ export interface ConceptoNomina {
   activo: boolean;
   naturaleza_display?: string;
   unidad_display?: string;
+}
+
+export type EstadoConvalidacion = 'CONVALIDADO' | 'CONVALIDADO_CON_OBSERVACION' | 'REVISAR' | 'SIN_HOMOLOGACION';
+
+export interface ConvalidadorExterno {
+  id_convalidacion?: number;
+  concepto: number;
+  concepto_codigo?: string;
+  concepto_descripcion?: string;
+  concepto_naturaleza?: string;
+  entidad_externa: number;
+  entidad_nombre?: string;
+  entidad_nit?: string;
+  codigo_externo: string;
+  concepto_externo: string;
+  clasificacion_externa?: string | null;
+  tabla_operativa_destino?: string | null;
+  campo_operativo_destino?: string | null;
+  estado_convalidacion: EstadoConvalidacion;
+  estado_display?: string;
+  observacion?: string | null;
+  activo: boolean;
+  creado_at?: string;
+  actualizado_at?: string;
 }
 
 export interface Client {
@@ -69,6 +94,9 @@ export interface ImportResult {
 export class NominaService {
   private baseReg = `${environment.apiUrl}/api/nomina/registro-empleado`;
   private baseNom = `${environment.apiUrl}/api/nomina`;
+
+  private _clientesActivos$: Observable<Client[]> | null = null;
+  private _conceptosActivos$: Observable<ConceptoNomina[]> | null = null;
 
   constructor(private http: HttpClient) { }
 
@@ -152,5 +180,41 @@ export class NominaService {
 
   eliminarConcepto(id: number): Observable<void> {
     return this.http.delete<void>(`${this.baseNom}/conceptos/${id}/`);
+  }
+
+  // --- Convalidador de Conceptos Externos ---
+  getConvalidaciones(params: any = {}): Observable<ConvalidadorExterno[]> {
+    return this.http.get<ConvalidadorExterno[]>(`${this.baseNom}/convalidador/`, { params });
+  }
+
+  crearConvalidacion(data: Partial<ConvalidadorExterno>): Observable<ConvalidadorExterno> {
+    return this.http.post<ConvalidadorExterno>(`${this.baseNom}/convalidador/`, data);
+  }
+
+  actualizarConvalidacion(id: number, data: Partial<ConvalidadorExterno>): Observable<ConvalidadorExterno> {
+    return this.http.patch<ConvalidadorExterno>(`${this.baseNom}/convalidador/${id}/`, data);
+  }
+
+  getClientesActivos(): Observable<Client[]> {
+    if (!this._clientesActivos$) {
+      this._clientesActivos$ = this.http.get<Client[]>(
+        `${this.baseNom}/organizaciones/`, { params: { tipo: 'CLIENTE', activo: 'true' } },
+      ).pipe(shareReplay({ bufferSize: 1, refCount: true }));
+    }
+    return this._clientesActivos$;
+  }
+
+  getConceptosActivos(): Observable<ConceptoNomina[]> {
+    if (!this._conceptosActivos$) {
+      this._conceptosActivos$ = this.http.get<ConceptoNomina[]>(
+        `${this.baseNom}/conceptos/`, { params: { activo: 'true' } },
+      ).pipe(shareReplay({ bufferSize: 1, refCount: true }));
+    }
+    return this._conceptosActivos$;
+  }
+
+  invalidateCache(): void {
+    this._clientesActivos$ = null;
+    this._conceptosActivos$ = null;
   }
 }

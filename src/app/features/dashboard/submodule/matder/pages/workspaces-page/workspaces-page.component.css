@@ -1,0 +1,17 @@
+.header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+.header h2 { margin: 0; font-weight: 500; }
+.form-card { padding: 20px; margin-bottom: 20px; }
+.fw { width: 100%; }
+.form-actions { display: flex; gap: 8px; }
+.center { display: flex; justify-content: center; padding: 48px; }
+.empty { text-align: center; padding: 48px; }
+.empty mat-icon { font-size: 48px; width: 48px; height: 48px; color: #9e9e9e; }
+.ws-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
+.ws-card { padding: 20px; cursor: pointer; position: relative; transition: box-shadow .15s; }
+.ws-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,.12); }
+.ws-top { display: flex; justify-content: space-between; align-items: center; }
+.ws-desc { color: rgba(0,0,0,.54); font-size: .85rem; margin: 8px 0; }
+.ws-meta { display: flex; gap: 16px; font-size: .8rem; color: rgba(0,0,0,.45); }
+.ws-meta span { display: flex; align-items: center; gap: 4px; }
+.ws-meta mat-icon { font-size: 16px; width: 16px; height: 16px; }
+.del-btn { position: absolute; top: 8px; right: 8px; }

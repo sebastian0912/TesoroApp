@@ -1,0 +1,291 @@
+import { Component, Inject, OnInit } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { FormBuilder, FormGroup, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
+
+import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
+import { MatButtonModule } from '@angular/material/button';
+import { MatDividerModule } from '@angular/material/divider';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatIconModule } from '@angular/material/icon';
+import { MatInputModule } from '@angular/material/input';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatSelectModule } from '@angular/material/select';
+import { MatSlideToggleModule } from '@angular/material/slide-toggle';
+import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+
+import { ConceptoNomina, ConvalidadorExterno, NominaService } from '../../service/nomina/nomina.service';
+
+interface ConvalidadorDialogData {
+  convalidacion: ConvalidadorExterno | null;
+  entidadId: number;
+  conceptoSugerido?: ConceptoNomina | null;
+}
+
+@Component({
+  selector: 'app-convalidador-form-dialog',
+  standalone: true,
+  imports: [
+    CommonModule,
+    FormsModule,
+    ReactiveFormsModule,
+    MatDialogModule,
+    MatButtonModule,
+    MatDividerModule,
+    MatFormFieldModule,
+    MatIconModule,
+    MatInputModule,
+    MatProgressSpinnerModule,
+    MatSelectModule,
+    MatSlideToggleModule,
+    MatSnackBarModule,
+  ],
+  template: `
+    <div class="dialog-header">
+      <mat-icon class="dialog-icon">{{ isEditing ? 'edit_note' : 'sync_alt' }}</mat-icon>
+      <div>
+        <h2 mat-dialog-title>{{ isEditing ? 'Editar homologacion' : 'Nueva homologacion' }}</h2>
+        <p class="dialog-subtitle">Relaciona un concepto externo con un concepto maestro de Tu Alianza</p>
+      </div>
+    </div>
+
+    <mat-divider></mat-divider>
+
+    <mat-dialog-content>
+      <form [formGroup]="form" class="form-grid">
+        <div class="section-title">Concepto de la empresa externa</div>
+
+        <mat-form-field appearance="outline" class="field-half">
+          <mat-label>Codigo externo</mat-label>
+          <input matInput formControlName="codigo_externo" placeholder="Ej: NOV_001" maxlength="50">
+          <mat-error *ngIf="form.get('codigo_externo')?.hasError('required')">Obligatorio</mat-error>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="field-half">
+          <mat-label>Clasificacion externa</mat-label>
+          <input matInput formControlName="clasificacion_externa" placeholder="Ej: Devengo" maxlength="100">
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="field-full">
+          <mat-label>Nombre del concepto externo</mat-label>
+          <input matInput formControlName="concepto_externo" placeholder="Ej: Bonificacion por produccion" maxlength="200">
+          <mat-error *ngIf="form.get('concepto_externo')?.hasError('required')">Obligatorio</mat-error>
+        </mat-form-field>
+
+        <div class="section-title">Concepto maestro Tu Alianza</div>
+
+        <mat-form-field appearance="outline" class="field-full">
+          <mat-label>Concepto maestro</mat-label>
+          <mat-select formControlName="concepto">
+            <mat-option *ngFor="let c of conceptosFiltrados" [value]="c.id_concepto">
+              <span class="opt-codigo">[{{ c.codigo }}]</span> {{ c.descripcion }}
+              <span class="opt-nat">({{ c.naturaleza_display || c.naturaleza }})</span>
+            </mat-option>
+          </mat-select>
+          <mat-error *ngIf="form.get('concepto')?.hasError('required')">Seleccione un concepto</mat-error>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="field-full compact-field">
+          <mat-label>Filtrar conceptos</mat-label>
+          <input
+            matInput
+            [(ngModel)]="searchConcepto"
+            [ngModelOptions]="{ standalone: true }"
+            (input)="filtrarConceptos()"
+            placeholder="Buscar por codigo o descripcion..."
+          >
+          <mat-icon matSuffix>search</mat-icon>
+        </mat-form-field>
+
+        <div class="section-title">Mapeo operativo (opcional)</div>
+
+        <mat-form-field appearance="outline" class="field-half">
+          <mat-label>Tabla operativa destino</mat-label>
+          <input matInput formControlName="tabla_operativa_destino" placeholder="Ej: nomina_bonificaciones_auxilios" maxlength="100">
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="field-half">
+          <mat-label>Campo operativo destino</mat-label>
+          <input matInput formControlName="campo_operativo_destino" placeholder="Ej: bonif_1_constitutiva_salario" maxlength="100">
+        </mat-form-field>
+
+        <div class="section-title">Estado y observaciones</div>
+
+        <mat-form-field appearance="outline" class="field-half">
+          <mat-label>Estado de homologacion</mat-label>
+          <mat-select formControlName="estado_convalidacion">
+            <mat-option value="CONVALIDADO">Convalidado</mat-option>
+            <mat-option value="CONVALIDADO_CON_OBSERVACION">Convalidado con observacion</mat-option>
+            <mat-option value="REVISAR">Revisar</mat-option>
+            <mat-option value="SIN_HOMOLOGACION">Sin homologacion</mat-option>
+          </mat-select>
+        </mat-form-field>
+
+        <div class="toggle-row field-half">
+          <mat-slide-toggle formControlName="activo" color="primary">Activo</mat-slide-toggle>
+        </div>
+
+        <mat-form-field appearance="outline" class="field-full">
+          <mat-label>Observacion</mat-label>
+          <textarea matInput formControlName="observacion" rows="3" placeholder="Notas adicionales sobre esta homologacion..."></textarea>
+        </mat-form-field>
+      </form>
+    </mat-dialog-content>
+
+    <mat-divider></mat-divider>
+
+    <mat-dialog-actions align="end">
+      <button mat-stroked-button (click)="cancelar()" [disabled]="saving">Cancelar</button>
+      <button mat-flat-button color="primary" (click)="guardar()" [disabled]="form.invalid || saving">
+        <mat-spinner *ngIf="saving" diameter="18" style="display:inline-block;margin-right:6px"></mat-spinner>
+        {{ isEditing ? 'Guardar cambios' : 'Crear homologacion' }}
+      </button>
+    </mat-dialog-actions>
+  `,
+  styles: [`
+    .dialog-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 20px 24px 12px;
+    }
+    .dialog-icon { font-size: 36px; width: 36px; height: 36px; color: #3f51b5; }
+    h2[mat-dialog-title] { margin: 0; font-size: 18px; }
+    .dialog-subtitle { margin: 2px 0 0; font-size: 13px; color: #666; }
+    mat-dialog-content { padding: 16px 24px !important; max-height: 65vh; }
+    .form-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px 16px;
+    }
+    .field-full, .section-title { grid-column: 1 / -1; }
+    .section-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: #3f51b5;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin: 12px 0 4px;
+      padding-bottom: 4px;
+      border-bottom: 1px solid #e0e0e0;
+    }
+    .section-title:first-child { margin-top: 0; }
+    .compact-field { margin-top: -8px; }
+    .toggle-row {
+      display: flex;
+      align-items: center;
+      padding: 16px 0;
+    }
+    .opt-codigo { font-weight: 600; color: #3f51b5; font-family: monospace; }
+    .opt-nat { font-size: 11px; color: #888; margin-left: 4px; }
+    mat-dialog-actions { padding: 12px 24px 16px !important; }
+  `],
+})
+export class ConvalidadorFormDialogComponent implements OnInit {
+  form!: FormGroup;
+  isEditing = false;
+  saving = false;
+
+  conceptos: ConceptoNomina[] = [];
+  conceptosFiltrados: ConceptoNomina[] = [];
+  searchConcepto = '';
+
+  constructor(
+    private fb: FormBuilder,
+    private dialogRef: MatDialogRef<ConvalidadorFormDialogComponent>,
+    @Inject(MAT_DIALOG_DATA) public data: ConvalidadorDialogData,
+    private nominaService: NominaService,
+    private snackBar: MatSnackBar,
+  ) {}
+
+  ngOnInit(): void {
+    this.isEditing = !!this.data.convalidacion;
+    const convalidacion = this.data.convalidacion;
+    const conceptoInicial = convalidacion?.concepto ?? this.data.conceptoSugerido?.id_concepto ?? '';
+
+    this.form = this.fb.group({
+      entidad_externa: [this.data.entidadId, Validators.required],
+      codigo_externo: [convalidacion?.codigo_externo ?? '', Validators.required],
+      concepto_externo: [convalidacion?.concepto_externo ?? '', Validators.required],
+      clasificacion_externa: [convalidacion?.clasificacion_externa ?? ''],
+      concepto: [conceptoInicial, Validators.required],
+      tabla_operativa_destino: [convalidacion?.tabla_operativa_destino ?? ''],
+      campo_operativo_destino: [convalidacion?.campo_operativo_destino ?? ''],
+      estado_convalidacion: [convalidacion?.estado_convalidacion ?? 'SIN_HOMOLOGACION', Validators.required],
+      observacion: [convalidacion?.observacion ?? ''],
+      activo: [convalidacion?.activo ?? true],
+    });
+
+    this.cargarConceptos();
+  }
+
+  cargarConceptos(): void {
+    this.nominaService.getConceptos().subscribe({
+      next: (data) => {
+        this.conceptos = data;
+        this.conceptosFiltrados = data;
+        this.preseleccionarConceptoSugerido();
+      },
+      error: () => this.snackBar.open('Error al cargar conceptos', 'Cerrar', { duration: 3000 }),
+    });
+  }
+
+  filtrarConceptos(): void {
+    const term = this.searchConcepto.trim().toLowerCase();
+    if (!term) {
+      this.conceptosFiltrados = this.conceptos;
+      return;
+    }
+
+    this.conceptosFiltrados = this.conceptos.filter((concepto) =>
+      concepto.codigo.toLowerCase().includes(term) ||
+      concepto.descripcion.toLowerCase().includes(term) ||
+      (concepto.abreviatura ?? '').toLowerCase().includes(term)
+    );
+  }
+
+  guardar(): void {
+    if (this.form.invalid) return;
+
+    this.saving = true;
+    const payload = this.form.value;
+    const request$ = this.isEditing
+      ? this.nominaService.actualizarConvalidacion(this.data.convalidacion!.id_convalidacion!, payload)
+      : this.nominaService.crearConvalidacion(payload);
+
+    request$.subscribe({
+      next: () => {
+        this.snackBar.open(
+          this.isEditing ? 'Homologacion actualizada' : 'Homologacion creada',
+          'Cerrar',
+          { duration: 2500 },
+        );
+        this.dialogRef.close(true);
+      },
+      error: (err) => {
+        const errors = err?.error;
+        let msg = 'Error al guardar';
+        if (errors) {
+          const firstKey = Object.keys(errors)[0];
+          const firstVal = errors[firstKey];
+          msg = Array.isArray(firstVal) ? firstVal[0] : (typeof firstVal === 'string' ? firstVal : msg);
+        }
+        this.snackBar.open(msg, 'Cerrar', { duration: 4000 });
+        this.saving = false;
+      },
+    });
+  }
+
+  cancelar(): void {
+    this.dialogRef.close(false);
+  }
+
+  private preseleccionarConceptoSugerido(): void {
+    const conceptoId = this.form.get('concepto')?.value;
+    if (!conceptoId) return;
+
+    const existe = this.conceptos.some((concepto) => concepto.id_concepto === conceptoId);
+    if (!existe && this.data.conceptoSugerido?.id_concepto) {
+      this.form.patchValue({ concepto: this.data.conceptoSugerido.id_concepto });
+    }
+  }
+}

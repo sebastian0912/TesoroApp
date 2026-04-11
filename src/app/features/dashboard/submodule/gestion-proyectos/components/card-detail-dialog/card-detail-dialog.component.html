@@ -1,0 +1,116 @@
+@if (loading()) {
+  <div class="loading-container"><mat-spinner diameter="36"></mat-spinner></div>
+} @else if (card(); as c) {
+  <h2 mat-dialog-title class="card-header">
+    <span>{{ c.titulo }}</span>
+    <button mat-icon-button (click)="toggleFavorite()" [matTooltip]="c.favorita ? 'Quitar favorita' : 'Marcar favorita'">
+      <mat-icon [style.color]="c.favorita ? '#ff9800' : ''">{{ c.favorita ? 'star' : 'star_border' }}</mat-icon>
+    </button>
+  </h2>
+
+  <mat-dialog-content class="card-content">
+    <!-- Estado -->
+    <div class="field-row">
+      <mat-form-field appearance="outline" class="field-sm">
+        <mat-label>Estado</mat-label>
+        <mat-select [value]="c.estado" (selectionChange)="updateField('estado', $event.value)">
+          @for (e of estados; track e) {
+            <mat-option [value]="e">{{ e }}</mat-option>
+          }
+        </mat-select>
+      </mat-form-field>
+    </div>
+
+    <!-- Descripcion -->
+    <mat-form-field appearance="outline" class="full-width">
+      <mat-label>Descripción</mat-label>
+      <textarea matInput [value]="c.descripcion ?? ''" rows="3"
+                (blur)="updateField('descripcion', $any($event.target).value)"></textarea>
+    </mat-form-field>
+
+    <!-- Info -->
+    <div class="info-row">
+      @if (c.creador_nombre) { <span><mat-icon>person</mat-icon> Creador: {{ c.creador_nombre }}</span> }
+      @if (c.asignado_nombre) { <span><mat-icon>assignment_ind</mat-icon> Asignado: {{ c.asignado_nombre }}</span> }
+      @if (c.fecha_vencimiento) { <span><mat-icon>schedule</mat-icon> Vence: {{ c.fecha_vencimiento | date:'mediumDate' }}</span> }
+    </div>
+
+    <mat-divider></mat-divider>
+
+    <!-- Labels -->
+    @if (c.card_labels && c.card_labels.length > 0) {
+      <div class="section">
+        <h4>Etiquetas</h4>
+        <mat-chip-set>
+          @for (cl of c.card_labels; track cl.id) {
+            <mat-chip [style.background]="cl.label_color" style="color:white">{{ cl.label_nombre }}</mat-chip>
+          }
+        </mat-chip-set>
+      </div>
+    }
+
+    <!-- Checklist -->
+    <div class="section">
+      <h4><mat-icon>checklist</mat-icon> Checklist</h4>
+      @for (item of c.checklist_items; track item.id) {
+        <div class="checklist-row">
+          <mat-checkbox [checked]="item.completado" (change)="toggleChecklistItem(item.id)">
+            <span [class.completed-text]="item.completado">{{ item.contenido }}</span>
+          </mat-checkbox>
+        </div>
+      }
+      <div class="add-row">
+        <input class="inline-input" [(ngModel)]="newChecklistItem" placeholder="Nuevo elemento..."
+               (keyup.enter)="addChecklistItem()">
+        <button mat-icon-button color="primary" (click)="addChecklistItem()" [disabled]="!newChecklistItem.trim()">
+          <mat-icon>add</mat-icon>
+        </button>
+      </div>
+    </div>
+
+    <mat-divider></mat-divider>
+
+    <!-- Comentarios -->
+    <div class="section">
+      <h4><mat-icon>chat</mat-icon> Comentarios</h4>
+      @for (comment of c.comments; track comment.id) {
+        <div class="comment">
+          <strong>{{ comment.usuario_nombre ?? 'Usuario' }}</strong>
+          <span class="comment-date">{{ comment.created_at | date:'short' }}</span>
+          <p>{{ comment.cuerpo }}</p>
+        </div>
+      }
+      <div class="add-row">
+        <input class="inline-input flex-grow" [(ngModel)]="newComment" placeholder="Escribe un comentario..."
+               (keyup.enter)="addComment()">
+        <button mat-icon-button color="primary" (click)="addComment()" [disabled]="!newComment.trim()">
+          <mat-icon>send</mat-icon>
+        </button>
+      </div>
+    </div>
+
+    <mat-divider></mat-divider>
+
+    <!-- Adjuntos -->
+    <div class="section">
+      <h4><mat-icon>attach_file</mat-icon> Adjuntos</h4>
+      @for (upload of c.uploads; track upload.id) {
+        <div class="upload-row">
+          <mat-icon>insert_drive_file</mat-icon>
+          <span>{{ upload.nombre_original }}</span>
+        </div>
+      }
+      <input type="file" #fileInput (change)="uploadFile($event)" hidden>
+      <button mat-stroked-button (click)="fileInput.click()">
+        <mat-icon>upload</mat-icon> Adjuntar archivo
+      </button>
+    </div>
+  </mat-dialog-content>
+
+  <mat-dialog-actions align="end">
+    <button mat-button color="warn" (click)="deleteCard()">
+      <mat-icon>delete</mat-icon> Eliminar
+    </button>
+    <button mat-raised-button color="primary" (click)="close()">Cerrar</button>
+  </mat-dialog-actions>
+}

@@ -1,0 +1,23 @@
+<h2><mat-icon>star</mat-icon> Tarjetas Favoritas</h2>
+
+@if (loading()) {
+  <div class="loading-container"><mat-spinner diameter="48"></mat-spinner></div>
+} @else if (cards().length === 0) {
+  <div class="empty-state">
+    <mat-icon>star_border</mat-icon>
+    <p>No tienes tarjetas favoritas aún.</p>
+  </div>
+} @else {
+  <div class="favorites-grid">
+    @for (card of cards(); track card.id) {
+      <mat-card class="fav-card">
+        <mat-card-content>
+          <div class="card-title">{{ card.titulo }}</div>
+          <mat-chip-set>
+            <mat-chip>{{ card.estado }}</mat-chip>
+          </mat-chip-set>
+        </mat-card-content>
+      </mat-card>
+    }
+  </div>
+}

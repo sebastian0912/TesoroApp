@@ -1,0 +1,72 @@
+@if (loading()) {
+  <div class="center"><mat-spinner diameter="48"></mat-spinner></div>
+} @else if (board(); as b) {
+  <div class="board-header" [style.border-bottom]="'3px solid ' + b.accent">
+    <div>
+      <h2>{{ b.name }}</h2>
+      @if (b.description) { <p class="desc">{{ b.description }}</p> }
+      <span class="ws-badge">{{ b.workspace_name }}</span>
+    </div>
+  </div>
+
+  <div class="board-columns" cdkDropListGroup>
+    @for (list of lists(); track list.id) {
+      <div class="column">
+        <div class="col-header">
+          <span class="col-title">{{ list.name }}</span>
+          @if (list.list_type) { <span class="type-badge">{{ list.list_type }}</span> }
+          <span class="count">{{ list.cards?.length ?? 0 }}</span>
+          <button mat-icon-button [matMenuTriggerFor]="lm" class="col-menu"><mat-icon>more_vert</mat-icon></button>
+          <mat-menu #lm="matMenu">
+            <button mat-menu-item (click)="deleteList(list)"><mat-icon color="warn">delete</mat-icon> Eliminar</button>
+          </mat-menu>
+        </div>
+
+        <div class="cards" cdkDropList [cdkDropListData]="list.cards ?? []" [id]="'list-' + list.id"
+             [cdkDropListConnectedTo]="getListIds()" (cdkDropListDropped)="onCardDrop($event, list)">
+          @for (card of list.cards; track card.id) {
+            <div class="card" cdkDrag (click)="openCardDetail(card)">
+              <div class="card-priority" [style.background]="priorityColor(card.priority)"></div>
+              <div class="card-body">
+                <div class="card-title">{{ card.title }}</div>
+                <div class="card-meta">
+                  @if (card.due_at) { <span class="meta-chip"><mat-icon>schedule</mat-icon>{{ card.due_at | date:'shortDate' }}</span> }
+                  @if (card.assignee_name) { <span class="meta-chip"><mat-icon>person</mat-icon>{{ card.assignee_name }}</span> }
+                  <span class="status-chip" [attr.data-status]="card.status">{{ card.status }}</span>
+                </div>
+              </div>
+            </div>
+          }
+        </div>
+
+        @if (addingToListId === list.id) {
+          <div class="add-form">
+            <input class="card-input" [(ngModel)]="newCardTitle" placeholder="Título..."
+                   (keyup.enter)="addCard(list)" (keyup.escape)="cancelAddCard()" autofocus>
+            <div class="add-actions">
+              <button mat-flat-button color="primary" (click)="addCard(list)">Agregar</button>
+              <button mat-icon-button (click)="cancelAddCard()"><mat-icon>close</mat-icon></button>
+            </div>
+          </div>
+        } @else {
+          <button mat-button class="add-btn" (click)="startAddCard(list.id)"><mat-icon>add</mat-icon> Agregar tarjeta</button>
+        }
+      </div>
+    }
+
+    <div class="column new-col">
+      @if (showNewListInput) {
+        <div class="add-form">
+          <input class="card-input" [(ngModel)]="newListName" placeholder="Nombre de la lista..."
+                 (keyup.enter)="addList()" (keyup.escape)="showNewListInput = false" autofocus>
+          <div class="add-actions">
+            <button mat-flat-button color="primary" (click)="addList()">Agregar</button>
+            <button mat-icon-button (click)="showNewListInput = false"><mat-icon>close</mat-icon></button>
+          </div>
+        </div>
+      } @else {
+        <button mat-button class="add-btn" (click)="showNewListInput = true"><mat-icon>add</mat-icon> Agregar lista</button>
+      }
+    </div>
+  </div>
+}

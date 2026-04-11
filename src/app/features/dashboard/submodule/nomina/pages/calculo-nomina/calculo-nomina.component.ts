@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormControl, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import { SharedModule } from '../../../../../../shared/shared.module';
@@ -54,7 +54,8 @@ import { saveAs } from 'file-saver';
     MatTooltipModule
   ],
   templateUrl: './calculo-nomina.component.html',
-  styleUrl: './calculo-nomina.component.css'
+  styleUrl: './calculo-nomina.component.css',
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class CalculoNominaComponent implements OnInit {
   // Datos maestros
