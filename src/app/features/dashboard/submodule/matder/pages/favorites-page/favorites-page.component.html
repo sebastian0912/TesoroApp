@@ -1,0 +1,49 @@
+<header class="hero">
+  <div class="hero-copy">
+    <p class="eyebrow">Favoritos</p>
+    <h1>Tableros favoritos</h1>
+    <p class="hero-text">Accede rapidamente a los tableros que has marcado como favoritos.</p>
+    <div class="hero-actions">
+      <button mat-stroked-button (click)="nav('dashboard')"><mat-icon>arrow_back</mat-icon> Dashboard</button>
+      <button mat-stroked-button (click)="nav('boards')"><mat-icon>dashboard_customize</mat-icon> Todos los tableros</button>
+    </div>
+  </div>
+</header>
+
+<div class="filters">
+  <mat-form-field appearance="outline" class="search-field">
+    <mat-label>Buscar favorito</mat-label>
+    <input matInput [(ngModel)]="search">
+    <mat-icon matSuffix>search</mat-icon>
+  </mat-form-field>
+</div>
+
+@if (loading()) {
+  <div class="center"><mat-spinner diameter="40"></mat-spinner></div>
+} @else if (filtered.length === 0) {
+  <div class="empty">
+    <mat-icon>star_border</mat-icon>
+    <h3>Sin favoritos</h3>
+    <p>Marca tableros como favoritos desde la vista de tableros para verlos aqui.</p>
+    <button mat-raised-button color="primary" (click)="nav('boards')"><mat-icon>dashboard_customize</mat-icon> Ir a tableros</button>
+  </div>
+} @else {
+  <div class="grid">
+    @for (b of filtered; track b.id) {
+      <mat-card class="fav-card" [style.border-top]="'4px solid ' + b.accent" (click)="open(b.id)">
+        <div class="fav-header">
+          <strong>{{ b.name }}</strong>
+          <button mat-icon-button (click)="toggleFavorite(b); $event.stopPropagation()" matTooltip="Quitar de favoritos">
+            <mat-icon>star</mat-icon>
+          </button>
+        </div>
+        <span class="ws-name">{{ b.workspace_name }}</span>
+        <p class="desc">{{ b.description || 'Sin descripcion' }}</p>
+        <div class="fav-meta">
+          <span>Creado: {{ b.created_at | date:'d MMM, y' }}</span>
+          <span>Actualizado: {{ b.updated_at | date:'d MMM, y' }}</span>
+        </div>
+      </mat-card>
+    }
+  </div>
+}

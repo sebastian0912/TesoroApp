@@ -131,6 +131,18 @@ export class NavbarComponent implements OnInit, OnDestroy {
     'PARAMETRIZACIÓN NOVEDADES': 'nomina/parametrizacion-novedades',
     'PARAMETRIZACIÓN DE NOVEDADES': 'nomina/parametrizacion-novedades',
     'CONVALIDADOR': 'nomina/convalidador',
+    
+    // MatDer
+    'Dashboard': 'matder/dashboard',
+    'Workspaces': 'matder/workspaces',
+    'Tableros': 'matder/boards',
+    'Calendario': 'matder/calendar',
+    'Favoritos': 'matder/favorites',
+    'Analíticas': 'matder/analytics',
+    'Grupos': 'matder/groups',
+    'Notificaciones': 'matder/notifications',
+    'Importar': 'matder/import',
+    'Auditoría': 'matder/audit',
   };
 
   private readonly iconMap: Record<string, string> = {
@@ -217,6 +229,19 @@ export class NavbarComponent implements OnInit, OnDestroy {
     'PARAMETRIZACIÓN DE NOVEDADES': 'tune',
     'CONVALIDADOR': 'sync_alt',
     'Tarjetas': 'credit_card',
+    
+    // MatDer
+    'MatDer': 'hub',
+    'Dashboard': 'dashboard',
+    'Workspaces': 'workspaces',
+    'Tableros': 'dashboard_customize',
+    'Calendario': 'calendar_month',
+    'Favoritos': 'star',
+    'Analíticas': 'analytics',
+    'Grupos': 'group',
+    'Notificaciones': 'notifications',
+    'Importar': 'upload_file',
+    'Auditoría': 'shield',
   };
 
   private routeMapIndex!: Record<string, string>;
