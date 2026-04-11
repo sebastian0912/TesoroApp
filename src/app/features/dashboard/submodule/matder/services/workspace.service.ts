@@ -40,4 +40,10 @@ export class WorkspaceService {
   updateMember(wsId: number, mid: number, data: { role?: string; active?: boolean }): Promise<WorkspaceMemberResponse> {
     return firstValueFrom(this.http.patch<WorkspaceMemberResponse>(`${this.base}/${wsId}/members/${mid}/`, data).pipe(catchError(this.err)));
   }
+
+  searchMemberCandidates(wsId: number, query: string): Promise<any[]> {
+    return firstValueFrom(this.http.get<any[]>(`${this.base}/${wsId}/member-candidates/`, {
+      params: { q: query }
+    }).pipe(catchError(this.err)));
+  }
 }

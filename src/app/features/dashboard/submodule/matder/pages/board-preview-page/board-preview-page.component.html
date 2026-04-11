@@ -1,72 +1,349 @@
 @if (loading()) {
-  <div class="center"><mat-spinner diameter="48"></mat-spinner></div>
-} @else if (board(); as b) {
-  <div class="board-header" [style.border-bottom]="'3px solid ' + b.accent">
-    <div>
-      <h2>{{ b.name }}</h2>
-      @if (b.description) { <p class="desc">{{ b.description }}</p> }
-      <span class="ws-badge">{{ b.workspace_name }}</span>
+  <div class="loading-state">
+    <div class="loading-card">
+      <div class="brand-mark">M</div>
+      <h2>Cargando tablero</h2>
+      <p>Preparando la vista de trabajo del tablero.</p>
+      <mat-spinner diameter="36"></mat-spinner>
     </div>
   </div>
-
-  <div class="board-columns" cdkDropListGroup>
-    @for (list of lists(); track list.id) {
-      <div class="column">
-        <div class="col-header">
-          <span class="col-title">{{ list.name }}</span>
-          @if (list.list_type) { <span class="type-badge">{{ list.list_type }}</span> }
-          <span class="count">{{ list.cards?.length ?? 0 }}</span>
-          <button mat-icon-button [matMenuTriggerFor]="lm" class="col-menu"><mat-icon>more_vert</mat-icon></button>
-          <mat-menu #lm="matMenu">
-            <button mat-menu-item (click)="deleteList(list)"><mat-icon color="warn">delete</mat-icon> Eliminar</button>
-          </mat-menu>
+} @else if (board(); as b) {
+  <div class="board-shell">
+    <!-- Hero -->
+    <header class="board-hero" [style.border-left]="'5px solid ' + b.accent">
+      <div class="hero-copy">
+        <p class="eyebrow">Board workspace</p>
+        <h1>{{ b.name }}</h1>
+        <div class="hero-path">
+          <span>Workspace: {{ b.workspace_name }}</span>
+          <mat-icon>chevron_right</mat-icon>
+          <span>Tablero: {{ b.name }}</span>
+          <mat-icon>chevron_right</mat-icon>
+          <span>{{ lists().length }} listas</span>
+          <mat-icon>chevron_right</mat-icon>
+          <span>{{ totalCardCount }} tareas</span>
         </div>
-
-        <div class="cards" cdkDropList [cdkDropListData]="list.cards ?? []" [id]="'list-' + list.id"
-             [cdkDropListConnectedTo]="getListIds()" (cdkDropListDropped)="onCardDrop($event, list)">
-          @for (card of list.cards; track card.id) {
-            <div class="card" cdkDrag (click)="openCardDetail(card)">
-              <div class="card-priority" [style.background]="priorityColor(card.priority)"></div>
-              <div class="card-body">
-                <div class="card-title">{{ card.title }}</div>
-                <div class="card-meta">
-                  @if (card.due_at) { <span class="meta-chip"><mat-icon>schedule</mat-icon>{{ card.due_at | date:'shortDate' }}</span> }
-                  @if (card.assignee_name) { <span class="meta-chip"><mat-icon>person</mat-icon>{{ card.assignee_name }}</span> }
-                  <span class="status-chip" [attr.data-status]="card.status">{{ card.status }}</span>
-                </div>
-              </div>
-            </div>
+        <p class="hero-text" [class.hero-text--empty]="!b.description">
+          {{ b.description || 'Sin descripcion provista.' }}
+        </p>
+        <div class="hero-actions">
+          <button mat-stroked-button (click)="nav('boards')">Volver a tableros</button>
+          @if (b.can_manage_content) {
+            <button mat-stroked-button (click)="nav('workspaces/' + b.workspace)">Asignar usuarios</button>
+          }
+          @if (b.can_manage_content) {
+            <button mat-raised-button color="primary" (click)="showNewListInput = true">
+              <mat-icon>add</mat-icon> Nueva lista
+            </button>
           }
         </div>
-
-        @if (addingToListId === list.id) {
-          <div class="add-form">
-            <input class="card-input" [(ngModel)]="newCardTitle" placeholder="Título..."
-                   (keyup.enter)="addCard(list)" (keyup.escape)="cancelAddCard()" autofocus>
-            <div class="add-actions">
-              <button mat-flat-button color="primary" (click)="addCard(list)">Agregar</button>
-              <button mat-icon-button (click)="cancelAddCard()"><mat-icon>close</mat-icon></button>
-            </div>
-          </div>
-        } @else {
-          <button mat-button class="add-btn" (click)="startAddCard(list.id)"><mat-icon>add</mat-icon> Agregar tarjeta</button>
-        }
       </div>
-    }
+      <div class="profile-card">
+        <div class="profile-avatar">M</div>
+        <div class="profile-meta">
+          <span class="status-pill">{{ b.can_manage_content ? 'Editable' : 'Solo lectura' }}</span>
+          <h3>{{ b.workspace_name }}</h3>
+          <p>Actualizado el {{ b.updated_at | date:'d MMM, y, h:mm a' }}</p>
+          @if (b.workspace_role) { <p>Tu rol: {{ b.workspace_role }}</p> }
+        </div>
+      </div>
+    </header>
 
-    <div class="column new-col">
-      @if (showNewListInput) {
-        <div class="add-form">
-          <input class="card-input" [(ngModel)]="newListName" placeholder="Nombre de la lista..."
-                 (keyup.enter)="addList()" (keyup.escape)="showNewListInput = false" autofocus>
-          <div class="add-actions">
-            <button mat-flat-button color="primary" (click)="addList()">Agregar</button>
-            <button mat-icon-button (click)="showNewListInput = false"><mat-icon>close</mat-icon></button>
-          </div>
+    <!-- Summary cards -->
+    <section class="board-summary">
+      <div class="summary-card">
+        <p class="summary-label">Workspace</p>
+        <h3>{{ b.workspace_name }}</h3>
+        <p>Workspace asociado a este tablero.</p>
+      </div>
+      <div class="summary-card">
+        <p class="summary-label">Tablero</p>
+        <h3>{{ b.name }}</h3>
+        <p>{{ b.description || 'Sin descripcion provista.' }}</p>
+      </div>
+      <div class="summary-card">
+        <p class="summary-label">Flujo actual</p>
+        <h3>{{ lists().length }} listas</h3>
+        <p>{{ totalCardCount }} tareas en este tablero.</p>
+      </div>
+    </section>
+
+    <!-- Kanban section -->
+    <section class="kanban-section">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">Tablero de trabajo</p>
+          <h2>Columnas y tareas del proyecto</h2>
+          <p class="section-copy">
+            @if (b.can_manage_content) {
+              Crea listas para cada estado del flujo. Agrega tareas y abre el detalle con el icono de ojo.
+            } @else {
+              Explora listas y tareas de este tablero. Tu acceso actual es de solo lectura.
+            }
+          </p>
+        </div>
+      </div>
+
+      @if (lists().length > 0) {
+        <div class="kanban-grid" cdkDropListGroup>
+          @for (list of lists(); track list.id) {
+            <article class="column-card" cdkDrag [cdkDragDisabled]="!b.can_manage_content">
+              <!-- Drag handle -->
+              @if (b.can_manage_content) {
+                <div class="column-drag-handle" cdkDragHandle>
+                  <mat-icon>drag_handle</mat-icon>
+                </div>
+              }
+
+              <div class="column-topline">
+                <span class="column-badge">Lista {{ list.position + 1 }}</span>
+                @if (b.can_manage_content) {
+                  <div class="column-actions">
+                    <button mat-icon-button (click)="startAddCard(list.id)" matTooltip="Nueva tarea">
+                      <mat-icon>add</mat-icon>
+                    </button>
+                    <button mat-icon-button (click)="startEditList(list)" matTooltip="Editar lista">
+                      <mat-icon>edit</mat-icon>
+                    </button>
+                    <button mat-icon-button (click)="deleteList(list)" matTooltip="Eliminar lista">
+                      <mat-icon>delete</mat-icon>
+                    </button>
+                  </div>
+                }
+              </div>
+
+              <!-- Edit list inline -->
+              @if (editingListId === list.id) {
+                <div class="list-edit-form">
+                  <input class="card-input" [(ngModel)]="editListName" placeholder="Nombre de la lista..."
+                         (keyup.enter)="submitListEdit(list)" (keyup.escape)="cancelEditList()">
+                  <div class="form-actions">
+                    <button mat-flat-button color="primary" (click)="submitListEdit(list)">Guardar</button>
+                    <button mat-icon-button (click)="cancelEditList()"><mat-icon>close</mat-icon></button>
+                  </div>
+                </div>
+              } @else {
+                <div class="column-header">
+                  <span class="column-kind">Columna del tablero</span>
+                  <h3>{{ list.name }}</h3>
+                  @if (list.list_type) { <span class="type-badge">{{ list.list_type }}</span> }
+                  <p>{{ list.cards?.length ?? 0 }} tareas en esta columna.</p>
+                </div>
+
+                <!-- Card drop list -->
+                <div class="task-list" cdkDropList [cdkDropListData]="list.cards ?? []" [id]="'list-' + list.id"
+                     [cdkDropListConnectedTo]="getListIds()" (cdkDropListDropped)="onCardDrop($event, list)"
+                     [cdkDropListDisabled]="!b.can_manage_content">
+
+                  @if (b.can_manage_content) {
+                    <button mat-stroked-button class="add-card-inline" (click)="startAddCard(list.id)">
+                      Nueva tarea
+                    </button>
+                  }
+
+                  @if ((list.cards?.length ?? 0) > 0) {
+                    @for (card of list.cards; track card.id) {
+                      <article class="task-card" cdkDrag [cdkDragData]="card"
+                               [cdkDragDisabled]="!b.can_manage_content">
+                        <div class="task-card-top">
+                          <div class="task-card-badges">
+                            @if (b.can_manage_content) {
+                              <button class="drag-handle" cdkDragHandle><mat-icon>drag_indicator</mat-icon></button>
+                            }
+                            <span class="task-status-badge" [attr.data-tone]="statusTone(card.status)">
+                              {{ statusLabel(card.status) }}
+                            </span>
+                            <span class="task-badge" [attr.data-prio]="card.priority.toLowerCase()">
+                              {{ priorityLabel(card.priority) }}
+                            </span>
+                          </div>
+                          <div class="task-card-actions">
+                            @if (card.assignee_name) {
+                              <div class="task-card-assignee" [matTooltip]="'Asignado a: ' + card.assignee_name">
+                                {{ card.assignee_name.slice(0, 2).toUpperCase() }}
+                              </div>
+                            }
+                            <button mat-icon-button (click)="openCardDetail(card)" matTooltip="Ver detalle">
+                              <mat-icon>visibility</mat-icon>
+                            </button>
+                            @if (b.can_manage_content) {
+                              <button mat-icon-button (click)="openEditCard(card)" matTooltip="Editar">
+                                <mat-icon>edit</mat-icon>
+                              </button>
+                              <button mat-icon-button (click)="deleteCard(list, card)" matTooltip="Eliminar">
+                                <mat-icon>delete</mat-icon>
+                              </button>
+                            }
+                          </div>
+                        </div>
+
+                        <h4>{{ card.title }}</h4>
+
+                        <div class="task-card-meta">
+                          @if (card.due_at) {
+                            <span><mat-icon>event</mat-icon> {{ card.due_at | date:'d MMM, y' }}</span>
+                          }
+                          <span><mat-icon>schedule</mat-icon> {{ card.created_at | date:'d MMM, y' }}</span>
+                        </div>
+                      </article>
+                    }
+                  } @else {
+                    <article class="task-placeholder">
+                      <span class="task-badge">Nueva columna</span>
+                      <h4>Sin tareas todavia</h4>
+                      <p>
+                        @if (b.can_manage_content) {
+                          Crea la primera tarea o mueve una desde otra lista.
+                        } @else {
+                          Esta columna aun no tiene tareas.
+                        }
+                      </p>
+                      @if (b.can_manage_content) {
+                        <button mat-stroked-button (click)="startAddCard(list.id)">Crear primera tarea</button>
+                      }
+                    </article>
+                  }
+                </div>
+              }
+
+              <!-- Inline add card form -->
+              @if (addingToListId === list.id) {
+                <div class="add-form">
+                  <input class="card-input" [(ngModel)]="newCardTitle" placeholder="Titulo de la tarea..."
+                         (keyup.enter)="addCard(list)" (keyup.escape)="cancelAddCard()" autofocus>
+                  <div class="form-actions">
+                    <button mat-flat-button color="primary" (click)="addCard(list)">Agregar</button>
+                    <button mat-icon-button (click)="cancelAddCard()"><mat-icon>close</mat-icon></button>
+                  </div>
+                </div>
+              }
+            </article>
+          }
+
+          <!-- New list composer -->
+          @if (b.can_manage_content) {
+            <article class="column-card column-card--composer">
+              @if (showNewListInput) {
+                <div class="list-edit-form">
+                  <div class="composer-head">
+                    <p class="eyebrow">Nueva lista</p>
+                    <h3>Crear lista</h3>
+                  </div>
+                  <input class="card-input" [(ngModel)]="newListName" placeholder="Nombre de la lista..."
+                         (keyup.enter)="addList()" (keyup.escape)="showNewListInput = false" autofocus>
+                  <div class="form-actions">
+                    <button mat-stroked-button (click)="showNewListInput = false">Cancelar</button>
+                    <button mat-raised-button color="primary" (click)="addList()" [disabled]="!newListName.trim()">Crear lista</button>
+                  </div>
+                </div>
+              } @else {
+                <button class="add-list-btn" (click)="showNewListInput = true">
+                  <mat-icon>add</mat-icon>
+                  <span>Nueva columna</span>
+                </button>
+                <p class="composer-copy">Agrega otra columna al tablero.</p>
+              }
+            </article>
+          }
         </div>
       } @else {
-        <button mat-button class="add-btn" (click)="showNewListInput = true"><mat-icon>add</mat-icon> Agregar lista</button>
+        <!-- Empty board -->
+        <article class="empty-card">
+          <div class="brand-mark">M</div>
+          @if (showNewListInput) {
+            <h2>Crea la primera columna</h2>
+            <p>Una lista es una columna del flujo. Ej: Backlog, En progreso, Hecho.</p>
+            <div class="list-edit-form">
+              <input class="card-input" [(ngModel)]="newListName" placeholder="Nombre de la lista..."
+                     (keyup.enter)="addList()" autofocus>
+              <div class="form-actions">
+                <button mat-stroked-button (click)="showNewListInput = false">Cancelar</button>
+                <button mat-raised-button color="primary" (click)="addList()" [disabled]="!newListName.trim()">Crear lista</button>
+              </div>
+            </div>
+          } @else {
+            <h2>Este tablero aun no tiene listas</h2>
+            <p>
+              @if (b.can_manage_content) {
+                Empieza creando columnas como Backlog, En progreso y Hecho. Despues podras agregar tareas dentro de cada una.
+              } @else {
+                Aun no hay columnas en este tablero. Necesitas permisos de edicion.
+              }
+            </p>
+            <div class="empty-actions">
+              @if (b.can_manage_content) {
+                <button mat-raised-button color="primary" (click)="showNewListInput = true">Crear primera lista</button>
+              }
+              <button mat-stroked-button (click)="nav('boards')">Volver a tableros</button>
+            </div>
+          }
+        </article>
       }
+    </section>
+  </div>
+
+  <!-- Card create/edit dialog -->
+  @if (showCardModal) {
+    <div class="modal-backdrop" (click)="closeCardModal()">
+      <div class="modal-content card-modal" (click)="$event.stopPropagation()">
+        <div class="modal-header">
+          <h3>{{ editingCardId ? 'Editar tarea' : 'Nueva tarea' }}</h3>
+          <button mat-icon-button (click)="closeCardModal()"><mat-icon>close</mat-icon></button>
+        </div>
+        <div class="modal-body">
+          <mat-form-field appearance="outline" class="fw">
+            <mat-label>Titulo</mat-label>
+            <input matInput [(ngModel)]="cardFormTitle" maxlength="120">
+          </mat-form-field>
+          <mat-form-field appearance="outline" class="fw">
+            <mat-label>Descripcion</mat-label>
+            <textarea matInput [(ngModel)]="cardFormDesc" rows="3" maxlength="600"></textarea>
+          </mat-form-field>
+          <div class="modal-row">
+            <mat-form-field appearance="outline" class="half">
+              <mat-label>Status</mat-label>
+              <mat-select [(ngModel)]="cardFormStatus">
+                <mat-option value="TODO">Por hacer</mat-option>
+                <mat-option value="IN_PROGRESS">En progreso</mat-option>
+                <mat-option value="BLOCKED">Bloqueado</mat-option>
+                <mat-option value="DONE">Hecho</mat-option>
+              </mat-select>
+            </mat-form-field>
+            <mat-form-field appearance="outline" class="half">
+              <mat-label>Prioridad</mat-label>
+              <mat-select [(ngModel)]="cardFormPriority">
+                <mat-option value="LOW">Baja</mat-option>
+                <mat-option value="MEDIUM">Media</mat-option>
+                <mat-option value="HIGH">Alta</mat-option>
+                <mat-option value="URGENT">Urgente</mat-option>
+              </mat-select>
+            </mat-form-field>
+          </div>
+          <mat-form-field appearance="outline" class="fw">
+            <mat-label>Fecha de vencimiento</mat-label>
+            <input matInput type="date" [(ngModel)]="cardFormDueDate">
+          </mat-form-field>
+        </div>
+        <div class="modal-footer">
+          <button mat-stroked-button (click)="closeCardModal()">Cancelar</button>
+          <button mat-raised-button color="primary" [disabled]="!cardFormTitle.trim() || cardSaving"
+                  (click)="submitCardForm()">
+            {{ cardSaving ? 'Guardando...' : (editingCardId ? 'Guardar' : 'Crear tarea') }}
+          </button>
+        </div>
+      </div>
+    </div>
+  }
+} @else {
+  <div class="loading-state">
+    <div class="empty-card">
+      <div class="brand-mark">M</div>
+      <h2>Tablero no encontrado</h2>
+      <p>Ese tablero no existe o no tienes acceso.</p>
+      <div class="empty-actions">
+        <button mat-raised-button color="primary" (click)="nav('boards')">Volver a tableros</button>
+        <button mat-stroked-button (click)="nav('dashboard')">Ir al dashboard</button>
+      </div>
     </div>
   </div>
 }

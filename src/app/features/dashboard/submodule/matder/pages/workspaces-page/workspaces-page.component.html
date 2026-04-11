@@ -1,40 +1,178 @@
-<div class="header">
-  <h2>Workspaces</h2>
-  <button mat-raised-button color="primary" (click)="showForm.set(true)"><mat-icon>add</mat-icon> Nuevo Workspace</button>
-</div>
-
-@if (showForm()) {
-  <mat-card class="form-card">
-    <mat-form-field appearance="outline" class="fw"><mat-label>Nombre</mat-label><input matInput [(ngModel)]="formName"></mat-form-field>
-    <mat-form-field appearance="outline" class="fw"><mat-label>Descripción</mat-label><input matInput [(ngModel)]="formDesc"></mat-form-field>
-    <div class="form-actions">
-      <button mat-raised-button color="primary" [disabled]="!formName.trim()" (click)="create()">Crear</button>
-      <button mat-button (click)="showForm.set(false)">Cancelar</button>
+<!-- Workspaces list mode -->
+@if (!detailMode) {
+  <header class="hero">
+    <div class="hero-copy">
+      <p class="eyebrow">Workspaces</p>
+      <h1>Espacios de trabajo</h1>
+      <p class="hero-text">Gestiona tus workspaces, agrega miembros y crea tableros dentro de cada uno.</p>
+      <div class="hero-actions">
+        <button mat-raised-button color="primary" (click)="showForm.set(true)"><mat-icon>add</mat-icon> Nuevo Workspace</button>
+        <button mat-stroked-button (click)="nav('dashboard')"><mat-icon>arrow_back</mat-icon> Dashboard</button>
+      </div>
     </div>
-  </mat-card>
+  </header>
+
+  @if (showForm()) {
+    <mat-card class="form-card">
+      <h3>Crear workspace</h3>
+      <mat-form-field appearance="outline" class="fw"><mat-label>Nombre</mat-label><input matInput [(ngModel)]="formName" maxlength="80"></mat-form-field>
+      <mat-form-field appearance="outline" class="fw"><mat-label>Descripcion</mat-label><textarea matInput [(ngModel)]="formDesc" rows="2" maxlength="300"></textarea></mat-form-field>
+      <div class="form-actions">
+        <button mat-raised-button color="primary" [disabled]="!formName.trim()" (click)="create()">Crear</button>
+        <button mat-button (click)="showForm.set(false); formName = ''; formDesc = ''">Cancelar</button>
+      </div>
+    </mat-card>
+  }
+
+  <!-- Filters -->
+  <div class="filters">
+    <mat-form-field appearance="outline" class="search-field">
+      <mat-label>Buscar workspace</mat-label>
+      <input matInput [(ngModel)]="searchQuery">
+      <mat-icon matSuffix>search</mat-icon>
+    </mat-form-field>
+    <mat-form-field appearance="outline" class="filter-field">
+      <mat-label>Estado</mat-label>
+      <mat-select [(ngModel)]="filterState">
+        <mat-option value="all">Todos</mat-option>
+        <mat-option value="with_boards">Con tableros</mat-option>
+        <mat-option value="empty">Sin tableros</mat-option>
+      </mat-select>
+    </mat-form-field>
+  </div>
+
+  @if (loading()) {
+    <div class="center"><mat-spinner diameter="40"></mat-spinner></div>
+  } @else if (filteredWorkspaces.length === 0) {
+    <div class="empty-state">
+      <mat-icon>workspaces</mat-icon>
+      <p>@if (searchQuery || filterState !== 'all') { No se encontraron workspaces con los filtros actuales. } @else { No hay workspaces. Crea el primero. }</p>
+      @if (searchQuery || filterState !== 'all') {
+        <button mat-stroked-button (click)="searchQuery = ''; filterState = 'all'">Limpiar filtros</button>
+      }
+    </div>
+  } @else {
+    <div class="ws-grid">
+      @for (ws of filteredWorkspaces; track ws.id) {
+        <mat-card class="ws-card" (click)="open(ws)">
+          <div class="ws-top">
+            <strong>{{ ws.name }}</strong>
+            <mat-chip-set>
+              <mat-chip [class]="'role-' + (ws.current_user_role ?? 'VIEWER').toLowerCase()">{{ roleLabel(ws.current_user_role) }}</mat-chip>
+            </mat-chip-set>
+          </div>
+          <p class="ws-desc">{{ ws.description || 'Sin descripcion' }}</p>
+          <div class="ws-meta">
+            <span><mat-icon>person</mat-icon> {{ ws.owner_name || ws.owner }}</span>
+            <span><mat-icon>people</mat-icon> {{ ws.member_count }}</span>
+            <span><mat-icon>dashboard_customize</mat-icon> {{ ws.board_count }}</span>
+          </div>
+          <div class="ws-dates">
+            <span>Creado: {{ ws.created_at | date:'d MMM, y' }}</span>
+            <span>Actualizado: {{ ws.updated_at | date:'d MMM, y' }}</span>
+          </div>
+          <div class="ws-actions">
+            <button mat-stroked-button (click)="open(ws); $event.stopPropagation()"><mat-icon>visibility</mat-icon> Ver</button>
+            @if (ws.can_delete_workspace) {
+              <button mat-icon-button color="warn" (click)="remove(ws); $event.stopPropagation()"><mat-icon>delete</mat-icon></button>
+            }
+          </div>
+        </mat-card>
+      }
+    </div>
+  }
 }
 
-@if (loading()) {
-  <div class="center"><mat-spinner diameter="40"></mat-spinner></div>
-} @else if (workspaces().length === 0) {
-  <mat-card class="empty"><mat-icon>workspaces</mat-icon><p>No hay workspaces. Crea el primero.</p></mat-card>
-} @else {
-  <div class="ws-grid">
-    @for (ws of workspaces(); track ws.id) {
-      <mat-card class="ws-card" (click)="open(ws)">
-        <div class="ws-top">
-          <strong>{{ ws.name }}</strong>
-          <mat-chip-set><mat-chip>{{ roleLabel(ws.current_user_role) }}</mat-chip></mat-chip-set>
-        </div>
-        <p class="ws-desc">{{ ws.description || 'Sin descripción' }}</p>
-        <div class="ws-meta">
-          <span><mat-icon>people</mat-icon> {{ ws.member_count }}</span>
-          <span><mat-icon>dashboard_customize</mat-icon> {{ ws.board_count }}</span>
-        </div>
-        @if (ws.can_delete_workspace) {
-          <button mat-icon-button color="warn" class="del-btn" (click)="remove(ws); $event.stopPropagation()"><mat-icon>delete</mat-icon></button>
+<!-- Workspace detail mode -->
+@if (detailMode && selectedWs) {
+  <header class="hero">
+    <div class="hero-copy">
+      <p class="eyebrow">Workspace detalle</p>
+      <h1>{{ selectedWs.name }}</h1>
+      <p class="hero-text">{{ selectedWs.description || 'Sin descripcion' }}</p>
+      <div class="hero-actions">
+        <button mat-stroked-button (click)="backToList()"><mat-icon>arrow_back</mat-icon> Volver</button>
+        @if (selectedWs.can_manage_members) {
+          <button mat-raised-button color="primary" (click)="showAddMember = true"><mat-icon>person_add</mat-icon> Agregar miembro</button>
         }
-      </mat-card>
+        @if (selectedWs.can_delete_workspace) {
+          <button mat-stroked-button color="warn" (click)="remove(selectedWs)"><mat-icon>delete</mat-icon> Eliminar workspace</button>
+        }
+      </div>
+    </div>
+    <div class="detail-info">
+      <div class="detail-stat"><mat-icon>person</mat-icon><span>Owner: {{ selectedWs.owner_name || selectedWs.owner }}</span></div>
+      <div class="detail-stat"><mat-icon>people</mat-icon><span>{{ selectedWs.member_count }} miembros</span></div>
+      <div class="detail-stat"><mat-icon>dashboard_customize</mat-icon><span>{{ selectedWs.board_count }} tableros</span></div>
+      <div class="detail-stat"><mat-icon>badge</mat-icon><span>Tu rol: {{ roleLabel(selectedWs.current_user_role) }}</span></div>
+    </div>
+  </header>
+
+  <!-- Add member form -->
+  @if (showAddMember) {
+    <mat-card class="form-card">
+      <h3>Agregar miembro</h3>
+      <div class="member-form">
+        <mat-form-field appearance="outline" class="fw">
+          <mat-label>ID o username del usuario</mat-label>
+          <input matInput [(ngModel)]="newMemberUser">
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Rol</mat-label>
+          <mat-select [(ngModel)]="newMemberRole">
+            <mat-option value="MEMBER">Miembro</mat-option>
+            <mat-option value="MANAGER">Manager</mat-option>
+            <mat-option value="VIEWER">Viewer</mat-option>
+          </mat-select>
+        </mat-form-field>
+      </div>
+      <div class="form-actions">
+        <button mat-raised-button color="primary" [disabled]="!newMemberUser.trim()" (click)="addMember()">Agregar</button>
+        <button mat-button (click)="showAddMember = false">Cancelar</button>
+      </div>
+    </mat-card>
+  }
+
+  <!-- Members table -->
+  <section class="members-section">
+    <h3>Miembros del workspace</h3>
+    @if (membersLoading()) {
+      <div class="center"><mat-spinner diameter="36"></mat-spinner></div>
+    } @else if (members().length === 0) {
+      <p class="muted">Sin miembros registrados.</p>
+    } @else {
+      <div class="members-grid">
+        @for (m of members(); track m.id) {
+          <div class="member-card" [class.inactive]="!m.active">
+            <div class="member-avatar">{{ (m.full_name || m.username || 'U').slice(0, 2).toUpperCase() }}</div>
+            <div class="member-info">
+              <strong>{{ m.full_name || m.username || 'Usuario' }}</strong>
+              @if (m.username) { <span class="member-username">{{ m.username }}</span> }
+              <div class="member-meta">
+                <mat-chip-set>
+                  <mat-chip [class]="'role-' + m.role.toLowerCase()">{{ roleLabel(m.role) }}</mat-chip>
+                </mat-chip-set>
+                @if (!m.active) { <span class="inactive-badge">Inactivo</span> }
+              </div>
+            </div>
+            @if (selectedWs.can_manage_members) {
+              <div class="member-actions">
+                <mat-form-field appearance="outline" class="role-select">
+                  <mat-select [value]="m.role" (selectionChange)="updateMemberRole(m, $event.value)">
+                    <mat-option value="MEMBER">Miembro</mat-option>
+                    <mat-option value="MANAGER">Manager</mat-option>
+                    <mat-option value="VIEWER">Viewer</mat-option>
+                  </mat-select>
+                </mat-form-field>
+                <button mat-icon-button [color]="m.active ? 'warn' : 'primary'"
+                        (click)="toggleMemberActive(m)" [matTooltip]="m.active ? 'Desactivar' : 'Activar'">
+                  <mat-icon>{{ m.active ? 'person_off' : 'person' }}</mat-icon>
+                </button>
+              </div>
+            }
+          </div>
+        }
+      </div>
     }
-  </div>
+  </section>
 }

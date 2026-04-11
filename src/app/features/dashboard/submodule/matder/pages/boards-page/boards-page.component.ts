@@ -1,74 +1,136 @@
 import { Component, OnInit, signal, ChangeDetectionStrategy } from '@angular/core';
 import { Router } from '@angular/router';
+import { DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
+import { MatSelectModule } from '@angular/material/select';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatTooltipModule } from '@angular/material/tooltip';
+import { MatChipsModule } from '@angular/material/chips';
 import { BoardService } from '../../services/board.service';
+import { WorkspaceService } from '../../services/workspace.service';
 import { BoardResponse } from '../../models/board.models';
+import { WorkspaceResponse } from '../../models/workspace.models';
 import Swal from 'sweetalert2';
+
+const ACCENT_COLORS = [
+  '#1976d2', '#0097a7', '#388e3c', '#f57c00', '#d32f2f', '#7b1fa2', '#455a64', '#c2185b',
+];
 
 @Component({
   selector: 'app-boards-page',
   standalone: true,
-  imports: [FormsModule, MatCardModule, MatButtonModule, MatIconModule, MatFormFieldModule, MatInputModule, MatProgressSpinnerModule, MatTooltipModule],
-  template: `
-    <div class="header"><h2>Tableros</h2>
-      <mat-form-field appearance="outline" class="search"><mat-label>Buscar</mat-label><input matInput [(ngModel)]="search"><mat-icon matSuffix>search</mat-icon></mat-form-field>
-    </div>
-    @if (loading()) { <div class="center"><mat-spinner diameter="40"></mat-spinner></div> }
-    @else if (filtered.length === 0) { <div class="empty"><mat-icon>dashboard_customize</mat-icon><p>No hay tableros.</p></div> }
-    @else {
-      <div class="grid">
-        @for (b of filtered; track b.id) {
-          <mat-card class="bcard" [style.border-top]="'4px solid ' + b.accent" (click)="open(b.id)">
-            <strong>{{ b.name }}</strong>
-            <span class="ws">{{ b.workspace_name }}</span>
-            <p class="desc">{{ b.description || 'Sin descripción' }}</p>
-            @if (b.can_manage_content) {
-              <button mat-icon-button color="warn" class="del" (click)="del($event, b)" matTooltip="Eliminar"><mat-icon>delete</mat-icon></button>
-            }
-          </mat-card>
-        }
-      </div>
-    }
-  `,
-  styles: [`
-    .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 12px; }
-    .header h2 { margin: 0; font-weight: 500; } .search { width: 240px; }
-    .center { display: flex; justify-content: center; padding: 48px; }
-    .empty { text-align: center; padding: 48px; } .empty mat-icon { font-size: 48px; width: 48px; height: 48px; color: #9e9e9e; }
-    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }
-    .bcard { padding: 20px; cursor: pointer; position: relative; } .bcard:hover { box-shadow: 0 4px 16px rgba(0,0,0,.12); }
-    .ws { display: block; font-size: .75rem; color: rgba(0,0,0,.45); margin: 2px 0 8px; }
-    .desc { font-size: .85rem; color: rgba(0,0,0,.54); margin: 0; }
-    .del { position: absolute; top: 8px; right: 8px; }
-  `],
+  imports: [
+    DatePipe, FormsModule, MatCardModule, MatButtonModule, MatIconModule,
+    MatFormFieldModule, MatInputModule, MatSelectModule, MatProgressSpinnerModule,
+    MatTooltipModule, MatChipsModule,
+  ],
+  templateUrl: './boards-page.component.html',
+  styleUrls: ['./boards-page.component.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class BoardsPageComponent implements OnInit {
   boards = signal<BoardResponse[]>([]);
+  workspaces = signal<WorkspaceResponse[]>([]);
   loading = signal(true);
   search = '';
+  wsFilter: number | null = null;
 
-  constructor(private boardService: BoardService, private router: Router) {}
-  async ngOnInit(): Promise<void> { this.loading.set(true); try { this.boards.set(await this.boardService.listBoards()); } catch {} finally { this.loading.set(false); } }
+  // Create board
+  showForm = signal(false);
+  formName = '';
+  formDesc = '';
+  formWs: number | null = null;
+  formAccent = '#1976d2';
+  accentColors = ACCENT_COLORS;
+  saving = false;
 
-  get filtered(): BoardResponse[] {
-    const t = this.search.toLowerCase();
-    if (!t) return this.boards();
-    return this.boards().filter(b => b.name.toLowerCase().includes(t) || (b.description ?? '').toLowerCase().includes(t) || b.workspace_name.toLowerCase().includes(t));
+  constructor(
+    private boardService: BoardService,
+    private wsService: WorkspaceService,
+    private router: Router,
+  ) {}
+
+  async ngOnInit(): Promise<void> {
+    this.loading.set(true);
+    try {
+      const [boards, wss] = await Promise.all([
+        this.boardService.listBoards(),
+        this.wsService.list(),
+      ]);
+      this.boards.set(boards);
+      this.workspaces.set(wss);
+      if (wss.length) this.formWs = wss[0].id;
+    } catch { /* empty */ }
+    finally { this.loading.set(false); }
   }
 
-  open(id: number): void { this.router.navigate([`/dashboard/matder/boards/${id}`]); }
+  get filtered(): BoardResponse[] {
+    let result = this.boards();
+    if (this.search) {
+      const q = this.search.toLowerCase();
+      result = result.filter(b =>
+        b.name.toLowerCase().includes(q) ||
+        (b.description ?? '').toLowerCase().includes(q) ||
+        b.workspace_name.toLowerCase().includes(q)
+      );
+    }
+    if (this.wsFilter) {
+      result = result.filter(b => b.workspace === this.wsFilter);
+    }
+    return result;
+  }
+
+  open(id: number): void {
+    this.router.navigate([`/dashboard/matder/boards/${id}`]);
+  }
+
+  async create(): Promise<void> {
+    if (!this.formName.trim() || !this.formWs || this.saving) return;
+    this.saving = true;
+    try {
+      await this.boardService.createBoard({
+        workspace: this.formWs,
+        name: this.formName.trim(),
+        description: this.formDesc.trim() || undefined,
+        accent: this.formAccent,
+      });
+      this.formName = '';
+      this.formDesc = '';
+      this.showForm.set(false);
+      this.boards.set(await this.boardService.listBoards());
+      Swal.fire('Creado', 'Tablero creado exitosamente.', 'success');
+    } catch {
+      Swal.fire('Error', 'No se pudo crear el tablero.', 'error');
+    } finally {
+      this.saving = false;
+    }
+  }
 
   async del(e: Event, b: BoardResponse): Promise<void> {
     e.stopPropagation();
-    const c = await Swal.fire({ title: `¿Eliminar "${b.name}"?`, icon: 'warning', showCancelButton: true, confirmButtonText: 'Eliminar' });
-    if (c.isConfirmed) { try { await this.boardService.deleteBoard(b.id); this.boards.set(this.boards().filter(x => x.id !== b.id)); } catch {} }
+    const c = await Swal.fire({
+      title: `Eliminar "${b.name}"?`,
+      text: 'Se eliminaran todas las listas y tareas.',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'Eliminar',
+    });
+    if (c.isConfirmed) {
+      try {
+        await this.boardService.deleteBoard(b.id);
+        this.boards.set(this.boards().filter(x => x.id !== b.id));
+      } catch {
+        Swal.fire('Error', 'No se pudo eliminar.', 'error');
+      }
+    }
+  }
+
+  nav(path: string): void {
+    this.router.navigate([`/dashboard/matder/${path}`]);
   }
 }
