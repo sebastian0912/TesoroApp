@@ -1,7 +1,7 @@
 import { SharedModule } from '@/app/shared/shared.module';
 import { isPlatformBrowser } from '@angular/common';
 import {  Component, inject, OnInit, PLATFORM_ID, ViewChild, ElementRef , ChangeDetectionStrategy } from '@angular/core';
-import { PDFDocument, PDFTextField, PDFCheckBox } from 'pdf-lib';
+import { PDFDocument, PDFTextField, PDFCheckBox, StandardFonts, rgb, degrees } from 'pdf-lib';
 import Swal from 'sweetalert2';
 import { GestionDocumentalService } from '../../service/gestion-documental/gestion-documental.service';
 import { HiringService } from '../../service/hiring.service';
@@ -114,6 +114,13 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     { titulo: 'PRUEBA LECTRO ESCRITURA' },
     { titulo: 'VISITA DOMICILIARIA' },
     { titulo: 'PRUEBA SST' },
+    { titulo: 'AUTORIZACION INGRESO' },
+    { titulo: 'BONIFICACION IPANEMA' },
+    { titulo: 'PRUEBA PSICOTECNICA' },
+    { titulo: 'CERTIFICADOS ESTUDIOS' },
+    { titulo: 'SST' },
+    { titulo: 'OTRAS PRUEBAS' },
+    { titulo: 'Hoja de Vida Minerva' },
     { titulo: '108 SAGARO_LOCKERS' },
     { titulo: '109 SAGARO_IMAGEN' },
     { titulo: '110 SAGARO_CELULAR' }
@@ -181,6 +188,13 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     'Inducción capacitación': 96,
     'Formato solicitud': 97,
     'PRUEBAS PSICOLOGICAS': 19,
+    'AUTORIZACION INGRESO': 112,
+    'BONIFICACION IPANEMA': 113,
+    'PRUEBA PSICOTECNICA': 114,
+    'CERTIFICADOS ESTUDIOS': 101,
+    SST: 91,
+    'OTRAS PRUEBAS': 115,
+    'Hoja de Vida Minerva': 28,
     'PRUEBA LECTRO ESCRITURA': 20,
     'VISITA DOMICILIARIA': 41,
     'PRUEBA SST': 24,
@@ -327,7 +341,9 @@ export class GenerateContractingDocumentsComponent implements OnInit {
   isSubirPDF(doc: any): boolean {
     return [
       'Cedula', 'ARL', 'Figura Humana', 'EPS', 'CAJA', 'PAGO SEGURIDAD SOCIAL',
-      'PRUEBAS PSICOLOGICAS', 'PRUEBA LECTRO ESCRITURA', 'VISITA DOMICILIARIA', 'PRUEBA SST'
+      'PRUEBAS PSICOLOGICAS', 'PRUEBA LECTRO ESCRITURA', 'VISITA DOMICILIARIA', 'PRUEBA SST',
+      'AUTORIZACION INGRESO', 'BONIFICACION IPANEMA', 'PRUEBA PSICOTECNICA',
+      'CERTIFICADOS ESTUDIOS', 'SST', 'OTRAS PRUEBAS'
     ].includes(doc.titulo);
   }
 
@@ -347,11 +363,50 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       return;
     }
 
+    // Validar que el PDF no esté protegido con contraseña
+    if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
+      this.checkPdfProtected(file).then(isProtected => {
+        if (isProtected) {
+          Swal.fire({
+            icon: 'error',
+            title: 'PDF protegido',
+            html: 'Este PDF está <b>protegido con contraseña</b>. No se puede subir.<br><br>Quite la contraseña del archivo y vuelva a intentarlo.',
+          });
+          this.resetInput(input);
+          return;
+        }
+        this.setFileInQueue(file, campo, input);
+      });
+      return;
+    }
+
+    this.setFileInQueue(file, campo, input);
+  }
+
+  /** Verifica si un PDF está protegido con contraseña leyendo sus bytes */
+  private async checkPdfProtected(file: File): Promise<boolean> {
+    try {
+      const buffer = await file.arrayBuffer();
+      const header = new Uint8Array(buffer, 0, Math.min(buffer.byteLength, 4096));
+      const text = new TextDecoder('latin1').decode(header);
+      if (text.includes('/Encrypt')) return true;
+
+      try {
+        await PDFDocument.load(buffer, { ignoreEncryption: false });
+        return false;
+      } catch {
+        return true;
+      }
+    } catch {
+      return false;
+    }
+  }
+
+  private setFileInQueue(file: File, campo: string, input?: HTMLInputElement) {
     // Revocar URL anterior si existía (evitar memory leaks)
     const prev = this.uploadedFiles[campo]?.previewUrl;
     if (prev) {
       try { URL.revokeObjectURL(prev); } catch { }
-
     }
 
     // Guardar archivo y URL de previsualización
@@ -368,7 +423,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     }
 
     // Permitir volver a seleccionar el mismo archivo
-    this.resetInput(input);
+    if (input) this.resetInput(input);
   }
 
   private setPdfPreview(url: string) {
@@ -529,6 +584,11 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       this.generarAutorizacionDanosPerdidas();
       return;
     }
+    // Hoja de Vida Minerva no depende de la empresa
+    if (documento === 'Hoja de Vida Minerva') {
+      this.generarHojaDeVidaMinerva();
+      return;
+    }
 
     if (!this.empresa || this.empresa.trim() === '') {
       Swal.fire('Atención', 'Selecciona el candidato, la empresa no está definida.', 'warning');
@@ -631,6 +691,195 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     } else {
       Swal.fire('Error', 'Funcionalidad de PDF no implementada para: ' + documento, 'error');
     }
+  }
+
+  // --- Hoja de Vida Minerva ---
+  async generarHojaDeVidaMinerva() {
+    const cand = this.candidato;
+    if (!cand?.numero_documento) {
+      Swal.fire('Error', 'No se encontró el candidato. Seleccione uno primero.', 'error');
+      return;
+    }
+
+    try {
+      const pdfUrl = 'Docs/minerva.pdf';
+      const resp = await fetch(pdfUrl);
+      if (!resp.ok) {
+        Swal.fire('Error', 'No se encontró el formato minerva.pdf en el servidor.', 'error');
+        return;
+      }
+      const arrayBuffer = await resp.arrayBuffer();
+      const pdfDoc = await PDFDocument.load(arrayBuffer);
+
+      pdfDoc.registerFontkit(fontkit as unknown as any);
+      const fontBytes = await fetch('fonts/Roboto-Regular.ttf').then(r => r.arrayBuffer());
+      const customFont = await pdfDoc.embedFont(fontBytes);
+      const form = pdfDoc.getForm();
+
+      // Helpers
+      const s = (v: any) => String(v ?? '').trim();
+      const setField = (name: string, value: string) => {
+        try {
+          const field = form.getTextField(name);
+          field.setText(value);
+          field.updateAppearances(customFont);
+        } catch { /* campo no encontrado en el template */ }
+      };
+      const checkField = (name: string) => {
+        try { form.getCheckBox(name).check(); } catch { }
+      };
+
+      // Fecha actual
+      const now = new Date();
+      setField('topmostSubform[0].Page1[0].CampoTexto2[0]', now.getDate().toString());
+      setField('topmostSubform[0].Page1[0].CampoTexto2[1]', (now.getMonth() + 1).toString());
+      setField('topmostSubform[0].Page1[0].CampoTexto2[2]', now.getFullYear().toString());
+
+      // Título
+      setField('topmostSubform[0].Page1[0].CampoTexto1[0]', 'HOJA DE VIDA');
+
+      // Nombres y apellidos
+      const apellidos = [s(cand.primer_apellido), s(cand.segundo_apellido)].filter(Boolean).join(' ').normalize('NFC');
+      const nombres = [s(cand.primer_nombre), s(cand.segundo_nombre)].filter(Boolean).join(' ').normalize('NFC');
+      setField('topmostSubform[0].Page1[0].CampoTexto2[5]', apellidos);
+      setField('topmostSubform[0].Page1[0].CampoTexto2[6]', nombres);
+
+      // Nacionalidad
+      setField('topmostSubform[0].Page1[0].CampoTexto2[12]', 'Colombiana');
+
+      // Dirección, ciudad, celular, correo
+      setField('topmostSubform[0].Page1[0].CampoTexto2[7]', s(cand.residencia?.direccion || cand.direccion_de_residencia));
+      setField('topmostSubform[0].Page1[0].CampoTexto2[8]', s(cand.residencia?.municipio || cand.ciudad));
+      setField('topmostSubform[0].Page1[0].CampoTexto2[9]', s(cand.contacto?.celular || cand.celular));
+      setField('topmostSubform[0].Page1[0].CampoTexto2[10]', s(cand.contacto?.celular || cand.celular));
+      setField('topmostSubform[0].Page1[0].CampoTexto2[11]', s(cand.contacto?.email || cand.correo_electronico));
+
+      // Cédula
+      setField('topmostSubform[0].Page1[0].CampoTexto2[3]', s(cand.numero_documento));
+
+      // Tipo doc checkboxes
+      if (cand.tipo_doc === 'CC') checkField('topmostSubform[0].Page1[0].CasillaVerificaci\u00f3n1[0]');
+      if (cand.tipo_doc === 'CE') checkField('topmostSubform[0].Page1[0].CasillaVerificaci\u00f3n1[1]');
+
+      // Municipio expedición
+      setField('topmostSubform[0].Page1[0].CampoTexto2[4]', s(cand.info_cc?.mpio_expedicion));
+
+      // Estado civil
+      setField('topmostSubform[0].Page1[0].CampoTexto2[13]', s(cand.estado_civil));
+
+      // Fuente vacante
+      const comoSeEntero = cand.entrevistas?.[0]?.como_se_entero || '';
+      if (s(comoSeEntero).toUpperCase().includes('PERIÓDICO') || s(comoSeEntero).toUpperCase().includes('PERIODICO')) {
+        checkField('topmostSubform[0].Page1[0].CasillaVerificaci\u00f3n2[0]');
+      }
+
+      // Cónyuge
+      const conyugeNombre = [s(cand.conyugue?.nombres), s(cand.conyugue?.apellidos)].filter(Boolean).join(' ');
+      setField('topmostSubform[0].Page1[0].CampoTexto3[0]', conyugeNombre.normalize('NFC'));
+      setField('topmostSubform[0].Page1[0].CampoTexto3[1]', s(cand.conyugue?.ocupacion));
+      setField('topmostSubform[0].Page1[0].CampoTexto3[2]', s(cand.conyugue?.direccion));
+      setField('topmostSubform[0].Page1[0].CampoTexto3[3]', s(cand.conyugue?.telefono));
+
+      // Padre
+      setField('topmostSubform[0].Page1[0].CampoTexto3[4]', s(cand.padre?.nombre));
+      setField('topmostSubform[0].Page1[0].CampoTexto3[5]', s(cand.padre?.ocupacion));
+      setField('topmostSubform[0].Page1[0].CampoTexto3[6]', s(cand.padre?.telefono));
+
+      // Madre
+      setField('topmostSubform[0].Page1[0].CampoTexto3[7]', s(cand.madre?.nombre));
+      setField('topmostSubform[0].Page1[0].CampoTexto3[8]', s(cand.madre?.ocupacion));
+      setField('topmostSubform[0].Page1[0].CampoTexto3[9]', s(cand.madre?.telefono));
+
+      // Hermanos
+      const hermanos = Array.isArray(cand.hermanos) ? cand.hermanos : [];
+      hermanos.forEach((h: any, i: number) => {
+        if (i > 2) return; // Max 3 hermanos en el template
+        try {
+          setField(`topmostSubform[0].Page1[0].CampoTexto3[${10 + i * 3}]`, s(h.nombre));
+          setField(`topmostSubform[0].Page1[0].CampoTexto3[${11 + i * 3}]`, s(h.profesion));
+          setField(`topmostSubform[0].Page1[0].CampoTexto3[${12 + i * 3}]`, s(h.telefono));
+        } catch { }
+      });
+
+      // Experiencia laboral
+      const exp = Array.isArray(cand.experiencias) ? cand.experiencias[0] : null;
+      if (exp) {
+        setField('topmostSubform[0].Page2[0].CampoTexto5[0]', s(exp.empresa));
+        setField('topmostSubform[0].Page2[0].CampoTexto5[1]', s(exp.direccion));
+        setField('topmostSubform[0].Page2[0].CampoTexto5[2]', s(exp.telefono || exp.telefonos));
+        setField('topmostSubform[0].Page2[0].CampoTexto5[4]', s(exp.cargo));
+        setField('topmostSubform[0].Page2[0].CampoTexto5[5]', s(exp.nombre_jefe));
+      }
+
+      // Referencias personales
+      const refs = Array.isArray(cand.referencias) ? cand.referencias : [];
+      const refP1 = refs.find((r: any) => r.tipo === 'PERSONAL1');
+      const refP2 = refs.find((r: any) => r.tipo === 'PERSONAL2');
+      const refF1 = refs.find((r: any) => r.tipo === 'FAMILIAR1');
+
+      if (refP1) {
+        setField('topmostSubform[0].Page2[0].CampoTexto6[0]', s(refP1.nombre));
+        setField('topmostSubform[0].Page2[0].CampoTexto6[1]', s(refP1.telefono));
+        setField('topmostSubform[0].Page2[0].CampoTexto6[2]', s(refP1.ocupacion));
+        setField('topmostSubform[0].Page2[0].CampoTexto6[3]', s(refP1.direccion));
+      }
+      if (refP2) {
+        setField('topmostSubform[0].Page2[0].CampoTexto6[4]', s(refP2.nombre));
+        setField('topmostSubform[0].Page2[0].CampoTexto6[5]', s(refP2.telefono));
+        setField('topmostSubform[0].Page2[0].CampoTexto6[6]', s(refP2.ocupacion));
+        setField('topmostSubform[0].Page2[0].CampoTexto6[7]', s(refP2.direccion));
+      }
+      if (refF1) {
+        setField('topmostSubform[0].Page2[0].CampoTexto6[8]', s(refF1.nombre));
+        setField('topmostSubform[0].Page2[0].CampoTexto6[9]', s(refF1.telefono));
+        setField('topmostSubform[0].Page2[0].CampoTexto6[10]', s(refF1.ocupacion));
+        setField('topmostSubform[0].Page2[0].CampoTexto6[11]', s(refF1.direccion));
+      }
+
+      // Bloquear campos
+      form.getFields().forEach(f => f.enableReadOnly());
+
+      // Guardar y agregar marca de agua
+      const pdfBytes = await pdfDoc.save();
+      const watermarkedBytes = await this.addWatermarkHV(pdfBytes as unknown as Uint8Array);
+
+      // Crear File para subir
+      const normalizeText = (t: string) => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase();
+      const fileName = `Minerva-${normalizeText(s(cand.primer_apellido))}-${normalizeText(s(cand.primer_nombre))}.pdf`;
+      const blob = new Blob([watermarkedBytes as BlobPart], { type: 'application/pdf' });
+      const file = new File([blob], fileName, { type: 'application/pdf' });
+
+      // Guardar en uploadedFiles para subir con cargarpdf()
+      this.uploadedFiles['Hoja de Vida Minerva'] = { file, fileName };
+
+      // Preview
+      const blobUrl = URL.createObjectURL(blob);
+      this.setPdfPreview(blobUrl);
+
+      Swal.fire({ icon: 'success', title: 'Hoja de Vida generada', text: 'Se generó y está lista para subir.', timer: 2000, showConfirmButton: false });
+    } catch (error) {
+      console.error('Error generando Hoja de Vida Minerva:', error);
+      Swal.fire({ icon: 'error', title: 'Error', text: 'Ocurrió un error al generar la Hoja de Vida.' });
+    }
+  }
+
+  /** Agrega marca de agua "TUAPO HV GENERADA" al PDF */
+  private async addWatermarkHV(pdfBytes: Uint8Array): Promise<Uint8Array> {
+    const pdfDoc = await PDFDocument.load(pdfBytes);
+    const helveticaFont = await pdfDoc.embedFont(StandardFonts.Helvetica);
+    for (const page of pdfDoc.getPages()) {
+      const { width, height } = page.getSize();
+      page.drawText('TUAPO HV GENERADA', {
+        x: width / 2 - 230,
+        y: height / 2 - 250,
+        size: 62,
+        font: helveticaFont,
+        color: rgb(152 / 255, 227 / 255, 57 / 255),
+        opacity: 0.2,
+        rotate: degrees(45),
+      });
+    }
+    return await pdfDoc.save();
   }
 
   // --- Entrevista de Ingreso ---
@@ -7892,40 +8141,67 @@ export class GenerateContractingDocumentsComponent implements OnInit {
 
   async guardarBatch() {
     this.guardandoBatch = true;
-    let success = 0;
-    let failed = 0;
 
     const items = this.batchCedulas.filter(x => x.status === 'Done' && !x.guardado && x.file);
     if (items.length === 0) {
-      Swal.fire('Info', 'No hay contratos nuevos para guardar', 'info');
+      Swal.fire('Info', 'No hay contratos nuevos para guardar.', 'info');
       this.guardandoBatch = false;
       return;
     }
 
     Swal.fire({
       title: 'Guardando...',
-      text: 'Subiendo los contratos generados al sistema.',
+      html: `Subiendo contratos al sistema... <b>0/${items.length}</b>`,
       allowOutsideClick: false,
       didOpen: () => Swal.showLoading()
     });
 
-    const typeId = this.typeMap['Contrato'] || 25; 
+    const typeId = this.typeMap['Contrato'] || 25;
+    let success = 0;
+    const fallidos: { cedula: string; error: string }[] = [];
 
-    for (let item of items) {
+    for (const item of items) {
       try {
         await firstValueFrom(this.gestionDocumentalService.guardarDocumento(
           item.file.name, item.cedula, typeId, item.file, this.codigoContratacion
-        ).pipe(catchError((err) => throwError(() => err))));
+        ));
         item.guardado = true;
         success++;
-      } catch (e) {
-        failed++;
+      } catch (e: any) {
+        const reason = e?.error?.detail || e?.error?.message || e?.message || 'Error desconocido';
+        fallidos.push({ cedula: item.cedula, error: reason });
+        console.error(`[guardarBatch] Error subiendo contrato de ${item.cedula}:`, e);
       }
+
+      // Actualizar progreso
+      const total = success + fallidos.length;
+      Swal.update({ html: `Subiendo contratos al sistema... <b>${total}/${items.length}</b>` });
     }
-    
+
     Swal.close();
     this.guardandoBatch = false;
-    Swal.fire('Carga Finalizada', `Se subieron correctamente: ${success}.<br>Fallaron: ${failed}.`, failed > 0 ? 'warning' : 'success');
+
+    if (fallidos.length === 0) {
+      Swal.fire({
+        icon: 'success',
+        title: '¡Carga exitosa!',
+        html: `Se subieron correctamente <b>${success}</b> contratos.`
+      });
+    } else {
+      const errorList = fallidos
+        .map(f => `<li><b>${f.cedula}</b>: ${f.error}</li>`)
+        .join('');
+      Swal.fire({
+        icon: 'warning',
+        title: 'Carga finalizada con errores',
+        html: `<p>Subidos: <b>${success}</b> | Fallidos: <b>${fallidos.length}</b></p>
+               <div style="text-align:left;max-height:200px;overflow-y:auto;font-size:13px;margin-top:10px;">
+                 <ul style="padding-left:20px;">${errorList}</ul>
+               </div>
+               <p style="font-size:12px;color:#888;margin-top:10px;">Puede intentar subir los fallidos nuevamente.</p>`,
+        width: '500px'
+      });
+    }
   }
 
   async generarContratoCompletoTrabajoTuAlianza(isBatch: boolean = false) {

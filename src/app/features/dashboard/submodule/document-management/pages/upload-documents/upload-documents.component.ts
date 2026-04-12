@@ -142,7 +142,10 @@ export class UploadDocumentsComponent implements OnInit, OnDestroy {
           this.gruposHojas.forEach((g) => g.hijos.forEach((h) => (this.hojasPorId[h.id] = h)));
           this.cdr.markForCheck();
         },
-        error: () => Swal.fire('Error', 'No se pudo cargar la jerarquía de documentos.', 'error')
+        error: (err: any) => {
+          console.error('[upload] Error cargando jerarquía:', err);
+          Swal.fire('Error', 'No se pudo cargar los tipos de documentos disponibles. Recargue la página o contacte a soporte.', 'error');
+        }
       });
   }
 
@@ -408,10 +411,18 @@ export class UploadDocumentsComponent implements OnInit, OnDestroy {
     const success = this.fileQueue.filter(f => f.status === 'success');
 
     if (errors.length > 0) {
+      const errorList = errors
+        .map(e => `<li><b>${e.name}</b>: ${e.errorMessage || 'Error desconocido'}</li>`)
+        .join('');
       Swal.fire({
         title: 'Carga finalizada con errores',
-        text: `Subidos: ${success.length}. Fallidos: ${errors.length}. Revisa la lista.`,
-        icon: 'warning'
+        html: `<p>Subidos correctamente: <b>${success.length}</b><br>Fallidos: <b>${errors.length}</b></p>
+               <div style="text-align:left;max-height:200px;overflow-y:auto;font-size:13px;margin-top:10px;">
+                 <ul style="padding-left:20px;">${errorList}</ul>
+               </div>
+               <p style="font-size:12px;color:#888;margin-top:10px;">Puede corregir los archivos con error e intentar subirlos de nuevo.</p>`,
+        icon: 'warning',
+        confirmButtonColor: '#3085d6'
       });
     } else {
       Swal.fire({
@@ -449,9 +460,28 @@ export class UploadDocumentsComponent implements OnInit, OnDestroy {
       item.status = 'success';
       item.progress = 100;
     } catch (err: any) {
-      console.error(err);
+      console.error(`[upload] Error subiendo "${item.name}":`, err);
       item.status = 'error';
-      item.errorMessage = 'Error en servidor';
+
+      // Extraer mensaje legible del error
+      const body = err?.error;
+      if (body?.detail) {
+        item.errorMessage = body.detail;
+      } else if (body?.message) {
+        item.errorMessage = body.message;
+      } else if (typeof body === 'string') {
+        item.errorMessage = body;
+      } else if (err?.status === 0 || err?.status === 504) {
+        item.errorMessage = 'Sin conexión al servidor';
+      } else if (err?.status === 413) {
+        item.errorMessage = 'Archivo demasiado grande para el servidor';
+      } else if (err?.status === 415) {
+        item.errorMessage = 'Formato de archivo no soportado';
+      } else if (err?.status >= 500) {
+        item.errorMessage = `Error interno del servidor (${err.status})`;
+      } else {
+        item.errorMessage = `Error ${err?.status || 'desconocido'}`;
+      }
     }
     this.cdr.markForCheck();
   }
@@ -508,17 +538,60 @@ export class UploadDocumentsComponent implements OnInit, OnDestroy {
   }
 
   processZip(file: File, payload: { default_contract: string, contract_from_filename: boolean }) {
-    Swal.fire({ title: 'Subiendo ZIP...', didOpen: () => Swal.showLoading() });
+    Swal.fire({ title: 'Subiendo ZIP...', text: 'Esto puede tomar unos segundos...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
 
     this.docSrv.bulkZipUpload(file, payload)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: (res) => {
+        next: (res: any) => {
           Swal.close();
-          const msg = `Procesados: ${res.processed} | Errores: ${res.errors}`;
-          Swal.fire(res.errors > 0 ? 'Completado con Alertas' : 'Éxito', msg, res.errors > 0 ? 'warning' : 'success');
+
+          const items: any[] = res?.items || [];
+          const created = items.filter((i: any) => i.status === 'created');
+          const errored = items.filter((i: any) => i.status === 'error');
+          const skipped = items.filter((i: any) => i.status === 'skipped');
+
+          if (errored.length === 0 && skipped.length === 0) {
+            Swal.fire({
+              icon: 'success',
+              title: '¡Carga masiva exitosa!',
+              html: `Se procesaron <b>${res.processed || 0}</b> archivos.<br>Creados correctamente: <b>${created.length}</b>.`,
+              confirmButtonColor: '#3085d6'
+            });
+            return;
+          }
+
+          // Construir detalle de errores y omitidos
+          let detail = '';
+          if (errored.length > 0) {
+            const errorList = errored.map((i: any) => `<li><b>${i.path || 'Archivo'}</b>: ${i.reason || 'Error desconocido'}</li>`).join('');
+            detail += `<div style="text-align:left;margin-top:10px;"><b style="color:#d32f2f;">Errores (${errored.length}):</b><ul style="font-size:13px;max-height:150px;overflow-y:auto;padding-left:20px;">${errorList}</ul></div>`;
+          }
+          if (skipped.length > 0) {
+            const skipList = skipped.map((i: any) => `<li><b>${i.path || 'Archivo'}</b>: ${i.reason || 'Omitido'}</li>`).join('');
+            detail += `<div style="text-align:left;margin-top:10px;"><b style="color:#f59e0b;">Omitidos (${skipped.length}):</b><ul style="font-size:13px;max-height:150px;overflow-y:auto;padding-left:20px;">${skipList}</ul></div>`;
+          }
+
+          Swal.fire({
+            icon: errored.length > 0 ? 'warning' : 'info',
+            title: errored.length > 0 ? 'Carga completada con errores' : 'Carga completada con archivos omitidos',
+            html: `<p>Procesados: <b>${res.processed || 0}</b> | Creados: <b>${created.length}</b> | Errores: <b>${errored.length}</b> | Omitidos: <b>${skipped.length}</b></p>${detail}`,
+            confirmButtonColor: '#3085d6',
+            width: '600px'
+          });
         },
-        error: () => Swal.fire('Error', 'Fallo en la subida del ZIP', 'error')
+        error: (err: any) => {
+          console.error('[ZIP upload] Error:', err);
+          const detail = err?.error?.detail || err?.message || '';
+          Swal.fire({
+            icon: 'error',
+            title: 'Error en carga masiva',
+            html: detail
+              ? `<p>${detail}</p>`
+              : '<p>No se pudo procesar el archivo ZIP. Verifique que el archivo no esté corrupto y que su conexión a internet esté estable.</p>',
+            confirmButtonColor: '#3085d6'
+          });
+        }
       });
   }
 

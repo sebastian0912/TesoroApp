@@ -339,7 +339,7 @@
                           </a>
                         } @else {
                           @switch (col.type) {
-                            @case ('date') { {{ row[col.name] | date:'medium' }} }
+                            @case ('date') { {{ row[col.name] | date:'dd/MM/yyyy' }} }
                               @case ('status') {
                                 <span class="sf-status-badge" [style.color]="getStatusStyles(col.name, row[col.name]).color"
                                   [style.backgroundColor]="getStatusStyles(col.name, row[col.name]).background">
@@ -420,7 +420,7 @@
                                   }
                                 } @else {
                                   @switch (col.type) {
-                                    @case ('date') { {{ row[col.name] | date:'medium' }} }
+                                    @case ('date') { {{ row[col.name] | date:'dd/MM/yyyy' }} }
                                       @case ('status') {
                                         <span class="sf-status-badge" [style.color]="getStatusStyles(col.name, row[col.name]).color"
                                           [style.backgroundColor]="getStatusStyles(col.name, row[col.name]).background">

@@ -342,9 +342,13 @@ export class ConsultContractingDocumentationComponent implements OnInit {
       
       // Liberar memoria luego de un rato
       setTimeout(() => URL.revokeObjectURL(finalUrl), 10000);
-    } catch(err) {
-      console.error(err);
-      Swal.fire({ icon: 'error', title: 'Error', text: 'Falló la generacion del PDF combinado.' });
+    } catch(err: any) {
+      console.error('[consult-docs] Error generando PDF combinado:', err);
+      Swal.fire({
+        icon: 'error',
+        title: 'Error al combinar PDFs',
+        text: err?.message || 'No se pudo generar el PDF combinado. Algunos archivos podrían estar corruptos o inaccesibles.',
+      });
     }
   }
 
@@ -562,12 +566,26 @@ export class ConsultContractingDocumentationComponent implements OnInit {
         }
       }, 1500);
 
-    } catch (e) {
+    } catch (e: any) {
       this.isLoadingChecklist = false;
+      this.cdr.markForCheck();
       if (token !== this.requestToken) return;
-      console.error(e);
+      console.error('[consult-docs] Error consultando checklist:', e);
       if (Swal.isVisible()) Swal.close();
-      Swal.fire({ icon: 'error', title: 'Error', text: 'Ocurrió un problema consultando datos.' });
+
+      let msg = 'Ocurrió un problema consultando datos.';
+      if (e?.name === 'AbortError') {
+        return; // Cancelado por el usuario (nueva consulta), no mostrar error
+      } else if (e?.status === 0 || e?.status === 504) {
+        msg = 'No se pudo conectar con el servidor. Verifique su conexión a internet.';
+      } else if (e?.status === 413) {
+        msg = 'Se enviaron demasiadas cédulas. Intente con un lote más pequeño.';
+      } else if (e?.status >= 500) {
+        msg = `Error interno del servidor (${e.status}). Intente de nuevo o contacte a soporte.`;
+      } else if (e?.error?.detail) {
+        msg = e.error.detail;
+      }
+      Swal.fire({ icon: 'error', title: 'Error', text: msg });
     }
   }
 
@@ -784,7 +802,17 @@ export class ConsultContractingDocumentationComponent implements OnInit {
           document.body.removeChild(a);
           window.URL.revokeObjectURL(url);
         },
-        error: () => Swal.fire({ icon: 'error', title: 'Error', text: 'No se pudo descargar el archivo.' }),
+        error: (err: any) => {
+          console.error('[consult-docs] Error descargando ZIP:', err);
+          const detail = err?.error?.detail || err?.message || '';
+          Swal.fire({
+            icon: 'error',
+            title: 'Error al descargar',
+            text: detail
+              ? `No se pudo generar el archivo: ${detail}`
+              : 'No se pudo descargar el archivo. Verifique su conexión e intente de nuevo.',
+          });
+        },
       });
   }
 

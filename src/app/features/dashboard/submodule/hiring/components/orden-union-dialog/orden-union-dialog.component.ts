@@ -10,6 +10,56 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 
 type Item = { id: number; name: string };
 
+/** Orden por defecto para el paquete de documentos de contratación */
+const DEFAULT_ORDER: number[] = [
+  34,   // FICHA_TECNICA
+  29,   // CEDULA
+  6,    // POLICIVOS
+  3,    // PROCURADURIA
+  4,    // CONTRALORIA
+  5,    // OFAC
+  103,  // ENTREVISTA_INGRESO
+  32,   // EXAMENES_MEDICOS
+  107,  // COLINESTERASA
+  112,  // AUTORIZACION_INGRESO
+  25,   // CONTRATO
+  104,  // CONTRATOS_OTROS_SI
+  30,   // ARL
+  27,   // ENTREGA_DE_DOCUMENTOS
+  113,  // BONIFICACION_IPANEMA
+  114,  // PRUEBA_PSICOTECNICA
+  7,    // ADRES
+  11,   // AFP
+  28,   // HOJA_DE_VIDA_M
+  16,   // REFERENCIA_PERSONAL
+  17,   // REFERENCIA_FAMILIAR
+  86,   // REFERENCIA_LABORAL
+  101,  // CERTIFICADOS_ESTUDIOS
+  20,   // PRUEBA_LECTRO_ESCRITURA
+  31,   // FIGURA_HUMANA
+  91,   // SST
+  115,  // OTRAS_PRUEBAS
+  36,   // EPS
+  37,   // CAJA
+  38,   // PAGO_SEGURIDAD_SOCIAL
+];
+
+/** Paquete por finca (solo documentos esenciales por finca) */
+const FINCA_ORDER: number[] = [
+  34,   // FICHA_TECNICA
+  29,   // CEDULA
+  6,    // POLICIVOS
+  3,    // PROCURADURIA
+  4,    // CONTRALORIA
+  5,    // OFAC
+  103,  // ENTREVISTA_INGRESO
+  32,   // EXAMENES_MEDICOS
+  107,  // COLINESTERASA
+  25,   // CONTRATO
+  104,  // CONTRATOS_OTROS_SI
+  30,   // ARL
+];
+
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-orden-union-dialog',
@@ -41,7 +91,18 @@ export class OrdenUnionDialogComponent {
     public dialogRef: MatDialogRef<OrdenUnionDialogComponent, number[]>,
     @Inject(MAT_DIALOG_DATA) public data: { antecedentes: Item[] }
   ) {
-    const source = (data?.antecedentes ?? []).map(a => ({ ...a }));
+    const raw = (data?.antecedentes ?? []).map(a => ({ ...a }));
+
+    // Reordenar según el paquete por defecto:
+    // 1. Los que están en DEFAULT_ORDER van primero, en ese orden
+    // 2. Los que no están en DEFAULT_ORDER van al final (en el orden original)
+    const orderIndex = new Map(DEFAULT_ORDER.map((id, idx) => [id, idx]));
+    const source = [...raw].sort((a, b) => {
+      const ia = orderIndex.get(a.id) ?? DEFAULT_ORDER.length;
+      const ib = orderIndex.get(b.id) ?? DEFAULT_ORDER.length;
+      return ia - ib;
+    });
+
     this.items.set(source);
     this.initialOrder = source.map(a => ({ ...a }));
     // Por defecto: todo seleccionado
@@ -79,10 +140,30 @@ export class OrdenUnionDialogComponent {
 
   resetOrder() {
     this.items.set(this.initialOrder.map(a => ({ ...a })));
-    // Opcional: ¿Resetear selección también? 
-    // Por UX, "Restablecer" suele referirse a todo (orden + selección original) o solo orden.
-    // Asumiremos que el usuario quiere volver al estado iniciar puro (todo seleccionado en orden original).
     this.selected.set(new Set<number>(this.initialOrder.map(a => a.id)));
+  }
+
+  /** Aplica un paquete: reordena y selecciona solo los IDs del paquete */
+  private applyPackage(order: number[]) {
+    const all = this.items();
+    const orderIndex = new Map(order.map((id, idx) => [id, idx]));
+    const inPackage = all.filter(a => orderIndex.has(a.id));
+    const notInPackage = all.filter(a => !orderIndex.has(a.id));
+
+    inPackage.sort((a, b) => (orderIndex.get(a.id) ?? 0) - (orderIndex.get(b.id) ?? 0));
+
+    this.items.set([...inPackage, ...notInPackage]);
+    this.selected.set(new Set<number>(inPackage.map(a => a.id)));
+  }
+
+  /** Paquete completo de contratación */
+  applyDefaultPackage() {
+    this.applyPackage(DEFAULT_ORDER);
+  }
+
+  /** Paquete por finca (documentos esenciales) */
+  applyFincaPackage() {
+    this.applyPackage(FINCA_ORDER);
   }
 
   cancelar() {

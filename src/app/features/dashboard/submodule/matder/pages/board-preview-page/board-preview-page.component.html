@@ -127,11 +127,11 @@
                   <span class="column-kind">Columna del tablero</span>
                   <h3>{{ list.name }}</h3>
                   @if (list.list_type) { <span class="type-badge">{{ list.list_type }}</span> }
-                  <p>{{ list.cards?.length ?? 0 }} tareas en esta columna.</p>
+                  <p>{{ list.cards.length }} tareas en esta columna.</p>
                 </div>
 
                 <!-- Card drop list -->
-                <div class="task-list" cdkDropList [cdkDropListData]="list.cards ?? []" [id]="'list-' + list.id"
+                <div class="task-list" cdkDropList [cdkDropListData]="list.cards" [id]="'list-' + list.id"
                      [cdkDropListConnectedTo]="getListIds()" (cdkDropListDropped)="onCardDrop($event, list)"
                      [cdkDropListDisabled]="!b.can_manage_content">
 
@@ -141,7 +141,7 @@
                     </button>
                   }
 
-                  @if ((list.cards?.length ?? 0) > 0) {
+                  @if (list.cards.length > 0) {
                     @for (card of list.cards; track card.id) {
                       <article class="task-card" cdkDrag [cdkDragData]="card"
                                [cdkDragDisabled]="!b.can_manage_content">

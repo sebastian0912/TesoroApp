@@ -19,7 +19,7 @@ import {
 import { MatAutocompleteSelectedEvent } from '@angular/material/autocomplete';
 import { DateAdapter } from '@angular/material/core';
 import { ActivatedRoute } from '@angular/router';
-import { Observable, firstValueFrom, map, startWith, take, filter } from 'rxjs';
+import { Observable, firstValueFrom, map, startWith, take, filter, of, catchError } from 'rxjs';
 import { MatIconModule } from '@angular/material/icon';
 import Swal from 'sweetalert2';
 
@@ -54,48 +54,40 @@ export class FormEntrevistaComponent implements OnInit {
   private readonly catalogos = inject(GestionParametrizacionService);
 
   // ====== Catálogos ======
-  tipoDocOpciones$: Observable<CatalogValue[]> =
-    this.catalogos.listDatosByTablaCodigo('TIPOS_IDENTIFICACION', {
-      activo: true,
-    });
-
-  escolaridadOpciones$: Observable<CatalogValue[]> =
-    this.catalogos.listDatosByTablaCodigo('CATALOGO_NIVELES_ESCOLARIDAD', {
-      activo: true,
-    });
-
-  estadoCivilOpciones$: Observable<CatalogValue[]> =
-    this.catalogos.listDatosByTablaCodigo('ESTADOS_CIVILES', {
-      activo: true,
-    });
-
-
-  conQuienViveOpciones$: Observable<CatalogValue[]> = this.catalogos
-    .listDatosByTablaCodigo('CATALOGO_CON_QUIEN_VIVE', { activo: true })
-    .pipe(
-      map((opts) => {
-        const seen = new Set<string>();
-        return (opts ?? []).filter((o) => {
-          const k = String(o['codigo'] ?? '').trim().toUpperCase();
-          if (!k || seen.has(k)) return false;
-          seen.add(k);
-          return true;
+  private safeCatalog(code: string, label: string): Observable<CatalogValue[]> {
+    return this.catalogos.listDatosByTablaCodigo(code, { activo: true }).pipe(
+      catchError((err) => {
+        console.error(`[form-entrevista] Error cargando catálogo "${label}":`, err);
+        Swal.fire({
+          icon: 'warning',
+          title: 'Error cargando opciones',
+          text: `No se pudo cargar la lista "${label}". Recargue la página o contacte a soporte.`,
+          confirmButtonColor: '#3085d6',
         });
+        return of([] as CatalogValue[]);
       })
     );
+  }
 
-  dominioCorreoOpciones$: Observable<CatalogValue[]> =
-    this.catalogos.listDatosByTablaCodigo('DOMINIOS', { activo: true });
+  tipoDocOpciones$: Observable<CatalogValue[]> = this.safeCatalog('TIPOS_IDENTIFICACION', 'Tipo de Documento');
+  escolaridadOpciones$: Observable<CatalogValue[]> = this.safeCatalog('CATALOGO_NIVELES_ESCOLARIDAD', 'Escolaridad');
+  estadoCivilOpciones$: Observable<CatalogValue[]> = this.safeCatalog('ESTADOS_CIVILES', 'Estado Civil');
 
-  comoSeEnteroOpciones$: Observable<CatalogValue[]> =
-    this.catalogos.listDatosByTablaCodigo('CATALOGO_MARKETING', {
-      activo: true,
-    });
+  conQuienViveOpciones$: Observable<CatalogValue[]> = this.safeCatalog('CATALOGO_CON_QUIEN_VIVE', 'Con quién vive').pipe(
+    map((opts) => {
+      const seen = new Set<string>();
+      return (opts ?? []).filter((o) => {
+        const k = String(o['codigo'] ?? '').trim().toUpperCase();
+        if (!k || seen.has(k)) return false;
+        seen.add(k);
+        return true;
+      });
+    })
+  );
 
-  parentescosOpciones$: Observable<CatalogValue[]> =
-    this.catalogos.listDatosByTablaCodigo('PARENTESCOS_FAMILIARES', {
-      activo: true,
-    });
+  dominioCorreoOpciones$: Observable<CatalogValue[]> = this.safeCatalog('DOMINIOS', 'Dominios de Correo');
+  comoSeEnteroOpciones$: Observable<CatalogValue[]> = this.safeCatalog('CATALOGO_MARKETING', '¿Cómo se enteró?');
+  parentescosOpciones$: Observable<CatalogValue[]> = this.safeCatalog('PARENTESCOS_FAMILIARES', 'Parentescos');
 
   // ====== Form / estado ======
   formVacante!: FormGroup;
@@ -1229,12 +1221,29 @@ export class FormEntrevistaComponent implements OnInit {
 
     if (this.formVacante.invalid) {
       this.formVacante.markAllAsTouched();
+      this.refreshSteps();
 
-      await Swal.fire(
-        'Error',
-        'Por favor verifique los campos en rojo. Faltan datos obligatorios o hay errores.',
-        'error'
-      );
+      // Determinar qué sección tiene el error
+      const sections: { ctrl: FormGroup; name: string }[] = [
+        { ctrl: this.step1Ctrl, name: 'Identificación / Documento' },
+        { ctrl: this.step2Ctrl, name: 'Datos Personales' },
+        { ctrl: this.step3Ctrl, name: 'Contacto y Domicilio' },
+        { ctrl: this.step4Ctrl, name: 'Información Familiar (Hijos)' },
+        { ctrl: this.step5Ctrl, name: 'Formación / Experiencia en Flores' },
+        { ctrl: this.step6Ctrl, name: 'Historial Laboral' },
+        { ctrl: this.step7Ctrl, name: 'Datos de Entrevista' },
+      ];
+      const invalidSections = sections.filter(s => s.ctrl.invalid).map(s => `<li>${s.name}</li>`);
+      const sectionList = invalidSections.length
+        ? `<p>Revise las siguientes secciones:</p><ul style="text-align:left;font-size:14px;">${invalidSections.join('')}</ul>`
+        : '';
+
+      await Swal.fire({
+        icon: 'error',
+        title: 'Formulario incompleto',
+        html: `Hay campos obligatorios sin llenar o con errores.<br><b>Revise los campos marcados en rojo.</b>${sectionList}`,
+        confirmButtonColor: '#3085d6',
+      });
 
       setTimeout(() => {
         const firstInvalidControl = document.querySelector(
@@ -1296,11 +1305,23 @@ export class FormEntrevistaComponent implements OnInit {
       };
 
       // Guardar candidato / marcar entrevista como realizada
-      await firstValueFrom(
+      const resp: any = await firstValueFrom(
         this.candidateService.upsertCandidatoByDocumentoFromForm(payload, {
           entrevistado: true,
         })
       );
+
+      // Detectar respuesta offline falsa del interceptor
+      if (resp?.offline === true) {
+        await Swal.fire({
+          icon: 'info',
+          title: 'Sin conexión',
+          html: 'No hay conexión a internet. Los datos se guardaron en su dispositivo y se enviarán automáticamente cuando vuelva la conexión.',
+          confirmButtonText: 'Entendido',
+          confirmButtonColor: '#3085d6',
+        });
+        return;
+      }
 
       await Swal.fire({
         icon: 'success',
@@ -1308,46 +1329,103 @@ export class FormEntrevistaComponent implements OnInit {
         text: 'Datos guardados y entrevista marcada.',
       });
     } catch (e: any) {
+      console.error('[form-entrevista] Error al guardar:', e);
+
       let title = 'Error al guardar';
       let htmlMessage = '';
 
+      // Detectar respuesta offline falsa del interceptor
+      if (e?.offline === true || e?.error?.offline === true) {
+        await Swal.fire({
+          icon: 'info',
+          title: 'Sin conexión',
+          html: 'No hay conexión a internet. Los datos se guardaron en su dispositivo y se enviarán automáticamente cuando vuelva la conexión.',
+          confirmButtonText: 'Entendido',
+          confirmButtonColor: '#3085d6',
+        });
+        return;
+      }
+
       const errBody = e?.error;
+
+      // Diccionario para traducir nombres técnicos de campos Django → español
+      const fieldDict: Record<string, string> = {
+        'numero_documento': 'Número de documento',
+        'tipo_doc': 'Tipo de documento',
+        'fecha_expedicion': 'Fecha de expedición',
+        'mpio_expedicion': 'Municipio de expedición',
+        'primer_apellido': 'Primer apellido',
+        'segundo_apellido': 'Segundo apellido',
+        'primer_nombre': 'Primer nombre',
+        'segundo_nombre': 'Segundo nombre',
+        'fecha_nacimiento': 'Fecha de nacimiento',
+        'mpio_nacimiento': 'Municipio de nacimiento',
+        'sexo': 'Género',
+        'estado_civil': 'Estado civil',
+        'correo_electronico': 'Correo electrónico',
+        'password': 'Contraseña',
+        'direccion_de_residencia': 'Dirección de residencia',
+        'barrio': 'Barrio',
+        'celular': 'Celular',
+        'whatsapp': 'WhatsApp',
+        'personas_con_quien_convive': 'Con quién vive',
+        'hace_cuanto_vive': 'Tiempo en la zona',
+        'nivel': 'Nivel de escolaridad',
+        'experiencias': 'Experiencia laboral',
+        'empresa': 'Empresa',
+        'tiempo_trabajado': 'Tiempo trabajado',
+        'labores_realizadas': 'Labores realizadas',
+        'hijos': 'Hijos',
+        'fecha_nac': 'Fecha de nacimiento del hijo',
+        'numero_de_documento': 'Documento del hijo',
+        'non_field_errors': 'Error general',
+        'detail': 'Detalle',
+      };
+      const msgDict: Record<string, string> = {
+        'This field is required.': 'Este campo es obligatorio.',
+        'This field may not be blank.': 'Este campo no puede estar vacío.',
+        'This field must be unique.': 'Este dato ya está registrado.',
+        'Ensure this field has at least 8 characters.': 'Debe tener mínimo 8 caracteres.',
+        'Enter a valid email address.': 'Ingrese un correo electrónico válido.',
+        'A valid integer is required.': 'Se requiere un número válido.',
+        'Date has wrong format.': 'Formato de fecha incorrecto (use AAAA-MM-DD).',
+      };
+
+      const translateField = (k: string): string => fieldDict[k] || k.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+      const translateMsg = (m: string): string => msgDict[m] || m;
 
       if (errBody) {
         if (errBody.detail) {
-          htmlMessage += `<b>${errBody.detail}</b><br/>`;
+          htmlMessage += `<b>${translateMsg(errBody.detail)}</b><br/>`;
         }
 
-        // Mostrar errores de validación de formulario del backend de Django (DRF)
+        // Parsear errores de validación de Django (DRF) recursivamente
         if (errBody.errors && typeof errBody.errors === 'object') {
           htmlMessage += `<ul style="text-align: left; font-size: 0.9em; margin-top: 10px; max-height: 200px; overflow-y: auto; padding-right: 10px;">`;
-          
+
           const parseErrors = (obj: any, parentKey = ''): void => {
             if (Array.isArray(obj)) {
               obj.forEach((item, idx) => {
                 if (typeof item === 'object' && item !== null) {
-                  // Elemento de una lista de objetos (ej. experiencias[0])
                   parseErrors(item, `${parentKey} (#${idx + 1})`);
                 } else if (String(item).trim()) {
-                  // Mensaje de error final en un arreglo 
-                  let k = parentKey.trim();
+                  const translated = translateMsg(String(item));
                   if (parentKey.includes('Error general')) {
-                     htmlMessage += `<li>${item}</li>`; // Omitir el nombre si es un error general sin llave
+                    htmlMessage += `<li>${translated}</li>`;
                   } else {
-                     htmlMessage += `<li>${k ? `<b>${k}:</b> ` : ''}${item}</li>`;
+                    htmlMessage += `<li>${parentKey ? `<b>${parentKey}:</b> ` : ''}${translated}</li>`;
                   }
                 }
               });
             } else if (typeof obj === 'object' && obj !== null) {
               for (const [k, v] of Object.entries(obj)) {
-                let fieldName = k === 'non_field_errors' ? 'Error general' : k.replace(/_/g, ' ');
-                fieldName = fieldName.charAt(0).toUpperCase() + fieldName.slice(1);
+                const fieldName = k === 'non_field_errors' ? 'Error general' : translateField(k);
                 const prefix = parentKey ? `${parentKey} ➔ ${fieldName}` : fieldName;
                 parseErrors(v, prefix);
               }
             } else if (String(obj).trim()) {
-              let k = parentKey.trim();
-              htmlMessage += `<li>${k ? `<b>${k}:</b> ` : ''}${obj}</li>`;
+              const translated = translateMsg(String(obj));
+              htmlMessage += `<li>${parentKey ? `<b>${parentKey}:</b> ` : ''}${translated}</li>`;
             }
           };
 
@@ -1355,7 +1433,6 @@ export class FormEntrevistaComponent implements OnInit {
           htmlMessage += `</ul>`;
         }
 
-        // Mostrar detalles crudos de BD u otros mapeados del backend
         if (errBody.db_error) {
           htmlMessage += `<div style="font-size: 0.85em; margin-top: 10px; color: #666; text-align: left; max-height: 100px; overflow-y: auto;"><i>Detalle técnico:</i> ${errBody.db_error}</div>`;
         }
@@ -1363,20 +1440,26 @@ export class FormEntrevistaComponent implements OnInit {
           htmlMessage += `<div style="font-size: 0.85em; color: dimgrey; margin-top: 5px; text-align: left;"><b>Sugerencia:</b> ${errBody.hint}</div>`;
         }
 
-        // Fallback catch-all del backend
         if (errBody.error && !errBody.details && !errBody.errors) {
           htmlMessage += `<div style="font-size: 0.85em; margin-top: 10px; color: #666; text-align: left;"><i>Error de sistema:</i> ${errBody.error}</div>`;
         }
       }
 
       if (!htmlMessage) {
-         htmlMessage = e?.message || 'No se pudo guardar debido a un error de conexión o del servidor.';
+        const status = e?.status;
+        if (status === 0 || status === 504) {
+          htmlMessage = 'No se pudo conectar con el servidor. Verifique su conexión a internet e intente de nuevo.';
+        } else if (status === 500) {
+          htmlMessage = 'Error interno del servidor. Los datos no se guardaron. Por favor intente de nuevo o contacte a soporte.';
+        } else {
+          htmlMessage = e?.message || 'No se pudo guardar debido a un error de conexión o del servidor.';
+        }
       }
 
       await Swal.fire({
         icon: 'error',
         title: title,
-        html: htmlMessage,
+        html: htmlMessage + '<p style="font-size:12px;color:#888;margin-top:10px;">Si el problema persiste, contacte a soporte indicando el número de documento.</p>',
         confirmButtonText: 'Entendido',
         confirmButtonColor: '#3085d6',
       });

@@ -219,7 +219,7 @@ export class SelectionQuestionsComponent {
 
       // opcional: precargar documentos ya existentes
       const ctx = ++this._ctx;
-      if (this.cedula) this.loadDataDocumentos(ctx).catch(() => void 0);
+      if (this.cedula) this.loadDataDocumentos(ctx).catch((err) => console.error('[selection] Error cargando documentos:', err));
     });
   }
 
@@ -524,7 +524,17 @@ export class SelectionQuestionsComponent {
         });
       }
     } catch (err: any) {
-      const msg = err?.error?.detail || 'No fue posible guardar los antecedentes.';
+      console.error('[selection] Error guardando antecedentes:', err);
+      const body = err?.error;
+      let msg = '';
+      if (body?.detail) {
+        msg = body.detail;
+      } else if (body && typeof body === 'object') {
+        const entries = Object.entries(body).map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(', ') : v}`);
+        msg = entries.length ? entries.join(' | ') : 'No fue posible guardar los antecedentes.';
+      } else {
+        msg = err?.message || 'No fue posible guardar los antecedentes. Verifique su conexión.';
+      }
       await Swal.fire('Error', msg, 'error');
     }
   }

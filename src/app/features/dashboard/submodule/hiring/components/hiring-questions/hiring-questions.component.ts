@@ -149,7 +149,10 @@ export class HiringQuestionsComponent implements OnInit {
         const items = Array.isArray(res) ? res : (res.results || []);
         this.tarjetasDisponibles = items;
       },
-      error: (err) => console.error('Error cargando tarjetas', err)
+      error: (err) => {
+        console.error('[loadTarjetas] Error:', err);
+        Swal.fire({ icon: 'warning', title: 'Aviso', text: 'No se pudieron cargar las tarjetas. El campo de tarjeta podría no funcionar correctamente.', confirmButtonText: 'Ok' });
+      }
     });
   }
 
@@ -450,8 +453,21 @@ export class HiringQuestionsComponent implements OnInit {
       );
       console.log('update-by-document →', resp);
     } catch (e: any) {
-      console.error(e);
-      this.alert('error', 'Error', e?.error?.detail || 'No se pudo guardar la información.');
+      console.error('[cargarPagoTransporte] Error:', e);
+      const body = e?.error;
+      let msg = '';
+      if (body?.detail) {
+        msg = body.detail;
+      } else if (body && typeof body === 'object') {
+        // Intentar extraer errores de validación de DRF
+        const entries = Object.entries(body)
+          .map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(', ') : v}`)
+          .join('\n');
+        msg = entries || 'No se pudo guardar la información.';
+      } else {
+        msg = e?.message || 'No se pudo guardar la información. Verifique su conexión e intente de nuevo.';
+      }
+      this.alert('error', 'Error al guardar', msg);
     }
   }
 
@@ -503,13 +519,15 @@ export class HiringQuestionsComponent implements OnInit {
     return nameDiffers || sizeKnownAndDiffers;
   }
 
-  private async uploadChanged(keys: string[], withContract = false): Promise<{ uploaded: string[], skipped: string[] }> {
+  private async uploadChanged(keys: string[], withContract = false): Promise<{ uploaded: string[], skipped: string[], failed: { key: string; error: string }[] }> {
     const toUpload = keys.filter(k => this.isChanged(k));
     const skipped = keys.filter(k => !toUpload.includes(k));
+    const uploaded: string[] = [];
+    const failed: { key: string; error: string }[] = [];
 
     await Promise.all(toUpload.map(async (k) => {
       const { file, fileName } = this.uploadedFiles[k]!;
-      if (typeof file === 'string') return;
+      if (typeof file === 'string') { skipped.push(k); return; }
       const type = this.typeMap[k] ?? 3;
 
       const ced = this.candidatoSeleccionado()?.numero_documento;
@@ -518,52 +536,71 @@ export class HiringQuestionsComponent implements OnInit {
         ? this.docSvc.guardarDocumento(fileName, ced, type, file, cod)
         : this.docSvc.guardarDocumento(fileName, ced, type, file);
 
-      const resp: any = await firstValueFrom(obs).catch(() => null);
-      this.serverDocs[k] = {
-        id: this.serverDocs[k]?.id ?? (resp?.id ?? 0),
-        fileName,
-        type,
-        file_url: resp?.file_url ?? this.serverDocs[k]?.file_url ?? '',
-        uploaded_at: resp?.uploaded_at ?? new Date().toISOString(),
-        size: (file as File).size,
-      };
-      const newUrl = this.serverDocs[k].file_url;
-      this.uploadedFiles[k] = { file: newUrl || this.uploadedFiles[k].file, fileName };
+      try {
+        const resp: any = await firstValueFrom(obs);
+        this.serverDocs[k] = {
+          id: this.serverDocs[k]?.id ?? (resp?.id ?? 0),
+          fileName,
+          type,
+          file_url: resp?.file_url ?? this.serverDocs[k]?.file_url ?? '',
+          uploaded_at: resp?.uploaded_at ?? new Date().toISOString(),
+          size: (file as File).size,
+        };
+        const newUrl = this.serverDocs[k].file_url;
+        this.uploadedFiles[k] = { file: newUrl || this.uploadedFiles[k].file, fileName };
+        uploaded.push(k);
+      } catch (err: any) {
+        console.error(`[uploadChanged] Error subiendo "${k}" (${fileName}):`, err);
+        const reason = err?.error?.detail || err?.error?.message || err?.message || 'Error desconocido';
+        failed.push({ key: k, error: reason });
+      }
     }));
 
-    return { uploaded: toUpload, skipped };
+    return { uploaded, skipped, failed };
   }
 
   async cargarReferencias(): Promise<void> {
     this.loading('Validando cambios y subiendo referencias…');
 
     try {
-      const { uploaded, skipped } = await this.uploadChanged(
+      const { uploaded, skipped, failed } = await this.uploadChanged(
         ['personal1', 'personal2', 'familiar1', 'familiar2', 'laboral1', 'laboral2'],
         false,
       );
 
       Swal.close();
 
+      if (failed.length > 0) {
+        const errorList = failed.map(f => `<li><b>${f.key}</b>: ${f.error}</li>`).join('');
+        Swal.fire({
+          icon: 'warning',
+          title: 'Carga parcial',
+          html: `<p>Subidos: <b>${uploaded.length}</b> | Fallidos: <b>${failed.length}</b></p>
+                 <ul style="text-align:left;font-size:13px;padding-left:20px;">${errorList}</ul>
+                 ${uploaded.length > 0 ? '<p style="font-size:12px;color:#888;">Los archivos subidos se guardaron correctamente.</p>' : ''}`,
+          confirmButtonText: 'Ok',
+        });
+        return;
+      }
+
       const parts: string[] = [];
       if (uploaded.length) parts.push(`Subidos: ${uploaded.join(', ')}`);
       if (skipped.length) parts.push(`Omitidos (sin cambios): ${skipped.join(', ')}`);
 
-      const html = parts.length ? parts.join('<br>') : 'Operación completada.';
-
       Swal.fire({
         icon: 'success',
         title: 'Listo',
-        html,
+        html: parts.length ? parts.join('<br>') : 'Operación completada.',
         confirmButtonText: 'Ok',
       });
 
-    } catch {
+    } catch (err: any) {
       Swal.close();
+      console.error('[cargarReferencias] Error:', err);
       Swal.fire({
         icon: 'error',
         title: 'Error',
-        text: 'No se pudieron subir los archivos.',
+        text: err?.error?.detail || 'No se pudieron subir los archivos. Verifique su conexión e intente de nuevo.',
         confirmButtonText: 'Ok',
       });
     }
@@ -603,7 +640,12 @@ export class HiringQuestionsComponent implements OnInit {
     try {
       // Sube el PDF solo si el usuario eligió traslado = "SI"
       if (desea) {
-        await this.uploadChanged(['traslado'], true);
+        const { failed } = await this.uploadChanged(['traslado'], true);
+        if (failed.length > 0) {
+          Swal.close();
+          this.alert('error', 'Error subiendo documento', `No se pudo subir el archivo de traslado: ${failed[0].error}`);
+          return;
+        }
       }
 
       await firstValueFrom(
@@ -614,7 +656,8 @@ export class HiringQuestionsComponent implements OnInit {
       this.alert('success', '¡Éxito!', 'Solicitud de traslado guardada.');
     } catch (e: any) {
       Swal.close();
-      this.alert('error', 'Error', e?.error?.detail || 'No se pudo guardar la solicitud de traslado.');
+      console.error('[cargarTraslados] Error:', e);
+      this.alert('error', 'Error', e?.error?.detail || 'No se pudo guardar la solicitud de traslado. Verifique su conexión e intente de nuevo.');
     }
   }
 
@@ -1012,9 +1055,11 @@ export class HiringQuestionsComponent implements OnInit {
         this.trasladosForm.patchValue({ traslado: doc.title || 'Documento' });
         break;
       }
-    } catch {
+    } catch (err: any) {
+      console.error('[llenarDocumentos] Error:', err);
       if (Swal.isVisible()) Swal.close();
-      Swal.fire('Error', 'No fue posible cargar los documentos.', 'error');
+      const detail = err?.error?.detail || err?.message || '';
+      Swal.fire('Error', detail ? `No se pudieron cargar los documentos: ${detail}` : 'No fue posible cargar los documentos. Verifique su conexión.', 'error');
       return;
     } finally {
       if (ctx === this._docsCtx && Swal.isVisible()) Swal.close();
