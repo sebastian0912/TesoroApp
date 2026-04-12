@@ -186,6 +186,8 @@
 .badge-unidad mat-icon { font-size: 14px; width: 14px; height: 14px; }
 .badge-unidad.unidad-dia  { background: #e8f0fe; color: #1a73e8; }
 .badge-unidad.unidad-hora { background: #fff3e0; color: #e65100; }
+.badge-unidad.unidad-valor { background: #e8f5e9; color: #1b5e20; }
+.badge-unidad.unidad-otro { background: #f5f5f5; color: #616161; }
 
 .icon-si  { color: #2e7d32; }
 .icon-no  { color: #bdbdbd; }

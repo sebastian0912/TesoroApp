@@ -675,7 +675,7 @@ export class StandardFilterTable implements OnInit, OnChanges, AfterViewInit, Do
           if (c.type === 'status') v = this.getStatusLabel(c.name, raw);
           else if (c.type === 'date') {
             const d = raw instanceof Date ? raw : raw ? new Date(raw) : null;
-            v = d && !isNaN(d.getTime()) ? d.toLocaleDateString() : '';
+            v = d && !isNaN(d.getTime()) ? d.toLocaleDateString('es-CO') : '';
           } else {
             v = (raw ?? '').toString();
           }

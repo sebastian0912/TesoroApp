@@ -1,0 +1,68 @@
+<header class="hero">
+  <div class="hero-copy">
+    <p class="eyebrow">Auditoria</p>
+    <h1>Registro de actividad</h1>
+    <p class="hero-text">Consulta el historial completo de acciones realizadas en la plataforma.</p>
+    <div class="hero-actions">
+      <button mat-stroked-button (click)="nav('dashboard')"><mat-icon>arrow_back</mat-icon> Dashboard</button>
+    </div>
+  </div>
+</header>
+
+<!-- Filters -->
+<div class="filters">
+  <mat-form-field appearance="outline" class="search-field">
+    <mat-label>Buscar</mat-label>
+    <input matInput [(ngModel)]="search">
+    <mat-icon matSuffix>search</mat-icon>
+  </mat-form-field>
+  <mat-form-field appearance="outline" class="filter-field">
+    <mat-label>Tipo de entidad</mat-label>
+    <mat-select [(ngModel)]="entityFilter">
+      <mat-option value="">Todos</mat-option>
+      @for (e of entityTypes; track e) {
+        <mat-option [value]="e">{{ e }}</mat-option>
+      }
+    </mat-select>
+  </mat-form-field>
+</div>
+
+@if (loading()) {
+  <div class="center"><mat-spinner diameter="40"></mat-spinner></div>
+} @else if (filtered.length === 0) {
+  <div class="empty">
+    <mat-icon>shield</mat-icon>
+    <h3>Sin registros</h3>
+    <p>@if (search || entityFilter) { No se encontraron registros con los filtros actuales. } @else { No hay registros de auditoria aun. }</p>
+    @if (search || entityFilter) {
+      <button mat-stroked-button (click)="search = ''; entityFilter = ''">Limpiar filtros</button>
+    }
+  </div>
+} @else {
+  <div class="log-list">
+    @for (l of filtered; track l.id) {
+      <div class="log-card">
+        <div class="log-icon" [style.color]="actionColor(l.action)">
+          <mat-icon>{{ actionIcon(l.action) }}</mat-icon>
+        </div>
+        <div class="log-body">
+          <div class="log-header">
+            <strong>{{ l.action }}</strong>
+            <span class="log-time">{{ l.created_at | date:'d MMM, y h:mm a' }}</span>
+          </div>
+          <div class="log-meta">
+            @if (l.user_name) {
+              <span class="log-user"><mat-icon>person</mat-icon> {{ l.user_name }}</span>
+            }
+            <mat-chip-set>
+              <mat-chip class="entity-chip">{{ l.entity_type }}</mat-chip>
+            </mat-chip-set>
+            @if (l.entity_id) {
+              <span class="log-entity-id">ID: {{ l.entity_id }}</span>
+            }
+          </div>
+        </div>
+      </div>
+    }
+  </div>
+}

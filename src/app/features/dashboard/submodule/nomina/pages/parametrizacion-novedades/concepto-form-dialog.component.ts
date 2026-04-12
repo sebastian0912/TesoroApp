@@ -37,7 +37,7 @@ import { NominaService, ConceptoNomina } from '../../service/nomina/nomina.servi
       <mat-icon class="dialog-icon">{{ isEditing ? 'edit_note' : 'add_circle' }}</mat-icon>
       <div>
         <h2 mat-dialog-title>{{ isEditing ? 'Editar Novedad' : 'Nueva Novedad' }}</h2>
-        <p class="dialog-subtitle">Parametrización de concepto de nómina (días / horas)</p>
+        <p class="dialog-subtitle">Parametrización de concepto de nómina (días / horas / valores)</p>
       </div>
     </div>
 
@@ -87,6 +87,9 @@ import { NominaService, ConceptoNomina } from '../../service/nomina/nomina.servi
             </mat-option>
             <mat-option value="HORA">
               <mat-icon>schedule</mat-icon> Hora
+            </mat-option>
+            <mat-option value="VALOR">
+              <mat-icon>attach_money</mat-icon> Valor
             </mat-option>
           </mat-select>
           <mat-error *ngIf="form.get('unidad')?.hasError('required')">Seleccione la unidad</mat-error>

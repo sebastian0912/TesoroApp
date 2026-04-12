@@ -1,0 +1,36 @@
+.analytics-container { padding: 24px; max-width: 1100px; margin: 0 auto; }
+.header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+.header h2 { margin: 0; font-size: 1.5rem; font-weight: 500; }
+.loading-container { display: flex; justify-content: center; padding: 48px 0; }
+
+.metrics-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-bottom: 24px; }
+.metric-card { display: flex; align-items: center; gap: 16px; padding: 20px; }
+.metric-ring {
+  width: 64px; height: 64px; border-radius: 50%;
+  background: conic-gradient(var(--accent) var(--progress), #e0e0e0 var(--progress));
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.metric-value { font-size: 1rem; font-weight: 700; background: white; border-radius: 50%; width: 48px; height: 48px; display: flex; align-items: center; justify-content: center; }
+.metric-info { display: flex; flex-direction: column; }
+.metric-info strong { font-size: 0.9rem; }
+.metric-info span { font-size: 0.75rem; color: #757575; }
+
+.signal-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px; }
+.signal-card { padding: 20px; text-align: center; border-top: 3px solid transparent; }
+.signal-card mat-icon { font-size: 32px; width: 32px; height: 32px; margin-bottom: 8px; }
+.signal-value { font-size: 2rem; font-weight: 700; }
+.signal-label { font-size: 0.85rem; font-weight: 500; margin-top: 4px; }
+.signal-caption { font-size: 0.75rem; color: #757575; margin-top: 4px; }
+
+.signal-card.rose { border-top-color: #f43f5e; }
+.signal-card.rose mat-icon { color: #f43f5e; }
+.signal-card.amber { border-top-color: #f59e0b; }
+.signal-card.amber mat-icon { color: #f59e0b; }
+.signal-card.sky { border-top-color: #0ea5e9; }
+.signal-card.sky mat-icon { color: #0ea5e9; }
+.signal-card.violet { border-top-color: #8b5cf6; }
+.signal-card.violet mat-icon { color: #8b5cf6; }
+
+h3 { margin-top: 16px; margin-bottom: 12px; font-weight: 500; }
+.board-table { width: 100%; }
+.inline-bar { margin-top: 4px; max-width: 100px; }

@@ -25,7 +25,13 @@
     </div>
 
     <div class="group-right">
-      <button mat-button class="action-btn" (click)="resetOrder()" matTooltip="Volver al orden original">
+      <button mat-stroked-button class="action-btn pkg-btn" (click)="applyDefaultPackage()" matTooltip="Paquete completo de contratación (30 docs)">
+        <mat-icon>inventory_2</mat-icon> Paquete completo
+      </button>
+      <button mat-stroked-button class="action-btn pkg-btn" (click)="applyFincaPackage()" matTooltip="Paquete por finca (12 docs esenciales)">
+        <mat-icon>agriculture</mat-icon> Paquete finca
+      </button>
+      <button mat-button class="action-btn" (click)="resetOrder()" matTooltip="Volver al orden en que llegaron del servidor">
         <mat-icon>history</mat-icon> Restablecer
       </button>
     </div>

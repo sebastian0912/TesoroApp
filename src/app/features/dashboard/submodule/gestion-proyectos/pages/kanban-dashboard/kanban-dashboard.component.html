@@ -1,0 +1,111 @@
+@if (loading()) {
+  <div class="loading-container">
+    <mat-spinner diameter="48"></mat-spinner>
+  </div>
+} @else {
+  <div class="dashboard-header">
+    <h2>Gestión de Proyectos — Kanban</h2>
+    <div class="header-actions">
+      @if (proyectos().length > 0) {
+        <mat-form-field appearance="outline" class="proyecto-select">
+          <mat-label>Proyecto</mat-label>
+          <mat-select [value]="selectedProyecto()" (selectionChange)="onProyectoChange($event.value)">
+            @for (p of proyectos(); track p.id) {
+              <mat-option [value]="p.id">{{ p.nombre }}</mat-option>
+            }
+          </mat-select>
+        </mat-form-field>
+      }
+      <button mat-raised-button color="primary" (click)="openCreateBoard()">
+        <mat-icon>add</mat-icon> Nuevo tablero
+      </button>
+      <button mat-stroked-button (click)="navigateToBoards()">
+        <mat-icon>view_kanban</mat-icon> Tableros
+      </button>
+      <button mat-stroked-button (click)="navigateToCalendar()">
+        <mat-icon>calendar_month</mat-icon> Calendario
+      </button>
+      <button mat-stroked-button (click)="navigateToFavorites()">
+        <mat-icon>star</mat-icon> Favoritas
+      </button>
+      <button mat-stroked-button (click)="navigateTo('analytics')">
+        <mat-icon>analytics</mat-icon> Analíticas
+      </button>
+      <button mat-stroked-button (click)="navigateTo('grupos')">
+        <mat-icon>group</mat-icon> Grupos
+      </button>
+      <button mat-stroked-button (click)="navigateTo('notificaciones')">
+        <mat-icon>notifications</mat-icon> Notificaciones
+      </button>
+      <button mat-stroked-button (click)="navigateTo('auditoria')">
+        <mat-icon>shield</mat-icon> Auditoría
+      </button>
+      <button mat-stroked-button (click)="navigateTo('importar')">
+        <mat-icon>upload_file</mat-icon> Importar
+      </button>
+    </div>
+  </div>
+
+  @if (proyectos().length === 0) {
+    <div class="empty-state">
+      <mat-card class="empty-card">
+        <mat-icon class="empty-icon">rocket_launch</mat-icon>
+        <h3>Comienza tu primer proyecto</h3>
+        <p>Crea un tablero para empezar a gestionar tareas con Kanban.</p>
+        <button mat-raised-button color="primary" (click)="openCreateBoard()">
+          <mat-icon>add</mat-icon> Crear primer tablero
+        </button>
+      </mat-card>
+    </div>
+  } @else if (stats(); as s) {
+    <div class="stats-grid">
+      <mat-card class="stat-card">
+        <mat-card-content>
+          <mat-icon class="stat-icon" color="primary">view_kanban</mat-icon>
+          <div class="stat-value">{{ s.total_boards }}</div>
+          <div class="stat-label">Tableros</div>
+        </mat-card-content>
+      </mat-card>
+
+      <mat-card class="stat-card">
+        <mat-card-content>
+          <mat-icon class="stat-icon" style="color:#1976d2">assignment</mat-icon>
+          <div class="stat-value">{{ s.total_cards }}</div>
+          <div class="stat-label">Tarjetas totales</div>
+        </mat-card-content>
+      </mat-card>
+
+      <mat-card class="stat-card">
+        <mat-card-content>
+          <mat-icon class="stat-icon" style="color:#ff9800">pending_actions</mat-icon>
+          <div class="stat-value">{{ s.cards_abiertas }}</div>
+          <div class="stat-label">Abiertas</div>
+        </mat-card-content>
+      </mat-card>
+
+      <mat-card class="stat-card">
+        <mat-card-content>
+          <mat-icon class="stat-icon" style="color:#2196f3">autorenew</mat-icon>
+          <div class="stat-value">{{ s.cards_en_progreso }}</div>
+          <div class="stat-label">En progreso</div>
+        </mat-card-content>
+      </mat-card>
+
+      <mat-card class="stat-card">
+        <mat-card-content>
+          <mat-icon class="stat-icon" style="color:#4caf50">check_circle</mat-icon>
+          <div class="stat-value">{{ s.cards_completadas }}</div>
+          <div class="stat-label">Completadas</div>
+        </mat-card-content>
+      </mat-card>
+
+      <mat-card class="stat-card">
+        <mat-card-content>
+          <mat-icon class="stat-icon" style="color:#f44336">warning</mat-icon>
+          <div class="stat-value">{{ s.cards_vencidas }}</div>
+          <div class="stat-label">Vencidas</div>
+        </mat-card-content>
+      </mat-card>
+    </div>
+  }
+}

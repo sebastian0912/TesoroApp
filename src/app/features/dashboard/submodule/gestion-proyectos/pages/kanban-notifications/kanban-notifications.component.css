@@ -1,0 +1,14 @@
+.notifications-container { padding: 24px; max-width: 720px; margin: 0 auto; }
+.header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+.header h2 { margin: 0; font-size: 1.5rem; font-weight: 500; display: flex; align-items: center; gap: 8px; }
+.badge { background: #d32f2f; color: white; border-radius: 12px; padding: 2px 8px; font-size: 0.8rem; }
+.loading-container { display: flex; justify-content: center; padding: 48px 0; }
+.empty-state { text-align: center; padding: 48px; }
+.empty-state mat-icon { font-size: 48px; width: 48px; height: 48px; color: #9e9e9e; }
+.empty-state p { color: #757575; margin-top: 8px; }
+.notif-item { cursor: pointer; border-bottom: 1px solid #eee; }
+.notif-item.unread { background: #e3f2fd; }
+.notif-title { font-weight: 500; }
+.notif-message { color: #616161; font-size: 0.85rem; }
+.notif-meta { display: flex; align-items: center; gap: 8px; }
+.notif-date { font-size: 0.75rem; color: #9e9e9e; }

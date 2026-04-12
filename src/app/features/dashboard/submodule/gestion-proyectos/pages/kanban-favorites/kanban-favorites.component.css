@@ -1,0 +1,8 @@
+h2 { font-weight: 500; display: flex; align-items: center; gap: 8px; margin-bottom: 16px; }
+.loading-container { display: flex; justify-content: center; min-height: 200px; align-items: center; }
+.empty-state { text-align: center; padding: 64px 0; color: rgba(0,0,0,.45); }
+.empty-state mat-icon { font-size: 64px; width: 64px; height: 64px; }
+.favorites-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+.fav-card { cursor: pointer; transition: box-shadow .15s; }
+.fav-card:hover { box-shadow: 0 2px 8px rgba(0,0,0,.12); }
+.card-title { font-weight: 500; margin-bottom: 8px; }

@@ -102,10 +102,11 @@ export const interceptor: HttpInterceptorFn = (
     working = working.clone({ setHeaders: { 'Content-Type': 'application/json' } });
   }
 
-  // Manejo centralizado de 401/403 → limpiar y mandar al login
+  // Manejo centralizado de 401 → limpiar y mandar al login
+  // 403 = autenticado pero sin permisos (NO desloguear)
   return next(working).pipe(
     catchError((err: any) => {
-      if (isApiRequest && err instanceof HttpErrorResponse && (err.status === 401 || err.status === 403)) {
+      if (isApiRequest && err instanceof HttpErrorResponse && err.status === 401) {
         try { localStorage.removeItem('token'); } catch { }
         router.navigateByUrl('/');
       }

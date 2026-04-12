@@ -1,0 +1,80 @@
+<div class="kanban-groups-container">
+  <div class="header">
+    <h2>Grupos de Usuarios</h2>
+    <button mat-raised-button color="primary" (click)="openCreate()">
+      <mat-icon>group_add</mat-icon> Nuevo Grupo
+    </button>
+  </div>
+
+  @if (loading()) {
+    <div class="loading-container">
+      <mat-spinner diameter="40"></mat-spinner>
+    </div>
+  }
+
+  @if (showForm()) {
+    <mat-card class="form-card">
+      <mat-card-header>
+        <mat-card-title>{{ editingGroup() ? 'Editar Grupo' : 'Nuevo Grupo' }}</mat-card-title>
+      </mat-card-header>
+      <mat-card-content>
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label>Nombre</mat-label>
+          <input matInput [(ngModel)]="formNombre" placeholder="Nombre del grupo" />
+        </mat-form-field>
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label>Descripción</mat-label>
+          <input matInput [(ngModel)]="formDescripcion" placeholder="Descripción (opcional)" />
+        </mat-form-field>
+      </mat-card-content>
+      <mat-card-actions align="end">
+        <button mat-button (click)="cancelForm()">Cancelar</button>
+        <button mat-raised-button color="primary" (click)="saveGroup()" [disabled]="!formNombre.trim()">
+          {{ editingGroup() ? 'Actualizar' : 'Crear' }}
+        </button>
+      </mat-card-actions>
+    </mat-card>
+  }
+
+  @if (!loading() && groups().length === 0) {
+    <mat-card class="empty-state">
+      <mat-icon>group_off</mat-icon>
+      <p>No hay grupos creados aún.</p>
+    </mat-card>
+  }
+
+  @if (!loading() && groups().length > 0) {
+    <table mat-table [dataSource]="groups()" class="groups-table">
+      <ng-container matColumnDef="nombre">
+        <th mat-header-cell *matHeaderCellDef>Nombre</th>
+        <td mat-cell *matCellDef="let g">{{ g.nombre }}</td>
+      </ng-container>
+      <ng-container matColumnDef="descripcion">
+        <th mat-header-cell *matHeaderCellDef>Descripción</th>
+        <td mat-cell *matCellDef="let g">{{ g.descripcion || '—' }}</td>
+      </ng-container>
+      <ng-container matColumnDef="miembros_count">
+        <th mat-header-cell *matHeaderCellDef>Miembros</th>
+        <td mat-cell *matCellDef="let g">
+          <mat-chip-set>
+            <mat-chip>{{ g.miembros_count ?? 0 }}</mat-chip>
+          </mat-chip-set>
+        </td>
+      </ng-container>
+      <ng-container matColumnDef="acciones">
+        <th mat-header-cell *matHeaderCellDef>Acciones</th>
+        <td mat-cell *matCellDef="let g">
+          <button mat-icon-button color="primary" (click)="openEdit(g)" matTooltip="Editar">
+            <mat-icon>edit</mat-icon>
+          </button>
+          <button mat-icon-button color="warn" (click)="deleteGroup(g)" matTooltip="Eliminar">
+            <mat-icon>delete</mat-icon>
+          </button>
+        </td>
+      </ng-container>
+
+      <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+      <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
+    </table>
+  }
+</div>

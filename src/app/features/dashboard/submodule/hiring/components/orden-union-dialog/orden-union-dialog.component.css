@@ -92,6 +92,16 @@
   color: var(--brand-main);
 }
 
+.pkg-btn {
+  color: var(--brand-main) !important;
+  border-color: var(--brand-main) !important;
+  font-weight: 600;
+}
+
+.pkg-btn:hover {
+  background-color: var(--brand-50) !important;
+}
+
 /* ===== Lista Drag & Drop ===== */
 .drag-list {
   padding: 16px 24px;

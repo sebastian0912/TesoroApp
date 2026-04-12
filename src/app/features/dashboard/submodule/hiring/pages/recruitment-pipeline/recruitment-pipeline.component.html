@@ -8,6 +8,7 @@
         <div class="avatar-placeholder">
           <mat-icon>person</mat-icon>
         </div>
+
         <div class="candidate-details">
           <div class="detail-row">
             <span class="info-candidato-label">Cédula:</span>
@@ -162,8 +163,12 @@
       <mat-tab>
         <ng-template mat-tab-label>
           <div class="tab">
-            <mat-icon>check_circle</mat-icon>
-            Examenes de ingreso
+            @if (examenesYaCargados()) {
+              <mat-icon style="color:#2E7D32">check_circle</mat-icon>
+            } @else {
+              <mat-icon>medical_information</mat-icon>
+            }
+            Exámenes de ingreso
           </div>
         </ng-template>
         <br>
