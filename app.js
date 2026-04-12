@@ -1,14 +1,35 @@
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, shell } = require('electron');
 const path = require('path');
+const fs = require('fs');
+const os = require('os');
+const https = require('https');
+const http = require('http');
 const { autoUpdater } = require('electron-updater');
-const { execFile } = require('child_process'); // Asegúrate de importar execFile aquí
-const { initDatabase } = require('./electron-db');
+const { execFile } = require('child_process');
+const { initDatabase, closeDatabase } = require('./electron-db');
 
-// Removed global ELECTRON_DISABLE_SECURITY_WARNINGS to enforce CSP in production
-let mainWindow;
+let mainWindow = null;
 
-autoUpdater.autoDownload = true; // Descargar automáticamente
+// ─── Auto-updater config ───
+autoUpdater.autoDownload = true;
+autoUpdater.autoInstallOnAppQuit = true;
+autoUpdater.logger = require('electron-log');
+autoUpdater.logger.transports.file.level = 'info';
 
+let updateCheckInterval = null;
+let updateRetryCount = 0;
+const MAX_UPDATE_RETRIES = 5;
+const UPDATE_RETRY_INTERVAL_MS = 5 * 60 * 1000; // 5 minutos
+
+// ─── Helpers ───
+/** Envía un mensaje al renderer solo si la ventana existe y no está destruida */
+function sendToRenderer(channel, ...args) {
+  if (mainWindow && !mainWindow.isDestroyed() && mainWindow.webContents) {
+    mainWindow.webContents.send(channel, ...args);
+  }
+}
+
+// ─── Window ───
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 800,
@@ -16,34 +37,35 @@ function createWindow() {
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
-      nodeIntegration: false, // Más seguro deshabilitarlo
-    }
+      nodeIntegration: false,
+      sandbox: false, // Necesario para sqlite3 nativo
+    },
   });
 
   if (process.env.NODE_ENV === 'development') {
-    process.env['ELECTRON_DISABLE_SECURITY_WARNINGS'] = 'true'; // Suppress CSP only in Dev
+    process.env.ELECTRON_DISABLE_SECURITY_WARNINGS = 'true';
     mainWindow.loadURL('http://localhost:4400');
     mainWindow.webContents.openDevTools();
   } else {
-    // FIX D3: Use loadFile with hash option for proper routing in prod
-    mainWindow.loadFile(path.join(__dirname, 'dist/tesoreria/browser/index.html'), { hash: '/' });
+    mainWindow.loadFile(
+      path.join(__dirname, 'dist/tesoreria/browser/index.html'),
+      { hash: '/' }
+    );
   }
 
   mainWindow.maximize();
 
   mainWindow.on('closed', () => {
+    cleanupPdfContext();
     mainWindow = null;
   });
 
-  // Intercept Ctrl+R / F5 to reload properly (native reload loses index.html path)
-  // Preserves the current hash route so the user stays on the same page
+  // Interceptar Ctrl+R / F5 para recargar preservando la ruta hash
   mainWindow.webContents.on('before-input-event', (event, input) => {
     const isReload =
-      (input.control && input.key.toLowerCase() === 'r') ||
-      input.key === 'F5';
+      (input.control && input.key.toLowerCase() === 'r') || input.key === 'F5';
     if (isReload && process.env.NODE_ENV !== 'development') {
       event.preventDefault();
-      // Extract current hash route from the URL (e.g. "/#/dashboard" → "/dashboard")
       const currentUrl = mainWindow.webContents.getURL();
       const hashIndex = currentUrl.indexOf('#');
       const currentHash = hashIndex !== -1 ? currentUrl.substring(hashIndex + 1) : '/';
@@ -54,51 +76,99 @@ function createWindow() {
     }
   });
 
+  // Abrir links externos en el navegador del sistema (no dentro de Electron)
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    if (url.startsWith('http://') || url.startsWith('https://')) {
+      shell.openExternal(url);
+    }
+    return { action: 'deny' };
+  });
+
+  // Verificar actualizaciones solo en producción (con reintento)
   if (process.env.NODE_ENV !== 'development') {
-    autoUpdater.checkForUpdatesAndNotify();
+    checkForUpdatesWithRetry();
   }
 }
 
-// IPC para obtener versión y entorno
+// ─── IPC: Versión y entorno ───
 ipcMain.handle('version:get', () => {
-  return require(path.resolve(__dirname, 'package.json')).version;
+  try {
+    return require(path.resolve(__dirname, 'package.json')).version;
+  } catch {
+    return '0.0.0';
+  }
 });
 
-ipcMain.handle('env:get', () => {
-  return process.env.NODE_ENV || 'production';
+ipcMain.handle('env:get', () => process.env.NODE_ENV || 'production');
+
+// ─── Auto-updater: verificación con reintento ───
+function checkForUpdatesWithRetry() {
+  autoUpdater.checkForUpdatesAndNotify().catch((err) => {
+    autoUpdater.logger.warn('[updater] Fallo verificando actualizaciones:', err?.message || err);
+    scheduleUpdateRetry();
+  });
+}
+
+function scheduleUpdateRetry() {
+  if (updateRetryCount >= MAX_UPDATE_RETRIES) {
+    autoUpdater.logger.warn(`[updater] Se alcanzó el máximo de reintentos (${MAX_UPDATE_RETRIES}).`);
+    return;
+  }
+  if (updateCheckInterval) clearTimeout(updateCheckInterval);
+  updateRetryCount++;
+  autoUpdater.logger.info(`[updater] Reintento ${updateRetryCount}/${MAX_UPDATE_RETRIES} en ${UPDATE_RETRY_INTERVAL_MS / 1000}s`);
+  updateCheckInterval = setTimeout(() => checkForUpdatesWithRetry(), UPDATE_RETRY_INTERVAL_MS);
+}
+
+// ─── Auto-updater events ───
+autoUpdater.on('update-available', (info) => {
+  // Detener reintentos — ya encontramos una actualización
+  if (updateCheckInterval) { clearTimeout(updateCheckInterval); updateCheckInterval = null; }
+  updateRetryCount = 0;
+  sendToRenderer('update-available', { version: info?.version || '' });
 });
 
-// Manejadores de actualizaciones
-autoUpdater.on('update-available', () => {
-  mainWindow.webContents.send('update-available');
-});
+autoUpdater.on('download-progress', (progressObj) =>
+  sendToRenderer('update-progress', {
+    percent: progressObj.percent,
+    bytesPerSecond: progressObj.bytesPerSecond,
+    transferred: progressObj.transferred,
+    total: progressObj.total,
+  })
+);
 
-autoUpdater.on('download-progress', (progressObj) => {
-  mainWindow.webContents.send('update-progress', progressObj);
-});
-
-autoUpdater.on('update-downloaded', () => {
-  mainWindow.webContents.send('update-downloaded');
-  setTimeout(() => {
-    autoUpdater.quitAndInstall();
-  }, 3000); // Espera 3 segundos antes de reiniciar
+autoUpdater.on('update-downloaded', (info) => {
+  autoUpdater.logger.info('[updater] Actualización descargada:', info?.version);
+  sendToRenderer('update-downloaded');
+  // Único punto de quitAndInstall — el renderer ya no lo duplica
+  setTimeout(() => autoUpdater.quitAndInstall(false, true), 4000);
 });
 
 autoUpdater.on('error', (error) => {
-  mainWindow.webContents.send('update-error', error);
+  autoUpdater.logger.error('[updater] Error:', error?.message || error);
+  sendToRenderer('update-error', { message: error?.message || String(error) });
+  // Reintentar después del error
+  scheduleUpdateRetry();
 });
 
-// Forzar la instalación sin preguntar
-ipcMain.on('restart-app', () => {
-  autoUpdater.quitAndInstall();
+autoUpdater.on('update-not-available', () => {
+  autoUpdater.logger.info('[updater] No hay actualizaciones disponibles.');
+  // Limpiar reintentos
+  updateRetryCount = 0;
+  if (updateCheckInterval) { clearTimeout(updateCheckInterval); updateCheckInterval = null; }
 });
 
+ipcMain.on('restart-app', () => autoUpdater.quitAndInstall(false, true));
+
+// ─── App lifecycle ───
 app.on('ready', () => {
   initDatabase();
   createWindow();
 });
 
 app.on('window-all-closed', () => {
+  cleanupPdfContext();
+  closeDatabase();
   if (process.platform !== 'darwin') app.quit();
 });
 
@@ -106,136 +176,120 @@ app.on('activate', () => {
   if (mainWindow === null) createWindow();
 });
 
+// ─── IPC: Huella dactilar ───
+ipcMain.handle('fingerprint:get', async () => {
+  const csharpAppPath =
+    process.env.NODE_ENV === 'development'
+      ? path.join(__dirname, 'csharp', 'UareUSampleCSharp_CaptureOnly.exe')
+      : path.join(process.resourcesPath, 'csharp', 'UareUSampleCSharp_CaptureOnly.exe');
 
-ipcMain.handle('fingerprint:get', async (event) => {
-  return new Promise((resolve, reject) => {
-    let csharpAppPath;
+  // Verificar que el ejecutable existe antes de intentar ejecutarlo
+  if (!fs.existsSync(csharpAppPath)) {
+    return { success: false, error: `Ejecutable no encontrado: ${csharpAppPath}` };
+  }
 
-    if (process.env.NODE_ENV === 'development') {
-      // En desarrollo, el archivo está en el mismo directorio del código
-      csharpAppPath = path.join(__dirname, 'csharp', 'UareUSampleCSharp_CaptureOnly.exe');
-    } else {
-      // En producción, el ejecutable debe estar en la carpeta "resources"
-      csharpAppPath = path.join(process.resourcesPath, 'csharp', 'UareUSampleCSharp_CaptureOnly.exe');
-    }
-
-    execFile(csharpAppPath, (error, stdout, stderr) => {
+  return new Promise((resolve) => {
+    execFile(csharpAppPath, { timeout: 30000 }, (error, stdout, stderr) => {
       if (error) {
-        reject({ error: stderr });
+        resolve({
+          success: false,
+          error: error.killed
+            ? 'La captura de huella excedió el tiempo límite (30s).'
+            : stderr || error.message || 'Error desconocido al capturar huella.',
+        });
         return;
       }
 
       const match = stdout.match(/DATA:\s*(.+)/);
       if (match) {
-        const base64Image = match[1].trim();
-        resolve({ success: true, data: base64Image });
+        resolve({ success: true, data: match[1].trim() });
       } else {
-        reject({ error: 'No se recibió una imagen en Base64.' });
+        resolve({ success: false, error: 'No se recibió una imagen válida del lector.' });
       }
     });
   });
 });
 
-// ─── PDF External Editor ─────────────────────────────────
-const fs = require('fs');
-const os = require('os');
-const https = require('https');
-const http = require('http');
-const { shell } = require('electron');
-
+// ─── IPC: PDF External Editor ───
 let currentEditingFile = null;
 let fileWatcher = null;
+let debounceTimer = null;
 
 function cleanupPdfContext() {
+  if (debounceTimer) {
+    clearTimeout(debounceTimer);
+    debounceTimer = null;
+  }
   if (fileWatcher) {
-    if (typeof fileWatcher.close === 'function') fileWatcher.close();
-    else clearInterval(fileWatcher); // Fallback if it was setInterval
+    try { fileWatcher.close(); } catch { /* ya cerrado */ }
     fileWatcher = null;
   }
   if (currentEditingFile && fs.existsSync(currentEditingFile)) {
-    try { fs.unlinkSync(currentEditingFile); } catch (e) { }
+    try { fs.unlinkSync(currentEditingFile); } catch { /* puede estar bloqueado */ }
     currentEditingFile = null;
   }
 }
 
-ipcMain.handle('pdf:edit-external', async (event, fileUrl) => {
+/** Descarga un archivo por HTTP/HTTPS con soporte de un redirect */
+function downloadFile(url, destPath) {
+  return new Promise((resolve, reject) => {
+    const client = url.startsWith('https') ? https : http;
+    client.get(url, (response) => {
+      // Seguir un redirect
+      if (response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
+        downloadFile(response.headers.location, destPath).then(resolve).catch(reject);
+        response.resume();
+        return;
+      }
+      if (response.statusCode !== 200) {
+        response.resume();
+        reject(new Error(`HTTP ${response.statusCode}`));
+        return;
+      }
+      const fileStream = fs.createWriteStream(destPath);
+      response.pipe(fileStream);
+      fileStream.on('finish', () => { fileStream.close(); resolve(); });
+      fileStream.on('error', reject);
+    }).on('error', reject);
+  });
+}
+
+ipcMain.handle('pdf:edit-external', async (_event, fileUrl) => {
   try {
-    // Si el usuario abre otro PDF sin haber cerrado el anterior,
-    // limpiamos explícitamente el reloj de memoria previo para evitar fugas.
     cleanupPdfContext();
-    // 1. Create temp file path
+
     const tmpDir = path.join(os.tmpdir(), 'tesoreria-pdf-edit');
-    if (!fs.existsSync(tmpDir)) {
-      fs.mkdirSync(tmpDir, { recursive: true });
-    }
+    if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir, { recursive: true });
     const tmpFile = path.join(tmpDir, `edit_${Date.now()}.pdf`);
 
-    // 2. Download PDF from URL
-    await new Promise((resolve, reject) => {
-      const client = fileUrl.startsWith('https') ? https : http;
-      const req = client.get(fileUrl, (response) => {
-        // Follow redirects
-        if (response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
-          const redirectClient = response.headers.location.startsWith('https') ? https : http;
-          redirectClient.get(response.headers.location, (res2) => {
-            const fileStream = fs.createWriteStream(tmpFile);
-            res2.pipe(fileStream);
-            fileStream.on('finish', () => { fileStream.close(); resolve(); });
-            fileStream.on('error', reject);
-          }).on('error', reject);
-          return;
-        }
-        const fileStream = fs.createWriteStream(tmpFile);
-        response.pipe(fileStream);
-        fileStream.on('finish', () => { fileStream.close(); resolve(); });
-        fileStream.on('error', reject);
-      });
-      req.on('error', reject);
-    });
-
+    await downloadFile(fileUrl, tmpFile);
     currentEditingFile = tmpFile;
 
-    // 3. Get the initial file stats for comparison
     const initialStats = fs.statSync(tmpFile);
-    const initialSize = initialStats.size;
-    const initialMtime = initialStats.mtimeMs;
+    let lastSize = initialStats.size;
 
-    // 4. Open with system default PDF editor (e.g. Adobe Acrobat)
+    // Abrir con el editor PDF del sistema
     const result = await shell.openPath(tmpFile);
-    if (result) {
-      // result is non-empty string on error
-      return { success: false, error: result };
-    }
+    if (result) return { success: false, error: result };
 
-    // 5. Watch the file for changes (Event-Driven for CPU efficiency)
-    if (fileWatcher) {
-      if (typeof fileWatcher.close === 'function') fileWatcher.close();
-    }
-    
-    let lastSize = initialSize;
-    let debounceTimer = null;
-    
+    // Vigilar cambios con debounce
     fileWatcher = fs.watch(tmpFile, (eventType) => {
-      if (eventType === 'change') {
-        if (debounceTimer) clearTimeout(debounceTimer);
-        debounceTimer = setTimeout(() => {
-          try {
-            if (!fs.existsSync(tmpFile)) return;
-            const stats = fs.statSync(tmpFile);
-            
-            if (stats.size !== lastSize || stats.size > 0) {
-              lastSize = stats.size;
-              const modifiedBytes = fs.readFileSync(tmpFile);
-              if (mainWindow && !mainWindow.isDestroyed()) {
-                mainWindow.webContents.send('pdf:file-changed', {
-                  filePath: tmpFile,
-                  bytes: modifiedBytes.toString('base64')
-                });
-              }
-            }
-          } catch (e) { /* file may be locked by Adobe */ }
-        }, 800); // Debounce to allow Acrobat to finish writing
-      }
+      if (eventType !== 'change') return;
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        try {
+          if (!fs.existsSync(tmpFile)) return;
+          const stats = fs.statSync(tmpFile);
+          if (stats.size !== lastSize || stats.size > 0) {
+            lastSize = stats.size;
+            const modifiedBytes = fs.readFileSync(tmpFile);
+            sendToRenderer('pdf:file-changed', {
+              filePath: tmpFile,
+              bytes: modifiedBytes.toString('base64'),
+            });
+          }
+        } catch { /* archivo puede estar bloqueado por el editor */ }
+      }, 800);
     });
 
     return { success: true, filePath: tmpFile };
@@ -245,15 +299,15 @@ ipcMain.handle('pdf:edit-external', async (event, fileUrl) => {
 });
 
 ipcMain.handle('pdf:read-file', async () => {
-  if (currentEditingFile && fs.existsSync(currentEditingFile)) {
-    try {
-      const bytes = fs.readFileSync(currentEditingFile);
-      return { success: true, bytes: bytes.toString('base64') };
-    } catch (e) {
-      return { success: false, error: e.message };
-    }
+  if (!currentEditingFile || !fs.existsSync(currentEditingFile)) {
+    return { success: false, error: 'No hay archivo en edición.' };
   }
-  return { success: false, error: 'No file being edited' };
+  try {
+    const bytes = fs.readFileSync(currentEditingFile);
+    return { success: true, bytes: bytes.toString('base64') };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
 });
 
 ipcMain.handle('pdf:finish-edit', async () => {

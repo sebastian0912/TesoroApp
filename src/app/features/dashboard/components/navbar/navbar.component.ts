@@ -52,6 +52,7 @@ export class NavbarComponent implements OnInit, OnDestroy {
   public currentRoute?: string;
   public isOnline = true;
   public pendingCount = 0;
+  public syncProgress: { current: number; total: number; phase: string } | null = null;
 
   public permTree: PermNode[] = [];
   public activeRoot: PermNode | null = null;
@@ -264,6 +265,10 @@ export class NavbarComponent implements OnInit, OnDestroy {
       });
       this.offlineSync.pendingCount$.subscribe(count => {
         this.pendingCount = count;
+      });
+      this.offlineSync.syncProgress$.subscribe(progress => {
+        this.syncProgress = progress;
+        this.cdr.markForCheck();
       });
       window.addEventListener('offline-queue-updated', () => {
         this.offlineSync.updatePendingCount();

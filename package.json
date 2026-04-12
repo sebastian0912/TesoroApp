@@ -10,8 +10,9 @@
     "url": "https://github.com/sebastian0912/ControlPrestamos.git"
   },
   "build": {
-    "appId": "ControlPrestamosApoyoLaboral",
+    "appId": "com.apoyolaboral.gestion-tesoreria",
     "productName": "Gestion Tesoreria",
+    "copyright": "Copyright 2024-2026 Apoyo Laboral TS SAS / Tu Alianza SAS",
     "directories": {
       "output": "dist/electron"
     },
@@ -39,7 +40,27 @@
     ],
     "win": {
       "target": "nsis",
-      "icon": "public/logo.ico"
+      "icon": "public/logo.ico",
+      "publisherName": "Apoyo Laboral TS SAS",
+      "legalTrademarks": "Apoyo Laboral TS SAS - Tu Alianza SAS",
+      "requestedExecutionLevel": "asInvoker"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": true,
+      "allowToChangeInstallationDirectory": false,
+      "installerIcon": "public/logo.ico",
+      "uninstallerIcon": "public/logo.ico",
+      "installerHeaderIcon": "public/logo.ico",
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Gestion Tesoreria",
+      "installerLanguages": [
+        "es_ES"
+      ],
+      "language": "3082",
+      "deleteAppDataOnUninstall": false,
+      "runAfterFinish": true
     },
     "asar": true,
     "publish": [
@@ -96,6 +117,7 @@
     "apexcharts": "^5.10.0",
     "astral-regex": "^2.0.0",
     "echarts": "^6.0.0",
+    "electron-log": "^5.4.3",
     "electron-updater": "^6.8.3",
     "exceljs": "^4.4.0",
     "express": "^4.22.1",

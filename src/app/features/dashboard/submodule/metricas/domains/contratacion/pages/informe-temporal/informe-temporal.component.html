@@ -6,7 +6,7 @@
       <div class="filters-row">
         <mat-form-field appearance="outline" class="filter-field">
           <mat-label>Temporal (Empresa)</mat-label>
-          <mat-select [formControl]="temporalControl">
+          <mat-select [formControl]="temporalControl" (selectionChange)="consultar()">
             <mat-option value="">Todas</mat-option>
             @for (t of temporales; track t) {
               <mat-option [value]="t">{{ t }}</mat-option>
@@ -14,105 +14,156 @@
           </mat-select>
         </mat-form-field>
 
-        <mat-form-field appearance="outline" class="filter-field">
-          <mat-label>Desde</mat-label>
-          <input matInput [matDatepicker]="dpStart" [formControl]="dateRange.controls.start">
-          <mat-datepicker-toggle matSuffix [for]="dpStart"></mat-datepicker-toggle>
-          <mat-datepicker #dpStart></mat-datepicker>
-        </mat-form-field>
-
-        <mat-form-field appearance="outline" class="filter-field">
-          <mat-label>Hasta</mat-label>
-          <input matInput [matDatepicker]="dpEnd" [formControl]="dateRange.controls.end">
-          <mat-datepicker-toggle matSuffix [for]="dpEnd"></mat-datepicker-toggle>
-          <mat-datepicker #dpEnd></mat-datepicker>
+        <mat-form-field appearance="outline" class="filter-field-range">
+          <mat-label>Rango de fechas</mat-label>
+          <mat-date-range-input [rangePicker]="rangePicker">
+            <input matStartDate [formControl]="dateRange.controls.start" placeholder="Desde">
+            <input matEndDate [formControl]="dateRange.controls.end" placeholder="Hasta" (dateChange)="consultar()">
+          </mat-date-range-input>
+          <mat-datepicker-toggle matSuffix [for]="rangePicker"></mat-datepicker-toggle>
+          <mat-date-range-picker #rangePicker></mat-date-range-picker>
         </mat-form-field>
 
         <button mat-flat-button color="primary" (click)="consultar()" [disabled]="loading()" class="btn-consultar">
           @if (loading()) {
             <mat-spinner diameter="20" class="spinner-inline"></mat-spinner>
           } @else {
-            <mat-icon>search</mat-icon>
+            <mat-icon>refresh</mat-icon>
           }
-          Consultar
+          Actualizar
         </button>
       </div>
     </mat-card-content>
   </mat-card>
 
-  @if (kpis()) {
-    <!-- KPIs -->
-    <div class="kpis-row">
-      <mat-card class="kpi-card kpi-green">
-        <div class="kpi-value">{{ kpis().total_contratados }}</div>
-        <div class="kpi-label">Contratados</div>
-      </mat-card>
-      <mat-card class="kpi-card kpi-red">
-        <div class="kpi-value">{{ kpis().total_rechazados }}</div>
-        <div class="kpi-label">Rechazados (911)</div>
-      </mat-card>
-      <mat-card class="kpi-card kpi-yellow">
-        <div class="kpi-value">{{ kpis().total_espera }}</div>
-        <div class="kpi-label">Espera Vacante</div>
-      </mat-card>
-      <mat-card class="kpi-card kpi-blue">
-        <div class="kpi-value">{{ kpis().total_prueba_tecnica }}</div>
-        <div class="kpi-label">Prueba T.</div>
-      </mat-card>
+  <!-- LOADING -->
+  @if (loading() && !hasData()) {
+    <div class="loading-state">
+      <mat-spinner diameter="48"></mat-spinner>
+      <p>Cargando datos...</p>
+    </div>
+  }
+
+  <!-- ERROR -->
+  @if (errorMsg() && !loading()) {
+    <mat-card class="empty-card">
+      <mat-card-content class="empty-content">
+        <mat-icon class="empty-icon" style="color:#C62828;">error_outline</mat-icon>
+        <p>{{ errorMsg() }}</p>
+      </mat-card-content>
+    </mat-card>
+  }
+
+  <!-- CONTENIDO -->
+  @if (hasData() && kpis()) {
+    <!-- TÍTULO DINÁMICO -->
+    <div class="section-title-bar">
+      <mat-icon class="section-icon">business</mat-icon>
+      <div>
+        <h2 class="section-title">{{ temporalControl.value || 'Todas las temporales' }}</h2>
+        <p class="section-subtitle">
+          @if (dateRange.controls.start.value && dateRange.controls.end.value) {
+            {{ dateRange.controls.start.value | date:'dd/MM/yyyy' }} — {{ dateRange.controls.end.value | date:'dd/MM/yyyy' }}
+          } @else {
+            Todos los registros
+          }
+          &nbsp;|&nbsp; {{ kpis()!.total_procesos }} procesos
+        </p>
+      </div>
     </div>
 
-    <!-- GRAFICAS -->
+    <!-- KPIs FUNNEL -->
+    <div class="kpis-funnel">
+      <div class="kpi-step">
+        <div class="kpi-step-value">{{ kpis()!.entrevistado }}</div>
+        <div class="kpi-step-label">Entrevistados</div>
+      </div>
+      <mat-icon class="kpi-arrow">chevron_right</mat-icon>
+      <div class="kpi-step">
+        <div class="kpi-step-value">{{ kpis()!.prueba_tecnica + kpis()!.autorizado }}</div>
+        <div class="kpi-step-label">Prueba/Autoriz.</div>
+      </div>
+      <mat-icon class="kpi-arrow">chevron_right</mat-icon>
+      <div class="kpi-step">
+        <div class="kpi-step-value">{{ kpis()!.examenes_medicos }}</div>
+        <div class="kpi-step-label">Exámenes</div>
+      </div>
+      <mat-icon class="kpi-arrow">chevron_right</mat-icon>
+      <div class="kpi-step kpi-step-green">
+        <div class="kpi-step-value">{{ kpis()!.total_contratados }}</div>
+        <div class="kpi-step-label">Contratados</div>
+      </div>
+      <mat-icon class="kpi-arrow">chevron_right</mat-icon>
+      <div class="kpi-step kpi-step-dark">
+        <div class="kpi-step-value">{{ kpis()!.total_ingreso }}</div>
+        <div class="kpi-step-label">Ingresaron</div>
+      </div>
+      <div class="kpi-divider"></div>
+      <div class="kpi-step kpi-step-red">
+        <div class="kpi-step-value">{{ kpis()!.total_rechazados }}</div>
+        <div class="kpi-step-label">No aplica (911)</div>
+      </div>
+      <div class="kpi-step kpi-step-yellow">
+        <div class="kpi-step-value">{{ kpis()!.total_espera }}</div>
+        <div class="kpi-step-label">Espera Vacante</div>
+      </div>
+    </div>
+
+    <!-- GRÁFICAS FILA 1: Oficina + Finca -->
     <div class="charts-grid">
       @if (chartOficina()) {
         <mat-card class="chart-card">
           <mat-card-header><mat-card-title>Contratados por Oficina</mat-card-title></mat-card-header>
-          <mat-card-content>
-            <div echarts [options]="chartOficina()!" class="chart-container"></div>
-          </mat-card-content>
+          <mat-card-content><div echarts [options]="chartOficina()!" class="chart-container"></div></mat-card-content>
         </mat-card>
       }
-
       @if (chartFinca()) {
         <mat-card class="chart-card">
-          <mat-card-header><mat-card-title>Distribución por Finca</mat-card-title></mat-card-header>
-          <mat-card-content>
-            <div echarts [options]="chartFinca()!" class="chart-container"></div>
-          </mat-card-content>
+          <mat-card-header><mat-card-title>Contratados por Finca</mat-card-title></mat-card-header>
+          <mat-card-content><div echarts [options]="chartFinca()!" class="chart-container"></div></mat-card-content>
         </mat-card>
       }
     </div>
 
-    @if (chartTendencia()) {
-      <mat-card class="chart-card full-width">
-        <mat-card-header><mat-card-title>Tendencia de Ingresos por Fecha</mat-card-title></mat-card-header>
-        <mat-card-content>
-          <div echarts [options]="chartTendencia()!" class="chart-container-wide"></div>
-        </mat-card-content>
+    <!-- PIPELINE POR OFICINA -->
+    @if (chartFunnel()) {
+      <mat-card class="chart-card">
+        <mat-card-header><mat-card-title>Pipeline por Oficina (Etapas del proceso)</mat-card-title></mat-card-header>
+        <mat-card-content><div echarts [options]="chartFunnel()!" class="chart-container-wide"></div></mat-card-content>
       </mat-card>
     }
 
-    <!-- TABLA DETALLADA -->
+    <!-- FILA 2: Tendencia + Motivos -->
+    <div class="charts-grid">
+      @if (chartTendencia()) {
+        <mat-card class="chart-card">
+          <mat-card-header><mat-card-title>Tendencia de Ingresos</mat-card-title></mat-card-header>
+          <mat-card-content><div echarts [options]="chartTendencia()!" class="chart-container"></div></mat-card-content>
+        </mat-card>
+      }
+      @if (chartMotivos()) {
+        <mat-card class="chart-card">
+          <mat-card-header><mat-card-title>Motivos de No Aplica (911)</mat-card-title></mat-card-header>
+          <mat-card-content><div echarts [options]="chartMotivos()!" class="chart-container"></div></mat-card-content>
+        </mat-card>
+      }
+    </div>
+
+    <!-- TABLA -->
     @if (rows().length > 0) {
       <mat-card class="table-card">
-        <mat-card-header>
-          <mat-card-title>Detalle de Contratados ({{ rows().length }})</mat-card-title>
-        </mat-card-header>
+        <mat-card-header><mat-card-title>Detalle de Contratados ({{ rows().length }})</mat-card-title></mat-card-header>
         <mat-card-content>
-          <app-standard-filter-table
-            [data]="rows()"
-            [columnDefinitions]="tableColumns"
-            [pageSizeOptions]="[15, 30, 50]"
-            tableTitle="Informe por Temporal">
-          </app-standard-filter-table>
+          <app-standard-filter-table [data]="rows()" [columnDefinitions]="tableColumns" [pageSizeOptions]="[15, 30, 50]" tableTitle="Informe por Temporal"></app-standard-filter-table>
         </mat-card-content>
       </mat-card>
     }
 
-    @if (rows().length === 0 && !loading()) {
+    @if (rows().length === 0) {
       <mat-card class="empty-card">
-        <mat-card-content style="text-align:center;padding:40px;color:#6b7280;">
-          <mat-icon style="font-size:48px;width:48px;height:48px;opacity:0.4;">search_off</mat-icon>
-          <p style="margin-top:12px;">No se encontraron resultados para los filtros seleccionados.</p>
+        <mat-card-content class="empty-content">
+          <mat-icon class="empty-icon">search_off</mat-icon>
+          <p>No se encontraron contratados para los filtros seleccionados.</p>
         </mat-card-content>
       </mat-card>
     }

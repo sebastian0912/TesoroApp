@@ -7,64 +7,70 @@
   margin: 0 auto;
 }
 
-/* Filtros */
+/* ─── Filtros ─── */
 .filters-card { border-radius: 12px; }
-.filters-row {
-  display: flex;
-  gap: 16px;
-  align-items: center;
-  flex-wrap: wrap;
-}
+.filters-row { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
 .filter-field { flex: 1; min-width: 180px; }
-.btn-consultar {
-  height: 56px;
-  min-width: 140px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
+.filter-field-range { flex: 1.5; min-width: 250px; }
+.btn-consultar { height: 56px; min-width: 140px; display: flex; align-items: center; gap: 8px; }
 .spinner-inline { display: inline-block; }
 
-/* KPIs */
-.kpis-row {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 16px;
+/* ─── Título dinámico ─── */
+.section-title-bar {
+  display: flex; align-items: center; gap: 14px;
+  padding: 16px 20px;
+  background: linear-gradient(135deg, #051b3f, #1565C0);
+  border-radius: 12px; color: white;
 }
-.kpi-card {
-  border-radius: 12px;
-  padding: 20px;
-  text-align: center;
-  border-left: 5px solid;
-}
-.kpi-value { font-size: 2rem; font-weight: 800; }
-.kpi-label { font-size: 0.85rem; color: #64748b; margin-top: 4px; font-weight: 500; }
-.kpi-green { border-color: #2E7D32; }
-.kpi-green .kpi-value { color: #2E7D32; }
-.kpi-red { border-color: #C62828; }
-.kpi-red .kpi-value { color: #C62828; }
-.kpi-yellow { border-color: #F57F17; }
-.kpi-yellow .kpi-value { color: #F57F17; }
-.kpi-blue { border-color: #1565C0; }
-.kpi-blue .kpi-value { color: #1565C0; }
+.section-icon { font-size: 32px; width: 32px; height: 32px; opacity: 0.85; }
+.section-title { margin: 0; font-size: 1.25rem; font-weight: 700; }
+.section-subtitle { margin: 4px 0 0; font-size: 0.85rem; opacity: 0.8; }
 
-/* Gráficas */
-.charts-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 20px;
+/* ─── KPIs Funnel ─── */
+.kpis-funnel {
+  display: flex; align-items: center; gap: 6px;
+  padding: 16px 20px;
+  background: #fff; border-radius: 12px; border: 1px solid #e2e8f0;
+  overflow-x: auto;
 }
-.chart-card { border-radius: 12px; }
-.chart-card.full-width { grid-column: 1 / -1; }
-.chart-container { width: 100%; height: 350px; }
-.chart-container-wide { width: 100%; height: 300px; }
+.kpi-step { text-align: center; padding: 10px 14px; border-radius: 10px; background: #f1f5f9; min-width: 85px; }
+.kpi-step-value { font-size: 1.5rem; font-weight: 800; color: #1e293b; line-height: 1; }
+.kpi-step-label { font-size: 0.7rem; color: #64748b; font-weight: 600; margin-top: 4px; text-transform: uppercase; letter-spacing: 0.3px; }
+.kpi-step-green { background: #e8f5e9; }
+.kpi-step-green .kpi-step-value { color: #2E7D32; }
+.kpi-step-dark { background: #e0f2f1; }
+.kpi-step-dark .kpi-step-value { color: #00695c; }
+.kpi-step-red { background: #ffebee; }
+.kpi-step-red .kpi-step-value { color: #C62828; }
+.kpi-step-yellow { background: #fff8e1; }
+.kpi-step-yellow .kpi-step-value { color: #F57F17; }
+.kpi-arrow { color: #cbd5e1; font-size: 20px; width: 20px; height: 20px; flex-shrink: 0; }
+.kpi-divider { width: 2px; height: 40px; background: #e2e8f0; margin: 0 10px; flex-shrink: 0; }
 
-/* Tabla */
+/* ─── Gráficas ─── */
+.charts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+.chart-card { border-radius: 12px; overflow: hidden; }
+.chart-container { width: 100%; height: 360px; }
+.chart-container-wide { width: 100%; height: 380px; }
+
+/* ─── Tabla ─── */
 .table-card { border-radius: 12px; }
-.empty-card { border-radius: 12px; }
 
-@media (max-width: 768px) {
+/* ─── Estados vacíos ─── */
+.empty-card { border-radius: 12px; }
+.empty-content { text-align: center; padding: 40px; color: #6b7280; }
+.empty-icon { font-size: 48px; width: 48px; height: 48px; opacity: 0.4; }
+.loading-state { text-align: center; padding: 60px; }
+.loading-state p { margin-top: 16px; color: #64748b; }
+.loading-state mat-spinner { margin: 0 auto; }
+
+/* ─── Responsive ─── */
+@media (max-width: 900px) {
   .charts-grid { grid-template-columns: 1fr; }
+  .kpis-funnel { flex-wrap: wrap; justify-content: center; }
+}
+@media (max-width: 600px) {
   .filters-row { flex-direction: column; }
-  .filter-field { min-width: 100%; }
+  .filter-field, .filter-field-range { min-width: 100%; flex: unset; }
+  .informe-temporal-layout { padding: 12px; gap: 14px; }
 }

@@ -18,6 +18,11 @@ export const offlineInterceptor: HttpInterceptorFn = (
   const networkStatus = inject(NetworkStatusService);
   const electron = (window as any).electron;
 
+  // Las peticiones de sync replay NO deben re-encolarse si fallan
+  if (req.headers.has('X-Offline-Sync')) {
+    return next(req);
+  }
+
   const handleOfflineWrite = (request: HttpRequest<unknown>): Observable<HttpEvent<unknown>> => {
     if (electron && electron.db) {
       electron.db.saveRequestQueue({

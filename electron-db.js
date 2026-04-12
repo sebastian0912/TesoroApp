@@ -2,17 +2,16 @@ const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
 const { app, ipcMain } = require('electron');
 
-let db;
+let db = null;
 
 function initDatabase() {
-  // Configurar la base de datos en la carpeta de datos del usuario (AppData) para asegurar persistencia
   const dbPath = path.join(app.getPath('userData'), 'tesoro_offline.db');
-  
+
   db = new sqlite3.Database(dbPath, (err) => {
     if (err) {
-      console.error('Error opening database', err.message);
+      console.error('[electron-db] Error abriendo base de datos:', err.message);
     } else {
-      console.log('Connected to the SQLite database.');
+      console.log('[electron-db] SQLite conectado:', dbPath);
       createTables();
     }
   });
@@ -20,89 +19,132 @@ function initDatabase() {
   setupIpcHandlers();
 }
 
+function closeDatabase() {
+  if (db) {
+    db.close((err) => {
+      if (err) console.error('[electron-db] Error cerrando DB:', err.message);
+      else console.log('[electron-db] DB cerrada correctamente.');
+    });
+    db = null;
+  }
+}
+
 function createTables() {
-  // Tabla para encolar peticiones de escritura (POST, PUT, DELETE)
-  const createQueueTable = `
-    CREATE TABLE IF NOT EXISTS sync_queue (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      method TEXT NOT NULL,
-      url TEXT NOT NULL,
-      body TEXT,
-      headers TEXT,
-      timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-      status TEXT DEFAULT 'pending'
-    );
-  `;
+  db.serialize(() => {
+    db.run(`
+      CREATE TABLE IF NOT EXISTS sync_queue (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        method TEXT NOT NULL,
+        url TEXT NOT NULL,
+        body TEXT,
+        headers TEXT,
+        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+        status TEXT DEFAULT 'pending'
+      )
+    `);
 
-  // Tabla para caché de datos (GET)
-  const createCacheTable = `
-    CREATE TABLE IF NOT EXISTS api_cache (
-      url TEXT PRIMARY KEY,
-      data TEXT NOT NULL,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-  `;
-
-  db.run(createQueueTable);
-  db.run(createCacheTable);
+    db.run(`
+      CREATE TABLE IF NOT EXISTS api_cache (
+        url TEXT PRIMARY KEY,
+        data TEXT NOT NULL,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+  });
 }
 
 function setupIpcHandlers() {
-  // --- Colas de Solicitudes Pendientes ---
-  ipcMain.handle('db:save-request-queue', (event, { method, url, body, headers }) => {
+  // --- Cola de solicitudes pendientes ---
+  ipcMain.handle('db:save-request-queue', (_event, { method, url, body, headers }) => {
     return new Promise((resolve, reject) => {
-      const stmt = db.prepare('INSERT INTO sync_queue (method, url, body, headers) VALUES (?, ?, ?, ?)');
-      stmt.run([method, url, body, headers], function (err) {
-        if (err) return reject(err.message);
-        resolve({ success: true, id: this.lastID });
-      });
-      stmt.finalize();
+      if (!db) return reject('DB no inicializada');
+      db.run(
+        'INSERT INTO sync_queue (method, url, body, headers) VALUES (?, ?, ?, ?)',
+        [method, url, body, headers],
+        function (err) {
+          if (err) return reject(err.message);
+          resolve({ success: true, id: this.lastID });
+        }
+      );
     });
   });
 
   ipcMain.handle('db:get-pending-requests', () => {
     return new Promise((resolve, reject) => {
-      db.all("SELECT * FROM sync_queue WHERE status = 'pending' ORDER BY timestamp ASC", [], (err, rows) => {
-        if (err) return reject(err.message);
-        resolve(rows);
-      });
+      if (!db) return reject('DB no inicializada');
+      db.all(
+        "SELECT * FROM sync_queue WHERE status = 'pending' ORDER BY timestamp ASC",
+        [],
+        (err, rows) => {
+          if (err) return reject(err.message);
+          resolve(rows);
+        }
+      );
     });
   });
 
-  ipcMain.handle('db:delete-request', (event, id) => {
+  ipcMain.handle('db:delete-request', (_event, id) => {
     return new Promise((resolve, reject) => {
-      db.run("DELETE FROM sync_queue WHERE id = ?", [id], function (err) {
+      if (!db) return reject('DB no inicializada');
+      db.run('DELETE FROM sync_queue WHERE id = ?', [id], function (err) {
         if (err) return reject(err.message);
         resolve({ success: true, changes: this.changes });
       });
     });
   });
 
-  // --- Caché Dinámico de Lecturas (Online) ---
-  ipcMain.handle('db:cache-save', (event, { url, data }) => {
+  // --- Caché de lecturas ---
+  ipcMain.handle('db:cache-save', (_event, { url, data }) => {
     return new Promise((resolve, reject) => {
-      // Upsert: Si ya existe, lo actualiza
-      const stmt = db.prepare(`
-        INSERT INTO api_cache (url, data, updated_at) 
-        VALUES (?, ?, CURRENT_TIMESTAMP)
-        ON CONFLICT(url) DO UPDATE SET data=excluded.data, updated_at=CURRENT_TIMESTAMP
-      `);
-      stmt.run([url, data], function (err) {
-        if (err) return reject(err.message);
-        resolve({ success: true });
-      });
-      stmt.finalize();
+      if (!db) return reject('DB no inicializada');
+      db.run(
+        `INSERT INTO api_cache (url, data, updated_at)
+         VALUES (?, ?, CURRENT_TIMESTAMP)
+         ON CONFLICT(url) DO UPDATE SET data=excluded.data, updated_at=CURRENT_TIMESTAMP`,
+        [url, data],
+        function (err) {
+          if (err) return reject(err.message);
+          resolve({ success: true });
+        }
+      );
     });
   });
 
-  ipcMain.handle('db:cache-get', (event, url) => {
+  ipcMain.handle('db:cache-get', (_event, url) => {
     return new Promise((resolve, reject) => {
-      db.get("SELECT data FROM api_cache WHERE url = ?", [url], (err, row) => {
+      if (!db) return reject('DB no inicializada');
+      db.get('SELECT data FROM api_cache WHERE url = ?', [url], (err, row) => {
         if (err) return reject(err.message);
-        resolve(row ? JSON.parse(row.data) : null);
+        try {
+          resolve(row ? JSON.parse(row.data) : null);
+        } catch {
+          resolve(null);
+        }
+      });
+    });
+  });
+
+  // --- Obtener todas las URLs cacheadas (para refresh masivo) ---
+  ipcMain.handle('db:cache-get-all-urls', () => {
+    return new Promise((resolve, reject) => {
+      if (!db) return reject('DB no inicializada');
+      db.all('SELECT url FROM api_cache ORDER BY updated_at DESC', [], (err, rows) => {
+        if (err) return reject(err.message);
+        resolve(rows ? rows.map(r => r.url) : []);
+      });
+    });
+  });
+
+  // --- Actualizar estado de una solicitud en cola ---
+  ipcMain.handle('db:mark-request-status', (_event, { id, status }) => {
+    return new Promise((resolve, reject) => {
+      if (!db) return reject('DB no inicializada');
+      db.run('UPDATE sync_queue SET status = ? WHERE id = ?', [status, id], function (err) {
+        if (err) return reject(err.message);
+        resolve({ success: true, changes: this.changes });
       });
     });
   });
 }
 
-module.exports = { initDatabase };
+module.exports = { initDatabase, closeDatabase };
