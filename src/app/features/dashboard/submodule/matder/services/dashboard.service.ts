@@ -5,7 +5,7 @@ import { catchError } from 'rxjs/operators';
 import { environment } from '@/environments/environment';
 import {
   DashboardOverviewResponse, NotificationResponse,
-  UserGroupResponse, AuditLogResponse, ImportLogResponse,
+  UserGroupResponse, GroupMemberResponse, AuditLogResponse, ImportLogResponse,
 } from '../models/dashboard.models';
 
 @Injectable({ providedIn: 'root' })
@@ -42,7 +42,13 @@ export class MatderDashboardService {
     return firstValueFrom(this.http.get<UserGroupResponse[]>(`${this.base}/groups/`).pipe(catchError(this.err)));
   }
 
-  createGroup(data: { name: string; description?: string }): Promise<UserGroupResponse> {
+  getGroupsByWorkspace(workspaceId: number): Promise<UserGroupResponse[]> {
+    return firstValueFrom(this.http.get<UserGroupResponse[]>(`${this.base}/groups/`, {
+      params: { workspace: String(workspaceId) }
+    }).pipe(catchError(this.err)));
+  }
+
+  createGroup(data: { name: string; description?: string; workspace?: number }): Promise<UserGroupResponse> {
     return firstValueFrom(this.http.post<UserGroupResponse>(`${this.base}/groups/`, data).pipe(catchError(this.err)));
   }
 
@@ -52,6 +58,18 @@ export class MatderDashboardService {
 
   deleteGroup(id: number): Promise<void> {
     return firstValueFrom(this.http.delete<void>(`${this.base}/groups/${id}/`).pipe(catchError(this.err)));
+  }
+
+  getGroupMembers(groupId: number): Promise<GroupMemberResponse[]> {
+    return firstValueFrom(this.http.get<GroupMemberResponse[]>(`${this.base}/groups/${groupId}/members/`).pipe(catchError(this.err)));
+  }
+
+  addGroupMember(groupId: number, userId: string): Promise<GroupMemberResponse> {
+    return firstValueFrom(this.http.post<GroupMemberResponse>(`${this.base}/groups/${groupId}/members/`, { user: userId }).pipe(catchError(this.err)));
+  }
+
+  removeGroupMember(groupId: number, memberId: number): Promise<void> {
+    return firstValueFrom(this.http.delete<void>(`${this.base}/groups/${groupId}/members/${memberId}/`).pipe(catchError(this.err)));
   }
 
   // ── Audit ──

@@ -45,11 +45,11 @@ describe('BoardPreviewPageComponent', () => {
     expect(component.getListIds()).toEqual(['list-1', 'list-2']);
   });
 
-  it('priorityColor() should return correct colors', () => {
-    expect(component.priorityColor('LOW')).toBe('#22c55e');
-    expect(component.priorityColor('HIGH')).toBe('#ef4444');
-    expect(component.priorityColor('URGENT')).toBe('#7c3aed');
-    expect(component.priorityColor('UNKNOWN')).toBe('#9e9e9e');
+  it('priorityLabel() should return correct labels', () => {
+    expect(component.priorityLabel('LOW')).toBe('Baja');
+    expect(component.priorityLabel('HIGH')).toBe('Alta');
+    expect(component.priorityLabel('URGENT')).toBe('Urgente');
+    expect(component.priorityLabel('UNKNOWN')).toBe('UNKNOWN');
   });
 
   it('startAddCard() should set addingToListId', () => {

@@ -11,7 +11,9 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatChipsModule } from '@angular/material/chips';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatTooltipModule } from '@angular/material/tooltip';
+import { MatAutocompleteModule } from '@angular/material/autocomplete';
 import { WorkspaceService } from '../../services/workspace.service';
+import { UtilityServiceService } from '../../../../../../shared/services/utilityService/utility-service.service';
 import { WorkspaceResponse, WorkspaceMemberResponse } from '../../models/workspace.models';
 import Swal from 'sweetalert2';
 
@@ -21,7 +23,7 @@ import Swal from 'sweetalert2';
   imports: [
     DatePipe, FormsModule, MatCardModule, MatButtonModule, MatIconModule,
     MatFormFieldModule, MatInputModule, MatSelectModule, MatChipsModule,
-    MatProgressSpinnerModule, MatTooltipModule,
+    MatProgressSpinnerModule, MatTooltipModule, MatAutocompleteModule
   ],
   templateUrl: './workspaces-page.component.html',
   styleUrls: ['./workspaces-page.component.css'],
@@ -44,9 +46,14 @@ export class WorkspacesPageComponent implements OnInit {
   showAddMember = false;
   newMemberUser = '';
   newMemberRole = 'MEMBER';
+  
+  // Company users for autocomplete
+  companyUsers: any[] = [];
+  filteredCompanyUsers: any[] = [];
 
   constructor(
     private wsService: WorkspaceService,
+    private utilityService: UtilityServiceService,
     private router: Router,
     private route: ActivatedRoute,
   ) {}
@@ -72,6 +79,12 @@ export class WorkspacesPageComponent implements OnInit {
     this.loading.set(true);
     try {
       this.workspaces.set(await this.wsService.list());
+      this.utilityService.getAllUsers().subscribe({
+        next: (users: any[]) => {
+          this.companyUsers = users;
+          this.filteredCompanyUsers = users;
+        }
+      });
     } catch {
       this.workspaces.set([]);
     } finally {
@@ -95,6 +108,25 @@ export class WorkspacesPageComponent implements OnInit {
       result = result.filter(w => w.board_count === 0);
     }
     return result;
+  }
+
+  filterUsers(): void {
+    if (!this.newMemberUser) {
+      this.filteredCompanyUsers = this.companyUsers;
+      return;
+    }
+    const q = this.newMemberUser.toLowerCase();
+    this.filteredCompanyUsers = this.companyUsers.filter(u => 
+      (u.nombres || '').toLowerCase().includes(q) || 
+      (u.apellidos || '').toLowerCase().includes(q) || 
+      (u.correo_electronico || '').toLowerCase().includes(q) ||
+      (u.identificacion || '').toLowerCase().includes(q)
+    );
+  }
+
+  getUserDisplayName(user: any): string {
+    if (!user) return '';
+    return `${user.nombres ?? ''} ${user.apellidos ?? ''} - ${user.correo_electronico ?? ''}`.trim();
   }
 
   async create(): Promise<void> {
@@ -197,6 +229,10 @@ export class WorkspacesPageComponent implements OnInit {
 
   nav(path: string): void {
     this.router.navigate([`/dashboard/matder/${path}`]);
+  }
+
+  goToBoards(wsId: number): void {
+    this.router.navigate(['/dashboard/matder/boards'], { queryParams: { workspace: wsId } });
   }
 
   roleLabel(r: string | null): string {
