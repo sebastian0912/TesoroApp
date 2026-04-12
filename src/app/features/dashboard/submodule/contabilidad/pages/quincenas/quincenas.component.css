@@ -1,0 +1,544 @@
+.quincenas-container {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+/* ========== Header ========== */
+.quincenas-header {
+  background: linear-gradient(135deg, #1565c0 0%, #0d47a1 100%);
+  color: white;
+  border-radius: 12px;
+  padding: 0 20px;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.header-title {
+  font-size: 18px;
+  font-weight: 500;
+  letter-spacing: 0.3px;
+}
+
+.spacer {
+  flex: 1;
+}
+
+.header-stats {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.header-stats mat-chip {
+  --mdc-chip-label-text-color: white;
+  --mdc-chip-elevated-container-color: rgba(255, 255, 255, 0.15);
+  font-size: 12px;
+}
+
+.view-toggle {
+  display: flex;
+  gap: 2px;
+  margin-left: 8px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  padding: 2px;
+}
+
+.view-toggle button {
+  color: rgba(255, 255, 255, 0.6);
+  transition: all 0.2s ease;
+}
+
+.view-toggle button.active-view {
+  color: white;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 6px;
+}
+
+/* ========== Upload Card ========== */
+.upload-card {
+  border: 2px dashed #b0bec5;
+  border-radius: 12px;
+  transition: border-color 0.3s ease;
+}
+
+.upload-card:hover {
+  border-color: #1565c0;
+}
+
+.upload-card.compact {
+  border-style: solid;
+  border-color: #e0e0e0;
+}
+
+.upload-area {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 16px;
+  cursor: pointer;
+  min-height: 120px;
+  text-align: center;
+}
+
+.upload-area.compact {
+  flex-direction: row;
+  padding: 12px 20px;
+  min-height: auto;
+  gap: 12px;
+}
+
+.upload-icon {
+  font-size: 48px;
+  width: 48px;
+  height: 48px;
+  color: #90a4ae;
+  margin-bottom: 12px;
+  transition: color 0.3s ease;
+}
+
+.upload-icon.uploaded {
+  color: #43a047;
+}
+
+.upload-icon-sm {
+  font-size: 24px;
+  width: 24px;
+  height: 24px;
+}
+
+.upload-icon-sm.uploaded {
+  color: #43a047;
+}
+
+.upload-area:hover .upload-icon:not(.uploaded) {
+  color: #1565c0;
+}
+
+.upload-text {
+  font-size: 15px;
+  color: #546e7a;
+  margin: 4px 0;
+}
+
+.upload-text.uploaded {
+  color: #2e7d32;
+  font-weight: 500;
+}
+
+.upload-file-name {
+  font-size: 14px;
+  color: #2e7d32;
+  font-weight: 500;
+  flex: 1;
+  text-align: left;
+}
+
+.upload-hint {
+  font-size: 12px;
+  color: #90a4ae;
+  margin: 0;
+}
+
+.reload-btn {
+  font-size: 12px;
+  border-color: #b0bec5;
+}
+
+.reload-btn mat-icon {
+  font-size: 16px;
+  width: 16px;
+  height: 16px;
+  margin-right: 4px;
+}
+
+/* ========== Progress ========== */
+.progress-container {
+  width: 100%;
+  max-width: 500px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.progress-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.progress-icon {
+  color: #1565c0;
+  font-size: 28px;
+  width: 28px;
+  height: 28px;
+}
+
+.progress-icon.spin {
+  animation: spin 1.2s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.progress-texts {
+  flex: 1;
+}
+
+.progress-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 500;
+  color: #37474f;
+}
+
+.progress-sub {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: #90a4ae;
+}
+
+.progress-pct {
+  font-size: 20px;
+  font-weight: 700;
+  color: #1565c0;
+  min-width: 48px;
+  text-align: right;
+}
+
+.progress-bar {
+  border-radius: 4px;
+}
+
+::ng-deep .progress-bar .mdc-linear-progress__bar-inner {
+  border-color: #1565c0;
+}
+
+/* ========== Info Card ========== */
+.info-card {
+  border-radius: 10px;
+  border: 1px solid #bbdefb;
+  background: #e3f2fd;
+}
+
+.info-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.info-icon {
+  color: #1565c0;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.info-text {
+  font-size: 13px;
+  color: #37474f;
+  line-height: 1.5;
+}
+
+.info-text code {
+  display: block;
+  margin-top: 6px;
+  padding: 6px 10px;
+  background: rgba(0, 0, 0, 0.06);
+  border-radius: 4px;
+  font-size: 11px;
+  color: #1565c0;
+  word-break: break-all;
+}
+
+/* ========== Options Card ========== */
+.options-card {
+  border-radius: 12px;
+  border: 1px solid #e0e0e0;
+}
+
+.options-row {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.option-field {
+  flex: 1;
+  min-width: 200px;
+}
+
+/* ========== Save Section ========== */
+.save-section {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 20px;
+  background: #e8f5e9;
+  border-radius: 10px;
+  border: 1px solid #c8e6c9;
+}
+
+.btn-save {
+  background: #43a047 !important;
+  color: white !important;
+  font-weight: 500;
+  border-radius: 8px !important;
+}
+
+.btn-save:hover {
+  background: #388e3c !important;
+}
+
+.save-hint {
+  font-size: 13px;
+  color: #2e7d32;
+}
+
+/* ========== Consolidado ========== */
+.consolidado-section {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.section-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 16px;
+  font-weight: 500;
+  color: #37474f;
+  margin: 0;
+  padding: 0 4px;
+}
+
+.section-title mat-icon {
+  color: #1565c0;
+}
+
+.consolidado-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 12px;
+}
+
+.sheet-card {
+  border-radius: 10px;
+  cursor: pointer;
+  padding: 16px;
+  transition: all 0.2s ease;
+  border: 1px solid #e8eaed;
+}
+
+.sheet-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  border-color: #1565c0;
+}
+
+.sheet-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.sheet-card-icon {
+  color: #1565c0;
+  font-size: 28px;
+  width: 28px;
+  height: 28px;
+}
+
+.sheet-card-index {
+  font-size: 11px;
+  color: #90a4ae;
+  background: #f5f5f5;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-weight: 600;
+}
+
+.sheet-card-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #263238;
+  margin: 0 0 10px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sheet-card-stats {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 10px;
+}
+
+.sheet-card-stats .stat {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: #78909c;
+}
+
+.sheet-card-stats .stat mat-icon {
+  font-size: 14px;
+  width: 14px;
+  height: 14px;
+  color: #b0bec5;
+}
+
+.sheet-card-action {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  font-size: 12px;
+  color: #1565c0;
+  font-weight: 500;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.sheet-card:hover .sheet-card-action {
+  opacity: 1;
+}
+
+.sheet-card-action mat-icon {
+  font-size: 16px;
+  width: 16px;
+  height: 16px;
+}
+
+/* ========== Tabs Card ========== */
+.tabs-card {
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.sheet-tabs {
+  width: 100%;
+}
+
+.tab-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.tab-label mat-icon {
+  font-size: 18px;
+  width: 18px;
+  height: 18px;
+}
+
+.tab-name {
+  font-size: 12px;
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tab-badge {
+  background: #e3f2fd;
+  color: #1565c0;
+  padding: 1px 6px;
+  border-radius: 10px;
+  font-size: 10px;
+  font-weight: 600;
+  min-width: 20px;
+  text-align: center;
+}
+
+.tab-content {
+  padding: 12px 0;
+}
+
+.tab-info-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 16px;
+  background: #f5f5f5;
+  border-radius: 8px;
+  margin-bottom: 12px;
+}
+
+.tab-info-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 500;
+  font-size: 14px;
+  color: #37474f;
+}
+
+.tab-info-title mat-icon {
+  color: #1565c0;
+  font-size: 20px;
+  width: 20px;
+  height: 20px;
+}
+
+.tab-info-count {
+  font-size: 13px;
+  color: #78909c;
+  font-weight: 500;
+}
+
+/* ========== Responsive ========== */
+@media (max-width: 768px) {
+  .quincenas-container {
+    padding: 8px;
+  }
+
+  .quincenas-header {
+    height: auto;
+    padding: 12px 16px;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .header-title {
+    font-size: 15px;
+  }
+
+  .upload-area {
+    padding: 20px 12px;
+  }
+
+  .tab-name {
+    max-width: 80px;
+  }
+
+  .consolidado-grid {
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 8px;
+  }
+}
+
+/* ========== Mat-Tab overrides ========== */
+::ng-deep .sheet-tabs .mat-mdc-tab-header {
+  border-bottom: 1px solid #e0e0e0;
+}
+
+::ng-deep .sheet-tabs .mat-mdc-tab-body-wrapper {
+  padding: 8px;
+}
+
+::ng-deep .sheet-tabs .mat-mdc-tab-labels {
+  overflow-x: auto;
+}

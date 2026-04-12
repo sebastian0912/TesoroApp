@@ -1,0 +1,252 @@
+<div class="dash">
+  <!-- Header -->
+  <div class="dash-header">
+    <div class="header-left">
+      <mat-icon class="header-icon">account_balance</mat-icon>
+      <div>
+        <h1>Contabilidad</h1>
+        <p>Panel de análisis de nómina y contabilidad</p>
+      </div>
+    </div>
+    <div class="header-actions">
+      <button mat-raised-button class="btn-action" (click)="irACarga()">
+        <mat-icon>cloud_upload</mat-icon> Cargar
+      </button>
+      <button mat-raised-button class="btn-action" (click)="irAAnalisis()">
+        <mat-icon>analytics</mat-icon> Análisis
+      </button>
+      <button mat-icon-button matTooltip="Actualizar" (click)="cargarDatos()">
+        <mat-icon>refresh</mat-icon>
+      </button>
+    </div>
+  </div>
+
+  @if (loading()) {
+    <div class="loading"><mat-spinner diameter="48"></mat-spinner><p>Cargando indicadores...</p></div>
+  } @else if (!hasData()) {
+    <mat-card class="empty-card">
+      <mat-icon>cloud_upload</mat-icon>
+      <h3>No hay datos cargados</h3>
+      <p>Importa el consolidado general para ver el análisis completo</p>
+      <button mat-raised-button class="btn-primary" (click)="irACarga()">
+        <mat-icon>upload_file</mat-icon> Cargar información
+      </button>
+    </mat-card>
+  } @else {
+    <!-- ═══════ KPIs PRINCIPALES ═══════ -->
+    <div class="kpi-row">
+      <mat-card class="kpi">
+        <div class="kpi-icon bg-blue"><mat-icon>people</mat-icon></div>
+        <div class="kpi-data">
+          <span class="kpi-val">{{ formatNumber(analisis()!.kpis.empleados_unicos) }}</span>
+          <span class="kpi-lbl">Empleados Únicos</span>
+        </div>
+      </mat-card>
+      <mat-card class="kpi">
+        <div class="kpi-icon bg-green"><mat-icon>payments</mat-icon></div>
+        <div class="kpi-data">
+          <span class="kpi-val">{{ formatCurrency(analisis()!.kpis.total_salarios) }}</span>
+          <span class="kpi-lbl">Total Salarios</span>
+        </div>
+      </mat-card>
+      <mat-card class="kpi">
+        <div class="kpi-icon bg-purple"><mat-icon>table_rows</mat-icon></div>
+        <div class="kpi-data">
+          <span class="kpi-val">{{ formatNumber(analisis()!.kpis.total_registros) }}</span>
+          <span class="kpi-lbl">Total Registros</span>
+        </div>
+      </mat-card>
+      <mat-card class="kpi">
+        <div class="kpi-icon bg-orange"><mat-icon>description</mat-icon></div>
+        <div class="kpi-data">
+          <span class="kpi-val">{{ analisis()!.kpis.total_hojas }}</span>
+          <span class="kpi-lbl">Hojas Procesadas</span>
+        </div>
+      </mat-card>
+      <mat-card class="kpi">
+        <div class="kpi-icon bg-red"><mat-icon>card_giftcard</mat-icon></div>
+        <div class="kpi-data">
+          <span class="kpi-val">{{ formatCurrency(analisis()!.bonificaciones.monto_total) }}</span>
+          <span class="kpi-lbl">Bonificaciones</span>
+          <span class="kpi-sub">{{ formatNumber(analisis()!.bonificaciones.total_personas) }} personas</span>
+        </div>
+      </mat-card>
+    </div>
+
+    <!-- ═══════ GRÁFICA: MOVIMIENTOS POR MES (barras) ═══════ -->
+    <mat-card class="chart-card full">
+      <div class="chart-header">
+        <mat-icon>bar_chart</mat-icon>
+        <h3>Movimientos Contables por Mes</h3>
+        <span class="chart-sub">Débitos mensuales (fuente: hoja MOV)</span>
+      </div>
+      <mat-divider></mat-divider>
+      <div class="chart-body">
+        <div class="bar-chart-h">
+          @for (m of analisis()!.mov_por_mes; track m.mes) {
+            <div class="bar-row">
+              <span class="bar-label">{{ m.mes }}</span>
+              <div class="bar-track">
+                <div class="bar-fill"
+                  [style.width.%]="barWidth(m.debito, analisis()!.mov_por_mes)"
+                  [style.background]="m.orden <= 6 ? '#1565c0' : '#0d47a1'">
+                </div>
+              </div>
+              <span class="bar-value">{{ formatCurrency(m.debito) }}</span>
+            </div>
+          }
+        </div>
+      </div>
+    </mat-card>
+
+    <div class="grid-2">
+      <!-- ═══════ TOP CUENTAS CONTABLES ═══════ -->
+      <mat-card class="chart-card">
+        <div class="chart-header">
+          <mat-icon>account_tree</mat-icon>
+          <h3>Top Cuentas Contables</h3>
+        </div>
+        <mat-divider></mat-divider>
+        <div class="chart-body">
+          @for (c of analisis()!.top_cuentas; track c.cuenta; let i = $index) {
+            <div class="rank-item">
+              <span class="rank-pos" [style.background]="chartColor(i)">{{ i + 1 }}</span>
+              <div class="rank-info">
+                <span class="rank-name">{{ c.cuenta }}</span>
+                <div class="rank-bar-track">
+                  <div class="rank-bar-fill"
+                    [style.width.%]="barWidth(c.total, analisis()!.top_cuentas)"
+                    [style.background]="chartColor(i)">
+                  </div>
+                </div>
+              </div>
+              <span class="rank-val">{{ formatCurrency(c.total) }}</span>
+            </div>
+          }
+        </div>
+      </mat-card>
+
+      <!-- ═══════ CENTROS DE COSTO ═══════ -->
+      <mat-card class="chart-card">
+        <div class="chart-header">
+          <mat-icon>location_city</mat-icon>
+          <h3>Distribución por Centro de Costo</h3>
+        </div>
+        <mat-divider></mat-divider>
+        <div class="chart-body">
+          @for (c of analisis()!.top_centros_costo; track c.centro; let i = $index) {
+            <div class="rank-item">
+              <span class="rank-pos" [style.background]="chartColor(i)">{{ i + 1 }}</span>
+              <div class="rank-info">
+                <span class="rank-name">{{ c.centro }}</span>
+                <div class="rank-bar-track">
+                  <div class="rank-bar-fill"
+                    [style.width.%]="barWidth(c.total, analisis()!.top_centros_costo)"
+                    [style.background]="chartColor(i)">
+                  </div>
+                </div>
+              </div>
+              <span class="rank-val">{{ formatCurrency(c.total) }}</span>
+            </div>
+          }
+        </div>
+      </mat-card>
+    </div>
+
+    <div class="grid-2">
+      <!-- ═══════ DISTRIBUCIÓN SALARIAL (donut CSS) ═══════ -->
+      <mat-card class="chart-card">
+        <div class="chart-header">
+          <mat-icon>donut_large</mat-icon>
+          <h3>Distribución Salarial</h3>
+          <span class="chart-sub">Rangos de salario (fuente: hoja NM)</span>
+        </div>
+        <mat-divider></mat-divider>
+        <div class="chart-body donut-layout">
+          <div class="donut-container">
+            <svg viewBox="0 0 120 120" class="donut-svg">
+              @for (d of analisis()!.distribucion_salarial; track d.rango; let i = $index) {
+                <circle class="donut-segment"
+                  cx="60" cy="60" r="50"
+                  [attr.stroke]="salaryColor(i)"
+                  [attr.stroke-dasharray]="donutSegment(d.cantidad, totalDistribucion(), 314.16)"
+                  [attr.stroke-dashoffset]="donutOffset(analisis()!.distribucion_salarial, i, 314.16)"
+                  fill="none" stroke-width="18" />
+              }
+              <text x="60" y="56" text-anchor="middle" class="donut-center-num">
+                {{ formatNumber(totalDistribucion()) }}
+              </text>
+              <text x="60" y="70" text-anchor="middle" class="donut-center-lbl">empleados</text>
+            </svg>
+          </div>
+          <div class="donut-legend">
+            @for (d of analisis()!.distribucion_salarial; track d.rango; let i = $index) {
+              <div class="legend-item">
+                <span class="legend-dot" [style.background]="salaryColor(i)"></span>
+                <span class="legend-label">{{ d.rango }}</span>
+                <span class="legend-val">{{ formatNumber(d.cantidad) }}</span>
+                <span class="legend-pct">{{ ((d.cantidad / totalDistribucion()) * 100).toFixed(1) }}%</span>
+              </div>
+            }
+          </div>
+        </div>
+      </mat-card>
+
+      <!-- ═══════ TOP LIQUIDACIONES ═══════ -->
+      <mat-card class="chart-card">
+        <div class="chart-header">
+          <mat-icon>assignment_return</mat-icon>
+          <h3>Liquidaciones por Quincena</h3>
+          <span class="chart-sub">Top periodos con más liquidaciones</span>
+        </div>
+        <mat-divider></mat-divider>
+        <div class="chart-body">
+          @for (l of analisis()!.liquidaciones_por_tipo; track l.tipo; let i = $index) {
+            <div class="lq-item">
+              <div class="lq-info">
+                <span class="lq-name">{{ l.tipo }}</span>
+                <div class="lq-bar-track">
+                  <div class="lq-bar-fill"
+                    [style.width.%]="barWidth(l.cantidad, analisis()!.liquidaciones_por_tipo)"
+                    [style.background]="i < 3 ? '#c62828' : '#ef5350'">
+                  </div>
+                </div>
+              </div>
+              <span class="lq-val">{{ formatNumber(l.cantidad) }}</span>
+            </div>
+          }
+        </div>
+      </mat-card>
+    </div>
+
+    <!-- ═══════ CONCEPTOS DE NÓMINA (tabla resumen) ═══════ -->
+    <mat-card class="chart-card full">
+      <div class="chart-header">
+        <mat-icon>category</mat-icon>
+        <h3>Resumen por Concepto de Nómina</h3>
+        <span class="chart-sub">Todas las hojas del consolidado</span>
+      </div>
+      <mat-divider></mat-divider>
+      <div class="chart-body">
+        <div class="concept-grid">
+          @for (c of analisis()!.conceptos; track c.hoja) {
+            <div class="concept-item" [class.has-monto]="c.monto > 0">
+              <div class="concept-top">
+                <span class="concept-name">{{ c.hoja }}</span>
+                <span class="concept-regs">{{ formatNumber(c.registros) }} reg.</span>
+              </div>
+              @if (c.monto > 0) {
+                <div class="concept-bar-track">
+                  <div class="concept-bar-fill"
+                    [style.width.%]="barWidth(c.monto, analisis()!.conceptos)">
+                  </div>
+                </div>
+                <span class="concept-monto">{{ formatCurrency(c.monto) }}</span>
+              }
+            </div>
+          }
+        </div>
+      </div>
+    </mat-card>
+  }
+</div>

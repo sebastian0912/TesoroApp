@@ -24,6 +24,7 @@ export const routes: Routes = [
       { path: 'robots', loadChildren: () => import('./submodule/robots/robots.routes').then(m => m.routes) },
       { path: 'nomina', loadChildren: () => import('./submodule/nomina/nomina.routes').then(m => m.routes) },
       { path: 'metricas', loadChildren: () => import('./submodule/metricas/metricas.routes').then(m => m.routes) },
+      { path: 'contabilidad', loadChildren: () => import('./submodule/contabilidad/contabilidad.routes').then(m => m.routes) },
       { path: 'afiliaciones', loadChildren: () => import('./submodule/afiliaciones/afiliaciones.routes').then(m => m.routes) },
       { path: 'financiera', loadChildren: () => import('./submodule/financiera/financiera.routes').then(m => m.routes) },
       { path: 'bug-tickets', loadChildren: () => import('./submodule/bug-tickets/bug-tickets.routes').then(m => m.routes) },
