@@ -116,6 +116,21 @@ export class TesoreriaService {
     return response;
   }
 
+  async traerTodosLosDatos(): Promise<PersonaTesoreriaItem[]> {
+    const pageSize = 1000;
+    const first = await this.traerDatosbaseGeneral(pageSize, 0);
+    const all: PersonaTesoreriaItem[] = [...first.results];
+    const total = first.count;
+
+    const remainingPages = Math.ceil(total / pageSize) - 1;
+    for (let i = 1; i <= remainingPages; i++) {
+      const page = await this.traerDatosbaseGeneral(pageSize, i * pageSize);
+      all.push(...page.results);
+    }
+
+    return all;
+  }
+
   async traerDatosbasePorDocumento(doc: string): Promise<PersonaTesoreriaItem | null> {
     const url = `${this.apiUrl}/gestion_tesoreria/personas/${encodeURIComponent(doc)}/`;
     try {
@@ -135,6 +150,15 @@ export class TesoreriaService {
     const url = `${this.apiUrl}/gestion_tesoreria/personas/${encodeURIComponent(numero_documento)}/`;
     return firstValueFrom(
       this.http.put<any>(url, payload).pipe(
+        catchError(this.handleError)
+      )
+    );
+  }
+
+  async actualizarParcial(numero_documento: string, cambios: Partial<PersonaTesoreriaItem>): Promise<any> {
+    const url = `${this.apiUrl}/gestion_tesoreria/personas/${encodeURIComponent(numero_documento)}/`;
+    return firstValueFrom(
+      this.http.patch<any>(url, cambios).pipe(
         catchError(this.handleError)
       )
     );

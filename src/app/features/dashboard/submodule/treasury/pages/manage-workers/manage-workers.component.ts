@@ -291,16 +291,14 @@ export class ManageWorkersComponent implements OnInit {
   async generarExcelDatosBase() {
     Swal.fire({
       title: 'Generando Excel',
-      text: 'Por favor, espera…',
+      text: 'Descargando todos los registros, por favor espera…',
       allowOutsideClick: false,
       allowEscapeKey: false,
       didOpen: () => Swal.showLoading(),
     });
 
     try {
-      // Usar limit alto para traerlos todos a Excel
-      const response = await this.tesoreriaService.traerDatosbaseGeneral(5000, 0);
-      const rows = response.results || [];
+      const rows = await this.tesoreriaService.traerTodosLosDatos();
 
       if (!Array.isArray(rows) || rows.length === 0) {
         Swal.fire('Aviso', 'No se encontraron datos base.', 'info');
@@ -313,10 +311,16 @@ export class ManageWorkersComponent implements OnInit {
       };
 
       const HEADERS = [
-        'CODIGO', 'CEDULA', 'NOMBRE', 'INGRESO', 'TEMPORAL', 'FINCA', 'SALARIO',
-        ' SALDOS  ', ' FONDO ', ' MERCADO ', ' CUOTAS ', ' PRESTAMO ', ' N. CUOTA ',
-        ' CASINOS ', ' ANCHETAS ', ' CUOTAS ', ' FONDO ', ' CARNET ', ' SEGURO FUNERARIO ',
-        ' PRESTAMOS  ', ' N° CUOTA ', ' Anticipo liq ', ' CUENTAS '
+        'CODIGO', 'CEDULA', 'NOMBRE', 'INGRESO', 'TEMPORAL', 'FINCA',
+        'ACTIVO', 'BLOQUEADO', 'FECHA BLOQUEO', 'FECHA DESBLOQUEO',
+        'OBS. BLOQUEO', 'OBS. DESBLOQUEO',
+        'SALARIO', 'SALDO PENDIENTE', 'SALDOS', 'FONDOS', 'MERCADOS',
+        'CUOTAS MERCADOS', 'PRESTAMO P/DESCONTAR', 'CUOTAS PREST. P/DESCONTAR',
+        'CASINO', 'ANCHETAS', 'CUOTAS ANCHETAS', 'FONDO',
+        'CARNET', 'SEGURO FUNERARIO',
+        'PRESTAMO P/HACER', 'CUOTAS PREST. P/HACER',
+        'ANTICIPO LIQUIDACION', 'CUENTAS',
+        'FECHA CREACION', 'FECHA ACTUALIZACION',
       ];
 
       const data = rows.map((r) => {
@@ -330,41 +334,79 @@ export class ManageWorkersComponent implements OnInit {
           'INGRESO': r?.ingreso ?? '',
           'TEMPORAL': r?.temporal ?? '',
           'FINCA': r?.finca ?? '',
+          'ACTIVO': r?.activo ? 'SI' : 'NO',
+          'BLOQUEADO': r?.bloqueado ? 'SI' : 'NO',
+          'FECHA BLOQUEO': r?.fecha_bloqueo ?? '',
+          'FECHA DESBLOQUEO': r?.fecha_desbloqueo ?? '',
+          'OBS. BLOQUEO': r?.observacion_bloqueo ?? '',
+          'OBS. DESBLOQUEO': r?.observacion_desbloqueo ?? '',
           'SALARIO': toNum(r?.salario),
-          ' SALDOS  ': toNum(r?.saldos),
-          ' FONDO ': toNum(r?.fondos),
-          ' MERCADO ': toNum(r?.mercados),
-          ' CUOTAS ': toNum(r?.cuotas_mercados),
-          ' PRESTAMO ': toNum(r?.prestamo_para_descontar),
-          ' N. CUOTA ': toNum(r?.cuotas_prestamos_para_descontar),
-          ' CASINOS ': toNum(r?.casino),
-          ' ANCHETAS ': toNum(r?.valor_anchetas),
-          ' CUOTAS A ': toNum(r?.cuotas_anchetas),
-          ' FONDO E': toNum(r?.fondo),
-          ' CARNET ': toNum(r?.carnet),
-          ' SEGURO FUNERARIO ': toNum(r?.seguro_funerario),
-          ' PRESTAMOS  ': toNum(r?.prestamo_para_hacer),
-          ' N° CUOTA ': toNum(r?.cuotas_prestamo_para_hacer),
-          ' Anticipo liq ': toNum(r?.anticipo_liquidacion),
-          ' CUENTAS ': toNum(r?.cuentas),
+          'SALDO PENDIENTE': toNum(r?.saldo_pendiente),
+          'SALDOS': toNum(r?.saldos),
+          'FONDOS': toNum(r?.fondos),
+          'MERCADOS': toNum(r?.mercados),
+          'CUOTAS MERCADOS': toNum(r?.cuotas_mercados),
+          'PRESTAMO P/DESCONTAR': toNum(r?.prestamo_para_descontar),
+          'CUOTAS PREST. P/DESCONTAR': toNum(r?.cuotas_prestamos_para_descontar),
+          'CASINO': toNum(r?.casino),
+          'ANCHETAS': toNum(r?.valor_anchetas),
+          'CUOTAS ANCHETAS': toNum(r?.cuotas_anchetas),
+          'FONDO': toNum(r?.fondo),
+          'CARNET': toNum(r?.carnet),
+          'SEGURO FUNERARIO': toNum(r?.seguro_funerario),
+          'PRESTAMO P/HACER': toNum(r?.prestamo_para_hacer),
+          'CUOTAS PREST. P/HACER': toNum(r?.cuotas_prestamo_para_hacer),
+          'ANTICIPO LIQUIDACION': toNum(r?.anticipo_liquidacion),
+          'CUENTAS': toNum(r?.cuentas),
+          'FECHA CREACION': r?.created_at ?? '',
+          'FECHA ACTUALIZACION': r?.updated_at ?? '',
         };
       });
 
       const ws = XLSX.utils.json_to_sheet(data, { header: HEADERS });
 
+      // Forzar cédula como texto para preservar ceros a la izquierda
       if (ws['!ref']) {
         const range = XLSX.utils.decode_range(ws['!ref']);
         for (let R = range.s.r + 1; R <= range.e.r; R++) {
-          const addr = XLSX.utils.encode_cell({ c: 1, r: R }); // B
+          const addr = XLSX.utils.encode_cell({ c: 1, r: R }); // columna B = CEDULA
           if (ws[addr]) ws[addr].t = 's';
         }
       }
 
       ws['!cols'] = [
-        { wch: 12 }, { wch: 16 }, { wch: 28 }, { wch: 12 }, { wch: 12 }, { wch: 16 },
-        { wch: 12 }, { wch: 12 }, { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 12 },
-        { wch: 10 }, { wch: 10 }, { wch: 12 }, { wch: 10 }, { wch: 10 }, { wch: 10 },
-        { wch: 10 }, { wch: 10 }, { wch: 14 }, { wch: 12 },
+        { wch: 10 },  // CODIGO
+        { wch: 16 },  // CEDULA
+        { wch: 30 },  // NOMBRE
+        { wch: 12 },  // INGRESO
+        { wch: 12 },  // TEMPORAL
+        { wch: 16 },  // FINCA
+        { wch: 8 },   // ACTIVO
+        { wch: 10 },  // BLOQUEADO
+        { wch: 14 },  // FECHA BLOQUEO
+        { wch: 16 },  // FECHA DESBLOQUEO
+        { wch: 25 },  // OBS. BLOQUEO
+        { wch: 25 },  // OBS. DESBLOQUEO
+        { wch: 12 },  // SALARIO
+        { wch: 14 },  // SALDO PENDIENTE
+        { wch: 12 },  // SALDOS
+        { wch: 10 },  // FONDOS
+        { wch: 12 },  // MERCADOS
+        { wch: 16 },  // CUOTAS MERCADOS
+        { wch: 20 },  // PRESTAMO P/DESCONTAR
+        { wch: 24 },  // CUOTAS PREST. P/DESCONTAR
+        { wch: 10 },  // CASINO
+        { wch: 12 },  // ANCHETAS
+        { wch: 16 },  // CUOTAS ANCHETAS
+        { wch: 10 },  // FONDO
+        { wch: 10 },  // CARNET
+        { wch: 18 },  // SEGURO FUNERARIO
+        { wch: 18 },  // PRESTAMO P/HACER
+        { wch: 22 },  // CUOTAS PREST. P/HACER
+        { wch: 20 },  // ANTICIPO LIQUIDACION
+        { wch: 12 },  // CUENTAS
+        { wch: 18 },  // FECHA CREACION
+        { wch: 20 },  // FECHA ACTUALIZACION
       ];
 
       const wb = XLSX.utils.book_new();
@@ -379,8 +421,8 @@ export class ManageWorkersComponent implements OnInit {
       Swal.fire({
         icon: 'success',
         title: 'Excel generado',
-        text: 'El archivo se descargó correctamente.',
-        timer: 1800,
+        text: `Se exportaron ${rows.length} registros correctamente.`,
+        timer: 2500,
         showConfirmButton: false,
       });
     } catch (e) {

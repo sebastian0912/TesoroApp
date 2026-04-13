@@ -1,6 +1,7 @@
 const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
 const { app, ipcMain } = require('electron');
+const log = require('electron-log');
 
 let db = null;
 
@@ -9,9 +10,9 @@ function initDatabase() {
 
   db = new sqlite3.Database(dbPath, (err) => {
     if (err) {
-      console.error('[electron-db] Error abriendo base de datos:', err.message);
+      log.error('[electron-db] Error abriendo base de datos:', err.message);
     } else {
-      console.log('[electron-db] SQLite conectado:', dbPath);
+      log.info('[electron-db] SQLite conectado:', dbPath);
       createTables();
     }
   });
@@ -22,8 +23,8 @@ function initDatabase() {
 function closeDatabase() {
   if (db) {
     db.close((err) => {
-      if (err) console.error('[electron-db] Error cerrando DB:', err.message);
-      else console.log('[electron-db] DB cerrada correctamente.');
+      if (err) log.error('[electron-db] Error cerrando DB:', err.message);
+      else log.info('[electron-db] DB cerrada correctamente.');
     });
     db = null;
   }
@@ -136,9 +137,12 @@ function setupIpcHandlers() {
   });
 
   // --- Actualizar estado de una solicitud en cola ---
+  const ALLOWED_STATUSES = new Set(['pending', 'failed', 'synced']);
+
   ipcMain.handle('db:mark-request-status', (_event, { id, status }) => {
     return new Promise((resolve, reject) => {
       if (!db) return reject('DB no inicializada');
+      if (!ALLOWED_STATUSES.has(status)) return reject(`Estado no permitido: ${status}`);
       db.run('UPDATE sync_queue SET status = ? WHERE id = ?', [status, id], function (err) {
         if (err) return reject(err.message);
         resolve({ success: true, changes: this.changes });

@@ -8,7 +8,7 @@ import {
 } from '@angular/common/http';
 import { inject } from '@angular/core';
 import { Observable, of, throwError } from 'rxjs';
-import { catchError, filter, tap } from 'rxjs/operators';
+import { catchError, tap } from 'rxjs/operators';
 import { NetworkStatusService } from '../services/network-status.service';
 
 export const offlineInterceptor: HttpInterceptorFn = (
@@ -83,16 +83,17 @@ export const offlineInterceptor: HttpInterceptorFn = (
   }
 
   return next(req).pipe(
-    filter(event => event instanceof HttpResponse),
     tap((event: HttpEvent<any>) => {
-      networkStatus.markOnline();
+      if (event instanceof HttpResponse) {
+        networkStatus.markOnline();
 
-      if (req.method === 'GET' && electron && electron.db && event instanceof HttpResponse && event.body) {
-        if (typeof event.body === 'object' || Array.isArray(event.body)) {
-          electron.db.cacheSave({
-            url: req.urlWithParams,
-            data: JSON.stringify(event.body)
-          }).catch((error: any) => console.warn('No se pudo cachear:', error));
+        if (req.method === 'GET' && electron && electron.db && event.body) {
+          if (typeof event.body === 'object' || Array.isArray(event.body)) {
+            electron.db.cacheSave({
+              url: req.urlWithParams,
+              data: JSON.stringify(event.body)
+            }).catch((error: any) => console.warn('No se pudo cachear:', error));
+          }
         }
       }
     }),

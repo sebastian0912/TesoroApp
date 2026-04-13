@@ -48,9 +48,10 @@ import { MetricasDateRange } from '../../../models/tesoreria-metricas.models';
       <div class="spacer"></div>
 
       <div class="quick-ranges">
-        <button mat-button class="quick-btn" (click)="setQuickRange(7)">Últimos 7 días</button>
-        <button mat-button class="quick-btn" (click)="setQuickRange(30)">Últimos 30 días</button>
-        <button mat-button class="quick-btn" (click)="setQuickRange(90)">Últimos 90 días</button>
+        <button mat-button class="quick-btn active-btn" (click)="setThisWeek()">Esta semana</button>
+        <button mat-button class="quick-btn" (click)="setQuickRange(7)">7 dias</button>
+        <button mat-button class="quick-btn" (click)="setQuickRange(30)">30 dias</button>
+        <button mat-button class="quick-btn" (click)="setQuickRange(90)">90 dias</button>
       </div>
 
     </div>
@@ -112,6 +113,10 @@ import { MetricasDateRange } from '../../../models/tesoreria-metricas.models';
     .quick-btn:hover {
       background: #e2e8f0;
     }
+    .active-btn {
+      background: #dbeafe;
+      color: #1d4ed8;
+    }
   `],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
@@ -120,8 +125,9 @@ export class MetricasFiltersBarComponent {
 
   today = moment().toDate();
 
+  // Default: semana actual (lunes a hoy)
   dateForm = new FormGroup({
-    start: new FormControl<Date>(moment().subtract(30, 'days').toDate()),
+    start: new FormControl<Date>(moment().startOf('isoWeek').toDate()),
     end: new FormControl<Date>(moment().toDate())
   });
 
@@ -132,6 +138,13 @@ export class MetricasFiltersBarComponent {
         end: this.dateForm.value.end
       });
     }
+  }
+
+  setThisWeek() {
+    const start = moment().startOf('isoWeek').toDate();
+    const end = moment().toDate();
+    this.dateForm.setValue({ start, end });
+    this.rangeChanged.emit({ start, end });
   }
 
   setQuickRange(days: number) {

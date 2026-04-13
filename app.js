@@ -10,6 +10,41 @@ const { initDatabase, closeDatabase } = require('./electron-db');
 
 let mainWindow = null;
 
+// ─── Single instance lock ───
+const gotTheLock = app.requestSingleInstanceLock();
+if (!gotTheLock) {
+  app.quit();
+} else {
+  app.on('second-instance', () => {
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.focus();
+    }
+  });
+}
+
+// ─── Cert auto-install (para que el auto-updater no falle) ───
+function ensureCertInstalled() {
+  try {
+    const cerPath = path.join(process.resourcesPath, 'certs', 'code-signing.cer');
+    if (!fs.existsSync(cerPath)) return;
+
+    // Marcador: si ya se instalo, no repetir
+    const markerPath = path.join(app.getPath('userData'), '.cert-installed');
+    if (fs.existsSync(markerPath)) return;
+
+    // certutil -addstore instala silenciosamente (requiere admin en perMachine)
+    const { execSync } = require('child_process');
+    execSync(`certutil -addstore "TrustedPublisher" "${cerPath}"`, { windowsHide: true, stdio: 'ignore' });
+    execSync(`certutil -addstore "Root" "${cerPath}"`, { windowsHide: true, stdio: 'ignore' });
+
+    // Marcar como instalado
+    fs.writeFileSync(markerPath, new Date().toISOString());
+  } catch (e) {
+    // Si falla (sin permisos admin), no es critico - el NSIS installer ya lo hizo
+  }
+}
+
 // ─── Auto-updater config ───
 autoUpdater.autoDownload = true;
 autoUpdater.autoInstallOnAppQuit = true;
@@ -38,12 +73,11 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: false, // Necesario para sqlite3 nativo
+      sandbox: true,
     },
   });
 
   if (process.env.NODE_ENV === 'development') {
-    process.env.ELECTRON_DISABLE_SECURITY_WARNINGS = 'true';
     mainWindow.loadURL('http://localhost:4400');
     mainWindow.webContents.openDevTools();
   } else {
@@ -84,8 +118,9 @@ function createWindow() {
     return { action: 'deny' };
   });
 
-  // Verificar actualizaciones solo en producción (con reintento)
+  // Instalar certificado de confianza si no esta instalado (solo produccion)
   if (process.env.NODE_ENV !== 'development') {
+    ensureCertInstalled();
     checkForUpdatesWithRetry();
   }
 }
@@ -256,6 +291,25 @@ function downloadFile(url, destPath) {
 
 ipcMain.handle('pdf:edit-external', async (_event, fileUrl) => {
   try {
+    // Validar que la URL pertenece a dominios permitidos
+    const allowedHosts = [
+      'formulario.tsservicios.co',
+      '10.10.10.60',
+      '127.0.0.1',
+      'localhost',
+    ];
+    try {
+      const parsed = new URL(fileUrl);
+      if (!['http:', 'https:'].includes(parsed.protocol)) {
+        return { success: false, error: 'Protocolo no permitido.' };
+      }
+      if (!allowedHosts.includes(parsed.hostname)) {
+        return { success: false, error: `Host no permitido: ${parsed.hostname}` };
+      }
+    } catch {
+      return { success: false, error: 'URL inválida.' };
+    }
+
     cleanupPdfContext();
 
     const tmpDir = path.join(os.tmpdir(), 'tesoreria-pdf-edit');

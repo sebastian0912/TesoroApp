@@ -39,33 +39,39 @@ export class UploadTreasuryComponent {
   }
 
   async downloadTemplate(id: 'insert' | 'saldos' | 'eliminar') {
-    let url = '';
-    let filename = '';
     if (id === 'insert') {
-      url = 'templates/BASE.xlsx';
-      filename = 'BASE.xlsx';
-    } else if (id === 'saldos') {
-      url = 'templates/tesoreria_template_saldos_fondos.xlsx';
-      filename = 'tesoreria_template_saldos_fondos.xlsx';
-    } else if (id === 'eliminar') {
-      url = 'templates/tesoreria_template_estados_min.xlsx';
-      filename = 'tesoreria_template_estados_min.xlsx';
+      try {
+        const response = await fetch('templates/BASE.xlsx');
+        if (!response.ok) throw new Error('No se pudo descargar el template');
+        const blob = await response.blob();
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'BASE.xlsx';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(a.href);
+      } catch (e) {
+        console.error('Error descargando template:', e);
+        Swal.fire('Error', 'No se pudo descargar el template. Verifique que el archivo exista.', 'error');
+      }
+      return;
     }
 
-    try {
-      const response = await fetch(url);
-      if (!response.ok) throw new Error('No se pudo descargar el template');
-      const blob = await response.blob();
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(a.href);
-    } catch (e) {
-      console.error('Error descargando template:', e);
-      Swal.fire('Error', 'No se pudo descargar el template. Verifique que el archivo exista.', 'error');
+    // Generar plantillas dinamicamente para saldos y estados
+    const wb = XLSX.utils.book_new();
+    let ws: XLSX.WorkSheet;
+
+    if (id === 'saldos') {
+      ws = XLSX.utils.aoa_to_sheet([['CEDULA', 'SALDOS', 'SALDO_PENDIENTE']]);
+      ws['!cols'] = [{ wch: 16 }, { wch: 14 }, { wch: 18 }];
+      XLSX.utils.book_append_sheet(wb, ws, 'Saldos');
+      XLSX.writeFile(wb, 'plantilla_saldos.xlsx');
+    } else {
+      ws = XLSX.utils.aoa_to_sheet([['CEDULA']]);
+      ws['!cols'] = [{ wch: 16 }];
+      XLSX.utils.book_append_sheet(wb, ws, 'Estados');
+      XLSX.writeFile(wb, 'plantilla_estados_inactivos.xlsx');
     }
   }
 
@@ -213,73 +219,15 @@ export class UploadTreasuryComponent {
     try {
       this.busy = true;
 
-      // 1) PRE-VALIDATION EN EL FRONTEND (Solo para insert)
-      if (kind === 'insert') {
-        Swal.fire({ icon: 'info', title: 'Validando formato...', html: 'Revisando reglas de Excel (Cédula e Ingreso)...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
-        const valRes = await this.validateInsertExcel(file);
-        if (valRes.errors.length > 0) {
-          this.busy = false;
-
-          let blockUpload = false;
-          if (valRes.totalValidRows === 0) {
-              blockUpload = true;
-          } else {
-              const res = await Swal.fire({
-                  icon: 'warning',
-                  title: 'Se encontraron errores',
-                  html: `<p>Hay <b>${valRes.errors.length} filas</b> con errores previstos (ej. Ingreso vacío).</p>
-                         <p>Las filas inválidas se descartarán y se importarán las otras. ¿Deseas descargar un Excel con los motivos y continuar subiendo las <b>${valRes.totalValidRows} correctas</b>?</p>`,
-                  showCancelButton: true,
-                  showDenyButton: true,
-                  confirmButtonText: 'Descargar y continuar',
-                  denyButtonText: 'Continuar sin descargar',
-                  cancelButtonText: 'Cancelar',
-                  width: '600px'
-              });
-
-              if (res.isDismissed || res.isDenied === undefined) {
-                  blockUpload = true;
-              }
-
-              if (res.isConfirmed) {
-                  const errorSheetData = [valRes.headersRow, ...valRes.errorRows];
-                  const ws = XLSX.utils.aoa_to_sheet(errorSheetData);
-                  const wb = XLSX.utils.book_new();
-                  XLSX.utils.book_append_sheet(wb, ws, "Errores_Importacion");
-                  XLSX.writeFile(wb, "empleados_errores.xlsx");
-              }
-              
-              if (res.isDenied || res.isConfirmed) {
-                 blockUpload = false;
-              }
-          }
-
-          if (blockUpload) {
-              input.value = '';
-              if (valRes.totalValidRows === 0) {
-                 Swal.fire('Error', 'El archivo no contiene filas válidas.', 'error');
-              }
-              return;
-          }
-        }
+      if (kind === 'saldos') {
+        await this.procesarSaldosExcel(file);
+      } else if (kind === 'eliminar') {
+        await this.procesarEstadosExcel(file);
+      } else {
+        await this.handleInsertFile(file);
       }
-
-      Swal.fire({ icon: 'info', title: 'Procesando archivo...', html: 'El backend está importando y mapeando el archivo Excel.', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
-
-      let res: ExcelImportResponse;
-
-      if (kind === 'insert') {
-        res = await this.tesoreriaService.importarPersonasExcel(file);
-      } else if (kind === 'saldos') {
-        res = await this.tesoreriaService.importarSaldosFondosExcel(file);
-      } else { // eliminar
-        res = await this.tesoreriaService.importarEstadosExcel(file);
-      }
-
-      this.showImportResult(res, kind);
 
     } catch (e: any) {
-      // Backend error often comes in e.error
       console.error(e);
       let errorMsg = 'Error comunicándose con el backend';
       if (e.error) {
@@ -289,12 +237,212 @@ export class UploadTreasuryComponent {
       } else if (e.message) {
         errorMsg = e.message;
       }
-
       Swal.fire({ icon: 'error', title: 'Error de importación', html: `<b>Motivo:</b><br>${errorMsg}` });
     } finally {
       this.busy = false;
-      input.value = ''; // clears the input so you can select the same file again
+      input.value = '';
     }
+  }
+
+  /** Insert empleados — flujo original con validación y envío al backend */
+  private async handleInsertFile(file: File) {
+    Swal.fire({ icon: 'info', title: 'Validando formato...', html: 'Revisando reglas de Excel (Cédula e Ingreso)...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+    const valRes = await this.validateInsertExcel(file);
+    if (valRes.errors.length > 0) {
+      this.busy = false;
+
+      let blockUpload = false;
+      if (valRes.totalValidRows === 0) {
+        blockUpload = true;
+      } else {
+        const res = await Swal.fire({
+          icon: 'warning',
+          title: 'Se encontraron errores',
+          html: `<p>Hay <b>${valRes.errors.length} filas</b> con errores previstos (ej. Ingreso vacío).</p>
+                 <p>Las filas inválidas se descartarán y se importarán las otras. ¿Deseas descargar un Excel con los motivos y continuar subiendo las <b>${valRes.totalValidRows} correctas</b>?</p>`,
+          showCancelButton: true,
+          showDenyButton: true,
+          confirmButtonText: 'Descargar y continuar',
+          denyButtonText: 'Continuar sin descargar',
+          cancelButtonText: 'Cancelar',
+          width: '600px'
+        });
+
+        if (res.isDismissed || res.isDenied === undefined) {
+          blockUpload = true;
+        }
+        if (res.isConfirmed) {
+          const errorSheetData = [valRes.headersRow, ...valRes.errorRows];
+          const ws = XLSX.utils.aoa_to_sheet(errorSheetData);
+          const wb = XLSX.utils.book_new();
+          XLSX.utils.book_append_sheet(wb, ws, 'Errores_Importacion');
+          XLSX.writeFile(wb, 'empleados_errores.xlsx');
+        }
+        if (res.isDenied || res.isConfirmed) {
+          blockUpload = false;
+        }
+      }
+
+      if (blockUpload) {
+        if (valRes.totalValidRows === 0) {
+          Swal.fire('Error', 'El archivo no contiene filas válidas.', 'error');
+        }
+        return;
+      }
+    }
+
+    Swal.fire({ icon: 'info', title: 'Procesando archivo...', html: 'El backend está importando y mapeando el archivo Excel.', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+    const res = await this.tesoreriaService.importarPersonasExcel(file);
+    this.showImportResult(res, 'insert');
+  }
+
+  /** Leer Excel con columnas: CEDULA, SALDOS, SALDO_PENDIENTE (opcional) */
+  private async procesarSaldosExcel(file: File) {
+    Swal.fire({ icon: 'info', title: 'Leyendo archivo...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+
+    const rows = await this.leerFilasExcel(file);
+    if (rows.length < 2) {
+      Swal.fire('Aviso', 'El archivo está vacío o no tiene datos.', 'info');
+      return;
+    }
+
+    // Detectar columnas por cabecera
+    const headerRow = rows[0].map((c: any) => String(c).trim().toUpperCase());
+    const colCedula = headerRow.findIndex((h: string) => h.includes('CEDULA'));
+    const colSaldos = headerRow.findIndex((h: string) => h === 'SALDOS');
+    const colPendiente = headerRow.findIndex((h: string) => h.includes('PENDIENTE'));
+
+    if (colCedula === -1 || colSaldos === -1) {
+      Swal.fire('Error', 'El archivo debe tener al menos las columnas CEDULA y SALDOS.', 'error');
+      return;
+    }
+
+    const dataRows = rows.slice(1).filter((r: any[]) => String(r[colCedula] ?? '').trim() !== '');
+    if (dataRows.length === 0) {
+      Swal.fire('Aviso', 'No se encontraron filas con datos.', 'info');
+      return;
+    }
+
+    const toNum = (v: any) => {
+      const n = Number(String(v ?? '0').replace(/[, ]/g, ''));
+      return Number.isFinite(n) ? n : 0;
+    };
+
+    let updated = 0;
+    let errors: { cedula: string; error: string }[] = [];
+
+    for (let i = 0; i < dataRows.length; i++) {
+      const row = dataRows[i];
+      const cedula = String(row[colCedula]).trim();
+      const saldos = toNum(row[colSaldos]);
+      const cambios: any = { saldos };
+
+      if (colPendiente !== -1 && row[colPendiente] !== undefined && String(row[colPendiente]).trim() !== '') {
+        cambios.saldo_pendiente = toNum(row[colPendiente]);
+      }
+
+      Swal.update({ html: `Actualizando ${i + 1} de ${dataRows.length}…` });
+
+      try {
+        await this.tesoreriaService.actualizarParcial(cedula, cambios);
+        updated++;
+      } catch (e: any) {
+        errors.push({ cedula, error: e?.error?.detail ?? e?.message ?? 'Error desconocido' });
+      }
+    }
+
+    this.bumpCard('saldos');
+    this.mostrarResultadoBatch('Saldos actualizados', dataRows.length, updated, errors);
+  }
+
+  /** Leer Excel con columna CEDULA — marcar todos como inactivos */
+  private async procesarEstadosExcel(file: File) {
+    Swal.fire({ icon: 'info', title: 'Leyendo archivo...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+
+    const rows = await this.leerFilasExcel(file);
+    if (rows.length < 2) {
+      Swal.fire('Aviso', 'El archivo está vacío o no tiene datos.', 'info');
+      return;
+    }
+
+    const headerRow = rows[0].map((c: any) => String(c).trim().toUpperCase());
+    const colCedula = headerRow.findIndex((h: string) => h.includes('CEDULA'));
+
+    if (colCedula === -1) {
+      Swal.fire('Error', 'El archivo debe tener la columna CEDULA.', 'error');
+      return;
+    }
+
+    const cedulas = rows.slice(1)
+      .map((r: any[]) => String(r[colCedula] ?? '').trim())
+      .filter((c: string) => c !== '');
+
+    if (cedulas.length === 0) {
+      Swal.fire('Aviso', 'No se encontraron cédulas en el archivo.', 'info');
+      return;
+    }
+
+    const confirm = await Swal.fire({
+      icon: 'warning',
+      title: '¿Confirmar inactivación?',
+      html: `Se marcarán <b>${cedulas.length}</b> personas como <b>INACTIVAS</b>.`,
+      showCancelButton: true,
+      confirmButtonText: 'Sí, inactivar',
+      cancelButtonText: 'Cancelar',
+    });
+    if (!confirm.isConfirmed) return;
+
+    Swal.fire({ icon: 'info', title: 'Procesando...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+
+    let updated = 0;
+    let errors: { cedula: string; error: string }[] = [];
+
+    for (let i = 0; i < cedulas.length; i++) {
+      Swal.update({ html: `Inactivando ${i + 1} de ${cedulas.length}…` });
+      try {
+        await this.tesoreriaService.actualizarParcial(cedulas[i], { activo: false });
+        updated++;
+      } catch (e: any) {
+        errors.push({ cedula: cedulas[i], error: e?.error?.detail ?? e?.message ?? 'Error desconocido' });
+      }
+    }
+
+    this.bumpCard('eliminar');
+    this.mostrarResultadoBatch('Estados actualizados', cedulas.length, updated, errors);
+  }
+
+  /** Lee un archivo Excel y retorna las filas como array de arrays */
+  private leerFilasExcel(file: File): Promise<any[][]> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const wb = XLSX.read(e.target?.result, { type: 'array' });
+          const ws = wb.Sheets[wb.SheetNames[0]];
+          resolve(XLSX.utils.sheet_to_json<any[]>(ws, { header: 1, defval: '' }));
+        } catch (err) { reject(err); }
+      };
+      reader.onerror = () => reject(new Error('Error al leer el archivo'));
+      reader.readAsArrayBuffer(file);
+    });
+  }
+
+  private mostrarResultadoBatch(titulo: string, total: number, ok: number, errors: { cedula: string; error: string }[]) {
+    const hasErrors = errors.length > 0;
+    let html = `
+      <div style="text-align:left">
+        <p><b>Total procesadas:</b> ${total}</p>
+        <p><b>Actualizadas correctamente:</b> ${ok}</p>
+        <p><b>Errores:</b> ${errors.length}</p>
+      </div>`;
+
+    if (hasErrors) {
+      html += `<hr/><div style="text-align:left;color:red;max-height:150px;overflow-y:auto"><ul>
+        ${errors.map(e => `<li>${e.cedula}: ${e.error}</li>`).join('')}
+      </ul></div>`;
+    }
+
+    Swal.fire({ icon: hasErrors ? 'warning' : 'success', title: titulo, html, width: '550px' });
   }
 
   private showImportResult(res: ExcelImportResponse, kind: 'insert' | 'saldos' | 'eliminar') {

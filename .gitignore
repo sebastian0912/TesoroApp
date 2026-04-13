@@ -41,6 +41,9 @@ testem.log
 .DS_Store
 Thumbs.db
 
+# Code signing (NUNCA subir la llave privada)
+certs/*.pfx
+
 /src/environments
 /src/environments/environment.ts
 /src/environments/environment.development.ts

@@ -58,27 +58,25 @@ export class InventarioTopProductsChartComponent implements OnChanges {
 
     ngOnChanges(changes: SimpleChanges): void {
         if (changes['rawTransactions'] && this.rawTransactions) {
-            // Extraer concepto MERCADO que tengan detalle asociado con lotes
+            // Extraer transacciones de MERCADO ejecutadas
             const prodMap: Record<string, number> = {};
 
             this.rawTransactions.forEach(tx => {
-                if (tx.concepto === 'MERCADO' && tx.estado === 'EJECUTADA') { // Asumimos ventas por mercado
+                const concepto = (tx.autorizacion_concepto || tx.ejecucion_concepto || '').toUpperCase();
+                if (concepto.includes('MERCADO') && tx.estado === 'EJECUTADA') {
                     const detalle = tx.detalle || {};
-                    const items = detalle.items || detalle.ventas || []; // Backend struct
-                    if (Array.isArray(items)) {
+                    const items = detalle.items || detalle.ventas || [];
+                    if (Array.isArray(items) && items.length > 0) {
                         items.forEach((item: any) => {
-                            // En este fallback sumamos la cantidad monetaria si possible
-                            // Si no, la cantidad nominal. Depende como lo guarde el backend.
                             let prodName = item.producto_nombre || item.lote_nombre || `Prod #${item.lote_id}`;
-                            let monto = Number(tx.valor) || 0; // Aproximacion si no tenemos el valor desagregado
                             if (!prodMap[prodName]) prodMap[prodName] = 0;
-                            prodMap[prodName] += (item.cantidad || 1); // Contemos cantidad por default
+                            prodMap[prodName] += (item.cantidad || 1);
                         });
                     } else {
-                        // Si el stringify era un objeto simple "MERCADO"
-                        let p = detalle.nombre_producto || 'Varios';
-                        if (!prodMap[p]) prodMap[p] = 0;
-                        prodMap[p] += 1;
+                        // Sin detalle de items, contar como 1 salida de mercado
+                        const label = tx.ejecucion_concepto || tx.autorizacion_concepto || 'Mercado';
+                        if (!prodMap[label]) prodMap[label] = 0;
+                        prodMap[label] += 1;
                     }
                 }
             });

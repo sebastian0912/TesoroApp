@@ -26,6 +26,8 @@ declare global {
         deleteRequest: (id: number) => Promise<any>;
         cacheSave: (data: any) => Promise<any>;
         cacheGet: (url: string) => Promise<any>;
+        cacheGetAllUrls: () => Promise<string[]>;
+        markRequestStatus: (data: { id: number; status: string }) => Promise<any>;
       };
     };
   }

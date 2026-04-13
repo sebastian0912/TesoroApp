@@ -9,8 +9,8 @@
     <div class="dashboard-grid">
         <!-- Primera Fila: Transacciones -->
         <div class="grid-col span-8 span-lg-8">
-            <app-chart-card title="Monto Ejecutado vs Autorizado"
-                subtitle="Serie de tiempo para transacciones aprobadas o desembolsadas"
+            <app-chart-card title="Ejecutado vs Pendiente por Ejecutar"
+                subtitle="Dinero real desembolsado vs autorizado sin ejecutar"
                 [loading]="!(store.transacciones$ | async)">
                 <app-tx-timeseries-chart [rawTransactions]="store.transacciones$ | async">
                 </app-tx-timeseries-chart>
@@ -25,22 +25,60 @@
             </app-chart-card>
         </div>
 
-        <!-- Segunda Fila: Personas e Inventario -->
+        <!-- Segunda Fila: Quien mas compra + Ranking autorizadores -->
         <div class="grid-col span-6 span-lg-6">
-            <app-chart-card title="Saldos Pendientes" subtitle="Distribución de la deuda en trabajadores"
+            <app-chart-card title="Top Compradores"
+                subtitle="Personas con mas transacciones ejecutadas"
+                [loading]="!(store.topCompradores$ | async)">
+                <app-top-compradores-chart [data]="store.topCompradores$ | async">
+                </app-top-compradores-chart>
+            </app-chart-card>
+        </div>
+
+        <div class="grid-col span-6 span-lg-6">
+            <app-chart-card title="Ranking Autorizadores"
+                subtitle="Quien autoriza mas y menos"
+                [loading]="!(store.rankingAutorizadores$ | async)">
+                <app-ranking-autorizadores-chart [data]="store.rankingAutorizadores$ | async">
+                </app-ranking-autorizadores-chart>
+            </app-chart-card>
+        </div>
+
+        <!-- Tercera Fila: Productos por fecha + Saldos -->
+        <div class="grid-col span-6 span-lg-6">
+            <app-chart-card title="Productos Vendidos por Fecha"
+                subtitle="Cantidad de productos (salidas de inventario) por dia"
+                [loading]="!(store.productosPorFecha$ | async)">
+                <app-productos-fecha-chart [data]="store.productosPorFecha$ | async">
+                </app-productos-fecha-chart>
+            </app-chart-card>
+        </div>
+
+        <div class="grid-col span-6 span-lg-6">
+            <app-chart-card title="Saldos Pendientes" subtitle="Distribucion de la deuda en trabajadores"
                 [loading]="!(store.personasSaldos$ | async)">
                 <app-personas-distribution-chart [rawPersonas]="store.personasSaldos$ | async">
                 </app-personas-distribution-chart>
             </app-chart-card>
         </div>
 
+        <!-- Cuarta Fila: Top Inventario -->
         <div class="grid-col span-6 span-lg-6">
-            <app-chart-card title="Top Salidas de Inventario" subtitle="Productos más solicitados/entregados (Aprox)"
+            <app-chart-card title="Top Salidas de Inventario" subtitle="Productos mas solicitados/entregados (Aprox)"
                 [loading]="!(store.transacciones$ | async)">
                 <app-inventario-top-products-chart [rawTransactions]="store.transacciones$ | async">
                 </app-inventario-top-products-chart>
             </app-chart-card>
         </div>
 
+        <!-- Quinta Fila: Historial completo -->
+        <div class="grid-col span-12">
+            <app-chart-card title="Historial Detallado"
+                subtitle="Documento, finca, quien autorizo, quien entrego, productos del inventario"
+                [loading]="!(store.historial$ | async)">
+                <app-historial-table [data]="store.historial$ | async">
+                </app-historial-table>
+            </app-chart-card>
+        </div>
     </div>
 </div>

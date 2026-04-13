@@ -72,6 +72,34 @@
     animation-delay: 0.4s;
 }
 
+.dashboard-grid>div:nth-child(5) {
+    animation-delay: 0.5s;
+}
+
+.dashboard-grid>div:nth-child(6) {
+    animation-delay: 0.6s;
+}
+
+.dashboard-grid>div:nth-child(7) {
+    animation-delay: 0.7s;
+}
+
+.dashboard-grid>div:nth-child(8) {
+    animation-delay: 0.8s;
+}
+
+@media (min-width: 768px) {
+    .span-12 {
+        grid-column: span 12;
+    }
+}
+
+@media (min-width: 1024px) {
+    .span-lg-12 {
+        grid-column: span 12;
+    }
+}
+
 @keyframes fadeUp {
     to {
         opacity: 1;

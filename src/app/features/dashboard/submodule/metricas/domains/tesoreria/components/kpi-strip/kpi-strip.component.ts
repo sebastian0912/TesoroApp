@@ -31,24 +31,26 @@ import { MatIconModule } from '@angular/material/icon';
             <p class="kpi-sub">{{ kpis.transaccionesEjecutadasCount }} transacciones</p>
           </div>
         </div>
-        <!-- Pendientes -->
+        <!-- Pendientes por ejecutar -->
         <div class="kpi-card warning">
           <div class="kpi-icon-wrapper">
             <mat-icon>pending_actions</mat-icon>
           </div>
           <div class="kpi-data">
-            <p class="kpi-label">Monto Pendiente/Solicitado</p>
+            <p class="kpi-label">Autorizado sin Ejecutar</p>
             <h3 class="kpi-value">{{ kpis.transaccionesPendientesMonto | currency:'COP':'symbol-narrow':'1.0-0' }}</h3>
+            <p class="kpi-sub">pendientes de ejecucion</p>
           </div>
         </div>
-        <!-- Autorizadas -->
+        <!-- Anuladas -->
         <div class="kpi-card info">
           <div class="kpi-icon-wrapper">
-            <mat-icon>verified_user</mat-icon>
+            <mat-icon>block</mat-icon>
           </div>
           <div class="kpi-data">
-            <p class="kpi-label">Monto Autorizado</p>
+            <p class="kpi-label">Monto Anulado</p>
             <h3 class="kpi-value">{{ kpis.transaccionesAutorizadasMonto | currency:'COP':'symbol-narrow':'1.0-0' }}</h3>
+            <p class="kpi-sub">transacciones canceladas</p>
           </div>
         </div>
       </div>

@@ -284,13 +284,11 @@ export class ContratacionMetricasApiService {
 
     // ─────── Métricas por Temporal ───────
     fetchMetricasTemporal(temporal: string, start: string, end: string): Observable<any> {
-        let params = new HttpParams()
-            .set('temporal', temporal)
-            .set('start', start)
-            .set('end', end);
-        return this.http.get<any>(`${this.apiUrl}/procesos/metricas-temporal/`, { params }).pipe(
-            catchError(() => of({ rows: [], por_oficina: [], por_finca: [], por_fecha: [], kpis: {} }))
-        );
+        let params = new HttpParams();
+        if (temporal) params = params.set('temporal', temporal);
+        if (start) params = params.set('start', start);
+        if (end) params = params.set('end', end);
+        return this.http.get<any>(`${this.apiUrl}/procesos/metricas-temporal/`, { params });
     }
 
 }

@@ -11,6 +11,10 @@ import { TxTimeseriesChartComponent } from '../../components/charts/tx-timeserie
 import { TxFunnelChartComponent } from '../../components/charts/tx-funnel-chart/tx-funnel-chart.component';
 import { PersonasDistributionChartComponent } from '../../components/charts/personas-distribution-chart/personas-distribution-chart.component';
 import { InventarioTopProductsChartComponent } from '../../components/charts/inventario-top-products-chart/inventario-top-products-chart.component';
+import { HistorialTableComponent } from '../../components/historial-table/historial-table.component';
+import { TopCompradoresChartComponent } from '../../components/charts/top-compradores-chart/top-compradores-chart.component';
+import { RankingAutorizadoresChartComponent } from '../../components/charts/ranking-autorizadores-chart/ranking-autorizadores-chart.component';
+import { ProductosFechaChartComponent } from '../../components/charts/productos-fecha-chart/productos-fecha-chart.component';
 
 @Component({
     selector: 'app-tesoreria-dashboard',
@@ -23,7 +27,11 @@ import { InventarioTopProductsChartComponent } from '../../components/charts/inv
         TxTimeseriesChartComponent,
         TxFunnelChartComponent,
         PersonasDistributionChartComponent,
-        InventarioTopProductsChartComponent
+        InventarioTopProductsChartComponent,
+        HistorialTableComponent,
+        TopCompradoresChartComponent,
+        RankingAutorizadoresChartComponent,
+        ProductosFechaChartComponent
     ],
     templateUrl: './tesoreria-dashboard.component.html',
     styleUrls: ['./tesoreria-dashboard.component.css'],

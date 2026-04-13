@@ -44,7 +44,7 @@ export class TxTimeseriesChartComponent implements OnChanges {
             axisPointer: { type: 'cross', label: { backgroundColor: '#6a7985' } }
         },
         legend: {
-            data: ['Monto Ejecutado', 'Monto Autorizado'],
+            data: ['Monto Ejecutado', 'Pendiente por Ejecutar'],
             bottom: 0
         },
         grid: {
@@ -63,7 +63,7 @@ export class TxTimeseriesChartComponent implements OnChanges {
                 axisLabel: { formatter: '$ {value}' }
             }
         ],
-        color: ['#10b981', '#0ea5e9'],
+        color: ['#10b981', '#f59e0b'],
         series: [
             {
                 name: 'Monto Ejecutado',
@@ -74,7 +74,7 @@ export class TxTimeseriesChartComponent implements OnChanges {
                 data: []
             },
             {
-                name: 'Monto Autorizado',
+                name: 'Pendiente por Ejecutar',
                 type: 'line',
                 stack: 'Total2',
                 areaStyle: { opacity: 0.3 },
@@ -95,25 +95,34 @@ export class TxTimeseriesChartComponent implements OnChanges {
             this.hasData = true;
 
             // Group by date (YYYY-MM-DD)
-            const groups: Record<string, { ejecutado: number, autorizado: number }> = {};
+            const groups: Record<string, { ejecutado: number, pendiente: number }> = {};
 
             this.rawTransactions.forEach(tx => {
-                if (!tx.created_at) return;
-                const dt = moment(tx.created_at).format('YYYY-MM-DD');
-                if (!groups[dt]) groups[dt] = { ejecutado: 0, autorizado: 0 };
-
-                const val = Number(tx.valor) || 0;
-                if (tx.estado === 'EJECUTADA') groups[dt].ejecutado += val;
-                else if (tx.estado === 'AUTORIZADA') groups[dt].autorizado += val;
+                if (tx.estado === 'EJECUTADA') {
+                    // Dinero real: usar fecha de ejecucion
+                    const dateField = tx.ejecutado_en || tx.created_at;
+                    if (!dateField) return;
+                    const dt = moment(dateField).format('YYYY-MM-DD');
+                    if (!groups[dt]) groups[dt] = { ejecutado: 0, pendiente: 0 };
+                    groups[dt].ejecutado += Number(tx.ejecucion_monto) || 0;
+                } else if (tx.estado === 'PENDIENTE') {
+                    // Autorizado sin ejecutar: usar fecha de autorizacion
+                    const dateField = tx.autorizado_en || tx.created_at;
+                    if (!dateField) return;
+                    const dt = moment(dateField).format('YYYY-MM-DD');
+                    if (!groups[dt]) groups[dt] = { ejecutado: 0, pendiente: 0 };
+                    groups[dt].pendiente += Number(tx.autorizacion_monto) || 0;
+                }
+                // ANULADA: no se grafica
             });
 
             // Sort dates
             const dates = Object.keys(groups).sort();
             const execData = dates.map(d => groups[d].ejecutado);
-            const autData = dates.map(d => groups[d].autorizado);
+            const pendData = dates.map(d => groups[d].pendiente);
 
             // Limitar a los que tengan movimientos
-            if (execData.every(v => v === 0) && autData.every(v => v === 0)) {
+            if (execData.every(v => v === 0) && pendData.every(v => v === 0)) {
                 this.hasData = false;
                 return;
             }
@@ -122,7 +131,7 @@ export class TxTimeseriesChartComponent implements OnChanges {
                 xAxis: [{ data: dates.map(d => moment(d).format('MMM DD')) }],
                 series: [
                     { data: execData },
-                    { data: autData }
+                    { data: pendData }
                 ]
             };
         }
