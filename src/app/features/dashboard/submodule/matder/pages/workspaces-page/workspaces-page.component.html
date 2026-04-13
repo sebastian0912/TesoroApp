@@ -92,6 +92,7 @@
       <p class="hero-text">{{ selectedWs.description || 'Sin descripcion' }}</p>
       <div class="hero-actions">
         <button mat-stroked-button (click)="backToList()"><mat-icon>arrow_back</mat-icon> Volver</button>
+        <button mat-raised-button color="accent" (click)="goToBoards(selectedWs.id)"><mat-icon>dashboard</mat-icon> Ver tableros</button>
         @if (selectedWs.can_manage_members) {
           <button mat-raised-button color="primary" (click)="showAddMember = true"><mat-icon>person_add</mat-icon> Agregar miembro</button>
         }
@@ -114,8 +115,18 @@
       <h3>Agregar miembro</h3>
       <div class="member-form">
         <mat-form-field appearance="outline" class="fw">
-          <mat-label>ID o username del usuario</mat-label>
-          <input matInput [(ngModel)]="newMemberUser">
+          <mat-label>Buscar miembro en la compañia (Nombre, Doc o Correo)</mat-label>
+          <input matInput [(ngModel)]="newMemberUser" [matAutocomplete]="auto" (input)="filterUsers()" (focus)="filterUsers()">
+          <mat-autocomplete #auto="matAutocomplete">
+            @for (u of filteredCompanyUsers; track u.id) {
+              <mat-option [value]="u.identificacion || u.correo_electronico">
+                <div style="display: flex; flex-direction: column; line-height: 1.3; padding: 4px 0;">
+                  <span style="font-weight: 500;">{{ u.nombres }} {{ u.apellidos }}</span>
+                  <span style="font-size: 0.8rem; color: gray;">{{ u.correo_electronico }} | Doc: {{ u.identificacion }}</span>
+                </div>
+              </mat-option>
+            }
+          </mat-autocomplete>
         </mat-form-field>
         <mat-form-field appearance="outline">
           <mat-label>Rol</mat-label>

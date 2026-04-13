@@ -30,8 +30,9 @@
           <button mat-stroked-button (click)="nav('boards')">Volver a tableros</button>
           @if (b.can_manage_content) {
             <button mat-stroked-button (click)="nav('workspaces/' + b.workspace)">Asignar usuarios</button>
-          }
-          @if (b.can_manage_content) {
+            <button mat-stroked-button (click)="openGroupModal()">
+              <mat-icon>group_add</mat-icon> Grupos
+            </button>
             <button mat-raised-button color="primary" (click)="showNewListInput = true">
               <mat-icon>add</mat-icon> Nueva lista
             </button>
@@ -43,7 +44,7 @@
         <div class="profile-meta">
           <span class="status-pill">{{ b.can_manage_content ? 'Editable' : 'Solo lectura' }}</span>
           <h3>{{ b.workspace_name }}</h3>
-          <p>Actualizado el {{ b.updated_at | date:'d MMM, y, h:mm a' }}</p>
+          <p>{{ activeMembers.length }} miembros · {{ workspaceGroups().length }} grupos</p>
           @if (b.workspace_role) { <p>Tu rol: {{ b.workspace_role }}</p> }
         </div>
       </div>
@@ -54,7 +55,7 @@
       <div class="summary-card">
         <p class="summary-label">Workspace</p>
         <h3>{{ b.workspace_name }}</h3>
-        <p>Workspace asociado a este tablero.</p>
+        <p>{{ activeMembers.length }} miembros activos.</p>
       </div>
       <div class="summary-card">
         <p class="summary-label">Tablero</p>
@@ -76,7 +77,7 @@
           <h2>Columnas y tareas del proyecto</h2>
           <p class="section-copy">
             @if (b.can_manage_content) {
-              Crea listas para cada estado del flujo. Agrega tareas y abre el detalle con el icono de ojo.
+              Crea listas, agrega tareas y asignalas a miembros o grupos del workspace.
             } @else {
               Explora listas y tareas de este tablero. Tu acceso actual es de solo lectura.
             }
@@ -87,21 +88,13 @@
       @if (lists().length > 0) {
         <div class="kanban-grid" cdkDropListGroup>
           @for (list of lists(); track list.id) {
-            <article class="column-card" cdkDrag [cdkDragDisabled]="!b.can_manage_content">
-              <!-- Drag handle -->
-              @if (b.can_manage_content) {
-                <div class="column-drag-handle" cdkDragHandle>
-                  <mat-icon>drag_handle</mat-icon>
-                </div>
-              }
-
+            <article class="column-card">
               <div class="column-topline">
-                <span class="column-badge">Lista {{ list.position + 1 }}</span>
+                <span class="column-badge">{{ list.name }}</span>
+                @if (list.list_type) { <span class="type-badge">{{ listTypeLabel(list.list_type) }}</span> }
+                <span class="count-badge">{{ list.cards.length }}</span>
                 @if (b.can_manage_content) {
                   <div class="column-actions">
-                    <button mat-icon-button (click)="startAddCard(list.id)" matTooltip="Nueva tarea">
-                      <mat-icon>add</mat-icon>
-                    </button>
                     <button mat-icon-button (click)="startEditList(list)" matTooltip="Editar lista">
                       <mat-icon>edit</mat-icon>
                     </button>
@@ -143,13 +136,9 @@
 
                   @if (list.cards.length > 0) {
                     @for (card of list.cards; track card.id) {
-                      <article class="task-card" cdkDrag [cdkDragData]="card"
-                               [cdkDragDisabled]="!b.can_manage_content">
+                      <article class="task-card" cdkDrag [cdkDragData]="card" [cdkDragDisabled]="!b.can_manage_content">
                         <div class="task-card-top">
                           <div class="task-card-badges">
-                            @if (b.can_manage_content) {
-                              <button class="drag-handle" cdkDragHandle><mat-icon>drag_indicator</mat-icon></button>
-                            }
                             <span class="task-status-badge" [attr.data-tone]="statusTone(card.status)">
                               {{ statusLabel(card.status) }}
                             </span>
@@ -161,6 +150,11 @@
                             @if (card.assignee_name) {
                               <div class="task-card-assignee" [matTooltip]="'Asignado a: ' + card.assignee_name">
                                 {{ card.assignee_name.slice(0, 2).toUpperCase() }}
+                              </div>
+                            }
+                            @if (card.assignee_group) {
+                              <div class="task-card-group" [matTooltip]="'Grupo: ' + getGroupName(card.assignee_group)">
+                                <mat-icon>groups</mat-icon>
                               </div>
                             }
                             <button mat-icon-button (click)="openCardDetail(card)" matTooltip="Ver detalle">
@@ -188,33 +182,30 @@
                       </article>
                     }
                   } @else {
-                    <article class="task-placeholder">
-                      <span class="task-badge">Nueva columna</span>
-                      <h4>Sin tareas todavia</h4>
-                      <p>
-                        @if (b.can_manage_content) {
-                          Crea la primera tarea o mueve una desde otra lista.
-                        } @else {
-                          Esta columna aun no tiene tareas.
-                        }
-                      </p>
-                      @if (b.can_manage_content) {
-                        <button mat-stroked-button (click)="startAddCard(list.id)">Crear primera tarea</button>
-                      }
-                    </article>
+                    <div class="task-placeholder">
+                      <p>Sin tareas. Arrastra una aqui o crea una nueva.</p>
+                    </div>
                   }
                 </div>
               }
 
-              <!-- Inline add card form -->
-              @if (addingToListId === list.id) {
-                <div class="add-form">
-                  <input class="card-input" [(ngModel)]="newCardTitle" placeholder="Titulo de la tarea..."
-                         (keyup.enter)="addCard(list)" (keyup.escape)="cancelAddCard()" autofocus>
-                  <div class="form-actions">
-                    <button mat-flat-button color="primary" (click)="addCard(list)">Agregar</button>
-                    <button mat-icon-button (click)="cancelAddCard()"><mat-icon>close</mat-icon></button>
-                  </div>
+              <!-- Footer: add card -->
+              @if (b.can_manage_content) {
+                <div class="column-footer">
+                  @if (addingToListId === list.id) {
+                    <div class="add-form">
+                      <input class="card-input" [(ngModel)]="newCardTitle" placeholder="Titulo de la tarea..."
+                             (keyup.enter)="addCard(list)" (keyup.escape)="cancelAddCard()" autofocus>
+                      <div class="form-actions">
+                        <button mat-flat-button color="primary" (click)="addCard(list)">Agregar</button>
+                        <button mat-icon-button (click)="cancelAddCard()"><mat-icon>close</mat-icon></button>
+                      </div>
+                    </div>
+                  } @else {
+                    <button mat-button class="add-card-trigger" (click)="startAddCard(list.id)">
+                      <mat-icon>add</mat-icon> Añadir tarjeta
+                    </button>
+                  }
                 </div>
               }
             </article>
@@ -265,9 +256,9 @@
             <h2>Este tablero aun no tiene listas</h2>
             <p>
               @if (b.can_manage_content) {
-                Empieza creando columnas como Backlog, En progreso y Hecho. Despues podras agregar tareas dentro de cada una.
+                Empieza creando columnas. Despues podras agregar tareas y asignarlas a miembros del workspace.
               } @else {
-                Aun no hay columnas en este tablero. Necesitas permisos de edicion.
+                Aun no hay columnas. Necesitas permisos de edicion.
               }
             </p>
             <div class="empty-actions">
@@ -282,7 +273,9 @@
     </section>
   </div>
 
-  <!-- Card create/edit dialog -->
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <!-- MODAL: Crear / Editar tarea                                 -->
+  <!-- ═══════════════════════════════════════════════════════════ -->
   @if (showCardModal) {
     <div class="modal-backdrop" (click)="closeCardModal()">
       <div class="modal-content card-modal" (click)="$event.stopPropagation()">
@@ -290,50 +283,304 @@
           <h3>{{ editingCardId ? 'Editar tarea' : 'Nueva tarea' }}</h3>
           <button mat-icon-button (click)="closeCardModal()"><mat-icon>close</mat-icon></button>
         </div>
+
         <div class="modal-body">
+          <!-- Titulo -->
           <mat-form-field appearance="outline" class="fw">
             <mat-label>Titulo</mat-label>
-            <input matInput [(ngModel)]="cardFormTitle" maxlength="120">
+            <input matInput [(ngModel)]="cardFormTitle" maxlength="120" placeholder="Nombre de la tarea...">
           </mat-form-field>
+
+          <!-- Descripcion -->
           <mat-form-field appearance="outline" class="fw">
             <mat-label>Descripcion</mat-label>
-            <textarea matInput [(ngModel)]="cardFormDesc" rows="3" maxlength="600"></textarea>
+            <textarea matInput [(ngModel)]="cardFormDesc" rows="3" maxlength="600"
+                      placeholder="Describe la tarea..."></textarea>
           </mat-form-field>
+
+          <!-- Prioridad + Fecha -->
           <div class="modal-row">
-            <mat-form-field appearance="outline" class="half">
-              <mat-label>Status</mat-label>
-              <mat-select [(ngModel)]="cardFormStatus">
-                <mat-option value="TODO">Por hacer</mat-option>
-                <mat-option value="IN_PROGRESS">En progreso</mat-option>
-                <mat-option value="BLOCKED">Bloqueado</mat-option>
-                <mat-option value="DONE">Hecho</mat-option>
-              </mat-select>
-            </mat-form-field>
             <mat-form-field appearance="outline" class="half">
               <mat-label>Prioridad</mat-label>
               <mat-select [(ngModel)]="cardFormPriority">
-                <mat-option value="LOW">Baja</mat-option>
-                <mat-option value="MEDIUM">Media</mat-option>
-                <mat-option value="HIGH">Alta</mat-option>
-                <mat-option value="URGENT">Urgente</mat-option>
+                <mat-option value="LOW">
+                  <span class="prio-dot prio-low"></span> Baja
+                </mat-option>
+                <mat-option value="MEDIUM">
+                  <span class="prio-dot prio-medium"></span> Media
+                </mat-option>
+                <mat-option value="HIGH">
+                  <span class="prio-dot prio-high"></span> Alta
+                </mat-option>
+                <mat-option value="URGENT">
+                  <span class="prio-dot prio-urgent"></span> Urgente
+                </mat-option>
               </mat-select>
             </mat-form-field>
+            <mat-form-field appearance="outline" class="half">
+              <mat-label>Fecha de vencimiento</mat-label>
+              <input matInput type="date" [(ngModel)]="cardFormDueDate">
+            </mat-form-field>
           </div>
-          <mat-form-field appearance="outline" class="fw">
-            <mat-label>Fecha de vencimiento</mat-label>
-            <input matInput type="date" [(ngModel)]="cardFormDueDate">
-          </mat-form-field>
+
+          <mat-divider></mat-divider>
+
+          <!-- ── Asignacion ── -->
+          <div class="assign-section">
+            <h4><mat-icon>person_add</mat-icon> Asignacion</h4>
+            <p class="assign-hint">Asigna a una persona individual o a un grupo completo del workspace.</p>
+
+            <!-- Persona individual -->
+            <mat-form-field appearance="outline" class="fw">
+              <mat-label>Asignar a una persona</mat-label>
+              <mat-select [(ngModel)]="cardFormAssignee" (selectionChange)="onAssigneeSelected($event.value)">
+                <mat-option [value]="null">
+                  <mat-icon>person_off</mat-icon> Sin asignar
+                </mat-option>
+                @for (m of activeMembers; track m.id) {
+                  <mat-option [value]="m.user">
+                    <div class="member-option">
+                      <span class="member-avatar-sm">{{ getMemberInitials(m) }}</span>
+                      <span>{{ getMemberLabel(m) }}</span>
+                      <span class="member-role">{{ m.role }}</span>
+                    </div>
+                  </mat-option>
+                }
+              </mat-select>
+              @if (cardFormAssignee) {
+                <button matSuffix mat-icon-button (click)="cardFormAssignee = null; $event.stopPropagation()">
+                  <mat-icon>clear</mat-icon>
+                </button>
+              }
+            </mat-form-field>
+
+            <div class="or-divider"><span>o asignar a un grupo</span></div>
+
+            <!-- Grupo -->
+            <mat-form-field appearance="outline" class="fw">
+              <mat-label>Asignar a un grupo</mat-label>
+              <mat-select [(ngModel)]="cardFormGroup" (selectionChange)="onGroupSelected($event.value)">
+                <mat-option [value]="null">
+                  <mat-icon>group_off</mat-icon> Sin grupo
+                </mat-option>
+                @for (g of workspaceGroups(); track g.id) {
+                  <mat-option [value]="g.id">
+                    <div class="group-option">
+                      <mat-icon>groups</mat-icon>
+                      <span>{{ g.name }}</span>
+                      <span class="group-count">{{ g.member_count }} miembros</span>
+                    </div>
+                  </mat-option>
+                }
+              </mat-select>
+              @if (cardFormGroup) {
+                <button matSuffix mat-icon-button (click)="cardFormGroup = null; $event.stopPropagation()">
+                  <mat-icon>clear</mat-icon>
+                </button>
+              }
+            </mat-form-field>
+
+            @if (cardFormGroup) {
+              <div class="group-info-box">
+                <mat-icon>info</mat-icon>
+                <span>Todos los miembros del grupo "{{ getGroupName(cardFormGroup) }}" recibiran esta tarea.</span>
+              </div>
+            }
+
+            @if (workspaceGroups().length === 0) {
+              <div class="no-groups-hint">
+                <p>No hay grupos en este workspace.</p>
+                <button mat-stroked-button (click)="closeCardModal(); openGroupModal()">
+                  <mat-icon>group_add</mat-icon> Crear grupo
+                </button>
+              </div>
+            }
+          </div>
+
+          @if (!editingCardId) {
+            <mat-divider></mat-divider>
+            
+            <!-- Checklist borrador -->
+            <div class="assign-section">
+              <h4><mat-icon>checklist</mat-icon> Checklist (Pasos)</h4>
+              @for (item of cardFormChecklists; track $index) {
+                <div class="check-row" style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px;">
+                  <mat-checkbox [checked]="item.completed" (change)="toggleDraftChecklist($index)">
+                    <span [class.done-text]="item.completed">{{ item.content }}</span>
+                  </mat-checkbox>
+                  <button mat-icon-button class="check-del" (click)="removeDraftChecklist($index)" matTooltip="Eliminar">
+                    <mat-icon>close</mat-icon>
+                  </button>
+                </div>
+              }
+              <div class="add-row" style="display: flex; gap: 8px; margin-top: 8px;">
+                <input style="flex: 1; padding: 6px; border: 1px solid #ccc; border-radius: 4px;"
+                       [(ngModel)]="cardFormNewChecklist" placeholder="Nuevo item de checklist..." (keyup.enter)="addDraftChecklist()">
+                <button mat-icon-button color="primary" (click)="addDraftChecklist()" [disabled]="!cardFormNewChecklist.trim()">
+                  <mat-icon>add</mat-icon>
+                </button>
+              </div>
+            </div>
+
+            <mat-divider></mat-divider>
+
+            <!-- Archivos borrador -->
+            <div class="assign-section">
+              <h4><mat-icon>attach_file</mat-icon> Referencias documentales</h4>
+              @for (f of cardFormFiles; track $index) {
+                <div class="upload-row" style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; background: rgba(0,0,0,0.05); padding: 4px 8px; border-radius: 4px;">
+                  <div class="upload-info" style="display: flex; align-items: center; gap: 8px;">
+                    <mat-icon class="upload-icon">{{ isImageFile(f) ? 'image' : 'insert_drive_file' }}</mat-icon>
+                    <span class="upload-name">{{ f.name }}</span>
+                    <span class="upload-size" style="font-size: 0.8rem; color: gray;">{{ formatBytes(f.size) }}</span>
+                  </div>
+                  <button mat-icon-button (click)="removeDraftFile($index)" matTooltip="Eliminar">
+                    <mat-icon>delete</mat-icon>
+                  </button>
+                </div>
+              }
+              <input type="file" #dfi (change)="addDraftFiles($event)" multiple hidden>
+              <button mat-stroked-button (click)="dfi.click()" class="upload-btn" style="margin-top: 8px;">
+                <mat-icon>upload</mat-icon> Adjuntar archivos
+              </button>
+            </div>
+          }
         </div>
+
         <div class="modal-footer">
           <button mat-stroked-button (click)="closeCardModal()">Cancelar</button>
           <button mat-raised-button color="primary" [disabled]="!cardFormTitle.trim() || cardSaving"
                   (click)="submitCardForm()">
-            {{ cardSaving ? 'Guardando...' : (editingCardId ? 'Guardar' : 'Crear tarea') }}
+            {{ cardSaving ? 'Guardando...' : (editingCardId ? 'Guardar cambios' : 'Crear tarea') }}
           </button>
         </div>
       </div>
     </div>
   }
+
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <!-- MODAL: Gestionar grupos del workspace                       -->
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  @if (showGroupModal) {
+    <div class="modal-backdrop" (click)="closeGroupModal()">
+      <div class="modal-content group-modal" (click)="$event.stopPropagation()">
+        <div class="modal-header">
+          <h3><mat-icon>groups</mat-icon> Grupos del workspace</h3>
+          <button mat-icon-button (click)="closeGroupModal()"><mat-icon>close</mat-icon></button>
+        </div>
+
+        <div class="modal-body">
+          <!-- Crear grupo -->
+          <div class="create-group-section">
+            <h4>Crear nuevo grupo</h4>
+            <p class="assign-hint">Los grupos permiten asignar tareas a varios usuarios a la vez.</p>
+            <div class="modal-row">
+              <mat-form-field appearance="outline" class="grow">
+                <mat-label>Nombre del grupo</mat-label>
+                <input matInput [(ngModel)]="newGroupName" maxlength="80" (keyup.enter)="createGroup()">
+              </mat-form-field>
+              <button mat-raised-button color="primary" [disabled]="!newGroupName.trim() || groupSaving"
+                      (click)="createGroup()">
+                {{ groupSaving ? 'Creando...' : 'Crear' }}
+              </button>
+            </div>
+            <mat-form-field appearance="outline" class="fw">
+              <mat-label>Descripcion (opcional)</mat-label>
+              <input matInput [(ngModel)]="newGroupDesc" maxlength="300">
+            </mat-form-field>
+          </div>
+
+          <mat-divider></mat-divider>
+
+          <!-- Lista de grupos -->
+          <div class="groups-list-section">
+            <h4>Grupos existentes ({{ workspaceGroups().length }})</h4>
+
+            @if (workspaceGroups().length === 0) {
+              <div class="empty-groups">
+                <mat-icon>group_off</mat-icon>
+                <p>Aun no hay grupos. Crea uno arriba.</p>
+              </div>
+            } @else {
+              <div class="groups-list">
+                @for (g of workspaceGroups(); track g.id) {
+                  <div class="group-item" [class.active]="managingGroup?.id === g.id">
+                    <div class="group-item-header" (click)="selectGroupToManage(g)">
+                      <div class="group-item-info">
+                        <mat-icon>groups</mat-icon>
+                        <div>
+                          <strong>{{ g.name }}</strong>
+                          <span class="group-member-count">{{ g.member_count }} miembros</span>
+                        </div>
+                      </div>
+                      <div class="group-item-actions">
+                        <button mat-icon-button (click)="deleteGroup(g); $event.stopPropagation()" matTooltip="Eliminar grupo">
+                          <mat-icon>delete</mat-icon>
+                        </button>
+                        <mat-icon class="expand-icon">{{ managingGroup?.id === g.id ? 'expand_less' : 'expand_more' }}</mat-icon>
+                      </div>
+                    </div>
+
+                    <!-- Miembros del grupo (expandido) -->
+                    @if (managingGroup?.id === g.id) {
+                      <div class="group-members-panel">
+                        <h5>Miembros del grupo</h5>
+
+                        <!-- Agregar miembro -->
+                        <div class="add-member-row">
+                          <mat-form-field appearance="outline" class="grow">
+                            <mat-label>Agregar miembro del workspace</mat-label>
+                            <mat-select [(ngModel)]="addMemberToGroupId">
+                              @for (m of activeMembers; track m.id) {
+                                <mat-option [value]="m.user">
+                                  <span class="member-avatar-sm">{{ getMemberInitials(m) }}</span>
+                                  {{ getMemberLabel(m) }}
+                                </mat-option>
+                              }
+                            </mat-select>
+                          </mat-form-field>
+                          <button mat-flat-button color="primary" [disabled]="!addMemberToGroupId"
+                                  (click)="addMemberToGroup()">
+                            <mat-icon>person_add</mat-icon> Agregar
+                          </button>
+                        </div>
+
+                        <!-- Lista de miembros del grupo -->
+                        @if (groupMembers().length === 0) {
+                          <p class="no-members-text">Este grupo aun no tiene miembros. Agrega miembros del workspace.</p>
+                        } @else {
+                          <div class="member-list">
+                            @for (gm of groupMembers(); track gm.id) {
+                              <div class="member-row">
+                                <span class="member-avatar-sm">{{ (gm.full_name || gm.username || 'U').slice(0, 2).toUpperCase() }}</span>
+                                <div class="member-row-info">
+                                  <strong>{{ gm.full_name || gm.username || 'Usuario' }}</strong>
+                                  @if (gm.username) { <span class="member-username">{{ gm.username }}</span> }
+                                </div>
+                                <button mat-icon-button color="warn" (click)="removeMemberFromGroup(gm.id)"
+                                        matTooltip="Remover del grupo">
+                                  <mat-icon>person_remove</mat-icon>
+                                </button>
+                              </div>
+                            }
+                          </div>
+                        }
+                      </div>
+                    }
+                  </div>
+                }
+              </div>
+            }
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button mat-raised-button color="primary" (click)="closeGroupModal()">Cerrar</button>
+        </div>
+      </div>
+    </div>
+  }
+
 } @else {
   <div class="loading-state">
     <div class="empty-card">

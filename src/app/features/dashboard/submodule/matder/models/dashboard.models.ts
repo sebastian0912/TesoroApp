@@ -71,6 +71,15 @@ export interface UserGroupResponse {
   updated_at: string;
 }
 
+export interface GroupMemberResponse {
+  id: number;
+  group: number;
+  user: string;
+  username: string | null;
+  full_name: string | null;
+  joined_at: string;
+}
+
 export interface AuditLogResponse {
   id: number;
   user: string | null;

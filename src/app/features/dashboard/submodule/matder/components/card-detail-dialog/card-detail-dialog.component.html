@@ -1,9 +1,13 @@
 @if (loading()) {
   <div class="center"><mat-spinner diameter="36"></mat-spinner></div>
 } @else if (card(); as c) {
-  <h2 mat-dialog-title class="dialog-title">
+  <h2 mat-dialog-title class="dialog-title" style="display: flex; align-items: center; gap: 8px;">
     <mat-icon class="title-icon">assignment</mat-icon>
-    {{ c.title }}
+    <input style="font-size: 1.5rem; font-weight: 500; border: none; outline: none; background: transparent; width: 100%; border-bottom: 2px solid transparent; transition: 0.2s;" 
+           [value]="c.title" 
+           (blur)="updateField('title', $any($event.target).value)"
+           onfocus="this.style.borderBottom='2px solid #1976d2'"
+           onblur="this.style.borderBottom='2px solid transparent'">
   </h2>
 
   <mat-dialog-content class="content">

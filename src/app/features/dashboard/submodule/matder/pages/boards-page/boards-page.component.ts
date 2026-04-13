@@ -1,5 +1,5 @@
 import { Component, OnInit, signal, ChangeDetectionStrategy } from '@angular/core';
-import { Router } from '@angular/router';
+import { Router, ActivatedRoute } from '@angular/router';
 import { DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatCardModule } from '@angular/material/card';
@@ -53,6 +53,7 @@ export class BoardsPageComponent implements OnInit {
     private boardService: BoardService,
     private wsService: WorkspaceService,
     private router: Router,
+    private route: ActivatedRoute,
   ) {}
 
   async ngOnInit(): Promise<void> {
@@ -64,7 +65,15 @@ export class BoardsPageComponent implements OnInit {
       ]);
       this.boards.set(boards);
       this.workspaces.set(wss);
-      if (wss.length) this.formWs = wss[0].id;
+
+      const wsParam = this.route.snapshot.queryParamMap.get('workspace');
+      if (wsParam) {
+        const id = Number(wsParam);
+        this.wsFilter = id;
+        this.formWs = id;
+      } else if (wss.length) {
+        this.formWs = wss[0].id;
+      }
     } catch { /* empty */ }
     finally { this.loading.set(false); }
   }
