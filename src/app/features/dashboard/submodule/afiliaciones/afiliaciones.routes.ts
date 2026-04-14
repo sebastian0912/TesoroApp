@@ -2,7 +2,7 @@ import { Routes } from '@angular/router';
 
 export const routes: Routes = [
   {
-    path: 'dashboard',
+    path: 'dashboardAfiliaciones',
     loadComponent: () => import('./pages/dashboard/dashboard').then(m => m.AfiliacionesDashboard)
   },
   {
