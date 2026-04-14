@@ -1,4 +1,4 @@
-import {  Component, OnInit, inject , ChangeDetectionStrategy } from '@angular/core';
+import {  Component, OnInit, inject , ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
@@ -7,7 +7,6 @@ import { MatTableDataSource, MatTableModule } from '@angular/material/table';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { ComercializadoraService } from '../../../merchandise/service/comercializadora/comercializadora.service';
-import { UtilityServiceService } from '../../../../../../shared/services/utilityService/utility-service.service';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -27,7 +26,7 @@ import { UtilityServiceService } from '../../../../../../shared/services/utility
 } )
 export class MerchandisingMerchandiseComponent implements OnInit {
   private comercializadoraService = inject(ComercializadoraService);
-  private utilityService = inject(UtilityServiceService);
+  private cdr = inject(ChangeDetectorRef);
 
   loading = false;
 
@@ -57,6 +56,7 @@ export class MerchandisingMerchandiseComponent implements OnInit {
 
   async cargarInventario() {
     this.loading = true;
+    this.cdr.markForCheck();
     try {
       // User's sede is no longer used for filtering to display global inventory on Home
       const data: any = await this.comercializadoraService.listarInventarioLotes('');
@@ -80,6 +80,7 @@ export class MerchandisingMerchandiseComponent implements OnInit {
       this.dataSourceResumen.data = [];
     } finally {
       this.loading = false;
+      this.cdr.markForCheck();
     }
   }
 

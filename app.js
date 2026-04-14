@@ -5,8 +5,15 @@ const os = require('os');
 const https = require('https');
 const http = require('http');
 const { execFile } = require('child_process');
-const { autoUpdater } = require('electron-updater');
 const { initDatabase, closeDatabase } = require('./electron-db');
+
+// autoUpdater se inicializa perezosamente: require('electron-updater')
+// construye NsisUpdater al primer acceso y necesita que `app` ya esté vivo.
+let _autoUpdater = null;
+function getAutoUpdater() {
+  if (!_autoUpdater) _autoUpdater = require('electron-updater').autoUpdater;
+  return _autoUpdater;
+}
 
 const isDev = process.env.NODE_ENV === 'development';
 
@@ -21,8 +28,6 @@ if (!gotTheLock) {
   app.quit();
   return;
 }
-
-autoUpdater.autoDownload = true;
 
 let mainWindow = null;
 
@@ -120,7 +125,7 @@ function createWindow() {
   });
 
   if (!isDev) {
-    autoUpdater.checkForUpdatesAndNotify().catch((err) => {
+    getAutoUpdater().checkForUpdatesAndNotify().catch((err) => {
       console.error('[autoUpdater] checkForUpdatesAndNotify failed:', err);
     });
   }
@@ -136,7 +141,7 @@ ipcMain.handle('env:get', () => {
 });
 
 ipcMain.on('restart-app', () => {
-  autoUpdater.quitAndInstall();
+  getAutoUpdater().quitAndInstall();
 });
 
 ipcMain.handle('fingerprint:get', async () => {
@@ -161,17 +166,23 @@ ipcMain.handle('fingerprint:get', async () => {
 });
 
 // ─── autoUpdater ──────────────────────────────────────────────────────────
-autoUpdater.on('update-available', () => sendToRenderer('update-available'));
-autoUpdater.on('download-progress', (progressObj) => sendToRenderer('update-progress', progressObj));
-autoUpdater.on('update-downloaded', () => {
-  sendToRenderer('update-downloaded');
-  setTimeout(() => {
-    try { autoUpdater.quitAndInstall(); } catch (e) { console.error('quitAndInstall:', e); }
-  }, 3000);
-});
-autoUpdater.on('error', (error) => {
-  sendToRenderer('update-error', error ? (error.message || String(error)) : 'unknown');
-});
+// Se registran listeners sólo cuando app está listo (evita cargar electron-updater
+// antes de tiempo, lo que rompería con Electron 34 + electron-updater 6).
+function registerAutoUpdaterListeners() {
+  const au = getAutoUpdater();
+  au.autoDownload = true;
+  au.on('update-available', () => sendToRenderer('update-available'));
+  au.on('download-progress', (progressObj) => sendToRenderer('update-progress', progressObj));
+  au.on('update-downloaded', () => {
+    sendToRenderer('update-downloaded');
+    setTimeout(() => {
+      try { au.quitAndInstall(); } catch (e) { console.error('quitAndInstall:', e); }
+    }, 3000);
+  });
+  au.on('error', (error) => {
+    sendToRenderer('update-error', error ? (error.message || String(error)) : 'unknown');
+  });
+}
 
 // ─── PDF editor externo ───────────────────────────────────────────────────
 let currentEditingFile = null;
@@ -285,6 +296,7 @@ app.on('second-instance', () => {
 
 app.whenReady().then(() => {
   initDatabase();
+  if (!isDev) registerAutoUpdaterListeners();
   createWindow();
 
   app.on('activate', () => {

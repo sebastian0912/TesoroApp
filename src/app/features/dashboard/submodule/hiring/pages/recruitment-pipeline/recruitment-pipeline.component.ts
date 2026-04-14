@@ -518,42 +518,54 @@ export class RecruitmentPipelineComponent {
     const cc = this.candidatoSeleccionado()?.numero_documento;
     if (!cc) return;
     
+    const hoy = new Date().toISOString().split('T')[0];
     const { value: formValues } = await Swal.fire({
-      title: 'Dar de Baja Contrato',
+      title: 'Dar de baja contrato',
+      width: 520,
+      iconHtml: '<span style="font-size:36px;">⚠️</span>',
       html: `
-        <div style="text-align: left; margin-bottom: 8px;">
-          <label>Fecha de Retiro:</label>
-          <input type="date" id="swal-fecha-baja" class="swal2-input" value="${new Date().toISOString().split('T')[0]}">
-        </div>
-        <div style="text-align: left; margin-bottom: 8px;">
-          <label>Motivo de Retiro:</label>
-          <select id="swal-motivo-baja" class="swal2-input">
-            <option value="">Seleccione...</option>
-            <option value="RENUNCIA">Renuncia voluntaria</option>
-            <option value="TERMINACION_CONTRATO">Terminación de contrato</option>
-            <option value="ABANDONO">Abandono del puesto</option>
-            <option value="DESPIDO_JUSTA_CAUSA">Despido con justa causa</option>
-            <option value="DESPIDO_SIN_JUSTA_CAUSA">Despido sin justa causa</option>
-            <option value="MUTUO_ACUERDO">Mutuo acuerdo</option>
-            <option value="FIN_OBRA_LABOR">Fin de obra o labor</option>
-            <option value="OTRO">Otro</option>
-          </select>
-          <textarea id="swal-motivo-baja-detalle" class="swal2-textarea" placeholder="Detalle adicional (opcional)"></textarea>
+        <style>
+          .baja-form { text-align:left; display:flex; flex-direction:column; gap:16px; margin-top:8px; }
+          .baja-form .sub { font-size:13px; color:#64748b; margin:-4px 0 8px; text-align:center; }
+          .baja-form label { display:block; font-size:13px; font-weight:600; color:#334155; margin-bottom:6px; letter-spacing:.2px; }
+          .baja-form .campo input, .baja-form .campo textarea {
+            width:100%; box-sizing:border-box; padding:10px 12px; border:1px solid #cbd5e1; border-radius:8px;
+            font-size:14px; color:#0f172a; background:#f8fafc; transition:border-color .15s, box-shadow .15s, background .15s;
+            font-family: inherit;
+          }
+          .baja-form .campo input:focus, .baja-form .campo textarea:focus {
+            outline:none; border-color:#dc2626; background:#fff; box-shadow:0 0 0 3px rgba(220,38,38,.12);
+          }
+          .baja-form textarea { resize:vertical; min-height:96px; }
+          .baja-form .hint { font-size:11px; color:#94a3b8; margin-top:4px; }
+        </style>
+        <div class="baja-form">
+          <div class="sub">Esta acción desactivará el contrato y registrará el motivo del retiro.</div>
+          <div class="campo">
+            <label for="swal-fecha-baja">Fecha de retiro</label>
+            <input type="date" id="swal-fecha-baja" value="${hoy}" max="${hoy}">
+          </div>
+          <div class="campo">
+            <label for="swal-motivo-baja">Motivo de retiro</label>
+            <textarea id="swal-motivo-baja" rows="4" placeholder="Describa brevemente el motivo del retiro"></textarea>
+            <div class="hint">Este texto se guardará como motivo_retiro.</div>
+          </div>
         </div>
       `,
       focusConfirm: false,
       showCancelButton: true,
-      confirmButtonText: 'Confirmar Baja',
-      confirmButtonColor: '#d33',
+      confirmButtonText: 'Confirmar baja',
+      confirmButtonColor: '#dc2626',
       cancelButtonText: 'Cancelar',
+      cancelButtonColor: '#64748b',
+      reverseButtons: true,
+      customClass: { popup: 'swal-baja-popup' },
       preConfirm: () => {
         const fecha = (document.getElementById('swal-fecha-baja') as HTMLInputElement).value;
-        const motivo = (document.getElementById('swal-motivo-baja') as HTMLSelectElement).value;
-        const detalle = (document.getElementById('swal-motivo-baja-detalle') as HTMLTextAreaElement).value;
+        const motivo = (document.getElementById('swal-motivo-baja') as HTMLTextAreaElement).value.trim();
         if (!fecha) { Swal.showValidationMessage('La fecha es obligatoria'); return false; }
         if (!motivo) { Swal.showValidationMessage('El motivo es obligatorio'); return false; }
-        const motivoFinal = detalle?.trim() ? `${motivo} - ${detalle.trim()}` : motivo;
-        return { fecha, motivo: motivoFinal };
+        return { fecha, motivo };
       }
     });
 
@@ -930,32 +942,32 @@ export class RecruitmentPipelineComponent {
 
         const mappedData = data.map((row: any, idx: number) => {
           const apl = String(row.aplica_o_no_aplica || '').toUpperCase();
+          row._motivo = '';
 
-          // Estado del flujo con semáforo
-          if (row.contratado === true) {
+          // Estado del flujo con semáforo. RETIRADO tiene prioridad si el contrato fue dado de baja.
+          if (row.contrato_activo === false) {
+            row._estado = 'RETIRADO';
+            row._motivo = row.motivo_retiro || '';
+          } else if (row.contratado === true) {
             if (contratadosCount > 5 && idx > 0) {
               row._estado = 'RETIRADO';
-              row._estado_color = '#78909C'; // gris
+              row._motivo = row.motivo_retiro || '';
             } else {
               row._estado = 'CONTRATADO';
-              row._estado_color = '#2E7D32'; // verde
             }
           } else if (row.rechazado === true || apl === 'NO_APLICA' || apl === 'NO APLICA') {
             row._estado = '911';
-            row._estado_color = '#C62828'; // rojo
             row._motivo = row.motivo_no_aplica || row.detalle || '';
           } else if (row.prueba_tecnica === true) {
             row._estado = 'PRUEBA TÉCNICA';
-            row._estado_color = '#1565C0'; // azul
           } else if (apl === 'EN_ESPERA') {
             row._estado = 'ESPERA VACANTE';
-            row._estado_color = '#F57F17'; // amarillo/naranja
             row._motivo = row.motivo_espera || '';
+          } else if (apl === 'APLICA') {
+            row._estado = 'EN PROGRESO';
           } else {
             row._estado = '';
           }
-
-          // (el color se aplica vía statusConfig en la columna)
 
           // Fecha de ingreso
           row._ingreso_date = row.contrato_fecha_ingreso || row.ingreso_at || null;
@@ -967,24 +979,21 @@ export class RecruitmentPipelineComponent {
           { name: 'oficina', header: 'Oficina', type: 'text', width: '140px' },
           { name: 'entrevista_created_at', header: 'Fecha entrevista', type: 'date', width: '160px' },
           {
-            name: 'estado',
-            header: 'Estado',
-            type: 'text',
-            width: '140px',
+            name: '_estado', header: 'Estado', type: 'status', width: '180px',
+            statusConfig: {
+              'CONTRATADO':       { color: '#fff', background: '#2E7D32' },
+              'RETIRADO':         { color: '#fff', background: '#78909C' },
+              '911':              { color: '#fff', background: '#C62828' },
+              'PRUEBA TÉCNICA':   { color: '#fff', background: '#1565C0' },
+              'ESPERA VACANTE':   { color: '#000', background: '#FFD54F' },
+              'EN PROGRESO':      { color: '#fff', background: '#00897B' },
+            }
           },
-          {
-            name: 'aplica_o_no_aplica',
-            header: 'Aplica/No aplica',
-            type: 'select',
-            width: '180px',
-            options: ['APLICA', 'NO_APLICA', 'EN_ESPERA'],
-          },
-          { name: 'motivo_no_aplica', header: 'Motivo no aplica', type: 'text', width: '240px' },
-          { name: 'motivo_espera', header: 'Motivo espera', type: 'text', width: '220px' },
-          { name: 'fecha_retiro', header: 'Fecha retiro', type: 'date', width: '160px' },
-          { name: 'motivo_retiro', header: 'Motivo retiro', type: 'text', width: '240px' },
-          { name: 'detalle', header: 'Detalle', type: 'text', width: '260px' },
-          { name: 'actions', header: 'Acciones', type: 'custom', width: '120px', stickyEnd: true },
+          { name: 'empresaUsuariaSolicita', header: 'Empresa', type: 'text', width: '180px' },
+          { name: 'finca', header: 'Finca', type: 'text', width: '160px' },
+          { name: '_ingreso_date', header: 'Fecha ingreso', type: 'date', width: '140px' },
+          { name: 'fecha_retiro', header: 'Fecha retiro', type: 'date', width: '140px' },
+          { name: '_motivo', header: 'Motivo', type: 'text', width: '260px' },
         ];
 
         this.dialog.open(TableDialogComponent, {
