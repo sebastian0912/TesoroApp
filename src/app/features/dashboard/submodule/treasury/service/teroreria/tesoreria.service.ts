@@ -55,6 +55,7 @@ export interface ExcelImportResponse {
   created: number;
   updated: number;
   skipped: number;
+  deactivated?: number;
   errors_count: number;
   errors_sample: { row: number, error: string }[];
 }

@@ -450,6 +450,10 @@ export class UploadTreasuryComponent {
 
     const hasErrors = (res.errors_count ?? 0) > 0;
 
+    const deactivatedHtml = kind === 'insert'
+      ? `<p><b>Inactivados (no presentes en el archivo):</b> ${res.deactivated ?? 0}</p>`
+      : '';
+
     let html = `
       <div style="text-align: left;">
         <p><b>Total Filas Leídas:</b> ${res.total_rows ?? 0}</p>
@@ -457,6 +461,7 @@ export class UploadTreasuryComponent {
         <p><b>Nuevos Creados:</b> ${res.created ?? 0}</p>
         <p><b>Actualizados:</b> ${res.updated ?? 0}</p>
         <p><b>Omitidas (Sin cambios/Vacías):</b> ${res.skipped ?? 0}</p>
+        ${deactivatedHtml}
       </div>
     `;
 
