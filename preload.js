@@ -1,7 +1,13 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
-// Canales permitidos — cualquier canal fuera de esta lista será bloqueado
-const ALLOWED_INVOKE = new Set([
+// ─── Whitelist de canales IPC ────────────────────────────────────────────
+// Mejor práctica Electron: NUNCA exponer send/invoke/on genéricos.
+// Solo se permiten los canales que realmente usa el renderer.
+const SEND_CHANNELS = new Set([
+  'restart-app',
+]);
+
+const INVOKE_CHANNELS = new Set([
   'version:get',
   'env:get',
   'fingerprint:get',
@@ -17,11 +23,7 @@ const ALLOWED_INVOKE = new Set([
   'db:mark-request-status',
 ]);
 
-const ALLOWED_SEND = new Set([
-  'restart-app',
-]);
-
-const ALLOWED_RECEIVE = new Set([
+const ON_CHANNELS = new Set([
   'update-available',
   'update-progress',
   'update-downloaded',
@@ -29,25 +31,38 @@ const ALLOWED_RECEIVE = new Set([
   'pdf:file-changed',
 ]);
 
-contextBridge.exposeInMainWorld('electron', {
-  ipcRenderer: {
-    send: (channel, data) => {
-      if (ALLOWED_SEND.has(channel)) ipcRenderer.send(channel, data);
-    },
-    on: (channel, func) => {
-      if (!ALLOWED_RECEIVE.has(channel)) return () => {};
-      const subscription = (_event, ...args) => func(...args);
-      ipcRenderer.on(channel, subscription);
-      return () => ipcRenderer.removeListener(channel, subscription);
-    },
-    removeAllListeners: (channel) => {
-      if (ALLOWED_RECEIVE.has(channel)) ipcRenderer.removeAllListeners(channel);
-    },
-    invoke: (channel, ...args) => {
-      if (ALLOWED_INVOKE.has(channel)) return ipcRenderer.invoke(channel, ...args);
-      return Promise.reject(new Error(`Canal IPC bloqueado: ${channel}`));
-    },
+// API compatible con la ya usada por el renderer (window.electron.ipcRenderer.*)
+// pero validando canales antes de cruzar el bridge.
+const safeIpc = {
+  send: (channel, data) => {
+    if (SEND_CHANNELS.has(channel)) {
+      ipcRenderer.send(channel, data);
+    } else {
+      console.warn(`[preload] send canal no permitido: ${channel}`);
+    }
   },
+  invoke: (channel, ...args) => {
+    if (INVOKE_CHANNELS.has(channel)) {
+      return ipcRenderer.invoke(channel, ...args);
+    }
+    return Promise.reject(new Error(`[preload] invoke canal no permitido: ${channel}`));
+  },
+  on: (channel, func) => {
+    if (!ON_CHANNELS.has(channel)) {
+      console.warn(`[preload] on canal no permitido: ${channel}`);
+      return () => { /* noop */ };
+    }
+    const subscription = (_event, ...args) => func(...args);
+    ipcRenderer.on(channel, subscription);
+    return () => ipcRenderer.removeListener(channel, subscription);
+  },
+  removeAllListeners: (channel) => {
+    if (ON_CHANNELS.has(channel)) ipcRenderer.removeAllListeners(channel);
+  },
+};
+
+contextBridge.exposeInMainWorld('electron', {
+  ipcRenderer: safeIpc,
   version: {
     get: () => ipcRenderer.invoke('version:get'),
   },

@@ -1,4 +1,4 @@
-<mat-card class="premium-card">
+<mat-card class="premium-card view-reports">
   <mat-card-header class="card-header-premium">
     <div class="header-content">
       <div class="header-icon-container">
@@ -6,200 +6,345 @@
       </div>
       <div class="header-text">
         <mat-card-title class="titulo">Reportes de Contratación</mat-card-title>
-        <mat-card-subtitle class="subtitulo">Visualización y exportación de reportes de personal.</mat-card-subtitle>
+        <mat-card-subtitle class="subtitulo">
+          Visualización y exportación de reportes de personal.
+        </mat-card-subtitle>
       </div>
     </div>
     <span class="grow"></span>
-    <div class="header-right" style="z-index: 1; display: flex; align-items: center; gap: 8px;">
-        <button
-          mat-flat-button
-          class="btn-managerial"
-          (click)="descargarCedulasZip()">
-          Descargar todas las cédulas por oficina
-        </button>
+    <div class="header-right">
+      <button
+        mat-stroked-button
+        class="vr-filter-chip"
+        matTooltip="Cambiar rango de fechas"
+        (click)="openDateRangeDialog('filterTables')">
+        <mat-icon>calendar_today</mat-icon>
+        <span class="vr-filter-chip__label">{{ activeRangeLabel() }}</span>
+      </button>
 
-        @if (isAdminReportUser) {
+      <button
+        mat-flat-button
+        class="btn-managerial"
+        matTooltip="Descargar ZIP con cédulas por oficina"
+        (click)="descargarCedulasZip()">
+        <mat-icon>folder_zip</mat-icon>
+        Cédulas (ZIP)
+      </button>
+
+      <button
+        mat-flat-button
+        class="btn-managerial btn-managerial--alt"
+        matTooltip="Combinar cruces en un Excel: hoja Tu Alianza y hoja Apoyo Laboral"
+        [disabled]="isExporting() || reportes().length === 0"
+        (click)="descargarCrucesCombinados()">
+        <mat-icon>merge</mat-icon>
+        Cruces combinados
+      </button>
+
+      @if (isAdminReportUser) {
         <button
           mat-icon-button
           [matMenuTriggerFor]="menu"
-          class="menu btn-managerial-icon"
-          matTooltip="Acciones de reportes">
+          class="btn-managerial-icon"
+          matTooltip="Exportaciones y reportes avanzados">
           <mat-icon>more_vert</mat-icon>
         </button>
-        }
+      }
     </div>
   </mat-card-header>
+
+  @if (isExporting()) {
+    <mat-progress-bar mode="indeterminate" class="vr-progress"></mat-progress-bar>
+  }
+
   <mat-card-content class="card-content">
-
     @if (isAdminReportUser) {
-    <mat-menu #menu="matMenu">
-      <button
-        mat-menu-item
-        (click)="openDateRangeDialog('filterTables')"
-        class="submenu">
-        <span>Filtrar tablas por fecha</span>
-      </button>
-
-      <button
-        mat-menu-item
-        (click)="openDateRangeDialog('exportContratacion')"
-        class="submenu">
-        <span>Extraer base contratación por código de contrato</span>
-      </button>
-
-      <button
-        mat-menu-item
-        (click)="openDateRangeDialog('generateCentroCostoTable')"
-        class="submenu">
-        <span>Generar reporte centro de costos</span>
-      </button>
-
-      <button
-        mat-menu-item
-        (click)="openDateRangeDialog('exportFincas')"
-        class="submenu">
-        <span>Generar reporte fincas</span>
-      </button>
-    </mat-menu>
+      <mat-menu #menu="matMenu" class="vr-menu">
+        <button mat-menu-item (click)="openDateRangeDialog('exportContratacion')">
+          <mat-icon>description</mat-icon>
+          <span>Base contratación por código de contrato</span>
+        </button>
+        <button mat-menu-item (click)="openDateRangeDialog('generateCentroCostoTable')">
+          <mat-icon>account_tree</mat-icon>
+          <span>Generar reporte centro de costos</span>
+        </button>
+        <button mat-menu-item (click)="openDateRangeDialog('exportFincas')">
+          <mat-icon>agriculture</mat-icon>
+          <span>Generar reporte fincas</span>
+        </button>
+      </mat-menu>
     }
 
-    <!-- TABS PRINCIPALES -->
-    <mat-tab-group animationDuration="250ms">
+    <!-- Context bar -->
+    <div class="vr-context-bar">
+      <div class="vr-context-item">
+        <mat-icon>event</mat-icon>
+        <span class="vr-context-label">Rango activo</span>
+        <strong class="vr-context-value">{{ activeRangeLabel() }}</strong>
+      </div>
+      <div class="vr-context-item">
+        <mat-icon>receipt_long</mat-icon>
+        <span class="vr-context-label">Reportes uno a uno</span>
+        <strong class="vr-context-value">{{ reportes().length }}</strong>
+      </div>
+      @if (isAdminReportUser) {
+        <div class="vr-context-item">
+          <mat-icon>business</mat-icon>
+          <span class="vr-context-label">Oficinas consolidadas</span>
+          <strong class="vr-context-value">{{ consolidado().length }}</strong>
+        </div>
+      }
+      @if (userNombre) {
+        <div class="vr-context-item vr-context-item--user">
+          <mat-icon>person</mat-icon>
+          <span class="vr-context-label">Usuario</span>
+          <strong class="vr-context-value">{{ userNombre }}</strong>
+        </div>
+      }
+    </div>
 
-      <!-- TAB 1: REPORTE UNO A UNO -->
-      <mat-tab label="Uno a uno por persona">
-        <div class="tabla">
+    <!-- KPI cards (solo admins, con datos consolidados) -->
+    @if (isAdminReportUser && consolidado().length > 0) {
+      <div class="vr-kpi-grid">
+        <div class="vr-kpi-card glass-panel">
+          <div class="vr-kpi-icon vr-kpi-icon--blue">
+            <mat-icon>handshake</mat-icon>
+          </div>
+          <div class="vr-kpi-info">
+            <span class="vr-kpi-label">Contratos Tu Alianza</span>
+            <span class="vr-kpi-value">{{ kpis().tuAlianza | number }}</span>
+          </div>
+        </div>
+
+        <div class="vr-kpi-card glass-panel">
+          <div class="vr-kpi-icon vr-kpi-icon--green">
+            <mat-icon>groups</mat-icon>
+          </div>
+          <div class="vr-kpi-info">
+            <span class="vr-kpi-label">Contratos Apoyo Laboral</span>
+            <span class="vr-kpi-value">{{ kpis().apoyoLaboral | number }}</span>
+          </div>
+        </div>
+
+        <div class="vr-kpi-card glass-panel">
+          <div class="vr-kpi-icon vr-kpi-icon--purple">
+            <mat-icon>badge</mat-icon>
+          </div>
+          <div class="vr-kpi-info">
+            <span class="vr-kpi-label">Cédulas subidas</span>
+            <span class="vr-kpi-value">{{ kpis().cedulas | number }}</span>
+          </div>
+        </div>
+
+        <div class="vr-kpi-card glass-panel">
+          <div class="vr-kpi-icon vr-kpi-icon--amber">
+            <mat-icon>task_alt</mat-icon>
+          </div>
+          <div class="vr-kpi-info">
+            <span class="vr-kpi-label">Oficinas que reportaron</span>
+            <span class="vr-kpi-value">
+              {{ kpis().oficinasReportaron }}
+              <small class="vr-kpi-sub">/ {{ kpis().oficinasTotal }}</small>
+            </span>
+          </div>
+        </div>
+      </div>
+    }
+
+    <!-- TABS -->
+    <mat-tab-group animationDuration="300ms" class="vr-tabs">
+
+      <!-- TAB 1 -->
+      <mat-tab>
+        <ng-template mat-tab-label>
+          <mat-icon class="vr-tab-icon">person_search</mat-icon>
+          <span>Uno a uno por persona</span>
+          <span class="vr-tab-badge">{{ reportes().length }}</span>
+        </ng-template>
+
+        <div class="vr-tab-body">
           <app-standard-filter-table
-            [data]="reportes"
+            [data]="reportes()"
             [columnDefinitions]="reportesColumns"
             [pageSizeOptions]="[10, 25, 50]"
             [defaultPageSize]="10"
+            [isLoading]="isLoadingReportes()"
             [tableTitle]="'Reporte uno a uno por persona'">
 
-            <!-- Columna de acciones / documentos -->
             <ng-template #actionsTemplate let-row>
-              <div class="docs-actions"
-                [class.docs-actions--empty]="!hasAnyDocument(row)">
+              <div class="vr-docs"
+                [class.vr-docs--empty]="!hasAnyDocument(row)">
 
                 @if (hasAnyDocument(row)) {
+                  @if (isArray(row.cedulas) && row.cedulas.length > 0) {
+                    <button
+                      mat-icon-button
+                      class="vr-doc-btn vr-doc-btn--primary"
+                      [matTooltip]="'Ver cédulas (' + row.cedulas.length + ')'"
+                      (click)="$event.stopPropagation(); openDocsDialog('Cédulas del reporte', row.cedulas)">
+                      <mat-icon>badge</mat-icon>
+                      <span class="vr-doc-badge">{{ row.cedulas.length }}</span>
+                    </button>
+                  }
 
-                @if (isArray(row.cedulas) && row.cedulas.length > 0) {
-                <button
-                  mat-stroked-button
-                  color="primary"
-                  class="doc-chip"
-                  matTooltip="Ver cédulas"
-                  (click)="$event.stopPropagation(); openDocsDialog('Cédulas del reporte', row.cedulas)">
-                  <mat-icon>badge</mat-icon>
-                  <span>Cédulas ({{ row.cedulas.length }})</span>
-                </button>
-                }
+                  @if (isArray(row.traslados) && row.traslados.length > 0) {
+                    <button
+                      mat-icon-button
+                      class="vr-doc-btn vr-doc-btn--primary"
+                      [matTooltip]="'Ver traslados (' + row.traslados.length + ')'"
+                      (click)="$event.stopPropagation(); openDocsDialog('Traslados del reporte', row.traslados)">
+                      <mat-icon>swap_horiz</mat-icon>
+                      <span class="vr-doc-badge">{{ row.traslados.length }}</span>
+                    </button>
+                  }
 
-                @if (isArray(row.traslados) && row.traslados.length > 0) {
-                <button
-                  mat-stroked-button
-                  color="primary"
-                  class="doc-chip"
-                  matTooltip="Ver traslados"
-                  (click)="$event.stopPropagation(); openDocsDialog('Traslados del reporte', row.traslados)">
-                  <mat-icon>swap_horiz</mat-icon>
-                  <span>Traslados ({{ row.traslados.length }})</span>
-                </button>
-                }
+                  @if (row.cruce_document?.file_url) {
+                    <button
+                      mat-icon-button
+                      class="vr-doc-btn vr-doc-btn--accent"
+                      matTooltip="Ver cruce diario"
+                      (click)="$event.stopPropagation(); openDocsDialog('Cruce diario', [row.cruce_document])">
+                      <mat-icon>description</mat-icon>
+                    </button>
+                  }
 
-                @if (row.cruce_document?.file_url) {
-                <button
-                  mat-stroked-button
-                  color="accent"
-                  class="doc-chip"
-                  matTooltip="Ver cruce diario"
-                  (click)="$event.stopPropagation(); openDocsDialog('Cruce diario', [row.cruce_document])">
-                  <mat-icon>description</mat-icon>
-                  <span>Cruce</span>
-                </button>
-                }
-
-                @if (row.sst_document?.file_url) {
-                <button
-                  mat-stroked-button
-                  color="accent"
-                  class="doc-chip"
-                  matTooltip="Ver SST"
-                  (click)="$event.stopPropagation(); openDocsDialog('SST del reporte', [row.sst_document])">
-                  <mat-icon>health_and_safety</mat-icon>
-                  <span>SST</span>
-                </button>
-                }
-
+                  @if (row.sst_document?.file_url) {
+                    <button
+                      mat-icon-button
+                      class="vr-doc-btn vr-doc-btn--accent"
+                      matTooltip="Ver SST"
+                      (click)="$event.stopPropagation(); openDocsDialog('SST del reporte', [row.sst_document])">
+                      <mat-icon>health_and_safety</mat-icon>
+                    </button>
+                  }
                 } @else {
-                <span class="docs-empty-label">
-                  Sin documentos adjuntos
-                </span>
+                  <span class="vr-docs-empty">
+                    <mat-icon>inbox</mat-icon>
+                    Sin documentos
+                  </span>
                 }
-
               </div>
             </ng-template>
-
           </app-standard-filter-table>
         </div>
       </mat-tab>
 
-      <!-- TAB 2: CONSOLIDADO POR OFICINA -->
+      <!-- TAB 2 -->
       @if (isAdminReportUser) {
-      <mat-tab label="Consolidado por oficina">
-        <div class="tabla">
-          <app-standard-filter-table
-            [data]="consolidado"
-            [columnDefinitions]="consolidadoColumns"
-            [pageSizeOptions]="[10, 25, 50]"
-            [defaultPageSize]="10"
-            [tableTitle]="'Consolidado por oficina'">
-          </app-standard-filter-table>
-        </div>
-      </mat-tab>
+        <mat-tab>
+          <ng-template mat-tab-label>
+            <mat-icon class="vr-tab-icon">business</mat-icon>
+            <span>Consolidado por oficina</span>
+            <span class="vr-tab-badge">{{ consolidado().length }}</span>
+          </ng-template>
 
-      <!-- TAB 3: FINCAS POR FECHA DE INGRESO -->
-      <mat-tab label="Fincas por fecha de ingreso">
-        <div class="tabla">
-          <div class="table-container">
-            <table
-              mat-table
-              [dataSource]="consolidadoFechasFincaDataSource"
-              class="mat-elevation-z8">
-
-              <ng-container matColumnDef="fechaIngreso">
-                <th mat-header-cell *matHeaderCellDef>Fecha</th>
-                <td mat-cell *matCellDef="let element">
-                  {{ element.fechaIngreso }}
-                </td>
-              </ng-container>
-
-              <ng-container matColumnDef="centroCosto">
-                <th mat-header-cell *matHeaderCellDef>Centro de Costo</th>
-                <td mat-cell *matCellDef="let element">
-                  {{ element.centroCosto }}
-                </td>
-              </ng-container>
-
-              <ng-container matColumnDef="total">
-                <th mat-header-cell *matHeaderCellDef>Total</th>
-                <td mat-cell *matCellDef="let element">
-                  {{ element.total }}
-                </td>
-              </ng-container>
-
-              <tr
-                mat-header-row
-                *matHeaderRowDef="['fechaIngreso', 'centroCosto', 'total']">
-              </tr>
-              <tr
-                mat-row
-                *matRowDef="let row; columns: ['fechaIngreso', 'centroCosto', 'total']">
-              </tr>
-            </table>
+          <div class="vr-tab-body">
+            <app-standard-filter-table
+              class="vr-table-tall"
+              [data]="consolidado()"
+              [columnDefinitions]="consolidadoColumns"
+              [pageSizeOptions]="[10, 25, 50, 100]"
+              [defaultPageSize]="25"
+              [isLoading]="isLoadingReportes()"
+              [tableTitle]="'Consolidado por oficina'">
+            </app-standard-filter-table>
           </div>
-        </div>
-      </mat-tab>
+        </mat-tab>
+
+        <!-- TAB ERRORES DE VALIDACIÓN -->
+        <mat-tab>
+          <ng-template mat-tab-label>
+            <mat-icon class="vr-tab-icon">report_problem</mat-icon>
+            <span>Errores de validación</span>
+            <span class="vr-tab-badge">{{ erroresValidacion().length }}</span>
+          </ng-template>
+
+          <div class="vr-tab-body">
+            <div class="vr-errores-header">
+              <div class="vr-errores-header__info">
+                <mat-icon>info</mat-icon>
+                <span>
+                  Mostrando errores del rango <b>{{ activeRangeLabel() }}</b>.
+                  Se actualizan automáticamente al cambiar el filtro de fecha.
+                </span>
+              </div>
+              <button
+                mat-stroked-button
+                class="vr-errores-refresh"
+                matTooltip="Recargar los errores con el rango de fecha activo"
+                [disabled]="isLoadingErrores()"
+                (click)="refreshErroresValidacion()">
+                <mat-icon>refresh</mat-icon>
+                Actualizar
+              </button>
+            </div>
+
+            @if (erroresValidacion().length > 0) {
+              <div class="vr-errores-chips">
+                @for (entry of erroresPorTipo() | keyvalue; track entry.key) {
+                  <span class="vr-errores-chip">
+                    <mat-icon>label</mat-icon>
+                    {{ entry.key || 'Sin tipo' }}:
+                    <b>{{ entry.value }}</b>
+                  </span>
+                }
+              </div>
+            }
+
+            @if (erroresValidacion().length === 0 && !isLoadingErrores()) {
+              <div class="vr-empty-state">
+                <mat-icon>check_circle</mat-icon>
+                <h3>Sin errores de validación</h3>
+                <p>No se registraron errores para el rango <b>{{ activeRangeLabel() }}</b>.</p>
+              </div>
+            } @else {
+              <app-standard-filter-table
+                [data]="erroresValidacion()"
+                [columnDefinitions]="erroresColumns"
+                [pageSizeOptions]="[10, 25, 50, 100]"
+                [defaultPageSize]="25"
+                [isLoading]="isLoadingErrores()"
+                [tableTitle]="'Errores de validación'">
+              </app-standard-filter-table>
+            }
+          </div>
+        </mat-tab>
+
+        <!-- TAB 3 -->
+        <mat-tab>
+          <ng-template mat-tab-label>
+            <mat-icon class="vr-tab-icon">agriculture</mat-icon>
+            <span>Fincas por fecha de ingreso</span>
+            <span class="vr-tab-badge">{{ fincas().length }}</span>
+          </ng-template>
+
+          <div class="vr-tab-body">
+            @if (fincas().length === 0) {
+              <div class="vr-empty-state">
+                <mat-icon>insights</mat-icon>
+                <h3>Sin datos de fincas</h3>
+                <p>Genera el reporte desde el menú superior (<mat-icon inline>more_vert</mat-icon> → "Generar reporte fincas") seleccionando un rango de fechas.</p>
+                @if (isAdminReportUser) {
+                  <button
+                    mat-flat-button
+                    class="btn-managerial"
+                    (click)="openDateRangeDialog('generateCentroCostoTable')">
+                    <mat-icon>calendar_month</mat-icon>
+                    Generar reporte por centro de costo
+                  </button>
+                }
+              </div>
+            } @else {
+              <app-standard-filter-table
+                [data]="fincas()"
+                [columnDefinitions]="fincasColumns"
+                [pageSizeOptions]="[10, 25, 50]"
+                [defaultPageSize]="10"
+                [tableTitle]="'Fincas por fecha de ingreso'">
+              </app-standard-filter-table>
+            }
+          </div>
+        </mat-tab>
       }
     </mat-tab-group>
   </mat-card-content>

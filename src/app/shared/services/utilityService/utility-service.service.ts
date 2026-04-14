@@ -34,11 +34,11 @@ export class UtilityServiceService {
     }
   }
   traerSucursales(): Observable<any> {
-    return this.http.get(`${this.apiUrl}/gestion_admin/sedes`);
+    return this.http.get(`${this.apiUrl}/gestion_admin/sedes/`);
   }
 
   traerSucursales2(): Observable<any> {
-    return this.http.get(`${this.apiUrl}/gestion_admin/sedes`);
+    return this.http.get(`${this.apiUrl}/gestion_admin/sedes/`);
   }
 
   // traer empresas

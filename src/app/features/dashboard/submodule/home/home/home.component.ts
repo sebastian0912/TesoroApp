@@ -529,8 +529,8 @@ export class HomeComponent implements OnInit {
             } else {
               // Quitamos tildes, ñ -> n (normalize separa acentos)
               val = val.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-              // Conservamos SOLO letras, números, espacios, @, puntos, guiones y guiones bajos (para proteger correos)
-              val = val.replace(/[^a-zA-Z0-9\s@._-]/g, '');
+              // Conservamos letras, números, espacios y @ (para correos).
+              val = val.replace(/[^a-zA-Z0-9\s@]/g, '');
               cell.v = val;
             }
           }

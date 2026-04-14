@@ -195,18 +195,41 @@
                                 <div class="arl-errors-panel">
                                     <div class="arl-errors-header">
                                         <mat-icon class="arl-errors-icon">warning</mat-icon>
-                                        <span>{{ arlErrors.length }} error(es) ARL</span>
+                                        <span>
+                                            {{ arlErrorStats.total }} hallazgo(s) ARL
+                                            en {{ arlErrorStats.cedulasAfectadas }} cédula(s)
+                                        </span>
                                     </div>
+
+                                    <div class="arl-errors-summary">
+                                        <span class="arl-chip arl-chip--danger">
+                                            <mat-icon>person_off</mat-icon>
+                                            Sin ARL: <b>{{ arlErrorStats.sinArl }}</b>
+                                        </span>
+                                        <span class="arl-chip arl-chip--warn">
+                                            <mat-icon>event_busy</mat-icon>
+                                            Fecha distinta: <b>{{ arlErrorStats.fechaDiff }}</b>
+                                        </span>
+                                        <span class="arl-chip arl-chip--alert">
+                                            <mat-icon>content_copy</mat-icon>
+                                            Duplicados: <b>{{ arlErrorStats.duplicados }}</b>
+                                        </span>
+                                        <span class="arl-chip arl-chip--info" matTooltip="Los errores ARL se guardan automáticamente en el backend.">
+                                            <mat-icon>cloud_done</mat-icon>
+                                            Enviados al servidor
+                                        </span>
+                                    </div>
+
                                     <div class="arl-errors-table-wrapper">
                                         <table class="arl-errors-table">
                                             <thead>
                                                 <tr>
                                                     <th>Cédula</th>
-                                                    <th>Error</th>
+                                                    <th>Hallazgo</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
-                                                @for(err of arlErrors; track err.cedula) {
+                                                @for(err of arlErrors; track err.cedula + err.error) {
                                                 <tr>
                                                     <td class="arl-cedula">{{ err.cedula }}</td>
                                                     <td class="arl-error-msg">{{ err.error }}</td>
@@ -220,7 +243,8 @@
                                 }
 
                                 <button matButton="filled" class="btn-block btn-primary" type="submit"
-                                    [disabled]="reporteForm.invalid || arlErrors.length > 0">
+                                    [disabled]="reporteForm.invalid || arlErrors.length > 0 || !files.cruceDiario?.length"
+                                    [matTooltip]="!files.cruceDiario?.length ? 'Debes adjuntar el archivo Excel de Cruce Diario para enviar' : ''">
                                     ENVIAR REPORTE
                                 </button>
                             </div>
@@ -240,7 +264,8 @@
                     </button>
                     }
                     <button mat-flat-button color="primary" type="submit" class="btn-block"
-                        [disabled]="reporteForm.invalid">
+                        [disabled]="reporteForm.invalid || !files.cruceDiario?.length"
+                        [matTooltip]="!files.cruceDiario?.length ? 'Debes adjuntar el Cruce Diario para enviar' : ''">
                         Enviar
                     </button>
                 </div>

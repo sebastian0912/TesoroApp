@@ -116,9 +116,11 @@ function setupIpcHandlers() {
       if (!db) return reject('DB no inicializada');
       db.get('SELECT data FROM api_cache WHERE url = ?', [url], (err, row) => {
         if (err) return reject(err.message);
+        if (!row) return resolve(null);
         try {
-          resolve(row ? JSON.parse(row.data) : null);
-        } catch {
+          resolve(JSON.parse(row.data));
+        } catch (parseErr) {
+          console.warn('[db] cache entry corrupto para', url, parseErr.message);
           resolve(null);
         }
       });
@@ -149,6 +151,15 @@ function setupIpcHandlers() {
       });
     });
   });
+}
+
+function closeDatabase() {
+  if (db) {
+    db.close((err) => {
+      if (err) console.error('[db] error al cerrar:', err.message);
+    });
+    db = null;
+  }
 }
 
 module.exports = { initDatabase, closeDatabase };

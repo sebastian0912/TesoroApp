@@ -72,6 +72,15 @@
       "runAfterFinish": true,
       "include": "installer/nsis-cert-install.nsh"
     },
+    "nsis": {
+      "perMachine": false,
+      "oneClick": true,
+      "allowElevation": false,
+      "allowToChangeInstallationDirectory": false,
+      "deleteAppDataOnUninstall": false,
+      "runAfterFinish": true,
+      "differentialPackage": true
+    },
     "asar": true,
     "publish": [
       {
