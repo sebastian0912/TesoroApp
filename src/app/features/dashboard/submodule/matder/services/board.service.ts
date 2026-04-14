@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { HttpClient, HttpParams } from '@angular/common/http';
+import { HttpClient } from '@angular/common/http';
 import { firstValueFrom, throwError } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 import { environment } from '@/environments/environment';
@@ -43,7 +43,7 @@ export class BoardService {
 
   // ── Lists ──
   createList(data: { board: number; name: string; list_type?: string; position?: number }): Promise<BoardListResponse> {
-    return firstValueFrom(this.http.post<BoardListResponse>(`${this.base}/lists/`, data).pipe(catchError(this.err)));
+    return firstValueFrom(this.http.post<BoardListResponse>(`${this.base}/boards/${data.board}/lists/`, data).pipe(catchError(this.err)));
   }
 
   updateList(id: number, data: Partial<BoardListResponse>): Promise<BoardListResponse> {
@@ -56,9 +56,10 @@ export class BoardService {
 
   // ── Cards ──
   getCards(params?: { board_list?: number }): Promise<CardSummary[]> {
-    let p = new HttpParams();
-    if (params?.board_list) p = p.set('board_list', String(params.board_list));
-    return firstValueFrom(this.http.get<CardSummary[]>(`${this.base}/cards/`, { params: p }).pipe(catchError(this.err)));
+    if (!params?.board_list) {
+       return firstValueFrom(this.http.get<CardSummary[]>(`${this.base}/cards/`).pipe(catchError(this.err)));
+    }
+    return firstValueFrom(this.http.get<CardSummary[]>(`${this.base}/lists/${params.board_list}/cards/`).pipe(catchError(this.err)));
   }
 
   getCardDetail(id: number): Promise<CardDetailResponse> {
@@ -66,7 +67,7 @@ export class BoardService {
   }
 
   createCard(data: { board_list: number; title: string; description?: string; status?: string; priority?: string; due_at?: string | null; position?: number }): Promise<CardSummary> {
-    return firstValueFrom(this.http.post<CardSummary>(`${this.base}/cards/`, data).pipe(catchError(this.err)));
+    return firstValueFrom(this.http.post<CardSummary>(`${this.base}/lists/${data.board_list}/cards/`, data).pipe(catchError(this.err)));
   }
 
   updateCard(id: number, data: Record<string, any>): Promise<CardSummary> {
@@ -78,7 +79,7 @@ export class BoardService {
   }
 
   moveCard(id: number, targetListId: number, targetIndex: number): Promise<CardSummary> {
-    return firstValueFrom(this.http.patch<CardSummary>(`${this.base}/cards/${id}/move/`, { target_list_id: targetListId, target_index: targetIndex }).pipe(catchError(this.err)));
+    return firstValueFrom(this.http.patch<CardSummary>(`${this.base}/cards/${id}/move/`, { new_list_id: targetListId, new_position: targetIndex }).pipe(catchError(this.err)));
   }
 
   getCalendarCards(): Promise<CardSummary[]> {
@@ -108,22 +109,20 @@ export class BoardService {
   }
 
   // ── Labels ──
-  getLabels(boardId?: number): Promise<LabelResponse[]> {
-    let p = new HttpParams();
-    if (boardId) p = p.set('board', String(boardId));
-    return firstValueFrom(this.http.get<LabelResponse[]>(`${this.base}/labels/`, { params: p }).pipe(catchError(this.err)));
+  getLabels(boardId: number): Promise<LabelResponse[]> {
+    return firstValueFrom(this.http.get<LabelResponse[]>(`${this.base}/boards/${boardId}/labels/`).pipe(catchError(this.err)));
   }
 
-  createLabel(data: { board: number; name: string; color: string }): Promise<LabelResponse> {
-    return firstValueFrom(this.http.post<LabelResponse>(`${this.base}/labels/`, data).pipe(catchError(this.err)));
+  createLabel(boardId: number, data: { name: string; color: string }): Promise<LabelResponse> {
+    return firstValueFrom(this.http.post<LabelResponse>(`${this.base}/boards/${boardId}/labels/`, data).pipe(catchError(this.err)));
   }
 
   addCardLabel(cardId: number, labelId: number): Promise<CardLabelResponse> {
-    return firstValueFrom(this.http.post<CardLabelResponse>(`${this.base}/card-labels/`, { card: cardId, label: labelId }).pipe(catchError(this.err)));
+    return firstValueFrom(this.http.post<CardLabelResponse>(`${this.base}/cards/${cardId}/labels/${labelId}/`, {}).pipe(catchError(this.err)));
   }
 
-  removeCardLabel(id: number): Promise<void> {
-    return firstValueFrom(this.http.delete<void>(`${this.base}/card-labels/${id}/`).pipe(catchError(this.err)));
+  removeCardLabel(cardId: number, labelId: number): Promise<void> {
+    return firstValueFrom(this.http.delete<void>(`${this.base}/cards/${cardId}/labels/${labelId}/`).pipe(catchError(this.err)));
   }
 
   // ── Uploads ──
@@ -134,7 +133,9 @@ export class BoardService {
     return firstValueFrom(this.http.post<UploadResponse>(`${this.base}/uploads/`, fd).pipe(catchError(this.err)));
   }
 
-  deleteUpload(id: number): Promise<void> {
-    return firstValueFrom(this.http.delete<void>(`${this.base}/uploads/${id}/`).pipe(catchError(this.err)));
+  deleteUpload(uuid: string): Promise<void> {
+    // El backend expone DELETE /matder/uploads/<uuid>/ (matcher <uuid>),
+    // así que debemos pasar el uuid del upload, no el id numérico.
+    return firstValueFrom(this.http.delete<void>(`${this.base}/uploads/${uuid}/`).pipe(catchError(this.err)));
   }
 }

@@ -77,7 +77,8 @@
       } @else {
         <div class="agenda-list">
           @for (c of agendaCards; track c.id) {
-            <div class="agenda-card">
+            <button type="button" class="agenda-card" (click)="openCardDetail(c)"
+                    [matTooltip]="'Abrir detalle de la tarea'">
               <div class="agenda-pri" [style.background]="prioColor(c.priority)"></div>
               <div class="agenda-body">
                 <strong>{{ c.title }}</strong>
@@ -87,7 +88,8 @@
                   @if (c.assignee_name) { <span><mat-icon>person</mat-icon>{{ c.assignee_name }}</span> }
                 </div>
               </div>
-            </div>
+              <mat-icon class="agenda-chevron">chevron_right</mat-icon>
+            </button>
           }
         </div>
       }

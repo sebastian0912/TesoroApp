@@ -1,228 +1,339 @@
 @if (loading()) {
-  <div class="center"><mat-spinner diameter="36"></mat-spinner></div>
+  <div class="loading-card">
+    <div class="brand-mark">M</div>
+    <h3>Cargando detalle</h3>
+    <p>Estamos trayendo comentarios, checklist y responsable de esta tarea.</p>
+    <mat-spinner diameter="36"></mat-spinner>
+  </div>
 } @else if (card(); as c) {
-  <h2 mat-dialog-title class="dialog-title">
-    <mat-icon class="title-icon">assignment</mat-icon>
-    <input class="title-input"
-           [value]="c.title"
-           (blur)="updateField('title', $any($event.target).value)"
-           onfocus="this.style.borderBottomColor='#1976d2'"
-           onblur="this.style.borderBottomColor='transparent'">
-  </h2>
+  <!-- Header -->
+  <header class="dialog-header">
+    <div class="header-left">
+      <p class="eyebrow">
+        <mat-icon>assignment</mat-icon>
+        Tarea #{{ c.id }}
+      </p>
+      <input class="title-input"
+             [value]="c.title"
+             placeholder="Título de la tarea"
+             (blur)="updateField('title', $any($event.target).value)">
+      <div class="breadcrumb">
+        <span class="status-pill" [attr.data-tone]="statusTone(c.status)">
+          <span class="status-dot" [attr.data-tone]="statusTone(c.status)"></span>
+          {{ statusLabel(c.status) }}
+        </span>
+        <span class="status-pill status-pill--priority" [attr.data-prio]="c.priority.toLowerCase()">
+          <mat-icon>flag</mat-icon> {{ priorityLabel(c.priority) }}
+        </span>
+        @if (c.due_at) {
+          <span class="status-pill" [class.overdue]="isOverdue(c.due_at)">
+            <mat-icon>event</mat-icon>
+            {{ c.due_at | date:'d MMM, y' }}
+            @if (isOverdue(c.due_at)) { <span class="overdue-tag">Vencida</span> }
+          </span>
+        }
+      </div>
+    </div>
+    <div class="header-right">
+      <button mat-icon-button class="header-close" (click)="close()" matTooltip="Cerrar">
+        <mat-icon>close</mat-icon>
+      </button>
+    </div>
+  </header>
 
   <mat-dialog-content class="content">
-    <!-- Status & Priority pills -->
-    <div class="pills">
-      <span class="pill" [attr.data-tone]="statusTone(c.status)">{{ statusLabel(c.status) }}</span>
-      <span class="pill" [attr.data-prio]="c.priority.toLowerCase()">{{ priorityLabel(c.priority) }}</span>
-      @if (c.due_at) {
-        <span class="pill pill-date" [class.overdue]="isOverdue(c.due_at)">
-          <mat-icon>event</mat-icon> {{ c.due_at | date:'d MMM y, h:mm a' }}
-        </span>
-      }
-      @if (c.assignee_name) {
-        <span class="pill pill-assignee"><mat-icon>person</mat-icon> {{ c.assignee_name }}</span>
-      }
-      @if (c.assignee_group_name) {
-        <span class="pill pill-group"><mat-icon>group</mat-icon> {{ c.assignee_group_name }}</span>
-      }
-    </div>
+    <div class="detail-layout">
+      <!-- ═════════ MAIN ═════════ -->
+      <main class="detail-main">
+        <!-- Descripción -->
+        <section class="panel">
+          <div class="panel-head">
+            <mat-icon>description</mat-icon>
+            <h4>Descripción</h4>
+          </div>
+          <mat-form-field appearance="outline" class="fw">
+            <textarea matInput [value]="c.description ?? ''" rows="4"
+                      (blur)="updateField('description', $any($event.target).value)"
+                      placeholder="Contexto, criterios de aceptación, links útiles..."></textarea>
+          </mat-form-field>
+        </section>
 
-    <!-- Editable fields -->
-    <div class="field-row">
-      <mat-form-field appearance="outline" class="sm">
-        <mat-label>Status</mat-label>
-        <mat-select [value]="c.status" (selectionChange)="updateField('status', $event.value)">
-          @for (s of statuses; track s) {
-            <mat-option [value]="s">{{ statusLabel(s) }}</mat-option>
+        <!-- Etiquetas -->
+        <section class="panel">
+          <div class="panel-head">
+            <mat-icon>label</mat-icon>
+            <h4>Etiquetas</h4>
+          </div>
+
+          @if (c.card_labels && c.card_labels.length > 0) {
+            <div class="labels-row">
+              @for (cl of c.card_labels; track cl.id) {
+                <span class="label-chip" [style.background]="cl.label_color">
+                  {{ cl.label_name }}
+                  <button class="label-remove" (click)="removeLabel(cl.label)" matTooltip="Quitar">×</button>
+                </span>
+              }
+            </div>
+          } @else {
+            <p class="muted-line">Sin etiquetas asignadas.</p>
           }
-        </mat-select>
-      </mat-form-field>
-      <mat-form-field appearance="outline" class="sm">
-        <mat-label>Prioridad</mat-label>
-        <mat-select [value]="c.priority" (selectionChange)="updateField('priority', $event.value)">
-          @for (p of priorities; track p) {
-            <mat-option [value]="p">{{ priorityLabel(p) }}</mat-option>
+
+          @if (availableLabels().length > 0) {
+            <mat-form-field appearance="outline" class="fw compact">
+              <mat-label>Agregar etiqueta</mat-label>
+              <mat-select (selectionChange)="addLabel($event.value); $event.source.value = null">
+                @for (l of availableLabels(); track l.id) {
+                  <mat-option [value]="l.id">
+                    <span class="label-dot" [style.background]="l.color"></span> {{ l.name }}
+                  </mat-option>
+                }
+              </mat-select>
+            </mat-form-field>
           }
-        </mat-select>
-      </mat-form-field>
-      <!-- ── Due date – native datetime picker ── -->
-      <mat-form-field appearance="outline" class="sm">
-        <mat-label>Fecha límite</mat-label>
-        <mat-icon matPrefix class="date-prefix-icon">event</mat-icon>
-        <input matInput type="datetime-local"
-               [(ngModel)]="dueDateInput"
-               (change)="onDueDateChange($event)"
-               class="native-date-input">
-        @if (dueDateInput) {
-          <button matSuffix mat-icon-button matTooltip="Limpiar fecha"
-                  (click)="clearDueDate(); $event.stopPropagation()">
-            <mat-icon>close</mat-icon>
-          </button>
-        }
-      </mat-form-field>
-    </div>
+        </section>
 
-    <mat-form-field appearance="outline" class="fw">
-      <mat-label>Descripcion</mat-label>
-      <textarea matInput [value]="c.description ?? ''" rows="3"
-                (blur)="updateField('description', $any($event.target).value)"></textarea>
-    </mat-form-field>
+        <!-- Checklist -->
+        <section class="panel">
+          <div class="panel-head">
+            <mat-icon>checklist</mat-icon>
+            <h4>Checklist</h4>
+            @if (c.checklist_items.length > 0) {
+              <span class="panel-meta">{{ checklistDone(c) }}/{{ c.checklist_items.length }}</span>
+            }
+          </div>
 
-    <mat-divider></mat-divider>
-
-    <!-- Labels -->
-    <div class="section">
-      <h4><mat-icon>label</mat-icon> Etiquetas</h4>
-      @if (c.card_labels && c.card_labels.length > 0) {
-        <div class="labels-row">
-          @for (cl of c.card_labels; track cl.id) {
-            <span class="label-chip" [style.background]="cl.label_color">
-              {{ cl.label_name }}
-              <button class="label-remove" (click)="removeLabel(cl.id)" matTooltip="Quitar etiqueta">&times;</button>
-            </span>
+          @if (c.checklist_items.length > 0) {
+            <div class="progress-shell">
+              <div class="progress-track">
+                <span class="progress-fill" [style.width.%]="checklistProgress(c)"></span>
+              </div>
+              <span class="progress-label">{{ checklistProgress(c) }}% completado</span>
+            </div>
           }
-        </div>
-      } @else {
-        <p class="muted">Sin etiquetas asignadas.</p>
-      }
-      @if (availableLabels().length > 0) {
-        <div class="add-row">
-          <mat-form-field appearance="outline" class="sm">
-            <mat-label>Agregar etiqueta</mat-label>
-            <mat-select (selectionChange)="addLabel($event.value); $event.source.value = null">
-              @for (l of availableLabels(); track l.id) {
-                <mat-option [value]="l.id">
-                  <span class="label-dot" [style.background]="l.color"></span> {{ l.name }}
+
+          <div class="add-row">
+            <input class="inline-input" [(ngModel)]="newChecklistItem"
+                   placeholder="Nuevo paso o tarea..."
+                   (keyup.enter)="addChecklistItem()" maxlength="160">
+            <button mat-raised-button color="primary" (click)="addChecklistItem()"
+                    [disabled]="!newChecklistItem.trim()">
+              <mat-icon>add</mat-icon> Agregar
+            </button>
+          </div>
+
+          @if (c.checklist_items.length === 0) {
+            <div class="empty-hint">
+              <mat-icon>playlist_add</mat-icon>
+              <p>Divide la tarea en pasos verificables. Los items marcados suman al progreso.</p>
+            </div>
+          } @else {
+            <div class="checklist-list">
+              @for (item of c.checklist_items; track item.id) {
+                <article class="checklist-item" [class.checklist-item--done]="item.completed">
+                  <button type="button" class="checklist-toggle"
+                          [class.checklist-toggle--done]="item.completed"
+                          (click)="toggleChecklistItem(item.id, item.completed)"
+                          [attr.aria-pressed]="item.completed">
+                    <mat-icon>{{ item.completed ? 'task_alt' : 'radio_button_unchecked' }}</mat-icon>
+                  </button>
+                  <div class="checklist-copy">
+                    <strong [class.done-text]="item.completed">{{ item.content }}</strong>
+                  </div>
+                  <button mat-icon-button class="ghost-delete"
+                          (click)="deleteChecklistItem(item.id)" matTooltip="Eliminar">
+                    <mat-icon>delete_outline</mat-icon>
+                  </button>
+                </article>
+              }
+            </div>
+          }
+        </section>
+
+        <!-- Comentarios -->
+        <section class="panel">
+          <div class="panel-head">
+            <mat-icon>chat</mat-icon>
+            <h4>Actividad y comentarios</h4>
+            <span class="panel-meta">{{ c.comments.length }}</span>
+          </div>
+
+          <div class="add-row comment-form">
+            <textarea class="inline-input grow" [(ngModel)]="newComment"
+                      placeholder="Comparte contexto, acuerdos o avances..."
+                      rows="3" maxlength="600"></textarea>
+            <button mat-raised-button color="primary" (click)="addComment()"
+                    [disabled]="!newComment.trim()">
+              <mat-icon>send</mat-icon> Comentar
+            </button>
+          </div>
+
+          @if (c.comments.length === 0) {
+            <div class="empty-hint">
+              <mat-icon>forum</mat-icon>
+              <p>Sin comentarios todavía. Deja el primero para abrir la conversación.</p>
+            </div>
+          } @else {
+            <div class="comment-list">
+              @for (comment of c.comments; track comment.id) {
+                <article class="comment-item">
+                  <div class="comment-avatar">{{ (comment.author_name ?? 'U').slice(0, 2).toUpperCase() }}</div>
+                  <div class="comment-bubble">
+                    <div class="comment-topline">
+                      <div class="comment-who">
+                        <strong>{{ comment.author_name ?? 'Usuario' }}</strong>
+                        <span>{{ comment.created_at | date:'d MMM, y · h:mm a' }}</span>
+                      </div>
+                      <button mat-icon-button class="ghost-delete"
+                              (click)="deleteComment(comment.id)" matTooltip="Eliminar">
+                        <mat-icon>delete_outline</mat-icon>
+                      </button>
+                    </div>
+                    <p>{{ comment.body }}</p>
+                  </div>
+                </article>
+              }
+            </div>
+          }
+        </section>
+
+        <!-- Adjuntos -->
+        <section class="panel">
+          <div class="panel-head">
+            <mat-icon>attach_file</mat-icon>
+            <h4>Adjuntos</h4>
+            <span class="panel-meta">{{ c.uploads.length }}</span>
+            <input type="file" #fi (change)="uploadFile($event)" hidden>
+            <button mat-stroked-button class="panel-action" (click)="fi.click()">
+              <mat-icon>upload</mat-icon> Subir archivo
+            </button>
+          </div>
+
+          @if (c.uploads.length === 0) {
+            <div class="empty-hint">
+              <mat-icon>folder_open</mat-icon>
+              <p>Sin archivos adjuntos.</p>
+            </div>
+          } @else {
+            <div class="uploads-list">
+              @for (u of c.uploads; track u.id) {
+                <div class="upload-row">
+                  <mat-icon class="upload-icon">{{ isImage(u.mime_type) ? 'image' : 'insert_drive_file' }}</mat-icon>
+                  <div class="upload-info">
+                    <span class="upload-name">{{ u.original_name }}</span>
+                    <span class="upload-size">{{ formatBytes(u.size_bytes) }}</span>
+                  </div>
+                  <button mat-icon-button class="ghost-delete"
+                          (click)="deleteUpload(u.uuid)" matTooltip="Eliminar">
+                    <mat-icon>delete_outline</mat-icon>
+                  </button>
+                </div>
+              }
+            </div>
+          }
+        </section>
+      </main>
+
+      <!-- ═════════ SIDEBAR ═════════ -->
+      <aside class="detail-aside">
+        <section class="side-panel">
+          <h5>Estado</h5>
+          <div class="status-banner" [attr.data-tone]="statusTone(c.status)">
+            <span class="status-dot" [attr.data-tone]="statusTone(c.status)"></span>
+            <span class="status-banner-label">{{ statusLabel(c.status) }}</span>
+          </div>
+          <p class="aside-hint">Se actualiza automáticamente al mover la tarjeta de columna.</p>
+        </section>
+
+        <section class="side-panel">
+          <h5>Prioridad</h5>
+          <mat-form-field appearance="outline" class="fw compact">
+            <mat-select [value]="c.priority"
+                        (selectionChange)="updateField('priority', $event.value)">
+              @for (p of priorities; track p) {
+                <mat-option [value]="p">
+                  <span class="prio-dot" [class.prio-low]="p === 'LOW'"
+                        [class.prio-medium]="p === 'MEDIUM'"
+                        [class.prio-high]="p === 'HIGH'"
+                        [class.prio-urgent]="p === 'URGENT'"></span>
+                  {{ priorityLabel(p) }}
                 </mat-option>
               }
             </mat-select>
           </mat-form-field>
-        </div>
-      }
-    </div>
+        </section>
 
-    <mat-divider></mat-divider>
-
-    <!-- Checklist -->
-    <div class="section">
-      <h4><mat-icon>checklist</mat-icon> Checklist</h4>
-      @if (c.checklist_items.length > 0) {
-        <div class="checklist-progress">
-          <mat-progress-bar mode="determinate" [value]="checklistProgress(c)"></mat-progress-bar>
-          <span class="progress-label">{{ checklistDone(c) }}/{{ c.checklist_items.length }} completados</span>
-        </div>
-      }
-      @for (item of c.checklist_items; track item.id) {
-        <div class="check-row">
-          <mat-checkbox [checked]="item.completed" (change)="toggleChecklistItem(item.id, item.completed)">
-            <span [class.done-text]="item.completed">{{ item.content }}</span>
-          </mat-checkbox>
-          <button mat-icon-button class="check-del" (click)="deleteChecklistItem(item.id)" matTooltip="Eliminar">
-            <mat-icon>close</mat-icon>
-          </button>
-        </div>
-      }
-      <div class="add-row">
-        <input class="inline-input" [(ngModel)]="newChecklistItem" placeholder="Nuevo item..."
-               (keyup.enter)="addChecklistItem()">
-        <button mat-icon-button color="primary" (click)="addChecklistItem()" [disabled]="!newChecklistItem.trim()">
-          <mat-icon>add</mat-icon>
-        </button>
-      </div>
-    </div>
-
-    <mat-divider></mat-divider>
-
-    <!-- ═══ CHAT COMMENTS ═══ -->
-    <div class="section">
-      <h4><mat-icon>chat</mat-icon> Chat ({{ c.comments.length }})</h4>
-      <div class="chat-window">
-        @if (c.comments.length === 0) {
-          <div class="chat-empty">
-            <mat-icon>forum</mat-icon>
-            <p>Sé el primero en comentar…</p>
-          </div>
-        }
-        @for (comment of c.comments; track comment.id) {
-          <div class="chat-row" [class.own]="isOwnComment(comment.author_name)">
-            @if (!isOwnComment(comment.author_name)) {
-              <div class="chat-avatar">{{ (comment.author_name ?? 'U').slice(0, 2).toUpperCase() }}</div>
+        <section class="side-panel">
+          <h5>Fecha de entrega</h5>
+          <mat-form-field appearance="outline" class="fw compact">
+            <input matInput [matDatepicker]="duePicker"
+                   [value]="dueDateValue()"
+                   (dateChange)="onDueDateChange($event.value)"
+                   placeholder="Seleccionar fecha">
+            <mat-datepicker-toggle matIconSuffix [for]="duePicker"></mat-datepicker-toggle>
+            <mat-datepicker #duePicker></mat-datepicker>
+            @if (c.due_at) {
+              <button mat-icon-button matSuffix type="button"
+                      (click)="onDueDateChange(null); $event.stopPropagation()"
+                      matTooltip="Quitar fecha">
+                <mat-icon>clear</mat-icon>
+              </button>
             }
-            <div class="chat-bubble" [class.own-bubble]="isOwnComment(comment.author_name)">
-              @if (!isOwnComment(comment.author_name)) {
-                <div class="chat-author">{{ comment.author_name ?? 'Usuario' }}</div>
-              }
-              <p class="chat-body">{{ comment.body }}</p>
-              <div class="chat-footer">
-                <span class="chat-time">{{ comment.created_at | date:'d MMM, h:mm a' }}</span>
-                <button class="chat-del-btn" mat-icon-button (click)="deleteComment(comment.id)" matTooltip="Eliminar">
-                  <mat-icon>delete_outline</mat-icon>
-                </button>
+          </mat-form-field>
+          @if (c.due_at && isOverdue(c.due_at)) {
+            <p class="aside-warn"><mat-icon>warning</mat-icon> Esta tarea está vencida.</p>
+          }
+        </section>
+
+        <section class="side-panel">
+          <h5>Responsable</h5>
+          @if (c.assignee_name) {
+            <div class="assignee-card">
+              <div class="assignee-avatar">{{ c.assignee_name.slice(0, 2).toUpperCase() }}</div>
+              <div class="assignee-info">
+                <strong>{{ c.assignee_name }}</strong>
+                <span>Asignado</span>
               </div>
             </div>
-            @if (isOwnComment(comment.author_name)) {
-              <div class="chat-avatar own-av">{{ (comment.author_name ?? 'U').slice(0, 2).toUpperCase() }}</div>
-            }
+          } @else if (c.assignee_group_name) {
+            <div class="assignee-card assignee-card--group">
+              <mat-icon>groups</mat-icon>
+              <div class="assignee-info">
+                <strong>{{ c.assignee_group_name }}</strong>
+                <span>Grupo asignado</span>
+              </div>
+            </div>
+          } @else {
+            <p class="aside-hint">Sin responsable asignado.</p>
+          }
+        </section>
+
+        <section class="side-panel meta-panel">
+          <h5>Metadata</h5>
+          <div class="meta-row">
+            <mat-icon>schedule</mat-icon>
+            <div>
+              <span>Creada</span>
+              <strong>{{ c.created_at | date:'d MMM, y · h:mm a' }}</strong>
+            </div>
           </div>
-        }
-      </div>
-      <!-- Message input -->
-      <div class="chat-input-row">
-        <textarea class="chat-input" [(ngModel)]="newComment"
-                  placeholder="Escribe un mensaje... (Ctrl+Enter para enviar)"
-                  rows="2"
-                  (keydown.enter)="$any($event).ctrlKey && addComment()"></textarea>
-        <button mat-fab color="primary" class="chat-send" (click)="addComment()"
-                [disabled]="!newComment.trim()" matTooltip="Enviar">
-          <mat-icon>send</mat-icon>
-        </button>
-      </div>
-    </div>
-
-    <mat-divider></mat-divider>
-
-    <!-- ═══ ATTACHMENTS ═══ -->
-    <div class="section">
-      <h4><mat-icon>attach_file</mat-icon> Adjuntos ({{ c.uploads.length }})</h4>
-      @for (u of c.uploads; track u.id) {
-        <div class="upload-row">
-          <mat-icon class="upload-icon" [class.img-icon]="isImage(u.mime_type)">{{ mimeIcon(u.mime_type) }}</mat-icon>
-          <div class="upload-info">
-            <span class="upload-name">{{ u.original_name }}</span>
-            <span class="upload-size">{{ formatBytes(u.size_bytes) }}</span>
+          <div class="meta-row">
+            <mat-icon>update</mat-icon>
+            <div>
+              <span>Actualizada</span>
+              <strong>{{ c.updated_at | date:'d MMM, y · h:mm a' }}</strong>
+            </div>
           </div>
-          <!-- Download button -->
-          <a [href]="downloadUrl(u.file)" [download]="u.original_name" target="_blank"
-             mat-icon-button matTooltip="Descargar" class="dl-btn">
-            <mat-icon>download</mat-icon>
-          </a>
-          <button mat-icon-button (click)="deleteUpload(u.id)" matTooltip="Eliminar" color="warn">
-            <mat-icon>delete</mat-icon>
-          </button>
-        </div>
-      }
-      @if (c.uploads.length === 0) {
-        <p class="muted">Sin archivos adjuntos.</p>
-      }
-      <input type="file" #fi (change)="uploadFile($event)" hidden>
-      <button mat-stroked-button (click)="fi.click()" class="upload-btn">
-        <mat-icon>upload</mat-icon> Adjuntar archivo
-      </button>
-    </div>
-
-    <!-- Metadata -->
-    <mat-divider></mat-divider>
-    <div class="meta-section">
-      <span><mat-icon>schedule</mat-icon> Creado: {{ c.created_at | date:'d MMM, y h:mm a' }}</span>
-      <span><mat-icon>update</mat-icon> Actualizado: {{ c.updated_at | date:'d MMM, y h:mm a' }}</span>
+        </section>
+      </aside>
     </div>
   </mat-dialog-content>
 
-  <mat-dialog-actions align="end">
-    <button mat-button color="warn" (click)="deleteCard()">
-      <mat-icon>delete</mat-icon> Eliminar
+  <mat-dialog-actions align="end" class="dialog-actions">
+    <button mat-stroked-button color="warn" (click)="deleteCard()">
+      <mat-icon>delete</mat-icon> Eliminar tarea
     </button>
-    <button mat-raised-button color="primary" (click)="close()">Cerrar</button>
+    <button mat-raised-button color="primary" (click)="close()">
+      <mat-icon>check</mat-icon> Listo
+    </button>
   </mat-dialog-actions>
 }

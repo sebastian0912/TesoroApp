@@ -64,6 +64,12 @@
       }
     </mat-select>
   </mat-form-field>
+  <button mat-stroked-button class="fav-toggle" [class.is-on]="onlyFavorites"
+          (click)="onlyFavorites = !onlyFavorites"
+          [matTooltip]="onlyFavorites ? 'Mostrar todos' : 'Mostrar solo favoritos'">
+    <mat-icon>{{ onlyFavorites ? 'star' : 'star_border' }}</mat-icon>
+    {{ onlyFavorites ? 'Solo favoritos' : 'Favoritos' }}
+  </button>
 </div>
 
 @if (loading()) {
@@ -82,9 +88,16 @@
       <mat-card class="bcard" [style.border-top]="'4px solid ' + b.accent" (click)="open(b.id)">
         <div class="bcard-header">
           <strong>{{ b.name }}</strong>
-          @if (b.can_manage_content) {
-            <mat-chip-set><mat-chip>Editor</mat-chip></mat-chip-set>
-          }
+          <div class="bcard-header-right">
+            <button mat-icon-button class="fav-btn" [class.is-fav]="b.is_favorite"
+                    (click)="toggleFavorite(b); $event.stopPropagation()"
+                    [matTooltip]="b.is_favorite ? 'Quitar de favoritos' : 'Marcar como favorito'">
+              <mat-icon>{{ b.is_favorite ? 'star' : 'star_border' }}</mat-icon>
+            </button>
+            @if (b.can_manage_content) {
+              <mat-chip-set><mat-chip>Editor</mat-chip></mat-chip-set>
+            }
+          </div>
         </div>
         <span class="ws">{{ b.workspace_name }}</span>
         <p class="desc">{{ b.description || 'Sin descripcion' }}</p>

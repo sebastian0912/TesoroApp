@@ -36,7 +36,10 @@
 .empty-agenda { text-align: center; padding: 24px; color: #9ca3af; }
 .empty-agenda mat-icon { font-size: 36px; width: 36px; height: 36px; display: block; margin: 0 auto 8px; }
 .agenda-list { display: flex; flex-direction: column; gap: 8px; }
-.agenda-card { display: flex; overflow: hidden; border-radius: 10px; border: 1px solid #e5e7eb; }
+.agenda-card { display: flex; align-items: stretch; overflow: hidden; border-radius: 10px; border: 1px solid #e5e7eb; background: #fff; cursor: pointer; text-align: left; padding: 0; font-family: inherit; transition: border-color .15s, box-shadow .15s, transform .1s; }
+.agenda-card:hover { border-color: #1976d2; box-shadow: 0 4px 12px rgba(25, 118, 210, .12); }
+.agenda-card:active { transform: translateY(1px); }
+.agenda-chevron { align-self: center; color: #94a3b8; margin: 0 8px; font-size: 20px; width: 20px; height: 20px; }
 .agenda-pri { width: 4px; flex-shrink: 0; }
 .agenda-body { padding: 10px 12px; flex: 1; }
 .agenda-body strong { display: block; font-size: .85rem; margin-bottom: 4px; }

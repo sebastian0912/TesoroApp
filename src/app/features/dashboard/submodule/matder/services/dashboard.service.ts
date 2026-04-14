@@ -77,6 +77,28 @@ export class MatderDashboardService {
     return firstValueFrom(this.http.get<AuditLogResponse[]>(`${this.base}/audit/`).pipe(catchError(this.err)));
   }
 
+  // ── Favoritos ──
+  /**
+   * Marca o desmarca un workspace/board como favorito (toggle).
+   * Devuelve el nuevo estado (``is_favorite: true | false``).
+   */
+  toggleFavorite(kind: 'WORKSPACE' | 'BOARD', objectId: number):
+      Promise<{ is_favorite: boolean; kind: string; object_id: number }> {
+    return firstValueFrom(
+      this.http.post<{ is_favorite: boolean; kind: string; object_id: number }>(
+        `${this.base}/favorites/toggle/`, { kind, object_id: objectId },
+      ).pipe(catchError(this.err)),
+    );
+  }
+
+  getFavoriteWorkspaces(): Promise<any[]> {
+    return firstValueFrom(this.http.get<any[]>(`${this.base}/favorites/workspaces/`).pipe(catchError(this.err)));
+  }
+
+  getFavoriteBoards(): Promise<any[]> {
+    return firstValueFrom(this.http.get<any[]>(`${this.base}/favorites/boards/`).pipe(catchError(this.err)));
+  }
+
   // ── Import ──
   getImportLogs(): Promise<ImportLogResponse[]> {
     return firstValueFrom(this.http.get<ImportLogResponse[]>(`${this.base}/import/`).pipe(catchError(this.err)));

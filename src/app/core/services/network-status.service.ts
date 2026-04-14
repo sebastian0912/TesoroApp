@@ -3,7 +3,6 @@ import { Observable } from 'rxjs';
 import { toObservable } from '@angular/core/rxjs-interop';
 import { environment } from '../../../environments/environment';
 
-
 @Injectable({
   providedIn: 'root'
 })
@@ -64,8 +63,7 @@ export class NetworkStatusService {
     const timeoutId = setTimeout(() => controller.abort(), 4000);
 
     try {
-      const url = `${environment.apiUrl.replace(/\/$/, '')}/health/`;
-      await fetch(url, {
+      await fetch(`${environment.apiUrl}/health/`, {
         method: 'HEAD',
         cache: 'no-store',
         mode: 'no-cors',

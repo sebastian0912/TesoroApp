@@ -10,6 +10,7 @@ export interface BoardResponse {
   description: string | null;
   accent: string;
   can_manage_content: boolean;
+  is_favorite?: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -29,6 +30,7 @@ export interface BoardListResponse {
 export interface CardSummary {
   id: number;
   uuid: string;
+  board_id: number;
   board_list: number;
   title: string;
   status: CardStatus;

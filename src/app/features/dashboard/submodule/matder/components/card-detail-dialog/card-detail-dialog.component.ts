@@ -13,7 +13,8 @@ import { MatDividerModule } from '@angular/material/divider';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatTooltipModule } from '@angular/material/tooltip';
-
+import { MatDatepickerModule } from '@angular/material/datepicker';
+import { MatNativeDateModule } from '@angular/material/core';
 import { BoardService } from '../../services/board.service';
 import { CardDetailResponse, CardStatus, CardPriority, LabelResponse } from '../../models/board.models';
 import Swal from 'sweetalert2';
@@ -26,7 +27,7 @@ import { environment } from '@/environments/environment';
     FormsModule, DatePipe, MatDialogModule, MatFormFieldModule, MatInputModule,
     MatButtonModule, MatIconModule, MatCheckboxModule, MatChipsModule,
     MatSelectModule, MatDividerModule, MatProgressSpinnerModule, MatProgressBarModule,
-    MatTooltipModule,
+    MatTooltipModule, MatDatepickerModule, MatNativeDateModule,
   ],
   templateUrl: './card-detail-dialog.component.html',
   styleUrls: ['./card-detail-dialog.component.css'],
@@ -59,25 +60,15 @@ export class CardDetailDialogComponent implements OnInit {
     await this.loadCard();
   }
 
-  private resolveCurrentUser(): string | null {
-    try {
-      const raw = localStorage.getItem('user');
-      if (!raw) return null;
-      const u = JSON.parse(raw);
-      return u?.full_name ?? u?.name ?? u?.username ?? u?.correo_electronico ?? null;
-    } catch {
-      return null;
-    }
-  }
-
-  /** Returns true when this comment belongs to the current logged-in user */
-  isOwnComment(authorName: string | null): boolean {
-    if (!this.currentUserName || !authorName) return false;
-    return authorName.trim().toLowerCase() === this.currentUserName.trim().toLowerCase();
-  }
-
-  async loadCard(): Promise<void> {
-    this.loading.set(true);
+  /**
+   * Carga inicial: muestra spinner y reemplaza el contenido.
+   * Para refrescos posteriores (después de editar campos), usa
+   * ``refreshCard()`` que no toca el flag ``loading`` — así el header
+   * con el botón de cerrar permanece siempre clickeable y no parpadea
+   * la UI con cada update.
+   */
+  async loadCard(silent: boolean = false): Promise<void> {
+    if (!silent) this.loading.set(true);
     try {
       const detail = await this.boardService.getCardDetail(this.data.cardId);
       this.card.set(detail);
@@ -85,15 +76,16 @@ export class CardDetailDialogComponent implements OnInit {
       this.dueDateInput = detail?.due_at ? this.toDatetimeLocal(detail.due_at) : '';
       if (detail) {
         try {
-          const labels = await this.boardService.getLabels();
+          const labels = await this.boardService.getLabels(detail.board_id);
+          // Filter out already assigned labels
           const assignedIds = new Set((detail.card_labels ?? []).map(cl => cl.label));
           this.availableLabels.set(labels.filter(l => !assignedIds.has(l.id)));
         } catch { /* ignore */ }
       }
     } catch {
-      Swal.fire('Error', 'No se pudo cargar el detalle.', 'error');
+      if (!silent) Swal.fire('Error', 'No se pudo cargar el detalle.', 'error');
     } finally {
-      this.loading.set(false);
+      if (!silent) this.loading.set(false);
     }
   }
 
@@ -101,7 +93,7 @@ export class CardDetailDialogComponent implements OnInit {
     try {
       await this.boardService.updateCard(this.data.cardId, { [field]: value });
       this.changed = true;
-      await this.loadCard();
+      await this.loadCard(true);  // refresh silencioso: no parpadea el header
     } catch {
       Swal.fire('Error', 'No se pudo actualizar.', 'error');
     }
@@ -135,7 +127,7 @@ export class CardDetailDialogComponent implements OnInit {
       await this.boardService.createComment(this.data.cardId, this.newComment.trim());
       this.newComment = '';
       this.changed = true;
-      await this.loadCard();
+      await this.loadCard(true);
     } catch {
       Swal.fire('Error', 'No se pudo comentar.', 'error');
     }
@@ -152,40 +144,57 @@ export class CardDetailDialogComponent implements OnInit {
       try {
         await this.boardService.deleteComment(commentId);
         this.changed = true;
-        await this.loadCard();
+        await this.loadCard(true);
       } catch {
         Swal.fire('Error', 'No se pudo eliminar.', 'error');
       }
     }
   }
 
-  // --- Checklist ---
+  // --- Checklist (optimistic updates) ---
   async addChecklistItem(): Promise<void> {
-    if (!this.newChecklistItem.trim()) return;
+    const text = this.newChecklistItem.trim();
+    if (!text) return;
+    this.newChecklistItem = '';
     try {
-      await this.boardService.createChecklistItem(this.data.cardId, this.newChecklistItem.trim());
-      this.newChecklistItem = '';
+      const item = await this.boardService.createChecklistItem(this.data.cardId, text);
       this.changed = true;
-      await this.loadCard();
+      // Insert in-place sin recargar.
+      const c = this.card();
+      if (c) this.card.set({ ...c, checklist_items: [...c.checklist_items, item] });
     } catch {
+      this.newChecklistItem = text;  // restore on failure
       Swal.fire('Error', 'No se pudo agregar.', 'error');
     }
   }
 
   async toggleChecklistItem(itemId: number, current: boolean): Promise<void> {
+    // Flip local primero (responsive UI), luego PATCH.
+    const c = this.card();
+    if (!c) return;
+    const before = c.checklist_items;
+    const next = before.map(i => i.id === itemId ? { ...i, completed: !current } : i);
+    this.card.set({ ...c, checklist_items: next });
     try {
       await this.boardService.updateChecklistItem(itemId, { completed: !current });
       this.changed = true;
-      await this.loadCard();
-    } catch { /* ignore */ }
+    } catch {
+      // Rollback en caso de error.
+      this.card.set({ ...c, checklist_items: before });
+    }
   }
 
   async deleteChecklistItem(itemId: number): Promise<void> {
+    const c = this.card();
+    if (!c) return;
+    const before = c.checklist_items;
+    this.card.set({ ...c, checklist_items: before.filter(i => i.id !== itemId) });
     try {
       await this.boardService.deleteChecklistItem(itemId);
       this.changed = true;
-      await this.loadCard();
-    } catch { /* ignore */ }
+    } catch {
+      this.card.set({ ...c, checklist_items: before });
+    }
   }
 
   checklistProgress(c: CardDetailResponse): number {
@@ -202,17 +211,17 @@ export class CardDetailDialogComponent implements OnInit {
     try {
       await this.boardService.addCardLabel(this.data.cardId, labelId);
       this.changed = true;
-      await this.loadCard();
+      await this.loadCard(true);
     } catch {
       Swal.fire('Error', 'No se pudo agregar la etiqueta.', 'error');
     }
   }
 
-  async removeLabel(cardLabelId: number): Promise<void> {
+  async removeLabel(labelId: number): Promise<void> {
     try {
-      await this.boardService.removeCardLabel(cardLabelId);
+      await this.boardService.removeCardLabel(this.data.cardId, labelId);
       this.changed = true;
-      await this.loadCard();
+      await this.loadCard(true);
     } catch {
       Swal.fire('Error', 'No se pudo quitar la etiqueta.', 'error');
     }
@@ -225,17 +234,17 @@ export class CardDetailDialogComponent implements OnInit {
     try {
       await this.boardService.uploadFile(this.data.cardId, file);
       this.changed = true;
-      await this.loadCard();
+      await this.loadCard(true);
     } catch {
       Swal.fire('Error', 'No se pudo subir el archivo.', 'error');
     }
   }
 
-  async deleteUpload(uploadId: number): Promise<void> {
+  async deleteUpload(uploadUuid: string): Promise<void> {
     try {
-      await this.boardService.deleteUpload(uploadId);
+      await this.boardService.deleteUpload(uploadUuid);
       this.changed = true;
-      await this.loadCard();
+      await this.loadCard(true);
     } catch { /* ignore */ }
   }
 
@@ -295,6 +304,23 @@ export class CardDetailDialogComponent implements OnInit {
 
   close(): void {
     this.dialogRef.close(this.changed);
+  }
+
+  // --- Due date (datepicker) ---
+  /** Convierte ``due_at`` (ISO string) del backend a Date para el datepicker. */
+  dueDateValue(): Date | null {
+    const c = this.card();
+    return c?.due_at ? new Date(c.due_at) : null;
+  }
+
+  /** El datepicker emite Date; lo serializamos a ISO y disparamos updateField. */
+  async onDueDateChange(d: Date | null): Promise<void> {
+    if (!d) {
+      await this.updateField('due_at', null);
+      return;
+    }
+    const local = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 0);
+    await this.updateField('due_at', local.toISOString());
   }
 
   // --- Helpers ---

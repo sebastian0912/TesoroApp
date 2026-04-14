@@ -71,23 +71,23 @@ describe('BoardService', () => {
     expect(result.length).toBe(1);
   });
 
-  it('createCard() should POST a card', async () => {
-    const data = { board_list: 1, title: 'Fix bug', position: 0 };
+  it('createCard() should POST a card to the correct list endpoint', async () => {
+    const data = { board_list: 101, title: 'Fix bug', position: 0 };
     const mock = { id: 10, ...data };
     const promise = service.createCard(data);
-    const req = httpMock.expectOne(`${base}/cards/`);
+    const req = httpMock.expectOne(`${base}/lists/101/cards/`);
     expect(req.request.method).toBe('POST');
     req.flush(mock);
     const result = await promise;
     expect(result.title).toBe('Fix bug');
   });
 
-  it('moveCard() should PATCH card position', async () => {
+  it('moveCard() should PATCH card position with new field names', async () => {
     const mock = { id: 10, board_list: 2, position: 0 };
     const promise = service.moveCard(10, 2, 0);
     const req = httpMock.expectOne(`${base}/cards/10/move/`);
     expect(req.request.method).toBe('PATCH');
-    expect(req.request.body).toEqual({ target_list_id: 2, target_index: 0 });
+    expect(req.request.body).toEqual({ new_list_id: 2, new_position: 0 });
     req.flush(mock);
     await promise;
   });
