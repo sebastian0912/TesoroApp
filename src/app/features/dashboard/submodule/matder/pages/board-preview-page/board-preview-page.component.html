@@ -122,7 +122,7 @@
                   @if (list.list_type) { <span class="type-badge">{{ list.list_type }}</span> }
                   <p>{{ list.cards.length }} tareas en esta columna.</p>
                   @if (b.can_manage_content) {
-                    <button mat-stroked-button class="add-card-inline" (click)="openCreateCardModal(list.id)">
+                    <button mat-stroked-button class="add-card-inline" (click)="startAddCard(list.id)">
                       <mat-icon>add</mat-icon> Nueva tarea
                     </button>
                   }

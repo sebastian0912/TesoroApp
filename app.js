@@ -65,7 +65,7 @@ function createWindow() {
 
   if (isDev) {
     mainWindow.loadURL('http://localhost:4400');
-    mainWindow.webContents.openDevTools({ mode: 'detach' });
+    mainWindow.webContents.openDevTools({ mode: 'right' });
   } else {
     mainWindow.loadFile(path.join(__dirname, 'dist/tesoreria/browser/index.html'), { hash: '/' });
   }
@@ -104,19 +104,54 @@ function createWindow() {
 
   // Ctrl+R / F5 en producción: loadFile no maneja el refresh nativo correctamente,
   // así que lo reemplazamos conservando la ruta hash actual.
+  // F12 / Ctrl+Shift+I: abre DevTools embebidos en la misma ventana.
   mainWindow.webContents.on('before-input-event', (event, input) => {
-    const isReload =
-      (input.control && input.key && input.key.toLowerCase() === 'r') ||
-      input.key === 'F5';
-    if (isReload && !isDev) {
+    if (input.type !== 'keyDown') return;
+
+    const key = (input.key || '').toLowerCase();
+    const isHardReload =
+      (input.control && input.shift && key === 'r') ||
+      (input.control && key === 'f5');
+    const isSoftReload =
+      (input.control && key === 'r') ||
+      key === 'f5';
+
+    if (isHardReload || isSoftReload) {
       event.preventDefault();
-      const currentUrl = mainWindow.webContents.getURL();
-      const hashIndex = currentUrl.indexOf('#');
-      const currentHash = hashIndex !== -1 ? currentUrl.substring(hashIndex + 1) : '/';
-      mainWindow.loadFile(
-        path.join(__dirname, 'dist/tesoreria/browser/index.html'),
-        { hash: currentHash }
-      );
+      const wc = mainWindow.webContents;
+      const doReload = () => {
+        if (isDev) {
+          if (isHardReload) wc.reloadIgnoringCache();
+          else wc.reload();
+        } else {
+          const currentUrl = wc.getURL();
+          const hashIndex = currentUrl.indexOf('#');
+          const currentHash = hashIndex !== -1 ? currentUrl.substring(hashIndex + 1) : '/';
+          mainWindow.loadFile(
+            path.join(__dirname, 'dist/tesoreria/browser/index.html'),
+            { hash: currentHash }
+          );
+        }
+      };
+      if (isHardReload) {
+        wc.session.clearCache().catch(() => { /* noop */ }).finally(doReload);
+      } else {
+        doReload();
+      }
+      return;
+    }
+
+    const isToggleDevTools =
+      input.key === 'F12' ||
+      (input.control && input.shift && key === 'i');
+    if (isToggleDevTools) {
+      event.preventDefault();
+      const wc = mainWindow.webContents;
+      if (wc.isDevToolsOpened()) {
+        wc.closeDevTools();
+      } else {
+        wc.openDevTools({ mode: 'right' });
+      }
     }
   });
 
@@ -125,8 +160,10 @@ function createWindow() {
   });
 
   if (!isDev) {
-    getAutoUpdater().checkForUpdatesAndNotify().catch((err) => {
-      console.error('[autoUpdater] checkForUpdatesAndNotify failed:', err);
+    // checkForUpdates (sin notify) para no disparar el toast nativo de Windows
+    // cuando no hay release disponible. Los errores ya se silencian arriba.
+    getAutoUpdater().checkForUpdates().catch((err) => {
+      console.error('[autoUpdater] checkForUpdates failed:', err && err.message ? err.message : err);
     });
   }
 }
@@ -171,7 +208,10 @@ ipcMain.handle('fingerprint:get', async () => {
 function registerAutoUpdaterListeners() {
   const au = getAutoUpdater();
   au.autoDownload = true;
-  au.on('update-available', () => sendToRenderer('update-available'));
+  au.autoInstallOnAppQuit = true;
+  // Evita el ruido de logs verbosos en clientes; los errores quedan en stderr.
+  au.logger = null;
+  au.on('update-available', (info) => sendToRenderer('update-available', info));
   au.on('download-progress', (progressObj) => sendToRenderer('update-progress', progressObj));
   au.on('update-downloaded', () => {
     sendToRenderer('update-downloaded');
@@ -179,8 +219,11 @@ function registerAutoUpdaterListeners() {
       try { au.quitAndInstall(); } catch (e) { console.error('quitAndInstall:', e); }
     }, 3000);
   });
+  // Silencia los errores típicos (404 de latest.yml, red, cert) para no asustar
+  // al usuario final. Solo loguea en stderr; el renderer no recibe nada.
   au.on('error', (error) => {
-    sendToRenderer('update-error', error ? (error.message || String(error)) : 'unknown');
+    const msg = error ? (error.message || String(error)) : 'unknown';
+    console.error('[autoUpdater]', msg);
   });
 }
 

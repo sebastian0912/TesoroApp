@@ -144,26 +144,12 @@ export class AppComponent implements OnDestroy {
       });
     });
 
-    // 4. Error
+    // 4. Error — silenciado en UI. Un 404 de latest.yml o un fallo de red no
+    //    aporta nada al usuario final; solo se loguea en consola.
     this.listen('update-error', (error: any) => {
       this.swalProgressActive = false;
-      const msg = typeof error === 'string' ? error : error?.message || 'Error de conexión.';
-      Swal.fire({
-        title: '',
-        html: `
-          <div style="text-align:center;padding:10px 0;">
-            <div style="width:64px;height:64px;margin:0 auto 16px;background:linear-gradient(135deg,#C62828,#EF5350);border-radius:16px;display:flex;align-items:center;justify-content:center;">
-              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
-            </div>
-            <h2 style="margin:0 0 8px;font-size:1.2rem;font-weight:700;color:#1e293b;">Error en la actualización</h2>
-            <p style="margin:0 0 4px;color:#64748b;font-size:0.9rem;">${msg}</p>
-            <p style="margin:8px 0 0;color:#94a3b8;font-size:0.8rem;">Se reintentará automáticamente en unos minutos.</p>
-          </div>`,
-        confirmButtonText: 'Entendido',
-        confirmButtonColor: '#051b3f',
-        allowOutsideClick: false, allowEscapeKey: false,
-        backdrop: 'rgba(5,27,63,0.6)',
-      });
+      const msg = typeof error === 'string' ? error : error?.message || String(error);
+      console.warn('[autoUpdater]', msg);
     });
   }
 }

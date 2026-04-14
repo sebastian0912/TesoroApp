@@ -41,14 +41,8 @@ export class CardDetailDialogComponent implements OnInit {
   newChecklistItem = '';
   availableLabels = signal<LabelResponse[]>([]);
 
-  /** Holds the ISO date-time string for the native datetime-local input (format: YYYY-MM-DDTHH:mm) */
-  dueDateInput: string = '';
-
   statuses: CardStatus[] = ['TODO', 'IN_PROGRESS', 'BLOCKED', 'DONE'];
   priorities: CardPriority[] = ['LOW', 'MEDIUM', 'HIGH', 'URGENT'];
-
-  /** Current user identifier – used to style own messages differently */
-  private currentUserName: string | null = this.resolveCurrentUser();
 
   constructor(
     public dialogRef: MatDialogRef<CardDetailDialogComponent>,
@@ -71,9 +65,13 @@ export class CardDetailDialogComponent implements OnInit {
     if (!silent) this.loading.set(true);
     try {
       const detail = await this.boardService.getCardDetail(this.data.cardId);
+      if (detail) {
+        detail.checklist_items = detail.checklist_items ?? [];
+        detail.comments = detail.comments ?? [];
+        detail.card_labels = detail.card_labels ?? [];
+        detail.uploads = detail.uploads ?? [];
+      }
       this.card.set(detail);
-      // Sync native datetime-local input value (requires 'YYYY-MM-DDTHH:mm' format)
-      this.dueDateInput = detail?.due_at ? this.toDatetimeLocal(detail.due_at) : '';
       if (detail) {
         try {
           const labels = await this.boardService.getLabels(detail.board_id);
@@ -97,27 +95,6 @@ export class CardDetailDialogComponent implements OnInit {
     } catch {
       Swal.fire('Error', 'No se pudo actualizar.', 'error');
     }
-  }
-
-  /** Converts an ISO string to the 'YYYY-MM-DDTHH:mm' format required by datetime-local inputs */
-  private toDatetimeLocal(iso: string): string {
-    const d = new Date(iso);
-    if (isNaN(d.getTime())) return '';
-    const pad = (n: number) => String(n).padStart(2, '0');
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-  }
-
-  /** Called when the native datetime-local input changes */
-  async onDueDateChange(event: Event): Promise<void> {
-    const val = (event.target as HTMLInputElement).value;
-    const isoValue = val ? new Date(val).toISOString() : null;
-    await this.updateField('due_at', isoValue);
-  }
-
-  /** Clears the due date */
-  async clearDueDate(): Promise<void> {
-    this.dueDateInput = '';
-    await this.updateField('due_at', null);
   }
 
   // --- Comments ---
