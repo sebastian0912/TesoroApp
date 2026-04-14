@@ -99,10 +99,25 @@ function setupIpcHandlers() {
     return new Promise((resolve, reject) => {
       db.get("SELECT data FROM api_cache WHERE url = ?", [url], (err, row) => {
         if (err) return reject(err.message);
-        resolve(row ? JSON.parse(row.data) : null);
+        if (!row) return resolve(null);
+        try {
+          resolve(JSON.parse(row.data));
+        } catch (parseErr) {
+          console.warn('[db] cache entry corrupto para', url, parseErr.message);
+          resolve(null);
+        }
       });
     });
   });
 }
 
-module.exports = { initDatabase };
+function closeDatabase() {
+  if (db) {
+    db.close((err) => {
+      if (err) console.error('[db] error al cerrar:', err.message);
+    });
+    db = null;
+  }
+}
+
+module.exports = { initDatabase, closeDatabase };

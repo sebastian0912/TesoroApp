@@ -65,6 +65,67 @@ export class ReportesService {
   }
 
   /**
+   * GET /contratacion/listarErroresValidacion/
+   * Sin filtros → devuelve solo los errores del día de hoy.
+   */
+  getErroresValidacion(filters?: {
+    fechaDesde?: string | Date;
+    fechaHasta?: string | Date;
+    tipo?: string;
+    responsable?: string;
+  }): Observable<{
+    total: number;
+    por_tipo: Record<string, number>;
+    por_responsable: Record<string, number>;
+    rango: { fecha_desde: string | null; fecha_hasta: string | null };
+    errores: {
+      id: number;
+      tipoDeError: string;
+      registro: number | null;
+      mensaje: string;
+      responsable: string;
+      fecha_creacion: string | null;
+    }[];
+  }> {
+    let params = new HttpParams();
+
+    if (filters?.fechaDesde) {
+      const value =
+        filters.fechaDesde instanceof Date
+          ? this.formatDate(filters.fechaDesde)
+          : String(filters.fechaDesde).trim();
+      if (value) params = params.set('fecha_desde', value);
+    }
+    if (filters?.fechaHasta) {
+      const value =
+        filters.fechaHasta instanceof Date
+          ? this.formatDate(filters.fechaHasta)
+          : String(filters.fechaHasta).trim();
+      if (value) params = params.set('fecha_hasta', value);
+    }
+    if (filters?.tipo) params = params.set('tipo', filters.tipo.trim());
+    if (filters?.responsable) params = params.set('responsable', filters.responsable.trim());
+
+    const url = `${this.apiUrl}/contratacion/listarErroresValidacion/`;
+
+    return this.http.get<any>(url, { params }).pipe(
+      map((resp: any) => {
+        if (resp?.status !== 'success') {
+          throw { status: 400, error: resp };
+        }
+        return {
+          total: resp.total ?? 0,
+          por_tipo: resp.por_tipo ?? {},
+          por_responsable: resp.por_responsable ?? {},
+          rango: resp.rango ?? { fecha_desde: null, fecha_hasta: null },
+          errores: resp.errores ?? [],
+        };
+      }),
+      catchError((error) => this.handleError(error, 'getErroresValidacion')),
+    );
+  }
+
+  /**
    * GET /reportes/cedulas-zip/
    * ✅ Django NO recibe filtros aquí (sin fechas, sin sede).
    * Devuelve un ZIP (Blob) con TODAS las cédulas de TODOS los reportes (sin duplicados).

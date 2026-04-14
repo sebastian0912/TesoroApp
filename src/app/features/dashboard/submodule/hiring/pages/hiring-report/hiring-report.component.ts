@@ -176,7 +176,7 @@ export class HiringReportComponent implements OnInit, OnDestroy {
       contratosHoy: new FormControl('', { validators: [Validators.required], nonNullable: true }),
 
       cedulasEscaneadas: new FormControl(false, { nonNullable: true }),
-      cruceDiario: new FormControl(false, { nonNullable: true }),
+      cruceDiario: new FormControl(true, { nonNullable: true }),
       arl: new FormControl(false, { nonNullable: true }),
       induccionSSO: new FormControl(false, { nonNullable: true }),
       traslados: new FormControl(false, { nonNullable: true }),
@@ -241,11 +241,54 @@ export class HiringReportComponent implements OnInit, OnDestroy {
     return this.reporteForm.controls.contratosHoy.value === 'si';
   }
 
+  get arlErrorStats(): {
+    total: number;
+    sinArl: number;
+    fechaDiff: number;
+    duplicados: number;
+    cedulasAfectadas: number;
+  } {
+    const errs = this.arlErrors ?? [];
+    let sinArl = 0, fechaDiff = 0, duplicados = 0;
+    const cedulas = new Set<string>();
+
+    for (const e of errs) {
+      const msg = String(e?.error ?? '');
+      if (e?.cedula) cedulas.add(String(e.cedula));
+
+      if (msg.startsWith('No existe en ARL')) sinArl++;
+      else if (msg.startsWith('Múltiples registros en ARL')) duplicados++;
+      else if (msg.startsWith('Fecha de ingreso')) fechaDiff++;
+    }
+
+    return {
+      total: errs.length,
+      sinArl,
+      fechaDiff,
+      duplicados,
+      cedulasAfectadas: cedulas.size,
+    };
+  }
+
   // ---------------------------------------------------------------------------
   // FILE HANDLING
   // ---------------------------------------------------------------------------
 
   onCheckboxChange(checked: boolean, key: UploadControl) {
+    // El Cruce Diario es obligatorio: no se puede desmarcar.
+    if (key === 'cruceDiario' && !checked) {
+      this.reporteForm.get(key)?.setValue(true);
+      Swal.fire({
+        icon: 'info',
+        title: 'Cruce Diario obligatorio',
+        text: 'El archivo de Cruce Diario debe adjuntarse en todo reporte. No se puede desactivar.',
+        timer: 2400,
+        showConfirmButton: false,
+      });
+      this.cdr.markForCheck();
+      return;
+    }
+
     this.reporteForm.get(key)?.setValue(checked);
     if (!checked) {
       this.clearFile(key);
@@ -262,33 +305,62 @@ export class HiringReportComponent implements OnInit, OnDestroy {
 
     // Filter Files
     const allowed: File[] = [];
-    const ignored: string[] = [];
+    const ignored: { name: string; razon: string }[] = [];
+
+    const labelFor = (k: UploadControl): string => ({
+      cedulasEscaneadas: 'Cédulas Escaneadas',
+      cruceDiario: 'Cruce Diario',
+      arl: 'ARL',
+      induccionSSO: 'Inducción SSO',
+      traslados: 'Traslados',
+    })[k];
 
     for (const f of rawFiles) {
       const lower = f.name.toLowerCase();
-      if (this.BLOCKED_FILES.has(lower)) continue;
+
+      if (this.BLOCKED_FILES.has(lower)) {
+        ignored.push({
+          name: f.name,
+          razon: 'Nombre de archivo no permitido (archivo de sistema o plantilla vacía).',
+        });
+        continue;
+      }
 
       const ext = lower.split('.').pop() || '';
-
-      // Rules based on key
       const isExcel = ['xls', 'xlsx', 'csv'].includes(ext);
       const isPdf = ext === 'pdf';
 
       if (['cedulasEscaneadas', 'induccionSSO', 'traslados'].includes(key) && !isPdf) {
-        ignored.push(f.name); continue;
+        ignored.push({
+          name: f.name,
+          razon: `El campo "${labelFor(key)}" solo acepta archivos PDF (recibido: .${ext || 'sin extensión'}).`,
+        });
+        continue;
       }
       if (['cruceDiario', 'arl'].includes(key) && !isExcel) {
-        ignored.push(f.name); continue;
+        ignored.push({
+          name: f.name,
+          razon: `El campo "${labelFor(key)}" solo acepta Excel (.xls, .xlsx) o .csv (recibido: .${ext || 'sin extensión'}).`,
+        });
+        continue;
       }
 
       allowed.push(f);
     }
 
     if (ignored.length) {
+      const items = ignored
+        .map(i => `<li><b>${i.name}</b> — ${i.razon}</li>`)
+        .join('');
       Swal.fire({
         icon: 'warning',
-        title: 'Archivos ignorados',
-        text: `Algunos archivos no son válidos: ${ignored.slice(0, 3).join(', ')}...`
+        title: `${ignored.length} archivo(s) no se cargaron`,
+        html: `
+          <p style="margin:0 0 8px 0; text-align:left;">Estos archivos fueron ignorados:</p>
+          <ul style="text-align:left; max-height:260px; overflow:auto; padding-left:18px;">${items}</ul>
+          <p style="margin:10px 0 0 0; font-size:0.9em; text-align:left; color:#475569;">
+            Corrige el tipo de archivo o el nombre y vuelve a intentarlo.
+          </p>`,
       });
     }
 
@@ -304,14 +376,31 @@ export class HiringReportComponent implements OnInit, OnDestroy {
       // Direct Previews
       if (key === 'cedulasEscaneadas') {
         this.generateCedulasPreview(allowed);
-        if (this.cedulasPreview.some(p => !p.valido)) {
+        const invalid = this.cedulasPreview.filter(p => !p.valido);
+        if (invalid.length > 0) {
           this.checkAndShowPreviewErrors(this.cedulasPreview, 'cedulas');
+          // Auditoría silenciosa de lo que muestra el previsualizador.
+          void this.saveErrorsSilently(
+            invalid.map(p => ({
+              cedula: String(p.documento || p.nombreArchivo || 'SIN_CEDULA'),
+              error: `Archivo "${p.nombreArchivo}": ${p.error}`,
+            })),
+            'Cédulas Escaneadas - Previsualizador',
+          );
         }
       }
       if (key === 'traslados') {
         this.generateTrasladosPreview(allowed);
-        if (this.trasladosPreview.some(p => !p.valido)) {
+        const invalid = this.trasladosPreview.filter(p => !p.valido);
+        if (invalid.length > 0) {
           this.checkAndShowPreviewErrors(this.trasladosPreview, 'traslados');
+          void this.saveErrorsSilently(
+            invalid.map(p => ({
+              cedula: String(p.documento || p.nombreArchivo || 'SIN_CEDULA'),
+              error: `Archivo "${p.nombreArchivo}": ${p.error}`,
+            })),
+            'Traslados - Previsualizador',
+          );
         }
       }
     }
@@ -332,17 +421,18 @@ export class HiringReportComponent implements OnInit, OnDestroy {
 
   private handleContratosChange(val: string) {
     if (val !== 'si') {
-      // Reset all logic
-      ['cedulasEscaneadas', 'cruceDiario', 'arl', 'induccionSSO', 'traslados'].forEach(k => {
+      // Reset all EXCEPT cruceDiario (obligatorio para todo reporte).
+      ['cedulasEscaneadas', 'arl', 'induccionSSO', 'traslados'].forEach(k => {
         this.reporteForm.get(k)?.setValue(false);
         this.clearFile(k as UploadControl);
       });
+      // cruceDiario siempre debe seguir marcado; no borramos el archivo ya seleccionado.
+      this.reporteForm.controls.cruceDiario.setValue(true);
       this.reporteForm.patchValue({
         cantidadContratosTuAlianza: null,
         cantidadContratosApoyoLaboral: null,
         notas: ''
       });
-      this.datoscruced = [];
       this.arlRows = [];
     }
   }
@@ -431,10 +521,23 @@ export class HiringReportComponent implements OnInit, OnDestroy {
   async onSubmit() {
     if (this.reporteForm.invalid) return;
 
-    // Check validations
     const checks = this.reporteForm.getRawValue();
+
+    // ➡️ Guard crítico: el Cruce Diario (Excel) debe ir SIEMPRE en el reporte.
+    //    No existe ningún caso donde se pueda crear un reporte sin este archivo.
+    if (!this.files.cruceDiario?.length) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'Falta el Cruce Diario',
+        html:
+          'El archivo Excel de <b>Cruce Diario</b> es obligatorio en todo reporte.<br>' +
+          'Adjúntalo antes de enviar — sin él el reporte no queda registrado.',
+      });
+      return;
+    }
+
     if (checks.contratosHoy === 'si') {
-      if (checks.cruceDiario && !this.isCruceValidado) {
+      if (!this.isCruceValidado) {
         Swal.fire('Falta Validar', 'Debe validar el Cruce Diario antes de enviar.', 'warning');
         return;
       }
@@ -452,6 +555,18 @@ export class HiringReportComponent implements OnInit, OnDestroy {
 
     try {
       const { payload, files } = this.buildReporteRequest();
+
+      // ➡️ Guard defensivo final: nunca enviar sin cruce_document.
+      if (!files.cruce_document) {
+        this.closeSwal();
+        Swal.fire({
+          icon: 'error',
+          title: 'Error interno',
+          text: 'El archivo de Cruce Diario se perdió antes del envío. Vuelve a adjuntarlo.',
+        });
+        return;
+      }
+
       await firstValueFrom(this.reportesService.createReporte(payload, files));
 
       this.closeSwal();
@@ -461,12 +576,26 @@ export class HiringReportComponent implements OnInit, OnDestroy {
 
     } catch (e: any) {
       this.closeSwal();
-      console.error(e);
+      console.error('[onSubmit] Error al enviar reporte:', e);
       const errorMsg = this.parseBackendError(e);
+
+      const estado = e?.status;
+      let cabecera = 'No se pudo enviar el reporte';
+      if (estado === 0) cabecera = 'Sin conexión con el servidor';
+      else if (estado === 401 || estado === 403) cabecera = 'Sesión expirada o sin permisos';
+      else if (estado === 413) cabecera = 'Los archivos son demasiado grandes';
+      else if (estado === 500) cabecera = 'Error interno del servidor';
+
       Swal.fire({
-        title: 'Error de Validación', 
-        html: errorMsg || 'No se pudo enviar el reporte. Ocurrió un error inesperado.', 
-        icon: 'error'
+        icon: 'error',
+        title: cabecera,
+        html:
+          (errorMsg && errorMsg.trim()
+            ? errorMsg
+            : 'El servidor respondió con un error sin detalle.') +
+          `<br><br><small style="color:#64748b;">` +
+          (estado ? `Código HTTP: ${estado}. ` : '') +
+          `Si ves este mensaje varias veces, toma una captura y envíala a soporte.</small>`,
       });
     }
   }
@@ -475,7 +604,13 @@ export class HiringReportComponent implements OnInit, OnDestroy {
     if (this.isValidatingAll) return;
 
     if (!this.files.cruceDiario?.length) {
-      Swal.fire('Atención', 'Seleccione el archivo de Cruce Diario', 'warning');
+      Swal.fire({
+        icon: 'warning',
+        title: 'Falta el archivo de Cruce Diario',
+        html:
+          'Antes de validar, marca la casilla <b>"Cruce Diario (Excel)"</b> y haz clic en ' +
+          '<b>"Seleccionar"</b> para adjuntar el archivo <b>.xlsx</b> del día.',
+      });
       return;
     }
 
@@ -504,10 +639,22 @@ export class HiringReportComponent implements OnInit, OnDestroy {
       this.closeSwal();
       // Success Swal removed per request
 
-    } catch (e) {
+    } catch (e: any) {
       this.closeSwal();
-      console.error(e);
-      Swal.fire('Error', 'Ocurrió un error inesperado al validar.', 'error');
+      console.error('[validarTodo] Error inesperado:', e);
+      const detalle =
+        (e && typeof e.message === 'string' && e.message) ||
+        (typeof e === 'string' ? e : '') ||
+        'Sin detalle disponible del error.';
+      Swal.fire({
+        icon: 'error',
+        title: 'No se pudo completar la validación',
+        html:
+          `Ocurrió un problema mientras validábamos los archivos.<br><br>` +
+          `<b>Detalle:</b> ${detalle}<br><br>` +
+          `Revisa que los Excel no estén abiertos en otra ventana ` +
+          `y que no estén protegidos con contraseña. Si persiste, contacta a soporte.`,
+      });
     } finally {
       // Ensure UI update happens in next tick to avoid conflicts with Swal closing
       this.zone.run(() => {
@@ -527,10 +674,20 @@ export class HiringReportComponent implements OnInit, OnDestroy {
   private async processCruce(): Promise<boolean> {
     const file = this.files.cruceDiario![0];
     const wb = await this.readExcel(file);
+
+    // Limpieza previa (tildes y caracteres especiales), igual que home.
+    // Las celdas con fechas se dejan intactas.
+    this.cleanWorkbookLikeHome(wb);
+
     const sheet = wb.Sheets[wb.SheetNames[0]];
     const rawJson = XLSX.utils.sheet_to_json<any[]>(sheet, { header: 1, defval: '-', raw: true });
 
-    if (rawJson.length < 2) throw new Error('Excel vacío o sin datos');
+    if (rawJson.length < 2) {
+      throw new Error(
+        `El archivo de Cruce Diario "${file.name}" está vacío o solo contiene el encabezado. ` +
+        `Necesita al menos una fila con datos de contratación (cédula, fecha de ingreso, etc.).`,
+      );
+    }
 
     const headerRow = rawJson[0] as string[]; // Fila 0 de headers
     this.cruceHeaderRow = headerRow; // Guardar para uso posterior (ARL report)
@@ -567,6 +724,19 @@ export class HiringReportComponent implements OnInit, OnDestroy {
 
     // 4. Dialog if local issues
     if (issues.length > 0) {
+      // Guardado silencioso en backend: auditoría de lo que el previsualizador
+      // detectó antes de la corrección del usuario.
+      const preValErrors = issues.map(issue => {
+        const item = cruceRows.find(r => r._id === issue.itemId);
+        const cedula = item?.cedula || 'SIN_CEDULA';
+        const campo = issue.field ? ` [${issue.field}]` : '';
+        return {
+          cedula,
+          error: `${issue.message}${campo}`,
+        };
+      });
+      void this.saveErrorsSilently(preValErrors, 'Cruce Diario - Pre-validación');
+
       this.closeSwal();
       const res = await this.openCruceDialog(cruceRows, schema, uploadedRef, [], 'pre');
       if (!res) return false; // Cancelled
@@ -777,8 +947,15 @@ export class HiringReportComponent implements OnInit, OnDestroy {
               return [];
             })
             .catch(err => {
-              console.error(`Error en lote ${chunkIndex}`, err);
-              return [{ mensaje: `Error fatal al validar el lote ${chunkIndex + 1}` }];
+              console.error(`[validateBatchesBackend] Error en lote ${chunkIndex + 1}:`, err);
+              const detalle =
+                (err && typeof err.message === 'string' && err.message) ||
+                (typeof err === 'string' ? err : 'Sin detalle del servidor.');
+              return [{
+                mensaje:
+                  `No se pudo validar el lote ${chunkIndex + 1} de ${chunks} contra el servidor. ` +
+                  `Detalle: ${detalle}. Revisa tu conexión e intenta "Validar Todo" nuevamente.`,
+              }];
             })
         );
       }
@@ -795,11 +972,61 @@ export class HiringReportComponent implements OnInit, OnDestroy {
   private async saveErrorsToBackend(errors: any[]) {
     try {
       const payload = { errores: errors, responsable: this.nombre, tipo: 'Documento de Contratación' };
-      // Fix: Service method returns Promise<any>, removed firstValueFrom
       await this.hiringService.enviarErroresValidacion(payload);
-      Swal.fire('Error', 'Aún hay errores tras corregir. Se han guardado los reportes.', 'error');
-    } catch {
-      Swal.fire('Error', 'Error al guardar los errores.', 'error');
+      Swal.fire({
+        icon: 'warning',
+        title: 'El reporte aún tiene errores',
+        html:
+          `Después de corregir, siguen existiendo <b>${errors.length}</b> error(es) bloqueantes.<br>` +
+          `Ya guardamos el listado en el servidor para seguimiento, pero <b>el reporte NO fue enviado</b>.<br><br>` +
+          `Corrige los errores restantes y vuelve a darle a "Validar Todo" antes de enviar.`,
+      });
+    } catch (e: any) {
+      console.error('[saveErrorsToBackend] Falló:', e);
+      const detalle = (e && typeof e.message === 'string' ? e.message : '') || 'Sin detalle.';
+      Swal.fire({
+        icon: 'error',
+        title: 'No se pudo guardar el listado de errores',
+        html:
+          `No logramos guardar los errores en el servidor.<br><br>` +
+          `<b>Detalle técnico:</b> ${detalle}<br><br>` +
+          `Verifica tu conexión a internet y vuelve a intentarlo. ` +
+          `Si persiste, contacta a soporte con una captura de esta pantalla.`,
+      });
+    }
+  }
+
+  /**
+   * Envía errores al backend sin mostrar Swal.
+   * Agrupa por 'registro' (cédula) para que cada persona lleve todos sus errores juntos.
+   */
+  private async saveErrorsSilently(
+    rawErrors: { cedula: string; error: string }[],
+    tipo: string,
+  ): Promise<void> {
+    if (!rawErrors.length) return;
+
+    const grouped = new Map<string, string[]>();
+    for (const err of rawErrors) {
+      const key = (err.cedula || 'SIN_CEDULA').toString();
+      if (!grouped.has(key)) grouped.set(key, []);
+      grouped.get(key)!.push(err.error);
+    }
+
+    const errores = Array.from(grouped.entries()).map(([registro, errs]) => ({
+      registro,
+      errores: errs,
+    }));
+
+    try {
+      await this.hiringService.enviarErroresValidacion({
+        errores,
+        responsable: this.nombre,
+        tipo,
+      });
+    } catch (e) {
+      // Silencioso: no mostrar Swal, solo log.
+      console.error(`[${tipo}] Envío silencioso de errores falló:`, e);
     }
   }
 
@@ -812,14 +1039,32 @@ export class HiringReportComponent implements OnInit, OnDestroy {
     const sheet = wb.Sheets[wb.SheetNames[0]];
     const data = XLSX.utils.sheet_to_json<any[]>(sheet, { header: 1, defval: '', raw: true });
 
-    if (data.length < 2) throw new Error('ARL vacío');
+    if (data.length < 2) {
+      throw new Error(
+        `El archivo ARL "${file.name}" está vacío o solo tiene el encabezado. Verifica que contenga al menos una fila de datos.`,
+      );
+    }
 
     const headers = data[0].map(h => String(h).toUpperCase().trim());
     const idxDni = headers.findIndex(h => h.includes('DNI') && h.includes('TRABAJADOR'));
     const idxVig = headers.findIndex(h => h.includes('INICIO') && h.includes('VIGENCIA'));
 
     if (idxDni === -1 || idxVig === -1) {
-      Swal.fire('Error ARL', 'No se encuentran columnas DNI TRABAJADOR o INICIO VIGENCIA', 'error');
+      const faltantes: string[] = [];
+      if (idxDni === -1) faltantes.push('"DNI TRABAJADOR"');
+      if (idxVig === -1) faltantes.push('"INICIO VIGENCIA"');
+
+      Swal.fire({
+        icon: 'error',
+        title: 'El archivo ARL no tiene las columnas necesarias',
+        html:
+          `No se encontró la(s) columna(s) ${faltantes.join(' y ')} en el archivo ` +
+          `<b>${file.name}</b>.<br><br>` +
+          `Abre el Excel y revisa la <b>primera fila</b> (encabezados). Debe tener:<br>` +
+          `• Una columna cuyo nombre contenga <b>DNI TRABAJADOR</b>.<br>` +
+          `• Una columna cuyo nombre contenga <b>INICIO VIGENCIA</b>.<br><br>` +
+          `Sin estas columnas no se puede validar ARL.`,
+      });
       this.isArlValidado = false;
       return;
     }
@@ -848,6 +1093,13 @@ export class HiringReportComponent implements OnInit, OnDestroy {
 
     // Recolectar errores ARL inmediatamente para mostrar en la UI
     this.collectArlErrors();
+
+    // Envío silencioso al backend: toda inconsistencia ARL queda registrada
+    // (no existe en ARL, fecha desfasada, duplicados que podrían generar cobros).
+    if (this.arlErrors.length > 0) {
+      void this.saveErrorsSilently(this.arlErrors, 'Validación ARL');
+    }
+
     this.cdr.markForCheck();
   }
 
@@ -878,6 +1130,14 @@ export class HiringReportComponent implements OnInit, OnDestroy {
       if (!arlRowsForCedula || arlRowsForCedula.length === 0) {
         this.arlErrors.push({ cedula, error: 'No existe en ARL' });
       } else {
+        // Duplicados en ARL: riesgo de cobro duplicado por retiro.
+        if (arlRowsForCedula.length > 1) {
+          this.arlErrors.push({
+            cedula,
+            error: `Múltiples registros en ARL (${arlRowsForCedula.length}) para la misma cédula. Riesgo de cobro duplicado si la persona se retira.`,
+          });
+        }
+
         // Comparar fechas
         const dCruce = CruceValidationHelper.parseDate(fechaIngreso);
         let matchFound = false;
@@ -963,10 +1223,20 @@ export class HiringReportComponent implements OnInit, OnDestroy {
       setTimeout(() => {
         try {
           this.generateArlInline(workerData);
-        } catch (e) {
+        } catch (e: any) {
           this.closeSwal();
-          console.error(e);
-          Swal.fire('Error', 'Falló la generación del Excel ARL: ' + e, 'error');
+          console.error('[generateArlInline] Falló:', e);
+          const detalle =
+            (e && typeof e.message === 'string' && e.message) ||
+            (typeof e === 'string' ? e : 'Sin detalle disponible.');
+          Swal.fire({
+            icon: 'error',
+            title: 'No se pudo generar el Excel del reporte ARL',
+            html:
+              `Ocurrió un error al armar el archivo Excel del reporte ARL.<br><br>` +
+              `<b>Detalle:</b> ${detalle}<br><br>` +
+              `Intenta nuevamente. Si el problema continúa, cierra el navegador y vuelve a abrir.`,
+          });
         }
       }, 100);
     }
@@ -1122,7 +1392,15 @@ export class HiringReportComponent implements OnInit, OnDestroy {
 
   private handleWorkerError(err: string) {
     this.closeSwal();
-    Swal.fire('Error Worker', 'Falló la generación del excel: ' + err, 'error');
+    console.error('[ARL Worker] Error:', err);
+    Swal.fire({
+      icon: 'error',
+      title: 'No se pudo generar el Excel del reporte ARL',
+      html:
+        `Ocurrió un error en segundo plano al armar el archivo.<br><br>` +
+        `<b>Detalle:</b> ${err || 'Sin detalle disponible.'}<br><br>` +
+        `Intenta nuevamente. Si persiste, cierra el navegador y ábrelo otra vez.`,
+    });
   }
 
   // ---------------------------------------------------------------------------
@@ -1132,6 +1410,40 @@ export class HiringReportComponent implements OnInit, OnDestroy {
   private async readExcel(file: File): Promise<XLSX.WorkBook> {
     const buffer = await file.arrayBuffer();
     return XLSX.read(buffer, { type: 'array' });
+  }
+
+  /**
+   * Limpieza de celdas de texto igual que `procesarYLimpiarExcel` en home:
+   * - Normaliza y quita tildes / diacríticos.
+   * - Conserva solo letras, dígitos y espacios.
+   * - Preserva cadenas que parecen fechas (DD/MM/YYYY, YYYY-MM-DD, etc.).
+   */
+  private cleanWorkbookLikeHome(wb: XLSX.WorkBook): void {
+    for (const sheetName of wb.SheetNames) {
+      const ws = wb.Sheets[sheetName];
+      for (const cellAddress in ws) {
+        if (
+          !Object.prototype.hasOwnProperty.call(ws, cellAddress) ||
+          cellAddress[0] === '!'
+        ) continue;
+
+        const cell = (ws as any)[cellAddress];
+        if (cell && cell.t === 's' && typeof cell.v === 'string') {
+          let val: string = cell.v;
+          const valTrimmed = val.trim();
+          const isDateString =
+            /^\d{2,4}[-/]?\d{2}[-/]?\d{2,4}(?:\s+\d{1,2}:\d{2}(:\d{2})?)?$/.test(valTrimmed);
+
+          if (!isDateString) {
+            val = val.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+            // Preservamos @ (correos) además de letras, dígitos y espacios.
+            val = val.replace(/[^a-zA-Z0-9\s@]/g, '');
+            cell.v = val;
+            if (typeof cell.w === 'string') cell.w = val;
+          }
+        }
+      }
+    }
   }
 
   private showLoading(title: string, text: string) {

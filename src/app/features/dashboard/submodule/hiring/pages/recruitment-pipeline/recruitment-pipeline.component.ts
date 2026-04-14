@@ -515,6 +515,21 @@ export class RecruitmentPipelineComponent {
           <label>Fecha de Retiro:</label>
           <input type="date" id="swal-fecha-baja" class="swal2-input" value="${new Date().toISOString().split('T')[0]}">
         </div>
+        <div style="text-align: left; margin-bottom: 8px;">
+          <label>Motivo de Retiro:</label>
+          <select id="swal-motivo-baja" class="swal2-input">
+            <option value="">Seleccione...</option>
+            <option value="RENUNCIA">Renuncia voluntaria</option>
+            <option value="TERMINACION_CONTRATO">Terminación de contrato</option>
+            <option value="ABANDONO">Abandono del puesto</option>
+            <option value="DESPIDO_JUSTA_CAUSA">Despido con justa causa</option>
+            <option value="DESPIDO_SIN_JUSTA_CAUSA">Despido sin justa causa</option>
+            <option value="MUTUO_ACUERDO">Mutuo acuerdo</option>
+            <option value="FIN_OBRA_LABOR">Fin de obra o labor</option>
+            <option value="OTRO">Otro</option>
+          </select>
+          <textarea id="swal-motivo-baja-detalle" class="swal2-textarea" placeholder="Detalle adicional (opcional)"></textarea>
+        </div>
       `,
       focusConfirm: false,
       showCancelButton: true,
@@ -522,9 +537,13 @@ export class RecruitmentPipelineComponent {
       confirmButtonColor: '#d33',
       cancelButtonText: 'Cancelar',
       preConfirm: () => {
-        const d = (document.getElementById('swal-fecha-baja') as HTMLInputElement).value;
-        if (!d) Swal.showValidationMessage('La fecha es obligatoria');
-        return d;
+        const fecha = (document.getElementById('swal-fecha-baja') as HTMLInputElement).value;
+        const motivo = (document.getElementById('swal-motivo-baja') as HTMLSelectElement).value;
+        const detalle = (document.getElementById('swal-motivo-baja-detalle') as HTMLTextAreaElement).value;
+        if (!fecha) { Swal.showValidationMessage('La fecha es obligatoria'); return false; }
+        if (!motivo) { Swal.showValidationMessage('El motivo es obligatorio'); return false; }
+        const motivoFinal = detalle?.trim() ? `${motivo} - ${detalle.trim()}` : motivo;
+        return { fecha, motivo: motivoFinal };
       }
     });
 
@@ -535,16 +554,18 @@ export class RecruitmentPipelineComponent {
           numero_documento: cc,
           contrato_detalle: {
             contrato_activo: false,
-            fecha_retiro: formValues
+            fecha_retiro: formValues.fecha,
+            motivo_retiro: formValues.motivo
           }
         };
         await firstValueFrom(this.registroProceso.updateProcesoByDocumento(payload as any));
-        
+
         // Actualizamos estado local
         const cand = this.candidatoSeleccionado();
         if (cand?.entrevistas?.[0]?.proceso?.contrato) {
            cand.entrevistas[0].proceso.contrato.contrato_activo = false;
-           cand.entrevistas[0].proceso.contrato.fecha_retiro = formValues;
+           cand.entrevistas[0].proceso.contrato.fecha_retiro = formValues.fecha;
+           cand.entrevistas[0].proceso.contrato.motivo_retiro = formValues.motivo;
            this.candidatoSeleccionado.set({ ...cand });
         }
         Swal.fire('¡Baja exitosa!', `El contrato de ${this.nombreCandidato} ha sido desactivado.`, 'success');
@@ -900,6 +921,12 @@ export class RecruitmentPipelineComponent {
           { name: 'empresaUsuariaSolicita', header: 'Empresa usuaria', type: 'text', width: '180px' },
           { name: 'finca', header: 'Finca', type: 'text', width: '160px' },
           {
+            name: 'estado',
+            header: 'Estado',
+            type: 'text',
+            width: '140px',
+          },
+          {
             name: 'aplica_o_no_aplica',
             header: 'Aplica/No aplica',
             type: 'select',
@@ -908,6 +935,8 @@ export class RecruitmentPipelineComponent {
           },
           { name: 'motivo_no_aplica', header: 'Motivo no aplica', type: 'text', width: '240px' },
           { name: 'motivo_espera', header: 'Motivo espera', type: 'text', width: '220px' },
+          { name: 'fecha_retiro', header: 'Fecha retiro', type: 'date', width: '160px' },
+          { name: 'motivo_retiro', header: 'Motivo retiro', type: 'text', width: '240px' },
           { name: 'detalle', header: 'Detalle', type: 'text', width: '260px' },
           { name: 'actions', header: 'Acciones', type: 'custom', width: '120px', stickyEnd: true },
         ];

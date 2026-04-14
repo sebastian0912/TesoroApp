@@ -55,7 +55,7 @@ export class AdminService {
 
   // Traer sucursales
   traerSucursales(): any {
-    return this.http.get(`${this.apiUrl}/gestion_admin/sedes`,);
+    return this.http.get(`${this.apiUrl}/gestion_admin/sedes/`,);
   }
 
   // Subir cedulas

@@ -1,6 +1,6 @@
 {
   "name": "tesoreria",
-  "version": "7.8.5",
+  "version": "8.0.3",
   "main": "app.js",
   "description": "Programa para control de prestamos a tesoreria",
   "author": "SebastianGuarnizoCampos",
@@ -40,6 +40,15 @@
     "win": {
       "target": "nsis",
       "icon": "public/logo.ico"
+    },
+    "nsis": {
+      "perMachine": false,
+      "oneClick": true,
+      "allowElevation": false,
+      "allowToChangeInstallationDirectory": false,
+      "deleteAppDataOnUninstall": false,
+      "runAfterFinish": true,
+      "differentialPackage": true
     },
     "asar": true,
     "publish": [

@@ -451,8 +451,64 @@
   height: 18px;
 }
 
+.arl-errors-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 10px 14px;
+  background: #fffdfa;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.arl-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  border: 1px solid transparent;
+  font-variant-numeric: tabular-nums;
+}
+
+.arl-chip mat-icon {
+  font-size: 16px;
+  width: 16px;
+  height: 16px;
+}
+
+.arl-chip b {
+  font-weight: 800;
+}
+
+.arl-chip--danger {
+  background: #fee2e2;
+  color: #991b1b;
+  border-color: #fecaca;
+}
+
+.arl-chip--warn {
+  background: #fef3c7;
+  color: #92400e;
+  border-color: #fde68a;
+}
+
+.arl-chip--alert {
+  background: #ffe4e6;
+  color: #9f1239;
+  border-color: #fecdd3;
+}
+
+.arl-chip--info {
+  background: #e0f2fe;
+  color: #075985;
+  border-color: #bae6fd;
+}
+
 .arl-errors-table-wrapper {
-  max-height: 200px;
+  max-height: 260px;
   overflow-y: auto;
 }
 
