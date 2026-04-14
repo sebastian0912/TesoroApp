@@ -133,6 +133,10 @@ export class NavbarComponent implements OnInit, OnDestroy {
     'PARAMETRIZACIÓN DE NOVEDADES': 'nomina/parametrizacion-novedades',
     'CONVALIDADOR': 'nomina/convalidador',
     
+    // Afiliaciones
+    'Dashboard Afiliaciones': 'afiliaciones/dashboardAfiliaciones',
+    'Confirmación Ingresos': 'afiliaciones/confirmacion-ingresos',
+
     // MatDer
     'Dashboard': 'matder/dashboard',
     'Workspaces': 'matder/workspaces',
@@ -231,6 +235,11 @@ export class NavbarComponent implements OnInit, OnDestroy {
     'CONVALIDADOR': 'sync_alt',
     'Tarjetas': 'credit_card',
     
+    // Afiliaciones
+    'Afiliaciones': 'handshake',
+    'Dashboard Afiliaciones': 'dashboard',
+    'Confirmación Ingresos': 'price_check',
+
     // MatDer
     'MatDer': 'hub',
     'Dashboard': 'dashboard',
@@ -279,6 +288,7 @@ export class NavbarComponent implements OnInit, OnDestroy {
   async ngOnInit(): Promise<void> {
     if (this.isBrowser) {
       this.loadPermTreeFromStorage();
+      this.refreshPermisos();
       this.loadUIState();
       this.checkMobile();
       window.addEventListener('resize', this.onResize);
@@ -569,14 +579,19 @@ export class NavbarComponent implements OnInit, OnDestroy {
 
   public getNodeRoute(node: PermNode): string {
     const base = '/dashboard';
+
+    // If the node has a full relative path (contains '/'), use it directly
+    // to avoid name collisions in the routeMap
+    if (node.ruta) {
+      if (node.ruta.startsWith('/')) return node.ruta;
+      if (node.ruta.includes('/')) return `${base}/${node.ruta}`;
+    }
+
     const key = this.normalizeMenuKey(node?.nombre ?? '');
     const mapped = this.routeMapIndex[key];
     if (mapped) return `${base}/${mapped}`;
 
-    if (node.ruta) {
-      if (node.ruta.startsWith('/')) return node.ruta;
-      return `${base}/${node.ruta}`;
-    }
+    if (node.ruta) return `${base}/${node.ruta}`;
 
     return `${base}/${this.slug(node.nombre)}`;
   }

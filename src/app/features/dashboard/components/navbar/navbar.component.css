@@ -2,7 +2,7 @@
   --app-sidebar-gap: 0px;
   --app-sidebar-radius: 0px;
 
-  --app-left-w: 64px;
+  --app-left-w: 84px;
   --app-right-w: 260px;
 
   --app-sidebar-left-bg: #192030;
@@ -184,7 +184,28 @@
   align-items: center;
   gap: 1px;
   margin-top: 4px;
-  flex: 1;
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
+}
+
+.module-buttons::-webkit-scrollbar {
+  width: 4px;
+}
+
+.module-buttons::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.18);
+  border-radius: 999px;
+}
+
+.module-buttons > button {
+  flex: 0 0 auto;
 }
 
 .module-buttons>button {
@@ -423,6 +444,8 @@
 .right nav {
   margin-top: 8px;
   padding-right: 4px;
+  flex: 1 1 auto;
+  min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;

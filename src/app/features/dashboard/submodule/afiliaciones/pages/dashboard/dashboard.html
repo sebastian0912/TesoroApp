@@ -1,1 +1,95 @@
-<p>dashboard afiliaciones works!</p>
+<div class="afiliaciones-dashboard-layout">
+
+  <!-- Filtros -->
+  <app-afiliaciones-filters-bar
+    (rangeChanged)="onDateRangeChanged($event)"
+    (searchChanged)="onSearchChanged($event)">
+  </app-afiliaciones-filters-bar>
+
+  <!-- KPIs -->
+  <app-afiliaciones-kpi-strip [kpis]="kpiSummary$ | async">
+  </app-afiliaciones-kpi-strip>
+
+  <!-- Resumen por Oficina y Empresa -->
+  <div class="chart-grid summary-charts">
+
+    <!-- Resumen por Oficina -->
+    <app-chart-card title="Resumen por Oficina"
+      subtitle="Total de contrataciones agrupadas por oficina" [loading]="false">
+      @if (resumenOficinas$ | async; as oficinas) {
+        <div class="resumen-list">
+          @for (item of oficinas; track item.oficina) {
+            <div class="resumen-item">
+              <div class="resumen-info">
+                <span class="resumen-label">{{ item.oficina }}</span>
+                <div class="resumen-badges">
+                  <span class="badge badge-total">{{ item.total }}</span>
+                  <span class="badge badge-ok">{{ item.contratados }} contratados</span>
+                  @if (item.pendientes > 0) {
+                    <span class="badge badge-pending">{{ item.pendientes }} pendientes</span>
+                  }
+                </div>
+              </div>
+              <div class="resumen-bar-container">
+                <div class="resumen-bar"
+                  [style.width.%]="(item.total / getMaxBar(oficinas)) * 100">
+                </div>
+              </div>
+            </div>
+          }
+          @if (oficinas.length === 0) {
+            <div class="empty-state">
+              <mat-icon>business_center</mat-icon>
+              <span>Sin datos de oficinas</span>
+            </div>
+          }
+        </div>
+      }
+    </app-chart-card>
+
+    <!-- Resumen por Empresa -->
+    <app-chart-card title="Resumen por Empresa"
+      subtitle="Total de contrataciones agrupadas por empresa" [loading]="false">
+      @if (resumenEmpresas$ | async; as empresas) {
+        <div class="resumen-list">
+          @for (item of empresas; track item.empresa) {
+            <div class="resumen-item">
+              <div class="resumen-info">
+                <span class="resumen-label">{{ item.empresa }}</span>
+                <div class="resumen-badges">
+                  <span class="badge badge-total">{{ item.total }}</span>
+                  <span class="badge badge-ok">{{ item.contratados }} contratados</span>
+                  @if (item.pendientes > 0) {
+                    <span class="badge badge-pending">{{ item.pendientes }} pendientes</span>
+                  }
+                </div>
+              </div>
+              <div class="resumen-bar-container">
+                <div class="resumen-bar empresa-bar"
+                  [style.width.%]="(item.total / getMaxBar(empresas)) * 100">
+                </div>
+              </div>
+            </div>
+          }
+          @if (empresas.length === 0) {
+            <div class="empty-state">
+              <mat-icon>apartment</mat-icon>
+              <span>Sin datos de empresas</span>
+            </div>
+          }
+        </div>
+      }
+    </app-chart-card>
+  </div>
+
+  <!-- Tabla consolidada -->
+  <div class="chart-grid full-width-chart">
+    <app-chart-card title="Consolidado de Contrataciones"
+      subtitle="Detalle de todas las contrataciones 2.0 con fecha de ingreso en el rango seleccionado"
+      [loading]="false">
+      <app-contrataciones-table [data]="contrataciones$ | async">
+      </app-contrataciones-table>
+    </app-chart-card>
+  </div>
+
+</div>

@@ -120,7 +120,7 @@
     "@angular/ssr": "^21.2.0",
     "@capacitor/android": "^7.5.0",
     "@capacitor/core": "^7.5.0",
-    "@capgo/capacitor-document-scanner": "^8.3.18",
+    "@capgo/capacitor-document-scanner": "^7.2.5",
     "@fontsource/open-sans": "^5.2.7",
     "@fontsource/oswald": "^5.2.8",
     "@fontsource/roboto": "^5.2.10",
