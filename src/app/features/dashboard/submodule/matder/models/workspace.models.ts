@@ -13,6 +13,7 @@ export interface WorkspaceResponse {
   can_manage_members: boolean;
   can_create_boards: boolean;
   can_delete_workspace: boolean;
+  is_favorite?: boolean;
   created_at: string;
   updated_at: string;
 }

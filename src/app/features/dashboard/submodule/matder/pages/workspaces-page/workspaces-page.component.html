@@ -35,6 +35,7 @@
       <mat-label>Estado</mat-label>
       <mat-select [(ngModel)]="filterState">
         <mat-option value="all">Todos</mat-option>
+        <mat-option value="favorites">⭐ Favoritos</mat-option>
         <mat-option value="with_boards">Con tableros</mat-option>
         <mat-option value="empty">Sin tableros</mat-option>
       </mat-select>
@@ -57,9 +58,16 @@
         <mat-card class="ws-card" (click)="open(ws)">
           <div class="ws-top">
             <strong>{{ ws.name }}</strong>
-            <mat-chip-set>
-              <mat-chip [class]="'role-' + (ws.current_user_role ?? 'VIEWER').toLowerCase()">{{ roleLabel(ws.current_user_role) }}</mat-chip>
-            </mat-chip-set>
+            <div class="ws-top-right">
+              <button mat-icon-button class="fav-btn" [class.is-fav]="ws.is_favorite"
+                      (click)="toggleFavorite(ws); $event.stopPropagation()"
+                      [matTooltip]="ws.is_favorite ? 'Quitar de favoritos' : 'Marcar como favorito'">
+                <mat-icon>{{ ws.is_favorite ? 'star' : 'star_border' }}</mat-icon>
+              </button>
+              <mat-chip-set>
+                <mat-chip [class]="'role-' + (ws.current_user_role ?? 'VIEWER').toLowerCase()">{{ roleLabel(ws.current_user_role) }}</mat-chip>
+              </mat-chip-set>
+            </div>
           </div>
           <p class="ws-desc">{{ ws.description || 'Sin descripcion' }}</p>
           <div class="ws-meta">

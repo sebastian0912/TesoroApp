@@ -179,23 +179,12 @@
                 </div>
               }
 
-              <!-- Footer: add card -->
+              <!-- Footer: add card (abre modal completo) -->
               @if (b.can_manage_content) {
                 <div class="column-footer">
-                  @if (addingToListId === list.id) {
-                    <div class="add-form">
-                      <input class="card-input" [(ngModel)]="newCardTitle" placeholder="Titulo de la tarea..."
-                             (keyup.enter)="addCard(list)" (keyup.escape)="cancelAddCard()" autofocus>
-                      <div class="form-actions">
-                        <button mat-flat-button color="primary" (click)="addCard(list)">Agregar</button>
-                        <button mat-icon-button (click)="cancelAddCard()"><mat-icon>close</mat-icon></button>
-                      </div>
-                    </div>
-                  } @else {
-                    <button mat-button class="add-card-trigger" (click)="startAddCard(list.id)">
-                      <mat-icon>add</mat-icon> Añadir tarjeta
-                    </button>
-                  }
+                  <button mat-button class="add-card-trigger" (click)="startAddCard(list)">
+                    <mat-icon>add</mat-icon> Añadir tarjeta
+                  </button>
                 </div>
               }
             </article>
@@ -270,25 +259,65 @@
     <div class="modal-backdrop" (click)="closeCardModal()">
       <div class="modal-content card-modal" (click)="$event.stopPropagation()">
         <div class="modal-header">
-          <h3>{{ editingCardId ? 'Editar tarea' : 'Nueva tarea' }}</h3>
+          <div>
+            <p class="eyebrow">{{ editingCardId ? 'Editar tarea' : 'Nueva tarea' }}</p>
+            <h3>
+              <mat-icon class="title-icon">{{ editingCardId ? 'edit' : 'add_task' }}</mat-icon>
+              {{ editingCardId ? 'Actualizar tarea' : 'Crear tarea' }}
+            </h3>
+            @if (editingCardListName) {
+              <p class="modal-subtitle">
+                <mat-icon>view_kanban</mat-icon>
+                Lista: <strong>{{ editingCardListName }}</strong>
+                @if (editingCardListType) {
+                  <span class="status-pill" [attr.data-tone]="statusTone(cardFormStatus)">
+                    {{ statusLabel(cardFormStatus) }}
+                  </span>
+                }
+              </p>
+            }
+          </div>
           <button mat-icon-button (click)="closeCardModal()"><mat-icon>close</mat-icon></button>
         </div>
 
         <div class="modal-body">
           <!-- Titulo -->
           <mat-form-field appearance="outline" class="fw">
-            <mat-label>Titulo</mat-label>
-            <input matInput [(ngModel)]="cardFormTitle" maxlength="120" placeholder="Nombre de la tarea...">
+            <mat-label>Titulo de la tarea</mat-label>
+            <input matInput [(ngModel)]="cardFormTitle" maxlength="120"
+                   placeholder="Ej. Implementar autenticacion JWT" cdkFocusInitial>
+            <mat-icon matSuffix>title</mat-icon>
           </mat-form-field>
 
           <!-- Descripcion -->
           <mat-form-field appearance="outline" class="fw">
             <mat-label>Descripcion</mat-label>
             <textarea matInput [(ngModel)]="cardFormDesc" rows="3" maxlength="600"
-                      placeholder="Describe la tarea..."></textarea>
+                      placeholder="Contexto, criterios de aceptacion, links..."></textarea>
+            <mat-hint align="end">{{ cardFormDesc.length }}/600</mat-hint>
           </mat-form-field>
 
-          <!-- Prioridad + Fecha -->
+          <!-- Estado derivado de la lista (no editable) -->
+          <div class="status-banner">
+            <mat-icon>view_kanban</mat-icon>
+            <div>
+              <span class="status-banner-label">Estado de la tarea</span>
+              <div class="status-banner-value">
+                <span class="status-pill" [attr.data-tone]="statusTone(cardFormStatus)">
+                  <span class="status-dot" [class.status-todo]="cardFormStatus === 'TODO'"
+                        [class.status-in-progress]="cardFormStatus === 'IN_PROGRESS'"
+                        [class.status-blocked]="cardFormStatus === 'BLOCKED'"
+                        [class.status-done]="cardFormStatus === 'DONE'"></span>
+                  {{ statusLabel(cardFormStatus) }}
+                </span>
+                <span class="status-banner-hint">
+                  Determinado por la lista <strong>{{ editingCardListName }}</strong>. Para cambiarlo, mueve la tarjeta a otra columna.
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Prioridad / Fecha (2 columnas) -->
           <div class="modal-row">
             <mat-form-field appearance="outline" class="half">
               <mat-label>Prioridad</mat-label>
@@ -307,9 +336,20 @@
                 </mat-option>
               </mat-select>
             </mat-form-field>
+
             <mat-form-field appearance="outline" class="half">
-              <mat-label>Fecha de vencimiento</mat-label>
-              <input matInput type="date" [(ngModel)]="cardFormDueDate">
+              <mat-label>Fecha de entrega</mat-label>
+              <input matInput [matDatepicker]="duePicker" [(ngModel)]="cardFormDueDate"
+                     placeholder="DD/MM/YYYY">
+              <mat-datepicker-toggle matIconSuffix [for]="duePicker"></mat-datepicker-toggle>
+              <mat-datepicker #duePicker></mat-datepicker>
+              @if (cardFormDueDate) {
+                <button mat-icon-button matSuffix type="button"
+                        (click)="cardFormDueDate = null; $event.stopPropagation()"
+                        matTooltip="Quitar fecha">
+                  <mat-icon>clear</mat-icon>
+                </button>
+              }
             </mat-form-field>
           </div>
 

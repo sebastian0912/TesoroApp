@@ -115,15 +115,49 @@
 .add-form { padding: 8px 0; display: grid; gap: 8px; }
 
 /* Modal */
-.modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 1000; display: flex; align-items: center; justify-content: center; }
-.modal-content { background: #fff; border-radius: 16px; box-shadow: 0 12px 48px rgba(0,0,0,.2); max-width: 560px; width: 90%; max-height: 90vh; overflow-y: auto; }
-.modal-header { display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; border-bottom: 1px solid #e5e7eb; }
-.modal-header h3 { margin: 0; }
-.modal-body { padding: 20px; display: grid; gap: 4px; }
+.modal-backdrop { position: fixed; inset: 0; background: rgba(15, 23, 42, .55); z-index: 1000; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(2px); }
+.modal-content { background: #fff; border-radius: 18px; box-shadow: 0 24px 64px rgba(15, 23, 42, .25); max-width: 720px; width: 92%; max-height: 92vh; overflow-y: auto; }
+.card-modal { max-width: 760px; }
+.modal-header { display: flex; justify-content: space-between; align-items: flex-start; padding: 20px 24px 14px; border-bottom: 1px solid #e5e7eb; gap: 12px; }
+.modal-header h3 { margin: 0; display: flex; align-items: center; gap: 8px; font-size: 1.25rem; font-weight: 600; color: #0f172a; }
+.modal-header .title-icon { color: #1976d2; font-size: 22px; width: 22px; height: 22px; }
+.modal-header .eyebrow { margin: 0 0 4px; color: #1976d2; letter-spacing: 0.16em; text-transform: uppercase; font-size: 11px; font-weight: 700; }
+.modal-subtitle { margin: 8px 0 0; display: flex; align-items: center; gap: 6px; color: #64748b; font-size: .85rem; flex-wrap: wrap; }
+.modal-subtitle mat-icon { font-size: 16px; width: 16px; height: 16px; color: #1976d2; }
+.modal-subtitle strong { color: #0f172a; }
+.modal-subtitle .status-pill { margin: 0 0 0 6px; }
+.modal-body { padding: 20px 24px; display: grid; gap: 8px; }
 .modal-row { display: flex; gap: 12px; }
+.modal-row--triple { display: grid; grid-template-columns: 1fr 1fr 1.2fr; gap: 12px; }
 .half { flex: 1; }
 .fw { width: 100%; }
-.modal-footer { display: flex; justify-content: flex-end; gap: 8px; padding: 12px 20px; border-top: 1px solid #e5e7eb; }
+.modal-footer { display: flex; justify-content: flex-end; gap: 8px; padding: 14px 24px; border-top: 1px solid #e5e7eb; background: #f9fafb; }
+
+/* Status banner (estado derivado de la lista) */
+.status-banner { display: flex; align-items: flex-start; gap: 12px; padding: 14px 16px; border-radius: 12px; background: linear-gradient(180deg, #f8fafc, #fff); border: 1px solid #e2e8f0; margin-bottom: 4px; }
+.status-banner > mat-icon { color: #1976d2; flex-shrink: 0; margin-top: 2px; }
+.status-banner-label { display: block; font-size: .7rem; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: #64748b; margin-bottom: 6px; }
+.status-banner-value { display: flex; flex-direction: column; gap: 4px; }
+.status-banner-hint { font-size: .75rem; color: #64748b; line-height: 1.4; }
+.status-banner-hint strong { color: #0f172a; }
+
+/* Status dots in select */
+.status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 6px; }
+.status-todo { background: #eab308; }
+.status-in-progress { background: #2563eb; }
+.status-blocked { background: #dc2626; }
+.status-done { background: #16a34a; }
+
+/* Status pills inside modal subtitle (overrides padding for compactness) */
+.modal-subtitle .status-pill { padding: 4px 10px; font-size: 11px; }
+.status-pill[data-tone="todo"] { background: #fef9c3; color: #854d0e; }
+.status-pill[data-tone="in-progress"] { background: #dbeafe; color: #1e40af; }
+.status-pill[data-tone="blocked"] { background: #fee2e2; color: #991b1b; }
+.status-pill[data-tone="done"] { background: #dcfce7; color: #166534; }
+
+@media (max-width: 700px) {
+  .modal-row--triple { grid-template-columns: 1fr; }
+}
 
 /* Task group badge */
 .task-card-group { width: 26px; height: 26px; border-radius: 50%; background: #f3e8ff; color: #7c3aed; display: flex; align-items: center; justify-content: center; margin-right: 4px; }

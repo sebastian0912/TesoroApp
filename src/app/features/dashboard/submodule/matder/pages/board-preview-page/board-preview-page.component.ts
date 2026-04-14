@@ -15,6 +15,8 @@ import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatDividerModule } from '@angular/material/divider';
+import { MatDatepickerModule } from '@angular/material/datepicker';
+import { MatNativeDateModule } from '@angular/material/core';
 import { BoardService } from '../../services/board.service';
 import { WorkspaceService } from '../../services/workspace.service';
 import { MatderDashboardService } from '../../services/dashboard.service';
@@ -31,7 +33,7 @@ import Swal from 'sweetalert2';
     CommonModule, DatePipe, FormsModule, DragDropModule, MatButtonModule, MatIconModule,
     MatMenuModule, MatChipsModule, MatDialogModule, MatProgressSpinnerModule,
     MatTooltipModule, MatFormFieldModule, MatInputModule, MatSelectModule,
-    MatCheckboxModule, MatDividerModule,
+    MatCheckboxModule, MatDividerModule, MatDatepickerModule, MatNativeDateModule,
   ],
   templateUrl: './board-preview-page.component.html',
   styleUrls: ['./board-preview-page.component.css'],
@@ -62,10 +64,14 @@ export class BoardPreviewPageComponent implements OnInit {
   showCardModal = false;
   editingCardId: number | null = null;
   editingCardListId: number | null = null;
+  editingCardListName = '';
+  editingCardListType: string | null = null;
   cardFormTitle = '';
   cardFormDesc = '';
   cardFormPriority = 'MEDIUM';
-  cardFormDueDate = '';
+  cardFormStatus = 'TODO';
+  // Datepicker maneja Date; mantenemos string ISO para enviarlo al backend.
+  cardFormDueDate: Date | null = null;
   cardFormAssignee: string | null = null;
   cardFormGroup: number | null = null;
   
@@ -180,41 +186,49 @@ export class BoardPreviewPageComponent implements OnInit {
     }
   }
 
-  /** Mapea list_type a CardStatus */
-  private listTypeToStatus(listType: string | null): string | null {
-    if (!listType) return null;
-    const map: Record<string, string> = {
-      'TODO': 'TODO',
-      'IN_PROGRESS': 'IN_PROGRESS',
-      'BLOCKED': 'BLOCKED',
-      'DONE': 'DONE',
+  // ── Helpers de status según el tipo de lista ──
+  private listTypeToStatus(listType: string | null | undefined): string {
+    const m: Record<string, string> = {
+      TODO: 'TODO',
+      IN_PROGRESS: 'IN_PROGRESS',
+      BLOCKED: 'BLOCKED',
+      DONE: 'DONE',
     };
-    return map[listType] ?? null;
+    return (listType && m[listType]) || 'TODO';
   }
 
-  // ── Add card inline (quick) ──
-  startAddCard(listId: number): void {
-    this.addingToListId = listId;
-    this.newCardTitle = '';
+  /**
+   * Abre el modal de creación de tarea sobre una lista específica.
+   * El status se preconfigura según el tipo de la lista (TODO, IN_PROGRESS,
+   * BLOCKED, DONE) para mantener coherencia con la columna destino.
+   */
+  startAddCard(listOrId: BoardListResponse | number): void {
+    const list = typeof listOrId === 'number'
+      ? this.lists().find(l => l.id === listOrId) ?? null
+      : listOrId;
+    if (!list) return;
+
+    this.editingCardId = null;
+    this.editingCardListId = list.id;
+    this.editingCardListName = list.name;
+    this.editingCardListType = list.list_type ?? null;
+    this.cardFormTitle = '';
+    this.cardFormDesc = '';
+    this.cardFormPriority = 'MEDIUM';
+    this.cardFormStatus = this.listTypeToStatus(list.list_type);
+    this.cardFormDueDate = null;
+    this.cardFormAssignee = null;
+    this.cardFormGroup = null;
+    this.cardFormChecklists = [];
+    this.cardFormFiles = [];
+    this.cardFormNewChecklist = '';
+    this.showCardModal = true;
   }
 
   async addCard(list: BoardListResponse): Promise<void> {
-    if (!this.newCardTitle.trim()) return;
-    try {
-      const newCard = await this.boardService.createCard({
-        board_list: list.id,
-        title: this.newCardTitle.trim(),
-        position: list.cards?.length ?? 0,
-      });
-      this.cancelAddCard();
-      await this.loadBoard(this.board()!.id);
-      
-      // Abre inmediatamente el modal de detalle para que pueda completarla
-      this.openCardDetail({ id: newCard.id } as any);
-      
-    } catch {
-      Swal.fire('Error', 'No se pudo crear la tarjeta.', 'error');
-    }
+    // Mantiene compatibilidad con el atajo inline (Enter sobre el input).
+    // Hoy delega al modal completo para que el usuario complete los datos.
+    this.startAddCard(list);
   }
 
   cancelAddCard(): void { this.addingToListId = null; }
@@ -274,7 +288,9 @@ export class BoardPreviewPageComponent implements OnInit {
   // ── Card detail dialog ──
   openCardDetail(card: CardSummary): void {
     const ref = this.dialog.open(CardDetailDialogComponent, {
-      width: '700px', maxHeight: '90vh', data: { cardId: card.id },
+      width: '1040px', maxWidth: '96vw', maxHeight: '92vh',
+      panelClass: 'matder-card-detail-panel',
+      data: { cardId: card.id },
     });
     ref.afterClosed().subscribe(async (changed) => {
       if (changed) await this.loadBoard(this.board()!.id);
@@ -282,28 +298,18 @@ export class BoardPreviewPageComponent implements OnInit {
   }
 
   // ── Card modal (create/edit) ──
-  async openCreateCardForList(listId: number): Promise<void> {
-    try {
-      const newCard = await this.boardService.createCard({
-        board_list: listId,
-        title: 'Nueva Tarea',
-        position: 0,
-        status: 'TODO'
-      });
-      await this.loadBoard(this.board()!.id);
-      this.openCardDetail({ id: newCard.id } as any);
-    } catch {
-      Swal.fire('Error', 'No se pudo crear la tarjeta base.', 'error');
-    }
-  }
 
   openEditCard(card: CardSummary): void {
+    const list = this.lists().find(l => l.id === card.board_list) ?? null;
     this.editingCardId = card.id;
     this.editingCardListId = card.board_list;
+    this.editingCardListName = list?.name ?? '';
+    this.editingCardListType = list?.list_type ?? null;
     this.cardFormTitle = card.title;
     this.cardFormDesc = '';
     this.cardFormPriority = card.priority;
-    this.cardFormDueDate = card.due_at ? card.due_at.substring(0, 10) : '';
+    this.cardFormStatus = card.status ?? this.listTypeToStatus(list?.list_type);
+    this.cardFormDueDate = card.due_at ? new Date(card.due_at) : null;
     this.cardFormAssignee = card.assignee;
     this.cardFormGroup = card.assignee_group;
     this.showCardModal = true;
@@ -318,6 +324,14 @@ export class BoardPreviewPageComponent implements OnInit {
     this.editingCardId = null;
   }
 
+  /** Convierte la fecha del datepicker a ISO (yyyy-mm-ddT00:00:00) o null. */
+  private formatDueDate(d: Date | null): string | null {
+    if (!d) return null;
+    // Mantenemos hora local 23:59 para que el "vence hoy" no quede como vencido.
+    const local = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 0);
+    return local.toISOString();
+  }
+
   async submitCardForm(): Promise<void> {
     if (!this.cardFormTitle.trim() || this.cardSaving) return;
     this.cardSaving = true;
@@ -326,7 +340,8 @@ export class BoardPreviewPageComponent implements OnInit {
         title: this.cardFormTitle.trim(),
         description: this.cardFormDesc.trim(),
         priority: this.cardFormPriority,
-        due_at: this.cardFormDueDate || null,
+        status: this.cardFormStatus,
+        due_at: this.formatDueDate(this.cardFormDueDate),
         assignee: this.cardFormAssignee || null,
         assignee_group: this.cardFormGroup || null,
       };
@@ -338,7 +353,6 @@ export class BoardPreviewPageComponent implements OnInit {
       } else {
         payload['board_list'] = this.editingCardListId;
         payload['position'] = 0;
-        payload['status'] = 'TODO';
         const newCard = await this.boardService.createCard(payload as any);
         newCardId = newCard.id;
 

@@ -33,22 +33,23 @@ export class UtilityServiceService {
       localStorage.clear();
     }
   }
+
   traerSucursales(): Observable<any> {
-    return this.http.get(`${this.apiUrl}/gestion_admin/sedes`);
+    return this.http.get(`${this.apiUrl}/gestion_admin/sedes/`);
   }
 
   traerSucursales2(): Observable<any> {
-    return this.http.get(`${this.apiUrl}/gestion_admin/sedes`);
+    return this.http.get(`${this.apiUrl}/gestion_admin/sedes/`);
   }
 
   // traer empresas
   traerEmpresas(): Observable<any> {
-    return this.http.get(`${this.apiUrl}/gestion_admin/empresas`);
+    return this.http.get(`${this.apiUrl}/gestion_admin/empresas/`);
   }
 
   // traer roles
   traerRoles(): Observable<any> {
-    return this.http.get(`${this.apiUrl}/gestion_admin/roles`);
+    return this.http.get(`${this.apiUrl}/gestion_admin/roles/`);
   }
 
   // traer permisos
@@ -71,7 +72,7 @@ export class UtilityServiceService {
   }
 
   getAllUsers(): Observable<any> {
-    return this.http.get(`${this.apiUrl}/gestion_admin/usuarios`);
+    return this.http.get(`${this.apiUrl}/gestion_admin/usuarios/`);
   }
 
   // Traer datos de la comercializadora por codigo

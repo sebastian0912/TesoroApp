@@ -13,6 +13,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatChipsModule } from '@angular/material/chips';
 import { BoardService } from '../../services/board.service';
 import { WorkspaceService } from '../../services/workspace.service';
+import { MatderDashboardService } from '../../services/dashboard.service';
 import { BoardResponse } from '../../models/board.models';
 import { WorkspaceResponse } from '../../models/workspace.models';
 import Swal from 'sweetalert2';
@@ -39,6 +40,7 @@ export class BoardsPageComponent implements OnInit {
   loading = signal(true);
   search = '';
   wsFilter: number | null = null;
+  onlyFavorites = false;
 
   // Create board
   showForm = signal(false);
@@ -52,9 +54,26 @@ export class BoardsPageComponent implements OnInit {
   constructor(
     private boardService: BoardService,
     private wsService: WorkspaceService,
+    private dashboardService: MatderDashboardService,
     private router: Router,
     private route: ActivatedRoute,
   ) {}
+
+  /** Toggle de favorito con optimistic update + rollback en error. */
+  async toggleFavorite(b: BoardResponse): Promise<void> {
+    const before = !!b.is_favorite;
+    this.boards.set(this.boards().map(
+      x => x.id === b.id ? { ...x, is_favorite: !before } : x,
+    ));
+    try {
+      await this.dashboardService.toggleFavorite('BOARD', b.id);
+    } catch {
+      this.boards.set(this.boards().map(
+        x => x.id === b.id ? { ...x, is_favorite: before } : x,
+      ));
+      Swal.fire('Error', 'No se pudo actualizar favorito.', 'error');
+    }
+  }
 
   async ngOnInit(): Promise<void> {
     this.loading.set(true);
@@ -90,6 +109,9 @@ export class BoardsPageComponent implements OnInit {
     }
     if (this.wsFilter) {
       result = result.filter(b => b.workspace === this.wsFilter);
+    }
+    if (this.onlyFavorites) {
+      result = result.filter(b => !!b.is_favorite);
     }
     return result;
   }

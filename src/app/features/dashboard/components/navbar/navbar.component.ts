@@ -398,8 +398,6 @@ export class NavbarComponent implements OnInit, OnDestroy {
 
         // Inyectar "CÁLCULO DE NÓMINA" si no existe para asegurar visibilidad inmediata
         const nominaRoot = this.permTree.find(n => this.normalizeMenuKey(n.nombre) === 'NOMINA');
-        console.log('[NOMINA DEBUG] nominaRoot:', nominaRoot ? nominaRoot.nombre : 'NO ENCONTRADO');
-        console.log('[NOMINA DEBUG] hijos actuales:', nominaRoot?.hijos?.map(h => h.nombre));
         if (nominaRoot) {
           if (!nominaRoot.hijos) nominaRoot.hijos = [];
           const exists = nominaRoot.hijos.some(h => this.normalizeMenuKey(h.nombre) === 'CALCULO DE NOMINA');
@@ -440,7 +438,6 @@ export class NavbarComponent implements OnInit, OnDestroy {
           }
         }
 
-        console.log('Loaded permTree:', this.permTree);
         this.cdr.markForCheck();
       }
     } catch {

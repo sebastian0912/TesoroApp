@@ -11,8 +11,10 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatChipsModule } from '@angular/material/chips';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatTooltipModule } from '@angular/material/tooltip';
+import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { BoardService } from '../../services/board.service';
 import { CardSummary } from '../../models/board.models';
+import { CardDetailDialogComponent } from '../../components/card-detail-dialog/card-detail-dialog.component';
 
 @Component({
   selector: 'app-calendar-page',
@@ -20,7 +22,7 @@ import { CardSummary } from '../../models/board.models';
   imports: [
     DatePipe, FormsModule, MatCardModule, MatIconModule, MatButtonModule,
     MatFormFieldModule, MatInputModule, MatSelectModule, MatChipsModule,
-    MatProgressSpinnerModule, MatTooltipModule,
+    MatProgressSpinnerModule, MatTooltipModule, MatDialogModule,
   ],
   templateUrl: './calendar-page.component.html',
   styleUrls: ['./calendar-page.component.css'],
@@ -34,7 +36,31 @@ export class CalendarPageComponent implements OnInit {
   currentMonth = new Date();
   selectedDate: string | null = null;
 
-  constructor(private boardService: BoardService, private router: Router) {}
+  constructor(
+    private boardService: BoardService,
+    private router: Router,
+    private dialog: MatDialog,
+  ) {}
+
+  /**
+   * Abre el modal de detalle de una tarea. Al cerrar, recarga las cards
+   * del calendario si hubo cambios (título, fecha, etc.) para que la
+   * vista quede sincronizada.
+   */
+  openCardDetail(card: CardSummary): void {
+    const ref = this.dialog.open(CardDetailDialogComponent, {
+      width: '1040px', maxWidth: '96vw', maxHeight: '92vh',
+      panelClass: 'matder-card-detail-panel',
+      data: { cardId: card.id },
+    });
+    ref.afterClosed().subscribe(async (changed) => {
+      if (changed) {
+        try {
+          this.cards.set(await this.boardService.getCalendarCards());
+        } catch { /* ignore */ }
+      }
+    });
+  }
 
   async ngOnInit(): Promise<void> {
     try {

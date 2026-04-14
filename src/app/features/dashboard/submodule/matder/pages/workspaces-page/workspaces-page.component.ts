@@ -13,6 +13,7 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatAutocompleteModule } from '@angular/material/autocomplete';
 import { WorkspaceService } from '../../services/workspace.service';
+import { MatderDashboardService } from '../../services/dashboard.service';
 import { UtilityServiceService } from '../../../../../../shared/services/utilityService/utility-service.service';
 import { WorkspaceResponse, WorkspaceMemberResponse } from '../../models/workspace.models';
 import Swal from 'sweetalert2';
@@ -53,6 +54,7 @@ export class WorkspacesPageComponent implements OnInit {
 
   constructor(
     private wsService: WorkspaceService,
+    private dashboardService: MatderDashboardService,
     private utilityService: UtilityServiceService,
     private router: Router,
     private route: ActivatedRoute,
@@ -106,8 +108,31 @@ export class WorkspacesPageComponent implements OnInit {
       result = result.filter(w => w.board_count > 0);
     } else if (this.filterState === 'empty') {
       result = result.filter(w => w.board_count === 0);
+    } else if (this.filterState === 'favorites') {
+      result = result.filter(w => !!w.is_favorite);
     }
     return result;
+  }
+
+  /**
+   * Marca/desmarca el workspace como favorito. Optimistic update:
+   * cambiamos el estado local antes de la respuesta del servidor para
+   * que la UI se sienta instantánea.
+   */
+  async toggleFavorite(ws: WorkspaceResponse): Promise<void> {
+    const before = !!ws.is_favorite;
+    this.workspaces.set(this.workspaces().map(
+      w => w.id === ws.id ? { ...w, is_favorite: !before } : w,
+    ));
+    try {
+      await this.dashboardService.toggleFavorite('WORKSPACE', ws.id);
+    } catch {
+      // Rollback en caso de fallo.
+      this.workspaces.set(this.workspaces().map(
+        w => w.id === ws.id ? { ...w, is_favorite: before } : w,
+      ));
+      Swal.fire('Error', 'No se pudo actualizar favorito.', 'error');
+    }
   }
 
   filterUsers(): void {
