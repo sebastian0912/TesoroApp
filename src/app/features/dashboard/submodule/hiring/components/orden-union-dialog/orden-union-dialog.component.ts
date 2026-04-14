@@ -12,6 +12,7 @@ type Item = { id: number; name: string };
 
 /** Orden por defecto para el paquete de documentos de contratación */
 const DEFAULT_ORDER: number[] = [
+  111,  // FICHA_COMPLETA (el usuario decide si la deja o usa la técnica)
   34,   // FICHA_TECNICA
   29,   // CEDULA
   6,    // POLICIVOS
@@ -46,6 +47,7 @@ const DEFAULT_ORDER: number[] = [
 
 /** Paquete por finca (solo documentos esenciales por finca) */
 const FINCA_ORDER: number[] = [
+  111,  // FICHA_COMPLETA (el usuario decide si la deja o usa la técnica)
   34,   // FICHA_TECNICA
   29,   // CEDULA
   6,    // POLICIVOS
