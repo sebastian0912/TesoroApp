@@ -13,9 +13,11 @@ import { MatDividerModule } from '@angular/material/divider';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatTooltipModule } from '@angular/material/tooltip';
+
 import { BoardService } from '../../services/board.service';
 import { CardDetailResponse, CardStatus, CardPriority, LabelResponse } from '../../models/board.models';
 import Swal from 'sweetalert2';
+import { environment } from '@/environments/environment';
 
 @Component({
   selector: 'app-card-detail-dialog',
@@ -38,8 +40,14 @@ export class CardDetailDialogComponent implements OnInit {
   newChecklistItem = '';
   availableLabels = signal<LabelResponse[]>([]);
 
+  /** Holds the ISO date-time string for the native datetime-local input (format: YYYY-MM-DDTHH:mm) */
+  dueDateInput: string = '';
+
   statuses: CardStatus[] = ['TODO', 'IN_PROGRESS', 'BLOCKED', 'DONE'];
   priorities: CardPriority[] = ['LOW', 'MEDIUM', 'HIGH', 'URGENT'];
+
+  /** Current user identifier – used to style own messages differently */
+  private currentUserName: string | null = this.resolveCurrentUser();
 
   constructor(
     public dialogRef: MatDialogRef<CardDetailDialogComponent>,
@@ -51,16 +59,33 @@ export class CardDetailDialogComponent implements OnInit {
     await this.loadCard();
   }
 
+  private resolveCurrentUser(): string | null {
+    try {
+      const raw = localStorage.getItem('user');
+      if (!raw) return null;
+      const u = JSON.parse(raw);
+      return u?.full_name ?? u?.name ?? u?.username ?? u?.correo_electronico ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  /** Returns true when this comment belongs to the current logged-in user */
+  isOwnComment(authorName: string | null): boolean {
+    if (!this.currentUserName || !authorName) return false;
+    return authorName.trim().toLowerCase() === this.currentUserName.trim().toLowerCase();
+  }
+
   async loadCard(): Promise<void> {
     this.loading.set(true);
     try {
       const detail = await this.boardService.getCardDetail(this.data.cardId);
       this.card.set(detail);
-      // Load board labels for the add label dropdown
+      // Sync native datetime-local input value (requires 'YYYY-MM-DDTHH:mm' format)
+      this.dueDateInput = detail?.due_at ? this.toDatetimeLocal(detail.due_at) : '';
       if (detail) {
         try {
           const labels = await this.boardService.getLabels();
-          // Filter out already assigned labels
           const assignedIds = new Set((detail.card_labels ?? []).map(cl => cl.label));
           this.availableLabels.set(labels.filter(l => !assignedIds.has(l.id)));
         } catch { /* ignore */ }
@@ -80,6 +105,27 @@ export class CardDetailDialogComponent implements OnInit {
     } catch {
       Swal.fire('Error', 'No se pudo actualizar.', 'error');
     }
+  }
+
+  /** Converts an ISO string to the 'YYYY-MM-DDTHH:mm' format required by datetime-local inputs */
+  private toDatetimeLocal(iso: string): string {
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return '';
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  }
+
+  /** Called when the native datetime-local input changes */
+  async onDueDateChange(event: Event): Promise<void> {
+    const val = (event.target as HTMLInputElement).value;
+    const isoValue = val ? new Date(val).toISOString() : null;
+    await this.updateField('due_at', isoValue);
+  }
+
+  /** Clears the due date */
+  async clearDueDate(): Promise<void> {
+    this.dueDateInput = '';
+    await this.updateField('due_at', null);
   }
 
   // --- Comments ---
@@ -193,6 +239,18 @@ export class CardDetailDialogComponent implements OnInit {
     } catch { /* ignore */ }
   }
 
+  /** Build the full download URL for an upload file */
+  downloadUrl(fileUrl: string): string {
+    if (!fileUrl) return '';
+    // If the file URL is already absolute, use it directly
+    if (fileUrl.startsWith('http://') || fileUrl.startsWith('https://')) {
+      return fileUrl;
+    }
+    // Otherwise prefix with backend base URL
+    const base = environment.apiUrl.replace(/\/+$/, '');
+    return `${base}${fileUrl.startsWith('/') ? '' : '/'}${fileUrl}`;
+  }
+
   isImage(mime: string | null): boolean {
     return !!mime && mime.startsWith('image/');
   }
@@ -203,6 +261,17 @@ export class CardDetailDialogComponent implements OnInit {
     const sizes = ['B', 'KB', 'MB', 'GB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+  }
+
+  mimeIcon(mime: string | null): string {
+    if (!mime) return 'insert_drive_file';
+    if (mime.startsWith('image/')) return 'image';
+    if (mime === 'application/pdf') return 'picture_as_pdf';
+    if (mime.includes('spreadsheet') || mime.includes('excel')) return 'table_chart';
+    if (mime.includes('word') || mime.includes('document')) return 'description';
+    if (mime.startsWith('video/')) return 'videocam';
+    if (mime.startsWith('audio/')) return 'audiotrack';
+    return 'insert_drive_file';
   }
 
   // --- Delete card ---

@@ -121,18 +121,17 @@
                   <h3>{{ list.name }}</h3>
                   @if (list.list_type) { <span class="type-badge">{{ list.list_type }}</span> }
                   <p>{{ list.cards.length }} tareas en esta columna.</p>
+                  @if (b.can_manage_content) {
+                    <button mat-stroked-button class="add-card-inline" (click)="openCreateCardModal(list.id)">
+                      <mat-icon>add</mat-icon> Nueva tarea
+                    </button>
+                  }
                 </div>
 
                 <!-- Card drop list -->
                 <div class="task-list" cdkDropList [cdkDropListData]="list.cards" [id]="'list-' + list.id"
                      [cdkDropListConnectedTo]="getListIds()" (cdkDropListDropped)="onCardDrop($event, list)"
                      [cdkDropListDisabled]="!b.can_manage_content">
-
-                  @if (b.can_manage_content) {
-                    <button mat-stroked-button class="add-card-inline" (click)="startAddCard(list.id)">
-                      Nueva tarea
-                    </button>
-                  }
 
                   @if (list.cards.length > 0) {
                     @for (card of list.cards; track card.id) {
@@ -192,20 +191,9 @@
               <!-- Footer: add card -->
               @if (b.can_manage_content) {
                 <div class="column-footer">
-                  @if (addingToListId === list.id) {
-                    <div class="add-form">
-                      <input class="card-input" [(ngModel)]="newCardTitle" placeholder="Titulo de la tarea..."
-                             (keyup.enter)="addCard(list)" (keyup.escape)="cancelAddCard()" autofocus>
-                      <div class="form-actions">
-                        <button mat-flat-button color="primary" (click)="addCard(list)">Agregar</button>
-                        <button mat-icon-button (click)="cancelAddCard()"><mat-icon>close</mat-icon></button>
-                      </div>
-                    </div>
-                  } @else {
-                    <button mat-button class="add-card-trigger" (click)="startAddCard(list.id)">
-                      <mat-icon>add</mat-icon> Añadir tarjeta
-                    </button>
-                  }
+                  <button mat-button class="add-card-trigger" (click)="openCreateCardModal(list.id)">
+                    <mat-icon>add</mat-icon> Añadir tarjeta
+                  </button>
                 </div>
               }
             </article>
@@ -529,12 +517,12 @@
                         <!-- Agregar miembro -->
                         <div class="add-member-row">
                           <mat-form-field appearance="outline" class="grow">
-                            <mat-label>Agregar miembro del workspace</mat-label>
+                            <mat-label>Agregar usuario de la plataforma</mat-label>
                             <mat-select [(ngModel)]="addMemberToGroupId">
-                              @for (m of activeMembers; track m.id) {
-                                <mat-option [value]="m.user">
-                                  <span class="member-avatar-sm">{{ getMemberInitials(m) }}</span>
-                                  {{ getMemberLabel(m) }}
+                              @for (u of platformUsers(); track u.id) {
+                                <mat-option [value]="u.id">
+                                  <span class="member-avatar-sm">{{ (u.datos_basicos?.nombres || u.correo_electronico || 'U').slice(0, 2).toUpperCase() }}</span>
+                                  {{ u.datos_basicos?.nombres ? (u.datos_basicos.nombres + ' ' + (u.datos_basicos?.apellidos || '')) : u.correo_electronico || 'Usuario' }}
                                 </mat-option>
                               }
                             </mat-select>

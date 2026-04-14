@@ -1,5 +1,6 @@
 import { Component, OnInit, signal, ChangeDetectionStrategy } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
+import { firstValueFrom } from 'rxjs';
 import { CommonModule, DatePipe } from '@angular/common';
 import { CdkDragDrop, DragDropModule, moveItemInArray, transferArrayItem } from '@angular/cdk/drag-drop';
 import { FormsModule } from '@angular/forms';
@@ -22,6 +23,7 @@ import { BoardResponse, BoardListResponse, CardSummary } from '../../models/boar
 import { WorkspaceMemberResponse } from '../../models/workspace.models';
 import { UserGroupResponse, GroupMemberResponse } from '../../models/dashboard.models';
 import { CardDetailDialogComponent } from '../../components/card-detail-dialog/card-detail-dialog.component';
+import { UtilityServiceService } from '@/app/shared/services/utilityService/utility-service.service';
 import Swal from 'sweetalert2';
 
 @Component({
@@ -45,6 +47,7 @@ export class BoardPreviewPageComponent implements OnInit {
   // Workspace members & groups
   workspaceMembers = signal<WorkspaceMemberResponse[]>([]);
   workspaceGroups = signal<UserGroupResponse[]>([]);
+  platformUsers = signal<any[]>([]);
 
   // Add card inline
   newCardTitle = '';
@@ -90,6 +93,7 @@ export class BoardPreviewPageComponent implements OnInit {
     private boardService: BoardService,
     private workspaceService: WorkspaceService,
     private dashboardService: MatderDashboardService,
+    private utilityService: UtilityServiceService,
     private dialog: MatDialog,
   ) {}
 
@@ -122,17 +126,20 @@ export class BoardPreviewPageComponent implements OnInit {
 
   private async loadWorkspaceData(workspaceId: number): Promise<void> {
     try {
-      const [members, groups] = await Promise.all([
+      const [members, groups, allUsers] = await Promise.all([
         this.workspaceService.listMembers(workspaceId),
         this.dashboardService.getGroupsByWorkspace(workspaceId).catch(() =>
           this.dashboardService.getGroups().catch(() => [] as UserGroupResponse[])
         ),
+        firstValueFrom(this.utilityService.getAllUsers()).catch(() => [])
       ]);
-      this.workspaceMembers.set(members.filter(m => m.active));
+      this.workspaceMembers.set(members.filter((m: WorkspaceMemberResponse) => m.active));
       this.workspaceGroups.set(groups);
+      this.platformUsers.set(allUsers);
     } catch {
       this.workspaceMembers.set([]);
       this.workspaceGroups.set([]);
+      this.platformUsers.set([]);
     }
   }
 
@@ -282,6 +289,20 @@ export class BoardPreviewPageComponent implements OnInit {
   }
 
   // ── Card modal (create/edit) ──
+  openCreateCardModal(listId: number): void {
+    this.editingCardId = null;
+    this.editingCardListId = listId;
+    this.cardFormTitle = '';
+    this.cardFormDesc = '';
+    this.cardFormPriority = 'MEDIUM';
+    this.cardFormDueDate = '';
+    this.cardFormAssignee = null;
+    this.cardFormGroup = null;
+    this.cardFormChecklists = [];
+    this.cardFormFiles = [];
+    this.showCardModal = true;
+  }
+
   async openCreateCardForList(listId: number): Promise<void> {
     try {
       const newCard = await this.boardService.createCard({

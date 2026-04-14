@@ -1,13 +1,13 @@
 @if (loading()) {
   <div class="center"><mat-spinner diameter="36"></mat-spinner></div>
 } @else if (card(); as c) {
-  <h2 mat-dialog-title class="dialog-title" style="display: flex; align-items: center; gap: 8px;">
+  <h2 mat-dialog-title class="dialog-title">
     <mat-icon class="title-icon">assignment</mat-icon>
-    <input style="font-size: 1.5rem; font-weight: 500; border: none; outline: none; background: transparent; width: 100%; border-bottom: 2px solid transparent; transition: 0.2s;" 
-           [value]="c.title" 
+    <input class="title-input"
+           [value]="c.title"
            (blur)="updateField('title', $any($event.target).value)"
-           onfocus="this.style.borderBottom='2px solid #1976d2'"
-           onblur="this.style.borderBottom='2px solid transparent'">
+           onfocus="this.style.borderBottomColor='#1976d2'"
+           onblur="this.style.borderBottomColor='transparent'">
   </h2>
 
   <mat-dialog-content class="content">
@@ -17,7 +17,7 @@
       <span class="pill" [attr.data-prio]="c.priority.toLowerCase()">{{ priorityLabel(c.priority) }}</span>
       @if (c.due_at) {
         <span class="pill pill-date" [class.overdue]="isOverdue(c.due_at)">
-          <mat-icon>event</mat-icon> {{ c.due_at | date:'d MMM, y' }}
+          <mat-icon>event</mat-icon> {{ c.due_at | date:'d MMM y, h:mm a' }}
         </span>
       }
       @if (c.assignee_name) {
@@ -46,6 +46,21 @@
           }
         </mat-select>
       </mat-form-field>
+      <!-- ── Due date – native datetime picker ── -->
+      <mat-form-field appearance="outline" class="sm">
+        <mat-label>Fecha límite</mat-label>
+        <mat-icon matPrefix class="date-prefix-icon">event</mat-icon>
+        <input matInput type="datetime-local"
+               [(ngModel)]="dueDateInput"
+               (change)="onDueDateChange($event)"
+               class="native-date-input">
+        @if (dueDateInput) {
+          <button matSuffix mat-icon-button matTooltip="Limpiar fecha"
+                  (click)="clearDueDate(); $event.stopPropagation()">
+            <mat-icon>close</mat-icon>
+          </button>
+        }
+      </mat-form-field>
     </div>
 
     <mat-form-field appearance="outline" class="fw">
@@ -71,7 +86,6 @@
       } @else {
         <p class="muted">Sin etiquetas asignadas.</p>
       }
-      <!-- Add label -->
       @if (availableLabels().length > 0) {
         <div class="add-row">
           <mat-form-field appearance="outline" class="sm">
@@ -120,31 +134,47 @@
 
     <mat-divider></mat-divider>
 
-    <!-- Comments -->
+    <!-- ═══ CHAT COMMENTS ═══ -->
     <div class="section">
-      <h4><mat-icon>chat</mat-icon> Comentarios ({{ c.comments.length }})</h4>
-      @for (comment of c.comments; track comment.id) {
-        <div class="comment">
-          <div class="comment-header">
-            <div class="comment-avatar">{{ (comment.author_name ?? 'U').slice(0, 2).toUpperCase() }}</div>
-            <div class="comment-meta">
-              <strong>{{ comment.author_name ?? 'Usuario' }}</strong>
-              <span class="date">{{ comment.created_at | date:'d MMM, y h:mm a' }}</span>
-            </div>
-            <button mat-icon-button class="comment-del" (click)="deleteComment(comment.id)" matTooltip="Eliminar">
-              <mat-icon>delete</mat-icon>
-            </button>
+      <h4><mat-icon>chat</mat-icon> Chat ({{ c.comments.length }})</h4>
+      <div class="chat-window">
+        @if (c.comments.length === 0) {
+          <div class="chat-empty">
+            <mat-icon>forum</mat-icon>
+            <p>Sé el primero en comentar…</p>
           </div>
-          <p class="comment-body">{{ comment.body }}</p>
-        </div>
-      }
-      @if (c.comments.length === 0) {
-        <p class="muted">Sin comentarios aun.</p>
-      }
-      <div class="add-row comment-form">
-        <textarea class="inline-input grow" [(ngModel)]="newComment" placeholder="Escribe un comentario..."
-                  rows="2" (keyup.enter)="$any($event).ctrlKey && addComment()"></textarea>
-        <button mat-icon-button color="primary" (click)="addComment()" [disabled]="!newComment.trim()">
+        }
+        @for (comment of c.comments; track comment.id) {
+          <div class="chat-row" [class.own]="isOwnComment(comment.author_name)">
+            @if (!isOwnComment(comment.author_name)) {
+              <div class="chat-avatar">{{ (comment.author_name ?? 'U').slice(0, 2).toUpperCase() }}</div>
+            }
+            <div class="chat-bubble" [class.own-bubble]="isOwnComment(comment.author_name)">
+              @if (!isOwnComment(comment.author_name)) {
+                <div class="chat-author">{{ comment.author_name ?? 'Usuario' }}</div>
+              }
+              <p class="chat-body">{{ comment.body }}</p>
+              <div class="chat-footer">
+                <span class="chat-time">{{ comment.created_at | date:'d MMM, h:mm a' }}</span>
+                <button class="chat-del-btn" mat-icon-button (click)="deleteComment(comment.id)" matTooltip="Eliminar">
+                  <mat-icon>delete_outline</mat-icon>
+                </button>
+              </div>
+            </div>
+            @if (isOwnComment(comment.author_name)) {
+              <div class="chat-avatar own-av">{{ (comment.author_name ?? 'U').slice(0, 2).toUpperCase() }}</div>
+            }
+          </div>
+        }
+      </div>
+      <!-- Message input -->
+      <div class="chat-input-row">
+        <textarea class="chat-input" [(ngModel)]="newComment"
+                  placeholder="Escribe un mensaje... (Ctrl+Enter para enviar)"
+                  rows="2"
+                  (keydown.enter)="$any($event).ctrlKey && addComment()"></textarea>
+        <button mat-fab color="primary" class="chat-send" (click)="addComment()"
+                [disabled]="!newComment.trim()" matTooltip="Enviar">
           <mat-icon>send</mat-icon>
         </button>
       </div>
@@ -152,21 +182,22 @@
 
     <mat-divider></mat-divider>
 
-    <!-- Attachments -->
+    <!-- ═══ ATTACHMENTS ═══ -->
     <div class="section">
       <h4><mat-icon>attach_file</mat-icon> Adjuntos ({{ c.uploads.length }})</h4>
       @for (u of c.uploads; track u.id) {
         <div class="upload-row">
-          @if (isImage(u.mime_type)) {
-            <mat-icon class="upload-icon">image</mat-icon>
-          } @else {
-            <mat-icon class="upload-icon">insert_drive_file</mat-icon>
-          }
+          <mat-icon class="upload-icon" [class.img-icon]="isImage(u.mime_type)">{{ mimeIcon(u.mime_type) }}</mat-icon>
           <div class="upload-info">
             <span class="upload-name">{{ u.original_name }}</span>
             <span class="upload-size">{{ formatBytes(u.size_bytes) }}</span>
           </div>
-          <button mat-icon-button (click)="deleteUpload(u.id)" matTooltip="Eliminar">
+          <!-- Download button -->
+          <a [href]="downloadUrl(u.file)" [download]="u.original_name" target="_blank"
+             mat-icon-button matTooltip="Descargar" class="dl-btn">
+            <mat-icon>download</mat-icon>
+          </a>
+          <button mat-icon-button (click)="deleteUpload(u.id)" matTooltip="Eliminar" color="warn">
             <mat-icon>delete</mat-icon>
           </button>
         </div>

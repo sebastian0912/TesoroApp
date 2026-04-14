@@ -42,7 +42,7 @@ export class WorkspaceService {
   }
 
   searchMemberCandidates(wsId: number, query: string): Promise<any[]> {
-    return firstValueFrom(this.http.get<any[]>(`${this.base}/${wsId}/member-candidates/`, {
+    return firstValueFrom(this.http.get<any[]>(`${this.base}/${wsId}/member-candidates`, {
       params: { q: query }
     }).pipe(catchError(this.err)));
   }
