@@ -1,4 +1,4 @@
-import { Component, OnInit, ChangeDetectionStrategy } from '@angular/core';
+import { Component, OnInit, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormControl, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import { SharedModule } from '../../../../../../shared/shared.module';
@@ -96,7 +96,8 @@ export class CalculoNominaComponent implements OnInit {
   
   constructor(
     private nominaService: NominaService,
-    private dialog: MatDialog
+    private dialog: MatDialog,
+    private cdr: ChangeDetectorRef,
   ) {}
 
   ngOnInit(): void {
@@ -317,9 +318,16 @@ export class CalculoNominaComponent implements OnInit {
   private aplicarPreviewBackend(empleados: any[]): void {
     const byContrato = new Map<number, any>();
     empleados.forEach(e => byContrato.set(e.id_contrato, e));
+
+    // Mapea siempre todos los contratos con lo que calcule el backend.
+    // Los que no intersecten el periodo vendrán con dias=0 y montos en cero.
     this.contratos = this.contratos.map(c => {
       const calc = byContrato.get(c.id_contrato);
-      if (!calc) return c;
+      if (!calc) {
+        return { ...c, dias_laborados: 0, _devengado_basico: 0, _aux_trans: 0,
+          _salud: 0, _pension: 0, _total_devengado: 0, _total_deducido: 0,
+          _neto: 0, _conceptos: [] };
+      }
       const find = (codigo: string) =>
         Number((calc.conceptos || []).find((x: any) => x.codigo === codigo)?.valor_total || 0);
       return {
@@ -335,6 +343,135 @@ export class CalculoNominaComponent implements OnInit {
         _conceptos: calc.conceptos || [],
       };
     });
+
+    // Forzar re-render: OnPush + callbacks async no lo disparan por sí solos.
+    this.cdr.markForCheck();
+
+    // Candidatos a rechazo: cualquiera con días = 0 en el periodo.
+    const rechazables = this.contratos.filter(c => Number(c.dias_laborados) === 0);
+    if (rechazables.length) {
+      // Fire-and-forget: no bloquea el render. La tabla ya se ve con todos.
+      this.preguntarInclusionRechazables(rechazables);
+    }
+  }
+
+  private async preguntarInclusionRechazables(rechazables: any[]): Promise<void> {
+    const res = await Swal.fire({
+      icon: 'question',
+      title: `${rechazables.length} empleado(s) no laboraron en este periodo`,
+      text: '¿Desea realizar el cálculo para todos? En cualquier caso se descargará el Excel con los no elegibles.',
+      showCancelButton: true,
+      confirmButtonText: 'Sí, calcular para todos',
+      cancelButtonText: 'No, excluirlos',
+    });
+    // Ambas opciones descargan el Excel de rechazables.
+    await this.exportarExcluidosExcel(rechazables);
+
+    if (res.isConfirmed) {
+      // Re-pedir al backend el cálculo forzando días completos para TODOS.
+      this.loading = true;
+      this.cdr.markForCheck();
+      this.nominaService.calcularLiquidacion({
+        periodo_id: this.periodoControl.value.id_periodo,
+        cliente_id: this.selectedCliente!.id_entidad,
+        cecos: this.selectedCecoIds,
+        contrato_ids: this.contratos.map(c => c.id_contrato),
+        forzar_dias_completos: true,
+      }).subscribe({
+        next: (preview) => {
+          const byContrato = new Map<number, any>();
+          (preview.empleados || []).forEach(e => byContrato.set(e.id_contrato, e));
+          this.contratos = this.contratos.map(c => {
+            const calc = byContrato.get(c.id_contrato);
+            if (!calc) return c;
+            const find = (codigo: string) =>
+              Number((calc.conceptos || []).find((x: any) => x.codigo === codigo)?.valor_total || 0);
+            return {
+              ...c,
+              dias_laborados: calc.dias,
+              _devengado_basico: find('SUELDO'),
+              _aux_trans: find('AUX_TRANS'),
+              _salud: find('SALUD_EMP'),
+              _pension: find('PENSION_EMP'),
+              _total_devengado: Number(calc.total_devengado || 0),
+              _total_deducido: Number(calc.total_deducido || 0),
+              _neto: Number(calc.neto || 0),
+              _conceptos: calc.conceptos || [],
+            };
+          });
+          this.loading = false;
+          this.cdr.markForCheck();
+        },
+        error: () => {
+          this.loading = false;
+          this.cdr.markForCheck();
+          Swal.fire('Error', 'No se pudo recalcular con días completos', 'error');
+        }
+      });
+    } else {
+      // "No, excluirlos": removemos de la tabla.
+      const ids = new Set(rechazables.map(c => c.id_contrato));
+      this.contratos = this.contratos.filter(c => !ids.has(c.id_contrato));
+      this.cdr.markForCheck();
+    }
+  }
+
+  private async exportarExcluidosExcel(descartados: any[]): Promise<void> {
+    const workbook = new ExcelJS.Workbook();
+    const sheet = workbook.addWorksheet('Excluidos');
+    sheet.columns = [
+      { header: 'Contrato', key: 'codigo_contrato', width: 15 },
+      { header: 'Tipo Doc', key: 'tipo_documento', width: 10 },
+      { header: 'Documento', key: 'numero_documento', width: 15 },
+      { header: 'Primer Nombre', key: 'primer_nombre', width: 18 },
+      { header: 'Segundo Nombre', key: 'segundo_nombre', width: 18 },
+      { header: 'Primer Apellido', key: 'primer_apellido', width: 18 },
+      { header: 'Segundo Apellido', key: 'segundo_apellido', width: 18 },
+      { header: 'Cliente', key: 'cliente', width: 28 },
+      { header: 'Centro de Costo', key: 'centro_de_costo', width: 22 },
+      { header: 'CECO Código', key: 'ceco_codigo', width: 14 },
+      { header: 'Sede', key: 'ceco_sede', width: 14 },
+      { header: 'Fecha Ingreso', key: 'fecha_ingreso', width: 14 },
+      { header: 'Fecha Retiro', key: 'fecha_retiro', width: 14 },
+      { header: 'Salario Mes', key: 'salario', width: 14 },
+      { header: 'Aux. Transporte', key: 'auxilio_transporte', width: 14 },
+      { header: 'Motivo', key: 'motivo', width: 40 },
+    ];
+    const headerRow = sheet.getRow(1);
+    headerRow.height = 22;
+    headerRow.eachCell((cell) => {
+      cell.font = { bold: true, color: { argb: 'FFFFFF' } };
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: '2C3E50' } };
+      cell.alignment = { vertical: 'middle', horizontal: 'center' };
+    });
+
+    const periodoDesc = this.periodoControl.value?.descripcion || 'Periodo';
+    descartados.forEach(c => {
+      sheet.addRow({
+        codigo_contrato: c.codigo_contrato,
+        tipo_documento: c.tipo_documento,
+        numero_documento: c.numero_documento,
+        primer_nombre: c.primer_nombre,
+        segundo_nombre: c.segundo_nombre,
+        primer_apellido: c.primer_apellido,
+        segundo_apellido: c.segundo_apellido,
+        cliente: c.cliente,
+        centro_de_costo: c.centro_de_costo,
+        ceco_codigo: c.ceco_codigo,
+        ceco_sede: c.ceco_sede,
+        fecha_ingreso: c.fecha_ingreso,
+        fecha_retiro: c.fecha_retiro,
+        salario: Number(c.salario) || 0,
+        auxilio_transporte: Number(c.auxilio_transporte) || 0,
+        motivo: 'Vigencia del contrato no intersecta el periodo',
+      });
+    });
+    ['N', 'O'].forEach(k => sheet.getColumn(k).numFmt = '#,##0');
+
+    const buffer = await workbook.xlsx.writeBuffer();
+    const nombre = `Excluidos_${this.selectedCliente?.nombre_legal || 'Cliente'}_${periodoDesc}.xlsx`
+      .replace(/[\/\\?*\[\]:]/g, '_');
+    saveAs(new Blob([buffer]), nombre);
   }
 
   // Lecturas de presentación (NO calculan: solo leen el preview oficial del backend)

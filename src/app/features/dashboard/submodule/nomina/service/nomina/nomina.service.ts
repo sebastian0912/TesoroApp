@@ -160,6 +160,7 @@ export class NominaService {
     cliente_id?: number | null,
     cecos?: number[],
     contrato_ids?: number[],
+    forzar_dias_completos?: boolean,
   }): Observable<{ empleados: any[], totales: any }> {
     return this.http.post<{ empleados: any[], totales: any }>(
       `${this.baseNom}/payroll/calcular/`, payload,
