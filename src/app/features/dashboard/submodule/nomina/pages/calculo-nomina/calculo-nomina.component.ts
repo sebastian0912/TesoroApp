@@ -257,11 +257,15 @@ export class CalculoNominaComponent implements OnInit {
       Swal.fire('Atención', 'Debe seleccionar un cliente', 'warning');
       return;
     }
-    
-    // Forzamos actualización de días antes de buscar
-    this.actualizarDiasYNomina();
+    if (!this.periodoControl.value) {
+      Swal.fire('Atención', 'Seleccione el periodo de nómina', 'warning');
+      return;
+    }
 
+    this.actualizarDiasYNomina();
     this.loading = true;
+
+    // 1) Trae contratos filtrados (UI/listado).
     this.nominaService.getContratosFiltrados({
       cliente_id: this.selectedCliente.id_entidad,
       cecos: this.selectedCecoIds
@@ -270,12 +274,34 @@ export class CalculoNominaComponent implements OnInit {
         const data = res.data || res.results || res || [];
         this.contratos = data.map((c: any) => ({
           ...c,
-          dias_laborados: this.diasCalculados
+          dias_laborados: this.diasCalculados,
+          // placeholders mientras llega el preview oficial del backend
+          _devengado_basico: 0, _aux_trans: 0,
+          _salud: 0, _pension: 0, _neto: 0,
         }));
-        this.loading = false;
+
         if (this.contratos.length === 0) {
+          this.loading = false;
           Swal.fire('Info', 'No hay empleados activos para esta selección', 'info');
+          return;
         }
+
+        // 2) Pide al backend el cálculo oficial (no persiste).
+        this.nominaService.calcularLiquidacion({
+          periodo_id: this.periodoControl.value.id_periodo,
+          cliente_id: this.selectedCliente!.id_entidad,
+          cecos: this.selectedCecoIds,
+          contrato_ids: this.contratos.map(c => c.id_contrato),
+        }).subscribe({
+          next: (preview) => {
+            this.aplicarPreviewBackend(preview.empleados || []);
+            this.loading = false;
+          },
+          error: () => {
+            this.loading = false;
+            Swal.fire('Error', 'No se pudo calcular la nómina en el servidor', 'error');
+          }
+        });
       },
       error: () => {
         this.loading = false;
@@ -284,22 +310,39 @@ export class CalculoNominaComponent implements OnInit {
     });
   }
 
-  // Cálculos dinámicos
-  getDevengadoBasico(c: any): number {
-    return ((Number(c.salario) || 0) / 30) * (Number(c.dias_laborados) || 0);
+  /**
+   * Mapea el desglose oficial calculado en backend sobre los contratos en pantalla.
+   * Las fórmulas viven en el backend; aquí solo presentamos.
+   */
+  private aplicarPreviewBackend(empleados: any[]): void {
+    const byContrato = new Map<number, any>();
+    empleados.forEach(e => byContrato.set(e.id_contrato, e));
+    this.contratos = this.contratos.map(c => {
+      const calc = byContrato.get(c.id_contrato);
+      if (!calc) return c;
+      const find = (codigo: string) =>
+        Number((calc.conceptos || []).find((x: any) => x.codigo === codigo)?.valor_total || 0);
+      return {
+        ...c,
+        dias_laborados: calc.dias,
+        _devengado_basico: find('SUELDO'),
+        _aux_trans: find('AUX_TRANS'),
+        _salud: find('SALUD_EMP'),
+        _pension: find('PENSION_EMP'),
+        _total_devengado: Number(calc.total_devengado || 0),
+        _total_deducido: Number(calc.total_deducido || 0),
+        _neto: Number(calc.neto || 0),
+        _conceptos: calc.conceptos || [],
+      };
+    });
   }
-  getAuxilioTransporte(c: any): number {
-    return ((Number(c.auxilio_transporte) || 0) / 30) * (Number(c.dias_laborados) || 0);
-  }
-  getDeduccionSalud(c: any): number {
-    return this.getDevengadoBasico(c) * 0.04;
-  }
-  getDeduccionPension(c: any): number {
-    return this.getDevengadoBasico(c) * 0.04;
-  }
-  getNetoQuincena(c: any): number {
-    return this.getDevengadoBasico(c) + this.getAuxilioTransporte(c) - this.getDeduccionSalud(c) - this.getDeduccionPension(c);
-  }
+
+  // Lecturas de presentación (NO calculan: solo leen el preview oficial del backend)
+  getDevengadoBasico(c: any): number { return Number(c?._devengado_basico || 0); }
+  getAuxilioTransporte(c: any): number { return Number(c?._aux_trans || 0); }
+  getDeduccionSalud(c: any): number { return Number(c?._salud || 0); }
+  getDeduccionPension(c: any): number { return Number(c?._pension || 0); }
+  getNetoQuincena(c: any): number { return Number(c?._neto || 0); }
 
   guardarEnHistorico(): void {
     if (!this.periodoControl.value) {
@@ -321,21 +364,12 @@ export class CalculoNominaComponent implements OnInit {
 
   private ejecutarGuardado(): void {
     this.guardando = true;
-    const detalles = this.contratos.map(c => ({
-      id_contrato: c.id_contrato,
-      id_empleado: c.id_empleado,
-      dias: Number(c.dias_laborados),
-      sueldo_q: this.getDevengadoBasico(c),
-      aux_trans: this.getAuxilioTransporte(c),
-      salud: this.getDeduccionSalud(c),
-      pension: this.getDeduccionPension(c),
-      neto: this.getNetoQuincena(c)
-    }));
-
+    // El backend recalcula y persiste. El frontend solo identifica el alcance.
     const payload = {
       periodo_id: this.periodoControl.value.id_periodo,
-      cliente_id: this.selectedCliente?.id_org || null,
-      detalles
+      cliente_id: this.selectedCliente?.id_entidad || null,
+      cecos: this.selectedCecoIds,
+      contrato_ids: this.contratos.map(c => c.id_contrato),
     };
 
     this.nominaService.guardarLiquidacion(payload).subscribe({

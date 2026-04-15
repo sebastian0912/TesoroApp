@@ -145,8 +145,25 @@ export class NominaService {
     return this.http.get(`${this.baseNom}/periodos/`);
   }
 
-  guardarLiquidacion(payload: { periodo_id: number, cliente_id?: number | null, detalles: any[] }): Observable<any> {
+  guardarLiquidacion(payload: {
+    periodo_id: number,
+    cliente_id?: number | null,
+    cecos?: number[],
+    contrato_ids?: number[],
+    detalles?: any[],
+  }): Observable<any> {
     return this.http.post(`${this.baseNom}/payroll/guardar_liquidacion/`, payload);
+  }
+
+  calcularLiquidacion(payload: {
+    periodo_id: number,
+    cliente_id?: number | null,
+    cecos?: number[],
+    contrato_ids?: number[],
+  }): Observable<{ empleados: any[], totales: any }> {
+    return this.http.post<{ empleados: any[], totales: any }>(
+      `${this.baseNom}/payroll/calcular/`, payload,
+    );
   }
 
   crearPeriodo(data: any): Observable<any> {
