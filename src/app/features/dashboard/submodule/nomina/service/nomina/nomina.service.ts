@@ -121,10 +121,6 @@ export class NominaService {
     return this.http.post<ImportResult>(`${this.baseReg}/importar-excel/`, formData);
   }
 
-  getOrganizaciones(params: any = {}): Observable<any[]> {
-    return this.http.get<any[]>(`${this.baseNom}/organizaciones/`, { params });
-  }
-
   getClientes(params: any = {}): Observable<Client[]> {
     return this.http.get<Client[]>(`${this.baseNom}/organizaciones/`, { params });
   }
