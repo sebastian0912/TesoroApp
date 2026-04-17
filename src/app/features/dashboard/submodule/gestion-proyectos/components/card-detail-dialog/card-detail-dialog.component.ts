@@ -10,6 +10,7 @@ import { MatChipsModule } from '@angular/material/chips';
 import { MatSelectModule } from '@angular/material/select';
 import { MatDividerModule } from '@angular/material/divider';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatTooltipModule } from '@angular/material/tooltip';
 import { DatePipe } from '@angular/common';
 import { KanbanService } from '../../services/kanban.service';
 import { KanbanCard, KanbanCardEstado } from '../../models/kanban.models';
@@ -21,7 +22,7 @@ import Swal from 'sweetalert2';
   imports: [
     FormsModule, MatDialogModule, MatFormFieldModule, MatInputModule,
     MatButtonModule, MatIconModule, MatCheckboxModule, MatChipsModule,
-    MatSelectModule, MatDividerModule, MatProgressSpinnerModule, DatePipe,
+    MatSelectModule, MatDividerModule, MatProgressSpinnerModule, MatTooltipModule, DatePipe,
   ],
   templateUrl: './card-detail-dialog.component.html',
   styleUrls: ['./card-detail-dialog.component.css'],

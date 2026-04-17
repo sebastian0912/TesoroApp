@@ -95,7 +95,6 @@ const EXCLUDED_SEDES = new Set<string>([
   'ANDES',
   'FORANEOS',
   'MONTE_VERDE',
-  'SOTAQUIRA',
   'VIRTUAL',
 ]);
 

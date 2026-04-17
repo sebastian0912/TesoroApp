@@ -1,6 +1,7 @@
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { NetworkStatusService } from './network-status.service';
+import { PermissionsService } from './permissions.service';
 import { BehaviorSubject, firstValueFrom } from 'rxjs';
 
 interface SyncQueueItem {
@@ -37,7 +38,8 @@ export class OfflineSyncService {
 
   constructor(
     private http: HttpClient,
-    private networkService: NetworkStatusService
+    private networkService: NetworkStatusService,
+    private permissions: PermissionsService,
   ) {
     this.networkService.isOnline$.subscribe(async isOnline => {
       if (isOnline) {
@@ -148,7 +150,19 @@ export class OfflineSyncService {
       if (!urls || urls.length === 0) return;
 
       // Filtrar URLs que no son endpoints de API (ej: auth_login_password)
-      const apiUrls = urls.filter(u => u.startsWith('http'));
+      let apiUrls = urls.filter(u => u.startsWith('http'));
+
+      // No refrescar URLs del pipeline SELECCION si el usuario no lo consume:
+      // roles administrativos o usuarios sin permiso de lectura sobre SELECCION.
+      if (!this.permissions.canUseSeleccionPipeline()) {
+        const before = apiUrls.length;
+        apiUrls = apiUrls.filter(u => !this.permissions.isSeleccionPipelineUrl(u));
+        const skipped = before - apiUrls.length;
+        if (skipped > 0) {
+          console.log(`[Cache] ${skipped} URL(s) del pipeline SELECCION omitidas (usuario sin permiso).`);
+        }
+      }
+
       if (apiUrls.length === 0) return;
 
       console.log(`[Cache] Refrescando ${apiUrls.length} URLs cacheadas en segundo plano...`);
