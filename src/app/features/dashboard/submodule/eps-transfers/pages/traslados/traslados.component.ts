@@ -1,4 +1,4 @@
-import {  Component, OnInit, ViewChild , ChangeDetectionStrategy } from '@angular/core';
+import {  Component, OnInit, ViewChild , ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
 import { MatTableDataSource } from '@angular/material/table';
 import { MatDialog } from '@angular/material/dialog';
 import { TrasladosService } from '../../service/traslados.service';
@@ -56,6 +56,7 @@ export class TrasladosComponent implements OnInit {
     private trasladosService: TrasladosService,
     public dialog: MatDialog,
     private utilityService: UtilityServiceService,
+    private cdr: ChangeDetectorRef,
   ) { }
 
   ngAfterViewInit() {
@@ -69,7 +70,7 @@ export class TrasladosComponent implements OnInit {
 
     try {
       this.user = this.utilityService.getUser();
-      if (this.user && this.user.correo_electronico == 'traslados18@gmail.com' || this.user.correo_electronico == 'programador.ts@gmail.com') {
+      if (this.user && (this.user.correo_electronico == 'traslados18@gmail.com' || this.user.correo_electronico == 'programador.ts@gmail.com')) {
         this.istraslados18 = true;
       }
       // Cargar los traslados y esperar a que se complete
@@ -80,6 +81,7 @@ export class TrasladosComponent implements OnInit {
     } finally {
       this.dataLoaded = true; // Indica que los datos están completamente cargados
       Swal.close(); // Cerrar el modal después de cargar todos los datos
+      this.cdr.markForCheck();
     }
   }
 
@@ -89,6 +91,7 @@ export class TrasladosComponent implements OnInit {
       .cuantosTrasladosDisponibles()
       .toPromise();
     this.numTrasladosResponsableNull = cont.count_null_responsables;
+    this.cdr.markForCheck();
   }
   async mostrarTraslados() {
     Swal.fire({
@@ -140,6 +143,7 @@ export class TrasladosComponent implements OnInit {
       Swal.fire('Error', 'No se pudieron cargar los datos.', 'error');
     } finally {
       Swal.close(); // Cerrar modal de carga
+      this.cdr.markForCheck();
     }
   }
 

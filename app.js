@@ -87,7 +87,11 @@ function createWindow() {
   });
 
   // window.open siempre va al navegador del sistema, nunca crea otra BrowserWindow.
+  // blob: URLs (PDFs generados en memoria) se abren en una ventana Electron nueva.
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    if (/^blob:/i.test(url)) {
+      return { action: 'allow' };
+    }
     if (/^https?:\/\//i.test(url)) {
       shell.openExternal(url).catch(() => { /* noop */ });
     }
@@ -360,6 +364,7 @@ app.on('before-quit', () => {
 // Endurece webContents: bloquea permisos del navegador por defecto (cámara, mic, etc.)
 app.on('web-contents-created', (_event, contents) => {
   contents.setWindowOpenHandler(({ url }) => {
+    if (/^blob:/i.test(url)) return { action: 'allow' };
     if (/^https?:\/\//i.test(url)) shell.openExternal(url).catch(() => { /* noop */ });
     return { action: 'deny' };
   });

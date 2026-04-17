@@ -1436,8 +1436,8 @@ export class HiringReportComponent implements OnInit, OnDestroy {
 
           if (!isDateString) {
             val = val.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-            // Preservamos @ (correos) además de letras, dígitos y espacios.
-            val = val.replace(/[^a-zA-Z0-9\s@]/g, '');
+            // Preservamos @ (correos), +, -, y . además de letras, dígitos y espacios.
+            val = val.replace(/[^a-zA-Z0-9\s@+\-.]/g, '');
             cell.v = val;
             if (typeof cell.w === 'string') cell.w = val;
           }

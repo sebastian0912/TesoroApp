@@ -1,4 +1,4 @@
-import {  Component , ChangeDetectionStrategy } from '@angular/core';
+import {  Component , ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
 import { TrasladosService } from '../../service/traslados.service';
 import { SharedModule } from '@/app/shared/shared.module';
 import { FormBuilder, FormGroup, Validators } from '@angular/forms';
@@ -29,7 +29,8 @@ export class TransferQueryComponent {
 
   constructor(
     private trasladosService: TrasladosService,
-    private fb: FormBuilder
+    private fb: FormBuilder,
+    private cdr: ChangeDetectorRef,
   ) {
     this.myForm = this.fb.group({
       cedula: ['', Validators.required],
@@ -60,6 +61,7 @@ export class TransferQueryComponent {
         (data: any) => {
           Swal.close(); // Cierra el swal al recibir respuesta
           this.dataSource.data = data;
+          this.cdr.markForCheck();
         },
         (error: any) => {
           Swal.close(); // Cierra el swal si hay error
@@ -68,6 +70,7 @@ export class TransferQueryComponent {
             title: 'Error',
             text: 'No se pudo realizar la consulta. Por favor, inténtelo de nuevo más tarde.',
           });
+          this.cdr.markForCheck();
         }
       );
     }
