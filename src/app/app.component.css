@@ -1,0 +1,305 @@
+/* ─── Updater overlay ─────────────────────────────────────────────────────
+   z-index altísimo para tapar Material dialogs/snackbars/menus. Bloquea por
+   DOM (no depende de SwAL ni librería externa). El backdrop captura todos
+   los clicks y el card se centra con flex. */
+
+.updater-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  font-family: 'Open Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  animation: updater-overlay-in 0.25s ease-out;
+}
+
+.updater-backdrop {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at center,
+    rgba(5, 27, 63, 0.88) 0%,
+    rgba(5, 27, 63, 0.96) 100%);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.updater-card {
+  position: relative;
+  width: 100%;
+  max-width: 460px;
+  padding: 40px 36px 36px;
+  background: #ffffff;
+  border-radius: 24px;
+  box-shadow:
+    0 32px 64px -12px rgba(5, 27, 63, 0.45),
+    0 0 0 1px rgba(255, 255, 255, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.6);
+  text-align: center;
+  animation: updater-card-in 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* ─── Icono superior ───────────────────────────────────────────────────── */
+
+.updater-icon {
+  width: 72px;
+  height: 72px;
+  margin: 0 auto 20px;
+  border-radius: 20px;
+  background: linear-gradient(135deg, #f1f5f9, #e2e8f0);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow:
+    0 8px 24px -8px rgba(15, 23, 42, 0.15),
+    inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  position: relative;
+}
+
+.updater-icon .material-symbols-outlined {
+  font-size: 36px;
+  color: #475569;
+  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+}
+
+.updater-icon--accent {
+  background: linear-gradient(135deg, #1565C0, #0d47a1);
+  box-shadow:
+    0 12px 32px -8px rgba(21, 101, 192, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+
+.updater-icon--accent .material-symbols-outlined {
+  color: #ffffff;
+}
+
+.updater-icon--success {
+  background: linear-gradient(135deg, #2E7D32, #1b5e20);
+  box-shadow:
+    0 12px 32px -8px rgba(46, 125, 50, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.25);
+  animation: updater-icon-pop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.updater-icon--success .material-symbols-outlined {
+  color: #ffffff;
+  font-variation-settings: 'FILL' 1, 'wght' 500, 'GRAD' 0, 'opsz' 24;
+}
+
+.updater-icon__spin {
+  animation: updater-spin 1.2s linear infinite;
+  display: inline-block;
+}
+
+/* ─── Texto ────────────────────────────────────────────────────────────── */
+
+.updater-title {
+  margin: 0 0 8px;
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: #0f172a;
+  letter-spacing: -0.01em;
+}
+
+.updater-subtitle {
+  margin: 0 0 20px;
+  font-size: 0.92rem;
+  color: #64748b;
+  line-height: 1.5;
+  max-width: 340px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.updater-version {
+  display: inline-block;
+  margin: 0 auto 12px;
+  padding: 4px 12px;
+  background: #eff6ff;
+  color: #1565C0;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.updater-hint {
+  margin: 16px 0 0;
+  font-size: 0.78rem;
+  color: #94a3b8;
+  font-style: italic;
+}
+
+.updater-eta {
+  margin: 12px 0 0;
+  font-size: 0.85rem;
+  color: #475569;
+  font-weight: 500;
+}
+
+/* ─── Barra de progreso (downloading) ──────────────────────────────────── */
+
+.updater-progress {
+  position: relative;
+  width: 100%;
+  height: 10px;
+  margin: 12px 0 14px;
+  background: #e2e8f0;
+  border-radius: 999px;
+  overflow: hidden;
+  box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.08);
+}
+
+.updater-progress__bar {
+  height: 100%;
+  background: linear-gradient(90deg, #1565C0 0%, #1976D2 50%, #42a5f5 100%);
+  border-radius: 999px;
+  transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+.updater-progress__shimmer {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.3) 50%,
+    transparent 100%
+  );
+  animation: updater-shimmer 1.5s linear infinite;
+}
+
+/* Barra indeterminada (estado available, antes de que llegue el primer progress) */
+.updater-progress__indeterminate {
+  position: absolute;
+  height: 100%;
+  width: 30%;
+  background: linear-gradient(90deg, #1565C0, #42a5f5);
+  border-radius: 999px;
+  animation: updater-indeterminate 1.5s ease-in-out infinite;
+}
+
+/* ─── Meta (pct, size, speed) ──────────────────────────────────────────── */
+
+.updater-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 0.78rem;
+  color: #64748b;
+  font-variant-numeric: tabular-nums;
+}
+
+.updater-meta__pct {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #0f172a;
+  letter-spacing: -0.02em;
+}
+
+.updater-meta__size,
+.updater-meta__speed {
+  font-weight: 500;
+}
+
+/* ─── Loaders ──────────────────────────────────────────────────────────── */
+
+.updater-dots {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.updater-dots span {
+  width: 8px;
+  height: 8px;
+  background: #1565C0;
+  border-radius: 50%;
+  animation: updater-pulse 1.2s ease-in-out infinite;
+}
+
+.updater-dots span:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.updater-dots span:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+.updater-ready-spinner {
+  margin-top: 16px;
+  display: flex;
+  justify-content: center;
+}
+
+.updater-ready-spinner .material-symbols-outlined {
+  font-size: 32px;
+  color: #2E7D32;
+  font-variation-settings: 'FILL' 0, 'wght' 500, 'GRAD' 0, 'opsz' 24;
+}
+
+/* ─── Animaciones ──────────────────────────────────────────────────────── */
+
+@keyframes updater-overlay-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes updater-card-in {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes updater-spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes updater-shimmer {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(100%); }
+}
+
+@keyframes updater-indeterminate {
+  0% { left: -30%; }
+  100% { left: 100%; }
+}
+
+@keyframes updater-pulse {
+  0%, 80%, 100% { opacity: 0.3; transform: scale(0.8); }
+  40% { opacity: 1; transform: scale(1); }
+}
+
+@keyframes updater-icon-pop {
+  0% { transform: scale(0.5); opacity: 0; }
+  60% { transform: scale(1.08); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+/* ─── Pantallas pequeñas ───────────────────────────────────────────────── */
+
+@media (max-width: 480px) {
+  .updater-card {
+    padding: 32px 24px 28px;
+    border-radius: 20px;
+  }
+
+  .updater-title {
+    font-size: 1.2rem;
+  }
+
+  .updater-meta {
+    flex-wrap: wrap;
+    gap: 4px;
+    justify-content: center;
+  }
+}

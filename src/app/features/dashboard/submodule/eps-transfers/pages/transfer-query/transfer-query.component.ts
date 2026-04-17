@@ -4,6 +4,7 @@ import { SharedModule } from '@/app/shared/shared.module';
 import { FormBuilder, FormGroup, Validators } from '@angular/forms';
 import Swal from 'sweetalert2';
 import { MatTableDataSource, MatTableModule } from '@angular/material/table';
+import { ElectronWindowService } from '@/app/core/services/electron-window.service';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -31,6 +32,7 @@ export class TransferQueryComponent {
     private trasladosService: TrasladosService,
     private fb: FormBuilder,
     private cdr: ChangeDetectorRef,
+    private electronWindow: ElectronWindowService,
   ) {
     this.myForm = this.fb.group({
       cedula: ['', Validators.required],
@@ -85,18 +87,7 @@ export class TransferQueryComponent {
   }
 
   verDocumento(solicitud: string): void {
-    if (solicitud.startsWith('data:application/pdf;base64,')) {
-      const base64 = solicitud.split(',')[1];
-      const byteCharacters = atob(base64);
-      const byteNumbers = new Array(byteCharacters.length).fill(0).map((_, i) => byteCharacters.charCodeAt(i));
-      const byteArray = new Uint8Array(byteNumbers);
-      const blob = new Blob([byteArray], { type: 'application/pdf' });
-
-      const blobUrl = URL.createObjectURL(blob);
-      window.open(blobUrl, '_blank');
-    } else {
-      window.open(solicitud, '_blank');
-    }
+    this.electronWindow.openDocument(solicitud, { title: 'Solicitud de traslado' });
   }
 
 }

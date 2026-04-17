@@ -12,6 +12,7 @@ import { LeerAdresComponent } from '../../components/leer-adres/leer-adres.compo
 import { InfoCardComponent } from '../../../../../../shared/components/info-card/info-card.component';
 import { UtilityServiceService } from '../../../../../../shared/services/utilityService/utility-service.service';
 import { SharedModule } from '../../../../../../shared/shared.module';
+import { ElectronWindowService } from '../../../../../../core/services/electron-window.service';
 import { MatPaginator, MatPaginatorModule } from '@angular/material/paginator';
 import { MatDatepickerModule } from '@angular/material/datepicker';
 import { MatNativeDateModule } from '@angular/material/core';
@@ -57,6 +58,7 @@ export class TrasladosComponent implements OnInit {
     public dialog: MatDialog,
     private utilityService: UtilityServiceService,
     private cdr: ChangeDetectorRef,
+    private electronWindow: ElectronWindowService,
   ) { }
 
   ngAfterViewInit() {
@@ -191,36 +193,14 @@ export class TrasladosComponent implements OnInit {
     return base64Regex.test(value.trim());
   }
 
-  // Abre el PDF en base64 en una nueva pestaña
+  // Abre el PDF en base64 en una ventana hija de Electron (o pestaña en web).
   openBase64PDF(base64: string): void {
-    const cleanBase64 = base64.replace(/^data:application\/pdf;base64,/, '');
-    try {
-      const binaryString = window.atob(cleanBase64);
-      const len = binaryString.length;
-      const bytes = new Uint8Array(len);
-
-      for (let i = 0; i < len; i++) {
-        bytes[i] = binaryString.charCodeAt(i);
-      }
-
-      const blob = new Blob([bytes], { type: 'application/pdf' });
-      const blobUrl = URL.createObjectURL(blob);
-
-      window.open(blobUrl, '_blank');
-    } catch (error) {
-      Swal.fire('Error', 'Error al abrir el archivo PDF', 'error');
-    }
+    this.electronWindow.openPdfFromBase64(base64, { title: 'Solicitud de traslado' });
   }
 
   // Abre el enlace o PDF dependiendo del caso
   openDocument(value: string): void {
-    if (this.isUrl(value)) {
-      window.open(value, '_blank'); // Abre el link en una nueva pestaña
-    } else if (this.isBase64PDF(value)) {
-      this.openBase64PDF(value); // Abre el PDF en base64
-    } else {
-      alert('No disponible'); // Muestra un mensaje si no es válido
-    }
+    this.electronWindow.openDocument(value, { title: 'Solicitud de traslado' });
   }
 
   // Método para determinar el texto del botón
@@ -400,16 +380,18 @@ export class TrasladosComponent implements OnInit {
     this.trasladosService.traerCedulaEscaneada(codigoTraslado).subscribe(
       (data: any) => {
         Swal.close();
-        if (data.cedula_escaneada_delante) {
-          // Mostrar la cédula en PDF si es Base64
-          if (this.isBase64PDF(data.cedula_escaneada_delante)) {
-            this.openBase64PDF(data.cedula_escaneada_delante);
-          } else {
-            Swal.fire('Error', 'La cédula no es un PDF válido.', 'error');
-          }
-        } else {
-          Swal.fire('Error', 'No se encontró la cédula escaneada.', 'error');
+        const dataUrl: string | undefined = data?.cedula_escaneada_delante;
+        const fileUrl: string | undefined = data?.file_url;
+
+        if (dataUrl && this.isBase64PDF(dataUrl)) {
+          this.openBase64PDF(dataUrl);
+          return;
         }
+        if (fileUrl) {
+          this.electronWindow.openExternal(fileUrl);
+          return;
+        }
+        Swal.fire('Error', 'No se encontró la cédula escaneada.', 'error');
       },
       (error) => {
         Swal.close(); // Cerrar Swal de carga

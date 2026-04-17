@@ -58,6 +58,9 @@
       "differentialPackage": true
     },
     "asar": true,
+    "asarUnpack": [
+      "**/node_modules/sqlite3/**/*"
+    ],
     "publish": [
       {
         "provider": "github",

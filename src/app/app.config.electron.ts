@@ -1,9 +1,12 @@
-import { ApplicationConfig, provideZoneChangeDetection } from '@angular/core';
+import { APP_INITIALIZER, ApplicationConfig, provideZoneChangeDetection } from '@angular/core';
 import { provideRouter, withHashLocation } from '@angular/router';
 import { routes } from './app.routes';
 import { provideHttpClient, withFetch, withInterceptors } from '@angular/common/http';
 import { provideAnimations } from '@angular/platform-browser/animations';
 import { interceptor } from './core/interceptors/auth.interceptor';
+import { offlineInterceptor } from './core/interceptors/offline.interceptor';
+import { OfflineSyncService } from './core/services/offline-sync.service';
+import { PipelinePreloadService } from './core/services/pipeline-preload.service';
 
 /**
  * Electron-specific config: always uses HashLocationStrategy.
@@ -16,8 +19,16 @@ export const appConfig: ApplicationConfig = {
     provideRouter(routes, withHashLocation()),
     provideHttpClient(
       withFetch(),
-      withInterceptors([interceptor])
+      withInterceptors([interceptor, offlineInterceptor])
     ),
     provideAnimations(),
+    // Instancia temprana: el sync escucha isOnline$ y procesa la cola SQLite
+    // al recuperar red; sin esto la cola crecería pero no se vaciaría.
+    {
+      provide: APP_INITIALIZER,
+      useFactory: () => () => {},
+      deps: [OfflineSyncService, PipelinePreloadService],
+      multi: true,
+    },
   ],
 };

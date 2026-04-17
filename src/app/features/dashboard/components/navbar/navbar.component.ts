@@ -685,7 +685,13 @@ export class NavbarComponent implements OnInit, OnDestroy {
   // ===== auth =====
   public cerrarSesion(): void {
     this.lsClear();
-    this.router.navigate(['']);
+    // Borra cache/queue/offline-uploads SQLite para que un segundo usuario en
+    // el mismo equipo no vea datos del anterior. Best-effort: si falla, seguimos.
+    const electronApi = (typeof window !== 'undefined' ? (window as any).electron : null);
+    const clearPromise: Promise<any> = electronApi?.db?.clearUserData
+      ? electronApi.db.clearUserData().catch(() => null)
+      : Promise.resolve();
+    clearPromise.finally(() => this.router.navigate(['']));
   }
 
   public trackByNodeId = (_: number, n: PermNode) => n.id;

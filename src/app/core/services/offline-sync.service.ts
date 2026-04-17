@@ -11,6 +11,15 @@ interface SyncQueueItem {
   headers: string | null;
   timestamp: string;
   status: string;
+  body_type?: 'json' | 'multipart';
+}
+
+interface StoredFile {
+  id: number;
+  field_name: string;
+  file_name: string;
+  mime_type: string | null;
+  stored_path: string;
 }
 
 @Injectable({
@@ -63,7 +72,23 @@ export class OfflineSyncService {
 
         try {
           let body: any = null;
-          if (item.body) {
+
+          if (item.body_type === 'multipart') {
+            // Reconstruir el FormData original: campos no-file desde el JSON
+            // del body, y cada File leyendo el binario que persistimos en
+            // disco al encolarlo. El Content-Type se omite a propósito: el
+            // browser lo regenera con el boundary correcto del nuevo FormData.
+            const reconstructed = await this.rebuildFormData(item);
+            if (!reconstructed) {
+              // Algún archivo desapareció (cleanup, antivirus, usuario borró).
+              // Marcamos como failed y seguimos: no tiene sentido reintentar.
+              console.warn(`[Sync] Archivos faltantes para request ${item.id}. Marcada como fallida.`);
+              await this.electron.db.markRequestStatus({ id: item.id, status: 'failed' });
+              failed++;
+              continue;
+            }
+            body = reconstructed;
+          } else if (item.body) {
             try { body = JSON.parse(item.body); } catch { body = item.body; }
           }
 
@@ -75,13 +100,15 @@ export class OfflineSyncService {
             })
           );
 
+          // deleteRequest borra también los archivos del disco (FK CASCADE limpia la DB).
           await this.electron.db.deleteRequest(item.id);
           synced++;
         } catch (error: any) {
           const status = error?.status || 0;
 
           if (status >= 400 && status < 500 && status !== 401) {
-            // Error del cliente (datos inválidos, etc.) — no se puede reintentar
+            // Error del cliente (datos inválidos, etc.) — no se puede reintentar.
+            // markRequestStatus('failed') libera los archivos del disco.
             console.warn(`[Sync] Solicitud ${item.id} falló con ${status}. Marcada como fallida.`);
             await this.electron.db.markRequestStatus({ id: item.id, status: 'failed' });
             failed++;
@@ -165,5 +192,59 @@ export class OfflineSyncService {
         this.pendingCount$.next(pending ? pending.length : 0);
       } catch { }
     }
+  }
+
+  /**
+   * Reconstruye el FormData de una request multipart leyendo los archivos que
+   * el interceptor persistió a disco al encolarla. Devuelve null si algún
+   * archivo no se puede leer (entonces la request se marca como failed).
+   */
+  private async rebuildFormData(item: SyncQueueItem): Promise<FormData | null> {
+    const fd = new FormData();
+
+    // Campos no-file que se serializaron como JSON.
+    if (item.body) {
+      try {
+        const fields: { name: string; value: string }[] = JSON.parse(item.body);
+        if (Array.isArray(fields)) {
+          for (const f of fields) fd.append(f.name, f.value);
+        }
+      } catch (e) {
+        console.warn(`[Sync] body JSON corrupto en request ${item.id}:`, e);
+      }
+    }
+
+    // Files que viven en disco: se leen como base64 y se vuelven a Blob.
+    let files: StoredFile[] = [];
+    try {
+      files = await this.electron.db.getRequestFiles(item.id);
+    } catch (e) {
+      console.warn(`[Sync] No se pudieron leer files de request ${item.id}:`, e);
+      return null;
+    }
+
+    for (const f of files) {
+      try {
+        const res = await this.electron.offline.readUpload(f.stored_path);
+        if (!res?.success || !res.base64) {
+          console.warn(`[Sync] Archivo perdido para request ${item.id}: ${f.file_name}`);
+          return null;
+        }
+        const blob = this.base64ToBlob(res.base64, f.mime_type || 'application/octet-stream');
+        fd.append(f.field_name, blob, f.file_name);
+      } catch (e) {
+        console.warn(`[Sync] Error leyendo file ${f.file_name}:`, e);
+        return null;
+      }
+    }
+
+    return fd;
+  }
+
+  private base64ToBlob(base64: string, mime: string): Blob {
+    const binary = window.atob(base64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    return new Blob([bytes], { type: mime });
   }
 }

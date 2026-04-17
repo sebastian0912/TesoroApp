@@ -5,6 +5,7 @@ const os = require('os');
 const https = require('https');
 const http = require('http');
 const { execFile } = require('child_process');
+const log = require('electron-log');
 const { initDatabase, closeDatabase } = require('./electron-db');
 
 // autoUpdater se inicializa perezosamente: require('electron-updater')
@@ -86,12 +87,10 @@ function createWindow() {
     }
   });
 
-  // window.open siempre va al navegador del sistema, nunca crea otra BrowserWindow.
-  // blob: URLs (PDFs generados en memoria) se abren en una ventana Electron nueva.
+  // Todo window.open se deniega: las URLs http(s) se delegan al navegador del
+  // sistema; para blob:/data: (PDFs en memoria) el renderer debe usar
+  // window.electron.pdf.openInWindow() en vez de window.open().
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    if (/^blob:/i.test(url)) {
-      return { action: 'allow' };
-    }
     if (/^https?:\/\//i.test(url)) {
       shell.openExternal(url).catch(() => { /* noop */ });
     }
@@ -166,9 +165,27 @@ function createWindow() {
   if (!isDev) {
     // checkForUpdates (sin notify) para no disparar el toast nativo de Windows
     // cuando no hay release disponible. Los errores ya se silencian arriba.
+    let resolved = false;
+    const markResolved = () => { resolved = true; };
+    // Si autoUpdater responde con cualquier evento, ya no hace falta el fallback.
+    const au = getAutoUpdater();
+    au.once('update-available', markResolved);
+    au.once('update-not-available', markResolved);
+    au.once('error', markResolved);
+
     getAutoUpdater().checkForUpdates().catch((err) => {
       console.error('[autoUpdater] checkForUpdates failed:', err && err.message ? err.message : err);
     });
+
+    // Safety net: si el server de updates está caído o muy lento, el renderer
+    // se quedaría bloqueado eternamente con "Verificando actualizaciones".
+    // Tras 12s sin respuesta, mentimos diciendo "no hay update" para destrabar.
+    setTimeout(() => {
+      if (!resolved) {
+        console.warn('[autoUpdater] timeout esperando respuesta, asumiendo sin update');
+        sendToRenderer('update-not-available');
+      }
+    }, 12000);
   }
 }
 
@@ -190,6 +207,13 @@ ipcMain.handle('fingerprint:get', async () => {
     const csharpAppPath = isDev
       ? path.join(__dirname, 'csharp', 'UareUSampleCSharp_CaptureOnly.exe')
       : path.join(process.resourcesPath, 'csharp', 'UareUSampleCSharp_CaptureOnly.exe');
+
+    // Sin este check, el renderer queda colgado esperando la promesa si el
+    // binario no fue empaquetado (p.ej. faltan DLLs del SDK U.are.U).
+    if (!fs.existsSync(csharpAppPath)) {
+      reject({ error: 'Lector de huella no instalado o ejecutable faltante.' });
+      return;
+    }
 
     execFile(csharpAppPath, (error, stdout, stderr) => {
       if (error) {
@@ -213,21 +237,32 @@ function registerAutoUpdaterListeners() {
   const au = getAutoUpdater();
   au.autoDownload = true;
   au.autoInstallOnAppQuit = true;
-  // Evita el ruido de logs verbosos en clientes; los errores quedan en stderr.
-  au.logger = null;
+  // Solo warnings/errores del updater a disco. Archivo:
+  //   %APPDATA%\Gestion Tesoreria\logs\main.log
+  // Útil cuando un cliente reporte "no actualizó"; no hay spam en happy path.
+  log.transports.file.level = 'warn';
+  log.transports.console.level = false;
+  au.logger = log;
   au.on('update-available', (info) => sendToRenderer('update-available', info));
+  au.on('update-not-available', () => sendToRenderer('update-not-available'));
   au.on('download-progress', (progressObj) => sendToRenderer('update-progress', progressObj));
   au.on('update-downloaded', () => {
     sendToRenderer('update-downloaded');
     setTimeout(() => {
+      // Libera handles antes de que NSIS reemplace el exe: si Acrobat tiene el
+      // PDF temporal abierto, el watcher lo mantiene bloqueado y el update falla.
+      try { cleanupPdfContext(); } catch (e) { console.error('cleanupPdfContext:', e); }
+      try { cleanupViewerWindows(); } catch (e) { console.error('cleanupViewerWindows:', e); }
+      try { closeDatabase(); } catch (e) { console.error('closeDatabase:', e); }
       try { au.quitAndInstall(); } catch (e) { console.error('quitAndInstall:', e); }
     }, 3000);
   });
-  // Silencia los errores típicos (404 de latest.yml, red, cert) para no asustar
-  // al usuario final. Solo loguea en stderr; el renderer no recibe nada.
   au.on('error', (error) => {
     const msg = error ? (error.message || String(error)) : 'unknown';
     console.error('[autoUpdater]', msg);
+    // Informa al renderer para que cierre el modal "Descargando" (que tiene
+    // allowEscapeKey:false y dejaría al usuario trabado si no se avisa).
+    sendToRenderer('update-error', msg);
   });
 }
 
@@ -333,6 +368,168 @@ ipcMain.handle('pdf:finish-edit', async () => {
   return { success: true };
 });
 
+// ─── Ventanas hijas: visor de PDF embebido ────────────────────────────────
+// Reemplaza el patrón `window.open(blobURL)` en Angular. El renderer manda
+// el PDF (base64), aquí se materializa en disco y se carga en una BrowserWindow
+// con el visor nativo de Chromium. Al cerrar la ventana se borra el temporal.
+const viewerTmpDir = path.join(os.tmpdir(), 'tesoreria-pdf-view');
+const viewerWindows = new Set();
+
+function sanitizeTitle(raw) {
+  if (typeof raw !== 'string' || !raw.length) return 'Documento PDF';
+  return raw.replace(/[\x00-\x1f\x7f]/g, '').slice(0, 120);
+}
+
+ipcMain.handle('pdf:open-in-window', async (_event, payload) => {
+  try {
+    const { base64, title, width, height } = payload || {};
+    if (typeof base64 !== 'string' || !base64.length) {
+      return { success: false, error: 'base64 vacío' };
+    }
+    const cleaned = base64.replace(/^data:application\/pdf;base64,/, '');
+    if (!/^[A-Za-z0-9+/=\s]+$/.test(cleaned)) {
+      return { success: false, error: 'base64 inválido' };
+    }
+
+    if (!fs.existsSync(viewerTmpDir)) fs.mkdirSync(viewerTmpDir, { recursive: true });
+    const tmpFile = path.join(viewerTmpDir, `view_${Date.now()}_${Math.random().toString(36).slice(2, 8)}.pdf`);
+    fs.writeFileSync(tmpFile, Buffer.from(cleaned, 'base64'));
+
+    const viewerWindow = new BrowserWindow({
+      width: Number.isFinite(width) ? Math.min(Math.max(width, 400), 2400) : 1000,
+      height: Number.isFinite(height) ? Math.min(Math.max(height, 300), 1600) : 800,
+      title: sanitizeTitle(title),
+      parent: mainWindow || undefined,
+      icon: path.join(__dirname, 'public', 'logo.ico'),
+      show: false,
+      autoHideMenuBar: true,
+      webPreferences: {
+        contextIsolation: true,
+        nodeIntegration: false,
+        sandbox: true,
+        webSecurity: true,
+        plugins: true,
+      },
+    });
+    viewerWindow.setMenu(null);
+
+    viewerWindows.add(viewerWindow);
+    viewerWindow.once('ready-to-show', () => viewerWindow.show());
+    viewerWindow.on('closed', () => {
+      viewerWindows.delete(viewerWindow);
+      try { if (fs.existsSync(tmpFile)) fs.unlinkSync(tmpFile); } catch { /* noop */ }
+    });
+
+    await viewerWindow.loadFile(tmpFile);
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: err && err.message ? err.message : String(err) };
+  }
+});
+
+// ─── Uploads offline (FormData persistido a disco) ────────────────────────
+// El renderer no puede escribir directamente al filesystem. Estos handlers
+// permiten guardar cada File del FormData como archivo binario antes de
+// encolar la request en SQLite. Al hacer replay, el sync service los lee
+// con offline:read-upload y reconstruye el FormData.
+const offlineUploadsDir = () => path.resolve(app.getPath('userData'), 'offline-uploads');
+
+function isInsideUploadsDir(target) {
+  const dir = offlineUploadsDir();
+  const resolved = path.resolve(target);
+  return resolved.startsWith(dir + path.sep);
+}
+
+ipcMain.handle('offline:save-upload', async (_event, payload) => {
+  try {
+    const { base64, fileName, mimeType } = payload || {};
+    if (typeof base64 !== 'string' || !base64.length) {
+      return { success: false, error: 'base64 vacío' };
+    }
+    const cleaned = base64.replace(/^data:[^;]+;base64,/, '');
+    if (!/^[A-Za-z0-9+/=\s]+$/.test(cleaned)) {
+      return { success: false, error: 'base64 inválido' };
+    }
+
+    const dir = offlineUploadsDir();
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+
+    // Solo conservamos la extensión del filename del usuario (el resto se
+    // descarta para evitar path traversal o caracteres extraños).
+    const rawExt = path.extname(typeof fileName === 'string' ? fileName : '');
+    const ext = /^\.[A-Za-z0-9]{1,8}$/.test(rawExt) ? rawExt : '.bin';
+    const safeId = `${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+    const targetPath = path.join(dir, `${safeId}${ext}`);
+
+    fs.writeFileSync(targetPath, Buffer.from(cleaned, 'base64'));
+    return {
+      success: true,
+      storedPath: targetPath,
+      size: fs.statSync(targetPath).size,
+      mimeType: typeof mimeType === 'string' ? mimeType : null,
+    };
+  } catch (err) {
+    return { success: false, error: err && err.message ? err.message : String(err) };
+  }
+});
+
+ipcMain.handle('offline:read-upload', async (_event, storedPath) => {
+  try {
+    if (typeof storedPath !== 'string' || !storedPath.length) {
+      return { success: false, error: 'Path vacío' };
+    }
+    if (!isInsideUploadsDir(storedPath)) {
+      return { success: false, error: 'Path fuera del directorio permitido' };
+    }
+    if (!fs.existsSync(storedPath)) {
+      return { success: false, error: 'Archivo no encontrado' };
+    }
+    const bytes = fs.readFileSync(storedPath);
+    return { success: true, base64: bytes.toString('base64') };
+  } catch (err) {
+    return { success: false, error: err && err.message ? err.message : String(err) };
+  }
+});
+
+ipcMain.handle('offline:delete-upload', async (_event, storedPath) => {
+  try {
+    if (typeof storedPath !== 'string') return { success: true };
+    if (!isInsideUploadsDir(storedPath)) {
+      return { success: false, error: 'Path fuera del directorio permitido' };
+    }
+    if (fs.existsSync(storedPath)) fs.unlinkSync(storedPath);
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: err && err.message ? err.message : String(err) };
+  }
+});
+
+ipcMain.handle('shell:open-external', async (_event, url) => {
+  if (typeof url !== 'string' || !/^https?:\/\//i.test(url)) {
+    return { success: false, error: 'URL inválida' };
+  }
+  try {
+    await shell.openExternal(url);
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: err && err.message ? err.message : String(err) };
+  }
+});
+
+function cleanupViewerWindows() {
+  for (const w of viewerWindows) {
+    try { if (!w.isDestroyed()) w.close(); } catch { /* noop */ }
+  }
+  viewerWindows.clear();
+  try {
+    if (fs.existsSync(viewerTmpDir)) {
+      for (const f of fs.readdirSync(viewerTmpDir)) {
+        try { fs.unlinkSync(path.join(viewerTmpDir, f)); } catch { /* noop */ }
+      }
+    }
+  } catch { /* noop */ }
+}
+
 // ─── Lifecycle ────────────────────────────────────────────────────────────
 app.on('second-instance', () => {
   if (mainWindow) {
@@ -341,7 +538,26 @@ app.on('second-instance', () => {
   }
 });
 
+// Al arrancar limpiamos los directorios temporales de PDFs. Si la app se cerró
+// limpio, estos dirs ya están vacíos; si se mató por OOM/crash/apagón, sus
+// contenidos son basura de la sesión anterior y se pueden borrar sin riesgo.
+function cleanupStaleTempDirs() {
+  const tempDirs = [
+    path.join(os.tmpdir(), 'tesoreria-pdf-edit'),
+    path.join(os.tmpdir(), 'tesoreria-pdf-view'),
+  ];
+  for (const dir of tempDirs) {
+    try {
+      if (!fs.existsSync(dir)) continue;
+      for (const entry of fs.readdirSync(dir)) {
+        try { fs.unlinkSync(path.join(dir, entry)); } catch { /* noop */ }
+      }
+    } catch { /* noop */ }
+  }
+}
+
 app.whenReady().then(() => {
+  cleanupStaleTempDirs();
   initDatabase();
   if (!isDev) registerAutoUpdaterListeners();
   createWindow();
@@ -353,18 +569,19 @@ app.whenReady().then(() => {
 
 app.on('window-all-closed', () => {
   cleanupPdfContext();
+  cleanupViewerWindows();
   if (process.platform !== 'darwin') app.quit();
 });
 
 app.on('before-quit', () => {
   cleanupPdfContext();
+  cleanupViewerWindows();
   closeDatabase();
 });
 
-// Endurece webContents: bloquea permisos del navegador por defecto (cámara, mic, etc.)
+// Endurece TODOS los webContents creados (incluye ventanas hijas del visor).
 app.on('web-contents-created', (_event, contents) => {
   contents.setWindowOpenHandler(({ url }) => {
-    if (/^blob:/i.test(url)) return { action: 'allow' };
     if (/^https?:\/\//i.test(url)) shell.openExternal(url).catch(() => { /* noop */ });
     return { action: 'deny' };
   });

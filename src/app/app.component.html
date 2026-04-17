@@ -1,1 +1,67 @@
+@if (state() !== 'idle') {
+  <div class="updater-overlay" role="alertdialog" aria-modal="true" aria-live="polite">
+    <div class="updater-backdrop"></div>
+    <div class="updater-card" [attr.data-state]="state()">
+
+      @if (state() === 'checking') {
+        <div class="updater-icon">
+          <span class="material-symbols-outlined updater-icon__spin">progress_activity</span>
+        </div>
+        <h2 class="updater-title">Verificando actualizaciones</h2>
+        <p class="updater-subtitle">Estamos comprobando si hay una nueva versión disponible</p>
+        <div class="updater-dots" aria-hidden="true">
+          <span></span><span></span><span></span>
+        </div>
+      }
+
+      @else if (state() === 'available') {
+        <div class="updater-icon updater-icon--accent">
+          <span class="material-symbols-outlined">cloud_download</span>
+        </div>
+        <h2 class="updater-title">Nueva versión disponible</h2>
+        @if (version()) {
+          <p class="updater-version">v{{ version() }}</p>
+        }
+        <p class="updater-subtitle">Descargando en segundo plano. No cierres la aplicación.</p>
+        <div class="updater-progress">
+          <div class="updater-progress__indeterminate"></div>
+        </div>
+      }
+
+      @else if (state() === 'downloading') {
+        <div class="updater-icon updater-icon--accent">
+          <span class="material-symbols-outlined">downloading</span>
+        </div>
+        <h2 class="updater-title">Descargando actualización</h2>
+        <div class="updater-progress">
+          <div class="updater-progress__bar" [style.width.%]="percent()">
+            <div class="updater-progress__shimmer"></div>
+          </div>
+        </div>
+        <div class="updater-meta">
+          <span class="updater-meta__pct">{{ percent() }}%</span>
+          <span class="updater-meta__size">{{ transferredMb() }} / {{ totalMb() }} MB</span>
+          <span class="updater-meta__speed">{{ speedMb() }} MB/s</span>
+        </div>
+        @if (eta()) {
+          <p class="updater-eta">{{ eta() }}</p>
+        }
+        <p class="updater-hint">No cierres la aplicación durante la descarga</p>
+      }
+
+      @else if (state() === 'ready') {
+        <div class="updater-icon updater-icon--success">
+          <span class="material-symbols-outlined">task_alt</span>
+        </div>
+        <h2 class="updater-title">Actualización lista</h2>
+        <p class="updater-subtitle">La aplicación se reiniciará automáticamente en unos segundos</p>
+        <div class="updater-ready-spinner" aria-hidden="true">
+          <span class="material-symbols-outlined updater-icon__spin">progress_activity</span>
+        </div>
+      }
+
+    </div>
+  </div>
+}
+
 <router-outlet></router-outlet>

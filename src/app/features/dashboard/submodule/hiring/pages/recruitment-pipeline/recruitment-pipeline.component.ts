@@ -39,6 +39,7 @@ import QRCode from 'qrcode';
 
 import { PdfService } from '@/app/shared/services/pdf/pdf.service';
 import { HomeService } from '../../../home/service/home.service';
+import { ElectronWindowService } from '@/app/core/services/electron-window.service';
 
 import { ColumnDefinition } from '@/app/shared/models/advanced-table-interface';
 
@@ -170,6 +171,7 @@ export class RecruitmentPipelineComponent {
   private pdfSvc = inject(PdfService);
   private registroProceso = inject(RegistroProcesoContratacion);
   private homeService = inject(HomeService);
+  private electronWindow = inject(ElectronWindowService);
   private platformId = inject(PLATFORM_ID);
   private isBrowser = signal(false);
 
@@ -1110,7 +1112,12 @@ export class RecruitmentPipelineComponent {
   }
 
   private openInNewTab(url: string) {
-    window.open(url, '_blank', 'noopener,noreferrer');
+    // URLs http(s) → navegador del SO; data: / blob: → visor seguro.
+    if (/^data:application\/pdf/i.test(url)) {
+      this.electronWindow.openPdfFromBase64(url);
+      return;
+    }
+    this.electronWindow.openExternal(url);
   }
 
   private normalizeDataUrl(raw: string | null | undefined, defaultMime = 'image/png'): string | null {
@@ -1137,21 +1144,20 @@ export class RecruitmentPipelineComponent {
     }
 
     if (this.isPdfDataUrl(dataUrl)) {
-      window.open(dataUrl, '_blank');
+      this.electronWindow.openPdfFromBase64(dataUrl, { title });
       return;
     }
 
-    const { isConfirmed } = await Swal.fire({
+    // Imágenes base64: se muestran directamente en el modal (el SwAL ya las
+    // renderiza con scaling). El visor PDF-in-window no aplica a imágenes.
+    await Swal.fire({
       title,
       html: `<img src="${dataUrl}" alt="${alt}" style="max-width:100%;height:auto;border-radius:8px;" />`,
       width: '48rem',
       heightAuto: false,
       showCloseButton: true,
-      showCancelButton: true,
-      cancelButtonText: 'Cerrar'
+      showConfirmButton: false,
     });
-
-    if (isConfirmed) window.open(dataUrl, '_blank');
   }
 
   private fileToDataURL(file: File): Promise<string> {
