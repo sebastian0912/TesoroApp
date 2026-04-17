@@ -148,6 +148,17 @@ export class NavbarComponent implements OnInit, OnDestroy {
     'Notificaciones': 'matder/notifications',
     'Importar': 'matder/import',
     'Auditoría': 'matder/audit',
+
+    // Incapacidades
+    'Formulario incapacidad': 'disabilities/formulario',
+    'Formulario de incapacidad': 'disabilities/formulario',
+    'FORMULARIO INCAPACIDAD': 'disabilities/formulario',
+    'Buscar incapacidad': 'disabilities/buscar',
+    'BUSCAR INCAPACIDAD': 'disabilities/buscar',
+    'Vista total incapacidades': 'disabilities/total',
+    'VISTA TOTAL INCAPACIDADES': 'disabilities/total',
+    'Subida archivos incapacidades': 'disabilities/subir',
+    'SUBIDA ARCHIVOS INCAPACIDADES': 'disabilities/subir',
   };
 
   private readonly iconMap: Record<string, string> = {
@@ -252,6 +263,19 @@ export class NavbarComponent implements OnInit, OnDestroy {
     'Notificaciones': 'notifications',
     'Importar': 'upload_file',
     'Auditoría': 'shield',
+
+    // Incapacidades
+    'Incapacidades': 'healing',
+    'INCAPACIDADES': 'healing',
+    'Formulario incapacidad': 'assignment',
+    'Formulario de incapacidad': 'assignment',
+    'FORMULARIO INCAPACIDAD': 'assignment',
+    'Buscar incapacidad': 'search',
+    'BUSCAR INCAPACIDAD': 'search',
+    'Vista total incapacidades': 'list_alt',
+    'VISTA TOTAL INCAPACIDADES': 'list_alt',
+    'Subida archivos incapacidades': 'upload_file',
+    'SUBIDA ARCHIVOS INCAPACIDADES': 'upload_file',
   };
 
   private routeMapIndex!: Record<string, string>;
