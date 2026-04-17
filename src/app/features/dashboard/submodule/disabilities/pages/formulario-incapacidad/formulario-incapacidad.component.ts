@@ -29,8 +29,8 @@ import { MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatDividerModule } from '@angular/material/divider';
-import { ContratacionService } from '@/app/features/dashboard/submodule/hiring/services/contratacion/contratacion.service';
-import { format } from 'date-fns';
+import { HiringService } from '@/app/features/dashboard/submodule/hiring/service/hiring.service';
+import moment from 'moment';
 import { MatMomentDateModule, MAT_MOMENT_DATE_ADAPTER_OPTIONS } from '@angular/material-moment-adapter'; // Importar el adaptador de Moment
 import { takeUntil, distinctUntilChanged } from 'rxjs/operators';
 import { Subject } from 'rxjs';
@@ -86,7 +86,7 @@ export class FormularioIncapacidadComponent implements OnInit {
   loaderVisible = false;
   currentRole: string = '';
   counterVisible = false;
-  incapacidadForm: FormGroup = this.fb.group({});
+  incapacidadForm!: FormGroup;
   cedula: string = '';
   isSidebarHidden = false;
 
@@ -196,9 +196,10 @@ export class FormularioIncapacidadComponent implements OnInit {
   filterCriteria: any = {
     numeroDeDocumento: ''
   };
-  constructor(private fb: FormBuilder, private snackBar: MatSnackBar, private router: Router, private incapacidadService: IncapacidadService, private contratacionService: ContratacionService,
+  constructor(private fb: FormBuilder, private snackBar: MatSnackBar, private router: Router, private incapacidadService: IncapacidadService, private contratacionService: HiringService,
     @Inject(PLATFORM_ID) private platformId: Object,
   ) {
+    this.incapacidadForm = this.fb.group({});
     // Inicializar el formulario
 
     this.initializeForm();
@@ -578,7 +579,7 @@ export class FormularioIncapacidadComponent implements OnInit {
       if (rawFechaInicio) {
         const dateObj = new Date(rawFechaInicio);
         if (!isNaN(dateObj.getTime())) {
-          normalizedStartDate = format(dateObj, 'dd/MM/yyyy');
+          normalizedStartDate = moment(dateObj).format('DD/MM/YYYY');
         }
       }
       formData.fecha_inicio_incapacidad = normalizedStartDate;
@@ -1014,19 +1015,19 @@ export class FormularioIncapacidadComponent implements OnInit {
       if (fechaInicioStr) {
         const fechaInicioDate = new Date(fechaInicioStr);
         if (!isNaN(fechaInicioDate.getTime())) {
-          normalizedStartDate = format(fechaInicioDate, 'dd-MM-yyyy');
+          normalizedStartDate = moment(fechaInicioDate).format('DD-MM-YYYY');
         }
       }
       if (fechaFinStr) {
         const fechaFinDate = new Date(fechaFinStr);
         if (!isNaN(fechaFinDate.getTime())) {
-          normalizedEndDate = format(fechaFinDate, 'dd-MM-yyyy');
+          normalizedEndDate = moment(fechaFinDate).format('DD-MM-YYYY');
         }
       }
       if (fechaEnvioStr) {
         const fechaEnvioDate = new Date(fechaEnvioStr);
         if (!isNaN(fechaEnvioDate.getTime())) {
-          normalizedFechaEnvio = format(fechaEnvioDate, 'dd-MM-yyyy');
+          normalizedFechaEnvio = moment(fechaEnvioDate).format('DD-MM-YYYY');
         }
       }
 
@@ -1168,7 +1169,7 @@ export class FormularioIncapacidadComponent implements OnInit {
     }
 
     this.contratacionService.traerDatosEncontratacion(cedula).subscribe(
-      response => {
+      (response: any) => {
         this.cargarInformacion(false);
         const contratacion = response.contratacion || {};
         const datosBasicos = response.datos_basicos || {};
@@ -1231,7 +1232,7 @@ export class FormularioIncapacidadComponent implements OnInit {
         //this.applyCedulaFilter(cedula)
 
       },
-      error => {
+      (_error: any) => {
         this.cargarInformacion(false);
         Swal.fire({
           icon: 'error',

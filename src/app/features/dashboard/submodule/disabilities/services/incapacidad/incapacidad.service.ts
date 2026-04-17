@@ -1,7 +1,8 @@
 import { Injectable, Inject, PLATFORM_ID } from '@angular/core';
-import { Incapacidad } from '../../../models/incapacidad.model';
-import { Reporte } from '../../../models/reporte.model';
-import { environment } from '../../../../environments/environment.development';
+import { Incapacidad } from '../../models/incapacidad.model';
+import { environment } from '@/environments/environment';
+
+type Reporte = any;
 import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { isPlatformBrowser } from '@angular/common';
 import { firstValueFrom, forkJoin, Observable } from 'rxjs';
@@ -113,6 +114,20 @@ export class IncapacidadService {
       );
   }
 
+  public traerTodosDocumentos(fecha: string): Observable<any[]> {
+    const headers = this.createAuthorizationHeader();
+    return this.http
+      .get<any[]>(`${this.apiUrl}/Incapacidades/traerTodosDocumentos/${fecha}`, { headers })
+      .pipe(catchError(this.handleError));
+  }
+
+  public traerTodosDocumentosPorRango(inicio: string, fin: string): Observable<any[]> {
+    const headers = this.createAuthorizationHeader();
+    return this.http
+      .get<any[]>(`${this.apiUrl}/Incapacidades/traerTodosDocumentosPorRango?inicio=${inicio}&fin=${fin}`, { headers })
+      .pipe(catchError(this.handleError));
+  }
+
   uploadFiles(
     fileData: { [key: string]: any[] },
     fileNames: { [key: string]: string }
@@ -190,7 +205,7 @@ export class IncapacidadService {
     const epsEspeciales = ['salud total', 'matual ser', 'mutual ser', 'eps sura', 'cajacopi', 'coosalud'];
 
     await Promise.all(
-      documentos.map(doc => this.procesarDocumentoEnZip(doc, carpetaPrincipal!, epsEspeciales, sevenet))
+      (documentos ?? []).map((doc: any) => this.procesarDocumentoEnZip(doc, carpetaPrincipal!, epsEspeciales, sevenet))
     );
 
     const content = await zip.generateAsync({ type: "blob" });
@@ -208,7 +223,7 @@ export class IncapacidadService {
     const epsEspeciales = ['salud total', 'matual ser', 'mutual ser', 'eps sura', 'cajacopi', 'coosalud'];
 
     await Promise.all(
-      documentos.map(doc => this.procesarDocumentoEnZip(doc, carpetaPrincipal!, epsEspeciales, sevenet))
+      (documentos ?? []).map((doc: any) => this.procesarDocumentoEnZip(doc, carpetaPrincipal!, epsEspeciales, sevenet))
     );
 
     const content = await zip.generateAsync({ type: "blob" });

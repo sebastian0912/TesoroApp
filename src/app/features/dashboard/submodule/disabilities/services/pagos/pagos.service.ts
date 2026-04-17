@@ -1,6 +1,6 @@
 import { Injectable, Inject, PLATFORM_ID } from '@angular/core';
 import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
-import { environment } from '../../../../environments/environment.development';
+import { environment } from '@/environments/environment';
 import { isPlatformBrowser } from '@angular/common';
 import { firstValueFrom, Observable } from 'rxjs';
 import { map, catchError } from 'rxjs/operators';
