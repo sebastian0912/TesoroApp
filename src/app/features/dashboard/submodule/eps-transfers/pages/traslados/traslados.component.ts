@@ -183,14 +183,9 @@ export class TrasladosComponent implements OnInit {
     return urlRegex.test(trimmedValue);
   }
 
-  // Verifica si es un PDF base64 válido
+  // Verifica si es un PDF base64 válido (acepta data URL o base64 crudo con prefijo %PDF)
   isBase64PDF(value: string | null | undefined): boolean {
-    if (typeof value !== 'string') {
-      return false;
-    }
-
-    const base64Regex = /^data:application\/pdf;base64,/;
-    return base64Regex.test(value.trim());
+    return this.electronWindow.isPdfBase64(value);
   }
 
   // Abre el PDF en base64 en una ventana hija de Electron (o pestaña en web).

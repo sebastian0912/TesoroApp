@@ -523,14 +523,14 @@ export class HiringReportComponent implements OnInit, OnDestroy {
 
     const checks = this.reporteForm.getRawValue();
 
-    // ➡️ Guard crítico: el Cruce Diario (Excel) debe ir SIEMPRE en el reporte.
-    //    No existe ningún caso donde se pueda crear un reporte sin este archivo.
-    if (!this.files.cruceDiario?.length) {
+    // El Cruce Diario solo es obligatorio cuando SÍ hubo contratación.
+    // Si el usuario declara que no hubo contratación, el reporte queda como "sin movimientos".
+    if (checks.contratosHoy === 'si' && !this.files.cruceDiario?.length) {
       Swal.fire({
         icon: 'warning',
         title: 'Falta el Cruce Diario',
         html:
-          'El archivo Excel de <b>Cruce Diario</b> es obligatorio en todo reporte.<br>' +
+          'El archivo Excel de <b>Cruce Diario</b> es obligatorio cuando hubo contratación.<br>' +
           'Adjúntalo antes de enviar — sin él el reporte no queda registrado.',
       });
       return;
@@ -556,8 +556,9 @@ export class HiringReportComponent implements OnInit, OnDestroy {
     try {
       const { payload, files } = this.buildReporteRequest();
 
-      // ➡️ Guard defensivo final: nunca enviar sin cruce_document.
-      if (!files.cruce_document) {
+      // Guard defensivo final: si el usuario marcó que SÍ hubo contratación,
+      // el cruce_document debe estar presente al momento del envío.
+      if (checks.contratosHoy === 'si' && !files.cruce_document) {
         this.closeSwal();
         Swal.fire({
           icon: 'error',

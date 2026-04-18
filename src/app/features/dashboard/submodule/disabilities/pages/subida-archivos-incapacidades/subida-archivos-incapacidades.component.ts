@@ -13,6 +13,8 @@ import Swal from 'sweetalert2';
 import * as XLSX from 'xlsx';
 import { NgClass } from '@angular/common';
 import { MatSelectModule } from '@angular/material/select';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatDividerModule } from '@angular/material/divider';
 import * as ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
 
@@ -42,7 +44,9 @@ interface Archivo {
     MatButtonModule,
     MatIconModule,
     FormsModule,
-    MatCardModule
+    MatCardModule,
+    MatProgressSpinnerModule,
+    MatDividerModule
 ],
   templateUrl: './subida-archivos-incapacidades.component.html',
   // OJO: debe ser 'styleUrls' (en plural)

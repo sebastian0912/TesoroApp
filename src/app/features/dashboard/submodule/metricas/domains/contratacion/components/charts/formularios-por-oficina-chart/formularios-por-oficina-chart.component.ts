@@ -1,4 +1,4 @@
-import { Component, Input, ChangeDetectionStrategy, OnChanges, SimpleChanges } from '@angular/core';
+import { Component, Input, Output, EventEmitter, ChangeDetectionStrategy, OnChanges, SimpleChanges } from '@angular/core';
 
 import { NgxEchartsDirective, provideEchartsCore } from 'ngx-echarts';
 import type { EChartsOption } from 'echarts';
@@ -13,7 +13,12 @@ import { EmptyStateComponent } from '../../../../../shared/components/empty-stat
     template: `
     @if (hasData) {
       <div class="chart-container">
-        <div echarts [options]="chartOption" [merge]="chartUpdate" class="echarts-wrapper"></div>
+        <div echarts
+             [options]="chartOption"
+             [merge]="chartUpdate"
+             (chartClick)="onChartClick($event)"
+             class="echarts-wrapper clickable"></div>
+        <div class="hint">Click en una oficina para descargar el Excel de esos candidatos.</div>
       </div>
     } @else {
       <app-empty-state
@@ -25,13 +30,17 @@ import { EmptyStateComponent } from '../../../../../shared/components/empty-stat
     `,
     styles: [`
     :host { display: block; height: 100%; width: 100%; }
-    .chart-container { height: 100%; width: 100%; }
-    .echarts-wrapper { height: 100%; min-height: 350px; width: 100%; }
+    .chart-container { height: 100%; width: 100%; display: flex; flex-direction: column; }
+    .echarts-wrapper { height: 100%; min-height: 350px; width: 100%; flex: 1; }
+    .echarts-wrapper.clickable { cursor: pointer; }
+    .hint { font-size: 0.72rem; color: #94a3b8; text-align: right; padding: 4px 6px 0; }
   `],
     changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class FormulariosPorOficinaChartComponent implements OnChanges {
     @Input() data: ChartDataPoint[] | null = null;
+    @Output() segmentClick = new EventEmitter<{ oficina: string }>();
+
     hasData = false;
 
     chartOption: EChartsOption = {
@@ -66,5 +75,11 @@ export class FormulariosPorOficinaChartComponent implements OnChanges {
                 this.hasData = false;
             }
         }
+    }
+
+    onChartClick(event: any): void {
+        const oficina = String(event?.name || '').trim();
+        if (!oficina) return;
+        this.segmentClick.emit({ oficina });
     }
 }

@@ -10,6 +10,8 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatCardModule } from '@angular/material/card';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatSnackBar } from '@angular/material/snack-bar';
+import { MatTooltipModule } from '@angular/material/tooltip';
 import { NgxEchartsDirective, provideEchartsCore } from 'ngx-echarts';
 import Swal from 'sweetalert2';
 
@@ -29,6 +31,9 @@ interface KpiData {
   total_espera: number;
 }
 
+type SegmentKind = 'oficina' | 'finca' | 'fecha' | 'pipeline' | 'motivo';
+type PipelineStage = 'entrevistado' | 'prueba_o_auto' | 'examenes' | 'contratado' | 'ingreso' | 'rechazado';
+
 @Component({
   selector: 'app-informe-temporal',
   standalone: true,
@@ -38,6 +43,7 @@ interface KpiData {
     MatFormFieldModule, MatInputModule, MatSelectModule,
     MatDatepickerModule, MatNativeDateModule,
     MatButtonModule, MatIconModule, MatCardModule, MatProgressSpinnerModule,
+    MatTooltipModule,
     NgxEchartsDirective,
     StandardFilterTable,
   ],
@@ -48,6 +54,7 @@ interface KpiData {
 export class InformeTemporalComponent implements OnInit, OnDestroy {
   private api = inject(ContratacionMetricasApiService);
   private cdr = inject(ChangeDetectorRef);
+  private snack = inject(MatSnackBar);
   private refreshInterval: any = null;
   private readonly REFRESH_MS = 30_000; // 30 segundos
 
@@ -62,6 +69,7 @@ export class InformeTemporalComponent implements OnInit, OnDestroy {
 
   // Estado
   loading = signal(false);
+  downloading = signal(false);
   hasData = signal(false);
   errorMsg = signal('');
   kpis = signal<KpiData | null>(null);
@@ -96,6 +104,16 @@ export class InformeTemporalComponent implements OnInit, OnDestroy {
     red: '#C62828',
     yellow: '#F57F17',
     grey: '#78909C',
+  };
+
+  // Mapa: label visible en la serie del funnel -> stage del backend
+  private readonly STAGE_LABEL_TO_KEY: Record<string, PipelineStage> = {
+    'Entrevistado': 'entrevistado',
+    'Prueba/Autorizado': 'prueba_o_auto',
+    'Exámenes': 'examenes',
+    'Contratado': 'contratado',
+    'Ingreso': 'ingreso',
+    'No Aplica (911)': 'rechazado',
   };
 
   ngOnInit() {
@@ -304,16 +322,22 @@ export class InformeTemporalComponent implements OnInit, OnDestroy {
   private buildChartMotivos(data: any[]) {
     if (!data.length) { this.chartMotivos.set(null); return; }
 
-    // Truncar nombres largos y limpiar nulls
+    // Conservamos el nombre completo para que el click devuelva el valor
+    // exacto con el que filtrar en backend. La truncación es solo visual.
     const clean = data.map(d => ({
-      name: String(d.name ?? 'Sin motivo').substring(0, 60),
+      name: String(d.name ?? 'Sin motivo'),
       value: d.value ?? 0,
     }));
+    const truncate = (v: string) => v.length > 50 ? v.slice(0, 50) + '…' : v;
 
     this.chartMotivos.set({
       tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
       xAxis: { type: 'value', minInterval: 1 },
-      yAxis: { type: 'category', data: clean.map(d => d.name).reverse(), axisLabel: { fontSize: 11, width: 180, overflow: 'truncate' } },
+      yAxis: {
+        type: 'category',
+        data: clean.map(d => d.name).reverse(),
+        axisLabel: { fontSize: 11, width: 180, overflow: 'truncate', formatter: truncate },
+      },
       series: [{
         type: 'bar', data: clean.map(d => d.value).reverse(),
         itemStyle: { color: this.C.red, borderRadius: [0, 6, 6, 0] },
@@ -322,5 +346,101 @@ export class InformeTemporalComponent implements OnInit, OnDestroy {
       }],
       grid: { left: 200, right: 50, top: 10, bottom: 20 },
     });
+  }
+
+  // ─── Click handlers de las gráficas ───────────────────────────
+
+  onOficinaClick(e: any): void {
+    const name = this.safe(e?.name);
+    if (!name) return;
+    this.runSegmentDownload({ kind: 'oficina', value: name }, `oficina ${name}`);
+  }
+
+  onFincaClick(e: any): void {
+    const name = this.safe(e?.name);
+    if (!name) return;
+    this.runSegmentDownload({ kind: 'finca', value: name }, `finca ${name}`);
+  }
+
+  onTendenciaClick(e: any): void {
+    const name = String(e?.name || '').trim();
+    if (!name) return;
+    this.runSegmentDownload({ kind: 'fecha', value: name }, `ingresos del ${name}`);
+  }
+
+  onFunnelClick(e: any): void {
+    const oficina = this.safe(e?.name);
+    const serieLabel = String(e?.seriesName || '').trim();
+    const stage = this.STAGE_LABEL_TO_KEY[serieLabel];
+    if (!oficina || !stage) return;
+    if (typeof e?.value === 'number' && e.value <= 0) return;
+    this.runSegmentDownload(
+      { kind: 'pipeline', value: oficina, stage },
+      `${oficina} · ${serieLabel}`
+    );
+  }
+
+  onMotivosClick(e: any): void {
+    const name = String(e?.name || '').trim();
+    if (!name) return;
+    this.runSegmentDownload({ kind: 'motivo', value: name }, `motivo "${name}"`);
+  }
+
+  // ─── Flujo compartido ─────────────────────────────────────────
+
+  private runSegmentDownload(
+    segment: { kind: SegmentKind; value: string; stage?: PipelineStage },
+    contextLabel: string,
+  ): void {
+    if (this.downloading()) return;
+    this.downloading.set(true);
+
+    const temporal = (this.temporalControl.value || '').trim();
+    const range = this.dateRange.value;
+    const filters = {
+      temporal: temporal || undefined,
+      start: range.start ? this.toYMD(range.start) : undefined,
+      end: range.end ? this.toYMD(range.end) : undefined,
+    };
+
+    this.snack.open(`Preparando Excel para ${contextLabel}…`, 'Cerrar', { duration: 1800 });
+    this.api.fetchSegmentDocs(filters, segment).subscribe({
+      next: docs => {
+        if (!docs.length) {
+          this.downloading.set(false);
+          this.snack.open(`Sin candidatos para ${contextLabel}.`, 'Cerrar', { duration: 3000 });
+          this.cdr.markForCheck();
+          return;
+        }
+        this.snack.open(`Descargando ${docs.length} candidato(s)…`, 'Cerrar', { duration: 2500 });
+        this.api.downloadCandidatosExcel(docs, this.slug(contextLabel)).subscribe({
+          next: () => {
+            this.downloading.set(false);
+            this.snack.open('Excel descargado.', 'Cerrar', { duration: 2000 });
+            this.cdr.markForCheck();
+          },
+          error: err => {
+            this.downloading.set(false);
+            console.error('[downloadCandidatosExcel]', err);
+            this.snack.open('Error al descargar el Excel.', 'Cerrar', { duration: 3500 });
+            this.cdr.markForCheck();
+          }
+        });
+      },
+      error: err => {
+        this.downloading.set(false);
+        console.error('[fetchSegmentDocs]', err);
+        this.snack.open('Error al resolver los candidatos.', 'Cerrar', { duration: 3500 });
+        this.cdr.markForCheck();
+      }
+    });
+  }
+
+  private slug(s: string): string {
+    return s
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-zA-Z0-9_-]+/g, '_')
+      .replace(/^_+|_+$/g, '')
+      .toLowerCase() || 'candidatos';
   }
 }

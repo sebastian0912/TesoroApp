@@ -4,7 +4,9 @@ import {
   ChangeDetectorRef,
   Component,
   DestroyRef,
+  ElementRef,
   OnInit,
+  ViewChild,
   inject,
 } from '@angular/core';
 import { FormControl } from '@angular/forms';
@@ -38,9 +40,20 @@ type DocCell = {
 
 /** ✅ Cell UI para la tabla (abre PDF desde ✓ y ?) */
 type DocUiCell = {
-  state: 'OK' | 'WARN' | 'MISSING' | 'OLD';
+  state: 'OK' | 'INFO' | 'WARN' | 'MISSING' | 'OLD';
   url?: string | null;
   uploaded_at?: string | null;
+  /** ¿este tipo documental está sujeto a la regla de 15 días? */
+  controlled?: boolean;
+  /** Referencia para el tooltip */
+  referenceType?: 'contract' | 'today' | 'none';
+  /** Días calculados. Si referenceType='contract' -> (fecha_contratacion - uploaded_at). Si 'today' -> (hoy - uploaded_at). */
+  daysDiff?: number | null;
+  /** Metadata útil para el flujo de subida */
+  typeId?: number;
+  typeName?: string;
+  cedula?: string;
+  contract_number?: string | null;
 };
 
 /** Fila base (para ZIP/Excel y tu lógica actual) */
@@ -144,6 +157,37 @@ export class ConsultContractingDocumentationComponent implements OnInit {
   checklistRows: any[] = [];
 
   // =========================
+  // ✅ Tipos documentales sujetos a la regla de 15 días respecto a la fecha de contrato.
+  // El matching se hace por palabras clave sobre el nombre que devuelve el backend,
+  // para no depender de los IDs concretos. Cualquier tipo no listado acá se muestra OK
+  // si existe (sin validar vigencia).
+  // =========================
+  private readonly CONTROLLED_DOC_KEYWORDS: readonly string[][] = [
+    ['PROCURADURIA', 'PROCURADURÍA', 'PROCURAD'],
+    ['CONTRALORIA', 'CONTRALORÍA', 'CONTRAL'],
+    ['OFAC'],
+    ['POLICIVO', 'POLICIVOS', 'POLICIA', 'ANTECEDENTE', 'ANTECEDENTES'],
+    ['ADRES', 'ADRESS', 'ADDRESS', 'DIRECCION', 'DIRECCIÓN', 'DOMICILIO', 'RESIDENCIA'],
+    ['SISBEN', 'SISBÉN'],
+    ['AFP', 'FONDO', 'FONDO DE PENSION', 'PENSION', 'PENSIONES'],
+  ];
+
+  /** Cache por id para no recalcular en cada render */
+  private controlledByTypeId = new Map<number, boolean>();
+
+  /** Input oculto para subir documentos directamente desde una celda */
+  @ViewChild('uploadInput') uploadInput?: ElementRef<HTMLInputElement>;
+
+  /** Contexto de la subida pendiente (setear antes de click()) */
+  private pendingUpload: {
+    cedula: string;
+    typeId: number;
+    typeName: string;
+    contract_number?: string | null;
+    rowRef: any;
+  } | null = null;
+
+  // =========================
   // ✅ abreviador de headers Excel
   // =========================
   private readonly DOC_ABBR: Record<string, string> = {
@@ -204,6 +248,173 @@ export class ConsultContractingDocumentationComponent implements OnInit {
     const url = cell?.url ?? null;
     if (!url) return;
     window.open(url, '_blank', 'noopener,noreferrer');
+  }
+
+  /** Normaliza un string para comparar nombres de tipos documentales */
+  private normName(s: any): string {
+    return String(s ?? '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^A-Z0-9 ]+/gi, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .toUpperCase();
+  }
+
+  /** ¿este tipo documental requiere validar 15 días vs fecha de contrato? */
+  private isControlledType(typeName: string | null | undefined): boolean {
+    const n = this.normName(typeName);
+    if (!n) return false;
+    for (const group of this.CONTROLLED_DOC_KEYWORDS) {
+      for (const kw of group) {
+        const k = this.normName(kw);
+        if (!k) continue;
+        if (n === k || n.startsWith(k) || n.includes(k)) return true;
+      }
+    }
+    return false;
+  }
+
+  /** Texto de tooltip para una celda de documento (ver fechas y estado). */
+  cellTooltip(cell: DocUiCell | null | undefined): string {
+    if (!cell) return '';
+    if (cell.state === 'MISSING') return 'No existe · toca para subir';
+
+    const days = cell.daysDiff;
+    const ref = cell.referenceType;
+
+    if (cell.state === 'OK') {
+      if (cell.controlled && ref === 'contract' && days !== null && days !== undefined) {
+        if (days === 0) return 'Vigente · entregado el mismo día del contrato';
+        if (days > 0) return `Vigente · entregado ${days} día(s) antes de la fecha de contrato`;
+        return `Vigente · entregado ${Math.abs(days)} día(s) después de la fecha de contrato`;
+      }
+      if (ref === 'today' && days !== null && days !== undefined) {
+        return `Entregado hace ${days} día(s)`;
+      }
+      return 'Entregado';
+    }
+
+    if (cell.state === 'INFO') {
+      // Controlado pero sin fecha de contrato: solo mostramos los días desde la subida
+      if (days !== null && days !== undefined) {
+        return `Entregado hace ${days} día(s) · sin fecha de contrato para validar`;
+      }
+      return 'Entregado · sin fecha de contrato para validar';
+    }
+
+    if (cell.state === 'OLD') {
+      if (cell.controlled && ref === 'contract' && days !== null && days !== undefined) {
+        return `No vigente · entregado ${days} día(s) antes de la fecha de contrato (> 15 días)`;
+      }
+      if (ref === 'today' && days !== null && days !== undefined) {
+        return `Entregado hace ${days} día(s) (más de 15 días)`;
+      }
+      return 'Entregado (más de 15 días)';
+    }
+
+    return '';
+  }
+
+  /** Abre el selector de archivo para esta celda (cédula + tipo documental). */
+  uploadDoc(cell: DocUiCell | null | undefined, row: any, ev?: MouseEvent): void {
+    ev?.stopPropagation();
+    if (!cell || !cell.typeId || !cell.cedula) {
+      Swal.fire({ icon: 'warning', title: 'Sin contexto', text: 'No se pudo identificar el documento a subir.' });
+      return;
+    }
+    this.pendingUpload = {
+      cedula: cell.cedula,
+      typeId: cell.typeId,
+      typeName: cell.typeName ?? '',
+      contract_number: cell.contract_number ?? row?.codigo_contrato ?? null,
+      rowRef: row,
+    };
+    const input = this.uploadInput?.nativeElement;
+    if (!input) return;
+    input.value = '';
+    input.click();
+  }
+
+  /** Handler del <input type="file"> oculto. */
+  async onFileSelected(ev: Event): Promise<void> {
+    const input = ev.target as HTMLInputElement;
+    const file = input?.files?.[0];
+    if (!file) return;
+    const ctx = this.pendingUpload;
+    if (!ctx) return;
+
+    const MAX_BYTES = 20 * 1024 * 1024; // 20MB
+    if (file.size > MAX_BYTES) {
+      Swal.fire({ icon: 'warning', title: 'Archivo muy grande', text: 'El archivo supera los 20 MB.' });
+      this.pendingUpload = null;
+      return;
+    }
+
+    Swal.fire({
+      title: 'Subiendo documento...',
+      text: `${ctx.typeName || 'Documento'} · CC ${ctx.cedula}`,
+      allowOutsideClick: false,
+      allowEscapeKey: false,
+      didOpen: () => Swal.showLoading(),
+    });
+
+    try {
+      const title = `${ctx.typeName || 'Documento'} - ${ctx.cedula}`;
+      await firstValueFrom(
+        this.gestionDocumentalService.guardarDocumento(
+          title,
+          ctx.cedula,
+          ctx.typeId,
+          file,
+          ctx.contract_number ? String(ctx.contract_number) : undefined,
+        ),
+      );
+
+      await this.refreshCedula(ctx.cedula);
+
+      Swal.fire({
+        icon: 'success',
+        title: 'Documento actualizado',
+        text: 'El archivo se subió correctamente.',
+        timer: 1600,
+        showConfirmButton: false,
+      });
+    } catch (err: any) {
+      console.error('[upload-doc]', err);
+      const detail = err?.error?.detail || err?.error?.error || err?.message || 'No se pudo subir el documento.';
+      Swal.fire({ icon: 'error', title: 'Error al subir', text: detail });
+    } finally {
+      this.pendingUpload = null;
+      if (input) input.value = '';
+    }
+  }
+
+  /** Re-consulta una única cédula y refresca su fila en ambas tablas. */
+  private async refreshCedula(cedula: string): Promise<void> {
+    const resp = await firstValueFrom(
+      this.gestionDocumentalService.getDocumentosChecklist([cedula]),
+    );
+    const item: ChecklistItemDto | undefined = resp?.items?.[0];
+    if (!item) return;
+
+    const { row, uiRow } = this.mapItemToRows(item);
+
+    const idx = this.checklistRows.findIndex(r => String(r?.cedula) === String(cedula));
+    if (idx >= 0) {
+      const newList = this.checklistRows.slice();
+      newList[idx] = uiRow;
+      this.checklistRows = newList;
+    }
+
+    const rawIdx = this.dataSource.data.findIndex(r => String(r?.cedula) === String(cedula));
+    if (rawIdx >= 0) {
+      const newData = this.dataSource.data.slice();
+      newData[rawIdx] = row;
+      this.dataSource.data = newData;
+    }
+
+    this.cdr.markForCheck();
   }
 
   /** ✅ Visualizar todos los documentos válidos de esta columna (Max 40 para browser merge) */
@@ -437,10 +648,11 @@ export class ConsultContractingDocumentationComponent implements OnInit {
       this.tipoColumnKeys = this.tipoHeaders.map(t => `type_${t.id}`);
       this.displayedColumns = [...this.baseColumns, ...this.tipoColumnKeys];
 
-      // ✅ corte: hoy(00:00) - 15 días
-      const cutoff = new Date();
-      cutoff.setHours(0, 0, 0, 0);
-      cutoff.setDate(cutoff.getDate() - 15);
+      // Cache "controlled" por cada tipo (una sola vez por consulta)
+      this.controlledByTypeId.clear();
+      for (const t of this.tipoHeaders) {
+        this.controlledByTypeId.set(Number(t.id), this.isControlledType(t.name));
+      }
 
       // MAPPING (Heavy Sync Operation) - Optimizado O(N)
       const itemsList = resp?.items ?? [];
@@ -448,78 +660,10 @@ export class ConsultContractingDocumentationComponent implements OnInit {
       const rows: Row[] = new Array(len);
       const mappedRows: any[] = new Array(len);
 
-      // Pre-computamos el timestamp límite para rapidez de fecha
-      const cutoffTime = cutoff.getTime();
-      const oldBatchIso = this.OLD_BATCH_DATE;
-
       for (let i = 0; i < len; i++) {
-        const it = itemsList[i];
-        const docsMap: Record<number, DocCell> = {};
-        const docsArr: ChecklistDocDto[] = Array.isArray(it?.docs) ? it.docs : [];
-
-        for (let j = 0; j < docsArr.length; j++) {
-          const d = docsArr[j];
-          const tid = Number(d?.type_id);
-          if (!Number.isFinite(tid)) continue;
-
-          const dd = d?.doc;
-          
-          let uploadedAt: Date | null = null;
-          let vigente15d = false;
-
-          if (dd) {
-            uploadedAt = this.parseFecha(dd.uploaded_at as any);
-            const isOldBatch = !!uploadedAt && uploadedAt.toISOString().slice(0, 10) === oldBatchIso;
-            vigente15d = !!uploadedAt && uploadedAt.getTime() >= cutoffTime && !isOldBatch;
-          }
-
-          if (docsMap[tid] && docsMap[tid].exists && dd) {
-             const existingDateStr = docsMap[tid].uploaded_at;
-             const existingDate = existingDateStr ? this.parseFecha(existingDateStr as any) : null;
-             if (!uploadedAt || (existingDate && existingDate.getTime() >= uploadedAt.getTime())) {
-               continue; 
-             }
-          }
-
-          if (!docsMap[tid] || dd) {
-            docsMap[tid] = {
-              exists: !!dd,
-              url: dd?.file_url,
-              uploaded_at: dd?.uploaded_at,
-              vigente15d,
-            };
-          }
-        }
-
-        const baseRow = {
-          cedula: String(it?.cedula ?? ''),
-          tipo_documento: it?.tipo_documento ?? '',
-          nombre: it?.nombre_completo ?? '',
-          finca: it?.finca ?? '',
-          fecha_ingreso: it?.fecha_ingreso ?? '',
-          codigo_contrato: it?.codigo_contrato ?? '',
-          fecha_contratacion: it?.fecha_contratacion ?? '',
-        };
-
-        // Asignación principal 
-        rows[i] = { ...baseRow, docs: docsMap };
-
-        // Output en un solo pase para `checklistRows`
-        const out: any = { ...baseRow };
-        const theHeaders = this.tipoHeaders;
-        for (let t = 0; t < theHeaders.length; t++) {
-          const tid = theHeaders[t].id;
-          const cell = docsMap[tid];
-          const state: DocUiCell['state'] = !cell?.exists ? 'MISSING' : cell?.vigente15d ? 'OK' : 'OLD';
-
-          out[`type_${tid}`] = {
-            state,
-            url: cell?.url ?? null,
-            uploaded_at: cell?.uploaded_at ?? null,
-          } satisfies DocUiCell;
-        }
-        
-        mappedRows[i] = out;
+        const { row, uiRow } = this.mapItemToRows(itemsList[i]);
+        rows[i] = row;
+        mappedRows[i] = uiRow;
       }
 
       this.dataSource.data = rows;
@@ -816,6 +960,137 @@ export class ConsultContractingDocumentationComponent implements OnInit {
       });
   }
 
+  /**
+   * Construye la fila base (para ZIP/Excel) y la fila UI (para StandardFilterTable)
+   * desde un item del backend. Aplica la regla:
+   *  - Si el tipo documental NO está en la lista controlada -> OK (si existe)
+   *  - Si está controlado y hay fecha_contratacion:
+   *      OK si uploaded_at >= fecha_contratacion - 15d ; OLD si no.
+   *  - Si está controlado y NO hay fecha_contratacion:
+   *      OK si existe (no se valida), con tooltip relativo a HOY.
+   */
+  private mapItemToRows(it: ChecklistItemDto): { row: Row; uiRow: any } {
+    const oldBatchIso = this.OLD_BATCH_DATE;
+    const DAY_MS = 86400000;
+
+    const fechaContratacion = this.parseFecha(it?.fecha_contratacion as any);
+    const rowCutoffTime = fechaContratacion
+      ? (() => {
+          const d = new Date(fechaContratacion.getTime());
+          d.setHours(0, 0, 0, 0);
+          return d.getTime() - 15 * DAY_MS;
+        })()
+      : null;
+
+    // Referencia "hoy 00:00" para el fallback (sin fecha de contrato)
+    const todayMid = new Date();
+    todayMid.setHours(0, 0, 0, 0);
+    const todayTime = todayMid.getTime();
+
+    const docsMap: Record<number, DocCell> = {};
+    const docsArr: ChecklistDocDto[] = Array.isArray(it?.docs) ? it.docs : [];
+
+    for (let j = 0; j < docsArr.length; j++) {
+      const d = docsArr[j];
+      const tid = Number(d?.type_id);
+      if (!Number.isFinite(tid)) continue;
+
+      const dd = d?.doc;
+      const uploadedAt = dd ? this.parseFecha(dd.uploaded_at as any) : null;
+
+      // Si ya había un doc para este tipo, quedarnos con el más reciente
+      if (docsMap[tid] && docsMap[tid].exists && dd) {
+        const existingDateStr = docsMap[tid].uploaded_at;
+        const existingDate = existingDateStr ? this.parseFecha(existingDateStr as any) : null;
+        if (!uploadedAt || (existingDate && existingDate.getTime() >= uploadedAt.getTime())) {
+          continue;
+        }
+      }
+
+      if (!docsMap[tid] || dd) {
+        docsMap[tid] = {
+          exists: !!dd,
+          url: dd?.file_url,
+          uploaded_at: dd?.uploaded_at,
+        };
+      }
+    }
+
+    const baseRow = {
+      cedula: String(it?.cedula ?? ''),
+      tipo_documento: it?.tipo_documento ?? '',
+      nombre: it?.nombre_completo ?? '',
+      finca: it?.finca ?? '',
+      fecha_ingreso: it?.fecha_ingreso ?? '',
+      codigo_contrato: it?.codigo_contrato ?? '',
+      fecha_contratacion: it?.fecha_contratacion ?? '',
+    };
+
+    const row: Row = { ...baseRow, docs: docsMap };
+    const uiRow: any = { ...baseRow };
+
+    const headers = this.tipoHeaders;
+    for (let t = 0; t < headers.length; t++) {
+      const th = headers[t];
+      const tid = th.id;
+      const cell = docsMap[tid];
+      const controlled = this.controlledByTypeId.get(tid) ?? this.isControlledType(th.name);
+      const exists = !!cell?.exists;
+
+      const uploadedAt = cell?.uploaded_at ? this.parseFecha(cell.uploaded_at as any) : null;
+      const isOldBatch = !!uploadedAt && uploadedAt.toISOString().slice(0, 10) === oldBatchIso;
+
+      let state: DocUiCell['state'];
+      let daysDiff: number | null = null;
+      let referenceType: 'contract' | 'today' | 'none' = 'none';
+
+      if (!exists) {
+        state = 'MISSING';
+      } else if (!controlled) {
+        // Tipos no controlados: si existe, queda OK (solo mostramos info en tooltip)
+        state = 'OK';
+        if (uploadedAt) {
+          daysDiff = Math.floor((todayTime - uploadedAt.getTime()) / DAY_MS);
+          referenceType = 'today';
+        }
+      } else if (fechaContratacion && rowCutoffTime !== null) {
+        // Tipos controlados CON fecha de contrato: validar ventana 15d previa al contrato.
+        if (uploadedAt) {
+          const vigente = uploadedAt.getTime() >= rowCutoffTime && !isOldBatch;
+          state = vigente ? 'OK' : 'OLD';
+          daysDiff = Math.round((fechaContratacion.getTime() - uploadedAt.getTime()) / DAY_MS);
+          referenceType = 'contract';
+        } else {
+          // Existe el registro pero sin fecha -> tratamos como OLD para no engañar
+          state = 'OLD';
+        }
+      } else {
+        // Tipos controlados SIN fecha de contrato: no se puede validar vigencia.
+        // Mostramos "chulo amarillo" para indicar que está entregado pero sin verificar.
+        state = 'INFO';
+        if (uploadedAt) {
+          daysDiff = Math.floor((todayTime - uploadedAt.getTime()) / DAY_MS);
+          referenceType = 'today';
+        }
+      }
+
+      uiRow[`type_${tid}`] = {
+        state,
+        url: cell?.url ?? null,
+        uploaded_at: cell?.uploaded_at ?? null,
+        controlled,
+        referenceType,
+        daysDiff,
+        typeId: tid,
+        typeName: th.name,
+        cedula: baseRow.cedula,
+        contract_number: baseRow.codigo_contrato ?? null,
+      } satisfies DocUiCell;
+    }
+
+    return { row, uiRow };
+  }
+
   // ---------- Util ----------
   private parseFecha(fecha: string | Date | null | undefined): Date | null {
     if (!fecha) return null;
@@ -990,10 +1265,33 @@ export class ConsultContractingDocumentationComponent implements OnInit {
       return { pn, sn, pa, sa };
     };
 
-    // ✅ Vigente si uploaded_at está dentro de los últimos 15 días
-    const cutoff = new Date();
-    cutoff.setHours(0, 0, 0, 0);
-    cutoff.setDate(cutoff.getDate() - 15);
+    // ✅ Fallback: "hoy - 15 días" cuando no exista fecha_contratacion en la fila.
+    const todayCutoff = new Date();
+    todayCutoff.setHours(0, 0, 0, 0);
+    todayCutoff.setDate(todayCutoff.getDate() - 15);
+    const DAY_MS = 86400000;
+
+    /** Devuelve la fecha de corte para una fila (fecha_contratacion - 15d) o null si no aplica. */
+    const rowCutoffFor = (r: Row): number | null => {
+      const fc = this.parseFecha(r?.fecha_contratacion as any);
+      if (!fc) return null;
+      const d = new Date(fc.getTime());
+      d.setHours(0, 0, 0, 0);
+      return d.getTime() - 15 * DAY_MS;
+    };
+
+    /** Evalúa si el doc está vigente según la regla nueva (para hojas de faltantes). */
+    const isVigenteForRow = (r: Row, doc: DocCell | undefined): boolean => {
+      if (!doc?.exists) return false;
+      const uploadedAt = this.parseFecha(doc?.uploaded_at as any);
+      if (!uploadedAt) return false;
+      const isOldBatch = uploadedAt.toISOString().slice(0, 10) === this.OLD_BATCH_DATE;
+      if (isOldBatch) return false;
+      const rc = rowCutoffFor(r);
+      if (rc !== null) return uploadedAt.getTime() >= rc;
+      // Sin fecha_contratacion: no se puede validar; no lo marcamos como faltante.
+      return true;
+    };
 
     const wb = new WorkbookCtor();
     wb.creator = 'TuAlianza';
@@ -1060,10 +1358,11 @@ export class ConsultContractingDocumentationComponent implements OnInit {
       this.tipoHeaders.forEach(t => {
         const doc = item.docs?.[t.id];
         const exists = !!doc?.exists;
+        const controlled = this.isControlledType(t.name);
 
         const uploadedAt = this.parseFecha(doc?.uploaded_at as any);
-        const isOldBatch = !!uploadedAt && uploadedAt.toISOString().slice(0, 10) === this.OLD_BATCH_DATE;
-        const vigente15d = exists && !!uploadedAt && uploadedAt.getTime() >= cutoff.getTime() && !isOldBatch;
+        // Sólo validamos vigencia en tipos controlados; los demás se consideran OK si existen.
+        const vigente15d = exists && (!controlled || isVigenteForRow(item, doc));
 
         rowData[`t_${t.id}_estado`] = !exists ? '✗' : vigente15d ? '✓' : '⚠';
         rowData[`t_${t.id}_fecha`] = uploadedAt ?? (doc?.uploaded_at ?? '');
@@ -1132,12 +1431,8 @@ export class ConsultContractingDocumentationComponent implements OnInit {
           if (!tipoId) return false;
           const doc = r.docs?.[Number(tipoId)];
           if (!doc?.exists) return true; // missing
-          // Also include OLD docs (>15d or OLD_BATCH_DATE)
-          const uploadedAt = this.parseFecha(doc?.uploaded_at as any);
-          if (!uploadedAt) return true;
-          const isOldBatch = uploadedAt.toISOString().slice(0, 10) === this.OLD_BATCH_DATE;
-          const vigente = uploadedAt.getTime() >= cutoff.getTime() && !isOldBatch;
-          return !vigente; // include if NOT vigente
+          // Incluir si NO está vigente según la nueva regla (fecha_contratacion - 15d)
+          return !isVigenteForRow(r, doc);
         })
         .sort((a, b) => {
           const fa = String(a.finca ?? '').localeCompare(String(b.finca ?? ''), 'es', { sensitivity: 'base' });
@@ -1200,12 +1495,7 @@ export class ConsultContractingDocumentationComponent implements OnInit {
             if (!d.tipoId) return true;
             const doc = r.docs?.[Number(d.tipoId)];
             if (!doc?.exists) return true; // missing
-            // Also include OLD docs
-            const uploadedAt = this.parseFecha(doc?.uploaded_at as any);
-            if (!uploadedAt) return true;
-            const isOldBatch = uploadedAt.toISOString().slice(0, 10) === this.OLD_BATCH_DATE;
-            const vigente = uploadedAt.getTime() >= cutoff.getTime() && !isOldBatch;
-            return !vigente;
+            return !isVigenteForRow(r, doc);
           })
           .map(d => (d.tipoId ? d.sheet : `${d.sheet} (NO_MAPEADO)`));
 

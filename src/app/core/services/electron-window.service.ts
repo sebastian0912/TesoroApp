@@ -98,11 +98,23 @@ export class ElectronWindowService {
       this.openExternal(trimmed);
       return;
     }
-    if (/^data:application\/pdf;base64,/i.test(trimmed)) {
+    if (this.isPdfBase64(trimmed)) {
       await this.openPdfFromBase64(trimmed, options);
       return;
     }
     Swal.fire('No disponible', 'El documento no está en un formato reconocido.', 'info');
+  }
+
+  /**
+   * Acepta tanto data URL `data:application/pdf;base64,...` como base64
+   * "crudo" cuyo contenido binario inicia con `%PDF` (prefijo base64 `JVBERi`).
+   */
+  isPdfBase64(value: string | null | undefined): boolean {
+    if (typeof value !== 'string') return false;
+    const trimmed = value.trim();
+    if (!trimmed) return false;
+    if (/^data:application\/pdf;base64,/i.test(trimmed)) return true;
+    return /^JVBERi/.test(trimmed);
   }
 
   private stripPdfDataUrl(raw: string): string {

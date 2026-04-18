@@ -1,17 +1,29 @@
-import { Component, Input, ChangeDetectionStrategy, ViewChild, OnChanges, SimpleChanges } from '@angular/core';
+import { Component, Input, Output, EventEmitter, ChangeDetectionStrategy, ViewChild, OnChanges, SimpleChanges } from '@angular/core';
 
 import { MatTableModule, MatTableDataSource } from '@angular/material/table';
 import { MatPaginator, MatPaginatorModule } from '@angular/material/paginator';
+import { MatIconModule } from '@angular/material/icon';
+import { MatButtonModule } from '@angular/material/button';
+import { MatTooltipModule } from '@angular/material/tooltip';
 import { CandidatoSinCelular } from '../../../models/contratacion-metricas.models';
 import { EmptyStateComponent } from '../../../../../shared/components/empty-state/empty-state.component';
 
 @Component({
     selector: 'app-sin-celular-table',
     standalone: true,
-    imports: [MatTableModule, MatPaginatorModule, EmptyStateComponent],
+    imports: [MatTableModule, MatPaginatorModule, MatIconModule, MatButtonModule, MatTooltipModule, EmptyStateComponent],
     template: `
     @if (hasData) {
       <div class="table-container">
+        <div class="table-toolbar">
+          <span class="counter">{{ dataSource.data.length }} candidato(s) sin celular</span>
+          <button mat-stroked-button color="primary" type="button"
+                  (click)="emitBulkDownload()"
+                  [disabled]="!dataSource.data.length">
+            <mat-icon>file_download</mat-icon>
+            Descargar Excel (todos)
+          </button>
+        </div>
         <table mat-table [dataSource]="dataSource" class="mat-elevation-z0 neat-table">
           <!-- Nombres -->
           <ng-container matColumnDef="nombre">
@@ -26,11 +38,22 @@ import { EmptyStateComponent } from '../../../../../shared/components/empty-stat
             <th mat-header-cell *matHeaderCellDef> Oficina Origen </th>
             <td mat-cell *matCellDef="let element"> {{element.oficina}} </td>
           </ng-container>
-          <!-- Status Pill (To show why it is here) -->
+          <!-- Status Pill -->
           <ng-container matColumnDef="status">
             <th mat-header-cell *matHeaderCellDef> Observación </th>
             <td mat-cell *matCellDef="let element">
               <span class="status-pill warn">Sin Celular Válido</span>
+            </td>
+          </ng-container>
+          <!-- Acciones -->
+          <ng-container matColumnDef="acciones">
+            <th mat-header-cell *matHeaderCellDef class="col-actions"> Acciones </th>
+            <td mat-cell *matCellDef="let element" class="col-actions">
+              <button mat-icon-button type="button"
+                      matTooltip="Descargar Excel de este candidato"
+                      (click)="emitRowDownload(element)">
+                <mat-icon>file_download</mat-icon>
+              </button>
             </td>
           </ng-container>
           <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
@@ -45,12 +68,22 @@ import { EmptyStateComponent } from '../../../../../shared/components/empty-stat
         description="Todos los candidatos en este rango tienen celular confirmado.">
       </app-empty-state>
     }
-    
     `,
     styles: [`
     .table-container {
       width: 100%;
       overflow-x: auto;
+    }
+    .table-toolbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.5rem 0.25rem 1rem;
+      gap: 1rem;
+    }
+    .counter {
+      font-size: 0.8rem;
+      color: #64748b;
     }
     .neat-table {
       width: 100%;
@@ -71,10 +104,11 @@ import { EmptyStateComponent } from '../../../../../shared/components/empty-stat
       font-size: 0.875rem;
       border-bottom: 1px solid #f1f5f9;
     }
+    .col-actions { width: 80px; text-align: right; }
     .fw-bold { font-weight: 600; }
     .text-xs { font-size: 0.75rem; }
     .text-muted { color: #94a3b8; }
-    
+
     .status-pill {
       display: inline-flex;
       align-items: center;
@@ -93,9 +127,12 @@ import { EmptyStateComponent } from '../../../../../shared/components/empty-stat
 })
 export class SinCelularTableComponent implements OnChanges {
     @Input() data: CandidatoSinCelular[] | null = null;
+    @Output() bulkDownload = new EventEmitter<string[]>();
+    @Output() rowDownload = new EventEmitter<string>();
+
     @ViewChild(MatPaginator) paginator!: MatPaginator;
 
-    displayedColumns: string[] = ['nombre', 'oficina', 'status'];
+    displayedColumns: string[] = ['nombre', 'oficina', 'status', 'acciones'];
     dataSource = new MatTableDataSource<CandidatoSinCelular>([]);
     hasData = false;
 
@@ -116,5 +153,18 @@ export class SinCelularTableComponent implements OnChanges {
 
     ngAfterViewInit() {
         this.dataSource.paginator = this.paginator;
+    }
+
+    emitBulkDownload(): void {
+        const docs = this.dataSource.data
+            .map(c => String(c.numero_documento || '').trim())
+            .filter(Boolean);
+        this.bulkDownload.emit(docs);
+    }
+
+    emitRowDownload(element: CandidatoSinCelular): void {
+        const doc = String(element?.numero_documento || '').trim();
+        if (!doc) return;
+        this.rowDownload.emit(doc);
     }
 }

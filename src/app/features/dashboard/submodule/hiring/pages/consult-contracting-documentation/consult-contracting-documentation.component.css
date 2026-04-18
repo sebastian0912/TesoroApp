@@ -229,6 +229,14 @@
   background-color: rgba(46, 125, 50, 0.1);
 }
 
+/* Chulo amarillo: entregado pero sin fecha de contrato para validar */
+.icon-info {
+  color: #ca8a04;
+  /* amber-600 */
+  background-color: rgba(234, 179, 8, 0.12);
+  /* amber-500 @ 12% */
+}
+
 .icon-warn {
   color: var(--status-warn);
   background-color: rgba(245, 124, 0, 0.1);
@@ -362,6 +370,11 @@
 .mobile-icon.ok {
   background-color: rgba(46, 125, 50, 0.1);
   color: var(--status-ok);
+}
+
+.mobile-icon.info {
+  background-color: rgba(234, 179, 8, 0.12);
+  color: #ca8a04;
 }
 
 .mobile-icon.warn {

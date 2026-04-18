@@ -1,23 +1,298 @@
-.title {
-    margin-top: 10px;
-    margin-bottom: 10px;
-    font-size: 20pt;
-    font-weight: bold;
+/* ============================================================
+   SUBIDA ARCHIVOS INCAPACIDADES
+   ============================================================ */
+
+:host {
+  --disab-primary: #1976d2;
+  --disab-primary-dark: #1565c0;
+  --disab-primary-light: #e3f2fd;
+  --disab-accent: #00bcd4;
+  --disab-bg: #f5f7fb;
+  --disab-surface: #ffffff;
+  --disab-border: rgba(15, 23, 42, 0.08);
+  --disab-text: #1a1a2e;
+  --disab-text-muted: #64748b;
+  --disab-radius: 16px;
+  --disab-radius-sm: 10px;
+  --disab-shadow-sm: 0 1px 3px rgba(15, 23, 42, 0.06), 0 1px 2px rgba(15, 23, 42, 0.04);
+  --disab-shadow-md: 0 6px 18px rgba(15, 23, 42, 0.08), 0 2px 6px rgba(15, 23, 42, 0.04);
+  --disab-gradient: linear-gradient(135deg, #1976d2 0%, #00acc1 100%);
+  display: block;
+  background: var(--disab-bg);
+  min-height: 100%;
 }
 
-button{
-    line-height: 1.1;
-    font-size: 10pt;
-    width: 250pt;
-    height: 30pt;
-    margin-top: 5pt;
-    border-radius: 5pt;
-
+.dashboard-container {
+  padding: 12px 8px 40px;
 }
 
-.conjunto{
-    display: flex;
-    margin-top: 10px;
-    flex-direction: column;
-    align-items: center;
+.dashboard-content {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.disab-hidden-file-input {
+  display: none;
+}
+
+/* ── Overlay de loader ──────────────────────────────────────── */
+.disab-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(245, 247, 251, 0.8);
+  backdrop-filter: blur(4px);
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+}
+
+.disab-overlay-text {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--disab-primary-dark);
+}
+
+/* ── Tarjeta principal ──────────────────────────────────────── */
+.disab-card {
+  border-radius: var(--disab-radius) !important;
+  border: 1px solid var(--disab-border);
+  box-shadow: var(--disab-shadow-md) !important;
+  background: var(--disab-surface);
+  overflow: hidden;
+  padding: 0 !important;
+}
+
+/* ── Hero ──────────────────────────────────────────────────── */
+.disab-hero {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 26px 28px;
+  background: var(--disab-gradient);
+  color: #fff;
+  position: relative;
+  overflow: hidden;
+}
+
+.disab-hero::before {
+  content: 'cloud_upload';
+  font-family: 'Material Icons';
+  position: absolute;
+  right: -30px;
+  top: -40px;
+  font-size: 220px;
+  color: rgba(255, 255, 255, 0.08);
+  line-height: 1;
+  pointer-events: none;
+}
+
+.disab-hero-icon {
+  width: 64px;
+  height: 64px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.2);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  backdrop-filter: blur(8px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.disab-hero-icon mat-icon {
+  font-size: 36px;
+  width: 36px;
+  height: 36px;
+  color: #fff;
+}
+
+.disab-hero-texts {
+  position: relative;
+  z-index: 1;
+  min-width: 0;
+}
+
+.disab-hero-title {
+  margin: 0 0 4px;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  color: #fff;
+}
+
+.disab-hero-sub {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.9);
+  line-height: 1.4;
+}
+
+/* ── Contenido ──────────────────────────────────────────────── */
+.disab-card-body {
+  padding: 24px 28px 30px !important;
+  display: block;
+}
+
+/* ── Secciones ──────────────────────────────────────────────── */
+.disab-section {
+  display: block;
+}
+
+.disab-section + .disab-section {
+  margin-top: 8px;
+}
+
+.disab-section-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+
+.disab-section-icon {
+  color: var(--disab-primary);
+  background: var(--disab-primary-light);
+  border-radius: 8px;
+  width: 36px;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+}
+
+.disab-section-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--disab-text);
+  letter-spacing: 0.2px;
+}
+
+.disab-section-hint {
+  margin-left: auto;
+  font-size: 12.5px;
+  color: var(--disab-text-muted);
+  font-style: italic;
+}
+
+.disab-divider {
+  margin: 22px 0 !important;
+}
+
+/* ── Archivo maestro ────────────────────────────────────────── */
+.disab-master-card {
+  background: linear-gradient(135deg, #e3f2fd 0%, #e0f7fa 100%);
+  border: 1px solid rgba(25, 118, 210, 0.18);
+  border-left: 4px solid var(--disab-primary);
+  border-radius: 14px;
+  padding: 10px 14px;
+  transition: transform 0.18s ease, box-shadow 0.2s ease;
+}
+
+.disab-master-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--disab-shadow-md);
+}
+
+.disab-clickable {
+  cursor: pointer;
+  display: block;
+}
+
+/* ── Grid de archivos mensuales ─────────────────────────────── */
+.disab-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 18px;
+}
+
+.disab-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+  background: #fff;
+  border: 1px solid var(--disab-border);
+  border-radius: 14px;
+  box-shadow: var(--disab-shadow-sm);
+  transition: transform 0.18s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+  position: relative;
+}
+
+.disab-tile::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 16px;
+  right: 16px;
+  height: 3px;
+  background: var(--disab-gradient);
+  border-radius: 0 0 4px 4px;
+}
+
+.disab-tile:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--disab-shadow-md);
+  border-color: rgba(25, 118, 210, 0.25);
+}
+
+.disab-tile-btn {
+  width: 100% !important;
+  height: 40px !important;
+  border-radius: 10px !important;
+  font-weight: 600 !important;
+  text-transform: none !important;
+  letter-spacing: 0.1px;
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.disab-tile-btn mat-icon {
+  font-size: 18px;
+  width: 18px;
+  height: 18px;
+}
+
+/* ── Responsive ─────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .dashboard-container {
+    padding: 8px 4px 32px;
+  }
+  .disab-hero {
+    padding: 22px 18px;
+    gap: 14px;
+  }
+  .disab-hero-icon {
+    width: 52px;
+    height: 52px;
+  }
+  .disab-hero-icon mat-icon {
+    font-size: 30px;
+    width: 30px;
+    height: 30px;
+  }
+  .disab-hero-title {
+    font-size: 18px;
+  }
+  .disab-hero::before {
+    font-size: 150px;
+  }
+  .disab-card-body {
+    padding: 20px 18px 24px !important;
+  }
+  .disab-grid {
+    grid-template-columns: 1fr;
+  }
+  .disab-section-hint {
+    margin-left: 0;
+    width: 100%;
+  }
 }
