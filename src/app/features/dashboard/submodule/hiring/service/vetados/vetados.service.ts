@@ -33,7 +33,7 @@ export class VetadosService {
   // Traer datos de nombre completo de candidato
   traerNombreCompletoCandidato(cedula: string): Observable<any> {
 
-    return this.http.get(`${this.apiUrl}/contratacion/traerNombreCompletoCandidato/${cedula}`,);
+    return this.http.get(`${this.apiUrl}/gestion_contratacion/traerNombreCompletoCandidato/${cedula}`,);
   }
 
   // Eliminar reporte de candidato vetado

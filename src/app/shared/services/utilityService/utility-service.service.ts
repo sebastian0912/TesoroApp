@@ -113,11 +113,11 @@ export class UtilityServiceService {
 
   // Buscar operario por cedula
   async buscarOperarioPorCedula(cedula: string): Promise<any> {
-    return this.http.get(`${this.apiUrl}/contratacion/buscarCandidato/${cedula}`);
+    return this.http.get(`${this.apiUrl}/gestion_contratacion/buscarCandidato/${cedula}`);
   }
 
   public obtenerCodigosContrato(cedula: string): Observable<any> {
-    return this.http.get(`${this.apiUrl}/contratacion/contratos/${cedula}/`).pipe(
+    return this.http.get(`${this.apiUrl}/gestion_contratacion/contratos/${cedula}/`).pipe(
       map((response: any) => response)
     );
   }

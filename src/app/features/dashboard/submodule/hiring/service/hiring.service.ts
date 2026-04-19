@@ -21,7 +21,7 @@ export class HiringService {
 
   // Buscar en contratacion por cedula para sacar los numeros
   public buscarEncontratacion(cedula: any): Observable<any> {
-    return this.http.get(`${this.apiUrl}/contratacion/buscarCandidato/${cedula}`,).pipe(
+    return this.http.get(`${this.apiUrl}/gestion_contratacion/buscarCandidato/${cedula}`,).pipe(
       map((response: any) => response),
       catchError(this.handleError)
     );
@@ -42,7 +42,7 @@ export class HiringService {
   // Servicio para traer datos de contratación
 
   public traerDatosEncontratacion(cedula: string): Observable<any> {
-    return this.http.get(`${this.apiUrl}/contratacion/datosIncapacidadContratacion/${cedula}`,).pipe(
+    return this.http.get(`${this.apiUrl}/gestion_contratacion/datosIncapacidadContratacion/${cedula}`,).pipe(
       map((response: any) => response),
       catchError(this.handleError)
     );
@@ -73,7 +73,7 @@ export class HiringService {
   async subirContratacionAuditoria(
     datos: any
   ): Promise<any> {
-    const urlcompleta = `${this.apiUrl}/contratacion/subidadeusuariosarchivoAuditoriaexcel`;
+    const urlcompleta = `${this.apiUrl}/gestion_contratacion/subidadeusuariosarchivoAuditoriaexcel`;
     const data = {
       datos: datos,
       mensaje: "mcuhos",
@@ -94,7 +94,7 @@ export class HiringService {
     datos: any
   ): Promise<any> {
 
-    const urlcompleta = `${this.apiUrl}/contratacion/subidadeusuariosarchivoexcel`;
+    const urlcompleta = `${this.apiUrl}/gestion_contratacion/subidadeusuariosarchivoexcel`;
 
     const data = {
       datos: datos,
@@ -116,7 +116,7 @@ export class HiringService {
     datos: any
   ): Promise<any> {
 
-    const urlcompleta = `${this.apiUrl}/contratacion/validarExcelContratacion`;
+    const urlcompleta = `${this.apiUrl}/gestion_contratacion/validarExcelContratacion`;
 
     const data = {
       datos: datos,
@@ -137,7 +137,7 @@ export class HiringService {
   async generarExcelArl(
     datos: any
   ): Promise<any> {
-    const urlcompleta = `${this.apiUrl}/contratacion/validarDatos/`;
+    const urlcompleta = `${this.apiUrl}/gestion_contratacion/validarDatos/`;
 
     const data = {
       datos: datos,
@@ -164,7 +164,7 @@ export class HiringService {
 
   public obtenerReportesPorFechasCentroCosto(start: string, end: string): Observable<any> {
     const params = { start, end };  // Parámetros para enviar el rango de fechas
-    return this.http.get(`${this.apiUrl}/contratacion/descargarReporteFechaIngresoCentroCosto/`, { params }).pipe(
+    return this.http.get(`${this.apiUrl}/gestion_contratacion/descargarReporteFechaIngresoCentroCosto/`, { params }).pipe(
       map((response: any) => response),  // Mapea la respuesta
       catchError(this.handleError)       // Manejo de errores
     );
@@ -173,7 +173,7 @@ export class HiringService {
   public descargarReporteFechaIngresoCentroCostoFincas(start: string, end: string): Observable<Blob> {
     const params = { start, end };
 
-    return this.http.get(`${this.apiUrl}/contratacion/descargarReporteFechaIngresoCentroCostoFincas/`, {
+    return this.http.get(`${this.apiUrl}/gestion_contratacion/descargarReporteFechaIngresoCentroCostoFincas/`, {
       params,
       responseType: 'blob'  // Indicar que esperamos un archivo binario
     }).pipe(
@@ -197,7 +197,7 @@ export class HiringService {
 
   ): Promise<any> {
 
-    const urlcompleta = `${this.apiUrl}/contratacion/guardarErroresValidacion`;  // Asegúrate de que este sea el endpoint correcto
+    const urlcompleta = `${this.apiUrl}/gestion_contratacion/guardarErroresValidacion`;  // Asegúrate de que este sea el endpoint correcto
 
     const data = {
       errores: payload.errores,
@@ -225,7 +225,7 @@ export class HiringService {
     const params = { start, end };
 
     // Indicamos que el responseType será 'blob' para manejar archivos binarios
-    return this.http.get(`${this.apiUrl}/contratacion/descargarReporte/`, {
+    return this.http.get(`${this.apiUrl}/gestion_contratacion/descargarReporte/`, {
       params,
       responseType: 'blob'  // Tipo de respuesta como Blob
     }).pipe(
@@ -254,7 +254,7 @@ export class HiringService {
     fechaNacimiento: string;
     fechaExpedicionCC: string;
   }): Promise<any> {
-    const urlcompleta = `${this.apiUrl}/contratacion/datosCandidatoYProceso/`; // Endpoint correcto de tu API
+    const urlcompleta = `${this.apiUrl}/gestion_contratacion/datosCandidatoYProceso/`; // Endpoint correcto de tu API
 
 
 

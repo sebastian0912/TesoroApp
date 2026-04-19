@@ -132,7 +132,7 @@ export class PaymentsService {
   }
 
   actualizarCorreosMasivos(payload: Array<{ numerodeceduladepersona: string; primercorreoelectronico: string }>): Promise<any> {
-    const url = `${this.apiUrl}/contratacion/candidatos/emails/bulk-update`;
+    const url = `${this.apiUrl}/gestion_contratacion/candidatos/emails/bulk-update`;
     return lastValueFrom(this.http.post(url, payload));
   }
 

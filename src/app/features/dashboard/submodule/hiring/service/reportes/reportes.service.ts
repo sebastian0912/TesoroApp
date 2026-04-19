@@ -106,7 +106,7 @@ export class ReportesService {
     if (filters?.tipo) params = params.set('tipo', filters.tipo.trim());
     if (filters?.responsable) params = params.set('responsable', filters.responsable.trim());
 
-    const url = `${this.apiUrl}/contratacion/listarErroresValidacion/`;
+    const url = `${this.apiUrl}/gestion_contratacion/listarErroresValidacion/`;
 
     return this.http.get<any>(url, { params }).pipe(
       map((resp: any) => {
