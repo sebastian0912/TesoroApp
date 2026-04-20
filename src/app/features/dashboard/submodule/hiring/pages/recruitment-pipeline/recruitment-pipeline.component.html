@@ -1,7 +1,19 @@
 <mat-card
-  style="display: flex; flex-direction: column; height: 100%; max-height: 100vh; overflow: hidden; box-sizing: border-box;">
+  style="display: flex; flex-direction: column; height: 100%; min-height: 0; overflow: hidden; box-sizing: border-box;">
   <mat-card-content
-    style="display: flex; flex-direction: column; flex: 1; overflow: hidden; padding: 16px; box-sizing: border-box;">
+    style="display: flex; flex-direction: column; flex: 1 1 0; min-height: 0; overflow: hidden; padding: 16px; box-sizing: border-box;">
+
+    <!-- Badge de flujo: recruitment-pipeline pertenece al flujo NUEVO (pipeline) -->
+    <div class="flow-badge flow-badge-pipeline" role="note" aria-label="Flujo nuevo pipeline">
+      <mat-icon class="flow-badge-icon">auto_awesome</mat-icon>
+      <div class="flow-badge-content">
+        <span class="flow-badge-title">PIPELINE NUEVO — Contratación</span>
+        <span class="flow-badge-subtitle">
+          Flujo canónico individual por candidato. Biometría, exámenes y contratación
+          se gestionan desde aquí.
+        </span>
+      </div>
+    </div>
 
     <div class="header premium-pipeline-header">
       <div class="info-candidato-titulo candidate-info-badge">
@@ -277,9 +289,17 @@
               </div>
 
               <!-- Botón para imprimir -->
-              <button mat-flat-button (click)="imprimirSaludOcupacional()" class="example-full-width">
-                Guardar Salud Ocupacional
-              </button>
+              <div class="sticky-actions">
+                <span class="sticky-actions-hint">
+                  <mat-icon>info</mat-icon>
+                  Revisa los exámenes antes de guardar
+                </span>
+                <button mat-flat-button color="primary" class="sticky-action-btn"
+                  (click)="imprimirSaludOcupacional()">
+                  <mat-icon>save</mat-icon>
+                  <span>Guardar Salud Ocupacional</span>
+                </button>
+              </div>
             </div>
           </mat-tab>
 

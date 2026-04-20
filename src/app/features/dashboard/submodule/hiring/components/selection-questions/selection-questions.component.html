@@ -129,8 +129,16 @@
           }
         </div>
       }
+    </div>
 
-      <button mat-flat-button (click)="imprimirVerificacionesAplicacion()" class="example-full-width">
-        Cargar
+    <div class="sticky-actions">
+      <span class="sticky-actions-hint">
+        <mat-icon>fact_check</mat-icon>
+        Verifica documentos y estados antes de cargar
+      </span>
+      <button mat-flat-button color="primary" class="sticky-action-btn"
+        (click)="imprimirVerificacionesAplicacion()">
+        <mat-icon>cloud_upload</mat-icon>
+        <span>Cargar Antecedentes</span>
       </button>
     </div>

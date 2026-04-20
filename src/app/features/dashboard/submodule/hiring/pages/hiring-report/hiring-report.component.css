@@ -1,4 +1,67 @@
 /* -------------------------------------------------------------------------
+   FLOW BADGE — diferenciador visual "flujo antiguo" vs "pipeline nuevo"
+   ------------------------------------------------------------------------- */
+.flow-badge {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin: 0 0 20px;
+  padding: 14px 18px;
+  border-radius: 12px;
+  border: 1px solid transparent;
+  font-family: 'Roboto', system-ui, sans-serif;
+}
+
+.flow-badge-legacy {
+  background: linear-gradient(135deg, #fff7ed 0%, #fed7aa 100%);
+  border-color: #fb923c;
+  color: #7c2d12;
+  box-shadow: 0 2px 8px -2px rgba(251, 146, 60, 0.3);
+}
+
+.flow-badge-icon {
+  font-size: 28px !important;
+  width: 28px !important;
+  height: 28px !important;
+  flex-shrink: 0;
+  color: #ea580c;
+  margin-top: 2px;
+}
+
+.flow-badge-content {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.flow-badge-title {
+  font-weight: 700;
+  font-size: 0.9rem;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.flow-badge-subtitle {
+  font-size: 0.82rem;
+  color: #9a3412;
+  line-height: 1.35;
+  font-weight: 500;
+}
+
+@media (max-width: 600px) {
+  .flow-badge {
+    padding: 12px 14px;
+  }
+  .flow-badge-title {
+    font-size: 0.82rem;
+  }
+  .flow-badge-subtitle {
+    font-size: 0.76rem;
+  }
+}
+
+/* -------------------------------------------------------------------------
    VARIABLES & HOST
    ------------------------------------------------------------------------- */
 :host {

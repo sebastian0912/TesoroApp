@@ -186,9 +186,11 @@
 
           @if (!(isRemisionReadOnly() && isPreloadedVacancy())) {
             <div class="actions">
-              <button mat-flat-button color="primary" [disabled]="vacantesForm.invalid || vacantesForm.disabled"
+              <button mat-flat-button color="primary" class="sticky-action-btn"
+                [disabled]="vacantesForm.invalid || vacantesForm.disabled"
                 (click)="guardarVacantes()">
-                Guardar
+                <mat-icon>save</mat-icon>
+                <span>Guardar Remisión</span>
               </button>
             </div>
           }

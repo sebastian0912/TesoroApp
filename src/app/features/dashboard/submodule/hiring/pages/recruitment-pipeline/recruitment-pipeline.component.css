@@ -1,11 +1,36 @@
+:host {
+  display: block;
+  height: 100%;
+  min-height: 0;
+}
+
 mat-tab-group {
   height: 100%;
   display: flex;
   flex-direction: column;
+  min-height: 0;
+}
+
+.tab-group {
+  flex: 1 1 0;
+  min-height: 0;
 }
 
 ::ng-deep .mat-mdc-tab-body-wrapper {
-  flex: 1;
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+::ng-deep .mat-mdc-tab-body {
+  min-height: 0 !important;
+  height: 100%;
+}
+
+::ng-deep .mat-mdc-tab-body-content {
+  min-height: 0;
+  height: 100%;
   display: flex;
   flex-direction: column;
 }
@@ -38,11 +63,15 @@ mat-tab-group {
 }
 
 .tab-content-scrollable {
-  flex: 1;
-  height: 100%;
+  flex: 1 1 0;
+  min-height: 0;
+  height: auto;
   overflow-y: auto;
+  overflow-x: hidden;
   padding: 16px;
+  padding-bottom: 24px;
   box-sizing: border-box;
+  scroll-padding-bottom: 80px;
 }
 
 .vacantes-scroll-container {
@@ -104,6 +133,71 @@ mat-tab-group {
   display: flex;
   align-items: center;
   justify-content: space-between;
+}
+
+/* ==========================================================
+   FLOW BADGE — diferenciador visual "pipeline nuevo"
+   ========================================================== */
+.flow-badge {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin: 0 0 16px;
+  padding: 14px 18px;
+  border-radius: 12px;
+  border: 1px solid transparent;
+  font-family: 'Roboto', system-ui, sans-serif;
+  flex-shrink: 0;
+}
+
+.flow-badge-pipeline {
+  background: linear-gradient(135deg, #eff6ff 0%, #bfdbfe 100%);
+  border-color: #3b82f6;
+  color: #1e3a8a;
+  box-shadow: 0 2px 8px -2px rgba(59, 130, 246, 0.3);
+}
+
+.flow-badge-icon {
+  font-size: 28px !important;
+  width: 28px !important;
+  height: 28px !important;
+  flex-shrink: 0;
+  color: #2563eb;
+  margin-top: 2px;
+}
+
+.flow-badge-content {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.flow-badge-title {
+  font-weight: 700;
+  font-size: 0.9rem;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.flow-badge-subtitle {
+  font-size: 0.82rem;
+  color: #1e40af;
+  line-height: 1.35;
+  font-weight: 500;
+}
+
+@media (max-width: 720px) {
+  .flow-badge {
+    padding: 12px 14px;
+    margin-bottom: 12px;
+  }
+  .flow-badge-title {
+    font-size: 0.82rem;
+  }
+  .flow-badge-subtitle {
+    font-size: 0.76rem;
+  }
 }
 
 /* === PREMIUM UI ADDITIONS === */
@@ -330,4 +424,209 @@ mat-tab-group {
 
 .file-upload-input {
   display: none !important;
+}
+
+/* ==========================================================
+   Responsive header + toolbar (evita que robe altura a tabs)
+   ========================================================== */
+.premium-pipeline-header {
+  flex-shrink: 0;
+  max-height: 33vh;
+  overflow: hidden;
+}
+
+.premium-toolbar {
+  max-width: 100%;
+}
+
+@media (max-width: 1100px) {
+  .premium-pipeline-header {
+    padding: 12px 16px;
+  }
+  .premium-toolbar {
+    gap: 4px;
+  }
+  .premium-toolbar button {
+    width: 36px;
+    height: 36px;
+    line-height: 36px;
+  }
+  .premium-toolbar button .mat-icon {
+    font-size: 20px;
+    width: 20px;
+    height: 20px;
+  }
+}
+
+@media (max-width: 720px) {
+  .premium-pipeline-header {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 10px 12px;
+  }
+  .candidate-info-badge {
+    min-width: 0;
+  }
+  .candidate-details {
+    min-width: 0;
+  }
+  .info-candidato-valor,
+  .info-candidato-label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .premium-toolbar {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 4px;
+  }
+  .premium-toolbar::-webkit-scrollbar {
+    height: 4px;
+  }
+  .premium-toolbar button {
+    flex-shrink: 0;
+  }
+}
+
+/* ==========================================================
+   Footer de acciones sticky — estilo premium
+   Frosted-glass + gradiente + hover lift. Fondo va en el CONTENEDOR,
+   no en el botón, para no tapar el color del mat-flat-button.
+   ========================================================== */
+.sticky-actions {
+  position: sticky;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  margin-top: auto;
+  padding: 14px 20px;
+  background: linear-gradient(180deg,
+              rgba(255, 255, 255, 0.75) 0%,
+              rgba(255, 255, 255, 0.96) 55%,
+              rgba(248, 250, 252, 1) 100%);
+  backdrop-filter: blur(14px) saturate(160%);
+  -webkit-backdrop-filter: blur(14px) saturate(160%);
+  border-top: 1px solid rgba(15, 23, 42, 0.08);
+  box-shadow: 0 -8px 24px -10px rgba(15, 23, 42, 0.15);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  z-index: 3;
+  border-radius: 0 0 12px 12px;
+}
+
+.sticky-actions-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #64748b;
+  font-size: 0.85rem;
+  font-weight: 500;
+  letter-spacing: 0.2px;
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sticky-actions-hint mat-icon {
+  font-size: 16px;
+  width: 16px;
+  height: 16px;
+  color: #3b82f6;
+}
+
+/* Botón premium */
+.sticky-actions .sticky-action-btn,
+.sticky-actions > button[mat-flat-button] {
+  min-height: 44px;
+  min-width: 240px;
+  border-radius: 10px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.3px;
+  padding: 0 24px !important;
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%) !important;
+  color: #ffffff !important;
+  box-shadow: 0 6px 16px -4px rgba(37, 99, 235, 0.4),
+              0 2px 4px -1px rgba(37, 99, 235, 0.2);
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+              box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+              filter 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.sticky-actions > button[mat-flat-button]:hover:not([disabled]) {
+  transform: translateY(-1px);
+  filter: brightness(1.04);
+  box-shadow: 0 10px 22px -6px rgba(37, 99, 235, 0.5),
+              0 4px 8px -2px rgba(37, 99, 235, 0.25);
+}
+
+.sticky-actions > button[mat-flat-button]:active:not([disabled]) {
+  transform: translateY(0);
+  filter: brightness(0.98);
+}
+
+.sticky-actions > button[mat-flat-button][disabled] {
+  opacity: 0.55;
+  box-shadow: none;
+  filter: grayscale(0.3);
+}
+
+.sticky-actions > button[mat-flat-button] mat-icon {
+  font-size: 20px;
+  width: 20px;
+  height: 20px;
+  color: #ffffff;
+}
+
+@media (max-width: 720px) {
+  .sticky-actions {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+    padding: 12px 16px;
+  }
+  .sticky-actions-hint {
+    justify-content: center;
+    text-align: center;
+    white-space: normal;
+  }
+  .sticky-actions > button[mat-flat-button] {
+    width: 100%;
+    min-width: 0;
+  }
+}
+
+/* Header de tabs compacto en pantallas chicas */
+@media (max-width: 900px) {
+  ::ng-deep .mat-mdc-tab-header {
+    padding: 0 4px !important;
+  }
+  ::ng-deep .mat-mdc-tab .mdc-tab__text-label {
+    font-size: 0.8rem !important;
+  }
+  .tab {
+    font-size: 0.8rem;
+  }
+}
+
+/* Grid de exámenes se adapta mejor en pantallas angostas */
+@media (max-width: 600px) {
+  .medical-exams-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  .tab-content-scrollable {
+    padding: 12px;
+  }
 }

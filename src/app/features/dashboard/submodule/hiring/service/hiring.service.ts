@@ -252,12 +252,22 @@ export class HiringService {
   }): Promise<any> {
     const urlcompleta = `${this.apiUrl}/gestion_contratacion/datosCandidatoYProceso/`; // Endpoint correcto de tu API
 
-
-
     try {
       const response = await firstValueFrom(
         this.http.post(urlcompleta, payload,).pipe(
-          catchError((error) => {
+          catchError((error: any) => {
+            // 409 con code=PIPELINE_LOCKED: la cedula ya esta en pipeline nuevo.
+            // NO se debe sobrescribir desde el flujo antiguo (hiring-report).
+            if (error?.status === 409 && error?.error?.code === 'PIPELINE_LOCKED') {
+              const pipelineError: any = new Error(
+                error.error?.message ||
+                  'Esta cedula ya esta en el pipeline nuevo y no puede actualizarse desde el cruce Excel.'
+              );
+              pipelineError.code = 'PIPELINE_LOCKED';
+              pipelineError.cedula = error.error?.cedula;
+              pipelineError.flujo_origen = error.error?.flujo_origen;
+              return throwError(() => pipelineError);
+            }
             return throwError(() => new Error('Error al validar información de contratación'));
           })
         )
@@ -265,6 +275,26 @@ export class HiringService {
       return response;
     } catch (error) {
       throw error;
+    }
+  }
+
+  /**
+   * Diagnostico: lee el flujo_origen de un candidato.
+   * Devuelve {exists, flujo_origen, locked_for_legacy, ...} o null si no existe.
+   */
+  public async obtenerFlujoOrigen(cedula: string): Promise<any | null> {
+    const url = `${this.apiUrl}/gestion_contratacion/candidato-flujo/${encodeURIComponent(cedula)}/`;
+    try {
+      return await firstValueFrom(
+        this.http.get(url).pipe(
+          catchError((err: any) => {
+            if (err?.status === 404) return [null];
+            return throwError(() => err);
+          })
+        )
+      );
+    } catch {
+      return null;
     }
   }
 

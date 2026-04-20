@@ -3,6 +3,8 @@
   display: flex;
   flex-direction: column;
   width: 100%;
+  height: 100%;
+  min-height: 0;
   box-sizing: border-box;
 }
 
@@ -10,13 +12,28 @@
 .help-tabs {
   display: flex;
   flex-direction: column;
-  /* Resets height clipping */
+  flex: 1 1 0;
+  min-height: 0;
 }
 
-/* Asegurar que el cuerpo de los tabs se expanda y llene el espacio */
+/* Flex chain para que el cuerpo de los tabs tenga altura y haga scroll */
 :host ::ng-deep .help-tabs .mat-mdc-tab-body-wrapper {
   display: flex;
   flex-direction: column;
+  flex: 1 1 0;
+  min-height: 0;
+}
+
+:host ::ng-deep .help-tabs .mat-mdc-tab-body {
+  min-height: 0 !important;
+  height: 100%;
+}
+
+:host ::ng-deep .help-tabs .mat-mdc-tab-body-content {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
 }
 
 /* Formulario dentro del tab "Remisión" */
@@ -25,9 +42,10 @@
   flex-direction: column;
   gap: 24px;
   width: auto;
-  flex: 1;
+  flex: 1 1 0;
+  min-height: 0;
   box-sizing: border-box;
-  padding: 24px 0;
+  padding: 24px 0 0;
   margin-top: 16px;
 }
 
@@ -60,13 +78,85 @@
   min-width: 100% !important;
 }
 
-/* Acciones (footer del formulario) */
+/* ==========================================================
+   Acciones (footer) — estilo premium frosted-glass
+   ========================================================== */
 .actions {
   display: flex;
+  align-items: center;
   justify-content: flex-end;
   gap: 12px;
   margin-top: auto;
-  /* Empuja los botones hacia abajo del todo */
+  position: sticky;
+  bottom: 0;
+  padding: 14px 20px;
+  background: linear-gradient(180deg,
+              rgba(255, 255, 255, 0.75) 0%,
+              rgba(255, 255, 255, 0.96) 55%,
+              rgba(248, 250, 252, 1) 100%);
+  backdrop-filter: blur(14px) saturate(160%);
+  -webkit-backdrop-filter: blur(14px) saturate(160%);
+  border-top: 1px solid rgba(15, 23, 42, 0.08);
+  box-shadow: 0 -8px 24px -10px rgba(15, 23, 42, 0.15);
+  z-index: 3;
+}
+
+.actions > button[mat-flat-button] {
+  min-height: 44px;
+  min-width: 220px;
+  border-radius: 10px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.3px;
+  padding: 0 24px !important;
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%) !important;
+  color: #ffffff !important;
+  box-shadow: 0 6px 16px -4px rgba(37, 99, 235, 0.4),
+              0 2px 4px -1px rgba(37, 99, 235, 0.2);
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+              box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+              filter 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.actions > button[mat-flat-button]:hover:not([disabled]) {
+  transform: translateY(-1px);
+  filter: brightness(1.04);
+  box-shadow: 0 10px 22px -6px rgba(37, 99, 235, 0.5),
+              0 4px 8px -2px rgba(37, 99, 235, 0.25);
+}
+
+.actions > button[mat-flat-button]:active:not([disabled]) {
+  transform: translateY(0);
+  filter: brightness(0.98);
+}
+
+.actions > button[mat-flat-button][disabled] {
+  opacity: 0.55;
+  box-shadow: none;
+  filter: grayscale(0.3);
+}
+
+.actions > button[mat-flat-button] mat-icon {
+  font-size: 20px;
+  width: 20px;
+  height: 20px;
+  color: #ffffff;
+}
+
+@media (max-width: 600px) {
+  .actions {
+    justify-content: stretch;
+    padding: 12px 16px;
+  }
+  .actions > button[mat-flat-button] {
+    flex: 1;
+    min-width: 0;
+    width: 100%;
+  }
 }
 
 /* Mat form fields siempre al 100% dentro del form */

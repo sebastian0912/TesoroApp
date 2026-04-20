@@ -168,15 +168,122 @@ mat-icon,
 
 /* ========= Botones / acciones ========= */
 .submit-button {
-  width: 100%;
-  margin: 0 auto 20pt;
   box-sizing: border-box;
 }
 
 .form-actions {
   display: flex;
-  justify-content: center;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
   margin-top: 20px;
+}
+
+/* ==========================================================
+   Footer sticky premium (fondo frosted-glass + botón con gradiente)
+   Stickea al fondo del scroll padre (recruitment-pipeline / help-information)
+   ========================================================== */
+.sticky-actions {
+  position: sticky;
+  bottom: 0;
+  padding: 14px 20px;
+  background: linear-gradient(180deg,
+              rgba(255, 255, 255, 0.75) 0%,
+              rgba(255, 255, 255, 0.96) 55%,
+              rgba(248, 250, 252, 1) 100%);
+  backdrop-filter: blur(14px) saturate(160%);
+  -webkit-backdrop-filter: blur(14px) saturate(160%);
+  border-top: 1px solid rgba(15, 23, 42, 0.08);
+  box-shadow: 0 -8px 24px -10px rgba(15, 23, 42, 0.15);
+  z-index: 3;
+}
+
+.sticky-actions-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #64748b;
+  font-size: 0.85rem;
+  font-weight: 500;
+  letter-spacing: 0.2px;
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sticky-actions-hint mat-icon {
+  font-size: 16px;
+  width: 16px;
+  height: 16px;
+  color: #16a34a;
+}
+
+.sticky-actions > button[mat-flat-button] {
+  min-height: 44px;
+  min-width: 220px;
+  border-radius: 10px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.3px;
+  padding: 0 32px !important;
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%) !important;
+  color: #ffffff !important;
+  box-shadow: 0 6px 16px -4px rgba(37, 99, 235, 0.4),
+              0 2px 4px -1px rgba(37, 99, 235, 0.2);
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+              box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+              filter 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  white-space: nowrap;
+  width: auto !important;
+  margin: 0 !important;
+}
+
+.sticky-actions > button[mat-flat-button]:hover:not([disabled]) {
+  transform: translateY(-1px);
+  filter: brightness(1.04);
+  box-shadow: 0 10px 22px -6px rgba(37, 99, 235, 0.5),
+              0 4px 8px -2px rgba(37, 99, 235, 0.25);
+}
+
+.sticky-actions > button[mat-flat-button]:active:not([disabled]) {
+  transform: translateY(0);
+  filter: brightness(0.98);
+}
+
+.sticky-actions > button[mat-flat-button][disabled] {
+  opacity: 0.55;
+  box-shadow: none;
+  filter: grayscale(0.3);
+}
+
+.sticky-actions > button[mat-flat-button] mat-icon {
+  font-size: 20px;
+  width: 20px;
+  height: 20px;
+  color: #ffffff;
+}
+
+@media (max-width: 720px) {
+  .sticky-actions {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+    padding: 12px 16px;
+  }
+  .sticky-actions-hint {
+    justify-content: center;
+    text-align: center;
+    white-space: normal;
+  }
+  .sticky-actions > button[mat-flat-button] {
+    width: 100% !important;
+    min-width: 0;
+  }
 }
 
 /* ========= STEPPER (labelPosition=end) ========= */

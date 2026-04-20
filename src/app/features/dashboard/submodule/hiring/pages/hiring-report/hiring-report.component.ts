@@ -573,7 +573,12 @@ export class HiringReportComponent implements OnInit, OnDestroy {
       // Despues de guardar el reporte (archivo + metadata), persistir cada
       // fila del Cruce Diario como candidato / proceso de contratacion.
       // Solo se ejecuta si hubo contratacion y tenemos filas validadas.
-      let cruceGuardado: { creados: number; actualizados: number; errores: string[] } | null = null;
+      let cruceGuardado: {
+        creados: number;
+        actualizados: number;
+        errores: string[];
+        bloqueadasPipeline: string[];
+      } | null = null;
       if (checks.contratosHoy === 'si' && this.datoscruced.length > 0) {
         try {
           this.updateSwalProgress('Guardando contrataciones...', 0, this.datoscruced.length);
@@ -582,6 +587,9 @@ export class HiringReportComponent implements OnInit, OnDestroy {
             creados: Number(resp?.creados ?? 0),
             actualizados: Number(resp?.actualizados ?? 0),
             errores: Array.isArray(resp?.errores) ? resp.errores : [],
+            bloqueadasPipeline: Array.isArray(resp?.bloqueadas_pipeline)
+              ? resp.bloqueadas_pipeline.map((x: any) => String(x))
+              : [],
           };
         } catch (saveErr: any) {
           console.error('[onSubmit] Error al guardar contrataciones del cruce:', saveErr);
@@ -612,8 +620,30 @@ export class HiringReportComponent implements OnInit, OnDestroy {
             `<br>Con error: <b>${cruceGuardado.errores.length}</b> ` +
             `(revisa el panel de errores para el detalle)`;
         }
+        if (cruceGuardado.bloqueadasPipeline.length > 0) {
+          const lista = cruceGuardado.bloqueadasPipeline.slice(0, 20).join(', ');
+          const mas = cruceGuardado.bloqueadasPipeline.length > 20
+            ? ` (+${cruceGuardado.bloqueadasPipeline.length - 20} más)`
+            : '';
+          htmlResumen +=
+            `<br><br>` +
+            `<div style="text-align:left; padding:10px; background:#fff7ed; ` +
+            `border-left:4px solid #fb923c; border-radius:6px;">` +
+            `<b style="color:#9a3412;">` +
+            `${cruceGuardado.bloqueadasPipeline.length} cédulas no se actualizaron</b><br>` +
+            `<small style="color:#7c2d12;">` +
+            `Estas cédulas ya pertenecen al <b>pipeline nuevo</b> y no pueden modificarse ` +
+            `desde el Cruce Excel. Actualízalas desde <b>recruitment-pipeline</b>.</small>` +
+            `<br><br><small style="color:#7c2d12;">${lista}${mas}</small>` +
+            `</div>`;
+        }
       }
-      Swal.fire({ icon: 'success', title: 'Enviado', html: htmlResumen }).then(() => {
+      Swal.fire({
+        icon: 'success',
+        title: 'Enviado',
+        html: htmlResumen,
+        width: cruceGuardado?.bloqueadasPipeline.length ? 600 : undefined,
+      }).then(() => {
         this.router.navigate(['/dashboard/hiring/hiring-report']);
       });
 

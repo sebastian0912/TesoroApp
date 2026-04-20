@@ -170,8 +170,11 @@
         </mat-form-field>
       </div>
 
-      <div style="margin-top: 24px; display: flex; justify-content: flex-end;">
-        <button mat-flat-button color="primary" (click)="cargarPagoTransporte()">Cargar</button>
+      <div class="sticky-actions">
+        <button mat-flat-button color="primary" class="sticky-action-btn" (click)="cargarPagoTransporte()">
+          <mat-icon>cloud_upload</mat-icon>
+          <span>Cargar</span>
+        </button>
       </div>
     </div>
     </ng-template>
@@ -356,7 +359,12 @@
 
                           </div>
 
-                          <button mat-flat-button color="primary" (click)="cargarReferencias()">Cargar</button>
+                          <div class="sticky-actions">
+                            <button mat-flat-button color="primary" class="sticky-action-btn" (click)="cargarReferencias()">
+                              <mat-icon>cloud_upload</mat-icon>
+                              <span>Cargar</span>
+                            </button>
+                          </div>
                         </div>
     </ng-template>
                       </mat-tab>
@@ -421,8 +429,11 @@
                               }
                             </div>
 
-                            <div style="margin-top: 24px; display: flex; justify-content: flex-end;">
-                              <button mat-flat-button color="primary" (click)="cargarTraslados()">Cargar</button>
+                            <div class="sticky-actions">
+                              <button mat-flat-button color="primary" class="sticky-action-btn" (click)="cargarTraslados()">
+                                <mat-icon>cloud_upload</mat-icon>
+                                <span>Cargar</span>
+                              </button>
                             </div>
                           </div>
                         </ng-template>
