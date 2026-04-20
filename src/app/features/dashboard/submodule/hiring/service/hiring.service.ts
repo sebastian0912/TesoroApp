@@ -35,11 +35,7 @@ export class HiringService {
     );
   }
 
-  // Buscar en contratacion por cedula para sacar los datos bio
-  // check-contract/<str:codigo_contrato>/
-  //
-  // Buscar datos seleccion  /Seleccion/traerDatosSeleccion/{cedula}
-  // Servicio para traer datos de contratación
+  // Servicio para traer datos de contratación (incapacidades)
 
   public traerDatosEncontratacion(cedula: string): Observable<any> {
     return this.http.get(`${this.apiUrl}/gestion_contratacion/datosIncapacidadContratacion/${cedula}`,).pipe(
