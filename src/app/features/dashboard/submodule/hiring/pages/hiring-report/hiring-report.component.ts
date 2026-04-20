@@ -570,8 +570,50 @@ export class HiringReportComponent implements OnInit, OnDestroy {
 
       await firstValueFrom(this.reportesService.createReporte(payload, files));
 
+      // Despues de guardar el reporte (archivo + metadata), persistir cada
+      // fila del Cruce Diario como candidato / proceso de contratacion.
+      // Solo se ejecuta si hubo contratacion y tenemos filas validadas.
+      let cruceGuardado: { creados: number; actualizados: number; errores: string[] } | null = null;
+      if (checks.contratosHoy === 'si' && this.datoscruced.length > 0) {
+        try {
+          this.updateSwalProgress('Guardando contrataciones...', 0, this.datoscruced.length);
+          const resp: any = await this.hiringService.subirContratacion(this.datoscruced);
+          cruceGuardado = {
+            creados: Number(resp?.creados ?? 0),
+            actualizados: Number(resp?.actualizados ?? 0),
+            errores: Array.isArray(resp?.errores) ? resp.errores : [],
+          };
+        } catch (saveErr: any) {
+          console.error('[onSubmit] Error al guardar contrataciones del cruce:', saveErr);
+          // El reporte YA quedo guardado; solo avisamos que el upsert de filas fallo.
+          this.closeSwal();
+          await Swal.fire({
+            icon: 'warning',
+            title: 'Reporte enviado, pero el cruce no se guardo completo',
+            html:
+              'El reporte y sus archivos quedaron guardados en el servidor. ' +
+              'Sin embargo, no se pudieron persistir las contrataciones del Cruce Diario.<br><br>' +
+              `<small>${this.parseBackendError(saveErr) || 'Intenta enviarlo de nuevo o contacta a soporte.'}</small>`,
+          });
+          this.router.navigate(['/dashboard/hiring/hiring-report']);
+          return;
+        }
+      }
+
       this.closeSwal();
-      Swal.fire('Enviado', 'Reporte enviado correctamente', 'success').then(() => {
+      let htmlResumen = 'Reporte enviado correctamente.';
+      if (cruceGuardado) {
+        htmlResumen +=
+          `<br><br><b>Contrataciones:</b><br>` +
+          `Creadas: <b>${cruceGuardado.creados}</b><br>` +
+          `Actualizadas: <b>${cruceGuardado.actualizados}</b>`;
+        if (cruceGuardado.errores.length > 0) {
+          htmlResumen +=
+            `<br>Con error: <b>${cruceGuardado.errores.length}</b> ` +
+            `(revisa el panel de errores para el detalle)`;
+        }
+      }
+      Swal.fire({ icon: 'success', title: 'Enviado', html: htmlResumen }).then(() => {
         this.router.navigate(['/dashboard/hiring/hiring-report']);
       });
 
