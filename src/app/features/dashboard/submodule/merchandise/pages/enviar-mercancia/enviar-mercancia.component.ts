@@ -48,8 +48,8 @@ export class EnviarMercanciaComponent {
       }
     });
 
-    this.comercializadoraService.traerCategorias(31).then((data: any) => {
-      this.conceptos = data[0].opciones;
+    this.comercializadoraService.traerTiposBeneficios().then((opciones) => {
+      this.conceptos = opciones;
     });
 
   }

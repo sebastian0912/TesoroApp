@@ -185,15 +185,31 @@ export class ComercializadoraService {
     }
   }
 
-  // categorias/<int:id>
-  async traerCategorias(int: number): Promise<any> {
+  /**
+   * Trae los tipos de beneficios desde gestion_catalogos (MetaTabla TIPOS_BENEFICIOS).
+   * Antes se consumia /opciones_formulario/categorias/31; esa app fue retirada.
+   * Devuelve un array plano: [{ valor, descripcion }, ...] listo para poblar
+   * dropdowns sin tocar plantilla.
+   */
+  async traerTiposBeneficios(): Promise<Array<{ valor: string; descripcion: string }>> {
     try {
-      const response = await firstValueFrom(
+      const response: any = await firstValueFrom(
         this.http
-          .get(`${this.apiUrl}/opciones_formulario/categorias/${int}`)
+          .get(`${this.apiUrl}/gestion_catalogos/meta/tablas/TIPOS_BENEFICIOS/valores/`)
           .pipe(catchError(this.handleError))
       );
-      return response;
+      const items: any[] = Array.isArray(response)
+        ? response
+        : (Array.isArray(response?.results) ? response.results : []);
+      const opciones = items
+        .filter((v) => v?.activo !== false)
+        .map((v) => ({
+          valor: String(v?.datos?.codigo ?? '').trim(),
+          descripcion: String(v?.datos?.persona ?? '').trim(),
+        }))
+        .filter((o) => !!o.valor)
+        .sort((a, b) => a.valor.localeCompare(b.valor));
+      return opciones;
     } catch (error) {
       throw error;
     }
