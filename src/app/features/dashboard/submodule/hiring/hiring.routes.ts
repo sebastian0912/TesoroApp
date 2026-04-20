@@ -1,4 +1,5 @@
 import { Routes } from '@angular/router';
+import { AbsencesComponent } from './pages/absences/absences.component';
 import { BannedManagementComponent } from './pages/banned-management/banned-management.component';
 import { BannedReportComponent } from './pages/banned-report/banned-report.component';
 import { HiringReportComponent } from './pages/hiring-report/hiring-report.component';
@@ -13,6 +14,7 @@ import { AbsencesNew } from './pages/absences-new/absences-new';
 import { ManageContractsComponent } from './pages/manage-contracts/manage-contracts.component';
 
 export const routes: Routes = [
+  { path: 'absences', component: AbsencesComponent },
   { path: 'hiring-report', component: HiringReportComponent },
   { path: 'recruitment-pipeline', component: RecruitmentPipelineComponent },
   { path: 'query-form', component: QueryFormComponent },

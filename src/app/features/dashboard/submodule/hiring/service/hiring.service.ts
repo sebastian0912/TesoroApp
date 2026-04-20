@@ -274,8 +274,58 @@ export class HiringService {
 
   // contratacion/traerCompletoContratacion/<str:codigo_contrato>/
   // -------------------------
-  // Modulo de Ausentismos (viejo) - ELIMINADO. Usar obtenerAusentismosNuevos.
+  // Módulo de Ausentismos
   // -------------------------
+
+  public obtenerAusentismos(): Observable<any> {
+    return this.http.get(`${this.apiUrl}/gestion_ausentismios/ausentismos/`,).pipe(
+      map((response: any) => response),
+      catchError(this.handleError)
+    );
+  }
+
+  async gestionarAusentismo(id: string | number, data: any): Promise<any> {
+    const url = `${this.apiUrl}/gestion_ausentismios/ausentismos/${id}/gestionar/`;
+    try {
+      const response = await firstValueFrom(this.http.patch<any>(url, data).pipe(
+        catchError(this.handleError)
+      ));
+      return response;
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  async enviarNotificacionMasivaAusentismos(ids: (string | number)[], plantilla_id?: number | null): Promise<any> {
+    const url = `${this.apiUrl}/gestion_ausentismios/ausentismos/notificar-masivo/`;
+    const payload: any = { ids };
+    if (plantilla_id) {
+      payload.plantilla_id = plantilla_id;
+    }
+    try {
+      const response = await firstValueFrom(this.http.post<any>(url, payload).pipe(
+        catchError(this.handleError)
+      ));
+      return response;
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  async subirAusentismosExcel(file: File): Promise<any> {
+    const url = `${this.apiUrl}/gestion_ausentismios/ausentismos/importar-excel/`;
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    try {
+      const response = await firstValueFrom(this.http.post<any>(url, formData).pipe(
+        catchError(this.handleError)
+      ));
+      return response;
+    } catch (error) {
+      throw error;
+    }
+  }
 
   // -------------------------
   // Módulo de Ausentismos NUEVOS
