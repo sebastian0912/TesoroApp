@@ -81,6 +81,10 @@
               <mat-icon>calculate</mat-icon>
               CALCULAR NÓMINA
             </button>
+            <button mat-stroked-button color="accent" class="btn-large full-width" (click)="abrirImportNovedades()" [disabled]="!periodoControl.value || loading" matTooltip="Cargar novedades del periodo desde Excel (ausentismos, bonificaciones, descuentos, etc.)">
+              <mat-icon>event_note</mat-icon>
+              CARGAR NOVEDADES (EXCEL)
+            </button>
           </div>
         </div>
       </div>

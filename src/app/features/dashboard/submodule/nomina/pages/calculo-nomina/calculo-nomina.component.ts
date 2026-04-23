@@ -24,6 +24,7 @@ import { MatNativeDateModule, provideNativeDateAdapter } from '@angular/material
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { PeriodoDialogComponent } from './periodo-dialog/periodo-dialog.component';
+import { ImportNovedadesDialogComponent } from '../../components/import-novedades-dialog/import-novedades-dialog.component';
 
 import * as ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
@@ -139,6 +140,53 @@ export class CalculoNominaComponent implements OnInit {
   private _filterCecos(val: string): CostCenter[] {
     const filterValue = val.toLowerCase();
     return this.cecos.filter(c => c.nombre.toLowerCase().includes(filterValue));
+  }
+
+  abrirImportNovedades(): void {
+    const periodo = this.periodoControl.value;
+    if (!periodo?.id_periodo) {
+      Swal.fire('Atención', 'Seleccione un periodo antes de cargar novedades.', 'warning');
+      return;
+    }
+    if (!this.selectedCliente?.id_entidad) {
+      Swal.fire('Atención', 'Seleccione un cliente: el convalidador depende del cliente.', 'warning');
+      return;
+    }
+    const ref = this.dialog.open(ImportNovedadesDialogComponent, {
+      width: '95vw', maxWidth: '1200px', height: '90vh',
+      disableClose: true,
+      data: {
+        periodo_id: periodo.id_periodo,
+        periodo_descripcion: periodo.descripcion,
+        cliente_id: this.selectedCliente.id_entidad,
+        cliente_nombre: this.selectedCliente.nombre_legal,
+      },
+    });
+    ref.afterClosed().subscribe((result) => {
+      // Tras importar novedades, re-ejecutar el preview oficial del backend
+      // para que la tabla refleje el impacto en el cálculo.
+      if (result?.recalcular && this.selectedCliente && this.contratos.length) {
+        this.loading = true;
+        this.cdr.markForCheck();
+        this.nominaService.calcularLiquidacion({
+          periodo_id: periodo.id_periodo,
+          cliente_id: this.selectedCliente.id_entidad,
+          cecos: this.selectedCecoIds,
+          contrato_ids: this.contratos.map(c => c.id_contrato),
+        }).subscribe({
+          next: (preview) => {
+            this.aplicarPreviewBackend(preview.empleados || []);
+            this.loading = false;
+            this.cdr.markForCheck();
+          },
+          error: () => {
+            this.loading = false;
+            this.cdr.markForCheck();
+            Swal.fire('Error', 'No se pudo recalcular tras importar novedades.', 'error');
+          },
+        });
+      }
+    });
   }
 
   private _filterPeriodos(val: string): any[] {

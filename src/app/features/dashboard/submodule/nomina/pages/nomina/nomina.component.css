@@ -1,0 +1,35 @@
+/* La página ocupa todo el alto disponible del dashboard y cede el sobrante
+   al mat-tab-group, que a su vez le da altura al body del tab activo. */
+:host { display: block; height: 100%; }
+
+.nomina-page {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.nomina-tabs {
+  flex: 1;
+  min-height: 0;   /* crítico: permite que hijos calculen height real */
+  display: flex;
+  flex-direction: column;
+}
+
+/* Forzar al body del tab a ocupar el espacio restante para que el
+   componente hijo (que usa height:100%) pueda hacer scroll interno. */
+.nomina-tabs ::ng-deep .mat-mdc-tab-body-wrapper {
+  flex: 1;
+  min-height: 0;
+}
+.nomina-tabs ::ng-deep .mat-mdc-tab-body,
+.nomina-tabs ::ng-deep .mat-mdc-tab-body-content {
+  height: 100%;
+}
+
+.tab-ico {
+  margin-right: 8px;
+  vertical-align: middle;
+  font-size: 20px;
+  width: 20px;
+  height: 20px;
+}

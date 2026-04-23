@@ -1,0 +1,301 @@
+<div class="ee-dialog">
+
+  <header class="ee-header">
+    <div class="ee-header__title">
+      <mat-icon>{{ isNew() ? 'person_add' : 'person' }}</mat-icon>
+      <div>
+        <h2>{{ isNew() ? 'Nuevo empleado' : (empleado().nombre_completo || 'Empleado') }}</h2>
+        @if (!isNew() && empleado().numero_documento) {
+          <span class="ee-header__doc">{{ empleado().tipo_documento }} {{ empleado().numero_documento }}</span>
+        }
+      </div>
+    </div>
+    <button mat-icon-button (click)="cerrar()" matTooltip="Cerrar">
+      <mat-icon>close</mat-icon>
+    </button>
+  </header>
+
+  @if (saving()) { <mat-progress-bar mode="indeterminate"></mat-progress-bar> }
+
+  @if (error()) {
+    <div class="ee-error">
+      <mat-icon>error_outline</mat-icon>
+      <span>{{ error() }}</span>
+    </div>
+  }
+
+  @if (loading()) {
+    <div class="ee-loading">Cargando…</div>
+  } @else {
+    <mat-tab-group class="ee-tabs" dynamicHeight>
+
+      <!-- ───────── TAB 1: Datos Personales ───────── -->
+      <mat-tab label="Datos Personales">
+        <div class="ee-body">
+          <div class="ee-grid">
+
+            <mat-form-field appearance="outline">
+              <mat-label>Tipo de documento</mat-label>
+              <mat-select [ngModel]="empleado().tipo_documento" (ngModelChange)="patchEmpleado({tipo_documento: $event})">
+                <mat-option value="CC">CC - Cédula</mat-option>
+                <mat-option value="CE">CE - Cédula Extranjería</mat-option>
+                <mat-option value="TI">TI - Tarjeta de Identidad</mat-option>
+                <mat-option value="PPT">PPT</mat-option>
+                <mat-option value="PEP">PEP</mat-option>
+              </mat-select>
+            </mat-form-field>
+
+            <mat-form-field appearance="outline">
+              <mat-label>Número de documento *</mat-label>
+              <input matInput [ngModel]="empleado().numero_documento"
+                     (ngModelChange)="patchEmpleado({numero_documento: $event})" required />
+            </mat-form-field>
+
+            <mat-form-field appearance="outline">
+              <mat-label>Primer nombre *</mat-label>
+              <input matInput [ngModel]="empleado().primer_nombre"
+                     (ngModelChange)="patchEmpleado({primer_nombre: $event})" required />
+            </mat-form-field>
+
+            <mat-form-field appearance="outline">
+              <mat-label>Segundo nombre</mat-label>
+              <input matInput [ngModel]="empleado().segundo_nombre"
+                     (ngModelChange)="patchEmpleado({segundo_nombre: $event})" />
+            </mat-form-field>
+
+            <mat-form-field appearance="outline">
+              <mat-label>Primer apellido *</mat-label>
+              <input matInput [ngModel]="empleado().primer_apellido"
+                     (ngModelChange)="patchEmpleado({primer_apellido: $event})" required />
+            </mat-form-field>
+
+            <mat-form-field appearance="outline">
+              <mat-label>Segundo apellido</mat-label>
+              <input matInput [ngModel]="empleado().segundo_apellido"
+                     (ngModelChange)="patchEmpleado({segundo_apellido: $event})" />
+            </mat-form-field>
+
+            <mat-form-field appearance="outline">
+              <mat-label>Fecha de nacimiento</mat-label>
+              <input matInput type="date" [ngModel]="empleado().fecha_nacimiento"
+                     (ngModelChange)="patchEmpleado({fecha_nacimiento: $event})" />
+            </mat-form-field>
+
+            <mat-form-field appearance="outline">
+              <mat-label>Género</mat-label>
+              <mat-select [ngModel]="empleado().genero" (ngModelChange)="patchEmpleado({genero: $event})">
+                <mat-option [value]="null">—</mat-option>
+                <mat-option value="M">Masculino</mat-option>
+                <mat-option value="F">Femenino</mat-option>
+              </mat-select>
+            </mat-form-field>
+
+            <mat-form-field appearance="outline" class="ee-col-span-2">
+              <mat-label>Correo electrónico</mat-label>
+              <input matInput type="email" [ngModel]="empleado().email"
+                     (ngModelChange)="patchEmpleado({email: $event})" />
+            </mat-form-field>
+
+            <mat-form-field appearance="outline">
+              <mat-label>Cantidad de hijos</mat-label>
+              <input matInput type="number" min="0" [ngModel]="empleado().cantidad_hijos"
+                     (ngModelChange)="patchEmpleado({cantidad_hijos: $event})" />
+            </mat-form-field>
+
+            <div class="ee-check">
+              <mat-checkbox [ngModel]="empleado().es_pensionado"
+                            (ngModelChange)="patchEmpleado({es_pensionado: $event})">
+                Es pensionado
+              </mat-checkbox>
+            </div>
+
+          </div>
+        </div>
+      </mat-tab>
+
+      <!-- ───────── TAB 2: Contratos ───────── -->
+      <mat-tab [label]="'Contratos (' + contratos().length + ')'">
+        <div class="ee-body">
+
+          <div class="ee-contratos-nav">
+            <mat-chip-listbox [ngModel]="contratoIdx()" (ngModelChange)="contratoIdx.set($event)">
+              @for (c of contratos(); track $index; let i = $index) {
+                <mat-chip-option [value]="i" [selected]="i === contratoIdx()">
+                  {{ c.codigo_contrato_client || ('Contrato ' + (i + 1)) }}
+                  <span class="ee-chip-estado" [attr.data-estado]="c.estado">{{ c.estado || 'NUEVO' }}</span>
+                </mat-chip-option>
+              }
+            </mat-chip-listbox>
+            <div class="ee-contratos-actions">
+              <button mat-stroked-button color="primary" (click)="agregarContrato()">
+                <mat-icon>add</mat-icon> Nuevo contrato
+              </button>
+              @if (contratos().length > 1) {
+                <button mat-stroked-button color="warn" (click)="eliminarContratoLocal()">
+                  <mat-icon>remove</mat-icon> Quitar de la lista
+                </button>
+              }
+            </div>
+          </div>
+
+          <mat-divider></mat-divider>
+
+          @if (contratoActual(); as c) {
+          <div class="ee-grid">
+
+            <mat-form-field appearance="outline">
+              <mat-label>Código de contrato</mat-label>
+              <input matInput [ngModel]="c.codigo_contrato_client"
+                     (ngModelChange)="patchContratoActual({codigo_contrato_client: $event})" />
+            </mat-form-field>
+
+            <mat-form-field appearance="outline">
+              <mat-label>Estado</mat-label>
+              <mat-select [ngModel]="c.estado" (ngModelChange)="patchContratoActual({estado: $event})">
+                <mat-option value="ACTIVO">ACTIVO</mat-option>
+                <mat-option value="INACTIVO">INACTIVO</mat-option>
+                <mat-option value="RETIRADO">RETIRADO</mat-option>
+                <mat-option value="FINALIZADO">FINALIZADO</mat-option>
+              </mat-select>
+            </mat-form-field>
+
+            <mat-form-field appearance="outline">
+              <mat-label>Fecha de ingreso *</mat-label>
+              <input matInput type="date" [ngModel]="c.fecha_ingreso"
+                     (ngModelChange)="patchContratoActual({fecha_ingreso: $event})" required />
+            </mat-form-field>
+
+            <mat-form-field appearance="outline">
+              <mat-label>Fecha de retiro</mat-label>
+              <input matInput type="date" [ngModel]="c.fecha_retiro"
+                     (ngModelChange)="patchContratoActual({fecha_retiro: $event})" />
+            </mat-form-field>
+
+            <mat-form-field appearance="outline">
+              <mat-label>Cliente</mat-label>
+              <mat-select [ngModel]="c.id_cliente" (ngModelChange)="onClienteContratoChange($event)">
+                <mat-option [value]="null">—</mat-option>
+                @for (cl of clientes(); track cl.id_entidad) {
+                  <mat-option [value]="cl.id_entidad">{{ cl.nombre_legal }}</mat-option>
+                }
+              </mat-select>
+            </mat-form-field>
+
+            <mat-form-field appearance="outline">
+              <mat-label>Centro de costo</mat-label>
+              <mat-select [ngModel]="c.id_ceco" (ngModelChange)="patchContratoActual({id_ceco: $event})">
+                <mat-option [value]="null">—</mat-option>
+                @for (cc of cecos(); track cc.id_ceco) {
+                  <mat-option [value]="cc.id_ceco">{{ cc.nombre }}</mat-option>
+                }
+              </mat-select>
+            </mat-form-field>
+
+            <mat-form-field appearance="outline">
+              <mat-label>Salario básico</mat-label>
+              <input matInput type="number" min="0" [ngModel]="c.salario_basico"
+                     (ngModelChange)="patchContratoActual({salario_basico: $event})" />
+            </mat-form-field>
+
+            <div class="ee-check">
+              <mat-checkbox [ngModel]="c.auxilio_transporte_ley"
+                            (ngModelChange)="patchContratoActual({auxilio_transporte_ley: $event})">
+                Aplica auxilio de transporte
+              </mat-checkbox>
+            </div>
+
+            <mat-form-field appearance="outline">
+              <mat-label>Forma de pago</mat-label>
+              <input matInput [ngModel]="c.forma_pago"
+                     (ngModelChange)="patchContratoActual({forma_pago: $event})" />
+            </mat-form-field>
+
+            <mat-form-field appearance="outline">
+              <mat-label>Número de cuenta</mat-label>
+              <input matInput [ngModel]="c.numero_cuenta_bancaria"
+                     (ngModelChange)="patchContratoActual({numero_cuenta_bancaria: $event})" />
+            </mat-form-field>
+
+            <mat-form-field appearance="outline">
+              <mat-label>Banco</mat-label>
+              <mat-select [ngModel]="c.id_banco" (ngModelChange)="patchContratoActual({id_banco: $event})">
+                <mat-option [value]="null">—</mat-option>
+                @for (b of bancos(); track b.id_entidad) {
+                  <mat-option [value]="b.id_entidad">{{ b.nombre_legal }}</mat-option>
+                }
+              </mat-select>
+            </mat-form-field>
+
+            <mat-form-field appearance="outline">
+              <mat-label>EPS</mat-label>
+              <mat-select [ngModel]="c.id_eps" (ngModelChange)="patchContratoActual({id_eps: $event})">
+                <mat-option [value]="null">—</mat-option>
+                @for (e of epss(); track e.id_entidad) {
+                  <mat-option [value]="e.id_entidad">{{ e.nombre_legal }}</mat-option>
+                }
+              </mat-select>
+            </mat-form-field>
+
+            <mat-form-field appearance="outline">
+              <mat-label>AFP (pensión)</mat-label>
+              <mat-select [ngModel]="c.id_afp" (ngModelChange)="patchContratoActual({id_afp: $event})">
+                <mat-option [value]="null">—</mat-option>
+                @for (a of afps(); track a.id_entidad) {
+                  <mat-option [value]="a.id_entidad">{{ a.nombre_legal }}</mat-option>
+                }
+              </mat-select>
+            </mat-form-field>
+
+            <mat-form-field appearance="outline">
+              <mat-label>CCF (caja de compensación)</mat-label>
+              <mat-select [ngModel]="c.id_ccf" (ngModelChange)="patchContratoActual({id_ccf: $event})">
+                <mat-option [value]="null">—</mat-option>
+                @for (cf of ccfs(); track cf.id_entidad) {
+                  <mat-option [value]="cf.id_entidad">{{ cf.nombre_legal }}</mat-option>
+                }
+              </mat-select>
+            </mat-form-field>
+
+            <mat-form-field appearance="outline">
+              <mat-label>Inicio prima</mat-label>
+              <input matInput type="date" [ngModel]="c.fecha_inicio_prima"
+                     (ngModelChange)="patchContratoActual({fecha_inicio_prima: $event})" />
+            </mat-form-field>
+
+            <mat-form-field appearance="outline">
+              <mat-label>Inicio cesantías</mat-label>
+              <input matInput type="date" [ngModel]="c.fecha_inicio_cesantias"
+                     (ngModelChange)="patchContratoActual({fecha_inicio_cesantias: $event})" />
+            </mat-form-field>
+
+            <mat-form-field appearance="outline">
+              <mat-label>Inicio vacaciones</mat-label>
+              <input matInput type="date" [ngModel]="c.fecha_inicio_vacaciones"
+                     (ngModelChange)="patchContratoActual({fecha_inicio_vacaciones: $event})" />
+            </mat-form-field>
+
+          </div>
+
+          <div class="ee-contrato-footer">
+            @if (c.id_contrato && c.estado === 'ACTIVO') {
+              <button mat-stroked-button color="warn" (click)="terminarContrato()">
+                <mat-icon>event_busy</mat-icon> Terminar contrato
+              </button>
+            }
+          </div>
+          }
+        </div>
+      </mat-tab>
+
+    </mat-tab-group>
+  }
+
+  <footer class="ee-footer">
+    <button mat-button (click)="cerrar()" [disabled]="saving()">Cerrar</button>
+    <button mat-flat-button color="primary" (click)="guardar()" [disabled]="saving() || loading()">
+      <mat-icon>save</mat-icon>
+      {{ saving() ? 'Guardando…' : (isNew() ? 'Crear empleado' : 'Guardar cambios') }}
+    </button>
+  </footer>
+
+</div>

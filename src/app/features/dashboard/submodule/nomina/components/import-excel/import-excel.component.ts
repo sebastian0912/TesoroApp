@@ -2,6 +2,7 @@ import {
     Component,
     ElementRef,
     ViewChild,
+    signal,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -18,6 +19,7 @@ import {
     PreviewRegistro,
     PreviewResponse,
     ImportResult,
+    ImportarRegistrosPayload,
 } from '../../service/nomina/nomina.service';
 
 import { ValidationPreviewDialogComponent } from '@/app/shared/components/validation-preview-dialog/validation-preview-dialog.component';
@@ -143,6 +145,13 @@ function buildNominaSchema(): PreviewSchema<PreviewRegistro, PreviewRegistro[]> 
             if (!item.tipo_documento) {
                 issues.push({ id: `${id}-tipo`, itemId: id, severity: 'error', field: 'tipo_documento', message: 'Tipo de documento vacío.' });
             }
+            // Regla: documentos que empiezan con 'X' son PPT por convención.
+            if (item.numero_documento?.trim().toUpperCase().startsWith('X') && item.tipo_documento !== 'PPT') {
+                issues.push({
+                    id: `${id}-ppt`, itemId: id, severity: 'warn', field: 'tipo_documento',
+                    message: 'Documento inicia con X: al guardar se forzará tipo PPT.',
+                });
+            }
             if (!item.nombre_completo) {
                 issues.push({ id: `${id}-nom`, itemId: id, severity: 'error', field: 'nombre_completo', message: 'Nombre completo vacío.' });
             } else if (/\d/.test(item.nombre_completo)) {
@@ -246,18 +255,33 @@ export class ImportExcelComponent {
 
     @ViewChild('fileInput') fileInput!: ElementRef<HTMLInputElement>;
 
-    // ── State ────────────────────────────────────────────────────
-    step: WizardStep = 'select';
-    progress: number = 0;
-    errorMsg: string = '';
-    isDragging: boolean = false;
-    isParsing: boolean = false;
+    // ── State (signals — requerido con provideZonelessChangeDetection) ─────
+    // Propiedades mutadas desde callbacks async (subscribe/await) deben ser
+    // signals; de lo contrario Angular zoneless no dispara change detection
+    // y la UI queda "pegada" hasta que un evento DOM la despierta.
+    step = signal<WizardStep>('select');
+    progress = signal(0);
+    errorMsg = signal('');
+    isParsing = signal(false);
+    importResult = signal<ImportResult | null>(null);
 
-    // ── Data ─────────────────────────────────────────────────────
+    // Estas sí cambian desde eventos DOM (click, drag, ngModel), no requieren signal
+    isDragging: boolean = false;
     selectedFile: File | null = null;
     previewResp: PreviewResponse | null = null;
     allRows: PreviewRegistro[] = [];
-    importResult: ImportResult | null = null;
+
+    // Snapshot original (por fila_excel) para calcular deltas y enviar solo edits
+    private originalRowsById: Map<string, PreviewRegistro> = new Map();
+    private importToken: string | null = null;
+
+    // Campos que el usuario realmente puede editar en el diálogo de preview.
+    // Solo comparamos estos para detectar cambios.
+    private static EDITABLE_FIELDS: (keyof PreviewRegistro)[] = [
+        'tipo_documento', 'numero_documento', 'nombre_completo',
+        'codigo_contrato', 'fecha_ingreso', 'fecha_retiro', 'estado',
+        'cliente', 'salario', 'email',
+    ];
 
     // ── Options ──────────────────────────────────────────────────
     sheetName = 'BASE GENERAL';
@@ -295,25 +319,32 @@ export class ImportExcelComponent {
     private setFile(file: File): void {
         const ext = file.name.split('.').pop()?.toLowerCase();
         if (ext !== 'xlsx' && ext !== 'xls') {
-            this.errorMsg = 'Solo se permiten archivos Excel (.xlsx / .xls)';
-            this.step = 'error';
+            this.errorMsg.set('Solo se permiten archivos Excel (.xlsx / .xls)');
+            this.step.set('error');
             return;
         }
         this.selectedFile = file;
-        this.errorMsg = '';
-        this.step = 'select';
+        this.errorMsg.set('');
+        this.step.set('select');
     }
 
     // ── Step 2: ETL Preview ───────────────────────────────────────
     runPreview(): void {
         if (!this.selectedFile) return;
-        this.isParsing = true;
-        this.errorMsg = '';
+        this.isParsing.set(true);
+        this.errorMsg.set('');
 
         this.nominaService.previewExcel(this.selectedFile, this.sheetName, this.headerRow).subscribe({
             next: async (resp: PreviewResponse) => {
                 this.previewResp = resp;
-                this.isParsing = false;
+                this.importToken = resp.import_token ?? null;
+                this.isParsing.set(false);
+
+                // Guardamos snapshot original (deep-copy superficial por fila) para
+                // luego calcular solo los deltas editados y no reenviar todo.
+                this.originalRowsById = new Map(
+                    resp.registros.map((r: PreviewRegistro) => [String(r.fila_excel), { ...r }])
+                );
 
                 const rows = resp.registros.map((r: PreviewRegistro) => ({ ...r, _editado: false }));
                 const schema = buildNominaSchema();
@@ -344,9 +375,9 @@ export class ImportExcelComponent {
                 this.importar();
             },
             error: (err: HttpErrorResponse) => {
-                this.isParsing = false;
-                this.errorMsg = err.error?.error || err.error?.detail || err.message || 'Error al procesar el Excel';
-                this.step = 'error';
+                this.isParsing.set(false);
+                this.errorMsg.set(err.error?.error || err.error?.detail || err.message || 'Error al procesar el Excel');
+                this.step.set('error');
             }
         });
     }
@@ -354,38 +385,78 @@ export class ImportExcelComponent {
     // ── Step 3: Import ────────────────────────────────────────────
     importar(): void {
         if (!this.allRows.length) return;
-        this.step = 'importing';
-        this.progress = 0;
+        this.step.set('importing');
+        this.progress.set(0);
 
-        this.nominaService.importarRegistros(this.allRows).subscribe({
+        // Si el backend devolvió un import_token usamos la vía rápida:
+        // solo mandamos los deltas editados por el usuario en vez de todo el JSON.
+        const payload: ImportarRegistrosPayload = this.importToken
+            ? { import_token: this.importToken, edits: this.computeEdits() }
+            : { registros: this.allRows };
+
+        this.nominaService.importarRegistros(payload).subscribe({
             next: (result) => {
-                this.importResult = result;
-                this.progress = 100;
-                this.step = 'done';
+                this.importResult.set(result);
+                this.progress.set(100);
+                this.step.set('done');
+                this.importToken = null;
+                this.originalRowsById.clear();
             },
             error: (err: HttpErrorResponse) => {
-                this.errorMsg = err.error?.error || err.error?.detail || err.message || 'Error al importar';
-                this.step = 'error';
+                this.errorMsg.set(err.error?.error || err.error?.detail || err.message || 'Error al importar');
+                this.step.set('error');
             }
         });
+    }
+
+    /** Compara cada fila corregida contra el snapshot original y devuelve
+     *  solo los campos que cambiaron, indexados por fila_excel. */
+    private computeEdits(): Record<string, Partial<PreviewRegistro>> {
+        const edits: Record<string, Partial<PreviewRegistro>> = {};
+        for (const row of this.allRows) {
+            const id = String(row.fila_excel);
+            const original = this.originalRowsById.get(id);
+            if (!original) {
+                // Fila nueva (el dialog raramente permite agregar, pero por si acaso)
+                edits[id] = { ...row };
+                continue;
+            }
+            const delta: Partial<PreviewRegistro> = {};
+            for (const field of ImportExcelComponent.EDITABLE_FIELDS) {
+                const a = (row as any)[field];
+                const b = (original as any)[field];
+                // Normalizamos null/undefined/'' como equivalentes
+                const aNorm = a === undefined || a === '' ? null : a;
+                const bNorm = b === undefined || b === '' ? null : b;
+                if (aNorm !== bNorm) {
+                    (delta as any)[field] = a;
+                }
+            }
+            if (Object.keys(delta).length > 0) {
+                edits[id] = delta;
+            }
+        }
+        return edits;
     }
 
 
 
     // ── Reset ─────────────────────────────────────────────────────
     reset(): void {
-        this.step = 'select';
+        this.step.set('select');
         this.selectedFile = null;
         this.previewResp = null;
         this.allRows = [];
-        this.importResult = null;
-        this.errorMsg = '';
-        this.progress = 0;
+        this.importResult.set(null);
+        this.errorMsg.set('');
+        this.progress.set(0);
+        this.importToken = null;
+        this.originalRowsById.clear();
         if (this.fileInput) this.fileInput.nativeElement.value = '';
     }
 
-    backToSelect(): void { this.step = 'select'; }
+    backToSelect(): void { this.step.set('select'); }
 
     // ── Helpers ───────────────────────────────────────────────────
-    isStep(s: WizardStep): boolean { return this.step === s; }
+    isStep(s: WizardStep): boolean { return this.step() === s; }
 }

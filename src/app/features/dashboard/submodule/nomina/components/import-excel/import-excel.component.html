@@ -83,21 +83,21 @@
     </div>
 
     <!-- Error -->
-    @if (isStep('error') && errorMsg) {
+    @if (isStep('error') && errorMsg()) {
     <div class="result-banner result-banner--error">
       <mat-icon>error_outline</mat-icon>
       <div><strong>Error</strong>
-        <p>{{ errorMsg }}</p>
+        <p>{{ errorMsg() }}</p>
       </div>
     </div>
     }
 
     <!-- Botón acción -->
     <div class="import-actions">
-      <button mat-flat-button color="primary" class="btn-main" [disabled]="!selectedFile || isParsing"
+      <button mat-flat-button color="primary" class="btn-main" [disabled]="!selectedFile || isParsing()"
         (click)="runPreview()">
-        <mat-icon [class.spin-icon]="isParsing">{{ isParsing ? 'sync' : 'preview' }}</mat-icon>
-        {{ isParsing ? 'Procesando Excel…' : 'Extraer y Previsualizar' }}
+        <mat-icon [class.spin-icon]="isParsing()">{{ isParsing() ? 'sync' : 'preview' }}</mat-icon>
+        {{ isParsing() ? 'Procesando Excel…' : 'Extraer y Previsualizar' }}
       </button>
     </div>
   </div>
@@ -109,8 +109,8 @@
     <mat-icon class="upload-spin">sync</mat-icon>
     <p class="upload-label">Importando datos al sistema…</p>
     <div class="progress-wrap">
-      <mat-progress-bar mode="determinate" [value]="progress" color="primary"></mat-progress-bar>
-      <span class="progress-pct">{{ progress }}%</span>
+      <mat-progress-bar mode="determinate" [value]="progress()" color="primary"></mat-progress-bar>
+      <span class="progress-pct">{{ progress() }}%</span>
     </div>
     <p class="upload-hint">Por favor no cierres esta ventana</p>
   </div>
@@ -123,21 +123,21 @@
       <mat-icon>check_circle</mat-icon>
       <div>
         <strong>Importación completada</strong>
-        <p>{{ importResult?.mensaje ?? importResult?.message ?? 'Datos cargados correctamente.' }}</p>
+        <p>{{ importResult()?.mensaje ?? importResult()?.message ?? 'Datos cargados correctamente.' }}</p>
       </div>
     </div>
 
     <div class="kpi-grid">
       <div class="kpi-card kpi-card--blue">
-        <span class="kpi-card__num">{{ importResult?.filas ?? 0 }}</span>
+        <span class="kpi-card__num">{{ importResult()?.filas ?? 0 }}</span>
         <span class="kpi-card__lbl">Filas procesadas</span>
       </div>
     </div>
 
-    @if (importResult?.log && importResult!.log!.length > 0) {
+    @if (importResult()?.log && importResult()!.log!.length > 0) {
     <details class="log-block">
-      <summary>Ver log detallado ({{ importResult!.log!.length }} líneas)</summary>
-      <pre class="log-pre">{{ importResult!.log!.join('\n') }}</pre>
+      <summary>Ver log detallado ({{ importResult()!.log!.length }} líneas)</summary>
+      <pre class="log-pre">{{ importResult()!.log!.join('\n') }}</pre>
     </details>
     }
 

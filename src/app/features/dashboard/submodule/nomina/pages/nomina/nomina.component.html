@@ -1,1 +1,23 @@
-<app-import-excel></app-import-excel>
+<div class="nomina-page">
+
+  <mat-tab-group class="nomina-tabs" animationDuration="150ms">
+
+    <mat-tab>
+      <ng-template mat-tab-label>
+        <mat-icon class="tab-ico">groups</mat-icon>
+        Empleados
+      </ng-template>
+      <app-empleados-lista></app-empleados-lista>
+    </mat-tab>
+
+    <mat-tab>
+      <ng-template mat-tab-label>
+        <mat-icon class="tab-ico">upload_file</mat-icon>
+        Carga Masiva
+      </ng-template>
+      <app-import-excel></app-import-excel>
+    </mat-tab>
+
+  </mat-tab-group>
+
+</div>

@@ -1,0 +1,320 @@
+<div class="inv-dialog">
+
+  <header class="inv-header">
+    <div class="inv-header__title">
+      <mat-icon>event_note</mat-icon>
+      <div>
+        <h2>Carga masiva de novedades</h2>
+        <span class="inv-header__sub">
+          Cliente: <b>{{ data.cliente_nombre || data.cliente_id }}</b> · Periodo: <b>{{ data.periodo_descripcion || data.periodo_id }}</b>
+        </span>
+      </div>
+    </div>
+    <button mat-icon-button (click)="cerrar()" matTooltip="Cerrar">
+      <mat-icon>close</mat-icon>
+    </button>
+  </header>
+
+  @if (loading() || step() === 'importing') {
+    <mat-progress-bar mode="indeterminate"></mat-progress-bar>
+  }
+
+  @if (errorMsg()) {
+    <div class="inv-error">
+      <mat-icon>error_outline</mat-icon>
+      <div class="inv-error__body">
+        <div>{{ errorMsg() }}</div>
+        @if (errorDiag(); as d) {
+          <ul class="inv-error__diag">
+            <li>Totales: <b>{{ d.convalidaciones_totales }}</b> · Activas: <b>{{ d.convalidaciones_activas }}</b> · Sin tabla/campo: <b>{{ d.sin_tabla_o_campo_destino }}</b> · Válidas: <b>{{ d.convalidaciones_validas || 0 }}</b></li>
+
+            @if (d.tablas_invalidas_usadas && (d.tablas_invalidas_usadas | keyvalue)?.length) {
+              <li>
+                Valores de <code>tabla_operativa_destino</code> inválidos en tus convalidaciones:
+                <ul>
+                  @for (t of d.tablas_invalidas_usadas | keyvalue; track t.key) {
+                    <li><code>{{ t.key }}</code> ({{ t.value }} convalidaciones)</li>
+                  }
+                </ul>
+              </li>
+            }
+
+            @if (d.campos_invalidos_usados?.length) {
+              <li>
+                Convalidaciones que no se pudieron mapear:
+                <ul>
+                  @for (c of d.campos_invalidos_usados; track $index) {
+                    <li>
+                      cód. ext <code>{{ c.codigo_externo }}</code>
+                      · concepto maestro <code>{{ c.concepto_codigo || '—' }}</code>
+                      → {{ c.tabla }}.<code>{{ c.campo }}</code>
+                    </li>
+                  }
+                </ul>
+              </li>
+            }
+
+            <li>
+              <b>Tablas válidas aceptadas:</b>
+              <code>nomina_ausentismos_horas</code>, <code>nomina_ausentismos_dias</code>,
+              <code>nomina_incapacidades_detalle</code>, <code>nomina_bonificaciones_auxilios</code>,
+              <code>nomina_descuentos_factura_detalle</code>, <code>nomina_ajustes_nomina_detalle</code>,
+              <code>nomina_novedades_variables</code>.
+            </li>
+          </ul>
+        }
+      </div>
+    </div>
+  }
+
+  <!-- ─── PASO 1: Selección ─── -->
+  @if (step() === 'select' || step() === 'error') {
+    <div class="inv-body">
+      <div class="inv-drop" (drop)="onDrop($event)" (dragover)="onDragOver($event)" (click)="openPicker()">
+        <input #fileInput type="file" accept=".xlsx,.xls" class="inv-hidden" (change)="onFile($event)">
+        <mat-icon class="inv-drop__icon">upload_file</mat-icon>
+        <p class="inv-drop__title">Arrastra el archivo de novedades aquí</p>
+        <p class="inv-drop__hint">o haz clic para seleccionar (.xlsx / .xls)</p>
+        @if (fileName()) { <p class="inv-drop__file">{{ fileName() }}</p> }
+      </div>
+
+      <!-- Si el archivo vino sin una hoja que se pueda leer, permitir elegir -->
+      @if (hojasDisponibles().length > 0 && step() === 'error') {
+        <div class="inv-retry">
+          <p class="inv-retry__msg">Intenta con otra hoja del archivo:</p>
+          <mat-form-field appearance="outline" class="inv-retry__sel">
+            <mat-label>Hoja del Excel</mat-label>
+            <mat-select [ngModel]="hojaSeleccionada()" (ngModelChange)="cambiarHoja($event)">
+              @for (h of hojasDisponibles(); track h) {
+                <mat-option [value]="h">{{ h }}</mat-option>
+              }
+            </mat-select>
+          </mat-form-field>
+        </div>
+      }
+    </div>
+  }
+
+  <!-- ─── PASO 2: Preview editable ─── -->
+  @if (step() === 'preview') {
+    <div class="inv-body inv-body--preview">
+
+      <!-- Selector de hoja + header row (por si el backend eligió mal) -->
+      <div class="inv-sheet-bar">
+        <mat-form-field appearance="outline" class="inv-sheet-bar__sel">
+          <mat-label>Hoja del Excel</mat-label>
+          <mat-select [ngModel]="hojaSeleccionada()" (ngModelChange)="cambiarHoja($event)">
+            @for (h of hojasDisponibles(); track h) {
+              <mat-option [value]="h">{{ h }}</mat-option>
+            }
+          </mat-select>
+        </mat-form-field>
+        <span class="inv-sheet-bar__hint">
+          Fila de encabezado detectada: <b>{{ (preview()?.header_row ?? 0) + 1 }}</b>
+          · {{ preview()?.total_filas_excel || 0 }} filas totales
+        </span>
+      </div>
+
+      <!-- KPIs -->
+      <div class="inv-kpis">
+        <div class="inv-kpi">
+          <span class="inv-kpi__num">{{ preview()?.registros_validos || 0 }}</span>
+          <span class="inv-kpi__lbl">Leídas</span>
+        </div>
+        <div class="inv-kpi inv-kpi--ok">
+          <span class="inv-kpi__num">{{ totalIncluidas() }}</span>
+          <span class="inv-kpi__lbl">A importar</span>
+        </div>
+        <div class="inv-kpi inv-kpi--warn">
+          <span class="inv-kpi__num">{{ noResueltos() }}</span>
+          <span class="inv-kpi__lbl">Sin contrato</span>
+        </div>
+        <div class="inv-kpi inv-kpi--info">
+          <span class="inv-kpi__num">{{ preview()?.columnas_mapeadas?.length || 0 }}</span>
+          <span class="inv-kpi__lbl">Columnas mapeadas</span>
+        </div>
+      </div>
+
+      <!-- Panel de convalidación -->
+      <details class="inv-panel" open>
+        <summary>
+          <mat-icon>link</mat-icon>
+          Convalidación de columnas ({{ preview()?.columnas_mapeadas?.length || 0 }} mapeadas,
+          {{ preview()?.columnas_no_mapeadas?.length || 0 }} sin mapear)
+        </summary>
+        <div class="inv-panel__body">
+
+          @if (columnasMapeadasPorTabla().length) {
+            <div class="inv-mapped">
+              @for (g of columnasMapeadasPorTabla(); track g.tabla) {
+                <div class="inv-mapped__group">
+                  <div class="inv-mapped__title">{{ g.label }}</div>
+                  <div class="inv-mapped__items">
+                    @for (c of g.cols; track c.columna_excel) {
+                      <span class="inv-tag inv-tag--ok" [matTooltip]="c.codigo_externo + ' → ' + c.campo">
+                        {{ c.columna_excel }}
+                      </span>
+                    }
+                  </div>
+                </div>
+              }
+            </div>
+          }
+
+          @if (preview()?.columnas_no_mapeadas?.length) {
+            <div class="inv-unmapped">
+              <div class="inv-unmapped__title">
+                <mat-icon>warning</mat-icon>
+                Columnas no convalidadas para este cliente (no se importarán):
+              </div>
+              <div class="inv-unmapped__items">
+                @for (col of preview()!.columnas_no_mapeadas; track col) {
+                  <span class="inv-tag inv-tag--warn">{{ col }}</span>
+                }
+              </div>
+              <p class="inv-unmapped__hint">
+                Homológalas en <b>Nómina → Convalidador</b> para que el sistema sepa a qué
+                concepto y tabla destino mapearlas.
+              </p>
+            </div>
+          }
+        </div>
+      </details>
+
+      <!-- Opciones -->
+      <div class="inv-options">
+        <mat-checkbox [ngModel]="reemplazar()" (ngModelChange)="reemplazar.set($event)">
+          Reemplazar novedades previas del periodo para estos contratos
+        </mat-checkbox>
+        <span class="inv-options__hint" matTooltip="Si está activo, borra las novedades existentes del periodo para cada contrato antes de insertar. Si no, solo agrega novedades para contratos que no tengan.">
+          <mat-icon>help_outline</mat-icon>
+        </span>
+      </div>
+
+      <!-- Tabla -->
+      <div class="inv-table-wrap">
+        <table mat-table [dataSource]="registros()" class="inv-table">
+
+          <ng-container matColumnDef="incluir">
+            <th mat-header-cell *matHeaderCellDef class="col-check"></th>
+            <td mat-cell *matCellDef="let r" class="col-check">
+              <mat-checkbox
+                [checked]="isIncluida(r)"
+                [disabled]="!r._resuelto?.id_contrato"
+                (change)="toggleIncluir(r)">
+              </mat-checkbox>
+            </td>
+          </ng-container>
+
+          <ng-container matColumnDef="fila">
+            <th mat-header-cell *matHeaderCellDef>Fila</th>
+            <td mat-cell *matCellDef="let r">{{ r.fila_excel }}</td>
+          </ng-container>
+
+          <ng-container matColumnDef="documento">
+            <th mat-header-cell *matHeaderCellDef>Documento</th>
+            <td mat-cell *matCellDef="let r">
+              <span class="cell-strong">{{ r.tipo_documento || '' }} {{ r.numero_documento || '—' }}</span>
+            </td>
+          </ng-container>
+
+          <ng-container matColumnDef="nombre">
+            <th mat-header-cell *matHeaderCellDef>Nombre</th>
+            <td mat-cell *matCellDef="let r">{{ r.nombre_completo || '—' }}</td>
+          </ng-container>
+
+          <ng-container matColumnDef="codigo">
+            <th mat-header-cell *matHeaderCellDef>Contrato</th>
+            <td mat-cell *matCellDef="let r">{{ r.codigo_contrato || '—' }}</td>
+          </ng-container>
+
+          <ng-container matColumnDef="estado">
+            <th mat-header-cell *matHeaderCellDef>Estado</th>
+            <td mat-cell *matCellDef="let r">
+              @if (r._resuelto?.id_contrato) {
+                <span class="inv-chip inv-chip--ok"><mat-icon>check_circle</mat-icon> OK</span>
+              } @else {
+                <span class="inv-chip inv-chip--err" [matTooltip]="r._resuelto?.error || ''">
+                  <mat-icon>warning</mat-icon> No resuelto
+                </span>
+              }
+            </td>
+          </ng-container>
+
+          <ng-container matColumnDef="conteo">
+            <th mat-header-cell *matHeaderCellDef>Novedades</th>
+            <td mat-cell *matCellDef="let r">
+              <div class="inv-tags">
+                @for (t of tablasConDatos(r); track t) {
+                  <span class="inv-tag">{{ t }}</span>
+                }
+                @if (!tablasConDatos(r).length) { <span class="inv-empty">—</span> }
+              </div>
+            </td>
+          </ng-container>
+
+          <tr mat-header-row *matHeaderRowDef="displayedColumns; sticky: true"></tr>
+          <tr mat-row *matRowDef="let row; columns: displayedColumns"
+              [class.inv-row--excluida]="!isIncluida(row)"></tr>
+        </table>
+      </div>
+
+    </div>
+  }
+
+  <!-- ─── PASO 3: Resultado ─── -->
+  @if (step() === 'done') {
+    <div class="inv-body">
+      <div class="inv-result inv-result--ok">
+        <mat-icon>check_circle</mat-icon>
+        <div>
+          <strong>Novedades importadas</strong>
+          <p>{{ importResult()?.mensaje }}</p>
+        </div>
+      </div>
+
+      <div class="inv-kpis">
+        <div class="inv-kpi"><span class="inv-kpi__num">{{ importResult()?.contratos_afectados || 0 }}</span><span class="inv-kpi__lbl">Contratos</span></div>
+        <div class="inv-kpi inv-kpi--ok"><span class="inv-kpi__num">{{ importResult()?.total_insertadas || 0 }}</span><span class="inv-kpi__lbl">Insertadas</span></div>
+        <div class="inv-kpi inv-kpi--warn"><span class="inv-kpi__num">{{ importResult()?.total_borradas || 0 }}</span><span class="inv-kpi__lbl">Reemplazadas</span></div>
+      </div>
+
+      @if (importResult()?.no_resueltos?.length) {
+        <details class="inv-nores">
+          <summary>{{ importResult()?.no_resueltos?.length }} filas sin resolver</summary>
+          <ul>
+            @for (n of importResult()?.no_resueltos || []; track $index) {
+              <li>Fila {{ n.fila_excel }} — {{ n.documento || n.codigo_contrato }}: {{ n.motivo }}</li>
+            }
+          </ul>
+        </details>
+      }
+    </div>
+  }
+
+  <footer class="inv-footer">
+    @if (step() === 'preview') {
+      <button mat-button (click)="volverASelect()">
+        <mat-icon>chevron_left</mat-icon> Cambiar archivo
+      </button>
+      <div class="inv-footer__spacer"></div>
+      <button mat-button (click)="cerrar()">Cancelar</button>
+      <button mat-flat-button color="primary"
+              [disabled]="!totalIncluidas()"
+              (click)="importar()">
+        <mat-icon>save</mat-icon> Importar {{ totalIncluidas() }} filas
+      </button>
+    }
+    @if (step() === 'done') {
+      <div class="inv-footer__spacer"></div>
+      <button mat-flat-button color="primary" (click)="cerrar({ recalcular: true })">
+        <mat-icon>calculate</mat-icon> Cerrar y recalcular nómina
+      </button>
+    }
+    @if (step() === 'select' || step() === 'error') {
+      <div class="inv-footer__spacer"></div>
+      <button mat-button (click)="cerrar()">Cerrar</button>
+    }
+  </footer>
+
+</div>
