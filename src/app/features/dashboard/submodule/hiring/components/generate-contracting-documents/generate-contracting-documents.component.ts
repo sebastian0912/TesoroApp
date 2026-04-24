@@ -1,6 +1,6 @@
 import { SharedModule } from '@/app/shared/shared.module';
 import { isPlatformBrowser } from '@angular/common';
-import {  Component, inject, OnInit, PLATFORM_ID, ViewChild, ElementRef , ChangeDetectionStrategy } from '@angular/core';
+import {  Component, inject, OnInit, PLATFORM_ID, ViewChild, ElementRef , ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
 import { PDFDocument, PDFTextField, PDFCheckBox, StandardFonts, rgb, degrees } from 'pdf-lib';
 import Swal from 'sweetalert2';
 import { GestionDocumentalService } from '../../service/gestion-documental/gestion-documental.service';
@@ -76,7 +76,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
   private contratacionService = inject(HiringService);
   private gestionDocumentalService = inject(GestionDocumentalService);
   private sanitizer = inject(DomSanitizer);
-
+  private cdr = inject(ChangeDetectorRef);
 
   documentos = [
     { titulo: 'Autorización de datos' },
@@ -298,15 +298,20 @@ export class GenerateContractingDocumentsComponent implements OnInit {
             this.huella = datoCandidato?.biometria?.huella?.file_url ?? '';
             this.foto = datoCandidato?.biometria?.foto?.file_url ?? '';
 
+            const entrevistaVálida = datoCandidato?.entrevistas?.find(
+              (e: any) => e?.proceso?.publicacion || e?.proceso?.contrato_codigo || e?.proceso?.contrato?.codigo_contrato
+            ) || datoCandidato?.entrevistas?.[0];
+
             this.codigoContratacion =
-              datoCandidato?.entrevistas?.[0]?.proceso?.contrato?.codigo_contrato ?? null;
+              entrevistaVálida?.proceso?.contrato_codigo ?? 
+              entrevistaVálida?.proceso?.contrato?.codigo_contrato ?? null;
 
             this.firmaPersonalAdministrativo = datoAdministrativoBiometria?.biometria?.firma?.file_url 
               ?? datoAdministrativoBiometria?.biometria?.firma?.file 
               ?? datoAdministrativo?.data?.[0]?.firmaSolicitante 
               ?? '';
 
-            const vacanteId = datoCandidato?.entrevistas?.[0]?.proceso?.publicacion ?? null;
+            const vacanteId = entrevistaVálida?.proceso?.publicacion ?? null;
             const vacante$ = vacanteId
               ? this.vacantesService.obtenerVacante(vacanteId).pipe(take(1), catchError(() => of(null)))
               : of(null);
@@ -322,7 +327,9 @@ export class GenerateContractingDocumentsComponent implements OnInit {
           finalize(() => Swal.close())
         )
         .subscribe({
-          next: () => { },
+          next: () => {
+            this.cdr.markForCheck();
+          },
           error: (err) => {
             console.error(err);
             Swal.close();

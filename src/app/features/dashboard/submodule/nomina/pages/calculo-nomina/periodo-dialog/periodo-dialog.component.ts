@@ -1,4 +1,4 @@
-import { Component, Inject, OnInit } from '@angular/core';
+import { ChangeDetectorRef, Component, Inject, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatDialogRef, MAT_DIALOG_DATA, MatDialogModule } from '@angular/material/dialog';
@@ -100,7 +100,8 @@ export class PeriodoDialogComponent implements OnInit {
     private fb: FormBuilder,
     private nominaService: NominaService,
     private dialogRef: MatDialogRef<PeriodoDialogComponent>,
-    @Inject(MAT_DIALOG_DATA) public data: any
+    @Inject(MAT_DIALOG_DATA) public data: any,
+    private cdr: ChangeDetectorRef,
   ) {
     this.form = this.fb.group({
       descripcion: ['', Validators.required],
@@ -146,11 +147,13 @@ export class PeriodoDialogComponent implements OnInit {
     action.subscribe({
       next: (res) => {
         this.loading = false;
+        this.cdr.markForCheck();
         Swal.fire('Éxito', this.isEdit ? 'Periodo actualizado' : 'Periodo creado correctamente', 'success');
         this.dialogRef.close(true);
       },
       error: (err) => {
         this.loading = false;
+        this.cdr.markForCheck();
         console.error(err);
         Swal.fire('Error', 'No se pudo procesar la solicitud', 'error');
       }

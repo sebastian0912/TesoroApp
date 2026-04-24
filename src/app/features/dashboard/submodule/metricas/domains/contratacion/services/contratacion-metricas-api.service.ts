@@ -2,7 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { environment } from '@/environments/environment';
 import { Observable, BehaviorSubject, combineLatest, of } from 'rxjs';
-import { map, shareReplay, switchMap, catchError, startWith } from 'rxjs/operators';
+import { map, shareReplay, switchMap, catchError, startWith, take } from 'rxjs/operators';
 import * as _moment from 'moment';
 // @ts-ignore
 const moment = _moment.default || _moment;
@@ -33,7 +33,7 @@ export class ContratacionMetricasApiService {
 
     // 1. Fetch raw lists
     // Candidatos (updated_at within range)
-    private candidatosRaw$ = this.dateRange$.pipe(
+    public candidatosRaw$ = this.dateRange$.pipe(
         switchMap(range => {
             const start = moment(range.start).format('YYYY-MM-DD');
             const end = moment(range.end).format('YYYY-MM-DD');
@@ -53,7 +53,7 @@ export class ContratacionMetricasApiService {
     // Usada para derivar "última oficina"
     // Lo traemos por fechas de creado y los cruzamos?
     // En este caso, trataremos de traer entrevistas limitadas o usar el endpoint si se escala N+1
-    private entrevistasRaw$ = this.dateRange$.pipe(
+    public entrevistasRaw$ = this.dateRange$.pipe(
         switchMap(range => {
             // Traemos las entrevistas en general o recientes para cruzar
             let params = new HttpParams().set('limit', '2000').set('ordering', '-created_at');
@@ -66,7 +66,7 @@ export class ContratacionMetricasApiService {
     );
 
     // Contactos (para correo y celular)
-    private contactosRaw$ = this.dateRange$.pipe(
+    public contactosRaw$ = this.dateRange$.pipe(
         switchMap(() => {
             let params = new HttpParams().set('limit', '2000').set('ordering', '-created_at');
             return this.http.get<any>(`${this.apiUrl}/contactos/`, { params }).pipe(
@@ -77,8 +77,8 @@ export class ContratacionMetricasApiService {
         shareReplay(1)
     );
 
-    // Procesos 
-    private procesosRaw$ = this.dateRange$.pipe(
+    // Procesos
+    public procesosRaw$ = this.dateRange$.pipe(
         switchMap(range => {
             const start = moment(range.start).format('YYYY-MM-DD');
             const end = moment(range.end).format('YYYY-MM-DD');
@@ -282,6 +282,119 @@ export class ContratacionMetricasApiService {
         })
     );
 
+    // ─────── Descarga Excel (template base.xlsx en el back) ───────
+    /**
+     * GET /gestion_contratacion/reporte/candidatos-excel/?cedulas=...
+     * Arma el xlsx con base.xlsx en el backend y lo descarga en el navegador.
+     */
+    public downloadCandidatosExcel(cedulas: string[], filenameHint = 'candidatos'): Observable<void> {
+        const unique = Array.from(new Set((cedulas || []).map(x => String(x).trim()).filter(Boolean)));
+        if (unique.length === 0) return of(void 0);
+
+        const params = new HttpParams().set('cedulas', unique.join(','));
+        return this.http.get(`${this.apiUrl}/reporte/candidatos-excel/`, {
+            params,
+            responseType: 'blob',
+            observe: 'response'
+        }).pipe(
+            map(resp => {
+                const blob = resp.body as Blob | null;
+                if (!blob) return;
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+
+                const cd = resp.headers.get('Content-Disposition') || '';
+                const match = /filename\*?=(?:UTF-8'')?"?([^";]+)"?/i.exec(cd);
+                const stamp = new Date().toISOString().replace(/[-:T]/g, '').slice(0, 15);
+                a.download = match?.[1] || `${filenameHint}_${stamp}.xlsx`;
+
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            })
+        );
+    }
+
+    /** Cedulas de candidatos cuya "última oficina" coincide con la dada. */
+    public getDocsByOficina(oficina: string): Observable<string[]> {
+        return combineLatest([this.candidatosRaw$, this.oficinaPorCandidato$]).pipe(
+            take(1),
+            map(([cands, ofiMap]) => cands
+                .filter((c: any) => (ofiMap[c.id] || 'Sin Oficina (No Entrevistado)') === oficina)
+                .map((c: any) => String(c.numero_documento || '').trim())
+                .filter(Boolean)
+            )
+        );
+    }
+
+    /** Cedulas según estado de celular. */
+    public getDocsByCelularStatus(conCelular: boolean): Observable<string[]> {
+        return combineLatest([this.candidatosRaw$, this.contactosRaw$]).pipe(
+            take(1),
+            map(([cands, contactos]) => {
+                const withPhone = new Set<number>();
+                contactos.forEach((c: any) => {
+                    if (c.celular && /^\d+$/.test(String(c.celular))) withPhone.add(c.candidato);
+                });
+                return cands
+                    .filter((c: any) => conCelular ? withPhone.has(c.id) : !withPhone.has(c.id))
+                    .map((c: any) => String(c.numero_documento || '').trim())
+                    .filter(Boolean);
+            })
+        );
+    }
+
+    /** Cedulas de candidatos en una celda del pipeline (oficina + etapa). */
+    public getDocsByPipelineSegment(oficina: string, stage: string): Observable<string[]> {
+        return combineLatest([
+            this.procesosRaw$,
+            this.entrevistasRaw$,
+            this.candidatosRaw$,
+            this.dateRange$,
+        ]).pipe(
+            take(1),
+            map(([procesos, entrevistas, cands, range]) => {
+                const startStr = moment(range.start).format('YYYY-MM-DD');
+                const endStr = moment(range.end).format('YYYY-MM-DD');
+                const endCompare = `${endStr} 23:59:59`;
+                const inRange = (d: string) =>
+                    !!d && moment(d).isSameOrAfter(startStr) && moment(d).isSameOrBefore(endCompare);
+
+                const stageMatches = (p: any) => {
+                    switch (stage) {
+                        case 'Entrevistado': return inRange(p.entrevistado_at);
+                        case 'Prueba o Autorizado': return inRange(p.prueba_tecnica_at) || inRange(p.autorizado_at);
+                        case 'Examenes Med': return inRange(p.examenes_medicos_at);
+                        case 'Contratado': return inRange(p.contratado_at);
+                        case 'Ingreso': return inRange(p.ingreso_at);
+                        case 'Rechazado': return inRange(p.rechazado_at);
+                        default: return false;
+                    }
+                };
+
+                const entById: Record<number, any> = {};
+                entrevistas.forEach((e: any) => { entById[e.id] = e; });
+
+                const candById: Record<number, any> = {};
+                cands.forEach((c: any) => { candById[c.id] = c; });
+
+                const docs = new Set<string>();
+                procesos.forEach((p: any) => {
+                    if ((p.oficina_creacion || 'Desconocida') !== oficina) return;
+                    if (!stageMatches(p)) return;
+                    const ent = entById[p.entrevista];
+                    if (!ent) return;
+                    const cand = candById[ent.candidato];
+                    const doc = String(cand?.numero_documento || '').trim();
+                    if (doc) docs.add(doc);
+                });
+                return Array.from(docs);
+            })
+        );
+    }
+
     // ─────── Métricas por Temporal ───────
     fetchMetricasTemporal(temporal: string, start: string, end: string): Observable<any> {
         let params = new HttpParams();
@@ -289,6 +402,30 @@ export class ContratacionMetricasApiService {
         if (start) params = params.set('start', start);
         if (end) params = params.set('end', end);
         return this.http.get<any>(`${this.apiUrl}/procesos/metricas-temporal/`, { params });
+    }
+
+    /**
+     * Resuelve las cédulas de un segmento clickeado en las gráficas de
+     * informe-temporal. Espejo del endpoint `procesos/metricas-temporal-docs/`.
+     */
+    fetchSegmentDocs(
+        filters: { temporal?: string; start?: string; end?: string },
+        segment: { kind: 'oficina' | 'finca' | 'fecha' | 'pipeline' | 'motivo'; value: string; stage?: string }
+    ): Observable<string[]> {
+        let params = new HttpParams()
+            .set('kind', segment.kind)
+            .set('value', segment.value);
+        if (filters.temporal) params = params.set('temporal', filters.temporal);
+        if (filters.start) params = params.set('start', filters.start);
+        if (filters.end) params = params.set('end', filters.end);
+        if (segment.stage) params = params.set('stage', segment.stage);
+
+        return this.http.get<{ docs: string[] }>(
+            `${this.apiUrl}/procesos/metricas-temporal-docs/`, { params }
+        ).pipe(
+            map(r => Array.isArray(r?.docs) ? r.docs : []),
+            catchError(() => of<string[]>([]))
+        );
     }
 
 }

@@ -1,4 +1,4 @@
-<div class="informe-temporal-layout">
+<div class="informe-temporal-layout" [class.is-downloading]="downloading()">
 
   <!-- FILTROS -->
   <mat-card class="filters-card">
@@ -69,6 +69,10 @@
           }
           &nbsp;|&nbsp; {{ kpis()!.total_procesos }} procesos
         </p>
+        <p class="click-hint">
+          <mat-icon class="hint-icon">touch_app</mat-icon>
+          Click en cualquier barra o punto de las gráficas para descargar el Excel de esos candidatos.
+        </p>
       </div>
     </div>
 
@@ -113,14 +117,30 @@
     <div class="charts-grid">
       @if (chartOficina()) {
         <mat-card class="chart-card">
-          <mat-card-header><mat-card-title>Contratados por Oficina</mat-card-title></mat-card-header>
-          <mat-card-content><div echarts [options]="chartOficina()!" class="chart-container"></div></mat-card-content>
+          <mat-card-header>
+            <mat-card-title>Contratados por Oficina</mat-card-title>
+            <mat-icon class="card-hint-icon" matTooltip="Click en una barra para descargar Excel">file_download</mat-icon>
+          </mat-card-header>
+          <mat-card-content>
+            <div echarts
+                 [options]="chartOficina()!"
+                 (chartClick)="onOficinaClick($event)"
+                 class="chart-container clickable"></div>
+          </mat-card-content>
         </mat-card>
       }
       @if (chartFinca()) {
         <mat-card class="chart-card">
-          <mat-card-header><mat-card-title>Contratados por Finca</mat-card-title></mat-card-header>
-          <mat-card-content><div echarts [options]="chartFinca()!" class="chart-container"></div></mat-card-content>
+          <mat-card-header>
+            <mat-card-title>Contratados por Finca</mat-card-title>
+            <mat-icon class="card-hint-icon" matTooltip="Click en una barra para descargar Excel">file_download</mat-icon>
+          </mat-card-header>
+          <mat-card-content>
+            <div echarts
+                 [options]="chartFinca()!"
+                 (chartClick)="onFincaClick($event)"
+                 class="chart-container clickable"></div>
+          </mat-card-content>
         </mat-card>
       }
     </div>
@@ -128,8 +148,16 @@
     <!-- PIPELINE POR OFICINA -->
     @if (chartFunnel()) {
       <mat-card class="chart-card">
-        <mat-card-header><mat-card-title>Pipeline por Oficina (Etapas del proceso)</mat-card-title></mat-card-header>
-        <mat-card-content><div echarts [options]="chartFunnel()!" class="chart-container-wide"></div></mat-card-content>
+        <mat-card-header>
+          <mat-card-title>Pipeline por Oficina (Etapas del proceso)</mat-card-title>
+          <mat-icon class="card-hint-icon" matTooltip="Click en un segmento (oficina + etapa) para descargar Excel">file_download</mat-icon>
+        </mat-card-header>
+        <mat-card-content>
+          <div echarts
+               [options]="chartFunnel()!"
+               (chartClick)="onFunnelClick($event)"
+               class="chart-container-wide clickable"></div>
+        </mat-card-content>
       </mat-card>
     }
 
@@ -137,14 +165,30 @@
     <div class="charts-grid">
       @if (chartTendencia()) {
         <mat-card class="chart-card">
-          <mat-card-header><mat-card-title>Tendencia de Ingresos</mat-card-title></mat-card-header>
-          <mat-card-content><div echarts [options]="chartTendencia()!" class="chart-container"></div></mat-card-content>
+          <mat-card-header>
+            <mat-card-title>Tendencia de Ingresos</mat-card-title>
+            <mat-icon class="card-hint-icon" matTooltip="Click en un punto (día) para descargar Excel">file_download</mat-icon>
+          </mat-card-header>
+          <mat-card-content>
+            <div echarts
+                 [options]="chartTendencia()!"
+                 (chartClick)="onTendenciaClick($event)"
+                 class="chart-container clickable"></div>
+          </mat-card-content>
         </mat-card>
       }
       @if (chartMotivos()) {
         <mat-card class="chart-card">
-          <mat-card-header><mat-card-title>Motivos de No Aplica (911)</mat-card-title></mat-card-header>
-          <mat-card-content><div echarts [options]="chartMotivos()!" class="chart-container"></div></mat-card-content>
+          <mat-card-header>
+            <mat-card-title>Motivos de No Aplica (911)</mat-card-title>
+            <mat-icon class="card-hint-icon" matTooltip="Click en una barra (motivo) para descargar Excel">file_download</mat-icon>
+          </mat-card-header>
+          <mat-card-content>
+            <div echarts
+                 [options]="chartMotivos()!"
+                 (chartClick)="onMotivosClick($event)"
+                 class="chart-container clickable"></div>
+          </mat-card-content>
         </mat-card>
       }
     </div>
@@ -167,6 +211,13 @@
         </mat-card-content>
       </mat-card>
     }
+  }
+
+  @if (downloading()) {
+    <div class="downloading-overlay" aria-live="polite">
+      <mat-spinner diameter="18"></mat-spinner>
+      <span>Generando Excel…</span>
+    </div>
   }
 
 </div>

@@ -64,6 +64,7 @@ export interface KanbanCard {
   comments?: KanbanCardComment[];
   card_labels?: KanbanCardLabel[];
   assignees?: KanbanCardAssignee[];
+  uploads?: KanbanUpload[];
 }
 
 export type KanbanCardEstado = 'abierta' | 'en_progreso' | 'completada' | 'archivada';

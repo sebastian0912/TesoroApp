@@ -1,4 +1,5 @@
 .informe-temporal-layout {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 20px;
@@ -6,6 +7,7 @@
   max-width: 1400px;
   margin: 0 auto;
 }
+.informe-temporal-layout.is-downloading .chart-card { pointer-events: none; }
 
 /* ─── Filtros ─── */
 .filters-card { border-radius: 12px; }
@@ -49,9 +51,45 @@
 
 /* ─── Gráficas ─── */
 .charts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-.chart-card { border-radius: 12px; overflow: hidden; }
+.chart-card { border-radius: 12px; overflow: hidden; position: relative; }
+.chart-card mat-card-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .chart-container { width: 100%; height: 360px; }
 .chart-container-wide { width: 100%; height: 380px; }
+.chart-container.clickable,
+.chart-container-wide.clickable { cursor: pointer; }
+.card-hint-icon {
+  color: #94a3b8;
+  font-size: 18px;
+  width: 18px;
+  height: 18px;
+}
+.click-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 6px 0 0;
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.82);
+}
+.hint-icon { font-size: 16px; width: 16px; height: 16px; }
+
+/* ─── Overlay de descarga ─── */
+.downloading-overlay {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 1200;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  background: #1f2937;
+  color: #fff;
+  padding: 10px 16px;
+  border-radius: 999px;
+  box-shadow: 0 10px 25px rgba(15, 23, 42, 0.3);
+  font-size: 0.85rem;
+}
+.downloading-overlay mat-spinner ::ng-deep circle { stroke: #fff; }
 
 /* ─── Tabla ─── */
 .table-card { border-radius: 12px; }

@@ -10,6 +10,7 @@ import { of } from 'rxjs/internal/observable/of';
 import { UtilityServiceService } from '../../../../../../shared/services/utilityService/utility-service.service';
 import { firstValueFrom } from 'rxjs';
 import { TrasladosService } from '../../../eps-transfers/service/traslados.service';
+import { ElectronWindowService } from '../../../../../../core/services/electron-window.service';
 
 
 interface Traslado {
@@ -40,6 +41,7 @@ export class TerminatedTransfersComponent implements OnInit {
     private utilityService: UtilityServiceService,
     private trasladosService: TrasladosService,
     private homeService: HomeService,
+    private electronWindow: ElectronWindowService,
   ) { }
 
   ngOnInit(): void {
@@ -81,23 +83,8 @@ export class TerminatedTransfersComponent implements OnInit {
   }
 
   openBase64PDF(base64: string) {
-    if (!base64) {
-      return;
-    }
-
-    const cleanBase64 = base64.replace(/^data:application\/pdf;base64,/, ''); // Eliminar prefijo duplicado si existe
-    const binaryString = window.atob(cleanBase64);
-    const len = binaryString.length;
-    const bytes = new Uint8Array(len);
-
-    for (let i = 0; i < len; i++) {
-      bytes[i] = binaryString.charCodeAt(i);
-    }
-
-    const blob = new Blob([bytes], { type: 'application/pdf' });
-    const blobUrl = URL.createObjectURL(blob);
-
-    window.open(blobUrl, '_blank');
+    if (!base64) return;
+    this.electronWindow.openPdfFromBase64(base64, { title: 'Traslado finalizado' });
   }
 
   applyFilterTraslados(event: Event) {

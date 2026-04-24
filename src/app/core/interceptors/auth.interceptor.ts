@@ -108,7 +108,13 @@ export const interceptor: HttpInterceptorFn = (
     catchError((err: any) => {
       if (isApiRequest && err instanceof HttpErrorResponse && err.status === 401) {
         try { localStorage.removeItem('token'); } catch { }
-        router.navigateByUrl('/');
+        // Best-effort: limpia cache SQLite + cola offline + uploads del usuario
+        // cuya sesión expiró. Navegamos al login aunque falle el clear.
+        const electronApi = (typeof window !== 'undefined' ? (window as any).electron : null);
+        const clearPromise: Promise<any> = electronApi?.db?.clearUserData
+          ? electronApi.db.clearUserData().catch(() => null)
+          : Promise.resolve();
+        clearPromise.finally(() => router.navigateByUrl('/'));
       }
       return throwError(() => err);
     })

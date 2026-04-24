@@ -15,7 +15,7 @@ import { Router } from '@angular/router';
 import { MAT_DATE_FORMATS, MAT_DATE_LOCALE, MatNativeDateModule } from '@angular/material/core';
 import { FormControl } from '@angular/forms';
 import { combineLatest, Observable, of } from 'rxjs';
-import { map, startWith, debounceTime, first } from 'rxjs/operators';
+import { map, startWith, debounceTime, first, switchMap, catchError } from 'rxjs/operators';
 import { FormsModule } from '@angular/forms';
 import { MatCardModule } from '@angular/material/card';
 import { isPlatformBrowser } from '@angular/common';
@@ -29,8 +29,8 @@ import { MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatDividerModule } from '@angular/material/divider';
-import { ContratacionService } from '@/app/features/dashboard/submodule/hiring/services/contratacion/contratacion.service';
-import { format } from 'date-fns';
+import { HiringService } from '@/app/features/dashboard/submodule/hiring/service/hiring.service';
+import moment from 'moment';
 import { MatMomentDateModule, MAT_MOMENT_DATE_ADAPTER_OPTIONS } from '@angular/material-moment-adapter'; // Importar el adaptador de Moment
 import { takeUntil, distinctUntilChanged } from 'rxjs/operators';
 import { Subject } from 'rxjs';
@@ -86,7 +86,7 @@ export class FormularioIncapacidadComponent implements OnInit {
   loaderVisible = false;
   currentRole: string = '';
   counterVisible = false;
-  incapacidadForm: FormGroup = this.fb.group({});
+  incapacidadForm!: FormGroup;
   cedula: string = '';
   isSidebarHidden = false;
 
@@ -196,9 +196,10 @@ export class FormularioIncapacidadComponent implements OnInit {
   filterCriteria: any = {
     numeroDeDocumento: ''
   };
-  constructor(private fb: FormBuilder, private snackBar: MatSnackBar, private router: Router, private incapacidadService: IncapacidadService, private contratacionService: ContratacionService,
+  constructor(private fb: FormBuilder, private snackBar: MatSnackBar, private router: Router, private incapacidadService: IncapacidadService, private contratacionService: HiringService,
     @Inject(PLATFORM_ID) private platformId: Object,
   ) {
+    this.incapacidadForm = this.fb.group({});
     // Inicializar el formulario
 
     this.initializeForm();
@@ -311,20 +312,10 @@ export class FormularioIncapacidadComponent implements OnInit {
       map(value => this._filterEps(value))
     );
 
-    this.filteredCodigos = this.codigoDiagnosticoControl.valueChanges.pipe(
-      startWith(''),
-      map(value => this._filter(value))
-    );
-
-    this.filteredIpsNombre = this.ipsControlNombre.valueChanges.pipe(
-      startWith(''),
-      map(value => this._filterNombre(value || ''))
-    );
-
-    this.filteredIpsNit = this.ipsControlNit.valueChanges.pipe(
-      startWith(''),
-      map(value => this._filterNit(value || ''))
-    );
+    // Server-side autocomplete (20 resultados máx, con debounce, sin cargar 12k+ al inicio)
+    this.filteredCodigos = this._codigosObs();
+    this.filteredIpsNombre = this._ipsNombreObs();
+    this.filteredIpsNit = this._ipsNitObs();
   }
   observaciones: string = '';
   quienpaga: string = '';
@@ -536,19 +527,10 @@ export class FormularioIncapacidadComponent implements OnInit {
   }
 
   private setupIPSFilters() {
-    this.filteredIpsNit = this.ipsControlNit.valueChanges.pipe(
-      debounceTime(300),
-      startWith(''),
-      map(value => this._filterNit(value || ''))
-    );
+    this.filteredIpsNit = this._ipsNitObs();
+    this.filteredIpsNombre = this._ipsNombreObs();
 
-    this.filteredIpsNombre = this.ipsControlNombre.valueChanges.pipe(
-      debounceTime(300),
-      startWith(''),
-      map(value => this._filterNombre(value || ''))
-    );
-
-    // Actualizar Nombre cuando se selecciona un NIT
+    // Actualizar Nombre cuando se selecciona un NIT (usa el mapa que poblamos en los helpers)
     this.ipsControlNit.valueChanges.pipe(debounceTime(300)).subscribe(value => {
       const selected = this.allIps.find(item => item.nit === value);
       if (selected) {
@@ -578,7 +560,7 @@ export class FormularioIncapacidadComponent implements OnInit {
       if (rawFechaInicio) {
         const dateObj = new Date(rawFechaInicio);
         if (!isNaN(dateObj.getTime())) {
-          normalizedStartDate = format(dateObj, 'dd/MM/yyyy');
+          normalizedStartDate = moment(dateObj).format('DD/MM/YYYY');
         }
       }
       formData.fecha_inicio_incapacidad = normalizedStartDate;
@@ -605,12 +587,7 @@ export class FormularioIncapacidadComponent implements OnInit {
   }
 
   private setupCodigoFilters() {
-
-    this.filteredCodigos = this.codigoDiagnosticoControl.valueChanges.pipe(
-      debounceTime(300),
-      startWith(''),
-      map(value => this._filter(value || ''))
-    );
+    this.filteredCodigos = this._codigosObs();
     this.filteredEps = this.epsControlForm.valueChanges.pipe(
       debounceTime(300),
       startWith(''),
@@ -786,13 +763,19 @@ export class FormularioIncapacidadComponent implements OnInit {
 
 
   async ngOnInit(): Promise<void> {
-    this.loadData();
+    // `loadData()` se eliminó del ciclo de inicio porque descargaba > 12k incapacidades sin
+    // filtrar (causaba ERR_CONNECTION_RESET). El historial del trabajador ahora se solicita
+    // filtrado por cédula dentro de `buscarCedula()`.
     const user = await this.getUser();
     if (!user) {
       return;
     }
 
-    this.currentRole = (user.rol || 'user').toUpperCase().replace(/-/g, '_');
+    const rolRaw: any = user.rol;
+    const rolStr = typeof rolRaw === 'string'
+      ? rolRaw
+      : (rolRaw?.nombre ?? rolRaw?.name ?? 'user');
+    this.currentRole = String(rolStr).toUpperCase().replace(/-/g, '_');
     if (this.currentRole === 'INCAPACIDADADMIN') {
       this.undisableInitialFields();
     }
@@ -806,23 +789,13 @@ export class FormularioIncapacidadComponent implements OnInit {
       this.descripcionControl.setValue(item.descripcion);
     });
 
-    // Inicializar los arrays de autocompletar filtrados con debounceTime para reducir la carga de búsqueda
-    this.filteredIpsNit = this.ipsControlNit.valueChanges.pipe(
-      startWith(''),
-      map(value => this._filterNit(value || ''))
-    );
-
-    this.filteredIpsNombre = this.ipsControlNombre.valueChanges.pipe(
-      startWith(''),
-      map(value => this._filterNombre(value || ''))
-    );
+    // Autocompletes server-side (usan índices MySQL, payload < 3 KB)
+    this.filteredIpsNit = this._ipsNitObs();
+    this.filteredIpsNombre = this._ipsNombreObs();
+    this.filteredCodigos = this._codigosObs();
     this.filteredEps = this.epsControlForm.valueChanges.pipe(
       startWith(''),
       map(value => this._filterEps(value || ''))
-    );
-    this.filteredCodigos = this.codigoDiagnosticoControl.valueChanges.pipe(
-      startWith(''),
-      map(value => this._filter(value || ''))
     );
     this.codigoControl.valueChanges.subscribe(value => {
       const selected = this.allCodigosDiagnostico.find(item => item.codigo === value);
@@ -869,27 +842,83 @@ export class FormularioIncapacidadComponent implements OnInit {
   }
   private _filterEps(value: string): string[] {
     const filterValue = value.toLowerCase();
-    return this.epsnombres
+    const result = this.epsnombres
       .map(item => item.nombre)
       .filter(nombre => nombre.toLowerCase().includes(filterValue));
+    return Array.from(new Set(result));
   }
 
-  private _filter(value: string): string[] {
-    const filterValue = value.toLowerCase();
-    return this.allCodigosDiagnostico
-      .map(item => item.codigo)
-      .filter(codigo => codigo.toLowerCase().includes(filterValue));
+  // Nota: _filter, _filterNit y _filterNombre (client-side) fueron eliminados.
+  // Ahora todos los autocompletes usan los helpers server-side más abajo
+  // (_codigosObs, _ipsNitObs, _ipsNombreObs) que consultan endpoints paginados
+  // con índices MySQL — payload ~3 KB vs 1.5 MB.
+
+  // ---------------------------------------------------------------------------
+  // AUTOCOMPLETE SERVER-SIDE (rápido, usa índices MySQL)
+  // ---------------------------------------------------------------------------
+
+  /** Observable para el autocomplete de códigos: server-side con debounce */
+  private _codigosObs(): Observable<string[]> {
+    return this.codigoDiagnosticoControl.valueChanges.pipe(
+      startWith(''),
+      debounceTime(220),
+      distinctUntilChanged(),
+      switchMap((value: any) => {
+        const q = String(value || '').trim();
+        if (!q) return of([] as string[]);
+        return this.incapacidadService.buscarCodigosDiagnostico(q, 20).pipe(
+          map(items => Array.from(new Set(items.map(i => i.codigo)))),
+          catchError(() => of([] as string[]))
+        );
+      })
+    );
   }
 
-  private _filterNit(value: string): string[] {
-    const filterValue = value.toLowerCase();
-    return this.allIps.map(item => item.nit).filter(nit => nit.toLowerCase().includes(filterValue));
+  /** Observable para autocomplete de IPS por NIT */
+  private _ipsNitObs(): Observable<string[]> {
+    return this.ipsControlNit.valueChanges.pipe(
+      startWith(''),
+      debounceTime(220),
+      distinctUntilChanged(),
+      switchMap((value: any) => {
+        const q = String(value || '').trim();
+        if (!q) return of([] as string[]);
+        return this.incapacidadService.buscarIps(q, 20).pipe(
+          map(items => {
+            // Cachear en ipsMapByNit/Nombre para que se pueda mapear nit↔nombre al seleccionar
+            items.forEach(it => {
+              this.ipsMapByNit.set(it.nit, it.nombre);
+              this.ipsMapByNombre.set(it.nombre, it.nit);
+            });
+            return Array.from(new Set(items.map(i => i.nit)));
+          }),
+          catchError(() => of([] as string[]))
+        );
+      })
+    );
   }
 
-  // Función de filtro para Nombre
-  private _filterNombre(value: string): string[] {
-    const filterValue = value.toLowerCase();
-    return this.allIps.map(item => item.nombre).filter(nombre => nombre.toLowerCase().includes(filterValue));
+  /** Observable para autocomplete de IPS por nombre */
+  private _ipsNombreObs(): Observable<string[]> {
+    return this.ipsControlNombre.valueChanges.pipe(
+      startWith(''),
+      debounceTime(220),
+      distinctUntilChanged(),
+      switchMap((value: any) => {
+        const q = String(value || '').trim();
+        if (!q) return of([] as string[]);
+        return this.incapacidadService.buscarIps(q, 20).pipe(
+          map(items => {
+            items.forEach(it => {
+              this.ipsMapByNit.set(it.nit, it.nombre);
+              this.ipsMapByNombre.set(it.nombre, it.nit);
+            });
+            return Array.from(new Set(items.map(i => i.nombre)));
+          }),
+          catchError(() => of([] as string[]))
+        );
+      })
+    );
   }
 
   displayIps(ips: { nit: string, nombre: string }): string {
@@ -1014,19 +1043,19 @@ export class FormularioIncapacidadComponent implements OnInit {
       if (fechaInicioStr) {
         const fechaInicioDate = new Date(fechaInicioStr);
         if (!isNaN(fechaInicioDate.getTime())) {
-          normalizedStartDate = format(fechaInicioDate, 'dd-MM-yyyy');
+          normalizedStartDate = moment(fechaInicioDate).format('DD-MM-YYYY');
         }
       }
       if (fechaFinStr) {
         const fechaFinDate = new Date(fechaFinStr);
         if (!isNaN(fechaFinDate.getTime())) {
-          normalizedEndDate = format(fechaFinDate, 'dd-MM-yyyy');
+          normalizedEndDate = moment(fechaFinDate).format('DD-MM-YYYY');
         }
       }
       if (fechaEnvioStr) {
         const fechaEnvioDate = new Date(fechaEnvioStr);
         if (!isNaN(fechaEnvioDate.getTime())) {
-          normalizedFechaEnvio = format(fechaEnvioDate, 'dd-MM-yyyy');
+          normalizedFechaEnvio = moment(fechaEnvioDate).format('DD-MM-YYYY');
         }
       }
 
@@ -1151,6 +1180,8 @@ export class FormularioIncapacidadComponent implements OnInit {
   buscarCedula(cedula: string): void {
     this.cedula = cedula;
     this.cargarInformacion(true);
+    // Historial filtrado por cédula (payload ligero, excluye TextField de archivos)
+    this.loadData(cedula);
 
     const storedData = localStorage.getItem('user');
 
@@ -1168,7 +1199,7 @@ export class FormularioIncapacidadComponent implements OnInit {
     }
 
     this.contratacionService.traerDatosEncontratacion(cedula).subscribe(
-      response => {
+      (response: any) => {
         this.cargarInformacion(false);
         const contratacion = response.contratacion || {};
         const datosBasicos = response.datos_basicos || {};
@@ -1231,7 +1262,7 @@ export class FormularioIncapacidadComponent implements OnInit {
         //this.applyCedulaFilter(cedula)
 
       },
-      error => {
+      (_error: any) => {
         this.cargarInformacion(false);
         Swal.fire({
           icon: 'error',
@@ -1283,19 +1314,21 @@ export class FormularioIncapacidadComponent implements OnInit {
     });
   }
 
-  private loadData(): void {
-    console.time('Total Load');
+  private loadData(cedula?: string): void {
     this.cargarInformacion(true);
     forkJoin({
-      incapacidades: this.incapacidadService.traerTodosDatosIncapacidad(),
-      reporte: this.incapacidadService.traerTodosDatosReporte()
+      incapacidades: this.incapacidadService.traerTodosDatosIncapacidad(cedula ? { cedula } : undefined),
+      reporte: this.incapacidadService.traerTodosDatosReporte(cedula ? { cedula } : undefined)
     }).subscribe({
       next: ({ incapacidades, reporte }) => {
-        this.handleDataSuccess(incapacidades || [], reporte.data || []);
+        this.handleDataSuccess(incapacidades || [], reporte?.data || []);
         this.cargarInformacion(false);
-        console.timeEnd('Total Load');
+        this.mostrarHistorial = (incapacidades?.length ?? 0) > 0;
       },
-      error: () => this.handleError('Error al cargar los datos, por favor intenta de nuevo.')
+      error: () => {
+        this.cargarInformacion(false);
+        this.handleError('Error al cargar el historial, por favor intenta de nuevo.');
+      }
     });
   }
 

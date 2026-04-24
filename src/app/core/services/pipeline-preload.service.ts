@@ -3,9 +3,13 @@ import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import { NetworkStatusService } from './network-status.service';
+import { PermissionsService } from './permissions.service';
 
 /**
  * Precarga los datos del pipeline de contratación para uso offline.
+ *
+ * Solo corre para usuarios con permiso de lectura sobre el modulo SELECCION,
+ * ya que la info precargada unicamente la consume esa vista.
  *
  * Flujo:
  * 1. Llama a candidatos-tabla/ para obtener la lista de cédulas activas en el pipeline.
@@ -25,7 +29,8 @@ export class PipelinePreloadService {
 
   constructor(
     private http: HttpClient,
-    private networkService: NetworkStatusService
+    private networkService: NetworkStatusService,
+    private permissions: PermissionsService,
   ) {
     this.networkService.isOnline$.subscribe(isOnline => {
       if (isOnline) {
@@ -37,6 +42,14 @@ export class PipelinePreloadService {
 
   async preloadPipelineData(): Promise<void> {
     if (this.isPreloading || !this.networkService.isOnline) return;
+
+    const rol = this.permissions.getNormalizedRoleName() || '(vacio)';
+    console.log(`[Preload] Rol detectado: "${rol}".`);
+
+    if (!this.permissions.canUseSeleccionPipeline()) {
+      console.log('[Preload] Usuario sin acceso a SELECCION o rol administrativo. Precarga omitida.');
+      return;
+    }
 
     const electron = (window as any).electron;
     if (!electron?.db) return;

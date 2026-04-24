@@ -1,9 +1,17 @@
-import {  Component, Inject, OnInit, PLATFORM_ID , ChangeDetectionStrategy } from '@angular/core';
+import {  Component, Inject, OnInit, PLATFORM_ID , ChangeDetectionStrategy, ViewChild, AfterViewInit, ChangeDetectorRef } from '@angular/core';
 import { FormBuilder, FormGroup, Validators } from '@angular/forms';
 
 import { isPlatformBrowser } from '@angular/common';
 import { MatTableDataSource } from '@angular/material/table';
-import { InfoCardComponent } from '@/app/shared/components/info-card/info-card.component';
+import { MatPaginator, MatPaginatorModule } from '@angular/material/paginator';
+import { MatSort, MatSortModule } from '@angular/material/sort';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatProgressBarModule } from '@angular/material/progress-bar';
+import { MatExpansionModule } from '@angular/material/expansion';
+import { MatDividerModule } from '@angular/material/divider';
+import { MatTooltipModule } from '@angular/material/tooltip';
+import { MatChipsModule } from '@angular/material/chips';
+import { MatBadgeModule } from '@angular/material/badge';
 import { MatTableModule } from '@angular/material/table';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
@@ -15,9 +23,8 @@ import { IncapacidadService } from '../../services/incapacidad/incapacidad.servi
 import { Router } from '@angular/router';
 import Swal from 'sweetalert2';
 import * as XLSX from 'xlsx';
-import { NgClass } from '@angular/common';
 import { MatDialog } from '@angular/material/dialog';
-import { MatOptionModule } from '@angular/material/core';
+import { MatOptionModule, provideNativeDateAdapter } from '@angular/material/core';
 import { MatSelectModule } from '@angular/material/select';
 import { saveAs } from 'file-saver';
 import { MatDatepickerModule } from '@angular/material/datepicker';
@@ -35,7 +42,6 @@ interface ColumnTitle {
   selector: 'app-vista-total-incapacidades',
   standalone: true,
   imports: [
-    InfoCardComponent,
     MatTableModule,
     MatFormFieldModule,
     MatInputModule,
@@ -47,23 +53,57 @@ interface ColumnTitle {
     MatIconModule,
     FormsModule,
     MatCardModule,
-    NgClass,
-    DatePipe
+    MatPaginatorModule,
+    MatSortModule,
+    MatProgressSpinnerModule,
+    MatProgressBarModule,
+    MatExpansionModule,
+    MatDividerModule,
+    MatTooltipModule,
+    MatChipsModule,
+    MatBadgeModule
 ],
   templateUrl: './vista-total-incapacidades.component.html',
   styleUrl: './vista-total-incapacidades.component.css',
-  providers: [DatePipe]
+  providers: [DatePipe, provideNativeDateAdapter()]
 } )
-export class VistaTotalIncapacidadesComponent implements OnInit {
+export class VistaTotalIncapacidadesComponent implements OnInit, AfterViewInit {
+  @ViewChild('pagT1', { static: false }) paginatorTabla1!: MatPaginator;
+  @ViewChild('pagT4', { static: false }) paginatorTabla4!: MatPaginator;
+  @ViewChild('sortT1', { static: false }) sortT1!: MatSort;
+  @ViewChild('sortT4', { static: false }) sortT4!: MatSort;
+
+  // Filtros rápidos inline por tabla
+  quickFilterT1: string = '';
+  quickFilterT4: string = '';
+
+  // Loading state granular por acción (permite mostrar spinner específico por botón)
+  downloadingExcel = false;
+  downloadingDia = false;
+  downloadingRango = false;
+  downloadingDiaSevenet = false;
+  downloadingRangoSevenet = false;
+  isLoading = false; // carga inicial de tablas
   query: string = '';
   username: string = '';
 
   isSidebarHidden = false;
 
   hoy: string = new Date().toISOString().split('T')[0];
-  fechaInicio!: string;
-  fechaFin!: string;
-  fechaSeleccionada!: string;
+  // Modelos bidireccionales con mat-datepicker → Date
+  fechaInicio: Date | null = null;
+  fechaFin: Date | null = null;
+  fechaSeleccionada: Date | null = null;
+
+  /** Convierte Date a string ISO corto (yyyy-MM-dd) que espera el backend */
+  private toIsoDate(d: Date | null | string): string {
+    if (!d) return '';
+    if (typeof d === 'string') return d;
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  }
 
   toggleSidebar() {
     this.isSidebarHidden = !this.isSidebarHidden;
@@ -326,7 +366,8 @@ export class VistaTotalIncapacidadesComponent implements OnInit {
     private incapacidadService: IncapacidadService,
     private router: Router,
     private fb: FormBuilder,
-    private datePipe: DatePipe
+    private datePipe: DatePipe,
+    private cdref: ChangeDetectorRef
   ) {
     this.myForm = this.fb.group({
       confirmacion_fecha_de_radicacion_inicio: ['', Validators.required],
@@ -345,6 +386,65 @@ export class VistaTotalIncapacidadesComponent implements OnInit {
       this.username = `${user.primer_nombre} ${user.primer_apellido}`;
     }
   }
+
+  ngAfterViewInit(): void {
+    // Conectar paginadores y sort con sus data sources
+    if (this.paginatorTabla1) this.dataSourceTable1.paginator = this.paginatorTabla1;
+    if (this.paginatorTabla4) this.dataSourceTable4.paginator = this.paginatorTabla4;
+    if (this.sortT1) this.dataSourceTable1.sort = this.sortT1;
+    if (this.sortT4) this.dataSourceTable4.sort = this.sortT4;
+
+    // filterPredicate para búsqueda rápida (todas las columnas visibles)
+    this.dataSourceTable1.filterPredicate = this._makeFilterPredicate(this.ColumnsTable1);
+    this.dataSourceTable4.filterPredicate = this._makeFilterPredicate(this.displayedColumnsTable4);
+  }
+
+  private _makeFilterPredicate(columns: string[]) {
+    return (row: any, filter: string) => {
+      if (!filter) return true;
+      const needle = filter.toLowerCase();
+      for (const col of columns) {
+        const v = row?.[col];
+        if (v != null && String(v).toLowerCase().includes(needle)) return true;
+      }
+      return false;
+    };
+  }
+
+  // Aplicar filtro rápido (escribe directo en dataSource.filter)
+  applyQuickFilterT1(value: string) {
+    this.quickFilterT1 = value;
+    this.dataSourceTable1.filter = (value || '').trim().toLowerCase();
+    if (this.dataSourceTable1.paginator) this.dataSourceTable1.paginator.firstPage();
+  }
+
+  applyQuickFilterT4(value: string) {
+    this.quickFilterT4 = value;
+    this.dataSourceTable4.filter = (value || '').trim().toLowerCase();
+    if (this.dataSourceTable4.paginator) this.dataSourceTable4.paginator.firstPage();
+  }
+
+  clearQuickFilterT1() { this.applyQuickFilterT1(''); }
+  clearQuickFilterT4() { this.applyQuickFilterT4(''); }
+
+  // Formatear valores de celda: null/empty/"N/A" → "—" (em-dash)
+  fmt(value: any): string {
+    if (value == null || value === '' || value === 'N/A' || value === 'null' || value === 'undefined') return '—';
+    return String(value);
+  }
+
+  // Clase semántica para estado_incapacidad
+  estadoClass(estado: any): string {
+    const s = String(estado || '').toLowerCase();
+    if (!s || s === 'null' || s === 'undefined') return '';
+    if (s.includes('pag') || s.includes('aprob') || s.includes('ok')) return 'disab-chip-status disab-chip-status-ok';
+    if (s.includes('pend') || s.includes('revisi') || s.includes('proces')) return 'disab-chip-status disab-chip-status-pending';
+    if (s.includes('rech') || s.includes('anul') || s.includes('fals')) return 'disab-chip-status disab-chip-status-danger';
+    return 'disab-chip-status disab-chip-status-neutral';
+  }
+
+  // trackBy para las filas: evita re-renderizar filas idénticas cuando cambia la referencia del array
+  trackByConsecutivo = (_: number, row: any) => row?.consecutivoSistema ?? row?.idReporte ?? _;
 
   mostrarCargando(estado: boolean) { 
     if (estado) {
@@ -400,25 +500,35 @@ export class VistaTotalIncapacidadesComponent implements OnInit {
 private loadData(): void {
   console.time('Total Load');
 
-  // Mostrar cargando antes de iniciar las llamadas HTTP
-  this.cargarInformacion(true);
+  // Barra de progreso superior no bloqueante (reemplaza el overlay modal de Swal)
+  this.isLoading = true;
+  this.cdref.markForCheck();
 
+  // pageSize inicial razonable: la UI pagina de a 25-100 y solo necesita las más recientes.
+  // Para ver más, el usuario usa el filtro por fecha/documento (que va al backend indexado).
   forkJoin({
-    incapacidades: this.incapacidadService.traerTodosDatosIncapacidad(),
-    reporte: this.incapacidadService.traerTodosDatosReporte()
+    incapacidades: this.incapacidadService.traerTodosDatosIncapacidad({ pageSize: 500 }),
+    reporte: this.incapacidadService.traerTodosDatosReporte({ pageSize: 500 })
   }).subscribe({
     next: ({ incapacidades, reporte }) => {
       this.handleDataSuccess(incapacidades || [], reporte.data || []);
-      
-      this.cargarInformacion(false);
-
+      this.isLoading = false;
+      this.cdref.markForCheck();
       console.timeEnd('Total Load');
     },
-    error: () => {
-      this.handleError('Error al cargar los datos, por favor intenta de nuevo.');
-
-      // Asegurar que cierre cargando aun en error
-      this.cargarInformacion(false);
+    error: (err: any) => {
+      this.isLoading = false;
+      this.cdref.markForCheck();
+      const status = err?.status;
+      let msg = 'No se pudo cargar la información.';
+      if (status === 0 || err?.message?.includes?.('ERR_CONNECTION_RESET')) {
+        msg = 'El servidor cerró la conexión antes de terminar (payload grande). Intenta filtrar por fecha o por cédula para reducir la consulta.';
+      } else if (status === 401 || status === 403) {
+        msg = 'Sesión expirada o sin permisos. Vuelve a iniciar sesión.';
+      } else if (status === 500) {
+        msg = 'Error interno del servidor. Reporta esta incidencia.';
+      }
+      this.handleError(msg);
     }
   });
 }
@@ -575,7 +685,18 @@ private loadData(): void {
     }
 
 async downloadExcel(): Promise<void> {
-  const combinedData = this.combineDataForExcel(); 
+  this.downloadingExcel = true;
+  this.cdref.markForCheck();
+  try {
+    await this._downloadExcelImpl();
+  } finally {
+    this.downloadingExcel = false;
+    this.cdref.markForCheck();
+  }
+}
+
+private async _downloadExcelImpl(): Promise<void> {
+  const combinedData = this.combineDataForExcel();
   console.log('Datos combinados para Excel:', combinedData);
 
   // Si no hay datos, generar hoja vacía con mensaje
@@ -665,49 +786,64 @@ async downloadExcel(): Promise<void> {
 }
 
 
-downloadDocs(fecha: string, sevenet: boolean) {
-  this.cargarInformacion(true);  // ⬅ Mostrar cargando
+downloadDocs(fecha: Date | string | null, sevenet: boolean) {
+  const fechaStr = this.toIsoDate(fecha);
+  if (!fechaStr) {
+    Swal.fire({ icon: 'warning', title: 'Falta fecha', text: 'Selecciona una fecha válida.' });
+    return;
+  }
+  if (sevenet) this.downloadingDiaSevenet = true;
+  else this.downloadingDia = true;
+  this.cdref.markForCheck();
 
-  this.incapacidadService.descargarTodoComoZip(fecha, sevenet)
+  this.incapacidadService.descargarTodoComoZip(fechaStr, sevenet)
     .then(() => {
-      this.cargarInformacion(false); // ⬅ Ocultar cargando
-      alert('¡Descarga completada!');
+      Swal.fire({ icon: 'success', title: '¡Descarga completada!', timer: 1800, showConfirmButton: false });
     })
     .catch(err => {
-      this.cargarInformacion(false); // ⬅ Ocultar cargando incluso en error
-      alert('Error al descargar los documentos por fecha');
+      Swal.fire({ icon: 'error', title: 'Error', text: 'No se pudieron descargar los documentos por fecha' });
       console.error(err);
+    })
+    .finally(() => {
+      if (sevenet) this.downloadingDiaSevenet = false;
+      else this.downloadingDia = false;
+      this.cdref.markForCheck();
     });
 }
 
 
 downloadDocsRango(sevenet: boolean) {
   if (!this.fechaInicio || !this.fechaFin) {
-    alert('Debes seleccionar ambas fechas: inicio y fin.');
+    Swal.fire({ icon: 'warning', title: 'Faltan fechas', text: 'Debes seleccionar ambas fechas: inicio y fin.' });
     return;
   }
 
-  if (new Date(this.fechaInicio) > new Date(this.fechaFin)) {
-    alert('La fecha de inicio no puede ser mayor que la fecha fin.');
+  const inicio = this.toIsoDate(this.fechaInicio);
+  const fin = this.toIsoDate(this.fechaFin);
+
+  if (new Date(inicio) > new Date(fin)) {
+    Swal.fire({ icon: 'warning', title: 'Rango inválido', text: 'La fecha de inicio no puede ser mayor que la fecha fin.' });
     return;
   }
 
-  const rango = {
-    inicio: this.fechaInicio,
-    fin: this.fechaFin
-  };
+  const rango = { inicio, fin };
 
-  this.cargarInformacion(true);  // ⬅ Mostrar cargando
+  if (sevenet) this.downloadingRangoSevenet = true;
+  else this.downloadingRango = true;
+  this.cdref.markForCheck();
 
   this.incapacidadService.descargarZipPorRango(rango, sevenet)
     .then(() => {
-      this.cargarInformacion(false); // ⬅ Ocultar cargando
-      alert('¡Descarga completada!');
+      Swal.fire({ icon: 'success', title: '¡Descarga completada!', timer: 1800, showConfirmButton: false });
     })
     .catch(err => {
-      this.cargarInformacion(false); // ⬅ Ocultar cargando incluso en error
-      alert('Error al descargar el rango de documentos.');
+      Swal.fire({ icon: 'error', title: 'Error', text: 'No se pudo descargar el rango de documentos.' });
       console.error(err);
+    })
+    .finally(() => {
+      if (sevenet) this.downloadingRangoSevenet = false;
+      else this.downloadingRango = false;
+      this.cdref.markForCheck();
     });
 }
 

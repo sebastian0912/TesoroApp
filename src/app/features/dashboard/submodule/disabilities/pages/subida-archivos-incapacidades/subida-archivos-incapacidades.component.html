@@ -1,5 +1,94 @@
-<!-- Overlay para loader -->@if (overlayVisible) {
-<div id="overlay" class="loader-overlay"></div>
-}<!-- Loader --><!-- Input oculto para carga de archivos --><input  id="fileInput"  type="file"  (change)="cargarExcel($event)"  accept=".xlsx, .xls"  multiple  style="display: none"/><div class="dashboard-container">  <div class="dashboard-content">    <mat-card>      <h3 class="titulo">Carga de archivos para incapacidades</h3>      <mat-card-content>        <!-- Botón tipo "tarjeta" que abre el diálogo de selección de archivo -->        <app-info-card          [title]="'Cargar códigos diagnósticos'"          imageUrl="comun/excel.png"          (click)="triggerFileInput2()"          style="cursor: pointer"        >        </app-info-card>        <!-- Input oculto para recibir el archivo Excel -->        <input          id="fileInputDiag"          type="file"          accept=".xlsx,.xls"          style="display: none"          (change)="onFileChange($event)"        />        <div class="cards">          <!-- Botones para cargar archivos -->          @for (file of fileList; track file) {
-<div class="conjunto">              <!-- Botón para subir archivo -->              <app-info-card                [title]="file.title"                imageUrl="comun/excel.png"                (click)="triggerFileInput()"                style="cursor: pointer"              >              </app-info-card>              <!-- Botón para descargar archivo asociado -->              <button mat-flat-button (click)="downloadFile(file.filename)">                <mat-icon>download</mat-icon>                Descargar {{ file.title }}              </button>            </div>
-}        </div>      </mat-card-content>    </mat-card>  </div></div>
+<!-- Overlay + spinner de carga -->
+@if (overlayVisible) {
+  <div class="disab-overlay">
+    <mat-progress-spinner mode="indeterminate" diameter="64" color="primary"></mat-progress-spinner>
+    <span class="disab-overlay-text">Procesando archivos…</span>
+  </div>
+}
+
+<!-- Inputs ocultos para selección de archivos Excel -->
+<input
+  id="fileInput"
+  type="file"
+  (change)="cargarExcel($event)"
+  accept=".xlsx, .xls"
+  multiple
+  class="disab-hidden-file-input"
+/>
+<input
+  id="fileInputDiag"
+  type="file"
+  accept=".xlsx,.xls"
+  class="disab-hidden-file-input"
+  (change)="onFileChange($event)"
+/>
+
+<div class="dashboard-container">
+  <div class="dashboard-content">
+    <mat-card class="disab-card">
+      <!-- Hero header -->
+      <div class="disab-hero">
+        <div class="disab-hero-icon">
+          <mat-icon>cloud_upload</mat-icon>
+        </div>
+        <div class="disab-hero-texts">
+          <h1 class="disab-hero-title">Carga de archivos para incapacidades</h1>
+          <p class="disab-hero-sub">Sube códigos diagnósticos y documentación maestra (ARL, SS, reportes, bancos, Élite)</p>
+        </div>
+      </div>
+
+      <mat-card-content class="disab-card-body">
+        <!-- Sección archivo maestro -->
+        <section class="disab-section">
+          <header class="disab-section-header">
+            <mat-icon class="disab-section-icon">medical_information</mat-icon>
+            <h2 class="disab-section-title">Archivo maestro</h2>
+          </header>
+
+          <div class="disab-master-card">
+            <app-info-card
+              [title]="'Cargar códigos diagnósticos'"
+              matIcon="description"
+              (click)="triggerFileInput2()"
+              class="disab-clickable"
+            ></app-info-card>
+          </div>
+        </section>
+
+        <mat-divider class="disab-divider"></mat-divider>
+
+        <!-- Sección cargas mensuales -->
+        <section class="disab-section">
+          <header class="disab-section-header">
+            <mat-icon class="disab-section-icon">folder_zip</mat-icon>
+            <h2 class="disab-section-title">Cargas mensuales</h2>
+            <span class="disab-section-hint">Selecciona o descarga la plantilla de cada archivo</span>
+          </header>
+
+          <div class="disab-grid">
+            @for (file of fileList; track file.filename) {
+              <article class="disab-tile">
+                <app-info-card
+                  [title]="file.title"
+                  matIcon="table_view"
+                  (click)="triggerFileInput()"
+                  class="disab-clickable"
+                ></app-info-card>
+                <button
+                  mat-stroked-button
+                  color="primary"
+                  class="disab-tile-btn"
+                  (click)="downloadFile(file.filename)"
+                  [attr.aria-label]="'Descargar plantilla ' + file.title"
+                >
+                  <mat-icon>download</mat-icon>
+                  <span>Descargar plantilla</span>
+                </button>
+              </article>
+            }
+          </div>
+        </section>
+      </mat-card-content>
+    </mat-card>
+  </div>
+</div>

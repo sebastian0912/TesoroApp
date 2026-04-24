@@ -1,6 +1,6 @@
 {
   "name": "tesoreria",
-  "version": "8.0.9",
+  "version": "8.1.7",
   "main": "app.js",
   "description": "Programa para control de prestamos a tesoreria",
   "author": "SebastianGuarnizoCampos",
@@ -44,7 +44,9 @@
       "legalTrademarks": "Apoyo Laboral TS SAS - Tu Alianza SAS",
       "requestedExecutionLevel": "asInvoker",
       "signAndEditExecutable": false,
-      "verifyUpdateCodeSignature": false
+      "signingHashAlgorithms": null,
+      "verifyUpdateCodeSignature": false,
+      "publisherName": null
     },
     "nsis": {
       "perMachine": false,
@@ -56,6 +58,9 @@
       "differentialPackage": true
     },
     "asar": true,
+    "asarUnpack": [
+      "**/node_modules/sqlite3/**/*"
+    ],
     "publish": [
       {
         "provider": "github",

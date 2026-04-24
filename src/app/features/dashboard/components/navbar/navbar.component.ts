@@ -148,6 +148,17 @@ export class NavbarComponent implements OnInit, OnDestroy {
     'Notificaciones': 'matder/notifications',
     'Importar': 'matder/import',
     'Auditoría': 'matder/audit',
+
+    // Incapacidades
+    'Formulario incapacidad': 'disabilities/formulario',
+    'Formulario de incapacidad': 'disabilities/formulario',
+    'FORMULARIO INCAPACIDAD': 'disabilities/formulario',
+    'Buscar incapacidad': 'disabilities/buscar',
+    'BUSCAR INCAPACIDAD': 'disabilities/buscar',
+    'Vista total incapacidades': 'disabilities/total',
+    'VISTA TOTAL INCAPACIDADES': 'disabilities/total',
+    'Subida archivos incapacidades': 'disabilities/subir',
+    'SUBIDA ARCHIVOS INCAPACIDADES': 'disabilities/subir',
   };
 
   private readonly iconMap: Record<string, string> = {
@@ -252,6 +263,19 @@ export class NavbarComponent implements OnInit, OnDestroy {
     'Notificaciones': 'notifications',
     'Importar': 'upload_file',
     'Auditoría': 'shield',
+
+    // Incapacidades
+    'Incapacidades': 'healing',
+    'INCAPACIDADES': 'healing',
+    'Formulario incapacidad': 'assignment',
+    'Formulario de incapacidad': 'assignment',
+    'FORMULARIO INCAPACIDAD': 'assignment',
+    'Buscar incapacidad': 'search',
+    'BUSCAR INCAPACIDAD': 'search',
+    'Vista total incapacidades': 'list_alt',
+    'VISTA TOTAL INCAPACIDADES': 'list_alt',
+    'Subida archivos incapacidades': 'upload_file',
+    'SUBIDA ARCHIVOS INCAPACIDADES': 'upload_file',
   };
 
   private routeMapIndex!: Record<string, string>;
@@ -685,7 +709,13 @@ export class NavbarComponent implements OnInit, OnDestroy {
   // ===== auth =====
   public cerrarSesion(): void {
     this.lsClear();
-    this.router.navigate(['']);
+    // Borra cache/queue/offline-uploads SQLite para que un segundo usuario en
+    // el mismo equipo no vea datos del anterior. Best-effort: si falla, seguimos.
+    const electronApi = (typeof window !== 'undefined' ? (window as any).electron : null);
+    const clearPromise: Promise<any> = electronApi?.db?.clearUserData
+      ? electronApi.db.clearUserData().catch(() => null)
+      : Promise.resolve();
+    clearPromise.finally(() => this.router.navigate(['']));
   }
 
   public trackByNodeId = (_: number, n: PermNode) => n.id;

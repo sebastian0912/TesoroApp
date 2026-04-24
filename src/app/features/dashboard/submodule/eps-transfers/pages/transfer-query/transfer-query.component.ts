@@ -1,9 +1,10 @@
-import {  Component , ChangeDetectionStrategy } from '@angular/core';
+import {  Component , ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
 import { TrasladosService } from '../../service/traslados.service';
 import { SharedModule } from '@/app/shared/shared.module';
 import { FormBuilder, FormGroup, Validators } from '@angular/forms';
 import Swal from 'sweetalert2';
 import { MatTableDataSource, MatTableModule } from '@angular/material/table';
+import { ElectronWindowService } from '@/app/core/services/electron-window.service';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -29,7 +30,9 @@ export class TransferQueryComponent {
 
   constructor(
     private trasladosService: TrasladosService,
-    private fb: FormBuilder
+    private fb: FormBuilder,
+    private cdr: ChangeDetectorRef,
+    private electronWindow: ElectronWindowService,
   ) {
     this.myForm = this.fb.group({
       cedula: ['', Validators.required],
@@ -60,6 +63,7 @@ export class TransferQueryComponent {
         (data: any) => {
           Swal.close(); // Cierra el swal al recibir respuesta
           this.dataSource.data = data;
+          this.cdr.markForCheck();
         },
         (error: any) => {
           Swal.close(); // Cierra el swal si hay error
@@ -68,6 +72,7 @@ export class TransferQueryComponent {
             title: 'Error',
             text: 'No se pudo realizar la consulta. Por favor, inténtelo de nuevo más tarde.',
           });
+          this.cdr.markForCheck();
         }
       );
     }
@@ -82,18 +87,7 @@ export class TransferQueryComponent {
   }
 
   verDocumento(solicitud: string): void {
-    if (solicitud.startsWith('data:application/pdf;base64,')) {
-      const base64 = solicitud.split(',')[1];
-      const byteCharacters = atob(base64);
-      const byteNumbers = new Array(byteCharacters.length).fill(0).map((_, i) => byteCharacters.charCodeAt(i));
-      const byteArray = new Uint8Array(byteNumbers);
-      const blob = new Blob([byteArray], { type: 'application/pdf' });
-
-      const blobUrl = URL.createObjectURL(blob);
-      window.open(blobUrl, '_blank');
-    } else {
-      window.open(solicitud, '_blank');
-    }
+    this.electronWindow.openDocument(solicitud, { title: 'Solicitud de traslado' });
   }
 
 }

@@ -1,4 +1,4 @@
-import { Component, OnInit, ViewChild } from '@angular/core';
+import { ChangeDetectorRef, Component, OnInit, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { SharedModule } from '../../../../../../shared/shared.module';
 import { FormControl, ReactiveFormsModule, FormsModule } from '@angular/forms';
@@ -77,7 +77,10 @@ export class HistoricoNominaComponent implements OnInit {
 
   isLoading = false;
 
-  constructor(private nominaService: NominaService) {}
+  constructor(
+    private nominaService: NominaService,
+    private cdr: ChangeDetectorRef,
+  ) {}
 
   ngOnInit(): void {
     this.cargarDatosMaestros();
@@ -114,14 +117,16 @@ export class HistoricoNominaComponent implements OnInit {
       next: (res: any) => {
         const data = res.results || res || [];
         this.periodos = Array.isArray(data) ? data : [];
-        this.periodoFilterCtrl.setValue(''); // Disparar filtro para mostrar resultados
+        this.periodoFilterCtrl.setValue('');
+        this.cdr.markForCheck();
       }
     });
 
     this.nominaService.getClientes().subscribe({
       next: (res: any) => {
         this.clientes = res.results || res || [];
-        this.clientControl.updateValueAndValidity(); // Disparar filtro para mostrar resultados
+        this.clientControl.updateValueAndValidity();
+        this.cdr.markForCheck();
       }
     });
   }
@@ -131,6 +136,7 @@ export class HistoricoNominaComponent implements OnInit {
       next: (res: any) => {
         this.cecos = res.results || res || [];
         this.cecoFilterCtrl.setValue('');
+        this.cdr.markForCheck();
       }
     });
   }
@@ -198,15 +204,18 @@ export class HistoricoNominaComponent implements OnInit {
     }
 
     this.isLoading = true;
+    this.cdr.markForCheck();
     this.nominaService.getHistorico(params).subscribe({
       next: (data) => {
         this.historicoDataSource.data = data;
         this.historicoDataSource.paginator = this.paginator;
         this.historicoDataSource.sort = this.sort;
         this.isLoading = false;
+        this.cdr.markForCheck();
       },
       error: () => {
         this.isLoading = false;
+        this.cdr.markForCheck();
         Swal.fire('Error', 'No se pudo cargar el histórico', 'error');
       }
     });

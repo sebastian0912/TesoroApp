@@ -14,17 +14,26 @@ const INVOKE_CHANNELS = new Set([
   'pdf:edit-external',
   'pdf:read-file',
   'pdf:finish-edit',
+  'pdf:open-in-window',
+  'shell:open-external',
+  'offline:save-upload',
+  'offline:read-upload',
+  'offline:delete-upload',
   'db:save-request-queue',
+  'db:save-multipart-request',
+  'db:get-request-files',
   'db:get-pending-requests',
   'db:delete-request',
   'db:cache-save',
   'db:cache-get',
   'db:cache-get-all-urls',
   'db:mark-request-status',
+  'db:clear-user-data',
 ]);
 
 const ON_CHANNELS = new Set([
   'update-available',
+  'update-not-available',
   'update-progress',
   'update-downloaded',
   'update-error',
@@ -76,19 +85,31 @@ contextBridge.exposeInMainWorld('electron', {
     editExternal: (fileUrl) => ipcRenderer.invoke('pdf:edit-external', fileUrl),
     readFile: () => ipcRenderer.invoke('pdf:read-file'),
     finishEdit: () => ipcRenderer.invoke('pdf:finish-edit'),
+    openInWindow: (payload) => ipcRenderer.invoke('pdf:open-in-window', payload),
     onFileChanged: (callback) => {
       const subscription = (_event, data) => callback(data);
       ipcRenderer.on('pdf:file-changed', subscription);
       return () => ipcRenderer.removeListener('pdf:file-changed', subscription);
     },
   },
+  shell: {
+    openExternal: (url) => ipcRenderer.invoke('shell:open-external', url),
+  },
   db: {
     saveRequestQueue: (req) => ipcRenderer.invoke('db:save-request-queue', req),
+    saveMultipartRequest: (payload) => ipcRenderer.invoke('db:save-multipart-request', payload),
+    getRequestFiles: (requestId) => ipcRenderer.invoke('db:get-request-files', requestId),
     getPendingRequests: () => ipcRenderer.invoke('db:get-pending-requests'),
     deleteRequest: (id) => ipcRenderer.invoke('db:delete-request', id),
     cacheSave: (cacheData) => ipcRenderer.invoke('db:cache-save', cacheData),
     cacheGet: (url) => ipcRenderer.invoke('db:cache-get', url),
     cacheGetAllUrls: () => ipcRenderer.invoke('db:cache-get-all-urls'),
     markRequestStatus: (data) => ipcRenderer.invoke('db:mark-request-status', data),
+    clearUserData: () => ipcRenderer.invoke('db:clear-user-data'),
+  },
+  offline: {
+    saveUpload: (payload) => ipcRenderer.invoke('offline:save-upload', payload),
+    readUpload: (storedPath) => ipcRenderer.invoke('offline:read-upload', storedPath),
+    deleteUpload: (storedPath) => ipcRenderer.invoke('offline:delete-upload', storedPath),
   },
 });

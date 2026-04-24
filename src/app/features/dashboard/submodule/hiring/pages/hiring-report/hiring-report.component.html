@@ -243,8 +243,8 @@
                                 }
 
                                 <button matButton="filled" class="btn-block btn-primary" type="submit"
-                                    [disabled]="reporteForm.invalid || arlErrors.length > 0 || !files.cruceDiario?.length"
-                                    [matTooltip]="!files.cruceDiario?.length ? 'Debes adjuntar el archivo Excel de Cruce Diario para enviar' : ''">
+                                    [disabled]="reporteForm.invalid || (showValidateButton && (arlErrors.length > 0 || !files.cruceDiario?.length))"
+                                    [matTooltip]="(showValidateButton && !files.cruceDiario?.length) ? 'Debes adjuntar el archivo Excel de Cruce Diario para enviar' : ''">
                                     ENVIAR REPORTE
                                 </button>
                             </div>
@@ -264,8 +264,8 @@
                     </button>
                     }
                     <button mat-flat-button color="primary" type="submit" class="btn-block"
-                        [disabled]="reporteForm.invalid || !files.cruceDiario?.length"
-                        [matTooltip]="!files.cruceDiario?.length ? 'Debes adjuntar el Cruce Diario para enviar' : ''">
+                        [disabled]="reporteForm.invalid || (showValidateButton && !files.cruceDiario?.length)"
+                        [matTooltip]="(showValidateButton && !files.cruceDiario?.length) ? 'Debes adjuntar el Cruce Diario para enviar' : ''">
                         Enviar
                     </button>
                 </div>

@@ -1,6 +1,5 @@
-import {  Component, OnInit , ChangeDetectionStrategy } from '@angular/core';
+import {  Component, OnInit, ViewChild, AfterViewInit , ChangeDetectionStrategy } from '@angular/core';
 import { MatTableDataSource } from '@angular/material/table';
-import { InfoCardComponent } from '@/app/shared/components/info-card/info-card.component';
 import { MatTableModule } from '@angular/material/table';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
@@ -12,9 +11,14 @@ import { IncapacidadService } from '../../services/incapacidad/incapacidad.servi
 import { Router } from '@angular/router';
 import Swal from 'sweetalert2';
 import * as XLSX from 'xlsx';
-import { NgClass } from '@angular/common';
 import { MatDialog } from '@angular/material/dialog';
 import { MatSelectModule } from '@angular/material/select';
+import { MatPaginator, MatPaginatorModule } from '@angular/material/paginator';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatExpansionModule } from '@angular/material/expansion';
+import { MatDividerModule } from '@angular/material/divider';
+import { MatTabsModule } from '@angular/material/tabs';
+import { MatTooltipModule } from '@angular/material/tooltip';
 
 export interface ColumnConfig {
   key: string;
@@ -36,12 +40,18 @@ export interface ColumnConfig {
     MatIconModule,
     FormsModule,
     MatCardModule,
-    NgClass
+    MatPaginatorModule,
+    MatProgressSpinnerModule,
+    MatExpansionModule,
+    MatDividerModule,
+    MatTabsModule,
+    MatTooltipModule
 ],
   templateUrl: './buscar-incapacidad.component.html',
   styleUrl: './buscar-incapacidad.component.css'
 } )
-export class BuscarIncapacidadComponent implements OnInit {
+export class BuscarIncapacidadComponent implements OnInit, AfterViewInit {
+  @ViewChild('pagT1', { static: false }) paginatorT1!: MatPaginator;
   query: string = '';
   columnFilters: { [key: string]: string[] } = {};
   isSidebarHidden = false;
@@ -702,6 +712,12 @@ export class BuscarIncapacidadComponent implements OnInit {
   }
   async ngOnInit(): Promise<void> {
     this.displayedColumns = [...this.columnConfigs.map(config => config.key), 'edit'];
+  }
+
+  ngAfterViewInit(): void {
+    if (this.paginatorT1) {
+      this.dataSourcetable1.paginator = this.paginatorT1;
+    }
   }
   toTitleCase(text: string, columnTitles: { [key: string]: string }): string {
     if (!text) return '';

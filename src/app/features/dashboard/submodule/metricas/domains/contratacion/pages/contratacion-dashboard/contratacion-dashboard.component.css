@@ -4,10 +4,45 @@
 }
 
 .contratacion-dashboard-layout {
+    position: relative;
     display: flex;
     flex-direction: column;
     padding-bottom: 2rem;
     animation: fadeIn 0.4s ease-out forwards;
+}
+
+.contratacion-dashboard-layout.is-downloading {
+    pointer-events: none;
+}
+
+.downloading-overlay {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    z-index: 1200;
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    background: #1f2937;
+    color: #fff;
+    padding: 10px 16px;
+    border-radius: 999px;
+    box-shadow: 0 10px 25px rgba(15, 23, 42, 0.3);
+    font-size: 0.85rem;
+    pointer-events: auto;
+}
+
+.downloading-overlay .spinner {
+    width: 16px;
+    height: 16px;
+    border: 2px solid rgba(255, 255, 255, 0.35);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
 }
 
 .chart-grid {

@@ -1,4 +1,4 @@
-import { AfterViewInit, Component, OnInit, ViewChild } from '@angular/core';
+import { AfterViewInit, ChangeDetectorRef, Component, OnInit, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormControl, FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { Observable } from 'rxjs';
@@ -111,6 +111,7 @@ export class ConvalidadorComponent implements OnInit, AfterViewInit {
     private nominaService: NominaService,
     private dialog: MatDialog,
     private snackBar: MatSnackBar,
+    private cdr: ChangeDetectorRef,
   ) {}
 
   ngOnInit(): void {
@@ -140,8 +141,12 @@ export class ConvalidadorComponent implements OnInit, AfterViewInit {
       next: (data) => {
         this.clientes = data;
         this.clienteControl.setValue(this.clienteControl.value);
+        this.cdr.markForCheck();
       },
-      error: () => this.snackBar.open('Error al cargar empresas', 'Cerrar', { duration: 3000 }),
+      error: () => {
+        this.snackBar.open('Error al cargar empresas', 'Cerrar', { duration: 3000 });
+        this.cdr.markForCheck();
+      },
     });
   }
 
@@ -151,8 +156,12 @@ export class ConvalidadorComponent implements OnInit, AfterViewInit {
         this.conceptos = data;
         this.conceptoControl.setValue(this.conceptoControl.value);
         this.reconstruirCatalogo();
+        this.cdr.markForCheck();
       },
-      error: () => this.snackBar.open('Error al cargar conceptos', 'Cerrar', { duration: 3000 }),
+      error: () => {
+        this.snackBar.open('Error al cargar conceptos', 'Cerrar', { duration: 3000 });
+        this.cdr.markForCheck();
+      },
     });
   }
 
@@ -212,15 +221,18 @@ export class ConvalidadorComponent implements OnInit, AfterViewInit {
     }
 
     this.isLoading = true;
+    this.cdr.markForCheck();
     this.nominaService.getConvalidaciones({ entidad_externa: this.selectedCliente.id_entidad }).subscribe({
       next: (data) => {
         this.convalidacionesEmpresa = data;
         this.reconstruirCatalogo();
         this.isLoading = false;
+        this.cdr.markForCheck();
       },
       error: () => {
         this.snackBar.open('Error al cargar convalidaciones', 'Cerrar', { duration: 3000 });
         this.isLoading = false;
+        this.cdr.markForCheck();
       },
     });
   }
@@ -275,8 +287,12 @@ export class ConvalidadorComponent implements OnInit, AfterViewInit {
           'Cerrar',
           { duration: 2000 },
         );
+        this.cdr.markForCheck();
       },
-      error: () => this.snackBar.open('Error al actualizar estado', 'Cerrar', { duration: 3000 }),
+      error: () => {
+        this.snackBar.open('Error al actualizar estado', 'Cerrar', { duration: 3000 });
+        this.cdr.markForCheck();
+      },
     });
   }
 

@@ -109,27 +109,37 @@
             @let cell = row?.[col?.name];
             <!-- Icon Container -->
             <div class="status-cell-wrapper">
-              <button type="button" mat-icon-button class="status-icon-btn" [class.icon-ok]="cell?.state === 'OK'"
-                [class.icon-warn]="cell?.state === 'OLD'" [class.icon-missing]="!cell?.state || cell?.state === 'MISSING'"
-              [disabled]="!cell?.url || cell?.state === 'MISSING'" (click)="openDoc(cell, $event)" [matTooltip]="
-                cell?.state === 'OK'
-                  ? 'Entregado (Menos de 15 días)'
-                  : cell?.state === 'OLD'
-                  ? 'Entregado (Más de 15 días)'
-                  : 'No existe'
-              " matTooltipPosition="above">
-                <!-- Logic for Icons:
-                MISSING (X) -> Cancel (Red/Warn) -- as requested
-                OLD (?) -> Help (Yellow/Warn) -- as requested
-                -->
-                @if (cell?.state === 'OK') {
+              @if (cell?.state === 'OK') {
+                <button type="button" mat-icon-button class="status-icon-btn icon-ok"
+                  [disabled]="!cell?.url"
+                  (click)="openDoc(cell, $event)"
+                  [matTooltip]="cellTooltip(cell)" matTooltipPosition="above">
                   <mat-icon>check_circle</mat-icon>
-                } @else if (cell?.state === 'MISSING' || !cell?.state) {
-                  <mat-icon>cancel</mat-icon> <!-- X mark for missing -->
-                } @else {
-                  <mat-icon>priority_high</mat-icon> <!-- Exclamation for Old -->
-                }
-              </button>
+                </button>
+              } @else if (cell?.state === 'INFO') {
+                <!-- Chulo amarillo: entregado pero sin fecha de contrato para validar vigencia -->
+                <button type="button" mat-icon-button class="status-icon-btn icon-info"
+                  [disabled]="!cell?.url"
+                  (click)="openDoc(cell, $event)"
+                  [matTooltip]="cellTooltip(cell)" matTooltipPosition="above">
+                  <mat-icon>check_circle</mat-icon>
+                </button>
+              } @else {
+                <!-- OLD o MISSING: abrir menú con acciones (ver / subir nuevo) -->
+                <button type="button" mat-icon-button class="status-icon-btn"
+                  [class.icon-warn]="cell?.state === 'OLD'"
+                  [class.icon-missing]="!cell?.state || cell?.state === 'MISSING'"
+                  [matMenuTriggerFor]="docCellMenu"
+                  [matMenuTriggerData]="{ cell: cell, row: row }"
+                  (click)="$event.stopPropagation()"
+                  [matTooltip]="cellTooltip(cell)" matTooltipPosition="above">
+                  @if (cell?.state === 'OLD') {
+                    <mat-icon>priority_high</mat-icon>
+                  } @else {
+                    <mat-icon>cancel</mat-icon>
+                  }
+                </button>
+              }
             </div>
           </ng-template>
         </app-standard-filter-table>
@@ -166,12 +176,19 @@
                 @for (col of checklistColumns; track col.name) {
                   @if (col.type === 'status') {
                     @let cell = row[col.name];
-                    <div class="doc-item" (click)="openDoc(cell, $event)" [class.has-link]="cell?.url">
+                    <div class="doc-item"
+                      [class.has-link]="cell?.url"
+                      [matTooltip]="cellTooltip(cell)"
+                      [matMenuTriggerFor]="(cell?.state === 'OK' || cell?.state === 'INFO') ? null : docCellMenu"
+                      [matMenuTriggerData]="{ cell: cell, row: row }"
+                      (click)="(cell?.state === 'OK' || cell?.state === 'INFO') ? openDoc(cell, $event) : $event.stopPropagation()">
                       <span class="doc-label">{{ col.header }}</span>
                       <!-- Mobile Icon -->
-                      <span class="mobile-icon" [class.ok]="cell?.state === 'OK'" [class.warn]="cell?.state === 'WARN'"
+                      <span class="mobile-icon" [class.ok]="cell?.state === 'OK'"
+                        [class.info]="cell?.state === 'INFO'"
+                        [class.warn]="cell?.state === 'OLD'"
                         [class.missing]="!cell?.state || cell?.state === 'MISSING'">
-                        @if (cell?.state === 'OK') { <mat-icon>check_circle</mat-icon> }
+                        @if (cell?.state === 'OK' || cell?.state === 'INFO') { <mat-icon>check_circle</mat-icon> }
                         @else if (cell?.state === 'MISSING' || !cell?.state) { <mat-icon>cancel</mat-icon> }
                         @else { <mat-icon>priority_high</mat-icon> }
                       </span>
@@ -186,5 +203,24 @@
     </section>
   }
 
+  <!-- Menú contextual reusable para celdas OLD / MISSING -->
+  <mat-menu #docCellMenu="matMenu">
+    <ng-template matMenuContent let-cell="cell" let-row="row">
+      @if (cell?.url) {
+        <button mat-menu-item (click)="openDoc(cell, $event)">
+          <mat-icon>visibility</mat-icon>
+          <span>Ver documento actual</span>
+        </button>
+      }
+      <button mat-menu-item (click)="uploadDoc(cell, row, $event)">
+        <mat-icon>cloud_upload</mat-icon>
+        <span>{{ cell?.state === 'MISSING' ? 'Subir documento' : 'Subir nuevo documento' }}</span>
+      </button>
+    </ng-template>
+  </mat-menu>
+
+  <!-- Input oculto para selección de archivo -->
+  <input #uploadInput type="file" accept="application/pdf,image/*" (change)="onFileSelected($event)"
+    style="display: none;" />
 
 </div>

@@ -1,4 +1,4 @@
-<div class="contratacion-dashboard-layout">
+<div class="contratacion-dashboard-layout" [class.is-downloading]="downloading()">
 
   <app-metricas-contratacion-filters-bar (rangeChanged)="onDateRangeChanged($event)">
   </app-metricas-contratacion-filters-bar>
@@ -11,17 +11,19 @@
     <app-chart-card title="Formularios por Oficina"
       subtitle="Total de candidatos actualizados agrupados por sede de entrevista." [loading]="false">
       <app-formularios-por-oficina-chart
-      [data]="formulariosPorOficina$ | async"></app-formularios-por-oficina-chart>
+        [data]="formulariosPorOficina$ | async"
+        (segmentClick)="onFormulariosSegmentClick($event)">
+      </app-formularios-por-oficina-chart>
     </app-chart-card>
 
     <app-chart-card title="Estado Contacto Celular"
       subtitle="Porcentaje de candidatos con número de teléfono integrado." [loading]="false">
-      <!-- Calculando on the fly the array needed for pie. We just map the KPI values. -->
       @if (kpiSummary$ | async; as k) {
-                <app-celular-confirmado-chart [data]="[
+        <app-celular-confirmado-chart [data]="[
             { name: 'Con Celular', value: k.totalConCelular },
             { name: 'Sin Celular o Inválido', value: k.totalCandidatos - k.totalConCelular }
-          ]">
+          ]"
+          (segmentClick)="onCelularSegmentClick($event)">
         </app-celular-confirmado-chart>
       }
     </app-chart-card>
@@ -31,8 +33,10 @@
   <div class="chart-grid full-width-chart">
     <app-chart-card title="Pipeline de Contratación"
       subtitle="Visualización de flujo de eventos para cada etapa dentro del rango consultado." [loading]="false">
-      <app-pipeline-por-oficina-chart [seriesData]="pipelinePorOficina$ | async"
-        [xAxisCategories]="(pipelineXAxis$ | async) || []">
+      <app-pipeline-por-oficina-chart
+        [seriesData]="pipelinePorOficina$ | async"
+        [xAxisCategories]="(pipelineXAxis$ | async) || []"
+        (segmentClick)="onPipelineSegmentClick($event)">
       </app-pipeline-por-oficina-chart>
     </app-chart-card>
   </div>
@@ -41,8 +45,19 @@
   <div class="chart-grid full-width-chart mt-grid">
     <app-chart-card title="Candidatos Pendientes Contacto Celular"
       subtitle="Candidatos en el rango que no tienen cargado un teléfono válido." [loading]="false">
-      <app-sin-celular-table [data]="sinCelularList$ | async"></app-sin-celular-table>
+      <app-sin-celular-table
+        [data]="sinCelularList$ | async"
+        (bulkDownload)="onSinCelularBulkDownload($event)"
+        (rowDownload)="onSinCelularRowDownload($event)">
+      </app-sin-celular-table>
     </app-chart-card>
   </div>
+
+  @if (downloading()) {
+    <div class="downloading-overlay" aria-live="polite">
+      <div class="spinner"></div>
+      <span>Generando Excel…</span>
+    </div>
+  }
 
 </div>

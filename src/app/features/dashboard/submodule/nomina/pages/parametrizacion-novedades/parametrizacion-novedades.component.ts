@@ -1,4 +1,4 @@
-import { Component, OnInit, AfterViewInit, ViewChild } from '@angular/core';
+import { ChangeDetectorRef, Component, OnInit, AfterViewInit, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule, FormsModule } from '@angular/forms';
 
@@ -80,6 +80,7 @@ export class ParametrizacionNovedadesComponent implements OnInit, AfterViewInit 
     private nominaService: NominaService,
     private dialog: MatDialog,
     private snackBar: MatSnackBar,
+    private cdr: ChangeDetectorRef,
   ) {}
 
   ngOnInit(): void {
@@ -93,6 +94,7 @@ export class ParametrizacionNovedadesComponent implements OnInit, AfterViewInit 
 
   cargarConceptos(): void {
     this.isLoading = true;
+    this.cdr.markForCheck();
     const params: any = {};
     if (this.filterUnidad) params['unidad'] = this.filterUnidad;
     if (this.filterNaturaleza) params['naturaleza'] = this.filterNaturaleza;
@@ -102,10 +104,12 @@ export class ParametrizacionNovedadesComponent implements OnInit, AfterViewInit 
       next: (data) => {
         this.dataSource.data = data;
         this.isLoading = false;
+        this.cdr.markForCheck();
       },
       error: () => {
         this.snackBar.open('Error al cargar conceptos', 'Cerrar', { duration: 3000 });
         this.isLoading = false;
+        this.cdr.markForCheck();
       },
     });
   }
@@ -140,8 +144,12 @@ export class ParametrizacionNovedadesComponent implements OnInit, AfterViewInit 
           'Cerrar',
           { duration: 2000 }
         );
+        this.cdr.markForCheck();
       },
-      error: () => this.snackBar.open('Error al actualizar estado', 'Cerrar', { duration: 3000 }),
+      error: () => {
+        this.snackBar.open('Error al actualizar estado', 'Cerrar', { duration: 3000 });
+        this.cdr.markForCheck();
+      },
     });
   }
 

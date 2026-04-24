@@ -1,312 +1,581 @@
-.aumentar {
-  width: 100%;
-  margin: 10px;
+/* ============================================================
+   FORMULARIO INCAPACIDAD — Tema moderno
+   ============================================================ */
+
+:host {
+  --disab-primary: #1976d2;
+  --disab-primary-dark: #1565c0;
+  --disab-primary-light: #e3f2fd;
+  --disab-accent: #00bcd4;
+  --disab-success: #2e7d32;
+  --disab-danger: #d32f2f;
+  --disab-warn: #f57c00;
+  --disab-bg: #f5f7fb;
+  --disab-surface: #ffffff;
+  --disab-border: rgba(15, 23, 42, 0.08);
+  --disab-text: #1a1a2e;
+  --disab-text-muted: #64748b;
+  --disab-radius: 16px;
+  --disab-radius-sm: 10px;
+  --disab-shadow-sm: 0 1px 3px rgba(15, 23, 42, 0.06), 0 1px 2px rgba(15, 23, 42, 0.04);
+  --disab-shadow-md: 0 6px 18px rgba(15, 23, 42, 0.08), 0 2px 6px rgba(15, 23, 42, 0.04);
+  --disab-gradient: linear-gradient(135deg, #1976d2 0%, #00acc1 100%);
+  display: block;
+  background: var(--disab-bg);
+  min-height: 100%;
 }
 
-mat-card {
-  margin-bottom: 10pt;
+.dashboard-container {
+  padding: 12px 8px 40px;
 }
 
-/* Contenedor de la fila de formularios */
+.dashboard-content {
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+/* ── Tarjeta principal ──────────────────────────────────────── */
+:host ::ng-deep mat-card {
+  border-radius: var(--disab-radius) !important;
+  border: 1px solid var(--disab-border);
+  box-shadow: var(--disab-shadow-md) !important;
+  background: var(--disab-surface);
+  margin-bottom: 18px !important;
+  padding: 8px 4px 16px;
+  overflow: hidden;
+}
+
+:host ::ng-deep mat-card-content {
+  padding: 20px 22px !important;
+}
+
+/* ── Hero header (primer titulo) ────────────────────────────── */
+.search-container {
+  background: var(--disab-gradient);
+  border-radius: var(--disab-radius);
+  padding: 28px 28px 22px;
+  margin: -8px -4px 24px;
+  color: #fff;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 8px 24px rgba(25, 118, 210, 0.25);
+}
+
+.search-container::before {
+  content: 'healing';
+  font-family: 'Material Icons';
+  position: absolute;
+  right: -20px;
+  top: -20px;
+  font-size: 220px;
+  color: rgba(255, 255, 255, 0.09);
+  line-height: 1;
+  pointer-events: none;
+}
+
+.search-container .buscar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px;
+  position: relative;
+  z-index: 1;
+}
+
+.search-container .titulo {
+  flex: 1 1 100%;
+  color: #fff !important;
+  font-size: 26px !important;
+  font-weight: 700 !important;
+  margin: 0 0 14px !important;
+  letter-spacing: 0.3px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.search-container .titulo::before {
+  content: 'medical_services';
+  font-family: 'Material Icons';
+  font-size: 30px;
+  background: rgba(255, 255, 255, 0.18);
+  width: 46px;
+  height: 46px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  backdrop-filter: blur(8px);
+}
+
+.search-container .cedula {
+  flex: 1 1 360px;
+  max-width: 640px;
+  margin: 0 !important;
+}
+
+:host ::ng-deep .search-container .cedula .mat-mdc-text-field-wrapper {
+  background: rgba(255, 255, 255, 0.95) !important;
+  border-radius: 10px;
+}
+
+.search-container .boton {
+  height: 48px;
+  min-width: 130px;
+  padding: 0 26px;
+  background: #fff !important;
+  color: var(--disab-primary-dark) !important;
+  font-weight: 700 !important;
+  border-radius: 10px !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+.search-container .boton:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.25);
+}
+
+.search-container .boton::before {
+  content: 'search';
+  font-family: 'Material Icons';
+  margin-right: 6px;
+  font-size: 20px;
+  vertical-align: -4px;
+}
+
+/* ── Títulos de sección ─────────────────────────────────────── */
+.titulo {
+  display: flex !important;
+  align-items: center;
+  gap: 12px;
+  font-size: 18px !important;
+  font-weight: 700 !important;
+  color: var(--disab-text) !important;
+  margin: 20px 0 14px !important;
+  padding: 10px 0 10px 14px;
+  border-left: 4px solid var(--disab-primary);
+  background: linear-gradient(90deg, var(--disab-primary-light) 0%, transparent 55%);
+  border-radius: 0 10px 10px 0;
+}
+
+.titulo::before {
+  font-family: 'Material Icons';
+  font-size: 24px;
+  color: var(--disab-primary);
+  width: 36px;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: var(--disab-shadow-sm);
+}
+
+/* Secciones específicas del formulario (solo las que están dentro del <form>) */
+form > mat-card-title.titulo:nth-of-type(1)::before { content: 'business'; }
+form > mat-card-title.titulo:nth-of-type(2)::before { content: 'person'; }
+form > mat-card-title.titulo:nth-of-type(3)::before { content: 'contact_page'; }
+form > mat-card-title.titulo:nth-of-type(4)::before { content: 'description'; }
+form > mat-card-title.titulo:nth-of-type(5)::before { content: 'medical_information'; }
+form > mat-card-title.titulo:nth-of-type(6)::before { content: 'stethoscope'; }
+
+/* ── Filas del formulario ───────────────────────────────────── */
+/*
+ * Grid auto-fit con minmax(230px, 1fr):
+ *   auto-fit: cuando hay pocos items, las columnas vacías colapsan y los
+ *             items se estiran para ocupar el ancho total.
+ *   230px mínimo: espacio suficiente para que los labels de Material
+ *             (ej. "Fondo de pensiones") no se trunquen.
+ *
+ *   Breakpoints aproximados:
+ *   - < 500px  → 1 col
+ *   - ≥ 500px  → 2 cols
+ *   - ≥ 750px  → 3 cols
+ *   - ≥ 1000px → 4 cols
+ *   - ≥ 1250px → 5 cols
+ *   - ≥ 1500px → 6 cols
+ */
 .form-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 20px;
-  align-items: center;
-  justify-content: space-between; /* Distribuye los elementos */
+  display: grid !important;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 6px 14px;
+  align-items: start;
   width: 100%;
-  padding: 10px;
+  padding: 4px 2px 10px;
 }
 
-.button-row {
-  flex-wrap: wrap;
-  gap: 20px;
-  align-items: center;
-  justify-content: space-between; /* Distribuye los elementos */
-  width: 100%;
-  padding: 10px;
-}
-
-/* Campos individuales del formulario */
 .form-field {
-  flex: 1 1 calc(30% - 20px); /* Ajuste flexible de 3 columnas con espacio entre ellas */
-  min-width: 250px; /* Ancho mínimo para mejor responsividad */
+  display: block;
+  min-width: 0;
+  width: 100%;
+  /* Reset de estilos globales heredados de styles.css */
+  max-width: none !important;
+  height: auto !important;
+  margin: 0 !important;
+  flex: none !important;
+}
+
+.example-full-width {
+  width: 100% !important;
+  min-width: 0 !important;
+  /* Reset del estilo global .example-full-width { max-width: 30%; height: 80px; margin: ... } */
+  max-width: none !important;
+  height: auto !important;
+  margin: 0 !important;
+}
+
+.flex {
+  display: grid !important;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 6px 14px;
+  align-items: start;
+  width: 100%;
+  padding: 2px;
+}
+
+.example-full-width2 {
+  width: 100%;
+  min-width: 0;
+  max-width: none !important;
+  height: auto !important;
+  margin: 0 !important;
+}
+
+/* Afinado de campos Material — más densos */
+:host ::ng-deep mat-form-field {
+  width: 100%;
+}
+
+:host ::ng-deep .mat-mdc-form-field {
+  /* reduce la línea de ayuda/error que agrega 16-22px muertos */
+  font-size: 13.5px;
+}
+
+:host ::ng-deep .mat-mdc-form-field .mdc-text-field--filled {
+  border-radius: 10px 10px 0 0;
+  background: #f8fafc !important;
+}
+
+:host ::ng-deep .mat-mdc-form-field .mdc-text-field--filled:hover {
+  background: #eef4fb !important;
+}
+
+/* Reduce espacio muerto debajo de cada mat-form-field (hint/error line) */
+:host ::ng-deep .mat-mdc-form-field .mat-mdc-form-field-subscript-wrapper {
+  min-height: 0;
+}
+
+:host ::ng-deep .mat-mdc-form-field .mat-mdc-form-field-bottom-align::before {
+  content: '';
+  display: inline-block;
+  height: 4px;
+}
+
+/* ── Tabla de historial ─────────────────────────────────────── */
+.table-container {
+  overflow-x: auto;
+  margin: 14px 0 28px;
+  border-radius: 12px;
+  border: 1px solid var(--disab-border);
+  background: #fff;
+  box-shadow: var(--disab-shadow-sm);
+}
+
+:host ::ng-deep .table-container table.mat-mdc-table,
+:host ::ng-deep .table-container table[mat-table] {
+  width: 100%;
+  min-width: 900px;
+  background: #fff;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+:host ::ng-deep .table-container th.mat-mdc-header-cell {
+  background: var(--disab-gradient) !important;
+  color: #fff !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.4px;
+  font-size: 13px;
+  text-transform: uppercase;
+  padding: 12px 14px !important;
+  border-bottom: none !important;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+
+:host ::ng-deep .table-container td.mat-mdc-cell {
+  padding: 11px 14px !important;
+  font-size: 13.5px;
+  color: var(--disab-text);
+  border-bottom: 1px solid #eef1f5 !important;
+}
+
+:host ::ng-deep .table-container tr.mat-mdc-row:nth-child(even) {
+  background: #fafbfe;
+}
+
+:host ::ng-deep .table-container tr.mat-mdc-row:hover {
+  background: #eaf3fd !important;
+}
+
+:host ::ng-deep .table-container td.total,
+:host ::ng-deep .table-container th.total {
+  background: #fff4e5 !important;
+  font-weight: 700;
+  color: var(--disab-warn);
+}
+
+:host ::ng-deep .table-container .bold {
+  font-weight: 700;
+  color: var(--disab-primary-dark);
+}
+
+:host ::ng-deep .table-container .mat-mdc-no-data-row td {
+  text-align: center;
+  padding: 24px !important;
+  color: var(--disab-text-muted);
+  font-style: italic;
+}
+
+/* ── Bloque de historial encontrado ─────────────────────────── */
+:host ::ng-deep mat-card[color="primary"].mb-3 {
+  background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%) !important;
+  border: 1px solid #81c784;
+  border-left: 5px solid var(--disab-success);
+  border-radius: 12px !important;
+  padding: 6px 10px;
+  margin: 12px 0 18px !important;
+}
+
+:host ::ng-deep mat-card[color="primary"].mb-3 mat-card-title {
+  color: var(--disab-success) !important;
+  font-weight: 700 !important;
+  font-size: 16px !important;
   display: flex;
   align-items: center;
+  gap: 8px;
+}
+
+:host ::ng-deep mat-card[color="primary"].mb-3 mat-card-title::before {
+  content: 'task_alt';
+  font-family: 'Material Icons';
+  font-size: 22px;
+}
+
+/* ── Área de botones (Subir archivos + submit) ──────────────── */
+.button-row {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: 100%;
+  padding: 10px 0 18px;
 }
 
 .button-field {
   display: flex;
-  flex-direction: row;       /* Botón y archivos en misma fila */
+  flex-direction: row;
   align-items: flex-start;
+  gap: 18px;
   width: 100%;
-  gap: 20px;                 /* Espacio entre botón y lista de archivos */
+  padding: 12px 14px;
+  background: #fafbfe;
+  border: 1px dashed #cbd5e1;
+  border-radius: var(--disab-radius-sm);
+  transition: background 0.18s ease, border-color 0.18s ease;
 }
 
-/* El botón siempre del mismo ancho */
-.button-field > button {
-  width: 350px;              /* AJUSTA AQUÍ el ancho fijo */
-  min-width: 350px;
+.button-field:hover {
+  background: #f0f6fd;
+  border-color: var(--disab-primary);
+}
+
+.button-field > button.aumentar {
+  width: 340px !important;
+  min-width: 340px !important;
+  height: 46px;
+  background: var(--disab-gradient) !important;
+  color: #fff !important;
+  font-weight: 600 !important;
+  border-radius: 10px !important;
+  padding: 0 20px !important;
+  box-shadow: 0 3px 10px rgba(25, 118, 210, 0.25);
+  transition: transform 0.15s ease, box-shadow 0.2s ease;
+  margin: 0 !important;
+}
+
+.button-field > button.aumentar:hover:not([disabled]) {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(25, 118, 210, 0.35);
+}
+
+.button-field > button.aumentar[disabled] {
+  background: #cfd8dc !important;
+  color: #78909c !important;
+  box-shadow: none;
+}
+
+.file-list {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+:host ::ng-deep .file-list mat-list {
+  padding: 0 !important;
 }
 
 .file-item {
   display: flex !important;
-  flex-direction: column !important;
-  align-items: flex-start !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  justify-content: space-between;
   overflow: visible !important;
   height: auto !important;
   white-space: normal !important;
+  background: #fff;
+  border: 1px solid var(--disab-border);
+  border-left: 3px solid var(--disab-accent);
+  border-radius: 8px;
+  padding: 8px 12px !important;
+  margin-bottom: 6px !important;
+  box-shadow: var(--disab-shadow-sm);
 }
 
 .file-item span[mat-line] {
   word-break: break-word !important;
   white-space: normal !important;
-  width: 100% !important;
+  font-size: 13px;
+  color: var(--disab-text);
+}
+
+.file-item span[mat-line]:first-child {
+  font-weight: 600;
+  color: var(--disab-primary-dark);
 }
 
 .file-item button {
-  align-self: flex-end;
-  margin-top: 4px;
+  align-self: center;
+  margin-top: 0 !important;
 }
 
-.file-item .mdc-list-item__content {
-  align-self: flex-start !important;
-  white-space: normal !important;
-  overflow: visible !important;
-}
-
-
-.cedula{
-  margin-top: 10pt;
-  align-items: center;
-  width: 80%;
-}
-
-/* Ajuste flexible de los campos */
-.flex {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 15px; /* Espacio entre columnas */
-  width: 100%;
-  justify-content: space-between;
-}
-
-.example-full-width2 {
-  flex: 1 1 calc(33.33% - 10px); /* 3 columnas en escritorio */
-}
-
-.example-full-width {
+/* Botón principal de submit (el último .aumentar fuera de .button-field) */
+button.aumentar[color="accent"] {
   width: 100% !important;
-  min-width: 100% !important;
+  height: 54px !important;
+  background: linear-gradient(135deg, #00bfa5 0%, #00acc1 100%) !important;
+  color: #fff !important;
+  font-size: 16px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.6px;
+  border-radius: 12px !important;
+  margin-top: 16px !important;
+  box-shadow: 0 6px 20px rgba(0, 172, 193, 0.35);
+  transition: transform 0.15s ease, box-shadow 0.2s ease;
 }
 
+button.aumentar[color="accent"]:hover:not([disabled]) {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 28px rgba(0, 172, 193, 0.5);
+}
+
+button.aumentar[color="accent"][disabled] {
+  background: #cfd8dc !important;
+  color: #78909c !important;
+  box-shadow: none;
+}
+
+/* ── Notificaciones flotantes ───────────────────────────────── */
 .notification-button {
   position: fixed;
-  bottom: 20px;
-  right: 20px;
+  bottom: 24px;
+  right: 24px;
   z-index: 1000;
   width: 60px;
   height: 60px;
-  background-color: #4a90e2;
+  background: var(--disab-gradient);
   border-radius: 50%;
-  box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 6px 18px rgba(25, 118, 210, 0.4);
   display: flex;
   align-items: center;
   justify-content: center;
   border: none;
   outline: none;
   cursor: pointer;
+  transition: transform 0.2s ease;
 }
 
 .notification-button:hover {
-  background-color: #357abd;
+  transform: scale(1.08);
 }
 
 .notification-badge {
   position: absolute;
-  top: -5px;
-  right: -5px;
-  background-color: red;
-  color: white;
+  top: -4px;
+  right: -4px;
+  background: var(--disab-danger);
+  color: #fff;
   border-radius: 50%;
-  padding: 2px 6px;
-  font-size: 14px;
-  font-weight: bold;
-  box-shadow: 0px 2px 4px rgba(0, 0, 0, 0.2);
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
 }
 
 .notification-icon {
-  color: white;
+  color: #fff;
   font-size: 28px;
 }
 
-/* media queries */
+/* ── Responsive ─────────────────────────────────────────────── */
+/* ── Responsive ─────────────────────────────────────────────── */
+/* El grid auto-fill ya adapta la cantidad de columnas automáticamente según el
+ * ancho disponible con minmax(210px, 1fr). Solo ajustamos paddings y hero. */
+
 @media (max-width: 768px) {
-
-  mat-card {
-    min-width: 90vw;
+  .dashboard-container {
+    padding: 8px 4px 32px;
   }
-
-  .card {
-    margin-left: -2pt;
-    width: 70vw   !important;
+  .search-container {
+    padding: 22px 18px 18px;
   }
-
-  .example-full-width {
-    margin-left: -1pt;
-    width: 80% !important;
+  .search-container .titulo {
+    font-size: 20px !important;
   }
-
-  .example-full-width2 {
-    flex: 1 1 100%;
+  .search-container::before {
+    font-size: 150px;
   }
-
-  /* Tabla: estilos para mejorar visibilidad, scroll y responsividad */
-.table-container {
-  overflow-x: auto;
-  margin-top: 20px;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-  background: #fff;
-  padding: 12px;
-}
-
-/* Angular Material Table Header */
-.mat-table {
-  width: 100%;
-  min-width: 900px;
-  background: #fff;
-  border-radius: 8px;
-  border-collapse: collapse;
-  margin-bottom: 30px;
-}
-
-.mat-header-row {
-  background-color: #1976d2;
-  color: #fff;
-  font-weight: bold;
-  font-size: 1.1em;
-}
-
-.mat-header-cell {
-  padding: 10px;
-  background: #1976d2;
-  color: #fff;
-  border-bottom: 2px solid #1565c0;
-  text-align: left;
-  font-weight: 700;
-  letter-spacing: 0.5px;
-}
-
-.mat-row {
-  background: #fafbfc;
-  transition: background 0.2s;
-}
-.mat-row:nth-child(even) {
-  background: #f1f4f8;
-}
-.mat-cell {
-  padding: 10px;
-  border-bottom: 1px solid #e0e3e8;
-  font-size: 0.95em;
-}
-
-/* Hover en la fila */
-.mat-row:hover {
-  background-color: #e3f2fd !important;
-}
-
-/* Sin datos */
-.mat-no-data-row .mat-cell {
-  text-align: center;
-  color: #888;
-  font-style: italic;
-  font-size: 1em;
-}
-
-/* Responsive para tabla */
-@media (max-width: 900px) {
-  .mat-table {
+  .form-row,
+  .flex {
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 4px 10px;
+  }
+  .button-field {
+    flex-direction: column;
+  }
+  .button-field > button.aumentar {
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+  :host ::ng-deep .table-container table.mat-mdc-table,
+  :host ::ng-deep .table-container table[mat-table] {
     min-width: 650px;
   }
-  .table-container {
-    padding: 4px;
+  .titulo {
+    font-size: 16px !important;
   }
 }
 
-/* Responsive Design */
-@media (max-width: 768px) {
-  .filter-container {
-    flex-direction: column;
+@media (min-width: 1600px) {
+  /* En monitores grandes, permitir más densidad (columnas más angostas) */
+  .form-row,
+  .flex {
+    grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
   }
-  .mat-form-field {
-    margin: 10px 0;
-    min-width: 100%;
-  }
-  button.mat-button,
-  button.mat-flat-button,
-  button.mat-stroked-button {
-    margin-top: 20px;
-    width: 100%;
-  }
-  .mat-table {
-    min-width: 400px;
-  }
-}
-
-/* Layout global */
-.app-layout {
-  display: flex;
-  flex-direction: row;
-}
-.contenedor {
-  flex-grow: 1;
-  padding: 16px;
-}
-.main-card {
-  margin: 16px;
-}
-.filter-header {
-  display: flex;
-  align-items: center;
-  gap: 20px;
-  flex-wrap: wrap;
-  margin-bottom: 20px;
-}
-.filter-form {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.filter-container {
-  transition: max-height 0.3s ease;
-  overflow: hidden;
-}
-.filter-container.collapsed {
-  max-height: 0;
-}
-.filter-container.expanded {
-  max-height: 500px;
-}
-
-.download-button {
-  margin-left: auto;
-  display: flex;
-  align-items: center;
-}
-
-@media (max-width: 768px) {
-  .filter-header {
-    flex-direction: column;
-  }
-  .filter-form {
-    flex-direction: column;
-  }
-  .download-button {
-    margin-top: 20px;
-    margin-left: 0;
-  }
-}
-
 }

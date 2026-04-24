@@ -1,4 +1,4 @@
-import { Component, Inject, OnInit } from '@angular/core';
+import { ChangeDetectorRef, Component, Inject, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, FormGroup, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 
@@ -195,6 +195,7 @@ export class ConvalidadorFormDialogComponent implements OnInit {
     @Inject(MAT_DIALOG_DATA) public data: ConvalidadorDialogData,
     private nominaService: NominaService,
     private snackBar: MatSnackBar,
+    private cdr: ChangeDetectorRef,
   ) {}
 
   ngOnInit(): void {
@@ -224,8 +225,12 @@ export class ConvalidadorFormDialogComponent implements OnInit {
         this.conceptos = data;
         this.conceptosFiltrados = data;
         this.preseleccionarConceptoSugerido();
+        this.cdr.markForCheck();
       },
-      error: () => this.snackBar.open('Error al cargar conceptos', 'Cerrar', { duration: 3000 }),
+      error: () => {
+        this.snackBar.open('Error al cargar conceptos', 'Cerrar', { duration: 3000 });
+        this.cdr.markForCheck();
+      },
     });
   }
 
@@ -271,6 +276,7 @@ export class ConvalidadorFormDialogComponent implements OnInit {
         }
         this.snackBar.open(msg, 'Cerrar', { duration: 4000 });
         this.saving = false;
+        this.cdr.markForCheck();
       },
     });
   }

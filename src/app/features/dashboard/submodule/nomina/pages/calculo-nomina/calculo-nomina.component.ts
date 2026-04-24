@@ -364,11 +364,25 @@ export class CalculoNominaComponent implements OnInit {
    * Las fórmulas viven en el backend; aquí solo presentamos.
    */
   private aplicarPreviewBackend(empleados: any[]): void {
+    this.mapearEmpleadosEnContratos(empleados);
+
+    // Candidatos a rechazo: cualquiera con días = 0 en el periodo.
+    const rechazables = this.contratos.filter(c => Number(c.dias_laborados) === 0);
+    if (rechazables.length) {
+      // Fire-and-forget: no bloquea el render. La tabla ya se ve con todos.
+      this.preguntarInclusionRechazables(rechazables);
+    }
+  }
+
+  /**
+   * Mapeo puro del payload del backend a los contratos en pantalla.
+   * No dispara el prompt de rechazables — pensado para re-consultas
+   * posteriores a que el usuario ya eligió qué hacer con ellos.
+   */
+  private mapearEmpleadosEnContratos(empleados: any[]): void {
     const byContrato = new Map<number, any>();
     empleados.forEach(e => byContrato.set(e.id_contrato, e));
 
-    // Mapea siempre todos los contratos con lo que calcule el backend.
-    // Los que no intersecten el periodo vendrán con dias=0 y montos en cero.
     this.contratos = this.contratos.map(c => {
       const calc = byContrato.get(c.id_contrato);
       if (!calc) {
@@ -394,13 +408,6 @@ export class CalculoNominaComponent implements OnInit {
 
     // Forzar re-render: OnPush + callbacks async no lo disparan por sí solos.
     this.cdr.markForCheck();
-
-    // Candidatos a rechazo: cualquiera con días = 0 en el periodo.
-    const rechazables = this.contratos.filter(c => Number(c.dias_laborados) === 0);
-    if (rechazables.length) {
-      // Fire-and-forget: no bloquea el render. La tabla ya se ve con todos.
-      this.preguntarInclusionRechazables(rechazables);
-    }
   }
 
   private async preguntarInclusionRechazables(rechazables: any[]): Promise<void> {
@@ -427,26 +434,7 @@ export class CalculoNominaComponent implements OnInit {
         forzar_dias_completos: true,
       }).subscribe({
         next: (preview) => {
-          const byContrato = new Map<number, any>();
-          (preview.empleados || []).forEach(e => byContrato.set(e.id_contrato, e));
-          this.contratos = this.contratos.map(c => {
-            const calc = byContrato.get(c.id_contrato);
-            if (!calc) return c;
-            const find = (codigo: string) =>
-              Number((calc.conceptos || []).find((x: any) => x.codigo === codigo)?.valor_total || 0);
-            return {
-              ...c,
-              dias_laborados: calc.dias,
-              _devengado_basico: find('SUELDO'),
-              _aux_trans: find('AUX_TRANS'),
-              _salud: find('SALUD_EMP'),
-              _pension: find('PENSION_EMP'),
-              _total_devengado: Number(calc.total_devengado || 0),
-              _total_deducido: Number(calc.total_deducido || 0),
-              _neto: Number(calc.neto || 0),
-              _conceptos: calc.conceptos || [],
-            };
-          });
+          this.mapearEmpleadosEnContratos(preview.empleados || []);
           this.loading = false;
           this.cdr.markForCheck();
         },
@@ -457,10 +445,18 @@ export class CalculoNominaComponent implements OnInit {
         }
       });
     } else {
-      // "No, excluirlos": removemos de la tabla.
+      // "No, excluirlos": los elegibles ya tienen sus calculos correctos desde
+      // la primera llamada al backend (aplicarPreviewBackend). Solo filtramos
+      // la tabla y forzamos re-render. No hace falta re-pedir al backend, lo
+      // cual ahorra varios segundos en listas grandes.
+      //
+      // Usamos detectChanges() en vez de markForCheck() porque en modo zoneless
+      // markForCheck() puede postergarse hasta el proximo evento DOM (clic),
+      // dando la falsa sensacion de "no pasa nada" hasta que el usuario toca la
+      // pantalla. detectChanges() dispara el render inmediato.
       const ids = new Set(rechazables.map(c => c.id_contrato));
-      this.contratos = this.contratos.filter(c => !ids.has(c.id_contrato));
-      this.cdr.markForCheck();
+      this.contratos = [...this.contratos.filter(c => !ids.has(c.id_contrato))];
+      this.cdr.detectChanges();
     }
   }
 

@@ -1,8 +1,9 @@
 import { Injectable, Inject, PLATFORM_ID } from '@angular/core';
-import { Incapacidad } from '../../../models/incapacidad.model';
-import { Reporte } from '../../../models/reporte.model';
-import { environment } from '../../../../environments/environment.development';
-import { HttpClient, HttpHeaders } from '@angular/common/http';
+import { Incapacidad } from '../../models/incapacidad.model';
+import { environment } from '@/environments/environment';
+
+type Reporte = any;
+import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
 import { isPlatformBrowser } from '@angular/common';
 import { firstValueFrom, forkJoin, Observable } from 'rxjs';
 import { map, catchError } from 'rxjs/operators';
@@ -94,23 +95,89 @@ export class IncapacidadService {
       );
   }
 
-  public traerTodosDatosIncapacidad(): Observable<any> {
+  public traerTodosDatosIncapacidad(
+    opts?: { cedula?: string; page?: number; pageSize?: number }
+  ): Observable<any> {
     const headers = this.createAuthorizationHeader();
+    let params = new HttpParams();
+    if (opts?.cedula) params = params.set('cedula', opts.cedula);
+    if (opts?.page != null) params = params.set('page', String(opts.page));
+    if (opts?.pageSize != null) params = params.set('page_size', String(opts.pageSize));
     return this.http
-      .get(`${this.apiUrl}/Incapacidades/traerTodasIncapacidades`, { headers })
+      .get(`${this.apiUrl}/Incapacidades/traerTodasIncapacidades`, { headers, params })
+      .pipe(
+        map((response: any) => {
+          // Si el backend devuelve paginación, regresa response.data; si no, el array completo
+          if (response && Array.isArray(response.data)) return response.data;
+          return response;
+        }),
+        catchError(this.handleError)
+      );
+  }
+
+  public traerTodosDatosReporte(
+    opts?: { cedula?: string; page?: number; pageSize?: number }
+  ): Observable<any> {
+    const headers = this.createAuthorizationHeader();
+    let params = new HttpParams();
+    if (opts?.cedula) params = params.set('cedula', opts.cedula);
+    if (opts?.page != null) params = params.set('page', String(opts.page));
+    if (opts?.pageSize != null) params = params.set('page_size', String(opts.pageSize));
+    return this.http
+      .get(`${this.apiUrl}/Incapacidades/traerTodosReportes`, { headers, params })
       .pipe(
         map((response: any) => response),
         catchError(this.handleError)
       );
   }
-  public traerTodosDatosReporte(): Observable<any> {
+
+  /**
+   * Autocomplete server-side de códigos de diagnóstico.
+   * Rápido gracias al índice idx_codigodiag_codigo + idx_codigodiag_descripcion.
+   * @param q texto mínimo 1 char
+   * @param limit máx resultados (default 20, máx 100)
+   */
+  public buscarCodigosDiagnostico(q: string, limit = 20): Observable<Array<{ codigo: string; descripcion: string }>> {
+    const headers = this.createAuthorizationHeader();
+    const params = new HttpParams()
+      .set('q', q || '')
+      .set('limit', String(limit));
+    return this.http
+      .get<Array<{ codigo: string; descripcion: string }>>(
+        `${this.apiUrl}/Incapacidades/codigos-diagnostico/search`,
+        { headers, params }
+      )
+      .pipe(catchError(this.handleError));
+  }
+
+  /**
+   * Autocomplete server-side de IPS (por NIT o nombre).
+   */
+  public buscarIps(q: string, limit = 20): Observable<Array<{ nit: string; nombre: string }>> {
+    const headers = this.createAuthorizationHeader();
+    const params = new HttpParams()
+      .set('q', q || '')
+      .set('limit', String(limit));
+    return this.http
+      .get<Array<{ nit: string; nombre: string }>>(
+        `${this.apiUrl}/Incapacidades/ips/search`,
+        { headers, params }
+      )
+      .pipe(catchError(this.handleError));
+  }
+
+  public traerTodosDocumentos(fecha: string): Observable<any[]> {
     const headers = this.createAuthorizationHeader();
     return this.http
-      .get(`${this.apiUrl}/Incapacidades/traerTodosReportes`, { headers })
-      .pipe(
-        map((response: any) => response),
-        catchError(this.handleError)
-      );
+      .get<any[]>(`${this.apiUrl}/Incapacidades/traerTodosDocumentos/${fecha}`, { headers })
+      .pipe(catchError(this.handleError));
+  }
+
+  public traerTodosDocumentosPorRango(inicio: string, fin: string): Observable<any[]> {
+    const headers = this.createAuthorizationHeader();
+    return this.http
+      .get<any[]>(`${this.apiUrl}/Incapacidades/traerTodosDocumentosPorRango?inicio=${inicio}&fin=${fin}`, { headers })
+      .pipe(catchError(this.handleError));
   }
 
   uploadFiles(
@@ -190,7 +257,7 @@ export class IncapacidadService {
     const epsEspeciales = ['salud total', 'matual ser', 'mutual ser', 'eps sura', 'cajacopi', 'coosalud'];
 
     await Promise.all(
-      documentos.map(doc => this.procesarDocumentoEnZip(doc, carpetaPrincipal!, epsEspeciales, sevenet))
+      (documentos ?? []).map((doc: any) => this.procesarDocumentoEnZip(doc, carpetaPrincipal!, epsEspeciales, sevenet))
     );
 
     const content = await zip.generateAsync({ type: "blob" });
@@ -208,7 +275,7 @@ export class IncapacidadService {
     const epsEspeciales = ['salud total', 'matual ser', 'mutual ser', 'eps sura', 'cajacopi', 'coosalud'];
 
     await Promise.all(
-      documentos.map(doc => this.procesarDocumentoEnZip(doc, carpetaPrincipal!, epsEspeciales, sevenet))
+      (documentos ?? []).map((doc: any) => this.procesarDocumentoEnZip(doc, carpetaPrincipal!, epsEspeciales, sevenet))
     );
 
     const content = await zip.generateAsync({ type: "blob" });
