@@ -11,6 +11,8 @@
         <p class="subtitulo" style="margin: 0 !important;">Verifica el estado de documentos de contratación por cédula.</p>
       </div>
     </div>
+
+
     <span class="grow"></span>
     <div class="header-actions" style="z-index: 1;">
       <button mat-icon-button class="btn-managerial-icon btn-more" style="color: #ffffff !important;" [matMenuTriggerFor]="accionesMenu" aria-label="Más acciones">
@@ -71,6 +73,62 @@
           [disabled]="!cedulaControl.value">
           <mat-icon>search</mat-icon> CONSULTAR
         </button>
+      </div>
+
+      <!-- Consulta automática por oficina y estado (HOY) -->
+      <div class="auto-panel">
+        <div class="auto-panel-title">
+          <mat-icon class="panel-icon">today</mat-icon>
+          <span>Traer candidatos de HOY por oficina y estado</span>
+          <button mat-icon-button class="btn-refresh-oficinas" type="button"
+            (click)="refrescarOficinas()" matTooltip="Recargar oficinas con actividad hoy"
+            matTooltipPosition="above" [disabled]="isLoadingOficinas">
+            <mat-icon>refresh</mat-icon>
+          </button>
+        </div>
+
+        @if (!isLoadingOficinas && !oficinasDisponibles.length) {
+          <div class="auto-empty">
+            <mat-icon>info</mat-icon>
+            <span>No se encontraron oficinas con actividad hoy.
+              <a (click)="refrescarOficinas()">Reintentar</a>.
+            </span>
+          </div>
+        }
+
+        <div class="auto-filter-row">
+          <mat-form-field appearance="outline" class="auto-field">
+            <mat-label>Oficinas ({{ oficinasDisponibles.length }})</mat-label>
+            <mat-select multiple [(value)]="selectedOficinas" [disabled]="isLoadingOficinas || !oficinasDisponibles.length">
+              @for (ofi of oficinasDisponibles; track ofi) {
+                <mat-option [value]="ofi">{{ ofi }}</mat-option>
+              }
+            </mat-select>
+            @if (isLoadingOficinas) {
+              <mat-hint>Cargando oficinas...</mat-hint>
+            } @else if (!oficinasDisponibles.length) {
+              <mat-hint>Sin oficinas disponibles</mat-hint>
+            } @else {
+              <mat-hint>{{ selectedOficinas.length }} de {{ oficinasDisponibles.length }} seleccionada(s)</mat-hint>
+            }
+          </mat-form-field>
+
+          <mat-form-field appearance="outline" class="auto-field">
+            <mat-label>Estados</mat-label>
+            <mat-select multiple [(value)]="selectedStages">
+              @for (st of STAGE_OPTIONS; track st.key) {
+                <mat-option [value]="st.key">{{ st.label }}</mat-option>
+              }
+            </mat-select>
+            <mat-hint>Filtra por la fecha del estado elegido = hoy</mat-hint>
+          </mat-form-field>
+
+          <button mat-flat-button class="btn-managerial btn-consultar" type="button"
+            (click)="traerCedulasAutomaticas()"
+            [disabled]="isLoadingAuto || !selectedOficinas.length || !selectedStages.length">
+            <mat-icon>auto_awesome</mat-icon> CONSULTAR DE HOY
+          </button>
+        </div>
       </div>
 
     </mat-expansion-panel>

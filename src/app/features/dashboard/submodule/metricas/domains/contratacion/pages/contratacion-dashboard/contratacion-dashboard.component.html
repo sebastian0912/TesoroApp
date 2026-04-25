@@ -33,11 +33,13 @@
   <div class="chart-grid full-width-chart">
     <app-chart-card title="Pipeline de Contratación"
       subtitle="Visualización de flujo de eventos para cada etapa dentro del rango consultado." [loading]="false">
-      <app-pipeline-por-oficina-chart
-        [seriesData]="pipelinePorOficina$ | async"
-        [xAxisCategories]="(pipelineXAxis$ | async) || []"
-        (segmentClick)="onPipelineSegmentClick($event)">
-      </app-pipeline-por-oficina-chart>
+      @if (pipelineVM$ | async; as vm) {
+        <app-pipeline-por-oficina-chart
+          [seriesData]="vm.series"
+          [xAxisCategories]="vm.xAxis"
+          (segmentClick)="onPipelineSegmentClick($event)">
+        </app-pipeline-por-oficina-chart>
+      }
     </app-chart-card>
   </div>
 

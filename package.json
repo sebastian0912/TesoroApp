@@ -77,6 +77,7 @@
     "build": "ng build --configuration production",
     "watch": "ng build --watch --configuration development",
     "start:electron": "concurrently \"ng run Tesoreria:serve-electron:development --host 0.0.0.0 --disable-host-check --port 4400\" \"wait-on tcp:4400 && cross-env NODE_ENV=development node scripts/run-electron.js\"",
+    "start:electron:watch": "concurrently \"ng run Tesoreria:serve-electron:development --host 0.0.0.0 --disable-host-check --port 4400 --poll=1500 --live-reload\" \"wait-on tcp:4400 && cross-env NODE_ENV=development node scripts/run-electron.js\"",
     "start:electron:prod": "concurrently \"ng run Tesoreria:serve-electron:production --host 0.0.0.0 --disable-host-check --port 4400\" \"wait-on tcp:4400 && cross-env NODE_ENV=development node scripts/run-electron.js\"",
     "test": "ng test",
     "lint": "ng lint",

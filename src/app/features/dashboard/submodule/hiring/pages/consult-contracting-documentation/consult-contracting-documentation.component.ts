@@ -25,6 +25,7 @@ import { OrdenUnionDialogComponent } from '../../components/orden-union-dialog/o
 
 import { saveAs } from 'file-saver';
 import { UtilityServiceService } from '@/app/shared/services/utilityService/utility-service.service';
+import { ContratacionMetricasApiService } from '@/app/features/dashboard/submodule/metricas/domains/contratacion/services/contratacion-metricas-api.service';
 
 // ✅ StandardFilterTable (tu tabla nueva)
 import { StandardFilterTable } from '@/app/shared/components/standard-filter-table/standard-filter-table';
@@ -112,6 +113,7 @@ export class ConsultContractingDocumentationComponent implements OnInit {
   private readonly utilityService = inject(UtilityServiceService);
   private readonly titleService = inject(Title);
   private readonly metaService = inject(Meta);
+  private readonly metricasService = inject(ContratacionMetricasApiService);
 
   // --------- Ajustes para masivo ----------
   private readonly MAX_POST_BATCH = 1500;
@@ -128,6 +130,23 @@ export class ConsultContractingDocumentationComponent implements OnInit {
 
   /** Últimas cédulas consultadas (para reconsultar sin re-pegar) */
   lastQueriedCedulas: string[] = [];
+
+  // --------- Consulta automática por oficinas/estados (HOY) ----------
+  /** Estados del pipeline consultables. La clave coincide con el campo `*_at` en ProcesoCandidato. */
+  readonly STAGE_OPTIONS: ReadonlyArray<{ key: 'entrevistado_at' | 'prueba_tecnica_at' | 'autorizado_at' | 'examenes_medicos_at' | 'contratado_at'; label: string }> = [
+    { key: 'entrevistado_at', label: 'Entrevistado' },
+    { key: 'prueba_tecnica_at', label: 'Prueba técnica' },
+    { key: 'autorizado_at', label: 'Autorizado' },
+    { key: 'examenes_medicos_at', label: 'Exámenes médicos' },
+    { key: 'contratado_at', label: 'Contratado' },
+  ];
+
+  /** Oficinas con procesos hoy, derivadas de `funnel_oficina` del endpoint metricas-temporal. */
+  oficinasDisponibles: string[] = [];
+  selectedOficinas: string[] = [];
+  selectedStages: Array<typeof this.STAGE_OPTIONS[number]['key']> = ['entrevistado_at'];
+  isLoadingOficinas = false;
+  isLoadingAuto = false;
 
   // --------- columnas dinámicas ----------
   /** Tipos que devuelve el backend, en orden */
@@ -237,10 +256,168 @@ export class ConsultContractingDocumentationComponent implements OnInit {
     };
 
     this.cdr.markForCheck();
+
+    // Cargar oficinas con actividad de hoy (para el selector de consulta automática).
+    this.cargarOficinasDeHoy();
   }
 
   // ✅ Fix para *ngFor trackBy
   trackByTipo = (_: number, t: TipoHeader) => t.id;
+
+  /**
+   * Carga la lista de oficinas consultables. Estrategia:
+   *  1. `/procesos/metricas-temporal/?temporal=hoy` → `funnel_oficina` (todas las oficinas con
+   *     cualquier movimiento hoy). Si está vacío, intenta con `por_oficina` (solo contratados)
+   *     y con las oficinas que aparezcan en `rows[]`.
+   *  2. Fallback: lee `/entrevistas/?limit=2000&ordering=-created_at` y extrae las oficinas
+   *     más recientes (cubre "nada hoy, pero sí hay oficinas registradas").
+   */
+  private cargarOficinasDeHoy(): void {
+    this.isLoadingOficinas = true;
+    this.metricasService
+      .fetchMetricasTemporal('hoy', '', '')
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (resp: any) => {
+          const set = new Set<string>();
+
+          const pushFrom = (arr: any[], keys: string[]) => {
+            if (!Array.isArray(arr)) return;
+            for (const row of arr) {
+              for (const k of keys) {
+                const v = String(row?.[k] ?? '').trim();
+                if (v) { set.add(v); break; }
+              }
+            }
+          };
+
+          pushFrom(resp?.funnel_oficina ?? resp?.funnelOficina, ['oficina', 'name']);
+          pushFrom(resp?.por_oficina ?? resp?.porOficina, ['name', 'oficina']);
+          pushFrom(resp?.rows, ['oficina']);
+
+          if (!set.size) {
+            // Fallback silencioso: las oficinas más recientes registradas en Entrevista.
+            this.cargarOficinasDesdeEntrevistas();
+            return;
+          }
+
+          this.oficinasDisponibles = Array.from(set).sort((a, b) => a.localeCompare(b, 'es'));
+          this.isLoadingOficinas = false;
+          this.cdr.markForCheck();
+        },
+        error: (err: any) => {
+          console.warn('[consult-docs] metricas-temporal falló; probando entrevistas:', err);
+          this.cargarOficinasDesdeEntrevistas();
+        },
+      });
+  }
+
+  /** Fallback: trae las oficinas desde el listado reciente de entrevistas. */
+  private cargarOficinasDesdeEntrevistas(): void {
+    // Reusamos entrevistasRaw$ del service de métricas (limit=2000, ordering=-created_at)
+    this.metricasService.entrevistasRaw$
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (entrevistas: any[]) => {
+          const set = new Set<string>();
+          for (const e of entrevistas ?? []) {
+            const v = String(e?.oficina ?? '').trim();
+            if (v) set.add(v);
+          }
+          this.oficinasDisponibles = Array.from(set).sort((a, b) => a.localeCompare(b, 'es'));
+          this.isLoadingOficinas = false;
+          this.cdr.markForCheck();
+        },
+        error: (err: any) => {
+          console.error('[consult-docs] No se pudieron cargar oficinas:', err);
+          this.oficinasDisponibles = [];
+          this.isLoadingOficinas = false;
+          this.cdr.markForCheck();
+        },
+      });
+  }
+
+  /** Recarga manual de oficinas (botón en el panel de consulta automática). */
+  refrescarOficinas(): void {
+    this.cargarOficinasDeHoy();
+  }
+
+  /**
+   * Trae automáticamente las cédulas que hoy pasaron por los estados/oficinas
+   * seleccionados y dispara la consulta de documentos con ellas.
+   */
+  async traerCedulasAutomaticas(): Promise<void> {
+    if (!this.selectedOficinas.length || !this.selectedStages.length) {
+      Swal.fire({
+        icon: 'info',
+        title: 'Filtros incompletos',
+        text: 'Selecciona al menos una oficina y un estado.',
+      });
+      return;
+    }
+
+    this.isLoadingAuto = true;
+    this.cdr.markForCheck();
+
+    Swal.fire({
+      title: 'Buscando candidatos de hoy...',
+      text: `Oficinas: ${this.selectedOficinas.length} · Estados: ${this.selectedStages.length}`,
+      allowOutsideClick: false,
+      allowEscapeKey: false,
+      didOpen: () => Swal.showLoading(),
+    });
+
+    try {
+      const calls: Promise<string[]>[] = [];
+      for (const ofi of this.selectedOficinas) {
+        for (const stage of this.selectedStages) {
+          calls.push(
+            firstValueFrom(
+              this.metricasService.fetchSegmentDocs(
+                { temporal: 'hoy' },
+                { kind: 'oficina', value: ofi, stage },
+              ),
+            ),
+          );
+        }
+      }
+
+      const resultados = await Promise.all(calls);
+      const unique = new Set<string>();
+      for (const arr of resultados) {
+        for (const c of arr ?? []) {
+          const digits = String(c ?? '').replace(/\D+/g, '');
+          if (digits) unique.add(digits);
+        }
+      }
+
+      if (!unique.size) {
+        Swal.fire({
+          icon: 'info',
+          title: 'Sin resultados',
+          text: 'No se encontraron candidatos hoy con esos filtros.',
+        });
+        return;
+      }
+
+      const cedulas = Array.from(unique);
+      // Alimentamos el textarea para que el usuario vea qué se está consultando y
+      // reutilizamos el mismo flujo (parseo, batching, render, exportes).
+      this.cedulaControl.setValue(cedulas.join('\n'));
+      this.procesarCedulasPegadas(cedulas.join('\n'));
+    } catch (err: any) {
+      console.error('[consult-docs] Error en consulta automática:', err);
+      if (Swal.isVisible()) Swal.close();
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: err?.error?.detail || err?.message || 'No se pudieron obtener las cédulas.',
+      });
+    } finally {
+      this.isLoadingAuto = false;
+      this.cdr.markForCheck();
+    }
+  }
 
   /** ✅ Abrir PDF cuando el estado sea OK o WARN */
   openDoc(cell: DocUiCell | null | undefined, ev?: MouseEvent): void {

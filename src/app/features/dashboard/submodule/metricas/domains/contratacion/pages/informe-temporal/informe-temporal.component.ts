@@ -1,4 +1,4 @@
-import { Component, inject, signal, OnInit, OnDestroy, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
+import { Component, inject, signal, OnInit, ChangeDetectionStrategy, ChangeDetectorRef, DestroyRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormControl, FormGroup, ReactiveFormsModule } from '@angular/forms';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -12,10 +12,15 @@ import { MatCardModule } from '@angular/material/card';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { MatTooltipModule } from '@angular/material/tooltip';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { NgxEchartsDirective, provideEchartsCore } from 'ngx-echarts';
+import { fromEvent, timer, EMPTY } from 'rxjs';
+import { filter, switchMap, catchError } from 'rxjs/operators';
 import Swal from 'sweetalert2';
 
 import { ContratacionMetricasApiService } from '../../services/contratacion-metricas-api.service';
+import { CandidatosExcelDownloadService } from '../../services/candidatos-excel-download.service';
+import { STAGE_LABEL_TO_KEY, PipelineStage } from '../../models/contratacion-metricas.models';
 import { StandardFilterTable } from '@/app/shared/components/standard-filter-table/standard-filter-table';
 import { ColumnDefinition } from '@/app/shared/models/advanced-table-interface';
 
@@ -32,7 +37,6 @@ interface KpiData {
 }
 
 type SegmentKind = 'oficina' | 'finca' | 'fecha' | 'pipeline' | 'motivo';
-type PipelineStage = 'entrevistado' | 'prueba_o_auto' | 'examenes' | 'contratado' | 'ingreso' | 'rechazado';
 
 @Component({
   selector: 'app-informe-temporal',
@@ -51,12 +55,13 @@ type PipelineStage = 'entrevistado' | 'prueba_o_auto' | 'examenes' | 'contratado
   templateUrl: './informe-temporal.component.html',
   styleUrls: ['./informe-temporal.component.css'],
 })
-export class InformeTemporalComponent implements OnInit, OnDestroy {
+export class InformeTemporalComponent implements OnInit {
   private api = inject(ContratacionMetricasApiService);
+  private downloader = inject(CandidatosExcelDownloadService);
   private cdr = inject(ChangeDetectorRef);
   private snack = inject(MatSnackBar);
-  private refreshInterval: any = null;
-  private readonly REFRESH_MS = 30_000; // 30 segundos
+  private destroyRef = inject(DestroyRef);
+  private readonly REFRESH_MS = 30_000;
 
   // Filtros — por defecto último mes
   temporalControl = new FormControl('');
@@ -69,11 +74,12 @@ export class InformeTemporalComponent implements OnInit, OnDestroy {
 
   // Estado
   loading = signal(false);
-  downloading = signal(false);
   hasData = signal(false);
   errorMsg = signal('');
   kpis = signal<KpiData | null>(null);
   rows = signal<any[]>([]);
+  /** Signal compartido con el servicio de descarga — el template lo usa para el overlay. */
+  downloading = this.downloader.downloading;
 
   // Gráficas (ECharts options)
   chartOficina = signal<any>(null);
@@ -106,27 +112,49 @@ export class InformeTemporalComponent implements OnInit, OnDestroy {
     grey: '#78909C',
   };
 
-  // Mapa: label visible en la serie del funnel -> stage del backend
-  private readonly STAGE_LABEL_TO_KEY: Record<string, PipelineStage> = {
-    'Entrevistado': 'entrevistado',
-    'Prueba/Autorizado': 'prueba_o_auto',
-    'Exámenes': 'examenes',
-    'Contratado': 'contratado',
-    'Ingreso': 'ingreso',
-    'No Aplica (911)': 'rechazado',
-  };
+  // Mapa label → stage (centralizado en el modelo)
+  private readonly STAGE_LABEL_TO_KEY = STAGE_LABEL_TO_KEY;
 
   ngOnInit() {
     this.consultar();
-    // Refresh automático cada 30s para datos en vivo
-    this.refreshInterval = setInterval(() => this.consultarSilencioso(), this.REFRESH_MS);
+
+    // Refresh en vivo: timer + switchMap (cancela el anterior si se solapa) +
+    // pausa automática cuando la pestaña no está visible, destrucción automática.
+    timer(this.REFRESH_MS, this.REFRESH_MS)
+      .pipe(
+        filter(() => this.isTabVisible() && !this.loading()),
+        switchMap(() => this.fetchOnce$()),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe(resp => this.applyResponse(resp, { silent: true }));
+
+    // Cuando el usuario vuelve a la pestaña, refresca inmediatamente.
+    if (typeof document !== 'undefined') {
+      fromEvent(document, 'visibilitychange')
+        .pipe(
+          filter(() => this.isTabVisible() && !this.loading()),
+          switchMap(() => this.fetchOnce$()),
+          takeUntilDestroyed(this.destroyRef),
+        )
+        .subscribe(resp => this.applyResponse(resp, { silent: true }));
+    }
   }
 
-  ngOnDestroy() {
-    if (this.refreshInterval) {
-      clearInterval(this.refreshInterval);
-      this.refreshInterval = null;
-    }
+  private isTabVisible(): boolean {
+    return typeof document === 'undefined' || document.visibilityState === 'visible';
+  }
+
+  private fetchOnce$() {
+    const temporal = (this.temporalControl.value || '').trim();
+    const range = this.dateRange.value;
+    const start = range.start ? this.toYMD(range.start) : '';
+    const end = range.end ? this.toYMD(range.end) : '';
+    return this.api.fetchMetricasTemporal(temporal, start, end).pipe(
+      catchError(err => {
+        console.error('[informe-temporal] refresh silencioso falló', err);
+        return EMPTY;
+      })
+    );
   }
 
   private daysAgo(n: number): Date {
@@ -136,39 +164,8 @@ export class InformeTemporalComponent implements OnInit, OnDestroy {
     return d;
   }
 
-  /** Recarga sin mostrar spinner (datos en vivo) */
-  private consultarSilencioso() {
-    const temporal = (this.temporalControl.value || '').trim();
-    const range = this.dateRange.value;
-    const start = range.start ? this.toYMD(range.start) : '';
-    const end = range.end ? this.toYMD(range.end) : '';
-
-    this.api.fetchMetricasTemporal(temporal, start, end).subscribe({
-      next: (resp: any) => {
-        if (!resp || typeof resp !== 'object') return;
-        const k = resp.kpis || {};
-        this.kpis.set({
-          total_procesos: k.total_procesos ?? 0, entrevistado: k.entrevistado ?? 0,
-          prueba_tecnica: k.prueba_tecnica ?? 0, autorizado: k.autorizado ?? 0,
-          examenes_medicos: k.examenes_medicos ?? 0, total_contratados: k.total_contratados ?? 0,
-          total_ingreso: k.total_ingreso ?? 0, total_rechazados: k.total_rechazados ?? 0,
-          total_espera: k.total_espera ?? 0,
-        });
-        this.rows.set(Array.isArray(resp.rows) ? resp.rows : []);
-        this.buildChartOficina(Array.isArray(resp.por_oficina) ? resp.por_oficina : []);
-        this.buildChartFinca(Array.isArray(resp.por_finca) ? resp.por_finca : []);
-        this.buildChartTendencia(Array.isArray(resp.por_fecha) ? resp.por_fecha : []);
-        this.buildChartFunnel(Array.isArray(resp.funnel_oficina) ? resp.funnel_oficina : []);
-        this.buildChartMotivos(Array.isArray(resp.motivos_no_aplica) ? resp.motivos_no_aplica : []);
-        this.hasData.set(true);
-        this.cdr.markForCheck();
-      },
-      error: () => { /* silencioso — no interrumpir al usuario */ },
-    });
-  }
-
   consultar() {
-    if (this.loading()) return; // evitar doble clic
+    if (this.loading()) return;
 
     const temporal = (this.temporalControl.value || '').trim();
     const range = this.dateRange.value;
@@ -184,30 +181,7 @@ export class InformeTemporalComponent implements OnInit, OnDestroy {
           this.setEmpty('Respuesta vacía del servidor.');
           return;
         }
-
-        const k = resp.kpis || {};
-        this.kpis.set({
-          total_procesos: k.total_procesos ?? 0,
-          entrevistado: k.entrevistado ?? 0,
-          prueba_tecnica: k.prueba_tecnica ?? 0,
-          autorizado: k.autorizado ?? 0,
-          examenes_medicos: k.examenes_medicos ?? 0,
-          total_contratados: k.total_contratados ?? 0,
-          total_ingreso: k.total_ingreso ?? 0,
-          total_rechazados: k.total_rechazados ?? 0,
-          total_espera: k.total_espera ?? 0,
-        });
-
-        this.rows.set(Array.isArray(resp.rows) ? resp.rows : []);
-        this.buildChartOficina(Array.isArray(resp.por_oficina) ? resp.por_oficina : []);
-        this.buildChartFinca(Array.isArray(resp.por_finca) ? resp.por_finca : []);
-        this.buildChartTendencia(Array.isArray(resp.por_fecha) ? resp.por_fecha : []);
-        this.buildChartFunnel(Array.isArray(resp.funnel_oficina) ? resp.funnel_oficina : []);
-        this.buildChartMotivos(Array.isArray(resp.motivos_no_aplica) ? resp.motivos_no_aplica : []);
-
-        this.hasData.set(true);
-        this.loading.set(false);
-        this.cdr.markForCheck();
+        this.applyResponse(resp, { silent: false });
       },
       error: (err: any) => {
         console.error('[informe-temporal] Error:', err);
@@ -216,6 +190,31 @@ export class InformeTemporalComponent implements OnInit, OnDestroy {
         Swal.fire({ icon: 'error', title: 'Error cargando métricas', text: detail, confirmButtonColor: '#051b3f' });
       },
     });
+  }
+
+  private applyResponse(resp: any, opts: { silent: boolean }) {
+    if (!resp || typeof resp !== 'object') return;
+    const k = resp.kpis || {};
+    this.kpis.set({
+      total_procesos: k.total_procesos ?? 0,
+      entrevistado: k.entrevistado ?? 0,
+      prueba_tecnica: k.prueba_tecnica ?? 0,
+      autorizado: k.autorizado ?? 0,
+      examenes_medicos: k.examenes_medicos ?? 0,
+      total_contratados: k.total_contratados ?? 0,
+      total_ingreso: k.total_ingreso ?? 0,
+      total_rechazados: k.total_rechazados ?? 0,
+      total_espera: k.total_espera ?? 0,
+    });
+    this.rows.set(Array.isArray(resp.rows) ? resp.rows : []);
+    this.buildChartOficina(Array.isArray(resp.por_oficina) ? resp.por_oficina : []);
+    this.buildChartFinca(Array.isArray(resp.por_finca) ? resp.por_finca : []);
+    this.buildChartTendencia(Array.isArray(resp.por_fecha) ? resp.por_fecha : []);
+    this.buildChartFunnel(Array.isArray(resp.funnel_oficina) ? resp.funnel_oficina : []);
+    this.buildChartMotivos(Array.isArray(resp.motivos_no_aplica) ? resp.motivos_no_aplica : []);
+    this.hasData.set(true);
+    if (!opts.silent) this.loading.set(false);
+    this.cdr.markForCheck();
   }
 
   private setEmpty(msg: string) {
@@ -322,8 +321,6 @@ export class InformeTemporalComponent implements OnInit, OnDestroy {
   private buildChartMotivos(data: any[]) {
     if (!data.length) { this.chartMotivos.set(null); return; }
 
-    // Conservamos el nombre completo para que el click devuelva el valor
-    // exacto con el que filtrar en backend. La truncación es solo visual.
     const clean = data.map(d => ({
       name: String(d.name ?? 'Sin motivo'),
       value: d.value ?? 0,
@@ -386,15 +383,12 @@ export class InformeTemporalComponent implements OnInit, OnDestroy {
     this.runSegmentDownload({ kind: 'motivo', value: name }, `motivo "${name}"`);
   }
 
-  // ─── Flujo compartido ─────────────────────────────────────────
+  // ─── Flujo de descarga ────────────────────────────────────────
 
   private runSegmentDownload(
     segment: { kind: SegmentKind; value: string; stage?: PipelineStage },
     contextLabel: string,
   ): void {
-    if (this.downloading()) return;
-    this.downloading.set(true);
-
     const temporal = (this.temporalControl.value || '').trim();
     const range = this.dateRange.value;
     const filters = {
@@ -404,43 +398,9 @@ export class InformeTemporalComponent implements OnInit, OnDestroy {
     };
 
     this.snack.open(`Preparando Excel para ${contextLabel}…`, 'Cerrar', { duration: 1800 });
-    this.api.fetchSegmentDocs(filters, segment).subscribe({
-      next: docs => {
-        if (!docs.length) {
-          this.downloading.set(false);
-          this.snack.open(`Sin candidatos para ${contextLabel}.`, 'Cerrar', { duration: 3000 });
-          this.cdr.markForCheck();
-          return;
-        }
-        this.snack.open(`Descargando ${docs.length} candidato(s)…`, 'Cerrar', { duration: 2500 });
-        this.api.downloadCandidatosExcel(docs, this.slug(contextLabel)).subscribe({
-          next: () => {
-            this.downloading.set(false);
-            this.snack.open('Excel descargado.', 'Cerrar', { duration: 2000 });
-            this.cdr.markForCheck();
-          },
-          error: err => {
-            this.downloading.set(false);
-            console.error('[downloadCandidatosExcel]', err);
-            this.snack.open('Error al descargar el Excel.', 'Cerrar', { duration: 3500 });
-            this.cdr.markForCheck();
-          }
-        });
-      },
-      error: err => {
-        this.downloading.set(false);
-        console.error('[fetchSegmentDocs]', err);
-        this.snack.open('Error al resolver los candidatos.', 'Cerrar', { duration: 3500 });
-        this.cdr.markForCheck();
-      }
-    });
-  }
-
-  private slug(s: string): string {
-    return s
-      .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-      .replace(/[^a-zA-Z0-9_-]+/g, '_')
-      .replace(/^_+|_+$/g, '')
-      .toLowerCase() || 'candidatos';
+    this.downloader.run(
+      this.api.fetchSegmentDocs(filters, segment),
+      { filenameHint: contextLabel, contextLabel }
+    );
   }
 }

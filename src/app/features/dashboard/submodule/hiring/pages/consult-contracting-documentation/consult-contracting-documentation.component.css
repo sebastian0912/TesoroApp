@@ -124,6 +124,85 @@
   box-shadow: 0 6px 12px rgba(140, 213, 10, 0.3);
 }
 
+/* --- Auto-query panel (consulta por oficina/estado) --- */
+.auto-panel {
+  padding: 16px 24px 24px 24px;
+  background-color: #F3F6FF;
+  border-top: 1px dashed var(--cc-border);
+}
+
+.auto-panel-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 600;
+  color: var(--cc-base);
+  font-size: 14px;
+  margin-bottom: 12px;
+}
+
+.auto-panel-title .panel-icon {
+  color: var(--cc-accent);
+}
+
+.auto-panel-title .btn-refresh-oficinas {
+  margin-left: auto;
+  color: var(--cc-text-secondary);
+}
+
+.auto-empty {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--cc-text-secondary);
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+  border-radius: 10px;
+  padding: 8px 12px;
+  margin-bottom: 12px;
+}
+
+.auto-empty mat-icon {
+  color: #ea580c;
+  font-size: 20px;
+  width: 20px;
+  height: 20px;
+}
+
+.auto-empty a {
+  color: var(--cc-base);
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.auto-filter-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.auto-field {
+  flex: 1 1 240px;
+  min-width: 220px;
+}
+
+@media (max-width: 768px) {
+  .auto-panel {
+    padding: 16px;
+  }
+
+  .auto-filter-row {
+    flex-direction: column;
+  }
+
+  .auto-field {
+    width: 100%;
+  }
+}
+
 /* --- RESULTS SECTION --- */
 .results-header {
   display: flex;
