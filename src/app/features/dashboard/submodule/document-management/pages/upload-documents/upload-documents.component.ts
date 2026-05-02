@@ -235,7 +235,18 @@ export class UploadDocumentsComponent implements OnInit, OnDestroy {
     this.cdr.markForCheck();
   }
 
+  private readonly MAX_FILE_BYTES = 10 * 1024 * 1024;
+
   addPdfToQueue(file: File) {
+    if (file.size > this.MAX_FILE_BYTES) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'Archivo muy pesado',
+        html: `<b>${file.name}</b> pesa ${(file.size / 1024 / 1024).toFixed(1)} MB y excede el límite de 10 MB.<br>
+               Aplica el filtro <b>B/N</b> en el escáner o reduce el número de páginas.`
+      });
+      return;
+    }
     const id = this.generateId();
 
     // Add to Visual Queue (Read-only props)

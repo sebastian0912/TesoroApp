@@ -1,6 +1,6 @@
 <div class="scan-layout">
 
-    <!-- 1. HEADER (Sticky) -->
+    <!-- 1. HEADER -->
     <header class="scan-header mat-elevation-z2">
         <div class="header-left">
             @if (mode !== 'list') {
@@ -13,12 +13,11 @@
                 <h2 class="header-title">
                     @switch (mode) {
                     @case ('list') { Gestión Documental }
-                    @case ('capture-web') { Captura }
-                    @case ('crop') { Recorte }
-                    @case ('preview') { Edición }
+                    @case ('capture-web') { Captura inteligente }
+                    @case ('crop') { Ajustar bordes }
+                    @case ('preview') { Edición y filtros }
                     }
                 </h2>
-                <!-- Context Badges -->
                 @if (mode === 'list' && scannedDocs.length > 0) {
                 <span class="badge-count">{{ scannedDocs.length }}</span>
                 }
@@ -29,6 +28,12 @@
         </div>
 
         <div class="header-right">
+            @if (mode === 'capture-web') {
+            <mat-slide-toggle [(ngModel)]="autoCapture" color="primary" class="auto-toggle"
+                matTooltip="Disparo automático cuando se detecta el documento estable">
+                Auto
+            </mat-slide-toggle>
+            }
             @if (mode === 'list') {
             <button mat-icon-button (click)="close()" matTooltip="Cerrar" aria-label="Cerrar diálogo">
                 <mat-icon>close</mat-icon>
@@ -37,19 +42,17 @@
         </div>
     </header>
 
-    <!-- 2. MAIN CONTENT (Scrollable) -->
+    <!-- 2. MAIN CONTENT -->
     <main class="scan-main" [class.dark-mode]="mode === 'capture-web' || mode === 'crop'">
-
         <ng-container [ngTemplateOutlet]="
             mode === 'list' ? tplList :
             mode === 'capture-web' ? tplCapture :
             mode === 'crop' ? tplCrop :
             tplPreview
         "></ng-container>
-
     </main>
 
-    <!-- 3. FOOTER (Sticky) -->
+    <!-- 3. FOOTER -->
     <footer class="scan-footer mat-elevation-z4">
         <ng-container [ngTemplateOutlet]="
             mode === 'list' ? tplFooterList :
@@ -65,16 +68,12 @@
 <!--               TEMPLATES                        -->
 <!-- ============================================== -->
 
-<!-- TPL: LIST (Dashboard) -->
+<!-- TPL: LIST -->
 <ng-template #tplList>
     <div class="dashboard-container fade-in">
-
-        <!-- Summary Cards -->
         <div class="stats-overview">
             <div class="stat-card">
-                <div class="stat-icon-bg">
-                    <mat-icon>description</mat-icon>
-                </div>
+                <div class="stat-icon-bg"><mat-icon>description</mat-icon></div>
                 <div class="stat-info">
                     <span class="stat-value">{{ scannedDocs.length }}</span>
                     <span class="stat-label">Documentos</span>
@@ -82,30 +81,38 @@
             </div>
             <div class="stat-divider"></div>
             <div class="stat-card">
-                <div class="stat-icon-bg">
-                    <mat-icon>filter_none</mat-icon>
-                </div>
+                <div class="stat-icon-bg"><mat-icon>filter_none</mat-icon></div>
                 <div class="stat-info">
                     <span class="stat-value">{{ totalPages }}</span>
                     <span class="stat-label">Páginas</span>
                 </div>
             </div>
+            <div class="stat-divider"></div>
+            <div class="stat-card ocr-card">
+                <div class="stat-icon-bg" [class.active]="enableOcr"><mat-icon>text_snippet</mat-icon></div>
+                <div class="stat-info ocr-info">
+                    <span class="stat-label">PDF buscable (OCR)</span>
+                    <mat-slide-toggle [(ngModel)]="enableOcr" color="primary"
+                        matTooltip="Reconoce el texto y lo agrega como capa invisible al PDF">
+                        {{ enableOcr ? 'Activado' : 'Desactivado' }}
+                    </mat-slide-toggle>
+                </div>
+            </div>
         </div>
 
-        <!-- Empty State -->
         @if (scannedDocs.length === 0) {
         <div class="empty-state">
-            <div class="empty-icon-circle">
-                <mat-icon>assignment_add</mat-icon>
-            </div>
-            <h3 class="empty-title">Sin documentos escaneados</h3>
-            <p class="empty-subtitle">Utiliza la cámara para digitalizar tus documentos físicos.</p>
-            <button mat-stroked-button color="primary" (click)="onCaptureClick()">
-                <mat-icon>camera_alt</mat-icon> Iniciar Escaneo
+            <div class="empty-icon-circle"><mat-icon>document_scanner</mat-icon></div>
+            <h3 class="empty-title">Escáner profesional</h3>
+            <p class="empty-subtitle">
+                Detección automática de bordes, recorte perspectivo, filtros B/N y OCR.
+                Captura tus documentos como una app dedicada.
+            </p>
+            <button mat-flat-button color="primary" (click)="onCaptureClick()" class="btn-lg">
+                <mat-icon>document_scanner</mat-icon> Iniciar escaneo
             </button>
         </div>
         } @else {
-        <!-- Grid List -->
         <div class="docs-grid">
             @for (doc of scannedDocs; track doc.id) {
             <div class="doc-card mat-elevation-z1" (click)="previewDoc(doc)" matRipple>
@@ -130,13 +137,61 @@
     </div>
 </ng-template>
 
-<!-- TPL: CAPTURE (Camera) -->
+<!-- TPL: CAPTURE -->
 <ng-template #tplCapture>
     <div class="camera-container">
         <video #video autoplay playsinline muted class="camera-video"></video>
         <canvas #canvas hidden></canvas>
+        <canvas #detectCanvas hidden></canvas>
 
-        <!-- Guides -->
+        <!-- Live edge overlay -->
+        @if (detectedOverlay && detectedOverlay.length === 4) {
+        <svg class="live-overlay" [attr.viewBox]="overlayViewBox" preserveAspectRatio="none">
+            <polygon [class.locked]="autoCaptureCountdown > 0" [attr.points]="
+                detectedOverlay[0].x + ',' + detectedOverlay[0].y + ' ' +
+                detectedOverlay[1].x + ',' + detectedOverlay[1].y + ' ' +
+                detectedOverlay[2].x + ',' + detectedOverlay[2].y + ' ' +
+                detectedOverlay[3].x + ',' + detectedOverlay[3].y
+            "></polygon>
+        </svg>
+        }
+
+        <!-- Status chip -->
+        <div class="capture-status">
+            @if (isCvLoading) {
+            <span class="status-chip loading">
+                <mat-spinner diameter="14" color="accent"></mat-spinner>
+                Cargando IA...
+            </span>
+            } @else if (!cvReady) {
+            <span class="status-chip warn">
+                <mat-icon>info</mat-icon> Modo manual
+            </span>
+            } @else if (detectionConfidence >= 0.55) {
+            <span class="status-chip ready" [class.locked]="autoCaptureCountdown > 0">
+                <mat-icon>check_circle</mat-icon>
+                {{ autoCaptureCountdown > 0 ? 'Capturando…' : 'Documento detectado' }}
+            </span>
+            } @else if (detectionConfidence > 0) {
+            <span class="status-chip searching">
+                <mat-icon>center_focus_weak</mat-icon>
+                Acerca o estabiliza el documento
+            </span>
+            } @else {
+            <span class="status-chip searching">
+                <mat-icon>search</mat-icon>
+                Buscando documento…
+            </span>
+            }
+            @if (blurWarning) {
+            <span class="status-chip warn">
+                <mat-icon>blur_on</mat-icon> Movimiento detectado
+            </span>
+            }
+        </div>
+
+        <!-- Soft guides only when no detection -->
+        @if (!detectedOverlay) {
         <div class="camera-overlay">
             <div class="camera-guides">
                 <div class="guide-corner tl"></div>
@@ -146,40 +201,44 @@
             </div>
             <div class="camera-hint">Alinea el documento dentro del marco</div>
         </div>
+        }
 
-        <!-- Flash Effect -->
         <div class="flash-overlay" [class.active]="showFlash"></div>
+
+        @if (isProcessingCrop) {
+        <div class="loading-overlay">
+            <mat-spinner diameter="40" color="accent"></mat-spinner>
+            <span>Procesando...</span>
+        </div>
+        }
     </div>
 </ng-template>
 
-<!-- TPL: CROP (Adjust) -->
+<!-- TPL: CROP -->
 <ng-template #tplCrop>
     <div class="crop-workspace" (pointermove)="onCropPointerMove($event)" (pointerup)="onCropPointerUp($event)">
         <div class="crop-stage" #cropStage>
             <img [src]="cropSourceImage" class="crop-image" #cropImage draggable="false" alt="Imagen a recortar">
 
-            <!-- SVG Overlay lines -->
             @if (natW && natH) {
             <svg class="crop-lines" [attr.viewBox]="'0 0 ' + natW + ' ' + natH" preserveAspectRatio="none">
                 <polygon [attr.points]="
-                        cropPoints[0].x + ',' + cropPoints[0].y + ' ' +
-                        cropPoints[1].x + ',' + cropPoints[1].y + ' ' +
-                        cropPoints[2].x + ',' + cropPoints[2].y + ' ' +
-                        cropPoints[3].x + ',' + cropPoints[3].y
-                    " class="crop-poly"></polygon>
+                    cropPoints[0].x + ',' + cropPoints[0].y + ' ' +
+                    cropPoints[1].x + ',' + cropPoints[1].y + ' ' +
+                    cropPoints[2].x + ',' + cropPoints[2].y + ' ' +
+                    cropPoints[3].x + ',' + cropPoints[3].y
+                " class="crop-poly"></polygon>
             </svg>
 
-            <!-- Touch Handles -->
             @for (point of cropPoints; track $index) {
             <div class="crop-handle" [style.left.%]="(point.x / natW) * 100" [style.top.%]="(point.y / natH) * 100"
-                (pointerdown)="onCropPointerDown($event, $index)" [attr.aria-label]="'Handle ' + $index">
+                (pointerdown)="onCropPointerDown($event, $index)" [attr.aria-label]="'Esquina ' + $index">
                 <div class="handle-knob" [class.active]="activePointIndex === $index"></div>
             </div>
             }
             }
         </div>
 
-        <!-- Magnifier -->
         <div class="magnifier-glass mat-elevation-z4" [class.visible]="isDragging && activePointIndex !== null"
             [style.left.px]="magnifierPos.x" [style.top.px]="magnifierPos.y">
             <canvas #magnifierCanvas></canvas>
@@ -194,10 +253,9 @@
     </div>
 </ng-template>
 
-<!-- TPL: PREVIEW (Edit) -->
+<!-- TPL: PREVIEW -->
 <ng-template #tplPreview>
     <div class="editor-layout fade-in">
-        <!-- Editor Toolbar -->
         <div class="editor-toolbar">
             <mat-form-field appearance="outline" class="full-width-field dense-form-field">
                 <mat-label>Nombre del archivo</mat-label>
@@ -206,14 +264,46 @@
             </mat-form-field>
         </div>
 
+        <!-- Filter selector -->
+        @if (currentDocPages.length > 0) {
+        <div class="filter-bar">
+            <span class="filter-label">Filtro:</span>
+            <mat-button-toggle-group
+                [value]="currentDocPages[selectedPageIndex]?.filter || 'original'"
+                (change)="applyFilterToCurrent($event.value)"
+                [disabled]="isProcessingCrop">
+                <mat-button-toggle value="original" matTooltip="Original">
+                    <mat-icon>photo</mat-icon>
+                </mat-button-toggle>
+                <mat-button-toggle value="magic" matTooltip="Magic Color: ilumina y limpia sombras">
+                    <mat-icon>auto_fix_high</mat-icon>
+                </mat-button-toggle>
+                <mat-button-toggle value="grayscale" matTooltip="Escala de grises">
+                    <mat-icon>monochrome_photos</mat-icon>
+                </mat-button-toggle>
+                <mat-button-toggle value="bw" matTooltip="Blanco y negro adaptativo (ideal para texto)">
+                    <mat-icon>contrast</mat-icon>
+                </mat-button-toggle>
+            </mat-button-toggle-group>
+            <button mat-stroked-button class="filter-apply-all"
+                [disabled]="isProcessingCrop || currentDocPages.length < 2"
+                (click)="applyFilterToAll(currentDocPages[selectedPageIndex]?.filter || 'original')"
+                matTooltip="Aplicar este filtro a todas las páginas">
+                <mat-icon>done_all</mat-icon> Aplicar a todas
+            </button>
+        </div>
+        }
+
         <div class="editor-workspace">
-            <!-- Thumbnails List -->
             <div class="thumbs-list mat-elevation-z2" cdkDropList (cdkDropListDropped)="dropPage($event)">
-                @for (page of currentDocPages; track page; let i = $index) {
+                @for (page of currentDocPages; track page.raw; let i = $index) {
                 <div class="thumb-item" cdkDrag [class.active]="selectedPageIndex === i"
                     (click)="selectedPageIndex = i">
-                    <img [src]="page" alt="Página {{i+1}}">
+                    <img [src]="page.processed" alt="Página {{i+1}}">
                     <span class="page-idx">{{ i + 1 }}</span>
+                    @if (page.filter !== 'original') {
+                    <span class="page-filter-tag">{{ page.filter === 'bw' ? 'B/N' : page.filter === 'magic' ? 'Color+' : 'Gris' }}</span>
+                    }
                     <button class="btn-remove-page" (click)="$event.stopPropagation(); removePageFromCurrent(i)">
                         <mat-icon>close</mat-icon>
                     </button>
@@ -221,16 +311,22 @@
                 }
             </div>
 
-            <!-- Main Preview -->
             <div class="main-preview mat-elevation-z1">
                 @if (currentDocPages.length > 0) {
-                <img [src]="currentDocPages[selectedPageIndex] || currentDocPages[0]" alt="Vista previa">
+                <img [src]="(currentDocPages[selectedPageIndex] || currentDocPages[0]).processed" alt="Vista previa">
 
                 <div class="preview-actions-overlay">
-                    <button mat-mini-fab color="primary" (click)="reCropPage()" matTooltip="Recortar de nuevo">
+                    <button mat-mini-fab color="primary" (click)="reCropPage()"
+                        matTooltip="Recortar de nuevo" [disabled]="isProcessingCrop">
                         <mat-icon>crop</mat-icon>
                     </button>
                 </div>
+
+                @if (isProcessingCrop) {
+                <div class="loading-overlay light">
+                    <mat-spinner diameter="32" color="primary"></mat-spinner>
+                </div>
+                }
                 }
             </div>
         </div>
@@ -247,7 +343,7 @@
 <ng-template #tplFooterList>
     <div class="footer-actions">
         <button mat-flat-button color="primary" class="btn-lg" (click)="onCaptureClick()">
-            <mat-icon>add_a_photo</mat-icon> CAPTURAR NUEVO
+            <mat-icon>document_scanner</mat-icon> CAPTURAR NUEVO
         </button>
         <button mat-stroked-button color="accent" class="btn-lg" [disabled]="scannedDocs.length === 0"
             (click)="exportAllAndClose()">
@@ -258,22 +354,20 @@
 
 <ng-template #tplFooterCapture>
     <div class="camera-controls">
-        <!-- Gallery Preview -->
         <div class="cam-space left">
             @if (tempPages.length > 0) {
             <div class="last-preview mat-elevation-z2" (click)="finishWebCapture()">
-                <img [src]="tempPages[tempPages.length - 1]" alt="Última captura">
+                <img [src]="tempPages[tempPages.length - 1].processed" alt="Última captura">
                 <span class="badge-count">{{ tempPages.length }}</span>
             </div>
             }
         </div>
 
-        <!-- Shutter -->
         <div class="cam-space center">
-            <button class="shutter-btn" (click)="captureWebPage()" aria-label="Tomar foto"></button>
+            <button class="shutter-btn" [class.armed]="autoCaptureCountdown > 0" (click)="captureWebPage(false)"
+                aria-label="Tomar foto" [disabled]="isProcessingCrop"></button>
         </div>
 
-        <!-- Done is redundant if we have top back, but let's keep 'Listo' for clarity -->
         <div class="cam-space right">
             <button mat-button color="primary" class="done-text-btn" [disabled]="tempPages.length === 0"
                 (click)="finishWebCapture()">
