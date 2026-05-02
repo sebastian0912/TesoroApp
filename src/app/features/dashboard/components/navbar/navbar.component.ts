@@ -81,223 +81,6 @@ export class NavbarComponent implements OnInit, OnDestroy {
   private onRequestFailed?: (ev: Event) => void;
   private readonly isBrowser: boolean;
 
-  // TODO(post-migración v8 de `dbtuapo.modulo`): borrar routeMap + iconMap.
-  // Sólo existen para compensar filas con `ruta` en formato relativo o sin
-  // separador y filas con `icono = 'widgets'` (catch-all sin sentido) que
-  // hoy hay en BD. Cuando cada fila tenga `ruta` completa con '/' y un
-  // Material Symbol real, computeRoute / computeIcon se simplifican a un
-  // retorno directo y estos diccionarios desaparecen.
-  private readonly routeMap: Record<string, string> = {
-    'ADMINISTRACIÓN': 'users/manage-users',
-
-    'Adjuntar documentación': 'document-management/upload-documents',
-    'Buscar documentación': 'document-management/search-documents',
-    'Estructura documental': 'document-management/create-doc-structure',
-    'Permisos de documentación de empresas usuarias': 'document-management/company-docs-access',
-    'TABLA RETENCIÓN': 'document-management/withholding-table',
-
-    'Comprobantes de pago': 'payments/pay-slips',
-    'Formas de pago': 'payments/payments-method',
-
-    'Envío de mercancía': 'merchandise/send-merchandise',
-    'Edición de mercancía': 'merchandise/edit-merchandise',
-    'Recepción de mercancía': 'merchandise/receive-merchandise',
-
-    'Formulario de consulta': 'hiring/query-form',
-    'Listado de errores': 'hiring/error-listing',
-    'Reporte de contratación': 'hiring/hiring-report',
-    'Ver reporte de contratación': 'hiring/view-reports',
-    'Consultar documentación': 'hiring/consult-contracting-documentation',
-    'Gerencia 901': 'hiring/banned-management',
-    'Reporte 901': 'hiring/banned-report',
-    'Selección': 'hiring/recruitment-pipeline',
-    'Ver entrevistas de recepción': 'hiring/view-reception-interviews',
-    'Tarjetas': 'hiring/tarjetas',
-
-    'Gestión de vacantes': 'vacancies',
-    'Gestión de trabajadores': 'treasury/manage-workers',
-
-    'Carga de mercado': 'market/load-market',
-    'Carga de mercado (ferias)': 'market/load-fair-market',
-    'Carga de mercado (comercializadora)': 'market/marketing-market',
-
-    'Bono de mercado': 'authorizations/market-bonus',
-    'Prestado de dinero': 'authorizations/money-loan',
-
-    'PRESTADO PARA REALIZAR': 'money-loan/loan-to-perform',
-    'PRESTAMO POR CALAMIDAD': 'money-loan/emergency-loan',
-
-    'Procesos de traslados': 'eps-transfers/process-transfers',
-    'Consulta de traslados': 'eps-transfers/transfer-query',
-
-    'Historial de autorizaciones': 'history/authorizations-history',
-    'Historial de modificaciones': 'history/modifications-history',
-
-    'GESTIÓN ROLES': 'users/manage-roles',
-    'GESTIÓN MÓDULOS': 'users/manage-modules',
-    'PARAMETRIZACIÓN': 'users/manage-parameterization',
-    'GESTIÓN CARGOS': 'positions/manage-positions',
-    'GESTIÓN CENTRO DE COSTOS': 'farms/management-farms',
-
-    'AUSENTISMOS': 'hiring/absences',
-    'CARGAS MASIVAS': 'treasury/upload-treasury',
-
-    'Robots': 'robots/dashboard-robots',
-    'EMPLEADOS': 'nomina/empleados',
-    'CÁLCULO DE NÓMINA': 'nomina/calculo-nomina',
-    'HISTORIAL NÓMINA': 'nomina/historico-nomina',
-    'PARAMETRIZACIÓN NOVEDADES': 'nomina/parametrizacion-novedades',
-    'PARAMETRIZACIÓN DE NOVEDADES': 'nomina/parametrizacion-novedades',
-    'CONVALIDADOR': 'nomina/convalidador',
-
-    // Afiliaciones
-    'Dashboard Afiliaciones': 'afiliaciones/dashboardAfiliaciones',
-    'Confirmación Ingresos': 'afiliaciones/confirmacion-ingresos',
-
-    // MatDer
-    'Dashboard': 'matder/dashboard',
-    'Workspaces': 'matder/workspaces',
-    'Tableros': 'matder/boards',
-    'Calendario': 'matder/calendar',
-    'Favoritos': 'matder/favorites',
-    'Analíticas': 'matder/analytics',
-    'Grupos': 'matder/groups',
-    'Notificaciones': 'matder/notifications',
-    'Importar': 'matder/import',
-    'Auditoría': 'matder/audit',
-
-    // Incapacidades
-    'Formulario incapacidad': 'disabilities/formulario',
-    'Formulario de incapacidad': 'disabilities/formulario',
-    'FORMULARIO INCAPACIDAD': 'disabilities/formulario',
-    'Buscar incapacidad': 'disabilities/buscar',
-    'BUSCAR INCAPACIDAD': 'disabilities/buscar',
-    'Vista total incapacidades': 'disabilities/total',
-    'VISTA TOTAL INCAPACIDADES': 'disabilities/total',
-    'Subida archivos incapacidades': 'disabilities/subir',
-    'SUBIDA ARCHIVOS INCAPACIDADES': 'disabilities/subir',
-  };
-
-  private readonly iconMap: Record<string, string> = {
-    'Comercializadora': 'storefront',
-    'Gestión del programa': 'manage_accounts',
-    'Procesos empresa': 'work',
-    'Procesos empresariales': 'work',
-    'Tesoreria': 'account_balance',
-
-    'Mercancía': 'inventory_2',
-    'Edición de mercancía': 'edit',
-    'Envío de mercancía': 'local_shipping',
-    'Recepción de mercancía': 'assignment_turned_in',
-
-    'Administración': 'admin_panel_settings',
-
-    'Gestión documental': 'folder',
-    'Adjuntar documentación': 'upload_file',
-    'Buscar documentación': 'search',
-    'Estructura documental': 'schema',
-    'Permisos de documentación de empresas usuarias': 'lock',
-
-    'Pagos': 'payments',
-    'CARGOS': 'assignment',
-    'Comprobantes de pago': 'receipt_long',
-    'Formas de pago': 'credit_card',
-
-    'Selección y contratación': 'how_to_reg',
-    'Contratación 1.0': 'assignment',
-    'Formulario de consulta': 'fact_check',
-    'Listado de errores': 'bug_report',
-    'Reporte de contratación': 'insert_chart',
-    'Ver reporte de contratación': 'visibility',
-    'Contratación 2.0': 'assignment_turned_in',
-    'Consultar documentación': 'find_in_page',
-    'Gerencia 901': 'workspace_premium',
-    'Reporte 901': 'insert_chart',
-    'Selección': 'person_search',
-    'Ver entrevistas de recepción': 'record_voice_over',
-
-    'Vacantes': 'work',
-    'Gestión de vacantes': 'work',
-
-    'Autorizaciones': 'approval',
-    'Bono de mercado': 'redeem',
-    'Prestado de dinero': 'paid',
-    'Ayudas': 'volunteer_activism',
-    'Cargar mercados con código': 'qr_code_scanner',
-    'Cargar mercados sin código': 'shopping_cart',
-    'Historial': 'history',
-    'Historial de autorizaciones': 'history',
-    'Historial de modificaciones': 'manage_history',
-    'Mercado': 'shopping_bag',
-    'Carga de mercado': 'upload_file',
-    'Carga de mercado (comercializadora)': 'storefront',
-    'Carga de mercado (ferias)': 'festival',
-    'Operaciones de tesorería': 'calculate',
-    'Cargas masivas': 'dataset',
-    'Gestión de trabajadores': 'group',
-
-    'Prestamo de dinero': 'savings',
-    'Prestado para realizar': 'schedule',
-    'Prestamo por calamidad': 'warning_amber',
-    'Préstamos': 'savings',
-    'Prestamo para realizar': 'schedule',
-    'Traslados': 'swap_horiz',
-    'Consulta de traslados': 'search',
-    'Procesos de traslados': 'sync_alt',
-
-    'GESTIÓN ROLES': 'security',
-    'GESTIÓN MÓDULOS': 'view_module',
-    'GESTIÓN CARGOS': 'assignment',
-    'GESTIÓN CENTRO DE COSTOS': 'account_balance_wallet',
-    'PARAMETRIZACIÓN': 'settings',
-
-    'AUSENTISMOS': 'event_busy',
-
-    'Robots': 'smart_toy',
-    'TABLA RETENCIÓN': 'table_chart',
-    'EMPLEADOS': 'people',
-    'CÁLCULO DE NÓMINA': 'calculate',
-    'HISTORIAL NÓMINA': 'history',
-    'PARAMETRIZACIÓN NOVEDADES': 'tune',
-    'PARAMETRIZACIÓN DE NOVEDADES': 'tune',
-    'CONVALIDADOR': 'sync_alt',
-    'Tarjetas': 'credit_card',
-
-    // Afiliaciones
-    'Afiliaciones': 'handshake',
-    'Dashboard Afiliaciones': 'dashboard',
-    'Confirmación Ingresos': 'price_check',
-
-    // MatDer
-    'MatDer': 'hub',
-    'Dashboard': 'dashboard',
-    'Workspaces': 'workspaces',
-    'Tableros': 'dashboard_customize',
-    'Calendario': 'calendar_month',
-    'Favoritos': 'star',
-    'Analíticas': 'analytics',
-    'Grupos': 'group',
-    'Notificaciones': 'notifications',
-    'Importar': 'upload_file',
-    'Auditoría': 'shield',
-
-    // Incapacidades
-    'Incapacidades': 'healing',
-    'INCAPACIDADES': 'healing',
-    'Formulario incapacidad': 'assignment',
-    'Formulario de incapacidad': 'assignment',
-    'FORMULARIO INCAPACIDAD': 'assignment',
-    'Buscar incapacidad': 'search',
-    'BUSCAR INCAPACIDAD': 'search',
-    'Vista total incapacidades': 'list_alt',
-    'VISTA TOTAL INCAPACIDADES': 'list_alt',
-    'Subida archivos incapacidades': 'upload_file',
-    'SUBIDA ARCHIVOS INCAPACIDADES': 'upload_file',
-  };
-
-  private readonly routeMapIndex: Record<string, string>;
-  private readonly iconMapIndex: Record<string, string>;
-
   constructor(
     @Inject(PLATFORM_ID) platformId: object,
     private router: Router,
@@ -307,8 +90,6 @@ export class NavbarComponent implements OnInit, OnDestroy {
     private cdr: ChangeDetectorRef,
   ) {
     this.isBrowser = isPlatformBrowser(platformId);
-    this.routeMapIndex = this.indexByMenuKey(this.routeMap);
-    this.iconMapIndex = this.indexByMenuKey(this.iconMap);
 
     if (this.isBrowser) {
       // Subs guardadas para teardown en ngOnDestroy. Antes el navbar dejaba
@@ -511,21 +292,13 @@ export class NavbarComponent implements OnInit, OnDestroy {
 
   private computeRoute(node: PermNode): string {
     const base = '/dashboard';
-    if (node.ruta) {
-      if (node.ruta.startsWith('/')) return node.ruta;
-      if (node.ruta.includes('/')) return `${base}/${node.ruta}`;
-    }
-    const mapped = this.routeMapIndex[this.normalizeMenuKey(node?.nombre ?? '')];
-    if (mapped) return `${base}/${mapped}`;
-    if (node.ruta) return `${base}/${node.ruta}`;
-    // Sin ruta y sin mapeo: navegar al base del dashboard es preferible a
-    // un slug auto-generado que probablemente daría 404 silencioso.
-    return base;
+    if (!node.ruta) return base;
+    if (node.ruta.startsWith('/')) return node.ruta;
+    return `${base}/${node.ruta}`;
   }
 
   private computeIcon(node: PermNode): string {
-    if (node?.icono && node.icono !== 'widgets') return node.icono;
-    return this.iconMapIndex[this.normalizeMenuKey(node?.nombre ?? '')] || '';
+    return node?.icono || '';
   }
 
   private computeCanRead(node: PermNode, decoratedChildren: PermNode[]): boolean {
@@ -640,22 +413,6 @@ export class NavbarComponent implements OnInit, OnDestroy {
   private subtreeMatchesRoute(node: PermNode, current: string): boolean {
     if (!this.hasChildren(node)) return node.__route === current;
     return (node.hijos ?? []).some(h => this.subtreeMatchesRoute(h, current));
-  }
-
-  // ===== util =====
-  private normalizeMenuKey(value: string): string {
-    return (value ?? '')
-      .normalize('NFD')
-      .replace(/[̀-ͯ]/g, '')
-      .replace(/\s+/g, ' ')
-      .trim()
-      .toUpperCase();
-  }
-
-  private indexByMenuKey<T extends Record<string, string>>(obj: T): Record<string, string> {
-    const out: Record<string, string> = {};
-    for (const k of Object.keys(obj)) out[this.normalizeMenuKey(k)] = obj[k];
-    return out;
   }
 
   // ===== responsive =====
