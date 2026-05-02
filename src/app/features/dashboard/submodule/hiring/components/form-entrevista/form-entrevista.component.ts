@@ -255,6 +255,10 @@ export class FormEntrevistaComponent implements OnInit {
       parentescoReferenciaFamiliar1: ['', [Validators.maxLength(70)]],
       nombreReferenciaFamiliar2: [''],
       parentescoReferenciaFamiliar2: ['', [Validators.maxLength(70)]],
+      nombreReferenciaPersonal1: [''],
+      parentescoReferenciaPersonal1: ['', [Validators.maxLength(70)]],
+      nombreReferenciaPersonal2: [''],
+      parentescoReferenciaPersonal2: ['', [Validators.maxLength(70)]],
 
       // Formación / experiencia
       nivel: [null, Validators.required],
@@ -1135,6 +1139,8 @@ export class FormEntrevistaComponent implements OnInit {
     const refs = Array.isArray(cand?.referencias) ? cand.referencias : [];
     const fam1 = refs.find((r: any) => r.tipo === 'FAMILIAR1');
     const fam2 = refs.find((r: any) => r.tipo === 'FAMILIAR2');
+    const per1 = refs.find((r: any) => r.tipo === 'PERSONAL1');
+    const per2 = refs.find((r: any) => r.tipo === 'PERSONAL2');
 
     this.formVacante.patchValue(
       {
@@ -1145,6 +1151,10 @@ export class FormEntrevistaComponent implements OnInit {
         parentescoReferenciaFamiliar1: fam1?.parentesco || '',
         nombreReferenciaFamiliar2: fam2?.nombre || '',
         parentescoReferenciaFamiliar2: fam2?.parentesco || '',
+        nombreReferenciaPersonal1: per1?.nombre || '',
+        parentescoReferenciaPersonal1: per1?.parentesco || '',
+        nombreReferenciaPersonal2: per2?.nombre || '',
+        parentescoReferenciaPersonal2: per2?.parentesco || '',
       },
       { emitEvent: false }
     );

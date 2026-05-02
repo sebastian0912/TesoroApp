@@ -170,6 +170,12 @@
                         <mat-icon>menu_book</mat-icon>
                         <span>TA Completa</span>
                       </button>
+                      @if (doc.titulo === 'Contrato') {
+                        <button mat-menu-item (click)="generarPDFVariant(doc.titulo, 'administrativo')">
+                          <mat-icon>badge</mat-icon>
+                          <span>Administrativo (Término Fijo)</span>
+                        </button>
+                      }
                     </mat-menu>
                   } @else {
                     <button mat-icon-button class="action-btn action-generar" matTooltip="Generar PDF automático"

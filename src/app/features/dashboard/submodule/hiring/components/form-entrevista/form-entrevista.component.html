@@ -504,6 +504,47 @@
                             </mat-select>
                           </mat-form-field>
                         </div>
+
+                        <div class="section-subtitle" style="margin-top: 24px; margin-bottom: 12px; font-weight: 500; color: #475569;">
+                          Referencias Personales
+                        </div>
+                        <div class="grid-2">
+                          <mat-form-field appearance="outline">
+                            <mat-label>Referencia Personal 1 (Nombre)</mat-label>
+                            <input matInput formControlName="nombreReferenciaPersonal1" />
+                          </mat-form-field>
+
+                          <mat-form-field appearance="outline">
+                            <mat-label>Parentesco</mat-label>
+                            <mat-select formControlName="parentescoReferenciaPersonal1">
+                              <mat-option value="">Ninguno</mat-option>
+                              @for (op of (parentescosOpciones$ | async) ?? []; track op['codigo']) {
+                                <mat-option [value]="op['codigo']">
+                                  {{ op['descripcion'] || op['codigo'] }}
+                                </mat-option>
+                              }
+                            </mat-select>
+                          </mat-form-field>
+                        </div>
+
+                        <div class="grid-2">
+                          <mat-form-field appearance="outline">
+                            <mat-label>Referencia Personal 2 (Nombre)</mat-label>
+                            <input matInput formControlName="nombreReferenciaPersonal2" />
+                          </mat-form-field>
+
+                          <mat-form-field appearance="outline">
+                            <mat-label>Parentesco</mat-label>
+                            <mat-select formControlName="parentescoReferenciaPersonal2">
+                              <mat-option value="">Ninguno</mat-option>
+                              @for (op of (parentescosOpciones$ | async) ?? []; track op['codigo']) {
+                                <mat-option [value]="op['codigo']">
+                                  {{ op['descripcion'] || op['codigo'] }}
+                                </mat-option>
+                              }
+                            </mat-select>
+                          </mat-form-field>
+                        </div>
                       </section>
 
                       <!-- ============================
