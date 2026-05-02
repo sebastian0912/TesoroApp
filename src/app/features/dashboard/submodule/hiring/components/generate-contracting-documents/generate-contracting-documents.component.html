@@ -28,65 +28,191 @@
         <!-- Left Panel: Document List -->
         <article class="docs-list-panel">
 
+          <!-- Header con progreso del expediente -->
           <header class="panel-header">
-            <h2 class="panel-title">Lista de Documentos</h2>
-            <span class="doc-count">{{ documentos.length }} elementos</span>
+            <div class="panel-header-row">
+              <h2 class="panel-title">Lista de Documentos</h2>
+              <span class="progreso-tag" [class.completo]="progresoExpediente.porcentaje === 100">
+                {{ progresoExpediente.completados }}/{{ progresoExpediente.total }} · {{ progresoExpediente.porcentaje }}%
+              </span>
+            </div>
+            <mat-progress-bar
+              class="progreso-bar"
+              mode="determinate"
+              [value]="progresoExpediente.porcentaje"
+              [color]="progresoExpediente.porcentaje === 100 ? 'accent' : 'primary'">
+            </mat-progress-bar>
           </header>
 
-          <div class="docs-list" role="list">
-            @for (doc of documentos; track doc) {
-              <div class="doc-item" role="listitem">
-                <div class="doc-item-icon"
-                  [ngClass]="{'has-file': uploadedFiles[doc.titulo] || existingDocs[doc.titulo]}">
-                  <mat-icon>{{ (uploadedFiles[doc.titulo] || existingDocs[doc.titulo]) ? 'task' : 'insert_drive_file'
-                  }}</mat-icon>
-                </div>
-                <div class="doc-item-info">
-                  <h3 class="doc-item-title" [matTooltip]="doc.titulo">{{ doc.titulo }}</h3>
-                  <p class="doc-item-status">
-                    @if (uploadedFiles[doc.titulo] || existingDocs[doc.titulo]) {
-                      <span
-                      class="status-badge success">Completado</span>
-                    }
-                    @if (!uploadedFiles[doc.titulo] && !existingDocs[doc.titulo]) {
-                      <span
-                      class="status-badge pending">Pendiente</span>
-                    }
-                  </p>
-                  @if (uploadedFiles[doc.titulo] || existingDocs[doc.titulo]?.date) {
-                    <p class="doc-item-date">
-                      Actualizado: {{ uploadedFiles[doc.titulo] ? (today | date:'shortDate') :
-                      (existingDocs[doc.titulo].date | date:'shortDate') }}
-                    </p>
+          <!-- Tabs horizontales con badges -->
+          <mat-tab-group class="docs-tabs"
+            mat-stretch-tabs="false"
+            mat-align-tabs="start"
+            animationDuration="180ms">
+
+            <!-- Tab 1: TODOS -->
+            <mat-tab>
+              <ng-template mat-tab-label>
+                <mat-icon class="tab-icon">view_list</mat-icon>
+                <span>Todos</span>
+                <span class="tab-badge">{{ progresoExpediente.completados }}/{{ progresoExpediente.total }}</span>
+              </ng-template>
+              <div class="docs-list" role="list">
+                @for (doc of documentosOrdenados; track doc.titulo) {
+                  <ng-container *ngTemplateOutlet="docRow; context: { $implicit: doc }"></ng-container>
+                }
+              </div>
+            </mat-tab>
+
+            <!-- Tab 2: AUTO-GENERABLES -->
+            <mat-tab>
+              <ng-template mat-tab-label>
+                <mat-icon class="tab-icon">auto_awesome</mat-icon>
+                <span>Auto-generables</span>
+                <span class="tab-badge">{{ progresoGenerables.completados }}/{{ progresoGenerables.total }}</span>
+              </ng-template>
+              <div class="docs-list" role="list">
+                @if (!docsGenerables.length) {
+                  <div class="docs-empty">
+                    <mat-icon>auto_awesome</mat-icon>
+                    <p>No hay documentos auto-generables.</p>
+                  </div>
+                }
+                @for (doc of docsGenerables; track doc.titulo) {
+                  <ng-container *ngTemplateOutlet="docRow; context: { $implicit: doc }"></ng-container>
+                }
+              </div>
+            </mat-tab>
+
+            <!-- Tab 3: SOLO SUBIDA -->
+            <mat-tab>
+              <ng-template mat-tab-label>
+                <mat-icon class="tab-icon">cloud_upload</mat-icon>
+                <span>Solo subida</span>
+                <span class="tab-badge">{{ progresoSubir.completados }}/{{ progresoSubir.total }}</span>
+              </ng-template>
+              <div class="docs-list" role="list">
+                @if (!docsSubir.length) {
+                  <div class="docs-empty">
+                    <mat-icon>cloud_upload</mat-icon>
+                    <p>No hay documentos de solo subida.</p>
+                  </div>
+                }
+                @for (doc of docsSubir; track doc.titulo) {
+                  <ng-container *ngTemplateOutlet="docRow; context: { $implicit: doc }"></ng-container>
+                }
+              </div>
+            </mat-tab>
+          </mat-tab-group>
+
+          <!-- Template reusable de fila — evita duplicar el HTML por tab -->
+          <ng-template #docRow let-doc>
+            @let estado = estadoDoc(doc);
+            <div class="doc-item" role="listitem"
+              [class.is-completado]="estado !== 'pendiente'"
+              [class.is-pendiente]="estado === 'pendiente'">
+              <!-- Círculo de estado -->
+              <div class="doc-state-circle"
+                [class.completado-local]="estado === 'completado_local'"
+                [class.completado-servidor]="estado === 'completado_servidor'"
+                [class.pendiente]="estado === 'pendiente'">
+                @if (estado === 'completado_local') {
+                  <mat-icon>cloud_upload</mat-icon>
+                } @else if (estado === 'completado_servidor') {
+                  <mat-icon>cloud_done</mat-icon>
+                } @else {
+                  <mat-icon>radio_button_unchecked</mat-icon>
+                }
+              </div>
+
+              <div class="doc-item-info">
+                <h3 class="doc-item-title" [matTooltip]="doc.titulo">{{ doc.titulo }}</h3>
+
+                <p class="doc-item-status">
+                  @if (estado === 'completado_local') {
+                    <span class="status-chip chip-local">
+                      <mat-icon>cached</mat-icon> Listo para subir
+                    </span>
+                  } @else if (estado === 'completado_servidor') {
+                    <span class="status-chip chip-servidor">
+                      <mat-icon>verified</mat-icon> En servidor
+                    </span>
+                  } @else {
+                    <span class="status-chip chip-pendiente">
+                      <mat-icon>schedule</mat-icon> Pendiente
+                    </span>
                   }
-                </div>
-                <div class="doc-item-actions">
-                  @if (!isSubirPDF(doc)) {
-                    <button mat-icon-button class="action-btn" matTooltip="Generar PDF Automático"
+                  @if (uploadedFiles[doc.titulo] || existingDocs[doc.titulo]?.date) {
+                    <span class="doc-item-date">
+                      · {{ uploadedFiles[doc.titulo]
+                          ? (today | date:'shortDate')
+                          : (existingDocs[doc.titulo].date | date:'shortDate') }}
+                    </span>
+                  }
+                </p>
+              </div>
+
+              <div class="doc-item-actions">
+                @if (!isSubirPDF(doc)) {
+                  @if (hasVariants(doc)) {
+                    <!-- Documentos con 2 variantes (básica / TA Completa): mat-menu de selección. -->
+                    <button mat-icon-button class="action-btn action-generar"
+                      matTooltip="Generar PDF (elige variante)"
+                      [matMenuTriggerFor]="variantMenu">
+                      <mat-icon>auto_awesome</mat-icon>
+                    </button>
+                    <mat-menu #variantMenu="matMenu">
+                      <button mat-menu-item (click)="generarPDFVariant(doc.titulo, 'basica')">
+                        <mat-icon>description</mat-icon>
+                        <span>Básica</span>
+                      </button>
+                      <button mat-menu-item (click)="generarPDFVariant(doc.titulo, 'completa')">
+                        <mat-icon>menu_book</mat-icon>
+                        <span>TA Completa</span>
+                      </button>
+                    </mat-menu>
+                  } @else {
+                    <button mat-icon-button class="action-btn action-generar" matTooltip="Generar PDF automático"
                       (click)="generarPDF(doc.titulo)">
-                      <mat-icon class="text-primary">auto_awesome</mat-icon>
+                      <mat-icon>auto_awesome</mat-icon>
                     </button>
                   }
-                  <button mat-icon-button class="action-btn" matTooltip="Ver PDF" (click)="verPDF(doc)"
-                    [disabled]="!uploadedFiles[doc.titulo] && !existingDocs[doc.titulo]">
-                    <mat-icon>visibility</mat-icon>
-                  </button>
-                  <button mat-icon-button class="action-btn" [matMenuTriggerFor]="docMenu"
-                    aria-label="Opciones de documento">
-                    <mat-icon>more_vert</mat-icon>
-                  </button>
-                  <mat-menu #docMenu="matMenu">
+                }
+                <button mat-icon-button class="action-btn" matTooltip="Ver PDF" (click)="verPDF(doc)"
+                  [disabled]="!uploadedFiles[doc.titulo] && !existingDocs[doc.titulo]">
+                  <mat-icon>visibility</mat-icon>
+                </button>
+                <button mat-icon-button class="action-btn" [matMenuTriggerFor]="docMenu"
+                  aria-label="Opciones de documento">
+                  <mat-icon>more_vert</mat-icon>
+                </button>
+                <mat-menu #docMenu="matMenu">
+                  @if (doc.titulo === 'Ficha Técnica') {
+                    <!-- Ficha Técnica: typeId distinto en backend (34 vs 111). El menú permite elegir. -->
+                    <label mat-menu-item class="upload-label-menu"
+                      style="cursor: pointer; width: 100%; display: flex; align-items: center;">
+                      <input type="file" hidden (change)="subirArchivoVariant($event, doc.titulo, 'basica')" accept=".pdf" />
+                      <mat-icon class="text-accent">cloud_upload</mat-icon>
+                      <span>Subir Básica (PDF)</span>
+                    </label>
+                    <label mat-menu-item class="upload-label-menu"
+                      style="cursor: pointer; width: 100%; display: flex; align-items: center;">
+                      <input type="file" hidden (change)="subirArchivoVariant($event, doc.titulo, 'completa')" accept=".pdf" />
+                      <mat-icon class="text-accent">cloud_upload</mat-icon>
+                      <span>Subir TA Completa (PDF)</span>
+                    </label>
+                  } @else {
                     <label mat-menu-item class="upload-label-menu"
                       style="cursor: pointer; width: 100%; display: flex; align-items: center;">
                       <input type="file" hidden (change)="subirArchivo($event, doc.titulo)" accept=".pdf" />
                       <mat-icon class="text-accent">cloud_upload</mat-icon>
                       <span>Subir PDF Manual</span>
                     </label>
-                  </mat-menu>
-                </div>
+                  }
+                </mat-menu>
               </div>
-            }
-          </div>
+            </div>
+          </ng-template>
 
           <!-- Bottom Action -->
           <footer class="panel-actions">

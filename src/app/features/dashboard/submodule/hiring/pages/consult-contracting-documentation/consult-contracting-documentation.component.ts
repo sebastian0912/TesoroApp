@@ -25,7 +25,7 @@ import { OrdenUnionDialogComponent } from '../../components/orden-union-dialog/o
 
 import { saveAs } from 'file-saver';
 import { UtilityServiceService } from '@/app/shared/services/utilityService/utility-service.service';
-import { ContratacionMetricasApiService } from '@/app/features/dashboard/submodule/metricas/domains/contratacion/services/contratacion-metricas-api.service';
+import { DateRangeDialogComponent } from '@/app/shared/components/date-rang-dialog/date-rang-dialog.component';
 
 // ✅ StandardFilterTable (tu tabla nueva)
 import { StandardFilterTable } from '@/app/shared/components/standard-filter-table/standard-filter-table';
@@ -66,6 +66,8 @@ type Row = {
   fecha_ingreso?: string | Date | null;
   codigo_contrato?: string | null;
   fecha_contratacion?: string | Date | null;
+  /** Oficina (sede) registrada en la última entrevista del candidato. */
+  oficina_entrevista?: string | null;
   /** Mapa type_id -> DocCell */
   docs: Record<number, DocCell>;
 };
@@ -85,6 +87,8 @@ type ChecklistItemDto = {
   fecha_ingreso?: string | null;
   codigo_contrato?: string | null;
   fecha_contratacion?: string | null;
+  /** Oficina/sede de la última entrevista (gestion_contratacion). */
+  oficina_entrevista?: string | null;
   docs?: ChecklistDocDto[];
 };
 
@@ -113,7 +117,6 @@ export class ConsultContractingDocumentationComponent implements OnInit {
   private readonly utilityService = inject(UtilityServiceService);
   private readonly titleService = inject(Title);
   private readonly metaService = inject(Meta);
-  private readonly metricasService = inject(ContratacionMetricasApiService);
 
   // --------- Ajustes para masivo ----------
   private readonly MAX_POST_BATCH = 1500;
@@ -131,21 +134,18 @@ export class ConsultContractingDocumentationComponent implements OnInit {
   /** Últimas cédulas consultadas (para reconsultar sin re-pegar) */
   lastQueriedCedulas: string[] = [];
 
-  // --------- Consulta automática por oficinas/estados (HOY) ----------
-  /** Estados del pipeline consultables. La clave coincide con el campo `*_at` en ProcesoCandidato. */
-  readonly STAGE_OPTIONS: ReadonlyArray<{ key: 'entrevistado_at' | 'prueba_tecnica_at' | 'autorizado_at' | 'examenes_medicos_at' | 'contratado_at'; label: string }> = [
-    { key: 'entrevistado_at', label: 'Entrevistado' },
-    { key: 'prueba_tecnica_at', label: 'Prueba técnica' },
-    { key: 'autorizado_at', label: 'Autorizado' },
-    { key: 'examenes_medicos_at', label: 'Exámenes médicos' },
-    { key: 'contratado_at', label: 'Contratado' },
-  ];
+  // --------- Consulta automática por sede + rango de fechas ----------
+  /**
+   * Sedes registradas en gestion_admin (catálogo). Sus nombres deben coincidir con
+   * `Entrevista.oficina` para que la consulta automática funcione.
+   */
+  sedesDisponibles: string[] = [];
+  selectedSedes: string[] = [];
 
-  /** Oficinas con procesos hoy, derivadas de `funnel_oficina` del endpoint metricas-temporal. */
-  oficinasDisponibles: string[] = [];
-  selectedOficinas: string[] = [];
-  selectedStages: Array<typeof this.STAGE_OPTIONS[number]['key']> = ['entrevistado_at'];
-  isLoadingOficinas = false;
+  /** Rango de fechas elegido en el dialog (YYYY-MM-DD); ambos opcionales pero la UI exige uno. */
+  rangoFechas: { start: string | null; end: string | null } | null = null;
+
+  isLoadingSedes = false;
   isLoadingAuto = false;
 
   // --------- columnas dinámicas ----------
@@ -174,6 +174,13 @@ export class ConsultContractingDocumentationComponent implements OnInit {
   isLoadingChecklist = false;
   checklistColumns: ColumnDefinition[] = [];
   checklistRows: any[] = [];
+
+  /**
+   * Cédulas cuya última entrevista es en ADMINISTRATIVOS y que han sido excluidas
+   * de la tabla (sólo GERENCIA puede ver sus documentos). Se muestran como un banner
+   * informativo para que el usuario sepa cuáles son.
+   */
+  restrictedAdminItems: Array<{ cedula: string; nombre: string }> = [];
 
   // =========================
   // ✅ Tipos documentales sujetos a la regla de 15 días respecto a la fecha de contrato.
@@ -257,101 +264,99 @@ export class ConsultContractingDocumentationComponent implements OnInit {
 
     this.cdr.markForCheck();
 
-    // Cargar oficinas con actividad de hoy (para el selector de consulta automática).
-    this.cargarOficinasDeHoy();
+    // Cargar las sedes (gestion_admin) para el selector de consulta automática.
+    this.cargarSedes();
   }
 
   // ✅ Fix para *ngFor trackBy
   trackByTipo = (_: number, t: TipoHeader) => t.id;
 
   /**
-   * Carga la lista de oficinas consultables. Estrategia:
-   *  1. `/procesos/metricas-temporal/?temporal=hoy` → `funnel_oficina` (todas las oficinas con
-   *     cualquier movimiento hoy). Si está vacío, intenta con `por_oficina` (solo contratados)
-   *     y con las oficinas que aparezcan en `rows[]`.
-   *  2. Fallback: lee `/entrevistas/?limit=2000&ordering=-created_at` y extrae las oficinas
-   *     más recientes (cubre "nada hoy, pero sí hay oficinas registradas").
+   * Carga el catálogo de sedes desde gestion_admin.
+   * `Sede.nombre` es el valor que se compara contra `Entrevista.oficina`.
    */
-  private cargarOficinasDeHoy(): void {
-    this.isLoadingOficinas = true;
-    this.metricasService
-      .fetchMetricasTemporal('hoy', '', '')
+  private cargarSedes(): void {
+    this.isLoadingSedes = true;
+    this.utilityService
+      .traerSucursales()
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (resp: any) => {
+          const list: any[] = Array.isArray(resp)
+            ? resp
+            : Array.isArray(resp?.results)
+              ? resp.results
+              : [];
           const set = new Set<string>();
-
-          const pushFrom = (arr: any[], keys: string[]) => {
-            if (!Array.isArray(arr)) return;
-            for (const row of arr) {
-              for (const k of keys) {
-                const v = String(row?.[k] ?? '').trim();
-                if (v) { set.add(v); break; }
-              }
-            }
-          };
-
-          pushFrom(resp?.funnel_oficina ?? resp?.funnelOficina, ['oficina', 'name']);
-          pushFrom(resp?.por_oficina ?? resp?.porOficina, ['name', 'oficina']);
-          pushFrom(resp?.rows, ['oficina']);
-
-          if (!set.size) {
-            // Fallback silencioso: las oficinas más recientes registradas en Entrevista.
-            this.cargarOficinasDesdeEntrevistas();
-            return;
+          for (const s of list) {
+            const nombre = String(s?.nombre ?? '').trim();
+            if (nombre) set.add(nombre);
           }
-
-          this.oficinasDisponibles = Array.from(set).sort((a, b) => a.localeCompare(b, 'es'));
-          this.isLoadingOficinas = false;
+          this.sedesDisponibles = Array.from(set).sort((a, b) => a.localeCompare(b, 'es'));
+          this.isLoadingSedes = false;
           this.cdr.markForCheck();
         },
         error: (err: any) => {
-          console.warn('[consult-docs] metricas-temporal falló; probando entrevistas:', err);
-          this.cargarOficinasDesdeEntrevistas();
+          console.error('[consult-docs] No se pudieron cargar sedes:', err);
+          this.sedesDisponibles = [];
+          this.isLoadingSedes = false;
+          this.cdr.markForCheck();
         },
       });
   }
 
-  /** Fallback: trae las oficinas desde el listado reciente de entrevistas. */
-  private cargarOficinasDesdeEntrevistas(): void {
-    // Reusamos entrevistasRaw$ del service de métricas (limit=2000, ordering=-created_at)
-    this.metricasService.entrevistasRaw$
+  /** Recarga manual de sedes (botón en el panel de consulta automática). */
+  refrescarSedes(): void {
+    this.cargarSedes();
+  }
+
+  /** Texto humano para mostrar el rango seleccionado. */
+  get rangoFechasLabel(): string {
+    if (!this.rangoFechas?.start && !this.rangoFechas?.end) return 'Sin rango seleccionado';
+    const s = this.rangoFechas?.start ?? '—';
+    const e = this.rangoFechas?.end ?? '—';
+    return `${s}  →  ${e}`;
+  }
+
+  /** Abre el dialog compartido para escoger el rango de fechas. */
+  abrirDialogoRangoFechas(): void {
+    this.dialog
+      .open(DateRangeDialogComponent, {
+        width: '420px',
+        autoFocus: false,
+        restoreFocus: false,
+      })
+      .afterClosed()
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: (entrevistas: any[]) => {
-          const set = new Set<string>();
-          for (const e of entrevistas ?? []) {
-            const v = String(e?.oficina ?? '').trim();
-            if (v) set.add(v);
-          }
-          this.oficinasDisponibles = Array.from(set).sort((a, b) => a.localeCompare(b, 'es'));
-          this.isLoadingOficinas = false;
-          this.cdr.markForCheck();
-        },
-        error: (err: any) => {
-          console.error('[consult-docs] No se pudieron cargar oficinas:', err);
-          this.oficinasDisponibles = [];
-          this.isLoadingOficinas = false;
-          this.cdr.markForCheck();
-        },
+      .subscribe((res: { start: string | null; end: string | null } | undefined) => {
+        if (!res) return;
+        if (!res.start && !res.end) {
+          this.rangoFechas = null;
+        } else {
+          this.rangoFechas = { start: res.start, end: res.end };
+        }
+        this.cdr.markForCheck();
       });
-  }
-
-  /** Recarga manual de oficinas (botón en el panel de consulta automática). */
-  refrescarOficinas(): void {
-    this.cargarOficinasDeHoy();
   }
 
   /**
-   * Trae automáticamente las cédulas que hoy pasaron por los estados/oficinas
-   * seleccionados y dispara la consulta de documentos con ellas.
+   * Trae las cédulas de candidatos cuya entrevista esté en alguna de las sedes
+   * seleccionadas y dentro del rango. Reutiliza el flujo masivo existente.
    */
   async traerCedulasAutomaticas(): Promise<void> {
-    if (!this.selectedOficinas.length || !this.selectedStages.length) {
+    if (!this.selectedSedes.length) {
       Swal.fire({
         icon: 'info',
-        title: 'Filtros incompletos',
-        text: 'Selecciona al menos una oficina y un estado.',
+        title: 'Sede requerida',
+        text: 'Selecciona al menos una sede para continuar.',
+      });
+      return;
+    }
+    if (!this.rangoFechas?.start || !this.rangoFechas?.end) {
+      Swal.fire({
+        icon: 'info',
+        title: 'Rango de fechas requerido',
+        text: 'Selecciona un rango de fechas (inicio y fin) antes de consultar.',
       });
       return;
     }
@@ -360,49 +365,40 @@ export class ConsultContractingDocumentationComponent implements OnInit {
     this.cdr.markForCheck();
 
     Swal.fire({
-      title: 'Buscando candidatos de hoy...',
-      text: `Oficinas: ${this.selectedOficinas.length} · Estados: ${this.selectedStages.length}`,
+      title: 'Buscando candidatos...',
+      text: `Sedes: ${this.selectedSedes.length} · ${this.rangoFechas.start} → ${this.rangoFechas.end}`,
       allowOutsideClick: false,
       allowEscapeKey: false,
       didOpen: () => Swal.showLoading(),
     });
 
     try {
-      const calls: Promise<string[]>[] = [];
-      for (const ofi of this.selectedOficinas) {
-        for (const stage of this.selectedStages) {
-          calls.push(
-            firstValueFrom(
-              this.metricasService.fetchSegmentDocs(
-                { temporal: 'hoy' },
-                { kind: 'oficina', value: ofi, stage },
-              ),
-            ),
-          );
-        }
-      }
+      const resp = await firstValueFrom(
+        this.gestionDocumentalService.getCedulasPorOficina(
+          this.selectedSedes,
+          this.rangoFechas.start,
+          this.rangoFechas.end,
+        ),
+      );
 
-      const resultados = await Promise.all(calls);
       const unique = new Set<string>();
-      for (const arr of resultados) {
-        for (const c of arr ?? []) {
-          const digits = String(c ?? '').replace(/\D+/g, '');
-          if (digits) unique.add(digits);
-        }
+      for (const c of resp?.docs ?? []) {
+        const digits = String(c ?? '').replace(/\D+/g, '');
+        if (digits) unique.add(digits);
       }
 
       if (!unique.size) {
+        if (Swal.isVisible()) Swal.close();
         Swal.fire({
           icon: 'info',
           title: 'Sin resultados',
-          text: 'No se encontraron candidatos hoy con esos filtros.',
+          text: 'No se encontraron candidatos con esos filtros.',
         });
         return;
       }
 
       const cedulas = Array.from(unique);
-      // Alimentamos el textarea para que el usuario vea qué se está consultando y
-      // reutilizamos el mismo flujo (parseo, batching, render, exportes).
+      // Alimentamos el textarea para visibilidad y reutilizamos el flujo existente.
       this.cedulaControl.setValue(cedulas.join('\n'));
       this.procesarCedulasPegadas(cedulas.join('\n'));
     } catch (err: any) {
@@ -417,6 +413,22 @@ export class ConsultContractingDocumentationComponent implements OnInit {
       this.isLoadingAuto = false;
       this.cdr.markForCheck();
     }
+  }
+
+  /**
+   * ¿el usuario actual puede ver candidatos cuya última entrevista es ADMINISTRATIVOS?
+   * Regla del negocio: SOLO el rol GERENCIA. El resto no debe verlos en la tabla
+   * ni en exportes ni en consultas automáticas.
+   */
+  canViewAdministrativos(): boolean {
+    const rol = String(this.user?.rol?.nombre ?? '').trim().toUpperCase();
+    return rol === 'GERENCIA';
+  }
+
+  /** Match laxo de "ADMINISTRATIVOS" tolerante a espacios y acentos. */
+  private isAdministrativos(oficina: string | null | undefined): boolean {
+    if (!oficina) return false;
+    return this.normName(oficina) === 'ADMINISTRATIVOS';
   }
 
   /** ✅ Abrir PDF cuando el estado sea OK o WARN */
@@ -832,7 +844,34 @@ export class ConsultContractingDocumentationComponent implements OnInit {
       }
 
       // MAPPING (Heavy Sync Operation) - Optimizado O(N)
-      const itemsList = resp?.items ?? [];
+      const rawItems: ChecklistItemDto[] = Array.isArray(resp?.items) ? resp.items : [];
+
+      // Restricción: los documentos de candidatos cuya última entrevista es en
+      // ADMINISTRATIVOS sólo se muestran al rol GERENCIA. Para el resto:
+      //  - los excluimos de la tabla principal (y por ende del Excel/ZIP),
+      //  - pero los listamos en un banner aparte para que el usuario sepa
+      //    QUÉ cédulas quedaron restringidas (la consulta de 15 cédulas no
+      //    desaparece silenciosamente).
+      let itemsList: ChecklistItemDto[];
+      if (this.canViewAdministrativos()) {
+        itemsList = rawItems;
+        this.restrictedAdminItems = [];
+      } else {
+        itemsList = [];
+        const restricted: Array<{ cedula: string; nombre: string }> = [];
+        for (const it of rawItems) {
+          if (this.isAdministrativos(it?.oficina_entrevista)) {
+            restricted.push({
+              cedula: String(it?.cedula ?? ''),
+              nombre: String(it?.nombre_completo ?? ''),
+            });
+          } else {
+            itemsList.push(it);
+          }
+        }
+        this.restrictedAdminItems = restricted;
+      }
+
       const len = itemsList.length;
       const rows: Row[] = new Array(len);
       const mappedRows: any[] = new Array(len);
@@ -1013,6 +1052,9 @@ export class ConsultContractingDocumentationComponent implements OnInit {
     this.checklistRows = [];
     this.checklistColumns = [];
     this.isLoadingChecklist = false;
+
+    // Banner de restringidos (ADMINISTRATIVOS)
+    this.restrictedAdminItems = [];
   }
 
   /** ---------- FILTRO DE TABLA (si aún usas MatTable) ---------- */
@@ -1201,6 +1243,7 @@ export class ConsultContractingDocumentationComponent implements OnInit {
       fecha_ingreso: it?.fecha_ingreso ?? '',
       codigo_contrato: it?.codigo_contrato ?? '',
       fecha_contratacion: it?.fecha_contratacion ?? '',
+      oficina_entrevista: it?.oficina_entrevista ?? '',
     };
 
     const row: Row = { ...baseRow, docs: docsMap };

@@ -1,18 +1,43 @@
 <div class="contenedor">
   <form class="formulario" [formGroup]="formVacante" autocomplete="off" (ngSubmit)="onSubmit()">
 
+    <!-- Navegación rápida entre secciones (smooth scroll a cada anchor) -->
+    <nav class="form-nav" aria-label="Navegación del formulario">
+      <a class="form-nav-chip" href="javascript:void(0)" (click)="scrollToSection('sec-identificacion')">
+        <mat-icon>badge</mat-icon> Identificación
+      </a>
+      <a class="form-nav-chip" href="javascript:void(0)" (click)="scrollToSection('sec-datos-personales')">
+        <mat-icon>person</mat-icon> Datos
+      </a>
+      <a class="form-nav-chip" href="javascript:void(0)" (click)="scrollToSection('sec-contacto')">
+        <mat-icon>home</mat-icon> Contacto
+      </a>
+      <a class="form-nav-chip" href="javascript:void(0)" (click)="scrollToSection('sec-familia')">
+        <mat-icon>diversity_3</mat-icon> Familia
+      </a>
+      <a class="form-nav-chip" href="javascript:void(0)" (click)="scrollToSection('sec-formacion')">
+        <mat-icon>school</mat-icon> Formación
+      </a>
+      <a class="form-nav-chip" href="javascript:void(0)" (click)="scrollToSection('sec-laboral')">
+        <mat-icon>work_history</mat-icon> Laboral
+      </a>
+      <a class="form-nav-chip" href="javascript:void(0)" (click)="scrollToSection('sec-entrevista')">
+        <mat-icon>rate_review</mat-icon> Entrevista
+      </a>
+    </nav>
+
     <div class="form-sections">
 
       <!-- ============================
       1. Identificación
       ============================= -->
-      <section class="section">
+      <section class="section" id="sec-identificacion">
         <div class="section-head">
-          <h3 class="section-title">
+          <span class="section-icon-wrap section-icon-blue">
             <mat-icon inline="true" aria-hidden="true">badge</mat-icon>
-            &nbsp;Identificación y documento
-          </h3>
-          <mat-divider></mat-divider>
+          </span>
+          <h3 class="section-title">Identificación y documento</h3>
+          <mat-divider class="section-divider"></mat-divider>
         </div>
 
         <div class="datos">
@@ -97,13 +122,13 @@
           <!-- ============================
           2. Datos personales
           ============================= -->
-          <section class="section">
+          <section class="section" id="sec-datos-personales">
             <div class="section-head">
-              <h3 class="section-title">
+              <span class="section-icon-wrap section-icon-indigo">
                 <mat-icon inline="true" aria-hidden="true">person</mat-icon>
-                &nbsp;Datos personales y nacimiento
-              </h3>
-              <mat-divider></mat-divider>
+              </span>
+              <h3 class="section-title">Datos personales y nacimiento</h3>
+              <mat-divider class="section-divider"></mat-divider>
             </div>
 
             <div class="datos">
@@ -216,13 +241,13 @@
           <!-- ============================
           3. Contacto y domicilio
           ============================= -->
-          <section class="section">
+          <section class="section" id="sec-contacto">
             <div class="section-head">
-              <h3 class="section-title">
+              <span class="section-icon-wrap section-icon-green">
                 <mat-icon inline="true" aria-hidden="true">home</mat-icon>
-                &nbsp;Contacto y domicilio
-              </h3>
-              <mat-divider></mat-divider>
+              </span>
+              <h3 class="section-title">Contacto y domicilio</h3>
+              <mat-divider class="section-divider"></mat-divider>
             </div>
 
             <div class="datos">
@@ -346,13 +371,13 @@
                   <!-- ============================
                   4. Información familiar
                   ============================= -->
-                  <section class="section">
+                  <section class="section" id="sec-familia">
                     <div class="section-head">
-                      <h3 class="section-title">
+                      <span class="section-icon-wrap section-icon-purple">
                         <mat-icon inline="true" aria-hidden="true">diversity_3</mat-icon>
-                        &nbsp;Información familiar
-                      </h3>
-                      <mat-divider></mat-divider>
+                      </span>
+                      <h3 class="section-title">Información familiar</h3>
+                      <mat-divider class="section-divider"></mat-divider>
                     </div>
 
                     <div class="grid-2" [formGroup]="formVacante">
@@ -484,13 +509,13 @@
                       <!-- ============================
                       5. Formación y experiencia
                       ============================= -->
-                      <section class="section">
+                      <section class="section" id="sec-formacion">
                         <div class="section-head">
-                          <h3 class="section-title">
+                          <span class="section-icon-wrap section-icon-cyan">
                             <mat-icon inline="true" aria-hidden="true">school</mat-icon>
-                            &nbsp;Formación y experiencia en flores
-                          </h3>
-                          <mat-divider></mat-divider>
+                          </span>
+                          <h3 class="section-title">Formación y experiencia en flores</h3>
+                          <mat-divider class="section-divider"></mat-divider>
                         </div>
 
                         <div class="datos">
@@ -579,12 +604,12 @@
                         <!-- ============================
                         6. Historial laboral
                         ============================= -->
-                        <section class="section">
+                        <section class="section" id="sec-laboral">
                           <div class="section-head">
-                            <h3 class="section-title">
+                            <span class="section-icon-wrap section-icon-amber">
                               <mat-icon inline="true" aria-hidden="true">work_history</mat-icon>
-                              &nbsp;Historial laboral
-                            </h3>
+                            </span>
+                            <h3 class="section-title">Historial laboral</h3>
 
                             <span class="spacer"></span>
 
@@ -639,10 +664,14 @@
                         <!-- ============================
                         7. Entrevista
                         ============================= -->
-                        <section class="section outline-section">
-                          <h3 class="section-title centered-title">
-                            Entrevista
-                          </h3>
+                        <section class="section outline-section" id="sec-entrevista">
+                          <div class="section-head">
+                            <span class="section-icon-wrap section-icon-pink">
+                              <mat-icon inline="true" aria-hidden="true">rate_review</mat-icon>
+                            </span>
+                            <h3 class="section-title">Entrevista</h3>
+                            <mat-divider class="section-divider"></mat-divider>
+                          </div>
 
                           <div class="grid-managerial-entrevista">
                             <!-- ¿Cómo se enteró? -->
@@ -814,23 +843,21 @@
                         <!-- ============================
                         8. Confirmación y Envío
                         ============================= -->
-                        <section class="section outline-section">
-                          <h3 class="section-title">
-                            <mat-icon style="vertical-align: middle; color: #1e293b; margin-right: 8px;">check_circle</mat-icon>
-                            Confirmación
-                          </h3>
-                          <p style="margin-top: 8px; color: #475569; font-size: 0.95rem;">
-                            Revisa que la información sea correcta antes de enviar.
-                          </p>
+                      </div>
+                      <!-- /form-sections — cerramos aquí para que la barra de Enviar
+                           sea hermano del scrollable, no hijo (queda fija abajo). -->
 
-                          <div class="form-actions" style="margin-top: 24px; text-align: right; display: block; padding-bottom: 60px;">
-                            <button type="submit" mat-flat-button color="primary" class="submit-button"
-                              style="width: auto; padding: 0 40px;">
-                              Enviar
-                            </button>
-                          </div>
-                        </section>
-
+                      <!-- Barra de Enviar (siempre visible, fuera del scroll) -->
+                      <div class="sticky-actions-bar">
+                        <span class="sticky-actions-hint">
+                          <mat-icon>info</mat-icon>
+                          Revisa la información antes de enviar
+                        </span>
+                        <button type="submit" mat-flat-button color="primary" class="submit-button-sticky"
+                                [disabled]="isSubmitting">
+                          <mat-icon>{{ isSubmitting ? 'hourglass_empty' : 'send' }}</mat-icon>
+                          {{ isSubmitting ? 'Enviando...' : 'Enviar' }}
+                        </button>
                       </div>
                     </form>
                   </div>

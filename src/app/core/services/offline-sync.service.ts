@@ -13,6 +13,10 @@ interface SyncQueueItem {
   timestamp: string;
   status: string;
   body_type?: 'json' | 'multipart';
+  idempotency_key?: string | null;
+  user_id?: string | null;
+  last_error?: string | null;
+  attempt_count?: number;
 }
 
 interface StoredFile {
@@ -30,6 +34,7 @@ export class OfflineSyncService {
   private isSyncing = false;
   private isRefreshing = false;
   public pendingCount$ = new BehaviorSubject<number>(0);
+  public failedCount$ = new BehaviorSubject<number>(0);
   public syncProgress$ = new BehaviorSubject<{ current: number; total: number; phase: string } | null>(null);
 
   private get electron(): any {
@@ -49,18 +54,42 @@ export class OfflineSyncService {
     });
 
     this.updatePendingCount();
+    this.updateFailedCount();
+  }
+
+  private getCurrentUserId(): string | null {
+    if (typeof localStorage === 'undefined') return null;
+    try {
+      const raw = localStorage.getItem('user');
+      if (!raw) return null;
+      const u = JSON.parse(raw);
+      return String(u?.numero_de_documento ?? u?.id ?? '') || null;
+    } catch {
+      return null;
+    }
   }
 
   /**
    * Sincroniza la cola de peticiones pendientes cuando vuelve la conexión.
    * Reenvía cada petición al backend en orden cronológico.
+   *
+   * Filtra por user_id actual: si en el equipo se logueó otro usuario, sus
+   * mutaciones NO se reproducen con el token del nuevo (se quedan pendientes
+   * hasta que el dueño re-loguee).
    */
   async syncQueue(): Promise<void> {
     if (this.isSyncing || !this.electron?.db) return;
     this.isSyncing = true;
 
     try {
-      const pending: SyncQueueItem[] = await this.electron.db.getPendingRequests();
+      const userId = this.getCurrentUserId();
+      // Si no hay sesión, no replayemos nada (evita pegar al backend con
+      // requests sin token cuando el usuario está en pantalla de login).
+      if (!userId) {
+        return;
+      }
+
+      const pending: SyncQueueItem[] = await this.electron.db.getPendingRequests({ userId });
       if (!pending || pending.length === 0) return;
 
       const total = pending.length;
@@ -83,44 +112,106 @@ export class OfflineSyncService {
             const reconstructed = await this.rebuildFormData(item);
             if (!reconstructed) {
               // Algún archivo desapareció (cleanup, antivirus, usuario borró).
-              // Marcamos como failed y seguimos: no tiene sentido reintentar.
-              console.warn(`[Sync] Archivos faltantes para request ${item.id}. Marcada como fallida.`);
-              await this.electron.db.markRequestStatus({ id: item.id, status: 'failed' });
+              // No tiene sentido reintentar; marcamos failed con motivo claro.
+              const reason = 'Archivos adjuntos no disponibles en disco';
+              console.warn(`[Sync] ${reason} para request ${item.id}.`);
+              await this.electron.db.markRequestStatus({ id: item.id, status: 'failed', error: reason });
               failed++;
+              this.notifyFailed(item, reason);
               continue;
             }
             body = reconstructed;
+          } else if (item.body_type === 'json') {
+            // Estricto: si la fila se marcó como JSON, debe parsear como JSON.
+            // Antes el fallback era usar `item.body` como string crudo, lo que
+            // permitía a otro proceso del mismo usuario inyectar bodies
+            // arbitrarios editando la DB. Ahora si no parsea, marcamos failed.
+            try {
+              body = item.body ? JSON.parse(item.body) : null;
+            } catch (e) {
+              const reason = 'Body JSON corrupto en la cola offline';
+              console.warn(`[Sync] ${reason} (id=${item.id}):`, e);
+              await this.electron.db.markRequestStatus({ id: item.id, status: 'failed', error: reason });
+              failed++;
+              this.notifyFailed(item, reason);
+              continue;
+            }
           } else if (item.body) {
+            // Filas pre-v3 sin body_type: parse tolerante (lo que había antes).
             try { body = JSON.parse(item.body); } catch { body = item.body; }
           }
 
-          // X-Offline-Sync evita que el interceptor offline re-encole esta petición si falla
-          await firstValueFrom(
+          // X-Offline-Sync evita que el interceptor offline re-encole esta petición si falla.
+          // X-Idempotency-Key permite al backend deduplicar replays cuando un crash mid-replay
+          // deja la fila sin borrar y al siguiente boot se reproduce (ver E6 en el reporte).
+          const headers: Record<string, string> = { 'X-Offline-Sync': 'true' };
+          if (item.idempotency_key) headers['X-Idempotency-Key'] = item.idempotency_key;
+
+          const response = await firstValueFrom(
             this.http.request(item.method, item.url, {
               body,
-              headers: new HttpHeaders({ 'X-Offline-Sync': 'true' })
+              headers: new HttpHeaders(headers),
+              observe: 'response',
             })
           );
 
-          // deleteRequest borra también los archivos del disco (FK CASCADE limpia la DB).
+          // Borramos la fila ANTES de la reconciliación: si el evento listener
+          // crashea, al menos no re-reproducimos.
           await this.electron.db.deleteRequest(item.id);
+
+          // Reconciliación: emitir el response real para que las features
+          // puedan reemplazar el id falso (-fakeId) en sus vistas con el id
+          // que devolvió el backend. Esto antes se descartaba.
+          try {
+            window.dispatchEvent(new CustomEvent('offline-request-synced', {
+              detail: {
+                queueId: item.id,
+                tempId: -item.id,
+                method: item.method,
+                url: item.url,
+                response: response?.body ?? null,
+              },
+            }));
+          } catch { /* noop */ }
+
+          // Invalidar cache de listadores que apuntan al recurso padre.
+          // Ej: POST /a/b/c/ → invalida URLs que contienen /a/b/c
+          // Ej: PUT /a/b/c/123/ → invalida URLs que contienen /a/b/c/
+          await this.invalidateRelatedCache(item.url, item.method).catch(() => null);
+
           synced++;
         } catch (error: any) {
           const status = error?.status || 0;
 
           if (status >= 400 && status < 500 && status !== 401) {
-            // Error del cliente (datos inválidos, etc.) — no se puede reintentar.
-            // markRequestStatus('failed') libera los archivos del disco.
+            // Error del cliente (datos inválidos, validación cambió, etc.).
+            // No se puede reintentar automáticamente; queda en 'failed' con
+            // motivo y archivos preservados para que el usuario pueda
+            // reintentar manualmente desde la UI o descartar.
+            const reason = this.summarizeError(error);
             console.warn(`[Sync] Solicitud ${item.id} falló con ${status}. Marcada como fallida.`);
-            await this.electron.db.markRequestStatus({ id: item.id, status: 'failed' });
+            await this.electron.db.markRequestStatus({ id: item.id, status: 'failed', error: reason });
             failed++;
+            this.notifyFailed(item, reason);
           } else if (status === 401) {
             // Token expirado — pausar sync, el usuario debe re-loguearse
             console.warn('[Sync] Token expirado (401). Sync pausado.');
             break;
           } else {
-            // Error de servidor (5xx) o sin red (0) — parar e intentar después
-            console.warn(`[Sync] Error ${status} en solicitud ${item.id}. Se reintentará después.`);
+            // Error de servidor (5xx) o sin red (0) — registrar last_error y
+            // bumpear attempt_count para diagnóstico, luego parar e intentar
+            // después. La fila SIGUE en 'pending' (no marcamos failed); solo
+            // dejamos rastro para que la UI de cola pueda mostrar "X reintentos
+            // han fallado, último error: Y" y el usuario sepa que algo va mal
+            // aunque no tenga toast.
+            const reason = this.summarizeError(error);
+            console.warn(`[Sync] Error ${status} en solicitud ${item.id} (${reason}). Se reintentará después.`);
+            try {
+              await this.electron.db.markRequestStatus({ id: item.id, status: 'pending', error: reason });
+              window.dispatchEvent(new CustomEvent('offline-request-stalled', {
+                detail: { queueId: item.id, method: item.method, url: item.url, reason },
+              }));
+            } catch { /* noop, no es crítico */ }
             break;
           }
         }
@@ -133,7 +224,73 @@ export class OfflineSyncService {
       this.isSyncing = false;
       this.syncProgress$.next(null);
       this.updatePendingCount();
+      this.updateFailedCount();
       window.dispatchEvent(new CustomEvent('offline-queue-updated'));
+    }
+  }
+
+  private summarizeError(error: any): string {
+    try {
+      const status = error?.status || 0;
+      const msg = error?.error?.detail || error?.error?.message || error?.message || 'Error desconocido';
+      return `${status}: ${String(msg).slice(0, 500)}`;
+    } catch {
+      return 'Error desconocido';
+    }
+  }
+
+  private notifyFailed(item: SyncQueueItem, reason: string): void {
+    try {
+      window.dispatchEvent(new CustomEvent('offline-request-failed', {
+        detail: {
+          queueId: item.id,
+          method: item.method,
+          url: item.url,
+          reason,
+          attemptCount: (item.attempt_count || 0) + 1,
+        },
+      }));
+    } catch { /* noop */ }
+  }
+
+  /**
+   * Invalida entradas del cache que el replay acaba de hacer obsoletas.
+   *
+   * Heurística simple: para una request de mutación a /a/b/c/[id]/, todas las
+   * URLs cacheadas que contengan /a/b/c/ se borran. La próxima vez que el
+   * cliente las pida, irán al backend (que ya tiene el cambio) y se re-cachean.
+   *
+   * Es burda pero correcta: el costo es algunos GETs extra al volver a una
+   * vista; el beneficio es no mostrar listas viejas tras una creación o
+   * edición offline.
+   */
+  private async invalidateRelatedCache(url: string, method: string): Promise<void> {
+    if (!this.electron?.db?.cacheInvalidatePrefix) return;
+    if (!['POST', 'PUT', 'PATCH', 'DELETE'].includes(method.toUpperCase())) return;
+
+    let pathname: string;
+    try {
+      const u = new URL(url, 'http://placeholder.local'); // base por si url es relativa
+      pathname = u.pathname;
+    } catch {
+      return;
+    }
+
+    const segments = pathname.split('/').filter(Boolean);
+    if (segments.length === 0) return;
+
+    // Si el último segmento parece un id/uuid, descartarlo para apuntar al
+    // padre. Si no, usar el path completo (POST /a/b/c/ → /a/b/c/).
+    const last = segments[segments.length - 1];
+    const looksLikeId = /^[0-9]+$/.test(last) || /^[0-9a-f-]{8,}$/i.test(last);
+    const parentSegments = looksLikeId ? segments.slice(0, -1) : segments;
+    if (parentSegments.length === 0) return;
+
+    const prefix = '/' + parentSegments.join('/') + '/';
+    try {
+      await this.electron.db.cacheInvalidatePrefix(prefix);
+    } catch (e) {
+      console.warn('[Cache] cacheInvalidatePrefix falló:', e);
     }
   }
 
@@ -164,6 +321,14 @@ export class OfflineSyncService {
       }
 
       if (apiUrls.length === 0) return;
+
+      // Tope de refresh: refrescar las 50 URLs más recientes (el SELECT del DB
+      // ya las devuelve en orden DESC por updated_at). Antes refrescaba TODAS,
+      // generando una tormenta de cientos de requests al volver online.
+      const REFRESH_LIMIT = 50;
+      if (apiUrls.length > REFRESH_LIMIT) {
+        apiUrls = apiUrls.slice(0, REFRESH_LIMIT);
+      }
 
       console.log(`[Cache] Refrescando ${apiUrls.length} URLs cacheadas en segundo plano...`);
 
@@ -202,10 +367,50 @@ export class OfflineSyncService {
   public async updatePendingCount(): Promise<void> {
     if (this.electron?.db) {
       try {
-        const pending = await this.electron.db.getPendingRequests();
+        const userId = this.getCurrentUserId();
+        const pending = await this.electron.db.getPendingRequests({ userId });
         this.pendingCount$.next(pending ? pending.length : 0);
       } catch { }
     }
+  }
+
+  public async updateFailedCount(): Promise<void> {
+    if (this.electron?.db?.getFailedRequests) {
+      try {
+        const userId = this.getCurrentUserId();
+        const failed = await this.electron.db.getFailedRequests({ userId });
+        this.failedCount$.next(failed ? failed.length : 0);
+      } catch { }
+    }
+  }
+
+  /** Permite a la UI listar items fallidos para mostrar al usuario. */
+  public async getFailedRequests(): Promise<SyncQueueItem[]> {
+    if (!this.electron?.db?.getFailedRequests) return [];
+    try {
+      const userId = this.getCurrentUserId();
+      return await this.electron.db.getFailedRequests({ userId });
+    } catch {
+      return [];
+    }
+  }
+
+  /** Vuelve a marcar una request fallida como pending y dispara sync si hay red. */
+  public async retryFailed(id: number): Promise<void> {
+    if (!this.electron?.db?.retryRequest) return;
+    await this.electron.db.retryRequest(id);
+    this.updateFailedCount();
+    this.updatePendingCount();
+    if (this.networkService.isOnline) {
+      this.syncQueue();
+    }
+  }
+
+  /** Descarta una request fallida (borra fila + archivos). Acción destructiva. */
+  public async discardFailed(id: number): Promise<void> {
+    if (!this.electron?.db?.discardRequest) return;
+    await this.electron.db.discardRequest(id);
+    this.updateFailedCount();
   }
 
   /**

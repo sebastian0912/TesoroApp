@@ -1,50 +1,153 @@
 <div class="search-candidate-container">
+  <!-- Sección principal: lista del día por orden de llegada -->
   <div class="outline-section">
-    <h3 class="section-title centered-title">
-      <mat-icon style="vertical-align: middle; color: #ffffff; margin-right: 8px;">person_search</mat-icon>
-      Buscar Candidato
-    </h3>
-    <p style="text-align: center; margin-bottom: 24px; color: #475569; font-size: 0.95rem;">
-      Ingrese la cédula del usuario a buscar.
-    </p>
+    <div class="recientes-toolbar">
+      <div class="recientes-toolbar-left">
+        <!-- Cluster de búsqueda inline: el input + Consultar se deslizan al pulsar el botón -->
+        <div class="busqueda-cluster" [class.abierto]="busquedaAbierta">
+          <button mat-stroked-button color="primary" type="button"
+            class="btn-buscar"
+            (click)="toggleBusqueda()"
+            [matTooltip]="busquedaAbierta ? 'Ocultar búsqueda' : 'Buscar por cédula'"
+            matTooltipPosition="above">
+            <mat-icon>{{ busquedaAbierta ? 'search_off' : 'search' }}</mat-icon>
+            <span class="btn-buscar-label">Buscar por cédula</span>
+          </button>
 
-    <div class="grid-managerial-entrevista">
-      <!-- Input de Cédula -->
-      <mat-form-field appearance="outline" class="input-cedula" style="flex: 2 1 300px;">
-        <mat-label>Cédula de Ciudadanía</mat-label>
-        <input matInput type="text" [(ngModel)]="cedula" placeholder="Ej: 1010101010" (keyup.enter)="buscarCandidato()">
-        <button mat-icon-button matSuffix (click)="buscarCandidato()" [disabled]="!cedula" color="primary">
-          <mat-icon>search</mat-icon>
+          <!-- Slider: input + acciones sólo visibles cuando busquedaAbierta = true -->
+          <div class="busqueda-slider" [attr.aria-hidden]="!busquedaAbierta">
+            <mat-form-field appearance="outline" class="busqueda-input">
+              <mat-label>Cédula</mat-label>
+              <input matInput type="text" inputmode="numeric"
+                [(ngModel)]="cedula"
+                placeholder="Ej: 1010101010"
+                (keyup.enter)="buscarCandidato()"
+                autocomplete="off"
+                #busquedaInput />
+              @if (cedula) {
+                <button mat-icon-button matSuffix type="button"
+                  (click)="cedula = ''" matTooltip="Limpiar" matTooltipPosition="above">
+                  <mat-icon>close</mat-icon>
+                </button>
+              }
+            </mat-form-field>
+
+            <button mat-flat-button color="primary" type="button"
+              class="btn-consultar-inline"
+              (click)="buscarCandidato()" [disabled]="!cedula">
+              <mat-icon>arrow_forward</mat-icon>
+              <span>Consultar</span>
+            </button>
+
+            @if (procesoValido && !mostrarObservacion) {
+              <button mat-stroked-button color="warn" type="button"
+                class="btn-reportar-inline"
+                (click)="mostrarCampoObservacion()"
+                matTooltip="Reportar un problema con esta cédula" matTooltipPosition="above">
+                <mat-icon>report</mat-icon>
+                <span>Reportar</span>
+              </button>
+            }
+          </div>
+        </div>
+      </div>
+
+      <div class="recientes-toolbar-actions">
+        <button mat-icon-button matTooltip="Descargar Excel por rango de fechas"
+          (click)="abrirDialogExcel()" [disabled]="excelDescargando">
+          <mat-icon>file_download</mat-icon>
         </button>
-      </mat-form-field>
+        <button mat-icon-button matTooltip="Refrescar" (click)="refrescarRecientes()" [disabled]="recientesLoading">
+          <mat-icon>refresh</mat-icon>
+        </button>
+      </div>
     </div>
 
-    <!-- Botonera Principal -->
-    <div class="form-actions" style="margin-top: 16px; display: flex; justify-content: center; gap: 12px;">
-      <button mat-flat-button color="primary" (click)="buscarCandidato()">
-        Buscar
-      </button>
-      @if (!mostrarObservacion && procesoValido) {
-        <button mat-flat-button color="accent" (click)="mostrarCampoObservacion()"
-          >
-          Reportar Problema
-        </button>
-      }
-    </div>
-
-    <!-- Sección de Observación -->
+    <!-- Observación inline: aparece debajo de la barra cuando se reporta un problema -->
     @if (mostrarObservacion) {
-      <div style="margin-top: 24px; animation: fadeIn 0.3s ease;">
-        <mat-form-field appearance="outline" style="width: 100%;">
-          <mat-label>Escriba su observación detallada</mat-label>
-          <textarea matInput [(ngModel)]="observacion" rows="3" placeholder="Escriba su observación aquí..."></textarea>
+      <div class="observacion-inline">
+        <div class="observacion-inline-head">
+          <mat-icon>report</mat-icon>
+          <span>Reportar problema con la cédula</span>
+          <button mat-icon-button class="observacion-inline-close" (click)="mostrarObservacion = false"
+            matTooltip="Cancelar" matTooltipPosition="above">
+            <mat-icon>close</mat-icon>
+          </button>
+        </div>
+        <mat-form-field appearance="outline" class="observacion-inline-field">
+          <mat-label>Escriba la observación detallada</mat-label>
+          <textarea matInput [(ngModel)]="observacion" rows="3"
+            placeholder="Describa el problema observado..."></textarea>
         </mat-form-field>
-        <div class="form-actions" style="margin-top: 12px; text-align: right;">
-          <button mat-flat-button color="primary" (click)="enviarObservacion()">
-            Enviar Reporte
+        <div class="observacion-inline-actions">
+          <button mat-flat-button color="primary" (click)="enviarObservacion()" [disabled]="!observacion.trim()">
+            <mat-icon>send</mat-icon>
+            <span>Enviar reporte</span>
           </button>
         </div>
       </div>
     }
+
+    @if (recientesLoading && recientes.length === 0) {
+      <p class="recientes-empty">Cargando…</p>
+    } @else if (recientes.length === 0) {
+      <p class="recientes-empty">No hay personas registradas hoy todavía.</p>
+    } @else {
+      <div class="recientes-table-wrapper">
+        <table class="recientes-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Documento</th>
+              <th>Apellidos Nombres</th>
+              <th>Hora de llegada</th>
+              <th>Oficina</th>
+              <th>Formulario</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (item of recientes; track trackByRecienteId($index, item); let i = $index) {
+              <tr [class.fila-atendida]="item.atendido_hoy">
+                <td>{{ i + 1 }}</td>
+                <td>{{ item.tipo_doc }} {{ item.numero_documento }}</td>
+                <td>{{ item.apellidos_nombres || '—' }}</td>
+                <td>{{ item.updated_at | date:'HH:mm' }}</td>
+                <td>{{ item.oficina || '—' }}</td>
+                <td>
+                  @if (item.formulario_completo) {
+                    <span class="badge-formulario badge-completo" matTooltip="Formulario web enviado completo">
+                      <mat-icon>check_circle</mat-icon> Completo
+                    </span>
+                  } @else if ((item.formulario_paso || 0) >= 1) {
+                    <span class="badge-formulario badge-parcial" matTooltip="Sólo guardó datos básicos (paso 1)">
+                      <mat-icon>edit_note</mat-icon> Paso 1
+                    </span>
+                  } @else {
+                    <span class="badge-formulario badge-sin-iniciar" matTooltip="No ha iniciado el formulario web">
+                      <mat-icon>radio_button_unchecked</mat-icon> Sin iniciar
+                    </span>
+                  }
+                </td>
+                <td>
+                  @if (item.atendido_hoy) {
+                    <span class="badge-formulario badge-atendido" matTooltip="Ya fue atendido hoy">
+                      <mat-icon>task_alt</mat-icon> Atendido
+                    </span>
+                  } @else {
+                    <button mat-flat-button color="primary" class="btn-atender"
+                      (click)="seleccionarReciente(item)">
+                      <mat-icon>arrow_forward</mat-icon>
+                      Atender
+                    </button>
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
   </div>
+
 </div>

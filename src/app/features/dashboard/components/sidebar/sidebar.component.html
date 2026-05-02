@@ -19,6 +19,21 @@
         </div>
       </div>
 
+      <!-- Indicador de conectividad: online / offline / sincronizando + pendientes. -->
+      <div class="net-status-chip"
+        role="status"
+        [class.is-offline]="!isOnline && !syncProgress"
+        [class.is-online]="isOnline && !syncProgress"
+        [class.is-syncing]="syncProgress !== null"
+        [title]="netStatusTitle"
+        [attr.aria-label]="netStatusTitle">
+        <mat-icon class="net-status-icon" [class.spin]="syncProgress !== null">{{ netStatusIcon }}</mat-icon>
+        <span class="net-status-label">{{ netStatusLabel }}</span>
+        @if (pendingCount > 0 && !syncProgress) {
+          <span class="net-status-pending" [attr.aria-label]="pendingCount + ' pendientes'">{{ pendingCount }}</span>
+        }
+      </div>
+
       <div class="botonConfig">
         <button mat-icon-button [matMenuTriggerFor]="menu" aria-label="Configuración" class="icono"
           (menuOpened)="cargarSedes()">

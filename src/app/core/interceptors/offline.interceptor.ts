@@ -7,9 +7,23 @@ import {
   HttpResponse,
 } from '@angular/common/http';
 import { inject } from '@angular/core';
-import { Observable, from, of, throwError } from 'rxjs';
+import { Observable, from, throwError } from 'rxjs';
 import { catchError, tap } from 'rxjs/operators';
 import { NetworkStatusService } from '../services/network-status.service';
+
+/**
+ * Construye un HttpErrorResponse "fabricado" para que los callers offline
+ * vean siempre la misma forma que un error de red real (status, statusText,
+ * error). Antes el `from(persist())` propagaba un `Error` plano que rompía
+ * los `error => Swal.fire(err.message)` de los componentes.
+ */
+const offlineErrorResponse = (req: HttpRequest<unknown>, message: string, cause?: unknown): HttpErrorResponse =>
+  new HttpErrorResponse({
+    error: { offlineQueue: false, message, cause: cause ? String(cause) : undefined },
+    status: 0,
+    statusText: 'Offline (no se pudo encolar)',
+    url: req.urlWithParams,
+  });
 
 const isFormData = (body: unknown): body is FormData =>
   typeof FormData !== 'undefined' && body instanceof FormData;
@@ -25,6 +39,56 @@ const fileToBase64 = (file: Blob): Promise<string> =>
     fr.onerror = () => reject(fr.error);
     fr.readAsDataURL(file);
   });
+
+// Tope por archivo individual al encolar offline. Para PDFs/escaneos grandes
+// `FileReader.readAsDataURL` carga todo en RAM como string base64 (1.33×); con
+// archivos de >50MB el renderer se cuelga sin throw y el usuario nunca se
+// entera. Cap conservador: 25MB por archivo y 100MB en total para todo el
+// FormData. El usuario debe tener red para subir archivos más grandes.
+const MAX_OFFLINE_FILE_BYTES = 25 * 1024 * 1024;
+const MAX_OFFLINE_TOTAL_BYTES = 100 * 1024 * 1024;
+
+// Endpoints que NO deben encolarse offline. Reproducirlos después de un cambio
+// de credenciales o sesión causa daño (login viejo se reproduce, refresh
+// expirado, logout que cierra sesión nueva, etc.).
+const NEVER_QUEUE_PATHS = [
+  '/gestion_admin/auth/login/',
+  '/gestion_admin/auth/refresh/',
+  '/gestion_admin/auth/logout/',
+  '/gestion_admin/auth/register/',
+];
+
+const isNeverQueueable = (url: string): boolean =>
+  NEVER_QUEUE_PATHS.some(p => url.includes(p));
+
+// Identificador del usuario que encola la request. Si en el futuro otro usuario
+// se loguea en el mismo equipo, el sync service usa este campo para no
+// reproducir la cola del usuario anterior (evita ejecutar mutaciones con el
+// token equivocado).
+const getCurrentUserId = (): string | null => {
+  if (typeof localStorage === 'undefined') return null;
+  try {
+    const raw = localStorage.getItem('user');
+    if (!raw) return null;
+    const u = JSON.parse(raw);
+    return String(u?.numero_de_documento ?? u?.id ?? '') || null;
+  } catch {
+    return null;
+  }
+};
+
+// Idempotency-Key reproducible: el backend (cuando lo soporte) puede deduplicar
+// si la misma key se reproduce dos veces (por crash mid-replay). Vive durante
+// toda la vida de la fila en sync_queue.
+const generateIdempotencyKey = (): string => {
+  try {
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+      return crypto.randomUUID();
+    }
+  } catch { /* fallthrough */ }
+  // Fallback razonable; no necesita ser criptográficamente fuerte, solo único.
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}-${Math.random().toString(36).slice(2, 10)}`;
+};
 
 export const offlineInterceptor: HttpInterceptorFn = (
   req: HttpRequest<unknown>,
@@ -53,14 +117,49 @@ export const offlineInterceptor: HttpInterceptorFn = (
     const formFields: { name: string; value: string }[] = [];
     const filesToStore: { fieldName: string; file: File }[] = [];
 
+    let formDataValid = true;
+    let validationError: Error | null = null;
+
     formData.forEach((value, key) => {
-      if (typeof value !== 'string' && value instanceof Blob) {
+      if (!formDataValid) return;
+      if (value instanceof Blob) {
         const file = value instanceof File ? value : new File([value], 'upload.bin');
         filesToStore.push({ fieldName: key, file });
+      } else if (typeof value === 'string') {
+        formFields.push({ name: key, value });
       } else {
-        formFields.push({ name: key, value: String(value) });
+        // Defensa: el caller pasó algo que no es string ni File. String(value)
+        // produciría "[object Object]" y se reproduciría así. Mejor abortar.
+        formDataValid = false;
+        validationError = new Error(
+          `Campo "${key}" del FormData no es string ni File (${typeof value}). No se puede encolar offline.`
+        );
       }
     });
+
+    if (!formDataValid && validationError) {
+      return throwError(() => validationError as Error);
+    }
+
+    // Validación de tamaño antes de tocar disco. Sin este cap, archivos
+    // grandes cuelgan el renderer en `fileToBase64` o crashean por OOM.
+    let totalBytes = 0;
+    for (const { file } of filesToStore) {
+      if (file.size > MAX_OFFLINE_FILE_BYTES) {
+        return throwError(() => new Error(
+          `El archivo "${file.name}" pesa ${(file.size / 1024 / 1024).toFixed(1)} MB y excede el límite offline de ${MAX_OFFLINE_FILE_BYTES / 1024 / 1024} MB. Conéctate a la red para subirlo.`
+        ));
+      }
+      totalBytes += file.size;
+    }
+    if (totalBytes > MAX_OFFLINE_TOTAL_BYTES) {
+      return throwError(() => new Error(
+        `El total de archivos (${(totalBytes / 1024 / 1024).toFixed(1)} MB) excede el límite offline de ${MAX_OFFLINE_TOTAL_BYTES / 1024 / 1024} MB.`
+      ));
+    }
+
+    const idempotencyKey = generateIdempotencyKey();
+    const userId = getCurrentUserId();
 
     const persist = async () => {
       const stored: { fieldName: string; fileName: string; mimeType: string | null; storedPath: string }[] = [];
@@ -91,6 +190,8 @@ export const offlineInterceptor: HttpInterceptorFn = (
           headers: null,
           formFields,
           files: stored,
+          idempotencyKey,
+          userId,
         });
         if (!saveRes?.success) throw new Error(saveRes?.error || 'No se pudo guardar la request');
 
@@ -109,37 +210,74 @@ export const offlineInterceptor: HttpInterceptorFn = (
       }
     };
 
-    return from(persist()) as Observable<HttpEvent<unknown>>;
+    return (from(persist()) as Observable<HttpEvent<unknown>>).pipe(
+      catchError((err: unknown) => {
+        // El persist puede fallar por: error de validación previa (size cap,
+        // form fields raros), saveUpload del main rechazando (disco lleno,
+        // tope total), o saveMultipartRequest del DB. En todos los casos
+        // devolvemos un HttpErrorResponse status 0 para que el caller del
+        // HttpClient lo trate como "no se pudo subir".
+        const message = (err as any)?.message || 'No se pudo encolar el envío offline';
+        return throwError(() => offlineErrorResponse(request, message, err));
+      })
+    );
   };
 
   const handleOfflineWrite = (request: HttpRequest<unknown>): Observable<HttpEvent<unknown>> => {
+    if (isNeverQueueable(request.url)) {
+      return throwError(() => new Error(
+        'Esta operación requiere conexión y no puede encolarse offline.'
+      ));
+    }
+
     if (isFormData(request.body)) {
       return handleOfflineWriteMultipart(request as HttpRequest<FormData>);
     }
     if (electron && electron.db) {
-      electron.db.saveRequestQueue({
-        method: request.method,
-        url: request.urlWithParams,
-        body: request.body ? JSON.stringify(request.body) : null,
-        headers: JSON.stringify(request.headers)
-      }).then(() => {
+      const idempotencyKey = generateIdempotencyKey();
+      const userId = getCurrentUserId();
+
+      // Persistencia AWAITED: si el INSERT falla (DB locked, disco lleno), la
+      // promesa rechaza y la UI ve el error real en vez de un "guardado" falso
+      // (antes el .then(...) era fire-and-forget).
+      const persist = async (): Promise<HttpResponse<unknown>> => {
+        const saveRes = await electron.db.saveRequestQueue({
+          method: request.method,
+          url: request.urlWithParams,
+          body: request.body ? JSON.stringify(request.body) : null,
+          // Headers no se persisten: replay cruza por los interceptors y se
+          // re-aplican (Authorization, Content-Type). Antes JSON.stringify
+          // aquí daba "{}" y era trampa para futuras refactors.
+          headers: null,
+          idempotencyKey,
+          userId,
+        });
+        if (!saveRes?.success) {
+          throw new Error(saveRes?.error || 'No se pudo guardar la request en la cola offline');
+        }
+
         window.dispatchEvent(new CustomEvent('offline-queue-updated'));
-      }).catch((err: any) => {
-        console.error('Error guardando request offline', err);
-      });
 
-      const fakeId = -Math.floor(Math.random() * 1000000);
-      let responseBody: any = { success: true, offlineQueue: true, id: fakeId };
+        // El id real (negativo para distinguir de PKs reales) viene de la fila
+        // recién insertada; antes era un random que no correspondía a nada.
+        const fakeId = saveRes.id ? -Math.abs(saveRes.id) : -Math.floor(Math.random() * 1000000);
+        let responseBody: any = { success: true, offlineQueue: true, id: fakeId, _isOfflineMock: true };
+        if (request.body && typeof request.body === 'object') {
+          const reqBody = request.body as any;
+          responseBody = { ...reqBody, id: reqBody.id || fakeId, _isOfflineMock: true };
+        }
+        return new HttpResponse({ status: 200, body: responseBody });
+      };
 
-      if (request.body && typeof request.body === 'object') {
-        const reqBody = request.body as any;
-        responseBody = { ...reqBody, id: reqBody.id || fakeId, _isOfflineMock: true };
-      }
-
-      return of(new HttpResponse({ status: 200, body: responseBody }));
+      return (from(persist()) as Observable<HttpEvent<unknown>>).pipe(
+        catchError((err: unknown) => {
+          const message = (err as any)?.message || 'No se pudo encolar el envío offline';
+          return throwError(() => offlineErrorResponse(request, message, err));
+        })
+      );
     }
 
-    return throwError(() => new Error('Offline. No se pudo guardar la peticion.'));
+    return throwError(() => offlineErrorResponse(request, 'Offline. No se pudo guardar la petición.'));
   };
 
   const handleOfflineRead = (request: HttpRequest<unknown>): Observable<HttpEvent<unknown>> => {
@@ -180,7 +318,16 @@ export const offlineInterceptor: HttpInterceptorFn = (
         networkStatus.markOnline();
 
         if (req.method === 'GET' && electron && electron.db && event.body) {
-          if (typeof event.body === 'object' || Array.isArray(event.body)) {
+          // Solo cacheamos respuestas JSON-serializables. Blobs/ArrayBuffers
+          // se "stringificarían" como "{}" y corromperían el cache (sirviendo
+          // un objeto vacío en vez del binario cuando se reusa offline).
+          const isCacheable =
+            req.responseType === 'json' &&
+            !(event.body instanceof Blob) &&
+            !(event.body instanceof ArrayBuffer) &&
+            (typeof event.body === 'object' || Array.isArray(event.body));
+
+          if (isCacheable) {
             electron.db.cacheSave({
               url: req.urlWithParams,
               data: JSON.stringify(event.body)

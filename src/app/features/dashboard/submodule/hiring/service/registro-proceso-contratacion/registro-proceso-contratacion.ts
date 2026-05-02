@@ -307,6 +307,28 @@ export interface EnEsperaItem {
   motivo_espera: string | null;
 }
 
+export interface CandidatoRecienteItem {
+  candidato_id: number;
+  tipo_doc: string | null;
+  numero_documento: string;
+  primer_nombre: string | null;
+  segundo_nombre: string | null;
+  primer_apellido: string | null;
+  segundo_apellido: string | null;
+  apellidos_nombres: string | null;
+  celular: string | null;
+  whatsapp: string | null;
+  oficina: string | null;
+  updated_at: string | null;  // ISO
+  // Progreso del formulario web (tu_alianza_web / Tu-Apo-Web):
+  // 0 = sin iniciar, 1 = guardó datos básicos, 5 = envió formulario completo.
+  formulario_paso?: number;
+  formulario_completo?: boolean;
+  // Atendido por el evaluador en TesoroApp:
+  atendido_at?: string | null;  // ISO; null si nunca lo han atendido
+  atendido_hoy?: boolean;       // true si atendido_at cae dentro del día local actual
+}
+
 export type RangoFechas = { start: string | Date; end: string | Date };
 
 
@@ -358,6 +380,36 @@ export class RegistroProcesoContratacion {
     });
   }
 
+  /**
+   * GET /gestion_contratacion/candidatos/recientes/?limit=N&oficina=X
+   * Lista por última actividad (consulta o llenado del formulario) DESC.
+   * Idempotente por día en backend.
+   */
+  getCandidatosRecientes(limit: number = 50, oficina?: string | string[]): Observable<CandidatoRecienteItem[]> {
+    let params = new HttpParams().set('limit', String(Math.max(1, Math.min(limit, 200))));
+    if (oficina) {
+      const ofi = Array.isArray(oficina) ? oficina.join(',') : oficina;
+      if (ofi.trim()) params = params.set('oficina', ofi.trim());
+    }
+    return this.http.get<CandidatoRecienteItem[]>(this.url('candidatos/recientes'), { params })
+      .pipe(this.handle$());
+  }
+
+  /**
+   * POST /gestion_contratacion/candidatos/mark-attended/
+   * Marca al candidato como atendido hoy (atendido_at = now()).
+   * Tras marcar, en la lista de recientes baja al final del día.
+   */
+  markAttended(payload: { tipo_doc?: string | null; numero_documento?: string | null; candidato_id?: number }): Observable<{
+    ok: boolean;
+    candidato_id: number;
+    tipo_doc: string;
+    numero_documento: string;
+    atendido_at: string;
+  }> {
+    return this.http.post<any>(this.url('candidatos/mark-attended'), payload).pipe(this.handle$());
+  }
+
   getUltimosEnEspera(oficina?: string | string[]): Observable<EnEsperaItem[]> {
     let options: { params?: HttpParams } = {};
 
@@ -369,6 +421,41 @@ export class RegistroProcesoContratacion {
     return this.http.get<EnEsperaItem[]>(
       `${this.base}/reporte/ultimos-en-espera`,
       options
+    );
+  }
+
+  /**
+   * GET /reporte/turnos-excel/?start=YYYY-MM-DD&end=YYYY-MM-DD&oficina=...
+   * Descarga el Excel "profesional" del listado de turnos por orden de llegada
+   * (filtra por last_activity_at). Tipos de datos consistentes para que VLOOKUP
+   * y comparaciones funcionen sin sorpresas.
+   */
+  downloadTurnosExcel(
+    range: RangoFechas,
+    oficina?: string | string[],
+    filename?: string
+  ): Observable<void> {
+    const start = this.formatDate(range.start);
+    const end = this.formatDate(range.end);
+
+    let params = new HttpParams().set('start', start).set('end', end);
+    if (oficina) {
+      const ofi = Array.isArray(oficina) ? oficina.join(',') : oficina;
+      if (ofi.trim()) params = params.set('oficina', ofi.trim());
+    }
+
+    return this.http.get(`${this.base}/reporte/turnos-excel/`, {
+      params,
+      responseType: 'blob'
+    }).pipe(
+      tap(blob => {
+        if (!isPlatformBrowser(this.platformId)) return;
+        const finalName = this.safeFilename(
+          filename || (start === end ? `turnos_${start}.xlsx` : `turnos_${start}_a_${end}.xlsx`)
+        );
+        this.triggerDownload(blob, finalName);
+      }),
+      map(() => undefined)
     );
   }
 

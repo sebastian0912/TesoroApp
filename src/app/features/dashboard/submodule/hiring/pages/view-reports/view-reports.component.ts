@@ -17,7 +17,8 @@ import { MatMenu } from '@angular/material/menu';
 
 import Swal from 'sweetalert2';
 import saveAs from 'file-saver';
-import { finalize } from 'rxjs';
+import { finalize, interval } from 'rxjs';
+import { HttpEventType } from '@angular/common/http';
 
 import { SharedModule } from '@/app/shared/shared.module';
 import { UtilityServiceService } from '@/app/shared/services/utilityService/utility-service.service';
@@ -120,6 +121,19 @@ export class ViewReportsComponent implements OnInit {
   isLoadingErrores = signal(false);
   isExporting = signal(false);
   activeRangeLabel = signal('Hoy');
+  lastUpdate = signal<Date | null>(null);
+  liveMode = signal(true);
+  cedulasZipProgress = signal<number | null>(null);
+  cedulasZipLoadedMb = signal<number>(0);
+  cedulasZipTotalMb = signal<number | null>(null);
+
+  private static readonly AUTO_REFRESH_MS = 20000;
+
+  readonly isLiveRefresh = computed(() => {
+    if (!this.liveMode()) return false;
+    const today = this.todayIso();
+    return this.activeFrom() === today && this.activeTo() === today;
+  });
 
   userCorreo = '';
   userNombre = '';
@@ -292,12 +306,34 @@ export class ViewReportsComponent implements OnInit {
       this.cdr.markForCheck();
     }
 
-    const today = new Date().toISOString().slice(0, 10);
+    const today = this.todayIso();
     this.activeRangeLabel.set('Hoy');
     this.activeFrom.set(today);
     this.activeTo.set(today);
     this.loadReportes({ fechaDesde: today, fechaHasta: today });
     this.loadErroresValidacion(today, today);
+    this.setupAutoRefresh();
+  }
+
+  private todayIso(): string {
+    return new Date().toISOString().slice(0, 10);
+  }
+
+  private setupAutoRefresh(): void {
+    if (!this.isBrowser) return;
+
+    interval(ViewReportsComponent.AUTO_REFRESH_MS)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => {
+        if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+        if (!this.isLiveRefresh()) return;
+        if (this.isLoadingReportes() || this.isLoadingErrores()) return;
+
+        const from = this.activeFrom();
+        const to = this.activeTo();
+        this.loadReportes({ fechaDesde: from, fechaHasta: to }, true);
+        this.loadErroresValidacion(from, to, true);
+      });
   }
 
   isArray(value: any): boolean {
@@ -318,20 +354,25 @@ export class ViewReportsComponent implements OnInit {
     );
   }
 
-  private loadReportes(filters?: {
-    nombre?: string;
-    fechaDesde?: string;
-    fechaHasta?: string;
-  }): void {
+  private loadReportes(
+    filters?: {
+      nombre?: string;
+      fechaDesde?: string;
+      fechaHasta?: string;
+    },
+    silent = false,
+  ): void {
     if (!this.isBrowser) return;
 
-    this.isLoadingReportes.set(true);
+    if (!silent) this.isLoadingReportes.set(true);
 
     this.reportesService
       .getReportes(filters)
       .pipe(
         takeUntilDestroyed(this.destroyRef),
-        finalize(() => this.isLoadingReportes.set(false)),
+        finalize(() => {
+          if (!silent) this.isLoadingReportes.set(false);
+        }),
       )
       .subscribe({
         next: ({ reportes, consolidado }) => {
@@ -362,8 +403,14 @@ export class ViewReportsComponent implements OnInit {
           } else {
             this.consolidado.set([]);
           }
+
+          this.lastUpdate.set(new Date());
         },
-        error: () => {
+        error: (err) => {
+          if (silent) {
+            console.warn('[loadReportes] auto-refresh falló:', err);
+            return;
+          }
           Swal.fire({
             icon: 'error',
             title: 'Error',
@@ -373,10 +420,10 @@ export class ViewReportsComponent implements OnInit {
       });
   }
 
-  private loadErroresValidacion(from?: string, to?: string): void {
+  private loadErroresValidacion(from?: string, to?: string, silent = false): void {
     if (!this.isBrowser) return;
 
-    this.isLoadingErrores.set(true);
+    if (!silent) this.isLoadingErrores.set(true);
 
     this.reportesService
       .getErroresValidacion({
@@ -385,7 +432,9 @@ export class ViewReportsComponent implements OnInit {
       })
       .pipe(
         takeUntilDestroyed(this.destroyRef),
-        finalize(() => this.isLoadingErrores.set(false)),
+        finalize(() => {
+          if (!silent) this.isLoadingErrores.set(false);
+        }),
       )
       .subscribe({
         next: ({ errores, por_tipo }) => {
@@ -399,11 +448,14 @@ export class ViewReportsComponent implements OnInit {
           }));
           this.erroresValidacion.set(rows);
           this.erroresPorTipo.set(por_tipo ?? {});
+          this.lastUpdate.set(new Date());
         },
         error: (err) => {
           console.error('[loadErroresValidacion] Falló:', err);
-          this.erroresValidacion.set([]);
-          this.erroresPorTipo.set({});
+          if (!silent) {
+            this.erroresValidacion.set([]);
+            this.erroresPorTipo.set({});
+          }
         },
       });
   }
@@ -461,6 +513,7 @@ export class ViewReportsComponent implements OnInit {
   }
 
   private handleFilterTables(from: string, to: string): void {
+    this.liveMode.set(false);
     this.activeRangeLabel.set(this.buildRangeLabel(from, to));
     this.activeFrom.set(from);
     this.activeTo.set(to);
@@ -469,6 +522,17 @@ export class ViewReportsComponent implements OnInit {
       fechaHasta: to || undefined,
     });
     this.loadErroresValidacion(from, to);
+  }
+
+  resumeLiveMode(): void {
+    if (!this.isBrowser) return;
+    const today = this.todayIso();
+    this.liveMode.set(true);
+    this.activeRangeLabel.set('Hoy');
+    this.activeFrom.set(today);
+    this.activeTo.set(today);
+    this.loadReportes({ fechaDesde: today, fechaHasta: today });
+    this.loadErroresValidacion(today, today);
   }
 
   refreshErroresValidacion(): void {
@@ -820,31 +884,149 @@ export class ViewReportsComponent implements OnInit {
   descargarCedulasZip(): void {
     if (!this.isBrowser) return;
 
+    const from = this.activeFrom();
+    const to = this.activeTo();
+
     this.isExporting.set(true);
+    this.cedulasZipProgress.set(null);
+    this.cedulasZipLoadedMb.set(0);
+    this.cedulasZipTotalMb.set(null);
+
+    const resetProgress = () => {
+      this.isExporting.set(false);
+      this.cedulasZipProgress.set(null);
+      this.cedulasZipLoadedMb.set(0);
+      this.cedulasZipTotalMb.set(null);
+    };
 
     this.reportesService
-      .downloadCedulasZip()
+      .downloadCedulasZip({
+        fechaDesde: from || undefined,
+        fechaHasta: to || undefined,
+      })
       .pipe(
         takeUntilDestroyed(this.destroyRef),
-        finalize(() => this.isExporting.set(false)),
+        finalize(resetProgress),
       )
       .subscribe({
-        next: (blob: Blob) => {
+        next: (event) => {
+          if (event.type === HttpEventType.DownloadProgress) {
+            const loadedMb = event.loaded / (1024 * 1024);
+            this.cedulasZipLoadedMb.set(Math.round(loadedMb * 10) / 10);
+
+            if (event.total && event.total > 0) {
+              const totalMb = event.total / (1024 * 1024);
+              this.cedulasZipTotalMb.set(Math.round(totalMb * 10) / 10);
+              const pct = Math.min(99, Math.floor((event.loaded / event.total) * 100));
+              this.cedulasZipProgress.set(pct);
+            } else {
+              this.cedulasZipProgress.set(null);
+            }
+            return;
+          }
+
+          if (event.type !== HttpEventType.Response) return;
+
+          const blob = event.body;
           if (!blob || blob.size === 0) {
             Swal.fire({
               icon: 'warning',
               title: 'Sin cédulas',
-              text: 'No se encontraron documentos de cédula para descargar.',
+              text: 'No se encontraron documentos de cédula para el rango seleccionado.',
             });
             return;
           }
 
-          saveAs(blob, 'cedulas_reportes.zip');
+          this.cedulasZipProgress.set(100);
+          const fileName = `cedulas_${from || 'sin_desde'}_a_${to || 'sin_hasta'}.zip`;
+          saveAs(blob, fileName);
+
+          const headers = event.headers;
+          const incluidas = Number(headers.get('X-Cedulas-Incluidas') || 0);
+          const faltantes = Number(headers.get('X-Cedulas-Faltantes') || 0);
+          const duplicadas = Number(headers.get('X-Cedulas-Duplicadas') || 0);
+          const repesExtra = Number(headers.get('X-Cedulas-Repeticiones-Extra') || 0);
+          const detalleRaw = headers.get('X-Cedulas-Duplicadas-Detalle') || '';
+          const truncado = headers.get('X-Cedulas-Duplicadas-Truncado') === '1';
+
+          type DupItem = { cedula: string; sedes: string[]; veces: number };
+          let detalle: DupItem[] = [];
+          if (detalleRaw) {
+            try {
+              detalle = JSON.parse(decodeURIComponent(detalleRaw));
+            } catch {
+              detalle = [];
+            }
+          }
+
+          const escapeHtml = (s: string): string =>
+            String(s ?? '')
+              .replace(/&/g, '&amp;')
+              .replace(/</g, '&lt;')
+              .replace(/>/g, '&gt;')
+              .replace(/"/g, '&quot;')
+              .replace(/'/g, '&#39;');
+
+          let extraHtml = '';
+          if (duplicadas > 0) {
+            extraHtml +=
+              `<div style="margin-top:14px; text-align:left;">` +
+              `<div style="font-weight:600; color:#92400e;">` +
+              `⚠️ ${duplicadas} cédula(s) duplicadas — ${repesExtra} repetición(es) extra` +
+              `</div>`;
+
+            if (detalle.length > 0) {
+              const rows = detalle
+                .map(
+                  (d) =>
+                    `<tr>` +
+                    `<td style="padding:4px 8px;border-bottom:1px solid #f1f5f9;font-family:ui-monospace,monospace;">${escapeHtml(d.cedula)}</td>` +
+                    `<td style="padding:4px 8px;border-bottom:1px solid #f1f5f9;">${escapeHtml(d.sedes.join(', '))}</td>` +
+                    `<td style="padding:4px 8px;border-bottom:1px solid #f1f5f9;text-align:center;">${d.veces}</td>` +
+                    `</tr>`,
+                )
+                .join('');
+              extraHtml +=
+                `<div style="max-height:260px;overflow:auto;margin-top:8px;border:1px solid #e2e8f0;border-radius:8px;">` +
+                `<table style="width:100%;border-collapse:collapse;font-size:0.88rem;">` +
+                `<thead><tr style="background:#fef3c7;color:#78350f;">` +
+                `<th style="text-align:left;padding:6px 8px;">Cédula</th>` +
+                `<th style="text-align:left;padding:6px 8px;">Oficinas</th>` +
+                `<th style="text-align:center;padding:6px 8px;">Veces</th>` +
+                `</tr></thead><tbody>${rows}</tbody></table></div>`;
+              if (truncado) {
+                extraHtml +=
+                  `<div style="margin-top:6px;font-size:0.82rem;color:#64748b;">` +
+                  `Se muestran las primeras ${detalle.length} cédulas duplicadas. ` +
+                  `El detalle completo está en <b>_CEDULAS_DUPLICADAS.txt</b> dentro del ZIP.` +
+                  `</div>`;
+              }
+            }
+            extraHtml += `</div>`;
+          }
+
+          if (faltantes > 0) {
+            extraHtml +=
+              `<div style="margin-top:14px; text-align:left;">` +
+              `<div style="font-weight:600; color:#991b1b;">` +
+              `❌ ${faltantes} cédula(s) están en BD pero falta el archivo en almacenamiento` +
+              `</div>` +
+              `<div style="font-size:0.85rem;color:#475569;margin-top:4px;">` +
+              `Detalle dentro del ZIP en <b>_CEDULAS_FALTANTES.txt</b>.` +
+              `</div></div>`;
+          }
 
           Swal.fire({
-            icon: 'success',
+            icon: duplicadas > 0 || faltantes > 0 ? 'warning' : 'success',
             title: 'Descarga lista',
-            text: 'El archivo ZIP de cédulas se generó correctamente.',
+            width: duplicadas > 0 ? 720 : undefined,
+            html:
+              `<div style="text-align:left;">` +
+              `Se generó el ZIP de cédulas para el rango ` +
+              `<b>${this.activeRangeLabel()}</b>.<br>` +
+              `Archivos incluidos: <b>${incluidas}</b>.` +
+              `</div>` +
+              extraHtml,
           });
         },
         error: (err) => {

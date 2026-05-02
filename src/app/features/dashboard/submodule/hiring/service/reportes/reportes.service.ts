@@ -3,6 +3,7 @@ import {
   HttpClient,
   HttpParams,
   HttpErrorResponse,
+  HttpEvent,
 } from '@angular/common/http';
 import { Observable, throwError, from } from 'rxjs';
 import { catchError, map, mergeMap } from 'rxjs/operators';
@@ -126,16 +127,45 @@ export class ReportesService {
   }
 
   /**
-   * GET /reportes/cedulas-zip/
-   * ✅ Django NO recibe filtros aquí (sin fechas, sin sede).
-   * Devuelve un ZIP (Blob) con TODAS las cédulas de TODOS los reportes (sin duplicados).
+   * GET /reportes/cedulas-zip/?fecha_desde=&fecha_hasta=&nombre=
+   * Filtros opcionales: si no se envían, devuelve cédulas de TODOS los reportes.
+   * Devuelve un ZIP (Blob) con las cédulas (sin duplicados).
    */
-  downloadCedulasZip(): Observable<Blob> {
+  downloadCedulasZip(filters?: {
+    nombre?: string;
+    fechaDesde?: string | Date;
+    fechaHasta?: string | Date;
+  }): Observable<HttpEvent<Blob>> {
+    let params = new HttpParams();
+
+    if (filters?.nombre) {
+      params = params.set('nombre', filters.nombre.trim());
+    }
+
+    if (filters?.fechaDesde) {
+      const value =
+        filters.fechaDesde instanceof Date
+          ? this.formatDate(filters.fechaDesde)
+          : String(filters.fechaDesde).trim();
+      if (value) params = params.set('fecha_desde', value);
+    }
+
+    if (filters?.fechaHasta) {
+      const value =
+        filters.fechaHasta instanceof Date
+          ? this.formatDate(filters.fechaHasta)
+          : String(filters.fechaHasta).trim();
+      if (value) params = params.set('fecha_hasta', value);
+    }
+
     const url = `${this.apiUrl}/reportes/cedulas-zip/`;
 
     return this.http
       .get(url, {
+        params,
         responseType: 'blob',
+        observe: 'events',
+        reportProgress: true,
       })
       .pipe(catchError((error) => this.handleError(error, 'downloadCedulasZip')));
   }
@@ -325,6 +355,8 @@ export class ReportesService {
 
   private defaultMessageForStatus(statusCode: number): string {
     switch (statusCode) {
+      case 0:
+        return 'No se pudo recibir la respuesta del servidor (conexión interrumpida o respuesta bloqueada por el navegador).';
       case 400:
         return 'La solicitud es inválida. Verifica los datos enviados.';
       case 401:

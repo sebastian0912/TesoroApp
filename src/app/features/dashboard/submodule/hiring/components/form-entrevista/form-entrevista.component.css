@@ -15,11 +15,41 @@ body,
   font-family: 'Open Sans', system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
 }
 
-.contenedor {
-  max-width: 100%;
+/* Layout interno del form-entrevista en 3 zonas:
+   1) Nav arriba (fija, no scrollea)
+   2) form-sections en medio (scrollea verticalmente)
+   3) sticky-actions-bar abajo (fija, no scrollea)
+   Esto es más robusto que `position: sticky` con la cadena de mat-tabs anidados. */
+:host {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
   width: 100%;
   height: 100%;
+  overflow: hidden;
+}
+
+.formulario {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  overflow: hidden;
+}
+
+.contenedor {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  max-width: 100%;
+  width: 100%;
+  min-width: 0;
   box-sizing: border-box;
+  padding: 0 4px;
+  overflow: hidden;
 }
 
 /* ========= Encabezado / título ========= */
@@ -34,19 +64,23 @@ h1 {
   font-size: 30pt;
 }
 
-/* ========= Grid de campos (4 por fila) ========= */
+/* ========= Grid de campos (responsive, evita scroll horizontal) ========= */
 .datos {
   display: grid;
-  grid-template-columns: repeat(4, minmax(220px, 1fr));
+  /* auto-fit + minmax: rellena con tantas columnas como quepan (de 220px mín). */
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 12px;
   width: 100%;
   margin-top: 10pt;
+  min-width: 0;       /* clave para que no fuerce scroll horizontal en flex/grid padre */
+  box-sizing: border-box;
 }
 
 .datos mat-form-field,
 .section mat-form-field {
   width: 100% !important;
   margin: 0 !important;
+  min-width: 0;
 }
 
 /* ========= Cards y secciones ========= */
@@ -69,23 +103,63 @@ h1 {
 
 .section {
   width: 100%;
-  padding: 24px 0;
-  margin: 16px 0;
+  padding: 28px 0 32px;
+  margin: 12px 0 8px;
   box-sizing: border-box;
+  /* offset para que cuando se haga scrollIntoView, el header sticky no tape la sección */
+  scroll-margin-top: 80px;
 }
 
 .section-head {
   display: flex;
   align-items: center;
-  gap: 12px;
-  margin-bottom: 12px;
+  gap: 14px;
+  margin-bottom: 20px;
+}
+
+/* Icono dentro de un círculo de color tenue por sección */
+.section-icon-wrap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  border: 1px solid;
+  transition: transform 0.2s ease;
+}
+
+.section-icon-wrap mat-icon {
+  font-size: 20px;
+  width: 20px;
+  height: 20px;
+}
+
+.section-icon-blue   { background: #eff6ff; color: #1d4ed8; border-color: #bfdbfe; }
+.section-icon-indigo { background: #eef2ff; color: #4338ca; border-color: #c7d2fe; }
+.section-icon-green  { background: #ecfdf5; color: #047857; border-color: #a7f3d0; }
+.section-icon-purple { background: #faf5ff; color: #7e22ce; border-color: #e9d5ff; }
+.section-icon-cyan   { background: #ecfeff; color: #0e7490; border-color: #a5f3fc; }
+.section-icon-amber  { background: #fffbeb; color: #b45309; border-color: #fde68a; }
+.section-icon-pink   { background: #fdf2f8; color: #be185d; border-color: #fbcfe8; }
+
+/* Divider tras el título: ocupa el resto de la línea, sutil pero perceptible */
+.section-divider {
+  flex: 1;
+  border-top-color: #e2e8f0 !important;
+  border-top-width: 1px !important;
+  margin-left: 4px;
 }
 
 .section-title {
   font-weight: 700;
-  color: #1e293b;
-  font-size: 1.1rem;
+  color: #0f172a;
+  font-size: 1.18rem;
   letter-spacing: -0.01em;
+  line-height: 1.2;
+  margin: 0;
+  flex-shrink: 0;
 }
 
 /* Grids utilitarias */
@@ -328,22 +402,8 @@ mat-icon,
   }
 }
 
-/* ========= Responsive (solo grid de inputs) ========= */
-/* 3 columnas */
-@media (max-width: 1200px) {
-  .datos {
-    grid-template-columns: repeat(3, minmax(220px, 1fr));
-  }
-}
-
-/* 2 columnas */
-@media (max-width: 900px) {
-  .datos {
-    grid-template-columns: repeat(2, minmax(220px, 1fr));
-  }
-}
-
-/* 1 columna */
+/* ========= Responsive ========= */
+/* Las grids ya son auto-fit, así que se adaptan solas. Sólo overrides para 600px. */
 @media (max-width: 600px) {
   .datos {
     grid-template-columns: 1fr;
@@ -457,4 +517,144 @@ mat-icon,
 .optional-grid > mat-form-field {
   width: 100% !important;
   margin: 0 !important;
+}
+
+/* ==================================
+   Navegación rápida (chips arriba — fija como flex item)
+===================================== */
+.form-nav {
+  flex-shrink: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 10px 8px;
+  margin: 0 -4px 0;
+  background: #ffffff;
+  border-bottom: 1px solid #e2e8f0;
+  box-shadow: 0 4px 8px -6px rgba(15, 23, 42, 0.18);
+  z-index: 2;
+}
+
+/* El contenedor de las secciones es lo único que scrollea. */
+.form-sections {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 12px 4px 8px;
+}
+
+.form-nav-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: #f1f5f9;
+  color: #475569;
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-decoration: none;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, transform 0.15s ease, border-color 0.15s ease;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.form-nav-chip mat-icon {
+  font-size: 14px;
+  width: 14px;
+  height: 14px;
+}
+
+.form-nav-chip:hover {
+  background: #dbeafe;
+  color: #1d4ed8;
+  border-color: #bfdbfe;
+  transform: translateY(-1px);
+}
+
+.form-nav-chip:active {
+  transform: translateY(0);
+}
+
+/* ==================================
+   Barra de Enviar (siempre visible al pie del form, fuera del scroll)
+===================================== */
+.sticky-actions-spacer {
+  display: none;  /* ya no hace falta: la barra no es sticky, es flex item */
+}
+
+.sticky-actions-bar {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 16px;
+  margin: 0 -4px;
+  background: #ffffff;
+  border-top: 1px solid #e2e8f0;
+  box-shadow: 0 -6px 14px -8px rgba(15, 23, 42, 0.18);
+  flex-wrap: wrap;
+  z-index: 2;
+}
+
+.sticky-actions-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #475569;
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+.sticky-actions-hint mat-icon {
+  color: #64748b;
+  font-size: 18px;
+  width: 18px;
+  height: 18px;
+}
+
+.submit-button-sticky {
+  display: inline-flex !important;
+  align-items: center;
+  gap: 6px;
+  padding: 0 28px !important;
+  height: 42px !important;
+  font-weight: 600 !important;
+  font-size: 0.95rem !important;
+  border-radius: 8px !important;
+  letter-spacing: 0.01em;
+  box-shadow: 0 4px 12px -4px rgba(37, 99, 235, 0.55);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.submit-button-sticky:not([disabled]):hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px -4px rgba(37, 99, 235, 0.7);
+}
+
+.submit-button-sticky mat-icon {
+  font-size: 18px;
+  width: 18px;
+  height: 18px;
+}
+
+@media (max-width: 600px) {
+  .form-nav {
+    overflow-x: auto;
+    flex-wrap: nowrap;
+  }
+  .sticky-actions-bar {
+    justify-content: center;
+  }
+  .sticky-actions-hint {
+    display: none;
+  }
+  .submit-button-sticky {
+    width: 100%;
+    justify-content: center;
+  }
 }

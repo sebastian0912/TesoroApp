@@ -390,10 +390,20 @@ ipcMain.handle('pdf:open-in-window', async (_event, payload) => {
     if (!/^[A-Za-z0-9+/=\s]+$/.test(cleaned)) {
       return { success: false, error: 'base64 inválido' };
     }
+    // Cap de tamaño: ~67MB de base64 ≈ 50MB binario. Antes no había cap,
+    // un renderer comprometido podía OOMear el main con un string multi-GB.
+    if (cleaned.length > 67_000_000) {
+      return { success: false, error: 'PDF demasiado grande para visor (>50MB)' };
+    }
 
     if (!fs.existsSync(viewerTmpDir)) fs.mkdirSync(viewerTmpDir, { recursive: true });
     const tmpFile = path.join(viewerTmpDir, `view_${Date.now()}_${Math.random().toString(36).slice(2, 8)}.pdf`);
-    fs.writeFileSync(tmpFile, Buffer.from(cleaned, 'base64'));
+    const buf = Buffer.from(cleaned, 'base64');
+    // Validar magic bytes %PDF- antes de escribir/abrir.
+    if (buf.length < 5 || !buf.slice(0, 5).equals(Buffer.from('%PDF-'))) {
+      return { success: false, error: 'No parece un PDF válido' };
+    }
+    fs.writeFileSync(tmpFile, buf);
 
     const viewerWindow = new BrowserWindow({
       width: Number.isFinite(width) ? Math.min(Math.max(width, 400), 2400) : 1000,
@@ -434,10 +444,31 @@ ipcMain.handle('pdf:open-in-window', async (_event, payload) => {
 // con offline:read-upload y reconstruye el FormData.
 const offlineUploadsDir = () => path.resolve(app.getPath('userData'), 'offline-uploads');
 
+// Caps de tamaño. El renderer ya valida 25MB por archivo (ver
+// offline.interceptor.ts), pero defensa en profundidad: el main aplica
+// 50MB por archivo y 1GB total. Un renderer comprometido no puede llenar el
+// disco; el límite total evita OOM si el directorio crece sin control.
+const MAX_FILE_BYTES = 50 * 1024 * 1024;
+const MAX_TOTAL_BYTES = 1024 * 1024 * 1024;
+
 function isInsideUploadsDir(target) {
   const dir = offlineUploadsDir();
   const resolved = path.resolve(target);
   return resolved.startsWith(dir + path.sep);
+}
+
+function dirTotalBytes(dir) {
+  let total = 0;
+  try {
+    if (!fs.existsSync(dir)) return 0;
+    for (const entry of fs.readdirSync(dir)) {
+      try {
+        const st = fs.statSync(path.join(dir, entry));
+        if (st.isFile()) total += st.size;
+      } catch { /* noop */ }
+    }
+  } catch { /* noop */ }
+  return total;
 }
 
 ipcMain.handle('offline:save-upload', async (_event, payload) => {
@@ -451,8 +482,31 @@ ipcMain.handle('offline:save-upload', async (_event, payload) => {
       return { success: false, error: 'base64 inválido' };
     }
 
+    // Cap defensivo de tamaño antes de decodificar para no asignar memoria
+    // gigante por error o por renderer comprometido.
+    // base64 inflate ~ 1.33×, así que limitamos string a ~67MB → 50MB binario.
+    if (cleaned.length > Math.ceil(MAX_FILE_BYTES * 4 / 3) + 16) {
+      return { success: false, error: `Archivo excede ${(MAX_FILE_BYTES/1024/1024).toFixed(0)}MB` };
+    }
+
     const dir = offlineUploadsDir();
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+
+    const decoded = Buffer.from(cleaned, 'base64');
+    if (decoded.length > MAX_FILE_BYTES) {
+      return { success: false, error: `Archivo excede ${(MAX_FILE_BYTES/1024/1024).toFixed(0)}MB` };
+    }
+
+    // Tope total del directorio. Si excede, rechazar para no llenar el disco.
+    // Soft-limit: hay TOCTOU entre statSync y writeFileSync, pero en el peor
+    // caso solo nos pasamos del límite por unos cuantos MB.
+    const currentTotal = dirTotalBytes(dir);
+    if (currentTotal + decoded.length > MAX_TOTAL_BYTES) {
+      return {
+        success: false,
+        error: `Espacio offline excedido. Sincroniza la cola pendiente o descarta envíos fallidos.`,
+      };
+    }
 
     // Solo conservamos la extensión del filename del usuario (el resto se
     // descarta para evitar path traversal o caracteres extraños).
@@ -461,11 +515,11 @@ ipcMain.handle('offline:save-upload', async (_event, payload) => {
     const safeId = `${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
     const targetPath = path.join(dir, `${safeId}${ext}`);
 
-    fs.writeFileSync(targetPath, Buffer.from(cleaned, 'base64'));
+    fs.writeFileSync(targetPath, decoded);
     return {
       success: true,
       storedPath: targetPath,
-      size: fs.statSync(targetPath).size,
+      size: decoded.length,
       mimeType: typeof mimeType === 'string' ? mimeType : null,
     };
   } catch (err) {
@@ -484,6 +538,13 @@ ipcMain.handle('offline:read-upload', async (_event, storedPath) => {
     if (!fs.existsSync(storedPath)) {
       return { success: false, error: 'Archivo no encontrado' };
     }
+    // Defensa: rechazar si el path resuelto es un symlink (no debería existir
+    // dentro de offline-uploads/ pero un proceso del mismo usuario podría
+    // haber plantado uno apuntando a System32 antes del read).
+    const st = fs.lstatSync(storedPath);
+    if (!st.isFile() || st.isSymbolicLink()) {
+      return { success: false, error: 'Tipo de archivo no permitido' };
+    }
     const bytes = fs.readFileSync(storedPath);
     return { success: true, base64: bytes.toString('base64') };
   } catch (err) {
@@ -497,7 +558,13 @@ ipcMain.handle('offline:delete-upload', async (_event, storedPath) => {
     if (!isInsideUploadsDir(storedPath)) {
       return { success: false, error: 'Path fuera del directorio permitido' };
     }
-    if (fs.existsSync(storedPath)) fs.unlinkSync(storedPath);
+    if (fs.existsSync(storedPath)) {
+      const st = fs.lstatSync(storedPath);
+      if (!st.isFile() || st.isSymbolicLink()) {
+        return { success: false, error: 'Tipo de archivo no permitido' };
+      }
+      fs.unlinkSync(storedPath);
+    }
     return { success: true };
   } catch (err) {
     return { success: false, error: err && err.message ? err.message : String(err) };

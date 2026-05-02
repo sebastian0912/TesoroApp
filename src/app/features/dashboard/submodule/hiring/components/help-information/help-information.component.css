@@ -2,6 +2,8 @@
 :host {
   display: flex;
   flex-direction: column;
+  flex: 1;
+  min-height: 0;       /* clave: permite que la cadena flex llegue al scroll interno */
   width: 100%;
   box-sizing: border-box;
 }
@@ -10,7 +12,8 @@
 .help-tabs {
   display: flex;
   flex-direction: column;
-  /* Resets height clipping */
+  flex: 1;
+  min-height: 0;
 }
 
 /* Asegurar que el cuerpo de los tabs se expanda y llene el espacio */

@@ -7,7 +7,14 @@
       </div>
       <div class="dialog-header__text">
         <h2 id="modulo-dialog-title">{{ data.title }}</h2>
-        <p>{{ isEdit ? 'Modifica los campos necesarios.' : 'Completa los campos para crear el módulo.' }}</p>
+        @if (data.parentName) {
+          <p class="dialog-header__breadcrumb">
+            <mat-icon>subdirectory_arrow_right</mat-icon>
+            Dentro de <strong>{{ data.parentName }}</strong>
+          </p>
+        } @else {
+          <p>{{ isEdit ? 'Modifica los campos necesarios.' : 'Solo el nombre es obligatorio.' }}</p>
+        }
       </div>
     </div>
     <button mat-icon-button class="dialog-header__close" (click)="close()" aria-label="Cerrar diálogo">
@@ -19,79 +26,199 @@
   <div class="dialog-body">
     <form [formGroup]="form" (ngSubmit)="save()" id="modulo-form">
 
-      <!-- Nombre -->
+      <!-- Nombre (único campo obligatorio) -->
       <div class="form-field-wrapper">
-        <label class="field-label" for="input-nombre">Nombre del Módulo <span class="required">*</span></label>
+        <label class="field-label" for="input-nombre">
+          Nombre del módulo <span class="required">*</span>
+        </label>
         <mat-form-field appearance="outline" class="sf-ff field-modern">
           <mat-icon matPrefix>label</mat-icon>
-          <input matInput formControlName="nombre" placeholder="Ej. Inicio" id="input-nombre"
-            autocomplete="off">
-            @if (form.get('nombre')?.hasError('required')) {
-              <mat-error>Campo requerido</mat-error>
-            }
-            @if (form.get('nombre')?.hasError('maxlength')) {
-              <mat-error>Máximo 50 caracteres</mat-error>
-            }
-          </mat-form-field>
+          <input
+            matInput
+            formControlName="nombre"
+            placeholder="Ej. Tesorería"
+            id="input-nombre"
+            autocomplete="off"
+            maxlength="50"
+          />
+          @if (form.get('nombre')?.hasError('required')) {
+            <mat-error>Campo requerido</mat-error>
+          }
+          @if (form.get('nombre')?.hasError('maxlength')) {
+            <mat-error>Máximo 50 caracteres</mat-error>
+          }
+        </mat-form-field>
+      </div>
+
+      <!-- Selector visual de íconos: sólo sugerencias inteligentes -->
+      <div class="form-field-wrapper icon-section">
+        <div class="icon-label-row">
+          <label class="field-label">Ícono</label>
+          <div class="icon-current">
+            <mat-icon>{{ iconoActual }}</mat-icon>
+            <span>Seleccionado</span>
+          </div>
         </div>
 
-        <!-- Descripción -->
-        <div class="form-field-wrapper">
-          <label class="field-label" for="input-descripcion">Descripción <span
-          class="optional">(Opcional)</span></label>
-          <mat-form-field appearance="outline" class="sf-ff field-modern">
-            <mat-icon matPrefix>description</mat-icon>
-            <input matInput formControlName="descripcion" placeholder="Detalle breve del módulo"
-              id="input-descripcion" autocomplete="off">
-              @if (form.get('descripcion')?.hasError('maxlength')) {
-                <mat-error>Máximo 150 caracteres</mat-error>
+        <div class="suggestions-header" [class.is-ai]="fuenteSugerencias() === 'ai'">
+          <div class="suggestions-header__msg">
+            @switch (fuenteSugerencias()) {
+              @case ('ai') {
+                <mat-icon class="sparkle">auto_awesome</mat-icon>
+                <span>
+                  Sugerencias de <strong>IA</strong> para <strong>"{{ nombreCorto() }}"</strong>
+                  @if (aiUsedCache()) {
+                    <span class="badge-cached" matTooltip="Resultado en caché (sin nueva llamada a IA)">⚡ caché</span>
+                  }
+                </span>
               }
-            </mat-form-field>
+              @case ('smart') {
+                <mat-icon class="sparkle">auto_awesome</mat-icon>
+                <span>Toca el ícono que mejor represente <strong>"{{ nombreCorto() }}"</strong></span>
+              }
+              @default {
+                <mat-icon>lightbulb</mat-icon>
+                <span>Escribe el nombre del módulo y te sugeriremos íconos. Mientras tanto puedes elegir uno.</span>
+              }
+            }
           </div>
 
-          <!-- Ruta -->
-          <div class="form-field-wrapper">
-            <label class="field-label" for="input-ruta">Ruta <span class="optional">(Opcional)</span></label>
-            <mat-form-field appearance="outline" class="sf-ff field-modern">
-              <mat-icon matPrefix>link</mat-icon>
-              <input matInput formControlName="ruta" placeholder="Ej. /dashboard/usuarios" id="input-ruta"
-                autocomplete="off">
-                @if (form.get('ruta')?.hasError('maxlength')) {
-                  <mat-error>Máximo 255 caracteres</mat-error>
-                }
-              </mat-form-field>
-            </div>
-
-            <!-- Ícono -->
-            <div class="form-field-wrapper">
-              <label class="field-label" for="input-icono">Ícono Material <span
-              class="optional">(Opcional)</span></label>
-              <mat-form-field appearance="outline" class="sf-ff field-modern">
-                <mat-icon matPrefix>{{ form.get('icono')?.value || 'widgets' }}</mat-icon>
-                <input matInput formControlName="icono" placeholder="Ej. group" id="input-icono" autocomplete="off">
-              </mat-form-field>
-            </div>
-
-            <!-- Orden -->
-            <div class="form-field-wrapper">
-              <label class="field-label" for="input-orden">Orden (Prioridad)</label>
-              <mat-form-field appearance="outline" class="sf-ff field-modern">
-                <mat-icon matPrefix>sort</mat-icon>
-                <input matInput type="number" formControlName="orden" placeholder="Ej. 0, 1, 2" id="input-orden">
-              </mat-form-field>
-            </div>
-
-          </form>
+          <div class="suggestions-header__actions">
+            @if (fuenteSugerencias() === 'ai') {
+              <button
+                type="button"
+                class="ai-action ai-action--reset"
+                (click)="resetIA()"
+                matTooltip="Volver a las sugerencias automáticas"
+              >
+                <mat-icon>restart_alt</mat-icon>
+              </button>
+            }
+            <button
+              type="button"
+              class="ai-action ai-action--ask"
+              (click)="pedirSugerenciasIA()"
+              [disabled]="aiLoading() || (nombreSignal() || '').trim().length < 2"
+              [matTooltip]="(nombreSignal() || '').trim().length < 2 ? 'Escribe al menos 2 letras' : 'Generar con IA'"
+            >
+              @if (aiLoading()) {
+                <mat-spinner diameter="14" strokeWidth="2"></mat-spinner>
+              } @else {
+                <mat-icon>auto_fix_high</mat-icon>
+              }
+              <span>{{ aiLoading() ? 'Pensando…' : (fuenteSugerencias() === 'ai' ? 'Regenerar' : 'IA') }}</span>
+            </button>
+          </div>
         </div>
 
-        <!-- ═══════ FOOTER ═══════ -->
-        <div class="dialog-footer">
-          <button mat-flat-button class="btn-cancel" (click)="close()" type="button">
-            Cancelar
-          </button>
-          <button mat-flat-button class="btn-save" (click)="save()" [disabled]="form.invalid" type="submit">
-            <mat-icon>{{ isEdit ? 'save' : 'add_circle' }}</mat-icon>
-            {{ isEdit ? 'Guardar cambios' : 'Crear módulo' }}
-          </button>
+        @if (aiError()) {
+          <div class="ai-error">
+            <mat-icon>error_outline</mat-icon>
+            <span>{{ aiError() }}</span>
+            <button type="button" class="ai-error__retry" (click)="pedirSugerenciasIA()">
+              Reintentar
+            </button>
+          </div>
+        }
+
+        <div class="suggestions-grid" [class.loading]="aiLoading()">
+          @for (s of sugerenciasMostradas(); track s.icon) {
+            <button
+              type="button"
+              class="suggestion-chip"
+              [class.selected]="iconoActual === s.icon"
+              [class.smart]="fuenteSugerencias() !== 'fallback'"
+              [class.ai]="fuenteSugerencias() === 'ai'"
+              (click)="seleccionarIcono(s.icon)"
+            >
+              <mat-icon>{{ s.icon }}</mat-icon>
+              <span class="suggestion-chip__label">{{ s.label }}</span>
+            </button>
+          }
         </div>
       </div>
+
+      <!-- Toggle "Detalles avanzados" -->
+      <!-- Ruta interna (se escribe sola mientras tipeas el nombre) -->
+      <div class="form-field-wrapper">
+        <label class="field-label" for="input-ruta">
+          Ruta interna <span class="optional">(opcional)</span>
+        </label>
+
+        <div class="ruta-field" [class.filled]="!!rutaSlug">
+          <span class="ruta-prefix" matTooltip="La ruta siempre empieza con /">
+            <mat-icon>link</mat-icon>
+            <span>/</span>
+          </span>
+          <input
+            type="text"
+            id="input-ruta"
+            class="ruta-input"
+            [value]="rutaSlug"
+            (input)="onRutaSlugInput($any($event.target).value)"
+            [placeholder]="rutaPlaceholder"
+            autocomplete="off"
+            maxlength="120"
+          />
+          @if (rutaSlug) {
+            <button
+              type="button"
+              class="ruta-action ruta-clear"
+              (click)="limpiarRuta()"
+              matTooltip="Limpiar"
+            >
+              <mat-icon>close</mat-icon>
+            </button>
+          }
+        </div>
+
+        <div class="ruta-hint">
+          <mat-icon>info</mat-icon>
+          <span>
+            Se llena automáticamente con el nombre. Edítala si quieres otro valor o déjala vacía si solo agrupa submódulos.
+          </span>
+        </div>
+
+        @if (form.get('ruta')?.hasError('maxlength')) {
+          <div class="field-error">Máximo 255 caracteres</div>
+        }
+      </div>
+
+      @if (mostrarOrden) {
+        <!-- Orden (solo en edición) -->
+        <div class="form-field-wrapper">
+          <label class="field-label" for="input-orden">
+            Orden <span class="optional">(prioridad)</span>
+          </label>
+          <mat-form-field appearance="outline" class="sf-ff field-modern">
+            <mat-icon matPrefix>sort</mat-icon>
+            <input
+              matInput
+              type="number"
+              formControlName="orden"
+              placeholder="0"
+              id="input-orden"
+            />
+          </mat-form-field>
+        </div>
+      }
+    </form>
+  </div>
+
+  <!-- ═══════ FOOTER ═══════ -->
+  <div class="dialog-footer">
+    <button mat-flat-button class="btn-cancel" (click)="close()" type="button">
+      Cancelar
+    </button>
+    <button
+      mat-flat-button
+      class="btn-save"
+      (click)="save()"
+      [disabled]="form.invalid"
+      type="submit"
+    >
+      <mat-icon>{{ isEdit ? 'save' : 'add_circle' }}</mat-icon>
+      {{ isEdit ? 'Guardar cambios' : 'Crear módulo' }}
+    </button>
+  </div>
+</div>

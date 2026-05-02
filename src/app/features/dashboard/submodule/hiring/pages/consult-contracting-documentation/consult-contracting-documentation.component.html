@@ -75,64 +75,143 @@
         </button>
       </div>
 
-      <!-- Consulta automática por oficina y estado (HOY) -->
+      <!-- Consulta automática por sede + rango de fechas -->
       <div class="auto-panel">
         <div class="auto-panel-title">
-          <mat-icon class="panel-icon">today</mat-icon>
-          <span>Traer candidatos de HOY por oficina y estado</span>
+          <mat-icon class="panel-icon">filter_alt</mat-icon>
+          <div class="auto-panel-title-text">
+            <span class="auto-panel-title-main">Búsqueda asistida</span>
+            <span class="auto-panel-title-sub">Traer candidatos por sede + rango de updated_at del contrato</span>
+          </div>
           <button mat-icon-button class="btn-refresh-oficinas" type="button"
-            (click)="refrescarOficinas()" matTooltip="Recargar oficinas con actividad hoy"
-            matTooltipPosition="above" [disabled]="isLoadingOficinas">
+            (click)="refrescarSedes()" matTooltip="Recargar catálogo de sedes"
+            matTooltipPosition="above" [disabled]="isLoadingSedes">
             <mat-icon>refresh</mat-icon>
           </button>
         </div>
 
-        @if (!isLoadingOficinas && !oficinasDisponibles.length) {
+        @if (!isLoadingSedes && !sedesDisponibles.length) {
           <div class="auto-empty">
             <mat-icon>info</mat-icon>
-            <span>No se encontraron oficinas con actividad hoy.
-              <a (click)="refrescarOficinas()">Reintentar</a>.
+            <span>No hay sedes registradas en gestión administrativa.
+              <a (click)="refrescarSedes()">Reintentar</a>.
             </span>
           </div>
         }
 
-        <div class="auto-filter-row">
-          <mat-form-field appearance="outline" class="auto-field">
-            <mat-label>Oficinas ({{ oficinasDisponibles.length }})</mat-label>
-            <mat-select multiple [(value)]="selectedOficinas" [disabled]="isLoadingOficinas || !oficinasDisponibles.length">
-              @for (ofi of oficinasDisponibles; track ofi) {
-                <mat-option [value]="ofi">{{ ofi }}</mat-option>
+        <div class="auto-steps">
+          <!-- Paso 1: Sedes -->
+          <div class="auto-step">
+            <div class="auto-step-head">
+              <span class="auto-step-num">1</span>
+              <span class="auto-step-label">Sedes</span>
+            </div>
+            <mat-form-field appearance="outline" class="auto-step-field">
+              <mat-icon matPrefix class="auto-step-icon">business</mat-icon>
+              <mat-label>Selecciona una o varias</mat-label>
+              <mat-select multiple [(value)]="selectedSedes"
+                [disabled]="isLoadingSedes || !sedesDisponibles.length"
+                panelClass="auto-select-panel">
+                @for (sede of sedesDisponibles; track sede) {
+                  <mat-option [value]="sede">{{ sede }}</mat-option>
+                }
+              </mat-select>
+            </mat-form-field>
+            <small class="auto-step-hint">
+              @if (isLoadingSedes) {
+                Cargando sedes…
+              } @else if (!sedesDisponibles.length) {
+                Sin sedes disponibles
+              } @else {
+                <b>{{ selectedSedes.length }}</b> de {{ sedesDisponibles.length }} seleccionada(s)
               }
-            </mat-select>
-            @if (isLoadingOficinas) {
-              <mat-hint>Cargando oficinas...</mat-hint>
-            } @else if (!oficinasDisponibles.length) {
-              <mat-hint>Sin oficinas disponibles</mat-hint>
-            } @else {
-              <mat-hint>{{ selectedOficinas.length }} de {{ oficinasDisponibles.length }} seleccionada(s)</mat-hint>
-            }
-          </mat-form-field>
+            </small>
+          </div>
 
-          <mat-form-field appearance="outline" class="auto-field">
-            <mat-label>Estados</mat-label>
-            <mat-select multiple [(value)]="selectedStages">
-              @for (st of STAGE_OPTIONS; track st.key) {
-                <mat-option [value]="st.key">{{ st.label }}</mat-option>
+          <!-- Paso 2: Rango de fechas -->
+          <div class="auto-step">
+            <div class="auto-step-head">
+              <span class="auto-step-num">2</span>
+              <span class="auto-step-label">Rango de fechas</span>
+            </div>
+            <button type="button" class="btn-range" (click)="abrirDialogoRangoFechas()"
+              [class.is-active]="!!rangoFechas?.start || !!rangoFechas?.end"
+              matTooltip="Compara contra updated_at del ContratoCandidato" matTooltipPosition="above">
+              <mat-icon class="btn-range-icon">event</mat-icon>
+              <span class="btn-range-text">
+                @if (rangoFechas?.start && rangoFechas?.end) {
+                  <span class="btn-range-value">
+                    <span class="range-from">{{ rangoFechas?.start }}</span>
+                    <mat-icon class="range-arrow">arrow_forward</mat-icon>
+                    <span class="range-to">{{ rangoFechas?.end }}</span>
+                  </span>
+                } @else {
+                  <span class="btn-range-placeholder">Seleccionar fechas</span>
+                }
+              </span>
+              @if (rangoFechas?.start || rangoFechas?.end) {
+                <button type="button" mat-icon-button class="range-clear-btn"
+                  (click)="rangoFechas = null; $event.stopPropagation()"
+                  matTooltip="Limpiar rango" matTooltipPosition="above">
+                  <mat-icon>close</mat-icon>
+                </button>
               }
-            </mat-select>
-            <mat-hint>Filtra por la fecha del estado elegido = hoy</mat-hint>
-          </mat-form-field>
+            </button>
+            <small class="auto-step-hint">
+              Compara contra <b>updated_at</b> del contrato
+            </small>
+          </div>
 
-          <button mat-flat-button class="btn-managerial btn-consultar" type="button"
-            (click)="traerCedulasAutomaticas()"
-            [disabled]="isLoadingAuto || !selectedOficinas.length || !selectedStages.length">
-            <mat-icon>auto_awesome</mat-icon> CONSULTAR DE HOY
-          </button>
+          <!-- Paso 3: Botón consultar -->
+          <div class="auto-step auto-step--action">
+            <div class="auto-step-head auto-step-head--invisible">
+              <span class="auto-step-num">3</span>
+              <span class="auto-step-label">Consultar</span>
+            </div>
+            <button mat-flat-button class="btn-managerial btn-consultar btn-consultar-auto" type="button"
+              (click)="traerCedulasAutomaticas()"
+              [disabled]="isLoadingAuto || !selectedSedes.length || !rangoFechas?.start || !rangoFechas?.end">
+              <mat-icon [class.spin]="isLoadingAuto">{{ isLoadingAuto ? 'progress_activity' : 'auto_awesome' }}</mat-icon>
+              <span>{{ isLoadingAuto ? 'Consultando…' : 'CONSULTAR' }}</span>
+            </button>
+            <small class="auto-step-hint auto-step-hint--ghost">
+              Reutiliza el flujo masivo
+            </small>
+          </div>
         </div>
       </div>
 
     </mat-expansion-panel>
   </section>
+
+  <!-- BANNER: cédulas restringidas a GERENCIA (ADMINISTRATIVOS) -->
+  @if (restrictedAdminItems.length > 0) {
+    <section class="restricted-banner" aria-label="Candidatos restringidos a GERENCIA">
+      <div class="restricted-icon">
+        <mat-icon>lock</mat-icon>
+      </div>
+      <div class="restricted-body">
+        <div class="restricted-title">
+          {{ restrictedAdminItems.length }} cédula(s) restringida(s) a GERENCIA
+        </div>
+        <p class="restricted-msg">
+          Estas personas tienen su última entrevista en <b>ADMINISTRATIVOS</b>, así que sus
+          documentos no se muestran en la tabla. Solo el rol <b>GERENCIA</b> puede consultarlos.
+        </p>
+        <div class="restricted-list">
+          @for (it of restrictedAdminItems; track it.cedula) {
+            <span class="restricted-chip" [matTooltip]="it.nombre || 'Sin nombre'" matTooltipPosition="above">
+              <mat-icon>person</mat-icon>
+              <span class="chip-cedula">{{ it.cedula }}</span>
+              @if (it.nombre) {
+                <span class="chip-name">{{ it.nombre }}</span>
+              }
+            </span>
+          }
+        </div>
+      </div>
+    </section>
+  }
 
   <!-- RESULTS: DESKTOP TABLE -->
   @if (checklistRows.length > 0) {
@@ -204,7 +283,7 @@
       </div>
     </section>
   } @else {
-    @if (!isLoadingChecklist) {
+    @if (!isLoadingChecklist && !restrictedAdminItems.length) {
       <div class="empty-placeholder">
         <mat-icon>search</mat-icon>
         <h3>Realiza una Consulta</h3>

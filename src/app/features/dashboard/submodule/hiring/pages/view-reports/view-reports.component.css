@@ -191,7 +191,38 @@
 /* ===== PROGRESS BAR (exports) ============================================= */
 .vr-progress {
   margin-top: -20px;
-  margin-bottom: 16px;
+  margin-bottom: 6px;
+}
+
+.vr-progress-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 32px 16px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  background: #f1f5f9;
+  border: 1px solid var(--vr-border);
+  color: var(--vr-ink-soft);
+  font-size: 0.82rem;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.vr-progress-label mat-icon {
+  font-size: 18px;
+  width: 18px;
+  height: 18px;
+  color: var(--vr-muted);
+}
+
+.vr-progress-label strong {
+  color: var(--vr-ink);
+  font-weight: 700;
+}
+
+.vr-progress-mb {
+  color: var(--vr-muted);
 }
 
 /* ===== CONTEXT BAR ======================================================== */
@@ -238,6 +269,79 @@
 
 .vr-context-item--user {
   margin-left: auto;
+}
+
+/* ===== LIVE REFRESH BADGE ================================================= */
+.vr-live-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #ecfdf5 0%, #d1fae5 100%);
+  border: 1px solid #a7f3d0;
+  color: #065f46;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.vr-live-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: #10b981;
+  box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+  animation: vr-live-pulse 1.6s ease-out infinite;
+}
+
+.vr-live-label {
+  text-transform: uppercase;
+}
+
+.vr-live-time {
+  color: #047857;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+@keyframes vr-live-pulse {
+  0%   { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.6); }
+  70%  { box-shadow: 0 0 0 8px rgba(16, 185, 129, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vr-live-dot { animation: none; }
+}
+
+.vr-live-resume {
+  display: inline-flex !important;
+  align-items: center;
+  gap: 6px;
+  padding: 0 12px !important;
+  height: 30px !important;
+  min-height: 30px !important;
+  font-size: 0.78rem !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.02em;
+  color: #065f46 !important;
+  background: #ecfdf5 !important;
+  border: 1px solid #a7f3d0 !important;
+  border-radius: 999px !important;
+  line-height: 1 !important;
+}
+
+.vr-live-resume mat-icon {
+  font-size: 16px;
+  width: 16px;
+  height: 16px;
+  color: #10b981;
+}
+
+.vr-live-resume:hover {
+  background: #d1fae5 !important;
 }
 
 /* ===== KPI CARDS ========================================================== */

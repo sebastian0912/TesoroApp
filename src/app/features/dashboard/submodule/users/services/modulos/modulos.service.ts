@@ -6,7 +6,6 @@ import { environment } from '@/environments/environment';
 export interface Modulo {
   id: string;
   nombre: string;
-  descripcion?: string | null;
   ruta?: string | null;
   icono?: string | null;
   orden?: number;
@@ -15,7 +14,6 @@ export interface Modulo {
 
 export interface ModuloCreateDTO {
   nombre: string;
-  descripcion?: string | null;
   ruta?: string | null;
   icono?: string | null;
   orden?: number;
@@ -24,7 +22,6 @@ export interface ModuloCreateDTO {
 
 export interface ModuloUpdateDTO {
   nombre?: string;
-  descripcion?: string | null;
   ruta?: string | null;
   icono?: string | null;
   orden?: number;
@@ -50,10 +47,21 @@ export interface ModuloPermisosNode {
   hijos: ModuloPermisosNode[];            // submódulos
 }
 
+export interface AIIconSuggestion {
+  icon: string;
+  label: string;
+}
+
+export interface AIIconResponse {
+  suggestions: AIIconSuggestion[];
+  cached: boolean;
+}
+
 @Injectable({ providedIn: 'root' })
 export class ModulosService {
   private http = inject(HttpClient);
   private base = `${environment.apiUrl}/gestion_admin/modulos/`;
+  private iaBase = `${environment.apiUrl}/ia/`;
 
   // List paginado (compatible con DRF pagination si la tienes activada)
   list(params?: { page?: number; page_size?: number; ordering?: string; q?: string }): Observable<Paginated<Modulo> | Modulo[]> {
@@ -105,5 +113,13 @@ export class ModulosService {
     if (options?.usuario) params = params.set('usuario', options.usuario);
     if (options?.include_empty != null) params = params.set('include_empty', String(options.include_empty));
     return this.http.get<ModuloPermisosNode[]>(`${this.base}arbol-permisos/`, { params });
+  }
+
+  /**
+   * Sugerencias de íconos generadas por IA (DeepSeek) para un nombre de módulo.
+   * El backend cachea por nombre normalizado por 7 días.
+   */
+  sugerirIconosIA(nombre: string): Observable<AIIconResponse> {
+    return this.http.post<AIIconResponse>(`${this.iaBase}sugerir-iconos/`, { nombre });
   }
 }

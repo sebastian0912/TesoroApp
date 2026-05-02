@@ -80,12 +80,13 @@ export const interceptor: HttpInterceptorFn = (
       router.navigateByUrl('/');
       return EMPTY;
     }
-    working = working.clone({
-      setHeaders: {
-        Authorization: token,
-        Accept: 'application/json',
-      },
-    });
+    const headers: Record<string, string> = { Authorization: token };
+    // Solo forzar Accept: application/json cuando el caller espera JSON.
+    // Para blob/arraybuffer/text, dejar que el caller decida (o el server negocie).
+    if (working.responseType === 'json' && !working.headers.has('Accept')) {
+      headers['Accept'] = 'application/json';
+    }
+    working = working.clone({ setHeaders: headers });
   }
 
   // Content-Type JSON solo cuando aplica (no multipart/binario)
@@ -108,11 +109,16 @@ export const interceptor: HttpInterceptorFn = (
     catchError((err: any) => {
       if (isApiRequest && err instanceof HttpErrorResponse && err.status === 401) {
         try { localStorage.removeItem('token'); } catch { }
-        // Best-effort: limpia cache SQLite + cola offline + uploads del usuario
-        // cuya sesión expiró. Navegamos al login aunque falle el clear.
+        // En 401 limpiamos SOLO el cache de GETs (puede contener PII de la
+        // sesión anterior). La cola de mutaciones pendientes NO se borra:
+        // pertenece al usuario y debe sobrevivir al re-login del mismo
+        // usuario. El sync service filtra por user_id al reproducir, así que
+        // si entra un usuario distinto sus mutaciones no se ejecutarán con
+        // el token equivocado. Antes este 401 borraba la cola entera y
+        // causaba pérdida de datos cada vez que el token expiraba.
         const electronApi = (typeof window !== 'undefined' ? (window as any).electron : null);
-        const clearPromise: Promise<any> = electronApi?.db?.clearUserData
-          ? electronApi.db.clearUserData().catch(() => null)
+        const clearPromise: Promise<any> = electronApi?.db?.clearCache
+          ? electronApi.db.clearCache().catch(() => null)
           : Promise.resolve();
         clearPromise.finally(() => router.navigateByUrl('/'));
       }

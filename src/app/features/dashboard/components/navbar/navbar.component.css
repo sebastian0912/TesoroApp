@@ -147,6 +147,11 @@
   display: none;
 }
 
+/* Etiqueta de los botones de módulo: oculta en desktop, visible en mobile. */
+.m-btn-label {
+  display: none;
+}
+
 .sidebar-logo-btn {
   width: 40px;
   height: 40px;
@@ -545,28 +550,34 @@
 }
 
 /* =========================
-   MOBILE: barra inferior + sheet
-   - 4 visibles
-   - usa todo el ancho horizontal
-   - scroll para el resto
+   MOBILE: barra inferior + sheet (rediseño profesional)
+   - Cada módulo trae icono + etiqueta corta debajo
+   - Indicador "pill" superior + acento verde (brand) para el activo
+   - Bottom-sheet con drag-handle, esquinas redondeadas y blur
 ========================= */
 @media (max-width: 900px) {
   :host {
-    --mobile-btn: 44px;
-    --mobile-gap: 10px;
-    --mobile-pill: 14px;
+    /* Tamaños base */
+    --mobile-bottombar-h: 68px;
+    --mobile-btn-w: 72px;
+    --mobile-gap: 4px;
 
-    --m-btn-bg: rgba(255, 255, 255, 0.14);
-    --m-btn-bg-hover: rgba(255, 255, 255, 0.20);
-    --m-btn-border: rgba(255, 255, 255, 0.18);
-    --m-btn-fg: rgba(255, 255, 255, 0.92);
-
-    --m-btn-active-bg: #ffffff;
-    --m-btn-active-fg: #0f172a;
+    /* Paleta mobile */
+    --mobile-bottombar-bg: linear-gradient(180deg, #1d2538 0%, #161e30 100%);
+    --m-accent: #8DD603;
+    --m-accent-soft: rgba(141, 214, 3, 0.14);
+    --m-accent-strong: #a4ec19;
+    --m-text: rgba(255, 255, 255, 0.72);
+    --m-text-strong: rgba(255, 255, 255, 0.96);
+    --m-divider: rgba(255, 255, 255, 0.06);
+    --m-sheet-bg: linear-gradient(180deg, #1d2538 0%, #1a2235 100%);
   }
 
   .sidebar-overlay {
     inset: 0 0 calc(var(--mobile-bottombar-h) + env(safe-area-inset-bottom)) 0;
+    background-color: rgba(11, 17, 32, 0.55);
+    backdrop-filter: blur(2px);
+    -webkit-backdrop-filter: blur(2px);
   }
 
   .sidebar-burger-only {
@@ -583,7 +594,10 @@
     gap: 0;
 
     background: var(--mobile-bottombar-bg);
-    box-shadow: 0 -10px 24px rgba(15, 23, 42, 0.18);
+    backdrop-filter: blur(12px) saturate(160%);
+    -webkit-backdrop-filter: blur(12px) saturate(160%);
+    box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.32);
+    border-top: 1px solid var(--m-divider);
     border-radius: 0;
     width: 100%;
   }
@@ -594,11 +608,11 @@
     max-width: none;
 
     height: var(--mobile-bottombar-h);
-    padding: 0 10px;
+    padding: 0 4px;
     padding-bottom: env(safe-area-inset-bottom);
 
     flex-direction: row;
-    align-items: center;
+    align-items: stretch;
     justify-content: flex-start;
 
     background: transparent;
@@ -606,92 +620,183 @@
     border-radius: 0;
     box-shadow: none;
 
-    gap: var(--mobile-gap);
+    gap: 0;
   }
 
   .sidebar-brand {
     display: none;
   }
 
-  /* botones mobile (mejor contraste) */
-  .sidebar-logo-btn,
-  .module-buttons>button,
-  .bottom-buttons button {
-    width: var(--mobile-btn);
-    height: var(--mobile-btn);
-    border-radius: var(--mobile-pill);
-
-    background-color: var(--m-btn-bg);
-    border: 1px solid var(--m-btn-border);
-
-    color: var(--m-btn-fg);
-    box-shadow: none;
-  }
-
-  .sidebar-logo-btn:hover,
-  .module-buttons>button:hover,
-  .bottom-buttons button:hover {
-    background-color: var(--m-btn-bg-hover);
-    transform: translateY(-1px);
-  }
-
-  /* ✅ usa TODO el espacio horizontal disponible */
+  /* === Carrusel de módulos === */
   .module-buttons {
     flex: 1;
     min-width: 0;
 
     display: flex;
     flex-direction: row;
-    align-items: center;
+    align-items: stretch;
     justify-content: flex-start;
     gap: var(--mobile-gap);
 
     margin: 0;
-    padding: 0;
+    padding: 0 4px;
 
     overflow-x: auto;
     overflow-y: hidden;
     -webkit-overflow-scrolling: touch;
     scrollbar-width: none;
 
-    scroll-snap-type: x mandatory;
+    scroll-snap-type: x proximity;
     touch-action: pan-x;
+
+    /* Fade lateral derecho — sugiere "hay más" sin necesidad de chevron */
+    -webkit-mask-image: linear-gradient(
+      to right,
+      transparent 0,
+      #000 12px,
+      #000 calc(100% - 24px),
+      transparent 100%
+    );
+            mask-image: linear-gradient(
+      to right,
+      transparent 0,
+      #000 12px,
+      #000 calc(100% - 24px),
+      transparent 100%
+    );
   }
 
   .module-buttons::-webkit-scrollbar {
     display: none;
   }
 
-  /* ✅ 4 visibles: cada botón ocupa 1/4 del carrusel (y hace snap) */
-  .module-buttons>button {
-    flex: 0 0 calc((100% - (var(--mobile-gap) * 3)) / 4);
-    height: var(--mobile-btn);
+  /* === Botón de módulo: icono + etiqueta apilados === */
+  .sidebar-logo-btn,
+  .module-buttons > button {
+    flex: 0 0 var(--mobile-btn-w);
+    min-width: var(--mobile-btn-w);
+    width: var(--mobile-btn-w);
+    height: var(--mobile-bottombar-h);
+
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+
+    padding: 8px 6px 6px;
+
+    background: transparent;
+    border: none;
+    border-radius: 12px;
+
+    color: var(--m-text);
     scroll-snap-align: start;
+
+    position: relative;
+    transition:
+      color 180ms var(--app-ease),
+      background-color 180ms var(--app-ease);
   }
 
-  /* icono centrado y consistente */
-  .module-buttons>button .mat-icon {
+  .sidebar-logo-btn .mat-icon,
+  .module-buttons > button .mat-icon {
     font-size: 22px;
+    width: 22px;
+    height: 22px;
     line-height: 1;
+    flex-shrink: 0;
   }
 
-  /* activo en móvil */
-  .module-buttons>button.active-module-button {
-    background: var(--m-btn-active-bg) !important;
-    border-color: rgba(255, 255, 255, 0.85);
-    color: var(--m-btn-active-fg) !important;
-    box-shadow: 0 10px 18px rgba(33, 38, 60, 0.28);
-    transform: translateY(-1px);
+  /* Etiqueta debajo del icono — visible solo en mobile */
+  .module-buttons > button .m-btn-label,
+  .sidebar-logo-btn .m-btn-label {
+    display: block;
+    font-size: 10px;
+    font-weight: 600;
+    line-height: 1.1;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    opacity: 0.92;
   }
 
+  /* Hover suave (en touch no aplica) */
+  .sidebar-logo-btn:hover,
+  .module-buttons > button:hover {
+    background-color: rgba(255, 255, 255, 0.04);
+    color: var(--m-text-strong);
+    transform: none;
+  }
+
+  /* Activo: acento verde con indicador superior */
+  .module-buttons > button.active-module-button {
+    background: var(--m-accent-soft);
+    color: var(--m-accent-strong) !important;
+    box-shadow: none;
+    transform: none;
+    border: none;
+  }
+
+  .module-buttons > button.active-module-button::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 30px;
+    height: 3px;
+    border-radius: 0 0 4px 4px;
+    background: var(--m-accent);
+    box-shadow: 0 0 12px rgba(141, 214, 3, 0.6);
+  }
+
+  .module-buttons > button.active-module-button .m-btn-label {
+    opacity: 1;
+    font-weight: 700;
+  }
+
+  /* === Botones inferiores (ahora solo logout) === */
   .bottom-buttons {
     margin-top: 0;
     flex-direction: row;
-    gap: var(--mobile-gap);
+    align-items: stretch;
+    gap: 0;
     flex: 0 0 auto;
+    padding-right: 4px;
+    border-left: 1px solid var(--m-divider);
+    margin-left: 4px;
   }
 
-  /* Sheet right (móvil) */
+  .bottom-buttons button {
+    width: 56px;
+    height: var(--mobile-bottombar-h);
+    background: transparent;
+    border: none;
+    border-radius: 12px;
+    color: var(--m-text);
+    transition: color 180ms ease, background-color 180ms ease;
+  }
+
+  .bottom-buttons button .mat-icon {
+    font-size: 22px;
+  }
+
+  .bottom-buttons button:hover {
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--m-text-strong);
+    transform: none;
+  }
+
+  .logout-button:hover {
+    color: #fca5a5 !important;
+    background-color: rgba(239, 68, 68, 0.12) !important;
+  }
+
+  /* === Sheet right (bottom-sheet) === */
   .sidebar .right {
     position: fixed;
     left: 0;
@@ -707,12 +812,14 @@
     height: auto;
     max-height: calc(100dvh - (var(--mobile-bottombar-h) + env(safe-area-inset-bottom)));
 
-    border-radius: 0;
-    border-top: 1px solid rgba(15, 23, 42, 0.1);
-    padding: 12px 14px;
-    box-shadow: 0 18px 40px rgba(15, 23, 42, 0.18);
+    border-radius: 18px 18px 0 0;
+    border: none;
+    border-top: 1px solid var(--m-divider);
+    background: var(--m-sheet-bg);
+    padding: 22px 16px 16px;
+    box-shadow: 0 -16px 40px rgba(0, 0, 0, 0.42);
 
-    transform: translateY(10px);
+    transform: translateY(12px);
     opacity: 0;
     pointer-events: none;
 
@@ -721,6 +828,19 @@
     transition:
       opacity var(--app-dur) var(--app-ease),
       transform var(--app-dur) var(--app-ease);
+  }
+
+  /* Drag handle (afecta solo visualmente) */
+  .sidebar .right::before {
+    content: '';
+    position: absolute;
+    top: 8px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 42px;
+    height: 4px;
+    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.20);
   }
 
   .sidebar.show-detail .right {
@@ -734,6 +854,47 @@
     left: 0;
     right: 0;
     bottom: calc(var(--mobile-bottombar-h) + env(safe-area-inset-bottom));
+  }
+
+  /* Header del sheet más legible */
+  .sidebar .right .header {
+    height: 52px;
+    padding: 0 4px;
+  }
+
+  .sidebar .right .header-title {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--m-text-strong);
+  }
+
+  .sidebar .right .header-brand {
+    font-size: 10px;
+    letter-spacing: 0.18em;
+    color: rgba(255, 255, 255, 0.5);
+  }
+
+  /* Submódulos: targets más grandes y barra de acento al activo */
+  .submodule-button {
+    padding: 12px 12px;
+    font-size: 14px;
+    min-height: 48px;
+    border-radius: 10px;
+    margin-bottom: 4px;
+  }
+
+  .submodule-button .mat-icon {
+    font-size: 20px;
+  }
+
+  .submodule-button.active-submodule {
+    background: var(--m-accent-soft) !important;
+    color: var(--m-accent-strong) !important;
+    box-shadow: inset 3px 0 0 var(--m-accent);
+  }
+
+  .submodule-button.active-submodule .mat-icon {
+    color: var(--m-accent-strong) !important;
   }
 }
 

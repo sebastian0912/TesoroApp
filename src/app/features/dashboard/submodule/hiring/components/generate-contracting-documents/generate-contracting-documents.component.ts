@@ -1,6 +1,7 @@
 import { SharedModule } from '@/app/shared/shared.module';
 import { isPlatformBrowser } from '@angular/common';
 import {  Component, inject, OnInit, PLATFORM_ID, ViewChild, ElementRef , ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
+import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { PDFDocument, PDFTextField, PDFCheckBox, StandardFonts, rgb, degrees } from 'pdf-lib';
 import Swal from 'sweetalert2';
 import { GestionDocumentalService } from '../../service/gestion-documental/gestion-documental.service';
@@ -23,13 +24,14 @@ type UploadedInfo = {
   file: File;
   fileName: string;
   previewUrl?: string; // URL creada con URL.createObjectURL
+  typeId?: number;     // override de typeMap[key]: una misma entry de UI puede mapear a varios tipos del backend (p.ej. Ficha Técnica básica=34 vs TA completa=111)
 };
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-generate-contracting-documents',
   imports: [
-    SharedModule, RouterLink
+    SharedModule, RouterLink, MatProgressBarModule
   ],
   templateUrl: './generate-contracting-documents.component.html',
   styleUrl: './generate-contracting-documents.component.css'
@@ -79,51 +81,50 @@ export class GenerateContractingDocumentsComponent implements OnInit {
   private cdr = inject(ChangeDetectorRef);
 
   documentos = [
-    { titulo: 'Autorización de datos' },
-    { titulo: 'Entrega de documentos' },
-    { titulo: 'Entrega documentos Agricola' },
-    { titulo: 'Entrega documentos Jardines de los andes' },
-    { titulo: 'Entrega documentos Sagaro' },
-    { titulo: 'Entrega documentos Flores de los andes' },
-    { titulo: 'Entrega documentos Ipanema' },
-    { titulo: 'Entrega documentos Ipanema Foraneos' },
-    { titulo: 'Entrega documentos rebaño' },
-    { titulo: 'Entrega documentos melody' },
-    { titulo: 'Entrega documentos Tu Alianza Sin Casino' },
-    { titulo: 'Entrega documentos administrativos' },
-    { titulo: 'Ficha técnica' },
-    { titulo: 'Ficha Ta Completa' },
+    { titulo: 'Autorización de Datos' },
+    { titulo: 'Inducción' },
+    { titulo: 'Inducción Agrícola' },
+    { titulo: 'Inducción Jardines de los Andes' },
+    { titulo: 'Inducción Sagaro' },
+    { titulo: 'Inducción Flores de los Andes' },
+    { titulo: 'Inducción Ipanema' },
+    { titulo: 'Inducción Ipanema Foráneos' },
+    { titulo: 'Inducción Rebaño' },
+    { titulo: 'Inducción Melody' },
+    { titulo: 'Inducción Tu Alianza sin Casino' },
+    { titulo: 'Inducción Administrativos' },
+    { titulo: 'Ficha Técnica' },
     { titulo: 'Contrato' },
-    { titulo: 'Contrato TA' },
-    { titulo: 'Entrega carnets' },
-    { titulo: 'Inducción capacitación' },
-    { titulo: 'Formato solicitud' },
-    { titulo: 'MANEJO_IMAGEN' },
-    { titulo: 'FICHA_SOCIAL' },
+    { titulo: 'Entrega Carnets' },
+    { titulo: 'Inducción Capacitación' },
+    { titulo: 'Formato Solicitud' },
+    { titulo: 'Manejo Imagen' },
+    { titulo: 'Ficha Social' },
     { titulo: 'Entrevista de Ingreso' },
-    { titulo: 'Contratos Otros Si' },
+    { titulo: 'Contratos Otrosí' },
     { titulo: 'Auxilio Alimentación' },
     { titulo: 'Autorización Daños Pérdidas' },
-    { titulo: 'Cedula' },
+    { titulo: 'Cédula' },
     { titulo: 'ARL' },
     { titulo: 'Figura Humana' },
     { titulo: 'EPS' },
-    { titulo: 'CAJA' },
-    { titulo: 'PAGO SEGURIDAD SOCIAL' },
-    { titulo: 'PRUEBAS PSICOLOGICAS' },
-    { titulo: 'PRUEBA LECTRO ESCRITURA' },
-    { titulo: 'VISITA DOMICILIARIA' },
-    { titulo: 'PRUEBA SST' },
-    { titulo: 'AUTORIZACION INGRESO' },
-    { titulo: 'BONIFICACION IPANEMA' },
-    { titulo: 'PRUEBA PSICOTECNICA' },
-    { titulo: 'CERTIFICADOS ESTUDIOS' },
+    { titulo: 'Caja' },
+    { titulo: 'Pago Seguridad Social' },
+    { titulo: 'Pruebas Psicológicas' },
+    { titulo: 'Prueba Lectoescritura' },
+    { titulo: 'Visita Domiciliaria' },
+    { titulo: 'Prueba SST' },
+    { titulo: 'Autorización Ingreso' },
+    { titulo: 'Bonificación Ipanema' },
+    { titulo: 'Prueba Psicotécnica' },
+    { titulo: 'Certificados Estudios' },
     { titulo: 'SST' },
-    { titulo: 'OTRAS PRUEBAS' },
+    { titulo: 'Otras Pruebas' },
     { titulo: 'Hoja de Vida Minerva' },
-    { titulo: '108 SAGARO_LOCKERS' },
-    { titulo: '109 SAGARO_IMAGEN' },
-    { titulo: '110 SAGARO_CELULAR' }
+    { titulo: 'Sagaro Lockers' },
+    { titulo: 'Sagaro Imagen' },
+    { titulo: 'Sagaro Celular' },
+    { titulo: 'Referenciación' }
   ];
 
   nombreCompleto = '';
@@ -158,51 +159,50 @@ export class GenerateContractingDocumentsComponent implements OnInit {
   uploadedFiles: { [key: string]: UploadedInfo } = {};
 
   typeMap: { [key: string]: number } = {
-    Contrato: 25,
-    "Contrato TA": 25,
-    "Autorización de datos": 26,
-    "Entrega de documentos": 27,
-    "Entrega documentos Agricola": 27,
-    "Entrega documentos Jardines de los andes": 27,
-    "Entrega documentos Sagaro": 27,
-    "Entrega documentos Flores de los andes": 27,
-    "Entrega documentos Ipanema": 27,
-    "Entrega documentos Ipanema Foraneos": 27,
-    "Entrega documentos administrativos": 27,
-    "Entrega documentos rebaño": 27,
-    "Entrega documentos melody": 27,
-    "Entrega documentos Tu Alianza Sin Casino": 27,
-    'Ficha técnica': 34,
-    'Ficha Ta Completa': 111,
+    'Contrato': 25,
+    'Autorización de Datos': 26,
+    'Inducción': 27,
+    'Inducción Agrícola': 27,
+    'Inducción Jardines de los Andes': 27,
+    'Inducción Sagaro': 27,
+    'Inducción Flores de los Andes': 27,
+    'Inducción Ipanema': 27,
+    'Inducción Ipanema Foráneos': 27,
+    'Inducción Administrativos': 27,
+    'Inducción Rebaño': 27,
+    'Inducción Melody': 27,
+    'Inducción Tu Alianza sin Casino': 27,
+    'Ficha Técnica': 34,
     'Entrevista de Ingreso': 103,
-    'Contratos Otros Si': 104,
+    'Contratos Otrosí': 104,
     'Auxilio Alimentación': 105,
     'Autorización Daños Pérdidas': 106,
-    Cedula: 29,
-    ARL: 30,
+    'Cédula': 29,
+    'ARL': 30,
     'Figura Humana': 31,
-    EPS: 36,
-    CAJA: 37,
-    'PAGO SEGURIDAD SOCIAL': 38,
-    'Entrega carnets': 95,
-    'Inducción capacitación': 96,
-    'Formato solicitud': 97,
-    'PRUEBAS PSICOLOGICAS': 19,
-    'AUTORIZACION INGRESO': 112,
-    'BONIFICACION IPANEMA': 113,
-    'PRUEBA PSICOTECNICA': 114,
-    'CERTIFICADOS ESTUDIOS': 101,
-    SST: 91,
-    'OTRAS PRUEBAS': 115,
+    'EPS': 36,
+    'Caja': 37,
+    'Pago Seguridad Social': 38,
+    'Entrega Carnets': 95,
+    'Inducción Capacitación': 96,
+    'Formato Solicitud': 97,
+    'Pruebas Psicológicas': 19,
+    'Autorización Ingreso': 112,
+    'Bonificación Ipanema': 113,
+    'Prueba Psicotécnica': 114,
+    'Certificados Estudios': 101,
+    'SST': 91,
+    'Otras Pruebas': 115,
     'Hoja de Vida Minerva': 28,
-    'PRUEBA LECTRO ESCRITURA': 20,
-    'VISITA DOMICILIARIA': 41,
-    'PRUEBA SST': 24,
-    'MANEJO_IMAGEN': 46,
-    'FICHA_SOCIAL': 98,
-    '108 SAGARO_LOCKERS': 108,
-    '109 SAGARO_IMAGEN': 109,
-    '110 SAGARO_CELULAR': 110,
+    'Prueba Lectoescritura': 20,
+    'Visita Domiciliaria': 41,
+    'Prueba SST': 24,
+    'Manejo Imagen': 46,
+    'Ficha Social': 98,
+    'Sagaro Lockers': 108,
+    'Sagaro Imagen': 109,
+    'Sagaro Celular': 110,
+    'Referenciación': 118,
   };
 
   // Diccionario para almacenar info de documentos ya existentes en base de datos
@@ -277,6 +277,9 @@ export class GenerateContractingDocumentsComponent implements OnInit {
               for (const [title, typeId] of Object.entries(this.typeMap)) {
                 idToTitle[typeId] = title;
               }
+              // Aliases: typeIds del backend que no tienen entry propia en `documentos[]`
+              // pero deben mostrarse bajo una entry unificada de la UI.
+              idToTitle[111] ??= 'Ficha Técnica'; // Ficha TA completa → bajo "Ficha Técnica"
 
               docsBackend.forEach((doc: any) => {
                 const title = idToTitle[doc.type];
@@ -347,14 +350,97 @@ export class GenerateContractingDocumentsComponent implements OnInit {
 
   isSubirPDF(doc: any): boolean {
     return [
-      'Cedula', 'ARL', 'Figura Humana', 'EPS', 'CAJA', 'PAGO SEGURIDAD SOCIAL',
-      'PRUEBAS PSICOLOGICAS', 'PRUEBA LECTRO ESCRITURA', 'VISITA DOMICILIARIA', 'PRUEBA SST',
-      'AUTORIZACION INGRESO', 'BONIFICACION IPANEMA', 'PRUEBA PSICOTECNICA',
-      'CERTIFICADOS ESTUDIOS', 'SST', 'OTRAS PRUEBAS'
+      'Cédula', 'ARL', 'Figura Humana', 'EPS', 'Caja', 'Pago Seguridad Social',
+      'Pruebas Psicológicas', 'Prueba Lectoescritura', 'Visita Domiciliaria', 'Prueba SST',
+      'Autorización Ingreso', 'Bonificación Ipanema', 'Prueba Psicotécnica',
+      'Certificados Estudios', 'SST', 'Otras Pruebas', 'Referenciación'
     ].includes(doc.titulo);
   }
 
+  /** Documentos con 2 variantes (básica / TA Completa) — el botón Generar abre un mat-menu. */
+  hasVariants(doc: { titulo: string }): boolean {
+    return doc.titulo === 'Contrato' || doc.titulo === 'Ficha Técnica';
+  }
+
+  /**
+   * ¿el documento tiene archivo (subido en esta sesión o existente en BD)?
+   */
+  hasFile(doc: { titulo: string }): boolean {
+    return !!(this.uploadedFiles[doc.titulo] || this.existingDocs[doc.titulo]);
+  }
+
+  /**
+   * Vista plana 3-niveles (Todos): completados → generables → resto.
+   * Mantiene la firma original del primer refactor para compat.
+   */
+  get documentosOrdenados(): { titulo: string }[] {
+    return [
+      ...this.documentos.filter(d => this.hasFile(d)),
+      ...this.documentos.filter(d => !this.hasFile(d) && !this.isSubirPDF(d)),
+      ...this.documentos.filter(d => !this.hasFile(d) && this.isSubirPDF(d)),
+    ];
+  }
+
+  /** Tab "Auto-generables": sólo los que NO son subir-only. */
+  get docsGenerables(): { titulo: string }[] {
+    return [
+      ...this.documentos.filter(d => !this.isSubirPDF(d) && this.hasFile(d)),
+      ...this.documentos.filter(d => !this.isSubirPDF(d) && !this.hasFile(d)),
+    ];
+  }
+
+  /** Tab "Solo subida": los que sí son subir-only. */
+  get docsSubir(): { titulo: string }[] {
+    return [
+      ...this.documentos.filter(d => this.isSubirPDF(d) && this.hasFile(d)),
+      ...this.documentos.filter(d => this.isSubirPDF(d) && !this.hasFile(d)),
+    ];
+  }
+
+  /** Avance del expediente (todos los documentos). */
+  get progresoExpediente(): { completados: number; total: number; porcentaje: number } {
+    const total = this.documentos.length;
+    const completados = this.documentos.reduce((acc, d) => acc + (this.hasFile(d) ? 1 : 0), 0);
+    const porcentaje = total ? Math.round((completados / total) * 100) : 0;
+    return { completados, total, porcentaje };
+  }
+
+  /** Conteo de completados por sub-grupo, para los badges en los tabs. */
+  get progresoGenerables(): { completados: number; total: number } {
+    const sub = this.documentos.filter(d => !this.isSubirPDF(d));
+    return { completados: sub.filter(d => this.hasFile(d)).length, total: sub.length };
+  }
+  get progresoSubir(): { completados: number; total: number } {
+    const sub = this.documentos.filter(d => this.isSubirPDF(d));
+    return { completados: sub.filter(d => this.hasFile(d)).length, total: sub.length };
+  }
+
+  /** Estado de un documento — alimenta el chip y el círculo de la izquierda. */
+  estadoDoc(doc: { titulo: string }): 'completado_local' | 'completado_servidor' | 'pendiente' {
+    if (this.uploadedFiles[doc.titulo]) return 'completado_local';
+    if (this.existingDocs[doc.titulo]) return 'completado_servidor';
+    return 'pendiente';
+  }
+
   subirArchivo(event: Event, campo: string) {
+    this.subirArchivoConTypeId(event, campo, undefined);
+  }
+
+  /**
+   * Sube manual un PDF para una entry con variantes (p. ej. Ficha Técnica básica
+   * vs TA Completa). El mat-menu pasa la variante; aquí se traduce a un typeId
+   * override que se guardará en `uploadedFiles[campo].typeId`.
+   */
+  subirArchivoVariant(event: Event, campo: string, variant: 'basica' | 'completa') {
+    let typeIdOverride: number | undefined;
+    if (campo === 'Ficha Técnica') {
+      typeIdOverride = variant === 'completa' ? 111 : undefined;
+    }
+    // Contrato comparte typeId 25 entre variantes → no necesita override.
+    this.subirArchivoConTypeId(event, campo, typeIdOverride);
+  }
+
+  private subirArchivoConTypeId(event: Event, campo: string, typeIdOverride: number | undefined) {
     const input = event.target as HTMLInputElement;
     const file = input.files?.[0];
 
@@ -382,12 +468,12 @@ export class GenerateContractingDocumentsComponent implements OnInit {
           this.resetInput(input);
           return;
         }
-        this.setFileInQueue(file, campo, input);
+        this.setFileInQueue(file, campo, input, typeIdOverride);
       });
       return;
     }
 
-    this.setFileInQueue(file, campo, input);
+    this.setFileInQueue(file, campo, input, typeIdOverride);
   }
 
   /** Verifica si un PDF está protegido con contraseña leyendo sus bytes */
@@ -409,7 +495,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     }
   }
 
-  private setFileInQueue(file: File, campo: string, input?: HTMLInputElement) {
+  private setFileInQueue(file: File, campo: string, input?: HTMLInputElement, typeId?: number) {
     // Revocar URL anterior si existía (evitar memory leaks)
     const prev = this.uploadedFiles[campo]?.previewUrl;
     if (prev) {
@@ -418,7 +504,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
 
     // Guardar archivo y URL de previsualización
     const previewUrl = URL.createObjectURL(file);
-    this.uploadedFiles[campo] = { file, fileName: file.name, previewUrl };
+    this.uploadedFiles[campo] = { file, fileName: file.name, previewUrl, typeId };
 
     // Mostrar previsualización en el iframe (si es PDF)
     if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
@@ -530,7 +616,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       .map((key) => ({
         key,
         ...this.uploadedFiles[key],
-        typeId: this.typeMap[key],
+        typeId: this.uploadedFiles[key]?.typeId ?? this.typeMap[key],
       }));
 
     if (archivosAEnviar.length === 0) {
@@ -575,9 +661,63 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     return { ok: fallidos.length === 0, exitosos, fallidos };
   }
 
+  /**
+   * Punto de entrada para los documentos con 2 variantes (Contrato, Ficha Técnica).
+   * La UI llama a este método desde un mat-menu pasando la variante elegida por el
+   * usuario. La regla "última gana" se aplica automáticamente porque ambas variantes
+   * comparten la misma entry en `uploadedFiles`.
+   */
+  generarPDFVariant(documento: string, variant: 'basica' | 'completa') {
+    if (documento === 'Contrato') {
+      this.runContratoVariant(variant);
+      return;
+    }
+    if (documento === 'Ficha Técnica') {
+      this.runFichaTecnicaVariant(variant);
+      return;
+    }
+    Swal.fire('Error', 'Documento no soporta variantes: ' + documento, 'error');
+  }
+
+  /** Despacha la variante de Contrato. La Completa no depende de empresa; la básica sí. */
+  private runContratoVariant(variant: 'basica' | 'completa') {
+    if (variant === 'completa') {
+      this.generarContratoCompletoTrabajoTuAlianza();
+      return;
+    }
+    if (!this.empresa || this.empresa.trim() === '') {
+      Swal.fire('Atención', 'Selecciona el candidato, la empresa no está definida.', 'warning');
+      return;
+    }
+    const emp = this.empresa.toUpperCase().trim();
+    if (emp.includes('ALIANZA')) {
+      this.generarContratoTrabajoTuAlianza();
+    } else {
+      this.generarContratoTrabajo();
+    }
+  }
+
+  /** Despacha la variante de Ficha Técnica. La Completa override el typeId a 111 al guardar. */
+  private runFichaTecnicaVariant(variant: 'basica' | 'completa') {
+    if (variant === 'completa') {
+      this.generarFichaTecnicaTuAlianzaCompleta();
+      return;
+    }
+    if (!this.empresa || this.empresa.trim() === '') {
+      Swal.fire('Atención', 'Selecciona el candidato, la empresa no está definida.', 'warning');
+      return;
+    }
+    const emp = this.empresa.toUpperCase().trim();
+    if (emp.includes('ALIANZA')) {
+      this.generarFichaTecnicaTuAlianza();
+    } else {
+      this.generarFichaTecnica();
+    }
+  }
+
   generarPDF(documento: string) {
-    // Contratos Otros Si no depende de la empresa
-    if (documento === 'Contratos Otros Si') {
+    // Contratos Otrosí no depende de la empresa
+    if (documento === 'Contratos Otrosí') {
       this.generarContratosOtroSi();
       return;
     }
@@ -597,6 +737,9 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       return;
     }
 
+    // Contrato y Ficha Técnica tienen 2 variantes (básica / TA Completa) y se
+    // disparan desde un mat-menu vía `generarPDFVariant(...)`, no por aquí.
+
     if (!this.empresa || this.empresa.trim() === '') {
       Swal.fire('Atención', 'Selecciona el candidato, la empresa no está definida.', 'warning');
       return;
@@ -604,96 +747,76 @@ export class GenerateContractingDocumentsComponent implements OnInit {
 
     const emp = this.empresa.toUpperCase().trim();
 
-    if (documento === 'Autorización de datos') {
+    if (documento === 'Autorización de Datos') {
       this.generarAutorizacionDatos();
     }
-    else if (documento === 'Entrega de documentos') {
+    else if (documento === 'Inducción') {
       if (emp.includes('APOYO LINEA')) {
         this.generarEntregaDocsApoyo();
       } else if (emp.includes('APOYO')) {
         this.generarEntregaDocsApoyo();
       } else {
-        Swal.fire('Atención', 'Falta seleccionar la remision o la empresa no aplica para este documento', 'info');
+        Swal.fire('Atención', 'Falta seleccionar la remisión o la empresa no aplica para este documento', 'info');
       }
     }
-    else if (documento === 'Entrega documentos Agricola') {
+    else if (documento === 'Inducción Agrícola') {
       this.generarEntregaDocsAgricola();
     }
-    else if (documento === 'Entrega documentos Jardines de los andes') {
+    else if (documento === 'Inducción Jardines de los Andes') {
       this.generarEntregaDocsJardinez();
     }
-    else if (documento === 'Entrega documentos Sagaro') {
+    else if (documento === 'Inducción Sagaro') {
       this.generarEntregaDocsTuAlianzaSAGARO();
     }
-    else if (documento === 'Entrega documentos Flores de los andes') {
+    else if (documento === 'Inducción Flores de los Andes') {
       this.generarEntregaDocsTuAlianzaFloresAndes();
     }
-    else if (documento === 'Entrega documentos Ipanema') {
+    else if (documento === 'Inducción Ipanema') {
       this.generarEntregaDocsTuAlianzaIpanema();
     }
-    else if (documento === 'Entrega documentos Ipanema Foraneos') {
+    else if (documento === 'Inducción Ipanema Foráneos') {
       this.generarEntregaDocsTuAlianzaIpanemaForaneos();
     }
-    else if (documento === 'Entrega documentos rebaño') {
+    else if (documento === 'Inducción Rebaño') {
       this.generarEntregaDocsTuAlianzaRebano();
     }
-    else if (documento === 'Entrega documentos melody') {
+    else if (documento === 'Inducción Melody') {
       this.generarEntregaDocsTuAlianzaMelody();
     }
-    else if (documento === 'Entrega documentos Tu Alianza Sin Casino') {
+    else if (documento === 'Inducción Tu Alianza sin Casino') {
       this.generarEntregaDocsTuAlianzaSinCasino();
     }
-    else if (documento === 'Entrega documentos administrativos') {
+    else if (documento === 'Inducción Administrativos') {
       this.generarEntregaDocsTuAlianzaAdministrativos();
     }
-    else if (documento === 'Contrato') {
-      if (emp.includes('ALIANZA')) {
-        this.generarContratoTrabajoTuAlianza();
-      } else {
-        this.generarContratoTrabajo();
-      }
-    }
-    else if (documento == 'Contrato TA') {
-      this.generarContratoCompletoTrabajoTuAlianza();
-    }
-    else if (documento === 'Ficha técnica') {
-      if (emp.includes('ALIANZA')) {
-        this.generarFichaTecnicaTuAlianza();
-      } else {
-        this.generarFichaTecnica();
-      }
-    }
-    else if (documento === 'Ficha Ta Completa') {
-      this.generarFichaTecnicaTuAlianzaCompleta();
-    }
-    else if (documento === 'Entrega carnets') {
+    else if (documento === 'Entrega Carnets') {
       this.generarEntregaCarnets();
     }
-    else if (documento === 'Inducción capacitación') {
+    else if (documento === 'Inducción Capacitación') {
       this.generarInduccionCapacitacion();
     }
-    else if (documento === 'Formato solicitud') {
+    else if (documento === 'Formato Solicitud') {
       this.generarFormatoSolicitud();
     }
-    else if (documento === 'MANEJO_IMAGEN') {
+    else if (documento === 'Manejo Imagen') {
       this.generarManejoImagen();
     }
-    else if (documento === 'FICHA_SOCIAL') {
+    else if (documento === 'Ficha Social') {
       this.generarFichaSocial();
     }
     else if (documento === 'Entrevista de Ingreso') {
       this.generarEntrevistaDeIngreso();
     }
-    else if (documento === 'Contratos Otros Si') {
+    else if (documento === 'Contratos Otrosí') {
       this.generarContratosOtroSi();
     }
-    else if (documento === '108 SAGARO_LOCKERS') {
+    else if (documento === 'Sagaro Lockers') {
       this.generarSagaroLockers();
     }
-    else if (documento === '110 SAGARO_CELULAR') {
+    else if (documento === 'Sagaro Celular') {
       this.generarSagaroCelular();
     }
-    else if (documento === '109 SAGARO_IMAGEN') {
+    else if (documento === 'Sagaro Imagen') {
       this.generarSagaroImagen();
     } else {
       Swal.fire('Error', 'Funcionalidad de PDF no implementada para: ' + documento, 'error');
@@ -1033,12 +1156,12 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       const pdfBlob = doc.output('blob');
       const file = new File([pdfBlob], '108_SAGARO_LOCKERS.pdf', { type: 'application/pdf' });
 
-      this.uploadedFiles['108 SAGARO_LOCKERS'] = { file, fileName: '108_SAGARO_LOCKERS.pdf' };
-      this.verPDF({ titulo: '108 SAGARO_LOCKERS' });
+      this.uploadedFiles['Sagaro Lockers'] = { file, fileName: '108_SAGARO_LOCKERS.pdf' };
+      this.verPDF({ titulo: 'Sagaro Lockers' });
 
     } catch (error) {
-      console.error('Error generando 108 SAGARO_LOCKERS:', error);
-      Swal.fire({ icon: 'error', title: 'Error', text: 'Ocurrió un error al generar el PDF de 108 SAGARO_LOCKERS' });
+      console.error('Error generando Sagaro Lockers:', error);
+      Swal.fire({ icon: 'error', title: 'Error', text: 'Ocurrió un error al generar el PDF de Sagaro Lockers' });
     }
   }
 
@@ -1216,12 +1339,12 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       const pdfBlob = doc.output('blob');
       const file = new File([pdfBlob], '110_SAGARO_CELULAR.pdf', { type: 'application/pdf' });
 
-      this.uploadedFiles['110 SAGARO_CELULAR'] = { file, fileName: '110_SAGARO_CELULAR.pdf' };
-      this.verPDF({ titulo: '110 SAGARO_CELULAR' });
+      this.uploadedFiles['Sagaro Celular'] = { file, fileName: '110_SAGARO_CELULAR.pdf' };
+      this.verPDF({ titulo: 'Sagaro Celular' });
 
     } catch (error) {
-      console.error('Error generando 110 SAGARO_CELULAR:', error);
-      Swal.fire({ icon: 'error', title: 'Error', text: 'Ocurrió un error al generar el PDF de 110 SAGARO_CELULAR' });
+      console.error('Error generando Sagaro Celular:', error);
+      Swal.fire({ icon: 'error', title: 'Error', text: 'Ocurrió un error al generar el PDF de Sagaro Celular' });
     }
   }
 
@@ -1887,8 +2010,8 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       const pdfBlob = doc.output('blob');
       const file = new File([pdfBlob], 'MANEJO_IMAGEN.pdf', { type: 'application/pdf' });
 
-      this.uploadedFiles['MANEJO_IMAGEN'] = { file, fileName: 'MANEJO_IMAGEN.pdf' };
-      this.verPDF({ titulo: 'MANEJO_IMAGEN' });
+      this.uploadedFiles['Manejo Imagen'] = { file, fileName: 'MANEJO_IMAGEN.pdf' };
+      this.verPDF({ titulo: 'Manejo Imagen' });
 
     } catch (error) {
       console.error('Error generando MANEJO_IMAGEN:', error);
@@ -2023,11 +2146,11 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       const pdfBlob = doc.output('blob');
       const file = new File([pdfBlob], '109_SAGARO_IMAGEN.pdf', { type: 'application/pdf' });
 
-      this.uploadedFiles['109 SAGARO_IMAGEN'] = { file, fileName: '109_SAGARO_IMAGEN.pdf' };
-      this.verPDF({ titulo: '109 SAGARO_IMAGEN' });
+      this.uploadedFiles['Sagaro Imagen'] = { file, fileName: '109_SAGARO_IMAGEN.pdf' };
+      this.verPDF({ titulo: 'Sagaro Imagen' });
 
     } catch (error) {
-      console.error('Error generando 109 SAGARO_IMAGEN:', error);
+      console.error('Error generando Sagaro Imagen:', error);
       Swal.fire({ icon: 'error', title: 'Error', text: 'Ocurrió un error al generar el documento' });
     }
   }
@@ -2265,8 +2388,8 @@ export class GenerateContractingDocumentsComponent implements OnInit {
 
       const resultBytes = await pdfDoc.save();
       const file = new File([resultBytes as any], 'FICHA_SOCIAL.pdf', { type: 'application/pdf' });
-      this.uploadedFiles['FICHA_SOCIAL'] = { file, fileName: 'FICHA_SOCIAL.pdf' };
-      this.verPDF({ titulo: 'FICHA_SOCIAL' });
+      this.uploadedFiles['Ficha Social'] = { file, fileName: 'FICHA_SOCIAL.pdf' };
+      this.verPDF({ titulo: 'Ficha Social' });
 
     } catch (error) {
       console.error('Error generando FICHA_SOCIAL:', error);
@@ -2491,8 +2614,8 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     const pdfBlob = doc.output('blob');
     const fileName = `${empresaSeleccionada}_Autorizacion_Datos.pdf`;
     const pdfFile = new File([pdfBlob], fileName, { type: 'application/pdf' });
-    this.uploadedFiles['Autorización de datos'] = { file: pdfFile, fileName };
-    this.verPDF({ titulo: 'Autorización de datos' });
+    this.uploadedFiles['Autorización de Datos'] = { file: pdfFile, fileName };
+    this.verPDF({ titulo: 'Autorización de Datos' });
   }
 
   // Función para renderizar una línea justificada y subrayarla
@@ -3472,8 +3595,8 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     const pdfBlob = doc.output('blob');
     const fileName = `${this.empresa || 'Apoyo_Laboral'}_Entrega_de_documentos.pdf`;
     const pdfFile = new File([pdfBlob], fileName, { type: 'application/pdf' });
-    this.uploadedFiles['Entrega de documentos'] = { file: pdfFile, fileName };
-    this.verPDF({ titulo: 'Entrega de documentos' });
+    this.uploadedFiles['Inducción'] = { file: pdfFile, fileName };
+    this.verPDF({ titulo: 'Inducción' });
   }
 
   async generarEntregaDocsAgricola() {
@@ -3907,8 +4030,8 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     const pdfBlob = doc.output('blob');
     const fileName = `${this.empresa || 'Apoyo_Laboral'}_Entrega_documentos_Agricola.pdf`;
     const pdfFile = new File([pdfBlob], fileName, { type: 'application/pdf' });
-    this.uploadedFiles['Entrega documentos Agricola'] = { file: pdfFile, fileName };
-    this.verPDF({ titulo: 'Entrega documentos Agricola' });
+    this.uploadedFiles['Inducción Agrícola'] = { file: pdfFile, fileName };
+    this.verPDF({ titulo: 'Inducción Agrícola' });
   }
 
   async generarEntregaDocsJardinez() {
@@ -4351,8 +4474,8 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     const pdfBlob = doc.output('blob');
     const fileName = `${this.empresa || 'Apoyo_Laboral'}_Entrega_documentos_Jardines.pdf`;
     const pdfFile = new File([pdfBlob], fileName, { type: 'application/pdf' });
-    this.uploadedFiles['Entrega documentos Jardines de los andes'] = { file: pdfFile, fileName };
-    this.verPDF({ titulo: 'Entrega documentos Jardines de los andes' });
+    this.uploadedFiles['Inducción Jardines de los Andes'] = { file: pdfFile, fileName };
+    this.verPDF({ titulo: 'Inducción Jardines de los Andes' });
   }
 
 
@@ -4779,8 +4902,8 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     const pdfBlob = doc.output('blob');
     const fileName = `${this.empresa || 'Tu_Alianza'}_Entrega_documentos_Sagaro.pdf`;
     const pdfFile = new File([pdfBlob], fileName, { type: 'application/pdf' });
-    this.uploadedFiles['Entrega documentos Sagaro'] = { file: pdfFile, fileName };
-    this.verPDF({ titulo: 'Entrega documentos Sagaro' });
+    this.uploadedFiles['Inducción Sagaro'] = { file: pdfFile, fileName };
+    this.verPDF({ titulo: 'Inducción Sagaro' });
   }
 
   async generarEntregaDocsTuAlianzaFloresAndes() {
@@ -5205,8 +5328,8 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     const pdfBlob = doc.output('blob');
     const fileName = `${this.empresa || 'Tu_Alianza'}_Entrega_documentos_Flores_de_los_andes.pdf`;
     const pdfFile = new File([pdfBlob], fileName, { type: 'application/pdf' });
-    this.uploadedFiles['Entrega documentos Flores de los andes'] = { file: pdfFile, fileName };
-    this.verPDF({ titulo: 'Entrega documentos Flores de los andes' });
+    this.uploadedFiles['Inducción Flores de los Andes'] = { file: pdfFile, fileName };
+    this.verPDF({ titulo: 'Inducción Flores de los Andes' });
   }
 
   async generarEntregaDocsTuAlianzaIpanema() {
@@ -5633,8 +5756,8 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     const pdfBlob = doc.output('blob');
     const fileName = `${this.empresa || 'Tu_Alianza'}_Entrega_documentos_Ipanema.pdf`;
     const pdfFile = new File([pdfBlob], fileName, { type: 'application/pdf' });
-    this.uploadedFiles['Entrega documentos Ipanema'] = { file: pdfFile, fileName };
-    this.verPDF({ titulo: 'Entrega documentos Ipanema' });
+    this.uploadedFiles['Inducción Ipanema'] = { file: pdfFile, fileName };
+    this.verPDF({ titulo: 'Inducción Ipanema' });
   }
 
   async generarEntregaDocsTuAlianzaIpanemaForaneos() {
@@ -6059,8 +6182,8 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     const pdfBlobForaneos = doc.output('blob');
     const fileNameForaneos = `${this.empresa || 'Tu_Alianza'}_Entrega_documentos_Ipanema_Foraneos.pdf`;
     const pdfFileForaneos = new File([pdfBlobForaneos], fileNameForaneos, { type: 'application/pdf' });
-    this.uploadedFiles['Entrega documentos Ipanema Foraneos'] = { file: pdfFileForaneos, fileName: fileNameForaneos };
-    this.verPDF({ titulo: 'Entrega documentos Ipanema Foraneos' });
+    this.uploadedFiles['Inducción Ipanema Foráneos'] = { file: pdfFileForaneos, fileName: fileNameForaneos };
+    this.verPDF({ titulo: 'Inducción Ipanema Foráneos' });
   }
 
   async generarEntregaDocsTuAlianzaAdministrativos() {
@@ -6419,8 +6542,8 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     const pdfBlob = doc.output('blob');
     const fileName = `${this.empresa || 'Tu_Alianza'}_Entrega_documentos_Administrativos.pdf`;
     const pdfFile = new File([pdfBlob], fileName, { type: 'application/pdf' });
-    this.uploadedFiles['Entrega documentos administrativos'] = { file: pdfFile, fileName };
-    this.verPDF({ titulo: 'Entrega documentos administrativos' });
+    this.uploadedFiles['Inducción Administrativos'] = { file: pdfFile, fileName };
+    this.verPDF({ titulo: 'Inducción Administrativos' });
   }
 
   async generarEntregaDocsTuAlianzaRebano() {
@@ -6819,8 +6942,8 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     const pdfBlob = doc.output('blob');
     const fileName = `${this.empresa || 'Tu_Alianza'}_Entrega_documentos_Rebano.pdf`;
     const pdfFile = new File([pdfBlob], fileName, { type: 'application/pdf' });
-    this.uploadedFiles['Entrega documentos rebaño'] = { file: pdfFile, fileName };
-    this.verPDF({ titulo: 'Entrega documentos rebaño' });
+    this.uploadedFiles['Inducción Rebaño'] = { file: pdfFile, fileName };
+    this.verPDF({ titulo: 'Inducción Rebaño' });
   }
 
   async generarEntregaDocsTuAlianzaMelody() {
@@ -7218,8 +7341,8 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     const pdfBlob = doc.output('blob');
     const fileName = `${this.empresa || 'Tu_Alianza'}_Entrega_documentos_Melody.pdf`;
     const pdfFile = new File([pdfBlob], fileName, { type: 'application/pdf' });
-    this.uploadedFiles['Entrega documentos melody'] = { file: pdfFile, fileName };
-    this.verPDF({ titulo: 'Entrega documentos melody' });
+    this.uploadedFiles['Inducción Melody'] = { file: pdfFile, fileName };
+    this.verPDF({ titulo: 'Inducción Melody' });
   }
 
   async generarEntregaDocsTuAlianzaSinCasino() {
@@ -7652,8 +7775,8 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     const pdfBlob = doc.output('blob');
     const fileName = `${this.empresa || 'Tu_Alianza'}_Entrega_documentos_Sin_Casino.pdf`;
     const pdfFile = new File([pdfBlob], fileName, { type: 'application/pdf' });
-    this.uploadedFiles['Entrega documentos Tu Alianza Sin Casino'] = { file: pdfFile, fileName };
-    this.verPDF({ titulo: 'Entrega documentos Tu Alianza Sin Casino' });
+    this.uploadedFiles['Inducción Tu Alianza sin Casino'] = { file: pdfFile, fileName };
+    this.verPDF({ titulo: 'Inducción Tu Alianza sin Casino' });
   }
 
 
@@ -9746,8 +9869,8 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       const ab = this.toSafeArrayBuffer(pdfBytes);
       const file = new File([ab], 'Ficha tecnica.pdf', { type: 'application/pdf' });
 
-      this.uploadedFiles['Ficha técnica'] = { file, fileName: 'Ficha tecnica.pdf' };
-      this.verPDF({ titulo: 'Ficha técnica' });
+      this.uploadedFiles['Ficha Técnica'] = { file, fileName: 'Ficha tecnica.pdf' };
+      this.verPDF({ titulo: 'Ficha Técnica' });
     } catch (error) {
       console.error('Error generando ficha técnica:', error);
       Swal.fire({ icon: 'error', title: 'Error', text: 'Ocurrió un error al generar la ficha técnica.' });
@@ -10402,8 +10525,8 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       const ab = this.toSafeArrayBuffer(pdfBytes);
       const file = new File([ab], 'Ficha tecnica.pdf', { type: 'application/pdf' });
 
-      this.uploadedFiles['Ficha técnica'] = { file, fileName: 'Ficha tecnica.pdf' };
-      this.verPDF({ titulo: 'Ficha técnica' });
+      this.uploadedFiles['Ficha Técnica'] = { file, fileName: 'Ficha tecnica.pdf' };
+      this.verPDF({ titulo: 'Ficha Técnica' });
     } catch (error) {
       console.error('Error generando ficha técnica:', error);
       Swal.fire({ icon: 'error', title: 'Error', text: 'Ocurrió un error al generar la ficha técnica.' });
@@ -10992,8 +11115,11 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       const ab = this.toSafeArrayBuffer(pdfBytes);
       const file = new File([ab], 'Ficha tecnica.pdf', { type: 'application/pdf' });
 
-      this.uploadedFiles['Ficha Ta Completa'] = { file, fileName: 'Ficha tecnica.pdf' };
-      this.verPDF({ titulo: 'Ficha Ta Completa' });
+      // Misma UI entry "Ficha Técnica"; typeId 111 override para que el backend
+      // reciba el tipo "TA Completa" al subir. Pisa cualquier versión previa
+      // (básica o completa anterior) — última gana.
+      this.uploadedFiles['Ficha Técnica'] = { file, fileName: 'Ficha tecnica.pdf', typeId: 111 };
+      this.verPDF({ titulo: 'Ficha Técnica' });
     } catch (error) {
       console.error('Error generando ficha técnica:', error);
       Swal.fire({ icon: 'error', title: 'Error', text: 'Ocurrió un error al generar la ficha técnica.' });
@@ -11099,8 +11225,8 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       const ab = this.toSafeArrayBuffer(pdfBytes);
       const file = new File([ab], 'Entrega_carnets.pdf', { type: 'application/pdf' });
 
-      this.uploadedFiles['Entrega carnets'] = { file, fileName: 'Entrega_carnets.pdf' };
-      this.verPDF({ titulo: 'Entrega carnets' });
+      this.uploadedFiles['Entrega Carnets'] = { file, fileName: 'Entrega_carnets.pdf' };
+      this.verPDF({ titulo: 'Entrega Carnets' });
     } catch (error) {
       console.error('Error generando Entrega de Carnets:', error);
       Swal.fire({ icon: 'error', title: 'Error', text: 'Ocurrió un error al generar la Entrega de Carnets.' });
@@ -11212,8 +11338,8 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       const ab = this.toSafeArrayBuffer(pdfBytes);
       const file = new File([ab], 'Induccion_capacitacion.pdf', { type: 'application/pdf' });
 
-      this.uploadedFiles['Inducción capacitación'] = { file, fileName: 'Induccion_capacitacion.pdf' };
-      this.verPDF({ titulo: 'Inducción capacitación' });
+      this.uploadedFiles['Inducción Capacitación'] = { file, fileName: 'Induccion_capacitacion.pdf' };
+      this.verPDF({ titulo: 'Inducción Capacitación' });
     } catch (error) {
       console.error('Error generando Inducción y Capacitación:', error);
       Swal.fire({ icon: 'error', title: 'Error', text: 'Ocurrió un error al generar la Inducción y Capacitación.' });
@@ -11523,8 +11649,8 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       const ab = this.toSafeArrayBuffer(pdfBytes);
       const file = new File([ab], 'Formato_solicitud.pdf', { type: 'application/pdf' });
 
-      this.uploadedFiles['Formato solicitud'] = { file, fileName: 'Formato_solicitud.pdf' };
-      this.verPDF({ titulo: 'Formato solicitud' });
+      this.uploadedFiles['Formato Solicitud'] = { file, fileName: 'Formato_solicitud.pdf' };
+      this.verPDF({ titulo: 'Formato Solicitud' });
     } catch (error) {
       console.error('Error generando Formato Solicitud:', error);
       Swal.fire({ icon: 'error', title: 'Error', text: 'Ocurrió un error al generar el Formato de Solicitud.' });
@@ -11533,7 +11659,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
 
 
   // ─────────────────────────────────────────────────────────────────────
-  // Contratos Otros Si – PDF generado con jsPDF
+  // Contratos Otrosí – PDF generado con jsPDF
   // ─────────────────────────────────────────────────────────────────────
   async generarContratosOtroSi() {
     try {
@@ -11779,12 +11905,12 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       const pdfBlob = doc.output('blob');
       const fileName = `CONTRATOS_OTROS_SI_${cedula}.pdf`;
       const pdfFile = new File([pdfBlob], fileName, { type: 'application/pdf' });
-      this.uploadedFiles['Contratos Otros Si'] = { file: pdfFile, fileName };
-      this.verPDF({ titulo: 'Contratos Otros Si' });
+      this.uploadedFiles['Contratos Otrosí'] = { file: pdfFile, fileName };
+      this.verPDF({ titulo: 'Contratos Otrosí' });
 
     } catch (error) {
-      console.error('Error generando Contratos Otros Si:', error);
-      Swal.fire({ icon: 'error', title: 'Error', text: 'Ocurrió un error al generar el documento Contratos Otros Si.' });
+      console.error('Error generando Contratos Otrosí:', error);
+      Swal.fire({ icon: 'error', title: 'Error', text: 'Ocurrió un error al generar el documento Contratos Otrosí.' });
     }
   }
 

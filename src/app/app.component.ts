@@ -25,23 +25,41 @@ declare global {
         openExternal: (url: string) => Promise<{ success: boolean; error?: string }>;
       };
       db: {
-        saveRequestQueue: (req: any) => Promise<any>;
+        saveRequestQueue: (req: {
+          method: string;
+          url: string;
+          body: string | null;
+          headers: string | null;
+          idempotencyKey?: string | null;
+          userId?: string | null;
+        }) => Promise<{ success: boolean; id?: number; error?: string }>;
         saveMultipartRequest: (payload: {
           method: string;
           url: string;
           headers: string | null;
           formFields: { name: string; value: string }[];
           files: { fieldName: string; fileName: string; mimeType: string | null; storedPath: string }[];
+          idempotencyKey?: string | null;
+          userId?: string | null;
         }) => Promise<{ success: boolean; id?: number; error?: string }>;
         getRequestFiles: (requestId: number) => Promise<{
           id: number; field_name: string; file_name: string; mime_type: string | null; stored_path: string;
         }[]>;
-        getPendingRequests: () => Promise<any[]>;
-        deleteRequest: (id: number) => Promise<any>;
-        cacheSave: (data: any) => Promise<any>;
+        getPendingRequests: (opts?: { userId?: string | null }) => Promise<any[]>;
+        getFailedRequests: (opts?: { userId?: string | null }) => Promise<any[]>;
+        deleteRequest: (id: number) => Promise<{ success: boolean; changes?: number }>;
+        retryRequest: (id: number) => Promise<{ success: boolean; changes?: number }>;
+        discardRequest: (id: number) => Promise<{ success: boolean; changes?: number }>;
+        cacheSave: (data: { url: string; data: string }) => Promise<{ success: boolean }>;
         cacheGet: (url: string) => Promise<any>;
         cacheGetAllUrls: () => Promise<string[]>;
-        markRequestStatus: (data: { id: number; status: string }) => Promise<any>;
+        cacheInvalidatePrefix: (prefix: string) => Promise<{ success: boolean; changes?: number }>;
+        markRequestStatus: (data: { id: number; status: string; error?: string }) => Promise<{ success: boolean; changes?: number }>;
+        // En 401: borra solo cache (la cola sobrevive al re-login del mismo usuario).
+        clearCache: () => Promise<{ success: boolean; error?: string }>;
+        // En logout manual confirmado: borra cola + uploads.
+        clearQueue: () => Promise<{ success: boolean; error?: string }>;
+        // Alias retro (cache + cola). Se mantiene para compat.
         clearUserData: () => Promise<{ success: boolean; error?: string }>;
       };
       offline: {
