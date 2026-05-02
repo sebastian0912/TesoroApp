@@ -35,11 +35,19 @@
           correo == 'nominacentral6@gmail.com' ||
           correo == 'nomina.gandes@gmail.com' ||
           correo == 'nominacentral9@gmail.com') {
+          <app-info-card title="Descargar plantilla desprendibles" imageUrl="icons/cards/excel.png"
+            (click)="descargarPlantillaDesprendibles()" style="cursor: pointer;">
+          </app-info-card>
+
           <app-info-card title="Cargar desprendibles de pago" imageUrl="icons/cards/excel.png"
             (click)="triggerFileInput('desprendibles')" style="cursor: pointer;">
           </app-info-card>
         }
 
+
+        <app-info-card title="Descargar plantilla correos" imageUrl="icons/cards/excel.png"
+          (click)="descargarPlantillaCorreos()" style="cursor: pointer;">
+        </app-info-card>
 
         <app-info-card title="Cambiar masivamente los correos" imageUrl="icons/cards/excel.png"
           (click)="triggerFileInput('correos')" style="cursor: pointer;">

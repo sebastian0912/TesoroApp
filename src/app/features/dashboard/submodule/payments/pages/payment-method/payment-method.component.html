@@ -29,8 +29,12 @@
         correo == 'asistconta.rtc@gmail.com'||
           correo == 'nominacentral9@gmail.com' ||
           correo == 'carteratuapo@gmail.com' ||
-          correo =='antcontable3.ts@gmail.com'          
+          correo =='antcontable3.ts@gmail.com'
         ) {
+        <app-info-card title="Descargar plantilla formas de pago" imageUrl="icons/cards/excel.png"
+          (click)="descargarPlantillaFormasPago()" style="cursor: pointer;">
+        </app-info-card>
+
         <app-info-card title="Cargar formas de pago" imageUrl="icons/cards/excel.png" (click)="triggerFileInput()" style="cursor: pointer;">
         </app-info-card>
       }

@@ -139,6 +139,43 @@ export class PaySlipsComponent implements OnInit {
     }
   }
 
+  descargarPlantillaDesprendibles(): void {
+    try {
+      const headers = [...this.claves];
+      const ws = XLSX.utils.aoa_to_sheet([headers]);
+      ws['!cols'] = headers.map(h => ({ wch: Math.max(12, h.length + 2) }));
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Desprendibles');
+      const fileName = `Plantilla_Desprendibles_${new Date().toISOString().slice(0, 10)}.xlsx`;
+      XLSX.writeFile(wb, fileName, { bookType: 'xlsx', compression: true });
+    } catch (e) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: 'No se pudo generar la plantilla. Inténtalo nuevamente.'
+      });
+    }
+  }
+
+  descargarPlantillaCorreos(): void {
+    try {
+      const headers = ['Cedula', 'Correo'];
+      const example = ['1010101010', 'ejemplo@dominio.com'];
+      const ws = XLSX.utils.aoa_to_sheet([headers, example]);
+      ws['!cols'] = [{ wch: 18 }, { wch: 32 }];
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Correos');
+      const fileName = `Plantilla_Correos_${new Date().toISOString().slice(0, 10)}.xlsx`;
+      XLSX.writeFile(wb, fileName, { bookType: 'xlsx', compression: true });
+    } catch (e) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: 'No se pudo generar la plantilla. Inténtalo nuevamente.'
+      });
+    }
+  }
+
   cargarExcel(event: any): void {
     const file = event.target.files[0];
     const reader = new FileReader();

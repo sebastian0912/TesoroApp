@@ -217,6 +217,24 @@ export class PaymentMethodComponent implements OnInit {
     fileInput.click();
   }
 
+  descargarPlantillaFormasPago(): void {
+    try {
+      const headers = [...this.claves];
+      const ws = XLSX.utils.aoa_to_sheet([headers]);
+      ws['!cols'] = headers.map(h => ({ wch: Math.max(12, h.length + 2) }));
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'FormasDePago');
+      const fileName = `Plantilla_Formas_de_Pago_${new Date().toISOString().slice(0, 10)}.xlsx`;
+      XLSX.writeFile(wb, fileName, { bookType: 'xlsx', compression: true });
+    } catch (e) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: 'No se pudo generar la plantilla. Inténtalo nuevamente.'
+      });
+    }
+  }
+
   resetFileInput(event: any): void {
     event.target.value = '';
   }
