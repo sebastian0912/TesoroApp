@@ -1114,31 +1114,63 @@ export class FormularioIncapacidadComponent implements OnInit {
 
       // Envía la incapacidad al servicio
       this.incapacidadService.createIncapacidad(nuevaIncapacidad).pipe(first()).subscribe(
-        response => {
-          this.cargarInformacion(false);
-          Swal.fire({
-            icon: 'success',
-            title: 'Incapacidad creada',
-            text: 'La incapacidad ha sido creada exitosamente, puedes verla en la lista de incapacidades'
-          }).then(() => {
-            this.incapacidadForm.reset();
-            for (const key in this.fieldMap) {
-              this.incapacidadForm.get(key)?.setValue('');
-            }
-            this.files = {
-              'Historial clinico': [],
-              'Archivo Incapacidad': [],
-              'FURAT': [],
-              'SOAT': [],
-              'FURIPS': [],
-              'Registro Civil': [],
-              'Registro de Nacido Vivo': [],
-              'Formulario de Salud Total': [],
-            };
-            this.validationErrors = [];
-            this.isSubmitButtonDisabled = false;
+        async (response: any) => {
+          const consecutivoSistema: string =
+            response?.consecutivoSistema || response?.consecutivo || '';
+
+          if (!consecutivoSistema) {
+            this.cargarInformacion(false);
+            Swal.fire({
+              icon: 'warning',
+              title: 'Incapacidad creada (sin documentos)',
+              text: 'No se recibió consecutivoSistema. Los PDFs no se pudieron vincular; comunica a soporte.',
+            });
             this.resetPage();
-          });
+            return;
+          }
+
+          // Subir cada PDF vía multipart al nuevo endpoint
+          let uploadError: string | null = null;
+          try {
+            await this.uploadPendingFiles(consecutivoSistema);
+          } catch (e: any) {
+            uploadError = String(e?.message || e);
+          }
+
+          this.cargarInformacion(false);
+          if (uploadError) {
+            Swal.fire({
+              icon: 'warning',
+              title: 'Incapacidad creada con observaciones',
+              text:
+                `La incapacidad ${consecutivoSistema} se creó, pero algunos PDFs ` +
+                `fallaron al subirse:\n${uploadError}`,
+            });
+          } else {
+            Swal.fire({
+              icon: 'success',
+              title: 'Incapacidad creada',
+              text: 'La incapacidad ha sido creada exitosamente, puedes verla en la lista de incapacidades',
+            });
+          }
+
+          this.incapacidadForm.reset();
+          for (const key in this.fieldMap) {
+            this.incapacidadForm.get(key)?.setValue('');
+          }
+          this.files = {
+            'Historial clinico': [],
+            'Archivo Incapacidad': [],
+            'FURAT': [],
+            'SOAT': [],
+            'FURIPS': [],
+            'Registro Civil': [],
+            'Registro de Nacido Vivo': [],
+            'Formulario de Salud Total': [],
+          };
+          this.validationErrors = [];
+          this.isSubmitButtonDisabled = false;
+          this.resetPage();
         },
         error => {
           console.error('Error al crear la incapacidad:', error);
@@ -1362,37 +1394,68 @@ export class FormularioIncapacidadComponent implements OnInit {
 onUploadClick(field: string) {
   const fileInput = document.createElement('input');
   fileInput.type = 'file';
+  fileInput.accept = 'application/pdf,.pdf';
   fileInput.style.display = 'none';
 
   fileInput.onchange = (event: any) => {
     const file: File = event.target.files[0];
+    if (!file) return;
 
-    if (file) {
-      const MAX_SIZE = 2 * 1024 * 1024; // 2MB
-
-      if (file.size > MAX_SIZE) {
-        Swal.fire({
+    const MAX_SIZE = 2 * 1024 * 1024; // 2MB
+    if (file.size > MAX_SIZE) {
+      Swal.fire({
         icon: 'error',
         title: 'Error',
-        text: `El archivo "${file.name}" supera el límite de 2 MB.`
+        text: `El archivo "${file.name}" supera el límite de 2 MB.`,
       });
-        return; 
-      }
-
-      const reader = new FileReader();
-
-      reader.onload = () => {
-        this.addFile(field, file);
-        const base64 = reader.result as string;
-        this.nombredelarchvio = file.name;
-        this.incapacidadForm.get(this.fieldMap[field])?.setValue(base64);
-      };
-
-      reader.readAsDataURL(file);
+      return;
     }
+
+    // El archivo ya NO se sube como base64 dentro del JSON. Lo guardamos en
+    // memoria y se enviará vía multipart después de crear la incapacidad
+    // (ver onSubmit -> uploadPendingFiles).
+    this.addFile(field, file);
+    this.nombredelarchvio = file.name;
   };
 
   fileInput.click();
+}
+
+// Mapeo del label de UI al campo legacy esperado por el backend.
+private readonly UI_TO_LEGACY_FIELD: Record<string, string> = {
+  'Archivo Incapacidad': 'link_incapacidad',
+  'Historial clinico': 'historial_clinico',
+  'FURAT': 'furat',
+  'SOAT': 'soat',
+  'FURIPS': 'furips',
+  'Registro Civil': 'registro_civil',
+  'Registro de Nacido Vivo': 'registro_de_nacido_vivo',
+  'Formulario de Salud Total': 'formulario_salud_total',
+};
+
+/**
+ * Sube todos los PDFs pendientes (uno por uno, multipart) al endpoint
+ * `/Incapacidades/<consecutivo>/documentos/upload` después de crear la
+ * incapacidad. Devuelve un Promise que resuelve cuando todos terminaron;
+ * si alguno falla, el Promise se rechaza con la lista de errores.
+ */
+private async uploadPendingFiles(consecutivoSistema: string): Promise<void> {
+  const errores: string[] = [];
+  for (const uiField of Object.keys(this.files)) {
+    const legacy = this.UI_TO_LEGACY_FIELD[uiField];
+    if (!legacy) continue;
+    for (const file of this.files[uiField] || []) {
+      try {
+        await this.incapacidadService.uploadDocumento(consecutivoSistema, legacy, file);
+      } catch (e: any) {
+        const msg = e?.error?.error || e?.message || 'Error desconocido';
+        errores.push(`${uiField}: ${msg}`);
+      }
+    }
+  }
+  if (errores.length) {
+    throw new Error('Algunos archivos no se subieron:\n' + errores.join('\n'));
+  }
 }
 
 

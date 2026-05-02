@@ -90,4 +90,18 @@ export class TransferQueryComponent {
     this.electronWindow.openDocument(solicitud, { title: 'Solicitud de traslado' });
   }
 
+  /**
+   * Resuelve la URL del PDF a abrir desde el response del backend.
+   * Prioridad: solicitud_doc.file_url (gestion_documental) > external_url (Drive).
+   * Fallback al campo legacy solicitud_traslado solo si todavía existe.
+   */
+  resolveSolicitudUrl(element: any): string | null {
+    return (
+      element?.solicitud_doc?.file_url ||
+      element?.external_url ||
+      element?.solicitud_traslado ||
+      null
+    );
+  }
+
 }

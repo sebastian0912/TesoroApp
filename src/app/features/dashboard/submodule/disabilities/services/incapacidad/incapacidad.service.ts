@@ -180,6 +180,39 @@ export class IncapacidadService {
       .pipe(catchError(this.handleError));
   }
 
+  /**
+   * Sube un PDF al endpoint multipart de gestion_documental:
+   *   POST /Incapacidades/<consecutivoSistema>/documentos/upload
+   *
+   * @param consecutivoSistema  consecutivo de la incapacidad (path)
+   * @param legacyField         uno de:
+   *   link_incapacidad, historial_clinico, furat, soat, furips,
+   *   registro_civil, registro_de_nacido_vivo, formulario_salud_total
+   * @param file                el File a subir
+   */
+  uploadDocumento(
+    consecutivoSistema: string,
+    legacyField: string,
+    file: File,
+  ): Promise<any> {
+    const url = `${this.apiUrl}/Incapacidades/${encodeURIComponent(consecutivoSistema)}/documentos/upload`;
+    const fd = new FormData();
+    fd.append('legacy_field', legacyField);
+    fd.append('file', file, file.name);
+    const headers = this.createAuthorizationHeader();
+    return firstValueFrom(this.http.post(url, fd, { headers }));
+  }
+
+  /**
+   * Lista los documentos de gestion_documental vinculados a una incapacidad.
+   * Devuelve `{ consecutivoSistema, documentos: [{file_url, sha256, ...}] }`.
+   */
+  listarDocumentos(consecutivoSistema: string): Observable<any> {
+    const url = `${this.apiUrl}/Incapacidades/${encodeURIComponent(consecutivoSistema)}/documentos`;
+    const headers = this.createAuthorizationHeader();
+    return this.http.get<any>(url, { headers });
+  }
+
   uploadFiles(
     fileData: { [key: string]: any[] },
     fileNames: { [key: string]: string }
@@ -283,6 +316,43 @@ export class IncapacidadService {
   }
 
 
+  /**
+   * Resuelve la URL absoluta del archivo desde gestion_documental.
+   * El backend devuelve `file_url` como ruta relativa (`/media/...`).
+   */
+  private resolveDocUrl(rawUrl: string | undefined | null): string {
+    if (!rawUrl) return '';
+    if (/^https?:\/\//i.test(rawUrl)) return rawUrl;
+    const base = (this.apiUrl || '').replace(/\/+$/, '');
+    const path = rawUrl.startsWith('/') ? rawUrl : '/' + rawUrl;
+    return base + path;
+  }
+
+  /**
+   * Descarga un PDF desde gestion_documental y devuelve sus bytes.
+   * Usa el token de autorización para que el endpoint de gestion_documental
+   * autorice la descarga.
+   */
+  private async fetchPdfBytes(rawUrl: string): Promise<Uint8Array | null> {
+    const url = this.resolveDocUrl(rawUrl);
+    if (!url) return null;
+    try {
+      const token = this.getToken();
+      const headers: Record<string, string> = {};
+      if (token) headers['Authorization'] = token;
+      const resp = await fetch(url, { headers });
+      if (!resp.ok) {
+        console.warn('fetchPdfBytes', resp.status, url);
+        return null;
+      }
+      const buf = await resp.arrayBuffer();
+      return new Uint8Array(buf);
+    } catch (e) {
+      console.error('Error descargando PDF', url, e);
+      return null;
+    }
+  }
+
   private async procesarDocumentoEnZip(
   doc: any,
   carpetaPrincipal: JSZip,
@@ -291,27 +361,24 @@ export class IncapacidadService {
 ) {
   if (!doc.Numero_de_documento) return;
 
-  const tiene = {
-    incapacidad: !!doc.link_incapacidad,
-    hc: !!doc.historial_clinico,
-    soat: !!doc.soat,
-    furat: !!doc.furat,
-    furips: !!doc.furips,
-    registroCivil: !!doc.registro_civil,
-    registroNacido: !!doc.registro_de_nacido_vivo,
-    formSaludTotal: !!doc.formulario_salud_total
+  // Cada *_doc puede ser objeto {file_url, sha256, ...} o null
+  const docs = {
+    incapacidad: doc.link_incapacidad_doc as { file_url?: string } | null,
+    hc: doc.historial_clinico_doc as { file_url?: string } | null,
+    soat: doc.soat_doc as { file_url?: string } | null,
+    furat: doc.furat_doc as { file_url?: string } | null,
+    furips: doc.furips_doc as { file_url?: string } | null,
+    registroCivil: doc.registro_civil_doc as { file_url?: string } | null,
+    registroNacido: doc.registro_de_nacido_vivo_doc as { file_url?: string } | null,
+    formSaludTotal: doc.formulario_salud_total_doc as { file_url?: string } | null,
   };
 
-  if (!Object.values(tiene).some(Boolean)) return;
+  const hasAny = Object.values(docs).some(d => !!(d && d.file_url));
+  if (!hasAny) return;
 
-    const toPdfBytes = (base64: string) => {
-    if (base64.startsWith("data:")) base64 = base64.split(",")[1];
-    return Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
-  };
-
-
-  // Si sevenet es true → SOLO generar incapacidad, ignorar todo lo demás
+  // sevenet: solo el PDF de la incapacidad
   if (sevenet) {
+    if (!docs.incapacidad?.file_url) return;
     const epsName = (doc.nombre_eps || "Desconocida").trim();
     const epsFolder = carpetaPrincipal.folder(epsName);
     if (!epsFolder) return;
@@ -320,14 +387,11 @@ export class IncapacidadService {
     const fechaFinal = `${String(fechaObj.getDate()).padStart(2, "0")}${
       String(fechaObj.getMonth() + 1).padStart(2, "0")
     }${fechaObj.getFullYear()}`;
-
     const baseNombre = `${doc.Numero_de_documento}_${fechaFinal}`;
 
-    if (tiene.incapacidad) {
-      epsFolder.file(`${baseNombre}.pdf`, toPdfBytes(doc.link_incapacidad));
-    }
-
-    return; 
+    const bytes = await this.fetchPdfBytes(docs.incapacidad.file_url);
+    if (bytes) epsFolder.file(`${baseNombre}.pdf`, bytes);
+    return;
   }
 
   const epsName = (doc.nombre_eps || "Desconocida").trim();
@@ -337,37 +401,40 @@ export class IncapacidadService {
   const epsFolder = carpetaPrincipal.folder(epsName);
   if (!epsFolder) return;
 
-
-
   const fechaObj = new Date(doc.marcaTemporal);
   const fechaFinal = `${String(fechaObj.getDate()).padStart(2, "0")}${
     String(fechaObj.getMonth() + 1).padStart(2, "0")
   }${fechaObj.getFullYear()}`;
-
   const baseNombre = `${doc.Numero_de_documento}_${fechaFinal}`;
 
-  // EPS especiales - PDFs separados
+  // EPS especiales: PDFs separados en carpeta del trabajador
   if (esEpsEspecial) {
     const cedulaFolder = epsFolder.folder(doc.Numero_de_documento);
     if (!cedulaFolder) return;
-    if (tiene.incapacidad) cedulaFolder.file(`${baseNombre}.pdf`, toPdfBytes(doc.link_incapacidad));
-    if (tiene.hc) cedulaFolder.file(`${baseNombre}_HC.pdf`, toPdfBytes(doc.historial_clinico));
-    if (tiene.soat) cedulaFolder.file(`${baseNombre}_SOAT.pdf`, toPdfBytes(doc.soat));
-    if (tiene.furat) cedulaFolder.file(`${baseNombre}_FURAT.pdf`, toPdfBytes(doc.furat));
-    if (tiene.furips) cedulaFolder.file(`${baseNombre}_FURIPS.pdf`, toPdfBytes(doc.furips));
-    if (tiene.registroCivil) cedulaFolder.file(`${baseNombre}_REGISTRO_CIVIL.pdf`, toPdfBytes(doc.registro_civil));
-    if (tiene.registroNacido) cedulaFolder.file(`${baseNombre}_REGISTRO_NACIDO_VIVO.pdf`, toPdfBytes(doc.registro_de_nacido_vivo));
-    if (tiene.formSaludTotal) cedulaFolder.file(`${baseNombre}_FORMULARIO_SALUD_TOTAL.pdf`, toPdfBytes(doc.formulario_salud_total));
+    const addToCedula = async (entry: { file_url?: string } | null, name: string) => {
+      if (!entry?.file_url) return;
+      const bytes = await this.fetchPdfBytes(entry.file_url);
+      if (bytes) cedulaFolder.file(name, bytes);
+    };
+    await addToCedula(docs.incapacidad,    `${baseNombre}.pdf`);
+    await addToCedula(docs.hc,             `${baseNombre}_HC.pdf`);
+    await addToCedula(docs.soat,           `${baseNombre}_SOAT.pdf`);
+    await addToCedula(docs.furat,          `${baseNombre}_FURAT.pdf`);
+    await addToCedula(docs.furips,         `${baseNombre}_FURIPS.pdf`);
+    await addToCedula(docs.registroCivil,  `${baseNombre}_REGISTRO_CIVIL.pdf`);
+    await addToCedula(docs.registroNacido, `${baseNombre}_REGISTRO_NACIDO_VIVO.pdf`);
+    await addToCedula(docs.formSaludTotal, `${baseNombre}_FORMULARIO_SALUD_TOTAL.pdf`);
     return;
   }
 
-  // Otras EPS - PDF combinado
+  // Otras EPS: combinar todo en un PDF
   const mergedPdf = await PDFDocument.create();
 
-  const agregarPagina = async (base64: string) => {
-    if (!base64) return;
+  const agregarPagina = async (entry: { file_url?: string } | null) => {
+    if (!entry?.file_url) return;
+    const pdfBytes = await this.fetchPdfBytes(entry.file_url);
+    if (!pdfBytes) return;
     try {
-      const pdfBytes = toPdfBytes(base64);
       const pdf = await PDFDocument.load(pdfBytes);
       const paginas = await mergedPdf.copyPages(pdf, pdf.getPageIndices());
       paginas.forEach((p) => mergedPdf.addPage(p));
@@ -376,14 +443,14 @@ export class IncapacidadService {
     }
   };
 
-  if (tiene.incapacidad) await agregarPagina(doc.link_incapacidad);
-  if (tiene.hc) await agregarPagina(doc.historial_clinico);
-  if (tiene.soat) await agregarPagina(doc.soat);
-  if (tiene.furat) await agregarPagina(doc.furat);
-  if (tiene.furips) await agregarPagina(doc.furips);
-  if (tiene.registroCivil) await agregarPagina(doc.registro_civil);
-  if (tiene.registroNacido) await agregarPagina(doc.registro_de_nacido_vivo);
-  if (tiene.formSaludTotal) await agregarPagina(doc.formulario_salud_total);
+  await agregarPagina(docs.incapacidad);
+  await agregarPagina(docs.hc);
+  await agregarPagina(docs.soat);
+  await agregarPagina(docs.furat);
+  await agregarPagina(docs.furips);
+  await agregarPagina(docs.registroCivil);
+  await agregarPagina(docs.registroNacido);
+  await agregarPagina(docs.formSaludTotal);
 
   const mergedPdfBytes = await mergedPdf.save();
   epsFolder.file(`${baseNombre}_COMPLETO.pdf`, mergedPdfBytes);

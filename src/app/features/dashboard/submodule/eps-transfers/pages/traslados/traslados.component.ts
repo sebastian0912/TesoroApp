@@ -396,7 +396,6 @@ export class TrasladosComponent implements OnInit {
   }
 
   imprimirSolicitudTraslado(codigoTraslado: string): void {
-    // Mostrar Swal de carga
     Swal.fire({
       title: 'Cargando...',
       icon: 'info',
@@ -411,13 +410,20 @@ export class TrasladosComponent implements OnInit {
       (data: any) => {
         Swal.close();
 
-        if (data[0].solicitud_traslado) {
-          // Mostrar la solicitud en PDF si es Base64
-          if (this.isBase64PDF(data[0].solicitud_traslado)) {
-            this.openBase64PDF(data[0].solicitud_traslado);
-          } else {
-            Swal.fire('Error', 'La solicitud de traslado no es un PDF válido.', 'error');
-          }
+        const row = Array.isArray(data) ? data[0] : data;
+        if (!row) {
+          Swal.fire('Error', 'No se encontró la solicitud de traslado.', 'error');
+          return;
+        }
+
+        // Nuevo contrato: el backend devuelve `solicitud_doc.file_url`
+        // (PDF en gestion_documental) o `external_url` (link Drive).
+        const fileUrl: string | undefined = row.solicitud_doc?.file_url;
+        const externalUrl: string | undefined = row.external_url;
+        const url = fileUrl || externalUrl;
+
+        if (url) {
+          this.openDocument(url);
         } else {
           Swal.fire('Error', 'No se encontró la solicitud de traslado.', 'error');
         }
