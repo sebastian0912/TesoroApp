@@ -1,4 +1,4 @@
-import { Injectable, NgZone, signal } from '@angular/core';
+import { Injectable, NgZone, inject, signal } from '@angular/core';
 import { Observable } from 'rxjs';
 import { toObservable } from '@angular/core/rxjs-interop';
 import { environment } from '../../../environments/environment';
@@ -9,8 +9,9 @@ import { environment } from '../../../environments/environment';
 export class NetworkStatusService {
   public onlineStatus = signal(typeof navigator === 'undefined' ? true : navigator.onLine);
   private heartbeatInterval: ReturnType<typeof setInterval> | undefined;
+  private readonly ngZone = inject(NgZone);
 
-  constructor(private ngZone: NgZone) {
+  constructor() {
     this.initEventListeners();
   }
 

@@ -1,4 +1,4 @@
-import { Injectable } from '@angular/core';
+import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { NetworkStatusService } from './network-status.service';
 import { PermissionsService } from './permissions.service';
@@ -42,11 +42,11 @@ export class OfflineSyncService {
     return (window as any).electron;
   }
 
-  constructor(
-    private http: HttpClient,
-    private networkService: NetworkStatusService,
-    private permissions: PermissionsService,
-  ) {
+  private readonly http = inject(HttpClient);
+  private readonly networkService = inject(NetworkStatusService);
+  private readonly permissions = inject(PermissionsService);
+
+  constructor() {
     this.networkService.isOnline$.subscribe(async isOnline => {
       if (isOnline) {
         await this.syncQueue();
