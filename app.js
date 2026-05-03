@@ -61,6 +61,38 @@ function openExternalIfSafe(rawUrl) {
   return shell.openExternal(rawUrl).then(() => true).catch(() => false);
 }
 
+// ─── Validación de sender frame para IPC ─────────────────────────────────
+// Solo permite invocaciones desde:
+//   - file://       (producción Electron empaquetada)
+//   - http://localhost o http://127.0.0.1 (ng serve en desarrollo)
+// Cualquier otro origen (página remota inyectada, iframe externo) se rechaza.
+function isAllowedIpcSender(event) {
+  try {
+    const senderUrl = event && event.senderFrame ? event.senderFrame.url : null;
+    if (!senderUrl) return false;
+    const url = new URL(senderUrl);
+    if (url.protocol === 'file:') return true;
+    const allowedOrigins = new Set([
+      'http://localhost',
+      'http://127.0.0.1',
+    ]);
+    const origin = `${url.protocol}//${url.hostname}`;
+    return allowedOrigins.has(origin);
+  } catch {
+    return false;
+  }
+}
+
+function assertAllowedIpcSender(event) {
+  if (!isAllowedIpcSender(event)) {
+    try {
+      const senderUrl = event && event.senderFrame ? event.senderFrame.url : '<unknown>';
+      log.warn('[security] IPC handler rejected unauthorized sender:', senderUrl);
+    } catch { /* noop */ }
+    throw new Error('Unauthorized IPC sender');
+  }
+}
+
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1280,
@@ -211,11 +243,17 @@ function createWindow() {
 }
 
 // ─── IPC ──────────────────────────────────────────────────────────────────
-ipcMain.handle('version:get', () => {
+// Todos los ipcMain.handle validan event.senderFrame.url contra
+// `isAllowedIpcSender` para rechazar invocaciones desde frames no autorizados
+// (p.ej. iframe externo cargado dentro del renderer). En producción Electron
+// el sender es siempre file://, en dev http://localhost:4200|4400|...
+ipcMain.handle('version:get', (event) => {
+  assertAllowedIpcSender(event);
   return require(path.resolve(__dirname, 'package.json')).version;
 });
 
-ipcMain.handle('env:get', () => {
+ipcMain.handle('env:get', (event) => {
+  assertAllowedIpcSender(event);
   return process.env.NODE_ENV || 'production';
 });
 
@@ -223,7 +261,8 @@ ipcMain.on('restart-app', () => {
   getAutoUpdater().quitAndInstall();
 });
 
-ipcMain.handle('fingerprint:get', async () => {
+ipcMain.handle('fingerprint:get', async (event) => {
+  assertAllowedIpcSender(event);
   return new Promise((resolve, reject) => {
     const csharpAppPath = isDev
       ? path.join(__dirname, 'csharp', 'UareUSampleCSharp_CaptureOnly.exe')
@@ -308,7 +347,8 @@ function cleanupPdfContext() {
   currentEditingFile = null;
 }
 
-ipcMain.handle('pdf:edit-external', async (_event, fileUrl) => {
+ipcMain.handle('pdf:edit-external', async (event, fileUrl) => {
+  assertAllowedIpcSender(event);
   try {
     if (typeof fileUrl !== 'string' || !/^https?:\/\//i.test(fileUrl)) {
       return { success: false, error: 'URL inválida' };
@@ -372,7 +412,8 @@ ipcMain.handle('pdf:edit-external', async (_event, fileUrl) => {
   }
 });
 
-ipcMain.handle('pdf:read-file', async () => {
+ipcMain.handle('pdf:read-file', async (event) => {
+  assertAllowedIpcSender(event);
   if (currentEditingFile && fs.existsSync(currentEditingFile)) {
     try {
       const bytes = fs.readFileSync(currentEditingFile);
@@ -384,7 +425,8 @@ ipcMain.handle('pdf:read-file', async () => {
   return { success: false, error: 'No file being edited' };
 });
 
-ipcMain.handle('pdf:finish-edit', async () => {
+ipcMain.handle('pdf:finish-edit', async (event) => {
+  assertAllowedIpcSender(event);
   cleanupPdfContext();
   return { success: true };
 });
@@ -401,7 +443,8 @@ function sanitizeTitle(raw) {
   return raw.replace(/[\x00-\x1f\x7f]/g, '').slice(0, 120);
 }
 
-ipcMain.handle('pdf:open-in-window', async (_event, payload) => {
+ipcMain.handle('pdf:open-in-window', async (event, payload) => {
+  assertAllowedIpcSender(event);
   try {
     const { base64, title, width, height } = payload || {};
     if (typeof base64 !== 'string' || !base64.length) {
@@ -492,7 +535,8 @@ function dirTotalBytes(dir) {
   return total;
 }
 
-ipcMain.handle('offline:save-upload', async (_event, payload) => {
+ipcMain.handle('offline:save-upload', async (event, payload) => {
+  assertAllowedIpcSender(event);
   try {
     const { base64, fileName, mimeType } = payload || {};
     if (typeof base64 !== 'string' || !base64.length) {
@@ -548,7 +592,8 @@ ipcMain.handle('offline:save-upload', async (_event, payload) => {
   }
 });
 
-ipcMain.handle('offline:read-upload', async (_event, storedPath) => {
+ipcMain.handle('offline:read-upload', async (event, storedPath) => {
+  assertAllowedIpcSender(event);
   try {
     if (typeof storedPath !== 'string' || !storedPath.length) {
       return { success: false, error: 'Path vacío' };
@@ -573,7 +618,8 @@ ipcMain.handle('offline:read-upload', async (_event, storedPath) => {
   }
 });
 
-ipcMain.handle('offline:delete-upload', async (_event, storedPath) => {
+ipcMain.handle('offline:delete-upload', async (event, storedPath) => {
+  assertAllowedIpcSender(event);
   try {
     if (typeof storedPath !== 'string') return { success: true };
     if (!isInsideUploadsDir(storedPath)) {
@@ -592,7 +638,8 @@ ipcMain.handle('offline:delete-upload', async (_event, storedPath) => {
   }
 });
 
-ipcMain.handle('shell:open-external', async (_event, url) => {
+ipcMain.handle('shell:open-external', async (event, url) => {
+  assertAllowedIpcSender(event);
   if (!isSafeExternalUrl(url)) {
     return { success: false, error: 'URL inválida (solo https permitido)' };
   }
