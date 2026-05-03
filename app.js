@@ -39,6 +39,28 @@ function sendToRenderer(channel, payload) {
   }
 }
 
+// ─── Validación de URLs externas para shell.openExternal ─────────────────
+// Solo se permiten URLs https:. Bloquea http:, file:, javascript:, data:
+// y cualquier protocolo no estándar — son vectores comunes de RCE/leakage.
+function isSafeExternalUrl(rawUrl) {
+  if (typeof rawUrl !== 'string' || !rawUrl) return false;
+  try {
+    const u = new URL(rawUrl);
+    return u.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
+// Apertura segura: log + no-throw si la URL es inválida.
+function openExternalIfSafe(rawUrl) {
+  if (!isSafeExternalUrl(rawUrl)) {
+    try { log.warn('[security] shell.openExternal blocked non-https URL:', rawUrl); } catch { /* noop */ }
+    return Promise.resolve(false);
+  }
+  return shell.openExternal(rawUrl).then(() => true).catch(() => false);
+}
+
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1280,
@@ -72,7 +94,8 @@ function createWindow() {
   }
 
   // ─── Hardening de navegación ───────────────────────────────────────────
-  // Bloquear navegaciones fuera del origen local; las externas abren en el navegador del SO.
+  // Bloquear navegaciones fuera del origen local; las externas https abren en
+  // el navegador del SO. http: y otros protocolos se silencian (sin abrir).
   mainWindow.webContents.on('will-navigate', (event, targetUrl) => {
     const current = mainWindow.webContents.getURL();
     try {
@@ -80,20 +103,18 @@ function createWindow() {
       const targetOrigin = new URL(targetUrl).origin;
       if (currentOrigin !== targetOrigin) {
         event.preventDefault();
-        shell.openExternal(targetUrl).catch(() => { /* noop */ });
+        openExternalIfSafe(targetUrl);
       }
     } catch {
       event.preventDefault();
     }
   });
 
-  // Todo window.open se deniega: las URLs http(s) se delegan al navegador del
+  // Todo window.open se deniega: las URLs https se delegan al navegador del
   // sistema; para blob:/data: (PDFs en memoria) el renderer debe usar
   // window.electron.pdf.openInWindow() en vez de window.open().
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    if (/^https?:\/\//i.test(url)) {
-      shell.openExternal(url).catch(() => { /* noop */ });
-    }
+    openExternalIfSafe(url);
     return { action: 'deny' };
   });
 
@@ -572,8 +593,8 @@ ipcMain.handle('offline:delete-upload', async (_event, storedPath) => {
 });
 
 ipcMain.handle('shell:open-external', async (_event, url) => {
-  if (typeof url !== 'string' || !/^https?:\/\//i.test(url)) {
-    return { success: false, error: 'URL inválida' };
+  if (!isSafeExternalUrl(url)) {
+    return { success: false, error: 'URL inválida (solo https permitido)' };
   }
   try {
     await shell.openExternal(url);
@@ -649,7 +670,7 @@ app.on('before-quit', () => {
 // Endurece TODOS los webContents creados (incluye ventanas hijas del visor).
 app.on('web-contents-created', (_event, contents) => {
   contents.setWindowOpenHandler(({ url }) => {
-    if (/^https?:\/\//i.test(url)) shell.openExternal(url).catch(() => { /* noop */ });
+    openExternalIfSafe(url);
     return { action: 'deny' };
   });
 });
