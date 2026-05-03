@@ -1,5 +1,5 @@
 import { ChangeDetectorRef, Component, Inject, OnInit } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
 
 import { MatDialogModule, MatDialogRef, MAT_DIALOG_DATA } from '@angular/material/dialog';
@@ -19,7 +19,6 @@ import { NominaService, ConceptoNomina } from '../../service/nomina/nomina.servi
   selector: 'app-concepto-form-dialog',
   standalone: true,
   imports: [
-    CommonModule,
     ReactiveFormsModule,
     MatDialogModule,
     MatFormFieldModule,
@@ -30,8 +29,8 @@ import { NominaService, ConceptoNomina } from '../../service/nomina/nomina.servi
     MatSlideToggleModule,
     MatSnackBarModule,
     MatDividerModule,
-    MatProgressSpinnerModule,
-  ],
+    MatProgressSpinnerModule
+],
   template: `
     <div class="dialog-header">
       <mat-icon class="dialog-icon">{{ isEditing ? 'edit_note' : 'add_circle' }}</mat-icon>
@@ -40,32 +39,38 @@ import { NominaService, ConceptoNomina } from '../../service/nomina/nomina.servi
         <p class="dialog-subtitle">Parametrización de concepto de nómina (días / horas / valores)</p>
       </div>
     </div>
-
+    
     <mat-divider></mat-divider>
-
+    
     <mat-dialog-content>
       <form [formGroup]="form" class="form-grid">
-
+    
         <mat-form-field appearance="outline" class="field-codigo">
           <mat-label>Código</mat-label>
           <input matInput formControlName="codigo" placeholder="Ej: AUS_INJ_H" maxlength="20">
           <mat-hint>Máx. 20 caracteres, sin espacios</mat-hint>
-          <mat-error *ngIf="form.get('codigo')?.hasError('required')">El código es obligatorio</mat-error>
-          <mat-error *ngIf="form.get('codigo')?.hasError('pattern')">Solo letras, números y guiones bajos</mat-error>
+          @if (form.get('codigo')?.hasError('required')) {
+            <mat-error>El código es obligatorio</mat-error>
+          }
+          @if (form.get('codigo')?.hasError('pattern')) {
+            <mat-error>Solo letras, números y guiones bajos</mat-error>
+          }
         </mat-form-field>
-
+    
         <mat-form-field appearance="outline" class="field-abrev">
           <mat-label>Abreviatura</mat-label>
           <input matInput formControlName="abreviatura" placeholder="Ej: AUS.INJ" maxlength="30">
           <mat-hint>Etiqueta corta para reportes</mat-hint>
         </mat-form-field>
-
+    
         <mat-form-field appearance="outline" class="field-descripcion">
           <mat-label>Descripción</mat-label>
           <input matInput formControlName="descripcion" placeholder="Ej: Ausencia Injustificada en Horas" maxlength="200">
-          <mat-error *ngIf="form.get('descripcion')?.hasError('required')">La descripción es obligatoria</mat-error>
+          @if (form.get('descripcion')?.hasError('required')) {
+            <mat-error>La descripción es obligatoria</mat-error>
+          }
         </mat-form-field>
-
+    
         <mat-form-field appearance="outline" class="field-naturaleza">
           <mat-label>Naturaleza</mat-label>
           <mat-select formControlName="naturaleza">
@@ -76,9 +81,11 @@ import { NominaService, ConceptoNomina } from '../../service/nomina/nomina.servi
             <mat-option value="PROVISION">Provisión</mat-option>
             <mat-option value="OTRO">Otro</mat-option>
           </mat-select>
-          <mat-error *ngIf="form.get('naturaleza')?.hasError('required')">Seleccione la naturaleza</mat-error>
+          @if (form.get('naturaleza')?.hasError('required')) {
+            <mat-error>Seleccione la naturaleza</mat-error>
+          }
         </mat-form-field>
-
+    
         <mat-form-field appearance="outline" class="field-unidad">
           <mat-label>Unidad de medida</mat-label>
           <mat-select formControlName="unidad">
@@ -92,9 +99,11 @@ import { NominaService, ConceptoNomina } from '../../service/nomina/nomina.servi
               <mat-icon>attach_money</mat-icon> Valor
             </mat-option>
           </mat-select>
-          <mat-error *ngIf="form.get('unidad')?.hasError('required')">Seleccione la unidad</mat-error>
+          @if (form.get('unidad')?.hasError('required')) {
+            <mat-error>Seleccione la unidad</mat-error>
+          }
         </mat-form-field>
-
+    
         <div class="toggle-row">
           <mat-slide-toggle formControlName="afecta_ibc" color="primary">
             Afecta IBC (Base de Seguridad Social)
@@ -103,20 +112,22 @@ import { NominaService, ConceptoNomina } from '../../service/nomina/nomina.servi
             Activo
           </mat-slide-toggle>
         </div>
-
+    
       </form>
     </mat-dialog-content>
-
+    
     <mat-divider></mat-divider>
-
+    
     <mat-dialog-actions align="end">
       <button mat-stroked-button (click)="cancelar()" [disabled]="saving">Cancelar</button>
       <button mat-flat-button color="primary" (click)="guardar()" [disabled]="form.invalid || saving">
-        <mat-spinner *ngIf="saving" diameter="18" style="display:inline-block;margin-right:6px"></mat-spinner>
+        @if (saving) {
+          <mat-spinner diameter="18" style="display:inline-block;margin-right:6px"></mat-spinner>
+        }
         {{ isEditing ? 'Guardar cambios' : 'Crear Novedad' }}
       </button>
     </mat-dialog-actions>
-  `,
+    `,
   styles: [`
     .dialog-header {
       display: flex;

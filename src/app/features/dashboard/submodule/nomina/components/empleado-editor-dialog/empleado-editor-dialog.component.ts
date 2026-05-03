@@ -1,7 +1,7 @@
 import {
   Component, ChangeDetectionStrategy, OnInit, Inject, signal, inject, computed,
 } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { FormsModule } from '@angular/forms';
 import { HttpErrorResponse } from '@angular/common/http';
 import { MAT_DIALOG_DATA, MatDialogRef, MatDialogModule } from '@angular/material/dialog';
@@ -31,13 +31,23 @@ type DialogData = { id_persona: number | null };
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    CommonModule, FormsModule,
-    MatDialogModule, MatTabsModule, MatFormFieldModule, MatInputModule,
-    MatSelectModule, MatCheckboxModule, MatButtonModule, MatIconModule,
-    MatProgressBarModule, MatTooltipModule,
-    MatDatepickerModule, MatNativeDateModule,
-    MatCardModule, MatChipsModule, MatDividerModule,
-  ],
+    FormsModule,
+    MatDialogModule,
+    MatTabsModule,
+    MatFormFieldModule,
+    MatInputModule,
+    MatSelectModule,
+    MatCheckboxModule,
+    MatButtonModule,
+    MatIconModule,
+    MatProgressBarModule,
+    MatTooltipModule,
+    MatDatepickerModule,
+    MatNativeDateModule,
+    MatCardModule,
+    MatChipsModule,
+    MatDividerModule
+],
   templateUrl: './empleado-editor-dialog.component.html',
   styleUrl: './empleado-editor-dialog.component.css',
 })

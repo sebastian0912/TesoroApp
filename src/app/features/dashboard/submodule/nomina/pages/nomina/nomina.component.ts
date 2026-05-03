@@ -1,5 +1,5 @@
 import { Component, ChangeDetectionStrategy } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { MatTabsModule } from '@angular/material/tabs';
 import { MatIconModule } from '@angular/material/icon';
 
@@ -10,7 +10,7 @@ import { EmpleadosListaComponent } from '../../components/empleados-lista/emplea
   changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-nomina',
   standalone: true,
-  imports: [CommonModule, MatTabsModule, MatIconModule, ImportExcelComponent, EmpleadosListaComponent],
+  imports: [MatTabsModule, MatIconModule, ImportExcelComponent, EmpleadosListaComponent],
   templateUrl: './nomina.component.html',
   styleUrl: './nomina.component.css',
 })

@@ -1,5 +1,5 @@
 import { ChangeDetectorRef, Component, Inject, OnInit } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatDialogRef, MAT_DIALOG_DATA, MatDialogModule } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -16,7 +16,6 @@ import Swal from 'sweetalert2';
   standalone: true,
   providers: [provideNativeDateAdapter()],
   imports: [
-    CommonModule,
     ReactiveFormsModule,
     MatDialogModule,
     MatFormFieldModule,
@@ -25,7 +24,7 @@ import Swal from 'sweetalert2';
     MatButtonModule,
     MatDatepickerModule,
     MatNativeDateModule
-  ],
+],
   template: `
     <h2 mat-dialog-title>{{ isEdit ? 'Editar' : 'Crear Nuevo' }} Periodo de Nómina</h2>
     <mat-dialog-content>
@@ -33,9 +32,11 @@ import Swal from 'sweetalert2';
         <mat-form-field appearance="outline" class="full-width">
           <mat-label>Descripción / Nombre</mat-label>
           <input matInput formControlName="descripcion" placeholder="Ej: Marzo 2026 - 1ra Quincena">
-          <mat-error *ngIf="form.get('descripcion')?.hasError('required')">Requerido</mat-error>
+          @if (form.get('descripcion')?.hasError('required')) {
+            <mat-error>Requerido</mat-error>
+          }
         </mat-form-field>
-
+    
         <div class="row">
           <mat-form-field appearance="outline">
             <mat-label>Tipo de Periodo</mat-label>
@@ -45,13 +46,13 @@ import Swal from 'sweetalert2';
               <mat-option value="EXTRAORDINARIO">EXTRAORDINARIO</mat-option>
             </mat-select>
           </mat-form-field>
-
+    
           <mat-form-field appearance="outline">
             <mat-label>Días Teóricos</mat-label>
             <input matInput type="number" formControlName="dias_teoricos">
           </mat-form-field>
         </div>
-
+    
         <div class="row">
           <mat-form-field appearance="outline">
             <mat-label>Fecha Inicio</mat-label>
@@ -59,7 +60,7 @@ import Swal from 'sweetalert2';
             <mat-datepicker-toggle matSuffix [for]="startPicker"></mat-datepicker-toggle>
             <mat-datepicker #startPicker></mat-datepicker>
           </mat-form-field>
-
+    
           <mat-form-field appearance="outline">
             <mat-label>Fecha Fin</mat-label>
             <input matInput [matDatepicker]="endPicker" formControlName="fecha_fin">
@@ -67,15 +68,17 @@ import Swal from 'sweetalert2';
             <mat-datepicker #endPicker></mat-datepicker>
           </mat-form-field>
         </div>
-
-        <mat-form-field appearance="outline" *ngIf="isEdit">
-          <mat-label>Estado</mat-label>
-          <mat-select formControlName="estado">
-            <mat-option value="ABIERTO">ABIERTO</mat-option>
-            <mat-option value="CALCULADO">CALCULADO</mat-option>
-            <mat-option value="CERRADO">CERRADO</mat-option>
-          </mat-select>
-        </mat-form-field>
+    
+        @if (isEdit) {
+          <mat-form-field appearance="outline">
+            <mat-label>Estado</mat-label>
+            <mat-select formControlName="estado">
+              <mat-option value="ABIERTO">ABIERTO</mat-option>
+              <mat-option value="CALCULADO">CALCULADO</mat-option>
+              <mat-option value="CERRADO">CERRADO</mat-option>
+            </mat-select>
+          </mat-form-field>
+        }
       </form>
     </mat-dialog-content>
     <mat-dialog-actions align="end">
@@ -84,7 +87,7 @@ import Swal from 'sweetalert2';
         {{ loading ? 'Guardando...' : (isEdit ? 'Actualizar' : 'Crear Periodo') }}
       </button>
     </mat-dialog-actions>
-  `,
+    `,
   styles: [`
     .periodo-form { display: flex; flex-direction: column; gap: 12px; padding-top: 12px; }
     .full-width { width: 100%; }

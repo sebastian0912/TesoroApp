@@ -1,5 +1,5 @@
 import { ChangeDetectorRef, Component, Inject, OnInit } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { FormBuilder, FormGroup, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 
 import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
@@ -25,7 +25,6 @@ interface ConvalidadorDialogData {
   selector: 'app-convalidador-form-dialog',
   standalone: true,
   imports: [
-    CommonModule,
     FormsModule,
     ReactiveFormsModule,
     MatDialogModule,
@@ -37,8 +36,8 @@ interface ConvalidadorDialogData {
     MatProgressSpinnerModule,
     MatSelectModule,
     MatSlideToggleModule,
-    MatSnackBarModule,
-  ],
+    MatSnackBarModule
+],
   template: `
     <div class="dialog-header">
       <mat-icon class="dialog-icon">{{ isEditing ? 'edit_note' : 'sync_alt' }}</mat-icon>
@@ -47,43 +46,51 @@ interface ConvalidadorDialogData {
         <p class="dialog-subtitle">Relaciona un concepto externo con un concepto maestro de Tu Alianza</p>
       </div>
     </div>
-
+    
     <mat-divider></mat-divider>
-
+    
     <mat-dialog-content>
       <form [formGroup]="form" class="form-grid">
         <div class="section-title">Concepto de la empresa externa</div>
-
+    
         <mat-form-field appearance="outline" class="field-half">
           <mat-label>Codigo externo</mat-label>
           <input matInput formControlName="codigo_externo" placeholder="Ej: NOV_001" maxlength="50">
-          <mat-error *ngIf="form.get('codigo_externo')?.hasError('required')">Obligatorio</mat-error>
+          @if (form.get('codigo_externo')?.hasError('required')) {
+            <mat-error>Obligatorio</mat-error>
+          }
         </mat-form-field>
-
+    
         <mat-form-field appearance="outline" class="field-half">
           <mat-label>Clasificacion externa</mat-label>
           <input matInput formControlName="clasificacion_externa" placeholder="Ej: Devengo" maxlength="100">
         </mat-form-field>
-
+    
         <mat-form-field appearance="outline" class="field-full">
           <mat-label>Nombre del concepto externo</mat-label>
           <input matInput formControlName="concepto_externo" placeholder="Ej: Bonificacion por produccion" maxlength="200">
-          <mat-error *ngIf="form.get('concepto_externo')?.hasError('required')">Obligatorio</mat-error>
+          @if (form.get('concepto_externo')?.hasError('required')) {
+            <mat-error>Obligatorio</mat-error>
+          }
         </mat-form-field>
-
+    
         <div class="section-title">Concepto maestro Tu Alianza</div>
-
+    
         <mat-form-field appearance="outline" class="field-full">
           <mat-label>Concepto maestro</mat-label>
           <mat-select formControlName="concepto">
-            <mat-option *ngFor="let c of conceptosFiltrados" [value]="c.id_concepto">
-              <span class="opt-codigo">[{{ c.codigo }}]</span> {{ c.descripcion }}
-              <span class="opt-nat">({{ c.naturaleza_display || c.naturaleza }})</span>
-            </mat-option>
+            @for (c of conceptosFiltrados; track c) {
+              <mat-option [value]="c.id_concepto">
+                <span class="opt-codigo">[{{ c.codigo }}]</span> {{ c.descripcion }}
+                <span class="opt-nat">({{ c.naturaleza_display || c.naturaleza }})</span>
+              </mat-option>
+            }
           </mat-select>
-          <mat-error *ngIf="form.get('concepto')?.hasError('required')">Seleccione un concepto</mat-error>
+          @if (form.get('concepto')?.hasError('required')) {
+            <mat-error>Seleccione un concepto</mat-error>
+          }
         </mat-form-field>
-
+    
         <mat-form-field appearance="outline" class="field-full compact-field">
           <mat-label>Filtrar conceptos</mat-label>
           <input
@@ -92,55 +99,57 @@ interface ConvalidadorDialogData {
             [ngModelOptions]="{ standalone: true }"
             (input)="filtrarConceptos()"
             placeholder="Buscar por codigo o descripcion..."
-          >
-          <mat-icon matSuffix>search</mat-icon>
-        </mat-form-field>
-
-        <div class="section-title">Mapeo operativo (opcional)</div>
-
-        <mat-form-field appearance="outline" class="field-half">
-          <mat-label>Tabla operativa destino</mat-label>
-          <input matInput formControlName="tabla_operativa_destino" placeholder="Ej: nomina_bonificaciones_auxilios" maxlength="100">
-        </mat-form-field>
-
-        <mat-form-field appearance="outline" class="field-half">
-          <mat-label>Campo operativo destino</mat-label>
-          <input matInput formControlName="campo_operativo_destino" placeholder="Ej: bonif_1_constitutiva_salario" maxlength="100">
-        </mat-form-field>
-
-        <div class="section-title">Estado y observaciones</div>
-
-        <mat-form-field appearance="outline" class="field-half">
-          <mat-label>Estado de homologacion</mat-label>
-          <mat-select formControlName="estado_convalidacion">
-            <mat-option value="CONVALIDADO">Convalidado</mat-option>
-            <mat-option value="CONVALIDADO_CON_OBSERVACION">Convalidado con observacion</mat-option>
-            <mat-option value="REVISAR">Revisar</mat-option>
-            <mat-option value="SIN_HOMOLOGACION">Sin homologacion</mat-option>
-          </mat-select>
-        </mat-form-field>
-
-        <div class="toggle-row field-half">
-          <mat-slide-toggle formControlName="activo" color="primary">Activo</mat-slide-toggle>
-        </div>
-
-        <mat-form-field appearance="outline" class="field-full">
-          <mat-label>Observacion</mat-label>
-          <textarea matInput formControlName="observacion" rows="3" placeholder="Notas adicionales sobre esta homologacion..."></textarea>
-        </mat-form-field>
-      </form>
-    </mat-dialog-content>
-
-    <mat-divider></mat-divider>
-
-    <mat-dialog-actions align="end">
-      <button mat-stroked-button (click)="cancelar()" [disabled]="saving">Cancelar</button>
-      <button mat-flat-button color="primary" (click)="guardar()" [disabled]="form.invalid || saving">
-        <mat-spinner *ngIf="saving" diameter="18" style="display:inline-block;margin-right:6px"></mat-spinner>
-        {{ isEditing ? 'Guardar cambios' : 'Crear homologacion' }}
-      </button>
-    </mat-dialog-actions>
-  `,
+            >
+            <mat-icon matSuffix>search</mat-icon>
+          </mat-form-field>
+    
+          <div class="section-title">Mapeo operativo (opcional)</div>
+    
+          <mat-form-field appearance="outline" class="field-half">
+            <mat-label>Tabla operativa destino</mat-label>
+            <input matInput formControlName="tabla_operativa_destino" placeholder="Ej: nomina_bonificaciones_auxilios" maxlength="100">
+          </mat-form-field>
+    
+          <mat-form-field appearance="outline" class="field-half">
+            <mat-label>Campo operativo destino</mat-label>
+            <input matInput formControlName="campo_operativo_destino" placeholder="Ej: bonif_1_constitutiva_salario" maxlength="100">
+          </mat-form-field>
+    
+          <div class="section-title">Estado y observaciones</div>
+    
+          <mat-form-field appearance="outline" class="field-half">
+            <mat-label>Estado de homologacion</mat-label>
+            <mat-select formControlName="estado_convalidacion">
+              <mat-option value="CONVALIDADO">Convalidado</mat-option>
+              <mat-option value="CONVALIDADO_CON_OBSERVACION">Convalidado con observacion</mat-option>
+              <mat-option value="REVISAR">Revisar</mat-option>
+              <mat-option value="SIN_HOMOLOGACION">Sin homologacion</mat-option>
+            </mat-select>
+          </mat-form-field>
+    
+          <div class="toggle-row field-half">
+            <mat-slide-toggle formControlName="activo" color="primary">Activo</mat-slide-toggle>
+          </div>
+    
+          <mat-form-field appearance="outline" class="field-full">
+            <mat-label>Observacion</mat-label>
+            <textarea matInput formControlName="observacion" rows="3" placeholder="Notas adicionales sobre esta homologacion..."></textarea>
+          </mat-form-field>
+        </form>
+      </mat-dialog-content>
+    
+      <mat-divider></mat-divider>
+    
+      <mat-dialog-actions align="end">
+        <button mat-stroked-button (click)="cancelar()" [disabled]="saving">Cancelar</button>
+        <button mat-flat-button color="primary" (click)="guardar()" [disabled]="form.invalid || saving">
+          @if (saving) {
+            <mat-spinner diameter="18" style="display:inline-block;margin-right:6px"></mat-spinner>
+          }
+          {{ isEditing ? 'Guardar cambios' : 'Crear homologacion' }}
+        </button>
+      </mat-dialog-actions>
+    `,
   styles: [`
     .dialog-header {
       display: flex;

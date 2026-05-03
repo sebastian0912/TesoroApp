@@ -4,7 +4,7 @@ import {
     ViewChild,
     signal,
 } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { FormsModule } from '@angular/forms';
 import { HttpErrorResponse } from '@angular/common/http';
 import { MatIconModule } from '@angular/material/icon';
@@ -240,14 +240,13 @@ type WizardStep = 'select' | 'importing' | 'done' | 'error';
     selector: 'app-import-excel',
     standalone: true,
     imports: [
-        CommonModule,
-        FormsModule,
-        MatIconModule,
-        MatButtonModule,
-        MatProgressBarModule,
-        MatTooltipModule,
-        MatDialogModule,
-    ],
+    FormsModule,
+    MatIconModule,
+    MatButtonModule,
+    MatProgressBarModule,
+    MatTooltipModule,
+    MatDialogModule
+],
     templateUrl: './import-excel.component.html',
     styleUrl: './import-excel.component.css',
 })
