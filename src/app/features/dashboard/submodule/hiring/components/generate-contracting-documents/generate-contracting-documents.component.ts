@@ -22,7 +22,7 @@ import { buildContratoAdministrativoPdf } from './contrato-administrativo-fill';
 import { switchMap, map, take, catchError, tap, finalize } from 'rxjs/operators';
 import { of, forkJoin, firstValueFrom, throwError } from 'rxjs';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
-import moment from 'moment';
+import { isDocumentoVisible, getDocSeccion, SECCION_LABELS, type DocSeccion } from './documentos-por-empresa.config';
 
 type UploadedInfo = {
   file: File;
@@ -85,7 +85,20 @@ export class GenerateContractingDocumentsComponent implements OnInit {
   private cdr = inject(ChangeDetectorRef);
 
   documentos = [
+    // Generales
     { titulo: 'Autorización de Datos' },
+    { titulo: 'Manejo Imagen' },
+    { titulo: 'Ficha Social' },
+    { titulo: 'Entrevista de Ingreso' },
+    { titulo: 'Entrevista de Ingreso Tu Alianza' },
+    { titulo: 'Hoja de Vida Minerva' },
+    { titulo: 'Contratos Otrosí' },
+    { titulo: 'Auxilio Alimentación' },
+    { titulo: 'Autorización Daños Pérdidas' },
+    // Contrato y ficha
+    { titulo: 'Ficha Técnica' },
+    { titulo: 'Contrato' },
+    // Inducciones por empresa
     { titulo: 'Inducción' },
     { titulo: 'Inducción Agrícola' },
     { titulo: 'Inducción Jardines de los Andes' },
@@ -97,38 +110,57 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     { titulo: 'Inducción Melody' },
     { titulo: 'Inducción Tu Alianza sin Casino' },
     { titulo: 'Inducción Administrativos' },
-    { titulo: 'Ficha Técnica' },
-    { titulo: 'Contrato' },
+    // Operativos por empresa
+    { titulo: 'Carta Descuento de Flor' },
+    { titulo: 'Formato Timbre Ingreso/Salida' },
+    { titulo: 'Carta Autorización Correo Electrónico' },
+    { titulo: 'Acta de Funciones' },
+    { titulo: 'Acta de Herramientas de Trabajo' },
+    { titulo: 'Acta de Dotaciones' },
+    { titulo: 'Acta de Funciones de SST' },
+    // Operativos Flores del Rio
     { titulo: 'Entrega Carnets' },
     { titulo: 'Inducción Capacitación' },
     { titulo: 'Formato Solicitud' },
-    { titulo: 'Manejo Imagen' },
-    { titulo: 'Ficha Social' },
-    { titulo: 'Entrevista de Ingreso' },
-    { titulo: 'Contratos Otrosí' },
-    { titulo: 'Auxilio Alimentación' },
-    { titulo: 'Autorización Daños Pérdidas' },
-    { titulo: 'Cédula' },
-    { titulo: 'ARL' },
-    { titulo: 'Figura Humana' },
-    { titulo: 'EPS' },
-    { titulo: 'Caja' },
-    { titulo: 'Pago Seguridad Social' },
-    { titulo: 'Pruebas Psicológicas' },
-    { titulo: 'Prueba Lectoescritura' },
-    { titulo: 'Visita Domiciliaria' },
-    { titulo: 'Prueba SST' },
-    { titulo: 'Autorización Ingreso' },
-    { titulo: 'Bonificación Ipanema' },
-    { titulo: 'Prueba Psicotécnica' },
-    { titulo: 'Certificados Estudios' },
-    { titulo: 'SST' },
-    { titulo: 'Otras Pruebas' },
-    { titulo: 'Hoja de Vida Minerva' },
+    // Sagaro extras
     { titulo: 'Sagaro Lockers' },
     { titulo: 'Sagaro Imagen' },
     { titulo: 'Sagaro Celular' },
-    { titulo: 'Referenciación' }
+    // Subir manual: identidad / vinculación
+    { titulo: 'Cédula' },
+    { titulo: 'ARL' },
+    { titulo: 'EPS' },
+    { titulo: 'CCF' },
+    { titulo: 'Pago Seguridad Social' },
+    { titulo: 'Autorización Ingreso' },
+    // Subir manual: estudios y referencias
+    { titulo: 'Diplomas y Certificados de Estudios' },
+    { titulo: 'Referencias (1 personal, 1 familiar, 2 laborales)' },
+    { titulo: 'Referenciación' },
+    // Subir manual: pruebas
+    { titulo: 'Pruebas Psicológicas' },
+    { titulo: 'Prueba Psicotécnica' },
+    { titulo: 'Prueba Lectoescritura' },
+    { titulo: 'Figura Humana' },
+    { titulo: 'Test del Árbol' },
+    { titulo: 'Prueba de Conocimiento' },
+    { titulo: 'Prueba Técnica Formato Elite' },
+    { titulo: 'Otras Pruebas' },
+    // Subir manual: salud / SST
+    { titulo: 'Colinesterasa' },
+    { titulo: 'Curso Manipulación de Alimentos' },
+    { titulo: 'Historial Laboral (Semanas Cotizadas)' },
+    { titulo: 'Formato Resultado Prueba Valanti' },
+    { titulo: 'Prueba SST' },
+    { titulo: 'SST' },
+    { titulo: 'Planilla SST' },
+    { titulo: 'Evaluación SST' },
+    // Subir manual: visita / vehículo / bonificaciones
+    { titulo: 'Visita Domiciliaria' },
+    { titulo: 'Fotografías Visita Domiciliaria' },
+    { titulo: 'Tarjeta de Propiedad' },
+    { titulo: 'Licencia de Conducción' },
+    { titulo: 'Formato de Bonificación Ipanema' },
   ];
 
   nombreCompleto = '';
@@ -162,7 +194,11 @@ export class GenerateContractingDocumentsComponent implements OnInit {
 
   uploadedFiles: { [key: string]: UploadedInfo } = {};
 
+  // typeMap: documento → ID de tipo en backend.
+  // IDs ≥ 200 son PLACEHOLDERS para los docs nuevos. Hay que crearlos
+  // en gestion_documental y reemplazar acá con el ID real antes de habilitar la subida.
   typeMap: { [key: string]: number } = {
+    // Existentes
     'Contrato': 25,
     'Autorización de Datos': 26,
     'Inducción': 27,
@@ -185,16 +221,16 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     'ARL': 30,
     'Figura Humana': 31,
     'EPS': 36,
-    'Caja': 37,
+    'CCF': 37,                                 // antes 'Caja'
     'Pago Seguridad Social': 38,
     'Entrega Carnets': 95,
     'Inducción Capacitación': 96,
     'Formato Solicitud': 97,
     'Pruebas Psicológicas': 19,
     'Autorización Ingreso': 112,
-    'Bonificación Ipanema': 113,
+    'Formato de Bonificación Ipanema': 113,    // antes 'Bonificación Ipanema'
     'Prueba Psicotécnica': 114,
-    'Certificados Estudios': 101,
+    'Diplomas y Certificados de Estudios': 101,// antes 'Certificados Estudios'
     'SST': 91,
     'Otras Pruebas': 115,
     'Hoja de Vida Minerva': 28,
@@ -206,7 +242,29 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     'Sagaro Lockers': 108,
     'Sagaro Imagen': 109,
     'Sagaro Celular': 110,
-    'Referenciación': 118,
+    'Referencias (1 personal, 1 familiar, 2 laborales)': 118, // antes 'Referenciación'
+    'Referenciación': 118,                     // alias temporal para backward compat
+    // NUEVOS — placeholders 200-219 (REEMPLAZAR cuando se creen en backend)
+    'Entrevista de Ingreso Tu Alianza': 200,
+    'Carta Descuento de Flor': 201,
+    'Formato Timbre Ingreso/Salida': 202,
+    'Carta Autorización Correo Electrónico': 203,
+    'Acta de Funciones': 204,
+    'Acta de Herramientas de Trabajo': 205,
+    'Acta de Dotaciones': 206,
+    'Acta de Funciones de SST': 207,
+    'Prueba Técnica Formato Elite': 208,
+    'Colinesterasa': 209,
+    'Curso Manipulación de Alimentos': 210,
+    'Historial Laboral (Semanas Cotizadas)': 211,
+    'Formato Resultado Prueba Valanti': 212,
+    'Tarjeta de Propiedad': 213,
+    'Licencia de Conducción': 214,
+    'Fotografías Visita Domiciliaria': 215,
+    'Prueba de Conocimiento': 216,
+    'Test del Árbol': 217,
+    'Planilla SST': 218,
+    'Evaluación SST': 219,
   };
 
   // Diccionario para almacenar info de documentos ya existentes en base de datos
@@ -305,9 +363,27 @@ export class GenerateContractingDocumentsComponent implements OnInit {
             this.huella = datoCandidato?.biometria?.huella?.file_url ?? '';
             this.foto = datoCandidato?.biometria?.foto?.file_url ?? '';
 
-            const entrevistaVálida = datoCandidato?.entrevistas?.find(
-              (e: any) => e?.proceso?.publicacion || e?.proceso?.contrato_codigo || e?.proceso?.contrato?.codigo_contrato
-            ) || datoCandidato?.entrevistas?.[0];
+            // Selección de entrevista:
+            //   1) Ordena por id DESC (la última creada, sin depender del orden del backend).
+            //   2) Prefiere la primera con `proceso.publicacion` (necesaria para filtrar por empresa/finca).
+            //   3) Si ninguna tiene publicación, cae a la primera con contrato_codigo.
+            //   4) Último recurso: la más reciente.
+            const entrevistas: any[] = Array.isArray(datoCandidato?.entrevistas) ? [...datoCandidato.entrevistas] : [];
+            entrevistas.sort((a, b) => (Number(b?.id) || 0) - (Number(a?.id) || 0));
+            const entrevistaConPub = entrevistas.find(e => e?.proceso?.publicacion);
+            const entrevistaConContrato = entrevistas.find(
+              e => e?.proceso?.contrato_codigo || e?.proceso?.contrato?.codigo_contrato
+            );
+            const entrevistaVálida = entrevistaConPub || entrevistaConContrato || entrevistas[0];
+
+            console.log('[entrevista pick]',
+              'total=', entrevistas.length,
+              '| ids=', entrevistas.map(e => e?.id),
+              '| picked=', entrevistaVálida?.id,
+              '| razón=', entrevistaConPub ? 'tiene publicacion'
+                          : entrevistaConContrato ? 'solo contrato_codigo'
+                          : 'fallback más reciente',
+              '| pub_id=', entrevistaVálida?.proceso?.publicacion ?? null);
 
             this.codigoContratacion =
               entrevistaVálida?.proceso?.contrato_codigo ?? 
@@ -354,10 +430,26 @@ export class GenerateContractingDocumentsComponent implements OnInit {
 
   isSubirPDF(doc: any): boolean {
     return [
-      'Cédula', 'ARL', 'Figura Humana', 'EPS', 'Caja', 'Pago Seguridad Social',
+      // Existentes (con renames aplicados)
+      'Cédula', 'ARL', 'Figura Humana', 'EPS', 'CCF', 'Pago Seguridad Social',
       'Pruebas Psicológicas', 'Prueba Lectoescritura', 'Visita Domiciliaria', 'Prueba SST',
-      'Autorización Ingreso', 'Bonificación Ipanema', 'Prueba Psicotécnica',
-      'Certificados Estudios', 'SST', 'Otras Pruebas', 'Referenciación'
+      'Autorización Ingreso', 'Formato de Bonificación Ipanema', 'Prueba Psicotécnica',
+      'Diplomas y Certificados de Estudios', 'SST', 'Otras Pruebas',
+      'Referencias (1 personal, 1 familiar, 2 laborales)', 'Referenciación',
+      // NUEVOS subir-only
+      'Prueba Técnica Formato Elite', 'Colinesterasa', 'Curso Manipulación de Alimentos',
+      'Historial Laboral (Semanas Cotizadas)', 'Formato Resultado Prueba Valanti',
+      'Tarjeta de Propiedad', 'Licencia de Conducción', 'Fotografías Visita Domiciliaria',
+      'Prueba de Conocimiento', 'Test del Árbol', 'Planilla SST', 'Evaluación SST',
+      // Los 8 que pasaron de stub a subir-only (no se generan, solo se suben)
+      'Entrevista de Ingreso Tu Alianza',
+      'Carta Descuento de Flor',
+      'Formato Timbre Ingreso/Salida',
+      'Carta Autorización Correo Electrónico',
+      'Acta de Funciones',
+      'Acta de Herramientas de Trabajo',
+      'Acta de Dotaciones',
+      'Acta de Funciones de SST',
     ].includes(doc.titulo);
   }
 
@@ -373,50 +465,115 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     return !!(this.uploadedFiles[doc.titulo] || this.existingDocs[doc.titulo]);
   }
 
+  // ───────── Cache de filtro (perf) ─────────
+  // Recalcula `documentosVisibles` solo cuando cambia el contexto (temporal/empresa/finca).
+  // El objeto retornado se reutiliza por referencia → derivados (docsGenerables, etc.) son estables.
+  private _docsVisiblesCache: { titulo: string }[] | null = null;
+  private _docsVisiblesKey = '<unset>';
+
+  /**
+   * Documentos visibles según finca / empresa usuaria / temporal de la vacante.
+   * Filtra `documentos` a partir de DOCUMENTOS_CONFIG; si un título no tiene
+   * regla, se considera siempre visible (fallback seguro).
+   */
+  get documentosVisibles(): { titulo: string }[] {
+    const tmp = this.vacante?.temporal ?? null;
+    const emp = this.vacante?.empresaUsuariaSolicita ?? null;
+    const fin = this.vacante?.finca ?? null;
+    const key = `${tmp}|${emp}|${fin}`;
+
+    if (key === this._docsVisiblesKey && this._docsVisiblesCache) {
+      return this._docsVisiblesCache;
+    }
+
+    const ctx = { temporal: tmp, empresaUsuaria: emp, finca: fin };
+    const visibles = this.documentos.filter(d => isDocumentoVisible(d.titulo, ctx));
+
+    this._docsVisiblesKey = key;
+    this._docsVisiblesCache = visibles;
+
+    console.debug('[docs filter]', ctx, '→', visibles.length, 'visibles:',
+      visibles.map(d => d.titulo));
+
+    return visibles;
+  }
+
   /**
    * Vista plana 3-niveles (Todos): completados → generables → resto.
    * Mantiene la firma original del primer refactor para compat.
    */
   get documentosOrdenados(): { titulo: string }[] {
+    const visibles = this.documentosVisibles;
     return [
-      ...this.documentos.filter(d => this.hasFile(d)),
-      ...this.documentos.filter(d => !this.hasFile(d) && !this.isSubirPDF(d)),
-      ...this.documentos.filter(d => !this.hasFile(d) && this.isSubirPDF(d)),
+      ...visibles.filter(d => this.hasFile(d)),
+      ...visibles.filter(d => !this.hasFile(d) && !this.isSubirPDF(d)),
+      ...visibles.filter(d => !this.hasFile(d) && this.isSubirPDF(d)),
     ];
   }
 
   /** Tab "Auto-generables": sólo los que NO son subir-only. */
   get docsGenerables(): { titulo: string }[] {
+    const visibles = this.documentosVisibles;
     return [
-      ...this.documentos.filter(d => !this.isSubirPDF(d) && this.hasFile(d)),
-      ...this.documentos.filter(d => !this.isSubirPDF(d) && !this.hasFile(d)),
+      ...visibles.filter(d => !this.isSubirPDF(d) && this.hasFile(d)),
+      ...visibles.filter(d => !this.isSubirPDF(d) && !this.hasFile(d)),
     ];
   }
 
   /** Tab "Solo subida": los que sí son subir-only. */
   get docsSubir(): { titulo: string }[] {
+    const visibles = this.documentosVisibles;
     return [
-      ...this.documentos.filter(d => this.isSubirPDF(d) && this.hasFile(d)),
-      ...this.documentos.filter(d => this.isSubirPDF(d) && !this.hasFile(d)),
+      ...visibles.filter(d => this.isSubirPDF(d) && this.hasFile(d)),
+      ...visibles.filter(d => this.isSubirPDF(d) && !this.hasFile(d)),
     ];
   }
 
-  /** Avance del expediente (todos los documentos). */
+  /** Avance del expediente (sobre los documentos visibles). */
   get progresoExpediente(): { completados: number; total: number; porcentaje: number } {
-    const total = this.documentos.length;
-    const completados = this.documentos.reduce((acc, d) => acc + (this.hasFile(d) ? 1 : 0), 0);
+    const visibles = this.documentosVisibles;
+    const total = visibles.length;
+    const completados = visibles.reduce((acc, d) => acc + (this.hasFile(d) ? 1 : 0), 0);
     const porcentaje = total ? Math.round((completados / total) * 100) : 0;
     return { completados, total, porcentaje };
   }
 
   /** Conteo de completados por sub-grupo, para los badges en los tabs. */
   get progresoGenerables(): { completados: number; total: number } {
-    const sub = this.documentos.filter(d => !this.isSubirPDF(d));
+    const sub = this.documentosVisibles.filter(d => !this.isSubirPDF(d));
     return { completados: sub.filter(d => this.hasFile(d)).length, total: sub.length };
   }
   get progresoSubir(): { completados: number; total: number } {
-    const sub = this.documentos.filter(d => this.isSubirPDF(d));
+    const sub = this.documentosVisibles.filter(d => this.isSubirPDF(d));
     return { completados: sub.filter(d => this.hasFile(d)).length, total: sub.length };
+  }
+
+  /** Agrupa documentos por sección (Generales / Inducción / Operativos / etc.) preservando el orden de SECCION_LABELS. */
+  private agruparPorSeccion(docs: { titulo: string }[]): Array<{ key: DocSeccion; label: string; icon: string; items: { titulo: string }[]; completados: number }> {
+    const map = new Map<DocSeccion, { titulo: string }[]>();
+    for (const d of docs) {
+      const k = (getDocSeccion(d.titulo) ?? 'generales') as DocSeccion;
+      const arr = map.get(k);
+      if (arr) arr.push(d);
+      else map.set(k, [d]);
+    }
+    return SECCION_LABELS
+      .map(s => {
+        const items = map.get(s.key) ?? [];
+        const completados = items.filter(d => this.hasFile(d)).length;
+        return { ...s, items, completados };
+      })
+      .filter(g => g.items.length > 0);
+  }
+
+  /** Auto-generables agrupados por sección — para el HTML. */
+  get docsGenerablesAgrupados() {
+    return this.agruparPorSeccion(this.docsGenerables);
+  }
+
+  /** Subir-only agrupados por sección — para el HTML. */
+  get docsSubirAgrupados() {
+    return this.agruparPorSeccion(this.docsSubir);
   }
 
   /** Estado de un documento — alimenta el chip y el círculo de la izquierda. */
@@ -894,7 +1051,8 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     }
     else if (documento === 'Sagaro Imagen') {
       this.generarSagaroImagen();
-    } else {
+    }
+    else {
       Swal.fire('Error', 'Funcionalidad de PDF no implementada para: ' + documento, 'error');
     }
   }
@@ -909,16 +1067,19 @@ export class GenerateContractingDocumentsComponent implements OnInit {
 
     try {
       const pdfUrl = 'Docs/minerva.pdf';
-      const resp = await fetch(pdfUrl);
-      if (!resp.ok) {
+      const arrayBuffer = await this.fetchAsArrayBufferOrNull(pdfUrl);
+      if (!arrayBuffer) {
         Swal.fire('Error', 'No se encontró el formato minerva.pdf en el servidor.', 'error');
         return;
       }
-      const arrayBuffer = await resp.arrayBuffer();
       const pdfDoc = await PDFDocument.load(arrayBuffer);
 
       pdfDoc.registerFontkit(fontkit as unknown as any);
-      const fontBytes = await fetch('fonts/Roboto-Regular.ttf').then(r => r.arrayBuffer());
+      const fontBytes = await this.fetchAsArrayBufferOrNull('fonts/Roboto-Regular.ttf');
+      if (!fontBytes) {
+        Swal.fire('Error', 'No se pudo cargar la fuente Roboto.', 'error');
+        return;
+      }
       const customFont = await pdfDoc.embedFont(fontBytes);
       const form = pdfDoc.getForm();
 
@@ -2950,8 +3111,38 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     this.setText(form, fieldName, cond ? 'X' : '');
   }
 
+  /** Cache en memoria para assets estáticos (templates PDF + fuentes + logos + firmas). */
+  private _staticAssetsCache = new Map<string, Promise<ArrayBuffer>>();
+
+  /** Prefijos cuya respuesta es segura cachear (assets servidos del paquete). */
+  private _isStaticAssetUrl(url: string): boolean {
+    return /^(Docs\/|fonts\/|Imagenes\/|assets\/|logos\/|firma\/)/.test(url);
+  }
+
   private async fetchAsArrayBufferOrNull(url?: string): Promise<ArrayBuffer | null> {
     if (!url) return null;
+
+    // Assets estáticos → cachear la promesa para reutilizar en futuras generaciones.
+    if (this._isStaticAssetUrl(url)) {
+      let cached = this._staticAssetsCache.get(url);
+      if (!cached) {
+        cached = (async () => {
+          const res = await fetch(url);
+          if (!res.ok) throw new Error(`fetch failed: ${url}`);
+          return res.arrayBuffer();
+        })();
+        // Si la promesa rechaza, removerla del cache para permitir reintento la próxima vez.
+        cached.catch(() => this._staticAssetsCache.delete(url));
+        this._staticAssetsCache.set(url, cached);
+      }
+      try {
+        return await cached;
+      } catch {
+        return null;
+      }
+    }
+
+    // URLs dinámicas (firma del candidato, foto, huella) → sin cache.
     try {
       const res = await fetch(url);
       if (!res.ok) return null;
@@ -10939,7 +11130,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
 
 
       // fecha actual dd/mm/yyyy
-      let fechaIngreso = moment().format('DD/MM/YYYY');
+      let fechaIngreso = new Date().toLocaleDateString('es-CO', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
 
       // 1) Cargar PDF plantilla

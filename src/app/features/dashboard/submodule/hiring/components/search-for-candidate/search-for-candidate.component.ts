@@ -111,7 +111,7 @@ export class SearchForCandidateComponent implements OnInit, OnDestroy {
       takeUntil(this.destroyed$)
     ).subscribe({
       next: (data) => {
-        this.recientes = data ?? [];
+        this.recientes = this.dedupeRecientes(data);
         this.recientesLoading = false;
         this.cdr.markForCheck();
       },
@@ -130,7 +130,7 @@ export class SearchForCandidateComponent implements OnInit, OnDestroy {
       .pipe(take(1), takeUntil(this.destroyed$))
       .subscribe({
         next: (data) => {
-          this.recientes = data ?? [];
+          this.recientes = this.dedupeRecientes(data);
           this.recientesLoading = false;
           this.cdr.markForCheck();
         },
@@ -139,6 +139,24 @@ export class SearchForCandidateComponent implements OnInit, OnDestroy {
           this.cdr.markForCheck();
         }
       });
+  }
+
+  /** Quita filas con el mismo numero_documento conservando la primera (el backend ya ordena: no atendidos por llegada, atendidos al final). */
+  private dedupeRecientes(data: CandidatoRecienteItem[] | null | undefined): CandidatoRecienteItem[] {
+    if (!data?.length) return [];
+    const vistos = new Set<string>();
+    const out: CandidatoRecienteItem[] = [];
+    for (const item of data) {
+      const key = String(item?.numero_documento ?? '').trim();
+      if (!key) {
+        out.push(item);
+        continue;
+      }
+      if (vistos.has(key)) continue;
+      vistos.add(key);
+      out.push(item);
+    }
+    return out;
   }
 
   seleccionarReciente(item: CandidatoRecienteItem): void {

@@ -309,6 +309,61 @@
   border-radius: 3px;
 }
 
+/* === SECTION GROUP === */
+.doc-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.doc-section + .doc-section {
+  margin-top: 14px;
+}
+
+.doc-section-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 4px 2px;
+  padding: 6px 10px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #475569;
+  background: linear-gradient(90deg, #f1f5f9 0%, transparent 100%);
+  border-left: 3px solid #94a3b8;
+  border-radius: 4px;
+  user-select: none;
+}
+
+.doc-section-icon {
+  font-size: 16px !important;
+  width: 16px !important;
+  height: 16px !important;
+  color: #64748b;
+}
+
+.doc-section-label {
+  flex: 1;
+}
+
+.doc-section-count {
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #e2e8f0;
+  color: #475569;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.doc-section-count.completo {
+  background: #dcfce7;
+  color: #166534;
+}
+
 /* === ITEM ROW === */
 .doc-item {
   display: flex;
