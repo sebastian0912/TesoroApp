@@ -10,12 +10,19 @@
   <!-- Viewport (CLAVE para que el @media funcione en móvil) -->
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 
-  <!-- CSP -->
+  <!--
+    Content Security Policy
+    - Removed 'unsafe-eval' from script-src (esbuild builder no longer requires it).
+    - Added 'frame-ancestors none' to prevent clickjacking embedding.
+    - object-src kept with blob:/data: because some PDF previews rely on it.
+    - connect-src lists the real backend endpoints used by the app.
+  -->
   <meta http-equiv="Content-Security-Policy" content="
         default-src 'self';
         base-uri 'self';
         form-action 'self';
-        script-src 'self' 'unsafe-inline' 'unsafe-eval';
+        frame-ancestors 'none';
+        script-src 'self' 'unsafe-inline';
         style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
         font-src 'self' data: https://fonts.gstatic.com;
         connect-src 'self' https://formulario.tsservicios.co http://10.10.10.60:4545 http://127.0.0.1:8000 http://localhost:8000 http://127.0.0.1:4545 http://localhost:4545;
