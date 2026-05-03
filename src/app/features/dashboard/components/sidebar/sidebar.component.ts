@@ -9,6 +9,7 @@ import { ConsoleLoggerService } from '../../../../shared/services/console-logger
 import { NetworkStatusService } from '../../../../core/services/network-status.service';
 import { OfflineSyncService } from '../../../../core/services/offline-sync.service';
 import { firstValueFrom, Subscription } from 'rxjs';
+import { setLocalStorageItem } from '../../../../core/utils/safe-storage';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -170,7 +171,7 @@ export class SidebarComponent implements OnDestroy {
 
         // Persistir
         try {
-          localStorage.setItem('user', JSON.stringify(user));
+          setLocalStorageItem('user', JSON.stringify(user));
         } catch {}
 
         Swal.fire('Editado', 'La sede ha sido asignada.', 'success').then(() => {

@@ -3,6 +3,7 @@ import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
 import { environment } from '../../../../environments/environment';
+import { getLocalStorageItem, clearLocalStorage } from '../../../core/utils/safe-storage';
 
 @Injectable({
   providedIn: 'root',
@@ -19,7 +20,7 @@ export class UtilityServiceService {
    */
   getUser(): any {
     if (typeof window !== 'undefined' && typeof localStorage !== 'undefined') {
-      const user = localStorage.getItem('user');
+      const user = getLocalStorageItem('user');
       return user ? JSON.parse(user) : null;
     }
     return null;
@@ -30,7 +31,7 @@ export class UtilityServiceService {
    */
   clearLocalStorage(): void {
     if (typeof window !== 'undefined' && typeof localStorage !== 'undefined') {
-      localStorage.clear();
+      clearLocalStorage();
     }
   }
 

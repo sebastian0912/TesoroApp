@@ -4,6 +4,7 @@ import { Observable } from 'rxjs';
 import { environment } from '../../../../environments/environment';
 import { ConsoleLoggerService } from '../console-logger/console-logger.service';
 import html2canvas from 'html2canvas';
+import { getLocalStorageItem } from '../../../core/utils/safe-storage';
 
 export interface BugReportPayload {
   titulo: string;
@@ -62,7 +63,7 @@ export class BugReportService {
 
   getUserData(): { usuario: string; documento: string; rol: string; sede: string } {
     try {
-      const user = JSON.parse(localStorage.getItem('user') || '{}');
+      const user = JSON.parse(getLocalStorageItem('user') || '{}');
       return {
         usuario: [user?.datos_basicos?.nombres, user?.datos_basicos?.apellidos].filter(Boolean).join(' ') || 'N/A',
         documento: user?.numero_de_documento || 'N/A',

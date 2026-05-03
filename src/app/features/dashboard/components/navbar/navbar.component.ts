@@ -23,6 +23,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { SharedModule } from '../../../../shared/shared.module';
 import { NetworkStatusService } from '../../../../core/services/network-status.service';
 import { OfflineSyncService } from '../../../../core/services/offline-sync.service';
+import { getLocalStorageItem, setLocalStorageItem, clearLocalStorage } from '../../../../core/utils/safe-storage';
 
 export interface PermNode {
   id: string;
@@ -177,15 +178,15 @@ export class NavbarComponent implements OnInit, OnDestroy {
   // ===== localStorage SSR-safe =====
   private lsGet(key: string): string | null {
     if (!this.isBrowser) return null;
-    try { return localStorage.getItem(key); } catch { return null; }
+    try { return getLocalStorageItem(key); } catch { return null; }
   }
   private lsSet(key: string, val: string): void {
     if (!this.isBrowser) return;
-    try { localStorage.setItem(key, val); } catch { /* noop */ }
+    try { setLocalStorageItem(key, val); } catch { /* noop */ }
   }
   private lsClear(): void {
     if (!this.isBrowser) return;
-    try { localStorage.clear(); } catch { /* noop */ }
+    try { clearLocalStorage(); } catch { /* noop */ }
   }
 
   private loadUIState(): void {

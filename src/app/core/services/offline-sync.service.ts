@@ -3,6 +3,7 @@ import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { NetworkStatusService } from './network-status.service';
 import { PermissionsService } from './permissions.service';
 import { BehaviorSubject, firstValueFrom } from 'rxjs';
+import { getLocalStorageItem } from '../utils/safe-storage';
 
 interface SyncQueueItem {
   id: number;
@@ -60,7 +61,7 @@ export class OfflineSyncService {
   private getCurrentUserId(): string | null {
     if (typeof localStorage === 'undefined') return null;
     try {
-      const raw = localStorage.getItem('user');
+      const raw = getLocalStorageItem('user');
       if (!raw) return null;
       const u = JSON.parse(raw);
       return String(u?.numero_de_documento ?? u?.id ?? '') || null;

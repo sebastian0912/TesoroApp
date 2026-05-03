@@ -11,6 +11,11 @@ import { Observable, EMPTY, throwError } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 
 import { environment } from '../../../environments/environment';
+import {
+  canUseBrowserStorage,
+  getLocalStorageItem,
+  removeLocalStorageItem,
+} from '../utils/safe-storage';
 
 const API_BASE = environment.apiUrl;
 const API_ORIGIN = new URL(API_BASE).host;
@@ -32,11 +37,11 @@ function isPublicPath(pathname: string): boolean {
 }
 
 function getTokenSafe(): string | null {
-  if (typeof window === 'undefined' || typeof localStorage === 'undefined') return null;
+  if (!canUseBrowserStorage()) return null;
   try {
-    let raw = localStorage.getItem('token') || localStorage.getItem('Authorization');
+    let raw = getLocalStorageItem('token') || getLocalStorageItem('Authorization');
     if (!raw) {
-      const u = localStorage.getItem('user');
+      const u = getLocalStorageItem('user');
       if (u) {
         const user = JSON.parse(u);
         raw = user?.token || user?.jwt || user?.access_token || user?.accessToken || null;
@@ -57,7 +62,7 @@ export const interceptor: HttpInterceptorFn = (
 ): Observable<HttpEvent<any>> => {
 
   const router = inject(Router);
-  const isBrowser = typeof window !== 'undefined' && typeof localStorage !== 'undefined';
+  const isBrowser = canUseBrowserStorage();
 
   const u = normalizeUrl(req.url);
   if (!u) return next(req);
@@ -108,7 +113,7 @@ export const interceptor: HttpInterceptorFn = (
   return next(working).pipe(
     catchError((err: any) => {
       if (isApiRequest && err instanceof HttpErrorResponse && err.status === 401) {
-        try { localStorage.removeItem('token'); } catch { }
+        removeLocalStorageItem('token');
         // En 401 limpiamos SOLO el cache de GETs (puede contener PII de la
         // sesión anterior). La cola de mutaciones pendientes NO se borra:
         // pertenece al usuario y debe sobrevivir al re-login del mismo

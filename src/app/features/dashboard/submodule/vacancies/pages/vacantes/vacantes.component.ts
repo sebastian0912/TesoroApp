@@ -17,6 +17,7 @@ import { SharedModule } from '@/app/shared/shared.module';
 import { CrearEditarVacanteComponent } from '../../components/crear-editar-vacante/crear-editar-vacante.component';
 import { DateRangeDialogComponent } from '@/app/shared/components/date-rang-dialog/date-rang-dialog.component';
 import { StandardFilterTable } from '@/app/shared/components/standard-filter-table/standard-filter-table';
+import { getLocalStorageItem, setLocalStorageItem } from '../../../../../../core/utils/safe-storage';
 
 interface ConteoEstados {
   pre_registro: number;
@@ -117,7 +118,7 @@ export class VacantesComponent implements OnInit {
   ngOnInit(): void {
     const saved =
       typeof window !== 'undefined'
-        ? (localStorage.getItem('vacantes:viewMode') as 'table' | 'faltantes' | 'completados' | 'inactivas' | null)
+        ? (getLocalStorageItem('vacantes:viewMode') as 'table' | 'faltantes' | 'completados' | 'inactivas' | null)
         : null;
     if (saved) this.viewMode = saved;
 
@@ -130,7 +131,7 @@ export class VacantesComponent implements OnInit {
 
   onToggleView(mode: 'table' | 'faltantes' | 'completados' | 'inactivas'): void {
     this.viewMode = mode;
-    try { localStorage.setItem('vacantes:viewMode', mode); } catch { }
+    try { setLocalStorageItem('vacantes:viewMode', mode); } catch { }
     this.applyViewMode();
   }
 

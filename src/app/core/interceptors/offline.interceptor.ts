@@ -10,6 +10,7 @@ import { inject } from '@angular/core';
 import { Observable, from, throwError } from 'rxjs';
 import { catchError, tap } from 'rxjs/operators';
 import { NetworkStatusService } from '../services/network-status.service';
+import { getLocalStorageItem } from '../utils/safe-storage';
 
 /**
  * Construye un HttpErrorResponse "fabricado" para que los callers offline
@@ -68,7 +69,7 @@ const isNeverQueueable = (url: string): boolean =>
 const getCurrentUserId = (): string | null => {
   if (typeof localStorage === 'undefined') return null;
   try {
-    const raw = localStorage.getItem('user');
+    const raw = getLocalStorageItem('user');
     if (!raw) return null;
     const u = JSON.parse(raw);
     return String(u?.numero_de_documento ?? u?.id ?? '') || null;
