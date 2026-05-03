@@ -1,4 +1,4 @@
-import { Component, OnInit, ChangeDetectionStrategy, ChangeDetectorRef, OnDestroy, NgZone, ApplicationRef } from '@angular/core';
+import { Component, OnInit, ChangeDetectionStrategy, ChangeDetectorRef, OnDestroy, NgZone, ApplicationRef, DestroyRef, inject } from '@angular/core';
 import { FormBuilder, FormGroup, Validators, FormControl, ReactiveFormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { firstValueFrom, Subject } from 'rxjs';
@@ -7,6 +7,7 @@ import * as XLSX from 'xlsx';
 import * as FileSaver from 'file-saver';
 import * as ExcelJS from 'exceljs';
 import Swal from 'sweetalert2';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 // Models & Shared
 import { SharedModule } from '@/app/shared/shared.module';
@@ -112,7 +113,7 @@ export class HiringReportComponent implements OnInit, OnDestroy {
   ];
 
   private readonly BLOCKED_FILES = new Set<string>(['thumbs.db', 'desktop.ini', '.ds_store']);
-  private readonly destroy$ = new Subject<void>();
+  private readonly destroyRef = inject(DestroyRef);
 
   // Worker para ARL
   private arlWorker: Worker | undefined;
@@ -137,10 +138,7 @@ export class HiringReportComponent implements OnInit, OnDestroy {
     this.loadSedes();
   }
 
-  ngOnDestroy(): void {
-    this.destroy$.next();
-    this.destroy$.complete();
-    this.terminateWorker();
+  ngOnDestroy(): void {    this.terminateWorker();
   }
 
   // ---------------------------------------------------------------------------
@@ -187,7 +185,7 @@ export class HiringReportComponent implements OnInit, OnDestroy {
     });
 
     // Validaciones reactivas
-    this.reporteForm.controls.esDeHoy.valueChanges.pipe(takeUntil(this.destroy$)).subscribe(val => {
+    this.reporteForm.controls.esDeHoy.valueChanges.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(val => {
       if (val === 'true') {
         this.reporteForm.controls.fecha.clearValidators();
         this.reporteForm.controls.fecha.setValue(null);
@@ -197,7 +195,7 @@ export class HiringReportComponent implements OnInit, OnDestroy {
       this.reporteForm.controls.fecha.updateValueAndValidity();
     });
 
-    this.reporteForm.controls.contratosHoy.valueChanges.pipe(takeUntil(this.destroy$)).subscribe(val => {
+    this.reporteForm.controls.contratosHoy.valueChanges.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(val => {
       this.handleContratosChange(val);
       this.cdr.markForCheck();
     });

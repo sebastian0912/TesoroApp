@@ -1,4 +1,5 @@
-import { Component, OnDestroy, OnInit, ChangeDetectionStrategy, ChangeDetectorRef, ElementRef, ViewChild } from '@angular/core';
+import { Component, OnDestroy, OnInit, ChangeDetectionStrategy, ChangeDetectorRef, ElementRef, ViewChild, DestroyRef, inject } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { firstValueFrom, interval, Subject, take } from 'rxjs';
 import { startWith, switchMap, takeUntil } from 'rxjs/operators';
 import Swal from 'sweetalert2';
@@ -67,7 +68,7 @@ export class SearchForCandidateComponent implements OnInit, OnDestroy {
   /* Descarga de Excel: estado del request */
   excelDescargando = false;
 
-  private destroyed$ = new Subject<void>();
+  private readonly destroyRef = inject(DestroyRef);
 
   constructor(
     private vetadosService: VetadosService,
@@ -84,8 +85,8 @@ export class SearchForCandidateComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
-    this.destroyed$.next();
-    this.destroyed$.complete();
+    // Limpieza adicional si aplica (las suscripciones se auto-cancelan
+    // por takeUntilDestroyed sin acción manual).
   }
 
   private async initUsuarioYAbreviacion(): Promise<void> {
@@ -108,7 +109,7 @@ export class SearchForCandidateComponent implements OnInit, OnDestroy {
           this.sede || undefined
         );
       }),
-      takeUntil(this.destroyed$)
+      takeUntilDestroyed(this.destroyRef)
     ).subscribe({
       next: (data) => {
         this.recientes = this.dedupeRecientes(data);
@@ -127,7 +128,7 @@ export class SearchForCandidateComponent implements OnInit, OnDestroy {
     this.cdr.markForCheck();
     this.registroProcesoContratacion
       .getCandidatosRecientes(this.RECIENTES_LIMIT, this.sede || undefined)
-      .pipe(take(1), takeUntil(this.destroyed$))
+      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (data) => {
           this.recientes = this.dedupeRecientes(data);
@@ -175,7 +176,7 @@ export class SearchForCandidateComponent implements OnInit, OnDestroy {
         numero_documento: item.numero_documento,
         candidato_id: item.candidato_id,
       })
-      .pipe(take(1), takeUntil(this.destroyed$))
+      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: () => {
           this.atendiendoSet.delete(ced);
@@ -222,7 +223,7 @@ export class SearchForCandidateComponent implements OnInit, OnDestroy {
     this.cdr.markForCheck();
     this.registroProcesoContratacion
       .downloadTurnosExcel({ start, end }, this.sede || undefined)
-      .pipe(take(1), takeUntil(this.destroyed$))
+      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: () => {
           this.excelDescargando = false;
