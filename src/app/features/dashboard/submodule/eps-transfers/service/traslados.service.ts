@@ -130,4 +130,21 @@ export class TrasladosService {
       .pipe(catchError(this.handleError));
   }
 
+  /** Exportar todos los traslados activos cuya fecha de subida cae en el rango. */
+  exportarPorFechaSubida(start: string | null, end: string | null): Observable<any[]> {
+    let url = `${this.apiUrl}/traslados/exportar-por-fecha-subida/`;
+    const params: string[] = [];
+    if (start) params.push(`start=${encodeURIComponent(start)}`);
+    if (end) params.push(`end=${encodeURIComponent(end)}`);
+    if (params.length) url += `?${params.join('&')}`;
+    return this.http.get<any[]>(url).pipe(catchError(this.handleError));
+  }
+
+  /** Desactivar (soft-delete) traslados por codigos y/o cedulas. */
+  desactivarTrasladosMasivo(codigos: number[], cedulas: string[]): Observable<any> {
+    const body = { codigos, cedulas, confirmar: true };
+    return this.http.post(`${this.apiUrl}/traslados/desactivar-masivo/`, body)
+      .pipe(catchError(this.handleError));
+  }
+
 }

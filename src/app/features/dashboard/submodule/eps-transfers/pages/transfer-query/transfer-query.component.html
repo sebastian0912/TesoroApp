@@ -20,28 +20,44 @@
       </ng-container>
     </form>
 
-    @if (puedeDescargarExcel) {
+    @if (puedeAdministrar) {
       <div class="results-toolbar">
         <span class="results-count" [class.results-count--empty]="dataSource.data.length === 0">
           @if (dataSource.data.length > 0) {
             {{ dataSource.data.length }} traslado(s) encontrado(s)
           } @else {
-            Listo para descargar (selecciona rango de fechas)
+            Acciones administrativas disponibles
           }
         </span>
+
         <button
           type="button"
-          mat-stroked-button
-          color="primary"
-          class="btn-excel"
-          (click)="descargarExcel()"
-          [disabled]="isExporting"
-          matTooltip="Descargar Excel ordenado por fecha de subida (mas antigua primero)"
+          mat-icon-button
+          [matMenuTriggerFor]="adminMenu"
+          [disabled]="isExporting || isDeactivating"
+          matTooltip="Mas opciones"
           matTooltipPosition="above"
-          aria-label="Descargar Excel">
-          <mat-icon class="icon-excel">download</mat-icon>
-          <span>{{ isExporting ? 'Generando...' : 'Descargar Excel' }}</span>
+          aria-label="Mas opciones">
+          <mat-icon>more_vert</mat-icon>
         </button>
+
+        <mat-menu #adminMenu="matMenu" xPosition="before">
+          <button mat-menu-item (click)="descargarExcel()" [disabled]="isExporting">
+            <mat-icon>download</mat-icon>
+            <span>{{ isExporting ? 'Generando Excel...' : 'Descargar Excel por rango de fechas' }}</span>
+          </button>
+          <button mat-menu-item (click)="abrirSelectorDesactivar()" [disabled]="isDeactivating">
+            <mat-icon>cloud_upload</mat-icon>
+            <span>{{ isDeactivating ? 'Desactivando...' : 'Desactivar traslados desde Excel' }}</span>
+          </button>
+        </mat-menu>
+
+        <input
+          #uploadDeactivateInput
+          type="file"
+          accept=".xlsx,.xls"
+          hidden
+          (change)="onArchivoDesactivar($event)" />
       </div>
     }
 
