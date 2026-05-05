@@ -20,6 +20,27 @@
       </ng-container>
     </form>
 
+    @if (dataSource.data.length > 0) {
+      <div class="results-toolbar">
+        <span class="results-count">
+          {{ dataSource.data.length }} traslado(s) encontrado(s)
+        </span>
+        <button
+          type="button"
+          mat-stroked-button
+          color="primary"
+          class="btn-excel"
+          (click)="descargarExcel()"
+          [disabled]="isExporting"
+          matTooltip="Descargar Excel ordenado por fecha de subida (mas antigua primero)"
+          matTooltipPosition="above"
+          aria-label="Descargar Excel">
+          <mat-icon class="icon-excel">download</mat-icon>
+          <span>{{ isExporting ? 'Generando...' : 'Descargar Excel' }}</span>
+        </button>
+      </div>
+    }
+
     <div class="table-container">
       <table mat-table [dataSource]="dataSource" class="mat-elevation-z8">
 
