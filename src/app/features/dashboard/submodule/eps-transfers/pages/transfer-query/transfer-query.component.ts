@@ -1,4 +1,4 @@
-import { Component, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
+import { Component, ChangeDetectionStrategy, ChangeDetectorRef, OnInit } from '@angular/core';
 import { TrasladosService } from '../../service/traslados.service';
 import { SharedModule } from '@/app/shared/shared.module';
 import { FormBuilder, FormGroup, Validators } from '@angular/forms';
@@ -7,6 +7,7 @@ import { MatTableDataSource, MatTableModule } from '@angular/material/table';
 import { MatDialog } from '@angular/material/dialog';
 import { firstValueFrom } from 'rxjs';
 import { ElectronWindowService } from '@/app/core/services/electron-window.service';
+import { UtilityServiceService } from '@/app/shared/services/utilityService/utility-service.service';
 import { DateRangeDialogComponent } from '@/app/shared/components/date-rang-dialog/date-rang-dialog.component';
 import * as ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
@@ -26,10 +27,13 @@ interface RangoFechas {
   templateUrl: './transfer-query.component.html',
   styleUrl: './transfer-query.component.css'
 })
-export class TransferQueryComponent {
+export class TransferQueryComponent implements OnInit {
   myForm!: FormGroup;
   dataSource = new MatTableDataSource<any>([]);
   isExporting = false;
+
+  /** Solo GERENCIA, ADMIN y el correo de tuafiliacion ven el boton de Excel. */
+  puedeDescargarExcel = false;
 
   displayedColumns: string[] = [
     'codigo_traslado',
@@ -45,10 +49,21 @@ export class TransferQueryComponent {
     private cdr: ChangeDetectorRef,
     private electronWindow: ElectronWindowService,
     private dialog: MatDialog,
+    private utilityService: UtilityServiceService,
   ) {
     this.myForm = this.fb.group({
       cedula: ['', Validators.required],
     });
+  }
+
+  ngOnInit(): void {
+    const user = this.utilityService.getUser();
+    const rol = String(user?.rol?.nombre || '').toUpperCase();
+    const correo = String(user?.correo_electronico || '').toLowerCase();
+    this.puedeDescargarExcel =
+      rol === 'GERENCIA' ||
+      rol === 'ADMIN' ||
+      correo === 'tuafiliacion@tsservicios.co';
   }
 
   applyFilter(event: Event) {
@@ -154,6 +169,11 @@ export class TransferQueryComponent {
    * elige fechas, se exportan todos los registros tal cual.
    */
   async descargarExcel(): Promise<void> {
+    if (!this.puedeDescargarExcel) {
+      // Defensa redundante: el boton no se renderiza, pero blindamos por si
+      // alguien dispara el metodo desde devtools.
+      return;
+    }
     const filas = (this.dataSource.data || []).slice();
     if (filas.length === 0) {
       Swal.fire({
