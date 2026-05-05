@@ -1,6 +1,6 @@
 {
   "name": "tesoreria",
-  "version": "8.2.6",
+  "version": "8.3.0",
   "main": "app.js",
   "description": "Programa para control de prestamos a tesoreria",
   "author": "SebastianGuarnizoCampos",
@@ -21,6 +21,7 @@
       "app.js",
       "preload.js",
       "electron-db.js",
+      "electron-security.js",
       {
         "from": "csharp",
         "to": "csharp",

@@ -213,7 +213,7 @@
               "baseHref": "/",
               "optimization": false,
               "buildOptimizer": false,
-              "aot": false,
+              "aot": true,
               "extractLicenses": false,
               "sourceMap": true,
               "namedChunks": true,
