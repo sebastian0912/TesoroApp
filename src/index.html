@@ -13,7 +13,9 @@
   <!--
     Content Security Policy
     - Removed 'unsafe-eval' from script-src (esbuild builder no longer requires it).
-    - Added 'frame-ancestors none' to prevent clickjacking embedding.
+    - frame-ancestors no aplica via <meta> (la spec del CSP solo lo lee desde
+      HTTP header). En Electron la app corre con file:// asi que el riesgo
+      de clickjacking es nulo; no se reemplaza por header.
     - object-src kept with blob:/data: because some PDF previews rely on it.
     - connect-src lists the real backend endpoints used by the app.
   -->
@@ -21,7 +23,6 @@
         default-src 'self';
         base-uri 'self';
         form-action 'self';
-        frame-ancestors 'none';
         script-src 'self' 'unsafe-inline';
         style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
         font-src 'self' data: https://fonts.gstatic.com;
