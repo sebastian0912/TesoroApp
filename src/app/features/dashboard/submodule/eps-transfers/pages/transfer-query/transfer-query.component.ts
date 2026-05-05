@@ -9,9 +9,16 @@ import { firstValueFrom } from 'rxjs';
 import { ElectronWindowService } from '@/app/core/services/electron-window.service';
 import { UtilityServiceService } from '@/app/shared/services/utilityService/utility-service.service';
 import { DateRangeDialogComponent } from '@/app/shared/components/date-rang-dialog/date-rang-dialog.component';
-import { environment } from '@/environments/environment';
 import * as ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
+
+/**
+ * Los archivos fisicos de gestion_documental viven siempre en el server de
+ * produccion sin importar si la app esta apuntando a dev o LAN: el upload
+ * se hizo ahi y los discos no se replican entre ambientes. Por eso el
+ * prefijo es fijo, no se toma de environment.apiUrl.
+ */
+const MEDIA_BASE_URL = 'https://formulario.tsservicios.co';
 
 interface RangoFechas {
   start: string | null;
@@ -123,13 +130,14 @@ export class TransferQueryComponent implements OnInit {
   /**
    * Resuelve la URL del PDF a abrir desde el response del backend.
    * Prioridad: solicitud_doc.file_url (gestion_documental) > external_url (Drive).
-   * Fallback al campo legacy solicitud_traslado solo si todavía existe.
+   * Fallback al campo legacy solicitud_traslado solo si todavia existe.
    *
-   * El backend a veces devuelve `solicitud_doc.file_url` como path Windows
-   * absoluto (`C:\media\...\file.pdf`) en vez de URL HTTP. Normalizamos:
-   * - Si ya es absoluta http(s)/data/blob, se devuelve tal cual.
-   * - Si tiene `/media/`, se extrae desde ahi y se prefija con apiUrl.
-   * - En otro caso se devuelve null (no hay como servirla).
+   * El backend devuelve `solicitud_doc.file_url` como path Windows absoluto
+   * (`C:\\media\\...\\file.pdf`) en vez de URL HTTP. Los archivos fisicos
+   * viven SIEMPRE en el server de produccion (formulario.tsservicios.co)
+   * porque ahi se guardo el upload, sin importar si la app esta apuntando
+   * a dev o LAN; por eso se prefija con `environment.mediaUrl` (que es la
+   * URL fija de prod), no con `apiUrl`.
    */
   resolveSolicitudUrl(element: any): string | null {
     const raw = (
@@ -153,10 +161,9 @@ export class TransferQueryComponent implements OnInit {
     const idx = url.toLowerCase().indexOf('/media/');
     if (idx >= 0) {
       const path = url.substring(idx); // empieza con "/media/..."
-      return `${environment.apiUrl}${path}`;
+      return `${MEDIA_BASE_URL}${path}`;
     }
 
-    // Sin "/media/" detectable, no podemos servirlo desde el backend.
     return null;
   }
 
