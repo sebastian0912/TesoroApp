@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
-import { environment } from '../../../../environments/environment';
+import { environment } from '@/environments/environment';
 import { ConsoleLoggerService } from '../console-logger/console-logger.service';
 import html2canvas from 'html2canvas';
 import { getLocalStorageItem } from '../../../core/utils/safe-storage';

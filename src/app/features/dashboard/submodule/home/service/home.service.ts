@@ -1,7 +1,7 @@
 import { HttpClient, HttpHeaders, HttpParams, HttpResponse } from '@angular/common/http';
 import { Inject, Injectable, PLATFORM_ID } from '@angular/core';
 import { Observable, catchError, throwError } from 'rxjs';
-import { environment } from '../../../../../../environments/environment';
+import { environment } from '@/environments/environment';
 
 type Granularidad = 'dia' | 'semana' | 'mes';
 

@@ -1,7 +1,7 @@
 import { Injectable, NgZone, inject, signal } from '@angular/core';
 import { Observable } from 'rxjs';
 import { toObservable } from '@angular/core/rxjs-interop';
-import { environment } from '../../../environments/environment';
+import { environment } from '@/environments/environment';
 
 @Injectable({
   providedIn: 'root'

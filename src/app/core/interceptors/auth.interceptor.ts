@@ -10,7 +10,7 @@ import { Router } from '@angular/router';
 import { Observable, EMPTY, throwError } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 
-import { environment } from '../../../environments/environment';
+import { environment } from '@/environments/environment';
 import {
   canUseBrowserStorage,
   getLocalStorageItem,

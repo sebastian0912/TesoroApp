@@ -17,7 +17,7 @@ import { Subscription } from 'rxjs';
 import Swal from 'sweetalert2';
 
 import { HttpClient } from '@angular/common/http';
-import { environment } from '../../../../../environments/environment';
+import { environment } from '@/environments/environment';
 
 import { MatIconModule } from '@angular/material/icon';
 import { SharedModule } from '../../../../shared/shared.module';
