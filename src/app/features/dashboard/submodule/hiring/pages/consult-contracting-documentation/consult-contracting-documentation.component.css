@@ -17,13 +17,13 @@
   /* Red (Missing) */
 
   display: block;
-  min-height: 100vh;
   background-color: var(--cc-bg);
   padding: 24px;
   border-radius: 30px;
-  /* Requested Rounding */
-  overflow: hidden;
-  /* Ensure content respects rounding */
+  /* min-height: 100vh y overflow: hidden ahogaban el scroll del
+     .dashboard-page-wrapper cuando la lista de resultados crecia
+     (ej. consulta de 500 cedulas). El border-radius se respeta sin
+     overflow:hidden porque el contenido es texto/tabla, no overflow visual. */
 }
 
 .dashboard-shell {
