@@ -9,6 +9,7 @@ import { firstValueFrom } from 'rxjs';
 import { ElectronWindowService } from '@/app/core/services/electron-window.service';
 import { UtilityServiceService } from '@/app/shared/services/utilityService/utility-service.service';
 import { DateRangeDialogComponent } from '@/app/shared/components/date-rang-dialog/date-rang-dialog.component';
+import { environment } from '@/environments/environment';
 import * as ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
 
@@ -123,14 +124,40 @@ export class TransferQueryComponent implements OnInit {
    * Resuelve la URL del PDF a abrir desde el response del backend.
    * Prioridad: solicitud_doc.file_url (gestion_documental) > external_url (Drive).
    * Fallback al campo legacy solicitud_traslado solo si todavía existe.
+   *
+   * El backend a veces devuelve `solicitud_doc.file_url` como path Windows
+   * absoluto (`C:\media\...\file.pdf`) en vez de URL HTTP. Normalizamos:
+   * - Si ya es absoluta http(s)/data/blob, se devuelve tal cual.
+   * - Si tiene `/media/`, se extrae desde ahi y se prefija con apiUrl.
+   * - En otro caso se devuelve null (no hay como servirla).
    */
   resolveSolicitudUrl(element: any): string | null {
-    return (
+    const raw = (
       element?.solicitud_doc?.file_url ||
       element?.external_url ||
       element?.solicitud_traslado ||
       null
     );
+    if (!raw) return null;
+
+    let url = String(raw).trim();
+    if (!url) return null;
+
+    // Ya es URL absoluta (http(s), data:, blob:, file:)
+    if (/^(https?:|data:|blob:|file:)/i.test(url)) return url;
+
+    // Normalizamos separadores de Windows.
+    url = url.replace(/\\/g, '/');
+
+    // Si tiene "/media/" en algun punto, extraemos desde ahi.
+    const idx = url.toLowerCase().indexOf('/media/');
+    if (idx >= 0) {
+      const path = url.substring(idx); // empieza con "/media/..."
+      return `${environment.apiUrl}${path}`;
+    }
+
+    // Sin "/media/" detectable, no podemos servirlo desde el backend.
+    return null;
   }
 
   /**
