@@ -195,12 +195,6 @@ export class HomeComponent implements OnInit {
   // HISTORIAL BENEFICIOS
   // =========================================================
   extraerHistorialBeneficios(): void {
-    const rol = this.user?.rol?.nombre ?? 'SIN-ASIGNAR';
-    const correo = (this.user?.correo_electronico ?? '').toString().toLowerCase();
-
-    const autorizadoGlobal =
-      rol === 'ADMIN' || rol === 'GERENCIA' || correo === 'mercarflorats@gmail.com';
-
     this.dialog
       .open(DateRangeDialogComponent, {
         width: '400px',
@@ -212,20 +206,9 @@ export class HomeComponent implements OnInit {
 
         const { start, end } = result;
 
-        if (autorizadoGlobal) {
-          this.homeService.traerHistorialInformeSoloFecha(start, end, true).subscribe({
-            next: (blob) =>
-              this.downloadBlob(blob, `historial_beneficios_${start}_a_${end}.xlsx`),
-          });
-          return;
-        }
-
-        const nombrePersona =
-          `${this.user?.datos_basicos?.nombres ?? ''} ${this.user?.datos_basicos?.apellidos ?? ''}`.trim();
-
-        this.homeService.traerHistorialInformePersona(start, end, nombrePersona, true).subscribe({
+        this.homeService.traerHistorialInformeSoloFecha(start, end, true).subscribe({
           next: (blob) =>
-            this.downloadBlob(blob, `historial_beneficios_${nombrePersona}_${start}_a_${end}.xlsx`),
+            this.downloadBlob(blob, `historial_beneficios_${start}_a_${end}.xlsx`),
         });
       });
   }

@@ -23,11 +23,17 @@ const INVOKE_CHANNELS = new Set([
   'db:save-multipart-request',
   'db:get-request-files',
   'db:get-pending-requests',
+  'db:get-failed-requests',
   'db:delete-request',
+  'db:retry-request',
+  'db:discard-request',
   'db:cache-save',
   'db:cache-get',
   'db:cache-get-all-urls',
+  'db:cache-invalidate-prefix',
   'db:mark-request-status',
+  'db:clear-cache',
+  'db:clear-queue',
   'db:clear-user-data',
 ]);
 
@@ -96,15 +102,29 @@ contextBridge.exposeInMainWorld('electron', {
     openExternal: (url) => ipcRenderer.invoke('shell:open-external', url),
   },
   db: {
+    // Cola de mutaciones offline.
     saveRequestQueue: (req) => ipcRenderer.invoke('db:save-request-queue', req),
     saveMultipartRequest: (payload) => ipcRenderer.invoke('db:save-multipart-request', payload),
     getRequestFiles: (requestId) => ipcRenderer.invoke('db:get-request-files', requestId),
-    getPendingRequests: () => ipcRenderer.invoke('db:get-pending-requests'),
+    getPendingRequests: (opts) => ipcRenderer.invoke('db:get-pending-requests', opts),
+    getFailedRequests: (opts) => ipcRenderer.invoke('db:get-failed-requests', opts),
     deleteRequest: (id) => ipcRenderer.invoke('db:delete-request', id),
+    retryRequest: (id) => ipcRenderer.invoke('db:retry-request', id),
+    discardRequest: (id) => ipcRenderer.invoke('db:discard-request', id),
+    markRequestStatus: (data) => ipcRenderer.invoke('db:mark-request-status', data),
+
+    // Cache de GETs.
     cacheSave: (cacheData) => ipcRenderer.invoke('db:cache-save', cacheData),
     cacheGet: (url) => ipcRenderer.invoke('db:cache-get', url),
     cacheGetAllUrls: () => ipcRenderer.invoke('db:cache-get-all-urls'),
-    markRequestStatus: (data) => ipcRenderer.invoke('db:mark-request-status', data),
+    cacheInvalidatePrefix: (prefix) => ipcRenderer.invoke('db:cache-invalidate-prefix', prefix),
+
+    // Limpieza.
+    //   clearCache: en 401 (token expiró). NO toca cola pendiente.
+    //   clearQueue: en logout manual con confirmación previa.
+    //   clearUserData: alias retro = clearCache + clearQueue.
+    clearCache: () => ipcRenderer.invoke('db:clear-cache'),
+    clearQueue: () => ipcRenderer.invoke('db:clear-queue'),
     clearUserData: () => ipcRenderer.invoke('db:clear-user-data'),
   },
   offline: {

@@ -1,4 +1,4 @@
-import {  Component, Inject, PLATFORM_ID , ChangeDetectionStrategy } from '@angular/core';
+import {  Component, Inject, OnDestroy, PLATFORM_ID , ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
 import { SharedModule } from '../../../../shared/shared.module';
 import { isPlatformBrowser } from '@angular/common';
 import { Router } from '@angular/router';
@@ -6,7 +6,9 @@ import { MatDialog } from '@angular/material/dialog';
 import Swal from 'sweetalert2';
 import { UtilityServiceService } from '../../../../shared/services/utilityService/utility-service.service';
 import { ConsoleLoggerService } from '../../../../shared/services/console-logger/console-logger.service';
-import { firstValueFrom } from 'rxjs';
+import { NetworkStatusService } from '../../../../core/services/network-status.service';
+import { OfflineSyncService } from '../../../../core/services/offline-sync.service';
+import { firstValueFrom, Subscription } from 'rxjs';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -17,7 +19,7 @@ import { firstValueFrom } from 'rxjs';
   templateUrl: './sidebar.component.html',
   styleUrl: './sidebar.component.css'
 } )
-export class SidebarComponent {
+export class SidebarComponent implements OnDestroy {
   role: string = '';
   username: string = '';
   documento: string = '';
@@ -28,16 +30,75 @@ export class SidebarComponent {
   // Listado de sedes para el selector
   sedes: any[] = [];
 
+  /** Estado de red + cola offline (movidos desde el navbar). */
+  isOnline = true;
+  pendingCount = 0;
+  syncProgress: { current: number; total: number; phase: string } | null = null;
+
+  private netSubs: Subscription[] = [];
+
   constructor(
     @Inject(PLATFORM_ID) private platformId: Object,
     private adminService: UtilityServiceService,
     private router: Router,
     private dialog: MatDialog,
-    private consoleLogger: ConsoleLoggerService
+    private consoleLogger: ConsoleLoggerService,
+    private networkStatus: NetworkStatusService,
+    private offlineSync: OfflineSyncService,
+    private cdr: ChangeDetectorRef,
   ) {
     if (isPlatformBrowser(this.platformId)) {
       this.consoleLogger.init();
+
+      // Suscripciones al estado de red — alimentan el chip del header.
+      this.netSubs.push(
+        this.networkStatus.isOnline$.subscribe(status => {
+          this.isOnline = status;
+          this.cdr.markForCheck();
+        }),
+        this.offlineSync.pendingCount$.subscribe(count => {
+          this.pendingCount = count;
+          this.cdr.markForCheck();
+        }),
+        this.offlineSync.syncProgress$.subscribe(progress => {
+          this.syncProgress = progress;
+          this.cdr.markForCheck();
+        }),
+      );
     }
+  }
+
+  ngOnDestroy(): void {
+    this.netSubs.forEach(s => s.unsubscribe());
+    this.netSubs = [];
+  }
+
+  /** Texto humano del estado de red para el tooltip y aria-label. */
+  get netStatusTitle(): string {
+    if (this.syncProgress) {
+      const verb = this.syncProgress.phase === 'sync' ? 'Sincronizando' : 'Actualizando caché';
+      return `${verb} ${this.syncProgress.current}/${this.syncProgress.total}`;
+    }
+    if (!this.isOnline) {
+      return this.pendingCount > 0
+        ? `Sin conexión · ${this.pendingCount} pendiente(s)`
+        : 'Sin conexión';
+    }
+    return this.pendingCount > 0
+      ? `En línea · ${this.pendingCount} pendiente(s) por sincronizar`
+      : 'En línea';
+  }
+
+  /** Etiqueta corta del chip. */
+  get netStatusLabel(): string {
+    if (this.syncProgress) return 'Sincronizando';
+    return this.isOnline ? 'En línea' : 'Sin conexión';
+  }
+
+  /** Icono Material adecuado al estado actual. */
+  get netStatusIcon(): string {
+    if (this.syncProgress) return 'sync';
+    return this.isOnline ? 'cloud_done' : 'cloud_off';
   }
 
   async ngOnInit(): Promise<void> {

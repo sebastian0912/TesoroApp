@@ -1,7 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { environment } from '@/environments/environment';
-import { Observable, BehaviorSubject, combineLatest, of } from 'rxjs';
+import { Observable, ReplaySubject, Subject, combineLatest, of } from 'rxjs';
 import { map, shareReplay, switchMap, catchError, startWith, take } from 'rxjs/operators';
 import * as _moment from 'moment';
 // @ts-ignore
@@ -12,8 +12,8 @@ import {
     ContratacionKpiSummary,
     ChartDataPoint,
     CandidatoSinCelular,
-    EmpresaFincaPivot,
-    ChartSeriesPoint
+    PipelineVM,
+    ChartSeriesPoint,
 } from '../models/contratacion-metricas.models';
 
 @Injectable({
@@ -23,129 +23,121 @@ export class ContratacionMetricasApiService {
     private http = inject(HttpClient);
     private apiUrl = `${environment.apiUrl}/gestion_contratacion`;
 
-    // State
-    private dateRangeSubject = new BehaviorSubject<MetricasContratacionDateRange>({
-        start: moment().startOf('day').toDate(),
-        end: moment().endOf('day').toDate()
-    });
-
+    // ─── State ──────────────────────────────────────────────────────
+    // Lazy: sólo emite cuando el filters-bar (o cualquier consumidor) invoca
+    // updateDateRange. Así la sola inyección del servicio — `providedIn: 'root'` —
+    // no dispara 4 GETs al arrancar la app.
+    private dateRangeSubject = new ReplaySubject<MetricasContratacionDateRange>(1);
     public dateRange$ = this.dateRangeSubject.asObservable();
 
-    // 1. Fetch raw lists
-    // Candidatos (updated_at within range)
-    public candidatosRaw$ = this.dateRange$.pipe(
-        switchMap(range => {
-            const start = moment(range.start).format('YYYY-MM-DD');
-            const end = moment(range.end).format('YYYY-MM-DD');
-            let params = new HttpParams()
-                .set('updated_at__gte', start)
-                .set('updated_at__lte', `${end} 23:59:59`)
-                .set('limit', '1000');
-            return this.http.get<any>(`${this.apiUrl}/candidatos/`, { params }).pipe(
-                map(res => res.results || []),
-                catchError(() => of([]))
-            );
-        }),
-        shareReplay(1)
-    );
-
-    // Entrevistas
-    // Usada para derivar "última oficina"
-    // Lo traemos por fechas de creado y los cruzamos?
-    // En este caso, trataremos de traer entrevistas limitadas o usar el endpoint si se escala N+1
-    public entrevistasRaw$ = this.dateRange$.pipe(
-        switchMap(range => {
-            // Traemos las entrevistas en general o recientes para cruzar
-            let params = new HttpParams().set('limit', '2000').set('ordering', '-created_at');
-            return this.http.get<any>(`${this.apiUrl}/entrevistas/`, { params }).pipe(
-                map(res => res.results || []),
-                catchError(() => of([]))
-            );
-        }),
-        shareReplay(1)
-    );
-
-    // Contactos (para correo y celular)
-    public contactosRaw$ = this.dateRange$.pipe(
-        switchMap(() => {
-            let params = new HttpParams().set('limit', '2000').set('ordering', '-created_at');
-            return this.http.get<any>(`${this.apiUrl}/contactos/`, { params }).pipe(
-                map(res => res.results || []),
-                catchError(() => of([]))
-            );
-        }),
-        shareReplay(1)
-    );
-
-    // Procesos
-    public procesosRaw$ = this.dateRange$.pipe(
-        switchMap(range => {
-            const start = moment(range.start).format('YYYY-MM-DD');
-            const end = moment(range.end).format('YYYY-MM-DD');
-            // Idealmente esto debería filtrar por algun at del proceso para no traer toda la db
-            // Pero como es un fallback de analiticas...
-            let params = new HttpParams()
-                .set('limit', '2000')
-                .set('updated_at__gte', start)
-                .set('updated_at__lte', `${end} 23:59:59`);
-            return this.http.get<any>(`${this.apiUrl}/procesos/`, { params }).pipe(
-                map(res => res.results || []),
-                catchError(() => of([]))
-            );
-        }),
-        shareReplay(1)
-    );
+    // Canal de errores de red. Los dashboards se suscriben y muestran snackbar/banner
+    // en vez de tragarse silenciosamente los fallos.
+    private errorSubject = new Subject<string>();
+    public errors$ = this.errorSubject.asObservable();
 
     public updateDateRange(start: Date, end: Date): void {
-        // Asegurar que el filtro from/to sea beginning of day y end of day timezone bugota
         this.dateRangeSubject.next({
             start: moment(start).startOf('day').toDate(),
             end: moment(end).endOf('day').toDate()
         });
     }
 
-    // ----------------------------------------------------
-    // AGREGACIONES COMPLEJAS FRONTEND (Fallback Analytics)
-    // ----------------------------------------------------
-
-    // Mapeo: Candidato ID -> Ultima Oficina de la Entrevista
-    private oficinaPorCandidato$: Observable<Record<number, string>> = this.entrevistasRaw$.pipe(
-        map(entrevistas => {
-            const dict: Record<number, { date: Date, oficina: string }> = {};
-            // Orden descendente en backend, pero doble verificacion
-            entrevistas.forEach((ent: any) => {
-                const candId = ent.candidato; // asumiendo int id
-                if (!candId) return;
-                const d = new Date(ent.created_at);
-                if (!dict[candId] || dict[candId].date < d) {
-                    dict[candId] = { date: d, oficina: ent.oficina || 'Sin Oficina' };
-                }
-            });
-
-            const candToOficina: Record<number, string> = {};
-            for (const [candId, data] of Object.entries(dict)) {
-                candToOficina[Number(candId)] = data.oficina;
-            }
-            return candToOficina;
+    // ─── Fetch raw lists ────────────────────────────────────────────
+    public candidatosRaw$ = this.dateRange$.pipe(
+        switchMap(range => {
+            const start = moment(range.start).format('YYYY-MM-DD');
+            const end = moment(range.end).format('YYYY-MM-DD');
+            const params = new HttpParams()
+                .set('updated_at__gte', start)
+                .set('updated_at__lte', `${end} 23:59:59`)
+                .set('limit', '1000');
+            return this.reportable(
+                this.http.get<any>(`${this.apiUrl}/candidatos/`, { params }).pipe(
+                    map(res => res.results || [])
+                ),
+                'candidatos'
+            );
         }),
         shareReplay(1)
     );
 
-    // KPIS base
+    public entrevistasRaw$ = this.dateRange$.pipe(
+        switchMap(() => {
+            const params = new HttpParams().set('limit', '2000').set('ordering', '-created_at');
+            return this.reportable(
+                this.http.get<any>(`${this.apiUrl}/entrevistas/`, { params }).pipe(
+                    map(res => res.results || [])
+                ),
+                'entrevistas'
+            );
+        }),
+        shareReplay(1)
+    );
+
+    public contactosRaw$ = this.dateRange$.pipe(
+        switchMap(() => {
+            const params = new HttpParams().set('limit', '2000').set('ordering', '-created_at');
+            return this.reportable(
+                this.http.get<any>(`${this.apiUrl}/contactos/`, { params }).pipe(
+                    map(res => res.results || [])
+                ),
+                'contactos'
+            );
+        }),
+        shareReplay(1)
+    );
+
+    public procesosRaw$ = this.dateRange$.pipe(
+        switchMap(range => {
+            const start = moment(range.start).format('YYYY-MM-DD');
+            const end = moment(range.end).format('YYYY-MM-DD');
+            const params = new HttpParams()
+                .set('limit', '2000')
+                .set('updated_at__gte', start)
+                .set('updated_at__lte', `${end} 23:59:59`);
+            return this.reportable(
+                this.http.get<any>(`${this.apiUrl}/procesos/`, { params }).pipe(
+                    map(res => res.results || [])
+                ),
+                'procesos'
+            );
+        }),
+        shareReplay(1)
+    );
+
+    // ─── Agregaciones frontend ──────────────────────────────────────
+
+    /** Mapa: candidatoId → última oficina entrevistada. */
+    private oficinaPorCandidato$: Observable<Record<number, string>> = this.entrevistasRaw$.pipe(
+        map(entrevistas => {
+            const latest: Record<number, { date: Date, oficina: string }> = {};
+            entrevistas.forEach((ent: any) => {
+                const candId = ent.candidato;
+                if (!candId) return;
+                const d = new Date(ent.created_at);
+                if (!latest[candId] || latest[candId].date < d) {
+                    latest[candId] = { date: d, oficina: ent.oficina || 'Sin Oficina' };
+                }
+            });
+            const out: Record<number, string> = {};
+            for (const [candId, data] of Object.entries(latest)) out[Number(candId)] = data.oficina;
+            return out;
+        }),
+        shareReplay(1)
+    );
+
     public kpiSummary$: Observable<ContratacionKpiSummary> = combineLatest([
         this.candidatosRaw$,
         this.contactosRaw$
     ]).pipe(
         map(([cands, contactos]) => {
-            let totalLlenaron = cands.length;
+            const totalLlenaron = cands.length;
 
-            // map de contactos
             const candToContact: Record<number, any> = {};
             contactos.forEach((c: any) => candToContact[c.candidato] = c);
 
             let totalEmail = 0;
             let totalCelular = 0;
-
             cands.forEach((cand: any) => {
                 const contact = candToContact[cand.id];
                 if (contact) {
@@ -164,7 +156,6 @@ export class ContratacionMetricasApiService {
         startWith({ totalCandidatos: 0, totalLlenaronFormulario: 0, totalConEmail: 0, totalConCelular: 0 })
     );
 
-    // Chart: Formularios por oficina
     public formulariosPorOficina$: Observable<ChartDataPoint[]> = combineLatest([
         this.candidatosRaw$,
         this.oficinaPorCandidato$
@@ -175,12 +166,17 @@ export class ContratacionMetricasApiService {
                 const ofi = oficinaMap[c.id] || 'Sin Oficina (No Entrevistado)';
                 counts[ofi] = (counts[ofi] || 0) + 1;
             });
-            return Object.keys(counts).map(k => ({ name: k, value: counts[k] })).sort((a, b) => b.value - a.value);
+            return Object.keys(counts)
+                .map(k => ({ name: k, value: counts[k] }))
+                .sort((a, b) => b.value - a.value);
         })
     );
 
-    // Chart: Pipeline por oficina
-    public pipelinePorOficina$: Observable<ChartSeriesPoint[]> = combineLatest([
+    /**
+     * Pipeline por oficina — series stacked bar + eje X en un único VM.
+     * Antes: dos observables separados y un `as any` porque el tipo no coincidía.
+     */
+    public pipelineVM$: Observable<PipelineVM> = combineLatest([
         this.procesosRaw$,
         this.dateRange$
     ]).pipe(
@@ -188,10 +184,11 @@ export class ContratacionMetricasApiService {
             const startStr = moment(range.start).format('YYYY-MM-DD');
             const endStr = moment(range.end).format('YYYY-MM-DD');
             const endCompare = `${endStr} 23:59:59`;
+            const inRange = (dateStr: string) =>
+                !!dateStr && moment(dateStr).isSameOrAfter(startStr) && moment(dateStr).isSameOrBefore(endCompare);
 
-            // Estructura: Oficina -> { Entrevistado: X, PruebaAuto: Y ... }
-            const offices: Record<string, Record<string, number>> = {};
             const stages = ['Entrevistado', 'Prueba o Autorizado', 'Examenes Med', 'Contratado', 'Ingreso', 'Rechazado'];
+            const offices: Record<string, Record<string, number>> = {};
 
             const inc = (ofi: string, stage: string) => {
                 if (!offices[ofi]) {
@@ -201,77 +198,40 @@ export class ContratacionMetricasApiService {
                 offices[ofi][stage]++;
             };
 
-            const inRange = (dateStr: string) => {
-                if (!dateStr) return false;
-                const m = moment(dateStr);
-                return m.isSameOrAfter(startStr) && m.isSameOrBefore(endCompare);
-            };
-
             procesos.forEach((p: any) => {
                 const ofi = p.oficina_creacion || 'Desconocida';
-
                 if (inRange(p.entrevistado_at)) inc(ofi, 'Entrevistado');
-
-                if (inRange(p.prueba_tecnica_at) || inRange(p.autorizado_at)) {
-                    inc(ofi, 'Prueba o Autorizado');
-                }
-
+                if (inRange(p.prueba_tecnica_at) || inRange(p.autorizado_at)) inc(ofi, 'Prueba o Autorizado');
                 if (inRange(p.examenes_medicos_at)) inc(ofi, 'Examenes Med');
                 if (inRange(p.contratado_at)) inc(ofi, 'Contratado');
                 if (inRange(p.ingreso_at)) inc(ofi, 'Ingreso');
                 if (inRange(p.rechazado_at)) inc(ofi, 'Rechazado');
             });
 
-            // Convertir a ChartSeriesPoint (ECharts Stacked Bar)
-            const xAxisData = Object.keys(offices);
-            // Si queremos xAxis en el chart lo inyectamos desde el componente. Aqui pasamos series.
-            // Para simplicar lo hacemos en el chart. Aquí retornaremos las series estructuradas
-
-            const seriesList: ChartSeriesPoint[] = stages.map(stg => {
-                return {
-                    name: stg,
-                    type: 'bar',
-                    stack: 'total',
-                    label: { show: true },
-                    data: xAxisData.map(ofi => offices[ofi][stg] || 0)
-                };
-            });
-
-            // Unimos el eje x como una propiedad "meta" temporal o lo recalculamos en el componente.
-            // Para no romper la interfaz de series, lo agregare al final como un 'category' falso o emitire otro observable.
-            // Asi que lo empaqueto como un objeto si es necesario, pero devolveré any para este spec visual 
-            return seriesList as any; // Hack: en el componente extraeremos xAxisData comparando los keys.
-        })
-    );
-    // Helper Observable for X xAxis since pipeline needs it
-    public pipelineOffices$: Observable<string[]> = combineLatest([
-        this.procesosRaw$,
-        this.dateRange$
-    ]).pipe(
-        map(([procesos, range]) => {
-            const offices = new Set<string>();
-            procesos.forEach((p: any) => offices.add(p.oficina_creacion || 'Desconocida'));
-            return Array.from(offices);
+            const xAxis = Object.keys(offices);
+            const series: ChartSeriesPoint[] = stages.map(stg => ({
+                name: stg,
+                type: 'bar',
+                stack: 'total',
+                label: { show: true },
+                data: xAxis.map(ofi => offices[ofi][stg] || 0),
+            }));
+            return { series, xAxis };
         })
     );
 
-
-    // Listado de Sin Celular
     public sinCelularList$: Observable<CandidatoSinCelular[]> = combineLatest([
         this.candidatosRaw$,
         this.contactosRaw$,
         this.oficinaPorCandidato$
     ]).pipe(
         map(([cands, contactos, oficinaMap]) => {
-            const setDocsConCelular = new Set<number>();
+            const conCelular = new Set<number>();
             contactos.forEach((c: any) => {
-                if (c.celular && /^\d+$/.test(c.celular)) {
-                    setDocsConCelular.add(c.candidato);
-                }
+                if (c.celular && /^\d+$/.test(c.celular)) conCelular.add(c.candidato);
             });
-
             return cands
-                .filter((c: any) => !setDocsConCelular.has(c.id))
+                .filter((c: any) => !conCelular.has(c.id))
                 .map((c: any) => ({
                     id: c.id,
                     nombres: `${c.primer_nombre || ''} ${c.segundo_nombre || ''}`.trim(),
@@ -282,11 +242,9 @@ export class ContratacionMetricasApiService {
         })
     );
 
-    // ─────── Descarga Excel (template base.xlsx en el back) ───────
-    /**
-     * GET /gestion_contratacion/reporte/candidatos-excel/?cedulas=...
-     * Arma el xlsx con base.xlsx en el backend y lo descarga en el navegador.
-     */
+    // ─── Descargas / helpers de drill-down ──────────────────────────
+
+    /** GET /gestion_contratacion/reporte/candidatos-excel/?cedulas=... */
     public downloadCandidatosExcel(cedulas: string[], filenameHint = 'candidatos'): Observable<void> {
         const unique = Array.from(new Set((cedulas || []).map(x => String(x).trim()).filter(Boolean)));
         if (unique.length === 0) return of(void 0);
@@ -317,7 +275,6 @@ export class ContratacionMetricasApiService {
         );
     }
 
-    /** Cedulas de candidatos cuya "última oficina" coincide con la dada. */
     public getDocsByOficina(oficina: string): Observable<string[]> {
         return combineLatest([this.candidatosRaw$, this.oficinaPorCandidato$]).pipe(
             take(1),
@@ -329,7 +286,6 @@ export class ContratacionMetricasApiService {
         );
     }
 
-    /** Cedulas según estado de celular. */
     public getDocsByCelularStatus(conCelular: boolean): Observable<string[]> {
         return combineLatest([this.candidatosRaw$, this.contactosRaw$]).pipe(
             take(1),
@@ -346,7 +302,6 @@ export class ContratacionMetricasApiService {
         );
     }
 
-    /** Cedulas de candidatos en una celda del pipeline (oficina + etapa). */
     public getDocsByPipelineSegment(oficina: string, stage: string): Observable<string[]> {
         return combineLatest([
             this.procesosRaw$,
@@ -395,7 +350,8 @@ export class ContratacionMetricasApiService {
         );
     }
 
-    // ─────── Métricas por Temporal ───────
+    // ─── Métricas por Temporal (agregación en backend) ──────────────
+
     fetchMetricasTemporal(temporal: string, start: string, end: string): Observable<any> {
         let params = new HttpParams();
         if (temporal) params = params.set('temporal', temporal);
@@ -404,10 +360,6 @@ export class ContratacionMetricasApiService {
         return this.http.get<any>(`${this.apiUrl}/procesos/metricas-temporal/`, { params });
     }
 
-    /**
-     * Resuelve las cédulas de un segmento clickeado en las gráficas de
-     * informe-temporal. Espejo del endpoint `procesos/metricas-temporal-docs/`.
-     */
     fetchSegmentDocs(
         filters: { temporal?: string; start?: string; end?: string },
         segment: { kind: 'oficina' | 'finca' | 'fecha' | 'pipeline' | 'motivo'; value: string; stage?: string }
@@ -424,8 +376,28 @@ export class ContratacionMetricasApiService {
             `${this.apiUrl}/procesos/metricas-temporal-docs/`, { params }
         ).pipe(
             map(r => Array.isArray(r?.docs) ? r.docs : []),
-            catchError(() => of<string[]>([]))
+            catchError(err => {
+                this.reportError('candidatos del segmento', err);
+                return of<string[]>([]);
+            })
         );
     }
 
+    // ─── helpers internos ───────────────────────────────────────────
+
+    /** Envuelve un fetch para que, si falla, emita por `errors$` y mantenga el stream vivo. */
+    private reportable<T>(src$: Observable<T>, label: string): Observable<T | any[]> {
+        return src$.pipe(
+            catchError(err => {
+                this.reportError(label, err);
+                return of([] as any);
+            })
+        );
+    }
+
+    private reportError(label: string, err: any): void {
+        console.error(`[ContratacionMetricas] fallo cargando ${label}`, err);
+        const status = err?.status ? ` (${err.status})` : '';
+        this.errorSubject.next(`No se pudieron cargar ${label}${status}.`);
+    }
 }

@@ -172,7 +172,9 @@ export class FormEntrevistaComponent implements OnInit {
     // =======================
     this.formVacante = this.fb.group({
       // Identificación / documento
-      oficina: ['', Validators.required],
+      // Oficina queda permanentemente bloqueada: la fija el flujo (URL/candidato)
+      // y nunca debe cambiarla el usuario desde la UI.
+      oficina: [{ value: '', disabled: true }, Validators.required],
       tipo_doc: ['', Validators.required],
       numero_documento: [
         '',
@@ -253,6 +255,10 @@ export class FormEntrevistaComponent implements OnInit {
       parentescoReferenciaFamiliar1: ['', [Validators.maxLength(70)]],
       nombreReferenciaFamiliar2: [''],
       parentescoReferenciaFamiliar2: ['', [Validators.maxLength(70)]],
+      nombreReferenciaPersonal1: [''],
+      parentescoReferenciaPersonal1: ['', [Validators.maxLength(70)]],
+      nombreReferenciaPersonal2: [''],
+      parentescoReferenciaPersonal2: ['', [Validators.maxLength(70)]],
 
       // Formación / experiencia
       nivel: [null, Validators.required],
@@ -394,6 +400,20 @@ export class FormEntrevistaComponent implements OnInit {
     return '';
   }
 
+
+  // =======================
+  // Navegación interna
+  // =======================
+  /**
+   * Smooth-scroll al ancla `id` (sección) dentro del contenedor scrollable más
+   * cercano. Funciona aunque el form esté dentro de un mat-tab que tiene su
+   * propio overflow.
+   */
+  scrollToSection(id: string): void {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
 
   // =======================
   // Ciclo de vida
@@ -820,8 +840,10 @@ export class FormEntrevistaComponent implements OnInit {
     this.route.queryParamMap.subscribe((params) => {
       const raw = (params.get('oficina') || params.get('o') || '').trim();
 
+      // Oficina está siempre disabled (solo lectura para el usuario);
+      // si no hay query param, simplemente quedamos sin valor preasignado.
       if (!raw) {
-        this.ctrl('oficina').enable({ emitEvent: false });
+        this.ctrl('oficina').disable({ emitEvent: false });
         this.lockedOffice = undefined;
         return this.refreshSteps();
       }
@@ -1038,7 +1060,15 @@ export class FormEntrevistaComponent implements OnInit {
         tipoExperienciaFlores: cand?.experiencia_resumen?.area_experiencia || '',
 
         comoSeEntero: entrevistas?.[0]?.como_se_entero || '',
-        referenciado: entrevistas?.[0]?.referenciado ? 'SI' : 'NO',
+        // Backend guarda 'SI' | 'NO' (CharField). El bug previo trataba el valor
+        // como booleano, así que cualquier string truthy ('NO' incluido) caía a 'SI'.
+        // Normalizamos: 'SI'/'SÍ' -> 'SI', 'NO' -> 'NO', resto -> null (sin selección).
+        referenciado: ((): 'SI' | 'NO' | null => {
+          const v = String(entrevistas?.[0]?.referenciado ?? '').trim().toUpperCase();
+          if (v === 'SI' || v === 'SÍ') return 'SI';
+          if (v === 'NO') return 'NO';
+          return null;
+        })(),
         nombreReferenciado: entrevistas?.[0]?.nombre_referenciado || '',
         aplicaObservacion: entrevistas?.[0]?.proceso?.aplica_o_no_aplica || '',
         motivoEspera: entrevistas?.[0]?.proceso?.motivo_espera || '',
@@ -1109,6 +1139,8 @@ export class FormEntrevistaComponent implements OnInit {
     const refs = Array.isArray(cand?.referencias) ? cand.referencias : [];
     const fam1 = refs.find((r: any) => r.tipo === 'FAMILIAR1');
     const fam2 = refs.find((r: any) => r.tipo === 'FAMILIAR2');
+    const per1 = refs.find((r: any) => r.tipo === 'PERSONAL1');
+    const per2 = refs.find((r: any) => r.tipo === 'PERSONAL2');
 
     this.formVacante.patchValue(
       {
@@ -1119,6 +1151,10 @@ export class FormEntrevistaComponent implements OnInit {
         parentescoReferenciaFamiliar1: fam1?.parentesco || '',
         nombreReferenciaFamiliar2: fam2?.nombre || '',
         parentescoReferenciaFamiliar2: fam2?.parentesco || '',
+        nombreReferenciaPersonal1: per1?.nombre || '',
+        parentescoReferenciaPersonal1: per1?.parentesco || '',
+        nombreReferenciaPersonal2: per2?.nombre || '',
+        parentescoReferenciaPersonal2: per2?.parentesco || '',
       },
       { emitEvent: false }
     );

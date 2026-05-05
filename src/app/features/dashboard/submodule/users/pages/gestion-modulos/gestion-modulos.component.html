@@ -1,4 +1,5 @@
 <mat-card class="premium-card">
+  <!-- ═══════ HEADER ═══════ -->
   <mat-card-header class="card-header-premium">
     <div class="header-content">
       <div class="header-icon-container">
@@ -6,56 +7,116 @@
       </div>
       <div class="header-text">
         <mat-card-title class="titulo">Gestión de Módulos</mat-card-title>
-        <mat-card-subtitle class="subtitulo">Configuración estructural del árbol de aplicaciones y
-        navegación.</mat-card-subtitle>
+        <mat-card-subtitle class="subtitulo">
+          Estructura del árbol de aplicaciones y navegación.
+        </mat-card-subtitle>
       </div>
     </div>
+
     <span class="grow"></span>
 
-    <!-- Crear módulo raíz -->
     <div class="header-actions">
       <button mat-flat-button class="btn-managerial" (click)="crear()">
         <mat-icon>create_new_folder</mat-icon>
-        <span>Crear módulo (Raíz)</span>
+        <span>Nuevo módulo raíz</span>
       </button>
     </div>
   </mat-card-header>
 
-  <mat-card-content class="card-content">
-    <!-- Loader superior opcional -->
-    @if (loading) {
-      <mat-progress-bar mode="indeterminate"></mat-progress-bar>
-    }
-    <div class="scroll">
-
-      <div class="tree-container" [class.loading]="loading">
-        <!-- Pseudo Table Header -->
-        <div class="tree-header">
-          <div class="th-col th-name">Nombre del Módulo</div>
-          <div class="th-col th-actions">Acciones</div>
+  <!-- ═══════ TOOLBAR (stats + búsqueda) ═══════ -->
+  <div class="toolbar">
+    <div class="stats">
+      <div class="stat">
+        <mat-icon class="stat-icon">account_tree</mat-icon>
+        <div class="stat-text">
+          <div class="stat-value">{{ totalModulos }}</div>
+          <div class="stat-label">Total módulos</div>
         </div>
+      </div>
+      <div class="stat">
+        <mat-icon class="stat-icon">folder_special</mat-icon>
+        <div class="stat-text">
+          <div class="stat-value">{{ modulosRaiz }}</div>
+          <div class="stat-label">Raíz</div>
+        </div>
+      </div>
+      <div class="stat">
+        <mat-icon class="stat-icon">layers</mat-icon>
+        <div class="stat-text">
+          <div class="stat-value">{{ profundidadMax }}</div>
+          <div class="stat-label">Niveles</div>
+        </div>
+      </div>
+    </div>
 
+    <div class="search-box">
+      <mat-icon class="search-icon">search</mat-icon>
+      <input
+        type="text"
+        class="search-input"
+        placeholder="Buscar por nombre o ruta…"
+        [value]="searchTerm"
+        (input)="onSearch($any($event.target).value)"
+        autocomplete="off"
+      />
+      @if (searchTerm) {
+        <button mat-icon-button class="search-clear" (click)="limpiarBusqueda()" matTooltip="Limpiar">
+          <mat-icon>close</mat-icon>
+        </button>
+      }
+    </div>
+  </div>
+
+  <!-- ═══════ CONTENT ═══════ -->
+  <mat-card-content class="card-content">
+    @if (loading) {
+      <mat-progress-bar mode="indeterminate" class="top-loader"></mat-progress-bar>
+    }
+
+    <div class="tree-wrapper" [class.loading]="loading">
+      <!-- Pseudo Table Header -->
+      <div class="tree-header">
+        <div class="th-col th-name">Nombre del módulo</div>
+        <div class="th-col th-meta">Detalle</div>
+        <div class="th-col th-actions">Acciones</div>
+      </div>
+
+      <div class="tree-scroll">
         <mat-tree #tree [dataSource]="dataSource" [childrenAccessor]="childrenAccessor">
 
-          <!-- PADRE / EXPANDIBLE -->
+          <!-- ── PADRE / EXPANDIBLE ── -->
           <mat-tree-node *matTreeNodeDef="let node; when: hasChild" matTreeNodePadding
-            [cdkTreeNodeTypeaheadLabel]="(node.nombre || node.name)">
+            [cdkTreeNodeTypeaheadLabel]="node.nombre">
 
-            <button mat-icon-button matTreeNodeToggle [attr.aria-label]="'Alternar ' + (node.nombre || node.name)">
+            <button mat-icon-button matTreeNodeToggle [attr.aria-label]="'Alternar ' + node.nombre">
               <mat-icon class="mat-icon-rtl-mirror">
                 {{ tree.isExpanded(node) ? 'expand_more' : 'chevron_right' }}
               </mat-icon>
             </button>
 
             <div class="node-content" [attr.data-node-id]="node.id">
-              <div class="node-text">
-                <div class="node-title">{{ node.nombre || node.name }}</div>
-                @if (node.descripcion) {
-                  <div class="node-desc">{{ node.descripcion }}</div>
-                }
+              <div class="node-icon parent-icon">
+                <mat-icon>{{ node.icono || 'folder' }}</mat-icon>
               </div>
 
-              <span class="spacer"></span>
+              <div class="node-text">
+                <div class="node-title-row">
+                  <span class="node-title">{{ node.nombre }}</span>
+                  <span class="badge badge-children" [matTooltip]="'Submódulos'">
+                    <mat-icon>subdirectory_arrow_right</mat-icon>
+                    {{ countHijos(node) }}
+                  </span>
+                </div>
+              </div>
+
+              <div class="node-meta">
+                @if (node.ruta) {
+                  <span class="badge badge-route" [matTooltip]="node.ruta">
+                    <mat-icon>link</mat-icon>
+                    <span class="badge-route__text">{{ node.ruta }}</span>
+                  </span>
+                }
+              </div>
 
               <div class="node-actions">
                 <button mat-icon-button class="action-btn" (click)="crear(node)" matTooltip="Agregar submódulo">
@@ -71,20 +132,29 @@
             </div>
           </mat-tree-node>
 
-          <!-- HOJA -->
+          <!-- ── HOJA ── -->
           <mat-tree-node *matTreeNodeDef="let node" matTreeNodePadding>
-            <!-- botón “espaciador” para alinear con los padres -->
-            <button mat-icon-button disabled></button>
+            <button mat-icon-button disabled class="leaf-spacer"></button>
 
             <div class="node-content" [attr.data-node-id]="node.id">
-              <div class="node-text">
-                <div class="node-title">{{ node.nombre || node.name }}</div>
-                @if (node.descripcion) {
-                  <div class="node-desc">{{ node.descripcion }}</div>
-                }
+              <div class="node-icon leaf-icon">
+                <mat-icon>{{ node.icono || 'widgets' }}</mat-icon>
               </div>
 
-              <span class="spacer"></span>
+              <div class="node-text">
+                <div class="node-title-row">
+                  <span class="node-title">{{ node.nombre }}</span>
+                </div>
+              </div>
+
+              <div class="node-meta">
+                @if (node.ruta) {
+                  <span class="badge badge-route" [matTooltip]="node.ruta">
+                    <mat-icon>link</mat-icon>
+                    <span class="badge-route__text">{{ node.ruta }}</span>
+                  </span>
+                }
+              </div>
 
               <div class="node-actions">
                 <button mat-icon-button class="action-btn" (click)="crear(node)" matTooltip="Agregar submódulo">
@@ -102,10 +172,37 @@
 
         </mat-tree>
 
-        <!-- Estado vacío -->
-        @if (!loading && (!dataSource || dataSource.length === 0)) {
+        <!-- ── Estado vacío ── -->
+        @if (!loading && dataSource.length === 0 && !searchTerm) {
           <div class="empty-state">
-            No hay módulos todavía. Crea el primero con el botón “Crear módulo (raíz)”.
+            <div class="empty-illustration">
+              <mat-icon>account_tree</mat-icon>
+            </div>
+            <h3 class="empty-title">Aún no hay módulos</h3>
+            <p class="empty-text">
+              Crea el primer módulo raíz para empezar a estructurar la navegación.
+            </p>
+            <button mat-flat-button class="btn-managerial" (click)="crear()">
+              <mat-icon>create_new_folder</mat-icon>
+              <span>Crear primer módulo</span>
+            </button>
+          </div>
+        }
+
+        <!-- ── Sin resultados de búsqueda ── -->
+        @if (!loading && dataSource.length === 0 && searchTerm) {
+          <div class="empty-state empty-search">
+            <div class="empty-illustration">
+              <mat-icon>search_off</mat-icon>
+            </div>
+            <h3 class="empty-title">Sin coincidencias</h3>
+            <p class="empty-text">
+              No encontramos módulos con "<strong>{{ searchTerm }}</strong>".
+            </p>
+            <button mat-stroked-button (click)="limpiarBusqueda()">
+              <mat-icon>close</mat-icon>
+              Limpiar búsqueda
+            </button>
           </div>
         }
       </div>

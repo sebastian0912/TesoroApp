@@ -13,7 +13,6 @@ import Swal from 'sweetalert2';
 interface ModuloNode {
   id: string;
   nombre: string;
-  descripcion?: string | null;
   ruta?: string | null;
   icono?: string | null;
   orden?: number;
@@ -31,8 +30,10 @@ interface ModuloNode {
 export class GestionModulosComponent implements OnInit {
   @ViewChild(MatTree, { static: true }) tree!: MatTree<ModuloNode>;
 
+  allData: ModuloNode[] = [];
   dataSource: ModuloNode[] = [];
   loading = false;
+  searchTerm = '';
 
   constructor(
     private modulosService: ModulosService,
@@ -42,19 +43,16 @@ export class GestionModulosComponent implements OnInit {
 
   ngOnInit(): void { this.cargar(); }
 
-  // ===== Árbol (Material con childrenAccessor) =====
   childrenAccessor = (node: ModuloNode) => node.submodulos ?? [];
   hasChild = (_: number, node: ModuloNode) => !!node.submodulos && node.submodulos.length > 0;
 
-  // ===== Data fetch =====
   cargar(): void {
     this.loading = true;
     this.modulosService.tree().subscribe({
       next: (modulos: any) => {
-        this.dataSource = Array.isArray(modulos) ? modulos : [];
+        this.allData = Array.isArray(modulos) ? modulos : [];
+        this.applyFilter();
         this.loading = false;
-
-        // Expandir todo apenas llegan los datos
         this.expandAllSoon();
       },
       error: () => {
@@ -64,21 +62,63 @@ export class GestionModulosComponent implements OnInit {
     });
   }
 
+  // ===== Stats (para tira informativa) =====
+  get totalModulos(): number { return this.countNodes(this.allData); }
+  get modulosRaiz(): number { return this.allData.length; }
+  get profundidadMax(): number { return this.depth(this.allData, 0); }
+
+  private countNodes(nodes: ModuloNode[]): number {
+    return nodes.reduce((acc, n) => acc + 1 + this.countNodes(n.submodulos ?? []), 0);
+  }
+  private depth(nodes: ModuloNode[], current: number): number {
+    if (!nodes.length) return current;
+    return Math.max(...nodes.map(n => this.depth(n.submodulos ?? [], current + 1)));
+  }
+
+  // ===== Búsqueda inline =====
+  onSearch(value: string): void {
+    this.searchTerm = (value || '').trim().toLowerCase();
+    this.applyFilter();
+    this.expandAllSoon();
+  }
+
+  limpiarBusqueda(): void {
+    this.searchTerm = '';
+    this.applyFilter();
+    this.expandAllSoon();
+  }
+
+  private applyFilter(): void {
+    this.dataSource = this.searchTerm
+      ? this.filterTree(this.allData, this.searchTerm)
+      : this.allData;
+    this.cdr.markForCheck();
+  }
+
+  private filterTree(nodes: ModuloNode[], term: string): ModuloNode[] {
+    const out: ModuloNode[] = [];
+    for (const n of nodes) {
+      const matchSelf =
+        (n.nombre || '').toLowerCase().includes(term) ||
+        (n.ruta || '').toLowerCase().includes(term);
+      const childrenFiltered = n.submodulos?.length ? this.filterTree(n.submodulos, term) : [];
+      if (matchSelf || childrenFiltered.length) {
+        out.push({ ...n, submodulos: matchSelf ? n.submodulos : childrenFiltered });
+      }
+    }
+    return out;
+  }
+
   /** Expande todo el árbol apenas se haya renderizado */
   private expandAllSoon(): void {
-    // Espera a que Angular pinte el árbol con los nuevos datos
     queueMicrotask(() => {
       if (!this.tree) return;
-
-      // Si existe la API nativa expandAll() en MatTree, úsala
       const anyTree = this.tree as any;
       if (typeof anyTree.expandAll === 'function') {
         anyTree.expandAll();
       } else {
-        // Fallback: expandir recursivamente cada nodo con hijos
         this.expandNodesRec(this.dataSource);
       }
-
       this.cdr.markForCheck();
     });
   }
@@ -95,42 +135,51 @@ export class GestionModulosComponent implements OnInit {
 
   // ===== CRUD (Optimistic UI) =====
   async crear(parent?: ModuloNode): Promise<void> {
-    const vals = await this.promptModulo('Nuevo módulo');
+    const nextOrden = this.nextOrdenForParent(parent?.id ?? null);
+    const vals = await this.promptModulo({
+      title: parent ? 'Nuevo submódulo' : 'Nuevo módulo',
+      parentName: parent?.nombre,
+      parentRuta: parent?.ruta ?? null,
+      orden: nextOrden,
+      autoOrden: true,
+      previouslyUsedIcons: this.collectIcons()
+    });
     if (!vals) return;
 
     const tmpId = `tmp-${Date.now()}`;
     const nuevo: ModuloNode = {
       id: tmpId,
       nombre: vals.nombre,
-      descripcion: vals.descripcion || null,
       ruta: vals.ruta || null,
       icono: vals.icono || 'widgets',
-      orden: vals.orden || 0,
+      orden: vals.orden ?? nextOrden,
       modulo_padre: parent?.id ?? null,
       submodulos: []
     };
 
-    this.dataSource = this.withInsertedChild(this.dataSource, parent?.id ?? null, nuevo);
+    this.allData = this.withInsertedChild(this.allData, parent?.id ?? null, nuevo);
+    this.applyFilter();
     this.flashNode(tmpId);
 
     const dto: ModuloCreateDTO = {
       nombre: vals.nombre,
-      descripcion: vals.descripcion || null,
       ruta: vals.ruta || null,
       icono: vals.icono || 'widgets',
-      orden: vals.orden || 0,
+      orden: vals.orden ?? nextOrden,
       modulo_padre: parent?.id ?? null
     };
 
     this.modulosService.create(dto).subscribe({
       next: (real) => {
-        this.dataSource = this.withUpdatedNode(this.dataSource, tmpId, n => ({ ...n, id: real.id }));
+        this.allData = this.withUpdatedNode(this.allData, tmpId, n => ({ ...n, id: real.id }));
+        this.applyFilter();
         this.expandAllSoon();
         this.flashNode(real.id);
         Swal.fire({ icon: 'success', title: 'Creado', text: 'Módulo creado correctamente', timer: 1500, showConfirmButton: false });
       },
       error: (err) => {
-        this.dataSource = this.withDeletedNode(this.dataSource, tmpId);
+        this.allData = this.withDeletedNode(this.allData, tmpId);
+        this.applyFilter();
         const msg = err?.error?.nombre?.[0] || err?.error?.detail || 'Error creando el módulo';
         Swal.fire({ icon: 'error', title: 'Error', text: msg });
       }
@@ -139,31 +188,35 @@ export class GestionModulosComponent implements OnInit {
 
   async editar(node: ModuloNode): Promise<void> {
     const original: ModuloNode = { ...node };
-    const vals = await this.promptModulo('Editar módulo', {
+    const padre = node.modulo_padre ? this.findNode(this.allData, node.modulo_padre) : null;
+    const vals = await this.promptModulo({
+      title: 'Editar módulo',
+      parentName: padre?.nombre,
+      parentRuta: padre?.ruta ?? null,
       nombre: node.nombre,
-      descripcion: node.descripcion ?? '',
       ruta: node.ruta ?? '',
       icono: node.icono ?? 'widgets',
-      orden: node.orden ?? 0
+      orden: node.orden ?? 0,
+      autoOrden: false,
+      previouslyUsedIcons: this.collectIcons()
     });
     if (!vals) return;
 
-    this.dataSource = this.withUpdatedNode(this.dataSource, node.id, n => ({
+    this.allData = this.withUpdatedNode(this.allData, node.id, n => ({
       ...n,
       nombre: vals.nombre,
-      descripcion: vals.descripcion || null,
       ruta: vals.ruta || null,
       icono: vals.icono || 'widgets',
-      orden: vals.orden || 0
+      orden: vals.orden ?? 0
     }));
+    this.applyFilter();
     this.flashNode(node.id);
 
     const dto: ModuloCreateDTO = {
       nombre: vals.nombre,
-      descripcion: vals.descripcion || null,
       ruta: vals.ruta || null,
       icono: vals.icono || 'widgets',
-      orden: vals.orden || 0,
+      orden: vals.orden ?? 0,
       modulo_padre: node.modulo_padre ?? null
     };
 
@@ -174,7 +227,8 @@ export class GestionModulosComponent implements OnInit {
         Swal.fire({ icon: 'success', title: 'Actualizado', text: 'Módulo actualizado', timer: 1500, showConfirmButton: false });
       },
       error: (err) => {
-        this.dataSource = this.withUpdatedNode(this.dataSource, node.id, _ => original);
+        this.allData = this.withUpdatedNode(this.allData, node.id, _ => original);
+        this.applyFilter();
         const msg = err?.error?.nombre?.[0] || err?.error?.detail || 'Error actualizando el módulo';
         Swal.fire({ icon: 'error', title: 'Error', text: msg });
       }
@@ -182,7 +236,7 @@ export class GestionModulosComponent implements OnInit {
   }
 
   eliminar(node: ModuloNode): void {
-    const parentId = this.findParentId(this.dataSource, node.id);
+    const parentId = this.findParentId(this.allData, node.id);
 
     Swal.fire({
       icon: 'warning',
@@ -195,14 +249,16 @@ export class GestionModulosComponent implements OnInit {
       if (!res.isConfirmed) return;
 
       const snapshot = node;
-      this.dataSource = this.withDeletedNode(this.dataSource, node.id);
+      this.allData = this.withDeletedNode(this.allData, node.id);
+      this.applyFilter();
 
       this.modulosService.remove(node.id).subscribe({
         next: () => {
           Swal.fire({ icon: 'success', title: 'Eliminado', text: 'Módulo eliminado', timer: 1500, showConfirmButton: false });
         },
         error: (err) => {
-          this.dataSource = this.withInsertedChild(this.dataSource, parentId, snapshot);
+          this.allData = this.withInsertedChild(this.allData, parentId, snapshot);
+          this.applyFilter();
           const msg = err?.error?.detail || 'No se pudo eliminar (revise dependencias)';
           Swal.fire({ icon: 'error', title: 'Error', text: msg });
         }
@@ -211,6 +267,10 @@ export class GestionModulosComponent implements OnInit {
   }
 
   // ===== UI helpers =====
+  countHijos(node: ModuloNode): number {
+    return node.submodulos?.length ?? 0;
+  }
+
   private flashNode(id: string) {
     setTimeout(() => {
       const el = document.querySelector(`[data-node-id="${id}"]`) as HTMLElement | null;
@@ -219,6 +279,40 @@ export class GestionModulosComponent implements OnInit {
       el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
       setTimeout(() => el.classList.remove('flash'), 1200);
     }, 0);
+  }
+
+  /** Conjunto deduplicado de íconos ya usados en el árbol (en orden de aparición). */
+  private collectIcons(): string[] {
+    const seen = new Set<string>();
+    const out: string[] = [];
+    const walk = (nodes: ModuloNode[]) => {
+      for (const n of nodes) {
+        const i = (n.icono || '').trim();
+        if (i && !seen.has(i)) { seen.add(i); out.push(i); }
+        if (n.submodulos?.length) walk(n.submodulos);
+      }
+    };
+    walk(this.allData);
+    return out;
+  }
+
+  private nextOrdenForParent(parentId: string | null): number {
+    const siblings = parentId == null
+      ? this.allData
+      : (this.findNode(this.allData, parentId)?.submodulos ?? []);
+    if (!siblings.length) return 0;
+    return Math.max(...siblings.map(s => s.orden ?? 0)) + 1;
+  }
+
+  private findNode(nodes: ModuloNode[], id: string): ModuloNode | null {
+    for (const n of nodes) {
+      if (n.id === id) return n;
+      if (n.submodulos?.length) {
+        const f = this.findNode(n.submodulos, id);
+        if (f) return f;
+      }
+    }
+    return null;
   }
 
   // ===== Árbol helpers =====
@@ -280,25 +374,25 @@ export class GestionModulosComponent implements OnInit {
     return null;
   }
 
-  private async promptModulo(
-    title: string,
-    initial?: { nombre?: string; descripcion?: string; ruta?: string; icono?: string; orden?: number }
-  ): Promise<{ nombre: string; descripcion: string; ruta?: string; icono?: string; orden?: number } | null> {
+  private async promptModulo(initial: {
+    title: string;
+    parentName?: string;
+    parentRuta?: string | null;
+    nombre?: string;
+    ruta?: string;
+    icono?: string;
+    orden?: number;
+    autoOrden?: boolean;
+    previouslyUsedIcons?: string[];
+  }): Promise<{ nombre: string; ruta?: string; icono?: string; orden?: number } | null> {
     const dialogRef = this.dialog.open(ModuloDialogComponent, {
-      width: '520px',
+      width: '560px',
       maxWidth: '95vw',
       panelClass: 'sf-filters-dialog-panel',
       backdropClass: 'sf-filters-backdrop',
       disableClose: true,
       autoFocus: 'first-tabbable',
-      data: {
-        title,
-        nombre: initial?.nombre,
-        descripcion: initial?.descripcion,
-        ruta: initial?.ruta,
-        icono: initial?.icono,
-        orden: initial?.orden
-      }
+      data: initial
     });
 
     const result = await dialogRef.afterClosed().toPromise();

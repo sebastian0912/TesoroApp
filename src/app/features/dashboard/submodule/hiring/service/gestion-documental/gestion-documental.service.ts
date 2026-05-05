@@ -102,4 +102,23 @@ export class GestionDocumentalService {
       { params }
     );
   }
+
+  /**
+   * GET /gestion_contratacion/entrevistas/cedulas-por-oficina/
+   * Devuelve cédulas únicas con entrevista en una de las sedes y dentro del rango.
+   * Útil para la "consulta automática" del módulo de checklist documental.
+   */
+  getCedulasPorOficina(
+    oficinas: string[],
+    start?: string | null,
+    end?: string | null,
+  ): Observable<{ docs: string[]; count: number }> {
+    let params = new HttpParams().set('oficinas', (oficinas ?? []).join(','));
+    if (start) params = params.set('start', start);
+    if (end) params = params.set('end', end);
+    return this.http.get<{ docs: string[]; count: number }>(
+      `${this.apiUrl}/gestion_contratacion/entrevistas/cedulas-por-oficina/`,
+      { params },
+    );
+  }
 }

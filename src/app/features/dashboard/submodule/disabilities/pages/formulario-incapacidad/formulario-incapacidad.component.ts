@@ -174,7 +174,6 @@ export class FormularioIncapacidadComponent implements OnInit {
     'Registro de Nacido Vivo': [],
     'Formulario de Salud Total': []
   };
-  codigoDiagnosticoControl = new FormControl();
   epsControlForm = new FormControl();
   IpsControlForm = new FormControl();
   filteredCodigos: Observable<string[]> = of([]);
@@ -594,16 +593,9 @@ export class FormularioIncapacidadComponent implements OnInit {
       map(value => this._filterEps(value || ''))
     );
 
-    this.codigoControl.valueChanges.subscribe(value => {
-      const selected = this.allCodigosDiagnostico.find(item => item.codigo === value);
-      this.descripcionControl.setValue(selected ? selected.descripcion : '');
+    // La suscripción de selección vive en ngOnInit (codigoControl.valueChanges)
+    // para evitar doble disparo por cada tecla.
 
-      const descripcion = selected ? selected.descripcion : '';
-      const codigo = selected ? selected.codigo : '';
-      const textoSinDescripcion = descripcion.replace(/^descripcion:\s*/i, '');
-      this.incapacidadForm.get('descripcion_diagnostico')?.setValue(textoSinDescripcion);
-      this.incapacidadForm.get('codigo_diagnostico')?.setValue(codigo)
-    });
     this.epsControlForm.valueChanges.subscribe(value => {
       const selected = this.epsnombres.find(item => item.nombre === value);
       this.incapacidadForm.get('nombre_eps')?.setValue(selected ? selected.nombre : '');
@@ -757,6 +749,7 @@ export class FormularioIncapacidadComponent implements OnInit {
   fechaInicioControl = new FormControl();
   private ipsMapByNit = new Map<string, string>();
   private ipsMapByNombre = new Map<string, string>();
+  private codigosByLabel = new Map<string, { codigo: string; descripcion: string }>();
   descripcionControl = new FormControl({ value: '', disabled: true });
   nombreControl = new FormControl({ value: '', disabled: true });
   validationErrors: string[] = [];
@@ -784,11 +777,6 @@ export class FormularioIncapacidadComponent implements OnInit {
       this.ipsMapByNombre.set(item.nombre, item.nit);
     });
 
-    this.allCodigosDiagnostico.forEach(item => {
-      this.codigoControl.setValue(item.codigo);
-      this.descripcionControl.setValue(item.descripcion);
-    });
-
     // Autocompletes server-side (usan índices MySQL, payload < 3 KB)
     this.filteredIpsNit = this._ipsNitObs();
     this.filteredIpsNombre = this._ipsNombreObs();
@@ -797,18 +785,23 @@ export class FormularioIncapacidadComponent implements OnInit {
       startWith(''),
       map(value => this._filterEps(value || ''))
     );
-    this.codigoControl.valueChanges.subscribe(value => {
-      const selected = this.allCodigosDiagnostico.find(item => item.codigo === value);
-      this.descripcionControl.setValue(selected ? selected.descripcion : '');
 
-      const descripcion = selected ? selected.descripcion : '';
-      const codigo = selected ? selected.codigo : '';
-      const textoSinDescripcion = descripcion.replace(/^descripcion:\s*/i, '');
-      this.incapacidadForm.get('descripcion_diagnostico')?.setValue(textoSinDescripcion);
-      this.incapacidadForm.get('codigo_diagnostico')?.setValue(codigo)
-      this.determinarProrroga();
-      this.calcularprorroga();
-    });
+    // Selección de código diagnóstico:
+    //   - Mientras el usuario escribe, value es texto parcial → no resuelve, no se tocan los campos.
+    //   - Al elegir una opción del autocomplete (label "CODE — descripcion"), resolveCodigoSeleccion
+    //     devuelve el par {codigo, descripcion} cacheado y se llenan los campos del form.
+    this.codigoControl.valueChanges
+      .pipe(debounceTime(50), distinctUntilChanged())
+      .subscribe(value => {
+        const selected = this.resolveCodigoSeleccion(value);
+        if (!selected) return;
+
+        this.descripcionControl.setValue(selected.descripcion);
+        this.incapacidadForm.get('descripcion_diagnostico')?.setValue(selected.descripcion);
+        this.incapacidadForm.get('codigo_diagnostico')?.setValue(selected.codigo);
+        this.determinarProrroga();
+        this.calcularprorroga();
+      });
     this.epsControlForm.valueChanges.pipe(debounceTime(300)).subscribe(value => {
       const selected = this.epsnombres.find(item => item.nombre === value);
       this.incapacidadForm.get('nombre_eps')?.setValue(selected ? selected.nombre : '');
@@ -857,21 +850,53 @@ export class FormularioIncapacidadComponent implements OnInit {
   // AUTOCOMPLETE SERVER-SIDE (rápido, usa índices MySQL)
   // ---------------------------------------------------------------------------
 
-  /** Observable para el autocomplete de códigos: server-side con debounce */
+  /** Observable para el autocomplete de códigos: server-side con debounce.
+   *  Escucha al MISMO control bindeado al input (codigoControl).
+   *  Emite labels "CODE — descripcion" y cachea cada label en codigosByLabel
+   *  para que el handler de selección pueda resolver al par {codigo, descripcion}.
+   */
   private _codigosObs(): Observable<string[]> {
-    return this.codigoDiagnosticoControl.valueChanges.pipe(
+    return this.codigoControl.valueChanges.pipe(
       startWith(''),
       debounceTime(220),
       distinctUntilChanged(),
       switchMap((value: any) => {
         const q = String(value || '').trim();
-        if (!q) return of([] as string[]);
+        if (q.length < 1) return of([] as string[]);
+        // Si el usuario ya seleccionó (el value es una label cacheada), no re-buscar.
+        if (this.codigosByLabel.has(q)) return of([q]);
         return this.incapacidadService.buscarCodigosDiagnostico(q, 20).pipe(
-          map(items => Array.from(new Set(items.map(i => i.codigo)))),
+          map(items => {
+            const labels: string[] = [];
+            for (const it of items) {
+              const label = this.formatCodigoLabel(it.codigo, it.descripcion);
+              this.codigosByLabel.set(label, { codigo: it.codigo, descripcion: it.descripcion });
+              labels.push(label);
+            }
+            return Array.from(new Set(labels));
+          }),
           catchError(() => of([] as string[]))
         );
       })
     );
+  }
+
+  private formatCodigoLabel(codigo: string, descripcion: string): string {
+    const desc = (descripcion || '').replace(/^descripcion:\s*/i, '').trim();
+    return desc ? `${codigo} — ${desc}` : codigo;
+  }
+
+  /** Resuelve el value del autocomplete a {codigo, descripcion}.
+   *  Acepta una label cacheada o un código exacto.
+   */
+  private resolveCodigoSeleccion(value: any): { codigo: string; descripcion: string } | null {
+    const v = String(value || '').trim();
+    if (!v) return null;
+    const fromLabel = this.codigosByLabel.get(v);
+    if (fromLabel) return fromLabel;
+    const fromList = this.allCodigosDiagnostico.find(item => item.codigo === v);
+    if (fromList) return { codigo: fromList.codigo, descripcion: fromList.descripcion };
+    return null;
   }
 
   /** Observable para autocomplete de IPS por NIT */
@@ -1089,31 +1114,63 @@ export class FormularioIncapacidadComponent implements OnInit {
 
       // Envía la incapacidad al servicio
       this.incapacidadService.createIncapacidad(nuevaIncapacidad).pipe(first()).subscribe(
-        response => {
-          this.cargarInformacion(false);
-          Swal.fire({
-            icon: 'success',
-            title: 'Incapacidad creada',
-            text: 'La incapacidad ha sido creada exitosamente, puedes verla en la lista de incapacidades'
-          }).then(() => {
-            this.incapacidadForm.reset();
-            for (const key in this.fieldMap) {
-              this.incapacidadForm.get(key)?.setValue('');
-            }
-            this.files = {
-              'Historial clinico': [],
-              'Archivo Incapacidad': [],
-              'FURAT': [],
-              'SOAT': [],
-              'FURIPS': [],
-              'Registro Civil': [],
-              'Registro de Nacido Vivo': [],
-              'Formulario de Salud Total': [],
-            };
-            this.validationErrors = [];
-            this.isSubmitButtonDisabled = false;
+        async (response: any) => {
+          const consecutivoSistema: string =
+            response?.consecutivoSistema || response?.consecutivo || '';
+
+          if (!consecutivoSistema) {
+            this.cargarInformacion(false);
+            Swal.fire({
+              icon: 'warning',
+              title: 'Incapacidad creada (sin documentos)',
+              text: 'No se recibió consecutivoSistema. Los PDFs no se pudieron vincular; comunica a soporte.',
+            });
             this.resetPage();
-          });
+            return;
+          }
+
+          // Subir cada PDF vía multipart al nuevo endpoint
+          let uploadError: string | null = null;
+          try {
+            await this.uploadPendingFiles(consecutivoSistema);
+          } catch (e: any) {
+            uploadError = String(e?.message || e);
+          }
+
+          this.cargarInformacion(false);
+          if (uploadError) {
+            Swal.fire({
+              icon: 'warning',
+              title: 'Incapacidad creada con observaciones',
+              text:
+                `La incapacidad ${consecutivoSistema} se creó, pero algunos PDFs ` +
+                `fallaron al subirse:\n${uploadError}`,
+            });
+          } else {
+            Swal.fire({
+              icon: 'success',
+              title: 'Incapacidad creada',
+              text: 'La incapacidad ha sido creada exitosamente, puedes verla en la lista de incapacidades',
+            });
+          }
+
+          this.incapacidadForm.reset();
+          for (const key in this.fieldMap) {
+            this.incapacidadForm.get(key)?.setValue('');
+          }
+          this.files = {
+            'Historial clinico': [],
+            'Archivo Incapacidad': [],
+            'FURAT': [],
+            'SOAT': [],
+            'FURIPS': [],
+            'Registro Civil': [],
+            'Registro de Nacido Vivo': [],
+            'Formulario de Salud Total': [],
+          };
+          this.validationErrors = [];
+          this.isSubmitButtonDisabled = false;
+          this.resetPage();
         },
         error => {
           console.error('Error al crear la incapacidad:', error);
@@ -1203,64 +1260,53 @@ export class FormularioIncapacidadComponent implements OnInit {
         this.cargarInformacion(false);
         const contratacion = response.contratacion || {};
         const datosBasicos = response.datos_basicos || {};
-        const afp = response.afp;
+        const afp = response.afp || {};
 
-        for (const key in this.fieldMap) {
-          let value;
-          if (contratacion[key]) {
-            value = contratacion[key];
-          } else if (datosBasicos[key]) {
-            value = datosBasicos[key];
-          }
+        const tipoNorm = (datosBasicos.tipodedocumento || '')
+          .toUpperCase()
+          .replace(/\./g, '')
+          .replace(/\s+/g, '')
+          .trim();
+        const tipoDocMap: Record<string, string> = {
+          CC: 'Cedula de ciudadania',
+          CE: 'Cedula de extranjeria',
+          PA: 'Pasaporte',
+          TI: 'Tarjeta de identidad',
+          PPT: 'Permiso de proteccion temporal',
+        };
+        const tipoDocLabel = tipoDocMap[tipoNorm] || datosBasicos.tipodedocumento || '';
 
-          let tipo = (datosBasicos.tipodedocumento || '')
-            .toUpperCase()
-            .replace(/\./g, '')  
-            .replace(/\s+/g, '') 
-            .trim();
+        const generoMap: Record<string, string> = { M: 'Masculino', F: 'Femenino' };
+        const generoLabel = generoMap[datosBasicos.genero] || datosBasicos.genero || '';
 
-          if (tipo === 'CC') {
-            datosBasicos.tipodedocumento = 'Cedula de ciudadania';
-          } else if (tipo === 'CE') {
-            datosBasicos.tipodedocumento = 'Cedula de extranjeria';
-          } else if (tipo === 'PA') {
-            datosBasicos.tipodedocumento = 'Pasaporte';
-          } else if (tipo === 'TI') {
-            datosBasicos.tipodedocumento = 'Tarjeta de identidad';
-          } else if (tipo === 'PPT') {
-            datosBasicos.tipodedocumento = 'Permiso de proteccion temporal';
-          }
+        const joinNombres = (a: any, b: any) =>
+          [a, b].filter(v => v != null && String(v).trim() !== '').join(' ').trim();
 
-          if (datosBasicos.genero == 'M') {
-            datosBasicos.genero = 'Masculino';
-          }
-          if (datosBasicos.genero == 'F') {
-            datosBasicos.genero = 'Femenino';
-          }
+        this.nombreepspersona = afp.eps || '';
 
-          this.incapacidadForm.get('nombre_eps')?.setValue(afp.eps);
-          this.incapacidadForm.get('temporal_contrato')?.setValue(contratacion.temporal);
-          this.incapacidadForm.get('numero_de_contrato')?.setValue(contratacion.codigo_contrato);
-          this.incapacidadForm.get('Oficina')?.setValue(this.convertToTitleCaseAndRemoveAccents(this.sucursalde));
-          this.incapacidadForm.get('nombre_de_quien_recibio')?.setValue(this.nombredequienrecibio);
-          this.incapacidadForm.get('empresa')?.setValue(contratacion.empresaUsuaraYCCentrodeCosto);
-          this.incapacidadForm.get('celular')?.setValue(datosBasicos.celular);
-          this.incapacidadForm.get('tipodedocumento')?.setValue(datosBasicos.tipodedocumento);
-          this.incapacidadForm.get('numerodeceduladepersona')?.setValue(cedula);
-          this.nombreepspersona = afp.eps;
-          this.incapacidadForm.get('primer_nombre')?.setValue(datosBasicos.primer_nombre + ' ' + datosBasicos.segundo_nombre);
-          this.incapacidadForm.get('primer_apellido')?.setValue(datosBasicos.primer_apellido + ' ' + datosBasicos.segundo_apellido);
-          this.incapacidadForm.get('edad')?.setValue(datosBasicos.edadTrabajador);
-          this.incapacidadForm.get('primercorreoelectronico')?.setValue(datosBasicos.primercorreoelectronico);
-          this.incapacidadForm.get('genero')?.setValue(datosBasicos.genero);
-          this.incapacidadForm.get('Centro_de_costos')?.setValue(contratacion.centro_de_costos);
-          this.incapacidadForm.get('Centro_de_costo')?.setValue(contratacion.centro_costo_carnet);
-          this.incapacidadForm.get('fecha_contratacion')?.setValue(contratacion.fecha_contratacion);
-          this.incapacidadForm.get('fondo_de_pension')?.setValue(afp.afc);
-        }
+        this.incapacidadForm.patchValue({
+          Oficina: this.convertToTitleCaseAndRemoveAccents(this.sucursalde),
+          nombre_de_quien_recibio: this.nombredequienrecibio,
+          Centro_de_costo: contratacion.centro_costo_carnet,
+          Centro_de_costos: contratacion.centro_de_costos,
+          empresa: contratacion.empresaUsuaraYCCentrodeCosto,
+          numero_de_contrato: contratacion.codigo_contrato,
+          temporal_contrato: contratacion.temporal,
+          fecha_contratacion: contratacion.fecha_contratacion,
+          tipodedocumento: tipoDocLabel,
+          numerodeceduladepersona: cedula,
+          primer_nombre: joinNombres(datosBasicos.primer_nombre, datosBasicos.segundo_nombre),
+          primer_apellido: joinNombres(datosBasicos.primer_apellido, datosBasicos.segundo_apellido),
+          edad: datosBasicos.edadTrabajador,
+          genero: generoLabel,
+          celular: datosBasicos.celular,
+          whatsapp: datosBasicos.whatsapp,
+          primercorreoelectronico: datosBasicos.primercorreoelectronico,
+          fondo_de_pension: afp.afc,
+          nombre_eps: afp.eps,
+        });
 
-        //this.applyCedulaFilter(cedula)
-
+        this.epsControlForm.setValue(afp.eps || '', { emitEvent: false });
       },
       (_error: any) => {
         this.cargarInformacion(false);
@@ -1348,37 +1394,68 @@ export class FormularioIncapacidadComponent implements OnInit {
 onUploadClick(field: string) {
   const fileInput = document.createElement('input');
   fileInput.type = 'file';
+  fileInput.accept = 'application/pdf,.pdf';
   fileInput.style.display = 'none';
 
   fileInput.onchange = (event: any) => {
     const file: File = event.target.files[0];
+    if (!file) return;
 
-    if (file) {
-      const MAX_SIZE = 2 * 1024 * 1024; // 2MB
-
-      if (file.size > MAX_SIZE) {
-        Swal.fire({
+    const MAX_SIZE = 2 * 1024 * 1024; // 2MB
+    if (file.size > MAX_SIZE) {
+      Swal.fire({
         icon: 'error',
         title: 'Error',
-        text: `El archivo "${file.name}" supera el límite de 2 MB.`
+        text: `El archivo "${file.name}" supera el límite de 2 MB.`,
       });
-        return; 
-      }
-
-      const reader = new FileReader();
-
-      reader.onload = () => {
-        this.addFile(field, file);
-        const base64 = reader.result as string;
-        this.nombredelarchvio = file.name;
-        this.incapacidadForm.get(this.fieldMap[field])?.setValue(base64);
-      };
-
-      reader.readAsDataURL(file);
+      return;
     }
+
+    // El archivo ya NO se sube como base64 dentro del JSON. Lo guardamos en
+    // memoria y se enviará vía multipart después de crear la incapacidad
+    // (ver onSubmit -> uploadPendingFiles).
+    this.addFile(field, file);
+    this.nombredelarchvio = file.name;
   };
 
   fileInput.click();
+}
+
+// Mapeo del label de UI al campo legacy esperado por el backend.
+private readonly UI_TO_LEGACY_FIELD: Record<string, string> = {
+  'Archivo Incapacidad': 'link_incapacidad',
+  'Historial clinico': 'historial_clinico',
+  'FURAT': 'furat',
+  'SOAT': 'soat',
+  'FURIPS': 'furips',
+  'Registro Civil': 'registro_civil',
+  'Registro de Nacido Vivo': 'registro_de_nacido_vivo',
+  'Formulario de Salud Total': 'formulario_salud_total',
+};
+
+/**
+ * Sube todos los PDFs pendientes (uno por uno, multipart) al endpoint
+ * `/Incapacidades/<consecutivo>/documentos/upload` después de crear la
+ * incapacidad. Devuelve un Promise que resuelve cuando todos terminaron;
+ * si alguno falla, el Promise se rechaza con la lista de errores.
+ */
+private async uploadPendingFiles(consecutivoSistema: string): Promise<void> {
+  const errores: string[] = [];
+  for (const uiField of Object.keys(this.files)) {
+    const legacy = this.UI_TO_LEGACY_FIELD[uiField];
+    if (!legacy) continue;
+    for (const file of this.files[uiField] || []) {
+      try {
+        await this.incapacidadService.uploadDocumento(consecutivoSistema, legacy, file);
+      } catch (e: any) {
+        const msg = e?.error?.error || e?.message || 'Error desconocido';
+        errores.push(`${uiField}: ${msg}`);
+      }
+    }
+  }
+  if (errores.length) {
+    throw new Error('Algunos archivos no se subieron:\n' + errores.join('\n'));
+  }
 }
 
 

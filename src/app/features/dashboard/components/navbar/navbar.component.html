@@ -10,43 +10,36 @@
     </a>
 
     <!-- BOTONES DE MÓDULO -->
-    <div class="module-buttons">
+    <nav class="module-buttons" aria-label="Módulos principales">
 
       <!-- HOME fijo -->
       <button type="button" routerLink="/dashboard" routerLinkActive="active-module-button"
-        [routerLinkActiveOptions]="{ exact: true }" aria-label="Inicio" title="Inicio" (mouseenter)="onRootEnter(null)"
+        [routerLinkActiveOptions]="{ exact: true }" aria-label="Inicio" title="Inicio"
         (click)="onRootClick(null)">
         <mat-icon fontSet="material-symbols-outlined">home</mat-icon>
+        <span class="m-btn-label">Inicio</span>
       </button>
 
-      <!-- Módulos raíz -->
-      @for (root of visibleRootModules; track trackByNodeId($index, root)) {
-        <button type="button" (mouseenter)="onRootEnter(root)" (click)="onRootClick(root)" [title]="root.nombre"
+      <!-- Módulos raíz: el panel derecho se abre solo por click, NO por hover. -->
+      @for (root of visibleRoots; track trackByNodeId($index, root)) {
+        <button type="button" (click)="onRootClick(root)" [title]="root.nombre"
+          [attr.aria-label]="root.nombre"
+          [attr.aria-current]="isTreeActive(root) ? 'true' : null"
           [class.active-module-button]="activeRoot?.id === root.id || isTreeActive(root)"
           [attr.aria-expanded]="activeRoot?.id === root.id && hasChildren(root)"
           [attr.aria-controls]="activeRoot?.id === root.id && hasChildren(root) ? 'right-panel-content' : null">
           <mat-icon fontSet="material-symbols-outlined">
             {{ getModuleIcon(root) }}
           </mat-icon>
+          <span class="m-btn-label">{{ root.nombre }}</span>
         </button>
       }
-    </div>
+    </nav>
 
     <!-- BOTONES INFERIORES -->
     <div class="bottom-buttons">
-      <div class="logout-button network-status"
-           [title]="syncProgress ? (syncProgress.phase === 'sync' ? 'Sincronizando ' + syncProgress.current + '/' + syncProgress.total : 'Actualizando caché ' + syncProgress.current + '/' + syncProgress.total) : (isOnline ? 'En línea' : 'Sin conexión (Offline)')"
-           [class.offline]="!isOnline"
-           [class.syncing]="syncProgress !== null">
-        <mat-icon fontSet="material-symbols-outlined">{{ syncProgress ? 'sync' : (isOnline ? 'cloud_done' : 'cloud_off') }}</mat-icon>
-        @if (pendingCount > 0 && !syncProgress) {
-          <span class="pending-badge">{{ pendingCount }}</span>
-        }
-      </div>
-      <button type="button" class="logout-button" (click)="refreshPermisos()" title="Actualizar menú">
-        <mat-icon fontSet="material-symbols-outlined">sync</mat-icon>
-      </button>
-      <button type="button" class="logout-button" (click)="cerrarSesion()" title="Cerrar sesión">
+      <button type="button" class="logout-button" (click)="cerrarSesion()"
+        title="Cerrar sesión" aria-label="Cerrar sesión">
         <mat-icon fontSet="material-symbols-outlined">logout</mat-icon>
       </button>
     </div>

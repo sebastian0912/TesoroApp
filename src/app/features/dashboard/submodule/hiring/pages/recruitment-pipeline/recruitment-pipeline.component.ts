@@ -15,6 +15,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatBadgeModule } from '@angular/material/badge';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+import { MatButtonToggleModule } from '@angular/material/button-toggle';
 
 import { FormsModule, FormArray, FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angular/forms';
 
@@ -75,6 +76,7 @@ type BioKind = 'foto' | 'huella' | 'firma';
     FormsModule, ReactiveFormsModule,
     MatIconModule, MatTabsModule, MatDatepickerModule, MatMomentDateModule,
     MatTooltipModule, MatDialogModule, MatBadgeModule, MatSnackBarModule,
+    MatButtonToggleModule,
     SharedModule,
     SearchForCandidateComponent, SelectionQuestionsComponent, HiringQuestionsComponent, HelpInformationComponent,
     RouterLink
@@ -117,6 +119,51 @@ export class RecruitmentPipelineComponent {
   tieneFirmaUI = computed(() => !!(this.firmaDataUrl() || this.tieneFirmaSrv()));
   tieneHuellaUI = computed(() => !!(this.huellaDataUrl() || this.tieneHuellaSrv()));
   tieneFotoUI = computed(() => !!(this.fotoDataUrl() || this.fotoDoc() || this.tieneFotoSrv()));
+
+  /**
+   * URL de la foto del candidato para mostrar en el avatar del header.
+   * Prioridad: preview local recién tomada → archivo subido (foto doc) → biometría almacenada.
+   * Devuelve null si todavía no hay foto.
+   *
+   * También chequea propiedades alternativas (`url`, `urlfoto`, `foto`) en el documento
+   * por si el backend usa nombres distintos.
+   */
+  avatarPhotoUrl = computed<string | null>(() => {
+    const local = this.fotoDataUrl();
+    if (local) return local;
+
+    const doc = this.fotoDoc() as any;
+    if (doc) {
+      const fromDoc = doc.file_url || doc.file || doc.url || doc.urlfoto || doc.foto;
+      if (fromDoc) return fromDoc;
+    }
+
+    const fromBio = this.getBioUrl('foto');
+    if (fromBio) return fromBio;
+
+    // Último intento: leer directamente del candidato seleccionado por si la
+    // foto vino embebida en otra propiedad.
+    const cand = this.candidatoSeleccionado() as any;
+    const fromCand =
+      cand?.foto ||
+      cand?.foto_url ||
+      cand?.urlfoto ||
+      cand?.biometria?.foto?.file_url ||
+      cand?.biometria?.foto?.file ||
+      null;
+    return fromCand || null;
+  });
+
+  /** Notifica que la imagen del avatar falló (sólo para log; no oculta la imagen). */
+  onAvatarPhotoError(ev: Event): void {
+    const img = ev.target as HTMLImageElement | null;
+    console.warn('[avatar] foto no cargó:', img?.src);
+  }
+
+  onAvatarPhotoLoad(ev: Event): void {
+    const img = ev.target as HTMLImageElement | null;
+    console.info('[avatar] foto cargada OK:', img?.src);
+  }
   tieneExamenMedicoUI = computed(() => !!this.examenMedicoDoc());
   /** True si el candidato ya tiene exámenes médicos registrados en el proceso */
   examenesYaCargados = computed(() => {
@@ -280,6 +327,12 @@ export class RecruitmentPipelineComponent {
     merge(this.selectedExamsArray.valueChanges, this.selectedExamsArray.statusChanges)
       .pipe(startWith(this.selectedExamsArray.value), takeUntilDestroyed(this.destroyRef))
       .subscribe(() => this.recalcHayNoApto());
+
+    // 1.2) Log de diagnóstico: imprime cuando cambia la URL de la foto del avatar.
+    effect(() => {
+      const url = this.avatarPhotoUrl();
+      console.info('[avatar] URL actual:', url);
+    });
 
     // 2) Cédula + biometría (embebida y refresh opcional)
     effect(() => {
@@ -754,12 +807,26 @@ export class RecruitmentPipelineComponent {
 
   // ========= Guardar + Unir + Subir =========
   async imprimirSaludOcupacional(): Promise<void> {
+    if (this.isSavingMedical()) return;
+
     const f = this.formGroup3.value;
     const numeroDocumento = this.candidatoSeleccionado()?.numero_documento;
     if (!numeroDocumento) {
       await Swal.fire({ title: 'Falta el número de documento del candidato', icon: 'info', toast: true, position: 'top-end', showConfirmButton: false, timer: 3000, timerProgressBar: true });
       return;
     }
+
+    this.isSavingMedical.set(true);
+    try {
+      await this._imprimirSaludOcupacionalCore();
+    } finally {
+      this.isSavingMedical.set(false);
+    }
+  }
+
+  private async _imprimirSaludOcupacionalCore(): Promise<void> {
+    const f = this.formGroup3.value;
+    const numeroDocumento = this.candidatoSeleccionado()?.numero_documento;
 
     // Helpers del loader
     const renderProgress = (pct: number, fase: string, sub: string = '') => `
@@ -921,6 +988,42 @@ export class RecruitmentPipelineComponent {
     }
   }
 
+  /** Loading state del botón Guardar Salud Ocupacional. */
+  isSavingMedical = signal(false);
+
+  /** Devuelve el estado visual del examen i: 'apto' | 'no-apto' | 'pending'. */
+  getExamStatus(i: number): 'apto' | 'no-apto' | 'pending' {
+    const v = this.selectedExamsArray.at(i)?.get('aptoStatus')?.value;
+    if (v === 'APTO') return 'apto';
+    if (v === 'NO APTO') return 'no-apto';
+    return 'pending';
+  }
+
+  /** Abre el PDF del examen i en una pestaña nueva (preview local). */
+  viewExamPdf(i: number): void {
+    const file = this.examFiles()?.[i];
+    if (!file) return;
+    const url = URL.createObjectURL(file);
+    window.open(url, '_blank');
+    // No revocamos inmediatamente para que el visor lo cargue
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  }
+
+  /** Quita el archivo del examen i (no afecta el control de aptoStatus). */
+  removeExamFile(i: number): void {
+    const files = [...(this.examFiles() ?? [])];
+    files[i] = undefined as unknown as File;
+    this.examFiles.set(files);
+  }
+
+  /** Formatea bytes a KB/MB legibles. */
+  formatBytes(bytes?: number): string {
+    if (!bytes && bytes !== 0) return '';
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+  }
+
   // ───────── Tabla ─────────
   mostrarTabla(): void {
     const ced = this.candidatoSeleccionado()?.numero_documento || this.numeroDocumento;
@@ -1048,16 +1151,45 @@ export class RecruitmentPipelineComponent {
 
     try {
       Swal.fire({ title: 'Subiendo foto...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
-      await firstValueFrom(this.registroProceso.uploadFoto(String(numero), result.file));
+      await this.uploadFotoWithRetry(String(numero), result.file);
       Swal.close();
       await Swal.fire('Éxito', 'Foto subida correctamente', 'success');
       await this.refreshBiometriaForCandidate(String(numero));
       await this.refreshFotoForCandidate(String(numero)); // Actualizar también el doc 89
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
       Swal.close();
-      await Swal.fire('Error', 'No se pudo subir la foto', 'error');
+      const msg: string =
+        err?.error?.detail || err?.error?.message || err?.message || 'No se pudo subir la foto';
+      const httpStatus = err?.status ?? 0;
+      await Swal.fire('Error', `${msg}<br><br>Estado: ${httpStatus}`, 'error');
     }
+  }
+
+  // ── Robustez: retry con backoff para uploads de biometría ──
+  private readonly UPLOAD_RETRY_STATUS = new Set<number>([0, 408, 425, 429, 500, 502, 503, 504]);
+
+  private uploadFotoWithRetry(numero: string, file: File, attempts = 3): Promise<any> {
+    return new Promise((resolve, reject) => {
+      let tryNumber = 0;
+      const run = () => {
+        tryNumber++;
+        this.registroProceso.uploadFoto(numero, file).subscribe({
+          next: (res: any) => resolve(res),
+          error: (err: any) => {
+            const code = err?.status ?? 0;
+            const retryable = this.UPLOAD_RETRY_STATUS.has(code);
+            if (retryable && tryNumber < attempts) {
+              const delay = 800 * Math.pow(2, tryNumber - 1);
+              setTimeout(run, delay);
+            } else {
+              reject(err);
+            }
+          },
+        });
+      };
+      run();
+    });
   }
 
   // ───────── Ver archivos con una sola función ─────────

@@ -773,12 +773,25 @@ export class BuscarIncapacidadComponent implements OnInit, AfterViewInit {
               ...incapacidadespagas[index]
             };
 
-            if (result['historial_clinico'] && typeof result['historial_clinico'] === 'string') {
-              result['historial_clinico_link'] = this.convertBase64ToPDF(result['historial_clinico']);
-            }
-
-            if (result['link_incapacidad'] && typeof result['link_incapacidad'] === 'string') {
-              result['link_incapacidad_link'] = this.convertBase64ToPDF(result['link_incapacidad']);
+            // Los PDFs ahora viven en gestion_documental. Los serializers del
+            // backend exponen `<campo>_doc.file_url` por cada documento. Para no
+            // romper el HTML existente que apunta a `<campo>_link`, copiamos
+            // el file_url al alias `_link`.
+            const docPairs: Array<[string, string]> = [
+              ['historial_clinico', 'historial_clinico_link'],
+              ['link_incapacidad', 'link_incapacidad_link'],
+              ['furat', 'furat_link'],
+              ['soat', 'soat_link'],
+              ['furips', 'furips_link'],
+              ['registro_civil', 'registro_civil_link'],
+              ['registro_de_nacido_vivo', 'registro_de_nacido_vivo_link'],
+              ['formulario_salud_total', 'formulario_salud_total_link'],
+            ];
+            for (const [legacy, alias] of docPairs) {
+              const meta = result[`${legacy}_doc`];
+              if (meta && meta.file_url) {
+                result[alias] = meta.file_url;
+              }
             }
 
             return result;

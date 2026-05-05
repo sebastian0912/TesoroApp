@@ -1,6 +1,7 @@
 import { SharedModule } from '@/app/shared/shared.module';
 import { isPlatformBrowser } from '@angular/common';
 import {  Component, inject, OnInit, PLATFORM_ID, ViewChild, ElementRef , ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
+import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { PDFDocument, PDFTextField, PDFCheckBox, StandardFonts, rgb, degrees } from 'pdf-lib';
 import Swal from 'sweetalert2';
 import { GestionDocumentalService } from '../../service/gestion-documental/gestion-documental.service';
@@ -14,6 +15,10 @@ import { VacantesService } from '../../service/vacantes/vacantes.service';
 import { UtilityServiceService } from '../../../../../../shared/services/utilityService/utility-service.service';
 import { RegistroProcesoContratacion } from '../../service/registro-proceso-contratacion/registro-proceso-contratacion';
 import { REFERENCIAS_A, REFERENCIAS_F } from '@/app/shared/model/const';
+import { fillMinervaPdf } from './minerva-fill';
+import { fillFichaSocialPdf } from './ficha-social-fill';
+import { fillFichaTecnicaPdf } from './ficha-tecnica-fill';
+import { buildContratoAdministrativoPdf } from './contrato-administrativo-fill';
 import { switchMap, map, take, catchError, tap, finalize } from 'rxjs/operators';
 import { of, forkJoin, firstValueFrom, throwError } from 'rxjs';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
@@ -23,13 +28,14 @@ type UploadedInfo = {
   file: File;
   fileName: string;
   previewUrl?: string; // URL creada con URL.createObjectURL
+  typeId?: number;     // override de typeMap[key]: una misma entry de UI puede mapear a varios tipos del backend (p.ej. Ficha Técnica básica=34 vs TA completa=111)
 };
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-generate-contracting-documents',
   imports: [
-    SharedModule, RouterLink
+    SharedModule, RouterLink, MatProgressBarModule
   ],
   templateUrl: './generate-contracting-documents.component.html',
   styleUrl: './generate-contracting-documents.component.css'
@@ -79,51 +85,50 @@ export class GenerateContractingDocumentsComponent implements OnInit {
   private cdr = inject(ChangeDetectorRef);
 
   documentos = [
-    { titulo: 'Autorización de datos' },
-    { titulo: 'Entrega de documentos' },
-    { titulo: 'Entrega documentos Agricola' },
-    { titulo: 'Entrega documentos Jardines de los andes' },
-    { titulo: 'Entrega documentos Sagaro' },
-    { titulo: 'Entrega documentos Flores de los andes' },
-    { titulo: 'Entrega documentos Ipanema' },
-    { titulo: 'Entrega documentos Ipanema Foraneos' },
-    { titulo: 'Entrega documentos rebaño' },
-    { titulo: 'Entrega documentos melody' },
-    { titulo: 'Entrega documentos Tu Alianza Sin Casino' },
-    { titulo: 'Entrega documentos administrativos' },
-    { titulo: 'Ficha técnica' },
-    { titulo: 'Ficha Ta Completa' },
+    { titulo: 'Autorización de Datos' },
+    { titulo: 'Inducción' },
+    { titulo: 'Inducción Agrícola' },
+    { titulo: 'Inducción Jardines de los Andes' },
+    { titulo: 'Inducción Sagaro' },
+    { titulo: 'Inducción Flores de los Andes' },
+    { titulo: 'Inducción Ipanema' },
+    { titulo: 'Inducción Ipanema Foráneos' },
+    { titulo: 'Inducción Rebaño' },
+    { titulo: 'Inducción Melody' },
+    { titulo: 'Inducción Tu Alianza sin Casino' },
+    { titulo: 'Inducción Administrativos' },
+    { titulo: 'Ficha Técnica' },
     { titulo: 'Contrato' },
-    { titulo: 'Contrato TA' },
-    { titulo: 'Entrega carnets' },
-    { titulo: 'Inducción capacitación' },
-    { titulo: 'Formato solicitud' },
-    { titulo: 'MANEJO_IMAGEN' },
-    { titulo: 'FICHA_SOCIAL' },
+    { titulo: 'Entrega Carnets' },
+    { titulo: 'Inducción Capacitación' },
+    { titulo: 'Formato Solicitud' },
+    { titulo: 'Manejo Imagen' },
+    { titulo: 'Ficha Social' },
     { titulo: 'Entrevista de Ingreso' },
-    { titulo: 'Contratos Otros Si' },
+    { titulo: 'Contratos Otrosí' },
     { titulo: 'Auxilio Alimentación' },
     { titulo: 'Autorización Daños Pérdidas' },
-    { titulo: 'Cedula' },
+    { titulo: 'Cédula' },
     { titulo: 'ARL' },
     { titulo: 'Figura Humana' },
     { titulo: 'EPS' },
-    { titulo: 'CAJA' },
-    { titulo: 'PAGO SEGURIDAD SOCIAL' },
-    { titulo: 'PRUEBAS PSICOLOGICAS' },
-    { titulo: 'PRUEBA LECTRO ESCRITURA' },
-    { titulo: 'VISITA DOMICILIARIA' },
-    { titulo: 'PRUEBA SST' },
-    { titulo: 'AUTORIZACION INGRESO' },
-    { titulo: 'BONIFICACION IPANEMA' },
-    { titulo: 'PRUEBA PSICOTECNICA' },
-    { titulo: 'CERTIFICADOS ESTUDIOS' },
+    { titulo: 'Caja' },
+    { titulo: 'Pago Seguridad Social' },
+    { titulo: 'Pruebas Psicológicas' },
+    { titulo: 'Prueba Lectoescritura' },
+    { titulo: 'Visita Domiciliaria' },
+    { titulo: 'Prueba SST' },
+    { titulo: 'Autorización Ingreso' },
+    { titulo: 'Bonificación Ipanema' },
+    { titulo: 'Prueba Psicotécnica' },
+    { titulo: 'Certificados Estudios' },
     { titulo: 'SST' },
-    { titulo: 'OTRAS PRUEBAS' },
+    { titulo: 'Otras Pruebas' },
     { titulo: 'Hoja de Vida Minerva' },
-    { titulo: '108 SAGARO_LOCKERS' },
-    { titulo: '109 SAGARO_IMAGEN' },
-    { titulo: '110 SAGARO_CELULAR' }
+    { titulo: 'Sagaro Lockers' },
+    { titulo: 'Sagaro Imagen' },
+    { titulo: 'Sagaro Celular' },
+    { titulo: 'Referenciación' }
   ];
 
   nombreCompleto = '';
@@ -158,51 +163,50 @@ export class GenerateContractingDocumentsComponent implements OnInit {
   uploadedFiles: { [key: string]: UploadedInfo } = {};
 
   typeMap: { [key: string]: number } = {
-    Contrato: 25,
-    "Contrato TA": 25,
-    "Autorización de datos": 26,
-    "Entrega de documentos": 27,
-    "Entrega documentos Agricola": 27,
-    "Entrega documentos Jardines de los andes": 27,
-    "Entrega documentos Sagaro": 27,
-    "Entrega documentos Flores de los andes": 27,
-    "Entrega documentos Ipanema": 27,
-    "Entrega documentos Ipanema Foraneos": 27,
-    "Entrega documentos administrativos": 27,
-    "Entrega documentos rebaño": 27,
-    "Entrega documentos melody": 27,
-    "Entrega documentos Tu Alianza Sin Casino": 27,
-    'Ficha técnica': 34,
-    'Ficha Ta Completa': 111,
+    'Contrato': 25,
+    'Autorización de Datos': 26,
+    'Inducción': 27,
+    'Inducción Agrícola': 27,
+    'Inducción Jardines de los Andes': 27,
+    'Inducción Sagaro': 27,
+    'Inducción Flores de los Andes': 27,
+    'Inducción Ipanema': 27,
+    'Inducción Ipanema Foráneos': 27,
+    'Inducción Administrativos': 27,
+    'Inducción Rebaño': 27,
+    'Inducción Melody': 27,
+    'Inducción Tu Alianza sin Casino': 27,
+    'Ficha Técnica': 34,
     'Entrevista de Ingreso': 103,
-    'Contratos Otros Si': 104,
+    'Contratos Otrosí': 104,
     'Auxilio Alimentación': 105,
     'Autorización Daños Pérdidas': 106,
-    Cedula: 29,
-    ARL: 30,
+    'Cédula': 29,
+    'ARL': 30,
     'Figura Humana': 31,
-    EPS: 36,
-    CAJA: 37,
-    'PAGO SEGURIDAD SOCIAL': 38,
-    'Entrega carnets': 95,
-    'Inducción capacitación': 96,
-    'Formato solicitud': 97,
-    'PRUEBAS PSICOLOGICAS': 19,
-    'AUTORIZACION INGRESO': 112,
-    'BONIFICACION IPANEMA': 113,
-    'PRUEBA PSICOTECNICA': 114,
-    'CERTIFICADOS ESTUDIOS': 101,
-    SST: 91,
-    'OTRAS PRUEBAS': 115,
+    'EPS': 36,
+    'Caja': 37,
+    'Pago Seguridad Social': 38,
+    'Entrega Carnets': 95,
+    'Inducción Capacitación': 96,
+    'Formato Solicitud': 97,
+    'Pruebas Psicológicas': 19,
+    'Autorización Ingreso': 112,
+    'Bonificación Ipanema': 113,
+    'Prueba Psicotécnica': 114,
+    'Certificados Estudios': 101,
+    'SST': 91,
+    'Otras Pruebas': 115,
     'Hoja de Vida Minerva': 28,
-    'PRUEBA LECTRO ESCRITURA': 20,
-    'VISITA DOMICILIARIA': 41,
-    'PRUEBA SST': 24,
-    'MANEJO_IMAGEN': 46,
-    'FICHA_SOCIAL': 98,
-    '108 SAGARO_LOCKERS': 108,
-    '109 SAGARO_IMAGEN': 109,
-    '110 SAGARO_CELULAR': 110,
+    'Prueba Lectoescritura': 20,
+    'Visita Domiciliaria': 41,
+    'Prueba SST': 24,
+    'Manejo Imagen': 46,
+    'Ficha Social': 98,
+    'Sagaro Lockers': 108,
+    'Sagaro Imagen': 109,
+    'Sagaro Celular': 110,
+    'Referenciación': 118,
   };
 
   // Diccionario para almacenar info de documentos ya existentes en base de datos
@@ -277,6 +281,9 @@ export class GenerateContractingDocumentsComponent implements OnInit {
               for (const [title, typeId] of Object.entries(this.typeMap)) {
                 idToTitle[typeId] = title;
               }
+              // Aliases: typeIds del backend que no tienen entry propia en `documentos[]`
+              // pero deben mostrarse bajo una entry unificada de la UI.
+              idToTitle[111] ??= 'Ficha Técnica'; // Ficha TA completa → bajo "Ficha Técnica"
 
               docsBackend.forEach((doc: any) => {
                 const title = idToTitle[doc.type];
@@ -347,14 +354,97 @@ export class GenerateContractingDocumentsComponent implements OnInit {
 
   isSubirPDF(doc: any): boolean {
     return [
-      'Cedula', 'ARL', 'Figura Humana', 'EPS', 'CAJA', 'PAGO SEGURIDAD SOCIAL',
-      'PRUEBAS PSICOLOGICAS', 'PRUEBA LECTRO ESCRITURA', 'VISITA DOMICILIARIA', 'PRUEBA SST',
-      'AUTORIZACION INGRESO', 'BONIFICACION IPANEMA', 'PRUEBA PSICOTECNICA',
-      'CERTIFICADOS ESTUDIOS', 'SST', 'OTRAS PRUEBAS'
+      'Cédula', 'ARL', 'Figura Humana', 'EPS', 'Caja', 'Pago Seguridad Social',
+      'Pruebas Psicológicas', 'Prueba Lectoescritura', 'Visita Domiciliaria', 'Prueba SST',
+      'Autorización Ingreso', 'Bonificación Ipanema', 'Prueba Psicotécnica',
+      'Certificados Estudios', 'SST', 'Otras Pruebas', 'Referenciación'
     ].includes(doc.titulo);
   }
 
+  /** Documentos con 2 variantes (básica / TA Completa) — el botón Generar abre un mat-menu. */
+  hasVariants(doc: { titulo: string }): boolean {
+    return doc.titulo === 'Contrato' || doc.titulo === 'Ficha Técnica';
+  }
+
+  /**
+   * ¿el documento tiene archivo (subido en esta sesión o existente en BD)?
+   */
+  hasFile(doc: { titulo: string }): boolean {
+    return !!(this.uploadedFiles[doc.titulo] || this.existingDocs[doc.titulo]);
+  }
+
+  /**
+   * Vista plana 3-niveles (Todos): completados → generables → resto.
+   * Mantiene la firma original del primer refactor para compat.
+   */
+  get documentosOrdenados(): { titulo: string }[] {
+    return [
+      ...this.documentos.filter(d => this.hasFile(d)),
+      ...this.documentos.filter(d => !this.hasFile(d) && !this.isSubirPDF(d)),
+      ...this.documentos.filter(d => !this.hasFile(d) && this.isSubirPDF(d)),
+    ];
+  }
+
+  /** Tab "Auto-generables": sólo los que NO son subir-only. */
+  get docsGenerables(): { titulo: string }[] {
+    return [
+      ...this.documentos.filter(d => !this.isSubirPDF(d) && this.hasFile(d)),
+      ...this.documentos.filter(d => !this.isSubirPDF(d) && !this.hasFile(d)),
+    ];
+  }
+
+  /** Tab "Solo subida": los que sí son subir-only. */
+  get docsSubir(): { titulo: string }[] {
+    return [
+      ...this.documentos.filter(d => this.isSubirPDF(d) && this.hasFile(d)),
+      ...this.documentos.filter(d => this.isSubirPDF(d) && !this.hasFile(d)),
+    ];
+  }
+
+  /** Avance del expediente (todos los documentos). */
+  get progresoExpediente(): { completados: number; total: number; porcentaje: number } {
+    const total = this.documentos.length;
+    const completados = this.documentos.reduce((acc, d) => acc + (this.hasFile(d) ? 1 : 0), 0);
+    const porcentaje = total ? Math.round((completados / total) * 100) : 0;
+    return { completados, total, porcentaje };
+  }
+
+  /** Conteo de completados por sub-grupo, para los badges en los tabs. */
+  get progresoGenerables(): { completados: number; total: number } {
+    const sub = this.documentos.filter(d => !this.isSubirPDF(d));
+    return { completados: sub.filter(d => this.hasFile(d)).length, total: sub.length };
+  }
+  get progresoSubir(): { completados: number; total: number } {
+    const sub = this.documentos.filter(d => this.isSubirPDF(d));
+    return { completados: sub.filter(d => this.hasFile(d)).length, total: sub.length };
+  }
+
+  /** Estado de un documento — alimenta el chip y el círculo de la izquierda. */
+  estadoDoc(doc: { titulo: string }): 'completado_local' | 'completado_servidor' | 'pendiente' {
+    if (this.uploadedFiles[doc.titulo]) return 'completado_local';
+    if (this.existingDocs[doc.titulo]) return 'completado_servidor';
+    return 'pendiente';
+  }
+
   subirArchivo(event: Event, campo: string) {
+    this.subirArchivoConTypeId(event, campo, undefined);
+  }
+
+  /**
+   * Sube manual un PDF para una entry con variantes (p. ej. Ficha Técnica básica
+   * vs TA Completa). El mat-menu pasa la variante; aquí se traduce a un typeId
+   * override que se guardará en `uploadedFiles[campo].typeId`.
+   */
+  subirArchivoVariant(event: Event, campo: string, variant: 'basica' | 'completa') {
+    let typeIdOverride: number | undefined;
+    if (campo === 'Ficha Técnica') {
+      typeIdOverride = variant === 'completa' ? 111 : undefined;
+    }
+    // Contrato comparte typeId 25 entre variantes → no necesita override.
+    this.subirArchivoConTypeId(event, campo, typeIdOverride);
+  }
+
+  private subirArchivoConTypeId(event: Event, campo: string, typeIdOverride: number | undefined) {
     const input = event.target as HTMLInputElement;
     const file = input.files?.[0];
 
@@ -382,12 +472,12 @@ export class GenerateContractingDocumentsComponent implements OnInit {
           this.resetInput(input);
           return;
         }
-        this.setFileInQueue(file, campo, input);
+        this.setFileInQueue(file, campo, input, typeIdOverride);
       });
       return;
     }
 
-    this.setFileInQueue(file, campo, input);
+    this.setFileInQueue(file, campo, input, typeIdOverride);
   }
 
   /** Verifica si un PDF está protegido con contraseña leyendo sus bytes */
@@ -409,7 +499,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     }
   }
 
-  private setFileInQueue(file: File, campo: string, input?: HTMLInputElement) {
+  private setFileInQueue(file: File, campo: string, input?: HTMLInputElement, typeId?: number) {
     // Revocar URL anterior si existía (evitar memory leaks)
     const prev = this.uploadedFiles[campo]?.previewUrl;
     if (prev) {
@@ -418,7 +508,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
 
     // Guardar archivo y URL de previsualización
     const previewUrl = URL.createObjectURL(file);
-    this.uploadedFiles[campo] = { file, fileName: file.name, previewUrl };
+    this.uploadedFiles[campo] = { file, fileName: file.name, previewUrl, typeId };
 
     // Mostrar previsualización en el iframe (si es PDF)
     if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
@@ -530,7 +620,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       .map((key) => ({
         key,
         ...this.uploadedFiles[key],
-        typeId: this.typeMap[key],
+        typeId: this.uploadedFiles[key]?.typeId ?? this.typeMap[key],
       }));
 
     if (archivosAEnviar.length === 0) {
@@ -575,9 +665,135 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     return { ok: fallidos.length === 0, exitosos, fallidos };
   }
 
+  /**
+   * Punto de entrada para los documentos con 2 variantes (Contrato, Ficha Técnica).
+   * La UI llama a este método desde un mat-menu pasando la variante elegida por el
+   * usuario. La regla "última gana" se aplica automáticamente porque ambas variantes
+   * comparten la misma entry en `uploadedFiles`.
+   */
+  generarPDFVariant(documento: string, variant: 'basica' | 'completa' | 'administrativo') {
+    if (documento === 'Contrato') {
+      this.runContratoVariant(variant);
+      return;
+    }
+    if (documento === 'Ficha Técnica') {
+      // Ficha Técnica no tiene variante administrativa; se ignora silenciosamente
+      // si llega por accidente desde un menú compartido.
+      if (variant === 'administrativo') {
+        Swal.fire('Atención', 'Ficha Técnica no tiene variante administrativa.', 'warning');
+        return;
+      }
+      this.runFichaTecnicaVariant(variant);
+      return;
+    }
+    Swal.fire('Error', 'Documento no soporta variantes: ' + documento, 'error');
+  }
+
+  /**
+   * Despacha la variante de Contrato.
+   *  - completa       → contrato Tu Alianza completo (no depende de empresa).
+   *  - administrativo → contrato a término fijo inferior a un año, ramificado por
+   *                     la temporal asociada a la vacante (Apoyo Laboral / Tu Alianza).
+   *  - basica         → contrato por obra o labor (depende de empresa).
+   */
+  private runContratoVariant(variant: 'basica' | 'completa' | 'administrativo') {
+    if (variant === 'completa') {
+      this.generarContratoCompletoTrabajoTuAlianza();
+      return;
+    }
+    if (variant === 'administrativo') {
+      this.generarContratoAdministrativo();
+      return;
+    }
+    if (!this.empresa || this.empresa.trim() === '') {
+      Swal.fire('Atención', 'Selecciona el candidato, la empresa no está definida.', 'warning');
+      return;
+    }
+    const emp = this.empresa.toUpperCase().trim();
+    if (emp.includes('ALIANZA')) {
+      this.generarContratoTrabajoTuAlianza();
+    } else {
+      this.generarContratoTrabajo();
+    }
+  }
+
+  /**
+   * Genera el contrato a término fijo inferior a un año para personal administrativo
+   * (empresa usuaria). La elección entre plantilla Apoyo Laboral / Tu Alianza se
+   * hace con `this.empresa` (= `this.vacante.temporal`).
+   *
+   * El PDF queda almacenado en `uploadedFiles['Contrato']` para que comparta el
+   * mismo flujo de subida/preview que el contrato por obra o labor.
+   */
+  generarContratoAdministrativo(): void {
+    if (!this.empresa || this.empresa.trim() === '') {
+      Swal.fire(
+        'Atención',
+        'Selecciona el candidato, la empresa (temporal) no está definida.',
+        'warning'
+      );
+      return;
+    }
+    const emp = this.empresa.toUpperCase().trim();
+    if (!emp.includes('APOYO') && !emp.includes('ALIANZA')) {
+      Swal.fire(
+        'Error',
+        `Temporal no reconocida: "${this.empresa}". Solo APOYO LABORAL o TU ALIANZA.`,
+        'error'
+      );
+      return;
+    }
+
+    try {
+      const doc = buildContratoAdministrativoPdf({
+        empresa: this.empresa,
+        candidato: this.candidato,
+        vacante: this.vacante,
+        cedula: this.cedula,
+        codigoContratacion: this.codigoContratacion ?? '',
+        sede: this.sede,
+        firmaTrabajadorBase64: this.firma ?? '',
+        firmaAdministrativoBase64: this.firmaPersonalAdministrativo ?? '',
+        user: this.user,
+        nombreCompletoLogin: this.nombreCompletoLogin,
+      });
+
+      const pdfBlob = doc.output('blob');
+      const fileName = `${this.empresa}_Contrato_Administrativo.pdf`;
+      const pdfFile = new File([pdfBlob], fileName, { type: 'application/pdf' });
+      this.uploadedFiles['Contrato'] = { file: pdfFile, fileName };
+      this.verPDF({ titulo: 'Contrato' });
+    } catch (e: any) {
+      console.error('[generarContratoAdministrativo] error:', e);
+      Swal.fire(
+        'Error',
+        e?.message || 'No se pudo generar el contrato administrativo.',
+        'error'
+      );
+    }
+  }
+
+  /** Despacha la variante de Ficha Técnica. La Completa override el typeId a 111 al guardar. */
+  private runFichaTecnicaVariant(variant: 'basica' | 'completa') {
+    if (variant === 'completa') {
+      this.generarFichaTecnicaTuAlianzaCompleta();
+      return;
+    }
+    if (!this.empresa || this.empresa.trim() === '') {
+      Swal.fire('Atención', 'Selecciona el candidato, la empresa no está definida.', 'warning');
+      return;
+    }
+    const emp = this.empresa.toUpperCase().trim();
+    if (emp.includes('ALIANZA')) {
+      this.generarFichaTecnicaTuAlianza();
+    } else {
+      this.generarFichaTecnica();
+    }
+  }
+
   generarPDF(documento: string) {
-    // Contratos Otros Si no depende de la empresa
-    if (documento === 'Contratos Otros Si') {
+    // Contratos Otrosí no depende de la empresa
+    if (documento === 'Contratos Otrosí') {
       this.generarContratosOtroSi();
       return;
     }
@@ -597,6 +813,9 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       return;
     }
 
+    // Contrato y Ficha Técnica tienen 2 variantes (básica / TA Completa) y se
+    // disparan desde un mat-menu vía `generarPDFVariant(...)`, no por aquí.
+
     if (!this.empresa || this.empresa.trim() === '') {
       Swal.fire('Atención', 'Selecciona el candidato, la empresa no está definida.', 'warning');
       return;
@@ -604,96 +823,76 @@ export class GenerateContractingDocumentsComponent implements OnInit {
 
     const emp = this.empresa.toUpperCase().trim();
 
-    if (documento === 'Autorización de datos') {
+    if (documento === 'Autorización de Datos') {
       this.generarAutorizacionDatos();
     }
-    else if (documento === 'Entrega de documentos') {
+    else if (documento === 'Inducción') {
       if (emp.includes('APOYO LINEA')) {
         this.generarEntregaDocsApoyo();
       } else if (emp.includes('APOYO')) {
         this.generarEntregaDocsApoyo();
       } else {
-        Swal.fire('Atención', 'Falta seleccionar la remision o la empresa no aplica para este documento', 'info');
+        Swal.fire('Atención', 'Falta seleccionar la remisión o la empresa no aplica para este documento', 'info');
       }
     }
-    else if (documento === 'Entrega documentos Agricola') {
+    else if (documento === 'Inducción Agrícola') {
       this.generarEntregaDocsAgricola();
     }
-    else if (documento === 'Entrega documentos Jardines de los andes') {
+    else if (documento === 'Inducción Jardines de los Andes') {
       this.generarEntregaDocsJardinez();
     }
-    else if (documento === 'Entrega documentos Sagaro') {
+    else if (documento === 'Inducción Sagaro') {
       this.generarEntregaDocsTuAlianzaSAGARO();
     }
-    else if (documento === 'Entrega documentos Flores de los andes') {
+    else if (documento === 'Inducción Flores de los Andes') {
       this.generarEntregaDocsTuAlianzaFloresAndes();
     }
-    else if (documento === 'Entrega documentos Ipanema') {
+    else if (documento === 'Inducción Ipanema') {
       this.generarEntregaDocsTuAlianzaIpanema();
     }
-    else if (documento === 'Entrega documentos Ipanema Foraneos') {
+    else if (documento === 'Inducción Ipanema Foráneos') {
       this.generarEntregaDocsTuAlianzaIpanemaForaneos();
     }
-    else if (documento === 'Entrega documentos rebaño') {
+    else if (documento === 'Inducción Rebaño') {
       this.generarEntregaDocsTuAlianzaRebano();
     }
-    else if (documento === 'Entrega documentos melody') {
+    else if (documento === 'Inducción Melody') {
       this.generarEntregaDocsTuAlianzaMelody();
     }
-    else if (documento === 'Entrega documentos Tu Alianza Sin Casino') {
+    else if (documento === 'Inducción Tu Alianza sin Casino') {
       this.generarEntregaDocsTuAlianzaSinCasino();
     }
-    else if (documento === 'Entrega documentos administrativos') {
+    else if (documento === 'Inducción Administrativos') {
       this.generarEntregaDocsTuAlianzaAdministrativos();
     }
-    else if (documento === 'Contrato') {
-      if (emp.includes('ALIANZA')) {
-        this.generarContratoTrabajoTuAlianza();
-      } else {
-        this.generarContratoTrabajo();
-      }
-    }
-    else if (documento == 'Contrato TA') {
-      this.generarContratoCompletoTrabajoTuAlianza();
-    }
-    else if (documento === 'Ficha técnica') {
-      if (emp.includes('ALIANZA')) {
-        this.generarFichaTecnicaTuAlianza();
-      } else {
-        this.generarFichaTecnica();
-      }
-    }
-    else if (documento === 'Ficha Ta Completa') {
-      this.generarFichaTecnicaTuAlianzaCompleta();
-    }
-    else if (documento === 'Entrega carnets') {
+    else if (documento === 'Entrega Carnets') {
       this.generarEntregaCarnets();
     }
-    else if (documento === 'Inducción capacitación') {
+    else if (documento === 'Inducción Capacitación') {
       this.generarInduccionCapacitacion();
     }
-    else if (documento === 'Formato solicitud') {
+    else if (documento === 'Formato Solicitud') {
       this.generarFormatoSolicitud();
     }
-    else if (documento === 'MANEJO_IMAGEN') {
+    else if (documento === 'Manejo Imagen') {
       this.generarManejoImagen();
     }
-    else if (documento === 'FICHA_SOCIAL') {
+    else if (documento === 'Ficha Social') {
       this.generarFichaSocial();
     }
     else if (documento === 'Entrevista de Ingreso') {
       this.generarEntrevistaDeIngreso();
     }
-    else if (documento === 'Contratos Otros Si') {
+    else if (documento === 'Contratos Otrosí') {
       this.generarContratosOtroSi();
     }
-    else if (documento === '108 SAGARO_LOCKERS') {
+    else if (documento === 'Sagaro Lockers') {
       this.generarSagaroLockers();
     }
-    else if (documento === '110 SAGARO_CELULAR') {
+    else if (documento === 'Sagaro Celular') {
       this.generarSagaroCelular();
     }
-    else if (documento === '109 SAGARO_IMAGEN') {
+    else if (documento === 'Sagaro Imagen') {
       this.generarSagaroImagen();
     } else {
       Swal.fire('Error', 'Funcionalidad de PDF no implementada para: ' + documento, 'error');
@@ -723,124 +922,52 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       const customFont = await pdfDoc.embedFont(fontBytes);
       const form = pdfDoc.getForm();
 
-      // Helpers
-      const s = (v: any) => String(v ?? '').trim();
-      const setField = (name: string, value: string) => {
-        try {
-          const field = form.getTextField(name);
-          field.setText(value);
-          field.updateAppearances(customFont);
-        } catch { /* campo no encontrado en el template */ }
-      };
-      const checkField = (name: string) => {
-        try { form.getCheckBox(name).check(); } catch { }
-      };
+      // Llenado completo de los 4 páginas (mapping en minerva-fill.ts).
+      fillMinervaPdf(pdfDoc, form, customFont, cand, this.vacante);
 
-      // Fecha actual
-      const now = new Date();
-      setField('topmostSubform[0].Page1[0].CampoTexto2[0]', now.getDate().toString());
-      setField('topmostSubform[0].Page1[0].CampoTexto2[1]', (now.getMonth() + 1).toString());
-      setField('topmostSubform[0].Page1[0].CampoTexto2[2]', now.getFullYear().toString());
+      // Inyectar firma del solicitante en `CampoImagen2[0]` (página 4).
+      // El campo es /Btn (image button); usamos la API estándar de pdf-lib
+      // (`form.getButton(name).setImage(img)`) que respeta el rect del widget
+      // y aplica el aspect ratio. Si la API falla, hacemos fallback dibujando
+      // sobre la página manteniendo la relación de aspecto original.
+      try {
+        if (this.firma) {
+          const firmaBytes = await this.fetchAsArrayBufferOrNull(this.firma);
+          if (firmaBytes) {
+            const u8 = new Uint8Array(firmaBytes) as any;
+            const isJpg = u8[0] === 0xFF;
+            const img = isJpg ? await pdfDoc.embedJpg(u8) : await pdfDoc.embedPng(u8);
+            const fieldName = 'topmostSubform[0].Page4[0].CampoImagen2[0]';
 
-      // Título
-      setField('topmostSubform[0].Page1[0].CampoTexto1[0]', 'HOJA DE VIDA');
+            let okSetImage = false;
+            try {
+              (form.getButton(fieldName) as any).setImage(img);
+              okSetImage = true;
+            } catch { /* fallback abajo */ }
 
-      // Nombres y apellidos
-      const apellidos = [s(cand.primer_apellido), s(cand.segundo_apellido)].filter(Boolean).join(' ').normalize('NFC');
-      const nombres = [s(cand.primer_nombre), s(cand.segundo_nombre)].filter(Boolean).join(' ').normalize('NFC');
-      setField('topmostSubform[0].Page1[0].CampoTexto2[5]', apellidos);
-      setField('topmostSubform[0].Page1[0].CampoTexto2[6]', nombres);
-
-      // Nacionalidad
-      setField('topmostSubform[0].Page1[0].CampoTexto2[12]', 'Colombiana');
-
-      // Dirección, ciudad, celular, correo
-      setField('topmostSubform[0].Page1[0].CampoTexto2[7]', s(cand.residencia?.direccion || cand.direccion_de_residencia));
-      setField('topmostSubform[0].Page1[0].CampoTexto2[8]', s(cand.residencia?.municipio || cand.ciudad));
-      setField('topmostSubform[0].Page1[0].CampoTexto2[9]', s(cand.contacto?.celular || cand.celular));
-      setField('topmostSubform[0].Page1[0].CampoTexto2[10]', s(cand.contacto?.celular || cand.celular));
-      setField('topmostSubform[0].Page1[0].CampoTexto2[11]', s(cand.contacto?.email || cand.correo_electronico));
-
-      // Cédula
-      setField('topmostSubform[0].Page1[0].CampoTexto2[3]', s(cand.numero_documento));
-
-      // Tipo doc checkboxes
-      if (cand.tipo_doc === 'CC') checkField('topmostSubform[0].Page1[0].CasillaVerificaci\u00f3n1[0]');
-      if (cand.tipo_doc === 'CE') checkField('topmostSubform[0].Page1[0].CasillaVerificaci\u00f3n1[1]');
-
-      // Municipio expedición
-      setField('topmostSubform[0].Page1[0].CampoTexto2[4]', s(cand.info_cc?.mpio_expedicion));
-
-      // Estado civil
-      setField('topmostSubform[0].Page1[0].CampoTexto2[13]', s(cand.estado_civil));
-
-      // Fuente vacante
-      const comoSeEntero = cand.entrevistas?.[0]?.como_se_entero || '';
-      if (s(comoSeEntero).toUpperCase().includes('PERIÓDICO') || s(comoSeEntero).toUpperCase().includes('PERIODICO')) {
-        checkField('topmostSubform[0].Page1[0].CasillaVerificaci\u00f3n2[0]');
-      }
-
-      // Cónyuge
-      const conyugeNombre = [s(cand.conyugue?.nombres), s(cand.conyugue?.apellidos)].filter(Boolean).join(' ');
-      setField('topmostSubform[0].Page1[0].CampoTexto3[0]', conyugeNombre.normalize('NFC'));
-      setField('topmostSubform[0].Page1[0].CampoTexto3[1]', s(cand.conyugue?.ocupacion));
-      setField('topmostSubform[0].Page1[0].CampoTexto3[2]', s(cand.conyugue?.direccion));
-      setField('topmostSubform[0].Page1[0].CampoTexto3[3]', s(cand.conyugue?.telefono));
-
-      // Padre
-      setField('topmostSubform[0].Page1[0].CampoTexto3[4]', s(cand.padre?.nombre));
-      setField('topmostSubform[0].Page1[0].CampoTexto3[5]', s(cand.padre?.ocupacion));
-      setField('topmostSubform[0].Page1[0].CampoTexto3[6]', s(cand.padre?.telefono));
-
-      // Madre
-      setField('topmostSubform[0].Page1[0].CampoTexto3[7]', s(cand.madre?.nombre));
-      setField('topmostSubform[0].Page1[0].CampoTexto3[8]', s(cand.madre?.ocupacion));
-      setField('topmostSubform[0].Page1[0].CampoTexto3[9]', s(cand.madre?.telefono));
-
-      // Hermanos
-      const hermanos = Array.isArray(cand.hermanos) ? cand.hermanos : [];
-      hermanos.forEach((h: any, i: number) => {
-        if (i > 2) return; // Max 3 hermanos en el template
-        try {
-          setField(`topmostSubform[0].Page1[0].CampoTexto3[${10 + i * 3}]`, s(h.nombre));
-          setField(`topmostSubform[0].Page1[0].CampoTexto3[${11 + i * 3}]`, s(h.profesion));
-          setField(`topmostSubform[0].Page1[0].CampoTexto3[${12 + i * 3}]`, s(h.telefono));
-        } catch { }
-      });
-
-      // Experiencia laboral
-      const exp = Array.isArray(cand.experiencias) ? cand.experiencias[0] : null;
-      if (exp) {
-        setField('topmostSubform[0].Page2[0].CampoTexto5[0]', s(exp.empresa));
-        setField('topmostSubform[0].Page2[0].CampoTexto5[1]', s(exp.direccion));
-        setField('topmostSubform[0].Page2[0].CampoTexto5[2]', s(exp.telefono || exp.telefonos));
-        setField('topmostSubform[0].Page2[0].CampoTexto5[4]', s(exp.cargo));
-        setField('topmostSubform[0].Page2[0].CampoTexto5[5]', s(exp.nombre_jefe));
-      }
-
-      // Referencias personales
-      const refs = Array.isArray(cand.referencias) ? cand.referencias : [];
-      const refP1 = refs.find((r: any) => r.tipo === 'PERSONAL1');
-      const refP2 = refs.find((r: any) => r.tipo === 'PERSONAL2');
-      const refF1 = refs.find((r: any) => r.tipo === 'FAMILIAR1');
-
-      if (refP1) {
-        setField('topmostSubform[0].Page2[0].CampoTexto6[0]', s(refP1.nombre));
-        setField('topmostSubform[0].Page2[0].CampoTexto6[1]', s(refP1.telefono));
-        setField('topmostSubform[0].Page2[0].CampoTexto6[2]', s(refP1.ocupacion));
-        setField('topmostSubform[0].Page2[0].CampoTexto6[3]', s(refP1.direccion));
-      }
-      if (refP2) {
-        setField('topmostSubform[0].Page2[0].CampoTexto6[4]', s(refP2.nombre));
-        setField('topmostSubform[0].Page2[0].CampoTexto6[5]', s(refP2.telefono));
-        setField('topmostSubform[0].Page2[0].CampoTexto6[6]', s(refP2.ocupacion));
-        setField('topmostSubform[0].Page2[0].CampoTexto6[7]', s(refP2.direccion));
-      }
-      if (refF1) {
-        setField('topmostSubform[0].Page2[0].CampoTexto6[8]', s(refF1.nombre));
-        setField('topmostSubform[0].Page2[0].CampoTexto6[9]', s(refF1.telefono));
-        setField('topmostSubform[0].Page2[0].CampoTexto6[10]', s(refF1.ocupacion));
-        setField('topmostSubform[0].Page2[0].CampoTexto6[11]', s(refF1.direccion));
+            if (!okSetImage) {
+              // Fallback: dibujar la imagen escalada al rect respetando el aspect ratio.
+              const field: any = form.getField(fieldName);
+              const widget = field.acroField.getWidgets()[0];
+              const rect = widget.getRectangle();
+              const imgDims = img.scale(1);
+              const scale = Math.min(rect.width / imgDims.width, rect.height / imgDims.height) * 0.9;
+              const drawW = imgDims.width * scale;
+              const drawH = imgDims.height * scale;
+              const offX = (rect.width - drawW) / 2;
+              const offY = (rect.height - drawH) / 2;
+              const page4 = pdfDoc.getPages()[3];
+              page4.drawImage(img, {
+                x: rect.x + offX,
+                y: rect.y + offY,
+                width: drawW,
+                height: drawH,
+              });
+            }
+          }
+        }
+      } catch (e) {
+        console.error('Error inyectando firma en Hoja de Vida Minerva:', e);
       }
 
       // Bloquear campos
@@ -852,7 +979,8 @@ export class GenerateContractingDocumentsComponent implements OnInit {
 
       // Crear File para subir
       const normalizeText = (t: string) => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase();
-      const fileName = `Minerva-${normalizeText(s(cand.primer_apellido))}-${normalizeText(s(cand.primer_nombre))}.pdf`;
+      const sCand = (v: any) => String(v ?? '').trim();
+      const fileName = `Minerva-${normalizeText(sCand(cand.primer_apellido))}-${normalizeText(sCand(cand.primer_nombre))}.pdf`;
       const blob = new Blob([watermarkedBytes as BlobPart], { type: 'application/pdf' });
       const file = new File([blob], fileName, { type: 'application/pdf' });
 
@@ -1033,12 +1161,12 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       const pdfBlob = doc.output('blob');
       const file = new File([pdfBlob], '108_SAGARO_LOCKERS.pdf', { type: 'application/pdf' });
 
-      this.uploadedFiles['108 SAGARO_LOCKERS'] = { file, fileName: '108_SAGARO_LOCKERS.pdf' };
-      this.verPDF({ titulo: '108 SAGARO_LOCKERS' });
+      this.uploadedFiles['Sagaro Lockers'] = { file, fileName: '108_SAGARO_LOCKERS.pdf' };
+      this.verPDF({ titulo: 'Sagaro Lockers' });
 
     } catch (error) {
-      console.error('Error generando 108 SAGARO_LOCKERS:', error);
-      Swal.fire({ icon: 'error', title: 'Error', text: 'Ocurrió un error al generar el PDF de 108 SAGARO_LOCKERS' });
+      console.error('Error generando Sagaro Lockers:', error);
+      Swal.fire({ icon: 'error', title: 'Error', text: 'Ocurrió un error al generar el PDF de Sagaro Lockers' });
     }
   }
 
@@ -1216,12 +1344,12 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       const pdfBlob = doc.output('blob');
       const file = new File([pdfBlob], '110_SAGARO_CELULAR.pdf', { type: 'application/pdf' });
 
-      this.uploadedFiles['110 SAGARO_CELULAR'] = { file, fileName: '110_SAGARO_CELULAR.pdf' };
-      this.verPDF({ titulo: '110 SAGARO_CELULAR' });
+      this.uploadedFiles['Sagaro Celular'] = { file, fileName: '110_SAGARO_CELULAR.pdf' };
+      this.verPDF({ titulo: 'Sagaro Celular' });
 
     } catch (error) {
-      console.error('Error generando 110 SAGARO_CELULAR:', error);
-      Swal.fire({ icon: 'error', title: 'Error', text: 'Ocurrió un error al generar el PDF de 110 SAGARO_CELULAR' });
+      console.error('Error generando Sagaro Celular:', error);
+      Swal.fire({ icon: 'error', title: 'Error', text: 'Ocurrió un error al generar el PDF de Sagaro Celular' });
     }
   }
 
@@ -1887,8 +2015,8 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       const pdfBlob = doc.output('blob');
       const file = new File([pdfBlob], 'MANEJO_IMAGEN.pdf', { type: 'application/pdf' });
 
-      this.uploadedFiles['MANEJO_IMAGEN'] = { file, fileName: 'MANEJO_IMAGEN.pdf' };
-      this.verPDF({ titulo: 'MANEJO_IMAGEN' });
+      this.uploadedFiles['Manejo Imagen'] = { file, fileName: 'MANEJO_IMAGEN.pdf' };
+      this.verPDF({ titulo: 'Manejo Imagen' });
 
     } catch (error) {
       console.error('Error generando MANEJO_IMAGEN:', error);
@@ -2023,11 +2151,11 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       const pdfBlob = doc.output('blob');
       const file = new File([pdfBlob], '109_SAGARO_IMAGEN.pdf', { type: 'application/pdf' });
 
-      this.uploadedFiles['109 SAGARO_IMAGEN'] = { file, fileName: '109_SAGARO_IMAGEN.pdf' };
-      this.verPDF({ titulo: '109 SAGARO_IMAGEN' });
+      this.uploadedFiles['Sagaro Imagen'] = { file, fileName: '109_SAGARO_IMAGEN.pdf' };
+      this.verPDF({ titulo: 'Sagaro Imagen' });
 
     } catch (error) {
-      console.error('Error generando 109 SAGARO_IMAGEN:', error);
+      console.error('Error generando Sagaro Imagen:', error);
       Swal.fire({ icon: 'error', title: 'Error', text: 'Ocurrió un error al generar el documento' });
     }
   }
@@ -2042,231 +2170,80 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       const pdfDoc = await PDFDocument.load(pdfBytes);
       const form = pdfDoc.getForm();
       const cand = this.candidato;
-      const db = cand?.datos_basicos || {};
 
-      const setText = (campo: string, valor: any) => {
+      // Llenado completo del formulario (mapping en ficha-social-fill.ts).
+      fillFichaSocialPdf(form, cand, this.vacante, this.empresa);
+
+      // FIRMAS — los campos `firma_af_image` y `firma_administrativa` son /Btn.
+      // PROBLEMA: `form.flatten()` aplana los buttons con appearance vacío y pisa
+      // cualquier `drawImage` previo. SOLUCIÓN: capturar el rect ANTES del flatten,
+      // aplanar el formulario, y DESPUÉS dibujar las firmas como imágenes en la
+      // página (ya no son form fields, no las pisa nadie).
+      type FirmaRect = { x: number; y: number; width: number; height: number; pageIndex: number } | null;
+
+      const capturarRect = (campoBtn: string): FirmaRect => {
         try {
-          const field = form.getTextField(campo);
-          if (field && valor) field.setText(String(valor));
+          const field: any = form.getField(campoBtn);
+          const widget = field?.acroField?.getWidgets?.()[0];
+          if (!widget) return null;
+          const rect = widget.getRectangle();
+          // Detectar la página: comparamos el dict del widget contra los annots de cada página.
+          const pages = pdfDoc.getPages();
+          for (let i = 0; i < pages.length; i++) {
+            const annots: any[] = (pages[i] as any).node?.Annots?.()?.asArray?.() ?? [];
+            if (annots.some((a: any) => a === widget.dict)) {
+              return { x: rect.x, y: rect.y, width: rect.width, height: rect.height, pageIndex: i };
+            }
+          }
+          // Fallback: Ficha Social tiene 1 página.
+          return { x: rect.x, y: rect.y, width: rect.width, height: rect.height, pageIndex: 0 };
+        } catch {
+          return null;
+        }
+      };
+
+      // Caja superior ("FIRMA DE AUTORIZACIÓN") = firma_administrativa (Y≈100-118)
+      // Caja inferior ("FIRMA TRABAJADOR")     = firma_af_image       (Y≈48-79)
+      const rectSuperior = capturarRect('firma_administrativa');
+      const rectInferior = capturarRect('firma_af_image');
+
+      form.flatten(); // Evitar que siga siendo editable (ANTES de dibujar firmas)
+
+      const dibujarFirma = async (rect: FirmaRect, urlOrData: string | undefined) => {
+        if (!rect || !urlOrData) return;
+        try {
+          const bytes = await this.fetchAsArrayBufferOrNull(urlOrData);
+          if (!bytes) return;
+          const u8 = new Uint8Array(bytes) as any;
+          const isJpg = u8[0] === 0xFF;
+          const img = isJpg ? await pdfDoc.embedJpg(u8) : await pdfDoc.embedPng(u8);
+          const dims = img.scale(1);
+          const scale = Math.min(rect.width / dims.width, rect.height / dims.height) * 0.95;
+          const drawW = dims.width * scale;
+          const drawH = dims.height * scale;
+          const offX = (rect.width - drawW) / 2;
+          const offY = (rect.height - drawH) / 2;
+          pdfDoc.getPages()[rect.pageIndex].drawImage(img, {
+            x: rect.x + offX,
+            y: rect.y + offY,
+            width: drawW,
+            height: drawH,
+          });
         } catch (e) {
-          // Ignorar silenciosamente si el campo no existe.
+          console.error('Error dibujando firma:', e);
         }
       };
 
-      const setConditionalText = (campo: string, valor: any, condicion: boolean) => {
-        if (condicion) setText(campo, valor);
-      };
-
-      const normalizeDate = (d: any) => d ? new Date(d).toISOString().split('T')[0] : '';
-      const normalizeText = (text: any) => text ? String(text).toUpperCase().trim() : '';
-
-      // ======== 1. DATOS BÁSICOS ========
-      // Split names
-      const nombresArr = normalizeText(db.nombres).split(' ');
-      const apellidosArr = normalizeText(db.apellidos).split(' ');
-      setText('NombresRow1', db.nombres);
-      setText('1er ApellidoRow1', apellidosArr[0] || '');
-      setText('2do ApellidoRow1', apellidosArr.slice(1).join(' ') || '');
-
-      const tipoDoc = normalizeText(db.tipo_de_identificacion);
-      setText('Row1', tipoDoc); // Tipo DOC (asumiendo que Row1 general es Tipo Doc dada la convención de otras fichas)
-      setText('DOCUMENTO No', db.numero_de_documento);
-
-      // ======== 2. DATOS DE CONTACTO ========
-      setText('TeléfonoRow1', db.telefono ?? '');
-      setText('Correo ElectrónicoRow1', db.correo_electronico ?? '');
-      setText('Dirección de DomicilioRow1', db.direccion_de_residencia ?? '');
-      setText('BarrioRow1', db.barrio ?? '');
-      setText('Ciudad DomicilioRow1', cand?.municipio?.nombre ?? '');
-      setText('DepartamentoRow1', cand?.departamento?.nombre ?? '');
-
-      // ======== 3. ESTADO CIVIL Y TECNOLOGÍA ========
-      setText('Estado CivilRow1', db.estado_civil ?? '');
-      // Asumimos variables personalizadas si existen, o vacíos si no se preguntan
-      setText('Teléfono InteligenteRow1', cand?.estudio_socioeconomico?.telefonoInteligente ?? 'SI');
-      setText('Posee Plan de DatosRow1', cand?.estudio_socioeconomico?.planDatos ?? 'SI');
-
-      // ======== 4. COMPOSICIÓN FAMILIAR ========
-      // Checkboxes nativos de PDFText en Ficha Social (se cruzan con "X" en campos de texto según el mapper)
-      const compFam = cand?.estudio_socioeconomico?.composicionFamiliar || [];
-      const hasComp = (val: string) => compFam.includes(val) ? 'X' : '';
-      setText('ConyugueCompañeroaRow1', hasComp('CONYUGE') || hasComp('COMPAÑERO(A)'));
-      setText('Hijo aRow1', hasComp('HIJO(A)'));
-      setText('MadreRow1', hasComp('MADRE'));
-      setText('PadreRow1', hasComp('PADRE'));
-      setText('HermanoaRow1', hasComp('HERMANO(A)'));
-      setText('TíoRow1', hasComp('TIO(A)'));
-      setText('SobrinoRow1', hasComp('SOBRINO(A)'));
-      setText('CuñadoaRow1', hasComp('CUÑADO(A)'));
-      setText('SuegroaRow1', hasComp('SUEGRO(A)'));
-      setText('OtroRow1', hasComp('OTRO'));
-      setText('CúalRow1', cand?.estudio_socioeconomico?.composicionFamiliarCual ?? '');
-      setText('Familia con un solo ingresoRow1', cand?.estudio_socioeconomico?.unicoIngreso ? 'SI' : 'NO');
-
-      // ======== 5. VIVIENDA ========
-      const tipoVivienda = normalizeText(cand?.estudio_socioeconomico?.tipoVivienda);
-      setText('CasaRow1', tipoVivienda === 'CASA' ? 'X' : '');
-      setText('ApartamentoRow1', tipoVivienda === 'APARTAMENTO' ? 'X' : '');
-      setText('FincaRow1', tipoVivienda === 'FINCA' ? 'X' : '');
-      setText('HabitaciónRow1', tipoVivienda === 'HABITACION' || tipoVivienda === 'HABITACIÓN' ? 'X' : '');
-
-      setText('No HabitacionesRow1', cand?.estudio_socioeconomico?.numHabitaciones ?? '');
-      setText('No Personas por habitaciónRow1', cand?.estudio_socioeconomico?.personasPorHabitacion ?? '');
-
-      const tenencia = normalizeText(cand?.estudio_socioeconomico?.tenenciaVivienda);
-      setText('Propia Totalmente PagaRow1', tenencia.includes('PAGA') ? 'X' : '');
-      setText('Propia la están pagandoRow1', tenencia.includes('PAGANDO') ? 'X' : '');
-      setText('ArriendoRow1', tenencia === 'ARRIENDO' ? 'X' : '');
-      setText('FamiliarRow1', tenencia === 'FAMILIAR' ? 'X' : '');
-
-      const estadoVivienda = normalizeText(cand?.estudio_socioeconomico?.estadoVivienda);
-      setText('Obra NegraRow1', estadoVivienda === 'OBRA NEGRA' ? 'X' : '');
-      setText('Obra GrisRow1', estadoVivienda === 'OBRA GRIS' ? 'X' : '');
-      setText('TerminadaRow1', estadoVivienda === 'TERMINADA' ? 'X' : '');
-
-      const servs = cand?.estudio_socioeconomico?.serviciosPublicos || [];
-      const hasServ = (val: string) => servs.includes(val) ? 'X' : '';
-      setText('EnergíaRow1', hasServ('ENERGIA') || hasServ('ENERGÍA'));
-      setText('AcueductoRow1', hasServ('ACUEDUCTO'));
-      setText('AlcantarilladoRow1', hasServ('ALCANTARILLADO'));
-      setText('Recolección BasurasRow1', hasServ('BASURAS') || hasServ('RECOLECCION BASURAS'));
-      setText('Gas NaturalRow1', hasServ('GAS') || hasServ('GAS NATURAL'));
-      setText('Teléfono FijoRow1', hasServ('TELEFONO') || hasServ('TELÉFONO FIJO'));
-      setText('InternetRow1', hasServ('INTERNET'));
-
-      const equip = cand?.estudio_socioeconomico?.equipamiento || [];
-      const hasEquip = (val: string) => equip.includes(val) ? 'X' : '';
-      setText('BañoEquipamiento de Casa', hasEquip('BAÑO'));
-      setText('CocinaEquipamiento de Casa', hasEquip('COCINA'));
-      setText('LavaderoEquipamiento de Casa', hasEquip('LAVADERO'));
-      setText('PatioEquipamiento de Casa', hasEquip('PATIO'));
-
-      // ======== 6. EDUCACIÓN ========
-      if (cand?.educacion && cand?.educacion.length > 0) {
-        // Tomamos la educación más reciente / superior
-        const lastEd = cand.educacion[cand.educacion.length - 1];
-        setText('Grado Escolaridad', normalizeText(lastEd?.nivel));
-        setText('Institución', normalizeText(lastEd?.institucion));
-        setText('Titulo Obtenido o Último Año Cursado', normalizeText(lastEd?.titulo));
-        setText('Año Finalización', normalizeDate(lastEd?.fecha_finalizacion).substring(0, 4));
-      }
-
-      // ======== 7. CONTACTO DE EMERGENCIA ========
-      if (cand?.referencias && cand?.referencias.length > 0) {
-        // Priorizamos familiar como emergencia si no hay otro flag
-        const refEm = cand.referencias.find((r: any) => r.tipo === 'Familiar') || cand.referencias[0];
-        setText('Apellidos y NombresRow1', normalizeText(`${refEm?.nombres || ''} ${refEm?.apellidos || ''}`));
-        setText('ParentescoRow1', normalizeText(refEm?.parentesco));
-        setText('TeléfonoRow1_2', refEm?.telefono_1);
-        setText('DirecciónRow1', refEm?.direccion);
-        setText('Barrio MunicipioRow1', refEm?.barrio); // municipio no siempre está en ref nativa
-      }
-
-      // ======== 8. CÓNYUGE ========
-      const conyuge = cand?.padres_conyuge?.find((p: any) => p.es_padre === 'Conyuge');
-      if (conyuge) {
-        setText('NombresRow1_2', normalizeText(conyuge.nombres));
-        setText('ApellidosRow1', normalizeText(conyuge.apellidos));
-        setText('No Doc IdentidadRow1', conyuge.identificacion);
-        setText('Vive SNRow1', conyuge.vive === 'Si' ? 'SI' : 'NO');
-        setText('DirecciónRow1_2', normalizeText(conyuge.direccion));
-        setText('TeléfonoRow1_3', conyuge.telefono_1);
-        setText('Barrio MunicipioRow1_2', normalizeText(conyuge.barrio));
-        setText('OcupaciónRow1', normalizeText(conyuge.ocupacion));
-        setText('Teléfono LaboralRow1', conyuge.telefono_2); // Asumiendo tel2 como laboral
-        // Dirección Laboral no provista nativamente, omitida o vacía
-      }
-
-      // ======== 9. HIJOS ========
-      const hijos = Array.isArray(cand?.hijos) ? cand.hijos : [];
-      // Row1_2, Row2, Row3, Row4, Row5, Row6
-      const suffixHijos = ['Row1_2', 'Row2', 'Row3', 'Row4', 'Row5', 'Row6'];
-      hijos.slice(0, 6).forEach((h: any, i: number) => {
-        const rowSuffix = suffixHijos[i];
-        setText(`Apellidos y Nombres${rowSuffix}`, normalizeText(`${h.apellidos || ''} ${h.nombres || ''}`));
-        setText(`Fecha de Nacimiento${rowSuffix.replace('_2', '')}`, normalizeDate(h.fecha_nacimiento)); // el map reporta "NacimientoRow1" (no _2)
-        setText(`No Documento de Identidad${rowSuffix.replace('_2', '')}`, h.identificacion);
-        setText(`Género${rowSuffix.replace('_2', '')}`, normalizeText(h.genero).substring(0, 1)); // M o F
-        setText(`Vive con el Trabajador SN${rowSuffix.replace('_2', '')}`, h.vive_con_usted === 'Si' ? 'SI' : 'NO');
-        setText(`Estudia en la Fundación SN${rowSuffix.replace('_2', '')}`, 'NO'); // Default
-        setText(`Ocupación EstudiaTrabaja${rowSuffix.replace('_2', '')}`, normalizeText(h.ocupacion));
-      });
-
-      // ======== 10. PADRES (Sección Extendida en el PDF) ========
-      // Según el JSON, la sección extendida de hijos comparte filas Row1..Row6 en Nivel Educativo / Padre
-      const padres = cand?.padres_conyuge?.filter((p: any) => p.es_padre === 'Padre' || p.es_padre === 'Madre') || [];
-      padres.slice(0, 2).forEach((p: any, i: number) => {
-        const rIndex = i + 1; // Row1, Row2
-        setText(`Nivel EducativoRow${rIndex}`, normalizeText(p.ocupacion)); // Adaptado
-        setText(`Es Empleado de la Compañía SNRow${rIndex}`, 'NO');
-        setText(`Nombre Otro PadreRow${rIndex}`, normalizeText(`${p.nombres} ${p.apellidos}`));
-        setText(`Documento Identidad Otro PadreRow${rIndex}`, p.identificacion);
-      });
-
-      // ======== 11. EXPECTATIVAS DE VIDA ========
-      const exp = cand?.estudio_socioeconomico?.expectativas || [];
-      const hasExp = (val: string) => exp.includes(val) ? 'X' : '';
-      setText('Educación PropiaRow1', hasExp('EDUCACION PROPIA'));
-      setText('Educación de los hijosRow1', hasExp('EDUCACION HIJOS'));
-      setText('Compra de ViviendaRow1', hasExp('COMPRA VIVIENDA'));
-      setText('Compra de AutomóvilRow1', hasExp('COMPRA AUTOMOVIL') || hasExp('VEHICULO'));
-      setText('ViajarRow1', hasExp('VIAJAR'));
-      setText('Otro CuálRow1', cand?.estudio_socioeconomico?.expectativasOtro ?? '');
-
-      // ======== 12. METADATOS Y FIRMAS ========
-      const now = new Date();
-      const txtFecha = `${now.getDate().toString().padStart(2, '0')}/${(now.getMonth() + 1).toString().padStart(2, '0')}/${now.getFullYear()}`;
-      setText('fechaactual', txtFecha);
-      setText('nombre_empresa_usuaria', normalizeText(this.vacante?.empresaUsuariaSolicita || this.empresa || 'LA EMPRESA'));
-
-      // FIRMAS Y SELLOS (Imágenes)
-      try {
-        const paginas = pdfDoc.getPages();
-        const ultimaPag = paginas[paginas.length - 1]; // Firmas suelen ir al final
-
-        // Firma Candidato -> image11_af_image se reemplaza por inyección manual donde iba la caja "firma_af_image"
-        const firmaCandBytes = await this.fetchAsArrayBufferOrNull(this.firma);
-        if (firmaCandBytes) {
-          const fieldFirma = form.getTextField('firma_af_image');
-          if (fieldFirma) {
-            const widget = fieldFirma.acroField.getWidgets()[0];
-            const rect = widget.getRectangle();
-            const bytesArray = new Uint8Array(firmaCandBytes) as any;
-            const isJpg = bytesArray[0] === 0xFF;
-            const img = isJpg ? await pdfDoc.embedJpg(bytesArray) : await pdfDoc.embedPng(bytesArray);
-            // Asignar en la coordenada PDF original
-            ultimaPag.drawImage(img, {
-              x: rect.x, y: rect.y, width: rect.width, height: rect.height
-            });
-          }
-        }
-
-        // Firma Administrativa
-        const firmaAdminBytes = await this.fetchAsArrayBufferOrNull(this.firmaPersonalAdministrativo);
-        if (firmaAdminBytes) {
-          const fieldAdcFirma = form.getTextField('firma_administrativa');
-          if (fieldAdcFirma) {
-            const widget2 = fieldAdcFirma.acroField.getWidgets()[0];
-            const rect2 = widget2.getRectangle();
-            const bytesArray2 = new Uint8Array(firmaAdminBytes) as any;
-            const isJpg = bytesArray2[0] === 0xFF;
-            const img2 = isJpg ? await pdfDoc.embedJpg(bytesArray2) : await pdfDoc.embedPng(bytesArray2);
-            ultimaPag.drawImage(img2, {
-              x: rect2.x, y: rect2.y, width: rect2.width, height: rect2.height
-            });
-          }
-        }
-
-      } catch (e) {
-        console.error('Error inyectando firmas biometría Ficha Social', e);
-      }
-
-      form.flatten(); // Evitar que siga siendo editable
+      // Ambas cajas son del candidato (ambas reciben `this.firma` por defecto).
+      // Si existe `firmaPersonalAdministrativo` (firma del representante de la empresa)
+      // va en la caja inferior.
+      await dibujarFirma(rectSuperior, this.firma);
+      await dibujarFirma(rectInferior, this.firmaPersonalAdministrativo || this.firma);
 
       const resultBytes = await pdfDoc.save();
       const file = new File([resultBytes as any], 'FICHA_SOCIAL.pdf', { type: 'application/pdf' });
-      this.uploadedFiles['FICHA_SOCIAL'] = { file, fileName: 'FICHA_SOCIAL.pdf' };
-      this.verPDF({ titulo: 'FICHA_SOCIAL' });
+      this.uploadedFiles['Ficha Social'] = { file, fileName: 'FICHA_SOCIAL.pdf' };
+      this.verPDF({ titulo: 'Ficha Social' });
 
     } catch (error) {
       console.error('Error generando FICHA_SOCIAL:', error);
@@ -2491,8 +2468,8 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     const pdfBlob = doc.output('blob');
     const fileName = `${empresaSeleccionada}_Autorizacion_Datos.pdf`;
     const pdfFile = new File([pdfBlob], fileName, { type: 'application/pdf' });
-    this.uploadedFiles['Autorización de datos'] = { file: pdfFile, fileName };
-    this.verPDF({ titulo: 'Autorización de datos' });
+    this.uploadedFiles['Autorización de Datos'] = { file: pdfFile, fileName };
+    this.verPDF({ titulo: 'Autorización de Datos' });
   }
 
   // Función para renderizar una línea justificada y subrayarla
@@ -3472,8 +3449,8 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     const pdfBlob = doc.output('blob');
     const fileName = `${this.empresa || 'Apoyo_Laboral'}_Entrega_de_documentos.pdf`;
     const pdfFile = new File([pdfBlob], fileName, { type: 'application/pdf' });
-    this.uploadedFiles['Entrega de documentos'] = { file: pdfFile, fileName };
-    this.verPDF({ titulo: 'Entrega de documentos' });
+    this.uploadedFiles['Inducción'] = { file: pdfFile, fileName };
+    this.verPDF({ titulo: 'Inducción' });
   }
 
   async generarEntregaDocsAgricola() {
@@ -3907,8 +3884,8 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     const pdfBlob = doc.output('blob');
     const fileName = `${this.empresa || 'Apoyo_Laboral'}_Entrega_documentos_Agricola.pdf`;
     const pdfFile = new File([pdfBlob], fileName, { type: 'application/pdf' });
-    this.uploadedFiles['Entrega documentos Agricola'] = { file: pdfFile, fileName };
-    this.verPDF({ titulo: 'Entrega documentos Agricola' });
+    this.uploadedFiles['Inducción Agrícola'] = { file: pdfFile, fileName };
+    this.verPDF({ titulo: 'Inducción Agrícola' });
   }
 
   async generarEntregaDocsJardinez() {
@@ -4351,8 +4328,8 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     const pdfBlob = doc.output('blob');
     const fileName = `${this.empresa || 'Apoyo_Laboral'}_Entrega_documentos_Jardines.pdf`;
     const pdfFile = new File([pdfBlob], fileName, { type: 'application/pdf' });
-    this.uploadedFiles['Entrega documentos Jardines de los andes'] = { file: pdfFile, fileName };
-    this.verPDF({ titulo: 'Entrega documentos Jardines de los andes' });
+    this.uploadedFiles['Inducción Jardines de los Andes'] = { file: pdfFile, fileName };
+    this.verPDF({ titulo: 'Inducción Jardines de los Andes' });
   }
 
 
@@ -4779,8 +4756,8 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     const pdfBlob = doc.output('blob');
     const fileName = `${this.empresa || 'Tu_Alianza'}_Entrega_documentos_Sagaro.pdf`;
     const pdfFile = new File([pdfBlob], fileName, { type: 'application/pdf' });
-    this.uploadedFiles['Entrega documentos Sagaro'] = { file: pdfFile, fileName };
-    this.verPDF({ titulo: 'Entrega documentos Sagaro' });
+    this.uploadedFiles['Inducción Sagaro'] = { file: pdfFile, fileName };
+    this.verPDF({ titulo: 'Inducción Sagaro' });
   }
 
   async generarEntregaDocsTuAlianzaFloresAndes() {
@@ -5205,8 +5182,8 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     const pdfBlob = doc.output('blob');
     const fileName = `${this.empresa || 'Tu_Alianza'}_Entrega_documentos_Flores_de_los_andes.pdf`;
     const pdfFile = new File([pdfBlob], fileName, { type: 'application/pdf' });
-    this.uploadedFiles['Entrega documentos Flores de los andes'] = { file: pdfFile, fileName };
-    this.verPDF({ titulo: 'Entrega documentos Flores de los andes' });
+    this.uploadedFiles['Inducción Flores de los Andes'] = { file: pdfFile, fileName };
+    this.verPDF({ titulo: 'Inducción Flores de los Andes' });
   }
 
   async generarEntregaDocsTuAlianzaIpanema() {
@@ -5633,8 +5610,8 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     const pdfBlob = doc.output('blob');
     const fileName = `${this.empresa || 'Tu_Alianza'}_Entrega_documentos_Ipanema.pdf`;
     const pdfFile = new File([pdfBlob], fileName, { type: 'application/pdf' });
-    this.uploadedFiles['Entrega documentos Ipanema'] = { file: pdfFile, fileName };
-    this.verPDF({ titulo: 'Entrega documentos Ipanema' });
+    this.uploadedFiles['Inducción Ipanema'] = { file: pdfFile, fileName };
+    this.verPDF({ titulo: 'Inducción Ipanema' });
   }
 
   async generarEntregaDocsTuAlianzaIpanemaForaneos() {
@@ -6059,8 +6036,8 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     const pdfBlobForaneos = doc.output('blob');
     const fileNameForaneos = `${this.empresa || 'Tu_Alianza'}_Entrega_documentos_Ipanema_Foraneos.pdf`;
     const pdfFileForaneos = new File([pdfBlobForaneos], fileNameForaneos, { type: 'application/pdf' });
-    this.uploadedFiles['Entrega documentos Ipanema Foraneos'] = { file: pdfFileForaneos, fileName: fileNameForaneos };
-    this.verPDF({ titulo: 'Entrega documentos Ipanema Foraneos' });
+    this.uploadedFiles['Inducción Ipanema Foráneos'] = { file: pdfFileForaneos, fileName: fileNameForaneos };
+    this.verPDF({ titulo: 'Inducción Ipanema Foráneos' });
   }
 
   async generarEntregaDocsTuAlianzaAdministrativos() {
@@ -6419,8 +6396,8 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     const pdfBlob = doc.output('blob');
     const fileName = `${this.empresa || 'Tu_Alianza'}_Entrega_documentos_Administrativos.pdf`;
     const pdfFile = new File([pdfBlob], fileName, { type: 'application/pdf' });
-    this.uploadedFiles['Entrega documentos administrativos'] = { file: pdfFile, fileName };
-    this.verPDF({ titulo: 'Entrega documentos administrativos' });
+    this.uploadedFiles['Inducción Administrativos'] = { file: pdfFile, fileName };
+    this.verPDF({ titulo: 'Inducción Administrativos' });
   }
 
   async generarEntregaDocsTuAlianzaRebano() {
@@ -6819,8 +6796,8 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     const pdfBlob = doc.output('blob');
     const fileName = `${this.empresa || 'Tu_Alianza'}_Entrega_documentos_Rebano.pdf`;
     const pdfFile = new File([pdfBlob], fileName, { type: 'application/pdf' });
-    this.uploadedFiles['Entrega documentos rebaño'] = { file: pdfFile, fileName };
-    this.verPDF({ titulo: 'Entrega documentos rebaño' });
+    this.uploadedFiles['Inducción Rebaño'] = { file: pdfFile, fileName };
+    this.verPDF({ titulo: 'Inducción Rebaño' });
   }
 
   async generarEntregaDocsTuAlianzaMelody() {
@@ -7218,8 +7195,8 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     const pdfBlob = doc.output('blob');
     const fileName = `${this.empresa || 'Tu_Alianza'}_Entrega_documentos_Melody.pdf`;
     const pdfFile = new File([pdfBlob], fileName, { type: 'application/pdf' });
-    this.uploadedFiles['Entrega documentos melody'] = { file: pdfFile, fileName };
-    this.verPDF({ titulo: 'Entrega documentos melody' });
+    this.uploadedFiles['Inducción Melody'] = { file: pdfFile, fileName };
+    this.verPDF({ titulo: 'Inducción Melody' });
   }
 
   async generarEntregaDocsTuAlianzaSinCasino() {
@@ -7652,8 +7629,8 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     const pdfBlob = doc.output('blob');
     const fileName = `${this.empresa || 'Tu_Alianza'}_Entrega_documentos_Sin_Casino.pdf`;
     const pdfFile = new File([pdfBlob], fileName, { type: 'application/pdf' });
-    this.uploadedFiles['Entrega documentos Tu Alianza Sin Casino'] = { file: pdfFile, fileName };
-    this.verPDF({ titulo: 'Entrega documentos Tu Alianza Sin Casino' });
+    this.uploadedFiles['Inducción Tu Alianza sin Casino'] = { file: pdfFile, fileName };
+    this.verPDF({ titulo: 'Inducción Tu Alianza sin Casino' });
   }
 
 
@@ -9542,201 +9519,72 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       try { this.setText(form, 'codigo_contrato', this.safe(codigoContrato), customFont, 7.2); } catch(e) {}
       this.setText(form, 'sede', this.safe(this.user?.sede?.nombre), customFont, 7.2);
 
-      // Identificación
-      this.setText(form, '1er ApellidoRow1', this.safe(dv.primer_apellido), customFont);
-      this.setText(form, '2do ApellidoRow1', this.safe(dv.segundo_apellido), customFont);
-      this.setText(form, 'NombresRow1', [this.safe(dv.primer_nombre), this.safe(dv.segundo_nombre)].filter(Boolean).join(' '), customFont);
-      this.setText(form, 'Tipo Documento IdentificaciónRow1', this.safe(dv.tipodedocumento), customFont);
-      this.setText(form, 'Número de IdentificaciónRow1', this.safe(dv.numerodeceduladepersona), customFont);
-
-      // Expedición
-      this.setText(form, 'Fecha de ExpediciónRow1', this.parseDateToDDMMYYYY(dv.fecha_expedicion_cc), customFont);
-      this.setText(form, 'Departamento de ExpediciónRow1', this.safe(dv.departamento_expedicion_cc), customFont);
-      this.setText(form, 'Municipio de ExpediciónRow1', this.safe(dv.municipio_expedicion_cc), customFont);
-
-      // Nacimiento
-      this.setText(form, 'GeneroRow1', this.safe(dv.genero), customFont);
-      this.setText(form, 'Fecha de NacimientoRow1', this.parseDateToDDMMYYYY(dv.fecha_nacimiento), customFont);
-      this.setText(form, 'Departamento de NacimientoRow1', this.safe(dv.lugar_nacimiento_departamento), customFont);
-      this.setText(form, 'Municipio de NacimientoRow1', this.safe(dv.lugar_nacimiento_municipio), customFont);
-
-      // Estado civil (X)
-      const ec = this.safe(dv.estado_civil).toUpperCase();
-      this.setXIf(form, 'SolteroEstado Civil', ['SO', 'SOLTERO', 'S'].includes(ec));
-      this.setXIf(form, 'CasadoEstado Civil', ['CA', 'CASADO'].includes(ec));
-      this.setXIf(form, 'Unión LibreEstado Civil', ['UN', 'UL', 'UNION LIBRE', 'UNIÓN LIBRE'].includes(ec));
-      this.setXIf(form, 'SeparadoEstado Civil', ['SE', 'SEP', 'SEPARADO'].includes(ec));
-      this.setXIf(form, 'ViudoEstado Civil', ['VI', 'VIUDO'].includes(ec));
-      this.setXIf(form, 'OtroEstado Civil', !['SO', 'SOLTERO', 'S', 'CA', 'CASADO', 'UN', 'UL', 'UNION LIBRE', 'UNIÓN LIBRE', 'SE', 'SEP', 'SEPARADO', 'VI', 'VIUDO'].includes(ec) && ec !== '');
-
-      // Contacto / residencia
-      this.setText(form, 'Dirección de DomicilioRow1', this.safe(dv.direccion_residencia), customFont);
-      this.setText(form, 'BarrioRow1', this.safe(dv.barrio), customFont);
-      this.setText(form, 'Ciudad DomicilioRow1', this.safe(dv.municipio), customFont);
-      this.setText(form, 'DepartamentoRow1', this.safe(dv.departamento), customFont);
-      this.setText(form, 'CelularRow1', this.safe(dv.celular), customFont);
-      this.setText(form, 'Correo ElectrónicoRow1', this.safe(dv.primercorreoelectronico), customFont);
-
-      // RH / mano
-      const mano = this.safe(dv.zurdo_diestro).toUpperCase();
-      this.setXIf(form, 'Diestro', mano.includes('DIESTRO'));
-      this.setXIf(form, 'Zurdo', !mano.includes('DIESTRO') && mano !== '');
-
-      // Empresa / Laboral
-      this.setText(form, 'Fecha de Ingreso', this.parseDateToDDMMYYYY(ds.fechaIngreso) || ds.fechaIngreso, customFont);
-      this.setText(form, 'Sueldo Básico', this.formatMoneyCOP(ds.salario), customFont);
-
+      // Llenado completo del formulario (mapping en ficha-tecnica-fill.ts).
+      // ctx contiene los datos derivados que el helper necesita y que dependen de
+      // servicios del componente (`this.user`, `this.getRutaInfo`, etc.)
       const rutaInfo = this.getRutaInfo(vac.oficinasQueContratan, ds.centro_costo_entrevista || '');
-      this.setText(form, 'Nombre de la RutaUsa Ruta', rutaInfo.usaRuta, customFont);
-      this.setText(form, 'Nombre de la RutaAuxilio Trasporte', this.safe(vac.auxilioTransporte), customFont);
-      this.setText(form, 'Horas extras', this.safe(datoInfoContratacion.horas_extras), customFont);
-
-      this.setText(form, 'Banco', this.safe(datoInfoContratacion.forma_pago), customFont);
-      this.setText(form, 'Cuenta', this.safe(datoInfoContratacion.numero_pagos), customFont);
-
-      this.setText(form, 'EPS SaludRow1', this.safe(ds.eps), customFont);
-      this.setText(form, 'AFP PensiónRow1', this.safe(ds.afp), customFont);
-      this.setText(form, 'AFC CesantiasRow1', this.safe(datoInfoContratacion.cesantias), customFont);
-      this.setText(form, 'Porcentaje ARLARL SURA', this.safe(datoInfoContratacion.porcentaje_arl), customFont);
-
-      // Educación
-      this.setText(form, 'Seleccione el Grado de Escolaridad', this.safe(dv.escolaridad), customFont);
-      this.setText(form, 'Institución', this.safe(dv.nombre_institucion), customFont);
-      this.setText(form, 'Titulo Obtenido o Ultimo año Cursado', this.safe(dv.titulo_obtenido), customFont);
-      this.setText(form, 'Año Finalización', this.parseDateToDDMMYYYY(dv.ano_finalizacion), customFont);
-
-      // Info Relacional Familiar
-      const mapVive = (v: any) => v === true || norm(v) === 'SI' ? 'SI' : (v === false || norm(v) === 'NO' ? 'NO' : '');
-      const familiares: any[] = Array.isArray(cand.familiares) ? cand.familiares : [];
-
-      const padre = familiares.find(f => norm(f.parentesco).includes('PADRE') || norm(f.parentesco) === 'PA') ?? {};
-      const madre = familiares.find(f => norm(f.parentesco).includes('MADRE') || norm(f.parentesco) === 'MA') ?? {};
-      const conyuge = familiares.find(f => norm(f.parentesco).includes('CONYUG') || norm(f.parentesco) === 'COMPAÑER' || norm(f.parentesco) === 'ESPOS') ?? {};
-
-      // Padre
-      this.setText(form, 'Nombre y Apellido PadreRow1', this.safe(padre.nombre_completo ?? padre.nombres ?? ''), customFont);
-      this.setText(form, 'ViveRow1', mapVive(padre.vive), customFont);
-      this.setText(form, 'OcupaciónRow1', this.safe(padre.ocupacion), customFont);
-      this.setText(form, 'DirecciónRow1', this.safe(padre.direccion), customFont);
-      this.setText(form, 'TeléfonoRow1', this.safe(padre.telefono_celular ?? padre.telefono), customFont);
-      this.setText(form, 'BarrioMunicipioRow1', this.safe(padre.barrio ?? padre.municipio), customFont);
-
-      // Madre
-      this.setText(form, 'Nombre y Apellido MadreRow1', this.safe(madre.nombre_completo ?? madre.nombres ?? ''), customFont);
-      this.setText(form, 'ViveRow1_2', mapVive(madre.vive), customFont);
-      this.setText(form, 'OcupaciónRow1_2', this.safe(madre.ocupacion), customFont);
-      this.setText(form, 'DirecciónRow1_2', this.safe(madre.direccion), customFont);
-      this.setText(form, 'TeléfonoRow1_2', this.safe(madre.telefono_celular ?? madre.telefono), customFont);
-      this.setText(form, 'BarrioMunicipioRow1_2', this.safe(madre.barrio ?? madre.municipio), customFont);
-
-      // Cónyuge
-      this.setText(form, 'Nombre y ApellidoconyugeRow1', this.safe(conyuge.nombre_completo ?? conyuge.nombres ?? ''), customFont);
-      this.setText(form, 'ViveRow1_3', mapVive(conyuge.vive), customFont);
-      this.setText(form, 'OcupaciónRow1_3', this.safe(conyuge.ocupacion), customFont);
-      this.setText(form, 'DirecciónRow1_3', this.safe(conyuge.direccion), customFont);
-      this.setText(form, 'TeléfonoRow1_3', this.safe(conyuge.telefono_celular ?? conyuge.telefono), customFont);
-      this.setText(form, 'BarrioMunicipioRow1_3', this.safe(conyuge.barrio ?? conyuge.municipio), customFont);
-
-      // Hijos
-      const hijos = familiares.filter(f => norm(f.parentesco).includes('HIJ') || norm(f.parentesco) === 'HI');
-      for (let i = 0; i < Math.min(6, hijos.length); i++) {
-        const h = hijos[i];
-        const idx = i + 1;
-        this.setText(form, `Apellidos y Nombres${idx}`, this.safe(h.nombre_completo ?? h.nombres ?? ''), customFont);
-        this.setText(form, `F de Nacimiento${idx}`, this.parseDateToDDMMYYYY(h.fecha_nacimiento), customFont);
-        this.setText(form, ` de Identificación${idx}`, this.safe(h.numero_documento), customFont);
-        this.setText(form, `Gen${idx}`, this.safe(h.sexo ?? h.genero), customFont);
-        this.setText(form, `Vive con el Trabajador${idx}`, mapVive(h.vive_con_candidato ?? h.vive), customFont);
-        this.setText(form, `Estudia en la Fundación SN${idx}`, mapVive(h.estudia), customFont);
-        this.setText(form, `Ocupación${idx}`, this.safe(h.ocupacion), customFont);
-        this.setText(form, `Curso${idx}`, this.safe(h.nivel_escolaridad ?? h.curso), customFont);
-      }
-
-      // Contacto de Emergencia
-      const emerg = cand.contacto_emergencia ?? cand.contacto ?? {};
-      this.setText(form, 'Apellidos y NombresRow1', this.safe(emerg.nombres ?? emerg.nombre_contacto ?? ''), customFont);
-      this.setText(form, 'Número de ContactoRow1', this.safe(emerg.telefono ?? emerg.celular_contacto ?? emerg.celular ?? ''), customFont);
-
-      // Experiencia
-      this.setText(form, 'Nombre Empresa 1Row1', this.safe(dv.nombre_expe_laboral1_empresa), customFont);
-      this.setText(form, 'Dirección EmpresaRow1', this.safe(dv.direccion_empresa1), customFont);
-      this.setText(form, 'TeléfonosRow1', this.safe(dv.telefonos_empresa1), customFont);
-      this.setText(form, 'Jefe InmediatoRow1', this.safe(dv.nombre_jefe_empresa1), customFont);
-      this.setText(form, 'CargoRow1', this.safe(dv.cargo_empresa1), customFont);
-      this.setText(form, 'F de RetiroRow1', this.parseDateToDDMMYYYY(dv.fecha_retiro_empresa1), customFont);
-      this.setText(form, 'Motivo de RetiroRow1', this.safe(dv.motivo_retiro_empresa1), customFont);
-
-      // Referencias Personales y Familiares
-      const referencias: any[] = Array.isArray(cand.referencias) ? cand.referencias : [];
-      const refPer = referencias.filter(r => norm(r.tipo_referencia_nombre ?? r.tipo).includes('PERSONAL'));
-      const refFam = referencias.filter(r => norm(r.tipo_referencia_nombre ?? r.tipo).includes('FAMILIAR'));
-
-      if (refPer[0]) {
-        this.setText(form, 'Nombre Referencia 1Row1', this.safe(refPer[0].nombre_completo ?? refPer[0].nombre), customFont);
-        this.setText(form, 'TeléfonosRow1_3', this.safe(refPer[0].celular ?? refPer[0].telefono), customFont);
-        this.setText(form, 'OcupaciónRow1_4', this.safe(refPer[0].profesion ?? refPer[0].ocupacion), customFont);
-        this.setText(form, 'PersonaRefencia1P', this.safe(refPer[0].nombre_completo ?? refPer[0].nombre), customFont);
-        this.setText(form, 'Comentarios de las Referencias Pesonales 1', this.safe(refPer[0].observacion), customFont);
-      }
-      if (refPer[1]) {
-        this.setText(form, 'Nombre Referencia 2Row1', this.safe(refPer[1].nombre_completo ?? refPer[1].nombre), customFont);
-        this.setText(form, 'TeléfonosRow1_4', this.safe(refPer[1].celular ?? refPer[1].telefono), customFont);
-        this.setText(form, 'OcupaciónRow1_5', this.safe(refPer[1].profesion ?? refPer[1].ocupacion), customFont);
-        this.setText(form, 'PersonaRefencia2P', this.safe(refPer[1].nombre_completo ?? refPer[1].nombre), customFont);
-        this.setText(form, 'Comentarios de las Referencias Pesonales 2', this.safe(refPer[1].observacion), customFont);
-      }
-      if (refFam[0]) {
-        this.setText(form, 'Nombre Referencia 1Row1_2', this.safe(refFam[0].nombre_completo ?? refFam[0].nombre), customFont);
-        this.setText(form, 'TeléfonosRow1_5', this.safe(refFam[0].celular ?? refFam[0].telefono), customFont);
-        this.setText(form, 'OcupaciónRow1_6', this.safe(refFam[0].profesion ?? refFam[0].ocupacion), customFont);
-        this.setText(form, 'PersonaRefencia1F', this.safe(refFam[0].nombre_completo ?? refFam[0].nombre), customFont);
-        this.setText(form, 'Comentario referencia Familiar', this.safe(refFam[0].observacion), customFont);
-      }
-      if (refFam[1]) {
-        this.setText(form, 'Nombre Referencia 1Row1_3', this.safe(refFam[1].nombre_completo ?? refFam[1].nombre), customFont);
-        this.setText(form, 'TeléfonosRow1_6', this.safe(refFam[1].celular ?? refFam[1].telefono), customFont);
-        this.setText(form, 'OcupaciónRow1_7', this.safe(refFam[1].profesion ?? refFam[1].ocupacion), customFont);
-        this.setText(form, 'PersonaRefencia2F', this.safe(refFam[1].nombre_completo ?? refFam[1].nombre), customFont);
-        this.setText(form, 'Comentario referencia Familiar 2', this.safe(refFam[1].observacion), customFont);
-      }
-
-      // Dotación / Tallas
-      const tallas = cand.informacion_tallas_dotacion ?? cand.tallas ?? {};
-      this.setText(form, 'TALLA CHAQUETARow1', this.safe(tallas.talla_camisa ?? tallas.chaqueta), customFont);
-      this.setText(form, 'TALLA PANTALONRow1', this.safe(tallas.talla_pantalon ?? tallas.pantalon), customFont);
-      this.setText(form, 'TALLA OVEROLRow1', this.safe(tallas.talla_overol ?? tallas.overol), customFont);
-      this.setText(form, 'No calzadoRow1', this.safe(tallas.talla_zapatos ?? tallas.calzado), customFont);
-      this.setText(form, 'No Botas de CauchoRow1', this.safe(tallas.botas_caucho), customFont);
-      this.setText(form, 'No ZapatonesRow1', this.safe(tallas.zapatones), customFont);
-      this.setText(form, 'No Botas MaterialRow1', this.safe(tallas.botas_material), customFont);
-
-      // Textos Especiales / Autorización Empresa
-      const nombreCand = [this.safe(dv.primer_nombre), this.safe(dv.segundo_nombre), this.safe(dv.primer_apellido), this.safe(dv.segundo_apellido)].filter(Boolean).join(' ');
-
-      this.setText(form, 'AutorizacionDeEstudiosSeguridad2',
-        empUsuaria ? `estudios de seguridad. De conformidad con lo dispuesto en la ley 1581 de 2012 y el decreto reglamentario 1377 de 2013 autorizo a ${empUsuaria} a consultar en cualquier momento ante las centrales de riesgo la información comercial a mi nombre.` : '',
-        customFont, 6
-      );
-      this.setText(form, 'empresa', empUsuaria, customFont);
-      this.setText(form, 'CedulaAutorizacion', this.safe(dv.numerodeceduladepersona), customFont);
-
-      this.setText(form, 'TEXTOCARNET', `me comprometo a presentar ante ${empUsuaria} fotocopia del denuncio correspondiente y en el caso de aparecer el carnet perdido lo devolveré a la empresa para su respectiva anulación.`, customFont, 6);
-
-      let tipoDoc = this.safe(dv.tipodedocumento).toUpperCase();
-      if (tipoDoc.includes('CC') || tipoDoc.includes('CIUDADAN')) tipoDoc = 'Cedula de Ciudadania';
-      else if (tipoDoc.includes('CE') || tipoDoc.includes('EXTRANJE')) tipoDoc = 'Cedula de Extranjeria';
-      else if (tipoDoc.includes('PEP')) tipoDoc = 'Permiso Especial de Permanencia';
-      else if (tipoDoc.includes('PA')) tipoDoc = 'Pasaporte';
-
-      this.setText(form, 'TEXTOLOCKER5', `Yo, ${nombreCand} identificado(a) con ${tipoDoc} No ${this.safe(dv.numerodeceduladepersona)} declaro haber recibido el Loker relacionado abajo y me comprometo a seguir las recomendaciones y políticas de uso y cuidado de estós, y a devolver el Loker en el mismo estado en que me fue asignado al momento de la finalización de mi relación laboral y antes de la entrega de la liquidación de contrato`, customFont, 6);
+      const ctx = {
+        codigoContrato: this.safe(codigoContrato),
+        sedeNombre: this.safe(this.user?.sede?.nombre),
+        empUsuaria: this.safe(empUsuaria),
+        personaQueFirma: this.safe(`${this.user?.datos_basicos?.nombres ?? ''} ${this.user?.datos_basicos?.apellidos ?? ''}`.trim()),
+        usaRuta: this.safe(rutaInfo.usaRuta),
+        auxilioTransporte: this.safe(vac.auxilioTransporte),
+        referenciasA: this.referenciasA,
+        referenciasF: this.referenciasF,
+      };
+      fillFichaTecnicaPdf(form, customFont, cand, vac, ctx);
 
       // Firmas Biométricas y Administrativas
       this.setText(form, 'Persona que firma', this.safe(`${this.user?.datos_basicos?.nombres ?? ''} ${this.user?.datos_basicos?.apellidos ?? ''}`.trim()), customFont);
 
-      await setButtonImageSafe(pdfDoc, form, 'Image15_af_image', this.firmaPersonalAdministrativo);
-      await setButtonImageSafe(pdfDoc, form, 'Image11_af_image', firmaUrl);
-      await setButtonImageSafe(pdfDoc, form, 'Image10_af_image', huellaUrl);
-      await setButtonImageSafe(pdfDoc, form, 'Image17_af_image', fotoUrl);
+      // Inyección robusta: si `setImage` falla en el push button, dibujamos la
+      // imagen sobre la página manteniendo el aspect ratio (centrada en el rect).
+      // Pre-capturamos el rect ANTES de cualquier `flatten`/`enableReadOnly`.
+      const inyectarImagenSegura = async (campoBtn: string, urlOrData?: string) => {
+        if (!urlOrData) return;
+        try {
+          const img = await embedImageOrNull(pdfDoc, urlOrData);
+          if (!img) return;
+          let okSetImage = false;
+          try {
+            (form.getButton(campoBtn) as any).setImage(img);
+            okSetImage = true;
+          } catch { /* fallback abajo */ }
+          if (okSetImage) return;
+          // Fallback: dibujar manualmente.
+          const field: any = form.getField(campoBtn);
+          const widget = field?.acroField?.getWidgets?.()[0];
+          if (!widget) return;
+          const rect = widget.getRectangle();
+          const dims = img.scale(1);
+          const scale = Math.min(rect.width / dims.width, rect.height / dims.height) * 0.95;
+          const drawW = dims.width * scale;
+          const drawH = dims.height * scale;
+          const offX = (rect.width - drawW) / 2;
+          const offY = (rect.height - drawH) / 2;
+          // Detectar la página del widget
+          const pages = pdfDoc.getPages();
+          let pageIdx = pages.length - 1;
+          for (let i = 0; i < pages.length; i++) {
+            const annots: any[] = (pages[i] as any).node?.Annots?.()?.asArray?.() ?? [];
+            if (annots.some((a: any) => a === widget.dict)) { pageIdx = i; break; }
+          }
+          pages[pageIdx].drawImage(img, {
+            x: rect.x + offX,
+            y: rect.y + offY,
+            width: drawW,
+            height: drawH,
+          });
+        } catch (e) {
+          console.error(`No se pudo inyectar imagen en ${campoBtn}:`, e);
+        }
+      };
+
+      await inyectarImagenSegura('Image15_af_image', this.firmaPersonalAdministrativo);
+      await inyectarImagenSegura('Image11_af_image', firmaUrl);
+      await inyectarImagenSegura('Image10_af_image', huellaUrl);
+      await inyectarImagenSegura('Image17_af_image', fotoUrl);
 
       // Bloquear campos
       form.getFields().forEach((f: any) => { try { f.enableReadOnly(); } catch { } });
@@ -9746,8 +9594,8 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       const ab = this.toSafeArrayBuffer(pdfBytes);
       const file = new File([ab], 'Ficha tecnica.pdf', { type: 'application/pdf' });
 
-      this.uploadedFiles['Ficha técnica'] = { file, fileName: 'Ficha tecnica.pdf' };
-      this.verPDF({ titulo: 'Ficha técnica' });
+      this.uploadedFiles['Ficha Técnica'] = { file, fileName: 'Ficha tecnica.pdf' };
+      this.verPDF({ titulo: 'Ficha Técnica' });
     } catch (error) {
       console.error('Error generando ficha técnica:', error);
       Swal.fire({ icon: 'error', title: 'Error', text: 'Ocurrió un error al generar la ficha técnica.' });
@@ -10346,10 +10194,20 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       this.setText(form, 'Teléfonos2_2', this.safe(datoContratacion.telefono_referencia_familiar2 ?? ''), customFont);
       this.setText(form, 'Ocupación2_2', this.safe(datoContratacion.ocupacion_referencia_familiar2 ?? ''), customFont);
 
-      this.setText(form, 'nombre-referencia-peronal1', this.safe(datoContratacion.nombre_referencia_personal1 ?? ''), customFont);
-      this.setText(form, 'nombre-referencia-peronal2', this.safe(datoContratacion.nombre_referencia_personal2 ?? ''), customFont);
-      this.setText(form, 'nombre-referencia-familiar1', this.safe(datoContratacion.nombre_referencia_familiar1 ?? ''), customFont);
-      this.setText(form, 'nombre-referencia-familiar2', this.safe(datoContratacion.nombre_referencia_familiar2 ?? ''), customFont);
+      // Fallback al modelo nuevo (gestion_contratacion) cuando `datoContratacion`
+      // legacy no tenga el dato — necesario porque el endpoint legacy a veces solo
+      // retorna 1 referencia familiar y dejaba la segunda fila vacía.
+      const refsModelo = Array.isArray(cand.referencias) ? cand.referencias : [];
+      const refsP_modelo = refsModelo.filter((r: any) => {
+        const t = norm(r.tipo);
+        return t === 'PERSONAL' || t === 'LABORAL';
+      });
+      const refsF_modelo = refsModelo.filter((r: any) => norm(r.tipo) === 'FAMILIAR');
+
+      this.setText(form, 'nombre-referencia-peronal1', this.safe(datoContratacion.nombre_referencia_personal1 || refsP_modelo[0]?.nombre || ''), customFont);
+      this.setText(form, 'nombre-referencia-peronal2', this.safe(datoContratacion.nombre_referencia_personal2 || refsP_modelo[1]?.nombre || ''), customFont);
+      this.setText(form, 'nombre-referencia-familiar1', this.safe(datoContratacion.nombre_referencia_familiar1 || refsF_modelo[0]?.nombre || ''), customFont);
+      this.setText(form, 'nombre-referencia-familiar2', this.safe(datoContratacion.nombre_referencia_familiar2 || refsF_modelo[1]?.nombre || ''), customFont);
 
       // aleatorios descripciones (robusto y sin repetidos en el par)
       const normalize = (s: unknown) => String(s ?? '').trim().replace(/\s+/g, ' ');
@@ -10368,13 +10226,12 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       this.setText(form, 'descripcion-personal2', personal2, customFont);
 
       const [familiar1, familiar2] = pickTwoDistinct(this.referenciasF);
-      // parentesco_familiar_1
-      this.setText(form, 'parentesco_familiar_1', this.safe(datoContratacion.parentesco_familiar_1 ?? '').toUpperCase(), customFont);
-      this.setText(form, 'parentesco_familiar_2', this.safe(datoContratacion.parentesco_familiar_2 ?? '').toUpperCase(), customFont);
       this.setText(form, 'descripcion-familiar1', familiar1, customFont);
       this.setText(form, 'descripcion-familiar2', familiar2, customFont);
-      this.setText(form, 'parentesco_familiar_1', this.safe(datoContratacion.parentesco_referencia_familiar1 ?? '').toUpperCase(), customFont);
-      this.setText(form, 'parentesco_familiar_2', this.safe(datoContratacion.parentesco_referencia_familiar2 ?? '').toUpperCase(), customFont);
+      // Parentesco con fallback al modelo nuevo. Una sola escritura por campo
+      // (antes había duplicados que se pisaban entre sí).
+      this.setText(form, 'parentesco_familiar_1', this.safe(datoContratacion.parentesco_referencia_familiar1 || datoContratacion.parentesco_familiar_1 || refsF_modelo[0]?.parentesco || '').toUpperCase(), customFont);
+      this.setText(form, 'parentesco_familiar_2', this.safe(datoContratacion.parentesco_referencia_familiar2 || datoContratacion.parentesco_familiar_2 || refsF_modelo[1]?.parentesco || '').toUpperCase(), customFont);
       // descripcion-laboral1 en este tengo que dejar la info de 
       const descripcionLaboral1Str = [
         exp0?.empresa,
@@ -10402,8 +10259,8 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       const ab = this.toSafeArrayBuffer(pdfBytes);
       const file = new File([ab], 'Ficha tecnica.pdf', { type: 'application/pdf' });
 
-      this.uploadedFiles['Ficha técnica'] = { file, fileName: 'Ficha tecnica.pdf' };
-      this.verPDF({ titulo: 'Ficha técnica' });
+      this.uploadedFiles['Ficha Técnica'] = { file, fileName: 'Ficha tecnica.pdf' };
+      this.verPDF({ titulo: 'Ficha Técnica' });
     } catch (error) {
       console.error('Error generando ficha técnica:', error);
       Swal.fire({ icon: 'error', title: 'Error', text: 'Ocurrió un error al generar la ficha técnica.' });
@@ -10911,10 +10768,20 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       this.setText(form, 'Teléfonos2_2', this.safe(datoContratacion.telefono_referencia_familiar2 ?? ''), customFont);
       this.setText(form, 'Ocupación2_2', this.safe(datoContratacion.ocupacion_referencia_familiar2 ?? ''), customFont);
 
-      this.setText(form, 'nombre-referencia-peronal1', this.safe(datoContratacion.nombre_referencia_personal1 ?? ''), customFont);
-      this.setText(form, 'nombre-referencia-peronal2', this.safe(datoContratacion.nombre_referencia_personal2 ?? ''), customFont);
-      this.setText(form, 'nombre-referencia-familiar1', this.safe(datoContratacion.nombre_referencia_familiar1 ?? ''), customFont);
-      this.setText(form, 'nombre-referencia-familiar2', this.safe(datoContratacion.nombre_referencia_familiar2 ?? ''), customFont);
+      // Fallback al modelo nuevo (gestion_contratacion) cuando `datoContratacion`
+      // legacy no tenga el dato — necesario porque el endpoint legacy a veces solo
+      // retorna 1 referencia familiar y dejaba la segunda fila vacía.
+      const refsModelo = Array.isArray(cand.referencias) ? cand.referencias : [];
+      const refsP_modelo = refsModelo.filter((r: any) => {
+        const t = norm(r.tipo);
+        return t === 'PERSONAL' || t === 'LABORAL';
+      });
+      const refsF_modelo = refsModelo.filter((r: any) => norm(r.tipo) === 'FAMILIAR');
+
+      this.setText(form, 'nombre-referencia-peronal1', this.safe(datoContratacion.nombre_referencia_personal1 || refsP_modelo[0]?.nombre || ''), customFont);
+      this.setText(form, 'nombre-referencia-peronal2', this.safe(datoContratacion.nombre_referencia_personal2 || refsP_modelo[1]?.nombre || ''), customFont);
+      this.setText(form, 'nombre-referencia-familiar1', this.safe(datoContratacion.nombre_referencia_familiar1 || refsF_modelo[0]?.nombre || ''), customFont);
+      this.setText(form, 'nombre-referencia-familiar2', this.safe(datoContratacion.nombre_referencia_familiar2 || refsF_modelo[1]?.nombre || ''), customFont);
 
       // aleatorios descripciones (robusto y sin repetidos en el par)
       const normalize = (s: unknown) => String(s ?? '').trim().replace(/\s+/g, ' ');
@@ -10941,13 +10808,10 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       this.setText(form, 'descripcion-personal2', personal2, customFont);
 
       const [familiar1, familiar2] = pickTwoDistinct(this.referenciasF);
-      // parentesco_familiar_1
-      this.setText(form, 'parentesco_familiar_1', this.safe(datoContratacion.parentesco_familiar_1 ?? '').toUpperCase(), customFont);
-      this.setText(form, 'parentesco_familiar_2', this.safe(datoContratacion.parentesco_familiar_2 ?? '').toUpperCase(), customFont);
       this.setText(form, 'descripcion-familiar1', familiar1, customFont);
       this.setText(form, 'descripcion-familiar2', familiar2, customFont);
-      this.setText(form, 'parentesco_familiar_1', this.safe(datoContratacion.parentesco_referencia_familiar1 ?? '').toUpperCase(), customFont);
-      this.setText(form, 'parentesco_familiar_2', this.safe(datoContratacion.parentesco_referencia_familiar2 ?? '').toUpperCase(), customFont);
+      this.setText(form, 'parentesco_familiar_1', this.safe(datoContratacion.parentesco_referencia_familiar1 || datoContratacion.parentesco_familiar_1 || refsF_modelo[0]?.parentesco || '').toUpperCase(), customFont);
+      this.setText(form, 'parentesco_familiar_2', this.safe(datoContratacion.parentesco_referencia_familiar2 || datoContratacion.parentesco_familiar_2 || refsF_modelo[1]?.parentesco || '').toUpperCase(), customFont);
       // descripcion-laboral1 en este tengo que dejar la info de 
       const descripcionLaboral1Str = [
         exp0?.empresa,
@@ -10992,8 +10856,11 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       const ab = this.toSafeArrayBuffer(pdfBytes);
       const file = new File([ab], 'Ficha tecnica.pdf', { type: 'application/pdf' });
 
-      this.uploadedFiles['Ficha Ta Completa'] = { file, fileName: 'Ficha tecnica.pdf' };
-      this.verPDF({ titulo: 'Ficha Ta Completa' });
+      // Misma UI entry "Ficha Técnica"; typeId 111 override para que el backend
+      // reciba el tipo "TA Completa" al subir. Pisa cualquier versión previa
+      // (básica o completa anterior) — última gana.
+      this.uploadedFiles['Ficha Técnica'] = { file, fileName: 'Ficha tecnica.pdf', typeId: 111 };
+      this.verPDF({ titulo: 'Ficha Técnica' });
     } catch (error) {
       console.error('Error generando ficha técnica:', error);
       Swal.fire({ icon: 'error', title: 'Error', text: 'Ocurrió un error al generar la ficha técnica.' });
@@ -11099,8 +10966,8 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       const ab = this.toSafeArrayBuffer(pdfBytes);
       const file = new File([ab], 'Entrega_carnets.pdf', { type: 'application/pdf' });
 
-      this.uploadedFiles['Entrega carnets'] = { file, fileName: 'Entrega_carnets.pdf' };
-      this.verPDF({ titulo: 'Entrega carnets' });
+      this.uploadedFiles['Entrega Carnets'] = { file, fileName: 'Entrega_carnets.pdf' };
+      this.verPDF({ titulo: 'Entrega Carnets' });
     } catch (error) {
       console.error('Error generando Entrega de Carnets:', error);
       Swal.fire({ icon: 'error', title: 'Error', text: 'Ocurrió un error al generar la Entrega de Carnets.' });
@@ -11212,8 +11079,8 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       const ab = this.toSafeArrayBuffer(pdfBytes);
       const file = new File([ab], 'Induccion_capacitacion.pdf', { type: 'application/pdf' });
 
-      this.uploadedFiles['Inducción capacitación'] = { file, fileName: 'Induccion_capacitacion.pdf' };
-      this.verPDF({ titulo: 'Inducción capacitación' });
+      this.uploadedFiles['Inducción Capacitación'] = { file, fileName: 'Induccion_capacitacion.pdf' };
+      this.verPDF({ titulo: 'Inducción Capacitación' });
     } catch (error) {
       console.error('Error generando Inducción y Capacitación:', error);
       Swal.fire({ icon: 'error', title: 'Error', text: 'Ocurrió un error al generar la Inducción y Capacitación.' });
@@ -11523,8 +11390,8 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       const ab = this.toSafeArrayBuffer(pdfBytes);
       const file = new File([ab], 'Formato_solicitud.pdf', { type: 'application/pdf' });
 
-      this.uploadedFiles['Formato solicitud'] = { file, fileName: 'Formato_solicitud.pdf' };
-      this.verPDF({ titulo: 'Formato solicitud' });
+      this.uploadedFiles['Formato Solicitud'] = { file, fileName: 'Formato_solicitud.pdf' };
+      this.verPDF({ titulo: 'Formato Solicitud' });
     } catch (error) {
       console.error('Error generando Formato Solicitud:', error);
       Swal.fire({ icon: 'error', title: 'Error', text: 'Ocurrió un error al generar el Formato de Solicitud.' });
@@ -11533,7 +11400,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
 
 
   // ─────────────────────────────────────────────────────────────────────
-  // Contratos Otros Si – PDF generado con jsPDF
+  // Contratos Otrosí – PDF generado con jsPDF
   // ─────────────────────────────────────────────────────────────────────
   async generarContratosOtroSi() {
     try {
@@ -11779,12 +11646,12 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       const pdfBlob = doc.output('blob');
       const fileName = `CONTRATOS_OTROS_SI_${cedula}.pdf`;
       const pdfFile = new File([pdfBlob], fileName, { type: 'application/pdf' });
-      this.uploadedFiles['Contratos Otros Si'] = { file: pdfFile, fileName };
-      this.verPDF({ titulo: 'Contratos Otros Si' });
+      this.uploadedFiles['Contratos Otrosí'] = { file: pdfFile, fileName };
+      this.verPDF({ titulo: 'Contratos Otrosí' });
 
     } catch (error) {
-      console.error('Error generando Contratos Otros Si:', error);
-      Swal.fire({ icon: 'error', title: 'Error', text: 'Ocurrió un error al generar el documento Contratos Otros Si.' });
+      console.error('Error generando Contratos Otrosí:', error);
+      Swal.fire({ icon: 'error', title: 'Error', text: 'Ocurrió un error al generar el documento Contratos Otrosí.' });
     }
   }
 

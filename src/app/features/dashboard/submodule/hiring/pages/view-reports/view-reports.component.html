@@ -54,7 +54,33 @@
   </mat-card-header>
 
   @if (isExporting()) {
-    <mat-progress-bar mode="indeterminate" class="vr-progress"></mat-progress-bar>
+    @if (cedulasZipProgress() !== null) {
+      <mat-progress-bar
+        mode="determinate"
+        [value]="cedulasZipProgress() ?? 0"
+        class="vr-progress">
+      </mat-progress-bar>
+      <div class="vr-progress-label">
+        <mat-icon>cloud_download</mat-icon>
+        Descargando cédulas
+        <strong>{{ cedulasZipProgress() }}%</strong>
+        @if (cedulasZipTotalMb() !== null) {
+          <span class="vr-progress-mb">
+            · {{ cedulasZipLoadedMb() }} / {{ cedulasZipTotalMb() }} MB
+          </span>
+        } @else {
+          <span class="vr-progress-mb">· {{ cedulasZipLoadedMb() }} MB</span>
+        }
+      </div>
+    } @else if (cedulasZipLoadedMb() > 0) {
+      <mat-progress-bar mode="indeterminate" class="vr-progress"></mat-progress-bar>
+      <div class="vr-progress-label">
+        <mat-icon>cloud_download</mat-icon>
+        Descargando cédulas · {{ cedulasZipLoadedMb() }} MB
+      </div>
+    } @else {
+      <mat-progress-bar mode="indeterminate" class="vr-progress"></mat-progress-bar>
+    }
   }
 
   <mat-card-content class="card-content">
@@ -82,6 +108,25 @@
         <span class="vr-context-label">Rango activo</span>
         <strong class="vr-context-value">{{ activeRangeLabel() }}</strong>
       </div>
+      @if (isLiveRefresh()) {
+        <div class="vr-live-badge"
+             matTooltip="Los datos del día se actualizan automáticamente cada 20 segundos">
+          <span class="vr-live-dot"></span>
+          <span class="vr-live-label">En vivo</span>
+          @if (lastUpdate(); as last) {
+            <span class="vr-live-time">· {{ last | date: 'HH:mm:ss' }}</span>
+          }
+        </div>
+      } @else {
+        <button
+          mat-stroked-button
+          class="vr-live-resume"
+          matTooltip="Volver a la vista del día con actualización automática"
+          (click)="resumeLiveMode()">
+          <mat-icon>bolt</mat-icon>
+          <span>Tiempo real (hoy)</span>
+        </button>
+      }
       <div class="vr-context-item">
         <mat-icon>receipt_long</mat-icon>
         <span class="vr-context-label">Reportes uno a uno</span>

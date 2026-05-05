@@ -3,184 +3,200 @@
   <span>{{ title() }}</span>
 </h2>
 
-<mat-dialog-content>
+<mat-dialog-content class="dlg-content">
   @if (!loading()) {
-    <div class="dialog-content">
-      <form [formGroup]="form" (ngSubmit)="guardar()" id="userForm" class="form-grid">
-        <h3 class="form-section-title span-2">Información de Cuenta</h3>
-        <!-- Correo -->
-        <mat-form-field appearance="outline" class="span-2">
-          <mat-label>Correo electrónico</mat-label>
-          <input matInput formControlName="correo_electronico" placeholder="ejemplo@correo.com" autocomplete="email">
-          <mat-icon matPrefix>alternate_email</mat-icon>
-          @if (form.get('correo_electronico')?.hasError('required')) {
-            <mat-error>El correo es requerido</mat-error>
-          }
-          @if (form.get('correo_electronico')?.hasError('email')) {
-            <mat-error>El formato del correo es
-            inválido</mat-error>
-          }
-        </mat-form-field>
-        <!-- Tipo de documento -->
-        <mat-form-field appearance="outline">
-          <mat-label>Tipo de documento</mat-label>
-          <mat-select formControlName="tipo_documento" [disabled]="!isCreate()">
-            <mat-option value="CC">Cédula (CC)</mat-option>
-            <mat-option value="CE">Cédula Extranjería (CE)</mat-option>
-            <mat-option value="TI">Tarjeta de Identidad (TI)</mat-option>
-            <mat-option value="PA">Pasaporte (PA)</mat-option>
-          </mat-select>
-          <mat-icon matPrefix>assignment_ind</mat-icon>
-          @if (form.get('tipo_documento')?.hasError('required')) {
-            <mat-error>El tipo es requerido</mat-error>
-          }
-        </mat-form-field>
-        <!-- Cédula -->
-        <mat-form-field appearance="outline">
-          <mat-label>Cédula</mat-label>
-          <input matInput formControlName="numero_de_documento" [readonly]="!isCreate()" autocomplete="off">
-          <mat-icon matPrefix>badge</mat-icon>
-          @if (form.get('numero_de_documento')?.hasError('required')) {
-            <mat-error>La cédula es requerida</mat-error>
-          }
-          @if (form.get('numero_de_documento')?.hasError('minlength')) {
-            <mat-error>Mínimo 4 caracteres</mat-error>
-          }
-        </mat-form-field>
-        <!-- Rol -->
-        <mat-form-field appearance="outline">
-          <mat-label>Rol</mat-label>
-          <mat-select formControlName="rol_id">
-            @for (r of roles(); track r) {
-              <mat-option [value]="r.id">{{ r.nombre }}</mat-option>
-            }
-          </mat-select>
-          <mat-icon matPrefix>manage_accounts</mat-icon>
-          @if (form.get('rol_id')?.hasError('required')) {
-            <mat-error>Debes seleccionar un rol</mat-error>
-          }
-        </mat-form-field>
-        <!-- Empresa -->
-        <mat-form-field appearance="outline">
-          <mat-label>Empresa</mat-label>
-          <mat-select formControlName="empresa_id">
-            <mat-option [value]="null">— Sin empresa —</mat-option>
-            @for (e of empresas(); track e) {
-              <mat-option [value]="e.id">{{ e.nombre }}</mat-option>
-            }
-          </mat-select>
-          <mat-icon matPrefix>business</mat-icon>
-        </mat-form-field>
-        <!-- Sede -->
-        <mat-form-field appearance="outline">
-          <mat-label>Sede</mat-label>
-          <mat-select formControlName="sede_id">
-            <mat-option [value]="null">— Sin sede —</mat-option>
-            @for (s of sedes(); track s) {
-              <mat-option [value]="s.id">{{ s.nombre }}</mat-option>
-            }
-          </mat-select>
-          <mat-icon matPrefix>location_city</mat-icon>
-        </mat-form-field>
-        <h3 class="form-section-title span-2">Datos Personales</h3>
-        <mat-form-field appearance="outline">
-          <mat-label>Nombres</mat-label>
-          <input matInput formControlName="nombres" autocomplete="given-name">
-          <mat-icon matPrefix>person</mat-icon>
-          @if (form.get('nombres')?.hasError('required')) {
-            <mat-error>Los nombres son requeridos</mat-error>
-          }
-          @if (form.get('nombres')?.hasError('minlength')) {
-            <mat-error>Mínimo 2 caracteres</mat-error>
-          }
-        </mat-form-field>
-        <mat-form-field appearance="outline">
-          <mat-label>Apellidos</mat-label>
-          <input matInput formControlName="apellidos" autocomplete="family-name">
-          @if (form.get('apellidos')?.hasError('required')) {
-            <mat-error>Los apellidos son requeridos</mat-error>
-          }
-          @if (form.get('apellidos')?.hasError('minlength')) {
-            <mat-error>Mínimo 2 caracteres</mat-error>
-          }
-        </mat-form-field>
-        <mat-form-field appearance="outline">
-          <mat-label>Celular</mat-label>
-          <input matInput formControlName="celular" type="tel" placeholder="300 123 4567" autocomplete="tel">
-          <mat-icon matPrefix>phone</mat-icon>
-        </mat-form-field>
-        <!-- Estado -->
-        <div class="toggle-section span-2">
-          <mat-slide-toggle formControlName="estado_solicitudes" color="primary">
-            Usuario Activo
-          </mat-slide-toggle>
-          <small class="hint">Controla si el usuario puede acceder al sistema.</small>
-        </div>
-        <!-- Toggle de cambio de contraseña (solo en edición) -->
+    <form [formGroup]="form" (ngSubmit)="guardar()" id="userForm" class="form-grid">
+
+      <!-- ============ Datos de Acceso ============ -->
+      <div class="section-head span-full">
+        <h3 class="section-title">Datos de acceso</h3>
         @if (!isCreate()) {
-          <div class="toggle-section span-2">
-            <mat-slide-toggle [checked]="changePw()" (change)="onToggleChangePw($event.checked)" color="primary">
-              Cambiar contraseña
-            </mat-slide-toggle>
-            <small class="hint">Actívalo para definir una nueva contraseña.</small>
-          </div>
-        }
-        <!-- Seguridad: visible en creación o si activaste el toggle en edición -->
-        @if (isCreate() || changePw()) {
-          <h3 class="form-section-title span-2">Seguridad</h3>
-          <mat-form-field appearance="outline">
-            <mat-label>Contraseña</mat-label>
-            <input matInput [type]="hidePw() ? 'password' : 'text'" formControlName="password"
-              autocomplete="new-password">
-              <button mat-icon-button matSuffix type="button" (click)="hidePw.set(!hidePw())"
-                [attr.aria-label]="'Mostrar/Ocultar contraseña'">
-                <mat-icon>{{ hidePw() ? 'visibility_off' : 'visibility' }}</mat-icon>
-              </button>
-              @if (form.get('password')?.hasError('required')) {
-                <mat-error>La contraseña es requerida</mat-error>
-              }
-              @if (form.get('password')?.hasError('minlength')) {
-                <mat-error>Mínimo 8 caracteres</mat-error>
-              }
-            </mat-form-field>
-            <mat-form-field appearance="outline">
-              <mat-label>Confirmar contraseña</mat-label>
-              <input matInput [type]="hidePw2() ? 'password' : 'text'" formControlName="password2"
-                autocomplete="new-password">
-                <button mat-icon-button matSuffix type="button" (click)="hidePw2.set(!hidePw2())"
-                  [attr.aria-label]="'Mostrar/Ocultar confirmación'">
-                  <mat-icon>{{ hidePw2() ? 'visibility_off' : 'visibility' }}</mat-icon>
-                </button>
-                @if (form.get('password2')?.hasError('required')) {
-                  <mat-error>Confirma la contraseña</mat-error>
-                }
-                @if (form.get('password2')?.hasError('mismatch')) {
-                  <mat-error>Las contraseñas no coinciden</mat-error>
-                }
-              </mat-form-field>
-            }
-          </form>
-        </div>
-      } @else {
-        <div class="loading-container">
-          <mat-progress-spinner mode="indeterminate" diameter="40"></mat-progress-spinner>
-          <p>Cargando datos...</p>
-        </div>
-      }
-    </mat-dialog-content>
-
-
-    <mat-dialog-actions align="end">
-      <button mat-stroked-button mat-dialog-close>Cancelar</button>
-      <button mat-flat-button color="primary" [disabled]="form.invalid || saving()" type="submit" [attr.form]="'userForm'">
-        @if (!saving()) {
-          <span>Guardar Cambios</span>
-        }
-        @if (saving()) {
-          <span class="saving-indicator">
-            <mat-progress-spinner mode="indeterminate" diameter="20"></mat-progress-spinner>
-            <span>Guardando...</span>
+          <span class="section-hint">
+            <mat-icon class="hint-icon">info</mat-icon>
+            Cambiar la cédula o el correo afectará el inicio de sesión del usuario.
           </span>
         }
-      </button>
-    </mat-dialog-actions>
+      </div>
+
+      <mat-form-field appearance="outline" subscriptSizing="dynamic">
+        <mat-label>Tipo de documento</mat-label>
+        <mat-select formControlName="tipo_documento">
+          <mat-option value="CC">Cédula (CC)</mat-option>
+          <mat-option value="CE">Cédula Extranjería (CE)</mat-option>
+          <mat-option value="TI">Tarjeta de Identidad (TI)</mat-option>
+          <mat-option value="PA">Pasaporte (PA)</mat-option>
+        </mat-select>
+        <mat-icon matPrefix>assignment_ind</mat-icon>
+        @if (form.get('tipo_documento')?.hasError('required')) {
+          <mat-error>El tipo es requerido</mat-error>
+        }
+      </mat-form-field>
+
+      <mat-form-field appearance="outline" subscriptSizing="dynamic">
+        <mat-label>Cédula</mat-label>
+        <input matInput formControlName="numero_de_documento" autocomplete="off" inputmode="numeric">
+        <mat-icon matPrefix>badge</mat-icon>
+        @if (form.get('numero_de_documento')?.hasError('required')) {
+          <mat-error>La cédula es requerida</mat-error>
+        }
+        @if (form.get('numero_de_documento')?.hasError('minlength')) {
+          <mat-error>Mínimo 4 caracteres</mat-error>
+        }
+      </mat-form-field>
+
+      <mat-form-field appearance="outline" subscriptSizing="dynamic">
+        <mat-label>Correo electrónico</mat-label>
+        <input matInput formControlName="correo_electronico" placeholder="ejemplo@correo.com" autocomplete="email" type="email">
+        <mat-icon matPrefix>alternate_email</mat-icon>
+        @if (form.get('correo_electronico')?.hasError('required')) {
+          <mat-error>El correo es requerido</mat-error>
+        }
+        @if (form.get('correo_electronico')?.hasError('email')) {
+          <mat-error>Formato de correo inválido</mat-error>
+        }
+      </mat-form-field>
+
+      <!-- ============ Asignación ============ -->
+      <div class="section-head span-full">
+        <h3 class="section-title">Asignación</h3>
+      </div>
+
+      <mat-form-field appearance="outline" subscriptSizing="dynamic">
+        <mat-label>Rol</mat-label>
+        <mat-select formControlName="rol_id">
+          @for (r of roles(); track r) {
+            <mat-option [value]="r.id">{{ r.nombre }}</mat-option>
+          }
+        </mat-select>
+        <mat-icon matPrefix>manage_accounts</mat-icon>
+        @if (form.get('rol_id')?.hasError('required')) {
+          <mat-error>Debes seleccionar un rol</mat-error>
+        }
+      </mat-form-field>
+
+      <mat-form-field appearance="outline" subscriptSizing="dynamic">
+        <mat-label>Empresa</mat-label>
+        <mat-select formControlName="empresa_id">
+          <mat-option [value]="null">— Sin empresa —</mat-option>
+          @for (e of empresas(); track e) {
+            <mat-option [value]="e.id">{{ e.nombre }}</mat-option>
+          }
+        </mat-select>
+        <mat-icon matPrefix>business</mat-icon>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline" subscriptSizing="dynamic">
+        <mat-label>Sede</mat-label>
+        <mat-select formControlName="sede_id">
+          <mat-option [value]="null">— Sin sede —</mat-option>
+          @for (s of sedes(); track s) {
+            <mat-option [value]="s.id">{{ s.nombre }}</mat-option>
+          }
+        </mat-select>
+        <mat-icon matPrefix>location_city</mat-icon>
+      </mat-form-field>
+
+      <!-- ============ Datos personales ============ -->
+      <div class="section-head span-full">
+        <h3 class="section-title">Datos personales</h3>
+      </div>
+
+      <mat-form-field appearance="outline" subscriptSizing="dynamic">
+        <mat-label>Nombres</mat-label>
+        <input matInput formControlName="nombres" autocomplete="given-name">
+        <mat-icon matPrefix>person</mat-icon>
+        @if (form.get('nombres')?.hasError('required')) {
+          <mat-error>Los nombres son requeridos</mat-error>
+        }
+        @if (form.get('nombres')?.hasError('minlength')) {
+          <mat-error>Mínimo 2 caracteres</mat-error>
+        }
+      </mat-form-field>
+
+      <mat-form-field appearance="outline" subscriptSizing="dynamic">
+        <mat-label>Apellidos</mat-label>
+        <input matInput formControlName="apellidos" autocomplete="family-name">
+        <mat-icon matPrefix>person_outline</mat-icon>
+        @if (form.get('apellidos')?.hasError('required')) {
+          <mat-error>Los apellidos son requeridos</mat-error>
+        }
+        @if (form.get('apellidos')?.hasError('minlength')) {
+          <mat-error>Mínimo 2 caracteres</mat-error>
+        }
+      </mat-form-field>
+
+      <mat-form-field appearance="outline" subscriptSizing="dynamic">
+        <mat-label>Celular</mat-label>
+        <input matInput formControlName="celular" type="tel" placeholder="300 123 4567" autocomplete="tel">
+        <mat-icon matPrefix>phone</mat-icon>
+      </mat-form-field>
+
+      <!-- ============ Estado y seguridad ============ -->
+      <div class="toggles-row span-full">
+        <mat-slide-toggle formControlName="estado_solicitudes" color="primary">
+          Usuario activo
+        </mat-slide-toggle>
+
+        @if (!isCreate()) {
+          <mat-slide-toggle [checked]="changePw()" (change)="onToggleChangePw($event.checked)" color="primary">
+            Cambiar contraseña
+          </mat-slide-toggle>
+        }
+      </div>
+
+      @if (isCreate() || changePw()) {
+        <mat-form-field appearance="outline" subscriptSizing="dynamic" class="span-half-1">
+          <mat-label>Contraseña</mat-label>
+          <input matInput [type]="hidePw() ? 'password' : 'text'" formControlName="password" autocomplete="new-password">
+          <mat-icon matPrefix>lock</mat-icon>
+          <button mat-icon-button matSuffix type="button" (click)="hidePw.set(!hidePw())"
+            [attr.aria-label]="'Mostrar/Ocultar contraseña'">
+            <mat-icon>{{ hidePw() ? 'visibility_off' : 'visibility' }}</mat-icon>
+          </button>
+          @if (form.get('password')?.hasError('required')) {
+            <mat-error>La contraseña es requerida</mat-error>
+          }
+          @if (form.get('password')?.hasError('minlength')) {
+            <mat-error>Mínimo 8 caracteres</mat-error>
+          }
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" subscriptSizing="dynamic" class="span-half-2">
+          <mat-label>Confirmar contraseña</mat-label>
+          <input matInput [type]="hidePw2() ? 'password' : 'text'" formControlName="password2" autocomplete="new-password">
+          <mat-icon matPrefix>lock_outline</mat-icon>
+          <button mat-icon-button matSuffix type="button" (click)="hidePw2.set(!hidePw2())"
+            [attr.aria-label]="'Mostrar/Ocultar confirmación'">
+            <mat-icon>{{ hidePw2() ? 'visibility_off' : 'visibility' }}</mat-icon>
+          </button>
+          @if (form.get('password2')?.hasError('required')) {
+            <mat-error>Confirma la contraseña</mat-error>
+          }
+          @if (form.get('password2')?.hasError('mismatch')) {
+            <mat-error>Las contraseñas no coinciden</mat-error>
+          }
+        </mat-form-field>
+      }
+    </form>
+  } @else {
+    <div class="loading-container">
+      <mat-progress-spinner mode="indeterminate" diameter="40"></mat-progress-spinner>
+      <p>Cargando datos...</p>
+    </div>
+  }
+</mat-dialog-content>
+
+<mat-dialog-actions align="end" class="dlg-actions">
+  <button mat-stroked-button mat-dialog-close type="button">Cancelar</button>
+  <button mat-flat-button color="primary" [disabled]="form.invalid || saving()" type="submit" [attr.form]="'userForm'">
+    @if (!saving()) {
+      <span>{{ isCreate() ? 'Crear usuario' : 'Guardar cambios' }}</span>
+    }
+    @if (saving()) {
+      <span class="saving-indicator">
+        <mat-progress-spinner mode="indeterminate" diameter="20"></mat-progress-spinner>
+        <span>Guardando...</span>
+      </span>
+    }
+  </button>
+</mat-dialog-actions>

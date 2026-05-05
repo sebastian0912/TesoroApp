@@ -17,6 +17,7 @@ import {
 } from '../../service/registro-proceso-contratacion/registro-proceso-contratacion';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { TarjetasService } from '../../service/tarjetas.service';
+import { PositionsService } from '../../../positions/services/positions/positions.service';
 
 type LocalFile = { file: File | string; fileName: string };
 type ServerDocInfo = {
@@ -117,6 +118,7 @@ export class HiringQuestionsComponent implements OnInit {
   private readonly vacantesService = inject(VacantesService);
   private readonly procesosService = inject(RegistroProcesoContratacion);
   private readonly tarjetasService = inject(TarjetasService);
+  private readonly positionsService = inject(PositionsService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly sanitizer = inject(DomSanitizer);
 
@@ -188,6 +190,8 @@ export class HiringQuestionsComponent implements OnInit {
         Ccostos: ['', Validators.required],
         salario: [{ value: null, disabled: true }, Validators.required],
         auxilioTransporte: [{ value: null, disabled: true }, Validators.required],
+        // Editable: se autocompleta desde el cargo de la vacante como sugerencia,
+        // pero el usuario puede modificarlo manualmente si necesita.
         porcentajeARL: [null, Validators.required],
         cesantias: [null, Validators.required],
         subCentroCostos: [null, Validators.required],
@@ -961,6 +965,7 @@ export class HiringQuestionsComponent implements OnInit {
     });
 
     // 2) Traer SIEMPRE la vacante (si hay publicacion) para setear auxilioTransporte
+    //    y autollenar porcentajeARL desde el cargo asociado al cargo de la vacante.
     if (proc?.publicacion) {
       try {
         const vac: any = await firstValueFrom(this.vacantesService.obtenerVacante(proc.publicacion));
@@ -975,6 +980,14 @@ export class HiringQuestionsComponent implements OnInit {
           auxilioTransporte: auxFromVac,
         });
 
+        // Autocompletar Porcentaje ARL desde el cargo de la vacante.
+        // Si el contrato YA tenía un porcentaje_arl explícito, lo respetamos
+        // y no lo pisamos (hay casos donde nómina ajustó manualmente).
+        const cargoNombre = (vac?.cargo ?? '').toString().trim();
+        if (cargoNombre) {
+          await this.autollenarPorcentajeArlDesdeCargo(cargoNombre, contr?.porcentaje_arl);
+        }
+
         if (contratoVacio) {
           // Completar otros defaults desde la vacante si aplica
         }
@@ -984,6 +997,52 @@ export class HiringQuestionsComponent implements OnInit {
     }
 
     this.llenarDocumentos().catch(console.error);
+  }
+
+  /**
+   * Obtiene el porcentaje_arl del cargo asociado a la vacante y lo escribe en
+   * el control `porcentajeARL` (editable, sólo se sugiere).
+   *
+   * Si el contrato ya tenía un porcentaje_arl explícito (>0), respeta ese
+   * valor y no lo sobreescribe (nómina pudo ajustar manualmente).
+   *
+   * Usa el endpoint LIST con filtro `q=` y filtra exacto en cliente, porque
+   * muchos cargos contienen slash literal (ej. "OPERARIO Y/U OFICIOS"), y el
+   * endpoint detail `/cargos/{nombre}/` se rompe con slashes en la URL.
+   */
+  private async autollenarPorcentajeArlDesdeCargo(
+    cargoNombre: string,
+    porcentajeYaGuardado?: number | string | null,
+  ): Promise<void> {
+    const ctrl = this.pagoTransporteForm.get('porcentajeARL');
+    if (!ctrl) return;
+
+    const yaTiene =
+      porcentajeYaGuardado != null &&
+      porcentajeYaGuardado !== '' &&
+      Number(porcentajeYaGuardado) > 0;
+
+    if (yaTiene) {
+      ctrl.setValue(Number(porcentajeYaGuardado), { emitEvent: false });
+      return;
+    }
+
+    try {
+      // El endpoint detail no soporta slashes. Usamos list con `q` (icontains)
+      // y matcheamos exacto en cliente.
+      const lista = await firstValueFrom(this.positionsService.list({ q: cargoNombre }));
+      const norm = (s: string) => (s || '').trim().toUpperCase();
+      const target = norm(cargoNombre);
+      const cargo = (lista || []).find(c => norm(c.nombre) === target);
+
+      if (cargo?.porcentaje_arl != null) {
+        ctrl.setValue(Number(cargo.porcentaje_arl), { emitEvent: false });
+      } else {
+        console.warn(`[hiring-questions] Cargo "${cargoNombre}" no encontrado en gestion_cargos.`);
+      }
+    } catch (e) {
+      console.warn(`[hiring-questions] Error consultando cargo "${cargoNombre}":`, e);
+    }
   }
 
   // ───────── Documentos del servidor ─────────

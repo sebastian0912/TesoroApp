@@ -1,114 +1,153 @@
-/* Define variables de estilo para el componente */
 :host {
   display: block;
-  /* <- asegura que el host respete paddings/vars */
-  --form-gap: 16px;
-  --form-padding: 24px;
+  --form-gap: 12px;
+  --form-padding: 20px;
 }
 
+/* Header compacto */
 .dlg-header-premium {
   display: flex !important;
   align-items: center;
-  margin: 0 0 24px 0 !important;
-  padding: 24px 32px 20px 32px !important;
-      background: linear-gradient(135deg, #0f172a 0%, #1e293b 60%, #334155 100%);
-    position: relative;
-    overflow: hidden;
+  margin: 0 !important;
+  padding: 14px 20px !important;
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 60%, #334155 100%);
   color: #ffffff !important;
+  position: relative;
+  overflow: hidden;
 }
 
 .dlg-header-premium .header-icon {
-  font-size: 28px;
-  width: 28px;
-  height: 28px;
-  margin-right: 12px;
+  font-size: 24px;
+  width: 24px;
+  height: 24px;
+  margin-right: 10px;
   color: #ffffff !important;
 }
 
-/* Contenido del diálogo con padding estándar */
-.dialog-content {
-  padding: 0 var(--form-padding) var(--form-padding);
-  /* opcional: límite de altura y scroll si hay muchos campos */
-  max-height: calc(90vh - 120px);
+.dlg-header-premium span {
+  font-size: 1.05rem;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+}
+
+/* Contenido del diálogo */
+.dlg-content {
+  padding: var(--form-padding) !important;
+  max-height: calc(90vh - 140px);
   overflow: auto;
 }
 
-/* Grid del formulario con espaciado consistente */
+/* Grid de 3 columnas en desktop, se adapta hacia abajo */
 .form-grid {
   display: grid;
-  /* 280px calza mejor con labels largos en Material */
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: var(--form-gap);
+  align-items: start;
 }
 
-/* Asegura que los campos ocupen todo el ancho de su celda */
 .form-grid mat-form-field,
-.form-grid .toggle-section {
+.form-grid .toggles-row,
+.form-grid .section-head {
   width: 100%;
 }
 
-/* Clase para que un elemento ocupe dos columnas */
-.span-2 {
-  grid-column: span 2;
+/* Anchos auxiliares */
+.span-2 { grid-column: span 2; }
+.span-full { grid-column: 1 / -1; }
+.span-half-1 { grid-column: span 1; }
+.span-half-2 { grid-column: span 2; }
+
+/* Cabecera de sección compacta */
+.section-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin: 6px 0 -2px 0;
+  padding-bottom: 6px;
+  border-bottom: 1px solid #e5e7eb;
 }
 
-/* Títulos para separar secciones del formulario */
-.form-section-title {
-  font-size: 1rem;
-  font-weight: 500;
-  color: #616161;
-  /* Gris oscuro para el título */
-  margin: calc(var(--form-gap) * 1.5) 0 calc(var(--form-gap) / 2);
-  padding-bottom: 8px;
-  border-bottom: 1px solid #eee;
-}
-
-.form-section-title:first-child {
+.section-head:first-of-type {
   margin-top: 0;
 }
 
-/* Estilo para la sección del toggle */
-.toggle-section {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  margin-top: calc(var(--form-gap) / 2);
+.section-title {
+  margin: 0;
+  font-size: 0.82rem;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: #0f172a;
 }
 
-/* Hint simple (usaste <small class="hint"> en el HTML) */
-.hint {
-  display: inline-block;
-  margin-top: 6px;
-  color: #757575;
+.section-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   font-size: 12px;
+  color: #b45309;
+  background: #fef3c7;
+  padding: 2px 8px;
+  border-radius: 999px;
 }
 
-/* Indicador de carga centrado */
+.section-hint .hint-icon {
+  font-size: 14px;
+  width: 14px;
+  height: 14px;
+}
+
+/* Fila de toggles en línea */
+.toggles-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 24px;
+  padding: 4px 2px;
+  margin-top: 2px;
+}
+
+/* Spinner de carga */
 .loading-container {
   display: flex;
   flex-direction: column;
   justify-content: center;
   align-items: center;
-  gap: 16px;
-  min-height: 250px;
-  padding: var(--form-padding);
-  color: #757575;
+  gap: 12px;
+  min-height: 220px;
+  color: #64748b;
 }
 
-.loading-container p {
-  margin: 0;
+.loading-container p { margin: 0; }
+
+/* Footer */
+.dlg-actions {
+  padding: 10px 20px !important;
+  border-top: 1px solid #e5e7eb;
+  gap: 8px;
 }
 
-/* Contenedor del botón "Guardando..." */
 .saving-indicator {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 8px;
 }
 
-/* Responsive: elementos de 2 columnas pasan a 1 */
-@media (max-width: 600px) {
-  .span-2 {
-    grid-column: span 1;
+/* Responsive: 2 columnas */
+@media (max-width: 900px) {
+  .form-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+  .span-half-2 { grid-column: span 1; }
+}
+
+/* Responsive: 1 columna */
+@media (max-width: 560px) {
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+  .span-2,
+  .span-half-1,
+  .span-half-2 { grid-column: span 1; }
 }

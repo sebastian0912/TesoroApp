@@ -403,6 +403,10 @@ export class HiringReportComponent implements OnInit, OnDestroy {
           );
         }
       }
+
+      if (key === 'arl') {
+        void this.validateArlOnUpload(allowed[0]);
+      }
     }
 
     this.cdr.markForCheck();
@@ -1035,15 +1039,41 @@ export class HiringReportComponent implements OnInit, OnDestroy {
   // ARL PROCESSING (WORKER)
   // ---------------------------------------------------------------------------
 
-  private async processArl(file: File) {
-    const wb = await this.readExcel(file);
+  /**
+   * Lee el ARL, valida que tenga las columnas requeridas y devuelve datos + índices.
+   * Si falla, muestra un Swal explicativo y retorna null. Reusable desde onFileSelect
+   * (verificación inmediata al adjuntar) y desde validarTodo (procesamiento completo).
+   */
+  private async parseAndValidateArl(
+    file: File,
+  ): Promise<{ indices: { dni: number; vig: number }; data: any[][] } | null> {
+    let wb: XLSX.WorkBook;
+    try {
+      wb = await this.readExcel(file);
+    } catch (e: any) {
+      Swal.fire({
+        icon: 'error',
+        title: 'No se pudo leer el archivo ARL',
+        html:
+          `Ocurrió un error al abrir <b>${file.name}</b>.<br><br>` +
+          `<b>Detalle:</b> ${(e && e.message) || 'Sin detalle.'}<br><br>` +
+          `Verifica que no esté abierto en otra ventana ni protegido con contraseña.`,
+      });
+      return null;
+    }
+
     const sheet = wb.Sheets[wb.SheetNames[0]];
     const data = XLSX.utils.sheet_to_json<any[]>(sheet, { header: 1, defval: '', raw: true });
 
     if (data.length < 2) {
-      throw new Error(
-        `El archivo ARL "${file.name}" está vacío o solo tiene el encabezado. Verifica que contenga al menos una fila de datos.`,
-      );
+      Swal.fire({
+        icon: 'warning',
+        title: 'El archivo ARL está vacío',
+        html:
+          `El archivo <b>${file.name}</b> está vacío o solo tiene el encabezado. ` +
+          `Verifica que contenga al menos una fila de datos.`,
+      });
+      return null;
     }
 
     const headers = data[0].map(h => String(h).toUpperCase().trim());
@@ -1066,33 +1096,48 @@ export class HiringReportComponent implements OnInit, OnDestroy {
           `• Una columna cuyo nombre contenga <b>INICIO VIGENCIA</b>.<br><br>` +
           `Sin estas columnas no se puede validar ARL.`,
       });
+      return null;
+    }
+
+    return { indices: { dni: idxDni, vig: idxVig }, data };
+  }
+
+  /**
+   * Verificación inmediata al adjuntar el ARL. Si las columnas no son válidas,
+   * limpia el archivo para forzar re-adjuntar.
+   */
+  private async validateArlOnUpload(file: File): Promise<void> {
+    const result = await this.parseAndValidateArl(file);
+    if (!result) {
+      this.clearFile('arl');
+      this.cdr.markForCheck();
+    }
+  }
+
+  private async processArl(file: File) {
+    const parsed = await this.parseAndValidateArl(file);
+    if (!parsed) {
       this.isArlValidado = false;
       return;
     }
 
-    // Store dynamic indices in class (requires defining them)
-    // For now we will pass them to download function indirectly or just Recalculate/Store.
-    // Let's store them in class scope to be safe, or just rely on finding them again/cleaning now.
+    const { indices, data } = parsed;
+    const { dni: idxDni, vig: idxVig } = indices;
 
-    // SANITIZE DNI COLUMN (User Requirement: Remove special chars from col 11)
-    // We use dynamic idxDni found.
+    // SANITIZE DNI COLUMN: remover caracteres no alfanuméricos para empatar con el cruce.
     const rawRows = data.slice(1);
     this.arlRows = rawRows.map(row => {
       const val = row[idxDni];
       if (val) {
-        // Remove all non-alphanumeric
         const clean = String(val).replace(/[^a-zA-Z0-9]/g, '');
         row[idxDni] = clean;
       }
       return row;
     });
 
-    // Save indices for later use
     this.arlIndices = { dni: idxDni, vig: idxVig };
-
     this.isArlValidado = true;
 
-    // Recolectar errores ARL inmediatamente para mostrar en la UI
     this.collectArlErrors();
 
     // Envío silencioso al backend: toda inconsistencia ARL queda registrada
