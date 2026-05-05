@@ -4,9 +4,17 @@ import { SharedModule } from '@/app/shared/shared.module';
 import { FormBuilder, FormGroup, Validators } from '@angular/forms';
 import Swal from 'sweetalert2';
 import { MatTableDataSource, MatTableModule } from '@angular/material/table';
+import { MatDialog } from '@angular/material/dialog';
+import { firstValueFrom } from 'rxjs';
 import { ElectronWindowService } from '@/app/core/services/electron-window.service';
+import { DateRangeDialogComponent } from '@/app/shared/components/date-rang-dialog/date-rang-dialog.component';
 import * as ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
+
+interface RangoFechas {
+  start: string | null;
+  end: string | null;
+}
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -36,6 +44,7 @@ export class TransferQueryComponent {
     private fb: FormBuilder,
     private cdr: ChangeDetectorRef,
     private electronWindow: ElectronWindowService,
+    private dialog: MatDialog,
   ) {
     this.myForm = this.fb.group({
       cedula: ['', Validators.required],
@@ -139,9 +148,10 @@ export class TransferQueryComponent {
   }
 
   /**
-   * Genera un Excel profesional con los traslados de la cedula consultada,
-   * ordenados por fecha de subida (la mas antigua primero), con la solicitud
-   * como hyperlink clickable.
+   * Abre el dialog de rango de fechas y luego genera un Excel profesional
+   * con los traslados que tengan fecha de subida dentro del rango,
+   * ordenados de la mas antigua a la mas reciente. Si el usuario no
+   * elige fechas, se exportan todos los registros tal cual.
    */
   async descargarExcel(): Promise<void> {
     const filas = (this.dataSource.data || []).slice();
@@ -154,22 +164,49 @@ export class TransferQueryComponent {
       return;
     }
 
+    // 1) Pedir rango de fechas con el dialog compartido.
+    const dialogRef = this.dialog.open<DateRangeDialogComponent, void, RangoFechas>(
+      DateRangeDialogComponent,
+      { width: '550px', autoFocus: true, restoreFocus: true }
+    );
+    const rango = await firstValueFrom(dialogRef.afterClosed());
+    if (rango === undefined) {
+      // Usuario cerro/cancelo el dialog.
+      return;
+    }
+
     this.isExporting = true;
     this.cdr.markForCheck();
 
     try {
-      // Decorar con fecha_subida y ordenar ascendente (mas antigua arriba).
+      // 2) Decorar con fecha_subida y filtrar por rango si se eligio.
+      const startDate = this.parseRangoBoundary(rango.start, 'start');
+      const endDate = this.parseRangoBoundary(rango.end, 'end');
+
       const decoradas = filas
         .map(f => ({ raw: f, fechaSubida: this.getFechaSubida(f) }))
+        .filter(d => this.dentroDelRango(d.fechaSubida, startDate, endDate))
         .sort((a, b) => {
           const ta = a.fechaSubida ? a.fechaSubida.getTime() : Number.POSITIVE_INFINITY;
           const tb = b.fechaSubida ? b.fechaSubida.getTime() : Number.POSITIVE_INFINITY;
           return ta - tb;
         });
 
+      if (decoradas.length === 0) {
+        this.isExporting = false;
+        this.cdr.markForCheck();
+        Swal.fire({
+          icon: 'info',
+          title: 'Sin resultados en el rango',
+          text: 'No hay traslados con fecha de subida dentro del rango seleccionado.',
+        });
+        return;
+      }
+
       const cedula = String(this.myForm.value.cedula || '').trim() || 'sin_cedula';
       const ahora = new Date();
       const sufijo = `${ahora.getFullYear()}${String(ahora.getMonth() + 1).padStart(2, '0')}${String(ahora.getDate()).padStart(2, '0')}_${String(ahora.getHours()).padStart(2, '0')}${String(ahora.getMinutes()).padStart(2, '0')}`;
+      const rangoLabel = this.labelRango(rango);
 
       const wb = new ExcelJS.Workbook();
       wb.creator = 'TesoroApp';
@@ -191,7 +228,7 @@ export class TransferQueryComponent {
 
       ws.mergeCells('A2:K2');
       const subCell = ws.getCell('A2');
-      subCell.value = `Cedula: ${cedula}    |    Total registros: ${decoradas.length}    |    Generado: ${ahora.toLocaleString('es-CO')}`;
+      subCell.value = `Cedula: ${cedula}    |    Rango: ${rangoLabel}    |    Total: ${decoradas.length}    |    Generado: ${ahora.toLocaleString('es-CO')}`;
       subCell.font = { name: 'Calibri', size: 10, italic: true, color: { argb: 'FF4B5563' } };
       subCell.alignment = { vertical: 'middle', horizontal: 'center' };
       ws.getRow(2).height = 18;
@@ -307,6 +344,35 @@ export class TransferQueryComponent {
       this.isExporting = false;
       this.cdr.markForCheck();
     }
+  }
+
+  /**
+   * Convierte el string "YYYY-MM-DD" del dialog en Date local. Para `start`
+   * pone 00:00:00; para `end` pone 23:59:59 para incluir todo el dia final.
+   */
+  private parseRangoBoundary(raw: string | null, kind: 'start' | 'end'): Date | null {
+    if (!raw) return null;
+    const [y, m, d] = raw.split('-').map(n => parseInt(n, 10));
+    if (!y || !m || !d) return null;
+    if (kind === 'start') return new Date(y, m - 1, d, 0, 0, 0, 0);
+    return new Date(y, m - 1, d, 23, 59, 59, 999);
+  }
+
+  /** Sin start/end -> incluye todo. Con start o end abiertos en un lado, igual filtra. */
+  private dentroDelRango(fecha: Date | null, start: Date | null, end: Date | null): boolean {
+    if (!start && !end) return true;
+    if (!fecha) return false; // sin fecha de subida, fuera del filtro por rango
+    if (start && fecha.getTime() < start.getTime()) return false;
+    if (end && fecha.getTime() > end.getTime()) return false;
+    return true;
+  }
+
+  /** Texto humano del rango, para el subtitulo del Excel. */
+  private labelRango(r: RangoFechas): string {
+    if (!r.start && !r.end) return 'Todos';
+    if (r.start && r.end) return `${r.start} a ${r.end}`;
+    if (r.start) return `Desde ${r.start}`;
+    return `Hasta ${r.end}`;
   }
 
 }
