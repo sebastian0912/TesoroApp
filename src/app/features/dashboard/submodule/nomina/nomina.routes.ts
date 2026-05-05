@@ -7,5 +7,5 @@ export const routes: Routes = [
   { path: 'calculo-nomina', component: CalculoNominaComponent },
   { path: 'historico-nomina', loadComponent: () => import('./pages/historico-nomina/historico-nomina.component').then(m => m.HistoricoNominaComponent) },
   { path: 'parametrizacion-novedades', loadComponent: () => import('./pages/parametrizacion-novedades/parametrizacion-novedades.component').then(m => m.ParametrizacionNovedadesComponent) },
-  { path: 'convalidador', loadComponent: () => import('./pages/convalidador/convalidador.component').then(m => m.ConvalidadorComponent) },
+  { path: 'homologador', loadComponent: () => import('./pages/homologador/homologador.component').then(m => m.HomologadorComponent) },
 ];

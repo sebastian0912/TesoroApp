@@ -1,5 +1,5 @@
 import { ChangeDetectorRef, Component, Inject, OnInit } from '@angular/core';
-
+import { CommonModule } from '@angular/common';
 import { FormBuilder, FormGroup, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 
 import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
@@ -13,18 +13,19 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 
-import { ConceptoNomina, ConvalidadorExterno, NominaService } from '../../service/nomina/nomina.service';
+import { ConceptoNomina, HomologadorExterno, NominaService } from '../../service/nomina/nomina.service';
 
-interface ConvalidadorDialogData {
-  convalidacion: ConvalidadorExterno | null;
+interface HomologadorDialogData {
+  homologacion: HomologadorExterno | null;
   entidadId: number;
   conceptoSugerido?: ConceptoNomina | null;
 }
 
 @Component({
-  selector: 'app-convalidador-form-dialog',
+  selector: 'app-homologador-form-dialog',
   standalone: true,
   imports: [
+    CommonModule,
     FormsModule,
     ReactiveFormsModule,
     MatDialogModule,
@@ -36,8 +37,8 @@ interface ConvalidadorDialogData {
     MatProgressSpinnerModule,
     MatSelectModule,
     MatSlideToggleModule,
-    MatSnackBarModule
-],
+    MatSnackBarModule,
+  ],
   template: `
     <div class="dialog-header">
       <mat-icon class="dialog-icon">{{ isEditing ? 'edit_note' : 'sync_alt' }}</mat-icon>
@@ -46,51 +47,43 @@ interface ConvalidadorDialogData {
         <p class="dialog-subtitle">Relaciona un concepto externo con un concepto maestro de Tu Alianza</p>
       </div>
     </div>
-    
+
     <mat-divider></mat-divider>
-    
+
     <mat-dialog-content>
       <form [formGroup]="form" class="form-grid">
         <div class="section-title">Concepto de la empresa externa</div>
-    
+
         <mat-form-field appearance="outline" class="field-half">
           <mat-label>Codigo externo</mat-label>
           <input matInput formControlName="codigo_externo" placeholder="Ej: NOV_001" maxlength="50">
-          @if (form.get('codigo_externo')?.hasError('required')) {
-            <mat-error>Obligatorio</mat-error>
-          }
+          <mat-error *ngIf="form.get('codigo_externo')?.hasError('required')">Obligatorio</mat-error>
         </mat-form-field>
-    
+
         <mat-form-field appearance="outline" class="field-half">
           <mat-label>Clasificacion externa</mat-label>
           <input matInput formControlName="clasificacion_externa" placeholder="Ej: Devengo" maxlength="100">
         </mat-form-field>
-    
+
         <mat-form-field appearance="outline" class="field-full">
           <mat-label>Nombre del concepto externo</mat-label>
           <input matInput formControlName="concepto_externo" placeholder="Ej: Bonificacion por produccion" maxlength="200">
-          @if (form.get('concepto_externo')?.hasError('required')) {
-            <mat-error>Obligatorio</mat-error>
-          }
+          <mat-error *ngIf="form.get('concepto_externo')?.hasError('required')">Obligatorio</mat-error>
         </mat-form-field>
-    
+
         <div class="section-title">Concepto maestro Tu Alianza</div>
-    
+
         <mat-form-field appearance="outline" class="field-full">
           <mat-label>Concepto maestro</mat-label>
           <mat-select formControlName="concepto">
-            @for (c of conceptosFiltrados; track c) {
-              <mat-option [value]="c.id_concepto">
-                <span class="opt-codigo">[{{ c.codigo }}]</span> {{ c.descripcion }}
-                <span class="opt-nat">({{ c.naturaleza_display || c.naturaleza }})</span>
-              </mat-option>
-            }
+            <mat-option *ngFor="let c of conceptosFiltrados" [value]="c.id_concepto">
+              <span class="opt-codigo">[{{ c.codigo }}]</span> {{ c.descripcion }}
+              <span class="opt-nat">({{ c.naturaleza_display || c.naturaleza }})</span>
+            </mat-option>
           </mat-select>
-          @if (form.get('concepto')?.hasError('required')) {
-            <mat-error>Seleccione un concepto</mat-error>
-          }
+          <mat-error *ngIf="form.get('concepto')?.hasError('required')">Seleccione un concepto</mat-error>
         </mat-form-field>
-    
+
         <mat-form-field appearance="outline" class="field-full compact-field">
           <mat-label>Filtrar conceptos</mat-label>
           <input
@@ -99,57 +92,55 @@ interface ConvalidadorDialogData {
             [ngModelOptions]="{ standalone: true }"
             (input)="filtrarConceptos()"
             placeholder="Buscar por codigo o descripcion..."
-            >
-            <mat-icon matSuffix>search</mat-icon>
-          </mat-form-field>
-    
-          <div class="section-title">Mapeo operativo (opcional)</div>
-    
-          <mat-form-field appearance="outline" class="field-half">
-            <mat-label>Tabla operativa destino</mat-label>
-            <input matInput formControlName="tabla_operativa_destino" placeholder="Ej: nomina_bonificaciones_auxilios" maxlength="100">
-          </mat-form-field>
-    
-          <mat-form-field appearance="outline" class="field-half">
-            <mat-label>Campo operativo destino</mat-label>
-            <input matInput formControlName="campo_operativo_destino" placeholder="Ej: bonif_1_constitutiva_salario" maxlength="100">
-          </mat-form-field>
-    
-          <div class="section-title">Estado y observaciones</div>
-    
-          <mat-form-field appearance="outline" class="field-half">
-            <mat-label>Estado de homologacion</mat-label>
-            <mat-select formControlName="estado_convalidacion">
-              <mat-option value="CONVALIDADO">Convalidado</mat-option>
-              <mat-option value="CONVALIDADO_CON_OBSERVACION">Convalidado con observacion</mat-option>
-              <mat-option value="REVISAR">Revisar</mat-option>
-              <mat-option value="SIN_HOMOLOGACION">Sin homologacion</mat-option>
-            </mat-select>
-          </mat-form-field>
-    
-          <div class="toggle-row field-half">
-            <mat-slide-toggle formControlName="activo" color="primary">Activo</mat-slide-toggle>
-          </div>
-    
-          <mat-form-field appearance="outline" class="field-full">
-            <mat-label>Observacion</mat-label>
-            <textarea matInput formControlName="observacion" rows="3" placeholder="Notas adicionales sobre esta homologacion..."></textarea>
-          </mat-form-field>
-        </form>
-      </mat-dialog-content>
-    
-      <mat-divider></mat-divider>
-    
-      <mat-dialog-actions align="end">
-        <button mat-stroked-button (click)="cancelar()" [disabled]="saving">Cancelar</button>
-        <button mat-flat-button color="primary" (click)="guardar()" [disabled]="form.invalid || saving">
-          @if (saving) {
-            <mat-spinner diameter="18" style="display:inline-block;margin-right:6px"></mat-spinner>
-          }
-          {{ isEditing ? 'Guardar cambios' : 'Crear homologacion' }}
-        </button>
-      </mat-dialog-actions>
-    `,
+          >
+          <mat-icon matSuffix>search</mat-icon>
+        </mat-form-field>
+
+        <div class="section-title">Mapeo operativo (opcional)</div>
+
+        <mat-form-field appearance="outline" class="field-half">
+          <mat-label>Tabla operativa destino</mat-label>
+          <input matInput formControlName="tabla_operativa_destino" placeholder="Ej: nomina_bonificaciones_auxilios" maxlength="100">
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="field-half">
+          <mat-label>Campo operativo destino</mat-label>
+          <input matInput formControlName="campo_operativo_destino" placeholder="Ej: bonif_1_constitutiva_salario" maxlength="100">
+        </mat-form-field>
+
+        <div class="section-title">Estado y observaciones</div>
+
+        <mat-form-field appearance="outline" class="field-half">
+          <mat-label>Estado de homologacion</mat-label>
+          <mat-select formControlName="estado_homologacion">
+            <mat-option value="HOMOLOGADO">Homologado</mat-option>
+            <mat-option value="HOMOLOGADO_CON_OBSERVACION">Homologado con observacion</mat-option>
+            <mat-option value="REVISAR">Revisar</mat-option>
+            <mat-option value="SIN_HOMOLOGACION">Sin homologacion</mat-option>
+          </mat-select>
+        </mat-form-field>
+
+        <div class="toggle-row field-half">
+          <mat-slide-toggle formControlName="activo" color="primary">Activo</mat-slide-toggle>
+        </div>
+
+        <mat-form-field appearance="outline" class="field-full">
+          <mat-label>Observacion</mat-label>
+          <textarea matInput formControlName="observacion" rows="3" placeholder="Notas adicionales sobre esta homologacion..."></textarea>
+        </mat-form-field>
+      </form>
+    </mat-dialog-content>
+
+    <mat-divider></mat-divider>
+
+    <mat-dialog-actions align="end">
+      <button mat-stroked-button (click)="cancelar()" [disabled]="saving">Cancelar</button>
+      <button mat-flat-button color="primary" (click)="guardar()" [disabled]="form.invalid || saving">
+        <mat-spinner *ngIf="saving" diameter="18" style="display:inline-block;margin-right:6px"></mat-spinner>
+        {{ isEditing ? 'Guardar cambios' : 'Crear homologacion' }}
+      </button>
+    </mat-dialog-actions>
+  `,
   styles: [`
     .dialog-header {
       display: flex;
@@ -189,7 +180,7 @@ interface ConvalidadorDialogData {
     mat-dialog-actions { padding: 12px 24px 16px !important; }
   `],
 })
-export class ConvalidadorFormDialogComponent implements OnInit {
+export class HomologadorFormDialogComponent implements OnInit {
   form!: FormGroup;
   isEditing = false;
   saving = false;
@@ -200,29 +191,29 @@ export class ConvalidadorFormDialogComponent implements OnInit {
 
   constructor(
     private fb: FormBuilder,
-    private dialogRef: MatDialogRef<ConvalidadorFormDialogComponent>,
-    @Inject(MAT_DIALOG_DATA) public data: ConvalidadorDialogData,
+    private dialogRef: MatDialogRef<HomologadorFormDialogComponent>,
+    @Inject(MAT_DIALOG_DATA) public data: HomologadorDialogData,
     private nominaService: NominaService,
     private snackBar: MatSnackBar,
     private cdr: ChangeDetectorRef,
   ) {}
 
   ngOnInit(): void {
-    this.isEditing = !!this.data.convalidacion;
-    const convalidacion = this.data.convalidacion;
-    const conceptoInicial = convalidacion?.concepto ?? this.data.conceptoSugerido?.id_concepto ?? '';
+    this.isEditing = !!this.data.homologacion;
+    const homologacion = this.data.homologacion;
+    const conceptoInicial = homologacion?.concepto ?? this.data.conceptoSugerido?.id_concepto ?? '';
 
     this.form = this.fb.group({
       entidad_externa: [this.data.entidadId, Validators.required],
-      codigo_externo: [convalidacion?.codigo_externo ?? '', Validators.required],
-      concepto_externo: [convalidacion?.concepto_externo ?? '', Validators.required],
-      clasificacion_externa: [convalidacion?.clasificacion_externa ?? ''],
+      codigo_externo: [homologacion?.codigo_externo ?? '', Validators.required],
+      concepto_externo: [homologacion?.concepto_externo ?? '', Validators.required],
+      clasificacion_externa: [homologacion?.clasificacion_externa ?? ''],
       concepto: [conceptoInicial, Validators.required],
-      tabla_operativa_destino: [convalidacion?.tabla_operativa_destino ?? ''],
-      campo_operativo_destino: [convalidacion?.campo_operativo_destino ?? ''],
-      estado_convalidacion: [convalidacion?.estado_convalidacion ?? 'SIN_HOMOLOGACION', Validators.required],
-      observacion: [convalidacion?.observacion ?? ''],
-      activo: [convalidacion?.activo ?? true],
+      tabla_operativa_destino: [homologacion?.tabla_operativa_destino ?? ''],
+      campo_operativo_destino: [homologacion?.campo_operativo_destino ?? ''],
+      estado_homologacion: [homologacion?.estado_homologacion ?? 'SIN_HOMOLOGACION', Validators.required],
+      observacion: [homologacion?.observacion ?? ''],
+      activo: [homologacion?.activo ?? true],
     });
 
     this.cargarConceptos();
@@ -263,8 +254,8 @@ export class ConvalidadorFormDialogComponent implements OnInit {
     this.saving = true;
     const payload = this.form.value;
     const request$ = this.isEditing
-      ? this.nominaService.actualizarConvalidacion(this.data.convalidacion!.id_convalidacion!, payload)
-      : this.nominaService.crearConvalidacion(payload);
+      ? this.nominaService.actualizarHomologacion(this.data.homologacion!.id_homologacion!, payload)
+      : this.nominaService.crearHomologacion(payload);
 
     request$.subscribe({
       next: () => {

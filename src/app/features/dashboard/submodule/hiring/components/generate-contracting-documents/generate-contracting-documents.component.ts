@@ -23,7 +23,6 @@ import { switchMap, map, take, catchError, tap, finalize } from 'rxjs/operators'
 import { of, forkJoin, firstValueFrom, throwError } from 'rxjs';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { isDocumentoVisible, getDocSeccion, SECCION_LABELS, type DocSeccion } from './documentos-por-empresa.config';
-import { getLocalStorageItem, setLocalStorageItem } from '../../../../../../core/utils/safe-storage';
 
 type UploadedInfo = {
   file: File;
@@ -290,8 +289,8 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     try {
       // 1) Cédula: ruta -> localStorage
       const cedulaRuta = this.route.snapshot.paramMap.get('numeroDocumento') ?? '';
-      this.cedula = cedulaRuta || getLocalStorageItem('cedula') || '';
-      if (this.cedula) setLocalStorageItem('cedula', this.cedula);
+      this.cedula = cedulaRuta || localStorage.getItem('cedula') || '';
+      if (this.cedula) localStorage.setItem('cedula', this.cedula);
 
       // 2) Usuario/sede
       this.user = this.utilService.getUser?.() ?? {};

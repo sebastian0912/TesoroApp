@@ -25,13 +25,13 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import {
   Client,
   ConceptoNomina,
-  ConvalidadorExterno,
-  EstadoConvalidacion,
+  HomologadorExterno,
+  EstadoHomologacion,
   NominaService,
 } from '../../service/nomina/nomina.service';
-import { ConvalidadorFormDialogComponent } from './convalidador-form-dialog.component';
+import { HomologadorFormDialogComponent } from './homologador-form-dialog.component';
 
-interface ConvalidadorCatalogRow extends ConvalidadorExterno {
+interface HomologadorCatalogRow extends HomologadorExterno {
   concepto_unidad?: string;
   concepto_activo: boolean;
   tiene_homologacion: boolean;
@@ -39,7 +39,7 @@ interface ConvalidadorCatalogRow extends ConvalidadorExterno {
 }
 
 @Component({
-  selector: 'app-convalidador',
+  selector: 'app-homologador',
   standalone: true,
   imports: [
     CommonModule,
@@ -63,10 +63,10 @@ interface ConvalidadorCatalogRow extends ConvalidadorExterno {
     MatTableModule,
     MatTooltipModule,
   ],
-  templateUrl: './convalidador.component.html',
-  styleUrls: ['./convalidador.component.css'],
+  templateUrl: './homologador.component.html',
+  styleUrls: ['./homologador.component.css'],
 })
-export class ConvalidadorComponent implements OnInit, AfterViewInit {
+export class HomologadorComponent implements OnInit, AfterViewInit {
   @ViewChild(MatSort) sort!: MatSort;
   @ViewChild(MatPaginator) paginator!: MatPaginator;
 
@@ -76,11 +76,11 @@ export class ConvalidadorComponent implements OnInit, AfterViewInit {
     'codigo_externo',
     'concepto_externo',
     'clasificacion_externa',
-    'estado_convalidacion',
+    'estado_homologacion',
     'activo',
     'acciones',
   ];
-  dataSource = new MatTableDataSource<ConvalidadorCatalogRow>([]);
+  dataSource = new MatTableDataSource<HomologadorCatalogRow>([]);
   isLoading = false;
 
   clientes: Client[] = [];
@@ -93,16 +93,16 @@ export class ConvalidadorComponent implements OnInit, AfterViewInit {
   filteredConceptos$!: Observable<ConceptoNomina[]>;
   selectedConcepto: ConceptoNomina | null = null;
 
-  convalidacionesEmpresa: ConvalidadorExterno[] = [];
-  catalogoConceptos: ConvalidadorCatalogRow[] = [];
+  homologacionesEmpresa: HomologadorExterno[] = [];
+  catalogoConceptos: HomologadorCatalogRow[] = [];
 
   filterEstado = '';
   filterActivo = '';
   filterSearch = '';
 
   readonly ESTADO_LABELS: Record<string, { label: string; color: string; icon: string }> = {
-    CONVALIDADO: { label: 'Convalidado', color: 'estado-ok', icon: 'check_circle' },
-    CONVALIDADO_CON_OBSERVACION: { label: 'Con observacion', color: 'estado-warn', icon: 'info' },
+    HOMOLOGADO: { label: 'Homologado', color: 'estado-ok', icon: 'check_circle' },
+    HOMOLOGADO_CON_OBSERVACION: { label: 'Con observacion', color: 'estado-warn', icon: 'info' },
     REVISAR: { label: 'Revisar', color: 'estado-review', icon: 'rate_review' },
     SIN_HOMOLOGACION: { label: 'Sin homologacion', color: 'estado-none', icon: 'help_outline' },
   };
@@ -192,13 +192,13 @@ export class ConvalidadorComponent implements OnInit, AfterViewInit {
 
   onClienteSelected(cliente: Client): void {
     this.selectedCliente = cliente;
-    this.cargarConvalidaciones();
+    this.cargarHomologaciones();
   }
 
   onClienteCleared(): void {
     this.selectedCliente = null;
     this.clienteControl.setValue('');
-    this.convalidacionesEmpresa = [];
+    this.homologacionesEmpresa = [];
     this.catalogoConceptos = [];
     this.dataSource.data = [];
   }
@@ -214,7 +214,7 @@ export class ConvalidadorComponent implements OnInit, AfterViewInit {
     this.aplicarFiltros();
   }
 
-  cargarConvalidaciones(): void {
+  cargarHomologaciones(): void {
     if (!this.selectedCliente) {
       this.dataSource.data = [];
       return;
@@ -222,15 +222,15 @@ export class ConvalidadorComponent implements OnInit, AfterViewInit {
 
     this.isLoading = true;
     this.cdr.markForCheck();
-    this.nominaService.getConvalidaciones({ entidad_externa: this.selectedCliente.id_entidad }).subscribe({
+    this.nominaService.getHomologaciones({ entidad_externa: this.selectedCliente.id_entidad }).subscribe({
       next: (data) => {
-        this.convalidacionesEmpresa = data;
+        this.homologacionesEmpresa = data;
         this.reconstruirCatalogo();
         this.isLoading = false;
         this.cdr.markForCheck();
       },
       error: () => {
-        this.snackBar.open('Error al cargar convalidaciones', 'Cerrar', { duration: 3000 });
+        this.snackBar.open('Error al cargar homologaciones', 'Cerrar', { duration: 3000 });
         this.isLoading = false;
         this.cdr.markForCheck();
       },
@@ -243,43 +243,43 @@ export class ConvalidadorComponent implements OnInit, AfterViewInit {
       return;
     }
 
-    const ref = this.dialog.open(ConvalidadorFormDialogComponent, {
+    const ref = this.dialog.open(HomologadorFormDialogComponent, {
       width: '680px',
       data: {
-        convalidacion: null,
+        homologacion: null,
         entidadId: this.selectedCliente.id_entidad,
         conceptoSugerido: this.selectedConcepto,
       },
     });
 
     ref.afterClosed().subscribe((ok) => {
-      if (ok) this.cargarConvalidaciones();
+      if (ok) this.cargarHomologaciones();
     });
   }
 
-  abrirDialogoEditar(item: ConvalidadorCatalogRow): void {
-    const ref = this.dialog.open(ConvalidadorFormDialogComponent, {
+  abrirDialogoEditar(item: HomologadorCatalogRow): void {
+    const ref = this.dialog.open(HomologadorFormDialogComponent, {
       width: '680px',
       data: {
-        convalidacion: item.tiene_homologacion ? this.toConvalidacion(item) : null,
+        homologacion: item.tiene_homologacion ? this.toHomologacion(item) : null,
         entidadId: item.entidad_externa,
         conceptoSugerido: this.conceptos.find((concepto) => concepto.id_concepto === item.concepto) ?? null,
       },
     });
 
     ref.afterClosed().subscribe((ok) => {
-      if (ok) this.cargarConvalidaciones();
+      if (ok) this.cargarHomologaciones();
     });
   }
 
-  toggleActivo(item: ConvalidadorCatalogRow): void {
-    if (!item.id_convalidacion) {
+  toggleActivo(item: HomologadorCatalogRow): void {
+    if (!item.id_homologacion) {
       this.abrirDialogoEditar(item);
       return;
     }
 
     const nuevoEstado = !item.activo;
-    this.nominaService.actualizarConvalidacion(item.id_convalidacion, { activo: nuevoEstado }).subscribe({
+    this.nominaService.actualizarHomologacion(item.id_homologacion, { activo: nuevoEstado }).subscribe({
       next: () => {
         item.activo = nuevoEstado;
         this.snackBar.open(
@@ -334,11 +334,11 @@ export class ConvalidadorComponent implements OnInit, AfterViewInit {
       return;
     }
 
-    const porConcepto = new Map<number, ConvalidadorExterno[]>();
-    for (const convalidacion of this.convalidacionesEmpresa) {
-      const actuales = porConcepto.get(convalidacion.concepto) ?? [];
-      actuales.push(convalidacion);
-      porConcepto.set(convalidacion.concepto, actuales);
+    const porConcepto = new Map<number, HomologadorExterno[]>();
+    for (const homologacion of this.homologacionesEmpresa) {
+      const actuales = porConcepto.get(homologacion.concepto) ?? [];
+      actuales.push(homologacion);
+      porConcepto.set(homologacion.concepto, actuales);
     }
 
     this.catalogoConceptos = this.conceptos.map((concepto) => {
@@ -352,7 +352,7 @@ export class ConvalidadorComponent implements OnInit, AfterViewInit {
       const principal = homologaciones[0];
 
       return {
-        id_convalidacion: principal?.id_convalidacion,
+        id_homologacion: principal?.id_homologacion,
         concepto: concepto.id_concepto!,
         concepto_codigo: concepto.codigo,
         concepto_descripcion: concepto.descripcion,
@@ -366,7 +366,7 @@ export class ConvalidadorComponent implements OnInit, AfterViewInit {
         clasificacion_externa: principal?.clasificacion_externa ?? '',
         tabla_operativa_destino: principal?.tabla_operativa_destino ?? '',
         campo_operativo_destino: principal?.campo_operativo_destino ?? '',
-        estado_convalidacion: principal?.estado_convalidacion ?? 'SIN_HOMOLOGACION',
+        estado_homologacion: principal?.estado_homologacion ?? 'SIN_HOMOLOGACION',
         estado_display: principal?.estado_display,
         observacion: principal?.observacion ?? '',
         activo: principal?.activo ?? false,
@@ -392,7 +392,7 @@ export class ConvalidadorComponent implements OnInit, AfterViewInit {
 
     this.dataSource.data = this.catalogoConceptos.filter((item) => {
       if (conceptoId && item.concepto !== conceptoId) return false;
-      if (this.filterEstado && item.estado_convalidacion !== this.filterEstado) return false;
+      if (this.filterEstado && item.estado_homologacion !== this.filterEstado) return false;
       if (this.filterActivo !== '' && String(item.activo) !== this.filterActivo) return false;
       if (!search) return true;
 
@@ -411,9 +411,9 @@ export class ConvalidadorComponent implements OnInit, AfterViewInit {
     this.paginator?.firstPage();
   }
 
-  private toConvalidacion(item: ConvalidadorCatalogRow): ConvalidadorExterno {
+  private toHomologacion(item: HomologadorCatalogRow): HomologadorExterno {
     return {
-      id_convalidacion: item.id_convalidacion,
+      id_homologacion: item.id_homologacion,
       concepto: item.concepto,
       concepto_codigo: item.concepto_codigo,
       concepto_descripcion: item.concepto_descripcion,
@@ -426,7 +426,7 @@ export class ConvalidadorComponent implements OnInit, AfterViewInit {
       clasificacion_externa: item.clasificacion_externa,
       tabla_operativa_destino: item.tabla_operativa_destino,
       campo_operativo_destino: item.campo_operativo_destino,
-      estado_convalidacion: item.estado_convalidacion as EstadoConvalidacion,
+      estado_homologacion: item.estado_homologacion as EstadoHomologacion,
       estado_display: item.estado_display,
       observacion: item.observacion,
       activo: item.activo,
