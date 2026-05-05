@@ -127,6 +127,28 @@ export class TransferQueryComponent implements OnInit {
     this.electronWindow.openDocument(solicitud, { title: 'Solicitud de traslado' });
   }
 
+  // ====================================================================
+  // Helpers de UI para badges de estado en la tabla.
+  // ====================================================================
+  private normalizarEstado(raw: string | null | undefined): string {
+    return String(raw || '').trim().toLowerCase();
+  }
+
+  estadoEsOk(raw: string | null | undefined): boolean {
+    const e = this.normalizarEstado(raw);
+    return e === 'aceptado' || e === 'aprobado' || e === 'efectivo' || e === 'efectivos';
+  }
+
+  estadoEsPendiente(raw: string | null | undefined): boolean {
+    const e = this.normalizarEstado(raw);
+    return e === 'pendiente' || e === 'en proceso' || e === 'en curso' || e === 'asignado';
+  }
+
+  estadoEsRechazado(raw: string | null | undefined): boolean {
+    const e = this.normalizarEstado(raw);
+    return e === 'rechazado' || e === 'no efectivo' || e === 'devuelto' || e === 'cancelado';
+  }
+
   /**
    * Resuelve la URL del PDF a abrir desde el response del backend.
    * Prioridad: solicitud_doc.file_url (gestion_documental) > external_url (Drive).
