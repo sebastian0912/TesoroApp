@@ -59,6 +59,17 @@
   padding-top: 4px;
 }
 
+.actions-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  padding-top: 4px;
+}
+
+@media (max-width: 720px) {
+  .actions-grid { grid-template-columns: 1fr; }
+}
+
 .btns-suffix {
   display: flex;
   align-items: center;
@@ -67,11 +78,38 @@
 
 .btn-large {
   height: 54px;
-  padding: 0 32px;
+  padding: 0 16px;
   font-weight: 700;
-  letter-spacing: 1px;
+  letter-spacing: 0.4px;
   border-radius: 12px;
   box-shadow: 0 4px 14px rgba(25, 118, 210, 0.3);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-width: 0;            /* permite que el texto se contraiga */
+  font-size: 13px;
+}
+
+.btn-large mat-icon {
+  margin: 0;
+  flex-shrink: 0;
+}
+
+/* Botón de cálculo con plantilla — tono distintivo (verde teal). */
+.btn-novedades {
+  background: linear-gradient(135deg, #0d8a6b 0%, #0e7c5d 100%);
+  color: #fff;
+  box-shadow: 0 4px 14px rgba(13, 138, 107, 0.32);
+}
+.btn-novedades:hover:not([disabled]) {
+  background: linear-gradient(135deg, #0fa37e 0%, #0d8a6b 100%);
+  box-shadow: 0 6px 18px rgba(13, 138, 107, 0.42);
+}
+.btn-novedades[disabled] {
+  background: #d6dde2 !important;
+  color: #8a949c !important;
+  box-shadow: none;
 }
 
 /* Select Search Header */
@@ -112,7 +150,48 @@
   border-radius: 16px;
   overflow: hidden;
   border: 1px solid #edf2f7;
-  margin-bottom: 40px; 
+  margin-bottom: 40px;
+}
+
+.table-filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 20px 0;
+  border-bottom: 1px solid #f1f5f9;
+  flex-wrap: wrap;
+}
+
+.emp-filter-field {
+  flex: 1 1 320px;
+  max-width: 540px;
+}
+
+.filter-counter {
+  font-size: 0.85rem;
+  color: #64748b;
+  white-space: nowrap;
+}
+
+.filter-counter strong {
+  color: #1a237e;
+}
+
+.filter-empty {
+  text-align: center;
+  padding: 40px 16px;
+  color: #94a3b8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  font-size: 0.95rem;
+}
+
+.filter-empty mat-icon {
+  font-size: 22px;
+  width: 22px;
+  height: 22px;
 }
 
 .table-scroll-container {

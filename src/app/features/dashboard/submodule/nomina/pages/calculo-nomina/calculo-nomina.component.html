@@ -76,14 +76,17 @@
             </mat-form-field>
           </div>
 
-          <div class="actions-flat">
+          <div class="actions-grid">
             <button mat-raised-button color="primary" class="btn-large full-width" (click)="buscarEmpleados()" [disabled]="!selectedCliente || loading || !periodoControl.value">
               <mat-icon>calculate</mat-icon>
               CALCULAR NÓMINA
             </button>
-            <button mat-stroked-button color="accent" class="btn-large full-width" (click)="abrirImportNovedades()" [disabled]="!periodoControl.value || loading" matTooltip="Cargar novedades del periodo desde Excel (ausentismos, bonificaciones, descuentos, etc.)">
-              <mat-icon>event_note</mat-icon>
-              CARGAR NOVEDADES (EXCEL)
+            <button mat-raised-button class="btn-large full-width btn-novedades"
+                    (click)="abrirCalcularConPlantilla()"
+                    [disabled]="!selectedCliente || !periodoControl.value || loading"
+                    matTooltip="Sube un Excel con novedades (cédula + concepto + valor). El backend resuelve cada cédula contra los empleados, homologa los conceptos vía el Homologador y calcula la nómina sin persistir novedades.">
+              <mat-icon>upload_file</mat-icon>
+              NOVEDADES
             </button>
           </div>
         </div>
@@ -97,8 +100,26 @@
   </div>
 
   <div *ngIf="!loading && contratos.length > 0" class="table-frame mat-elevation-z3">
+    <div class="table-filter-bar">
+      <mat-form-field appearance="outline" class="emp-filter-field">
+        <mat-label>Filtrar empleados</mat-label>
+        <mat-icon matPrefix>filter_alt</mat-icon>
+        <input matInput
+               [(ngModel)]="filtroBusqueda"
+               (ngModelChange)="aplicarFiltroEmpleados()"
+               placeholder="Nombre, documento, contrato o centro de costo"
+               autocomplete="off">
+        <button *ngIf="filtroBusqueda" mat-icon-button matSuffix
+                (click)="limpiarFiltroEmpleados()" matTooltip="Limpiar filtro">
+          <mat-icon>close</mat-icon>
+        </button>
+      </mat-form-field>
+      <span class="filter-counter" *ngIf="filtroBusqueda">
+        Mostrando <strong>{{contratosFiltrados.length}}</strong> de <strong>{{contratos.length}}</strong>
+      </span>
+    </div>
     <div class="table-scroll-container">
-      <table mat-table [dataSource]="contratos">
+      <table mat-table [dataSource]="contratosFiltrados">
         
         <ng-container matColumnDef="empleado">
           <th mat-header-cell *matHeaderCellDef> Empleado </th>
@@ -154,6 +175,13 @@
 
         <tr mat-header-row *matHeaderRowDef="displayedColumns; sticky: true"></tr>
         <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
+
+        <tr class="mat-row" *matNoDataRow>
+          <td class="filter-empty" [attr.colspan]="displayedColumns.length">
+            <mat-icon>search_off</mat-icon>
+            <span>No hay empleados que coincidan con "{{filtroBusqueda}}".</span>
+          </td>
+        </tr>
       </table>
     </div>
   </div>

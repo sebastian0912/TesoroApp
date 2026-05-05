@@ -24,7 +24,7 @@ import { MatNativeDateModule, provideNativeDateAdapter } from '@angular/material
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { PeriodoDialogComponent } from './periodo-dialog/periodo-dialog.component';
-import { ImportNovedadesDialogComponent } from '../../components/import-novedades-dialog/import-novedades-dialog.component';
+import { CalcularConNovedadesDialogComponent } from '../../components/calcular-con-novedades-dialog/calcular-con-novedades-dialog.component';
 
 import * as ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
@@ -87,6 +87,8 @@ export class CalculoNominaComponent implements OnInit {
   
   // Resultados
   contratos: any[] = [];
+  contratosFiltrados: any[] = [];
+  filtroBusqueda: string = '';
   displayedColumns: string[] = ['empleado', 'num_doc', 'salario', 'dias', 'devengado', 'aux_trans', 'salud', 'pension', 'neto'];
   loading: boolean = false;
   guardando: boolean = false;
@@ -142,50 +144,55 @@ export class CalculoNominaComponent implements OnInit {
     return this.cecos.filter(c => c.nombre.toLowerCase().includes(filterValue));
   }
 
-  abrirImportNovedades(): void {
+  abrirCalcularConPlantilla(): void {
     const periodo = this.periodoControl.value;
     if (!periodo?.id_periodo) {
-      Swal.fire('Atención', 'Seleccione un periodo antes de cargar novedades.', 'warning');
+      Swal.fire('Atención', 'Seleccione un periodo antes de cargar la plantilla.', 'warning');
       return;
     }
     if (!this.selectedCliente?.id_entidad) {
-      Swal.fire('Atención', 'Seleccione un cliente: el convalidador depende del cliente.', 'warning');
+      Swal.fire('Atención', 'Seleccione un cliente: el homologador depende del cliente.', 'warning');
       return;
     }
-    const ref = this.dialog.open(ImportNovedadesDialogComponent, {
-      width: '95vw', maxWidth: '1200px', height: '90vh',
+    const ref = this.dialog.open(CalcularConNovedadesDialogComponent, {
+      width: '90vw', maxWidth: '1100px', maxHeight: '90vh',
       disableClose: true,
       data: {
         periodo_id: periodo.id_periodo,
         periodo_descripcion: periodo.descripcion,
         cliente_id: this.selectedCliente.id_entidad,
         cliente_nombre: this.selectedCliente.nombre_legal,
+        contrato_ids: this.contratos.map(c => c.id_contrato),
+        cecos: this.selectedCecoIds,
       },
     });
     ref.afterClosed().subscribe((result) => {
-      // Tras importar novedades, re-ejecutar el preview oficial del backend
-      // para que la tabla refleje el impacto en el cálculo.
-      if (result?.recalcular && this.selectedCliente && this.contratos.length) {
-        this.loading = true;
-        this.cdr.markForCheck();
-        this.nominaService.calcularLiquidacion({
-          periodo_id: periodo.id_periodo,
-          cliente_id: this.selectedCliente.id_entidad,
-          cecos: this.selectedCecoIds,
-          contrato_ids: this.contratos.map(c => c.id_contrato),
-        }).subscribe({
-          next: (preview) => {
-            this.aplicarPreviewBackend(preview.empleados || []);
-            this.loading = false;
-            this.cdr.markForCheck();
-          },
-          error: () => {
-            this.loading = false;
-            this.cdr.markForCheck();
-            Swal.fire('Error', 'No se pudo recalcular tras importar novedades.', 'error');
-          },
-        });
+      if (!result?.empleados?.length) return;
+
+      // Garantiza que la tabla tenga filas para los contratos calculados:
+      // si la pantalla estaba vacía o los IDs no coinciden, agregamos los
+      // contratos faltantes desde contratos_data (mismo shape que el endpoint
+      // de "Buscar Empleados").
+      const idsCalculados = new Set<number>(
+        (result.empleados as any[]).map(e => e.id_contrato),
+      );
+      const idsEnTabla = new Set<number>(this.contratos.map(c => c.id_contrato));
+      const faltantes: any[] = (result.contratos_data || []).filter(
+        (c: any) => idsCalculados.has(c.id_contrato) && !idsEnTabla.has(c.id_contrato),
+      );
+      if (faltantes.length) {
+        const enriquecidos = faltantes.map(c => ({
+          ...c,
+          dias_laborados: 0,
+          _devengado_basico: 0, _aux_trans: 0,
+          _salud: 0, _pension: 0, _neto: 0,
+        }));
+        this.contratos = [...this.contratos, ...enriquecidos];
+        this.aplicarFiltroEmpleados();
       }
+
+      this.aplicarPreviewBackend(result.empleados);
+      this.cdr.markForCheck();
     });
   }
 
@@ -255,6 +262,7 @@ export class CalculoNominaComponent implements OnInit {
     this.cecos = [];
     this.selectedCecoIds = [];
     this.contratos = [];
+    this.aplicarFiltroEmpleados();
     
     this.nominaService.getCentrosCostos(client.id_entidad).subscribe({
       next: (res: any) => {
@@ -328,6 +336,7 @@ export class CalculoNominaComponent implements OnInit {
           _devengado_basico: 0, _aux_trans: 0,
           _salud: 0, _pension: 0, _neto: 0,
         }));
+        this.aplicarFiltroEmpleados();
 
         if (this.contratos.length === 0) {
           this.loading = false;
@@ -388,7 +397,9 @@ export class CalculoNominaComponent implements OnInit {
       if (!calc) {
         return { ...c, dias_laborados: 0, _devengado_basico: 0, _aux_trans: 0,
           _salud: 0, _pension: 0, _total_devengado: 0, _total_deducido: 0,
-          _neto: 0, _conceptos: [] };
+          _neto: 0, _conceptos: [],
+          _dias_efectivos: 0, _dias_no_rem: 0, _ibc: 0,
+          _dev_sal: 0, _dev_nosal: 0, _ded_sal_ibc: 0, _observaciones: [] };
       }
       const find = (codigo: string) =>
         Number((calc.conceptos || []).find((x: any) => x.codigo === codigo)?.valor_total || 0);
@@ -403,8 +414,17 @@ export class CalculoNominaComponent implements OnInit {
         _total_deducido: Number(calc.total_deducido || 0),
         _neto: Number(calc.neto || 0),
         _conceptos: calc.conceptos || [],
+        _dias_efectivos: Number(calc.dias_efectivos || 0),
+        _dias_no_rem: Number(calc.dias_no_remunerados || 0),
+        _ibc: Number(calc.ibc || 0),
+        _dev_sal: Number(calc.devengos_salariales || 0),
+        _dev_nosal: Number(calc.devengos_no_salariales || 0),
+        _ded_sal_ibc: Number(calc.deducciones_salariales_que_disminuyen_ibc || 0),
+        _observaciones: Array.isArray(calc.observaciones_validacion)
+          ? calc.observaciones_validacion : [],
       };
     });
+    this.aplicarFiltroEmpleados();
 
     // Forzar re-render: OnPush + callbacks async no lo disparan por sí solos.
     this.cdr.markForCheck();
@@ -456,6 +476,7 @@ export class CalculoNominaComponent implements OnInit {
       // pantalla. detectChanges() dispara el render inmediato.
       const ids = new Set(rechazables.map(c => c.id_contrato));
       this.contratos = [...this.contratos.filter(c => !ids.has(c.id_contrato))];
+      this.aplicarFiltroEmpleados();
       this.cdr.detectChanges();
     }
   }
@@ -518,6 +539,31 @@ export class CalculoNominaComponent implements OnInit {
     saveAs(new Blob([buffer]), nombre);
   }
 
+  /**
+   * Filtra la tabla en vivo conforme el usuario escribe o pega texto.
+   * Matchea contra nombre completo, documento y centro de costo (case-insensitive).
+   */
+  aplicarFiltroEmpleados(): void {
+    const term = (this.filtroBusqueda || '').trim().toLowerCase();
+    if (!term) {
+      this.contratosFiltrados = [...this.contratos];
+    } else {
+      this.contratosFiltrados = this.contratos.filter(c => {
+        const nombre = `${c.primer_nombre || ''} ${c.segundo_nombre || ''} ${c.primer_apellido || ''} ${c.segundo_apellido || ''}`.toLowerCase();
+        const doc = String(c.numero_documento || '').toLowerCase();
+        const ceco = String(c.centro_de_costo || '').toLowerCase();
+        const codigo = String(c.codigo_contrato || '').toLowerCase();
+        return nombre.includes(term) || doc.includes(term) || ceco.includes(term) || codigo.includes(term);
+      });
+    }
+    this.cdr.markForCheck();
+  }
+
+  limpiarFiltroEmpleados(): void {
+    this.filtroBusqueda = '';
+    this.aplicarFiltroEmpleados();
+  }
+
   // Lecturas de presentación (NO calculan: solo leen el preview oficial del backend)
   getDevengadoBasico(c: any): number { return Number(c?._devengado_basico || 0); }
   getAuxilioTransporte(c: any): number { return Number(c?._aux_trans || 0); }
@@ -570,8 +616,8 @@ export class CalculoNominaComponent implements OnInit {
   async exportToExcel(): Promise<void> {
     if (this.contratos.length === 0) return;
     const workbook = new ExcelJS.Workbook();
-    
-    // Configuración básica columnas
+
+    // Columnas base (las 16 originales) + bloque de novedades/IBC.
     const columns = [
       { header: 'Contrato', key: 'codigo', width: 12 },
       { header: 'Cedula', key: 'num_doc', width: 15 },
@@ -589,25 +635,27 @@ export class CalculoNominaComponent implements OnInit {
       { header: 'Auxilio Calculado', key: 'aux_q', width: 15 },
       { header: 'Dias Laborados', key: 'dias', width: 8 },
       { header: 'Dias Transporte', key: 'dias_t', width: 8 },
+      // Bloque novedades/IBC
+      { header: 'Días Efectivos', key: 'dias_ef', width: 10 },
+      { header: 'Días No Rem.', key: 'dias_nr', width: 10 },
+      { header: 'Devengos Salariales', key: 'dev_sal', width: 16 },
+      { header: 'Devengos No Salariales', key: 'dev_nosal', width: 18 },
+      { header: 'Total Deducciones', key: 'total_ded', width: 14 },
+      { header: 'IBC', key: 'ibc', width: 14 },
+      { header: 'Salud (4%)', key: 'salud', width: 12 },
+      { header: 'Pensión (4%)', key: 'pension', width: 12 },
+      { header: 'Neto', key: 'neto', width: 14 },
+      { header: 'Observaciones', key: 'obs', width: 35 },
     ];
 
-    const cecosMap = new Map<number, any[]>();
-    
-    // 1. Hoja GENERAL
-    const generalSheet = workbook.addWorksheet('GENERAL');
-    generalSheet.columns = columns;
-    const headerRowGen = generalSheet.getRow(1);
-    headerRowGen.height = 25;
-    headerRowGen.eachCell((cell) => {
-      cell.font = { bold: true, color: { argb: 'FFFFFF' }, size: 11 };
-      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: '2C3E50' } };
-      cell.alignment = { vertical: 'middle', horizontal: 'center' };
-    });
+    // Columnas con formato monetario (índices 1-based: K=11, L=12, M=13, N=14,
+    // S=19 dev_sal, T=20 dev_nosal, U=21 total_ded, V=22 ibc, W=23 salud,
+    // X=24 pension, Y=25 neto).
+    const moneyCols = ['K', 'L', 'M', 'N', 'S', 'T', 'U', 'V', 'W', 'X', 'Y'];
 
-    this.contratos.forEach(c => {
-      // Poblar GENERAL
+    const buildRow = (c: any) => {
       const nombreCompleto = `${c.primer_apellido} ${c.segundo_apellido || ''} ${c.primer_nombre} ${c.segundo_nombre || ''}`.replace(/\s+/g, ' ').trim();
-      generalSheet.addRow({
+      return {
         codigo: c.codigo_contrato,
         num_doc: c.numero_documento,
         empleado: nombreCompleto,
@@ -623,61 +671,123 @@ export class CalculoNominaComponent implements OnInit {
         sueldo_q: this.getDevengadoBasico(c),
         aux_q: this.getAuxilioTransporte(c),
         dias: c.dias_laborados,
-        dias_t: c.auxilio_transporte_ley ? c.dias_laborados : 0
-      });
+        dias_t: c.auxilio_transporte_ley ? c.dias_laborados : 0,
+        dias_ef: Number(c._dias_efectivos || 0),
+        dias_nr: Number(c._dias_no_rem || 0),
+        dev_sal: Number(c._dev_sal || 0),
+        dev_nosal: Number(c._dev_nosal || 0),
+        total_ded: Number(c._total_deducido || 0),
+        ibc: Number(c._ibc || 0),
+        salud: Number(c._salud || 0),
+        pension: Number(c._pension || 0),
+        neto: Number(c._neto || 0),
+        obs: (c._observaciones || []).join(' | '),
+      };
+    };
 
-      // Mapear para hojas individuales
+    const cecosMap = new Map<number, any[]>();
+
+    // 1. Hoja GENERAL
+    const generalSheet = workbook.addWorksheet('GENERAL');
+    generalSheet.columns = columns;
+    const headerRowGen = generalSheet.getRow(1);
+    headerRowGen.height = 25;
+    headerRowGen.eachCell((cell) => {
+      cell.font = { bold: true, color: { argb: 'FFFFFF' }, size: 11 };
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: '2C3E50' } };
+      cell.alignment = { vertical: 'middle', horizontal: 'center' };
+    });
+
+    this.contratos.forEach(c => {
+      generalSheet.addRow(buildRow(c));
       const cecoId = c.id_ceco || c.ceco || 0;
       const list = cecosMap.get(cecoId) || [];
       list.push(c);
       cecosMap.set(cecoId, list);
     });
-    ['K', 'L', 'M', 'N'].forEach(k => generalSheet.getColumn(k).numFmt = '#,##0');
+    moneyCols.forEach(k => generalSheet.getColumn(k).numFmt = '#,##0');
 
     // 2. Hojas por CECO
     cecosMap.forEach((empleados, id_ceco) => {
       const cecoName = empleados[0].centro_de_costo || `CECO ${id_ceco}`;
       const cecoSheet = workbook.addWorksheet(cecoName.substring(0, 31).replace(/[\/*?\[\]:]/g, ' '));
       cecoSheet.columns = columns;
-      
-      // Estilo de Cabecera Premium
+
       const headerRow = cecoSheet.getRow(1);
       headerRow.height = 25;
       headerRow.eachCell((cell) => {
         cell.font = { bold: true, color: { argb: 'FFFFFF' }, size: 11 };
-        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: '2C3E50' } }; // Azul oscuro profesional
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: '2C3E50' } };
         cell.alignment = { vertical: 'middle', horizontal: 'center' };
         cell.border = {
-          top: { style: 'thin' }, left: { style: 'thin' }, 
+          top: { style: 'thin' }, left: { style: 'thin' },
           bottom: { style: 'thin' }, right: { style: 'thin' }
         };
       });
 
       empleados.forEach(c => {
-        const nombreCompleto = `${c.primer_apellido} ${c.segundo_apellido || ''} ${c.primer_nombre} ${c.segundo_nombre || ''}`.replace(/\s+/g, ' ').trim();
-        const row = cecoSheet.addRow({
-          codigo: c.codigo_contrato,
-          num_doc: c.numero_documento,
-          empleado: nombreCompleto,
-          ingreso: c.fecha_ingreso,
-          retiro: c.fecha_retiro,
-          empresa: c.cliente,
-          ceco_nombre: c.centro_de_costo,
-          ceco_codigo: c.ceco_codigo,
-          sede: c.ceco_sede,
-          cod_archivo: '',
-          salario_mes: Number(c.salario),
-          aux_mes: Number(c.auxilio_transporte),
-          sueldo_q: this.getDevengadoBasico(c),
-          aux_q: this.getAuxilioTransporte(c),
-          dias: c.dias_laborados,
-          dias_t: c.auxilio_transporte_ley ? c.dias_laborados : 0
-        });
+        const row = cecoSheet.addRow(buildRow(c));
         row.alignment = { vertical: 'middle' };
       });
 
-      ['K', 'L', 'M', 'N'].forEach(k => cecoSheet.getColumn(k).numFmt = '#,##0');
+      moneyCols.forEach(k => cecoSheet.getColumn(k).numFmt = '#,##0');
     });
+
+    // 3. Hoja NOVEDADES — detalle línea por línea (auditoría por concepto).
+    const novSheet = workbook.addWorksheet('NOVEDADES');
+    novSheet.columns = [
+      { header: 'Cedula', key: 'cedula', width: 15 },
+      { header: 'Empleado', key: 'empleado', width: 35 },
+      { header: 'CECO', key: 'ceco', width: 22 },
+      { header: 'Código', key: 'codigo', width: 12 },
+      { header: 'Descripción', key: 'descripcion', width: 40 },
+      { header: 'Naturaleza', key: 'naturaleza', width: 12 },
+      { header: 'Cantidad', key: 'cantidad', width: 10 },
+      { header: 'Unidad', key: 'unidad', width: 8 },
+      { header: 'Valor Unitario', key: 'vu', width: 14 },
+      { header: 'Valor Total', key: 'vt', width: 14 },
+      { header: 'Clasificación', key: 'clasif', width: 14 },
+      { header: '¿Suma IBC?', key: 'ibc_flag', width: 11 },
+      { header: 'Observación', key: 'obs', width: 35 },
+    ];
+    const novHeader = novSheet.getRow(1);
+    novHeader.height = 25;
+    novHeader.eachCell((cell) => {
+      cell.font = { bold: true, color: { argb: 'FFFFFF' }, size: 11 };
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: '2C3E50' } };
+      cell.alignment = { vertical: 'middle', horizontal: 'center' };
+    });
+
+    this.contratos.forEach(c => {
+      const nombreCompleto = `${c.primer_apellido} ${c.segundo_apellido || ''} ${c.primer_nombre} ${c.segundo_nombre || ''}`.replace(/\s+/g, ' ').trim();
+      (c._conceptos || []).forEach((linea: any) => {
+        let ibcFlag = 'NO';
+        if (linea.hace_base_ibc) ibcFlag = 'SÍ';
+        else if (linea.disminuye_ibc) ibcFlag = '−IBC';
+        novSheet.addRow({
+          cedula: c.numero_documento,
+          empleado: nombreCompleto,
+          ceco: c.centro_de_costo,
+          codigo: linea.codigo,
+          descripcion: linea.descripcion,
+          naturaleza: linea.naturaleza,
+          cantidad: Number(linea.cantidad || 0),
+          unidad: linea.unidad,
+          vu: Number(linea.valor_unitario || 0),
+          vt: Number(linea.valor_total || 0),
+          clasif: linea.clasificacion || '',
+          ibc_flag: ibcFlag,
+          obs: linea.observacion || '',
+        });
+      });
+    });
+    // Formato monetario para Valor Unitario (I) y Valor Total (J).
+    ['I', 'J'].forEach(k => novSheet.getColumn(k).numFmt = '#,##0.00');
+    // Filtro automático para que el usuario pueda agrupar por código/empleado/etc.
+    if (novSheet.rowCount > 1) {
+      novSheet.autoFilter = { from: 'A1', to: 'M1' };
+    }
+    novSheet.views = [{ state: 'frozen', ySplit: 1 }];
 
     // Hoja de FACTURAS (Resumen)
     const factSheet = workbook.addWorksheet('Cobro General');

@@ -17,10 +17,10 @@ export interface ConceptoNomina {
   unidad_display?: string;
 }
 
-export type EstadoConvalidacion = 'CONVALIDADO' | 'CONVALIDADO_CON_OBSERVACION' | 'REVISAR' | 'SIN_HOMOLOGACION';
+export type EstadoHomologacion = 'HOMOLOGADO' | 'HOMOLOGADO_CON_OBSERVACION' | 'REVISAR' | 'SIN_HOMOLOGACION';
 
-export interface ConvalidadorExterno {
-  id_convalidacion?: number;
+export interface HomologadorExterno {
+  id_homologacion?: number;
   concepto: number;
   concepto_codigo?: string;
   concepto_descripcion?: string;
@@ -33,7 +33,7 @@ export interface ConvalidadorExterno {
   clasificacion_externa?: string | null;
   tabla_operativa_destino?: string | null;
   campo_operativo_destino?: string | null;
-  estado_convalidacion: EstadoConvalidacion;
+  estado_homologacion: EstadoHomologacion;
   estado_display?: string;
   observacion?: string | null;
   activo: boolean;
@@ -117,61 +117,40 @@ export interface Paged<T> {
   results: T[];
 }
 
-// ── Novedades (carga masiva) ──────────────────────────────────────────────
-export interface NovedadRegistro {
-  fila_excel: number;
-  tipo_documento?: string | null;
-  numero_documento?: string | null;
-  codigo_contrato?: string | null;
-  nombre_completo?: string | null;
-  _resuelto: { id_contrato: number | null; error?: string };
-  novedades: Record<string, Record<string, number | string | null>>;
+// ── Cálculo con plantilla de novedades (Excel LONG, no persiste) ─────────
+export interface ConceptoSinHomologar {
+  codigo: string;
+  concepto: string;
+  filas: number;
 }
 
-export interface ColumnaMapeada {
-  columna_excel: string;
-  codigo_externo: string;
-  concepto_externo: string;
-  tabla: string;
-  campo: string;
-}
-
-export interface NovedadesPreviewResponse {
-  hojas_disponibles: string[];
+export interface CalculoConNovedadesResponse {
   hoja_usada: string;
-  header_row: number;
+  hojas_disponibles: string[];
   total_filas_excel: number;
-  registros_validos: number;
-  filas_omitidas: number;
-  no_resueltos: number;
-  columnas_excel: string[];
-  columnas_identificadoras: Record<string, string | null>;
-  columnas_mapeadas: ColumnaMapeada[];
-  columnas_no_mapeadas: string[];
-  import_token: string;
-  registros: NovedadRegistro[];
-}
-
-export interface NovedadesImportPayload {
-  import_token?: string;
-  registros?: NovedadRegistro[];
-  edits?: Record<string, Partial<NovedadRegistro>>;
-  periodo_id: number;
-  reemplazar?: boolean;
-}
-
-export interface NovedadesImportResult {
-  status: string;
-  mensaje: string;
-  contratos_afectados: number;
-  total_insertadas: number;
-  total_borradas: number;
-  no_resueltos: Array<{
-    fila_excel?: number;
-    documento?: string;
-    codigo_contrato?: string;
-    motivo: string;
-  }>;
+  filas_omitidas_sin_cedula: number;
+  cedulas_excel: number;
+  cedulas_en_sistema: number;
+  cedulas_sin_contrato_cliente: number;
+  cedulas_resueltas: number;
+  cedulas_no_encontradas: string[];
+  cedulas_fuera_de_alcance: string[];
+  conceptos_sin_homologar: ConceptoSinHomologar[];
+  errores_cache: Array<{ contrato_id: number; tabla: string; campo: string; error: string }>;
+  contratos_calculados: number;
+  contratos_con_novedad: number;
+  contratos_sin_novedad: number;
+  contratos_data: any[];
+  empleados: any[];
+  totales: { total_devengado: string; total_deducido: string; neto: string };
+  warnings: string[];
+  periodo: {
+    id: number;
+    descripcion: string;
+    fecha_inicio: string;
+    fecha_fin: string;
+    es_invalido: boolean;
+  };
 }
 
 export interface PreviewRegistro {
@@ -344,17 +323,17 @@ export class NominaService {
     return this.http.delete<void>(`${this.baseNom}/conceptos/${id}/`);
   }
 
-  // --- Convalidador de Conceptos Externos ---
-  getConvalidaciones(params: any = {}): Observable<ConvalidadorExterno[]> {
-    return this.http.get<ConvalidadorExterno[]>(`${this.baseNom}/convalidador/`, { params });
+  // --- Homologador de Conceptos Externos ---
+  getHomologaciones(params: any = {}): Observable<HomologadorExterno[]> {
+    return this.http.get<HomologadorExterno[]>(`${this.baseNom}/homologador/`, { params });
   }
 
-  crearConvalidacion(data: Partial<ConvalidadorExterno>): Observable<ConvalidadorExterno> {
-    return this.http.post<ConvalidadorExterno>(`${this.baseNom}/convalidador/`, data);
+  crearHomologacion(data: Partial<HomologadorExterno>): Observable<HomologadorExterno> {
+    return this.http.post<HomologadorExterno>(`${this.baseNom}/homologador/`, data);
   }
 
-  actualizarConvalidacion(id: number, data: Partial<ConvalidadorExterno>): Observable<ConvalidadorExterno> {
-    return this.http.patch<ConvalidadorExterno>(`${this.baseNom}/convalidador/${id}/`, data);
+  actualizarHomologacion(id: number, data: Partial<HomologadorExterno>): Observable<HomologadorExterno> {
+    return this.http.patch<HomologadorExterno>(`${this.baseNom}/homologador/${id}/`, data);
   }
 
   getClientesActivos(): Observable<Client[]> {
@@ -444,27 +423,27 @@ export class NominaService {
     });
   }
 
-  // ── Novedades (carga masiva) ─────────────────────────────────────────────
-  previewNovedadesExcel(
-    file: File, periodoId: number, clienteId: number,
-    opts?: { sheetName?: string; headerRow?: number },
-  ): Observable<NovedadesPreviewResponse> {
+  calcularConNovedadesExcel(
+    file: File,
+    periodoId: number,
+    clienteId: number,
+    opts?: {
+      contratoIds?: number[];
+      cecos?: number[];
+      forzarDiasCompletos?: boolean;
+      sheetName?: string;
+    },
+  ): Observable<CalculoConNovedadesResponse> {
     const fd = new FormData();
     fd.append('file', file);
     fd.append('periodo_id', String(periodoId));
     fd.append('cliente_id', String(clienteId));
+    if (opts?.contratoIds?.length) fd.append('contrato_ids', JSON.stringify(opts.contratoIds));
+    if (opts?.cecos?.length) fd.append('cecos', JSON.stringify(opts.cecos));
+    if (opts?.forzarDiasCompletos) fd.append('forzar_dias_completos', 'true');
     if (opts?.sheetName) fd.append('sheet_name', opts.sheetName);
-    if (opts?.headerRow !== undefined && opts?.headerRow !== null) {
-      fd.append('header_row', String(opts.headerRow));
-    }
-    return this.http.post<NovedadesPreviewResponse>(
-      `${this.baseReg.replace('registro-empleado', 'registro-novedades')}/preview-excel/`, fd,
-    );
-  }
-
-  importarNovedades(payload: NovedadesImportPayload): Observable<NovedadesImportResult> {
-    return this.http.post<NovedadesImportResult>(
-      `${this.baseReg.replace('registro-empleado', 'registro-novedades')}/importar-registros/`, payload,
+    return this.http.post<CalculoConNovedadesResponse>(
+      `${this.baseNom}/calculo-con-novedades/`, fd,
     );
   }
 }

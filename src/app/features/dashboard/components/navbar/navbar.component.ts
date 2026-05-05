@@ -131,7 +131,7 @@ export class NavbarComponent implements OnInit, OnDestroy {
     'HISTORIAL NÓMINA': 'nomina/historico-nomina',
     'PARAMETRIZACIÓN NOVEDADES': 'nomina/parametrizacion-novedades',
     'PARAMETRIZACIÓN DE NOVEDADES': 'nomina/parametrizacion-novedades',
-    'CONVALIDADOR': 'nomina/convalidador',
+    'HOMOLOGADOR': 'nomina/homologador',
     
     // Afiliaciones
     'Dashboard Afiliaciones': 'afiliaciones/dashboardAfiliaciones',
@@ -243,7 +243,7 @@ export class NavbarComponent implements OnInit, OnDestroy {
     'HISTORIAL NÓMINA': 'history',
     'PARAMETRIZACIÓN NOVEDADES': 'tune',
     'PARAMETRIZACIÓN DE NOVEDADES': 'tune',
-    'CONVALIDADOR': 'sync_alt',
+    'HOMOLOGADOR': 'sync_alt',
     'Tarjetas': 'credit_card',
     
     // Afiliaciones
@@ -466,11 +466,11 @@ export class NavbarComponent implements OnInit, OnDestroy {
               hijos: []
             });
           }
-          const existsConv = nominaRoot.hijos.some(h => this.normalizeMenuKey(h.nombre) === 'CONVALIDADOR');
+          const existsConv = nominaRoot.hijos.some(h => this.normalizeMenuKey(h.nombre) === 'HOMOLOGADOR');
           if (!existsConv) {
             nominaRoot.hijos.push({
-              id: 'frontend_convalidador',
-              nombre: 'CONVALIDADOR',
+              id: 'frontend_homologador',
+              nombre: 'HOMOLOGADOR',
               acciones: ['VER'],
               hijos: []
             });

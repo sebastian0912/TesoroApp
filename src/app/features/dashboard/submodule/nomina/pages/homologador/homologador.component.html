@@ -1,4 +1,4 @@
-<div class="conv-container">
+<div class="hom-container">
 
   <!-- ENCABEZADO -->
   <mat-card class="premium-card header-card">
@@ -6,7 +6,7 @@
       <div mat-card-avatar class="header-icon">
         <mat-icon>sync_alt</mat-icon>
       </div>
-      <mat-card-title>Convalidador de Novedades Externas</mat-card-title>
+      <mat-card-title>Homologador de Novedades Externas</mat-card-title>
       <mat-card-subtitle>Relaciona novedades de empresas usuarias con los conceptos maestros de Tu Alianza</mat-card-subtitle>
     </mat-card-header>
 
@@ -84,10 +84,10 @@
           <mat-label>Estado</mat-label>
           <mat-select [(ngModel)]="filterEstado" (selectionChange)="aplicarFiltros()">
             <mat-option value="">Todos</mat-option>
-            <mat-option value="CONVALIDADO">
-              <mat-icon class="estado-icon-ok">check_circle</mat-icon> Convalidado
+            <mat-option value="HOMOLOGADO">
+              <mat-icon class="estado-icon-ok">check_circle</mat-icon> Homologado
             </mat-option>
-            <mat-option value="CONVALIDADO_CON_OBSERVACION">
+            <mat-option value="HOMOLOGADO_CON_OBSERVACION">
               <mat-icon class="estado-icon-warn">info</mat-icon> Con observacion
             </mat-option>
             <mat-option value="REVISAR">
@@ -207,12 +207,12 @@
       </ng-container>
 
       <!-- Estado -->
-      <ng-container matColumnDef="estado_convalidacion">
+      <ng-container matColumnDef="estado_homologacion">
         <th mat-header-cell *matHeaderCellDef mat-sort-header>Estado</th>
         <td mat-cell *matCellDef="let row">
-          <span class="badge-estado" [ngClass]="ESTADO_LABELS[row.estado_convalidacion]?.color || ''">
-            <mat-icon class="badge-estado-icon">{{ ESTADO_LABELS[row.estado_convalidacion]?.icon || 'help' }}</mat-icon>
-            {{ ESTADO_LABELS[row.estado_convalidacion]?.label || row.estado_convalidacion }}
+          <span class="badge-estado" [ngClass]="ESTADO_LABELS[row.estado_homologacion]?.color || ''">
+            <mat-icon class="badge-estado-icon">{{ ESTADO_LABELS[row.estado_homologacion]?.icon || 'help' }}</mat-icon>
+            {{ ESTADO_LABELS[row.estado_homologacion]?.label || row.estado_homologacion }}
           </span>
         </td>
       </ng-container>
