@@ -14,7 +14,6 @@ import { MatSelectModule } from '@angular/material/select';
 import Swal from 'sweetalert2';
 import * as XLSX from 'xlsx';
 import { UtilityServiceService } from '../../../../../shared/services/utilityService/utility-service.service';
-import { MerchandisingMerchandiseComponent } from '../components/merchandising-merchandise/merchandising-merchandise.component';
 import { InfoCardComponent } from '@/app/shared/components/info-card/info-card.component';
 import {
   HomeService,
@@ -58,7 +57,6 @@ type ProgresoTipoPrioridadRow = {
     MatInputModule,
     MatTooltipModule,
     MatSelectModule,
-    MerchandisingMerchandiseComponent,
     InfoCardComponent
 ],
   templateUrl: './home.component.html',
