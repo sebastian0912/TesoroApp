@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpResponse } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { shareReplay } from 'rxjs/operators';
 import { environment } from '@/environments/environment';
@@ -291,6 +291,17 @@ export class NominaService {
   }): Observable<{ empleados: any[], totales: any }> {
     return this.http.post<{ empleados: any[], totales: any }>(
       `${this.baseNom}/payroll/calcular/`, payload,
+    );
+  }
+
+  exportarSoporte(payload: {
+    periodo_id: number,
+    cliente_id?: number | null,
+    empleados: any[],
+  }): Observable<HttpResponse<Blob>> {
+    return this.http.post(
+      `${this.baseNom}/payroll/exportar-soporte/`, payload,
+      { responseType: 'blob', observe: 'response' },
     );
   }
 

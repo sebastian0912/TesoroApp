@@ -88,6 +88,10 @@ export class CalculoNominaComponent implements OnInit {
   // Resultados
   contratos: any[] = [];
   contratosFiltrados: any[] = [];
+  // Snapshot crudo del último cálculo del backend, indexado por id_contrato.
+  // Se usa para exportar la plantilla sin re-pegarle al backend (evita drift
+  // entre lo que ve el usuario y lo que se baja).
+  private _empleadosCalculados: Map<number, any> = new Map();
   filtroBusqueda: string = '';
   displayedColumns: string[] = ['empleado', 'num_doc', 'salario', 'dias', 'devengado', 'aux_trans', 'salud', 'pension', 'neto'];
   loading: boolean = false;
@@ -391,6 +395,9 @@ export class CalculoNominaComponent implements OnInit {
   private mapearEmpleadosEnContratos(empleados: any[]): void {
     const byContrato = new Map<number, any>();
     empleados.forEach(e => byContrato.set(e.id_contrato, e));
+    // Guardamos el snapshot crudo para que "Exportar Soporte" pueda
+    // bajar exactamente lo que el usuario vio sin recalcular.
+    this._empleadosCalculados = byContrato;
 
     this.contratos = this.contratos.map(c => {
       const calc = byContrato.get(c.id_contrato);
@@ -610,6 +617,59 @@ export class CalculoNominaComponent implements OnInit {
         const msg = err.error?.error || err.error?.mensaje || 'No se pudo guardar la liquidación';
         Swal.fire('Error', msg, 'error');
       }
+    });
+  }
+
+  exportarSoporte(): void {
+    if (!this.periodoControl.value) {
+      Swal.fire('Atención', 'Seleccione el periodo de nómina.', 'warning');
+      return;
+    }
+    if (this.contratos.length === 0) {
+      Swal.fire('Atención', 'No hay empleados para exportar.', 'warning');
+      return;
+    }
+    if (this._empleadosCalculados.size === 0) {
+      Swal.fire('Atención', 'Primero calcule la nómina (Buscar Empleados) antes de exportar el soporte.', 'warning');
+      return;
+    }
+
+    // Solo exportamos los contratos que siguen en pantalla — si el usuario
+    // excluyó rechazables o filtró, esos no van.
+    const empleados = this.contratos
+      .map(c => this._empleadosCalculados.get(c.id_contrato))
+      .filter(e => e);
+
+    if (empleados.length === 0) {
+      Swal.fire('Atención', 'No hay empleados calculados que coincidan con la lista actual.', 'warning');
+      return;
+    }
+
+    this.guardando = true;
+    this.cdr.markForCheck();
+
+    this.nominaService.exportarSoporte({
+      periodo_id: this.periodoControl.value.id_periodo,
+      cliente_id: this.selectedCliente?.id_entidad || null,
+      empleados,
+    }).subscribe({
+      next: (resp) => {
+        const blob = resp.body!;
+        const cd = resp.headers.get('Content-Disposition') || '';
+        const m = cd.match(/filename\*=UTF-8''([^;]+)/i) || cd.match(/filename="?([^";]+)"?/i);
+        const filename = m
+          ? decodeURIComponent(m[1])
+          : `Soporte_${this.selectedCliente?.nombre_legal || 'Cliente'}.xlsx`;
+        saveAs(blob, filename);
+        this.guardando = false;
+        this.cdr.markForCheck();
+      },
+      error: (err) => {
+        this.guardando = false;
+        this.cdr.markForCheck();
+        const msg = err?.error?.error || 'No se pudo generar el soporte Excel';
+        Swal.fire('Error', msg, 'error');
+      },
     });
   }
 

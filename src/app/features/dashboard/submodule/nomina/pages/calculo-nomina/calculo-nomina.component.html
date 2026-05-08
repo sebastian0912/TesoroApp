@@ -200,6 +200,12 @@
       <mat-icon>file_download</mat-icon>
       EXPORTAR EXCEL
     </button>
+    <button mat-flat-button color="accent" (click)="exportarSoporte()" [disabled]="guardando"
+            matTooltip="Genera la plantilla SOPORTE NOMINA Y LIQUIDACION V2 con las novedades calculadas">
+      <mat-icon *ngIf="!guardando">description</mat-icon>
+      <mat-spinner *ngIf="guardando" diameter="20"></mat-spinner>
+      EXPORTAR SOPORTE
+    </button>
   </div>
 
   <div *ngIf="!loading && contratos.length === 0 && selectedCliente" class="empty-state">
