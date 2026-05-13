@@ -46,6 +46,28 @@ export class GenerateContractingDocumentsComponent implements OnInit {
   pdfSafeUrl: SafeResourceUrl | null = null;
   today = new Date();
 
+  /**
+   * Devuelve la fecha que debe imprimirse en los contratos y autorizaciones.
+   * Usa `ContratoCandidato.fecha_contrato` del candidato si está cargada;
+   * de lo contrario cae a la fecha actual (compat con flujos viejos).
+   * Parseo manual para evitar el shift de zona horaria al usar 'YYYY-MM-DD'.
+   */
+  private getFechaContrato(): Date {
+    const raw = this.candidato?.entrevistas?.[0]?.proceso?.contrato?.fecha_contrato;
+    if (!raw) return new Date();
+    const s = String(raw).trim();
+    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(s);
+    if (m) {
+      const y = Number(m[1]);
+      const mo = Number(m[2]) - 1;
+      const d = Number(m[3]);
+      const parsed = new Date(y, mo, d);
+      if (!isNaN(parsed.getTime())) return parsed;
+    }
+    const fallback = new Date(s);
+    return isNaN(fallback.getTime()) ? new Date() : fallback;
+  }
+
   cedula: string = '';
   nombreCompletoLogin: string = '';
   codigoContratacion: any = '';
@@ -1267,7 +1289,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       doc.text(p11Lines, marginLeft, currentY, { maxWidth, align: 'justify' });
       currentY += (p11Lines.length * 5) + 8;
 
-      const fechaActual = new Date();
+      const fechaActual = this.getFechaContrato();
       const dia = fechaActual.getDate().toString();
       const meses = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
       const mes = meses[fechaActual.getMonth()];
@@ -1862,7 +1884,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       const representanteEmpresaUsuaria = this.safe(vac.representanteLegalEmpresaUsuaria ?? vac.representanteLegal ?? '').toUpperCase();
       const ccRepresentanteEmpresaUsuaria = this.safe(vac.ccRepresentanteEmpresaUsuaria ?? vac.ccRepresentante ?? '');
 
-      const fechaActual = new Date();
+      const fechaActual = this.getFechaContrato();
       const opcionesFecha: Intl.DateTimeFormatOptions = { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' };
       const fechaFirmaTexto = fechaActual.toLocaleDateString('es-CO', opcionesFecha);
 
@@ -2282,11 +2304,11 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       }
       
       currentY += 5;
-      const fechaActual = new Date();
+      const fechaActual = this.getFechaContrato();
       const dia = fechaActual.getDate();
       const mes = fechaActual.toLocaleString('es-CO', { month: 'long' });
       const anio = fechaActual.getFullYear();
-      
+
       const txtFecha = `En constancia se firma a los ${dia} días del mes de ${mes} de ${anio}.`;
       doc.text(txtFecha, mLeft, currentY);
       currentY += 15;
@@ -2620,7 +2642,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     doc.text(`Número de Identificación: ${this.cedula}`, 10, yFirmaBase + 7);
 
 
-    const fechaActual = new Date();
+    const fechaActual = this.getFechaContrato();
     const opcionesFormato: Intl.DateTimeFormatOptions = { year: 'numeric', month: 'long', day: 'numeric' };
     const fechaFormateada = fechaActual.toLocaleDateString('es-ES', opcionesFormato);
     doc.text(`Fecha de Autorización: ${fechaFormateada}`, 10, yFirmaBase + 11);

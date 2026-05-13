@@ -229,10 +229,36 @@ export class SearchForCandidateComponent implements OnInit, OnDestroy {
           this.excelDescargando = false;
           this.cdr.markForCheck();
         },
-        error: () => {
+        error: async (err: any) => {
           this.excelDescargando = false;
           this.cdr.markForCheck();
-          Swal.fire('Error', 'No se pudo descargar el Excel.', 'error');
+          // El backend devuelve {message: "..."} como JSON cuando hay error.
+          // Como el response es blob, hay que leer y parsear.
+          let msg = 'No se pudo descargar el Excel.';
+          const blob: Blob | null = err?.error instanceof Blob ? err.error : null;
+          if (blob) {
+            try {
+              const text = await blob.text();
+              try {
+                const json = JSON.parse(text);
+                if (json?.message) msg = String(json.message);
+              } catch {
+                if (text && text.length < 400) msg = text;
+              }
+            } catch {
+              /* dejamos el msg por defecto */
+            }
+          } else if (err?.error?.message) {
+            msg = String(err.error.message);
+          } else if (err?.message) {
+            msg = String(err.message);
+          }
+          const status = err?.status ?? 0;
+          Swal.fire(
+            'Error al descargar Excel',
+            `${msg}<br><br><small>HTTP ${status}</small>`,
+            'error'
+          );
         }
       });
   }
@@ -255,15 +281,34 @@ export class SearchForCandidateComponent implements OnInit, OnDestroy {
 
   buscarCandidato(): void {
     this.cedula = this.cedula.trim();
+    if (!this.cedula) return;
 
     this.registroProcesoContratacion.getCandidatoPorDocumento(this.cedula, true).pipe(take(1)).subscribe({
-      next: (candidato) => {
+      next: (candidato: any) => {
         if (!candidato) {
           this.candidatoSeleccionado.emit(null);
           Swal.fire('No encontrado', 'No se encontró un candidato con esa cédula.', 'info');
           return;
         }
         this.candidatoSeleccionado.emit(candidato);
+
+        // Encolar la cédula en la cola FIFO de mi sede para HOY.
+        // Idempotente en backend: si ya estaba en cola hoy en esta sede, no se
+        // reordena. Si no, queda al final de la cola.
+        const cedula = String(candidato?.numero_documento || this.cedula || '').trim();
+        const tipoDoc = String(candidato?.tipo_doc || '').trim() || undefined;
+        if (cedula) {
+          this.registroProcesoContratacion
+            .encolarCandidato({ tipo_doc: tipoDoc, numero_documento: cedula })
+            .pipe(take(1), takeUntilDestroyed(this.destroyRef))
+            .subscribe({
+              next: () => this.refrescarRecientes(),
+              error: (err: any) => {
+                console.warn('[encolar] no se pudo agregar a cola', err?.status, err?.error);
+                // No bloqueamos el flujo: la consulta del candidato igual procede.
+              },
+            });
+        }
       },
       error: () => Swal.fire('Error', 'Error al buscar el candidato.', 'error')
     });

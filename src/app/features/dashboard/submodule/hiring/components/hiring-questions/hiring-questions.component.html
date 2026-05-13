@@ -173,6 +173,14 @@
           <mat-datepicker-toggle matSuffix [for]="pickerIngreso"></mat-datepicker-toggle>
           <mat-datepicker #pickerIngreso></mat-datepicker>
         </mat-form-field>
+
+        <!-- fecha de contrato -->
+        <mat-form-field appearance="outline" class="example-full-width">
+          <mat-label>Fecha de Contrato</mat-label>
+          <input matInput [matDatepicker]="pickerContrato" formControlName="fechaContrato">
+          <mat-datepicker-toggle matSuffix [for]="pickerContrato"></mat-datepicker-toggle>
+          <mat-datepicker #pickerContrato></mat-datepicker>
+        </mat-form-field>
       </div>
 
       <div style="margin-top: 24px; display: flex; justify-content: flex-end;">

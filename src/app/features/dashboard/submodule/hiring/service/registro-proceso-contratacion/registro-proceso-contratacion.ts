@@ -410,6 +410,23 @@ export class RegistroProcesoContratacion {
     return this.http.post<any>(this.url('candidatos/mark-attended'), payload).pipe(this.handle$());
   }
 
+  /**
+   * POST /gestion_contratacion/candidatos/encolar/
+   * Encola la cédula en la sede del operador autenticado para la cola FIFO
+   * del día. Idempotente por día y sede. Requiere JWT con sede asignada.
+   */
+  encolarCandidato(payload: { tipo_doc?: string | null; numero_documento?: string | null; candidato_id?: number }): Observable<{
+    ok: boolean;
+    candidato_id: number;
+    tipo_doc: string;
+    numero_documento: string;
+    en_turno_at: string | null;
+    en_turno_oficina: string | null;
+    ya_estaba_en_cola: boolean;
+  }> {
+    return this.http.post<any>(this.url('candidatos/encolar'), payload).pipe(this.handle$());
+  }
+
   getUltimosEnEspera(oficina?: string | string[]): Observable<EnEsperaItem[]> {
     let options: { params?: HttpParams } = {};
 
