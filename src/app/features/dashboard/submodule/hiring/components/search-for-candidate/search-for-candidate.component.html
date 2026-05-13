@@ -102,6 +102,9 @@
               <th>Apellidos Nombres</th>
               <th>Hora de llegada</th>
               <th>Oficina</th>
+              <th>Barrio</th>
+              <th>Edad</th>
+              <th>Experiencia</th>
               <th>Formulario</th>
               <th></th>
             </tr>
@@ -114,6 +117,19 @@
                 <td>{{ item.apellidos_nombres || '—' }}</td>
                 <td>{{ item.updated_at | date:'HH:mm' }}</td>
                 <td>{{ item.oficina || '—' }}</td>
+                <td>{{ item.barrio || '—' }}</td>
+                <td>{{ item.edad != null ? item.edad : '—' }}</td>
+                <td>
+                  @if (item.tiene_experiencia) {
+                    <span class="badge-formulario badge-completo" matTooltip="Cuenta con experiencia previa">
+                      <mat-icon>check_circle</mat-icon> Sí
+                    </span>
+                  } @else {
+                    <span class="badge-formulario badge-sin-iniciar" matTooltip="No registra experiencia previa">
+                      <mat-icon>remove_circle_outline</mat-icon> No
+                    </span>
+                  }
+                </td>
                 <td>
                   @if (item.formulario_completo) {
                     <span class="badge-formulario badge-completo" matTooltip="Formulario web enviado completo">

@@ -320,6 +320,10 @@ export interface CandidatoRecienteItem {
   whatsapp: string | null;
   oficina: string | null;
   updated_at: string | null;  // ISO
+  // Datos adicionales en la tabla de turnos:
+  barrio?: string | null;
+  edad?: number | null;
+  tiene_experiencia?: boolean;
   // Progreso del formulario web (tu_alianza_web / Tu-Apo-Web):
   // 0 = sin iniciar, 1 = guardó datos básicos, 5 = envió formulario completo.
   formulario_paso?: number;
@@ -327,6 +331,9 @@ export interface CandidatoRecienteItem {
   // Atendido por el evaluador en TesoroApp:
   atendido_at?: string | null;  // ISO; null si nunca lo han atendido
   atendido_hoy?: boolean;       // true si atendido_at cae dentro del día local actual
+  // Encolado (cola FIFO por sede):
+  en_turno_at?: string | null;
+  en_turno_oficina?: string | null;
 }
 
 export type RangoFechas = { start: string | Date; end: string | Date };
