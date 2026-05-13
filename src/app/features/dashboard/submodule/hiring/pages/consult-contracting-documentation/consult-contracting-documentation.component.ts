@@ -179,8 +179,9 @@ export class ConsultContractingDocumentationComponent implements OnInit {
 
   /**
    * Cédulas excluidas de la tabla (sólo GERENCIA puede verlas) porque:
-   *   - su Usuario en gestion_admin tiene rol distinto de OPERARIO, O
-   *   - su última entrevista fue en oficina ADMINISTRATIVOS.
+   *   - su Usuario en gestion_admin tiene rol distinto de OPERARIO,
+   *   - su última entrevista fue en oficina ADMINISTRATIVOS, o
+   *   - su finca contiene "ADMINISTRATIVO" / "ADMINISTRATIVOS".
    * Se muestran como un banner informativo para que el operador sepa cuáles son.
    */
   restrictedAdminItems: Array<{ cedula: string; nombre: string }> = [];
@@ -451,13 +452,30 @@ export class ConsultContractingDocumentationComponent implements OnInit {
   }
 
   /**
+   * ¿la finca contiene "ADMINISTRATIVO" o "ADMINISTRATIVOS"?
+   * Match laxo (case-insensitive, sin acentos) y por SUBSTRING — alcanza para
+   * "FINCA ADMINISTRATIVOS", "Administrativos Bogotá", "Sede Administrativo", etc.
+   */
+  private isFincaAdministrativo(finca: string | null | undefined): boolean {
+    if (!finca) return false;
+    const n = this.normName(finca);
+    return n.includes('ADMINISTRATIVO');
+  }
+
+  /**
    * Regla combinada: una fila se considera restringida (sólo GERENCIA la ve) si
-   *   - el Usuario asociado a la cédula tiene rol distinto de OPERARIO, O
-   *   - la última entrevista fue en oficina ADMINISTRATIVOS.
-   * Cualquiera de las dos condiciones manda la fila al banner de restringidos.
+   * cualquiera de las tres condiciones se cumple:
+   *   - el Usuario asociado a la cédula tiene rol distinto de OPERARIO,
+   *   - la última entrevista fue en oficina ADMINISTRATIVOS, o
+   *   - la finca contiene ADMINISTRATIVO/ADMINISTRATIVOS.
+   * Cualquiera de las tres manda la fila al banner de restringidos.
    */
   private esItemRestringido(it: ChecklistItemDto | null | undefined): boolean {
-    return this.esRolRestringido(it?.usuario_rol) || this.isAdministrativos(it?.oficina_entrevista);
+    return (
+      this.esRolRestringido(it?.usuario_rol)
+      || this.isAdministrativos(it?.oficina_entrevista)
+      || this.isFincaAdministrativo(it?.finca)
+    );
   }
 
   /** ✅ Abrir PDF cuando el estado sea OK o WARN */
@@ -876,9 +894,10 @@ export class ConsultContractingDocumentationComponent implements OnInit {
       const rawItems: ChecklistItemDto[] = Array.isArray(resp?.items) ? resp.items : [];
 
       // Restricción combinada: una cédula sólo es visible para GERENCIA si
-      //   (a) su Usuario en gestion_admin tiene rol distinto de OPERARIO, O
-      //   (b) su última entrevista fue en oficina ADMINISTRATIVOS.
-      // Cualquiera de las dos manda la fila al banner de restringidos.
+      //   (a) su Usuario en gestion_admin tiene rol distinto de OPERARIO,
+      //   (b) su última entrevista fue en oficina ADMINISTRATIVOS, o
+      //   (c) su finca contiene ADMINISTRATIVO/ADMINISTRATIVOS.
+      // Cualquiera de las tres manda la fila al banner de restringidos.
       let itemsList: ChecklistItemDto[];
       if (this.canViewAdministrativos()) {
         itemsList = rawItems;

@@ -105,6 +105,12 @@ export class FormEntrevistaComponent implements OnInit {
   step7Ctrl = new FormGroup({});
 
   // Auxiliares
+  /**
+   * Rol GERENCIA puede editar el campo oficina (todos los demás lo ven readonly).
+   * Se calcula una vez en ngOnInit leyendo el usuario logueado.
+   */
+  private isGerencia = false;
+
   readonly emailUserPattern = '^[^@\\s]+$';
   readonly otroExperienciaControl = new FormControl('', [
     Validators.maxLength(64),
@@ -353,6 +359,12 @@ export class FormEntrevistaComponent implements OnInit {
     const u: any = this.util.getUser();
     if (u) {
       this.firma = `${u?.datos_basicos?.nombres ?? ''} ${u?.datos_basicos?.apellidos ?? ''} - ${u?.rol?.nombre ?? ''}`.trim();
+      // GERENCIA puede editar la oficina; los demás roles la ven readonly.
+      const rolNombre = String(u?.rol?.nombre ?? '').trim().toUpperCase();
+      this.isGerencia = rolNombre === 'GERENCIA';
+      if (this.isGerencia) {
+        this.ctrl('oficina').enable({ emitEvent: false });
+      }
     }
   }
 
@@ -840,10 +852,18 @@ export class FormEntrevistaComponent implements OnInit {
     this.route.queryParamMap.subscribe((params) => {
       const raw = (params.get('oficina') || params.get('o') || '').trim();
 
-      // Oficina está siempre disabled (solo lectura para el usuario);
-      // si no hay query param, simplemente quedamos sin valor preasignado.
+      // GERENCIA puede editar la oficina; otros roles la ven readonly.
+      const lockOfficeIfNotGerencia = () => {
+        if (this.isGerencia) {
+          this.ctrl('oficina').enable({ emitEvent: false });
+        } else {
+          this.ctrl('oficina').disable({ emitEvent: false });
+        }
+      };
+
+      // Si no hay query param, simplemente quedamos sin valor preasignado.
       if (!raw) {
-        this.ctrl('oficina').disable({ emitEvent: false });
+        lockOfficeIfNotGerencia();
         this.lockedOffice = undefined;
         return this.refreshSteps();
       }
@@ -856,7 +876,7 @@ export class FormEntrevistaComponent implements OnInit {
 
       if (match) {
         this.ctrl('oficina').setValue(match, { emitEvent: false });
-        this.ctrl('oficina').disable({ emitEvent: false });
+        lockOfficeIfNotGerencia();
         this.lockedOffice = match;
 
         if (match === 'BRIGADA') {
