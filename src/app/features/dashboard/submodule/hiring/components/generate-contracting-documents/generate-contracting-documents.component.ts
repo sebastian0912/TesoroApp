@@ -7985,7 +7985,14 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     const columnStartY = startY + 17; // Posición inicial Y
     const rowsPerColumn = 12; // Número exacto de filas por columna
 
-    // Iteración para generar el texto
+    // Iteración para generar el texto. La fila 11 (Descripción de la Obra/
+    // Motivo Temporada) es la última de la columna 0 y, si el texto es largo,
+    // se desborda; aplicamos splitTextToSize y trackeamos cuántas líneas
+    // extras agregó para empujar el texto siguiente hacia abajo.
+    const descripcionExtraLineH = 2.5; // mm aprox para fontSize 7
+    const descripcionMaxW = columnWidth - 48 - 2; // ancho disponible para el valor en columna 0
+    let descripcionExtraLineas = 0;
+
     datos.forEach((item, index) => {
       const currentColumn = Math.floor(index / rowsPerColumn); // Columna actual (cada 12 filas)
       const rowInColumn = index % rowsPerColumn; // Fila dentro de la columna actual
@@ -7997,12 +8004,19 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       doc.setFont('helvetica', 'normal');
       doc.text(`${item.titulo}:`, x, y);
 
-      if (index > 11) {
+      if (index === 11) {
+        // Descripción de la obra/labor — wrap por ancho de columna para que
+        // NUNCA se corte ni salga del margen derecho.
+        doc.setFont('helvetica', 'bold');
+        const raw = String(item.valor ?? '').trim();
+        const lines: string[] = doc.splitTextToSize(raw || '—', descripcionMaxW);
+        doc.text(lines, x + 48, y);
+        descripcionExtraLineas = Math.max(0, lines.length - 1);
+      } else if (index > 11) {
         // Establecer el valor en fuente negrita
         doc.setFont('helvetica', 'bold');
         doc.text(item.valor, x + 30.2, y);
-      }
-      else {
+      } else {
         // Establecer el valor en fuente negrita
         doc.setFont('helvetica', 'bold');
         doc.text(item.valor ?? '', x + 48, y);
@@ -8012,7 +8026,10 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     // Restaurar la fuente a la normal después del bucle
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(6.5);
-    let y = columnStartY + rowsPerColumn * rowSpacing + 2; // Posición vertical después de los datos
+    // Ajuste vertical: empujamos el bloque siguiente hacia abajo por cada
+    // línea extra que ocupó la descripción multilinea.
+    let y = columnStartY + rowsPerColumn * rowSpacing + 2
+      + (descripcionExtraLineas * descripcionExtraLineH); // Posición vertical después de los datos
     // Texto adicional
     let texto = 'Entre el EMPLEADOR y el TRABAJADOR arriba indicados, se ha celebrado el contrato regulado por las cláusulas que adelante se indican, aparte de la ley, siendo ellas las siguientes: PRIMERA. El Trabajador, a partir de la fecha de iniciación, se obliga para con el EMPLEADOR a ejecutar la obra arriba indicada, sometiéndose durante su realización en todo a las órdenes de éste. Declara por consiguiente el TRABAJADOR completa y total disponibilidad para con el EMPLEADOR para ejecutar las obras indicadas en el encabezamiento, siempre que así le sean exigidas por sus clientes al EMPLEADOR. Teniendo en cuenta que, la EMPRESA USUARIA, desarrolla su actividad productiva y comercial a nivel nacional, las partes convienen en que la EMPRESA USUARIA podrá trasladar la base de operaciones de EL TRABAJADOR, en cualquier tiempo, a cualquier otro lugar donde desarrolle tales actividades sin que por ello se opere desmejora o modificación sustancial de las condiciones de trabajo ni de la categoría del TRABAJADOR, consideradas en el momento de la suscripción de este contrato. SEGUNDA. DURACIÓN DEL CONTRATO: La necesaria para la realización de la obra o labor contratada y conforme a las necesidades del patrono o establecimiento que requiera la ejecución de la obra, todo conforme a lo previsto en el Art. 45 del CST y teniendo en cuenta la fecha de iniciación de la obra; y la índole de la misma, circunstancias una y otra ya anotadas. PARÁGRAFO PRIMERO: Las partes acuerdan que por ser el TRABAJADOR contratado como trabajador en misión para ser enviado a la empresa la duración de la obra o labor no podrá superar el tiempo establecido en el Art. 77 de la Ley 50 de 1990 en su numeral 3°. PARÁGRAFO SEGUNDO: El término de duración del presente contrato es de carácter temporal por ser el EMPLEADOR una empresa de servicios temporales, y por tanto tendrá vigencia hasta la realización de la obra o labor contratada que sea indicada por las Empresas Usuarias del EMPLEADOR en este contrato, acordando las partes que para todos los efectos legales, la obra o labor contratada termina en la fecha en que la EMPRESA USUARIA, a la que será enviado el TRABAJADOR, comunique la terminación de la misma. PARÁGRAFO TERCERO: La labor se realizará de manera personal en las instalaciones de la EMPRESA.';
     // this.vacante.empresaUsuariaSolicita + CENTRO DE COSTOS + this.vacante.finca + DIR. + this.vacante.direccion
@@ -8687,12 +8704,19 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     const columnStartY = startY + 17;
     const rowsPerColumn = 15;
 
+    // Offset vertical acumulado por columna. Cuando una celda (p.ej. la
+    // descripción de la obra/labor) se expande a múltiples líneas, las celdas
+    // siguientes en la MISMA columna deben empujarse hacia abajo para no
+    // solaparse.
+    const yOffsetByColumn: Record<number, number> = {};
+    const valueLineH = 2.5; // mm aprox para fontSize 7
+
     datos.forEach((item, index) => {
       const currentColumn = Math.floor(index / rowsPerColumn);
       const rowInColumn = index % rowsPerColumn;
 
       const x = columnStartX + currentColumn * (columnWidth + columnMargin);
-      const y = (columnStartY + rowInColumn * rowSpacing) + 3;
+      const y = (columnStartY + rowInColumn * rowSpacing) + 3 + (yOffsetByColumn[currentColumn] ?? 0);
 
       // (opcional) también resetea estado global
       if (typeof (doc as any).setCharSpace === 'function') {
@@ -8707,8 +8731,21 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       doc.setFont('helvetica', 'bold');
       const valueText = String(item.valor ?? '').trim();
 
+      const isDescripcion = String(item.titulo ?? '')
+        .toLowerCase()
+        .includes('descripción de la obra');
+
       if (index > 14) {
         (doc as any).text(valueText, x + 30.2, y, { charSpace: 0 });
+      } else if (isDescripcion) {
+        // Wrap por ancho de columna para que NUNCA se corte.
+        const valueX = x + 48;
+        const valueMaxW =
+          (columnStartX + (currentColumn + 1) * columnWidth + currentColumn * columnMargin) - valueX - 1;
+        const lines: string[] = doc.splitTextToSize(valueText || '—', Math.max(20, valueMaxW));
+        (doc as any).text(lines, valueX, y, { charSpace: 0 });
+        const extra = Math.max(0, lines.length - 1);
+        yOffsetByColumn[currentColumn] = (yOffsetByColumn[currentColumn] ?? 0) + extra * valueLineH;
       } else {
         (doc as any).text(valueText, x + 48, y, { charSpace: 0 });
       }
@@ -8719,7 +8756,11 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     // Restaurar la fuente a la normal después del bucle
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(6.5);
-    let y = columnStartY + rowsPerColumn * rowSpacing + 2; // Posición vertical después de los datos
+    // Posición vertical después de los datos. Tomamos el mayor offset acumulado
+    // entre columnas para garantizar que el texto siguiente no pise las líneas
+    // extras de la descripción multilinea de obra/labor.
+    const maxYOffset = Math.max(0, ...Object.values(yOffsetByColumn));
+    let y = columnStartY + rowsPerColumn * rowSpacing + 2 + maxYOffset;
     // Texto adicional
     let texto = 'Entre  el  EMPLEADOR  y  el   TRABAJADOR  arriba indicados,  se  ha celebrado el contrato  regulado  por  las cláusulas  que  adelante  se  indican,  aparte  de  la  ley,  siendo  ellas las  siguientes:  PRIMERA.  El Trabajador,  a  partir  de  la  fecha  de  iniciación,  se  obliga  para  con  e l  EMPLEADOR   a ejecutar  la  obra arriba  indicada  sometiéndose  durante  su realización  en  todo  a  las  órdenes  de  éste. Declara  por  consiguiente e l TRABAJADOR completa y total  disponibilidad para con  el  EMPLEADOR   para  ejecutar  las  obras  indicadas  en  el  encabezamiento,  siempre  que así  le  sean  exigidas  por  sus clientes  al   EMPLEADOR,   sin  que  por  ello  se  opere  desmejora  o  modificación  sustancial  de las  condiciones de trabajo tenidas  en  cuenta en  el  momento  de  la  suscripción  de  este  contrato.   SEGUNDA.   DURACIÓN DEL CONTRATO:   La necesaria  para  la  realización de la obra o labor contratada  y  conforme  a  las  necesidades  del  patrono  o  establecimiento  que  requiera  la  ejecución  de  la  obra,  todo  conforme a lo previsto en el Art. 45 del CST y teniendo en cuenta  la  fecha  de  iniciación  de  la  obra;  y  la  índole  de  la  misma,  circunstancias  una  y  otra  ya  anotadas.  PARÁGRAFO PRIMERO:  Las  partes  acuerdan  que  por  ser  el TRABAJADOR contratado como trabajador en misión para ser enviado a la empresa la duración de la obra o labor no podrá superar el tiempo establecido en el Art. 77 de la Ley 50 de 1990 en su numeral 3°. PARÁGRAFO SEGUNDO: El término de duración del presente contrato es de carácter temporal por ser el EMPLEADOR una  empresa  de  servicios temporales,  y  por  tanto tendrá  vigencia  hasta la realización  de  la  obra o  labor  contratada  que  sea  indicada  por  las  Empresas  Usuarias  del  EMPLEADOR  en  este  contrato, acordando  las  partes  que  para  todos  los  efectos  legales,  la  obra  o  labor  contratada  termina  en  la  fecha  en  que  la  EMPRESA  USUARIA, a la que será  enviado el  TRABAJADOR, comunique la terminación de la misma. PARÁGRAFO TERCERO: La labor se  realizará  en  las  instalaciones de la EMPRESA ';
     // this.vacante.empresaUsuariaSolicita + CENTRO DE COSTOS + this.vacante.finca + DIR. + this.vacante.direccion
@@ -9274,12 +9315,19 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     const columnStartY = startY + 17;
     const rowsPerColumn = 15;
 
+    // Offset vertical acumulado por columna. Cuando una celda (p.ej. la
+    // descripción de la obra/labor) se expande a múltiples líneas, las celdas
+    // siguientes en la MISMA columna deben empujarse hacia abajo para no
+    // solaparse.
+    const yOffsetByColumn: Record<number, number> = {};
+    const valueLineH = 2.5; // mm aprox para fontSize 7
+
     datos.forEach((item, index) => {
       const currentColumn = Math.floor(index / rowsPerColumn);
       const rowInColumn = index % rowsPerColumn;
 
       const x = columnStartX + currentColumn * (columnWidth + columnMargin);
-      const y = (columnStartY + rowInColumn * rowSpacing) + 3;
+      const y = (columnStartY + rowInColumn * rowSpacing) + 3 + (yOffsetByColumn[currentColumn] ?? 0);
 
       // (opcional) también resetea estado global
       if (typeof (doc as any).setCharSpace === 'function') {
@@ -9294,8 +9342,21 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       doc.setFont('helvetica', 'bold');
       const valueText = String(item.valor ?? '').trim();
 
+      const isDescripcion = String(item.titulo ?? '')
+        .toLowerCase()
+        .includes('descripción de la obra');
+
       if (index > 14) {
         (doc as any).text(valueText, x + 30.2, y, { charSpace: 0 });
+      } else if (isDescripcion) {
+        // Wrap por ancho de columna para que NUNCA se corte.
+        const valueX = x + 48;
+        const valueMaxW =
+          (columnStartX + (currentColumn + 1) * columnWidth + currentColumn * columnMargin) - valueX - 1;
+        const lines: string[] = doc.splitTextToSize(valueText || '—', Math.max(20, valueMaxW));
+        (doc as any).text(lines, valueX, y, { charSpace: 0 });
+        const extra = Math.max(0, lines.length - 1);
+        yOffsetByColumn[currentColumn] = (yOffsetByColumn[currentColumn] ?? 0) + extra * valueLineH;
       } else {
         (doc as any).text(valueText, x + 48, y, { charSpace: 0 });
       }
@@ -9306,7 +9367,11 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     // Restaurar la fuente a la normal después del bucle
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(6.5);
-    let y = columnStartY + rowsPerColumn * rowSpacing + 2; // Posición vertical después de los datos
+    // Posición vertical después de los datos. Tomamos el mayor offset acumulado
+    // entre columnas para garantizar que el texto siguiente no pise las líneas
+    // extras de la descripción multilinea de obra/labor.
+    const maxYOffset = Math.max(0, ...Object.values(yOffsetByColumn));
+    let y = columnStartY + rowsPerColumn * rowSpacing + 2 + maxYOffset;
     // Texto adicional
     let texto = 'Entre  el  EMPLEADOR  y  el   TRABAJADOR  arriba indicados,  se  ha celebrado el contrato  regulado  por  las cláusulas  que  adelante  se  indican,  aparte  de  la  ley,  siendo  ellas las  siguientes:  PRIMERA.  El Trabajador,  a  partir  de  la  fecha  de  iniciación,  se  obliga  para  con  e l  EMPLEADOR   a ejecutar  la  obra arriba  indicada  sometiéndose  durante  su realización  en  todo  a  las  órdenes  de  éste. Declara  por  consiguiente e l TRABAJADOR completa y total  disponibilidad para con  el  EMPLEADOR   para  ejecutar  las  obras  indicadas  en  el  encabezamiento,  siempre  que así  le  sean  exigidas  por  sus clientes  al   EMPLEADOR,   sin  que  por  ello  se  opere  desmejora  o  modificación  sustancial  de las  condiciones de trabajo tenidas  en  cuenta en  el  momento  de  la  suscripción  de  este  contrato.   SEGUNDA.   DURACIÓN DEL CONTRATO:   La necesaria  para  la  realización de la obra o labor contratada  y  conforme  a  las  necesidades  del  patrono  o  establecimiento  que  requiera  la  ejecución  de  la  obra,  todo  conforme a lo previsto en el Art. 45 del CST y teniendo en cuenta  la  fecha  de  iniciación  de  la  obra;  y  la  índole  de  la  misma,  circunstancias  una  y  otra  ya  anotadas.  PARÁGRAFO PRIMERO:  Las  partes  acuerdan  que  por  ser  el TRABAJADOR contratado como trabajador en misión para ser enviado a la empresa la duración de la obra o labor no podrá superar el tiempo establecido en el Art. 77 de la Ley 50 de 1990 en su numeral 3°. PARÁGRAFO SEGUNDO: El término de duración del presente contrato es de carácter temporal por ser el EMPLEADOR una  empresa  de  servicios temporales,  y  por  tanto tendrá  vigencia  hasta la realización  de  la  obra o  labor  contratada  que  sea  indicada  por  las  Empresas  Usuarias  del  EMPLEADOR  en  este  contrato, acordando  las  partes  que  para  todos  los  efectos  legales,  la  obra  o  labor  contratada  termina  en  la  fecha  en  que  la  EMPRESA  USUARIA, a la que será  enviado el  TRABAJADOR, comunique la terminación de la misma. PARÁGRAFO TERCERO: La labor se  realizará  en  las  instalaciones de la EMPRESA ';
     // this.vacante.empresaUsuariaSolicita + CENTRO DE COSTOS + this.vacante.finca + DIR. + this.vacante.direccion
