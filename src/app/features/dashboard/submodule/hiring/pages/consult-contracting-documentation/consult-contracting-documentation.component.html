@@ -184,7 +184,7 @@
     </mat-expansion-panel>
   </section>
 
-  <!-- BANNER: cédulas restringidas a GERENCIA (ADMINISTRATIVOS) -->
+  <!-- BANNER: cédulas restringidas a GERENCIA (Usuario con rol != OPERARIO) -->
   @if (restrictedAdminItems.length > 0) {
     <section class="restricted-banner" aria-label="Candidatos restringidos a GERENCIA">
       <div class="restricted-icon">
@@ -195,8 +195,8 @@
           {{ restrictedAdminItems.length }} cédula(s) restringida(s) a GERENCIA
         </div>
         <p class="restricted-msg">
-          Estas personas tienen su última entrevista en <b>ADMINISTRATIVOS</b>, así que sus
-          documentos no se muestran en la tabla. Solo el rol <b>GERENCIA</b> puede consultarlos.
+          Estas cédulas pertenecen a cuentas administrativas (rol distinto de <b>OPERARIO</b>),
+          así que sus documentos no se muestran en la tabla. Solo el rol <b>GERENCIA</b> puede consultarlos.
         </p>
         <div class="restricted-list">
           @for (it of restrictedAdminItems; track it.cedula) {

@@ -89,6 +89,8 @@ type ChecklistItemDto = {
   fecha_contratacion?: string | null;
   /** Oficina/sede de la última entrevista (gestion_contratacion). */
   oficina_entrevista?: string | null;
+  /** Rol del Usuario en gestion_admin asociado a la cédula (null si no existe). */
+  usuario_rol?: string | null;
   docs?: ChecklistDocDto[];
 };
 
@@ -176,9 +178,9 @@ export class ConsultContractingDocumentationComponent implements OnInit {
   checklistRows: any[] = [];
 
   /**
-   * Cédulas cuya última entrevista es en ADMINISTRATIVOS y que han sido excluidas
-   * de la tabla (sólo GERENCIA puede ver sus documentos). Se muestran como un banner
-   * informativo para que el usuario sepa cuáles son.
+   * Cédulas cuyo Usuario en gestion_admin tiene rol distinto de OPERARIO y que
+   * han sido excluidas de la tabla (sólo GERENCIA puede ver sus documentos).
+   * Se muestran como un banner informativo para que el usuario sepa cuáles son.
    */
   restrictedAdminItems: Array<{ cedula: string; nombre: string }> = [];
 
@@ -416,19 +418,29 @@ export class ConsultContractingDocumentationComponent implements OnInit {
   }
 
   /**
-   * ¿el usuario actual puede ver candidatos cuya última entrevista es ADMINISTRATIVOS?
-   * Regla del negocio: SOLO el rol GERENCIA. El resto no debe verlos en la tabla
-   * ni en exportes ni en consultas automáticas.
+   * ¿el usuario logueado actual puede ver TODAS las cédulas, incluso las que
+   * pertenecen a Usuarios con rol distinto de OPERARIO?
+   * Regla del negocio: SOLO el rol GERENCIA. El resto no ve esas filas en la
+   * tabla, ni en exportes, ni en consultas automáticas.
    */
   canViewAdministrativos(): boolean {
     const rol = String(this.user?.rol?.nombre ?? '').trim().toUpperCase();
     return rol === 'GERENCIA';
   }
 
-  /** Match laxo de "ADMINISTRATIVOS" tolerante a espacios y acentos. */
-  private isAdministrativos(oficina: string | null | undefined): boolean {
-    if (!oficina) return false;
-    return this.normName(oficina) === 'ADMINISTRATIVOS';
+  /**
+   * ¿la cédula consultada corresponde a un Usuario con rol distinto de OPERARIO?
+   * - Si `usuario_rol` es null/vacío → la cédula no tiene Usuario en gestion_admin
+   *   o está sin rol asignado → tratamos como operario normal (visible para todos).
+   * - Si `usuario_rol` es OPERARIO → visible para todos.
+   * - En cualquier otro valor (GERENCIA, COORDINADOR, ADMIN, JEFE-DE-AREA,
+   *   TESORERIA, TIENDA, ESPECIAL, TRASLADOS, EMPRESA, COMERCIALIZADORA, etc.)
+   *   → restringida; sólo visible para GERENCIA.
+   */
+  private esRolRestringido(usuarioRol: string | null | undefined): boolean {
+    const rol = String(usuarioRol ?? '').trim().toUpperCase();
+    if (!rol) return false;
+    return rol !== 'OPERARIO';
   }
 
   /** ✅ Abrir PDF cuando el estado sea OK o WARN */
@@ -846,8 +858,8 @@ export class ConsultContractingDocumentationComponent implements OnInit {
       // MAPPING (Heavy Sync Operation) - Optimizado O(N)
       const rawItems: ChecklistItemDto[] = Array.isArray(resp?.items) ? resp.items : [];
 
-      // Restricción: los documentos de candidatos cuya última entrevista es en
-      // ADMINISTRATIVOS sólo se muestran al rol GERENCIA. Para el resto:
+      // Restricción: las cédulas cuyo Usuario en gestion_admin tiene rol distinto
+      // de OPERARIO sólo se muestran al rol GERENCIA. Para el resto:
       //  - los excluimos de la tabla principal (y por ende del Excel/ZIP),
       //  - pero los listamos en un banner aparte para que el usuario sepa
       //    QUÉ cédulas quedaron restringidas (la consulta de 15 cédulas no
@@ -860,7 +872,7 @@ export class ConsultContractingDocumentationComponent implements OnInit {
         itemsList = [];
         const restricted: Array<{ cedula: string; nombre: string }> = [];
         for (const it of rawItems) {
-          if (this.isAdministrativos(it?.oficina_entrevista)) {
+          if (this.esRolRestringido(it?.usuario_rol)) {
             restricted.push({
               cedula: String(it?.cedula ?? ''),
               nombre: String(it?.nombre_completo ?? ''),
@@ -1053,7 +1065,7 @@ export class ConsultContractingDocumentationComponent implements OnInit {
     this.checklistColumns = [];
     this.isLoadingChecklist = false;
 
-    // Banner de restringidos (ADMINISTRATIVOS)
+    // Banner de cédulas restringidas (rol != OPERARIO, sólo GERENCIA puede verlas)
     this.restrictedAdminItems = [];
   }
 
