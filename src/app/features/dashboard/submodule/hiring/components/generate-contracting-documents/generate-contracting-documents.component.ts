@@ -1,6 +1,6 @@
 import { SharedModule } from '@/app/shared/shared.module';
 import { isPlatformBrowser } from '@angular/common';
-import {  Component, inject, OnInit, PLATFORM_ID, ViewChild, ElementRef , ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
+import { Component, inject, OnInit, PLATFORM_ID, ViewChild, ElementRef, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { PDFDocument, PDFTextField, PDFCheckBox, StandardFonts, rgb, degrees } from 'pdf-lib';
 import Swal from 'sweetalert2';
@@ -39,7 +39,7 @@ type UploadedInfo = {
   ],
   templateUrl: './generate-contracting-documents.component.html',
   styleUrl: './generate-contracting-documents.component.css'
-} )
+})
 
 export class GenerateContractingDocumentsComponent implements OnInit {
   @ViewChild('pdfPreviewIframe') pdfPreviewIframe!: ElementRef<HTMLIFrameElement>;
@@ -91,7 +91,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
   procesandoBatch = false;
   guardandoBatch = false;
   todoGenerado = false;
-  
+
   _getExitosos(): number {
     return this.batchCedulas?.filter?.((x: any) => x?.status === 'Done' && !x?.guardado)?.length || 0;
   }
@@ -403,17 +403,17 @@ export class GenerateContractingDocumentsComponent implements OnInit {
               '| ids=', entrevistas.map(e => e?.id),
               '| picked=', entrevistaVálida?.id,
               '| razón=', entrevistaConPub ? 'tiene publicacion'
-                          : entrevistaConContrato ? 'solo contrato_codigo'
-                          : 'fallback más reciente',
+              : entrevistaConContrato ? 'solo contrato_codigo'
+                : 'fallback más reciente',
               '| pub_id=', entrevistaVálida?.proceso?.publicacion ?? null);
 
             this.codigoContratacion =
-              entrevistaVálida?.proceso?.contrato_codigo ?? 
+              entrevistaVálida?.proceso?.contrato_codigo ??
               entrevistaVálida?.proceso?.contrato?.codigo_contrato ?? null;
 
-            this.firmaPersonalAdministrativo = datoAdministrativoBiometria?.biometria?.firma?.file_url 
-              ?? datoAdministrativoBiometria?.biometria?.firma?.file 
-              ?? datoAdministrativo?.data?.[0]?.firmaSolicitante 
+            this.firmaPersonalAdministrativo = datoAdministrativoBiometria?.biometria?.firma?.file_url
+              ?? datoAdministrativoBiometria?.biometria?.firma?.file
+              ?? datoAdministrativo?.data?.[0]?.firmaSolicitante
               ?? '';
 
             const vacanteId = entrevistaVálida?.proceso?.publicacion ?? null;
@@ -1217,11 +1217,11 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       const nombreCompleto = `${nombres} ${apellidos}`.trim();
 
       let cargo = '';
-      if(this.vacante?.cargo?.nombre_cargo_empresa) cargo = this.vacante.cargo.nombre_cargo_empresa;
-      else if(this.vacante?._id_cargo?.nombre_cargo_empresa) cargo = this.vacante._id_cargo.nombre_cargo_empresa;
-      else if(this.vacante?.cargo?.nombre_cargo) cargo = this.vacante.cargo.nombre_cargo;
-      else if(this.vacante?.nombre_cargo) cargo = this.vacante.nombre_cargo;
-      else if(typeof this.vacante?.cargo === 'string') cargo = this.vacante.cargo;
+      if (this.vacante?.cargo?.nombre_cargo_empresa) cargo = this.vacante.cargo.nombre_cargo_empresa;
+      else if (this.vacante?._id_cargo?.nombre_cargo_empresa) cargo = this.vacante._id_cargo.nombre_cargo_empresa;
+      else if (this.vacante?.cargo?.nombre_cargo) cargo = this.vacante.cargo.nombre_cargo;
+      else if (this.vacante?.nombre_cargo) cargo = this.vacante.nombre_cargo;
+      else if (typeof this.vacante?.cargo === 'string') cargo = this.vacante.cargo;
       cargo = String(cargo).toUpperCase();
 
       doc.setProperties({ title: `108_SAGARO_LOCKERS_${numIdentificacion}.pdf` });
@@ -1322,14 +1322,14 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       doc.text('FIRMA:', marginLeft, currentY);
       // Signature will be drawn above FIRMA if it responds
       const fetchAsArrayBufferOrNull = async (url: any) => {
-          if (!url) return null;
-          try {
-            const res = await fetch(url);
-            if (!res.ok) return null;
-            return await res.arrayBuffer();
-          } catch {
-            return null;
-          }
+        if (!url) return null;
+        try {
+          const res = await fetch(url);
+          if (!res.ok) return null;
+          return await res.arrayBuffer();
+        } catch {
+          return null;
+        }
       };
 
       const firmaCand = await fetchAsArrayBufferOrNull(cand?.biometria?.firma?.file_url ?? this.firma);
@@ -1369,11 +1369,11 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       const nombreCompleto = `${nombres} ${apellidos}`.trim();
 
       let cargo = '';
-      if(this.vacante?.cargo?.nombre_cargo_empresa) cargo = this.vacante.cargo.nombre_cargo_empresa;
-      else if(this.vacante?._id_cargo?.nombre_cargo_empresa) cargo = this.vacante._id_cargo.nombre_cargo_empresa;
-      else if(this.vacante?.cargo?.nombre_cargo) cargo = this.vacante.cargo.nombre_cargo;
-      else if(this.vacante?.nombre_cargo) cargo = this.vacante.nombre_cargo;
-      else if(typeof this.vacante?.cargo === 'string') cargo = this.vacante.cargo;
+      if (this.vacante?.cargo?.nombre_cargo_empresa) cargo = this.vacante.cargo.nombre_cargo_empresa;
+      else if (this.vacante?._id_cargo?.nombre_cargo_empresa) cargo = this.vacante._id_cargo.nombre_cargo_empresa;
+      else if (this.vacante?.cargo?.nombre_cargo) cargo = this.vacante.cargo.nombre_cargo;
+      else if (this.vacante?.nombre_cargo) cargo = this.vacante.nombre_cargo;
+      else if (typeof this.vacante?.cargo === 'string') cargo = this.vacante.cargo;
       cargo = String(cargo).toUpperCase();
 
       doc.setProperties({ title: `110_SAGARO_CELULAR_${numIdentificacion}.pdf` });
@@ -1465,7 +1465,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       const p7 = `Cualquier proceso disciplinario se adelantará respetando el debido proceso (art. 29 Constitución Política) y lo dispuesto en el Reglamento Interno de Trabajo.`;
       const p7Lines = doc.splitTextToSize(p7, maxWidth);
       doc.text(p7Lines, marginLeft, currentY, { maxWidth, align: 'justify' });
-      
+
       doc.addPage();
       currentY = 20;
 
@@ -1506,14 +1506,14 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       doc.text('FIRMA:', marginLeft, currentY);
       // Signature will be drawn above FIRMA if it responds
       const fetchAsArrayBufferOrNull = async (url: any) => {
-          if (!url) return null;
-          try {
-            const res = await fetch(url);
-            if (!res.ok) return null;
-            return await res.arrayBuffer();
-          } catch {
-            return null;
-          }
+        if (!url) return null;
+        try {
+          const res = await fetch(url);
+          if (!res.ok) return null;
+          return await res.arrayBuffer();
+        } catch {
+          return null;
+        }
       };
 
       const firmaCand = await fetchAsArrayBufferOrNull(cand?.biometria?.firma?.file_url ?? this.firma);
@@ -1574,7 +1574,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       const edadStr = calcEdadLocal(cand.fecha_nacimiento);
       const genero = cand.sexo === 'Masculino' ? 'M' : (cand.sexo === 'Femenino' ? 'F' : String(cand.sexo || ''));
       const celular = cand.contacto?.celular || cand.numCelular || cand.telefono || '';
-      
+
       const ent0 = cand.entrevistas?.[0] || {};
       const antecedentes = ent0.proceso?.antecedentes || [];
       const epsObj = antecedentes.find((a: any) => a.nombre?.toUpperCase() === 'EPS');
@@ -1582,7 +1582,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
 
       const email = String(cand.contacto?.email || cand.correo_electronico || '').toUpperCase();
       const noWhatsapp = celular; // "no whatsapp es el mismo numero de celular"
-      const whaStr = cand.contacto?.whatsapp || celular; 
+      const whaStr = cand.contacto?.whatsapp || celular;
       const direccion = String(cand.residencia?.direccion ?? '').toUpperCase();
       const barrio = String(cand.residencia?.barrio ?? '').toUpperCase();
       const ciudad = String(cand.municipio ?? cand.residencia?.municipio ?? cand.info_cc?.mpio_expedicion ?? '').toUpperCase();
@@ -1611,9 +1611,9 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       const exprResumen = cand.experiencia_resumen || {};
       const historialExp = cand.experiencias || [];
       const tieneExp = (historialExp.length > 0 || exprResumen.tiene_experiencia) ? 'SI' : 'NO';
-      
+
       const areaExp = String(ent0.tipo_experiencia_flores ?? '').toUpperCase();
-      
+
       const empresasArr = historialExp.map((e: any) => e.empresa).filter(Boolean);
       const empresas = empresasArr.length > 0 ? empresasArr.join(', ').toUpperCase() : String(exprResumen.empresas_laborado ?? '').toUpperCase();
 
@@ -1703,16 +1703,16 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       mkLabelVal('No. Identificación:', numIdentificacion, px2, pxV2, finalY + 4);
       mkLabelVal('Estado Civil:', estadoCivil, px3, pxV3, finalY + 4);
       finalY += 10;
-      
+
       px1 = mLeft; pxV1 = mLeft + 28;
       mkLabelVal('Fecha Expedición:', fechaExpedicion, px1, pxV1, finalY);
       mkLabelVal('Lugar Expedición:', lugarExpedicion, px2, pxV2, finalY);
       finalY += 6;
-      
+
       mkLabelVal('Fecha Nacimiento:', fechaNacimiento, px1, pxV1, finalY);
       mkLabelVal('Lugar Nacimiento:', lugarNacimiento, px2, pxV2, finalY);
       finalY += 6;
-      
+
       px1 = mLeft; pxV1 = mLeft + 10;
       px2 = mLeft + 35; pxV2 = mLeft + 50;
       px3 = mLeft + 80; let pxV3_2 = mLeft + 95;
@@ -1722,7 +1722,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       mkLabelVal('Celular:', celular, px3, pxV3_2, finalY);
       mkLabelVal('EPS:', eps, px4, pxV4, finalY);
       finalY += 6;
-      
+
       px1 = mLeft; pxV1 = mLeft + 12;
       px2 = mLeft + 80; pxV2 = mLeft + 100;
       px3 = mLeft + 130; pxV3_2 = mLeft + 148;
@@ -1730,7 +1730,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       mkLabelVal('No WhatsApp:', noWhatsapp, px2, pxV2, finalY);
       mkLabelVal('WhatsApp:', whaStr, px3, pxV3_2, finalY);
       finalY += 6;
-      
+
       px1 = mLeft; pxV1 = mLeft + 15;
       px2 = mLeft + 65; pxV2 = mLeft + 80;
       px3 = mLeft + 125; pxV3_2 = mLeft + 140;
@@ -1788,21 +1788,21 @@ export class GenerateContractingDocumentsComponent implements OnInit {
 
       // --- 5) Observaciones del Evaluador ---
       finalY = secTitle('Observaciones del Evaluador', finalY);
-      
+
       // Rectángulo gris solo para el título "Nombre del evaluador:"
       doc.setFillColor(230, 230, 230);
       doc.rect(mLeft, finalY + 2, 36, 5, 'F');
-      
+
       doc.setFont('helvetica', 'normal');
       doc.text('Nombre del evaluador:', mLeft + 1, finalY + 5.5);
       doc.text(nombreEvaluador, mLeft + 38, finalY + 5.5);
 
       finalY += 10;
-      
+
       // Rectángulo gris solo para el título "Observaciones:"
       doc.setFillColor(230, 230, 230);
       doc.rect(mLeft, finalY, 25, 5, 'F');
-      
+
       doc.setFont('helvetica', 'normal');
       doc.text('Observaciones:', mLeft + 1, finalY + 3.5);
       doc.text(observaciones, mLeft + 27, finalY + 3.5, { maxWidth: 140 });
@@ -1830,7 +1830,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       if (firmaData) {
         doc.addImage(firmaData, 'PNG', mLeft + 25, finalY - 18, 50, 18);
       }
-      
+
       const selloData = await toDataURL('firma/gestion_entrevista.png');
       if (selloData) {
         doc.addImage(selloData, 'PNG', mLeft + 105, finalY - 18, 50, 18);
@@ -2232,7 +2232,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       const mLeft = 20;
       const mRight = 20;
       const anchoLinea = pageWidth - mLeft - mRight;
-      
+
       let currentY = 25;
 
       // Titles
@@ -2247,7 +2247,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
 
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(10);
-      
+
       const p1 = `En mi calidad de trabajador(a) de FLORES SAGARO S.A., manifiesto de manera libre, voluntaria e informada mi consentimiento y otorgo autorización expresa para el tratamiento y uso de mi imagen captada mediante fotografías, videograbaciones y sistemas de monitoreo o videovigilancia instalados por el empleador, bajo los siguientes términos:`;
       const linesP1 = doc.splitTextToSize(p1, anchoLinea);
       doc.text(linesP1, mLeft, currentY, { align: 'justify', maxWidth: anchoLinea });
@@ -2257,13 +2257,13 @@ export class GenerateContractingDocumentsComponent implements OnInit {
         "1. FLORES SAGARO S.A. actúa como responsable del tratamiento de las imágenes y datos personales captados mediante los sistemas de vigilancia instalados dentro de las áreas autorizadas de la empresa.",
         "2. Autorizo el uso de mi imagen, fotografías y/o videos para fines:"
       ];
-      
+
       for (const item of items1) {
         const lines = doc.splitTextToSize(item, anchoLinea);
         doc.text(lines, mLeft, currentY, { align: 'justify', maxWidth: anchoLinea });
         currentY += (lines.length * 5) + 2;
       }
-      
+
       currentY += 2;
       const subItems = [
         "1. corporativos y administrativos,",
@@ -2272,12 +2272,12 @@ export class GenerateContractingDocumentsComponent implements OnInit {
         "4. de seguridad física y patrimonial,",
         "5. de cumplimiento de normas legales, contractuales y reglamentarias."
       ];
-      
+
       for (const sItem of subItems) {
         doc.text(sItem, mLeft + 10, currentY);
         currentY += 5;
       }
-      
+
       currentY += 5;
       const p2 = `Estas imágenes podrán constituir prueba dentro de procesos administrativos o disciplinarios internos.`;
       const linesP2 = doc.splitTextToSize(p2, anchoLinea);
@@ -2302,7 +2302,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
         doc.text(lines, mLeft, currentY, { align: 'justify', maxWidth: anchoLinea });
         currentY += (lines.length * 5) + 3;
       }
-      
+
       currentY += 5;
       const fechaActual = this.getFechaContrato();
       const dia = fechaActual.getDate();
@@ -2321,7 +2321,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       doc.text(`CÉDULA: ${numIdentificacion}`, mLeft, currentY);
       currentY += 6;
       doc.text('FIRMA:', mLeft, currentY);
-      
+
       // Firma
       const firmaCand = await this.fetchAsArrayBufferOrNull(cand?.biometria?.firma?.file_url ?? this.firma);
       if (firmaCand) {
@@ -8273,7 +8273,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     if (text) {
       const cedulas = text.split('\n').map((c: string) => c.trim()).filter((c: string) => c.length > 0);
       if (cedulas.length === 0) return;
-      
+
       this.batchCedulas = cedulas.map((c: string) => ({
         cedula: c,
         status: 'Pending',
@@ -8296,7 +8296,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
 
   async ejecutarBatch() {
     this.procesandoBatch = true;
-    
+
     // Backup del estado actual
     const bCedula = this.cedula;
     const bCandidato = this.candidato;
@@ -8307,10 +8307,10 @@ export class GenerateContractingDocumentsComponent implements OnInit {
 
     for (let item of this.batchCedulas) {
       if (item.status === 'Done') continue;
-      
+
       item.status = 'Processing';
       this.blockSeleccionado = item;
-      
+
       try {
         const datoCandidato = await firstValueFrom(
           this.registroProcesoContratacion.getCandidatoPorDocumento(item.cedula, true)
@@ -8320,7 +8320,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
 
         const vacId = datoCandidato?.entrevistas?.[0]?.proceso?.publicacion;
         const vacData = vacId ? await firstValueFrom(this.vacantesService.obtenerVacante(vacId).pipe(catchError(() => of(null)))) : null;
-        
+
         this.cedula = item.cedula;
         this.candidato = datoCandidato;
         this.vacante = vacData || {};
@@ -8946,7 +8946,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
           doc.addImage(this.firma, 'PNG', 65, y - 12, 35, 11);
         }
       } catch (e) {
-        try { doc.addImage(this.firma, 'PNG', 65, y - 12, 35, 11); } catch(ex) {}
+        try { doc.addImage(this.firma, 'PNG', 65, y - 12, 35, 11); } catch (ex) { }
       }
     }
 
@@ -8996,7 +8996,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
           doc.addImage(this.firmaPersonalAdministrativo, 'PNG', 165, y - 16, 35, 14);
         }
       } catch (e) {
-        try { doc.addImage(this.firmaPersonalAdministrativo, 'PNG', 165, y - 16, 35, 14); } catch(ex) {}
+        try { doc.addImage(this.firmaPersonalAdministrativo, 'PNG', 165, y - 16, 35, 14); } catch (ex) { }
       }
     }
 
@@ -9009,7 +9009,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     const pdfBlob = doc.output('blob');
     const fileName = `${this.empresa}_Contrato.pdf`;
     const pdfFile = new File([pdfBlob], fileName, { type: 'application/pdf' });
-    
+
     if (isBatch) {
       return { file: pdfFile, blobUrl: URL.createObjectURL(pdfBlob) };
     }
@@ -9250,6 +9250,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
 
     const datos = [
       { titulo: T('Representado por'), valor: V('HEIDY JACKELINE TORRES SOTELO') },
+      { titulo: T('Domicilio del patrono'), valor: V(domicilio) },
 
       {
         titulo: T('Nombre del Trabajador'),
@@ -9260,12 +9261,12 @@ export class GenerateContractingDocumentsComponent implements OnInit {
           this.candidato?.segundo_nombre,
         ].filter(x => String(x ?? '').trim()).join(' '))
       },
-
+      { titulo: T('Tipo y No de Identificación'), valor: V(`${this.candidato?.tipo_doc ?? ''}        ${this.cedula ?? ''}`) },
+      
       {
         titulo: T('Fecha de Nacimiento'),
         valor: V(onlyDate(pickText(this.candidato?.fecha_nacimiento, datoContratacion?.fecha_nacimiento)))
       },
-
       {
         titulo: T('Domicilio del Trabajador'),
         valor: V(
@@ -9276,8 +9277,9 @@ export class GenerateContractingDocumentsComponent implements OnInit {
           ]
             .filter(x => String(x ?? '').trim())
             .join(' - ')
-        )
+          )
       },
+      
 
       { titulo: T('Fecha de Iniciación'), valor: V(this.candidato?.entrevistas?.[0]?.proceso?.contrato?.fecha_ingreso ?? '') },
 
@@ -9298,11 +9300,6 @@ export class GenerateContractingDocumentsComponent implements OnInit {
 
       { titulo: T('Descripción de la Obra/Motivo Temporada '), valor: V(this.vacante?.descripcion) },
 
-      { titulo: T('Domicilio del patrono'), valor: V(domicilio) },
-
-      { titulo: T('Tipo y No de Identificación'), valor: V(`${this.candidato?.tipo_doc ?? ''}        ${this.cedula ?? ''}`) },
-
-      { titulo: T('Email'), valor: V(pickText(this.candidato?.contacto?.email, datoContratacion?.primercorreoelectronico)) },
     ];
 
     // =========================================================
@@ -9505,7 +9502,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     } else if (resultSwal.isDismissed) {
       return null;
     }
-    
+
     return codigoGenerado;
   }
 
@@ -9794,7 +9791,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
 
       // Cabecera / contrato
       this.setText(form, 'CodContrato', this.safe(codigoContrato), customFont, 7.2);
-      try { this.setText(form, 'codigo_contrato', this.safe(codigoContrato), customFont, 7.2); } catch(e) {}
+      try { this.setText(form, 'codigo_contrato', this.safe(codigoContrato), customFont, 7.2); } catch (e) { }
       this.setText(form, 'sede', this.safe(this.user?.sede?.nombre), customFont, 7.2);
 
       // Llenado completo del formulario (mapping en ficha-tecnica-fill.ts).
@@ -10251,7 +10248,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       const customFont = fontBytes ? await pdfDoc.embedFont(fontBytes) : undefined;
 
       const form = pdfDoc.getForm();
-      try { this.setText(form, 'codigo_contrato', this.safe(codigoContrato), customFont); } catch(e) {}
+      try { this.setText(form, 'codigo_contrato', this.safe(codigoContrato), customFont); } catch (e) { }
 
       // ✅ Imagen: nunca se voltea, siempre vertical
       await setButtonImageSafe(pdfDoc, form, 'Imagen1_af_image', this.foto, { forcePortrait: true });
@@ -10805,7 +10802,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       const customFont = fontBytes ? await pdfDoc.embedFont(fontBytes) : undefined;
 
       const form = pdfDoc.getForm();
-      try { this.setText(form, 'codigo_contrato', this.safe(codigoContrato), customFont); } catch(e) {}
+      try { this.setText(form, 'codigo_contrato', this.safe(codigoContrato), customFont); } catch (e) { }
 
       // Imagen1_af_image
       await setButtonImageSafe(pdfDoc, form, 'Imagen1_af_image', this.foto);
@@ -11690,7 +11687,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       const ciudadExpedicion = [cand.info_cc?.mpio_expedicion, cand.info_cc?.depto_expedicion].filter(Boolean).join(', ').toUpperCase() || '';
 
       // ─── Helpers de fecha ───
-      const mesesEs = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+      const mesesEs = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
       const hoy = new Date();
       const dia = hoy.getDate();
       const mes = mesesEs[hoy.getMonth()];
@@ -11945,7 +11942,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       const empresaUsuaria = (vac.empresaUsuariaSolicita ?? vac.finca ?? '').toString().toUpperCase().trim();
 
       // ─── Helpers de fecha ───
-      const mesesEs = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+      const mesesEs = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
       const hoy = new Date();
       const dia = hoy.getDate();
       const mes = mesesEs[hoy.getMonth()];
@@ -12192,7 +12189,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       const ubicacion = [municipio, departamento].filter(Boolean).join('– ') || 'Bogotá D.C.';
 
       // ─── Fecha ───
-      const mesesEs = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+      const mesesEs = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
       const hoy = new Date();
       const dia = hoy.getDate();
       const mes = mesesEs[hoy.getMonth()];

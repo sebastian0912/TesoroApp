@@ -926,9 +926,14 @@ export class RecruitmentPipelineComponent {
 
         // 3) Subir PDF consolidado (85% → 100%)
         updateLoader(88, 'Subiendo PDF consolidado…', mergedName);
+        // Pasar tipo_documento para que el backend prefije owner_id con "x"
+        // cuando la persona no es CC (evita colisiones entre CC y non-CC).
+        const tipoDoc = (this.candidatoSeleccionado()?.tipo_documento
+                        ?? this.candidatoSeleccionado()?.tipoDocumento
+                        ?? undefined) as string | undefined;
         const obs = this.candidatoSeleccionado()?.codigo_contrato
-          ? this.docSvc.guardarDocumento(mergedFile.name, cedula, TYPE_EXAM, mergedFile, this.candidatoSeleccionado()?.codigo_contrato)
-          : this.docSvc.guardarDocumento(mergedFile.name, cedula, TYPE_EXAM, mergedFile);
+          ? this.docSvc.guardarDocumento(mergedFile.name, cedula, TYPE_EXAM, mergedFile, this.candidatoSeleccionado()?.codigo_contrato, tipoDoc)
+          : this.docSvc.guardarDocumento(mergedFile.name, cedula, TYPE_EXAM, mergedFile, undefined, tipoDoc);
         await firstValueFrom(obs);
         updateLoader(100, 'Finalizando…');
 
@@ -1945,10 +1950,12 @@ export class RecruitmentPipelineComponent {
         const pdfFile = new File([pdfBlob], `carnet_${row.CEDULA}.pdf`, { type: 'application/pdf' });
         const codigoContrato = row.CODIGO || cand.contrato?.codigo_contrato;
         
+        // tipo_documento del candidato para prefijo "x" en non-CC.
+        const tipoDocCarnet = (cand?.tipo_documento ?? cand?.tipoDocumento ?? undefined) as string | undefined;
         await firstValueFrom(
-          codigoContrato 
-            ? this.docSvc.guardarDocumento(`carnet_${row.CEDULA}.pdf`, cedula, 102, pdfFile, codigoContrato)
-            : this.docSvc.guardarDocumento(`carnet_${row.CEDULA}.pdf`, cedula, 102, pdfFile)
+          codigoContrato
+            ? this.docSvc.guardarDocumento(`carnet_${row.CEDULA}.pdf`, cedula, 102, pdfFile, codigoContrato, tipoDocCarnet)
+            : this.docSvc.guardarDocumento(`carnet_${row.CEDULA}.pdf`, cedula, 102, pdfFile, undefined, tipoDocCarnet)
         );
         backMsg = '<br><br><small style="color:green;">El carnet también se guardó correctamente en el historial del candidato.</small>';
       } catch (err) {

@@ -159,6 +159,10 @@ export class SelectionQuestionsComponent {
   /* -------- Estado/ctx -------- */
   private _ctx = 0;
   cedula: string | null = null;
+  // tipo_documento del candidato: necesario para que el backend prefije owner_id
+  // con "x" cuando no sea CC. Sin esto, los Documents non-CC colisionarían
+  // con los CC del mismo número de cédula.
+  tipoDocumento: string | null = null;
 
   /* -------- Cola de antecedentes (para la UI) -------- */
   private colaRaw: ColaRaw | null = null;
@@ -210,6 +214,7 @@ export class SelectionQuestionsComponent {
       // Fix: proceso (no "processo")
       const proc = candidato?.entrevistas?.[0]?.proceso;
       this.cedula = (candidato?.numero_documento ?? candidato?.numeroDocumento ?? null) as string | null;
+      this.tipoDocumento = (candidato?.tipo_documento ?? candidato?.tipoDocumento ?? null) as string | null;
 
       // Cola de antecedentes (camelCase o snake_case)
       this.colaRaw = (candidato?.cola_antecedentes ?? candidato?.colaAntecedentes ?? null) as ColaRaw | null;
@@ -563,7 +568,7 @@ export class SelectionQuestionsComponent {
 
     const promesas = aEnviar.map(({ key, file, fileName, typeId }) =>
       new Promise<void>((resolve, reject) => {
-        this.docsSrv.guardarDocumento(fileName, ced, typeId, file).subscribe({
+        this.docsSrv.guardarDocumento(fileName, ced, typeId, file, undefined, this.tipoDocumento || undefined).subscribe({
           next: () => {
             const entry = this.uploadedFiles[key];
             if (entry) {

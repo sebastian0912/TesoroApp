@@ -13,7 +13,7 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Title } from '@angular/platform-browser';
-import { of, interval } from 'rxjs';
+import { of, interval, fromEvent } from 'rxjs';
 import { catchError, finalize, map, take, tap, debounceTime } from 'rxjs/operators';
 
 import { ReactiveFormsModule, FormBuilder, FormGroup, FormControl } from '@angular/forms';
@@ -21,6 +21,7 @@ import { ReactiveFormsModule, FormBuilder, FormGroup, FormControl } from '@angul
 import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
+import { MatButtonToggleModule } from '@angular/material/button-toggle';
 
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatSelectModule } from '@angular/material/select';
@@ -42,7 +43,31 @@ import {
   AntecedenteKey,
   UltimosPorMarcaTemporalRow,
   RobotLockRow,
+  DuplicadoCedulaRow,
+  ProximoEnColaRow,
+  ProximosEnColaResponse,
 } from '../../services/robots/robots.service';
+
+// =========================
+// LOCKS (presentación enriquecida)
+// =========================
+interface RobotLockDisplayRow extends RobotLockRow {
+  edad_min: number;          // minutos desde locked_at; -1 si no hay lock
+  edad_label: string;        // "47m", "2m", "—"
+  estado_lock: 'ZOMBIE' | 'ACTIVO' | 'SIN_LOCK';
+}
+
+interface LocksByWorkerRow {
+  worker: string;
+  locks_activos: number;
+  zombies: number;
+  edad_mas_vieja_min: number;
+  edad_mas_vieja_label: string;
+  antecedentes: string;      // CSV (ofac, policivo, ...)
+}
+
+// Mismos minutos que el backend (EstadoRobotActual.LEASE_MINUTES)
+const LEASE_MINUTES = 5;
 
 // =========================
 // PENDIENTES POR OFICINA
@@ -151,6 +176,7 @@ interface ChartVm {
     MatIconModule,
     MatCardModule,
     MatButtonModule,
+    MatButtonToggleModule,
 
     MatFormFieldModule,
     MatSelectModule,
@@ -222,8 +248,47 @@ export class RobotsComponent implements OnInit {
   // ✅ STATE (MONITOREO LOCKS)
   // =========================
   isLoadingLocks = false;
-  locksRows: RobotLockRow[] = [];
+  locksRowsRaw: RobotLockRow[] = [];
+  locksRows: RobotLockDisplayRow[] = [];
   locksColumns: ColumnDefinition[] = [];
+
+  // Toggle: ver por antecedente (default) vs agrupado por worker
+  viewLocksByWorker = false;
+  locksByWorkerRows: LocksByWorkerRow[] = [];
+  locksByWorkerColumns: ColumnDefinition[] = [];
+
+  // =========================
+  // ✅ STATE (DUPLICADOS DE CÉDULA)
+  // =========================
+  isLoadingDuplicados = false;
+  duplicadosCount = 0;
+  duplicadosFilasAfectadas = 0;
+  duplicadosDetalles: DuplicadoCedulaRow[] = [];
+
+  // =========================
+  // ✅ STATE (PRÓXIMOS EN COLA)
+  // =========================
+  isLoadingProximos = false;
+  proximosRows: ProximoEnColaRow[] = [];
+  proximosColumns: ColumnDefinition[] = [];
+  proximosTotalPendientes = 0;
+  proximosModoAtencion: 'HORARIO_LABORAL' | 'FUERA_DE_HORARIO' | '' = '';
+  proximosGeneratedAt: string = '';
+
+  proximosForm = this.fb.group({
+    antecedente: new FormControl<UltimosAntecedenteUiKey>('ofac', { nonNullable: true }),
+    limit: [20],
+  });
+
+  readonly proximosAntecedentesOptions: Array<{ key: UltimosAntecedenteUiKey; label: string }> = [
+    { key: 'adress', label: 'Adress' },
+    { key: 'policivo', label: 'Policivo' },
+    { key: 'ofac', label: 'OFAC' },
+    { key: 'contraloria', label: 'Contraloría' },
+    { key: 'sisben', label: 'Sisben' },
+    { key: 'procuraduria', label: 'Procuraduría' },
+    { key: 'fondo_pension', label: 'Fondo Pensión' },
+  ];
 
   // =========================
   // STATE (STATS / GRAFICA)
@@ -293,8 +358,14 @@ export class RobotsComponent implements OnInit {
     showConfirmButton: false,
   });
 
-  /** Intervalo en ms para auto-refresh (30 s) */
-  private readonly AUTO_POLL_MS = 30_000;
+  /**
+   * Intervalo en ms para auto-refresh.
+   * Antes: 30 s. Con backend prod (MySQL remoto) cada tick disparaba 7
+   * endpoints pesados y se acumulaban requests en vuelo (`/Robots/full/`
+   * sin paginar es el más caro). Subimos a 2 min para aliviar al backend
+   * sin perder utilidad del dashboard.
+   */
+  private readonly AUTO_POLL_MS = 120_000;
 
   ngOnInit(): void {
     this.titleService.setTitle('Robots Dashboard - Tesoreria');
@@ -315,13 +386,38 @@ export class RobotsComponent implements OnInit {
     this.loadStats({ showToast: false });
     this.loadUltimosPorMarcaTemporal({ showToast: false });
     this.loadLocks();
+    this.loadDuplicados();
+    this.loadProximosEnCola({ showToast: false });
 
-    // ✅ Auto-polling: refresca datos cada 30 s para mostrar cambios en tiempo real
+    // ✅ Auto-polling: refresca datos cada AUTO_POLL_MS. Salta el tick si el
+    // tab/ventana NO está visible — no tiene sentido pegarle al backend
+    // mientras nadie está mirando el dashboard. Al volver al tab se hace un
+    // refresh inmediato vía el listener `visibilitychange` de abajo.
     interval(this.AUTO_POLL_MS)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(() => {
-        this.reloadAll(false);
-        this.loadStats({ showToast: false });
+        if (!this.isDashboardVisible()) return;
+        this.refreshDashboard();
+      });
+
+    // Al volver al tab tras un rato oculto, los datos en pantalla están
+    // viejos: dispara un refresh inmediato sin esperar al próximo tick.
+    if (typeof document !== 'undefined') {
+      fromEvent(document, 'visibilitychange')
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe(() => {
+          if (this.isDashboardVisible()) this.refreshDashboard();
+        });
+    }
+
+    // ✅ Cuando el usuario cambia antecedente/limit, recarga (debounced)
+    this.proximosForm.valueChanges
+      .pipe(
+        debounceTime(300),
+        takeUntilDestroyed(this.destroyRef)
+      )
+      .subscribe(() => {
+        this.loadProximosEnCola({ showToast: false });
       });
   }
 
@@ -397,6 +493,31 @@ export class RobotsComponent implements OnInit {
 
     // ✅ recarga también "últimos" con el selector actual
     this.loadUltimosPorMarcaTemporal({ showToast: false });
+  }
+
+  /**
+   * Dispara el set completo de loaders que corresponde a un "tick" del
+   * auto-polling. Centralizado para reusarlo desde el interval y desde el
+   * listener de visibilitychange.
+   */
+  private refreshDashboard(): void {
+    this.reloadAll(false);
+    this.loadStats({ showToast: false });
+    this.loadLocks();
+    this.loadDuplicados();
+    this.loadProximosEnCola({ showToast: false });
+  }
+
+  /**
+   * True si el dashboard está realmente visible para el usuario.
+   * `document.visibilityState === 'hidden'` cuando el tab está en background,
+   * la ventana está minimizada o el sistema bloqueó la pantalla.
+   * En SSR `document` no existe → tratamos como visible (el polling no
+   * arranca en server-side de todas formas porque interval es async).
+   */
+  private isDashboardVisible(): boolean {
+    if (typeof document === 'undefined') return true;
+    return document.visibilityState === 'visible';
   }
 
   applyStats(): void {
@@ -972,7 +1093,7 @@ export class RobotsComponent implements OnInit {
   // ======================================
   // CARGA DE MONITOREO DE LOCKS (NUEVO TAB)
   // ======================================
-  loadLocks() {
+  loadLocks(opts?: { showToast?: boolean }) {
     if (this.isLoadingLocks) return;
 
     this.isLoadingLocks = true;
@@ -980,34 +1101,422 @@ export class RobotsComponent implements OnInit {
 
     this.robots.getMonitoreoLocks().subscribe({
       next: (data) => {
-        this.locksRows = data;
+        const raw = Array.isArray(data) ? data : [];
+        this.locksRowsRaw = raw;
+        this.locksRows = raw.map((r) => this.enrichLock(r));
+        this.locksByWorkerRows = this.buildLocksByWorker(this.locksRows);
+
         this.isLoadingLocks = false;
         this.cdr.markForCheck();
+        if (opts?.showToast) void this.toast.fire({ icon: 'success', title: 'Locks actualizados' });
       },
       error: (err) => {
         console.error('Error cargando Monitoreo Locks', err);
+        this.locksRowsRaw = [];
+        this.locksRows = [];
+        this.locksByWorkerRows = [];
         this.isLoadingLocks = false;
         this.cdr.markForCheck();
+        if (opts?.showToast) void this.toast.fire({ icon: 'error', title: 'Locks: error al cargar' });
       },
     });
+  }
+
+  // Enriquece una fila de lock con edad y semáforo (ZOMBIE si supera el lease).
+  private enrichLock(r: RobotLockRow): RobotLockDisplayRow {
+    const edad_min = this.minsSince(r?.locked_at);
+
+    let estado_lock: RobotLockDisplayRow['estado_lock'];
+    if (edad_min < 0 || !r?.locked_at) {
+      estado_lock = 'SIN_LOCK';
+    } else if (edad_min >= LEASE_MINUTES) {
+      estado_lock = 'ZOMBIE';
+    } else {
+      estado_lock = 'ACTIVO';
+    }
+
+    return {
+      ...r,
+      edad_min,
+      edad_label: this.formatEdad(edad_min),
+      estado_lock,
+    };
+  }
+
+  // Agrupa la lista por worker: cuántos locks tiene, cuántos zombies, lock más viejo.
+  private buildLocksByWorker(rows: RobotLockDisplayRow[]): LocksByWorkerRow[] {
+    const byWorker = new Map<string, RobotLockDisplayRow[]>();
+    for (const r of rows) {
+      if (r.estado_lock === 'SIN_LOCK') continue;
+      const key = (r.locked_by ?? '(anónimo)').toString();
+      if (!byWorker.has(key)) byWorker.set(key, []);
+      byWorker.get(key)!.push(r);
+    }
+
+    const out: LocksByWorkerRow[] = [];
+    byWorker.forEach((arr, worker) => {
+      const zombies = arr.filter((x) => x.estado_lock === 'ZOMBIE').length;
+      const masVieja = arr.reduce((acc, x) => (x.edad_min > acc ? x.edad_min : acc), 0);
+      const antecedentes = Array.from(new Set(arr.map((x) => x.antecedente))).join(', ');
+      out.push({
+        worker,
+        locks_activos: arr.length,
+        zombies,
+        edad_mas_vieja_min: masVieja,
+        edad_mas_vieja_label: this.formatEdad(masVieja),
+        antecedentes,
+      });
+    });
+
+    return out.sort((a, b) => b.edad_mas_vieja_min - a.edad_mas_vieja_min);
+  }
+
+  toggleLocksView(): void {
+    this.viewLocksByWorker = !this.viewLocksByWorker;
+    this.cdr.markForCheck();
+  }
+
+  // Minutos transcurridos desde un ISO timestamp; -1 si es null o inválido.
+  private minsSince(iso: string | null): number {
+    if (!iso) return -1;
+    const t = Date.parse(iso);
+    if (isNaN(t)) return -1;
+    return Math.max(0, Math.floor((Date.now() - t) / 60000));
+  }
+
+  private formatEdad(mins: number): string {
+    if (mins < 0) return '—';
+    if (mins < 60) return `${mins}m`;
+    const h = Math.floor(mins / 60);
+    const m = mins % 60;
+    return m === 0 ? `${h}h` : `${h}h ${m}m`;
+  }
+
+  // ======================================
+  // CARGA DE PRÓXIMOS EN COLA
+  // ======================================
+  applyProximos(): void {
+    this.loadProximosEnCola({ showToast: true });
+  }
+
+  loadProximosEnCola(opts?: { showToast?: boolean }): void {
+    if (this.isLoadingProximos) return;
+
+    const antecedente = this.proximosForm.controls.antecedente.value;
+    let limit = Number(this.proximosForm.value?.limit ?? 20);
+    if (!Number.isFinite(limit)) limit = 20;
+    limit = Math.max(1, Math.min(100, Math.trunc(limit)));
+
+    this.isLoadingProximos = true;
+    this.cdr.markForCheck();
+
+    this.robots
+      .getProximosEnCola({ antecedente, limit })
+      .pipe(
+        take(1),
+        tap((resp: ProximosEnColaResponse) => {
+          const rows = Array.isArray(resp?.proximos) ? resp.proximos : [];
+          // Normalizamos las fechas para render legible
+          this.proximosRows = rows.map((r) => ({
+            ...r,
+            locked_at: this.cleanIsoTimestamp(r?.locked_at) || (r?.locked_at ?? null),
+            created_at: this.cleanIsoTimestamp(r?.created_at) || (r?.created_at ?? null),
+          }));
+          this.proximosTotalPendientes = Number(resp?.total_pendientes ?? 0);
+          this.proximosModoAtencion = (resp?.modo_atencion as any) || '';
+          this.proximosGeneratedAt = this.cleanIsoTimestamp(resp?.generated_at) || '';
+          this.cdr.markForCheck();
+        }),
+        catchError((err) => {
+          console.error('Error /EstadosRobots/proximos-en-cola/', err);
+          this.proximosRows = [];
+          this.proximosTotalPendientes = 0;
+          this.cdr.markForCheck();
+          if (opts?.showToast) {
+            void this.toast.fire({ icon: 'error', title: 'Próximos en cola: error al cargar' });
+          }
+          return of(null);
+        }),
+        finalize(() => {
+          this.isLoadingProximos = false;
+          this.cdr.markForCheck();
+        }),
+        takeUntilDestroyed(this.destroyRef)
+      )
+      .subscribe(() => {
+        if (opts?.showToast) {
+          void this.toast.fire({ icon: 'success', title: 'Próximos en cola actualizados' });
+        }
+      });
+  }
+
+  trackByProximo = (_: number, r: ProximoEnColaRow) => r.id;
+
+  // ======================================
+  // CARGA DE DUPLICADOS DE CÉDULA
+  //
+  // ⚡ Polling ligero: solo trae contadores (1 query agregada en backend).
+  // Los detalles se cargan SOLO cuando el usuario abre el modal.
+  // ======================================
+  loadDuplicados(opts?: { showToast?: boolean }): void {
+    if (this.isLoadingDuplicados) return;
+    this.isLoadingDuplicados = true;
+    this.cdr.markForCheck();
+
+    // Modo ligero: solo contadores, sin detalle.
+    this.robots.getDuplicadosCedulas({ detail: false })
+      .pipe(
+        take(1),
+        tap((resp) => {
+          this.duplicadosCount = Number(resp?.total_cedulas_duplicadas ?? 0);
+          this.duplicadosFilasAfectadas = Number(resp?.total_filas_afectadas ?? 0);
+          // NO sobrescribir detalles si ya los cargamos antes (cache).
+          if (!this.duplicadosDetalles.length && Array.isArray(resp?.detalles) && resp.detalles.length) {
+            this.duplicadosDetalles = resp.detalles;
+          }
+          this.cdr.markForCheck();
+        }),
+        catchError((err) => {
+          console.error('Error /Robots/duplicados-cedulas/', err);
+          this.duplicadosCount = 0;
+          this.duplicadosFilasAfectadas = 0;
+          this.cdr.markForCheck();
+          return of(null);
+        }),
+        finalize(() => {
+          this.isLoadingDuplicados = false;
+          this.cdr.markForCheck();
+        }),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe(() => {
+        if (opts?.showToast) {
+          void this.toast.fire({ icon: 'info', title: `Duplicados: ${this.duplicadosCount} cédula(s)` });
+        }
+      });
+  }
+
+  // Modal SweetAlert con la lista de cédulas duplicadas.
+  // Si no tenemos los detalles cargados aún, los pide ahora (lazy).
+  verDuplicados(): void {
+    if (!this.duplicadosCount) {
+      void this.toast.fire({ icon: 'success', title: 'No hay cédulas duplicadas' });
+      return;
+    }
+
+    // Si ya tenemos detalles en memoria, abrimos directo el modal.
+    if (this.duplicadosDetalles.length) {
+      this.renderModalDuplicados();
+      return;
+    }
+
+    // Lazy fetch del detalle (modo `detail=1`). Mostramos loader entretanto.
+    void Swal.fire({
+      title: 'Cargando detalle…',
+      allowOutsideClick: false,
+      didOpen: () => Swal.showLoading(),
+    });
+
+    this.robots.getDuplicadosCedulas({ detail: true, limit: 200 })
+      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (resp) => {
+          this.duplicadosDetalles = Array.isArray(resp?.detalles) ? resp.detalles : [];
+          Swal.close();
+          this.renderModalDuplicados();
+        },
+        error: () => {
+          Swal.fire({ icon: 'error', title: 'No se pudo cargar el detalle' });
+        },
+      });
+  }
+
+  // Helper que abre el modal usando this.duplicadosDetalles (ya cargados).
+  private renderModalDuplicados(): void {
+
+    // Agrupa filas por cédula para mostrar de forma legible.
+    const porCedula = new Map<string, DuplicadoCedulaRow[]>();
+    for (const r of this.duplicadosDetalles) {
+      const key = String(r.cedula);
+      if (!porCedula.has(key)) porCedula.set(key, []);
+      porCedula.get(key)!.push(r);
+    }
+
+    let html = `
+      <div style="text-align:left;font-size:13px;max-height:60vh;overflow:auto">
+        <p style="margin:0 0 12px;color:#666;">
+          <b>${this.duplicadosCount}</b> cédula(s) tienen más de un registro en <code>EstadoRobotActual</code>
+          (mismo número con distinto <code>tipo_documento</code>).
+          Esto puede causar que el POST de un robot cierre el registro equivocado.
+        </p>
+        <table style="width:100%;border-collapse:collapse;">
+          <thead>
+            <tr style="background:#f3f4f6;">
+              <th style="padding:6px;text-align:left;border-bottom:1px solid #ddd;">Cédula</th>
+              <th style="padding:6px;text-align:left;border-bottom:1px solid #ddd;">Filas</th>
+              <th style="padding:6px;text-align:left;border-bottom:1px solid #ddd;">Tipos doc</th>
+            </tr>
+          </thead>
+          <tbody>
+    `;
+
+    let i = 0;
+    porCedula.forEach((rows, cedula) => {
+      if (i >= 50) return;
+      const tipos = rows.map((r) => `${r.tipo_documento} (id ${r.id})`).join('<br>');
+      html += `
+        <tr>
+          <td style="padding:6px;border-bottom:1px solid #f0f0f0;"><b>${cedula}</b></td>
+          <td style="padding:6px;border-bottom:1px solid #f0f0f0;">${rows.length}</td>
+          <td style="padding:6px;border-bottom:1px solid #f0f0f0;font-size:11px;">${tipos}</td>
+        </tr>
+      `;
+      i++;
+    });
+
+    html += `
+          </tbody>
+        </table>
+        ${porCedula.size > 50 ? `<p style="margin-top:10px;color:#666;font-style:italic;">+${porCedula.size - 50} cédula(s) más</p>` : ''}
+      </div>
+    `;
+
+    void Swal.fire({
+      title: `⚠️ Duplicados detectados`,
+      html,
+      icon: 'warning',
+      width: '700px',
+      confirmButtonText: 'Cerrar',
+      showCloseButton: true,
+    });
+  }
+
+  // ======================================
+  // RESUMEN DE LOCKS (para mostrar arriba del Tab 3)
+  // ======================================
+  get locksSummary(): { total: number; zombies: number; activos: number; sinLock: number } {
+    const rows = this.locksRows ?? [];
+    let zombies = 0, activos = 0, sinLock = 0;
+    for (const r of rows) {
+      if (r.estado_lock === 'ZOMBIE') zombies++;
+      else if (r.estado_lock === 'ACTIVO') activos++;
+      else sinLock++;
+    }
+    return { total: rows.length, zombies, activos, sinLock };
+  }
+
+  // ======================================
+  // PRESETS DE FECHA (Tab 4 — Faltantes por Oficina)
+  // ======================================
+  applyPendientesPreset(preset: 'hoy' | '7d' | '30d' | 'all'): void {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    let from: Date | null = null;
+    const to: Date = new Date(today);
+
+    switch (preset) {
+      case 'hoy':
+        from = new Date(today);
+        break;
+      case '7d':
+        from = new Date(today);
+        from.setDate(from.getDate() - 6);
+        break;
+      case '30d':
+        from = new Date(today);
+        from.setDate(from.getDate() - 29);
+        break;
+      case 'all':
+        from = null;
+        break;
+    }
+
+    // El valueChanges del form ya re-dispara la carga (debounce 300ms).
+    this.pendientesForm.patchValue({
+      from,
+      to: preset === 'all' ? null : to,
+    });
+  }
+
+  // Total de filas pendientes (gran total que ya calcula loadPendientesPorOficina,
+  // se obtiene leyendo la fila marcada con key '__TOTAL__').
+  get pendientesGranTotal(): number {
+    const totalRow = this.pendientesPorOficinaRows.find((r) => r.key === '__TOTAL__');
+    return Number(totalRow?.total ?? 0);
+  }
+
+  get pendientesCountOficinas(): number {
+    // -1 (cols Módulo) - 1 (col Total). Solo válido si ya hay columnas.
+    return Math.max(0, (this.pendientesPorOficinaColumns?.length ?? 0) - 2);
+  }
+
+  // ======================================
+  // INDICADOR HORARIO LABORAL (computed)
+  // 7:30 – 19:30 = HORARIO_LABORAL. Coincide con el backend.
+  // ======================================
+  get modoAtencion(): 'HORARIO_LABORAL' | 'FUERA_DE_HORARIO' {
+    const now = new Date();
+    const mins = now.getHours() * 60 + now.getMinutes();
+    const start = 7 * 60 + 30;   // 7:30
+    const end = 19 * 60 + 30;    // 19:30
+    return mins >= start && mins < end ? 'HORARIO_LABORAL' : 'FUERA_DE_HORARIO';
+  }
+
+  get modoAtencionLabel(): string {
+    return this.modoAtencion === 'HORARIO_LABORAL' ? 'Horario laboral' : 'Fuera de horario';
   }
 
   // =========================
   // COLUMNAS
   // =========================
   private buildColumns(): void {
+    // ✅ FIX: completar columnas para los 7 antecedentes (antes solo se veía Adress).
     this.robotsFullColumns = [
-      { name: 'oficina', header: 'oficina', type: 'text' as const, width: '140px' },
+      { name: 'oficina', header: 'Oficina', type: 'text' as const, width: '140px', stickyStart: true },
       { name: 'Robot', header: 'Robot', type: 'text' as const, width: '140px' },
-      { name: 'Cedula', header: 'Cedula', type: 'text' as const, width: '140px' },
-      { name: 'Tipo_documento', header: 'Tipo_documento', type: 'text' as const, width: '160px' },
-      { name: 'Estado_Adress', header: 'Estado_Adress', type: 'text' as const, width: '160px' },
-      { name: 'Nombre_Adress', header: 'Nombre_Adress', type: 'text' as const, width: '160px' },
-      { name: 'Apellido_Adress', header: 'Apellido_Adress', type: 'text' as const, width: '220px' },
-      { name: 'Entidad_Adress', header: 'Entidad_Adress', type: 'text' as const, width: '360px' },
-      { name: 'PDF_Adress', header: 'PDF_Adress', type: 'text' as const, width: '260px' },
-      { name: 'Fecha_Adress', header: 'Fecha_Adress', type: 'text' as const, width: '180px' },
-      // ... deja el resto igual como lo tenías
+      { name: 'Cedula', header: 'Cédula', type: 'text' as const, width: '140px' },
+      { name: 'Tipo_documento', header: 'Tipo doc', type: 'text' as const, width: '110px' },
+
+      // ADRES
+      { name: 'Estado_Adress', header: 'Adres · Estado', type: 'text' as const, width: '150px' },
+      { name: 'Nombre_Adress', header: 'Adres · Nombre', type: 'text' as const, width: '160px' },
+      { name: 'Apellido_Adress', header: 'Adres · Apellido', type: 'text' as const, width: '180px' },
+      { name: 'Entidad_Adress', header: 'Adres · Entidad', type: 'text' as const, width: '260px' },
+      { name: 'PDF_Adress', header: 'Adres · PDF', type: 'text' as const, width: '220px' },
+      { name: 'Fecha_Adress', header: 'Adres · Fecha', type: 'text' as const, width: '150px' },
+
+      // POLICIVO
+      { name: 'Estado_Policivo', header: 'Policivo · Estado', type: 'text' as const, width: '150px' },
+      { name: 'Anotacion_Policivo', header: 'Policivo · Anot.', type: 'text' as const, width: '180px' },
+      { name: 'PDF_Policivo', header: 'Policivo · PDF', type: 'text' as const, width: '220px' },
+
+      // OFAC
+      { name: 'Estado_OFAC', header: 'OFAC · Estado', type: 'text' as const, width: '150px' },
+      { name: 'Anotacion_OFAC', header: 'OFAC · Anot.', type: 'text' as const, width: '180px' },
+      { name: 'PDF_OFAC', header: 'OFAC · PDF', type: 'text' as const, width: '220px' },
+
+      // CONTRALORÍA
+      { name: 'Estado_Contraloria', header: 'Contraloría · Estado', type: 'text' as const, width: '160px' },
+      { name: 'Anotacion_Contraloria', header: 'Contraloría · Anot.', type: 'text' as const, width: '180px' },
+      { name: 'PDF_Contraloria', header: 'Contraloría · PDF', type: 'text' as const, width: '220px' },
+
+      // SISBÉN
+      { name: 'Estado_Sisben', header: 'Sisbén · Estado', type: 'text' as const, width: '150px' },
+      { name: 'Tipo_Sisben', header: 'Sisbén · Tipo', type: 'text' as const, width: '140px' },
+      { name: 'PDF_Sisben', header: 'Sisbén · PDF', type: 'text' as const, width: '220px' },
+      { name: 'Fecha_Sisben', header: 'Sisbén · Fecha', type: 'text' as const, width: '150px' },
+
+      // PROCURADURÍA
+      { name: 'Estado_Procuraduria', header: 'Procuraduría · Estado', type: 'text' as const, width: '180px' },
+      { name: 'Anotacion_Procuraduria', header: 'Procuraduría · Anot.', type: 'text' as const, width: '180px' },
+      { name: 'PDF_Procuraduria', header: 'Procuraduría · PDF', type: 'text' as const, width: '220px' },
+
+      // FONDO PENSIÓN
+      { name: 'Estado_FondoPension', header: 'Fondo P. · Estado', type: 'text' as const, width: '170px' },
+      { name: 'Entidad_FondoPension', header: 'Fondo P. · Entidad', type: 'text' as const, width: '220px' },
+      { name: 'PDF_FondoPension', header: 'Fondo P. · PDF', type: 'text' as const, width: '220px' },
+      { name: 'Fecha_FondoPension', header: 'Fondo P. · Fecha', type: 'text' as const, width: '150px' },
     ];
 
     this.pendientesPorOficinaColumns = [
@@ -1015,21 +1524,63 @@ export class RobotsComponent implements OnInit {
       { name: 'total', header: 'Total', type: 'number' as const, width: '140px', stickyEnd: true, align: 'right' },
     ];
 
-    // ✅ NUEVO: columnas para el listado de últimos
+    // ✅ Tab 2: columnas para últimos por marca temporal
     this.ultimosColumns = [
       { name: 'cedula', header: 'Cédula', type: 'text' as const, width: '180px', stickyStart: true },
       { name: 'tipo_documento', header: 'Tipo doc', type: 'text' as const, width: '140px' },
       { name: 'marcaTemporal', header: 'Marca temporal', type: 'text' as const, width: '260px' },
     ];
 
+    // ✅ Tab 3 (vista por antecedente): ahora incluye edad y semáforo.
     this.locksColumns = [
-      { name: 'antecedente', header: 'Antecedente', type: 'text' as const },
-      { name: 'cedula', header: 'Cédula', type: 'text' as const },
-      { name: 'tipo_documento', header: 'Tipo Doc', type: 'text' as const },
-      { name: 'locked_by', header: 'Locked By', type: 'text' as const },
-      { name: 'locked_at', header: 'Locked At', type: 'date' as const },
-      { name: 'ultima_consulta_estado', header: 'F. Consulta', type: 'date' as const },
-      { name: 'ultima_marca_temporal', header: 'M. Temporal', type: 'date' as const },
+      { name: 'antecedente', header: 'Antecedente', type: 'text' as const, width: '160px', stickyStart: true },
+      { name: 'estado_lock', header: 'Estado lock', type: 'status' as const, width: '140px',
+        statusConfig: {
+          ACTIVO:   { color: '#065f46', background: '#d1fae5' },
+          ZOMBIE:   { color: '#7f1d1d', background: '#fee2e2' },
+          SIN_LOCK: { color: '#374151', background: '#e5e7eb' },
+        } },
+      { name: 'edad_label', header: 'Edad', type: 'text' as const, width: '100px', align: 'right' },
+      { name: 'cedula', header: 'Cédula', type: 'text' as const, width: '140px' },
+      { name: 'tipo_documento', header: 'Tipo doc', type: 'text' as const, width: '100px' },
+      { name: 'locked_by', header: 'Worker', type: 'text' as const, width: '220px' },
+      { name: 'locked_at', header: 'Locked at', type: 'date' as const, width: '180px' },
+      { name: 'ultima_consulta_estado', header: 'Última consulta', type: 'date' as const, width: '180px' },
+      { name: 'ultima_marca_temporal', header: 'Última marca', type: 'date' as const, width: '180px' },
+    ];
+
+    // ✅ Tab 3 (vista agrupada por worker)
+    this.locksByWorkerColumns = [
+      { name: 'worker', header: 'Worker', type: 'text' as const, width: '260px', stickyStart: true },
+      { name: 'locks_activos', header: 'Locks activos', type: 'number' as const, width: '140px', align: 'right' },
+      { name: 'zombies', header: 'Zombies', type: 'number' as const, width: '120px', align: 'right' },
+      { name: 'edad_mas_vieja_label', header: 'Lock más viejo', type: 'text' as const, width: '160px', align: 'right' },
+      { name: 'antecedentes', header: 'Antecedentes', type: 'text' as const, width: '320px' },
+    ];
+
+    // ✅ Tab Próximos en cola
+    this.proximosColumns = [
+      { name: 'posicion', header: '#', type: 'number' as const, width: '60px', align: 'right', stickyStart: true },
+      { name: 'cedula', header: 'Cédula', type: 'text' as const, width: '140px' },
+      { name: 'tipo_documento', header: 'Tipo doc', type: 'text' as const, width: '100px' },
+      { name: 'oficina', header: 'Oficina', type: 'text' as const, width: '160px' },
+      { name: 'paquete', header: 'Paquete', type: 'text' as const, width: '160px' },
+      { name: 'prioridad', header: 'Prioridad', type: 'text' as const, width: '110px', align: 'right' },
+      { name: 'bucket_label', header: 'Bucket', type: 'text' as const, width: '180px' },
+      { name: 'estado_actual', header: 'Estado actual', type: 'status' as const, width: '150px',
+        statusConfig: {
+          SIN_CONSULTAR: { color: '#1e3a8a', background: '#dbeafe' },
+          EN_PROGRESO:   { color: '#92400e', background: '#fef3c7' },
+        } },
+      { name: 'lock_estado', header: 'Lock', type: 'status' as const, width: '110px',
+        statusConfig: {
+          libre:    { color: '#065f46', background: '#d1fae5' },
+          expirado: { color: '#7c2d12', background: '#ffedd5' },
+          activo:   { color: '#7f1d1d', background: '#fee2e2' },
+        } },
+      { name: 'locked_by', header: 'Worker dueño', type: 'text' as const, width: '220px' },
+      { name: 'locked_at', header: 'Locked at', type: 'text' as const, width: '170px' },
+      { name: 'created_at', header: 'Creado', type: 'text' as const, width: '170px' },
     ];
   }
 

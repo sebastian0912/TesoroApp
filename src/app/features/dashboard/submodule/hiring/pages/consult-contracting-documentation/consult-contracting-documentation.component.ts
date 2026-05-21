@@ -211,6 +211,7 @@ export class ConsultContractingDocumentationComponent implements OnInit {
   /** Contexto de la subida pendiente (setear antes de click()) */
   private pendingUpload: {
     cedula: string;
+    tipo_documento?: string | null;
     typeId: number;
     typeName: string;
     contract_number?: string | null;
@@ -561,6 +562,9 @@ export class ConsultContractingDocumentationComponent implements OnInit {
     }
     this.pendingUpload = {
       cedula: cell.cedula,
+      // tipo_documento del candidato: el backend lo usa para prefijar
+      // owner_id con "x" cuando no es CC (evita colisiones).
+      tipo_documento: row?.tipo_documento ?? row?.tipoDocumento ?? null,
       typeId: cell.typeId,
       typeName: cell.typeName ?? '',
       contract_number: cell.contract_number ?? row?.codigo_contrato ?? null,
@@ -604,6 +608,7 @@ export class ConsultContractingDocumentationComponent implements OnInit {
           ctx.typeId,
           file,
           ctx.contract_number ? String(ctx.contract_number) : undefined,
+          ctx.tipo_documento ? String(ctx.tipo_documento) : undefined,
         ),
       );
 
@@ -1191,7 +1196,14 @@ export class ConsultContractingDocumentationComponent implements OnInit {
 
     Swal.fire({
       title: 'Preparando descarga...',
-      text: 'Esto puede tardar unos segundos',
+      html: `
+        <p style="margin: 8px 0; color:#374151;">
+          Generando ZIP de <b>${cedulasNum.length}</b> cédula(s).
+        </p>
+        <p style="margin: 4px 0; font-size:12px; color:#6b7280;">
+          Puede tardar varios minutos si son muchas o los PDFs son grandes.
+        </p>
+      `,
       allowOutsideClick: false,
       didOpen: () => Swal.showLoading(),
     });
@@ -1201,6 +1213,26 @@ export class ConsultContractingDocumentationComponent implements OnInit {
       .pipe(takeUntilDestroyed(this.destroyRef), finalize(() => Swal.close()))
       .subscribe({
         next: (blob: Blob) => {
+          // Defensive: si el "blob" viene vacío o muy chico, probablemente es
+          // un error JSON disfrazado de blob. Lo detectamos antes de descargar.
+          if (!blob || blob.size === 0) {
+            Swal.fire({
+              icon: 'warning',
+              title: 'Sin documentos',
+              text: 'El backend no devolvió ningún archivo. Verifica que las cédulas tengan documentos cargados.',
+            });
+            return;
+          }
+          if (blob.type && blob.type.includes('json')) {
+            // El servidor mandó un error JSON pero el cliente lo pidió como blob.
+            blob.text().then((txt) => {
+              let msg = 'Error al generar el ZIP';
+              try { msg = JSON.parse(txt)?.error || msg; } catch { /* noop */ }
+              Swal.fire({ icon: 'error', title: 'Error al descargar', text: msg });
+            });
+            return;
+          }
+
           const url = window.URL.createObjectURL(blob);
           const a = document.createElement('a');
           a.href = url;
@@ -1213,13 +1245,34 @@ export class ConsultContractingDocumentationComponent implements OnInit {
         },
         error: (err: any) => {
           console.error('[consult-docs] Error descargando ZIP:', err);
-          const detail = err?.error?.detail || err?.message || '';
+
+          // Priorizamos el mensaje legible que ya extrajo el service (catchError).
+          // Si no, caemos al error.detail o message genérico.
+          const detail =
+            (typeof err?.message === 'string' && err.message) ||
+            err?.error?.detail ||
+            err?.error?.error ||
+            '';
+
+          // status 0 con responseType blob suele ser timeout / conexión cortada.
+          // Ahora que excluímos el endpoint del offline-queue, el componente
+          // sí ve este caso. Damos pista accionable.
+          const isNetworkError = err?.status === 0 || /ERR_CONNECTION/i.test(String(err?.message ?? ''));
+
           Swal.fire({
             icon: 'error',
             title: 'Error al descargar',
-            text: detail
-              ? `No se pudo generar el archivo: ${detail}`
-              : 'No se pudo descargar el archivo. Verifique su conexión e intente de nuevo.',
+            html: isNetworkError
+              ? `
+                <p style="margin: 4px 0;">La conexión con el servidor se interrumpió.</p>
+                <p style="font-size:12px; color:#6b7280; margin: 8px 0;">
+                  Esto suele pasar cuando la generación del ZIP tarda mucho.
+                  Intenta con un grupo más pequeño de cédulas o vuelve a intentar.
+                </p>
+              `
+              : detail
+                ? `<p>${detail}</p>`
+                : '<p>No se pudo generar el archivo. Reintenta en un momento.</p>',
           });
         },
       });

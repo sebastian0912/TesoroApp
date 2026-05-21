@@ -61,7 +61,7 @@
         </mat-menu>
 
         <mat-menu #sedeMenu="matMenu">
-          @for (sede of sedes; track sede) {
+          @for (sede of sedes; track sede.id) {
             <button mat-menu-item (click)="onSedeSeleccionada(sede.id)">
               {{ sede.nombre }}
             </button>

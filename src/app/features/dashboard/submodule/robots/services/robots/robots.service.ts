@@ -156,6 +156,66 @@ export interface RobotLockRow {
   ultima_marca_temporal: string | null;
 }
 
+// ----------------------------
+// ✅ Duplicados (cédulas con más de una fila en EstadoRobotActual)
+// ----------------------------
+export interface DuplicadoCedulaRow {
+  id: number;
+  cedula: string;
+  tipo_documento: string;
+  oficina: string | null;
+  paquete: string | null;
+  estado_adress: string;
+  estado_policivo: string;
+  estado_ofac: string;
+  estado_contraloria: string;
+  estado_sisben: string;
+  estado_procuraduria: string;
+  estado_fondo_pension: string;
+  estado_medidas_correctivas: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DuplicadosCedulasResponse {
+  total_cedulas_duplicadas: number;
+  total_filas_afectadas: number;
+  detalles: DuplicadoCedulaRow[];
+}
+
+// ----------------------------
+// ✅ Próximos en cola (preview de los próximos N a entregar por el GET real)
+// ----------------------------
+export type ProximoLockEstado = 'libre' | 'expirado' | 'activo';
+
+export interface ProximoEnColaRow {
+  posicion: number;
+  id: number;
+  cedula: string | null;
+  tipo_documento: string | null;
+  oficina: string | null;
+  paquete: string | null;
+  prioridad: string | null;
+  estado_actual: string;
+  bucket: number;
+  bucket_label: string;
+  lock_estado: ProximoLockEstado;
+  disponible: boolean;
+  locked_by: string | null;
+  locked_at: string | null;
+  created_at: string | null;
+}
+
+export interface ProximosEnColaResponse {
+  antecedente: string;
+  estado_field: string;
+  limit: number;
+  modo_atencion: 'HORARIO_LABORAL' | 'FUERA_DE_HORARIO';
+  total_pendientes: number;
+  proximos: ProximoEnColaRow[];
+  generated_at: string;
+}
+
 @Injectable({ providedIn: 'root' })
 export class RobotsService {
   private readonly isBrowser: boolean;
@@ -326,9 +386,59 @@ export class RobotsService {
     this.ensureBrowser();
 
     const url = `${this.baseUrl}/Robots/locks/`;
-    
+
     return this.http
       .get<RobotLockRow[]>(url)
+      .pipe(catchError((e) => this.handleError(e)));
+  }
+
+  // ---------------------------------------------------------------------------
+  // ✅ GET /Robots/duplicados-cedulas/
+  // Cédulas con más de una fila en EstadoRobotActual (mismo número, distinto
+  // tipo_documento). Útil para alertar del bug donde el POST cierra el registro
+  // equivocado y deja un lock huérfano.
+  //
+  // Por defecto SOLO trae contadores (modo ligero, ~1 query agregada).
+  // Para traer detalles, pasar { detail: true }.
+  // ---------------------------------------------------------------------------
+  getDuplicadosCedulas(options?: { detail?: boolean; limit?: number }): Observable<DuplicadosCedulasResponse> {
+    this.ensureBrowser();
+
+    const url = `${this.baseUrl}/Robots/duplicados-cedulas/`;
+    const params = this.buildParams({
+      detail: options?.detail ? '1' : null,
+      limit: options?.detail ? (options?.limit ?? 200) : null,
+    });
+
+    return this.http
+      .get<DuplicadosCedulasResponse>(url, { params })
+      .pipe(catchError((e) => this.handleError(e)));
+  }
+
+  // ---------------------------------------------------------------------------
+  // ✅ GET /EstadosRobots/proximos-en-cola/?antecedente=ofac&limit=20
+  // Preview SOLO LECTURA de los próximos N registros que el GET real entregaría
+  // a los robots. Mismo ordenamiento (buckets, oficina, prioridad, created_at).
+  // ---------------------------------------------------------------------------
+  getProximosEnCola(options: {
+    antecedente: string;   // 'ofac' | 'adress' | 'policivo' | ...
+    limit?: number;        // default 20, máx 100
+  }): Observable<ProximosEnColaResponse> {
+    this.ensureBrowser();
+
+    const ant = String(options?.antecedente ?? '').trim().toLowerCase();
+    if (!ant) {
+      return throwError(() => new Error('RobotsService: antecedente es obligatorio'));
+    }
+
+    const url = `${this.baseUrl}/EstadosRobots/proximos-en-cola/`;
+    const params = this.buildParams({
+      antecedente: ant,
+      limit: options?.limit ?? 20,
+    });
+
+    return this.http
+      .get<ProximosEnColaResponse>(url, { params })
       .pipe(catchError((e) => this.handleError(e)));
   }
 

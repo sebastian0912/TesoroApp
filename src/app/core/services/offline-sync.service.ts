@@ -4,6 +4,7 @@ import { NetworkStatusService } from './network-status.service';
 import { PermissionsService } from './permissions.service';
 import { BehaviorSubject, firstValueFrom } from 'rxjs';
 import { getLocalStorageItem } from '../utils/safe-storage';
+import { entryHostMatchesCurrent, fromCacheKey } from '../utils/cache-key';
 
 interface SyncQueueItem {
   id: number;
@@ -307,8 +308,24 @@ export class OfflineSyncService {
       const urls: string[] = await this.electron.db.cacheGetAllUrls();
       if (!urls || urls.length === 0) return;
 
-      // Filtrar URLs que no son endpoints de API (ej: auth_login_password)
-      let apiUrls = urls.filter(u => u.startsWith('http'));
+      // Filtrar URLs que no son endpoints de API (ej: auth_login_password,
+      // que se guarda con clave sintetica). Aceptamos tanto entradas nuevas
+      // path-only ("/foo/bar/") como legacy absolutas ("http://host/foo/").
+      let apiUrls = urls.filter(u => u.startsWith('http') || u.startsWith('/'));
+
+      // Purgar entradas heredadas con host distinto al apiUrl actual. Pasaron
+      // a este estado cuando el binario se reconstruyo apuntando a otro host
+      // (p. ej. dev -> LAN). Sin esta limpieza, refreshCache las re-emite a
+      // un host inalcanzable y los logs se llenan de ERR_CONNECTION_REFUSED.
+      const stale = apiUrls.filter(u => u.startsWith('http') && !entryHostMatchesCurrent(u));
+      if (stale.length > 0) {
+        await Promise.allSettled(
+          stale.map(u => this.electron.db.cacheInvalidatePrefix(u))
+        );
+        console.log(`[Cache] ${stale.length} URL(s) con host obsoleto purgadas.`);
+        const staleSet = new Set(stale);
+        apiUrls = apiUrls.filter(u => !staleSet.has(u));
+      }
 
       // No refrescar URLs del pipeline SELECCION si el usuario no lo consume:
       // roles administrativos o usuarios sin permiso de lectura sobre SELECCION.
@@ -349,7 +366,10 @@ export class OfflineSyncService {
 
         const results = await Promise.allSettled(
           batch.map(url =>
-            firstValueFrom(this.http.get(url)).catch(() => null)
+            // Resolver path-only contra el apiUrl actual; entradas legacy con
+            // host valido pasan tal cual. Sin fromCacheKey, una entrada "/foo"
+            // resolveria al origen del SPA (file://) y no al backend.
+            firstValueFrom(this.http.get(fromCacheKey(url))).catch(() => null)
           )
         );
 
