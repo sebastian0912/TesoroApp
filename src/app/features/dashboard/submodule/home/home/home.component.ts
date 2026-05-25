@@ -763,17 +763,38 @@ export class HomeComponent implements OnInit {
     if (!rows.length) return [];
 
     const headerRow = (rows[0] || []).map(v => String(v ?? '').trim().toUpperCase());
-    const targets = ['CEDULA', 'CÉDULA', 'CC', 'DOCUMENTO', 'IDENTIFICACION', 'IDENTIFICACIÓN', 'N° CC', 'NRO CC'];
+    // Match en 2 pasadas:
+    //  1. EXACTO contra una whitelist de nombres canonicos (mas confiable)
+    //  2. INCLUDES pero rechazando cualquier header que arranque con 'TIPO'
+    //     (sin esto, 'TIPO DOCUMENTO' matcheaba via 'DOCUMENTO' y se
+    //     leia la columna equivocada -> ninguna cedula pasaba la
+    //     validacion length>=6).
+    const exactTargets = [
+      'CEDULA', 'CÉDULA', 'IDENTIFICACION', 'IDENTIFICACIÓN',
+      'NRO CC', 'N° CC', 'NUMERO DOCUMENTO', 'NÚMERO DOCUMENTO',
+      'NUMERO_DOCUMENTO', 'DOCUMENTO',
+    ];
+    const looseTargets = ['CEDULA', 'CÉDULA', 'IDENTIFICACION', 'IDENTIFICACIÓN', 'CC', 'DOCUMENTO'];
 
     let colIdx = -1;
+
+    // Pasada 1: match exacto
     for (let i = 0; i < headerRow.length; i++) {
       const h = headerRow[i];
       if (!h) continue;
-      if (targets.some(t => h.includes(t))) {
-        colIdx = i;
-        break;
+      if (exactTargets.includes(h)) { colIdx = i; break; }
+    }
+
+    // Pasada 2: includes pero excluyendo 'TIPO ...'
+    if (colIdx === -1) {
+      for (let i = 0; i < headerRow.length; i++) {
+        const h = headerRow[i];
+        if (!h) continue;
+        if (h.startsWith('TIPO')) continue;
+        if (looseTargets.some(t => h.includes(t))) { colIdx = i; break; }
       }
     }
+
     if (colIdx === -1) colIdx = 0;
 
     const out: string[] = [];
