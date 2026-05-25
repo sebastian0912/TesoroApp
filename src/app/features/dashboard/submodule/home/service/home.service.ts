@@ -243,6 +243,24 @@ export class HomeService {
       .pipe(catchError((e) => this.handleError(e)));
   }
 
+  /**
+   * Descarga Excel ADRES filtrado por una lista de cedulas (vienen de un
+   * Excel local que el operador sube). Devuelve el mismo Excel profesional
+   * que descargarAdressPorRango pero filtrado por cedula en lugar de fecha.
+   * Backend: POST /Robots/excel-adress-por-cedulas/
+   */
+  descargarAdressPorCedulas(cedulas: string[]): Observable<HttpResponse<Blob>> {
+    return this.http
+      .post(`${this.apiUrl}/Robots/excel-adress-por-cedulas/`,
+        { cedulas },
+        {
+          responseType: 'blob',
+          observe: 'response',
+        },
+      )
+      .pipe(catchError((e) => this.handleError(e)));
+  }
+
 
   // ---------------------------------------------------------------------------
   // Home cards / conteos / inventario / etc (tal cual lo tenías)

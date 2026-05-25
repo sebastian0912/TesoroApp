@@ -90,6 +90,10 @@
         description="Genera un Excel con los registros ADRES procesados en un rango"
         (click)="descargarAdressPorRango()">
       </app-info-card>
+      <app-info-card matIcon="upload_file" title="Descargar ADRES por lista de cedulas"
+        description="Sube un Excel con cedulas y descarga sus datos ADRES (incluye PDF)"
+        (click)="triggerFileInputAdresCedulas()">
+      </app-info-card>
     }
 
     <!-- Reportes -->
@@ -134,6 +138,7 @@
   class="hidden-input" />
 <input #fileInputCarnets type="file" (change)="cargarExcelCarnets($event)" accept=".xlsx, .xls" class="hidden-input" />
 <input #fileInputLimpiarExcel type="file" (change)="procesarYLimpiarExcel($event)" accept=".xlsx, .xls" class="hidden-input" />
+<input #fileInputAdresCedulas type="file" (change)="descargarAdressPorCedulasDesdeExcel($event)" accept=".xlsx, .xls" class="hidden-input" />
     <!-- Merchandising (solo si comercializadora) -->
     @if (comercializadora) {
       <div class="merchandising-section">

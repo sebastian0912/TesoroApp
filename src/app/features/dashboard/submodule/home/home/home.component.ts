@@ -107,6 +107,7 @@ export class HomeComponent implements OnInit {
   @ViewChild('fileInputExcelCandidatos') fileInputCandidatosRef!: ElementRef<HTMLInputElement>;
   @ViewChild('fileInputCarnets') fileInputCarnetsRef!: ElementRef<HTMLInputElement>;
   @ViewChild('fileInputLimpiarExcel') fileInputLimpiarExcelRef!: ElementRef<HTMLInputElement>;
+  @ViewChild('fileInputAdresCedulas') fileInputAdresCedulasRef!: ElementRef<HTMLInputElement>;
 
   // Progreso
   isLoadingProgresoAll = false;
@@ -214,6 +215,91 @@ export class HomeComponent implements OnInit {
             this.downloadBlob(blob, `historial_beneficios_${start}_a_${end}.xlsx`),
         });
       });
+  }
+
+  // =========================================================
+  // DESCARGAR ADRES POR CEDULAS (sube Excel con cedulas)
+  // Lee el archivo, extrae cedulas, las manda al backend y descarga el
+  // Excel ADRES profesional con la informacion de cada una.
+  // =========================================================
+  triggerFileInputAdresCedulas(): void {
+    const el = this.fileInputAdresCedulasRef?.nativeElement;
+    if (!el) return;
+    el.value = '';
+    el.click();
+  }
+
+  async descargarAdressPorCedulasDesdeExcel(evt: any): Promise<void> {
+    const input = evt?.target as HTMLInputElement;
+    const file: File | undefined = input?.files?.[0];
+
+    if (!file) {
+      await Swal.fire({ icon: 'error', title: 'Selecciona un archivo' });
+      return;
+    }
+
+    Swal.fire({
+      title: 'Leyendo Excel...',
+      text: 'Extrayendo cedulas del archivo.',
+      allowOutsideClick: false,
+      didOpen: () => Swal.showLoading(),
+    });
+
+    try {
+      const cedulas = await this.extraerCedulasDesdeExcel(file);
+
+      if (!cedulas.length) {
+        Swal.close();
+        await Swal.fire({
+          icon: 'warning',
+          title: 'Sin cedulas',
+          text: 'No se encontraron cedulas validas en el Excel.',
+        });
+        return;
+      }
+
+      Swal.update({
+        title: 'Generando Excel ADRES...',
+        text: `Consultando ${cedulas.length} cedulas en el servidor.`,
+      });
+      Swal.showLoading();
+
+      const res = await firstValueFrom(this.homeService.descargarAdressPorCedulas(cedulas));
+      const total = res.headers.get('X-Total-Rows');
+
+      if (!res.body || res.body.size === 0) {
+        Swal.close();
+        await Swal.fire({
+          icon: 'info',
+          title: 'Sin coincidencias',
+          text: 'Ninguna de las cedulas tiene registro en ADRES en la BD.',
+        });
+        return;
+      }
+
+      const filename =
+        this.getFilenameFromResponse(res) ||
+        `adres_por_cedulas_${cedulas.length}.xlsx`;
+      await this.saveToDownloads(res.body, filename);
+
+      Swal.close();
+      await Swal.fire({
+        icon: 'success',
+        title: 'Excel descargado',
+        html: `Cedulas en archivo: <b>${cedulas.length}</b><br>` +
+              `Encontradas con datos: <b>${total ?? '?'}</b><br>` +
+              `Archivo: <code>${filename}</code>`,
+      });
+    } catch (err: any) {
+      Swal.close();
+      const msg =
+        err?.error?.detail ||
+        err?.message ||
+        (err?.status === 0 ? 'Red/CORS: no se pudo contactar el servidor.' : 'No se pudo generar el Excel.');
+      await Swal.fire({ icon: 'error', title: 'Error', text: msg });
+    } finally {
+      try { input.value = ''; } catch { }
+    }
   }
 
   // =========================================================
