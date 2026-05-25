@@ -423,12 +423,12 @@ export class ConsultContractingDocumentationComponent implements OnInit {
   /**
    * ¿el usuario logueado actual puede ver TODAS las cédulas, incluso las que
    * pertenecen a Usuarios con rol distinto de OPERARIO?
-   * Regla del negocio: SOLO el rol GERENCIA. El resto no ve esas filas en la
-   * tabla, ni en exportes, ni en consultas automáticas.
+   * Regla del negocio: rol GERENCIA o ADMIN. El resto no ve esas filas en
+   * la tabla, ni en exportes, ni en consultas automáticas.
    */
   canViewAdministrativos(): boolean {
     const rol = String(this.user?.rol?.nombre ?? '').trim().toUpperCase();
-    return rol === 'GERENCIA';
+    return rol === 'GERENCIA' || rol === 'ADMIN';
   }
 
   /**
