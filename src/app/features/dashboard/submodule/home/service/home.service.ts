@@ -229,6 +229,21 @@ export class HomeService {
   }
 
 
+  descargarAdressPorRango(fechaInicio: string, fechaFin: string): Observable<HttpResponse<Blob>> {
+    const params = new HttpParams()
+      .set('fecha_inicio', fechaInicio)
+      .set('fecha_fin', fechaFin);
+
+    return this.http
+      .get(`${this.apiUrl}/Robots/excel-adress-rango/`, {
+        params,
+        responseType: 'blob',
+        observe: 'response',
+      })
+      .pipe(catchError((e) => this.handleError(e)));
+  }
+
+
   // ---------------------------------------------------------------------------
   // Home cards / conteos / inventario / etc (tal cual lo tenías)
   // ---------------------------------------------------------------------------

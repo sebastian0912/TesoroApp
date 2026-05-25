@@ -15,6 +15,7 @@ import Swal from 'sweetalert2';
 import * as XLSX from 'xlsx';
 import { UtilityServiceService } from '../../../../../shared/services/utilityService/utility-service.service';
 import { MerchandisingMerchandiseComponent } from '../components/merchandising-merchandise/merchandising-merchandise.component';
+import { MigrationPanelComponent } from '../components/migration-panel/migration-panel.component';
 import { InfoCardComponent } from '@/app/shared/components/info-card/info-card.component';
 import {
   HomeService,
@@ -59,6 +60,7 @@ type ProgresoTipoPrioridadRow = {
     MatTooltipModule,
     MatSelectModule,
     MerchandisingMerchandiseComponent,
+    MigrationPanelComponent,
     InfoCardComponent
 ],
   templateUrl: './home.component.html',
@@ -80,17 +82,18 @@ export class HomeComponent implements OnInit {
   fechaHoy = '';
 
   // Slide panel
-  activePanel: 'robots' | 'reportes' | 'contratacion' | null = null;
+  activePanel: 'robots' | 'reportes' | 'contratacion' | 'migracion' | null = null;
   private readonly panelTitles: Record<string, string> = {
     robots: 'Robots',
     reportes: 'Reportes',
     contratacion: 'Contratación',
+    migracion: 'Migración gestion_documental',
   };
   get panelTitle(): string {
     return this.activePanel ? this.panelTitles[this.activePanel] ?? '' : '';
   }
 
-  openPanel(panel: 'robots' | 'reportes' | 'contratacion'): void {
+  openPanel(panel: 'robots' | 'reportes' | 'contratacion' | 'migracion'): void {
     this.activePanel = panel;
   }
 
@@ -209,6 +212,67 @@ export class HomeComponent implements OnInit {
         this.homeService.traerHistorialInformeSoloFecha(start, end, true).subscribe({
           next: (blob) =>
             this.downloadBlob(blob, `historial_beneficios_${start}_a_${end}.xlsx`),
+        });
+      });
+  }
+
+  // =========================================================
+  // DESCARGAR ADRES POR RANGO
+  // Abre el date-range-dialog y descarga un Excel profesional con todas las
+  // personas cuyo marca_temporal_adress cae dentro del rango seleccionado.
+  // =========================================================
+  descargarAdressPorRango(): void {
+    this.dialog
+      .open(DateRangeDialogComponent, {
+        width: '420px',
+        data: { title: 'Rango de fechas - ADRES' },
+      })
+      .afterClosed()
+      .subscribe((result) => {
+        if (!result || !result.start || !result.end) return;
+
+        const { start, end } = result;
+
+        Swal.fire({
+          title: 'Generando Excel ADRES...',
+          html: `Rango: <b>${start}</b> &rarr; <b>${end}</b><br>Consultando base de datos.`,
+          allowOutsideClick: false,
+          allowEscapeKey: false,
+          didOpen: () => Swal.showLoading(),
+        });
+
+        this.homeService.descargarAdressPorRango(start, end).subscribe({
+          next: async (res) => {
+            const total = res.headers.get('X-Total-Rows');
+
+            if (!res.body || res.body.size === 0) {
+              Swal.close();
+              await Swal.fire({
+                icon: 'info',
+                title: 'Sin registros',
+                text: 'No se encontraron personas con marca_temporal_adress en ese rango.',
+              });
+              return;
+            }
+
+            const filename = this.getFilenameFromResponse(res) || `adres_${start}_a_${end}.xlsx`;
+            await this.saveToDownloads(res.body, filename);
+
+            Swal.close();
+            await Swal.fire({
+              icon: 'success',
+              title: 'Excel descargado',
+              html: `Filas: <b>${total ?? '?'}</b><br>Archivo: <code>${filename}</code>`,
+            });
+          },
+          error: async (err) => {
+            Swal.close();
+            const msg =
+              err?.error?.detail ||
+              err?.message ||
+              (err?.status === 0 ? 'Red/CORS: no se pudo contactar el servidor.' : 'No se pudo generar el Excel.');
+            await Swal.fire({ icon: 'error', title: 'Error', text: msg });
+          },
         });
       });
   }

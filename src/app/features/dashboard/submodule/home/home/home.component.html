@@ -51,13 +51,28 @@
       <mat-icon class="cat-arrow">chevron_right</mat-icon>
     </button>
   }
+
+  @if (admin) {
+    <button class="category-card" (click)="openPanel('migracion')">
+      <div class="cat-icon migracion">
+        <mat-icon>cloud_download</mat-icon>
+      </div>
+      <div class="cat-info">
+        <span class="cat-title">Migración</span>
+        <span class="cat-desc">Descargar gestion_documental por lotes</span>
+      </div>
+      <mat-icon class="cat-arrow">chevron_right</mat-icon>
+    </button>
+  }
 </div>
 
 <!-- Slide Panel Backdrop -->
 <div class="panel-backdrop" [class.open]="activePanel !== null" (click)="closePanel()"></div>
 
 <!-- Slide Panel -->
-<div class="slide-panel" [class.open]="activePanel !== null">
+<div class="slide-panel"
+     [class.open]="activePanel !== null"
+     [class.wide]="activePanel === 'migracion'">
   <div class="panel-header">
     <button class="panel-back" (click)="closePanel()">
       <mat-icon>arrow_back</mat-icon>
@@ -70,6 +85,10 @@
     @if (activePanel === 'robots') {
       <app-info-card matIcon="upload_file" title="Cargar solicitudes robots paquete"
         description="Sube un Excel con las solicitudes para robots" (click)="triggerFileInput()">
+      </app-info-card>
+      <app-info-card matIcon="download" title="Descargar ADRES por rango de fechas"
+        description="Genera un Excel con los registros ADRES procesados en un rango"
+        (click)="descargarAdressPorRango()">
       </app-info-card>
     }
 
@@ -98,6 +117,11 @@
       <app-info-card matIcon="badge" title="Generar carnets"
         description="Sube un Excel con cédula, código y centro de costo" (click)="triggerFileInputCarnets()">
       </app-info-card>
+    }
+
+    <!-- Migración gestion_documental -->
+    @if (activePanel === 'migracion') {
+      <app-migration-panel></app-migration-panel>
     }
   </div>
 </div>
