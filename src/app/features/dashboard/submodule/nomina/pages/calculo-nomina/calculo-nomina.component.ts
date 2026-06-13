@@ -719,43 +719,26 @@ export class CalculoNominaComponent implements OnInit {
   }
 
   descargarPlantilla(): void {
-    if (!this.periodoControl.value) {
-      Swal.fire('Atención', 'Seleccione el periodo de nómina.', 'warning');
+    // Incremento 5: el soporte se genera SERVER-SIDE desde el snapshot (calculationId).
+    // NO se envían empleados ni valores económicos. Descargable aunque esté bloqueado.
+    if (!this.calculationIdActivo) {
+      Swal.fire('Genere la vista previa',
+        'Calcule la vista previa para obtener el soporte verificable (se genera desde el snapshot).', 'warning');
       return;
     }
-    if (this.contratos.length === 0) {
-      Swal.fire('Atención', 'No hay empleados para exportar.', 'warning');
-      return;
-    }
-    if (this._empleadosCalculados.size === 0) {
-      Swal.fire('Atención', 'Primero calcule la nómina (Buscar Empleados) antes de descargar la plantilla.', 'warning');
-      return;
-    }
-
-    // Solo exportamos los contratos que siguen en pantalla — si el usuario
-    // excluyó rechazables o filtró, esos no van.
-    const empleados = this.contratos
-      .map(c => this._empleadosCalculados.get(c.id_contrato))
-      .filter(e => e);
-
-    if (empleados.length === 0) {
-      Swal.fire('Atención', 'No hay empleados calculados que coincidan con la lista actual.', 'warning');
-      return;
-    }
-
     this.guardando = true;
     this.cdr.markForCheck();
 
-    this.nominaService.descargarPlantilla({
-      periodo_id: this.periodoControl.value.id_periodo,
-      cliente_id: this.selectedCliente?.id_entidad || null,
-      empleados,
-    }).subscribe({
+    this.nominaService.descargarSoportePreview(
+      this.calculationIdActivo,
+      this.selectedCliente?.id_entidad ?? null,
+      this.periodoControl.value?.id_periodo ?? null,
+    ).subscribe({
       next: (resp) => {
         const blob = resp.body!;
         const cd = resp.headers.get('Content-Disposition') || '';
         const m = cd.match(/filename\*=UTF-8''([^;]+)/i) || cd.match(/filename="?([^";]+)"?/i);
-        const filename = m ? decodeURIComponent(m[1]) : 'SOPORTE_NOMINA.xlsx';
+        const filename = m ? decodeURIComponent(m[1]) : 'Soporte_PREVIEW.xlsx';
         saveAs(blob, filename);
         this.guardando = false;
         this.cdr.markForCheck();
@@ -763,11 +746,13 @@ export class CalculoNominaComponent implements OnInit {
       error: async (err) => {
         this.guardando = false;
         this.cdr.markForCheck();
-        let msg = 'No se pudo descargar la plantilla de nómina.';
-        if (err?.error instanceof Blob) {
-          try { msg = JSON.parse(await err.error.text())?.error || msg; } catch {}
-        } else if (err?.error?.error) {
-          msg = err.error.error;
+        const status = err?.status;
+        let msg = 'No se pudo descargar el soporte.';
+        if (status === 404) msg = 'Soporte no encontrado o sin acceso. Vuelva a generar la vista previa.';
+        else if (status === 410) msg = 'El soporte preview venció su retención de descarga; genere uno nuevo.';
+        else if (status === 422) msg = 'El snapshot es anterior a esta versión; genere una nueva vista previa.';
+        else if (err?.error instanceof Blob) {
+          try { msg = JSON.parse(await err.error.text())?.mensaje || msg; } catch {}
         }
         Swal.fire('Error', msg, 'error');
       },

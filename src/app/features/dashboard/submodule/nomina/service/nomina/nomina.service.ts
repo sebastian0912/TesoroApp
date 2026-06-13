@@ -674,15 +674,30 @@ export class NominaService {
     );
   }
 
-  descargarPlantilla(payload: {
-    periodo_id?: number | null,
-    cliente_id?: number | null,
-    empleados?: any[],
-  }): Observable<HttpResponse<Blob>> {
-    return this.http.post(
-      `${this.baseNom}/payroll/descargar-plantilla/`, payload,
-      { responseType: 'blob', observe: 'response' },
-    );
+  /**
+   * Incremento 5: soporte por SNAPSHOT (preview). NO envía empleados ni valores
+   * económicos — el backend lo genera server-side desde el calculationId. Descargable
+   * aunque el cálculo esté bloqueado.
+   */
+  descargarSoportePreview(calculationId: string, clienteId?: number | null,
+                          periodoId?: number | null): Observable<HttpResponse<Blob>> {
+    let url = `${this.baseNom}/payroll/soporte/preview/${encodeURIComponent(calculationId)}`;
+    const qs: string[] = [];
+    if (clienteId != null) qs.push(`cliente_id=${clienteId}`);
+    if (periodoId != null) qs.push(`periodo_id=${periodoId}`);
+    if (qs.length) url += `?${qs.join('&')}`;
+    return this.http.get(url, { responseType: 'blob', observe: 'response' });
+  }
+
+  /** Incremento 5: soporte DEFINITIVO por calculationId consumido (snapshot inmutable). */
+  descargarSoporteDefinitivo(calculationId: string, clienteId?: number | null,
+                             periodoId?: number | null): Observable<HttpResponse<Blob>> {
+    let url = `${this.baseNom}/payroll/soporte/definitivo/${encodeURIComponent(calculationId)}`;
+    const qs: string[] = [];
+    if (clienteId != null) qs.push(`cliente_id=${clienteId}`);
+    if (periodoId != null) qs.push(`periodo_id=${periodoId}`);
+    if (qs.length) url += `?${qs.join('&')}`;
+    return this.http.get(url, { responseType: 'blob', observe: 'response' });
   }
 
   crearPeriodo(data: any): Observable<any> {
