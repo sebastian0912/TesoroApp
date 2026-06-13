@@ -143,7 +143,8 @@
 
         <ng-container matColumnDef="dias">
           <th mat-header-cell *matHeaderCellDef class="center-header"> Días </th>
-          <td mat-cell *matCellDef="let element" class="center-cell"> 
+          <td mat-cell *matCellDef="let element" class="center-cell"
+              [matTooltip]="diasDesglose(element)" matTooltipClass="dias-tooltip">
             <span class="dias-pill">{{element.dias_laborados}}</span>
           </td>
         </ng-container>
@@ -191,20 +192,18 @@
       Total Registros: <strong>{{contratos.length}}</strong>
     </div>
     <div class="spacer"></div>
-    <button mat-flat-button color="primary" (click)="guardarEnHistorico()" [disabled]="guardando">
-      <mat-icon *ngIf="!guardando">cloud_upload</mat-icon>
+    <button mat-flat-button color="accent" (click)="descargarPlantilla()" [disabled]="guardando"
+            matTooltip="Descarga la plantilla SOPORTE NOMINA Y LIQUIDACION V2 rellena con los empleados calculados">
+      <mat-icon *ngIf="!guardando">download</mat-icon>
       <mat-spinner *ngIf="guardando" diameter="20"></mat-spinner>
-      GUARDAR EN HISTÓRICO
+      DESCARGAR PLANTILLA
     </button>
-    <button mat-stroked-button color="accent" (click)="exportToExcel()">
-      <mat-icon>file_download</mat-icon>
-      EXPORTAR EXCEL
-    </button>
-    <button mat-flat-button color="accent" (click)="exportarSoporte()" [disabled]="guardando"
-            matTooltip="Genera la plantilla SOPORTE NOMINA Y LIQUIDACION V2 con las novedades calculadas">
-      <mat-icon *ngIf="!guardando">description</mat-icon>
-      <mat-spinner *ngIf="guardando" diameter="20"></mat-spinner>
-      EXPORTAR SOPORTE
+    <button mat-flat-button color="primary" (click)="guardarNomina()"
+            [disabled]="!puedeGuardar || periodoControl.value?.estado === 'VALIDADA' || periodoControl.value?.estado === 'FINALIZADA'"
+            matTooltip="Persiste la nómina del periodo. Con novedades, se cierra con el snapshot (calculationId); se deshabilita si hay bloqueantes, la conciliación no cierra o el preview venció.">
+      <mat-icon *ngIf="!guardandoNomina">save</mat-icon>
+      <mat-spinner *ngIf="guardandoNomina" diameter="20"></mat-spinner>
+      GUARDAR NÓMINA
     </button>
   </div>
 

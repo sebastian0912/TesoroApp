@@ -110,9 +110,3 @@
   class="hidden-input" />
 <input #fileInputCarnets type="file" (change)="cargarExcelCarnets($event)" accept=".xlsx, .xls" class="hidden-input" />
 <input #fileInputLimpiarExcel type="file" (change)="procesarYLimpiarExcel($event)" accept=".xlsx, .xls" class="hidden-input" />
-    <!-- Merchandising (solo si comercializadora) -->
-    @if (comercializadora) {
-      <div class="merchandising-section">
-        <app-merchandising-merchandise></app-merchandising-merchandise>
-      </div>
-    }

@@ -2,7 +2,11 @@ import { Component, OnInit, ChangeDetectionStrategy, ChangeDetectorRef } from '@
 import { CommonModule } from '@angular/common';
 import { FormControl, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import { SharedModule } from '../../../../../../shared/shared.module';
-import { NominaService, Client, CostCenter } from '../../service/nomina/nomina.service';
+import { HttpErrorResponse } from '@angular/common/http';
+import {
+  NominaService, Client, CostCenter,
+  ConciliacionNovedades, DiagnosticoNovedad, GuardarLiquidacionPayload,
+} from '../../service/nomina/nomina.service';
 import Swal from 'sweetalert2';
 import { map, startWith } from 'rxjs/operators';
 import { Observable } from 'rxjs';
@@ -96,6 +100,57 @@ export class CalculoNominaComponent implements OnInit {
   displayedColumns: string[] = ['empleado', 'num_doc', 'salario', 'dias', 'devengado', 'aux_trans', 'salud', 'pension', 'neto'];
   loading: boolean = false;
   guardando: boolean = false;
+  // Flag separado del de "descargando plantilla" para no inhabilitar ambos
+  // botones cuando solo está corriendo uno.
+  guardandoNomina: boolean = false;
+
+  // ── Incremento 2.6: snapshot server-side ───────────────────────────────
+  // calculationId del último preview con novedades. El cierre envía SOLO esto.
+  // Se invalida ante cualquier cambio de insumo (cliente/periodo/contratos/archivo).
+  calculationIdActivo: string | null = null;
+  puedeCerrarActivo: boolean = false;
+  conciliacionActiva: ConciliacionNovedades | null = null;
+  bloqueantesActivos: DiagnosticoNovedad[] = [];
+  diagnosticoActivo: DiagnosticoNovedad[] = [];
+  snapshotExpiraAt: string | null = null;
+
+  /** ¿Se puede guardar? Defensa visual; el backend revalida server-side.
+   *  - Flujo con novedades (hay calculationId): exige snapshot vigente, sin
+   *    bloqueantes y conciliación correcta.
+   *  - Flujo plano legacy (sin calculationId): permitido mientras exista cálculo. */
+  get puedeGuardar(): boolean {
+    if (this.guardandoNomina || this._empleadosCalculados.size === 0) return false;
+    // Inc.2.7: el cierre exige snapshot verificado. Sin calculationId (cierre legacy
+    // eliminado) no se puede guardar; hay que generar la vista previa primero.
+    if (!this.calculationIdActivo) return false;
+    if (!this.puedeCerrarActivo) return false;
+    if (this.conciliacionActiva && this.conciliacionActiva.conciliacion_correcta === false) return false;
+    if (this.snapshotExpiraAt && new Date(this.snapshotExpiraAt).getTime() < Date.now()) return false;
+    return true;
+  }
+
+  /** Incremento 2.7: tras un cálculo PLANO, conserva el snapshot devuelto por
+   *  /payroll/calcular (calculation_id + conciliación). aplicarPreviewBackend ya
+   *  invalidó el snapshot previo; aquí se fija el nuevo. */
+  private aplicarSnapshotPlano(resp: { calculation_id?: string; puede_cerrar?: boolean;
+                                       conciliacion?: any; fecha_expiracion?: string }): void {
+    this.calculationIdActivo = resp.calculation_id ?? null;
+    this.puedeCerrarActivo = resp.puede_cerrar ?? !!resp.conciliacion?.puede_cerrar;
+    this.conciliacionActiva = resp.conciliacion ?? null;
+    this.snapshotExpiraAt = resp.fecha_expiracion ?? null;
+    this.bloqueantesActivos = [];
+    this.diagnosticoActivo = [];
+  }
+
+  /** Invalida el preview/snapshot. Llamar ante cualquier cambio de insumo. */
+  private invalidarCalculo(): void {
+    this.calculationIdActivo = null;
+    this.puedeCerrarActivo = false;
+    this.conciliacionActiva = null;
+    this.bloqueantesActivos = [];
+    this.diagnosticoActivo = [];
+    this.snapshotExpiraAt = null;
+  }
 
   // Constantes de Ley / Negocio
   readonly SALARIO_MINIMO_2026 = 1500000; 
@@ -131,6 +186,7 @@ export class CalculoNominaComponent implements OnInit {
 
     // Al cambiar el periodo, auto-setear las fechas
     this.periodoControl.valueChanges.subscribe(p => {
+      this.invalidarCalculo();   // cambio de periodo invalida el snapshot
       if (p && p.fecha_inicio && p.fecha_fin) {
         this.startDate.setValue(new Date(p.fecha_inicio + 'T00:00:00'));
         this.endDate.setValue(new Date(p.fecha_fin + 'T00:00:00'));
@@ -196,6 +252,21 @@ export class CalculoNominaComponent implements OnInit {
       }
 
       this.aplicarPreviewBackend(result.empleados);
+      // Incremento 2.6: conserva el snapshot del preview con novedades.
+      this.calculationIdActivo = result.calculation_id ?? null;
+      this.puedeCerrarActivo = !!result.puede_cerrar;
+      this.conciliacionActiva = result.conciliacion ?? null;
+      this.bloqueantesActivos = result.bloqueantes ?? [];
+      this.diagnosticoActivo = result.diagnostico_novedades ?? [];
+      this.snapshotExpiraAt = result.fecha_expiracion ?? null;
+      if (!this.calculationIdActivo) {
+        Swal.fire('Atención', 'El preview no devolvió calculationId; deberá recalcular antes de guardar.', 'warning');
+      } else if (!this.puedeCerrarActivo) {
+        const n = this.bloqueantesActivos.length;
+        Swal.fire('Cálculo con bloqueantes',
+          `Hay ${n} novedad(es) económica(s) no procesada(s). Revise el diagnóstico; no se podrá guardar hasta corregir y recalcular.`,
+          'warning');
+      }
       this.cdr.markForCheck();
     });
   }
@@ -232,7 +303,10 @@ export class CalculoNominaComponent implements OnInit {
   }
 
   cargarClientes(): void {
-    this.nominaService.getClientes().subscribe({
+    // tipo=EMPRESA_USUARIA: la tabla nomina_entidades_externas guarda
+    // empresas usuarias/EPS/AFP/CCF/banco en el mismo lugar; sin el filtro el
+    // dropdown mezcla las categorías.
+    this.nominaService.getClientes({ tipo: 'EMPRESA_USUARIA', activo: 'true' }).subscribe({
       next: (res: any) => {
         this.clientes = res.results || res || [];
         this.clientControl.updateValueAndValidity(); // Disparar filtro
@@ -249,7 +323,12 @@ export class CalculoNominaComponent implements OnInit {
     this.nominaService.getPeriodos().subscribe({
       next: (res: any) => {
         const data = res.results || res || [];
-        this.periodos = Array.isArray(data) ? data.filter((p: any) => p.estado !== 'CERRADO') : [];
+        // Ocultamos solo los periodos cerrados/finalizados — el resto
+        // (ABIERTO / CALCULADA / VALIDADA) es elegible para recalcular o
+        // re-guardar. Mantenemos compat con el legacy 'CERRADO'.
+        this.periodos = Array.isArray(data)
+          ? data.filter((p: any) => !['FINALIZADA', 'CERRADO'].includes(p.estado))
+          : [];
         this.periodoFilterCtrl.setValue(''); // Disparar filtro
       },
       error: (err) => {
@@ -261,7 +340,8 @@ export class CalculoNominaComponent implements OnInit {
 
   onClienteSelected(client: Client): void {
     if (!client || typeof client === 'string') return;
-    
+
+    this.invalidarCalculo();   // cambio de cliente invalida el snapshot
     this.selectedCliente = client;
     this.cecos = [];
     this.selectedCecoIds = [];
@@ -357,6 +437,7 @@ export class CalculoNominaComponent implements OnInit {
         }).subscribe({
           next: (preview) => {
             this.aplicarPreviewBackend(preview.empleados || []);
+            this.aplicarSnapshotPlano(preview);
             this.loading = false;
           },
           error: () => {
@@ -377,10 +458,17 @@ export class CalculoNominaComponent implements OnInit {
    * Las fórmulas viven en el backend; aquí solo presentamos.
    */
   private aplicarPreviewBackend(empleados: any[]): void {
+    // Cualquier preview invalida el snapshot previo. El flujo con novedades vuelve
+    // a fijar el calculationId DESPUÉS de llamar a este método; el cálculo plano
+    // (sin novedades) lo deja en null → cierre por flujo legacy.
+    this.invalidarCalculo();
     this.mapearEmpleadosEnContratos(empleados);
 
-    // Candidatos a rechazo: cualquiera con días = 0 en el periodo.
-    const rechazables = this.contratos.filter(c => Number(c.dias_laborados) === 0);
+    // Candidatos a rechazo: contratos que no intersectan el periodo (ej. retirados).
+    // OJO: usamos _dias_periodo (intersección contrato↔período), NO dias_laborados,
+    // porque un empleado en incapacidad total tiene dias_laborados=0 pero SÍ debe
+    // entrar a la nómina (recibe incapacidad).
+    const rechazables = this.contratos.filter(c => Number(c._dias_periodo ?? c.dias_laborados ?? 0) === 0);
     if (rechazables.length) {
       // Fire-and-forget: no bloquea el render. La tabla ya se ve con todos.
       this.preguntarInclusionRechazables(rechazables);
@@ -405,15 +493,32 @@ export class CalculoNominaComponent implements OnInit {
         return { ...c, dias_laborados: 0, _devengado_basico: 0, _aux_trans: 0,
           _salud: 0, _pension: 0, _total_devengado: 0, _total_deducido: 0,
           _neto: 0, _conceptos: [],
-          _dias_efectivos: 0, _dias_no_rem: 0, _ibc: 0,
+          _dias_periodo: 0, _dias_efectivos: 0, _dias_no_rem: 0,
+          _dias_ausencia: 0,
+          _dias_incapacidad: 0, _dias_con_derecho_aux: 0, _dias_pagados: 0,
+          _dias_pagados_salario: 0, _sueldo_causado: 0,
+          _ibc: 0,
           _dev_sal: 0, _dev_nosal: 0, _ded_sal_ibc: 0, _observaciones: [] };
       }
       const find = (codigo: string) =>
         Number((calc.conceptos || []).find((x: any) => x.codigo === codigo)?.valor_total || 0);
+      // dias_laborados: usa el campo nuevo que excluye incapacidades y no remunerados.
+      // Fallback a calc.dias por compatibilidad con respuestas antiguas del backend.
+      const diasLaboradosReales = calc.dias_laborados != null
+        ? Number(calc.dias_laborados)
+        : Number(calc.dias || 0);
+      // Sueldo Q debe reflejar el sueldo causado real (salario_dia × dias
+      // pagados de salario). El backend lo expone vía calc.sueldo_causado y
+      // ya descuenta ausencia/sanción/licencia NR/días no trabajados. En LEGACY
+      // coincide con find('SUELDO'); en CORRECTO `find('SUELDO')` es bruto y
+      // hay líneas de deducción aparte — por eso preferimos sueldo_causado.
+      const sueldoCausado = calc.sueldo_causado != null
+        ? Number(calc.sueldo_causado)
+        : find('SUELDO');
       return {
         ...c,
-        dias_laborados: calc.dias,
-        _devengado_basico: find('SUELDO'),
+        dias_laborados: diasLaboradosReales,
+        _devengado_basico: sueldoCausado,
         _aux_trans: find('AUX_TRANS'),
         _salud: find('SALUD_EMP'),
         _pension: find('PENSION_EMP'),
@@ -421,8 +526,17 @@ export class CalculoNominaComponent implements OnInit {
         _total_deducido: Number(calc.total_deducido || 0),
         _neto: Number(calc.neto || 0),
         _conceptos: calc.conceptos || [],
+        _dias_periodo: Number(calc.dias || 0),
         _dias_efectivos: Number(calc.dias_efectivos || 0),
         _dias_no_rem: Number(calc.dias_no_remunerados || 0),
+        _dias_ausencia: Number(calc.dias_ausencia || 0),
+        _dias_incapacidad: Number(calc.dias_incapacidad || 0),
+        _dias_con_derecho_aux: Number(calc.dias_con_derecho_auxilio ?? diasLaboradosReales),
+        _dias_pagados: Number(calc.dias_pagados ?? calc.dias ?? 0),
+        _dias_pagados_salario: Number(
+          calc.dias_pagados_salario ?? Math.max(Number(calc.dias || 0) - Number(calc.dias_no_remunerados || 0), 0),
+        ),
+        _sueldo_causado: sueldoCausado,
         _ibc: Number(calc.ibc || 0),
         _dev_sal: Number(calc.devengos_salariales || 0),
         _dev_nosal: Number(calc.devengos_no_salariales || 0),
@@ -462,6 +576,7 @@ export class CalculoNominaComponent implements OnInit {
       }).subscribe({
         next: (preview) => {
           this.mapearEmpleadosEnContratos(preview.empleados || []);
+          this.aplicarSnapshotPlano(preview);   // nuevo snapshot del recálculo
           this.loading = false;
           this.cdr.markForCheck();
         },
@@ -578,49 +693,32 @@ export class CalculoNominaComponent implements OnInit {
   getDeduccionPension(c: any): number { return Number(c?._pension || 0); }
   getNetoQuincena(c: any): number { return Number(c?._neto || 0); }
 
-  guardarEnHistorico(): void {
-    if (!this.periodoControl.value) {
-      Swal.fire('Atención', 'Seleccione el periodo de nómina correspondiente', 'warning');
-      return;
-    }
-    if (this.contratos.length === 0) return;
-
-    Swal.fire({
-      title: '¿Guardar Liquidación?',
-      text: `Se registrará la nómina de ${this.contratos.length} empleados para el periodo ${this.periodoControl.value.descripcion}`,
-      icon: 'question',
-      showCancelButton: true,
-      confirmButtonText: 'Confirmar'
-    }).then(r => {
-      if (r.isConfirmed) this.ejecutarGuardado();
-    });
+  /** Tooltip multi-línea con el desglose de días por categoría.
+   *  Visible al hacer hover sobre la pill de "Días lab." */
+  diasDesglose(c: any): string {
+    const periodo = Number(c?._dias_periodo ?? c?.dias_laborados ?? 0);
+    const incap = Number(c?._dias_incapacidad ?? 0);
+    const noRem = Number(c?._dias_no_rem ?? 0);
+    const ausencia = Number(c?._dias_ausencia ?? 0);
+    const otrosNoRem = Math.max(noRem - ausencia, 0);
+    const lab = Number(c?.dias_laborados ?? 0);
+    const aux = Number(c?._dias_con_derecho_aux ?? lab);
+    const pagados = Number(c?._dias_pagados ?? periodo);
+    const pagadosSalario = Number(c?._dias_pagados_salario ?? Math.max(periodo - noRem, 0));
+    const filas = [
+      `Días período: ${periodo}`,
+      `Días laborados: ${lab}`,
+      `Días pagados salario: ${pagadosSalario}`,
+    ];
+    if (incap > 0) filas.push(`Incapacidad: ${incap}`);
+    if (ausencia > 0) filas.push(`Ausencia: ${ausencia}`);
+    if (otrosNoRem > 0) filas.push(`Otros no remunerados: ${otrosNoRem}`);
+    filas.push(`Con derecho a auxilio: ${aux}`);
+    filas.push(`Días pagados: ${pagados}`);
+    return filas.join('\n');
   }
 
-  private ejecutarGuardado(): void {
-    this.guardando = true;
-    // El backend recalcula y persiste. El frontend solo identifica el alcance.
-    const payload = {
-      periodo_id: this.periodoControl.value.id_periodo,
-      cliente_id: this.selectedCliente?.id_entidad || null,
-      cecos: this.selectedCecoIds,
-      contrato_ids: this.contratos.map(c => c.id_contrato),
-    };
-
-    this.nominaService.guardarLiquidacion(payload).subscribe({
-      next: (res) => {
-        this.guardando = false;
-        Swal.fire('Éxito', res.mensaje || 'Guardado exitoso', 'success');
-        this.cargarPeriodos();
-      },
-      error: (err) => {
-        this.guardando = false;
-        const msg = err.error?.error || err.error?.mensaje || 'No se pudo guardar la liquidación';
-        Swal.fire('Error', msg, 'error');
-      }
-    });
-  }
-
-  exportarSoporte(): void {
+  descargarPlantilla(): void {
     if (!this.periodoControl.value) {
       Swal.fire('Atención', 'Seleccione el periodo de nómina.', 'warning');
       return;
@@ -630,7 +728,7 @@ export class CalculoNominaComponent implements OnInit {
       return;
     }
     if (this._empleadosCalculados.size === 0) {
-      Swal.fire('Atención', 'Primero calcule la nómina (Buscar Empleados) antes de exportar el soporte.', 'warning');
+      Swal.fire('Atención', 'Primero calcule la nómina (Buscar Empleados) antes de descargar la plantilla.', 'warning');
       return;
     }
 
@@ -648,7 +746,7 @@ export class CalculoNominaComponent implements OnInit {
     this.guardando = true;
     this.cdr.markForCheck();
 
-    this.nominaService.exportarSoporte({
+    this.nominaService.descargarPlantilla({
       periodo_id: this.periodoControl.value.id_periodo,
       cliente_id: this.selectedCliente?.id_entidad || null,
       empleados,
@@ -657,243 +755,129 @@ export class CalculoNominaComponent implements OnInit {
         const blob = resp.body!;
         const cd = resp.headers.get('Content-Disposition') || '';
         const m = cd.match(/filename\*=UTF-8''([^;]+)/i) || cd.match(/filename="?([^";]+)"?/i);
-        const filename = m
-          ? decodeURIComponent(m[1])
-          : `Soporte_${this.selectedCliente?.nombre_legal || 'Cliente'}.xlsx`;
+        const filename = m ? decodeURIComponent(m[1]) : 'SOPORTE_NOMINA.xlsx';
         saveAs(blob, filename);
         this.guardando = false;
         this.cdr.markForCheck();
       },
-      error: (err) => {
+      error: async (err) => {
         this.guardando = false;
         this.cdr.markForCheck();
-        const msg = err?.error?.error || 'No se pudo generar el soporte Excel';
+        let msg = 'No se pudo descargar la plantilla de nómina.';
+        if (err?.error instanceof Blob) {
+          try { msg = JSON.parse(await err.error.text())?.error || msg; } catch {}
+        } else if (err?.error?.error) {
+          msg = err.error.error;
+        }
         Swal.fire('Error', msg, 'error');
       },
     });
   }
 
-  async exportToExcel(): Promise<void> {
-    if (this.contratos.length === 0) return;
-    const workbook = new ExcelJS.Workbook();
+  /**
+   * Persiste la nómina calculada en backend. Envía el snapshot oficial
+   * (`_empleadosCalculados`) que devolvió /payroll/calcular o el flujo de
+   * novedades — así lo guardado coincide exactamente con lo que el usuario
+   * vio. El periodo queda en estado CALCULADA y admite re-guardar mientras
+   * no pase a VALIDADA / FINALIZADA.
+   */
+  async guardarNomina(): Promise<void> {
+    if (!this.periodoControl.value) {
+      Swal.fire('Atención', 'Seleccione el periodo de nómina.', 'warning'); return;
+    }
+    if (this._empleadosCalculados.size === 0) {
+      Swal.fire('Atención', 'Primero calcule la nómina antes de guardarla.', 'warning'); return;
+    }
 
-    // Columnas base (las 16 originales) + bloque de novedades/IBC.
-    const columns = [
-      { header: 'Contrato', key: 'codigo', width: 12 },
-      { header: 'Cedula', key: 'num_doc', width: 15 },
-      { header: 'Apellido y nombres', key: 'empleado', width: 35 },
-      { header: 'Ingreso', key: 'ingreso', width: 12 },
-      { header: 'Retiro', key: 'retiro', width: 12 },
-      { header: 'Empresa Usuaria', key: 'empresa', width: 25 },
-      { header: 'Unidad de Negocio', key: 'ceco_nombre', width: 20 },
-      { header: 'Centro de Costo', key: 'ceco_codigo', width: 15 },
-      { header: 'Sede', key: 'sede', width: 10 },
-      { header: 'Cod Archivo', key: 'cod_archivo', width: 12 },
-      { header: 'Salario Básico (Mes)', key: 'salario_mes', width: 15 },
-      { header: 'Auxilio Tr. (Mes)', key: 'aux_mes', width: 15 },
-      { header: 'Sueldo Calculado', key: 'sueldo_q', width: 15 },
-      { header: 'Auxilio Calculado', key: 'aux_q', width: 15 },
-      { header: 'Dias Laborados', key: 'dias', width: 8 },
-      { header: 'Dias Transporte', key: 'dias_t', width: 8 },
-      // Bloque novedades/IBC
-      { header: 'Días Efectivos', key: 'dias_ef', width: 10 },
-      { header: 'Días No Rem.', key: 'dias_nr', width: 10 },
-      { header: 'Devengos Salariales', key: 'dev_sal', width: 16 },
-      { header: 'Devengos No Salariales', key: 'dev_nosal', width: 18 },
-      { header: 'Total Deducciones', key: 'total_ded', width: 14 },
-      { header: 'IBC', key: 'ibc', width: 14 },
-      { header: 'Salud (4%)', key: 'salud', width: 12 },
-      { header: 'Pensión (4%)', key: 'pension', width: 12 },
-      { header: 'Neto', key: 'neto', width: 14 },
-      { header: 'Observaciones', key: 'obs', width: 35 },
-    ];
+    if (this.guardandoNomina) return; // guard anti-doble-clic (defensa adicional al server-side)
 
-    // Columnas con formato monetario (índices 1-based: K=11, L=12, M=13, N=14,
-    // S=19 dev_sal, T=20 dev_nosal, U=21 total_ded, V=22 ibc, W=23 salud,
-    // X=24 pension, Y=25 neto).
-    const moneyCols = ['K', 'L', 'M', 'N', 'S', 'T', 'U', 'V', 'W', 'X', 'Y'];
+    const periodo = this.periodoControl.value;
 
-    const buildRow = (c: any) => {
-      const nombreCompleto = `${c.primer_apellido} ${c.segundo_apellido || ''} ${c.primer_nombre} ${c.segundo_nombre || ''}`.replace(/\s+/g, ' ').trim();
-      return {
-        codigo: c.codigo_contrato,
-        num_doc: c.numero_documento,
-        empleado: nombreCompleto,
-        ingreso: c.fecha_ingreso,
-        retiro: c.fecha_retiro,
-        empresa: c.cliente,
-        ceco_nombre: c.centro_de_costo,
-        ceco_codigo: c.ceco_codigo,
-        sede: c.ceco_sede,
-        cod_archivo: '',
-        salario_mes: Number(c.salario),
-        aux_mes: Number(c.auxilio_transporte),
-        sueldo_q: this.getDevengadoBasico(c),
-        aux_q: this.getAuxilioTransporte(c),
-        dias: c.dias_laborados,
-        dias_t: c.auxilio_transporte_ley ? c.dias_laborados : 0,
-        dias_ef: Number(c._dias_efectivos || 0),
-        dias_nr: Number(c._dias_no_rem || 0),
-        dev_sal: Number(c._dev_sal || 0),
-        dev_nosal: Number(c._dev_nosal || 0),
-        total_ded: Number(c._total_deducido || 0),
-        ibc: Number(c._ibc || 0),
-        salud: Number(c._salud || 0),
-        pension: Number(c._pension || 0),
-        neto: Number(c._neto || 0),
-        obs: (c._observaciones || []).join(' | '),
-      };
+    // Flujo con novedades (hay calculationId): no se puede guardar con bloqueantes,
+    // conciliación incorrecta o preview vencido.
+    if (this.calculationIdActivo && !this.puedeGuardar) {
+      Swal.fire('No se puede guardar',
+        'El cálculo tiene novedades económicas bloqueantes, la conciliación no cierra o el preview venció. '
+        + 'Corrija el Excel/homologación y genere nuevamente el cálculo.', 'warning');
+      return;
+    }
+
+    // Inc.2.7: el cierre legacy quedó ELIMINADO. SIEMPRE se cierra contra un snapshot;
+    // ambos flujos (plano y con novedades) generan calculationId en la vista previa.
+    // El backend recupera el resultado verificado del snapshot e ignora cualquier detalle.
+    if (!this.calculationIdActivo) {
+      Swal.fire('Genere la vista previa',
+        'Debe calcular la vista previa antes de guardar para obtener un cálculo verificable.', 'warning');
+      return;
+    }
+    const payload: GuardarLiquidacionPayload = {
+      periodo_id: periodo.id_periodo,
+      cliente_id: this.selectedCliente?.id_entidad ?? null,
+      calculation_id: this.calculationIdActivo,
     };
 
-    const cecosMap = new Map<number, any[]>();
-
-    // 1. Hoja GENERAL
-    const generalSheet = workbook.addWorksheet('GENERAL');
-    generalSheet.columns = columns;
-    const headerRowGen = generalSheet.getRow(1);
-    headerRowGen.height = 25;
-    headerRowGen.eachCell((cell) => {
-      cell.font = { bold: true, color: { argb: 'FFFFFF' }, size: 11 };
-      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: '2C3E50' } };
-      cell.alignment = { vertical: 'middle', horizontal: 'center' };
-    });
-
-    this.contratos.forEach(c => {
-      generalSheet.addRow(buildRow(c));
-      const cecoId = c.id_ceco || c.ceco || 0;
-      const list = cecosMap.get(cecoId) || [];
-      list.push(c);
-      cecosMap.set(cecoId, list);
-    });
-    moneyCols.forEach(k => generalSheet.getColumn(k).numFmt = '#,##0');
-
-    // 2. Hojas por CECO
-    cecosMap.forEach((empleados, id_ceco) => {
-      const cecoName = empleados[0].centro_de_costo || `CECO ${id_ceco}`;
-      const cecoSheet = workbook.addWorksheet(cecoName.substring(0, 31).replace(/[\/*?\[\]:]/g, ' '));
-      cecoSheet.columns = columns;
-
-      const headerRow = cecoSheet.getRow(1);
-      headerRow.height = 25;
-      headerRow.eachCell((cell) => {
-        cell.font = { bold: true, color: { argb: 'FFFFFF' }, size: 11 };
-        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: '2C3E50' } };
-        cell.alignment = { vertical: 'middle', horizontal: 'center' };
-        cell.border = {
-          top: { style: 'thin' }, left: { style: 'thin' },
-          bottom: { style: 'thin' }, right: { style: 'thin' }
-        };
+    const estadoActual = String(periodo.estado || '').toUpperCase();
+    if (estadoActual === 'CALCULADA') {
+      const conf = await Swal.fire({
+        icon: 'warning',
+        title: 'Periodo ya estaba en CALCULADA',
+        text: '¿Sobreescribir los registros existentes con los datos actuales?',
+        showCancelButton: true,
+        confirmButtonText: 'Sí, sobreescribir',
+        cancelButtonText: 'Cancelar',
       });
-
-      empleados.forEach(c => {
-        const row = cecoSheet.addRow(buildRow(c));
-        row.alignment = { vertical: 'middle' };
-      });
-
-      moneyCols.forEach(k => cecoSheet.getColumn(k).numFmt = '#,##0');
-    });
-
-    // 3. Hoja NOVEDADES — detalle línea por línea (auditoría por concepto).
-    const novSheet = workbook.addWorksheet('NOVEDADES');
-    novSheet.columns = [
-      { header: 'Cedula', key: 'cedula', width: 15 },
-      { header: 'Empleado', key: 'empleado', width: 35 },
-      { header: 'CECO', key: 'ceco', width: 22 },
-      { header: 'Código', key: 'codigo', width: 12 },
-      { header: 'Descripción', key: 'descripcion', width: 40 },
-      { header: 'Naturaleza', key: 'naturaleza', width: 12 },
-      { header: 'Cantidad', key: 'cantidad', width: 10 },
-      { header: 'Unidad', key: 'unidad', width: 8 },
-      { header: 'Valor Unitario', key: 'vu', width: 14 },
-      { header: 'Valor Total', key: 'vt', width: 14 },
-      { header: 'Clasificación', key: 'clasif', width: 14 },
-      { header: '¿Suma IBC?', key: 'ibc_flag', width: 11 },
-      { header: 'Observación', key: 'obs', width: 35 },
-    ];
-    const novHeader = novSheet.getRow(1);
-    novHeader.height = 25;
-    novHeader.eachCell((cell) => {
-      cell.font = { bold: true, color: { argb: 'FFFFFF' }, size: 11 };
-      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: '2C3E50' } };
-      cell.alignment = { vertical: 'middle', horizontal: 'center' };
-    });
-
-    this.contratos.forEach(c => {
-      const nombreCompleto = `${c.primer_apellido} ${c.segundo_apellido || ''} ${c.primer_nombre} ${c.segundo_nombre || ''}`.replace(/\s+/g, ' ').trim();
-      (c._conceptos || []).forEach((linea: any) => {
-        let ibcFlag = 'NO';
-        if (linea.hace_base_ibc) ibcFlag = 'SÍ';
-        else if (linea.disminuye_ibc) ibcFlag = '−IBC';
-        novSheet.addRow({
-          cedula: c.numero_documento,
-          empleado: nombreCompleto,
-          ceco: c.centro_de_costo,
-          codigo: linea.codigo,
-          descripcion: linea.descripcion,
-          naturaleza: linea.naturaleza,
-          cantidad: Number(linea.cantidad || 0),
-          unidad: linea.unidad,
-          vu: Number(linea.valor_unitario || 0),
-          vt: Number(linea.valor_total || 0),
-          clasif: linea.clasificacion || '',
-          ibc_flag: ibcFlag,
-          obs: linea.observacion || '',
-        });
-      });
-    });
-    // Formato monetario para Valor Unitario (I) y Valor Total (J).
-    ['I', 'J'].forEach(k => novSheet.getColumn(k).numFmt = '#,##0.00');
-    // Filtro automático para que el usuario pueda agrupar por código/empleado/etc.
-    if (novSheet.rowCount > 1) {
-      novSheet.autoFilter = { from: 'A1', to: 'M1' };
+      if (!conf.isConfirmed) return;
     }
-    novSheet.views = [{ state: 'frozen', ySplit: 1 }];
 
-    // Hoja de FACTURAS (Resumen)
-    const factSheet = workbook.addWorksheet('Cobro General');
-    factSheet.getColumn('B').width = 45;
-    factSheet.getColumn('C').width = 20;
-    let currentRow = 2;
+    this.guardandoNomina = true;
+    this.cdr.markForCheck();
 
-    cecosMap.forEach((empleados, id_ceco) => {
-      const cecoName = empleados[0].centro_de_costo || `CECO ${id_ceco}`;
-      const jornales = empleados.reduce((acc, c) => acc + this.getDevengadoBasico(c) + this.getAuxilioTransporte(c), 0);
-      const ss = jornales * 0.19;
-      const sub1 = jornales + ss;
-      const admin = sub1 * 0.05;
-      const sub2 = sub1 + admin;
-      const iva = sub2 * 0.1 * 0.19;
-      const total = sub2 + iva;
-
-      factSheet.mergeCells(`B${currentRow}:C${currentRow}`);
-      const header = factSheet.getCell(`B${currentRow}`);
-      header.value = `RESUMEN COBRO: ${cecoName}`;
-      header.font = { bold: true, color: { argb: 'FFFFFF' } };
-      header.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: '333333' } };
-      currentRow += 2;
-
-      const items = [
-        ['Jornales y Auxilios', jornales],
-        ['Seguridad Social (19%)', ss],
-        ['Administración (5%)', admin],
-        ['IVA (19% s. base 10%)', iva],
-        ['TOTAL A FACTURAR', total]
-      ];
-
-      items.forEach(it => {
-        factSheet.getCell(`B${currentRow}`).value = it[0];
-        factSheet.getCell(`C${currentRow}`).value = it[1];
-        factSheet.getCell(`C${currentRow}`).numFmt = '"$"#,##0';
-        if (it[0].includes('TOTAL')) {
-          factSheet.getRow(currentRow).font = { bold: true };
-          factSheet.getCell(`C${currentRow}`).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF9C4' } };
+    this.nominaService.guardarLiquidacion(payload).subscribe({
+      next: (resp) => {
+        this.guardandoNomina = false;
+        if (periodo) periodo.estado = resp.estado_periodo;
+        this.cargarPeriodos();
+        this.invalidarCalculo();   // snapshot consumido: evita re-cierre del mismo
+        this.cdr.markForCheck();
+        if (resp.idempotent_replay) {
+          Swal.fire('Liquidación ya guardada',
+            'Esta liquidación ya había sido creada (replay idempotente); no se duplicó.', 'info');
+        } else {
+          Swal.fire('Nómina guardada',
+            `${resp.creados_nomina} empleados y ${resp.creados_conceptos} conceptos persistidos.` +
+              (resp.recalculado ? ' Se sobreescribieron los registros previos.' : ''),
+            'success');
         }
-        currentRow++;
-      });
-      currentRow += 2;
+      },
+      error: (err: HttpErrorResponse) => {
+        this.guardandoNomina = false;
+        const body = err?.error || {};
+        if (err.status === 409) {
+          // Cálculo desactualizado / vencido / consumido / no autorizado → recalcular.
+          this.invalidarCalculo();
+          const cambios = (body.cambiosDetectados || []).join(', ');
+          Swal.fire('Cálculo desactualizado',
+            (body.mensaje || 'Los datos cambiaron desde la vista previa.')
+              + (cambios ? ` Cambios: ${cambios}.` : '') + ' Genere nuevamente el cálculo.', 'warning');
+        } else if (err.status === 422) {
+          if (body.codigo === 'CALCULATION_ID_REQUERIDO') {
+            this.invalidarCalculo();
+            Swal.fire('Recalcular requerido',
+              body.mensaje || 'Debe generar nuevamente la vista previa antes de guardar.', 'warning');
+          } else {
+            const n = body.empleados_bloqueados ?? this.bloqueantesActivos.length;
+            Swal.fire('No se puede guardar',
+              (body.mensaje || 'La liquidación no puede guardarse porque existen novedades económicas '
+                + 'que no fueron procesadas correctamente.')
+                + ` (${n} bloqueante[s]). Revise el detalle y genere nuevamente el cálculo.`, 'error');
+          }
+        } else {
+          const msg = body.error || body.message || body.mensaje || 'No se pudo guardar la nómina.';
+          Swal.fire('Error', msg, 'error');
+        }
+        this.cdr.markForCheck();
+      },
     });
-
-    const buffer = await workbook.xlsx.writeBuffer();
-    saveAs(new Blob([buffer]), `Nomina_${this.selectedCliente?.nombre_legal || 'Export'}.xlsx`);
   }
+
 }
