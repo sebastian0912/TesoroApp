@@ -52,10 +52,11 @@ describe('CalculoNomina — gating snapshot (Inc 2.6)', () => {
     expect(c.puedeGuardar).toBe(false);
   });
 
-  it('flujo plano legacy (sin calculationId) permite guardar mientras haya cálculo', () => {
+  it('Inc 2.7: sin calculationId (cierre legacy eliminado) NO permite guardar', () => {
     const c = nuevoComponente();
     c.calculationIdActivo = null;
-    expect(c.puedeGuardar).toBe(true);
+    c.puedeCerrarActivo = true;
+    expect(c.puedeGuardar).toBe(false);
   });
 
   it('invalidar deja Guardar deshabilitado para el flujo de novedades', () => {

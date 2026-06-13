@@ -5,7 +5,6 @@ import { SharedModule } from '../../../../../../shared/shared.module';
 import { HttpErrorResponse } from '@angular/common/http';
 import {
   NominaService, Client, CostCenter,
-  DetalleLiquidacionPayload, ConceptoLiquidadoPayload,
   ConciliacionNovedades, DiagnosticoNovedad, GuardarLiquidacionPayload,
 } from '../../service/nomina/nomina.service';
 import Swal from 'sweetalert2';
@@ -121,12 +120,26 @@ export class CalculoNominaComponent implements OnInit {
    *  - Flujo plano legacy (sin calculationId): permitido mientras exista cálculo. */
   get puedeGuardar(): boolean {
     if (this.guardandoNomina || this._empleadosCalculados.size === 0) return false;
-    if (this.calculationIdActivo) {
-      if (!this.puedeCerrarActivo) return false;
-      if (this.conciliacionActiva && this.conciliacionActiva.conciliacion_correcta === false) return false;
-      if (this.snapshotExpiraAt && new Date(this.snapshotExpiraAt).getTime() < Date.now()) return false;
-    }
+    // Inc.2.7: el cierre exige snapshot verificado. Sin calculationId (cierre legacy
+    // eliminado) no se puede guardar; hay que generar la vista previa primero.
+    if (!this.calculationIdActivo) return false;
+    if (!this.puedeCerrarActivo) return false;
+    if (this.conciliacionActiva && this.conciliacionActiva.conciliacion_correcta === false) return false;
+    if (this.snapshotExpiraAt && new Date(this.snapshotExpiraAt).getTime() < Date.now()) return false;
     return true;
+  }
+
+  /** Incremento 2.7: tras un cálculo PLANO, conserva el snapshot devuelto por
+   *  /payroll/calcular (calculation_id + conciliación). aplicarPreviewBackend ya
+   *  invalidó el snapshot previo; aquí se fija el nuevo. */
+  private aplicarSnapshotPlano(resp: { calculation_id?: string; puede_cerrar?: boolean;
+                                       conciliacion?: any; fecha_expiracion?: string }): void {
+    this.calculationIdActivo = resp.calculation_id ?? null;
+    this.puedeCerrarActivo = resp.puede_cerrar ?? !!resp.conciliacion?.puede_cerrar;
+    this.conciliacionActiva = resp.conciliacion ?? null;
+    this.snapshotExpiraAt = resp.fecha_expiracion ?? null;
+    this.bloqueantesActivos = [];
+    this.diagnosticoActivo = [];
   }
 
   /** Invalida el preview/snapshot. Llamar ante cualquier cambio de insumo. */
@@ -424,6 +437,7 @@ export class CalculoNominaComponent implements OnInit {
         }).subscribe({
           next: (preview) => {
             this.aplicarPreviewBackend(preview.empleados || []);
+            this.aplicarSnapshotPlano(preview);
             this.loading = false;
           },
           error: () => {
@@ -562,6 +576,7 @@ export class CalculoNominaComponent implements OnInit {
       }).subscribe({
         next: (preview) => {
           this.mapearEmpleadosEnContratos(preview.empleados || []);
+          this.aplicarSnapshotPlano(preview);   // nuevo snapshot del recálculo
           this.loading = false;
           this.cdr.markForCheck();
         },
@@ -787,69 +802,19 @@ export class CalculoNominaComponent implements OnInit {
       return;
     }
 
-    // Payload: con snapshot se envía ÚNICAMENTE el calculationId (el backend recupera
-    // todo del snapshot). Sin snapshot (cálculo plano legacy) se envían detalles.
-    let payload: GuardarLiquidacionPayload;
-    if (this.calculationIdActivo) {
-      payload = {
-        periodo_id: periodo.id_periodo,
-        cliente_id: this.selectedCliente?.id_entidad ?? null,
-        calculation_id: this.calculationIdActivo,
-      };
-    } else {
-      const detalles: DetalleLiquidacionPayload[] = [];
-      for (const c of this.contratos) {
-        const calc = this._empleadosCalculados.get(c.id_contrato);
-        if (!calc) continue;
-        detalles.push({
-          id_contrato: calc.id_contrato,
-          id_empleado: calc.id_empleado,
-          dias: Number(calc.dias ?? c.dias_laborados ?? 0),
-          sueldo_q: Number(c._devengado_basico || 0),
-          aux_trans: Number(c._aux_trans || 0),
-          salud: Number(c._salud || 0),
-          pension: Number(c._pension || 0),
-          neto: Number(calc.neto || 0),
-          total_devengado: Number(calc.total_devengado || 0),
-          total_deducido: Number(calc.total_deducido || 0),
-          dias_efectivos: Number(calc.dias_efectivos || 0),
-          dias_no_remunerados: Number(calc.dias_no_remunerados || 0),
-          dias_incapacidad: Number(calc.dias_incapacidad || 0),
-          dias_laborados: Number(calc.dias_laborados ?? calc.dias ?? 0),
-          dias_con_derecho_auxilio: Number(calc.dias_con_derecho_auxilio ?? calc.dias_laborados ?? 0),
-          dias_pagados: Number(calc.dias_pagados ?? calc.dias ?? 0),
-          ibc: Number(calc.ibc || 0),
-          devengos_salariales: Number(calc.devengos_salariales || 0),
-          devengos_no_salariales: Number(calc.devengos_no_salariales || 0),
-          deducciones_salariales_que_disminuyen_ibc:
-            Number(calc.deducciones_salariales_que_disminuyen_ibc || 0),
-          conceptos: (calc.conceptos || []).map((cl: any): ConceptoLiquidadoPayload => ({
-            codigo: cl.codigo,
-            descripcion: cl.descripcion,
-            naturaleza: cl.naturaleza,
-            unidad: cl.unidad,
-            cantidad: Number(cl.cantidad || 0),
-            valor_unitario: Number(cl.valor_unitario || 0),
-            valor_total: Number(cl.valor_total || 0),
-            clasificacion: cl.clasificacion,
-            hace_base_ibc: !!cl.hace_base_ibc,
-            disminuye_ibc: !!cl.disminuye_ibc,
-            origen_tabla: cl.origen_tabla,
-            origen_id: cl.origen_id ?? null,
-            observacion: cl.observacion,
-          })),
-        });
-      }
-      if (detalles.length === 0) {
-        Swal.fire('Atención', 'No hay empleados calculados que coincidan con la tabla actual.', 'warning');
-        return;
-      }
-      payload = {
-        periodo_id: periodo.id_periodo,
-        cliente_id: this.selectedCliente?.id_entidad ?? null,
-        detalles,
-      };
+    // Inc.2.7: el cierre legacy quedó ELIMINADO. SIEMPRE se cierra contra un snapshot;
+    // ambos flujos (plano y con novedades) generan calculationId en la vista previa.
+    // El backend recupera el resultado verificado del snapshot e ignora cualquier detalle.
+    if (!this.calculationIdActivo) {
+      Swal.fire('Genere la vista previa',
+        'Debe calcular la vista previa antes de guardar para obtener un cálculo verificable.', 'warning');
+      return;
     }
+    const payload: GuardarLiquidacionPayload = {
+      periodo_id: periodo.id_periodo,
+      cliente_id: this.selectedCliente?.id_entidad ?? null,
+      calculation_id: this.calculationIdActivo,
+    };
 
     const estadoActual = String(periodo.estado || '').toUpperCase();
     if (estadoActual === 'CALCULADA') {

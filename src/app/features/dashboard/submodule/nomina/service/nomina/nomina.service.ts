@@ -451,12 +451,21 @@ export interface DetalleLiquidacionPayload {
 export interface GuardarLiquidacionPayload {
   periodo_id: number;
   cliente_id?: number | null;
-  // Incremento 2.6: el cierre envía ÚNICAMENTE el calculationId (+ datos
-  // administrativos). El backend recupera todo desde el snapshot. `detalles`
-  // solo se conserva para el flujo legacy (deprecado, sin calculationId).
-  calculation_id?: string;
+  // Incremento 2.7: el cierre envía ÚNICAMENTE el calculationId (+ datos
+  // administrativos). El backend recupera el resultado verificado desde el
+  // snapshot. El flujo legacy basado en `detalles` fue ELIMINADO.
+  calculation_id: string;
   usuario?: string;
-  detalles?: DetalleLiquidacionPayload[];
+}
+
+// Incremento 2.7: respuesta del cálculo PLANO (/payroll/calcular) con snapshot.
+export interface CalcularLiquidacionResponse {
+  empleados: any[];
+  totales: any;
+  calculation_id?: string;
+  puede_cerrar?: boolean;
+  conciliacion?: ConciliacionNovedades | any;
+  fecha_expiracion?: string;
 }
 
 export interface GuardarLiquidacionResponse {
@@ -659,8 +668,8 @@ export class NominaService {
     cecos?: number[],
     contrato_ids?: number[],
     forzar_dias_completos?: boolean,
-  }): Observable<{ empleados: any[], totales: any }> {
-    return this.http.post<{ empleados: any[], totales: any }>(
+  }): Observable<CalcularLiquidacionResponse> {
+    return this.http.post<CalcularLiquidacionResponse>(
       `${this.baseNom}/payroll/calcular/`, payload,
     );
   }
