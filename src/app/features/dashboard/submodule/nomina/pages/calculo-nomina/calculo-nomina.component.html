@@ -192,11 +192,11 @@
       Total Registros: <strong>{{contratos.length}}</strong>
     </div>
     <div class="spacer"></div>
-    <button mat-flat-button color="accent" (click)="descargarPlantilla()" [disabled]="guardando"
-            matTooltip="Descarga la plantilla SOPORTE NOMINA Y LIQUIDACION V2 rellena con los empleados calculados">
+    <button mat-flat-button color="accent" (click)="descargarPlantilla()" [disabled]="!puedeDescargarPreview"
+            matTooltip="Descarga el cálculo PARCIAL (soporte preview). Disponible aunque existan bloqueantes; no es una liquidación definitiva.">
       <mat-icon *ngIf="!guardando">download</mat-icon>
       <mat-spinner *ngIf="guardando" diameter="20"></mat-spinner>
-      DESCARGAR PLANTILLA
+      DESCARGAR CÁLCULO PARCIAL
     </button>
     <button mat-flat-button color="primary" (click)="guardarNomina()"
             [disabled]="!puedeGuardar || periodoControl.value?.estado === 'VALIDADA' || periodoControl.value?.estado === 'FINALIZADA'"

@@ -129,6 +129,14 @@ export class CalculoNominaComponent implements OnInit {
     return true;
   }
 
+  /** ¿Se puede DESCARGAR el preview? Independiente de `puedeCerrar`: el cálculo parcial
+   *  se descarga aunque existan bloqueantes (sin contrato, config incompleta, etc.). Solo
+   *  exige un calculationId válido y que no haya una descarga/cálculo en curso. NO reutiliza
+   *  `puedeGuardar` ni `puedeCerrarActivo`. */
+  get puedeDescargarPreview(): boolean {
+    return !!this.calculationIdActivo && !this.guardando && !this.loading;
+  }
+
   /** Incremento 2.7: tras un cálculo PLANO, conserva el snapshot devuelto por
    *  /payroll/calcular (calculation_id + conciliación). aplicarPreviewBackend ya
    *  invalidó el snapshot previo; aquí se fija el nuevo. */
