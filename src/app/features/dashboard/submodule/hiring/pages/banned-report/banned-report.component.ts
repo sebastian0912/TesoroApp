@@ -66,9 +66,13 @@ export class BannedReportComponent {
       });
 
     // Obtener lista de sedes
-    (await this.adminService.traerSucursales()).subscribe((data: any) => {
-      data.sucursal.sort((a: any, b: any) => a.nombre.localeCompare(b.nombre));  // Ordenar sedes
-      this.sedes = data.sucursal;
+    (await this.adminService.traerSucursales()).subscribe({
+      next: (data: any) => {
+        const sucursales = Array.isArray(data?.sucursal) ? [...data.sucursal] : [];
+        sucursales.sort((a: any, b: any) => String(a?.nombre ?? '').localeCompare(String(b?.nombre ?? '')));  // Ordenar sedes
+        this.sedes = sucursales;
+      },
+      error: () => { this.sedes = []; }
     });
 
     // Obtener usuario actual y sede
