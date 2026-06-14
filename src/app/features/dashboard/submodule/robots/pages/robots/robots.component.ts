@@ -46,6 +46,8 @@ import {
   DuplicadoCedulaRow,
   ProximoEnColaRow,
   ProximosEnColaResponse,
+  DashboardSnapshotResponse,
+  DashboardSnapshotFuente,
 } from '../../services/robots/robots.service';
 
 // =========================
@@ -275,6 +277,15 @@ export class RobotsComponent implements OnInit {
   proximosModoAtencion: 'HORARIO_LABORAL' | 'FUERA_DE_HORARIO' | '' = '';
   proximosGeneratedAt: string = '';
 
+  // =========================
+  // ✅ STATE (DASHBOARD SNAPSHOT - polling consolidado)
+  // =========================
+  isLoadingSnapshot = false;
+  snapshotGeneratedAt: string = '';
+  snapshotFromCache = false;
+  /** Errores consecutivos del snapshot. Si pasan 3, el banner se muestra. */
+  snapshotErrorStreak = 0;
+
   proximosForm = this.fb.group({
     antecedente: new FormControl<UltimosAntecedenteUiKey>('ofac', { nonNullable: true }),
     limit: [20],
@@ -360,12 +371,22 @@ export class RobotsComponent implements OnInit {
 
   /**
    * Intervalo en ms para auto-refresh.
-   * Antes: 30 s. Con backend prod (MySQL remoto) cada tick disparaba 7
-   * endpoints pesados y se acumulaban requests en vuelo (`/Robots/full/`
-   * sin paginar es el más caro). Subimos a 2 min para aliviar al backend
-   * sin perder utilidad del dashboard.
+   *
+   * Antes: 120 s con 7 endpoints por tick. Para lograr UX "en vivo" sin
+   * sobrecargar el backend, ahora el polling le pega a un solo endpoint
+   * consolidado (`/EstadosRobots/dashboard-snapshot/`) cacheado con TTL=5s
+   * en backend. Aunque N usuarios tengan el dashboard abierto, solo 1
+   * query real corre a la BD cada 5 s.
+   *
+   * Endpoints que ya NO entran al polling automático (se cargan bajo demanda):
+   *   - /Robots/full/                    -> botón refresh manual
+   *   - /Robots/ultimos/<antecedente>/   -> cuando el usuario cambia el filtro
+   *   - /EstadosRobots/stats/            -> al abrir el tab de stats o cambiar fechas
+   *   - /EstadosRobots/proximos-en-cola  -> solo el detalle del tab activo
+   *   - /Robots/locks/                   -> detalle por antecedente al abrir tab
+   *   - /Robots/duplicados-cedulas/      -> detalle al abrir el modal
    */
-  private readonly AUTO_POLL_MS = 120_000;
+  private readonly AUTO_POLL_MS = 5_000;
 
   ngOnInit(): void {
     this.titleService.setTitle('Robots Dashboard - Tesoreria');
@@ -381,12 +402,19 @@ export class RobotsComponent implements OnInit {
         this.loadPendientesPorOficina({ showToast: false });
       });
 
-    // Carga inicial
-    this.reloadAll(false);
+    // Carga inicial: 1 snapshot consolidado pinta los grids "live" (faltantes
+    // por oficina, locks resumen, proximos resumen, duplicados counters).
+    // El resto (stats, ultimos, proximos detalle, robots-full) se carga aparte
+    // — y solo el snapshot entra al polling cada 5s.
+    this.loadDashboardSnapshot({ showToast: false });
+
+    // Stats y "últimos" se cargan una vez al inicio. Luego solo cuando el
+    // usuario cambia filtros (no entran al polling).
     this.loadStats({ showToast: false });
     this.loadUltimosPorMarcaTemporal({ showToast: false });
-    this.loadLocks();
-    this.loadDuplicados();
+
+    // Detalle de "proximos" para el antecedente por defecto y "robots full"
+    // bajo demanda (se cargan al entrar al tab o por refresh manual).
     this.loadProximosEnCola({ showToast: false });
 
     // ✅ Auto-polling: refresca datos cada AUTO_POLL_MS. Salta el tick si el
@@ -496,16 +524,11 @@ export class RobotsComponent implements OnInit {
   }
 
   /**
-   * Dispara el set completo de loaders que corresponde a un "tick" del
-   * auto-polling. Centralizado para reusarlo desde el interval y desde el
-   * listener de visibilitychange.
+   * Tick del auto-polling "live". Solo le pega al snapshot consolidado.
+   * 1 request HTTP, 1 query a la BD (cacheada con TTL=5s en backend).
    */
   private refreshDashboard(): void {
-    this.reloadAll(false);
-    this.loadStats({ showToast: false });
-    this.loadLocks();
-    this.loadDuplicados();
-    this.loadProximosEnCola({ showToast: false });
+    this.loadDashboardSnapshot({ showToast: false });
   }
 
   /**
@@ -957,6 +980,162 @@ export class RobotsComponent implements OnInit {
       
     this.isLoadingRobotsFull = false;
     this.cdr.markForCheck();
+  }
+
+  // =========================
+  // ✅ LOAD DASHBOARD SNAPSHOT (polling consolidado)
+  // 1 request -> pinta: faltantes por oficina, locks resumen, proximos
+  // resumen, duplicados counters. Sustituye el polling de 4-5 endpoints.
+  // =========================
+  loadDashboardSnapshot(opts?: { showToast?: boolean }): void {
+    if (this.isLoadingSnapshot) return;
+    this.isLoadingSnapshot = true;
+    this.cdr.markForCheck();
+
+    this.robots
+      .getDashboardSnapshot()
+      .pipe(
+        take(1),
+        tap((snap: DashboardSnapshotResponse) => {
+          this.snapshotErrorStreak = 0;
+          this.snapshotGeneratedAt = this.cleanIsoTimestamp(snap?.generated_at);
+          this.snapshotFromCache = !!snap?.from_cache;
+
+          this.applySnapshotToPendientesGrid(snap);
+          this.applySnapshotToLocksSummary(snap);
+          this.applySnapshotToDuplicados(snap);
+          this.applySnapshotToProximosTotal(snap);
+
+          this.cdr.markForCheck();
+        }),
+        catchError((err) => {
+          console.error('Error /EstadosRobots/dashboard-snapshot/', err);
+          this.snapshotErrorStreak++;
+          this.cdr.markForCheck();
+          if (opts?.showToast) {
+            void this.toast.fire({ icon: 'error', title: 'Snapshot: error al cargar' });
+          }
+          return of(null);
+        }),
+        finalize(() => {
+          this.isLoadingSnapshot = false;
+          this.cdr.markForCheck();
+        }),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe(() => {
+        if (opts?.showToast) {
+          void this.toast.fire({ icon: 'success', title: 'Dashboard actualizado' });
+        }
+      });
+  }
+
+  // ---- Distribuidores del payload a cada grid ----
+  private applySnapshotToPendientesGrid(snap: DashboardSnapshotResponse): void {
+    const oficinasRaw: string[] = snap.por_oficina.map(
+      (r) => (r.oficina || 'SIN_OFICINA').trim() || 'SIN_OFICINA',
+    );
+    const oficinasUniq: string[] = [];
+    for (const o of oficinasRaw) {
+      if (!oficinasUniq.includes(o)) oficinasUniq.push(o);
+    }
+
+    this.oficinasOptions = oficinasUniq.filter((o) => o !== 'SIN_OFICINA');
+
+    const colKeys = oficinasUniq.map((o) => this.oficinaColKey(o));
+    this.pendientesPorOficinaColumns = [
+      { name: 'tipo', header: 'Módulo', type: 'text' as const, width: '220px', stickyStart: true },
+      ...oficinasUniq.map((of, idx) => ({
+        name: colKeys[idx],
+        header: of,
+        type: 'number' as const,
+        width: '160px',
+        align: 'right' as const,
+      })),
+      { name: 'total', header: 'Total', type: 'number' as const, width: '140px', stickyEnd: true, align: 'right' },
+    ];
+
+    // Para cada oficina, faltantes por fuente
+    const faltantesByCol: Record<string, Record<PendienteKey, number>> = {};
+    for (let i = 0; i < snap.por_oficina.length; i++) {
+      const of = oficinasRaw[i];
+      const ck = this.oficinaColKey(of);
+      const f = snap.por_oficina[i].faltantes || {} as Record<DashboardSnapshotFuente, number>;
+      if (!faltantesByCol[ck]) {
+        faltantesByCol[ck] = {
+          adress: 0, policivo: 0, ofac: 0, contraloria: 0,
+          sisben: 0, procuraduria: 0, fondo_pension: 0, union: 0,
+        };
+      }
+      for (const mod of this.pendientesKeys) {
+        const mk = mod.key as PendienteKey;
+        const v = Number((f as any)[mk] ?? 0);
+        faltantesByCol[ck][mk] = Number(faltantesByCol[ck][mk] ?? 0) + v;
+      }
+    }
+
+    const matrixRows: PendientesOficinasMatrixRow[] = this.pendientesKeys.map((mod) => {
+      const mk = mod.key as PendienteKey;
+      const row: PendientesOficinasMatrixRow = { tipo: mod.label, key: mk };
+      let rowTotal = 0;
+      for (const ck of colKeys) {
+        const v = Number(faltantesByCol[ck]?.[mk] ?? 0);
+        row[ck] = v;
+        rowTotal += v;
+      }
+      row.total = rowTotal;
+      return row;
+    });
+
+    const totalRow: PendientesOficinasMatrixRow = { tipo: 'TOTAL', key: '__TOTAL__' };
+    let grandTotal = 0;
+    for (const ck of colKeys) {
+      let colTotal = 0;
+      for (const r of matrixRows) colTotal += Number(r[ck] ?? 0);
+      totalRow[ck] = colTotal;
+      grandTotal += colTotal;
+    }
+    totalRow.total = grandTotal;
+
+    this.pendientesPorOficinaRows = [...matrixRows, totalRow];
+  }
+
+  private applySnapshotToLocksSummary(snap: DashboardSnapshotResponse): void {
+    // El snapshot trae locks_por_fuente (resumen liviano). Generamos filas
+    // sintéticas para alimentar el grid de locks "por antecedente".
+    // El detalle por cédula sigue viniendo de /Robots/locks/ (al abrir el tab).
+    const rows: RobotLockDisplayRow[] = snap.locks_por_fuente.map((l) => ({
+      antecedente: l.fuente,
+      cedula: null,
+      tipo_documento: null,
+      locked_by: l.workers_distintos > 0 ? `${l.workers_distintos} worker(s)` : null,
+      locked_at: null,
+      ultima_consulta_estado: null,
+      ultima_marca_temporal: null,
+      edad_min: -1,
+      edad_label: l.total_locks > 0 ? `${l.total_locks} lock(s)` : '—',
+      estado_lock: l.total_locks > 0 ? 'ACTIVO' : 'SIN_LOCK',
+    }));
+    this.locksRows = rows;
+    this.locksRowsRaw = rows;
+    this.locksByWorkerRows = [];
+  }
+
+  private applySnapshotToDuplicados(snap: DashboardSnapshotResponse): void {
+    this.duplicadosCount = Number(snap.duplicados_resumen?.total_cedulas_duplicadas ?? 0);
+    // No traemos detalles ni filas afectadas en el snapshot; se calculan
+    // bajo demanda al abrir el modal (lazy via getDuplicadosCedulas).
+  }
+
+  private applySnapshotToProximosTotal(snap: DashboardSnapshotResponse): void {
+    // El snapshot trae solo el total por fuente, no las 20 filas detalle.
+    // Actualizamos el total_pendientes mostrado en el header del tab según
+    // el antecedente que el usuario tenga seleccionado.
+    const ant = this.proximosForm.controls.antecedente.value;
+    const match = snap.proximos_resumen.find((r) => r.fuente === ant);
+    if (match) {
+      this.proximosTotalPendientes = match.total_pendientes;
+    }
   }
 
   loadPendientesPorOficina(opts?: { showToast?: boolean }): void {

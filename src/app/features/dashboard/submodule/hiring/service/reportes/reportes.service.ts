@@ -127,15 +127,21 @@ export class ReportesService {
   }
 
   /**
-   * GET /reportes/cedulas-zip/?fecha_desde=&fecha_hasta=&nombre=
-   * Filtros opcionales: si no se envían, devuelve cédulas de TODOS los reportes.
-   * Devuelve un ZIP (Blob) con las cédulas (sin duplicados).
+   * GET /reportes/<tipo>-zip/?fecha_desde=&fecha_hasta=&nombre=
+   * tipo: 'cedulas' -> /reportes/cedulas-zip/
+   *       'traslados' -> /reportes/traslados-zip/
+   *       'sst' -> /reportes/sst-zip/
+   * Filtros opcionales: si no se envían, devuelve documentos de TODOS los reportes.
+   * Devuelve un ZIP (Blob) con los documentos (sin duplicados).
    */
-  downloadCedulasZip(filters?: {
-    nombre?: string;
-    fechaDesde?: string | Date;
-    fechaHasta?: string | Date;
-  }): Observable<HttpEvent<Blob>> {
+  downloadDocumentosZip(
+    tipo: 'cedulas' | 'traslados' | 'sst',
+    filters?: {
+      nombre?: string;
+      fechaDesde?: string | Date;
+      fechaHasta?: string | Date;
+    },
+  ): Observable<HttpEvent<Blob>> {
     let params = new HttpParams();
 
     if (filters?.nombre) {
@@ -158,7 +164,13 @@ export class ReportesService {
       if (value) params = params.set('fecha_hasta', value);
     }
 
-    const url = `${this.apiUrl}/reportes/cedulas-zip/`;
+    const path =
+      tipo === 'traslados'
+        ? 'traslados-zip'
+        : tipo === 'sst'
+          ? 'sst-zip'
+          : 'cedulas-zip';
+    const url = `${this.apiUrl}/reportes/${path}/`;
 
     return this.http
       .get(url, {
@@ -167,7 +179,7 @@ export class ReportesService {
         observe: 'events',
         reportProgress: true,
       })
-      .pipe(catchError((error) => this.handleError(error, 'downloadCedulasZip')));
+      .pipe(catchError((error) => this.handleError(error, 'downloadDocumentosZip')));
   }
 
   /**

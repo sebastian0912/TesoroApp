@@ -1,5 +1,7 @@
 import { ColumnDefinition } from '@/app/shared/models/advanced-table-interface';
-import {  Component, OnInit , ChangeDetectionStrategy } from '@angular/core';
+import {  Component, OnInit, AfterViewInit, OnDestroy, ChangeDetectionStrategy, ViewChild, ChangeDetectorRef } from '@angular/core';
+import { forkJoin, of, Subscription } from 'rxjs';
+import { map, catchError } from 'rxjs/operators';
 
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatMenuModule } from '@angular/material/menu';
@@ -8,6 +10,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDividerModule } from '@angular/material/divider';
+import { MatTooltipModule } from '@angular/material/tooltip';
 
 import Swal from 'sweetalert2';
 
@@ -54,15 +57,21 @@ interface DistPayload {
     MatIconModule,
     MatSlideToggleModule,
     MatButtonModule,
-    MatDividerModule
+    MatDividerModule,
+    MatTooltipModule
 ],
   templateUrl: './vacantes.component.html',
   styleUrl: './vacantes.component.css',
 } )
-export class VacantesComponent implements OnInit {
+export class VacantesComponent implements OnInit, AfterViewInit, OnDestroy {
   // Data
   private allRows: any[] = [];
   visibleRows: any[] = [];
+
+  // Selección masiva (checkbox de la tabla compartida)
+  @ViewChild(StandardFilterTable) private tabla?: StandardFilterTable;
+  seleccionCount = 0;
+  private selSub?: Subscription;
 
   // Tabla
   pageSizeOptions: number[] = [10, 25, 50];
@@ -76,14 +85,10 @@ export class VacantesComponent implements OnInit {
     { name: 'cumpl', header: 'Cumpl.', type: 'custom', filterable: false, sortable: true, width: '90px' },
     { name: 'fechaPublicado', header: 'Publicado', type: 'date', filterable: true, sortable: true, width: '120px' },
 
-    { name: 'req', header: 'Req', type: 'number', filterable: false, sortable: true, width: '70px' },
-    { name: 'falt', header: 'Falt.', type: 'number', filterable: false, sortable: true, width: '70px' },
-    { name: 'entrev', header: 'Entrev', type: 'number', filterable: false, sortable: true, width: '80px' },
-    { name: 'prueba', header: 'Pru', type: 'number', filterable: false, sortable: true, width: '70px' },
-    { name: 'auto', header: 'Auto', type: 'number', filterable: false, sortable: true, width: '70px' },
-    { name: 'exm', header: 'Exm', type: 'number', filterable: false, sortable: true, width: '70px' },
-    { name: 'firm', header: 'Firm', type: 'number', filterable: false, sortable: true, width: '70px' },
-    { name: 'ing', header: 'Ing', type: 'number', filterable: false, sortable: true, width: '70px' },
+    // Embudo del proceso: las 8 etapas (Req, Falt, Entrev, Pru, Auto, Exm,
+    // Firm, Ing) colapsadas en UNA sola columna compacta de chips para ganar
+    // espacio horizontal. El detalle de cada etapa sale en el tooltip.
+    { name: 'embudo', header: 'Embudo', type: 'custom', filterable: false, sortable: false, width: '180px' },
 
     { name: 'finca', header: 'Centro de costo', type: 'text', filterable: true, sortable: true, width: '170px' },
     { name: 'cargo', header: 'Cargo', type: 'text', filterable: true, sortable: true, width: '170px' },
@@ -92,8 +97,9 @@ export class VacantesComponent implements OnInit {
     { name: 'municipioLabel', header: 'Municipio', type: 'text', filterable: true, sortable: true, width: '200px' },
 
     { name: 'experiencia', header: 'Expe', type: 'text', filterable: true, sortable: true, width: '90px' },
-    { name: 'observacionVacante', header: 'Observación del perfil', type: 'text', filterable: true, sortable: false, width: '260px' },
-    { name: 'descripcion', header: 'Descripción', type: 'text', filterable: true, sortable: false, width: '260px' },
+    // Observación del perfil + Descripción colapsadas en UN solo chip para
+    // ahorrar espacio; el detalle completo de ambas sale en el tooltip.
+    { name: 'perfil', header: 'Obs. / Descripción', type: 'custom', filterable: false, sortable: false, width: '110px' },
 
     { name: 'salario', header: 'Salario', type: 'custom', filterable: false, sortable: true, width: '140px' },
     { name: 'auxilioTransporte', header: 'Auxilio', type: 'text', filterable: true, sortable: true, width: '120px' },
@@ -113,6 +119,7 @@ export class VacantesComponent implements OnInit {
     private dialog: MatDialog,
     private vacantesService: VacantesService,
     private utilityService: UtilityServiceService,
+    private cdr: ChangeDetectorRef,
   ) { }
 
   ngOnInit(): void {
@@ -171,6 +178,119 @@ export class VacantesComponent implements OnInit {
       },
       error: () => { },
       complete: () => (this.loading = false),
+    });
+  }
+
+  // ================== Selección masiva ==================
+  ngAfterViewInit(): void {
+    // La selección vive en la tabla compartida; nos suscribimos a sus cambios
+    // para reflejar el contador y mostrar/ocultar la barra de acciones masivas.
+    const sel = this.tabla?.selection;
+    if (sel) {
+      this.selSub = sel.changed.subscribe(() => {
+        this.seleccionCount = sel.selected.length;
+        this.cdr.markForCheck();
+      });
+    }
+  }
+
+  ngOnDestroy(): void {
+    this.selSub?.unsubscribe();
+  }
+
+  private seleccionadas(): any[] {
+    return this.tabla?.selection?.selected ?? [];
+  }
+
+  private limpiarSeleccion(): void {
+    this.tabla?.selection?.clear();
+    this.seleccionCount = 0;
+  }
+
+  /** Eliminar en bloque las vacantes seleccionadas. */
+  eliminarSeleccionadas(): void {
+    const sel = this.seleccionadas().filter(v => v?.id != null);
+    if (!sel.length) {
+      Swal.fire('Sin selección', 'Selecciona al menos una vacante.', 'info');
+      return;
+    }
+    Swal.fire({
+      title: `¿Eliminar ${sel.length} vacante(s)?`,
+      text: 'No podrás revertir esto.',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#d33',
+      cancelButtonColor: '#3085d6',
+      confirmButtonText: 'Sí, eliminar',
+    }).then(res => {
+      if (!res.isConfirmed) return;
+      Swal.fire({ title: 'Eliminando…', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+
+      forkJoin(
+        sel.map(v =>
+          this.vacantesService.eliminarVacante(v.id).pipe(
+            map(() => true),
+            catchError(() => of(false)),
+          )
+        )
+      ).subscribe(results => {
+        const fallidas = results.filter(ok => !ok).length;
+        this.limpiarSeleccion();
+        this.loadData();
+        if (fallidas) {
+          Swal.fire('Resultado parcial', `${results.length - fallidas} eliminada(s), ${fallidas} con error.`, 'warning');
+        } else {
+          Swal.fire('Eliminadas', `${results.length} vacante(s) eliminada(s).`, 'success');
+        }
+      });
+    });
+  }
+
+  /** Inactivar en bloque las vacantes seleccionadas (con un único motivo). */
+  inactivarSeleccionadas(): void {
+    const sel = this.seleccionadas().filter(v => v?.id != null && v.activo !== false);
+    if (!sel.length) {
+      Swal.fire('Sin selección', 'Selecciona al menos una vacante activa.', 'info');
+      return;
+    }
+    Swal.fire({
+      title: `Inactivar ${sel.length} vacante(s)`,
+      input: 'textarea',
+      inputLabel: 'Motivo de inactivación (se aplicará a todas)',
+      inputPlaceholder: 'Escribe aquí el motivo…',
+      inputAttributes: { maxlength: '500' },
+      inputValidator: (val: any) => {
+        const t = String(val ?? '').trim();
+        if (!t) return 'El motivo es obligatorio.';
+        if (t.length < 10) return 'Amplía un poco más el motivo (mínimo 10 caracteres).';
+        return null;
+      },
+      showCancelButton: true,
+      confirmButtonText: 'Inactivar',
+      cancelButtonText: 'Cancelar',
+      allowOutsideClick: () => !Swal.isLoading(),
+    }).then(res => {
+      if (!res.isConfirmed) return;
+      const motivo = String(res.value ?? '').trim();
+      Swal.fire({ title: 'Inactivando…', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+
+      forkJoin(
+        sel.map(v =>
+          this.vacantesService.cambiarEstadoActivo(v.id, false, motivo).pipe(
+            map(() => true),
+            catchError(() => of(false)),
+          )
+        )
+      ).subscribe(results => {
+        const fallidas = results.filter(ok => !ok).length;
+        this.limpiarSeleccion();
+        this.loadData();
+        if (fallidas) {
+          Swal.fire('Resultado parcial', `${results.length - fallidas} inactivada(s), ${fallidas} con error.`, 'warning');
+        } else {
+          Swal.fire('Inactivadas', `${results.length} vacante(s) inactivada(s).`, 'success');
+        }
+      });
     });
   }
 
@@ -727,6 +847,21 @@ export class VacantesComponent implements OnInit {
     if (pct >= 100) return 'semaforo-pill semaforo-ok';
     if (pct >= 70) return 'semaforo-pill semaforo-warn';
     return 'semaforo-pill semaforo-error';
+  }
+
+  /** ¿la fila tiene observación o descripción para mostrar el chip? */
+  tienePerfil(row: any): boolean {
+    return !!(String(row?.observacionVacante ?? '').trim() || String(row?.descripcion ?? '').trim());
+  }
+
+  /** Tooltip combinado (Observación del perfil + Descripción) del chip único. */
+  perfilTooltip(row: any): string {
+    const obs = String(row?.observacionVacante ?? '').trim();
+    const desc = String(row?.descripcion ?? '').trim();
+    const parts: string[] = [];
+    if (obs) parts.push(`Observación del perfil:\n${obs}`);
+    if (desc) parts.push(`Descripción:\n${desc}`);
+    return parts.join('\n\n') || 'Sin observación ni descripción';
   }
 
   private isManager(user: any): boolean {

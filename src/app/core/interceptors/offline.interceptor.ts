@@ -217,6 +217,18 @@ export const offlineInterceptor: HttpInterceptorFn = (
         if (!saveRes?.success) throw new Error(saveRes?.error || 'No se pudo guardar la request');
 
         window.dispatchEvent(new CustomEvent('offline-queue-updated'));
+        // Evento rico para feedback al usuario (toast "guardado sin conexión").
+        // Distinto de 'offline-queue-updated' (que solo refresca el contador):
+        // este lleva metadata del envío para que la UI muestre un aviso claro.
+        window.dispatchEvent(new CustomEvent('offline-write-queued', {
+          detail: {
+            method: request.method,
+            url: request.urlWithParams,
+            isMultipart: true,
+            fileCount: stored.length,
+            fileNames: stored.map(s => s.fileName),
+          },
+        }));
         return new HttpResponse({
           status: 200,
           body: { success: true, offlineQueue: true, id: saveRes.id, _isOfflineMock: true },
@@ -278,6 +290,15 @@ export const offlineInterceptor: HttpInterceptorFn = (
         }
 
         window.dispatchEvent(new CustomEvent('offline-queue-updated'));
+        window.dispatchEvent(new CustomEvent('offline-write-queued', {
+          detail: {
+            method: request.method,
+            url: request.urlWithParams,
+            isMultipart: false,
+            fileCount: 0,
+            fileNames: [],
+          },
+        }));
 
         // El id real (negativo para distinguir de PKs reales) viene de la fila
         // recién insertada; antes era un random que no correspondía a nada.

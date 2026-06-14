@@ -307,6 +307,32 @@ export interface EnEsperaItem {
   motivo_espera: string | null;
 }
 
+/** Fuentes de antecedentes que consulta el robot (6 bloqueantes). */
+export type AntecedenteFuente =
+  | 'contraloria' | 'adress' | 'sisben' | 'policivo' | 'procuraduria' | 'ofac';
+
+/** Estado por fuente tal cual lo expone EstadoRobotActual del backend. */
+export type AntecedenteEstadoFuente =
+  | 'SIN_CONSULTAR' | 'EN_PROGRESO' | 'FINALIZADO' | 'BLOQUEADO'
+  | 'RECHAZADO_INCUMPLIMIENTO' | null;
+
+/**
+ * Estado de antecedentes del robot para una cédula (EstadosRobots).
+ * Permite saber si esa cédula ya está siendo consultada o si el robot ya
+ * terminó con los antecedentes (documentos del día listos).
+ */
+export interface AntecedentesEstado {
+  // NO_REGISTRADO = la cédula aún no está en la cola del robot.
+  estado_general: 'NO_REGISTRADO' | 'SIN_CONSULTAR' | 'EN_PROGRESO' | 'FINALIZADO';
+  consultando: boolean;   // alguna fuente EN_PROGRESO ahora mismo
+  completado: boolean;    // las 6 fuentes en estado terminal
+  finalizadas: number;    // cuántas de las 6 ya terminaron
+  total: number;          // 6
+  fuentes: Record<AntecedenteFuente, AntecedenteEstadoFuente>;
+  fecha_completado?: string | null;  // ISO; cuándo se selló completed_at
+  updated_at?: string | null;        // ISO; última actualización del robot
+}
+
 export interface CandidatoRecienteItem {
   candidato_id: number;
   tipo_doc: string | null;
@@ -322,8 +348,16 @@ export interface CandidatoRecienteItem {
   updated_at: string | null;  // ISO
   // Datos adicionales en la tabla de turnos:
   barrio?: string | null;
+  // Municipio y departamento de residencia:
+  municipio?: string | null;
+  departamento?: string | null;
   edad?: number | null;
   tiene_experiencia?: boolean;
+  // En qué tiene experiencia (detalle, no sólo Sí/No):
+  area_experiencia?: string | null;
+  anios_experiencia?: number | null;
+  // Estado de los antecedentes del robot para esta cédula:
+  antecedentes?: AntecedentesEstado | null;
   // Progreso del formulario web (tu_alianza_web / Tu-Apo-Web):
   // 0 = sin iniciar, 1 = guardó datos básicos, 5 = envió formulario completo.
   formulario_paso?: number;
@@ -432,6 +466,22 @@ export class RegistroProcesoContratacion {
     ya_estaba_en_cola: boolean;
   }> {
     return this.http.post<any>(this.url('candidatos/encolar'), payload).pipe(this.handle$());
+  }
+
+  /**
+   * POST /gestion_contratacion/candidatos/asegurar-estado-robot/
+   * Asegura/actualiza la fila de antecedentes del robot (EstadosRobots) para
+   * tipo_doc + cédula: crea si falta (cuando el Candidato ya existe), resetea si
+   * está vencida (>15 días). Se llama al BUSCAR una cédula, independiente del
+   * toggle de cola. Idempotente y tolerante a fallos.
+   */
+  asegurarEstadoRobot(payload: { tipo_doc?: string | null; numero_documento?: string | null }): Observable<{
+    ok: boolean;
+    numero_documento?: string;
+    tipo_documento?: string;
+    action?: string;
+  }> {
+    return this.http.post<any>(this.url('candidatos/asegurar-estado-robot'), payload).pipe(this.handle$());
   }
 
   getUltimosEnEspera(oficina?: string | string[]): Observable<EnEsperaItem[]> {

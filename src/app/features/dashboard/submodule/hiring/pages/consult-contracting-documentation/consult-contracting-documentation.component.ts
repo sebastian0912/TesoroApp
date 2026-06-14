@@ -47,8 +47,8 @@ type DocUiCell = {
   /** ¿este tipo documental está sujeto a la regla de 15 días? */
   controlled?: boolean;
   /** Referencia para el tooltip */
-  referenceType?: 'contract' | 'today' | 'none';
-  /** Días calculados. Si referenceType='contract' -> (fecha_contratacion - uploaded_at). Si 'today' -> (hoy - uploaded_at). */
+  referenceType?: 'ingreso' | 'today' | 'none';
+  /** Días calculados. Si referenceType='ingreso' -> (fecha_ingreso - uploaded_at). Si 'today' -> (hoy - uploaded_at). */
   daysDiff?: number | null;
   /** Metadata útil para el flujo de subida */
   typeId?: number;
@@ -521,10 +521,9 @@ export class ConsultContractingDocumentationComponent implements OnInit {
     const ref = cell.referenceType;
 
     if (cell.state === 'OK') {
-      if (cell.controlled && ref === 'contract' && days !== null && days !== undefined) {
-        if (days === 0) return 'Vigente · entregado el mismo día del contrato';
-        if (days > 0) return `Vigente · entregado ${days} día(s) antes de la fecha de contrato`;
-        return `Vigente · entregado ${Math.abs(days)} día(s) después de la fecha de contrato`;
+      if (cell.controlled && ref === 'ingreso' && days !== null && days !== undefined) {
+        if (days === 0) return 'Vigente · entregado el mismo día del ingreso';
+        return `Vigente · entregado ${days} día(s) antes del ingreso`;
       }
       if (ref === 'today' && days !== null && days !== undefined) {
         return `Entregado hace ${days} día(s)`;
@@ -533,16 +532,19 @@ export class ConsultContractingDocumentationComponent implements OnInit {
     }
 
     if (cell.state === 'INFO') {
-      // Controlado pero sin fecha de contrato: solo mostramos los días desde la subida
+      // Controlado pero sin fecha de ingreso: solo mostramos los días desde la subida
       if (days !== null && days !== undefined) {
-        return `Entregado hace ${days} día(s) · sin fecha de contrato para validar`;
+        return `Entregado hace ${days} día(s) · sin fecha de ingreso para validar`;
       }
-      return 'Entregado · sin fecha de contrato para validar';
+      return 'Entregado · sin fecha de ingreso para validar';
     }
 
     if (cell.state === 'OLD') {
-      if (cell.controlled && ref === 'contract' && days !== null && days !== undefined) {
-        return `No vigente · entregado ${days} día(s) antes de la fecha de contrato (> 15 días)`;
+      if (cell.controlled && ref === 'ingreso' && days !== null && days !== undefined) {
+        if (days < 0) {
+          return `No vigente · entregado ${Math.abs(days)} día(s) después del ingreso`;
+        }
+        return `No vigente · entregado ${days} día(s) antes del ingreso (> 15 días)`;
       }
       if (ref === 'today' && days !== null && days !== undefined) {
         return `Entregado hace ${days} día(s) (más de 15 días)`;
@@ -1282,23 +1284,29 @@ export class ConsultContractingDocumentationComponent implements OnInit {
    * Construye la fila base (para ZIP/Excel) y la fila UI (para StandardFilterTable)
    * desde un item del backend. Aplica la regla:
    *  - Si el tipo documental NO está en la lista controlada -> OK (si existe)
-   *  - Si está controlado y hay fecha_contratacion:
-   *      OK si uploaded_at >= fecha_contratacion - 15d ; OLD si no.
-   *  - Si está controlado y NO hay fecha_contratacion:
+   *  - Si está controlado y hay fecha_ingreso:
+   *      OK (chulo verde) sólo si la fecha del documento cae en la ventana
+   *      [fecha_ingreso - 15d, fecha_ingreso] (inclusive). Es decir: hasta 15
+   *      días ANTES del ingreso y NUNCA posterior al ingreso. OLD si no.
+   *  - Si está controlado y NO hay fecha_ingreso:
    *      OK si existe (no se valida), con tooltip relativo a HOY.
    */
   private mapItemToRows(it: ChecklistItemDto): { row: Row; uiRow: any } {
     const oldBatchIso = this.OLD_BATCH_DATE;
     const DAY_MS = 86400000;
 
-    const fechaContratacion = this.parseFecha(it?.fecha_contratacion as any);
-    const rowCutoffTime = fechaContratacion
+    // La vigencia del chulo verde se ancla a la FECHA DE INGRESO del contrato
+    // (no a contratado_at): el documento debe ser de los 15 días previos al
+    // ingreso y no posterior a éste.
+    const fechaIngreso = this.parseFecha(it?.fecha_ingreso as any);
+    const ingresoMidTime = fechaIngreso
       ? (() => {
-          const d = new Date(fechaContratacion.getTime());
+          const d = new Date(fechaIngreso.getTime());
           d.setHours(0, 0, 0, 0);
-          return d.getTime() - 15 * DAY_MS;
+          return d.getTime();
         })()
       : null;
+    const rowCutoffTime = ingresoMidTime !== null ? ingresoMidTime - 15 * DAY_MS : null;
 
     // Referencia "hoy 00:00" para el fallback (sin fecha de contrato)
     const todayMid = new Date();
@@ -1361,7 +1369,7 @@ export class ConsultContractingDocumentationComponent implements OnInit {
 
       let state: DocUiCell['state'];
       let daysDiff: number | null = null;
-      let referenceType: 'contract' | 'today' | 'none' = 'none';
+      let referenceType: 'ingreso' | 'today' | 'none' = 'none';
 
       if (!exists) {
         state = 'MISSING';
@@ -1372,19 +1380,28 @@ export class ConsultContractingDocumentationComponent implements OnInit {
           daysDiff = Math.floor((todayTime - uploadedAt.getTime()) / DAY_MS);
           referenceType = 'today';
         }
-      } else if (fechaContratacion && rowCutoffTime !== null) {
-        // Tipos controlados CON fecha de contrato: validar ventana 15d previa al contrato.
+      } else if (ingresoMidTime !== null && rowCutoffTime !== null) {
+        // Tipos controlados CON fecha de ingreso: validar ventana
+        // [ingreso - 15d, ingreso]. La comparación es por día (se normaliza la
+        // fecha de subida a 00:00) para que un documento del MISMO día del
+        // ingreso cuente como vigente, pero uno posterior no.
         if (uploadedAt) {
-          const vigente = uploadedAt.getTime() >= rowCutoffTime && !isOldBatch;
+          const upMid = new Date(uploadedAt.getTime());
+          upMid.setHours(0, 0, 0, 0);
+          const upMidTime = upMid.getTime();
+          const vigente =
+            upMidTime >= rowCutoffTime && upMidTime <= ingresoMidTime && !isOldBatch;
           state = vigente ? 'OK' : 'OLD';
-          daysDiff = Math.round((fechaContratacion.getTime() - uploadedAt.getTime()) / DAY_MS);
-          referenceType = 'contract';
+          // daysDiff > 0 -> entregado N días antes del ingreso;
+          // daysDiff < 0 -> entregado N días después del ingreso.
+          daysDiff = Math.round((ingresoMidTime - upMidTime) / DAY_MS);
+          referenceType = 'ingreso';
         } else {
           // Existe el registro pero sin fecha -> tratamos como OLD para no engañar
           state = 'OLD';
         }
       } else {
-        // Tipos controlados SIN fecha de contrato: no se puede validar vigencia.
+        // Tipos controlados SIN fecha de ingreso: no se puede validar vigencia.
         // Mostramos "chulo amarillo" para indicar que está entregado pero sin verificar.
         state = 'INFO';
         if (uploadedAt) {
@@ -1421,6 +1438,13 @@ export class ConsultContractingDocumentationComponent implements OnInit {
     const ddmmyyyy = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/;
     const m = ddmmyyyy.exec(s0);
     if (m) return new Date(+m[3], +m[2] - 1, +m[1]);
+
+    // yyyy-mm-dd (fecha SIN hora, p. ej. fecha_ingreso): interpretarla como
+    // fecha LOCAL, no UTC. `new Date("2026-05-23")` asume UTC y en zonas
+    // negativas (Colombia, UTC-5) retrocede un día al pasar a local, lo que
+    // provocaba el desfase de ±1 día en la validación de vigencia.
+    const ymd = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s0);
+    if (ymd) return new Date(+ymd[1], +ymd[2] - 1, +ymd[3]);
 
     // ✅ Normaliza ISO con microsegundos: .824286 -> .824
     const s = s0.replace(/(\.\d{3})\d+(?=[Z+-])/, '$1');
@@ -1584,32 +1608,35 @@ export class ConsultContractingDocumentationComponent implements OnInit {
       return { pn, sn, pa, sa };
     };
 
-    // ✅ Fallback: "hoy - 15 días" cuando no exista fecha_contratacion en la fila.
-    const todayCutoff = new Date();
-    todayCutoff.setHours(0, 0, 0, 0);
-    todayCutoff.setDate(todayCutoff.getDate() - 15);
     const DAY_MS = 86400000;
 
-    /** Devuelve la fecha de corte para una fila (fecha_contratacion - 15d) o null si no aplica. */
-    const rowCutoffFor = (r: Row): number | null => {
-      const fc = this.parseFecha(r?.fecha_contratacion as any);
-      if (!fc) return null;
-      const d = new Date(fc.getTime());
+    /** Fecha de ingreso de la fila normalizada a 00:00 (ms), o null si no aplica. */
+    const rowIngresoMidFor = (r: Row): number | null => {
+      const fi = this.parseFecha(r?.fecha_ingreso as any);
+      if (!fi) return null;
+      const d = new Date(fi.getTime());
       d.setHours(0, 0, 0, 0);
-      return d.getTime() - 15 * DAY_MS;
+      return d.getTime();
     };
 
-    /** Evalúa si el doc está vigente según la regla nueva (para hojas de faltantes). */
+    /**
+     * Evalúa si el doc está vigente (para hojas de faltantes y hoja GENERAL).
+     * Regla: la fecha del documento debe caer en [fecha_ingreso - 15d,
+     * fecha_ingreso] inclusive (15 días previos al ingreso, no posteriores).
+     */
     const isVigenteForRow = (r: Row, doc: DocCell | undefined): boolean => {
       if (!doc?.exists) return false;
       const uploadedAt = this.parseFecha(doc?.uploaded_at as any);
       if (!uploadedAt) return false;
       const isOldBatch = uploadedAt.toISOString().slice(0, 10) === this.OLD_BATCH_DATE;
       if (isOldBatch) return false;
-      const rc = rowCutoffFor(r);
-      if (rc !== null) return uploadedAt.getTime() >= rc;
-      // Sin fecha_contratacion: no se puede validar; no lo marcamos como faltante.
-      return true;
+      const ingresoMid = rowIngresoMidFor(r);
+      // Sin fecha de ingreso: no se puede validar; no lo marcamos como faltante.
+      if (ingresoMid === null) return true;
+      const upMid = new Date(uploadedAt.getTime());
+      upMid.setHours(0, 0, 0, 0);
+      const upMidTime = upMid.getTime();
+      return upMidTime >= ingresoMid - 15 * DAY_MS && upMidTime <= ingresoMid;
     };
 
     const wb = new WorkbookCtor();

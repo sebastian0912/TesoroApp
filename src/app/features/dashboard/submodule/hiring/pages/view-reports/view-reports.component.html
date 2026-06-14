@@ -26,9 +26,30 @@
         mat-flat-button
         class="btn-managerial"
         matTooltip="Descargar ZIP con cédulas por oficina"
-        (click)="descargarCedulasZip()">
+        [disabled]="isExporting()"
+        (click)="descargarDocumentosZip('cedulas')">
         <mat-icon>folder_zip</mat-icon>
         Cédulas (ZIP)
+      </button>
+
+      <button
+        mat-flat-button
+        class="btn-managerial"
+        matTooltip="Descargar ZIP con los traslados (EPS) del rango"
+        [disabled]="isExporting()"
+        (click)="descargarDocumentosZip('traslados')">
+        <mat-icon>swap_horiz</mat-icon>
+        Traslados (ZIP)
+      </button>
+
+      <button
+        mat-flat-button
+        class="btn-managerial"
+        matTooltip="Descargar ZIP con los documentos SST del rango"
+        [disabled]="isExporting()"
+        (click)="descargarDocumentosZip('sst')">
+        <mat-icon>health_and_safety</mat-icon>
+        SST (ZIP)
       </button>
 
       <button
@@ -54,29 +75,29 @@
   </mat-card-header>
 
   @if (isExporting()) {
-    @if (cedulasZipProgress() !== null) {
+    @if (zipProgress() !== null) {
       <mat-progress-bar
         mode="determinate"
-        [value]="cedulasZipProgress() ?? 0"
+        [value]="zipProgress() ?? 0"
         class="vr-progress">
       </mat-progress-bar>
       <div class="vr-progress-label">
         <mat-icon>cloud_download</mat-icon>
-        Descargando cédulas
-        <strong>{{ cedulasZipProgress() }}%</strong>
-        @if (cedulasZipTotalMb() !== null) {
+        Descargando {{ zipLabel() }}
+        <strong>{{ zipProgress() }}%</strong>
+        @if (zipTotalMb() !== null) {
           <span class="vr-progress-mb">
-            · {{ cedulasZipLoadedMb() }} / {{ cedulasZipTotalMb() }} MB
+            · {{ zipLoadedMb() }} / {{ zipTotalMb() }} MB
           </span>
         } @else {
-          <span class="vr-progress-mb">· {{ cedulasZipLoadedMb() }} MB</span>
+          <span class="vr-progress-mb">· {{ zipLoadedMb() }} MB</span>
         }
       </div>
-    } @else if (cedulasZipLoadedMb() > 0) {
+    } @else if (zipLoadedMb() > 0) {
       <mat-progress-bar mode="indeterminate" class="vr-progress"></mat-progress-bar>
       <div class="vr-progress-label">
         <mat-icon>cloud_download</mat-icon>
-        Descargando cédulas · {{ cedulasZipLoadedMb() }} MB
+        Descargando {{ zipLabel() }} · {{ zipLoadedMb() }} MB
       </div>
     } @else {
       <mat-progress-bar mode="indeterminate" class="vr-progress"></mat-progress-bar>

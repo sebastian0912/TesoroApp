@@ -216,6 +216,53 @@ export interface ProximosEnColaResponse {
   generated_at: string;
 }
 
+// ----------------------------
+// ✅ Dashboard Snapshot (endpoint consolidado, cacheado TTL=5s en backend)
+// Lo usa el polling "live" del dashboard de robots para refrescar varios
+// grids en una sola request en lugar de pegarle a 5+ endpoints.
+// ----------------------------
+export type DashboardSnapshotFuente =
+  | 'adress'
+  | 'policivo'
+  | 'ofac'
+  | 'contraloria'
+  | 'sisben'
+  | 'procuraduria'
+  | 'fondo_pension'
+  | 'medidas_correctivas';
+
+export interface DashboardSnapshotPorOficinaRow {
+  oficina: string | null;
+  total_registros: number;
+  faltantes: Record<DashboardSnapshotFuente, number>;
+}
+
+export interface DashboardSnapshotLockRow {
+  fuente: DashboardSnapshotFuente;
+  total_locks: number;
+  workers_distintos: number;
+}
+
+export interface DashboardSnapshotProximosRow {
+  fuente: DashboardSnapshotFuente;
+  total_pendientes: number;
+}
+
+export interface DashboardSnapshotResponse {
+  version: number;
+  generated_at: string;
+  ttl_seconds: number;
+  from_cache?: boolean;
+  resumen_global: {
+    total_registros: number;
+    faltantes: Record<DashboardSnapshotFuente, number>;
+  };
+  por_oficina: DashboardSnapshotPorOficinaRow[];
+  locks_por_fuente: DashboardSnapshotLockRow[];
+  proximos_resumen: DashboardSnapshotProximosRow[];
+  duplicados_resumen: { total_cedulas_duplicadas: number };
+}
+
 @Injectable({ providedIn: 'root' })
 export class RobotsService {
   private readonly isBrowser: boolean;
@@ -439,6 +486,22 @@ export class RobotsService {
 
     return this.http
       .get<ProximosEnColaResponse>(url, { params })
+      .pipe(catchError((e) => this.handleError(e)));
+  }
+
+  // ---------------------------------------------------------------------------
+  // ✅ GET /EstadosRobots/dashboard-snapshot/
+  // Snapshot consolidado del dashboard. Cacheado con TTL=5s en backend.
+  // Reemplaza el polling de varios endpoints (resumen, por-oficina, locks,
+  // proximos resumen y duplicados resumen).
+  // ---------------------------------------------------------------------------
+  getDashboardSnapshot(): Observable<DashboardSnapshotResponse> {
+    this.ensureBrowser();
+
+    const url = `${this.baseUrl}/EstadosRobots/dashboard-snapshot/`;
+
+    return this.http
+      .get<DashboardSnapshotResponse>(url)
       .pipe(catchError((e) => this.handleError(e)));
   }
 

@@ -955,3 +955,11 @@ body.dark-theme mat-card {
 button {
   min-height: 48px !important;
 }
+/* Tooltip multilínea: respeta los saltos de línea (\n) del texto.
+   Se renderiza en el overlay del CDK, por eso debe ser global. */
+.tooltip-multilinea .mdc-tooltip__surface,
+.tooltip-multilinea.mat-mdc-tooltip .mdc-tooltip__surface {
+  white-space: pre-line;
+  max-width: 360px;
+  text-align: left;
+}

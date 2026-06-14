@@ -24,6 +24,7 @@ import {
 } from 'src/app/shared/model/validation-preview';
 
 import { UtilityServiceService } from '@/app/shared/services/utilityService/utility-service.service';
+import { isOfflineQueued } from '@/app/core/utils/offline-response';
 import { HiringService } from '../../service/hiring.service';
 import { CruceValidationHelper, CruceRow } from './cruce-validation.helper';
 import { ReportesService } from '../../service/reportes/reportes.service';
@@ -570,12 +571,27 @@ export class HiringReportComponent implements OnInit, OnDestroy {
         return;
       }
 
-      await firstValueFrom(this.reportesService.createReporte(payload, files));
+      const resp: any = await firstValueFrom(this.reportesService.createReporte(payload, files));
 
       this.closeSwal();
-      Swal.fire('Enviado', 'Reporte enviado correctamente', 'success').then(() => {
-        this.router.navigate(['/dashboard/hiring/hiring-report']);
-      });
+      // Offline: el interceptor encola el reporte y devuelve un 200 "mock". No
+      // afirmamos "enviado al servidor"; quedó local y se subirá al reconectar.
+      if (isOfflineQueued(resp)) {
+        Swal.fire({
+          icon: 'info',
+          title: 'Guardado sin conexión',
+          html:
+            'El reporte y sus archivos quedaron guardados en este equipo.' +
+            '<br><br>Se enviarán automáticamente cuando vuelva la conexión. ' +
+            'Puedes ver el avance en el indicador de red (arriba a la derecha).',
+        }).then(() => {
+          this.router.navigate(['/dashboard/hiring/hiring-report']);
+        });
+      } else {
+        Swal.fire('Enviado', 'Reporte enviado correctamente', 'success').then(() => {
+          this.router.navigate(['/dashboard/hiring/hiring-report']);
+        });
+      }
 
     } catch (e: any) {
       this.closeSwal();

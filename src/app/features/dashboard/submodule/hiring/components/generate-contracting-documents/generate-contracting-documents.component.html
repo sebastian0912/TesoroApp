@@ -187,7 +187,7 @@
                         <mat-icon>menu_book</mat-icon>
                         <span>TA Completa</span>
                       </button>
-                      @if (doc.titulo === 'Contrato') {
+                      @if (doc.titulo === 'Contrato' && esGerencia) {
                         <button mat-menu-item (click)="generarPDFVariant(doc.titulo, 'administrativo')">
                           <mat-icon>badge</mat-icon>
                           <span>Administrativo (Término Fijo)</span>

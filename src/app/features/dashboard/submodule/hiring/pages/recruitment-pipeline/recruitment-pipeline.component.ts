@@ -1047,10 +1047,14 @@ export class RecruitmentPipelineComponent {
 
         const data = Array.isArray(rows) ? rows : (rows ? [rows] : []);
 
-        // Regla: si hay más de 5 procesos, solo el primero (más reciente) es CONTRATADO, el resto RETIRADO
-        const contratadosCount = data.filter((r: any) => r.contratado === true).length;
+        // Regla de negocio: SOLO puede haber UN proceso CONTRATADO (el contrato
+        // activo más reciente). Los datos llegan ordenados del más reciente al
+        // más antiguo, así que el PRIMER contratado activo que se encuentra es
+        // el vigente; cualquier otro contratado posterior en la lista (un
+        // contrato anterior) se muestra como RETIRADO.
+        let contratadoAsignado = false;
 
-        const mappedData = data.map((row: any, idx: number) => {
+        const mappedData = data.map((row: any) => {
           const apl = String(row.aplica_o_no_aplica || '').toUpperCase();
           row._motivo = '';
 
@@ -1059,11 +1063,13 @@ export class RecruitmentPipelineComponent {
             row._estado = 'RETIRADO';
             row._motivo = row.motivo_retiro || '';
           } else if (row.contratado === true) {
-            if (contratadosCount > 5 && idx > 0) {
+            if (!contratadoAsignado) {
+              row._estado = 'CONTRATADO';
+              contratadoAsignado = true;
+            } else {
+              // Ya hay un contratado vigente: este es un contrato anterior.
               row._estado = 'RETIRADO';
               row._motivo = row.motivo_retiro || '';
-            } else {
-              row._estado = 'CONTRATADO';
             }
           } else if (row.rechazado === true || apl === 'NO_APLICA' || apl === 'NO APLICA') {
             row._estado = '911';
@@ -1110,12 +1116,12 @@ export class RecruitmentPipelineComponent {
           maxWidth: '95vw',
           height: '80vh',
           data: {
-            title: `Procesos de ${this.nombreCandidato || ced}`,
+            title: `Historial laboral de ${this.nombreCandidato || ced}`,
             rows: mappedData,
             columns,
             pageSize: 12,
             pageSizeOptions: [12, 24, 36],
-            tableTitle: 'Procesos del candidato',
+            tableTitle: 'Historial laboral',
           },
           panelClass: 'table-dialog',
         });

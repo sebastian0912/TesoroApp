@@ -262,4 +262,20 @@ export class SidebarComponent implements OnDestroy {
       }
     );
   }
+
+  /**
+   * Abre el diálogo de "Envíos pendientes" — qué archivos / datos quedaron en
+   * cola local sin subir (el número del chip). Disponible online y offline.
+   */
+  abrirEstadoConexion(): void {
+    import('../../../../shared/components/offline-queue-dialog/offline-queue-dialog.component').then(
+      (m) => {
+        this.dialog.open(m.OfflineQueueDialogComponent, {
+          width: '600px',
+          maxHeight: '90vh',
+          autoFocus: false,
+        });
+      }
+    );
+  }
 }

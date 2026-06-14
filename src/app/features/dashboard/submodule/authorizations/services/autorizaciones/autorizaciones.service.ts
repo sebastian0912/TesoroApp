@@ -86,7 +86,7 @@ export class AutorizacionesService {
       let limite = 0;
       if (diasTrabajados >= 8 && diasTrabajados <= 15) limite = 80000;
       else if (diasTrabajados <= 30) limite = 150000;
-      else if (diasTrabajados <= 45) limite = 230000;
+      else if (diasTrabajados <= 45) limite = 250000;
       else limite = 350000;
 
       const rol = user?.rol?.nombre ?? '';
@@ -288,7 +288,7 @@ export class AutorizacionesService {
       let limite = 0;
       if (diasTrabajados >= 8 && diasTrabajados <= 15) limite = 80000;
       else if (diasTrabajados <= 30) limite = 150000;
-      else if (diasTrabajados <= 45) limite = 230000;
+      else if (diasTrabajados <= 45) limite = 250000;
       else limite = 350000;
 
       // Bonos por rol

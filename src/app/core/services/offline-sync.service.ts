@@ -149,8 +149,20 @@ export class OfflineSyncService {
           const headers: Record<string, string> = { 'X-Offline-Sync': 'true' };
           if (item.idempotency_key) headers['X-Idempotency-Key'] = item.idempotency_key;
 
+          // Reescritura de URLs legacy: si la fila se guardó cuando el binario
+          // apuntaba a otro host (p. ej. 127.0.0.1:8000 en dev → ahora prod),
+          // reemplazamos el host por el actual. Sin esto la fila falla cada
+          // boot con ERR_CONNECTION_REFUSED porque el host viejo no existe.
+          // Mismo criterio que ya aplicamos al cache en cache-key.ts.
+          const effectiveUrl = entryHostMatchesCurrent(item.url)
+            ? item.url
+            : this.rewriteToCurrentHost(item.url);
+          if (effectiveUrl !== item.url) {
+            console.log(`[Sync] URL legacy reescrita: ${item.url} → ${effectiveUrl}`);
+          }
+
           const response = await firstValueFrom(
-            this.http.request(item.method, item.url, {
+            this.http.request(item.method, effectiveUrl, {
               body,
               headers: new HttpHeaders(headers),
               observe: 'response',
@@ -228,6 +240,22 @@ export class OfflineSyncService {
       this.updatePendingCount();
       this.updateFailedCount();
       window.dispatchEvent(new CustomEvent('offline-queue-updated'));
+    }
+  }
+
+  /**
+   * Toma una URL absoluta cuyo host ya no coincide con environment.apiUrl y
+   * devuelve la misma ruta apuntando al host actual. Si no se puede parsear,
+   * devuelve la URL original (mejor falle ruidoso que silenciosamente).
+   *
+   * Equivalente del `fromCacheKey` para la cola de mutaciones.
+   */
+  private rewriteToCurrentHost(legacyUrl: string): string {
+    try {
+      const u = new URL(legacyUrl);
+      return fromCacheKey(u.pathname + u.search + u.hash);
+    } catch {
+      return legacyUrl;
     }
   }
 
@@ -414,6 +442,57 @@ export class OfflineSyncService {
     } catch {
       return [];
     }
+  }
+
+  /**
+   * Lista los envíos en cola que aún NO se han subido (status 'pending') del
+   * usuario actual. Lo consume el diálogo "envíos pendientes" para mostrar al
+   * usuario QUÉ falta por sincronizar (el badge "9" del chip).
+   */
+  public async getPendingRequests(): Promise<SyncQueueItem[]> {
+    if (!this.electron?.db?.getPendingRequests) return [];
+    try {
+      const userId = this.getCurrentUserId();
+      return await this.electron.db.getPendingRequests({ userId });
+    } catch {
+      return [];
+    }
+  }
+
+  /**
+   * Devuelve los archivos adjuntos persistidos en disco para una request
+   * multipart encolada. La UI lo usa para mostrar los nombres de los archivos
+   * que están esperando subir.
+   */
+  public async getRequestFiles(requestId: number): Promise<StoredFile[]> {
+    if (!this.electron?.db?.getRequestFiles) return [];
+    try {
+      return await this.electron.db.getRequestFiles(requestId);
+    } catch {
+      return [];
+    }
+  }
+
+  /**
+   * Dispara la sincronización manualmente (botón "Sincronizar ahora").
+   * Solo tiene efecto si hay conexión; offline es no-op silencioso.
+   */
+  public async syncNow(): Promise<void> {
+    if (!this.networkService.isOnline) return;
+    await this.syncQueue();
+    this.refreshCache();
+  }
+
+  /**
+   * Descarta un envío en cola (pending o failed): borra la fila y sus archivos.
+   * Acción destructiva e irreversible — la UI debe confirmar antes de llamar.
+   */
+  public async discardRequest(id: number): Promise<void> {
+    if (!this.electron?.db?.discardRequest) return;
+    await this.electron.db.discardRequest(id);
+    this.updatePendingCount();
+    this.updateFailedCount();
+    window.dispatchEvent(new CustomEvent('offline-queue-updated'));
   }
 
   /** Vuelve a marcar una request fallida como pending y dispara sync si hay red. */

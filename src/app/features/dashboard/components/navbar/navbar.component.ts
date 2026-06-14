@@ -76,10 +76,26 @@ export class NavbarComponent implements OnInit, OnDestroy {
   private readonly MOBILE_BREAKPOINT = 900;
   private readonly READ_KEYS = new Set(['VER', 'LEER', 'READ', 'VIEW']);
 
+  // Roles autorizados a ver los nodos de modulo "ADMINISTRATIVO" / "ADMINISTRATIVOS".
+  // Cualquier otro rol los oculta del sidebar via stripAdministrativeNodes().
+  private readonly PRIVILEGED_ROLES = new Set(['ADMIN', 'GERENCIA']);
+
+  // Nombres exactos (case/acentos-insensitive) de nodos a esconder cuando el
+  // usuario NO tiene rol privilegiado. Coincide con como llegan del backend.
+  private readonly ADMINISTRATIVE_NODE_NAMES = new Set([
+    'ADMINISTRATIVO',
+    'ADMINISTRATIVOS',
+  ]);
+
   private routerSubscription?: Subscription;
   private offlineSubs: Subscription[] = [];
   private onQueueUpdated?: () => void;
   private onRequestFailed?: (ev: Event) => void;
+  private onWriteQueued?: (ev: Event) => void;
+  // Acumulador para agrupar en UN solo toast los envíos encolados en ráfaga
+  // (ej: subir 30 PDFs offline) en vez de disparar 30 toasts.
+  private queuedToastCount = 0;
+  private queuedToastTimer: ReturnType<typeof setTimeout> | null = null;
   private readonly isBrowser: boolean;
 
   constructor(
@@ -129,7 +145,44 @@ export class NavbarComponent implements OnInit, OnDestroy {
         });
       };
       window.addEventListener('offline-request-failed', this.onRequestFailed);
+
+      // Feedback positivo: cuando un envío se guarda en cola offline (porque no
+      // hay red), avisamos al usuario de forma NO bloqueante. Antes el
+      // interceptor devolvía un 200 "mock" y los componentes mostraban "subido
+      // correctamente" — el usuario creía que el archivo ya estaba en el
+      // servidor. Este toast (agrupado por ráfaga) deja claro que quedó local
+      // y se subirá al reconectar. Cubre los 5 módulos de subida sin tocarlos.
+      this.onWriteQueued = () => {
+        this.queuedToastCount += 1;
+        if (this.queuedToastTimer) clearTimeout(this.queuedToastTimer);
+        this.queuedToastTimer = setTimeout(() => this.flushQueuedToast(), 700);
+      };
+      window.addEventListener('offline-write-queued', this.onWriteQueued);
     }
+  }
+
+  /** Muestra UN toast resumiendo los envíos encolados durante la última ráfaga. */
+  private flushQueuedToast(): void {
+    const n = this.queuedToastCount;
+    this.queuedToastCount = 0;
+    this.queuedToastTimer = null;
+    if (n <= 0) return;
+
+    const total = this.pendingCount || n;
+    Swal.fire({
+      toast: true,
+      position: 'bottom-end',
+      icon: 'info',
+      iconColor: '#d97706',
+      title: 'Guardado sin conexión',
+      html:
+        `${n === 1 ? 'Un envío quedó' : `${n} envíos quedaron`} en cola local.` +
+        `<br><small style="color:#64748b;">Se subirá automáticamente al reconectar` +
+        ` · ${total} pendiente(s).</small>`,
+      timer: 5000,
+      timerProgressBar: true,
+      showConfirmButton: false,
+    });
   }
 
   async ngOnInit(): Promise<void> {
@@ -171,6 +224,14 @@ export class NavbarComponent implements OnInit, OnDestroy {
       if (this.onRequestFailed) {
         window.removeEventListener('offline-request-failed', this.onRequestFailed);
         this.onRequestFailed = undefined;
+      }
+      if (this.onWriteQueued) {
+        window.removeEventListener('offline-write-queued', this.onWriteQueued);
+        this.onWriteQueued = undefined;
+      }
+      if (this.queuedToastTimer) {
+        clearTimeout(this.queuedToastTimer);
+        this.queuedToastTimer = null;
       }
     }
   }
@@ -268,10 +329,59 @@ export class NavbarComponent implements OnInit, OnDestroy {
    */
   private setTree(raw: PermNode[]): void {
     const decorated = raw.map(n => this.decorate(n));
-    this.visibleRoots = decorated.filter(n => n.__canRead);
+    const withPerms = decorated.filter(n => n.__canRead);
+    this.visibleRoots = this.applyRoleVisibility(withPerms);
     this.purgeStaleExpanded(decorated);
     this.recomputeActiveRoots();
     this.cdr.markForCheck();
+  }
+
+  /**
+   * Si el rol del usuario logueado NO es admin/gerencia, oculta los nodos
+   * llamados "ADMINISTRATIVO" / "ADMINISTRATIVOS" en cualquier nivel del
+   * arbol. El backend ya filtra por permisos finos, esto es un layer extra
+   * a nivel de modulo para ocultar el rotulo completo a roles operativos.
+   */
+  private applyRoleVisibility(nodes: PermNode[]): PermNode[] {
+    if (this.isPrivilegedRole()) return nodes;
+    return this.stripAdministrativeNodes(nodes);
+  }
+
+  private isPrivilegedRole(): boolean {
+    try {
+      const rawUser = this.lsGet('user');
+      if (!rawUser) return false;
+      const user = JSON.parse(rawUser);
+      const role = this.normalizeRoleName(user?.rol?.nombre);
+      return this.PRIVILEGED_ROLES.has(role);
+    } catch {
+      return false;
+    }
+  }
+
+  private normalizeRoleName(value: unknown): string {
+    return String(value ?? '')
+      .normalize('NFD')
+      .replace(/[̀-ͯ]/g, '')
+      .trim()
+      .toUpperCase();
+  }
+
+  private isAdministrativeNodeName(name: string): boolean {
+    return this.ADMINISTRATIVE_NODE_NAMES.has(this.normalizeRoleName(name));
+  }
+
+  private stripAdministrativeNodes(nodes: PermNode[]): PermNode[] {
+    const out: PermNode[] = [];
+    for (const n of nodes) {
+      if (this.isAdministrativeNodeName(n.nombre)) continue;
+      if (n.hijos?.length) {
+        out.push({ ...n, hijos: this.stripAdministrativeNodes(n.hijos) });
+      } else {
+        out.push(n);
+      }
+    }
+    return out;
   }
 
   /**
