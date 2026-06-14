@@ -207,6 +207,28 @@
     </button>
   </div>
 
+  <!-- Inc.7.2: aviso de cálculo parcial — PREVIEW NO APTO PARA PAGO + desglose dinámico -->
+  <div *ngIf="calculationIdActivo && conciliacionActiva && conciliacionActiva.puede_cerrar === false"
+       class="preview-parcial-aviso"
+       style="margin:12px 0; padding:12px 16px; border-left:4px solid #f0ad4e; background:#fff8e1; border-radius:4px;">
+    <p style="margin:0 0 6px; font-weight:600;">El cálculo parcial fue generado y puede descargarse.</p>
+    <p style="margin:0 0 8px;">Este archivo es un <strong>PREVIEW NO APTO PARA PAGO</strong>. La liquidación
+      definitiva continúa bloqueada por novedades pendientes.</p>
+    <div *ngIf="conciliacionActiva.resumen_bloqueantes">
+      <span style="font-weight:600;">Bloqueantes:</span>
+      <ul style="margin:4px 0 0 18px;">
+        <li *ngFor="let item of conciliacionActiva.resumen_bloqueantes | keyvalue">{{ item.key }}: {{ item.value }}</li>
+      </ul>
+    </div>
+    <p *ngIf="conciliacionActiva.empleados_excluidos_sin_contrato != null"
+       style="margin:6px 0 0; font-size:0.9em; color:#666;">
+      Empleados — completo: {{ conciliacionActiva.empleados_calculo_completo }}
+      · parcial: {{ conciliacionActiva.empleados_calculo_parcial }}
+      · excluidos sin contrato: {{ conciliacionActiva.empleados_excluidos_sin_contrato }}
+      ({{ conciliacionActiva.filas_excluidas_sin_contrato }} filas monetarias excluidas).
+    </p>
+  </div>
+
   <div *ngIf="!loading && contratos.length === 0 && selectedCliente" class="empty-state">
     <mat-icon>person_search</mat-icon>
     <p>No se encontraron contratos activos para los filtros aplicados.</p>

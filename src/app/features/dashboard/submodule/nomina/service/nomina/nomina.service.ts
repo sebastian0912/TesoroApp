@@ -283,6 +283,18 @@ export interface ConciliacionNovedades {
   modos_motor?: string;
   puede_cerrar?: boolean;
   total_bloqueantes?: number;
+  // Inc.7.1/7.2: desglose por causa + cálculo parcial.
+  resumen_bloqueantes?: { [estado: string]: number };
+  codigo_bloqueo?: string;
+  modo_recargos?: string;
+  resultado_oficial?: string;
+  calculo_parcial_disponible?: boolean;
+  puede_descargar_preview?: boolean;
+  empleados_calculo_completo?: number;
+  empleados_calculo_parcial?: number;
+  empleados_excluidos_sin_contrato?: number;
+  filas_excluidas_sin_contrato?: number;
+  mensaje_parcial?: string;
 }
 
 export interface DiagnosticoNovedad {
