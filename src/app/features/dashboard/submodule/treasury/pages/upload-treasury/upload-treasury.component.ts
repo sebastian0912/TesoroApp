@@ -31,6 +31,20 @@ export class UploadTreasuryComponent {
     { id: 'eliminar' as const, title: 'Actualizar Estados (masivo)', imageUrl: 'icons/cards/excel.png', value: 0 }
   ];
 
+  /**
+   * Normaliza la cédula (columna 1) tal como la espera Tesorería: mayúsculas y
+   * SIN separadores (puntos, comas, espacios, guiones). Deja solo dígitos, o una
+   * "X" inicial seguida de dígitos (extranjeros). Así "1.005.851.505" o
+   * "1,005,851,505" se convierten en "1005851505" y quedan consultables.
+   */
+  private normalizarCedula(raw: any): string {
+    const s = String(raw ?? '').trim().toUpperCase();
+    if (!s) return '';
+    const soloDigitos = s.replace(/[^0-9]/g, '');
+    if (!soloDigitos) return '';
+    return s.charAt(0) === 'X' ? 'X' + soloDigitos : soloDigitos;
+  }
+
   onCardClick(cardId: 'insert' | 'saldos' | 'eliminar') {
     if (this.busy) return;
     if (cardId === 'insert') this.fileInsert?.nativeElement.click();
@@ -121,7 +135,7 @@ export class UploadTreasuryComponent {
             const row = rows[i];
             if (!row || row.length === 0 || row.every(c => String(c).trim() === '')) continue; // omitir vacías
 
-            const cedula = String(row[colIndices.CEDULA] || '').trim().toUpperCase();
+            const cedula = this.normalizarCedula(row[colIndices.CEDULA]);
             const ingreso = String(row[colIndices.INGRESO] || '').trim();
 
             let rowHasError = false;
@@ -333,7 +347,11 @@ export class UploadTreasuryComponent {
 
     for (let i = 0; i < dataRows.length; i++) {
       const row = dataRows[i];
-      const cedula = String(row[colCedula]).trim();
+      const cedula = this.normalizarCedula(row[colCedula]);
+      if (!cedula) {
+        errors.push({ cedula: String(row[colCedula] ?? ''), error: 'Cédula inválida (sin dígitos)' });
+        continue;
+      }
       const saldos = toNum(row[colSaldos]);
       const cambios: any = { saldos };
 
@@ -374,7 +392,7 @@ export class UploadTreasuryComponent {
     }
 
     const cedulas = rows.slice(1)
-      .map((r: any[]) => String(r[colCedula] ?? '').trim())
+      .map((r: any[]) => this.normalizarCedula(r[colCedula]))
       .filter((c: string) => c !== '');
 
     if (cedulas.length === 0) {

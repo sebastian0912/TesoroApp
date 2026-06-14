@@ -16,10 +16,10 @@
         <!-- Buscador -->
         <mat-form-field appearance="outline" class="flex-grow">
           <mat-label>Buscar por código / descripción</mat-label>
-          <input matInput [(ngModel)]="filterSearch" placeholder="Ej: AUSENCIA o AUS_INJ"
-                 (keyup.enter)="cargarConceptos()">
+          <input matInput [ngModel]="filterSearch" (ngModelChange)="onSearchChange($event)"
+                 placeholder="Ej: AUSENCIA o AUS_INJ">
           <mat-icon matPrefix>search</mat-icon>
-          <button *ngIf="filterSearch" matSuffix mat-icon-button (click)="filterSearch=''; cargarConceptos()">
+          <button *ngIf="filterSearch" matSuffix mat-icon-button (click)="onSearchChange('')">
             <mat-icon>close</mat-icon>
           </button>
         </mat-form-field>
@@ -27,7 +27,7 @@
         <!-- Filtro Unidad -->
         <mat-form-field appearance="outline" style="width:160px">
           <mat-label>Unidad</mat-label>
-          <mat-select [(ngModel)]="filterUnidad" (ngModelChange)="cargarConceptos()">
+          <mat-select [(ngModel)]="filterUnidad" (ngModelChange)="aplicarFiltros()">
             <mat-option value="">Todas</mat-option>
             <mat-option value="DIA">
               <mat-icon>today</mat-icon> Día
@@ -44,7 +44,7 @@
         <!-- Filtro Naturaleza -->
         <mat-form-field appearance="outline" style="width:210px">
           <mat-label>Naturaleza</mat-label>
-          <mat-select [(ngModel)]="filterNaturaleza" (ngModelChange)="cargarConceptos()">
+          <mat-select [(ngModel)]="filterNaturaleza" (ngModelChange)="aplicarFiltros()">
             <mat-option value="">Todas</mat-option>
             <mat-option value="DEVENGO">Devengo</mat-option>
             <mat-option value="DEDUCCION">Deducción</mat-option>

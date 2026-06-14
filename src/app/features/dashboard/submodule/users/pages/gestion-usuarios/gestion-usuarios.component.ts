@@ -104,6 +104,7 @@ export class GestionUsuariosComponent implements OnInit {
     const dialogRef = this.dialog.open(UserUpsertDialogComponent, {
       minWidth: '60vw',
       maxWidth: '96vw',
+      height: '90vh',
       data: { mode: 'create' },
       disableClose: true,
       panelClass: 'dialog-responsive'
@@ -124,6 +125,7 @@ export class GestionUsuariosComponent implements OnInit {
     const dialogRef = this.dialog.open(UserUpsertDialogComponent, {
       minWidth: '60vw',
       maxWidth: '96vw',
+      height: '90vh',
       data: { mode: 'edit', user },
       disableClose: true,
       panelClass: 'dialog-responsive'

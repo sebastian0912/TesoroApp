@@ -1,0 +1,168 @@
+<div class="aeu">
+
+  <!-- Intro -->
+  <div class="aeu__intro">
+    <mat-icon class="aeu__intro-ico">domain_verification</mat-icon>
+    <div>
+      <h3 class="aeu__title">Actualización por empresa usuaria</h3>
+      <p class="aeu__subtitle">
+        Selecciona la empresa usuaria y sube su archivo. El formato se interpreta según la
+        <strong>empresa seleccionada</strong> (no según la columna EMPRESA del Excel). Se actualizan
+        centro de costo, fecha de ingreso y auxilio de transporte del contrato activo. <strong>El salario no se modifica.</strong>
+      </p>
+    </div>
+  </div>
+
+  <!-- Paso 1: empresa + archivo -->
+  <div class="aeu__panel">
+    <div class="aeu__row">
+      <mat-form-field appearance="outline" class="aeu__empresa">
+        <mat-label>Empresa usuaria</mat-label>
+        <input matInput type="text" #empresaInput
+          placeholder="Escribe para filtrar por nombre o NIT…"
+          [matAutocomplete]="auto"
+          (input)="onQueryChange(empresaInput.value)"
+          [disabled]="isStep('previewing')" />
+        <mat-icon matSuffix>search</mat-icon>
+        <mat-autocomplete #auto="matAutocomplete" [displayWith]="displayEmpresa"
+          (optionSelected)="onEmpresaSelected($event.option.value)">
+          @for (e of empresasFiltradas(); track e.id_entidad) {
+            <mat-option [value]="e">
+              <span class="opt-nombre">{{ e.nombre_legal }}</span>
+              @if (e.nit) { <span class="opt-nit">NIT {{ e.nit }}</span> }
+            </mat-option>
+          } @empty {
+            <mat-option [disabled]="true">Sin coincidencias</mat-option>
+          }
+        </mat-autocomplete>
+        <mat-hint>Obligatorio. Escribe para buscar y selecciona una empresa de la lista.</mat-hint>
+      </mat-form-field>
+    </div>
+
+    @if (empresaId() == null) {
+      <div class="aeu__hint-block">
+        <mat-icon>info</mat-icon>
+        <span>Selecciona una empresa usuaria para habilitar la carga del archivo.</span>
+      </div>
+    } @else {
+      <!-- Dropzone -->
+      <div class="drop-zone"
+        [class.drop-zone--dragging]="isDragging()"
+        [class.drop-zone--has-file]="!!selectedFile()"
+        (dragover)="onDragOver($event)" (dragleave)="onDragLeave($event)" (drop)="onDrop($event)"
+        (click)="!selectedFile() && openFilePicker(fileInput)">
+        <input #fileInput type="file" accept=".xlsx,.xls" class="hidden-input" (change)="onFileSelected($event)" />
+
+        @if (!selectedFile()) {
+          <div class="drop-zone__empty">
+            <mat-icon class="drop-zone__ico">upload_file</mat-icon>
+            <p class="drop-zone__title">Arrastra el Excel aquí o haz clic para seleccionarlo</p>
+            <p class="drop-zone__sub">Formatos permitidos: .xlsx / .xls</p>
+          </div>
+        } @else {
+          <div class="drop-zone__file">
+            <mat-icon class="file-ico">description</mat-icon>
+            <span class="file-name">{{ selectedFile()?.name }}</span>
+            <button mat-icon-button type="button" (click)="quitarArchivo(); $event.stopPropagation()">
+              <mat-icon>close</mat-icon>
+            </button>
+          </div>
+        }
+      </div>
+
+      <div class="aeu__actions">
+        <button mat-flat-button color="primary"
+          [disabled]="!puedePrevisualizar() || isStep('previewing')"
+          (click)="previsualizar()">
+          <mat-icon>visibility</mat-icon>
+          Previsualizar
+        </button>
+      </div>
+    }
+  </div>
+
+  <!-- Error banner -->
+  @if (isStep('error') && errorMsg()) {
+    <div class="banner banner--error">
+      <mat-icon>error_outline</mat-icon>
+      <div><strong>Error</strong><p>{{ errorMsg() }}</p></div>
+    </div>
+  }
+
+  <!-- Previsualizando -->
+  @if (isStep('previewing')) {
+    <div class="aeu__loading">
+      <mat-icon class="spin">sync</mat-icon>
+      <span>Analizando el archivo…</span>
+      <mat-progress-bar mode="indeterminate"></mat-progress-bar>
+    </div>
+  }
+
+  <!-- Resultado -->
+  @if (isStep('done') && importResult(); as res) {
+    <div class="banner banner--ok">
+      <mat-icon>check_circle</mat-icon>
+      <div><strong>Actualización completada</strong><p>{{ res.mensaje }}</p></div>
+    </div>
+
+    <div class="kpi-grid">
+      <div class="kpi kpi--ok"><span class="kpi__num">{{ res.total_actualizados }}</span><span class="kpi__lbl">Actualizados</span></div>
+      <div class="kpi kpi--warn"><span class="kpi__num">{{ res.total_omitidos }}</span><span class="kpi__lbl">Omitidos</span></div>
+    </div>
+
+    @if (resumenErroresPorTipo().length > 0 || res.errores.length > 0) {
+      <div class="banner banner--error">
+        <mat-icon>report</mat-icon>
+        <div>
+          <strong>Filas no aplicadas ({{ res.total_omitidos }})</strong>
+          @if (resumenErroresPorTipo().length > 0) {
+            <ul class="tipo-list">
+              @for (g of resumenErroresPorTipo(); track g.tipo) {
+                <li><span class="tipo-count">{{ g.filas }}</span> {{ g.tipo }}</li>
+              }
+            </ul>
+          }
+          @if (res.errores.length > 0) {
+            <details class="tipo-details">
+              <summary>Ver detalle por fila ({{ res.errores.length }})</summary>
+              <ul>@for (e of res.errores; track e) { <li>{{ e }}</li> }</ul>
+            </details>
+          }
+        </div>
+      </div>
+    }
+    @if (resumenAdvertenciasPorTipo().length > 0 || res.advertencias.length > 0) {
+      <div class="banner banner--warn">
+        <mat-icon>info</mat-icon>
+        <div>
+          <strong>Advertencias</strong>
+          @if (resumenAdvertenciasPorTipo().length > 0) {
+            <ul class="tipo-list">
+              @for (g of resumenAdvertenciasPorTipo(); track g.tipo) {
+                <li><span class="tipo-count">{{ g.filas }}</span> {{ g.tipo }}</li>
+              }
+            </ul>
+          }
+          @if (res.advertencias.length > 0) {
+            <details class="tipo-details">
+              <summary>Ver detalle por fila ({{ res.advertencias.length }})</summary>
+              <ul>@for (a of res.advertencias; track a) { <li>{{ a }}</li> }</ul>
+            </details>
+          }
+        </div>
+      </div>
+    }
+
+    <div class="aeu__actions">
+      @if (puedeDescargarLog()) {
+        <button mat-stroked-button color="warn" (click)="descargarLog()">
+          <mat-icon>download</mat-icon> Descargar log (Excel)
+        </button>
+      }
+      <button mat-flat-button color="primary" (click)="reiniciar()">
+        <mat-icon>refresh</mat-icon> Hacer otra actualización
+      </button>
+    </div>
+  }
+
+</div>

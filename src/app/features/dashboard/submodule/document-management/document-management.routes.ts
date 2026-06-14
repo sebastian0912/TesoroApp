@@ -6,6 +6,7 @@ import { UploadDocumentsComponent } from './pages/upload-documents/upload-docume
 import { RetencionComponent } from './pages/retencion/retencion.component';
 
 export const routes: Routes = [
+  { path: '', redirectTo: 'company-docs-access', pathMatch: 'full' },
   { path: 'company-docs-access', component: CompanyDocsAccessComponent },
   { path: 'create-doc-structure', component: CreateDocStructureComponent },
   { path: 'search-documents', component: SearchDocumentsComponent },

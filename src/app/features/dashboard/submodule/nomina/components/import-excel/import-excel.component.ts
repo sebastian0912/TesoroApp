@@ -17,6 +17,7 @@ import { firstValueFrom } from 'rxjs';
 import {
     NominaService,
     PreviewRegistro,
+    PreviewResolucion,
     PreviewResponse,
     ImportResult,
     ImportarRegistrosPayload,
@@ -30,6 +31,40 @@ import {
 
 // ── Schema factory para PreviewRegistro ────────────────────────
 function buildNominaSchema(): PreviewSchema<PreviewRegistro, PreviewRegistro[]> {
+    // Render de una celda de resolución FK con estado (✓, ✗, —).
+    // Devuelve string que el dialog renderiza tal cual.
+    const fkCell = (
+        excel: string | undefined | null,
+        fk: { detectada: string | null; id_detectado: number | null; estado: string } | undefined,
+    ): string => {
+        const xl = excel ?? '';
+        if (!fk) return xl ? `${xl} ⚠` : '—';
+        switch (fk.estado) {
+            case 'OK': return `${fk.detectada} ✓`;
+            case 'INACTIVO': return `${fk.detectada} ⚠ inactivo`;
+            case 'NO_ENCONTRADO': return `${xl} ✗ no existe`;
+            case 'VACIO': return '—';
+            default: return xl || '—';
+        }
+    };
+
+    // Tras "Aplicar (Local)", el dialog escribe el nuevo valor en item[fieldKey]
+    // pero deja item.resolucion intacto, así que validateItem seguiría viendo
+    // NO_ENCONTRADO. Marcamos el FK como OK localmente para desbloquear el flujo;
+    // el backend re-resuelve nombre→id contra el catálogo en importar-registros
+    // y rechaza con un error específico si el nuevo nombre tampoco existe.
+    const markFkOptimistic = (
+        it: PreviewRegistro,
+        resKey: keyof PreviewResolucion,
+        fieldKey: keyof PreviewRegistro,
+    ): void => {
+        if (!it.resolucion) return;
+        const raw = ((it as any)[fieldKey] ?? '').toString().trim();
+        it.resolucion[resKey] = raw
+            ? { excel: raw, detectada: raw, id_detectado: null, estado: 'OK' }
+            : { excel: null, detectada: null, id_detectado: null, estado: 'VACIO' };
+    };
+
     return {
         title: 'Previsualización de Empleados',
         subtitle: 'Revisa y corrige los datos antes de importar.',
@@ -44,8 +79,31 @@ function buildNominaSchema(): PreviewSchema<PreviewRegistro, PreviewRegistro[]> 
             { key: 'nombre_completo', header: 'Nombre', width: '220px', cell: (i) => i.nombre_completo ?? '—' },
             { key: 'codigo_contrato', header: 'Contrato', width: '110px', cell: (i) => i.codigo_contrato ?? '—' },
             { key: 'fecha_ingreso', header: 'Ingreso', width: '110px', cell: (i) => i.fecha_ingreso ?? '—' },
-            { key: 'estado', header: 'Estado', width: '90px', cell: (i) => i.estado ?? '—' },
-            { key: 'cliente', header: 'Cliente', width: '160px', cell: (i) => i.cliente ?? '—' },
+            { key: 'estado', header: 'Estado contrato', width: '110px', cell: (i) => i.estado ?? '—' },
+            // Estado del registro en el Excel (INGRESO / SIN CONFIRMAR / NO INGRESO).
+            { key: 'estado_registro', header: 'Estado registro', width: '120px',
+              cell: (i) => i.estado_registro ?? '—' },
+            // ¿La fila se importará? Solo INGRESO (o sin columna Estado) es candidato.
+            { key: 'importar', header: 'Importar', width: '90px',
+              cell: (i) => i.importar === false ? '✗ Omitido' : '✓ Sí' },
+            // Valor CRUDO de la celda de empresa usuaria (texto compuesto empresa+CC
+            // cuando aplica). `cliente` (columna siguiente) es el nombre ya extraído.
+            { key: 'cliente_original', header: 'Empresa+CC (Excel)', width: '240px',
+              cell: (i) => i.cliente_original ?? '—' },
+            // Empresa usuaria EXTRAÍDA + estado de resolución contra nomina_entidades_externas (CLIENTE/EMPRESA_USUARIA).
+            { key: 'empresa_resuelta', header: 'Empresa (extraída)', width: '200px',
+              cell: (i) => fkCell(i.cliente, i.resolucion?.empresa) },
+            // CECO (de "Centro de costo Para el Carné" en IPANEMA) resuelto dentro del cliente en nomina_centros_costo.
+            { key: 'ceco_resuelto', header: 'CECO', width: '180px',
+              cell: (i) => fkCell(i.ceco, i.resolucion?.ceco) },
+            { key: 'eps_resuelta', header: 'EPS', width: '160px',
+              cell: (i) => fkCell(i.eps, i.resolucion?.eps) },
+            { key: 'afp_resuelta', header: 'AFP', width: '160px',
+              cell: (i) => fkCell(i.afp, i.resolucion?.afp) },
+            { key: 'banco_resuelto', header: 'Banco', width: '160px',
+              cell: (i) => fkCell(i.banco, i.resolucion?.banco) },
+            { key: 'ccf_resuelta', header: 'CCF', width: '160px',
+              cell: (i) => fkCell(i.ccf, i.resolucion?.ccf) },
             { key: 'salario', header: 'Salario', width: '110px', cell: (i) => i.salario ?? '—' },
         ],
 
@@ -107,8 +165,14 @@ function buildNominaSchema(): PreviewSchema<PreviewRegistro, PreviewRegistro[]> 
                     { value: 'INACTIVO', label: 'INACTIVO' },
                 ],
             },
-            { key: 'cliente', label: 'Cliente', type: 'text' },
-            { key: 'ceco', label: 'CECO', type: 'text' },
+            {
+                key: 'cliente', label: 'Cliente', type: 'text',
+                onChange: (it: any) => markFkOptimistic(it, 'empresa', 'cliente'),
+            },
+            {
+                key: 'ceco', label: 'CECO', type: 'text',
+                onChange: (it: any) => markFkOptimistic(it, 'ceco', 'ceco'),
+            },
             {
                 key: 'salario', label: 'Salario', type: 'number',
                 validate: (v) => {
@@ -120,10 +184,22 @@ function buildNominaSchema(): PreviewSchema<PreviewRegistro, PreviewRegistro[]> 
             },
             { key: 'forma_pago', label: 'Forma de Pago', type: 'text' },
             { key: 'numero_cuenta', label: 'Número de Cuenta', type: 'text' },
-            { key: 'banco', label: 'Banco', type: 'text' },
-            { key: 'eps', label: 'EPS', type: 'text' },
-            { key: 'afp', label: 'AFP / Pensión', type: 'text' },
-            { key: 'ccf', label: 'CCF / Caja', type: 'text' },
+            {
+                key: 'banco', label: 'Banco', type: 'text',
+                onChange: (it: any) => markFkOptimistic(it, 'banco', 'banco'),
+            },
+            {
+                key: 'eps', label: 'EPS', type: 'text',
+                onChange: (it: any) => markFkOptimistic(it, 'eps', 'eps'),
+            },
+            {
+                key: 'afp', label: 'AFP / Pensión', type: 'text',
+                onChange: (it: any) => markFkOptimistic(it, 'afp', 'afp'),
+            },
+            {
+                key: 'ccf', label: 'CCF / Caja', type: 'text',
+                onChange: (it: any) => markFkOptimistic(it, 'ccf', 'ccf'),
+            },
             {
                 key: 'email', label: 'Correo', type: 'text',
                 validate: (v) => {
@@ -168,6 +244,53 @@ function buildNominaSchema(): PreviewSchema<PreviewRegistro, PreviewRegistro[]> 
             }
             if (item.salario !== null && item.salario !== undefined && Number(item.salario) < 0) {
                 issues.push({ id: `${id}-sal`, itemId: id, severity: 'error', field: 'salario', message: 'Salario no puede ser negativo.' });
+            }
+
+            // Validación FK contra catálogos (resuelta por el backend en el preview).
+            // Empresa usuaria es OBLIGATORIA. EPS/AFP/Banco/CCF/CECO son opcionales
+            // pero si el Excel trae nombre y no matchea, error → bloquea importar.
+            const res = item.resolucion;
+            if (!res) {
+                // Backend antiguo (sin resolución): no bloqueamos pero advertimos.
+                issues.push({ id: `${id}-no-res`, itemId: id, severity: 'warn',
+                    message: 'Resolución de FKs no calculada por el backend.' });
+            } else {
+                const fkMsg = (entidad: string, fk: { excel: string | null; estado: string }): string =>
+                    fk.estado === 'NO_ENCONTRADO'
+                        ? `${entidad} "${fk.excel ?? ''}" no existe en el catálogo. Créala antes de importar.`
+                        : `${entidad} "${fk.excel ?? ''}" está marcada como inactiva.`;
+
+                if (res.empresa.estado !== 'OK') {
+                    issues.push({ id: `${id}-empresa`, itemId: id, severity: 'error', field: 'cliente',
+                        message: res.empresa.estado === 'VACIO'
+                            ? 'Empresa usuaria es obligatoria.'
+                            : fkMsg('Empresa usuaria', res.empresa) });
+                }
+                const opt: Array<[string, keyof PreviewResolucion, keyof PreviewRegistro]> = [
+                    ['EPS',   'eps',   'eps'],
+                    ['AFP',   'afp',   'afp'],
+                    ['Banco', 'banco', 'banco'],
+                    ['CCF',   'ccf',   'ccf'],
+                    ['CECO',  'ceco',  'ceco'],
+                ];
+                for (const [label, key, field] of opt) {
+                    const fk = res[key];
+                    // CCF NO bloquea (rule 12): datos no confiables → solo aviso.
+                    if (fk.estado === 'NO_ENCONTRADO' || fk.estado === 'INACTIVO') {
+                        issues.push({ id: `${id}-${key}`, itemId: id,
+                            severity: key === 'ccf' ? 'warn' : 'error', field,
+                            message: fkMsg(label, fk) });
+                    }
+                }
+            }
+
+            // Advertencias por fila ya calculadas por el backend (estado del registro,
+            // tipo de documento no reconocido, email inválido, fecha de retiro de
+            // experiencia laboral, marcador de centro de costo, CECO de otro cliente…).
+            if (item.warnings?.length) {
+                item.warnings.forEach((w, idx) => issues.push({
+                    id: `${id}-bw-${idx}`, itemId: id, severity: 'warn', message: w,
+                }));
             }
 
             return issues;
@@ -331,6 +454,9 @@ export class ImportExcelComponent {
     // ── Step 2: ETL Preview ───────────────────────────────────────
     runPreview(): void {
         if (!this.selectedFile) return;
+        // Carga masiva GENERAL: el Excel es un formato parametrizado estándar y la
+        // extracción es la misma para todos; la empresa usuaria de cada empleado se
+        // extrae de la propia columna del archivo, sin discriminar por empresa.
         this.isParsing.set(true);
         this.errorMsg.set('');
 
@@ -346,8 +472,31 @@ export class ImportExcelComponent {
                     resp.registros.map((r: PreviewRegistro) => [String(r.fila_excel), { ...r }])
                 );
 
-                const rows = resp.registros.map((r: PreviewRegistro) => ({ ...r, _editado: false }));
+                const rows = resp.registros.map((r: PreviewRegistro) => ({ ...r }));
                 const schema = buildNominaSchema();
+
+                // serverValidate: cada "Confirmar Todo" envía las filas pendientes al
+                // backend; las que persisten se retiran de la lista, las que fallan
+                // vuelven con el motivo del servidor para que el operador corrija.
+                const serverValidate = async (items: PreviewRegistro[]) => {
+                    const result = await firstValueFrom(
+                        this.nominaService.importarRegistros({
+                            registros: items,
+                        }),
+                    );
+                    const noAplicables = result.no_aplicables ?? [];
+                    const rejectedIds = new Set(noAplicables.map((na) => String(na.fila_excel)));
+                    const acceptedItemIds = items
+                        .map((it) => String(it.fila_excel))
+                        .filter((id) => !rejectedIds.has(id));
+                    const errors: PreviewIssue[] = noAplicables.map((na) => ({
+                        id: `srv:${na.fila_excel}`,
+                        itemId: String(na.fila_excel),
+                        severity: 'error' as const,
+                        message: `Servidor rechazó la fila: ${na.motivo}`,
+                    }));
+                    return { acceptedItemIds, errors, serverResult: result };
+                };
 
                 const ref = this.dialog.open(ValidationPreviewDialogComponent, {
                     width: '95vw',
@@ -360,6 +509,7 @@ export class ImportExcelComponent {
                         phase: 'pre',
                         title: 'Previsualización de Empleados',
                         subtitle: `${rows.length} registros cargados. Corrige los errores antes de importar.`,
+                        serverValidate,
                     },
                 });
 
@@ -370,9 +520,13 @@ export class ImportExcelComponent {
                     return;
                 }
 
-                // Guardar los registros (ya corregidos) y lanzar importación
-                this.allRows = result.items as PreviewRegistro[];
-                this.importar();
+                // El dialog ya persistió todo vía serverValidate. result.result trae
+                // el último ImportResult acumulado del servidor para mostrar en done.
+                this.importToken = null;
+                this.originalRowsById.clear();
+                if (result.result) this.importResult.set(result.result as ImportResult);
+                this.progress.set(100);
+                this.step.set('done');
             },
             error: (err: HttpErrorResponse) => {
                 this.isParsing.set(false);

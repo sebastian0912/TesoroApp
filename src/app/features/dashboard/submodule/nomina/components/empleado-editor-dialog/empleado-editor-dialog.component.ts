@@ -72,7 +72,7 @@ export class EmpleadoEditorDialogComponent implements OnInit {
     this.isNew.set(this.data.id_persona == null);
 
     // Cargar catálogos en paralelo (no bloquean la carga del empleado)
-    this.svc.getEntidadesPorTipo('CLIENTE').subscribe(x => this.clientes.set(x || []));
+    this.svc.getEntidadesPorTipo('EMPRESA_USUARIA').subscribe(x => this.clientes.set(x || []));
     this.svc.getEntidadesPorTipo('BANCO').subscribe(x => this.bancos.set(x || []));
     this.svc.getEntidadesPorTipo('EPS').subscribe(x => this.epss.set(x || []));
     this.svc.getEntidadesPorTipo('AFP').subscribe(x => this.afps.set(x || []));

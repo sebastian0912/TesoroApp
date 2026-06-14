@@ -341,14 +341,15 @@ export class HomologadorComponent implements OnInit, AfterViewInit {
       porConcepto.set(homologacion.concepto, actuales);
     }
 
-    this.catalogoConceptos = this.conceptos.map((concepto) => {
-      const homologaciones = (porConcepto.get(concepto.id_concepto!) ?? [])
-        .slice()
-        .sort((a, b) => {
-          const fechaA = a.actualizado_at ?? a.creado_at ?? '';
-          const fechaB = b.actualizado_at ?? b.creado_at ?? '';
-          return fechaB.localeCompare(fechaA);
-        });
+    const ordenarPorFecha = (lista: HomologadorExterno[]): HomologadorExterno[] =>
+      lista.slice().sort((a, b) => {
+        const fechaA = a.actualizado_at ?? a.creado_at ?? '';
+        const fechaB = b.actualizado_at ?? b.creado_at ?? '';
+        return fechaB.localeCompare(fechaA);
+      });
+
+    const filasConcepto = this.conceptos.map((concepto) => {
+      const homologaciones = ordenarPorFecha(porConcepto.get(concepto.id_concepto!) ?? []);
       const principal = homologaciones[0];
 
       return {
@@ -377,6 +378,56 @@ export class HomologadorComponent implements OnInit, AfterViewInit {
         homologaciones_adicionales: Math.max(0, homologaciones.length - 1),
       };
     });
+
+    // Filas huerfanas: homologaciones cuyo concepto interno no esta en this.conceptos
+    // (concepto inexistente -> concepto null en el DTO, o concepto inactivo no devuelto
+    // por /conceptos?activo=true). Sin esto la homologacion existe en BD pero nunca se
+    // dibuja, porque el catalogo se reconstruye recorriendo solo los conceptos activos.
+    const idsConcepto = new Set(this.conceptos.map((concepto) => concepto.id_concepto));
+    const porHuerfana = new Map<string, HomologadorExterno[]>();
+    for (const homologacion of this.homologacionesEmpresa) {
+      if (homologacion.concepto != null && idsConcepto.has(homologacion.concepto)) continue;
+      const clave = homologacion.concepto != null
+        ? `c${homologacion.concepto}`
+        : `h${homologacion.id_homologacion}`;
+      const actuales = porHuerfana.get(clave) ?? [];
+      actuales.push(homologacion);
+      porHuerfana.set(clave, actuales);
+    }
+
+    const filasHuerfanas: HomologadorCatalogRow[] = [];
+    for (const grupo of porHuerfana.values()) {
+      const homologaciones = ordenarPorFecha(grupo);
+      const principal = homologaciones[0];
+      filasHuerfanas.push({
+        id_homologacion: principal.id_homologacion,
+        concepto: principal.concepto,
+        concepto_codigo: principal.concepto_codigo ?? '',
+        concepto_descripcion: principal.concepto_descripcion
+          ?? `(Concepto interno ${principal.concepto ?? 'N/D'} no disponible)`,
+        concepto_naturaleza: principal.concepto_naturaleza,
+        concepto_unidad: undefined,
+        entidad_externa: this.selectedCliente!.id_entidad,
+        entidad_nombre: this.selectedCliente!.nombre_legal,
+        entidad_nit: this.selectedCliente!.nit,
+        codigo_externo: principal.codigo_externo ?? '',
+        concepto_externo: principal.concepto_externo ?? '',
+        clasificacion_externa: principal.clasificacion_externa ?? '',
+        tabla_operativa_destino: principal.tabla_operativa_destino ?? '',
+        campo_operativo_destino: principal.campo_operativo_destino ?? '',
+        estado_homologacion: principal.estado_homologacion ?? 'SIN_HOMOLOGACION',
+        estado_display: principal.estado_display,
+        observacion: principal.observacion ?? '',
+        activo: principal.activo ?? false,
+        creado_at: principal.creado_at,
+        actualizado_at: principal.actualizado_at,
+        concepto_activo: false,
+        tiene_homologacion: true,
+        homologaciones_adicionales: Math.max(0, homologaciones.length - 1),
+      });
+    }
+
+    this.catalogoConceptos = [...filasConcepto, ...filasHuerfanas];
 
     this.aplicarFiltros();
   }

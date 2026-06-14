@@ -43,9 +43,9 @@ function getTokenSafe(): string | null {
       }
     }
     if (!raw) return null;
-    // Añade el esquema si hace falta
-    return raw;
-    //return AUTH_SCHEME ? (raw.startsWith(`${AUTH_SCHEME} `) ? raw : `${AUTH_SCHEME} ${raw}`) : raw;
+    // Añade el esquema si hace falta. El back Spring (commons JwtAuthenticationFilter)
+    // exige "Bearer "; sin prefix devuelve 403.
+    return AUTH_SCHEME ? (raw.startsWith(`${AUTH_SCHEME} `) ? raw : `${AUTH_SCHEME} ${raw}`) : raw;
   } catch {
     return null;
   }

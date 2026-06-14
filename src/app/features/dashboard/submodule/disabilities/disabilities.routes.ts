@@ -6,6 +6,7 @@ import { VistaTotalIncapacidadesComponent } from './pages/vista-total-incapacida
 import { SubidaArchivosIncapacidadesComponent } from './pages/subida-archivos-incapacidades/subida-archivos-incapacidades.component';
 
 export const routes: Routes = [
+  { path: '', redirectTo: 'formulario', pathMatch: 'full' },
     { path: 'formulario', component: FormularioIncapacidadComponent },
     { path: 'buscar', component: BuscarIncapacidadComponent },
     { path: 'total', component: VistaTotalIncapacidadesComponent },

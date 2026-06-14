@@ -3,6 +3,7 @@ import { HistorialAutorizacionesComponent } from './pages/historial-autorizacion
 import { HistorialModificacionesComponent } from './pages/historial-modificaciones/historial-modificaciones.component';
 
 export const routes: Routes = [
+  { path: '', redirectTo: 'authorizations-history', pathMatch: 'full' },
   { path: 'authorizations-history', component: HistorialAutorizacionesComponent },
   { path: 'modifications-history', component: HistorialModificacionesComponent },
 ];

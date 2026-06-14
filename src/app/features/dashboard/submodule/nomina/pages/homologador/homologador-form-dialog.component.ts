@@ -222,8 +222,8 @@ export class HomologadorFormDialogComponent implements OnInit {
   cargarConceptos(): void {
     this.nominaService.getConceptos().subscribe({
       next: (data) => {
-        this.conceptos = data;
-        this.conceptosFiltrados = data;
+        this.conceptos = this.incluirConceptoActual(data);
+        this.conceptosFiltrados = this.conceptos;
         this.preseleccionarConceptoSugerido();
         this.cdr.markForCheck();
       },
@@ -232,6 +232,32 @@ export class HomologadorFormDialogComponent implements OnInit {
         this.cdr.markForCheck();
       },
     });
+  }
+
+  /**
+   * /conceptos solo devuelve conceptos activos. Si la homologacion en edicion
+   * apunta a un concepto que no esta en esa lista (inactivo, o recuperable por
+   * sus datos denormalizados), lo inyecta como opcion marcada "(inactivo)" para
+   * que el mat-select muestre el mapeo actual en vez de quedar en blanco. Asi
+   * cualquier homologacion huerfana es visible y reasignable a un concepto valido.
+   */
+  private incluirConceptoActual(activos: ConceptoNomina[]): ConceptoNomina[] {
+    const actual = this.data.homologacion;
+    const conceptoId = actual?.concepto;
+    if (!conceptoId) return activos;
+    if (activos.some((concepto) => concepto.id_concepto === conceptoId)) return activos;
+
+    const sintetico = {
+      id_concepto: conceptoId,
+      codigo: actual?.concepto_codigo || String(conceptoId),
+      descripcion: `${actual?.concepto_descripcion || 'Concepto ' + conceptoId} (inactivo)`,
+      naturaleza: (actual?.concepto_naturaleza as ConceptoNomina['naturaleza']) || 'OTRO',
+      unidad: 'VALOR',
+      afecta_ibc: false,
+      activo: false,
+      naturaleza_display: actual?.concepto_naturaleza,
+    } as ConceptoNomina;
+    return [sintetico, ...activos];
   }
 
   filtrarConceptos(): void {

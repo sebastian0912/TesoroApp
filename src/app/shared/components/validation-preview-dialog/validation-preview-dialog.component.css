@@ -620,3 +620,65 @@ table.vp__table {
     order: 2;
   }
 }
+/* ── Resumen por tipo de caso (opt-in: issues con `category`) ── */
+.vp__type-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  margin-bottom: 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  background: #f8fafc;
+}
+
+.vp__type-summary-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #475569;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.vp__type-summary-label mat-icon {
+  font-size: 16px;
+  width: 16px;
+  height: 16px;
+}
+
+.vp__type-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: #eef2f6;
+  color: #334155;
+  white-space: nowrap;
+}
+
+.vp__type-chip mat-icon {
+  font-size: 15px;
+  width: 15px;
+  height: 15px;
+}
+
+.vp__type-chip b {
+  font-weight: 800;
+}
+
+.vp__type-chip--err {
+  background: rgba(229, 57, 53, 0.1);
+  color: var(--vp-err);
+}
+
+.vp__type-chip--warn {
+  background: rgba(251, 140, 0, 0.12);
+  color: var(--vp-warn);
+}

@@ -77,6 +77,23 @@
     </div>
     }
 
+    <!-- RESUMEN POR TIPO (solo si los issues traen `category`) -->
+    @if (hasIssueTypeSummary()) {
+    <div class="vp__type-summary">
+      <span class="vp__type-summary-label">
+        <mat-icon>insights</mat-icon> Resumen por tipo de caso
+      </span>
+      @for (g of issueTypeSummary(); track g.severity + '|' + g.category) {
+      <span class="vp__type-chip" [class.vp__type-chip--err]="g.severity === 'error'"
+        [class.vp__type-chip--warn]="g.severity === 'warn'"
+        [matTooltip]="g.severity === 'error' ? 'Filas con error' : 'Filas con advertencia'">
+        <mat-icon>{{ g.severity === 'error' ? 'error' : 'warning' }}</mat-icon>
+        <b>{{ g.count }}</b> · {{ g.category }}
+      </span>
+      }
+    </div>
+    }
+
     <div class="vp__grid-layout">
 
       <!-- LEFT: DATA TABLE -->
@@ -240,8 +257,10 @@
               Aplicar (Local)
             </button>
             <button mat-flat-button color="accent" class="vp__btn-confirm" (click)="accept()"
-              [disabled]="anyBlockingErrors()">
-              <mat-icon>check</mat-icon> Confirmar Todo
+              [disabled]="!canSubmit"
+              [matTooltip]="!canSubmit && !submitting ? 'No hay filas válidas para enviar. Corrige al menos una fila.' : ''">
+              <mat-icon>{{ submitting ? 'hourglass_top' : 'check' }}</mat-icon>
+              {{ submitting ? 'Validando…' : 'Confirmar Todo' }}
             </button>
           </div>
 
@@ -270,8 +289,9 @@
       }
     </div>
 
-    <button mat-flat-button color="primary" (click)="accept()" [disabled]="anyBlockingErrors()" class="vp__btn-main">
-      Aceptar y Continuar
+    <button mat-flat-button color="primary" (click)="accept()" [disabled]="!canSubmit" class="vp__btn-main"
+      [matTooltip]="!canSubmit && !submitting ? 'No hay filas válidas para enviar. Corrige al menos una fila (revisa los errores en rojo).' : ''">
+      {{ submitting ? 'Validando…' : 'Aceptar y Continuar' }}
     </button>
   </div>
 

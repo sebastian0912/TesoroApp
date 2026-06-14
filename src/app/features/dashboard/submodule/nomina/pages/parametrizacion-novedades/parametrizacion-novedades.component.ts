@@ -76,6 +76,8 @@ export class ParametrizacionNovedadesComponent implements OnInit, AfterViewInit 
     OTRO:             { label: 'Otro',              color: 'nat-otro' },
   };
 
+  private allConceptos: ConceptoNomina[] = [];
+
   constructor(
     private nominaService: NominaService,
     private dialog: MatDialog,
@@ -95,14 +97,10 @@ export class ParametrizacionNovedadesComponent implements OnInit, AfterViewInit 
   cargarConceptos(): void {
     this.isLoading = true;
     this.cdr.markForCheck();
-    const params: any = {};
-    if (this.filterUnidad) params['unidad'] = this.filterUnidad;
-    if (this.filterNaturaleza) params['naturaleza'] = this.filterNaturaleza;
-    if (this.filterSearch) params['search'] = this.filterSearch;
-
-    this.nominaService.getConceptos(params).subscribe({
+    this.nominaService.getConceptos({}).subscribe({
       next: (data) => {
-        this.dataSource.data = data;
+        this.allConceptos = data ?? [];
+        this.aplicarFiltros();
         this.isLoading = false;
         this.cdr.markForCheck();
       },
@@ -112,6 +110,31 @@ export class ParametrizacionNovedadesComponent implements OnInit, AfterViewInit 
         this.cdr.markForCheck();
       },
     });
+  }
+
+  aplicarFiltros(): void {
+    const q = (this.filterSearch || '').trim().toLowerCase();
+    const u = this.filterUnidad || '';
+    const n = this.filterNaturaleza || '';
+    this.dataSource.data = this.allConceptos.filter(c => {
+      if (u && c.unidad !== u) return false;
+      if (n && c.naturaleza !== n) return false;
+      if (q) {
+        const blob = [
+          c.codigo, c.descripcion, c.abreviatura,
+          c.naturaleza, c.unidad,
+        ].filter(Boolean).join(' ').toLowerCase();
+        if (!blob.includes(q)) return false;
+      }
+      return true;
+    });
+    if (this.paginator) this.paginator.firstPage();
+    this.cdr.markForCheck();
+  }
+
+  onSearchChange(value: string): void {
+    this.filterSearch = value;
+    this.aplicarFiltros();
   }
 
   abrirDialogoCrear(): void {
@@ -157,7 +180,7 @@ export class ParametrizacionNovedadesComponent implements OnInit, AfterViewInit 
     this.filterUnidad = '';
     this.filterNaturaleza = '';
     this.filterSearch = '';
-    this.cargarConceptos();
+    this.aplicarFiltros();
   }
 
   contarPor(campo: keyof ConceptoNomina, valor: any): number {

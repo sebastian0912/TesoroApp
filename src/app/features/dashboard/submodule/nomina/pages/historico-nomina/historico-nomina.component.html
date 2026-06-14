@@ -73,7 +73,14 @@
             <mat-icon>search</mat-icon>
             BUSCAR EN HISTÓRICO
           </button>
-          
+
+          <button mat-flat-button color="warn" class="btn-bulk"
+                  (click)="cambiarEstadoSeleccion()"
+                  [disabled]="selectedIds.size === 0 || isLoading">
+            <mat-icon>edit_note</mat-icon>
+            CAMBIAR ESTADO ({{ selectedIds.size }})
+          </button>
+
           <button mat-stroked-button color="accent" class="btn-export" (click)="exportarExcel()" [disabled]="historicoDataSource.data.length === 0">
             <mat-icon>file_download</mat-icon>
             EXPORTAR EXCEL
@@ -83,19 +90,33 @@
     </mat-card-content>
   </mat-card>
 
-  <!-- Filtro Rápido (Opcional, sobre los resultados cargados) -->
-  <mat-form-field appearance="outline" class="full-width filter-quick" *ngIf="historicoDataSource.data.length > 0">
-    <mat-label>Filtro rápido en tabla (Clientes cargados)</mat-label>
-    <input matInput (keyup)="applyFilter($event)" placeholder="Filtrar resultados cargados...">
-    <mat-icon matPrefix>filter_list</mat-icon>
-  </mat-form-field>
-
   <div class="table-container mat-elevation-z8">
     <div class="loading-shade" *ngIf="isLoading">
       <mat-spinner></mat-spinner>
     </div>
 
     <table mat-table [dataSource]="historicoDataSource" matSort>
+      <!-- Selección -->
+      <ng-container matColumnDef="select">
+        <th mat-header-cell *matHeaderCellDef>
+          <mat-checkbox
+            (change)="toggleAllRows($event.checked)"
+            [checked]="isAllRowsSelected()"
+            [indeterminate]="isSomeRowsSelected()"
+            [disabled]="historicoDataSource.data.length === 0"
+            aria-label="Seleccionar todas las filas">
+          </mat-checkbox>
+        </th>
+        <td mat-cell *matCellDef="let row">
+          <mat-checkbox
+            (click)="$event.stopPropagation()"
+            (change)="toggleRow(row, $event.checked)"
+            [checked]="isRowSelected(row)"
+            aria-label="Seleccionar fila">
+          </mat-checkbox>
+        </td>
+      </ng-container>
+
       <!-- Identificacion -->
       <ng-container matColumnDef="identificacion">
         <th mat-header-cell *matHeaderCellDef mat-sort-header> Identificación </th>
@@ -157,10 +178,12 @@
       </ng-container>
 
       <tr mat-header-row *matHeaderRowDef="displayedColumns; sticky: true"></tr>
-      <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
+      <tr mat-row *matRowDef="let row; columns: displayedColumns;"
+          class="clickable-row"
+          (click)="abrirDesprendible(row)"></tr>
 
       <tr class="mat-row" *matNoDataRow>
-        <td class="mat-cell" colspan="8">
+        <td class="mat-cell" colspan="9">
           <div class="empty-state" *ngIf="!isLoading">
             <mat-icon>search_off</mat-icon>
             <p>No se encontraron registros históricos con los parámetros seleccionados.</p>

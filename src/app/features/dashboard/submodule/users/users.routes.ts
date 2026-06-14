@@ -7,6 +7,7 @@ import { CambiarContrasenaComponent } from './pages/cambiar-contrasena/cambiar-c
 import { CreacionUsuariosTrasladosComponent } from './pages/creacion-usuarios-traslados/creacion-usuarios-traslados.component';
 
 export const routes: Routes = [
+  { path: '', redirectTo: 'manage-users', pathMatch: 'full' },
   { path: 'manage-users', component: GestionUsuariosComponent },
   { path: 'manage-roles', component: GestionRolesComponent },
   { path: 'manage-modules', component: GestionModulosComponent },

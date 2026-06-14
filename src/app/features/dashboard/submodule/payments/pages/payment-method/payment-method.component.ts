@@ -60,9 +60,30 @@ export class PaymentMethodComponent implements OnInit {
   public buscarFormasPago(cedula: string): void {
     const cleanedCedula = cedula.replace(/[^\d]/g, '');
 
+    if (!cleanedCedula) {
+      Swal.fire({
+        icon: 'info',
+        title: 'Información',
+        text: 'Ingresa un número de cédula válido para buscar.'
+      });
+      return;
+    }
+
     this.paymentsService.buscarFormasPago(cleanedCedula).subscribe(
       (response: any) => {
-        if (response.message == 'No se encontró el número de cédula') {
+        // El backend puede responder con un array directo [...] o con un
+        // objeto { formasdepago: [...] }. Normalizamos a un array siempre
+        // para no romper si la cédula no existe (antes lanzaba
+        // "Cannot read properties of undefined (reading 'sort')").
+        const lista: any[] = Array.isArray(response)
+          ? response
+          : Array.isArray(response?.formasdepago)
+            ? response.formasdepago
+            : [];
+
+        if (lista.length === 0) {
+          this.dataList = [];
+          this.originalData = [];
           Swal.fire({
             icon: 'info',
             title: 'Información',
@@ -71,8 +92,8 @@ export class PaymentMethodComponent implements OnInit {
           return;
         }
 
-        const formasDePago = response.formasdepago
-          .sort((a: any, b: any) => b.id - a.id)
+        const formasDePago = [...lista]
+          .sort((a: any, b: any) => (b?.id ?? 0) - (a?.id ?? 0))
           .slice(0, 4)
           .map((item: any) => ({
             ...item,
@@ -88,6 +109,18 @@ export class PaymentMethodComponent implements OnInit {
         this.dataList = formasDePago;
       },
       (error: any) => {
+        // Algunas versiones del backend responden 404 cuando no hay registros;
+        // eso no es un error real, es "no encontrado".
+        if (error?.status === 404) {
+          this.dataList = [];
+          this.originalData = [];
+          Swal.fire({
+            icon: 'info',
+            title: 'Información',
+            text: 'No se encontraron formas de pago para la cédula ingresada'
+          });
+          return;
+        }
         Swal.fire({
           icon: 'error',
           title: 'Error',

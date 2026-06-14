@@ -72,8 +72,9 @@ import Swal from 'sweetalert2';
           <mat-label>Estado</mat-label>
           <mat-select formControlName="estado">
             <mat-option value="ABIERTO">ABIERTO</mat-option>
-            <mat-option value="CALCULADO">CALCULADO</mat-option>
-            <mat-option value="CERRADO">CERRADO</mat-option>
+            <mat-option value="CALCULADA">CALCULADA</mat-option>
+            <mat-option value="VALIDADA">VALIDADA</mat-option>
+            <mat-option value="FINALIZADA">FINALIZADA</mat-option>
           </mat-select>
         </mat-form-field>
       </form>
