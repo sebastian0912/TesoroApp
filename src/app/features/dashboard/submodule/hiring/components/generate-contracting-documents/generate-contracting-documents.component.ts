@@ -1,4 +1,3 @@
-import { Contacto } from './../../../../../../../../../tu_alianza_web/src/app/features/public/contacto/contacto';
 import { SharedModule } from '@/app/shared/shared.module';
 import { isPlatformBrowser } from '@angular/common';
 import { Component, inject, OnInit, PLATFORM_ID, ViewChild, ElementRef, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
