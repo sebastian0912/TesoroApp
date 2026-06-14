@@ -3,6 +3,7 @@ const path = require('path');
 const fs = require('fs');
 const { app, ipcMain } = require('electron');
 const log = require('electron-log');
+const { assertAllowedIpcSender } = require('./electron-security');
 
 let db = null;
 
@@ -262,7 +263,8 @@ function closeDatabase() {
 
 function setupIpcHandlers() {
   // --- Cola de solicitudes pendientes ---
-  ipcMain.handle('db:save-request-queue', (_event, payload) => {
+  ipcMain.handle('db:save-request-queue', (event, payload) => {
+    assertAllowedIpcSender(event);
     return new Promise((resolve, reject) => {
       if (!db) return reject('DB no inicializada');
       const { method, url, body, headers, idempotencyKey, userId } = payload || {};
@@ -279,7 +281,8 @@ function setupIpcHandlers() {
     });
   });
 
-  ipcMain.handle('db:get-pending-requests', (_event, opts) => {
+  ipcMain.handle('db:get-pending-requests', (event, opts) => {
+    assertAllowedIpcSender(event);
     return new Promise((resolve, reject) => {
       if (!db) return reject('DB no inicializada');
       // Si llega userId, filtramos para que un segundo usuario no reproduzca
@@ -299,7 +302,8 @@ function setupIpcHandlers() {
   // Lista las requests fallidas para que la UI las exponga al usuario y le
   // permita "Reintentar" o "Descartar". Antes vivían silenciosamente en la
   // tabla sin forma de recuperarlas.
-  ipcMain.handle('db:get-failed-requests', (_event, opts) => {
+  ipcMain.handle('db:get-failed-requests', (event, opts) => {
+    assertAllowedIpcSender(event);
     return new Promise((resolve, reject) => {
       if (!db) return reject('DB no inicializada');
       const userId = opts && typeof opts === 'object' ? opts.userId : null;
@@ -314,7 +318,8 @@ function setupIpcHandlers() {
     });
   });
 
-  ipcMain.handle('db:delete-request', (_event, id) => {
+  ipcMain.handle('db:delete-request', (event, id) => {
+    assertAllowedIpcSender(event);
     return new Promise((resolve, reject) => {
       if (!db) return reject('DB no inicializada');
       // Primero localiza los archivos asociados para borrarlos del disco; el
@@ -339,7 +344,8 @@ function setupIpcHandlers() {
   // resetea last_error. attempt_count se mantiene como contador histórico.
   // El sync service la levantará en el próximo `syncQueue()`. NO dispara
   // replay aquí (responsabilidad del renderer llamar syncQueue() después).
-  ipcMain.handle('db:retry-request', (_event, id) => {
+  ipcMain.handle('db:retry-request', (event, id) => {
+    assertAllowedIpcSender(event);
     return new Promise((resolve, reject) => {
       if (!db) return reject('DB no inicializada');
       db.run(
@@ -356,7 +362,8 @@ function setupIpcHandlers() {
   // Descartar una request fallida: borra fila + archivos asociados. Es la
   // operación destructiva consciente que reemplaza al borrado automático que
   // antes hacía mark-request-status('failed').
-  ipcMain.handle('db:discard-request', (_event, id) => {
+  ipcMain.handle('db:discard-request', (event, id) => {
+    assertAllowedIpcSender(event);
     return new Promise((resolve, reject) => {
       if (!db) return reject('DB no inicializada');
       db.all(
@@ -377,7 +384,8 @@ function setupIpcHandlers() {
   // Encola una request multipart: campos no-file en JSON dentro de sync_queue,
   // y referencias a los archivos previamente persistidos a disco en
   // sync_queue_files. Todo en una transacción para no dejar huérfanos.
-  ipcMain.handle('db:save-multipart-request', (_event, payload) => {
+  ipcMain.handle('db:save-multipart-request', (event, payload) => {
+    assertAllowedIpcSender(event);
     return new Promise((resolve, reject) => {
       if (!db) return reject('DB no inicializada');
       const { method, url, headers, formFields, files, idempotencyKey, userId } = payload || {};
@@ -437,7 +445,8 @@ function setupIpcHandlers() {
     });
   });
 
-  ipcMain.handle('db:get-request-files', (_event, requestId) => {
+  ipcMain.handle('db:get-request-files', (event, requestId) => {
+    assertAllowedIpcSender(event);
     return new Promise((resolve, reject) => {
       if (!db) return reject('DB no inicializada');
       db.all(
@@ -453,7 +462,8 @@ function setupIpcHandlers() {
   });
 
   // --- Caché de lecturas ---
-  ipcMain.handle('db:cache-save', (_event, { url, data }) => {
+  ipcMain.handle('db:cache-save', (event, { url, data }) => {
+    assertAllowedIpcSender(event);
     return new Promise((resolve, reject) => {
       if (!db) return reject('DB no inicializada');
       db.run(
@@ -469,7 +479,8 @@ function setupIpcHandlers() {
     });
   });
 
-  ipcMain.handle('db:cache-get', (_event, url) => {
+  ipcMain.handle('db:cache-get', (event, url) => {
+    assertAllowedIpcSender(event);
     return new Promise((resolve, reject) => {
       if (!db) return reject('DB no inicializada');
       db.get('SELECT data FROM api_cache WHERE url = ?', [url], (err, row) => {
@@ -489,7 +500,8 @@ function setupIpcHandlers() {
   });
 
   // --- Obtener todas las URLs cacheadas (para refresh masivo) ---
-  ipcMain.handle('db:cache-get-all-urls', () => {
+  ipcMain.handle('db:cache-get-all-urls', (event) => {
+    assertAllowedIpcSender(event);
     return new Promise((resolve, reject) => {
       if (!db) return reject('DB no inicializada');
       db.all('SELECT url FROM api_cache ORDER BY updated_at DESC', [], (err, rows) => {
@@ -506,7 +518,8 @@ function setupIpcHandlers() {
   // Defensa: se exige prefix con al menos 3 caracteres reales (no solo
   // wildcards) para que un caller comprometido no pueda usar este canal
   // como nuke total del cache (eso ya existe explícito en db:clear-cache).
-  ipcMain.handle('db:cache-invalidate-prefix', (_event, prefix) => {
+  ipcMain.handle('db:cache-invalidate-prefix', (event, prefix) => {
+    assertAllowedIpcSender(event);
     return new Promise((resolve, reject) => {
       if (!db) return reject('DB no inicializada');
       if (typeof prefix !== 'string' || prefix.length < 3) {
@@ -531,7 +544,8 @@ function setupIpcHandlers() {
   // para que el siguiente login no muestre datos del usuario anterior, sin
   // tocar la cola de mutaciones pendientes (esas son del usuario y deben
   // sobrevivir al re-login del mismo usuario; el sync filtrará por user_id).
-  ipcMain.handle('db:clear-cache', () => {
+  ipcMain.handle('db:clear-cache', (event) => {
+    assertAllowedIpcSender(event);
     return new Promise((resolve, reject) => {
       if (!db) return reject('DB no inicializada');
       db.run('DELETE FROM api_cache', function (err) {
@@ -545,7 +559,8 @@ function setupIpcHandlers() {
   // Wipe explícito de la cola de mutaciones. Solo se llama en logout MANUAL
   // del usuario y previa confirmación en la UI (puede haber pendientes que
   // se perderían). En 401 NO se llama; usar db:clear-cache.
-  ipcMain.handle('db:clear-queue', () => {
+  ipcMain.handle('db:clear-queue', (event) => {
+    assertAllowedIpcSender(event);
     return new Promise((resolve, reject) => {
       if (!db) return reject('DB no inicializada');
 
@@ -575,7 +590,8 @@ function setupIpcHandlers() {
 
   // Wipe completo (cache + cola). Mantenido por compatibilidad con cualquier
   // caller existente. Internamente compone clear-cache + clear-queue.
-  ipcMain.handle('db:clear-user-data', () => {
+  ipcMain.handle('db:clear-user-data', (event) => {
+    assertAllowedIpcSender(event);
     return new Promise((resolve, reject) => {
       if (!db) return reject('DB no inicializada');
       db.all('SELECT stored_path FROM sync_queue_files', [], (selErr, rows) => {
@@ -601,7 +617,8 @@ function setupIpcHandlers() {
     });
   });
 
-  ipcMain.handle('db:mark-request-status', (_event, payload) => {
+  ipcMain.handle('db:mark-request-status', (event, payload) => {
+    assertAllowedIpcSender(event);
     return new Promise((resolve, reject) => {
       if (!db) return reject('DB no inicializada');
       const { id, status, error: lastError } = payload || {};

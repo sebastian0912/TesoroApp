@@ -47,8 +47,8 @@ type DocUiCell = {
   /** ¿este tipo documental está sujeto a la regla de 15 días? */
   controlled?: boolean;
   /** Referencia para el tooltip */
-  referenceType?: 'contract' | 'today' | 'none';
-  /** Días calculados. Si referenceType='contract' -> (fecha_contratacion - uploaded_at). Si 'today' -> (hoy - uploaded_at). */
+  referenceType?: 'ingreso' | 'today' | 'none';
+  /** Días calculados. Si referenceType='ingreso' -> (fecha_ingreso - uploaded_at). Si 'today' -> (hoy - uploaded_at). */
   daysDiff?: number | null;
   /** Metadata útil para el flujo de subida */
   typeId?: number;
@@ -89,6 +89,8 @@ type ChecklistItemDto = {
   fecha_contratacion?: string | null;
   /** Oficina/sede de la última entrevista (gestion_contratacion). */
   oficina_entrevista?: string | null;
+  /** Rol del Usuario en gestion_admin asociado a la cédula (null si no existe). */
+  usuario_rol?: string | null;
   docs?: ChecklistDocDto[];
 };
 
@@ -176,9 +178,11 @@ export class ConsultContractingDocumentationComponent implements OnInit {
   checklistRows: any[] = [];
 
   /**
-   * Cédulas cuya última entrevista es en ADMINISTRATIVOS y que han sido excluidas
-   * de la tabla (sólo GERENCIA puede ver sus documentos). Se muestran como un banner
-   * informativo para que el usuario sepa cuáles son.
+   * Cédulas excluidas de la tabla (sólo GERENCIA puede verlas) porque:
+   *   - su Usuario en gestion_admin tiene rol distinto de OPERARIO,
+   *   - su última entrevista fue en oficina ADMINISTRATIVOS, o
+   *   - su finca contiene "ADMINISTRATIVO" / "ADMINISTRATIVOS".
+   * Se muestran como un banner informativo para que el operador sepa cuáles son.
    */
   restrictedAdminItems: Array<{ cedula: string; nombre: string }> = [];
 
@@ -207,6 +211,7 @@ export class ConsultContractingDocumentationComponent implements OnInit {
   /** Contexto de la subida pendiente (setear antes de click()) */
   private pendingUpload: {
     cedula: string;
+    tipo_documento?: string | null;
     typeId: number;
     typeName: string;
     contract_number?: string | null;
@@ -416,19 +421,62 @@ export class ConsultContractingDocumentationComponent implements OnInit {
   }
 
   /**
-   * ¿el usuario actual puede ver candidatos cuya última entrevista es ADMINISTRATIVOS?
-   * Regla del negocio: SOLO el rol GERENCIA. El resto no debe verlos en la tabla
-   * ni en exportes ni en consultas automáticas.
+   * ¿el usuario logueado actual puede ver TODAS las cédulas, incluso las que
+   * pertenecen a Usuarios con rol distinto de OPERARIO?
+   * Regla del negocio: rol GERENCIA o ADMIN. El resto no ve esas filas en
+   * la tabla, ni en exportes, ni en consultas automáticas.
    */
   canViewAdministrativos(): boolean {
     const rol = String(this.user?.rol?.nombre ?? '').trim().toUpperCase();
-    return rol === 'GERENCIA';
+    return rol === 'GERENCIA' || rol === 'ADMIN';
+  }
+
+  /**
+   * ¿la cédula consultada corresponde a un Usuario con rol distinto de OPERARIO?
+   * - Si `usuario_rol` es null/vacío → la cédula no tiene Usuario en gestion_admin
+   *   o está sin rol asignado → tratamos como operario normal (visible para todos).
+   * - Si `usuario_rol` es OPERARIO → visible para todos.
+   * - En cualquier otro valor (GERENCIA, COORDINADOR, ADMIN, JEFE-DE-AREA,
+   *   TESORERIA, TIENDA, ESPECIAL, TRASLADOS, EMPRESA, COMERCIALIZADORA, etc.)
+   *   → restringida; sólo visible para GERENCIA.
+   */
+  private esRolRestringido(usuarioRol: string | null | undefined): boolean {
+    const rol = String(usuarioRol ?? '').trim().toUpperCase();
+    if (!rol) return false;
+    return rol !== 'OPERARIO';
   }
 
   /** Match laxo de "ADMINISTRATIVOS" tolerante a espacios y acentos. */
   private isAdministrativos(oficina: string | null | undefined): boolean {
     if (!oficina) return false;
     return this.normName(oficina) === 'ADMINISTRATIVOS';
+  }
+
+  /**
+   * ¿la finca contiene "ADMINISTRATIVO" o "ADMINISTRATIVOS"?
+   * Match laxo (case-insensitive, sin acentos) y por SUBSTRING — alcanza para
+   * "FINCA ADMINISTRATIVOS", "Administrativos Bogotá", "Sede Administrativo", etc.
+   */
+  private isFincaAdministrativo(finca: string | null | undefined): boolean {
+    if (!finca) return false;
+    const n = this.normName(finca);
+    return n.includes('ADMINISTRATIVO');
+  }
+
+  /**
+   * Regla combinada: una fila se considera restringida (sólo GERENCIA la ve) si
+   * cualquiera de las tres condiciones se cumple:
+   *   - el Usuario asociado a la cédula tiene rol distinto de OPERARIO,
+   *   - la última entrevista fue en oficina ADMINISTRATIVOS, o
+   *   - la finca contiene ADMINISTRATIVO/ADMINISTRATIVOS.
+   * Cualquiera de las tres manda la fila al banner de restringidos.
+   */
+  private esItemRestringido(it: ChecklistItemDto | null | undefined): boolean {
+    return (
+      this.esRolRestringido(it?.usuario_rol)
+      || this.isAdministrativos(it?.oficina_entrevista)
+      || this.isFincaAdministrativo(it?.finca)
+    );
   }
 
   /** ✅ Abrir PDF cuando el estado sea OK o WARN */
@@ -473,10 +521,9 @@ export class ConsultContractingDocumentationComponent implements OnInit {
     const ref = cell.referenceType;
 
     if (cell.state === 'OK') {
-      if (cell.controlled && ref === 'contract' && days !== null && days !== undefined) {
-        if (days === 0) return 'Vigente · entregado el mismo día del contrato';
-        if (days > 0) return `Vigente · entregado ${days} día(s) antes de la fecha de contrato`;
-        return `Vigente · entregado ${Math.abs(days)} día(s) después de la fecha de contrato`;
+      if (cell.controlled && ref === 'ingreso' && days !== null && days !== undefined) {
+        if (days === 0) return 'Vigente · entregado el mismo día del ingreso';
+        return `Vigente · entregado ${days} día(s) antes del ingreso`;
       }
       if (ref === 'today' && days !== null && days !== undefined) {
         return `Entregado hace ${days} día(s)`;
@@ -485,16 +532,19 @@ export class ConsultContractingDocumentationComponent implements OnInit {
     }
 
     if (cell.state === 'INFO') {
-      // Controlado pero sin fecha de contrato: solo mostramos los días desde la subida
+      // Controlado pero sin fecha de ingreso: solo mostramos los días desde la subida
       if (days !== null && days !== undefined) {
-        return `Entregado hace ${days} día(s) · sin fecha de contrato para validar`;
+        return `Entregado hace ${days} día(s) · sin fecha de ingreso para validar`;
       }
-      return 'Entregado · sin fecha de contrato para validar';
+      return 'Entregado · sin fecha de ingreso para validar';
     }
 
     if (cell.state === 'OLD') {
-      if (cell.controlled && ref === 'contract' && days !== null && days !== undefined) {
-        return `No vigente · entregado ${days} día(s) antes de la fecha de contrato (> 15 días)`;
+      if (cell.controlled && ref === 'ingreso' && days !== null && days !== undefined) {
+        if (days < 0) {
+          return `No vigente · entregado ${Math.abs(days)} día(s) después del ingreso`;
+        }
+        return `No vigente · entregado ${days} día(s) antes del ingreso (> 15 días)`;
       }
       if (ref === 'today' && days !== null && days !== undefined) {
         return `Entregado hace ${days} día(s) (más de 15 días)`;
@@ -514,6 +564,9 @@ export class ConsultContractingDocumentationComponent implements OnInit {
     }
     this.pendingUpload = {
       cedula: cell.cedula,
+      // tipo_documento del candidato: el backend lo usa para prefijar
+      // owner_id con "x" cuando no es CC (evita colisiones).
+      tipo_documento: row?.tipo_documento ?? row?.tipoDocumento ?? null,
       typeId: cell.typeId,
       typeName: cell.typeName ?? '',
       contract_number: cell.contract_number ?? row?.codigo_contrato ?? null,
@@ -557,6 +610,7 @@ export class ConsultContractingDocumentationComponent implements OnInit {
           ctx.typeId,
           file,
           ctx.contract_number ? String(ctx.contract_number) : undefined,
+          ctx.tipo_documento ? String(ctx.tipo_documento) : undefined,
         ),
       );
 
@@ -846,12 +900,11 @@ export class ConsultContractingDocumentationComponent implements OnInit {
       // MAPPING (Heavy Sync Operation) - Optimizado O(N)
       const rawItems: ChecklistItemDto[] = Array.isArray(resp?.items) ? resp.items : [];
 
-      // Restricción: los documentos de candidatos cuya última entrevista es en
-      // ADMINISTRATIVOS sólo se muestran al rol GERENCIA. Para el resto:
-      //  - los excluimos de la tabla principal (y por ende del Excel/ZIP),
-      //  - pero los listamos en un banner aparte para que el usuario sepa
-      //    QUÉ cédulas quedaron restringidas (la consulta de 15 cédulas no
-      //    desaparece silenciosamente).
+      // Restricción combinada: una cédula sólo es visible para GERENCIA si
+      //   (a) su Usuario en gestion_admin tiene rol distinto de OPERARIO,
+      //   (b) su última entrevista fue en oficina ADMINISTRATIVOS, o
+      //   (c) su finca contiene ADMINISTRATIVO/ADMINISTRATIVOS.
+      // Cualquiera de las tres manda la fila al banner de restringidos.
       let itemsList: ChecklistItemDto[];
       if (this.canViewAdministrativos()) {
         itemsList = rawItems;
@@ -860,7 +913,7 @@ export class ConsultContractingDocumentationComponent implements OnInit {
         itemsList = [];
         const restricted: Array<{ cedula: string; nombre: string }> = [];
         for (const it of rawItems) {
-          if (this.isAdministrativos(it?.oficina_entrevista)) {
+          if (this.esItemRestringido(it)) {
             restricted.push({
               cedula: String(it?.cedula ?? ''),
               nombre: String(it?.nombre_completo ?? ''),
@@ -1053,7 +1106,7 @@ export class ConsultContractingDocumentationComponent implements OnInit {
     this.checklistColumns = [];
     this.isLoadingChecklist = false;
 
-    // Banner de restringidos (ADMINISTRATIVOS)
+    // Banner de cédulas restringidas (rol != OPERARIO, sólo GERENCIA puede verlas)
     this.restrictedAdminItems = [];
   }
 
@@ -1145,7 +1198,14 @@ export class ConsultContractingDocumentationComponent implements OnInit {
 
     Swal.fire({
       title: 'Preparando descarga...',
-      text: 'Esto puede tardar unos segundos',
+      html: `
+        <p style="margin: 8px 0; color:#374151;">
+          Generando ZIP de <b>${cedulasNum.length}</b> cédula(s).
+        </p>
+        <p style="margin: 4px 0; font-size:12px; color:#6b7280;">
+          Puede tardar varios minutos si son muchas o los PDFs son grandes.
+        </p>
+      `,
       allowOutsideClick: false,
       didOpen: () => Swal.showLoading(),
     });
@@ -1155,6 +1215,26 @@ export class ConsultContractingDocumentationComponent implements OnInit {
       .pipe(takeUntilDestroyed(this.destroyRef), finalize(() => Swal.close()))
       .subscribe({
         next: (blob: Blob) => {
+          // Defensive: si el "blob" viene vacío o muy chico, probablemente es
+          // un error JSON disfrazado de blob. Lo detectamos antes de descargar.
+          if (!blob || blob.size === 0) {
+            Swal.fire({
+              icon: 'warning',
+              title: 'Sin documentos',
+              text: 'El backend no devolvió ningún archivo. Verifica que las cédulas tengan documentos cargados.',
+            });
+            return;
+          }
+          if (blob.type && blob.type.includes('json')) {
+            // El servidor mandó un error JSON pero el cliente lo pidió como blob.
+            blob.text().then((txt) => {
+              let msg = 'Error al generar el ZIP';
+              try { msg = JSON.parse(txt)?.error || msg; } catch { /* noop */ }
+              Swal.fire({ icon: 'error', title: 'Error al descargar', text: msg });
+            });
+            return;
+          }
+
           const url = window.URL.createObjectURL(blob);
           const a = document.createElement('a');
           a.href = url;
@@ -1167,13 +1247,34 @@ export class ConsultContractingDocumentationComponent implements OnInit {
         },
         error: (err: any) => {
           console.error('[consult-docs] Error descargando ZIP:', err);
-          const detail = err?.error?.detail || err?.message || '';
+
+          // Priorizamos el mensaje legible que ya extrajo el service (catchError).
+          // Si no, caemos al error.detail o message genérico.
+          const detail =
+            (typeof err?.message === 'string' && err.message) ||
+            err?.error?.detail ||
+            err?.error?.error ||
+            '';
+
+          // status 0 con responseType blob suele ser timeout / conexión cortada.
+          // Ahora que excluímos el endpoint del offline-queue, el componente
+          // sí ve este caso. Damos pista accionable.
+          const isNetworkError = err?.status === 0 || /ERR_CONNECTION/i.test(String(err?.message ?? ''));
+
           Swal.fire({
             icon: 'error',
             title: 'Error al descargar',
-            text: detail
-              ? `No se pudo generar el archivo: ${detail}`
-              : 'No se pudo descargar el archivo. Verifique su conexión e intente de nuevo.',
+            html: isNetworkError
+              ? `
+                <p style="margin: 4px 0;">La conexión con el servidor se interrumpió.</p>
+                <p style="font-size:12px; color:#6b7280; margin: 8px 0;">
+                  Esto suele pasar cuando la generación del ZIP tarda mucho.
+                  Intenta con un grupo más pequeño de cédulas o vuelve a intentar.
+                </p>
+              `
+              : detail
+                ? `<p>${detail}</p>`
+                : '<p>No se pudo generar el archivo. Reintenta en un momento.</p>',
           });
         },
       });
@@ -1183,23 +1284,29 @@ export class ConsultContractingDocumentationComponent implements OnInit {
    * Construye la fila base (para ZIP/Excel) y la fila UI (para StandardFilterTable)
    * desde un item del backend. Aplica la regla:
    *  - Si el tipo documental NO está en la lista controlada -> OK (si existe)
-   *  - Si está controlado y hay fecha_contratacion:
-   *      OK si uploaded_at >= fecha_contratacion - 15d ; OLD si no.
-   *  - Si está controlado y NO hay fecha_contratacion:
+   *  - Si está controlado y hay fecha_ingreso:
+   *      OK (chulo verde) sólo si la fecha del documento cae en la ventana
+   *      [fecha_ingreso - 15d, fecha_ingreso] (inclusive). Es decir: hasta 15
+   *      días ANTES del ingreso y NUNCA posterior al ingreso. OLD si no.
+   *  - Si está controlado y NO hay fecha_ingreso:
    *      OK si existe (no se valida), con tooltip relativo a HOY.
    */
   private mapItemToRows(it: ChecklistItemDto): { row: Row; uiRow: any } {
     const oldBatchIso = this.OLD_BATCH_DATE;
     const DAY_MS = 86400000;
 
-    const fechaContratacion = this.parseFecha(it?.fecha_contratacion as any);
-    const rowCutoffTime = fechaContratacion
+    // La vigencia del chulo verde se ancla a la FECHA DE INGRESO del contrato
+    // (no a contratado_at): el documento debe ser de los 15 días previos al
+    // ingreso y no posterior a éste.
+    const fechaIngreso = this.parseFecha(it?.fecha_ingreso as any);
+    const ingresoMidTime = fechaIngreso
       ? (() => {
-          const d = new Date(fechaContratacion.getTime());
+          const d = new Date(fechaIngreso.getTime());
           d.setHours(0, 0, 0, 0);
-          return d.getTime() - 15 * DAY_MS;
+          return d.getTime();
         })()
       : null;
+    const rowCutoffTime = ingresoMidTime !== null ? ingresoMidTime - 15 * DAY_MS : null;
 
     // Referencia "hoy 00:00" para el fallback (sin fecha de contrato)
     const todayMid = new Date();
@@ -1262,7 +1369,7 @@ export class ConsultContractingDocumentationComponent implements OnInit {
 
       let state: DocUiCell['state'];
       let daysDiff: number | null = null;
-      let referenceType: 'contract' | 'today' | 'none' = 'none';
+      let referenceType: 'ingreso' | 'today' | 'none' = 'none';
 
       if (!exists) {
         state = 'MISSING';
@@ -1273,19 +1380,28 @@ export class ConsultContractingDocumentationComponent implements OnInit {
           daysDiff = Math.floor((todayTime - uploadedAt.getTime()) / DAY_MS);
           referenceType = 'today';
         }
-      } else if (fechaContratacion && rowCutoffTime !== null) {
-        // Tipos controlados CON fecha de contrato: validar ventana 15d previa al contrato.
+      } else if (ingresoMidTime !== null && rowCutoffTime !== null) {
+        // Tipos controlados CON fecha de ingreso: validar ventana
+        // [ingreso - 15d, ingreso]. La comparación es por día (se normaliza la
+        // fecha de subida a 00:00) para que un documento del MISMO día del
+        // ingreso cuente como vigente, pero uno posterior no.
         if (uploadedAt) {
-          const vigente = uploadedAt.getTime() >= rowCutoffTime && !isOldBatch;
+          const upMid = new Date(uploadedAt.getTime());
+          upMid.setHours(0, 0, 0, 0);
+          const upMidTime = upMid.getTime();
+          const vigente =
+            upMidTime >= rowCutoffTime && upMidTime <= ingresoMidTime && !isOldBatch;
           state = vigente ? 'OK' : 'OLD';
-          daysDiff = Math.round((fechaContratacion.getTime() - uploadedAt.getTime()) / DAY_MS);
-          referenceType = 'contract';
+          // daysDiff > 0 -> entregado N días antes del ingreso;
+          // daysDiff < 0 -> entregado N días después del ingreso.
+          daysDiff = Math.round((ingresoMidTime - upMidTime) / DAY_MS);
+          referenceType = 'ingreso';
         } else {
           // Existe el registro pero sin fecha -> tratamos como OLD para no engañar
           state = 'OLD';
         }
       } else {
-        // Tipos controlados SIN fecha de contrato: no se puede validar vigencia.
+        // Tipos controlados SIN fecha de ingreso: no se puede validar vigencia.
         // Mostramos "chulo amarillo" para indicar que está entregado pero sin verificar.
         state = 'INFO';
         if (uploadedAt) {
@@ -1322,6 +1438,13 @@ export class ConsultContractingDocumentationComponent implements OnInit {
     const ddmmyyyy = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/;
     const m = ddmmyyyy.exec(s0);
     if (m) return new Date(+m[3], +m[2] - 1, +m[1]);
+
+    // yyyy-mm-dd (fecha SIN hora, p. ej. fecha_ingreso): interpretarla como
+    // fecha LOCAL, no UTC. `new Date("2026-05-23")` asume UTC y en zonas
+    // negativas (Colombia, UTC-5) retrocede un día al pasar a local, lo que
+    // provocaba el desfase de ±1 día en la validación de vigencia.
+    const ymd = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s0);
+    if (ymd) return new Date(+ymd[1], +ymd[2] - 1, +ymd[3]);
 
     // ✅ Normaliza ISO con microsegundos: .824286 -> .824
     const s = s0.replace(/(\.\d{3})\d+(?=[Z+-])/, '$1');
@@ -1485,32 +1608,35 @@ export class ConsultContractingDocumentationComponent implements OnInit {
       return { pn, sn, pa, sa };
     };
 
-    // ✅ Fallback: "hoy - 15 días" cuando no exista fecha_contratacion en la fila.
-    const todayCutoff = new Date();
-    todayCutoff.setHours(0, 0, 0, 0);
-    todayCutoff.setDate(todayCutoff.getDate() - 15);
     const DAY_MS = 86400000;
 
-    /** Devuelve la fecha de corte para una fila (fecha_contratacion - 15d) o null si no aplica. */
-    const rowCutoffFor = (r: Row): number | null => {
-      const fc = this.parseFecha(r?.fecha_contratacion as any);
-      if (!fc) return null;
-      const d = new Date(fc.getTime());
+    /** Fecha de ingreso de la fila normalizada a 00:00 (ms), o null si no aplica. */
+    const rowIngresoMidFor = (r: Row): number | null => {
+      const fi = this.parseFecha(r?.fecha_ingreso as any);
+      if (!fi) return null;
+      const d = new Date(fi.getTime());
       d.setHours(0, 0, 0, 0);
-      return d.getTime() - 15 * DAY_MS;
+      return d.getTime();
     };
 
-    /** Evalúa si el doc está vigente según la regla nueva (para hojas de faltantes). */
+    /**
+     * Evalúa si el doc está vigente (para hojas de faltantes y hoja GENERAL).
+     * Regla: la fecha del documento debe caer en [fecha_ingreso - 15d,
+     * fecha_ingreso] inclusive (15 días previos al ingreso, no posteriores).
+     */
     const isVigenteForRow = (r: Row, doc: DocCell | undefined): boolean => {
       if (!doc?.exists) return false;
       const uploadedAt = this.parseFecha(doc?.uploaded_at as any);
       if (!uploadedAt) return false;
       const isOldBatch = uploadedAt.toISOString().slice(0, 10) === this.OLD_BATCH_DATE;
       if (isOldBatch) return false;
-      const rc = rowCutoffFor(r);
-      if (rc !== null) return uploadedAt.getTime() >= rc;
-      // Sin fecha_contratacion: no se puede validar; no lo marcamos como faltante.
-      return true;
+      const ingresoMid = rowIngresoMidFor(r);
+      // Sin fecha de ingreso: no se puede validar; no lo marcamos como faltante.
+      if (ingresoMid === null) return true;
+      const upMid = new Date(uploadedAt.getTime());
+      upMid.setHours(0, 0, 0, 0);
+      const upMidTime = upMid.getTime();
+      return upMidTime >= ingresoMid - 15 * DAY_MS && upMidTime <= ingresoMid;
     };
 
     const wb = new WorkbookCtor();

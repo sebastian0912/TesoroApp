@@ -4,30 +4,27 @@
 
    :host {
     display: block;
-    height: 100vh;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden; /* Prevent body scroll */
+    min-height: 100vh;       /* permite que la página crezca y haga scroll natural */
     background-color: #f3f4f6;
-    
+
     /* --- Design Tokens --- */
     --r-sm: 8px;
     --r-md: 12px;
     --r-lg: 16px;
-    
+
     --primary: #3b82f6; /* Modern Blue */
     --primary-dark: #2563eb;
     --primary-light: #eff6ff;
-    
+
     --success: #10b981;
     --text-main: #111827;
     --text-sec: #6b7280;
     --border: #e5e7eb;
     --bg-card: #ffffff;
-    
+
     --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
     --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-    
+
     font-family: 'Inter', system-ui, -apple-system, sans-serif;
   }
   
@@ -36,12 +33,13 @@
   .text-success { color: var(--success); }
   .text-primary { color: var(--primary); }
   
-  /* --- Header Section --- */
+  /* --- Header Section (sticky para que siga visible al hacer scroll) --- */
   .header-section {
     background: #ffffff;
     border-bottom: 1px solid var(--border);
     padding: 16px 24px;
-    flex-shrink: 0;
+    position: sticky;
+    top: 0;
     z-index: 20;
     box-shadow: var(--shadow-sm);
   }
@@ -123,38 +121,41 @@
     background: var(--border);
   }
   
-  /* --- Main Container --- */
+  /* --- Main Container (scroll natural, sin overflow:hidden) --- */
   .dashboard-container {
-    flex: 1;
-    overflow: hidden; /* Contains tabs scroll */
     display: flex;
     flex-direction: column;
-    padding: 16px 24px 0;
+    padding: 16px 24px 24px;
     max-width: 1800px;
     width: 100%;
     margin: 0 auto;
     box-sizing: border-box;
   }
-  
+
   /* --- Tabs Customization --- */
   ::ng-deep .mat-mdc-tab-group.custom-tabs {
-    flex: 1;
     display: flex;
     flex-direction: column;
-    overflow: hidden;
   }
-  
+
   ::ng-deep .mat-mdc-tab-body-wrapper {
-    flex: 1;
-    overflow: hidden; /* Scroll handled in tab content */
+    /* sin overflow:hidden — dejar que el contenido fluya */
   }
-  
+
+  ::ng-deep .mat-mdc-tab-body.mat-mdc-tab-body-active {
+    overflow: visible !important;
+  }
+
+  ::ng-deep .mat-mdc-tab-body-content {
+    overflow: visible !important;
+  }
+
   ::ng-deep .mat-mdc-tab-header {
     border-bottom: 0 !important;
     background: transparent;
     margin-bottom: 12px;
   }
-  
+
   ::ng-deep .mat-mdc-tab-label-container {
     overflow: visible;
   }
@@ -191,10 +192,8 @@
     margin-right: 8px;
   }
   
-  /* --- Tab Content --- */
+  /* --- Tab Content (sin altura forzada; el body de la página hace el scroll) --- */
   .tab-content {
-    height: 100%;
-    overflow-y: auto; /* Allow scroll within tab if needed */
     padding-bottom: 24px;
   }
   
@@ -211,11 +210,119 @@
   mat-card {
     background: #ffffff;
     border-radius: var(--r-md) !important;
-    box-shadow: var(--shadow-sm) !important;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04), 0 1px 2px rgba(15, 23, 42, 0.03) !important;
     border: 1px solid var(--border);
-    overflow: hidden;
+    overflow: hidden;          /* mantiene esquinas redondeadas; el scroll va en .card-body-table */
   }
-  
+
+  /* =========================================================
+     ESTRATEGIA SIMPLE: este wrapper es EL ÚNICO scroller.
+     - Le damos altura fija + overflow:auto (X e Y).
+     - Anulamos el overflow del wrapper interno del componente
+       compartido (.sf-table-wrapper) para que no compita.
+     - Forzamos la <table> a `width: max-content` para que tome
+       su ancho real (suma de minWidths inline por columna) y
+       este contenedor genere el scroll horizontal cuando exceda.
+     - Hacemos el thead sticky relativo a ESTE contenedor para
+       que se quede pegado arriba durante el scroll vertical.
+
+     Ventajas vs la cadena de flex: no peleamos con el
+     mat-drawer-content de Material, no hay scroll anidado, el
+     scroll horizontal aparece de forma confiable en todos los tabs.
+     ========================================================= */
+  .card-body-table {
+    position: relative;
+    height: calc(100vh - 320px);
+    min-height: 360px;
+    overflow: auto;                  /* SCROLL X e Y aquí */
+    overscroll-behavior: contain;
+    background: #ffffff;
+  }
+
+  /* Scrollbar más visible (WebKit). */
+  .card-body-table::-webkit-scrollbar {
+    width: 12px;
+    height: 12px;
+  }
+  .card-body-table::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 8px;
+    border: 3px solid #ffffff;
+  }
+  .card-body-table::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+  }
+
+  /* Anula el wrapper interno: el shared component declara
+     `.sf-table-wrapper { overflow: auto }`, pero ya no queremos
+     que él scrollee — lo hace el outer. */
+  .card-body-table ::ng-deep .sf-table-wrapper {
+    overflow: visible;
+    height: auto;
+    width: max-content;
+    min-width: 100%;
+  }
+
+  /* También dejamos pasar el contenido del mat-drawer-content y
+     contenedores intermedios para que la tabla expanda su ancho
+     natural sin clipping. */
+  .card-body-table ::ng-deep .sf-drawer-container,
+  .card-body-table ::ng-deep .sf-drawer-content,
+  .card-body-table ::ng-deep .sf-main-layout,
+  .card-body-table ::ng-deep .sf-content-area {
+    overflow: visible !important;
+    width: auto;
+    min-width: max-content;
+    height: auto;
+    min-height: 0;
+  }
+
+  /* La tabla toma su ancho real (suma de las column widths inline).
+     min-width: 100% hace que llene el wrapper cuando son pocas. */
+  .card-body-table ::ng-deep .sf-table {
+    width: max-content;
+    min-width: 100%;
+  }
+
+  /* Thead sticky relativo al `.card-body-table` (que ahora es el
+     scroller). El shared component ya pone position:sticky;top:0 sobre
+     los th, pero ese sticky estaba atado a `.sf-table-wrapper` que
+     antes no scrolleaba. Ahora con overflow:visible en el wrapper, los
+     th sticky se anclan a `.card-body-table`, que es el scroller real. */
+  .card-body-table ::ng-deep .sf-table th {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+
+  /* Sticky columns (stickyStart/stickyEnd):
+     el shared component las marca con la clase `mat-table-sticky`
+     pero no les pone background. Sin fondo, la columna pegada queda
+     transparente y "se come" los valores de la columna detrás al
+     scrollear (efecto: ZIPAQUIRA con dígitos recortados porque la
+     columna Total con stickyEnd estaba encima invisible). */
+  .card-body-table ::ng-deep td.mat-table-sticky {
+    background-color: #ffffff;
+    z-index: 5;
+  }
+  .card-body-table ::ng-deep tr:nth-child(even) td.mat-table-sticky {
+    background-color: #f8fafc;
+  }
+  .card-body-table ::ng-deep th.mat-table-sticky {
+    background-color: var(--sft-header-bg, #21263c);
+    z-index: 11; /* sobre thead sticky-top (z:10) */
+  }
+
+  /* Sombras laterales para diferenciar la zona sticky del scroll. */
+  .card-body-table ::ng-deep .sf-table td.mat-table-sticky:first-child,
+  .card-body-table ::ng-deep .sf-table th.mat-table-sticky:first-child {
+    box-shadow: 2px 0 4px rgba(15, 23, 42, 0.08);
+  }
+  .card-body-table ::ng-deep .sf-table td.mat-table-sticky:last-child,
+  .card-body-table ::ng-deep .sf-table th.mat-table-sticky:last-child {
+    box-shadow: -2px 0 4px rgba(15, 23, 42, 0.08);
+  }
+
   .kpi-card {
     padding: 0;
     min-height: 500px;
@@ -254,12 +361,15 @@
     padding: 24px;
   }
   
+  /* La altura de la card la dicta su contenido + el max-height del .card-body-table.
+     Quitamos min-height para evitar huecos en blanco bajo la tabla. */
   .content-card {
-    min-height: 400px;
+    display: flex;
+    flex-direction: column;
   }
-  
+
   .card-bar {
-    padding: 16px 24px;
+    padding: 14px 20px;
     border-bottom: 1px solid var(--border);
     display: flex;
     align-items: center;
@@ -461,4 +571,374 @@
     }
     
     .ff-sm, .ff-md, .ff-grow { width: 100%; }
+  }
+
+  /* =========================================================
+     ALERTAS EN HEADER (badge de duplicados + indicador horario)
+     ========================================================= */
+  .header-alerts {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-left: 16px;
+  }
+
+  /* Indicador de modo de atención */
+  .chip-mode {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 36px;
+    padding: 0 14px;
+    border-radius: 18px;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    cursor: default;
+  }
+
+  .chip-mode mat-icon {
+    width: 18px;
+    height: 18px;
+    font-size: 18px;
+  }
+
+  .chip-mode-laboral {
+    background-color: #ecfdf5 !important;
+    color: #065f46 !important;
+    border-color: #10b981 !important;
+  }
+
+  .chip-mode-fuera {
+    background-color: #eef2ff !important;
+    color: #3730a3 !important;
+    border-color: #6366f1 !important;
+  }
+
+  /* Badge de duplicados */
+  .chip-duplicates {
+    height: 36px !important;
+    padding: 0 14px !important;
+    border-radius: 18px !important;
+    font-size: 12px !important;
+    font-weight: 700 !important;
+    letter-spacing: 0.02em;
+    background-color: #fef2f2 !important;
+    color: #991b1b !important;
+    border: 1px solid #fca5a5 !important;
+    box-shadow: 0 1px 2px rgba(220, 38, 38, 0.15);
+    animation: pulse-duplicates 2.4s ease-in-out infinite;
+  }
+
+  .chip-duplicates mat-icon {
+    width: 18px;
+    height: 18px;
+    font-size: 18px;
+    margin-right: 4px;
+  }
+
+  @keyframes pulse-duplicates {
+    0%, 100% { box-shadow: 0 1px 2px rgba(220, 38, 38, 0.15); }
+    50% { box-shadow: 0 1px 8px rgba(220, 38, 38, 0.35); }
+  }
+
+  /* =========================================================
+     TAB LOCKS: barra superior con toggle por antecedente/worker
+     ========================================================= */
+  .locks-bar {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+
+  .locks-bar-left {
+    flex: 1 1 auto;
+    min-width: 280px;
+  }
+
+  .locks-bar-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+
+  .locks-toggle {
+    height: 36px;
+    border-radius: 999px !important;
+    overflow: hidden;
+  }
+
+  /* Oculta el "check wrapper" automático que Material 21 agrega al toggle
+     seleccionado (`.mat-button-toggle-checkbox-wrapper` con SVG ✓ adentro).
+     Sin esto, el check empuja al icono y rompe el alineamiento. */
+  .locks-toggle ::ng-deep .mat-button-toggle-checkbox-wrapper {
+    display: none !important;
+    width: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  /* Asegura que el botón interno y su label ocupen TODO el alto y centren. */
+  .locks-toggle ::ng-deep .mat-button-toggle-button {
+    height: 36px !important;
+    padding: 0 !important;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .locks-toggle ::ng-deep .mat-button-toggle-label-content {
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    height: 36px !important;
+    line-height: 1 !important;
+    padding: 0 14px !important;
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  .locks-toggle ::ng-deep mat-icon {
+    width: 18px;
+    height: 18px;
+    font-size: 18px;
+    line-height: 18px !important;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0;
+  }
+
+  /* Toggle no-seleccionado vs seleccionado: contraste claro */
+  .locks-toggle ::ng-deep .mat-button-toggle:not(.mat-button-toggle-checked) {
+    background: transparent;
+    color: var(--text-sec);
+  }
+
+  .locks-toggle ::ng-deep .mat-button-toggle-checked {
+    background: var(--primary-light) !important;
+    color: var(--primary-dark) !important;
+  }
+
+  .locks-toggle ::ng-deep .mat-button-toggle-checked mat-icon {
+    color: var(--primary-dark);
+  }
+
+  /* Pills tipo "leyenda" para el texto explicativo */
+  .legend-pill {
+    display: inline-block;
+    padding: 1px 8px;
+    border-radius: 10px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+  }
+
+  .legend-zombie {
+    background: #fee2e2;
+    color: #7f1d1d;
+  }
+
+  .legend-activo {
+    background: #d1fae5;
+    color: #065f46;
+  }
+
+  /* =========================================================
+     TAB 3 — RESUMEN DE LOCKS (chips arriba)
+     ========================================================= */
+  .locks-summary {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 10px;
+    flex-wrap: wrap;
+  }
+
+  .ls-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 500;
+    background: #f3f4f6;
+    color: #374151;
+    border: 1px solid #e5e7eb;
+  }
+
+  .ls-chip b {
+    font-weight: 700;
+    font-size: 13px;
+  }
+
+  .ls-chip mat-icon {
+    width: 16px;
+    height: 16px;
+    font-size: 16px;
+    color: #6b7280;
+  }
+
+  .ls-zombies {
+    background: #fef2f2;
+    color: #991b1b;
+    border-color: #fca5a5;
+  }
+  .ls-zombies mat-icon { color: #dc2626; }
+  .ls-zombies.is-zero {
+    background: #f3f4f6;
+    color: #6b7280;
+    border-color: #e5e7eb;
+    opacity: 0.7;
+  }
+  .ls-zombies.is-zero mat-icon { color: #9ca3af; }
+
+  .ls-activos {
+    background: #ecfdf5;
+    color: #065f46;
+    border-color: #6ee7b7;
+  }
+  .ls-activos mat-icon { color: #10b981; }
+
+  .ls-sinlock {
+    background: #eef2ff;
+    color: #3730a3;
+    border-color: #c7d2fe;
+  }
+  .ls-sinlock mat-icon { color: #6366f1; }
+
+  /* =========================================================
+     TAB 4 — FALTANTES POR OFICINA (presets + resumen)
+     ========================================================= */
+  .pendientes-bar {
+    display: flex;
+    flex-direction: row;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+
+  .pendientes-bar-left {
+    flex: 1 1 280px;
+    min-width: 240px;
+  }
+
+  .pendientes-summary {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 10px;
+    flex-wrap: wrap;
+  }
+
+  .ps-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 12px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 500;
+    background: #f3f4f6;
+    color: #374151;
+    border: 1px solid #e5e7eb;
+  }
+
+  .ps-chip b {
+    font-weight: 700;
+    font-size: 14px;
+    color: var(--text-main);
+  }
+
+  .ps-chip mat-icon {
+    width: 16px;
+    height: 16px;
+    font-size: 16px;
+    color: var(--primary);
+  }
+
+  .pendientes-form {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
+  .date-presets {
+    display: inline-flex;
+    align-items: center;
+    background: #f9fafb;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 2px;
+    gap: 2px;
+  }
+
+  .preset-btn {
+    min-width: 60px !important;
+    height: 30px !important;
+    line-height: 30px !important;
+    padding: 0 12px !important;
+    border-radius: 999px !important;
+    font-size: 12px !important;
+    font-weight: 600 !important;
+    color: var(--text-sec) !important;
+    transition: all 0.15s;
+  }
+
+  .preset-btn:hover {
+    background: #fff !important;
+    color: var(--primary) !important;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.06);
+  }
+
+  /* Animación del spin para los botones "Actualizar" */
+  .spin {
+    animation: spin 1s linear infinite;
+  }
+
+  @keyframes spin {
+    from { transform: rotate(0deg); }
+    to   { transform: rotate(360deg); }
+  }
+
+  /* Responsive: en mobile la barra se apila */
+  @media (max-width: 768px) {
+    .header-alerts {
+      margin-left: 0;
+      margin-top: 8px;
+      width: 100%;
+      flex-wrap: wrap;
+    }
+
+    .locks-bar {
+      flex-direction: column;
+      align-items: stretch;
+    }
+
+    .locks-bar-right {
+      justify-content: flex-end;
+    }
+
+    .pendientes-bar {
+      flex-direction: column;
+      align-items: stretch;
+    }
+
+    .pendientes-form {
+      justify-content: flex-start;
+    }
+
+    .date-presets {
+      width: 100%;
+      justify-content: space-between;
+    }
   }

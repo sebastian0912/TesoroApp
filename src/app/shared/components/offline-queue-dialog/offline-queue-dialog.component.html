@@ -1,0 +1,136 @@
+<h2 mat-dialog-title class="dialog-title">
+  <mat-icon class="title-icon">{{ isOnline ? 'cloud_sync' : 'cloud_off' }}</mat-icon>
+  Envíos pendientes
+  @if (total > 0) {
+    <span class="title-count">{{ total }}</span>
+  }
+</h2>
+
+<mat-dialog-content class="dialog-content">
+  <!-- Estado de conexión -->
+  <div class="conn-banner" [class.online]="isOnline" [class.offline]="!isOnline">
+    <mat-icon>{{ isOnline ? 'wifi' : 'wifi_off' }}</mat-icon>
+    <span>
+      @if (isOnline) {
+        Con conexión. Los envíos pendientes se suben automáticamente.
+      } @else {
+        Sin conexión. Lo que generes o subas queda guardado aquí y se enviará al reconectar.
+      }
+    </span>
+  </div>
+
+  <!-- Cargando -->
+  @if (loading) {
+    <div class="state-center">
+      <mat-spinner diameter="32"></mat-spinner>
+      <p>Revisando la cola local…</p>
+    </div>
+  } @else if (total === 0) {
+    <!-- Todo sincronizado -->
+    <div class="state-center empty">
+      <mat-icon class="empty-icon">check_circle</mat-icon>
+      <p class="empty-title">Todo sincronizado</p>
+      <p class="empty-sub">No hay archivos ni envíos esperando subir.</p>
+    </div>
+  } @else {
+    <!-- Pendientes por subir -->
+    @if (pending.length > 0) {
+      <h3 class="section-head">
+        <mat-icon>schedule</mat-icon>
+        Esperando subir ({{ pending.length }})
+      </h3>
+      <div class="queue-list">
+        @for (row of pending; track trackById($index, row)) {
+          <div class="queue-item pending">
+            <mat-icon class="item-icon">{{ row.icon }}</mat-icon>
+            <div class="item-body">
+              <div class="item-head">
+                <span class="item-label">{{ row.label }}</span>
+                @if (row.age) { <span class="item-age">{{ row.age }}</span> }
+              </div>
+              @if (row.fileNames.length) {
+                <div class="item-files">
+                  @for (name of row.fileNames; track $index) {
+                    <span class="file-chip" [title]="name"><mat-icon>attach_file</mat-icon>{{ name }}</span>
+                  }
+                </div>
+              }
+              @if (row.last_error) {
+                <div class="item-warn">
+                  <mat-icon>info</mat-icon>
+                  <span>Último intento: {{ row.last_error }}</span>
+                </div>
+              }
+            </div>
+            <button mat-icon-button class="item-discard" matTooltip="Descartar"
+              (click)="descartar(row)" aria-label="Descartar envío">
+              <mat-icon>delete_outline</mat-icon>
+            </button>
+          </div>
+        }
+      </div>
+    }
+
+    <!-- Fallidos: requieren acción del usuario -->
+    @if (failed.length > 0) {
+      <h3 class="section-head failed">
+        <mat-icon>error_outline</mat-icon>
+        Con errores ({{ failed.length }})
+      </h3>
+      <p class="section-note">
+        El servidor rechazó estos envíos. Revisa el motivo, reintenta o descártalos.
+      </p>
+      <div class="queue-list">
+        @for (row of failed; track trackById($index, row)) {
+          <div class="queue-item failed">
+            <mat-icon class="item-icon">{{ row.icon }}</mat-icon>
+            <div class="item-body">
+              <div class="item-head">
+                <span class="item-label">{{ row.label }}</span>
+                @if (row.age) { <span class="item-age">{{ row.age }}</span> }
+                @if (row.attempt_count) { <span class="item-attempts">{{ row.attempt_count }} intento(s)</span> }
+              </div>
+              @if (row.fileNames.length) {
+                <div class="item-files">
+                  @for (name of row.fileNames; track $index) {
+                    <span class="file-chip" [title]="name"><mat-icon>attach_file</mat-icon>{{ name }}</span>
+                  }
+                </div>
+              }
+              @if (row.last_error) {
+                <div class="item-error">
+                  <mat-icon>report</mat-icon>
+                  <span>{{ row.last_error }}</span>
+                </div>
+              }
+            </div>
+            <div class="item-actions">
+              <button mat-icon-button class="item-retry" matTooltip="Reintentar"
+                [disabled]="!isOnline" (click)="reintentar(row)" aria-label="Reintentar envío">
+                <mat-icon>refresh</mat-icon>
+              </button>
+              <button mat-icon-button class="item-discard" matTooltip="Descartar"
+                (click)="descartar(row)" aria-label="Descartar envío">
+                <mat-icon>delete_outline</mat-icon>
+              </button>
+            </div>
+          </div>
+        }
+      </div>
+    }
+  }
+</mat-dialog-content>
+
+<mat-dialog-actions align="end" class="dialog-actions">
+  <button mat-button (click)="cerrar()">Cerrar</button>
+  <button mat-flat-button color="primary"
+    [disabled]="!isOnline || syncing || pending.length === 0"
+    (click)="sincronizarAhora()">
+    @if (syncing) {
+      <mat-spinner diameter="18" class="btn-spinner"></mat-spinner>
+    } @else {
+      <mat-icon>sync</mat-icon>
+    }
+    {{ syncing ? 'Sincronizando…' : 'Sincronizar ahora' }}
+  </button>
+</mat-dialog-actions>

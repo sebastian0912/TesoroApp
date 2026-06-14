@@ -77,7 +77,7 @@
             </button>
           </mat-menu>
           <!-- Nombre del archivo + fecha + Cola Robots -->
-          <div style="display: flex; flex-wrap: wrap; align-items: center; line-height: 1.4; margin-top: 4px;">
+          <div class="field-meta">
             <!-- Nombre y fecha de actualización -->
             @if ($any(uploadedFiles)[fld.key]) {
               <small class="uploaded-file-name"
@@ -94,8 +94,7 @@
             }
             <!-- Píldora de cola (Robots) Inline -->
             @if (queueDetailFor(fld); as turno) {
-              <span style="color: #cbd5e1; font-size: 14px; margin-left: 6px; margin-right: 6px;">•</span>
-              <div style="display: flex; align-items: center; gap: 4px;"
+              <div class="queue-badge"
                 [ngStyle]="{'color': turno.finalizado ? '#166534' : (turno.enProgreso ? '#b45309' : '#4b5563')}">
                 <mat-icon [ngStyle]="{'color': turno.finalizado ? '#16a34a' : (turno.enProgreso ? '#d97706' : '#6b7280')}"
                   style="font-size: 14px; width: 14px; height: 14px; line-height: 14px;">

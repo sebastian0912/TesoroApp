@@ -1,7 +1,7 @@
 import { HttpClient, HttpHeaders, HttpParams, HttpResponse } from '@angular/common/http';
 import { Inject, Injectable, PLATFORM_ID } from '@angular/core';
 import { Observable, catchError, throwError } from 'rxjs';
-import { environment } from '../../../../../../environments/environment';
+import { environment } from '@/environments/environment';
 
 type Granularidad = 'dia' | 'semana' | 'mes';
 
@@ -225,6 +225,39 @@ export class HomeService {
 
     return this.http
       .get(`${this.apiUrl}/gestion_tesoreria/transacciones/descargar-historial/`, { params })
+      .pipe(catchError((e) => this.handleError(e)));
+  }
+
+
+  descargarAdressPorRango(fechaInicio: string, fechaFin: string): Observable<HttpResponse<Blob>> {
+    const params = new HttpParams()
+      .set('fecha_inicio', fechaInicio)
+      .set('fecha_fin', fechaFin);
+
+    return this.http
+      .get(`${this.apiUrl}/Robots/excel-adress-rango/`, {
+        params,
+        responseType: 'blob',
+        observe: 'response',
+      })
+      .pipe(catchError((e) => this.handleError(e)));
+  }
+
+  /**
+   * Descarga Excel ADRES filtrado por una lista de cedulas (vienen de un
+   * Excel local que el operador sube). Devuelve el mismo Excel profesional
+   * que descargarAdressPorRango pero filtrado por cedula en lugar de fecha.
+   * Backend: POST /Robots/excel-adress-por-cedulas/
+   */
+  descargarAdressPorCedulas(cedulas: string[]): Observable<HttpResponse<Blob>> {
+    return this.http
+      .post(`${this.apiUrl}/Robots/excel-adress-por-cedulas/`,
+        { cedulas },
+        {
+          responseType: 'blob',
+          observe: 'response',
+        },
+      )
       .pipe(catchError((e) => this.handleError(e)));
   }
 

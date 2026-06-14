@@ -156,6 +156,113 @@ export interface RobotLockRow {
   ultima_marca_temporal: string | null;
 }
 
+// ----------------------------
+// ✅ Duplicados (cédulas con más de una fila en EstadoRobotActual)
+// ----------------------------
+export interface DuplicadoCedulaRow {
+  id: number;
+  cedula: string;
+  tipo_documento: string;
+  oficina: string | null;
+  paquete: string | null;
+  estado_adress: string;
+  estado_policivo: string;
+  estado_ofac: string;
+  estado_contraloria: string;
+  estado_sisben: string;
+  estado_procuraduria: string;
+  estado_fondo_pension: string;
+  estado_medidas_correctivas: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DuplicadosCedulasResponse {
+  total_cedulas_duplicadas: number;
+  total_filas_afectadas: number;
+  detalles: DuplicadoCedulaRow[];
+}
+
+// ----------------------------
+// ✅ Próximos en cola (preview de los próximos N a entregar por el GET real)
+// ----------------------------
+export type ProximoLockEstado = 'libre' | 'expirado' | 'activo';
+
+export interface ProximoEnColaRow {
+  posicion: number;
+  id: number;
+  cedula: string | null;
+  tipo_documento: string | null;
+  oficina: string | null;
+  paquete: string | null;
+  prioridad: string | null;
+  estado_actual: string;
+  bucket: number;
+  bucket_label: string;
+  lock_estado: ProximoLockEstado;
+  disponible: boolean;
+  locked_by: string | null;
+  locked_at: string | null;
+  created_at: string | null;
+}
+
+export interface ProximosEnColaResponse {
+  antecedente: string;
+  estado_field: string;
+  limit: number;
+  modo_atencion: 'HORARIO_LABORAL' | 'FUERA_DE_HORARIO';
+  total_pendientes: number;
+  proximos: ProximoEnColaRow[];
+  generated_at: string;
+}
+
+// ----------------------------
+// ✅ Dashboard Snapshot (endpoint consolidado, cacheado TTL=5s en backend)
+// Lo usa el polling "live" del dashboard de robots para refrescar varios
+// grids en una sola request en lugar de pegarle a 5+ endpoints.
+// ----------------------------
+export type DashboardSnapshotFuente =
+  | 'adress'
+  | 'policivo'
+  | 'ofac'
+  | 'contraloria'
+  | 'sisben'
+  | 'procuraduria'
+  | 'fondo_pension'
+  | 'medidas_correctivas';
+
+export interface DashboardSnapshotPorOficinaRow {
+  oficina: string | null;
+  total_registros: number;
+  faltantes: Record<DashboardSnapshotFuente, number>;
+}
+
+export interface DashboardSnapshotLockRow {
+  fuente: DashboardSnapshotFuente;
+  total_locks: number;
+  workers_distintos: number;
+}
+
+export interface DashboardSnapshotProximosRow {
+  fuente: DashboardSnapshotFuente;
+  total_pendientes: number;
+}
+
+export interface DashboardSnapshotResponse {
+  version: number;
+  generated_at: string;
+  ttl_seconds: number;
+  from_cache?: boolean;
+  resumen_global: {
+    total_registros: number;
+    faltantes: Record<DashboardSnapshotFuente, number>;
+  };
+  por_oficina: DashboardSnapshotPorOficinaRow[];
+  locks_por_fuente: DashboardSnapshotLockRow[];
+  proximos_resumen: DashboardSnapshotProximosRow[];
+  duplicados_resumen: { total_cedulas_duplicadas: number };
+}
+
 @Injectable({ providedIn: 'root' })
 export class RobotsService {
   private readonly isBrowser: boolean;
@@ -326,9 +433,75 @@ export class RobotsService {
     this.ensureBrowser();
 
     const url = `${this.baseUrl}/Robots/locks/`;
-    
+
     return this.http
       .get<RobotLockRow[]>(url)
+      .pipe(catchError((e) => this.handleError(e)));
+  }
+
+  // ---------------------------------------------------------------------------
+  // ✅ GET /Robots/duplicados-cedulas/
+  // Cédulas con más de una fila en EstadoRobotActual (mismo número, distinto
+  // tipo_documento). Útil para alertar del bug donde el POST cierra el registro
+  // equivocado y deja un lock huérfano.
+  //
+  // Por defecto SOLO trae contadores (modo ligero, ~1 query agregada).
+  // Para traer detalles, pasar { detail: true }.
+  // ---------------------------------------------------------------------------
+  getDuplicadosCedulas(options?: { detail?: boolean; limit?: number }): Observable<DuplicadosCedulasResponse> {
+    this.ensureBrowser();
+
+    const url = `${this.baseUrl}/Robots/duplicados-cedulas/`;
+    const params = this.buildParams({
+      detail: options?.detail ? '1' : null,
+      limit: options?.detail ? (options?.limit ?? 200) : null,
+    });
+
+    return this.http
+      .get<DuplicadosCedulasResponse>(url, { params })
+      .pipe(catchError((e) => this.handleError(e)));
+  }
+
+  // ---------------------------------------------------------------------------
+  // ✅ GET /EstadosRobots/proximos-en-cola/?antecedente=ofac&limit=20
+  // Preview SOLO LECTURA de los próximos N registros que el GET real entregaría
+  // a los robots. Mismo ordenamiento (buckets, oficina, prioridad, created_at).
+  // ---------------------------------------------------------------------------
+  getProximosEnCola(options: {
+    antecedente: string;   // 'ofac' | 'adress' | 'policivo' | ...
+    limit?: number;        // default 20, máx 100
+  }): Observable<ProximosEnColaResponse> {
+    this.ensureBrowser();
+
+    const ant = String(options?.antecedente ?? '').trim().toLowerCase();
+    if (!ant) {
+      return throwError(() => new Error('RobotsService: antecedente es obligatorio'));
+    }
+
+    const url = `${this.baseUrl}/EstadosRobots/proximos-en-cola/`;
+    const params = this.buildParams({
+      antecedente: ant,
+      limit: options?.limit ?? 20,
+    });
+
+    return this.http
+      .get<ProximosEnColaResponse>(url, { params })
+      .pipe(catchError((e) => this.handleError(e)));
+  }
+
+  // ---------------------------------------------------------------------------
+  // ✅ GET /EstadosRobots/dashboard-snapshot/
+  // Snapshot consolidado del dashboard. Cacheado con TTL=5s en backend.
+  // Reemplaza el polling de varios endpoints (resumen, por-oficina, locks,
+  // proximos resumen y duplicados resumen).
+  // ---------------------------------------------------------------------------
+  getDashboardSnapshot(): Observable<DashboardSnapshotResponse> {
+    this.ensureBrowser();
+
+    const url = `${this.baseUrl}/EstadosRobots/dashboard-snapshot/`;
+
+    return this.http
+      .get<DashboardSnapshotResponse>(url)
       .pipe(catchError((e) => this.handleError(e)));
   }
 

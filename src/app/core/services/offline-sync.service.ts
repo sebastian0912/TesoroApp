@@ -1,8 +1,10 @@
-import { Injectable } from '@angular/core';
+import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { NetworkStatusService } from './network-status.service';
 import { PermissionsService } from './permissions.service';
 import { BehaviorSubject, firstValueFrom } from 'rxjs';
+import { getLocalStorageItem } from '../utils/safe-storage';
+import { entryHostMatchesCurrent, fromCacheKey } from '../utils/cache-key';
 
 interface SyncQueueItem {
   id: number;
@@ -41,11 +43,11 @@ export class OfflineSyncService {
     return (window as any).electron;
   }
 
-  constructor(
-    private http: HttpClient,
-    private networkService: NetworkStatusService,
-    private permissions: PermissionsService,
-  ) {
+  private readonly http = inject(HttpClient);
+  private readonly networkService = inject(NetworkStatusService);
+  private readonly permissions = inject(PermissionsService);
+
+  constructor() {
     this.networkService.isOnline$.subscribe(async isOnline => {
       if (isOnline) {
         await this.syncQueue();
@@ -60,7 +62,7 @@ export class OfflineSyncService {
   private getCurrentUserId(): string | null {
     if (typeof localStorage === 'undefined') return null;
     try {
-      const raw = localStorage.getItem('user');
+      const raw = getLocalStorageItem('user');
       if (!raw) return null;
       const u = JSON.parse(raw);
       return String(u?.numero_de_documento ?? u?.id ?? '') || null;
@@ -147,8 +149,20 @@ export class OfflineSyncService {
           const headers: Record<string, string> = { 'X-Offline-Sync': 'true' };
           if (item.idempotency_key) headers['X-Idempotency-Key'] = item.idempotency_key;
 
+          // Reescritura de URLs legacy: si la fila se guardó cuando el binario
+          // apuntaba a otro host (p. ej. 127.0.0.1:8000 en dev → ahora prod),
+          // reemplazamos el host por el actual. Sin esto la fila falla cada
+          // boot con ERR_CONNECTION_REFUSED porque el host viejo no existe.
+          // Mismo criterio que ya aplicamos al cache en cache-key.ts.
+          const effectiveUrl = entryHostMatchesCurrent(item.url)
+            ? item.url
+            : this.rewriteToCurrentHost(item.url);
+          if (effectiveUrl !== item.url) {
+            console.log(`[Sync] URL legacy reescrita: ${item.url} → ${effectiveUrl}`);
+          }
+
           const response = await firstValueFrom(
-            this.http.request(item.method, item.url, {
+            this.http.request(item.method, effectiveUrl, {
               body,
               headers: new HttpHeaders(headers),
               observe: 'response',
@@ -229,6 +243,22 @@ export class OfflineSyncService {
     }
   }
 
+  /**
+   * Toma una URL absoluta cuyo host ya no coincide con environment.apiUrl y
+   * devuelve la misma ruta apuntando al host actual. Si no se puede parsear,
+   * devuelve la URL original (mejor falle ruidoso que silenciosamente).
+   *
+   * Equivalente del `fromCacheKey` para la cola de mutaciones.
+   */
+  private rewriteToCurrentHost(legacyUrl: string): string {
+    try {
+      const u = new URL(legacyUrl);
+      return fromCacheKey(u.pathname + u.search + u.hash);
+    } catch {
+      return legacyUrl;
+    }
+  }
+
   private summarizeError(error: any): string {
     try {
       const status = error?.status || 0;
@@ -306,8 +336,24 @@ export class OfflineSyncService {
       const urls: string[] = await this.electron.db.cacheGetAllUrls();
       if (!urls || urls.length === 0) return;
 
-      // Filtrar URLs que no son endpoints de API (ej: auth_login_password)
-      let apiUrls = urls.filter(u => u.startsWith('http'));
+      // Filtrar URLs que no son endpoints de API (ej: auth_login_password,
+      // que se guarda con clave sintetica). Aceptamos tanto entradas nuevas
+      // path-only ("/foo/bar/") como legacy absolutas ("http://host/foo/").
+      let apiUrls = urls.filter(u => u.startsWith('http') || u.startsWith('/'));
+
+      // Purgar entradas heredadas con host distinto al apiUrl actual. Pasaron
+      // a este estado cuando el binario se reconstruyo apuntando a otro host
+      // (p. ej. dev -> LAN). Sin esta limpieza, refreshCache las re-emite a
+      // un host inalcanzable y los logs se llenan de ERR_CONNECTION_REFUSED.
+      const stale = apiUrls.filter(u => u.startsWith('http') && !entryHostMatchesCurrent(u));
+      if (stale.length > 0) {
+        await Promise.allSettled(
+          stale.map(u => this.electron.db.cacheInvalidatePrefix(u))
+        );
+        console.log(`[Cache] ${stale.length} URL(s) con host obsoleto purgadas.`);
+        const staleSet = new Set(stale);
+        apiUrls = apiUrls.filter(u => !staleSet.has(u));
+      }
 
       // No refrescar URLs del pipeline SELECCION si el usuario no lo consume:
       // roles administrativos o usuarios sin permiso de lectura sobre SELECCION.
@@ -348,7 +394,10 @@ export class OfflineSyncService {
 
         const results = await Promise.allSettled(
           batch.map(url =>
-            firstValueFrom(this.http.get(url)).catch(() => null)
+            // Resolver path-only contra el apiUrl actual; entradas legacy con
+            // host valido pasan tal cual. Sin fromCacheKey, una entrada "/foo"
+            // resolveria al origen del SPA (file://) y no al backend.
+            firstValueFrom(this.http.get(fromCacheKey(url))).catch(() => null)
           )
         );
 
@@ -393,6 +442,57 @@ export class OfflineSyncService {
     } catch {
       return [];
     }
+  }
+
+  /**
+   * Lista los envíos en cola que aún NO se han subido (status 'pending') del
+   * usuario actual. Lo consume el diálogo "envíos pendientes" para mostrar al
+   * usuario QUÉ falta por sincronizar (el badge "9" del chip).
+   */
+  public async getPendingRequests(): Promise<SyncQueueItem[]> {
+    if (!this.electron?.db?.getPendingRequests) return [];
+    try {
+      const userId = this.getCurrentUserId();
+      return await this.electron.db.getPendingRequests({ userId });
+    } catch {
+      return [];
+    }
+  }
+
+  /**
+   * Devuelve los archivos adjuntos persistidos en disco para una request
+   * multipart encolada. La UI lo usa para mostrar los nombres de los archivos
+   * que están esperando subir.
+   */
+  public async getRequestFiles(requestId: number): Promise<StoredFile[]> {
+    if (!this.electron?.db?.getRequestFiles) return [];
+    try {
+      return await this.electron.db.getRequestFiles(requestId);
+    } catch {
+      return [];
+    }
+  }
+
+  /**
+   * Dispara la sincronización manualmente (botón "Sincronizar ahora").
+   * Solo tiene efecto si hay conexión; offline es no-op silencioso.
+   */
+  public async syncNow(): Promise<void> {
+    if (!this.networkService.isOnline) return;
+    await this.syncQueue();
+    this.refreshCache();
+  }
+
+  /**
+   * Descarta un envío en cola (pending o failed): borra la fila y sus archivos.
+   * Acción destructiva e irreversible — la UI debe confirmar antes de llamar.
+   */
+  public async discardRequest(id: number): Promise<void> {
+    if (!this.electron?.db?.discardRequest) return;
+    await this.electron.db.discardRequest(id);
+    this.updatePendingCount();
+    this.updateFailedCount();
+    window.dispatchEvent(new CustomEvent('offline-queue-updated'));
   }
 
   /** Vuelve a marcar una request fallida como pending y dispara sync si hay red. */

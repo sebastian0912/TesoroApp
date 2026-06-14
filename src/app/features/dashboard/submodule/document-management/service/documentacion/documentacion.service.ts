@@ -19,12 +19,17 @@ export class DocumentacionService {
     throw error;
   }
 
+  /**
+   * Crea/actualiza un Document. Si la persona NO es CC, pasar
+   * `tipo_documento` para que el backend prefije owner_id con "x".
+   */
   guardarDocumento(
     title: any,
     owner_id: any,
     type: number,
     file: File,
-    contract_number?: string
+    contract_number?: string,
+    tipo_documento?: string
   ): Observable<any> {
     const formData = new FormData();
     formData.append('title', title);
@@ -32,6 +37,7 @@ export class DocumentacionService {
     formData.append('type', type.toString());
     formData.append('file', file);
     if (contract_number) formData.append('contract_number', contract_number);
+    if (tipo_documento) formData.append('tipo_documento', tipo_documento);
 
     return this.http.post(
       `${this.apiUrl}/gestion_documental/documentos/`,

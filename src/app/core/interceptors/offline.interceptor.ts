@@ -10,6 +10,8 @@ import { inject } from '@angular/core';
 import { Observable, from, throwError } from 'rxjs';
 import { catchError, tap } from 'rxjs/operators';
 import { NetworkStatusService } from '../services/network-status.service';
+import { getLocalStorageItem } from '../utils/safe-storage';
+import { toCacheKey } from '../utils/cache-key';
 
 /**
  * Construye un HttpErrorResponse "fabricado" para que los callers offline
@@ -51,15 +53,34 @@ const MAX_OFFLINE_TOTAL_BYTES = 100 * 1024 * 1024;
 // Endpoints que NO deben encolarse offline. Reproducirlos después de un cambio
 // de credenciales o sesión causa daño (login viejo se reproduce, refresh
 // expirado, logout que cierra sesión nueva, etc.).
+//
+// También se excluyen DESCARGAS (responseType blob): si falla la red, no tiene
+// sentido reencolar — la respuesta es un binario que el componente espera
+// recibir AHORA. Reencolar oculta el error real al usuario y nunca le entrega
+// el archivo.
 const NEVER_QUEUE_PATHS = [
   '/gestion_admin/auth/login/',
   '/gestion_admin/auth/refresh/',
   '/gestion_admin/auth/logout/',
   '/gestion_admin/auth/register/',
+
+  // Descargas binarias (ZIP, Excel, PDF generados): se devuelve Blob.
+  '/gestion_documental/descargar-zip',
+  '/EstadosRobots/descargar-zip',
+  '/Robots/excel-antecedentes',
+  '/Robots/full',                       // export
+  '/gestion_documental/exportar',       // patrón genérico
 ];
 
 const isNeverQueueable = (url: string): boolean =>
   NEVER_QUEUE_PATHS.some(p => url.includes(p));
+
+// Las peticiones que esperan un Blob/ArrayBuffer tampoco deben encolarse,
+// sin importar la URL. Reencolar un POST que devuelve binario no sirve:
+// el componente que pidió la descarga necesita el binario en su Observable,
+// no un "se reintentará después".
+const isBinaryResponse = (req: HttpRequest<unknown>): boolean =>
+  req.responseType === 'blob' || req.responseType === 'arraybuffer';
 
 // Identificador del usuario que encola la request. Si en el futuro otro usuario
 // se loguea en el mismo equipo, el sync service usa este campo para no
@@ -68,7 +89,7 @@ const isNeverQueueable = (url: string): boolean =>
 const getCurrentUserId = (): string | null => {
   if (typeof localStorage === 'undefined') return null;
   try {
-    const raw = localStorage.getItem('user');
+    const raw = getLocalStorageItem('user');
     if (!raw) return null;
     const u = JSON.parse(raw);
     return String(u?.numero_de_documento ?? u?.id ?? '') || null;
@@ -196,6 +217,18 @@ export const offlineInterceptor: HttpInterceptorFn = (
         if (!saveRes?.success) throw new Error(saveRes?.error || 'No se pudo guardar la request');
 
         window.dispatchEvent(new CustomEvent('offline-queue-updated'));
+        // Evento rico para feedback al usuario (toast "guardado sin conexión").
+        // Distinto de 'offline-queue-updated' (que solo refresca el contador):
+        // este lleva metadata del envío para que la UI muestre un aviso claro.
+        window.dispatchEvent(new CustomEvent('offline-write-queued', {
+          detail: {
+            method: request.method,
+            url: request.urlWithParams,
+            isMultipart: true,
+            fileCount: stored.length,
+            fileNames: stored.map(s => s.fileName),
+          },
+        }));
         return new HttpResponse({
           status: 200,
           body: { success: true, offlineQueue: true, id: saveRes.id, _isOfflineMock: true },
@@ -257,6 +290,15 @@ export const offlineInterceptor: HttpInterceptorFn = (
         }
 
         window.dispatchEvent(new CustomEvent('offline-queue-updated'));
+        window.dispatchEvent(new CustomEvent('offline-write-queued', {
+          detail: {
+            method: request.method,
+            url: request.urlWithParams,
+            isMultipart: false,
+            fileCount: 0,
+            fileNames: [],
+          },
+        }));
 
         // El id real (negativo para distinguir de PKs reales) viene de la fila
         // recién insertada; antes era un random que no correspondía a nada.
@@ -282,8 +324,9 @@ export const offlineInterceptor: HttpInterceptorFn = (
 
   const handleOfflineRead = (request: HttpRequest<unknown>): Observable<HttpEvent<unknown>> => {
     if (electron && electron.db) {
+      const cacheKey = toCacheKey(request.urlWithParams);
       return new Observable<HttpEvent<unknown>>(observer => {
-        electron.db.cacheGet(request.urlWithParams).then((cachedData: any) => {
+        electron.db.cacheGet(cacheKey).then((cachedData: any) => {
           if (cachedData) {
             console.log(`[Cache Hit] Sirviendo ${request.urlWithParams} desde cache local`);
             observer.next(new HttpResponse({ status: 200, body: cachedData }));
@@ -299,6 +342,12 @@ export const offlineInterceptor: HttpInterceptorFn = (
 
     return throwError(() => new Error('Sin conexion. No DB.'));
   };
+
+  // Las requests "never-queueable" (auth + descargas binarias) saltan el
+  // interceptor completo: pasan directo sin encolarse ni offline ni en retry.
+  if (isNeverQueueable(req.urlWithParams) || isBinaryResponse(req)) {
+    return next(req);
+  }
 
   if (!networkStatus.isOnline) {
     if (['POST', 'PUT', 'DELETE', 'PATCH'].includes(req.method)) {
@@ -329,7 +378,7 @@ export const offlineInterceptor: HttpInterceptorFn = (
 
           if (isCacheable) {
             electron.db.cacheSave({
-              url: req.urlWithParams,
+              url: toCacheKey(req.urlWithParams),
               data: JSON.stringify(event.body)
             }).catch((error: any) => console.warn('No se pudo cachear:', error));
           }

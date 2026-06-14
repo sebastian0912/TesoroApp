@@ -1,4 +1,5 @@
 import { Injectable } from '@angular/core';
+import { getLocalStorageItem } from '../utils/safe-storage';
 
 /**
  * IDs estables de nodos del arbol de permisos (permisos_tree).
@@ -100,7 +101,7 @@ export class PermissionsService {
   private getRoleName(): string {
     if (typeof localStorage === 'undefined') return '';
     try {
-      const raw = localStorage.getItem('user');
+      const raw = getLocalStorageItem('user');
       if (!raw) return '';
       const user = JSON.parse(raw);
       // El backend devuelve rol como {id, nombre} (login, UsuarioDetailSerializer),
@@ -117,7 +118,7 @@ export class PermissionsService {
   private loadTree(): PermNode[] | null {
     if (typeof localStorage === 'undefined') return null;
     try {
-      const raw = localStorage.getItem('user');
+      const raw = getLocalStorageItem('user');
       if (!raw) return null;
       const user = JSON.parse(raw);
       const tree = user?.permisos_tree;

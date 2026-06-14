@@ -5,6 +5,7 @@ import Swal from 'sweetalert2';
 import { LoginService } from '../service/login.service';
 import { SharedModule } from '../../../shared/shared.module';
 import { HttpErrorResponse } from '@angular/common/http';
+import { setLocalStorageItem } from '../../../core/utils/safe-storage';
 
 function emailOrDocValidator(control: AbstractControl): ValidationErrors | null {
   const v: string = (control.value || '').toString().trim();
@@ -54,7 +55,7 @@ export class LoginComponent implements OnInit {
 
     // Cuenta de prueba (si la usas)
     if (login === 'thisisatestaccount@test.com' && password === 'thisisatestaccount23#') {
-      localStorage.setItem('token', 'testToken');
+      setLocalStorageItem('token', 'testToken');
       const testUser = {
         numero_de_documento: '1005851505',
         primer_nombre: 'PRUEBA',
@@ -66,7 +67,7 @@ export class LoginComponent implements OnInit {
         sede: { nombre: 'SOACHA' },
         estado_solicitudes: true,
       };
-      localStorage.setItem('user', JSON.stringify(testUser));
+      setLocalStorageItem('user', JSON.stringify(testUser));
       this.router.navigate(['/dashboard']);
       return;
     }
@@ -77,8 +78,8 @@ export class LoginComponent implements OnInit {
       if (!resp?.token || !resp?.user) {
         throw new Error('Respuesta inválida del servidor');
       }      // Guarda credenciales
-      localStorage.setItem('token', resp.token);
-      localStorage.setItem('user', JSON.stringify(resp.user));
+      setLocalStorageItem('token', resp.token);
+      setLocalStorageItem('user', JSON.stringify(resp.user));
       // Redirección según rol (el backend retorna rol como objeto {id, nombre})
       const rolNombre = resp.user?.rol?.nombre ?? '';
 

@@ -1,0 +1,289 @@
+:host {
+  display: block;
+  font-family: 'Inter', 'Roboto', sans-serif;
+}
+
+/* === TÍTULO === */
+.dialog-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0;
+}
+
+.dialog-title .title-icon {
+  color: #2563eb;
+}
+
+.dialog-title .title-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  height: 24px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: #2563eb;
+  color: #fff;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+/* === CONTENIDO === */
+.dialog-content {
+  min-width: 460px;
+  max-width: 560px;
+  max-height: 70vh;
+}
+
+@media (max-width: 600px) {
+  .dialog-content {
+    min-width: unset;
+    width: 100%;
+  }
+}
+
+/* === BANNER DE CONEXIÓN === */
+.conn-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 0.82rem;
+  line-height: 1.3;
+  margin: 4px 0 16px;
+}
+
+.conn-banner mat-icon {
+  font-size: 20px;
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+}
+
+.conn-banner.online {
+  background: #ecfdf5;
+  color: #065f46;
+  border: 1px solid #6ee7b7;
+}
+
+.conn-banner.offline {
+  background: #fef2f2;
+  color: #991b1b;
+  border: 1px solid #fca5a5;
+}
+
+/* === ESTADOS CENTRADOS (loading / vacío) === */
+.state-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 36px 12px;
+  color: #64748b;
+  text-align: center;
+}
+
+.state-center p {
+  margin: 0;
+}
+
+.state-center.empty .empty-icon {
+  font-size: 48px;
+  width: 48px;
+  height: 48px;
+  color: #22c55e;
+}
+
+.empty-title {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.empty-sub {
+  font-size: 0.85rem;
+}
+
+/* === SECCIONES === */
+.section-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: #475569;
+  margin: 18px 0 8px;
+}
+
+.section-head mat-icon {
+  font-size: 18px;
+  width: 18px;
+  height: 18px;
+}
+
+.section-head.failed {
+  color: #b91c1c;
+}
+
+.section-note {
+  font-size: 0.78rem;
+  color: #64748b;
+  margin: 0 0 10px;
+}
+
+/* === LISTA === */
+.queue-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.queue-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px;
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+}
+
+.queue-item.failed {
+  border-color: #fecaca;
+  background: #fff7f7;
+}
+
+.queue-item .item-icon {
+  flex-shrink: 0;
+  color: #2563eb;
+  margin-top: 2px;
+}
+
+.queue-item.failed .item-icon {
+  color: #dc2626;
+}
+
+.item-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.item-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.item-label {
+  font-weight: 600;
+  color: #0f172a;
+  font-size: 0.9rem;
+}
+
+.item-age {
+  font-size: 0.72rem;
+  color: #94a3b8;
+}
+
+.item-attempts {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #b45309;
+  background: #fef3c7;
+  border-radius: 999px;
+  padding: 1px 8px;
+}
+
+.item-files {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.file-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  max-width: 100%;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: #e0e7ff;
+  color: #3730a3;
+  font-size: 0.72rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-chip mat-icon {
+  font-size: 14px;
+  width: 14px;
+  height: 14px;
+}
+
+.item-warn,
+.item-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 5px;
+  margin-top: 6px;
+  font-size: 0.74rem;
+  line-height: 1.3;
+}
+
+.item-warn {
+  color: #92400e;
+}
+
+.item-error {
+  color: #b91c1c;
+}
+
+.item-warn mat-icon,
+.item-error mat-icon {
+  font-size: 15px;
+  width: 15px;
+  height: 15px;
+  margin-top: 1px;
+  flex-shrink: 0;
+}
+
+/* === ACCIONES POR ITEM === */
+.item-actions {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.item-retry {
+  color: #2563eb;
+}
+
+.item-discard {
+  color: #94a3b8;
+}
+
+.item-discard:hover {
+  color: #dc2626;
+}
+
+/* === ACCIONES DEL DIÁLOGO === */
+.dialog-actions {
+  padding: 12px 24px;
+  gap: 8px;
+}
+
+.dialog-actions .btn-spinner {
+  display: inline-block;
+  margin-right: 8px;
+  vertical-align: middle;
+}

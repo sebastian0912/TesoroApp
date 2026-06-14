@@ -667,7 +667,15 @@ function renderFirmas(
   doc.setFontSize(7);
   doc.setFont('helvetica', 'bold');
   const ciudad = s(o.sede || 'BOGOTÁ').toUpperCase();
-  const dia = String(new Date().getDate()).padStart(2, '0');
+  const fechaContratoRaw = o.candidato?.entrevistas?.[0]?.proceso?.contrato?.fecha_contrato;
+  const fechaContrato = (() => {
+    if (!fechaContratoRaw) return new Date();
+    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(fechaContratoRaw).trim());
+    if (m) return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+    const d = new Date(String(fechaContratoRaw));
+    return isNaN(d.getTime()) ? new Date() : d;
+  })();
+  const dia = String(fechaContrato.getDate()).padStart(2, '0');
   const intro = `Para constancia de todo lo anterior, se firma el presente contrato de trabajo en la ciudad de ${ciudad} el día ${dia}.`;
   const introLines = doc.splitTextToSize(intro, TABLE_W) as string[];
   for (const ln of introLines) {

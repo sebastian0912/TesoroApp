@@ -2,8 +2,10 @@
 .input-container {
   display: flex !important;
   flex-direction: column !important;
-  gap: 2px !important; /* antes 6px */
-  width: 100% !important;
+  gap: 4px !important; /* aire entre el campo y sus metadatos */
+  /* El 80% se aplica aquí (no solo en el campo) para que el campo Y la info de
+     ayuda de abajo compartan el mismo ancho máximo, alineados a la izquierda. */
+  width: 80% !important;
 }
 
 /* Compacta alto del form-field (MDC) */
@@ -106,29 +108,67 @@
   white-space: nowrap !important;
 }
 
-/* ====== Nombre del archivo debajo del input ====== */
-.uploaded-file-name {
-  font-size: .80rem !important;
-  color: #5c667a !important;
-  font-style: normal !important;  /* sin cursiva */
-  line-height: 1.1 !important;    /* más compacto */
-  margin: 0 !important;
-  padding: 0 !important;
-  word-break: break-word !important;
-  margin-top: -10pt !important; /* más cerca del input */
+/* ====== Bloque de metadatos bajo el campo (pila vertical ordenada) ====== */
+.field-meta {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: flex-start !important;
+  gap: 5px !important;
+  width: 100% !important;
+  margin-top: 2px !important;
+  padding-left: 4px !important; /* alinea con el texto del input */
 }
 
-/* ====== Aviso de documento > 15 días ====== */
+/* ====== Nombre del archivo debajo del input ====== */
+.uploaded-file-name {
+  font-size: .66rem !important;     /* más pequeño para caber en una sola línea */
+  color: #64748b !important;
+  font-style: normal !important;  /* sin cursiva */
+  line-height: 1.3 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  display: block !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  white-space: nowrap !important;       /* nunca parte en dos líneas */
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;   /* si no cabe, recorta con … */
+}
+/* el span "Actualizado:" hereda el nowrap para no romper la línea */
+.uploaded-file-name .text-muted { white-space: nowrap !important; }
+
+/* ====== Badge de estado / cola (Robots) ====== */
+.queue-badge {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 4px !important;
+  padding: 2px 8px !important;
+  border-radius: 999px !important;
+  background: #f1f5f9 !important;
+  border: 1px solid #e2e8f0 !important;
+  line-height: 1.2 !important;
+  max-width: 100% !important;        /* no excede el ancho del campo */
+  box-sizing: border-box !important;
+}
+
+/* ====== Aviso de documento > 15 días (badge sutil) ====== */
 .doc-warning {
-  display: flex !important;
+  display: inline-flex !important;
   align-items: center !important;
   gap: 6px !important;
   color: #b91c1c !important;
-  font-size: .80rem !important;
-  line-height: 1.1 !important;
-  margin: 0 !important;  /* pegado al nombre del archivo */
-  padding: 0 !important;
+  background: #fef2f2 !important;
+  border: 1px solid #fde2e2 !important;
+  border-radius: 8px !important;
+  font-size: .74rem !important;
+  line-height: 1.2 !important;
+  margin: 0 0 0 4px !important;
+  padding: 3px 8px !important;
+  max-width: 100% !important;       /* no excede el ancho del campo */
+  box-sizing: border-box !important;
 }
+/* el texto del aviso envuelve si no cabe, en vez de desbordar */
+.doc-warning span { word-break: break-word !important; }
 .doc-warning .mat-icon.warn-icon {
   font-size: 16px !important;
   width: 16px !important;
@@ -172,9 +212,20 @@
 .seccion {
   width: 100% !important;
   display: grid !important;
-  grid-template-columns: repeat(3, 1fr) !important;
-  gap: 16px 24px !important;
+  /* 5 columnas => los 10 campos quedan en 2 filas. minmax(0,1fr) permite
+     encogerlos sin desbordar. */
+  grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+  /* row-gap amplio para separar las dos filas de campos (con sus metadatos);
+     column-gap reducido para acercar los campos entre sí por el lado derecho. */
+  gap: 24px 8px !important;
   align-items: start !important;
+}
+
+/* El botón "Cargar" ocupa su propia fila completa, debajo de los 10 campos. */
+.seleccion > button.example-full-width,
+.secciones > button.example-full-width,
+.seccion > button.example-full-width {
+  grid-column: 1 / -1 !important;
 }
 
 /* Cards principales (sticky izquierda / scroll derecha) */
@@ -194,10 +245,17 @@ mat-card:nth-child(2) {
   overflow-y: auto !important;
 }
 
-/* Inputs a 100% */
+/* Inputs a 100% del ancho de su columna. min-width bajo para que entren
+   5 por fila; el select trunca con ellipsis si el texto no cabe. */
 mat-form-field.example-full-width {
   width: 100% !important;
-  min-width: 250pt !important; /* antes 200pt */
+  /* El .example-full-width GLOBAL (styles.css) impone max-width:30% y height:80px,
+     que dejaban el campo angosto dentro de su columna. Se anulan aquí (scoped a
+     este componente). El ancho real (80%) lo controla .input-container; aquí el
+     campo llena el 100% de ese contenedor. */
+  max-width: 100% !important;
+  height: auto !important;
+  min-width: 0 !important;
   margin: 0 !important;
 }
 
@@ -234,10 +292,18 @@ mat-form-field.example-full-width {
   border-color: #6E7781 !important;
 }
 
-/* ───────────────────────── BREAKPOINTS ───────────────────────── */
-@media (max-width: 1100px) {
+/* ───────────────────────── BREAKPOINTS (responsive) ─────────────────────────
+   Mantiene los 10 campos en 2 filas en pantallas anchas (5 col) y va
+   degradando columnas a medida que se angosta. */
+@media (max-width: 1200px) {
   .seleccion, .secciones, .seccion {
-    grid-template-columns: repeat(2, 1fr) !important;
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  }
+}
+
+@media (max-width: 900px) {
+  .seleccion, .secciones, .seccion {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
   }
   mat-card:nth-child(1), mat-card:nth-child(2) {
     width: 100% !important;
@@ -247,10 +313,17 @@ mat-form-field.example-full-width {
   }
 }
 
-@media (max-width: 700px) {
+@media (max-width: 640px) {
+  .seleccion, .secciones, .seccion {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 12px !important;
+  }
+}
+
+@media (max-width: 460px) {
   .seleccion, .secciones, .seccion {
     grid-template-columns: 1fr !important;
-    gap: 12px !important;
+    gap: 10px !important;
     padding: 0 6px !important;
   }
   mat-card:nth-child(1), mat-card:nth-child(2) {

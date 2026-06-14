@@ -12,7 +12,7 @@ import { MatInputModule } from '@angular/material/input';
 import { FormsModule } from '@angular/forms';
 import Swal from 'sweetalert2';
 import { firstValueFrom } from 'rxjs';
-import { environment } from '../../../../../../../environments/environment';
+import { environment } from '@/environments/environment';
 import { RegistroProcesoContratacion } from '../../service/registro-proceso-contratacion/registro-proceso-contratacion';
 
 interface ActivoRow {

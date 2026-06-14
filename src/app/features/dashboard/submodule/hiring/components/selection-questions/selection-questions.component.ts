@@ -1,4 +1,4 @@
-import {  Component, effect, input , ChangeDetectionStrategy } from '@angular/core';
+import {  Component, effect, input , ChangeDetectionStrategy, ChangeDetectorRef, OnDestroy } from '@angular/core';
 import { FormBuilder, FormGroup } from '@angular/forms';
 import { firstValueFrom } from 'rxjs';
 import Swal from 'sweetalert2';
@@ -103,7 +103,7 @@ const MAP_NOMBRE_TO_KEY: Record<string, FormPatchKeys> = {
   templateUrl: './selection-questions.component.html',
   styleUrls: ['./selection-questions.component.css'],
 } )
-export class SelectionQuestionsComponent {
+export class SelectionQuestionsComponent implements OnDestroy {
   /* -------- Input (signal) -------- */
   candidatoSeleccionado = input<any | null>(null);
 
@@ -159,9 +159,22 @@ export class SelectionQuestionsComponent {
   /* -------- Estado/ctx -------- */
   private _ctx = 0;
   cedula: string | null = null;
+  // tipo_documento del candidato: necesario para que el backend prefije owner_id
+  // con "x" cuando no sea CC. Sin esto, los Documents non-CC colisionarían
+  // con los CC del mismo número de cédula.
+  tipoDocumento: string | null = null;
 
   /* -------- Cola de antecedentes (para la UI) -------- */
   private colaRaw: ColaRaw | null = null;
+
+  /* -------- Auto-refresco de documentos del robot --------
+   * Las píldoras de cola llegan FINALIZADO con el candidato, pero el PDF que
+   * sube el robot puede llegar segundos después. Mientras haya antecedentes
+   * FINALIZADO sin archivo cargado, re-consultamos getDocuments para que el
+   * documento aparezca solo, sin recargar manualmente. */
+  private pollTimer: any = null;
+  private readonly POLL_INTERVAL_MS = 2500;
+  private readonly POLL_MAX_ATTEMPTS = 12; // ~30 s de ventana de espera
 
   /** Mapa de campos del formulario -> clave en cola_antecedentes */
   /** Mapa de campos del formulario -> clave en cola_antecedentes */
@@ -188,7 +201,8 @@ export class SelectionQuestionsComponent {
     private fb: FormBuilder,
     private docsSrv: GestionDocumentalService,
     private rpc: RegistroProcesoContratacion,
-    private ui: UtilityServiceService
+    private ui: UtilityServiceService,
+    private cdr: ChangeDetectorRef
   ) {
     // Reactive Forms
     this.antecedentes = this.fb.group({
@@ -210,6 +224,7 @@ export class SelectionQuestionsComponent {
       // Fix: proceso (no "processo")
       const proc = candidato?.entrevistas?.[0]?.proceso;
       this.cedula = (candidato?.numero_documento ?? candidato?.numeroDocumento ?? null) as string | null;
+      this.tipoDocumento = (candidato?.tipo_documento ?? candidato?.tipoDocumento ?? null) as string | null;
 
       // Cola de antecedentes (camelCase o snake_case)
       this.colaRaw = (candidato?.cola_antecedentes ?? candidato?.colaAntecedentes ?? null) as ColaRaw | null;
@@ -217,10 +232,64 @@ export class SelectionQuestionsComponent {
       this.resetUploadedFilesAsNew();
       this.patchSeleccion(proc?.antecedentes ?? null);
 
+      // Cancela cualquier polling del candidato anterior antes de empezar.
+      this.cancelDocPolling();
+
       // opcional: precargar documentos ya existentes
       const ctx = ++this._ctx;
-      if (this.cedula) this.loadDataDocumentos(ctx).catch((err) => console.error('[selection] Error cargando documentos:', err));
+      if (this.cedula) {
+        this.loadDataDocumentos(ctx)
+          .then(() => this.maybeScheduleDocPolling(ctx, 0))
+          .catch((err) => console.error('[selection] Error cargando documentos:', err));
+      }
     });
+  }
+
+  ngOnDestroy(): void {
+    this.cancelDocPolling();
+  }
+
+  /* ===================== Auto-refresco de documentos ===================== */
+  private cancelDocPolling(): void {
+    if (this.pollTimer) {
+      clearTimeout(this.pollTimer);
+      this.pollTimer = null;
+    }
+  }
+
+  /** DocKeys cuya cola está FINALIZADO pero que aún no tienen archivo cargado. */
+  private pendientesPorCola(): DocKey[] {
+    const out: DocKey[] = [];
+    for (const k of Object.keys(this.typeMap) as DocKey[]) {
+      const colaKey = this.colaKeyMap[k];
+      if (!colaKey) continue;
+      const it = this.colaRaw?.[colaKey];
+      if (!it) continue;
+      const est = (it.estado || '').toUpperCase();
+      const finalizado = est === 'FINALIZADO' || est === 'DESCARGADO ROBOT';
+      const tieneArchivo = !!this.uploadedFiles[k]?.file;
+      if (finalizado && !tieneArchivo) out.push(k);
+    }
+    return out;
+  }
+
+  /**
+   * Si quedan antecedentes FINALIZADO sin documento, agenda una re-consulta.
+   * Se detiene cuando ya cargaron todos, al cambiar de candidato (ctx), o al
+   * agotar los intentos.
+   */
+  private maybeScheduleDocPolling(ctx: number, attempt: number): void {
+    if (ctx !== this._ctx) return;
+    if (attempt >= this.POLL_MAX_ATTEMPTS) return;
+    if (!this.pendientesPorCola().length) return; // todo lo finalizado ya cargó
+
+    this.pollTimer = setTimeout(() => {
+      if (ctx !== this._ctx) return;
+      // Re-consulta SIN resetear (merge) para no parpadear lo ya cargado.
+      this.loadDataDocumentos(ctx, false)
+        .then(() => this.maybeScheduleDocPolling(ctx, attempt + 1))
+        .catch(() => this.maybeScheduleDocPolling(ctx, attempt + 1));
+    }, this.POLL_INTERVAL_MS);
   }
 
   /* ===================== Helpers de UI/Template ===================== */
@@ -332,7 +401,7 @@ export class SelectionQuestionsComponent {
     });
   }
 
-  async loadDataDocumentos(ctx: number): Promise<Set<DocKey>> {
+  async loadDataDocumentos(ctx: number, resetFirst = true): Promise<Set<DocKey>> {
     const tocados = new Set<DocKey>();
     if (!this.cedula) return tocados;
 
@@ -341,9 +410,10 @@ export class SelectionQuestionsComponent {
       const docs: any[] = await firstValueFrom(this.docsSrv.getDocuments(this.cedula));
       if (ctx !== this._ctx || !Array.isArray(docs)) return tocados;
 
-      // Reset all uploadedFiles to default before populating
-      // This ensures we start clean and fill only what exists
-      this.resetUploadedFilesAsNew();
+      // Reset all uploadedFiles to default before populating.
+      // En modo polling (resetFirst=false) NO reseteamos: hacemos merge para no
+      // borrar/parpadear los documentos que ya estaban cargados.
+      if (resetFirst) this.resetUploadedFilesAsNew();
 
       for (const d of docs) {
         if (ctx !== this._ctx) break;
@@ -373,6 +443,9 @@ export class SelectionQuestionsComponent {
         console.error('Error loading documents:', err);
       }
     }
+    // OnPush: la carga es asíncrona; marcamos para que el PDF y la fecha se
+    // pinten en cuanto llegan (incluido el refresco por polling).
+    this.cdr.markForCheck();
     return tocados;
   }
 
@@ -563,7 +636,7 @@ export class SelectionQuestionsComponent {
 
     const promesas = aEnviar.map(({ key, file, fileName, typeId }) =>
       new Promise<void>((resolve, reject) => {
-        this.docsSrv.guardarDocumento(fileName, ced, typeId, file).subscribe({
+        this.docsSrv.guardarDocumento(fileName, ced, typeId, file, undefined, this.tipoDocumento || undefined).subscribe({
           next: () => {
             const entry = this.uploadedFiles[key];
             if (entry) {

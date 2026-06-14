@@ -12,6 +12,7 @@ import Swal from 'sweetalert2';
 import JSZip from 'jszip';
 import saveAs from 'file-saver';
 import { PDFDocument } from "pdf-lib";
+import { getLocalStorageItem } from '../../../../../../core/utils/safe-storage';
 
 @Injectable({
   providedIn: 'root',
@@ -29,7 +30,7 @@ export class IncapacidadService {
 
   private getToken(): string | null {
     if (isPlatformBrowser(this.platformId)) {
-      return localStorage.getItem('token');
+      return getLocalStorageItem('token');
     }
     return null;
   }

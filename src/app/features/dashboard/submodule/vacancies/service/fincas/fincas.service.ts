@@ -5,6 +5,7 @@ import { isPlatformBrowser } from '@angular/common';
 import { Observable, of, throwError } from 'rxjs';
 import { map, catchError, tap } from 'rxjs/operators';
 import { environment } from '@/environments/environment';
+import { getLocalStorageItem, setLocalStorageItem } from '../../../../../../core/utils/safe-storage';
 
 export interface FincaItem {
   finca: string;
@@ -57,7 +58,7 @@ export class FincasService {
   private getFromLS(): FincaItem[] | null {
     if (!isPlatformBrowser(this.platformId)) return null;
     try {
-      const raw = localStorage.getItem(this.cacheKey);
+      const raw = getLocalStorageItem(this.cacheKey);
       return raw ? (JSON.parse(raw) as FincaItem[]) : null;
     } catch {
       return null;
@@ -67,7 +68,7 @@ export class FincasService {
   private setToLS(data: FincaItem[]): void {
     if (!isPlatformBrowser(this.platformId)) return;
     try {
-      localStorage.setItem(this.cacheKey, JSON.stringify(data));
+      setLocalStorageItem(this.cacheKey, JSON.stringify(data));
     } catch { /* noop */ }
   }
 }

@@ -2,7 +2,8 @@ import { FincaItem } from './../../service/fincas/fincas.service';
 import { CommonModule } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
 import { COMMA, ENTER } from '@angular/cdk/keycodes';
-import {  Component, ElementRef, Inject, OnDestroy, OnInit, ViewChild , ChangeDetectionStrategy } from '@angular/core';
+import { Component, ElementRef, Inject, OnDestroy, OnInit, ViewChild, ChangeDetectionStrategy, DestroyRef, inject } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import {
   AbstractControl,
   FormArray,
@@ -83,7 +84,7 @@ type DepCiudades = { ciudades: string[] };
 export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
   private readonly SI = 'Si';
   private readonly PRUEBA = 'Prueba';
-  private readonly destroy$ = new Subject<void>();
+  private readonly destroyRef = inject(DestroyRef);
 
   vacanteForm!: FormGroup;
 
@@ -209,7 +210,7 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
       .pipe(
         map((rows: any[]) => (rows ?? []).map((c: any) => String(c?.nombre ?? '').trim()).filter(Boolean)),
         catchError(() => of([] as string[])),
-        takeUntil(this.destroy$)
+        takeUntilDestroyed(this.destroyRef)
       )
       .subscribe((nombres: string[]) => {
         this.cargos = nombres;
@@ -222,7 +223,7 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
     // --------- AUTOCOMPLETE FINCAS ----------
     this.fincasService
       .listNombreFincas()
-      .pipe(catchError(() => of([] as string[])), takeUntil(this.destroy$))
+      .pipe(catchError(() => of([] as string[])), takeUntilDestroyed(this.destroyRef))
       .subscribe((nombres: string[]) => {
         this.centrosCostos = nombres ?? [];
         const fincaCtrl = this.vacanteForm.get('finca') as FormControl<string>;
@@ -238,7 +239,7 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
     this.adminService
       .traerSucursales()
       .pipe(
-        takeUntil(this.destroy$),
+        takeUntilDestroyed(this.destroyRef),
         catchError(() => {
           this.sedes = [];
           return of([] as SedeDto[]);
@@ -263,13 +264,13 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
     // --------- OFICINAS SELECCIONADAS => FORMARRAY ----------
     this.vacanteForm
       .get('oficinasSeleccionadas')!
-      .valueChanges.pipe(takeUntil(this.destroy$))
+      .valueChanges.pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((sel: unknown) => this.actualizarOficinasQueContratan(Array.isArray(sel) ? sel : []));
 
     // --------- MUNICIPIOS (CATÁLOGO + FILTRO) ----------
     this.http
       .get<DepCiudades[]>('./util/colombia.json')
-      .pipe(catchError(() => of([] as DepCiudades[])), takeUntil(this.destroy$))
+      .pipe(catchError(() => of([] as DepCiudades[])), takeUntilDestroyed(this.destroyRef))
       .subscribe((data: DepCiudades[]) => {
         const ciudades = (data ?? []).flatMap((dep) => (Array.isArray(dep?.ciudades) ? dep.ciudades : []));
         this.municipiosColombia = ciudades
@@ -281,43 +282,40 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
         this.resetFiltroMunicipio();
       });
 
-    this.municipioCtrl.valueChanges.pipe(startWith(''), takeUntil(this.destroy$)).subscribe(() => this.filtrarMunicipios());
+    this.municipioCtrl.valueChanges.pipe(startWith(''), takeUntilDestroyed(this.destroyRef)).subscribe(() => this.filtrarMunicipios());
 
     // --------- SYNC: municipio[] => municipiosDistribucion[] ----------
     this.vacanteForm
       .get('municipio')!
-      .valueChanges.pipe(startWith(this.vacanteForm.get('municipio')!.value), takeUntil(this.destroy$))
+      .valueChanges.pipe(startWith(this.vacanteForm.get('municipio')!.value), takeUntilDestroyed(this.destroyRef))
       .subscribe((actual: unknown) => this.syncDistribucionConSeleccion(Array.isArray(actual) ? actual : []));
 
     // ✅ Revalida si cambia el total
     this.vacanteForm
       .get('personasSolicitadas')!
-      .valueChanges.pipe(takeUntil(this.destroy$))
+      .valueChanges.pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(() => this.vacanteForm.updateValueAndValidity({ emitEvent: false }));
 
     // ✅ Revalida cuando cambie cualquier cantidad de distribución (para que el mensaje se actualice al instante)
     this.municipiosDistribucion.valueChanges
-      .pipe(takeUntil(this.destroy$))
+      .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(() => this.vacanteForm.updateValueAndValidity({ emitEvent: false }));
 
     // ====== Validaciones condicionales ======
     this.applyTieneFechaIngreso(String(this.vacanteForm.get('tieneFechaIngreso')!.value ?? 'No'));
     this.vacanteForm
       .get('tieneFechaIngreso')!
-      .valueChanges.pipe(takeUntil(this.destroy$))
+      .valueChanges.pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((v: unknown) => this.applyTieneFechaIngreso(String(v ?? 'No')));
 
     this.applyPruebaContratacion(String(this.vacanteForm.get('pruebaOContratacion')!.value ?? ''));
     this.vacanteForm
       .get('pruebaOContratacion')!
-      .valueChanges.pipe(takeUntil(this.destroy$))
+      .valueChanges.pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((v: unknown) => this.applyPruebaContratacion(String(v ?? '')));
   }
 
-  ngOnDestroy(): void {
-    this.destroy$.next();
-    this.destroy$.complete();
-  }
+  ngOnDestroy(): void {  }
 
   // ---------- Validaciones condicionales ----------
   private applyTieneFechaIngreso(valor: string): void {

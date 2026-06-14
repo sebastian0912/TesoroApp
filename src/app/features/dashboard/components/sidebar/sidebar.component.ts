@@ -9,6 +9,9 @@ import { ConsoleLoggerService } from '../../../../shared/services/console-logger
 import { NetworkStatusService } from '../../../../core/services/network-status.service';
 import { OfflineSyncService } from '../../../../core/services/offline-sync.service';
 import { firstValueFrom, Subscription } from 'rxjs';
+import { getLocalStorageItem, setLocalStorageItem } from '../../../../core/utils/safe-storage';
+
+const SEDES_CACHE_KEY = 'sidebar.sedes.cache.v1';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -49,6 +52,11 @@ export class SidebarComponent implements OnDestroy {
   ) {
     if (isPlatformBrowser(this.platformId)) {
       this.consoleLogger.init();
+
+      // La versión depende solo del IPC con Electron, no del usuario logueado.
+      // Se dispara aquí para que aparezca lo antes posible, sin esperar a
+      // ngOnInit / cargarSedes.
+      this.getAppVersion();
 
       // Suscripciones al estado de red — alimentan el chip del header.
       this.netSubs.push(
@@ -102,27 +110,55 @@ export class SidebarComponent implements OnDestroy {
   }
 
   async ngOnInit(): Promise<void> {
-    const user: any = this.adminService.getUser?.()  || 'null';
+    const user: any = this.adminService.getUser?.();
     if (!user) return;
 
     this.sede = user?.sede?.nombre ?? '';
     this.role = user?.rol?.nombre ?? '';
     this.documento = user?.numero_de_documento ?? '';
     this.username = [user?.datos_basicos?.nombres, user?.datos_basicos?.apellidos].filter(Boolean).join(' ');
-    this.getAppVersion();
+
+    this.hidratarSedesDesdeCache();
     await this.cargarSedes();
   }
 
-  getAppVersion(): void {
-    if (isPlatformBrowser(this.platformId)) {
-      const w = window as any;
-      if (w.electron?.version?.get) {
-        w.electron.version.get().then((response: any) => (this.appVersion = response));
+  /**
+   * Carga inmediata desde localStorage para que el submenú "Cambiar Sede"
+   * tenga contenido aunque el backend esté caído o estemos offline.
+   */
+  private hidratarSedesDesdeCache(): void {
+    try {
+      const raw = getLocalStorageItem(SEDES_CACHE_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length) {
+        this.sedes = parsed;
+        this.cdr.markForCheck();
       }
+    } catch {
+      // cache corrupta: la ignoramos y dejamos que cargarSedes() la reescriba
     }
   }
 
+  getAppVersion(): void {
+    if (!isPlatformBrowser(this.platformId)) return;
+    const w = window as any;
+    const getVersion = w.electron?.version?.get;
+    if (typeof getVersion !== 'function') return;
+    // OnPush: la promesa resuelve fuera del ciclo de detección, así que
+    // hay que markForCheck explícitamente o la vista se queda con appVersion=''.
+    Promise.resolve(getVersion()).then((response: any) => {
+      this.appVersion = response ?? '';
+      this.cdr.markForCheck();
+    });
+  }
+
   async cargarSedes(): Promise<void> {
+    // Sin red no tiene sentido pegar al backend: el chip ya comunica el estado
+    // y la cache local ya hidrató this.sedes en ngOnInit. Salir silenciosamente
+    // evita un Swal bloqueante cada vez que se entra al dashboard offline.
+    if (!this.isOnline) return;
+
     try {
       const data: any = await firstValueFrom(this.adminService.traerSucursales());
       // Soporta distintos formatos de respuesta
@@ -135,8 +171,17 @@ export class SidebarComponent implements OnDestroy {
             : [];
 
       this.sedes = [...lista].sort((a: any, b: any) => (a?.nombre ?? '').localeCompare(b?.nombre ?? ''));
-    } catch (err) {
-      Swal.fire('Error', 'No fue posible cargar las sedes.', 'error');
+      this.cdr.markForCheck();
+
+      try {
+        setLocalStorageItem(SEDES_CACHE_KEY, JSON.stringify(this.sedes));
+      } catch {}
+    } catch {
+      // Si la cache ya nos dio una lista, no molestamos al usuario con un Swal.
+      // Solo avisamos si quedamos completamente sin datos.
+      if (!this.sedes.length) {
+        Swal.fire('Error', 'No fue posible cargar las sedes.', 'error');
+      }
     }
   }
 
@@ -145,7 +190,23 @@ export class SidebarComponent implements OnDestroy {
    * Espera un UUID de sede (string). Si tu template envía el objeto, pasa su .id.
    */
   onSedeSeleccionada(sedeId: string): void {
-    const user: any = this.adminService.getUser?.() || 'null';
+    // Cambiar de sede toca el backend (no se puede encolar offline porque la
+    // vista se recarga al confirmar). Bloqueamos de forma explícita en vez de
+    // dejar que el HTTP falle con un Swal genérico.
+    if (!this.isOnline) {
+      Swal.fire(
+        'Sin conexión',
+        'Necesitas estar en línea para cambiar de sede.',
+        'info',
+      );
+      return;
+    }
+
+    const user: any = this.adminService.getUser?.();
+    if (!user?.id) {
+      Swal.fire('Error', 'No se pudo identificar el usuario.', 'error');
+      return;
+    }
 
     // Llamamos el servicio que cambia la sede por cédula (envía UUID)
     this.adminService.cambiarSedePorUsuarioId(user.id, sedeId).subscribe({
@@ -170,7 +231,7 @@ export class SidebarComponent implements OnDestroy {
 
         // Persistir
         try {
-          localStorage.setItem('user', JSON.stringify(user));
+          setLocalStorageItem('user', JSON.stringify(user));
         } catch {}
 
         Swal.fire('Editado', 'La sede ha sido asignada.', 'success').then(() => {
@@ -180,7 +241,7 @@ export class SidebarComponent implements OnDestroy {
           });
         });
       },
-      error: (err) => {
+      error: () => {
         Swal.fire('Error', 'Hubo un problema al asignar la sede.', 'error');
       }
     });
@@ -197,6 +258,22 @@ export class SidebarComponent implements OnDestroy {
           width: '600px',
           maxHeight: '90vh',
           disableClose: true,
+        });
+      }
+    );
+  }
+
+  /**
+   * Abre el diálogo de "Envíos pendientes" — qué archivos / datos quedaron en
+   * cola local sin subir (el número del chip). Disponible online y offline.
+   */
+  abrirEstadoConexion(): void {
+    import('../../../../shared/components/offline-queue-dialog/offline-queue-dialog.component').then(
+      (m) => {
+        this.dialog.open(m.OfflineQueueDialogComponent, {
+          width: '600px',
+          maxHeight: '90vh',
+          autoFocus: false,
         });
       }
     );

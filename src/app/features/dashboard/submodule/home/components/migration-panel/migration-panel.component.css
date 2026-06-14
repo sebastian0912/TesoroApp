@@ -1,0 +1,268 @@
+.migration-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 4px 4px 24px;
+}
+
+/* ─── HERO ───────────────────────────────────────────────────── */
+.hero {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 18px 20px;
+  background: linear-gradient(135deg, #fff7e6, #ffe7b3);
+  border: 1px solid #f6d28c;
+  border-radius: 14px;
+}
+.hero-icon {
+  width: 56px;
+  height: 56px;
+  min-width: 56px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #ffffff;
+  color: #b45309;
+  box-shadow: 0 4px 12px rgba(180, 83, 9, 0.18);
+}
+.hero-icon mat-icon { font-size: 28px; width: 28px; height: 28px; }
+.hero-text h2 {
+  margin: 0 0 4px;
+  font-size: 18px;
+  font-weight: 700;
+  color: #5b3a00;
+}
+.hero-text p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: #6b4a14;
+}
+
+/* ─── TOKEN field ────────────────────────────────────────────── */
+.token-field { width: 100%; }
+
+/* ─── CTA principal ─────────────────────────────────────────── */
+.cta {
+  height: 56px;
+  font-size: 16px;
+  font-weight: 600;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  box-shadow: 0 6px 16px rgba(25, 118, 210, 0.28);
+  transition: transform 0.1s ease, box-shadow 0.15s ease;
+}
+.cta:not([disabled]):hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 20px rgba(25, 118, 210, 0.34);
+}
+.cta[disabled] { box-shadow: none; }
+.cta mat-icon { font-size: 22px; width: 22px; height: 22px; }
+.cta mat-spinner { display: inline-block; }
+.cta mat-spinner circle { stroke: #fff; }
+
+.phase-label {
+  text-align: center;
+  font-size: 13px;
+  color: #555;
+  margin-top: -6px;
+}
+.phase-label.err { color: #c0392b; font-weight: 600; }
+
+/* ─── Error banner ──────────────────────────────────────────── */
+.error-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: #fff0f0;
+  border: 1px solid #f3a8a8;
+  border-radius: 10px;
+  color: #7a1414;
+  font-size: 13px;
+}
+
+/* ─── Progress block ────────────────────────────────────────── */
+.progress-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 16px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+}
+.progress-line {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.progress-line mat-progress-bar {
+  flex: 1;
+  border-radius: 999px;
+  overflow: hidden;
+}
+.progress-line .pct {
+  min-width: 48px;
+  text-align: right;
+  font-weight: 700;
+  color: #1976d2;
+  font-variant-numeric: tabular-nums;
+}
+.progress-detail {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #475569;
+}
+.progress-detail mat-icon { font-size: 18px; width: 18px; height: 18px; }
+.progress-detail mat-icon.ok { color: #16a34a; }
+.progress-detail code {
+  background: #ecf0f6;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.spin { animation: spin 1.4s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ─── Stats grid ────────────────────────────────────────────── */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 10px;
+}
+.stat-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 14px 10px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.stat-card mat-icon {
+  font-size: 22px;
+  width: 22px;
+  height: 22px;
+  color: #64748b;
+  margin-bottom: 2px;
+}
+.stat-card .stat-num {
+  font-size: 18px;
+  font-weight: 700;
+  color: #0f172a;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  line-height: 1.1;
+}
+.stat-card .stat-label {
+  font-size: 11px;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+.stat-card.highlight {
+  border-color: #93c5fd;
+  background: linear-gradient(135deg, #eff6ff, #dbeafe);
+}
+.stat-card.highlight mat-icon { color: #1d4ed8; }
+.stat-card.highlight .stat-num { color: #1e3a8a; }
+.stat-card.err {
+  border-color: #fca5a5;
+  background: linear-gradient(135deg, #fff5f5, #ffe4e4);
+}
+.stat-card.err mat-icon { color: #b91c1c; }
+.stat-card.err .stat-num { color: #7f1d1d; }
+
+/* ─── Destino chip ──────────────────────────────────────────── */
+.dest-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  align-self: flex-start;
+  padding: 6px 12px;
+  background: #ecfeff;
+  border: 1px solid #67e8f9;
+  border-radius: 999px;
+  font-size: 12px;
+  color: #155e75;
+}
+.dest-chip mat-icon { font-size: 16px; width: 16px; height: 16px; }
+
+/* ─── Acciones secundarias ──────────────────────────────────── */
+.secondary-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.secondary-actions button { font-size: 12px; }
+
+/* ─── Tabla ─────────────────────────────────────────────────── */
+.table-wrap {
+  max-height: 420px;
+  overflow: auto;
+  border: 1px solid #e0e0e0;
+  border-radius: 10px;
+}
+.batches-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+}
+.batches-table th,
+.batches-table td {
+  padding: 7px 10px;
+  text-align: left;
+  border-bottom: 1px solid #eef2f7;
+  white-space: nowrap;
+}
+.batches-table thead th {
+  position: sticky;
+  top: 0;
+  background: #f8fafc;
+  font-weight: 600;
+  color: #334155;
+  z-index: 1;
+}
+.batches-table .error-cell {
+  white-space: normal;
+  color: #a00;
+  font-size: 11px;
+  max-width: 240px;
+}
+.batches-table .muted { color: #94a3b8; }
+.batches-table .warn  { color: #b56b00; font-weight: 600; }
+
+.row-in_progress { background: #fff7e6; }
+.row-done        { background: #f1faf1; }
+.row-error       { background: #fff0f0; }
+.row-skipped     { background: #f4f4f4; color: #777; }
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 11px;
+  text-transform: lowercase;
+  font-weight: 600;
+}
+.badge mat-icon { font-size: 14px; width: 14px; height: 14px; }
+.badge-pending     { background: #eef2f7; color: #475569; }
+.badge-in_progress { background: #fef3c7; color: #92400e; }
+.badge-done        { background: #d1fae5; color: #065f46; }
+.badge-skipped     { background: #e5e7eb; color: #4b5563; }
+.badge-error       { background: #fee2e2; color: #991b1b; }

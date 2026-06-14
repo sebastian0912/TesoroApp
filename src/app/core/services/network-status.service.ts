@@ -1,7 +1,7 @@
-import { Injectable, NgZone, signal } from '@angular/core';
+import { Injectable, NgZone, inject, signal } from '@angular/core';
 import { Observable } from 'rxjs';
 import { toObservable } from '@angular/core/rxjs-interop';
-import { environment } from '../../../environments/environment';
+import { environment } from '@/environments/environment';
 
 @Injectable({
   providedIn: 'root'
@@ -9,8 +9,17 @@ import { environment } from '../../../environments/environment';
 export class NetworkStatusService {
   public onlineStatus = signal(typeof navigator === 'undefined' ? true : navigator.onLine);
   private heartbeatInterval: ReturnType<typeof setInterval> | undefined;
+  private readonly ngZone = inject(NgZone);
 
-  constructor(private ngZone: NgZone) {
+  // Tolerancia a fallos transitorios: solo marcamos offline después de
+  // FAIL_THRESHOLD heartbeats fallidos seguidos. Esto evita que un endpoint
+  // pesado o un GC del backend pongan toda la app en modo offline.
+  private consecutiveFails = 0;
+  private readonly FAIL_THRESHOLD = 3;
+  private readonly HEARTBEAT_TIMEOUT_MS = 8000;   // antes 4s; demasiado agresivo
+  private readonly HEARTBEAT_INTERVAL_MS = 20000; // antes 15s; un poco más relajado
+
+  constructor() {
     this.initEventListeners();
   }
 
@@ -29,6 +38,7 @@ export class NetworkStatusService {
   }
 
   public markOnline(): void {
+    this.consecutiveFails = 0;
     if (this.onlineStatus() !== true) {
       this.ngZone.run(() => this.onlineStatus.set(true));
     }
@@ -40,13 +50,20 @@ export class NetworkStatusService {
     }
 
     window.addEventListener('online', () => {
+      // Cuando el OS reporta online, intentamos validar de inmediato.
+      this.consecutiveFails = 0;
       void this.checkRealConnection();
     });
-    window.addEventListener('offline', () => this.markOffline());
+
+    // OS reporta offline → confiamos en eso de inmediato (caso obvio).
+    window.addEventListener('offline', () => {
+      this.consecutiveFails = this.FAIL_THRESHOLD;
+      this.markOffline();
+    });
 
     this.heartbeatInterval = setInterval(() => {
       void this.checkRealConnection();
-    }, 15000);
+    }, this.HEARTBEAT_INTERVAL_MS);
 
     setTimeout(() => {
       void this.checkRealConnection();
@@ -55,33 +72,30 @@ export class NetworkStatusService {
 
   private async checkRealConnection(): Promise<void> {
     if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      this.consecutiveFails = this.FAIL_THRESHOLD;
       this.markOffline();
       return;
     }
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 4000);
+    const timeoutId = setTimeout(() => controller.abort(), this.HEARTBEAT_TIMEOUT_MS);
 
     try {
       // GET con `cors` (no `no-cors`) para poder validar el status y el body.
-      // Antes con `mode: 'no-cors'` cualquier respuesta opaca (502, 405,
-      // captive portal con HTML) resolvía la promesa y la app se ponía
-      // online: al volver online, syncQueue() reproducía la cola contra ese
-      // server roto y todo se marcaba como failed. El backend devuelve
-      // {"ok": true, "ts": "..."} en /health/ y CORS está abierto.
+      // El backend responde {"ok": true, "ts": "..."} en /health/.
       const response = await fetch(`${environment.apiUrl}/health/`, {
         method: 'GET',
         cache: 'no-store',
         mode: 'cors',
         signal: controller.signal,
-        // Header explícito para que ningún proxy intermedio responda con HTML
-        // de "captive portal" interpretado como JSON válido.
         headers: { 'Accept': 'application/json' },
       });
 
       if (!response.ok) {
-        console.warn(`[Heartbeat] /health/ respondió ${response.status}, marcando offline.`);
-        this.markOffline();
+        // 4xx/5xx cuentan como fallo, pero NO marcamos offline hasta
+        // acumular FAIL_THRESHOLD. Un 502/503 transitorio no debe tirar
+        // la app entera a modo offline.
+        this.recordFailure(`/health/ respondió ${response.status}`);
         return;
       }
 
@@ -97,17 +111,37 @@ export class NetworkStatusService {
         }
       } catch { /* body opcional, ignoramos parse */ }
 
-      if (healthy) this.markOnline();
-      else this.markOffline();
-    } catch {
-      // Throttle: solo loggear cuando hay transición. El warn cada 15s
-      // tapaba logs útiles en `ConsoleLoggerService` (cap de 50 entradas).
-      if (this.onlineStatus()) {
-        console.warn('[Heartbeat] servidor inalcanzable, pasando a offline.');
+      if (healthy) {
+        this.markOnline();
+      } else {
+        this.recordFailure('/health/ reportó ok=false');
       }
-      this.markOffline();
+    } catch (e: any) {
+      // Timeout o error de red. Acumula, no marca offline al primer fallo.
+      const reason = e?.name === 'AbortError'
+        ? `timeout ${this.HEARTBEAT_TIMEOUT_MS}ms`
+        : 'fetch error';
+      this.recordFailure(reason);
     } finally {
       clearTimeout(timeoutId);
+    }
+  }
+
+  /**
+   * Acumula un fallo. Solo marca offline cuando llega a FAIL_THRESHOLD
+   * consecutivos. Esto absorbe baches transitorios (GC del backend,
+   * endpoint pesado bloqueando un worker, latencia puntual de red).
+   */
+  private recordFailure(reason: string): void {
+    this.consecutiveFails += 1;
+    if (this.consecutiveFails >= this.FAIL_THRESHOLD) {
+      // Solo loggea cuando HAY transición (no spam cada 20s).
+      if (this.onlineStatus()) {
+        console.warn(
+          `[Heartbeat] ${this.FAIL_THRESHOLD} fallos consecutivos (${reason}). Marcando offline.`
+        );
+      }
+      this.markOffline();
     }
   }
 }

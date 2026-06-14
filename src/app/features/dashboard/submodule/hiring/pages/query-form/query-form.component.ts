@@ -184,8 +184,14 @@ export class QueryFormComponent {
 
     // Función para manejar caracteres especiales
     escapeForExcel(value: string): string {
-      if (!value) return '';
-      return value.replace(/\t/g, ' ').replace(/\n/g, ' ').replace(/"/g, '""');
+      if (value === null || value === undefined) return '';
+      const str = String(value);
+      return str
+        .normalize('NFD')
+        .replace(/[̀-ͯ]/g, '')
+        .replace(/\t/g, ' ')
+        .replace(/\n/g, ' ')
+        .replace(/"/g, '""');
     }
 
 

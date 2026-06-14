@@ -1,5 +1,5 @@
 import { Component, Input, ChangeDetectionStrategy, OnChanges, SimpleChanges } from '@angular/core';
-import { CommonModule, CurrencyPipe } from '@angular/common';
+import { CurrencyPipe } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
 import { EmptyStateComponent } from '../../../../shared/components/empty-state/empty-state.component';
 import { HistorialItem } from '../../models/tesoreria-metricas.models';
@@ -7,7 +7,7 @@ import { HistorialItem } from '../../models/tesoreria-metricas.models';
 @Component({
     selector: 'app-historial-table',
     standalone: true,
-    imports: [CommonModule, MatIconModule, EmptyStateComponent],
+    imports: [MatIconModule, EmptyStateComponent],
     template: `
     @if (hasData) {
       <div class="table-wrapper">

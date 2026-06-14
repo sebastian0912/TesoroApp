@@ -36,6 +36,7 @@ import { takeUntil, distinctUntilChanged } from 'rxjs/operators';
 import { Subject } from 'rxjs';
 import { MatListModule } from '@angular/material/list';
 import { forkJoin, mergeMap } from 'rxjs';
+import { getLocalStorageItem } from '../../../../../../core/utils/safe-storage';
 
 export const MY_DATE_FORMATS = {
   parse: {
@@ -225,7 +226,7 @@ export class FormularioIncapacidadComponent implements OnInit {
   }
   async getUser(): Promise<any> {
     if (isPlatformBrowser(this.platformId)) {
-      const user = localStorage.getItem('user');
+      const user = getLocalStorageItem('user');
       return user ? JSON.parse(user) : null;
     }
     return null;
@@ -1240,7 +1241,7 @@ export class FormularioIncapacidadComponent implements OnInit {
     // Historial filtrado por cédula (payload ligero, excluye TextField de archivos)
     this.loadData(cedula);
 
-    const storedData = localStorage.getItem('user');
+    const storedData = getLocalStorageItem('user');
 
     if (storedData) {
       const dataObject = JSON.parse(storedData);
