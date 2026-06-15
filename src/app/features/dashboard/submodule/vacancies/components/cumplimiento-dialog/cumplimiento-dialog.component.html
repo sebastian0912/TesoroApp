@@ -1,0 +1,158 @@
+<div class="cumpl-dialog">
+  <!-- ───────── Encabezado ───────── -->
+  <header class="cumpl-head">
+    <div class="cumpl-head-icon"><mat-icon>work</mat-icon></div>
+    <div class="cumpl-head-text">
+      <h2 class="cumpl-title" [title]="data.cargo || 'Vacante'">{{ data.cargo || 'Vacante' }}</h2>
+      <p class="cumpl-sub">
+        <mat-icon class="cumpl-sub-ic">business</mat-icon>{{ data.empresa || 'Sin empresa' }}
+        <span class="cumpl-dot">•</span>
+        <mat-icon class="cumpl-sub-ic">location_on</mat-icon>{{ data.finca || 'Sin centro de costo' }}
+      </p>
+    </div>
+    <button mat-icon-button class="cumpl-close" (click)="cerrar()" matTooltip="Cerrar">
+      <mat-icon>close</mat-icon>
+    </button>
+  </header>
+
+  <!-- ───────── Banda de KPIs ───────── -->
+  @if (data.req != null) {
+    <section class="cumpl-kpis">
+      <div class="kpi">
+        <span class="kpi-num">{{ data.req ?? 0 }}</span>
+        <span class="kpi-lbl">Requeridos</span>
+      </div>
+      <div class="kpi">
+        <span class="kpi-num kpi-ok">{{ data.firm ?? 0 }}</span>
+        <span class="kpi-lbl">Firmados</span>
+      </div>
+      <div class="kpi">
+        <span class="kpi-num kpi-warn">{{ faltan() }}</span>
+        <span class="kpi-lbl">Faltan</span>
+      </div>
+      <div class="kpi kpi-grow">
+        <div class="kpi-pct-row">
+          <span class="kpi-lbl">Cumplimiento</span>
+          <span class="kpi-pct" [ngClass]="cumplTono()">{{ data.cumpl ?? 0 }}%</span>
+        </div>
+        <div class="kpi-bar">
+          <div class="kpi-bar-fill" [ngClass]="cumplTono()" [style.width.%]="data.cumpl ?? 0"></div>
+        </div>
+      </div>
+    </section>
+  }
+
+  @if (working() || loading()) {
+    <mat-progress-bar mode="indeterminate" class="cumpl-loader"></mat-progress-bar>
+  }
+
+  <!-- ───────── Cuerpo ───────── -->
+  <div mat-dialog-content class="cumpl-body">
+    @if (loading()) {
+      <div class="cumpl-state">
+        <mat-icon class="spin">progress_activity</mat-icon>
+        <span>Cargando candidatos…</span>
+      </div>
+    } @else if (total() === 0) {
+      <div class="cumpl-state">
+        <mat-icon>person_off</mat-icon>
+        <span>No hay personas asignadas a esta vacante.</span>
+      </div>
+    } @else {
+      <div class="cumpl-toolbar">
+        <span class="cumpl-count">
+          <mat-icon>groups</mat-icon>
+          {{ total() }} {{ total() === 1 ? 'persona' : 'personas' }}
+          @if (seleccionCount() > 0) {
+            <span class="cumpl-sel-pill">{{ seleccionCount() }} seleccionada(s)</span>
+          }
+        </span>
+      </div>
+
+      <div class="cumpl-table-wrap">
+        <table class="cumpl-table">
+          <thead>
+            <tr>
+              <th class="col-check">
+                <mat-checkbox
+                  [checked]="allSelected()"
+                  [indeterminate]="someSelected()"
+                  (change)="toggleAll($event.checked)">
+                </mat-checkbox>
+              </th>
+              <th class="col-num">#</th>
+              <th>Candidato</th>
+              <th class="col-doc">Documento</th>
+              <th class="col-etapa">Etapa</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (c of candidatos(); track c.proceso_id; let i = $index) {
+              <tr [class.fila-sel]="isSelected(c)" (click)="toggle(c, !isSelected(c))">
+                <td class="col-check" (click)="$event.stopPropagation()">
+                  <mat-checkbox [checked]="isSelected(c)" (change)="toggle(c, $event.checked)"></mat-checkbox>
+                </td>
+                <td class="col-num">{{ i + 1 }}</td>
+                <td>
+                  <div class="persona">
+                    <span class="persona-avatar">{{ iniciales(c) }}</span>
+                    <div class="persona-info">
+                      <span class="persona-nombre">{{ nombreBonito(c) }}</span>
+                      <span class="persona-meta">{{ nombreMostrar(c) }}</span>
+                    </div>
+                  </div>
+                </td>
+                <td class="col-doc">
+                  <span class="doc-tipo">{{ c.tipo_doc || 'CC' }}</span>
+                  <span class="doc-num">{{ c.numero_documento }}</span>
+                </td>
+                <td class="col-etapa">
+                  <span class="etapa-chip" [ngClass]="etapaClass(c.etapa)">{{ c.etapa || '—' }}</span>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+
+      <p class="cumpl-hint">
+        <mat-icon>info</mat-icon>
+        <strong>Descargar</strong> usa las filas seleccionadas (o todas si no marcas ninguna).
+        <strong>Quitar vacante</strong> requiere seleccionar a quién.
+      </p>
+    }
+  </div>
+
+  <!-- ───────── Acciones ───────── -->
+  <div mat-dialog-actions class="cumpl-actions">
+    <button mat-stroked-button class="btn-quitar"
+      [disabled]="loading() || working() || seleccionCount() === 0"
+      [matTooltip]="seleccionCount() === 0 ? 'Selecciona al menos una persona' : ''"
+      (click)="quitarVacante()">
+      <mat-icon>link_off</mat-icon>
+      Quitar vacante@if (seleccionCount() > 0) { <span class="btn-badge">{{ seleccionCount() }}</span> }
+    </button>
+
+    <span class="cumpl-actions-spacer"></span>
+
+    <button mat-flat-button class="btn-descargar"
+      [disabled]="loading() || working() || total() === 0"
+      [matMenuTriggerFor]="descargaMenu">
+      <mat-icon>download</mat-icon>
+      Descargar
+      <mat-icon class="btn-caret">arrow_drop_down</mat-icon>
+    </button>
+    <mat-menu #descargaMenu="matMenu" xPosition="before">
+      <button mat-menu-item (click)="descargarBase()">
+        <mat-icon>table_view</mat-icon>
+        <span>Base de candidatos</span>
+      </button>
+      <button mat-menu-item (click)="descargarBmc()">
+        <mat-icon>description</mat-icon>
+        <span>Formato BMC</span>
+      </button>
+    </mat-menu>
+
+    <button mat-button class="btn-cerrar" (click)="cerrar()">Cerrar</button>
+  </div>
+</div>

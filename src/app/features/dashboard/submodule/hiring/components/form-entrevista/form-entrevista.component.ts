@@ -27,6 +27,7 @@ import colombia from '../../../../../../data/colombia.json';
 import { SharedModule } from '@/app/shared/shared.module';
 import { UtilityServiceService } from '@/app/shared/services/utilityService/utility-service.service';
 import { RegistroProcesoContratacion } from '../../service/registro-proceso-contratacion/registro-proceso-contratacion';
+import { SeleccionEstadoService } from '../../service/seleccion/seleccion-estado.service';
 import {
   GestionParametrizacionService,
   CatalogValue,
@@ -52,6 +53,7 @@ export class FormEntrevistaComponent implements OnInit {
   private readonly util = inject(UtilityServiceService);
   private readonly candidateService = inject(RegistroProcesoContratacion);
   private readonly catalogos = inject(GestionParametrizacionService);
+  private readonly seleccionEstado = inject(SeleccionEstadoService);
 
   // ====== Catálogos ======
   private safeCatalog(code: string, label: string): Observable<CatalogValue[]> {
@@ -803,6 +805,12 @@ export class FormEntrevistaComponent implements OnInit {
   }
 
   private applyAplicaObservacionRules(v: any): void {
+    // Punto único por el que pasan tanto la carga del candidato (rellenarForm)
+    // como los cambios en vivo del operador. Publicamos el estado para que los
+    // componentes hermanos (remisión, exámenes, contratación) se bloqueen si el
+    // candidato queda EN ESPERA de vacante.
+    this.seleccionEstado.setAplicaObservacion(v);
+
     const motEsp = this.ctrl('motivoEspera');
     const motNoAp = this.ctrl('motivoNoAplica');
 

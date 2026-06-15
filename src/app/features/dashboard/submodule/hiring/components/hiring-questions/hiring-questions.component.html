@@ -1,4 +1,61 @@
-<mat-tab-group class="tab-group">
+<!-- Bloqueo: candidato EN ESPERA de vacante o NO APLICA (observación del evaluador) -->
+@if (bloqueado()) {
+  <div class="bloqueo-espera-banner">
+    <mat-icon>hourglass_top</mat-icon>
+    <div>
+      <strong>Candidato {{ motivoBloqueo() }}.</strong>
+      No se puede contratar. Cambia la observación del evaluador
+      (pestaña <em>Selección → Entrevista</em>) a "APLICA" para habilitar.
+    </div>
+  </div>
+}
+
+<mat-tab-group class="tab-group" [class.bloqueado-espera]="bloqueado()">
+
+  <!-- TAB ▸ Datos de obra / empresa (para documentos) -->
+  <mat-tab>
+    <ng-template mat-tab-label>
+      <div class="tab"><mat-icon>engineering</mat-icon> Datos de obra</div>
+    </ng-template>
+
+    <ng-template matTabContent>
+      <div class="tab-content-scrollable" [formGroup]="datosObraForm">
+        <p class="obra-hint">
+          <mat-icon>info</mat-icon>
+          Se prellenan con los datos de la vacante. Puedes editarlos y guardarlos en el
+          contrato; los documentos usarán estos valores en lugar de los de la vacante.
+        </p>
+
+        <div class="grid-managerial">
+          <mat-form-field appearance="outline" class="example-full-width">
+            <mat-label>Empresa usuaria</mat-label>
+            <input matInput formControlName="empresaUsuaria">
+          </mat-form-field>
+
+          <mat-form-field appearance="outline" class="example-full-width">
+            <mat-label>Centro de costo</mat-label>
+            <input matInput formControlName="centroCosto">
+          </mat-form-field>
+
+          <mat-form-field appearance="outline" class="example-full-width">
+            <mat-label>Dirección</mat-label>
+            <input matInput formControlName="direccion">
+          </mat-form-field>
+
+          <mat-form-field appearance="outline" class="example-full-width obra-descripcion">
+            <mat-label>Descripción de la obra</mat-label>
+            <textarea matInput rows="3" formControlName="descripcionObra"></textarea>
+          </mat-form-field>
+        </div>
+
+        <div class="obra-actions">
+          <button mat-flat-button color="primary" (click)="guardarDatosObra()">
+            <mat-icon>save</mat-icon> Guardar datos de obra
+          </button>
+        </div>
+      </div>
+    </ng-template>
+  </mat-tab>
 
   <!-- TAB 1 ▸ Pago y Transporte -->
   <mat-tab>

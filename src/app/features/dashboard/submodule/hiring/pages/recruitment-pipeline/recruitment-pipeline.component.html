@@ -224,7 +224,19 @@
           </div>
         </ng-template>
 
-        <div class="tab-content-scrollable" [formGroup]="formGroup3">
+        <!-- Bloqueo: candidato EN ESPERA de vacante o NO APLICA (observación del evaluador) -->
+        @if (bloqueado()) {
+          <div class="bloqueo-espera-banner">
+            <mat-icon>hourglass_top</mat-icon>
+            <div>
+              <strong>Candidato {{ motivoBloqueo() }}.</strong>
+              No se pueden registrar exámenes de ingreso. Cambia la observación del
+              evaluador (pestaña <em>Selección → Entrevista</em>) a "APLICA" para habilitar.
+            </div>
+          </div>
+        }
+
+        <div class="tab-content-scrollable" [formGroup]="formGroup3" [class.bloqueado-espera]="bloqueado()">
           <!-- Header del tab -->
           <header class="med-header">
             <div class="med-header-icon">
@@ -397,7 +409,7 @@
           <div class="med-actions">
             <button mat-flat-button color="primary"
                     (click)="imprimirSaludOcupacional()"
-                    [disabled]="isSavingMedical()"
+                    [disabled]="isSavingMedical() || bloqueado()"
                     class="med-save-button">
               <mat-icon>{{ isSavingMedical() ? 'hourglass_empty' : 'save' }}</mat-icon>
               {{ isSavingMedical() ? 'Guardando...' : 'Guardar Salud Ocupacional' }}

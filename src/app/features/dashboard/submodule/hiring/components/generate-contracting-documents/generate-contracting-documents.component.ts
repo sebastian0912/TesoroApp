@@ -86,6 +86,25 @@ export class GenerateContractingDocumentsComponent implements OnInit {
   huella: any = '';
   foto: any = '';
 
+  // ── Datos de obra/empresa para los documentos ──
+  // El contrato (editable desde "Datos de obra" en Contratación) tiene prioridad;
+  // si está vacío, se usa el dato original de la vacante/publicación.
+  private get _contratoObra(): any {
+    return this.candidato?.entrevistas?.[0]?.proceso?.contrato || {};
+  }
+  get empresaUsuariaDoc(): string {
+    return this._contratoObra?.empresa_usuaria || this.vacante?.empresaUsuariaSolicita || '';
+  }
+  get centroCostoDoc(): string {
+    return this._contratoObra?.centro_costo_obra || this.vacante?.finca || '';
+  }
+  get direccionDoc(): string {
+    return this._contratoObra?.direccion_empresa || this.vacante?.direccion || '';
+  }
+  get descripcionObraDoc(): string {
+    return this._contratoObra?.descripcion_de_obra || this.vacante?.descripcion || '';
+  }
+
   batchMode = false;
   batchCedulas: any[] = [];
   blockSeleccionado: any = null;
@@ -1903,9 +1922,9 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       const numIdentificacion = String(cand.numero_documento ?? '').trim();
       const domicilioTrabajador = String(cand.residencia?.municipio ?? '').toUpperCase();
 
-      const empresaUsuaria = this.safe(vac.empresaUsuariaSolicita).toUpperCase();
+      const empresaUsuaria = this.safe(this.empresaUsuariaDoc).toUpperCase();
       const nitEmpresaUsuaria = this.safe(vac.nitEmpresaUsuaria ?? vac.nit ?? '');
-      const domicilioEmpresaUsuaria = this.safe(vac.domicilioEmpresaUsuaria ?? vac.direccion ?? '');
+      const domicilioEmpresaUsuaria = this.safe(this.direccionDoc || vac.domicilioEmpresaUsuaria || '');
       const representanteEmpresaUsuaria = this.safe(vac.representanteLegalEmpresaUsuaria ?? vac.representanteLegal ?? '').toUpperCase();
       const ccRepresentanteEmpresaUsuaria = this.safe(vac.ccRepresentanteEmpresaUsuaria ?? vac.ccRepresentante ?? '');
 
@@ -7999,9 +8018,9 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       { titulo: 'Periódo de Pago Salario', valor: 'Quincenal' },
       { titulo: 'Subsidio de Transporte', valor: 'SE PAGA EL LEGAL VIGENTE  O SE SUMINISTRA EL TRANSPORTE' },
       { titulo: 'Forma de Pago', valor: 'Banca Móvil,  Cuenta de Ahorro o Tarjeta Monedero' },
-      { titulo: 'Nombre Empresa Usuria', valor: this.vacante.empresaUsuariaSolicita },
+      { titulo: 'Nombre Empresa Usuria', valor: this.empresaUsuariaDoc },
       { titulo: 'Cargo', valor: this.vacante.cargo },
-      { titulo: 'Descripción de la Obra/Motivo Temporada', valor: this.vacante.descripcion },
+      { titulo: 'Descripción de la Obra/Motivo Temporada', valor: this.descripcionObraDoc },
     ];
     // Configuración de columnas
     const columnWidth = 110; // Ancho de cada columna
@@ -8062,10 +8081,10 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     doc.setFont('helvetica', 'normal');
     // Construir texto dinámico sin null ni undefined
     const partes = [
-      this.vacante?.empresaUsuariaSolicita,
+      this.empresaUsuariaDoc,
       'CENTRO DE COSTOS',
-      this.vacante?.finca || '',
-      this.vacante?.direccion ? `DIR. ${this.vacante.direccion}` : ''
+      this.centroCostoDoc || '',
+      this.direccionDoc ? `DIR. ${this.direccionDoc}` : ''
     ].filter(Boolean); // elimina los vacíos o null
 
     const textoLinea = partes.join(' ').replace(/\s+/g, ' ').trim();
@@ -8718,11 +8737,11 @@ export class GenerateContractingDocumentsComponent implements OnInit {
 
       { titulo: T('Forma de Pago'), valor: V('Banca Móvil, Cuenta de Ahorro o Tarjeta Monedero') },
 
-      { titulo: T('Nombre Empresa Usuaria'), valor: V(this.vacante?.empresaUsuariaSolicita) },
+      { titulo: T('Nombre Empresa Usuaria'), valor: V(this.empresaUsuariaDoc) },
 
       { titulo: T('Cargo'), valor: V(this.vacante?.cargo) },
 
-      { titulo: T('Descripción de la Obra/Motivo Temporada '), valor: V(this.vacante?.descripcion) },
+      { titulo: T('Descripción de la Obra/Motivo Temporada '), valor: V(this.descripcionObraDoc) },
     ];
 
     // =========================================================
@@ -8807,10 +8826,10 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     doc.setFontSize(8.5);
     // Construir texto dinámico sin null ni undefined
     const partes = [
-      this.vacante?.empresaUsuariaSolicita,
+      this.empresaUsuariaDoc,
       'CENTRO DE COSTOS',
-      this.vacante?.finca || '',
-      this.vacante?.direccion ? `DIR. ${this.vacante.direccion}` : ''
+      this.centroCostoDoc || '',
+      this.direccionDoc ? `DIR. ${this.direccionDoc}` : ''
     ].filter(Boolean); // elimina los vacíos o null
 
     const textoLinea = partes.join(' ').replace(/\s+/g, ' ').trim();
@@ -9300,9 +9319,9 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       { titulo: T('Periodo de Pago Salario'), valor: V('Quincenal') },
       { titulo: T('Subsidio de Transporte'), valor: V('SE PAGA EL LEGAL VIGENTE O SE SUMINISTRA EL TRANSPORTE') },
       { titulo: T('Forma de Pago'), valor: V('Banca Móvil, Cuenta de Ahorro o Tarjeta Monedero') },
-      { titulo: T('Nombre Empresa Usuaria'), valor: V(this.vacante?.empresaUsuariaSolicita) },
+      { titulo: T('Nombre Empresa Usuaria'), valor: V(this.empresaUsuariaDoc) },
       { titulo: T('Cargo'), valor: V(this.vacante?.cargo) },
-      { titulo: T('Descripción de la Obra/Motivo Temporada '), valor: V(this.vacante?.descripcion) },
+      { titulo: T('Descripción de la Obra/Motivo Temporada '), valor: V(this.descripcionObraDoc) },
 
     ];
 
@@ -9388,10 +9407,10 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     doc.setFontSize(6.5);
     // Construir texto dinámico sin null ni undefined
     const partes = [
-      this.vacante?.empresaUsuariaSolicita,
+      this.empresaUsuariaDoc,
       'CENTRO DE COSTOS',
-      this.vacante?.finca || '',
-      this.vacante?.direccion ? `DIR. ${this.vacante.direccion}` : ''
+      this.centroCostoDoc || '',
+      this.direccionDoc ? `DIR. ${this.direccionDoc}` : ''
     ].filter(Boolean); // elimina los vacíos o null
 
     const textoLinea = partes.join(' ').replace(/\s+/g, ' ').trim();
@@ -9788,7 +9807,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
 
       // Branding Apoyo Laboral
       const { logoPath, nombreEmpresa } = this.getEmpresaInfo();
-      const empUsuaria = this.safe(vac.empresaUsuariaSolicita);
+      const empUsuaria = this.safe(this.empresaUsuariaDoc);
 
       await setButtonImageSafe(pdfDoc, form, 'Image16_af_image', logoPath);
       await setButtonImageSafe(pdfDoc, form, 'Image18_af_image', logoPath);
@@ -11099,7 +11118,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
         exp0?.labores_principales
       ].filter(x => !!String(x || '').trim()).join(' - ');
       this.setText(form, 'descripcion-laboral1', this.safe(descripcionLaboral1Str), customFont);
-      this.setText(form, 'finca_a', this.vacante.finca, customFont);
+      this.setText(form, 'finca_a', this.centroCostoDoc, customFont);
       this.setText(form, 'nombres_y_apellidos', datoContratacion.primer_nombre + ' ' + datoContratacion.segundo_nombre + ' ' + datoContratacion.primer_apellido + ' ' + datoContratacion.segundo_apellido, customFont);
       this.setText(form, 'numero_identificacion', this.cedula, customFont);
 
@@ -12241,7 +12260,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       const cand: any = this.candidato ?? {};
       const vac: any = this.vacante ?? {};
       const cedula = String(cand.numero_documento ?? this.cedula ?? '').trim();
-      const empresaUsuaria = (vac.empresaUsuariaSolicita ?? vac.finca ?? '').toString().toUpperCase().trim();
+      const empresaUsuaria = (this.empresaUsuariaDoc || vac.finca || '').toString().toUpperCase().trim();
 
       // ─── Helpers de fecha ───
       const mesesEs = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
@@ -12485,7 +12504,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       const cand: any = this.candidato ?? {};
       const vac: any = this.vacante ?? {};
       const cedula = String(cand.numero_documento ?? this.cedula ?? '').trim();
-      const empresaUsuaria = (vac.empresaUsuariaSolicita ?? vac.finca ?? '').toString().trim();
+      const empresaUsuaria = (this.empresaUsuariaDoc || vac.finca || '').toString().trim();
       const municipio = (cand.residencia?.municipio ?? '').toString().trim();
       const departamento = (cand.residencia?.departamento ?? '').toString().trim();
       const ubicacion = [municipio, departamento].filter(Boolean).join('– ') || 'Bogotá D.C.';

@@ -1,0 +1,384 @@
+:host {
+  --azul: #1565c0;
+  --azul-2: #1e88e5;
+  --ok: #2e7d32;
+  --ok-bg: #e8f5e9;
+  --warn: #ef6c00;
+  --warn-bg: #fff3e0;
+  --low: #c62828;
+  --low-bg: #ffebee;
+  --ink: #1f2733;
+  --muted: #6b7686;
+  --line: #eceef2;
+}
+
+.cumpl-dialog {
+  display: flex;
+  flex-direction: column;
+  min-width: 660px;
+  max-width: 92vw;
+  color: var(--ink);
+}
+
+/* ───────── Encabezado ───────── */
+.cumpl-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 18px 20px 14px;
+  background: linear-gradient(120deg, #eef4ff 0%, #f7faff 60%, #ffffff 100%);
+  border-bottom: 1px solid var(--line);
+}
+
+.cumpl-head-icon {
+  flex: 0 0 auto;
+  width: 46px;
+  height: 46px;
+  border-radius: 13px;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  background: linear-gradient(135deg, var(--azul) 0%, var(--azul-2) 100%);
+  box-shadow: 0 6px 16px rgba(21, 101, 192, 0.30);
+}
+
+.cumpl-head-text { flex: 1 1 auto; min-width: 0; }
+
+.cumpl-title {
+  margin: 0;
+  font-size: 19px;
+  font-weight: 800;
+  letter-spacing: .2px;
+  line-height: 1.2;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cumpl-sub {
+  margin: 5px 0 0;
+  font-size: 13px;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+
+.cumpl-sub-ic {
+  font-size: 16px;
+  width: 16px;
+  height: 16px;
+  color: #9aa4b2;
+}
+
+.cumpl-dot { color: #c3cad4; margin: 0 2px; }
+
+.cumpl-close { flex: 0 0 auto; color: #5b6470; }
+
+/* ───────── Banda de KPIs ───────── */
+.cumpl-kpis {
+  display: flex;
+  align-items: stretch;
+  gap: 10px;
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--line);
+  background: #fbfcfe;
+}
+
+.kpi {
+  flex: 0 0 auto;
+  min-width: 78px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 6px 14px 6px 0;
+  border-right: 1px dashed #e7eaf0;
+}
+
+.kpi-grow { flex: 1 1 auto; border-right: none; padding-right: 0; justify-content: center; }
+
+.kpi-num { font-size: 22px; font-weight: 800; line-height: 1; color: var(--ink); }
+.kpi-num.kpi-ok { color: var(--ok); }
+.kpi-num.kpi-warn { color: var(--warn); }
+
+.kpi-lbl {
+  margin-top: 3px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .3px;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.kpi-pct-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.kpi-pct { font-size: 18px; font-weight: 800; }
+.kpi-pct.tono-ok { color: var(--ok); }
+.kpi-pct.tono-warn { color: var(--warn); }
+.kpi-pct.tono-low { color: var(--low); }
+
+.kpi-bar {
+  margin-top: 6px;
+  height: 9px;
+  border-radius: 999px;
+  background: #e9edf3;
+  overflow: hidden;
+}
+
+.kpi-bar-fill {
+  height: 100%;
+  border-radius: 999px;
+  transition: width .5s cubic-bezier(.4, 0, .2, 1);
+}
+
+.kpi-bar-fill.tono-ok { background: linear-gradient(90deg, #43a047, #66bb6a); }
+.kpi-bar-fill.tono-warn { background: linear-gradient(90deg, #fb8c00, #ffb74d); }
+.kpi-bar-fill.tono-low { background: linear-gradient(90deg, #e53935, #ef5350); }
+
+.cumpl-loader { height: 3px; }
+
+/* ───────── Cuerpo ───────── */
+.cumpl-body {
+  padding: 14px 20px 6px;
+  max-height: 56vh;
+  overflow: auto;
+}
+
+.cumpl-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 40px 8px;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.cumpl-state mat-icon {
+  font-size: 38px;
+  width: 38px;
+  height: 38px;
+  color: #c3cad4;
+}
+
+.spin { animation: cumpl-spin 1s linear infinite; }
+@keyframes cumpl-spin { to { transform: rotate(360deg); } }
+
+.cumpl-toolbar {
+  display: flex;
+  align-items: center;
+  padding: 0 2px 10px;
+}
+
+.cumpl-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #3a4453;
+}
+
+.cumpl-count mat-icon { font-size: 18px; width: 18px; height: 18px; color: var(--azul); }
+
+.cumpl-sel-pill {
+  margin-left: 4px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: #e7f0ff;
+  color: var(--azul);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.cumpl-table-wrap {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(16, 24, 40, 0.04);
+}
+
+.cumpl-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.cumpl-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: #f6f8fb;
+  text-align: left;
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: .4px;
+  text-transform: uppercase;
+  color: #7a8494;
+  padding: 11px 12px;
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+}
+
+.cumpl-table tbody td {
+  padding: 9px 12px;
+  border-bottom: 1px solid #f2f4f7;
+  vertical-align: middle;
+}
+
+.cumpl-table tbody tr:last-child td { border-bottom: none; }
+
+.cumpl-table tbody tr {
+  cursor: pointer;
+  transition: background .12s;
+}
+
+.cumpl-table tbody tr:hover { background: #f6faff; }
+.cumpl-table tbody tr.fila-sel { background: #eaf3ff; }
+
+.col-check { width: 46px; text-align: center; }
+.col-num { width: 40px; color: var(--muted); }
+.col-doc { width: 150px; }
+.col-etapa { width: 140px; }
+
+/* Persona (avatar + nombre) */
+.persona { display: flex; align-items: center; gap: 10px; }
+
+.persona-avatar {
+  flex: 0 0 auto;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+  font-weight: 800;
+  color: #fff;
+  background: linear-gradient(135deg, #5c6bc0, #7e57c2);
+  letter-spacing: .5px;
+}
+
+.persona-info { display: flex; flex-direction: column; min-width: 0; }
+
+.persona-nombre {
+  font-weight: 700;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 240px;
+}
+
+.persona-meta {
+  font-size: 11px;
+  color: #98a1ae;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 240px;
+}
+
+/* Documento */
+.doc-tipo {
+  display: inline-block;
+  padding: 1px 7px;
+  border-radius: 6px;
+  background: #eef1f6;
+  color: #5b6470;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .5px;
+  margin-right: 6px;
+  vertical-align: middle;
+}
+
+.doc-num {
+  font-family: 'Roboto Mono', 'Consolas', monospace;
+  font-weight: 600;
+  color: #2c3645;
+  letter-spacing: .3px;
+}
+
+/* Etapa */
+.etapa-chip {
+  display: inline-block;
+  padding: 3px 11px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .2px;
+  border: 1px solid transparent;
+}
+
+.etapa-asignado     { background: #eef1f6; color: #5b6470; }
+.etapa-prereg       { background: #eceff1; color: #546e7a; }
+.etapa-entrevistado { background: #e8eaf6; color: #3949ab; }
+.etapa-prueba       { background: #ede7f6; color: #6a4caf; }
+.etapa-autorizado   { background: #e3f2fd; color: #1565c0; }
+.etapa-examenes     { background: #e0f7fa; color: #00838f; }
+.etapa-contratado   { background: var(--ok-bg); color: var(--ok); border-color: #c8e6c9; }
+.etapa-ingreso      { background: #e8f5e9; color: #1b5e20; border-color: #a5d6a7; }
+
+.cumpl-hint {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 12px 2px 4px;
+  font-size: 12px;
+  color: #8a6d00;
+}
+
+.cumpl-hint mat-icon { font-size: 18px; width: 18px; height: 18px; color: #f5b400; }
+
+/* ───────── Acciones ───────── */
+.cumpl-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 20px 18px;
+  border-top: 1px solid var(--line);
+  background: #fbfcfe;
+}
+
+.cumpl-actions-spacer { flex: 1 1 auto; }
+
+.btn-quitar {
+  --mdc-outlined-button-label-text-color: var(--low);
+  color: var(--low);
+  border-color: #f3c2c2 !important;
+  font-weight: 600;
+}
+.btn-quitar:hover:not([disabled]) { background: var(--low-bg); }
+
+.btn-badge {
+  display: inline-grid;
+  place-items: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  margin-left: 8px;
+  border-radius: 999px;
+  background: var(--low);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.btn-descargar {
+  --mdc-filled-button-container-color: var(--azul);
+  background: var(--azul);
+  color: #fff;
+  font-weight: 600;
+}
+
+.btn-caret { margin-left: -4px; }
+
+.btn-cerrar { color: var(--muted); font-weight: 600; }

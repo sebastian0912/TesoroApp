@@ -20,6 +20,7 @@ import { VacantesService } from '../../service/vacantes/vacantes.service';
 import { GestionParametrizacionService } from '../../../users/services/gestion-parametrizacion/gestion-parametrizacion.service';
 import { FormEntrevistaComponent } from '../form-entrevista/form-entrevista.component';
 import { ProcesoUpdateByDocumentRequest, RegistroProcesoContratacion } from '../../service/registro-proceso-contratacion/registro-proceso-contratacion';
+import { SeleccionEstadoService } from '../../service/seleccion/seleccion-estado.service';
 
 // ================== Constantes ==================
 export const MY_DATE_FORMATS = {
@@ -85,6 +86,16 @@ export class HelpInformationComponent implements OnInit {
   public utilService = inject(UtilityServiceService);
   private destroyRef = inject(DestroyRef);
   private gc = inject(RegistroProcesoContratacion);
+  private seleccionEstado = inject(SeleccionEstadoService);
+
+  /**
+   * El candidato quedó EN ESPERA de vacante o marcado NO APLICA (observación del
+   * evaluador). Mientras sea true, la pestaña de Remisión se bloquea: no se puede
+   * asignar vacante.
+   */
+  readonly bloqueado = this.seleccionEstado.bloqueado;
+  /** Frase del motivo del bloqueo para el banner ("en espera de vacante" / "marcado como NO APLICA"). */
+  readonly motivoBloqueo = this.seleccionEstado.motivoBloqueo;
 
   // ========= Estado local (signals) =========
   vacantes = signal<PublicacionDTO[]>([]);
@@ -106,6 +117,16 @@ export class HelpInformationComponent implements OnInit {
   // ========= Estado de solo lectura =========
   isRemisionReadOnly = signal<boolean>(false);
   isPreloadedVacancy = signal<boolean>(false);
+
+  // ========= "Sin vacante" (quitar asignación) =========
+  /** Valor centinela del <mat-select> para la opción "Sin vacante". */
+  readonly SIN_VACANTE = -1;
+  /**
+   * El operador eligió "Sin vacante": al guardar se limpia la vacante y los
+   * datos de remisión de la persona (publicacion=null + banderas en false).
+   * No se asigna ninguna vacante nueva.
+   */
+  limpiarVacante = signal<boolean>(false);
 
   // ========= Catálogos a signals =========
   private _estadosCiviles$ = this.gp
@@ -322,6 +343,8 @@ export class HelpInformationComponent implements OnInit {
 
   // ===== Handlers =====
   private onInputsChanged(candidato: any | null) {
+    // Al cambiar de candidato, descartamos cualquier intención previa de limpiar.
+    this.limpiarVacante.set(false);
     if (candidato && candidato?.id) {
       // Intenta cargar el proceso del candidato
       const proceso = candidato.entrevistas?.[0]?.proceso;
@@ -337,6 +360,15 @@ export class HelpInformationComponent implements OnInit {
 
   onVacanteIdChange(id: number | string): void {
     const idNum = Number(id);
+
+    // "Sin vacante": limpiar la selección y marcar la intención de quitar la
+    // asignación. La persistencia ocurre al pulsar "Quitar vacante".
+    if (idNum === this.SIN_VACANTE) {
+      this.limpiarVacanteSeleccion();
+      return;
+    }
+
+    this.limpiarVacante.set(false);
     this.selectedVacanteId.set(idNum);
 
     // Cuando el usuario elige del dropdown, rellenamos las fechas/salarios base de la vacante.
@@ -345,6 +377,32 @@ export class HelpInformationComponent implements OnInit {
     if (v) {
       this.patchVacanteToForm(v);
     }
+  }
+
+  /**
+   * Limpia en la UI la vacante seleccionada y los campos de remisión, y marca la
+   * intención de quitar la asignación. No toca el backend: eso ocurre al guardar
+   * (guardarVacantes → limpiarVacanteEnBackend).
+   */
+  private limpiarVacanteSeleccion(): void {
+    this.selectedVacanteId.set(null);
+    this.vacanteSeleccionada.set(null);
+    this.isPreloadedVacancy.set(false);
+    this.limpiarVacante.set(true);
+    this.vacantesForm.reset(
+      {
+        tipo: '',
+        empresaUsuaria: '',
+        cargo: '',
+        area: '',
+        fechaIngreso: '',
+        salario: '',
+        fechaPruebaEntrevista: '',
+        horaPruebaEntrevista: '',
+        direccionEmpresa: '',
+      },
+      { emitEvent: true }
+    );
   }
 
 
@@ -423,6 +481,27 @@ export class HelpInformationComponent implements OnInit {
 
 
   async guardarVacantes(): Promise<void> {
+    // Bloqueo: no se puede remitir si el candidato está EN ESPERA de vacante o NO APLICA.
+    if (this.bloqueado()) {
+      await Swal.fire({
+        title: `Candidato ${this.motivoBloqueo()}`,
+        text: 'No se puede asignar una vacante con la observación actual del evaluador.',
+        icon: 'info',
+        toast: true,
+        position: 'top-end',
+        showConfirmButton: false,
+        timer: 3500,
+        timerProgressBar: true,
+      });
+      return;
+    }
+
+    // Caso "Sin vacante": el operador quiere quitar la asignación actual.
+    if (this.limpiarVacante() && !this.vacanteSeleccionada()) {
+      await this.limpiarVacanteEnBackend();
+      return;
+    }
+
     // 1) Validaciones básicas
     const v = this.vacanteSeleccionada();
     if (!v) {
@@ -520,6 +599,80 @@ export class HelpInformationComponent implements OnInit {
       console.log('Proceso actualizado:', res?.proceso);
     } catch (err: any) {
       const msg = err?.error?.detail || 'No se pudo actualizar el proceso.';
+      await Swal.fire({
+        title: 'Error',
+        text: msg,
+        icon: 'error',
+        confirmButtonText: 'OK',
+      });
+      console.error(err);
+    } finally {
+      Swal.close();
+    }
+  }
+
+  /**
+   * Quita la vacante asignada al candidato: limpia publicacion y los datos de
+   * remisión (tipo, salario, fecha de prueba) y desmarca las banderas
+   * prueba_tecnica / autorizado. El backend ya soporta publicacion=null.
+   */
+  private async limpiarVacanteEnBackend(): Promise<void> {
+    const numeroDocumento = this.candidatoSeleccionado()?.numero_documento;
+    if (!numeroDocumento) {
+      await Swal.fire({
+        title: 'No hay número de documento del candidato.',
+        icon: 'info',
+        toast: true,
+        position: 'top-end',
+        showConfirmButton: false,
+        timer: 3000,
+        timerProgressBar: true,
+      });
+      return;
+    }
+
+    const confirm = await Swal.fire({
+      title: '¿Quitar la vacante asignada?',
+      text: 'Se limpiará la vacante y los datos de remisión de esta persona.',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'Sí, quitar',
+      cancelButtonText: 'Cancelar',
+    });
+    if (!confirm.isConfirmed) return;
+
+    const payload: ProcesoUpdateByDocumentRequest = {
+      numero_documento: numeroDocumento,
+      publicacion: null,
+      vacante_tipo: null,
+      vacante_salario: null,
+      vacante_fecha_prueba: null,
+      prueba_tecnica: false,
+      autorizado: false,
+    };
+
+    try {
+      Swal.fire({
+        title: 'Quitando vacante...',
+        allowOutsideClick: false,
+        didOpen: () => Swal.showLoading(),
+      });
+
+      await this.gc.updateProcesoByDocumento(payload, 'PATCH').toPromise();
+
+      this.limpiarVacante.set(false);
+
+      await Swal.fire({
+        title: 'Vacante quitada correctamente.',
+        icon: 'success',
+        toast: true,
+        position: 'top-end',
+        showConfirmButton: false,
+        timer: 2500,
+        timerProgressBar: true,
+      });
+    } catch (err: any) {
+      const msg = err?.error?.detail || 'No se pudo quitar la vacante.';
       await Swal.fire({
         title: 'Error',
         text: msg,
