@@ -670,3 +670,59 @@ button {
     min-height: 300px;
   }
 }
+/* ───────── Bloqueo "EN ESPERA de vacante" ───────── */
+.bloqueo-espera-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 8px 8px 4px;
+  padding: 12px 16px;
+  border-radius: 12px;
+  background: #fff8e1;
+  border: 1px solid #ffe082;
+  color: #6d4c00;
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.bloqueo-espera-banner mat-icon {
+  flex: 0 0 auto;
+  color: #f9a825;
+}
+
+.bloqueado-espera {
+  pointer-events: none;
+  opacity: 0.55;
+  user-select: none;
+  filter: grayscale(0.2);
+}
+
+/* ───────── Tab "Datos de obra" ───────── */
+.obra-hint {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0 14px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: #eef4ff;
+  border: 1px solid #d4e3ff;
+  color: #34507a;
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.obra-hint mat-icon {
+  flex: 0 0 auto;
+  color: #1976d2;
+}
+
+.obra-descripcion {
+  grid-column: 1 / -1;
+}
+
+.obra-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 12px;
+}

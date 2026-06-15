@@ -518,3 +518,53 @@ mat-card-subtitle,
   width: 18px;
   vertical-align: middle;
 }
+
+/* ───────── Tabla de vacantes: letra más pequeña y filas compactas ─────────
+   Scoped con :host ::ng-deep para no afectar otras tablas que usan el mismo
+   componente compartido. Se usa !important porque las reglas propias de la
+   tabla (.sf-table td/th con su atributo de encapsulación) tienen mayor
+   especificidad y de lo contrario ganan. */
+:host ::ng-deep .sf-table th,
+:host ::ng-deep .sf-table thead th {
+  font-size: 0.64rem !important;
+}
+
+:host ::ng-deep .sf-table td,
+:host ::ng-deep .sf-table tbody td {
+  font-size: 0.68rem !important;
+}
+
+/* Contenido renderizado por la tabla (links, badges) también más pequeño */
+:host ::ng-deep .sf-table td .sf-custom-badge,
+:host ::ng-deep .sf-table td .sf-status-badge,
+:host ::ng-deep .sf-table td a {
+  font-size: 0.68rem !important;
+}
+
+:host ::ng-deep .sf-density-compact td,
+:host ::ng-deep .sf-density-compact th {
+  height: 34px !important;
+  padding: 4px 9px !important;
+}
+
+/* Pill de cumplimiento clickeable (abre el detalle de candidatos asignados) */
+.cumpl-pill-btn {
+  font: inherit;
+  border: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: filter .12s, transform .12s, box-shadow .12s;
+}
+
+.cumpl-pill-btn:hover {
+  filter: brightness(0.96);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.18);
+}
+
+.cumpl-pill-btn:focus-visible {
+  outline: 2px solid #1565c0;
+  outline-offset: 2px;
+}

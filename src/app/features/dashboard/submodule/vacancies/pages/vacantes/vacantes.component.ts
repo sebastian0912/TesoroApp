@@ -1,7 +1,7 @@
 import { ColumnDefinition } from '@/app/shared/models/advanced-table-interface';
 import {  Component, OnInit, AfterViewInit, OnDestroy, ChangeDetectionStrategy, ViewChild, ChangeDetectorRef } from '@angular/core';
 import { forkJoin, of, Subscription } from 'rxjs';
-import { map, catchError } from 'rxjs/operators';
+import { map, catchError, take } from 'rxjs/operators';
 
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatMenuModule } from '@angular/material/menu';
@@ -18,8 +18,10 @@ import { VacantesService } from '../../service/vacantes/vacantes.service';
 import { UtilityServiceService } from '@/app/shared/services/utilityService/utility-service.service';
 import { SharedModule } from '@/app/shared/shared.module';
 import { CrearEditarVacanteComponent } from '../../components/crear-editar-vacante/crear-editar-vacante.component';
+import { CumplimientoDialogComponent } from '../../components/cumplimiento-dialog/cumplimiento-dialog.component';
 import { DateRangeDialogComponent } from '@/app/shared/components/date-rang-dialog/date-rang-dialog.component';
 import { StandardFilterTable } from '@/app/shared/components/standard-filter-table/standard-filter-table';
+import { ColumnCellTemplateDirective } from '@/app/shared/directives/column-cell-template.directive';
 import { getLocalStorageItem, setLocalStorageItem } from '../../../../../../core/utils/safe-storage';
 
 interface ConteoEstados {
@@ -58,7 +60,8 @@ interface DistPayload {
     MatSlideToggleModule,
     MatButtonModule,
     MatDividerModule,
-    MatTooltipModule
+    MatTooltipModule,
+    ColumnCellTemplateDirective
 ],
   templateUrl: './vacantes.component.html',
   styleUrl: './vacantes.component.css',
@@ -94,7 +97,10 @@ export class VacantesComponent implements OnInit, AfterViewInit, OnDestroy {
     { name: 'cargo', header: 'Cargo', type: 'text', filterable: true, sortable: true, width: '170px' },
     { name: 'empresaUsuariaSolicita', header: 'Empresa usuaria', type: 'text', filterable: true, sortable: true, width: '170px' },
 
-    { name: 'municipioLabel', header: 'Municipio', type: 'text', filterable: true, sortable: true, width: '200px' },
+    // Municipio: si son más de 2 se colapsa en un chip (el detalle sale en el
+    // tooltip), igual que "Obs. / Descripción"; con 2 o menos se muestran los
+    // nombres. La búsqueda global sigue funcionando por `municipioLabel`.
+    { name: 'municipioLabel', header: 'Municipio', type: 'custom', filterable: false, sortable: false, width: '150px' },
 
     { name: 'experiencia', header: 'Expe', type: 'text', filterable: true, sortable: true, width: '90px' },
     // Observación del perfil + Descripción colapsadas en UN solo chip para
@@ -110,6 +116,8 @@ export class VacantesComponent implements OnInit, AfterViewInit, OnDestroy {
 
   viewMode: 'table' | 'faltantes' | 'completados' | 'inactivas' = 'table';
   loading = false;
+  /** Qué conjunto está cargado en `allRows` para no refetch innecesario. */
+  private cargadoComo: 'activas' | 'inactivas' = 'activas';
 
   permitido = false;
   sede = '';
@@ -139,7 +147,15 @@ export class VacantesComponent implements OnInit, AfterViewInit, OnDestroy {
   onToggleView(mode: 'table' | 'faltantes' | 'completados' | 'inactivas'): void {
     this.viewMode = mode;
     try { setLocalStorageItem('vacantes:viewMode', mode); } catch { }
-    this.applyViewMode();
+
+    // "Inactivas" trae otro conjunto desde el backend. Sólo refetch si cruzamos
+    // el límite activas <-> inactivas; entre subvistas de activas, filtra local.
+    const necesita: 'activas' | 'inactivas' = mode === 'inactivas' ? 'inactivas' : 'activas';
+    if (necesita !== this.cargadoComo) {
+      this.loadData();
+    } else {
+      this.applyViewMode();
+    }
   }
 
   private applyViewMode(): void {
@@ -168,7 +184,11 @@ export class VacantesComponent implements OnInit, AfterViewInit, OnDestroy {
   loadData(): void {
     this.loading = true;
 
-    this.vacantesService.listarVacantes().subscribe({
+    // En la pestaña "Inactivas" pedimos sólo inactivas; en el resto, activas.
+    const soloInactivas = this.viewMode === 'inactivas';
+    this.cargadoComo = soloInactivas ? 'inactivas' : 'activas';
+
+    this.vacantesService.listarVacantes(soloInactivas ? false : true).subscribe({
       next: (response: any[]) => {
         const rows = (response ?? []).map(r => this.enrichComputed(this.mapRow(r)));
         const filtered = this.sede ? rows.filter(r => this.matchesSede(r, this.sede)) : rows;
@@ -849,6 +869,34 @@ export class VacantesComponent implements OnInit, AfterViewInit, OnDestroy {
     return 'semaforo-pill semaforo-error';
   }
 
+  /**
+   * Abre el detalle de cumplimiento de la vacante: candidatos asignados, con
+   * opción de quitarles la vacante y de descargar la base / formato BMC.
+   */
+  abrirCumplimiento(row: any, ev?: Event): void {
+    ev?.stopPropagation();
+    if (!row?.id) return;
+    const ref = this.dialog.open(CumplimientoDialogComponent, {
+      width: '760px',
+      maxWidth: '94vw',
+      autoFocus: false,
+      panelClass: 'cumpl-dialog-panel',
+      data: {
+        publicacionId: row.id,
+        cargo: row?.cargo,
+        finca: row?.finca,
+        empresa: row?.empresaUsuariaSolicita,
+        req: row?.req,
+        firm: row?.firm,
+        cumpl: this.cumplimientoPct(row),
+      },
+    });
+    ref.afterClosed().pipe(take(1)).subscribe((cambios) => {
+      // Si se quitó alguna vacante, los conteos cambian: refrescamos.
+      if (cambios) this.loadData();
+    });
+  }
+
   /** ¿la fila tiene observación o descripción para mostrar el chip? */
   tienePerfil(row: any): boolean {
     return !!(String(row?.observacionVacante ?? '').trim() || String(row?.descripcion ?? '').trim());
@@ -862,6 +910,26 @@ export class VacantesComponent implements OnInit, AfterViewInit, OnDestroy {
     if (obs) parts.push(`Observación del perfil:\n${obs}`);
     if (desc) parts.push(`Descripción:\n${desc}`);
     return parts.join('\n\n') || 'Sin observación ni descripción';
+  }
+
+  // ---- Municipio (chip cuando son más de 2) ----
+  private municipiosArr(row: any): string[] {
+    const arr = Array.isArray(row?.municipio) ? row.municipio : [];
+    return arr.map((m: any) => String(m ?? '').trim()).filter((s: string) => !!s);
+  }
+
+  municipiosCount(row: any): number {
+    return this.municipiosArr(row).length;
+  }
+
+  /** Texto inline cuando hay 2 o menos municipios. */
+  municipiosTexto(row: any): string {
+    return this.municipiosArr(row).join(', ');
+  }
+
+  /** Tooltip (uno por línea) cuando hay más de 2. */
+  municipiosTooltip(row: any): string {
+    return this.municipiosArr(row).join('\n');
   }
 
   private isManager(user: any): boolean {

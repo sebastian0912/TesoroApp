@@ -159,7 +159,7 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
           `${this.user?.datos_basicos?.nombres ?? ''} ${this.user?.datos_basicos?.apellidos ?? ''}`.trim(),
         ],
         estadovacante: ['Activa'],
-        salario: [1423500, [Validators.required, Validators.min(0)]],
+        salario: [1750905, [Validators.required, Validators.min(0)]],
         codigoElite: [''],
 
         // Condicional 1: Fecha de ingreso
@@ -543,7 +543,7 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
 
       quienpublicolavacante: v?.quienpublicolavacante ?? '',
       estadovacante: v?.estadovacante ?? 'Activa',
-      salario: v?.salario ?? 0,
+      salario: v?.salario ?? 1750905,
       codigoElite: v?.codigoElite ?? '',
 
       oficinasSeleccionadas: Array.isArray(v?.oficinasQueContratan)

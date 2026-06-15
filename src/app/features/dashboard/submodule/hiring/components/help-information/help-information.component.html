@@ -19,7 +19,19 @@
       Remisión
     </ng-template>
 
-    <form [formGroup]="vacantesForm" class="form-tab">
+    <!-- Bloqueo: candidato EN ESPERA de vacante o NO APLICA (observación del evaluador) -->
+    @if (bloqueado()) {
+      <div class="bloqueo-espera-banner">
+        <mat-icon>hourglass_top</mat-icon>
+        <div>
+          <strong>Candidato {{ motivoBloqueo() }}.</strong>
+          No se puede remitir ni asignar vacante. Cambia la observación del evaluador
+          (pestaña <em>Entrevista</em>) a "APLICA" para habilitar esta sección.
+        </div>
+      </div>
+    }
+
+    <form [formGroup]="vacantesForm" class="form-tab" [class.bloqueado-espera]="bloqueado()">
 
 
       <!-- ═══ Selector Único: Empresa → Finca → Cargo ═══ -->
@@ -27,7 +39,7 @@
         <mat-form-field class="example-full-width" appearance="outline" style="width: 100%;">
           <mat-label>Vacante (Empresa - Finca - Cargo)</mat-label>
           <mat-select [value]="selectedVacanteId()" (selectionChange)="onVacanteIdChange($event.value)"
-            [disabled]="isRemisionReadOnly() && isPreloadedVacancy()" [disableOptionCentering]="true"
+            [disabled]="(isRemisionReadOnly() && isPreloadedVacancy()) || bloqueado()" [disableOptionCentering]="true"
             panelClass="custom-select-panel">
 
             <mat-select-trigger>
@@ -46,6 +58,8 @@
                     <span class="pill pill-ok">Firm {{ firm(v) }}</span>
                   </div>
                 </div>
+              } @else if (limpiarVacante()) {
+                <span class="trigger-title trigger-sin-vacante">Sin vacante (se quitará al guardar)</span>
               } @else {
                 Selecciona…
               }
@@ -65,6 +79,13 @@
                 }
               </mat-form-field>
             </div>
+
+            <!-- Opción para quitar la asignación de vacante (limpiar) -->
+            <mat-option [value]="SIN_VACANTE" class="opcion-sin-vacante"
+              style="min-height: 48px; color: #b71c1c; font-weight: 600; border-bottom: 1px solid #eee;">
+              <mat-icon style="vertical-align: baseline; margin-right: 6px; color: #b71c1c;">block</mat-icon>
+              Sin vacante (quitar asignación)
+            </mat-option>
 
             @for (emp of vacantesAgrupadas(); track emp) {
               <!-- 1er Nivel: Empresa -->
@@ -186,9 +207,10 @@
 
           @if (!(isRemisionReadOnly() && isPreloadedVacancy())) {
             <div class="actions">
-              <button mat-flat-button color="primary" [disabled]="vacantesForm.invalid || vacantesForm.disabled"
+              <button mat-flat-button [color]="limpiarVacante() ? 'warn' : 'primary'"
+                [disabled]="vacantesForm.invalid || vacantesForm.disabled || bloqueado()"
                 (click)="guardarVacantes()">
-                Guardar
+                {{ limpiarVacante() ? 'Quitar vacante' : 'Guardar' }}
               </button>
             </div>
           }

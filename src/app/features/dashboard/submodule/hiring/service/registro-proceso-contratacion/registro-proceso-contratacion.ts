@@ -248,6 +248,11 @@ export interface ProcesoUpdateByDocumentRequest {
     desea_trasladarse?: boolean | null;
     seleccion_eps?: string | null;
     contrasenia_asignada?: string | null;
+    // Datos de obra/empresa para documentos (editables; prellenados desde la vacante).
+    descripcion_de_obra?: string | null;
+    centro_costo_obra?: string | null;
+    direccion_empresa?: string | null;
+    empresa_usuaria?: string | null;
   };
 
   examen_medico?: ExamenMedicoUpsertPayload;
@@ -371,6 +376,32 @@ export interface CandidatoRecienteItem {
 }
 
 export type RangoFechas = { start: string | Date; end: string | Date };
+
+/**
+ * Candidato asignado a una vacante (respuesta de
+ * /procesos/candidatos-por-vacante/). snake_case tal cual lo sirve el backend.
+ */
+export interface CandidatoPorVacanteItem {
+  proceso_id: number;
+  tipo_doc: string | null;
+  numero_documento: string;
+  primer_nombre: string | null;
+  segundo_nombre: string | null;
+  primer_apellido: string | null;
+  segundo_apellido: string | null;
+  apellidos_nombres: string | null;
+  sexo: string | null;
+  fecha_nacimiento: string | null;   // ISO (YYYY-MM-DD) o null
+  estado_civil: string | null;
+  direccion: string | null;
+  barrio: string | null;
+  celular: string | null;
+  whatsapp: string | null;
+  formacion: string | null;
+  fecha_ingreso: string | null;      // ISO (YYYY-MM-DD) o null
+  vacante_tipo: string | null;
+  etapa: string | null;
+}
 
 
 @Injectable({ providedIn: 'root' })
@@ -1283,6 +1314,19 @@ export class RegistroProcesoContratacion {
     return method === 'POST'
       ? this.http.post<UpdateByDocumentResponse>(url, body)
       : this.http.patch<UpdateByDocumentResponse>(url, body);
+  }
+
+  /**
+   * GET /gestion_contratacion/procesos/candidatos-por-vacante/?publicacion=<id>
+   * Lista (sin duplicar candidato) las personas asignadas a una vacante, con
+   * datos suficientes para mostrarlas, quitarles la vacante y exportarlas.
+   * Solo lectura; respuesta en snake_case.
+   */
+  getCandidatosPorVacante(publicacionId: number | string): Observable<CandidatoPorVacanteItem[]> {
+    const params = new HttpParams().set('publicacion', String(publicacionId));
+    return this.http
+      .get<CandidatoPorVacanteItem[]>(this.url('procesos/candidatos-por-vacante'), { params })
+      .pipe(this.handle$());
   }
 
 }

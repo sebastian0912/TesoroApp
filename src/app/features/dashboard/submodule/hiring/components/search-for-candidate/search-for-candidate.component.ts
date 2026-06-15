@@ -104,8 +104,11 @@ export class SearchForCandidateComponent implements OnInit, OnDestroy {
    * Si está activo, al consultar una cédula el candidato se agrega a la cola de
    * la tabla (orden de llegada). Si está inactivo, sólo se busca y se avanza con
    * el resto del flujo sin dejar rastro en la cola del día.
+   *
+   * Arranca apagado a propósito: el operador debe activarlo explícitamente para
+   * que la persona aparezca en la tabla del día.
    */
-  encolarEnTabla = true;
+  encolarEnTabla = false;
 
   /** Ref al input de cédula del slider inline; usado para autofocus al abrir. */
   @ViewChild('busquedaInput') private busquedaInputRef?: ElementRef<HTMLInputElement>;

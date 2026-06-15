@@ -963,3 +963,30 @@ button {
   max-width: 360px;
   text-align: left;
 }
+
+/* ───────── Dialog de cumplimiento de vacante ───────── */
+.mat-mdc-dialog-panel.cumpl-dialog-panel {
+  max-width: 94vw !important;
+}
+
+.mat-mdc-dialog-panel.cumpl-dialog-panel .mat-mdc-dialog-surface {
+  padding: 0 !important;
+  border-radius: 18px !important;
+  overflow: hidden !important;
+  background: #ffffff !important;
+  box-shadow: 0 24px 70px rgba(15, 23, 42, 0.26),
+    0 10px 26px rgba(15, 23, 42, 0.16) !important;
+}
+
+/* El componente controla su propio espaciado (.cumpl-body / .cumpl-actions);
+   sólo evitamos el tope de altura del MDC para que el cuerpo scrollee solo. */
+.mat-mdc-dialog-panel.cumpl-dialog-panel .mat-mdc-dialog-content {
+  max-height: none !important;
+}
+
+/* SweetAlert2 SIEMPRE por encima de los diálogos/overlays de Angular Material
+   (el overlay CDK usa z-index 1000; sin esto los Swal abiertos desde un
+   MatDialog quedan por detrás). */
+.swal2-container {
+  z-index: 100000 !important;
+}

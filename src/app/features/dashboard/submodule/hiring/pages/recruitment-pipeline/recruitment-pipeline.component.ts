@@ -32,6 +32,7 @@ import { firstValueFrom, merge, startWith } from 'rxjs';
 import Swal from 'sweetalert2';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { RegistroProcesoContratacion } from '../../service/registro-proceso-contratacion/registro-proceso-contratacion';
+import { SeleccionEstadoService } from '../../service/seleccion/seleccion-estado.service';
 import { TableDialogComponent } from '@/app/shared/components/table-dialog/table-dialog.component';
 import { GestionDocumentalService } from '../../service/gestion-documental/gestion-documental.service';
 import jsPDF from 'jspdf';
@@ -221,6 +222,14 @@ export class RecruitmentPipelineComponent {
   private electronWindow = inject(ElectronWindowService);
   private platformId = inject(PLATFORM_ID);
   private isBrowser = signal(false);
+  private seleccionEstado = inject(SeleccionEstadoService);
+
+  /**
+   * El candidato quedó EN ESPERA de vacante o NO APLICA (observación del
+   * evaluador): se bloquean los Exámenes de ingreso hasta que aplique.
+   */
+  readonly bloqueado = this.seleccionEstado.bloqueado;
+  readonly motivoBloqueo = this.seleccionEstado.motivoBloqueo;
 
   // ───────── Form Parte 3 ─────────
   formGroup3: FormGroup = this.fb.group({
@@ -808,6 +817,21 @@ export class RecruitmentPipelineComponent {
   // ========= Guardar + Unir + Subir =========
   async imprimirSaludOcupacional(): Promise<void> {
     if (this.isSavingMedical()) return;
+
+    // Bloqueo: candidato EN ESPERA de vacante o NO APLICA → no se cargan exámenes.
+    if (this.bloqueado()) {
+      await Swal.fire({
+        title: `Candidato ${this.motivoBloqueo()}`,
+        text: 'No se pueden registrar exámenes de ingreso con la observación actual del evaluador.',
+        icon: 'info',
+        toast: true,
+        position: 'top-end',
+        showConfirmButton: false,
+        timer: 3500,
+        timerProgressBar: true,
+      });
+      return;
+    }
 
     const f = this.formGroup3.value;
     const numeroDocumento = this.candidatoSeleccionado()?.numero_documento;
