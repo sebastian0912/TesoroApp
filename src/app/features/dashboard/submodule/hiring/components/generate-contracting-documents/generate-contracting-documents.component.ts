@@ -1,6 +1,7 @@
+import { Contacto } from './../../../../../../../../../tu_alianza_web/src/app/features/public/contacto/contacto';
 import { SharedModule } from '@/app/shared/shared.module';
 import { isPlatformBrowser } from '@angular/common';
-import {  Component, inject, OnInit, PLATFORM_ID, ViewChild, ElementRef , ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
+import { Component, inject, OnInit, PLATFORM_ID, ViewChild, ElementRef, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { PDFDocument, PDFTextField, PDFCheckBox, StandardFonts, rgb, degrees } from 'pdf-lib';
 import Swal from 'sweetalert2';
@@ -39,12 +40,34 @@ type UploadedInfo = {
   ],
   templateUrl: './generate-contracting-documents.component.html',
   styleUrl: './generate-contracting-documents.component.css'
-} )
+})
 
 export class GenerateContractingDocumentsComponent implements OnInit {
   @ViewChild('pdfPreviewIframe') pdfPreviewIframe!: ElementRef<HTMLIFrameElement>;
   pdfSafeUrl: SafeResourceUrl | null = null;
   today = new Date();
+
+  /**
+   * Devuelve la fecha que debe imprimirse en los contratos y autorizaciones.
+   * Usa `ContratoCandidato.fecha_contrato` del candidato si está cargada;
+   * de lo contrario cae a la fecha actual (compat con flujos viejos).
+   * Parseo manual para evitar el shift de zona horaria al usar 'YYYY-MM-DD'.
+   */
+  private getFechaContrato(): Date {
+    const raw = this.candidato?.entrevistas?.[0]?.proceso?.contrato?.fecha_contrato;
+    if (!raw) return new Date();
+    const s = String(raw).trim();
+    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(s);
+    if (m) {
+      const y = Number(m[1]);
+      const mo = Number(m[2]) - 1;
+      const d = Number(m[3]);
+      const parsed = new Date(y, mo, d);
+      if (!isNaN(parsed.getTime())) return parsed;
+    }
+    const fallback = new Date(s);
+    return isNaN(fallback.getTime()) ? new Date() : fallback;
+  }
 
   cedula: string = '';
   nombreCompletoLogin: string = '';
@@ -63,13 +86,32 @@ export class GenerateContractingDocumentsComponent implements OnInit {
   huella: any = '';
   foto: any = '';
 
+  // ── Datos de obra/empresa para los documentos ──
+  // El contrato (editable desde "Datos de obra" en Contratación) tiene prioridad;
+  // si está vacío, se usa el dato original de la vacante/publicación.
+  private get _contratoObra(): any {
+    return this.candidato?.entrevistas?.[0]?.proceso?.contrato || {};
+  }
+  get empresaUsuariaDoc(): string {
+    return this._contratoObra?.empresa_usuaria || this.vacante?.empresaUsuariaSolicita || '';
+  }
+  get centroCostoDoc(): string {
+    return this._contratoObra?.centro_costo_obra || this.vacante?.finca || '';
+  }
+  get direccionDoc(): string {
+    return this._contratoObra?.direccion_empresa || this.vacante?.direccion || '';
+  }
+  get descripcionObraDoc(): string {
+    return this._contratoObra?.descripcion_de_obra || this.vacante?.descripcion || '';
+  }
+
   batchMode = false;
   batchCedulas: any[] = [];
   blockSeleccionado: any = null;
   procesandoBatch = false;
   guardandoBatch = false;
   todoGenerado = false;
-  
+
   _getExitosos(): number {
     return this.batchCedulas?.filter?.((x: any) => x?.status === 'Done' && !x?.guardado)?.length || 0;
   }
@@ -126,6 +168,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     { titulo: 'Sagaro Lockers' },
     { titulo: 'Sagaro Imagen' },
     { titulo: 'Sagaro Celular' },
+    { titulo: 'OTRO SI Sagaro Fumigador' },
     // Subir manual: identidad / vinculación
     { titulo: 'Cédula' },
     { titulo: 'ARL' },
@@ -242,10 +285,11 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     'Sagaro Lockers': 108,
     'Sagaro Imagen': 109,
     'Sagaro Celular': 110,
+    'OTRO SI Sagaro Fumigador': 220, // OTROSI_SAGARO_FUMIGADOR (tipo real creado en BD prod)
     'Referencias (1 personal, 1 familiar, 2 laborales)': 118, // antes 'Referenciación'
     'Referenciación': 118,                     // alias temporal para backward compat
-    // NUEVOS — placeholders 200-219 (REEMPLAZAR cuando se creen en backend)
-    'Entrevista de Ingreso Tu Alianza': 200,
+    // Tipos reales creados en BD prod (ids 201-220). Entrevista y Colinesterasa reusan tipos preexistentes (103/107).
+    'Entrevista de Ingreso Tu Alianza': 103, // ENTREVISTA_INGRESO (tipo real ya existente en BD)
     'Carta Descuento de Flor': 201,
     'Formato Timbre Ingreso/Salida': 202,
     'Carta Autorización Correo Electrónico': 203,
@@ -254,7 +298,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     'Acta de Dotaciones': 206,
     'Acta de Funciones de SST': 207,
     'Prueba Técnica Formato Elite': 208,
-    'Colinesterasa': 209,
+    'Colinesterasa': 107, // COLINESTERASA (tipo real existente en BD)
     'Curso Manipulación de Alimentos': 210,
     'Historial Laboral (Semanas Cotizadas)': 211,
     'Formato Resultado Prueba Valanti': 212,
@@ -381,17 +425,17 @@ export class GenerateContractingDocumentsComponent implements OnInit {
               '| ids=', entrevistas.map(e => e?.id),
               '| picked=', entrevistaVálida?.id,
               '| razón=', entrevistaConPub ? 'tiene publicacion'
-                          : entrevistaConContrato ? 'solo contrato_codigo'
-                          : 'fallback más reciente',
+              : entrevistaConContrato ? 'solo contrato_codigo'
+                : 'fallback más reciente',
               '| pub_id=', entrevistaVálida?.proceso?.publicacion ?? null);
 
             this.codigoContratacion =
-              entrevistaVálida?.proceso?.contrato_codigo ?? 
+              entrevistaVálida?.proceso?.contrato_codigo ??
               entrevistaVálida?.proceso?.contrato?.codigo_contrato ?? null;
 
-            this.firmaPersonalAdministrativo = datoAdministrativoBiometria?.biometria?.firma?.file_url 
-              ?? datoAdministrativoBiometria?.biometria?.firma?.file 
-              ?? datoAdministrativo?.data?.[0]?.firmaSolicitante 
+            this.firmaPersonalAdministrativo = datoAdministrativoBiometria?.biometria?.firma?.file_url
+              ?? datoAdministrativoBiometria?.biometria?.firma?.file
+              ?? datoAdministrativo?.data?.[0]?.firmaSolicitante
               ?? '';
 
             const vacanteId = entrevistaVálida?.proceso?.publicacion ?? null;
@@ -441,8 +485,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       'Historial Laboral (Semanas Cotizadas)', 'Formato Resultado Prueba Valanti',
       'Tarjeta de Propiedad', 'Licencia de Conducción', 'Fotografías Visita Domiciliaria',
       'Prueba de Conocimiento', 'Test del Árbol', 'Planilla SST', 'Evaluación SST',
-      // Los 8 que pasaron de stub a subir-only (no se generan, solo se suben)
-      'Entrevista de Ingreso Tu Alianza',
+      // Los que pasaron de stub a subir-only (no se generan, solo se suben)
       'Carta Descuento de Flor',
       'Formato Timbre Ingreso/Salida',
       'Carta Autorización Correo Electrónico',
@@ -456,6 +499,14 @@ export class GenerateContractingDocumentsComponent implements OnInit {
   /** Documentos con 2 variantes (básica / TA Completa) — el botón Generar abre un mat-menu. */
   hasVariants(doc: { titulo: string }): boolean {
     return doc.titulo === 'Contrato' || doc.titulo === 'Ficha Técnica';
+  }
+
+  /**
+   * Solo el rol GERENCIA puede generar el contrato a término fijo
+   * (variante "Administrativo"). Se usa para ocultar esa acción al resto.
+   */
+  get esGerencia(): boolean {
+    return /GERENCIA/i.test(this.user?.rol?.nombre ?? '');
   }
 
   /**
@@ -883,6 +934,15 @@ export class GenerateContractingDocumentsComponent implements OnInit {
    * mismo flujo de subida/preview que el contrato por obra o labor.
    */
   generarContratoAdministrativo(): void {
+    // Solo GERENCIA puede generar el contrato a término fijo (Administrativo).
+    if (!this.esGerencia) {
+      Swal.fire(
+        'Acceso restringido',
+        'Solo el rol GERENCIA puede generar el contrato a término fijo (Administrativo).',
+        'warning'
+      );
+      return;
+    }
     if (!this.empresa || this.empresa.trim() === '') {
       Swal.fire(
         'Atención',
@@ -1037,8 +1097,8 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     else if (documento === 'Ficha Social') {
       this.generarFichaSocial();
     }
-    else if (documento === 'Entrevista de Ingreso') {
-      this.generarEntrevistaDeIngreso();
+    else if (documento === 'Entrevista de Ingreso Tu Alianza') {
+      this.generarEntrevistaDeIngresoTuAlianza();
     }
     else if (documento === 'Contratos Otrosí') {
       this.generarContratosOtroSi();
@@ -1051,6 +1111,9 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     }
     else if (documento === 'Sagaro Imagen') {
       this.generarSagaroImagen();
+    }
+    else if (documento === 'OTRO SI Sagaro Fumigador') {
+      this.generarOtroSiSagaroFumigador();
     }
     else {
       Swal.fire('Error', 'Funcionalidad de PDF no implementada para: ' + documento, 'error');
@@ -1195,11 +1258,11 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       const nombreCompleto = `${nombres} ${apellidos}`.trim();
 
       let cargo = '';
-      if(this.vacante?.cargo?.nombre_cargo_empresa) cargo = this.vacante.cargo.nombre_cargo_empresa;
-      else if(this.vacante?._id_cargo?.nombre_cargo_empresa) cargo = this.vacante._id_cargo.nombre_cargo_empresa;
-      else if(this.vacante?.cargo?.nombre_cargo) cargo = this.vacante.cargo.nombre_cargo;
-      else if(this.vacante?.nombre_cargo) cargo = this.vacante.nombre_cargo;
-      else if(typeof this.vacante?.cargo === 'string') cargo = this.vacante.cargo;
+      if (this.vacante?.cargo?.nombre_cargo_empresa) cargo = this.vacante.cargo.nombre_cargo_empresa;
+      else if (this.vacante?._id_cargo?.nombre_cargo_empresa) cargo = this.vacante._id_cargo.nombre_cargo_empresa;
+      else if (this.vacante?.cargo?.nombre_cargo) cargo = this.vacante.cargo.nombre_cargo;
+      else if (this.vacante?.nombre_cargo) cargo = this.vacante.nombre_cargo;
+      else if (typeof this.vacante?.cargo === 'string') cargo = this.vacante.cargo;
       cargo = String(cargo).toUpperCase();
 
       doc.setProperties({ title: `108_SAGARO_LOCKERS_${numIdentificacion}.pdf` });
@@ -1267,7 +1330,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       doc.text(p11Lines, marginLeft, currentY, { maxWidth, align: 'justify' });
       currentY += (p11Lines.length * 5) + 8;
 
-      const fechaActual = new Date();
+      const fechaActual = this.getFechaContrato();
       const dia = fechaActual.getDate().toString();
       const meses = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
       const mes = meses[fechaActual.getMonth()];
@@ -1300,14 +1363,14 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       doc.text('FIRMA:', marginLeft, currentY);
       // Signature will be drawn above FIRMA if it responds
       const fetchAsArrayBufferOrNull = async (url: any) => {
-          if (!url) return null;
-          try {
-            const res = await fetch(url);
-            if (!res.ok) return null;
-            return await res.arrayBuffer();
-          } catch {
-            return null;
-          }
+        if (!url) return null;
+        try {
+          const res = await fetch(url);
+          if (!res.ok) return null;
+          return await res.arrayBuffer();
+        } catch {
+          return null;
+        }
       };
 
       const firmaCand = await fetchAsArrayBufferOrNull(cand?.biometria?.firma?.file_url ?? this.firma);
@@ -1347,11 +1410,11 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       const nombreCompleto = `${nombres} ${apellidos}`.trim();
 
       let cargo = '';
-      if(this.vacante?.cargo?.nombre_cargo_empresa) cargo = this.vacante.cargo.nombre_cargo_empresa;
-      else if(this.vacante?._id_cargo?.nombre_cargo_empresa) cargo = this.vacante._id_cargo.nombre_cargo_empresa;
-      else if(this.vacante?.cargo?.nombre_cargo) cargo = this.vacante.cargo.nombre_cargo;
-      else if(this.vacante?.nombre_cargo) cargo = this.vacante.nombre_cargo;
-      else if(typeof this.vacante?.cargo === 'string') cargo = this.vacante.cargo;
+      if (this.vacante?.cargo?.nombre_cargo_empresa) cargo = this.vacante.cargo.nombre_cargo_empresa;
+      else if (this.vacante?._id_cargo?.nombre_cargo_empresa) cargo = this.vacante._id_cargo.nombre_cargo_empresa;
+      else if (this.vacante?.cargo?.nombre_cargo) cargo = this.vacante.cargo.nombre_cargo;
+      else if (this.vacante?.nombre_cargo) cargo = this.vacante.nombre_cargo;
+      else if (typeof this.vacante?.cargo === 'string') cargo = this.vacante.cargo;
       cargo = String(cargo).toUpperCase();
 
       doc.setProperties({ title: `110_SAGARO_CELULAR_${numIdentificacion}.pdf` });
@@ -1443,7 +1506,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       const p7 = `Cualquier proceso disciplinario se adelantará respetando el debido proceso (art. 29 Constitución Política) y lo dispuesto en el Reglamento Interno de Trabajo.`;
       const p7Lines = doc.splitTextToSize(p7, maxWidth);
       doc.text(p7Lines, marginLeft, currentY, { maxWidth, align: 'justify' });
-      
+
       doc.addPage();
       currentY = 20;
 
@@ -1484,14 +1547,14 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       doc.text('FIRMA:', marginLeft, currentY);
       // Signature will be drawn above FIRMA if it responds
       const fetchAsArrayBufferOrNull = async (url: any) => {
-          if (!url) return null;
-          try {
-            const res = await fetch(url);
-            if (!res.ok) return null;
-            return await res.arrayBuffer();
-          } catch {
-            return null;
-          }
+        if (!url) return null;
+        try {
+          const res = await fetch(url);
+          if (!res.ok) return null;
+          return await res.arrayBuffer();
+        } catch {
+          return null;
+        }
       };
 
       const firmaCand = await fetchAsArrayBufferOrNull(cand?.biometria?.firma?.file_url ?? this.firma);
@@ -1514,8 +1577,8 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     }
   }
 
-  // --- Entrevista de Ingreso ---
-  async generarEntrevistaDeIngreso() {
+  // --- Entrevista de Ingreso Tu Alianza (formato TA SE-RE-2) ---
+  async generarEntrevistaDeIngresoTuAlianza() {
     try {
       const cand: any = this.candidato ?? {};
       const vac: any = this.vacante ?? {};
@@ -1552,7 +1615,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       const edadStr = calcEdadLocal(cand.fecha_nacimiento);
       const genero = cand.sexo === 'Masculino' ? 'M' : (cand.sexo === 'Femenino' ? 'F' : String(cand.sexo || ''));
       const celular = cand.contacto?.celular || cand.numCelular || cand.telefono || '';
-      
+
       const ent0 = cand.entrevistas?.[0] || {};
       const antecedentes = ent0.proceso?.antecedentes || [];
       const epsObj = antecedentes.find((a: any) => a.nombre?.toUpperCase() === 'EPS');
@@ -1560,7 +1623,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
 
       const email = String(cand.contacto?.email || cand.correo_electronico || '').toUpperCase();
       const noWhatsapp = celular; // "no whatsapp es el mismo numero de celular"
-      const whaStr = cand.contacto?.whatsapp || celular; 
+      const whaStr = cand.contacto?.whatsapp || celular;
       const direccion = String(cand.residencia?.direccion ?? '').toUpperCase();
       const barrio = String(cand.residencia?.barrio ?? '').toUpperCase();
       const ciudad = String(cand.municipio ?? cand.residencia?.municipio ?? cand.info_cc?.mpio_expedicion ?? '').toUpperCase();
@@ -1589,9 +1652,9 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       const exprResumen = cand.experiencia_resumen || {};
       const historialExp = cand.experiencias || [];
       const tieneExp = (historialExp.length > 0 || exprResumen.tiene_experiencia) ? 'SI' : 'NO';
-      
+
       const areaExp = String(ent0.tipo_experiencia_flores ?? '').toUpperCase();
-      
+
       const empresasArr = historialExp.map((e: any) => e.empresa).filter(Boolean);
       const empresas = empresasArr.length > 0 ? empresasArr.join(', ').toUpperCase() : String(exprResumen.empresas_laborado ?? '').toUpperCase();
 
@@ -1605,7 +1668,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
 
       // --- Setup del Documento ---
       const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'letter' });
-      doc.setProperties({ title: `ENTREVISTA_INGRESO_${numIdentificacion}.pdf` });
+      doc.setProperties({ title: `ENTREVISTA_INGRESO_TU_ALIANZA_${numIdentificacion}.pdf` });
       const pageWidth = doc.internal.pageSize.getWidth();
       const mLeft = 14;
       const anchoTabla = pageWidth - (mLeft * 2);
@@ -1681,16 +1744,16 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       mkLabelVal('No. Identificación:', numIdentificacion, px2, pxV2, finalY + 4);
       mkLabelVal('Estado Civil:', estadoCivil, px3, pxV3, finalY + 4);
       finalY += 10;
-      
+
       px1 = mLeft; pxV1 = mLeft + 28;
       mkLabelVal('Fecha Expedición:', fechaExpedicion, px1, pxV1, finalY);
       mkLabelVal('Lugar Expedición:', lugarExpedicion, px2, pxV2, finalY);
       finalY += 6;
-      
+
       mkLabelVal('Fecha Nacimiento:', fechaNacimiento, px1, pxV1, finalY);
       mkLabelVal('Lugar Nacimiento:', lugarNacimiento, px2, pxV2, finalY);
       finalY += 6;
-      
+
       px1 = mLeft; pxV1 = mLeft + 10;
       px2 = mLeft + 35; pxV2 = mLeft + 50;
       px3 = mLeft + 80; let pxV3_2 = mLeft + 95;
@@ -1700,7 +1763,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       mkLabelVal('Celular:', celular, px3, pxV3_2, finalY);
       mkLabelVal('EPS:', eps, px4, pxV4, finalY);
       finalY += 6;
-      
+
       px1 = mLeft; pxV1 = mLeft + 12;
       px2 = mLeft + 80; pxV2 = mLeft + 100;
       px3 = mLeft + 130; pxV3_2 = mLeft + 148;
@@ -1708,7 +1771,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       mkLabelVal('No WhatsApp:', noWhatsapp, px2, pxV2, finalY);
       mkLabelVal('WhatsApp:', whaStr, px3, pxV3_2, finalY);
       finalY += 6;
-      
+
       px1 = mLeft; pxV1 = mLeft + 15;
       px2 = mLeft + 65; pxV2 = mLeft + 80;
       px3 = mLeft + 125; pxV3_2 = mLeft + 140;
@@ -1766,21 +1829,25 @@ export class GenerateContractingDocumentsComponent implements OnInit {
 
       // --- 5) Observaciones del Evaluador ---
       finalY = secTitle('Observaciones del Evaluador', finalY);
-      
+
+      // El tamaño de fuente viene en 11 desde secTitle; lo bajamos a 8 (como el
+      // resto del documento) para que el label no se monte sobre el valor.
+      doc.setFontSize(8);
+
       // Rectángulo gris solo para el título "Nombre del evaluador:"
       doc.setFillColor(230, 230, 230);
       doc.rect(mLeft, finalY + 2, 36, 5, 'F');
-      
+
       doc.setFont('helvetica', 'normal');
       doc.text('Nombre del evaluador:', mLeft + 1, finalY + 5.5);
       doc.text(nombreEvaluador, mLeft + 38, finalY + 5.5);
 
       finalY += 10;
-      
+
       // Rectángulo gris solo para el título "Observaciones:"
       doc.setFillColor(230, 230, 230);
       doc.rect(mLeft, finalY, 25, 5, 'F');
-      
+
       doc.setFont('helvetica', 'normal');
       doc.text('Observaciones:', mLeft + 1, finalY + 3.5);
       doc.text(observaciones, mLeft + 27, finalY + 3.5, { maxWidth: 140 });
@@ -1808,7 +1875,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       if (firmaData) {
         doc.addImage(firmaData, 'PNG', mLeft + 25, finalY - 18, 50, 18);
       }
-      
+
       const selloData = await toDataURL('firma/gestion_entrevista.png');
       if (selloData) {
         doc.addImage(selloData, 'PNG', mLeft + 105, finalY - 18, 50, 18);
@@ -1824,21 +1891,20 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       doc.line(mLeft + 100, finalY, mLeft + 160, finalY);
       doc.text('Firma de Gestión Humana', mLeft + 130, finalY + 4, { align: 'center' });
 
-      // doc.save(`ENTREVISTA_INGRESO_${numIdentificacion}.pdf`); // Eliminado por instrucción del usuario
       const blob = doc.output('blob');
-      const mockFile = new File([blob], `ENTREVISTA_INGRESO_${numIdentificacion}.pdf`, { type: 'application/pdf' });
+      const mockFile = new File([blob], `ENTREVISTA_INGRESO_TU_ALIANZA_${numIdentificacion}.pdf`, { type: 'application/pdf' });
 
       // Guardarlo usando la estructura que utiliza el componente
-      this.uploadedFiles['Entrevista de Ingreso'] = {
+      this.uploadedFiles['Entrevista de Ingreso Tu Alianza'] = {
         file: mockFile,
-        fileName: `ENTREVISTA_INGRESO_${numIdentificacion}.pdf`,
+        fileName: `ENTREVISTA_INGRESO_TU_ALIANZA_${numIdentificacion}.pdf`,
       };
 
       this.setPdfPreview(URL.createObjectURL(blob));
 
     } catch (error) {
       console.error(error);
-      Swal.fire('Error', 'Hubo un error al generar la Entrevista de Ingreso.', 'error');
+      Swal.fire('Error', 'Hubo un error al generar la Entrevista de Ingreso Tu Alianza.', 'error');
     }
   }
 
@@ -1856,13 +1922,13 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       const numIdentificacion = String(cand.numero_documento ?? '').trim();
       const domicilioTrabajador = String(cand.residencia?.municipio ?? '').toUpperCase();
 
-      const empresaUsuaria = this.safe(vac.empresaUsuariaSolicita).toUpperCase();
+      const empresaUsuaria = this.safe(this.empresaUsuariaDoc).toUpperCase();
       const nitEmpresaUsuaria = this.safe(vac.nitEmpresaUsuaria ?? vac.nit ?? '');
-      const domicilioEmpresaUsuaria = this.safe(vac.domicilioEmpresaUsuaria ?? vac.direccion ?? '');
+      const domicilioEmpresaUsuaria = this.safe(this.direccionDoc || vac.domicilioEmpresaUsuaria || '');
       const representanteEmpresaUsuaria = this.safe(vac.representanteLegalEmpresaUsuaria ?? vac.representanteLegal ?? '').toUpperCase();
       const ccRepresentanteEmpresaUsuaria = this.safe(vac.ccRepresentanteEmpresaUsuaria ?? vac.ccRepresentante ?? '');
 
-      const fechaActual = new Date();
+      const fechaActual = this.getFechaContrato();
       const opcionesFecha: Intl.DateTimeFormatOptions = { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' };
       const fechaFirmaTexto = fechaActual.toLocaleDateString('es-CO', opcionesFecha);
 
@@ -2210,7 +2276,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       const mLeft = 20;
       const mRight = 20;
       const anchoLinea = pageWidth - mLeft - mRight;
-      
+
       let currentY = 25;
 
       // Titles
@@ -2225,7 +2291,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
 
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(10);
-      
+
       const p1 = `En mi calidad de trabajador(a) de FLORES SAGARO S.A., manifiesto de manera libre, voluntaria e informada mi consentimiento y otorgo autorización expresa para el tratamiento y uso de mi imagen captada mediante fotografías, videograbaciones y sistemas de monitoreo o videovigilancia instalados por el empleador, bajo los siguientes términos:`;
       const linesP1 = doc.splitTextToSize(p1, anchoLinea);
       doc.text(linesP1, mLeft, currentY, { align: 'justify', maxWidth: anchoLinea });
@@ -2235,13 +2301,13 @@ export class GenerateContractingDocumentsComponent implements OnInit {
         "1. FLORES SAGARO S.A. actúa como responsable del tratamiento de las imágenes y datos personales captados mediante los sistemas de vigilancia instalados dentro de las áreas autorizadas de la empresa.",
         "2. Autorizo el uso de mi imagen, fotografías y/o videos para fines:"
       ];
-      
+
       for (const item of items1) {
         const lines = doc.splitTextToSize(item, anchoLinea);
         doc.text(lines, mLeft, currentY, { align: 'justify', maxWidth: anchoLinea });
         currentY += (lines.length * 5) + 2;
       }
-      
+
       currentY += 2;
       const subItems = [
         "1. corporativos y administrativos,",
@@ -2250,12 +2316,12 @@ export class GenerateContractingDocumentsComponent implements OnInit {
         "4. de seguridad física y patrimonial,",
         "5. de cumplimiento de normas legales, contractuales y reglamentarias."
       ];
-      
+
       for (const sItem of subItems) {
         doc.text(sItem, mLeft + 10, currentY);
         currentY += 5;
       }
-      
+
       currentY += 5;
       const p2 = `Estas imágenes podrán constituir prueba dentro de procesos administrativos o disciplinarios internos.`;
       const linesP2 = doc.splitTextToSize(p2, anchoLinea);
@@ -2280,13 +2346,13 @@ export class GenerateContractingDocumentsComponent implements OnInit {
         doc.text(lines, mLeft, currentY, { align: 'justify', maxWidth: anchoLinea });
         currentY += (lines.length * 5) + 3;
       }
-      
+
       currentY += 5;
-      const fechaActual = new Date();
+      const fechaActual = this.getFechaContrato();
       const dia = fechaActual.getDate();
       const mes = fechaActual.toLocaleString('es-CO', { month: 'long' });
       const anio = fechaActual.getFullYear();
-      
+
       const txtFecha = `En constancia se firma a los ${dia} días del mes de ${mes} de ${anio}.`;
       doc.text(txtFecha, mLeft, currentY);
       currentY += 15;
@@ -2299,7 +2365,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       doc.text(`CÉDULA: ${numIdentificacion}`, mLeft, currentY);
       currentY += 6;
       doc.text('FIRMA:', mLeft, currentY);
-      
+
       // Firma
       const firmaCand = await this.fetchAsArrayBufferOrNull(cand?.biometria?.firma?.file_url ?? this.firma);
       if (firmaCand) {
@@ -2620,7 +2686,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     doc.text(`Número de Identificación: ${this.cedula}`, 10, yFirmaBase + 7);
 
 
-    const fechaActual = new Date();
+    const fechaActual = this.getFechaContrato();
     const opcionesFormato: Intl.DateTimeFormatOptions = { year: 'numeric', month: 'long', day: 'numeric' };
     const fechaFormateada = fechaActual.toLocaleDateString('es-ES', opcionesFormato);
     doc.text(`Fecha de Autorización: ${fechaFormateada}`, 10, yFirmaBase + 11);
@@ -2710,7 +2776,9 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     y: number,
     maxWidth: number,
     lineHeight: number,
-    justifyLastLine: boolean = true
+    // La última línea de cada párrafo NO se justifica (se alinea a la izquierda),
+    // que es el comportamiento tipográfico correcto para contratos.
+    justifyLastLine: boolean = false
   ): number {
     const pageHeight =
       (doc as any)?.internal?.pageSize?.height ??
@@ -3606,7 +3674,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
 
     const firmaData = await toDataURL(this.firma);
     if (firmaData) {
-      doc.addImage(firmaData, 'PNG', marginLeft, firmaLineY - 18, 50, 20);
+      doc.addImage(firmaData, 'PNG', marginLeft, firmaLineY - 13, 32, 12);
     } else {
       Swal.fire({ icon: 'error', title: 'Error', text: 'No se pudo cargar la firma' });
     }
@@ -3621,7 +3689,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     // Fecha de Recibido
     y += 8;
     doc.setFont('helvetica', 'bold').text('Fecha de Recibido', marginLeft, y);
-    const dateObj = new Date();
+    const dateObj = this.getFechaContrato();
     const dateStr = `${dateObj.getDate().toString().padStart(2, '0')}/${(dateObj.getMonth() + 1).toString().padStart(2, '0')}/${dateObj.getFullYear()}`;
     doc.setFont('helvetica', 'normal').text(dateStr, marginLeft + 38, y - 1);
     doc.line(marginLeft + 33, y, marginLeft + 80, y);
@@ -4041,7 +4109,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
 
     const firmaData = await toDataURL(this.firma);
     if (firmaData) {
-      doc.addImage(firmaData, 'PNG', marginLeft, firmaLineY - 18, 50, 20);
+      doc.addImage(firmaData, 'PNG', marginLeft, firmaLineY - 13, 32, 12);
     } else {
       Swal.fire({ icon: 'error', title: 'Error', text: 'No se pudo cargar la firma' });
     }
@@ -4056,7 +4124,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     // Fecha de Recibido
     y += 8;
     doc.setFont('helvetica', 'bold').text('Fecha de Recibido', marginLeft, y);
-    const dateObj = new Date();
+    const dateObj = this.getFechaContrato();
     const dateStr = `${dateObj.getDate().toString().padStart(2, '0')}/${(dateObj.getMonth() + 1).toString().padStart(2, '0')}/${dateObj.getFullYear()}`;
     doc.setFont('helvetica', 'normal').text(dateStr, marginLeft + 38, y - 1);
     doc.line(marginLeft + 33, y, marginLeft + 80, y);
@@ -4485,7 +4553,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
 
     const firmaData = await toDataURL(this.firma);
     if (firmaData) {
-      doc.addImage(firmaData, 'PNG', marginLeft, firmaLineY - 18, 50, 20);
+      doc.addImage(firmaData, 'PNG', marginLeft, firmaLineY - 13, 32, 12);
     } else {
       Swal.fire({ icon: 'error', title: 'Error', text: 'No se pudo cargar la firma' });
     }
@@ -4500,7 +4568,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     // Fecha de Recibido
     y += 8;
     doc.setFont('helvetica', 'bold').text('Fecha de Recibido', marginLeft, y);
-    const dateObj = new Date();
+    const dateObj = this.getFechaContrato();
     const dateStr = `${dateObj.getDate().toString().padStart(2, '0')}/${(dateObj.getMonth() + 1).toString().padStart(2, '0')}/${dateObj.getFullYear()}`;
     doc.setFont('helvetica', 'normal').text(dateStr, marginLeft + 38, y - 1);
     doc.line(marginLeft + 33, y, marginLeft + 80, y);
@@ -4913,7 +4981,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
 
     const firmaData = await toDataURL(this.firma);
     if (firmaData) {
-      doc.addImage(firmaData, 'PNG', marginLeft, firmaLineY - 18, 50, 20);
+      doc.addImage(firmaData, 'PNG', marginLeft, firmaLineY - 13, 32, 12);
     } else {
       Swal.fire({ icon: 'error', title: 'Error', text: 'No se pudo cargar la firma' });
     }
@@ -4928,7 +4996,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     // Fecha de Recibido
     y += 8;
     doc.setFont('helvetica', 'bold').text('Fecha de Recibido', marginLeft, y);
-    const dateObj = new Date();
+    const dateObj = this.getFechaContrato();
     const dateStr = `${dateObj.getDate().toString().padStart(2, '0')}/${(dateObj.getMonth() + 1).toString().padStart(2, '0')}/${dateObj.getFullYear()}`;
     doc.setFont('helvetica', 'normal').text(dateStr, marginLeft + 38, y - 1);
     doc.line(marginLeft + 33, y, marginLeft + 80, y);
@@ -5339,7 +5407,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
 
     const firmaData = await toDataURL(this.firma);
     if (firmaData) {
-      doc.addImage(firmaData, 'PNG', marginLeft, firmaLineY - 18, 50, 20);
+      doc.addImage(firmaData, 'PNG', marginLeft, firmaLineY - 13, 32, 12);
     } else {
       Swal.fire({ icon: 'error', title: 'Error', text: 'No se pudo cargar la firma' });
     }
@@ -5354,7 +5422,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     // Fecha de Recibido
     y += 8;
     doc.setFont('helvetica', 'bold').text('Fecha de Recibido', marginLeft, y);
-    const dateObj = new Date();
+    const dateObj = this.getFechaContrato();
     const dateStr = `${dateObj.getDate().toString().padStart(2, '0')}/${(dateObj.getMonth() + 1).toString().padStart(2, '0')}/${dateObj.getFullYear()}`;
     doc.setFont('helvetica', 'normal').text(dateStr, marginLeft + 38, y - 1);
     doc.line(marginLeft + 33, y, marginLeft + 80, y);
@@ -5767,7 +5835,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
 
     const firmaData = await toDataURL(this.firma);
     if (firmaData) {
-      doc.addImage(firmaData, 'PNG', marginLeft, firmaLineY - 18, 50, 20);
+      doc.addImage(firmaData, 'PNG', marginLeft, firmaLineY - 13, 32, 12);
     } else {
       Swal.fire({ icon: 'error', title: 'Error', text: 'No se pudo cargar la firma' });
     }
@@ -5782,7 +5850,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     // Fecha de Recibido
     y += 8;
     doc.setFont('helvetica', 'bold').text('Fecha de Recibido', marginLeft, y);
-    const dateObj = new Date();
+    const dateObj = this.getFechaContrato();
     const dateStr = `${dateObj.getDate().toString().padStart(2, '0')}/${(dateObj.getMonth() + 1).toString().padStart(2, '0')}/${dateObj.getFullYear()}`;
     doc.setFont('helvetica', 'normal').text(dateStr, marginLeft + 38, y - 1);
     doc.line(marginLeft + 33, y, marginLeft + 80, y);
@@ -6193,7 +6261,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
 
     const firmaData = await toDataURL(this.firma);
     if (firmaData) {
-      doc.addImage(firmaData, 'PNG', marginLeft, firmaLineY - 18, 50, 20);
+      doc.addImage(firmaData, 'PNG', marginLeft, firmaLineY - 13, 32, 12);
     } else {
       Swal.fire({ icon: 'error', title: 'Error', text: 'No se pudo cargar la firma' });
     }
@@ -6208,7 +6276,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     // Fecha de Recibido
     y += 8;
     doc.setFont('helvetica', 'bold').text('Fecha de Recibido', marginLeft, y);
-    const dateObj = new Date();
+    const dateObj = this.getFechaContrato();
     const dateStr = `${dateObj.getDate().toString().padStart(2, '0')}/${(dateObj.getMonth() + 1).toString().padStart(2, '0')}/${dateObj.getFullYear()}`;
     doc.setFont('helvetica', 'normal').text(dateStr, marginLeft + 38, y - 1);
     doc.line(marginLeft + 33, y, marginLeft + 80, y);
@@ -6553,7 +6621,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
 
     const firmaData = await toDataURL(this.firma);
     if (firmaData) {
-      doc.addImage(firmaData, 'PNG', marginLeft, firmaLineY - 18, 50, 20);
+      doc.addImage(firmaData, 'PNG', marginLeft, firmaLineY - 13, 32, 12);
     } else {
       Swal.fire({ icon: 'error', title: 'Error', text: 'No se pudo cargar la firma' });
     }
@@ -6568,7 +6636,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     // Fecha de Recibido
     y += 8;
     doc.setFont('helvetica', 'bold').text('Fecha de Recibido_', marginLeft, y);
-    const dateObj = new Date();
+    const dateObj = this.getFechaContrato();
     const dateStr = `${dateObj.getDate().toString().padStart(2, '0')}/${(dateObj.getMonth() + 1).toString().padStart(2, '0')}/${dateObj.getFullYear()}`;
     doc.setFont('helvetica', 'normal').text(dateStr, marginLeft + 28, y - 1);
     doc.line(marginLeft + 26, y, marginLeft + 80, y);
@@ -6953,7 +7021,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
 
     const firmaData = await toDataURL(this.firma);
     if (firmaData) {
-      doc.addImage(firmaData, 'PNG', marginLeft, firmaLineY - 18, 50, 20);
+      doc.addImage(firmaData, 'PNG', marginLeft, firmaLineY - 13, 32, 12);
     } else {
       Swal.fire({ icon: 'error', title: 'Error', text: 'No se pudo cargar la firma' });
     }
@@ -6968,7 +7036,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     // Fecha de Recibido
     y += 8;
     doc.setFont('helvetica', 'bold').text('Fecha de Recibido_', marginLeft, y);
-    const dateObj = new Date();
+    const dateObj = this.getFechaContrato();
     const dateStr = `${dateObj.getDate().toString().padStart(2, '0')}/${(dateObj.getMonth() + 1).toString().padStart(2, '0')}/${dateObj.getFullYear()}`;
     doc.setFont('helvetica', 'normal').text(dateStr, marginLeft + 28, y - 1);
     doc.line(marginLeft + 26, y, marginLeft + 80, y);
@@ -7351,7 +7419,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
 
     const firmaData = await toDataURL(this.firma);
     if (firmaData) {
-      doc.addImage(firmaData, 'PNG', marginLeft, firmaLineY - 18, 50, 20);
+      doc.addImage(firmaData, 'PNG', marginLeft, firmaLineY - 13, 32, 12);
     } else {
       Swal.fire({ icon: 'error', title: 'Error', text: 'No se pudo cargar la firma' });
     }
@@ -7366,7 +7434,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     // Fecha de Recibido
     y += 8;
     doc.setFont('helvetica', 'bold').text('Fecha de Recibido_', marginLeft, y);
-    const dateObj = new Date();
+    const dateObj = this.getFechaContrato();
     const dateStr = `${dateObj.getDate().toString().padStart(2, '0')}/${(dateObj.getMonth() + 1).toString().padStart(2, '0')}/${dateObj.getFullYear()}`;
     doc.setFont('helvetica', 'normal').text(dateStr, marginLeft + 28, y - 1);
     doc.line(marginLeft + 26, y, marginLeft + 80, y);
@@ -7786,7 +7854,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
 
     const firmaData = await toDataURL(this.firma);
     if (firmaData) {
-      doc.addImage(firmaData, 'PNG', marginLeft, firmaLineY - 18, 50, 20);
+      doc.addImage(firmaData, 'PNG', marginLeft, firmaLineY - 13, 32, 12);
     } else {
       Swal.fire({ icon: 'error', title: 'Error', text: 'No se pudo cargar la firma' });
     }
@@ -7801,7 +7869,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     // Fecha de Recibido
     y += 8;
     doc.setFont('helvetica', 'bold').text('Fecha de Recibido_', marginLeft, y);
-    const dateObj = new Date();
+    const dateObj = this.getFechaContrato();
     const dateStr = `${dateObj.getDate().toString().padStart(2, '0')}/${(dateObj.getMonth() + 1).toString().padStart(2, '0')}/${dateObj.getFullYear()}`;
     doc.setFont('helvetica', 'normal').text(dateStr, marginLeft + 28, y - 1);
     doc.line(marginLeft + 26, y, marginLeft + 80, y);
@@ -7940,7 +8008,9 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     // Datos de titulos
     const datos = [
       { titulo: 'Representado por', valor: 'MAYRA HUAMANÍ LÓPEZ' },
+      { titulo: 'Domicilio del patrono', valor: domicilio },
       { titulo: 'Nombre del Trabajador', valor: this.candidato.primer_nombre + ' ' + (this.candidato.segundo_nombre ?? '') + ' ' + this.candidato.primer_apellido + ' ' + (this.candidato.segundo_apellido ?? '') },
+      { titulo: 'Tipo y No de Identificación', valor: this.candidato.tipo_doc + '        ' + this.cedula },
       { titulo: 'Fecha de Nacimiento', valor: this.candidato.fecha_nacimiento },
       { titulo: 'Domicilio del Trabajador', valor: this.candidato.residencia.direccion + ' ' + this.candidato.residencia.barrio + ' ' + 'BOGOTÁ' },
       { titulo: 'Fecha de Iniciación', valor: this.candidato?.entrevistas?.[0]?.proceso?.contrato?.fecha_ingreso ?? '' },
@@ -7948,12 +8018,9 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       { titulo: 'Periódo de Pago Salario', valor: 'Quincenal' },
       { titulo: 'Subsidio de Transporte', valor: 'SE PAGA EL LEGAL VIGENTE  O SE SUMINISTRA EL TRANSPORTE' },
       { titulo: 'Forma de Pago', valor: 'Banca Móvil,  Cuenta de Ahorro o Tarjeta Monedero' },
-      { titulo: 'Nombre Empresa Usuria', valor: this.vacante.empresaUsuariaSolicita },
+      { titulo: 'Nombre Empresa Usuria', valor: this.empresaUsuariaDoc },
       { titulo: 'Cargo', valor: this.vacante.cargo },
-      { titulo: 'Descripción de la Obra/Motivo Temporada', valor: this.vacante.descripcion },
-      { titulo: 'Domicilio del patrono', valor: domicilio },
-      { titulo: 'Tipo y No de Identificación', valor: this.candidato.tipo_doc + '        ' + this.cedula },
-      { titulo: 'Email', valor: this.candidato.contacto.email },
+      { titulo: 'Descripción de la Obra/Motivo Temporada', valor: this.descripcionObraDoc },
     ];
     // Configuración de columnas
     const columnWidth = 110; // Ancho de cada columna
@@ -7963,7 +8030,14 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     const columnStartY = startY + 17; // Posición inicial Y
     const rowsPerColumn = 12; // Número exacto de filas por columna
 
-    // Iteración para generar el texto
+    // Iteración para generar el texto. La fila 11 (Descripción de la Obra/
+    // Motivo Temporada) es la última de la columna 0 y, si el texto es largo,
+    // se desborda; aplicamos splitTextToSize y trackeamos cuántas líneas
+    // extras agregó para empujar el texto siguiente hacia abajo.
+    const descripcionExtraLineH = 2.5; // mm aprox para fontSize 7
+    const descripcionMaxW = columnWidth - 48 - 2; // ancho disponible para el valor en columna 0
+    let descripcionExtraLineas = 0;
+
     datos.forEach((item, index) => {
       const currentColumn = Math.floor(index / rowsPerColumn); // Columna actual (cada 12 filas)
       const rowInColumn = index % rowsPerColumn; // Fila dentro de la columna actual
@@ -7975,12 +8049,19 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       doc.setFont('helvetica', 'normal');
       doc.text(`${item.titulo}:`, x, y);
 
-      if (index > 11) {
+      if (index === 11) {
+        // Descripción de la obra/labor — wrap por ancho de columna para que
+        // NUNCA se corte ni salga del margen derecho.
+        doc.setFont('helvetica', 'bold');
+        const raw = String(item.valor ?? '').trim();
+        const lines: string[] = doc.splitTextToSize(raw || '—', descripcionMaxW);
+        doc.text(lines, x + 48, y);
+        descripcionExtraLineas = Math.max(0, lines.length - 1);
+      } else if (index > 11) {
         // Establecer el valor en fuente negrita
         doc.setFont('helvetica', 'bold');
         doc.text(item.valor, x + 30.2, y);
-      }
-      else {
+      } else {
         // Establecer el valor en fuente negrita
         doc.setFont('helvetica', 'bold');
         doc.text(item.valor ?? '', x + 48, y);
@@ -7990,17 +8071,20 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     // Restaurar la fuente a la normal después del bucle
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(6.5);
-    let y = columnStartY + rowsPerColumn * rowSpacing + 2; // Posición vertical después de los datos
+    // Ajuste vertical: empujamos el bloque siguiente hacia abajo por cada
+    // línea extra que ocupó la descripción multilinea.
+    let y = columnStartY + rowsPerColumn * rowSpacing + 2
+      + (descripcionExtraLineas * descripcionExtraLineH); // Posición vertical después de los datos
     // Texto adicional
     let texto = 'Entre el EMPLEADOR y el TRABAJADOR arriba indicados, se ha celebrado el contrato regulado por las cláusulas que adelante se indican, aparte de la ley, siendo ellas las siguientes: PRIMERA. El Trabajador, a partir de la fecha de iniciación, se obliga para con el EMPLEADOR a ejecutar la obra arriba indicada, sometiéndose durante su realización en todo a las órdenes de éste. Declara por consiguiente el TRABAJADOR completa y total disponibilidad para con el EMPLEADOR para ejecutar las obras indicadas en el encabezamiento, siempre que así le sean exigidas por sus clientes al EMPLEADOR. Teniendo en cuenta que, la EMPRESA USUARIA, desarrolla su actividad productiva y comercial a nivel nacional, las partes convienen en que la EMPRESA USUARIA podrá trasladar la base de operaciones de EL TRABAJADOR, en cualquier tiempo, a cualquier otro lugar donde desarrolle tales actividades sin que por ello se opere desmejora o modificación sustancial de las condiciones de trabajo ni de la categoría del TRABAJADOR, consideradas en el momento de la suscripción de este contrato. SEGUNDA. DURACIÓN DEL CONTRATO: La necesaria para la realización de la obra o labor contratada y conforme a las necesidades del patrono o establecimiento que requiera la ejecución de la obra, todo conforme a lo previsto en el Art. 45 del CST y teniendo en cuenta la fecha de iniciación de la obra; y la índole de la misma, circunstancias una y otra ya anotadas. PARÁGRAFO PRIMERO: Las partes acuerdan que por ser el TRABAJADOR contratado como trabajador en misión para ser enviado a la empresa la duración de la obra o labor no podrá superar el tiempo establecido en el Art. 77 de la Ley 50 de 1990 en su numeral 3°. PARÁGRAFO SEGUNDO: El término de duración del presente contrato es de carácter temporal por ser el EMPLEADOR una empresa de servicios temporales, y por tanto tendrá vigencia hasta la realización de la obra o labor contratada que sea indicada por las Empresas Usuarias del EMPLEADOR en este contrato, acordando las partes que para todos los efectos legales, la obra o labor contratada termina en la fecha en que la EMPRESA USUARIA, a la que será enviado el TRABAJADOR, comunique la terminación de la misma. PARÁGRAFO TERCERO: La labor se realizará de manera personal en las instalaciones de la EMPRESA.';
     // this.vacante.empresaUsuariaSolicita + CENTRO DE COSTOS + this.vacante.finca + DIR. + this.vacante.direccion
     doc.setFont('helvetica', 'normal');
     // Construir texto dinámico sin null ni undefined
     const partes = [
-      this.vacante?.empresaUsuariaSolicita,
+      this.empresaUsuariaDoc,
       'CENTRO DE COSTOS',
-      this.vacante?.finca || '',
-      this.vacante?.direccion ? `DIR. ${this.vacante.direccion}` : ''
+      this.centroCostoDoc || '',
+      this.direccionDoc ? `DIR. ${this.direccionDoc}` : ''
     ].filter(Boolean); // elimina los vacíos o null
 
     const textoLinea = partes.join(' ').replace(/\s+/g, ' ').trim();
@@ -8154,9 +8238,11 @@ export class GenerateContractingDocumentsComponent implements OnInit {
 
     // Para constancia se firma ante testigos el día _____________________________En el Municipio de Madrid
     y += 15; // Añadir espacio
-    let dia = new Date().getDate().toString().padStart(2, '0'); // Añadir 0 si es necesario
+    // Fecha de contrato (no la fecha actual): día/mes/año del ContratoCandidato.
+    const fechaFirmaContrato = this.getFechaContrato();
+    const fechaFirmaTextoLargo = fechaFirmaContrato.toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric' });
     doc.setFont('helvetica', 'bold');
-    doc.text('Para constancia se firma ante testigos el día ' + dia + ' En el Municipio de ' + this.sede, 5, y);
+    doc.text('Para constancia se firma ante testigos el día ' + fechaFirmaTextoLargo + ' En el Municipio de ' + this.sede, 5, y);
 
     // Firma
     const firmaPath = 'firma/FirmaMayra.png';
@@ -8234,7 +8320,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     if (text) {
       const cedulas = text.split('\n').map((c: string) => c.trim()).filter((c: string) => c.length > 0);
       if (cedulas.length === 0) return;
-      
+
       this.batchCedulas = cedulas.map((c: string) => ({
         cedula: c,
         status: 'Pending',
@@ -8257,7 +8343,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
 
   async ejecutarBatch() {
     this.procesandoBatch = true;
-    
+
     // Backup del estado actual
     const bCedula = this.cedula;
     const bCandidato = this.candidato;
@@ -8268,10 +8354,10 @@ export class GenerateContractingDocumentsComponent implements OnInit {
 
     for (let item of this.batchCedulas) {
       if (item.status === 'Done') continue;
-      
+
       item.status = 'Processing';
       this.blockSeleccionado = item;
-      
+
       try {
         const datoCandidato = await firstValueFrom(
           this.registroProcesoContratacion.getCandidatoPorDocumento(item.cedula, true)
@@ -8281,7 +8367,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
 
         const vacId = datoCandidato?.entrevistas?.[0]?.proceso?.publicacion;
         const vacData = vacId ? await firstValueFrom(this.vacantesService.obtenerVacante(vacId).pipe(catchError(() => of(null)))) : null;
-        
+
         this.cedula = item.cedula;
         this.candidato = datoCandidato;
         this.vacante = vacData || {};
@@ -8598,8 +8684,15 @@ export class GenerateContractingDocumentsComponent implements OnInit {
 
     const V = (v: any) => normalizeText(v).toUpperCase();
 
+    // Orden alineado a la plantilla oficial TA CO-RE-1 (CONTRATO POR OBRA O
+    // LABOR): Representado por → Domicilio del patrono → Nombre del Trabajador →
+    // Tipo y No de Identificación → Fecha de Nacimiento → Domicilio del
+    // Trabajador → Fecha de Iniciación → Salario → Periodo → Subsidio → Forma
+    // de Pago → Empresa Usuaria → Cargo → Descripción. (Email queda al final.)
     const datos = [
       { titulo: T('Representado por'), valor: V('HEIDY JACKELINE TORRES SOTELO') },
+
+      { titulo: T('Domicilio del patrono'), valor: V(domicilio) },
 
       {
         titulo: T('Nombre del Trabajador'),
@@ -8610,6 +8703,8 @@ export class GenerateContractingDocumentsComponent implements OnInit {
           this.candidato?.segundo_nombre,
         ].filter(x => String(x ?? '').trim()).join(' '))
       },
+
+      { titulo: T('Tipo y No de Identificación'), valor: V(`${this.candidato?.tipo_doc ?? ''}        ${this.cedula ?? ''}   -   Email: ${pickText(this.candidato?.contacto?.email, datoContratacion?.primercorreoelectronico)}`) },
 
       {
         titulo: T('Fecha de Nacimiento'),
@@ -8636,23 +8731,17 @@ export class GenerateContractingDocumentsComponent implements OnInit {
         valor: V('S.M.M.L.V $ 1.750.905 UN MILLÓN SETECIENTOS CINCUENTA MIL NOVECIENTOS CINCO PESOS M/C')
       },
 
-      { titulo: T('Periódo de Pago Salario'), valor: V('Quincenal') },
+      { titulo: T('Periodo de Pago Salario'), valor: V('Quincenal') },
 
       { titulo: T('Subsidio de Transporte'), valor: V('SE PAGA EL LEGAL VIGENTE O SE SUMINISTRA EL TRANSPORTE') },
 
       { titulo: T('Forma de Pago'), valor: V('Banca Móvil, Cuenta de Ahorro o Tarjeta Monedero') },
 
-      { titulo: T('Nombre Empresa Usuria'), valor: V(this.vacante?.empresaUsuariaSolicita) },
+      { titulo: T('Nombre Empresa Usuaria'), valor: V(this.empresaUsuariaDoc) },
 
       { titulo: T('Cargo'), valor: V(this.vacante?.cargo) },
 
-      { titulo: T('Descripción de la Obra/Motivo Temporada '), valor: V(this.vacante?.descripcion) },
-
-      { titulo: T('Domicilio del patrono'), valor: V(domicilio) },
-
-      { titulo: T('Tipo y No de Identificación'), valor: V(`${this.candidato?.tipo_doc ?? ''}        ${this.cedula ?? ''}`) },
-
-      { titulo: T('Email'), valor: V(pickText(this.candidato?.contacto?.email, datoContratacion?.primercorreoelectronico)) },
+      { titulo: T('Descripción de la Obra/Motivo Temporada '), valor: V(this.descripcionObraDoc) },
     ];
 
     // =========================================================
@@ -8665,12 +8754,19 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     const columnStartY = startY + 17;
     const rowsPerColumn = 15;
 
+    // Offset vertical acumulado por columna. Cuando una celda (p.ej. la
+    // descripción de la obra/labor) se expande a múltiples líneas, las celdas
+    // siguientes en la MISMA columna deben empujarse hacia abajo para no
+    // solaparse.
+    const yOffsetByColumn: Record<number, number> = {};
+    const valueLineH = 2.5; // mm aprox para fontSize 7
+
     datos.forEach((item, index) => {
       const currentColumn = Math.floor(index / rowsPerColumn);
       const rowInColumn = index % rowsPerColumn;
 
       const x = columnStartX + currentColumn * (columnWidth + columnMargin);
-      const y = (columnStartY + rowInColumn * rowSpacing) + 3;
+      const y = (columnStartY + rowInColumn * rowSpacing) + 3 + (yOffsetByColumn[currentColumn] ?? 0);
 
       // (opcional) también resetea estado global
       if (typeof (doc as any).setCharSpace === 'function') {
@@ -8685,8 +8781,21 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       doc.setFont('helvetica', 'bold');
       const valueText = String(item.valor ?? '').trim();
 
+      const isDescripcion = String(item.titulo ?? '')
+        .toLowerCase()
+        .includes('descripción de la obra');
+
       if (index > 14) {
         (doc as any).text(valueText, x + 30.2, y, { charSpace: 0 });
+      } else if (isDescripcion) {
+        // Wrap por ancho de columna para que NUNCA se corte.
+        const valueX = x + 48;
+        const valueMaxW =
+          (columnStartX + (currentColumn + 1) * columnWidth + currentColumn * columnMargin) - valueX - 1;
+        const lines: string[] = doc.splitTextToSize(valueText || '—', Math.max(20, valueMaxW));
+        (doc as any).text(lines, valueX, y, { charSpace: 0 });
+        const extra = Math.max(0, lines.length - 1);
+        yOffsetByColumn[currentColumn] = (yOffsetByColumn[currentColumn] ?? 0) + extra * valueLineH;
       } else {
         (doc as any).text(valueText, x + 48, y, { charSpace: 0 });
       }
@@ -8697,7 +8806,11 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     // Restaurar la fuente a la normal después del bucle
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(6.5);
-    let y = columnStartY + rowsPerColumn * rowSpacing + 2; // Posición vertical después de los datos
+    // Posición vertical después de los datos. Tomamos el mayor offset acumulado
+    // entre columnas para garantizar que el texto siguiente no pise las líneas
+    // extras de la descripción multilinea de obra/labor.
+    const maxYOffset = Math.max(0, ...Object.values(yOffsetByColumn));
+    let y = columnStartY + rowsPerColumn * rowSpacing + 2 + maxYOffset;
     // Texto adicional
     let texto = 'Entre  el  EMPLEADOR  y  el   TRABAJADOR  arriba indicados,  se  ha celebrado el contrato  regulado  por  las cláusulas  que  adelante  se  indican,  aparte  de  la  ley,  siendo  ellas las  siguientes:  PRIMERA.  El Trabajador,  a  partir  de  la  fecha  de  iniciación,  se  obliga  para  con  e l  EMPLEADOR   a ejecutar  la  obra arriba  indicada  sometiéndose  durante  su realización  en  todo  a  las  órdenes  de  éste. Declara  por  consiguiente e l TRABAJADOR completa y total  disponibilidad para con  el  EMPLEADOR   para  ejecutar  las  obras  indicadas  en  el  encabezamiento,  siempre  que así  le  sean  exigidas  por  sus clientes  al   EMPLEADOR,   sin  que  por  ello  se  opere  desmejora  o  modificación  sustancial  de las  condiciones de trabajo tenidas  en  cuenta en  el  momento  de  la  suscripción  de  este  contrato.   SEGUNDA.   DURACIÓN DEL CONTRATO:   La necesaria  para  la  realización de la obra o labor contratada  y  conforme  a  las  necesidades  del  patrono  o  establecimiento  que  requiera  la  ejecución  de  la  obra,  todo  conforme a lo previsto en el Art. 45 del CST y teniendo en cuenta  la  fecha  de  iniciación  de  la  obra;  y  la  índole  de  la  misma,  circunstancias  una  y  otra  ya  anotadas.  PARÁGRAFO PRIMERO:  Las  partes  acuerdan  que  por  ser  el TRABAJADOR contratado como trabajador en misión para ser enviado a la empresa la duración de la obra o labor no podrá superar el tiempo establecido en el Art. 77 de la Ley 50 de 1990 en su numeral 3°. PARÁGRAFO SEGUNDO: El término de duración del presente contrato es de carácter temporal por ser el EMPLEADOR una  empresa  de  servicios temporales,  y  por  tanto tendrá  vigencia  hasta la realización  de  la  obra o  labor  contratada  que  sea  indicada  por  las  Empresas  Usuarias  del  EMPLEADOR  en  este  contrato, acordando  las  partes  que  para  todos  los  efectos  legales,  la  obra  o  labor  contratada  termina  en  la  fecha  en  que  la  EMPRESA  USUARIA, a la que será  enviado el  TRABAJADOR, comunique la terminación de la misma. PARÁGRAFO TERCERO: La labor se  realizará  en  las  instalaciones de la EMPRESA ';
     // this.vacante.empresaUsuariaSolicita + CENTRO DE COSTOS + this.vacante.finca + DIR. + this.vacante.direccion
@@ -8713,10 +8826,10 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     doc.setFontSize(8.5);
     // Construir texto dinámico sin null ni undefined
     const partes = [
-      this.vacante?.empresaUsuariaSolicita,
+      this.empresaUsuariaDoc,
       'CENTRO DE COSTOS',
-      this.vacante?.finca || '',
-      this.vacante?.direccion ? `DIR. ${this.vacante.direccion}` : ''
+      this.centroCostoDoc || '',
+      this.direccionDoc ? `DIR. ${this.direccionDoc}` : ''
     ].filter(Boolean); // elimina los vacíos o null
 
     const textoLinea = partes.join(' ').replace(/\s+/g, ' ').trim();
@@ -8841,11 +8954,12 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     y = this.renderJustifiedText(doc, texto4, x, y, maxWidth, lineHeight);
 
     y += 4; // Añadir espacio
+    // Fecha de contrato (no la fecha actual): se imprime sobre la línea de firma.
     const fechaCompleta = new Intl.DateTimeFormat('es-CO', {
       day: '2-digit',
       month: 'long',
       year: 'numeric'
-    }).format(new Date());
+    }).format(this.getFechaContrato());
 
     doc.setFont('helvetica', 'bold');
     doc.text('Para constancia se firma ante testigos el día ', 7, y);
@@ -8878,12 +8992,12 @@ export class GenerateContractingDocumentsComponent implements OnInit {
             fr.onload = () => resolve(String(fr.result));
             fr.readAsDataURL(bFirma);
           });
-          doc.addImage(base64Firma, 'PNG', 65, y - 12, 35, 11);
+          doc.addImage(base64Firma, 'PNG', 65, y - 9, 28, 8);
         } else {
-          doc.addImage(this.firma, 'PNG', 65, y - 12, 35, 11);
+          doc.addImage(this.firma, 'PNG', 65, y - 9, 28, 8);
         }
       } catch (e) {
-        try { doc.addImage(this.firma, 'PNG', 65, y - 12, 35, 11); } catch(ex) {}
+        try { doc.addImage(this.firma, 'PNG', 65, y - 9, 28, 8); } catch (ex) { }
       }
     }
 
@@ -8933,7 +9047,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
           doc.addImage(this.firmaPersonalAdministrativo, 'PNG', 165, y - 16, 35, 14);
         }
       } catch (e) {
-        try { doc.addImage(this.firmaPersonalAdministrativo, 'PNG', 165, y - 16, 35, 14); } catch(ex) {}
+        try { doc.addImage(this.firmaPersonalAdministrativo, 'PNG', 165, y - 16, 35, 14); } catch (ex) { }
       }
     }
 
@@ -8946,7 +9060,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     const pdfBlob = doc.output('blob');
     const fileName = `${this.empresa}_Contrato.pdf`;
     const pdfFile = new File([pdfBlob], fileName, { type: 'application/pdf' });
-    
+
     if (isBatch) {
       return { file: pdfFile, blobUrl: URL.createObjectURL(pdfBlob) };
     }
@@ -9093,23 +9207,6 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     // ✅ Helpers: T = título normal, V = valor en MAYÚSCULAS
     // ✅ + Normaliza textos con letras/dígitos separados: "C A R A" -> "CARA", "3 0 3 4" -> "3034"
     // =========================================================
-    // =========================================================
-    // ✅ FIX: Domicilio del Trabajador quedaba con letras separadas ("C A R A ...")
-    // ✅ Solución: normalizar tokens separados (letras sueltas y números sueltos)
-    // =========================================================
-
-    // =========================================================
-    // ✅ FIX REAL (2 cosas):
-    // 1) Limpia caracteres invisibles (ZWSP, etc.) y une letras/dígitos separados.
-    // 2) Resetea charSpacing de jsPDF a 0 antes de pintar texto (si quedó “pegado” de otra parte).
-    // =========================================================
-
-    // =========================================================
-    // ✅ FIX DEFINITIVO:
-    // 1) Normaliza el texto (quita invisibles/espacios raros, une letras/dígitos sueltos).
-    // 2) Fuerza charSpace: 0 EN CADA doc.text() (no depende del estado global).
-    //    (jsPDF soporta options.charSpace en doc.text) :contentReference[oaicite:1]{index=1}
-    // =========================================================
 
     // ✅ Helpers: T = título normal, V = valor en MAYÚSCULAS (normalizado)
     const T = (v: any) => String(v ?? '').trim();
@@ -9184,10 +9281,10 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     };
 
     const V = (v: any) => normalizeText(v).toUpperCase();
-
+    
     const datos = [
       { titulo: T('Representado por'), valor: V('HEIDY JACKELINE TORRES SOTELO') },
-
+      { titulo: T('Domicilio del patrono'), valor: V(domicilio) },
       {
         titulo: T('Nombre del Trabajador'),
         valor: V([
@@ -9197,13 +9294,12 @@ export class GenerateContractingDocumentsComponent implements OnInit {
           this.candidato?.segundo_nombre,
         ].filter(x => String(x ?? '').trim()).join(' '))
       },
-
+      { titulo: T('Tipo y No de Identificación'), valor: V(`${this.candidato?.tipo_doc ?? ''}        ${this.cedula ?? ''}   -   Email: ${pickText(this.candidato?.contacto?.email, datoContratacion?.primercorreoelectronico)}`) },
       {
         titulo: T('Fecha de Nacimiento'),
         valor: V(onlyDate(pickText(this.candidato?.fecha_nacimiento, datoContratacion?.fecha_nacimiento)))
       },
-
-      {
+            {
         titulo: T('Domicilio del Trabajador'),
         valor: V(
           [
@@ -9213,33 +9309,20 @@ export class GenerateContractingDocumentsComponent implements OnInit {
           ]
             .filter(x => String(x ?? '').trim())
             .join(' - ')
-        )
+          )
       },
-
       { titulo: T('Fecha de Iniciación'), valor: V(this.candidato?.entrevistas?.[0]?.proceso?.contrato?.fecha_ingreso ?? '') },
-
       {
         titulo: T('Salario Mensual Ordinario'),
         valor: V('S.M.M.L.V $ 1.750.905 UN MILLÓN SETECIENTOS CINCUENTA MIL NOVECIENTOS CINCO PESOS M/C')
       },
-
-      { titulo: T('Periódo de Pago Salario'), valor: V('Quincenal') },
-
+      { titulo: T('Periodo de Pago Salario'), valor: V('Quincenal') },
       { titulo: T('Subsidio de Transporte'), valor: V('SE PAGA EL LEGAL VIGENTE O SE SUMINISTRA EL TRANSPORTE') },
-
       { titulo: T('Forma de Pago'), valor: V('Banca Móvil, Cuenta de Ahorro o Tarjeta Monedero') },
-
-      { titulo: T('Nombre Empresa Usuria'), valor: V(this.vacante?.empresaUsuariaSolicita) },
-
+      { titulo: T('Nombre Empresa Usuaria'), valor: V(this.empresaUsuariaDoc) },
       { titulo: T('Cargo'), valor: V(this.vacante?.cargo) },
+      { titulo: T('Descripción de la Obra/Motivo Temporada '), valor: V(this.descripcionObraDoc) },
 
-      { titulo: T('Descripción de la Obra/Motivo Temporada '), valor: V(this.vacante?.descripcion) },
-
-      { titulo: T('Domicilio del patrono'), valor: V(domicilio) },
-
-      { titulo: T('Tipo y No de Identificación'), valor: V(`${this.candidato?.tipo_doc ?? ''}        ${this.cedula ?? ''}`) },
-
-      { titulo: T('Email'), valor: V(pickText(this.candidato?.contacto?.email, datoContratacion?.primercorreoelectronico)) },
     ];
 
     // =========================================================
@@ -9252,12 +9335,19 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     const columnStartY = startY + 17;
     const rowsPerColumn = 15;
 
+    // Offset vertical acumulado por columna. Cuando una celda (p.ej. la
+    // descripción de la obra/labor) se expande a múltiples líneas, las celdas
+    // siguientes en la MISMA columna deben empujarse hacia abajo para no
+    // solaparse.
+    const yOffsetByColumn: Record<number, number> = {};
+    const valueLineH = 2.5; // mm aprox para fontSize 7
+
     datos.forEach((item, index) => {
       const currentColumn = Math.floor(index / rowsPerColumn);
       const rowInColumn = index % rowsPerColumn;
 
       const x = columnStartX + currentColumn * (columnWidth + columnMargin);
-      const y = (columnStartY + rowInColumn * rowSpacing) + 3;
+      const y = (columnStartY + rowInColumn * rowSpacing) + 3 + (yOffsetByColumn[currentColumn] ?? 0);
 
       // (opcional) también resetea estado global
       if (typeof (doc as any).setCharSpace === 'function') {
@@ -9272,8 +9362,21 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       doc.setFont('helvetica', 'bold');
       const valueText = String(item.valor ?? '').trim();
 
+      const isDescripcion = String(item.titulo ?? '')
+        .toLowerCase()
+        .includes('descripción de la obra');
+
       if (index > 14) {
         (doc as any).text(valueText, x + 30.2, y, { charSpace: 0 });
+      } else if (isDescripcion) {
+        // Wrap por ancho de columna para que NUNCA se corte.
+        const valueX = x + 48;
+        const valueMaxW =
+          (columnStartX + (currentColumn + 1) * columnWidth + currentColumn * columnMargin) - valueX - 1;
+        const lines: string[] = doc.splitTextToSize(valueText || '—', Math.max(20, valueMaxW));
+        (doc as any).text(lines, valueX, y, { charSpace: 0 });
+        const extra = Math.max(0, lines.length - 1);
+        yOffsetByColumn[currentColumn] = (yOffsetByColumn[currentColumn] ?? 0) + extra * valueLineH;
       } else {
         (doc as any).text(valueText, x + 48, y, { charSpace: 0 });
       }
@@ -9284,7 +9387,11 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     // Restaurar la fuente a la normal después del bucle
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(6.5);
-    let y = columnStartY + rowsPerColumn * rowSpacing + 2; // Posición vertical después de los datos
+    // Posición vertical después de los datos. Tomamos el mayor offset acumulado
+    // entre columnas para garantizar que el texto siguiente no pise las líneas
+    // extras de la descripción multilinea de obra/labor.
+    const maxYOffset = Math.max(0, ...Object.values(yOffsetByColumn));
+    let y = columnStartY + rowsPerColumn * rowSpacing + 2 + maxYOffset;
     // Texto adicional
     let texto = 'Entre  el  EMPLEADOR  y  el   TRABAJADOR  arriba indicados,  se  ha celebrado el contrato  regulado  por  las cláusulas  que  adelante  se  indican,  aparte  de  la  ley,  siendo  ellas las  siguientes:  PRIMERA.  El Trabajador,  a  partir  de  la  fecha  de  iniciación,  se  obliga  para  con  e l  EMPLEADOR   a ejecutar  la  obra arriba  indicada  sometiéndose  durante  su realización  en  todo  a  las  órdenes  de  éste. Declara  por  consiguiente e l TRABAJADOR completa y total  disponibilidad para con  el  EMPLEADOR   para  ejecutar  las  obras  indicadas  en  el  encabezamiento,  siempre  que así  le  sean  exigidas  por  sus clientes  al   EMPLEADOR,   sin  que  por  ello  se  opere  desmejora  o  modificación  sustancial  de las  condiciones de trabajo tenidas  en  cuenta en  el  momento  de  la  suscripción  de  este  contrato.   SEGUNDA.   DURACIÓN DEL CONTRATO:   La necesaria  para  la  realización de la obra o labor contratada  y  conforme  a  las  necesidades  del  patrono  o  establecimiento  que  requiera  la  ejecución  de  la  obra,  todo  conforme a lo previsto en el Art. 45 del CST y teniendo en cuenta  la  fecha  de  iniciación  de  la  obra;  y  la  índole  de  la  misma,  circunstancias  una  y  otra  ya  anotadas.  PARÁGRAFO PRIMERO:  Las  partes  acuerdan  que  por  ser  el TRABAJADOR contratado como trabajador en misión para ser enviado a la empresa la duración de la obra o labor no podrá superar el tiempo establecido en el Art. 77 de la Ley 50 de 1990 en su numeral 3°. PARÁGRAFO SEGUNDO: El término de duración del presente contrato es de carácter temporal por ser el EMPLEADOR una  empresa  de  servicios temporales,  y  por  tanto tendrá  vigencia  hasta la realización  de  la  obra o  labor  contratada  que  sea  indicada  por  las  Empresas  Usuarias  del  EMPLEADOR  en  este  contrato, acordando  las  partes  que  para  todos  los  efectos  legales,  la  obra  o  labor  contratada  termina  en  la  fecha  en  que  la  EMPRESA  USUARIA, a la que será  enviado el  TRABAJADOR, comunique la terminación de la misma. PARÁGRAFO TERCERO: La labor se  realizará  en  las  instalaciones de la EMPRESA ';
     // this.vacante.empresaUsuariaSolicita + CENTRO DE COSTOS + this.vacante.finca + DIR. + this.vacante.direccion
@@ -9300,10 +9407,10 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     doc.setFontSize(6.5);
     // Construir texto dinámico sin null ni undefined
     const partes = [
-      this.vacante?.empresaUsuariaSolicita,
+      this.empresaUsuariaDoc,
       'CENTRO DE COSTOS',
-      this.vacante?.finca || '',
-      this.vacante?.direccion ? `DIR. ${this.vacante.direccion}` : ''
+      this.centroCostoDoc || '',
+      this.direccionDoc ? `DIR. ${this.direccionDoc}` : ''
     ].filter(Boolean); // elimina los vacíos o null
 
     const textoLinea = partes.join(' ').replace(/\s+/g, ' ').trim();
@@ -9418,7 +9525,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     } else if (resultSwal.isDismissed) {
       return null;
     }
-    
+
     return codigoGenerado;
   }
 
@@ -9700,14 +9807,14 @@ export class GenerateContractingDocumentsComponent implements OnInit {
 
       // Branding Apoyo Laboral
       const { logoPath, nombreEmpresa } = this.getEmpresaInfo();
-      const empUsuaria = this.safe(vac.empresaUsuariaSolicita);
+      const empUsuaria = this.safe(this.empresaUsuariaDoc);
 
       await setButtonImageSafe(pdfDoc, form, 'Image16_af_image', logoPath);
       await setButtonImageSafe(pdfDoc, form, 'Image18_af_image', logoPath);
 
       // Cabecera / contrato
       this.setText(form, 'CodContrato', this.safe(codigoContrato), customFont, 7.2);
-      try { this.setText(form, 'codigo_contrato', this.safe(codigoContrato), customFont, 7.2); } catch(e) {}
+      try { this.setText(form, 'codigo_contrato', this.safe(codigoContrato), customFont, 7.2); } catch (e) { }
       this.setText(form, 'sede', this.safe(this.user?.sede?.nombre), customFont, 7.2);
 
       // Llenado completo del formulario (mapping en ficha-tecnica-fill.ts).
@@ -10164,7 +10271,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       const customFont = fontBytes ? await pdfDoc.embedFont(fontBytes) : undefined;
 
       const form = pdfDoc.getForm();
-      try { this.setText(form, 'codigo_contrato', this.safe(codigoContrato), customFont); } catch(e) {}
+      try { this.setText(form, 'codigo_contrato', this.safe(codigoContrato), customFont); } catch (e) { }
 
       // ✅ Imagen: nunca se voltea, siempre vertical
       await setButtonImageSafe(pdfDoc, form, 'Imagen1_af_image', this.foto, { forcePortrait: true });
@@ -10718,7 +10825,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       const customFont = fontBytes ? await pdfDoc.embedFont(fontBytes) : undefined;
 
       const form = pdfDoc.getForm();
-      try { this.setText(form, 'codigo_contrato', this.safe(codigoContrato), customFont); } catch(e) {}
+      try { this.setText(form, 'codigo_contrato', this.safe(codigoContrato), customFont); } catch (e) { }
 
       // Imagen1_af_image
       await setButtonImageSafe(pdfDoc, form, 'Imagen1_af_image', this.foto);
@@ -11011,7 +11118,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
         exp0?.labores_principales
       ].filter(x => !!String(x || '').trim()).join(' - ');
       this.setText(form, 'descripcion-laboral1', this.safe(descripcionLaboral1Str), customFont);
-      this.setText(form, 'finca_a', this.vacante.finca, customFont);
+      this.setText(form, 'finca_a', this.centroCostoDoc, customFont);
       this.setText(form, 'nombres_y_apellidos', datoContratacion.primer_nombre + ' ' + datoContratacion.segundo_nombre + ' ' + datoContratacion.primer_apellido + ' ' + datoContratacion.segundo_apellido, customFont);
       this.setText(form, 'numero_identificacion', this.cedula, customFont);
 
@@ -11603,7 +11710,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       const ciudadExpedicion = [cand.info_cc?.mpio_expedicion, cand.info_cc?.depto_expedicion].filter(Boolean).join(', ').toUpperCase() || '';
 
       // ─── Helpers de fecha ───
-      const mesesEs = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+      const mesesEs = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
       const hoy = new Date();
       const dia = hoy.getDate();
       const mes = mesesEs[hoy.getMonth()];
@@ -11848,6 +11955,304 @@ export class GenerateContractingDocumentsComponent implements OnInit {
 
 
   // ─────────────────────────────────────────────────────────────────────
+  // OTRO SI SAGARO FUMIGADOR – modificación del día de descanso obligatorio
+  // (domingo → jueves). PDF generado con jsPDF. Réplica del formato oficial.
+  // ─────────────────────────────────────────────────────────────────────
+  async generarOtroSiSagaroFumigador() {
+    try {
+      const cand: any = this.candidato ?? {};
+      const vac: any = this.vacante ?? {};
+      const nombres = [cand.primer_nombre, cand.segundo_nombre].filter(Boolean).join(' ').toUpperCase();
+      const apellidos = [cand.primer_apellido, cand.segundo_apellido].filter(Boolean).join(' ').toUpperCase();
+      const nombreCompleto = `${nombres} ${apellidos}`.trim();
+      const cedula = String(cand.numero_documento ?? this.cedula ?? '').trim();
+      const ciudadExpedicion = [cand.info_cc?.mpio_expedicion, cand.info_cc?.depto_expedicion].filter(Boolean).join(', ').toUpperCase() || '';
+      const area = String(vac?.cargo ?? '').toUpperCase().trim();
+
+      // ─── Fecha de contrato (no la actual) ───
+      const mesesEs = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+      const fecha = this.getFechaContrato();
+      const dia = fecha.getDate();
+      const mes = mesesEs[fecha.getMonth()];
+      const anio = fecha.getFullYear();
+
+      const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'letter' });
+      doc.setProperties({ title: `OTRO_SI_SAGARO_FUMIGADOR_${cedula}.pdf` });
+
+      const pageW = doc.internal.pageSize.getWidth();   // ~215.9
+      const pageH = doc.internal.pageSize.getHeight();  // ~279.4
+      const mL = 22;
+      const mR = 22;
+      const mTop = 18;
+      const maxW = pageW - mL - mR;
+
+      const lineH = 3.9;
+      const BODY = 8.6;
+
+      // ─── Helper: párrafo con segmentos en negrita/normal, justificado ───
+      type Seg = { t: string; b?: boolean };
+      const measure = (w: string, b: boolean): number => {
+        doc.setFont('helvetica', b ? 'bold' : 'normal');
+        return doc.getTextWidth(w);
+      };
+      const renderRich = (segs: Seg[], x: number, yStart: number, width: number, justify = true): number => {
+        doc.setFontSize(BODY);
+        const words: { w: string; b: boolean }[] = [];
+        for (const s of segs) {
+          for (const w of s.t.split(/\s+/).filter(Boolean)) words.push({ w, b: !!s.b });
+        }
+        doc.setFont('helvetica', 'normal');
+        const spaceW = doc.getTextWidth(' ');
+        let cy = yStart;
+        let line: { w: string; b: boolean }[] = [];
+        let lineW = 0;
+        const flush = (isLast: boolean) => {
+          if (!line.length) { cy += lineH; return; }
+          if (justify && !isLast && line.length > 1) {
+            const wordsW = line.reduce((a, c) => a + measure(c.w, c.b), 0);
+            const extra = (width - wordsW) / (line.length - 1);
+            let cx = x;
+            for (const tok of line) {
+              doc.setFont('helvetica', tok.b ? 'bold' : 'normal');
+              doc.text(tok.w, cx, cy);
+              cx += measure(tok.w, tok.b) + extra;
+            }
+          } else {
+            let cx = x;
+            for (const tok of line) {
+              doc.setFont('helvetica', tok.b ? 'bold' : 'normal');
+              doc.text(tok.w, cx, cy);
+              cx += measure(tok.w, tok.b) + spaceW;
+            }
+          }
+          cy += lineH;
+          line = [];
+          lineW = 0;
+        };
+        for (const tok of words) {
+          const wW = measure(tok.w, tok.b);
+          const prospective = line.length ? lineW + spaceW + wW : wW;
+          if (prospective > width && line.length) flush(false);
+          lineW = line.length ? lineW + spaceW + wW : wW;
+          line.push(tok);
+        }
+        flush(true);
+        return cy;
+      };
+
+      const toDataURL = async (url?: string): Promise<string | null> => {
+        if (!url) return null;
+        if (url.startsWith('data:')) return url;
+        try {
+          const res = await fetch(url);
+          const blob = await res.blob();
+          return new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result as string);
+            reader.onerror = () => resolve(null);
+            reader.readAsDataURL(blob);
+          });
+        } catch {
+          return null;
+        }
+      };
+
+      let y = mTop;
+
+      // ───── Título centrado ─────
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(11);
+      doc.text('OTRO SI A CONTRATOS CELEBRADOS ENTRE TU ALIANZA S.A.S.', pageW / 2, y, { align: 'center' });
+      y += 5;
+      doc.text('CON SUS COLABORADORES EN MISIÓN', pageW / 2, y, { align: 'center' });
+      y += 8;
+
+      // ───── Párrafo introductorio ─────
+      y = renderRich([
+        { t: 'OTRO SI al contrato en misión celebrado el día' },
+        { t: dia ? ` ${dia} de ${mes} de ${anio} ` : ' ______________________ ' },
+        { t: 'entre la empresa' },
+        { t: ' TU ALIANZA S.A.S. NIT. 900.864.596-1 ', b: true },
+        { t: 'y' },
+        { t: ` ${nombreCompleto || '________________________________'} ` },
+        { t: 'identificado con Cédula de Ciudadanía' },
+        { t: ` ${cedula || '_______________'} ` },
+        { t: ciudadExpedicion ? `de ${ciudadExpedicion} ` : '' },
+        { t: 'se ha convenido celebrar este OTRO SI en los siguientes términos:' },
+      ], mL, y, maxW);
+      y += 4;
+
+      // ───── CONSIDERACIONES PREVIAS ─────
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(9.5);
+      doc.text('CONSIDERACIONES PREVIAS', pageW / 2, y, { align: 'center' });
+      y += 5;
+
+      y = renderRich([
+        { t: '1. ', b: true },
+        { t: 'Que las partes suscribieron un contrato de trabajo por la duración de la obra o labor.' },
+      ], mL, y, maxW);
+      y += 1.5;
+
+      y = renderRich([
+        { t: '2. ', b: true },
+        { t: 'Que, en virtud del objeto social de' },
+        { t: ' EL EMPLEADOR, EL (LA) TRABAJADOR(A) ', b: true },
+        { t: 'presta sus servicios en calidad de Trabajador en Misión, en las instalaciones de la Empresa Usuaria correspondiente.' },
+      ], mL, y, maxW);
+      y += 1.5;
+
+      y = renderRich([
+        { t: '3. ', b: true },
+        { t: 'Que la Empresa Usuaria, por su naturaleza operativa y técnica, durante las diferentes temporadas requiere la prestación de servicios de manera continua, incluyendo ocasionalmente los días domingos.' },
+      ], mL, y, maxW);
+      y += 1.5;
+
+      y = renderRich([
+        { t: '4. ', b: true },
+        { t: 'Que el artículo 14 de la Ley 2466 de 2025, modificatorio del artículo 179 del Código Sustantivo del Trabajo, establece la facultad de las partes para convenir por escrito un día de descanso obligatorio distinto al domingo.' },
+      ], mL, y, maxW);
+      y += 1.5;
+
+      y = renderRich([
+        { t: '5. ', b: true },
+        { t: 'Que EL (LA) TRABAJADOR(A) presta sus servicios específicamente en la Finca Ságaro, en el área de' },
+        { t: area ? ` ${area}.` : ' ____________________________________.' },
+      ], mL, y, maxW);
+      y += 3;
+
+      // ───── CLÁUSULAS ─────
+      y = renderRich([
+        { t: 'CLAUSULA PRIMERA: MODIFICACIÓN DEL DÍA DE DESCANSO OBLIGATORIO ', b: true },
+        { t: 'De manera expresa, libre y voluntaria, las partes acuerdan modificar el día de descanso obligatorio semanal del (la)' },
+        { t: ' TRABAJADOR(A) EN MISIÓN', b: true },
+        { t: '. A partir de la firma del presente OTRO SÍ, el día de descanso obligatorio remunerado dejará de ser el domingo y pasará a ser el día jueves, garantizando en todo caso el disfrute de un (1) día completo de descanso a la semana.' },
+      ], mL, y, maxW);
+      y += 2.5;
+
+      y = renderRich([
+        { t: 'CLAUSULA SEGUNDA. NATURALEZA DEL DÍA DOMINGO. ', b: true },
+        { t: 'Como consecuencia de lo anterior, las partes acuerdan que el día domingo se considerará, para todos los efectos legales, contractuales y prestacionales, como día hábil laboral ordinario. En consecuencia, el trabajo ejecutado en día domingo dentro de la jornada ordinaria pactada no generará recargo por trabajo dominical, ni dará lugar a descansos compensatorios adicionales, en razón a que el descanso obligatorio ha sido trasladado al día jueves.' },
+      ], mL, y, maxW);
+      y += 2.5;
+
+      y = renderRich([
+        { t: 'CLAUSULA TERCERA. REMUNERACIÓN DEL DÍA DE DESCANSO- EL EMPLEADOR ', b: true },
+        { t: 'reconocerá y remunerará el día de descanso obligatorio pactado dentro del salario básico mensual, conforme a lo dispuesto en el artículo 173 del Código Sustantivo del Trabajo, siempre que' },
+        { t: ' EL (LA) TRABAJADOR(A) ', b: true },
+        { t: 'labore la semana completa o el tiempo proporcional correspondiente.' },
+      ], mL, y, maxW);
+      y += 2.5;
+
+      y = renderRich([
+        { t: 'CLAUSULA CUARTA. TRABAJO EXCEPCIONAL EN EL DÍA DE DESCANSO ', b: true },
+        { t: 'En el evento en que, por necesidades excepcionales del servicio,' },
+        { t: ' EL (LA) TRABAJADOR(A) ', b: true },
+        { t: 'deba laborar el día miércoles, correspondiente a su descanso obligatorio,' },
+        { t: ' EL EMPLEADOR ', b: true },
+        { t: 'reconocerá y pagará dicho tiempo con el recargo legal vigente, de conformidad con lo establecido en la Ley 2466 de 2025, en proporción a las horas efectivamente laboradas.' },
+      ], mL, y, maxW);
+      y += 2.5;
+
+      y = renderRich([
+        { t: 'CLAUSULA QUINTA. CONDICIONES LABORALES ESPECÍFICAS ', b: true },
+        { t: '–EL (LA) TRABAJADOR(A) prestará sus servicios bajo las siguientes condiciones laborales, las cuales acepta expresamente:' },
+      ], mL, y, maxW);
+      y += 1.5;
+      y = renderRich([
+        { t: 'a) Transporte: ', b: true },
+        { t: 'EL (LA) TRABAJADOR(A) se presentará por sus propios medios al lugar de trabajo, sin que ello genere reconocimiento adicional distinto al legalmente establecido.' },
+      ], mL + 3, y, maxW - 3);
+      y += 1.2;
+      y = renderRich([
+        { t: 'b) Salario: ', b: true },
+        { t: 'devengará el Salario Mínimo Legal Mensual Vigente (SMLMV).' },
+      ], mL + 3, y, maxW - 3);
+      y += 1.2;
+      y = renderRich([
+        { t: 'c) Auxilio de transporte: ', b: true },
+        { t: 'se reconocerá conforme a la ley, siempre que se cumplan los requisitos legales para su pago.' },
+      ], mL + 3, y, maxW - 3);
+      y += 2.5;
+
+      y = renderRich([
+        { t: 'CLAUSULA SEXTA. ', b: true },
+        { t: 'Todas las demás cláusulas y estipulaciones contractuales del contrato principal, NO son modificadas por el presente acuerdo, por tanto, permanecen vigentes y su exigibilidad permanece también.' },
+      ], mL, y, maxW);
+      y += 4;
+
+      // ───── Cierre con fecha ─────
+      y = renderRich([
+        { t: `En señal de conformidad a satisfacción las partes lo suscriben en dos ejemplares de un mismo tenor, en Bogotá los ${dia} días del mes de ${mes} del año ${anio}.` },
+      ], mL, y, maxW);
+      y += 12;
+
+      // ───── Área de firmas ─────
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(10);
+      doc.text('EL EMPLEADOR', mL + 8, y);
+      doc.text('EL TRABAJADOR', pageW / 2 + 18, y);
+      y += 3;
+
+      // Sello empleador (izquierda)
+      try {
+        const selloData = await toDataURL('firma/firmaselloalianza.jpeg');
+        if (selloData) doc.addImage(selloData, 'JPEG', mL, y, 42, 19);
+      } catch { }
+
+      // Firma del candidato (derecha)
+      try {
+        const firmaData = await toDataURL(this.firma);
+        if (firmaData) doc.addImage(firmaData, 'PNG', pageW / 2 + 14, y + 4, 32, 14);
+      } catch { }
+
+      y += 21;
+      doc.setLineWidth(0.4);
+      doc.line(mL, y, mL + 60, y);
+      doc.line(pageW / 2 + 10, y, pageW - mR, y);
+      y += 4;
+
+      // Datos bajo firma empleador
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(9);
+      doc.text('HEIDY JACKELINE TORRES SOTELO', mL, y);
+      y += 4;
+      doc.text('TU ALIANZA S.A.S', mL, y);
+      y += 4;
+      doc.text('NIT. 900.864.596-1', mL, y);
+
+      // Datos bajo firma trabajador
+      let yRight = y - 8;
+      doc.setFont('helvetica', 'bold');
+      doc.text('FIRMA', pageW / 2 + 10, yRight);
+      yRight += 4;
+      doc.setFont('helvetica', 'normal');
+      doc.text(`N° de Documento: ${cedula}`, pageW / 2 + 10, yRight);
+
+      // ───── Pie de página ─────
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8);
+      doc.text('V2-07-Jun-22', pageW - mR, pageH - 16, { align: 'right' });
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7);
+      doc.text('Tu Alianza S.A.S., Oficina Madrid: Cl 7 #4-49 Centro, PBX 744 4002;', pageW / 2, pageH - 11, { align: 'center' });
+      doc.text('Oficina Facatativá Cra. 2 # 8-156 Centro Tel: 890 29 70. Mail: servicioalcliente@tsservicios.co', pageW / 2, pageH - 8, { align: 'center' });
+
+      // ───── Guardar PDF ─────
+      const pdfBlob = doc.output('blob');
+      const fileName = `OTRO_SI_SAGARO_FUMIGADOR_${cedula}.pdf`;
+      const pdfFile = new File([pdfBlob], fileName, { type: 'application/pdf' });
+      this.uploadedFiles['OTRO SI Sagaro Fumigador'] = { file: pdfFile, fileName };
+      this.verPDF({ titulo: 'OTRO SI Sagaro Fumigador' });
+
+    } catch (error) {
+      console.error('Error generando OTRO SI Sagaro Fumigador:', error);
+      Swal.fire({ icon: 'error', title: 'Error', text: 'Ocurrió un error al generar el OTRO SI Sagaro Fumigador.' });
+    }
+  }
+
+
+  // ─────────────────────────────────────────────────────────────────────
   // Auxilio Extralegal de Alimentación y Hospedaje – PDF generado con jsPDF
   // ─────────────────────────────────────────────────────────────────────
   async generarAuxilioAlimentacion() {
@@ -11855,10 +12260,10 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       const cand: any = this.candidato ?? {};
       const vac: any = this.vacante ?? {};
       const cedula = String(cand.numero_documento ?? this.cedula ?? '').trim();
-      const empresaUsuaria = (vac.empresaUsuariaSolicita ?? vac.finca ?? '').toString().toUpperCase().trim();
+      const empresaUsuaria = (this.empresaUsuariaDoc || vac.finca || '').toString().toUpperCase().trim();
 
       // ─── Helpers de fecha ───
-      const mesesEs = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+      const mesesEs = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
       const hoy = new Date();
       const dia = hoy.getDate();
       const mes = mesesEs[hoy.getMonth()];
@@ -12099,13 +12504,13 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       const cand: any = this.candidato ?? {};
       const vac: any = this.vacante ?? {};
       const cedula = String(cand.numero_documento ?? this.cedula ?? '').trim();
-      const empresaUsuaria = (vac.empresaUsuariaSolicita ?? vac.finca ?? '').toString().trim();
+      const empresaUsuaria = (this.empresaUsuariaDoc || vac.finca || '').toString().trim();
       const municipio = (cand.residencia?.municipio ?? '').toString().trim();
       const departamento = (cand.residencia?.departamento ?? '').toString().trim();
       const ubicacion = [municipio, departamento].filter(Boolean).join('– ') || 'Bogotá D.C.';
 
       // ─── Fecha ───
-      const mesesEs = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+      const mesesEs = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
       const hoy = new Date();
       const dia = hoy.getDate();
       const mes = mesesEs[hoy.getMonth()];

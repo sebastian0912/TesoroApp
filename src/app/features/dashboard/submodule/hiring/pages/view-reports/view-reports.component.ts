@@ -123,9 +123,10 @@ export class ViewReportsComponent implements OnInit {
   activeRangeLabel = signal('Hoy');
   lastUpdate = signal<Date | null>(null);
   liveMode = signal(true);
-  cedulasZipProgress = signal<number | null>(null);
-  cedulasZipLoadedMb = signal<number>(0);
-  cedulasZipTotalMb = signal<number | null>(null);
+  zipProgress = signal<number | null>(null);
+  zipLoadedMb = signal<number>(0);
+  zipTotalMb = signal<number | null>(null);
+  zipLabel = signal<string>('');
 
   private static readonly AUTO_REFRESH_MS = 20000;
 
@@ -881,26 +882,49 @@ export class ViewReportsComponent implements OnInit {
     return null;
   }
 
-  descargarCedulasZip(): void {
+  descargarDocumentosZip(tipo: 'cedulas' | 'traslados' | 'sst'): void {
     if (!this.isBrowser) return;
+
+    const config = {
+      cedulas: {
+        label: 'cédulas',
+        headerPrefix: 'Cedulas',
+        file: 'cedulas',
+        noun: 'cédula',
+      },
+      traslados: {
+        label: 'traslados',
+        headerPrefix: 'Traslados',
+        file: 'traslados',
+        noun: 'traslado',
+      },
+      sst: {
+        label: 'SST',
+        headerPrefix: 'Sst',
+        file: 'sst',
+        noun: 'documento SST',
+      },
+    }[tipo];
 
     const from = this.activeFrom();
     const to = this.activeTo();
 
     this.isExporting.set(true);
-    this.cedulasZipProgress.set(null);
-    this.cedulasZipLoadedMb.set(0);
-    this.cedulasZipTotalMb.set(null);
+    this.zipLabel.set(config.label);
+    this.zipProgress.set(null);
+    this.zipLoadedMb.set(0);
+    this.zipTotalMb.set(null);
 
     const resetProgress = () => {
       this.isExporting.set(false);
-      this.cedulasZipProgress.set(null);
-      this.cedulasZipLoadedMb.set(0);
-      this.cedulasZipTotalMb.set(null);
+      this.zipProgress.set(null);
+      this.zipLoadedMb.set(0);
+      this.zipTotalMb.set(null);
+      this.zipLabel.set('');
     };
 
     this.reportesService
-      .downloadCedulasZip({
+      .downloadDocumentosZip(tipo, {
         fechaDesde: from || undefined,
         fechaHasta: to || undefined,
       })
@@ -912,15 +936,15 @@ export class ViewReportsComponent implements OnInit {
         next: (event) => {
           if (event.type === HttpEventType.DownloadProgress) {
             const loadedMb = event.loaded / (1024 * 1024);
-            this.cedulasZipLoadedMb.set(Math.round(loadedMb * 10) / 10);
+            this.zipLoadedMb.set(Math.round(loadedMb * 10) / 10);
 
             if (event.total && event.total > 0) {
               const totalMb = event.total / (1024 * 1024);
-              this.cedulasZipTotalMb.set(Math.round(totalMb * 10) / 10);
+              this.zipTotalMb.set(Math.round(totalMb * 10) / 10);
               const pct = Math.min(99, Math.floor((event.loaded / event.total) * 100));
-              this.cedulasZipProgress.set(pct);
+              this.zipProgress.set(pct);
             } else {
-              this.cedulasZipProgress.set(null);
+              this.zipProgress.set(null);
             }
             return;
           }
@@ -931,23 +955,25 @@ export class ViewReportsComponent implements OnInit {
           if (!blob || blob.size === 0) {
             Swal.fire({
               icon: 'warning',
-              title: 'Sin cédulas',
-              text: 'No se encontraron documentos de cédula para el rango seleccionado.',
+              title: `Sin ${config.label}`,
+              text: `No se encontraron documentos de ${config.label} para el rango seleccionado.`,
             });
             return;
           }
 
-          this.cedulasZipProgress.set(100);
-          const fileName = `cedulas_${from || 'sin_desde'}_a_${to || 'sin_hasta'}.zip`;
+          this.zipProgress.set(100);
+          const fileName = `${config.file}_${from || 'sin_desde'}_a_${to || 'sin_hasta'}.zip`;
           saveAs(blob, fileName);
 
           const headers = event.headers;
-          const incluidas = Number(headers.get('X-Cedulas-Incluidas') || 0);
-          const faltantes = Number(headers.get('X-Cedulas-Faltantes') || 0);
-          const duplicadas = Number(headers.get('X-Cedulas-Duplicadas') || 0);
-          const repesExtra = Number(headers.get('X-Cedulas-Repeticiones-Extra') || 0);
-          const detalleRaw = headers.get('X-Cedulas-Duplicadas-Detalle') || '';
-          const truncado = headers.get('X-Cedulas-Duplicadas-Truncado') === '1';
+          const p = config.headerPrefix;
+          const incluidas = Number(headers.get(`X-${p}-Incluidas`) || 0);
+          const faltantes = Number(headers.get(`X-${p}-Faltantes`) || 0);
+          const duplicadas = Number(headers.get(`X-${p}-Duplicadas`) || 0);
+          const repesExtra = Number(headers.get(`X-${p}-Repeticiones-Extra`) || 0);
+          const detalleRaw = headers.get(`X-${p}-Duplicadas-Detalle`) || '';
+          const truncado = headers.get(`X-${p}-Duplicadas-Truncado`) === '1';
+          const manifestLabel = config.file.toUpperCase();
 
           type DupItem = { cedula: string; sedes: string[]; veces: number };
           let detalle: DupItem[] = [];
@@ -972,7 +998,7 @@ export class ViewReportsComponent implements OnInit {
             extraHtml +=
               `<div style="margin-top:14px; text-align:left;">` +
               `<div style="font-weight:600; color:#92400e;">` +
-              `⚠️ ${duplicadas} cédula(s) duplicadas — ${repesExtra} repetición(es) extra` +
+              `⚠️ ${duplicadas} ${config.noun}(s) duplicado(s) — ${repesExtra} repetición(es) extra` +
               `</div>`;
 
             if (detalle.length > 0) {
@@ -997,8 +1023,8 @@ export class ViewReportsComponent implements OnInit {
               if (truncado) {
                 extraHtml +=
                   `<div style="margin-top:6px;font-size:0.82rem;color:#64748b;">` +
-                  `Se muestran las primeras ${detalle.length} cédulas duplicadas. ` +
-                  `El detalle completo está en <b>_CEDULAS_DUPLICADAS.txt</b> dentro del ZIP.` +
+                  `Se muestran los primeros ${detalle.length} ${config.noun}(s) duplicado(s). ` +
+                  `El detalle completo está en <b>_${manifestLabel}_DUPLICADAS.txt</b> dentro del ZIP.` +
                   `</div>`;
               }
             }
@@ -1009,10 +1035,10 @@ export class ViewReportsComponent implements OnInit {
             extraHtml +=
               `<div style="margin-top:14px; text-align:left;">` +
               `<div style="font-weight:600; color:#991b1b;">` +
-              `❌ ${faltantes} cédula(s) están en BD pero falta el archivo en almacenamiento` +
+              `❌ ${faltantes} ${config.noun}(s) están en BD pero falta el archivo en almacenamiento` +
               `</div>` +
               `<div style="font-size:0.85rem;color:#475569;margin-top:4px;">` +
-              `Detalle dentro del ZIP en <b>_CEDULAS_FALTANTES.txt</b>.` +
+              `Detalle dentro del ZIP en <b>_${manifestLabel}_FALTANTES.txt</b>.` +
               `</div></div>`;
           }
 
@@ -1022,7 +1048,7 @@ export class ViewReportsComponent implements OnInit {
             width: duplicadas > 0 ? 720 : undefined,
             html:
               `<div style="text-align:left;">` +
-              `Se generó el ZIP de cédulas para el rango ` +
+              `Se generó el ZIP de ${config.label} para el rango ` +
               `<b>${this.activeRangeLabel()}</b>.<br>` +
               `Archivos incluidos: <b>${incluidas}</b>.` +
               `</div>` +
@@ -1035,7 +1061,7 @@ export class ViewReportsComponent implements OnInit {
             title: 'Error al descargar',
             text:
               err?.message ??
-              'Ocurrió un error al descargar el ZIP de cédulas.',
+              `Ocurrió un error al descargar el ZIP de ${config.label}.`,
           });
         },
       });

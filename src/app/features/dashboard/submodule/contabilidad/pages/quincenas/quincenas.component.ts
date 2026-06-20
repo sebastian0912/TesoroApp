@@ -18,6 +18,7 @@ import Swal from 'sweetalert2';
 import { StandardFilterTable } from '@/app/shared/components/standard-filter-table/standard-filter-table';
 import { ColumnDefinition } from '@/app/shared/models/advanced-table-interface';
 import { ContabilidadService } from '../../service/contabilidad.service';
+import { getLocalStorageItem } from '../../../../../../core/utils/safe-storage';
 
 export interface SheetTab {
   name: string;
@@ -309,7 +310,7 @@ export class QuincenasComponent {
     this.cdr.detectChanges();
 
     try {
-      const user = JSON.parse(localStorage.getItem('user') || '{}');
+      const user = JSON.parse(getLocalStorageItem('user') || '{}');
       const result = await this.contabilidadService.importarExcel(
         this.currentFile,
         this.tipoCarga(),

@@ -10,16 +10,24 @@
   <!-- Viewport (CLAVE para que el @media funcione en móvil) -->
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 
-  <!-- CSP -->
+  <!--
+    Content Security Policy
+    - Removed 'unsafe-eval' from script-src (esbuild builder no longer requires it).
+    - frame-ancestors no aplica via <meta> (la spec del CSP solo lo lee desde
+      HTTP header). En Electron la app corre con file:// asi que el riesgo
+      de clickjacking es nulo; no se reemplaza por header.
+    - object-src kept with blob:/data: because some PDF previews rely on it.
+    - connect-src lists the real backend endpoints used by the app.
+  -->
   <meta http-equiv="Content-Security-Policy" content="
         default-src 'self';
         base-uri 'self';
         form-action 'self';
-        script-src 'self' 'unsafe-inline' 'unsafe-eval';
+        script-src 'self' 'unsafe-inline';
         style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
         font-src 'self' data: https://fonts.gstatic.com;
         connect-src 'self' https://formulario.tsservicios.co http://10.10.10.60:4545 http://127.0.0.1:8000 http://localhost:8000 http://127.0.0.1:4545 http://localhost:4545;
-        frame-src 'self' blob: data: https://formulario.tsservicios.co;
+        frame-src 'self' blob: data: https://formulario.tsservicios.co http://10.10.10.60:4545 http://127.0.0.1:8000 http://localhost:8000 http://127.0.0.1:4545 http://localhost:4545;
         img-src 'self' data: blob: https://formulario.tsservicios.co http://10.10.10.60:4545 http://127.0.0.1:8000 http://localhost:8000 http://127.0.0.1:4545 http://localhost:4545;
         media-src 'self' data: blob: https://formulario.tsservicios.co http://10.10.10.60:4545 http://127.0.0.1:8000 http://localhost:8000 http://127.0.0.1:4545 http://localhost:4545;
         worker-src 'self' blob:;

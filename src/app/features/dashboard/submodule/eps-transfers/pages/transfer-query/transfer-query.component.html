@@ -1,75 +1,209 @@
-<mat-card>
-  <mat-card-content>
-    <form [formGroup]="myForm" (ngSubmit)="onSubmit()">
-      <h1 class="titulo">
-        Digite el número de identificación del empleado a validar:
+<section class="tq-page">
+  <!-- ===================== HEADER ===================== -->
+  <header class="tq-header">
+    <div class="tq-header-text">
+      <h1 class="tq-title">
+        <mat-icon class="tq-title-icon" aria-hidden="true">swap_horiz</mat-icon>
+        Consulta de Traslados EPS
       </h1>
-
-      <ng-container>
-        <mat-form-field class="example-full-width">
-          <mat-label>Número de identificación</mat-label>
-          <input matInput formControlName="cedula" />
-          @if (myForm.get('cedula')?.hasError('required')) {
-            <mat-error>
-              El número de identificación es requerido
-            </mat-error>
-          }
-        </mat-form-field>
-
-        <button mat-flat-button type="submit">Buscar</button>
-      </ng-container>
-    </form>
-
-    <div class="table-container">
-      <table mat-table [dataSource]="dataSource" class="mat-elevation-z8">
-
-        <!-- Código de Traslado -->
-        <ng-container matColumnDef="codigo_traslado">
-          <th mat-header-cell *matHeaderCellDef> Código Traslado </th>
-          <td mat-cell *matCellDef="let element"> {{ element.codigo_traslado }} </td>
-        </ng-container>
-
-        <!-- Solicitud Traslado -->
-        <ng-container matColumnDef="solicitud_traslado">
-          <th mat-header-cell *matHeaderCellDef> Solicitud </th>
-          <td mat-cell *matCellDef="let element">
-            @if (resolveSolicitudUrl(element); as url) {
-              <button mat-button (click)="verDocumento(url)">
-                Ver Documento
-              </button>
-            } @else {
-              <span>Sin documento</span>
-            }
-          </td>
-        </ng-container>
-
-        <!-- EPS a Trasladar -->
-        <ng-container matColumnDef="eps_a_trasladar">
-          <th mat-header-cell *matHeaderCellDef> EPS a Trasladar </th>
-          <td mat-cell *matCellDef="let element"> {{ element.eps_a_trasladar }} </td>
-        </ng-container>
-
-        <!-- Responsable -->
-        <ng-container matColumnDef="responsable">
-          <th mat-header-cell *matHeaderCellDef> Responsable </th>
-          <td mat-cell *matCellDef="let element"> {{ element.responsable }} </td>
-        </ng-container>
-
-        <!-- Estado del Traslado -->
-        <ng-container matColumnDef="estado_del_traslado">
-          <th mat-header-cell *matHeaderCellDef> Estado </th>
-          <td mat-cell *matCellDef="let element"> {{ element.estado_del_traslado }} </td>
-        </ng-container>
-
-        <!-- Filas -->
-        <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
-        <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
-        <tr class="mat-row" *matNoDataRow>
-          <td class="mat-cell" colspan="5">
-            No hay datos
-          </td>
-        </tr>
-      </table>
+      <p class="tq-subtitle">
+        Verifica el estado de los traslados por número de identificación.
+      </p>
     </div>
-  </mat-card-content>
-</mat-card>
+
+    @if (puedeAdministrar) {
+      <div class="tq-header-actions">
+        <button
+          type="button"
+          mat-stroked-button
+          class="tq-admin-trigger"
+          [matMenuTriggerFor]="adminMenu"
+          [disabled]="isExporting || isDeactivating"
+          matTooltip="Acciones administrativas"
+          matTooltipPosition="below"
+          aria-label="Acciones administrativas">
+          <mat-icon>more_vert</mat-icon>
+          <span class="tq-admin-trigger-label">Acciones</span>
+        </button>
+
+        <mat-menu #adminMenu="matMenu" xPosition="before" class="tq-admin-menu">
+          <button mat-menu-item (click)="descargarExcel()" [disabled]="isExporting">
+            <mat-icon class="tq-menu-icon tq-menu-icon--primary">download</mat-icon>
+            <div class="tq-menu-text">
+              <span class="tq-menu-title">
+                {{ isExporting ? 'Generando Excel...' : 'Descargar Excel' }}
+              </span>
+              <span class="tq-menu-hint">Por rango de fechas de subida</span>
+            </div>
+          </button>
+          <mat-divider></mat-divider>
+          <button mat-menu-item (click)="abrirSelectorDesactivar()" [disabled]="isDeactivating">
+            <mat-icon class="tq-menu-icon tq-menu-icon--warn">cloud_upload</mat-icon>
+            <div class="tq-menu-text">
+              <span class="tq-menu-title">
+                {{ isDeactivating ? 'Desactivando...' : 'Desactivar desde Excel' }}
+              </span>
+              <span class="tq-menu-hint">Sube un archivo con códigos o cédulas</span>
+            </div>
+          </button>
+        </mat-menu>
+
+        <input
+          #uploadDeactivateInput
+          type="file"
+          accept=".xlsx,.xls"
+          hidden
+          (change)="onArchivoDesactivar($event)" />
+      </div>
+    }
+  </header>
+
+  <!-- ===================== SEARCH ===================== -->
+  <section class="tq-search-card">
+    <form [formGroup]="myForm" (ngSubmit)="onSubmit()" class="tq-search-form">
+      <mat-form-field appearance="outline" class="tq-search-field">
+        <mat-label>Número de identificación</mat-label>
+        <mat-icon matPrefix class="tq-search-prefix">badge</mat-icon>
+        <input
+          matInput
+          formControlName="cedula"
+          placeholder="Ej. 1073179214"
+          autocomplete="off"
+          inputmode="numeric" />
+        @if (myForm.get('cedula')?.value) {
+          <button
+            type="button"
+            mat-icon-button
+            matSuffix
+            class="tq-search-clear"
+            (click)="myForm.get('cedula')?.setValue('')"
+            aria-label="Limpiar">
+            <mat-icon>close</mat-icon>
+          </button>
+        }
+        @if (myForm.get('cedula')?.hasError('required') && myForm.get('cedula')?.touched) {
+          <mat-error>El número de identificación es requerido</mat-error>
+        }
+      </mat-form-field>
+
+      <button
+        mat-flat-button
+        color="primary"
+        type="submit"
+        class="tq-search-button"
+        [disabled]="!myForm.valid">
+        <mat-icon>search</mat-icon>
+        <span>Buscar</span>
+      </button>
+    </form>
+  </section>
+
+  <!-- ===================== RESULTADOS / ESTADOS ===================== -->
+  @if (dataSource.data.length > 0) {
+    <section class="tq-results-card">
+      <div class="tq-results-header">
+        <div class="tq-results-summary">
+          <span class="tq-chip">
+            <mat-icon class="tq-chip-icon">check_circle</mat-icon>
+            {{ dataSource.data.length }} traslado(s)
+          </span>
+        </div>
+      </div>
+
+      <div class="tq-table-wrapper">
+        <table mat-table [dataSource]="dataSource" class="tq-table">
+
+          <!-- Código de Traslado -->
+          <ng-container matColumnDef="codigo_traslado">
+            <th mat-header-cell *matHeaderCellDef class="tq-th">Código</th>
+            <td mat-cell *matCellDef="let element" class="tq-td tq-td--center">
+              <span class="tq-code">{{ element.codigo_traslado }}</span>
+            </td>
+          </ng-container>
+
+          <!-- Solicitud -->
+          <ng-container matColumnDef="solicitud_traslado">
+            <th mat-header-cell *matHeaderCellDef class="tq-th tq-th--center">Solicitud</th>
+            <td mat-cell *matCellDef="let element" class="tq-td tq-td--center">
+              @if (resolveSolicitudUrl(element); as url) {
+                <button
+                  type="button"
+                  mat-stroked-button
+                  color="primary"
+                  class="tq-doc-btn"
+                  (click)="verDocumento(url)"
+                  matTooltip="Abrir el PDF de la solicitud"
+                  matTooltipPosition="above">
+                  <mat-icon>picture_as_pdf</mat-icon>
+                  <span>Ver</span>
+                </button>
+              } @else {
+                <span class="tq-doc-empty">
+                  <mat-icon class="tq-doc-empty-icon">block</mat-icon>
+                  Sin documento
+                </span>
+              }
+            </td>
+          </ng-container>
+
+          <!-- EPS -->
+          <ng-container matColumnDef="eps_a_trasladar">
+            <th mat-header-cell *matHeaderCellDef class="tq-th">EPS a Trasladar</th>
+            <td mat-cell *matCellDef="let element" class="tq-td">
+              <span class="tq-eps">{{ element.eps_a_trasladar || '—' }}</span>
+            </td>
+          </ng-container>
+
+          <!-- Responsable -->
+          <ng-container matColumnDef="responsable">
+            <th mat-header-cell *matHeaderCellDef class="tq-th">Responsable</th>
+            <td mat-cell *matCellDef="let element" class="tq-td">
+              @if (element.responsable) {
+                <span class="tq-responsable">
+                  <mat-icon class="tq-responsable-icon">person</mat-icon>
+                  {{ element.responsable }}
+                </span>
+              } @else {
+                <span class="tq-muted">Sin asignar</span>
+              }
+            </td>
+          </ng-container>
+
+          <!-- Estado -->
+          <ng-container matColumnDef="estado_del_traslado">
+            <th mat-header-cell *matHeaderCellDef class="tq-th tq-th--center">Estado</th>
+            <td mat-cell *matCellDef="let element" class="tq-td tq-td--center">
+              <span
+                class="tq-badge"
+                [class.tq-badge--ok]="estadoEsOk(element.estado_del_traslado)"
+                [class.tq-badge--warn]="estadoEsPendiente(element.estado_del_traslado)"
+                [class.tq-badge--err]="estadoEsRechazado(element.estado_del_traslado)">
+                {{ element.estado_del_traslado || '—' }}
+              </span>
+            </td>
+          </ng-container>
+
+          <tr mat-header-row *matHeaderRowDef="displayedColumns; sticky: true" class="tq-header-row"></tr>
+          <tr mat-row *matRowDef="let row; columns: displayedColumns;" class="tq-row"></tr>
+        </table>
+      </div>
+    </section>
+  } @else {
+    <!-- ===================== EMPTY STATE ===================== -->
+    <section class="tq-empty-card">
+      <div class="tq-empty-icon-wrap">
+        <mat-icon class="tq-empty-icon">search</mat-icon>
+      </div>
+      <h2 class="tq-empty-title">Realiza una consulta</h2>
+      <p class="tq-empty-text">
+        Ingresa un número de identificación arriba para ver los traslados asociados.
+      </p>
+      @if (puedeAdministrar) {
+        <p class="tq-empty-hint">
+          <mat-icon class="tq-empty-hint-icon">tips_and_updates</mat-icon>
+          También puedes usar <strong>Acciones</strong> para descargar el reporte por rango o desactivar traslados desde Excel.
+        </p>
+      }
+    </section>
+  }
+</section>

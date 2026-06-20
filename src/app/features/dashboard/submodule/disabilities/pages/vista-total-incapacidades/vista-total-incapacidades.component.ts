@@ -31,6 +31,7 @@ import { MatDatepickerModule } from '@angular/material/datepicker';
 import { DatePipe } from '@angular/common'; // Importa DatePipe
 import { forkJoin, mergeMap } from 'rxjs';
 import * as ExcelJS from 'exceljs';
+import { getLocalStorageItem } from '../../../../../../core/utils/safe-storage';
 
 interface ColumnTitle {
   [key: string]: string;
@@ -676,7 +677,7 @@ private loadData(): void {
 
     async getUser(): Promise<any> {
       if (isPlatformBrowser(this.platformId)) {
-        const user = localStorage.getItem('user');
+        const user = getLocalStorageItem('user');
         if (user) {
           return JSON.parse(user);
         }

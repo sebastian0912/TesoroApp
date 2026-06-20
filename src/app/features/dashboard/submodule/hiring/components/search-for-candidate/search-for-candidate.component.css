@@ -1,12 +1,14 @@
 :host {
   display: block;
-  padding: 0;
+  /* Mini margen lateral: la tabla ocupa casi todo el ancho disponible. */
+  padding: 0 10px;
   box-sizing: border-box;
 }
 
 .search-candidate-container {
-  max-width: 1100px;
-  margin: 0 auto;
+  /* Ocupar el máximo horizontal (antes estaba topado a 1100px). */
+  max-width: 100%;
+  margin: 0;
   position: relative;
 }
 
@@ -81,13 +83,14 @@
   color: #334155;
   font-weight: 600;
   text-align: left;
-  padding: 10px 12px;
+  padding: 6px 10px;
   border-bottom: 1px solid #e2e8f0;
   white-space: nowrap;
 }
 
 .recientes-table tbody td {
-  padding: 10px 12px;
+  /* Filas más bajas para ver más registros en pantalla. */
+  padding: 4px 10px;
   border-bottom: 1px solid #f1f5f9;
   vertical-align: middle;
 }
@@ -172,14 +175,33 @@
   pointer-events: auto;
 }
 
+/* Selector de tipo de documento: ancho fijo y compacto a la izquierda de la cédula */
+.busqueda-tipodoc {
+  flex: 0 0 150px;
+  width: 150px;
+  min-width: 130px;
+}
+
+.busqueda-tipodoc ::ng-deep .mat-mdc-form-field-subscript-wrapper {
+  display: none;
+}
+
 /* Input que aprovecha todo el ancho disponible del slider */
 .busqueda-input {
-  flex: 1 1 280px;
-  min-width: 220px;
+  flex: 1 1 240px;
+  min-width: 200px;
 }
 
 .busqueda-input ::ng-deep .mat-mdc-form-field-subscript-wrapper {
   display: none;
+}
+
+.toggle-encolar {
+  flex-shrink: 0;
+  white-space: nowrap;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #334155;
 }
 
 .btn-consultar-inline,
@@ -212,9 +234,15 @@
     flex-wrap: wrap;
   }
 
-  .busqueda-input {
+  .busqueda-input,
+  .busqueda-tipodoc {
     width: 100%;
     flex: 1 1 100%;
+  }
+
+  .toggle-encolar {
+    flex: 1 1 100%;
+    margin: 4px 0;
   }
 
   .btn-consultar-inline,
@@ -312,6 +340,89 @@
 .badge-atendido {
   background: #dbeafe;
   color: #1e40af;
+}
+
+/* Celda de experiencia: badge Sí/No + área (en qué tiene experiencia). */
+.exp-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  align-items: flex-start;
+}
+
+.exp-area {
+  font-size: 12px;
+  color: #334155;
+  font-weight: 600;
+  max-width: 180px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.exp-anios {
+  color: #64748b;
+  font-weight: 500;
+}
+
+/* ─────── Antecedentes del robot (columna "Antecedentes") ─────── */
+.antecedentes-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  align-items: flex-start;
+}
+
+.fuentes-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+}
+
+.chip-fuente {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 30px;
+  padding: 1px 5px;
+  border-radius: 5px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  line-height: 1.5;
+  cursor: default;
+  border: 1px solid transparent;
+}
+
+/* Listo (terminó). */
+.chip-fuente-ok {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+/* Consultando ahora mismo. */
+.chip-fuente-progreso {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+/* En cola, aún no consultada. */
+.chip-fuente-pendiente {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+/* Bloqueada / rechazada. */
+.chip-fuente-bloqueado {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+/* La cédula no está registrada en la cola del robot. */
+.chip-fuente-na {
+  background: #f1f5f9;
+  color: #94a3b8;
+  border-color: #e2e8f0;
 }
 
 /* Fila ya atendida hoy: aspecto tenue, va al final por orden del backend. */

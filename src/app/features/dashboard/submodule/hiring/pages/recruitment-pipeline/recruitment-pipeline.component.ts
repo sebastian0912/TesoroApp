@@ -32,6 +32,7 @@ import { firstValueFrom, merge, startWith } from 'rxjs';
 import Swal from 'sweetalert2';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { RegistroProcesoContratacion } from '../../service/registro-proceso-contratacion/registro-proceso-contratacion';
+import { SeleccionEstadoService } from '../../service/seleccion/seleccion-estado.service';
 import { TableDialogComponent } from '@/app/shared/components/table-dialog/table-dialog.component';
 import { GestionDocumentalService } from '../../service/gestion-documental/gestion-documental.service';
 import jsPDF from 'jspdf';
@@ -221,6 +222,30 @@ export class RecruitmentPipelineComponent {
   private electronWindow = inject(ElectronWindowService);
   private platformId = inject(PLATFORM_ID);
   private isBrowser = signal(false);
+  private seleccionEstado = inject(SeleccionEstadoService);
+
+  /**
+   * El candidato quedó EN ESPERA de vacante o NO APLICA (observación del
+   * evaluador): se bloquean los Exámenes de ingreso hasta que aplique.
+   */
+  readonly bloqueado = this.seleccionEstado.bloqueado;
+  readonly motivoBloqueo = this.seleccionEstado.motivoBloqueo;
+
+  /**
+   * True cuando el candidato consultado tiene un CONTRATO ACTIVO. Mientras lo
+   * tenga no puede avanzar al resto del pipeline (Antecedentes, Selección,
+   * Exámenes, Contratación): primero hay que darle de baja ese contrato
+   * (pill verde "Contrato activo" del header o el botón del banner).
+   */
+  readonly contratoActivo = computed<boolean>(() =>
+    !!this.candidatoSeleccionado()?.entrevistas?.[0]?.proceso?.contrato?.contrato_activo
+  );
+
+  /**
+   * Índice del tab activo. Controlado para poder forzar el regreso a "Turnos"
+   * cuando hay un contrato activo (los demás tabs quedan deshabilitados).
+   */
+  readonly tabIndex = signal(0);
 
   // ───────── Form Parte 3 ─────────
   formGroup3: FormGroup = this.fb.group({
@@ -452,6 +477,13 @@ export class RecruitmentPipelineComponent {
         this._lastMissingKey.set('');
         this._closeToast();
       }
+    });
+
+    // 6) Contrato ACTIVO ⇒ sólo "Turnos" disponible. Si el candidato
+    //    consultado tiene contrato activo forzamos el primer tab; los demás
+    //    quedan deshabilitados en la plantilla hasta darle de baja.
+    effect(() => {
+      if (this.contratoActivo()) this.tabIndex.set(0);
     });
   }
 
@@ -809,6 +841,21 @@ export class RecruitmentPipelineComponent {
   async imprimirSaludOcupacional(): Promise<void> {
     if (this.isSavingMedical()) return;
 
+    // Bloqueo: candidato EN ESPERA de vacante o NO APLICA → no se cargan exámenes.
+    if (this.bloqueado()) {
+      await Swal.fire({
+        title: `Candidato ${this.motivoBloqueo()}`,
+        text: 'No se pueden registrar exámenes de ingreso con la observación actual del evaluador.',
+        icon: 'info',
+        toast: true,
+        position: 'top-end',
+        showConfirmButton: false,
+        timer: 3500,
+        timerProgressBar: true,
+      });
+      return;
+    }
+
     const f = this.formGroup3.value;
     const numeroDocumento = this.candidatoSeleccionado()?.numero_documento;
     if (!numeroDocumento) {
@@ -926,9 +973,14 @@ export class RecruitmentPipelineComponent {
 
         // 3) Subir PDF consolidado (85% → 100%)
         updateLoader(88, 'Subiendo PDF consolidado…', mergedName);
+        // Pasar tipo_documento para que el backend prefije owner_id con "x"
+        // cuando la persona no es CC (evita colisiones entre CC y non-CC).
+        const tipoDoc = (this.candidatoSeleccionado()?.tipo_documento
+                        ?? this.candidatoSeleccionado()?.tipoDocumento
+                        ?? undefined) as string | undefined;
         const obs = this.candidatoSeleccionado()?.codigo_contrato
-          ? this.docSvc.guardarDocumento(mergedFile.name, cedula, TYPE_EXAM, mergedFile, this.candidatoSeleccionado()?.codigo_contrato)
-          : this.docSvc.guardarDocumento(mergedFile.name, cedula, TYPE_EXAM, mergedFile);
+          ? this.docSvc.guardarDocumento(mergedFile.name, cedula, TYPE_EXAM, mergedFile, this.candidatoSeleccionado()?.codigo_contrato, tipoDoc)
+          : this.docSvc.guardarDocumento(mergedFile.name, cedula, TYPE_EXAM, mergedFile, undefined, tipoDoc);
         await firstValueFrom(obs);
         updateLoader(100, 'Finalizando…');
 
@@ -1042,10 +1094,14 @@ export class RecruitmentPipelineComponent {
 
         const data = Array.isArray(rows) ? rows : (rows ? [rows] : []);
 
-        // Regla: si hay más de 5 procesos, solo el primero (más reciente) es CONTRATADO, el resto RETIRADO
-        const contratadosCount = data.filter((r: any) => r.contratado === true).length;
+        // Regla de negocio: SOLO puede haber UN proceso CONTRATADO (el contrato
+        // activo más reciente). Los datos llegan ordenados del más reciente al
+        // más antiguo, así que el PRIMER contratado activo que se encuentra es
+        // el vigente; cualquier otro contratado posterior en la lista (un
+        // contrato anterior) se muestra como RETIRADO.
+        let contratadoAsignado = false;
 
-        const mappedData = data.map((row: any, idx: number) => {
+        const mappedData = data.map((row: any) => {
           const apl = String(row.aplica_o_no_aplica || '').toUpperCase();
           row._motivo = '';
 
@@ -1054,11 +1110,13 @@ export class RecruitmentPipelineComponent {
             row._estado = 'RETIRADO';
             row._motivo = row.motivo_retiro || '';
           } else if (row.contratado === true) {
-            if (contratadosCount > 5 && idx > 0) {
+            if (!contratadoAsignado) {
+              row._estado = 'CONTRATADO';
+              contratadoAsignado = true;
+            } else {
+              // Ya hay un contratado vigente: este es un contrato anterior.
               row._estado = 'RETIRADO';
               row._motivo = row.motivo_retiro || '';
-            } else {
-              row._estado = 'CONTRATADO';
             }
           } else if (row.rechazado === true || apl === 'NO_APLICA' || apl === 'NO APLICA') {
             row._estado = '911';
@@ -1105,12 +1163,12 @@ export class RecruitmentPipelineComponent {
           maxWidth: '95vw',
           height: '80vh',
           data: {
-            title: `Procesos de ${this.nombreCandidato || ced}`,
+            title: `Historial laboral de ${this.nombreCandidato || ced}`,
             rows: mappedData,
             columns,
             pageSize: 12,
             pageSizeOptions: [12, 24, 36],
-            tableTitle: 'Procesos del candidato',
+            tableTitle: 'Historial laboral',
           },
           panelClass: 'table-dialog',
         });
@@ -1945,10 +2003,12 @@ export class RecruitmentPipelineComponent {
         const pdfFile = new File([pdfBlob], `carnet_${row.CEDULA}.pdf`, { type: 'application/pdf' });
         const codigoContrato = row.CODIGO || cand.contrato?.codigo_contrato;
         
+        // tipo_documento del candidato para prefijo "x" en non-CC.
+        const tipoDocCarnet = (cand?.tipo_documento ?? cand?.tipoDocumento ?? undefined) as string | undefined;
         await firstValueFrom(
-          codigoContrato 
-            ? this.docSvc.guardarDocumento(`carnet_${row.CEDULA}.pdf`, cedula, 102, pdfFile, codigoContrato)
-            : this.docSvc.guardarDocumento(`carnet_${row.CEDULA}.pdf`, cedula, 102, pdfFile)
+          codigoContrato
+            ? this.docSvc.guardarDocumento(`carnet_${row.CEDULA}.pdf`, cedula, 102, pdfFile, codigoContrato, tipoDocCarnet)
+            : this.docSvc.guardarDocumento(`carnet_${row.CEDULA}.pdf`, cedula, 102, pdfFile, undefined, tipoDocCarnet)
         );
         backMsg = '<br><br><small style="color:green;">El carnet también se guardó correctamente en el historial del candidato.</small>';
       } catch (err) {

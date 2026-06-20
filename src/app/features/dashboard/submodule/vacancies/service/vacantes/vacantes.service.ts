@@ -26,11 +26,13 @@ export class VacantesService {
   }
 
   // ========= Publicación (congruente con publicacion/urls.py) =========
-  listarVacantes(): Observable<any> {
+  // activo: true (solo activas, default) | false (solo inactivas) | 'all' (todas)
+  listarVacantes(activo: boolean | 'all' = true): Observable<any> {
     const url = this.base('/publicacion/publicaciones/');
-    const params = new HttpParams()
-      .set('activo', 'true');
-
+    let params = new HttpParams();
+    if (activo !== 'all') {
+      params = params.set('activo', activo ? 'true' : 'false');
+    }
     return this.http.get(url, { params })
       .pipe(catchError(this.handleError));
   }

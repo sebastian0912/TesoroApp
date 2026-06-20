@@ -51,13 +51,28 @@
       <mat-icon class="cat-arrow">chevron_right</mat-icon>
     </button>
   }
+
+  @if (admin) {
+    <button class="category-card" (click)="openPanel('migracion')">
+      <div class="cat-icon migracion">
+        <mat-icon>cloud_download</mat-icon>
+      </div>
+      <div class="cat-info">
+        <span class="cat-title">Migración</span>
+        <span class="cat-desc">Descargar gestion_documental por lotes</span>
+      </div>
+      <mat-icon class="cat-arrow">chevron_right</mat-icon>
+    </button>
+  }
 </div>
 
 <!-- Slide Panel Backdrop -->
 <div class="panel-backdrop" [class.open]="activePanel !== null" (click)="closePanel()"></div>
 
 <!-- Slide Panel -->
-<div class="slide-panel" [class.open]="activePanel !== null">
+<div class="slide-panel"
+     [class.open]="activePanel !== null"
+     [class.wide]="activePanel === 'migracion'">
   <div class="panel-header">
     <button class="panel-back" (click)="closePanel()">
       <mat-icon>arrow_back</mat-icon>
@@ -70,6 +85,22 @@
     @if (activePanel === 'robots') {
       <app-info-card matIcon="upload_file" title="Cargar solicitudes robots paquete"
         description="Sube un Excel con las solicitudes para robots" (click)="triggerFileInput()">
+      </app-info-card>
+      <app-info-card matIcon="autorenew" title="Cargar solicitudes robots — solo actualizar ADRES"
+        description="Re-consulta ADRES para refrescar datos SIN cambiar el documento vigente (las consultas siguen mostrando la versión anterior)"
+        (click)="triggerFileInputSoloActualizar()">
+      </app-info-card>
+      <app-info-card matIcon="download" title="Descargar ADRES por rango de fechas"
+        description="Genera un Excel con los registros ADRES procesados en un rango"
+        (click)="descargarAdressPorRango()">
+      </app-info-card>
+      <app-info-card matIcon="upload_file" title="Descargar ADRES por lista de cedulas"
+        description="Sube un Excel con cedulas y descarga sus datos ADRES (incluye PDF)"
+        (click)="triggerFileInputAdresCedulas()">
+      </app-info-card>
+      <app-info-card matIcon="picture_as_pdf" title="Descargar ADRES (modo actualizar) por lista de cedulas"
+        description="Igual que el anterior, pero el PDF es la última versión generada en modo solo actualizar"
+        (click)="triggerFileInputAdresCedulasActualizar()">
       </app-info-card>
     }
 
@@ -99,17 +130,25 @@
         description="Sube un Excel con cédula, código y centro de costo" (click)="triggerFileInputCarnets()">
       </app-info-card>
     }
+
+    <!-- Migración gestion_documental -->
+    @if (activePanel === 'migracion') {
+      <app-migration-panel></app-migration-panel>
+    }
   </div>
 </div>
 
 <!-- Hidden file inputs -->
 <input #fileInput type="file" (change)="cargarExcel($event)" accept=".xlsx, .xls" class="hidden-input" />
+<input #fileInputSoloActualizar type="file" (change)="cargarExcelSoloActualizar($event)" accept=".xlsx, .xls" class="hidden-input" />
+<input #fileInputAdresCedulasActualizar type="file" (change)="descargarAdressPorCedulasActualizarDesdeExcel($event)" accept=".xlsx, .xls" class="hidden-input" />
 <input #fileInputResetContratado type="file" (change)="cargarExcelResetContratado($event)" accept=".xlsx, .xls"
   class="hidden-input" />
 <input #fileInputExcelCandidatos type="file" (change)="cargarExcelParaExportarCandidatos($event)" accept=".xlsx, .xls"
   class="hidden-input" />
 <input #fileInputCarnets type="file" (change)="cargarExcelCarnets($event)" accept=".xlsx, .xls" class="hidden-input" />
 <input #fileInputLimpiarExcel type="file" (change)="procesarYLimpiarExcel($event)" accept=".xlsx, .xls" class="hidden-input" />
+<input #fileInputAdresCedulas type="file" (change)="descargarAdressPorCedulasDesdeExcel($event)" accept=".xlsx, .xls" class="hidden-input" />
     <!-- Merchandising (solo si comercializadora) -->
     @if (comercializadora) {
       <div class="merchandising-section">

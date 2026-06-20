@@ -955,3 +955,41 @@ body.dark-theme mat-card {
 button {
   min-height: 48px !important;
 }
+/* Tooltip multilínea: respeta los saltos de línea (\n) del texto.
+   Se renderiza en el overlay del CDK, por eso debe ser global. */
+.tooltip-multilinea .mdc-tooltip__surface,
+.tooltip-multilinea.mat-mdc-tooltip .mdc-tooltip__surface {
+  white-space: pre-line;
+  max-width: 360px;
+  text-align: left;
+}
+
+/* ───────── Dialog de cumplimiento de vacante ───────── */
+.mat-mdc-dialog-panel.cumpl-dialog-panel {
+  max-width: 94vw !important;
+}
+
+.mat-mdc-dialog-panel.cumpl-dialog-panel .mat-mdc-dialog-surface {
+  padding: 0 !important;
+  border-radius: 18px !important;
+  overflow: hidden !important;
+  background: #ffffff !important;
+  box-shadow: 0 24px 70px rgba(15, 23, 42, 0.26),
+    0 10px 26px rgba(15, 23, 42, 0.16) !important;
+}
+
+/* El componente controla su propio espaciado y altura: .cumpl-dialog se limita
+   a 92vh y .cumpl-body crece con flex (min-height:0) para ser el único que
+   scrollea. Aquí sólo quitamos el tope de 65vh del MDC (que recortaría el flex)
+   y garantizamos el contenedor de scroll por si la encapsulación no aplica. */
+.mat-mdc-dialog-panel.cumpl-dialog-panel .mat-mdc-dialog-content {
+  max-height: none !important;
+  overflow-y: auto !important;
+}
+
+/* SweetAlert2 SIEMPRE por encima de los diálogos/overlays de Angular Material
+   (el overlay CDK usa z-index 1000; sin esto los Swal abiertos desde un
+   MatDialog quedan por detrás). */
+.swal2-container {
+  z-index: 100000 !important;
+}

@@ -16,6 +16,15 @@
 
           <!-- Slider: input + acciones sólo visibles cuando busquedaAbierta = true -->
           <div class="busqueda-slider" [attr.aria-hidden]="!busquedaAbierta">
+            <mat-form-field appearance="outline" class="busqueda-tipodoc">
+              <mat-label>Tipo doc.</mat-label>
+              <mat-select [(ngModel)]="tipoDocSeleccionado">
+                @for (td of tiposDocumento; track td.value) {
+                  <mat-option [value]="td.value">{{ td.label }}</mat-option>
+                }
+              </mat-select>
+            </mat-form-field>
+
             <mat-form-field appearance="outline" class="busqueda-input">
               <mat-label>Cédula</mat-label>
               <input matInput type="text" inputmode="numeric"
@@ -31,6 +40,16 @@
                 </button>
               }
             </mat-form-field>
+
+            <mat-slide-toggle class="toggle-encolar"
+              [(ngModel)]="encolarEnTabla"
+              color="primary"
+              [matTooltip]="encolarEnTabla
+                ? 'La persona se agregará a la cola de la tabla'
+                : 'Sólo se buscará, no se agrega a la cola'"
+              matTooltipPosition="above">
+              Agregar a la cola
+            </mat-slide-toggle>
 
             <button mat-flat-button color="primary" type="button"
               class="btn-consultar-inline"
@@ -102,6 +121,12 @@
               <th>Apellidos Nombres</th>
               <th>Hora de llegada</th>
               <th>Oficina</th>
+              <th>Barrio</th>
+              <th>Municipio</th>
+              <th>Departamento</th>
+              <th>Edad</th>
+              <th>Experiencia</th>
+              <th>Antecedentes</th>
               <th>Formulario</th>
               <th></th>
             </tr>
@@ -114,6 +139,47 @@
                 <td>{{ item.apellidos_nombres || '—' }}</td>
                 <td>{{ item.updated_at | date:'HH:mm' }}</td>
                 <td>{{ item.oficina || '—' }}</td>
+                <td>{{ item.barrio || '—' }}</td>
+                <td>{{ item.municipio || '—' }}</td>
+                <td>{{ item.departamento || '—' }}</td>
+                <td>{{ item.edad != null ? item.edad : '—' }}</td>
+                <td>
+                  @if (item.tiene_experiencia) {
+                    <div class="exp-cell">
+                      <span class="badge-formulario badge-completo" matTooltip="Cuenta con experiencia previa">
+                        <mat-icon>check_circle</mat-icon> Sí
+                      </span>
+                      @if (item.area_experiencia) {
+                        <span class="exp-area"
+                          [matTooltip]="item.anios_experiencia != null ? (item.anios_experiencia + ' año(s) de experiencia') : 'Área en la que tiene experiencia'">
+                          {{ item.area_experiencia }}@if (item.anios_experiencia != null) {<span class="exp-anios"> · {{ item.anios_experiencia }} a</span>}
+                        </span>
+                      }
+                    </div>
+                  } @else {
+                    <span class="badge-formulario badge-sin-iniciar" matTooltip="No registra experiencia previa">
+                      <mat-icon>remove_circle_outline</mat-icon> No
+                    </span>
+                  }
+                </td>
+                <td>
+                  <div class="antecedentes-cell">
+                    <span class="badge-formulario {{ antecedentesBadgeClass(item) }}"
+                      [matTooltip]="item.antecedentes?.updated_at
+                        ? ('Robot actualizó: ' + (item.antecedentes!.updated_at | date:'dd/MM HH:mm'))
+                        : 'Estado de los antecedentes del robot para esta cédula'">
+                      <mat-icon>{{ antecedentesIcon(item) }}</mat-icon> {{ antecedentesLabel(item) }}
+                    </span>
+                    <div class="fuentes-chips">
+                      @for (f of antecedenteFuentes; track f.key) {
+                        <span class="chip-fuente {{ fuenteChipClass(item, f.key) }}"
+                          [matTooltip]="fuenteTooltip(item, f.key, f.label)">
+                          {{ f.abbr }}
+                        </span>
+                      }
+                    </div>
+                  </div>
+                </td>
                 <td>
                   @if (item.formulario_completo) {
                     <span class="badge-formulario badge-completo" matTooltip="Formulario web enviado completo">

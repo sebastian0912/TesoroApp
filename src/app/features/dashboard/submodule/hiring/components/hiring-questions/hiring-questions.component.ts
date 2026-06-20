@@ -15,6 +15,7 @@ import {
   ProcesoUpdateByDocumentRequest,
   RegistroProcesoContratacion,
 } from '../../service/registro-proceso-contratacion/registro-proceso-contratacion';
+import { SeleccionEstadoService } from '../../service/seleccion/seleccion-estado.service';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { TarjetasService } from '../../service/tarjetas.service';
 import { PositionsService } from '../../../positions/services/positions/positions.service';
@@ -52,6 +53,8 @@ export class HiringQuestionsComponent implements OnInit {
   referenciasForm!: FormGroup;
   trasladosForm!: FormGroup;
   huellaForm!: FormGroup;
+  /** Datos de obra/empresa para documentos (prellenados desde la vacante, editables). */
+  datosObraForm!: FormGroup;
 
   // ───────── Archivos / tipos ─────────
   uploadedFiles: Record<string, LocalFile> = {};
@@ -121,6 +124,14 @@ export class HiringQuestionsComponent implements OnInit {
   private readonly positionsService = inject(PositionsService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly sanitizer = inject(DomSanitizer);
+  private readonly seleccionEstado = inject(SeleccionEstadoService);
+
+  /**
+   * El candidato quedó EN ESPERA de vacante o marcado NO APLICA (observación del
+   * evaluador): se bloquea toda la contratación hasta que aplique.
+   */
+  readonly bloqueado = this.seleccionEstado.bloqueado;
+  readonly motivoBloqueo = this.seleccionEstado.motivoBloqueo;
 
   constructor() {
     // Reacciona a cambios del candidato seleccionado
@@ -200,6 +211,7 @@ export class HiringQuestionsComponent implements OnInit {
         operacion: [null, Validators.required],
         horasExtras: [false, Validators.required],
         fechaIngreso: [null, Validators.required],
+        fechaContrato: [null, Validators.required],
       },
       // { validators: this.numbersMatch('numeroPagos', 'validacionNumeroCuenta') },
     );
@@ -226,6 +238,15 @@ export class HiringQuestionsComponent implements OnInit {
       consentimientoHash: [''],
       imageHash: [''],
       userAgent: [''],
+    });
+
+    // Datos de obra/empresa para documentos: opcionales, se prellenan desde la
+    // vacante en loadData() y se guardan en el contrato.
+    this.datosObraForm = this.fb.group({
+      empresaUsuaria: [''],
+      centroCosto: [''],
+      direccion: [''],
+      descripcionObra: [''],
     });
   }
 
@@ -384,6 +405,7 @@ export class HiringQuestionsComponent implements OnInit {
 
   // ───────── Acciones principales ─────────
   async cargarPagoTransporte(): Promise<void> {
+    if (this.bloqueadoPorEspera()) return;
     if (this.pagoTransporteForm.invalid) {
       this.pagoTransporteForm.markAllAsTouched();
       return this.alert('warning', 'Formulario incompleto', 'Revisa los campos obligatorios.');
@@ -424,6 +446,7 @@ export class HiringQuestionsComponent implements OnInit {
         operacion?: string | null;
         horas_extras?: boolean | null;
         fecha_ingreso?: string | null;
+        fecha_contrato?: string | null;
       };
     } = {
       numero_documento: String(cand.numero_documento),
@@ -443,6 +466,7 @@ export class HiringQuestionsComponent implements OnInit {
         operacion: v.operacion ?? null,
         horas_extras: !!v.horasExtras,
         fecha_ingreso: v.fechaIngreso ? new Date(v.fechaIngreso).toISOString().split('T')[0] : null,
+        fecha_contrato: v.fechaContrato ? new Date(v.fechaContrato).toISOString().split('T')[0] : null,
       },
     };
 
@@ -563,7 +587,47 @@ export class HiringQuestionsComponent implements OnInit {
     return { uploaded, skipped, failed };
   }
 
+  /**
+   * Guarda en el contrato los datos de obra/empresa (descripción de obra, centro
+   * de costo, dirección, empresa usuaria). Sólo persiste estos campos; no marca
+   * al candidato como contratado. Crea el contrato si aún no existía.
+   */
+  async guardarDatosObra(): Promise<void> {
+    if (this.bloqueadoPorEspera()) return;
+    const cand = this.candidatoSeleccionado();
+    if (!cand?.numero_documento) {
+      return this.alert('info', 'Sin cédula', 'No hay candidato seleccionado.');
+    }
+
+    const v = this.datosObraForm.value;
+    const norm = (s: any) => {
+      const t = (s ?? '').toString().trim();
+      return t.length ? t : null;
+    };
+
+    const payload: ProcesoUpdateByDocumentRequest = {
+      numero_documento: String(cand.numero_documento),
+      contrato_detalle: {
+        descripcion_de_obra: norm(v.descripcionObra),
+        centro_costo_obra: norm(v.centroCosto),
+        direccion_empresa: norm(v.direccion),
+        empresa_usuaria: norm(v.empresaUsuaria),
+      },
+    };
+
+    this.loading('Guardando datos de obra…');
+    try {
+      await firstValueFrom(this.procesosService.updateProcesoByDocumento(payload, 'PATCH'));
+      Swal.close();
+      this.alert('success', 'Guardado', 'Los datos de obra se guardaron en el contrato.');
+    } catch (e: any) {
+      Swal.close();
+      this.alert('error', 'Error', e?.error?.detail || 'No se pudo guardar. Verifica tu conexión e intenta de nuevo.');
+    }
+  }
+
   async cargarReferencias(): Promise<void> {
+    if (this.bloqueadoPorEspera()) return;
     this.loading('Validando cambios y subiendo referencias…');
 
     try {
@@ -619,6 +683,7 @@ export class HiringQuestionsComponent implements OnInit {
   }
 
   async cargarTraslados(): Promise<void> {
+    if (this.bloqueadoPorEspera()) return;
     const cand = this.candidatoSeleccionado();
     if (!cand?.numero_documento) {
       return this.alert('info', 'Sin cédula', 'No hay candidato seleccionado.');
@@ -869,6 +934,19 @@ export class HiringQuestionsComponent implements OnInit {
     Swal.fire({ icon, title, text, confirmButtonText: 'Ok' });
   }
 
+  /** Avisa y devuelve true si la contratación está bloqueada (EN ESPERA o NO APLICA). */
+  private bloqueadoPorEspera(): boolean {
+    if (this.bloqueado()) {
+      this.alert(
+        'info',
+        `Candidato ${this.motivoBloqueo()}`,
+        'No se puede contratar con la observación actual del evaluador.'
+      );
+      return true;
+    }
+    return false;
+  }
+
   private loading(text: string) {
     Swal.fire({ icon: 'info', title: 'Cargando…', text, allowOutsideClick: false, didOpen: () => Swal.showLoading() });
   }
@@ -962,6 +1040,15 @@ export class HiringQuestionsComponent implements OnInit {
       salario: proc?.vacante_salario != null ? toNum(proc.vacante_salario) : null,
       auxilioTransporte: 'No',
       fechaIngreso: contr?.fecha_ingreso ?? null,
+      fechaContrato: contr?.fecha_contrato ?? null,
+    });
+
+    // Datos de obra/empresa: primero lo que ya esté guardado en el contrato.
+    this.datosObraForm.patchValue({
+      empresaUsuaria: (contr as any)?.empresa_usuaria ?? '',
+      centroCosto: (contr as any)?.centro_costo_obra ?? '',
+      direccion: (contr as any)?.direccion_empresa ?? '',
+      descripcionObra: (contr as any)?.descripcion_de_obra ?? '',
     });
 
     // 2) Traer SIEMPRE la vacante (si hay publicacion) para setear auxilioTransporte
@@ -978,6 +1065,16 @@ export class HiringQuestionsComponent implements OnInit {
         this.pagoTransporteForm.patchValue({
           salario: salarioFromProc ?? salarioFromVac,
           auxilioTransporte: auxFromVac,
+        });
+
+        // Datos de obra/empresa: si el contrato no los tenía, usar los de la vacante.
+        const obraActual = this.datosObraForm.value;
+        const orStr = (x: any) => (x == null ? '' : String(x));
+        this.datosObraForm.patchValue({
+          empresaUsuaria: obraActual.empresaUsuaria || orStr(vac?.empresaUsuariaSolicita),
+          centroCosto: obraActual.centroCosto || orStr(vac?.finca),
+          direccion: obraActual.direccion || orStr(vac?.direccion),
+          descripcionObra: obraActual.descripcionObra || orStr(vac?.descripcion),
         });
 
         // Autocompletar Porcentaje ARL desde el cargo de la vacante.

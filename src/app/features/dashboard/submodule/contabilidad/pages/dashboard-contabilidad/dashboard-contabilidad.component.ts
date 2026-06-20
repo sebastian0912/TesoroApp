@@ -1,5 +1,5 @@
 import { Component, OnInit, signal, inject, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { Router } from '@angular/router';
 import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
@@ -18,14 +18,13 @@ import {
   selector: 'app-dashboard-contabilidad',
   standalone: true,
   imports: [
-    CommonModule,
     MatCardModule,
     MatIconModule,
     MatButtonModule,
     MatProgressSpinnerModule,
     MatTooltipModule,
-    MatDividerModule,
-  ],
+    MatDividerModule
+],
   templateUrl: './dashboard-contabilidad.component.html',
   styleUrls: ['./dashboard-contabilidad.component.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,

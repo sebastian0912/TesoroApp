@@ -1,7 +1,7 @@
 import { HttpClient, HttpHeaders, HttpParams, HttpResponse } from '@angular/common/http';
 import { Inject, Injectable, PLATFORM_ID } from '@angular/core';
 import { Observable, catchError, throwError } from 'rxjs';
-import { environment } from '../../../../../../environments/environment';
+import { environment } from '@/environments/environment';
 
 type Granularidad = 'dia' | 'semana' | 'mes';
 
@@ -229,6 +229,57 @@ export class HomeService {
   }
 
 
+  descargarAdressPorRango(fechaInicio: string, fechaFin: string): Observable<HttpResponse<Blob>> {
+    const params = new HttpParams()
+      .set('fecha_inicio', fechaInicio)
+      .set('fecha_fin', fechaFin);
+
+    return this.http
+      .get(`${this.apiUrl}/Robots/excel-adress-rango/`, {
+        params,
+        responseType: 'blob',
+        observe: 'response',
+      })
+      .pipe(catchError((e) => this.handleError(e)));
+  }
+
+  /**
+   * Descarga Excel ADRES filtrado por una lista de cedulas (vienen de un
+   * Excel local que el operador sube). Devuelve el mismo Excel profesional
+   * que descargarAdressPorRango pero filtrado por cedula en lugar de fecha.
+   * Backend: POST /Robots/excel-adress-por-cedulas/
+   */
+  descargarAdressPorCedulas(cedulas: string[]): Observable<HttpResponse<Blob>> {
+    return this.http
+      .post(`${this.apiUrl}/Robots/excel-adress-por-cedulas/`,
+        { cedulas },
+        {
+          responseType: 'blob',
+          observe: 'response',
+        },
+      )
+      .pipe(catchError((e) => this.handleError(e)));
+  }
+
+  /**
+   * Igual que descargarAdressPorCedulas pero en "modo actualizar": el PDF del
+   * Excel apunta a la ÚLTIMA versión (la que el robot guardó como NO vigente
+   * bajo solo_actualizar), sin alterar lo que ven las consultas normales.
+   * Backend: POST /Robots/excel-adress-por-cedulas-actualizar/
+   */
+  descargarAdressPorCedulasActualizar(cedulas: string[]): Observable<HttpResponse<Blob>> {
+    return this.http
+      .post(`${this.apiUrl}/Robots/excel-adress-por-cedulas-actualizar/`,
+        { cedulas },
+        {
+          responseType: 'blob',
+          observe: 'response',
+        },
+      )
+      .pipe(catchError((e) => this.handleError(e)));
+  }
+
+
   // ---------------------------------------------------------------------------
   // Home cards / conteos / inventario / etc (tal cual lo tenías)
   // ---------------------------------------------------------------------------
@@ -258,7 +309,7 @@ export class HomeService {
     return this.http.get(url).pipe(catchError((e) => this.handleError(e)));
   }
 
-  enviarEstadosRobots(payload: { candidatos_scope: 'nuevos' | 'todos' | 'ninguno'; datos: any[] }): Observable<any> {
+  enviarEstadosRobots(payload: { candidatos_scope: 'nuevos' | 'todos' | 'ninguno'; datos: any[]; solo_actualizar?: boolean }): Observable<any> {
     const url = `${this.apiUrl}/EstadosRobots/cargar-excel/`;
     return this.http.post(url, payload).pipe(catchError((e) => this.handleError(e)));
   }

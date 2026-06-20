@@ -52,6 +52,7 @@ import { debounceTime, startWith } from 'rxjs/operators';
 
 import { ActiveFilter, ColumnDefinition, FilterOperator } from '../../models/advanced-table-interface';
 import { ColumnCellTemplateDirective } from '../../directives/column-cell-template.directive';
+import { getLocalStorageItem, setLocalStorageItem } from '../../../core/utils/safe-storage';
 
 type DateRangeGroup = FormGroup<{
   start: FormControl<Date | null>;
@@ -1012,7 +1013,7 @@ export class StandardFilterTable implements OnInit, OnChanges, AfterViewInit, Do
     };
 
     try {
-      localStorage.setItem(this.storageKey, JSON.stringify(state));
+      setLocalStorageItem(this.storageKey, JSON.stringify(state));
     } catch (e) {
       console.error('Error saving table state', e);
     }
@@ -1023,7 +1024,7 @@ export class StandardFilterTable implements OnInit, OnChanges, AfterViewInit, Do
     if (!isPlatformBrowser(this.platformId)) return;
 
     try {
-      const raw = localStorage.getItem(this.storageKey);
+      const raw = getLocalStorageItem(this.storageKey);
       if (!raw) return;
       const state = JSON.parse(raw);
 

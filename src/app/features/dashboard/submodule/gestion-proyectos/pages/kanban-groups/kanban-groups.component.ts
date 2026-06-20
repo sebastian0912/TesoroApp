@@ -1,5 +1,5 @@
 import { Component, OnInit, signal, ChangeDetectionStrategy } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { FormsModule } from '@angular/forms';
 import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
@@ -18,11 +18,17 @@ import Swal from 'sweetalert2';
   selector: 'app-kanban-groups',
   standalone: true,
   imports: [
-    CommonModule, FormsModule,
-    MatCardModule, MatButtonModule, MatIconModule, MatTableModule,
-    MatChipsModule, MatProgressSpinnerModule, MatDialogModule,
-    MatFormFieldModule, MatInputModule,
-  ],
+    FormsModule,
+    MatCardModule,
+    MatButtonModule,
+    MatIconModule,
+    MatTableModule,
+    MatChipsModule,
+    MatProgressSpinnerModule,
+    MatDialogModule,
+    MatFormFieldModule,
+    MatInputModule
+],
   templateUrl: './kanban-groups.component.html',
   styleUrls: ['./kanban-groups.component.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,

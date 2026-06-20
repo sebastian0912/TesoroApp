@@ -38,13 +38,23 @@ export interface Paginated<T> {
 /** Etiquetas esperadas; dejar string para futuras acciones personalizadas */
 export type AccionEtiqueta = 'LEER' | 'CREAR' | 'ACTUALIZAR' | 'ELIMINAR' | string;
 
+/** Permiso embebido en un nodo de módulo */
+export interface ModuloPermisoItem {
+  id: string;
+  nombre: string;
+  accion: { nombre: AccionEtiqueta; etiqueta: string };
+}
+
 /** Nodo del árbol de permisos por módulo (GET /gestion_admin/modulos/arbol-permisos/) */
 export interface ModuloPermisosNode {
   id: string;
   nombre: string;
-  acciones: AccionEtiqueta[];             // acciones efectivas en este módulo
-  permiso_ids: Record<string, string>;    // { 'LEER': '<permiso_uuid>', ... }
-  hijos: ModuloPermisosNode[];            // submódulos
+  modulo_padre: string | null;
+  ruta?: string | null;
+  icono?: string | null;
+  orden?: number;
+  permisos: ModuloPermisoItem[];
+  submodulos: ModuloPermisosNode[];
 }
 
 export interface AIIconSuggestion {
@@ -107,11 +117,12 @@ export class ModulosService {
    * Árbol de permisos por módulo (GET /gestion_admin/modulos/arbol-permisos/)
    * - Si no envías `usuario`, usa el usuario autenticado (permisos efectivos).
    * - `include_empty=true` para incluir módulos sin acciones (útil para UI).
+   *   El backend recibe el flag como `incluir_vacios` (en español).
    */
   treePermisos(options?: { usuario?: string; include_empty?: boolean }): Observable<ModuloPermisosNode[]> {
     let params = new HttpParams();
     if (options?.usuario) params = params.set('usuario', options.usuario);
-    if (options?.include_empty != null) params = params.set('include_empty', String(options.include_empty));
+    if (options?.include_empty != null) params = params.set('incluir_vacios', String(options.include_empty));
     return this.http.get<ModuloPermisosNode[]>(`${this.base}arbol-permisos/`, { params });
   }
 

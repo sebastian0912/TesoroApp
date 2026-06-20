@@ -31,6 +31,29 @@ HEADER GENERAL
       </div>
     </div>
 
+    <!-- ALERTAS (badges) -->
+    <div class="header-alerts">
+      <!-- Modo de atención: HORARIO_LABORAL vs FUERA_DE_HORARIO -->
+      <button mat-stroked-button class="chip-mode"
+              [class.chip-mode-laboral]="modoAtencion === 'HORARIO_LABORAL'"
+              [class.chip-mode-fuera]="modoAtencion === 'FUERA_DE_HORARIO'"
+              [matTooltip]="modoAtencion === 'HORARIO_LABORAL'
+                ? 'Cola activa: buckets 0/1/2 (sin prioridad). El bucket 3 (con prioridad) se abre a las 19:30.'
+                : 'Cola activa: los 4 buckets, incluido el de prioridad ≠ NULL.'">
+        <mat-icon>{{ modoAtencion === 'HORARIO_LABORAL' ? 'schedule' : 'nights_stay' }}</mat-icon>
+        {{ modoAtencionLabel }}
+      </button>
+
+      <!-- Badge de duplicados: solo visible si hay > 0 -->
+      @if (duplicadosCount > 0) {
+        <button mat-flat-button color="warn" class="chip-duplicates" (click)="verDuplicados()"
+                [matTooltip]="'Click para ver detalle. ' + duplicadosFilasAfectadas + ' filas afectadas.'">
+          <mat-icon>warning</mat-icon>
+          {{ duplicadosCount }} duplicado{{ duplicadosCount === 1 ? '' : 's' }}
+        </button>
+      }
+    </div>
+
     <span class="spacer"></span>
 
     <button mat-stroked-button class="btn-refresh" (click)="reloadAll()">
@@ -147,7 +170,7 @@ HEADER GENERAL
                   </defs>
                   <!-- Grid -->
                   <g class="grid-group">
-                    @for (t of chartVm.ticks; track t) {
+                    @for (t of chartVm.ticks; track t.label) {
                       <line class="grid-line" [attr.x1]="chartBox.padL"
                         [attr.x2]="chartBox.w - chartBox.padR" [attr.y1]="t.y" [attr.y2]="t.y">
                       </line>
@@ -155,7 +178,7 @@ HEADER GENERAL
                   </g>
                   <!-- Y Axis -->
                   <g class="axis-y">
-                    @for (t of chartVm.ticks; track t) {
+                    @for (t of chartVm.ticks; track t.label) {
                       <text [attr.x]="chartBox.padL - 10" [attr.y]="t.y + 4"
                         text-anchor="end">
                         {{ t.label }}
@@ -164,7 +187,7 @@ HEADER GENERAL
                   </g>
                   <!-- X Axis -->
                   <g class="axis-x">
-                    @for (xm of chartVm.xMarks; track xm) {
+                    @for (xm of chartVm.xMarks; track xm.label) {
                       <text [attr.x]="xm.x" [attr.y]="chartBox.h - 12"
                         text-anchor="middle">
                         {{ xm.label }}
@@ -173,7 +196,7 @@ HEADER GENERAL
                   </g>
                   <!-- Paths -->
                   <g class="paths-group">
-                    @for (ln of chartVm.paths; track ln) {
+                    @for (ln of chartVm.paths; track ln.key) {
                       <path class="data-line" [attr.d]="ln.d" fill="none"
                         [attr.stroke]="ln.stroke" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
                       </path>
@@ -186,7 +209,7 @@ HEADER GENERAL
                         [attr.x2]="chartVm.xPoints[hoverIndex!]" [attr.y1]="chartBox.padT"
                         [attr.y2]="chartBox.h - chartBox.padB">
                       </line>
-                      @for (ln of chartVm.paths; track ln) {
+                      @for (ln of chartVm.paths; track ln.key) {
                         <circle class="hover-point" [attr.cx]="chartVm.xPoints[hoverIndex!]"
                           [attr.cy]="ln.y[hoverIndex!]" r="5" [attr.fill]="ln.stroke">
                         </circle>
@@ -267,7 +290,13 @@ HEADER GENERAL
 
               <mat-form-field appearance="outline" class="ff-grow subscript-hide">
                 <mat-label>Estado (opcional)</mat-label>
-                <input matInput formControlName="estado" placeholder="Ej: FINALIZADO" />
+                <mat-select formControlName="estado">
+                  <mat-option value="">Todos</mat-option>
+                  <mat-option value="SIN_CONSULTAR">SIN_CONSULTAR</mat-option>
+                  <mat-option value="EN_PROGRESO">EN_PROGRESO</mat-option>
+                  <mat-option value="FINALIZADO">FINALIZADO</mat-option>
+                  <mat-option value="BLOQUEADO">BLOQUEADO</mat-option>
+                </mat-select>
               </mat-form-field>
 
               <mat-form-field appearance="outline" class="ff-sm subscript-hide">
@@ -302,20 +331,73 @@ HEADER GENERAL
 
       <div class="tab-content fade-in">
         <mat-card class="content-card">
-          <div class="card-bar">
-            <div class="flex flex-row items-center justify-between w-full" style="width: 100%; display: flex; justify-content: space-between;">
-              <p style="margin: 0; color: #666; font-size: 0.9rem;">Consulta general de todos los registros actualmente bloqueados en cualquier antecedente.</p>
-              <button mat-stroked-button color="primary" (click)="loadLocks()" [disabled]="isLoadingLocks">
-                <mat-icon>sync</mat-icon>
-                Actualizar Tabla
+          <div class="card-bar locks-bar">
+            <div class="locks-bar-left">
+              <p class="hint-text" style="margin: 0;">
+                Vista de los locks activos por antecedente. Un lock con edad ≥ 5 min se marca como
+                <span class="legend-pill legend-zombie">ZOMBIE</span> — significa robot caído.
+              </p>
+
+              <!-- ✅ NUEVO: resumen rápido -->
+              <div class="locks-summary">
+                <span class="ls-chip">
+                  <mat-icon>lock</mat-icon>
+                  <b>{{ locksSummary.total }}</b> total
+                </span>
+                <span class="ls-chip ls-zombies" [class.is-zero]="locksSummary.zombies === 0">
+                  <mat-icon>error</mat-icon>
+                  <b>{{ locksSummary.zombies }}</b> zombies
+                </span>
+                <span class="ls-chip ls-activos">
+                  <mat-icon>play_circle</mat-icon>
+                  <b>{{ locksSummary.activos }}</b> activos
+                </span>
+                <span class="ls-chip ls-sinlock">
+                  <mat-icon>lock_open</mat-icon>
+                  <b>{{ locksSummary.sinLock }}</b> sin lock
+                </span>
+              </div>
+            </div>
+
+            <div class="locks-bar-right">
+              <!-- Toggle: por antecedente vs agrupado por worker -->
+              <mat-button-toggle-group [value]="viewLocksByWorker ? 'worker' : 'antecedente'"
+                                       (change)="toggleLocksView()" class="locks-toggle">
+                <mat-button-toggle value="antecedente">
+                  <mat-icon>view_list</mat-icon>
+                  Por antecedente
+                </mat-button-toggle>
+                <mat-button-toggle value="worker">
+                  <mat-icon>smart_toy</mat-icon>
+                  Por worker
+                </mat-button-toggle>
+              </mat-button-toggle-group>
+
+              <button mat-flat-button color="primary" (click)="loadLocks({ showToast: true })"
+                      [disabled]="isLoadingLocks">
+                @if (!isLoadingLocks) {
+                  <mat-icon>sync</mat-icon>
+                }
+                @if (isLoadingLocks) {
+                  <mat-icon class="spin">sync</mat-icon>
+                }
+                Actualizar
               </button>
             </div>
           </div>
 
           <div class="card-body-table">
-            <app-standard-filter-table [tableTitle]="''" [data]="locksRows" [columnDefinitions]="locksColumns"
-              [isLoading]="isLoadingLocks" [defaultPageSize]="20" [pageSizeOptions]="[10,20,50]">
-            </app-standard-filter-table>
+            @if (!viewLocksByWorker) {
+              <app-standard-filter-table [tableTitle]="''" [data]="locksRows" [columnDefinitions]="locksColumns"
+                [isLoading]="isLoadingLocks" [defaultPageSize]="20" [pageSizeOptions]="[10,20,50]">
+              </app-standard-filter-table>
+            }
+            @if (viewLocksByWorker) {
+              <app-standard-filter-table [tableTitle]="''" [data]="locksByWorkerRows"
+                [columnDefinitions]="locksByWorkerColumns" [isLoading]="isLoadingLocks"
+                [defaultPageSize]="20" [pageSizeOptions]="[10,20,50]">
+              </app-standard-filter-table>
+            }
           </div>
         </mat-card>
       </div>
@@ -332,29 +414,61 @@ HEADER GENERAL
 
       <div class="tab-content fade-in">
         <mat-card class="content-card">
-          <div class="card-bar">
-            <form [formGroup]="pendientesForm" (ngSubmit)="loadPendientesPorOficina({ showToast: true })"
-              class="flex flex-row flex-wrap gap-4 items-center w-full">
+          <div class="card-bar pendientes-bar">
+            <div class="pendientes-bar-left">
+              <p class="hint-text" style="margin: 0;">Registros pendientes de procesar agrupados por oficina.</p>
 
-              <p class="hint-text mr-auto">Registros pendientes de procesar agrupados por oficina.</p>
+              <!-- ✅ NUEVO: resumen rápido (gran total + número de oficinas) -->
+              <div class="pendientes-summary">
+                <span class="ps-chip">
+                  <mat-icon>pending_actions</mat-icon>
+                  <b>{{ pendientesGranTotal | number }}</b> pendientes
+                </span>
+                <span class="ps-chip">
+                  <mat-icon>apartment</mat-icon>
+                  <b>{{ pendientesCountOficinas }}</b> oficinas
+                </span>
+              </div>
+            </div>
 
-              <mat-form-field appearance="outline" class="dense-input w-44 subscript-hide mr-4">
+            <form [formGroup]="pendientesForm" class="pendientes-form"
+                  (ngSubmit)="loadPendientesPorOficina({ showToast: true })">
+
+              <!-- ✅ NUEVO: presets rápidos -->
+              <div class="date-presets">
+                <button type="button" mat-button class="preset-btn"
+                        (click)="applyPendientesPreset('hoy')">Hoy</button>
+                <button type="button" mat-button class="preset-btn"
+                        (click)="applyPendientesPreset('7d')">7 días</button>
+                <button type="button" mat-button class="preset-btn"
+                        (click)="applyPendientesPreset('30d')">30 días</button>
+                <button type="button" mat-button class="preset-btn"
+                        (click)="applyPendientesPreset('all')">Todo</button>
+              </div>
+
+              <mat-form-field appearance="outline" class="dense-input ff-md subscript-hide">
                 <mat-label>Desde</mat-label>
                 <input matInput [matDatepicker]="pickerFrom" formControlName="from" />
                 <mat-datepicker-toggle matIconSuffix [for]="pickerFrom"></mat-datepicker-toggle>
                 <mat-datepicker #pickerFrom></mat-datepicker>
               </mat-form-field>
 
-              <mat-form-field appearance="outline" class="dense-input w-44 subscript-hide mr-4">
+              <mat-form-field appearance="outline" class="dense-input ff-md subscript-hide">
                 <mat-label>Hasta</mat-label>
                 <input matInput [matDatepicker]="pickerTo" formControlName="to" />
                 <mat-datepicker-toggle matIconSuffix [for]="pickerTo"></mat-datepicker-toggle>
                 <mat-datepicker #pickerTo></mat-datepicker>
               </mat-form-field>
 
-              <button mat-stroked-button color="primary" type="submit" [disabled]="isLoadingPendientesPorOficina">
-                <mat-icon>sync</mat-icon>
-                Actualizar Tabla
+              <button mat-flat-button color="primary" type="submit"
+                      [disabled]="isLoadingPendientesPorOficina">
+                @if (!isLoadingPendientesPorOficina) {
+                  <mat-icon>sync</mat-icon>
+                }
+                @if (isLoadingPendientesPorOficina) {
+                  <mat-icon class="spin">sync</mat-icon>
+                }
+                Actualizar
               </button>
             </form>
           </div>
@@ -363,6 +477,82 @@ HEADER GENERAL
             <app-standard-filter-table [tableTitle]="''" [data]="pendientesPorOficinaRows"
               [columnDefinitions]="pendientesPorOficinaColumns" [isLoading]="isLoadingPendientesPorOficina"
               [defaultPageSize]="20" [pageSizeOptions]="[10,20,50]">
+            </app-standard-filter-table>
+          </div>
+        </mat-card>
+      </div>
+    </mat-tab>
+
+
+    <!-- =======================
+    TAB: PRÓXIMOS EN COLA (preview de los próximos N a entregar)
+    ========================= -->
+    <mat-tab>
+      <ng-template mat-tab-label>
+        <mat-icon class="tab-icon">queue</mat-icon>
+        Próximos en cola
+      </ng-template>
+
+      <div class="tab-content fade-in">
+        <mat-card class="content-card">
+          <div class="card-bar">
+            <div class="locks-bar-left">
+              <p class="hint-text" style="margin: 0;">
+                Vista de los próximos registros que el GET entregará a los robots.
+                Mismo orden (buckets, oficina, prioridad). <b>Sólo lectura</b> — no toca locks.
+              </p>
+
+              <div class="locks-summary">
+                <span class="ls-chip">
+                  <mat-icon>pending_actions</mat-icon>
+                  <b>{{ proximosTotalPendientes | number }}</b> pendientes totales
+                </span>
+                <span class="ls-chip ls-activos">
+                  <mat-icon>queue</mat-icon>
+                  <b>{{ proximosRows.length }}</b> mostrados
+                </span>
+                @if (proximosModoAtencion) {
+                  <span class="ls-chip"
+                        [class.ls-activos]="proximosModoAtencion === 'HORARIO_LABORAL'"
+                        [class.ls-sinlock]="proximosModoAtencion === 'FUERA_DE_HORARIO'">
+                    <mat-icon>{{ proximosModoAtencion === 'HORARIO_LABORAL' ? 'schedule' : 'nights_stay' }}</mat-icon>
+                    {{ proximosModoAtencion === 'HORARIO_LABORAL' ? 'Horario laboral' : 'Fuera de horario' }}
+                  </span>
+                }
+              </div>
+            </div>
+
+            <form [formGroup]="proximosForm" (ngSubmit)="applyProximos()" class="compact-form">
+              <mat-form-field appearance="outline" class="ff-grow subscript-hide">
+                <mat-label>Antecedente</mat-label>
+                <mat-select formControlName="antecedente">
+                  @for (a of proximosAntecedentesOptions; track a.key) {
+                    <mat-option [value]="a.key">{{ a.label }}</mat-option>
+                  }
+                </mat-select>
+              </mat-form-field>
+
+              <mat-form-field appearance="outline" class="ff-sm subscript-hide">
+                <mat-label>Límite</mat-label>
+                <input matInput type="number" formControlName="limit" min="1" max="100" />
+              </mat-form-field>
+
+              <button mat-flat-button color="primary" type="submit" [disabled]="isLoadingProximos">
+                @if (!isLoadingProximos) {
+                  <mat-icon>sync</mat-icon>
+                }
+                @if (isLoadingProximos) {
+                  <mat-icon class="spin">sync</mat-icon>
+                }
+                Actualizar
+              </button>
+            </form>
+          </div>
+
+          <div class="card-body-table">
+            <app-standard-filter-table [tableTitle]="''" [data]="proximosRows"
+              [columnDefinitions]="proximosColumns" [isLoading]="isLoadingProximos"
+              [defaultPageSize]="20" [pageSizeOptions]="[10,20,50,100]">
             </app-standard-filter-table>
           </div>
         </mat-card>

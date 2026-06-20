@@ -206,6 +206,7 @@ export const PERFILES_EMPRESA: PerfilEmpresa[] = [
       'Sagaro Lockers',
       'Sagaro Imagen',
       'Sagaro Celular',
+      'OTRO SI Sagaro Fumigador',
       'Formato de Bonificación Ipanema',
       'Prueba Psicotécnica',
     ],
@@ -406,6 +407,7 @@ const SECCION_BY_TITLE: Record<string, DocSeccion> = {
   'Sagaro Lockers':                                       'sagaro',
   'Sagaro Imagen':                                        'sagaro',
   'Sagaro Celular':                                       'sagaro',
+  'OTRO SI Sagaro Fumigador':                             'sagaro',
   // Ipanema (subir-only)
   'Formato de Bonificación Ipanema':                      'ipanema',
   // Subir manual

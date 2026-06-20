@@ -15,6 +15,7 @@ import Swal from 'sweetalert2';
 import * as XLSX from 'xlsx';
 import { UtilityServiceService } from '../../../../../shared/services/utilityService/utility-service.service';
 import { MerchandisingMerchandiseComponent } from '../components/merchandising-merchandise/merchandising-merchandise.component';
+import { MigrationPanelComponent } from '../components/migration-panel/migration-panel.component';
 import { InfoCardComponent } from '@/app/shared/components/info-card/info-card.component';
 import {
   HomeService,
@@ -59,6 +60,7 @@ type ProgresoTipoPrioridadRow = {
     MatTooltipModule,
     MatSelectModule,
     MerchandisingMerchandiseComponent,
+    MigrationPanelComponent,
     InfoCardComponent
 ],
   templateUrl: './home.component.html',
@@ -80,17 +82,18 @@ export class HomeComponent implements OnInit {
   fechaHoy = '';
 
   // Slide panel
-  activePanel: 'robots' | 'reportes' | 'contratacion' | null = null;
+  activePanel: 'robots' | 'reportes' | 'contratacion' | 'migracion' | null = null;
   private readonly panelTitles: Record<string, string> = {
     robots: 'Robots',
     reportes: 'Reportes',
     contratacion: 'Contratación',
+    migracion: 'Migración gestion_documental',
   };
   get panelTitle(): string {
     return this.activePanel ? this.panelTitles[this.activePanel] ?? '' : '';
   }
 
-  openPanel(panel: 'robots' | 'reportes' | 'contratacion'): void {
+  openPanel(panel: 'robots' | 'reportes' | 'contratacion' | 'migracion'): void {
     this.activePanel = panel;
   }
 
@@ -100,10 +103,13 @@ export class HomeComponent implements OnInit {
 
   // ViewChild refs for file inputs
   @ViewChild('fileInput') fileInputRef!: ElementRef<HTMLInputElement>;
+  @ViewChild('fileInputSoloActualizar') fileInputSoloActualizarRef!: ElementRef<HTMLInputElement>;
   @ViewChild('fileInputResetContratado') fileInputResetRef!: ElementRef<HTMLInputElement>;
   @ViewChild('fileInputExcelCandidatos') fileInputCandidatosRef!: ElementRef<HTMLInputElement>;
   @ViewChild('fileInputCarnets') fileInputCarnetsRef!: ElementRef<HTMLInputElement>;
   @ViewChild('fileInputLimpiarExcel') fileInputLimpiarExcelRef!: ElementRef<HTMLInputElement>;
+  @ViewChild('fileInputAdresCedulas') fileInputAdresCedulasRef!: ElementRef<HTMLInputElement>;
+  @ViewChild('fileInputAdresCedulasActualizar') fileInputAdresCedulasActualizarRef!: ElementRef<HTMLInputElement>;
 
   // Progreso
   isLoadingProgresoAll = false;
@@ -213,6 +219,173 @@ export class HomeComponent implements OnInit {
       });
   }
 
+  // =========================================================
+  // DESCARGAR ADRES POR CEDULAS (sube Excel con cedulas)
+  // Lee el archivo, extrae cedulas, las manda al backend y descarga el
+  // Excel ADRES profesional con la informacion de cada una.
+  // =========================================================
+  triggerFileInputAdresCedulas(): void {
+    const el = this.fileInputAdresCedulasRef?.nativeElement;
+    if (!el) return;
+    el.value = '';
+    el.click();
+  }
+
+  // Extracción "modo actualizar": el PDF del Excel apunta a la ÚLTIMA versión
+  // (la que el robot guardó como NO vigente bajo solo_actualizar).
+  triggerFileInputAdresCedulasActualizar(): void {
+    const el = this.fileInputAdresCedulasActualizarRef?.nativeElement;
+    if (!el) return;
+    el.value = '';
+    el.click();
+  }
+
+  descargarAdressPorCedulasDesdeExcel(evt: any): Promise<void> {
+    return this._descargarAdressPorCedulas(evt, false);
+  }
+
+  descargarAdressPorCedulasActualizarDesdeExcel(evt: any): Promise<void> {
+    return this._descargarAdressPorCedulas(evt, true);
+  }
+
+  private async _descargarAdressPorCedulas(evt: any, modoActualizar: boolean): Promise<void> {
+    const input = evt?.target as HTMLInputElement;
+    const file: File | undefined = input?.files?.[0];
+
+    if (!file) {
+      await Swal.fire({ icon: 'error', title: 'Selecciona un archivo' });
+      return;
+    }
+
+    Swal.fire({
+      title: 'Leyendo Excel...',
+      text: 'Extrayendo cedulas del archivo.',
+      allowOutsideClick: false,
+      didOpen: () => Swal.showLoading(),
+    });
+
+    try {
+      const cedulas = await this.extraerCedulasDesdeExcel(file);
+
+      if (!cedulas.length) {
+        Swal.close();
+        await Swal.fire({
+          icon: 'warning',
+          title: 'Sin cedulas',
+          text: 'No se encontraron cedulas validas en el Excel.',
+        });
+        return;
+      }
+
+      Swal.update({
+        title: 'Generando Excel ADRES...',
+        text: `Consultando ${cedulas.length} cedulas en el servidor.`,
+      });
+      Swal.showLoading();
+
+      const res = await firstValueFrom(
+        modoActualizar
+          ? this.homeService.descargarAdressPorCedulasActualizar(cedulas)
+          : this.homeService.descargarAdressPorCedulas(cedulas),
+      );
+      const total = res.headers.get('X-Total-Rows');
+
+      if (!res.body || res.body.size === 0) {
+        Swal.close();
+        await Swal.fire({
+          icon: 'info',
+          title: 'Sin coincidencias',
+          text: 'Ninguna de las cedulas tiene registro en ADRES en la BD.',
+        });
+        return;
+      }
+
+      const filename =
+        this.getFilenameFromResponse(res) ||
+        `${modoActualizar ? 'adres_actualizar_por_cedulas' : 'adres_por_cedulas'}_${cedulas.length}.xlsx`;
+      await this.saveToDownloads(res.body, filename);
+
+      Swal.close();
+      await Swal.fire({
+        icon: 'success',
+        title: 'Excel descargado',
+        html: `Cedulas en archivo: <b>${cedulas.length}</b><br>` +
+              `Encontradas con datos: <b>${total ?? '?'}</b><br>` +
+              `Archivo: <code>${filename}</code>`,
+      });
+    } catch (err: any) {
+      Swal.close();
+      const msg =
+        err?.error?.detail ||
+        err?.message ||
+        (err?.status === 0 ? 'Red/CORS: no se pudo contactar el servidor.' : 'No se pudo generar el Excel.');
+      await Swal.fire({ icon: 'error', title: 'Error', text: msg });
+    } finally {
+      try { input.value = ''; } catch { }
+    }
+  }
+
+  // =========================================================
+  // DESCARGAR ADRES POR RANGO
+  // Abre el date-range-dialog y descarga un Excel profesional con todas las
+  // personas cuyo marca_temporal_adress cae dentro del rango seleccionado.
+  // =========================================================
+  descargarAdressPorRango(): void {
+    this.dialog
+      .open(DateRangeDialogComponent, {
+        width: '420px',
+        data: { title: 'Rango de fechas - ADRES' },
+      })
+      .afterClosed()
+      .subscribe((result) => {
+        if (!result || !result.start || !result.end) return;
+
+        const { start, end } = result;
+
+        Swal.fire({
+          title: 'Generando Excel ADRES...',
+          html: `Rango: <b>${start}</b> &rarr; <b>${end}</b><br>Consultando base de datos.`,
+          allowOutsideClick: false,
+          allowEscapeKey: false,
+          didOpen: () => Swal.showLoading(),
+        });
+
+        this.homeService.descargarAdressPorRango(start, end).subscribe({
+          next: async (res) => {
+            const total = res.headers.get('X-Total-Rows');
+
+            if (!res.body || res.body.size === 0) {
+              Swal.close();
+              await Swal.fire({
+                icon: 'info',
+                title: 'Sin registros',
+                text: 'No se encontraron personas con marca_temporal_adress en ese rango.',
+              });
+              return;
+            }
+
+            const filename = this.getFilenameFromResponse(res) || `adres_${start}_a_${end}.xlsx`;
+            await this.saveToDownloads(res.body, filename);
+
+            Swal.close();
+            await Swal.fire({
+              icon: 'success',
+              title: 'Excel descargado',
+              html: `Filas: <b>${total ?? '?'}</b><br>Archivo: <code>${filename}</code>`,
+            });
+          },
+          error: async (err) => {
+            Swal.close();
+            const msg =
+              err?.error?.detail ||
+              err?.message ||
+              (err?.status === 0 ? 'Red/CORS: no se pudo contactar el servidor.' : 'No se pudo generar el Excel.');
+            await Swal.fire({ icon: 'error', title: 'Error', text: msg });
+          },
+        });
+      });
+  }
+
   private downloadBlob(blob: Blob, filename: string): void {
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -279,7 +452,25 @@ export class HomeComponent implements OnInit {
     el.click();
   }
 
+  // Botón "solo actualizar ADRES": misma carga, pero los PDFs que produzca el
+  // robot NO se vuelven la versión vigente (las consultas siguen mostrando la
+  // anterior). El backend solo deja ADRES en SIN_CONSULTAR.
+  triggerFileInputSoloActualizar(): void {
+    const el = this.fileInputSoloActualizarRef?.nativeElement;
+    if (!el) return;
+    el.value = '';
+    el.click();
+  }
+
   cargarExcel(evt: any): void {
+    this._procesarExcelEstados(evt, false);
+  }
+
+  cargarExcelSoloActualizar(evt: any): void {
+    this._procesarExcelEstados(evt, true);
+  }
+
+  private _procesarExcelEstados(evt: any, soloActualizar: boolean): void {
     const file: File | undefined = evt?.target?.files?.[0];
     if (!file) {
       void Swal.fire({ icon: 'error', title: 'Selecciona un archivo' });
@@ -337,16 +528,23 @@ export class HomeComponent implements OnInit {
           if (!o['Tipo documento']) o['Tipo documento'] = 'CC';
         });
 
-        const payload = {
-          candidatos_scope: 'nuevos' as 'nuevos' | 'todos' | 'ninguno',
+        const payload: {
+          candidatos_scope: 'nuevos' | 'todos' | 'ninguno';
+          datos: any[];
+          solo_actualizar?: boolean;
+        } = {
+          candidatos_scope: 'nuevos',
           datos,
         };
+        if (soloActualizar) payload.solo_actualizar = true;
 
         this.homeService.enviarEstadosRobots(payload).subscribe({
           next: async (r: any) => {
             const ok = r?.message === 'success';
 
             const lines: string[] = [];
+            if (soloActualizar)
+              lines.push(`🔁 Modo: <b>solo actualizar ADRES</b> (no cambia el documento vigente)`);
             if (r?.recibidos != null)
               lines.push(`📋 Filas recibidas: <b>${r.recibidos}</b>`);
             if (r?.tasks_unicos != null)
@@ -613,17 +811,38 @@ export class HomeComponent implements OnInit {
     if (!rows.length) return [];
 
     const headerRow = (rows[0] || []).map(v => String(v ?? '').trim().toUpperCase());
-    const targets = ['CEDULA', 'CÉDULA', 'CC', 'DOCUMENTO', 'IDENTIFICACION', 'IDENTIFICACIÓN', 'N° CC', 'NRO CC'];
+    // Match en 2 pasadas:
+    //  1. EXACTO contra una whitelist de nombres canonicos (mas confiable)
+    //  2. INCLUDES pero rechazando cualquier header que arranque con 'TIPO'
+    //     (sin esto, 'TIPO DOCUMENTO' matcheaba via 'DOCUMENTO' y se
+    //     leia la columna equivocada -> ninguna cedula pasaba la
+    //     validacion length>=6).
+    const exactTargets = [
+      'CEDULA', 'CÉDULA', 'IDENTIFICACION', 'IDENTIFICACIÓN',
+      'NRO CC', 'N° CC', 'NUMERO DOCUMENTO', 'NÚMERO DOCUMENTO',
+      'NUMERO_DOCUMENTO', 'DOCUMENTO',
+    ];
+    const looseTargets = ['CEDULA', 'CÉDULA', 'IDENTIFICACION', 'IDENTIFICACIÓN', 'CC', 'DOCUMENTO'];
 
     let colIdx = -1;
+
+    // Pasada 1: match exacto
     for (let i = 0; i < headerRow.length; i++) {
       const h = headerRow[i];
       if (!h) continue;
-      if (targets.some(t => h.includes(t))) {
-        colIdx = i;
-        break;
+      if (exactTargets.includes(h)) { colIdx = i; break; }
+    }
+
+    // Pasada 2: includes pero excluyendo 'TIPO ...'
+    if (colIdx === -1) {
+      for (let i = 0; i < headerRow.length; i++) {
+        const h = headerRow[i];
+        if (!h) continue;
+        if (h.startsWith('TIPO')) continue;
+        if (looseTargets.some(t => h.includes(t))) { colIdx = i; break; }
       }
     }
+
     if (colIdx === -1) colIdx = 0;
 
     const out: string[] = [];

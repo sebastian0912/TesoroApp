@@ -44,6 +44,7 @@ import Swal from 'sweetalert2';
 import { GestionDocumentalService } from '../../../hiring/service/gestion-documental/gestion-documental.service';
 import { DocumentacionService } from '../../service/documentacion/documentacion.service';
 import { DocumentScanDialogComponent } from '../../components/document-scan-dialog/document-scan-dialog.component';
+import { isOfflineQueued } from '@/app/core/utils/offline-response';
 
 export interface FileQueueItem {
   id: string;
@@ -53,6 +54,8 @@ export interface FileQueueItem {
   status: 'pending' | 'uploading' | 'success' | 'error';
   progress: number;
   errorMessage?: string;
+  /** true si el envío quedó en cola offline (no confirmado contra el servidor). */
+  queued?: boolean;
 }
 
 @Component({
@@ -435,6 +438,19 @@ export class UploadDocumentsComponent implements OnInit, OnDestroy {
         icon: 'warning',
         confirmButtonColor: '#3085d6'
       });
+    } else if (success.some(f => f.queued)) {
+      // Todo "ok" pero al menos uno quedó en cola offline: no mentir con
+      // "subido al servidor". Se subirá solo cuando vuelva la conexión.
+      Swal.fire({
+        title: 'Guardado sin conexión',
+        html:
+          `Se guardaron <b>${success.length}</b> documento(s) en este equipo.` +
+          `<br><br>Se subirán automáticamente cuando vuelva la conexión. ` +
+          `Puedes ver el avance en el indicador de red (arriba a la derecha).`,
+        icon: 'info',
+      }).then(() => {
+        this.resetAll();
+      });
     } else {
       Swal.fire({
         title: '¡Operación Exitosa!',
@@ -459,7 +475,7 @@ export class UploadDocumentsComponent implements OnInit, OnDestroy {
     this.cdr.markForCheck();
 
     try {
-      await firstValueFrom(
+      const resp = await firstValueFrom(
         this.gestionDocSrv.guardarDocumento(
           item.name,
           numeroDoc,
@@ -468,6 +484,9 @@ export class UploadDocumentsComponent implements OnInit, OnDestroy {
           contractCode || undefined
         )
       );
+      // Sin conexión el interceptor devuelve un 200 "mock": el archivo quedó en
+      // cola local, NO en el servidor. Lo marcamos para no afirmar "subido".
+      item.queued = isOfflineQueued(resp);
       item.status = 'success';
       item.progress = 100;
     } catch (err: any) {

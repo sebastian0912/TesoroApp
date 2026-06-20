@@ -436,3 +436,135 @@ mat-card-subtitle,
 .btn-managerial-icon:hover {
   background-color: rgba(255, 255, 255, 0.1) !important;
 }
+
+/* ───────── Embudo (8 etapas colapsadas en una columna) ───────── */
+.embudo-cell {
+  display: grid;
+  grid-template-columns: repeat(4, auto);
+  gap: 3px 4px;
+  justify-content: start;
+}
+
+.embudo-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1px 5px;
+  border-radius: 5px;
+  font-size: 10.5px;
+  font-weight: 700;
+  line-height: 1.5;
+  background: #eef2f7;
+  color: #334155;
+  white-space: nowrap;
+  cursor: default;
+}
+
+/* ───────── Chips de texto (observación / descripción) ───────── */
+.texto-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  background: #e0f2fe;
+  color: #075985;
+  cursor: help;
+  white-space: nowrap;
+}
+
+.texto-chip mat-icon {
+  font-size: 15px;
+  width: 15px;
+  height: 15px;
+  line-height: 15px;
+}
+
+.text-muted {
+  color: #94a3b8;
+}
+
+/* ───────── Barra de acciones masivas (selección por checkbox) ───────── */
+.bulk-actions-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 4px 0 10px;
+  padding: 8px 14px;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 10px;
+}
+
+.bulk-actions-bar .bulk-icon {
+  color: #1d4ed8;
+}
+
+.bulk-actions-bar .bulk-count {
+  font-weight: 700;
+  color: #1e3a8a;
+}
+
+.bulk-actions-bar .bulk-spacer {
+  flex: 1 1 auto;
+}
+
+.bulk-actions-bar button mat-icon {
+  margin-right: 4px;
+  font-size: 18px;
+  height: 18px;
+  width: 18px;
+  vertical-align: middle;
+}
+
+/* ───────── Tabla de vacantes: letra más pequeña y filas compactas ─────────
+   Scoped con :host ::ng-deep para no afectar otras tablas que usan el mismo
+   componente compartido. Se usa !important porque las reglas propias de la
+   tabla (.sf-table td/th con su atributo de encapsulación) tienen mayor
+   especificidad y de lo contrario ganan. */
+:host ::ng-deep .sf-table th,
+:host ::ng-deep .sf-table thead th {
+  font-size: 0.64rem !important;
+}
+
+:host ::ng-deep .sf-table td,
+:host ::ng-deep .sf-table tbody td {
+  font-size: 0.68rem !important;
+}
+
+/* Contenido renderizado por la tabla (links, badges) también más pequeño */
+:host ::ng-deep .sf-table td .sf-custom-badge,
+:host ::ng-deep .sf-table td .sf-status-badge,
+:host ::ng-deep .sf-table td a {
+  font-size: 0.68rem !important;
+}
+
+:host ::ng-deep .sf-density-compact td,
+:host ::ng-deep .sf-density-compact th {
+  height: 34px !important;
+  padding: 4px 9px !important;
+}
+
+/* Pill de cumplimiento clickeable (abre el detalle de candidatos asignados) */
+.cumpl-pill-btn {
+  font: inherit;
+  border: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: filter .12s, transform .12s, box-shadow .12s;
+}
+
+.cumpl-pill-btn:hover {
+  filter: brightness(0.96);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.18);
+}
+
+.cumpl-pill-btn:focus-visible {
+  outline: 2px solid #1565c0;
+  outline-offset: 2px;
+}

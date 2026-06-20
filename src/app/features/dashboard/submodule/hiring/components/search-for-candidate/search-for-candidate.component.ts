@@ -1,8 +1,11 @@
-import { Component, OnDestroy, OnInit, ChangeDetectionStrategy, ChangeDetectorRef, ElementRef, ViewChild } from '@angular/core';
+import { Component, OnDestroy, OnInit, ChangeDetectionStrategy, ChangeDetectorRef, ElementRef, ViewChild, DestroyRef, inject } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { firstValueFrom, interval, Subject, take } from 'rxjs';
 import { startWith, switchMap, takeUntil } from 'rxjs/operators';
 import Swal from 'sweetalert2';
 import { MatButtonModule } from '@angular/material/button';
+import { MatSlideToggleModule } from '@angular/material/slide-toggle';
+import { MatSelectModule } from '@angular/material/select';
 import { MatDialog } from '@angular/material/dialog';
 
 import { VetadosService } from '../../service/vetados/vetados.service';
@@ -10,7 +13,7 @@ import { UtilityServiceService } from '@/app/shared/services/utilityService/util
 
 import { EventEmitter, Output } from '@angular/core';
 import { SharedModule } from '@/app/shared/shared.module';
-import { CandidatoRecienteItem, RegistroProcesoContratacion } from '../../service/registro-proceso-contratacion/registro-proceso-contratacion';
+import { AntecedenteEstadoFuente, AntecedenteFuente, CandidatoRecienteItem, RegistroProcesoContratacion } from '../../service/registro-proceso-contratacion/registro-proceso-contratacion';
 import { DateRangeDialogComponent } from '@/app/shared/components/date-rang-dialog/date-rang-dialog.component';
 
 @Component({
@@ -19,7 +22,9 @@ import { DateRangeDialogComponent } from '@/app/shared/components/date-rang-dial
   standalone: true,
   imports: [
     SharedModule,
-    MatButtonModule
+    MatButtonModule,
+    MatSlideToggleModule,
+    MatSelectModule
   ],
   templateUrl: './search-for-candidate.component.html',
   styleUrl: './search-for-candidate.component.css',
@@ -28,6 +33,29 @@ export class SearchForCandidateComponent implements OnInit, OnDestroy {
   readonly yesNoStatusConfig: Record<string, { color: string; background: string }> = {
     'Sí': { color: '#065f46', background: '#d1fae5' },
     'No': { color: '#991b1b', background: '#fee2e2' },
+  };
+
+  /**
+   * Fuentes de antecedentes que consulta el robot, en el orden que pidió el
+   * operador. La abreviatura se muestra en cada chip de la tabla y el label
+   * completo va en el tooltip.
+   */
+  readonly antecedenteFuentes: ReadonlyArray<{ key: AntecedenteFuente; label: string; abbr: string }> = [
+    { key: 'contraloria', label: 'Contraloría', abbr: 'CON' },
+    { key: 'adress', label: 'ADRES', abbr: 'ADR' },
+    { key: 'sisben', label: 'Sisbén', abbr: 'SIS' },
+    { key: 'policivo', label: 'Policivos', abbr: 'POL' },
+    { key: 'procuraduria', label: 'Procuraduría', abbr: 'PRO' },
+    { key: 'ofac', label: 'OFAC', abbr: 'OFA' },
+  ];
+
+  /** Texto legible para cada estado de una fuente del robot. */
+  private readonly estadoFuenteLabel: Record<string, string> = {
+    SIN_CONSULTAR: 'Sin consultar',
+    EN_PROGRESO: 'Consultando',
+    FINALIZADO: 'Listo',
+    BLOQUEADO: 'Bloqueado',
+    RECHAZADO_INCUMPLIMIENTO: 'Rechazado',
   };
 
   /* ──────────  Outputs  ────────── */
@@ -40,6 +68,17 @@ export class SearchForCandidateComponent implements OnInit, OnDestroy {
 
   /* ──────────  Propiedades  ────────── */
   cedula = '';
+  /** Tipo de documento seleccionado para la búsqueda (igual que el formulario web). */
+  tipoDocSeleccionado = 'CC';
+  readonly tiposDocumento: ReadonlyArray<{ value: string; label: string }> = [
+    { value: 'CC', label: 'C.C - Cédula de ciudadanía' },
+    { value: 'CE', label: 'C.E - Cédula de extranjería' },
+    { value: 'TI', label: 'T.I - Tarjeta de identidad' },
+    { value: 'PEP', label: 'PEP - Permiso especial de permanencia' },
+    { value: 'PPT', label: 'PPT - Permiso por protección temporal' },
+    { value: 'PT', label: 'PT - Permiso temporal' },
+    { value: 'PA', label: 'PA - Pasaporte' },
+  ];
   observacion = '';
   mostrarObservacion = false;
   procesoValido = false;
@@ -61,13 +100,23 @@ export class SearchForCandidateComponent implements OnInit, OnDestroy {
   /* Búsqueda manual por cédula: ahora es un slider inline (no un panel lateral). */
   busquedaAbierta = false;
 
+  /**
+   * Si está activo, al consultar una cédula el candidato se agrega a la cola de
+   * la tabla (orden de llegada). Si está inactivo, sólo se busca y se avanza con
+   * el resto del flujo sin dejar rastro en la cola del día.
+   *
+   * Arranca apagado a propósito: el operador debe activarlo explícitamente para
+   * que la persona aparezca en la tabla del día.
+   */
+  encolarEnTabla = false;
+
   /** Ref al input de cédula del slider inline; usado para autofocus al abrir. */
   @ViewChild('busquedaInput') private busquedaInputRef?: ElementRef<HTMLInputElement>;
 
   /* Descarga de Excel: estado del request */
   excelDescargando = false;
 
-  private destroyed$ = new Subject<void>();
+  private readonly destroyRef = inject(DestroyRef);
 
   constructor(
     private vetadosService: VetadosService,
@@ -84,8 +133,8 @@ export class SearchForCandidateComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
-    this.destroyed$.next();
-    this.destroyed$.complete();
+    // Limpieza adicional si aplica (las suscripciones se auto-cancelan
+    // por takeUntilDestroyed sin acción manual).
   }
 
   private async initUsuarioYAbreviacion(): Promise<void> {
@@ -108,7 +157,7 @@ export class SearchForCandidateComponent implements OnInit, OnDestroy {
           this.sede || undefined
         );
       }),
-      takeUntil(this.destroyed$)
+      takeUntilDestroyed(this.destroyRef)
     ).subscribe({
       next: (data) => {
         this.recientes = this.dedupeRecientes(data);
@@ -127,7 +176,7 @@ export class SearchForCandidateComponent implements OnInit, OnDestroy {
     this.cdr.markForCheck();
     this.registroProcesoContratacion
       .getCandidatosRecientes(this.RECIENTES_LIMIT, this.sede || undefined)
-      .pipe(take(1), takeUntil(this.destroyed$))
+      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (data) => {
           this.recientes = this.dedupeRecientes(data);
@@ -175,7 +224,7 @@ export class SearchForCandidateComponent implements OnInit, OnDestroy {
         numero_documento: item.numero_documento,
         candidato_id: item.candidato_id,
       })
-      .pipe(take(1), takeUntil(this.destroyed$))
+      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: () => {
           this.atendiendoSet.delete(ced);
@@ -222,16 +271,42 @@ export class SearchForCandidateComponent implements OnInit, OnDestroy {
     this.cdr.markForCheck();
     this.registroProcesoContratacion
       .downloadTurnosExcel({ start, end }, this.sede || undefined)
-      .pipe(take(1), takeUntil(this.destroyed$))
+      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: () => {
           this.excelDescargando = false;
           this.cdr.markForCheck();
         },
-        error: () => {
+        error: async (err: any) => {
           this.excelDescargando = false;
           this.cdr.markForCheck();
-          Swal.fire('Error', 'No se pudo descargar el Excel.', 'error');
+          // El backend devuelve {message: "..."} como JSON cuando hay error.
+          // Como el response es blob, hay que leer y parsear.
+          let msg = 'No se pudo descargar el Excel.';
+          const blob: Blob | null = err?.error instanceof Blob ? err.error : null;
+          if (blob) {
+            try {
+              const text = await blob.text();
+              try {
+                const json = JSON.parse(text);
+                if (json?.message) msg = String(json.message);
+              } catch {
+                if (text && text.length < 400) msg = text;
+              }
+            } catch {
+              /* dejamos el msg por defecto */
+            }
+          } else if (err?.error?.message) {
+            msg = String(err.error.message);
+          } else if (err?.message) {
+            msg = String(err.message);
+          }
+          const status = err?.status ?? 0;
+          Swal.fire(
+            'Error al descargar Excel',
+            `${msg}<br><br><small>HTTP ${status}</small>`,
+            'error'
+          );
         }
       });
   }
@@ -254,15 +329,50 @@ export class SearchForCandidateComponent implements OnInit, OnDestroy {
 
   buscarCandidato(): void {
     this.cedula = this.cedula.trim();
+    if (!this.cedula) return;
+
+    // Asegura/actualiza la fila de antecedentes del robot (EstadosRobots) para
+    // el tipo de documento seleccionado + cédula. Crea la fila si el Candidato
+    // existe y falta, o la resetea a SIN_CONSULTAR si está vencida (>15 días),
+    // igual que el formulario web. Se hace SIEMPRE al buscar, sin depender del
+    // toggle de cola; tolerante a fallos.
+    this.registroProcesoContratacion
+      .asegurarEstadoRobot({ tipo_doc: this.tipoDocSeleccionado, numero_documento: this.cedula })
+      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {},
+        error: (err: any) => console.warn('[asegurarEstadoRobot] no se pudo asegurar', err?.status, err?.error),
+      });
 
     this.registroProcesoContratacion.getCandidatoPorDocumento(this.cedula, true).pipe(take(1)).subscribe({
-      next: (candidato) => {
+      next: (candidato: any) => {
         if (!candidato) {
           this.candidatoSeleccionado.emit(null);
           Swal.fire('No encontrado', 'No se encontró un candidato con esa cédula.', 'info');
           return;
         }
         this.candidatoSeleccionado.emit(candidato);
+
+        // Encolar la cédula en la cola FIFO de mi sede para HOY.
+        // Idempotente en backend: si ya estaba en cola hoy en esta sede, no se
+        // reordena. Si no, queda al final de la cola.
+        // Sólo se encola si el usuario dejó activo el toggle "Agregar a la cola".
+        // Cuando está apagado, la consulta procede pero el candidato no aparece
+        // en la tabla del día.
+        const cedula = String(candidato?.numero_documento || this.cedula || '').trim();
+        const tipoDoc = String(candidato?.tipo_doc || '').trim() || undefined;
+        if (cedula && this.encolarEnTabla) {
+          this.registroProcesoContratacion
+            .encolarCandidato({ tipo_doc: tipoDoc, numero_documento: cedula })
+            .pipe(take(1), takeUntilDestroyed(this.destroyRef))
+            .subscribe({
+              next: () => this.refrescarRecientes(),
+              error: (err: any) => {
+                console.warn('[encolar] no se pudo agregar a cola', err?.status, err?.error);
+                // No bloqueamos el flujo: la consulta del candidato igual procede.
+              },
+            });
+        }
       },
       error: () => Swal.fire('Error', 'Error al buscar el candidato.', 'error')
     });
@@ -326,5 +436,59 @@ export class SearchForCandidateComponent implements OnInit, OnDestroy {
         error: () => Swal.fire('Error', 'No se pudo enviar la observación.', 'error')
       });
     });
+  }
+
+  /* ──────────  Antecedentes del robot  ────────── */
+
+  /** Texto del badge general de antecedentes (columna "Antecedentes"). */
+  antecedentesLabel(item: CandidatoRecienteItem): string {
+    const a = item.antecedentes;
+    if (!a || a.estado_general === 'NO_REGISTRADO') return 'No solicitado';
+    if (a.completado || a.estado_general === 'FINALIZADO') return 'Completo';
+    if (a.estado_general === 'EN_PROGRESO') return `Consultando ${a.finalizadas}/${a.total}`;
+    return 'En cola';
+  }
+
+  /** Clase CSS del badge general según el estado de antecedentes. */
+  antecedentesBadgeClass(item: CandidatoRecienteItem): string {
+    const a = item.antecedentes;
+    if (!a || a.estado_general === 'NO_REGISTRADO') return 'badge-sin-iniciar';
+    if (a.completado || a.estado_general === 'FINALIZADO') return 'badge-completo';
+    if (a.estado_general === 'EN_PROGRESO') return 'badge-parcial';
+    return 'badge-atendido';
+  }
+
+  /** Ícono del badge general de antecedentes. */
+  antecedentesIcon(item: CandidatoRecienteItem): string {
+    const a = item.antecedentes;
+    if (!a || a.estado_general === 'NO_REGISTRADO') return 'help_outline';
+    if (a.completado || a.estado_general === 'FINALIZADO') return 'verified_user';
+    if (a.estado_general === 'EN_PROGRESO') return 'sync';
+    return 'schedule';
+  }
+
+  /** Estado puntual de una fuente para esta cédula. */
+  fuenteEstado(item: CandidatoRecienteItem, fuente: AntecedenteFuente): AntecedenteEstadoFuente {
+    return item.antecedentes?.fuentes?.[fuente] ?? null;
+  }
+
+  /** Clase CSS del chip de una fuente (color por estado). */
+  fuenteChipClass(item: CandidatoRecienteItem, fuente: AntecedenteFuente): string {
+    const estado = this.fuenteEstado(item, fuente);
+    switch (estado) {
+      case 'FINALIZADO': return 'chip-fuente-ok';
+      case 'EN_PROGRESO': return 'chip-fuente-progreso';
+      case 'BLOQUEADO':
+      case 'RECHAZADO_INCUMPLIMIENTO': return 'chip-fuente-bloqueado';
+      case 'SIN_CONSULTAR': return 'chip-fuente-pendiente';
+      default: return 'chip-fuente-na';
+    }
+  }
+
+  /** Tooltip por chip: "Contraloría: Listo". */
+  fuenteTooltip(item: CandidatoRecienteItem, fuente: AntecedenteFuente, label: string): string {
+    const estado = this.fuenteEstado(item, fuente);
+    if (!estado) return `${label}: No solicitado`;
+    return `${label}: ${this.estadoFuenteLabel[estado] ?? estado}`;
   }
 }

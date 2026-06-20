@@ -1,4 +1,4 @@
-import {  Component, OnInit, OnDestroy , ChangeDetectionStrategy } from '@angular/core';
+import { Component, OnInit, OnDestroy, ChangeDetectionStrategy, DestroyRef, inject } from '@angular/core';
 import {
   FormBuilder,
   FormGroup,
@@ -49,7 +49,7 @@ export class MercadoComercializadoraComponent implements OnInit, OnDestroy {
   correoUsuario: string = '';
   fechaIngreso: string = '';
   limiteDisponible: number = 0;
-  private destroy$ = new Subject<void>();
+  private readonly destroyRef = inject(DestroyRef);
 
   constructor(
     private fb: FormBuilder,
@@ -395,10 +395,7 @@ export class MercadoComercializadoraComponent implements OnInit, OnDestroy {
     }
   }
 
-  ngOnDestroy() {
-    this.destroy$.next();
-    this.destroy$.complete();
-  }
+  ngOnDestroy() {  }
 
   toggleSeleccionAutorizacion(codigo: FormGroup) {
     const control = codigo.get('seleccionado');

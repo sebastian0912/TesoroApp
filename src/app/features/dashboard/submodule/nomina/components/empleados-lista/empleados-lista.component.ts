@@ -1,7 +1,7 @@
 import {
   Component, ChangeDetectionStrategy, OnInit, signal, computed, inject,
 } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { FormsModule } from '@angular/forms';
 import { HttpErrorResponse } from '@angular/common/http';
 import { MatTableModule } from '@angular/material/table';
@@ -26,11 +26,18 @@ import { EmpleadoEditorDialogComponent } from '../empleado-editor-dialog/emplead
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    CommonModule, FormsModule,
-    MatTableModule, MatPaginatorModule, MatIconModule, MatButtonModule,
-    MatFormFieldModule, MatInputModule, MatSelectModule,
-    MatProgressSpinnerModule, MatDialogModule, MatTooltipModule,
-  ],
+    FormsModule,
+    MatTableModule,
+    MatPaginatorModule,
+    MatIconModule,
+    MatButtonModule,
+    MatFormFieldModule,
+    MatInputModule,
+    MatSelectModule,
+    MatProgressSpinnerModule,
+    MatDialogModule,
+    MatTooltipModule
+],
   templateUrl: './empleados-lista.component.html',
   styleUrl: './empleados-lista.component.css',
 })

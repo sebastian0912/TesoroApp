@@ -1,7 +1,7 @@
-import { Injectable } from '@angular/core';
+import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
-import { environment } from '../../../environments/environment';
+import { environment } from '@/environments/environment';
 import { NetworkStatusService } from './network-status.service';
 import { PermissionsService } from './permissions.service';
 
@@ -27,11 +27,11 @@ export class PipelinePreloadService {
   private base = `${(environment.apiUrl || '').replace(/\/$/, '')}/gestion_contratacion`;
   private docBase = `${(environment.apiUrl || '').replace(/\/$/, '')}/gestion_documental`;
 
-  constructor(
-    private http: HttpClient,
-    private networkService: NetworkStatusService,
-    private permissions: PermissionsService,
-  ) {
+  private readonly http = inject(HttpClient);
+  private readonly networkService = inject(NetworkStatusService);
+  private readonly permissions = inject(PermissionsService);
+
+  constructor() {
     this.networkService.isOnline$.subscribe(isOnline => {
       if (isOnline) {
         // Esperar unos segundos para que el syncQueue() termine primero
