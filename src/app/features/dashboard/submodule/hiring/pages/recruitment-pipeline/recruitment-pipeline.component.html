@@ -171,7 +171,24 @@
       </div>
     </div>
 
-    <mat-tab-group class="tab-group">
+    <!-- Bloqueo: el candidato consultado tiene un CONTRATO ACTIVO. No puede
+         avanzar al resto del pipeline hasta dar de baja ese contrato. -->
+    @if (contratoActivo()) {
+      <div class="contrato-activo-banner">
+        <mat-icon>lock</mat-icon>
+        <div class="cab-text">
+          <strong>{{ nombreCandidato || 'El candidato' }} tiene un contrato activo.</strong>
+          No puede continuar con el proceso hasta dar de baja el contrato vigente.
+        </div>
+        <button type="button" class="cab-action" (click)="darDeBajaManual()">
+          <mat-icon>logout</mat-icon> Dar de baja
+        </button>
+      </div>
+    }
+
+    <mat-tab-group class="tab-group"
+      [selectedIndex]="tabIndex()"
+      (selectedIndexChange)="tabIndex.set($event)">
       <mat-tab>
         <ng-template mat-tab-label>
           <div class="tab">
@@ -185,9 +202,9 @@
         </div>
       </mat-tab>
 
-      <mat-tab>
+      <mat-tab [disabled]="contratoActivo()">
         <ng-template mat-tab-label>
-          <div class="tab">
+          <div class="tab" [matTooltip]="contratoActivo() ? 'Dé de baja el contrato activo para continuar' : null">
             <mat-icon>thumb_up</mat-icon>
             ANTECEDENTES
           </div>
@@ -198,9 +215,9 @@
         </div>
       </mat-tab>
 
-      <mat-tab>
+      <mat-tab [disabled]="contratoActivo()">
         <ng-template mat-tab-label>
-          <div class="tab">
+          <div class="tab" [matTooltip]="contratoActivo() ? 'Dé de baja el contrato activo para continuar' : null">
             <mat-icon>rate_review</mat-icon>
             Selección
           </div>
@@ -212,9 +229,9 @@
       </mat-tab>
 
       <!-- ─────────── TAB 3 • EXAMEN DE SALUD OCUPACIONAL ─────────── -->
-      <mat-tab>
+      <mat-tab [disabled]="contratoActivo()">
         <ng-template mat-tab-label>
-          <div class="tab">
+          <div class="tab" [matTooltip]="contratoActivo() ? 'Dé de baja el contrato activo para continuar' : null">
             @if (examenesYaCargados()) {
               <mat-icon style="color:#2E7D32">check_circle</mat-icon>
             } @else {
@@ -420,9 +437,9 @@
 
           <!-- ─────────── TAB • CONTRATACIÓN ───────────    [disabled]="deshabilitarContratacion()"       [matTooltip]="deshabilitarContratacion() ? 'Hay exámenes NO APTO' : ''">-->
 
-          <mat-tab>
+          <mat-tab [disabled]="contratoActivo()">
             <ng-template mat-tab-label>
-              <div class="tab">
+              <div class="tab" [matTooltip]="contratoActivo() ? 'Dé de baja el contrato activo para continuar' : null">
 
                 <mat-icon>how_to_reg</mat-icon>
                 Contratación

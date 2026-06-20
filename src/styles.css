@@ -978,10 +978,13 @@ button {
     0 10px 26px rgba(15, 23, 42, 0.16) !important;
 }
 
-/* El componente controla su propio espaciado (.cumpl-body / .cumpl-actions);
-   sólo evitamos el tope de altura del MDC para que el cuerpo scrollee solo. */
+/* El componente controla su propio espaciado y altura: .cumpl-dialog se limita
+   a 92vh y .cumpl-body crece con flex (min-height:0) para ser el único que
+   scrollea. Aquí sólo quitamos el tope de 65vh del MDC (que recortaría el flex)
+   y garantizamos el contenedor de scroll por si la encapsulación no aplica. */
 .mat-mdc-dialog-panel.cumpl-dialog-panel .mat-mdc-dialog-content {
   max-height: none !important;
+  overflow-y: auto !important;
 }
 
 /* SweetAlert2 SIEMPRE por encima de los diálogos/overlays de Angular Material

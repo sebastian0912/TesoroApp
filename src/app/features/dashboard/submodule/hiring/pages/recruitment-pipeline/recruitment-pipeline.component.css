@@ -1080,3 +1080,59 @@ mat-tab-group {
   user-select: none;
   filter: grayscale(0.2);
 }
+
+/* Banner de bloqueo por CONTRATO ACTIVO: el candidato no puede avanzar al resto
+   del pipeline hasta darle de baja el contrato vigente. */
+.contrato-activo-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 8px 12px 4px;
+  padding: 12px 16px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.10), rgba(220, 38, 38, 0.14));
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  color: #b91c1c;
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.contrato-activo-banner > mat-icon {
+  flex: 0 0 auto;
+  color: #dc2626;
+}
+
+.contrato-activo-banner .cab-text {
+  flex: 1 1 auto;
+}
+
+.contrato-activo-banner .cab-action {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border: none;
+  border-radius: 10px;
+  background: #dc2626;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: filter 0.15s, box-shadow 0.15s;
+}
+
+.contrato-activo-banner .cab-action:hover {
+  filter: brightness(1.08);
+}
+
+.contrato-activo-banner .cab-action:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.35);
+}
+
+.contrato-activo-banner .cab-action mat-icon {
+  font-size: 18px;
+  width: 18px;
+  height: 18px;
+}

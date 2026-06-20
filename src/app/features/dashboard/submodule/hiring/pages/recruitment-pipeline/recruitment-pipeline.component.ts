@@ -231,6 +231,22 @@ export class RecruitmentPipelineComponent {
   readonly bloqueado = this.seleccionEstado.bloqueado;
   readonly motivoBloqueo = this.seleccionEstado.motivoBloqueo;
 
+  /**
+   * True cuando el candidato consultado tiene un CONTRATO ACTIVO. Mientras lo
+   * tenga no puede avanzar al resto del pipeline (Antecedentes, Selección,
+   * Exámenes, Contratación): primero hay que darle de baja ese contrato
+   * (pill verde "Contrato activo" del header o el botón del banner).
+   */
+  readonly contratoActivo = computed<boolean>(() =>
+    !!this.candidatoSeleccionado()?.entrevistas?.[0]?.proceso?.contrato?.contrato_activo
+  );
+
+  /**
+   * Índice del tab activo. Controlado para poder forzar el regreso a "Turnos"
+   * cuando hay un contrato activo (los demás tabs quedan deshabilitados).
+   */
+  readonly tabIndex = signal(0);
+
   // ───────── Form Parte 3 ─────────
   formGroup3: FormGroup = this.fb.group({
     ips: ['', Validators.required],
@@ -461,6 +477,13 @@ export class RecruitmentPipelineComponent {
         this._lastMissingKey.set('');
         this._closeToast();
       }
+    });
+
+    // 6) Contrato ACTIVO ⇒ sólo "Turnos" disponible. Si el candidato
+    //    consultado tiene contrato activo forzamos el primer tab; los demás
+    //    quedan deshabilitados en la plantilla hasta darle de baja.
+    effect(() => {
+      if (this.contratoActivo()) this.tabIndex.set(0);
     });
   }
 
