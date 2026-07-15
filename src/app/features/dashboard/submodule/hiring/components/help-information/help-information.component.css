@@ -16,19 +16,34 @@
   min-height: 0;
 }
 
-/* Asegurar que el cuerpo de los tabs se expanda y llene el espacio */
+/* Asegurar que el cuerpo de los tabs se expanda y llene el espacio, con altura
+   acotada para que el scroll interno del form (.form-tab) tenga contra qué medir. */
 :host ::ng-deep .help-tabs .mat-mdc-tab-body-wrapper {
   display: flex;
   flex-direction: column;
+  flex: 1;
+  min-height: 0;
 }
 
-/* Formulario dentro del tab "Remisión" */
+:host ::ng-deep .help-tabs .mat-mdc-tab-body,
+:host ::ng-deep .help-tabs .mat-mdc-tab-body-content {
+  min-height: 0;
+}
+
+/* Formulario dentro del tab "Remisión".
+   El pipeline padre pone `overflow:hidden` en .mat-mdc-tab-body-content (global,
+   se filtra a los sub-tabs de aquí), así que el scroll no puede vivir arriba: el
+   contenido se recorta y el botón Guardar queda fuera de vista. Como este form es
+   `flex:1` dentro de ese contenedor ya acotado, se vuelve él mismo el área con
+   scroll vertical. */
 .form-tab {
   display: flex;
   flex-direction: column;
   gap: 24px;
   width: auto;
   flex: 1;
+  min-height: 0;
+  overflow-y: auto;
   box-sizing: border-box;
   padding: 24px 0;
   margin-top: 16px;
