@@ -1292,6 +1292,10 @@ export class RecruitmentPipelineComponent {
           // Fecha de ingreso
           row._ingreso_date = row.contrato_fecha_ingreso || row.ingreso_at || null;
 
+          // Cuándo se registró el resultado de la prueba técnica (pasó / no pasó).
+          row._fecha_resultado_prueba =
+            row.no_paso_prueba_tecnica_at || row.paso_prueba_tecnica_at || null;
+
           return row;
         });
 
@@ -1315,6 +1319,10 @@ export class RecruitmentPipelineComponent {
           { name: 'finca', header: 'Finca', type: 'text', width: '160px' },
           { name: '_ingreso_date', header: 'Fecha ingreso', type: 'date', width: '140px' },
           { name: 'fecha_retiro', header: 'Fecha retiro', type: 'date', width: '140px' },
+          {
+            name: '_fecha_resultado_prueba', header: 'Fecha resultado prueba',
+            type: 'date', dateFormat: 'dd/MM/yyyy HH:mm', width: '170px',
+          },
           { name: '_motivo', header: 'Motivo', type: 'text', width: '260px' },
         ];
 
