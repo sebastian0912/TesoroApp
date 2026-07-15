@@ -53,7 +53,7 @@
                     <span class="pill pill-warn">Falt {{ falt(v) }}</span>
                     <span class="pill pill-neutral">Entr {{ entrev(v) }}</span>
                     <span class="pill pill-neutral">Pru {{ prue(v) }}</span>
-                    <span class="pill pill-neutral">Auto {{ auto(v) }}</span>
+                    <span class="pill pill-neutral" matTooltip="Contratación inmediata">Auto {{ auto(v) }}</span>
                     <span class="pill pill-neutral">Exm {{ exm(v) }}</span>
                     <span class="pill pill-ok">Firm {{ firm(v) }}</span>
                   </div>
@@ -113,7 +113,7 @@
                             <span class="pill pill-warn">Falt {{ falt(v) }}</span>
                             <span class="pill pill-neutral">Entr {{ entrev(v) }}</span>
                             <span class="pill pill-neutral">Pru {{ prue(v) }}</span>
-                            <span class="pill pill-neutral">Auto {{ auto(v) }}</span>
+                            <span class="pill pill-neutral" matTooltip="Contratación inmediata">Auto {{ auto(v) }}</span>
                             <span class="pill pill-neutral">Exm {{ exm(v) }}</span>
                             <span class="pill pill-ok">Firm {{ firm(v) }}</span>
                           </div>
@@ -145,7 +145,10 @@
         <mat-form-field class="example-full-width" appearance="outline">
           <mat-label>Tipo</mat-label>
           <mat-select formControlName="tipo" (selectionChange)="onTipoChange($event.value)">
-            <mat-option value="Autorización de ingreso">Autorización de ingreso</mat-option>
+            <!-- El value se conserva ("Autorización de ingreso") porque es lo que se
+                 guarda en vacante_tipo y con lo que compara isAutorizacion(); solo
+                 cambia el rótulo visible a "Contratación inmediata". -->
+            <mat-option value="Autorización de ingreso">Contratación inmediata</mat-option>
             <mat-option value="Prueba técnica">Prueba técnica</mat-option>
           </mat-select>
         </mat-form-field>

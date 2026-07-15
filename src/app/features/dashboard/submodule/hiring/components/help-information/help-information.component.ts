@@ -516,7 +516,7 @@ export class HelpInformationComponent implements OnInit {
     const tipo = this.vacantesForm.get('tipo')?.value as string | null;
     if (!tipo) {
       await Swal.fire({
-        title: 'Selecciona el tipo (Autorización de ingreso o Prueba técnica).',
+        title: 'Selecciona el tipo (Contratación inmediata o Prueba técnica).',
         icon: 'info',
         toast: true,
         position: 'top-end',
