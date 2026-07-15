@@ -231,6 +231,8 @@ export interface ProcesoUpdateByDocumentRequest {
   no_paso_prueba_tecnica?: boolean;
   /** Motivo por el que no pasó la prueba técnica. */
   motivo_no_paso_prueba_tecnica?: string | null;
+  /** Marca el resultado "pasó la prueba técnica" (excluyente con no_paso). */
+  paso_prueba_tecnica?: boolean;
   autorizado?: boolean;
   vacante_fecha_prueba?: string | null;
 

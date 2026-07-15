@@ -11,6 +11,7 @@ function proceso(over: Record<string, any> = {}) {
     vacante_tipo: 'Prueba técnica',
     prueba_tecnica: true,
     no_paso_prueba_tecnica: false,
+    paso_prueba_tecnica: false,
     motivo_no_paso_prueba_tecnica: null,
     ...over,
   };
@@ -55,13 +56,22 @@ describe('resultadoDePruebaTecnica', () => {
     expect(resultadoDePruebaTecnica(proceso())).toBe('sin_resultado');
   });
 
-  it('con la marca es "no_paso"', () => {
+  it('con la marca de aprobado es "paso"', () => {
+    expect(resultadoDePruebaTecnica(proceso({ paso_prueba_tecnica: true }))).toBe('paso');
+  });
+
+  it('con la marca de reprobado es "no_paso"', () => {
     expect(resultadoDePruebaTecnica(proceso({ no_paso_prueba_tecnica: true }))).toBe('no_paso');
   });
 
+  it('"no pasó" tiene prioridad si por error llegaran ambos flags', () => {
+    const p = proceso({ paso_prueba_tecnica: true, no_paso_prueba_tecnica: true });
+    expect(resultadoDePruebaTecnica(p)).toBe('no_paso');
+  });
+
   it('solo el true explícito cuenta', () => {
-    // El backend manda booleano; cualquier otra cosa no debe leerse como fallo.
-    expect(resultadoDePruebaTecnica(proceso({ no_paso_prueba_tecnica: null }))).toBe('sin_resultado');
+    // El backend manda booleano; cualquier otra cosa no debe leerse como resultado.
+    expect(resultadoDePruebaTecnica(proceso({ no_paso_prueba_tecnica: null, paso_prueba_tecnica: null }))).toBe('sin_resultado');
     expect(resultadoDePruebaTecnica({})).toBe('sin_resultado');
   });
 });
@@ -71,7 +81,11 @@ describe('etiquetaPruebaTecnica', () => {
     expect(etiquetaPruebaTecnica(proceso())).toBe('Enviado a prueba');
   });
 
-  it('dice "No pasó la prueba" cuando está marcado', () => {
+  it('dice "Pasó la prueba" cuando aprobó', () => {
+    expect(etiquetaPruebaTecnica(proceso({ paso_prueba_tecnica: true }))).toBe('Pasó la prueba');
+  });
+
+  it('dice "No pasó la prueba" cuando reprobó', () => {
     expect(etiquetaPruebaTecnica(proceso({ no_paso_prueba_tecnica: true }))).toBe('No pasó la prueba');
   });
 });

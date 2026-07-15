@@ -33,15 +33,20 @@ export function esVacanteDePruebaTecnica(proceso: any): boolean {
   return tipo === 'prueba' || tipo === 'prueba tecnica' || tipo === 'prueba_tecnica';
 }
 
-export type ResultadoPrueba = 'sin_resultado' | 'no_paso';
+export type ResultadoPrueba = 'sin_resultado' | 'paso' | 'no_paso';
 
 export function resultadoDePruebaTecnica(proceso: any): ResultadoPrueba {
-  return proceso?.no_paso_prueba_tecnica === true ? 'no_paso' : 'sin_resultado';
+  // "no pasó" tiene prioridad por si alguna fila vieja tuviera ambos flags.
+  if (proceso?.no_paso_prueba_tecnica === true) return 'no_paso';
+  if (proceso?.paso_prueba_tecnica === true) return 'paso';
+  return 'sin_resultado';
 }
 
 /** Texto del pill según el resultado registrado. */
 export function etiquetaPruebaTecnica(proceso: any): string {
-  return resultadoDePruebaTecnica(proceso) === 'no_paso'
-    ? 'No pasó la prueba'
-    : 'Enviado a prueba';
+  switch (resultadoDePruebaTecnica(proceso)) {
+    case 'paso': return 'Pasó la prueba';
+    case 'no_paso': return 'No pasó la prueba';
+    default: return 'Enviado a prueba';
+  }
 }

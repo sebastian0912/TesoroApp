@@ -261,19 +261,24 @@ export class RecruitmentPipelineComponent {
   /** El pill solo aparece si hay vacante remitida y es de tipo prueba técnica. */
   readonly esPruebaTecnica = computed<boolean>(() => esVacanteDePruebaTecnica(this._proceso()));
 
-  readonly noPasoPrueba = computed<boolean>(() =>
-    resultadoDePruebaTecnica(this._proceso()) === 'no_paso'
-  );
+  readonly resultadoPrueba = computed(() => resultadoDePruebaTecnica(this._proceso()));
+  readonly pasoPrueba = computed<boolean>(() => this.resultadoPrueba() === 'paso');
+  readonly noPasoPrueba = computed<boolean>(() => this.resultadoPrueba() === 'no_paso');
 
   readonly etiquetaPrueba = computed<string>(() => etiquetaPruebaTecnica(this._proceso()));
 
   readonly tooltipPrueba = computed<string>(() => {
     const proc = this._proceso();
-    if (resultadoDePruebaTecnica(proc) === 'no_paso') {
-      const motivo = proc?.motivo_no_paso_prueba_tecnica;
-      return motivo ? `No pasó la prueba. Motivo: ${motivo}` : 'No pasó la prueba. Click para cambiar el resultado';
+    switch (resultadoDePruebaTecnica(proc)) {
+      case 'paso':
+        return 'Pasó la prueba técnica. Click para cambiar el resultado';
+      case 'no_paso': {
+        const motivo = proc?.motivo_no_paso_prueba_tecnica;
+        return motivo ? `No pasó la prueba. Motivo: ${motivo}` : 'No pasó la prueba. Click para cambiar el resultado';
+      }
+      default:
+        return 'Click para registrar el resultado de la prueba técnica';
     }
-    return 'Click para registrar el resultado de la prueba técnica';
   });
 
   readonly puedeGenerarDocumentacion = computed<boolean>(() =>
@@ -791,6 +796,7 @@ export class RecruitmentPipelineComponent {
     const noPaso = decision.isDenied;
     const payload: any = {
       numero_documento: String(cc),
+      paso_prueba_tecnica: !noPaso,
       no_paso_prueba_tecnica: noPaso,
       motivo_no_paso_prueba_tecnica: noPaso ? motivo : null,
     };
@@ -802,14 +808,17 @@ export class RecruitmentPipelineComponent {
         this.registroProceso.updateProcesoByDocumento(payload, 'PATCH')
       );
 
-      // Estado local, igual que darDeBajaManual: evita recargar todo el candidato.
+      // Estado local, igual que darDeBajaManual: el pill se actualiza en el acto
+      // (los computed leen el proceso) sin recargar todo el candidato.
       const cand = this.candidatoSeleccionado();
       const proc = cand?.entrevistas?.[0]?.proceso;
       if (proc) {
+        const ahora = new Date().toISOString();
+        proc.paso_prueba_tecnica = !noPaso;
+        proc.paso_prueba_tecnica_at = resp?.proceso?.paso_prueba_tecnica_at ?? (noPaso ? null : ahora);
         proc.no_paso_prueba_tecnica = noPaso;
+        proc.no_paso_prueba_tecnica_at = resp?.proceso?.no_paso_prueba_tecnica_at ?? (noPaso ? ahora : null);
         proc.motivo_no_paso_prueba_tecnica = noPaso ? motivo : null;
-        proc.no_paso_prueba_tecnica_at = resp?.proceso?.no_paso_prueba_tecnica_at
-          ?? (noPaso ? new Date().toISOString() : null);
         this.candidatoSeleccionado.set({ ...cand });
       }
 
@@ -1264,6 +1273,11 @@ export class RecruitmentPipelineComponent {
           } else if (row.rechazado === true || apl === 'NO_APLICA' || apl === 'NO APLICA') {
             row._estado = '911';
             row._motivo = row.motivo_no_aplica || row.detalle || '';
+          } else if (row.no_paso_prueba_tecnica === true) {
+            row._estado = 'NO PASÓ PRUEBA';
+            row._motivo = row.motivo_no_paso_prueba_tecnica || '';
+          } else if (row.paso_prueba_tecnica === true) {
+            row._estado = 'PASÓ PRUEBA';
           } else if (row.prueba_tecnica === true) {
             row._estado = 'PRUEBA TÉCNICA';
           } else if (apl === 'EN_ESPERA') {
@@ -1291,6 +1305,8 @@ export class RecruitmentPipelineComponent {
               'RETIRADO':         { color: '#fff', background: '#78909C' },
               '911':              { color: '#fff', background: '#C62828' },
               'PRUEBA TÉCNICA':   { color: '#fff', background: '#1565C0' },
+              'PASÓ PRUEBA':      { color: '#fff', background: '#2E7D32' },
+              'NO PASÓ PRUEBA':   { color: '#fff', background: '#C62828' },
               'ESPERA VACANTE':   { color: '#000', background: '#FFD54F' },
               'EN PROGRESO':      { color: '#fff', background: '#00897B' },
             }
