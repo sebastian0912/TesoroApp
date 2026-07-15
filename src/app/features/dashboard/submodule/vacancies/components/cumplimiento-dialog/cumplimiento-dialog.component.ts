@@ -155,6 +155,7 @@ export class CumplimientoDialogComponent implements OnInit {
   /** Clase de color del chip de etapa. */
   etapaClass(etapa: string | null | undefined): string {
     const e = (etapa || '').toLowerCase();
+    if (e.includes('no pas')) return 'etapa-nopaso';
     if (e.includes('ingres')) return 'etapa-ingreso';
     if (e.includes('contrat')) return 'etapa-contratado';
     if (e.includes('exam')) return 'etapa-examenes';
@@ -163,6 +164,14 @@ export class CumplimientoDialogComponent implements OnInit {
     if (e.includes('entrevist')) return 'etapa-entrevistado';
     if (e.includes('pre')) return 'etapa-prereg';
     return 'etapa-asignado';
+  }
+
+  /** Tooltip con fecha + motivo de "no pasó la prueba técnica". */
+  noPasoTooltip(c: CandidatoPorVacanteItem): string {
+    const partes: string[] = [];
+    if (c.no_paso_prueba_tecnica_at) partes.push(`Fecha: ${this.fmtFecha(c.no_paso_prueba_tecnica_at)}`);
+    if (c.motivo_no_paso_prueba_tecnica) partes.push(`Motivo: ${c.motivo_no_paso_prueba_tecnica}`);
+    return partes.join('\n') || 'No pasó la prueba técnica';
   }
 
   /** Cuántas personas faltan para completar la vacante. */

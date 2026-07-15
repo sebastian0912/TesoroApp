@@ -27,6 +27,12 @@ import { HelpInformationComponent } from '../../components/help-information/help
 import { CameraDialogComponent } from '../../components/camera-dialog/camera-dialog.component';
 
 import { UtilityServiceService } from '@/app/shared/services/utilityService/utility-service.service';
+import { faltantesDePagoTransporte } from './pago-transporte.rules';
+import {
+  esVacanteDePruebaTecnica,
+  etiquetaPruebaTecnica,
+  resultadoDePruebaTecnica,
+} from './prueba-tecnica.rules';
 
 import { firstValueFrom, merge, startWith } from 'rxjs';
 import Swal from 'sweetalert2';
@@ -240,6 +246,51 @@ export class RecruitmentPipelineComponent {
   readonly contratoActivo = computed<boolean>(() =>
     !!this.candidatoSeleccionado()?.entrevistas?.[0]?.proceso?.contrato?.contrato_activo
   );
+
+  /** Qué falta de "Pago y Transporte" para poder generar la documentación. */
+  readonly faltantesPagoTransporte = computed<string[]>(() =>
+    faltantesDePagoTransporte(this.candidatoSeleccionado()?.entrevistas?.[0]?.proceso?.contrato)
+  );
+
+  // ───────── Prueba técnica (pill del header) ─────────
+
+  private readonly _proceso = computed<any>(() =>
+    this.candidatoSeleccionado()?.entrevistas?.[0]?.proceso
+  );
+
+  /** El pill solo aparece si hay vacante remitida y es de tipo prueba técnica. */
+  readonly esPruebaTecnica = computed<boolean>(() => esVacanteDePruebaTecnica(this._proceso()));
+
+  readonly noPasoPrueba = computed<boolean>(() =>
+    resultadoDePruebaTecnica(this._proceso()) === 'no_paso'
+  );
+
+  readonly etiquetaPrueba = computed<string>(() => etiquetaPruebaTecnica(this._proceso()));
+
+  readonly tooltipPrueba = computed<string>(() => {
+    const proc = this._proceso();
+    if (resultadoDePruebaTecnica(proc) === 'no_paso') {
+      const motivo = proc?.motivo_no_paso_prueba_tecnica;
+      return motivo ? `No pasó la prueba. Motivo: ${motivo}` : 'No pasó la prueba. Click para cambiar el resultado';
+    }
+    return 'Click para registrar el resultado de la prueba técnica';
+  });
+
+  readonly puedeGenerarDocumentacion = computed<boolean>(() =>
+    !!this.candidatoSeleccionado()?.numero_documento && this.faltantesPagoTransporte().length === 0
+  );
+
+  /** El tooltip dice QUÉ falta: un botón gris sin motivo no se puede accionar. */
+  readonly tooltipGenerarDocumentacion = computed<string>(() => {
+    if (!this.candidatoSeleccionado()?.numero_documento) {
+      return 'Selecciona un candidato';
+    }
+    const faltan = this.faltantesPagoTransporte();
+    if (!faltan.length) {
+      return 'Generar o subir documentación';
+    }
+    return `Completa y guarda "Pago y Transporte" (tab Contratación). Falta: ${faltan.join(', ')}`;
+  });
 
   /**
    * Índice del tab activo. Controlado para poder forzar el regreso a "Turnos"
@@ -683,6 +734,98 @@ export class RecruitmentPipelineComponent {
         console.error(err);
         Swal.fire('Error', 'No se pudo desactivar el contrato', 'error');
       }
+    }
+  }
+
+  /**
+   * Registra el resultado de la prueba técnica desde el pill del header.
+   *
+   * Es solo un marcador: NO toca `prueba_tecnica` (que se puso en true al remitir y
+   * es lo que habilita Contratación), así que registrar "no pasó" no bloquea el
+   * pipeline. Mismo payload y misma semántica que el bloque de help-information.
+   */
+  async registrarResultadoPrueba(): Promise<void> {
+    const cc = this.candidatoSeleccionado()?.numero_documento;
+    if (!cc || !this.esPruebaTecnica()) return;
+
+    const decision = await Swal.fire({
+      title: 'Resultado de la prueba técnica',
+      text: this.noPasoPrueba()
+        ? 'Hoy está marcado como "no pasó". ¿Cuál es el resultado?'
+        : `¿${this.nombreCandidato} pasó la prueba técnica?`,
+      icon: 'question',
+      showDenyButton: true,
+      showCancelButton: true,
+      confirmButtonText: 'Pasó',
+      denyButtonText: 'No pasó',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#16a34a',
+      denyButtonColor: '#dc2626',
+    });
+
+    if (decision.isDismissed) return;
+
+    let motivo = '';
+    if (decision.isDenied) {
+      const pedido = await Swal.fire({
+        title: 'Motivo',
+        input: 'textarea',
+        inputLabel: '¿Por qué no pasó la prueba técnica?',
+        inputValue: this._proceso()?.motivo_no_paso_prueba_tecnica ?? '',
+        inputValidator: (valor) => {
+          const texto = String(valor ?? '').trim();
+          if (!texto) return 'El motivo es obligatorio.';
+          if (texto.length < 5) return 'Amplía un poco más el motivo (mínimo 5 caracteres).';
+          return null;
+        },
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'Guardar',
+        cancelButtonText: 'Cancelar',
+      });
+
+      if (!pedido.isConfirmed) return;
+      motivo = String(pedido.value ?? '').trim();
+    }
+
+    const noPaso = decision.isDenied;
+    const payload: any = {
+      numero_documento: String(cc),
+      no_paso_prueba_tecnica: noPaso,
+      motivo_no_paso_prueba_tecnica: noPaso ? motivo : null,
+    };
+
+    Swal.fire({ title: 'Guardando resultado...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+
+    try {
+      const resp: any = await firstValueFrom(
+        this.registroProceso.updateProcesoByDocumento(payload, 'PATCH')
+      );
+
+      // Estado local, igual que darDeBajaManual: evita recargar todo el candidato.
+      const cand = this.candidatoSeleccionado();
+      const proc = cand?.entrevistas?.[0]?.proceso;
+      if (proc) {
+        proc.no_paso_prueba_tecnica = noPaso;
+        proc.motivo_no_paso_prueba_tecnica = noPaso ? motivo : null;
+        proc.no_paso_prueba_tecnica_at = resp?.proceso?.no_paso_prueba_tecnica_at
+          ?? (noPaso ? new Date().toISOString() : null);
+        this.candidatoSeleccionado.set({ ...cand });
+      }
+
+      await Swal.fire({
+        title: noPaso ? 'Registrado: no pasó la prueba.' : 'Registrado: pasó la prueba.',
+        icon: 'success',
+        toast: true,
+        position: 'top-end',
+        showConfirmButton: false,
+        timer: 2500,
+        timerProgressBar: true,
+      });
+    } catch (err: any) {
+      console.error('Error registrando resultado de prueba técnica:', err);
+      const detalle = err?.error?.detail || 'No se pudo registrar el resultado.';
+      await Swal.fire({ title: 'Error', text: detalle, icon: 'error' });
     }
   }
 

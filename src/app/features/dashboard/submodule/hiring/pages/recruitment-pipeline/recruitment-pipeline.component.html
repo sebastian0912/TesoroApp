@@ -44,6 +44,25 @@
 
               <span class="meta-divider" aria-hidden="true"></span>
 
+              <!-- Prueba técnica: solo si la vacante remitida es de ese tipo.
+                   Es un marcador de resultado; no bloquea Contratación. -->
+              @if (esPruebaTecnica()) {
+                <span class="pill pill-action"
+                  [class.pill-danger]="noPasoPrueba()"
+                  [class.pill-info]="!noPasoPrueba()"
+                  role="button"
+                  tabindex="0"
+                  [matTooltip]="tooltipPrueba()"
+                  (click)="registrarResultadoPrueba()"
+                  (keydown.enter)="registrarResultadoPrueba()"
+                  (keydown.space)="$event.preventDefault(); registrarResultadoPrueba()">
+                  <mat-icon>{{ noPasoPrueba() ? 'thumb_down' : 'assignment_ind' }}</mat-icon>
+                  {{ etiquetaPrueba() }}
+                </span>
+
+                <span class="meta-divider" aria-hidden="true"></span>
+              }
+
               <!-- Contrato activo / inactivo. El pill verde es clickable y abre el flujo de baja. -->
               @if (candidatoSeleccionado()?.entrevistas?.[0]?.proceso?.contrato; as contrato) {
                 @if (contrato.contrato_activo) {
@@ -123,12 +142,14 @@
           <mat-icon>badge</mat-icon>
         </button>
 
-        <!-- Botón de documentos -->
-        <button mat-icon-button matTooltip="Generar o subir documentación" aria-label="Generar o subir documentación"
+        <!-- Botón de documentos. Se bloquea hasta que "Pago y Transporte" esté
+             guardado: los documentos se arman con esos datos leídos del backend. -->
+        <button mat-icon-button [matTooltip]="tooltipGenerarDocumentacion()"
+          aria-label="Generar o subir documentación"
           [routerLink]="[
     '/dashboard/hiring/generate-contracting-documents',
     candidatoSeleccionado()?.numero_documento
-  ]" [disabled]="!candidatoSeleccionado()?.numero_documento">
+  ]" [disabled]="!puedeGenerarDocumentacion()">
           <mat-icon>description</mat-icon>
         </button>
 

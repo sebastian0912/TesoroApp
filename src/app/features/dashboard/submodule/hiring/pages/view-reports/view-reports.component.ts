@@ -169,7 +169,7 @@ export class ViewReportsComponent implements OnInit {
   });
 
   reportesColumns: ColumnDefinition[] = [
-    { name: 'fecha', header: 'Fecha', type: 'date', width: '140px', align: 'left' },
+    { name: 'fecha', header: 'Fecha y hora', type: 'date', dateFormat: 'dd/MM/yyyy HH:mm', width: '170px', align: 'left' },
     { name: 'nombre', header: 'Persona quien subió', type: 'text', align: 'left' },
     { name: 'sede', header: 'Sede', type: 'text', align: 'left' },
     {

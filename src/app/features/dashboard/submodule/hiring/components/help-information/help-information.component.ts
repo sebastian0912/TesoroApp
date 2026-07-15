@@ -114,10 +114,6 @@ export class HelpInformationComponent implements OnInit {
 
   sede: string | undefined;
 
-  // ========= Estado de solo lectura =========
-  isRemisionReadOnly = signal<boolean>(false);
-  isPreloadedVacancy = signal<boolean>(false);
-
   // ========= "Sin vacante" (quitar asignación) =========
   /** Valor centinela del <mat-select> para la opción "Sin vacante". */
   readonly SIN_VACANTE = -1;
@@ -127,6 +123,14 @@ export class HelpInformationComponent implements OnInit {
    * No se asigna ninguna vacante nueva.
    */
   limpiarVacante = signal<boolean>(false);
+
+  // ========= "No pasó la prueba técnica" =========
+  /** El candidato fue remitido a prueba técnica pero NO la pasó. */
+  noPasoPrueba = signal<boolean>(false);
+  /** Fecha (ISO) en que se marcó que no pasó la prueba técnica. */
+  noPasoPruebaAt = signal<string | null>(null);
+  /** Motivo registrado de por qué no pasó la prueba técnica. */
+  motivoNoPaso = signal<string | null>(null);
 
   // ========= Catálogos a signals =========
   private _estadosCiviles$ = this.gp
@@ -301,30 +305,12 @@ export class HelpInformationComponent implements OnInit {
         }, { emitEvent: true }); // emitEvent true para que los signals de visibilidad (como isAutorizacion) reaccionen
       }
     });
-
-    // --- Effect: deshabilitar el formulario si aplica la restricción
-    effect(() => {
-      const isReadOnly = this.isRemisionReadOnly();
-      const loadedFromDB = this.isPreloadedVacancy();
-      if (isReadOnly && loadedFromDB) {
-        this.vacantesForm.disable({ emitEvent: false });
-      } else {
-        this.vacantesForm.enable({ emitEvent: false });
-      }
-    });
   }
 
   ngOnInit() {
     const user = this.utilService.getUser();
     if (user) {
       this.sede = user.sede?.nombre || null;
-
-      const rolNombre = (user.rol?.nombre || '').toUpperCase();
-      const email = (user.correo_electronico || '').toUpperCase();
-
-      if (!(rolNombre === 'GERENCIA' || rolNombre === 'ADMIN' || email === 'CONTRATACIONSUBA.TS@GMAIL.COM' || email === 'SELECCIONSUBA.TS@GMAIL.COM')) {
-        this.isRemisionReadOnly.set(true);
-      }
 
       if (this.sede) {
         this.vacantesService.getVacantesPorOficina(this.sede).pipe(
@@ -345,6 +331,10 @@ export class HelpInformationComponent implements OnInit {
   private onInputsChanged(candidato: any | null) {
     // Al cambiar de candidato, descartamos cualquier intención previa de limpiar.
     this.limpiarVacante.set(false);
+    // Reseteamos el estado de "no pasó la prueba técnica"; se rehidrata desde el proceso.
+    this.noPasoPrueba.set(false);
+    this.noPasoPruebaAt.set(null);
+    this.motivoNoPaso.set(null);
     if (candidato && candidato?.id) {
       // Intenta cargar el proceso del candidato
       const proceso = candidato.entrevistas?.[0]?.proceso;
@@ -387,8 +377,11 @@ export class HelpInformationComponent implements OnInit {
   private limpiarVacanteSeleccion(): void {
     this.selectedVacanteId.set(null);
     this.vacanteSeleccionada.set(null);
-    this.isPreloadedVacancy.set(false);
     this.limpiarVacante.set(true);
+    // Quitar la vacante también descarta el resultado de prueba técnica en la UI.
+    this.noPasoPrueba.set(false);
+    this.noPasoPruebaAt.set(null);
+    this.motivoNoPaso.set(null);
     this.vacantesForm.reset(
       {
         tipo: '',
@@ -456,12 +449,15 @@ export class HelpInformationComponent implements OnInit {
       salario: p?.salario ? Number(p.salario) : null
     }, { emitEvent: true });
 
+    // Estado de "no pasó la prueba técnica" (resultado registrado en el proceso).
+    this.noPasoPrueba.set(!!p?.no_paso_prueba_tecnica);
+    this.noPasoPruebaAt.set(p?.no_paso_prueba_tecnica_at ?? null);
+    this.motivoNoPaso.set(p?.motivo_no_paso_prueba_tecnica ?? null);
+
     // Si el proceso trae id de vacante, sincroniza selección
     if (p?.publicacion != null) {
-      this.isPreloadedVacancy.set(true);
       this.selectedVacanteId.set(Number(p.publicacion));
     } else if (p?.vacante != null) {
-      this.isPreloadedVacancy.set(true);
       this.selectedVacanteId.set(Number(p.vacante));
     }
   }
@@ -679,6 +675,154 @@ export class HelpInformationComponent implements OnInit {
         icon: 'error',
         confirmButtonText: 'OK',
       });
+      console.error(err);
+    } finally {
+      Swal.close();
+    }
+  }
+
+  /**
+   * Marca que el candidato NO pasó la prueba técnica: pide el motivo y persiste
+   * el resultado (con fecha sellada por el backend). Si ya estaba marcado,
+   * permite editar el motivo.
+   */
+  async marcarNoPasoPrueba(): Promise<void> {
+    if (this.bloqueado()) {
+      await Swal.fire({
+        title: `Candidato ${this.motivoBloqueo()}`,
+        text: 'No se puede registrar el resultado de la prueba técnica con la observación actual.',
+        icon: 'info',
+        toast: true,
+        position: 'top-end',
+        showConfirmButton: false,
+        timer: 3500,
+        timerProgressBar: true,
+      });
+      return;
+    }
+
+    const numeroDocumento = this.candidatoSeleccionado()?.numero_documento;
+    if (!numeroDocumento) {
+      await Swal.fire({
+        title: 'No hay número de documento del candidato.',
+        icon: 'info',
+        toast: true,
+        position: 'top-end',
+        showConfirmButton: false,
+        timer: 3000,
+        timerProgressBar: true,
+      });
+      return;
+    }
+
+    const { value: motivo, isConfirmed } = await Swal.fire({
+      title: 'No pasó la prueba técnica',
+      input: 'textarea',
+      inputLabel: 'Motivo por el que no pasó la prueba técnica',
+      inputValue: this.motivoNoPaso() ?? '',
+      inputPlaceholder: 'Describe el motivo…',
+      inputAttributes: { maxlength: '500', 'aria-label': 'Motivo no pasó prueba técnica' },
+      inputValidator: (val: any) => {
+        const t = String(val ?? '').trim();
+        if (!t) return 'El motivo es obligatorio.';
+        if (t.length < 5) return 'Amplía un poco más el motivo (mínimo 5 caracteres).';
+        return null;
+      },
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'Guardar',
+      cancelButtonText: 'Cancelar',
+      allowOutsideClick: () => !Swal.isLoading(),
+    });
+
+    if (!isConfirmed) return;
+    const motivoText = String(motivo ?? '').trim();
+
+    const payload: ProcesoUpdateByDocumentRequest = {
+      numero_documento: numeroDocumento,
+      no_paso_prueba_tecnica: true,
+      motivo_no_paso_prueba_tecnica: motivoText,
+    };
+
+    try {
+      Swal.fire({
+        title: 'Guardando...',
+        allowOutsideClick: false,
+        didOpen: () => Swal.showLoading(),
+      });
+
+      const res = await this.gc.updateProcesoByDocumento(payload, 'PATCH').toPromise();
+      const proc: any = res?.proceso;
+
+      this.noPasoPrueba.set(true);
+      this.noPasoPruebaAt.set(proc?.no_paso_prueba_tecnica_at ?? new Date().toISOString());
+      this.motivoNoPaso.set(proc?.motivo_no_paso_prueba_tecnica ?? motivoText);
+
+      await Swal.fire({
+        title: 'Resultado registrado: no pasó la prueba técnica.',
+        icon: 'success',
+        toast: true,
+        position: 'top-end',
+        showConfirmButton: false,
+        timer: 2500,
+        timerProgressBar: true,
+      });
+    } catch (err: any) {
+      const msg = err?.error?.detail || 'No se pudo registrar el resultado.';
+      await Swal.fire({ title: 'Error', text: msg, icon: 'error', confirmButtonText: 'OK' });
+      console.error(err);
+    } finally {
+      Swal.close();
+    }
+  }
+
+  /** Quita la marca de "no pasó la prueba técnica" (limpia fecha y motivo). */
+  async quitarNoPasoPrueba(): Promise<void> {
+    if (this.bloqueado()) return;
+
+    const numeroDocumento = this.candidatoSeleccionado()?.numero_documento;
+    if (!numeroDocumento) return;
+
+    const confirm = await Swal.fire({
+      title: '¿Quitar la marca de "no pasó"?',
+      text: 'Se eliminará el resultado y el motivo registrados para la prueba técnica.',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'Sí, quitar',
+      cancelButtonText: 'Cancelar',
+    });
+    if (!confirm.isConfirmed) return;
+
+    const payload: ProcesoUpdateByDocumentRequest = {
+      numero_documento: numeroDocumento,
+      no_paso_prueba_tecnica: false,
+    };
+
+    try {
+      Swal.fire({
+        title: 'Quitando...',
+        allowOutsideClick: false,
+        didOpen: () => Swal.showLoading(),
+      });
+
+      await this.gc.updateProcesoByDocumento(payload, 'PATCH').toPromise();
+
+      this.noPasoPrueba.set(false);
+      this.noPasoPruebaAt.set(null);
+      this.motivoNoPaso.set(null);
+
+      await Swal.fire({
+        title: 'Marca quitada.',
+        icon: 'success',
+        toast: true,
+        position: 'top-end',
+        showConfirmButton: false,
+        timer: 2200,
+        timerProgressBar: true,
+      });
+    } catch (err: any) {
+      const msg = err?.error?.detail || 'No se pudo quitar la marca.';
+      await Swal.fire({ title: 'Error', text: msg, icon: 'error', confirmButtonText: 'OK' });
       console.error(err);
     } finally {
       Swal.close();

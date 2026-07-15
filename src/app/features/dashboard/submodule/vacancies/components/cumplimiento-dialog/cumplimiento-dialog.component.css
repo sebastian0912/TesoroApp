@@ -334,6 +334,33 @@
 .etapa-examenes     { background: #e0f7fa; color: #00838f; }
 .etapa-contratado   { background: var(--ok-bg); color: var(--ok); border-color: #c8e6c9; }
 .etapa-ingreso      { background: #e8f5e9; color: #1b5e20; border-color: #a5d6a7; }
+.etapa-nopaso       { background: #fdecea; color: #c62828; border-color: #f5c2c0; }
+
+/* Motivo de "no pasó la prueba técnica" bajo el chip de etapa. */
+.etapa-motivo {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  margin-top: 4px;
+  max-width: 130px;
+  font-size: 10.5px;
+  line-height: 1.25;
+  color: #b71c1c;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.etapa-motivo mat-icon {
+  flex: 0 0 auto;
+  font-size: 13px;
+  width: 13px;
+  height: 13px;
+}
+
+.cumpl-nopaso-tooltip {
+  white-space: pre-line;
+}
 
 .cumpl-hint {
   display: flex;

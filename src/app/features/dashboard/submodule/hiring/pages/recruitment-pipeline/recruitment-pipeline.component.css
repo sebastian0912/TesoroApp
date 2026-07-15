@@ -493,6 +493,13 @@ mat-tab-group {
   border-color: rgba(148, 163, 184, 0.28);
 }
 
+/* Enviado a prueba técnica: informativo, sin resultado registrado todavía. */
+.pill-info {
+  background: linear-gradient(135deg, rgba(56, 189, 248, 0.18), rgba(2, 132, 199, 0.22));
+  color: #7dd3fc;
+  border-color: rgba(56, 189, 248, 0.35);
+}
+
 /* Pills clickables: mismo aspecto que un .pill informativo, sólo cambia el cursor
    y el efecto de hover. Usa <span role="button"> para evitar los estilos de
    user-agent del <button> que rompen la altura. */

@@ -81,15 +81,58 @@
 
       <div class="panel-header">
         <h3>Resultados</h3>
-        @if (documentosPorCategoria.length) {
-          <span class="results-count">
-            {{ documentosPorCategoria.length }} Categoría{{ documentosPorCategoria.length !== 1 ? 's' : '' }}
-          </span>
-        }
+        <div class="panel-header-right">
+          @if (documentosPorCategoria.length) {
+            <!-- El check que habilita la selección para unir -->
+            <mat-checkbox class="union-toggle" [checked]="modoUnion" (change)="alternarModoUnion()">
+              Unir documentos
+            </mat-checkbox>
+            <span class="results-count">
+              {{ documentosPorCategoria.length }} Categoría{{ documentosPorCategoria.length !== 1 ? 's' : '' }}
+              · {{ totalArchivos() }} Archivo{{ totalArchivos() !== 1 ? 's' : '' }}
+            </span>
+          }
+        </div>
       </div>
+
+      <!-- Barra de unión: solo con el modo activo -->
+      @if (modoUnion) {
+        <div class="union-bar">
+          <div class="union-info">
+            @if (seleccion.length) {
+              <span class="union-count">{{ seleccion.length }}</span>
+              <span>seleccionado{{ seleccion.length !== 1 ? 's' : '' }} · se unen en el orden que los marques</span>
+            } @else {
+              <span class="union-hint">Marca los archivos en el orden en que los quieras unir.</span>
+            }
+          </div>
+          <div class="union-actions">
+            @if (seleccion.length) {
+              <button type="button" class="union-clear" (click)="limpiarSeleccion()">Limpiar</button>
+            }
+            <button mat-flat-button class="btn-managerial" [disabled]="seleccion.length < 2"
+              [matTooltip]="seleccion.length < 2 ? 'Marca al menos 2 archivos' : 'Descargar el PDF unido'"
+              (click)="descargarUnion()">
+              <mat-icon>merge_type</mat-icon> DESCARGAR UNIÓN
+            </button>
+          </div>
+        </div>
+      }
 
       <!-- Results Content -->
       <div class="results-list-container">
+
+        @if (meta?.documents_truncated) {
+          <div class="truncated-banner">
+            <mat-icon>warning_amber</mat-icon>
+            <span>
+              <!-- `meta?.` a propósito: el compilador no estrecha `meta` dentro del @if
+                   (TS2531), aunque el language service marque el ?. como redundante. -->
+              Esta cédula tiene {{ meta?.documents_total }} expedientes. Se muestran los
+              {{ meta?.documents_returned }} primeros: filtra por tipo documental o contrato para acotar.
+            </span>
+          </div>
+        }
 
         @if (documentosPorCategoria && documentosPorCategoria.length > 0) {
           @for (item of documentosPorCategoria; track trackByCategoria($index, item)) {
@@ -97,43 +140,107 @@
               <div class="category-header">
                 <mat-icon class="folder-icon">folder_open</mat-icon>
                 <h4>{{ item.categoria }}</h4>
+                <span class="category-count">{{ item.totalArchivos }} archivo{{ item.totalArchivos !== 1 ? 's' : '' }}</span>
               </div>
-              <!-- "Table" Rows for Documents -->
-              <div class="documents-group">
-                @for (doc of item.documentos; track trackByDocumento($index, doc)) {
-                  <div class="doc-row"
-                    [class.has-file]="!!doc.file_url" (click)="doc.file_url ? verPDF(doc.file_url) : null">
-                    <div class="doc-info">
-                      <span class="doc-name">{{ obtenerTipoDocumental(doc) }}</span>
-                      <!-- Optional: If API returned date or other meta, put here -->
-                    </div>
-                    <div class="doc-status">
-                      <span class="status-chip" [class.success]="doc.file_url" [class.missing]="!doc.file_url">
-                        {{ doc.file_url ? 'Disponible' : 'Sin Archivo' }}
-                      </span>
-                    </div>
-                    <div class="doc-actions">
-                      @if (doc.file_url) {
-                        <button mat-icon-button class="view-btn"
-                          (click)="$event.stopPropagation(); verPDF(doc.file_url)" matTooltip="Ver Documento">
-                          <mat-icon>visibility</mat-icon>
-                        </button>
-                      }
-                      @if (doc.file_url) {
-                        <button mat-icon-button class="edit-btn"
-                          (click)="$event.stopPropagation(); editarPDF(doc)" matTooltip="Editar Documento">
-                          <mat-icon>edit</mat-icon>
-                        </button>
-                      }
-                      <!-- Fallback or Help for missing? -->
-                      @if (!doc.file_url) {
-                        <mat-icon class="missing-icon"
-                        matTooltip="No se ha cargado archivo">error_outline</mat-icon>
-                      }
-                    </div>
+
+              <!-- Un bloque por tipo documental, con todos sus archivos -->
+              @for (tipo of item.tipos; track trackByTipo($index, tipo)) {
+                <div class="type-block">
+                  <div class="type-header">
+                    <mat-icon class="type-icon">description</mat-icon>
+                    <span class="type-name">{{ tipo.nombre }}</span>
+                    <span class="type-count">{{ tipo.totalReal }}</span>
+                    @if (tipo.truncado) {
+                      <mat-icon class="warn-icon"
+                        matTooltip="Este tipo tiene demasiadas versiones. Se muestran las más recientes.">
+                        warning_amber
+                      </mat-icon>
+                    }
                   </div>
-                }
-              </div>
+
+                  <!-- "Table" Rows: una fila por archivo -->
+                  <div class="documents-group">
+                    @for (archivo of archivosVisibles(tipo); track trackByArchivo($index, archivo)) {
+                      <div class="doc-row"
+                        [class.has-file]="!!archivo.fileUrl"
+                        [class.union-mode]="modoUnion"
+                        [class.union-picked]="estaSeleccionado(archivo)"
+                        [class.is-selected]="!modoUnion && !!archivo.fileUrl && archivo.fileUrl === archivoSeleccionado"
+                        (click)="alClickFila(archivo)">
+                        @if (modoUnion) {
+                          <!-- El número es la posición en la unión, no un adorno -->
+                          <div class="union-pick"
+                            [class.disabled]="!archivo.esUnible"
+                            [matTooltip]="archivo.esUnible ? '' : 'Solo se pueden unir PDF e imágenes (' + archivo.extension + ' no)'">
+                            @if (estaSeleccionado(archivo)) {
+                              <span class="union-order">{{ posicionEnUnion(archivo) }}</span>
+                            } @else if (archivo.esUnible) {
+                              <span class="union-empty"></span>
+                            } @else {
+                              <mat-icon class="union-blocked">block</mat-icon>
+                            }
+                          </div>
+                        }
+                        <div class="doc-info">
+                          <span class="doc-name">{{ archivo.nombre }}</span>
+                          <span class="doc-meta">
+                            @if (archivo.versionNumber) {
+                              <span class="doc-version">v{{ archivo.versionNumber }}</span>
+                            }
+                            @if (archivo.uploadedAt) {
+                              <span>{{ archivo.uploadedAt | date:'dd/MM/yyyy HH:mm' }}</span>
+                            }
+                            @if (archivo.sizeBytes) {
+                              <span>{{ formatoTamano(archivo.sizeBytes) }}</span>
+                            }
+                          </span>
+                        </div>
+                        <div class="doc-status">
+                          @if (!archivo.fileUrl) {
+                            <span class="status-chip missing">Sin Archivo</span>
+                          } @else if (archivo.isCurrent) {
+                            <span class="status-chip success">Vigente</span>
+                          } @else {
+                            <span class="status-chip historic">Histórico</span>
+                          }
+                        </div>
+                        <div class="doc-actions">
+                          @if (archivo.fileUrl) {
+                            <button mat-icon-button class="view-btn"
+                              (click)="$event.stopPropagation(); verPDF(archivo.fileUrl)" matTooltip="Ver Documento">
+                              <mat-icon>visibility</mat-icon>
+                            </button>
+                          }
+                          <!-- Editar sube una versión nueva: solo tiene sentido sobre la vigente -->
+                          @if (archivo.fileUrl && archivo.isCurrent) {
+                            <button mat-icon-button class="edit-btn"
+                              (click)="$event.stopPropagation(); editarPDF(archivo.doc)" matTooltip="Editar Documento">
+                              <mat-icon>edit</mat-icon>
+                            </button>
+                          }
+                          @if (!archivo.fileUrl) {
+                            <mat-icon class="missing-icon"
+                            matTooltip="No se ha cargado archivo">error_outline</mat-icon>
+                          }
+                        </div>
+                      </div>
+                    }
+                  </div>
+
+                  @if (archivosOcultos(tipo) > 0) {
+                    <button type="button" class="toggle-versions" (click)="alternarTipo(tipo)">
+                      <mat-icon>{{ tipo.expandido ? 'expand_less' : 'expand_more' }}</mat-icon>
+                      {{ tipo.expandido ? 'Ver menos' : 'Ver ' + archivosOcultos(tipo) + ' archivo' + (archivosOcultos(tipo) !== 1 ? 's' : '') + ' anterior' + (archivosOcultos(tipo) !== 1 ? 'es' : '') }}
+                    </button>
+                  }
+
+                  @if (tipo.truncado) {
+                    <p class="truncated-note">
+                      Mostrando los {{ tipo.archivos.length }} archivos más recientes de {{ tipo.totalReal }}.
+                    </p>
+                  }
+                </div>
+              }
             </div>
           }
         } @else {

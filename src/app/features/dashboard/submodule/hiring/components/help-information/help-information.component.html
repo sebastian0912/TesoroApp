@@ -39,7 +39,7 @@
         <mat-form-field class="example-full-width" appearance="outline" style="width: 100%;">
           <mat-label>Vacante (Empresa - Finca - Cargo)</mat-label>
           <mat-select [value]="selectedVacanteId()" (selectionChange)="onVacanteIdChange($event.value)"
-            [disabled]="(isRemisionReadOnly() && isPreloadedVacancy()) || bloqueado()" [disableOptionCentering]="true"
+            [disabled]="bloqueado()" [disableOptionCentering]="true"
             panelClass="custom-select-panel">
 
             <mat-select-trigger>
@@ -205,15 +205,47 @@
             }
           </div>
 
-          @if (!(isRemisionReadOnly() && isPreloadedVacancy())) {
-            <div class="actions">
-              <button mat-flat-button [color]="limpiarVacante() ? 'warn' : 'primary'"
-                [disabled]="vacantesForm.invalid || vacantesForm.disabled || bloqueado()"
-                (click)="guardarVacantes()">
-                {{ limpiarVacante() ? 'Quitar vacante' : 'Guardar' }}
-              </button>
+          <!-- ═══ Resultado de la prueba técnica: "No pasó" ═══ -->
+          @if (isPrueba()) {
+            <div class="no-paso-block">
+              @if (noPasoPrueba()) {
+                <div class="no-paso-banner">
+                  <mat-icon>cancel</mat-icon>
+                  <div class="no-paso-info">
+                    <strong>No pasó la prueba técnica.</strong>
+                    @if (noPasoPruebaAt()) {
+                      <span class="no-paso-fecha">Fecha: {{ formatShortDate(noPasoPruebaAt()) }}</span>
+                    }
+                    @if (motivoNoPaso()) {
+                      <div class="no-paso-motivo">Motivo: {{ motivoNoPaso() }}</div>
+                    }
+                  </div>
+                </div>
+              }
+
+              <div class="no-paso-actions">
+                <button mat-stroked-button color="warn" type="button"
+                  [disabled]="vacantesForm.disabled || bloqueado()"
+                  (click)="marcarNoPasoPrueba()">
+                  <mat-icon>thumb_down</mat-icon>
+                  {{ noPasoPrueba() ? 'Editar motivo (no pasó)' : 'No pasó la prueba técnica' }}
+                </button>
+                @if (noPasoPrueba()) {
+                  <button mat-button type="button" [disabled]="bloqueado()" (click)="quitarNoPasoPrueba()">
+                    Quitar marca
+                  </button>
+                }
+              </div>
             </div>
           }
+
+          <div class="actions">
+            <button mat-flat-button [color]="limpiarVacante() ? 'warn' : 'primary'"
+              [disabled]="vacantesForm.invalid || vacantesForm.disabled || bloqueado()"
+              (click)="guardarVacantes()">
+              {{ limpiarVacante() ? 'Quitar vacante' : 'Guardar' }}
+            </button>
+          </div>
         </form>
       </mat-tab>
     </mat-tab-group>

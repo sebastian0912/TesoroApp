@@ -145,6 +145,22 @@ export class HomeComponent implements OnInit {
     'Segundo Nombre': ['segundo nombre', 'sn'],
     'Primer Apellido': ['primer apellido', 'pa'],
     'Segundo Apellido': ['segundo apellido', 'sa'],
+    // Columna opcional de la imagen de referencia (ej. "ADRESS"). El backend la
+    // lee vía DOCS_FALTANTES_KEYS; la registramos aquí para no depender del
+    // passthrough de headers desconocidos. En modo "solo actualizar" el backend
+    // la ignora y fuerza ADRES-only de todos modos.
+    'Documentación faltante': [
+      'documentación faltante',
+      'documentacion faltante',
+      'documentación_faltante',
+      'documentacion_faltante',
+      'documentos faltantes',
+      'docs faltantes',
+      'docs_faltantes',
+      'faltantes',
+      'pendientes',
+      'pendiente',
+    ],
   };
 
   constructor(

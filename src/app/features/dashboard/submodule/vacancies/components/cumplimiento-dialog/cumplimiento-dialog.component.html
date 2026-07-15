@@ -107,7 +107,16 @@
                   <span class="doc-num">{{ c.numero_documento }}</span>
                 </td>
                 <td class="col-etapa">
-                  <span class="etapa-chip" [ngClass]="etapaClass(c.etapa)">{{ c.etapa || '—' }}</span>
+                  <span class="etapa-chip" [ngClass]="etapaClass(c.etapa)"
+                    [matTooltip]="c.no_paso_prueba_tecnica ? noPasoTooltip(c) : ''"
+                    matTooltipClass="cumpl-nopaso-tooltip">
+                    {{ c.etapa || '—' }}
+                  </span>
+                  @if (c.no_paso_prueba_tecnica && c.motivo_no_paso_prueba_tecnica) {
+                    <span class="etapa-motivo" [matTooltip]="noPasoTooltip(c)" matTooltipClass="cumpl-nopaso-tooltip">
+                      <mat-icon>info</mat-icon>{{ c.motivo_no_paso_prueba_tecnica }}
+                    </span>
+                  }
                 </td>
               </tr>
             }

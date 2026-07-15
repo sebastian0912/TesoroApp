@@ -227,6 +227,10 @@ export interface ProcesoUpdateByDocumentRequest {
   vacante_tipo?: string | null;
   vacante_salario?: string | null;
   prueba_tecnica?: boolean;
+  /** Marca el resultado "no pasó la prueba técnica" (con motivo). */
+  no_paso_prueba_tecnica?: boolean;
+  /** Motivo por el que no pasó la prueba técnica. */
+  motivo_no_paso_prueba_tecnica?: string | null;
   autorizado?: boolean;
   vacante_fecha_prueba?: string | null;
 
@@ -401,6 +405,12 @@ export interface CandidatoPorVacanteItem {
   fecha_ingreso: string | null;      // ISO (YYYY-MM-DD) o null
   vacante_tipo: string | null;
   etapa: string | null;
+  /** Resultado: el candidato fue remitido a prueba técnica pero no la pasó. */
+  no_paso_prueba_tecnica?: boolean;
+  /** ISO datetime en que se marcó "no pasó la prueba técnica" (o null). */
+  no_paso_prueba_tecnica_at?: string | null;
+  /** Motivo registrado de por qué no pasó la prueba técnica. */
+  motivo_no_paso_prueba_tecnica?: string | null;
 }
 
 
