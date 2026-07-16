@@ -400,10 +400,15 @@ export class CumplimientoDialogComponent implements OnInit {
   // ───────── Descargar formatos por finca (cliente, generados desde 0) ─────────
   //
   // Los encabezados replican los formatos que envía cada finca, PERO el Excel se
-  // arma desde cero con XLSX; NO se leen los archivos de ejemplo. Solo se llenan
-  // las columnas para las que el sistema tiene dato (cédula, nombres, sexo, fechas,
-  // dirección, barrio, teléfono, escolaridad, y cargo/finca/empresa de la vacante);
-  // el resto queda en blanco para diligenciar a mano.
+  // arma desde cero con XLSX; NO se leen los archivos de ejemplo. El endpoint
+  // `candidatos-por-vacante` ya trae los datos del candidato (RH, correo, lugar de
+  // expedición/nacimiento, EPS, AFP, cesantías, salario, calzado, contacto de
+  // emergencia, n° de hijos, etc.); se mapea cada uno a su columna. Lo que el
+  // sistema no guarda (supervisor, gerente, tallas de overol, ruta, paradero…)
+  // queda en blanco para diligenciar a mano.
+
+  /** ARL de la empresa (constante: todos los formatos de las fincas la traen fija). */
+  private readonly ARL_FIJA = 'SURA';
 
   /** FLORES DEL RIO — encabezado simple (hoja "base rio"). */
   descargarFlores(): void {
@@ -418,10 +423,12 @@ export class CumplimientoDialogComponent implements OnInit {
       'CONTACTO DE EMERGENCIA',
     ];
     const filas = objetivo.map((c) => [
-      'TU ALIANZA', '', '', '', String(c.numero_documento ?? ''), '', this.nombreCompleto(c),
-      '', '', '', c.sexo ?? '', this.data.cargo ?? '', '', '', '',
-      this.fmtFecha(c.fecha_ingreso), '', '', '', this.fmtFecha(c.fecha_nacimiento),
-      this.edad(c.fecha_nacimiento), '', this.telefono(c), c.direccion ?? '', '', '',
+      'TU ALIANZA', '', '', this.data.cargo ?? '', String(c.numero_documento ?? ''),
+      c.lugar_expedicion ?? '', this.nombreCompleto(c), '', '', c.municipio ?? '',
+      c.sexo ?? '', this.data.cargo ?? '', '', '', '',
+      this.fmtFecha(c.fecha_ingreso), this.antiguedadDias(c.fecha_ingreso), c.afp ?? '', c.eps ?? '',
+      this.fmtFecha(c.fecha_nacimiento), this.edad(c.fecha_nacimiento), c.lugar_nacimiento ?? '',
+      this.telefono(c), c.direccion ?? '', c.email ?? '', c.contacto_emergencia ?? '',
     ]);
     this.escribirLibro([headers, ...filas], [], 'base rio', this.nombreArchivo('FLORES_DEL_RIO'));
   }
@@ -439,10 +446,12 @@ export class CumplimientoDialogComponent implements OnInit {
       'FECHA DE INGRESO', 'SALARIO', 'TALLA BOTAS', 'TALLA OVEROL',
     ];
     const filas = objetivo.map((c) => [
-      String(c.numero_documento ?? ''), '', '', c.primer_nombre ?? '', c.segundo_nombre ?? '',
-      c.primer_apellido ?? '', c.segundo_apellido ?? '', '', this.fmtFecha(c.fecha_nacimiento),
-      'COLOMBIANO', c.direccion ?? '', '', '', c.barrio ?? '', '', '', '', '', '', '',
-      this.telefono(c), '', this.fmtFecha(c.fecha_ingreso), '', '', '',
+      String(c.numero_documento ?? ''), this.fmtFecha(c.fecha_expedicion), c.lugar_expedicion ?? '',
+      c.primer_nombre ?? '', c.segundo_nombre ?? '', c.primer_apellido ?? '', c.segundo_apellido ?? '',
+      c.lugar_nacimiento ?? '', this.fmtFecha(c.fecha_nacimiento), 'COLOMBIANO', c.direccion ?? '',
+      c.municipio ?? '', '', c.barrio ?? '', this.numHijos(c), c.rh ?? '', c.eps ?? '', c.afp ?? '',
+      c.cesantias ?? '', this.ARL_FIJA, this.telefono(c), c.email ?? '', this.fmtFecha(c.fecha_ingreso),
+      this.salarioTexto(c), this.calzado(c), '',
     ]);
     this.escribirLibro([headers, ...filas], [], 'formato de ingresos', this.nombreArchivo('SAGARO'));
   }
@@ -467,12 +476,15 @@ export class CumplimientoDialogComponent implements OnInit {
     ];
     const filas = objetivo.map((c, i) => {
       const nac = this.partesFecha(c.fecha_nacimiento);
+      const exp = this.partesFecha(c.fecha_expedicion);
       return [
         i + 1, c.tipo_doc ?? '', String(c.numero_documento ?? ''), this.nombreCompleto(c),
-        '', '', '', '', nac.dia, nac.mes, nac.anio, '', '', this.edad(c.fecha_nacimiento),
-        c.sexo ?? '', c.formacion ?? '', this.telefono(c), '', c.direccion ?? '', c.barrio ?? '',
-        '', '', '', '', '', '', '', '', '', '', this.data.empresa ?? '', this.data.finca ?? '',
-        '', '', '', '', this.data.cargo ?? '', '',
+        exp.dia, exp.mes, exp.anio, c.lugar_expedicion ?? '', nac.dia, nac.mes, nac.anio,
+        c.rh ?? '', c.lugar_nacimiento ?? '', this.edad(c.fecha_nacimiento),
+        c.sexo ?? '', c.formacion ?? '', this.telefono(c), c.email ?? '', c.direccion ?? '', c.barrio ?? '',
+        c.municipio ?? '', c.municipio ?? '', '', '', c.eps ?? '', this.ARL_FIJA, c.afp ?? '', c.cesantias ?? '',
+        this.calzado(c), '', this.data.empresa ?? '', this.data.finca ?? '',
+        this.data.cargo ?? '', '', '', '', this.data.cargo ?? '', '',
       ];
     });
     const { aoa, merges } = this.construirDobleEncabezado(columnas, grupos, filas);
@@ -499,13 +511,17 @@ export class CumplimientoDialogComponent implements OnInit {
     ];
     const filas = objetivo.map((c, i) => {
       const nac = this.partesFecha(c.fecha_nacimiento);
+      const exp = this.partesFecha(c.fecha_expedicion);
       const nombres = [c.primer_nombre, c.segundo_nombre].filter(Boolean).join(' ').trim();
       return [
         i + 1, c.tipo_doc ?? '', String(c.numero_documento ?? ''), c.primer_apellido ?? '',
-        c.segundo_apellido ?? '', nombres, '', '', '', '', nac.anio, nac.mes, nac.dia, '', '',
-        this.edad(c.fecha_nacimiento), c.sexo ?? '', c.formacion ?? '', this.telefono(c), '',
-        c.direccion ?? '', c.barrio ?? '', '', '', '', '', '', '', '', '', '', '',
-        this.data.empresa ?? '', this.data.finca ?? '', '', '', '', '', this.data.cargo ?? '', '',
+        c.segundo_apellido ?? '', nombres, exp.anio, exp.mes, exp.dia, c.lugar_expedicion ?? '',
+        nac.anio, nac.mes, nac.dia, c.rh ?? '', c.lugar_nacimiento ?? '',
+        this.edad(c.fecha_nacimiento), c.sexo ?? '', c.formacion ?? '', this.telefono(c), c.email ?? '',
+        c.direccion ?? '', c.barrio ?? '', c.municipio ?? '', c.municipio ?? '', '', '',
+        c.eps ?? '', this.ARL_FIJA, c.afp ?? '', c.cesantias ?? '', this.calzado(c), '',
+        this.data.empresa ?? '', this.data.finca ?? '', this.data.cargo ?? '', '', '', '',
+        this.data.cargo ?? '', '',
       ];
     });
     const { aoa, merges } = this.construirDobleEncabezado(columnas, grupos, filas);
@@ -577,6 +593,34 @@ export class CumplimientoDialogComponent implements OnInit {
   private nombreCompleto(c: CandidatoPorVacanteItem): string {
     return [c.primer_nombre, c.segundo_nombre, c.primer_apellido, c.segundo_apellido]
       .filter(Boolean).join(' ').trim();
+  }
+
+  /** N° de hijos como texto ('0' si no hay dato, para no dejar la celda vacía). */
+  private numHijos(c: CandidatoPorVacanteItem): string {
+    return String(c.num_hijos ?? 0);
+  }
+
+  /** Talla de calzado; vacío si no hay. */
+  private calzado(c: CandidatoPorVacanteItem): string {
+    return c.calzado != null ? String(c.calzado) : '';
+  }
+
+  /** Salario con separador de miles ("1.750.905"); vacío si no hay. */
+  private salarioTexto(c: CandidatoPorVacanteItem): string {
+    const raw = String(c.salario ?? '').trim();
+    if (!raw) return '';
+    const n = Number(raw.replace(/[^\d]/g, ''));
+    return Number.isFinite(n) && n > 0 ? n.toLocaleString('es-CO') : raw;
+  }
+
+  /** Antigüedad en días desde la fecha de ingreso hasta hoy; vacío si no hay. */
+  private antiguedadDias(iso: string | null | undefined): string {
+    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso ?? ''));
+    if (!m) return '';
+    const ingreso = new Date(+m[1], +m[2] - 1, +m[3]);
+    if (isNaN(ingreso.getTime())) return '';
+    const dias = Math.floor((Date.now() - ingreso.getTime()) / 86400000);
+    return dias >= 0 ? String(dias) : '';
   }
 
   // ───────── Helpers ─────────

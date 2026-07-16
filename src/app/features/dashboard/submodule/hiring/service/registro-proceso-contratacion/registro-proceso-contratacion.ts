@@ -413,6 +413,24 @@ export interface CandidatoPorVacanteItem {
   no_paso_prueba_tecnica_at?: string | null;
   /** Motivo registrado de por qué no pasó la prueba técnica. */
   motivo_no_paso_prueba_tecnica?: string | null;
+
+  // ── Campos adicionales para los formatos por finca (Hato/Flores/Sagaro/San Carlos).
+  //    Todos opcionales; el backend los llena solo si el candidato tiene el dato.
+  rh?: string | null;                  // grupo sanguíneo (RH+)
+  email?: string | null;               // correo electrónico
+  municipio?: string | null;           // municipio de residencia
+  departamento?: string | null;
+  fecha_expedicion?: string | null;    // ISO YYYY-MM-DD
+  lugar_expedicion?: string | null;    // "EXPEDIDA EN"
+  lugar_nacimiento?: string | null;    // ciudad/municipio de nacimiento
+  num_hijos?: number | null;
+  contacto_emergencia?: string | null; // teléfono
+  nombre_emergencia?: string | null;
+  eps?: string | null;
+  afp?: string | null;                 // fondo de pensión
+  cesantias?: string | null;
+  salario?: string | null;             // salario de la vacante
+  calzado?: number | null;             // talla de calzado (dotación)
 }
 
 
