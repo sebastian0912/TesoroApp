@@ -397,6 +397,188 @@ export class CumplimientoDialogComponent implements OnInit {
     XLSX.writeFile(wb, `BMC_vacante_${this.data.publicacionId}.xlsx`);
   }
 
+  // ───────── Descargar formatos por finca (cliente, generados desde 0) ─────────
+  //
+  // Los encabezados replican los formatos que envía cada finca, PERO el Excel se
+  // arma desde cero con XLSX; NO se leen los archivos de ejemplo. Solo se llenan
+  // las columnas para las que el sistema tiene dato (cédula, nombres, sexo, fechas,
+  // dirección, barrio, teléfono, escolaridad, y cargo/finca/empresa de la vacante);
+  // el resto queda en blanco para diligenciar a mano.
+
+  /** FLORES DEL RIO — encabezado simple (hoja "base rio"). */
+  descargarFlores(): void {
+    const objetivo = this.objetivo();
+    if (!objetivo.length) { Swal.fire('Sin candidatos', 'No hay candidatos para exportar.', 'info'); return; }
+
+    const headers = [
+      'u', 'CONTRATO', 'UNIDAD', 'AREA', 'CEDULA', 'EXP', 'NOMBRE', 'AUXILIO', 'RUTA',
+      'PARADERO', 'GENERO', 'CARGO', 'NIVEL DE CARGO', 'JEFE INMEDIATO', 'CENTRO DE COSTO',
+      'FECHA INGRESO', 'ANTIGÜEDAD (dias)', 'AFP', 'EPS', 'FECHA NACIMIENTO', 'EDAD',
+      'CIUDAD DE NACIMIENTO', 'NUMERO TELEFONICO', 'DIRECCIÓN CASA ', 'CORREO ELECTRONICO',
+      'CONTACTO DE EMERGENCIA',
+    ];
+    const filas = objetivo.map((c) => [
+      'TU ALIANZA', '', '', '', String(c.numero_documento ?? ''), '', this.nombreCompleto(c),
+      '', '', '', c.sexo ?? '', this.data.cargo ?? '', '', '', '',
+      this.fmtFecha(c.fecha_ingreso), '', '', '', this.fmtFecha(c.fecha_nacimiento),
+      this.edad(c.fecha_nacimiento), '', this.telefono(c), c.direccion ?? '', '', '',
+    ]);
+    this.escribirLibro([headers, ...filas], [], 'base rio', this.nombreArchivo('FLORES_DEL_RIO'));
+  }
+
+  /** SAGARO — encabezado simple (hoja "formato de ingresos"). */
+  descargarSagaro(): void {
+    const objetivo = this.objetivo();
+    if (!objetivo.length) { Swal.fire('Sin candidatos', 'No hay candidatos para exportar.', 'info'); return; }
+
+    const headers = [
+      'CEDULA', 'FECHA EXPEDICION DE DOCUMENTO', 'LUGAR DE EXPEDICION', 'PRIMER NOMBRE',
+      'SEGUNDO NOMBRE', 'PRIMER APELLIDO', 'SEGUNDO APELLIDO', 'LUGAR DE NACIMIENTO',
+      'FECHA DE NACIMIENTO', 'NACIONALIDAD', 'DIRECCIÓN', 'CIUDAD', 'LOCALIDAD', 'BARRIO',
+      'N° HIJOS', 'GRUPO SANGUINEO', 'EPS', 'PENSION', 'CESANTIAS', 'ARL', 'CELULAR', 'EMAIL',
+      'FECHA DE INGRESO', 'SALARIO', 'TALLA BOTAS', 'TALLA OVEROL',
+    ];
+    const filas = objetivo.map((c) => [
+      String(c.numero_documento ?? ''), '', '', c.primer_nombre ?? '', c.segundo_nombre ?? '',
+      c.primer_apellido ?? '', c.segundo_apellido ?? '', '', this.fmtFecha(c.fecha_nacimiento),
+      'COLOMBIANO', c.direccion ?? '', '', '', c.barrio ?? '', '', '', '', '', '', '',
+      this.telefono(c), '', this.fmtFecha(c.fecha_ingreso), '', '', '',
+    ]);
+    this.escribirLibro([headers, ...filas], [], 'formato de ingresos', this.nombreArchivo('SAGARO'));
+  }
+
+  /** HATO — doble encabezado (grupos de fecha con celdas combinadas). Fecha: DIA/MES/AÑO. */
+  descargarHato(): void {
+    const objetivo = this.objetivo();
+    if (!objetivo.length) { Swal.fire('Sin candidatos', 'No hay candidatos para exportar.', 'info'); return; }
+
+    const columnas = [
+      'NO', 'TIPO DOCUMENTO', 'NUMERO DE DOCUEMNTO', 'NOMBRE COMPLETO',
+      'DIA', 'MES', 'AÑO', 'EXPEDIDA EN', 'DIA', 'MES', 'AÑO', 'RH+', 'LUGAR NACIMIENTO',
+      'EDAD', 'GENERO', 'ESCOLARIDAD', 'TELEFONO', 'CORREO ELECTRONICO', 'DIRECCION', 'BARRIO',
+      'PARADERO', 'LUGAR DE RESIDENCIA', 'SI', 'NO', 'EPS', 'ARL', 'PENSIÓN ', 'CESANTIAS',
+      'CALZADO', 'TALLA OVEROL', 'EMPRESA', 'FINCA', 'AREA', 'SUPERVISOR', 'GERENTE',
+      'CENTRO DE COSTO', 'CARGO', 'TRAB SOCIAL',
+    ];
+    const grupos = [
+      { label: 'FECHA DE EXPEDICION', desde: 4, hasta: 6 },
+      { label: 'FECHA DE NACIMIENTO', desde: 8, hasta: 10 },
+      { label: 'SUBSIDIO DE TRANSPORTE', desde: 22, hasta: 23 },
+    ];
+    const filas = objetivo.map((c, i) => {
+      const nac = this.partesFecha(c.fecha_nacimiento);
+      return [
+        i + 1, c.tipo_doc ?? '', String(c.numero_documento ?? ''), this.nombreCompleto(c),
+        '', '', '', '', nac.dia, nac.mes, nac.anio, '', '', this.edad(c.fecha_nacimiento),
+        c.sexo ?? '', c.formacion ?? '', this.telefono(c), '', c.direccion ?? '', c.barrio ?? '',
+        '', '', '', '', '', '', '', '', '', '', this.data.empresa ?? '', this.data.finca ?? '',
+        '', '', '', '', this.data.cargo ?? '', '',
+      ];
+    });
+    const { aoa, merges } = this.construirDobleEncabezado(columnas, grupos, filas);
+    this.escribirLibro(aoa, merges, 'INGRESOS', this.nombreArchivo('HATO'));
+  }
+
+  /** SAN CARLOS — doble encabezado. Fecha: AÑO/MES/DIA; nombre en APELLIDO 1/2 + NOMBRES. */
+  descargarSanCarlos(): void {
+    const objetivo = this.objetivo();
+    if (!objetivo.length) { Swal.fire('Sin candidatos', 'No hay candidatos para exportar.', 'info'); return; }
+
+    const columnas = [
+      'No', 'TIPO DOCUMENTO', 'CEDULA', 'APELLIDO 1', 'APELLIDO 2', 'NOMBRES ',
+      'AÑO', 'MES', 'DIA', 'EXPEDIDA EN', 'AÑO', 'MES', 'DIA', 'RH+', 'LUGAR NACIMIENTO',
+      'EDAD', 'GENERO', 'ESCOLARIDAD', 'TELEFONO', 'CORREO ELECTRONICO', 'DIRECCION', 'BARRIO',
+      'PARADERO', 'LUGAR DE RESIDENCIA', 'SI', 'NO', 'EPS', 'ARL', 'PENSIÓN ', 'CESANTIAS',
+      'CALZADO', 'TALLA OVEROL', 'EMPRESA', 'FINCA', 'AREA', 'SUPERVISOR', 'GERENTE',
+      'CENTRO DE COSTO', 'CARGO', 'TRAB SOCIAL',
+    ];
+    const grupos = [
+      { label: 'FECHA DE EXPEDICION', desde: 6, hasta: 8 },
+      { label: 'FECHA DE NACIMIENTO', desde: 10, hasta: 12 },
+      { label: 'SUBSIDIO DE TRANSPORTE', desde: 24, hasta: 25 },
+    ];
+    const filas = objetivo.map((c, i) => {
+      const nac = this.partesFecha(c.fecha_nacimiento);
+      const nombres = [c.primer_nombre, c.segundo_nombre].filter(Boolean).join(' ').trim();
+      return [
+        i + 1, c.tipo_doc ?? '', String(c.numero_documento ?? ''), c.primer_apellido ?? '',
+        c.segundo_apellido ?? '', nombres, '', '', '', '', nac.anio, nac.mes, nac.dia, '', '',
+        this.edad(c.fecha_nacimiento), c.sexo ?? '', c.formacion ?? '', this.telefono(c), '',
+        c.direccion ?? '', c.barrio ?? '', '', '', '', '', '', '', '', '', '', '',
+        this.data.empresa ?? '', this.data.finca ?? '', '', '', '', '', this.data.cargo ?? '', '',
+      ];
+    });
+    const { aoa, merges } = this.construirDobleEncabezado(columnas, grupos, filas);
+    this.escribirLibro(aoa, merges, 'FORMATO INGRESOS', this.nombreArchivo('SAN_CARLOS'));
+  }
+
+  // ───────── Helpers de formato ─────────
+
+  /**
+   * Arma un encabezado de DOS filas: una de grupos (fechas / subsidio) por encima y
+   * la de columnas debajo. Genera los merges: horizontales para cada grupo y
+   * verticales (fila 0-1) para las columnas sueltas, para que su nombre quede
+   * centrado en las dos filas como en los formatos originales.
+   */
+  private construirDobleEncabezado(
+    columnas: string[],
+    grupos: Array<{ label: string; desde: number; hasta: number }>,
+    filas: any[][],
+  ): { aoa: any[][]; merges: any[] } {
+    const seccion = new Array(columnas.length).fill('');
+    for (const g of grupos) seccion[g.desde] = g.label;
+
+    const merges: any[] = [];
+    const enGrupo = new Set<number>();
+    for (const g of grupos) {
+      merges.push({ s: { r: 0, c: g.desde }, e: { r: 0, c: g.hasta } });
+      for (let c = g.desde; c <= g.hasta; c++) enGrupo.add(c);
+    }
+    for (let c = 0; c < columnas.length; c++) {
+      if (!enGrupo.has(c)) merges.push({ s: { r: 0, c }, e: { r: 1, c } });
+    }
+    return { aoa: [seccion, columnas, ...filas], merges };
+  }
+
+  private escribirLibro(aoa: any[][], merges: any[], hoja: string, filename: string): void {
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    if (merges.length) ws['!merges'] = merges;
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, hoja);
+    XLSX.writeFile(wb, filename);
+  }
+
+  private nombreArchivo(prefijo: string): string {
+    return `${prefijo}_vacante_${this.data.publicacionId}.xlsx`;
+  }
+
+  /** YYYY-MM-DD → { dia, mes, anio } (sin ceros a la izquierda). Vacío si no hay fecha. */
+  private partesFecha(iso: string | null | undefined): { dia: string; mes: string; anio: string } {
+    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso ?? ''));
+    if (!m) return { dia: '', mes: '', anio: '' };
+    return { dia: String(+m[3]), mes: String(+m[2]), anio: m[1] };
+  }
+
+  /** Edad en años a partir de la fecha de nacimiento ISO. Vacío si no es válida. */
+  private edad(iso: string | null | undefined): string {
+    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso ?? ''));
+    if (!m) return '';
+    const hoy = new Date();
+    let e = hoy.getFullYear() - +m[1];
+    const dm = hoy.getMonth() + 1 - +m[2];
+    if (dm < 0 || (dm === 0 && hoy.getDate() < +m[3])) e--;
+    return e >= 0 && e < 120 ? String(e) : '';
+  }
+
+  private telefono(c: CandidatoPorVacanteItem): string {
+    return c.celular || c.whatsapp || '';
+  }
+
+  private nombreCompleto(c: CandidatoPorVacanteItem): string {
+    return [c.primer_nombre, c.segundo_nombre, c.primer_apellido, c.segundo_apellido]
+      .filter(Boolean).join(' ').trim();
+  }
+
   // ───────── Helpers ─────────
   /** YYYY-MM-DD → DD/MM/YYYY (deja vacío si no hay fecha válida). */
   private fmtFecha(iso: string | null | undefined): string {
