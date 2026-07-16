@@ -84,6 +84,7 @@ type DepCiudades = { ciudades: string[] };
 export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
   private readonly SI = 'Si';
   private readonly PRUEBA = 'Prueba';
+  private readonly CONTRATACION = 'Contratación';
   private readonly destroyRef = inject(DestroyRef);
 
   vacanteForm!: FormGroup;
@@ -302,11 +303,11 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
       .subscribe(() => this.vacanteForm.updateValueAndValidity({ emitEvent: false }));
 
     // ====== Validaciones condicionales ======
-    this.applyTieneFechaIngreso(String(this.vacanteForm.get('tieneFechaIngreso')!.value ?? 'No'));
+    this.syncFechaIngreso();
     this.vacanteForm
       .get('tieneFechaIngreso')!
       .valueChanges.pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe((v: unknown) => this.applyTieneFechaIngreso(String(v ?? 'No')));
+      .subscribe(() => this.syncFechaIngreso());
 
     this.applyPruebaContratacion(String(this.vacanteForm.get('pruebaOContratacion')!.value ?? ''));
     this.vacanteForm
@@ -318,9 +319,20 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
   ngOnDestroy(): void {  }
 
   // ---------- Validaciones condicionales ----------
-  private applyTieneFechaIngreso(valor: string): void {
+  /**
+   * La Fecha de Ingreso se muestra y se exige cuando:
+   *   - el toggle "Tiene Fecha de Ingreso" = Sí, O
+   *   - la vacante es de "Contratación inmediata" (misma lógica que tenía la
+   *     "Autorización de ingreso": entra de una vez, así que lleva fecha de ingreso).
+   * En cualquier otro caso queda oculta/opcional.
+   */
+  private syncFechaIngreso(): void {
+    const requiere =
+      String(this.vacanteForm.get('tieneFechaIngreso')?.value ?? 'No') === this.SI ||
+      String(this.vacanteForm.get('pruebaOContratacion')?.value ?? '') === this.CONTRATACION;
+
     const ctrl = this.vacanteForm.get('fechadeIngreso')!;
-    if (valor === this.SI) {
+    if (requiere) {
       ctrl.enable({ emitEvent: false });
       ctrl.setValidators([Validators.required]);
     } else {
@@ -356,6 +368,14 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
     fPrueba.updateValueAndValidity({ emitEvent: false });
     hPrueba.updateValueAndValidity({ emitEvent: false });
     uPrueba.updateValueAndValidity({ emitEvent: false });
+
+    // Contratación inmediata dispara la lógica de fecha de ingreso: el toggle
+    // "Tiene Fecha de Ingreso" queda en Sí (consistente) y la fecha se exige.
+    if (valor === this.CONTRATACION) {
+      const tfi = this.vacanteForm.get('tieneFechaIngreso')!;
+      if (tfi.value !== this.SI) tfi.setValue(this.SI, { emitEvent: false });
+    }
+    this.syncFechaIngreso();
   }
 
   // ---------- Distribución por municipio ----------
@@ -593,7 +613,7 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
       .map((x: any) => String(x ?? '').trim())
       .filter(Boolean);
 
-    this.applyTieneFechaIngreso(String(this.vacanteForm.get('tieneFechaIngreso')!.value ?? 'No'));
+    this.syncFechaIngreso();
     this.applyPruebaContratacion(String(this.vacanteForm.get('pruebaOContratacion')!.value ?? ''));
 
     this.vacanteForm.updateValueAndValidity({ emitEvent: false });

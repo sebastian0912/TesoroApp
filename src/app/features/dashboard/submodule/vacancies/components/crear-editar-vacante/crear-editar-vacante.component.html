@@ -147,7 +147,7 @@
         }
       </mat-form-field>
 
-      @if (vacanteForm.get('tieneFechaIngreso')?.value === 'Si') {
+      @if (vacanteForm.get('tieneFechaIngreso')?.value === 'Si' || vacanteForm.get('pruebaOContratacion')?.value === 'Contratación') {
         <mat-form-field
           [ngClass]="{'input-obligatorio': isRequired('fechadeIngreso')}">
           <mat-label>Fecha de Ingreso</mat-label>
