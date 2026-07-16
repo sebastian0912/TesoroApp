@@ -1362,6 +1362,8 @@ export class RecruitmentPipelineComponent {
         });
 
         const columns: ColumnDefinition[] = [
+          // Orden solicitado: Oficina, Entrevista, Estado, Empresa, Finca, Fecha prueba,
+          // Resultado prueba, Fecha resultado de la prueba, Motivo, Ingreso, Retiro.
           { name: 'oficina', header: 'Oficina', type: 'text', width: '90px' },
           { name: '_fecha_entrevista', header: 'Entrevista', type: 'date', width: '100px' },
           {
@@ -1377,26 +1379,26 @@ export class RecruitmentPipelineComponent {
               'EN PROGRESO':      { color: '#fff', background: '#00897B' },
             }
           },
-          {
-            name: '_prueba', header: 'Prueba', type: 'status', width: '90px',
-            statusConfig: {
-              'PASÓ':    { color: '#fff', background: '#2E7D32' },
-              'NO PASÓ': { color: '#fff', background: '#C62828' },
-            }
-          },
           { name: 'empresaUsuariaSolicita', header: 'Empresa', type: 'text', width: '130px' },
           { name: 'finca', header: 'Finca', type: 'text', width: '110px' },
-          { name: '_ingreso_date', header: 'Ingreso', type: 'date', width: '95px' },
-          { name: 'fecha_retiro', header: 'Retiro', type: 'date', width: '95px' },
           {
             name: '_fecha_prueba_publicacion', header: 'Fecha prueba',
             type: 'date', dateFormat: 'dd/MM/yyyy', width: '110px',
           },
           {
-            name: '_fecha_resultado_prueba', header: 'Fecha resultado',
-            type: 'date', dateFormat: 'dd/MM/yyyy HH:mm', width: '140px',
+            name: '_prueba', header: 'Resultado prueba', type: 'status', width: '110px',
+            statusConfig: {
+              'PASÓ':    { color: '#fff', background: '#2E7D32' },
+              'NO PASÓ': { color: '#fff', background: '#C62828' },
+            }
+          },
+          {
+            name: '_fecha_resultado_prueba', header: 'Fecha resultado de la prueba',
+            type: 'date', dateFormat: 'dd/MM/yyyy HH:mm', width: '160px',
           },
           { name: '_motivo', header: 'Motivo', type: 'text', width: '160px' },
+          { name: '_ingreso_date', header: 'Ingreso', type: 'date', width: '95px' },
+          { name: 'fecha_retiro', header: 'Retiro', type: 'date', width: '95px' },
         ];
 
         this.dialog.open(TableDialogComponent, {
