@@ -339,7 +339,9 @@
                           </a>
                         } @else {
                           @switch (col.type) {
-                            @case ('date') { {{ row[col.name] | date:(col.dateFormat || 'dd/MM/yyyy') }} }
+                            @case ('date') {
+                              <span [title]="row[col.name] | date:(col.dateFormat || 'dd/MM/yyyy')">{{ row[col.name] | date:(col.dateFormat || 'dd/MM/yyyy') }}</span>
+                            }
                               @case ('status') {
                                 <span class="sf-status-badge" [style.color]="getStatusStyles(col.name, row[col.name]).color"
                                   [style.backgroundColor]="getStatusStyles(col.name, row[col.name]).background">
@@ -352,7 +354,9 @@
                                   {{ row[col.name] }}
                                 </span>
                               }
-                              @default { {{ row[col.name] ?? '-' }} }
+                              @default {
+                                <span [title]="row[col.name] ?? ''">{{ row[col.name] ?? '-' }}</span>
+                              }
                               }
                             }
                           }

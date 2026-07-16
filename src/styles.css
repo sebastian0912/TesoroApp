@@ -993,3 +993,34 @@ button {
 .swal2-container {
   z-index: 100000 !important;
 }
+
+/* ===========================================================================
+   Historial laboral (TableDialogComponent, panelClass "table-dialog")
+   Celdas en UNA sola línea, recortadas con "…" según el ancho de columna.
+   El texto completo se ve con el tooltip nativo ([title]) al pasar el cursor.
+   Scopeado a .table-dialog para no afectar las otras 19 tablas del sistema.
+   =========================================================================== */
+.table-dialog .sf-table td,
+.table-dialog .sf-table th {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 0;
+}
+
+/* Los spans internos (fecha / texto) heredan el recorte para que la elipsis
+   aparezca aunque el contenido viva dentro del span. */
+.table-dialog .sf-table td > span {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+/* Los badges de estado/prueba no se recortan: son cortos y deben leerse enteros. */
+.table-dialog .sf-table td .sf-status-badge {
+  overflow: visible;
+  text-overflow: clip;
+}

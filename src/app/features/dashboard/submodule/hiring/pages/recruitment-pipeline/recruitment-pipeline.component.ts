@@ -1294,18 +1294,30 @@ export class RecruitmentPipelineComponent {
           // Fecha de ingreso
           row._ingreso_date = row.contrato_fecha_ingreso || row.ingreso_at || null;
 
+          // Resultado de la prueba técnica en su PROPIA columna, independiente del
+          // estado: así se ve "pasó / no pasó" aunque el estado sea RETIRADO/CONTRATADO.
+          row._prueba = row.no_paso_prueba_tecnica === true
+            ? 'NO PASÓ'
+            : row.paso_prueba_tecnica === true ? 'PASÓ' : '';
+
           // Cuándo se registró el resultado de la prueba técnica (pasó / no pasó).
           row._fecha_resultado_prueba =
             row.no_paso_prueba_tecnica_at || row.paso_prueba_tecnica_at || null;
+
+          // El motivo del "no pasó" se muestra SIEMPRE que exista, sea cual sea el
+          // estado (si no, un RETIRADO reprobado escondería el motivo de la prueba).
+          if (row.no_paso_prueba_tecnica === true && row.motivo_no_paso_prueba_tecnica) {
+            row._motivo = row.motivo_no_paso_prueba_tecnica;
+          }
 
           return row;
         });
 
         const columns: ColumnDefinition[] = [
-          { name: 'oficina', header: 'Oficina', type: 'text', width: '140px' },
-          { name: 'entrevista_created_at', header: 'Fecha entrevista', type: 'date', width: '160px' },
+          { name: 'oficina', header: 'Oficina', type: 'text', width: '90px' },
+          { name: 'entrevista_created_at', header: 'Entrevista', type: 'date', width: '100px' },
           {
-            name: '_estado', header: 'Estado', type: 'status', width: '180px',
+            name: '_estado', header: 'Estado', type: 'status', width: '120px',
             statusConfig: {
               'CONTRATADO':       { color: '#fff', background: '#2E7D32' },
               'RETIRADO':         { color: '#fff', background: '#78909C' },
@@ -1317,15 +1329,22 @@ export class RecruitmentPipelineComponent {
               'EN PROGRESO':      { color: '#fff', background: '#00897B' },
             }
           },
-          { name: 'empresaUsuariaSolicita', header: 'Empresa', type: 'text', width: '180px' },
-          { name: 'finca', header: 'Finca', type: 'text', width: '160px' },
-          { name: '_ingreso_date', header: 'Fecha ingreso', type: 'date', width: '140px' },
-          { name: 'fecha_retiro', header: 'Fecha retiro', type: 'date', width: '140px' },
           {
-            name: '_fecha_resultado_prueba', header: 'Fecha resultado prueba técnica',
-            type: 'date', dateFormat: 'dd/MM/yyyy HH:mm', width: '190px',
+            name: '_prueba', header: 'Prueba', type: 'status', width: '90px',
+            statusConfig: {
+              'PASÓ':    { color: '#fff', background: '#2E7D32' },
+              'NO PASÓ': { color: '#fff', background: '#C62828' },
+            }
           },
-          { name: '_motivo', header: 'Motivo', type: 'text', width: '260px' },
+          { name: 'empresaUsuariaSolicita', header: 'Empresa', type: 'text', width: '130px' },
+          { name: 'finca', header: 'Finca', type: 'text', width: '110px' },
+          { name: '_ingreso_date', header: 'Ingreso', type: 'date', width: '95px' },
+          { name: 'fecha_retiro', header: 'Retiro', type: 'date', width: '95px' },
+          {
+            name: '_fecha_resultado_prueba', header: 'Fecha prueba',
+            type: 'date', dateFormat: 'dd/MM/yyyy HH:mm', width: '130px',
+          },
+          { name: '_motivo', header: 'Motivo', type: 'text', width: '160px' },
         ];
 
         this.dialog.open(TableDialogComponent, {
