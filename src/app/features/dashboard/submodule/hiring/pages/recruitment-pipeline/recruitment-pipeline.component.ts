@@ -29,6 +29,7 @@ import { CameraDialogComponent } from '../../components/camera-dialog/camera-dia
 import { UtilityServiceService } from '@/app/shared/services/utilityService/utility-service.service';
 import { faltantesDePagoTransporte } from './pago-transporte.rules';
 import {
+  aplicarResultadoPruebaLocal,
   esVacanteDePruebaTecnica,
   etiquetaPruebaTecnica,
   resultadoDePruebaTecnica,
@@ -808,18 +809,19 @@ export class RecruitmentPipelineComponent {
         this.registroProceso.updateProcesoByDocumento(payload, 'PATCH')
       );
 
-      // Estado local, igual que darDeBajaManual: el pill se actualiza en el acto
-      // (los computed leen el proceso) sin recargar todo el candidato.
+      // Estado local para que el pill cambie EN EL ACTO, sin re-buscar. El helper
+      // crea referencias nuevas en toda la cadena para que los computed del pill
+      // recalculen (ver aplicarResultadoPruebaLocal).
       const cand = this.candidatoSeleccionado();
-      const proc = cand?.entrevistas?.[0]?.proceso;
-      if (proc) {
-        const ahora = new Date().toISOString();
-        proc.paso_prueba_tecnica = !noPaso;
-        proc.paso_prueba_tecnica_at = resp?.proceso?.paso_prueba_tecnica_at ?? (noPaso ? null : ahora);
-        proc.no_paso_prueba_tecnica = noPaso;
-        proc.no_paso_prueba_tecnica_at = resp?.proceso?.no_paso_prueba_tecnica_at ?? (noPaso ? ahora : null);
-        proc.motivo_no_paso_prueba_tecnica = noPaso ? motivo : null;
-        this.candidatoSeleccionado.set({ ...cand });
+      if (cand?.entrevistas?.[0]?.proceso) {
+        this.candidatoSeleccionado.set(
+          aplicarResultadoPruebaLocal(cand, {
+            noPaso,
+            motivo,
+            procResp: resp?.proceso,
+            ahora: new Date().toISOString(),
+          }),
+        );
       }
 
       await Swal.fire({
@@ -1320,8 +1322,8 @@ export class RecruitmentPipelineComponent {
           { name: '_ingreso_date', header: 'Fecha ingreso', type: 'date', width: '140px' },
           { name: 'fecha_retiro', header: 'Fecha retiro', type: 'date', width: '140px' },
           {
-            name: '_fecha_resultado_prueba', header: 'Fecha resultado prueba',
-            type: 'date', dateFormat: 'dd/MM/yyyy HH:mm', width: '170px',
+            name: '_fecha_resultado_prueba', header: 'Fecha resultado prueba técnica',
+            type: 'date', dateFormat: 'dd/MM/yyyy HH:mm', width: '190px',
           },
           { name: '_motivo', header: 'Motivo', type: 'text', width: '260px' },
         ];

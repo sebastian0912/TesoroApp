@@ -1,4 +1,5 @@
 import {
+  aplicarResultadoPruebaLocal,
   esVacanteDePruebaTecnica,
   etiquetaPruebaTecnica,
   resultadoDePruebaTecnica,
@@ -87,5 +88,64 @@ describe('etiquetaPruebaTecnica', () => {
 
   it('dice "No pasó la prueba" cuando reprobó', () => {
     expect(etiquetaPruebaTecnica(proceso({ no_paso_prueba_tecnica: true }))).toBe('No pasó la prueba');
+  });
+});
+
+describe('aplicarResultadoPruebaLocal', () => {
+  function candidato() {
+    return {
+      numero_documento: '1005851505',
+      entrevistas: [{ id: 1, proceso: proceso() }],
+    };
+  }
+
+  it('crea referencias NUEVAS en toda la cadena (por eso el pill se actualiza)', () => {
+    // El bug original: mutar en el sitio dejaba la misma referencia y los computed
+    // memoizados del pill no recalculaban hasta re-buscar.
+    const cand = candidato();
+    const out = aplicarResultadoPruebaLocal(cand, { noPaso: true, motivo: 'no completó', ahora: '2026-07-15T23:39:00Z' });
+
+    expect(out).not.toBe(cand);
+    expect(out.entrevistas).not.toBe(cand.entrevistas);
+    expect(out.entrevistas[0]).not.toBe(cand.entrevistas[0]);
+    expect(out.entrevistas[0].proceso).not.toBe(cand.entrevistas[0].proceso);
+    // El original no se muta.
+    expect(cand.entrevistas[0].proceso.no_paso_prueba_tecnica).toBeFalse();
+  });
+
+  it('el resultado ya se lee como "no pasó" (lo que muestra el pill)', () => {
+    const out = aplicarResultadoPruebaLocal(candidato(), { noPaso: true, motivo: 'faltó', ahora: 'AHORA' });
+    const proc = out.entrevistas[0].proceso;
+
+    expect(resultadoDePruebaTecnica(proc)).toBe('no_paso');
+    expect(etiquetaPruebaTecnica(proc)).toBe('No pasó la prueba');
+    expect(proc.motivo_no_paso_prueba_tecnica).toBe('faltó');
+    expect(proc.no_paso_prueba_tecnica_at).toBe('AHORA');
+    expect(proc.paso_prueba_tecnica).toBeFalse();
+  });
+
+  it('al marcar "pasó" limpia el motivo y sella su fecha', () => {
+    const out = aplicarResultadoPruebaLocal(candidato(), { noPaso: false, motivo: '', ahora: 'AHORA' });
+    const proc = out.entrevistas[0].proceso;
+
+    expect(resultadoDePruebaTecnica(proc)).toBe('paso');
+    expect(etiquetaPruebaTecnica(proc)).toBe('Pasó la prueba');
+    expect(proc.motivo_no_paso_prueba_tecnica).toBeNull();
+    expect(proc.no_paso_prueba_tecnica_at).toBeNull();
+    expect(proc.paso_prueba_tecnica_at).toBe('AHORA');
+  });
+
+  it('prefiere las fechas que devuelve el backend', () => {
+    const out = aplicarResultadoPruebaLocal(candidato(), {
+      noPaso: true, motivo: 'x', ahora: 'LOCAL',
+      procResp: { no_paso_prueba_tecnica_at: '2026-07-15T10:00:00Z' },
+    });
+
+    expect(out.entrevistas[0].proceso.no_paso_prueba_tecnica_at).toBe('2026-07-15T10:00:00Z');
+  });
+
+  it('sin proceso devuelve el candidato tal cual', () => {
+    const cand = { numero_documento: '1', entrevistas: [] };
+    expect(aplicarResultadoPruebaLocal(cand, { noPaso: true, motivo: '', ahora: 'X' })).toBe(cand);
   });
 });

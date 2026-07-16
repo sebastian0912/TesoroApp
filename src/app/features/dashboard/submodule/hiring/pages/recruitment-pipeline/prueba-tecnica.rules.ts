@@ -50,3 +50,35 @@ export function etiquetaPruebaTecnica(proceso: any): string {
     default: return 'Enviado a prueba';
   }
 }
+
+/**
+ * Devuelve una COPIA del candidato con el resultado de la prueba aplicado sobre
+ * `entrevistas[0].proceso`, creando referencias NUEVAS en toda la cadena
+ * (candidato → entrevista → proceso).
+ *
+ * Es clave que sean referencias nuevas: en el pipeline `_proceso()` es un signal
+ * computed y los derivados (resultadoPrueba, etiquetaPrueba…) memoizan por
+ * referencia. Si se mutara el proceso en su sitio, `_proceso()` devolvería el
+ * mismo objeto y el pill no cambiaría hasta re-buscar al candidato.
+ */
+export function aplicarResultadoPruebaLocal(
+  candidato: any,
+  opts: { noPaso: boolean; motivo: string; procResp?: any; ahora: string },
+): any {
+  const proc = candidato?.entrevistas?.[0]?.proceso;
+  if (!proc) return candidato;
+
+  const { noPaso, motivo, procResp, ahora } = opts;
+  const procActualizado = {
+    ...proc,
+    paso_prueba_tecnica: !noPaso,
+    paso_prueba_tecnica_at: procResp?.paso_prueba_tecnica_at ?? (noPaso ? null : ahora),
+    no_paso_prueba_tecnica: noPaso,
+    no_paso_prueba_tecnica_at: procResp?.no_paso_prueba_tecnica_at ?? (noPaso ? ahora : null),
+    motivo_no_paso_prueba_tecnica: noPaso ? motivo : null,
+  };
+
+  const entrevistas = [...(candidato.entrevistas ?? [])];
+  entrevistas[0] = { ...entrevistas[0], proceso: procActualizado };
+  return { ...candidato, entrevistas };
+}
