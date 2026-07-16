@@ -1,7 +1,8 @@
 :host {
   display: flex;
   flex-direction: column;
-  max-height: 90vh;           /* evita que el contenido se salga del diálogo */
+  height: 100%;               /* llena el alto del diálogo para que el scroll viva en la tabla */
+  max-height: 95vh;           /* evita que el contenido se salga del diálogo */
   min-width: 0;               /* corrige desbordes en flex */
 }
 

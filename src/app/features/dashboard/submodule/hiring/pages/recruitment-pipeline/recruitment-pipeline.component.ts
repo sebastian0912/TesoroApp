@@ -1349,7 +1349,8 @@ export class RecruitmentPipelineComponent {
 
         this.dialog.open(TableDialogComponent, {
           maxWidth: '95vw',
-          height: '80vh',
+          height: '92vh',
+          maxHeight: '95vh',
           data: {
             title: `Historial laboral de ${this.nombreCandidato || ced}`,
             rows: mappedData,
