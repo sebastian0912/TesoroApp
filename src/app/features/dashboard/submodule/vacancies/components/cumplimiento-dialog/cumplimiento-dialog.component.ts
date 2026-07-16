@@ -436,7 +436,7 @@ export class CumplimientoDialogComponent implements OnInit {
       this.fmtFecha(c.fecha_nacimiento), this.edad(c.fecha_nacimiento), c.lugar_nacimiento ?? '',
       this.telefono(c), c.direccion ?? '', c.email ?? '', c.contacto_emergencia ?? '',
     ]);
-    this.escribirLibro([headers, ...filas], [], 'base rio', this.nombreArchivo('FLORES_DEL_RIO'));
+    this.generarExcel({ hoja: 'base rio', columnas: headers, datos: filas, filename: this.nombreArchivo('FLORES_DEL_RIO') });
   }
 
   /** SAGARO — encabezado simple (hoja "formato de ingresos"). */
@@ -459,7 +459,7 @@ export class CumplimientoDialogComponent implements OnInit {
       c.cesantias ?? '', this.ARL_FIJA, this.telefono(c), c.email ?? '', this.fmtFecha(c.fecha_ingreso),
       this.salarioTexto(c), this.calzado(c), this.tallaOverol(c),
     ]);
-    this.escribirLibro([headers, ...filas], [], 'formato de ingresos', this.nombreArchivo('SAGARO'));
+    this.generarExcel({ hoja: 'formato de ingresos', columnas: headers, datos: filas, filename: this.nombreArchivo('SAGARO') });
   }
 
   /** HATO — doble encabezado (grupos de fecha con celdas combinadas). Fecha: DIA/MES/AÑO. */
@@ -494,8 +494,7 @@ export class CumplimientoDialogComponent implements OnInit {
         this.data.area ?? '', '', '', this.data.finca ?? '', this.data.cargo ?? '', '',
       ];
     });
-    const { aoa, merges } = this.construirDobleEncabezado(columnas, grupos, filas);
-    this.escribirLibro(aoa, merges, 'INGRESOS', this.nombreArchivo('HATO'));
+    this.generarExcel({ hoja: 'INGRESOS', columnas, grupos, datos: filas, filename: this.nombreArchivo('HATO') });
   }
 
   /** SAN CARLOS — doble encabezado. Fecha: AÑO/MES/DIA; nombre en APELLIDO 1/2 + NOMBRES. */
@@ -531,44 +530,98 @@ export class CumplimientoDialogComponent implements OnInit {
         this.data.cargo ?? '', '',
       ];
     });
-    const { aoa, merges } = this.construirDobleEncabezado(columnas, grupos, filas);
-    this.escribirLibro(aoa, merges, 'FORMATO INGRESOS', this.nombreArchivo('SAN_CARLOS'));
+    this.generarExcel({ hoja: 'FORMATO INGRESOS', columnas, grupos, datos: filas, filename: this.nombreArchivo('SAN_CARLOS') });
   }
 
   // ───────── Helpers de formato ─────────
 
   /**
-   * Arma un encabezado de DOS filas: una de grupos (fechas / subsidio) por encima y
-   * la de columnas debajo. Genera los merges: horizontales para cada grupo y
-   * verticales (fila 0-1) para las columnas sueltas, para que su nombre quede
-   * centrado en las dos filas como en los formatos originales.
+   * Genera el .xlsx del formato con exceljs (soporta estilos, a diferencia de xlsx):
+   * encabezados AMARILLOS, en negrita, centrados y con bordes, además del autofiltro,
+   * para que salga igual que los formatos originales de las fincas.
+   *
+   * - `columnas`: los nombres de columna (una sola fila de encabezado).
+   * - `grupos` (opcional): activa el doble encabezado. Cada grupo (p. ej. FECHA DE
+   *   EXPEDICION sobre DIA/MES/AÑO) va como celda combinada horizontal en la fila
+   *   superior; las columnas sueltas se combinan verticalmente (fila 1-2) con su
+   *   nombre ARRIBA para que se vea (Excel muestra la celda superior-izquierda del
+   *   merge; ese fue el bug de la versión con xlsx: el nombre quedaba en la fila de
+   *   abajo y el merge lo ocultaba).
    */
-  private construirDobleEncabezado(
-    columnas: string[],
-    grupos: Array<{ label: string; desde: number; hasta: number }>,
-    filas: any[][],
-  ): { aoa: any[][]; merges: any[] } {
-    const seccion = new Array(columnas.length).fill('');
-    for (const g of grupos) seccion[g.desde] = g.label;
+  private async generarExcel(opts: {
+    hoja: string;
+    columnas: string[];
+    grupos?: Array<{ label: string; desde: number; hasta: number }>;
+    datos: any[][];
+    filename: string;
+  }): Promise<void> {
+    const ExcelJS = await import('exceljs');
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet(opts.hoja);
 
-    const merges: any[] = [];
-    const enGrupo = new Set<number>();
-    for (const g of grupos) {
-      merges.push({ s: { r: 0, c: g.desde }, e: { r: 0, c: g.hasta } });
-      for (let c = g.desde; c <= g.hasta; c++) enGrupo.add(c);
-    }
-    for (let c = 0; c < columnas.length; c++) {
-      if (!enGrupo.has(c)) merges.push({ s: { r: 0, c }, e: { r: 1, c } });
-    }
-    return { aoa: [seccion, columnas, ...filas], merges };
-  }
+    const grupos = opts.grupos ?? [];
+    const dobleEncabezado = grupos.length > 0;
+    let filasEncabezado = 1;
 
-  private escribirLibro(aoa: any[][], merges: any[], hoja: string, filename: string): void {
-    const ws = XLSX.utils.aoa_to_sheet(aoa);
-    if (merges.length) ws['!merges'] = merges;
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, hoja);
-    XLSX.writeFile(wb, filename);
+    if (dobleEncabezado) {
+      const enGrupo = new Map<number, boolean>(); // col -> esInicioDeGrupo
+      for (const g of grupos) for (let c = g.desde; c <= g.hasta; c++) enGrupo.set(c, c === g.desde);
+
+      const fila0: any[] = [];
+      const fila1: any[] = [];
+      for (let c = 0; c < opts.columnas.length; c++) {
+        if (enGrupo.has(c)) {
+          fila1[c] = opts.columnas[c];  // sub-encabezado (DIA/MES/AÑO)
+          fila0[c] = enGrupo.get(c) ? (grupos.find((g) => g.desde === c)!.label) : '';
+        } else {
+          fila0[c] = opts.columnas[c];  // nombre ARRIBA (visible en el merge vertical)
+          fila1[c] = '';
+        }
+      }
+      ws.addRow(fila0);
+      ws.addRow(fila1);
+      filasEncabezado = 2;
+
+      for (const g of grupos) ws.mergeCells(1, g.desde + 1, 1, g.hasta + 1);        // horizontal
+      for (let c = 0; c < opts.columnas.length; c++) {
+        if (!enGrupo.has(c)) ws.mergeCells(1, c + 1, 2, c + 1);                      // vertical
+      }
+    } else {
+      ws.addRow(opts.columnas);
+    }
+
+    // Estilo de las filas de encabezado.
+    for (let r = 1; r <= filasEncabezado; r++) {
+      ws.getRow(r).eachCell({ includeEmpty: true }, (cell) => {
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFF00' } };
+        cell.font = { bold: true, size: 9 };
+        cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+        cell.border = {
+          top: { style: 'thin' }, left: { style: 'thin' },
+          bottom: { style: 'thin' }, right: { style: 'thin' },
+        };
+      });
+    }
+
+    for (const fila of opts.datos) ws.addRow(fila);
+
+    // Anchos de columna razonables (más ancho para nombres/correos/direcciones).
+    const anchos = /NOMBRE|CORREO|DIRECC|APELLIDO|LUGAR|EMPRESA|FINCA|AREA|CARGO|CENTRO|EMAIL/;
+    opts.columnas.forEach((nombre, i) => {
+      ws.getColumn(i + 1).width = anchos.test(String(nombre).toUpperCase())
+        ? 22
+        : Math.min(Math.max(String(nombre).length + 2, 8), 16);
+    });
+
+    // Autofiltro sobre la fila de columnas (como en el formato original de San Carlos).
+    ws.autoFilter = {
+      from: { row: filasEncabezado, column: 1 },
+      to: { row: filasEncabezado, column: opts.columnas.length },
+    };
+
+    const buffer = await wb.xlsx.writeBuffer();
+    const { saveAs } = await import('file-saver');
+    saveAs(new Blob([buffer as BlobPart], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), opts.filename);
   }
 
   private nombreArchivo(prefijo: string): string {
