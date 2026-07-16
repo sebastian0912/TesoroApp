@@ -303,12 +303,9 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
       .subscribe(() => this.vacanteForm.updateValueAndValidity({ emitEvent: false }));
 
     // ====== Validaciones condicionales ======
-    this.syncFechaIngreso();
-    this.vacanteForm
-      .get('tieneFechaIngreso')!
-      .valueChanges.pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe(() => this.syncFechaIngreso());
-
+    // La fecha de ingreso la maneja applyPruebaContratacion -> syncFechaIngreso
+    // (solo aplica en "Contratación inmediata"). El toggle "Tiene Fecha de
+    // Ingreso" ya no se muestra ni se edita a mano.
     this.applyPruebaContratacion(String(this.vacanteForm.get('pruebaOContratacion')!.value ?? ''));
     this.vacanteForm
       .get('pruebaOContratacion')!
@@ -320,23 +317,26 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
 
   // ---------- Validaciones condicionales ----------
   /**
-   * La Fecha de Ingreso se muestra y se exige cuando:
-   *   - el toggle "Tiene Fecha de Ingreso" = Sí, O
-   *   - la vacante es de "Contratación inmediata" (misma lógica que tenía la
-   *     "Autorización de ingreso": entra de una vez, así que lleva fecha de ingreso).
-   * En cualquier otro caso queda oculta/opcional.
+   * La Fecha de Ingreso se muestra y se exige SOLO en "Contratación inmediata"
+   * (misma lógica que tenía la "Autorización de ingreso": entra de una vez).
+   * El toggle "Tiene Fecha de Ingreso" ya no se muestra: se maneja aquí solo.
+   * Al cambiar a otra opción (p.ej. Prueba técnica) se BORRA la fecha para no
+   * dejar un dato viejo colgado, y se oculta.
    */
   private syncFechaIngreso(): void {
-    const requiere =
-      String(this.vacanteForm.get('tieneFechaIngreso')?.value ?? 'No') === this.SI ||
+    const esContratacion =
       String(this.vacanteForm.get('pruebaOContratacion')?.value ?? '') === this.CONTRATACION;
 
+    // Toggle oculto, coherente con el payload (Si/No).
+    this.vacanteForm.get('tieneFechaIngreso')!
+      .setValue(esContratacion ? this.SI : 'No', { emitEvent: false });
+
     const ctrl = this.vacanteForm.get('fechadeIngreso')!;
-    if (requiere) {
+    if (esContratacion) {
       ctrl.enable({ emitEvent: false });
       ctrl.setValidators([Validators.required]);
     } else {
-      ctrl.reset(null, { emitEvent: false });
+      ctrl.reset(null, { emitEvent: false });   // borra el dato al cambiar de opción
       ctrl.clearValidators();
       ctrl.disable({ emitEvent: false });
     }
@@ -369,12 +369,7 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
     hPrueba.updateValueAndValidity({ emitEvent: false });
     uPrueba.updateValueAndValidity({ emitEvent: false });
 
-    // Contratación inmediata dispara la lógica de fecha de ingreso: el toggle
-    // "Tiene Fecha de Ingreso" queda en Sí (consistente) y la fecha se exige.
-    if (valor === this.CONTRATACION) {
-      const tfi = this.vacanteForm.get('tieneFechaIngreso')!;
-      if (tfi.value !== this.SI) tfi.setValue(this.SI, { emitEvent: false });
-    }
+    // La fecha de ingreso depende de esta opción (Contratación inmediata).
     this.syncFechaIngreso();
   }
 

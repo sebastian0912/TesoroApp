@@ -133,21 +133,11 @@
         }
       </mat-form-field>
 
-      <!-- ===================== Fecha de ingreso (condicional) ===================== -->
-      <mat-form-field [ngClass]="{'input-obligatorio': isRequired('tieneFechaIngreso')}">
-        <mat-label>Tiene Fecha de Ingreso</mat-label>
-        <mat-select formControlName="tieneFechaIngreso">
-          <mat-option value="Si">Sí</mat-option>
-          <mat-option value="No">No</mat-option>
-        </mat-select>
-        @if (vacanteForm.get('tieneFechaIngreso')?.hasError('required')) {
-          <mat-error>
-            Indique si tiene fecha de ingreso.
-          </mat-error>
-        }
-      </mat-form-field>
-
-      @if (vacanteForm.get('tieneFechaIngreso')?.value === 'Si' || vacanteForm.get('pruebaOContratacion')?.value === 'Contratación') {
+      <!-- ===================== Fecha de ingreso (solo Contratación inmediata) =====================
+           El toggle "Tiene Fecha de Ingreso" se maneja automáticamente y NO se muestra:
+           la fecha de ingreso aparece y es obligatoria solo cuando la vacante es de
+           Contratación inmediata; al cambiar de opción el dato se borra. -->
+      @if (vacanteForm.get('pruebaOContratacion')?.value === 'Contratación') {
         <mat-form-field
           [ngClass]="{'input-obligatorio': isRequired('fechadeIngreso')}">
           <mat-label>Fecha de Ingreso</mat-label>
