@@ -1304,10 +1304,16 @@ export class RecruitmentPipelineComponent {
           row._fecha_resultado_prueba =
             row.no_paso_prueba_tecnica_at || row.paso_prueba_tecnica_at || null;
 
-          // El motivo del "no pasó" se muestra SIEMPRE que exista, sea cual sea el
-          // estado (si no, un RETIRADO reprobado escondería el motivo de la prueba).
-          if (row.no_paso_prueba_tecnica === true && row.motivo_no_paso_prueba_tecnica) {
-            row._motivo = row.motivo_no_paso_prueba_tecnica;
+          // Motivo COMBINADO: el del estado (retiro / no aplica / espera) MÁS el de la
+          // prueba técnica cuando existen los dos, para que ninguno se pierda. Si el
+          // estado ya es "NO PASÓ PRUEBA", _motivo ya es el de la prueba: no se duplica.
+          const motivoPrueba = row.no_paso_prueba_tecnica === true
+            ? (row.motivo_no_paso_prueba_tecnica || '')
+            : '';
+          if (motivoPrueba) {
+            row._motivo = (row._motivo && row._motivo !== motivoPrueba)
+              ? `${row._motivo} · Prueba técnica: ${motivoPrueba}`
+              : motivoPrueba;
           }
 
           return row;
