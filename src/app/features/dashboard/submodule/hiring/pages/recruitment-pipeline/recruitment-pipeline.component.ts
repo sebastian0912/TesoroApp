@@ -1291,6 +1291,11 @@ export class RecruitmentPipelineComponent {
             row._estado = '';
           }
 
+          // Fecha de la ENTREVISTA: cuándo se entrevistó realmente (entrevistado_at),
+          // no cuándo se creó el turno. Si el turno se creó anoche pero la entrevista
+          // se hizo hoy, debe verse HOY. Cae a created_at para procesos antiguos.
+          row._fecha_entrevista = row.entrevistado_at || row.entrevista_created_at || null;
+
           // Fecha de ingreso
           row._ingreso_date = row.contrato_fecha_ingreso || row.ingreso_at || null;
 
@@ -1300,7 +1305,12 @@ export class RecruitmentPipelineComponent {
             ? 'NO PASÓ'
             : row.paso_prueba_tecnica === true ? 'PASÓ' : '';
 
-          // Cuándo se registró el resultado de la prueba técnica (pasó / no pasó).
+          // Fecha de la prueba PROGRAMADA en la publicación (vacante). Se muestra para
+          // los procesos de prueba técnica, tengan o no resultado aún.
+          row._fecha_prueba_publicacion = row.vacante_fecha_prueba || null;
+
+          // Cuándo se REGISTRÓ el resultado de la prueba (pasó / no pasó). Solo existe
+          // cuando ya hay resultado.
           row._fecha_resultado_prueba =
             row.no_paso_prueba_tecnica_at || row.paso_prueba_tecnica_at || null;
 
@@ -1321,7 +1331,7 @@ export class RecruitmentPipelineComponent {
 
         const columns: ColumnDefinition[] = [
           { name: 'oficina', header: 'Oficina', type: 'text', width: '90px' },
-          { name: 'entrevista_created_at', header: 'Entrevista', type: 'date', width: '100px' },
+          { name: '_fecha_entrevista', header: 'Entrevista', type: 'date', width: '100px' },
           {
             name: '_estado', header: 'Estado', type: 'status', width: '120px',
             statusConfig: {
@@ -1347,8 +1357,12 @@ export class RecruitmentPipelineComponent {
           { name: '_ingreso_date', header: 'Ingreso', type: 'date', width: '95px' },
           { name: 'fecha_retiro', header: 'Retiro', type: 'date', width: '95px' },
           {
-            name: '_fecha_resultado_prueba', header: 'Fecha prueba',
-            type: 'date', dateFormat: 'dd/MM/yyyy HH:mm', width: '130px',
+            name: '_fecha_prueba_publicacion', header: 'Fecha prueba',
+            type: 'date', dateFormat: 'dd/MM/yyyy', width: '110px',
+          },
+          {
+            name: '_fecha_resultado_prueba', header: 'Fecha resultado',
+            type: 'date', dateFormat: 'dd/MM/yyyy HH:mm', width: '140px',
           },
           { name: '_motivo', header: 'Motivo', type: 'text', width: '160px' },
         ];
