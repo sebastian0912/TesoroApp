@@ -33,11 +33,12 @@ export function esVacanteDePruebaTecnica(proceso: any): boolean {
   return tipo === 'prueba' || tipo === 'prueba tecnica' || tipo === 'prueba_tecnica';
 }
 
-export type ResultadoPrueba = 'sin_resultado' | 'paso' | 'no_paso';
+export type ResultadoPrueba = 'sin_resultado' | 'paso' | 'no_paso' | 'no_se_presento';
 
 export function resultadoDePruebaTecnica(proceso: any): ResultadoPrueba {
-  // "no pasó" tiene prioridad por si alguna fila vieja tuviera ambos flags.
+  // "no pasó" tiene prioridad por si alguna fila vieja tuviera varios flags.
   if (proceso?.no_paso_prueba_tecnica === true) return 'no_paso';
+  if (proceso?.no_se_presento_prueba_tecnica === true) return 'no_se_presento';
   if (proceso?.paso_prueba_tecnica === true) return 'paso';
   return 'sin_resultado';
 }
@@ -47,6 +48,7 @@ export function etiquetaPruebaTecnica(proceso: any): string {
   switch (resultadoDePruebaTecnica(proceso)) {
     case 'paso': return 'Pasó la prueba';
     case 'no_paso': return 'No pasó la prueba';
+    case 'no_se_presento': return 'No se presentó';
     default: return 'Enviado a prueba';
   }
 }
@@ -63,19 +65,25 @@ export function etiquetaPruebaTecnica(proceso: any): string {
  */
 export function aplicarResultadoPruebaLocal(
   candidato: any,
-  opts: { noPaso: boolean; motivo: string; procResp?: any; ahora: string },
+  opts: { resultado: 'paso' | 'no_paso' | 'no_se_presento'; motivo: string; procResp?: any; ahora: string },
 ): any {
   const proc = candidato?.entrevistas?.[0]?.proceso;
   if (!proc) return candidato;
 
-  const { noPaso, motivo, procResp, ahora } = opts;
+  const { resultado, motivo, procResp, ahora } = opts;
+  const paso = resultado === 'paso';
+  const noPaso = resultado === 'no_paso';
+  const noShow = resultado === 'no_se_presento';
+
   const procActualizado = {
     ...proc,
-    paso_prueba_tecnica: !noPaso,
-    paso_prueba_tecnica_at: procResp?.paso_prueba_tecnica_at ?? (noPaso ? null : ahora),
+    paso_prueba_tecnica: paso,
+    paso_prueba_tecnica_at: procResp?.paso_prueba_tecnica_at ?? (paso ? ahora : null),
     no_paso_prueba_tecnica: noPaso,
     no_paso_prueba_tecnica_at: procResp?.no_paso_prueba_tecnica_at ?? (noPaso ? ahora : null),
     motivo_no_paso_prueba_tecnica: noPaso ? motivo : null,
+    no_se_presento_prueba_tecnica: noShow,
+    no_se_presento_prueba_tecnica_at: procResp?.no_se_presento_prueba_tecnica_at ?? (noShow ? ahora : null),
   };
 
   const entrevistas = [...(candidato.entrevistas ?? [])];

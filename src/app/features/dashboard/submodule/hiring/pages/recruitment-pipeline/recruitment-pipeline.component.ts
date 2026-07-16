@@ -276,6 +276,7 @@ export class RecruitmentPipelineComponent {
   readonly resultadoPrueba = computed(() => resultadoDePruebaTecnica(this._proceso()));
   readonly pasoPrueba = computed<boolean>(() => this.resultadoPrueba() === 'paso');
   readonly noPasoPrueba = computed<boolean>(() => this.resultadoPrueba() === 'no_paso');
+  readonly noSePresentoPrueba = computed<boolean>(() => this.resultadoPrueba() === 'no_se_presento');
 
   readonly etiquetaPrueba = computed<string>(() => etiquetaPruebaTecnica(this._proceso()));
 
@@ -288,6 +289,8 @@ export class RecruitmentPipelineComponent {
         const motivo = proc?.motivo_no_paso_prueba_tecnica;
         return motivo ? `No pasó la prueba. Motivo: ${motivo}` : 'No pasó la prueba. Click para cambiar el resultado';
       }
+      case 'no_se_presento':
+        return 'No se presentó a la prueba técnica. Click para cambiar el resultado';
       default:
         return 'Click para registrar el resultado de la prueba técnica';
     }
@@ -783,25 +786,28 @@ export class RecruitmentPipelineComponent {
     const cc = this.candidatoSeleccionado()?.numero_documento;
     if (!cc || !this.esPruebaTecnica()) return;
 
+    const actual = this.resultadoPrueba();
     const decision = await Swal.fire({
       title: 'Resultado de la prueba técnica',
-      text: this.noPasoPrueba()
-        ? 'Hoy está marcado como "no pasó". ¿Cuál es el resultado?'
-        : `¿${this.nombreCandidato} pasó la prueba técnica?`,
+      input: 'radio',
+      inputOptions: {
+        paso: 'Pasó',
+        no_paso: 'No pasó',
+        no_se_presento: 'No se presentó',
+      },
+      inputValue: actual !== 'sin_resultado' ? actual : '',
+      inputValidator: (v) => (!v ? 'Selecciona un resultado.' : null),
       icon: 'question',
-      showDenyButton: true,
       showCancelButton: true,
-      confirmButtonText: 'Pasó',
-      denyButtonText: 'No pasó',
+      confirmButtonText: 'Guardar',
       cancelButtonText: 'Cancelar',
-      confirmButtonColor: '#16a34a',
-      denyButtonColor: '#dc2626',
     });
 
-    if (decision.isDismissed) return;
+    if (!decision.isConfirmed) return;
+    const resultado = String(decision.value) as 'paso' | 'no_paso' | 'no_se_presento';
 
     let motivo = '';
-    if (decision.isDenied) {
+    if (resultado === 'no_paso') {
       const pedido = await Swal.fire({
         title: 'Motivo',
         input: 'textarea',
@@ -823,12 +829,12 @@ export class RecruitmentPipelineComponent {
       motivo = String(pedido.value ?? '').trim();
     }
 
-    const noPaso = decision.isDenied;
     const payload: any = {
       numero_documento: String(cc),
-      paso_prueba_tecnica: !noPaso,
-      no_paso_prueba_tecnica: noPaso,
-      motivo_no_paso_prueba_tecnica: noPaso ? motivo : null,
+      paso_prueba_tecnica: resultado === 'paso',
+      no_paso_prueba_tecnica: resultado === 'no_paso',
+      no_se_presento_prueba_tecnica: resultado === 'no_se_presento',
+      motivo_no_paso_prueba_tecnica: resultado === 'no_paso' ? motivo : null,
     };
 
     Swal.fire({ title: 'Guardando resultado...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
@@ -845,7 +851,7 @@ export class RecruitmentPipelineComponent {
       if (cand?.entrevistas?.[0]?.proceso) {
         this.candidatoSeleccionado.set(
           aplicarResultadoPruebaLocal(cand, {
-            noPaso,
+            resultado,
             motivo,
             procResp: resp?.proceso,
             ahora: new Date().toISOString(),
@@ -853,8 +859,13 @@ export class RecruitmentPipelineComponent {
         );
       }
 
+      const titulos: Record<string, string> = {
+        paso: 'Registrado: pasó la prueba.',
+        no_paso: 'Registrado: no pasó la prueba.',
+        no_se_presento: 'Registrado: no se presentó a la prueba.',
+      };
       await Swal.fire({
-        title: noPaso ? 'Registrado: no pasó la prueba.' : 'Registrado: pasó la prueba.',
+        title: titulos[resultado],
         icon: 'success',
         toast: true,
         position: 'top-end',
@@ -1310,6 +1321,8 @@ export class RecruitmentPipelineComponent {
           } else if (row.no_paso_prueba_tecnica === true) {
             row._estado = 'NO PASÓ PRUEBA';
             row._motivo = row.motivo_no_paso_prueba_tecnica || '';
+          } else if (row.no_se_presento_prueba_tecnica === true) {
+            row._estado = 'NO SE PRESENTÓ';
           } else if (row.paso_prueba_tecnica === true) {
             row._estado = 'PASÓ PRUEBA';
           } else if (row.prueba_tecnica === true) {
@@ -1332,19 +1345,22 @@ export class RecruitmentPipelineComponent {
           row._ingreso_date = row.contrato_fecha_ingreso || row.ingreso_at || null;
 
           // Resultado de la prueba técnica en su PROPIA columna, independiente del
-          // estado: así se ve "pasó / no pasó" aunque el estado sea RETIRADO/CONTRATADO.
+          // estado: así se ve el resultado aunque el estado sea RETIRADO/CONTRATADO.
           row._prueba = row.no_paso_prueba_tecnica === true
             ? 'NO PASÓ'
-            : row.paso_prueba_tecnica === true ? 'PASÓ' : '';
+            : row.no_se_presento_prueba_tecnica === true
+              ? 'NO SE PRESENTÓ'
+              : row.paso_prueba_tecnica === true ? 'PASÓ' : '';
 
           // Fecha de la prueba PROGRAMADA en la publicación (vacante). Se muestra para
           // los procesos de prueba técnica, tengan o no resultado aún.
           row._fecha_prueba_publicacion = row.vacante_fecha_prueba || null;
 
-          // Cuándo se REGISTRÓ el resultado de la prueba (pasó / no pasó). Solo existe
-          // cuando ya hay resultado.
+          // Cuándo se REGISTRÓ el resultado de la prueba (pasó / no pasó / no se
+          // presentó). Solo existe cuando ya hay resultado.
           row._fecha_resultado_prueba =
-            row.no_paso_prueba_tecnica_at || row.paso_prueba_tecnica_at || null;
+            row.no_paso_prueba_tecnica_at || row.no_se_presento_prueba_tecnica_at
+            || row.paso_prueba_tecnica_at || null;
 
           // Motivo COMBINADO: el del estado (retiro / no aplica / espera) MÁS el de la
           // prueba técnica cuando existen los dos, para que ninguno se pierda. Si el
@@ -1375,6 +1391,7 @@ export class RecruitmentPipelineComponent {
               'PRUEBA TÉCNICA':   { color: '#fff', background: '#1565C0' },
               'PASÓ PRUEBA':      { color: '#fff', background: '#2E7D32' },
               'NO PASÓ PRUEBA':   { color: '#fff', background: '#C62828' },
+              'NO SE PRESENTÓ':   { color: '#fff', background: '#EF6C00' },
               'ESPERA VACANTE':   { color: '#000', background: '#FFD54F' },
               'EN PROGRESO':      { color: '#fff', background: '#00897B' },
             }
@@ -1386,10 +1403,11 @@ export class RecruitmentPipelineComponent {
             type: 'date', dateFormat: 'dd/MM/yyyy', width: '110px',
           },
           {
-            name: '_prueba', header: 'Resultado prueba', type: 'status', width: '110px',
+            name: '_prueba', header: 'Resultado prueba', type: 'status', width: '130px',
             statusConfig: {
-              'PASÓ':    { color: '#fff', background: '#2E7D32' },
-              'NO PASÓ': { color: '#fff', background: '#C62828' },
+              'PASÓ':           { color: '#fff', background: '#2E7D32' },
+              'NO PASÓ':        { color: '#fff', background: '#C62828' },
+              'NO SE PRESENTÓ': { color: '#fff', background: '#EF6C00' },
             }
           },
           {

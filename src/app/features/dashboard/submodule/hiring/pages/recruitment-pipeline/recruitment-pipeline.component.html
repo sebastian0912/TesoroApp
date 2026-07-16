@@ -50,14 +50,15 @@
                 <span class="pill pill-action"
                   [class.pill-danger]="noPasoPrueba()"
                   [class.pill-success]="pasoPrueba()"
-                  [class.pill-info]="!noPasoPrueba() && !pasoPrueba()"
+                  [class.pill-warning]="noSePresentoPrueba()"
+                  [class.pill-info]="resultadoPrueba() === 'sin_resultado'"
                   role="button"
                   tabindex="0"
                   [matTooltip]="tooltipPrueba()"
                   (click)="registrarResultadoPrueba()"
                   (keydown.enter)="registrarResultadoPrueba()"
                   (keydown.space)="$event.preventDefault(); registrarResultadoPrueba()">
-                  <mat-icon>{{ noPasoPrueba() ? 'thumb_down' : (pasoPrueba() ? 'thumb_up' : 'assignment_ind') }}</mat-icon>
+                  <mat-icon>{{ noPasoPrueba() ? 'thumb_down' : (pasoPrueba() ? 'thumb_up' : (noSePresentoPrueba() ? 'person_off' : 'assignment_ind')) }}</mat-icon>
                   {{ etiquetaPrueba() }}
                 </span>
 

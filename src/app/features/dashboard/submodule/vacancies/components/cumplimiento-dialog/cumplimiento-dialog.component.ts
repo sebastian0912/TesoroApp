@@ -162,6 +162,7 @@ export class CumplimientoDialogComponent implements OnInit {
   etapaClass(etapa: string | null | undefined): string {
     const e = (etapa || '').toLowerCase();
     if (e.includes('no pas')) return 'etapa-nopaso';
+    if (e.includes('no se present')) return 'etapa-nopresento';   // antes de 'prueba'
     if (e.includes('ingres')) return 'etapa-ingreso';
     if (e.includes('contrat')) return 'etapa-contratado';
     if (e.includes('exam')) return 'etapa-examenes';

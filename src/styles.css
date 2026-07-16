@@ -1024,3 +1024,13 @@ button {
   overflow: visible;
   text-overflow: clip;
 }
+
+/* Tooltip de celda (matTooltip): al pasar el cursor por CUALQUIER celda se ve su
+   contenido COMPLETO, aunque en la tabla esté recortado con "…". Vive en el overlay
+   del CDK (fuera del componente), por eso es global. Permite texto largo/multilínea. */
+.sf-cell-tip {
+  max-width: 520px !important;
+  white-space: pre-line !important;
+  font-size: 12px !important;
+  line-height: 1.35 !important;
+}

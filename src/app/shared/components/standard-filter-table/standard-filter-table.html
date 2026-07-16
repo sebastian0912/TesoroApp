@@ -340,22 +340,28 @@
                         } @else {
                           @switch (col.type) {
                             @case ('date') {
-                              <span [title]="row[col.name] | date:(col.dateFormat || 'dd/MM/yyyy')">{{ row[col.name] | date:(col.dateFormat || 'dd/MM/yyyy') }}</span>
+                              <span [matTooltip]="(row[col.name] | date:(col.dateFormat || 'dd/MM/yyyy')) || ''"
+                                matTooltipShowDelay="300" matTooltipClass="sf-cell-tip">{{ row[col.name] | date:(col.dateFormat || 'dd/MM/yyyy') }}</span>
                             }
                               @case ('status') {
                                 <span class="sf-status-badge" [style.color]="getStatusStyles(col.name, row[col.name]).color"
-                                  [style.backgroundColor]="getStatusStyles(col.name, row[col.name]).background">
+                                  [style.backgroundColor]="getStatusStyles(col.name, row[col.name]).background"
+                                  [matTooltip]="getStatusLabel(col.name, row[col.name]) || ''"
+                                  matTooltipShowDelay="300" matTooltipClass="sf-cell-tip">
                                   {{ getStatusLabel(col.name, row[col.name]) }}
                                 </span>
                               }
                               @case ('custom') {
                                 <span class="sf-custom-badge" [style.color]="getCustomStyles(col.name, row[col.name]).color"
-                                  [style.backgroundColor]="getCustomStyles(col.name, row[col.name]).background">
+                                  [style.backgroundColor]="getCustomStyles(col.name, row[col.name]).background"
+                                  [matTooltip]="(row[col.name] ?? '') + ''"
+                                  matTooltipShowDelay="300" matTooltipClass="sf-cell-tip">
                                   {{ row[col.name] }}
                                 </span>
                               }
                               @default {
-                                <span [title]="row[col.name] ?? ''">{{ row[col.name] ?? '-' }}</span>
+                                <span [matTooltip]="(row[col.name] ?? '') + ''"
+                                  matTooltipShowDelay="300" matTooltipClass="sf-cell-tip">{{ row[col.name] ?? '-' }}</span>
                               }
                               }
                             }

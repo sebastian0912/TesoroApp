@@ -335,6 +335,7 @@
 .etapa-contratado   { background: var(--ok-bg); color: var(--ok); border-color: #c8e6c9; }
 .etapa-ingreso      { background: #e8f5e9; color: #1b5e20; border-color: #a5d6a7; }
 .etapa-nopaso       { background: #fdecea; color: #c62828; border-color: #f5c2c0; }
+.etapa-nopresento   { background: #fff3e0; color: #e65100; border-color: #ffcc80; }
 
 /* Motivo de "no pasó la prueba técnica" bajo el chip de etapa. */
 .etapa-motivo {
