@@ -1,9 +1,11 @@
 import {
   ChangeDetectionStrategy,
+  ChangeDetectorRef,
   Component,
   effect,
   inject,
   input,
+  NgZone,
   OnInit,
 } from '@angular/core';
 import {
@@ -54,6 +56,8 @@ export class FormEntrevistaComponent implements OnInit {
   private readonly candidateService = inject(RegistroProcesoContratacion);
   private readonly catalogos = inject(GestionParametrizacionService);
   private readonly seleccionEstado = inject(SeleccionEstadoService);
+  private readonly cdr = inject(ChangeDetectorRef);
+  private readonly ngZone = inject(NgZone);
 
   // ====== Catálogos ======
   private safeCatalog(code: string, label: string): Observable<CatalogValue[]> {
@@ -1528,7 +1532,14 @@ export class FormEntrevistaComponent implements OnInit {
         confirmButtonColor: '#3085d6',
       });
     } finally {
-      this.isSubmitting = false;
+      // OnPush + Electron: el `await` puede resolver FUERA de la zona de Angular
+      // (el interceptor offline resuelve vía IPC de Electron). Sin esto, el botón
+      // se queda en "Enviando…" hasta el próximo evento (un click). Forzamos el
+      // reset y el re-render dentro de la zona.
+      this.ngZone.run(() => {
+        this.isSubmitting = false;
+        this.cdr.markForCheck();
+      });
     }
   }
 }
