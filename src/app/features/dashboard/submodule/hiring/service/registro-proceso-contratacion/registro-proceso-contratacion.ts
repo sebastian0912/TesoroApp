@@ -431,6 +431,7 @@ export interface CandidatoPorVacanteItem {
   cesantias?: string | null;
   salario?: string | null;             // salario de la vacante
   calzado?: number | null;             // talla de calzado (dotación)
+  talla_overol?: number | null;        // talla de camisa (= overol)
 }
 
 

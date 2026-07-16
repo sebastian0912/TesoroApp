@@ -26,6 +26,12 @@ export interface CumplimientoDialogData {
   cargo?: string | null;
   finca?: string | null;
   empresa?: string | null;
+  /** Área de la vacante (Publicacion.area). */
+  area?: string | null;
+  /** Auxilio de transporte de la vacante ('Si' | 'No'). */
+  auxilioTransporte?: string | null;
+  /** ¿La vacante tiene ruta? ('Si' | 'No'), derivado de las oficinas que contratan. */
+  ruta?: string | null;
   req?: number;
   firm?: number;
   cumpl?: number;
@@ -423,9 +429,9 @@ export class CumplimientoDialogComponent implements OnInit {
       'CONTACTO DE EMERGENCIA',
     ];
     const filas = objetivo.map((c) => [
-      'TU ALIANZA', '', '', this.data.cargo ?? '', String(c.numero_documento ?? ''),
-      c.lugar_expedicion ?? '', this.nombreCompleto(c), '', '', c.municipio ?? '',
-      c.sexo ?? '', this.data.cargo ?? '', '', '', '',
+      'TU ALIANZA', '', '', this.data.area ?? '', String(c.numero_documento ?? ''),
+      c.lugar_expedicion ?? '', this.nombreCompleto(c), this.data.auxilioTransporte ?? '', this.data.ruta ?? '',
+      c.municipio ?? '', c.sexo ?? '', this.data.cargo ?? '', '', '', this.data.finca ?? '',
       this.fmtFecha(c.fecha_ingreso), this.antiguedadDias(c.fecha_ingreso), c.afp ?? '', c.eps ?? '',
       this.fmtFecha(c.fecha_nacimiento), this.edad(c.fecha_nacimiento), c.lugar_nacimiento ?? '',
       this.telefono(c), c.direccion ?? '', c.email ?? '', c.contacto_emergencia ?? '',
@@ -451,7 +457,7 @@ export class CumplimientoDialogComponent implements OnInit {
       c.lugar_nacimiento ?? '', this.fmtFecha(c.fecha_nacimiento), 'COLOMBIANO', c.direccion ?? '',
       c.municipio ?? '', '', c.barrio ?? '', this.numHijos(c), c.rh ?? '', c.eps ?? '', c.afp ?? '',
       c.cesantias ?? '', this.ARL_FIJA, this.telefono(c), c.email ?? '', this.fmtFecha(c.fecha_ingreso),
-      this.salarioTexto(c), this.calzado(c), '',
+      this.salarioTexto(c), this.calzado(c), this.tallaOverol(c),
     ]);
     this.escribirLibro([headers, ...filas], [], 'formato de ingresos', this.nombreArchivo('SAGARO'));
   }
@@ -482,9 +488,10 @@ export class CumplimientoDialogComponent implements OnInit {
         exp.dia, exp.mes, exp.anio, c.lugar_expedicion ?? '', nac.dia, nac.mes, nac.anio,
         c.rh ?? '', c.lugar_nacimiento ?? '', this.edad(c.fecha_nacimiento),
         c.sexo ?? '', c.formacion ?? '', this.telefono(c), c.email ?? '', c.direccion ?? '', c.barrio ?? '',
-        c.municipio ?? '', c.municipio ?? '', '', '', c.eps ?? '', this.ARL_FIJA, c.afp ?? '', c.cesantias ?? '',
-        this.calzado(c), '', this.data.empresa ?? '', this.data.finca ?? '',
-        this.data.cargo ?? '', '', '', '', this.data.cargo ?? '', '',
+        c.municipio ?? '', c.municipio ?? '', this.subsidio('Si'), this.subsidio('No'),
+        c.eps ?? '', this.ARL_FIJA, c.afp ?? '', c.cesantias ?? '',
+        this.calzado(c), this.tallaOverol(c), this.data.empresa ?? '', this.data.finca ?? '',
+        this.data.area ?? '', '', '', this.data.finca ?? '', this.data.cargo ?? '', '',
       ];
     });
     const { aoa, merges } = this.construirDobleEncabezado(columnas, grupos, filas);
@@ -518,9 +525,9 @@ export class CumplimientoDialogComponent implements OnInit {
         c.segundo_apellido ?? '', nombres, exp.anio, exp.mes, exp.dia, c.lugar_expedicion ?? '',
         nac.anio, nac.mes, nac.dia, c.rh ?? '', c.lugar_nacimiento ?? '',
         this.edad(c.fecha_nacimiento), c.sexo ?? '', c.formacion ?? '', this.telefono(c), c.email ?? '',
-        c.direccion ?? '', c.barrio ?? '', c.municipio ?? '', c.municipio ?? '', '', '',
-        c.eps ?? '', this.ARL_FIJA, c.afp ?? '', c.cesantias ?? '', this.calzado(c), '',
-        this.data.empresa ?? '', this.data.finca ?? '', this.data.cargo ?? '', '', '', '',
+        c.direccion ?? '', c.barrio ?? '', c.municipio ?? '', c.municipio ?? '', this.subsidio('Si'), this.subsidio('No'),
+        c.eps ?? '', this.ARL_FIJA, c.afp ?? '', c.cesantias ?? '', this.calzado(c), this.tallaOverol(c),
+        this.data.empresa ?? '', this.data.finca ?? '', this.data.area ?? '', '', '', this.data.finca ?? '',
         this.data.cargo ?? '', '',
       ];
     });
@@ -603,6 +610,18 @@ export class CumplimientoDialogComponent implements OnInit {
   /** Talla de calzado; vacío si no hay. */
   private calzado(c: CandidatoPorVacanteItem): string {
     return c.calzado != null ? String(c.calzado) : '';
+  }
+
+  /** Talla de overol (= camisa de la dotación); vacío si no hay. */
+  private tallaOverol(c: CandidatoPorVacanteItem): string {
+    return c.talla_overol != null ? String(c.talla_overol) : '';
+  }
+
+  /** Marca 'X' en la columna SI/NO del subsidio según el auxilio de la vacante. */
+  private subsidio(cual: 'Si' | 'No'): string {
+    const aux = String(this.data.auxilioTransporte ?? '').trim().toLowerCase();
+    if (!aux) return '';
+    return (cual === 'Si') === (aux === 'si') ? 'X' : '';
   }
 
   /** Salario con separador de miles ("1.750.905"); vacío si no hay. */

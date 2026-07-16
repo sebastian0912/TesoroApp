@@ -886,6 +886,10 @@ export class VacantesComponent implements OnInit, AfterViewInit, OnDestroy {
         cargo: row?.cargo,
         finca: row?.finca,
         empresa: row?.empresaUsuariaSolicita,
+        area: row?.area,
+        auxilioTransporte: row?.auxilioTransporte,
+        // La ruta es un booleano por oficina; se resume a Si/No para el formato.
+        ruta: (Array.isArray(row?.oficinasQueContratan) && row.oficinasQueContratan.some((o: any) => o?.ruta)) ? 'Si' : 'No',
         req: row?.req,
         firm: row?.firm,
         cumpl: this.cumplimientoPct(row),
