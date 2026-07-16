@@ -1,7 +1,7 @@
 import { SharedModule } from '@/app/shared/shared.module';
-import { 
+import {
   Component,
-  effect, input, computed, signal, inject, DestroyRef, LOCALE_ID,
+  effect, input, output, computed, signal, inject, DestroyRef, LOCALE_ID,
   OnInit
 , ChangeDetectionStrategy } from '@angular/core';
 import {
@@ -78,6 +78,9 @@ export class HelpInformationComponent implements OnInit {
 
   // ========= Inputs/Outputs basados en signals =========
   candidatoSeleccionado = input<any | null>(null);
+  /** Reenvía el "guardado" de la entrevista (y de la remisión) al padre para que
+   *  recargue el candidato. */
+  guardado = output<void>();
 
   // ========= Inyección =========
   private fb = inject(FormBuilder);

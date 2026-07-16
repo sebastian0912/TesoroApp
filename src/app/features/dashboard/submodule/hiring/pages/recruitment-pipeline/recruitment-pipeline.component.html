@@ -64,27 +64,38 @@
                 <span class="meta-divider" aria-hidden="true"></span>
               }
 
-              <!-- Contrato activo / inactivo. El pill verde es clickable y abre el flujo de baja. -->
+              <!-- Contrato: activo real (clickable → baja) / retirado / en trámite.
+                   Una fila con solo el código reservado (generar_codigo) NO es un
+                   contrato activo: se muestra "En trámite" y no bloquea nada. -->
               @if (candidatoSeleccionado()?.entrevistas?.[0]?.proceso?.contrato; as contrato) {
-                @if (contrato.contrato_activo) {
-                  <span class="pill pill-success pill-action"
-                    role="button"
-                    tabindex="0"
-                    matTooltip="Click para dar de baja el contrato"
-                    (click)="darDeBajaManual()"
-                    (keydown.enter)="darDeBajaManual()"
-                    (keydown.space)="$event.preventDefault(); darDeBajaManual()">
-                    <mat-icon>verified</mat-icon> Contrato activo
-                  </span>
-                } @else {
-                  <span class="pill pill-danger"
-                        [matTooltip]="contrato.fecha_retiro ? 'Baja: ' + (contrato.fecha_retiro | date:'dd/MM/yyyy') : 'Sin contrato activo'">
-                    <mat-icon>cancel</mat-icon>
-                    Sin contrato
-                    @if (contrato.fecha_retiro) {
-                      <span class="pill-meta">· {{ contrato.fecha_retiro | date:'dd/MM/yyyy' }}</span>
-                    }
-                  </span>
+                @switch (contratoPill()) {
+                  @case ('activo') {
+                    <span class="pill pill-success pill-action"
+                      role="button"
+                      tabindex="0"
+                      matTooltip="Click para dar de baja el contrato"
+                      (click)="darDeBajaManual()"
+                      (keydown.enter)="darDeBajaManual()"
+                      (keydown.space)="$event.preventDefault(); darDeBajaManual()">
+                      <mat-icon>verified</mat-icon> Contrato activo
+                    </span>
+                  }
+                  @case ('retirado') {
+                    <span class="pill pill-danger"
+                          [matTooltip]="contrato.fecha_retiro ? 'Baja: ' + (contrato.fecha_retiro | date:'dd/MM/yyyy') : 'Sin contrato activo'">
+                      <mat-icon>cancel</mat-icon>
+                      Sin contrato
+                      @if (contrato.fecha_retiro) {
+                        <span class="pill-meta">· {{ contrato.fecha_retiro | date:'dd/MM/yyyy' }}</span>
+                      }
+                    </span>
+                  }
+                  @case ('en_tramite') {
+                    <span class="pill pill-neutral"
+                          [matTooltip]="'Código ' + (contrato.codigo_contrato || 'de contrato') + ' reservado · aún no contratado'">
+                      <mat-icon>pending</mat-icon> Contrato en trámite
+                    </span>
+                  }
                 }
               }
 
@@ -245,7 +256,7 @@
           </div>
         </ng-template>
         <div class="tab-content-scrollable">
-          <app-help-information [candidatoSeleccionado]="candidatoSeleccionado()">
+          <app-help-information [candidatoSeleccionado]="candidatoSeleccionado()" (guardado)="recargarCandidato()">
           </app-help-information>
         </div>
       </mat-tab>

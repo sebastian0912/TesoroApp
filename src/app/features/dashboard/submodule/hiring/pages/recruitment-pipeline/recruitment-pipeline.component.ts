@@ -34,6 +34,7 @@ import {
   etiquetaPruebaTecnica,
   resultadoDePruebaTecnica,
 } from './prueba-tecnica.rules';
+import { esContratoRealMini, estadoContratoPill, tieneContratoActivoReal } from './contrato.rules';
 
 import { firstValueFrom, merge, startWith } from 'rxjs';
 import Swal from 'sweetalert2';
@@ -239,13 +240,23 @@ export class RecruitmentPipelineComponent {
   readonly motivoBloqueo = this.seleccionEstado.motivoBloqueo;
 
   /**
-   * True cuando el candidato consultado tiene un CONTRATO ACTIVO. Mientras lo
-   * tenga no puede avanzar al resto del pipeline (Antecedentes, Selección,
+   * True cuando el candidato consultado tiene un CONTRATO ACTIVO REAL. Mientras
+   * lo tenga no puede avanzar al resto del pipeline (Antecedentes, Selección,
    * Exámenes, Contratación): primero hay que darle de baja ese contrato
    * (pill verde "Contrato activo" del header o el botón del banner).
+   *
+   * OJO: la fila de Contrato puede existir SIN contratación (el backend la crea
+   * al reservar el código y nace con contrato_activo=true por default). Solo
+   * bloquea si el proceso llegó a contratado=true o hay fecha_ingreso
+   * (ver contrato.rules.ts).
    */
   readonly contratoActivo = computed<boolean>(() =>
-    !!this.candidatoSeleccionado()?.entrevistas?.[0]?.proceso?.contrato?.contrato_activo
+    tieneContratoActivoReal(this.candidatoSeleccionado()?.entrevistas?.[0]?.proceso)
+  );
+
+  /** Estado del pill de contrato del header: activo / retirado / en_tramite / sin_fila. */
+  readonly contratoPill = computed(() =>
+    estadoContratoPill(this.candidatoSeleccionado()?.entrevistas?.[0]?.proceso)
   );
 
   /** Qué falta de "Pago y Transporte" para poder generar la documentación. */
@@ -548,6 +559,24 @@ export class RecruitmentPipelineComponent {
   onCandidatoSeleccionado(candidato: any | null): void {
     this.candidatoSeleccionado.set(candidato);
     console.log('Candidato seleccionado:', candidato);
+  }
+
+  /**
+   * Recarga el candidato desde el backend tras guardar la entrevista. Si el proceso
+   * anterior era terminal, el backend abrió uno nuevo; al re-fetch y setear una
+   * referencia nueva, las píldoras (contrato/prueba) y el Historial reflejan el
+   * proceso nuevo SIN tener que volver a buscar a la persona.
+   */
+  recargarCandidato(): void {
+    const ced = (this.numeroDocumento || this.candidatoSeleccionado()?.numero_documento || '')
+      .toString().trim();
+    if (!ced) return;
+    this.registroProceso.getCandidatoPorDocumento(ced, true).subscribe({
+      next: (cand: any) => {
+        if (cand) this.candidatoSeleccionado.set({ ...cand });
+      },
+      error: (err: any) => console.error('[pipeline] No se pudo recargar el candidato:', err),
+    });
   }
 
   getFullName(): void {
@@ -1260,10 +1289,13 @@ export class RecruitmentPipelineComponent {
           row._motivo = '';
 
           // Estado del flujo con semáforo. RETIRADO tiene prioridad si el contrato fue dado de baja.
+          // CONTRATADO exige contrato REAL (contratado=true o fecha_ingreso): una fila de
+          // contrato con solo el código reservado NO cuenta (misma regla que el header,
+          // ver contrato.rules.ts) y cae al estado del flujo (prueba técnica, etc.).
           if (row.contrato_activo === false) {
             row._estado = 'RETIRADO';
             row._motivo = row.motivo_retiro || '';
-          } else if (row.contratado === true) {
+          } else if (esContratoRealMini(row)) {
             if (!contratadoAsignado) {
               row._estado = 'CONTRATADO';
               contratadoAsignado = true;

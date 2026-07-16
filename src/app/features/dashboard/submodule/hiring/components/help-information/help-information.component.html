@@ -8,7 +8,7 @@
     </ng-template>
 
     <!-- HelpInformationComponent.html -->
-    <app-form-entrevista [candidatoSeleccionado]="candidatoSeleccionado()"></app-form-entrevista>
+    <app-form-entrevista [candidatoSeleccionado]="candidatoSeleccionado()" (guardado)="guardado.emit()"></app-form-entrevista>
 
   </mat-tab>
 

@@ -7,6 +7,7 @@ import {
   input,
   NgZone,
   OnInit,
+  output,
 } from '@angular/core';
 import {
   FormArray,
@@ -44,8 +45,11 @@ import {
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class FormEntrevistaComponent implements OnInit {
-  // ====== Inputs / Servicios ======
+  // ====== Inputs / Outputs / Servicios ======
   candidatoSeleccionado = input<any | null>(null);
+  /** Se emite tras guardar la entrevista con éxito, para que el padre recargue
+   *  el candidato (y aparezca el proceso nuevo sin re-buscar). */
+  guardado = output<void>();
 
   private readonly fb = inject(FormBuilder);
   private readonly dateAdapter = inject<DateAdapter<Date>>(
@@ -1390,6 +1394,11 @@ export class FormEntrevistaComponent implements OnInit {
         });
         return;
       }
+
+      // Guardado real y confirmado (no offline): avisar al padre para que recargue
+      // el candidato. Si el proceso anterior era terminal, ahora hay uno nuevo y
+      // debe reflejarse en las píldoras / Historial sin tener que re-buscar.
+      this.guardado.emit();
 
       await Swal.fire({
         icon: 'success',
