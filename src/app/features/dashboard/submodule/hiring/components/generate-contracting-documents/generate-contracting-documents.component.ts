@@ -20,6 +20,12 @@ import { fillMinervaPdf } from './minerva-fill';
 import { fillFichaSocialPdf } from './ficha-social-fill';
 import { fillFichaTecnicaPdf } from './ficha-tecnica-fill';
 import { buildContratoAdministrativoPdf } from './contrato-administrativo-fill';
+import {
+  buildCartaDescuentoFlorPdf,
+  buildFormatoTimbrePdf,
+  buildCartaAutorizacionCorreoPdf,
+  type CartaTuAlianzaCtx,
+} from './cartas-tu-alianza-fill';
 import { switchMap, map, take, catchError, tap, finalize } from 'rxjs/operators';
 import { of, forkJoin, firstValueFrom, throwError } from 'rxjs';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
@@ -486,9 +492,8 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       'Tarjeta de Propiedad', 'Licencia de Conducción', 'Fotografías Visita Domiciliaria',
       'Prueba de Conocimiento', 'Test del Árbol', 'Planilla SST', 'Evaluación SST',
       // Los que pasaron de stub a subir-only (no se generan, solo se suben)
-      'Carta Descuento de Flor',
-      'Formato Timbre Ingreso/Salida',
-      'Carta Autorización Correo Electrónico',
+      // (Carta Descuento de Flor / Formato Timbre / Carta Autorización Correo
+      //  ya se generan: ver `cartas-tu-alianza-fill.ts`)
       'Acta de Funciones',
       'Acta de Herramientas de Trabajo',
       'Acta de Dotaciones',
@@ -1114,6 +1119,15 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     }
     else if (documento === 'OTRO SI Sagaro Fumigador') {
       this.generarOtroSiSagaroFumigador();
+    }
+    else if (documento === 'Carta Descuento de Flor') {
+      this.generarCartaDescuentoFlor();
+    }
+    else if (documento === 'Formato Timbre Ingreso/Salida') {
+      this.generarFormatoTimbre();
+    }
+    else if (documento === 'Carta Autorización Correo Electrónico') {
+      this.generarCartaAutorizacionCorreo();
     }
     else {
       Swal.fire('Error', 'Funcionalidad de PDF no implementada para: ' + documento, 'error');
@@ -12679,5 +12693,107 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     }
   }
 
+  // ══════════════════════════════════════════════════════════════
+  // Cartas / autorizaciones TU ALIANZA (ver `cartas-tu-alianza-fill.ts`)
+  // ══════════════════════════════════════════════════════════════
+
+  /**
+   * Convierte un asset (o la firma del candidato) a data URL.
+   * Reutiliza el cache de `fetchAsArrayBufferOrNull` para los assets estáticos.
+   */
+  private async assetToDataUrl(url?: string | null): Promise<string | null> {
+    if (!url) return null;
+    if (url.startsWith('data:')) return url;
+
+    const buf = await this.fetchAsArrayBufferOrNull(url);
+    if (!buf) return null;
+
+    const bytes = new Uint8Array(buf);
+    const mime = (bytes[0] === 0xFF && bytes[1] === 0xD8) ? 'image/jpeg' : 'image/png';
+
+    let binary = '';
+    const CHUNK = 0x8000; // evita "Maximum call stack size exceeded" en imágenes grandes
+    for (let i = 0; i < bytes.length; i += CHUNK) {
+      binary += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
+    }
+    return `data:${mime};base64,${btoa(binary)}`;
+  }
+
+  /** Datos + assets comunes a las tres cartas de Tu Alianza. */
+  private async buildCartaTuAlianzaCtx(): Promise<CartaTuAlianzaCtx> {
+    const cand: any = this.candidato ?? {};
+
+    const nombres = [cand.primer_nombre, cand.segundo_nombre].filter(Boolean).join(' ');
+    const apellidos = [cand.primer_apellido, cand.segundo_apellido].filter(Boolean).join(' ');
+
+    const [logoDataUrl, firmaTrabajadorDataUrl, firmaJefeGhDataUrl] = await Promise.all([
+      this.assetToDataUrl('logos/Logo_TA.png'),
+      this.assetToDataUrl(cand?.biometria?.firma?.file_url ?? this.firma),
+      this.assetToDataUrl('firma/FirmaAndreaSD.png'),
+    ]);
+
+    return {
+      nombreCompleto: `${nombres} ${apellidos}`.trim().toUpperCase(),
+      cedula: String(cand.numero_documento ?? this.cedula ?? '').trim(),
+      telefono: String(cand.contacto?.celular || cand.numCelular || cand.telefono || '').trim(),
+      correo: String(cand.contacto?.email || cand.correo_electronico || '').trim(),
+      fecha: this.getFechaContrato(),
+      logoDataUrl,
+      firmaTrabajadorDataUrl,
+      firmaJefeGhDataUrl,
+    };
+  }
+
+  /**
+   * Genera una de las cartas de Tu Alianza, la deja en `uploadedFiles` y la
+   * muestra en el visor. Centraliza el manejo de errores de las tres.
+   */
+  private async generarCartaTuAlianza(
+    titulo: string,
+    fileName: string,
+    build: (ctx: CartaTuAlianzaCtx) => Blob,
+  ): Promise<void> {
+    try {
+      const ctx = await this.buildCartaTuAlianzaCtx();
+      if (!ctx.cedula) {
+        Swal.fire('Error', 'No se encontró el candidato. Seleccione uno primero.', 'error');
+        return;
+      }
+
+      const blob = build(ctx);
+      const nombreArchivo = fileName.replace('{cedula}', ctx.cedula);
+      const file = new File([blob], nombreArchivo, { type: 'application/pdf' });
+
+      this.uploadedFiles[titulo] = { file, fileName: nombreArchivo };
+      this.verPDF({ titulo });
+    } catch (error) {
+      console.error(`Error generando ${titulo}:`, error);
+      Swal.fire({ icon: 'error', title: 'Error', text: `Ocurrió un error al generar ${titulo}.` });
+    }
+  }
+
+  generarCartaDescuentoFlor() {
+    return this.generarCartaTuAlianza(
+      'Carta Descuento de Flor',
+      'CARTA_DESCUENTO_FLOR_{cedula}.pdf',
+      buildCartaDescuentoFlorPdf,
+    );
+  }
+
+  generarFormatoTimbre() {
+    return this.generarCartaTuAlianza(
+      'Formato Timbre Ingreso/Salida',
+      'FORMATO_TIMBRE_INGRESO_SALIDA_{cedula}.pdf',
+      buildFormatoTimbrePdf,
+    );
+  }
+
+  generarCartaAutorizacionCorreo() {
+    return this.generarCartaTuAlianza(
+      'Carta Autorización Correo Electrónico',
+      'AUTORIZACION_NOTIFICACION_ELECTRONICA_{cedula}.pdf',
+      buildCartaAutorizacionCorreoPdf,
+    );
+  }
 
 }
