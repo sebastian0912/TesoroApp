@@ -480,11 +480,45 @@ export class ConsultContractingDocumentationComponent implements OnInit {
   }
 
   /** ✅ Abrir PDF cuando el estado sea OK o WARN */
-  openDoc(cell: DocUiCell | null | undefined, ev?: MouseEvent): void {
+  /** Header Authorization (Bearer) desde localStorage; {} si no hay token. */
+  private authHeader(): Record<string, string> {
+    try {
+      let raw = localStorage.getItem('token') || localStorage.getItem('Authorization');
+      if (!raw) {
+        const u = localStorage.getItem('user');
+        if (u) {
+          const user = JSON.parse(u);
+          raw = user?.token || user?.jwt || user?.access_token || user?.accessToken || null;
+        }
+      }
+      if (!raw) return {};
+      return { Authorization: raw.startsWith('Bearer ') ? raw : `Bearer ${raw}` };
+    } catch {
+      return {};
+    }
+  }
+
+  /**
+   * Abre un documento. El backend lo sirve tras el gateway con JWT, así que se descarga
+   * con Authorization (fetch) y se abre como blob. La ventana se reserva dentro del gesto
+   * de click para no ser bloqueada por el navegador.
+   */
+  async openDoc(cell: DocUiCell | null | undefined, ev?: MouseEvent): Promise<void> {
     ev?.stopPropagation();
     const url = cell?.url ?? null;
     if (!url) return;
-    window.open(url, '_blank', 'noopener,noreferrer');
+    const win = window.open('', '_blank');
+    try {
+      const res = await fetch(url, { headers: this.authHeader() });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const blob = await res.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      if (win) { win.location.href = blobUrl; } else { window.open(blobUrl, '_blank'); }
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 120000);
+    } catch (e) {
+      if (win) win.close();
+      Swal.fire({ icon: 'error', title: 'No se pudo abrir el documento', text: String(e) });
+    }
   }
 
   /** Normaliza un string para comparar nombres de tipos documentales */
@@ -725,9 +759,10 @@ export class ConsultContractingDocumentationComponent implements OnInit {
           text: `Procesando bloque ${Math.ceil(i/CHUNK_SIZE) + 1} de ${Math.ceil(validUrls.length/CHUNK_SIZE)} (Docs ${i+1}-${Math.min(i+CHUNK_SIZE, validUrls.length)} / ${validUrls.length})` 
         });
 
-        // Ejecutar fetches concurrentes
+        // Ejecutar fetches concurrentes (con JWT: el gateway exige token en /api/v1/**)
+        const authH = this.authHeader();
         const fetchPromises = chunkUrls.map(async (url) => {
-          const res = await fetch(url);
+          const res = await fetch(url, { headers: authH });
           if (!res.ok) throw new Error('Network error');
           const contentType = res.headers.get('content-type') || '';
           const buffer = await res.arrayBuffer();
