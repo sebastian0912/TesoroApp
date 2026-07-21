@@ -62,6 +62,19 @@ const COMUN_BASE_TA = [
   'Pago Seguridad Social',
   'Diplomas y Certificados de Estudios',
   'Referencias (1 personal, 1 familiar, 2 laborales)',
+  // Cartas transversales a la temporal: aplican a cualquier candidato de
+  // Tu Alianza, no sólo a Jardines de los Andes. Se generan como PDF
+  // (ver `cartas-tu-alianza-fill.ts`).
+  'Carta Descuento de Flor',
+  'Formato Timbre Ingreso/Salida',
+  'Carta Autorización Correo Electrónico',
+];
+
+/** Las tres cartas de arriba, para los perfiles TA que no heredan COMUN_BASE_TA. */
+const CARTAS_TA = [
+  'Carta Descuento de Flor',
+  'Formato Timbre Ingreso/Salida',
+  'Carta Autorización Correo Electrónico',
 ];
 
 export const PERFILES_EMPRESA: PerfilEmpresa[] = [
@@ -161,12 +174,10 @@ export const PERFILES_EMPRESA: PerfilEmpresa[] = [
       /YUNDAMA|CURUBITAL/i,
     ],
     documentos: [
+      // Las 3 cartas ya vienen en COMUN_BASE_TA.
       ...COMUN_BASE_TA.filter(t => t !== 'Inducción'),
       'Inducción Jardines de los Andes',
-      'Carta Descuento de Flor',
       'Autorización de Datos',
-      'Formato Timbre Ingreso/Salida',
-      'Carta Autorización Correo Electrónico',
       'Colinesterasa',
     ],
   },
@@ -193,6 +204,7 @@ export const PERFILES_EMPRESA: PerfilEmpresa[] = [
       'CCF',
       'EPS',
       'Pago Seguridad Social',
+      ...CARTAS_TA,
     ],
   },
   {
@@ -305,6 +317,7 @@ export const PERFILES_EMPRESA: PerfilEmpresa[] = [
       'CCF',
       'EPS',
       'Pago Seguridad Social',
+      ...CARTAS_TA,
       // Operativos
       'Entrega Carnets',
       'Inducción Capacitación',
