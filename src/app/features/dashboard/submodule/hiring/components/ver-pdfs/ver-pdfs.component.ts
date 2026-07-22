@@ -16,6 +16,7 @@ import { MatListModule } from '@angular/material/list';
 import { MatDividerModule } from '@angular/material/divider';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
+import { DocViewerService } from '@/app/shared/services/doc-viewer/doc-viewer.service';
 import { trigger, style, transition, animate } from '@angular/animations';
 
 export interface ViewerDocument {
@@ -78,6 +79,7 @@ export class VerPdfsComponent implements OnInit {
     @Inject(MAT_DIALOG_DATA) public data: VerPdfsData,
     private readonly dialogRef: MatDialogRef<VerPdfsComponent>,
     private readonly sanitizer: DomSanitizer,
+    private readonly docViewer: DocViewerService,
   ) {}
 
   // ---------------------------------------------------------------------------
@@ -175,15 +177,18 @@ export class VerPdfsComponent implements OnInit {
     this.loading = false;
   }
 
-  private loadPdfPreview(doc: ViewerDocument | null): void {
+  private async loadPdfPreview(doc: ViewerDocument | null): Promise<void> {
     this.resetCurrentPreviewState();
 
     if (!doc || !this.isPdf(doc)) return;
 
     // mostramos loader mientras el iframe termina de cargar
     this.loading = true;
-    this.currentSafeUrl =
-      this.sanitizer.bypassSecurityTrustResourceUrl(doc.file_url);
+    // El gateway exige JWT y manda X-Frame-Options: deny → descargar con token → blob y
+    // enmarcar el blob (los blob sí se pueden enmarcar y no requieren auth).
+    const blobUrl = await this.docViewer.toBlobUrl(doc.file_url);
+    if (!blobUrl) { this.loading = false; this.currentSafeUrl = null; return; }
+    this.currentSafeUrl = this.sanitizer.bypassSecurityTrustResourceUrl(blobUrl);
   }
 
   /** Se llama cuando el iframe termina de cargar el PDF */
@@ -197,11 +202,11 @@ export class VerPdfsComponent implements OnInit {
 
   openInNewTab(doc: ViewerDocument | null): void {
     if (!doc?.file_url) return;
-    window.open(doc.file_url, '_blank', 'noreferrer');
+    this.docViewer.openInNewTab(doc.file_url);
   }
 
   download(doc: ViewerDocument | null): void {
     if (!doc?.file_url) return;
-    window.open(doc.file_url, '_blank', 'noreferrer');
+    this.docViewer.openInNewTab(doc.file_url);
   }
 }

@@ -1,9 +1,10 @@
-import {  Component, OnInit, input, effect, inject, DestroyRef , ChangeDetectionStrategy } from '@angular/core';
+import {  Component, OnInit, input, effect, inject, DestroyRef , ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
 import { AbstractControl, FormBuilder, FormGroup, ValidationErrors, ValidatorFn, Validators } from '@angular/forms';
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { firstValueFrom, forkJoin, of, throwError, Observable } from 'rxjs';
-import { catchError, startWith, map } from 'rxjs/operators';
+import { catchError, startWith, map, debounceTime, distinctUntilChanged, switchMap, take } from 'rxjs/operators';
 import { SharedModule } from '@/app/shared/shared.module';
+import { DocViewerService } from '@/app/shared/services/doc-viewer/doc-viewer.service';
 import { MatTabsModule } from '@angular/material/tabs';
 import Swal from 'sweetalert2';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
@@ -118,6 +119,7 @@ export class HiringQuestionsComponent implements OnInit {
   private readonly fb = inject(FormBuilder);
   private readonly http = inject(HttpClient);
   private readonly docSvc = inject(GestionDocumentalService);
+  private readonly docViewer = inject(DocViewerService);
   private readonly vacantesService = inject(VacantesService);
   private readonly procesosService = inject(RegistroProcesoContratacion);
   private readonly tarjetasService = inject(TarjetasService);
@@ -125,6 +127,7 @@ export class HiringQuestionsComponent implements OnInit {
   private readonly destroyRef = inject(DestroyRef);
   private readonly sanitizer = inject(DomSanitizer);
   private readonly seleccionEstado = inject(SeleccionEstadoService);
+  private readonly cdr = inject(ChangeDetectorRef);
 
   /**
    * El candidato quedó EN ESPERA de vacante o marcado NO APLICA (observación del
@@ -146,13 +149,23 @@ export class HiringQuestionsComponent implements OnInit {
   ngOnInit(): void {
     this.initForms();
     this.setupFormaPagoValidation(); // ← aplica validación dinámica CO
-    this.loadTarjetas();
     // Consentimiento: autocompletar UserAgent
     this.huellaForm.patchValue({ userAgent: navigator.userAgent });
 
+    // Autocomplete de tarjetas: búsqueda SERVER-SIDE (antes bajaba las ~55k tarjetas
+    // al cliente y filtraba local). Filtra desde el primer carácter que se escribe;
+    // el backend limita a top-50 y hay debounce para no spamear.
     this.filteredTarjetas = this.pagoTransporteForm.get('numeroIdentificacion')!.valueChanges.pipe(
       startWith(''),
-      map(value => this._filterTarjetas(value || '')),
+      map((v: any) => (typeof v === 'string' ? v : (v?.identification_number || '')).trim()),
+      debounceTime(200),
+      distinctUntilChanged(),
+      switchMap((term: string) => !term
+        ? of([])
+        : this.tarjetasService.list({ search: term }).pipe(
+            map((res: any) => Array.isArray(res) ? res : (res?.results || [])),
+            catchError(() => of([])),
+          )),
     );
   }
 
@@ -161,9 +174,12 @@ export class HiringQuestionsComponent implements OnInit {
       next: (res: any) => {
         const items = Array.isArray(res) ? res : (res.results || []);
         this.tarjetasDisponibles = items;
+        // App zoneless: terminar el HTTP no dispara detección por sí solo.
+        this.cdr.markForCheck();
       },
       error: (err) => {
         console.error('[loadTarjetas] Error:', err);
+        this.cdr.markForCheck();
         Swal.fire({ icon: 'warning', title: 'Aviso', text: 'No se pudieron cargar las tarjetas. El campo de tarjeta podría no funcionar correctamente.', confirmButtonText: 'Ok' });
       }
     });
@@ -296,22 +312,22 @@ export class HiringQuestionsComponent implements OnInit {
     // Validación extra: verificar si la tarjeta existe
     // Escuchar cambios en numeroPagos + numeroIdentificacion
     if (idCtrl) {
-      numCtrl.valueChanges.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+      numCtrl.valueChanges.pipe(debounceTime(300), takeUntilDestroyed(this.destroyRef)).subscribe({
         next: () => this.verificarTarjeta(),
-        error: (err) => console.error('💥 numCtrl.valueChanges subscription crashed:', err),
+        error: (err) => console.error('numCtrl.valueChanges:', err),
       });
-      idCtrl.valueChanges.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+      idCtrl.valueChanges.pipe(debounceTime(300), takeUntilDestroyed(this.destroyRef)).subscribe({
         next: () => this.verificarTarjeta(),
-        error: (err) => console.error('💥 idCtrl.valueChanges subscription crashed:', err),
+        error: (err) => console.error('idCtrl.valueChanges:', err),
       });
     }
   }
 
-  // Verificar existencia de tarjeta (local, sin API call)
+  // Verificar existencia de tarjeta: consulta SERVER-SIDE por identificación
+  // (antes filtraba las ~55k tarjetas en memoria).
   verificarTarjeta() {
     try {
       const forma = this.pagoTransporteForm.get('formaPago')?.value;
-      console.log('[verificarTarjeta] forma:', forma);
       if (forma === 'Daviplata' || !forma) return;
 
       const numCtrl = this.pagoTransporteForm.get('numeroPagos')!;
@@ -321,46 +337,34 @@ export class HiringQuestionsComponent implements OnInit {
       const idRaw = this.pagoTransporteForm.get('numeroIdentificacion')?.value;
       const id = (typeof idRaw === 'string' ? idRaw : (idRaw?.identification_number || '')).trim();
 
-      console.log('[verificarTarjeta] num:', num, '| id:', id, '| tarjetasDisponibles:', this.tarjetasDisponibles.length);
-      console.log('[verificarTarjeta] errores ANTES:', JSON.stringify(numCtrl.errors));
-
       // Si faltan datos o no cumplen longitud mínima, limpiamos los errores custom y salimos
       if (!num || num.length < 16 || !id) {
         this._clearCustomError(numCtrl, 'tarjetaInexistente');
         this._clearCustomError(numCtrl, 'noCoincide');
-        console.log('[verificarTarjeta] datos incompletos, errores DESPUÉS:', JSON.stringify(numCtrl.errors));
         return;
       }
 
-      // Buscar tarjetas que coincidan con la identificación
-      const tarjetasDelId = this.tarjetasDisponibles.filter(
-        t => (t.identification_number || '').trim() === id
-      );
-
-      console.log('[verificarTarjeta] tarjetasDelId:', tarjetasDelId.length);
-
-      if (tarjetasDelId.length === 0) {
-        this._setCustomError(numCtrl, 'tarjetaInexistente');
-        this._clearCustomError(numCtrl, 'noCoincide');
-        console.log('[verificarTarjeta] tarjetaInexistente SET, errores:', JSON.stringify(numCtrl.errors));
-        return;
-      }
-
-      const coincide = tarjetasDelId.some(
-        t => (t.card_number || '').trim() === num
-      );
-
-      if (!coincide) {
-        this._clearCustomError(numCtrl, 'tarjetaInexistente');
-        this._setCustomError(numCtrl, 'noCoincide');
-        console.log('[verificarTarjeta] noCoincide SET, errores:', JSON.stringify(numCtrl.errors));
-      } else {
-        this._clearCustomError(numCtrl, 'tarjetaInexistente');
-        this._clearCustomError(numCtrl, 'noCoincide');
-        console.log('[verificarTarjeta] TODO OK, errores:', JSON.stringify(numCtrl.errors));
-      }
+      this.tarjetasService.list({ identification_number: id })
+        .pipe(take(1), takeUntilDestroyed(this.destroyRef))
+        .subscribe({
+          next: (res: any) => {
+            const rows = Array.isArray(res) ? res : (res?.results || []);
+            if (rows.length === 0) {
+              this._setCustomError(numCtrl, 'tarjetaInexistente');
+              this._clearCustomError(numCtrl, 'noCoincide');
+            } else if (rows.some((t: any) => (t.card_number || '').trim() === num)) {
+              this._clearCustomError(numCtrl, 'tarjetaInexistente');
+              this._clearCustomError(numCtrl, 'noCoincide');
+            } else {
+              this._clearCustomError(numCtrl, 'tarjetaInexistente');
+              this._setCustomError(numCtrl, 'noCoincide');
+            }
+            this.cdr.markForCheck();
+          },
+          error: (err: any) => console.error('verificarTarjeta:', err),
+        });
     } catch (err) {
-      console.error('💥 verificarTarjeta crashed:', err);
+      console.error('verificarTarjeta:', err);
     }
   }
 
@@ -452,7 +456,11 @@ export class HiringQuestionsComponent implements OnInit {
       numero_documento: String(cand.numero_documento),
       contratado: true,
       contrato_detalle: {
-        forma_de_pago: v.formaPago ?? null,
+        // Si eligió "Otra", se envía el texto libre que escribió; antes se mandaba
+        // el literal 'Otra' y el dato del usuario se perdía en silencio.
+        forma_de_pago: (v.formaPago === 'Otra'
+          ? (v.otraFormaPago?.trim() || 'Otra')
+          : v.formaPago) ?? null,
         numero_para_pagos: v.numeroPagos ?? null,
         identification_number_tarjeta: v.numeroIdentificacion ?? null,
         contrasenia_asignada: v.contraseniaAsignada ?? null,
@@ -513,11 +521,12 @@ export class HiringQuestionsComponent implements OnInit {
     input.value = '';
   }
 
-  verArchivo(campo: string): void {
+  async verArchivo(campo: string): Promise<void> {
     const reg = this.uploadedFiles[campo];
     if (!reg) return this.alert('error', 'Archivo no encontrado', 'No se encontró el archivo.');
     if (typeof reg.file === 'string') {
-      window.open(encodeURI(reg.file), '_blank');
+      // URL del servidor (API con JWT / relativa): fetch con token → blob → abrir.
+      await this.docViewer.openInNewTab(reg.file);
     } else {
       const url = URL.createObjectURL(reg.file);
       window.open(url, '_blank');
@@ -526,12 +535,29 @@ export class HiringQuestionsComponent implements OnInit {
   }
 
   descargarArchivo(): void {
-    const archivo = this.DOCS[this.nombreEmpresa];
-    if (!archivo) return this.alert('error', 'Error', 'No hay documento para esta empresa.');
+    // La carta de traslado depende de la TEMPORAL de la publicación. `nombreEmpresa`
+    // nunca se asignaba (quedaba ''), así que DOCS[''] era undefined y la descarga
+    // fallaba SIEMPRE. Se resuelve por palabra clave (apoyo/alianza) en vez de por
+    // igualdad exacta, porque la temporal llega como 'APOYO LABORAL SAS' mientras la
+    // clave de DOCS es 'APOYO LABORAL TS SAS' (con "TS"): un === nunca casaría.
+    const archivo = this.resolverDocTraslado(this.nombreEmpresa);
+    if (!archivo) {
+      return this.alert('error', 'Sin plantilla',
+        'No se pudo determinar la temporal de la publicación para esta carta de traslado.');
+    }
     const a = document.createElement('a');
     a.href = `Docs/${archivo}`;
     a.download = archivo;
     a.click();
+  }
+
+  private resolverDocTraslado(temporal: string | null | undefined): string | null {
+    const norm = String(temporal ?? '')
+      .normalize('NFD').replace(/[̀-ͯ]/g, '')
+      .toLowerCase();
+    if (/apoyo/.test(norm)) return this.DOCS['APOYO LABORAL TS SAS'];
+    if (/alianza/.test(norm)) return this.DOCS['TU ALIANZA SAS'];
+    return null;
   }
 
   // ───────── Subir SOLO los que cambiaron ─────────
@@ -814,11 +840,15 @@ export class HiringQuestionsComponent implements OnInit {
       if (empresaSlug === 'apoyo-laboral') this.messageApoyo = t;
       else if (empresaSlug === 'tu-alianza') this.messageTuAlianza = t;
       if (kind === 'ID') this.messageID = t; else this.messagePD = t;
+      // Zoneless: estas mutaciones ocurren tras awaits (Electron/Swal), sin evento
+      // de plantilla que agende un tick. Sin markForCheck la vista no se repinta.
+      this.cdr.markForCheck();
     };
     const setImg = (d: string | null) => {
       if (empresaSlug === 'apoyo-laboral') this.fingerprintImageApoyo = d;
       else if (empresaSlug === 'tu-alianza') this.fingerprintImageTuAlianza = d;
       if (kind === 'ID') this.fingerprintImageID = d; else this.fingerprintImagePD = d;
+      this.cdr.markForCheck();
     };
 
     // ── Consentimiento obligatorio para Índice Derecho ──
@@ -1014,7 +1044,7 @@ export class HiringQuestionsComponent implements OnInit {
     const contr = proc?.contrato;
     const isEmptyValue = (v: any) => v === null || v === '' || (typeof v === 'boolean' && v === false);
     const CONTR_KEYS: Array<keyof typeof contr> = [
-      'forma_de_pago', 'numero_para_pagos', 'Ccentro_de_costos', 'porcentaje_arl', 'cesantias',
+      'forma_de_pago', 'numero_para_pagos', 'ccentro_de_costos', 'porcentaje_arl', 'cesantias',
       'subcentro_de_costos', 'grupo', 'categoria', 'operacion', 'horas_extras', 'seguro_funerario',
       'desea_trasladarse', 'seleccion_eps', 'contrasenia_asignada', 'identification_number_tarjeta'
     ];
@@ -1029,7 +1059,7 @@ export class HiringQuestionsComponent implements OnInit {
       contraseniaAsignada: contr?.contrasenia_asignada ?? null,
       // validacionNumeroCuenta: contr?.numero_para_pagos ?? null, // eliminado
       seguroFunerario: contr?.seguro_funerario ?? false,
-      Ccostos: contr?.Ccentro_de_costos ?? '',
+      Ccostos: contr?.ccentro_de_costos ?? contr?.Ccentro_de_costos ?? '',
       porcentajeARL: contr?.porcentaje_arl != null ? toNum(contr.porcentaje_arl) : null,
       cesantias: contr?.cesantias ?? null,
       subCentroCostos: contr?.subcentro_de_costos ?? null,
@@ -1056,6 +1086,10 @@ export class HiringQuestionsComponent implements OnInit {
     if (proc?.publicacion) {
       try {
         const vac: any = await firstValueFrom(this.vacantesService.obtenerVacante(proc.publicacion));
+
+        // La temporal de la publicación decide la carta de traslado a descargar.
+        this.nombreEmpresa = vac?.temporal ?? '';
+        this.cdr.markForCheck();
 
         const salarioFromProc = proc?.vacante_salario != null ? toNum(proc.vacante_salario) : null;
         const salarioFromVac = vac?.salario != null ? toNum(vac.salario) : null;
@@ -1093,6 +1127,9 @@ export class HiringQuestionsComponent implements OnInit {
       }
     }
 
+    // Zoneless: loadData corre desde un effect y patchea forms tras awaits; los
+    // @if que leen valores del formulario (p.ej. formaPago === 'Otra') necesitan tick.
+    this.cdr.markForCheck();
     this.llenarDocumentos().catch(console.error);
   }
 
@@ -1219,6 +1256,9 @@ export class HiringQuestionsComponent implements OnInit {
       return;
     } finally {
       if (ctx === this._docsCtx && Swal.isVisible()) Swal.close();
+      // Zoneless: serverDocs/uploadedFiles se llenan tras awaits HTTP; sin tick los
+      // @if(uploadedFiles[...]) y nombres de archivo no se repintan.
+      this.cdr.markForCheck();
     }
   }
 
@@ -1286,6 +1326,9 @@ export class HiringQuestionsComponent implements OnInit {
 
       if (this.huellaDocsList.length > 0) {
         this.openDocumentsDialog();
+        // Zoneless: showDocumentsDialog/huellaDocsList se mutan tras awaits; el
+        // overlay @if(showDocumentsDialog) no aparece sin agendar un tick.
+        this.cdr.markForCheck();
       } else {
         Swal.fire('Info', 'No se generaron documentos con la huella.', 'info');
       }

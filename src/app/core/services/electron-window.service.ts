@@ -1,5 +1,6 @@
 import { Injectable } from '@angular/core';
 import Swal from 'sweetalert2';
+import { DocViewerService } from '@/app/shared/services/doc-viewer/doc-viewer.service';
 
 interface ElectronApi {
   pdf: {
@@ -33,6 +34,8 @@ export class ElectronWindowService {
   get isElectron(): boolean {
     return !!this.api;
   }
+
+  constructor(private readonly docViewer: DocViewerService) {}
 
   async openPdfFromBase64(base64: string, options: OpenPdfOptions = {}): Promise<void> {
     const clean = this.stripPdfDataUrl(base64);
@@ -80,6 +83,13 @@ export class ElectronWindowService {
   /** URLs externas (http/https): en Electron van al navegador del SO. */
   openExternal(url: string): void {
     if (!url) return;
+    // WEB: documentos de la API (relativos/absolutos; con JWT y a veces mime octet-stream) se
+    // descargan con token → blob (con sniff de tipo real) para ABRIRSE en ventana en vez de
+    // descargarse/dar 401. En Electron se mantiene shell.openExternal.
+    if (!this.isElectron && (this.docViewer.isApiUrl(url) || url.startsWith('/api/'))) {
+      this.docViewer.openInNewTab(url);
+      return;
+    }
     if (this.api && /^https?:\/\//i.test(url)) {
       this.api.shell.openExternal(url).catch(() => { /* noop */ });
       return;
@@ -94,7 +104,7 @@ export class ElectronWindowService {
   async openDocument(value: string, options: OpenPdfOptions = {}): Promise<void> {
     if (!value) return;
     const trimmed = value.trim();
-    if (/^https?:\/\//i.test(trimmed)) {
+    if (/^https?:\/\//i.test(trimmed) || this.docViewer.isApiUrl(trimmed) || trimmed.startsWith('/api/')) {
       this.openExternal(trimmed);
       return;
     }

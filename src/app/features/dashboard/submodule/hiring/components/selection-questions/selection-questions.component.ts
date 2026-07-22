@@ -2,6 +2,7 @@ import {  Component, effect, input , ChangeDetectionStrategy, ChangeDetectorRef,
 import { FormBuilder, FormGroup } from '@angular/forms';
 import { firstValueFrom } from 'rxjs';
 import Swal from 'sweetalert2';
+import { environment } from '@/environments/environment';
 
 import { SharedModule } from '@/app/shared/shared.module';
 import { MatTabsModule } from '@angular/material/tabs';
@@ -122,14 +123,17 @@ export class SelectionQuestionsComponent implements OnDestroy {
     'ALIANSALUD', 'ASMET SALUD', 'CAJACOPI', 'CAPITAL SALUD', 'CAPRESOCA', 'COMFAMILIARHUILA',
     'COMFAORIENTE', 'COMPENSAR', 'COOSALUD', 'DUSAKAWI', 'ECOOPSOS', 'FAMISANAR',
     'FAMILIAR DE COLOMBIA', 'MUTUAL SER', 'NUEVA EPS', 'PIJAOS SALUD', 'SALUD TOTAL',
-    'SANITAS', 'SAVIA SALUD', 'SOS', 'SURA', 'No Tiene', 'Sin Buscar',
+    // MAYÚSCULAS como el resto: al guardar todo se uppercasea, y con estas 3 en
+    // minúscula el mat-select (compara con ===) no reencontraba el valor tras
+    // recargar y el campo salía en blanco.
+    'SANITAS', 'SAVIA SALUD', 'SOS', 'SURA', 'NO TIENE', 'SIN BUSCAR',
   ] as const;
   readonly afpList = ['PORVENIR', 'COLFONDOS', 'PROTECCION', 'COLPENSIONES'] as const;
   readonly categoriasSisben = [
     'A1', 'A2', 'A3', 'A4', 'A5', 'B1', 'B2', 'B3', 'B4', 'B5', 'B6', 'B7',
     'C1', 'C2', 'C3', 'C4', 'C5', 'C6', 'C7', 'C8', 'C9', 'C10', 'C11', 'C12', 'C13', 'C14', 'C15', 'C16', 'C17', 'C18',
     'D1', 'D2', 'D3', 'D4', 'D5', 'D6', 'D7', 'D8', 'D9', 'D10', 'D11', 'D12', 'D13', 'D14', 'D15', 'D16', 'D17', 'D18', 'D19', 'D20', 'D21',
-    'No Aplica', 'Sin Buscar'
+    'NO APLICA', 'SIN BUSCAR'
   ] as const;
   readonly medidasCorrectivasOpts = [...Array.from({ length: 11 }, (_, i) => i), 'CUMPLE'] as const;
 
@@ -421,6 +425,14 @@ export class SelectionQuestionsComponent implements OnDestroy {
         const typeKey = (Object.keys(this.typeMap) as DocKey[]).find(k => this.typeMap[k] === d.type);
         if (!typeKey) continue;
 
+        // En modo merge (polling), NO pisar un PDF que el usuario acaba de adjuntar
+        // y aún no ha guardado: el refetch llegaba en la ventana de ~30s y lo
+        // reemplazaba por la URL del servidor, perdiendo el archivo pendiente.
+        if (!resetFirst) {
+          const actual = this.uploadedFiles[typeKey];
+          if (actual?.changed && actual.file instanceof File) continue;
+        }
+
         const nombre = d.original_filename || d.title || 'Documento sin título';
         const fileUrl = d.file_url; // Use URL directly
         const iso: string | undefined = d.uploaded_at || undefined;
@@ -449,17 +461,59 @@ export class SelectionQuestionsComponent implements OnDestroy {
     return tocados;
   }
 
-  verArchivo(key: DocKey) {
+  async verArchivo(key: DocKey) {
     const entry = this.uploadedFiles[key];
     const f = entry?.file;
     if (!f) return void Swal.fire('Error', 'No se encontró archivo para este campo', 'error');
 
     if (typeof f === 'string') {
+      // URL del servidor: puede venir RELATIVA (/api/v1/... → se resolvería contra el host
+      // del front → página en blanco) y el gateway exige JWT (window.open no lo lleva). Se
+      // resuelve contra api base y se descarga con Authorization (fetch) → blob → abrir.
+      if (/\/api\/v1\/documents\//.test(f) || f.startsWith('/api/')) {
+        const win = window.open('', '_blank');
+        try {
+          const abs = /^https?:\/\//i.test(f) ? f : this.apiBase() + (f.startsWith('/') ? f : '/' + f);
+          const res = await fetch(abs, { headers: this.authHeader() });
+          if (!res.ok) throw new Error('HTTP ' + res.status);
+          const blobUrl = URL.createObjectURL(await res.blob());
+          if (win) { win.location.href = blobUrl; } else { window.open(blobUrl, '_blank'); }
+          setTimeout(() => URL.revokeObjectURL(blobUrl), 120000);
+        } catch (e) {
+          if (win) win.close();
+          Swal.fire('Error', 'No se pudo abrir el documento.', 'error');
+        }
+        return;
+      }
       window.open(encodeURI(f), '_blank', 'noopener,noreferrer');
     } else {
       const url = URL.createObjectURL(f);
       window.open(url, '_blank', 'noopener,noreferrer');
       setTimeout(() => URL.revokeObjectURL(url), 150);
+    }
+  }
+
+  /** Base absoluta de la API (para resolver file_url relativos). */
+  private apiBase(): string {
+    const b = (environment as any)?.apiUrl || '';
+    return b.endsWith('/') ? b.slice(0, -1) : b;
+  }
+
+  /** Header Authorization (Bearer) desde localStorage; {} si no hay token. */
+  private authHeader(): Record<string, string> {
+    try {
+      let raw = localStorage.getItem('token') || localStorage.getItem('Authorization');
+      if (!raw) {
+        const u = localStorage.getItem('user');
+        if (u) {
+          const user = JSON.parse(u);
+          raw = user?.token || user?.jwt || user?.access_token || user?.accessToken || null;
+        }
+      }
+      if (!raw) return {};
+      return { Authorization: raw.startsWith('Bearer ') ? raw : `Bearer ${raw}` };
+    } catch {
+      return {};
     }
   }
 
@@ -575,12 +629,16 @@ export class SelectionQuestionsComponent implements OnDestroy {
 
     try {
       await firstValueFrom(this.rpc.upsertSeleccionByDocumento(numero, payload));
-      await Swal.fire('¡Guardado!', 'Se actualizaron los antecedentes del proceso.', 'success');
+      // Antes salían DOS modales seguidos (guardar antecedentes + subir docs) para
+      // una sola acción del usuario. El primero pasa a toast no bloqueante y el
+      // modal final resume todo.
+      Swal.fire({ toast: true, position: 'top-end', icon: 'success', showConfirmButton: false, timer: 1500,
+        title: 'Antecedentes actualizados' });
 
       const res = await this.subirTodosLosArchivos(Object.keys(this.typeMap) as DocKey[]);
 
       if (res.todosOk) {
-        Swal.fire('¡Listo!', 'Todos los documentos se subieron correctamente.', 'success');
+        Swal.fire('¡Listo!', 'Antecedentes y documentos guardados correctamente.', 'success');
       } else {
         // Build detailed error message
         const listaErrores = res.fallidos.map(f => `<li><b>${f.key}:</b> ${f.error}</li>`).join('');
@@ -688,6 +746,18 @@ export class SelectionQuestionsComponent implements OnDestroy {
 
 /* ===================== Helpers puros (fuera de la clase) ===================== */
 function up(v: unknown): string { return v == null ? '' : String(v).toUpperCase().trim(); }
+
+/**
+ * Clave canónica para buscar en MAP_NOMBRE_TO_KEY: además de mayúsculas, quita
+ * acentos y unifica los espacios como guion bajo. Sin esto, si el backend manda
+ * 'PROCURADURÍA' (con tilde) o 'RAMA JUDICIAL' (con espacio) en vez de
+ * 'RAMA_JUDICIAL', el antecedente se descartaba en silencio y el campo salía vacío.
+ */
+function mapKey(v: unknown): string {
+  return String(v ?? '')
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .toUpperCase().trim().replace(/\s+/g, '_');
+}
 function isEmpty(v: unknown): boolean { return v === '' || v == null; }
 function toNumOrEmpty(v: unknown): number | '' {
   if (v === '' || v == null) return '';
@@ -726,7 +796,7 @@ function buildPatchFromAntecedentes(raw: any, base: FormPatchBase): FormPatchBas
 
   const out: any = { ...initial };
   for (const it of lista) {
-    const key = MAP_NOMBRE_TO_KEY[up(it?.nombre)];
+    const key = MAP_NOMBRE_TO_KEY[mapKey(it?.nombre)];
     if (!key) continue;
 
     if (key === 'semanasCotizadas') {

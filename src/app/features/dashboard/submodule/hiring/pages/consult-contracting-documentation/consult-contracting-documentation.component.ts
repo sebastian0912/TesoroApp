@@ -18,6 +18,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Title, Meta } from '@angular/platform-browser';
 
 import { SharedModule } from '@/app/shared/shared.module';
+import { DocViewerService } from '@/app/shared/services/doc-viewer/doc-viewer.service';
 import { MatButtonModule } from '@angular/material/button';
 
 import { GestionDocumentalService } from '../../service/gestion-documental/gestion-documental.service';
@@ -115,6 +116,7 @@ export class ConsultContractingDocumentationComponent implements OnInit {
   private readonly destroyRef = inject(DestroyRef);
   private readonly cdr = inject(ChangeDetectorRef);
   private readonly gestionDocumentalService = inject(GestionDocumentalService);
+  private readonly docViewer = inject(DocViewerService);
   private readonly dialog = inject(MatDialog);
   private readonly utilityService = inject(UtilityServiceService);
   private readonly titleService = inject(Title);
@@ -507,18 +509,9 @@ export class ConsultContractingDocumentationComponent implements OnInit {
     ev?.stopPropagation();
     const url = cell?.url ?? null;
     if (!url) return;
-    const win = window.open('', '_blank');
-    try {
-      const res = await fetch(url, { headers: this.authHeader() });
-      if (!res.ok) throw new Error('HTTP ' + res.status);
-      const blob = await res.blob();
-      const blobUrl = URL.createObjectURL(blob);
-      if (win) { win.location.href = blobUrl; } else { window.open(blobUrl, '_blank'); }
-      setTimeout(() => URL.revokeObjectURL(blobUrl), 120000);
-    } catch (e) {
-      if (win) win.close();
-      Swal.fire({ icon: 'error', title: 'No se pudo abrir el documento', text: String(e) });
-    }
+    // Descarga con JWT → blob (con sniff de tipo real) para ABRIR en ventana, no descargar.
+    const ok = await this.docViewer.openInNewTab(url);
+    if (!ok) Swal.fire({ icon: 'error', title: 'No se pudo abrir el documento', text: '' });
   }
 
   /** Normaliza un string para comparar nombres de tipos documentales */
