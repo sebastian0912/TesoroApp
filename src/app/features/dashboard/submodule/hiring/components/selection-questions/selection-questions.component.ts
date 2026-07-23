@@ -106,6 +106,13 @@ const MAP_NOMBRE_TO_KEY: Record<string, FormPatchKeys> = {
 export class SelectionQuestionsComponent implements OnDestroy {
   /* -------- Input (signal) -------- */
   candidatoSeleccionado = input<any | null>(null);
+  /**
+   * Override "Modificar de todas formas" (pipeline con contrato activo): al guardar,
+   * marca la edición como pura sobre el proceso EXISTENTE y sella la auditoría
+   * (nombre + fecha/hora del servidor). No abre proceso/entrevista nuevos.
+   */
+  modificacionForzada = input<boolean>(false);
+  modificadoPor = input<string>('');
 
   /* -------- Form -------- */
   antecedentes: FormGroup;
@@ -574,7 +581,10 @@ export class SelectionQuestionsComponent implements OnDestroy {
     };
 
     try {
-      await firstValueFrom(this.rpc.upsertSeleccionByDocumento(numero, payload));
+      await firstValueFrom(this.rpc.upsertSeleccionByDocumento(numero, payload, undefined, {
+        modificacionForzada: this.modificacionForzada(),
+        modificadoPor: this.modificadoPor(),
+      }));
       await Swal.fire('¡Guardado!', 'Se actualizaron los antecedentes del proceso.', 'success');
 
       const res = await this.subirTodosLosArchivos(Object.keys(this.typeMap) as DocKey[]);

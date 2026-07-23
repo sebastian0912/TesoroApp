@@ -1143,3 +1143,41 @@ mat-tab-group {
   width: 18px;
   height: 18px;
 }
+
+/* Acciones del banner: "Dar de baja" + "Modificar de todas formas". */
+.contrato-activo-banner .cab-actions {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Botón override: secundario (contorno) frente al rojo de "Dar de baja". */
+.contrato-activo-banner .cab-action--override {
+  background: #fff;
+  color: #b91c1c;
+  border: 1px solid rgba(239, 68, 68, 0.55);
+}
+
+.contrato-activo-banner .cab-action--override:hover {
+  filter: none;
+  background: #fef2f2;
+}
+
+/* Sello de auditoría del override. */
+.contrato-activo-banner .cab-audit {
+  margin-top: 4px;
+  font-size: 12px;
+  opacity: 0.9;
+}
+
+/* Banner en modo edición forzada: ámbar en vez de rojo. */
+.contrato-activo-banner.cab-override {
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.10), rgba(217, 119, 6, 0.14));
+  border-color: rgba(245, 158, 11, 0.45);
+  color: #92400e;
+}
+
+.contrato-activo-banner.cab-override > mat-icon {
+  color: #d97706;
+}

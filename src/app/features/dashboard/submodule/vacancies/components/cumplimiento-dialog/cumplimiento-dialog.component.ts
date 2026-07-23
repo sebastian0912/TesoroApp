@@ -15,7 +15,6 @@ import Swal from 'sweetalert2';
 
 import {
   CandidatoPorVacanteItem,
-  ProcesoUpdateByDocumentRequest,
   RegistroProcesoContratacion,
 } from '../../../hiring/service/registro-proceso-contratacion/registro-proceso-contratacion';
 import { HomeService } from '../../../home/service/home.service';
@@ -255,17 +254,31 @@ export class CumplimientoDialogComponent implements OnInit {
     const worker = async (): Promise<void> => {
       while (idx < objetivo.length) {
         const c = objetivo[idx++];
-        const payload: ProcesoUpdateByDocumentRequest = {
-          numero_documento: String(c.numero_documento),
-          publicacion: null,
-          vacante_tipo: null,
-          vacante_salario: null,
-          vacante_fecha_prueba: null,
-          prueba_tecnica: false,
-          autorizado: false,
-        };
+        // Se desasigna por el proceso EXACTO que muestra el diálogo (`proceso_id`,
+        // que además es el `track` de la tabla). Antes se quitaba por
+        // `numero_documento` y el backend (update-by-document) lo re-resolvía a la
+        // ÚLTIMA entrevista del candidato; con cédulas duplicadas (mismo número,
+        // distinto tipo_doc) o varios procesos, limpiaba OTRO proceso y la persona
+        // seguía apareciendo en la vacante. Con `proceso_id` se desasigna siempre
+        // el proceso correcto vía PATCH /procesos/<id>/ (publicacion es nullable).
+        const procesoId = c.proceso_id;
+        if (procesoId == null) {
+          fallidas.push(String(c.numero_documento));
+          done++;
+          pintarProgreso();
+          continue;
+        }
         try {
-          await firstValueFrom(this.gc.updateProcesoByDocumento(payload, 'PATCH'));
+          await firstValueFrom(
+            this.gc.patchProceso(procesoId, {
+              publicacion: null,
+              vacante_tipo: null,
+              vacante_salario: null,
+              vacante_fecha_prueba: null,
+              prueba_tecnica: false,
+              autorizado: false,
+            }),
+          );
           ok++;
         } catch {
           fallidas.push(String(c.numero_documento));

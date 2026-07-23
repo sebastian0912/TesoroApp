@@ -36,6 +36,8 @@ type DocCell = {
   exists: boolean;
   url?: string;
   uploaded_at?: string; // ISO
+  /** id del documento (backend asigna ids crecientes -> mayor = más nuevo) */
+  id?: number;
   vigente15d?: boolean; // ✅ para iconos (✓ / ⚠ / ✗)
 };
 
@@ -76,7 +78,7 @@ type TipoHeader = { id: number; name: string };
 
 type ChecklistDocDto = {
   type_id: number;
-  doc: null | { file_url?: string; uploaded_at?: string };
+  doc: null | { id?: number; file_url?: string; uploaded_at?: string };
 };
 
 type ChecklistItemDto = {
@@ -1322,22 +1324,33 @@ export class ConsultContractingDocumentationComponent implements OnInit {
       if (!Number.isFinite(tid)) continue;
 
       const dd = d?.doc;
-      const uploadedAt = dd ? this.parseFecha(dd.uploaded_at as any) : null;
+      const incomingExists = !!dd;
+      const existing = docsMap[tid];
 
-      // Si ya había un doc para este tipo, quedarnos con el más reciente
-      if (docsMap[tid] && docsMap[tid].exists && dd) {
-        const existingDateStr = docsMap[tid].uploaded_at;
-        const existingDate = existingDateStr ? this.parseFecha(existingDateStr as any) : null;
-        if (!uploadedAt || (existingDate && existingDate.getTime() >= uploadedAt.getTime())) {
-          continue;
-        }
-      }
-
-      if (!docsMap[tid] || dd) {
+      // Aún no hay nada para este tipo: tomar lo que llegue (exista o no el doc).
+      if (!existing) {
         docsMap[tid] = {
-          exists: !!dd,
+          exists: incomingExists,
           url: dd?.file_url,
           uploaded_at: dd?.uploaded_at,
+          id: dd?.id,
+        };
+        continue;
+      }
+
+      // Sólo un documento REAL puede desplazar a lo ya guardado.
+      if (!incomingExists) continue;
+
+      // Si lo previo no era un doc real, cualquier doc real lo reemplaza.
+      // Si ambos son reales, nos quedamos SIEMPRE con el MÁS RECIENTE
+      // (uploaded_at más nuevo; desempate/fallback por id de documento mayor),
+      // sin depender del orden en que el backend liste las versiones.
+      if (!existing.exists || this.isMoreRecentDoc(dd, existing)) {
+        docsMap[tid] = {
+          exists: true,
+          url: dd?.file_url,
+          uploaded_at: dd?.uploaded_at,
+          id: dd?.id,
         };
       }
     }
@@ -1451,6 +1464,40 @@ export class ConsultContractingDocumentationComponent implements OnInit {
 
     const d = new Date(s);
     return isNaN(d.getTime()) ? null : d;
+  }
+
+  /**
+   * ¿el documento entrante es MÁS RECIENTE que el ya guardado para su tipo?
+   * Recencia = `uploaded_at` más nuevo. Si las fechas empatan o alguna falta,
+   * se desempata por `id` de documento (el backend asigna ids crecientes, así
+   * que un id mayor corresponde a una versión creada después). Con esto la celda
+   * muestra SIEMPRE el documento más nuevo cuando llega más de uno por tipo,
+   * sin depender del orden de la lista devuelta por el backend.
+   */
+  private isMoreRecentDoc(
+    incoming: { uploaded_at?: string; id?: number } | null | undefined,
+    current: { uploaded_at?: string | null; id?: number } | null | undefined,
+  ): boolean {
+    const inDate = this.parseFecha(incoming?.uploaded_at as any);
+    const curDate = this.parseFecha(current?.uploaded_at as any);
+
+    if (inDate && curDate) {
+      if (inDate.getTime() !== curDate.getTime()) {
+        return inDate.getTime() > curDate.getTime();
+      }
+    } else if (inDate && !curDate) {
+      return true; // el entrante tiene fecha y el actual no
+    } else if (!inDate && curDate) {
+      return false; // el actual tiene fecha y el entrante no
+    }
+
+    // Empate de fecha (o ambas ausentes): desempatar por id (mayor = más nuevo).
+    const inId = Number(incoming?.id);
+    const curId = Number(current?.id);
+    if (Number.isFinite(inId) && Number.isFinite(curId)) {
+      return inId > curId;
+    }
+    return false;
   }
 
   private abbrDoc(name: string, max = 8): string {

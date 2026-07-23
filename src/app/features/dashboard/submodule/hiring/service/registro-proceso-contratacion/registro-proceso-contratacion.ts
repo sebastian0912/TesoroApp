@@ -268,6 +268,15 @@ export interface ProcesoUpdateByDocumentRequest {
   resultados?: string | null;
 
   contrato?: ContratoCodigoRequest;
+
+  /**
+   * Override "Modificar de todas formas": edición pura de una persona con contrato
+   * activo (sin darle de baja). El backend NO reinicia banderas ni abre proceso
+   * nuevo, y sella la auditoría con `modificado_por` + fecha/hora del servidor.
+   */
+  modificacion_forzada?: boolean;
+  /** Nombre del usuario que ejecuta el override (auditoría). */
+  modificado_por?: string | null;
 }
 
 
@@ -1325,14 +1334,21 @@ export class RegistroProcesoContratacion {
   upsertSeleccionByDocumento(
     numeroDocumento: string,
     payload: AntecedentesPayload,
-    procesoId?: number | string
+    procesoId?: number | string,
+    override?: { modificacionForzada?: boolean; modificadoPor?: string | null }
   ) {
     const body: any = {
       numero_documento: (numeroDocumento ?? '').trim(),
       ...(procesoId != null ? { proceso_id: procesoId } : {}),
       ...this.clean(payload),
+      // Override "Modificar de todas formas" (pipeline): edición pura del proceso
+      // existente + auditoría (quién/cuándo la sella el servidor).
+      ...(override?.modificacionForzada
+        ? { modificacion_forzada: true, modificado_por: override.modificadoPor || null }
+        : {}),
     };
-    const data = this.uppercaseDeepExcept(body, new Set(['semanasCotizadas']));
+    // `modificado_por` NO debe ir a MAYÚSCULAS (es el nombre del usuario).
+    const data = this.uppercaseDeepExcept(body, new Set(['semanasCotizadas', 'modificado_por']));
     return this.http
       .post<{ message: string; proceso_id: number; procesoSeleccion: AntecedentesPayload }>(
         this.url('procesos/seleccion-by-document'),

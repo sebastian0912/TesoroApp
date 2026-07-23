@@ -43,6 +43,20 @@ type ServerDocInfo = {
 export class HiringQuestionsComponent implements OnInit {
   // ───────── Input con signals ─────────
   candidatoSeleccionado = input<any>(null);
+  /**
+   * Override "Modificar de todas formas" (pipeline con contrato activo): los
+   * guardados de este tab se marcan como edición pura sobre el proceso EXISTENTE.
+   * El backend (update-by-document) NO reinicia banderas ni abre proceso nuevo y
+   * sella la auditoría con el nombre + fecha/hora del servidor.
+   */
+  modificacionForzada = input<boolean>(false);
+  modificadoPor = input<string>('');
+
+  /** Inyecta las banderas de override en cualquier payload de update-by-document. */
+  private withOverride(payload: ProcesoUpdateByDocumentRequest): ProcesoUpdateByDocumentRequest {
+    if (!this.modificacionForzada()) return payload;
+    return { ...payload, modificacion_forzada: true, modificado_por: this.modificadoPor() || null };
+  }
 
   // ───────── UI ─────────
   descripcionVacante = '';
@@ -472,7 +486,7 @@ export class HiringQuestionsComponent implements OnInit {
 
     try {
       const resp = await firstValueFrom(
-        this.procesosService.updateProcesoByDocumento(payload, 'PATCH'),
+        this.procesosService.updateProcesoByDocumento(this.withOverride(payload), 'PATCH'),
       );
       this.alert(
         'success',
@@ -617,7 +631,7 @@ export class HiringQuestionsComponent implements OnInit {
 
     this.loading('Guardando datos de obra…');
     try {
-      await firstValueFrom(this.procesosService.updateProcesoByDocumento(payload, 'PATCH'));
+      await firstValueFrom(this.procesosService.updateProcesoByDocumento(this.withOverride(payload), 'PATCH'));
       Swal.close();
       this.alert('success', 'Guardado', 'Los datos de obra se guardaron en el contrato.');
     } catch (e: any) {
@@ -718,7 +732,7 @@ export class HiringQuestionsComponent implements OnInit {
       }
 
       await firstValueFrom(
-        this.procesosService.updateProcesoByDocumento(payload, 'PATCH'),
+        this.procesosService.updateProcesoByDocumento(this.withOverride(payload), 'PATCH'),
       );
 
       Swal.close();

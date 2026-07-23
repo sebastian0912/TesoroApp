@@ -50,6 +50,7 @@ import QRCode from 'qrcode';
 import { PdfService } from '@/app/shared/services/pdf/pdf.service';
 import { HomeService } from '../../../home/service/home.service';
 import { ElectronWindowService } from '@/app/core/services/electron-window.service';
+import { getLocalStorageItem } from '@/app/core/utils/safe-storage';
 
 import { ColumnDefinition } from '@/app/shared/models/advanced-table-interface';
 
@@ -258,6 +259,55 @@ export class RecruitmentPipelineComponent {
   readonly contratoPill = computed(() =>
     estadoContratoPill(this.candidatoSeleccionado()?.entrevistas?.[0]?.proceso)
   );
+
+  // ───────── Override "Modificar de todas formas" ─────────
+  /**
+   * Override por sesión/candidato: permite EDITAR el pipeline de una persona con
+   * contrato activo SIN darle de baja. Es una edición pura forward-only; el
+   * backend (guard `modificacion_forzada` en update-by-document) NO reinicia
+   * banderas ni abre proceso/entrevista nuevos, y sella quién/cuándo. Se reinicia
+   * al cambiar de candidato (ver onCandidatoSeleccionado).
+   */
+  readonly modificacionForzada = signal(false);
+
+  /** Auditoría del override para mostrar en el banner (la fecha la sella el servidor). */
+  readonly overrideAuditNombre = signal<string>('');
+  readonly overrideAuditFecha = signal<string | null>(null);
+
+  /**
+   * Los tabs se bloquean por contrato activo REAL, SALVO que el usuario active el
+   * override "Modificar de todas formas".
+   */
+  readonly bloqueoContratoTabs = computed<boolean>(() =>
+    this.contratoActivo() && !this.modificacionForzada()
+  );
+
+  /**
+   * Activa el override. Muestra el sello de auditoría PREVIO si el proceso ya trae
+   * uno; el sello nuevo lo confirma el servidor al primer guardado en este modo.
+   */
+  activarModificacionForzada(): void {
+    this.modificacionForzada.set(true);
+    const proc = this.candidatoSeleccionado()?.entrevistas?.[0]?.proceso;
+    this.overrideAuditNombre.set(proc?.modificado_por || '');
+    this.overrideAuditFecha.set(proc?.modificado_en || null);
+  }
+
+  /** Nombre del usuario logueado (localStorage `user`) para la auditoría del override. */
+  usuarioActual(): string {
+    try {
+      const raw = getLocalStorageItem('user');
+      if (!raw) return '';
+      const u = JSON.parse(raw);
+      const nom = [u?.datos_basicos?.nombres, u?.datos_basicos?.apellidos]
+        .filter(Boolean).join(' ').trim();
+      if (nom) return nom;
+      const alt = [u?.primer_nombre, u?.primer_apellido].filter(Boolean).join(' ').trim();
+      return alt || String(u?.numero_de_documento ?? '');
+    } catch {
+      return '';
+    }
+  }
 
   /** Qué falta de "Pago y Transporte" para poder generar la documentación. */
   readonly faltantesPagoTransporte = computed<string[]>(() =>
@@ -552,14 +602,21 @@ export class RecruitmentPipelineComponent {
 
     // 6) Contrato ACTIVO ⇒ sólo "Turnos" disponible. Si el candidato
     //    consultado tiene contrato activo forzamos el primer tab; los demás
-    //    quedan deshabilitados en la plantilla hasta darle de baja.
+    //    quedan deshabilitados en la plantilla hasta darle de baja. El override
+    //    "Modificar de todas formas" libera esta restricción.
     effect(() => {
-      if (this.contratoActivo()) this.tabIndex.set(0);
+      if (this.bloqueoContratoTabs()) this.tabIndex.set(0);
     });
   }
 
   // ───────── API UI ────────
   onCandidatoSeleccionado(candidato: any | null): void {
+    // El override es por candidato: al cambiar de persona vuelve a exigir "Dar de baja".
+    this.modificacionForzada.set(false);
+    const proc = candidato?.entrevistas?.[0]?.proceso;
+    // Muestra la auditoría previa si el proceso ya trae un override sellado.
+    this.overrideAuditNombre.set(proc?.modificado_por || '');
+    this.overrideAuditFecha.set(proc?.modificado_en || null);
     this.candidatoSeleccionado.set(candidato);
     console.log('Candidato seleccionado:', candidato);
   }
@@ -576,7 +633,15 @@ export class RecruitmentPipelineComponent {
     if (!ced) return;
     this.registroProceso.getCandidatoPorDocumento(ced, true).subscribe({
       next: (cand: any) => {
-        if (cand) this.candidatoSeleccionado.set({ ...cand });
+        if (cand) {
+          this.candidatoSeleccionado.set({ ...cand });
+          // Refresca el sello de auditoría del override si el backend lo actualizó.
+          const proc = cand?.entrevistas?.[0]?.proceso;
+          if (proc?.modificado_por) {
+            this.overrideAuditNombre.set(proc.modificado_por);
+            this.overrideAuditFecha.set(proc.modificado_en || null);
+          }
+        }
       },
       error: (err: any) => console.error('[pipeline] No se pudo recargar el candidato:', err),
     });
@@ -1122,6 +1187,14 @@ export class RecruitmentPipelineComponent {
       }
     }
 
+    // Override "Modificar de todas formas": edición pura sobre persona con contrato
+    // activo. El backend NO reinicia banderas ni abre proceso nuevo, y sella la
+    // auditoría (nombre del usuario + fecha/hora del servidor).
+    if (this.modificacionForzada()) {
+      payload.modificacion_forzada = true;
+      payload.modificado_por = this.usuarioActual();
+    }
+
     // --- Preparar insumos de exámenes ---
     const selectedExams: string[] = (this.formGroup3.get('selectedExams')?.value || []) as string[];
     const files: File[] = this.examFiles() || [];
@@ -1147,6 +1220,13 @@ export class RecruitmentPipelineComponent {
       // 1) Guardar proceso (10%)
       updateLoader(10, 'Guardando salud ocupacional…');
       const resp = await firstValueFrom(this.registroProceso.updateProcesoByDocumento(payload, 'PATCH'));
+
+      // Captura el sello de auditoría del override (fecha/hora del servidor).
+      const procResp: any = (resp as any)?.proceso;
+      if (this.modificacionForzada() && procResp) {
+        this.overrideAuditNombre.set(procResp.modificado_por || this.usuarioActual());
+        this.overrideAuditFecha.set(procResp.modificado_en || new Date().toISOString());
+      }
 
       const codigo = (resp as any)?.proceso?.contrato_codigo as string | undefined;
       const okMsg = hayNoApto

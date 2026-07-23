@@ -78,9 +78,23 @@ export class HelpInformationComponent implements OnInit {
 
   // ========= Inputs/Outputs basados en signals =========
   candidatoSeleccionado = input<any | null>(null);
+  /**
+   * Override "Modificar de todas formas": cuando el padre (pipeline) lo activa,
+   * los guardados de este tab se marcan como edición pura forward-only. El backend
+   * (update-by-document) NO reinicia banderas ni abre proceso nuevo, y sella la
+   * auditoría con el nombre de `modificadoPor` + la fecha/hora del servidor.
+   */
+  modificacionForzada = input<boolean>(false);
+  modificadoPor = input<string>('');
   /** Reenvía el "guardado" de la entrevista (y de la remisión) al padre para que
    *  recargue el candidato. */
   guardado = output<void>();
+
+  /** Inyecta las banderas de override en cualquier payload de update-by-document. */
+  private withOverride(payload: ProcesoUpdateByDocumentRequest): ProcesoUpdateByDocumentRequest {
+    if (!this.modificacionForzada()) return payload;
+    return { ...payload, modificacion_forzada: true, modificado_por: this.modificadoPor() || null };
+  }
 
   // ========= Inyección =========
   private fb = inject(FormBuilder);
@@ -583,7 +597,7 @@ export class HelpInformationComponent implements OnInit {
         didOpen: () => Swal.showLoading(),
       });
 
-      const res = await this.gc.updateProcesoByDocumento(payload, 'PATCH').toPromise();
+      const res = await this.gc.updateProcesoByDocumento(this.withOverride(payload), 'PATCH').toPromise();
 
       await Swal.fire({
         title: 'Proceso actualizado correctamente.',
@@ -657,7 +671,7 @@ export class HelpInformationComponent implements OnInit {
         didOpen: () => Swal.showLoading(),
       });
 
-      await this.gc.updateProcesoByDocumento(payload, 'PATCH').toPromise();
+      await this.gc.updateProcesoByDocumento(this.withOverride(payload), 'PATCH').toPromise();
 
       this.limpiarVacante.set(false);
 
@@ -754,7 +768,7 @@ export class HelpInformationComponent implements OnInit {
         didOpen: () => Swal.showLoading(),
       });
 
-      const res = await this.gc.updateProcesoByDocumento(payload, 'PATCH').toPromise();
+      const res = await this.gc.updateProcesoByDocumento(this.withOverride(payload), 'PATCH').toPromise();
       const proc: any = res?.proceso;
 
       this.noPasoPrueba.set(true);
@@ -808,7 +822,7 @@ export class HelpInformationComponent implements OnInit {
         didOpen: () => Swal.showLoading(),
       });
 
-      await this.gc.updateProcesoByDocumento(payload, 'PATCH').toPromise();
+      await this.gc.updateProcesoByDocumento(this.withOverride(payload), 'PATCH').toPromise();
 
       this.noPasoPrueba.set(false);
       this.noPasoPruebaAt.set(null);
