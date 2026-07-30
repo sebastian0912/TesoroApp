@@ -34,6 +34,7 @@ import { of, forkJoin, firstValueFrom, throwError } from 'rxjs';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { isDocumentoVisible, getDocSeccion, SECCION_LABELS, type DocSeccion } from './documentos-por-empresa.config';
 import { resolverEmpresaUsuaria } from './empresas-usuarias.data';
+import { buildCarnetApoyoPdf } from './carnet-apoyo-fill';
 import { PermissionsService } from '@/app/core/services/permissions.service';
 
 type UploadedInfo = {
@@ -266,6 +267,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     { titulo: 'Sagaro Celular' },
     { titulo: 'OTRO SI Sagaro Fumigador' },
     { titulo: 'OTRO SI Jornada Laboral' },
+    { titulo: 'Carnet' },
     // Subir manual: identidad / vinculación
     { titulo: 'Cédula' },
     { titulo: 'ARL' },
@@ -682,6 +684,26 @@ export class GenerateContractingDocumentsComponent implements OnInit {
 
     Swal.fire({ title: 'Armando el paquete…', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
     try {
+      // Generar primero lo que se puede generar, para no obligar al usuario a
+      // hacerlo documento por documento antes de descargar. Cédula, ARL y
+      // exámenes no se generan: se suben, así que esos se buscan tal cual.
+      const generables: Array<{ titulo: string; generar: () => any }> = [
+        { titulo: 'Ficha Técnica', generar: () => this.generarFichaTecnica() },
+        { titulo: 'Ficha Social', generar: () => this.generarFichaSocial() },
+        // El contrato usa la variante básica (por obra o labor).
+        { titulo: 'Contrato', generar: () => this.runContratoVariant('basica') },
+      ];
+
+      for (const g of generables) {
+        if (this.uploadedFiles[g.titulo]?.file instanceof File) continue; // ya está
+        try {
+          await g.generar();
+        } catch (e) {
+          // Si uno falla se sigue: el faltante se reporta al final.
+          console.error('[paquete Soacha] no se pudo generar', g.titulo, e);
+        }
+      }
+
       let docsServidor: any[] = [];
       try {
         docsServidor = (await firstValueFrom(
@@ -752,6 +774,90 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       console.error('[paquete Soacha]', e);
       Swal.close();
       Swal.fire('Error', 'No se pudo armar el paquete.', 'error');
+    }
+  }
+
+  /**
+   * Carnet de Apoyo: 2 hojas carta (frente y reverso) para imprimir a doble
+   * cara y recortar. Se descarga directo, no se sube al gestor documental.
+   */
+  async generarCarnet(): Promise<void> {
+    const cand: any = this.candidato ?? {};
+    if (!cand?.numero_documento) {
+      Swal.fire('Sin candidato', 'Selecciona un candidato primero.', 'info');
+      return;
+    }
+
+    const contrato: any = this._entrevistaSel?.proceso?.contrato ?? {};
+
+    // Consecutivo: se propone el guardado y se confirma antes de imprimir.
+    // No se autoasigna en el cliente porque dos usuarios simultaneos tomarian
+    // el mismo numero; eso lo tiene que resolver el backend en transaccion.
+    const { value: consecutivo } = await Swal.fire({
+      title: 'Consecutivo del carnet',
+      input: 'text',
+      inputValue: this.limpio(contrato.carnet_codigo),
+      inputLabel: 'Numero que va en la casilla "Con."',
+      showCancelButton: true,
+      confirmButtonText: 'Generar',
+      inputValidator: (v) => (String(v ?? '').trim() ? null : 'Escribe el consecutivo'),
+    });
+    if (!consecutivo) return;
+
+    // EPS y AFP salen de los antecedentes del proceso.
+    const ants: any[] = Array.isArray(this._entrevistaSel?.proceso?.antecedentes)
+      ? this._entrevistaSel.proceso.antecedentes : [];
+    const porNombre = (n: string) =>
+      this.limpio(ants.find(a => String(a?.nombre ?? '').toUpperCase() === n)?.observacion);
+
+    // Contacto de emergencia desde los familiares del candidato.
+    const fams: any[] = Array.isArray(cand?.familiares) ? cand.familiares : [];
+    const emerg = fams.find(f => String(f?.tipo ?? '').toUpperCase().includes('EMERGENCIA')) ?? {};
+
+    const nombreCompleto = [
+      cand.primer_apellido, cand.segundo_apellido, cand.primer_nombre, cand.segundo_nombre,
+    ].map(v => this.limpio(v)).filter(Boolean).join(' ');
+
+    const fIng = this.limpio(contrato.carnet_fecha_ingreso) || this.limpio(contrato.fecha_ingreso);
+    const fechaIngreso = /^\d{4}-\d{2}-\d{2}/.test(fIng)
+      ? `${fIng.slice(8, 10)}/${fIng.slice(5, 7)}/${fIng.slice(0, 4)}`
+      : fIng;
+
+    const aDataUrl = async (url?: string) => {
+      if (!url) return null;
+      const b = await this.fetchAsArrayBufferOrNull(url);
+      if (!b) return null;
+      let bin = '';
+      const u8 = new Uint8Array(b);
+      for (let i = 0; i < u8.length; i++) bin += String.fromCharCode(u8[i]);
+      return `data:image/png;base64,${btoa(bin)}`;
+    };
+
+    try {
+      const blob = buildCarnetApoyoPdf({
+        nombreCompleto,
+        cedula: this.limpio(cand.numero_documento),
+        centroCostos: this.limpio(contrato.carnet_centro_costo) || this.limpio(contrato.Ccentro_de_costos),
+        cargo: this.limpio(this.vacante?.cargo),
+        consecutivo: String(consecutivo).trim(),
+        fechaIngreso,
+        eps: porNombre('EPS'),
+        afp: porNombre('AFP'),
+        emergenciaNombre: this.limpio(emerg.nombre),
+        emergenciaTelefono: this.limpio(emerg.telefono),
+        logoDataUrl: await aDataUrl('logos/Logo_AL.png'),
+        fotoDataUrl: await aDataUrl(this.foto),
+      });
+
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Carnet-${this.limpio(cand.numero_documento)}.pdf`;
+      a.click();
+      this.setPdfPreview(url);
+    } catch (e) {
+      console.error('[carnet]', e);
+      Swal.fire('Error', 'No se pudo generar el carnet.', 'error');
     }
   }
 
@@ -1396,6 +1502,9 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     }
     else if (documento === 'Sagaro Imagen') {
       this.generarSagaroImagen();
+    }
+    else if (documento === 'Carnet') {
+      this.generarCarnet();
     }
     else if (documento === 'OTRO SI Jornada Laboral') {
       this.generarOtroSiJornadaLaboral();
@@ -3231,6 +3340,50 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       doc.setFont('helvetica', boldWords[i] ? 'bold' : 'normal');
       const w = doc.getTextWidth(words[i]);
       wordWidths.push(Number.isFinite(w) ? w : 0);
+    }
+
+    // ── Anti-huérfana ──────────────────────────────────────────────────
+    // Se cuenta cuántas líneas ocupará el bloque ANTES de dibujar. Si no cabe
+    // en lo que queda de página pero le falta poco, se comprime el
+    // interlineado lo justo para que entre completo.
+    //
+    // Sin esto el contrato arrastraba media frase a la hoja siguiente por UNA
+    // línea, y bajar el margen inferior a mano nunca acertaba porque el
+    // sobrante depende del largo del texto de cada candidato.
+    let totalLineas = 1;
+    {
+      let ancho = 0;
+      for (let i = 0; i < words.length; i++) {
+        const w = Number.isFinite(wordWidths[i]) ? wordWidths[i] : 0;
+        const sep = ancho > 0 ? spaceWidthNormal : 0;
+        if (ancho + w + sep > maxWidth && ancho > 0) {
+          totalLineas++;
+          ancho = w;
+        } else {
+          ancho += w + sep;
+        }
+      }
+    }
+
+    // Se simula la paginación para ver cuántas líneas caen en la ÚLTIMA hoja.
+    // El error anterior era intentar meter el bloque ENTERO en lo que quedaba
+    // de la página actual: como el bloque abarca varias hojas, la condición
+    // nunca se cumplía y la compresión no se aplicaba nunca.
+    const simular = (lh: number) => {
+      const cabenPrimera = Math.max(0, Math.floor(((pageHeight - bottomMargin) - y) / lh) + 1);
+      if (totalLineas <= cabenPrimera) return 0; // no hay salto
+      const porPagina = Math.max(1, Math.floor((pageHeight - bottomMargin - 10) / lh) + 1);
+      const resto = totalLineas - cabenPrimera;
+      const enUltima = resto % porPagina;
+      return enUltima === 0 ? porPagina : enUltima;
+    };
+
+    // Si la última hoja recibe 1 o 2 líneas sueltas, se aprieta el interlineado
+    // hasta un 12% para reabsorberlas en la hoja anterior.
+    if (simular(lineHeight) > 0 && simular(lineHeight) <= 2) {
+      for (let f = 0.99; f >= 0.88; f -= 0.01) {
+        if (simular(lineHeight * f) === 0) { lineHeight = lineHeight * f; break; }
+      }
     }
 
     let currentLine: { word: string; width: number; bold: boolean }[] = [];
@@ -8606,7 +8759,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     doc.setFontSize(6.5);
 
     // Renderizar texto justificado usando `y` como posición inicial
-    y = this.renderJustifiedText(doc, texto, x, y, maxWidth, lineHeight, false, 5);
+    y = this.renderJustifiedText(doc, texto, x, y, maxWidth, lineHeight, false, 3);
     // Centro de costo en negrita, tamaño 10, si se pasa de la página, se ajusta a la siguiente
     y += 3; // Espacio adicional después del contenido
     doc.setFontSize(6.5);
@@ -8671,7 +8824,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     y = columnStartY; // Posición inicial Y
     doc.setFontSize(6.5);
     let texto3 = 'comercial, profesional, sensible (tales como mis huellas, imagen, voz, entre otros), técnico y administrativo, privada, semiprivada o de cualquier naturaleza pasada, presente o futura, contenida en cualquier medio físico, digital o electrónico, entre otros y sin limitarse a documentos, fotos, memorias USB, grabaciones, datos biométricos, correos electrónicos y video grabaciones. Así mismo, se entiende por “Tratamiento” el recolectar, consultar, recopilar, evaluar, catalogar, clasificar, ordenar, grabar, almacenar, actualizar, modificar, aclarar, reportar, informar, analizar, utilizar, compartir, circular, suministrar, suprimir, procesar, solicitar, verificar, intercambiar, retirar, trasferir, transmitir, o divulgar, y en general, efectuar cualquier operación o conjunto de operaciones sobre mis Datos Personales en medio físicos, digitales, electrónicos, o por cualquier otro medio. La autorización que otorgo por el presente medio para el Tratamiento de mis Datos Personales tendrá las siguientes finalidades: a. Promocionar, comercializar u ofrecer, de manera individual o conjunta productos y/o servicios propios u ofrecidos en alianza comercial, a través de cualquier medio o canal, o para complementar, optimizar o profundizar el portafolio de productos y/o servicios actualmente ofrecidos. Esta autorización para el Tratamiento de mis Datos Personales se hace extensiva a las entidades subordinadas de EL EMPLEADOR, o ante cualquier sociedad en la que éstas tengan participación accionaria directa o indirectamente (en adelante “LAS ENTIDADES AUTORIZADAS”). a. autoriza explícitamente al EMPLEADOR, en forma previa, expresa e informada, para que directamente o a través de sus empleados, asesores, consultores, empresas usuarias, proveedores de servicios de selección, contratación, exámenes ocupacionales, estudios de seguridad, dotación y elementos de protección personal, capacitaciones, cursos, Fondos de empleados, Fondos funerarios, Empresas del Sistema de Seguridad Social: Fondos de Pensiones, EPS, Administradoras de Riesgos Laborales, Cajas de Compensación Familiar, entre otros: 1. A realizar cualquier operación que tenga una finalidad lícita, tales como la recolección, el almacenamiento, el uso, la circulación, supresión, transferencia y  transmisión (el “Tratamiento”) de los datos personales relacionados con su vinculación laboral y con la ejecución, desarrollo y terminación del presente contrato de trabajo, cuya finalidad incluye, pero no se limita, a los procesos verificación de la aptitud física del TRABAJADOR para desempeñar en  forma eficiente  las labores sin impactar negativamente  su salud o la  de terceros, las afiliaciones del TRABAJADOR y sus beneficiarios al Sistema general de seguridad social y parafiscales, la remisión del TRABAJADOR para que realice apertura de cuenta de nómina, archivo y procesamiento de nómina, gestión y archivo de procesos disciplinarios, archivo de documentos soporte de su vinculación contractual, reporte ante autoridades administrativas, laborales, fiscales o judiciales, entre otras, así como el cumplimiento de obligaciones legales o contractuales del EMPLEADOR con terceros, la debida ejecución del Contrato de trabajo, el cumplimiento de las políticas internas del EMPLEADOR, la verificación del cumplimiento de las obligaciones del TRABAJADOR, la administración de sus sistemas de información y comunicaciones, la generación de copias y archivos de seguridad de la información en los equipos proporcionados por EL EMPLEADOR. Además,  la información personal se recibirá y utilizará para efectos de administración del factor humano en temas de capacitación laboral, bienestar social, cumplimiento de normas de seguridad laboral y seguridad social, siendo necesario, en algunos eventos, recibir información sensible sobre estados de salud e información de menores de edad beneficiarios de esquemas de seguridad social, así como la información necesaria para el cumplimiento de obligaciones laborales de orden legal y extralegal. Toda la anterior información se tratará conforme a las exigencias legales en cada caso. 2. EL TRABAJADOR conoce el carácter facultativo de entregar o no al EMPLEADOR sus datos sensibles. 3. EL TRABAJADOR autoriza al responsable del tratamiento de manera expresa a dar tratamiento a los datos sensibles del titular, siendo esto datos los siguientes: origen racial o étnico, orientación sexual, filiación política o religiosa, datos referentes a la salud, datos biométricos, actividad en organizaciones sindicales o de derechos humanos, 4.EL TRABAJADOR da autorización expresa al responsable del tratamiento para que capture y use la información personal y sensible de sus hijos menores de edad. b.  Como elemento de análisis en etapas pre-contractuales, contractuales, y post-contractuales para establecer y/o mantener cualquier relación contractual, incluyendo como parte de ello, los siguientes propósitos: (i). Actualizar bases de datos y tramitar la apertura y/o servicios en EL EMPLEADOR o en cualquiera de las ENTIDADES AUTORIZADAS, (ii). Evaluar riesgos derivados de la relación contractual potencial, vigente o concluida. (iii). Realizar, validar,   autorizar o verificar transacciones incluyendo, cuando sea requerido, la consulta y reproducción de datos sensibles tales como la huella, imagen o la voz. (iv). Obtener conocimiento del perfil comercial o transaccional del titular, el nacimiento, modificación, celebración y/ o extinción de obligaciones directas, contingentes o indirectas, el incumplimiento de las obligaciones que adquiera con EL EMPLEADOR  o con cualquier tercero, así como cualquier novedad en relación con tales obligaciones, hábitos de pago y comportamiento  crediticio con EL EMPLEADOR y/o terceros. (v). Conocer información acerca de mi manejo de cuentas corrientes, ahorros, depósitos, tarjetas de crédito, comportamiento comercial, laboral y demás productos o servicios y, en general, del cumplimiento y manejo de mis créditos y obligaciones, cualquiera que sea su naturaleza. Esta autorización comprende información referente al manejo, estado, cumplimiento de las relaciones, contratos y servicios, hábitos de pago, incluyendo aportes al sistema de seguridad social, obligaciones y las deudas vigentes, vencidas sin cancelar, procesos, o la utilización indebida de servicios financieros. (vi). Dar cumplimiento a sus obligaciones legales y contractuales. (vii). Ejercer sus derechos, incluyendo los referentes a actividades de cobranza judicial y extrajudicial y las gestiones conexas para obtener el pago de las obligaciones a cargo del titular o de su empleador, si es el caso. (viii). Implementación de software y servicios tecnológicos. Para efectos de lo dispuesto en el presente literal b, EL EMPLEADOR  en lo que resulte aplicable, podrá efectuar el Tratamiento de mis Datos Personales  ante entidades de consulta, que manejen o administren bases de datos para los fines legalmente definidos, domiciliadas en Colombia o en el exterior, sean personas naturales o jurídicas, colombianas o extranjeras. c. Realizar ventas cruzadas de productos y/o servicios ofrecidos por EL EMPLEADOR o por cualquiera de LAS ENTIDADES  AUTORIZADAS o sus aliados comerciales, incluyendo la celebración de convenios de marca compartida. d. Elaborar y reportar información estadística, encuestas de satisfacción, estudios y análisis de mercado, incluyendo la posibilidad de contactarme para dichos propósitos. e. Enviar mensajes, notificaciones o alertas a través de cualquier medio para remitir extractos, divulgar información legal, de seguridad, promociones, campañas comerciales, publicitarias, de mercadeo, institucionales o de educación financiera, sorteos, eventos u otros beneficios e informar al titular acerca de las innovaciones efectuadas en sus productos y/o servicios, dar a conocer las mejoras o cambios en sus canales de atención, así como dar a conocer otros servicios y/o productos ofrecidos por EL EMPLEADOR;  LAS ENTIDADES AUTORIZADAS o sus aliados comerciales. f.  Llevar  a  cabo  las  gestiones  pertinentes,  incluyendo  la  recolección  y  entrega  de  información ante autoridades públicas o privadas, nacionales o extranjeras con competencia sobre EL EMPLEADOR, LAS ENTIDADES  AUTORIZADAS o sobre sus actividades, productos y /o servicios, cuando se requiera para dar cumplimiento a sus deberes legales o reglamentarios, incluyendo dentro de estos, aquellos referentes a la prevención de la evasión fiscal, lavado de activos y financiación del terrorismo u otros propósitos similares emitidas por autoridades competentes,  g. validar información con las diferentes bases de datos de EL EMPLEADOR, de LAS ENTIDADES AUTORIZADAS, de autoridades y/o entidades estatales y de terceros tales como  operadores de información y demás entidades que formen parte del Sistema de Seguridad Social Integral, empresas prestadoras de servicios públicos  y de telefonía móvil, entre otras, para desarrollar las actividades propias de objeto social principal y conexo y/o cumplir con obligaciones legales. h. Para que mis datos Personales puedan ser utilizados como medio de prueba. Los Datos Personales suministrados podrán circular y transferirse a la totalidad de las áreas de EL EMPLEADOR incluyendo proveedores de servicios, usuarios de red, redes de distribución y personas que realicen la promoción de sus productos y servicios, incluidos call centers, domiciliados en Colombia o en el exterior, sean personas naturales o jurídicas, colombianas o extranjeros a su fuerza comercial, equipos de telemercadeo y/o procesadores de datos que trabajen en nombre de EL EMPLEADOR, incluyendo pero sin limitarse, contratistas, delegados, outsourcing, tercerización, red de oficinas o aliados, con el objeto de desarrollar servicios de alojamiento de sistemas, de mantenimiento, servicios de análisis, servicios de mensajería por e-mail o correo físico, servicios de entrega, gestión de transacciones de pago, cobranza, entre otros. En consecuencia, el titular entiendepara  gastos  o  viajes,  así  como  el  valor de los tiquetes aéreos no devueltos; las sumas que llegaren a faltar en cumplimiento de mis funciones y a mi cargo previa liquidación y verificación de las mismas, Compra de Flor y/o servicio de alimentación suministrado a través de la Empresa Usuaria de manera quincenal y por el monto de  y acepta que mediante la presentación autorización concede a estos terceros, autorización para acceder a sus Datos Personales en la medida en que así lo requieren  para la prestación de los servicios para los cuales fueron contratados y sujeto al cumplimiento de los deberes que les correspondan como encargados del Tratamiento de mis Datos Personales. Igualmente, a EL EMPLEADOR para compartir mis datos Personales con las entidades gremiales a las que pertenezca la entidad, para fines comerciales, estadísticos y de estudio y análisis de mercadeo. Es entendido que las personas naturales y jurídicas, nacionales y extranjeras mencionadas anteriormente ante las cuales EL EMPLEADOR puede llevar a cabo el Tratamiento de mis Datos Personales, también cuentan con mi autorización para permitir dicho Tratamiento. Adicionalmente, mediante el otorgamiento de la presente autorización, manifiesto: (i) que los Datos Personales suministrados son veraces, verificables y completos, (ii) que conozco y entiendo que el suministro de la presente autorización es voluntaria, razón por la cual no me encuentro obligado a otorgar la presenta autorización, (iii) que conozco y entiendo que mediante la simple presentación de una comunicación escrita puedo limitar en todo o en parte el alcance de la presente autorización  para que, entre otros, la misma se otorgue únicamente frente a EL EMPLEADOR pero no frente a LAS ENTIDADES AUTORIZADAS y (iv) haber sido informado  sobre mis derechos a conocer, actualizar y rectificar mis Datos Personales, el carácter facultativo de mis respuestas a las preguntas que sean hechas cuando versen sobre datos sensibles o sobre datos de los niños, niñas o adolescentes, solicitar prueba de la autorización otorgada para su tratamiento, ser informado sobre el uso que se ha dado a los mismo, presentar quejas ante la autoridad competente por infracción a la ley una vez haya agotado el trámite de consulta o reclamo ante EL EMPLEADOR, revocar la presentación autorización, solicitar la supresión de sus datos en los casos en que sea procedente y ejercer en forma gratuita mis derechos y garantías constitucionales y legales. EL EMPLEADOR informa que el tratamiento de sus Datos Personales se efectuará de acuerdo con la Política de la entidad en esta materia, la cual puede ser consultada en sus instalaciones. DÉCIMA  TERCERA. AUTORIZACIÓN DE DESCUENTOS: El TRABAJADOR autoriza expresamente al EMPLEADOR para que se descuenten de mi salario y  prestaciones o cualquier otro concepto las sumas que por error  haya recibido, permitiendo que el EMPLEADOR compense del valor de los salarios, prestaciones legales o extralegales, indemnizaciones y otro tipo de dinero a pagar al momento de la Nómina y/o liquidación las sumas que yo como TRABAJADOR esté  debiendo al EMPLEADOR Y EMPRESA USUARIA por los siguientes conceptos: Préstamos debidamente autorizados por escrito; valor de los elementos de trabajo y mercancías extraviadas bajo mi responsabilidad y que llegaren a faltar al momento de hacer entrega del inventario; los valores que se me hubieren confiado para mi manejo y que hayan sido dispuestos abusivamente para otros propósitos en perjuicio del EMPLEADOR; los anticipos o sumas no legalizadas con las facturas o comprobantes requeridos que me fueron entregadas alimentación establecido, todo lo que exceda de valores aprobados (Celulares, Tarjetas de Crédito, etc.), modificaciones en las Bases de Datos sin el soporte correspondiente, errores de digitación y procedimientos internos que por mi culpa afecten económicamente a la empresa y cualquier pago que me haya sido realizado y que no me corresponda.  De  igual  forma,  en  caso  de  recibir  Subsidio  de Transporte y  Bonificaciones,  autorizo  la deducción  cuando se  causen ausencias al trabajo por cualquier motivo en el mes por el cual recibí pago completo. Por lo anterior, autorizo expresamente al EMPLEADOR para que retenga y cobre de mi salario y liquidación final, de cualquier otro concepto a mi favor, ';
-    y = this.renderJustifiedText(doc, texto3, x, y, maxWidth, lineHeight, false, 5);
+    y = this.renderJustifiedText(doc, texto3, x, y, maxWidth, lineHeight, false, 3);
 
     // agregar pagina
     doc.addPage();

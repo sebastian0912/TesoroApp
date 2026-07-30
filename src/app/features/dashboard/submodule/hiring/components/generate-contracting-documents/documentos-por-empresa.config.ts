@@ -43,6 +43,7 @@ const COMUN_BASE_APOYO_BLU = [
   'Pago Seguridad Social',
   'Diplomas y Certificados de Estudios',
   'Referencias (1 personal, 1 familiar, 2 laborales)',
+  'Carnet',
 ];
 
 const COMUN_BASE_TA = [
@@ -390,6 +391,7 @@ const SECCION_BY_TITLE: Record<string, DocSeccion> = {
   'Hoja de Vida Minerva':                                 'generales',
   'Contratos Otrosí':                                     'generales',
   'OTRO SI Jornada Laboral':                              'generales',
+  'Carnet':                                               'generales',
   'Auxilio Alimentación':                                 'generales',
   'Autorización Daños Pérdidas':                          'generales',
   // Contrato
