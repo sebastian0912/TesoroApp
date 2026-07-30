@@ -1065,6 +1065,14 @@ export class FormEntrevistaComponent implements OnInit {
     const estadoCivilQuick =
       ['VI', 'UL', 'SO', 'SE', 'CA'].includes(estadoCivilNorm) ? estadoCivilNorm : '';
 
+    // El select de "tipo de experiencia en flores" solo acepta CULTIVO/POSCOSECHA/AMBAS/OTROS.
+    // area_experiencia puede venir como multi-valor general ("A, B") desde la web: si no
+    // matchea una opción válida, dejamos '' para que el evaluador lo elija (no metemos basura).
+    const VALID_TIPO_FLORES = ['CULTIVO', 'POSCOSECHA', 'AMBAS', 'OTROS'];
+    const areaExpNorm = normalizeText(cand?.experiencia_resumen?.area_experiencia);
+    const tipoExperienciaFloresVal =
+      VALID_TIPO_FLORES.find((t) => areaExpNorm.includes(t)) || '';
+
     // 1) patchValue sin emitir eventos
     this.formVacante.patchValue(
       {
@@ -1093,7 +1101,7 @@ export class FormEntrevistaComponent implements OnInit {
         proyeccion1Ano: entrevistas?.[0]?.como_se_proyecta || evalAux?.motivacion || '',
         estudiaActualmente: !!cand?.vivienda?.estudia_actualmente,
         experienciaFlores: cand?.experiencia_resumen?.tiene_experiencia ? 'Sí' : 'No',
-        tipoExperienciaFlores: cand?.experiencia_resumen?.area_experiencia || '',
+        tipoExperienciaFlores: tipoExperienciaFloresVal,
 
         comoSeEntero: entrevistas?.[0]?.como_se_entero || '',
         // Backend guarda 'SI' | 'NO' (CharField). El bug previo trataba el valor

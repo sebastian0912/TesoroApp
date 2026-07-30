@@ -34,12 +34,6 @@ import { ColumnDefinition } from '@/app/shared/models/advanced-table-interface';
 import { MatButtonModule } from '@angular/material/button';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 
-type DateRangeAction =
-  | 'filterTables'
-  | 'exportContratacion'
-  | 'generateCentroCostoTable'
-  | 'exportFincas';
-
 interface ReporteRow {
   fecha: string;
   nombre: string;
@@ -480,7 +474,12 @@ export class ViewReportsComponent implements OnInit {
     });
   }
 
-  openDateRangeDialog(action: DateRangeAction): void {
+  /**
+   * Único punto donde se cambia el rango de fechas.
+   * Todo lo demás (tablas, ZIPs y exportaciones) consume `activeFrom()` /
+   * `activeTo()`, así lo que se descarga siempre es lo mismo que se ve filtrado.
+   */
+  openDateRangeDialog(): void {
     if (!this.isBrowser) return;
 
     const dialogRef = this.dialog.open(DateRangeDialogComponent, {
@@ -492,25 +491,25 @@ export class ViewReportsComponent implements OnInit {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((result?: { start: string | null; end: string | null }) => {
         if (!result || (!result.start && !result.end)) return;
-
-        const from = result.start ?? '';
-        const to = result.end ?? '';
-
-        switch (action) {
-          case 'filterTables':
-            this.handleFilterTables(from, to);
-            break;
-          case 'exportContratacion':
-            this.handleExportContratacion(from, to);
-            break;
-          case 'generateCentroCostoTable':
-            this.handleGenerateCentroCosto(from, to);
-            break;
-          case 'exportFincas':
-            this.handleExportFincas(from, to);
-            break;
-        }
+        this.handleFilterTables(result.start ?? '', result.end ?? '');
       });
+  }
+
+  // ---- Exportaciones del menú: usan el rango ya activo, no vuelven a preguntar ----
+
+  exportContratacion(): void {
+    if (!this.isBrowser) return;
+    this.handleExportContratacion(this.activeFrom(), this.activeTo());
+  }
+
+  generateCentroCostoTable(): void {
+    if (!this.isBrowser) return;
+    this.handleGenerateCentroCosto(this.activeFrom(), this.activeTo());
+  }
+
+  exportFincas(): void {
+    if (!this.isBrowser) return;
+    this.handleExportFincas(this.activeFrom(), this.activeTo());
   }
 
   private handleFilterTables(from: string, to: string): void {
@@ -706,19 +705,24 @@ export class ViewReportsComponent implements OnInit {
   async descargarCrucesCombinados(): Promise<void> {
     if (!this.isBrowser) return;
 
-    const urls = Array.from(
-      new Set(
-        this.reportes()
-          .map((r) => r.cruce_document?.file_url)
-          .filter((u): u is string => !!u),
-      ),
-    );
+    const from = this.activeFrom();
+    const to = this.activeTo();
 
-    if (urls.length === 0) {
+    // `reportes()` ya viene filtrado por el rango activo, así que las bases
+    // combinadas son exactamente las de las fechas filtradas.
+    // Map url -> oficina (sede) del reporte que subió esa base.
+    const fuentes = new Map<string, string>();
+    for (const r of this.reportes()) {
+      const url = r.cruce_document?.file_url;
+      if (!url || fuentes.has(url)) continue;
+      fuentes.set(url, (r.sede || '').trim() || 'SIN OFICINA');
+    }
+
+    if (fuentes.size === 0) {
       Swal.fire({
         icon: 'warning',
-        title: 'Sin cruces',
-        text: 'No hay documentos de cruce en los reportes visibles para el rango activo.',
+        title: 'Sin bases',
+        text: `No hay bases (cruces) en los reportes del rango ${this.activeRangeLabel()}.`,
       });
       return;
     }
@@ -729,10 +733,10 @@ export class ViewReportsComponent implements OnInit {
       const XLSX = await import('xlsx');
 
       let header: any[] | null = null;
-      const alianzaRows: any[][] = [];
-      const apoyoRows: any[][] = [];
+      const alianzaRows: { cells: any[]; oficina: string }[] = [];
+      const apoyoRows: { cells: any[]; oficina: string }[] = [];
 
-      for (const url of urls) {
+      for (const [url, oficina] of fuentes) {
         const resp = await fetch(url);
         if (!resp.ok) continue;
         const buf = await resp.arrayBuffer();
@@ -755,8 +759,8 @@ export class ViewReportsComponent implements OnInit {
           for (const row of body) {
             if (!row.some((c) => String(c ?? '').trim() !== '')) continue;
             const bucket = this.classifyRow(row, colIdx, sheetName);
-            if (bucket === 'TA') alianzaRows.push(row);
-            else if (bucket === 'AL') apoyoRows.push(row);
+            if (bucket === 'TA') alianzaRows.push({ cells: row, oficina });
+            else if (bucket === 'AL') apoyoRows.push({ cells: row, oficina });
           }
         }
       }
@@ -765,7 +769,7 @@ export class ViewReportsComponent implements OnInit {
         Swal.fire({
           icon: 'warning',
           title: 'Sin datos',
-          text: 'Los archivos de cruce están vacíos o no se pudieron leer.',
+          text: 'Los archivos de base están vacíos o no se pudieron leer.',
         });
         return;
       }
@@ -775,19 +779,37 @@ export class ViewReportsComponent implements OnInit {
           icon: 'warning',
           title: 'No se pudo clasificar',
           text:
-            'No se encontró una columna que distinga TA / AL en los cruces. Verifica que los archivos incluyan una columna con esos valores.',
+            'No se encontró una columna que distinga TA / AL en las bases. Verifica que los archivos incluyan una columna con esos valores.',
         });
         return;
       }
 
+      // Ancho común para que "Oficina" quede SIEMPRE en la última columna,
+      // aunque las bases de origen traigan distinta cantidad de columnas.
+      let width = header.length;
+      for (const r of alianzaRows) width = Math.max(width, r.cells.length);
+      for (const r of apoyoRows) width = Math.max(width, r.cells.length);
+
+      const pad = (cells: any[]): any[] => {
+        const out = cells.slice(0, width);
+        while (out.length < width) out.push('');
+        return out;
+      };
+      const conOficina = (r: { cells: any[]; oficina: string }): any[] => [
+        ...pad(r.cells),
+        r.oficina,
+      ];
+
+      const headerOut = [...pad(header), 'Oficina'];
+
       const newWb = XLSX.utils.book_new();
-      const wsTA = XLSX.utils.aoa_to_sheet([header, ...alianzaRows]);
-      const wsAL = XLSX.utils.aoa_to_sheet([header, ...apoyoRows]);
+      const wsTA = XLSX.utils.aoa_to_sheet([headerOut, ...alianzaRows.map(conOficina)]);
+      const wsAL = XLSX.utils.aoa_to_sheet([headerOut, ...apoyoRows.map(conOficina)]);
       XLSX.utils.book_append_sheet(newWb, wsTA, 'Tu Alianza');
       XLSX.utils.book_append_sheet(newWb, wsAL, 'Apoyo Laboral');
 
       const out = XLSX.write(newWb, { bookType: 'xlsx', type: 'array' });
-      const fileName = `cruces_combinados_${new Date().toISOString().slice(0, 10)}.xlsx`;
+      const fileName = `bases_unidas_${from || 'sin_desde'}_a_${to || 'sin_hasta'}.xlsx`;
       saveAs(
         new Blob([out], {
           type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -799,15 +821,17 @@ export class ViewReportsComponent implements OnInit {
         icon: 'success',
         title: 'Descarga lista',
         html:
-          `Se combinaron <b>${urls.length}</b> archivo(s) de cruce.<br>` +
+          `Rango: <b>${this.activeRangeLabel()}</b><br>` +
+          `Se combinaron <b>${fuentes.size}</b> base(s) de oficina.<br>` +
           `<b>Tu Alianza:</b> ${alianzaRows.length} filas<br>` +
-          `<b>Apoyo Laboral:</b> ${apoyoRows.length} filas`,
+          `<b>Apoyo Laboral:</b> ${apoyoRows.length} filas<br>` +
+          `<small>La última columna de cada hoja indica la oficina de origen.</small>`,
       });
     } catch (err: any) {
       Swal.fire({
         icon: 'error',
-        title: 'Error al combinar cruces',
-        text: err?.message ?? 'No se pudieron combinar los archivos de cruce.',
+        title: 'Error al combinar bases',
+        text: err?.message ?? 'No se pudieron combinar los archivos de base.',
       });
     } finally {
       this.isExporting.set(false);
@@ -885,24 +909,29 @@ export class ViewReportsComponent implements OnInit {
   descargarDocumentosZip(tipo: 'cedulas' | 'traslados' | 'sst'): void {
     if (!this.isBrowser) return;
 
+    // `sinManifiestos`: el ZIP trae únicamente los archivos, sin los .txt de
+    // duplicados/faltantes adentro. El detalle se muestra en este modal.
     const config = {
       cedulas: {
         label: 'cédulas',
         headerPrefix: 'Cedulas',
         file: 'cedulas',
         noun: 'cédula',
+        sinManifiestos: true,
       },
       traslados: {
         label: 'traslados',
         headerPrefix: 'Traslados',
         file: 'traslados',
         noun: 'traslado',
+        sinManifiestos: false,
       },
       sst: {
         label: 'SST',
         headerPrefix: 'Sst',
         file: 'sst',
         noun: 'documento SST',
+        sinManifiestos: false,
       },
     }[tipo];
 
@@ -1023,8 +1052,10 @@ export class ViewReportsComponent implements OnInit {
               if (truncado) {
                 extraHtml +=
                   `<div style="margin-top:6px;font-size:0.82rem;color:#64748b;">` +
-                  `Se muestran los primeros ${detalle.length} ${config.noun}(s) duplicado(s). ` +
-                  `El detalle completo está en <b>_${manifestLabel}_DUPLICADAS.txt</b> dentro del ZIP.` +
+                  `Se muestran los primeros ${detalle.length} ${config.noun}(s) duplicado(s).` +
+                  (config.sinManifiestos
+                    ? ''
+                    : ` El detalle completo está en <b>_${manifestLabel}_DUPLICADAS.txt</b> dentro del ZIP.`) +
                   `</div>`;
               }
             }
@@ -1038,7 +1069,9 @@ export class ViewReportsComponent implements OnInit {
               `❌ ${faltantes} ${config.noun}(s) están en BD pero falta el archivo en almacenamiento` +
               `</div>` +
               `<div style="font-size:0.85rem;color:#475569;margin-top:4px;">` +
-              `Detalle dentro del ZIP en <b>_${manifestLabel}_FALTANTES.txt</b>.` +
+              (config.sinManifiestos
+                ? `Esos registros no quedaron dentro del ZIP.`
+                : `Detalle dentro del ZIP en <b>_${manifestLabel}_FALTANTES.txt</b>.`) +
               `</div></div>`;
           }
 

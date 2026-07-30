@@ -1,10 +1,17 @@
-import {  Component , ChangeDetectionStrategy } from '@angular/core';
+import { Component, ChangeDetectionStrategy, signal } from '@angular/core';
 import { AbstractControl, FormBuilder, FormGroup, Validators } from '@angular/forms';
 import Swal from 'sweetalert2';
 import { Router } from '@angular/router';
 import { ComercializadoraService } from '../../service/comercializadora/comercializadora.service';
 import { SharedModule } from '../../../../../../shared/shared.module';
 import { UtilityServiceService } from '../../../../../../shared/services/utilityService/utility-service.service';
+import {
+  CatalogValue,
+  GestionParametrizacionService,
+} from '../../../users/services/gestion-parametrizacion/gestion-parametrizacion.service';
+
+/** Meta-tabla (gestion_catalogos) que alimenta el selector de concepto. */
+const TABLA_CONCEPTOS = 'TIPOS_BENEFICIOS';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -17,13 +24,18 @@ import { UtilityServiceService } from '../../../../../../shared/services/utility
 } )
 export class EnviarMercanciaComponent {
   myForm: FormGroup;
-  sedes: any
-  conceptos: any
+
+  // La app corre zoneless: si estas listas fueran campos normales, asignarlas
+  // dentro de un subscribe no dispararía render y los select quedarían vacíos.
+  readonly sedes = signal<any[]>([]);
+  readonly conceptos = signal<CatalogValue[]>([]);
+  readonly cargandoConceptos = signal(true);
 
   constructor(
     private fb: FormBuilder,
     private comercializadoraService: ComercializadoraService,
     private utilityService: UtilityServiceService,
+    private catalogos: GestionParametrizacionService,
     private router: Router
   ) {
 
@@ -32,6 +44,7 @@ export class EnviarMercanciaComponent {
       cantidad: ['', Validators.required],
       valor: ['', [Validators.required, this.currencyValidator]],
       concepto: ['', Validators.required],
+      otroConcepto: ['',],
       nombrePersonaEnvio: ['',],
       comentarioEnvio: ['',]
     });
@@ -44,24 +57,57 @@ export class EnviarMercanciaComponent {
       // ordenar por nombre
       if (data) {
         data.sort((a: any, b: any) => a.nombre.localeCompare(b.nombre));
-        this.sedes = data;
+        this.sedes.set(data);
       }
     });
 
-    this.comercializadoraService.traerCategorias(31).then((data: any) => {
-      this.conceptos = data[0].opciones;
-    });
+    this.cargarConceptos();
+  }
 
+  /** Conceptos desde la meta-tabla TIPOS_BENEFICIOS (solo valores activos). */
+  private cargarConceptos(): void {
+    this.catalogos
+      .listDatosByTablaCodigo(TABLA_CONCEPTOS, { activo: true })
+      .subscribe({
+        next: (opciones) => {
+          const ordenadas = [...(opciones ?? [])].sort((a, b) =>
+            this.labelConcepto(a).localeCompare(this.labelConcepto(b)),
+          );
+          this.conceptos.set(ordenadas.filter((o) => this.labelConcepto(o)));
+          this.cargandoConceptos.set(false);
+        },
+        error: (err) => {
+          console.error(`[enviar-mercancia] Error cargando ${TABLA_CONCEPTOS}:`, err);
+          this.conceptos.set([]);
+          this.cargandoConceptos.set(false);
+          Swal.fire({
+            icon: 'warning',
+            title: 'Error cargando conceptos',
+            text: `No se pudo cargar la lista de conceptos (${TABLA_CONCEPTOS}). Recargue la página o contacte a soporte.`,
+          });
+        },
+      });
+  }
+
+  /** Texto visible de un valor de catálogo: descripción si existe, si no el código. */
+  labelConcepto(concepto: CatalogValue): string {
+    return String(concepto?.descripcion || concepto?.codigo || '').trim();
+  }
+
+  /** El catálogo puede traer "Otro" / "OTRO"; se compara sin importar mayúsculas. */
+  esOtroConcepto(valor: string | null | undefined): boolean {
+    return String(valor ?? '').trim().toUpperCase() === 'OTRO';
   }
 
   updateOtroConceptoValidator(concepto: string) {
     const otroConceptoControl = this.myForm.get('otroConcepto');
-    if (concepto === 'Otro') {
+    if (this.esOtroConcepto(concepto)) {
       otroConceptoControl?.setValidators([Validators.required]);
     } else {
       otroConceptoControl?.clearValidators();
+      otroConceptoControl?.setValue('', { emitEvent: false });
     }
-    otroConceptoControl?.updateValueAndValidity();
+    otroConceptoControl?.updateValueAndValidity({ emitEvent: false });
   }
 
   formatCurrency(event: any) {
@@ -84,7 +130,7 @@ export class EnviarMercanciaComponent {
 
     const formValues = { ...this.myForm.value, valor: this.myForm.value.valor.replace(/\D/g, '') };
 
-    if (formValues.concepto === 'Otro') {
+    if (this.esOtroConcepto(formValues.concepto)) {
       formValues.concepto = formValues.otroConcepto;
     }
 

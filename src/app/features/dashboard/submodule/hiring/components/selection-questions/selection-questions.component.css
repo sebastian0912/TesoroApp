@@ -320,6 +320,42 @@ mat-form-field.example-full-width {
   }
 }
 
+/* Procedencia del dato del robot.
+   Gris = el robot consultó pero su respuesta no es un veredicto interpretable
+   (p.ej. procuraduría "Consultado"), así que el campo NO se autocompletó y lo
+   tiene que decidir una persona.
+   Verde = el valor que está en el campo lo puso el robot. */
+.robot-origen {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 2px;
+  font-size: 11.5px;
+  line-height: 1.3;
+  color: #6b7280;
+}
+
+.robot-origen.aplicado {
+  color: #166534;
+}
+
+.robot-origen .robot-icon {
+  font-size: 14px;
+  width: 14px;
+  height: 14px;
+  line-height: 14px;
+  color: #9ca3af;
+}
+
+.robot-origen.aplicado .robot-icon {
+  color: #16a34a;
+}
+
+.robot-origen .robot-tag {
+  font-style: italic;
+  opacity: .85;
+}
+
 @media (max-width: 460px) {
   .seleccion, .secciones, .seccion {
     grid-template-columns: 1fr !important;

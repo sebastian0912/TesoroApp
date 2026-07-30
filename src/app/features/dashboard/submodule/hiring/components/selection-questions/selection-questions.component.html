@@ -119,6 +119,21 @@
               </div>
             }
           </div>
+          <!-- Procedencia: lo que devolvió el robot para este campo -->
+          @if (crudoRobot(fld); as crudo) {
+            <div class="robot-origen" [class.aplicado]="vieneDelRobot(fld)">
+              <mat-icon class="robot-icon">smart_toy</mat-icon>
+              <span>
+                Robot: <b>{{ crudo }}</b>
+                @if (vieneDelRobot(fld)) {
+                  <span class="robot-tag">— autocompletado</span>
+                }
+                @if (!vieneDelRobot(fld)) {
+                  <span class="robot-tag">— requiere revisión</span>
+                }
+              </span>
+            </div>
+          }
           <!-- Alerta documento antiguo -->
           @if (isOlderThan(fld.key, 15)) {
             <div class="doc-warning">

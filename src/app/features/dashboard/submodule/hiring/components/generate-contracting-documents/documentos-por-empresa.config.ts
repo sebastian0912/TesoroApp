@@ -179,6 +179,7 @@ export const PERFILES_EMPRESA: PerfilEmpresa[] = [
       'Inducción Jardines de los Andes',
       'Autorización de Datos',
       'Colinesterasa',
+      'OTRO SI Jornada Laboral',
     ],
   },
   {
@@ -388,6 +389,7 @@ const SECCION_BY_TITLE: Record<string, DocSeccion> = {
   'Entrevista de Ingreso Tu Alianza':                     'generales',
   'Hoja de Vida Minerva':                                 'generales',
   'Contratos Otrosí':                                     'generales',
+  'OTRO SI Jornada Laboral':                              'generales',
   'Auxilio Alimentación':                                 'generales',
   'Autorización Daños Pérdidas':                          'generales',
   // Contrato

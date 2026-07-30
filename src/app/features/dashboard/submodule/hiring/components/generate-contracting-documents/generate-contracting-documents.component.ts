@@ -30,6 +30,8 @@ import { switchMap, map, take, catchError, tap, finalize } from 'rxjs/operators'
 import { of, forkJoin, firstValueFrom, throwError } from 'rxjs';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { isDocumentoVisible, getDocSeccion, SECCION_LABELS, type DocSeccion } from './documentos-por-empresa.config';
+import { resolverEmpresaUsuaria } from './empresas-usuarias.data';
+import { PermissionsService } from '@/app/core/services/permissions.service';
 
 type UploadedInfo = {
   file: File;
@@ -60,7 +62,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
    * Parseo manual para evitar el shift de zona horaria al usar 'YYYY-MM-DD'.
    */
   private getFechaContrato(): Date {
-    const raw = this.candidato?.entrevistas?.[0]?.proceso?.contrato?.fecha_contrato;
+    const raw = this._entrevistaSel?.proceso?.contrato?.fecha_contrato;
     if (!raw) return new Date();
     const s = String(raw).trim();
     const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(s);
@@ -95,8 +97,21 @@ export class GenerateContractingDocumentsComponent implements OnInit {
   // ── Datos de obra/empresa para los documentos ──
   // El contrato (editable desde "Datos de obra" en Contratación) tiene prioridad;
   // si está vacío, se usa el dato original de la vacante/publicación.
+  /**
+   * Entrevista elegida al cargar (ver la selección en `ngOnInit`: ordena por id
+   * DESC y prefiere la que tiene `publicacion`). Antes cada getter leía
+   * `entrevistas[0]` —el orden crudo del backend—, así que el código de
+   * contratación y la vacante salían de una entrevista y la fecha, la empresa
+   * usuaria y la descripción de obra salían de OTRA.
+   */
+  entrevistaDoc: any = null;
+
+  private get _entrevistaSel(): any {
+    return this.entrevistaDoc ?? this.candidato?.entrevistas?.[0] ?? null;
+  }
+
   private get _contratoObra(): any {
-    return this.candidato?.entrevistas?.[0]?.proceso?.contrato || {};
+    return this._entrevistaSel?.proceso?.contrato || {};
   }
   get empresaUsuariaDoc(): string {
     return this._contratoObra?.empresa_usuaria || this.vacante?.empresaUsuariaSolicita || '';
@@ -109,6 +124,77 @@ export class GenerateContractingDocumentsComponent implements OnInit {
   }
   get descripcionObraDoc(): string {
     return this._contratoObra?.descripcion_de_obra || this.vacante?.descripcion || '';
+  }
+
+  /**
+   * Limpia un valor que va impreso en un PDF legal.
+   *
+   * El backend de contratación arrastra `0` como "vacío" en varias columnas
+   * (herencia de la migración desde Excel), y ni `??` ni `filter(Boolean)` lo
+   * atrapan cuando llega como string `"0"`. Sin esto salen contratos con
+   * "Nombre del Trabajador: 0 0" o "Domicilio: 0 - 0 - 0".
+   */
+  private limpio(v: any): string {
+    if (v === null || v === undefined) return '';
+    const s = String(v).trim();
+    if (!s || s === '0' || s === '0.0' || s === 'null' || s === 'undefined') return '';
+    // Fechas centinela del origen (serial 0 de Excel).
+    if (/^0?0?\/?0?1\/1900$/.test(s) || s.startsWith('1900-01-0')) return '';
+    return s;
+  }
+
+  /**
+   * Municipio donde se firma el contrato.
+   *
+   * `user.sede.nombre` es un CÓDIGO de sede (FACA_PRIMERA, MONTE_VERDE…), no un
+   * municipio: el modelo `Sede` del backend solo tiene `nombre` y `activa`, sin
+   * ciudad. Por eso se traduce acá. Las claves se normalizan a NFC porque en BD
+   * conviven las dos formas Unicode (TOCANCIPÁ existe como NFD y como NFC).
+   *
+   * Si la sede no está mapeada se cae al domicilio de la temporal, que es lo
+   * correcto para VIRTUAL/FORANEOS y lo menos malo para una sede nueva:
+   * imprimir un municipio equivocado es peor que imprimir el de la sede legal.
+   */
+  private static readonly SEDE_A_MUNICIPIO: { [sede: string]: string } = {
+    'ADMINISTRATIVOS': 'Facatativá',
+    'CARTAGENITA': 'Facatativá',
+    'FACA_PRIMERA': 'Facatativá',
+    'FACA_PRINCIPAL': 'Facatativá',
+    'BOSA': 'Bogotá D.C.',
+    'FONTIBÓN': 'Bogotá D.C.',
+    'SUBA': 'Bogotá D.C.',
+    'USME': 'Bogotá D.C.',
+    'FUNZA': 'Funza',
+    'MONTE_VERDE': 'Funza',
+    'MADRID': 'Madrid',
+    'ROSAL': 'El Rosal',
+    'SOACHA': 'Soacha',
+    'SOTAQUIRA': 'Sotaquirá',
+    'TOCANCIPÁ': 'Tocancipá',
+    'ZIPAQUIRÁ': 'Zipaquirá',
+    // ANDES, FORANEOS y VIRTUAL no tienen municipio propio → domicilio de la temporal.
+  };
+
+  /**
+   * Datos legales de cada empresa usuaria para el Acuerdo de Uso de Imagen.
+   *
+   * No están en la BD: `CentroCosto` solo guarda empresa, dirección y ciudad,
+   * sin NIT ni representante legal. Sin este catálogo el documento imprime
+   * "___________" en esos cuatro campos.
+   *
+   * Las claves se comparan normalizadas (sin acentos, sin sufijos societarios).
+   * Para agregar una empresa, basta con una entrada nueva.
+   */
+  get municipioFirma(): string {
+    const key = String(this.sede ?? '')
+      .normalize('NFC')
+      .toUpperCase()
+      .trim();
+    const mapeado = GenerateContractingDocumentsComponent.SEDE_A_MUNICIPIO[key];
+    if (mapeado) return mapeado;
+
+    const emp = String(this.empresa ?? '').toUpperCase();
+    return emp.includes('ALIANZA') ? 'Madrid' : 'Facatativá';
   }
 
   batchMode = false;
@@ -131,6 +217,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
   private gestionDocumentalService = inject(GestionDocumentalService);
   private sanitizer = inject(DomSanitizer);
   private cdr = inject(ChangeDetectorRef);
+  private permissions = inject(PermissionsService);
 
   documentos = [
     // Generales
@@ -175,6 +262,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     { titulo: 'Sagaro Imagen' },
     { titulo: 'Sagaro Celular' },
     { titulo: 'OTRO SI Sagaro Fumigador' },
+    { titulo: 'OTRO SI Jornada Laboral' },
     // Subir manual: identidad / vinculación
     { titulo: 'Cédula' },
     { titulo: 'ARL' },
@@ -292,6 +380,9 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     'Sagaro Imagen': 109,
     'Sagaro Celular': 110,
     'OTRO SI Sagaro Fumigador': 220, // OTROSI_SAGARO_FUMIGADOR (tipo real creado en BD prod)
+    // Mismo tipo documental que 'Contratos Otrosí' (104): son dos otrosí
+    // distintos en contenido pero se archivan bajo el mismo tipo.
+    'OTRO SI Jornada Laboral': 104,
     'Referencias (1 personal, 1 familiar, 2 laborales)': 118, // antes 'Referenciación'
     'Referenciación': 118,                     // alias temporal para backward compat
     // Tipos reales creados en BD prod (ids 201-220). Entrevista y Colinesterasa reusan tipos preexistentes (103/107).
@@ -384,25 +475,35 @@ export class GenerateContractingDocumentsComponent implements OnInit {
             // Mapear documentos existentes
             this.existingDocs = {};
             if (Array.isArray(docsBackend)) {
-              // Invertir typeMap para buscar título por ID
-              const idToTitle: { [key: number]: string } = {};
+              // Invertir typeMap para buscar títulos por ID.
+              // OJO: el mapa NO es inyectivo — varios títulos comparten typeId
+              // (27 = las 11 inducciones, 103 = las 2 entrevistas, 118 = las 2
+              // referencias). Con un `idToTitle[typeId] = title` plano ganaba el
+              // ÚLTIMO y el documento se indexaba bajo un título que casi nunca
+              // era el visible para esa empresa → salía "Pendiente" aunque
+              // estuviera en el servidor. Mapeamos a TODOS los títulos del tipo.
+              const idToTitles = new Map<number, string[]>();
               for (const [title, typeId] of Object.entries(this.typeMap)) {
-                idToTitle[typeId] = title;
+                const arr = idToTitles.get(typeId);
+                if (arr) arr.push(title);
+                else idToTitles.set(typeId, [title]);
               }
               // Aliases: typeIds del backend que no tienen entry propia en `documentos[]`
               // pero deben mostrarse bajo una entry unificada de la UI.
-              idToTitle[111] ??= 'Ficha Técnica'; // Ficha TA completa → bajo "Ficha Técnica"
+              if (!idToTitles.has(111)) idToTitles.set(111, ['Ficha Técnica']); // Ficha TA completa
 
               docsBackend.forEach((doc: any) => {
-                const title = idToTitle[doc.type];
-                if (title) {
-                  // Si ya existe (pueden haber varias versiones), guardamos la más reciente
-                  // assuming they come sorted or we just overwrite (the last one usually is the newest or oldest depending on backend order)
-                  // Usually it's better to verify if it has a date
-                  this.existingDocs[title] = {
-                    date: doc.created_at || doc.updated_at || '',
-                    url: doc.file_url || doc.file || doc.current_file?.url || ''
-                  };
+                const titles = idToTitles.get(doc.type);
+                if (!titles?.length) return;
+                // El backend ya recorta a 1 documento por tipo, así que esto es
+                // la representación más fiel disponible: no hay forma de saber
+                // qué variante (p.ej. cuál inducción) se subió.
+                const entry = {
+                  date: doc.created_at || doc.updated_at || '',
+                  url: doc.file_url || doc.file || doc.current_file?.url || ''
+                };
+                for (const title of titles) {
+                  this.existingDocs[title] = entry;
                 }
               });
 
@@ -434,6 +535,11 @@ export class GenerateContractingDocumentsComponent implements OnInit {
               : entrevistaConContrato ? 'solo contrato_codigo'
                 : 'fallback más reciente',
               '| pub_id=', entrevistaVálida?.proceso?.publicacion ?? null);
+
+            // Se guarda la entrevista elegida para que TODOS los documentos
+            // (fecha de contrato, empresa usuaria, descripción de obra…) salgan
+            // de la misma, y no del primer elemento crudo del array.
+            this.entrevistaDoc = entrevistaVálida ?? null;
 
             this.codigoContratacion =
               entrevistaVálida?.proceso?.contrato_codigo ??
@@ -515,6 +621,21 @@ export class GenerateContractingDocumentsComponent implements OnInit {
   }
 
   /**
+   * Super admin (ADMIN / ADMINISTRADOR / SUPER ADMIN / SUPERADMIN, según
+   * `PermissionsService.isAdmin()`): ve el catálogo COMPLETO de documentos,
+   * sin el filtro por temporal / empresa usuaria / finca.
+   *
+   * El filtro por empresa existe para no abrumar al operario con documentos
+   * que su finca nunca usa, pero deja al admin sin poder consultar ni resubir
+   * expedientes de otras empresas (y lo deja en 3 documentos si la vacante no
+   * resuelve perfil). Para ese rol el filtro es un estorbo, no una protección:
+   * el backend nunca filtró por empresa ni por rol.
+   */
+  get esSuperAdmin(): boolean {
+    return this.permissions.isAdmin();
+  }
+
+  /**
    * ¿el documento tiene archivo (subido en esta sesión o existente en BD)?
    */
   hasFile(doc: { titulo: string }): boolean {
@@ -529,27 +650,33 @@ export class GenerateContractingDocumentsComponent implements OnInit {
 
   /**
    * Documentos visibles según finca / empresa usuaria / temporal de la vacante.
-   * Filtra `documentos` a partir de DOCUMENTOS_CONFIG; si un título no tiene
-   * regla, se considera siempre visible (fallback seguro).
+   * `documentos-por-empresa.config.ts` es una WHITELIST ESTRICTA: lo que no está
+   * en el perfil resuelto no se muestra, y si ningún perfil matchea solo quedan
+   * los MÍNIMOS (Cédula, Contrato, Hoja de Vida Minerva).
+   *
+   * Excepción: un super admin ve el catálogo completo, sin filtro.
    */
   get documentosVisibles(): { titulo: string }[] {
     const tmp = this.vacante?.temporal ?? null;
     const emp = this.vacante?.empresaUsuariaSolicita ?? null;
     const fin = this.vacante?.finca ?? null;
-    const key = `${tmp}|${emp}|${fin}`;
+    const sinFiltro = this.esSuperAdmin;
+    const key = `${sinFiltro}|${tmp}|${emp}|${fin}`;
 
     if (key === this._docsVisiblesKey && this._docsVisiblesCache) {
       return this._docsVisiblesCache;
     }
 
     const ctx = { temporal: tmp, empresaUsuaria: emp, finca: fin };
-    const visibles = this.documentos.filter(d => isDocumentoVisible(d.titulo, ctx));
+    const visibles = sinFiltro
+      ? [...this.documentos]
+      : this.documentos.filter(d => isDocumentoVisible(d.titulo, ctx));
 
     this._docsVisiblesKey = key;
     this._docsVisiblesCache = visibles;
 
-    console.debug('[docs filter]', ctx, '→', visibles.length, 'visibles:',
-      visibles.map(d => d.titulo));
+    console.debug('[docs filter]', sinFiltro ? '(super admin: sin filtro)' : ctx,
+      '→', visibles.length, 'visibles:', visibles.map(d => d.titulo));
 
     return visibles;
   }
@@ -923,10 +1050,22 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       return;
     }
     const emp = this.empresa.toUpperCase().trim();
-    if (emp.includes('ALIANZA')) {
-      this.generarContratoTrabajoTuAlianza();
-    } else {
-      this.generarContratoTrabajo();
+    // Sin try/catch un throw dentro del generador (jsPDF es muy estricto con
+    // valores null/undefined en doc.text) dejaba la UI sin PDF y SIN mensaje:
+    // TesoroApp no registra un ErrorHandler global.
+    try {
+      if (emp.includes('ALIANZA')) {
+        this.generarContratoTrabajoTuAlianza();
+      } else {
+        this.generarContratoTrabajo();
+      }
+    } catch (e) {
+      console.error('[contrato] fallo generando la variante básica', e);
+      Swal.fire(
+        'No se pudo generar el contrato',
+        'Faltan datos del candidato o de la vacante. Revisa residencia, cargo y código de contratación.',
+        'error'
+      );
     }
   }
 
@@ -1117,6 +1256,9 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     else if (documento === 'Sagaro Imagen') {
       this.generarSagaroImagen();
     }
+    else if (documento === 'OTRO SI Jornada Laboral') {
+      this.generarOtroSiJornadaLaboral();
+    }
     else if (documento === 'OTRO SI Sagaro Fumigador') {
       this.generarOtroSiSagaroFumigador();
     }
@@ -1131,6 +1273,81 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     }
     else {
       Swal.fire('Error', 'Funcionalidad de PDF no implementada para: ' + documento, 'error');
+    }
+  }
+
+  /**
+   * Inyecta una imagen en un campo /Btn del AcroForm.
+   *
+   * `minerva.pdf` tiene dos botones de imagen: `CampoImagen1` (foto del
+   * candidato, rect ~90x120 pt) y `CampoImagen2` (firma). El nombre completo
+   * incluye la página (`topmostSubform[0].PageN[0]...`), por eso se recibe una
+   * lista de candidatos y se usa el primero que exista en el formulario.
+   *
+   * @returns true si la imagen quedó puesta.
+   */
+  private async inyectarImagenEnCampoPdf(
+    pdfDoc: any,
+    form: any,
+    url: string,
+    nombresCandidatos: string[],
+  ): Promise<boolean> {
+    if (!url) return false;
+
+    const bytes = await this.fetchAsArrayBufferOrNull(url);
+    if (!bytes) return false;
+
+    const u8 = new Uint8Array(bytes) as any;
+    // 0xFF D8 = JPEG; 0x89 'P' 'N' 'G' = PNG.
+    const isJpg = u8[0] === 0xFF && u8[1] === 0xD8;
+    const img = isJpg ? await pdfDoc.embedJpg(u8) : await pdfDoc.embedPng(u8);
+
+    // Primer nombre que exista de verdad en el formulario.
+    let campo: any = null;
+    let nombreUsado = '';
+    for (const n of nombresCandidatos) {
+      try {
+        campo = form.getField(n);
+        nombreUsado = n;
+        break;
+      } catch { /* siguiente candidato */ }
+    }
+    if (!campo) {
+      console.warn('[pdf] ningún campo de imagen encontrado entre:', nombresCandidatos);
+      return false;
+    }
+
+    // Vía normal: pdf-lib respeta el rect del widget y el aspect ratio.
+    try {
+      (form.getButton(nombreUsado) as any).setImage(img);
+      return true;
+    } catch { /* fallback abajo */ }
+
+    // Fallback: dibujar sobre la página del widget, centrada y sin deformar.
+    try {
+      const widget = campo.acroField.getWidgets()[0];
+      const rect = widget.getRectangle();
+
+      // La página se ubica comparando la referencia /P del widget; antes esto
+      // estaba fijo en getPages()[3] y solo servía para la firma.
+      const refPagina = widget.P?.();
+      const paginas = pdfDoc.getPages();
+      const pagina = paginas.find((p: any) => refPagina && p.ref === refPagina) ?? paginas[0];
+
+      const dims = img.scale(1);
+      const escala = Math.min(rect.width / dims.width, rect.height / dims.height) * 0.95;
+      const w = dims.width * escala;
+      const h = dims.height * escala;
+      pagina.drawImage(img, {
+        x: rect.x + (rect.width - w) / 2,
+        y: rect.y + (rect.height - h) / 2,
+        width: w,
+        height: h,
+      });
+      return true;
+    } catch (e) {
+      console.error('[pdf] no se pudo inyectar la imagen en', nombreUsado, e);
+      return false;
     }
   }
 
@@ -1163,49 +1380,34 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       // Llenado completo de los 4 páginas (mapping en minerva-fill.ts).
       fillMinervaPdf(pdfDoc, form, customFont, cand, this.vacante);
 
-      // Inyectar firma del solicitante en `CampoImagen2[0]` (página 4).
-      // El campo es /Btn (image button); usamos la API estándar de pdf-lib
-      // (`form.getButton(name).setImage(img)`) que respeta el rect del widget
-      // y aplica el aspect ratio. Si la API falla, hacemos fallback dibujando
-      // sobre la página manteniendo la relación de aspecto original.
+      // Firma del solicitante → CampoImagen2 (página 4).
       try {
         if (this.firma) {
-          const firmaBytes = await this.fetchAsArrayBufferOrNull(this.firma);
-          if (firmaBytes) {
-            const u8 = new Uint8Array(firmaBytes) as any;
-            const isJpg = u8[0] === 0xFF;
-            const img = isJpg ? await pdfDoc.embedJpg(u8) : await pdfDoc.embedPng(u8);
-            const fieldName = 'topmostSubform[0].Page4[0].CampoImagen2[0]';
-
-            let okSetImage = false;
-            try {
-              (form.getButton(fieldName) as any).setImage(img);
-              okSetImage = true;
-            } catch { /* fallback abajo */ }
-
-            if (!okSetImage) {
-              // Fallback: dibujar la imagen escalada al rect respetando el aspect ratio.
-              const field: any = form.getField(fieldName);
-              const widget = field.acroField.getWidgets()[0];
-              const rect = widget.getRectangle();
-              const imgDims = img.scale(1);
-              const scale = Math.min(rect.width / imgDims.width, rect.height / imgDims.height) * 0.9;
-              const drawW = imgDims.width * scale;
-              const drawH = imgDims.height * scale;
-              const offX = (rect.width - drawW) / 2;
-              const offY = (rect.height - drawH) / 2;
-              const page4 = pdfDoc.getPages()[3];
-              page4.drawImage(img, {
-                x: rect.x + offX,
-                y: rect.y + offY,
-                width: drawW,
-                height: drawH,
-              });
-            }
-          }
+          await this.inyectarImagenEnCampoPdf(pdfDoc, form, this.firma, [
+            'topmostSubform[0].Page4[0].CampoImagen2[0]',
+          ]);
         }
       } catch (e) {
         console.error('Error inyectando firma en Hoja de Vida Minerva:', e);
+      }
+
+      // Foto del candidato → CampoImagen1. La plantilla tiene el recuadro
+      // (rect ~90x120 pt) pero NUNCA se llenaba: solo se inyectaba la firma,
+      // por eso la hoja de vida salía sin foto.
+      try {
+        if (this.foto) {
+          const ok = await this.inyectarImagenEnCampoPdf(pdfDoc, form, this.foto, [
+            'topmostSubform[0].Page1[0].CampoImagen1[0]',
+            'topmostSubform[0].Page2[0].CampoImagen1[0]',
+            'topmostSubform[0].Page3[0].CampoImagen1[0]',
+            'topmostSubform[0].Page4[0].CampoImagen1[0]',
+          ]);
+          if (!ok) console.warn('[minerva] no se pudo colocar la foto del candidato');
+        } else {
+          console.warn('[minerva] el candidato no tiene foto biométrica cargada');
+        }
+      } catch (e) {
+        console.error('Error inyectando foto en Hoja de Vida Minerva:', e);
       }
 
       // Bloquear campos
@@ -1933,14 +2135,31 @@ export class GenerateContractingDocumentsComponent implements OnInit {
         cand.primer_apellido, cand.segundo_apellido,
         cand.primer_nombre, cand.segundo_nombre,
       ].map((x: any) => String(x ?? '').trim()).filter(Boolean).join(' ').toUpperCase();
-      const numIdentificacion = String(cand.numero_documento ?? '').trim();
-      const domicilioTrabajador = String(cand.residencia?.municipio ?? '').toUpperCase();
+      const numIdentificacion = this.limpio(cand.numero_documento);
+      // `limpio` descarta el 0 que el backend arrastra como "vacío"; sin esto
+      // el documento salía diciendo "con domicilio en 0" y "No. 1105... de 0".
+      const domicilioTrabajador = (
+        this.limpio(cand.residencia?.municipio) ||
+        this.limpio(cand.municipio) ||
+        this.limpio(cand.residencia?.ciudad)
+      ).toUpperCase();
 
-      const empresaUsuaria = this.safe(this.empresaUsuariaDoc).toUpperCase();
-      const nitEmpresaUsuaria = this.safe(vac.nitEmpresaUsuaria ?? vac.nit ?? '');
-      const domicilioEmpresaUsuaria = this.safe(this.direccionDoc || vac.domicilioEmpresaUsuaria || '');
-      const representanteEmpresaUsuaria = this.safe(vac.representanteLegalEmpresaUsuaria ?? vac.representanteLegal ?? '').toUpperCase();
-      const ccRepresentanteEmpresaUsuaria = this.safe(vac.ccRepresentanteEmpresaUsuaria ?? vac.ccRepresentante ?? '');
+      const empresaUsuaria = this.limpio(this.empresaUsuariaDoc).toUpperCase();
+
+      // NIT, domicilio y representante legal de la empresa usuaria NO existen
+      // en la BD (`CentroCosto` solo guarda empresa/dirección/ciudad), por eso
+      // el documento salía con "___". Se resuelven de este catálogo y, si la
+      // vacante llegara a traerlos algún día, ese dato tiene prioridad.
+      const datosEU = resolverEmpresaUsuaria(empresaUsuaria);
+      const nitEmpresaUsuaria = datosEU.nit || this.limpio(vac.nitEmpresaUsuaria ?? vac.nit);
+      // El catálogo MANDA sobre `Publicacion.direccion`: ese campo guarda la
+      // finca donde se presta el servicio (The Elite Flower figura como
+      // "KM 25 VIA SIBATÉ"), no el domicilio social que exige el documento.
+      const domicilioEmpresaUsuaria = datosEU.domicilio || this.limpio(this.direccionDoc || vac.domicilioEmpresaUsuaria);
+      const representanteEmpresaUsuaria = (
+        datosEU.representante || this.limpio(vac.representanteLegalEmpresaUsuaria ?? vac.representanteLegal)
+      ).toUpperCase();
+      const ccRepresentanteEmpresaUsuaria = datosEU.ccRepresentante || this.limpio(vac.ccRepresentanteEmpresaUsuaria ?? vac.ccRepresentante);
 
       const fechaActual = this.getFechaContrato();
       const opcionesFecha: Intl.DateTimeFormatOptions = { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' };
@@ -2082,7 +2301,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
 
       centerText('ACUERDO USO DE IMAGEN', 9);
 
-      const pIntro = `Entre los suscritos a saber, **APOYO LABORAL TS**, persona jurídica identificada con NIT 900.814.587-1, con domicilio en la Carrera 2 # 8 - 156, Facatativá, Cundinamarca, debidamente representada por la señora MAYRA HUAMANÍ LÓPEZ, identificada con la cédula de extranjería N° 332.318 en su calidad de Representante Legal, quien para los efectos del presente documento se denominará **EL EMPLEADOR**; Y por otra parte, **${empresaUsuaria || '_________________'}**, persona jurídica con NIT **${nitEmpresaUsuaria || '___________'}**, con domicilio en la **${domicilioEmpresaUsuaria || '_________________'}**, legalmente representada por el señor(a) **${representanteEmpresaUsuaria || '_________________'}**, identificado con la cédula de ciudadanía No. **${ccRepresentanteEmpresaUsuaria || '___________'}**, quien en adelante se denominará **LA EMPRESA USUARIA**; Y por otra parte, el señor **${nombreTrabajador || '_________________'}**, identificado con la cédula de ciudadanía No. **${numIdentificacion || '___________'}**, mayor de edad, con domicilio en **${domicilioTrabajador || '___________'}**, quien en adelante se denominará **EL TRABAJADOR**; hemos celebrado el presente acuerdo de uso de imagen, conforme a la Ley Estatutaria 1581 de 2012 de protección de datos y normas reglamentarias y a las demás normas concordantes, previa a las siguientes consideraciones:`;
+      const pIntro = `Entre los suscritos a saber, **APOYO LABORAL TS**, persona jurídica identificada con NIT 900.814.587-1, con domicilio en la Carrera 2 # 8 - 156, Facatativá, Cundinamarca, debidamente representada por la señora MAYRA HUAMANÍ LÓPEZ, identificada con la cédula de extranjería N° 332.318 en su calidad de Representante Legal, quien para los efectos del presente documento se denominará **EL EMPLEADOR**; Y por otra parte, **${empresaUsuaria || '_________________'}**, persona jurídica con NIT **${nitEmpresaUsuaria || '___________'}**, con domicilio en la **${domicilioEmpresaUsuaria || '_________________'}**, legalmente representada por el señor(a) **${representanteEmpresaUsuaria || '_________________'}**, identificado con la cédula de ciudadanía No. **${ccRepresentanteEmpresaUsuaria || '___________'}**, quien en adelante se denominará **LA EMPRESA USUARIA**; Y por otra parte, el señor **${nombreTrabajador || '_________________'}**, identificado con la cédula de ciudadanía No. **${numIdentificacion || '___________'}**, mayor de edad, con domicilio en **${domicilioTrabajador || this.municipioFirma.toUpperCase()}**, quien en adelante se denominará **EL TRABAJADOR**; hemos celebrado el presente acuerdo de uso de imagen, conforme a la Ley Estatutaria 1581 de 2012 de protección de datos y normas reglamentarias y a las demás normas concordantes, previa a las siguientes consideraciones:`;
       printFormattedJustified(pIntro, 7.5);
 
       centerText('CONSIDERACIONES', 8.5);
@@ -2211,7 +2430,10 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       currentY += 4;
 
       // Párrafos Justificados Pág 2
-      const p2_1 = `Yo, ${nombreTrabajador} , con documento de identidad No. ${numIdentificacion} de ${domicilioTrabajador} , mediante el presente formato autorizo a la empresa Apoyo Laboral T.S. S.A.S., en adelante la Empresa Temporal y la empresa ${empresaUsuaria} S.A.S. en adelante Empresa Usuaria , para que hagan el uso y tratamiento de mis derechos de imagen para incluirlos sobre fotografías y producciones audiovisuales (videos); así como de los Derechos de Autor; los Derechos Conexos y en general todos aquellos derechos de propiedad intelectual que tengan que ver con el derecho de imagen. Todo esto con sujeción a la Ley 1581 de 2012 y por las normas legales aplicables, para las siguientes finalidades:`;
+      // Si no se conoce el lugar de expedición se omite la frase entera, en vez
+      // de imprimir "de 0" o dejar el hueco.
+      const expedidaEn = domicilioTrabajador ? ` de ${domicilioTrabajador}` : '';
+      const p2_1 = `Yo, ${nombreTrabajador} , con documento de identidad No. ${numIdentificacion}${expedidaEn} , mediante el presente formato autorizo a la empresa Apoyo Laboral T.S. S.A.S., en adelante la Empresa Temporal y la empresa ${empresaUsuaria} S.A.S. en adelante Empresa Usuaria , para que hagan el uso y tratamiento de mis derechos de imagen para incluirlos sobre fotografías y producciones audiovisuales (videos); así como de los Derechos de Autor; los Derechos Conexos y en general todos aquellos derechos de propiedad intelectual que tengan que ver con el derecho de imagen. Todo esto con sujeción a la Ley 1581 de 2012 y por las normas legales aplicables, para las siguientes finalidades:`;
       printFormattedJustified(p2_1, 9);
 
       const p2_2 = `Este(os) video(os)/foto(s) podrá(n) ser utilizado(s) con fines informativos en diferentes escenarios y plataformas de comunicación internas y externas de la Empresa.`;
@@ -2223,11 +2445,13 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       const p2_4 = `La presente autorización no tiene ámbito geográfico determinado, por lo que las imágenes en las que aparezca podrán ser utilizadas en el territorio del mundo, así mismo, tampoco tiene ningún límite de tiempo para su concesión, ni para explotación de las imágenes, o parte de estas, por lo que mi autorización se considera concedida por un plazo de tiempo ilimitado.`;
       printFormattedJustified(p2_4, 9);
 
-      const p2_5 = `Declaro que soy responsable de la veracidad de los datos suministrados y que he sido informado que EMPRESA TEMPORAL Y LA EMPRESA USUARIA son responsable de los datos personales por mi suministrados y entiendo que los canales de atención al titular a mi disposición son: EMPRESA TEMPORAL Correo electrónico: protecciondedatos@tsservicios.co, Telefono: 6017444002 y EMPRESA USUARIA Correo Electrónico: datospersonales@eliteflower.com y Teléfono: 6018910444.`;
+      const p2_5 = `Declaro que soy responsable de la veracidad de los datos suministrados y que he sido informado que EMPRESA TEMPORAL Y LA EMPRESA USUARIA son responsable de los datos personales por mi suministrados y entiendo que los canales de atención al titular a mi disposición son: EMPRESA TEMPORAL Correo electrónico: protecciondedatos.tuapo@gmail.com, Telefono: 6017444002 y EMPRESA USUARIA Correo Electrónico: datospersonales@eliteflower.com y Teléfono: 6018910444.`;
       printFormattedJustified(p2_5, 9);
 
       currentY += 4;
-      const p2_6 = `Para constancia de lo anterior se firma y otorga esta autorización de manera voluntaria en la ciudad de ${domicilioTrabajador.toUpperCase()} el día     **${fechaFirmaTexto}**`;
+      // La ciudad de firma es donde se suscribe el documento (la sede), no el
+      // domicilio del trabajador; y así nunca queda vacía.
+      const p2_6 = `Para constancia de lo anterior se firma y otorga esta autorización de manera voluntaria en la ciudad de ${this.municipioFirma.toUpperCase()} el día     **${fechaFirmaTexto}**`;
       printFormattedJustified(p2_6, 9);
 
       // Firma del Trabajador (Pág 2 - Abajo a la izquierda)
@@ -2560,8 +2784,8 @@ export class GenerateContractingDocumentsComponent implements OnInit {
         `Asimismo, usted entiende y autoriza a APOYO LABORAL TS S.A.S para que verifique, solicite y/o consulte su Información Personal en listas de riesgo, incluidas restrictivas y no restrictivas, así como vinculantes y no vinculantes para Colombia, a través de cualquier motor de búsqueda tales como, pero sin limitarse a, las plataformas de los entes Administradores del Sistema de Seguridad Social Integral, las Autoridades Judiciales y de Policía Nacional, la Procuraduría General de la República, la Contraloría General de la Nación o cualquier otra fuente de información legalmente constituida y/o a través de otros motores de búsqueda diseñados con miras a verificar su situación laboral actual, sus aptitudes académicas y demás información pertinente para los fines antes señalados. APOYO LABORAL TS S.A.S realizará estas gestiones directamente, o a través de sus filiales o aliados estratégicos con quienes acuerde realizar estas actividades. APOYO LABORAL TS S.A.S podrá adelantar el proceso de consulta, a partir de su Información Personal, a través de la base de datos de la Policía Nacional, Contraloría General de la República, Contraloría General de la Nación, OFAC Sanctions List Search y otras similares.`,
         `Dentro de las obligaciones que establece la ley, APOYO LABORAL TS S.A.S debe establecer si sus candidatos o sus familiares califican como Persona Expuesta Políticamente ("PEP"). Por lo anterior, en caso de que usted o algún familiar suyo ostente la calidad de PEP, o llegue a adquirirla, usted deberá comunicar tal situación a APOYO LABORAL TS S.A.S, indicando los datos de identificación de dicho familiar, el parentesco que tiene con usted, y el cargo que desempeña o desempeñó dentro de los dos (2) años anteriores. De igual forma, usted certifica que entiende a qué se refiere la palabra PEP y certifica que ni usted ni sus familiares califican como PEP y que, en caso de calificar en dicha categoría, declara haber informado tal situación a APOYO LABORAL TS S.A.S. En los casos en los que APOYO LABORAL TS S.A.S deba llevar a cabo el tratamiento de datos personales de terceros proporcionados por usted, ya sea por ser referencia suya o PEP asociado a usted, entre otros motivos, usted certifica que tal información fue suministrada con la debida autorización de esas personas para que esta fuera entregada a APOYO LABORAL TS S.A.S y tratada de conformidad su Política de Tratamiento de Datos Personales.`,
         `Asimismo, usted entiende que APOYO LABORAL TS S.A.S podrá transmitir su Información Personal e Información Personal Sensible, a (i) otras oficinas del mismo grupo corporativo de APOYO LABORAL TS S.A.S, incluso radicadas en diferentes jurisdicciones que no comporten niveles de protección de datos equivalentes a los de la legislación colombiana y a (ii) terceros a los que APOYO LABORAL TS S.A.S les encargue el tratamiento de su Información Personal e Información Personal Sensible.`,
-        `De igual forma, como titular de su Información Personal e Información Personal Sensible, usted tiene derecho, entre otras, a conocer, actualizar, rectificar y a solicitar la supresión de la misma, así como a solicitar prueba de esta autorización, en cualquier tiempo, y mediante comunicación escrita dirigida al correo electrónico: protecciondedatos@tsservicios.co de acuerdo al procedimiento previsto en los artículos 14 y 15 de la Ley 1581 de 2012.`,
-        `En virtud de lo anterior, con su firma, APOYO LABORAL TS S.A.S podrá recolectar, almacenar, usar y en general realizar el tratamiento de su Información Personal e Información Personal Sensible, para las finalidades anteriormente expuestas, en desarrollo de la Política de Tratamiento de Datos Personales de la Firma, la cual puede ser solicitada a través de: correo electrónico protecciondedatos@tsservicios.co.`
+        `De igual forma, como titular de su Información Personal e Información Personal Sensible, usted tiene derecho, entre otras, a conocer, actualizar, rectificar y a solicitar la supresión de la misma, así como a solicitar prueba de esta autorización, en cualquier tiempo, y mediante comunicación escrita dirigida al correo electrónico: protecciondedatos.tuapo@gmail.com de acuerdo al procedimiento previsto en los artículos 14 y 15 de la Ley 1581 de 2012.`,
+        `En virtud de lo anterior, con su firma, APOYO LABORAL TS S.A.S podrá recolectar, almacenar, usar y en general realizar el tratamiento de su Información Personal e Información Personal Sensible, para las finalidades anteriormente expuestas, en desarrollo de la Política de Tratamiento de Datos Personales de la Firma, la cual puede ser solicitada a través de: correo electrónico protecciondedatos.tuapo@gmail.com.`
       ];
     } else {
       // Tu Alianza (sin cláusula PEP)
@@ -2571,8 +2795,8 @@ export class GenerateContractingDocumentsComponent implements OnInit {
         `Para poder cumplir con las finalidades anteriormente expuestas, ${empresaSeleccionada} requiere tratar los siguientes datos personales suyos que son considerados como sensibles: género, datos biométricos y datos relacionados con su salud (“Información Personal Sensible”). Usted tiene derecho a autorizar o no la recolección y tratamiento de su Información Personal Sensible por parte de ${empresaSeleccionada} y sus encargados. No obstante, si usted no autoriza a ${empresaSeleccionada} a recolectar y hacer el tratamiento de esta Información Personal Sensible, ${empresaSeleccionada} no podrá cumplir con las finalidades del tratamiento descritas anteriormente.`,
         `Asimismo, usted entiende y autoriza a ${empresaSeleccionada} para que verifique, solicite y/o consulte su Información Personal en listas de riesgo, incluidas restrictivas y no restrictivas, así como vinculantes y no vinculantes para Colombia, a través de cualquier motor de búsqueda tales como, pero sin limitarse a, las plataformas de los entes Administradores del Sistema de Seguridad Social Integral, las Autoridades Judiciales y de Policía Nacional, la Procuraduría General de la República, la Contraloría General de la Nación o cualquier otra fuente de información legalmente constituida y/o a través de otros motores de búsqueda diseñados con miras a verificar su situación laboral actual, sus aptitudes académicas y demás información pertinente para los fines antes señalados. ${empresaSeleccionada} realizará estas gestiones directamente, o a través de sus filiales o aliados estratégicos con quienes acuerde realizar estas actividades. ${empresaSeleccionada} podrá adelantar el proceso de consulta, a partir de su Información Personal, a través de la base de datos de la Policía Nacional, Contraloría General de la República, Contraloría General de la Nación, OFAC Sanctions List Search y otras similares.`,
         `Asimismo, usted entiende que ${empresaSeleccionada} podrá transmitir su Información Personal e Información Personal Sensible, a (i) otras oficinas del mismo grupo corporativo de ${empresaSeleccionada}, incluso radicadas en diferentes jurisdicciones que no comporten niveles de protección de datos equivalentes a los de la legislación colombiana y a (ii) terceros a los que ${empresaSeleccionada} les encargue el tratamiento de su Información Personal e Información Personal Sensible.`,
-        `De igual forma, como titular de su Información Personal e Información Personal Sensible, usted tiene derecho, entre otras, a conocer, actualizar, rectificar y a solicitar la supresión de la misma, así como a solicitar prueba de esta autorización, en cualquier tiempo, y mediante comunicación escrita dirigida al correo electrónico: protecciondedatos@tsservicios.co de acuerdo al procedimiento previsto en los artículos 14 y 15 de la Ley 1581 de 2012.`,
-        `En virtud de lo anterior, con su firma, ${empresaSeleccionada} podrá recolectar, almacenar, usar y en general realizar el tratamiento de su Información Personal e Información Personal Sensible, para las finalidades anteriormente expuestas, en desarrollo de la Política de Tratamiento de Datos Personales de la Firma, la cual puede ser solicitada a través de: correo electrónico protecciondedatos@tsservicios.co.`
+        `De igual forma, como titular de su Información Personal e Información Personal Sensible, usted tiene derecho, entre otras, a conocer, actualizar, rectificar y a solicitar la supresión de la misma, así como a solicitar prueba de esta autorización, en cualquier tiempo, y mediante comunicación escrita dirigida al correo electrónico: protecciondedatos.tuapo@gmail.com de acuerdo al procedimiento previsto en los artículos 14 y 15 de la Ley 1581 de 2012.`,
+        `En virtud de lo anterior, con su firma, ${empresaSeleccionada} podrá recolectar, almacenar, usar y en general realizar el tratamiento de su Información Personal e Información Personal Sensible, para las finalidades anteriormente expuestas, en desarrollo de la Política de Tratamiento de Datos Personales de la Firma, la cual puede ser solicitada a través de: correo electrónico protecciondedatos.tuapo@gmail.com.`
       ];
     }
 
@@ -3379,8 +3603,8 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     doc.setFontSize(7);
     doc.setFont('helvetica', 'bold');
     doc.text('Código: AL CO-RE-6', tableStartX + 2, startY + 11.5);
-    doc.text('Versión: 24', col1 + 2, startY + 11.5);
-    doc.text('Fecha de Emisión: Febrero 16-26', col2 + 5, startY + 11.5);
+    doc.text('Versión: 26', col1 + 2, startY + 11.5);
+    doc.text('Fecha de Emisión: Junio 01-26', col2 + 5, startY + 11.5);
     doc.text('Página: 1 de 1', col3 + 6, startY + 11.5);
 
     y = startY + headerHeight + 7;
@@ -3388,7 +3612,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     // ───────── Intro ─────────
     doc.setFontSize(8).setFont('helvetica', 'normal');
     const maxWidth = contentWidth;
-    const intro = 'Reciba un cordial saludo, por medio del presente documento afirmo haber recibido, leido y comprendido los documentos relacionados a continuación:';
+    const intro = 'Reciba un cordial saludo, por medio del presente documento afirmo haber recibido, leído y comprendido los documentos relacionados a continuación:';
     doc.text(intro, marginLeft, y, { maxWidth });
     doc.setFontSize(7);
     y += 4;
@@ -3401,26 +3625,22 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     lista.forEach((item, index) => {
       const numero = `${index + 1}) `;
       doc.setFont('helvetica', 'bold'); doc.text(numero, marginLeft, y);
-      doc.setFont('helvetica', 'normal');
+      // Se mide en negrita, que es como se dibujó el número; midiéndolo en
+      // normal el texto arrancaba antes y quedaba pegado al paréntesis.
       const numW = doc.getTextWidth(numero);
+      doc.setFont('helvetica', 'normal');
       doc.text(item, marginLeft + numW, y);
       y += 5;
     });
 
-    // Subtítulo tabla
-    doc.setFontSize(8).setFont('helvetica', 'bold');
-    doc.text(
-      'Fechas de Pago de Nómina y Valor del almuerzo que es descontado por Nómina o Liquidación final:',
-      marginLeft + 20,
-      y
-    );
-    const startYForTable = y + 3;
+    // La plantilla v19/v26 no lleva subtítulo entre el punto 2) y la tabla.
+    const startYForTable = y + 1;
 
     // ───────── Tabla (autotable) ─────────
     const head: RowInput[] = [[
-      { content: 'EMPRESA USUARIA', styles: { halign: H_CENTER, fontStyle: BOLD, fillColor: [255, 128, 0], textColor: 255 } },
-      { content: 'FECHA DE PAGO', styles: { halign: H_CENTER, fontStyle: BOLD, fillColor: [255, 128, 0], textColor: 255 } },
-      { content: 'SERVICIO DE CASINO', styles: { halign: H_CENTER, fontStyle: BOLD, fillColor: [255, 128, 0], textColor: 255 } }
+      { content: 'EMPRESA USUARIA', styles: { halign: H_CENTER, fontStyle: BOLD, fillColor: [128, 128, 128], textColor: 255 } },
+      { content: 'FECHA DE PAGO', styles: { halign: H_CENTER, fontStyle: BOLD, fillColor: [128, 128, 128], textColor: 255 } },
+      { content: 'SERVICION DE CASINO', styles: { halign: H_CENTER, fontStyle: BOLD, fillColor: [128, 128, 128], textColor: 255 } }
     ]];
 
     const body: RowInput[] = [
@@ -3444,7 +3664,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       styles: { font: 'helvetica', fontSize: 6.5, cellPadding: { top: 0.5, bottom: 0.5, left: 1, right: 1 } },
       headStyles: { lineWidth: 0.2, lineColor: [120, 120, 120] },
       bodyStyles: { lineWidth: 0.2, lineColor: [180, 180, 180], valign: 'middle' },
-      columnStyles: { 0: { cellWidth: 95 }, 1: { cellWidth: 45 }, 2: { cellWidth: 'auto' as const } },
+      columnStyles: { 0: { cellWidth: 66 }, 1: { cellWidth: 37 }, 2: { cellWidth: 'auto' as const } },
     });
 
     const finalY = (doc as any).lastAutoTable?.finalY ?? (startYForTable + 30);
@@ -3456,7 +3676,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     // Notas
     doc.setFontSize(7).setFont('helvetica', 'normal');
     const noteMaxW = contentWidth;
-    const nota1 = 'Nota: * Para los  centros de costo de la empresa usuaria The Elite Flower S.A.S.C.I. Carnations, Florex, Jardines de Colombia Normandía. Tinzuque, Tikya, Chuzacá, su fecha de pago son 06 y 21 de cada mes.';
+    const nota1 = 'Nota: * Para los  centros de costo de la empresa usuaria The Elite Flower S.A.S.C.I. Carnations, Florex, Jardines de Colombia Normandía. Tinzuque, Tikiya, Chuzacá, su fecha de pago son 06 y 21 de cada mes.';
     const nota2 = '** Para los  centros de costo de la empresa usuaria Wayuu Flowers S.A.S.: Pozo Azul, Postcosecha Excellence, Belchite, su fecha de pago son 01 y 16 de cada mes';
 
     const l1 = doc.splitTextToSize(nota1, noteMaxW) as string[];
@@ -3469,7 +3689,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     doc.setFontSize(8).setFont('helvetica', 'bold');
     doc.text('Teniendo en cuenta la anterior información, autorizo descuento de casino:', marginLeft, y);
     doc.setFont('helvetica', 'normal');
-    doc.text('SI (  X  )', 155, y);
+    doc.text('SI (     )', 155, y);
     doc.text('NO(     )', 175, y);
 
     // Forma de pago
@@ -3498,7 +3718,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       }
     });
 
-    doc.text('¿Cuál?', 130, y);
+    doc.text('Cuál?', 130, y);
     doc.line(140, y, 200, y);
     if (formaPagoSeleccionada === 'Otra') {
       doc.text('Especificar aquí...', 150, y + 10);
@@ -3507,12 +3727,17 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     // Número TJT / Código
     y += 8;
     doc.setFontSize(8);
+    // Cajas grises de la plantilla v19 donde van los dos datos.
+    doc.setFillColor(217, 217, 217);
+    doc.rect(marginLeft + 25, y - 3, 65, 6, 'F');
+    doc.rect(140, y - 3, 60, 6, 'F');
+
     doc.setFont('helvetica', 'bold').text('Número TJT ó', marginLeft, y);
     doc.setFont('helvetica', 'normal').text('Celular', marginLeft, y + 3);
-    doc.setFont('helvetica', 'normal').text(numeroPagos, marginLeft + 25, y + 1.5);
+    doc.setFont('helvetica', 'normal').text(numeroPagos, marginLeft + 27, y + 1);
 
     doc.setFont('helvetica', 'bold').text('Código de Tarjeta', 110, y);
-    doc.setFont('helvetica', 'normal').text(codigoTarjeta, 140, y);
+    doc.setFont('helvetica', 'normal').text(codigoTarjeta, 142, y + 1);
     y += 4; // advance past "Celular" at y+3
 
     // IMPORTANTE (justificado)
@@ -3534,7 +3759,8 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     doc.setFont('helvetica', 'bold').setFontSize(7.5);
     doc.text('ACEPTO CAMBIO SIN PREVIO AVISO YA QUE HE SIDO INFORMADO (A) :', marginLeft, y);
     doc.setFont('helvetica', 'normal');
-    doc.text('SI (  X  )', 170, y);
+    // Igual que el casino: en blanco, lo marca el trabajador.
+    doc.text('SI (     )', 170, y);
     doc.text('NO (     )', 190, y);
     y += 4; // advance past ACEPTO line
 
@@ -3605,7 +3831,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     doc.textWithLink('http://www.apoyolaboralts.com', marginLeft + 95, y + 1, { url: 'http://www.apoyolaboralts.com' });
     doc.setTextColor(0, 0, 0);
     doc.setFont('helvetica', 'normal');
-    doc.text('Documentos de interés, Ingresando el código:', marginLeft + 130, y + 1);
+    doc.text('Documentos de interes, Ingresando el código:', marginLeft + 130, y + 1);
     doc.setFont('helvetica', 'bold').setFontSize(7);
     doc.text('9876', marginLeft + 185, y + 1);
     y += 4; // advance past banner
@@ -3616,8 +3842,8 @@ export class GenerateContractingDocumentsComponent implements OnInit {
 
     const contenidoFinalColaborador = [
       { numero: 'a)', texto: 'Por medio de la presente manifiesto que recibí lo anteriormente mencionado y que acepto el mismo.' },
-      { numero: 'b)', texto: 'Leí y comprendí  el curso de inducción General y de Seguridad y Salud en el Trabajo, así como  el contrato y las recomendaciones laborales y todas las cláusulas  y condiciones establecidas.' },
-      { numero: 'c)', texto: 'Información Condiciones de Salud: Manifiesto que conozco los resultados de mis exámenes médicos de ingreso dadas por el médico ocupacional.' },
+      { numero: 'b)', texto: 'Leí y comprendí  el curso de inducción General y de Seguridad y Salud en el Trabajo, así como  el contrato y las recomendaciones laboral y todas las cláusulas y condiciones establecidas.' },
+      { numero: 'c)', texto: 'Información Condiciones de Salud: Manifiesto que conozco los resultados de mis exámenes médicos de ingreso dadas por el médico ocupacional y que recibí copia del concepto médico.' },
     ];
 
     doc.setFont('helvetica', 'bold').setFontSize(7);
@@ -3708,9 +3934,8 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     doc.setFont('helvetica', 'normal').text(dateStr, marginLeft + 38, y - 1);
     doc.line(marginLeft + 33, y, marginLeft + 80, y);
 
-    // Duración y firma del responsable - at Fecha level, center-right
-    doc.setFont('helvetica', 'italic').setFontSize(7);
-    doc.text('Duración: 30 Minutos. Responsable de la socialización:', marginLeft + 85, y);
+    // El rótulo 'Duración: 30 Minutos. Responsable de la socialización:'
+    // ya viene dentro del PNG del sello; no se dibuja aparte.
 
     // Sello / imagen final
     const selloData = await toDataURL('firma/CARLOS.png');
@@ -3836,16 +4061,16 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     doc.setFontSize(7);
     doc.setFont('helvetica', 'bold');
     doc.text('Código: TA CO-RE-6', tableStartX + 2, startY + 11.5);
-    doc.text('Versión: 18', col1 + 2, startY + 11.5);
-    doc.text('Fecha de Emisión: Marzo 9-26', col2 + 5, startY + 11.5);
-    doc.text('Páginas: 1 de 1', col3 + 6, startY + 11.5);
+    doc.text('Versión: 19', col1 + 2, startY + 11.5);
+    doc.text('Fecha de Emisión: junio 01-26', col2 + 5, startY + 11.5);
+    doc.text('Página: 1 de 1', col3 + 6, startY + 11.5);
 
     y = startY + headerHeight + 7;
 
     // ───────── Intro ─────────
     doc.setFontSize(8).setFont('helvetica', 'normal');
     const maxWidth = contentWidth;
-    const intro = 'Reciba un cordial saludo, por medio del presente documento afirmo haber recibido, leido y comprendido los documentos relacionados a continuación:';
+    const intro = 'Reciba un cordial saludo, por medio del presente documento afirmo haber recibido, leído y comprendido los documentos relacionados a continuación:';
     doc.text(intro, marginLeft, y, { maxWidth });
     doc.setFontSize(7);
     y += 4;
@@ -3858,43 +4083,44 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     lista.forEach((item, index) => {
       const numero = `${index + 1}) `;
       doc.setFont('helvetica', 'bold'); doc.text(numero, marginLeft, y);
-      doc.setFont('helvetica', 'normal');
+      // Se mide en negrita, que es como se dibujó el número; midiéndolo en
+      // normal el texto arrancaba antes y quedaba pegado al paréntesis.
       const numW = doc.getTextWidth(numero);
+      doc.setFont('helvetica', 'normal');
       doc.text(item, marginLeft + numW, y);
       y += 5;
     });
 
-    // Subtítulo tabla
-    doc.setFontSize(8).setFont('helvetica', 'bold');
-    doc.text(
-      'Fechas de Pago de Nómina y Valor del almuerzo que es descontado por Nómina o Liquidación final:',
-      marginLeft + 20,
-      y
-    );
-    const startYForTable = y + 3;
+    // La plantilla TA CO-RE-6 v19 no lleva subtítulo entre el punto 2) y la
+    // tabla: la tabla va inmediatamente después.
+    const startYForTable = y + 1;
 
     // ───────── Tabla (autotable) ─────────
+    const GRIS_ENCABEZADO: [number, number, number] = [128, 128, 128];
     const head: RowInput[] = [[
-      { content: 'EMPRESA USUARIA', styles: { halign: H_CENTER, fontStyle: BOLD, fillColor: [255, 128, 0], textColor: 255 } },
-      { content: 'FECHA DE PAGO', styles: { halign: H_CENTER, fontStyle: BOLD, fillColor: [255, 128, 0], textColor: 255 } },
-      { content: 'SERVICION DE CASINO', styles: { halign: H_CENTER, fontStyle: BOLD, fillColor: [255, 128, 0], textColor: 255 } }
+      { content: 'EMPRESA USUARIA', styles: { halign: H_CENTER, fontStyle: BOLD, fillColor: GRIS_ENCABEZADO, textColor: 255 } },
+      { content: 'FECHA DE PAGO', styles: { halign: H_CENTER, fontStyle: BOLD, fillColor: GRIS_ENCABEZADO, textColor: 255 } },
+      { content: 'SERVICION DE CASINO', styles: { halign: H_CENTER, fontStyle: BOLD, fillColor: GRIS_ENCABEZADO, textColor: 255 } }
     ]];
 
     const body: RowInput[] = [
       [
         { content: 'FLORES DEL RIO & CIA S.A.S', styles: { fontStyle: BOLD, fontSize: 6.5, halign: H_CENTER } },
-        { content: '15 y 30 de cada mes', styles: { fontSize: 6.5, halign: H_CENTER } },
-        { content: 'No cuenta con servicio de casino, se debe llevar el almuerzo', styles: { fontSize: 6.5, halign: H_CENTER } }
+        { content: '15 y 30 de cada mes', styles: { fontStyle: BOLD, fontSize: 6.5, halign: H_CENTER } },
+        { content: 'No cuenta con servicio de casino, se debe llevar el almuerzo', styles: { fontStyle: BOLD, fontSize: 6.5, halign: H_CENTER } }
       ],
       [
-        { content: 'BOUQUETS MIXTOS S.A.S C.I.', styles: { fontStyle: BOLD, fontSize: 6.5, halign: H_CENTER } },
-        { content: '15 y 30 de cada mes', styles: { fontSize: 6.5, halign: H_CENTER } },
-        { content: 'No cuenta con servicio de casino, se debe llevar el almuerzo', styles: { fontSize: 6.5, halign: H_CENTER } }
+        { content: 'BOUQUETS MIXTOS SAS C.I', styles: { fontStyle: BOLD, fontSize: 6.5, halign: H_CENTER } },
+        { content: '15 y 30 de cada mes', styles: { fontStyle: BOLD, fontSize: 6.5, halign: H_CENTER } },
+        { content: 'No cuenta con servicio de casino, se debe llevar el almuerzo', styles: { fontStyle: BOLD, fontSize: 6.5, halign: H_CENTER } }
       ],
       [
-        { content: 'C.I. AGRICOLA CARDENAL S.A.S', styles: { fontStyle: BOLD, fontSize: 6.5, halign: H_CENTER } },
-        { content: '15 y 30 de cada mes', styles: { fontSize: 6.5, halign: H_CENTER } },
-        { content: 'Valor de almuerzo $ 8.100 Descuento quincenal por nómina y/o Liquidacion Final', styles: { fontSize: 6.5, halign: H_CENTER } }
+        { content: 'C.I AGRICOLA CARDENAL S.A.S', styles: { fontStyle: BOLD, fontSize: 6.5, halign: H_CENTER } },
+        { content: '15 y 30 de cada mes', styles: { fontStyle: BOLD, fontSize: 6.5, halign: H_CENTER } },
+        {
+          content: 'Valor de Almuerzo $ 8.100\nDescuento quincenal por nómina y/o Liquidacion Final',
+          styles: { fontSize: 6.5, halign: H_CENTER }
+        }
       ]
     ];
 
@@ -3906,7 +4132,14 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       styles: { font: 'helvetica', fontSize: 6.5, cellPadding: { top: 1.2, bottom: 1.2, left: 2, right: 2 } },
       headStyles: { lineWidth: 0.2, lineColor: [120, 120, 120] },
       bodyStyles: { lineWidth: 0.2, lineColor: [180, 180, 180], valign: 'middle' },
-      columnStyles: { 0: { cellWidth: 95 }, 1: { cellWidth: 45 }, 2: { cellWidth: 'auto' as const } },
+      columnStyles: { 0: { cellWidth: 66 }, 1: { cellWidth: 37 }, 2: { cellWidth: 'auto' as const } },
+      // Primera línea de la celda de casino en negrita (el valor del almuerzo).
+      didParseCell: (data: any) => {
+        if (data.section === 'body' && data.column.index === 2 &&
+          String(data.cell.raw?.content ?? '').includes('Valor de Almuerzo')) {
+          data.cell.styles.fontStyle = 'normal';
+        }
+      },
     });
 
     const finalY = (doc as any).lastAutoTable?.finalY ?? (startYForTable + 30);
@@ -3919,7 +4152,10 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     doc.setFontSize(8).setFont('helvetica', 'bold');
     doc.text('Teniendo en cuenta la anterior información, autorizo descuento de casino:', marginLeft, y);
     doc.setFont('helvetica', 'normal');
-    doc.text('SI (  X  )', 145, y);
+    // Sin marcar: la plantilla v19 deja la autorización de casino en blanco
+    // para que el trabajador la diligencie. Venía con una "X" fija en SI, es
+    // decir, todo contrato salía autorizando el descuento sin que nadie eligiera.
+    doc.text('SI (     )', 145, y);
     doc.text('NO(     )', 160, y);
     doc.text('No Aplica (     )', 178, y);
 
@@ -3949,7 +4185,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       }
     });
 
-    doc.text('¿Cuál?', 130, y);
+    doc.text('Cuál?', 130, y);
     doc.line(140, y, 200, y);
     if (formaPagoSeleccionada === 'Otra') {
       doc.text('Especificar aquí...', 150, y + 10);
@@ -3958,12 +4194,17 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     // Número TJT / Código
     y += 8;
     doc.setFontSize(8);
+    // Cajas grises de la plantilla v19 donde van los dos datos.
+    doc.setFillColor(217, 217, 217);
+    doc.rect(marginLeft + 25, y - 3, 65, 6, 'F');
+    doc.rect(140, y - 3, 60, 6, 'F');
+
     doc.setFont('helvetica', 'bold').text('Número TJT ó', marginLeft, y);
     doc.setFont('helvetica', 'normal').text('Celular', marginLeft, y + 3);
-    doc.setFont('helvetica', 'normal').text(numeroPagos, marginLeft + 25, y + 1.5);
+    doc.setFont('helvetica', 'normal').text(numeroPagos, marginLeft + 27, y + 1);
 
     doc.setFont('helvetica', 'bold').text('Código de Tarjeta', 110, y);
-    doc.setFont('helvetica', 'normal').text(codigoTarjeta, 140, y);
+    doc.setFont('helvetica', 'normal').text(codigoTarjeta, 142, y + 1);
     y += 4; // advance past "Celular" at y+3
 
     // IMPORTANTE (justificado)
@@ -3985,7 +4226,8 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     doc.setFont('helvetica', 'bold').setFontSize(7.5);
     doc.text('ACEPTO CAMBIO SIN PREVIO AVISO YA QUE HE SIDO INFORMADO (A) :', marginLeft, y);
     doc.setFont('helvetica', 'normal');
-    doc.text('SI (  X  )', 170, y);
+    // Igual que el casino: en blanco, lo marca el trabajador.
+    doc.text('SI (     )', 170, y);
     doc.text('NO (     )', 190, y);
     y += 4; // advance past ACEPTO line
 
@@ -4056,7 +4298,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     doc.textWithLink('http://tualianza.co', marginLeft + 95, y + 1, { url: 'http://tualianza.co' });
     doc.setTextColor(0, 0, 0);
     doc.setFont('helvetica', 'normal');
-    doc.text('Documentos de interés, Ingresando el código:', marginLeft + 130, y + 1);
+    doc.text('Documentos de interes, Ingresando el código:', marginLeft + 130, y + 1);
     doc.setFont('helvetica', 'bold').setFontSize(7);
     doc.text('9876', marginLeft + 185, y + 1);
     y += 4; // advance past banner
@@ -4067,8 +4309,8 @@ export class GenerateContractingDocumentsComponent implements OnInit {
 
     const contenidoFinalColaborador = [
       { numero: 'a)', texto: 'Por medio de la presente manifiesto que recibí lo anteriormente mencionado y que acepto el mismo.' },
-      { numero: 'b)', texto: 'Leí y comprendí  el curso de inducción General y de Seguridad y Salud en el Trabajo, así como  el contrato y las recomendaciones laborales   y todas las cláusulas  y condiciones establecidas.' },
-      { numero: 'c)', texto: 'Información Condiciones de Salud: Manifiesto que conozco los resultados de mis exámenes médicos de ingreso dadas por el médico ocupacional.' },
+      { numero: 'b)', texto: 'Leí y comprendí  el curso de inducción General y de Seguridad y Salud en el Trabajo, así como  el contrato y las recomendaciones laboral y todas las cláusulas y condiciones establecidas.' },
+      { numero: 'c)', texto: 'Información Condiciones de Salud: Manifiesto que conozco los resultados de mis exámenes médicos de ingreso dadas por el médico ocupacional y que recibí copia del concepto médico.' },
     ];
 
     doc.setFont('helvetica', 'bold').setFontSize(7);
@@ -4143,9 +4385,8 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     doc.setFont('helvetica', 'normal').text(dateStr, marginLeft + 38, y - 1);
     doc.line(marginLeft + 33, y, marginLeft + 80, y);
 
-    // Duración y firma del responsable - at Fecha level, center-right
-    doc.setFont('helvetica', 'italic').setFontSize(7);
-    doc.text('Duración: 30 Minutos. Responsable de la socialización:', marginLeft + 85, y);
+    // El rótulo 'Duración: 30 Minutos. Responsable de la socialización:'
+    // ya viene dentro del PNG del sello; no se dibuja aparte.
 
     // Sello / imagen final
     const selloData = await toDataURL('firma/FirmaEntregaDocApoyo.png');
@@ -4271,8 +4512,8 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     doc.setFontSize(7);
     doc.setFont('helvetica', 'bold');
     doc.text('Código: TA CO-RE-6', tableStartX + 2, startY + 11.5);
-    doc.text('Versión: 18', col1 + 2, startY + 11.5);
-    doc.text('Fecha de Emisión: Marzo 9-26', col2 + 5, startY + 11.5);
+    doc.text('Versión: 19', col1 + 2, startY + 11.5);
+    doc.text('Fecha de Emisión: Mayo 13-26', col2 + 5, startY + 11.5);
     doc.text('Página: 1 de 1', col3 + 6, startY + 11.5);
 
     y = startY + headerHeight + 5;
@@ -4280,7 +4521,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     // ───────── Intro ─────────
     doc.setFontSize(8).setFont('helvetica', 'normal');
     const maxWidth = contentWidth;
-    const intro = 'Reciba un cordial saludo, por medio del presente documento afirmo haber recibido, leido y comprendido los documentos relacionados a continuación:';
+    const intro = 'Reciba un cordial saludo, por medio del presente documento afirmo haber recibido, leído y comprendido los documentos relacionados a continuación:';
     doc.text(intro, marginLeft, y, { maxWidth });
     doc.setFontSize(7);
     y += 4;
@@ -4293,26 +4534,22 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     lista.forEach((item, index) => {
       const numero = `${index + 1}) `;
       doc.setFont('helvetica', 'bold'); doc.text(numero, marginLeft, y);
-      doc.setFont('helvetica', 'normal');
+      // Se mide en negrita, que es como se dibujó el número; midiéndolo en
+      // normal el texto arrancaba antes y quedaba pegado al paréntesis.
       const numW = doc.getTextWidth(numero);
+      doc.setFont('helvetica', 'normal');
       doc.text(item, marginLeft + numW, y);
       y += 4;
     });
 
-    // Subtítulo tabla
-    doc.setFontSize(8).setFont('helvetica', 'bold');
-    doc.text(
-      'Fechas de Pago de Nómina y Valor del almuerzo que es descontado por Nómina o Liquidación final:',
-      marginLeft + 20,
-      y
-    );
-    const startYForTable = y + 3;
+    // La plantilla v19/v26 no lleva subtítulo entre el punto 2) y la tabla.
+    const startYForTable = y + 1;
 
     // ───────── Tabla (autotable) ─────────
     const head: RowInput[] = [[
-      { content: 'EMPRESA USUARIA', styles: { halign: H_CENTER, fontStyle: BOLD, fillColor: [255, 128, 0], textColor: 255 } },
-      { content: 'FECHA DE PAGO', styles: { halign: H_CENTER, fontStyle: BOLD, fillColor: [255, 128, 0], textColor: 255 } },
-      { content: 'SERVICIO DE CASINO', styles: { halign: H_CENTER, fontStyle: BOLD, fillColor: [255, 128, 0], textColor: 255 } }
+      { content: 'EMPRESA USUARIA', styles: { halign: H_CENTER, fontStyle: BOLD, fillColor: [128, 128, 128], textColor: 255 } },
+      { content: 'FECHA DE PAGO', styles: { halign: H_CENTER, fontStyle: BOLD, fillColor: [128, 128, 128], textColor: 255 } },
+      { content: 'SERVICION DE CASINO', styles: { halign: H_CENTER, fontStyle: BOLD, fillColor: [128, 128, 128], textColor: 255 } }
     ]];
 
     const body: RowInput[] = [
@@ -4363,7 +4600,10 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     doc.setFontSize(8).setFont('helvetica', 'italic');
     doc.text('Teniendo en cuenta la anterior información, autorizo descuento de casino:', marginLeft, y);
     doc.setFont('helvetica', 'bold');
-    doc.text('SI (  X  )', 145, y);
+    // Sin marcar: la plantilla v19 deja la autorización de casino en blanco
+    // para que el trabajador la diligencie. Venía con una "X" fija en SI, es
+    // decir, todo contrato salía autorizando el descuento sin que nadie eligiera.
+    doc.text('SI (     )', 145, y);
     doc.text('NO (     )', 160, y);
     doc.text('No Aplica(     )', 178, y);
 
@@ -4393,7 +4633,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       }
     });
 
-    doc.text('¿Cuál?', 130, y);
+    doc.text('Cuál?', 130, y);
     doc.line(140, y, 200, y);
     if (formaPagoSeleccionada === 'Otra') {
       doc.text('Especificar aquí...', 150, y + 10);
@@ -4402,12 +4642,17 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     // Número TJT / Código
     y += 8;
     doc.setFontSize(7.5);
+    // Cajas grises de la plantilla v19 donde van los dos datos.
+    doc.setFillColor(217, 217, 217);
+    doc.rect(marginLeft + 25, y - 3, 65, 6, 'F');
+    doc.rect(140, y - 3, 60, 6, 'F');
+
     doc.setFont('helvetica', 'bold').text('Número TJT ó', marginLeft, y);
     doc.setFont('helvetica', 'normal').text('Celular', marginLeft, y + 3);
-    doc.setFont('helvetica', 'normal').text(numeroPagos, marginLeft + 25, y + 1.5);
+    doc.setFont('helvetica', 'normal').text(numeroPagos, marginLeft + 27, y + 1);
 
     doc.setFont('helvetica', 'bold').text('Código de Tarjeta', 110, y);
-    doc.setFont('helvetica', 'normal').text(codigoTarjeta, 140, y);
+    doc.setFont('helvetica', 'normal').text(codigoTarjeta, 142, y + 1);
     y += 4; // advance past "Celular" at y+3
 
     // IMPORTANTE (justificado)
@@ -4429,7 +4674,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     doc.setFont('helvetica', 'bold').setFontSize(7.5);
     doc.text('ACEPTO CAMBIO SIN PREVIO AVISO YA QUE HE SIDO INFORMADO (A) :', marginLeft, y);
     doc.setFont('helvetica', 'normal');
-    doc.text('SI (  X  )', 165, y);
+    doc.text('SI (     )', 165, y);
     doc.text('NO (     )', 180, y);
     y += 4; // advance past ACEPTO line
 
@@ -4500,7 +4745,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     doc.textWithLink('http://www.tualianza.co', marginLeft + 95, y + 1, { url: 'http://www.tualianza.co' });
     doc.setTextColor(0, 0, 0);
     doc.setFont('helvetica', 'normal');
-    doc.text('Documentos de interés, Ingresando el código:', marginLeft + 120, y + 1);
+    doc.text('Documentos de interes, Ingresando el código:', marginLeft + 120, y + 1);
     doc.setFont('helvetica', 'bold').setFontSize(7);
     doc.text('9876', marginLeft + 185, y + 1);
     y += 4; // advance past banner
@@ -4511,8 +4756,8 @@ export class GenerateContractingDocumentsComponent implements OnInit {
 
     const contenidoFinalColaborador = [
       { numero: 'a)', texto: 'Por medio de la presente manifiesto que recibí lo anteriormente mencionado y que acepto el mismo.' },
-      { numero: 'b)', texto: 'Leí y comprendí  el curso de inducción General y de Seguridad y Salud en el Trabajo, así como  el contrato y las recomendaciones laborales   y todas las cláusulas  y condiciones establecidas.' },
-      { numero: 'c)', texto: 'Información Condiciones de Salud: Manifiesto que conozco los resultados de mis exámenes médicos de ingreso dadas por el médico ocupacional.' },
+      { numero: 'b)', texto: 'Leí y comprendí  el curso de inducción General y de Seguridad y Salud en el Trabajo, así como  el contrato y las recomendaciones laboral y todas las cláusulas y condiciones establecidas.' },
+      { numero: 'c)', texto: 'Información Condiciones de Salud: Manifiesto que conozco los resultados de mis exámenes médicos de ingreso dadas por el médico ocupacional y que recibí copia del concepto médico.' },
     ];
 
     doc.setFont('helvetica', 'bold').setFontSize(7);
@@ -4587,9 +4832,8 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     doc.setFont('helvetica', 'normal').text(dateStr, marginLeft + 38, y - 1);
     doc.line(marginLeft + 33, y, marginLeft + 80, y);
 
-    // Duración y firma del responsable - at Fecha level, center-right
-    doc.setFont('helvetica', 'italic').setFontSize(7);
-    doc.text('Duración: 30 Minutos. Responsable de la socialización:', marginLeft + 85, y);
+    // El rótulo 'Duración: 30 Minutos. Responsable de la socialización:'
+    // ya viene dentro del PNG del sello; no se dibuja aparte.
 
     // Sello / imagen final
     const selloData = await toDataURL('firma/FirmaEntregaDocTuAlianza.png');
@@ -4716,8 +4960,8 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     doc.setFontSize(7);
     doc.setFont('helvetica', 'bold');
     doc.text('Código: TA CO-RE-6', tableStartX + 2, startY + 11.5);
-    doc.text('Versión: 18', col1 + 2, startY + 11.5);
-    doc.text('Fecha de Emisión: Marzo 9-26', col2 + 5, startY + 11.5);
+    doc.text('Versión: 19', col1 + 2, startY + 11.5);
+    doc.text('Fecha de Emisión: junio 01-26', col2 + 5, startY + 11.5);
     doc.text('Página: 1 de 1', col3 + 6, startY + 11.5);
 
     y = startY + headerHeight + 7;
@@ -4725,7 +4969,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     // ───────── Intro ─────────
     doc.setFontSize(8).setFont('helvetica', 'normal');
     const maxWidth = contentWidth;
-    const intro = 'Reciba un cordial saludo, por medio del presente documento afirmo haber recibido, leido y comprendido los documentos relacionados a continuación:';
+    const intro = 'Reciba un cordial saludo, por medio del presente documento afirmo haber recibido, leído y comprendido los documentos relacionados a continuación:';
     doc.text(intro, marginLeft, y, { maxWidth });
     doc.setFontSize(7);
     y += 4;
@@ -4738,26 +4982,22 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     lista.forEach((item, index) => {
       const numero = `${index + 1}) `;
       doc.setFont('helvetica', 'bold'); doc.text(numero, marginLeft, y);
-      doc.setFont('helvetica', 'normal');
+      // Se mide en negrita, que es como se dibujó el número; midiéndolo en
+      // normal el texto arrancaba antes y quedaba pegado al paréntesis.
       const numW = doc.getTextWidth(numero);
+      doc.setFont('helvetica', 'normal');
       doc.text(item, marginLeft + numW, y);
       y += 5;
     });
 
-    // Subtítulo tabla
-    doc.setFontSize(8).setFont('helvetica', 'bold');
-    doc.text(
-      'Fechas de Pago de Nómina y Valor del almuerzo que es descontado por Nómina o Liquidación final:',
-      marginLeft + 20,
-      y
-    );
-    const startYForTable = y + 3;
+    // La plantilla v19 no lleva subtítulo entre el punto 2) y la tabla.
+    const startYForTable = y + 1;
 
     // ───────── Tabla (autotable) ─────────
     const head: RowInput[] = [[
-      { content: 'EMPRESA USUARIA', styles: { halign: H_CENTER, fontStyle: BOLD, fillColor: [255, 128, 0], textColor: 255 } },
-      { content: 'FECHA DE PAGO', styles: { halign: H_CENTER, fontStyle: BOLD, fillColor: [255, 128, 0], textColor: 255 } },
-      { content: 'SERVICION DE CASINO', styles: { halign: H_CENTER, fontStyle: BOLD, fillColor: [255, 128, 0], textColor: 255 } }
+      { content: 'EMPRESA USUARIA', styles: { halign: H_CENTER, fontStyle: BOLD, fillColor: [128, 128, 128], textColor: 255 } },
+      { content: 'FECHA DE PAGO', styles: { halign: H_CENTER, fontStyle: BOLD, fillColor: [128, 128, 128], textColor: 255 } },
+      { content: 'SERVICION DE CASINO', styles: { halign: H_CENTER, fontStyle: BOLD, fillColor: [128, 128, 128], textColor: 255 } }
     ]];
 
     const body: RowInput[] = [
@@ -4792,7 +5032,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     doc.setFontSize(8).setFont('helvetica', 'bold');
     doc.text('Teniendo en cuenta la anterior información, autorizo descuento de casino:', marginLeft, y);
     doc.setFont('helvetica', 'normal');
-    doc.text('SI (  X  )', 155, y);
+    doc.text('SI (     )', 155, y);
     doc.text('NO(     )', 175, y);
 
     // Forma de pago
@@ -4821,7 +5061,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       }
     });
 
-    doc.text('¿Cuál?', 130, y);
+    doc.text('Cuál?', 130, y);
     doc.line(140, y, 200, y);
     if (formaPagoSeleccionada === 'Otra') {
       doc.text('Especificar aquí...', 150, y + 10);
@@ -4830,12 +5070,17 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     // Número TJT / Código
     y += 8;
     doc.setFontSize(8);
+    // Cajas grises de la plantilla v19 donde van los dos datos.
+    doc.setFillColor(217, 217, 217);
+    doc.rect(marginLeft + 25, y - 3, 65, 6, 'F');
+    doc.rect(140, y - 3, 60, 6, 'F');
+
     doc.setFont('helvetica', 'bold').text('Número TJT ó', marginLeft, y);
     doc.setFont('helvetica', 'normal').text('Celular', marginLeft, y + 3);
-    doc.setFont('helvetica', 'normal').text(numeroPagos, marginLeft + 25, y + 1.5);
+    doc.setFont('helvetica', 'normal').text(numeroPagos, marginLeft + 27, y + 1);
 
     doc.setFont('helvetica', 'bold').text('Código de Tarjeta', 110, y);
-    doc.setFont('helvetica', 'normal').text(codigoTarjeta, 140, y);
+    doc.setFont('helvetica', 'normal').text(codigoTarjeta, 142, y + 1);
     y += 4; // advance past "Celular" at y+3
 
     // IMPORTANTE (justificado)
@@ -4857,7 +5102,8 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     doc.setFont('helvetica', 'bold').setFontSize(7.5);
     doc.text('ACEPTO CAMBIO SIN PREVIO AVISO YA QUE HE SIDO INFORMADO (A) :', marginLeft, y);
     doc.setFont('helvetica', 'normal');
-    doc.text('SI (  X  )', 170, y);
+    // Igual que el casino: en blanco, lo marca el trabajador.
+    doc.text('SI (     )', 170, y);
     doc.text('NO (     )', 190, y);
     y += 4; // advance past ACEPTO line
 
@@ -4928,7 +5174,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     doc.textWithLink('http://tualianza.co', marginLeft + 95, y + 1, { url: 'http://tualianza.co' });
     doc.setTextColor(0, 0, 0);
     doc.setFont('helvetica', 'normal');
-    doc.text('Documentos de interés, Ingresando el código:', marginLeft + 125, y + 1);
+    doc.text('Documentos de interes, Ingresando el código:', marginLeft + 125, y + 1);
     doc.setFont('helvetica', 'bold').setFontSize(7);
     doc.text('9876', marginLeft + 180, y + 1);
     y += 4; // advance past banner
@@ -4939,8 +5185,8 @@ export class GenerateContractingDocumentsComponent implements OnInit {
 
     const contenidoFinalColaborador = [
       { numero: 'a)', texto: 'Por medio de la presente manifiesto que recibí lo anteriormente mencionado y que acepto el mismo.' },
-      { numero: 'b)', texto: 'Leí y comprendí  el curso de inducción General y de Seguridad y Salud en el Trabajo, así como  el contrato y las recomendaciones laborales y todas las cláusulas establecidas.' },
-      { numero: 'c)', texto: 'Información Condiciones de Salud: Manifiesto que conozco los resultados de mis exámenes médicos de ingreso dadas.' },
+      { numero: 'b)', texto: 'Leí y comprendí  el curso de inducción General y de Seguridad y Salud en el Trabajo, así como  el contrato y las recomendaciones laboral y todas las cláusulas y condiciones establecidas.' },
+      { numero: 'c)', texto: 'Información Condiciones de Salud: Manifiesto que conozco los resultados de mis exámenes médicos de ingreso dadas por el médico ocupacional y que recibí copia del concepto médico.' },
     ];
 
     doc.setFont('helvetica', 'bold').setFontSize(7);
@@ -5015,9 +5261,8 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     doc.setFont('helvetica', 'normal').text(dateStr, marginLeft + 38, y - 1);
     doc.line(marginLeft + 33, y, marginLeft + 80, y);
 
-    // Duración y firma del responsable - at Fecha level, center-right
-    doc.setFont('helvetica', 'italic').setFontSize(7);
-    doc.text('Duración: 30 Minutos. Responsable de la socialización:', marginLeft + 85, y);
+    // El rótulo 'Duración: 30 Minutos. Responsable de la socialización:'
+    // ya viene dentro del PNG del sello; no se dibuja aparte.
 
     // Sello / imagen final
     const selloData = await toDataURL('firma/FirmaEntregaDocApoyo.png');
@@ -5143,8 +5388,8 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     doc.setFontSize(7);
     doc.setFont('helvetica', 'bold');
     doc.text('Código: TA CO-RE-6', tableStartX + 2, startY + 11.5);
-    doc.text('Versión: 18', col1 + 2, startY + 11.5);
-    doc.text('Fecha de Emisión: Marzo 9-26', col2 + 5, startY + 11.5);
+    doc.text('Versión: 19', col1 + 2, startY + 11.5);
+    doc.text('Fecha de Emisión: junio 01-26', col2 + 5, startY + 11.5);
     doc.text('Página: 1 de 1', col3 + 6, startY + 11.5);
 
     y = startY + headerHeight + 7;
@@ -5152,7 +5397,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     // ───────── Intro ─────────
     doc.setFontSize(8).setFont('helvetica', 'normal');
     const maxWidth = contentWidth;
-    const intro = 'Reciba un cordial saludo, por medio del presente documento afirmo haber recibido, leido y comprendido los documentos relacionados a continuación:';
+    const intro = 'Reciba un cordial saludo, por medio del presente documento afirmo haber recibido, leído y comprendido los documentos relacionados a continuación:';
     doc.text(intro, marginLeft, y, { maxWidth });
     doc.setFontSize(7);
     y += 4;
@@ -5165,26 +5410,22 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     lista.forEach((item, index) => {
       const numero = `${index + 1}) `;
       doc.setFont('helvetica', 'bold'); doc.text(numero, marginLeft, y);
-      doc.setFont('helvetica', 'normal');
+      // Se mide en negrita, que es como se dibujó el número; midiéndolo en
+      // normal el texto arrancaba antes y quedaba pegado al paréntesis.
       const numW = doc.getTextWidth(numero);
+      doc.setFont('helvetica', 'normal');
       doc.text(item, marginLeft + numW, y);
       y += 5;
     });
 
-    // Subtítulo tabla
-    doc.setFontSize(8).setFont('helvetica', 'bold');
-    doc.text(
-      'Fechas de Pago de Nómina y Valor del almuerzo que es descontado por Nómina o Liquidación final:',
-      marginLeft + 20,
-      y
-    );
-    const startYForTable = y + 3;
+    // La plantilla v19 no lleva subtítulo entre el punto 2) y la tabla.
+    const startYForTable = y + 1;
 
     // ───────── Tabla (autotable) ─────────
     const head: RowInput[] = [[
-      { content: 'EMPRESA USUARIA', styles: { halign: H_CENTER, fontStyle: BOLD, fillColor: [255, 128, 0], textColor: 255 } },
-      { content: 'FECHA DE PAGO', styles: { halign: H_CENTER, fontStyle: BOLD, fillColor: [255, 128, 0], textColor: 255 } },
-      { content: 'SERVICION DE CASINO', styles: { halign: H_CENTER, fontStyle: BOLD, fillColor: [255, 128, 0], textColor: 255 } }
+      { content: 'EMPRESA USUARIA', styles: { halign: H_CENTER, fontStyle: BOLD, fillColor: [128, 128, 128], textColor: 255 } },
+      { content: 'FECHA DE PAGO', styles: { halign: H_CENTER, fontStyle: BOLD, fillColor: [128, 128, 128], textColor: 255 } },
+      { content: 'SERVICION DE CASINO', styles: { halign: H_CENTER, fontStyle: BOLD, fillColor: [128, 128, 128], textColor: 255 } }
     ]];
 
     const body: RowInput[] = [
@@ -5247,7 +5488,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       }
     });
 
-    doc.text('¿Cuál?', 130, y);
+    doc.text('Cuál?', 130, y);
     doc.line(140, y, 200, y);
     if (formaPagoSeleccionada === 'Otra') {
       doc.text('Especificar aquí...', 150, y + 10);
@@ -5256,12 +5497,17 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     // Número TJT / Código
     y += 8;
     doc.setFontSize(8);
+    // Cajas grises de la plantilla v19 donde van los dos datos.
+    doc.setFillColor(217, 217, 217);
+    doc.rect(marginLeft + 25, y - 3, 65, 6, 'F');
+    doc.rect(140, y - 3, 60, 6, 'F');
+
     doc.setFont('helvetica', 'bold').text('Número TJT ó', marginLeft, y);
     doc.setFont('helvetica', 'normal').text('Celular', marginLeft, y + 3);
-    doc.setFont('helvetica', 'normal').text(numeroPagos, marginLeft + 25, y + 1.5);
+    doc.setFont('helvetica', 'normal').text(numeroPagos, marginLeft + 27, y + 1);
 
     doc.setFont('helvetica', 'bold').text('Código de Tarjeta', 110, y);
-    doc.setFont('helvetica', 'normal').text(codigoTarjeta, 140, y);
+    doc.setFont('helvetica', 'normal').text(codigoTarjeta, 142, y + 1);
     y += 4; // advance past "Celular" at y+3
 
     // IMPORTANTE (justificado)
@@ -5283,7 +5529,8 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     doc.setFont('helvetica', 'bold').setFontSize(7.5);
     doc.text('ACEPTO CAMBIO SIN PREVIO AVISO YA QUE HE SIDO INFORMADO (A) :', marginLeft, y);
     doc.setFont('helvetica', 'normal');
-    doc.text('SI (  X  )', 170, y);
+    // Igual que el casino: en blanco, lo marca el trabajador.
+    doc.text('SI (     )', 170, y);
     doc.text('NO (     )', 190, y);
     y += 4; // advance past ACEPTO line
 
@@ -5354,7 +5601,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     doc.textWithLink('http://tualianza.co', marginLeft + 95, y + 1, { url: 'http://tualianza.co' });
     doc.setTextColor(0, 0, 0);
     doc.setFont('helvetica', 'normal');
-    doc.text('Documentos de interés, Ingresando el código:', marginLeft + 125, y + 1);
+    doc.text('Documentos de interes, Ingresando el código:', marginLeft + 125, y + 1);
     doc.setFont('helvetica', 'bold').setFontSize(7);
     doc.text('9876', marginLeft + 180, y + 1);
     y += 4; // advance past banner
@@ -5365,8 +5612,8 @@ export class GenerateContractingDocumentsComponent implements OnInit {
 
     const contenidoFinalColaborador = [
       { numero: 'a)', texto: 'Por medio de la presente manifiesto que recibí lo anteriormente mencionado y que acepto el mismo.' },
-      { numero: 'b)', texto: 'Leí y comprendí  el curso de inducción General y de Seguridad y Salud en el Trabajo, así como  el contrato y las recomendaciones laborales y todas las cláusulas establecidas.' },
-      { numero: 'c)', texto: 'Información Condiciones de Salud: Manifiesto que conozco los resultados de mis exámenes médicos de ingreso dadas.' },
+      { numero: 'b)', texto: 'Leí y comprendí  el curso de inducción General y de Seguridad y Salud en el Trabajo, así como  el contrato y las recomendaciones laboral y todas las cláusulas y condiciones establecidas.' },
+      { numero: 'c)', texto: 'Información Condiciones de Salud: Manifiesto que conozco los resultados de mis exámenes médicos de ingreso dadas por el médico ocupacional y que recibí copia del concepto médico.' },
     ];
 
     doc.setFont('helvetica', 'bold').setFontSize(7);
@@ -5441,9 +5688,8 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     doc.setFont('helvetica', 'normal').text(dateStr, marginLeft + 38, y - 1);
     doc.line(marginLeft + 33, y, marginLeft + 80, y);
 
-    // Duración y firma del responsable - at Fecha level, center-right
-    doc.setFont('helvetica', 'italic').setFontSize(7);
-    doc.text('Duración: 30 Minutos. Responsable de la socialización:', marginLeft + 85, y);
+    // El rótulo 'Duración: 30 Minutos. Responsable de la socialización:'
+    // ya viene dentro del PNG del sello; no se dibuja aparte.
 
     // Sello / imagen final
     const selloData = await toDataURL('firma/FirmaEntregaDocApoyo.png');
@@ -5569,8 +5815,8 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     doc.setFontSize(7);
     doc.setFont('helvetica', 'bold');
     doc.text('Código: TA CO-RE-6', tableStartX + 2, startY + 11.5);
-    doc.text('Versión: 18', col1 + 2, startY + 11.5);
-    doc.text('Fecha de Emisión: Marzo 9-26', col2 + 5, startY + 11.5);
+    doc.text('Versión: 19', col1 + 2, startY + 11.5);
+    doc.text('Fecha de Emisión: junio 01-26', col2 + 5, startY + 11.5);
     doc.text('Página: 1 de 1', col3 + 6, startY + 11.5);
 
     y = startY + headerHeight + 7;
@@ -5578,7 +5824,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     // ───────── Intro ─────────
     doc.setFontSize(8).setFont('helvetica', 'normal');
     const maxWidth = contentWidth;
-    const intro = 'Reciba un cordial saludo, por medio del presente documento afirmo haber recibido, leido y comprendido los documentos relacionados a continuación:';
+    const intro = 'Reciba un cordial saludo, por medio del presente documento afirmo haber recibido, leído y comprendido los documentos relacionados a continuación:';
     doc.text(intro, marginLeft, y, { maxWidth });
     doc.setFontSize(7);
     y += 4;
@@ -5591,26 +5837,22 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     lista.forEach((item, index) => {
       const numero = `${index + 1}) `;
       doc.setFont('helvetica', 'bold'); doc.text(numero, marginLeft, y);
-      doc.setFont('helvetica', 'normal');
+      // Se mide en negrita, que es como se dibujó el número; midiéndolo en
+      // normal el texto arrancaba antes y quedaba pegado al paréntesis.
       const numW = doc.getTextWidth(numero);
+      doc.setFont('helvetica', 'normal');
       doc.text(item, marginLeft + numW, y);
       y += 5;
     });
 
-    // Subtítulo tabla
-    doc.setFontSize(8).setFont('helvetica', 'bold');
-    doc.text(
-      'Fechas de Pago de Nómina y Valor del almuerzo que es descontado por Nómina o Liquidación final:',
-      marginLeft + 20,
-      y
-    );
-    const startYForTable = y + 3;
+    // La plantilla v19 no lleva subtítulo entre el punto 2) y la tabla.
+    const startYForTable = y + 1;
 
     // ───────── Tabla (autotable) ─────────
     const head: RowInput[] = [[
-      { content: 'EMPRESA USUARIA', styles: { halign: H_CENTER, fontStyle: BOLD, fillColor: [255, 128, 0], textColor: 255 } },
-      { content: 'FECHA DE PAGO', styles: { halign: H_CENTER, fontStyle: BOLD, fillColor: [255, 128, 0], textColor: 255 } },
-      { content: 'SERVICION DE CASINO', styles: { halign: H_CENTER, fontStyle: BOLD, fillColor: [255, 128, 0], textColor: 255 } }
+      { content: 'EMPRESA USUARIA', styles: { halign: H_CENTER, fontStyle: BOLD, fillColor: [128, 128, 128], textColor: 255 } },
+      { content: 'FECHA DE PAGO', styles: { halign: H_CENTER, fontStyle: BOLD, fillColor: [128, 128, 128], textColor: 255 } },
+      { content: 'SERVICION DE CASINO', styles: { halign: H_CENTER, fontStyle: BOLD, fillColor: [128, 128, 128], textColor: 255 } }
     ]];
 
     const body: RowInput[] = [
@@ -5675,7 +5917,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       }
     });
 
-    doc.text('¿Cuál?', 130, y);
+    doc.text('Cuál?', 130, y);
     doc.line(140, y, 200, y);
     if (formaPagoSeleccionada === 'Otra') {
       doc.text('Especificar aquí...', 150, y + 10);
@@ -5684,12 +5926,17 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     // Número TJT / Código
     y += 8;
     doc.setFontSize(8);
+    // Cajas grises de la plantilla v19 donde van los dos datos.
+    doc.setFillColor(217, 217, 217);
+    doc.rect(marginLeft + 25, y - 3, 65, 6, 'F');
+    doc.rect(140, y - 3, 60, 6, 'F');
+
     doc.setFont('helvetica', 'bold').text('Número TJT ó', marginLeft, y);
     doc.setFont('helvetica', 'normal').text('Celular', marginLeft, y + 3);
-    doc.setFont('helvetica', 'normal').text(numeroPagos, marginLeft + 25, y + 1.5);
+    doc.setFont('helvetica', 'normal').text(numeroPagos, marginLeft + 27, y + 1);
 
     doc.setFont('helvetica', 'bold').text('Código de Tarjeta', 110, y);
-    doc.setFont('helvetica', 'normal').text(codigoTarjeta, 140, y);
+    doc.setFont('helvetica', 'normal').text(codigoTarjeta, 142, y + 1);
     y += 4; // advance past "Celular" at y+3
 
     // IMPORTANTE (justificado)
@@ -5711,7 +5958,8 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     doc.setFont('helvetica', 'bold').setFontSize(7.5);
     doc.text('ACEPTO CAMBIO SIN PREVIO AVISO YA QUE HE SIDO INFORMADO (A) :', marginLeft, y);
     doc.setFont('helvetica', 'normal');
-    doc.text('SI (  X  )', 170, y);
+    // Igual que el casino: en blanco, lo marca el trabajador.
+    doc.text('SI (     )', 170, y);
     doc.text('NO (     )', 190, y);
     y += 4; // advance past ACEPTO line
 
@@ -5782,7 +6030,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     doc.textWithLink('http://tualianza.co', marginLeft + 95, y + 1, { url: 'http://tualianza.co' });
     doc.setTextColor(0, 0, 0);
     doc.setFont('helvetica', 'normal');
-    doc.text('Documentos de interés, Ingresando el código:', marginLeft + 125, y + 1);
+    doc.text('Documentos de interes, Ingresando el código:', marginLeft + 125, y + 1);
     doc.setFont('helvetica', 'bold').setFontSize(7);
     doc.text('9876', marginLeft + 180, y + 1);
     y += 4; // advance past banner
@@ -5793,8 +6041,8 @@ export class GenerateContractingDocumentsComponent implements OnInit {
 
     const contenidoFinalColaborador = [
       { numero: 'a)', texto: 'Por medio de la presente manifiesto que recibí lo anteriormente mencionado y que acepto el mismo.' },
-      { numero: 'b)', texto: 'Leí y comprendí  el curso de inducción General y de Seguridad y Salud en el Trabajo, así como  el contrato y las recomendaciones laborales y todas las cláusulas establecidas.' },
-      { numero: 'c)', texto: 'Información Condiciones de Salud: Manifiesto que conozco los resultados de mis exámenes médicos de ingreso dadas.' },
+      { numero: 'b)', texto: 'Leí y comprendí  el curso de inducción General y de Seguridad y Salud en el Trabajo, así como  el contrato y las recomendaciones laboral y todas las cláusulas y condiciones establecidas.' },
+      { numero: 'c)', texto: 'Información Condiciones de Salud: Manifiesto que conozco los resultados de mis exámenes médicos de ingreso dadas por el médico ocupacional y que recibí copia del concepto médico.' },
     ];
 
     doc.setFont('helvetica', 'bold').setFontSize(7);
@@ -5869,9 +6117,8 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     doc.setFont('helvetica', 'normal').text(dateStr, marginLeft + 38, y - 1);
     doc.line(marginLeft + 33, y, marginLeft + 80, y);
 
-    // Duración y firma del responsable - at Fecha level, center-right
-    doc.setFont('helvetica', 'italic').setFontSize(7);
-    doc.text('Duración: 30 Minutos. Responsable de la socialización:', marginLeft + 85, y);
+    // El rótulo 'Duración: 30 Minutos. Responsable de la socialización:'
+    // ya viene dentro del PNG del sello; no se dibuja aparte.
 
     // Sello / imagen final
     const selloData = await toDataURL('firma/FirmaEntregaDocApoyo.png');
@@ -5997,8 +6244,8 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     doc.setFontSize(7);
     doc.setFont('helvetica', 'bold');
     doc.text('Código: TA CO-RE-6', tableStartX + 2, startY + 11.5);
-    doc.text('Versión: 18', col1 + 2, startY + 11.5);
-    doc.text('Fecha de Emisión: Marzo 9-26', col2 + 5, startY + 11.5);
+    doc.text('Versión: 19', col1 + 2, startY + 11.5);
+    doc.text('Fecha de Emisión: junio 01-26', col2 + 5, startY + 11.5);
     doc.text('Página: 1 de 1', col3 + 6, startY + 11.5);
 
     y = startY + headerHeight + 7;
@@ -6006,7 +6253,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     // ───────── Intro ─────────
     doc.setFontSize(8).setFont('helvetica', 'normal');
     const maxWidth = contentWidth;
-    const intro = 'Reciba un cordial saludo, por medio del presente documento afirmo haber recibido, leido y comprendido los documentos relacionados a continuación:';
+    const intro = 'Reciba un cordial saludo, por medio del presente documento afirmo haber recibido, leído y comprendido los documentos relacionados a continuación:';
     doc.text(intro, marginLeft, y, { maxWidth });
     doc.setFontSize(7);
     y += 4;
@@ -6019,26 +6266,22 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     lista.forEach((item, index) => {
       const numero = `${index + 1}) `;
       doc.setFont('helvetica', 'bold'); doc.text(numero, marginLeft, y);
-      doc.setFont('helvetica', 'normal');
+      // Se mide en negrita, que es como se dibujó el número; midiéndolo en
+      // normal el texto arrancaba antes y quedaba pegado al paréntesis.
       const numW = doc.getTextWidth(numero);
+      doc.setFont('helvetica', 'normal');
       doc.text(item, marginLeft + numW, y);
       y += 5;
     });
 
-    // Subtítulo tabla
-    doc.setFontSize(8).setFont('helvetica', 'bold');
-    doc.text(
-      'Fechas de Pago de Nómina y Valor del almuerzo que es descontado por Nómina o Liquidación final:',
-      marginLeft + 20,
-      y
-    );
-    const startYForTable = y + 3;
+    // La plantilla v19 no lleva subtítulo entre el punto 2) y la tabla.
+    const startYForTable = y + 1;
 
     // ───────── Tabla (autotable) ─────────
     const head: RowInput[] = [[
-      { content: 'EMPRESA USUARIA', styles: { halign: H_CENTER, fontStyle: BOLD, fillColor: [255, 128, 0], textColor: 255 } },
-      { content: 'FECHA DE PAGO', styles: { halign: H_CENTER, fontStyle: BOLD, fillColor: [255, 128, 0], textColor: 255 } },
-      { content: 'SERVICION DE CASINO', styles: { halign: H_CENTER, fontStyle: BOLD, fillColor: [255, 128, 0], textColor: 255 } }
+      { content: 'EMPRESA USUARIA', styles: { halign: H_CENTER, fontStyle: BOLD, fillColor: [128, 128, 128], textColor: 255 } },
+      { content: 'FECHA DE PAGO', styles: { halign: H_CENTER, fontStyle: BOLD, fillColor: [128, 128, 128], textColor: 255 } },
+      { content: 'SERVICION DE CASINO', styles: { halign: H_CENTER, fontStyle: BOLD, fillColor: [128, 128, 128], textColor: 255 } }
     ]];
 
     const body: RowInput[] = [
@@ -6103,7 +6346,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       }
     });
 
-    doc.text('¿Cuál?', 130, y);
+    doc.text('Cuál?', 130, y);
     doc.line(140, y, 200, y);
     if (formaPagoSeleccionada === 'Otra') {
       doc.text('Especificar aquí...', 150, y + 10);
@@ -6112,12 +6355,17 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     // Número TJT / Código
     y += 8;
     doc.setFontSize(8);
+    // Cajas grises de la plantilla v19 donde van los dos datos.
+    doc.setFillColor(217, 217, 217);
+    doc.rect(marginLeft + 25, y - 3, 65, 6, 'F');
+    doc.rect(140, y - 3, 60, 6, 'F');
+
     doc.setFont('helvetica', 'bold').text('Número TJT ó', marginLeft, y);
     doc.setFont('helvetica', 'normal').text('Celular', marginLeft, y + 3);
-    doc.setFont('helvetica', 'normal').text(numeroPagos, marginLeft + 25, y + 1.5);
+    doc.setFont('helvetica', 'normal').text(numeroPagos, marginLeft + 27, y + 1);
 
     doc.setFont('helvetica', 'bold').text('Código de Tarjeta', 110, y);
-    doc.setFont('helvetica', 'normal').text(codigoTarjeta, 140, y);
+    doc.setFont('helvetica', 'normal').text(codigoTarjeta, 142, y + 1);
     y += 4; // advance past "Celular" at y+3
 
     // IMPORTANTE (justificado)
@@ -6139,7 +6387,8 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     doc.setFont('helvetica', 'bold').setFontSize(7.5);
     doc.text('ACEPTO CAMBIO SIN PREVIO AVISO YA QUE HE SIDO INFORMADO (A) :', marginLeft, y);
     doc.setFont('helvetica', 'normal');
-    doc.text('SI (  X  )', 170, y);
+    // Igual que el casino: en blanco, lo marca el trabajador.
+    doc.text('SI (     )', 170, y);
     doc.text('NO (     )', 190, y);
     y += 4; // advance past ACEPTO line
 
@@ -6210,7 +6459,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     doc.textWithLink('http://tualianza.co', marginLeft + 95, y + 1, { url: 'http://tualianza.co' });
     doc.setTextColor(0, 0, 0);
     doc.setFont('helvetica', 'normal');
-    doc.text('Documentos de interés, Ingresando el código:', marginLeft + 125, y + 1);
+    doc.text('Documentos de interes, Ingresando el código:', marginLeft + 125, y + 1);
     doc.setFont('helvetica', 'bold').setFontSize(7);
     doc.text('9876', marginLeft + 180, y + 1);
     y += 4; // advance past banner
@@ -6221,8 +6470,8 @@ export class GenerateContractingDocumentsComponent implements OnInit {
 
     const contenidoFinalColaborador = [
       { numero: 'a)', texto: 'Por medio de la presente manifiesto que recibí lo anteriormente mencionado y que acepto el mismo.' },
-      { numero: 'b)', texto: 'Leí y comprendí  el curso de inducción General y de Seguridad y Salud en el Trabajo, así como  el contrato y las recomendaciones laborales y todas las cláusulas establecidas.' },
-      { numero: 'c)', texto: 'Información Condiciones de Salud: Manifiesto que conozco los resultados de mis exámenes médicos de ingreso dadas.' },
+      { numero: 'b)', texto: 'Leí y comprendí  el curso de inducción General y de Seguridad y Salud en el Trabajo, así como  el contrato y las recomendaciones laboral y todas las cláusulas y condiciones establecidas.' },
+      { numero: 'c)', texto: 'Información Condiciones de Salud: Manifiesto que conozco los resultados de mis exámenes médicos de ingreso dadas por el médico ocupacional y que recibí copia del concepto médico.' },
     ];
 
     doc.setFont('helvetica', 'bold').setFontSize(7);
@@ -6295,9 +6544,8 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     doc.setFont('helvetica', 'normal').text(dateStr, marginLeft + 38, y - 1);
     doc.line(marginLeft + 33, y, marginLeft + 80, y);
 
-    // Duración y firma del responsable - at Fecha level, center-right
-    doc.setFont('helvetica', 'italic').setFontSize(7);
-    doc.text('Duración: 30 Minutos. Responsable de la socialización:', marginLeft + 85, y);
+    // El rótulo 'Duración: 30 Minutos. Responsable de la socialización:'
+    // ya viene dentro del PNG del sello; no se dibuja aparte.
 
     // Sello / imagen final
     const selloData = await toDataURL('firma/FirmaEntregaDocApoyo.png');
@@ -6415,8 +6663,8 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     doc.setFontSize(7);
     doc.setFont('helvetica', 'bold');
     doc.text('Código: TA CO-RE-6', tableStartX + 2, startY + 11.5);
-    doc.text('Versión: 18', col1 + 2, startY + 11.5);
-    doc.text('Fecha de Emisión: Marzo 09-26', col2 + 5, startY + 11.5);
+    doc.text('Versión: 19', col1 + 2, startY + 11.5);
+    doc.text('Fecha de Emisión: junio 01-26', col2 + 5, startY + 11.5);
     doc.text('Página: 1 de 1', col3 + 6, startY + 11.5);
 
     y = startY + headerHeight + 7;
@@ -6437,8 +6685,10 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     lista.forEach((item, index) => {
       const numero = `${index + 1}) `;
       doc.setFont('helvetica', 'bold'); doc.text(numero, marginLeft, y);
-      doc.setFont('helvetica', 'normal');
+      // Se mide en negrita, que es como se dibujó el número; midiéndolo en
+      // normal el texto arrancaba antes y quedaba pegado al paréntesis.
       const numW = doc.getTextWidth(numero);
+      doc.setFont('helvetica', 'normal');
       doc.text(item, marginLeft + numW, y);
       y += 6;
     });
@@ -6470,7 +6720,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     });
 
     doc.setFont('helvetica', 'bold').setFontSize(7);
-    doc.text('¿Cuál?', 150, y);
+    doc.text('Cuál?', 150, y);
     doc.line(160, y, 200, y);
     if (formaPagoSeleccionada === 'Otra') {
       doc.setFont('helvetica', 'normal').text('Especificar aquí...', 160, y - 1);
@@ -6590,7 +6840,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     const contenidoFinalColaborador = [
       { numero: 'a)', texto: 'Por medio de la presente manifiesto que recibi lo anteriormente mencionado y que acepto el mismo.' },
       { numero: 'b)', texto: 'Leí y comprendí el curso de inducción General y de Seguridad y Salud en el Trabajo, así como el contrato y las recomendaciones laboral y todas las cláusulas y condiciones establecidas.' },
-      { numero: 'c)', texto: 'Información Condiciones de Salud: Manifiesto que conozco los resultados de mis exámenes médicos de ingreso dadas por el médico ocupacional.' },
+      { numero: 'c)', texto: 'Información Condiciones de Salud: Manifiesto que conozco los resultados de mis exámenes médicos de ingreso dadas por el médico ocupacional y que recibí copia del concepto médico.' },
     ];
 
     doc.setFont('helvetica', 'bold').setFontSize(7);
@@ -6655,10 +6905,8 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     doc.setFont('helvetica', 'normal').text(dateStr, marginLeft + 28, y - 1);
     doc.line(marginLeft + 26, y, marginLeft + 80, y);
 
-    // Duración y firma del responsable
-    doc.setFont('helvetica', 'italic').setFontSize(6.5);
-    doc.text('Duración: 30 Minutos. Responsable de la socialización:', marginLeft + 85, y);
-
+    // El rótulo 'Duración: 30 Minutos. Responsable de la socialización:'
+    // ya viene dentro del PNG del sello; no se dibuja aparte.
     // Sello
     const selloData = await toDataURL('firma/FirmaEntregaDocApoyo.png');
     if (selloData) {
@@ -6775,8 +7023,8 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     doc.setFontSize(7);
     doc.setFont('helvetica', 'bold');
     doc.text('Código: TA CO-RE-6', tableStartX + 2, startY + 11.5);
-    doc.text('Versión: 18', col1 + 2, startY + 11.5);
-    doc.text('Fecha de Emisión: Marzo 9-26', col2 + 5, startY + 11.5);
+    doc.text('Versión: 19', col1 + 2, startY + 11.5);
+    doc.text('Fecha de Emisión: junio 01-26', col2 + 5, startY + 11.5);
     doc.text('Página: 1 de 1', col3 + 6, startY + 11.5);
 
     y = startY + headerHeight + 7;
@@ -6797,8 +7045,10 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     lista.forEach((item, index) => {
       const numero = `${index + 1}) `;
       doc.setFont('helvetica', 'bold'); doc.text(numero, marginLeft, y);
-      doc.setFont('helvetica', 'normal');
+      // Se mide en negrita, que es como se dibujó el número; midiéndolo en
+      // normal el texto arrancaba antes y quedaba pegado al paréntesis.
       const numW = doc.getTextWidth(numero);
+      doc.setFont('helvetica', 'normal');
       doc.text(item, marginLeft + numW, y);
       y += 6;
     });
@@ -6871,7 +7121,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     });
 
     doc.setFont('helvetica', 'bold').setFontSize(7);
-    doc.text('¿Cuál?', 138, y);
+    doc.text('Cuál?', 138, y);
     doc.line(150, y, 200, y);
     if (formaPagoSeleccionada === 'Otra') {
       doc.setFont('helvetica', 'normal').text('Especificar aquí...', 150, y - 1);
@@ -6979,7 +7229,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     doc.textWithLink('http://tualianza.co', marginLeft + 80, y + 1.5, { url: 'http://tualianza.co' });
     doc.setTextColor(0, 0, 0);
     doc.setFont('helvetica', 'normal');
-    doc.text('Documentos de interés, Ingresando el código:', marginLeft + 105, y + 1.5);
+    doc.text('Documentos de interes, Ingresando el código:', marginLeft + 105, y + 1.5);
     doc.setFont('helvetica', 'bold').setFontSize(7);
     doc.text('9876', marginLeft + 160, y + 1.5);
     y += 7;
@@ -6990,7 +7240,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     const contenidoFinalColaborador = [
       { numero: 'a)', texto: 'Por medio de la presente manifiesto que recibí lo anteriormente mencionado y que acepto el mismo.' },
       { numero: 'b)', texto: 'Leí y comprendí el curso de inducción General y de Seguridad y Salud en el Trabajo, así como el contrato y las recomendaciones laboral y todas las cláusulas y condiciones establecidas.' },
-      { numero: 'c)', texto: 'Información Condiciones de Salud: Manifiesto que conozco los resultados de mis exámenes médicos de ingreso dadas por el médico ocupacional.' },
+      { numero: 'c)', texto: 'Información Condiciones de Salud: Manifiesto que conozco los resultados de mis exámenes médicos de ingreso dadas por el médico ocupacional y que recibí copia del concepto médico.' },
     ];
 
     doc.setFont('helvetica', 'bold').setFontSize(7.5);
@@ -7055,10 +7305,8 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     doc.setFont('helvetica', 'normal').text(dateStr, marginLeft + 28, y - 1);
     doc.line(marginLeft + 26, y, marginLeft + 80, y);
 
-    // Duración y firma del responsable
-    doc.setFont('helvetica', 'italic').setFontSize(6.5);
-    doc.text('Duración: 30 Minutos. Responsable de la socialización:', marginLeft + 85, y);
-
+    // El rótulo 'Duración: 30 Minutos. Responsable de la socialización:'
+    // ya viene dentro del PNG del sello; no se dibuja aparte.
     // Sello
     const selloData = await toDataURL('firma/FirmaEntregaDocApoyo.png');
     if (selloData) {
@@ -7175,8 +7423,8 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     doc.setFontSize(7);
     doc.setFont('helvetica', 'bold');
     doc.text('Código: TA CO-RE-6', tableStartX + 2, startY + 11.5);
-    doc.text('Versión: 18', col1 + 2, startY + 11.5);
-    doc.text('Fecha de Emisión: Marzo 9-26', col2 + 5, startY + 11.5);
+    doc.text('Versión: 19', col1 + 2, startY + 11.5);
+    doc.text('Fecha de Emisión: junio 01-26', col2 + 5, startY + 11.5);
     doc.text('Página: 1 de 1', col3 + 6, startY + 11.5);
 
     y = startY + headerHeight + 7;
@@ -7197,8 +7445,10 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     lista.forEach((item, index) => {
       const numero = `${index + 1}) `;
       doc.setFont('helvetica', 'bold'); doc.text(numero, marginLeft, y);
-      doc.setFont('helvetica', 'normal');
+      // Se mide en negrita, que es como se dibujó el número; midiéndolo en
+      // normal el texto arrancaba antes y quedaba pegado al paréntesis.
       const numW = doc.getTextWidth(numero);
+      doc.setFont('helvetica', 'normal');
       doc.text(item, marginLeft + numW, y);
       y += 6;
     });
@@ -7269,7 +7519,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     });
 
     doc.setFont('helvetica', 'bold').setFontSize(7);
-    doc.text('¿Cuál?', 140, y);
+    doc.text('Cuál?', 140, y);
     doc.line(150, y, 200, y);
     if (formaPagoSeleccionada === 'Otra') {
       doc.setFont('helvetica', 'normal').text('Especificar aquí...', 150, y - 1);
@@ -7377,7 +7627,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     doc.textWithLink('http://tualianza.co', marginLeft + 80, y + 1.5, { url: 'http://tualianza.co' });
     doc.setTextColor(0, 0, 0);
     doc.setFont('helvetica', 'normal');
-    doc.text('Documentos de interés, Ingresando el código:', marginLeft + 105, y + 1.5);
+    doc.text('Documentos de interes, Ingresando el código:', marginLeft + 105, y + 1.5);
     doc.setFont('helvetica', 'bold').setFontSize(7);
     doc.text('9876', marginLeft + 160, y + 1.5);
     y += 7;
@@ -7388,7 +7638,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     const contenidoFinalColaborador = [
       { numero: 'a)', texto: 'Por medio de la presente manifiesto que recibí lo anteriormente mencionado y que acepto el mismo.' },
       { numero: 'b)', texto: 'Leí y comprendí el curso de inducción General y de Seguridad y Salud en el Trabajo, así como el contrato y las recomendaciones laboral y todas las cláusulas y condiciones establecidas.' },
-      { numero: 'c)', texto: 'Información Condiciones de Salud: Manifiesto que conozco los resultados de mis exámenes médicos de ingreso dadas por el médico ocupacional.' },
+      { numero: 'c)', texto: 'Información Condiciones de Salud: Manifiesto que conozco los resultados de mis exámenes médicos de ingreso dadas por el médico ocupacional y que recibí copia del concepto médico.' },
     ];
 
     doc.setFont('helvetica', 'bold').setFontSize(7.5);
@@ -7453,9 +7703,8 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     doc.setFont('helvetica', 'normal').text(dateStr, marginLeft + 28, y - 1);
     doc.line(marginLeft + 26, y, marginLeft + 80, y);
 
-    // Duración y firma del responsable
-    doc.setFont('helvetica', 'italic').setFontSize(6.5);
-
+    // El rótulo 'Duración: 30 Minutos. Responsable de la socialización:'
+    // ya viene dentro del PNG del sello; no se dibuja aparte.
     // Sello
     const selloData = await toDataURL('firma/CARLOS.png');
     if (selloData) {
@@ -7574,8 +7823,8 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     doc.setFontSize(7);
     doc.setFont('helvetica', 'bold');
     doc.text('Código: TA CO-RE-6', tableStartX + 2, startY + 11.5);
-    doc.text('Versión: 18', col1 + 2, startY + 11.5);
-    doc.text('Fecha de Emisión: Marzo 09-25', col2 + 5, startY + 11.5);
+    doc.text('Versión: 19', col1 + 2, startY + 11.5);
+    doc.text('Fecha de Emisión: junio 01-26', col2 + 5, startY + 11.5);
     doc.text('Página: 1 de 1', col3 + 6, startY + 11.5);
 
     y = startY + headerHeight + 5;
@@ -7596,8 +7845,10 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     lista.forEach((item, index) => {
       const numero = `${index + 1}) `;
       doc.setFont('helvetica', 'bold'); doc.text(numero, marginLeft, y);
-      doc.setFont('helvetica', 'normal');
+      // Se mide en negrita, que es como se dibujó el número; midiéndolo en
+      // normal el texto arrancaba antes y quedaba pegado al paréntesis.
       const numW = doc.getTextWidth(numero);
+      doc.setFont('helvetica', 'normal');
       doc.text(item, marginLeft + numW, y);
       y += 5;
     });
@@ -7704,7 +7955,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     });
 
     doc.setFont('helvetica', 'bold').setFontSize(7);
-    doc.text('¿Cuál?', 135, y);
+    doc.text('Cuál?', 135, y);
     doc.line(145, y, 200, y);
     if (formaPagoSeleccionada === 'Otra') {
       doc.setFont('helvetica', 'normal').text('Especificar aquí...', 135, y - 1);
@@ -7812,7 +8063,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     doc.textWithLink('http://tualianza.co', marginLeft + 85, y + 1.5, { url: 'http://tualianza.co' });
     doc.setTextColor(0, 0, 0);
     doc.setFont('helvetica', 'normal');
-    doc.text('Documentos de interés, Ingresando el código:', marginLeft + 115, y + 1.5);
+    doc.text('Documentos de interes, Ingresando el código:', marginLeft + 115, y + 1.5);
     doc.setFont('helvetica', 'bold').setFontSize(7);
     doc.text('9876', marginLeft + 170, y + 1.5);
     y += 6;
@@ -7823,7 +8074,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     const contenidoFinalColaborador = [
       { numero: 'a)', texto: 'Por medio de la presente manifiesto que recibí lo anteriormente mencionado y que acepto el mismo.' },
       { numero: 'b)', texto: 'Leí y comprendí el curso de inducción General y de Seguridad y Salud en el Trabajo, así como el contrato y las recomendaciones laboral y todas las cláusulas y condiciones establecidas.' },
-      { numero: 'c)', texto: 'Información Condiciones de Salud: Manifiesto que conozco los resultados de mis exámenes médicos de ingreso dadas por el médico ocupacional.' },
+      { numero: 'c)', texto: 'Información Condiciones de Salud: Manifiesto que conozco los resultados de mis exámenes médicos de ingreso dadas por el médico ocupacional y que recibí copia del concepto médico.' },
     ];
 
     doc.setFont('helvetica', 'bold').setFontSize(7.5);
@@ -7888,10 +8139,8 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     doc.setFont('helvetica', 'normal').text(dateStr, marginLeft + 28, y - 1);
     doc.line(marginLeft + 26, y, marginLeft + 80, y);
 
-    // Duración y firma del responsable
-    doc.setFont('helvetica', 'italic').setFontSize(6.5);
-    doc.text('Duración: 30 Minutos. Responsable de la socialización:', marginLeft + 85, y);
-
+    // El rótulo 'Duración: 30 Minutos. Responsable de la socialización:'
+    // ya viene dentro del PNG del sello; no se dibuja aparte.
     // Sello
     const selloData = await toDataURL('firma/FirmaEntregaDocApoyo.png');
     if (selloData) {
@@ -7919,14 +8168,21 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     let version = '';
     let fechaEmision = '';
 
-    if (this.empresa === 'APOYO LABORAL SAS') {
+    // `publicacion.temporal` es texto libre (CharField sin choices), así que la
+    // comparación estricta dejaba fuera variantes reales de la BD
+    // ("APOYO LABORAL", "APOYO LABORAL TS SAS", minúsculas, espacio final...)
+    // y caía al else con "Empresa no reconocida". Match tolerante, igual que
+    // `runContratoVariant` y `contrato-administrativo-fill.ts`.
+    const empresaNorm = (this.empresa ?? '').toUpperCase().trim();
+
+    if (empresaNorm.includes('APOYO')) {
       logoPath = 'logos/Logo_AL.png';
       nit = '900.814.587-1';
       domicilio = 'CARRERA 2 # 8 - 156 FACATATIVÁ C/MARCA';
       codigo = 'AL CO-RE-1';
       version = '07';
       fechaEmision = 'Enero 06-21';
-    } else if (this.empresa === 'TU ALIANZA SAS') {
+    } else if (empresaNorm.includes('ALIANZA')) {
       logoPath = 'logos/Logo_TA.png';
       nit = '900.864.596-1';
       domicilio = 'CLL 7 4 49 Madrid, Cundinamarca';
@@ -7982,7 +8238,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     // Encabezados
     doc.setFont('helvetica', 'bold');
     doc.text("PROCESO DE CONTRATACIÓN", tableStartX + 55, startY + 3);
-    doc.text(this.codigoContratacion, tableStartX + 130, startY + 3);
+    doc.text(this.codigoContratacion ?? '', tableStartX + 130, startY + 3);
     doc.text("CONTRATO DE TRABAJO POR OBRA O LABOR", tableStartX + 43, startY + 7);
 
     // Líneas divisoras
@@ -8020,21 +8276,42 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     ].join('/');
 
     // Datos de titulos
+    //
+    // El ORDEN define el corte en 2 columnas: con rowsPerColumn = 12, los
+    // primeros 12 van a la columna izquierda (hasta "Descripción de la Obra")
+    // y los 3 últimos a la derecha (Domicilio del patrono, Tipo y No de
+    // Identificación, Email). No reordenar sin revisar ese corte.
     const datos = [
       { titulo: 'Representado por', valor: 'MAYRA HUAMANÍ LÓPEZ' },
-      { titulo: 'Domicilio del patrono', valor: domicilio },
-      { titulo: 'Nombre del Trabajador', valor: this.candidato.primer_nombre + ' ' + (this.candidato.segundo_nombre ?? '') + ' ' + this.candidato.primer_apellido + ' ' + (this.candidato.segundo_apellido ?? '') },
-      { titulo: 'Tipo y No de Identificación', valor: this.candidato.tipo_doc + '        ' + this.cedula },
-      { titulo: 'Fecha de Nacimiento', valor: this.candidato.fecha_nacimiento },
-      { titulo: 'Domicilio del Trabajador', valor: this.candidato.residencia.direccion + ' ' + this.candidato.residencia.barrio + ' ' + 'BOGOTÁ' },
-      { titulo: 'Fecha de Iniciación', valor: this.candidato?.entrevistas?.[0]?.proceso?.contrato?.fecha_ingreso ?? '' },
-      { titulo: 'Salario Mensual Ordinario', valor: 'S.M.M.L.V. $1.423.500 — Un millón cuatrocientos veintitrés mil quinientos pesos M/C.' },
+      {
+        titulo: 'Nombre del Trabajador',
+        valor: [
+          this.candidato?.primer_nombre,
+          this.candidato?.segundo_nombre,
+          this.candidato?.primer_apellido,
+          this.candidato?.segundo_apellido,
+        ].map(v => this.limpio(v)).filter(Boolean).join(' ')
+      },
+      { titulo: 'Fecha de Nacimiento', valor: this.limpio(this.candidato?.fecha_nacimiento) },
+      // `residencia` es un OneToOne inverso: DRF OMITE la clave cuando el
+      // candidato no tiene fila de residencia, así que el acceso directo
+      // reventaba con "Cannot read properties of undefined".
+      // Antes se concatenaba el literal 'BOGOTÁ' al domicilio de TODO candidato,
+      // aunque la operación es mayoritariamente en Cundinamarca. Se usa el
+      // municipio real del candidato y, si no hay, se omite.
+      { titulo: 'Domicilio del Trabajador', valor: [this.candidato?.residencia?.direccion, this.candidato?.residencia?.barrio, this.candidato?.municipio].map(v => this.limpio(v)).filter(Boolean).join(' ') },
+      { titulo: 'Fecha de Iniciación', valor: this.limpio(this._entrevistaSel?.proceso?.contrato?.fecha_ingreso) },
+      { titulo: 'Salario Mensual Ordinario', valor: 'S.M.M.L.V $ 1.750.905 Un Millón setecientos cincuenta mil novecientos cinco pesos M/C' },
       { titulo: 'Periódo de Pago Salario', valor: 'Quincenal' },
       { titulo: 'Subsidio de Transporte', valor: 'SE PAGA EL LEGAL VIGENTE  O SE SUMINISTRA EL TRANSPORTE' },
       { titulo: 'Forma de Pago', valor: 'Banca Móvil,  Cuenta de Ahorro o Tarjeta Monedero' },
-      { titulo: 'Nombre Empresa Usuria', valor: this.empresaUsuariaDoc },
-      { titulo: 'Cargo', valor: this.vacante.cargo },
-      { titulo: 'Descripción de la Obra/Motivo Temporada', valor: this.descripcionObraDoc },
+      { titulo: 'Nombre Empresa Usuria', valor: this.limpio(this.empresaUsuariaDoc) },
+      { titulo: 'Cargo', valor: this.limpio(this.vacante?.cargo) },
+      { titulo: 'Descripción de la Obra/Motivo Temporada', valor: this.limpio(this.descripcionObraDoc) },
+      // ── Columna derecha ──
+      { titulo: 'Domicilio del patrono', valor: this.limpio(domicilio) },
+      { titulo: 'Tipo y No de Identificación', valor: [this.limpio(this.candidato?.tipo_doc), this.limpio(this.cedula)].filter(Boolean).join('        ') },
+      { titulo: 'Email', valor: this.limpio(this.candidato?.contacto?.email) },
     ];
     // Configuración de columnas
     const columnWidth = 110; // Ancho de cada columna
@@ -8042,15 +8319,29 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     const columnMargin = 10; // Margen entre columnas
     const columnStartX = 5;  // Posición inicial X
     const columnStartY = startY + 17; // Posición inicial Y
-    const rowsPerColumn = 12; // Número exacto de filas por columna
+    // 12 filas en la columna izquierda (termina en "Descripción de la Obra")
+    // y el resto en la derecha.
+    const rowsPerColumn = 12;
 
-    // Iteración para generar el texto. La fila 11 (Descripción de la Obra/
-    // Motivo Temporada) es la última de la columna 0 y, si el texto es largo,
-    // se desborda; aplicamos splitTextToSize y trackeamos cuántas líneas
-    // extras agregó para empujar el texto siguiente hacia abajo.
+    // Iteración para generar el texto. La fila "Descripción de la Obra/Motivo
+    // Temporada" puede desbordarse si el texto es largo; aplicamos
+    // splitTextToSize y trackeamos cuántas líneas extras agregó para empujar el
+    // texto siguiente hacia abajo. La detección va por TÍTULO, no por índice.
     const descripcionExtraLineH = 2.5; // mm aprox para fontSize 7
-    const descripcionMaxW = columnWidth - 48 - 2; // ancho disponible para el valor en columna 0
+    const pageW = doc.internal.pageSize.getWidth();
+    const rightMargin = 5;
     let descripcionExtraLineas = 0;
+
+    // Offset del valor MEDIDO, no fijo: se toma el rótulo más largo de cada
+    // columna. Con offsets fijos (48 / 30.2) el valor caía encima del rótulo en
+    // los dos casos límite —"Descripción de la Obra/Motivo Temporada" a la
+    // izquierda y "Tipo y No de Identificación" a la derecha—, que es
+    // justamente el texto sobre texto.
+    doc.setFont('helvetica', 'normal').setFontSize(7);
+    const anchoRotuloMax = (desde: number, hasta: number) =>
+      Math.max(...datos.slice(desde, hasta).map(d => doc.getTextWidth(`${d.titulo}:`)));
+    const offsetCol0 = Math.max(48, anchoRotuloMax(0, rowsPerColumn) + 2);
+    const offsetCol1 = anchoRotuloMax(rowsPerColumn, datos.length) + 2;
 
     datos.forEach((item, index) => {
       const currentColumn = Math.floor(index / rowsPerColumn); // Columna actual (cada 12 filas)
@@ -8063,22 +8354,37 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       doc.setFont('helvetica', 'normal');
       doc.text(`${item.titulo}:`, x, y);
 
-      if (index === 11) {
-        // Descripción de la obra/labor — wrap por ancho de columna para que
-        // NUNCA se corte ni salga del margen derecho.
-        doc.setFont('helvetica', 'bold');
-        const raw = String(item.valor ?? '').trim();
-        const lines: string[] = doc.splitTextToSize(raw || '—', descripcionMaxW);
-        doc.text(lines, x + 48, y);
+      const valueX = x + (currentColumn === 0 ? offsetCol0 : offsetCol1);
+
+      // jsPDF lanza si el texto no es string, así que TODAS las ramas coercen.
+      const valor = String(item.valor ?? '');
+
+      const esDescripcionObra = item.titulo
+        .toLowerCase()
+        .normalize('NFD').replace(/[̀-ͯ]/g, '')
+        .includes('descripcion de la obra');
+
+      doc.setFont('helvetica', 'bold');
+
+      // Las primeras filas de la izquierda comparten renglón con la columna
+      // derecha; ahí el valor no puede pasar del inicio de esa columna o se
+      // monta encima. Más abajo la derecha ya no tiene filas y se puede usar
+      // todo el ancho de página.
+      const inicioColumnaDerecha = columnStartX + (columnWidth + columnMargin);
+      const filasEnColumnaDerecha = datos.length - rowsPerColumn;
+      const compartRenglon = currentColumn === 0 && rowInColumn < filasEnColumnaDerecha;
+      const limiteDerecho = compartRenglon ? inicioColumnaDerecha - 2 : pageW - rightMargin;
+      const maxW = Math.max(20, limiteDerecho - valueX);
+
+      if (esDescripcionObra) {
+        // Descripción de la obra/labor — wrap para que NUNCA se corte ni se salga.
+        const lines: string[] = doc.splitTextToSize(valor.trim() || '—', maxW);
+        doc.text(lines, valueX, y);
         descripcionExtraLineas = Math.max(0, lines.length - 1);
-      } else if (index > 11) {
-        // Establecer el valor en fuente negrita
-        doc.setFont('helvetica', 'bold');
-        doc.text(item.valor, x + 30.2, y);
       } else {
-        // Establecer el valor en fuente negrita
-        doc.setFont('helvetica', 'bold');
-        doc.text(item.valor ?? '', x + 48, y);
+        // `maxWidth` hace que jsPDF reparta en varias líneas en vez de
+        // desbordarse sobre la columna vecina.
+        doc.text(valor, valueX, y, { maxWidth: maxW });
       }
     });
 
@@ -8131,7 +8437,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     y += 5; // Espacio adicional después del contenido
     doc.setFontSize(6.5);
     doc.setFont('helvetica', 'normal');
-    let texto2 = 'TERCERA. El salario como contraprestación del servicio será el indicado arriba, según la clasificación de oficios y tarifas determinados por el EMPLEADOR, la cual hace parte de este contrato; sometida sí en su eficiencia a que el valor a recibir corresponda al oficio respectivo efectivamente contratado con el usuario, según el tiempo laborado en la respectiva jornada, inferior a la máxima legal; éste regirá en proporción al número de horas respectivamente trabajadas y en él están los valores incluidos correspondientes a dominicales y festivos reconocidos por la ley como descanso remunerado. PARÁGRAFO PRIMERO: El patrono manifiesta expresamente que el TRABAJADOR tendrá derecho a todas las prestaciones sociales consagradas en la ley 50 de 1990 y demás estipulaciones previstas en el CST. Tales como compensación monetaria por vacaciones y prima de servicios proporcional al tiempo laborado, cualquiera que este sea. PARÁGRAFO SEGUNDO: Se conviene por las partes, que en caso de que el TRABAJADOR devengue comisiones o cualquiera otra modalidad de salario variable, el 82.5 % de dichos ingresos constituyen remuneración ordinaria y el 17.5 % restante está destinado a remunerar el descanso en días dominicales y festivos de que tratan los capítulos I y II del título VII del CST. CUARTA. EL TRABAJADOR, se someterá al horario de trabajo que señale el EMPLEADOR de acuerdo con las especificaciones del Usuario. QUINTA. PERÍODO DE PRUEBA: el período de prueba no excederá de dos (2) meses ni podrá ser superior a la quinta parte del término pactado, si el contrato tuviere una duración inferior a un año. SEXTA. EL TRABAJADOR y EL EMPLEADOR podrán convenir en repartir las horas de la jornada diaria en los términos del Art. 164 del CST., teniendo en cuenta que el descanso entre las secciones de la jornada no se computa dentro de la misma, según el art. 167 del estatuto Ibídem. Así mismo todo trabajador extra, suplementario o festivo, solo será reconocido en caso de ser exigido o autorizado a trabajar por el EMPLEADOR a solicitud de la entidad con la cual aquel tenga acuerdo de realización de trabajo o servicio. SÉPTIMA. Son justas causas para dar por terminado este contrato, además de las previstas en el art.7° del decreto 2351, las disposiciones concordantes y las consignadas en el reglamento interno del trabajo del EMPLEADOR, así como las siguientes: 1ª La terminación por cualquier causa, del contrato de prestación de servicios suscritos entre el EMPLEADOR y el USUARIO en donde prestará servicios el TRABAJADOR. 2ª El que la EMPRESA USUARIA en donde prestará servicios el TRABAJADOR, solicite el cambio de este por cualquier causa. 3ª El que la EMPRESA USUARIA en donde prestará servicios el TRABAJADOR, comunique la terminación de la obra o labor contratada. 4ª Que la EMPRESA USUARIA comunique al EMPLEADOR el incumplimiento leve de cualquiera de las obligaciones por parte del TRABAJADOR en TRES oportunidades, dos de las cuales hayan generado SANCIÓN AL TRABAJADOR. OCTAVA. Las partes acuerdan que NO CONSTITUYEN SALARIO, las sumas que ocasionalmente y por mera liberalidad reciba el TRABAJADOR del EMPLEADOR, como auxilios, gratificaciones, bonificaciones, primas extralegales, premios, bonos ocasionales, gastos de transporte adicionales y representación que el EMPLEADOR otorgue o llegue a otorgar en cualquier tiempo al TRABAJADOR, como tampoco no constituyen salario en dinero o en especie, cualquier alimentación, habitación o vestuario que entregue el EMPLEADOR, o un TERCERO al TRABAJADOR, durante la vigencia de este contrato.Tampoco constituirá salario, conforme a los términos del artículo 128 del Código Sustantivo del trabajo, cualquier bonificación o auxilio habitual, que se llegaren a acordar convencional o habitualmente entre las partes. Estos dineros, no se computarán como parte de salario para efectos de prestaciones sociales liquidables o BASE1 de éste. Al efecto el TRABAJADOR y el EMPLEADOR, así lo pactan expresamente en los términos del artículo 128 del C.S. del T. en C. Con. Con el articulo quince (15) de la ley cincuenta (50) de 1990. PARÁGRAFO PRIMERO: Las partes acuerdan que el EMPLEADOR, a su arbitrio y liberalidad podrá en cualquier momento cancelar o retirar el pago de bonificaciones habituales o esporádicas que en algún momento reconozca o hubiese reconocido al trabajador diferentes a su salario, sin que esto constituya desmejora de sus condiciones laborales; toda vez que como salario y retribución directa a favor del trabajador derivada de su actividad o fuerza laboral únicamente se pacta la suma establecida en la caratula del presente contrato. NOVENA. En caso que el TRABAJADOR requiera ausentarse de su lugar de trabajo, deberá avisar por lo menos con 24 horas de anticipación a la EMPRESA USUARIA o según lo establecido en el Reglamento Interno de la misma. DÉCIMA. CONFIDENCIALIDAD: El TRABAJADOR en virtud del presente contrato se compromete a 1) Manejar de manera confidencial la información que como tal sea presentada y entregada, y toda aquella que se genere en torno a ella como fruto de la prestación de sus servicios. 2) Guardar confidencialidad sobre esta información y no emplearla en beneficio propio o de terceros mientras conserve sus características de confidencialidad y que pueda perjudicar los intereses del EMPLEADOR o de la EMPRESA USUARIA. 3) Solicitar previamente y por escrito autorización para cualquier publicación relacionada con el tema de contrato, autorización que debe solicitarse ante el empleador. DÉCIMA PRIMERA. AUTORIZACION TRATAMIENTO DE DATOS PERSONALES, 1). De acuerdo a lo establecido en la ley 1581 de 2012, la Constitución Nacional y a las políticas establecidas por el EMPLEADOR para el caso en particular, el trabajador debe guardar reserva respecto a la protección de datos de los clientes, proveedores, compañeros, directivos del EMPLEADOR Y EMPRESA USUARIA, salvo que medie autorización expresa de cada persona para divulgar la información. 2). Guardar completa reserva sobre las operaciones, negocios y procedimientos industriales y comerciales, o cualquier otra clase de datos acerca del EMPLEADOR Y EMPRESA USUARIA que conozca por razón de sus funciones o de sus relaciones con ella, lo que no obsta para denunciar delitos comunes o violaciones del contrato de trabajo o de las normas legales de trabajo ante las autoridades competentes. DÉCIMA SEGUNDA. DECLARACIONES: Autorización Tratamiento Datos Personales “Ley de Protección de Datos 1581 de 2012 – decreto 1733 de 2013” Declaro que he sido informado que conozco y acepto la Política de Uso de Datos Personales e Información del EMPLEADOR, y que la información proporcionada es veraz, completa, exacta, actualizada y verificable. Mediante la firma del presente documento, manifiesto que conoce y acepto que cualquier consulta o reclamación relacionada con el Tratamiento de sus datos personales podrá ser elevada por escrito ante el EMPLEADOR; (¡) Que la Empresa APOYO LABORAL TS S.A.S con NIT. 900.814.586-1, con domicilio principal en la Calle 7 No. 7– 49 de Madrid, para efectos de lo dispuesto en la ley Estatutaria 1581 de 2012, el Decreto 1733 de 2013, y demás normas que lo adicionen o modifiquen relativas a la Protección de Datos Personales, es responsable del tratamiento de los datos PERSONALES QUE LE HE SUMINISTRADO. (¡¡).Que, para el ejercicio de mis derechos relacionados con mis datos personales, el EMPLEADOR ha puesto a mi disposición la línea de atención: Afiliados marcando a Bogotá 6017444002; a través del correo electrónico protecciondedatos@tsservicios.co; las oficinas del EMPLEADOR a nivel nacional o en la Carrera 112ª # 18ª 05 de Bogotá. En todo caso, he sido informado que sólo podré elevar queja por infracciones a lo dispuesto en las normas sobre Protección de Datos ante la Superintendencia de Industria y Comercio una vez haya agotado el trámite ante el EMPLEADOR o sus encargados. Conozco que la normatividad de Protección de Datos Personales tiene por objeto el desarrollo del derecho constitucional de todas las personas a conocer, actualizar y rectificar de forma gratuita la información que se recaude sobre ellas en bases de datos o archivos, y los derechos, libertades y garantías a los que se refieren el artículo 15 y 20 de la Constitución Política de Colombia. Autorizo también, de manera expresa, el envío de mensajes a través de cualquier medio que he registrado a mi EMPLEADOR el día de la contratación, para remitir comunicados internos sobre información concerniente a Seguridad Social, así como también, la notificaciones sobre licencias, permisos, cartas laborales, cesantías, citaciones, memorandos, y todos aquellos procesos internos que conlleven a la comunicación entre el EMPLEADOR y el EMPLEADO. (iii) Notificación sobre desprendibles de pagos de Nómina y/o liquidación final. En adición y complemento de las autorizaciones previamente otorgadas, autorizo de manera expresa y previa sin lugar a pagos ni retribuciones al EMPLEADOR, a sus sucesores, cesionarios a cualquier título o a quien represente los derechos, para que efectúe el Tratamiento de mis Datos Personales de la  manera y para las finalidades que se señalan a continuación. Para efectos de la presente autorización, se entiende por “Datos Personales” la información personal que suministre por cualquier medio, incluyendo, pero sin limitarse a, aquella de carácter financiero, crediticio, ';
+    let texto2 = 'TERCERA. El salario como contraprestación del servicio será el indicado arriba, según la clasificación de oficios y tarifas determinados por el EMPLEADOR, la cual hace parte de este contrato; sometida sí en su eficiencia a que el valor a recibir corresponda al oficio respectivo efectivamente contratado con el usuario, según el tiempo laborado en la respectiva jornada, inferior a la máxima legal; éste regirá en proporción al número de horas respectivamente trabajadas y en él están los valores incluidos correspondientes a dominicales y festivos reconocidos por la ley como descanso remunerado. PARÁGRAFO PRIMERO: El patrono manifiesta expresamente que el TRABAJADOR tendrá derecho a todas las prestaciones sociales consagradas en la ley 50 de 1990 y demás estipulaciones previstas en el CST. Tales como compensación monetaria por vacaciones y prima de servicios proporcional al tiempo laborado, cualquiera que este sea. PARÁGRAFO SEGUNDO: Se conviene por las partes, que en caso de que el TRABAJADOR devengue comisiones o cualquiera otra modalidad de salario variable, el 82.5 % de dichos ingresos constituyen remuneración ordinaria y el 17.5 % restante está destinado a remunerar el descanso en días dominicales y festivos de que tratan los capítulos I y II del título VII del CST. CUARTA. EL TRABAJADOR, se someterá al horario de trabajo que señale el EMPLEADOR de acuerdo con las especificaciones del Usuario. QUINTA. PERÍODO DE PRUEBA: el período de prueba no excederá de dos (2) meses ni podrá ser superior a la quinta parte del término pactado, si el contrato tuviere una duración inferior a un año. SEXTA. EL TRABAJADOR y EL EMPLEADOR podrán convenir en repartir las horas de la jornada diaria en los términos del Art. 164 del CST., teniendo en cuenta que el descanso entre las secciones de la jornada no se computa dentro de la misma, según el art. 167 del estatuto Ibídem. Así mismo todo trabajador extra, suplementario o festivo, solo será reconocido en caso de ser exigido o autorizado a trabajar por el EMPLEADOR a solicitud de la entidad con la cual aquel tenga acuerdo de realización de trabajo o servicio. SÉPTIMA. Son justas causas para dar por terminado este contrato, además de las previstas en el art.7° del decreto 2351, las disposiciones concordantes y las consignadas en el reglamento interno del trabajo del EMPLEADOR, así como las siguientes: 1ª La terminación por cualquier causa, del contrato de prestación de servicios suscritos entre el EMPLEADOR y el USUARIO en donde prestará servicios el TRABAJADOR. 2ª El que la EMPRESA USUARIA en donde prestará servicios el TRABAJADOR, solicite el cambio de este por cualquier causa. 3ª El que la EMPRESA USUARIA en donde prestará servicios el TRABAJADOR, comunique la terminación de la obra o labor contratada. 4ª Que la EMPRESA USUARIA comunique al EMPLEADOR el incumplimiento leve de cualquiera de las obligaciones por parte del TRABAJADOR en TRES oportunidades, dos de las cuales hayan generado SANCIÓN AL TRABAJADOR. OCTAVA. Las partes acuerdan que NO CONSTITUYEN SALARIO, las sumas que ocasionalmente y por mera liberalidad reciba el TRABAJADOR del EMPLEADOR, como auxilios, gratificaciones, bonificaciones, primas extralegales, premios, bonos ocasionales, gastos de transporte adicionales y representación que el EMPLEADOR otorgue o llegue a otorgar en cualquier tiempo al TRABAJADOR, como tampoco no constituyen salario en dinero o en especie, cualquier alimentación, habitación o vestuario que entregue el EMPLEADOR, o un TERCERO al TRABAJADOR, durante la vigencia de este contrato.Tampoco constituirá salario, conforme a los términos del artículo 128 del Código Sustantivo del trabajo, cualquier bonificación o auxilio habitual, que se llegaren a acordar convencional o habitualmente entre las partes. Estos dineros, no se computarán como parte de salario para efectos de prestaciones sociales liquidables o BASE1 de éste. Al efecto el TRABAJADOR y el EMPLEADOR, así lo pactan expresamente en los términos del artículo 128 del C.S. del T. en C. Con. Con el articulo quince (15) de la ley cincuenta (50) de 1990. PARÁGRAFO PRIMERO: Las partes acuerdan que el EMPLEADOR, a su arbitrio y liberalidad podrá en cualquier momento cancelar o retirar el pago de bonificaciones habituales o esporádicas que en algún momento reconozca o hubiese reconocido al trabajador diferentes a su salario, sin que esto constituya desmejora de sus condiciones laborales; toda vez que como salario y retribución directa a favor del trabajador derivada de su actividad o fuerza laboral únicamente se pacta la suma establecida en la caratula del presente contrato. NOVENA. En caso que el TRABAJADOR requiera ausentarse de su lugar de trabajo, deberá avisar por lo menos con 24 horas de anticipación a la EMPRESA USUARIA o según lo establecido en el Reglamento Interno de la misma. DÉCIMA. CONFIDENCIALIDAD: El TRABAJADOR en virtud del presente contrato se compromete a 1) Manejar de manera confidencial la información que como tal sea presentada y entregada, y toda aquella que se genere en torno a ella como fruto de la prestación de sus servicios. 2) Guardar confidencialidad sobre esta información y no emplearla en beneficio propio o de terceros mientras conserve sus características de confidencialidad y que pueda perjudicar los intereses del EMPLEADOR o de la EMPRESA USUARIA. 3) Solicitar previamente y por escrito autorización para cualquier publicación relacionada con el tema de contrato, autorización que debe solicitarse ante el empleador. DÉCIMA PRIMERA. AUTORIZACION TRATAMIENTO DE DATOS PERSONALES, 1). De acuerdo a lo establecido en la ley 1581 de 2012, la Constitución Nacional y a las políticas establecidas por el EMPLEADOR para el caso en particular, el trabajador debe guardar reserva respecto a la protección de datos de los clientes, proveedores, compañeros, directivos del EMPLEADOR Y EMPRESA USUARIA, salvo que medie autorización expresa de cada persona para divulgar la información. 2). Guardar completa reserva sobre las operaciones, negocios y procedimientos industriales y comerciales, o cualquier otra clase de datos acerca del EMPLEADOR Y EMPRESA USUARIA que conozca por razón de sus funciones o de sus relaciones con ella, lo que no obsta para denunciar delitos comunes o violaciones del contrato de trabajo o de las normas legales de trabajo ante las autoridades competentes. DÉCIMA SEGUNDA. DECLARACIONES: Autorización Tratamiento Datos Personales “Ley de Protección de Datos 1581 de 2012 – decreto 1733 de 2013” Declaro que he sido informado que conozco y acepto la Política de Uso de Datos Personales e Información del EMPLEADOR, y que la información proporcionada es veraz, completa, exacta, actualizada y verificable. Mediante la firma del presente documento, manifiesto que conoce y acepto que cualquier consulta o reclamación relacionada con el Tratamiento de sus datos personales podrá ser elevada por escrito ante el EMPLEADOR; (¡) Que la Empresa APOYO LABORAL TS S.A.S con NIT. 900.814.586-1, con domicilio principal en la Calle 7 No. 7– 49 de Madrid, para efectos de lo dispuesto en la ley Estatutaria 1581 de 2012, el Decreto 1733 de 2013, y demás normas que lo adicionen o modifiquen relativas a la Protección de Datos Personales, es responsable del tratamiento de los datos PERSONALES QUE LE HE SUMINISTRADO. (¡¡).Que, para el ejercicio de mis derechos relacionados con mis datos personales, el EMPLEADOR ha puesto a mi disposición la línea de atención: Afiliados marcando a Bogotá 6017444002; a través del correo electrónico protecciondedatos.tuapo@gmail.com; las oficinas del EMPLEADOR a nivel nacional o en la Carrera 112ª # 18ª 05 de Bogotá. En todo caso, he sido informado que sólo podré elevar queja por infracciones a lo dispuesto en las normas sobre Protección de Datos ante la Superintendencia de Industria y Comercio una vez haya agotado el trámite ante el EMPLEADOR o sus encargados. Conozco que la normatividad de Protección de Datos Personales tiene por objeto el desarrollo del derecho constitucional de todas las personas a conocer, actualizar y rectificar de forma gratuita la información que se recaude sobre ellas en bases de datos o archivos, y los derechos, libertades y garantías a los que se refieren el artículo 15 y 20 de la Constitución Política de Colombia. Autorizo también, de manera expresa, el envío de mensajes a través de cualquier medio que he registrado a mi EMPLEADOR el día de la contratación, para remitir comunicados internos sobre información concerniente a Seguridad Social, así como también, la notificaciones sobre licencias, permisos, cartas laborales, cesantías, citaciones, memorandos, y todos aquellos procesos internos que conlleven a la comunicación entre el EMPLEADOR y el EMPLEADO. (iii) Notificación sobre desprendibles de pagos de Nómina y/o liquidación final. En adición y complemento de las autorizaciones previamente otorgadas, autorizo de manera expresa y previa sin lugar a pagos ni retribuciones al EMPLEADOR, a sus sucesores, cesionarios a cualquier título o a quien represente los derechos, para que efectúe el Tratamiento de mis Datos Personales de la  manera y para las finalidades que se señalan a continuación. Para efectos de la presente autorización, se entiende por “Datos Personales” la información personal que suministre por cualquier medio, incluyendo, pero sin limitarse a, aquella de carácter financiero, crediticio, ';
     y = this.renderJustifiedText(doc, texto2, x, y, maxWidth, lineHeight);
 
     doc.setFontSize(7);
@@ -8159,7 +8465,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     // Encabezados
     doc.setFont('helvetica', 'bold');
     doc.text("PROCESO DE CONTRATACIÓN", tableStartX + 55, startY + 3);
-    doc.text(this.codigoContratacion, tableStartX + 130, startY + 3);
+    doc.text(this.codigoContratacion ?? '', tableStartX + 130, startY + 3);
     doc.text("CONTRATO DE TRABAJO POR OBRA O LABOR", tableStartX + 43, startY + 7);
 
     // Líneas divisoras
@@ -8213,7 +8519,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     // Encabezados
     doc.setFont('helvetica', 'bold');
     doc.text("PROCESO DE CONTRATACIÓN", tableStartX + 55, startY + 3);
-    doc.text(this.codigoContratacion, tableStartX + 130, startY + 3);
+    doc.text(this.codigoContratacion ?? '', tableStartX + 130, startY + 3);
     doc.text("CONTRATO DE TRABAJO POR OBRA O LABOR", tableStartX + 43, startY + 7);
 
     // Líneas divisoras
@@ -8256,7 +8562,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     const fechaFirmaContrato = this.getFechaContrato();
     const fechaFirmaTextoLargo = fechaFirmaContrato.toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric' });
     doc.setFont('helvetica', 'bold');
-    doc.text('Para constancia se firma ante testigos el día ' + fechaFirmaTextoLargo + ' En el Municipio de ' + this.sede, 5, y);
+    doc.text('Para constancia se firma ante testigos el día ' + fechaFirmaTextoLargo + ' En el Municipio de ' + this.municipioFirma, 5, y);
 
     // Firma
     const firmaPath = 'firma/FirmaMayra.png';
@@ -8858,7 +9164,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     y += 10; // Espacio adicional después del contenido
     doc.setFontSize(6.5);
     doc.setFont('helvetica', 'normal');
-    let texto2 = 'TERCERA. El salario como contraprestación del servicio será el indicado arriba, según la clasificación de oficios y tarifas determinados por el EMPLEADOR, la cual hace parte de este contrato; sometida sí en su eficiencia a que el valor a recibir corresponda al oficio respectivo efectivamente contratado con el usuario, según el tiempo laborado en la respectiva jornada, inferior a la máxima legal; éste regirá en proporción al número de horas respectivamente trabajadas y en él están los valores incluidos correspondientes a dominicales y festivos reconocidos por la ley como descanso remunerado. PARÁGRAFO PRIMERO: El patrono manifiesta expresamente que el TRABAJADOR tendrá derecho a todas las prestaciones sociales consagradas en la ley 50 de 1990 y demás estipulaciones previstas en el CST. Tales como compensación monetaria por vacaciones y prima de  servicios  proporcional al tiempo laborado, cualquiera que este sea. PARÁGRAFO SEGUNDO: Se conviene por las partes, que en caso de que el TRABAJADOR devengue comisiones o cualquiera otra modalidad de salario variable, el 82.5 % de dichos ingresos constituyen remuneración ordinaria y el 17.5 % restante  está  destinado  a  remunerar  el  descanso  en  días  dominicales y festivos de que tratan los capítulos I y II del título VII del CST. CUARTA. EL TRABAJADOR, se someterá al horario de trabajo que señale el EMPLEADOR de acuerdo con las especificaciones del Usuario. QUINTA. PERÍODO DE PRUEBA: el período de prueba no excederá de dos (2) meses ni podrá ser superior a la quinta parte del término pactado, si el contrato tuviere una duración inferior a un año. SEXTA. EL TRABAJADOR y EL EMPLEADOR podrán convenir en repartir las horas de la jornada diaria en los términos del Art. 164 del CST., teniendo en cuenta que el descanso entre las secciones de la jornada no se computa dentro de la misma, según el art. 167 del estatuto Ibídem.  Así  mismo  todo  trabajador  extra,  suplementario  o  festivo, solo  será reconocido en caso de ser exigido o autorizado a trabajar por el EMPLEADOR a solicitud de la entidad con la cual aquel tenga acuerdo de realización de trabajo o servicio. SÉPTIMA. Son justas causas para dar por terminado este contrato, además de las previstas en el art.7° del decreto 2351, las disposiciones concordantes y las consignadas en el reglamento interno del trabajo del EMPLEADOR, así como las siguientes: 1ª La terminación por cualquier causa, del contrato de prestación de servicios suscritos entre el EMPLEADOR y el USUARIO en donde prestará servicios el TRABAJADOR. 2ª El que la EMPRESA USUARIA en donde prestará servicios el TRABAJADOR, solicite el cambio de este por cualquier causa. 3ª El que la EMPRESA USUARIA en donde prestará servicios el TRABAJADOR, comunique la terminación de la obra o labor contratada. 4ª Que la EMPRESA USUARIA comunique al EMPLEADOR el incumplimiento leve de cualquiera de las obligaciones por parte del TRABAJADOR en TRES oportunidades, dos de las cuales hayan generado SANCIÓN AL TRABAJADOR. OCTAVA. Las partes acuerdan que NO CONSTITUYEN SALARIO, las sumas que ocasionalmente y por mera liberalidad reciba el TRABAJADOR del EMPLEADOR, como auxilios, gratificaciones, bonificaciones, primas extralegales, premios, bonos ocasionales, gastos de transporte adicionales y representación que el EMPLEADOR otorgue o llegue a otorgar en cualquier tiempo al TRABAJADOR, como tampoco no constituyen salario en dinero o en especie, cualquier alimentación, habitación o vestuario que entregue el EMPLEADOR, o un TERCERO al TRABAJADOR, durante la vigencia de este contrato. Tampoco constituirá salario, conforme a los términos del artículo 128 del Código Sustantivo del trabajo, cualquier bonificación o auxilio habitual, que se llegaren a acordar convencional o habitualmente entre las partes. Estos dineros, no se computarán como parte de salario para efectos de prestaciones sociales liquidables o BASE1 de éste. Al efecto el TRABAJADOR y el EMPLEADOR, así lo pactan expresamente en los términos del artículo 128 del C.S. del T. en C. Con. Con el articulo quince (15) de la ley cincuenta (50) de 1990. PARÁGRAFO PRIMERO: Las partes acuerdan que el EMPLEADOR, a su arbitrio y liberalidad podrá en cualquier momento cancelar o retirar el pago de bonificaciones habituales o esporádicas que en algún momento reconozca o hubiese reconocido al trabajador diferentes a su salario, sin que esto constituya desmejora de sus condiciones laborales; toda vez que como salario y retribución directa a favor del trabajador derivada de su actividad o fuerza laboral únicamente se pacta la suma establecida en la caratula del presente contrato. NOVENA.  En caso que el TRABAJADOR requiera ausentarse de su lugar de trabajo, deberá avisar por lo menos con 24 horas de anticipación a la EMPRESA USUARIA o según lo establecido en el Reglamento Interno de la misma.  DÉCIMA. CONFIDENCIALIDAD: El TRABAJADOR en virtud del presente contrato se compromete a 1) Manejar de manera confidencial la información que como tal sea presentada y entregada, y toda aquella que se genere en torno a ella como fruto de la prestación de sus servicios. 2) Guardar confidencialidad sobre esta información y no emplearla en beneficio propio o de terceros mientras conserve sus características de confidencialidad y que pueda perjudicar los intereses del EMPLEADOR o de la EMPRESA USUARIA. 3) Solicitar previamente y por escrito autorización para cualquier publicación relacionada con el tema de contrato, autorización que debe solicitarse ante el empleador. DÉCIMA PRIMERA. AUTORIZACION TRATAMIENTO DE DATOS PERSONALES, 1). De acuerdo a lo establecido en la ley 1581 de 2012, la Constitución Nacional y a las políticas establecidas por el EMPLEADOR para el caso en particular, el trabajador debe guardar reserva respecto a la protección de datos de los clientes, proveedores, compañeros, directivos del EMPLEADOR Y EMPRESA USUARIA, salvo que medie autorización expresa de cada persona para divulgar la información. 2). Guardar completa reserva sobre las operaciones, negocios y procedimientos industriales y comerciales, o cualquier otra clase de datos acerca del EMPLEADOR Y EMPRESA USUARIA que conozca por razón de sus funciones o de sus relaciones con ella, lo que no obsta para denunciar delitos comunes o violaciones del contrato de trabajo o de las normas legales de trabajo ante las autoridades competentes. DÉCIMA SEGUNDA. DECLARACIONES: Autorización Tratamiento Datos Personales “Ley de Protección de Datos 1581 de 2012 – decreto 1733 de 2013” Declaro que he sido informado que conozco y acepto la Política de Uso de Datos Personales e Información del EMPLEADOR, y que la información proporcionada es veraz, completa, exacta, actualizada y verificable. Mediante la firma del presente documento, manifiesto que conoce y acepto que cualquier consulta o reclamación relacionada con el Tratamiento de sus datos personales podrá ser elevada por escrito ante el EMPLEADOR; (¡) Que la Empresa TU ALIANZA S.A.S con NIT. 900.864.596-1, con domicilio principal en la Calle 7 No. 7– 49 de Madrid,  para efectos  de  lo  dispuesto  en  la ley  Estatutaria  1581  de  2012,  el  Decreto  1733  de  2013,  y  demás  normas  que  lo adicionen o modifiquen relativas a la Protección de Datos Personales, es responsable del tratamiento de los datos PERSONALES QUE LE HE SUMINISTRADO. (¡¡). Que, para el ejercicio de mis derechos relacionados con mis datos personales, el EMPLEADOR ha puesto a mi disposición la línea de atención: Afiliados marcando a Bogotá 6017444002; a través del correo electrónico protecciondedatos@tsservicios.co; las oficinas del EMPLEADOR a nivel nacional o en la Carrera 112ª # 18ª 05 de  Bogotá.  En  todo  caso,  he  sido  informado  que  sólo  podré  elevar  queja  por infracciones a lo dispuesto en las normas sobre Protección de Datos ante la Superintendencia de Industria y Comercio una vez haya agotado el trámite ante el EMPLEADOR o sus encargados. Conozco que la normatividad de Protección de Datos Personales tiene por  objeto  el  desarrollo  del  derecho  constitucional  de  todas  las  personas  a  conocer,  actualizar  y  rectificar  de  forma  gratuita  la  información  que  se  recaude  sobre  ellas  en'
+    let texto2 = 'TERCERA. El salario como contraprestación del servicio será el indicado arriba, según la clasificación de oficios y tarifas determinados por el EMPLEADOR, la cual hace parte de este contrato; sometida sí en su eficiencia a que el valor a recibir corresponda al oficio respectivo efectivamente contratado con el usuario, según el tiempo laborado en la respectiva jornada, inferior a la máxima legal; éste regirá en proporción al número de horas respectivamente trabajadas y en él están los valores incluidos correspondientes a dominicales y festivos reconocidos por la ley como descanso remunerado. PARÁGRAFO PRIMERO: El patrono manifiesta expresamente que el TRABAJADOR tendrá derecho a todas las prestaciones sociales consagradas en la ley 50 de 1990 y demás estipulaciones previstas en el CST. Tales como compensación monetaria por vacaciones y prima de  servicios  proporcional al tiempo laborado, cualquiera que este sea. PARÁGRAFO SEGUNDO: Se conviene por las partes, que en caso de que el TRABAJADOR devengue comisiones o cualquiera otra modalidad de salario variable, el 82.5 % de dichos ingresos constituyen remuneración ordinaria y el 17.5 % restante  está  destinado  a  remunerar  el  descanso  en  días  dominicales y festivos de que tratan los capítulos I y II del título VII del CST. CUARTA. EL TRABAJADOR, se someterá al horario de trabajo que señale el EMPLEADOR de acuerdo con las especificaciones del Usuario. QUINTA. PERÍODO DE PRUEBA: el período de prueba no excederá de dos (2) meses ni podrá ser superior a la quinta parte del término pactado, si el contrato tuviere una duración inferior a un año. SEXTA. EL TRABAJADOR y EL EMPLEADOR podrán convenir en repartir las horas de la jornada diaria en los términos del Art. 164 del CST., teniendo en cuenta que el descanso entre las secciones de la jornada no se computa dentro de la misma, según el art. 167 del estatuto Ibídem.  Así  mismo  todo  trabajador  extra,  suplementario  o  festivo, solo  será reconocido en caso de ser exigido o autorizado a trabajar por el EMPLEADOR a solicitud de la entidad con la cual aquel tenga acuerdo de realización de trabajo o servicio. SÉPTIMA. Son justas causas para dar por terminado este contrato, además de las previstas en el art.7° del decreto 2351, las disposiciones concordantes y las consignadas en el reglamento interno del trabajo del EMPLEADOR, así como las siguientes: 1ª La terminación por cualquier causa, del contrato de prestación de servicios suscritos entre el EMPLEADOR y el USUARIO en donde prestará servicios el TRABAJADOR. 2ª El que la EMPRESA USUARIA en donde prestará servicios el TRABAJADOR, solicite el cambio de este por cualquier causa. 3ª El que la EMPRESA USUARIA en donde prestará servicios el TRABAJADOR, comunique la terminación de la obra o labor contratada. 4ª Que la EMPRESA USUARIA comunique al EMPLEADOR el incumplimiento leve de cualquiera de las obligaciones por parte del TRABAJADOR en TRES oportunidades, dos de las cuales hayan generado SANCIÓN AL TRABAJADOR. OCTAVA. Las partes acuerdan que NO CONSTITUYEN SALARIO, las sumas que ocasionalmente y por mera liberalidad reciba el TRABAJADOR del EMPLEADOR, como auxilios, gratificaciones, bonificaciones, primas extralegales, premios, bonos ocasionales, gastos de transporte adicionales y representación que el EMPLEADOR otorgue o llegue a otorgar en cualquier tiempo al TRABAJADOR, como tampoco no constituyen salario en dinero o en especie, cualquier alimentación, habitación o vestuario que entregue el EMPLEADOR, o un TERCERO al TRABAJADOR, durante la vigencia de este contrato. Tampoco constituirá salario, conforme a los términos del artículo 128 del Código Sustantivo del trabajo, cualquier bonificación o auxilio habitual, que se llegaren a acordar convencional o habitualmente entre las partes. Estos dineros, no se computarán como parte de salario para efectos de prestaciones sociales liquidables o BASE1 de éste. Al efecto el TRABAJADOR y el EMPLEADOR, así lo pactan expresamente en los términos del artículo 128 del C.S. del T. en C. Con. Con el articulo quince (15) de la ley cincuenta (50) de 1990. PARÁGRAFO PRIMERO: Las partes acuerdan que el EMPLEADOR, a su arbitrio y liberalidad podrá en cualquier momento cancelar o retirar el pago de bonificaciones habituales o esporádicas que en algún momento reconozca o hubiese reconocido al trabajador diferentes a su salario, sin que esto constituya desmejora de sus condiciones laborales; toda vez que como salario y retribución directa a favor del trabajador derivada de su actividad o fuerza laboral únicamente se pacta la suma establecida en la caratula del presente contrato. NOVENA.  En caso que el TRABAJADOR requiera ausentarse de su lugar de trabajo, deberá avisar por lo menos con 24 horas de anticipación a la EMPRESA USUARIA o según lo establecido en el Reglamento Interno de la misma.  DÉCIMA. CONFIDENCIALIDAD: El TRABAJADOR en virtud del presente contrato se compromete a 1) Manejar de manera confidencial la información que como tal sea presentada y entregada, y toda aquella que se genere en torno a ella como fruto de la prestación de sus servicios. 2) Guardar confidencialidad sobre esta información y no emplearla en beneficio propio o de terceros mientras conserve sus características de confidencialidad y que pueda perjudicar los intereses del EMPLEADOR o de la EMPRESA USUARIA. 3) Solicitar previamente y por escrito autorización para cualquier publicación relacionada con el tema de contrato, autorización que debe solicitarse ante el empleador. DÉCIMA PRIMERA. AUTORIZACION TRATAMIENTO DE DATOS PERSONALES, 1). De acuerdo a lo establecido en la ley 1581 de 2012, la Constitución Nacional y a las políticas establecidas por el EMPLEADOR para el caso en particular, el trabajador debe guardar reserva respecto a la protección de datos de los clientes, proveedores, compañeros, directivos del EMPLEADOR Y EMPRESA USUARIA, salvo que medie autorización expresa de cada persona para divulgar la información. 2). Guardar completa reserva sobre las operaciones, negocios y procedimientos industriales y comerciales, o cualquier otra clase de datos acerca del EMPLEADOR Y EMPRESA USUARIA que conozca por razón de sus funciones o de sus relaciones con ella, lo que no obsta para denunciar delitos comunes o violaciones del contrato de trabajo o de las normas legales de trabajo ante las autoridades competentes. DÉCIMA SEGUNDA. DECLARACIONES: Autorización Tratamiento Datos Personales “Ley de Protección de Datos 1581 de 2012 – decreto 1733 de 2013” Declaro que he sido informado que conozco y acepto la Política de Uso de Datos Personales e Información del EMPLEADOR, y que la información proporcionada es veraz, completa, exacta, actualizada y verificable. Mediante la firma del presente documento, manifiesto que conoce y acepto que cualquier consulta o reclamación relacionada con el Tratamiento de sus datos personales podrá ser elevada por escrito ante el EMPLEADOR; (¡) Que la Empresa TU ALIANZA S.A.S con NIT. 900.864.596-1, con domicilio principal en la Calle 7 No. 7– 49 de Madrid,  para efectos  de  lo  dispuesto  en  la ley  Estatutaria  1581  de  2012,  el  Decreto  1733  de  2013,  y  demás  normas  que  lo adicionen o modifiquen relativas a la Protección de Datos Personales, es responsable del tratamiento de los datos PERSONALES QUE LE HE SUMINISTRADO. (¡¡). Que, para el ejercicio de mis derechos relacionados con mis datos personales, el EMPLEADOR ha puesto a mi disposición la línea de atención: Afiliados marcando a Bogotá 6017444002; a través del correo electrónico protecciondedatos.tuapo@gmail.com; las oficinas del EMPLEADOR a nivel nacional o en la Carrera 112ª # 18ª 05 de  Bogotá.  En  todo  caso,  he  sido  informado  que  sólo  podré  elevar  queja  por infracciones a lo dispuesto en las normas sobre Protección de Datos ante la Superintendencia de Industria y Comercio una vez haya agotado el trámite ante el EMPLEADOR o sus encargados. Conozco que la normatividad de Protección de Datos Personales tiene por  objeto  el  desarrollo  del  derecho  constitucional  de  todas  las  personas  a  conocer,  actualizar  y  rectificar  de  forma  gratuita  la  información  que  se  recaude  sobre  ellas  en'
     y = this.renderJustifiedText(doc, texto2, x, y, maxWidth, lineHeight);
 
     doc.setFontSize(7);
@@ -9440,7 +9746,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     y += 10; // Espacio adicional después del contenido
     doc.setFontSize(6.5);
     doc.setFont('helvetica', 'normal');
-    let texto2 = 'TERCERA. El salario como contraprestación del servicio será el indicado arriba, según la clasificación de oficios y tarifas determinados por el EMPLEADOR, la cual hace parte de este contrato; sometida sí en su eficiencia a que el valor a recibir corresponda al oficio respectivo efectivamente contratado con el usuario, según el tiempo laborado en la respectiva jornada, inferior a la máxima legal; éste regirá en proporción al número de horas respectivamente trabajadas y en él están los valores incluidos correspondientes a dominicales y festivos reconocidos por la ley como descanso remunerado. PARÁGRAFO PRIMERO: El patrono manifiesta expresamente que el TRABAJADOR tendrá derecho a todas las prestaciones sociales consagradas en la ley 50 de 1990 y demás estipulaciones previstas en el CST. Tales como compensación monetaria por vacaciones y prima de  servicios  proporcional al tiempo laborado, cualquiera que este sea. PARÁGRAFO SEGUNDO: Se conviene por las partes, que en caso de que el TRABAJADOR devengue comisiones o cualquiera otra modalidad de salario variable, el 82.5 % de dichos ingresos constituyen remuneración ordinaria y el 17.5 % restante  está  destinado  a  remunerar  el  descanso  en  días  dominicales y festivos de que tratan los capítulos I y II del título VII del CST. CUARTA. EL TRABAJADOR, se someterá al horario de trabajo que señale el EMPLEADOR de acuerdo con las especificaciones del Usuario. QUINTA. PERÍODO DE PRUEBA: el período de prueba no excederá de dos (2) meses ni podrá ser superior a la quinta parte del término pactado, si el contrato tuviere una duración inferior a un año. SEXTA. EL TRABAJADOR y EL EMPLEADOR podrán convenir en repartir las horas de la jornada diaria en los términos del Art. 164 del CST., teniendo en cuenta que el descanso entre las secciones de la jornada no se computa dentro de la misma, según el art. 167 del estatuto Ibídem.  Así  mismo  todo  trabajador  extra,  suplementario  o  festivo, solo  será reconocido en caso de ser exigido o autorizado a trabajar por el EMPLEADOR a solicitud de la entidad con la cual aquel tenga acuerdo de realización de trabajo o servicio. SÉPTIMA. Son justas causas para dar por terminado este contrato, además de las previstas en el art.7° del decreto 2351, las disposiciones concordantes y las consignadas en el reglamento interno del trabajo del EMPLEADOR, así como las siguientes: 1ª La terminación por cualquier causa, del contrato de prestación de servicios suscritos entre el EMPLEADOR y el USUARIO en donde prestará servicios el TRABAJADOR. 2ª El que la EMPRESA USUARIA en donde prestará servicios el TRABAJADOR, solicite el cambio de este por cualquier causa. 3ª El que la EMPRESA USUARIA en donde prestará servicios el TRABAJADOR, comunique la terminación de la obra o labor contratada. 4ª Que la EMPRESA USUARIA comunique al EMPLEADOR el incumplimiento leve de cualquiera de las obligaciones por parte del TRABAJADOR en TRES oportunidades, dos de las cuales hayan generado SANCIÓN AL TRABAJADOR. OCTAVA. Las partes acuerdan que NO CONSTITUYEN SALARIO, las sumas que ocasionalmente y por mera liberalidad reciba el TRABAJADOR del EMPLEADOR, como auxilios, gratificaciones, bonificaciones, primas extralegales, premios, bonos ocasionales, gastos de transporte adicionales y representación que el EMPLEADOR otorgue o llegue a otorgar en cualquier tiempo al TRABAJADOR, como tampoco no constituyen salario en dinero o en especie, cualquier alimentación, habitación o vestuario que entregue el EMPLEADOR, o un TERCERO al TRABAJADOR, durante la vigencia de este contrato. Tampoco constituirá salario, conforme a los términos del artículo 128 del Código Sustantivo del trabajo, cualquier bonificación o auxilio habitual, que se llegaren a acordar convencional o habitualmente entre las partes. Estos dineros, no se computarán como parte de salario para efectos de prestaciones sociales liquidables o BASE1 de éste. Al efecto el TRABAJADOR y el EMPLEADOR, así lo pactan expresamente en los términos del artículo 128 del C.S. del T. en C. Con. Con el articulo quince (15) de la ley cincuenta (50) de 1990. PARÁGRAFO PRIMERO: Las partes acuerdan que el EMPLEADOR, a su arbitrio y liberalidad podrá en cualquier momento cancelar o retirar el pago de bonificaciones habituales o esporádicas que en algún momento reconozca o hubiese reconocido al trabajador diferentes a su salario, sin que esto constituya desmejora de sus condiciones laborales; toda vez que como salario y retribución directa a favor del trabajador derivada de su actividad o fuerza laboral únicamente se pacta la suma establecida en la caratula del presente contrato. NOVENA.  En caso que el TRABAJADOR requiera ausentarse de su lugar de trabajo, deberá avisar por lo menos con 24 horas de anticipación a la EMPRESA USUARIA o según lo establecido en el Reglamento Interno de la misma.  DÉCIMA. CONFIDENCIALIDAD: El TRABAJADOR en virtud del presente contrato se compromete a 1) Manejar de manera confidencial la información que como tal sea presentada y entregada, y toda aquella que se genere en torno a ella como fruto de la prestación de sus servicios. 2) Guardar confidencialidad sobre esta información y no emplearla en beneficio propio o de terceros mientras conserve sus características de confidencialidad y que pueda perjudicar los intereses del EMPLEADOR o de la EMPRESA USUARIA. 3) Solicitar previamente y por escrito autorización para cualquier publicación relacionada con el tema de contrato, autorización que debe solicitarse ante el empleador. DÉCIMA PRIMERA. AUTORIZACION TRATAMIENTO DE DATOS PERSONALES, 1). De acuerdo a lo establecido en la ley 1581 de 2012, la Constitución Nacional y a las políticas establecidas por el EMPLEADOR para el caso en particular, el trabajador debe guardar reserva respecto a la protección de datos de los clientes, proveedores, compañeros, directivos del EMPLEADOR Y EMPRESA USUARIA, salvo que medie autorización expresa de cada persona para divulgar la información. 2). Guardar completa reserva sobre las operaciones, negocios y procedimientos industriales y comerciales, o cualquier otra clase de datos acerca del EMPLEADOR Y EMPRESA USUARIA que conozca por razón de sus funciones o de sus relaciones con ella, lo que no obsta para denunciar delitos comunes o violaciones del contrato de trabajo o de las normas legales de trabajo ante las autoridades competentes. DÉCIMA SEGUNDA. DECLARACIONES: Autorización Tratamiento Datos Personales “Ley de Protección de Datos 1581 de 2012 – decreto 1733 de 2013” Declaro que he sido informado que conozco y acepto la Política de Uso de Datos Personales e Información del EMPLEADOR, y que la información proporcionada es veraz, completa, exacta, actualizada y verificable. Mediante la firma del presente documento, manifiesto que conoce y acepto que cualquier consulta o reclamación relacionada con el Tratamiento de sus datos personales podrá ser elevada por escrito ante el EMPLEADOR; (¡) Que la Empresa TU ALIANZA S.A.S con NIT. 900.864.596-1, con domicilio principal en la Calle 7 No. 7– 49 de Madrid,  para efectos  de  lo  dispuesto  en  la ley  Estatutaria  1581  de  2012,  el  Decreto  1733  de  2013,  y  demás  normas  que  lo adicionen o modifiquen relativas a la Protección de Datos Personales, es responsable del tratamiento de los datos PERSONALES QUE LE HE SUMINISTRADO. (¡¡). Que, para el ejercicio de mis derechos relacionados con mis datos personales, el EMPLEADOR ha puesto a mi disposición la línea de atención: Afiliados marcando a Bogotá 6017444002; a través del correo electrónico protecciondedatos@tsservicios.co; las oficinas del EMPLEADOR a nivel nacional o en la Carrera 112ª # 18ª 05 de  Bogotá.  En  todo  caso,  he  sido  informado  que  sólo  podré  elevar  queja  por infracciones a lo dispuesto en las normas sobre Protección de Datos ante la Superintendencia de Industria y Comercio una vez haya agotado el trámite ante el EMPLEADOR o sus encargados. Conozco que la normatividad de Protección de Datos Personales tiene por  objeto  el  desarrollo  del  derecho  constitucional  de  todas  las  personas  a  conocer,  actualizar  y  rectificar  de  forma  gratuita  la  información  que  se  recaude  sobre  ellas  en'
+    let texto2 = 'TERCERA. El salario como contraprestación del servicio será el indicado arriba, según la clasificación de oficios y tarifas determinados por el EMPLEADOR, la cual hace parte de este contrato; sometida sí en su eficiencia a que el valor a recibir corresponda al oficio respectivo efectivamente contratado con el usuario, según el tiempo laborado en la respectiva jornada, inferior a la máxima legal; éste regirá en proporción al número de horas respectivamente trabajadas y en él están los valores incluidos correspondientes a dominicales y festivos reconocidos por la ley como descanso remunerado. PARÁGRAFO PRIMERO: El patrono manifiesta expresamente que el TRABAJADOR tendrá derecho a todas las prestaciones sociales consagradas en la ley 50 de 1990 y demás estipulaciones previstas en el CST. Tales como compensación monetaria por vacaciones y prima de  servicios  proporcional al tiempo laborado, cualquiera que este sea. PARÁGRAFO SEGUNDO: Se conviene por las partes, que en caso de que el TRABAJADOR devengue comisiones o cualquiera otra modalidad de salario variable, el 82.5 % de dichos ingresos constituyen remuneración ordinaria y el 17.5 % restante  está  destinado  a  remunerar  el  descanso  en  días  dominicales y festivos de que tratan los capítulos I y II del título VII del CST. CUARTA. EL TRABAJADOR, se someterá al horario de trabajo que señale el EMPLEADOR de acuerdo con las especificaciones del Usuario. QUINTA. PERÍODO DE PRUEBA: el período de prueba no excederá de dos (2) meses ni podrá ser superior a la quinta parte del término pactado, si el contrato tuviere una duración inferior a un año. SEXTA. EL TRABAJADOR y EL EMPLEADOR podrán convenir en repartir las horas de la jornada diaria en los términos del Art. 164 del CST., teniendo en cuenta que el descanso entre las secciones de la jornada no se computa dentro de la misma, según el art. 167 del estatuto Ibídem.  Así  mismo  todo  trabajador  extra,  suplementario  o  festivo, solo  será reconocido en caso de ser exigido o autorizado a trabajar por el EMPLEADOR a solicitud de la entidad con la cual aquel tenga acuerdo de realización de trabajo o servicio. SÉPTIMA. Son justas causas para dar por terminado este contrato, además de las previstas en el art.7° del decreto 2351, las disposiciones concordantes y las consignadas en el reglamento interno del trabajo del EMPLEADOR, así como las siguientes: 1ª La terminación por cualquier causa, del contrato de prestación de servicios suscritos entre el EMPLEADOR y el USUARIO en donde prestará servicios el TRABAJADOR. 2ª El que la EMPRESA USUARIA en donde prestará servicios el TRABAJADOR, solicite el cambio de este por cualquier causa. 3ª El que la EMPRESA USUARIA en donde prestará servicios el TRABAJADOR, comunique la terminación de la obra o labor contratada. 4ª Que la EMPRESA USUARIA comunique al EMPLEADOR el incumplimiento leve de cualquiera de las obligaciones por parte del TRABAJADOR en TRES oportunidades, dos de las cuales hayan generado SANCIÓN AL TRABAJADOR. OCTAVA. Las partes acuerdan que NO CONSTITUYEN SALARIO, las sumas que ocasionalmente y por mera liberalidad reciba el TRABAJADOR del EMPLEADOR, como auxilios, gratificaciones, bonificaciones, primas extralegales, premios, bonos ocasionales, gastos de transporte adicionales y representación que el EMPLEADOR otorgue o llegue a otorgar en cualquier tiempo al TRABAJADOR, como tampoco no constituyen salario en dinero o en especie, cualquier alimentación, habitación o vestuario que entregue el EMPLEADOR, o un TERCERO al TRABAJADOR, durante la vigencia de este contrato. Tampoco constituirá salario, conforme a los términos del artículo 128 del Código Sustantivo del trabajo, cualquier bonificación o auxilio habitual, que se llegaren a acordar convencional o habitualmente entre las partes. Estos dineros, no se computarán como parte de salario para efectos de prestaciones sociales liquidables o BASE1 de éste. Al efecto el TRABAJADOR y el EMPLEADOR, así lo pactan expresamente en los términos del artículo 128 del C.S. del T. en C. Con. Con el articulo quince (15) de la ley cincuenta (50) de 1990. PARÁGRAFO PRIMERO: Las partes acuerdan que el EMPLEADOR, a su arbitrio y liberalidad podrá en cualquier momento cancelar o retirar el pago de bonificaciones habituales o esporádicas que en algún momento reconozca o hubiese reconocido al trabajador diferentes a su salario, sin que esto constituya desmejora de sus condiciones laborales; toda vez que como salario y retribución directa a favor del trabajador derivada de su actividad o fuerza laboral únicamente se pacta la suma establecida en la caratula del presente contrato. NOVENA.  En caso que el TRABAJADOR requiera ausentarse de su lugar de trabajo, deberá avisar por lo menos con 24 horas de anticipación a la EMPRESA USUARIA o según lo establecido en el Reglamento Interno de la misma.  DÉCIMA. CONFIDENCIALIDAD: El TRABAJADOR en virtud del presente contrato se compromete a 1) Manejar de manera confidencial la información que como tal sea presentada y entregada, y toda aquella que se genere en torno a ella como fruto de la prestación de sus servicios. 2) Guardar confidencialidad sobre esta información y no emplearla en beneficio propio o de terceros mientras conserve sus características de confidencialidad y que pueda perjudicar los intereses del EMPLEADOR o de la EMPRESA USUARIA. 3) Solicitar previamente y por escrito autorización para cualquier publicación relacionada con el tema de contrato, autorización que debe solicitarse ante el empleador. DÉCIMA PRIMERA. AUTORIZACION TRATAMIENTO DE DATOS PERSONALES, 1). De acuerdo a lo establecido en la ley 1581 de 2012, la Constitución Nacional y a las políticas establecidas por el EMPLEADOR para el caso en particular, el trabajador debe guardar reserva respecto a la protección de datos de los clientes, proveedores, compañeros, directivos del EMPLEADOR Y EMPRESA USUARIA, salvo que medie autorización expresa de cada persona para divulgar la información. 2). Guardar completa reserva sobre las operaciones, negocios y procedimientos industriales y comerciales, o cualquier otra clase de datos acerca del EMPLEADOR Y EMPRESA USUARIA que conozca por razón de sus funciones o de sus relaciones con ella, lo que no obsta para denunciar delitos comunes o violaciones del contrato de trabajo o de las normas legales de trabajo ante las autoridades competentes. DÉCIMA SEGUNDA. DECLARACIONES: Autorización Tratamiento Datos Personales “Ley de Protección de Datos 1581 de 2012 – decreto 1733 de 2013” Declaro que he sido informado que conozco y acepto la Política de Uso de Datos Personales e Información del EMPLEADOR, y que la información proporcionada es veraz, completa, exacta, actualizada y verificable. Mediante la firma del presente documento, manifiesto que conoce y acepto que cualquier consulta o reclamación relacionada con el Tratamiento de sus datos personales podrá ser elevada por escrito ante el EMPLEADOR; (¡) Que la Empresa TU ALIANZA S.A.S con NIT. 900.864.596-1, con domicilio principal en la Calle 7 No. 7– 49 de Madrid,  para efectos  de  lo  dispuesto  en  la ley  Estatutaria  1581  de  2012,  el  Decreto  1733  de  2013,  y  demás  normas  que  lo adicionen o modifiquen relativas a la Protección de Datos Personales, es responsable del tratamiento de los datos PERSONALES QUE LE HE SUMINISTRADO. (¡¡). Que, para el ejercicio de mis derechos relacionados con mis datos personales, el EMPLEADOR ha puesto a mi disposición la línea de atención: Afiliados marcando a Bogotá 6017444002; a través del correo electrónico protecciondedatos.tuapo@gmail.com; las oficinas del EMPLEADOR a nivel nacional o en la Carrera 112ª # 18ª 05 de  Bogotá.  En  todo  caso,  he  sido  informado  que  sólo  podré  elevar  queja  por infracciones a lo dispuesto en las normas sobre Protección de Datos ante la Superintendencia de Industria y Comercio una vez haya agotado el trámite ante el EMPLEADOR o sus encargados. Conozco que la normatividad de Protección de Datos Personales tiene por  objeto  el  desarrollo  del  derecho  constitucional  de  todas  las  personas  a  conocer,  actualizar  y  rectificar  de  forma  gratuita  la  información  que  se  recaude  sobre  ellas  en'
     y = this.renderJustifiedText(doc, texto2, x, y, maxWidth, lineHeight);
 
     doc.setFontSize(7);
@@ -11969,6 +12275,205 @@ export class GenerateContractingDocumentsComponent implements OnInit {
 
 
   // ─────────────────────────────────────────────────────────────────────
+  // OTRO SI JORNADA LABORAL – modifica las horas semanales pactadas.
+  //
+  // Documento distinto al de "Contratos Otrosí" (que es de exclusión salarial
+  // por concurso de ventas, art. 128 CST). Acá solo se modifica la jornada.
+  //
+  // Las horas van en una constante porque la Ley 2101 de 2021 las reduce por
+  // etapas: cuando cambie el tope legal, se ajusta en un solo punto.
+  // ─────────────────────────────────────────────────────────────────────
+  private readonly HORAS_SEMANALES_OTROSI = '41.5';
+
+  async generarOtroSiJornadaLaboral() {
+    try {
+      const cand: any = this.candidato ?? {};
+      const nombres = [cand.primer_nombre, cand.segundo_nombre].filter(Boolean).join(' ').toUpperCase();
+      const apellidos = [cand.primer_apellido, cand.segundo_apellido].filter(Boolean).join(' ').toUpperCase();
+      const nombreCompleto = `${nombres} ${apellidos}`.trim();
+      const cedula = String(cand.numero_documento ?? this.cedula ?? '').trim();
+      const ciudadExpedicion =
+        [cand.info_cc?.mpio_expedicion, cand.info_cc?.depto_expedicion]
+          .filter(Boolean).join(', ').toUpperCase() || '';
+
+      // Fecha del CONTRATO, no la de hoy: el documento afirma cuándo se
+      // celebró el contrato en misión.
+      const mesesEs = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
+        'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+      const f = this.getFechaContrato();
+      const dia = f.getDate();
+      const mes = mesesEs[f.getMonth()];
+      const anio = f.getFullYear();
+
+      const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'letter' });
+      doc.setProperties({ title: `OTRO_SI_JORNADA_${cedula}.pdf` });
+
+      const pageW = doc.internal.pageSize.getWidth();
+      const mL = 25.4;
+      const mR = 25.4;
+      const maxW = pageW - mL - mR;
+      const lineH = 4.6;
+
+      const justifyText = (text: string, x: number, yStart: number, width: number, fontSize?: number): number => {
+        if (fontSize) doc.setFontSize(fontSize);
+        const lines: string[] = doc.splitTextToSize(text, width);
+        let cy = yStart;
+        for (let i = 0; i < lines.length; i++) {
+          const line = lines[i].trim();
+          const isLast = i === lines.length - 1;
+          if (isLast || !line) {
+            doc.text(line, x, cy);
+          } else {
+            const words = line.split(/\s+/);
+            if (words.length <= 1) {
+              doc.text(line, x, cy);
+            } else {
+              const totalTextW = words.reduce((sum, w) => sum + doc.getTextWidth(w), 0);
+              const extra = (width - totalTextW) / (words.length - 1);
+              let wx = x;
+              for (const w of words) {
+                doc.text(w, wx, cy);
+                wx += doc.getTextWidth(w) + extra;
+              }
+            }
+          }
+          cy += lineH;
+        }
+        return cy;
+      };
+
+      let y = 25.4;
+
+      // ───── Título ─────
+      doc.setFont('helvetica', 'bold').setFontSize(11);
+      doc.text('OTRO SI A CONTRATOS CELEBRADOS ENTRE TU ALIANZA S.A.S.', pageW / 2, y, { align: 'center' });
+      y += 5;
+      doc.text('CON SUS COLABORADORES EN MISIÓN', pageW / 2, y, { align: 'center' });
+      y += 12;
+
+      // ───── Párrafo introductorio ─────
+      doc.setFont('helvetica', 'normal').setFontSize(9.5);
+      const intro =
+        `OTRO SI al contrato en misión celebrado el día ${dia} de ${mes} de ${anio} entre la empresa temporal ` +
+        `TU ALIANZA S.A.S. NIT. 900.864.596-1 y ${nombreCompleto || '________________________________'} identificado ` +
+        `con Cédula de Ciudadanía ${cedula || '_______________'} de ${ciudadExpedicion || '__________________________'} ` +
+        `se ha convenido celebrar este OTRO SI en los siguientes términos:`;
+      y = justifyText(intro, mL, y, maxW, 9.5);
+      y += 7;
+
+      // ───── CLAUSULA PRIMERA ─────
+      doc.setFont('helvetica', 'bold').setFontSize(9.5);
+      const rotuloPrimera = 'CLAUSULA PRIMERA';
+      doc.text(rotuloPrimera, mL, y);
+      const xPrimera = mL + doc.getTextWidth(rotuloPrimera);
+      doc.setFont('helvetica', 'normal');
+      // El rótulo va en negrita en la misma línea; el resto del texto se
+      // reflowea debajo respetando el ancho de página.
+      const restoPrimera =
+        `. El presente documento tiene por objeto modificar las horas laborales semanales al inicialmente ` +
+        `acordado, siendo estas de ${this.HORAS_SEMANALES_OTROSI} horas , a partir de la fecha de Ingreso.`;
+      const primeraLines: string[] = doc.splitTextToSize(restoPrimera, maxW - (xPrimera - mL));
+      doc.text(primeraLines[0], xPrimera, y);
+      y += lineH * 2;
+      if (primeraLines.length > 1) {
+        y = justifyText(primeraLines.slice(1).join(' '), mL, y, maxW, 9.5);
+      }
+      y += 5;
+
+      // ───── CLAUSULA SEGUNDA ─────
+      doc.setFont('helvetica', 'bold');
+      const rotuloSegunda = 'CLAUSULA SEGUNDA';
+      doc.text(rotuloSegunda, mL, y);
+      const xSegunda = mL + doc.getTextWidth(rotuloSegunda);
+      doc.setFont('helvetica', 'normal');
+      const restoSegunda =
+        `. Todas las demás cláusulas y estipulaciones contractuales del contrato principal, NO son ` +
+        `modificadas por el presente acuerdo, permanecen vigentes y su exigibilidad permanece.`;
+      const segundaLines: string[] = doc.splitTextToSize(restoSegunda, maxW - (xSegunda - mL));
+      doc.text(segundaLines[0], xSegunda, y);
+      y += lineH;
+      if (segundaLines.length > 1) {
+        y = justifyText(segundaLines.slice(1).join(' '), mL, y, maxW, 9.5);
+      }
+
+      // ───── Cierre ─────
+      y += 22;
+      doc.setFont('helvetica', 'normal').setFontSize(9.5);
+      y = justifyText(
+        `En señal de conformidad a satisfacción las partes lo suscriben en dos ejemplares de un mismo tenor, ` +
+        `en Madrid a los ${dia} del mes ${mes} del año ${anio}`,
+        mL, y, maxW, 9.5
+      );
+
+      // ───── Firmas ─────
+      y += 20;
+      const toDataURL = async (url?: string): Promise<string | null> => {
+        if (!url) return null;
+        if (url.startsWith('data:')) return url;
+        try {
+          const res = await fetch(url);
+          const blob = await res.blob();
+          return await new Promise<string | null>((resolve) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result as string);
+            reader.onerror = () => resolve(null);
+            reader.readAsDataURL(blob);
+          });
+        } catch {
+          return null;
+        }
+      };
+
+      doc.setFont('helvetica', 'bold').setFontSize(10);
+      doc.text('EL EMPLEADOR', mL, y);
+      doc.text('EL TRABAJADOR', pageW / 2 + 10, y);
+      y += 6;
+
+      try {
+        const selloData = await toDataURL('firma/firmaselloalianza.jpeg');
+        if (selloData) doc.addImage(selloData, 'JPEG', mL + 5, y, 45, 20);
+      } catch { }
+
+      try {
+        const firmaData = await toDataURL(this.firma);
+        if (firmaData) doc.addImage(firmaData, 'PNG', pageW / 2 + 15, y + 6, 32, 14);
+      } catch { }
+
+      y += 24;
+      doc.setLineWidth(0.4);
+      doc.line(mL, y, mL + 55, y);
+      doc.line(pageW / 2 + 10, y, pageW - mR, y);
+      y += 5;
+
+      doc.setFont('helvetica', 'bold').setFontSize(9);
+      doc.text('TU ALIANZA S.A.S.', mL, y);
+      doc.text('FIRMA', pageW / 2 + 10, y);
+      y += 4;
+      doc.text('NIT. 900.864.596-1', mL, y);
+
+      // El rótulo se dibuja en negrita, así que el ancho se mide TAMBIÉN en
+      // negrita (es más ancha que la normal). Midiéndolo después de cambiar a
+      // normal, la cédula quedaba pegada encima de los dos puntos.
+      const rotuloId = 'No de Identificación:';
+      const xId = pageW / 2 + 10;
+      doc.text(rotuloId, xId, y);
+      const anchoRotuloId = doc.getTextWidth(rotuloId);
+      doc.setFont('helvetica', 'normal');
+      doc.text(cedula, xId + anchoRotuloId + 2, y);
+
+      const pdfBlob = doc.output('blob');
+      const fileName = `OTRO_SI_JORNADA_${cedula}.pdf`;
+      const pdfFile = new File([pdfBlob], fileName, { type: 'application/pdf' });
+      this.uploadedFiles['OTRO SI Jornada Laboral'] = { file: pdfFile, fileName };
+      this.verPDF({ titulo: 'OTRO SI Jornada Laboral' });
+    } catch (error) {
+      console.error('Error generando OTRO SI Jornada Laboral:', error);
+      Swal.fire({ icon: 'error', title: 'Error', text: 'Ocurrió un error al generar el OTRO SI Jornada Laboral.' });
+    }
+  }
+
+
+  // ─────────────────────────────────────────────────────────────────────
   // OTRO SI SAGARO FUMIGADOR – modificación del día de descanso obligatorio
   // (domingo → jueves). PDF generado con jsPDF. Réplica del formato oficial.
   // ─────────────────────────────────────────────────────────────────────
@@ -12667,9 +13172,13 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       doc.setFontSize(9);
       doc.text('Firma del trabajador', mL, y);
       y += 4;
-      doc.text('N° de Documento:', mL, y);
+      // El rótulo va en negrita: se mide en negrita ANTES de cambiar a normal,
+      // o la cédula se monta encima de los dos puntos.
+      const rotuloDoc = 'N° de Documento:';
+      doc.text(rotuloDoc, mL, y);
+      const anchoRotuloDoc = doc.getTextWidth(rotuloDoc);
       doc.setFont('helvetica', 'normal');
-      doc.text(` ${cedula}`, mL + doc.getTextWidth('N° de Documento: '), y);
+      doc.text(cedula, mL + anchoRotuloDoc + 2, y);
 
       // ───── Footer ─────
       doc.setFontSize(7);

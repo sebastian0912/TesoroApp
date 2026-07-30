@@ -171,7 +171,7 @@ function drawFooter(doc: jsPDF, pbx = '744 4002', tel = '890 29 70'): void {
   doc.setTextColor(100, 100, 100);
   doc.text(`Tu Alianza S.A.S., Oficina Madrid: Cl 7 #4-49 Centro, PBX ${pbx};`, pageW / 2, footerY, { align: 'center' });
   doc.text(
-    `Oficina Facatativá Cra. 2 # 8-156 Centro Tel: ${tel}. Mail: servicioalcliente@tsservicios.co`,
+    `Oficina Facatativá Cra. 2 # 8-156 Centro Tel: ${tel}. Mail: Servicioalcliente.tuapo1@gmail.com`,
     pageW / 2,
     footerY + 3.5,
     { align: 'center' },

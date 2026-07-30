@@ -12,6 +12,8 @@ import { GestionDocumentalService } from '../../service/gestion-documental/gesti
 import { UtilityServiceService } from '@/app/shared/services/utilityService/utility-service.service';
 import { RegistroProcesoContratacion } from '../../service/registro-proceso-contratacion/registro-proceso-contratacion';
 import type { AntecedentesPayload } from '../../service/registro-proceso-contratacion/registro-proceso-contratacion';
+import { RobotsService } from '../../service/robots/robots.service';
+import type { ResultadosAntecedentes } from '../../service/robots/robots.service';
 
 /* ===================== Tipos ===================== */
 type UploadedFileInfo = {
@@ -209,6 +211,7 @@ export class SelectionQuestionsComponent implements OnDestroy {
     private docsSrv: GestionDocumentalService,
     private rpc: RegistroProcesoContratacion,
     private ui: UtilityServiceService,
+    private robots: RobotsService,
     private cdr: ChangeDetectorRef
   ) {
     // Reactive Forms
@@ -248,6 +251,10 @@ export class SelectionQuestionsComponent implements OnDestroy {
         this.loadDataDocumentos(ctx)
           .then(() => this.maybeScheduleDocPolling(ctx, 0))
           .catch((err) => console.error('[selection] Error cargando documentos:', err));
+
+        // Prellenado con lo que ya consultó el robot. Va después del patch de
+        // antecedentes guardados para que estos tengan prioridad.
+        this.prellenarDesdeRobot(ctx);
       }
     });
   }
@@ -391,6 +398,94 @@ export class SelectionQuestionsComponent implements OnDestroy {
   private patchSeleccion(raw: any): void {
     const patch = buildPatchFromAntecedentes(raw, this.formPatchBase);
     this.antecedentes.patchValue(patch, { emitEvent: false });
+  }
+
+  /* ===================== Prellenado desde el robot ===================== */
+
+  /** Resultados del robot para el candidato actual (para mostrar procedencia). */
+  resultadosRobot: ResultadosAntecedentes['campos'] = {};
+
+  /** Campos que quedaron diligenciados por el robot en esta carga. */
+  camposDesdeRobot = new Set<string>();
+
+  /** Mapa: clave del endpoint -> control del formulario. */
+  private readonly robotKeyToControl: Record<string, string> = {
+    policivos: 'policivos',
+    ofac: 'ofac',
+    procuraduria: 'procuraduria',
+    contraloria: 'contraloria',
+    eps: 'eps',
+    afp: 'afp',
+    sisben: 'sisben',
+    medidas_correctivas: 'medidasCorrectivas',
+  };
+
+  /** Un control se considera vacío si no tiene valor útil todavía. */
+  private estaVacio(control: string): boolean {
+    const v = this.antecedentes.get(control)?.value;
+    if (v === null || v === undefined) return true;
+    const s = String(v).trim();
+    // 'SIN BUSCAR' es el placeholder de "todavía nadie lo revisó".
+    return s === '' || s.toUpperCase() === 'SIN BUSCAR';
+  }
+
+  /**
+   * Trae lo que ya consultó el robot y llena SOLO los campos vacíos.
+   *
+   * No pisa nada diligenciado: si el analista ya eligió un valor, o si venían
+   * antecedentes guardados en el proceso, se respetan. Tampoco autocompleta
+   * cuando el robot no dejó un veredicto interpretable (`valor === null`),
+   * que es el caso de procuraduría/contraloría en estado "Consultado".
+   */
+  private async prellenarDesdeRobot(ctx: number): Promise<void> {
+    if (!this.cedula) return;
+
+    try {
+      const res = await firstValueFrom(
+        this.robots.getResultadosAntecedentes(this.cedula, this.tipoDocumento)
+      );
+      // El candidato pudo cambiar mientras respondía el backend.
+      if (ctx !== this._ctx) return;
+
+      this.resultadosRobot = res?.campos ?? {};
+      this.camposDesdeRobot.clear();
+      if (!res?.encontrado) {
+        this.cdr.markForCheck();
+        return;
+      }
+
+      const patch: Record<string, string | number> = {};
+      for (const [robotKey, control] of Object.entries(this.robotKeyToControl)) {
+        const campo = (this.resultadosRobot as any)[robotKey];
+        const valor = campo?.valor;
+        if (valor === null || valor === undefined || valor === '') continue;
+        if (!this.estaVacio(control)) continue;
+        patch[control] = valor;
+        this.camposDesdeRobot.add(control);
+      }
+
+      if (Object.keys(patch).length) {
+        this.antecedentes.patchValue(patch, { emitEvent: false });
+        this.antecedentes.markAsDirty();
+      }
+      this.cdr.markForCheck();
+    } catch (err) {
+      // Es una ayuda, no un requisito: si falla, el formulario sigue usable.
+      console.warn('[selection] No se pudieron cargar los resultados del robot:', err);
+    }
+  }
+
+  /** Texto crudo que devolvió el robot para un campo, para mostrarlo en la UI. */
+  crudoRobot(fld: FieldDef): string | null {
+    const control = fld.control ?? fld.key;
+    const entry = Object.entries(this.robotKeyToControl).find(([, c]) => c === control);
+    if (!entry) return null;
+    return (this.resultadosRobot as any)[entry[0]]?.crudo ?? null;
+  }
+
+  /** ¿Este campo lo llenó el robot en esta carga? */
+  vieneDelRobot(fld: FieldDef): boolean {
+    return this.camposDesdeRobot.has(fld.control ?? fld.key);
   }
 
   /* ===================== Documentos (estado/descarga/subida) ===================== */
