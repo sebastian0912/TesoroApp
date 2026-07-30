@@ -3,7 +3,10 @@ import { SharedModule } from '@/app/shared/shared.module';
 import { isPlatformBrowser } from '@angular/common';
 import { Component, inject, OnInit, PLATFORM_ID, ViewChild, ElementRef, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
-import { PDFDocument, PDFTextField, PDFCheckBox, StandardFonts, rgb, degrees } from 'pdf-lib';
+import {
+  PDFDocument, PDFTextField, PDFCheckBox, StandardFonts, rgb, degrees,
+  pushGraphicsState, popGraphicsState, moveTo, lineTo, closePath, clip, endPath,
+} from 'pdf-lib';
 import Swal from 'sweetalert2';
 import { GestionDocumentalService } from '../../service/gestion-documental/gestion-documental.service';
 import { HiringService } from '../../service/hiring.service';
@@ -635,6 +638,123 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     return this.permissions.isAdmin();
   }
 
+  // ══════════════════════════════════════════════════════════════════════
+  // PAQUETE SOACHA
+  // La oficina de Soacha entrega un único PDF unido con el expediente mínimo.
+  // Del contrato va SOLO la hoja 1; el contrato completo se sigue generando y
+  // subiendo aparte, sin recortar.
+  // ══════════════════════════════════════════════════════════════════════
+
+  /** Orden exacto del paquete. `soloPrimeraPagina` recorta el contrato. */
+  private readonly PAQUETE_SOACHA: Array<{
+    titulo: string; typeId: number; soloPrimeraPagina?: boolean;
+  }> = [
+      { titulo: 'Ficha Técnica', typeId: 34 },
+      { titulo: 'Cédula', typeId: 29 },
+      { titulo: 'ARL', typeId: 30 },
+      { titulo: 'Ficha Social', typeId: 98 },
+      // Los exámenes médicos no están en `typeMap` de este componente (se
+      // administran desde recruitment-pipeline), así que se buscan por typeId.
+      { titulo: 'Exámenes médicos', typeId: 32 },
+      { titulo: 'Contrato', typeId: 25, soloPrimeraPagina: true },
+    ];
+
+  /** El botón del paquete solo se ofrece a la oficina de Soacha. */
+  get esOficinaSoacha(): boolean {
+    return /SOACHA/i.test(
+      String(this.sede ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '')
+    );
+  }
+
+  /**
+   * Une los documentos del paquete en un solo PDF y lo descarga.
+   *
+   * Cada pieza se toma de lo generado en esta sesión (`uploadedFiles`) y, si no
+   * está, del documento ya cargado en el servidor. Lo que falte se reporta al
+   * final en vez de abortar: es preferible entregar el paquete y decir qué
+   * faltó, a no entregar nada.
+   */
+  async descargarPaqueteSoacha(): Promise<void> {
+    if (!this.cedula) {
+      Swal.fire('Sin candidato', 'No hay cédula seleccionada.', 'info');
+      return;
+    }
+
+    Swal.fire({ title: 'Armando el paquete…', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+    try {
+      let docsServidor: any[] = [];
+      try {
+        docsServidor = (await firstValueFrom(
+          this.gestionDocumentalService.getDocuments(this.cedula).pipe(take(1), catchError(() => of([])))
+        )) ?? [];
+      } catch { docsServidor = []; }
+
+      const urlDeTipo = (typeId: number): string | null => {
+        const d = (docsServidor || []).find((x: any) => Number(x?.type) === typeId);
+        return d ? (d.file_url || d.file || d.current_file?.url || null) : null;
+      };
+
+      const salida = await PDFDocument.create();
+      const faltantes: string[] = [];
+
+      for (const pieza of this.PAQUETE_SOACHA) {
+        let bytes: ArrayBuffer | null = null;
+
+        const local = this.uploadedFiles[pieza.titulo]?.file;
+        if (local instanceof File) bytes = await local.arrayBuffer();
+
+        if (!bytes) {
+          const url = this.existingDocs[pieza.titulo]?.url || urlDeTipo(pieza.typeId);
+          if (url) bytes = await this.fetchAsArrayBufferOrNull(url);
+        }
+
+        if (!bytes) { faltantes.push(pieza.titulo); continue; }
+
+        try {
+          const src = await PDFDocument.load(bytes);
+          const total = src.getPageCount();
+          const indices = pieza.soloPrimeraPagina ? [0] : src.getPageIndices();
+          const paginas = await salida.copyPages(src, indices.filter(i => i < total));
+          paginas.forEach(p => salida.addPage(p));
+        } catch (e) {
+          console.error('[paquete Soacha] no se pudo leer', pieza.titulo, e);
+          faltantes.push(`${pieza.titulo} (ilegible)`);
+        }
+      }
+
+      if (salida.getPageCount() === 0) {
+        Swal.close();
+        Swal.fire('Sin documentos', 'Ninguno de los documentos del paquete está disponible todavía.', 'warning');
+        return;
+      }
+
+      const blob = new Blob([(await salida.save()) as BlobPart], { type: 'application/pdf' });
+      const url = URL.createObjectURL(blob);
+
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Paquete-Soacha-${this.cedula}.pdf`;
+      a.click();
+
+      this.setPdfPreview(url);
+
+      Swal.close();
+      if (faltantes.length) {
+        Swal.fire({
+          icon: 'warning',
+          title: 'Paquete descargado, pero incompleto',
+          html: `No se incluyeron:<br><b>${faltantes.join('<br>')}</b>`,
+        });
+      } else {
+        Swal.fire({ icon: 'success', title: 'Paquete descargado', timer: 1800, showConfirmButton: false });
+      }
+    } catch (e) {
+      console.error('[paquete Soacha]', e);
+      Swal.close();
+      Swal.fire('Error', 'No se pudo armar el paquete.', 'error');
+    }
+  }
+
   /**
    * ¿el documento tiene archivo (subido en esta sesión o existente en BD)?
    */
@@ -863,10 +983,31 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     if (input) this.resetInput(input);
   }
 
-  private setPdfPreview(url: string) {
-    if (this.pdfPreviewIframe && this.pdfPreviewIframe.nativeElement) {
-      this.pdfPreviewIframe.nativeElement.src = url;
+  /** Última URL puesta en el visor, para revocarla cuando entre otra. */
+  private urlPreviewActual: string | null = null;
+
+  private setPdfPreview(url: string, intento = 0) {
+    const el = this.pdfPreviewIframe?.nativeElement;
+    if (!el) {
+      // El iframe puede no estar montado todavía (generación disparada antes de
+      // que termine de renderizar la vista). Antes la asignación se perdía en
+      // silencio y el visor se quedaba con el documento anterior.
+      if (intento < 10) {
+        setTimeout(() => this.setPdfPreview(url, intento + 1), 60);
+      } else {
+        console.warn('[preview] el iframe nunca estuvo disponible');
+      }
+      return;
     }
+
+    el.src = url;
+
+    // Liberar el blob anterior, no el que se acaba de poner.
+    if (this.urlPreviewActual && this.urlPreviewActual !== url
+      && this.urlPreviewActual.startsWith('blob:')) {
+      try { URL.revokeObjectURL(this.urlPreviewActual); } catch { }
+    }
+    this.urlPreviewActual = url;
   }
 
   private resetInput(input: HTMLInputElement): void {
@@ -1291,6 +1432,13 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     form: any,
     url: string,
     nombresCandidatos: string[],
+    /**
+     * 'contener' → la imagen cabe entera dentro del rect (deja aire alrededor).
+     * 'cubrir'   → llena el rect recortando el sobrante, y pinta fondo blanco
+     *              antes para tapar lo que la plantilla trae impreso dentro del
+     *              recuadro ("FOTOGRAFÍA RECIENTE / Clic aquí para cargar").
+     */
+    modo: 'contener' | 'cubrir' = 'contener',
   ): Promise<boolean> {
     if (!url) return false;
 
@@ -1317,13 +1465,15 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       return false;
     }
 
-    // Vía normal: pdf-lib respeta el rect del widget y el aspect ratio.
-    try {
-      (form.getButton(nombreUsado) as any).setImage(img);
-      return true;
-    } catch { /* fallback abajo */ }
+    // En modo 'contener' basta la API de pdf-lib. En 'cubrir' se dibuja a mano,
+    // porque setImage siempre encaja la imagen y deja ver el fondo del recuadro.
+    if (modo === 'contener') {
+      try {
+        (form.getButton(nombreUsado) as any).setImage(img);
+        return true;
+      } catch { /* fallback abajo */ }
+    }
 
-    // Fallback: dibujar sobre la página del widget, centrada y sin deformar.
     try {
       const widget = campo.acroField.getWidgets()[0];
       const rect = widget.getRectangle();
@@ -1335,15 +1485,36 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       const pagina = paginas.find((p: any) => refPagina && p.ref === refPagina) ?? paginas[0];
 
       const dims = img.scale(1);
-      const escala = Math.min(rect.width / dims.width, rect.height / dims.height) * 0.95;
+      const escala = modo === 'cubrir'
+        ? Math.max(rect.width / dims.width, rect.height / dims.height)
+        : Math.min(rect.width / dims.width, rect.height / dims.height) * 0.95;
       const w = dims.width * escala;
       const h = dims.height * escala;
-      pagina.drawImage(img, {
-        x: rect.x + (rect.width - w) / 2,
-        y: rect.y + (rect.height - h) / 2,
-        width: w,
-        height: h,
-      });
+      const x = rect.x + (rect.width - w) / 2;
+      const y = rect.y + (rect.height - h) / 2;
+
+      if (modo === 'cubrir') {
+        // Fondo blanco: tapa el texto impreso del recuadro antes de la foto.
+        pagina.drawRectangle({
+          x: rect.x, y: rect.y, width: rect.width, height: rect.height,
+          color: rgb(1, 1, 1),
+        });
+        // Recorta el sobrante para que la foto no invada el resto de la hoja.
+        pagina.pushOperators(
+          pushGraphicsState(),
+          moveTo(rect.x, rect.y),
+          lineTo(rect.x + rect.width, rect.y),
+          lineTo(rect.x + rect.width, rect.y + rect.height),
+          lineTo(rect.x, rect.y + rect.height),
+          closePath(),
+          clip(),
+          endPath(),
+        );
+        pagina.drawImage(img, { x, y, width: w, height: h });
+        pagina.pushOperators(popGraphicsState());
+      } else {
+        pagina.drawImage(img, { x, y, width: w, height: h });
+      }
       return true;
     } catch (e) {
       console.error('[pdf] no se pudo inyectar la imagen en', nombreUsado, e);
@@ -1401,7 +1572,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
             'topmostSubform[0].Page2[0].CampoImagen1[0]',
             'topmostSubform[0].Page3[0].CampoImagen1[0]',
             'topmostSubform[0].Page4[0].CampoImagen1[0]',
-          ]);
+          ], 'cubrir');
           if (!ok) console.warn('[minerva] no se pudo colocar la foto del candidato');
         } else {
           console.warn('[minerva] el candidato no tiene foto biométrica cargada');
@@ -2115,6 +2286,9 @@ export class GenerateContractingDocumentsComponent implements OnInit {
         file: mockFile,
         fileName: `ENTREVISTA_INGRESO_TU_ALIANZA_${numIdentificacion}.pdf`,
       };
+      // Era el único generador que no mostraba el resultado: quedaba en la
+      // cola de subida pero el previsualizador seguía con el documento anterior.
+      this.verPDF({ titulo: 'Entrevista de Ingreso Tu Alianza' });
 
       this.setPdfPreview(URL.createObjectURL(blob));
 
@@ -3016,7 +3190,13 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     lineHeight: number,
     // La última línea de cada párrafo NO se justifica (se alinea a la izquierda),
     // que es el comportamiento tipográfico correcto para contratos.
-    justifyLastLine: boolean = false
+    justifyLastLine: boolean = false,
+    /**
+     * Margen inferior reservado, en mm. Con los 10 mm fijos que había antes, el
+     * texto del contrato de Apoyo se pasaba UNA sola línea y arrastraba media
+     * frase a la página siguiente, desperdiciando una hoja.
+     */
+    bottomMargin: number = 10,
   ): number {
     const pageHeight =
       (doc as any)?.internal?.pageSize?.height ??
@@ -3070,7 +3250,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
         this.renderJustifiedLine(doc, currentLine, x, y, maxWidth, false);
         y += lineHeight;
 
-        if (y > pageHeight - 10) {
+        if (y > pageHeight - bottomMargin) {
           doc.addPage();
           y = 10;
         }
@@ -3689,7 +3869,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     doc.setFontSize(8).setFont('helvetica', 'bold');
     doc.text('Teniendo en cuenta la anterior información, autorizo descuento de casino:', marginLeft, y);
     doc.setFont('helvetica', 'normal');
-    doc.text('SI (     )', 155, y);
+    doc.text('SI (  X  )', 155, y);
     doc.text('NO(     )', 175, y);
 
     // Forma de pago
@@ -3938,7 +4118,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     // ya viene dentro del PNG del sello; no se dibuja aparte.
 
     // Sello / imagen final
-    const selloData = await toDataURL('firma/CARLOS.png');
+    const selloData = await toDataURL('firma/FirmaEntregaDocApoyo.png');
     if (selloData) {
       doc.addImage(selloData, 'PNG', marginLeft + 85, y - 10, 55, 18);
     }
@@ -4155,7 +4335,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     // Sin marcar: la plantilla v19 deja la autorización de casino en blanco
     // para que el trabajador la diligencie. Venía con una "X" fija en SI, es
     // decir, todo contrato salía autorizando el descuento sin que nadie eligiera.
-    doc.text('SI (     )', 145, y);
+    doc.text('SI (  X  )', 145, y);
     doc.text('NO(     )', 160, y);
     doc.text('No Aplica (     )', 178, y);
 
@@ -4603,7 +4783,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     // Sin marcar: la plantilla v19 deja la autorización de casino en blanco
     // para que el trabajador la diligencie. Venía con una "X" fija en SI, es
     // decir, todo contrato salía autorizando el descuento sin que nadie eligiera.
-    doc.text('SI (     )', 145, y);
+    doc.text('SI (  X  )', 145, y);
     doc.text('NO (     )', 160, y);
     doc.text('No Aplica(     )', 178, y);
 
@@ -5032,7 +5212,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     doc.setFontSize(8).setFont('helvetica', 'bold');
     doc.text('Teniendo en cuenta la anterior información, autorizo descuento de casino:', marginLeft, y);
     doc.setFont('helvetica', 'normal');
-    doc.text('SI (     )', 155, y);
+    doc.text('SI (  X  )', 155, y);
     doc.text('NO(     )', 175, y);
 
     // Forma de pago
@@ -8426,7 +8606,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     doc.setFontSize(6.5);
 
     // Renderizar texto justificado usando `y` como posición inicial
-    y = this.renderJustifiedText(doc, texto, x, y, maxWidth, lineHeight);
+    y = this.renderJustifiedText(doc, texto, x, y, maxWidth, lineHeight, false, 5);
     // Centro de costo en negrita, tamaño 10, si se pasa de la página, se ajusta a la siguiente
     y += 3; // Espacio adicional después del contenido
     doc.setFontSize(6.5);
@@ -8491,7 +8671,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     y = columnStartY; // Posición inicial Y
     doc.setFontSize(6.5);
     let texto3 = 'comercial, profesional, sensible (tales como mis huellas, imagen, voz, entre otros), técnico y administrativo, privada, semiprivada o de cualquier naturaleza pasada, presente o futura, contenida en cualquier medio físico, digital o electrónico, entre otros y sin limitarse a documentos, fotos, memorias USB, grabaciones, datos biométricos, correos electrónicos y video grabaciones. Así mismo, se entiende por “Tratamiento” el recolectar, consultar, recopilar, evaluar, catalogar, clasificar, ordenar, grabar, almacenar, actualizar, modificar, aclarar, reportar, informar, analizar, utilizar, compartir, circular, suministrar, suprimir, procesar, solicitar, verificar, intercambiar, retirar, trasferir, transmitir, o divulgar, y en general, efectuar cualquier operación o conjunto de operaciones sobre mis Datos Personales en medio físicos, digitales, electrónicos, o por cualquier otro medio. La autorización que otorgo por el presente medio para el Tratamiento de mis Datos Personales tendrá las siguientes finalidades: a. Promocionar, comercializar u ofrecer, de manera individual o conjunta productos y/o servicios propios u ofrecidos en alianza comercial, a través de cualquier medio o canal, o para complementar, optimizar o profundizar el portafolio de productos y/o servicios actualmente ofrecidos. Esta autorización para el Tratamiento de mis Datos Personales se hace extensiva a las entidades subordinadas de EL EMPLEADOR, o ante cualquier sociedad en la que éstas tengan participación accionaria directa o indirectamente (en adelante “LAS ENTIDADES AUTORIZADAS”). a. autoriza explícitamente al EMPLEADOR, en forma previa, expresa e informada, para que directamente o a través de sus empleados, asesores, consultores, empresas usuarias, proveedores de servicios de selección, contratación, exámenes ocupacionales, estudios de seguridad, dotación y elementos de protección personal, capacitaciones, cursos, Fondos de empleados, Fondos funerarios, Empresas del Sistema de Seguridad Social: Fondos de Pensiones, EPS, Administradoras de Riesgos Laborales, Cajas de Compensación Familiar, entre otros: 1. A realizar cualquier operación que tenga una finalidad lícita, tales como la recolección, el almacenamiento, el uso, la circulación, supresión, transferencia y  transmisión (el “Tratamiento”) de los datos personales relacionados con su vinculación laboral y con la ejecución, desarrollo y terminación del presente contrato de trabajo, cuya finalidad incluye, pero no se limita, a los procesos verificación de la aptitud física del TRABAJADOR para desempeñar en  forma eficiente  las labores sin impactar negativamente  su salud o la  de terceros, las afiliaciones del TRABAJADOR y sus beneficiarios al Sistema general de seguridad social y parafiscales, la remisión del TRABAJADOR para que realice apertura de cuenta de nómina, archivo y procesamiento de nómina, gestión y archivo de procesos disciplinarios, archivo de documentos soporte de su vinculación contractual, reporte ante autoridades administrativas, laborales, fiscales o judiciales, entre otras, así como el cumplimiento de obligaciones legales o contractuales del EMPLEADOR con terceros, la debida ejecución del Contrato de trabajo, el cumplimiento de las políticas internas del EMPLEADOR, la verificación del cumplimiento de las obligaciones del TRABAJADOR, la administración de sus sistemas de información y comunicaciones, la generación de copias y archivos de seguridad de la información en los equipos proporcionados por EL EMPLEADOR. Además,  la información personal se recibirá y utilizará para efectos de administración del factor humano en temas de capacitación laboral, bienestar social, cumplimiento de normas de seguridad laboral y seguridad social, siendo necesario, en algunos eventos, recibir información sensible sobre estados de salud e información de menores de edad beneficiarios de esquemas de seguridad social, así como la información necesaria para el cumplimiento de obligaciones laborales de orden legal y extralegal. Toda la anterior información se tratará conforme a las exigencias legales en cada caso. 2. EL TRABAJADOR conoce el carácter facultativo de entregar o no al EMPLEADOR sus datos sensibles. 3. EL TRABAJADOR autoriza al responsable del tratamiento de manera expresa a dar tratamiento a los datos sensibles del titular, siendo esto datos los siguientes: origen racial o étnico, orientación sexual, filiación política o religiosa, datos referentes a la salud, datos biométricos, actividad en organizaciones sindicales o de derechos humanos, 4.EL TRABAJADOR da autorización expresa al responsable del tratamiento para que capture y use la información personal y sensible de sus hijos menores de edad. b.  Como elemento de análisis en etapas pre-contractuales, contractuales, y post-contractuales para establecer y/o mantener cualquier relación contractual, incluyendo como parte de ello, los siguientes propósitos: (i). Actualizar bases de datos y tramitar la apertura y/o servicios en EL EMPLEADOR o en cualquiera de las ENTIDADES AUTORIZADAS, (ii). Evaluar riesgos derivados de la relación contractual potencial, vigente o concluida. (iii). Realizar, validar,   autorizar o verificar transacciones incluyendo, cuando sea requerido, la consulta y reproducción de datos sensibles tales como la huella, imagen o la voz. (iv). Obtener conocimiento del perfil comercial o transaccional del titular, el nacimiento, modificación, celebración y/ o extinción de obligaciones directas, contingentes o indirectas, el incumplimiento de las obligaciones que adquiera con EL EMPLEADOR  o con cualquier tercero, así como cualquier novedad en relación con tales obligaciones, hábitos de pago y comportamiento  crediticio con EL EMPLEADOR y/o terceros. (v). Conocer información acerca de mi manejo de cuentas corrientes, ahorros, depósitos, tarjetas de crédito, comportamiento comercial, laboral y demás productos o servicios y, en general, del cumplimiento y manejo de mis créditos y obligaciones, cualquiera que sea su naturaleza. Esta autorización comprende información referente al manejo, estado, cumplimiento de las relaciones, contratos y servicios, hábitos de pago, incluyendo aportes al sistema de seguridad social, obligaciones y las deudas vigentes, vencidas sin cancelar, procesos, o la utilización indebida de servicios financieros. (vi). Dar cumplimiento a sus obligaciones legales y contractuales. (vii). Ejercer sus derechos, incluyendo los referentes a actividades de cobranza judicial y extrajudicial y las gestiones conexas para obtener el pago de las obligaciones a cargo del titular o de su empleador, si es el caso. (viii). Implementación de software y servicios tecnológicos. Para efectos de lo dispuesto en el presente literal b, EL EMPLEADOR  en lo que resulte aplicable, podrá efectuar el Tratamiento de mis Datos Personales  ante entidades de consulta, que manejen o administren bases de datos para los fines legalmente definidos, domiciliadas en Colombia o en el exterior, sean personas naturales o jurídicas, colombianas o extranjeras. c. Realizar ventas cruzadas de productos y/o servicios ofrecidos por EL EMPLEADOR o por cualquiera de LAS ENTIDADES  AUTORIZADAS o sus aliados comerciales, incluyendo la celebración de convenios de marca compartida. d. Elaborar y reportar información estadística, encuestas de satisfacción, estudios y análisis de mercado, incluyendo la posibilidad de contactarme para dichos propósitos. e. Enviar mensajes, notificaciones o alertas a través de cualquier medio para remitir extractos, divulgar información legal, de seguridad, promociones, campañas comerciales, publicitarias, de mercadeo, institucionales o de educación financiera, sorteos, eventos u otros beneficios e informar al titular acerca de las innovaciones efectuadas en sus productos y/o servicios, dar a conocer las mejoras o cambios en sus canales de atención, así como dar a conocer otros servicios y/o productos ofrecidos por EL EMPLEADOR;  LAS ENTIDADES AUTORIZADAS o sus aliados comerciales. f.  Llevar  a  cabo  las  gestiones  pertinentes,  incluyendo  la  recolección  y  entrega  de  información ante autoridades públicas o privadas, nacionales o extranjeras con competencia sobre EL EMPLEADOR, LAS ENTIDADES  AUTORIZADAS o sobre sus actividades, productos y /o servicios, cuando se requiera para dar cumplimiento a sus deberes legales o reglamentarios, incluyendo dentro de estos, aquellos referentes a la prevención de la evasión fiscal, lavado de activos y financiación del terrorismo u otros propósitos similares emitidas por autoridades competentes,  g. validar información con las diferentes bases de datos de EL EMPLEADOR, de LAS ENTIDADES AUTORIZADAS, de autoridades y/o entidades estatales y de terceros tales como  operadores de información y demás entidades que formen parte del Sistema de Seguridad Social Integral, empresas prestadoras de servicios públicos  y de telefonía móvil, entre otras, para desarrollar las actividades propias de objeto social principal y conexo y/o cumplir con obligaciones legales. h. Para que mis datos Personales puedan ser utilizados como medio de prueba. Los Datos Personales suministrados podrán circular y transferirse a la totalidad de las áreas de EL EMPLEADOR incluyendo proveedores de servicios, usuarios de red, redes de distribución y personas que realicen la promoción de sus productos y servicios, incluidos call centers, domiciliados en Colombia o en el exterior, sean personas naturales o jurídicas, colombianas o extranjeros a su fuerza comercial, equipos de telemercadeo y/o procesadores de datos que trabajen en nombre de EL EMPLEADOR, incluyendo pero sin limitarse, contratistas, delegados, outsourcing, tercerización, red de oficinas o aliados, con el objeto de desarrollar servicios de alojamiento de sistemas, de mantenimiento, servicios de análisis, servicios de mensajería por e-mail o correo físico, servicios de entrega, gestión de transacciones de pago, cobranza, entre otros. En consecuencia, el titular entiendepara  gastos  o  viajes,  así  como  el  valor de los tiquetes aéreos no devueltos; las sumas que llegaren a faltar en cumplimiento de mis funciones y a mi cargo previa liquidación y verificación de las mismas, Compra de Flor y/o servicio de alimentación suministrado a través de la Empresa Usuaria de manera quincenal y por el monto de  y acepta que mediante la presentación autorización concede a estos terceros, autorización para acceder a sus Datos Personales en la medida en que así lo requieren  para la prestación de los servicios para los cuales fueron contratados y sujeto al cumplimiento de los deberes que les correspondan como encargados del Tratamiento de mis Datos Personales. Igualmente, a EL EMPLEADOR para compartir mis datos Personales con las entidades gremiales a las que pertenezca la entidad, para fines comerciales, estadísticos y de estudio y análisis de mercadeo. Es entendido que las personas naturales y jurídicas, nacionales y extranjeras mencionadas anteriormente ante las cuales EL EMPLEADOR puede llevar a cabo el Tratamiento de mis Datos Personales, también cuentan con mi autorización para permitir dicho Tratamiento. Adicionalmente, mediante el otorgamiento de la presente autorización, manifiesto: (i) que los Datos Personales suministrados son veraces, verificables y completos, (ii) que conozco y entiendo que el suministro de la presente autorización es voluntaria, razón por la cual no me encuentro obligado a otorgar la presenta autorización, (iii) que conozco y entiendo que mediante la simple presentación de una comunicación escrita puedo limitar en todo o en parte el alcance de la presente autorización  para que, entre otros, la misma se otorgue únicamente frente a EL EMPLEADOR pero no frente a LAS ENTIDADES AUTORIZADAS y (iv) haber sido informado  sobre mis derechos a conocer, actualizar y rectificar mis Datos Personales, el carácter facultativo de mis respuestas a las preguntas que sean hechas cuando versen sobre datos sensibles o sobre datos de los niños, niñas o adolescentes, solicitar prueba de la autorización otorgada para su tratamiento, ser informado sobre el uso que se ha dado a los mismo, presentar quejas ante la autoridad competente por infracción a la ley una vez haya agotado el trámite de consulta o reclamo ante EL EMPLEADOR, revocar la presentación autorización, solicitar la supresión de sus datos en los casos en que sea procedente y ejercer en forma gratuita mis derechos y garantías constitucionales y legales. EL EMPLEADOR informa que el tratamiento de sus Datos Personales se efectuará de acuerdo con la Política de la entidad en esta materia, la cual puede ser consultada en sus instalaciones. DÉCIMA  TERCERA. AUTORIZACIÓN DE DESCUENTOS: El TRABAJADOR autoriza expresamente al EMPLEADOR para que se descuenten de mi salario y  prestaciones o cualquier otro concepto las sumas que por error  haya recibido, permitiendo que el EMPLEADOR compense del valor de los salarios, prestaciones legales o extralegales, indemnizaciones y otro tipo de dinero a pagar al momento de la Nómina y/o liquidación las sumas que yo como TRABAJADOR esté  debiendo al EMPLEADOR Y EMPRESA USUARIA por los siguientes conceptos: Préstamos debidamente autorizados por escrito; valor de los elementos de trabajo y mercancías extraviadas bajo mi responsabilidad y que llegaren a faltar al momento de hacer entrega del inventario; los valores que se me hubieren confiado para mi manejo y que hayan sido dispuestos abusivamente para otros propósitos en perjuicio del EMPLEADOR; los anticipos o sumas no legalizadas con las facturas o comprobantes requeridos que me fueron entregadas alimentación establecido, todo lo que exceda de valores aprobados (Celulares, Tarjetas de Crédito, etc.), modificaciones en las Bases de Datos sin el soporte correspondiente, errores de digitación y procedimientos internos que por mi culpa afecten económicamente a la empresa y cualquier pago que me haya sido realizado y que no me corresponda.  De  igual  forma,  en  caso  de  recibir  Subsidio  de Transporte y  Bonificaciones,  autorizo  la deducción  cuando se  causen ausencias al trabajo por cualquier motivo en el mes por el cual recibí pago completo. Por lo anterior, autorizo expresamente al EMPLEADOR para que retenga y cobre de mi salario y liquidación final, de cualquier otro concepto a mi favor, ';
-    y = this.renderJustifiedText(doc, texto3, x, y, maxWidth, lineHeight);
+    y = this.renderJustifiedText(doc, texto3, x, y, maxWidth, lineHeight, false, 5);
 
     // agregar pagina
     doc.addPage();
@@ -10145,6 +10325,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
         codigoContrato: this.safe(codigoContrato),
         sedeNombre: this.safe(this.user?.sede?.nombre),
         empUsuaria: this.safe(empUsuaria),
+        temporal: this.safe(vac?.temporal ?? this.empresa),
         personaQueFirma: this.safe(`${this.user?.datos_basicos?.nombres ?? ''} ${this.user?.datos_basicos?.apellidos ?? ''}`.trim()),
         usaRuta: this.safe(rutaInfo.usaRuta),
         auxilioTransporte: this.safe(vac.auxilioTransporte),

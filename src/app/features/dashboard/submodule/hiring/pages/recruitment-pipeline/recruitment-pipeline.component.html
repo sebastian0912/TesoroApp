@@ -168,6 +168,15 @@
 
         <!-- Dar de baja: ahora se hace haciendo click sobre el pill "Contrato activo" del header. -->
 
+        <!-- Forzar consulta de antecedentes: re-abre las 8 fuentes del robot
+             (SIN_CONSULTAR) sin esperar a que la fila venza. Pide confirmación
+             porque dispara una pasada completa de la flota. -->
+        <button mat-icon-button matTooltip="Forzar consulta de antecedentes (robots)"
+          aria-label="Forzar consulta de antecedentes"
+          (click)="forzarConsultaAntecedentes()" [disabled]="!candidatoSeleccionado()?.numero_documento">
+          <mat-icon>fact_check</mat-icon>
+        </button>
+
         <!-- Botón de tabla -->
         <button mat-icon-button matTooltip="Ver tabla de registros" aria-label="Ver tabla de registros"
           (click)="mostrarTabla()" [disabled]="!candidatoSeleccionado()?.numero_documento">

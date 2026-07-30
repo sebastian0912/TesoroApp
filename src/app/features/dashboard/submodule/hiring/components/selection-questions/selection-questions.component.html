@@ -144,6 +144,16 @@
         </div>
       }
 
+      <!-- Barrio de residencia: se consulta y edita aquí; se guarda con el
+           mismo botón, por su propio endpoint. -->
+      <div class="input-container">
+        <mat-form-field appearance="outline" class="example-full-width">
+          <mat-label>Barrio de residencia</mat-label>
+          <input matInput [formControl]="$any(antecedentes.get('barrio'))"
+                 placeholder="Barrio del candidato">
+        </mat-form-field>
+      </div>
+
       <button mat-flat-button (click)="imprimirVerificacionesAplicacion()" class="example-full-width">
         Cargar
       </button>

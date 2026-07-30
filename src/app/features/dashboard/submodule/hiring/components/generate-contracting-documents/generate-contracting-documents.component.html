@@ -247,6 +247,16 @@
               <mat-icon>library_add_check</mat-icon>
               <span>Generar Lote TA (Masivo)</span>
             </button>
+            <!-- Paquete unido: exclusivo de la oficina de Soacha. -->
+            @if (esOficinaSoacha) {
+              <button mat-stroked-button color="primary" class="w-100 mt-2"
+                (click)="descargarPaqueteSoacha()"
+                matTooltip="Ficha Técnica, Cédula, ARL, Ficha Social, Exámenes y hoja 1 del Contrato en un solo PDF"
+                style="margin-top: 10px; border: 2px solid currentColor;">
+                <mat-icon>picture_as_pdf</mat-icon>
+                <span>Descargar paquete Soacha</span>
+              </button>
+            }
           </footer>
         </article>
 

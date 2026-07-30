@@ -668,6 +668,59 @@ export class RecruitmentPipelineComponent {
     this.router.navigate(['dashboard/hiring/generate-contracting-documents', this.numeroDocumento]);
   }
 
+  // ───────── ANTECEDENTES (ROBOTS) ─────────
+  /**
+   * Re-abre las 8 fuentes de antecedentes del candidato consultado para que la
+   * flota vuelva a consultarlas y suba PDFs nuevos.
+   *
+   * Normalmente el backend solo re-consulta cuando la fila lleva más de
+   * ESTADO_ROBOT_STALE_DAYS sin tocarse (o cuando la persona llena el
+   * formulario web). Este botón es la salida manual para cuando se necesita el
+   * antecedente al día ya. Cuesta una pasada completa de robots, por eso pide
+   * confirmación explícita.
+   */
+  async forzarConsultaAntecedentes(): Promise<void> {
+    const cand = this.candidatoSeleccionado();
+    const doc = cand?.numero_documento != null ? String(cand.numero_documento).trim() : '';
+    if (!doc) return;
+
+    const { isConfirmed } = await Swal.fire({
+      icon: 'question',
+      title: 'Forzar consulta de antecedentes',
+      html:
+        `Se volverán a consultar <b>todos</b> los antecedentes de ` +
+        `<b>${this.nombreCandidato || doc}</b> (${doc}).<br><br>` +
+        `Los estados actuales se archivan y quedan en <b>SIN_CONSULTAR</b>; ` +
+        `los robots los toman en los próximos minutos y suben los PDF nuevos.`,
+      showCancelButton: true,
+      confirmButtonText: 'Sí, volver a consultar',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#111827',
+    });
+    if (!isConfirmed) return;
+
+    try {
+      Swal.fire({ title: 'Re-abriendo antecedentes...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+      const resp = await firstValueFrom(this.registroProceso.forzarConsultaAntecedentes({
+        tipo_doc: cand?.tipo_doc ?? null,
+        numero_documento: doc,
+      }));
+      Swal.close();
+      const msg = resp?.mensaje || 'Antecedentes re-abiertos.';
+      if (resp?.reabierto) {
+        this.snack.open(msg, 'OK', { duration: 5000 });
+      } else {
+        // Ya estaba en cola / no había nada que re-abrir: no es un error.
+        Swal.fire({ icon: 'info', title: 'Sin cambios', text: msg, confirmButtonColor: '#111827' });
+      }
+    } catch (err: any) {
+      Swal.close();
+      console.error('[antecedentes] forzar falló', err);
+      const detalle = err?.error?.detail || err?.message || 'No se pudo re-abrir la consulta.';
+      Swal.fire({ icon: 'error', title: 'No se pudo', text: detalle, confirmButtonColor: '#111827' });
+    }
+  }
+
   // ───────── CONFIRMACIÓN CONTACTO ─────────
   async confirmarCorreoBienvenida(): Promise<void> {
     const cand = this.candidatoSeleccionado();

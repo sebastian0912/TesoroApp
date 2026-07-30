@@ -54,6 +54,12 @@ export interface FichaTecnicaContext {
   sedeNombre: string;
   /** Empresa usuaria (cliente) — `vacante.empresaUsuariaSolicita`. */
   empUsuaria: string;
+  /**
+   * Temporal empleadora — `vacante.temporal` (Apoyo Laboral / Tu Alianza).
+   * La autorización de estudios de seguridad cubre a las DOS empresas: quien
+   * contrata y donde se presta el servicio.
+   */
+  temporal: string;
   /** Nombre de quien firma como representante administrativo (verificador refs). */
   personaQueFirma: string;
   /** Resultado de getRutaInfo del componente: `usaRuta` (texto) y demás. */
@@ -424,16 +430,42 @@ export function fillFichaTecnicaPdf(
   // TEXTOS ESPECIALES / AUTORIZACIÓN EMPRESA
   // ════════════════════════════════════════════════════════════════════
   setText('empresa', upper(ctx.empUsuaria), 7);
+
+  // ── Datos de nómina (pestaña "Pago y Transporte" del contrato) ──
+  // Los nombres de campo son los de la plantilla, con sus tildes y el typo
+  // "Sublador"; no se pueden "corregir" sin romper el mapeo con el PDF.
+  const contratoNom: any = cand?.entrevistas?.[0]?.proceso?.contrato ?? {};
+  setText('Empresa Grupo Elite', upper(contratoNom.empresa_grupo_elite), 6);
+  // Apoyo siempre opera con la compañía 001.
+  setText('Código Compañía', s(contratoNom.codigo_compania) || '001', 6);
+  setText('Sucursal', upper(contratoNom.sucursal), 6);
+  setText('Centro de Costo', upper(contratoNom.Ccentro_de_costos), 6);
+  setText('SubCentro de Costo', upper(contratoNom.subcentro_de_costos), 6);
+  setText('CÓDIGOCiudad de Labor', upper(contratoNom.ciudad_labor), 6);
+  setText('CÓDIGOClasificador 2Categoría', upper(contratoNom.categoria), 6);
+  setText('CÓDIGOClasificador 3Operación', upper(contratoNom.operacion), 6);
+  setText('CÓDIGOClasificador 4Sublador', upper(contratoNom.sublabor), 6);
+  setText('Apoyo Laboral TSClasificador 6Grupo', upper(contratoNom.grupo), 6);
+
+  // Domicilio: ambos campos llevan el municipio de residencia.
+  const municipioResidencia = upper(cand?.residencia?.municipio ?? cand?.municipio);
+  setText('Ciudad DomicilioRow1', municipioResidencia, 6);
+  setText('DepartamentoRow1', municipioResidencia, 6);
   // El rect de `CedulaAutorizacion` es muy estrecho (~52pt × 7pt). Sin fontSize
   // fijo el número se ve gigante y se desborda; forzamos 6pt.
   setText('CedulaAutorizacion', s(cand.numero_documento), 6);
 
   if (ctx.empUsuaria) {
-    setText(
-      'AutorizacionDeEstudiosSeguridad2',
-      `estudios de seguridad. De conformidad con lo dispuesto en la ley 1581 de 2012 y el decreto reglamentario 1377 de 2013 autorizo a ${ctx.empUsuaria} a consultar en cualquier momento ante las centrales de riesgo la información comercial a mi nombre.`,
-      6
-    );
+    // Este campo es SOLO el espacio en blanco de la plantilla, que ya trae
+    // impreso "...autorizo a ______ a consultar ante las centrales de riesgo".
+    // Antes se le metía el párrafo completo, que no cabe en el rect y salía
+    // cortado en "estudios de seguridad. De conformidad con lo dispuesto...".
+    // Va únicamente el nombre de las dos empresas autorizadas.
+    const autorizadas = [ctx.temporal, ctx.empUsuaria]
+      .map(v => String(v ?? '').trim())
+      .filter(Boolean)
+      .join(' - ');
+    setText('AutorizacionDeEstudiosSeguridad2', autorizadas, 6);
     setText(
       'TEXTOCARNET',
       `me comprometo a presentar ante ${ctx.empUsuaria} fotocopia del denuncio correspondiente y en el caso de aparecer el carnet perdido lo devolveré a la empresa para su respectiva anulación.`,

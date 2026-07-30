@@ -156,7 +156,34 @@
 
         <mat-form-field appearance="outline" class="example-full-width">
           <mat-label>Ccostos</mat-label>
-          <input matInput formControlName="Ccostos">
+          <input matInput formControlName="Ccostos" (blur)="autollenarDesdeCentroCosto()">
+          <mat-hint>Al salir del campo se prellenan empresa, ciudad y sublabor.</mat-hint>
+        </mat-form-field>
+
+        <!-- Datos de nómina: se prellenan desde el centro de costo y quedan editables -->
+        <mat-form-field appearance="outline" class="example-full-width">
+          <mat-label>Empresa grupo Elite</mat-label>
+          <input matInput formControlName="empresaGrupoElite">
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="example-full-width">
+          <mat-label>Código compañía</mat-label>
+          <input matInput formControlName="codigoCompania">
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="example-full-width">
+          <mat-label>Sucursal</mat-label>
+          <input matInput formControlName="sucursal">
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="example-full-width">
+          <mat-label>Ciudad de labor</mat-label>
+          <input matInput formControlName="ciudadLabor">
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="example-full-width">
+          <mat-label>Clasificador 4 · Sublabor</mat-label>
+          <input matInput formControlName="sublabor">
         </mat-form-field>
 
         <mat-form-field appearance="outline" class="example-full-width">
@@ -206,13 +233,13 @@
 
         <!-- CATEGORIA -->
         <mat-form-field appearance="outline" class="example-full-width">
-          <mat-label>Categoría</mat-label>
+          <mat-label>Clasificador 2 · Categoría</mat-label>
           <input matInput formControlName="categoria">
         </mat-form-field>
 
         <!-- OPERACION -->
         <mat-form-field appearance="outline" class="example-full-width">
-          <mat-label>Operación</mat-label>
+          <mat-label>Clasificador 3 · Operación</mat-label>
           <input matInput formControlName="operacion">
         </mat-form-field>
 
@@ -271,6 +298,7 @@
               </button>
             </mat-form-field>
             <mat-menu #menuF1="matMenu">
+              <button mat-menu-item (click)="generarReferencia('familiar1')">Generar</button>
               <button mat-menu-item (click)="verArchivo('familiar1')">Ver
               PDF</button>
               <button mat-menu-item>
@@ -299,7 +327,8 @@
                   </button>
                 </mat-form-field>
                 <mat-menu #menuF2="matMenu">
-                  <button mat-menu-item (click)="verArchivo('familiar2')">Ver
+                  <button mat-menu-item (click)="generarReferencia('familiar2')">Generar</button>
+              <button mat-menu-item (click)="verArchivo('familiar2')">Ver
                   PDF</button>
                   <button mat-menu-item>
                     <label for="familiar2File">
@@ -327,7 +356,8 @@
                       </button>
                     </mat-form-field>
                     <mat-menu #menuP1="matMenu">
-                      <button mat-menu-item (click)="verArchivo('personal1')">Ver
+                      <button mat-menu-item (click)="generarReferencia('personal1')">Generar</button>
+              <button mat-menu-item (click)="verArchivo('personal1')">Ver
                       PDF</button>
                       <button mat-menu-item>
                         <label for="personal1File">
@@ -355,7 +385,8 @@
                           </button>
                         </mat-form-field>
                         <mat-menu #menuP2="matMenu">
-                          <button mat-menu-item (click)="verArchivo('personal2')">Ver
+                          <button mat-menu-item (click)="generarReferencia('personal2')">Generar</button>
+              <button mat-menu-item (click)="verArchivo('personal2')">Ver
                           PDF</button>
                           <button mat-menu-item>
                             <label for="personal2File">

@@ -559,6 +559,24 @@ export class RegistroProcesoContratacion {
     return this.http.post<any>(this.url('candidatos/asegurar-estado-robot'), payload).pipe(this.handle$());
   }
 
+  /**
+   * POST /gestion_contratacion/candidatos/forzar-consulta-antecedentes/
+   * Re-abre AHORA las 8 fuentes de antecedentes (SIN_CONSULTAR + limpieza de
+   * fechas/locks) para que la flota vuelva a consultar y suba PDFs nuevos.
+   * A diferencia de `asegurarEstadoRobot`, no espera a que la fila esté
+   * vencida. Cuesta una pasada completa de robots: confirmar antes de llamar.
+   */
+  forzarConsultaAntecedentes(payload: { tipo_doc?: string | null; numero_documento?: string | null }): Observable<{
+    ok: boolean;
+    numero_documento?: string;
+    tipo_documento?: string;
+    action?: string;
+    reabierto?: boolean;
+    mensaje?: string;
+  }> {
+    return this.http.post<any>(this.url('candidatos/forzar-consulta-antecedentes'), payload).pipe(this.handle$());
+  }
+
   getUltimosEnEspera(oficina?: string | string[]): Observable<EnEsperaItem[]> {
     let options: { params?: HttpParams } = {};
 

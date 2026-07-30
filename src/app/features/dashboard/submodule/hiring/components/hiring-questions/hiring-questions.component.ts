@@ -9,7 +9,9 @@ import Swal from 'sweetalert2';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import type jsPDF from 'jspdf';
 import type { RowInput } from 'jspdf-autotable';
+import { UtilityServiceService } from '@/app/shared/services/utilityService/utility-service.service';
 import { GestionDocumentalService } from '../../service/gestion-documental/gestion-documental.service';
+import { FarmsService } from '../../../farms/services/farms/farms.service';
 import { VacantesService } from '../../service/vacantes/vacantes.service';
 import {
   ProcesoUpdateByDocumentRequest,
@@ -133,12 +135,14 @@ export class HiringQuestionsComponent implements OnInit {
   private readonly http = inject(HttpClient);
   private readonly docSvc = inject(GestionDocumentalService);
   private readonly vacantesService = inject(VacantesService);
+  private readonly farmsService = inject(FarmsService);
   private readonly procesosService = inject(RegistroProcesoContratacion);
   private readonly tarjetasService = inject(TarjetasService);
   private readonly positionsService = inject(PositionsService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly sanitizer = inject(DomSanitizer);
   private readonly seleccionEstado = inject(SeleccionEstadoService);
+  private readonly utilService = inject(UtilityServiceService);
 
   /**
    * El candidato quedó EN ESPERA de vacante o marcado NO APLICA (observación del
@@ -220,6 +224,13 @@ export class HiringQuestionsComponent implements OnInit {
         porcentajeARL: [null, Validators.required],
         cesantias: [null, Validators.required],
         subCentroCostos: [null, Validators.required],
+        // Datos de nomina. Se prellenan desde el centro de costo pero quedan
+        // editables; no son obligatorios para no bloquear contrataciones viejas.
+        empresaGrupoElite: [null],
+        codigoCompania: [null],
+        sucursal: [null],
+        ciudadLabor: [null],
+        sublabor: [null],
         grupo: [null, Validators.required],
         categoria: [null, Validators.required],
         operacion: [null, Validators.required],
@@ -455,6 +466,11 @@ export class HiringQuestionsComponent implements OnInit {
         porcentaje_arl?: number | null;
         cesantias?: string | null;
         subcentro_de_costos?: string | null;
+        empresa_grupo_elite?: string | null;
+        codigo_compania?: string | null;
+        sucursal?: string | null;
+        ciudad_labor?: string | null;
+        sublabor?: string | null;
         grupo?: string | null;
         categoria?: string | null;
         operacion?: string | null;
@@ -475,6 +491,11 @@ export class HiringQuestionsComponent implements OnInit {
         porcentaje_arl: toNum(v.porcentajeARL),
         cesantias: v.cesantias ?? null,
         subcentro_de_costos: v.subCentroCostos ?? null,
+        empresa_grupo_elite: v.empresaGrupoElite ?? null,
+        codigo_compania: v.codigoCompania ?? null,
+        sucursal: v.sucursal ?? null,
+        ciudad_labor: v.ciudadLabor ?? null,
+        sublabor: v.sublabor ?? null,
         grupo: v.grupo ?? null,
         categoria: v.categoria ?? null,
         operacion: v.operacion ?? null,
@@ -527,16 +548,149 @@ export class HiringQuestionsComponent implements OnInit {
     input.value = '';
   }
 
+  /**
+   * Genera el formato de verificación de referencias para un slot
+   * ('familiar1' | 'familiar2' | 'personal1' | 'personal2').
+   *
+   * Queda en `uploadedFiles`, así que se ve con "Ver" y sube con "Cargar",
+   * igual que un PDF adjuntado a mano. Solo aplica a referencias personales y
+   * familiares; las laborales llevan otro formato.
+   */
+  async generarReferencia(campo: string): Promise<void> {
+    const m = /^(familiar|personal)([12])$/.exec(campo);
+    if (!m) return;
+    const tipo = m[1].toUpperCase();      // FAMILIAR | PERSONAL
+    const slot = Number(m[2]);
+
+    const cand: any = this.candidatoSeleccionado();
+    if (!cand?.numero_documento) {
+      return this.alert('info', 'Sin candidato', 'Selecciona un candidato primero.');
+    }
+
+    // La tabla guarda el tipo con y sin sufijo ('PERSONAL' y 'PERSONAL1'); se
+    // aceptan ambos y, cuando hay varias del mismo tipo, se ordenan por id.
+    const todas: any[] = Array.isArray(cand?.referencias) ? [...cand.referencias] : [];
+    const delTipo = todas
+      .filter(r => String(r?.tipo ?? '').toUpperCase().startsWith(tipo))
+      .sort((a, b) => (Number(a?.id) || 0) - (Number(b?.id) || 0));
+    const exacta = delTipo.find(r => String(r?.tipo ?? '').toUpperCase() === `${tipo}${slot}`);
+    const ref = exacta ?? delTipo[slot - 1];
+
+    if (!ref) {
+      return this.alert(
+        'info', 'Sin datos de la referencia',
+        `El candidato no tiene registrada la referencia ${tipo.toLowerCase()} ${slot}.`,
+      );
+    }
+
+    const nombreCand = [cand.primer_nombre, cand.segundo_nombre, cand.primer_apellido, cand.segundo_apellido]
+      .map((x: any) => String(x ?? '').trim()).filter(Boolean).join(' ').toUpperCase();
+    // La vacante no se guarda en el componente: se trae de la publicación del
+    // proceso, igual que hace `loadData`. Si falla, el formato sale con esas
+    // líneas en blanco en vez de no generarse.
+    const proc: any = cand?.entrevistas?.[0]?.proceso;
+    let vac: any = {};
+    if (proc?.publicacion) {
+      try {
+        vac = await firstValueFrom(this.vacantesService.obtenerVacante(proc.publicacion)) ?? {};
+      } catch { vac = {}; }
+    }
+
+    const u: any = this.utilService.getUser?.() ?? {};
+    const hoy = new Date();
+    const fecha = `${String(hoy.getDate()).padStart(2, '0')}/${String(hoy.getMonth() + 1).padStart(2, '0')}/${hoy.getFullYear()}`;
+
+    const { buildVerificacionReferenciaPdf } = await import('./referencias-fill');
+    const blob = buildVerificacionReferenciaPdf({
+      candidatoNombre: nombreCand,
+      candidatoCedula: String(cand.numero_documento ?? ''),
+      cargo: String(vac?.cargo ?? ''),
+      empresaUsuaria: String(vac?.empresaUsuariaSolicita ?? ''),
+      temporal: String(vac?.temporal ?? ''),
+      verificadoPor: `${u?.datos_basicos?.nombres ?? ''} ${u?.datos_basicos?.apellidos ?? ''}`.trim(),
+      fecha,
+      referencia: {
+        tipo,
+        slot,
+        nombre: String(ref.nombre ?? ''),
+        parentesco: String(ref.parentesco ?? ''),
+        telefono: String(ref.telefono ?? ''),
+        ocupacion: String(ref.ocupacion ?? ''),
+        tiempoConoce: String(ref.tiempo_conoce ?? ''),
+        referenciacion: String(ref.referenciacion ?? ''),
+      },
+    });
+
+    const fileName = `Verificacion-${tipo}${slot}-${cand.numero_documento}.pdf`;
+    const file = new File([blob], fileName, { type: 'application/pdf' });
+    this.uploadedFiles[campo] = { file, fileName };
+    this.referenciasForm.get(campo)?.setValue(fileName);
+    this.verArchivo(campo);
+  }
+
+  /**
+   * Prellena los datos de nómina desde el centro de costo digitado.
+   *
+   * `CentroCosto` ya guarda empresa, ciudad y sublabor; se copian solo a los
+   * campos vacíos para no pisar un ajuste manual. Código de compañía y sucursal
+   * no existen en esa tabla, así que quedan a mano.
+   */
+  async autollenarDesdeCentroCosto(): Promise<void> {
+    const cc = String(this.pagoTransporteForm.get('Ccostos')?.value ?? '').trim();
+    if (!cc) return;
+
+    try {
+      const filas = await firstValueFrom(this.farmsService.list(cc));
+      // Coincidencia exacta por Ccostos; si no, la primera del resultado.
+      const norm = (v: any) => String(v ?? '').trim().toUpperCase();
+      const fila = (filas || []).find(f => norm(f['ccostos']) === norm(cc)) ?? (filas || [])[0];
+      if (!fila) return;
+
+      const ponerSiVacio = (control: string, valor: any) => {
+        const c = this.pagoTransporteForm.get(control);
+        const actual = String(c?.value ?? '').trim();
+        const nuevo = String(valor ?? '').trim();
+        if (c && !actual && nuevo) c.setValue(nuevo);
+      };
+
+      ponerSiVacio('empresaGrupoElite', fila['empresa']);
+      ponerSiVacio('ciudadLabor', fila['ciudad']);
+      ponerSiVacio('sublabor', fila['sublabor']);
+      ponerSiVacio('subCentroCostos', fila['subcentro']);
+      ponerSiVacio('grupo', fila['grupo']);
+      ponerSiVacio('categoria', fila['categoria']);
+      ponerSiVacio('operacion', fila['operacion']);
+    } catch (e) {
+      // Es una ayuda de digitación: si falla, los campos se llenan a mano.
+      console.warn('[centro de costo] no se pudo autocompletar', e);
+    }
+  }
+
   verArchivo(campo: string): void {
     const reg = this.uploadedFiles[campo];
     if (!reg) return this.alert('error', 'Archivo no encontrado', 'No se encontró el archivo.');
+
     if (typeof reg.file === 'string') {
       window.open(encodeURI(reg.file), '_blank');
-    } else {
-      const url = URL.createObjectURL(reg.file);
-      window.open(url, '_blank');
-      setTimeout(() => URL.revokeObjectURL(url), 250);
+      return;
     }
+
+    const url = URL.createObjectURL(reg.file);
+    const win = window.open(url, '_blank');
+
+    // Si la ventana no abrió, se descarga. Pasa cuando `verArchivo` se llama
+    // después de un `await` (el generador consulta la vacante antes de abrir):
+    // se pierde el gesto del usuario y el navegador bloquea el popup.
+    if (!win) {
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = reg.fileName || 'documento.pdf';
+      a.click();
+    }
+
+    // Antes se revocaba a los 250 ms y la ventana alcanzaba a quedarse en
+    // blanco porque el blob moría antes de renderizar.
+    setTimeout(() => { try { URL.revokeObjectURL(url); } catch { } }, 60_000);
   }
 
   descargarArchivo(): void {
@@ -1030,6 +1184,7 @@ export class HiringQuestionsComponent implements OnInit {
     const CONTR_KEYS: Array<keyof typeof contr> = [
       'forma_de_pago', 'numero_para_pagos', 'Ccentro_de_costos', 'porcentaje_arl', 'cesantias',
       'subcentro_de_costos', 'grupo', 'categoria', 'operacion', 'horas_extras', 'seguro_funerario',
+      'empresa_grupo_elite', 'codigo_compania', 'sucursal', 'ciudad_labor', 'sublabor',
       'desea_trasladarse', 'seleccion_eps', 'contrasenia_asignada', 'identification_number_tarjeta'
     ];
     const contratoVacio = !contr || CONTR_KEYS.every(k => isEmptyValue((contr as any)?.[k]));
@@ -1047,6 +1202,11 @@ export class HiringQuestionsComponent implements OnInit {
       porcentajeARL: contr?.porcentaje_arl != null ? toNum(contr.porcentaje_arl) : null,
       cesantias: contr?.cesantias ?? null,
       subCentroCostos: contr?.subcentro_de_costos ?? null,
+      empresaGrupoElite: contr?.empresa_grupo_elite ?? null,
+      codigoCompania: contr?.codigo_compania ?? null,
+      sucursal: contr?.sucursal ?? null,
+      ciudadLabor: contr?.ciudad_labor ?? null,
+      sublabor: contr?.sublabor ?? null,
       grupo: contr?.grupo ?? null,
       categoria: contr?.categoria ?? null,
       operacion: contr?.operacion ?? null,

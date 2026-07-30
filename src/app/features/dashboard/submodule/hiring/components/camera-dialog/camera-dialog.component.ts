@@ -157,6 +157,22 @@ export class CameraDialogComponent implements OnInit, OnDestroy {
     }
   }
 
+  /**
+   * Pasa a modo "Adjuntar" desde la previsualizacion y abre el selector de
+   * archivos de una vez.
+   *
+   * El dialogo arranca mostrando la foto que ya tiene el candidato, y en ese
+   * estado la unica barra visible era Repetir/Confirmar: para adjuntar habia
+   * que adivinar que primero tocaba pulsar Repetir.
+   */
+  adjuntarDesdePreview(): void {
+    this.stopCamera();
+    this.isUploadMode = true;
+    this.clearSelection();
+    // Tras el render del input, abrir el explorador de archivos.
+    setTimeout(() => this.fileInput?.nativeElement?.click(), 0);
+  }
+
   capture(): void {
     if (!this.videoEl?.nativeElement || !this.canvasEl?.nativeElement) return;
     const video = this.videoEl.nativeElement;
@@ -170,12 +186,16 @@ export class CameraDialogComponent implements OnInit, OnDestroy {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    // Si está en espejo, invertir el canvas horizontalmente antes de dibujar
-    if (this.isMirror) {
-      ctx.translate(w, 0);
-      ctx.scale(-1, 1);
-    }
-
+    // Se guarda SIEMPRE la imagen real, sin espejo.
+    //
+    // `isMirror` voltea unicamente la vista previa (CSS .mirror sobre el
+    // <video>), que es lo que ayuda a encuadrarse como en un espejo. El frame
+    // que entrega el <video> ya viene sin voltear, asi que dibujarlo tal cual
+    // produce la foto correcta.
+    //
+    // Antes se replicaba el volteo en el canvas y el ARCHIVO quedaba invertido:
+    // en una foto de identificacion la cara sale al reves respecto a la cedula,
+    // y cualquier texto del fondo se lee espejado.
     ctx.drawImage(video, 0, 0, w, h);
 
     canvas.toBlob((blob) => {

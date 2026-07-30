@@ -138,7 +138,10 @@ export class SelectionQuestionsComponent implements OnDestroy {
     'A1', 'A2', 'A3', 'A4', 'A5', 'B1', 'B2', 'B3', 'B4', 'B5', 'B6', 'B7',
     'C1', 'C2', 'C3', 'C4', 'C5', 'C6', 'C7', 'C8', 'C9', 'C10', 'C11', 'C12', 'C13', 'C14', 'C15', 'C16', 'C17', 'C18',
     'D1', 'D2', 'D3', 'D4', 'D5', 'D6', 'D7', 'D8', 'D9', 'D10', 'D11', 'D12', 'D13', 'D14', 'D15', 'D16', 'D17', 'D18', 'D19', 'D20', 'D21',
-    'No Aplica', 'Sin Buscar'
+    // 'No Tiene' = la persona no está sisbenizada (el robot lo devuelve como
+    // "Sin Sisben"). Distinto de 'No Aplica' (no corresponde consultarlo) y de
+    // 'Sin Buscar' (todavía nadie lo revisó).
+    'No Tiene', 'No Aplica', 'Sin Buscar'
   ] as const;
   readonly medidasCorrectivasOpts = [...Array.from({ length: 11 }, (_, i) => i), 'CUMPLE'] as const;
 
@@ -226,6 +229,9 @@ export class SelectionQuestionsComponent implements OnDestroy {
       ofac: [''],
       medidasCorrectivas: [''],
       semanasCotizadas: [null],
+      // Barrio de residencia: no es un antecedente, pero se consulta y edita
+      // aca. Viaja por su propio endpoint (ver guardar()).
+      barrio: [''],
     });
 
     // Reacciona al candidato seleccionado
@@ -241,6 +247,8 @@ export class SelectionQuestionsComponent implements OnDestroy {
 
       this.resetUploadedFilesAsNew();
       this.patchSeleccion(proc?.antecedentes ?? null);
+      this.antecedentes.get('barrio')?.setValue(
+        String(candidato?.residencia?.barrio ?? '').trim(), { emitEvent: false });
 
       // Cancela cualquier polling del candidato anterior antes de empezar.
       this.cancelDocPolling();
@@ -680,6 +688,25 @@ export class SelectionQuestionsComponent implements OnDestroy {
         modificacionForzada: this.modificacionForzada(),
         modificadoPor: this.modificadoPor(),
       }));
+
+      // El barrio vive en ResidenciaCandidato, no en los antecedentes, así que
+      // va por su propio endpoint. Se manda solo si cambió, para no crear una
+      // fila de residencia vacía en candidatos que no la tienen.
+      const barrio = String(v['barrio'] ?? '').trim();
+      const barrioOriginal = String(
+        this.candidatoSeleccionado()?.residencia?.barrio ?? ''
+      ).trim();
+      if (barrio !== barrioOriginal) {
+        try {
+          await firstValueFrom(this.rpc.upsertCandidatoByDocumento({
+            numero_documento: numero,
+            residencia: { barrio },
+          }));
+        } catch (e) {
+          // No se tumba el guardado de antecedentes por esto.
+          console.warn('[barrio] no se pudo guardar', e);
+        }
+      }
       await Swal.fire('¡Guardado!', 'Se actualizaron los antecedentes del proceso.', 'success');
 
       const res = await this.subirTodosLosArchivos(Object.keys(this.typeMap) as DocKey[]);
