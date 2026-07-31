@@ -281,6 +281,55 @@ function dibujarReverso(doc: jsPDF, d: DatosCarnet, ox: number, oy: number): voi
   );
 }
 
+/** Carnets por hoja: las 9 celdas de la grilla. */
+export const CARNETS_POR_HOJA = CARNET_FILAS * CARNET_COLUMNAS;
+
+/**
+ * Lote: llena las 9 celdas de cada hoja y agrega hojas mientras haya gente.
+ *
+ * El reverso se dibuja en la columna espejada (col → COLUMNAS-1-col) por la
+ * misma razón que el carnet individual: la impresión a doble cara voltea por
+ * el LADO CORTO, así que la hoja gira sobre el eje vertical. Si sale corrido,
+ * la impresora está volteando por el lado largo.
+ *
+ * Las celdas sobrantes de la última hoja quedan en blanco con su contorno.
+ */
+export function buildCarnetApoyoLotePdf(lista: readonly DatosCarnet[]): Blob {
+  const gente = (lista ?? []).filter(Boolean);
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'letter' });
+  doc.setProperties({ title: `Carnets_lote_${gente.length}` });
+
+  const hojas = Math.max(1, Math.ceil(gente.length / CARNETS_POR_HOJA));
+  let primeraPagina = true;
+
+  for (let hoja = 0; hoja < hojas; hoja++) {
+    const tanda = gente.slice(hoja * CARNETS_POR_HOJA, (hoja + 1) * CARNETS_POR_HOJA);
+
+    // Cara 1 (frentes) de la hoja.
+    if (!primeraPagina) doc.addPage('letter', 'landscape');
+    primeraPagina = false;
+    dibujarGrilla(doc);
+    tanda.forEach((d, i) => {
+      const fila = Math.floor(i / CARNET_COLUMNAS);
+      const col = i % CARNET_COLUMNAS;
+      const { ox, oy } = origenCelda(doc, fila, col);
+      dibujarFrente(doc, d, ox, oy);
+    });
+
+    // Cara 2 (reversos) de la MISMA hoja, en columna espejada.
+    doc.addPage('letter', 'landscape');
+    dibujarGrilla(doc);
+    tanda.forEach((d, i) => {
+      const fila = Math.floor(i / CARNET_COLUMNAS);
+      const col = i % CARNET_COLUMNAS;
+      const { ox, oy } = origenCelda(doc, fila, CARNET_COLUMNAS - 1 - col);
+      dibujarReverso(doc, d, ox, oy);
+    });
+  }
+
+  return doc.output('blob');
+}
+
 export function buildCarnetApoyoPdf(d: DatosCarnet): Blob {
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'letter' });
   doc.setProperties({ title: `Carnet_${d.cedula}` });

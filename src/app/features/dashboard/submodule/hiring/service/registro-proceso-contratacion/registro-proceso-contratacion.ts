@@ -398,6 +398,8 @@ export interface CandidatoRecienteItem {
   // Encolado (cola FIFO por sede):
   en_turno_at?: string | null;
   en_turno_oficina?: string | null;
+  /** ¿Ya se le generó el carnet? (contrato.carnet_generado) */
+  carnet_generado?: boolean;
 }
 
 export type RangoFechas = { start: string | Date; end: string | Date };

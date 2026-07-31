@@ -65,6 +65,18 @@ export class SearchForCandidateComponent implements OnInit, OnDestroy {
   @Output() idInfoEntrevistaAndreaChange = new EventEmitter<number>();
   // objetos completos
   @Output() candidatoSeleccionado = new EventEmitter<any>();
+  /**
+   * Pide al pipeline abrir la generación masiva de carnets, mandándole las
+   * cédulas que hay hoy en la cola: es el arranque más común y ahorra
+   * pegarlas a mano (en el diálogo se pueden editar o pegar otras).
+   */
+  @Output() carnetMasivo = new EventEmitter<string[]>();
+
+  pedirCarnetMasivo(): void {
+    this.carnetMasivo.emit(
+      (this.recientes ?? []).map(r => String(r.numero_documento ?? '').trim()).filter(Boolean),
+    );
+  }
 
   /* ──────────  Propiedades  ────────── */
   cedula = '';

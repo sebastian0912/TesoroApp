@@ -277,7 +277,8 @@
           </div>
         </ng-template>
         <div class="tab-content-scrollable">
-          <app-search-for-candidate (candidatoSeleccionado)="onCandidatoSeleccionado($event)">
+          <app-search-for-candidate (candidatoSeleccionado)="onCandidatoSeleccionado($event)"
+            (carnetMasivo)="abrirCarnetMasivo($event)">
           </app-search-for-candidate>
         </div>
       </mat-tab>

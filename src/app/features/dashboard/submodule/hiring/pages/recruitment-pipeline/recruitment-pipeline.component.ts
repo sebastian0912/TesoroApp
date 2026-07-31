@@ -35,6 +35,7 @@ import {
   resultadoDePruebaTecnica,
 } from './prueba-tecnica.rules';
 import { pedirResultadoEtapa, payloadResultadoEtapa } from '../../components/resultado-etapa/resultado-etapa.dialog';
+import { CarnetMasivoDialogComponent } from '../../components/carnet-masivo-dialog/carnet-masivo-dialog.component';
 import { esContratoRealMini, estadoContratoPill, tieneContratoActivoReal } from './contrato.rules';
 
 import { firstValueFrom, merge, startWith } from 'rxjs';
@@ -711,6 +712,25 @@ export class RecruitmentPipelineComponent {
 
   generacionDocumentos(): void {
     this.router.navigate(['dashboard/hiring/generate-contracting-documents', this.numeroDocumento]);
+  }
+
+  // ───────── CARNETS MASIVOS ─────────
+  /**
+   * Abre la revisión de generación masiva de carnets con las cédulas de la
+   * cola del día. El diálogo valida quién tiene todo completo, marca por
+   * defecto solo a los que aún no tienen carnet y deja previsualizar antes de
+   * generar.
+   */
+  async abrirCarnetMasivo(cedulas: string[] = []): Promise<void> {
+    const ref = this.dialog.open(CarnetMasivoDialogComponent, {
+      maxWidth: '96vw',
+      maxHeight: '92vh',
+      data: { cedulas },
+      panelClass: 'dialog-responsive',
+    });
+    const hubo = await firstValueFrom(ref.afterClosed());
+    // Si se generó alguno, el candidato abierto puede haber cambiado de estado.
+    if (hubo && this.candidatoSeleccionado()?.numero_documento) this.recargarCandidato();
   }
 
   // ───────── ANTECEDENTES (ROBOTS) ─────────
