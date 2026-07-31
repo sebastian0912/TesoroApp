@@ -67,6 +67,7 @@ export async function pedirResultadoEtapa(
     inputValue: actual,
     inputValidator: (v) => (!v ? 'Selecciona un resultado.' : null),
     icon: 'question',
+    heightAuto: false,
     showCancelButton: true,
     confirmButtonText: 'Guardar',
     cancelButtonText: 'Cancelar',
@@ -90,6 +91,7 @@ export async function pedirResultadoEtapa(
       return null;
     },
     icon: 'warning',
+    heightAuto: false,
     showCancelButton: true,
     confirmButtonText: 'Guardar',
     cancelButtonText: 'Cancelar',

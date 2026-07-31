@@ -644,7 +644,6 @@ export class HiringQuestionsComponent implements OnInit {
         parentesco: String(ref.parentesco ?? ''),
         telefono: String(ref.telefono ?? ''),
         ocupacion: String(ref.ocupacion ?? ''),
-        tiempoConoce: String(ref.tiempo_conoce ?? ''),
       },
     });
 

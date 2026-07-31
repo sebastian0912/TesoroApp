@@ -994,6 +994,15 @@ button {
   z-index: 100000 !important;
 }
 
+/* Swal abierto DESDE un MatDialog: el CDK pone `position: fixed` en <html>
+   (cdk-global-scrollblock) y Swal le mete `height: auto`. Con las dos cosas a
+   la vez el modal se posiciona fuera de la pantalla y parece que "quedó
+   debajo" del diálogo. Forzar el alto lo devuelve al centro del viewport. */
+html.swal2-height-auto,
+html.swal2-shown {
+  height: 100% !important;
+}
+
 /* ===========================================================================
    Historial laboral (TableDialogComponent, panelClass "table-dialog")
    Celdas en UNA sola línea, recortadas con "…" según el ancho de columna.

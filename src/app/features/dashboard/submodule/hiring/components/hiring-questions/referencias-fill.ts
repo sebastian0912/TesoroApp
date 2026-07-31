@@ -3,11 +3,11 @@
  *
  * Es el texto que emite quien da la referencia, redactado en primera persona.
  * Se genera con los datos que ya están capturados en el sistema: de la
- * referencia su nombre, parentesco, ocupación, teléfono y hace cuánto conoce
- * al candidato.
+ * referencia su nombre, parentesco, ocupación y teléfono.
  *
  * No se mencionan cédulas ni correos: no están en la base y no se inventan.
- * Va sin espacio de firma, como se pidió.
+ * Tampoco lleva espacio de firma ni el tiempo que lleva conociendo al
+ * candidato: se quitaron por pedido del área.
  */
 import jsPDF from 'jspdf';
 
@@ -20,7 +20,6 @@ export interface DatosReferencia {
   parentesco: string;
   telefono: string;
   ocupacion: string;
-  tiempoConoce: string;
 }
 
 export interface DatosCartaReferencia {
@@ -39,16 +38,6 @@ const val = (v: unknown, largo = 28) => {
   const t = s(v);
   return t !== '' ? t : '_'.repeat(largo);
 };
-
-/**
- * "30" -> "30 años"; "30 años" o "toda la vida" se dejan tal cual, para no
- * escribir "30 años años".
- */
-function tiempoLegible(v: unknown): string {
-  const t = s(v);
-  if (t === '') return '__________';
-  return /a(ñ|n)o|mes|vida/i.test(t) ? t : `${t} años`;
-}
 
 export function buildCartaReferenciaPdf(d: DatosCartaReferencia): Blob {
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'letter' });
@@ -105,12 +94,12 @@ export function buildCartaReferenciaPdf(d: DatosCartaReferencia): Blob {
   if (esFamiliar) {
     const parentesco = s(r.parentesco) !== '' ? s(r.parentesco).toLowerCase() : '__________';
     parrafo(
-      `Yo, ${nombreRef}, manifiesto que soy ${parentesco} del(la) señor(a) ${candidato} y que lo(a) ` +
-      `conozco desde hace ${tiempoLegible(r.tiempoConoce)}, por lo que puedo dar fe de sus valores, ` +
-      `principios y comportamiento tanto en el ámbito familiar como en el personal.`,
+      `Yo, ${nombreRef}, manifiesto que soy ${parentesco} del(la) señor(a) ${candidato} y que puedo ` +
+      `dar fe de sus valores, principios y comportamiento tanto en el ámbito familiar como en el ` +
+      `personal.`,
     );
     parrafo(
-      'Durante todos estos años ha demostrado ser una persona responsable, respetuosa, honesta y ' +
+      'Ha demostrado ser una persona responsable, respetuosa, honesta y ' +
       'comprometida con su familia y con cada uno de los proyectos que emprende. Se caracteriza por ' +
       'actuar siempre con ética, mantener una actitud positiva frente a las dificultades y asumir ' +
       'con seriedad las responsabilidades que adquiere.',
@@ -143,13 +132,12 @@ export function buildCartaReferenciaPdf(d: DatosCartaReferencia): Blob {
     );
   } else {
     parrafo(
-      `Yo, ${nombreRef}, manifiesto que conozco al(la) señor(a) ${candidato} desde hace ` +
-      `aproximadamente ${tiempoLegible(r.tiempoConoce)}, tiempo durante el cual hemos mantenido una ` +
-      `relación de amistad y confianza, permitiéndome conocer ampliamente sus cualidades personales, ` +
-      `humanas y éticas.`,
+      `Yo, ${nombreRef}, manifiesto que conozco al(la) señor(a) ${candidato}, con quien he ` +
+      `mantenido una relación de amistad y confianza que me ha permitido conocer ampliamente sus ` +
+      `cualidades personales, humanas y éticas.`,
     );
     parrafo(
-      'Durante el tiempo que he compartido con él(ella), he podido evidenciar que es una persona ' +
+      'He podido evidenciar que es una persona ' +
       'íntegra, honesta, responsable y respetuosa, que siempre actúa con transparencia y rectitud ' +
       'en todas las actividades que realiza. Se caracteriza por cumplir oportunamente con los ' +
       'compromisos adquiridos, mantener una excelente actitud frente al trabajo y desenvolverse con ' +
@@ -185,11 +173,8 @@ export function buildCartaReferenciaPdf(d: DatosCartaReferencia): Blob {
   y += 6;
   doc.setTextColor(20).setFont('times', 'normal').setFontSize(11.5);
   doc.text('Atentamente,', mL, y);
+  // Sin línea de firma: la carta se entrega ya diligenciada.
   y += 10;
-
-  doc.setDrawColor(GRIS).setLineWidth(0.2);
-  doc.line(mL, y, mL + 62, y);
-  y += 7;
 
   const campos: Array<[string, string]> = [['Nombre', val(r.nombre, 36)]];
   if (esFamiliar) campos.push(['Parentesco', val(r.parentesco, 30)]);

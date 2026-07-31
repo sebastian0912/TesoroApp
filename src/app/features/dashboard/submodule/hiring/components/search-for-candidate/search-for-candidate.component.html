@@ -48,24 +48,24 @@
                 ? 'La persona se agregará a la cola de la tabla'
                 : 'Sólo se buscará, no se agrega a la cola'"
               matTooltipPosition="above">
-              Agregar a la cola
+              Cola
             </mat-slide-toggle>
 
             <button mat-flat-button color="primary" type="button"
-              class="btn-consultar-inline"
-              (click)="buscarCandidato()" [disabled]="!cedula">
+              class="btn-consultar-inline btn-solo-icono"
+              (click)="buscarCandidato()" [disabled]="!cedula"
+              matTooltip="Consultar" matTooltipPosition="above" aria-label="Consultar">
               <mat-icon>arrow_forward</mat-icon>
-              <span>Consultar</span>
             </button>
 
             <!-- Generación masiva de carnets: la revisa el pipeline, que es
                  quien abre el diálogo con las cédulas de la cola. -->
             <button mat-stroked-button type="button"
-              class="btn-carnet-masivo-inline"
+              class="btn-carnet-masivo-inline btn-solo-icono"
               (click)="pedirCarnetMasivo()"
-              matTooltip="Generar carnets en masa (9 por hoja)" matTooltipPosition="above">
+              matTooltip="Generar carnets en masa (9 por hoja)" matTooltipPosition="above"
+              aria-label="Carnets masivos">
               <mat-icon>badge</mat-icon>
-              <span>Carnets masivos</span>
             </button>
 
             @if (procesoValido && !mostrarObservacion) {

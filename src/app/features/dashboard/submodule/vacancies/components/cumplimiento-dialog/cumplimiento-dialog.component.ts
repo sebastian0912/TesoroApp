@@ -213,6 +213,16 @@ export class CumplimientoDialogComponent implements OnInit {
     }
   }
 
+  /** Color del botón según el resultado, para leerlo de un vistazo. */
+  claseResultado(c: CandidatoPorVacanteItem, etapa: EtapaConResultado): string {
+    switch (this.resultadoDe(c, etapa)) {
+      case 'paso': return 'res-ok';
+      case 'no_paso': return 'res-mal';
+      case 'no_se_presento': return 'res-noshow';
+      default: return 'res-vacio';
+    }
+  }
+
   /** La acción se ofrece si la persona está en esa etapa o ya tiene resultado. */
   puedeRegistrar(c: CandidatoPorVacanteItem, etapa: EtapaConResultado): boolean {
     if (this.resultadoDe(c, etapa) !== 'sin_resultado') return true;
@@ -240,6 +250,11 @@ export class CumplimientoDialogComponent implements OnInit {
     );
     if (!elegido) return;
 
+    // Optimista: la fila cambia YA, sin esperar al backend ni al refresco.
+    // El signal necesita un array nuevo con un objeto nuevo para repintar.
+    const antes = this.candidatos();
+    this.aplicarLocal(c, etapa, elegido);
+
     this.working.set(true);
     try {
       // Por `proceso_id` y no por cédula: update-by-document re-resuelve a la
@@ -249,28 +264,55 @@ export class CumplimientoDialogComponent implements OnInit {
         this.gc.patchProceso(procesoId, payloadResultadoEtapa(etapa, elegido.resultado, elegido.motivo) as any),
       );
       this.cambios = true;
-      this.cargar(true);   // refresca etapa y chips desde el backend
+      // La etapa (el chip de la izquierda) la calcula el backend, así que se
+      // refresca en segundo plano; lo visual ya cambió arriba.
+      this.cargar(true);
       Swal.fire({
         toast: true, position: 'top-end', icon: 'success', timer: 2200,
-        showConfirmButton: false, timerProgressBar: true,
-        title: `Resultado registrado: ${this.etiquetaResultado({ ...c, ...this.aplicarLocal(elegido.resultado, etapa) } as any, etapa)}`,
+        showConfirmButton: false, timerProgressBar: true, heightAuto: false,
+        title: `Resultado registrado: ${this.etiquetaResultado(this.filaDe(c.proceso_id) ?? c, etapa)}`,
       });
     } catch (err: any) {
       console.error('[registrarResultado]', err);
-      Swal.fire('Error', err?.error?.detail || 'No se pudo registrar el resultado.', 'error');
+      this.candidatos.set(antes);   // revierte lo optimista si el guardado falló
+      Swal.fire({
+        icon: 'error', title: 'Error', heightAuto: false,
+        text: err?.error?.detail || 'No se pudo registrar el resultado.',
+      });
     } finally {
       this.working.set(false);
     }
   }
 
-  /** Espejo local del resultado, solo para el texto del toast. */
-  private aplicarLocal(resultado: ResultadoEtapa, etapa: EtapaConResultado): Record<string, boolean> {
+  private filaDe(procesoId: number | null | undefined): CandidatoPorVacanteItem | undefined {
+    return this.candidatos().find(x => x.proceso_id === procesoId);
+  }
+
+  /** Escribe el resultado en la fila en memoria para que la tabla repinte ya. */
+  private aplicarLocal(
+    c: CandidatoPorVacanteItem,
+    etapa: EtapaConResultado,
+    elegido: { resultado: ResultadoEtapa; motivo: string },
+  ): void {
     const sufijo = etapa === 'prueba' ? 'prueba_tecnica' : 'examen_medico';
-    return {
+    const { resultado, motivo } = elegido;
+    const parche: Record<string, unknown> = {
       [`paso_${sufijo}`]: resultado === 'paso',
       [`no_paso_${sufijo}`]: resultado === 'no_paso',
       [`no_se_presento_${sufijo}`]: resultado === 'no_se_presento',
+      [`motivo_no_paso_${sufijo}`]: resultado === 'no_paso' ? motivo : null,
+      [`motivo_no_se_presento_${sufijo}`]: resultado === 'no_se_presento' ? motivo : null,
     };
+    // La etapa también se adelanta para que el chip no quede diciendo lo viejo
+    // mientras llega el refresco.
+    if (etapa === 'prueba') {
+      parche['etapa'] = resultado === 'paso' ? 'Pasó prueba'
+        : resultado === 'no_paso' ? 'No pasó prueba'
+          : 'No se presentó';
+    }
+    this.candidatos.set(
+      this.candidatos().map(x => (x.proceso_id === c.proceso_id ? { ...x, ...parche } : x)),
+    );
   }
 
   /** Cuántas personas faltan para completar la vacante. */

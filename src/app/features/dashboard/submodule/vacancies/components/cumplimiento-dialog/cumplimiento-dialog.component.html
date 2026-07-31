@@ -124,21 +124,19 @@
                      la persona, o si ya tiene un resultado que se quiera cambiar. -->
                 <td class="col-resultado" (click)="$event.stopPropagation()">
                   @if (puedeRegistrar(c, 'prueba')) {
-                    <button mat-stroked-button class="btn-resultado"
+                    <button mat-icon-button class="btn-resultado {{ claseResultado(c, 'prueba') }}"
                       [disabled]="working()"
-                      matTooltip="Registrar resultado de la prueba técnica"
+                      [matTooltip]="'Prueba técnica: ' + etiquetaResultado(c, 'prueba') + ' · click para cambiar'"
                       (click)="registrarResultado(c, 'prueba')">
                       <mat-icon>assignment_ind</mat-icon>
-                      Prueba: {{ etiquetaResultado(c, 'prueba') }}
                     </button>
                   }
                   @if (puedeRegistrar(c, 'examen')) {
-                    <button mat-stroked-button class="btn-resultado"
+                    <button mat-icon-button class="btn-resultado {{ claseResultado(c, 'examen') }}"
                       [disabled]="working()"
-                      matTooltip="Registrar resultado del examen médico"
+                      [matTooltip]="'Examen médico: ' + etiquetaResultado(c, 'examen') + ' · click para cambiar'"
                       (click)="registrarResultado(c, 'examen')">
                       <mat-icon>medical_information</mat-icon>
-                      Examen: {{ etiquetaResultado(c, 'examen') }}
                     </button>
                   }
                   @if (!puedeRegistrar(c, 'prueba') && !puedeRegistrar(c, 'examen')) {

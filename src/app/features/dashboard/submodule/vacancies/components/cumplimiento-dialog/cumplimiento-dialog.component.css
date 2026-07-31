@@ -210,7 +210,10 @@
 .cumpl-table-wrap {
   border: 1px solid var(--line);
   border-radius: 14px;
-  overflow: hidden;
+  /* `hidden` recortaba la última columna cuando la tabla no cabía (así se
+     perdía el botón de resultado). Con `auto` la tabla scrollea dentro del
+     marco en vez de quedar cortada. */
+  overflow: auto;
   box-shadow: 0 1px 3px rgba(16, 24, 40, 0.04);
 }
 
@@ -425,22 +428,28 @@
 .col-resultado {
   white-space: nowrap;
   text-align: right;
+  width: 96px;
 }
 
+/* Botones de icono: la columna tiene que caber sin empujar la tabla fuera del
+   diálogo, por eso el resultado va en el color y en el tooltip, no en texto. */
 .btn-resultado {
-  --mdc-outlined-button-container-height: 30px;
-  margin-left: 6px;
-  font-size: 12px;
-  font-weight: 600;
-  line-height: 1;
+  width: 34px !important;
+  height: 34px !important;
+  padding: 0 !important;
+  line-height: 34px !important;
 }
 
 .btn-resultado .mat-icon {
-  width: 16px;
-  height: 16px;
-  font-size: 16px;
-  margin-right: 2px;
+  width: 19px;
+  height: 19px;
+  font-size: 19px;
 }
+
+.btn-resultado.res-ok { color: #2e7d32; }
+.btn-resultado.res-mal { color: #c62828; }
+.btn-resultado.res-noshow { color: #ef6c00; }
+.btn-resultado.res-vacio { color: #94a3b8; }
 
 .resultado-vacio {
   color: var(--muted);

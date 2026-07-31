@@ -436,3 +436,15 @@
 .fila-atendida td {
   font-style: italic;
 }
+
+/* Botones de solo icono del cluster de búsqueda: mismo alto redondo que el
+   resto, sin el padding que reservaba el texto. */
+.btn-solo-icono {
+  min-width: 48px !important;
+  width: 48px !important;
+  padding: 0 !important;
+}
+
+.btn-solo-icono mat-icon {
+  margin: 0 !important;
+}
