@@ -470,6 +470,7 @@ export class HiringQuestionsComponent implements OnInit {
 
     const payload: ProcesoUpdateByDocumentRequest & {
       contratado?: boolean;
+      contrato?: { sede_abbr?: string; generar_codigo: boolean };
       contrato_detalle: {
         forma_de_pago?: string | null;
         numero_para_pagos?: string | null;
@@ -495,6 +496,10 @@ export class HiringQuestionsComponent implements OnInit {
     } = {
       numero_documento: String(cand.numero_documento),
       contratado: true,
+      // Guardar Pago y Transporte SIEMPRE pide código de contrato. El backend
+      // es idempotente: si ya hay código lo devuelve sin tocarlo (incluida la
+      // edición forzada) y solo genera cuando el contrato está sin código.
+      contrato: { sede_abbr: ent0?.oficina || undefined, generar_codigo: true },
       contrato_detalle: {
         forma_de_pago: v.formaPago ?? null,
         numero_para_pagos: v.numeroPagos ?? null,
@@ -524,11 +529,27 @@ export class HiringQuestionsComponent implements OnInit {
         this.procesosService.updateProcesoByDocumento(this.withOverride(payload), 'PATCH'),
       );
       this.guardado.emit();
-      this.alert(
-        'success',
-        'Guardado',
-        `Contrato ${codigoContrato ? `(${codigoContrato}) ` : ''}actualizado y proceso marcado como contratado.`,
-      );
+      const proc0 = (resp as any)?.proceso;
+      const codigoFinal = String(proc0?.contrato_codigo ?? codigoContrato ?? '').trim();
+      const motivo = String(proc0?.contrato_codigo_motivo ?? '').trim();
+      if (!codigoFinal && motivo) {
+        // El guardado sí quedó; lo que falló fue asignar el número. Se avisa en
+        // vez de dejarlo mudo: 'sin_oficina' = la sede no tiene rango asignado,
+        // 'rango_agotado' = se acabaron los 10.000 números de esa oficina.
+        this.alert(
+          'warning',
+          'Guardado sin código de contrato',
+          motivo === 'rango_agotado'
+            ? 'Se guardó, pero el rango de números de esta oficina se agotó. Avisa a sistemas para asignar un rango nuevo.'
+            : 'Se guardó, pero no se pudo asignar el código porque la oficina no tiene rango de numeración. Avisa a sistemas.',
+        );
+      } else {
+        this.alert(
+          'success',
+          'Guardado',
+          `Contrato ${codigoFinal ? `(${codigoFinal}) ` : ''}actualizado y proceso marcado como contratado.`,
+        );
+      }
       console.log('update-by-document →', resp);
     } catch (e: any) {
       console.error('[cargarPagoTransporte] Error:', e);

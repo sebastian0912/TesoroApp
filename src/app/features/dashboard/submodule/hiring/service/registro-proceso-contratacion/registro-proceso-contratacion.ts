@@ -213,12 +213,14 @@ export interface ExamenMedicoUpsertPayload {
 
 // ===== Contrato: control de generación de código =====
 /**
- * Si generar_codigo = true, sede_abbr es obligatorio.
- * Si generar_codigo = false, puedes omitir el bloque o enviar sede_abbr opcional.
+ * `sede_abbr` es una PISTA para elegir el rango de numeración de la oficina;
+ * si no llega, el backend la resuelve desde la entrevista. Acepta tanto la
+ * abreviatura (FPC, TOC, SUB...) como el nombre completo de la sede.
+ *
+ * La generación es idempotente: un contrato que ya tiene código lo conserva,
+ * así que mandar `generar_codigo: true` siempre es seguro.
  */
-export type ContratoCodigoRequest =
-  | { generar_codigo: true; sede_abbr: string }
-  | { generar_codigo: false; sede_abbr?: string };
+export type ContratoCodigoRequest = { generar_codigo: boolean; sede_abbr?: string };
 
 // ===== Request principal: /procesos/update-by-document/ =====
 export interface ProcesoUpdateByDocumentRequest {

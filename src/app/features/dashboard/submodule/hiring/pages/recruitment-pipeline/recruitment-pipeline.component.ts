@@ -1202,14 +1202,9 @@ export class RecruitmentPipelineComponent {
     // --- Datos para payload y NO APTO ---
     const cand = this.candidatoSeleccionado();
     const ent0 = cand?.entrevistas?.[0];
-    const proc0 = ent0?.proceso;
-    const contratoBE: any = proc0?.contrato || null;
     const formContrato: FormGroup | undefined = (this as any).formContrato;
     const llenoUI = formContrato?.valid === true;
 
-    const camposClave = ['forma_de_pago', 'numero_para_pagos', 'Ccentro_de_costos', 'subcentro_de_costos', 'grupo', 'categoria', 'operacion'];
-    const llenoBE = !!contratoBE && camposClave.every((k: string) => !!(contratoBE?.[k]));
-    const codigoYaExiste = !!(contratoBE?.codigo_contrato);
     const sedeAbbr = this.normalizarSedeAbbr?.(ent0?.oficina) ?? ent0?.oficina ?? '';
 
     type ExamenResultado = { aptoStatus?: string | boolean | null;[k: string]: any };
@@ -1231,8 +1226,12 @@ export class RecruitmentPipelineComponent {
       payload.rechazado = true;
       payload.detalle = '901 examen';
     } else {
-      const generarCodigo = !(llenoUI || llenoBE || codigoYaExiste);
-      if (sedeAbbr) payload.contrato = { sede_abbr: sedeAbbr, generar_codigo: generarCodigo };
+      // Guardar exámenes médicos SIEMPRE pide código: el backend es idempotente
+      // (si el contrato ya tiene código lo devuelve tal cual, no renumera) y
+      // resuelve la oficina solo si `sede_abbr` no llega. Antes se pedía solo
+      // cuando el contrato estaba vacío, así que un candidato con "Pago y
+      // Transporte" ya diligenciado se quedaba sin código.
+      payload.contrato = { sede_abbr: sedeAbbr || undefined, generar_codigo: true };
       if (llenoUI && formContrato) {
         const det = { ...(formContrato.value || {}) };
         Object.keys(det).forEach(k => { const v = det[k]; if (v === '' || v === undefined) delete det[k]; });
