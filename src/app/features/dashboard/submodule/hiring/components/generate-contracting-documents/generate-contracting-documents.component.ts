@@ -790,19 +790,25 @@ export class GenerateContractingDocumentsComponent implements OnInit {
 
     const contrato: any = this._entrevistaSel?.proceso?.contrato ?? {};
 
-    // Consecutivo: se propone el guardado y se confirma antes de imprimir.
-    // No se autoasigna en el cliente porque dos usuarios simultaneos tomarian
-    // el mismo numero; eso lo tiene que resolver el backend en transaccion.
-    const { value: consecutivo } = await Swal.fire({
-      title: 'Consecutivo del carnet',
-      input: 'text',
-      inputValue: this.limpio(contrato.carnet_codigo),
-      inputLabel: 'Numero que va en la casilla "Con."',
-      showCancelButton: true,
-      confirmButtonText: 'Generar',
-      inputValidator: (v) => (String(v ?? '').trim() ? null : 'Escribe el consecutivo'),
-    });
-    if (!consecutivo) return;
+    // Consecutivo: ES el codigo de contrato. Ya no se escribe a mano — lo
+    // asigna el backend por rango de oficina al guardar Examenes medicos o
+    // Pago y Transporte, que es lo unico que garantiza que no se repita entre
+    // usuarios simultaneos. `carnet_codigo` queda solo como respaldo de los
+    // carnets viejos, cuando el numero se tecleaba.
+    const consecutivo =
+      this.limpio(contrato.codigo_contrato) ||
+      this.limpio(this._entrevistaSel?.proceso?.contrato_codigo) ||
+      this.limpio(contrato.carnet_codigo);
+
+    if (!consecutivo) {
+      Swal.fire(
+        'Sin codigo de contrato',
+        'El carnet usa el codigo de contrato como consecutivo y este candidato todavia no lo tiene. ' +
+        'Guarda "Examenes medicos" o "Pago y Transporte" para generarlo y vuelve a intentar.',
+        'info',
+      );
+      return;
+    }
 
     // EPS y AFP salen de los antecedentes del proceso.
     const ants: any[] = Array.isArray(this._entrevistaSel?.proceso?.antecedentes)

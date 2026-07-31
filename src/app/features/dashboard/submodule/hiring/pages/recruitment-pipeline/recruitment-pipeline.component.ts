@@ -1920,8 +1920,12 @@ export class RecruitmentPipelineComponent {
     }
 
     const cedula = String(cand.numero_documento ?? '').trim();
-    // Prioritize the frontend mapped UI, fallback to backend contract
-    let codigo = String(contratoBE?.carnet_codigo || contratoBE?.codigo_contrato || '').trim();
+    // El "Con." del carnet ES el código de contrato, que asigna el backend por
+    // rango de oficina. `carnet_codigo` queda como respaldo de los carnets
+    // viejos, de cuando ese número se escribía a mano.
+    let codigo = String(
+      contratoBE?.codigo_contrato || proc0?.contrato_codigo || contratoBE?.carnet_codigo || ''
+    ).trim();
     let centroCosto = String(contratoBE?.carnet_centro_costo || contratoBE?.Ccentro_de_costos || '').trim();
     let fechaIng = String(contratoBE?.carnet_fecha_ingreso || contratoBE?.fecha_ingreso || '').trim();
 
@@ -1937,7 +1941,9 @@ export class RecruitmentPipelineComponent {
       }
     }
 
-    if (cMini?.CARNET_CODIGO) codigo = String(cMini.CARNET_CODIGO).trim();
+    // CARNET_CODIGO solo se usa si el contrato aún no tiene código: el código
+    // de contrato manda sobre el valor histórico que traiga Home.
+    if (!codigo && cMini?.CARNET_CODIGO) codigo = String(cMini.CARNET_CODIGO).trim();
     if (cMini?.CARNET_CENTRO_COSTO) centroCosto = String(cMini.CARNET_CENTRO_COSTO).trim();
     if (cMini?.CARNET_FECHA_INGRESO) fechaIng = String(cMini.CARNET_FECHA_INGRESO).trim();
 
@@ -2001,15 +2007,27 @@ export class RecruitmentPipelineComponent {
     console.log('Familiar Nombre:', familiarNombre);
     console.log('Familiar Tel:', familiarTel);
 
+    // El código ya no se escribe: es el de contrato, asignado por el backend.
+    if (!codigo) {
+      await Swal.fire({
+        icon: 'info',
+        title: 'Sin código de contrato',
+        text: 'El carnet usa el código de contrato como consecutivo y este candidato todavía no lo tiene. '
+          + 'Guarda "Exámenes médicos" o "Pago y Transporte" para generarlo y vuelve a intentar.',
+      });
+      return;
+    }
+
     const { value: formValues, isConfirmed } = await Swal.fire({
       title: 'Datos del Carnet',
       html: `
         <label style="display:block;text-align:left;font-size:14px;margin-bottom:4px;font-weight:bold;">Fecha de Ingreso</label>
         <input id="swal-fecha" class="swal2-input" style="max-width:90%;margin:0 auto 16px;display:block;" type="date" value="${fechaIng}">
-        
+
         <label style="display:block;text-align:left;font-size:14px;margin-bottom:4px;font-weight:bold;">Código de Contrato</label>
-        <input id="swal-codigo" class="swal2-input" style="max-width:90%;margin:0 auto 16px;display:block;" type="text" value="${codigo}">
-        
+        <input id="swal-codigo" class="swal2-input" style="max-width:90%;margin:0 auto 4px;display:block;background:#f1f5f9;color:#475569;" type="text" value="${codigo}" readonly>
+        <small style="display:block;text-align:left;color:#64748b;margin:0 auto 16px;max-width:90%;">Lo asigna el sistema; no se edita.</small>
+
         <label style="display:block;text-align:left;font-size:14px;margin-bottom:4px;font-weight:bold;">Centro de Costo</label>
         <input id="swal-ccosto" class="swal2-input" style="max-width:90%;margin:0 auto 16px;display:block;" type="text" value="${centroCosto}">
       `,
@@ -2019,13 +2037,12 @@ export class RecruitmentPipelineComponent {
       cancelButtonText: 'Cancelar',
       preConfirm: () => {
         const f = (document.getElementById('swal-fecha') as HTMLInputElement).value;
-        const c = (document.getElementById('swal-codigo') as HTMLInputElement).value;
         const cc = (document.getElementById('swal-ccosto') as HTMLInputElement).value;
-        if (!f || !c || !cc) {
-          Swal.showValidationMessage('Todos los campos son obligatorios');
+        if (!f || !cc) {
+          Swal.showValidationMessage('La fecha de ingreso y el centro de costo son obligatorios');
           return false;
         }
-        return { fecha: f, codigo: c, ccosto: cc };
+        return { fecha: f, codigo, ccosto: cc };
       }
     });
 
