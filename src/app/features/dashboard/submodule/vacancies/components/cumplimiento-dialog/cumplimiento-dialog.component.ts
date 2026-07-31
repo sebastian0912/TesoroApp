@@ -225,11 +225,16 @@ export class CumplimientoDialogComponent implements OnInit {
     }
   }
 
-  /** La acción se ofrece si la persona está en esa etapa o ya tiene resultado. */
-  puedeRegistrar(c: CandidatoPorVacanteItem, etapa: EtapaConResultado): boolean {
-    if (this.resultadoDe(c, etapa) !== 'sin_resultado') return true;
-    const e = (c.etapa || '').toLowerCase();
-    return etapa === 'prueba' ? e.includes('prueba') : e.includes('exam');
+  /**
+   * Ambos resultados se pueden registrar SIEMPRE.
+   *
+   * Antes se ofrecían solo si la persona estaba en esa etapa, y eso dejaba en
+   * "—" a los que ya iban más adelante (un contratado no podía corregir el
+   * resultado de su examen). Son marcadores de outcome: no avanzan ni bloquean
+   * el pipeline, así que no hay razón para esconderlos.
+   */
+  puedeRegistrar(_c: CandidatoPorVacanteItem, _etapa: EtapaConResultado): boolean {
+    return true;
   }
 
   async registrarResultado(c: CandidatoPorVacanteItem, etapa: EtapaConResultado): Promise<void> {
