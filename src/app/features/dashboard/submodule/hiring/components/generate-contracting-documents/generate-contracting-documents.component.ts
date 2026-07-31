@@ -9,6 +9,8 @@ import {
 } from 'pdf-lib';
 import Swal from 'sweetalert2';
 import { separarReferencias } from './referencias.util';
+import { MatDialog } from '@angular/material/dialog';
+import { CarnetPosicionDialogComponent } from './carnet-posicion-dialog.component';
 import { GestionDocumentalService } from '../../service/gestion-documental/gestion-documental.service';
 import { HiringService } from '../../service/hiring.service';
 import * as fontkit from 'fontkit';
@@ -223,6 +225,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
   private sanitizer = inject(DomSanitizer);
   private cdr = inject(ChangeDetectorRef);
   private permissions = inject(PermissionsService);
+  private dialog = inject(MatDialog);
 
   documentos = [
     // Generales
@@ -840,6 +843,15 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       return `data:image/png;base64,${btoa(bin)}`;
     };
 
+    // ¿En qué espacio de la hoja? Así se reutiliza una hoja ya recortada en vez
+    // de gastar una nueva por cada carnet.
+    const posicion = await firstValueFrom(
+      this.dialog.open<CarnetPosicionDialogComponent, void, number | null>(
+        CarnetPosicionDialogComponent, { autoFocus: 'dialog' },
+      ).afterClosed(),
+    );
+    if (posicion === null || posicion === undefined) return;
+
     try {
       const blob = buildCarnetApoyoPdf({
         nombreCompleto,
@@ -854,7 +866,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
         emergenciaTelefono: this.limpio(emerg.telefono),
         logoDataUrl: await aDataUrl('logos/Logo_AL.png'),
         fotoDataUrl: await aDataUrl(this.foto),
-      });
+      }, posicion);
 
       // Solo se genera y se muestra en el previsualizador; la descarga la decide
       // el usuario desde ahí.

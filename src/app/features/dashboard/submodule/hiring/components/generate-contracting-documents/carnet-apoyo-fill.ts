@@ -330,22 +330,37 @@ export function buildCarnetApoyoLotePdf(lista: readonly DatosCarnet[]): Blob {
   return doc.output('blob');
 }
 
-export function buildCarnetApoyoPdf(d: DatosCarnet): Blob {
+/**
+ * Carnet individual. `posicion` (0..8) elige en cuál de las 9 celdas se imprime,
+ * numerando de izquierda a derecha y de arriba a abajo:
+ *
+ *     0 1 2
+ *     3 4 5
+ *     6 7 8
+ *
+ * Sirve para REUTILIZAR una hoja ya recortada: si en la primera impresión se
+ * usó la celda 0 y se recortó, el siguiente carnet se manda a la celda 1 y se
+ * vuelve a pasar la MISMA hoja por la impresora.
+ */
+export function buildCarnetApoyoPdf(d: DatosCarnet, posicion = 0): Blob {
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'letter' });
   doc.setProperties({ title: `Carnet_${d.cedula}` });
 
+  const celda = Math.min(Math.max(Math.trunc(posicion) || 0, 0), CARNETS_POR_HOJA - 1);
+  const fila = Math.floor(celda / CARNET_COLUMNAS);
+  const columna = celda % CARNET_COLUMNAS;
+
   // ─────────────────────── CARA 1 (frente) ───────────────────────
-  // Celda de arriba a la izquierda.
   dibujarGrilla(doc);
-  const frente = origenCelda(doc, 0, 0);
+  const frente = origenCelda(doc, fila, columna);
   dibujarFrente(doc, d, frente.ox, frente.oy);
 
   // ─────────────────────── CARA 2 (reverso) ───────────────────────
-  // Espejo horizontal de la celda del frente: última columna, misma fila. Con
+  // Espejo horizontal de la celda del frente: misma fila, columna opuesta. Con
   // el volteo por lado corto, esta celda cae exactamente detrás de la otra.
   doc.addPage('letter', 'landscape');
   dibujarGrilla(doc);
-  const reverso = origenCelda(doc, 0, CARNET_COLUMNAS - 1);
+  const reverso = origenCelda(doc, fila, CARNET_COLUMNAS - 1 - columna);
   dibujarReverso(doc, d, reverso.ox, reverso.oy);
 
   return doc.output('blob');
