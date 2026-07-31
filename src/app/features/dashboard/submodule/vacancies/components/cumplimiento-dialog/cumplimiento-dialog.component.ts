@@ -2,7 +2,7 @@ import {
   Component, Inject, OnInit, signal, computed, inject, ChangeDetectionStrategy,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
+import { MAT_DIALOG_DATA, MatDialog, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatCheckboxModule } from '@angular/material/checkbox';
@@ -65,6 +65,7 @@ export class CumplimientoDialogComponent implements OnInit {
   private readonly gc = inject(RegistroProcesoContratacion);
   private readonly homeService = inject(HomeService);
   private readonly util = inject(UtilityServiceService);
+  private readonly dialog = inject(MatDialog);
 
   /** Empresa fija para el formato BMC. */
   private readonly BMC_COMPANY = 'TU ALIANZA SAS';
@@ -245,6 +246,7 @@ export class CumplimientoDialogComponent implements OnInit {
     }
 
     const elegido = await pedirResultadoEtapa(
+      this.dialog,
       etapa,
       {
         resultado: this.resultadoDe(c, etapa),

@@ -969,64 +969,20 @@ export class RecruitmentPipelineComponent {
     const cc = this.candidatoSeleccionado()?.numero_documento;
     if (!cc || !this.esPruebaTecnica()) return;
 
-    const actual = this.resultadoPrueba();
-    const decision = await Swal.fire({
-      title: 'Resultado de la prueba técnica',
-      input: 'radio',
-      inputOptions: {
-        paso: 'Pasó',
-        no_paso: 'No pasó',
-        no_se_presento: 'No se presentó',
-      },
-      inputValue: actual !== 'sin_resultado' ? actual : '',
-      inputValidator: (v) => (!v ? 'Selecciona un resultado.' : null),
-      icon: 'question',
-      showCancelButton: true,
-      confirmButtonText: 'Guardar',
-      cancelButtonText: 'Cancelar',
-    });
+    // Mismo diálogo que usa el cumplimiento de la vacante: una sola
+    // implementación para que ambos pidan y validen igual.
+    const elegido = await pedirResultadoEtapa(this.dialog, 'prueba', {
+      resultado: this.resultadoPrueba(),
+      motivoNoPaso: this._proceso()?.motivo_no_paso_prueba_tecnica,
+      motivoNoSePresento: this._proceso()?.motivo_no_se_presento_prueba_tecnica,
+    }, this.nombreCandidato);
+    if (!elegido) return;
 
-    if (!decision.isConfirmed) return;
-    const resultado = String(decision.value) as 'paso' | 'no_paso' | 'no_se_presento';
-
-    // Tanto "no pasó" como "no se presentó" exigen motivo; cada uno se guarda en
-    // su propio campo para no mezclar "reprobó la prueba" con "no asistió".
-    let motivo = '';
-    if (resultado === 'no_paso' || resultado === 'no_se_presento') {
-      const noShow = resultado === 'no_se_presento';
-      const pedido = await Swal.fire({
-        title: 'Motivo',
-        input: 'textarea',
-        inputLabel: noShow
-          ? '¿Por qué no se presentó a la prueba técnica?'
-          : '¿Por qué no pasó la prueba técnica?',
-        inputPlaceholder: noShow ? 'Avisó que no podía, no contestó, se retiró del proceso...' : '',
-        inputValue: (noShow
-          ? this._proceso()?.motivo_no_se_presento_prueba_tecnica
-          : this._proceso()?.motivo_no_paso_prueba_tecnica) ?? '',
-        inputValidator: (valor) => {
-          const texto = String(valor ?? '').trim();
-          if (!texto) return 'El motivo es obligatorio.';
-          if (texto.length < 5) return 'Amplía un poco más el motivo (mínimo 5 caracteres).';
-          return null;
-        },
-        icon: 'warning',
-        showCancelButton: true,
-        confirmButtonText: 'Guardar',
-        cancelButtonText: 'Cancelar',
-      });
-
-      if (!pedido.isConfirmed) return;
-      motivo = String(pedido.value ?? '').trim();
-    }
+    const { resultado, motivo } = elegido;
 
     const payload: any = {
       numero_documento: String(cc),
-      paso_prueba_tecnica: resultado === 'paso',
-      no_paso_prueba_tecnica: resultado === 'no_paso',
-      no_se_presento_prueba_tecnica: resultado === 'no_se_presento',
-      motivo_no_paso_prueba_tecnica: resultado === 'no_paso' ? motivo : null,
-      motivo_no_se_presento_prueba_tecnica: resultado === 'no_se_presento' ? motivo : null,
+      ...payloadResultadoEtapa('prueba', resultado, motivo),
     };
 
     Swal.fire({ title: 'Guardando resultado...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
@@ -1084,7 +1040,7 @@ export class RecruitmentPipelineComponent {
     if (!cc) return;
 
     const proc = this._proceso();
-    const elegido = await pedirResultadoEtapa('examen', {
+    const elegido = await pedirResultadoEtapa(this.dialog, 'examen', {
       resultado: this.resultadoExamen(),
       motivoNoPaso: proc?.motivo_no_paso_examen_medico,
       motivoNoSePresento: proc?.motivo_no_se_presento_examen_medico,
