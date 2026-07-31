@@ -14,6 +14,7 @@
  */
 
 import type { PDFForm } from 'pdf-lib';
+import { esReferenciaFamiliar } from './referencias.util';
 
 type Cand = any;
 
@@ -120,7 +121,7 @@ export function fillFichaSocialPdf(
   const conyuge = getFamiliar(familiares, 'CONYUGUE');
   const emergencia =
     getFamiliar(familiares, 'EMERGENCIA') ||
-    referencias.find(r => upper(r?.tipo) === 'FAMILIAR') ||
+    referencias.find(r => esReferenciaFamiliar(r?.tipo)) ||
     null;
 
   // Personas que conviven (texto libre, hacemos contains case-insensitive).

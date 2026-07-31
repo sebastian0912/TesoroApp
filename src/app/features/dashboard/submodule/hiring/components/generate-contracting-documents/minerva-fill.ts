@@ -15,6 +15,7 @@
  */
 
 import type { PDFDocument, PDFForm, PDFFont } from 'pdf-lib';
+import { separarReferencias } from './referencias.util';
 
 type AnyObj = any;
 
@@ -465,10 +466,8 @@ export function fillMinervaPdf(
   // Fila 1: [0]=Nombre, [4]=Ocupación, [6]=Dirección, [9]=Teléfono
   // Fila 2: [1]=Nombre, [3]=Ocupación, [7]=Dirección, [10]=Teléfono
   // Fila 3: [2]=Nombre, [5]=Ocupación, [8]=Dirección, [11]=Teléfono
-  const refsP = referencias.filter(r => {
-    const t = s(r.tipo).toUpperCase();
-    return t === 'PERSONAL' || t === 'LABORAL';
-  });
+  // PERSONAL/PERSONAL1/PERSONAL2 y FAMILIAR/FAMILIAR1/FAMILIAR2 conviven en BD.
+  const { personales: refsP, familiares: refsF } = separarReferencias(referencias);
   const refRows: { nombre: number; ocupacion: number; direccion: number; telefono: number }[] = [
     { nombre: 0, ocupacion: 4, direccion: 6, telefono: 9 },
     { nombre: 1, ocupacion: 3, direccion: 7, telefono: 10 },
@@ -485,7 +484,6 @@ export function fillMinervaPdf(
 
   // Familiar de contacto (3 filas) — usamos: emergencia, familiares[FAMILIAR1], familiares[FAMILIAR2]
   // Solo tenemos 1 EMERGENCIA en el modelo + referencias[].tipo='FAMILIAR'
-  const refsF = referencias.filter(r => s(r.tipo).toUpperCase() === 'FAMILIAR');
   const familiarRows = [
     emergencia,
     refsF[0] || null,

@@ -14,6 +14,7 @@
  */
 
 import type { PDFForm, PDFFont } from 'pdf-lib';
+import { esReferenciaFamiliar, separarReferencias } from './referencias.util';
 
 type Cand = any;
 
@@ -144,7 +145,7 @@ export function fillFichaTecnicaPdf(
   const madre = getFamiliar(familiares, 'MADRE');
   const emergencia =
     getFamiliar(familiares, 'EMERGENCIA') ||
-    referencias.find(r => upper(r?.tipo) === 'FAMILIAR') || null;
+    referencias.find(r => esReferenciaFamiliar(r?.tipo)) || null;
 
   // Composición de nombres
   const apellidos = norm([s(cand.primer_apellido), s(cand.segundo_apellido)].filter(Boolean).join(' '));
@@ -351,8 +352,11 @@ export function fillFichaTecnicaPdf(
   // ════════════════════════════════════════════════════════════════════
   // REFERENCIAS PERSONALES Y FAMILIARES (P2)
   // ════════════════════════════════════════════════════════════════════
-  const refsP = referencias.filter(r => upper(r.tipo) === 'PERSONAL' || upper(r.tipo) === 'LABORAL');
-  const refsF = referencias.filter(r => upper(r.tipo) === 'FAMILIAR');
+  // `tipo` llega como PERSONAL/PERSONAL1/PERSONAL2 y FAMILIAR/FAMILIAR1/
+  // FAMILIAR2 según la época del registro: se clasifica por prefijo y se ordena
+  // por el sufijo. Comparar por igualdad exacta dejaba en blanco las
+  // referencias de todos los candidatos recientes.
+  const { personales: refsP, familiares: refsF } = separarReferencias(referencias);
 
   if (refsP[0]) {
     setText('Nombre Referencia 1Row1', norm(refsP[0].nombre));
@@ -402,9 +406,11 @@ export function fillFichaTecnicaPdf(
   setText('descripcion-familiar1', descFamiliar1);
   setText('descripcion-familiar2', descFamiliar2);
 
-  // Parentesco de las referencias familiares
+  // Parentesco / relación de las referencias
   setText('parentesco_familiar_1', upper(refsF[0]?.parentesco));
   setText('parentesco_familiar_2', upper(refsF[1]?.parentesco));
+  setText('parentesco_personal_1', upper(refsP[0]?.parentesco));
+  setText('parentesco_personal_2', upper(refsP[1]?.parentesco));
 
   // Descripción laboral 1 = primer empleo (empresa - tiempo - labores)
   if (exp1) {

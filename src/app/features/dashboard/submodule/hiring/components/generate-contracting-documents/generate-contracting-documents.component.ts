@@ -8,6 +8,7 @@ import {
   pushGraphicsState, popGraphicsState, moveTo, lineTo, closePath, clip, endPath,
 } from 'pdf-lib';
 import Swal from 'sweetalert2';
+import { separarReferencias } from './referencias.util';
 import { GestionDocumentalService } from '../../service/gestion-documental/gestion-documental.service';
 import { HiringService } from '../../service/hiring.service';
 import * as fontkit from 'fontkit';
@@ -11201,11 +11202,9 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       // legacy no tenga el dato — necesario porque el endpoint legacy a veces solo
       // retorna 1 referencia familiar y dejaba la segunda fila vacía.
       const refsModelo = Array.isArray(cand.referencias) ? cand.referencias : [];
-      const refsP_modelo = refsModelo.filter((r: any) => {
-        const t = norm(r.tipo);
-        return t === 'PERSONAL' || t === 'LABORAL';
-      });
-      const refsF_modelo = refsModelo.filter((r: any) => norm(r.tipo) === 'FAMILIAR');
+      // PERSONAL/PERSONAL1/PERSONAL2 y FAMILIAR/FAMILIAR1/FAMILIAR2 conviven en
+      // BD; comparar por igualdad exacta dejaba vacías las de los recientes.
+      const { personales: refsP_modelo, familiares: refsF_modelo } = separarReferencias(refsModelo);
 
       this.setText(form, 'nombre-referencia-peronal1', this.safe(datoContratacion.nombre_referencia_personal1 || refsP_modelo[0]?.nombre || ''), customFont);
       this.setText(form, 'nombre-referencia-peronal2', this.safe(datoContratacion.nombre_referencia_personal2 || refsP_modelo[1]?.nombre || ''), customFont);
@@ -11775,11 +11774,9 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       // legacy no tenga el dato — necesario porque el endpoint legacy a veces solo
       // retorna 1 referencia familiar y dejaba la segunda fila vacía.
       const refsModelo = Array.isArray(cand.referencias) ? cand.referencias : [];
-      const refsP_modelo = refsModelo.filter((r: any) => {
-        const t = norm(r.tipo);
-        return t === 'PERSONAL' || t === 'LABORAL';
-      });
-      const refsF_modelo = refsModelo.filter((r: any) => norm(r.tipo) === 'FAMILIAR');
+      // PERSONAL/PERSONAL1/PERSONAL2 y FAMILIAR/FAMILIAR1/FAMILIAR2 conviven en
+      // BD; comparar por igualdad exacta dejaba vacías las de los recientes.
+      const { personales: refsP_modelo, familiares: refsF_modelo } = separarReferencias(refsModelo);
 
       this.setText(form, 'nombre-referencia-peronal1', this.safe(datoContratacion.nombre_referencia_personal1 || refsP_modelo[0]?.nombre || ''), customFont);
       this.setText(form, 'nombre-referencia-peronal2', this.safe(datoContratacion.nombre_referencia_personal2 || refsP_modelo[1]?.nombre || ''), customFont);
