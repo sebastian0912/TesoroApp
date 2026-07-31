@@ -1,17 +1,13 @@
 /**
- * Formato de VERIFICACIÓN DE REFERENCIAS (personal / familiar).
+ * Carta de REFERENCIA PERSONAL / FAMILIAR.
  *
- * Qué imprime y qué NO
- * --------------------
- * Imprime únicamente datos que ya están capturados en el sistema: el
- * candidato, y de la referencia su nombre, parentesco, teléfono, ocupación y
- * hace cuánto lo conoce (`Referencia` en gestion_contratacion).
+ * Es el texto que emite quien da la referencia, redactado en primera persona.
+ * Se genera con los datos que ya están capturados en el sistema: de la
+ * referencia su nombre, parentesco, ocupación, teléfono y hace cuánto conoce
+ * al candidato.
  *
- * Las respuestas de la llamada se imprimen SOLO si alguien las registró en
- * `referenciacion`. Si no hay nada, el formato sale con las líneas en blanco
- * para que quien llama las diligencie. No se inventa el contenido de una
- * verificación que no ocurrió: el documento sustenta la debida diligencia y
- * termina en el expediente laboral y ante la empresa usuaria.
+ * No se mencionan cédulas ni correos: no están en la base y no se inventan.
+ * Va sin espacio de firma, como se pidió.
  */
 import jsPDF from 'jspdf';
 
@@ -25,18 +21,12 @@ export interface DatosReferencia {
   telefono: string;
   ocupacion: string;
   tiempoConoce: string;
-  /** Respuesta registrada por quien hizo la llamada. Vacío = línea en blanco. */
-  referenciacion: string;
 }
 
-export interface DatosVerificacion {
+export interface DatosCartaReferencia {
   candidatoNombre: string;
-  candidatoCedula: string;
-  cargo: string;
-  empresaUsuaria: string;
-  temporal: string;
-  /** Quien realiza la verificación (usuario logueado). */
-  verificadoPor: string;
+  /** Ciudad de residencia del candidato; si falta, queda la línea. */
+  ciudad: string;
   /** dd/mm/aaaa */
   fecha: string;
   referencia: DatosReferencia;
@@ -44,131 +34,181 @@ export interface DatosVerificacion {
 
 const s = (v: unknown) => String(v ?? '').trim();
 
-/** Preguntas del guion de verificación, en el orden en que se hacen. */
-const PREGUNTAS = [
-  '¿Hace cuánto tiempo conoce al candidato y en qué contexto?',
-  '¿Cómo describiría su responsabilidad y cumplimiento?',
-  '¿Cómo es su relación con las personas de su entorno?',
-  '¿Conoce alguna situación que afecte su desempeño laboral?',
-  '¿Lo recomendaría para el cargo al que aspira?',
-];
+/** Valor capturado, o una línea del largo indicado para llenar a mano. */
+const val = (v: unknown, largo = 28) => {
+  const t = s(v);
+  return t !== '' ? t : '_'.repeat(largo);
+};
 
-export function buildVerificacionReferenciaPdf(d: DatosVerificacion): Blob {
+/**
+ * "30" -> "30 años"; "30 años" o "toda la vida" se dejan tal cual, para no
+ * escribir "30 años años".
+ */
+function tiempoLegible(v: unknown): string {
+  const t = s(v);
+  if (t === '') return '__________';
+  return /a(ñ|n)o|mes|vida/i.test(t) ? t : `${t} años`;
+}
+
+export function buildCartaReferenciaPdf(d: DatosCartaReferencia): Blob {
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'letter' });
   const pageW = doc.internal.pageSize.getWidth();
-  const mL = 18;
+  const pageH = doc.internal.pageSize.getHeight();
+  const mL = 25;
   const maxW = pageW - mL * 2;
-  let y = 20;
+  const mBottom = 25;
+  const GRIS = 120;
 
-  const linea = (yy: number) => {
-    doc.setLineWidth(0.2);
-    doc.line(mL, yy, pageW - mL, yy);
-  };
+  const esFamiliar = s(d.referencia.tipo).toUpperCase().startsWith('FAMILIAR');
+  const r = d.referencia;
 
-  // ── Encabezado ──
-  doc.setFont('helvetica', 'bold').setFontSize(13);
-  doc.text('VERIFICACIÓN DE REFERENCIAS', pageW / 2, y, { align: 'center' });
-  y += 6;
-  doc.setFontSize(10);
-  const titulo = d.referencia.tipo.toUpperCase() === 'FAMILIAR'
-    ? `Referencia familiar ${d.referencia.slot}`
-    : `Referencia personal ${d.referencia.slot}`;
-  doc.text(titulo.toUpperCase(), pageW / 2, y, { align: 'center' });
-  y += 5;
-  linea(y);
-  y += 7;
+  let y = 30;
 
-  // ── Datos del candidato ──
-  const campo = (rotulo: string, valor: string, yy: number, ancho = maxW) => {
-    doc.setFont('helvetica', 'bold').setFontSize(8.5);
-    doc.text(rotulo, mL, yy);
-    const x = mL + doc.getTextWidth(rotulo) + 2;
-    doc.setFont('helvetica', 'normal');
-    doc.text(s(valor) || '________________________', x, yy, { maxWidth: ancho - (x - mL) });
-  };
-
-  doc.setFont('helvetica', 'bold').setFontSize(9);
-  doc.text('DATOS DEL ASPIRANTE', mL, y);
-  y += 5;
-  campo('Nombre:', d.candidatoNombre, y); y += 5;
-  campo('Cédula:', d.candidatoCedula, y); y += 5;
-  campo('Cargo al que aspira:', d.cargo, y); y += 5;
-  campo('Empresa usuaria:', d.empresaUsuaria, y); y += 5;
-  campo('Empresa temporal:', d.temporal, y); y += 7;
-
-  linea(y);
-  y += 7;
-
-  // ── Datos de la referencia ──
-  doc.setFont('helvetica', 'bold').setFontSize(9);
-  doc.text('DATOS DE LA REFERENCIA', mL, y);
-  y += 5;
-  campo('Nombre:', d.referencia.nombre, y); y += 5;
-  campo(
-    d.referencia.tipo.toUpperCase() === 'FAMILIAR' ? 'Parentesco:' : 'Relación:',
-    d.referencia.parentesco, y,
-  ); y += 5;
-  campo('Teléfono:', d.referencia.telefono, y); y += 5;
-  campo('Ocupación:', d.referencia.ocupacion, y); y += 5;
-  campo('Tiempo de conocerlo:', d.referencia.tiempoConoce, y); y += 7;
-
-  linea(y);
-  y += 7;
-
-  // ── Guion de la llamada ──
-  doc.setFont('helvetica', 'bold').setFontSize(9);
-  doc.text('VERIFICACIÓN TELEFÓNICA', mL, y);
-  y += 3;
-  doc.setFont('helvetica', 'normal').setFontSize(7.5);
-  doc.text('Fecha y hora de la llamada: ____ / ____ / ______     Hora: ______',
-    pageW - mL, y, { align: 'right' });
-  y += 6;
-
-  doc.setFontSize(8.5);
-  for (const p of PREGUNTAS) {
-    doc.setFont('helvetica', 'bold');
-    const alto = doc.splitTextToSize(p, maxW) as string[];
-    doc.text(alto, mL, y);
-    y += alto.length * 4 + 1;
-
-    doc.setFont('helvetica', 'normal');
-    // Solo la primera pregunta se responde con lo ya registrado; el resto
-    // queda en blanco porque el sistema no guarda esas respuestas por separado.
-    const respuesta = s(d.referencia.referenciacion);
-    if (p === PREGUNTAS[0] && respuesta) {
-      const r = doc.splitTextToSize(respuesta, maxW) as string[];
-      doc.text(r, mL, y);
-      y += r.length * 4 + 2;
-    } else {
-      linea(y + 1); y += 6;
-      linea(y + 1); y += 8;
+  const saltoSiHaceFalta = (alto: number) => {
+    if (y + alto > pageH - mBottom) {
+      doc.addPage();
+      y = 30;
     }
+  };
+
+  /** Párrafo justificado. La última línea va sin justificar, como se escribe. */
+  const parrafo = (texto: string, interlinea = 5.6) => {
+    doc.setTextColor(20).setFont('times', 'normal').setFontSize(11.5);
+    const lineas = doc.splitTextToSize(texto, maxW) as string[];
+    for (let i = 0; i < lineas.length; i++) {
+      saltoSiHaceFalta(interlinea);
+      const ultima = i === lineas.length - 1;
+      if (ultima) doc.text(lineas[i], mL, y);
+      else doc.text(lineas[i], mL, y, { align: 'justify', maxWidth: maxW });
+      y += interlinea;
+    }
+    y += 4.5;
+  };
+
+  // ───────────────────────── Encabezado ─────────────────────────
+  doc.setTextColor(20).setFont('times', 'bold').setFontSize(16);
+  doc.text(esFamiliar ? 'REFERENCIA FAMILIAR' : 'REFERENCIA PERSONAL', pageW / 2, y, { align: 'center' });
+  y += 4;
+
+  // Doble filete bajo el título: una línea gruesa corta y otra fina completa.
+  doc.setDrawColor(20).setLineWidth(0.8);
+  doc.line(pageW / 2 - 26, y, pageW / 2 + 26, y);
+  y += 1.6;
+  doc.setDrawColor(GRIS).setLineWidth(0.2);
+  doc.line(mL, y, pageW - mL, y);
+  y += 13;
+
+  const candidato = s(d.candidatoNombre).toUpperCase();
+  const nombreRef = val(r.nombre, 36);
+
+  // ───────────────────────── Cuerpo ─────────────────────────
+  if (esFamiliar) {
+    const parentesco = s(r.parentesco) !== '' ? s(r.parentesco).toLowerCase() : '__________';
+    parrafo(
+      `Yo, ${nombreRef}, manifiesto que soy ${parentesco} del(la) señor(a) ${candidato} y que lo(a) ` +
+      `conozco desde hace ${tiempoLegible(r.tiempoConoce)}, por lo que puedo dar fe de sus valores, ` +
+      `principios y comportamiento tanto en el ámbito familiar como en el personal.`,
+    );
+    parrafo(
+      'Durante todos estos años ha demostrado ser una persona responsable, respetuosa, honesta y ' +
+      'comprometida con su familia y con cada uno de los proyectos que emprende. Se caracteriza por ' +
+      'actuar siempre con ética, mantener una actitud positiva frente a las dificultades y asumir ' +
+      'con seriedad las responsabilidades que adquiere.',
+    );
+    parrafo(
+      'En el entorno familiar ha sido un ejemplo de solidaridad, colaboración y respeto. Mantiene ' +
+      'excelentes relaciones con sus familiares y personas cercanas, contribuyendo siempre a un ' +
+      'ambiente de armonía y convivencia. Es una persona de buenos principios, con valores firmes y ' +
+      'una conducta intachable.',
+    );
+    parrafo(
+      'También puedo afirmar que posee habilidades para trabajar en equipo, escuchar a los demás, ' +
+      'solucionar conflictos mediante el diálogo y adaptarse fácilmente a nuevos ambientes laborales ' +
+      'y sociales. Siempre demuestra disposición para ayudar, aprender y cumplir los objetivos que ' +
+      'se propone.',
+    );
+    parrafo(
+      'Su honestidad, disciplina y compromiso son cualidades que lo distinguen, razón por la cual ' +
+      'considero que es una persona completamente confiable para asumir responsabilidades laborales, ' +
+      'académicas o personales.',
+    );
+    parrafo(
+      `Por todo lo anterior, recomiendo ampliamente al(la) señor(a) ${candidato}, convencido(a) de ` +
+      `que responderá con dedicación, responsabilidad y profesionalismo en cualquier actividad que ` +
+      `desempeñe.`,
+    );
+    parrafo(
+      'La presente referencia se expide a solicitud del interesado para los fines que estime ' +
+      'convenientes.',
+    );
+  } else {
+    parrafo(
+      `Yo, ${nombreRef}, manifiesto que conozco al(la) señor(a) ${candidato} desde hace ` +
+      `aproximadamente ${tiempoLegible(r.tiempoConoce)}, tiempo durante el cual hemos mantenido una ` +
+      `relación de amistad y confianza, permitiéndome conocer ampliamente sus cualidades personales, ` +
+      `humanas y éticas.`,
+    );
+    parrafo(
+      'Durante el tiempo que he compartido con él(ella), he podido evidenciar que es una persona ' +
+      'íntegra, honesta, responsable y respetuosa, que siempre actúa con transparencia y rectitud ' +
+      'en todas las actividades que realiza. Se caracteriza por cumplir oportunamente con los ' +
+      'compromisos adquiridos, mantener una excelente actitud frente al trabajo y desenvolverse con ' +
+      'profesionalismo en los diferentes entornos en los que participa.',
+    );
+    parrafo(
+      'Asimismo, puedo afirmar que posee una alta capacidad para trabajar en equipo, establecer ' +
+      'relaciones interpersonales basadas en el respeto y la cordialidad, resolver situaciones con ' +
+      'serenidad y asumir nuevos retos con disposición y compromiso. Es una persona organizada, ' +
+      'disciplinada, con deseos permanentes de superación y aprendizaje, lo que le ha permitido ' +
+      'destacarse por su responsabilidad y dedicación.',
+    );
+    parrafo(
+      'En el ámbito personal siempre ha demostrado ser alguien solidario, colaborador, prudente y ' +
+      'confiable. Goza de buena reputación entre quienes lo conocen y mantiene un comportamiento ' +
+      'acorde con los principios y valores que promueve, siendo respetuoso con las normas, la ' +
+      'convivencia y las personas que lo rodean.',
+    );
+    parrafo(
+      `Por todas estas razones, considero que cuenta con las capacidades personales y morales ` +
+      `necesarias para desempeñar satisfactoriamente cualquier actividad laboral o responsabilidad ` +
+      `que le sea asignada. Recomiendo ampliamente al(la) señor(a) ${candidato}, ya que tengo la ` +
+      `plena confianza de que responderá con honestidad, compromiso y excelencia.`,
+    );
+    parrafo(
+      'Expido la presente referencia a solicitud del interesado para los fines que considere ' +
+      'pertinentes.',
+    );
   }
 
-  y += 4;
-  linea(y);
+  // ───────────────────── Datos de quien la expide ─────────────────────
+  saltoSiHaceFalta(56);
+  y += 6;
+  doc.setTextColor(20).setFont('times', 'normal').setFontSize(11.5);
+  doc.text('Atentamente,', mL, y);
+  y += 10;
+
+  doc.setDrawColor(GRIS).setLineWidth(0.2);
+  doc.line(mL, y, mL + 62, y);
   y += 7;
 
-  // ── Cierre y firma ──
-  doc.setFont('helvetica', 'bold').setFontSize(9);
-  doc.text('CONCEPTO DE QUIEN VERIFICA', mL, y);
-  y += 6;
-  doc.setFont('helvetica', 'normal').setFontSize(8.5);
-  linea(y + 1); y += 7;
-  linea(y + 1); y += 12;
+  const campos: Array<[string, string]> = [['Nombre', val(r.nombre, 36)]];
+  if (esFamiliar) campos.push(['Parentesco', val(r.parentesco, 30)]);
+  campos.push(
+    ['Ocupación', val(r.ocupacion, 30)],
+    ['Teléfono', val(r.telefono, 24)],
+    ['Ciudad', val(d.ciudad, 26)],
+    ['Fecha', val(d.fecha, 20)],
+  );
 
-  doc.setLineWidth(0.4);
-  doc.line(mL, y, mL + 70, y);
-  y += 4;
-  doc.setFont('helvetica', 'bold').setFontSize(8.5);
-  doc.text('Verificado por:', mL, y);
-  doc.setFont('helvetica', 'normal');
-  doc.text(s(d.verificadoPor) || '', mL + doc.getTextWidth('Verificado por: '), y);
-  y += 4;
-  doc.setFont('helvetica', 'bold');
-  doc.text('Fecha:', mL, y);
-  doc.setFont('helvetica', 'normal');
-  doc.text(s(d.fecha), mL + doc.getTextWidth('Fecha: '), y);
+  const anchoRotulo = 34;
+  for (const [rotulo, valor] of campos) {
+    saltoSiHaceFalta(7.5);
+    doc.setTextColor(GRIS).setFont('times', 'normal').setFontSize(10);
+    doc.text(rotulo.toUpperCase(), mL, y);
+    doc.setTextColor(20).setFont('times', 'bold').setFontSize(11.5);
+    doc.text(valor, mL + anchoRotulo, y);
+    y += 7.5;
+  }
 
   return doc.output('blob');
 }

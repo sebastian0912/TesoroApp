@@ -600,29 +600,13 @@ export class HiringQuestionsComponent implements OnInit {
 
     const nombreCand = [cand.primer_nombre, cand.segundo_nombre, cand.primer_apellido, cand.segundo_apellido]
       .map((x: any) => String(x ?? '').trim()).filter(Boolean).join(' ').toUpperCase();
-    // La vacante no se guarda en el componente: se trae de la publicación del
-    // proceso, igual que hace `loadData`. Si falla, el formato sale con esas
-    // líneas en blanco en vez de no generarse.
-    const proc: any = cand?.entrevistas?.[0]?.proceso;
-    let vac: any = {};
-    if (proc?.publicacion) {
-      try {
-        vac = await firstValueFrom(this.vacantesService.obtenerVacante(proc.publicacion)) ?? {};
-      } catch { vac = {}; }
-    }
-
-    const u: any = this.utilService.getUser?.() ?? {};
     const hoy = new Date();
     const fecha = `${String(hoy.getDate()).padStart(2, '0')}/${String(hoy.getMonth() + 1).padStart(2, '0')}/${hoy.getFullYear()}`;
 
-    const { buildVerificacionReferenciaPdf } = await import('./referencias-fill');
-    const blob = buildVerificacionReferenciaPdf({
+    const { buildCartaReferenciaPdf } = await import('./referencias-fill');
+    const blob = buildCartaReferenciaPdf({
       candidatoNombre: nombreCand,
-      candidatoCedula: String(cand.numero_documento ?? ''),
-      cargo: String(vac?.cargo ?? ''),
-      empresaUsuaria: String(vac?.empresaUsuariaSolicita ?? ''),
-      temporal: String(vac?.temporal ?? ''),
-      verificadoPor: `${u?.datos_basicos?.nombres ?? ''} ${u?.datos_basicos?.apellidos ?? ''}`.trim(),
+      ciudad: String(cand?.municipio ?? ''),
       fecha,
       referencia: {
         tipo,
@@ -632,11 +616,10 @@ export class HiringQuestionsComponent implements OnInit {
         telefono: String(ref.telefono ?? ''),
         ocupacion: String(ref.ocupacion ?? ''),
         tiempoConoce: String(ref.tiempo_conoce ?? ''),
-        referenciacion: String(ref.referenciacion ?? ''),
       },
     });
 
-    const fileName = `Verificacion-${tipo}${slot}-${cand.numero_documento}.pdf`;
+    const fileName = `Referencia-${tipo}${slot}-${cand.numero_documento}.pdf`;
     const file = new File([blob], fileName, { type: 'application/pdf' });
     this.uploadedFiles[campo] = { file, fileName };
     this.referenciasForm.get(campo)?.setValue(fileName);
@@ -795,6 +778,59 @@ export class HiringQuestionsComponent implements OnInit {
 
   /** Cargo de la vacante; se usa para deducir el área de la labor. */
   private cargoVacante = '';
+
+  /**
+   * Prellena los datos de nómina cruzando la vacante con el maestro de centros
+   * de costo. El backend resuelve el cruce (los nombres de finca se escribieron
+   * por separado en las dos tablas y casi nunca coinciden literal).
+   *
+   * Solo se escribe lo que el backend marca como `comun`, es decir lo que vale
+   * igual en TODAS las filas que cruzaron. Cuando una finca tiene varios
+   * subcentros —SAN CARLOS tiene 5— el centro de costo no viene en `comun` y se
+   * deja vacío a propósito: elegir uno al azar metería a la persona en el
+   * centro de costo equivocado, y eso va a nómina.
+   *
+   * Nunca pisa un valor ya escrito.
+   */
+  private async prellenarDesdeVacante(vac: any): Promise<void> {
+    const finca = String(vac?.finca ?? '').trim();
+    const empresa = String(vac?.empresaUsuariaSolicita ?? '').trim();
+    if (!finca && !empresa) return;
+
+    const res: any = await firstValueFrom(this.farmsService.resolverPorVacante(finca, empresa));
+    const comun = res?.comun;
+    if (!comun) return;
+
+    const soloSiVacio = (ctrl: string, valor: any) => {
+      const c = this.pagoTransporteForm.get(ctrl);
+      if (!c) return;
+      const actual = String(c.value ?? '').trim();
+      const nuevo = String(valor ?? '').trim();
+      if (actual === '' && nuevo !== '') c.setValue(nuevo, { emitEvent: false });
+    };
+
+    soloSiVacio('Ccostos', comun.ccostos);
+    soloSiVacio('subCentroCostos', comun.subcentro);
+    soloSiVacio('grupo', comun.grupo);                  // "GRUPO 1" del maestro
+    soloSiVacio('empresaGrupoElite', comun.empresa);
+    soloSiVacio('ciudadLabor', comun.ciudad);
+    soloSiVacio('sublabor', comun.sublabor);
+    soloSiVacio('categoria', comun.categoria);
+    soloSiVacio('operacion', comun.operacion);
+
+    // Datos de obra: la dirección y la empresa del maestro son más confiables
+    // que las de la vacante, pero igual solo entran si el campo está vacío.
+    const obra = (ctrl: string, valor: any) => {
+      const c = this.datosObraForm.get(ctrl);
+      if (!c) return;
+      if (String(c.value ?? '').trim() === '' && String(valor ?? '').trim() !== '') {
+        c.setValue(String(valor).trim(), { emitEvent: false });
+      }
+    };
+    obra('empresaUsuaria', comun.empresa);
+    obra('centroCosto', comun.centro_de_costo);
+    obra('direccion', comun.direccion);
+  }
 
   /**
    * Propone la "Descripción de la obra" con la misma regla de la base de
@@ -1323,6 +1359,15 @@ export class HiringQuestionsComponent implements OnInit {
         });
 
         this.cargoVacante = String(vac?.cargo ?? '').trim();
+
+        // Datos de nómina desde el maestro de centros de costo. Va antes de
+        // sugerir la descripción porque puede llenar el centro de costo.
+        try {
+          await this.prellenarDesdeVacante(vac);
+        } catch (e) {
+          console.warn('[nomina] no se pudo prellenar desde la vacante:', e);
+        }
+
         this.sugerirDescripcionObra();
 
         // Autocompletar Porcentaje ARL desde el cargo de la vacante.

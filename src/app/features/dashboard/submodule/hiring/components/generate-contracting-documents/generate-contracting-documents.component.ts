@@ -1044,22 +1044,27 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     this.setFileInQueue(file, campo, input, typeIdOverride);
   }
 
-  /** Verifica si un PDF está protegido con contraseña leyendo sus bytes */
+  /**
+   * ¿El PDF exige contraseña para poder LEERLO?
+   *
+   * Ojo con la diferencia: la mayoría de los PDF que traen `/Encrypt` solo
+   * tienen restricciones de permisos (no imprimir, no editar) puestas por quien
+   * los emitió —EPS, cajas de compensación, entidades— y se abren sin pedir
+   * nada. Esos hay que dejarlos subir.
+   *
+   * Antes se rechazaba por dos motivos que daban falsos positivos: encontrar
+   * `/Encrypt` en la cabecera, y que `PDFDocument.load` con
+   * `ignoreEncryption: false` falla ante CUALQUIER cifrado, incluso el de solo
+   * permisos. La prueba real es si el documento se puede abrir y tiene páginas.
+   */
   private async checkPdfProtected(file: File): Promise<boolean> {
     try {
       const buffer = await file.arrayBuffer();
-      const header = new Uint8Array(buffer, 0, Math.min(buffer.byteLength, 4096));
-      const text = new TextDecoder('latin1').decode(header);
-      if (text.includes('/Encrypt')) return true;
-
-      try {
-        await PDFDocument.load(buffer, { ignoreEncryption: false });
-        return false;
-      } catch {
-        return true;
-      }
+      const doc = await PDFDocument.load(buffer, { ignoreEncryption: true });
+      return doc.getPageCount() === 0;
     } catch {
-      return false;
+      // No se pudo abrir: o pide contraseña de apertura, o está dañado.
+      return true;
     }
   }
 
@@ -1521,6 +1526,48 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     }
     else {
       Swal.fire('Error', 'Funcionalidad de PDF no implementada para: ' + documento, 'error');
+    }
+  }
+
+  /**
+   * Recorta la imagen (centrada) a la proporción pedida y la devuelve como
+   * dataURL JPEG.
+   *
+   * Se usa para que la foto llene el recuadro de la ficha técnica. Ahí no se
+   * puede dibujar sobre la página como en la Minerva: el campo es un botón
+   * cuyo widget se pinta ENCIMA y tapaba la foto, dejando el recuadro en
+   * blanco. `setImage` sí pinta dentro del botón, pero siempre respeta la
+   * proporción de la imagen; si la proporción ya coincide con la del campo,
+   * no queda aire alrededor.
+   */
+  private async recortarAlAspecto(url: string, aspecto: number): Promise<string | null> {
+    try {
+      const bytes = await this.fetchAsArrayBufferOrNull(url);
+      if (!bytes || !isFinite(aspecto) || aspecto <= 0) return null;
+
+      const bitmap = await createImageBitmap(new Blob([bytes]));
+      const actual = bitmap.width / bitmap.height;
+
+      let sx = 0, sy = 0, sw = bitmap.width, sh = bitmap.height;
+      if (actual > aspecto) {
+        sw = bitmap.height * aspecto;      // sobra ancho: se recorta a los lados
+        sx = (bitmap.width - sw) / 2;
+      } else if (actual < aspecto) {
+        sh = bitmap.width / aspecto;       // sobra alto: se recorta arriba y abajo
+        sy = (bitmap.height - sh) / 2;
+      }
+
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.max(1, Math.round(sw));
+      canvas.height = Math.max(1, Math.round(sh));
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return null;
+      ctx.drawImage(bitmap, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
+      bitmap.close?.();
+      return canvas.toDataURL('image/jpeg', 0.92);
+    } catch (e) {
+      console.warn('[pdf] no se pudo recortar la imagen:', e);
+      return null;
     }
   }
 
@@ -10516,7 +10563,25 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       await inyectarImagenSegura('Image15_af_image', this.firmaPersonalAdministrativo);
       await inyectarImagenSegura('Image11_af_image', firmaUrl);
       await inyectarImagenSegura('Image10_af_image', huellaUrl);
-      await inyectarImagenSegura('Image17_af_image', fotoUrl);
+
+      // La foto debe llenar todo el recuadro. Se recorta a la proporción del
+      // campo antes de inyectarla; así `setImage` la encaja sin dejar aire.
+      // (Dibujarla sobre la página no sirve: el widget del botón se pinta
+      // encima y la tapaba.) Si el recorte falla, entra la foto tal cual.
+      if (fotoUrl) {
+        let foto = fotoUrl;
+        try {
+          const rect = (form.getField('Image17_af_image') as any)
+            ?.acroField?.getWidgets?.()[0]?.getRectangle?.();
+          if (rect?.width > 0 && rect?.height > 0) {
+            const recortada = await this.recortarAlAspecto(fotoUrl, rect.width / rect.height);
+            if (recortada) foto = recortada;
+          }
+        } catch (e) {
+          console.warn('[ficha] no se pudo medir el recuadro de la foto:', e);
+        }
+        await inyectarImagenSegura('Image17_af_image', foto);
+      }
 
       // Bloquear campos
       form.getFields().forEach((f: any) => { try { f.enableReadOnly(); } catch { } });
