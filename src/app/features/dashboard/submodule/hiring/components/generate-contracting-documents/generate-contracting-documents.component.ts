@@ -849,11 +849,9 @@ export class GenerateContractingDocumentsComponent implements OnInit {
         fotoDataUrl: await aDataUrl(this.foto),
       });
 
+      // Solo se genera y se muestra en el previsualizador; la descarga la decide
+      // el usuario desde ahí.
       const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `Carnet-${this.limpio(cand.numero_documento)}.pdf`;
-      a.click();
       this.setPdfPreview(url);
     } catch (e) {
       console.error('[carnet]', e);
@@ -4221,24 +4219,6 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     y += 12;
     ensureSpace(50);
     const firmaLineY = y;
-
-    // Huella box - far right, top-aligned with firma area
-    const huellaData = await toDataURL(this.huella);
-    const huellaTableWidth = 38, huellaTableHeight = 32, huellaHeaderHeight = 6;
-    const huellaStartX = pageWidth - rightMargin - huellaTableWidth;
-    const huellaStartY = firmaLineY - 10;
-
-    doc.setFillColor(255, 255, 255);
-    doc.rect(huellaStartX, huellaStartY, huellaTableWidth, huellaHeaderHeight, 'S');
-    doc.setFont('helvetica', 'bold').setFontSize(7);
-    doc.text('Huella Indice Derecho', huellaStartX + 2, huellaStartY + 4);
-    doc.rect(huellaStartX, huellaStartY + huellaHeaderHeight, huellaTableWidth, huellaTableHeight);
-
-    if (huellaData) {
-      const imgW = huellaTableWidth - 8;
-      const imgH = huellaTableHeight - 4;
-      doc.addImage(huellaData, 'PNG', huellaStartX + 4, huellaStartY + huellaHeaderHeight + 2, imgW, imgH);
-    }
 
     // Firma line + label
     doc.setFont('helvetica', 'bold').setFontSize(8);

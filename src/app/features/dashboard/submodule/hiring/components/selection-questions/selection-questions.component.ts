@@ -1,4 +1,4 @@
-import {  Component, effect, input , ChangeDetectionStrategy, ChangeDetectorRef, OnDestroy } from '@angular/core';
+import {  Component, effect, input, output , ChangeDetectionStrategy, ChangeDetectorRef, OnDestroy } from '@angular/core';
 import { FormBuilder, FormGroup } from '@angular/forms';
 import { firstValueFrom } from 'rxjs';
 import Swal from 'sweetalert2';
@@ -108,6 +108,8 @@ const MAP_NOMBRE_TO_KEY: Record<string, FormPatchKeys> = {
 export class SelectionQuestionsComponent implements OnDestroy {
   /* -------- Input (signal) -------- */
   candidatoSeleccionado = input<any | null>(null);
+  /** Avisa al pipeline que se guardaron antecedentes, para que recargue el candidato. */
+  guardado = output<void>();
   /**
    * Override "Modificar de todas formas" (pipeline con contrato activo): al guardar,
    * marca la edición como pura sobre el proceso EXISTENTE y sella la auditoría
@@ -707,6 +709,7 @@ export class SelectionQuestionsComponent implements OnDestroy {
           console.warn('[barrio] no se pudo guardar', e);
         }
       }
+      this.guardado.emit();
       await Swal.fire('¡Guardado!', 'Se actualizaron los antecedentes del proceso.', 'success');
 
       const res = await this.subirTodosLosArchivos(Object.keys(this.typeMap) as DocKey[]);

@@ -599,6 +599,10 @@ export class HelpInformationComponent implements OnInit {
 
       const res = await this.gc.updateProcesoByDocumento(this.withOverride(payload), 'PATCH').toPromise();
 
+      // El pipeline debe recargar: la vacante recién asignada alimenta el
+      // prellenado de "Datos de obra" en Contratación y las píldoras del header.
+      this.guardado.emit();
+
       await Swal.fire({
         title: 'Proceso actualizado correctamente.',
         icon: 'success',
@@ -674,6 +678,7 @@ export class HelpInformationComponent implements OnInit {
       await this.gc.updateProcesoByDocumento(this.withOverride(payload), 'PATCH').toPromise();
 
       this.limpiarVacante.set(false);
+      this.guardado.emit();
 
       await Swal.fire({
         title: 'Vacante quitada correctamente.',
@@ -774,6 +779,7 @@ export class HelpInformationComponent implements OnInit {
       this.noPasoPrueba.set(true);
       this.noPasoPruebaAt.set(proc?.no_paso_prueba_tecnica_at ?? new Date().toISOString());
       this.motivoNoPaso.set(proc?.motivo_no_paso_prueba_tecnica ?? motivoText);
+      this.guardado.emit();
 
       await Swal.fire({
         title: 'Resultado registrado: no pasó la prueba técnica.',
@@ -827,6 +833,7 @@ export class HelpInformationComponent implements OnInit {
       this.noPasoPrueba.set(false);
       this.noPasoPruebaAt.set(null);
       this.motivoNoPaso.set(null);
+      this.guardado.emit();
 
       await Swal.fire({
         title: 'Marca quitada.',

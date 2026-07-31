@@ -1,4 +1,4 @@
-import {  Component, OnInit, input, effect, inject, DestroyRef , ChangeDetectionStrategy } from '@angular/core';
+import {  Component, OnInit, input, output, effect, inject, DestroyRef , ChangeDetectionStrategy } from '@angular/core';
 import { AbstractControl, FormBuilder, FormGroup, ValidationErrors, ValidatorFn, Validators } from '@angular/forms';
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { firstValueFrom, forkJoin, of, throwError, Observable } from 'rxjs';
@@ -10,6 +10,7 @@ import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import type jsPDF from 'jspdf';
 import type { RowInput } from 'jspdf-autotable';
 import { UtilityServiceService } from '@/app/shared/services/utilityService/utility-service.service';
+import { resolverDescripcionObra, LABOR_POR_MES_AREA } from './labores-por-mes.data';
 import { GestionDocumentalService } from '../../service/gestion-documental/gestion-documental.service';
 import { FarmsService } from '../../../farms/services/farms/farms.service';
 import { VacantesService } from '../../service/vacantes/vacantes.service';
@@ -45,6 +46,13 @@ type ServerDocInfo = {
 export class HiringQuestionsComponent implements OnInit {
   // ───────── Input con signals ─────────
   candidatoSeleccionado = input<any>(null);
+  /**
+   * Avisa al pipeline que algo del contrato/proceso cambió, para que recargue el
+   * candidato. Sin esto el padre se queda con el objeto viejo y los `computed`
+   * que dependen de él (p. ej. el botón "Generar documentación", que exige
+   * "Pago y Transporte" completo) no se habilitan hasta volver a buscar a la persona.
+   */
+  guardado = output<void>();
   /**
    * Override "Modificar de todas formas" (pipeline con contrato activo): los
    * guardados de este tab se marcan como edición pura sobre el proceso EXISTENTE.
@@ -172,6 +180,12 @@ export class HiringQuestionsComponent implements OnInit {
       startWith(''),
       map(value => this._filterTarjetas(value || '')),
     );
+
+    // La labor de la base cambia con el MES de ingreso, así que si se corrige
+    // la fecha hay que reproponerla.
+    this.pagoTransporteForm.get('fechaIngreso')?.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => this.sugerirDescripcionObra());
   }
 
   private loadTarjetas() {
@@ -509,6 +523,7 @@ export class HiringQuestionsComponent implements OnInit {
       const resp = await firstValueFrom(
         this.procesosService.updateProcesoByDocumento(this.withOverride(payload), 'PATCH'),
       );
+      this.guardado.emit();
       this.alert(
         'success',
         'Guardado',
@@ -625,7 +640,8 @@ export class HiringQuestionsComponent implements OnInit {
     const file = new File([blob], fileName, { type: 'application/pdf' });
     this.uploadedFiles[campo] = { file, fileName };
     this.referenciasForm.get(campo)?.setValue(fileName);
-    this.verArchivo(campo);
+    // No se abre solo: queda listo y se ve desde el menú de los 3 puntos.
+    this.alert('success', 'Generado', `${fileName} quedó listo. Ábrelo con "Ver" cuando quieras.`);
   }
 
   /**
@@ -666,31 +682,53 @@ export class HiringQuestionsComponent implements OnInit {
     }
   }
 
+  // ───────── Visor de documentos ─────────
+  /** Documento que se está viendo; `null` = visor cerrado. */
+  visorSrc: SafeResourceUrl | null = null;
+  visorTitulo = '';
+  /** blob: URL cruda, para poder descargarla y revocarla al cerrar. */
+  private visorBlobUrl: string | null = null;
+
+  /**
+   * Muestra el documento dentro de la app.
+   *
+   * Antes se hacía con `window.open`, pero cuando `verArchivo` se llama después
+   * de un `await` se pierde el gesto del usuario, el popup se bloquea y caía al
+   * plan B de descargar. Con el visor propio siempre se ve, y descargar queda
+   * como una acción aparte.
+   */
   verArchivo(campo: string): void {
     const reg = this.uploadedFiles[campo];
     if (!reg) return this.alert('error', 'Archivo no encontrado', 'No se encontró el archivo.');
 
+    this.cerrarVisor();
+
     if (typeof reg.file === 'string') {
-      window.open(encodeURI(reg.file), '_blank');
-      return;
+      // Documento ya guardado: se abre por su URL, no hay blob que revocar.
+      this.visorSrc = this.sanitizer.bypassSecurityTrustResourceUrl(encodeURI(reg.file));
+    } else {
+      this.visorBlobUrl = URL.createObjectURL(reg.file);
+      this.visorSrc = this.sanitizer.bypassSecurityTrustResourceUrl(this.visorBlobUrl);
     }
+    this.visorTitulo = reg.fileName || 'Documento';
+  }
 
-    const url = URL.createObjectURL(reg.file);
-    const win = window.open(url, '_blank');
+  /** Descarga lo que se está viendo. */
+  descargarDelVisor(): void {
+    if (!this.visorBlobUrl) return;
+    const a = document.createElement('a');
+    a.href = this.visorBlobUrl;
+    a.download = this.visorTitulo || 'documento.pdf';
+    a.click();
+  }
 
-    // Si la ventana no abrió, se descarga. Pasa cuando `verArchivo` se llama
-    // después de un `await` (el generador consulta la vacante antes de abrir):
-    // se pierde el gesto del usuario y el navegador bloquea el popup.
-    if (!win) {
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = reg.fileName || 'documento.pdf';
-      a.click();
+  cerrarVisor(): void {
+    if (this.visorBlobUrl) {
+      try { URL.revokeObjectURL(this.visorBlobUrl); } catch { }
+      this.visorBlobUrl = null;
     }
-
-    // Antes se revocaba a los 250 ms y la ventana alcanzaba a quedarse en
-    // blanco porque el blob moría antes de renderizar.
-    setTimeout(() => { try { URL.revokeObjectURL(url); } catch { } }, 60_000);
+    this.visorSrc = null;
+    this.visorTitulo = '';
   }
 
   descargarArchivo(): void {
@@ -755,6 +793,37 @@ export class HiringQuestionsComponent implements OnInit {
     return { uploaded, skipped, failed };
   }
 
+  /** Cargo de la vacante; se usa para deducir el área de la labor. */
+  private cargoVacante = '';
+
+  /**
+   * Propone la "Descripción de la obra" con la misma regla de la base de
+   * contratación (columna J): la labor depende del MES de ingreso y del área,
+   * y el área sale del cargo. Ver `labores-por-mes.data.ts`.
+   *
+   * Solo escribe si el campo está vacío o si lo que hay es una labor generada
+   * antes: si el usuario redactó algo propio, no se le pisa.
+   */
+  private sugerirDescripcionObra(): void {
+    const ctrl = this.datosObraForm.get('descripcionObra');
+    if (!ctrl) return;
+
+    const actual = String(ctrl.value ?? '').trim();
+    const esGenerada = actual !== '' &&
+      Object.values(LABOR_POR_MES_AREA).some(v => v === actual);
+    if (actual !== '' && !esGenerada) return;
+
+    const v = this.datosObraForm.value;
+    const sugerida = resolverDescripcionObra(
+      this.cargoVacante,
+      this.pagoTransporteForm.get('fechaIngreso')?.value,
+      `${v.empresaUsuaria ?? ''} ${v.centroCosto ?? ''}`,
+    );
+    if (sugerida && sugerida !== actual) {
+      ctrl.setValue(sugerida, { emitEvent: false });
+    }
+  }
+
   /**
    * Guarda en el contrato los datos de obra/empresa (descripción de obra, centro
    * de costo, dirección, empresa usuaria). Sólo persiste estos campos; no marca
@@ -786,6 +855,7 @@ export class HiringQuestionsComponent implements OnInit {
     this.loading('Guardando datos de obra…');
     try {
       await firstValueFrom(this.procesosService.updateProcesoByDocumento(this.withOverride(payload), 'PATCH'));
+      this.guardado.emit();
       Swal.close();
       this.alert('success', 'Guardado', 'Los datos de obra se guardaron en el contrato.');
     } catch (e: any) {
@@ -889,6 +959,7 @@ export class HiringQuestionsComponent implements OnInit {
         this.procesosService.updateProcesoByDocumento(this.withOverride(payload), 'PATCH'),
       );
 
+      this.guardado.emit();
       Swal.close();
       this.alert('success', '¡Éxito!', 'Solicitud de traslado guardada.');
     } catch (e: any) {
@@ -1250,6 +1321,9 @@ export class HiringQuestionsComponent implements OnInit {
           direccion: obraActual.direccion || orStr(vac?.direccion),
           descripcionObra: obraActual.descripcionObra || orStr(vac?.descripcion),
         });
+
+        this.cargoVacante = String(vac?.cargo ?? '').trim();
+        this.sugerirDescripcionObra();
 
         // Autocompletar Porcentaje ARL desde el cargo de la vacante.
         // Si el contrato YA tenía un porcentaje_arl explícito, lo respetamos

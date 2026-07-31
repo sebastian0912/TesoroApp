@@ -47,6 +47,16 @@ import {
 export class FormEntrevistaComponent implements OnInit {
   // ====== Inputs / Outputs / Servicios ======
   candidatoSeleccionado = input<any | null>(null);
+  /**
+   * Override "Modificar de todas formas". Sin esto, guardar la entrevista de un
+   * candidato cuyo proceso ya es terminal (contratado, retirado, rechazado, no
+   * pasó la prueba, NO_APLICA/EN_ESPERA) abre una entrevista y un proceso NUEVOS
+   * — que es la regla correcta cuando de verdad se re-inicia el proceso, pero no
+   * cuando el usuario destrabó los tabs justamente para CORREGIR el actual.
+   * Con la bandera en true el backend edita la entrevista existente en sitio.
+   */
+  modificacionForzada = input<boolean>(false);
+  modificadoPor = input<string>('');
   /** Se emite tras guardar la entrevista con éxito, para que el padre recargue
    *  el candidato (y aparezca el proceso nuevo sin re-buscar). */
   guardado = output<void>();
@@ -1181,10 +1191,28 @@ export class FormEntrevistaComponent implements OnInit {
     
     // Referencias vienen en formato array por el backend
     const refs = Array.isArray(cand?.referencias) ? cand.referencias : [];
-    const fam1 = refs.find((r: any) => r.tipo === 'FAMILIAR1');
-    const fam2 = refs.find((r: any) => r.tipo === 'FAMILIAR2');
-    const per1 = refs.find((r: any) => r.tipo === 'PERSONAL1');
-    const per2 = refs.find((r: any) => r.tipo === 'PERSONAL2');
+    /**
+     * Conviven dos convenciones de `tipo`: los registros migrados del sistema
+     * viejo guardan dos filas planas ('PERSONAL', 'FAMILIAR') y los creados por
+     * esta app usan slot numerado ('PERSONAL1'/'PERSONAL2'). Buscando solo el
+     * slot numerado se perdían los migrados, que son la enorme mayoría, y los
+     * campos salían vacíos aunque el candidato sí tuviera referencias.
+     * Se ordena por id para que la 1ª y la 2ª sean estables (el orden por
+     * defecto del modelo es alfabético por nombre).
+     */
+    const slotRef = (base: 'PERSONAL' | 'FAMILIAR', n: 1 | 2) => {
+      const tipoDe = (r: any) => String(r?.tipo ?? '').trim().toUpperCase();
+      const exacto = refs.find((r: any) => tipoDe(r) === `${base}${n}`);
+      if (exacto) return exacto;
+      const planas = refs
+        .filter((r: any) => tipoDe(r) === base)
+        .sort((a: any, b: any) => (a?.id ?? 0) - (b?.id ?? 0));
+      return planas[n - 1] ?? null;
+    };
+    const fam1 = slotRef('FAMILIAR', 1);
+    const fam2 = slotRef('FAMILIAR', 2);
+    const per1 = slotRef('PERSONAL', 1);
+    const per2 = slotRef('PERSONAL', 2);
 
     this.formVacante.patchValue(
       {
@@ -1388,7 +1416,9 @@ export class FormEntrevistaComponent implements OnInit {
       const resp: any = await firstValueFrom(
         this.candidateService.upsertCandidatoByDocumentoFromForm(payload, {
           entrevistado: true,
-        })
+        }, this.modificacionForzada()
+          ? { modificacion_forzada: true, modificado_por: this.modificadoPor() || null }
+          : undefined)
       );
 
       // Detectar respuesta offline falsa del interceptor

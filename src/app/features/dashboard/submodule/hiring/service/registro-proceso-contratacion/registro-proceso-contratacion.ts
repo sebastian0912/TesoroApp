@@ -742,11 +742,17 @@ export class RegistroProcesoContratacion {
     return this.http.patch(this.url('candidatos/by-document-upsert'), upper).pipe(this.handle$());
   }
 
-  /** Comodín: arma el payload desde el form y opcionalmente un proceso (p.ej. {entrevistado:true}) */
-  upsertCandidatoByDocumentoFromForm(form: any, proceso?: any): Observable<any> {
+  /**
+   * Comodín: arma el payload desde el form y opcionalmente un proceso (p.ej. {entrevistado:true}).
+   *
+   * `override` lleva las banderas de "Modificar de todas formas". Van al nivel
+   * raíz del payload (no dentro de `proceso`) porque el backend las lee de
+   * `request.data` para decidir si edita la entrevista existente o abre una nueva.
+   */
+  upsertCandidatoByDocumentoFromForm(form: any, proceso?: any, override?: any): Observable<any> {
     const payload = this.buildCandidatoPayload(form, proceso);
     const upper = this.uppercaseDeepExcept(payload, new Set(['email', 'correo_electronico', 'password']));
-    return this.http.patch(this.url('candidatos/by-document-upsert'), upper).pipe(this.handle$());
+    return this.http.patch(this.url('candidatos/by-document-upsert'), { ...upper, ...(override || {}) }).pipe(this.handle$());
   }
 
   // ===================== CANDIDATOS =====================
@@ -1104,6 +1110,31 @@ export class RegistroProcesoContratacion {
       parentescoReferenciaFamiliar1: get('parentescoReferenciaFamiliar1'),
       nombreReferenciaFamiliar2: get('nombreReferenciaFamiliar2'),
       parentescoReferenciaFamiliar2: get('parentescoReferenciaFamiliar2'),
+      // Las personales faltaban: el form las capturaba y el backend las sabe
+      // guardar, pero nunca salían de aquí, así que al reconsultar volvían vacías.
+      nombreReferenciaPersonal1: get('nombreReferenciaPersonal1'),
+      parentescoReferenciaPersonal1: get('parentescoReferenciaPersonal1'),
+      nombreReferenciaPersonal2: get('nombreReferenciaPersonal2'),
+      parentescoReferenciaPersonal2: get('parentescoReferenciaPersonal2'),
+      // Los demás campos de referencia (teléfono, ocupación, dirección, tiempo)
+      // entran por el formulario público; se mandan solo si el form los trae,
+      // porque `clean()` descarta lo vacío y el backend no pisa lo que no llega.
+      telefonoReferenciaFamiliar1: get('telefonoReferenciaFamiliar1'),
+      ocupacionReferenciaFamiliar1: get('ocupacionReferenciaFamiliar1'),
+      direccionReferenciaFamiliar1: get('direccionReferenciaFamiliar1'),
+      tiempoConoceReferenciaFamiliar1: get('tiempoConoceReferenciaFamiliar1'),
+      telefonoReferenciaFamiliar2: get('telefonoReferenciaFamiliar2'),
+      ocupacionReferenciaFamiliar2: get('ocupacionReferenciaFamiliar2'),
+      direccionReferenciaFamiliar2: get('direccionReferenciaFamiliar2'),
+      tiempoConoceReferenciaFamiliar2: get('tiempoConoceReferenciaFamiliar2'),
+      telefonoReferenciaPersonal1: get('telefonoReferenciaPersonal1'),
+      ocupacionReferenciaPersonal1: get('ocupacionReferenciaPersonal1'),
+      direccionReferenciaPersonal1: get('direccionReferenciaPersonal1'),
+      tiempoConoceReferenciaPersonal1: get('tiempoConoceReferenciaPersonal1'),
+      telefonoReferenciaPersonal2: get('telefonoReferenciaPersonal2'),
+      ocupacionReferenciaPersonal2: get('ocupacionReferenciaPersonal2'),
+      direccionReferenciaPersonal2: get('direccionReferenciaPersonal2'),
+      tiempoConoceReferenciaPersonal2: get('tiempoConoceReferenciaPersonal2'),
     });
 
     // ===== Contacto =====

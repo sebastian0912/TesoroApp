@@ -1,9 +1,19 @@
 /**
- * Carnet de Apoyo Laboral TS — 2 páginas CARTA, una por cara.
+ * Carnet de Apoyo Laboral TS — 2 páginas CARTA HORIZONTAL, una por cara.
  *
- * Página 1 = frente, página 2 = reverso. El carnet va centrado en la hoja y
- * en la MISMA posición en ambas, para que al imprimir a doble cara por borde
- * corto el reverso quede alineado con el frente. Se recorta por las marcas.
+ * Cada hoja lleva marcada una grilla de 3x3 (9 carnets tamaño CR80). Solo se
+ * dibuja el carnet del candidato que se está consultando, en la celda de arriba
+ * a la izquierda; las otras 8 quedan en blanco con su contorno, para ubicar el
+ * recorte y para poder reusar la hoja.
+ *
+ * Por qué horizontal: 3 carnets de 85,6 mm son 256,8 mm de ancho y la carta
+ * vertical solo tiene 215,9 mm. Horizontal (279,4 x 215,9) la grilla entra
+ * completa (256,8 x 162 mm) sin tener que rotar el contenido.
+ *
+ * IMPRESIÓN A DOBLE CARA: hay que voltear por el LADO CORTO. Con ese volteo la
+ * hoja gira sobre el eje vertical, así que el reverso se dibuja espejado en
+ * horizontal —celda de arriba a la DERECHA— para que caiga justo detrás del
+ * frente. Si sale corrido, es que la impresora está volteando por el lado largo.
  *
  * Se dibuja con jsPDF (texto y vectores reales, no una imagen) para que
  * cualquier editor de PDF lo abra y lo pueda editar.
@@ -13,6 +23,10 @@ import jsPDF from 'jspdf';
 /** Tamaño del carnet en mm (CR80, el estándar). */
 export const CARNET_ANCHO = 85.6;
 export const CARNET_ALTO = 54;
+
+/** Celdas de la grilla marcada en cada hoja. */
+export const CARNET_COLUMNAS = 3;
+export const CARNET_FILAS = 3;
 
 /** Apoyo tiene una sola ARL y una sola caja de compensación para todos. */
 export const ARL_FIJA = 'SURA';
@@ -41,45 +55,100 @@ export interface DatosCarnet {
 
 const s = (v: unknown) => String(v ?? '').trim();
 
-export function buildCarnetApoyoPdf(d: DatosCarnet): Blob {
-  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'letter' });
-  doc.setProperties({ title: `Carnet_${d.cedula}` });
+/**
+ * Patrones Code 39. Cada carácter son 9 elementos que alternan barra/espacio
+ * empezando y terminando en barra; 1 = ancho, 0 = angosto. Tres de los nueve
+ * son anchos, de ahí el nombre.
+ */
+const CODE39: Record<string, string> = {
+  '0': '000110100', '1': '100100001', '2': '001100001', '3': '101100000',
+  '4': '000110001', '5': '100110000', '6': '001110000', '7': '000100101',
+  '8': '100100100', '9': '001100100', '*': '000101101',
+};
 
-  const hojaW = doc.internal.pageSize.getWidth();   // 215.9
-  const W = CARNET_ANCHO;
-  const H = CARNET_ALTO;
+/**
+ * Dibuja la cédula como código de barras Code 39 legible por lector láser.
+ *
+ * Se dibuja con rectángulos en vez de usar una fuente de barras: así no
+ * depende de que la fuente esté instalada en el equipo que imprima, y el PDF
+ * se ve igual en cualquier visor.
+ */
+function dibujarCode39(
+  doc: jsPDF, texto: string, x: number, y: number, ancho: number, alto: number,
+): void {
+  const cadena = `*${texto.replace(/[^0-9]/g, '')}*`;
+  const chars = cadena.split('').filter(c => CODE39[c]);
+  if (chars.length <= 2) return; // sin dígitos, no se dibuja nada
 
-  // Origen del carnet dentro de la hoja: centrado horizontal, 40 mm desde
-  // arriba. IDÉNTICO en las dos páginas; de eso depende que calce el duplex.
-  const OX = (hojaW - W) / 2;
-  const OY = 40;
+  // Cada carácter: 3 elementos anchos (3 módulos) + 6 angostos (1) = 15,
+  // más 1 módulo de separación entre caracteres.
+  const modulosPorChar = 15 + 1;
+  const totalModulos = chars.length * modulosPorChar - 1;
+  const m = ancho / totalModulos;      // ancho del módulo angosto
 
-  // Todo el trazado se escribe en coordenadas del carnet (0,0 = esquina
-  // superior izquierda) y estos helpers lo trasladan a la hoja.
-  const X = (v: number) => OX + v;
-  const Y = (v: number) => OY + v;
+  doc.setFillColor(0, 0, 0);
+  let cx = x;
+  for (const ch of chars) {
+    const patron = CODE39[ch];
+    for (let i = 0; i < 9; i++) {
+      const w = (patron[i] === '1' ? 3 : 1) * m;
+      if (i % 2 === 0) doc.rect(cx, y, w, alto, 'F'); // pares = barra
+      cx += w;
+    }
+    cx += m; // separación entre caracteres
+  }
+}
 
-  /** Marcas de corte en las 4 esquinas, para recortar sin adivinar. */
-  const marcasDeCorte = () => {
-    const m = 4;
-    doc.setDrawColor(120).setLineWidth(0.15);
-    const esquinas: Array<[number, number, number, number]> = [
-      [OX, OY, -m, 0], [OX, OY, 0, -m],
-      [OX + W, OY, m, 0], [OX + W, OY, 0, -m],
-      [OX, OY + H, -m, 0], [OX, OY + H, 0, m],
-      [OX + W, OY + H, m, 0], [OX + W, OY + H, 0, m],
-    ];
-    for (const [px, py, dx, dy] of esquinas) doc.line(px, py, px + dx, py + dy);
+/** Origen (esquina superior izquierda) de una celda de la grilla, en mm. */
+function origenCelda(doc: jsPDF, fila: number, columna: number): { ox: number; oy: number } {
+  const hojaW = doc.internal.pageSize.getWidth();
+  const hojaH = doc.internal.pageSize.getHeight();
+  const gridW = CARNET_ANCHO * CARNET_COLUMNAS;
+  const gridH = CARNET_ALTO * CARNET_FILAS;
+  return {
+    ox: (hojaW - gridW) / 2 + columna * CARNET_ANCHO,
+    oy: (hojaH - gridH) / 2 + fila * CARNET_ALTO,
   };
+}
 
-  const marco = () => {
-    doc.setDrawColor(0).setLineWidth(0.4);
-    doc.rect(OX, OY, W, H);
-  };
+/**
+ * Contorno tenue de las 9 celdas. Sirve de guía de corte y de ubicación: la
+ * celda que se usó queda con su marco negro encima y las vacías solo con esta
+ * línea gris.
+ */
+function dibujarGrilla(doc: jsPDF): void {
+  doc.setDrawColor(190).setLineWidth(0.1);
+  for (let f = 0; f < CARNET_FILAS; f++) {
+    for (let c = 0; c < CARNET_COLUMNAS; c++) {
+      const { ox, oy } = origenCelda(doc, f, c);
+      doc.rect(ox, oy, CARNET_ANCHO, CARNET_ALTO);
+    }
+  }
+}
 
-  // ─────────────────────── CARA 1 (frente) ───────────────────────
-  marcasDeCorte();
-  marco();
+/** Marcas de corte en las 4 esquinas de una celda, para recortar sin adivinar. */
+function marcasDeCorte(doc: jsPDF, ox: number, oy: number): void {
+  const m = 3;
+  const W = CARNET_ANCHO, H = CARNET_ALTO;
+  doc.setDrawColor(120).setLineWidth(0.15);
+  const esquinas: Array<[number, number, number, number]> = [
+    [ox, oy, -m, 0], [ox, oy, 0, -m],
+    [ox + W, oy, m, 0], [ox + W, oy, 0, -m],
+    [ox, oy + H, -m, 0], [ox, oy + H, 0, m],
+    [ox + W, oy + H, m, 0], [ox + W, oy + H, 0, m],
+  ];
+  for (const [px, py, dx, dy] of esquinas) doc.line(px, py, px + dx, py + dy);
+}
+
+/** Cara 1 del carnet, dibujada dentro de la celda que arranca en (ox, oy). */
+function dibujarFrente(doc: jsPDF, d: DatosCarnet, ox: number, oy: number): void {
+  const W = CARNET_ANCHO, H = CARNET_ALTO;
+  const X = (v: number) => ox + v;
+  const Y = (v: number) => oy + v;
+
+  marcasDeCorte(doc, ox, oy);
+  doc.setDrawColor(0).setLineWidth(0.4);
+  doc.rect(ox, oy, W, H);
 
   if (d.logoDataUrl) {
     try { doc.addImage(d.logoDataUrl, 'PNG', X(3.5), Y(3), 28, 10); } catch { }
@@ -120,6 +189,21 @@ export function buildCarnetApoyoPdf(d: DatosCarnet): Blob {
   const cargo = doc.splitTextToSize(s(d.cargo).toUpperCase(), anchoIzq) as string[];
   doc.text(cargo, X(centroIzq), Y(y), { align: 'center' });
 
+  // Código de barras de la cédula, en el espacio libre a la izquierda de "Con.".
+  //
+  // El rótulo "Con." arranca en W-30. Antes el código llegaba justo hasta ahí y
+  // la última barra se comía la "C" (se leía "on."). Se deja una zona muda de
+  // 4 mm a cada lado: además de que no se sobreponga, Code 39 la necesita para
+  // que el lector reconozca el inicio y el fin del símbolo.
+  const BC_ZONA_MUDA = 4;
+  const bcX = BC_ZONA_MUDA;
+  const bcAncho = (W - 30 - BC_ZONA_MUDA) - bcX;
+  const bcAlto = 7;
+  const bcY = H - 14;
+  dibujarCode39(doc, s(d.cedula), X(bcX), Y(bcY), bcAncho, bcAlto);
+  doc.setFont('helvetica', 'normal').setFontSize(5);
+  doc.text(s(d.cedula), X(bcX + bcAncho / 2), Y(bcY + bcAlto + 2.2), { align: 'center' });
+
   // Consecutivo y fecha de ingreso, abajo a la derecha.
   const cajaY = H - 11;
   doc.setFont('helvetica', 'normal').setFontSize(5.5);
@@ -135,11 +219,17 @@ export function buildCarnetApoyoPdf(d: DatosCarnet): Blob {
 
   doc.setFontSize(7);
   doc.text(s(d.fechaIngreso), X(W - 13.75), Y(cajaY + 8.5), { align: 'center' });
+}
 
-  // ─────────────────────── CARA 2 (reverso) ───────────────────────
-  doc.addPage('letter', 'portrait');
-  marcasDeCorte();
-  marco();
+/** Cara 2 del carnet, dibujada dentro de la celda que arranca en (ox, oy). */
+function dibujarReverso(doc: jsPDF, d: DatosCarnet, ox: number, oy: number): void {
+  const W = CARNET_ANCHO, H = CARNET_ALTO;
+  const X = (v: number) => ox + v;
+  const Y = (v: number) => oy + v;
+
+  marcasDeCorte(doc, ox, oy);
+  doc.setDrawColor(0).setLineWidth(0.4);
+  doc.rect(ox, oy, W, H);
 
   // Consecutivo tenue arriba a la derecha, para casar frente y reverso.
   doc.setTextColor(160).setFont('helvetica', 'bold').setFontSize(6);
@@ -189,6 +279,25 @@ export function buildCarnetApoyoPdf(d: DatosCarnet): Blob {
     `Contacto Coordinador de la Temporal  ${TELEFONO_COORDINADOR}`,
     X(W / 2), Y(y2), { align: 'center' },
   );
+}
+
+export function buildCarnetApoyoPdf(d: DatosCarnet): Blob {
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'letter' });
+  doc.setProperties({ title: `Carnet_${d.cedula}` });
+
+  // ─────────────────────── CARA 1 (frente) ───────────────────────
+  // Celda de arriba a la izquierda.
+  dibujarGrilla(doc);
+  const frente = origenCelda(doc, 0, 0);
+  dibujarFrente(doc, d, frente.ox, frente.oy);
+
+  // ─────────────────────── CARA 2 (reverso) ───────────────────────
+  // Espejo horizontal de la celda del frente: última columna, misma fila. Con
+  // el volteo por lado corto, esta celda cae exactamente detrás de la otra.
+  doc.addPage('letter', 'landscape');
+  dibujarGrilla(doc);
+  const reverso = origenCelda(doc, 0, CARNET_COLUMNAS - 1);
+  dibujarReverso(doc, d, reverso.ox, reverso.oy);
 
   return doc.output('blob');
 }

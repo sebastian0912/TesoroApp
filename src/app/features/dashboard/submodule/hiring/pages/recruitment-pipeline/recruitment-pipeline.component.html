@@ -273,7 +273,8 @@
         <div class="tab-content-scrollable">
           <app-selection-questions [candidatoSeleccionado]="candidatoSeleccionado()"
             [modificacionForzada]="modificacionForzada()"
-            [modificadoPor]="usuarioActual()">
+            [modificadoPor]="usuarioActual()"
+            (guardado)="recargarCandidato()">
           </app-selection-questions>
         </div>
       </mat-tab>
@@ -515,7 +516,8 @@
             <div class="tab-content-scrollable">
               <app-hiring-questions [candidatoSeleccionado]="candidatoSeleccionado()"
                 [modificacionForzada]="modificacionForzada()"
-                [modificadoPor]="usuarioActual()">
+                [modificadoPor]="usuarioActual()"
+                (guardado)="recargarCandidato()">
               </app-hiring-questions>
             </div>
           </mat-tab>
