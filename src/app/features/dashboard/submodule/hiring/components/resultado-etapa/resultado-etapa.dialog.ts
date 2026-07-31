@@ -12,6 +12,8 @@
  */
 import Swal from 'sweetalert2';
 
+import { swalEnDialogo } from '@/app/shared/utils/swal-en-dialogo';
+
 export type EtapaConResultado = 'prueba' | 'examen';
 export type ResultadoEtapa = 'paso' | 'no_paso' | 'no_se_presento';
 
@@ -56,6 +58,7 @@ export async function pedirResultadoEtapa(
   const actual = previo.resultado && previo.resultado !== 'sin_resultado' ? previo.resultado : '';
 
   const decision = await Swal.fire({
+    ...swalEnDialogo(),
     title: t.titulo,
     text: nombreCandidato ? String(nombreCandidato) : undefined,
     input: 'radio',
@@ -67,7 +70,6 @@ export async function pedirResultadoEtapa(
     inputValue: actual,
     inputValidator: (v) => (!v ? 'Selecciona un resultado.' : null),
     icon: 'question',
-    heightAuto: false,
     showCancelButton: true,
     confirmButtonText: 'Guardar',
     cancelButtonText: 'Cancelar',
@@ -79,6 +81,7 @@ export async function pedirResultadoEtapa(
 
   const noShow = resultado === 'no_se_presento';
   const pedido = await Swal.fire({
+    ...swalEnDialogo(),
     title: 'Motivo',
     input: 'textarea',
     inputLabel: noShow ? t.preguntaNoShow : t.preguntaNoPaso,
@@ -91,7 +94,6 @@ export async function pedirResultadoEtapa(
       return null;
     },
     icon: 'warning',
-    heightAuto: false,
     showCancelButton: true,
     confirmButtonText: 'Guardar',
     cancelButtonText: 'Cancelar',

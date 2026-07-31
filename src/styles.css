@@ -1019,6 +1019,15 @@ html.swal2-shown.swal2-shown {
 .swal2-container.swal2-container {
   position: fixed !important;
   z-index: 2147483000 !important;
+  pointer-events: auto !important;
+}
+
+/* Cuando el Swal se monta DENTRO del overlay (ver swalEnDialogo), el contenedor
+   del CDK tiene `pointer-events: none`: el popup necesita recuperarlos para
+   poder escribir el motivo y pulsar los botones. */
+.cdk-overlay-container .swal2-container,
+.cdk-overlay-container .swal2-popup {
+  pointer-events: auto !important;
 }
 
 /* ===========================================================================

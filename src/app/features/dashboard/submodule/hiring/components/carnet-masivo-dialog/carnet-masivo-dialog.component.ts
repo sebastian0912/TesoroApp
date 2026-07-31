@@ -31,6 +31,8 @@ import { firstValueFrom, of } from 'rxjs';
 import { catchError, take } from 'rxjs/operators';
 import Swal from 'sweetalert2';
 
+import { swalEnDialogo } from '@/app/shared/utils/swal-en-dialogo';
+
 import { GestionDocumentalService } from '../../service/gestion-documental/gestion-documental.service';
 import { RegistroProcesoContratacion } from '../../service/registro-proceso-contratacion/registro-proceso-contratacion';
 import { VacantesService } from '../../../vacancies/service/vacantes/vacantes.service';
@@ -151,7 +153,7 @@ export class CarnetMasivoDialogComponent {
   async revisar(): Promise<void> {
     const cedulas = this.parsearCedulas();
     if (!cedulas.length) {
-      Swal.fire({ icon: 'info', title: 'Sin cédulas', text: 'Escribe o pega al menos una cédula.', heightAuto: false });
+      Swal.fire({ icon: 'info', title: 'Sin cédulas', text: 'Escribe o pega al menos una cédula.', ...swalEnDialogo() });
       return;
     }
 
@@ -306,7 +308,7 @@ export class CarnetMasivoDialogComponent {
   async previsualizar(): Promise<void> {
     const sel = this.seleccionadas();
     if (!sel.length) {
-      Swal.fire({ icon: 'info', title: 'Nada seleccionado', text: 'Marca al menos una persona con todos los datos completos.', heightAuto: false });
+      Swal.fire({ icon: 'info', title: 'Nada seleccionado', text: 'Marca al menos una persona con todos los datos completos.', ...swalEnDialogo() });
       return;
     }
     this.generando.set(true);
@@ -318,7 +320,7 @@ export class CarnetMasivoDialogComponent {
       setTimeout(() => URL.revokeObjectURL(url), 60_000);
     } catch (e) {
       console.error('[carnet masivo] previsualizar', e);
-      Swal.fire({ icon: 'error', title: 'Error', text: 'No se pudo armar la previsualización.', heightAuto: false });
+      Swal.fire({ icon: 'error', title: 'Error', text: 'No se pudo armar la previsualización.', ...swalEnDialogo() });
     } finally {
       this.generando.set(false);
       this.progreso.set('');
@@ -328,14 +330,15 @@ export class CarnetMasivoDialogComponent {
   async generar(): Promise<void> {
     const sel = this.seleccionadas();
     if (!sel.length) {
-      Swal.fire({ icon: 'info', title: 'Nada seleccionado', text: 'Marca al menos una persona con todos los datos completos.', heightAuto: false });
+      Swal.fire({ icon: 'info', title: 'Nada seleccionado', text: 'Marca al menos una persona con todos los datos completos.', ...swalEnDialogo() });
       return;
     }
 
     const regen = sel.filter(f => f.yaGenerado).length;
     const { isConfirmed } = await Swal.fire({
+      ...swalEnDialogo(),
       icon: 'question',
-      heightAuto: false,
+      ...swalEnDialogo(),
       title: `Generar ${sel.length} carnet(s)`,
       html: `Se imprimirán en <b>${this.hojas()}</b> hoja(s) de 9.`
         + (regen ? `<br><br><b>${regen}</b> ya tenían carnet y se van a REGENERAR.` : ''),
@@ -390,7 +393,7 @@ export class CarnetMasivoDialogComponent {
       this.cambios = true;
 
       await Swal.fire({
-        heightAuto: false,
+        ...swalEnDialogo(),
         icon: fallidas.length ? 'warning' : 'success',
         title: fallidas.length ? 'Generado con errores' : 'Carnets generados',
         html: `Se generaron <b>${sel.length - fallidas.length}</b> de ${sel.length}.`

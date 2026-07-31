@@ -13,6 +13,8 @@ import { firstValueFrom, take } from 'rxjs';
 import * as XLSX from 'xlsx';
 import Swal from 'sweetalert2';
 
+import { swalEnDialogo } from '@/app/shared/utils/swal-en-dialogo';
+
 import {
   CandidatoPorVacanteItem,
   RegistroProcesoContratacion,
@@ -268,15 +270,17 @@ export class CumplimientoDialogComponent implements OnInit {
       // refresca en segundo plano; lo visual ya cambió arriba.
       this.cargar(true);
       Swal.fire({
+        ...swalEnDialogo(),
         toast: true, position: 'top-end', icon: 'success', timer: 2200,
-        showConfirmButton: false, timerProgressBar: true, heightAuto: false,
+        showConfirmButton: false, timerProgressBar: true,
         title: `Resultado registrado: ${this.etiquetaResultado(this.filaDe(c.proceso_id) ?? c, etapa)}`,
       });
     } catch (err: any) {
       console.error('[registrarResultado]', err);
       this.candidatos.set(antes);   // revierte lo optimista si el guardado falló
       Swal.fire({
-        icon: 'error', title: 'Error', heightAuto: false,
+        ...swalEnDialogo(),
+        icon: 'error', title: 'Error',
         text: err?.error?.detail || 'No se pudo registrar el resultado.',
       });
     } finally {
@@ -355,6 +359,7 @@ export class CumplimientoDialogComponent implements OnInit {
 
     const total = objetivo.length;
     const confirm = await Swal.fire({
+        ...swalEnDialogo(),
       title: `¿Quitar la vacante a ${total} persona(s)?`,
       html: 'La vacante y los datos de remisión quedarán sin asignar para esas personas. Esta acción no borra al candidato.',
       icon: 'warning',
@@ -377,6 +382,7 @@ export class CumplimientoDialogComponent implements OnInit {
     };
 
     Swal.fire({
+        ...swalEnDialogo(),
       title: 'Quitando vacante…',
       html: `0 / ${total}`,
       allowOutsideClick: false,
@@ -459,6 +465,7 @@ export class CumplimientoDialogComponent implements OnInit {
 
     // Feedback NO bloqueante (toast): no frena el refresco ni tapa la tabla.
     Swal.fire({
+        ...swalEnDialogo(),
       toast: true,
       position: 'top-end',
       icon: fallidas.length ? 'warning' : 'success',
