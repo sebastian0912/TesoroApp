@@ -17,6 +17,12 @@ import {
   CandidatoPorVacanteItem,
   RegistroProcesoContratacion,
 } from '../../../hiring/service/registro-proceso-contratacion/registro-proceso-contratacion';
+import {
+  EtapaConResultado,
+  ResultadoEtapa,
+  payloadResultadoEtapa,
+  pedirResultadoEtapa,
+} from '../../../hiring/components/resultado-etapa/resultado-etapa.dialog';
 import { HomeService } from '../../../home/service/home.service';
 import { UtilityServiceService } from '@/app/shared/services/utilityService/utility-service.service';
 
@@ -178,6 +184,93 @@ export class CumplimientoDialogComponent implements OnInit {
     if (c.no_paso_prueba_tecnica_at) partes.push(`Fecha: ${this.fmtFecha(c.no_paso_prueba_tecnica_at)}`);
     if (c.motivo_no_paso_prueba_tecnica) partes.push(`Motivo: ${c.motivo_no_paso_prueba_tecnica}`);
     return partes.join('\n') || 'No pasó la prueba técnica';
+  }
+
+  // ───────── Resultado de prueba técnica / examen médico ─────────
+  // Se registra desde aquí con el MISMO diálogo del pipeline (mismo texto,
+  // mismos campos, motivo obligatorio en "no pasó" y "no se presentó").
+
+  /** Resultado ya registrado de la etapa, para precargar el diálogo. */
+  resultadoDe(c: CandidatoPorVacanteItem, etapa: EtapaConResultado): ResultadoEtapa | 'sin_resultado' {
+    if (etapa === 'prueba') {
+      if (c.no_paso_prueba_tecnica === true) return 'no_paso';
+      if (c.no_se_presento_prueba_tecnica === true) return 'no_se_presento';
+      if ((c as any).paso_prueba_tecnica === true) return 'paso';
+      return 'sin_resultado';
+    }
+    if (c.no_paso_examen_medico === true) return 'no_paso';
+    if (c.no_se_presento_examen_medico === true) return 'no_se_presento';
+    if (c.paso_examen_medico === true) return 'paso';
+    return 'sin_resultado';
+  }
+
+  etiquetaResultado(c: CandidatoPorVacanteItem, etapa: EtapaConResultado): string {
+    switch (this.resultadoDe(c, etapa)) {
+      case 'paso': return 'Pasó';
+      case 'no_paso': return 'No pasó';
+      case 'no_se_presento': return 'No se presentó';
+      default: return 'Sin resultado';
+    }
+  }
+
+  /** La acción se ofrece si la persona está en esa etapa o ya tiene resultado. */
+  puedeRegistrar(c: CandidatoPorVacanteItem, etapa: EtapaConResultado): boolean {
+    if (this.resultadoDe(c, etapa) !== 'sin_resultado') return true;
+    const e = (c.etapa || '').toLowerCase();
+    return etapa === 'prueba' ? e.includes('prueba') : e.includes('exam');
+  }
+
+  async registrarResultado(c: CandidatoPorVacanteItem, etapa: EtapaConResultado): Promise<void> {
+    const procesoId = c.proceso_id;
+    if (procesoId == null) {
+      Swal.fire('Sin proceso', 'Esta fila no tiene proceso asociado.', 'info');
+      return;
+    }
+
+    const elegido = await pedirResultadoEtapa(
+      etapa,
+      {
+        resultado: this.resultadoDe(c, etapa),
+        motivoNoPaso: etapa === 'prueba' ? c.motivo_no_paso_prueba_tecnica : c.motivo_no_paso_examen_medico,
+        motivoNoSePresento: etapa === 'prueba'
+          ? c.motivo_no_se_presento_prueba_tecnica
+          : c.motivo_no_se_presento_examen_medico,
+      },
+      this.nombreBonito(c),
+    );
+    if (!elegido) return;
+
+    this.working.set(true);
+    try {
+      // Por `proceso_id` y no por cédula: update-by-document re-resuelve a la
+      // ÚLTIMA entrevista del candidato y con varios procesos marcaría el que
+      // no es (mismo motivo por el que "Quitar vacante" ya usa proceso_id).
+      await firstValueFrom(
+        this.gc.patchProceso(procesoId, payloadResultadoEtapa(etapa, elegido.resultado, elegido.motivo) as any),
+      );
+      this.cambios = true;
+      this.cargar(true);   // refresca etapa y chips desde el backend
+      Swal.fire({
+        toast: true, position: 'top-end', icon: 'success', timer: 2200,
+        showConfirmButton: false, timerProgressBar: true,
+        title: `Resultado registrado: ${this.etiquetaResultado({ ...c, ...this.aplicarLocal(elegido.resultado, etapa) } as any, etapa)}`,
+      });
+    } catch (err: any) {
+      console.error('[registrarResultado]', err);
+      Swal.fire('Error', err?.error?.detail || 'No se pudo registrar el resultado.', 'error');
+    } finally {
+      this.working.set(false);
+    }
+  }
+
+  /** Espejo local del resultado, solo para el texto del toast. */
+  private aplicarLocal(resultado: ResultadoEtapa, etapa: EtapaConResultado): Record<string, boolean> {
+    const sufijo = etapa === 'prueba' ? 'prueba_tecnica' : 'examen_medico';
+    return {
+      [`paso_${sufijo}`]: resultado === 'paso',
+      [`no_paso_${sufijo}`]: resultado === 'no_paso',
+      [`no_se_presento_${sufijo}`]: resultado === 'no_se_presento',
+    };
   }
 
   /** Cuántas personas faltan para completar la vacante. */

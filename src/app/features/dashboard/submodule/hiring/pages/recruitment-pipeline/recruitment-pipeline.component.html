@@ -65,6 +65,25 @@
                 <span class="meta-divider" aria-hidden="true"></span>
               }
 
+              <!-- Examen médico: resultado (pasó / no pasó / no se presentó).
+                   Marcador independiente de la carga de exámenes; no bloquea. -->
+              <span class="pill pill-action"
+                [class.pill-danger]="resultadoExamen() === 'no_paso'"
+                [class.pill-success]="resultadoExamen() === 'paso'"
+                [class.pill-warning]="resultadoExamen() === 'no_se_presento'"
+                [class.pill-info]="resultadoExamen() === 'sin_resultado'"
+                role="button"
+                tabindex="0"
+                [matTooltip]="tooltipExamen()"
+                (click)="registrarResultadoExamen()"
+                (keydown.enter)="registrarResultadoExamen()"
+                (keydown.space)="$event.preventDefault(); registrarResultadoExamen()">
+                <mat-icon>{{ resultadoExamen() === 'no_paso' ? 'thumb_down' : (resultadoExamen() === 'paso' ? 'thumb_up' : (resultadoExamen() === 'no_se_presento' ? 'person_off' : 'medical_information')) }}</mat-icon>
+                {{ etiquetaExamen() }}
+              </span>
+
+              <span class="meta-divider" aria-hidden="true"></span>
+
               <!-- Contrato: activo real (clickable → baja) / retirado / en trámite.
                    Una fila con solo el código reservado (generar_codigo) NO es un
                    contrato activo: se muestra "En trámite" y no bloquea nada. -->

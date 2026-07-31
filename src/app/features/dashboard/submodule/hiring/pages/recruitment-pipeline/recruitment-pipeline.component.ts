@@ -34,6 +34,7 @@ import {
   etiquetaPruebaTecnica,
   resultadoDePruebaTecnica,
 } from './prueba-tecnica.rules';
+import { pedirResultadoEtapa, payloadResultadoEtapa } from '../../components/resultado-etapa/resultado-etapa.dialog';
 import { esContratoRealMini, estadoContratoPill, tieneContratoActivoReal } from './contrato.rules';
 
 import { firstValueFrom, merge, startWith } from 'rxjs';
@@ -347,6 +348,46 @@ export class RecruitmentPipelineComponent {
       }
       default:
         return 'Click para registrar el resultado de la prueba técnica';
+    }
+  });
+
+  // ───────── Examen médico (pill del header) ─────────
+  // Independiente de `examenes_medicos` (que solo dice que se cargaron): esto
+  // registra CÓMO salió. Mismos tres resultados que la prueba técnica.
+  readonly resultadoExamen = computed<'sin_resultado' | 'paso' | 'no_paso' | 'no_se_presento'>(() => {
+    const proc = this._proceso();
+    if (proc?.no_paso_examen_medico === true) return 'no_paso';
+    if (proc?.no_se_presento_examen_medico === true) return 'no_se_presento';
+    if (proc?.paso_examen_medico === true) return 'paso';
+    return 'sin_resultado';
+  });
+
+  readonly etiquetaExamen = computed<string>(() => {
+    switch (this.resultadoExamen()) {
+      case 'paso': return 'Examen: pasó';
+      case 'no_paso': return 'Examen: no pasó';
+      case 'no_se_presento': return 'Examen: no se presentó';
+      default: return 'Examen médico';
+    }
+  });
+
+  readonly tooltipExamen = computed<string>(() => {
+    const proc = this._proceso();
+    switch (this.resultadoExamen()) {
+      case 'paso':
+        return 'Pasó el examen médico. Click para cambiar el resultado';
+      case 'no_paso': {
+        const motivo = proc?.motivo_no_paso_examen_medico;
+        return motivo ? `No pasó el examen. Motivo: ${motivo}` : 'No pasó el examen médico. Click para cambiar';
+      }
+      case 'no_se_presento': {
+        const motivo = proc?.motivo_no_se_presento_examen_medico;
+        return motivo
+          ? `No se presentó al examen. Motivo: ${motivo}`
+          : 'No se presentó al examen médico. Click para cambiar';
+      }
+      default:
+        return 'Click para registrar el resultado del examen médico';
     }
   });
 
@@ -1011,6 +1052,80 @@ export class RecruitmentPipelineComponent {
     }
   }
 
+  /**
+   * Registra el resultado del examen médico desde el pill del header.
+   *
+   * Marcador de outcome: NO toca `examenes_medicos` (que indica que los
+   * exámenes se cargaron) ni bloquea el pipeline. Usa el mismo diálogo que el
+   * de cumplimiento de vacantes.
+   */
+  async registrarResultadoExamen(): Promise<void> {
+    const cc = this.candidatoSeleccionado()?.numero_documento;
+    if (!cc) return;
+
+    const proc = this._proceso();
+    const elegido = await pedirResultadoEtapa('examen', {
+      resultado: this.resultadoExamen(),
+      motivoNoPaso: proc?.motivo_no_paso_examen_medico,
+      motivoNoSePresento: proc?.motivo_no_se_presento_examen_medico,
+    }, this.nombreCandidato);
+    if (!elegido) return;
+
+    const payload: any = {
+      numero_documento: String(cc),
+      ...payloadResultadoEtapa('examen', elegido.resultado, elegido.motivo),
+    };
+
+    Swal.fire({ title: 'Guardando resultado...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+
+    try {
+      await firstValueFrom(this.registroProceso.updateProcesoByDocumento(payload, 'PATCH'));
+
+      // Estado local con referencias nuevas para que el pill cambie en el acto
+      // (los computed del header memoizan por referencia).
+      const cand = this.candidatoSeleccionado();
+      const proceso = cand?.entrevistas?.[0]?.proceso;
+      if (proceso) {
+        const ahora = new Date().toISOString();
+        const noPaso = elegido.resultado === 'no_paso';
+        const noShow = elegido.resultado === 'no_se_presento';
+        const procActualizado = {
+          ...proceso,
+          paso_examen_medico: elegido.resultado === 'paso',
+          paso_examen_medico_at: elegido.resultado === 'paso' ? ahora : null,
+          no_paso_examen_medico: noPaso,
+          no_paso_examen_medico_at: noPaso ? ahora : null,
+          motivo_no_paso_examen_medico: noPaso ? elegido.motivo : null,
+          no_se_presento_examen_medico: noShow,
+          no_se_presento_examen_medico_at: noShow ? ahora : null,
+          motivo_no_se_presento_examen_medico: noShow ? elegido.motivo : null,
+        };
+        const entrevistas = [...(cand!.entrevistas ?? [])];
+        entrevistas[0] = { ...entrevistas[0], proceso: procActualizado };
+        this.candidatoSeleccionado.set({ ...cand, entrevistas });
+      }
+
+      const titulos: Record<string, string> = {
+        paso: 'Registrado: pasó el examen médico.',
+        no_paso: 'Registrado: no pasó el examen médico.',
+        no_se_presento: 'Registrado: no se presentó al examen médico.',
+      };
+      await Swal.fire({
+        title: titulos[elegido.resultado],
+        icon: 'success',
+        toast: true,
+        position: 'top-end',
+        showConfirmButton: false,
+        timer: 2500,
+        timerProgressBar: true,
+      });
+    } catch (err: any) {
+      console.error('Error registrando resultado del examen médico:', err);
+      const detalle = err?.error?.detail || 'No se pudo registrar el resultado.';
+      await Swal.fire({ title: 'Error', text: detalle, icon: 'error' });
+    }
+  }
+
   // ───────── VALIDACIÓN PARA HABILITAR/DESHABILITAR CONTRATACIÓN ─────────
   // ───────── VALIDACIÓN PARA HABILITAR/DESHABILITAR CONTRATACIÓN ─────────
   private _norm(s: any): string {
@@ -1498,6 +1613,18 @@ export class RecruitmentPipelineComponent {
               ? 'NO SE PRESENTÓ'
               : row.paso_prueba_tecnica === true ? 'PASÓ' : '';
 
+          // Resultado del EXAMEN MÉDICO en su propia columna, igual que el de la
+          // prueba: se ve aunque el estado sea CONTRATADO o RETIRADO.
+          row._examen = row.no_paso_examen_medico === true
+            ? 'NO PASÓ'
+            : row.no_se_presento_examen_medico === true
+              ? 'NO SE PRESENTÓ'
+              : row.paso_examen_medico === true ? 'PASÓ' : '';
+
+          row._fecha_resultado_examen =
+            row.no_paso_examen_medico_at || row.no_se_presento_examen_medico_at
+            || row.paso_examen_medico_at || null;
+
           // Fecha de la prueba PROGRAMADA en la publicación (vacante). Se muestra para
           // los procesos de prueba técnica, tengan o no resultado aún.
           row._fecha_prueba_publicacion = row.vacante_fecha_prueba || null;
@@ -1520,6 +1647,18 @@ export class RecruitmentPipelineComponent {
             row._motivo = (row._motivo && row._motivo !== motivoPrueba)
               ? `${row._motivo} · Prueba técnica: ${motivoPrueba}`
               : motivoPrueba;
+          }
+
+          // Igual con el motivo del examen médico: se suma sin pisar lo anterior.
+          const motivoExamen = row.no_paso_examen_medico === true
+            ? (row.motivo_no_paso_examen_medico || '')
+            : row.no_se_presento_examen_medico === true
+              ? (row.motivo_no_se_presento_examen_medico || '')
+              : '';
+          if (motivoExamen) {
+            row._motivo = row._motivo
+              ? `${row._motivo} · Examen médico: ${motivoExamen}`
+              : `Examen médico: ${motivoExamen}`;
           }
 
           return row;
@@ -1560,6 +1699,18 @@ export class RecruitmentPipelineComponent {
           },
           {
             name: '_fecha_resultado_prueba', header: 'Fecha resultado de la prueba',
+            type: 'date', dateFormat: 'dd/MM/yyyy HH:mm', width: '160px',
+          },
+          {
+            name: '_examen', header: 'Resultado examen', type: 'status', width: '130px',
+            statusConfig: {
+              'PASÓ':           { color: '#fff', background: '#2E7D32' },
+              'NO PASÓ':        { color: '#fff', background: '#C62828' },
+              'NO SE PRESENTÓ': { color: '#fff', background: '#EF6C00' },
+            }
+          },
+          {
+            name: '_fecha_resultado_examen', header: 'Fecha resultado del examen',
             type: 'date', dateFormat: 'dd/MM/yyyy HH:mm', width: '160px',
           },
           { name: '_motivo', header: 'Motivo', type: 'text', width: '160px' },

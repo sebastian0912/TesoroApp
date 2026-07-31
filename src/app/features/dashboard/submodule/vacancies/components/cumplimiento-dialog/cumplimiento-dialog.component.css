@@ -420,3 +420,29 @@
 .btn-caret { margin-left: -4px; }
 
 .btn-cerrar { color: var(--muted); font-weight: 600; }
+
+/* ── Columna de resultado (prueba técnica / examen médico) ────────────────── */
+.col-resultado {
+  white-space: nowrap;
+  text-align: right;
+}
+
+.btn-resultado {
+  --mdc-outlined-button-container-height: 30px;
+  margin-left: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.btn-resultado .mat-icon {
+  width: 16px;
+  height: 16px;
+  font-size: 16px;
+  margin-right: 2px;
+}
+
+.resultado-vacio {
+  color: var(--muted);
+  font-size: 12px;
+}

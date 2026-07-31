@@ -84,6 +84,7 @@
               <th>Candidato</th>
               <th class="col-doc">Documento</th>
               <th class="col-etapa">Etapa</th>
+              <th class="col-resultado">Resultado</th>
             </tr>
           </thead>
           <tbody>
@@ -116,6 +117,32 @@
                     <span class="etapa-motivo" [matTooltip]="noPasoTooltip(c)" matTooltipClass="cumpl-nopaso-tooltip">
                       <mat-icon>info</mat-icon>{{ c.motivo_no_paso_prueba_tecnica }}
                     </span>
+                  }
+                </td>
+
+                <!-- Registrar resultado: se ofrece según la etapa en la que va
+                     la persona, o si ya tiene un resultado que se quiera cambiar. -->
+                <td class="col-resultado" (click)="$event.stopPropagation()">
+                  @if (puedeRegistrar(c, 'prueba')) {
+                    <button mat-stroked-button class="btn-resultado"
+                      [disabled]="working()"
+                      matTooltip="Registrar resultado de la prueba técnica"
+                      (click)="registrarResultado(c, 'prueba')">
+                      <mat-icon>assignment_ind</mat-icon>
+                      Prueba: {{ etiquetaResultado(c, 'prueba') }}
+                    </button>
+                  }
+                  @if (puedeRegistrar(c, 'examen')) {
+                    <button mat-stroked-button class="btn-resultado"
+                      [disabled]="working()"
+                      matTooltip="Registrar resultado del examen médico"
+                      (click)="registrarResultado(c, 'examen')">
+                      <mat-icon>medical_information</mat-icon>
+                      Examen: {{ etiquetaResultado(c, 'examen') }}
+                    </button>
+                  }
+                  @if (!puedeRegistrar(c, 'prueba') && !puedeRegistrar(c, 'examen')) {
+                    <span class="resultado-vacio">—</span>
                   }
                 </td>
               </tr>

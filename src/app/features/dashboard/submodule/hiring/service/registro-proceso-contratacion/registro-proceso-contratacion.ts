@@ -237,6 +237,12 @@ export interface ProcesoUpdateByDocumentRequest {
   paso_prueba_tecnica?: boolean;
   /** Motivo por el que no se presentó a la prueba técnica. */
   motivo_no_se_presento_prueba_tecnica?: string | null;
+  /** Resultado del examen médico (excluyentes entre sí). */
+  paso_examen_medico?: boolean;
+  no_paso_examen_medico?: boolean;
+  motivo_no_paso_examen_medico?: string | null;
+  no_se_presento_examen_medico?: boolean;
+  motivo_no_se_presento_examen_medico?: string | null;
   autorizado?: boolean;
   vacante_fecha_prueba?: string | null;
 
@@ -432,6 +438,15 @@ export interface CandidatoPorVacanteItem {
   no_se_presento_prueba_tecnica_at?: string | null;
   /** Motivo registrado de por qué no se presentó a la prueba técnica. */
   motivo_no_se_presento_prueba_tecnica?: string | null;
+  /** Resultado del examen médico (excluyentes entre sí). */
+  paso_examen_medico?: boolean;
+  paso_examen_medico_at?: string | null;
+  no_paso_examen_medico?: boolean;
+  no_paso_examen_medico_at?: string | null;
+  motivo_no_paso_examen_medico?: string | null;
+  no_se_presento_examen_medico?: boolean;
+  no_se_presento_examen_medico_at?: string | null;
+  motivo_no_se_presento_examen_medico?: string | null;
 
   // ── Campos adicionales para los formatos por finca (Hato/Flores/Sagaro/San Carlos).
   //    Todos opcionales; el backend los llena solo si el candidato tiene el dato.
