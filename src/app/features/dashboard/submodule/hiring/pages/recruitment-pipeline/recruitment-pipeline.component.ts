@@ -339,8 +339,12 @@ export class RecruitmentPipelineComponent {
         const motivo = proc?.motivo_no_paso_prueba_tecnica;
         return motivo ? `No pasó la prueba. Motivo: ${motivo}` : 'No pasó la prueba. Click para cambiar el resultado';
       }
-      case 'no_se_presento':
-        return 'No se presentó a la prueba técnica. Click para cambiar el resultado';
+      case 'no_se_presento': {
+        const motivo = proc?.motivo_no_se_presento_prueba_tecnica;
+        return motivo
+          ? `No se presentó a la prueba. Motivo: ${motivo}`
+          : 'No se presentó a la prueba técnica. Click para cambiar el resultado';
+      }
       default:
         return 'Click para registrar el resultado de la prueba técnica';
     }
@@ -924,13 +928,21 @@ export class RecruitmentPipelineComponent {
     if (!decision.isConfirmed) return;
     const resultado = String(decision.value) as 'paso' | 'no_paso' | 'no_se_presento';
 
+    // Tanto "no pasó" como "no se presentó" exigen motivo; cada uno se guarda en
+    // su propio campo para no mezclar "reprobó la prueba" con "no asistió".
     let motivo = '';
-    if (resultado === 'no_paso') {
+    if (resultado === 'no_paso' || resultado === 'no_se_presento') {
+      const noShow = resultado === 'no_se_presento';
       const pedido = await Swal.fire({
         title: 'Motivo',
         input: 'textarea',
-        inputLabel: '¿Por qué no pasó la prueba técnica?',
-        inputValue: this._proceso()?.motivo_no_paso_prueba_tecnica ?? '',
+        inputLabel: noShow
+          ? '¿Por qué no se presentó a la prueba técnica?'
+          : '¿Por qué no pasó la prueba técnica?',
+        inputPlaceholder: noShow ? 'Avisó que no podía, no contestó, se retiró del proceso...' : '',
+        inputValue: (noShow
+          ? this._proceso()?.motivo_no_se_presento_prueba_tecnica
+          : this._proceso()?.motivo_no_paso_prueba_tecnica) ?? '',
         inputValidator: (valor) => {
           const texto = String(valor ?? '').trim();
           if (!texto) return 'El motivo es obligatorio.';
@@ -953,6 +965,7 @@ export class RecruitmentPipelineComponent {
       no_paso_prueba_tecnica: resultado === 'no_paso',
       no_se_presento_prueba_tecnica: resultado === 'no_se_presento',
       motivo_no_paso_prueba_tecnica: resultado === 'no_paso' ? motivo : null,
+      motivo_no_se_presento_prueba_tecnica: resultado === 'no_se_presento' ? motivo : null,
     };
 
     Swal.fire({ title: 'Guardando resultado...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
@@ -1455,6 +1468,7 @@ export class RecruitmentPipelineComponent {
             row._motivo = row.motivo_no_paso_prueba_tecnica || '';
           } else if (row.no_se_presento_prueba_tecnica === true) {
             row._estado = 'NO SE PRESENTÓ';
+            row._motivo = row.motivo_no_se_presento_prueba_tecnica || '';
           } else if (row.paso_prueba_tecnica === true) {
             row._estado = 'PASÓ PRUEBA';
           } else if (row.prueba_tecnica === true) {
@@ -1499,7 +1513,9 @@ export class RecruitmentPipelineComponent {
           // estado ya es "NO PASÓ PRUEBA", _motivo ya es el de la prueba: no se duplica.
           const motivoPrueba = row.no_paso_prueba_tecnica === true
             ? (row.motivo_no_paso_prueba_tecnica || '')
-            : '';
+            : row.no_se_presento_prueba_tecnica === true
+              ? (row.motivo_no_se_presento_prueba_tecnica || '')
+              : '';
           if (motivoPrueba) {
             row._motivo = (row._motivo && row._motivo !== motivoPrueba)
               ? `${row._motivo} · Prueba técnica: ${motivoPrueba}`

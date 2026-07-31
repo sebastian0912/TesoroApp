@@ -235,6 +235,8 @@ export interface ProcesoUpdateByDocumentRequest {
   motivo_no_paso_prueba_tecnica?: string | null;
   /** Marca el resultado "pasó la prueba técnica" (excluyente con no_paso). */
   paso_prueba_tecnica?: boolean;
+  /** Motivo por el que no se presentó a la prueba técnica. */
+  motivo_no_se_presento_prueba_tecnica?: string | null;
   autorizado?: boolean;
   vacante_fecha_prueba?: string | null;
 
@@ -428,6 +430,8 @@ export interface CandidatoPorVacanteItem {
   no_se_presento_prueba_tecnica?: boolean;
   /** ISO datetime en que se marcó "no se presentó" (o null). */
   no_se_presento_prueba_tecnica_at?: string | null;
+  /** Motivo registrado de por qué no se presentó a la prueba técnica. */
+  motivo_no_se_presento_prueba_tecnica?: string | null;
 
   // ── Campos adicionales para los formatos por finca (Hato/Flores/Sagaro/San Carlos).
   //    Todos opcionales; el backend los llena solo si el candidato tiene el dato.

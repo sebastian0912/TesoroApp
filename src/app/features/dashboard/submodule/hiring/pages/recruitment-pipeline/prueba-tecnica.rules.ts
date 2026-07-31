@@ -84,6 +84,7 @@ export function aplicarResultadoPruebaLocal(
     motivo_no_paso_prueba_tecnica: noPaso ? motivo : null,
     no_se_presento_prueba_tecnica: noShow,
     no_se_presento_prueba_tecnica_at: procResp?.no_se_presento_prueba_tecnica_at ?? (noShow ? ahora : null),
+    motivo_no_se_presento_prueba_tecnica: noShow ? motivo : null,
   };
 
   const entrevistas = [...(candidato.entrevistas ?? [])];
