@@ -988,9 +988,19 @@ export class HiringReportComponent implements OnInit, OnDestroy {
     return errors;
   }
 
+  /** Oficina seleccionada en el formulario; se guarda junto a cada error. */
+  private get oficinaSeleccionada(): string {
+    return this.reporteForm.getRawValue()?.sede?.nombre || '';
+  }
+
   private async saveErrorsToBackend(errors: any[]) {
     try {
-      const payload = { errores: errors, responsable: this.nombre, tipo: 'Documento de Contratación' };
+      const payload = {
+        errores: errors,
+        responsable: this.nombre,
+        oficina: this.oficinaSeleccionada,
+        tipo: 'Documento de Contratación',
+      };
       await this.hiringService.enviarErroresValidacion(payload);
       Swal.fire({
         icon: 'warning',
@@ -1041,6 +1051,7 @@ export class HiringReportComponent implements OnInit, OnDestroy {
       await this.hiringService.enviarErroresValidacion({
         errores,
         responsable: this.nombre,
+        oficina: this.oficinaSeleccionada,
         tipo,
       });
     } catch (e) {

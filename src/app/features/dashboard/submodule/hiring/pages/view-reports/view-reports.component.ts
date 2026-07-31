@@ -30,6 +30,7 @@ import { DateRangeDialogComponent } from '@/app/shared/components/date-rang-dial
 import { HiringService } from '../../service/hiring.service';
 import { StandardFilterTable } from '@/app/shared/components/standard-filter-table/standard-filter-table';
 import { ReportesService } from '../../service/reportes/reportes.service';
+import { compararOficinas, ordenarPorOficina } from './oficinas-orden';
 import { ColumnDefinition } from '@/app/shared/models/advanced-table-interface';
 import { MatButtonModule } from '@angular/material/button';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
@@ -73,25 +74,23 @@ interface ErrorValidacionRow {
   registro: string;
   mensaje: string;
   responsable: string;
+  oficina: string;
 }
 
 const STATUS_REPORTADO = 'Reportado';
 const STATUS_SIN_CONTRATACION = 'Sin contratación';
 const STATUS_NO_REPORTO = 'No reportó';
 
-const STATUS_ORDER: Record<string, number> = {
-  [STATUS_NO_REPORTO]: 0,
-  [STATUS_SIN_CONTRATACION]: 1,
-  [STATUS_REPORTADO]: 2,
-};
-
+// ADMINISTRATIVOS sí se muestra, pero va de última (ver oficinas-orden.ts).
 const EXCLUDED_SEDES = new Set<string>([
-  'ADMINISTRATIVOS',
   'ANDES',
   'FORANEOS',
   'MONTE_VERDE',
   'VIRTUAL',
 ]);
+
+/** Etiqueta para filas sin oficina registrada. */
+const SIN_OFICINA = 'SIN OFICINA';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -274,6 +273,7 @@ export class ViewReportsComponent implements OnInit {
         'Traslados - Previsualizador': { color: '#5b21b6', background: '#ede9fe' },
       },
     },
+    { name: 'oficina', header: 'Oficina', type: 'text', width: '170px', align: 'left' },
     { name: 'registro', header: 'Cédula / Registro', type: 'text', width: '160px', align: 'left' },
     { name: 'responsable', header: 'Responsable', type: 'text', width: '220px', align: 'left' },
     { name: 'mensaje', header: 'Detalle del error', type: 'text', align: 'left' },
@@ -387,14 +387,9 @@ export class ViewReportsComponent implements OnInit {
                 status: this.normalizeStatus(item.status),
               }));
 
-            normalizado.sort((a, b) => {
-              const pa = STATUS_ORDER[a.status] ?? 99;
-              const pb = STATUS_ORDER[b.status] ?? 99;
-              if (pa !== pb) return pa - pb;
-              return (a.sede || '').localeCompare(b.sede || '');
-            });
-
-            this.consolidado.set(normalizado);
+            // Orden fijo de oficinas (no por estado), para que la tabla se lea
+            // siempre igual y coincida con el Excel de bases unidas.
+            this.consolidado.set(ordenarPorOficina(normalizado, (r) => r.sede));
           } else {
             this.consolidado.set([]);
           }
@@ -440,8 +435,9 @@ export class ViewReportsComponent implements OnInit {
             registro: e.registro != null ? String(e.registro) : '',
             mensaje: e.mensaje || '',
             responsable: e.responsable || '',
+            oficina: e.oficina || SIN_OFICINA,
           }));
-          this.erroresValidacion.set(rows);
+          this.erroresValidacion.set(ordenarPorOficina(rows, (r) => r.oficina));
           this.erroresPorTipo.set(por_tipo ?? {});
           this.lastUpdate.set(new Date());
         },
@@ -715,7 +711,7 @@ export class ViewReportsComponent implements OnInit {
     for (const r of this.reportes()) {
       const url = r.cruce_document?.file_url;
       if (!url || fuentes.has(url)) continue;
-      fuentes.set(url, (r.sede || '').trim() || 'SIN OFICINA');
+      fuentes.set(url, (r.sede || '').trim() || SIN_OFICINA);
     }
 
     if (fuentes.size === 0) {
@@ -736,7 +732,13 @@ export class ViewReportsComponent implements OnInit {
       const alianzaRows: { cells: any[]; oficina: string }[] = [];
       const apoyoRows: { cells: any[]; oficina: string }[] = [];
 
-      for (const [url, oficina] of fuentes) {
+      // Recorrer las bases en el orden canónico de oficinas: así las filas
+      // quedan agrupadas y ordenadas igual que en la tabla de pantalla.
+      const fuentesOrdenadas = [...fuentes.entries()].sort((a, b) =>
+        compararOficinas(a[1], b[1]),
+      );
+
+      for (const [url, oficina] of fuentesOrdenadas) {
         const resp = await fetch(url);
         if (!resp.ok) continue;
         const buf = await resp.arrayBuffer();

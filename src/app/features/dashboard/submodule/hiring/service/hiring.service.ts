@@ -192,6 +192,7 @@ export class HiringService {
         registro: string; errores: any[];
       }[];
       responsable: string;
+      oficina?: string;
       tipo: string;
     },
 
@@ -202,6 +203,7 @@ export class HiringService {
     const data = {
       errores: payload.errores,
       responsable: payload.responsable,
+      oficina: payload.oficina ?? '',
       tipo: payload.tipo,
     };
 

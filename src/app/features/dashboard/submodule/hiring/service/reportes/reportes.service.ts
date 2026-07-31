@@ -85,6 +85,7 @@ export class ReportesService {
       registro: number | null;
       mensaje: string;
       responsable: string;
+      oficina: string;
       fecha_creacion: string | null;
     }[];
   }> {
