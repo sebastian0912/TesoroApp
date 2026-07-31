@@ -370,3 +370,21 @@ mat-form-field.example-full-width {
     font-size: .74rem !important;
   }
 }
+
+/* Botón "Forzar consultar" dentro del aviso de documento vencido. */
+.btn-forzar-fuente {
+  --mdc-outlined-button-container-height: 26px !important;
+  margin-left: 4px !important;
+  padding: 0 8px !important;
+  font-size: .72rem !important;
+  font-weight: 700 !important;
+  line-height: 1 !important;
+  white-space: nowrap !important;
+}
+
+.btn-forzar-fuente .mat-icon {
+  width: 15px !important;
+  height: 15px !important;
+  font-size: 15px !important;
+  margin-right: 2px !important;
+}

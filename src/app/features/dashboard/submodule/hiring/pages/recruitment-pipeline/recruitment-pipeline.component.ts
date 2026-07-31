@@ -2111,7 +2111,9 @@ export class RecruitmentPipelineComponent {
     // CARNET_CODIGO solo se usa si el contrato aún no tiene código: el código
     // de contrato manda sobre el valor histórico que traiga Home.
     if (!codigo && cMini?.CARNET_CODIGO) codigo = String(cMini.CARNET_CODIGO).trim();
-    if (cMini?.CARNET_CENTRO_COSTO) centroCosto = String(cMini.CARNET_CENTRO_COSTO).trim();
+    // "Centro de costo carnet" del contrato manda: es el campo que se diligencia
+    // en Pago y Transporte para este carnet en concreto.
+    if (!centroCosto && cMini?.CARNET_CENTRO_COSTO) centroCosto = String(cMini.CARNET_CENTRO_COSTO).trim();
     if (cMini?.CARNET_FECHA_INGRESO) fechaIng = String(cMini.CARNET_FECHA_INGRESO).trim();
 
     // Replicando la lógica exacta ("pickAny") que usa el Home component

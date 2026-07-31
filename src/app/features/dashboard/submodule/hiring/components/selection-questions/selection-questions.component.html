@@ -139,6 +139,16 @@
             <div class="doc-warning">
               <mat-icon class="warn-icon" color="warn">warning</mat-icon>
               <span>El documento tiene más de 15 días.</span>
+              <!-- Re-consulta SOLO esta fuente (el botón del pipeline re-abre las 8). -->
+              @if (puedeForzarFuente(fld.key)) {
+                <button mat-stroked-button class="btn-forzar-fuente"
+                  [disabled]="forzandoFuente !== null"
+                  matTooltip="Volver a consultar solo este documento con el robot"
+                  (click)="forzarConsultaDeFuente(fld.key, fld.label)">
+                  <mat-icon>autorenew</mat-icon>
+                  {{ forzandoFuente === fld.key ? 'Enviando…' : 'Forzar consultar' }}
+                </button>
+              }
             </div>
           }
         </div>

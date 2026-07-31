@@ -115,6 +115,12 @@
           <mat-hint>Al salir del campo se prellenan empresa, ciudad y sublabor.</mat-hint>
         </mat-form-field>
 
+        <mat-form-field appearance="outline" class="example-full-width">
+          <mat-label>Centro de costo carnet</mat-label>
+          <input matInput formControlName="carnetCentroCosto">
+          <mat-hint>Es el que se imprime en el carnet. Si se deja vacío, se usa Ccostos.</mat-hint>
+        </mat-form-field>
+
         <!-- Datos de nómina: se prellenan desde el centro de costo y quedan editables -->
         <mat-form-field appearance="outline" class="example-full-width">
           <mat-label>Empresa grupo Elite</mat-label>

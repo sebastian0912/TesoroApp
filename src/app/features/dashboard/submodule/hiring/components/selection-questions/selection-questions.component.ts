@@ -618,6 +618,78 @@ export class SelectionQuestionsComponent implements OnDestroy {
     return (Date.now() - ts) > (days * 24 * 60 * 60 * 1000);
   }
 
+  /* ===================== Forzar re-consulta de UNA fuente ===================== */
+
+  /** Documento cuyo botón "Forzar consultar" está en vuelo. */
+  forzandoFuente: DocKey | null = null;
+
+  /**
+   * Solo tienen robot los documentos con fuente en la cola; `figuraHumana` y
+   * `pensionSemanas` se suben a mano, así que ahí no hay nada que forzar.
+   */
+  puedeForzarFuente(key: DocKey): boolean {
+    return !!this.colaKeyMap[key];
+  }
+
+  /**
+   * Re-abre SOLO la fuente de este documento para que el robot la vuelva a
+   * consultar. A diferencia del botón del pipeline (que re-abre las 8), esto
+   * cuesta una sola consulta.
+   *
+   * Ojo: Policivos y Rama Judicial comparten la fuente `policivo`, así que
+   * forzar cualquiera de los dos re-consulta ambos: es una sola consulta del
+   * robot que produce los dos PDF.
+   */
+  async forzarConsultaDeFuente(key: DocKey, label: string): Promise<void> {
+    const fuente = this.colaKeyMap[key];
+    const doc = (this.cedula || '').trim();
+    if (!fuente || !doc || this.forzandoFuente) return;
+
+    const compartida = fuente === 'policivo'
+      ? '<br><br>Policivos y Rama Judicial son la misma consulta del robot: se actualizan los dos.'
+      : '';
+
+    const { isConfirmed } = await Swal.fire({
+      icon: 'question',
+      title: 'Forzar consultar',
+      html: `Se volverá a consultar <b>${label}</b> de la cédula <b>${doc}</b>.<br><br>`
+        + 'El estado queda en <b>SIN_CONSULTAR</b> y el robot sube el PDF nuevo '
+        + 'en los próximos minutos. Las demás fuentes no se tocan.' + compartida,
+      showCancelButton: true,
+      confirmButtonText: 'Sí, volver a consultar',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#111827',
+    });
+    if (!isConfirmed) return;
+
+    this.forzandoFuente = key;
+    this.cdr.markForCheck();
+    try {
+      const resp = await firstValueFrom(this.rpc.forzarConsultaFuente({
+        numero_documento: doc,
+        tipo_doc: this.tipoDocumento,
+        fuente,
+      }));
+      await Swal.fire({
+        icon: resp?.reabierto ? 'success' : 'info',
+        title: resp?.reabierto ? 'Re-consulta pedida' : 'Sin cambios',
+        text: resp?.mensaje || 'Listo.',
+        confirmButtonColor: '#111827',
+      });
+    } catch (err: any) {
+      console.error('[antecedentes] forzar fuente falló', err);
+      await Swal.fire({
+        icon: 'error',
+        title: 'No se pudo',
+        text: err?.error?.detail || err?.message || 'No se pudo re-abrir la consulta.',
+        confirmButtonColor: '#111827',
+      });
+    } finally {
+      this.forzandoFuente = null;
+      this.cdr.markForCheck();
+    }
+  }
+
   private formatFecha(iso?: string): string | undefined {
     if (!iso) return undefined;
     const d = new Date(iso);

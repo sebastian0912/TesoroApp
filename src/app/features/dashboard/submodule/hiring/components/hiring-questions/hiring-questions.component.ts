@@ -231,6 +231,11 @@ export class HiringQuestionsComponent implements OnInit {
         contraseniaAsignada: ['', []],
         seguroFunerario: [false, Validators.required],
         Ccostos: ['', Validators.required],
+        // Centro de costo que se IMPRIME en el carnet. Puede diferir del
+        // Ccostos de nomina (p. ej. la finca donde va a estar la persona),
+        // por eso es un campo propio y no obligatorio: si va vacio, el carnet
+        // cae al Ccostos.
+        carnetCentroCosto: [null],
         salario: [{ value: null, disabled: true }, Validators.required],
         auxilioTransporte: [{ value: null, disabled: true }, Validators.required],
         // Editable: se autocompleta desde el cargo de la vacante como sugerencia,
@@ -478,6 +483,8 @@ export class HiringQuestionsComponent implements OnInit {
         contrasenia_asignada?: string | null;
         seguro_funerario?: boolean | null;
         Ccentro_de_costos?: string | null;
+        /** Centro de costo que se imprime en el carnet (puede diferir del de nómina). */
+        carnet_centro_costo?: string | null;
         porcentaje_arl?: number | null;
         cesantias?: string | null;
         subcentro_de_costos?: string | null;
@@ -507,6 +514,7 @@ export class HiringQuestionsComponent implements OnInit {
         contrasenia_asignada: v.contraseniaAsignada ?? null,
         seguro_funerario: !!v.seguroFunerario,
         Ccentro_de_costos: v.Ccostos ?? null,
+        carnet_centro_costo: v.carnetCentroCosto ?? null,
         porcentaje_arl: toNum(v.porcentajeARL),
         cesantias: v.cesantias ?? null,
         subcentro_de_costos: v.subCentroCostos ?? null,
@@ -1327,6 +1335,7 @@ export class HiringQuestionsComponent implements OnInit {
       // validacionNumeroCuenta: contr?.numero_para_pagos ?? null, // eliminado
       seguroFunerario: contr?.seguro_funerario ?? false,
       Ccostos: contr?.Ccentro_de_costos ?? '',
+      carnetCentroCosto: (contr as any)?.carnet_centro_costo ?? null,
       porcentajeARL: contr?.porcentaje_arl != null ? toNum(contr.porcentaje_arl) : null,
       cesantias: contr?.cesantias ?? null,
       subCentroCostos: contr?.subcentro_de_costos ?? null,

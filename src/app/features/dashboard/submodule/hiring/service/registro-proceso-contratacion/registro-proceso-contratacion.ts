@@ -598,6 +598,29 @@ export class RegistroProcesoContratacion {
     return this.http.post<any>(this.url('candidatos/forzar-consulta-antecedentes'), payload).pipe(this.handle$());
   }
 
+  /**
+   * Re-abre UNA sola fuente de antecedentes (no las 8).
+   *
+   * `fuente` ∈ adress | policivo | ofac | contraloria | sisben | procuraduria |
+   * fondo_pension | medidas_correctivas. Es lo que usa el botón "Forzar
+   * consultar" del documento vencido: re-consultar las 8 cuesta una pasada
+   * completa de la flota y 2captcha de más.
+   */
+  forzarConsultaFuente(payload: {
+    numero_documento: string;
+    tipo_doc?: string | null;
+    fuente: string;
+  }): Observable<{
+    ok: boolean;
+    numero_documento?: string;
+    fuente?: string;
+    action?: string;
+    reabierto?: boolean;
+    mensaje?: string;
+  }> {
+    return this.http.post<any>(this.url('candidatos/forzar-consulta-fuente'), payload).pipe(this.handle$());
+  }
+
   getUltimosEnEspera(oficina?: string | string[]): Observable<EnEsperaItem[]> {
     let options: { params?: HttpParams } = {};
 
