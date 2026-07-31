@@ -15,6 +15,8 @@ export interface UsuarioDetail {
   sede?: { id: string; nombre: string; activa: boolean } | null;
   rol?: { id: string; nombre: string } | null;
   datos_basicos?: { usuario: string; nombres: string; apellidos: string; celular?: string | null } | null;
+  /** Otros correos con los que ESTA misma cédula puede iniciar sesión (usuario_credencial). */
+  correos_adicionales?: Array<{ id: string; correo: string; etiqueta: string; activo: boolean }>;
   permisos_efectivos?: Array<{ id: string; nombre: string; modulo: string; accion: string }>;
   permisos_tree?: any[];
 }

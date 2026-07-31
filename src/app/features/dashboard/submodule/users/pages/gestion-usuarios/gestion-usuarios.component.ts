@@ -49,6 +49,12 @@ export class GestionUsuariosComponent implements OnInit {
     return this.users().map(u => ({
       id: u.id,
       correo: u.correo_electronico ?? '—',
+      // Una cédula puede tener varios correos de login (usuario_credencial):
+      // se listan aquí para no aparentar que cada correo es otra persona.
+      correos_adicionales: (u.correos_adicionales ?? [])
+        .filter(c => c.activo)
+        .map(c => c.correo)
+        .join(', ') || '—',
       cedula: u.numero_de_documento ?? '—',
       nombres: u.datos_basicos?.nombres ?? '—',
       apellidos: u.datos_basicos?.apellidos ?? '—',
@@ -60,6 +66,7 @@ export class GestionUsuariosComponent implements OnInit {
   // --- DEFINICIÓN DE COLUMNAS ---
   public readonly columns: ColumnDefinition[] = [
     { name: 'correo', header: 'Correo', type: 'text', width: '260px' },
+    { name: 'correos_adicionales', header: 'Otros correos', type: 'text', width: '260px' },
     { name: 'cedula', header: 'Cédula', type: 'text', width: '140px' },
     { name: 'nombres', header: 'Nombres', type: 'text' },
     { name: 'apellidos', header: 'Apellidos', type: 'text' },
