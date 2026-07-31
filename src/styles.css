@@ -997,10 +997,28 @@ button {
 /* Swal abierto DESDE un MatDialog: el CDK pone `position: fixed` en <html>
    (cdk-global-scrollblock) y Swal le mete `height: auto`. Con las dos cosas a
    la vez el modal se posiciona fuera de la pantalla y parece que "quedó
-   debajo" del diálogo. Forzar el alto lo devuelve al centro del viewport. */
-html.swal2-height-auto,
-html.swal2-shown {
+   debajo" del diálogo.
+
+   OJO CON LA ESPECIFICIDAD: tanto SweetAlert2 como el CDK inyectan su CSS en
+   runtime (no van en el bundle), así que la hoja de Swal se agrega DESPUÉS de
+   esta. Con `html.swal2-height-auto` (0,1,1) empatábamos en especificidad y en
+   !important, y ganaba la de ellos por orden. Se repite la clase para subir a
+   (0,2,1) y ganar sin depender del orden de inyección. */
+html.swal2-height-auto.swal2-height-auto,
+html.swal2-shown.swal2-shown {
   height: 100% !important;
+}
+
+/* El contenedor de Swal SIEMPRE anclado al viewport y por encima de todo.
+   Swal declara su posición con `div:where(.swal2-container)`, y `:where()` NO
+   suma especificidad: cualquier regla de la app con una clase se la lleva por
+   delante. Por eso se re-afirma aquí.
+
+   NO tocar `inset`: los toasts se anclan con `inset: auto auto 0 0` y demás
+   variantes; forzarlo los mandaría a la esquina equivocada. */
+.swal2-container.swal2-container {
+  position: fixed !important;
+  z-index: 2147483000 !important;
 }
 
 /* ===========================================================================
