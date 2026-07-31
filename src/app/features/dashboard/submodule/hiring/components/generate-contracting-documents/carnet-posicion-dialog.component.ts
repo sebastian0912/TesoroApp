@@ -73,7 +73,10 @@ export function reiniciarHoja(): void {
             <button type="button" class="cp-celda"
               [class.usada]="usadas().includes(c)"
               [class.elegida]="seleccion() === c"
-              [matTooltip]="usadas().includes(c) ? 'Ya se recortó este espacio' : 'Imprimir aquí'"
+              [disabled]="usadas().includes(c)"
+              [matTooltip]="usadas().includes(c)
+                ? 'Este espacio ya se recortó: la hoja tiene un hueco ahí'
+                : 'Imprimir el carnet en este espacio'"
               (click)="seleccion.set(c)">
               @if (usadas().includes(c)) {
                 <mat-icon class="cp-ic-usada">content_cut</mat-icon>
@@ -169,8 +172,10 @@ export function reiniciarHoja(): void {
       border-color: #e2e8f0;
       background: repeating-linear-gradient(45deg, #f1f5f9, #f1f5f9 5px, #e9eef5 5px, #e9eef5 10px);
       color: #94a3b8;
-      cursor: pointer;
+      cursor: not-allowed;
     }
+
+    .cp-celda.usada:hover { transform: none; border-color: #e2e8f0; }
 
     .cp-ic-elegida { color: var(--azul); }
     .cp-ic-usada { width: 17px; height: 17px; font-size: 17px; }
