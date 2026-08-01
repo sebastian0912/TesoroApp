@@ -57,6 +57,24 @@ export function esContratoRealMini(row: any): boolean {
 }
 
 /**
+ * Proceso vigente del candidato para leer su estado (etapas, resultados...).
+ *
+ * Una Entrevista puede existir SIN proceso y es un estado válido: el formulario
+ * público abre una entrevista nueva cuando el proceso anterior quedó en estado
+ * terminal (contratado / rechazado / no pasó), y el proceso solo se crea cuando
+ * alguien atiende a la persona en el pipeline. Como las entrevistas llegan
+ * ordenadas por fecha desc, `entrevistas[0]` puede ser esa entrevista recién
+ * abierta y sin proceso — y todo lo que colgaba de ahí se veía vacío.
+ *
+ * Se mantiene la preferencia por la más reciente; solo si esa no tiene proceso
+ * se cae a la siguiente que sí lo tenga.
+ */
+export function procesoVigente(candidato: any): any | null {
+  const entrevistas: any[] = Array.isArray(candidato?.entrevistas) ? candidato.entrevistas : [];
+  return entrevistas.find(e => e?.proceso)?.proceso ?? null;
+}
+
+/**
  * Proceso del que hay que leer el CONTRATO del candidato.
  *
  * El header miraba siempre `entrevistas[0].proceso`, y eso fallaba cuando la

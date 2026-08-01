@@ -36,7 +36,7 @@ import {
 } from './prueba-tecnica.rules';
 import { pedirResultadoEtapa, payloadResultadoEtapa } from '../../components/resultado-etapa/resultado-etapa.dialog';
 import { CarnetMasivoDialogComponent } from '../../components/carnet-masivo-dialog/carnet-masivo-dialog.component';
-import { esContratoRealMini, estadoContratoPill, procesoDelContrato, tieneContratoActivoReal } from './contrato.rules';
+import { esContratoRealMini, estadoContratoPill, procesoDelContrato, procesoVigente, tieneContratoActivoReal } from './contrato.rules';
 
 import { firstValueFrom, merge, startWith } from 'rxjs';
 import Swal from 'sweetalert2';
@@ -331,8 +331,16 @@ export class RecruitmentPipelineComponent {
 
   // ───────── Prueba técnica (pill del header) ─────────
 
+  /**
+   * Proceso del que se lee el estado del candidato.
+   *
+   * NO es `entrevistas[0].proceso` a secas: una entrevista puede existir sin
+   * proceso (el formulario público abre una nueva cuando la anterior quedó
+   * terminal, y el proceso nace cuando alguien la atiende aquí). Si se leyera
+   * la posición 0 a ciegas, a esa gente se le veía todo vacío.
+   */
   private readonly _proceso = computed<any>(() =>
-    this.candidatoSeleccionado()?.entrevistas?.[0]?.proceso
+    procesoVigente(this.candidatoSeleccionado())
   );
 
   /** El pill solo aparece si hay vacante remitida y es de tipo prueba técnica. */
@@ -1015,6 +1023,9 @@ export class RecruitmentPipelineComponent {
 
     const payload: any = {
       numero_documento: String(cc),
+      // Se guarda sobre el proceso que se está viendo: sin esto el backend
+      // resuelve la última entrevista y podría marcar otro proceso.
+      proceso_id: this._proceso()?.id ?? undefined,
       ...payloadResultadoEtapa('prueba', resultado, motivo),
     };
 
@@ -1082,6 +1093,7 @@ export class RecruitmentPipelineComponent {
 
     const payload: any = {
       numero_documento: String(cc),
+      proceso_id: this._proceso()?.id ?? undefined,
       ...payloadResultadoEtapa('examen', elegido.resultado, elegido.motivo),
     };
 
