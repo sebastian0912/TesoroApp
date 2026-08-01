@@ -36,7 +36,7 @@ import {
 } from './prueba-tecnica.rules';
 import { pedirResultadoEtapa, payloadResultadoEtapa } from '../../components/resultado-etapa/resultado-etapa.dialog';
 import { CarnetMasivoDialogComponent } from '../../components/carnet-masivo-dialog/carnet-masivo-dialog.component';
-import { esContratoRealMini, estadoContratoPill, tieneContratoActivoReal } from './contrato.rules';
+import { esContratoRealMini, estadoContratoPill, procesoDelContrato, tieneContratoActivoReal } from './contrato.rules';
 
 import { firstValueFrom, merge, startWith } from 'rxjs';
 import Swal from 'sweetalert2';
@@ -254,13 +254,26 @@ export class RecruitmentPipelineComponent {
    * (ver contrato.rules.ts).
    */
   readonly contratoActivo = computed<boolean>(() =>
-    tieneContratoActivoReal(this.candidatoSeleccionado()?.entrevistas?.[0]?.proceso)
+    tieneContratoActivoReal(this._procesoContrato())
+  );
+
+  /**
+   * Proceso del que se lee el contrato. NO es necesariamente el de la primera
+   * entrevista: cuando la persona vuelve y se le abre un turno nuevo, esa
+   * entrevista puede no tener proceso todavía y el contrato sigue en la
+   * anterior (ver procesoDelContrato).
+   */
+  private readonly _procesoContrato = computed<any>(() =>
+    procesoDelContrato(this.candidatoSeleccionado())
   );
 
   /** Estado del pill de contrato del header: activo / retirado / en_tramite / sin_fila. */
   readonly contratoPill = computed(() =>
-    estadoContratoPill(this.candidatoSeleccionado()?.entrevistas?.[0]?.proceso)
+    estadoContratoPill(this._procesoContrato())
   );
+
+  /** La fila de contrato que pinta el header (fecha de retiro, código...). */
+  readonly contratoHeader = computed<any>(() => this._procesoContrato()?.contrato ?? null);
 
   // ───────── Override "Modificar de todas formas" ─────────
   /**
@@ -933,6 +946,10 @@ export class RecruitmentPipelineComponent {
       try {
         const payload = {
           numero_documento: cc,
+          // Se da de baja EL proceso del contrato, no "el último": si la
+          // persona tiene un turno nuevo abierto, por cédula el backend
+          // crearía otro proceso y dejaría vivo el contrato real.
+          proceso_id: this._procesoContrato()?.id ?? undefined,
           contrato_detalle: {
             contrato_activo: false,
             fecha_retiro: formValues.fecha,
@@ -941,13 +958,29 @@ export class RecruitmentPipelineComponent {
         };
         await firstValueFrom(this.registroProceso.updateProcesoByDocumento(payload as any));
 
-        // Actualizamos estado local
+        // Estado local sobre el proceso que TIENE el contrato (no siempre es el
+        // de la primera entrevista), con referencias nuevas para que el pill
+        // del header se repinte.
         const cand = this.candidatoSeleccionado();
-        if (cand?.entrevistas?.[0]?.proceso?.contrato) {
-           cand.entrevistas[0].proceso.contrato.contrato_activo = false;
-           cand.entrevistas[0].proceso.contrato.fecha_retiro = formValues.fecha;
-           cand.entrevistas[0].proceso.contrato.motivo_retiro = formValues.motivo;
-           this.candidatoSeleccionado.set({ ...cand });
+        const objetivo = this._procesoContrato();
+        if (cand && objetivo?.contrato) {
+          const entrevistas = (cand.entrevistas ?? []).map((e: any) =>
+            e?.proceso === objetivo
+              ? {
+                  ...e,
+                  proceso: {
+                    ...e.proceso,
+                    contrato: {
+                      ...e.proceso.contrato,
+                      contrato_activo: false,
+                      fecha_retiro: formValues.fecha,
+                      motivo_retiro: formValues.motivo,
+                    },
+                  },
+                }
+              : e,
+          );
+          this.candidatoSeleccionado.set({ ...cand, entrevistas });
         }
         Swal.fire('¡Baja exitosa!', `El contrato de ${this.nombreCandidato} ha sido desactivado.`, 'success');
       } catch (err) {

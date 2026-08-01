@@ -87,7 +87,7 @@
               <!-- Contrato: activo real (clickable → baja) / retirado / en trámite.
                    Una fila con solo el código reservado (generar_codigo) NO es un
                    contrato activo: se muestra "En trámite" y no bloquea nada. -->
-              @if (candidatoSeleccionado()?.entrevistas?.[0]?.proceso?.contrato; as contrato) {
+              @if (contratoHeader(); as contrato) {
                 @switch (contratoPill()) {
                   @case ('activo') {
                     <span class="pill pill-success pill-action"

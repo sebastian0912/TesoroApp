@@ -225,6 +225,12 @@ export type ContratoCodigoRequest = { generar_codigo: boolean; sede_abbr?: strin
 // ===== Request principal: /procesos/update-by-document/ =====
 export interface ProcesoUpdateByDocumentRequest {
   numero_documento: string;
+  /**
+   * Proceso EXACTO a modificar. Sin esto el backend resuelve la ÚLTIMA
+   * entrevista del candidato, que no siempre es la del contrato cuando la
+   * persona vuelve y se le abre un turno nuevo.
+   */
+  proceso_id?: number | null;
   publicacion?: number | null;
   vacante_tipo?: string | null;
   vacante_salario?: string | null;

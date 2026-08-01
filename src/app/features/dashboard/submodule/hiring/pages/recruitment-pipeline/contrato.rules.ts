@@ -55,3 +55,29 @@ export function estadoContratoPill(proceso: any): EstadoContratoPill {
 export function esContratoRealMini(row: any): boolean {
   return row?.contratado === true || !!row?.contrato_fecha_ingreso;
 }
+
+/**
+ * Proceso del que hay que leer el CONTRATO del candidato.
+ *
+ * El header miraba siempre `entrevistas[0].proceso`, y eso fallaba cuando la
+ * entrevista más reciente es de un turno nuevo que todavía no tiene proceso (o
+ * tiene uno de otra vacante): el contrato vive en una entrevista anterior. Se
+ * veía CONTRATADO en el historial laboral y a la vez el header sin pill, así
+ * que no había cómo dar de baja (caso CC 1097727446).
+ *
+ * Prioridad: contrato real y activo → contrato real (aunque esté retirado) →
+ * fila de contrato (código reservado) → la primera entrevista, como antes.
+ */
+export function procesoDelContrato(candidato: any): any | null {
+  const entrevistas: any[] = Array.isArray(candidato?.entrevistas) ? candidato.entrevistas : [];
+  const procesos = entrevistas.map(e => e?.proceso).filter(Boolean);
+  if (!procesos.length) return candidato?.entrevistas?.[0]?.proceso ?? null;
+
+  return (
+    procesos.find(p => tieneContratoActivoReal(p))
+    ?? procesos.find(p => esContratoReal(p))
+    ?? procesos.find(p => !!p?.contrato)
+    ?? candidato?.entrevistas?.[0]?.proceso
+    ?? null
+  );
+}
