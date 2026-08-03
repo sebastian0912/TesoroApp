@@ -51,6 +51,14 @@ import QRCode from 'qrcode';
 
 import { PdfService } from '@/app/shared/services/pdf/pdf.service';
 import { HomeService } from '../../../home/service/home.service';
+import { ReportesService } from '../../service/reportes/reportes.service';
+import { HiringService } from '../../service/hiring.service';
+import {
+  ArlExcelError,
+  ArlIndex,
+  leerArlExcel,
+  validarCedulaContraArl,
+} from '../../shared/arl-excel.helper';
 import { ElectronWindowService } from '@/app/core/services/electron-window.service';
 import { getLocalStorageItem } from '@/app/core/utils/safe-storage';
 
@@ -234,6 +242,8 @@ export class RecruitmentPipelineComponent {
   private platformId = inject(PLATFORM_ID);
   private isBrowser = signal(false);
   private seleccionEstado = inject(SeleccionEstadoService);
+  private reportesSvc = inject(ReportesService);
+  private hiringSvc = inject(HiringService);
 
   /**
    * El candidato quedó EN ESPERA de vacante o NO APLICA (observación del
@@ -428,6 +438,266 @@ export class RecruitmentPipelineComponent {
     }
     return `Completa y guarda "Pago y Transporte" (tab Contratación). Falta: ${faltan.join(', ')}`;
   });
+
+  // ───────── Finalizar contratación ─────────
+  /**
+   * Registra al candidato en el reporte del día de su oficina, reutilizando los
+   * documentos que ya subió el pipeline. Sustituye el cargue manual de
+   * hiring-report (cédulas / traslados / SST) para las oficinas migradas.
+   *
+   * El Excel de ARL se cachea por sesión: es un export masivo del portal, así
+   * que pedirlo en cada finalización obligaría a subir el mismo archivo veinte
+   * veces en una jornada.
+   */
+  readonly arlIndex = signal<ArlIndex | null>(null);
+  readonly finalizando = signal(false);
+  /** Cédulas finalizadas en esta sesión, para no repetir el ida y vuelta. */
+  private readonly finalizadas = signal<Set<string>>(new Set());
+
+  readonly contratacionFinalizada = computed<boolean>(() => {
+    const ced = this.candidatoSeleccionado()?.numero_documento;
+    return !!ced && this.finalizadas().has(String(ced));
+  });
+
+  /**
+   * La fecha de ingreso del contrato guardado. Es la que se cruza contra
+   * "INICIO VIGENCIA" del ARL y la que va a la columna 9 del cruce generado.
+   */
+  private readonly fechaIngresoContrato = computed<string | null>(
+    () => this._procesoContrato()?.contrato?.fecha_ingreso ?? null,
+  );
+
+  /**
+   * Oficina del proceso que tiene el contrato.
+   *
+   * OJO: el backend anida `entrevista.proceso`, NO al revés — `proceso.entrevista`
+   * NO existe en el payload. Hay que buscar la entrevista dueña del proceso;
+   * `entrevistas[0]` no sirve porque el contrato puede estar en una anterior
+   * (el turno nuevo aún no tiene proceso).
+   */
+  private readonly oficinaDelContrato = computed<string>(() => {
+    const proc = this._procesoContrato();
+    const entrevistas: any[] = this.candidatoSeleccionado()?.entrevistas ?? [];
+    const propia = proc ? entrevistas.find((e) => e?.proceso?.id === proc.id) : null;
+    return String(propia?.oficina ?? entrevistas[0]?.oficina ?? '').trim();
+  });
+
+  readonly puedeFinalizarContratacion = computed<boolean>(() => {
+    if (!this.candidatoSeleccionado()?.numero_documento) return false;
+    if (this.finalizando()) return false;
+    // Mismos requisitos que generar documentación + fecha de ingreso: sin ella
+    // no hay nada que cruzar contra el ARL ni que escribir en el Excel.
+    if (this.faltantesPagoTransporte().length > 0) return false;
+    return !!this.fechaIngresoContrato();
+  });
+
+  readonly tooltipFinalizarContratacion = computed<string>(() => {
+    if (!this.candidatoSeleccionado()?.numero_documento) return 'Selecciona un candidato';
+    if (this.contratacionFinalizada()) return 'Ya finalizado. Click para volver a enviarlo al reporte';
+
+    const faltan = this.faltantesPagoTransporte();
+    if (faltan.length) {
+      return `Completa y guarda "Pago y Transporte" (tab Contratación). Falta: ${faltan.join(', ')}`;
+    }
+    if (!this.fechaIngresoContrato()) {
+      return 'El contrato no tiene fecha de ingreso. Guárdala en "Pago y Transporte".';
+    }
+    return this.arlIndex()
+      ? `Finalizar contratación (ARL: ${this.arlIndex()!.nombreArchivo})`
+      : 'Finalizar contratación (te pedirá el Excel del ARL)';
+  });
+
+  /** Descarta el ARL cargado para poder subir uno más nuevo. */
+  limpiarArl(): void {
+    this.arlIndex.set(null);
+    this.snack.open('Excel de ARL descartado. La próxima finalización lo pedirá de nuevo.', 'OK', {
+      duration: 3000,
+    });
+  }
+
+  /** Lee el Excel del ARL y lo deja cacheado. Devuelve false si el archivo no sirve. */
+  async cargarArlExcel(evt: Event): Promise<boolean> {
+    const input = evt.target as HTMLInputElement;
+    const file = input.files?.[0];
+    input.value = '';
+    if (!file) return false;
+
+    try {
+      const index = await leerArlExcel(file);
+      this.arlIndex.set(index);
+      this.snack.open(
+        `ARL cargado: ${index.nombreArchivo} (${index.totalFilas} filas).`,
+        'OK',
+        { duration: 3500 },
+      );
+      return true;
+    } catch (e: any) {
+      if (e instanceof ArlExcelError) {
+        await Swal.fire({ icon: 'error', title: e.message, html: e.detalleHtml });
+      } else {
+        console.error('[cargarArlExcel] Error inesperado:', e);
+        await Swal.fire({
+          icon: 'error',
+          title: 'No se pudo leer el Excel del ARL',
+          text: e?.message || 'Sin detalle disponible.',
+        });
+      }
+      this.arlIndex.set(null);
+      return false;
+    }
+  }
+
+  /** Carga el ARL y, si quedó bien, continúa con la finalización. */
+  async onArlSeleccionadoYFinalizar(evt: Event): Promise<void> {
+    const ok = await this.cargarArlExcel(evt);
+    if (ok) await this.finalizarContratacion();
+  }
+
+  async finalizarContratacion(): Promise<void> {
+    const cand = this.candidatoSeleccionado();
+    const cedula = String(cand?.numero_documento ?? '').trim();
+    if (!cedula || this.finalizando()) return;
+
+    const fechaIngreso = this.fechaIngresoContrato();
+    if (!fechaIngreso) {
+      await Swal.fire({
+        icon: 'warning',
+        title: 'Falta la fecha de ingreso',
+        text: 'Guarda la fecha de ingreso en "Pago y Transporte" antes de finalizar.',
+      });
+      return;
+    }
+
+    const index = this.arlIndex();
+    if (!index) {
+      await Swal.fire({
+        icon: 'info',
+        title: 'Falta el Excel del ARL',
+        html:
+          'Sube el archivo que descargaste del portal de la ARL.<br><br>' +
+          'Se queda cargado para el resto de las contrataciones de hoy; ' +
+          'solo tendrás que subirlo una vez.',
+      });
+      return;
+    }
+
+    const responsable = this.usuarioActual();
+    if (!responsable) {
+      await Swal.fire({
+        icon: 'error',
+        title: 'Sin usuario',
+        text: 'No se pudo identificar al usuario logueado. Vuelve a iniciar sesión.',
+      });
+      return;
+    }
+
+    // ── Cruce contra el ARL ──
+    const arl = validarCedulaContraArl(index, cedula, fechaIngreso);
+
+    if (arl.hallazgos.length) {
+      // Auditoría: los hallazgos quedan en la misma tabla de errores que
+      // alimentaba hiring-report, con el mismo `tipo`, para no partir el
+      // histórico de "Validación ARL" en dos fuentes.
+      void this.guardarHallazgosArl(cedula, arl.hallazgos.map((h) => h.mensaje));
+    }
+
+    if (!arl.ok) {
+      const items = arl.hallazgos.map((h) => `<li>${h.mensaje}</li>`).join('');
+      const res = await Swal.fire({
+        icon: 'error',
+        title: 'El ARL no cuadra',
+        html:
+          `<ul style="text-align:left;">${items}</ul>` +
+          `<p style="text-align:left; margin-top:10px;">` +
+          `Corrige la afiliación en el portal de la ARL o la fecha de ingreso del contrato, ` +
+          `descarta el Excel y vuelve a subirlo.</p>`,
+        showCancelButton: true,
+        confirmButtonText: 'Finalizar de todas formas',
+        cancelButtonText: 'Cancelar',
+        reverseButtons: true,
+      });
+      if (!res.isConfirmed) return;
+    } else if (arl.hallazgos.length) {
+      // Fecha correcta pero con duplicados: avisa y sigue.
+      await Swal.fire({
+        icon: 'warning',
+        title: 'Revisar ARL',
+        html: `<ul style="text-align:left;">${arl.hallazgos.map((h) => `<li>${h.mensaje}</li>`).join('')}</ul>`,
+      });
+    }
+
+    this.finalizando.set(true);
+    Swal.fire({ title: 'Finalizando...', didOpen: () => Swal.showLoading() });
+
+    try {
+      const resp: any = await firstValueFrom(
+        this.reportesSvc.finalizarContratacion({
+          numero_documento: cedula,
+          tipo_doc: cand?.tipo_doc ?? null,
+          responsable,
+          arl: {
+            ok: arl.ok,
+            fecha: arl.fechaIso,
+            detalle: arl.hallazgos.map((h) => h.mensaje).join('. ') || null,
+          },
+        }),
+      );
+
+      Swal.close();
+
+      const docs = resp?.documentos ?? {};
+      const faltantes: string[] = [];
+      if (!docs.cedula) faltantes.push('cédula escaneada');
+      if (!docs.sst_individual) faltantes.push('SST');
+
+      const totales = resp?.totales ?? {};
+      this.finalizadas.update((prev) => new Set(prev).add(cedula));
+
+      await Swal.fire({
+        icon: faltantes.length ? 'warning' : 'success',
+        title: resp?.creado === false ? 'Reporte actualizado' : 'Contratación finalizada',
+        html:
+          `Quedó en el reporte de <b>${resp?.contratacion?.oficina ?? '—'}</b> ` +
+          `como <b>${resp?.contratacion?.tem ?? 'sin empresa'}</b>.<br><br>` +
+          `Acumulado del día: Tu Alianza <b>${totales.cantidadContratosTuAlianza ?? 0}</b>, ` +
+          `Apoyo Laboral <b>${totales.cantidadContratosApoyoLaboral ?? 0}</b>.` +
+          (faltantes.length
+            ? `<br><br><span style="color:#b45309;">No se encontró en gestión documental: ` +
+              `<b>${faltantes.join(', ')}</b>. Súbelo desde "Generar documentación" y ` +
+              `vuelve a finalizar para enlazarlo.</span>`
+            : ''),
+      });
+    } catch (e: any) {
+      Swal.close();
+      console.error('[finalizarContratacion] Error:', e);
+      const backend = e?.error ?? e;
+      await Swal.fire({
+        icon: 'error',
+        title: 'No se pudo finalizar',
+        html:
+          (backend?.message || e?.message || 'El servidor respondió con un error sin detalle.') +
+          (backend?.detail ? `<br><br><small>${backend.detail}</small>` : ''),
+      });
+    } finally {
+      this.finalizando.set(false);
+    }
+  }
+
+  /** Envío silencioso de los hallazgos ARL a la tabla de errores de validación. */
+  private async guardarHallazgosArl(cedula: string, mensajes: string[]): Promise<void> {
+    if (!mensajes.length) return;
+    try {
+      await this.hiringSvc.enviarErroresValidacion({
+        errores: [{ registro: cedula, errores: mensajes }],
+        responsable: this.usuarioActual(),
+        oficina: this.oficinaDelContrato(),
+        tipo: 'Validación ARL',
+      });
+    } catch (e) {
+      // Silencioso a propósito: es auditoría, no puede bloquear la finalización.
+      console.error('[guardarHallazgosArl] Falló el envío:', e);
+    }
+  }
 
   /**
    * Índice del tab activo. Controlado para poder forzar el regreso a "Turnos"

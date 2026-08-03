@@ -17,7 +17,7 @@ import { MatMenu } from '@angular/material/menu';
 
 import Swal from 'sweetalert2';
 import saveAs from 'file-saver';
-import { finalize, interval } from 'rxjs';
+import { finalize, firstValueFrom, interval } from 'rxjs';
 import { HttpEventType } from '@angular/common/http';
 
 import { SharedModule } from '@/app/shared/shared.module';
@@ -35,7 +35,20 @@ import { ColumnDefinition } from '@/app/shared/models/advanced-table-interface';
 import { MatButtonModule } from '@angular/material/button';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 
+/** Una contratación finalizada desde el pipeline (reemplaza una fila del cruce). */
+interface ContratacionRow {
+  numero_documento: string;
+  tem: 'AL' | 'TA' | null;
+  fecha_ingreso: string | null;
+  arl_ok: boolean | null;
+  arl_fecha: string | null;
+  arl_detalle: string | null;
+  finalizado_por: string | null;
+  finalizado_at: string | null;
+}
+
 interface ReporteRow {
+  id?: number;
   fecha: string;
   nombre: string;
   sede: string;
@@ -46,6 +59,12 @@ interface ReporteRow {
   traslados?: any[];
   cruce_document?: { file_url?: string } | null;
   sst_document?: { file_url?: string } | null;
+  /**
+   * Vacío en los reportes cargados a mano desde hiring-report (ahí el cruce es
+   * un archivo adjunto). Lleno en los que se armaron con "Finalizar
+   * contratación": para esos el cruce se GENERA desde BD.
+   */
+  contrataciones?: ContratacionRow[];
 }
 
 interface ConsolidadoRow {
@@ -91,6 +110,13 @@ const EXCLUDED_SEDES = new Set<string>([
 
 /** Etiqueta para filas sin oficina registrada. */
 const SIN_OFICINA = 'SIN OFICINA';
+
+/**
+ * Índice (0-based) de la columna TEM en el Excel generado por
+ * `reporte/candidatos-excel/` (plantilla gestion_contratacion/base.xlsx).
+ * Es fija, así que no hay que detectarla como en los cruces adjuntos.
+ */
+const CRUCE_COL_TEM = 2;
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -344,9 +370,99 @@ export class ViewReportsComponent implements OnInit {
     return (
       (Array.isArray(row?.cedulas) && row.cedulas.length > 0) ||
       (Array.isArray(row?.traslados) && row.traslados.length > 0) ||
+      (Array.isArray(row?.contrataciones) && row.contrataciones.length > 0) ||
       !!row?.cruce_document?.file_url ||
       !!row?.sst_document?.file_url
     );
+  }
+
+  /** Detalle de las contrataciones finalizadas desde el pipeline, con estado ARL. */
+  openContratacionesDialog(row: ReporteRow): void {
+    if (!this.isBrowser) return;
+
+    const filas = row.contrataciones ?? [];
+    const cuerpo = filas
+      .map((c) => {
+        const arl =
+          c.arl_ok === true
+            ? '<span style="color:#166534;">ARL OK</span>'
+            : c.arl_ok === false
+              ? `<span style="color:#991b1b;">ARL: ${c.arl_detalle || 'no cuadra'}</span>`
+              : '<span style="color:#92400e;">ARL sin validar</span>';
+        return (
+          `<tr>` +
+          `<td style="padding:4px 8px;">${c.numero_documento}</td>` +
+          `<td style="padding:4px 8px; text-align:center;">${c.tem ?? '—'}</td>` +
+          `<td style="padding:4px 8px;">${c.fecha_ingreso ?? '—'}</td>` +
+          `<td style="padding:4px 8px;">${arl}</td>` +
+          `<td style="padding:4px 8px;">${c.finalizado_por ?? '—'}</td>` +
+          `</tr>`
+        );
+      })
+      .join('');
+
+    Swal.fire({
+      title: `Contrataciones — ${row.sede || 'Sin oficina'}`,
+      width: 800,
+      html:
+        `<div style="max-height:60vh; overflow:auto;">` +
+        `<table style="width:100%; border-collapse:collapse; font-size:13px; text-align:left;">` +
+        `<thead><tr style="background:#f1f5f9;">` +
+        `<th style="padding:6px 8px;">Cédula</th>` +
+        `<th style="padding:6px 8px;">TEM</th>` +
+        `<th style="padding:6px 8px;">F. Ingreso</th>` +
+        `<th style="padding:6px 8px;">ARL</th>` +
+        `<th style="padding:6px 8px;">Finalizó</th>` +
+        `</tr></thead><tbody>${cuerpo}</tbody></table></div>`,
+    });
+  }
+
+  /**
+   * Adjunta al reporte del día lo que NO produce el pipeline por candidato:
+   * la constancia GRUPAL de inducción SST y la nota de la jornada.
+   */
+  async abrirAdjuntos(row: ReporteRow): Promise<void> {
+    if (!this.isBrowser || !row?.id) return;
+
+    const { value } = await Swal.fire({
+      title: `Adjuntos — ${row.sede || 'Sin oficina'}`,
+      html:
+        `<p style="text-align:left; margin:0 0 10px 0; font-size:13px; color:#475569;">` +
+        `El SST individual de cada persona ya queda enlazado al finalizar su ` +
+        `contratación. Esto es la constancia <b>grupal</b> del día.</p>` +
+        `<input type="file" id="vr-sst" accept=".pdf" class="swal2-file">` +
+        `<textarea id="vr-nota" class="swal2-textarea" placeholder="Nota del día (opcional)">${row.nota ?? ''}</textarea>`,
+      showCancelButton: true,
+      confirmButtonText: 'Guardar',
+      cancelButtonText: 'Cancelar',
+      focusConfirm: false,
+      preConfirm: () => {
+        const input = document.getElementById('vr-sst') as HTMLInputElement | null;
+        const nota = (document.getElementById('vr-nota') as HTMLTextAreaElement | null)?.value ?? '';
+        return { file: input?.files?.[0] ?? null, nota };
+      },
+    });
+
+    if (!value) return;
+    if (!value.file && (value.nota ?? '') === (row.nota ?? '')) return;
+
+    try {
+      await firstValueFrom(
+        this.reportesService.adjuntarAlReporte(row.id, {
+          sst_document: value.file,
+          nota: value.nota,
+        }),
+      );
+      Swal.fire({ icon: 'success', title: 'Guardado', timer: 1600, showConfirmButton: false });
+      this.loadReportes({ fechaDesde: this.activeFrom(), fechaHasta: this.activeTo() });
+    } catch (err: any) {
+      console.error('[abrirAdjuntos] Error:', err);
+      Swal.fire({
+        icon: 'error',
+        title: 'No se pudo guardar',
+        text: err?.message ?? 'Error al adjuntar al reporte.',
+      });
+    }
   }
 
   private loadReportes(
@@ -704,21 +820,43 @@ export class ViewReportsComponent implements OnInit {
     const from = this.activeFrom();
     const to = this.activeTo();
 
-    // `reportes()` ya viene filtrado por el rango activo, así que las bases
-    // combinadas son exactamente las de las fechas filtradas.
-    // Map url -> oficina (sede) del reporte que subió esa base.
-    const fuentes = new Map<string, string>();
+    // Dos orígenes conviviendo:
+    //  a) Reportes NUEVOS (botón "Finalizar contratación" del pipeline): no hay
+    //     archivo, el cruce se GENERA desde BD con las cédulas finalizadas.
+    //  b) Reportes VIEJOS (hiring-report): traen `cruce_document` adjunto y se
+    //     siguen leyendo igual, para no perder el histórico ni romper a las
+    //     oficinas que aún cargan a mano.
+    const fuentes = new Map<string, string>();          // url  -> oficina
+    const cedulasPorOficina = new Map<string, string[]>(); // oficina -> cédulas
+    const personaPorCedula: Record<string, string> = {};
+
     for (const r of this.reportes()) {
+      const oficina = (r.sede || '').trim() || SIN_OFICINA;
+
+      const finalizadas = r.contrataciones ?? [];
+      if (finalizadas.length) {
+        const acc = cedulasPorOficina.get(oficina) ?? [];
+        for (const c of finalizadas) {
+          const ced = String(c?.numero_documento ?? '').trim();
+          if (!ced) continue;
+          acc.push(ced);
+          personaPorCedula[ced] = c.finalizado_por || r.nombre || '';
+        }
+        cedulasPorOficina.set(oficina, acc);
+        continue;
+      }
+
       const url = r.cruce_document?.file_url;
-      if (!url || fuentes.has(url)) continue;
-      fuentes.set(url, (r.sede || '').trim() || SIN_OFICINA);
+      if (url && !fuentes.has(url)) fuentes.set(url, oficina);
     }
 
-    if (fuentes.size === 0) {
+    const totalGeneradas = [...cedulasPorOficina.values()].reduce((a, c) => a + c.length, 0);
+
+    if (fuentes.size === 0 && totalGeneradas === 0) {
       Swal.fire({
         icon: 'warning',
         title: 'Sin bases',
-        text: `No hay bases (cruces) en los reportes del rango ${this.activeRangeLabel()}.`,
+        text: `No hay contrataciones finalizadas ni bases adjuntas en el rango ${this.activeRangeLabel()}.`,
       });
       return;
     }
@@ -728,20 +866,15 @@ export class ViewReportsComponent implements OnInit {
     try {
       const XLSX = await import('xlsx');
 
-      let header: any[] | null = null;
+      // Caja en vez de `let header: any[] | null`: se llena dentro de `absorber`
+      // y TypeScript no sigue las asignaciones hechas en un closure — daba
+      // "Property 'length' does not exist on type 'never'".
+      const headerBox: any[][] = [];
       const alianzaRows: { cells: any[]; oficina: string }[] = [];
       const apoyoRows: { cells: any[]; oficina: string }[] = [];
 
-      // Recorrer las bases en el orden canónico de oficinas: así las filas
-      // quedan agrupadas y ordenadas igual que en la tabla de pantalla.
-      const fuentesOrdenadas = [...fuentes.entries()].sort((a, b) =>
-        compararOficinas(a[1], b[1]),
-      );
-
-      for (const [url, oficina] of fuentesOrdenadas) {
-        const resp = await fetch(url);
-        if (!resp.ok) continue;
-        const buf = await resp.arrayBuffer();
+      /** Parte un workbook en las dos hojas, marcando la oficina de origen. */
+      const absorber = (buf: ArrayBuffer, oficina: string, colFija?: number) => {
         const wb = XLSX.read(buf, { type: 'array' });
 
         for (const sheetName of wb.SheetNames) {
@@ -754,9 +887,11 @@ export class ViewReportsComponent implements OnInit {
           if (data.length < 2) continue;
 
           const [rawHeader, ...body] = data;
-          if (!header) header = rawHeader;
+          if (!headerBox.length) headerBox.push(rawHeader);
 
-          const colIdx = this.detectEmpresaColumn(rawHeader, body);
+          // El Excel generado siempre trae TEM en la columna 2 (índice 0-based);
+          // en los adjuntos hay que detectarla porque cada oficina armaba el suyo.
+          const colIdx = colFija ?? this.detectEmpresaColumn(rawHeader, body);
 
           for (const row of body) {
             if (!row.some((c) => String(c ?? '').trim() !== '')) continue;
@@ -765,9 +900,37 @@ export class ViewReportsComponent implements OnInit {
             else if (bucket === 'AL') apoyoRows.push({ cells: row, oficina });
           }
         }
+      };
+
+      // ── a) Cruces generados desde BD, por oficina ──
+      const oficinasGeneradas = [...cedulasPorOficina.entries()].sort((a, b) =>
+        compararOficinas(a[0], b[0]),
+      );
+
+      for (const [oficina, cedulas] of oficinasGeneradas) {
+        if (!cedulas.length) continue;
+        try {
+          const blob = await firstValueFrom(
+            this.reportesService.generarCruceExcel(cedulas, { personas: personaPorCedula }),
+          );
+          absorber(await blob.arrayBuffer(), oficina, CRUCE_COL_TEM);
+        } catch (err) {
+          console.error(`[descargarCrucesCombinados] Falló la generación de ${oficina}:`, err);
+        }
       }
 
-      if (!header) {
+      // ── b) Cruces adjuntos (hiring-report) ──
+      const fuentesOrdenadas = [...fuentes.entries()].sort((a, b) =>
+        compararOficinas(a[1], b[1]),
+      );
+
+      for (const [url, oficina] of fuentesOrdenadas) {
+        const resp = await fetch(url);
+        if (!resp.ok) continue;
+        absorber(await resp.arrayBuffer(), oficina);
+      }
+
+      if (!headerBox.length) {
         Swal.fire({
           icon: 'warning',
           title: 'Sin datos',
@@ -775,13 +938,17 @@ export class ViewReportsComponent implements OnInit {
         });
         return;
       }
+      const header = headerBox[0];
 
       if (alianzaRows.length === 0 && apoyoRows.length === 0) {
         Swal.fire({
           icon: 'warning',
           title: 'No se pudo clasificar',
-          text:
-            'No se encontró una columna que distinga TA / AL en las bases. Verifica que los archivos incluyan una columna con esos valores.',
+          html:
+            'No se encontró una columna que distinga TA / AL.<br><br>' +
+            'En los cruces <b>generados</b> el TEM sale de la temporal de la vacante: ' +
+            'si la vacante no tiene <i>temporal</i> ni <i>empresa usuaria</i>, la columna sale vacía.<br>' +
+            'En los cruces <b>adjuntos</b>, verifica que el archivo incluya una columna con esos valores.',
         });
         return;
       }
@@ -824,7 +991,9 @@ export class ViewReportsComponent implements OnInit {
         title: 'Descarga lista',
         html:
           `Rango: <b>${this.activeRangeLabel()}</b><br>` +
-          `Se combinaron <b>${fuentes.size}</b> base(s) de oficina.<br>` +
+          `Generadas desde el sistema: <b>${totalGeneradas}</b> contratación(es) ` +
+          `en ${oficinasGeneradas.length} oficina(s).<br>` +
+          `Bases adjuntas combinadas: <b>${fuentes.size}</b>.<br>` +
           `<b>Tu Alianza:</b> ${alianzaRows.length} filas<br>` +
           `<b>Apoyo Laboral:</b> ${apoyoRows.length} filas<br>` +
           `<small>La última columna de cada hoja indica la oficina de origen.</small>`,

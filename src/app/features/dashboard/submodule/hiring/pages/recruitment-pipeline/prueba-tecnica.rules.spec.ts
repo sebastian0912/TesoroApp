@@ -103,7 +103,7 @@ describe('aplicarResultadoPruebaLocal', () => {
     // El bug original: mutar en el sitio dejaba la misma referencia y los computed
     // memoizados del pill no recalculaban hasta re-buscar.
     const cand = candidato();
-    const out = aplicarResultadoPruebaLocal(cand, { noPaso: true, motivo: 'no completó', ahora: '2026-07-15T23:39:00Z' });
+    const out = aplicarResultadoPruebaLocal(cand, { resultado: 'no_paso', motivo: 'no completó', ahora: '2026-07-15T23:39:00Z' });
 
     expect(out).not.toBe(cand);
     expect(out.entrevistas).not.toBe(cand.entrevistas);
@@ -114,7 +114,7 @@ describe('aplicarResultadoPruebaLocal', () => {
   });
 
   it('el resultado ya se lee como "no pasó" (lo que muestra el pill)', () => {
-    const out = aplicarResultadoPruebaLocal(candidato(), { noPaso: true, motivo: 'faltó', ahora: 'AHORA' });
+    const out = aplicarResultadoPruebaLocal(candidato(), { resultado: 'no_paso', motivo: 'faltó', ahora: 'AHORA' });
     const proc = out.entrevistas[0].proceso;
 
     expect(resultadoDePruebaTecnica(proc)).toBe('no_paso');
@@ -125,7 +125,7 @@ describe('aplicarResultadoPruebaLocal', () => {
   });
 
   it('al marcar "pasó" limpia el motivo y sella su fecha', () => {
-    const out = aplicarResultadoPruebaLocal(candidato(), { noPaso: false, motivo: '', ahora: 'AHORA' });
+    const out = aplicarResultadoPruebaLocal(candidato(), { resultado: 'paso', motivo: '', ahora: 'AHORA' });
     const proc = out.entrevistas[0].proceso;
 
     expect(resultadoDePruebaTecnica(proc)).toBe('paso');
@@ -137,7 +137,7 @@ describe('aplicarResultadoPruebaLocal', () => {
 
   it('prefiere las fechas que devuelve el backend', () => {
     const out = aplicarResultadoPruebaLocal(candidato(), {
-      noPaso: true, motivo: 'x', ahora: 'LOCAL',
+      resultado: 'no_paso', motivo: 'x', ahora: 'LOCAL',
       procResp: { no_paso_prueba_tecnica_at: '2026-07-15T10:00:00Z' },
     });
 
@@ -146,6 +146,6 @@ describe('aplicarResultadoPruebaLocal', () => {
 
   it('sin proceso devuelve el candidato tal cual', () => {
     const cand = { numero_documento: '1', entrevistas: [] };
-    expect(aplicarResultadoPruebaLocal(cand, { noPaso: true, motivo: '', ahora: 'X' })).toBe(cand);
+    expect(aplicarResultadoPruebaLocal(cand, { resultado: 'no_paso', motivo: '', ahora: 'X' })).toBe(cand);
   });
 });

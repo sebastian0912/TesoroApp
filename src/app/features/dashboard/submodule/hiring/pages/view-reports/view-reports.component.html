@@ -290,11 +290,34 @@
                       <mat-icon>health_and_safety</mat-icon>
                     </button>
                   }
+                  @if (isArray(row.contrataciones) && row.contrataciones.length > 0) {
+                    <button
+                      mat-icon-button
+                      class="vr-doc-btn vr-doc-btn--primary"
+                      [matTooltip]="'Ver contrataciones finalizadas (' + row.contrataciones.length + ')'"
+                      (click)="$event.stopPropagation(); openContratacionesDialog(row)">
+                      <mat-icon>task_alt</mat-icon>
+                      <span class="vr-doc-badge">{{ row.contrataciones.length }}</span>
+                    </button>
+                  }
                 } @else {
                   <span class="vr-docs-empty">
                     <mat-icon>inbox</mat-icon>
                     Sin documentos
                   </span>
+                }
+
+                <!-- SST GRUPAL + nota del día. Lo individual de cada persona se
+                     enlaza solo al finalizar su contratación; esto es lo que no
+                     sale del pipeline. -->
+                @if (row.id) {
+                  <button
+                    mat-icon-button
+                    class="vr-doc-btn"
+                    [matTooltip]="row.sst_document?.file_url ? 'Reemplazar SST grupal / editar nota' : 'Adjuntar SST grupal / nota'"
+                    (click)="$event.stopPropagation(); abrirAdjuntos(row)">
+                    <mat-icon>attach_file</mat-icon>
+                  </button>
                 }
               </div>
             </ng-template>

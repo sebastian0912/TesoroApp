@@ -66,6 +66,89 @@ export class ReportesService {
   }
 
   /**
+   * POST /reportes/finalizar-contratacion/
+   *
+   * Registra a un candidato ya contratado en el reporte del día de su oficina.
+   * El backend reutiliza los documentos que el pipeline ya subió (cédula 29,
+   * traslado 18, SST 91): NO se vuelven a cargar archivos.
+   *
+   * Es idempotente: re-finalizar al mismo candidato actualiza su fila.
+   */
+  finalizarContratacion(payload: {
+    numero_documento: string;
+    tipo_doc?: string | null;
+    responsable: string;
+    oficina?: string | null;
+    nota?: string | null;
+    arl?: { ok: boolean; fecha: string | null; detalle?: string | null } | null;
+  }): Observable<any> {
+    const url = `${this.apiUrl}/reportes/finalizar-contratacion/`;
+
+    return this.http.post<any>(url, payload).pipe(
+      map((resp: any) => {
+        if (resp?.status !== 'success') {
+          throw { status: 400, error: resp };
+        }
+        return resp;
+      }),
+      catchError((error) => this.handleError(error, 'finalizarContratacion')),
+    );
+  }
+
+  /**
+   * POST /reportes/<id>/adjuntos/
+   * SST GRUPAL del día + nota. Lo individual de cada persona ya queda enlazado
+   * al finalizar cada contratación.
+   */
+  adjuntarAlReporte(
+    reporteId: number,
+    data: { sst_document?: File | null; nota?: string | null },
+  ): Observable<any> {
+    const url = `${this.apiUrl}/reportes/${reporteId}/adjuntos/`;
+
+    const fd = new FormData();
+    if (data.sst_document) fd.append('sst_document', data.sst_document, data.sst_document.name);
+    if (data.nota != null) fd.append('nota', String(data.nota));
+
+    return this.http.post<any>(url, fd).pipe(
+      map((resp: any) => {
+        if (resp?.status !== 'success') {
+          throw { status: 400, error: resp };
+        }
+        return resp.reporte;
+      }),
+      catchError((error) => this.handleError(error, 'adjuntarAlReporte')),
+    );
+  }
+
+  /**
+   * POST /gestion_contratacion/reporte/candidatos-excel/
+   *
+   * Genera el Excel de cruce (plantilla base.xlsx, 195 columnas) desde BD.
+   * Sustituye el archivo que antes cargaba a mano cada oficina.
+   *
+   * Va por POST y no por GET porque un día completo pasa de 300 cédulas y la
+   * URL se corta; además `personas` permite que la columna "Persona que hace
+   * Contratación" salga correcta por fila cuando el rango mezcla oficinas.
+   */
+  generarCruceExcel(
+    cedulas: string[],
+    opts?: { persona?: string; personas?: Record<string, string> },
+  ): Observable<Blob> {
+    const url = `${this.apiUrl}/gestion_contratacion/reporte/candidatos-excel/`;
+
+    const body = {
+      cedulas: (cedulas ?? []).map((c) => String(c ?? '').trim()).filter(Boolean),
+      persona: opts?.persona ?? '',
+      personas: opts?.personas ?? {},
+    };
+
+    return this.http.post(url, body, { responseType: 'blob' }).pipe(
+      catchError((error) => this.handleError(error, 'generarCruceExcel')),
+    );
+  }
+
+  /**
    * GET /contratacion/listarErroresValidacion/
    * Sin filtros → devuelve solo los errores del día de hoy.
    */

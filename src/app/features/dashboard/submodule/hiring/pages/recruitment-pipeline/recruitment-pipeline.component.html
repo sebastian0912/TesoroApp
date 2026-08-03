@@ -185,6 +185,32 @@
           <mat-icon>description</mat-icon>
         </button>
 
+        <!-- Finalizar contratación: manda al candidato al reporte del día de su
+             oficina (view-reports) reutilizando los documentos ya subidos. Pide
+             el Excel del ARL la primera vez y lo cachea para toda la jornada. -->
+        <input #arlFileInput type="file" hidden accept=".xls,.xlsx"
+          (change)="onArlSeleccionadoYFinalizar($event)">
+
+        <button mat-icon-button [matTooltip]="tooltipFinalizarContratacion()"
+          aria-label="Finalizar contratación"
+          [disabled]="!puedeFinalizarContratacion()"
+          (click)="arlIndex() ? finalizarContratacion() : arlFileInput.click()"
+          [matBadge]="contratacionFinalizada() ? '✓' : ''"
+          [matBadgeColor]="'primary'"
+          matBadgeOverlap="true"
+          [matBadgeHidden]="!contratacionFinalizada()">
+          <mat-icon>{{ finalizando() ? 'hourglass_empty' : 'task_alt' }}</mat-icon>
+        </button>
+
+        @if (arlIndex(); as arl) {
+          <button mat-icon-button
+            [matTooltip]="'ARL cargado: ' + arl.nombreArchivo + ' (' + arl.totalFilas + ' filas). Click para descartarlo y subir otro.'"
+            aria-label="Descartar Excel de ARL"
+            (click)="limpiarArl()">
+            <mat-icon>backup_table</mat-icon>
+          </button>
+        }
+
         <!-- Dar de baja: ahora se hace haciendo click sobre el pill "Contrato activo" del header. -->
 
         <!-- Forzar consulta de antecedentes: re-abre las 8 fuentes del robot
