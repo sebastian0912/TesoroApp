@@ -1,10 +1,11 @@
 /**
  * Carnet de Apoyo Laboral TS — 2 páginas CARTA HORIZONTAL, una por cara.
  *
- * Cada hoja lleva marcada una grilla de 3x3 (9 carnets tamaño CR80). Solo se
- * dibuja el carnet del candidato que se está consultando, en la celda de arriba
- * a la izquierda; las otras 8 quedan en blanco con su contorno, para ubicar el
- * recorte y para poder reusar la hoja.
+ * La hoja se reparte en una grilla de 3x3 (9 carnets tamaño CR80), pero esa
+ * grilla NO se dibuja: solo sirve para posicionar. Se imprime únicamente el
+ * carnet que se está generando, y las celdas sin usar quedan totalmente en
+ * blanco para poder reusar la hoja. El recorte se guía con las marcas de
+ * esquina que lleva cada carnet.
  *
  * Por qué horizontal: 3 carnets de 85,6 mm son 256,8 mm de ancho y la carta
  * vertical solo tiene 215,9 mm. Horizontal (279,4 x 215,9) la grilla entra
@@ -19,12 +20,13 @@
  * cualquier editor de PDF lo abra y lo pueda editar.
  */
 import jsPDF from 'jspdf';
+import { sanitizedString } from './winansi.util';
 
 /** Tamaño del carnet en mm (CR80, el estándar). */
 export const CARNET_ANCHO = 85.6;
 export const CARNET_ALTO = 54;
 
-/** Celdas de la grilla marcada en cada hoja. */
+/** Celdas en que se reparte cada hoja (solo para posicionar; no se dibujan). */
 export const CARNET_COLUMNAS = 3;
 export const CARNET_FILAS = 3;
 
@@ -53,7 +55,7 @@ export interface DatosCarnet {
   fotoDataUrl?: string | null;
 }
 
-const s = (v: unknown) => String(v ?? '').trim();
+const s = (v: unknown) => sanitizedString(v);
 
 /**
  * Patrones Code 39. Cada carácter son 9 elementos que alternan barra/espacio
@@ -111,20 +113,6 @@ function origenCelda(doc: jsPDF, fila: number, columna: number): { ox: number; o
   };
 }
 
-/**
- * Contorno tenue de las 9 celdas. Sirve de guía de corte y de ubicación: la
- * celda que se usó queda con su marco negro encima y las vacías solo con esta
- * línea gris.
- */
-function dibujarGrilla(doc: jsPDF): void {
-  doc.setDrawColor(190).setLineWidth(0.1);
-  for (let f = 0; f < CARNET_FILAS; f++) {
-    for (let c = 0; c < CARNET_COLUMNAS; c++) {
-      const { ox, oy } = origenCelda(doc, f, c);
-      doc.rect(ox, oy, CARNET_ANCHO, CARNET_ALTO);
-    }
-  }
-}
 
 /** Marcas de corte en las 4 esquinas de una celda, para recortar sin adivinar. */
 function marcasDeCorte(doc: jsPDF, ox: number, oy: number): void {
@@ -308,7 +296,6 @@ export function buildCarnetApoyoLotePdf(lista: readonly DatosCarnet[]): Blob {
     // Cara 1 (frentes) de la hoja.
     if (!primeraPagina) doc.addPage('letter', 'landscape');
     primeraPagina = false;
-    dibujarGrilla(doc);
     tanda.forEach((d, i) => {
       const fila = Math.floor(i / CARNET_COLUMNAS);
       const col = i % CARNET_COLUMNAS;
@@ -318,7 +305,6 @@ export function buildCarnetApoyoLotePdf(lista: readonly DatosCarnet[]): Blob {
 
     // Cara 2 (reversos) de la MISMA hoja, en columna espejada.
     doc.addPage('letter', 'landscape');
-    dibujarGrilla(doc);
     tanda.forEach((d, i) => {
       const fila = Math.floor(i / CARNET_COLUMNAS);
       const col = i % CARNET_COLUMNAS;
@@ -351,7 +337,6 @@ export function buildCarnetApoyoPdf(d: DatosCarnet, posicion = 0): Blob {
   const columna = celda % CARNET_COLUMNAS;
 
   // ─────────────────────── CARA 1 (frente) ───────────────────────
-  dibujarGrilla(doc);
   const frente = origenCelda(doc, fila, columna);
   dibujarFrente(doc, d, frente.ox, frente.oy);
 
@@ -359,7 +344,6 @@ export function buildCarnetApoyoPdf(d: DatosCarnet, posicion = 0): Blob {
   // Espejo horizontal de la celda del frente: misma fila, columna opuesta. Con
   // el volteo por lado corto, esta celda cae exactamente detrás de la otra.
   doc.addPage('letter', 'landscape');
-  dibujarGrilla(doc);
   const reverso = origenCelda(doc, fila, CARNET_COLUMNAS - 1 - columna);
   dibujarReverso(doc, d, reverso.ox, reverso.oy);
 

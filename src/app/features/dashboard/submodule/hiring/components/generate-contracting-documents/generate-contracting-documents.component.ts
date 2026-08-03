@@ -653,7 +653,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
 
   /** Orden exacto del paquete. `soloPrimeraPagina` recorta el contrato. */
   private readonly PAQUETE_SOACHA: Array<{
-    titulo: string; typeId: number; soloPrimeraPagina?: boolean;
+    titulo: string; typeId: number | number[]; soloPrimeraPagina?: boolean; externa?: boolean;
   }> = [
       { titulo: 'Ficha Técnica', typeId: 34 },
       { titulo: 'Cédula', typeId: 29 },
@@ -661,7 +661,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       { titulo: 'Ficha Social', typeId: 98 },
       // Los exámenes médicos no están en `typeMap` de este componente (se
       // administran desde recruitment-pipeline), así que se buscan por typeId.
-      { titulo: 'Exámenes médicos', typeId: 32 },
+      { titulo: 'Exámenes médicos', typeId: 32, externa: true },
       { titulo: 'Contrato', typeId: 25, soloPrimeraPagina: true },
     ];
 
@@ -672,7 +672,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
    * depende de la empresa usuaria de la vacante, así que se resuelve acá.
    */
   private get PAQUETE_FINCA_USUARIOS(): Array<{
-    titulo: string; typeId: number; soloPrimeraPagina?: boolean;
+    titulo: string; typeId: number | number[]; soloPrimeraPagina?: boolean; externa?: boolean;
   }> {
     const induccion = this.induccionHabilitada;
     return [
@@ -683,7 +683,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       { titulo: 'Contrato', typeId: 25 },
       { titulo: 'Manejo Imagen', typeId: 46 },
       ...(induccion ? [{ titulo: induccion, typeId: this.typeMap[induccion] ?? 27 }] : []),
-      { titulo: 'Exámenes médicos', typeId: 32 },
+      { titulo: 'Exámenes médicos', typeId: 32, externa: true },
     ];
   }
 
@@ -701,26 +701,26 @@ export class GenerateContractingDocumentsComponent implements OnInit {
    * Usuarios: acá los antecedentes van antes del contrato.
    */
   private get PAQUETE_FINCA(): Array<{
-    titulo: string; typeId: number; soloPrimeraPagina?: boolean;
+    titulo: string; typeId: number | number[]; soloPrimeraPagina?: boolean; externa?: boolean;
   }> {
     const induccion = this.induccionHabilitada;
     return [
       { titulo: 'Ficha Técnica', typeId: 34 },
       { titulo: 'Cédula', typeId: 29 },
-      { titulo: 'Procuraduría', typeId: 3 },
-      { titulo: 'Contraloría', typeId: 4 },
-      { titulo: 'OFAC', typeId: 5 },
-      { titulo: 'Policivos', typeId: 6 },
-      { titulo: 'ADRES', typeId: 7 },
-      { titulo: 'Sisbén', typeId: 8 },
+      { titulo: 'Procuraduría', typeId: 3, externa: true },
+      { titulo: 'Contraloría', typeId: 4, externa: true },
+      { titulo: 'OFAC', typeId: 5, externa: true },
+      { titulo: 'Policivos', typeId: 6, externa: true },
+      { titulo: 'ADRES', typeId: 7, externa: true },
+      { titulo: 'Sisbén', typeId: 8, externa: true },
       { titulo: 'Autorización Ingreso', typeId: 112 },
       { titulo: 'Contrato', typeId: 25 },
       { titulo: 'Manejo Imagen', typeId: 46 },
       ...(induccion ? [{ titulo: induccion, typeId: this.typeMap[induccion] ?? 27 }] : []),
       { titulo: 'ARL', typeId: 30 },
-      { titulo: 'Exámenes médicos', typeId: 32 },
-      { titulo: 'AFP', typeId: 11 },
-      { titulo: 'Semanas cotizadas', typeId: 33 },
+      { titulo: 'Exámenes médicos', typeId: 32, externa: true },
+      { titulo: 'AFP / Fondo de pensión', typeId: [11, 9], externa: true },
+      { titulo: 'Semanas cotizadas', typeId: 33, externa: true },
     ];
   }
 
@@ -822,7 +822,18 @@ export class GenerateContractingDocumentsComponent implements OnInit {
   private async armarPaqueteUnido(cfg: {
     etiqueta: string;
     nombre: string;
-    piezas: Array<{ titulo: string; typeId: number; soloPrimeraPagina?: boolean }>;
+    piezas: Array<{
+      titulo: string;
+      typeId: number | number[];
+      soloPrimeraPagina?: boolean;
+      /**
+       * `true` = la pieza NO se administra en esta pantalla (antecedentes,
+       * exámenes…). Solo puede venir del servidor, así que si falta no sirve
+       * de nada quedarse aquí: hay que cargarla donde corresponda. Se usa para
+       * que el aviso de faltantes diga qué puede resolver el usuario y qué no.
+       */
+      externa?: boolean;
+    }>;
     generables: Array<{ titulo: string; generar: () => any }>;
   }): Promise<void> {
     const log = `[paquete ${cfg.etiqueta}]`;
@@ -853,17 +864,34 @@ export class GenerateContractingDocumentsComponent implements OnInit {
         )) ?? [];
       } catch { docsServidor = []; }
 
-      const urlDeTipo = (typeId: number): string | null => {
-        const d = (docsServidor || []).find((x: any) => Number(x?.type) === typeId);
-        return d ? (d.file_url || d.file || d.current_file?.url || null) : null;
+      // `type` puede venir como número o como objeto anidado según el
+      // endpoint, así que se normaliza antes de comparar. Y se aceptan VARIOS
+      // ids por pieza: el fondo de pensión se guarda como AFP (11) o como
+      // FONDO_PENSION (9) — el propio backend hace ese fallback
+      // (PDF_KIND_TO_TYPE_IDS['fondo'] en Robots/views.py).
+      const idDeTipo = (x: any): number => {
+        const t = x?.type;
+        return Number(t && typeof t === 'object' ? t.id : t);
+      };
+      const urlDeTipo = (typeId: number | number[]): string | null => {
+        const ids = Array.isArray(typeId) ? typeId : [typeId];
+        for (const id of ids) {
+          const d = (docsServidor || []).find((x: any) => idDeTipo(x) === id);
+          if (d) return d.file_url || d.file || d.current_file?.url || null;
+        }
+        return null;
       };
 
       const salida = await PDFDocument.create();
       const faltantes: string[] = [];
+      const faltantesExternos: string[] = [];
 
       for (const pieza of cfg.piezas) {
         let bytes: ArrayBuffer | null = null;
 
+        // Primero lo que esté cargado en esta sesión aunque TODAVIA NO se haya
+        // subido al servidor: el flujo normal es generar/adjuntar y descargar
+        // el paquete antes de darle "Guardar y Cargar al Servidor".
         const local = this.uploadedFiles[pieza.titulo]?.file;
         if (local instanceof File) bytes = await local.arrayBuffer();
 
@@ -872,7 +900,10 @@ export class GenerateContractingDocumentsComponent implements OnInit {
           if (url) bytes = await this.fetchAsArrayBufferOrNull(url);
         }
 
-        if (!bytes) { faltantes.push(pieza.titulo); continue; }
+        if (!bytes) {
+          (pieza.externa ? faltantesExternos : faltantes).push(pieza.titulo);
+          continue;
+        }
 
         try {
           const src = await PDFDocument.load(bytes);
@@ -887,7 +918,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       }
 
       if (salida.getPageCount() === 0) {
-        Swal.close();
+        await this.cerrarLoadingSwal();
         Swal.fire('Sin documentos', 'Ninguno de los documentos del paquete está disponible todavía.', 'warning');
         return;
       }
@@ -902,12 +933,29 @@ export class GenerateContractingDocumentsComponent implements OnInit {
 
       this.setPdfPreview(url);
 
-      Swal.close();
-      if (faltantes.length) {
+      await this.cerrarLoadingSwal();
+      if (faltantes.length || faltantesExternos.length) {
+        // Se separan los dos casos porque la acción del usuario es distinta:
+        // los de esta pantalla los puede generar o adjuntar aquí mismo; los
+        // externos hay que cargarlos donde se administran.
+        const bloques: string[] = [];
+        if (faltantes.length) {
+          bloques.push(
+            `<p style="margin:0 0 4px 0">Puedes generarlos o adjuntarlos en esta pantalla:</p>` +
+            `<b>${faltantes.join('<br>')}</b>`
+          );
+        }
+        if (faltantesExternos.length) {
+          bloques.push(
+            `<p style="margin:10px 0 4px 0">Estos no se cargan aquí — se suben en ` +
+            `<b>Preguntas de selección</b> y deben estar en el servidor:</p>` +
+            `<b>${faltantesExternos.join('<br>')}</b>`
+          );
+        }
         Swal.fire({
           icon: 'warning',
           title: 'Paquete descargado, pero incompleto',
-          html: `No se incluyeron:<br><b>${faltantes.join('<br>')}</b>`,
+          html: bloques.join(''),
         });
       } else {
         Swal.fire({ icon: 'success', title: 'Paquete descargado', timer: 1800, showConfirmButton: false });
