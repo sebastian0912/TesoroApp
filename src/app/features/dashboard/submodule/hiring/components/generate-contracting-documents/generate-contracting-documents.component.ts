@@ -666,12 +666,12 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     ];
 
   /**
-   * Faca Primera: mismo mecanismo que Soacha, otra lista. Acá el contrato va
-   * COMPLETO (Soacha recorta a la hoja 1) y se suman Manejo de Imagen y la
-   * inducción que aplique. La inducción no es fija: depende de la empresa
-   * usuaria de la vacante, así que la pieza se resuelve en `PAQUETE_FACA`.
+   * Faca Primera - paquete "Finca Usuarios": mismo mecanismo que Soacha, otra
+   * lista. Acá el contrato va COMPLETO (Soacha recorta a la hoja 1) y se suman
+   * Manejo de Imagen y la inducción que aplique. La inducción no es fija:
+   * depende de la empresa usuaria de la vacante, así que se resuelve acá.
    */
-  private get PAQUETE_FACA(): Array<{
+  private get PAQUETE_FINCA_USUARIOS(): Array<{
     titulo: string; typeId: number; soloPrimeraPagina?: boolean;
   }> {
     const induccion = this.induccionHabilitada;
@@ -684,6 +684,43 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       { titulo: 'Manejo Imagen', typeId: 46 },
       ...(induccion ? [{ titulo: induccion, typeId: this.typeMap[induccion] ?? 27 }] : []),
       { titulo: 'Exámenes médicos', typeId: 32 },
+    ];
+  }
+
+  /**
+   * Faca Primera - paquete "Finca": el expediente completo, con los
+   * antecedentes incluidos.
+   *
+   * Los antecedentes (Procuraduría, Contraloría, OFAC, Policivos, ADRES,
+   * Sisbén, AFP y Semanas cotizadas) NO están en el `typeMap` de este
+   * componente: los sube `selection-questions`. `armarPaqueteUnido` los
+   * encuentra igual, porque busca en el servidor por `typeId`. Los ids salen
+   * del `typeMap` de ese componente.
+   *
+   * El orden es el que pidió operaciones y no coincide con el de Finca
+   * Usuarios: acá los antecedentes van antes del contrato.
+   */
+  private get PAQUETE_FINCA(): Array<{
+    titulo: string; typeId: number; soloPrimeraPagina?: boolean;
+  }> {
+    const induccion = this.induccionHabilitada;
+    return [
+      { titulo: 'Ficha Técnica', typeId: 34 },
+      { titulo: 'Cédula', typeId: 29 },
+      { titulo: 'Procuraduría', typeId: 3 },
+      { titulo: 'Contraloría', typeId: 4 },
+      { titulo: 'OFAC', typeId: 5 },
+      { titulo: 'Policivos', typeId: 6 },
+      { titulo: 'ADRES', typeId: 7 },
+      { titulo: 'Sisbén', typeId: 8 },
+      { titulo: 'Autorización Ingreso', typeId: 112 },
+      { titulo: 'Contrato', typeId: 25 },
+      { titulo: 'Manejo Imagen', typeId: 46 },
+      ...(induccion ? [{ titulo: induccion, typeId: this.typeMap[induccion] ?? 27 }] : []),
+      { titulo: 'ARL', typeId: 30 },
+      { titulo: 'Exámenes médicos', typeId: 32 },
+      { titulo: 'AFP', typeId: 11 },
+      { titulo: 'Semanas cotizadas', typeId: 33 },
     ];
   }
 
@@ -733,13 +770,13 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     });
   }
 
-  /** Paquete de Faca Primera: contrato completo + imagen + inducción. */
-  async descargarPaqueteFaca(): Promise<void> {
+  /** Faca Primera - Finca Usuarios: contrato completo + imagen + inducción. */
+  async descargarPaqueteFincaUsuarios(): Promise<void> {
     const induccion = this.induccionHabilitada;
     await this.armarPaqueteUnido({
-      etiqueta: 'Faca',
-      nombre: 'Paquete-Faca',
-      piezas: this.PAQUETE_FACA,
+      etiqueta: 'Finca Usuarios',
+      nombre: 'Paquete-Finca-Usuarios',
+      piezas: this.PAQUETE_FINCA_USUARIOS,
       generables: [
         // La ficha técnica va por variante: Tu Alianza tiene formato propio.
         { titulo: 'Ficha Técnica', generar: () => this.runFichaTecnicaVariant('basica') },
@@ -747,6 +784,28 @@ export class GenerateContractingDocumentsComponent implements OnInit {
         { titulo: 'Contrato', generar: () => this.runContratoVariant('basica') },
         { titulo: 'Manejo Imagen', generar: () => this.generarManejoImagen() },
         // `generarPDF` despacha la inducción que corresponda a la empresa.
+        ...(induccion ? [{ titulo: induccion, generar: () => this.generarPDF(induccion) }] : []),
+      ],
+    });
+  }
+
+  /**
+   * Faca Primera - Finca: expediente completo con antecedentes.
+   *
+   * Los antecedentes no se generan acá (los sube `selection-questions`), así
+   * que solo se listan en `piezas`: si alguno falta, `armarPaqueteUnido` lo
+   * reporta al final en vez de abortar el paquete.
+   */
+  async descargarPaqueteFinca(): Promise<void> {
+    const induccion = this.induccionHabilitada;
+    await this.armarPaqueteUnido({
+      etiqueta: 'Finca',
+      nombre: 'Paquete-Finca',
+      piezas: this.PAQUETE_FINCA,
+      generables: [
+        { titulo: 'Ficha Técnica', generar: () => this.runFichaTecnicaVariant('basica') },
+        { titulo: 'Contrato', generar: () => this.runContratoVariant('basica') },
+        { titulo: 'Manejo Imagen', generar: () => this.generarManejoImagen() },
         ...(induccion ? [{ titulo: induccion, generar: () => this.generarPDF(induccion) }] : []),
       ],
     });
@@ -1246,6 +1305,21 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     }
   }
 
+  /**
+   * Cierra el Swal de carga y cede un tick antes de abrir el siguiente.
+   *
+   * SweetAlert2 reutiliza el popup cuando se dispara otro `Swal.fire()` en el
+   * mismo tick, y el estado de `showLoading()` sobrevive a ese reemplazo: el
+   * diálogo nuevo aparece con el spinner girando y SIN botón de confirmar, así
+   * que el usuario no puede cerrarlo. `hideLoading()` restaura el botón y el
+   * `setTimeout(0)` deja que termine la animación de cierre.
+   */
+  private async cerrarLoadingSwal(): Promise<void> {
+    Swal.hideLoading();
+    Swal.close();
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+  }
+
   async cargarpdf() {
     Swal.fire({
       title: 'Cargando...',
@@ -1256,16 +1330,22 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     });
 
     try {
-      const { ok, fallidos } = await this.subirTodosLosArchivos();
+      const { ok, fallidos, exitosos } = await this.subirTodosLosArchivos();
 
       // cerrar SIEMPRE el loading antes de mostrar otro swal
-      Swal.close();
+      await this.cerrarLoadingSwal();
 
       if (ok) {
+        // Sin archivos pendientes también devuelve ok=true. Antes decía
+        // "guardados exitosamente" sin haber subido nada, y el usuario
+        // creía que sí se había guardado.
+        const huboSubida = exitosos.length > 0;
         await Swal.fire({
-          title: '¡Éxito!',
-          text: 'Datos y archivos guardados exitosamente.',
-          icon: 'success',
+          title: huboSubida ? '¡Éxito!' : 'Sin cambios',
+          text: huboSubida
+            ? `Datos y archivos guardados exitosamente (${exitosos.length}).`
+            : 'No había documentos nuevos para subir.',
+          icon: huboSubida ? 'success' : 'info',
           confirmButtonText: 'Ok',
         });
         return;
@@ -1287,7 +1367,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       });
 
     } catch (error: any) {
-      Swal.close();
+      await this.cerrarLoadingSwal();
       await Swal.fire({
         title: 'Error',
         text: `Hubo un error al subir los archivos: ${error?.message ?? String(error)}`,
@@ -6317,7 +6397,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       [
         { content: 'FLORES IPANEMA S.A.S', styles: { fontStyle: BOLD, fontSize: 6.5, halign: H_CENTER } },
         { content: '15 y 30 de cada mes', styles: { fontSize: 6.5, halign: H_CENTER } },
-        { content: 'Valor de Almuerzo $ 6.040\nDescuento quincenal por nómina y/o Liquidacion Final\nBARLEY NO ofrece servicio de casino. Por lo tanto, el trabajador debe llevar almuerzo en olla metalica o recipiente para horno.\nFincas San Carlos, El Hato y La Macarena ofrecen servicio de casino Gratuito. Por lo tanto, el trabajador NO debe llevar', styles: { fontSize: 6.5, halign: H_CENTER } }
+        { content: 'Valor de Almuerzo $ 6.040\nDescuento quincenal por nómina y/o Liquidacion Final', styles: { fontSize: 6.5, halign: H_CENTER } }
       ]
     ];
 
@@ -6338,16 +6418,17 @@ export class GenerateContractingDocumentsComponent implements OnInit {
 
     y = finalY + 3;
 
-    // (Sin notas para Sagaro)
+    // (Ipanema no lleva notas bajo la tabla)
     doc.setFontSize(7).setFont('helvetica', 'normal');
 
-    // Autorización casino
+    // Autorización casino. La plantilla TA CO-RE-6 v19 la deja EN BLANCO:
+    // la marca el trabajador a mano. Antes se imprimía 'SI ( X )' ya marcado
+    // y una tercera opción 'No Aplica' que la plantilla no tiene.
     doc.setFontSize(8).setFont('helvetica', 'italic');
     doc.text('Teniendo en cuenta la anterior información, autorizo descuento de casino:', marginLeft, y);
     doc.setFont('helvetica', 'bold');
-    doc.text('SI ( X )', 140, y);
+    doc.text('SI (   )', 140, y);
     doc.text('NO (   )', 155, y);
-    doc.text('No Aplica (   )', 170, y);
 
     // Forma de pago
     y += 4;

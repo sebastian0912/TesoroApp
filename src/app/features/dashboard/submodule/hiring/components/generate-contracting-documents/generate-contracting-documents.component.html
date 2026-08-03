@@ -257,15 +257,25 @@
                 <span>Descargar paquete Soacha</span>
               </button>
             }
-            <!-- Paquete unido de Faca Primera: contrato completo + imagen + inducción. -->
+            <!-- Paquetes unidos de Faca Primera: Finca Usuarios y Finca. -->
             @if (esOficinaFacaPrimera) {
               <button mat-stroked-button color="primary" class="w-100 mt-2"
-                (click)="descargarPaqueteFaca()"
+                (click)="descargarPaqueteFincaUsuarios()"
                 [matTooltip]="'Ficha Técnica, Cédula, ARL, Ficha Social, Contrato, Manejo de Imagen, '
                   + (induccionHabilitada || 'Inducción (ninguna habilitada)') + ' y Exámenes en un solo PDF'"
                 style="margin-top: 10px; border: 2px solid currentColor;">
                 <mat-icon>picture_as_pdf</mat-icon>
-                <span>Descargar paquete Faca</span>
+                <span>Descargar paquete Finca Usuarios</span>
+              </button>
+              <button mat-stroked-button color="primary" class="w-100 mt-2"
+                (click)="descargarPaqueteFinca()"
+                [matTooltip]="'Ficha Técnica, Cédula, Procuraduría, Contraloría, OFAC, Policivos, ADRES, Sisbén, '
+                  + 'Autorización de Ingreso, Contrato, Manejo de Imagen, '
+                  + (induccionHabilitada || 'Inducción (ninguna habilitada)')
+                  + ', ARL, Exámenes, AFP y Semanas cotizadas en un solo PDF'"
+                style="margin-top: 10px; border: 2px solid currentColor;">
+                <mat-icon>picture_as_pdf</mat-icon>
+                <span>Descargar paquete Finca</span>
               </button>
             }
           </footer>
