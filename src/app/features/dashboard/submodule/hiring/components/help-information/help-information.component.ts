@@ -24,6 +24,7 @@ import { SeleccionEstadoService } from '../../service/seleccion/seleccion-estado
 import { MatDialog } from '@angular/material/dialog';
 import { RemisionDialogComponent, RemisionDialogData } from './remision-dialog.component';
 import { TemporalRemision } from './remision-fill';
+import { procesoDelContrato } from '../../pages/recruitment-pipeline/contrato.rules';
 
 // ================== Constantes ==================
 export const MY_DATE_FORMATS = {
@@ -948,7 +949,7 @@ export class HelpInformationComponent implements OnInit {
       preguntarPor: '',
       direccionEmpresa: f.direccionEmpresa || v.direccion || '',
       gestionHumana: this.modificadoPor() || '',
-      consecutivo: '',
+      consecutivo: this.codigoContratoDe(cand),
     };
 
     this.dialog.open<RemisionDialogComponent, RemisionDialogData, boolean>(
@@ -956,10 +957,26 @@ export class HelpInformationComponent implements OnInit {
     );
   }
 
-  /** Apoyo / Tu Alianza según la vacante; por defecto Apoyo. */
+  /**
+   * Apoyo / Tu Alianza. Manda `Publicacion.temporal`, que en prod solo toma dos
+   * valores ('TU ALIANZA SAS' / 'APOYO LABORAL SAS'); la empresa usuaria queda
+   * de respaldo por si la vacante vieja no lo trae.
+   */
   private temporalDeVacante(v: any): TemporalRemision {
-    const txt = ((v?.temporal ?? '') + ' ' + (v?.empresaUsuariaSolicita ?? '')).toUpperCase();
-    return txt.includes('ALIANZA') ? 'alianza' : 'apoyo';
+    const temporal = String(v?.temporal ?? '').toUpperCase();
+    if (temporal.includes('ALIANZA')) return 'alianza';
+    if (temporal.includes('APOYO')) return 'apoyo';
+    return String(v?.empresaUsuariaSolicita ?? '').toUpperCase().includes('ALIANZA') ? 'alianza' : 'apoyo';
+  }
+
+  /**
+   * El número del recuadro del formato es el código de contrato. Se busca en el
+   * proceso que TIENE el contrato, no en la primera entrevista: si la persona
+   * volvió y se le abrió un turno nuevo, el contrato vive en la anterior.
+   */
+  private codigoContratoDe(cand: any): string {
+    const proc = procesoDelContrato(cand);
+    return String(proc?.contrato?.codigo_contrato ?? proc?.contrato_codigo ?? '').trim();
   }
 
   private hoyDDMMAAAA(): string {

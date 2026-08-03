@@ -39,7 +39,7 @@ export interface DatosRemision {
   direccionEmpresa: string;
   /** Quien firma como Gestión Humana (Temporal). */
   gestionHumana: string;
-  /** Consecutivo del formato; si va vacío queda el recuadro en blanco. */
+  /** Código de contrato: va en el recuadro. Vacío = recuadro en blanco. */
   consecutivo?: string;
   /** DataURL del logo y del QR; si faltan, se omiten sin romper. */
   logoDataUrl?: string | null;
@@ -133,7 +133,7 @@ export function buildRemisionPdf(d: DatosRemision): Blob {
   valor(d.fecha, mL + 30, y);
   linea(mL + 28, mL + 120, y);
 
-  // Recuadro del consecutivo, arriba a la derecha.
+  // Recuadro del código de contrato, arriba a la derecha.
   doc.rect(mR - 46, y - 7, 46, 11);
   if (s(d.consecutivo)) {
     doc.setFont('helvetica', 'normal').setFontSize(11);

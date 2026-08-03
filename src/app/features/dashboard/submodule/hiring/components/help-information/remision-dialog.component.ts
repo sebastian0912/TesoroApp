@@ -72,9 +72,9 @@ export type RemisionDialogData = Partial<Omit<DatosRemision, 'logoDataUrl' | 'qr
             <input matInput [ngModel]="d().fecha" (ngModelChange)="set('fecha', $event)" placeholder="dd/mm/aaaa">
           </mat-form-field>
           <mat-form-field appearance="outline">
-            <mat-label>Consecutivo</mat-label>
+            <mat-label>Código de contrato</mat-label>
             <input matInput [ngModel]="d().consecutivo" (ngModelChange)="set('consecutivo', $event)">
-            <mat-hint>Opcional: si va vacío queda el recuadro en blanco.</mat-hint>
+            <mat-hint>Va en el recuadro del formato. Vacío = recuadro en blanco.</mat-hint>
           </mat-form-field>
 
           <mat-form-field appearance="outline" class="rm-ancho">
