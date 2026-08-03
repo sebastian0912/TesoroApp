@@ -943,12 +943,14 @@ export class HelpInformationComponent implements OnInit {
       nombreCandidato: [cand.primer_nombre, cand.segundo_nombre, cand.primer_apellido, cand.segundo_apellido]
         .map((x: any) => String(x ?? '').trim()).filter(Boolean).join(' '),
       cedula: String(cand.numero_documento ?? ''),
-      area: f.area || v.area || '',
+      // Área, preguntar por y quién firma van VACÍOS a propósito: se llenan a
+      // mano sobre el formato impreso.
+      area: '',
       dia: this.aDDMMAAAA(f.fechaPruebaEntrevista) || this.aDDMMAAAA(v.fechadePruebatecnica),
       hora: f.horaPruebaEntrevista || v.horadePruebatecnica || '',
       preguntarPor: '',
       direccionEmpresa: f.direccionEmpresa || v.direccion || '',
-      gestionHumana: this.modificadoPor() || '',
+      gestionHumana: '',
       consecutivo: this.codigoContratoDe(cand),
     };
 
