@@ -645,10 +645,10 @@ export class GenerateContractingDocumentsComponent implements OnInit {
   }
 
   // ══════════════════════════════════════════════════════════════════════
-  // PAQUETE SOACHA
-  // La oficina de Soacha entrega un único PDF unido con el expediente mínimo.
-  // Del contrato va SOLO la hoja 1; el contrato completo se sigue generando y
-  // subiendo aparte, sin recortar.
+  // PAQUETES UNIDOS POR OFICINA
+  // Soacha y Faca Primera entregan un único PDF con el expediente mínimo, en
+  // vez de imprimir documento por documento. Cada oficina define su propia
+  // lista; el armado es el mismo.
   // ══════════════════════════════════════════════════════════════════════
 
   /** Orden exacto del paquete. `soloPrimeraPagina` recorta el contrato. */
@@ -665,11 +665,91 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       { titulo: 'Contrato', typeId: 25, soloPrimeraPagina: true },
     ];
 
+  /**
+   * Faca Primera: mismo mecanismo que Soacha, otra lista. Acá el contrato va
+   * COMPLETO (Soacha recorta a la hoja 1) y se suman Manejo de Imagen y la
+   * inducción que aplique. La inducción no es fija: depende de la empresa
+   * usuaria de la vacante, así que la pieza se resuelve en `PAQUETE_FACA`.
+   */
+  private get PAQUETE_FACA(): Array<{
+    titulo: string; typeId: number; soloPrimeraPagina?: boolean;
+  }> {
+    const induccion = this.induccionHabilitada;
+    return [
+      { titulo: 'Ficha Técnica', typeId: 34 },
+      { titulo: 'Cédula', typeId: 29 },
+      { titulo: 'ARL', typeId: 30 },
+      { titulo: 'Ficha Social', typeId: 98 },
+      { titulo: 'Contrato', typeId: 25 },
+      { titulo: 'Manejo Imagen', typeId: 46 },
+      ...(induccion ? [{ titulo: induccion, typeId: this.typeMap[induccion] ?? 27 }] : []),
+      { titulo: 'Exámenes médicos', typeId: 32 },
+    ];
+  }
+
+  /**
+   * La inducción habilitada para esta vacante.
+   *
+   * Todas las inducciones comparten el tipo 27 en el backend, pero solo una
+   * está visible por empresa usuaria (`documentos-por-empresa.config.ts`). Se
+   * toma la primera visible; si la empresa no tiene ninguna, el paquete sale
+   * sin inducción en vez de fallar.
+   */
+  get induccionHabilitada(): string | null {
+    return this.documentosVisibles
+      .find(d => d.titulo.startsWith('Inducción'))?.titulo ?? null;
+  }
+
   /** El botón del paquete solo se ofrece a la oficina de Soacha. */
   get esOficinaSoacha(): boolean {
     return /SOACHA/i.test(
       String(this.sede ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '')
     );
+  }
+
+  /**
+   * Solo FACA_PRIMERA. No se usa /FACA/ porque FACA_PRINCIPAL es otra oficina
+   * y no pidió el paquete.
+   */
+  get esOficinaFacaPrimera(): boolean {
+    return /^FACA[_\s-]?PRIMERA$/i.test(
+      String(this.sede ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').trim()
+    );
+  }
+
+  /** Paquete de Soacha: expediente mínimo, contrato recortado a la hoja 1. */
+  async descargarPaqueteSoacha(): Promise<void> {
+    await this.armarPaqueteUnido({
+      etiqueta: 'Soacha',
+      nombre: 'Paquete-Soacha',
+      piezas: this.PAQUETE_SOACHA,
+      // Cédula, ARL y exámenes no se generan: se suben, así que esos se buscan
+      // tal cual. El contrato usa la variante básica (por obra o labor).
+      generables: [
+        { titulo: 'Ficha Técnica', generar: () => this.generarFichaTecnica() },
+        { titulo: 'Ficha Social', generar: () => this.generarFichaSocial() },
+        { titulo: 'Contrato', generar: () => this.runContratoVariant('basica') },
+      ],
+    });
+  }
+
+  /** Paquete de Faca Primera: contrato completo + imagen + inducción. */
+  async descargarPaqueteFaca(): Promise<void> {
+    const induccion = this.induccionHabilitada;
+    await this.armarPaqueteUnido({
+      etiqueta: 'Faca',
+      nombre: 'Paquete-Faca',
+      piezas: this.PAQUETE_FACA,
+      generables: [
+        // La ficha técnica va por variante: Tu Alianza tiene formato propio.
+        { titulo: 'Ficha Técnica', generar: () => this.runFichaTecnicaVariant('basica') },
+        { titulo: 'Ficha Social', generar: () => this.generarFichaSocial() },
+        { titulo: 'Contrato', generar: () => this.runContratoVariant('basica') },
+        { titulo: 'Manejo Imagen', generar: () => this.generarManejoImagen() },
+        // `generarPDF` despacha la inducción que corresponda a la empresa.
+        ...(induccion ? [{ titulo: induccion, generar: () => this.generarPDF(induccion) }] : []),
+      ],
+    });
   }
 
   /**
@@ -680,7 +760,14 @@ export class GenerateContractingDocumentsComponent implements OnInit {
    * final en vez de abortar: es preferible entregar el paquete y decir qué
    * faltó, a no entregar nada.
    */
-  async descargarPaqueteSoacha(): Promise<void> {
+  private async armarPaqueteUnido(cfg: {
+    etiqueta: string;
+    nombre: string;
+    piezas: Array<{ titulo: string; typeId: number; soloPrimeraPagina?: boolean }>;
+    generables: Array<{ titulo: string; generar: () => any }>;
+  }): Promise<void> {
+    const log = `[paquete ${cfg.etiqueta}]`;
+
     if (!this.cedula) {
       Swal.fire('Sin candidato', 'No hay cédula seleccionada.', 'info');
       return;
@@ -689,22 +776,14 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     Swal.fire({ title: 'Armando el paquete…', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
     try {
       // Generar primero lo que se puede generar, para no obligar al usuario a
-      // hacerlo documento por documento antes de descargar. Cédula, ARL y
-      // exámenes no se generan: se suben, así que esos se buscan tal cual.
-      const generables: Array<{ titulo: string; generar: () => any }> = [
-        { titulo: 'Ficha Técnica', generar: () => this.generarFichaTecnica() },
-        { titulo: 'Ficha Social', generar: () => this.generarFichaSocial() },
-        // El contrato usa la variante básica (por obra o labor).
-        { titulo: 'Contrato', generar: () => this.runContratoVariant('basica') },
-      ];
-
-      for (const g of generables) {
+      // hacerlo documento por documento antes de descargar.
+      for (const g of cfg.generables) {
         if (this.uploadedFiles[g.titulo]?.file instanceof File) continue; // ya está
         try {
           await g.generar();
         } catch (e) {
           // Si uno falla se sigue: el faltante se reporta al final.
-          console.error('[paquete Soacha] no se pudo generar', g.titulo, e);
+          console.error(log, 'no se pudo generar', g.titulo, e);
         }
       }
 
@@ -723,7 +802,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       const salida = await PDFDocument.create();
       const faltantes: string[] = [];
 
-      for (const pieza of this.PAQUETE_SOACHA) {
+      for (const pieza of cfg.piezas) {
         let bytes: ArrayBuffer | null = null;
 
         const local = this.uploadedFiles[pieza.titulo]?.file;
@@ -743,7 +822,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
           const paginas = await salida.copyPages(src, indices.filter(i => i < total));
           paginas.forEach(p => salida.addPage(p));
         } catch (e) {
-          console.error('[paquete Soacha] no se pudo leer', pieza.titulo, e);
+          console.error(log, 'no se pudo leer', pieza.titulo, e);
           faltantes.push(`${pieza.titulo} (ilegible)`);
         }
       }
@@ -759,7 +838,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
 
       const a = document.createElement('a');
       a.href = url;
-      a.download = `Paquete-Soacha-${this.cedula}.pdf`;
+      a.download = `${cfg.nombre}-${this.cedula}.pdf`;
       a.click();
 
       this.setPdfPreview(url);
@@ -775,7 +854,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
         Swal.fire({ icon: 'success', title: 'Paquete descargado', timer: 1800, showConfirmButton: false });
       }
     } catch (e) {
-      console.error('[paquete Soacha]', e);
+      console.error(log, e);
       Swal.close();
       Swal.fire('Error', 'No se pudo armar el paquete.', 'error');
     }
@@ -1305,13 +1384,13 @@ export class GenerateContractingDocumentsComponent implements OnInit {
    *                     la temporal asociada a la vacante (Apoyo Laboral / Tu Alianza).
    *  - basica         → contrato por obra o labor (depende de empresa).
    */
-  private runContratoVariant(variant: 'basica' | 'completa' | 'administrativo') {
+  private async runContratoVariant(variant: 'basica' | 'completa' | 'administrativo'): Promise<void> {
     if (variant === 'completa') {
-      this.generarContratoCompletoTrabajoTuAlianza();
+      await this.generarContratoCompletoTrabajoTuAlianza();
       return;
     }
     if (variant === 'administrativo') {
-      this.generarContratoAdministrativo();
+      await this.generarContratoAdministrativo();
       return;
     }
     if (!this.empresa || this.empresa.trim() === '') {
@@ -1324,9 +1403,9 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     // TesoroApp no registra un ErrorHandler global.
     try {
       if (emp.includes('ALIANZA')) {
-        this.generarContratoTrabajoTuAlianza();
+        await this.generarContratoTrabajoTuAlianza();
       } else {
-        this.generarContratoTrabajo();
+        await this.generarContratoTrabajo();
       }
     } catch (e) {
       console.error('[contrato] fallo generando la variante básica', e);
@@ -1404,9 +1483,9 @@ export class GenerateContractingDocumentsComponent implements OnInit {
   }
 
   /** Despacha la variante de Ficha Técnica. La Completa override el typeId a 111 al guardar. */
-  private runFichaTecnicaVariant(variant: 'basica' | 'completa') {
+  private async runFichaTecnicaVariant(variant: 'basica' | 'completa'): Promise<void> {
     if (variant === 'completa') {
-      this.generarFichaTecnicaTuAlianzaCompleta();
+      await this.generarFichaTecnicaTuAlianzaCompleta();
       return;
     }
     if (!this.empresa || this.empresa.trim() === '') {
@@ -1415,31 +1494,31 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     }
     const emp = this.empresa.toUpperCase().trim();
     if (emp.includes('ALIANZA')) {
-      this.generarFichaTecnicaTuAlianza();
+      await this.generarFichaTecnicaTuAlianza();
     } else {
-      this.generarFichaTecnica();
+      await this.generarFichaTecnica();
     }
   }
 
-  generarPDF(documento: string) {
+  async generarPDF(documento: string): Promise<void> {
     // Contratos Otrosí no depende de la empresa
     if (documento === 'Contratos Otrosí') {
-      this.generarContratosOtroSi();
+      await this.generarContratosOtroSi();
       return;
     }
     // Auxilio Alimentación no depende de la empresa
     if (documento === 'Auxilio Alimentación') {
-      this.generarAuxilioAlimentacion();
+      await this.generarAuxilioAlimentacion();
       return;
     }
     // Autorización Daños Pérdidas no depende de la empresa
     if (documento === 'Autorización Daños Pérdidas') {
-      this.generarAutorizacionDanosPerdidas();
+      await this.generarAutorizacionDanosPerdidas();
       return;
     }
     // Hoja de Vida Minerva no depende de la empresa
     if (documento === 'Hoja de Vida Minerva') {
-      this.generarHojaDeVidaMinerva();
+      await this.generarHojaDeVidaMinerva();
       return;
     }
 
@@ -1454,94 +1533,94 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     const emp = this.empresa.toUpperCase().trim();
 
     if (documento === 'Autorización de Datos') {
-      this.generarAutorizacionDatos();
+      await this.generarAutorizacionDatos();
     }
     else if (documento === 'Inducción') {
       if (emp.includes('APOYO LINEA')) {
-        this.generarEntregaDocsApoyo();
+        await this.generarEntregaDocsApoyo();
       } else if (emp.includes('APOYO')) {
-        this.generarEntregaDocsApoyo();
+        await this.generarEntregaDocsApoyo();
       } else {
         Swal.fire('Atención', 'Falta seleccionar la remisión o la empresa no aplica para este documento', 'info');
       }
     }
     else if (documento === 'Inducción Agrícola') {
-      this.generarEntregaDocsAgricola();
+      await this.generarEntregaDocsAgricola();
     }
     else if (documento === 'Inducción Jardines de los Andes') {
-      this.generarEntregaDocsJardinez();
+      await this.generarEntregaDocsJardinez();
     }
     else if (documento === 'Inducción Sagaro') {
-      this.generarEntregaDocsTuAlianzaSAGARO();
+      await this.generarEntregaDocsTuAlianzaSAGARO();
     }
     else if (documento === 'Inducción Flores de los Andes') {
-      this.generarEntregaDocsTuAlianzaFloresAndes();
+      await this.generarEntregaDocsTuAlianzaFloresAndes();
     }
     else if (documento === 'Inducción Ipanema') {
-      this.generarEntregaDocsTuAlianzaIpanema();
+      await this.generarEntregaDocsTuAlianzaIpanema();
     }
     else if (documento === 'Inducción Ipanema Foráneos') {
-      this.generarEntregaDocsTuAlianzaIpanemaForaneos();
+      await this.generarEntregaDocsTuAlianzaIpanemaForaneos();
     }
     else if (documento === 'Inducción Rebaño') {
-      this.generarEntregaDocsTuAlianzaRebano();
+      await this.generarEntregaDocsTuAlianzaRebano();
     }
     else if (documento === 'Inducción Melody') {
-      this.generarEntregaDocsTuAlianzaMelody();
+      await this.generarEntregaDocsTuAlianzaMelody();
     }
     else if (documento === 'Inducción Tu Alianza sin Casino') {
-      this.generarEntregaDocsTuAlianzaSinCasino();
+      await this.generarEntregaDocsTuAlianzaSinCasino();
     }
     else if (documento === 'Inducción Administrativos') {
-      this.generarEntregaDocsTuAlianzaAdministrativos();
+      await this.generarEntregaDocsTuAlianzaAdministrativos();
     }
     else if (documento === 'Entrega Carnets') {
-      this.generarEntregaCarnets();
+      await this.generarEntregaCarnets();
     }
     else if (documento === 'Inducción Capacitación') {
-      this.generarInduccionCapacitacion();
+      await this.generarInduccionCapacitacion();
     }
     else if (documento === 'Formato Solicitud') {
-      this.generarFormatoSolicitud();
+      await this.generarFormatoSolicitud();
     }
     else if (documento === 'Manejo Imagen') {
-      this.generarManejoImagen();
+      await this.generarManejoImagen();
     }
     else if (documento === 'Ficha Social') {
-      this.generarFichaSocial();
+      await this.generarFichaSocial();
     }
     else if (documento === 'Entrevista de Ingreso Tu Alianza') {
-      this.generarEntrevistaDeIngresoTuAlianza();
+      await this.generarEntrevistaDeIngresoTuAlianza();
     }
     else if (documento === 'Contratos Otrosí') {
-      this.generarContratosOtroSi();
+      await this.generarContratosOtroSi();
     }
     else if (documento === 'Sagaro Lockers') {
-      this.generarSagaroLockers();
+      await this.generarSagaroLockers();
     }
     else if (documento === 'Sagaro Celular') {
-      this.generarSagaroCelular();
+      await this.generarSagaroCelular();
     }
     else if (documento === 'Sagaro Imagen') {
-      this.generarSagaroImagen();
+      await this.generarSagaroImagen();
     }
     else if (documento === 'Carnet') {
-      this.generarCarnet();
+      await this.generarCarnet();
     }
     else if (documento === 'OTRO SI Jornada Laboral') {
-      this.generarOtroSiJornadaLaboral();
+      await this.generarOtroSiJornadaLaboral();
     }
     else if (documento === 'OTRO SI Sagaro Fumigador') {
-      this.generarOtroSiSagaroFumigador();
+      await this.generarOtroSiSagaroFumigador();
     }
     else if (documento === 'Carta Descuento de Flor') {
-      this.generarCartaDescuentoFlor();
+      await this.generarCartaDescuentoFlor();
     }
     else if (documento === 'Formato Timbre Ingreso/Salida') {
-      this.generarFormatoTimbre();
+      await this.generarFormatoTimbre();
     }
     else if (documento === 'Carta Autorización Correo Electrónico') {
-      this.generarCartaAutorizacionCorreo();
+      await this.generarCartaAutorizacionCorreo();
     }
     else {
       Swal.fire('Error', 'Funcionalidad de PDF no implementada para: ' + documento, 'error');
