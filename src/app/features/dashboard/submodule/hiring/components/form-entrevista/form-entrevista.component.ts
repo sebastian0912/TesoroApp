@@ -139,9 +139,14 @@ export class FormEntrevistaComponent implements OnInit {
   readonly SEED_EXP_COUNT = 0;
 
   readonly sexos = ['M', 'F'] as const;
+  // Fuente de verdad: gestion_admin.Sede == NUMERO_POR_OFICINA del backend
+  // (GET /gestion_contratacion/oficinas/). Toda oficina de esta lista TIENE
+  // rango de numeracion de contratos; si se agrega una que no lo tenga, el
+  // backend rechaza el guardado con 400.
   readonly oficinas = [
-    'VIRTUAL',
     'ADMINISTRATIVOS',
+    'ANDES',
+    'BOSA',
     'CARTAGENITA',
     'FACA_PRIMERA',
     'FACA_PRINCIPAL',
@@ -149,12 +154,15 @@ export class FormEntrevistaComponent implements OnInit {
     'FORANEOS',
     'FUNZA',
     'MADRID',
+    'MONTE_VERDE',
     'ROSAL',
     'SOACHA',
+    'SOTAQUIRA',
     'SUBA',
     'TOCANCIPÁ',
+    'USME',
+    'VIRTUAL',
     'ZIPAQUIRÁ',
-    'BRIGADA',
   ] as const;
 
   // Campos usados para validar cada bloque
@@ -883,13 +891,16 @@ export class FormEntrevistaComponent implements OnInit {
       if (match) {
         this.ctrl('oficina').setValue(match, { emitEvent: false });
         this.lockedOffice = match;
+      }
 
-        if (match === 'BRIGADA') {
-          const brig = params.get('brigada');
-          if (brig) {
-            this.ctrl('brigadaDe').setValue(brig, { emitEvent: false });
-          }
-        }
+      // 'BRIGADA' salió de la lista: no es una sede, no tiene rango de
+      // numeración de contratos y el flujo reescribía la oficina a
+      // "BRIGADA DE <texto libre>", que es por donde entraban valores
+      // arbitrarios. `brigadaDe` se sigue prellenando desde la URL para no
+      // perder el dato si alguien todavía manda el query param.
+      const brig = params.get('brigada');
+      if (brig) {
+        this.ctrl('brigadaDe').setValue(brig, { emitEvent: false });
       }
 
       this.refreshSteps();

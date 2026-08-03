@@ -219,11 +219,21 @@ export class RecruitmentPipelineComponent {
     'Exámen médico integral definido para conductores',
   ];
 
+  /**
+   * Abreviatura que se manda como `sede_abbr` para que el backend resuelva el
+   * rango de numeración del contrato (ALIAS_OFICINA en codigo_contrato.py).
+   *
+   * Deben estar LAS 19 oficinas de `GET /gestion_contratacion/oficinas/`.
+   * Faltaban SOTAQUIRA y ZIPAQUIRÁ: no rompía porque `normalizarSedeAbbr` cae
+   * al nombre crudo y el backend lo normaliza igual, pero dejaba dos sedes
+   * fuera del mapa sin razón.
+   */
   private readonly abreviaciones: Record<string, string> = {
     ADMINISTRATIVOS: 'ADM', ANDES: 'AND', BOSA: 'BOS', CARTAGENITA: 'CAR',
     FACA_PRIMERA: 'FPR', FACA_PRINCIPAL: 'FPC', FONTIBÓN: 'FON', FORANEOS: 'FOR',
     FUNZA: 'FUN', MADRID: 'MAD', MONTE_VERDE: 'MV', ROSAL: 'ROS', SOACHA: 'SOA',
-    SUBA: 'SUB', TOCANCIPÁ: 'TOC', USME: 'USM', VIRTUAL: 'VIRTUAL'
+    SOTAQUIRA: 'SOT', SUBA: 'SUB', TOCANCIPÁ: 'TOC', USME: 'USM',
+    VIRTUAL: 'VIRTUAL', ZIPAQUIRÁ: 'ZIP'
   };
 
   // ───────── DI ─────────
