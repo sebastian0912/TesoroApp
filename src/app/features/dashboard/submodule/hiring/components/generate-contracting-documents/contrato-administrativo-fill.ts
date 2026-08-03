@@ -14,6 +14,7 @@
  */
 
 import jsPDF from 'jspdf';
+import { sanitizedString } from './winansi.util';
 
 export type Empresa = 'APOYO LABORAL SAS' | 'TU ALIANZA SAS';
 
@@ -89,7 +90,7 @@ function resolveEmpresa(empresa: string): EmpresaConfig | null {
   return null;
 }
 
-const s = (v: any): string => (v === null || v === undefined ? '' : String(v).trim());
+const s = (v: any): string => sanitizedString(v);
 
 /** Convierte fecha ISO o Date a dd/mm/yyyy. Devuelve string vacío si no parsea. */
 function fechaCO(input: any): string {

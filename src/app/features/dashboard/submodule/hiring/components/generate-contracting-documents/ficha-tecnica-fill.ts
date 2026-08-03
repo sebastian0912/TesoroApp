@@ -15,10 +15,11 @@
 
 import type { PDFForm, PDFFont } from 'pdf-lib';
 import { esReferenciaFamiliar, separarReferencias } from './referencias.util';
+import { sanitizedString } from './winansi.util';
 
 type Cand = any;
 
-const s = (v: any): string => (v === null || v === undefined ? '' : String(v).trim());
+const s = (v: any): string => sanitizedString(v);
 const upper = (v: any): string => s(v).toUpperCase();
 const norm = (v: any): string => s(v).normalize('NFC');
 

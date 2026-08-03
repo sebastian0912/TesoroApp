@@ -16,10 +16,11 @@
 
 import type { PDFDocument, PDFForm, PDFFont } from 'pdf-lib';
 import { separarReferencias } from './referencias.util';
+import { sanitizedString } from './winansi.util';
 
 type AnyObj = any;
 
-const s = (v: any): string => (v === null || v === undefined ? '' : String(v).trim());
+const s = (v: any): string => sanitizedString(v);
 
 const norm = (v: any): string => s(v).normalize('NFC');
 
