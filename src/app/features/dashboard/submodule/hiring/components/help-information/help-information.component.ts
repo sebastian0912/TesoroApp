@@ -21,6 +21,9 @@ import { GestionParametrizacionService } from '../../../users/services/gestion-p
 import { FormEntrevistaComponent } from '../form-entrevista/form-entrevista.component';
 import { ProcesoUpdateByDocumentRequest, RegistroProcesoContratacion } from '../../service/registro-proceso-contratacion/registro-proceso-contratacion';
 import { SeleccionEstadoService } from '../../service/seleccion/seleccion-estado.service';
+import { MatDialog } from '@angular/material/dialog';
+import { RemisionDialogComponent, RemisionDialogData } from './remision-dialog.component';
+import { TemporalRemision } from './remision-fill';
 
 // ================== Constantes ==================
 export const MY_DATE_FORMATS = {
@@ -104,6 +107,7 @@ export class HelpInformationComponent implements OnInit {
   private destroyRef = inject(DestroyRef);
   private gc = inject(RegistroProcesoContratacion);
   private seleccionEstado = inject(SeleccionEstadoService);
+  private dialog = inject(MatDialog);
 
   /**
    * El candidato quedó EN ESPERA de vacante o marcado NO APLICA (observación del
@@ -912,5 +916,68 @@ export class HelpInformationComponent implements OnInit {
     if (typeof v === 'number' && Number.isFinite(v)) return Math.trunc(v);
     if (typeof v === 'string') { const m = v.match(/-?\d+/); return m ? parseInt(m[0], 10) : 0; }
     return 0;
+  }
+  // ───────── Remisión para entrevista / prueba técnica ─────────
+  /**
+   * Abre el formato de remisión con todo lo que ya se sabe de la vacante y del
+   * candidato. Lo que el sistema no guarda (a quién preguntar en la empresa, el
+   * consecutivo del formato) se completa en el diálogo.
+   */
+  generarRemision(): void {
+    const cand: any = this.candidatoSeleccionado() ?? {};
+    const v: any = this.vacanteSeleccionada() ?? {};
+    const f = this.vacantesForm.value as any;
+
+    const exp = cand?.experiencia_resumen ?? {};
+    const anios = exp?.anios_experiencia;
+
+    const data: RemisionDialogData = {
+      temporal: this.temporalDeVacante(v),
+      fecha: this.hoyDDMMAAAA(),
+      empresaUsuaria: f.empresaUsuaria || v.empresaUsuariaSolicita || '',
+      cargo: f.cargo || v.cargo || '',
+      experienciaSector: exp?.tiene_experiencia === true ? 'SI'
+        : exp?.tiene_experiencia === false ? 'NO' : '',
+      tiempoExperiencia: anios != null ? anios + ' año(s)' : (exp?.area_experiencia || ''),
+      nombreCandidato: [cand.primer_nombre, cand.segundo_nombre, cand.primer_apellido, cand.segundo_apellido]
+        .map((x: any) => String(x ?? '').trim()).filter(Boolean).join(' '),
+      cedula: String(cand.numero_documento ?? ''),
+      area: f.area || v.area || '',
+      dia: this.aDDMMAAAA(f.fechaPruebaEntrevista) || this.aDDMMAAAA(v.fechadePruebatecnica),
+      hora: f.horaPruebaEntrevista || v.horadePruebatecnica || '',
+      preguntarPor: '',
+      direccionEmpresa: f.direccionEmpresa || v.direccion || '',
+      gestionHumana: this.modificadoPor() || '',
+      consecutivo: '',
+    };
+
+    this.dialog.open<RemisionDialogComponent, RemisionDialogData, boolean>(
+      RemisionDialogComponent, { data, autoFocus: 'dialog' },
+    );
+  }
+
+  /** Apoyo / Tu Alianza según la vacante; por defecto Apoyo. */
+  private temporalDeVacante(v: any): TemporalRemision {
+    const txt = ((v?.temporal ?? '') + ' ' + (v?.empresaUsuariaSolicita ?? '')).toUpperCase();
+    return txt.includes('ALIANZA') ? 'alianza' : 'apoyo';
+  }
+
+  private hoyDDMMAAAA(): string {
+    const d = new Date();
+    const p2 = (n: number) => String(n).padStart(2, '0');
+    return p2(d.getDate()) + '/' + p2(d.getMonth() + 1) + '/' + d.getFullYear();
+  }
+
+  /** Acepta ISO (yyyy-mm-dd) o Date y devuelve dd/mm/aaaa. */
+  private aDDMMAAAA(v: any): string {
+    if (!v) return '';
+    let iso: string;
+    try {
+      iso = typeof v === 'string' ? v : new Date(v).toISOString();
+    } catch {
+      return '';
+    }
+    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
+    return m ? m[3] + '/' + m[2] + '/' + m[1] : String(v);
   }
 }
