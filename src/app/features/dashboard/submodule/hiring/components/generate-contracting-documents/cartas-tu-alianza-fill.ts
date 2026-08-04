@@ -14,6 +14,7 @@
  */
 
 import jsPDF from 'jspdf';
+import { sanitizeWinAnsi } from './winansi.util';
 
 export interface CartaTuAlianzaCtx {
   /** Nombre completo del trabajador, ya en mayúsculas. */
@@ -76,6 +77,11 @@ function justifyRuns(
   width: number,
   lineH: number,
 ): number {
+  // Saneo WinAnsi en la entrada: por `runs` pasa todo el cuerpo de la
+  // carta y despues se parte en palabras, asi que este es el unico punto
+  // donde el texto todavia esta completo.
+  runs = runs.map(r => ({ ...r, text: sanitizeWinAnsi(String(r.text ?? '')) }));
+
   // 1) Tokenizar en palabras conservando el estilo de su run.
   const words: { text: string; style: FontStyle; w: number }[] = [];
   for (const run of runs) {

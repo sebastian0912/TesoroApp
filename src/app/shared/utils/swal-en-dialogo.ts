@@ -18,7 +18,13 @@
  * Uso:
  *     await Swal.fire({ ...swalEnDialogo(), title: '...', ... });
  */
-export function swalEnDialogo(): { target?: HTMLElement; heightAuto: false } {
+export function swalEnDialogo(): {
+  target?: HTMLElement;
+  heightAuto: false;
+  /** OJO: ningún llamador debe pasar su propio `didOpen` junto al spread —
+   *  lo pisaría y el Swal volvería a quedar debajo del diálogo. */
+  didOpen?: () => void;
+} {
   if (typeof document === 'undefined') return { heightAuto: false };
 
   const overlay = document.querySelector<HTMLElement>('.cdk-overlay-container');
@@ -29,5 +35,15 @@ export function swalEnDialogo(): { target?: HTMLElement; heightAuto: false } {
   // página y no desde un diálogo) lo dejaría invisible.
   if (!overlay || overlay.childElementCount === 0) return { heightAuto: false };
 
-  return { target: overlay, heightAuto: false };
+  return {
+    target: overlay,
+    heightAuto: false,
+    // Montarlo dentro del overlay no basta: los paneles del CDK traen su
+    // propio z-index y el Swal queda DETRÁS del diálogo, invisible. Se sube
+    // por encima al abrir.
+    didOpen: () => {
+      const cont = document.querySelector<HTMLElement>('.swal2-container');
+      if (cont) cont.style.zIndex = '10000';
+    },
+  };
 }

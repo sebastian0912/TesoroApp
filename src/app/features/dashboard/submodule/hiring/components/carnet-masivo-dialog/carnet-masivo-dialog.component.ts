@@ -143,10 +143,15 @@ export class CarnetMasivoDialogComponent {
 
   // ───────── Carga y validación ─────────
   private parsearCedulas(): string[] {
+    // OJO con la 'X': es el prefijo de los documentos que NO son cédula de
+    // ciudadanía. Un `replace(/\D/g,'')` la borraba, así que pegar
+    // 'X1002498616' terminaba buscando al titular CC con ese mismo número y
+    // se generaba el carnet de OTRA persona (foto, EPS y datos incluidos).
     const crudas = String(this.cedulasTexto || '')
       .split(/[\s,;]+/)
-      .map(c => c.replace(/\D/g, '').trim())
-      .filter(Boolean);
+      .map(c => c.trim().toUpperCase().replace(/[^0-9X]/g, ''))
+      // Solo se acepta la X al inicio; en cualquier otra posición es basura.
+      .filter(c => /^X?\d+$/.test(c));
     return [...new Set(crudas)];
   }
 
@@ -305,21 +310,46 @@ export class CarnetMasivoDialogComponent {
   }
 
   // ───────── Previsualizar / generar ─────────
+  /**
+   * Abre el PDF en una pestaña nueva de forma confiable.
+   *
+   * `window.open()` DESPUÉS de un `await` lo bloquea el navegador en silencio:
+   * el gesto del usuario ya caducó y lo trata como popup. Por eso la pestaña
+   * se abre ANTES de armar el PDF (con la pestaña en blanco) y solo se le
+   * cambia la URL cuando el blob está listo.
+   *
+   * Si aun así viene bloqueada (extensión, política del navegador), se cae a
+   * una descarga normal, que nunca se bloquea. Peor es no entregar nada.
+   */
+  private abrirPdf(ventana: Window | null, blob: Blob, nombre: string): void {
+    const url = URL.createObjectURL(blob);
+    if (ventana && !ventana.closed) {
+      ventana.location.href = url;
+    } else {
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = nombre;
+      a.click();
+    }
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  }
+
   async previsualizar(): Promise<void> {
     const sel = this.seleccionadas();
     if (!sel.length) {
       Swal.fire({ icon: 'info', title: 'Nada seleccionado', text: 'Marca al menos una persona con todos los datos completos.', ...swalEnDialogo() });
       return;
     }
+    // Antes de cualquier await: si no, el navegador bloquea el popup.
+    const ventana = window.open('', '_blank');
     this.generando.set(true);
     this.progreso.set('Armando previsualización…');
     try {
       const blob = buildCarnetApoyoLotePdf(await this.datosConImagenes(sel));
-      const url = URL.createObjectURL(blob);
-      window.open(url, '_blank', 'noopener,noreferrer');
-      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+      this.abrirPdf(ventana, blob, `carnets_previsualizacion.pdf`);
     } catch (e) {
       console.error('[carnet masivo] previsualizar', e);
+      ventana?.close();
       Swal.fire({ icon: 'error', title: 'Error', text: 'No se pudo armar la previsualización.', ...swalEnDialogo() });
     } finally {
       this.generando.set(false);
@@ -338,7 +368,6 @@ export class CarnetMasivoDialogComponent {
     const { isConfirmed } = await Swal.fire({
       ...swalEnDialogo(),
       icon: 'question',
-      ...swalEnDialogo(),
       title: `Generar ${sel.length} carnet(s)`,
       html: `Se imprimirán en <b>${this.hojas()}</b> hoja(s) de 9.`
         + (regen ? `<br><br><b>${regen}</b> ya tenían carnet y se van a REGENERAR.` : ''),
@@ -349,6 +378,10 @@ export class CarnetMasivoDialogComponent {
     });
     if (!isConfirmed) return;
 
+    // Se abre YA, antes de armar nada: pasado el await el navegador bloquea el
+    // popup. `abrirPdf` cae a descarga si aun asi viene bloqueada.
+    const ventana = window.open('', '_blank');
+
     this.generando.set(true);
     const fallidas: string[] = [];
     try {
@@ -357,9 +390,7 @@ export class CarnetMasivoDialogComponent {
 
       // 1) El lote para imprimir.
       const lote = buildCarnetApoyoLotePdf(datos);
-      const url = URL.createObjectURL(lote);
-      window.open(url, '_blank', 'noopener,noreferrer');
-      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+      this.abrirPdf(ventana, lote, `carnets_lote_${sel.length}.pdf`);
 
       // 2) El carnet individual de cada quien al gestor documental + la marca.
       for (let i = 0; i < sel.length; i++) {

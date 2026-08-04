@@ -14,7 +14,7 @@
  */
 
 import jsPDF from 'jspdf';
-import { sanitizedString } from './winansi.util';
+import { sanitizedString, sanitizeWinAnsi } from './winansi.util';
 
 export type Empresa = 'APOYO LABORAL SAS' | 'TU ALIANZA SAS';
 
@@ -402,7 +402,12 @@ function renderJustifiedParagraph(
   lineHeight: number,
   fontSize: number = 6.5
 ): number {
-  const clean = String(text ?? '').replace(/\r/g, '').replace(/\s+/g, ' ').trim();
+  // Se sanea AQUI, en la entrada del justificado: por este camino pasa el
+  // cuerpo del contrato (nombres, direcciones) y las palabras se parten
+  // antes de llegar a doc.text, asi que no hay otro punto unico.
+  const clean = sanitizeWinAnsi(
+    String(text ?? '').replace(/\r/g, '').replace(/\s+/g, ' ').trim(),
+  );
   if (!clean) return y;
 
   doc.setFontSize(fontSize);

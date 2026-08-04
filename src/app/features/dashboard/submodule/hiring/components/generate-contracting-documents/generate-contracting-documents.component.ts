@@ -501,8 +501,17 @@ export class GenerateContractingDocumentsComponent implements OnInit {
               // pero deben mostrarse bajo una entry unificada de la UI.
               if (!idToTitles.has(111)) idToTitles.set(111, ['Ficha Técnica']); // Ficha TA completa
 
+              // `type` llega como número o como objeto anidado según el
+              // endpoint. Comparar `doc.type` crudo contra un Map<number>
+              // fallaba en silencio y el documento salía "Pendiente" estando
+              // en el servidor. Mismo criterio que `urlDeTipo`.
+              const tipoDe = (d: any): number => {
+                const t = d?.type;
+                return Number(t && typeof t === 'object' ? t.id : t);
+              };
+
               docsBackend.forEach((doc: any) => {
-                const titles = idToTitles.get(doc.type);
+                const titles = idToTitles.get(tipoDe(doc));
                 if (!titles?.length) return;
                 // El backend ya recorta a 1 documento por tipo, así que esto es
                 // la representación más fiel disponible: no hay forma de saber

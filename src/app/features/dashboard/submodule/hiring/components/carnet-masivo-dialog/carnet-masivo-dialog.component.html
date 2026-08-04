@@ -16,18 +16,21 @@
   }
 
   <div mat-dialog-content class="cm-body">
-    <mat-form-field appearance="outline" class="cm-cedulas">
-      <mat-label>Cédulas</mat-label>
-      <textarea matInput rows="3" [(ngModel)]="cedulasTexto"
-        placeholder="Una por línea, o separadas por coma"></textarea>
-      <mat-hint>Se ignoran repetidas y cualquier cosa que no sea número.</mat-hint>
-    </mat-form-field>
-
-    <div class="cm-acciones-top">
-      <button mat-flat-button color="primary" (click)="revisar()" [disabled]="cargando() || generando()">
+    <div class="cm-entrada">
+      <mat-form-field appearance="outline" class="cm-cedulas" subscriptSizing="dynamic">
+        <mat-label>Cédulas</mat-label>
+        <textarea matInput rows="2" [(ngModel)]="cedulasTexto"
+          placeholder="Una por línea, o separadas por coma"></textarea>
+        <mat-hint>Se ignoran repetidas. Si el documento no es cédula, conserva la X inicial.</mat-hint>
+      </mat-form-field>
+      <button mat-flat-button color="primary" class="cm-revisar"
+        (click)="revisar()" [disabled]="cargando() || generando()">
         <mat-icon>fact_check</mat-icon> Revisar
       </button>
-      @if (total() > 0) {
+    </div>
+
+    @if (total() > 0) {
+      <div class="cm-acciones-top">
         <button mat-stroked-button (click)="soloPendientes()" [disabled]="generando()"
           matTooltip="Marcar solo a quienes aún no tienen carnet">
           <mat-icon>filter_alt</mat-icon> Solo pendientes
@@ -38,8 +41,8 @@
         <button mat-stroked-button (click)="marcarTodas(false)" [disabled]="generando()">
           <mat-icon>remove_done</mat-icon> Desmarcar
         </button>
-      }
-    </div>
+      </div>
+    }
 
     @if (total() > 0) {
       <div class="cm-resumen">
@@ -104,20 +107,36 @@
         <mat-icon>info</mat-icon>
         Imprime a doble cara volteando por el <b>lado corto</b>; si no, el reverso queda corrido.
       </p>
+    } @else if (!cargando()) {
+      <!-- Sin esto el diálogo abre con un textarea gigante y medio cuerpo en
+           blanco, que es lo que se veía a medio hacer. -->
+      <div class="cm-vacio">
+        <mat-icon>badge</mat-icon>
+        <p class="cm-vacio-titulo">Aún no has revisado ninguna cédula</p>
+        <p class="cm-vacio-texto">
+          Pega las cédulas arriba y dale <b>Revisar</b>. Te mostramos quién
+          tiene los datos completos antes de generar nada.
+        </p>
+      </div>
     }
   </div>
 
   <div mat-dialog-actions class="cm-actions">
+    @if (seleccionadas().length > 0) {
+      <span class="cm-actions-info">
+        <b>{{ seleccionadas().length }}</b> carnet(s) en <b>{{ hojas() }}</b> hoja(s)
+      </span>
+    }
+    <span class="cm-spacer"></span>
+    <button mat-button (click)="cerrar()">Cancelar</button>
     <button mat-stroked-button (click)="previsualizar()"
       [disabled]="generando() || cargando() || seleccionadas().length === 0">
       <mat-icon>visibility</mat-icon> Previsualizar
     </button>
-    <span class="cm-spacer"></span>
     <button mat-flat-button color="primary" (click)="generar()"
       [disabled]="generando() || cargando() || seleccionadas().length === 0">
       <mat-icon>badge</mat-icon>
-      Generar {{ seleccionadas().length || '' }}
+      Generar
     </button>
-    <button mat-button (click)="cerrar()">Cerrar</button>
   </div>
 </div>

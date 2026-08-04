@@ -49,13 +49,64 @@
   overflow: auto;
 }
 
-.cm-cedulas { width: 100%; }
+/* El campo y su acción van en la misma fila: el botón suelto debajo de un
+   textarea gigante dejaba el diálogo con medio cuerpo vacío. */
+.cm-entrada {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.cm-cedulas { flex: 1; min-width: 0; }
+.cm-cedulas textarea { max-height: 96px; }
+
+.cm-revisar {
+  flex: 0 0 auto;
+  height: 40px;
+  margin-top: 4px;
+}
 
 .cm-acciones-top {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
   margin-bottom: 10px;
+}
+
+/* ── Estado vacío ── */
+.cm-vacio {
+  display: grid;
+  place-items: center;
+  gap: 2px;
+  padding: 28px 16px 32px;
+  text-align: center;
+  border: 1px dashed #cbd5e1;
+  border-radius: 10px;
+  background: #f8fafc;
+}
+
+.cm-vacio > .mat-icon {
+  width: 34px;
+  height: 34px;
+  font-size: 34px;
+  color: #cbd5e1;
+  margin-bottom: 6px;
+}
+
+.cm-vacio-titulo {
+  margin: 0;
+  font-size: .88rem;
+  font-weight: 600;
+  color: var(--azul);
+}
+
+.cm-vacio-texto {
+  margin: 0;
+  max-width: 46ch;
+  font-size: .78rem;
+  line-height: 1.45;
+  color: var(--muted);
 }
 
 .cm-resumen {
@@ -158,8 +209,20 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 10px 16px;
+  padding: 12px 16px;
   border-top: 1px solid #e2e8f0;
+  background: #fbfcfd;
 }
 
 .cm-spacer { flex: 1; }
+
+.cm-actions-info {
+  font-size: .78rem;
+  color: var(--muted);
+}
+
+.cm-actions-info b { color: var(--azul); }
+
+/* Los deshabilitados salían como bloques grises que competían con el botón
+   real. Se atenúan para que la acción principal se lea a la primera. */
+.cm-actions button[disabled] { opacity: .45; }
