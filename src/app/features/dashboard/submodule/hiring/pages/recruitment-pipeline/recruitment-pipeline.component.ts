@@ -2252,18 +2252,40 @@ export class RecruitmentPipelineComponent {
     }
   }
 
+  /**
+   * Elige el documento QUE ES DEL TITULAR, no el primero de la lista.
+   *
+   * El backend guarda `owner_id = "<cedula>"` para CC y `"x<cedula>"` para
+   * cualquier otro tipo, justamente para no mezclar a dos titulares que
+   * comparten número. Pero la lectura expande las tres formas
+   * (`<ced>`, `x<ced>`, `X<ced>`), así que `getDocuments(cedula)` puede
+   * devolver documentos de AMBAS personas. Quedarse con `docs[0]` a ciegas
+   * mostraba el examen médico, la ARL o la FOTO del otro titular.
+   *
+   * Si ningún documento trae `owner_id` (payload viejo) se conserva el
+   * comportamiento anterior: es preferible mostrar algo a romper la pantalla.
+   */
+  private elegirDocDelTitular(docs: ServerDocInfo[], cedula: string): ServerDocInfo | null {
+    if (!Array.isArray(docs) || docs.length === 0) return null;
+
+    const ced = String(cedula || '').trim().replace(/^[xX]/, '');
+    const esperado = String(this.candidatoSeleccionado()?.tipo_doc || 'CC')
+      .trim().toUpperCase() === 'CC' ? ced : `x${ced}`;
+
+    const conOwner = docs.filter(d => (d as any)?.owner_id != null);
+    if (conOwner.length === 0) return docs[0];
+
+    const propios = conOwner.filter(
+      d => String((d as any).owner_id).trim().toLowerCase() === esperado.toLowerCase()
+    );
+    return propios[0] ?? null;
+  }
+
   private async refreshExamenMedicoForCandidate(cedula: string): Promise<void> {
     try {
       // 32 es el ID para EXAMENES_MEDICOS según typeMap
       const docs: ServerDocInfo[] = await firstValueFrom(this.docSvc.getDocuments(cedula, 32));
-      // Asumimos que el backend retorna lista ordenada o filtramos el active.
-      // Si retorna lista, tomamos el primero (o el más reciente).
-      // Usualmente getDocuments filtra por is_active=True si no se especifica lo contrario.
-      if (Array.isArray(docs) && docs.length > 0) {
-        this.examenMedicoDoc.set(docs[0]);
-      } else {
-        this.examenMedicoDoc.set(null);
-      }
+      this.examenMedicoDoc.set(this.elegirDocDelTitular(docs, cedula));
     } catch {
       this.examenMedicoDoc.set(null);
     }
@@ -2273,11 +2295,7 @@ export class RecruitmentPipelineComponent {
     try {
       // 30 es el ID para ARL
       const docs: ServerDocInfo[] = await firstValueFrom(this.docSvc.getDocuments(cedula, 30));
-      if (Array.isArray(docs) && docs.length > 0) {
-        this.arlDoc.set(docs[0]);
-      } else {
-        this.arlDoc.set(null);
-      }
+      this.arlDoc.set(this.elegirDocDelTitular(docs, cedula));
     } catch {
       this.arlDoc.set(null);
     }
@@ -2285,13 +2303,10 @@ export class RecruitmentPipelineComponent {
 
   private async refreshFotoForCandidate(cedula: string): Promise<void> {
     try {
-      // 89 es el ID para FOTO
+      // 89 es el ID para FOTO. La foto es el caso más delicado del trío:
+      // mostrar la de otro titular es una confusión de identidad directa.
       const docs: ServerDocInfo[] = await firstValueFrom(this.docSvc.getDocuments(cedula, 89));
-      if (Array.isArray(docs) && docs.length > 0) {
-        this.fotoDoc.set(docs[0]);
-      } else {
-        this.fotoDoc.set(null);
-      }
+      this.fotoDoc.set(this.elegirDocDelTitular(docs, cedula));
     } catch {
       this.fotoDoc.set(null);
     }

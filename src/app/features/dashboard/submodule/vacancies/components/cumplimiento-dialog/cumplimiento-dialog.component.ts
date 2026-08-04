@@ -75,7 +75,15 @@ export class CumplimientoDialogComponent implements OnInit {
   loading = signal<boolean>(true);
   working = signal<boolean>(false);
   candidatos = signal<CandidatoPorVacanteItem[]>([]);
-  /** Cédulas seleccionadas (clave = numero_documento). */
+  /**
+   * Procesos seleccionados (clave = `proceso_id`).
+   *
+   * Antes la clave era `numero_documento`. Como la misma persona puede
+   * tener varias filas de Candidato —y por tanto varios procesos— marcar
+   * una casilla marcaba TODAS las suyas, y "Quitar vacante" desasignaba
+   * procesos que el usuario nunca marcó. El proceso es lo que de verdad
+   * se está seleccionando.
+   */
   private readonly seleccion = signal<Set<string>>(new Set<string>());
 
   seleccionCount = computed(() => this.seleccion().size);
@@ -105,7 +113,7 @@ export class CumplimientoDialogComponent implements OnInit {
         next: (rows) => {
           this.candidatos.set(Array.isArray(rows) ? rows : []);
           // Mantener sólo selecciones que sigan presentes.
-          const vivas = new Set(this.candidatos().map((c) => String(c.numero_documento)));
+          const vivas = new Set(this.candidatos().map((c) => String(c.proceso_id)));
           const sel = new Set([...this.seleccion()].filter((c) => vivas.has(c)));
           this.seleccion.set(sel);
           this.loading.set(false);
@@ -120,25 +128,25 @@ export class CumplimientoDialogComponent implements OnInit {
 
   // ───────── Selección ─────────
   isSelected(c: CandidatoPorVacanteItem): boolean {
-    return this.seleccion().has(String(c.numero_documento));
+    return this.seleccion().has(String(c.proceso_id));
   }
 
   toggle(c: CandidatoPorVacanteItem, checked: boolean): void {
     const sel = new Set(this.seleccion());
-    const key = String(c.numero_documento);
+    const key = String(c.proceso_id);
     if (checked) sel.add(key); else sel.delete(key);
     this.seleccion.set(sel);
   }
 
   toggleAll(checked: boolean): void {
-    this.seleccion.set(checked ? new Set(this.candidatos().map((c) => String(c.numero_documento))) : new Set());
+    this.seleccion.set(checked ? new Set(this.candidatos().map((c) => String(c.proceso_id))) : new Set());
   }
 
   /** Candidatos sobre los que actúan los botones: seleccionados, o todos si no hay selección. */
   private objetivo(): CandidatoPorVacanteItem[] {
     const sel = this.seleccion();
     if (!sel.size) return this.candidatos();
-    return this.candidatos().filter((c) => sel.has(String(c.numero_documento)));
+    return this.candidatos().filter((c) => sel.has(String(c.proceso_id)));
   }
 
   nombreMostrar(c: CandidatoPorVacanteItem): string {
@@ -347,7 +355,7 @@ export class CumplimientoDialogComponent implements OnInit {
   /** Sólo las filas seleccionadas (acción destructiva: nunca asume "todas"). */
   private seleccionados(): CandidatoPorVacanteItem[] {
     const sel = this.seleccion();
-    return this.candidatos().filter((c) => sel.has(String(c.numero_documento)));
+    return this.candidatos().filter((c) => sel.has(String(c.proceso_id)));
   }
 
   // ───────── Quitar vacante ─────────
@@ -445,17 +453,17 @@ export class CumplimientoDialogComponent implements OnInit {
 
     // Actualización OPTIMISTA: quitamos ya mismo de la tabla a quienes sí se
     // removieron, sin esperar al backend ni a que el usuario cierre un modal.
+    // `fallidas` viene por CÉDULA (es lo que se le manda al backend), pero la
+    // tabla y la selección se indexan por `proceso_id`. Se traduce una sola vez
+    // para no volver a mezclar las dos claves.
     const fallidasSet = new Set(fallidas);
-    const removidas = new Set(
-      objetivo
-        .map((c) => String(c.numero_documento))
-        .filter((ced) => !fallidasSet.has(ced)),
-    );
-    if (removidas.size) {
+    const removidos = objetivo.filter((c) => !fallidasSet.has(String(c.numero_documento)));
+    const removidosProcesos = new Set(removidos.map((c) => String(c.proceso_id)));
+
+    if (removidosProcesos.size) {
       // Bajar los KPIs del encabezado (Firmados / Cumplimiento %) en el acto:
       // quitar a un contratado reduce los firmados de la vacante.
-      const firmRemovidos = objetivo.filter((c) => {
-        if (fallidasSet.has(String(c.numero_documento))) return false;
+      const firmRemovidos = removidos.filter((c) => {
         const e = (c.etapa || '').toLowerCase();
         return e.includes('contrat') || e.includes('ingres');
       }).length;
@@ -465,8 +473,12 @@ export class CumplimientoDialogComponent implements OnInit {
         this.data.cumpl = req ? Math.min(100, Math.round((this.data.firm / req) * 100)) : 0;
       }
 
-      this.candidatos.set(this.candidatos().filter((c) => !removidas.has(String(c.numero_documento))));
-      this.seleccion.set(new Set([...this.seleccion()].filter((ced) => !removidas.has(ced))));
+      this.candidatos.set(
+        this.candidatos().filter((c) => !removidosProcesos.has(String(c.proceso_id))),
+      );
+      this.seleccion.set(
+        new Set([...this.seleccion()].filter((id) => !removidosProcesos.has(id))),
+      );
       this.cambios = true;
     }
 
