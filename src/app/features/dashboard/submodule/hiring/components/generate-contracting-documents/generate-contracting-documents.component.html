@@ -120,6 +120,48 @@
                 }
               </div>
             </mat-tab>
+
+            <!-- Tab 3: DE OTRAS PANTALLAS (solo lectura) -->
+            <!-- Estos documentos NO se administran aquí y por eso NO entran en
+                 los contadores de progreso: mover esos números cambiaría el
+                 criterio de "completo" de todas las empresas. Solo se muestran
+                 para poder consultarlos sin salir de esta pantalla. -->
+            <mat-tab>
+              <ng-template mat-tab-label>
+                <mat-icon class="tab-icon">visibility</mat-icon>
+                <span>De otras pantallas</span>
+                <span class="tab-badge">{{ docsOtrasPantallasDisponibles.length }}</span>
+              </ng-template>
+              <div class="docs-list" role="list">
+                @if (!docsOtrasPantallasDisponibles.length) {
+                  <div class="docs-empty">
+                    <mat-icon>visibility_off</mat-icon>
+                    <p>No hay documentos cargados desde otras pantallas.</p>
+                  </div>
+                } @else {
+                  <p class="doc-externos-nota">
+                    <mat-icon>info</mat-icon>
+                    Se cargan en otras pantallas. Aquí solo se consultan, y no
+                    cuentan para el progreso de este checklist.
+                  </p>
+                  @for (doc of docsOtrasPantallasDisponibles; track doc.titulo) {
+                    <div class="doc-item doc-item-externo" role="listitem">
+                      <div class="doc-item-main">
+                        <mat-icon class="doc-estado-icon completado">cloud_done</mat-icon>
+                        <div class="doc-item-text">
+                          <span class="doc-titulo">{{ doc.titulo }}</span>
+                          <span class="doc-origen">{{ doc.origen }}</span>
+                        </div>
+                      </div>
+                      <button mat-icon-button class="action-btn" matTooltip="Ver PDF"
+                        (click)="verPDF(doc)">
+                        <mat-icon>visibility</mat-icon>
+                      </button>
+                    </div>
+                  }
+                }
+              </div>
+            </mat-tab>
           </mat-tab-group>
 
           <!-- Template reusable de fila — evita duplicar el HTML por tab -->

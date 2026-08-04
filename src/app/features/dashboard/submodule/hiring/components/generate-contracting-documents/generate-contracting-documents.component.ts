@@ -417,6 +417,34 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     'Evaluación SST': 219,
   };
 
+  /**
+   * Documentos que se administran en OTRAS pantallas.
+   *
+   * No están en `typeMap` a propósito: desde aquí no se suben ni se generan.
+   * Pero SÍ existen en el servidor y antes se descartaban en silencio al armar
+   * `existingDocs`, así que no se podían ni ver. Se listan en una pestaña
+   * aparte, de solo lectura, y NO entran en los contadores de progreso: el
+   * checklist por empresa define qué exige cada cliente y no debe moverse
+   * porque aquí se muestren documentos de otro lado.
+   */
+  readonly DOCS_OTRAS_PANTALLAS: ReadonlyArray<{ titulo: string; typeId: number; origen: string }> = [
+    { titulo: 'Procuraduría', typeId: 3, origen: 'Preguntas de selección' },
+    { titulo: 'Contraloría', typeId: 4, origen: 'Preguntas de selección' },
+    { titulo: 'OFAC', typeId: 5, origen: 'Preguntas de selección' },
+    { titulo: 'Policivos', typeId: 6, origen: 'Preguntas de selección' },
+    { titulo: 'ADRES', typeId: 7, origen: 'Preguntas de selección' },
+    { titulo: 'Sisbén', typeId: 8, origen: 'Preguntas de selección' },
+    { titulo: 'AFP / Fondo de pensión', typeId: 11, origen: 'Robots' },
+    { titulo: 'Semanas cotizadas', typeId: 33, origen: 'Preguntas de selección' },
+    { titulo: 'Exámenes médicos', typeId: 32, origen: 'Pipeline de contratación' },
+    { titulo: 'Carnet', typeId: 102, origen: 'Pipeline de contratación' },
+  ];
+
+  /** Solo las que de verdad están cargadas — no tiene sentido listar vacíos. */
+  get docsOtrasPantallasDisponibles() {
+    return this.DOCS_OTRAS_PANTALLAS.filter(d => !!this.existingDocs[d.titulo]);
+  }
+
   // Diccionario para almacenar info de documentos ya existentes en base de datos
   existingDocs: { [key: string]: { date: string, url: string } } = {};
 
@@ -500,6 +528,18 @@ export class GenerateContractingDocumentsComponent implements OnInit {
               // Aliases: typeIds del backend que no tienen entry propia en `documentos[]`
               // pero deben mostrarse bajo una entry unificada de la UI.
               if (!idToTitles.has(111)) idToTitles.set(111, ['Ficha Técnica']); // Ficha TA completa
+
+              // Documentos de otras pantallas: no están en `typeMap`, así que
+              // antes se descartaban aquí y quedaban invisibles aunque
+              // estuvieran en el servidor. Se indexan para poder verlos.
+              for (const d of this.DOCS_OTRAS_PANTALLAS) {
+                const arr = idToTitles.get(d.typeId);
+                if (arr) arr.push(d.titulo);
+                else idToTitles.set(d.typeId, [d.titulo]);
+              }
+              // El fondo de pensión se guarda como AFP (11) o como
+              // FONDO_PENSION (9); el backend hace ese mismo fallback.
+              if (!idToTitles.has(9)) idToTitles.set(9, ['AFP / Fondo de pensión']);
 
               // `type` llega como número o como objeto anidado según el
               // endpoint. Comparar `doc.type` crudo contra un Map<number>
