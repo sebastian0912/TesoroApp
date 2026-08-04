@@ -29,6 +29,7 @@ import Swal from 'sweetalert2';
 import colombia from '../../../../../../data/colombia.json';
 import { SharedModule } from '@/app/shared/shared.module';
 import { UtilityServiceService } from '@/app/shared/services/utilityService/utility-service.service';
+import { docParaEnviar } from '@/app/shared/utils/tipo-doc.util';
 import { RegistroProcesoContratacion } from '../../service/registro-proceso-contratacion/registro-proceso-contratacion';
 import { SeleccionEstadoService } from '../../service/seleccion/seleccion-estado.service';
 import {
@@ -1306,9 +1307,17 @@ export class FormEntrevistaComponent implements OnInit {
     return `${y}-${m}-${day}`;
   }
 
+  /**
+   * La `X` marca que el documento NO es cédula de ciudadanía.
+   *
+   * Antes esto comparaba `tipo === 'CC'` contra el valor CRUDO del formulario.
+   * Con `'C.C'` —13793 filas en prod— la comparación fallaba, se enviaba
+   * `X<cédula>` y el backend creaba un Candidato NUEVO para una persona que ya
+   * existía. Era la fábrica activa de duplicados: cada entrevista guardada así
+   * sumaba una fila. Se canoniza antes de comparar.
+   */
   private normalizeDocForSubmit(tipo: string, raw: any): string {
-    const digits = String(raw ?? '').replace(/\D+/g, '').trim();
-    return !digits ? digits : tipo === 'CC' ? digits : `X${digits}`;
+    return docParaEnviar(tipo, raw);
   }
 
   // =======================

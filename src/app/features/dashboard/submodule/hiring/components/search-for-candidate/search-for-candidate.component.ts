@@ -15,6 +15,7 @@ import { EventEmitter, Output } from '@angular/core';
 import { SharedModule } from '@/app/shared/shared.module';
 import { AntecedenteEstadoFuente, AntecedenteFuente, CandidatoRecienteItem, RegistroProcesoContratacion } from '../../service/registro-proceso-contratacion/registro-proceso-contratacion';
 import { DateRangeDialogComponent } from '@/app/shared/components/date-rang-dialog/date-rang-dialog.component';
+import { docKey } from '@/app/shared/utils/tipo-doc.util';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -202,13 +203,21 @@ export class SearchForCandidateComponent implements OnInit, OnDestroy {
       });
   }
 
-  /** Quita filas con el mismo numero_documento conservando la primera (el backend ya ordena: no atendidos por llegada, atendidos al final). */
+  /**
+   * Una fila por PERSONA (el backend ya ordena: no atendidos por llegada,
+   * atendidos al final).
+   *
+   * La clave era el `numero_documento` crudo, así que `1002498616` y
+   * `X1002498616` —la misma persona con dos filas de Candidato, 2821 casos en
+   * prod— contaban como distintos y salían las dos en la lista. `docKey()`
+   * quita la `X` inicial, igual que `Candidato.normalize_doc` del backend.
+   */
   private dedupeRecientes(data: CandidatoRecienteItem[] | null | undefined): CandidatoRecienteItem[] {
     if (!data?.length) return [];
     const vistos = new Set<string>();
     const out: CandidatoRecienteItem[] = [];
     for (const item of data) {
-      const key = String(item?.numero_documento ?? '').trim();
+      const key = docKey(item?.numero_documento);
       if (!key) {
         out.push(item);
         continue;
