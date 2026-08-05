@@ -190,6 +190,8 @@ interface VistaSoporte {
   icono: string;
   archivo: ArchivoSoporte | null;
   arrastrando: boolean;
+  /** El servidor ya tiene este soporte (no hace falta volver a subirlo). */
+  yaEnServidor: boolean;
 }
 
 /** Chip del resumen de la persona. */
@@ -457,6 +459,12 @@ export class RegistroIncapacidadComponent implements OnDestroy {
   readonly archivos = signal<Partial<Record<TipoSoporte, ArchivoSoporte>>>({});
   readonly tipoArrastrado = signal<TipoSoporte | null>(null);
   readonly errorArchivo = signal('');
+  /**
+   * Soportes que el SERVIDOR dice tener ya vinculados (`soportesCargados` del
+   * detalle). Se rellena al editar y tras cada subida/borrado: es la unica
+   * forma de que la pantalla no exija de nuevo un archivo que ya esta arriba.
+   */
+  private readonly soportesEnServidor = signal<ReadonlySet<TipoSoporte>>(new Set<TipoSoporte>());
 
   // ── Estado del guardado ───────────────────────────────────────────────
   readonly guardando = signal(false);
@@ -664,6 +672,7 @@ export class RegistroIncapacidadComponent implements OnDestroy {
   readonly soportesVista = computed<VistaSoporte[]>(() => {
     const mapa = this.archivos();
     const arrastrado = this.tipoArrastrado();
+    const enServidor = this.soportesEnServidor();
     return this.soportesVisibles().map((s) => ({
       tipo: s.tipo,
       etiqueta: s.etiqueta || ETIQUETA_SOPORTE[s.tipo],
@@ -671,19 +680,36 @@ export class RegistroIncapacidadComponent implements OnDestroy {
       icono: ICONO_SOPORTE[s.tipo] ?? 'attach_file',
       archivo: mapa[s.tipo] ?? null,
       arrastrando: arrastrado === s.tipo,
+      yaEnServidor: enServidor.has(s.tipo),
     }));
   });
 
-  /** Tipos con archivo elegido: alimentan `soportesCargados` de la validacion. */
-  readonly tiposCargados = computed<TipoSoporte[]>(() => {
+  /** Tipos con archivo elegido en ESTA pantalla (los unicos que hay que subir). */
+  readonly tiposConArchivo = computed<TipoSoporte[]>(() => {
     const mapa = this.archivos();
     return ORDEN_SOPORTES.filter((t) => !!mapa[t]);
   });
 
-  readonly soportesFaltantes = computed<string[]>(() => {
+  /**
+   * Tipos que cuentan como cargados: los que el servidor ya tiene MAS los
+   * elegidos aqui cuya subida no haya fallado. Alimentan `soportesCargados`
+   * de la validacion.
+   *
+   * Un archivo cuya subida devolvio error NO cuenta: declararlo cargado seria
+   * exactamente la mentira que la v2 de soportes vino a cerrar.
+   */
+  readonly tiposCargados = computed<TipoSoporte[]>(() => {
     const mapa = this.archivos();
+    const enServidor = this.soportesEnServidor();
+    return ORDEN_SOPORTES.filter(
+      (t) => enServidor.has(t) || (!!mapa[t] && mapa[t]?.estado !== 'error'),
+    );
+  });
+
+  readonly soportesFaltantes = computed<string[]>(() => {
+    const cargados = new Set(this.tiposCargados());
     return this.soportesVisibles()
-      .filter((s) => s.obligatorio && !mapa[s.tipo])
+      .filter((s) => s.obligatorio && !cargados.has(s.tipo))
       .map((s) => s.etiqueta || ETIQUETA_SOPORTE[s.tipo]);
   });
 
@@ -994,6 +1020,9 @@ export class RegistroIncapacidadComponent implements OnDestroy {
 
   /** Vuelca una incapacidad ya guardada en el formulario. */
   private aplicarIncapacidadExistente(inc: IncapacidadV2): void {
+    // Los soportes que el servidor ya tiene no se piden otra vez.
+    this.sincronizarSoportesDelServidor(inc);
+
     this.form.controls.oficina.patchValue({
       oficina: inc.oficina || this.usuario.sedeNombre,
       nombreQuienRecibe: inc.recibidoPor || this.usuario.nombreCompleto,
@@ -1353,6 +1382,8 @@ export class RegistroIncapacidadComponent implements OnDestroy {
   }
 
   quitarArchivo(tipo: TipoSoporte): void {
+    const yaEstabaArriba = this.archivos()[tipo]?.estado === 'cargado';
+
     this.archivos.update((mapa) => {
       const actual = mapa[tipo];
       if (actual?.urlPrevia) URL.revokeObjectURL(actual.urlPrevia);
@@ -1360,6 +1391,29 @@ export class RegistroIncapacidadComponent implements OnDestroy {
       delete copia[tipo];
       return copia;
     });
+
+    // Si el archivo ya estaba en el servidor hay que borrar tambien el vinculo:
+    // desde la v2 el servidor es la fuente de verdad de `soportesCargados`, y
+    // dejarlo ahi permitiria validar la incapacidad con un soporte que el
+    // usuario acaba de retirar.
+    const id = this.idEfectivo();
+    if (!yaEstabaArriba || id === null) return;
+
+    this.srv
+      .eliminarSoporte(id, tipo)
+      .pipe(
+        switchMap(() => this.srv.obtener(id)),
+        catchError(() => {
+          this.errorArchivo.set(
+            'El archivo se quito de la pantalla, pero el servidor no pudo borrar el soporte. Vuelve a intentarlo o recarga la incapacidad.',
+          );
+          return of(null);
+        }),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe((incapacidad) => {
+        if (incapacidad) this.fijarIncapacidadResultado(incapacidad);
+      });
   }
 
   /** Abre la vista previa en una pestana nueva. */
@@ -1373,25 +1427,31 @@ export class RegistroIncapacidadComponent implements OnDestroy {
   /** Reintenta la subida de un soporte que fallo tras crear la incapacidad. */
   reintentarSoporte(tipo: TipoSoporte): void {
     const creada = this.resultado()?.incapacidad;
-    if (!creada) return;
+    const id = creada?.id;
+    if (!creada || !id) return;
     const archivo = this.archivos()[tipo];
     if (!archivo) return;
 
     this.actualizarArchivo(tipo, { estado: 'subiendo', mensajeError: '' });
     this.srv
-      .subirSoporte(creada.codigoUnico || creada.id, tipo, archivo.archivo)
+      .subirSoporte(id, tipo, archivo.archivo)
       .pipe(
+        // Igual que en el guardado: tras subir, el estado bueno es el del
+        // servidor, que acaba de recalcular `soportesCargados`.
+        switchMap(() => this.releerIncapacidad(id, creada)),
         catchError((err: unknown) => {
           this.actualizarArchivo(tipo, {
             estado: 'error',
-            mensajeError: this.mensajeHttp(err, 'la subida del soporte'),
+            mensajeError: this.mensajeErrorSoporte(err, archivo.nombre),
           });
           return of(null);
         }),
         takeUntilDestroyed(this.destroyRef),
       )
-      .subscribe((resp) => {
-        if (resp !== null) this.actualizarArchivo(tipo, { estado: 'cargado', mensajeError: '' });
+      .subscribe((incapacidad) => {
+        if (!incapacidad) return;
+        this.actualizarArchivo(tipo, { estado: 'cargado', mensajeError: '' });
+        this.fijarIncapacidadResultado(incapacidad);
       });
   }
 
@@ -1436,14 +1496,23 @@ export class RegistroIncapacidadComponent implements OnDestroy {
 
     const id = this.idEfectivo();
     this.guardando.set(true);
+    // ORDEN OBLIGATORIO: guardar -> subir soportes (+ relectura) -> promover.
+    // El servidor recalcula `soportesCargados` con cada subida y sobre ese dato
+    // decide si puede pasar a VALIDADA; promover antes de que los archivos
+    // esten realmente arriba solo consigue un 409 por soportes faltantes.
     (id === null ? this.srv.crear(peticion) : this.srv.actualizar(id, peticion))
       .pipe(
-        switchMap((creada) => this.subirSoportes(creada).pipe(map(() => creada))),
+        switchMap((guardada) => this.subirSoportes(guardada)),
         switchMap((creada) =>
           conValidacion
-            ? this.srv
-                .promoverAValidada(creada.id)
-                .pipe(map((res) => ({ creada, motivos: res.motivosBloqueo, validada: res.ok })))
+            ? this.srv.promoverAValidada(creada.id).pipe(
+                map((res) => ({
+                  // El 200 de la promocion trae la incapacidad ya en VALIDADA.
+                  creada: res.incapacidad?.id ? res.incapacidad : creada,
+                  motivos: res.motivosBloqueo,
+                  validada: res.ok,
+                })),
+              )
             : of({ creada, motivos: [] as string[], validada: false }),
         ),
         catchError((err: unknown) => {
@@ -1456,6 +1525,9 @@ export class RegistroIncapacidadComponent implements OnDestroy {
       .subscribe((res) => {
         if (!res) return;
         this.resultado.set({ incapacidad: res.creada, validada: res.validada });
+        // Lo que se pinta es el estado REAL del servidor, incluidos los
+        // soportes que el recalculo dejo como cargados.
+        this.sincronizarSoportesDelServidor(res.creada);
         // A partir de aqui, "Guardar" actualiza: nunca duplica.
         this.idCreado.set(res.creada.id ?? null);
         this.intentoGuardar.set(false);
@@ -1475,12 +1547,28 @@ export class RegistroIncapacidadComponent implements OnDestroy {
       });
   }
 
-  /** Sube los soportes uno a uno DESPUES de crear (el endpoint pide el id). */
-  private subirSoportes(creada: IncapacidadV2): Observable<void> {
-    const pendientes = this.tiposCargados();
-    if (!pendientes.length) return of(undefined);
+  /**
+   * Sube los soportes uno a uno DESPUES de crear/actualizar y devuelve la
+   * incapacidad RELEIDA del servidor.
+   *
+   * El destino es `POST /Incapacidades/v2/{id}/soportes`, que ancla en el ID
+   * NUMERICO de la incapacidad v2. El multipart legacy resolvia el consecutivo
+   * contra la tabla vieja y respondia 404 "Formulario no encontrado" para toda
+   * incapacidad del modelo nuevo: por eso los soportes se quedaban en
+   * "Pendiente de subir".
+   *
+   * Al terminar se RELEE la incapacidad porque `soportesCargados` lo recalcula
+   * el servidor a partir de los soportes reales; lo que el cliente creia tener
+   * no vale. De ese estado real dependen los soportes obligatorios y el paso a
+   * VALIDADA.
+   */
+  private subirSoportes(creada: IncapacidadV2): Observable<IncapacidadV2> {
+    const id = creada.id;
+    // Solo se suben los archivos elegidos AQUI: los que ya estan en el
+    // servidor (edicion) no se vuelven a mandar.
+    const pendientes = this.tiposConArchivo();
+    if (!pendientes.length || !id) return of(creada);
 
-    const clave = creada.codigoUnico || creada.id;
     const mapa = this.archivos();
 
     return from(pendientes).pipe(
@@ -1493,22 +1581,59 @@ export class RegistroIncapacidadComponent implements OnDestroy {
           total: pendientes.length,
           etiqueta: ETIQUETA_SOPORTE[tipo],
         });
-        return this.srv.subirSoporte(clave, tipo, archivo.archivo).pipe(
+        return this.srv.subirSoporte(id, tipo, archivo.archivo).pipe(
+          // PENDIENTE_SYNC tambien cuenta como cargado: el vinculo ya existe en
+          // ms-hr y el envio a ms-documents queda en su cola de reintento.
           tap(() => this.actualizarArchivo(tipo, { estado: 'cargado', mensajeError: '' })),
           // Un soporte que falla NO tumba el guardado: queda con reintento.
           catchError((err: unknown) => {
             this.actualizarArchivo(tipo, {
               estado: 'error',
-              mensajeError: this.mensajeHttp(err, 'la subida del soporte'),
+              mensajeError: this.mensajeErrorSoporte(err, archivo.nombre),
             });
             return of(null);
           }),
         );
       }),
       toArray(),
-      map(() => undefined),
+      switchMap(() => this.releerIncapacidad(id, creada)),
       finalize(() => this.progresoSubida.set(null)),
     );
+  }
+
+  /**
+   * Relee la incapacidad para quedarse con el estado REAL del servidor
+   * (sobre todo `soportesCargados`). Si el GET falla no se pierde el guardado:
+   * se sigue con la copia que ya se tenia.
+   */
+  private releerIncapacidad(id: number, respaldo: IncapacidadV2): Observable<IncapacidadV2> {
+    return this.srv.obtener(id).pipe(catchError(() => of(respaldo)));
+  }
+
+  /**
+   * Refresca la incapacidad mostrada con la version del servidor.
+   * Si todavia no hay resultado (edicion sin guardar) NO se inventa uno: solo
+   * se sincronizan los soportes, para no encender el panel de "guardada".
+   */
+  private fijarIncapacidadResultado(incapacidad: IncapacidadV2): void {
+    this.resultado.update((actual) => (actual ? { ...actual, incapacidad } : actual));
+    this.sincronizarSoportesDelServidor(incapacidad);
+  }
+
+  /**
+   * Copia a la pantalla los soportes que el servidor dice tener.
+   * `soportesCargados` es SU calculo (filas reales de soportes), no la lista
+   * optimista que mando el formulario: se acepta tal cual.
+   */
+  private sincronizarSoportesDelServidor(inc: IncapacidadV2): void {
+    const crudos = inc.soportesCargados;
+    if (!Array.isArray(crudos)) return;
+    const conocidos = new Set<TipoSoporte>(
+      crudos
+        .map((t) => (t ?? '').toString().trim().toUpperCase())
+        .filter((t): t is TipoSoporte => (ORDEN_SOPORTES as readonly string[]).includes(t)),
+    );
+    this.soportesEnServidor.set(conocidos);
   }
 
   /** Payload de creacion. Todas las fechas via `aIsoCorto*`. */
@@ -1558,6 +1683,11 @@ export class RegistroIncapacidadComponent implements OnDestroy {
       ipsNombre: i.nombreIps.trim(),
 
       estadoDocumento: i.estadoDocumento,
+      // Declaracion OPTIMISTA de lo que el usuario acaba de elegir: sirve para
+      // que el motor de reglas no marque como faltantes los soportes que estan
+      // a punto de subirse. La verdad la fija el servidor, que recalcula
+      // `soportesCargados` con cada subida/borrado; por eso la incapacidad se
+      // relee despues de subir los archivos.
       soportesCargados: this.tiposCargados(),
       observaciones: i.observaciones.trim(),
 
@@ -1590,6 +1720,7 @@ export class RegistroIncapacidadComponent implements OnDestroy {
       if (archivo?.urlPrevia) URL.revokeObjectURL(archivo.urlPrevia);
     }
     this.archivos.set({});
+    this.soportesEnServidor.set(new Set<TipoSoporte>());
     this.empleado.set(null);
     this.modoManual.set(false);
     this.camposSinDato.set(new Set<string>());
@@ -1655,5 +1786,59 @@ export class RegistroIncapacidadComponent implements OnDestroy {
     }
     const mensaje = e?.error?.message;
     return mensaje ? String(mensaje) : `No se pudo completar ${contexto}.`;
+  }
+
+  /**
+   * Mensaje de un fallo de subida de soporte, distinguiendo las tres causas
+   * que el usuario puede corregir: archivo muy grande, formato no permitido y
+   * caida de la red (esta ultima con reintento, que la tarjeta ya ofrece).
+   *
+   * El backend v2 responde `400` con un texto en espanol (tipo invalido,
+   * archivo vacio, mas de 10 MB, mime que no es PDF/JPG/PNG); si viene, ese
+   * texto manda porque es mas preciso que cualquier suposicion del cliente.
+   */
+  private mensajeErrorSoporte(err: unknown, nombre: string): string {
+    const estado = (err as { status?: number } | null)?.status;
+    const archivo = nombre ? `"${nombre}"` : 'El archivo';
+    const detalle = this.textoDeError(err);
+
+    if (estado === 0) {
+      return `Sin conexion con el servidor: ${archivo} no se subio. Reintenta.`;
+    }
+    if (estado === 413) {
+      return `${archivo} es demasiado grande: el maximo permitido son 10 MB.`;
+    }
+    if (estado === 415) {
+      return `${archivo} no tiene un formato permitido: debe ser PDF, JPG o PNG.`;
+    }
+    if (estado === 400) {
+      return (
+        detalle ||
+        `${archivo} fue rechazado: debe ser un PDF, JPG o PNG de hasta 10 MB y no estar vacio.`
+      );
+    }
+    if (estado === 401 || estado === 403) return 'No tienes permiso para subir soportes.';
+    if (estado === 404) {
+      return 'La incapacidad no existe o esta inactiva en el servidor: no se pudo adjuntar el soporte.';
+    }
+    if (typeof estado === 'number' && estado >= 500) {
+      return `El servidor fallo al guardar ${archivo}. Reintenta en un momento.`;
+    }
+    // Sin `status` no es un fallo HTTP (p.ej. la incapacidad aun no tiene id).
+    if (estado === undefined && err instanceof Error && err.message) return err.message;
+    return detalle || `No se pudo subir ${archivo}.`;
+  }
+
+  /** Texto util del cuerpo de un error HTTP (`message`, `detalle`, `error` o texto plano). */
+  private textoDeError(err: unknown): string {
+    const cuerpo = (err as { error?: unknown } | null)?.error;
+    if (typeof cuerpo === 'string' && cuerpo.trim()) return cuerpo.trim();
+    if (cuerpo && typeof cuerpo === 'object') {
+      const c = cuerpo as { message?: unknown; detalle?: unknown; error?: unknown };
+      for (const valor of [c.message, c.detalle, c.error]) {
+        if (typeof valor === 'string' && valor.trim()) return valor.trim();
+      }
+    }
+    return '';
   }
 }

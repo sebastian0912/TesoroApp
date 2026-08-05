@@ -20,34 +20,22 @@ import {
   IncapacidadResumen,
   IncapacidadV2,
   IpsBusqueda,
+  ListaSoportesResponse,
   Page,
   ResultadoPromocion,
-  SubidaSoporteResponse,
+  SoporteIncapacidad,
   TipoSoporte,
   ValidacionResponse,
   ValidarIncapacidadRequest,
 } from '../../models/incapacidad-v2.model';
 
-/**
- * Mapeo `TipoSoporte` -> `legacy_field` que entiende el endpoint multipart
- * de documentos (`POST /Incapacidades/{consecutivo}/documentos/upload`).
- *
- * VERIFICADO contra el backend:
- *   - ms-hr `IncapacidadDocumentService.LEGACY_TO_TYPE_CODE`, que delega en
- *   - commons `DocumentTypeCodes.INCAPACIDAD_LEGACY_FIELD_TO_CODE`.
- * Coincide exactamente con el mapeo del contrato. `soat` tambien es un
- * legacy_field valido en el backend, pero SOAT no es un `TipoSoporte` de la
- * v2, por eso no aparece aqui.
- */
-export const LEGACY_FIELD_POR_SOPORTE: Readonly<Record<TipoSoporte, string>> = {
-  INCAPACIDAD_MEDICA: 'link_incapacidad',
-  HISTORIAL_CLINICO: 'historial_clinico',
-  REGISTRO_CIVIL: 'registro_civil',
-  REGISTRO_NACIDO_VIVO: 'registro_de_nacido_vivo',
-  FURAT: 'furat',
-  FURIPS: 'furips',
-  FORMULARIO_SALUD_TOTAL: 'formulario_salud_total',
-};
+/* El mapeo `TipoSoporte` -> `legacy_field` ya NO vive aqui: los soportes de la
+   v2 se suben por `POST /Incapacidades/v2/{id}/soportes`, que ancla en la
+   tabla `incapacidad` y recibe el nombre del enum tal cual. El `legacy_field`
+   lo resuelve el backend (commons `DocumentTypeCodes`) para que el documento
+   quede en el mismo espacio de ms-documents que los legacy.
+   El mundo viejo sigue usando su propio literal en
+   `IncapacidadService.uploadDocumento`, que no depende de este servicio. */
 
 /** Ordenamiento para `listar()`. `campo,direccion` estilo Spring Data. */
 export interface OrdenListado {
@@ -348,42 +336,74 @@ export class IncapacidadV2Service {
     });
   }
 
-  // ── Soportes (multipart legacy) ───────────────────────────────────────
+  // ── Soportes (multipart anclado en la incapacidad v2) ─────────────────
 
   /**
-   * Sube un soporte a `POST /Incapacidades/{consecutivoOId}/documentos/upload`.
+   * `POST /Incapacidades/v2/{id}/soportes` -> 201 `SoporteIncapacidad`.
    *
-   * El endpoint es el legacy de gestion documental y espera un multipart con
-   * `legacy_field` + `file`. El `legacy_field` sale de
-   * {@link LEGACY_FIELD_POR_SOPORTE} (verificado contra
-   * `DocumentTypeCodes.INCAPACIDAD_LEGACY_FIELD_TO_CODE` en commons).
+   * Sustituye al multipart LEGACY (`/Incapacidades/{consec}/documentos/upload`),
+   * que resolvia el consecutivo contra `tabla_formulario_incapacidades` y por
+   * eso respondia 404 "Formulario no encontrado" para toda incapacidad creada
+   * con el modelo nuevo.
    *
+   * Contrato del multipart: `file` (binario) + `tipoSoporte` (nombre del enum).
    * NO se pone `Content-Type` a mano: el navegador debe generar el boundary.
    *
-   * @param consecutivoOId consecutivo del sistema (o id) de la incapacidad.
+   * Hay UN soporte por (incapacidad, tipo): repetir el tipo REEMPLAZA el
+   * vinculo anterior. Cada subida hace que el servidor recalcule
+   * `soportesCargados` desde las filas reales, asi que conviene releer la
+   * incapacidad (`obtener`) despues de subir.
+   *
+   * Errores esperados: `400` (tipo invalido, archivo vacio, mas de 10 MB o
+   * mime distinto de PDF/JPG/PNG) y `404` (incapacidad inexistente o inactiva).
+   * Se propagan tal cual: los traduce la vista.
+   *
+   * @param incapacidadId id NUMERICO de la incapacidad v2 (no el codigoUnico).
    * @param tipoSoporte tipo de soporte de la v2.
    * @param file archivo a subir.
    */
   subirSoporte(
-    consecutivoOId: string | number,
+    incapacidadId: number,
     tipoSoporte: TipoSoporte,
     file: File,
-  ): Observable<SubidaSoporteResponse> {
-    const legacyField = LEGACY_FIELD_POR_SOPORTE[tipoSoporte];
-    if (!legacyField) {
+  ): Observable<SoporteIncapacidad> {
+    if (!Number.isFinite(incapacidadId) || incapacidadId <= 0) {
       return throwError(
-        () => new Error(`Tipo de soporte no soportado por el endpoint legacy: ${tipoSoporte}`),
+        () => new Error('No se puede subir el soporte: la incapacidad no tiene id.'),
       );
     }
 
     const cuerpo = new FormData();
-    cuerpo.append('legacy_field', legacyField);
     cuerpo.append('file', file, file.name);
+    cuerpo.append('tipoSoporte', tipoSoporte);
 
-    const url = `${this.apiUrl}/Incapacidades/${encodeURIComponent(String(consecutivoOId))}/documentos/upload`;
-    return this.http.post<SubidaSoporteResponse>(url, cuerpo, {
-      headers: this.cabeceras(),
-    });
+    return this.http.post<SoporteIncapacidad>(
+      `${this.base}/${incapacidadId}/soportes`,
+      cuerpo,
+      { headers: this.cabeceras() },
+    );
+  }
+
+  /**
+   * `GET /Incapacidades/v2/{id}/soportes` -> `{ incapacidadId, soportes }`.
+   * Es el estado REAL del servidor, no lo que el formulario cree tener.
+   */
+  listarSoportes(incapacidadId: number): Observable<ListaSoportesResponse> {
+    return this.http.get<ListaSoportesResponse>(
+      `${this.base}/${incapacidadId}/soportes`,
+      { headers: this.cabeceras() },
+    );
+  }
+
+  /**
+   * `DELETE /Incapacidades/v2/{id}/soportes/{tipoSoporte}` -> 204.
+   * Tambien recalcula `soportesCargados` en el servidor.
+   */
+  eliminarSoporte(incapacidadId: number, tipoSoporte: TipoSoporte): Observable<void> {
+    return this.http.delete<void>(
+      `${this.base}/${incapacidadId}/soportes/${encodeURIComponent(tipoSoporte)}`,
+      { headers: this.cabeceras() },
+    );
   }
 
   /**

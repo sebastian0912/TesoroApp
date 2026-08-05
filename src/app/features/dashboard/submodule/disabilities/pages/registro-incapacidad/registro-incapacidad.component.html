@@ -1057,10 +1057,20 @@
                           </div>
                         </div>
                       } @else {
+                        @if (sop.yaEnServidor) {
+                          <span class="reg-estado reg-estado--cargado">
+                            <mat-icon aria-hidden="true">cloud_done</mat-icon>
+                            Ya cargado en el servidor
+                          </span>
+                        }
                         <label class="reg-soltar" [attr.for]="'archivo-' + sop.tipo">
                           <mat-icon aria-hidden="true">cloud_upload</mat-icon>
                           <span class="reg-soltar-texto">
-                            Arrastra el archivo aqui o
+                            @if (sop.yaEnServidor) {
+                              Arrastra otro archivo para reemplazarlo o
+                            } @else {
+                              Arrastra el archivo aqui o
+                            }
                             <span class="reg-soltar-enlace">examinar</span>
                           </span>
                           <span class="reg-soltar-formatos">PDF, JPG o PNG · hasta 10 MB</span>

@@ -10,6 +10,9 @@
  *   POST   /Incapacidades/v2/{id}/validar   -> 200 | 409 { motivosBloqueo }
  *   DELETE /Incapacidades/v2/{id}           -> 204
  *   GET    /Incapacidades/v2/catalogos      -> CatalogosIncapacidad
+ *   POST   /Incapacidades/v2/{id}/soportes                -> SoporteIncapacidad (201)
+ *   GET    /Incapacidades/v2/{id}/soportes                -> ListaSoportesResponse
+ *   DELETE /Incapacidades/v2/{id}/soportes/{tipoSoporte}  -> 204
  *
  * REGLA IMPORTANTE: los union types de abajo son SOLO para tipado. Las listas
  * que alimentan los desplegables NO se hardcodean aqui: se piden a
@@ -93,6 +96,17 @@ export type TipoSoporte =
   | 'FURAT'
   | 'FURIPS'
   | 'FORMULARIO_SALUD_TOTAL';
+
+/**
+ * Estado de sincronizacion de un soporte ya vinculado a la incapacidad v2.
+ * Lo decide el backend al hablar con ms-documents:
+ *  - `SINCRONIZADO`       el archivo quedo en ms-documents;
+ *  - `SINCRONIZADO_DEDUP` ms-documents ya tenia ese mismo sha256 y lo reuso;
+ *  - `PENDIENTE_SYNC`     ms-documents no respondio: el archivo quedo en la
+ *    cache local del servidor y en la cola de reintento. El vinculo EXISTE,
+ *    asi que cuenta como soporte cargado.
+ */
+export type EstadoSoporte = 'SINCRONIZADO' | 'SINCRONIZADO_DEDUP' | 'PENDIENTE_SYNC';
 
 /** Entidad que asume los dias que no paga el empleador. */
 export type EntidadResponsable = 'EPS' | 'ARL';
@@ -300,17 +314,42 @@ export interface CrearIncapacidadV2Request {
 // Lectura (GET /Incapacidades/v2/{id} y GET /Incapacidades/v2)
 // ─────────────────────────────────────────────────────────────────────────
 
-/** Documento adjunto ya persistido. */
-export interface SoporteAdjunto {
+/**
+ * Soporte YA VINCULADO a la incapacidad v2: espeja el `SoporteResponse` que
+ * devuelven `POST` y `GET /Incapacidades/v2/{id}/soportes`.
+ *
+ * Los nombres son EXACTAMENTE los `@JsonProperty` del backend (no inventar:
+ * un nombre de mas en una peticion se paga con un 400).
+ *
+ * Hay UN soporte por (incapacidad, tipo): volver a subir el mismo tipo
+ * reemplaza el vinculo anterior, no acumula filas.
+ */
+export interface SoporteIncapacidad {
+  id: number;
+  incapacidadId: number;
   tipo: TipoSoporte;
-  /** Campo legacy de Django con el que se subio (`link_incapacidad`, ...). */
-  legacyField?: string;
-  /** Puede venir relativo (`/media/...`): resolverlo contra `environment.apiUrl`. */
-  fileUrl?: string;
+  /** Etiqueta legible del tipo, ya resuelta por el backend. */
+  tipoEtiqueta?: string;
   nombreArchivo?: string;
+  mimeType?: string;
+  sizeBytes?: number;
   sha256?: string;
-  /** ISO 8601 con hora. */
+  /** Id del documento en ms-documents; null mientras el estado sea PENDIENTE_SYNC. */
+  documentId?: number | null;
+  /** Puede venir relativo (`/media/...`): resolverlo con `urlAbsolutaDocumento`. */
+  fileUrl?: string | null;
+  versionNumber?: number | null;
+  /** Actor que subio el archivo (X-User-Email o el `actor` del cuerpo). */
+  subidoPor?: string | null;
+  /** ISO 8601 con hora (Instant del backend). */
   subidoEn?: string;
+  estado: EstadoSoporte;
+}
+
+/** Respuesta de `GET /Incapacidades/v2/{id}/soportes`. */
+export interface ListaSoportesResponse {
+  incapacidadId: number;
+  soportes: SoporteIncapacidad[];
 }
 
 /** Detalle completo: `IncapacidadV2Response` del backend. */
@@ -393,6 +432,12 @@ export interface IncapacidadV2 {
   estadoDocumento?: EstadoDocumento;
   estadoDocumentoEtiqueta?: string;
   observaciones?: string;
+  /**
+   * SOLO LECTURA: desde la v2 de soportes esta lista la manda el SERVIDOR, que
+   * la recalcula en cada subida/borrado a partir de las filas reales de
+   * `incapacidad_soporte`. Lo que el formulario declare al crear/actualizar es
+   * una intencion; esto es el estado real. De aqui salen R9 y R11.
+   */
   soportesCargados?: string[];
   activo?: boolean;
 
@@ -403,7 +448,7 @@ export interface IncapacidadV2 {
   actualizadoEn?: string;
 
   // ── Extras ──────────────────────────────────────────────────────────
-  soportes?: SoporteAdjunto[];
+  soportes?: SoporteIncapacidad[];
   validacion?: ValidacionResponse;
 }
 
@@ -581,16 +626,11 @@ export interface ListasIncapacidad {
   IPSNames: unknown[];
 }
 
-/** Respuesta de `POST /Incapacidades/{consecutivo}/documentos/upload`. */
-export interface SubidaSoporteResponse {
-  documentId?: string | number;
-  versionId?: string | number;
-  fileUrl?: string;
-  sha256?: string;
-  deduplicated?: boolean;
-  error?: string;
-  [clave: string]: unknown;
-}
+/* La antigua `SubidaSoporteResponse` (respuesta del multipart LEGACY
+   `POST /Incapacidades/{consecutivo}/documentos/upload`) se elimino: ese
+   endpoint resuelve el consecutivo contra la tabla vieja y devuelve 404 para
+   una incapacidad del modelo nuevo. La subida ahora vive en
+   `POST /Incapacidades/v2/{id}/soportes` y responde `SoporteIncapacidad`. */
 
 // ─────────────────────────────────────────────────────────────────────────
 // Mapeos auxiliares que la UI necesita y que NO vienen del backend

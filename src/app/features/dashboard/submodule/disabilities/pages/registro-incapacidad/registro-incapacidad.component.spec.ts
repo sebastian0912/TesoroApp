@@ -26,6 +26,8 @@ import {
   CatalogosIncapacidad,
   DatosContratacionResponse,
   EmpleadoBusqueda,
+  SoporteIncapacidad,
+  TipoSoporte,
   ValidacionResponse,
 } from '../../models/incapacidad-v2.model';
 
@@ -188,6 +190,14 @@ describe('RegistroIncapacidadComponent', () => {
     http
       .expectOne((r) => r.url.includes('/contratacion/datosIncapacidadContratacion/1001'))
       .flush(datos);
+  }
+
+  /** Elige un PDF valido para un tipo de soporte, como haria el usuario. */
+  function elegirPdf(tipo: TipoSoporte, nombre = 'inc.pdf'): void {
+    comp.alElegirArchivo(
+      eventoDeArchivo(new File(['x'], nombre, { type: 'application/pdf' })),
+      tipo,
+    );
   }
 
   /** Deja el formulario con el nucleo minimo que dispara la validacion. */
@@ -711,11 +721,8 @@ describe('RegistroIncapacidadComponent', () => {
       flush();
     }));
 
-    it('crea la incapacidad y despues sube los soportes', fakeAsync(() => {
-      comp.alElegirArchivo(
-        eventoDeArchivo(new File(['x'], 'inc.pdf', { type: 'application/pdf' })),
-        'INCAPACIDAD_MEDICA',
-      );
+    it('crea la incapacidad y sube los soportes por el endpoint v2 anclado en el id', fakeAsync(() => {
+      elegirPdf('INCAPACIDAD_MEDICA');
       tick(400);
       for (const req of http.match((r) => r.url.endsWith('/Incapacidades/v2/validar'))) {
         req.flush(validacionBase());
@@ -728,18 +735,170 @@ describe('RegistroIncapacidadComponent', () => {
       );
       const cuerpo = creacion.request.body as Record<string, unknown>;
       expect(cuerpo['oficina']).toBe('CHIA');
-      expect(cuerpo['nombreQuienRecibe']).toBe('ANA RUIZ');
+      // El backend lo llama `recibidoPor`: cualquier otro nombre es un 400.
+      expect(cuerpo['recibidoPor']).toBe('ANA RUIZ');
       expect(cuerpo['afp']).toBe('PORVENIR');
-      creacion.flush({ id: 55, consecutivoSistema: 'INC-55' });
+      creacion.flush({ id: 55, codigoUnico: '1001_20250110' });
 
-      const subida = http.expectOne((r) => r.url.includes('/Incapacidades/INC-55/documentos/upload'));
+      // La subida ancla en el ID NUMERICO (el multipart legacy respondia 404
+      // porque resolvia el consecutivo contra la tabla vieja).
+      const subida = http.expectOne(
+        (r) => r.method === 'POST' && r.url.endsWith('/Incapacidades/v2/55/soportes'),
+      );
       const formData = subida.request.body as FormData;
-      expect(formData.get('legacy_field')).toBe('link_incapacidad');
-      subida.flush({ documentId: 1 });
+      expect(formData.get('tipoSoporte')).toBe('INCAPACIDAD_MEDICA');
+      expect((formData.get('file') as File).name).toBe('inc.pdf');
+      // El navegador pone el boundary: no se fuerza Content-Type.
+      expect(subida.request.headers.has('Content-Type')).toBe(false);
+      http.expectNone((r) => r.url.includes('/documentos/upload'));
+      subida.flush(soporteSubido('INCAPACIDAD_MEDICA'), { status: 201, statusText: 'Created' });
+
+      // Tras subir se RELEE: `soportesCargados` lo recalcula el servidor.
+      const relectura = http.expectOne(
+        (r) => r.method === 'GET' && r.url.endsWith('/Incapacidades/v2/55'),
+      );
+      relectura.flush({ id: 55, soportesCargados: ['INCAPACIDAD_MEDICA'] });
 
       expect(comp.resultado()?.incapacidad.id).toBe(55);
+      expect(comp.resultado()?.incapacidad.soportesCargados).toEqual(['INCAPACIDAD_MEDICA']);
       expect(comp.resultado()?.validada).toBe(false);
       expect(comp.guardando()).toBe(false);
+      flush();
+    }));
+
+    it('con "Guardar y validar" promueve DESPUES de que los soportes esten arriba', fakeAsync(() => {
+      elegirPdf('INCAPACIDAD_MEDICA');
+      tick(400);
+      for (const req of http.match((r) => r.url.endsWith('/Incapacidades/v2/validar'))) {
+        req.flush(validacionBase());
+      }
+
+      comp.guardar(true);
+
+      http
+        .expectOne((r) => r.method === 'POST' && r.url.endsWith('/Incapacidades/v2'))
+        .flush({ id: 55 });
+
+      // Todavia NO se promueve: primero el archivo.
+      http.expectNone((r) => r.url.endsWith('/Incapacidades/v2/55/validar'));
+
+      http
+        .expectOne((r) => r.method === 'POST' && r.url.endsWith('/Incapacidades/v2/55/soportes'))
+        .flush(soporteSubido('INCAPACIDAD_MEDICA'), { status: 201, statusText: 'Created' });
+      http
+        .expectOne((r) => r.method === 'GET' && r.url.endsWith('/Incapacidades/v2/55'))
+        .flush({ id: 55, soportesCargados: ['INCAPACIDAD_MEDICA'] });
+
+      // Y solo ahora la promocion.
+      const promocion = http.expectOne((r) => r.url.endsWith('/Incapacidades/v2/55/validar'));
+      expect(promocion.request.method).toBe('POST');
+      promocion.flush({ id: 55, estado: 'VALIDADA', soportesCargados: ['INCAPACIDAD_MEDICA'] });
+
+      expect(comp.resultado()?.validada).toBe(true);
+      expect(comp.resultado()?.incapacidad.estado).toBe('VALIDADA');
+      flush();
+    }));
+
+    it('un soporte rechazado con 400 no tumba el guardado y deja mensaje de reintento', fakeAsync(() => {
+      elegirPdf('INCAPACIDAD_MEDICA');
+      tick(400);
+      for (const req of http.match((r) => r.url.endsWith('/Incapacidades/v2/validar'))) {
+        req.flush(validacionBase());
+      }
+
+      comp.guardar(false);
+      http
+        .expectOne((r) => r.method === 'POST' && r.url.endsWith('/Incapacidades/v2'))
+        .flush({ id: 55 });
+
+      http.expectOne((r) => r.url.endsWith('/Incapacidades/v2/55/soportes')).flush(
+        { message: 'El archivo debe ser PDF, JPG o PNG.' },
+        { status: 400, statusText: 'Bad Request' },
+      );
+      // Aun asi se relee: el servidor manda sobre soportesCargados.
+      http
+        .expectOne((r) => r.method === 'GET' && r.url.endsWith('/Incapacidades/v2/55'))
+        .flush({ id: 55, soportesCargados: [] });
+
+      const archivo = comp.archivos()['INCAPACIDAD_MEDICA'];
+      expect(archivo?.estado).toBe('error');
+      // Mensaje del backend, en espanol, tal cual.
+      expect(archivo?.mensajeError).toBe('El archivo debe ser PDF, JPG o PNG.');
+      // La incapacidad SI quedo guardada.
+      expect(comp.resultado()?.incapacidad.id).toBe(55);
+      flush();
+    }));
+
+    it('distingue el fallo de red y el reintento vuelve a pegarle al endpoint v2', fakeAsync(() => {
+      elegirPdf('INCAPACIDAD_MEDICA');
+      tick(400);
+      for (const req of http.match((r) => r.url.endsWith('/Incapacidades/v2/validar'))) {
+        req.flush(validacionBase());
+      }
+
+      comp.guardar(false);
+      http
+        .expectOne((r) => r.method === 'POST' && r.url.endsWith('/Incapacidades/v2'))
+        .flush({ id: 55 });
+      http
+        .expectOne((r) => r.url.endsWith('/Incapacidades/v2/55/soportes'))
+        .error(new ProgressEvent('error'), { status: 0, statusText: 'Unknown Error' });
+      http
+        .expectOne((r) => r.method === 'GET' && r.url.endsWith('/Incapacidades/v2/55'))
+        .flush({ id: 55, soportesCargados: [] });
+
+      expect(comp.archivos()['INCAPACIDAD_MEDICA']?.mensajeError).toContain('Sin conexion');
+
+      comp.reintentarSoporte('INCAPACIDAD_MEDICA');
+      const reintento = http.expectOne(
+        (r) => r.method === 'POST' && r.url.endsWith('/Incapacidades/v2/55/soportes'),
+      );
+      reintento.flush(soporteSubido('INCAPACIDAD_MEDICA'), { status: 201, statusText: 'Created' });
+      http
+        .expectOne((r) => r.method === 'GET' && r.url.endsWith('/Incapacidades/v2/55'))
+        .flush({ id: 55, soportesCargados: ['INCAPACIDAD_MEDICA'] });
+
+      expect(comp.archivos()['INCAPACIDAD_MEDICA']?.estado).toBe('cargado');
+      expect(comp.resultado()?.incapacidad.soportesCargados).toEqual(['INCAPACIDAD_MEDICA']);
+      flush();
+    }));
+
+    it('quitar un soporte ya subido borra tambien el vinculo en el servidor', fakeAsync(() => {
+      elegirPdf('INCAPACIDAD_MEDICA');
+      tick(400);
+      for (const req of http.match((r) => r.url.endsWith('/Incapacidades/v2/validar'))) {
+        req.flush(validacionBase());
+      }
+
+      comp.guardar(false);
+      http
+        .expectOne((r) => r.method === 'POST' && r.url.endsWith('/Incapacidades/v2'))
+        .flush({ id: 55 });
+      http
+        .expectOne((r) => r.url.endsWith('/Incapacidades/v2/55/soportes'))
+        .flush(soporteSubido('INCAPACIDAD_MEDICA'), { status: 201, statusText: 'Created' });
+      http
+        .expectOne((r) => r.method === 'GET' && r.url.endsWith('/Incapacidades/v2/55'))
+        .flush({ id: 55, soportesCargados: ['INCAPACIDAD_MEDICA'] });
+
+      comp.quitarArchivo('INCAPACIDAD_MEDICA');
+
+      const borrado = http.expectOne(
+        (r) => r.url.endsWith('/Incapacidades/v2/55/soportes/INCAPACIDAD_MEDICA'),
+      );
+      expect(borrado.request.method).toBe('DELETE');
+      borrado.flush(null, { status: 204, statusText: 'No Content' });
+
+      http
+        .expectOne((r) => r.method === 'GET' && r.url.endsWith('/Incapacidades/v2/55'))
+        .flush({ id: 55, soportesCargados: [] });
+
+      expect(comp.tiposCargados()).toEqual([]);
+      // El cambio de soportes revalida.
+      tick(400);
+      for (const req of http.match((r) => r.url.endsWith('/Incapacidades/v2/validar'))) {
+        req.flush(validacionBase());
+      }
       flush();
     }));
 
@@ -785,6 +944,26 @@ function esAntesDelCumple(mesCero: number, dia: number): boolean {
   const hoy = new Date();
   if (hoy.getMonth() < mesCero) return true;
   return hoy.getMonth() === mesCero && hoy.getDate() < dia;
+}
+
+/** `SoporteResponse` que devuelve `POST /Incapacidades/v2/{id}/soportes`. */
+function soporteSubido(tipo: TipoSoporte): SoporteIncapacidad {
+  return {
+    id: 1,
+    incapacidadId: 55,
+    tipo,
+    tipoEtiqueta: 'Incapacidad',
+    nombreArchivo: 'inc.pdf',
+    mimeType: 'application/pdf',
+    sizeBytes: 12,
+    sha256: 'a'.repeat(64),
+    documentId: 900,
+    fileUrl: '/media/incapacidades/inc.pdf',
+    versionNumber: 1,
+    subidoPor: 'admin@nova-col.com',
+    subidoEn: '2026-08-04T10:00:00Z',
+    estado: 'SINCRONIZADO',
+  };
 }
 
 /** Simula el `(change)` de un `<input type="file">`. */

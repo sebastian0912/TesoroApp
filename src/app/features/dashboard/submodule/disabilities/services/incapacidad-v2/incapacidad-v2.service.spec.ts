@@ -4,13 +4,15 @@ import { HttpErrorResponse, provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 
 import { environment } from '@/environments/environment';
-import { IncapacidadV2Service, LEGACY_FIELD_POR_SOPORTE } from './incapacidad-v2.service';
+import { IncapacidadV2Service } from './incapacidad-v2.service';
 import {
   CatalogosIncapacidad,
   CrearIncapacidadV2Request,
   IncapacidadResumen,
+  ListaSoportesResponse,
   Page,
   ResultadoPromocion,
+  SoporteIncapacidad,
   ValidacionResponse,
   ValidarIncapacidadRequest,
 } from '../../models/incapacidad-v2.model';
@@ -40,7 +42,26 @@ const REQ_CREAR: CrearIncapacidadV2Request = {
   codigoDiagnostico: 'J00',
   estadoDocumento: 'OK',
   oficina: 'SOACHA',
-  nombreQuienRecibe: 'ANA PEREZ',
+  // El backend lo llama `recibidoPor`: cualquier otro nombre es un 400.
+  recibidoPor: 'ANA PEREZ',
+};
+
+/** `SoporteResponse` tal como lo devuelve el POST de soportes. */
+const SOPORTE: SoporteIncapacidad = {
+  id: 9,
+  incapacidadId: 55,
+  tipo: 'HISTORIAL_CLINICO',
+  tipoEtiqueta: 'Historia clinica',
+  nombreArchivo: 'historia.pdf',
+  mimeType: 'application/pdf',
+  sizeBytes: 1024,
+  sha256: 'a'.repeat(64),
+  documentId: 321,
+  fileUrl: '/media/incapacidades/historia.pdf',
+  versionNumber: 1,
+  subidoPor: 'ana@tsservicios.co',
+  subidoEn: '2026-08-04T15:04:05Z',
+  estado: 'SINCRONIZADO',
 };
 
 const CATALOGOS: CatalogosIncapacidad = {
@@ -346,43 +367,97 @@ describe('IncapacidadV2Service', () => {
   });
 
   describe('subirSoporte', () => {
-    it('el mapeo TipoSoporte -> legacy_field es el que entiende el backend', () => {
-      // Verificado contra commons DocumentTypeCodes.INCAPACIDAD_LEGACY_FIELD_TO_CODE.
-      expect(LEGACY_FIELD_POR_SOPORTE).toEqual({
-        INCAPACIDAD_MEDICA: 'link_incapacidad',
-        HISTORIAL_CLINICO: 'historial_clinico',
-        REGISTRO_CIVIL: 'registro_civil',
-        REGISTRO_NACIDO_VIVO: 'registro_de_nacido_vivo',
-        FURAT: 'furat',
-        FURIPS: 'furips',
-        FORMULARIO_SALUD_TOTAL: 'formulario_salud_total',
-      });
-    });
-
-    it('envia multipart con legacy_field y file al endpoint legacy', () => {
+    it('va al endpoint v2 anclado en el id NUMERICO, no al multipart legacy', () => {
       const archivo = new File(['contenido'], 'incapacidad.pdf', { type: 'application/pdf' });
-      servicio.subirSoporte('INC-2026-001', 'HISTORIAL_CLINICO', archivo).subscribe();
+      const recibidos: SoporteIncapacidad[] = [];
+      servicio.subirSoporte(55, 'HISTORIAL_CLINICO', archivo).subscribe((s) => recibidos.push(s));
 
-      const req = http.expectOne(`${API}/Incapacidades/INC-2026-001/documentos/upload`);
+      const req = http.expectOne(`${BASE}/55/soportes`);
       expect(req.request.method).toBe('POST');
 
       const cuerpo = req.request.body as FormData;
       expect(cuerpo instanceof FormData).toBe(true);
-      expect(cuerpo.get('legacy_field')).toBe('historial_clinico');
       expect((cuerpo.get('file') as File).name).toBe('incapacidad.pdf');
+      // El tipo viaja como nombre del enum, no como legacy_field.
+      expect(cuerpo.get('tipoSoporte')).toBe('HISTORIAL_CLINICO');
+      expect(cuerpo.has('legacy_field')).toBe(false);
 
       // El navegador debe poner el boundary: no se fuerza Content-Type.
       expect(req.request.headers.has('Content-Type')).toBe(false);
+      expect(req.request.headers.get('Authorization')).toBe('Bearer token-de-prueba');
 
-      req.flush({ documentId: 99 });
+      req.flush(SOPORTE, { status: 201, statusText: 'Created' });
+      expect(recibidos).toEqual([SOPORTE]);
     });
 
-    it('acepta tambien un id numerico', () => {
-      const archivo = new File([''], 'a.pdf');
-      servicio.subirSoporte(42, 'INCAPACIDAD_MEDICA', archivo).subscribe();
-      const req = http.expectOne(`${API}/Incapacidades/42/documentos/upload`);
-      expect((req.request.body as FormData).get('legacy_field')).toBe('link_incapacidad');
-      req.flush({});
+    it('NO pega al endpoint legacy /documentos/upload', () => {
+      servicio.subirSoporte(55, 'INCAPACIDAD_MEDICA', new File([''], 'a.pdf')).subscribe();
+      http.expectNone((r) => r.url.includes('/documentos/upload'));
+      http.expectOne(`${BASE}/55/soportes`).flush(SOPORTE, { status: 201, statusText: 'Created' });
+    });
+
+    it('propaga el 400 del backend (formato o tamano invalidos) con su mensaje', () => {
+      const errores: HttpErrorResponse[] = [];
+      servicio.subirSoporte(55, 'FURAT', new File(['x'], 'malo.docx')).subscribe({
+        next: () => fail('no deberia emitir'),
+        error: (e: HttpErrorResponse) => errores.push(e),
+      });
+
+      http.expectOne(`${BASE}/55/soportes`).flush(
+        { message: 'El archivo debe ser PDF, JPG o PNG.' },
+        { status: 400, statusText: 'Bad Request' },
+      );
+
+      expect(errores.length).toBe(1);
+      expect(errores[0].status).toBe(400);
+      expect((errores[0].error as { message: string }).message).toContain('PDF');
+    });
+
+    it('propaga el 404 cuando la incapacidad no existe o esta inactiva', () => {
+      const errores: HttpErrorResponse[] = [];
+      servicio.subirSoporte(999, 'FURAT', new File(['x'], 'f.pdf')).subscribe({
+        next: () => fail('no deberia emitir'),
+        error: (e: HttpErrorResponse) => errores.push(e),
+      });
+
+      http
+        .expectOne(`${BASE}/999/soportes`)
+        .flush({ message: 'Incapacidad no encontrada' }, { status: 404, statusText: 'Not Found' });
+
+      expect(errores[0].status).toBe(404);
+    });
+
+    it('no toca la red si la incapacidad todavia no tiene id', () => {
+      const errores: unknown[] = [];
+      servicio.subirSoporte(0, 'FURAT', new File(['x'], 'f.pdf')).subscribe({
+        next: () => fail('no deberia emitir'),
+        error: (e: unknown) => errores.push(e),
+      });
+
+      expect(errores.length).toBe(1);
+      expect((errores[0] as Error).message).toContain('id');
+      http.expectNone(() => true);
+    });
+  });
+
+  describe('listarSoportes / eliminarSoporte', () => {
+    it('listarSoportes hace GET a /{id}/soportes', () => {
+      const respuestas: ListaSoportesResponse[] = [];
+      servicio.listarSoportes(55).subscribe((r) => respuestas.push(r));
+
+      const req = http.expectOne(`${BASE}/55/soportes`);
+      expect(req.request.method).toBe('GET');
+      req.flush({ incapacidadId: 55, soportes: [SOPORTE] });
+
+      expect(respuestas[0].incapacidadId).toBe(55);
+      expect(respuestas[0].soportes[0].estado).toBe('SINCRONIZADO');
+    });
+
+    it('eliminarSoporte hace DELETE a /{id}/soportes/{tipo}', () => {
+      servicio.eliminarSoporte(55, 'REGISTRO_NACIDO_VIVO').subscribe();
+      const req = http.expectOne(`${BASE}/55/soportes/REGISTRO_NACIDO_VIVO`);
+      expect(req.request.method).toBe('DELETE');
+      req.flush(null, { status: 204, statusText: 'No Content' });
     });
   });
 
