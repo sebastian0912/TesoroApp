@@ -1,0 +1,239 @@
+<!-- ════════ Cabecera ════════ -->
+<div class="det-hero">
+  <div class="det-hero-icono">
+    <mat-icon>assignment</mat-icon>
+  </div>
+
+  <div class="det-hero-textos">
+    <h2 class="det-hero-titulo" mat-dialog-title>{{ consecutivo() }}</h2>
+    <p class="det-hero-sub">
+      {{ nombreTrabajador() }} · CC {{ cedulaTrabajador() }}
+    </p>
+    <div class="det-hero-chips">
+      <span class="det-chip" [style.color]="chipEstado().estilo.color" [style.backgroundColor]="chipEstado().estilo.background">
+        {{ chipEstado().texto }}
+      </span>
+      <span class="det-chip" [style.color]="chipEstadoDocumento().estilo.color" [style.backgroundColor]="chipEstadoDocumento().estilo.background">
+        {{ chipEstadoDocumento().texto }}
+      </span>
+      <span class="det-chip" [style.color]="chipResponsable().estilo.color" [style.backgroundColor]="chipResponsable().estilo.background">
+        {{ chipResponsable().texto }}
+      </span>
+    </div>
+  </div>
+
+  <button
+    type="button"
+    mat-icon-button
+    class="det-cerrar"
+    (click)="cerrar()"
+    aria-label="Cerrar el detalle"
+    matTooltip="Cerrar"
+  >
+    <mat-icon>close</mat-icon>
+  </button>
+</div>
+
+<mat-dialog-content class="det-cuerpo">
+  @if (cargando()) {
+    <div class="det-cargando">
+      <mat-spinner diameter="34"></mat-spinner>
+      <span>Cargando el detalle…</span>
+    </div>
+  }
+
+  @if (error()) {
+    <div class="det-aviso det-aviso-error" role="alert">
+      <mat-icon>error_outline</mat-icon>
+      <span>{{ error() }}</span>
+    </div>
+  }
+
+  <!-- ════════ Alertas del motor de reglas ════════ -->
+  @if (alertas().length) {
+    <section class="det-bloque">
+      <header class="det-bloque-cabecera">
+        <mat-icon class="det-bloque-icono">notifications_active</mat-icon>
+        <h3 class="det-bloque-titulo">Alertas</h3>
+        <span class="det-bloque-hint">Calculadas por el motor de reglas</span>
+      </header>
+
+      <ul class="det-alertas">
+        @for (alerta of alertas(); track alerta.codigo + alerta.mensaje) {
+          <li
+            class="det-alerta"
+            [style.color]="colorAlerta(alerta).color"
+            [style.backgroundColor]="colorAlerta(alerta).background"
+          >
+            <mat-icon>{{ iconoAlerta(alerta) }}</mat-icon>
+            <div class="det-alerta-texto">
+              <strong>{{ alerta.mensaje }}</strong>
+              <span class="det-alerta-codigo">{{ alerta.codigo }}</span>
+            </div>
+          </li>
+        }
+      </ul>
+    </section>
+  }
+
+  <!-- ════════ Ficha ════════ -->
+  @for (grupo of grupos(); track trackGrupo($index, grupo)) {
+    <section class="det-bloque">
+      <header class="det-bloque-cabecera">
+        <mat-icon class="det-bloque-icono">{{ grupo.icono }}</mat-icon>
+        <h3 class="det-bloque-titulo">{{ grupo.titulo }}</h3>
+      </header>
+
+      <dl class="det-ficha">
+        @for (campo of grupo.campos; track trackCampo($index, campo)) {
+          <div class="det-campo" [class.det-campo-ancho]="campo.ancho">
+            <dt>{{ campo.etiqueta }}</dt>
+            <dd>{{ campo.valor }}</dd>
+          </div>
+        }
+      </dl>
+    </section>
+  }
+
+  <!-- ════════ Soportes ════════ -->
+  <section class="det-bloque">
+    <header class="det-bloque-cabecera">
+      <mat-icon class="det-bloque-icono">attach_file</mat-icon>
+      <h3 class="det-bloque-titulo">Soportes</h3>
+      @if (faltanSoportes()) {
+        <span class="det-bloque-hint det-hint-alerta">Faltan soportes obligatorios</span>
+      }
+    </header>
+
+    @if (soportes().length === 0) {
+      <div class="det-vacio">
+        <mat-icon>folder_off</mat-icon>
+        <span>Esta incapacidad no tiene soportes registrados.</span>
+      </div>
+    } @else {
+      <ul class="det-soportes">
+        @for (soporte of soportes(); track trackSoporte($index, soporte)) {
+          <li class="det-soporte" [class.det-soporte-falta]="soporte.obligatorio && !soporte.cargado">
+            <span class="det-soporte-icono">
+              <mat-icon>{{ soporte.icono }}</mat-icon>
+            </span>
+
+            <div class="det-soporte-textos">
+              <span class="det-soporte-titulo">
+                {{ soporte.etiqueta }}
+                @if (soporte.obligatorio) {
+                  <span class="det-obligatorio" matTooltip="Sin este soporte no se puede validar">
+                    obligatorio
+                  </span>
+                }
+              </span>
+              <span class="det-soporte-meta">
+                @if (soporte.cargado) {
+                  {{ soporte.nombreArchivo || 'Archivo cargado' }}
+                  @if (soporte.subidoEn) {
+                    · {{ soporte.subidoEn }}
+                  }
+                } @else {
+                  Pendiente de cargar
+                }
+              </span>
+            </div>
+
+            @if (soporte.url) {
+              <a
+                mat-stroked-button
+                class="det-soporte-btn"
+                [href]="soporte.url"
+                target="_blank"
+                rel="noopener"
+                [attr.aria-label]="'Descargar ' + soporte.etiqueta"
+                matTooltip="Abrir o descargar el archivo"
+              >
+                <mat-icon>download</mat-icon>
+                <span>Descargar</span>
+              </a>
+            } @else {
+              <span class="det-soporte-sin-archivo">
+                <mat-icon>block</mat-icon>
+                Sin archivo
+              </span>
+            }
+          </li>
+        }
+      </ul>
+    }
+  </section>
+
+  <!-- ════════ Linea de tiempo ════════ -->
+  <section class="det-bloque">
+    <header class="det-bloque-cabecera">
+      <mat-icon class="det-bloque-icono">timeline</mat-icon>
+      <h3 class="det-bloque-titulo">Historico de estados</h3>
+      @if (historialReconstruido()) {
+        <span class="det-bloque-hint">
+          El servidor no envio el historico completo: se muestra la traza de auditoria
+        </span>
+      }
+    </header>
+
+    @if (historial().length === 0) {
+      <div class="det-vacio">
+        <mat-icon>history_toggle_off</mat-icon>
+        <span>Todavia no hay movimientos registrados.</span>
+      </div>
+    } @else {
+      <ol class="det-linea">
+        @for (evento of historial(); track $index) {
+          <li class="det-linea-item">
+            <span class="det-linea-punto" [style.backgroundColor]="historialColor(evento)"></span>
+            <div class="det-linea-texto">
+              <strong>{{ historialEtiqueta(evento) }}</strong>
+              <span class="det-linea-meta">
+                {{ historialFecha(evento) }}
+                @if (evento.usuario) {
+                  · {{ evento.usuario }}
+                }
+              </span>
+              @if (evento.comentario) {
+                <span class="det-linea-comentario">{{ evento.comentario }}</span>
+              }
+            </div>
+          </li>
+        }
+      </ol>
+    }
+  </section>
+</mat-dialog-content>
+
+<!-- ════════ Acciones ════════ -->
+<mat-dialog-actions class="det-acciones">
+  <button type="button" mat-stroked-button class="det-btn" (click)="cerrar()">
+    <mat-icon>close</mat-icon>
+    <span>Cerrar</span>
+  </button>
+
+  <span class="det-espaciador"></span>
+
+  <button
+    type="button"
+    mat-stroked-button
+    class="det-btn det-btn-eliminar"
+    (click)="eliminar()"
+    matTooltip="Borrado logico: se conserva el historico"
+  >
+    <mat-icon>delete_outline</mat-icon>
+    <span>Eliminar</span>
+  </button>
+
+  @if (puedeValidar()) {
+    <button type="button" mat-stroked-button class="det-btn det-btn-validar" (click)="validar()">
+      <mat-icon>verified</mat-icon>
+      <span>Validar</span>
+    </button>
+  }
+
+  <button type="button" mat-flat-button class="det-btn det-btn-editar" (click)="editar()">
+    <mat-icon>edit</mat-icon>
+    <span>Editar</span>
+  </button>
+</mat-dialog-actions>

@@ -55,3 +55,7 @@ package-lock.json
 capacitor.config.ts
 /android
 package-lock.json
+
+# Cache de los contenedores node:20-alpine usados para build/test
+.home/
+.npm-cache/

@@ -1,0 +1,1391 @@
+<!--
+  REGISTRO DE INCAPACIDAD (v2)
+  Estructura EXACTA pedida por la funcional:
+    A) cabecera con buscador inteligente + tarjeta de la persona
+    B) Datos de la oficina        C) Informacion personal
+    D) Informacion de la incapacidad
+    E) Panel de validacion en vivo (lateral pegajoso / acordeon en movil)
+    F) Soportes                   G) Barra de acciones pegajosa
+-->
+
+<div class="dashboard-container">
+  <div class="dashboard-content">
+    <mat-card class="disab-card">
+      <!-- ── Hero ────────────────────────────────────────────────────── -->
+      <div class="disab-hero">
+        <div class="disab-hero-icon">
+          <mat-icon>assignment_add</mat-icon>
+        </div>
+        <div class="disab-hero-texts">
+          <h1 class="disab-hero-title">
+            @if (esEdicion()) {
+              Editar incapacidad #{{ idEdicion() }}
+            } @else {
+              Registro de incapacidad
+            }
+          </h1>
+          <p class="disab-hero-sub">
+            Busca al trabajador, completa la incapacidad y adjunta los soportes.
+            Los dias, la prorroga y el responsable del pago los calcula el sistema.
+          </p>
+        </div>
+      </div>
+
+      <mat-card-content class="disab-card-body">
+        <!-- ═══ A) BUSCADOR INTELIGENTE ═══════════════════════════════ -->
+        <section class="disab-section reg-seccion-busqueda">
+          <header class="disab-section-header">
+            <mat-icon class="disab-section-icon">person_search</mat-icon>
+            <h2 class="disab-section-title">Trabajador</h2>
+            <span class="disab-section-hint">Busca por cedula o por nombre</span>
+          </header>
+
+          @if (errorRegistro()) {
+            <div class="reg-aviso reg-aviso--critico" role="alert">
+              <mat-icon aria-hidden="true">error</mat-icon>
+              <div class="reg-aviso-texto">
+                <strong>No se pudo cargar la incapacidad a editar</strong>
+                <p>{{ errorRegistro() }}</p>
+              </div>
+            </div>
+          }
+
+          <app-buscador-remoto
+            class="reg-buscador-persona"
+            [buscar]="buscarEmpleado"
+            [mostrar]="mostrarEmpleado"
+            [secundario]="detalleEmpleado"
+            [valorInicial]="valorInicialPersona()"
+            etiqueta="Buscar trabajador"
+            placeholder="Escribe la cedula o el nombre"
+            icono="badge"
+            ayuda="Escribe al menos 3 caracteres: filtra por cedula o por nombre"
+            [minCaracteres]="3"
+            (seleccionado)="alSeleccionarEmpleado($event)"
+            (limpiado)="alLimpiarEmpleado()"
+          />
+
+          <!-- Skeleton mientras se consulta contratacion -->
+          @if (cargandoPersona()) {
+            <div class="reg-persona reg-persona--skeleton" aria-busy="true">
+              <div class="reg-skel reg-skel-avatar"></div>
+              <div class="reg-skel-col">
+                <div class="reg-skel reg-skel-linea reg-skel-linea--titulo"></div>
+                <div class="reg-skel reg-skel-linea reg-skel-linea--corta"></div>
+                <div class="reg-skel-chips">
+                  <span class="reg-skel reg-skel-chip"></span>
+                  <span class="reg-skel reg-skel-chip"></span>
+                  <span class="reg-skel reg-skel-chip"></span>
+                  <span class="reg-skel reg-skel-chip"></span>
+                </div>
+                <p class="reg-skel-texto">Cargando los datos de contratacion…</p>
+              </div>
+            </div>
+          }
+
+          <!-- Cedula sin datos en contratacion: mensaje accionable -->
+          @if (errorPersona()) {
+            <div class="reg-aviso reg-aviso--alerta" role="alert">
+              <mat-icon aria-hidden="true">person_off</mat-icon>
+              <div class="reg-aviso-texto">
+                <strong>{{ errorPersona() }}</strong>
+                <p>
+                  Puedes reintentar la consulta o registrar la incapacidad completando
+                  los datos del trabajador a mano.
+                </p>
+                <div class="reg-aviso-acciones">
+                  <button mat-stroked-button type="button" (click)="reintentarPersona()">
+                    <mat-icon>refresh</mat-icon>
+                    Reintentar
+                  </button>
+                  <button mat-flat-button type="button" (click)="activarModoManual()">
+                    <mat-icon>edit_note</mat-icon>
+                    Completar manualmente
+                  </button>
+                </div>
+              </div>
+            </div>
+          }
+
+          <!-- Tarjeta de resumen de la persona -->
+          @if (personaCargada() && !cargandoPersona()) {
+            <article class="reg-persona">
+              <div class="reg-persona-avatar" aria-hidden="true">{{ iniciales() }}</div>
+              <div class="reg-persona-datos">
+                <h3 class="reg-persona-nombre">
+                  {{ nombreCompleto() || 'Trabajador sin nombre registrado' }}
+                </h3>
+                <p class="reg-persona-cedula">
+                  <mat-icon aria-hidden="true">badge</mat-icon>
+                  {{ valores().personal.tipoDocumento }}
+                  {{ valores().personal.numeroDocumento || cedulaBuscada() }}
+                  @if (edad() !== null) {
+                    <span class="reg-persona-edad">· {{ edad() }} anos</span>
+                  }
+                </p>
+                <div class="reg-persona-chips">
+                  @for (chip of chipsPersona(); track chip.etiqueta) {
+                    <span class="disab-chip reg-chip-dato" [attr.title]="chip.etiqueta">
+                      <mat-icon aria-hidden="true">{{ chip.icono }}</mat-icon>
+                      <span class="reg-chip-etiqueta">{{ chip.etiqueta }}:</span>
+                      {{ chip.valor }}
+                    </span>
+                  }
+                </div>
+                @if (modoManual()) {
+                  <p class="reg-persona-manual">
+                    <mat-icon aria-hidden="true">edit_note</mat-icon>
+                    Modo manual: todos los campos personales son editables.
+                  </p>
+                }
+              </div>
+            </article>
+          }
+        </section>
+
+        <mat-divider class="disab-divider" />
+
+        <!-- ═══ LAYOUT: formulario + panel de validacion ══════════════ -->
+        <div class="reg-layout" [formGroup]="form">
+          <div class="reg-principal">
+            <!-- ═══ B) DATOS DE LA OFICINA ═══════════════════════════ -->
+            <section class="disab-section" formGroupName="oficina">
+              <header class="disab-section-header">
+                <mat-icon class="disab-section-icon">store</mat-icon>
+                <h2 class="disab-section-title">Datos de la oficina</h2>
+                <span class="disab-section-hint">Se toman del usuario con el que ingresaste</span>
+              </header>
+
+              <div class="disab-grid reg-grid-2">
+                <!-- Oficina -->
+                @if (oficinaBloqueada()) {
+                  <mat-form-field appearance="outline" class="reg-campo reg-campo--auto">
+                    <mat-label>Oficina</mat-label>
+                    <mat-icon matPrefix aria-hidden="true">store</mat-icon>
+                    <input matInput formControlName="oficina" readonly />
+                    <mat-icon
+                      matSuffix
+                      class="reg-icono-candado"
+                      matTooltip="Se trae del usuario con el que iniciaste sesion"
+                      >lock</mat-icon
+                    >
+                    <mat-hint>Tomada de tu sede</mat-hint>
+                  </mat-form-field>
+                } @else {
+                  <mat-form-field appearance="outline" class="reg-campo">
+                    <mat-label>Oficina</mat-label>
+                    <mat-icon matPrefix aria-hidden="true">store</mat-icon>
+                    <mat-select formControlName="oficina" required>
+                      @for (oficina of oficinasDisponibles(); track oficina) {
+                        <mat-option [value]="oficina">{{ oficina }}</mat-option>
+                      }
+                      @if (!oficinasDisponibles().length) {
+                        <mat-option disabled>
+                          {{ cargandoOficinas() ? 'Cargando oficinas…' : 'Sin oficinas disponibles' }}
+                        </mat-option>
+                      }
+                    </mat-select>
+                    <mat-hint>Tu usuario no tiene sede: eligela manualmente</mat-hint>
+                    @if (form.controls.oficina.controls.oficina.hasError('required')) {
+                      <mat-error>La oficina es obligatoria</mat-error>
+                    }
+                  </mat-form-field>
+                }
+
+                <!-- Nombre de quien recibe -->
+                <mat-form-field
+                  appearance="outline"
+                  class="reg-campo"
+                  [class.reg-campo--auto]="nombreBloqueado()"
+                >
+                  <mat-label>Nombre de quien recibe</mat-label>
+                  <mat-icon matPrefix aria-hidden="true">how_to_reg</mat-icon>
+                  <input
+                    matInput
+                    formControlName="nombreQuienRecibe"
+                    [readonly]="nombreBloqueado()"
+                    required
+                  />
+                  <!-- Un @if por nodo proyectado: si el bloque tuviera dos
+                       raices, Material no los colocaria en su slot (NG8011). -->
+                  @if (nombreBloqueado()) {
+                    <mat-icon
+                      matSuffix
+                      class="reg-icono-candado"
+                      matTooltip="Se trae del usuario con el que iniciaste sesion"
+                      >lock</mat-icon
+                    >
+                  }
+                  @if (nombreBloqueado()) {
+                    <mat-hint>Usuario en sesion</mat-hint>
+                  } @else {
+                    <mat-hint>No pudimos leer tu nombre: escribelo</mat-hint>
+                  }
+                  @if (form.controls.oficina.controls.nombreQuienRecibe.hasError('required')) {
+                    <mat-error>Indica quien recibe la incapacidad</mat-error>
+                  }
+                </mat-form-field>
+              </div>
+            </section>
+
+            <mat-divider class="disab-divider" />
+
+            <!-- ═══ C) INFORMACION PERSONAL ══════════════════════════ -->
+            <section class="disab-section" formGroupName="personal">
+              <header class="disab-section-header">
+                <mat-icon class="disab-section-icon">account_circle</mat-icon>
+                <h2 class="disab-section-title">Informacion personal</h2>
+                <span class="disab-section-hint">
+                  Se autocompleta desde contratacion; lo que no llegue queda editable
+                </span>
+              </header>
+
+              <div class="disab-grid reg-grid-3">
+                <!-- Tipo de documento -->
+                @if (completarManual('tipoDocumento') || !personaCargada()) {
+                  <mat-form-field appearance="outline" class="reg-campo reg-campo--manual">
+                    <mat-label>Tipo de documento</mat-label>
+                    <mat-select formControlName="tipoDocumento">
+                      @for (td of tiposDocumento; track td) {
+                        <mat-option [value]="td">{{ td }}</mat-option>
+                      }
+                    </mat-select>
+                    @if (personaCargada()) { <mat-hint>Completar manualmente</mat-hint> }
+                  </mat-form-field>
+                } @else {
+                  <mat-form-field appearance="outline" class="reg-campo reg-campo--auto">
+                    <mat-label>Tipo de documento</mat-label>
+                    <input matInput formControlName="tipoDocumento" readonly />
+                    <mat-icon matSuffix class="reg-icono-candado" matTooltip="Dato de contratacion"
+                      >lock</mat-icon
+                    >
+                  </mat-form-field>
+                }
+
+                <!-- Numero de documento -->
+                <mat-form-field
+                  appearance="outline"
+                  class="reg-campo"
+                  [class.reg-campo--auto]="soloLectura('numeroDocumento')"
+                >
+                  <mat-label>Numero de documento</mat-label>
+                  <input
+                    matInput
+                    formControlName="numeroDocumento"
+                    [readonly]="soloLectura('numeroDocumento')"
+                    required
+                  />
+                  @if (soloLectura('numeroDocumento')) {
+                    <mat-icon matSuffix class="reg-icono-candado" matTooltip="Dato de contratacion"
+                      >lock</mat-icon
+                    >
+                  }
+                  @if (form.controls.personal.controls.numeroDocumento.hasError('required')) {
+                    <mat-error>La cedula es obligatoria</mat-error>
+                  }
+                </mat-form-field>
+
+                <!-- Primer apellido (los apellidos VAN ANTES que los nombres) -->
+                <mat-form-field
+                  appearance="outline"
+                  class="reg-campo"
+                  [class.reg-campo--auto]="soloLectura('primerApellido')"
+                  [class.reg-campo--manual]="completarManual('primerApellido')"
+                >
+                  <mat-label>Primer apellido</mat-label>
+                  <input
+                    matInput
+                    formControlName="primerApellido"
+                    [readonly]="soloLectura('primerApellido')"
+                    required
+                  />
+                  @if (completarManual('primerApellido')) {
+                    <mat-hint>Completar manualmente</mat-hint>
+                  }
+                  @if (form.controls.personal.controls.primerApellido.hasError('required')) {
+                    <mat-error>El primer apellido es obligatorio</mat-error>
+                  }
+                </mat-form-field>
+
+                <mat-form-field
+                  appearance="outline"
+                  class="reg-campo"
+                  [class.reg-campo--auto]="soloLectura('segundoApellido')"
+                  [class.reg-campo--manual]="completarManual('segundoApellido')"
+                >
+                  <mat-label>Segundo apellido</mat-label>
+                  <input
+                    matInput
+                    formControlName="segundoApellido"
+                    [readonly]="soloLectura('segundoApellido')"
+                  />
+                  @if (completarManual('segundoApellido')) {
+                    <mat-hint>Completar manualmente</mat-hint>
+                  }
+                </mat-form-field>
+
+                <mat-form-field
+                  appearance="outline"
+                  class="reg-campo"
+                  [class.reg-campo--auto]="soloLectura('primerNombre')"
+                  [class.reg-campo--manual]="completarManual('primerNombre')"
+                >
+                  <mat-label>Primer nombre</mat-label>
+                  <input
+                    matInput
+                    formControlName="primerNombre"
+                    [readonly]="soloLectura('primerNombre')"
+                    required
+                  />
+                  @if (completarManual('primerNombre')) {
+                    <mat-hint>Completar manualmente</mat-hint>
+                  }
+                  @if (form.controls.personal.controls.primerNombre.hasError('required')) {
+                    <mat-error>El primer nombre es obligatorio</mat-error>
+                  }
+                </mat-form-field>
+
+                <mat-form-field
+                  appearance="outline"
+                  class="reg-campo"
+                  [class.reg-campo--auto]="soloLectura('segundoNombre')"
+                  [class.reg-campo--manual]="completarManual('segundoNombre')"
+                >
+                  <mat-label>Segundo nombre</mat-label>
+                  <input
+                    matInput
+                    formControlName="segundoNombre"
+                    [readonly]="soloLectura('segundoNombre')"
+                  />
+                  @if (completarManual('segundoNombre')) {
+                    <mat-hint>Completar manualmente</mat-hint>
+                  }
+                </mat-form-field>
+
+                <!-- EDAD: campo calculado desde fecha_nacimiento -->
+                <div class="reg-calculado reg-calculado--edad">
+                  <div class="reg-calculado-cabecera">
+                    <mat-icon
+                      class="reg-calculado-icono"
+                      matTooltip="Calculada automaticamente desde la fecha de nacimiento"
+                      >calculate</mat-icon
+                    >
+                    <span class="reg-calculado-label">Edad</span>
+                  </div>
+                  <div class="reg-calculado-valor">
+                    @if (edad() !== null) {
+                      {{ edad() }} <span class="reg-calculado-unidad">anos</span>
+                    } @else {
+                      <span class="reg-calculado-vacio">Sin dato</span>
+                    }
+                  </div>
+                  @if (fechaNacimientoTexto()) {
+                    <p class="reg-calculado-pie">Nacimiento: {{ fechaNacimientoTexto() }}</p>
+                  } @else if (personaCargada()) {
+                    <mat-form-field appearance="outline" class="reg-campo reg-campo--mini">
+                      <mat-label>Fecha de nacimiento</mat-label>
+                      <input
+                        matInput
+                        readonly
+                        [matDatepicker]="dpNacimiento"
+                        formControlName="fechaNacimiento"
+                        (click)="dpNacimiento.open()"
+                      />
+                      <mat-datepicker-toggle matIconSuffix [for]="dpNacimiento" />
+                      <mat-datepicker #dpNacimiento />
+                    </mat-form-field>
+                  }
+                </div>
+
+                <mat-form-field
+                  appearance="outline"
+                  class="reg-campo"
+                  [class.reg-campo--auto]="soloLectura('fondoPension')"
+                  [class.reg-campo--manual]="completarManual('fondoPension')"
+                >
+                  <mat-label>Fondo de pensiones</mat-label>
+                  <mat-icon matPrefix aria-hidden="true">savings</mat-icon>
+                  <input
+                    matInput
+                    formControlName="fondoPension"
+                    [readonly]="soloLectura('fondoPension')"
+                  />
+                  @if (completarManual('fondoPension')) {
+                    <mat-hint>Completar manualmente</mat-hint>
+                  }
+                </mat-form-field>
+
+                <!-- Sexo -->
+                @if (completarManual('sexo') || !personaCargada()) {
+                  <mat-form-field appearance="outline" class="reg-campo reg-campo--manual">
+                    <mat-label>Sexo</mat-label>
+                    <mat-select formControlName="sexo">
+                      @for (s of opcionesSexo; track s) {
+                        <mat-option [value]="s">{{ s }}</mat-option>
+                      }
+                    </mat-select>
+                    @if (personaCargada()) { <mat-hint>Completar manualmente</mat-hint> }
+                  </mat-form-field>
+                } @else {
+                  <mat-form-field appearance="outline" class="reg-campo reg-campo--auto">
+                    <mat-label>Sexo</mat-label>
+                    <input matInput formControlName="sexo" readonly />
+                    <mat-icon matSuffix class="reg-icono-candado" matTooltip="Dato de contratacion"
+                      >lock</mat-icon
+                    >
+                  </mat-form-field>
+                }
+
+                <mat-form-field
+                  appearance="outline"
+                  class="reg-campo"
+                  [class.reg-campo--auto]="soloLectura('empresa')"
+                  [class.reg-campo--manual]="completarManual('empresa')"
+                >
+                  <mat-label>Empresa</mat-label>
+                  <mat-icon matPrefix aria-hidden="true">apartment</mat-icon>
+                  <input matInput formControlName="empresa" [readonly]="soloLectura('empresa')" />
+                  @if (completarManual('empresa')) { <mat-hint>Completar manualmente</mat-hint> }
+                </mat-form-field>
+
+                <!-- Centro de costo: la funcional lo movio AQUI desde "Datos de la oficina" -->
+                <mat-form-field
+                  appearance="outline"
+                  class="reg-campo"
+                  [class.reg-campo--auto]="soloLectura('centroCosto')"
+                  [class.reg-campo--manual]="completarManual('centroCosto')"
+                >
+                  <mat-label>Centro de costo</mat-label>
+                  <mat-icon matPrefix aria-hidden="true">account_tree</mat-icon>
+                  <input
+                    matInput
+                    formControlName="centroCosto"
+                    [readonly]="soloLectura('centroCosto')"
+                  />
+                  @if (completarManual('centroCosto')) { <mat-hint>Completar manualmente</mat-hint> }
+                </mat-form-field>
+
+                <mat-form-field
+                  appearance="outline"
+                  class="reg-campo"
+                  [class.reg-campo--auto]="soloLectura('fechaIngreso')"
+                  [class.reg-campo--manual]="completarManual('fechaIngreso')"
+                >
+                  <mat-label>Fecha de ingreso</mat-label>
+                  <input
+                    matInput
+                    readonly
+                    [matDatepicker]="dpIngreso"
+                    formControlName="fechaIngreso"
+                    required
+                    (click)="soloLectura('fechaIngreso') || dpIngreso.open()"
+                  />
+                  @if (!soloLectura('fechaIngreso')) {
+                    <mat-datepicker-toggle matIconSuffix [for]="dpIngreso" />
+                  } @else {
+                    <mat-icon matSuffix class="reg-icono-candado" matTooltip="Dato de contratacion"
+                      >lock</mat-icon
+                    >
+                  }
+                  <mat-datepicker #dpIngreso />
+                  @if (form.controls.personal.controls.fechaIngreso.hasError('required')) {
+                    <mat-error>La fecha de ingreso es obligatoria</mat-error>
+                  }
+                </mat-form-field>
+
+                <mat-form-field
+                  appearance="outline"
+                  class="reg-campo"
+                  [class.reg-campo--auto]="soloLectura('celular')"
+                  [class.reg-campo--manual]="completarManual('celular')"
+                >
+                  <mat-label>Celular</mat-label>
+                  <mat-icon matPrefix aria-hidden="true">smartphone</mat-icon>
+                  <input matInput formControlName="celular" [readonly]="soloLectura('celular')" />
+                  @if (completarManual('celular')) { <mat-hint>Completar manualmente</mat-hint> }
+                </mat-form-field>
+
+                <mat-form-field
+                  appearance="outline"
+                  class="reg-campo"
+                  [class.reg-campo--auto]="soloLectura('whatsapp')"
+                  [class.reg-campo--manual]="completarManual('whatsapp')"
+                >
+                  <mat-label>WhatsApp</mat-label>
+                  <mat-icon matPrefix aria-hidden="true">chat</mat-icon>
+                  <input matInput formControlName="whatsapp" [readonly]="soloLectura('whatsapp')" />
+                  @if (completarManual('whatsapp')) { <mat-hint>Completar manualmente</mat-hint> }
+                </mat-form-field>
+
+                <mat-form-field
+                  appearance="outline"
+                  class="reg-campo"
+                  [class.reg-campo--auto]="soloLectura('correo')"
+                  [class.reg-campo--manual]="completarManual('correo')"
+                >
+                  <mat-label>Correo electronico</mat-label>
+                  <mat-icon matPrefix aria-hidden="true">alternate_email</mat-icon>
+                  <input
+                    matInput
+                    type="email"
+                    formControlName="correo"
+                    [readonly]="soloLectura('correo')"
+                  />
+                  @if (completarManual('correo')) { <mat-hint>Completar manualmente</mat-hint> }
+                </mat-form-field>
+
+                <mat-form-field
+                  appearance="outline"
+                  class="reg-campo"
+                  [class.reg-campo--auto]="soloLectura('epsAfiliacion')"
+                  [class.reg-campo--manual]="completarManual('epsAfiliacion')"
+                >
+                  <mat-label>EPS de afiliacion</mat-label>
+                  <mat-icon matPrefix aria-hidden="true">local_hospital</mat-icon>
+                  <input
+                    matInput
+                    formControlName="epsAfiliacion"
+                    [readonly]="soloLectura('epsAfiliacion')"
+                  />
+                  @if (completarManual('epsAfiliacion')) {
+                    <mat-hint>Completar manualmente</mat-hint>
+                  }
+                </mat-form-field>
+
+                <!-- ARL: no existe como dato en ninguna tabla, se elige a mano -->
+                <mat-form-field appearance="outline" class="reg-campo">
+                  <mat-label>ARL</mat-label>
+                  <mat-icon matPrefix aria-hidden="true">health_and_safety</mat-icon>
+                  <mat-select formControlName="arl">
+                    @for (arl of arlConocidas; track arl) {
+                      <mat-option [value]="arl">{{ arl }}</mat-option>
+                    }
+                  </mat-select>
+                  <mat-hint>La ARL no viene de contratacion: verificala</mat-hint>
+                </mat-form-field>
+              </div>
+            </section>
+
+            <mat-divider class="disab-divider" />
+
+            <!-- ═══ D) INFORMACION DE LA INCAPACIDAD ═════════════════ -->
+            <section class="disab-section" formGroupName="incapacidad">
+              <header class="disab-section-header">
+                <mat-icon class="disab-section-icon">medical_information</mat-icon>
+                <h2 class="disab-section-title">Informacion de la incapacidad</h2>
+                <span class="disab-section-hint">
+                  Los campos con
+                  <mat-icon class="disab-section-hint-icono" aria-hidden="true">calculate</mat-icon>
+                  los calcula el sistema
+                </span>
+              </header>
+
+              @if (errorCatalogos()) {
+                <div class="reg-aviso reg-aviso--critico" role="alert">
+                  <mat-icon aria-hidden="true">cloud_off</mat-icon>
+                  <div class="reg-aviso-texto">
+                    <strong>No se pudieron cargar los catalogos.</strong>
+                    <p>{{ errorCatalogos() }}</p>
+                    <div class="reg-aviso-acciones">
+                      <button mat-stroked-button type="button" (click)="cargarCatalogos()">
+                        <mat-icon>refresh</mat-icon>
+                        Reintentar
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              }
+
+              <div class="disab-grid reg-grid-3">
+                <!-- 1. Tipo de incapacidad -->
+                <mat-form-field appearance="outline" class="reg-campo reg-campo--ancho">
+                  <mat-label>Tipo de incapacidad</mat-label>
+                  <mat-icon matPrefix aria-hidden="true">category</mat-icon>
+                  <mat-select formControlName="tipoIncapacidad" required>
+                    @for (tipo of tiposIncapacidad(); track tipo.codigo) {
+                      <mat-option [value]="tipo.codigo">{{ tipo.etiqueta }}</mat-option>
+                    }
+                    @if (!tiposIncapacidad().length) {
+                      <mat-option disabled>
+                        {{ cargandoCatalogos() ? 'Cargando…' : 'Catalogo no disponible' }}
+                      </mat-option>
+                    }
+                  </mat-select>
+                  @if (form.controls.incapacidad.controls.tipoIncapacidad.hasError('required')) {
+                    <mat-error>Elige el tipo de incapacidad</mat-error>
+                  }
+                </mat-form-field>
+
+                <!-- 2. Fecha de inicio (SIEMPRE datepicker, nunca texto libre) -->
+                <mat-form-field appearance="outline" class="reg-campo">
+                  <mat-label>Fecha de inicio</mat-label>
+                  <input
+                    matInput
+                    readonly
+                    [matDatepicker]="dpInicio"
+                    formControlName="fechaInicio"
+                    required
+                    (click)="dpInicio.open()"
+                  />
+                  <mat-datepicker-toggle matIconSuffix [for]="dpInicio" />
+                  <mat-datepicker #dpInicio />
+                  <mat-hint>Elige la fecha en el calendario</mat-hint>
+                  @if (form.controls.incapacidad.controls.fechaInicio.hasError('required')) {
+                    <mat-error>La fecha de inicio es obligatoria</mat-error>
+                  }
+                </mat-form-field>
+
+                <!-- 3. Fecha final (min = fecha de inicio) -->
+                <mat-form-field appearance="outline" class="reg-campo">
+                  <mat-label>Fecha final</mat-label>
+                  <input
+                    matInput
+                    readonly
+                    [matDatepicker]="dpFin"
+                    [min]="valores().incapacidad.fechaInicio"
+                    formControlName="fechaFin"
+                    required
+                    (click)="dpFin.open()"
+                  />
+                  <mat-datepicker-toggle matIconSuffix [for]="dpFin" />
+                  <mat-datepicker #dpFin />
+                  @if (form.controls.incapacidad.hasError('rangoInvertido')) {
+                    <mat-hint class="reg-hint-error">
+                      No puede ser anterior a la fecha de inicio
+                    </mat-hint>
+                  } @else {
+                    <mat-hint>Incluye el ultimo dia incapacitado</mat-hint>
+                  }
+                  @if (form.controls.incapacidad.controls.fechaFin.hasError('required')) {
+                    <mat-error>La fecha final es obligatoria</mat-error>
+                  }
+                </mat-form-field>
+              </div>
+
+              <!-- 4, 5, 6: campos CALCULADOS por el backend -->
+              <div class="reg-calculados-fila">
+                <div class="reg-calculado reg-calculado--destacado">
+                  <div class="reg-calculado-cabecera">
+                    <mat-icon
+                      class="reg-calculado-icono"
+                      matTooltip="Calculado automaticamente por el sistema"
+                      >calculate</mat-icon
+                    >
+                    <span class="reg-calculado-label">Dias de incapacidad</span>
+                  </div>
+                  <div class="reg-calculado-valor">
+                    @if (validacion(); as v) {
+                      {{ v.dias }}
+                    } @else {
+                      <span class="reg-calculado-vacio">—</span>
+                    }
+                  </div>
+                </div>
+
+                <div class="reg-calculado">
+                  <div class="reg-calculado-cabecera">
+                    <mat-icon
+                      class="reg-calculado-icono"
+                      matTooltip="Calculado automaticamente por el sistema"
+                      >lock</mat-icon
+                    >
+                    <span class="reg-calculado-label">Dias que paga la empresa</span>
+                  </div>
+                  <div class="reg-calculado-valor">
+                    @if (validacion(); as v) {
+                      {{ v.diasEmpresa }}
+                    } @else {
+                      <span class="reg-calculado-vacio">—</span>
+                    }
+                  </div>
+                </div>
+
+                <div class="reg-calculado">
+                  <div class="reg-calculado-cabecera">
+                    <mat-icon
+                      class="reg-calculado-icono"
+                      matTooltip="Calculado automaticamente por el sistema"
+                      >lock</mat-icon
+                    >
+                    <span class="reg-calculado-label">
+                      Dias que paga la
+                      {{ validacion()?.entidadResponsable || 'EPS/ARL' }}
+                    </span>
+                  </div>
+                  <div class="reg-calculado-valor">
+                    @if (validacion(); as v) {
+                      {{ v.diasEntidad }}
+                    } @else {
+                      <span class="reg-calculado-vacio">—</span>
+                    }
+                  </div>
+                </div>
+              </div>
+
+              <div class="disab-grid reg-grid-2">
+                <!-- 7. Codigo de diagnostico: NUNCA texto libre -->
+                <div class="reg-campo-buscador">
+                  <app-buscador-remoto
+                    [buscar]="buscarCie10"
+                    [mostrar]="mostrarCie10"
+                    etiqueta="Codigo de diagnostico (CIE-10)"
+                    placeholder="Codigo o descripcion"
+                    icono="troubleshoot"
+                    ayuda="Escribe al menos 3 caracteres: el codigo se elige de la lista"
+                    [minCaracteres]="3"
+                    [requerido]="true"
+                    (seleccionado)="alSeleccionarCie10($event)"
+                    (limpiado)="alLimpiarCie10()"
+                  />
+                  @if (
+                    intentoGuardar() &&
+                    form.controls.incapacidad.controls.codigoDiagnostico.hasError('required')
+                  ) {
+                    <p class="reg-error-suelto">
+                      <mat-icon aria-hidden="true">error</mat-icon>
+                      Elige un codigo de diagnostico de la lista
+                    </p>
+                  }
+                </div>
+
+                <!-- 8. Descripcion del diagnostico: se llena sola -->
+                <mat-form-field appearance="outline" class="reg-campo reg-campo--auto">
+                  <mat-label>Descripcion del diagnostico</mat-label>
+                  <input matInput formControlName="descripcionDiagnostico" readonly />
+                  <mat-icon
+                    matSuffix
+                    class="reg-icono-candado"
+                    matTooltip="Se llena sola al elegir el codigo CIE-10"
+                    >lock</mat-icon
+                  >
+                </mat-form-field>
+
+                <!-- 9. EPS: desplegable con buscador incorporado -->
+                <mat-form-field appearance="outline" class="reg-campo">
+                  <mat-label>EPS</mat-label>
+                  <mat-icon matPrefix aria-hidden="true">local_hospital</mat-icon>
+                  <mat-select
+                    formControlName="eps"
+                    required
+                    panelClass="reg-panel-eps"
+                    (openedChange)="alAbrirEps($event)"
+                  >
+                    <div class="reg-select-buscador" (click)="$event.stopPropagation()">
+                      <mat-icon aria-hidden="true">search</mat-icon>
+                      <input
+                        type="text"
+                        class="reg-select-buscador-input"
+                        placeholder="Filtrar EPS…"
+                        autocomplete="off"
+                        aria-label="Filtrar la lista de EPS"
+                        [value]="filtroEps()"
+                        (input)="filtroEps.set($any($event.target).value)"
+                        (keydown)="alTeclearFiltroEps($event)"
+                      />
+                    </div>
+                    @for (eps of epsFiltradas(); track eps) {
+                      <mat-option [value]="eps">{{ eps }}</mat-option>
+                    }
+                    @if (!epsFiltradas().length) {
+                      <div class="reg-select-vacio">
+                        {{ cargandoEps() ? 'Cargando EPS…' : 'Sin coincidencias' }}
+                      </div>
+                    }
+                  </mat-select>
+                  <mat-hint>{{ opcionesEps().length }} EPS disponibles</mat-hint>
+                  @if (form.controls.incapacidad.controls.eps.hasError('required')) {
+                    <mat-error>Elige la EPS</mat-error>
+                  }
+                </mat-form-field>
+
+                <!-- 10. NIT / IPS -->
+                <div class="reg-campo-buscador">
+                  <app-buscador-remoto
+                    [buscar]="buscarIps"
+                    [mostrar]="mostrarIps"
+                    [secundario]="detalleIps"
+                    etiqueta="IPS que expide (NIT)"
+                    placeholder="NIT o nombre de la IPS"
+                    icono="domain"
+                    ayuda="Escribe al menos 3 caracteres"
+                    [minCaracteres]="3"
+                    (seleccionado)="alSeleccionarIps($event)"
+                    (limpiado)="alLimpiarIps()"
+                  />
+                  @if (valores().incapacidad.nombreIps) {
+                    <p class="reg-nota-campo">
+                      <mat-icon aria-hidden="true">check_circle</mat-icon>
+                      {{ valores().incapacidad.nombreIps }} · NIT
+                      {{ valores().incapacidad.nitIps }}
+                    </p>
+                  }
+                </div>
+
+                <!-- 11. Numero de incapacidad -->
+                <mat-form-field appearance="outline" class="reg-campo">
+                  <mat-label>Numero de incapacidad</mat-label>
+                  <mat-icon matPrefix aria-hidden="true">tag</mat-icon>
+                  <input matInput formControlName="numeroIncapacidad" />
+                  <mat-hint>El que aparece impreso en el documento</mat-hint>
+                </mat-form-field>
+
+                <!-- 12. Prorroga: CALCULADA por el backend -->
+                <div class="reg-calculado reg-calculado--linea">
+                  <div class="reg-calculado-cabecera">
+                    <mat-icon
+                      class="reg-calculado-icono"
+                      matTooltip="Calculado automaticamente por el sistema"
+                      >lock</mat-icon
+                    >
+                    <span class="reg-calculado-label">Prorroga</span>
+                  </div>
+                  @if (validacion(); as v) {
+                    @if (v.esProrroga) {
+                      <span class="disab-chip reg-chip reg-chip--ok">
+                        <mat-icon aria-hidden="true">link</mat-icon>
+                        {{ textoProrroga() }}
+                      </span>
+                    } @else {
+                      <span class="disab-chip reg-chip reg-chip--neutro">
+                        <mat-icon aria-hidden="true">block</mat-icon>
+                        No es prorroga
+                      </span>
+                    }
+                  } @else {
+                    <span class="reg-calculado-vacio">Se determina al validar</span>
+                  }
+                </div>
+
+                <!-- 13. Estado del documento -->
+                <mat-form-field appearance="outline" class="reg-campo">
+                  <mat-label>Estado del documento</mat-label>
+                  <mat-icon matPrefix aria-hidden="true">fact_check</mat-icon>
+                  <mat-select formControlName="estadoDocumento" required>
+                    @for (ed of estadosDocumento(); track ed.codigo) {
+                      <mat-option [value]="ed.codigo" [disabled]="!!ed.automatico">
+                        {{ ed.etiqueta }}
+                        @if (ed.automatico) {
+                          <span class="reg-opcion-auto">lo asigna el sistema</span>
+                        }
+                      </mat-option>
+                    }
+                    @if (!estadosDocumento().length) {
+                      <mat-option disabled>
+                        {{ cargandoCatalogos() ? 'Cargando…' : 'Catalogo no disponible' }}
+                      </mat-option>
+                    }
+                  </mat-select>
+                  @if (validacion(); as v) {
+                    @if (v.estadoDocumentoResultante !== valores().incapacidad.estadoDocumento) {
+                      <mat-hint class="reg-hint-info">
+                        El sistema lo dejara como {{ v.estadoDocumentoResultante }}
+                      </mat-hint>
+                    }
+                  }
+                </mat-form-field>
+
+                <!-- 14. A quien corresponde el pago: CALCULADO -->
+                <div class="reg-calculado reg-calculado--linea">
+                  <div class="reg-calculado-cabecera">
+                    <mat-icon
+                      class="reg-calculado-icono"
+                      matTooltip="Calculado automaticamente por el sistema"
+                      >lock</mat-icon
+                    >
+                    <span class="reg-calculado-label">A quien corresponde el pago</span>
+                  </div>
+                  @if (validacion()) {
+                    <span class="disab-chip reg-chip" [class]="'reg-chip--' + tonoResponsablePago()">
+                      <mat-icon aria-hidden="true">payments</mat-icon>
+                      {{ etiquetaResponsablePago() }}
+                    </span>
+                  } @else {
+                    <span class="reg-calculado-vacio">Se determina al validar</span>
+                  }
+                </div>
+              </div>
+
+              <!-- 15. Observaciones -->
+              <mat-form-field appearance="outline" class="reg-campo reg-campo--completo">
+                <mat-label>Observaciones</mat-label>
+                <textarea
+                  matInput
+                  rows="3"
+                  formControlName="observaciones"
+                  placeholder="Anota cualquier detalle relevante para la radicacion"
+                ></textarea>
+              </mat-form-field>
+            </section>
+
+            <mat-divider class="disab-divider" />
+
+            <!-- ═══ F) SOPORTES ══════════════════════════════════════ -->
+            <section class="disab-section">
+              <header class="disab-section-header">
+                <mat-icon class="disab-section-icon">attach_file</mat-icon>
+                <h2 class="disab-section-title">Soportes de la incapacidad</h2>
+                <span class="disab-section-hint">PDF, JPG o PNG · maximo 10 MB por archivo</span>
+              </header>
+
+              @if (errorArchivo()) {
+                <div class="reg-aviso reg-aviso--critico" role="alert">
+                  <mat-icon aria-hidden="true">block</mat-icon>
+                  <div class="reg-aviso-texto">
+                    <strong>{{ errorArchivo() }}</strong>
+                  </div>
+                </div>
+              }
+
+              @if (!soportesVisibles().length) {
+                <div class="reg-vacio">
+                  <mat-icon aria-hidden="true">rule_folder</mat-icon>
+                  <p class="reg-vacio-titulo">Aun no sabemos que soportes se exigen</p>
+                  <p class="reg-vacio-texto">
+                    Elige el tipo de incapacidad y las fechas: el sistema dira exactamente
+                    que documentos hay que adjuntar y cuales son obligatorios.
+                  </p>
+                </div>
+              } @else {
+                <div class="disab-grid reg-grid-soportes">
+                  @for (sop of soportesVista(); track sop.tipo) {
+                    <article
+                      class="disab-tile reg-soporte"
+                      [class.reg-soporte--obligatorio]="sop.obligatorio"
+                      [class.reg-soporte--arrastrando]="sop.arrastrando"
+                      [class.reg-soporte--cargado]="sop.archivo?.estado === 'cargado'"
+                      [class.reg-soporte--error]="sop.archivo?.estado === 'error'"
+                      (dragover)="alArrastrarSobre($event, sop.tipo)"
+                      (dragleave)="alSalirArrastre($event)"
+                      (drop)="alSoltarArchivo($event, sop.tipo)"
+                    >
+                      <header class="reg-soporte-cabecera">
+                        <mat-icon class="reg-soporte-icono" aria-hidden="true">{{
+                          sop.icono
+                        }}</mat-icon>
+                        <h3 class="reg-soporte-titulo">{{ sop.etiqueta }}</h3>
+                        <span
+                          class="disab-chip reg-badge"
+                          [class.reg-badge--obligatorio]="sop.obligatorio"
+                          [class.reg-badge--opcional]="!sop.obligatorio"
+                        >
+                          {{ sop.obligatorio ? 'Obligatorio' : 'Opcional' }}
+                        </span>
+                      </header>
+
+                      @if (sop.archivo; as arch) {
+                        <div class="reg-archivo">
+                          <div class="reg-archivo-previa">
+                            @if (arch.esImagen) {
+                              <img
+                                class="reg-previa-img"
+                                [src]="arch.urlPrevia"
+                                [alt]="'Vista previa de ' + arch.nombre"
+                              />
+                            } @else if (arch.urlPreviaSegura) {
+                              <iframe
+                                class="reg-previa-pdf"
+                                [src]="arch.urlPreviaSegura"
+                                [title]="'Vista previa de ' + arch.nombre"
+                              ></iframe>
+                            }
+                          </div>
+
+                          <div class="reg-archivo-datos">
+                            <p class="reg-archivo-nombre" [attr.title]="arch.nombre">
+                              {{ arch.nombre }}
+                            </p>
+                            <p class="reg-archivo-peso">{{ arch.tamanoTexto }}</p>
+
+                            @switch (arch.estado) {
+                              @case ('pendiente') {
+                                <span class="reg-estado reg-estado--pendiente">
+                                  <mat-icon aria-hidden="true">schedule</mat-icon>
+                                  Pendiente de subir
+                                </span>
+                              }
+                              @case ('subiendo') {
+                                <span class="reg-estado reg-estado--subiendo">
+                                  <mat-icon aria-hidden="true">cloud_sync</mat-icon>
+                                  Subiendo…
+                                </span>
+                                <mat-progress-bar mode="indeterminate" />
+                              }
+                              @case ('cargado') {
+                                <span class="reg-estado reg-estado--cargado">
+                                  <mat-icon aria-hidden="true">check_circle</mat-icon>
+                                  Cargado
+                                </span>
+                              }
+                              @case ('error') {
+                                <span class="reg-estado reg-estado--error">
+                                  <mat-icon aria-hidden="true">error</mat-icon>
+                                  {{ arch.mensajeError || 'No se pudo subir' }}
+                                </span>
+                                <button
+                                  mat-stroked-button
+                                  type="button"
+                                  class="reg-btn-mini"
+                                  (click)="reintentarSoporte(sop.tipo)"
+                                >
+                                  <mat-icon>refresh</mat-icon>
+                                  Reintentar
+                                </button>
+                              }
+                            }
+                          </div>
+
+                          <div class="reg-archivo-acciones">
+                            <button
+                              mat-icon-button
+                              type="button"
+                              matTooltip="Abrir vista previa"
+                              [attr.aria-label]="'Abrir vista previa de ' + sop.etiqueta"
+                              (click)="abrirVistaPrevia(sop.tipo)"
+                            >
+                              <mat-icon>open_in_new</mat-icon>
+                            </button>
+                            <button
+                              mat-icon-button
+                              type="button"
+                              matTooltip="Quitar el archivo"
+                              [attr.aria-label]="'Quitar el archivo de ' + sop.etiqueta"
+                              [disabled]="arch.estado === 'subiendo'"
+                              (click)="quitarArchivo(sop.tipo)"
+                            >
+                              <mat-icon>delete_outline</mat-icon>
+                            </button>
+                          </div>
+                        </div>
+                      } @else {
+                        <label class="reg-soltar" [attr.for]="'archivo-' + sop.tipo">
+                          <mat-icon aria-hidden="true">cloud_upload</mat-icon>
+                          <span class="reg-soltar-texto">
+                            Arrastra el archivo aqui o
+                            <span class="reg-soltar-enlace">examinar</span>
+                          </span>
+                          <span class="reg-soltar-formatos">PDF, JPG o PNG · hasta 10 MB</span>
+                        </label>
+                        <input
+                          type="file"
+                          class="reg-input-file"
+                          [id]="'archivo-' + sop.tipo"
+                          [accept]="aceptaArchivos"
+                          (change)="alElegirArchivo($event, sop.tipo)"
+                        />
+                      }
+                    </article>
+                  }
+                </div>
+              }
+            </section>
+          </div>
+
+          <!-- ═══ E) PANEL DE VALIDACION EN VIVO ═════════════════════ -->
+          <aside class="reg-panel" aria-label="Validacion en vivo">
+            <div class="reg-panel-sticky">
+              <header class="reg-panel-cabecera">
+                <mat-icon aria-hidden="true">policy</mat-icon>
+                <h2 class="reg-panel-titulo">Validacion en vivo</h2>
+                @if (validando()) {
+                  <mat-spinner [diameter]="18" [strokeWidth]="2" aria-label="Validando" />
+                }
+                <button
+                  mat-icon-button
+                  type="button"
+                  class="reg-panel-toggle"
+                  [attr.aria-expanded]="panelAbierto()"
+                  [attr.aria-label]="panelAbierto() ? 'Ocultar la validacion' : 'Ver la validacion'"
+                  (click)="alternarPanel()"
+                >
+                  <mat-icon>{{ panelAbierto() ? 'expand_less' : 'expand_more' }}</mat-icon>
+                </button>
+              </header>
+
+              <div class="reg-panel-cuerpo" [class.reg-oculto-movil]="!panelAbierto()">
+                <!-- Resumen de lo que falta para guardar -->
+                @if (intentoGuardar() && camposFaltantes().length) {
+                  <div class="reg-bloque reg-bloque--critico" role="alert">
+                    <h3 class="reg-bloque-titulo">
+                      <mat-icon aria-hidden="true">error</mat-icon>
+                      Faltan {{ camposFaltantes().length }} datos
+                    </h3>
+                    <ul class="reg-lista">
+                      @for (campo of camposFaltantes(); track campo) {
+                        <li>{{ campo }}</li>
+                      }
+                    </ul>
+                  </div>
+                }
+
+                @if (errorValidacion()) {
+                  <div class="reg-bloque reg-bloque--critico" role="alert">
+                    <h3 class="reg-bloque-titulo">
+                      <mat-icon aria-hidden="true">cloud_off</mat-icon>
+                      No se pudo validar
+                    </h3>
+                    <p class="reg-bloque-texto">{{ errorValidacion() }}</p>
+                  </div>
+                }
+
+                @if (validacion(); as v) {
+                  <!-- Reparto de dias empresa vs entidad -->
+                  @if (repartoDias(); as r) {
+                    <div class="reg-bloque">
+                      <h3 class="reg-bloque-titulo">
+                        <mat-icon aria-hidden="true">pie_chart</mat-icon>
+                        Reparto de {{ r.total }} dias
+                      </h3>
+                      <div
+                        class="reg-barra"
+                        role="img"
+                        [attr.aria-label]="
+                          'Empresa ' + r.empresa + ' dias, ' + r.nombreEntidad + ' ' + r.entidad + ' dias'
+                        "
+                      >
+                        <div
+                          class="reg-barra-empresa"
+                          [style.width.%]="r.pctEmpresa"
+                          [style.min-width.px]="r.empresa ? 26 : 0"
+                        >
+                          {{ r.empresa }}
+                        </div>
+                        <div
+                          class="reg-barra-entidad"
+                          [style.width.%]="r.pctEntidad"
+                          [style.min-width.px]="r.entidad ? 26 : 0"
+                        >
+                          {{ r.entidad }}
+                        </div>
+                      </div>
+                      <div class="reg-barra-leyenda">
+                        <span><i class="reg-punto reg-punto--empresa"></i> Empresa</span>
+                        <span><i class="reg-punto reg-punto--entidad"></i> {{ r.nombreEntidad }}</span>
+                      </div>
+                    </div>
+                  }
+
+                  <!-- Chips de estado -->
+                  <div class="reg-bloque">
+                    <h3 class="reg-bloque-titulo">
+                      <mat-icon aria-hidden="true">checklist</mat-icon>
+                      Reglas evaluadas
+                    </h3>
+                    <div class="reg-chips">
+                      @for (chip of chipsValidacion(); track chip.texto) {
+                        <span class="disab-chip reg-chip" [class]="'reg-chip--' + chip.tono">
+                          <mat-icon aria-hidden="true">{{ chip.icono }}</mat-icon>
+                          {{ chip.texto }}
+                        </span>
+                      }
+                    </div>
+                    <p class="reg-bloque-nota">
+                      Antiguedad al iniciar: {{ v.diasDesdeIngreso }} dias · Estado sugerido:
+                      {{ v.estadoSugerido }}
+                    </p>
+                  </div>
+
+                  <!-- Alertas del motor de reglas -->
+                  @if (alertasVista().length) {
+                    <div class="reg-bloque">
+                      <h3 class="reg-bloque-titulo">
+                        <mat-icon aria-hidden="true">campaign</mat-icon>
+                        Alertas ({{ alertasVista().length }})
+                      </h3>
+                      <ul class="reg-alertas">
+                        @for (alerta of alertasVista(); track alerta.codigo) {
+                          <li [class]="'reg-alerta ' + alerta.clase">
+                            <mat-icon aria-hidden="true">{{ alerta.icono }}</mat-icon>
+                            <span>{{ alerta.mensaje }}</span>
+                          </li>
+                        }
+                      </ul>
+                    </div>
+                  }
+
+                  <!-- Motivos que impiden pasar a VALIDADA -->
+                  @if (motivosBloqueo().length) {
+                    <div class="reg-bloque reg-bloque--alerta">
+                      <h3 class="reg-bloque-titulo">
+                        <mat-icon aria-hidden="true">gpp_bad</mat-icon>
+                        No se puede validar todavia
+                      </h3>
+                      <ul class="reg-lista">
+                        @for (motivo of motivosBloqueo(); track motivo) {
+                          <li>{{ motivo }}</li>
+                        }
+                      </ul>
+                    </div>
+                  } @else if (v.puedeValidar) {
+                    <div class="reg-bloque reg-bloque--ok">
+                      <h3 class="reg-bloque-titulo">
+                        <mat-icon aria-hidden="true">verified</mat-icon>
+                        Lista para validar
+                      </h3>
+                      <p class="reg-bloque-texto">
+                        Cumple todas las reglas: puedes guardarla y promoverla a VALIDADA.
+                      </p>
+                    </div>
+                  }
+                } @else if (!validando() && !errorValidacion()) {
+                  <div class="reg-vacio reg-vacio--panel">
+                    <mat-icon aria-hidden="true">rule</mat-icon>
+                    <p class="reg-vacio-titulo">Sin validar</p>
+                    <p class="reg-vacio-texto">
+                      Elige el trabajador, el tipo de incapacidad y las fechas. El calculo de
+                      dias, prorroga y responsable del pago aparecera aqui.
+                    </p>
+                  </div>
+                }
+              </div>
+            </div>
+          </aside>
+        </div>
+
+        <!-- Resultado del guardado -->
+        @if (resultado(); as r) {
+          <div class="reg-exito" role="status">
+            <mat-icon aria-hidden="true">check_circle</mat-icon>
+            <div class="reg-exito-texto">
+              <strong>
+                {{ esEdicion() ? 'Cambios guardados' : 'Incapacidad guardada' }}
+                @if (r.incapacidad.consecutivoSistema) {
+                  · {{ r.incapacidad.consecutivoSistema }}
+                }
+              </strong>
+              <p>
+                {{
+                  r.validada
+                    ? 'Quedo en estado VALIDADA.'
+                    : 'Quedo en estado RECIBIDA. Puedes validarla mas adelante.'
+                }}
+              </p>
+            </div>
+          </div>
+        }
+
+        @if (errorGuardado()) {
+          <div class="reg-aviso reg-aviso--critico" role="alert">
+            <mat-icon aria-hidden="true">error</mat-icon>
+            <div class="reg-aviso-texto">
+              <strong>No se pudo guardar la incapacidad</strong>
+              <p>{{ errorGuardado() }}</p>
+            </div>
+          </div>
+        }
+      </mat-card-content>
+    </mat-card>
+
+    <!-- ═══ G) BARRA DE ACCIONES PEGAJOSA ═══════════════════════════ -->
+    <div class="reg-acciones">
+      <div class="reg-acciones-info">
+        @if (progresoSubida(); as p) {
+          <div class="reg-progreso">
+            <mat-progress-bar mode="determinate" [value]="(p.actual / p.total) * 100" />
+            <span class="reg-progreso-texto">
+              Subiendo soporte {{ p.actual }} de {{ p.total }} · {{ p.etiqueta }}
+            </span>
+          </div>
+        } @else if (guardando()) {
+          <span class="reg-acciones-estado">
+            <mat-spinner [diameter]="18" [strokeWidth]="2" aria-hidden="true" />
+            Guardando la incapacidad…
+          </span>
+        } @else if (camposFaltantes().length) {
+          <span class="reg-acciones-estado reg-acciones-estado--alerta">
+            <mat-icon aria-hidden="true">info</mat-icon>
+            Faltan {{ camposFaltantes().length }} datos obligatorios
+          </span>
+        } @else if (validacion(); as v) {
+          <span class="reg-acciones-estado reg-acciones-estado--ok">
+            <mat-icon aria-hidden="true">task_alt</mat-icon>
+            {{ v.dias }} dias · empresa {{ v.diasEmpresa }} · {{ v.entidadResponsable }}
+            {{ v.diasEntidad }}
+          </span>
+        }
+      </div>
+
+      <div class="reg-acciones-botones">
+        <button
+          mat-stroked-button
+          type="button"
+          class="reg-btn"
+          [disabled]="guardando()"
+          (click)="pedirLimpiar()"
+        >
+          <mat-icon>restart_alt</mat-icon>
+          Limpiar formulario
+        </button>
+
+        <button
+          mat-flat-button
+          type="button"
+          class="reg-btn reg-btn--guardar"
+          [disabled]="!puedeGuardar()"
+          (click)="guardar(false)"
+        >
+          <mat-icon>save</mat-icon>
+          {{ etiquetaGuardar() }}
+        </button>
+
+        <!-- El tooltip va en el envoltorio: un boton deshabilitado no lo dispara -->
+        <span class="reg-tooltip-wrap" [matTooltip]="tooltipValidar()" matTooltipPosition="above">
+          <button
+            mat-flat-button
+            type="button"
+            class="reg-btn reg-btn--validar"
+            [disabled]="!puedeValidar()"
+            (click)="guardar(true)"
+          >
+            <mat-icon>verified</mat-icon>
+            Guardar y validar
+          </button>
+        </span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Dialogo: motivos que impiden validar (409) ──────────────────── -->
+<ng-template #plantillaBloqueo>
+  <h2 mat-dialog-title class="reg-dialogo-titulo">
+    <mat-icon aria-hidden="true">gpp_bad</mat-icon>
+    La incapacidad quedo en RECIBIDA
+  </h2>
+  <mat-dialog-content>
+    <p class="reg-dialogo-texto">
+      Se guardo correctamente, pero el sistema no permite pasarla a VALIDADA por
+      {{ motivosDialogo().length }} motivo(s):
+    </p>
+    <ul class="reg-lista reg-lista--dialogo">
+      @for (motivo of motivosDialogo(); track motivo) {
+        <li>{{ motivo }}</li>
+      }
+    </ul>
+    <p class="reg-dialogo-nota">
+      Corrige lo indicado y vuelve a validarla desde el listado de incapacidades.
+    </p>
+  </mat-dialog-content>
+  <mat-dialog-actions align="end">
+    <button mat-flat-button mat-dialog-close>Entendido</button>
+  </mat-dialog-actions>
+</ng-template>
+
+<!-- ── Dialogo: confirmar limpieza ─────────────────────────────────── -->
+<ng-template #plantillaConfirmar>
+  <h2 mat-dialog-title class="reg-dialogo-titulo">
+    <mat-icon aria-hidden="true">restart_alt</mat-icon>
+    Limpiar el formulario
+  </h2>
+  <mat-dialog-content>
+    <p class="reg-dialogo-texto">
+      Se borraran los datos del trabajador, la incapacidad y los soportes que hayas
+      elegido. Esta accion no se puede deshacer.
+    </p>
+  </mat-dialog-content>
+  <mat-dialog-actions align="end">
+    <button mat-stroked-button [mat-dialog-close]="false">Cancelar</button>
+    <button mat-flat-button class="reg-btn--peligro" [mat-dialog-close]="true">
+      Si, limpiar
+    </button>
+  </mat-dialog-actions>
+</ng-template>

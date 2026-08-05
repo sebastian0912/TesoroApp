@@ -1,0 +1,101 @@
+<mat-form-field appearance="outline" class="sb-campo">
+  <mat-label>{{ etiqueta() }}</mat-label>
+
+  @if (icono()) {
+    <mat-icon matPrefix class="sb-icono">{{ icono() }}</mat-icon>
+  }
+
+  <mat-select
+    [value]="valor()"
+    [disabled]="estaDeshabilitado()"
+    panelClass="sb-panel"
+    (openedChange)="$event ? alAbrir() : alCerrar()"
+    (selectionChange)="seleccionar($event.value)"
+    [attr.aria-label]="etiqueta()"
+  >
+    <!-- Buscador fijo en la cabecera del panel -->
+    <div class="sb-buscador" (click)="$event.stopPropagation()">
+      <mat-icon class="sb-buscador-icono">search</mat-icon>
+      <input
+        #campoBusqueda
+        type="text"
+        class="sb-buscador-input"
+        [placeholder]="placeholderBusqueda()"
+        [value]="termino()"
+        (input)="alEscribir($event)"
+        (keydown)="alTeclear($event)"
+        [attr.aria-label]="'Filtrar opciones de ' + etiqueta()"
+      />
+      @if (termino()) {
+        <button
+          type="button"
+          class="sb-buscador-limpiar"
+          (click)="termino.set('')"
+          aria-label="Borrar el texto del buscador"
+        >
+          <mat-icon>close</mat-icon>
+        </button>
+      }
+    </div>
+
+    <!-- Opcion "sin filtro" -->
+    @if (textoTodas()) {
+      <mat-option [value]="''">
+        <span class="sb-opcion-todas">{{ textoTodas() }}</span>
+      </mat-option>
+    }
+
+    <!-- Valor seleccionado que no esta en la lista (valor libre o restaurado) -->
+    @if (valorFueraDeLista()) {
+      <mat-option [value]="valorFueraDeLista()">
+        <span class="sb-opcion-principal">{{ valorFueraDeLista() }}</span>
+        <span class="sb-opcion-detalle">valor escrito a mano</span>
+      </mat-option>
+    }
+
+    @for (opcion of opcionesFiltradas(); track opcion.valor) {
+      <mat-option [value]="opcion.valor">
+        <span class="sb-opcion-principal">{{ opcion.etiqueta }}</span>
+        @if (opcion.detalle) {
+          <span class="sb-opcion-detalle">{{ opcion.detalle }}</span>
+        }
+        @if (opcion.automatico) {
+          <span class="sb-opcion-auto" matTooltip="Lo asigna el sistema automaticamente">
+            <mat-icon>bolt</mat-icon>
+          </span>
+        }
+      </mat-option>
+    }
+
+    <!-- Valor libre ofrecido cuando el texto no esta en la lista -->
+    @if (valorLibre()) {
+      <mat-option [value]="valorLibre()">
+        <span class="sb-opcion-libre">
+          <mat-icon>add_circle_outline</mat-icon>
+          Usar «{{ valorLibre() }}»
+        </span>
+      </mat-option>
+    }
+
+    @if (sinCoincidencias() && !valorLibre()) {
+      <div class="sb-vacio">Sin coincidencias para «{{ termino() }}»</div>
+    }
+  </mat-select>
+
+  @if (valor()) {
+    <button
+      matSuffix
+      type="button"
+      class="sb-limpiar"
+      (click)="limpiar($event)"
+      [attr.aria-label]="'Quitar el filtro ' + etiqueta()"
+      matTooltip="Quitar este filtro"
+    >
+      <mat-icon>cancel</mat-icon>
+    </button>
+  }
+
+  @if (ayuda()) {
+    <mat-hint>{{ ayuda() }}</mat-hint>
+  }
+</mat-form-field>

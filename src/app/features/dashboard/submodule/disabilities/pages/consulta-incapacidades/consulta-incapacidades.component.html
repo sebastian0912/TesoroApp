@@ -1,0 +1,462 @@
+<div class="consulta-contenedor">
+  <div class="consulta-contenido">
+    <mat-card class="disab-card">
+
+      <!-- ════════════════════ HERO ════════════════════ -->
+      <div class="disab-hero">
+        <div class="disab-hero-icon">
+          <mat-icon>fact_check</mat-icon>
+        </div>
+
+        <div class="disab-hero-texts">
+          <h1 class="disab-hero-title">Consulta de incapacidades</h1>
+          <p class="disab-hero-sub">
+            Busca, revisa, edita, valida, elimina y exporta las incapacidades registradas.
+            Los filtros y los totales se resuelven en el servidor.
+          </p>
+        </div>
+
+        <div class="hero-acciones">
+          <a
+            mat-flat-button
+            class="hero-btn hero-btn-primario"
+            [routerLink]="[rutaRegistro]"
+            matTooltip="Registrar una incapacidad nueva"
+          >
+            <mat-icon>add_circle</mat-icon>
+            <span>Nueva incapacidad</span>
+          </a>
+
+          <button
+            type="button"
+            mat-stroked-button
+            class="hero-btn hero-btn-secundario"
+            (click)="recargar()"
+            [disabled]="cargando()"
+            matTooltip="Volver a consultar con los filtros actuales"
+          >
+            <mat-icon>refresh</mat-icon>
+            <span>Actualizar</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- ════════════════════ KPI ════════════════════ -->
+      <div class="kpi-fila" role="group" aria-label="Resumen de incapacidades">
+        @for (kpi of kpisDefinidos; track kpi.clave) {
+          <button
+            type="button"
+            class="kpi-tarjeta"
+            [class.kpi-activo]="kpiActivo(kpi)"
+            [class.kpi-alerta]="kpi.clave === 'prescritas' || kpi.clave === 'noCumplen'"
+            (click)="aplicarKpi(kpi)"
+            [matTooltip]="kpi.ayuda + ' · clic para filtrar'"
+          >
+            <span class="kpi-icono"><mat-icon>{{ kpi.icono }}</mat-icon></span>
+
+            <span class="kpi-textos">
+              <span class="kpi-valor">
+                @if (valorKpi(kpi.clave) === null) {
+                  @if (cargandoKpis()) {
+                    <mat-spinner diameter="18" strokeWidth="2"></mat-spinner>
+                  } @else {
+                    <span class="kpi-sin-dato">—</span>
+                  }
+                } @else {
+                  {{ valorKpi(kpi.clave) | number: '1.0-0' : 'es-CO' }}
+                }
+              </span>
+              <span class="kpi-etiqueta">{{ kpi.etiqueta }}</span>
+            </span>
+          </button>
+        }
+      </div>
+
+      <mat-card-content class="disab-card-body">
+
+        <!-- ════════════════════ FILTROS ════════════════════ -->
+        <section class="disab-section">
+          <header class="disab-section-header">
+            <mat-icon class="disab-section-icon">tune</mat-icon>
+            <h2 class="disab-section-title">Filtros</h2>
+            <span class="disab-section-hint">
+              Se aplican en el servidor sobre TODAS las incapacidades, no solo sobre la pagina visible
+            </span>
+            <button
+              type="button"
+              mat-icon-button
+              class="btn-plegar"
+              (click)="alternarPanel()"
+              [attr.aria-expanded]="panelFiltrosAbierto()"
+              [matTooltip]="panelFiltrosAbierto() ? 'Ocultar filtros' : 'Mostrar filtros'"
+              [attr.aria-label]="panelFiltrosAbierto() ? 'Ocultar filtros' : 'Mostrar filtros'"
+            >
+              <mat-icon>{{ panelFiltrosAbierto() ? 'expand_less' : 'expand_more' }}</mat-icon>
+            </button>
+          </header>
+
+          @if (catalogosDeRespaldo()) {
+            <div class="aviso" role="status">
+              <mat-icon>info</mat-icon>
+              <span>
+                No se pudieron cargar los catalogos del servidor: los desplegables muestran
+                valores por defecto. Las etiquetas oficiales pueden diferir.
+              </span>
+            </div>
+          }
+
+          @if (panelFiltrosAbierto()) {
+            <div class="filtros-grid" [formGroup]="formulario">
+
+              <!-- Busqueda libre -->
+              <mat-form-field appearance="outline" class="filtro-campo filtro-ancho">
+                <mat-label>Buscar trabajador</mat-label>
+                <mat-icon matPrefix class="prefijo">search</mat-icon>
+                <input
+                  matInput
+                  type="text"
+                  formControlName="q"
+                  placeholder="Cedula, nombre o codigo unico"
+                  autocomplete="off"
+                />
+                @if (formulario.controls.q.value) {
+                  <button
+                    matSuffix
+                    type="button"
+                    class="btn-limpiar-campo"
+                    (click)="formulario.controls.q.setValue('')"
+                    aria-label="Borrar la busqueda"
+                  >
+                    <mat-icon>cancel</mat-icon>
+                  </button>
+                }
+                <mat-hint>Filtra por cedula, nombre completo o codigo unico</mat-hint>
+              </mat-form-field>
+
+              <app-select-buscador
+                class="filtro-campo"
+                formControlName="empresa"
+                etiqueta="Empresa"
+                icono="business"
+                [opciones]="opcionesEmpresa()"
+                [permitirLibre]="true"
+                ayuda="Se completa con lo que devuelve el backend"
+              ></app-select-buscador>
+
+              <app-select-buscador
+                class="filtro-campo"
+                formControlName="centroCosto"
+                etiqueta="Centro de costo"
+                icono="account_tree"
+                [opciones]="opcionesCentroCosto()"
+                [permitirLibre]="true"
+              ></app-select-buscador>
+
+              <app-select-buscador
+                class="filtro-campo"
+                formControlName="temporal"
+                etiqueta="Temporal"
+                icono="groups"
+                [opciones]="opcionesTemporal()"
+                [permitirLibre]="true"
+              ></app-select-buscador>
+
+              <app-select-buscador
+                class="filtro-campo"
+                formControlName="eps"
+                etiqueta="EPS"
+                icono="local_hospital"
+                [opciones]="opcionesEps()"
+                [permitirLibre]="true"
+              ></app-select-buscador>
+
+              <app-select-buscador
+                class="filtro-campo"
+                formControlName="afp"
+                etiqueta="Fondo de pension (AFP)"
+                icono="savings"
+                [opciones]="opcionesAfp()"
+                [permitirLibre]="true"
+                ayuda="Pension obligatoria, no cesantias"
+              ></app-select-buscador>
+
+              <app-select-buscador
+                class="filtro-campo"
+                formControlName="oficina"
+                etiqueta="Oficina"
+                icono="apartment"
+                [opciones]="opcionesOficina()"
+                [permitirLibre]="true"
+              ></app-select-buscador>
+
+              <app-select-buscador
+                class="filtro-campo"
+                formControlName="tipoIncapacidad"
+                etiqueta="Tipo de incapacidad"
+                icono="category"
+                [opciones]="opcionesTipo()"
+                textoTodas="Todos los tipos"
+              ></app-select-buscador>
+
+              <app-select-buscador
+                class="filtro-campo"
+                formControlName="estado"
+                etiqueta="Estado"
+                icono="flag"
+                [opciones]="opcionesEstado()"
+                textoTodas="Todos los estados"
+              ></app-select-buscador>
+
+              <app-select-buscador
+                class="filtro-campo"
+                formControlName="estadoDocumento"
+                etiqueta="Estado del documento"
+                icono="description"
+                [opciones]="opcionesEstadoDocumento()"
+                textoTodas="Todos"
+                ayuda="El rayo marca los estados que pone el sistema"
+              ></app-select-buscador>
+
+              <app-select-buscador
+                class="filtro-campo"
+                formControlName="responsablePago"
+                etiqueta="Responsable de pago"
+                icono="payments"
+                [opciones]="opcionesResponsablePago()"
+                textoTodas="Todos"
+              ></app-select-buscador>
+
+              <app-select-buscador
+                class="filtro-campo"
+                formControlName="registradoPor"
+                etiqueta="Registrado por"
+                icono="person"
+                [opciones]="opcionesRegistradoPor()"
+                [permitirLibre]="true"
+                textoTodas="Cualquier usuario"
+              ></app-select-buscador>
+
+              <!-- Rango: fecha de inicio de la incapacidad -->
+              <mat-form-field appearance="outline" class="filtro-campo">
+                <mat-label>Inicio de la incapacidad</mat-label>
+                <mat-icon matPrefix class="prefijo">event</mat-icon>
+                <mat-date-range-input formGroupName="rangoInicio" [rangePicker]="pickerInicio">
+                  <input matStartDate formControlName="start" placeholder="Desde" />
+                  <input matEndDate formControlName="end" placeholder="Hasta" />
+                </mat-date-range-input>
+                <mat-datepicker-toggle matIconSuffix [for]="pickerInicio"></mat-datepicker-toggle>
+                <mat-date-range-picker #pickerInicio></mat-date-range-picker>
+                <mat-hint>Entre fecha y fecha</mat-hint>
+              </mat-form-field>
+
+              <!-- Rango: fecha de registro -->
+              <mat-form-field appearance="outline" class="filtro-campo">
+                <mat-label>Fecha de registro</mat-label>
+                <mat-icon matPrefix class="prefijo">history</mat-icon>
+                <mat-date-range-input formGroupName="rangoRegistro" [rangePicker]="pickerRegistro">
+                  <input matStartDate formControlName="start" placeholder="Desde" />
+                  <input matEndDate formControlName="end" placeholder="Hasta" />
+                </mat-date-range-input>
+                <mat-datepicker-toggle matIconSuffix [for]="pickerRegistro"></mat-datepicker-toggle>
+                <mat-date-range-picker #pickerRegistro></mat-date-range-picker>
+                <mat-hint>Cuando se cargo al sistema</mat-hint>
+              </mat-form-field>
+
+              <!-- Soportes -->
+              <div class="filtro-campo filtro-toggle">
+                <span class="filtro-toggle-etiqueta">
+                  <mat-icon>attach_file</mat-icon>
+                  Soportes cargados
+                </span>
+                <mat-button-toggle-group
+                  formControlName="soportesCompletos"
+                  class="toggle-soportes"
+                  aria-label="Filtrar por estado de los soportes"
+                >
+                  <mat-button-toggle value="">Cualquiera</mat-button-toggle>
+                  <mat-button-toggle value="true">Completos</mat-button-toggle>
+                  <mat-button-toggle value="false">Incompletos</mat-button-toggle>
+                </mat-button-toggle-group>
+              </div>
+            </div>
+          }
+
+          <!-- Chips de filtros activos -->
+          @if (hayFiltros()) {
+            <div class="chips-fila" aria-live="polite">
+              <span class="chips-titulo">
+                <mat-icon>filter_alt</mat-icon>
+                Filtros activos
+              </span>
+
+              @for (chip of chips(); track chip.etiqueta + '|' + chip.valor) {
+                <span class="disab-chip">
+                  <mat-icon class="disab-chip-icono">{{ chip.icono }}</mat-icon>
+                  <span class="disab-chip-titulo">{{ chip.etiqueta }}:</span>
+                  <span class="disab-chip-valor">{{ chip.valor }}</span>
+                  <button
+                    type="button"
+                    class="disab-chip-x"
+                    (click)="quitarChip(chip)"
+                    [attr.aria-label]="'Quitar el filtro ' + chip.etiqueta"
+                  >
+                    <mat-icon>close</mat-icon>
+                  </button>
+                </span>
+              }
+
+              <button type="button" class="btn-limpiar-todo" (click)="limpiarTodo()">
+                <mat-icon>backspace</mat-icon>
+                Limpiar todo
+              </button>
+            </div>
+          }
+        </section>
+
+        <mat-divider class="disab-divider"></mat-divider>
+
+        <!-- ════════════════════ RESULTADOS ════════════════════ -->
+        <section class="disab-section">
+          <header class="disab-section-header">
+            <mat-icon class="disab-section-icon">table_chart</mat-icon>
+            <h2 class="disab-section-title">Resultados</h2>
+            <span class="disab-section-hint">{{ textoRango() }}</span>
+
+            <button
+              type="button"
+              mat-flat-button
+              class="btn-exportar"
+              (click)="abrirExportacion()"
+              matTooltip="Elegir columnas, formato y alcance de la exportacion"
+            >
+              <mat-icon>file_download</mat-icon>
+              <span>Exportar</span>
+            </button>
+          </header>
+
+          @if (error()) {
+            <div class="banner-error" role="alert">
+              <mat-icon>error_outline</mat-icon>
+              <div class="banner-error-texto">
+                <strong>No se pudo cargar la consulta</strong>
+                <p>{{ error() }}</p>
+              </div>
+              <button type="button" mat-stroked-button (click)="recargar()">
+                <mat-icon>refresh</mat-icon>
+                <span>Reintentar</span>
+              </button>
+            </div>
+          }
+
+          <div class="tabla-envoltorio">
+            <app-standard-filter-table
+              [data]="filas()"
+              [columnDefinitions]="columnas()"
+              [totalCount]="total()"
+              [isLoading]="cargando()"
+              [defaultPageSize]="tamanoInternoTabla"
+              [pageSizeOptions]="opcionesTamanoInterno"
+              tableTitle="Incapacidades"
+              [enableRowClick]="true"
+              [storageKey]="claveAlmacenamiento"
+              (rowClicked)="alPulsarFila($event)"
+            >
+              <!-- Acciones por fila -->
+              <ng-template #actionsTemplate let-fila>
+                <div class="acciones-fila">
+                  <button
+                    type="button"
+                    mat-icon-button
+                    class="accion accion-ver"
+                    (click)="verDetalle(fila)"
+                    matTooltip="Ver detalle"
+                    aria-label="Ver detalle de la incapacidad"
+                  >
+                    <mat-icon>visibility</mat-icon>
+                  </button>
+
+                  <button
+                    type="button"
+                    mat-icon-button
+                    class="accion accion-editar"
+                    (click)="editar(fila)"
+                    matTooltip="Editar"
+                    aria-label="Editar la incapacidad"
+                  >
+                    <mat-icon>edit</mat-icon>
+                  </button>
+
+                  @if (fila.puedeValidarse) {
+                    <button
+                      type="button"
+                      mat-icon-button
+                      class="accion accion-validar"
+                      (click)="validar(fila)"
+                      matTooltip="Validar (promover a VALIDADA)"
+                      aria-label="Validar la incapacidad"
+                    >
+                      <mat-icon>verified</mat-icon>
+                    </button>
+                  }
+
+                  <button
+                    type="button"
+                    mat-icon-button
+                    class="accion accion-eliminar"
+                    (click)="eliminar(fila)"
+                    matTooltip="Eliminar (borrado logico)"
+                    aria-label="Eliminar la incapacidad"
+                  >
+                    <mat-icon>delete_outline</mat-icon>
+                  </button>
+                </div>
+              </ng-template>
+
+              <!-- Indicador n/m de soportes -->
+              <ng-template appCellTemplate="soportes" let-fila>
+                <span
+                  class="soportes"
+                  [class.soportes-ok]="fila.soportesOk === true"
+                  [class.soportes-falta]="fila.soportesOk === false"
+                  [matTooltip]="
+                    fila.soportesOk === true
+                      ? 'Tiene todos los soportes obligatorios'
+                      : fila.soportesOk === false
+                        ? 'Le faltan soportes obligatorios'
+                        : 'El servidor no informo los soportes'
+                  "
+                >
+                  <mat-icon>
+                    {{
+                      fila.soportesOk === true
+                        ? 'check_circle'
+                        : fila.soportesOk === false
+                          ? 'error_outline'
+                          : 'help_outline'
+                    }}
+                  </mat-icon>
+                  <span>{{ fila.soportes }}</span>
+                </span>
+              </ng-template>
+            </app-standard-filter-table>
+
+            <!-- Paginador PROPIO: el de la tabla compartida pagina solo lo que ya
+                 esta en memoria, asi que se oculta por CSS y se navega de verdad
+                 contra el servidor desde aqui. -->
+            <mat-paginator
+              class="paginador-servidor"
+              [length]="total()"
+              [pageIndex]="pagina()"
+              [pageSize]="tamanoPagina()"
+              [pageSizeOptions]="opcionesTamanoPagina"
+              [disabled]="cargando()"
+              showFirstLastButtons
+              aria-label="Paginacion de incapacidades"
+              (page)="alCambiarPagina($event)"
+            ></mat-paginator>
+          </div>
+        </section>
+      </mat-card-content>
+    </mat-card>
+  </div>
+</div>
