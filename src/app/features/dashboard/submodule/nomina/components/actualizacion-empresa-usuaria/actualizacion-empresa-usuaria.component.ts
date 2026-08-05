@@ -117,6 +117,10 @@ export class ActualizacionEmpresaUsuariaComponent implements OnInit {
     this.empresaId.set(empresa.id_entidad);
     this.empresaQuery.set(empresa.nombre_legal);
     this.resetState();
+    // El censo es por (periodo, EMPRESA): al cambiar de empresa se limpia el
+    // periodo a propósito. Si se arrastrara, la base de la empresa nueva se
+    // asociaría en silencio al periodo elegido para la anterior.
+    this.periodoId.set(null);
     this.cargarPeriodos();
   }
 
