@@ -996,7 +996,7 @@ export class RegistroIncapacidadComponent implements OnDestroy {
   private aplicarIncapacidadExistente(inc: IncapacidadV2): void {
     this.form.controls.oficina.patchValue({
       oficina: inc.oficina || this.usuario.sedeNombre,
-      nombreQuienRecibe: inc.nombreQuienRecibe || this.usuario.nombreCompleto,
+      nombreQuienRecibe: inc.recibidoPor || this.usuario.nombreCompleto,
     });
 
     this.form.controls.incapacidad.patchValue({
@@ -1007,7 +1007,7 @@ export class RegistroIncapacidadComponent implements OnDestroy {
       descripcionDiagnostico: (inc.descripcionDiagnostico ?? '').trim(),
       eps: (inc.eps ?? '').trim(),
       nitIps: (inc.nitIps ?? '').trim(),
-      nombreIps: (inc.nombreIps ?? '').trim(),
+      nombreIps: (inc.ipsNombre ?? '').trim(),
       numeroIncapacidad: (inc.numeroIncapacidad ?? '').trim(),
       estadoDocumento: inc.estadoDocumento,
       observaciones: (inc.observaciones ?? '').trim(),
@@ -1021,14 +1021,14 @@ export class RegistroIncapacidadComponent implements OnDestroy {
       `${inc.cedula} - ${(inc.nombreCompleto ?? '').trim()}`.trim(),
     );
     this.empleadoElegido$.next({
-      cedula: inc.cedula,
+      cedula: inc.cedula ?? '',
       nombreCompleto: (inc.nombreCompleto ?? '').trim(),
       tipoDocumento: (inc.tipoDocumento ?? '').trim(),
       empresa: (inc.empresa ?? '').trim(),
       centroCosto: (inc.centroCosto ?? '').trim(),
       temporal: (inc.temporal ?? '').trim(),
       numeroContrato: (inc.numeroContrato ?? '').trim(),
-      fechaIngreso: inc.fechaIngreso,
+      fechaIngreso: inc.fechaIngreso ?? '',
       eps: (inc.eps ?? '').trim(),
       afp: (inc.afp ?? '').trim(),
       oficina: (inc.oficina ?? '').trim(),
@@ -1379,7 +1379,7 @@ export class RegistroIncapacidadComponent implements OnDestroy {
 
     this.actualizarArchivo(tipo, { estado: 'subiendo', mensajeError: '' });
     this.srv
-      .subirSoporte(creada.consecutivoSistema || creada.id, tipo, archivo.archivo)
+      .subirSoporte(creada.codigoUnico || creada.id, tipo, archivo.archivo)
       .pipe(
         catchError((err: unknown) => {
           this.actualizarArchivo(tipo, {
@@ -1480,7 +1480,7 @@ export class RegistroIncapacidadComponent implements OnDestroy {
     const pendientes = this.tiposCargados();
     if (!pendientes.length) return of(undefined);
 
-    const clave = creada.consecutivoSistema || creada.id;
+    const clave = creada.codigoUnico || creada.id;
     const mapa = this.archivos();
 
     return from(pendientes).pipe(
@@ -1526,11 +1526,16 @@ export class RegistroIncapacidadComponent implements OnDestroy {
     return {
       cedula: p.numeroDocumento.trim(),
       tipoDocumento: p.tipoDocumento.trim(),
-      nombreCompleto: this.nombreCompleto(),
+      // Nombre DESGLOSADO: el backend no acepta `nombreCompleto` y rechaza el
+      // cuerpo entero con 400 ante cualquier campo que no declare.
+      primerApellido: p.primerApellido.trim(),
+      segundoApellido: p.segundoApellido.trim(),
+      primerNombre: p.primerNombre.trim(),
+      segundoNombre: p.segundoNombre.trim(),
       fechaIngreso,
       fechaNacimiento: aIsoCortoFlexible(p.fechaNacimiento) || null,
       edad: this.edad(),
-      genero: p.sexo.trim(),
+      sexo: p.sexo.trim(),
       celular: p.celular.trim(),
       correo: p.correo.trim(),
       empresa: p.empresa.trim(),
@@ -1547,19 +1552,20 @@ export class RegistroIncapacidadComponent implements OnDestroy {
       codigoDiagnostico: i.codigoDiagnostico.trim(),
       descripcionDiagnostico: i.descripcionDiagnostico.trim(),
       numeroIncapacidad: i.numeroIncapacidad.trim(),
-      // Prorroga y responsable de pago SIEMPRE los decide el backend.
-      esProrroga: v?.esProrroga ?? false,
-      prorrogaDeId: v?.prorrogaDeId ?? null,
+      // Prorroga, traslape y responsable de pago SIEMPRE los decide el motor de
+      // reglas del servidor: no se envian, ni siquiera como sugerencia.
       nitIps: i.nitIps.trim(),
-      nombreIps: i.nombreIps.trim(),
+      ipsNombre: i.nombreIps.trim(),
 
       estadoDocumento: i.estadoDocumento,
-      responsablePago: v?.responsablePago,
       soportesCargados: this.tiposCargados(),
       observaciones: i.observaciones.trim(),
 
       oficina: o.oficina.trim(),
-      nombreQuienRecibe: o.nombreQuienRecibe.trim(),
+      recibidoPor: o.nombreQuienRecibe.trim(),
+      recibidoPorId: this.usuario.id || undefined,
+      actor: this.usuario.email || this.usuario.nombreCompleto || undefined,
+      actorRol: this.usuario.rol || undefined,
     };
   }
 

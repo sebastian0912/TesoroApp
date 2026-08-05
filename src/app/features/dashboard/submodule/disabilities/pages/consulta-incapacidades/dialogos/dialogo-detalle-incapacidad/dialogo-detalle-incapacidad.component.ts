@@ -134,7 +134,7 @@ export class DialogoDetalleIncapacidadComponent implements OnInit, OnDestroy {
 
   readonly consecutivo = computed(() => {
     const d = this.detalle();
-    return d?.consecutivoSistema || this.datos.resumen?.consecutivoSistema || `#${this.datos.id}`;
+    return d?.codigoUnico || this.datos.resumen?.consecutivoSistema || `#${this.datos.id}`;
   });
 
   readonly nombreTrabajador = computed(() => {
@@ -191,7 +191,7 @@ export class DialogoDetalleIncapacidadComponent implements OnInit, OnDestroy {
       .filter((x) => !!x)
       .join(' · ');
 
-    const ips = [d?.nitIps, d?.nombreIps].filter((x) => !!x).join(' · ');
+    const ips = [d?.nitIps, d?.ipsNombre].filter((x) => !!x).join(' · ');
 
     return [
       {
@@ -203,7 +203,7 @@ export class DialogoDetalleIncapacidadComponent implements OnInit, OnDestroy {
           { etiqueta: 'Nombre completo', valor: texto(d?.nombreCompleto ?? r?.nombreCompleto), ancho: true },
           { etiqueta: 'Fecha de nacimiento', valor: fechaLegible(d?.fechaNacimiento) || VACIO },
           { etiqueta: 'Edad', valor: edad === null ? VACIO : `${edad} anios` },
-          { etiqueta: 'Genero', valor: texto(d?.genero) },
+          { etiqueta: 'Genero', valor: texto(d?.sexo) },
           { etiqueta: 'Celular', valor: texto(d?.celular) },
           { etiqueta: 'Correo', valor: texto(d?.correo), ancho: true },
         ],
@@ -269,7 +269,7 @@ export class DialogoDetalleIncapacidadComponent implements OnInit, OnDestroy {
         campos: [
           { etiqueta: 'Estado', valor: this.chipEstado().texto },
           { etiqueta: 'Estado del documento', valor: this.chipEstadoDocumento().texto },
-          { etiqueta: 'Recibido por', valor: texto(d?.nombreQuienRecibe) },
+          { etiqueta: 'Recibido por', valor: texto(d?.recibidoPor) },
           { etiqueta: 'Registrado por', valor: texto(d?.creadoPor ?? r?.creadoPor) },
           { etiqueta: 'Fecha de registro', valor: fechaHoraLegible(d?.creadoEn ?? r?.creadoEn) || VACIO },
           { etiqueta: 'Ultima modificacion', valor: fechaHoraLegible(d?.actualizadoEn ?? r?.actualizadoEn) || VACIO },

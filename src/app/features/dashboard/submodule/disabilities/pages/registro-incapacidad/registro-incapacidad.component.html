@@ -1248,8 +1248,8 @@
             <div class="reg-exito-texto">
               <strong>
                 {{ esEdicion() ? 'Cambios guardados' : 'Incapacidad guardada' }}
-                @if (r.incapacidad.consecutivoSistema) {
-                  · {{ r.incapacidad.consecutivoSistema }}
+                @if (r.incapacidad.codigoUnico) {
+                  · {{ r.incapacidad.codigoUnico }}
                 }
               </strong>
               <p>

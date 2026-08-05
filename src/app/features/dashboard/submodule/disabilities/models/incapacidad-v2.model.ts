@@ -234,14 +234,21 @@ export interface CrearIncapacidadV2Request {
   // ── Trabajador ──────────────────────────────────────────────────────
   cedula: string;
   tipoDocumento?: string;
-  nombreCompleto?: string;
+  /* El backend guarda el nombre DESGLOSADO: no acepta `nombreCompleto`
+     (CrearIncapacidadV2Request no lo declara y Jackson rechaza el cuerpo entero
+     con 400 ante un campo desconocido). El nombre completo se arma al leer. */
+  primerApellido?: string;
+  segundoApellido?: string;
+  primerNombre?: string;
+  segundoNombre?: string;
   /** `yyyy-MM-dd`. */
   fechaIngreso: string;
   /** `yyyy-MM-dd`; puede ser null si la fecha guardada era basura. */
   fechaNacimiento?: string | null;
   /** Calculada desde `fechaNacimiento` con `calcularEdad`, nunca desde `edadTrabajador`. */
   edad?: number | null;
-  genero?: string;
+  /** El backend lo llama `sexo`, no `genero`. */
+  sexo?: string;
   celular?: string;
   correo?: string;
   empresa?: string;
@@ -266,23 +273,27 @@ export interface CrearIncapacidadV2Request {
   descripcionDiagnostico?: string;
   /** Numero impreso en el documento de la EPS/IPS. */
   numeroIncapacidad?: string;
-  esProrroga?: boolean;
-  prorrogaDeId?: number | null;
+  /* esProrroga, prorrogaDeId y responsablePago NO se envian: los decide el motor
+     de reglas del servidor y el DTO de creacion ni siquiera los declara. */
   nitIps?: string;
-  nombreIps?: string;
+  /** El backend lo llama `ipsNombre`, no `nombreIps`. */
+  ipsNombre?: string;
 
   // ── Gestion documental ──────────────────────────────────────────────
   estadoDocumento: EstadoDocumento;
-  estado?: EstadoIncapacidad;
-  responsablePago?: ResponsablePago;
   soportesCargados?: TipoSoporte[];
   observaciones?: string;
 
   // ── Trazabilidad (autocompletado desde el usuario logueado) ─────────
   /** Sede/oficina. Obligatoria: nunca se guarda vacia. */
   oficina: string;
-  /** Nombre de quien recibe: sale del usuario logueado. */
-  nombreQuienRecibe: string;
+  /** Nombre de quien recibe: sale del usuario logueado. El backend lo llama `recibidoPor`. */
+  recibidoPor: string;
+  /** Id del usuario en sesion, para trazabilidad. */
+  recibidoPorId?: string;
+  /** Quien ejecuta la accion; hoy el gateway no inyecta los headers X-User-*. */
+  actor?: string;
+  actorRol?: string;
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -303,29 +314,97 @@ export interface SoporteAdjunto {
 }
 
 /** Detalle completo: `IncapacidadV2Response` del backend. */
-export interface IncapacidadV2 extends CrearIncapacidadV2Request {
+/**
+ * Respuesta de GET/POST/PUT /Incapacidades/v2 (`IncapacidadV2Response` del backend).
+ *
+ * NO extiende `CrearIncapacidadV2Request`: son contratos DISTINTOS. La peticion
+ * de creacion no lleva los campos que decide el motor de reglas (esProrroga,
+ * responsablePago, diasEmpresa...) y la respuesta si los trae. Heredar uno del
+ * otro fue lo que produjo el 400 "Unrecognized field": el formulario enviaba
+ * campos de lectura que el DTO de escritura no declara.
+ *
+ * Los nombres de abajo estan copiados uno a uno de los @JsonProperty del backend.
+ * Casi todo es opcional a proposito: el backend puede dejar nulos los calculados
+ * mientras la incapacidad esta en RECIBIDA.
+ */
+export interface IncapacidadV2 {
   id: number;
-  /** Consecutivo legible del sistema; es la clave del endpoint de documentos. */
-  consecutivoSistema: string;
+  /** Clave de negocio: cedula + '_' + fechaInicio(yyyyMMdd). El backend NO devuelve `consecutivoSistema`. */
+  codigoUnico?: string;
 
-  // Campos calculados que el backend devuelve ya resueltos.
-  dias: number;
-  diasEmpresa: number;
-  diasEntidad: number;
-  entidadResponsable: EntidadResponsable;
+  // ── Trabajador ──────────────────────────────────────────────────────
+  cedula?: string;
+  tipoDocumento?: string;
+  primerApellido?: string;
+  segundoApellido?: string;
+  primerNombre?: string;
+  segundoNombre?: string;
+  /** Lo arma el backend; en la peticion de creacion NO se envia. */
+  nombreCompleto?: string;
+  fechaNacimiento?: string;
+  edad?: number;
+  sexo?: string;
+  empresa?: string;
+  centroCosto?: string;
+  temporal?: string;
+  numeroContrato?: string;
+  fechaIngreso?: string;
+  eps?: string;
+  afp?: string;
+  arl?: string;
+  celular?: string;
+  correo?: string;
 
-  estado: EstadoIncapacidad;
-  responsablePago: ResponsablePago;
+  // ── Recepcion ───────────────────────────────────────────────────────
+  oficina?: string;
+  recibidoPor?: string;
+  recibidoPorId?: string;
 
-  soportes?: SoporteAdjunto[];
-  /** Ultima validacion calculada por el backend, si la envia embebida. */
-  validacion?: ValidacionResponse;
+  // ── Incapacidad ─────────────────────────────────────────────────────
+  tipoIncapacidad?: TipoIncapacidad;
+  tipoIncapacidadEtiqueta?: string;
+  fechaInicio?: string;
+  fechaFin?: string;
+  dias?: number;
+  codigoDiagnostico?: string;
+  descripcionDiagnostico?: string;
+  nitIps?: string;
+  ipsNombre?: string;
+  numeroIncapacidad?: string;
 
-  // Auditoria.
-  creadoEn?: string;
+  // ── Calculado por el motor de reglas (solo lectura) ─────────────────
+  esProrroga?: boolean;
+  prorrogaDeId?: number | null;
+  tieneTraslape?: boolean;
+  cumpleCotizacion?: boolean;
+  diasDesdeIngreso?: number;
+  estaPrescrita?: boolean;
+  diasHabilesTranscurridos?: number;
+  diasEmpresa?: number;
+  diasEntidad?: number;
+  responsablePago?: ResponsablePago;
+  responsablePagoEtiqueta?: string;
+  entidadResponsable?: EntidadResponsable;
+  diasAcumuladosDiagnostico?: number;
+
+  // ── Workflow ────────────────────────────────────────────────────────
+  estado?: EstadoIncapacidad;
+  estadoEtiqueta?: string;
+  estadoDocumento?: EstadoDocumento;
+  estadoDocumentoEtiqueta?: string;
+  observaciones?: string;
+  soportesCargados?: string[];
+  activo?: boolean;
+
+  // ── Auditoria (ISO-8601) ────────────────────────────────────────────
   creadoPor?: string;
-  actualizadoEn?: string;
+  creadoEn?: string;
   actualizadoPor?: string;
+  actualizadoEn?: string;
+
+  // ── Extras ──────────────────────────────────────────────────────────
+  soportes?: SoporteAdjunto[];
+  validacion?: ValidacionResponse;
 }
 
 /** Fila de la tabla: `IncapacidadResumenResponse` del backend. */
@@ -447,6 +526,7 @@ export interface DatosBasicosContratacion {
   segundo_apellido?: string;
   primer_nombre?: string;
   segundo_nombre?: string;
+  /** Contratacion lo devuelve como `genero` (el modelo de incapacidad lo llama `sexo`). */
   genero?: string;
   primercorreoelectronico?: string;
   celular?: string;
