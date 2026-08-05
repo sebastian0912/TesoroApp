@@ -2,6 +2,8 @@ import {  Component, effect, input, output , ChangeDetectionStrategy, ChangeDete
 import { FormBuilder, FormGroup } from '@angular/forms';
 import { firstValueFrom } from 'rxjs';
 import Swal from 'sweetalert2';
+import { mensajeDeErrorLog } from '@/app/shared/utils/mensaje-error';
+import { ElectronWindowService } from '@/app/core/services/electron-window.service';
 
 import { SharedModule } from '@/app/shared/shared.module';
 import { MatTabsModule } from '@angular/material/tabs';
@@ -41,6 +43,19 @@ interface FieldDef {
   optionSource?: ListSource;
   placeholder?: string;
   control?: string;
+}
+
+/**
+ * PDF adjuntado en la UI y todavía no subido al backend.
+ *
+ * Se captura como snapshot ANTES de cualquier `await`, porque el effect() del
+ * candidato llama resetUploadedFilesAsNew() y borra los File pendientes.
+ */
+interface PendienteUpload {
+  key: DocKey;
+  file: File;
+  fileName: string;
+  typeId: number;
 }
 
 /* ===== Cola de antecedentes (viene del backend) ===== */
@@ -135,7 +150,13 @@ export class SelectionQuestionsComponent implements OnDestroy {
     'FAMILIAR DE COLOMBIA', 'MUTUAL SER', 'NUEVA EPS', 'PIJAOS SALUD', 'SALUD TOTAL',
     'SANITAS', 'SAVIA SALUD', 'SOS', 'SURA', 'No Tiene', 'Sin Buscar',
   ] as const;
-  readonly afpList = ['PORVENIR', 'COLFONDOS', 'PROTECCION', 'COLPENSIONES', 'SKANDIA'] as const;
+  // 'No Tiene' y 'Sin Buscar' faltaban: sin ellas no había forma de registrar
+  // que la persona no cotiza pensión, ni de dejar el campo como "pendiente".
+  // Van con la misma escritura que EPS y Sisbén para que se vean parejas.
+  readonly afpList = [
+    'PORVENIR', 'COLFONDOS', 'PROTECCION', 'COLPENSIONES', 'SKANDIA',
+    'No Tiene', 'Sin Buscar',
+  ] as const;
   readonly categoriasSisben = [
     'A1', 'A2', 'A3', 'A4', 'A5', 'B1', 'B2', 'B3', 'B4', 'B5', 'B6', 'B7',
     'C1', 'C2', 'C3', 'C4', 'C5', 'C6', 'C7', 'C8', 'C9', 'C10', 'C11', 'C12', 'C13', 'C14', 'C15', 'C16', 'C17', 'C18',
@@ -217,7 +238,8 @@ export class SelectionQuestionsComponent implements OnDestroy {
     private rpc: RegistroProcesoContratacion,
     private ui: UtilityServiceService,
     private robots: RobotsService,
-    private cdr: ChangeDetectorRef
+    private cdr: ChangeDetectorRef,
+    private ventanas: ElectronWindowService
   ) {
     // Reactive Forms
     this.antecedentes = this.fb.group({
@@ -231,9 +253,6 @@ export class SelectionQuestionsComponent implements OnDestroy {
       ofac: [''],
       medidasCorrectivas: [''],
       semanasCotizadas: [null],
-      // Barrio de residencia: no es un antecedente, pero se consulta y edita
-      // aca. Viaja por su propio endpoint (ver guardar()).
-      barrio: [''],
     });
 
     // Reacciona al candidato seleccionado
@@ -249,8 +268,6 @@ export class SelectionQuestionsComponent implements OnDestroy {
 
       this.resetUploadedFilesAsNew();
       this.patchSeleccion(proc?.antecedentes ?? null);
-      this.antecedentes.get('barrio')?.setValue(
-        String(candidato?.residencia?.barrio ?? '').trim(), { emitEvent: false });
 
       // Cancela cualquier polling del candidato anterior antes de empezar.
       this.cancelDocPolling();
@@ -342,6 +359,41 @@ export class SelectionQuestionsComponent implements OnDestroy {
   }
   trackByIndex(index: number): number { return index; }
 
+  /**
+   * Estado GENERAL de un antecedente, para pintar la tarjeta.
+   *
+   * Resume en una palabra las tres señales que hoy hay que leer por separado
+   * (el valor del campo, si llegó el documento y en qué va la cola del robot),
+   * para poder darle un color a la tarjeta y que se vea de un vistazo cuál
+   * falta y cuál está lista.
+   *
+   *   'listo'     verde  — hay valor y documento
+   *   'progreso'  ámbar  — el robot está trabajando o está en cola
+   *   'alerta'    rojo   — dice NO CUMPLE
+   *   'falta'     gris   — sin valor y sin documento
+   */
+  estadoTarjeta(fld: FieldDef): 'listo' | 'progreso' | 'alerta' | 'falta' {
+    const valor = String(this.antecedentes.get(this.controlName(fld))?.value ?? '').trim();
+    if (valor.toUpperCase() === 'NO CUMPLE') return 'alerta';
+
+    const cola = this.queueDetailFor(fld);
+    const tieneDoc = !!this.uploadedFiles[fld.key]?.file;
+
+    if (valor && (tieneDoc || cola?.finalizado)) return 'listo';
+    if (cola?.enProgreso || (cola && !cola.finalizado)) return 'progreso';
+    return valor ? 'listo' : 'falta';
+  }
+
+  /** Nombre del archivo, o el aviso de que falta. */
+  nombreArchivo(fld: FieldDef): string {
+    return this.uploadedFiles[fld.key]?.fileName ?? 'Adjuntar documento';
+  }
+
+  /** ¿Ya hay un documento cargado para este antecedente? */
+  tieneDocumento(fld: FieldDef): boolean {
+    return !!this.uploadedFiles[fld.key]?.file;
+  }
+
   /* ===== Cola: helpers que usa el template para la píldora ===== */
   hasQueue(fld: FieldDef): boolean {
     const k = this.colaKeyMap[fld.key];
@@ -405,8 +457,43 @@ export class SelectionQuestionsComponent implements OnDestroy {
   }
 
   /* ===================== Carga antecedentes -> form ===================== */
+  /**
+   * Devuelve el valor EXACTO del catálogo que corresponde a `valor`, o el
+   * original si no hay ninguno parecido.
+   *
+   * Un `mat-select` solo pinta la opción si el valor del control es idéntico
+   * (===) al de un `mat-option`. Lo guardado no siempre coincide letra por
+   * letra con el catálogo, y entonces el campo se veía VACÍO aunque el dato
+   * estuviera bien guardado. Casos reales medidos en prod:
+   *   - `PROTECCIÓN ` con tilde (17 filas) contra la opción `PROTECCION`.
+   *   - `Sin Buscar` / `Cumple` guardados en minúsculas, que el patch pasaba a
+   *     MAYÚSCULAS y dejaban de coincidir con opciones de escritura mixta.
+   * Se compara sin tildes, sin mayúsculas y con espacios colapsados.
+   */
+  private alinearConCatalogo(valor: unknown, opciones: readonly (string | number)[]): unknown {
+    if (valor === null || valor === undefined || valor === '') return valor;
+    const clave = claveComparable(valor);
+    if (!clave) return valor;
+    const match = opciones.find(o => claveComparable(o) === clave);
+    return match !== undefined ? match : valor;
+  }
+
   private patchSeleccion(raw: any): void {
-    const patch = buildPatchFromAntecedentes(raw, this.formPatchBase);
+    const patch = buildPatchFromAntecedentes(raw, this.formPatchBase) as any;
+
+    // Los campos de lista se alinean con SU catálogo antes de entrar al form.
+    for (const fld of this.fields) {
+      if (fld.type !== 'list') continue;
+      const control = fld.control ?? fld.key;
+      patch[control] = this.alinearConCatalogo(patch[control], this.getOptions(fld));
+    }
+    // Los de estado comparten el catálogo CUMPLE / NO CUMPLE / SIN BUSCAR.
+    for (const fld of this.fields) {
+      if (fld.type !== 'estado') continue;
+      const control = fld.control ?? fld.key;
+      patch[control] = this.alinearConCatalogo(patch[control], this.estados);
+    }
+
     this.antecedentes.patchValue(patch, { emitEvent: false });
   }
 
@@ -464,13 +551,24 @@ export class SelectionQuestionsComponent implements OnDestroy {
         return;
       }
 
+      // Índice control -> campo, para saber contra qué catálogo alinear.
+      const porControl = new Map(this.fields.map(f => [f.control ?? f.key, f]));
+
       const patch: Record<string, string | number> = {};
       for (const [robotKey, control] of Object.entries(this.robotKeyToControl)) {
         const campo = (this.resultadosRobot as any)[robotKey];
         const valor = campo?.valor;
         if (valor === null || valor === undefined || valor === '') continue;
         if (!this.estaVacio(control)) continue;
-        patch[control] = valor;
+
+        // El robot normaliza a sus propios tokens ("No Tiene", "PROTECCION"…),
+        // que no siempre están escritos igual que la opción del catálogo. Sin
+        // alinear, el select quedaba vacío pese a haberse prellenado.
+        const fld = porControl.get(control);
+        const opciones = fld?.type === 'estado'
+          ? this.estados
+          : (fld ? this.getOptions(fld) : []);
+        patch[control] = this.alinearConCatalogo(valor, opciones) as string | number;
         this.camposDesdeRobot.add(control);
       }
 
@@ -533,6 +631,11 @@ export class SelectionQuestionsComponent implements OnDestroy {
         const typeKey = (Object.keys(this.typeMap) as DocKey[]).find(k => this.typeMap[k] === d.type);
         if (!typeKey) continue;
 
+        // No pisar un PDF que el usuario ya adjuntó y todavía no ha guardado:
+        // el refresco por polling llegaría a borrarle el archivo pendiente.
+        const pendiente = this.uploadedFiles[typeKey];
+        if (pendiente?.changed && pendiente.file instanceof File) continue;
+
         const nombre = d.original_filename || d.title || 'Documento sin título';
         const fileUrl = d.file_url; // Use URL directly
         const iso: string | undefined = d.uploaded_at || undefined;
@@ -564,14 +667,20 @@ export class SelectionQuestionsComponent implements OnDestroy {
   verArchivo(key: DocKey) {
     const entry = this.uploadedFiles[key];
     const f = entry?.file;
-    if (!f) return void Swal.fire('Error', 'No se encontró archivo para este campo', 'error');
+    if (!f) {
+      return void Swal.fire('Sin documento',
+        'Todavía no hay un archivo cargado en este campo.', 'info');
+    }
 
+    // Se abre por `ElectronWindowService` y no con `window.open`: el main
+    // process de TesoroApp deniega TODO `window.open` (setWindowOpenHandler en
+    // app.js). Con una URL http la delegaba al navegador del sistema y por eso
+    // "funcionaba"; con un archivo recién adjuntado es un `blob:`, que no se
+    // puede delegar, y no pasaba nada al darle "Ver PDF".
     if (typeof f === 'string') {
-      window.open(encodeURI(f), '_blank', 'noopener,noreferrer');
+      this.ventanas.openExternal(f);
     } else {
-      const url = URL.createObjectURL(f);
-      window.open(url, '_blank', 'noopener,noreferrer');
-      setTimeout(() => URL.revokeObjectURL(url), 150);
+      void this.ventanas.openPdfFromBlob(f, { title: entry?.fileName || 'Documento' });
     }
   }
 
@@ -586,9 +695,27 @@ export class SelectionQuestionsComponent implements OnDestroy {
     if (!file) return;
 
     const nameOk = file.name && file.name.length <= 100;
-    const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
-    if (!nameOk) return void Swal.fire('Error', 'El nombre no debe exceder 100 caracteres', 'error');
-    if (!isPdf) return void Swal.fire('Error', 'Solo se permiten archivos PDF', 'error');
+    if (!nameOk) {
+      return void Swal.fire('Nombre muy largo',
+        'El nombre del archivo no puede pasar de 100 caracteres. Renómbralo y vuelve a intentar.', 'warning');
+    }
+
+    // El navegador reporta el tipo real del archivo en `file.type`. Antes
+    // bastaba con que el NOMBRE terminara en .pdf, así que un .exe renombrado
+    // pasaba el filtro y solo lo frenaba el backend. Si el navegador no sabe
+    // el tipo (`''`, pasa con algunos escáneres), se acepta por extensión.
+    const tipo = (file.type || '').toLowerCase();
+    const terminaEnPdf = file.name.toLowerCase().endsWith('.pdf');
+    const esPdf = tipo === 'application/pdf' || (tipo === '' && terminaEnPdf);
+    if (!esPdf) {
+      return void Swal.fire('Solo se aceptan PDF',
+        'Ese archivo no es un PDF. Si lo tienes en Word o en foto, conviértelo a PDF y súbelo de nuevo.',
+        'warning');
+    }
+    if (file.size === 0) {
+      return void Swal.fire('Archivo vacío',
+        'El archivo no tiene contenido. Revísalo y vuelve a subirlo.', 'warning');
+    }
 
     this.uploadedFiles[key] = {
       file,
@@ -681,7 +808,7 @@ export class SelectionQuestionsComponent implements OnDestroy {
       await Swal.fire({
         icon: 'error',
         title: 'No se pudo',
-        text: err?.error?.detail || err?.message || 'No se pudo re-abrir la consulta.',
+        text: mensajeDeErrorLog('selection/forzar-fuente', err, 'No se pudo volver a consultar este documento.'),
         confirmButtonColor: '#111827',
       });
     } finally {
@@ -711,6 +838,10 @@ export class SelectionQuestionsComponent implements OnDestroy {
 
   /* ===================== Guardar selección + subir PDFs ===================== */
   async imprimirVerificacionesAplicacion(): Promise<void> {
+    // Snapshot síncrono: cualquier `await` de aquí en adelante da chance a que
+    // el candidato se recargue y resetUploadedFilesAsNew() borre los adjuntos.
+    const pendientes = this.capturarPendientes(Object.keys(this.typeMap) as DocKey[]);
+
     if (this.antecedentes.invalid) {
       this.antecedentes.markAllAsTouched();
       await Swal.fire('Campos incompletos', 'Revisa los campos obligatorios.', 'warning');
@@ -763,31 +894,20 @@ export class SelectionQuestionsComponent implements OnDestroy {
         modificadoPor: this.modificadoPor(),
       }));
 
-      // El barrio vive en ResidenciaCandidato, no en los antecedentes, así que
-      // va por su propio endpoint. Se manda solo si cambió, para no crear una
-      // fila de residencia vacía en candidatos que no la tienen.
-      const barrio = String(v['barrio'] ?? '').trim();
-      const barrioOriginal = String(
-        this.candidatoSeleccionado()?.residencia?.barrio ?? ''
-      ).trim();
-      if (barrio !== barrioOriginal) {
-        try {
-          await firstValueFrom(this.rpc.upsertCandidatoByDocumento({
-            numero_documento: numero,
-            residencia: { barrio },
-          }));
-        } catch (e) {
-          // No se tumba el guardado de antecedentes por esto.
-          console.warn('[barrio] no se pudo guardar', e);
-        }
-      }
+      // Los PDFs van ANTES de `guardado.emit()`. Emitir primero hace que el
+      // padre recargue el candidato -> effect() -> resetUploadedFilesAsNew(),
+      // que borra los File pendientes; la subida quedaba vacía y aun así
+      // reportaba "todo OK". Se notaba sobre todo en sisbén (8) y AFP (11),
+      // que son los únicos que ningún robot vuelve a llenar.
+      const res = await this.subirTodosLosArchivos(pendientes);
+
       this.guardado.emit();
       await Swal.fire('¡Guardado!', 'Se actualizaron los antecedentes del proceso.', 'success');
 
-      const res = await this.subirTodosLosArchivos(Object.keys(this.typeMap) as DocKey[]);
-
       if (res.todosOk) {
-        Swal.fire('¡Listo!', 'Todos los documentos se subieron correctamente.', 'success');
+        if (res.exitosos.length) {
+          Swal.fire('¡Listo!', 'Todos los documentos se subieron correctamente.', 'success');
+        }
       } else {
         // Build detailed error message
         const listaErrores = res.fallidos.map(f => `<li><b>${f.key}:</b> ${f.error}</li>`).join('');
@@ -819,13 +939,17 @@ export class SelectionQuestionsComponent implements OnDestroy {
     }
   }
 
-  async subirTodosLosArchivos(
-    keys: DocKey[]
-  ): Promise<{ todosOk: boolean; exitosos: DocKey[]; fallidos: { key: DocKey; error: string }[] }> {
-    const ced = this.cedula;
-    if (!ced) return { todosOk: true, exitosos: [], fallidos: [] };
-
-    const aEnviar = keys
+  /**
+   * Snapshot de los PDFs adjuntados y aún no subidos.
+   *
+   * DEBE llamarse de forma síncrona, antes de cualquier `await`: en cuanto el
+   * padre recarga el candidato (`(guardado)="recargarCandidato()"`), el
+   * effect() de este componente dispara resetUploadedFilesAsNew() y deja
+   * `file: undefined, changed: false`. Si se lee después, no queda nada que
+   * subir y la subida se pierde en silencio.
+   */
+  capturarPendientes(keys: DocKey[]): PendienteUpload[] {
+    return keys
       .filter(k => !!this.uploadedFiles[k]?.changed && this.uploadedFiles[k].file instanceof File)
       .map(k => ({
         key: k,
@@ -833,6 +957,18 @@ export class SelectionQuestionsComponent implements OnDestroy {
         fileName: this.uploadedFiles[k].fileName ?? 'documento.pdf',
         typeId: this.typeMap[k],
       }));
+  }
+
+  async subirTodosLosArchivos(
+    keysOPendientes: DocKey[] | PendienteUpload[]
+  ): Promise<{ todosOk: boolean; exitosos: DocKey[]; fallidos: { key: DocKey; error: string }[] }> {
+    const ced = this.cedula;
+    if (!ced) return { todosOk: true, exitosos: [], fallidos: [] };
+
+    const aEnviar: PendienteUpload[] =
+      typeof keysOPendientes[0] === 'string' || keysOPendientes.length === 0
+        ? this.capturarPendientes(keysOPendientes as DocKey[])
+        : (keysOPendientes as PendienteUpload[]);
 
     if (!aEnviar.length) return { todosOk: true, exitosos: [], fallidos: [] };
 
@@ -895,6 +1031,21 @@ export class SelectionQuestionsComponent implements OnDestroy {
 
 /* ===================== Helpers puros (fuera de la clase) ===================== */
 function up(v: unknown): string { return v == null ? '' : String(v).toUpperCase().trim(); }
+
+/**
+ * Clave para comparar un valor guardado contra las opciones de un catálogo:
+ * sin tildes, en mayúsculas y con los espacios colapsados.
+ *
+ * Solo se usa para COMPARAR; lo que entra al formulario siempre es el valor
+ * exacto del catálogo (ver `alinearConCatalogo`).
+ */
+function claveComparable(v: unknown): string {
+  return String(v ?? '')
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .toUpperCase()
+    .replace(/\s+/g, ' ')
+    .trim();
+}
 function isEmpty(v: unknown): boolean { return v === '' || v == null; }
 function toNumOrEmpty(v: unknown): number | '' {
   if (v === '' || v == null) return '';

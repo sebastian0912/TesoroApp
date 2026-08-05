@@ -77,3 +77,7 @@
   .td-content { padding: 10px 12px 12px; }
   .td-title { font-size: 1rem; }
 }
+
+/* Borrar fila: rojo, porque el borrado es en cascada y no se deshace. */
+.td-del-btn { color: #b91c1c; }
+.td-del-btn:disabled { color: rgba(0, 0, 0, .26); }

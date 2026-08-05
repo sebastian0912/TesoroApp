@@ -180,6 +180,13 @@
 .chip-generado { background: #e8f5e9; color: var(--ok); }
 .chip-pendiente { background: #fff3e0; color: var(--warn); }
 
+/* Temporal: cada una con su color para distinguirlas de un vistazo, porque
+   deciden el formato del carnet y salen en hojas separadas. */
+.chip-apoyo { background: #fff1e6; color: #b45309; }
+.chip-alianza { background: #e8eefc; color: #1e40af; }
+
+.col-temporal { white-space: nowrap; }
+
 .cm-error,
 .cm-completo {
   display: inline-flex;

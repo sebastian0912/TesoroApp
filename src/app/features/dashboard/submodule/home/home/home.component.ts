@@ -13,6 +13,15 @@ import { MatSelectModule } from '@angular/material/select';
 
 import Swal from 'sweetalert2';
 import * as XLSX from 'xlsx';
+// El dibujo del carnet es UNO SOLO, compartido con la generación individual de
+// Contratación. Antes había una copia inline acá y las correcciones no llegaban
+// a los dos lados.
+import {
+  ARL_ALIANZA,
+  CarnetMasivoRow,
+  TELEFONO_COORDINADOR_ALIANZA,
+  buildCarnetsMasivoPdf,
+} from '../../hiring/components/generate-contracting-documents/carnet-masivo-fill';
 import { UtilityServiceService } from '../../../../../shared/services/utilityService/utility-service.service';
 import { MerchandisingMerchandiseComponent } from '../components/merchandising-merchandise/merchandising-merchandise.component';
 import { MigrationPanelComponent } from '../components/migration-panel/migration-panel.component';
@@ -1213,6 +1222,54 @@ export class HomeComponent implements OnInit {
   // =========================================================
   // ✅ GENERAR CARNETS — Refactorizado para máxima compatibilidad (jsPDF)
   // =========================================================
+
+  /**
+   * Deja la foto "al derecho" antes de meterla al carnet.
+   *
+   * Las fotos se toman con cámara y llegan apaisadas, con la rotación solo en
+   * el EXIF. `jsPDF.addImage` copia los píxeles tal cual y las imprimía
+   * acostadas. Se decodifica con `imageOrientation: 'from-image'` para aplicar
+   * el EXIF y, si aun así queda más ancha que alta, se gira 90° en sentido
+   * horario — el mismo giro que usa la generación individual, para que la foto
+   * salga igual en los dos lados.
+   *
+   * Si algo falla devuelve la original: nunca se queda sin foto por esto.
+   */
+  private async fotoAlDerechoDataUrl(dataUrl: string | null): Promise<string | null> {
+    if (!dataUrl) return null;
+    try {
+      const resp = await fetch(dataUrl);
+      const blob = await resp.blob();
+
+      let bitmap: ImageBitmap | null = null;
+      try {
+        bitmap = await createImageBitmap(blob, { imageOrientation: 'from-image' });
+      } catch {
+        bitmap = await createImageBitmap(blob).catch(() => null);
+      }
+      if (!bitmap) return dataUrl;
+
+      const apaisada = bitmap.width > bitmap.height;
+      const canvas = document.createElement('canvas');
+      canvas.width = apaisada ? bitmap.height : bitmap.width;
+      canvas.height = apaisada ? bitmap.width : bitmap.height;
+
+      const ctx = canvas.getContext('2d');
+      if (!ctx) { bitmap.close?.(); return dataUrl; }
+
+      if (apaisada) {
+        ctx.translate(canvas.width, 0);
+        ctx.rotate(Math.PI / 2);
+      }
+      ctx.drawImage(bitmap, 0, 0);
+      bitmap.close?.();
+
+      return canvas.toDataURL('image/jpeg', 0.92);
+    } catch {
+      return dataUrl;
+    }
+  }
+
   async generarCarnets(rowsParam?: any[]): Promise<void> {
     try {
       const rows: any[] = Array.isArray(rowsParam) && rowsParam.length ? rowsParam : this.carnetContext?.FINAL?.FILAS ?? [];
@@ -1338,209 +1395,44 @@ export class HomeComponent implements OnInit {
           text: `PDF ${fileIdx + 1}/${totalPdfs} (registros ${chStart + 1}-${chEnd})`,
         });
 
-        const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'letter', compress: true });
-
-        // Cargar todas las imágenes de este chunk en paralelo
-        const slotData = [];
-        for (let si = 0; si < 9; si++) {
+        // El dibujo del carnet vive en `carnet-masivo-fill.ts`, compartido con
+        // la generación individual de Contratación. Antes estaba duplicado acá
+        // y las correcciones solo llegaban a un lado: este archivo arrastraba
+        // dos defectos ya resueltos allá —los apellidos largos se montaban
+        // sobre los nombres (el cursor avanzaba una altura fija aunque el texto
+        // ocupara dos renglones) y la foto no aplicaba la orientación EXIF, así
+        // que las de cámara salían acostadas.
+        const filas: CarnetMasivoRow[] = [];
+        for (let si = 0; si < CHUNK_SIZE; si++) {
           const rv = chunk[si];
-          if (!rv) { slotData.push(null); continue; }
+          if (!rv) continue;
+
           const fotoUrl = String(rv?.DOCUMENTO_89_URL ?? '').trim();
           const qrKey = `${String(rv?.CEDULA ?? '').trim()}|${String(rv?.CODIGO ?? '').trim()}`;
           const [fotoB64, qrB64] = await Promise.all([
             fetchImageBase64(fotoUrl),
-            buildQrDataUrl(qrKey)
+            buildQrDataUrl(qrKey),
           ]);
-          slotData.push({ rv, foto: fotoB64, qr: qrB64 });
+
+          filas.push({
+            CEDULA: String(rv?.CEDULA ?? ''),
+            CODIGO: String(rv?.CODIGO ?? ''),
+            APELLIDOS: String(rv?.APELLIDOS ?? ''),
+            NOMBRES: String(rv?.NOMBRES ?? rv?.NOMBRE ?? ''),
+            FECHA_INGRESO: String(rv?.FECHA_INGRESO ?? ''),
+            CENTRO_COSTO: String(rv?.CENTRO_COSTO ?? ''),
+            FAMILIAR_EMERGENCIA_NOMBRE: String(rv?.FAMILIAR_EMERGENCIA_NOMBRE ?? ''),
+            FAMILIAR_EMERGENCIA_TELEFONO: String(rv?.FAMILIAR_EMERGENCIA_TELEFONO ?? ''),
+            fotoDataUrl: await this.fotoAlDerechoDataUrl(fotoB64),
+            qrDataUrl: qrB64 || null,
+          });
         }
 
-        // --- PÁGINA 1 (FRONTAL) ---
-        for (let si = 0; si < 9; si++) {
-          const d = slotData[si];
-          if (!d) continue;
-
-          const col = si % 3;
-          const row = Math.floor(si / 3);
-          const cx = MARGIN + col * (CARD_W + GAP);
-          const cy = MARGIN + row * (CARD_H + GAP); // jsPDF usa Y desde arriba (o=top)
-
-          // Bordes
-          doc.setDrawColor(BLACK);
-          doc.setLineWidth(1.4);
-          doc.rect(cx, cy, CARD_W, CARD_H);
-          doc.setLineWidth(0.8);
-          doc.rect(cx + 3, cy + 3, CARD_W - 6, CARD_H - 6);
-
-          const innerPad = 10;
-          const contentX = cx + innerPad;
-          const contentW = CARD_W - 2 * innerPad;
-          let cursorY = cy + innerPad;
-
-          // Logo
-          const HEADER_H = 30;
-          if (logoB64) {
-            const format = logoB64.includes('image/png') ? 'PNG' : 'JPEG';
-            doc.addImage(logoB64, format, contentX + (contentW - 80) / 2, cursorY, 80, HEADER_H); // Logo centrado, max 80x30
-          }
-          cursorY += HEADER_H + 4;
-
-          // Foto
-          const PHOTO_H = CARD_H * 0.36;
-          if (d.foto) {
-            const format = d.foto.includes('image/png') ? 'PNG' : 'JPEG';
-            // Simular contain logic (centrado, aspect ratio)
-            // Nota: addImage de jsPDF escala as-is, lo encuadramos fijo sin overstretch.
-            try {
-              // jsPDF acepta formato base64 nativo
-              doc.addImage(d.foto, format, contentX + (contentW - 60) / 2, cursorY, 60, PHOTO_H);
-            } catch (e) {
-              console.warn('No se pudo incrustar foto en jsPDF');
-            }
-          } else {
-            doc.setFillColor(BLUE_SUBTLE);
-            doc.rect(contentX, cursorY, contentW, PHOTO_H, 'F');
-            doc.setFont('helvetica', 'bold');
-            doc.setFontSize(8);
-            doc.setTextColor(TEXT_MUTED);
-            doc.text('SIN FOTO', contentX + contentW / 2, cursorY + PHOTO_H / 2, { align: 'center', baseline: 'middle' });
-          }
-          cursorY += PHOTO_H + 8;
-
-          // Nombres
-          const apellidos = safeTxt(d.rv?.APELLIDOS);
-          const nombres = safeTxt(d.rv?.NOMBRES || d.rv?.NOMBRE);
-          doc.setFont('helvetica', 'bold');
-          doc.setFontSize(9.5);
-          doc.setTextColor(TEXT_MAIN);
-          doc.text(apellidos, contentX + contentW / 2, cursorY, { align: 'center', maxWidth: contentW });
-          cursorY += 10;
-          doc.setFont('helvetica', 'normal');
-          doc.setFontSize(8.5);
-          doc.text(nombres, contentX + contentW / 2, cursorY, { align: 'center', maxWidth: contentW });
-          cursorY += 8;
-
-          // Dos columnas (QR izquierda, Info Derecha)
-          const colQrW = contentW * 0.38;
-          const colGap = 5;
-          const colDataW = contentW - colQrW - colGap;
-
-          const hAvail = (cy + CARD_H - innerPad) - cursorY;
-          const qrSize = Math.min(colQrW, hAvail - 10, 60);
-          const qrX = contentX + (colQrW - qrSize) / 2;
-          const qrY = cursorY;
-
-          if (d.qr) {
-            doc.addImage(d.qr, 'JPEG', qrX, qrY, qrSize, qrSize);
-          }
-
-          const cedula = safeTxt(d.rv?.CEDULA);
-          doc.setFont('helvetica', 'bold');
-          doc.setFontSize(8);
-          doc.text(cedula, contentX + colQrW / 2, qrY + qrSize + 8, { align: 'center', maxWidth: colQrW });
-
-          const dataX = contentX + colQrW + colGap;
-          let rowY = cursorY + 6;
-
-          const fields = [
-            { l: 'Fecha de Ingreso', v: safeTxtMixed(d.rv?.FECHA_INGRESO) },
-            { l: 'Código', v: safeTxtMixed(d.rv?.CODIGO) },
-            { l: 'Centro de Costos', v: safeTxtMixed(d.rv?.CENTRO_COSTO) },
-          ];
-
-          for (const f of fields) {
-            doc.setFont('helvetica', 'bold');
-            doc.setFontSize(6);
-            doc.setTextColor(TEXT_MUTED);
-            doc.text(safeTxt(f.l), dataX, rowY);
-            rowY += 8;
-            doc.setFont('helvetica', 'normal');
-            doc.setFontSize(7.5);
-            doc.setTextColor(TEXT_MAIN);
-            doc.text(f.v, dataX, rowY, { maxWidth: colDataW });
-            rowY += 12;
-          }
-        }
-
-        // --- PÁGINA 2 (REVERSO) ---
-        doc.addPage();
-        for (let si = 0; si < 9; si++) {
-          const d = slotData[si];
-          if (!d) continue;
-
-          // Espejo de columna
-          const row = Math.floor(si / 3);
-          const col = si % 3;
-          const backCol = 2 - col;
-
-          const cx = MARGIN + backCol * (CARD_W + GAP);
-          const cy = MARGIN + row * (CARD_H + GAP);
-
-          // Bordes
-          doc.setDrawColor(BLACK);
-          doc.setLineWidth(1.4);
-          doc.rect(cx, cy, CARD_W, CARD_H);
-          doc.setLineWidth(0.8);
-          doc.rect(cx + 3, cy + 3, CARD_W - 6, CARD_H - 6);
-
-          const innerPad = 10;
-          const contentX = cx + innerPad;
-          const contentW = CARD_W - 2 * innerPad;
-          let cursorY = cy + innerPad;
-
-          // Top Info
-          if (logoB64) {
-            const format = logoB64.includes('image/png') ? 'PNG' : 'JPEG';
-            doc.addImage(logoB64, format, contentX + (contentW - 60) / 2, cursorY, 60, 20);
-          }
-          cursorY += 28;
-
-          doc.setFontSize(6.5);
-          doc.setFont('helvetica', 'normal');
-          doc.setTextColor(TEXT_MUTED);
-          doc.text('CONTACTO COORDINADOR DE LA', cx + CARD_W / 2, cursorY, { align: 'center' });
-          cursorY += 8;
-          doc.setFont('helvetica', 'bold');
-          doc.setTextColor(BLUE_CORP);
-          doc.text('TEMPORAL 3152306148', cx + CARD_W / 2, cursorY, { align: 'center' });
-          cursorY += 14;
-
-          doc.setFontSize(9);
-          doc.setTextColor(TEXT_MAIN);
-          doc.text('ARL', contentX, cursorY);
-          doc.setTextColor(BLUE_CORP);
-          doc.text('SURA', contentX + contentW, cursorY, { align: 'right' });
-          cursorY += 16;
-
-          doc.setFontSize(6);
-          doc.setTextColor(BLUE_CORP);
-          doc.text('FAMILIAR EN CASO DE EMERGENCIA', cx + CARD_W / 2, cursorY, { align: 'center' });
-          cursorY += 6;
-
-          const nm = safeTxt(d.rv?.FAMILIAR_EMERGENCIA_NOMBRE);
-          const tl = safeTxt(d.rv?.FAMILIAR_EMERGENCIA_TELEFONO);
-          const emStr = [nm, tl].filter(Boolean).join(' - ') || '—';
-
-          doc.setFillColor(BLUE_SUBTLE);
-          doc.rect(contentX, cursorY, contentW, 20, 'F');
-          doc.setFontSize(7.5);
-          doc.setFont('helvetica', 'bold');
-          doc.setTextColor(TEXT_MAIN);
-          doc.text(emStr, cx + CARD_W / 2, cursorY + 12, { align: 'center', maxWidth: contentW - 4 });
-          cursorY += 28;
-
-          doc.setDrawColor(200, 200, 200);
-          doc.setLineWidth(0.5);
-          doc.line(contentX, cursorY, contentX + contentW, cursorY);
-          cursorY += 8;
-
-          const legal = 'ESTE CARNET ES DE USO EXCLUSIVO DEL TRABAJADOR. EN CASO DE PERDIDA, REPORTAR INMEDIATAMENTE AL COORDINADOR DE LA TEMPORAL. EL USO INDEBIDO DE ESTE DOCUMENTO ACARREARA SANCIONES DISCIPLINARIAS.';
-          doc.setFont('helvetica', 'normal');
-          doc.setFontSize(6.5);
-          doc.setTextColor(TEXT_MUTED);
-          doc.text(safeTxtMixed(legal), contentX, cursorY, { maxWidth: contentW, align: 'justify' });
-        }
-
-        const pdfBlob = doc.output('blob');
+        const pdfBlob = buildCarnetsMasivoPdf(filas, {
+          logoDataUrl: logoB64,
+          telefonoCoordinador: TELEFONO_COORDINADOR_ALIANZA,
+          arl: ARL_ALIANZA,
+        });
         const pdfBytes = await pdfBlob.arrayBuffer();
         zip.file(`carnets_${String(fileIdx + 1).padStart(3, '0')}.pdf`, pdfBytes);
       }

@@ -543,8 +543,29 @@ export function resolverPerfil(ctx: FilterCtx): PerfilEmpresa | null {
 const MINIMOS = ['Cédula', 'Contrato', 'Hoja de Vida Minerva'];
 const MINIMOS_KEYS = new Set(MINIMOS.map(normalizeTitle));
 
+/**
+ * Documentos que NO dependen de la empresa usuaria ni de la finca: los emite la
+ * temporal, así que basta con que la vacante tenga una temporal reconocida
+ * (Apoyo Laboral / Tu Alianza). Quedan fuera de la whitelist por perfil.
+ */
+const SOLO_POR_TEMPORAL = ['Autorización de Datos'];
+const SOLO_POR_TEMPORAL_KEYS = new Set(SOLO_POR_TEMPORAL.map(normalizeTitle));
+
+/** ¿La temporal de la vacante es Apoyo Laboral o Tu Alianza? */
+export function esTemporalReconocida(temporal: string | null | undefined): boolean {
+  const t = normalizeNombre(temporal);
+  return t.includes('APOYO') || t.includes('ALIANZA');
+}
+
 export function isDocumentoVisible(titulo: string, ctx: FilterCtx): boolean {
   const k = normalizeTitle(titulo);
+
+  // Se resuelve ANTES que el perfil: ni la empresa usuaria ni la finca deben
+  // poder esconder un documento que depende solo de la temporal.
+  if (SOLO_POR_TEMPORAL_KEYS.has(k)) {
+    return esTemporalReconocida(ctx.temporal);
+  }
+
   const perfil = resolverPerfil(ctx);
 
   if (!perfil) {

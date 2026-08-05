@@ -21,7 +21,9 @@ import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import QRCode from 'qrcode';
+import Swal from 'sweetalert2';
 
+import { ElectronWindowService } from '@/app/core/services/electron-window.service';
 import { DatosRemision, TemporalRemision, buildRemisionPdf } from './remision-fill';
 
 /**
@@ -156,13 +158,18 @@ export type RemisionDialogData = Partial<Omit<DatosRemision, 'logoDataUrl' | 'qr
   styles: [`
     :host { --azul: #21263c; --linea: #e8edf3; --muted: #64748b; display: block; }
 
-    .rm-wrap { width: min(760px, 94vw); }
+    /* El ancho lo fija el panel del MatDialog (ver dialog.open en
+       help-information). Acá solo se ocupa el espacio disponible: si se fija
+       un px propio, cuando el panel es más angosto (maxWidth por defecto de
+       Material = 80vw) el contenido se sale y se corta por la derecha. */
+    .rm-wrap { width: 100%; max-width: 100%; box-sizing: border-box; }
 
     .rm-head {
       position: relative; display: flex; align-items: center; gap: 14px;
       padding: 18px 52px 16px 20px; color: #fff;
       background: linear-gradient(135deg, #21263c 0%, #343c5c 100%);
     }
+    .rm-head-txt { min-width: 0; }
     .rm-head-ic {
       display: grid; place-items: center; width: 42px; height: 42px;
       border-radius: 12px; background: rgba(255,255,255,.16);
@@ -172,7 +179,7 @@ export type RemisionDialogData = Partial<Omit<DatosRemision, 'logoDataUrl' | 'qr
     .rm-head-txt p { margin: 3px 0 0; font-size: .78rem; color: rgba(255,255,255,.8); }
     .rm-cerrar { position: absolute; top: 8px; right: 8px; color: rgba(255,255,255,.75); }
 
-    .rm-body { padding: 16px 20px 4px !important; max-height: 66vh; }
+    .rm-body { padding: 16px 20px 4px !important; max-height: 66vh; overflow-x: hidden; }
 
     .rm-label {
       margin: 0 0 8px; font-size: .72rem; font-weight: 700; letter-spacing: .6px;
@@ -180,19 +187,25 @@ export type RemisionDialogData = Partial<Omit<DatosRemision, 'logoDataUrl' | 'qr
     }
 
     .rm-temporal { width: 100%; margin-bottom: 16px; }
-    .rm-temporal .mat-button-toggle { flex: 1; }
+    /* flex-wrap: los dos rótulos ("Apoyo Laboral TS · AL SE-RE-4") no caben en
+       una línea cuando la ventana es angosta y empujaban el diálogo a lo ancho. */
+    .rm-temporal { display: flex; flex-wrap: wrap; }
+    .rm-temporal .mat-button-toggle { flex: 1 1 220px; min-width: 0; }
 
     .rm-grid {
       display: grid;
-      grid-template-columns: repeat(3, 1fr);
+      grid-template-columns: repeat(3, minmax(0, 1fr));
       gap: 10px 12px;
     }
+    /* min-width:0 — un grid item por defecto no baja de su contenido mínimo, y
+       los mat-form-field con texto largo desbordaban la columna. */
+    .rm-grid > * { min-width: 0; }
     .rm-ancho { grid-column: span 2; }
     .rm-ancho2 { grid-column: span 2; }
     .rm-completo { grid-column: 1 / -1; }
 
     .rm-actions {
-      display: flex; align-items: center; gap: 10px;
+      display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
       padding: 12px 20px 16px !important; border-top: 1px solid var(--linea); background: #fcfdfe;
     }
     .rm-spacer { flex: 1; }
@@ -204,8 +217,15 @@ export type RemisionDialogData = Partial<Omit<DatosRemision, 'logoDataUrl' | 'qr
     .rm-generar[disabled] { opacity: .45; }
 
     @media (max-width: 700px) {
-      .rm-grid { grid-template-columns: 1fr 1fr; }
+      .rm-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       .rm-ancho, .rm-ancho2 { grid-column: span 2; }
+    }
+    @media (max-width: 460px) {
+      .rm-grid { grid-template-columns: minmax(0, 1fr); }
+      .rm-ancho, .rm-ancho2, .rm-completo { grid-column: span 1; }
+      .rm-head { padding: 14px 46px 12px 14px; }
+      .rm-body { padding: 14px 14px 4px !important; }
+      .rm-actions { padding: 12px 14px 14px !important; }
     }
   `],
 })
@@ -222,6 +242,7 @@ export class RemisionDialogComponent {
 
   constructor(
     private readonly ref: MatDialogRef<RemisionDialogComponent, boolean>,
+    private readonly ventanas: ElectronWindowService,
     @Inject(MAT_DIALOG_DATA) data: RemisionDialogData,
   ) {
     this.d.set({ ...this.d(), ...(data ?? {}) } as DatosRemision);
@@ -231,6 +252,16 @@ export class RemisionDialogComponent {
     this.d.set({ ...this.d(), [campo]: valor });
   }
 
+  /**
+   * El PDF se abre por `ElectronWindowService`, no por `window.open`: el main
+   * process de TesoroApp deniega TODO `window.open` (`setWindowOpenHandler` en
+   * app.js) y las URLs blob: no se pueden delegar al navegador del SO, así que
+   * el botón no abría nada. La fachada usa `pdf.openInWindow` (BrowserWindow
+   * hija) en Electron y cae a blob + window.open solo fuera de Electron.
+   *
+   * El try/catch es necesario: la app no registra un ErrorHandler global, así
+   * que un throw de jsPDF dejaba el diálogo mudo, sin PDF y sin mensaje.
+   */
   async generar(): Promise<void> {
     this.generando.set(true);
     try {
@@ -240,10 +271,15 @@ export class RemisionDialogComponent {
       ]);
 
       const blob = buildRemisionPdf({ ...this.d(), logoDataUrl, qrDataUrl });
-      const url = URL.createObjectURL(blob);
-      window.open(url, '_blank', 'noopener,noreferrer');
-      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+      await this.ventanas.openPdfFromBlob(blob, { title: 'Remisión para entrevista' });
       this.ref.close(true);
+    } catch (e) {
+      console.error('[remision] no se pudo generar el formato', e);
+      Swal.fire(
+        'No se pudo generar la remisión',
+        'Revisa los datos del formato e intenta de nuevo.',
+        'error',
+      );
     } finally {
       this.generando.set(false);
     }

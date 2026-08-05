@@ -121,7 +121,7 @@ export class CumplimientoDialogComponent implements OnInit {
         error: () => {
           if (!silent) this.candidatos.set([]);
           this.loading.set(false);
-          if (!silent) Swal.fire('Error', 'No se pudieron cargar los candidatos de la vacante.', 'error');
+          if (!silent) Swal.fire({ ...swalEnDialogo(), title: 'Error', text: 'No se pudieron cargar los candidatos de la vacante.', icon: 'error' });
         },
       });
   }
@@ -249,7 +249,7 @@ export class CumplimientoDialogComponent implements OnInit {
   async registrarResultado(c: CandidatoPorVacanteItem, etapa: EtapaConResultado): Promise<void> {
     const procesoId = c.proceso_id;
     if (procesoId == null) {
-      Swal.fire('Sin proceso', 'Esta fila no tiene proceso asociado.', 'info');
+      Swal.fire({ ...swalEnDialogo(), title: 'Sin proceso', text: 'Esta fila no tiene proceso asociado.', icon: 'info' });
       return;
     }
 
@@ -364,11 +364,12 @@ export class CumplimientoDialogComponent implements OnInit {
     // selección explícita para evitar desasignaciones masivas accidentales.
     const objetivo = this.seleccionados();
     if (!objetivo.length) {
-      Swal.fire(
-        'Selecciona personas',
-        'Marca las casillas de las personas a las que quieres quitar la vacante.',
-        'info',
-      );
+      Swal.fire({
+        ...swalEnDialogo(),
+        title: 'Selecciona personas',
+        text: 'Marca las casillas de las personas a las que quieres quitar la vacante.',
+        icon: 'info',
+      });
       return;
     }
 
@@ -512,7 +513,7 @@ export class CumplimientoDialogComponent implements OnInit {
     const objetivo = this.objetivo();
     const cedulas = objetivo.map((c) => String(c.numero_documento)).filter(Boolean);
     if (!cedulas.length) {
-      Swal.fire('Sin candidatos', 'No hay cédulas para descargar.', 'info');
+      Swal.fire({ ...swalEnDialogo(), title: 'Sin candidatos', text: 'No hay cédulas para descargar.', icon: 'info' });
       return;
     }
 
@@ -541,7 +542,7 @@ export class CumplimientoDialogComponent implements OnInit {
   descargarBmc(): void {
     const objetivo = this.objetivo();
     if (!objetivo.length) {
-      Swal.fire('Sin candidatos', 'No hay candidatos para exportar.', 'info');
+      Swal.fire({ ...swalEnDialogo(), title: 'Sin candidatos', text: 'No hay candidatos para exportar.', icon: 'info' });
       return;
     }
 
@@ -594,7 +595,7 @@ export class CumplimientoDialogComponent implements OnInit {
   /** FLORES DEL RIO — encabezado simple (hoja "base rio"). */
   descargarFlores(): void {
     const objetivo = this.objetivo();
-    if (!objetivo.length) { Swal.fire('Sin candidatos', 'No hay candidatos para exportar.', 'info'); return; }
+    if (!objetivo.length) { Swal.fire({ ...swalEnDialogo(), title: 'Sin candidatos', text: 'No hay candidatos para exportar.', icon: 'info' }); return; }
 
     const headers = [
       'u', 'CONTRATO', 'UNIDAD', 'AREA', 'CEDULA', 'EXP', 'NOMBRE', 'AUXILIO', 'RUTA',
@@ -617,7 +618,7 @@ export class CumplimientoDialogComponent implements OnInit {
   /** SAGARO — encabezado simple (hoja "formato de ingresos"). */
   descargarSagaro(): void {
     const objetivo = this.objetivo();
-    if (!objetivo.length) { Swal.fire('Sin candidatos', 'No hay candidatos para exportar.', 'info'); return; }
+    if (!objetivo.length) { Swal.fire({ ...swalEnDialogo(), title: 'Sin candidatos', text: 'No hay candidatos para exportar.', icon: 'info' }); return; }
 
     const headers = [
       'CEDULA', 'FECHA EXPEDICION DE DOCUMENTO', 'LUGAR DE EXPEDICION', 'PRIMER NOMBRE',
@@ -640,7 +641,7 @@ export class CumplimientoDialogComponent implements OnInit {
   /** HATO — doble encabezado (grupos de fecha con celdas combinadas). Fecha: DIA/MES/AÑO. */
   descargarHato(): void {
     const objetivo = this.objetivo();
-    if (!objetivo.length) { Swal.fire('Sin candidatos', 'No hay candidatos para exportar.', 'info'); return; }
+    if (!objetivo.length) { Swal.fire({ ...swalEnDialogo(), title: 'Sin candidatos', text: 'No hay candidatos para exportar.', icon: 'info' }); return; }
 
     const columnas = [
       'NO', 'TIPO DOCUMENTO', 'NUMERO DE DOCUEMNTO', 'NOMBRE COMPLETO',
@@ -675,7 +676,7 @@ export class CumplimientoDialogComponent implements OnInit {
   /** SAN CARLOS — doble encabezado. Fecha: AÑO/MES/DIA; nombre en APELLIDO 1/2 + NOMBRES. */
   descargarSanCarlos(): void {
     const objetivo = this.objetivo();
-    if (!objetivo.length) { Swal.fire('Sin candidatos', 'No hay candidatos para exportar.', 'info'); return; }
+    if (!objetivo.length) { Swal.fire({ ...swalEnDialogo(), title: 'Sin candidatos', text: 'No hay candidatos para exportar.', icon: 'info' }); return; }
 
     const columnas = [
       'No', 'TIPO DOCUMENTO', 'CEDULA', 'APELLIDO 1', 'APELLIDO 2', 'NOMBRES ',

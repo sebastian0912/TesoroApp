@@ -1,7 +1,7 @@
 import { Contacto } from './../../../../../../../../../tu_alianza_web/src/app/features/public/contacto/contacto';
 import { SharedModule } from '@/app/shared/shared.module';
 import { isPlatformBrowser } from '@angular/common';
-import { Component, inject, OnInit, PLATFORM_ID, ViewChild, ElementRef, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
+import { Component, inject, OnInit, PLATFORM_ID, ViewChild, ElementRef, ChangeDetectionStrategy, ChangeDetectorRef, signal } from '@angular/core';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import {
   PDFDocument, PDFTextField, PDFCheckBox, StandardFonts, rgb, degrees,
@@ -37,7 +37,15 @@ import { of, forkJoin, firstValueFrom, throwError } from 'rxjs';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { isDocumentoVisible, getDocSeccion, SECCION_LABELS, type DocSeccion } from './documentos-por-empresa.config';
 import { resolverEmpresaUsuaria } from './empresas-usuarias.data';
+// Dos formatos de carnet, uno por temporal:
+//   Apoyo    → CR80 horizontal con código de barras (`carnet-apoyo-fill`).
+//   Alianza  → el mismo diseño de la generación masiva de Home
+//              (`carnet-masivo-fill`), grilla 3x3 en carta vertical con QR.
 import { buildCarnetApoyoPdf } from './carnet-apoyo-fill';
+import {
+  ARL_ALIANZA, TELEFONO_COORDINADOR_ALIANZA, buildCarnetsMasivoPdf,
+} from './carnet-masivo-fill';
+import QRCode from 'qrcode';
 import { PermissionsService } from '@/app/core/services/permissions.service';
 
 type UploadedInfo = {
@@ -571,6 +579,10 @@ export class GenerateContractingDocumentsComponent implements OnInit {
             this.firma = datoCandidato?.biometria?.firma?.file_url ?? '';
             this.huella = datoCandidato?.biometria?.huella?.file_url ?? '';
             this.foto = datoCandidato?.biometria?.foto?.file_url ?? '';
+            // El giro manual es de la foto de ESTE candidato: al cambiar de
+            // persona se vuelve a empezar desde el enderezado automático.
+            this.rotacionFoto.set(0);
+            void this.refrescarPreviewFoto();
 
             // Selección de entrevista:
             //   1) Ordena por id DESC (la última creada, sin depender del orden del backend).
@@ -1078,8 +1090,26 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       return `data:image/png;base64,${btoa(bin)}`;
     };
 
+    // ¿Cuál de los dos formatos? Se pregunta siempre, pero el botón que queda
+    // enfocado es el de la temporal de la vacante, que es el caso normal.
+    const esAlianzaVacante = (this.empresa || '').toUpperCase().includes('ALIANZA');
+    const eleccion = await Swal.fire({
+      icon: 'question',
+      title: 'Formato del carnet',
+      text: '¿Cuál formato quieres generar?',
+      showDenyButton: true,
+      showCancelButton: true,
+      confirmButtonText: 'Apoyo Laboral',
+      denyButtonText: 'Tu Alianza',
+      cancelButtonText: 'Cancelar',
+      focusConfirm: !esAlianzaVacante,
+      focusDeny: esAlianzaVacante,
+    });
+    if (eleccion.isDismissed) return;
+    const formatoApoyo = eleccion.isConfirmed;
+
     // ¿En qué espacio de la hoja? Así se reutiliza una hoja ya recortada en vez
-    // de gastar una nueva por cada carnet.
+    // de gastar una nueva por cada carnet. Los dos formatos usan grilla 3x3.
     const posicion = await firstValueFrom(
       this.dialog.open<CarnetPosicionDialogComponent, void, number | null>(
         CarnetPosicionDialogComponent, { autoFocus: 'dialog' },
@@ -1088,20 +1118,53 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     if (posicion === null || posicion === undefined) return;
 
     try {
-      const blob = buildCarnetApoyoPdf({
-        nombreCompleto,
-        cedula: this.limpio(cand.numero_documento),
-        centroCostos: this.limpio(contrato.carnet_centro_costo) || this.limpio(contrato.Ccentro_de_costos),
-        cargo: this.limpio(this.vacante?.cargo),
-        consecutivo: String(consecutivo).trim(),
-        fechaIngreso,
-        eps: porNombre('EPS'),
-        afp: porNombre('AFP'),
-        emergenciaNombre: this.limpio(emerg.nombre),
-        emergenciaTelefono: this.limpio(emerg.telefono),
-        logoDataUrl: await aDataUrl('logos/Logo_AL.png'),
-        fotoDataUrl: await aDataUrl(this.foto),
-      }, posicion);
+      const cedula = this.limpio(cand.numero_documento);
+      const codigo = String(consecutivo).trim();
+      // La foto se endereza igual que en la ficha y la hoja de vida.
+      const fotoDataUrl = await this.fotoAlDerechoDataUrl(this.foto);
+
+      const blob = formatoApoyo
+        // ── Apoyo: CR80 horizontal con código de barras ──
+        ? buildCarnetApoyoPdf({
+          nombreCompleto,
+          cedula,
+          centroCostos: this.limpio(contrato.carnet_centro_costo) || this.limpio(contrato.Ccentro_de_costos),
+          cargo: this.limpio(this.vacante?.cargo),
+          consecutivo: codigo,
+          fechaIngreso,
+          eps: porNombre('EPS'),
+          afp: porNombre('AFP'),
+          emergenciaNombre: this.limpio(emerg.nombre),
+          emergenciaTelefono: this.limpio(emerg.telefono),
+          logoDataUrl: await aDataUrl('logos/Logo_AL.png'),
+          fotoDataUrl,
+        }, posicion)
+        // ── Tu Alianza: el diseño de la generación masiva de Home ──
+        : buildCarnetsMasivoPdf([{
+          CEDULA: cedula,
+          CODIGO: codigo,
+          // Apellidos y nombres van separados: el frente los imprime en dos
+          // renglones (apellidos en negrita arriba, nombres debajo).
+          APELLIDOS: [cand.primer_apellido, cand.segundo_apellido]
+            .map((v: any) => this.limpio(v)).filter(Boolean).join(' '),
+          NOMBRES: [cand.primer_nombre, cand.segundo_nombre]
+            .map((v: any) => this.limpio(v)).filter(Boolean).join(' '),
+          FECHA_INGRESO: fechaIngreso,
+          CENTRO_COSTO: this.limpio(contrato.carnet_centro_costo) || this.limpio(contrato.Ccentro_de_costos),
+          FAMILIAR_EMERGENCIA_NOMBRE: this.limpio(emerg.nombre),
+          FAMILIAR_EMERGENCIA_TELEFONO: this.limpio(emerg.telefono),
+          fotoDataUrl,
+          // El QR lleva el mismo payload que arma Home (`CEDULA|CODIGO`), para
+          // que un mismo lector sirva con los dos.
+          qrDataUrl: await QRCode.toDataURL(`${cedula}|${codigo}`, {
+            errorCorrectionLevel: 'M', margin: 1, width: 300,
+          }).catch(() => null),
+        }], {
+          logoDataUrl: await aDataUrl('logos/Logo_TA.png'),
+          telefonoCoordinador: TELEFONO_COORDINADOR_ALIANZA,
+          arl: ARL_ALIANZA,
+          posicion,
+        });
 
       // Solo se genera y se muestra en el previsualizador; la descarga la decide
       // el usuario desde ahí.
@@ -1536,7 +1599,69 @@ export class GenerateContractingDocumentsComponent implements OnInit {
    * usuario. La regla "última gana" se aplica automáticamente porque ambas variantes
    * comparten la misma entry en `uploadedFiles`.
    */
-  generarPDFVariant(documento: string, variant: 'basica' | 'completa' | 'administrativo') {
+  /**
+   * Biometría que la persona YA tiene cargada en el servidor.
+   *
+   * Se lee de lo que `ngOnInit` dejó en `firma`/`huella`/`foto`, que sale de
+   * `biometria.{firma,huella,foto}.file_url` (así lo expone
+   * `DocumentacionBiometricaSerializer`). Vacío = no está cargada.
+   */
+  private biometriaFaltante(): string[] {
+    const tiene = (v: any) => typeof v === 'string' && v.trim() !== '';
+    const falta: string[] = [];
+    if (!tiene(this.firma)) falta.push('Firma');
+    if (!tiene(this.huella)) falta.push('Huella');
+    if (!tiene(this.foto)) falta.push('Foto');
+    return falta;
+  }
+
+  /**
+   * Avisa antes de generar si a la persona le falta firma, huella o foto: esos
+   * documentos se imprimen y se firman, y salen incompletos sin biometría.
+   *
+   * Devuelve `true` si se puede continuar. No bloquea de forma dura porque no
+   * todos los formatos llevan las tres imágenes; deja decidir a quien genera.
+   */
+  private async confirmarBiometria(): Promise<boolean> {
+    // Sin candidato cargado no hay nada que juzgar: el aviso sería falso.
+    // Se mira si el objeto trae datos (arranca en `{}`) y no un campo puntual,
+    // para no depender de qué serializer responda el endpoint.
+    if (!this.candidato || Object.keys(this.candidato).length === 0) return true;
+
+    const falta = this.biometriaFaltante();
+    if (!falta.length) return true;
+
+    const nombre = [this.candidato?.primer_nombre, this.candidato?.primer_apellido]
+      .filter(Boolean).join(' ').trim();
+
+    const res = await Swal.fire({
+      icon: 'warning',
+      title: `Falta ${falta.length === 1 ? 'biometría' : 'biometría'} de la persona`,
+      html:
+        `<p style="text-align:left;margin:0 0 10px;">` +
+        (nombre ? `<b>${nombre}</b> (${this.cedula ?? ''}) ` : 'La persona ') +
+        `no tiene cargad${falta.length === 1 ? 'a' : 'as'} en el sistema:</p>` +
+        `<ul style="text-align:left;margin:0 0 12px 18px;padding:0;font-weight:700;color:#b71c1c;">` +
+        falta.map(f => `<li>${f}</li>`).join('') +
+        `</ul>` +
+        `<p style="text-align:left;margin:0;font-size:13px;color:#666;">` +
+        `Los documentos que la usan saldrán con ese espacio en blanco. ` +
+        `Registre lo que falta antes de generar.</p>`,
+      showCancelButton: true,
+      confirmButtonText: 'Generar de todas formas',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#b45309',
+      cancelButtonColor: '#111827',
+      focusCancel: true,
+      width: 520,
+    });
+
+    return res.isConfirmed;
+  }
+
+  async generarPDFVariant(documento: string, variant: 'basica' | 'completa' | 'administrativo') {
+    if (!await this.confirmarBiometria()) return;
+
     if (documento === 'Contrato') {
       this.runContratoVariant(variant);
       return;
@@ -1678,6 +1803,9 @@ export class GenerateContractingDocumentsComponent implements OnInit {
   }
 
   async generarPDF(documento: string): Promise<void> {
+    // Aviso de biometría faltante antes de armar cualquier documento.
+    if (!await this.confirmarBiometria()) return;
+
     // Contratos Otrosí no depende de la empresa
     if (documento === 'Contratos Otrosí') {
       await this.generarContratosOtroSi();
@@ -1815,12 +1943,131 @@ export class GenerateContractingDocumentsComponent implements OnInit {
    * proporción de la imagen; si la proporción ya coincide con la del campo,
    * no queda aire alrededor.
    */
+  // ───────── Giro manual de la foto ─────────
+  /**
+   * Grados que el usuario pidió girar la foto, además del enderezado
+   * automático. El EXIF a veces viene mal o ausente y la heurística de
+   * "más ancha que alta" no alcanza; con esto se corrige a mano y sale igual
+   * en TODOS los documentos (ficha, hoja de vida y carnet).
+   *
+   * No se persiste: es por candidato abierto. Se reinicia al cambiar de persona.
+   */
+  readonly rotacionFoto = signal(0);
+
+  /** Miniatura ya girada, para ver cómo va a salir antes de generar. */
+  readonly fotoPreview = signal<string | null>(null);
+
+  /** Cada clic suma 90°. A los 360 vuelve al original. */
+  async girarFoto(): Promise<void> {
+    this.rotacionFoto.set((this.rotacionFoto() + 90) % 360);
+    await this.refrescarPreviewFoto();
+  }
+
+  async refrescarPreviewFoto(): Promise<void> {
+    this.fotoPreview.set(this.foto ? await this.fotoAlDerechoDataUrl(this.foto) : null);
+    this.cdr.markForCheck();
+  }
+
+  /**
+   * Deja la foto del candidato "al derecho" y siempre vertical.
+   *
+   * La foto se toma con la cámara y llega apaisada: la rotación viaja solo como
+   * metadato EXIF. Ni `pdf-lib` (`embedJpg` copia los bytes tal cual) ni un
+   * `createImageBitmap` sin `imageOrientation` miran ese metadato, así que la
+   * foto salía acostada en la ficha técnica y en la hoja de vida Minerva.
+   *
+   * Dos pasos, en este orden:
+   *   1. Decodifica con `imageOrientation: 'from-image'` → aplica el EXIF.
+   *   2. Si aun así queda más ancha que alta, la gira 90° en sentido horario.
+   *
+   * El giro es horario en TODOS los documentos a propósito: es el mismo que ya
+   * usaba la ficha técnica Tu Alianza Completa, así que la foto sale en la
+   * misma dirección en los tres formatos.
+   *
+   * Devuelve JPEG, o null si algo falla (el llamador se queda con el original).
+   */
+  private async fotoAlDerecho(bytes: ArrayBuffer): Promise<Blob | null> {
+    try {
+      const blob = new Blob([bytes]);
+
+      let bitmap: ImageBitmap | null = null;
+      try {
+        bitmap = await createImageBitmap(blob, { imageOrientation: 'from-image' });
+      } catch {
+        // Navegadores sin soporte de imageOrientation: al menos se endereza
+        // lo que se pueda con el giro por proporción.
+        bitmap = await createImageBitmap(blob).catch(() => null);
+      }
+      if (!bitmap) return null;
+
+      // Giro total = enderezado automático (90° si viene apaisada) + el giro
+      // manual que el usuario haya pedido con el botón. El manual se suma, no
+      // reemplaza: así cada clic gira 90° más respecto a lo que se está viendo.
+      const auto = bitmap.width > bitmap.height ? 90 : 0;
+      const grados = ((auto + this.rotacionFoto()) % 360 + 360) % 360;
+      const deLado = grados === 90 || grados === 270;
+
+      const canvas = document.createElement('canvas');
+      canvas.width = deLado ? bitmap.height : bitmap.width;
+      canvas.height = deLado ? bitmap.width : bitmap.height;
+
+      const ctx = canvas.getContext('2d');
+      if (!ctx) { bitmap.close?.(); return null; }
+
+      // Se traslada al vértice que queda arriba-izquierda después del giro,
+      // para dibujar siempre desde (0,0) sin recortar nada.
+      if (grados === 90) {
+        ctx.translate(canvas.width, 0);
+        ctx.rotate(Math.PI / 2);
+      } else if (grados === 180) {
+        ctx.translate(canvas.width, canvas.height);
+        ctx.rotate(Math.PI);
+      } else if (grados === 270) {
+        ctx.translate(0, canvas.height);
+        ctx.rotate(-Math.PI / 2);
+      }
+      ctx.drawImage(bitmap, 0, 0);
+      bitmap.close?.();
+
+      return await new Promise<Blob | null>(resolve => {
+        canvas.toBlob(b => resolve(b), 'image/jpeg', 0.92);
+      });
+    } catch (e) {
+      console.warn('[foto] no se pudo corregir la orientación:', e);
+      return null;
+    }
+  }
+
+  /** Igual que `fotoAlDerecho`, para las rutas que embeben bytes (pdf-lib). */
+  private async fotoAlDerechoBytes(bytes: ArrayBuffer): Promise<Uint8Array | null> {
+    const blob = await this.fotoAlDerecho(bytes);
+    return blob ? new Uint8Array(await blob.arrayBuffer()) : null;
+  }
+
+  /** Igual que `fotoAlDerecho`, para las rutas que reciben una URL/dataURL. */
+  private async fotoAlDerechoDataUrl(url?: string): Promise<string | null> {
+    if (!url) return null;
+    const bytes = await this.fetchAsArrayBufferOrNull(url);
+    if (!bytes) return null;
+    const blob = await this.fotoAlDerecho(bytes);
+    if (!blob) return null;
+    return await new Promise<string | null>(resolve => {
+      const fr = new FileReader();
+      fr.onloadend = () => resolve(String(fr.result || '') || null);
+      fr.onerror = () => resolve(null);
+      fr.readAsDataURL(blob);
+    });
+  }
+
   private async recortarAlAspecto(url: string, aspecto: number): Promise<string | null> {
     try {
       const bytes = await this.fetchAsArrayBufferOrNull(url);
       if (!bytes || !isFinite(aspecto) || aspecto <= 0) return null;
 
-      const bitmap = await createImageBitmap(new Blob([bytes]));
+      // Primero se endereza (EXIF + vertical) y después se recorta: recortar
+      // sobre la foto acostada dejaba el encuadre girado dentro del recuadro.
+      const enderezada = await this.fotoAlDerecho(bytes);
+      const bitmap = await createImageBitmap(enderezada ?? new Blob([bytes]));
       const actual = bitmap.width / bitmap.height;
 
       let sx = 0, sy = 0, sw = bitmap.width, sh = bitmap.height;
@@ -1868,13 +2115,24 @@ export class GenerateContractingDocumentsComponent implements OnInit {
      *              recuadro ("FOTOGRAFÍA RECIENTE / Clic aquí para cargar").
      */
     modo: 'contener' | 'cubrir' = 'contener',
+    /**
+     * `alDerecho` solo para la FOTO del candidato: aplica el EXIF y la deja
+     * vertical. No se activa para la firma, que es apaisada por naturaleza y
+     * girarla la dejaría de lado.
+     */
+    opts?: { alDerecho?: boolean },
   ): Promise<boolean> {
     if (!url) return false;
 
     const bytes = await this.fetchAsArrayBufferOrNull(url);
     if (!bytes) return false;
 
-    const u8 = new Uint8Array(bytes) as any;
+    let u8 = new Uint8Array(bytes) as any;
+    if (opts?.alDerecho) {
+      // Sale JPEG, así que la detección de formato de abajo va después.
+      const enderezada = await this.fotoAlDerechoBytes(bytes);
+      if (enderezada) u8 = enderezada as any;
+    }
     // 0xFF D8 = JPEG; 0x89 'P' 'N' 'G' = PNG.
     const isJpg = u8[0] === 0xFF && u8[1] === 0xD8;
     const img = isJpg ? await pdfDoc.embedJpg(u8) : await pdfDoc.embedPng(u8);
@@ -2001,7 +2259,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
             'topmostSubform[0].Page2[0].CampoImagen1[0]',
             'topmostSubform[0].Page3[0].CampoImagen1[0]',
             'topmostSubform[0].Page4[0].CampoImagen1[0]',
-          ], 'cubrir');
+          ], 'cubrir', { alDerecho: true });
           if (!ok) console.warn('[minerva] no se pudo colocar la foto del candidato');
         } else {
           console.warn('[minerva] el candidato no tiene foto biométrica cargada');
@@ -2974,8 +3232,10 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       doc.setFontSize(7.5);
       doc.text(`C.C                                            ${numIdentificacion}`, marginLeft + 90, yLineaFirma + 8);
 
-      // Inserción de huella si la hay
-      const huella = await this.fetchAsArrayBufferOrNull(cand?.biometria?.huella_dactilar?.file_url);
+      // Inserción de huella si la hay. La clave del API es `huella`
+      // (DocumentacionBiometricaSerializer); con `huella_dactilar` esto era
+      // siempre undefined y el documento salía sin huella.
+      const huella = await this.fetchAsArrayBufferOrNull(cand?.biometria?.huella?.file_url ?? this.huella);
       if (huella) {
         try {
           const kind = (new Uint8Array(huella)[0] === 0xFF) ? 'JPEG' : 'PNG';
@@ -3319,28 +3579,36 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     }
   }
 
+  /**
+   * Autorización para el tratamiento de datos personales.
+   *
+   * Este documento lo emite la TEMPORAL, no la empresa usuaria: lo único que
+   * decide plantilla, logo y NIT es si `this.empresa` (= `vacante.temporal`) es
+   * Apoyo Laboral o Tu Alianza. Se compara con `includes` — igual que
+   * `generarContratoAdministrativo()` — porque la temporal llega con variantes
+   * ("APOYO LABORAL SAS", "APOYO LABORAL TS SAS", "TU ALIANZA S.A.S", …) y la
+   * comparación por igualdad exacta abortaba la generación en silencio.
+   */
   generarAutorizacionDatos() {
     const EMP_APOYO = 'APOYO LABORAL TS S.A.S';
     const EMP_TA = 'TU ALIANZA SAS';
 
-    // Normaliza nombre de empresa
-    let empresaSeleccionada = (this.empresa || '').trim();
-    if (empresaSeleccionada === 'APOYO LABORAL SAS' || empresaSeleccionada === 'APOYO LABORAL TS SAS') {
-      empresaSeleccionada = EMP_APOYO;
-    }
+    const emp = (this.empresa || '').toUpperCase().trim();
+    const esApoyo = emp.includes('APOYO');
+    const esAlianza = !esApoyo && emp.includes('ALIANZA');
 
-    // Logo + NIT
-    let logoPath = '';
-    let nit = '';
-    if (empresaSeleccionada === EMP_APOYO) {
-      logoPath = 'logos/Logo_AL.png';
-      nit = 'NIT: 900.814.587-1';
-    } else if (empresaSeleccionada === EMP_TA) {
-      logoPath = 'logos/Logo_TA.png';
-      nit = 'NIT: 900.864.596-1';
-    } else {
+    if (!esApoyo && !esAlianza) {
+      Swal.fire(
+        'Error',
+        `Temporal no reconocida: "${this.empresa}". Solo APOYO LABORAL o TU ALIANZA.`,
+        'error'
+      );
       return;
     }
+
+    const empresaSeleccionada = esApoyo ? EMP_APOYO : EMP_TA;
+    const logoPath = esApoyo ? 'logos/Logo_AL.png' : 'logos/Logo_TA.png';
+    const nit = esApoyo ? 'NIT: 900.814.587-1' : 'NIT: 900.864.596-1';
 
     // Documento
     const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'letter' });
@@ -4412,8 +4680,8 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     doc.setFont('helvetica', 'bold').setFontSize(7.5);
     doc.text('ACEPTO CAMBIO SIN PREVIO AVISO YA QUE HE SIDO INFORMADO (A) :', marginLeft, y);
     doc.setFont('helvetica', 'normal');
-    // Igual que el casino: en blanco, lo marca el trabajador.
-    doc.text('SI (     )', 170, y);
+    // Va marcado SI por defecto.
+    doc.text('SI (  x  )', 170, y);
     doc.text('NO (     )', 190, y);
     y += 4; // advance past ACEPTO line
 
@@ -11800,8 +12068,13 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       const form = pdfDoc.getForm();
       try { this.setText(form, 'codigo_contrato', this.safe(codigoContrato), customFont); } catch (e) { }
 
-      // Imagen1_af_image
-      await setButtonImageSafe(pdfDoc, form, 'Imagen1_af_image', this.foto);
+      // Imagen1_af_image — la foto se endereza antes de entrar, porque este
+      // `setButtonImageSafe` no recibe opciones (a diferencia del de la ficha
+      // Tu Alianza Completa, que ya usa forcePortrait).
+      await setButtonImageSafe(
+        pdfDoc, form, 'Imagen1_af_image',
+        (await this.fotoAlDerechoDataUrl(this.foto)) ?? this.foto,
+      );
 
       this.setText(form, '1er Apellido', this.safe(dv.primer_apellido), customFont);
       this.setText(form, '2do apellido', this.safe(dv.segundo_apellido), customFont);

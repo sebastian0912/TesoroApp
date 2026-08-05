@@ -15,6 +15,11 @@
  * <html>, que junto con el `position: fixed` que el CDK aplica mientras hay un
  * diálogo abierto (cdk-global-scrollblock) deja el modal fuera de la pantalla.
  *
+ * Dentro del overlay siguen compitiendo por quién pinta arriba, así que el
+ * `didOpen` fuerza z-index inline con !important y manda el contenedor al final
+ * del overlay. Ver los comentarios de abajo: cada paso arregla una forma
+ * distinta en que el diálogo alcanzaba a taparlo.
+ *
  * Uso:
  *     await Swal.fire({ ...swalEnDialogo(), title: '...', ... });
  */
@@ -39,11 +44,29 @@ export function swalEnDialogo(): {
     target: overlay,
     heightAuto: false,
     // Montarlo dentro del overlay no basta: los paneles del CDK traen su
-    // propio z-index y el Swal queda DETRÁS del diálogo, invisible. Se sube
-    // por encima al abrir.
+    // propio z-index y el diálogo termina pintando encima del Swal (a veces
+    // solo por los bordes, que es peor porque parece que "casi" funciona).
+    // Se corrigen las DOS cosas que deciden quién pinta arriba:
     didOpen: () => {
-      const cont = document.querySelector<HTMLElement>('.swal2-container');
-      if (cont) cont.style.zIndex = '10000';
+      // 1) El contenedor CORRECTO. Con `querySelector` se tomaba el primer
+      //    `.swal2-container` del documento, que puede ser el de un Swal
+      //    anterior que aún no terminó de desmontarse; entonces se le subía el
+      //    z-index al equivocado y este quedaba tapado.
+      const cont = overlay.querySelector<HTMLElement>(':scope > .swal2-container')
+        ?? document.querySelector<HTMLElement>('.swal2-container');
+      if (!cont) return;
+
+      // 2) z-index inline y `!important`: el CDK y el propio Swal inyectan su
+      //    CSS en runtime, así que una regla normal puede perder por orden de
+      //    inyección. Un inline con !important no lo gana nadie.
+      cont.style.setProperty('z-index', '2147483000', 'important');
+
+      // 3) Último hijo del overlay: entre elementos posicionados con el mismo
+      //    z-index efectivo gana el que va después en el DOM. Moverlo al final
+      //    lo deja arriba aunque el z-index no alcance por lo que sea.
+      if (cont.parentElement === overlay && overlay.lastElementChild !== cont) {
+        overlay.appendChild(cont);
+      }
     },
   };
 }

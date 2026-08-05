@@ -1458,6 +1458,39 @@ export class RegistroProcesoContratacion {
       .pipe(this.handle$());
   }
 
+  /**
+   * Borra la ENTREVISTA completa del candidato (y en cascada su proceso,
+   * contrato y antecedentes) SIN tocar al candidato ni su formulario web:
+   * `formulario_paso` y `formulario_completo` quedan como estaban.
+   *
+   * Sin `procesoId` borra la entrevista más reciente. `forzar` solo hace falta
+   * cuando el contrato está activo (si no, el backend responde 409).
+   */
+  eliminarProceso(
+    numeroDocumento: string,
+    opts?: { procesoId?: number | null; forzar?: boolean },
+  ) {
+    return this.http.post<{
+      message: string;
+      eliminado: {
+        entrevista_id: number;
+        proceso_id: number | null;
+        codigo_contrato: string | null;
+        contrato_activo: boolean;
+        antecedentes: number;
+      };
+      candidato_conservado: {
+        numero_documento: string;
+        formulario_paso: number | null;
+        formulario_completo: boolean | null;
+      };
+    }>(this.url('procesos/eliminar-proceso'), {
+      numero_documento: (numeroDocumento ?? '').trim(),
+      ...(opts?.procesoId != null ? { proceso_id: opts.procesoId } : {}),
+      ...(opts?.forzar ? { forzar: true } : {}),
+    });
+  }
+
   updateProcesoByDocumento(
     body: ProcesoUpdateByDocumentRequest,
     method: 'POST' | 'PATCH' = 'POST'

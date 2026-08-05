@@ -49,6 +49,29 @@
               [value]="progresoExpediente.porcentaje"
               [color]="progresoExpediente.porcentaje === 100 ? 'accent' : 'primary'">
             </mat-progress-bar>
+
+            <!-- Giro de la foto: el EXIF de las cámaras a veces viene mal y la
+                 foto sale acostada. Acá se corrige y se aplica a TODOS los
+                 documentos que la llevan. -->
+            @if (foto) {
+              <div class="foto-giro">
+                <img class="foto-giro-thumb" [src]="fotoPreview() || foto" alt="Foto del candidato">
+                <div class="foto-giro-txt">
+                  <span class="foto-giro-label">Foto</span>
+                  <span class="foto-giro-hint">
+                    @if (rotacionFoto() === 0) {
+                      Se endereza sola. Si sale volteada, gírala.
+                    } @else {
+                      Girada {{ rotacionFoto() }}° — aplica a ficha, hoja de vida y carnet.
+                    }
+                  </span>
+                </div>
+                <button mat-stroked-button class="foto-giro-btn" (click)="girarFoto()"
+                  matTooltip="Gira la foto 90°. Genera de nuevo el documento para verla aplicada.">
+                  <mat-icon>rotate_right</mat-icon> Girar
+                </button>
+              </div>
+            }
           </header>
 
           <!-- Tabs horizontales con badges -->

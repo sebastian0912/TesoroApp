@@ -40,10 +40,15 @@ import { esContratoRealMini, estadoContratoPill, procesoDelContrato, procesoVige
 
 import { firstValueFrom, merge, startWith } from 'rxjs';
 import Swal from 'sweetalert2';
+import { mensajeDeErrorLog } from '@/app/shared/utils/mensaje-error';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { RegistroProcesoContratacion } from '../../service/registro-proceso-contratacion/registro-proceso-contratacion';
 import { SeleccionEstadoService } from '../../service/seleccion/seleccion-estado.service';
 import { TableDialogComponent } from '@/app/shared/components/table-dialog/table-dialog.component';
+import {
+  AvisoDialogComponent,
+  AvisoDialogData,
+} from '@/app/shared/components/confirm-dialog/confirm-dialog.component';
 import { GestionDocumentalService } from '../../service/gestion-documental/gestion-documental.service';
 import jsPDF from 'jspdf';
 import JSZip from 'jszip';
@@ -148,7 +153,24 @@ export class RecruitmentPipelineComponent {
    * También chequea propiedades alternativas (`url`, `urlfoto`, `foto`) en el documento
    * por si el backend usa nombres distintos.
    */
+  /**
+   * URL que ya se intentó cargar y falló (404, archivo movido, etc.).
+   *
+   * Se guarda la URL y no un simple booleano para que al cambiar de candidato
+   * —o al subir una foto nueva, que estrena URL— se vuelva a intentar solo.
+   */
+  private fotoUrlFallida = signal<string | null>(null);
+
   avatarPhotoUrl = computed<string | null>(() => {
+    const url = this.avatarPhotoUrlCandidata();
+    // Si esa imagen ya falló, se devuelve null para que el avatar caiga en el
+    // ícono de persona. Dejar el <img> roto en pantalla muestra el texto
+    // alternativo ("Foto del candidato") sobre el fondo azul, que se ve como
+    // un error de la aplicación.
+    return url && url === this.fotoUrlFallida() ? null : url;
+  });
+
+  private avatarPhotoUrlCandidata = computed<string | null>(() => {
     const local = this.fotoDataUrl();
     if (local) return local;
 
@@ -174,10 +196,42 @@ export class RecruitmentPipelineComponent {
     return fromCand || null;
   });
 
+  /**
+   * URL `blob:` que creamos NOSOTROS para la vista previa de la foto recién
+   * tomada, y que por lo tanto nos toca liberar.
+   *
+   * No se puede reutilizar la que devuelve `CameraDialogComponent`: ese diálogo
+   * revoca su propia `previewUrl` en el `ngOnDestroy`, o sea justo al cerrarse.
+   * Si se guardaba esa URL, el `<img>` del avatar quedaba apuntando a un blob
+   * ya destruido y se veía el texto alternativo en vez de la foto — hasta que
+   * se volvía a consultar al candidato y entraba la URL del servidor.
+   */
+  private fotoPreviewPropia: string | null = null;
+
+  /** Muestra la foto recién tomada con una URL de la que somos dueños. */
+  private mostrarPreviewFoto(file: File): void {
+    this.liberarPreviewFoto();
+    this.fotoPreviewPropia = URL.createObjectURL(file);
+    this.fotoDataUrl.set(this.fotoPreviewPropia);
+  }
+
+  private liberarPreviewFoto(): void {
+    if (this.fotoPreviewPropia) {
+      URL.revokeObjectURL(this.fotoPreviewPropia);
+      this.fotoPreviewPropia = null;
+    }
+  }
+
   /** Notifica que la imagen del avatar falló (sólo para log; no oculta la imagen). */
   onAvatarPhotoError(ev: Event): void {
     const img = ev.target as HTMLImageElement | null;
     console.warn('[avatar] foto no cargó:', img?.src);
+    // Se marca el valor que se le pasó a [src], no `img.src`: el DOM lo
+    // devuelve resuelto a absoluto y una ruta relativa no volvería a coincidir.
+    // Con la URL descartada el avatar cae en el ícono de persona en vez de
+    // quedarse mostrando la imagen rota.
+    const usada = this.avatarPhotoUrlCandidata();
+    if (usada) this.fotoUrlFallida.set(usada);
   }
 
   onAvatarPhotoLoad(ev: Event): void {
@@ -549,7 +603,7 @@ export class RecruitmentPipelineComponent {
         await Swal.fire({
           icon: 'error',
           title: 'No se pudo leer el Excel del ARL',
-          text: e?.message || 'Sin detalle disponible.',
+          text: mensajeDeErrorLog('pipeline', e, 'No se pudo completar la acción.'),
         });
       }
       this.arlIndex.set(null);
@@ -852,6 +906,11 @@ export class RecruitmentPipelineComponent {
         this.fotoDoc.set(null);
       }
 
+      // La vista previa local es del candidato ANTERIOR: si no se suelta, se
+      // queda mostrando su foto encima del nuevo (y además fuga el blob).
+      this.liberarPreviewFoto();
+      this.fotoDataUrl.set(null);
+
       this.mostrarTabla();
     });
 
@@ -1022,6 +1081,95 @@ export class RecruitmentPipelineComponent {
    * defecto solo a los que aún no tienen carnet y deja previsualizar antes de
    * generar.
    */
+  /**
+   * Borra la entrevista/proceso del candidato consultado.
+   *
+   * Lo que NO se borra: el candidato ni su formulario web. Si llenó el paso 1 o
+   * el formulario completo, eso queda intacto — no tiene por qué volver a
+   * llenarlo porque se anuló un proceso de selección.
+   *
+   * Lo que sí se va, en cascada: proceso, contrato y antecedentes.
+   */
+  /** Aviso/confirmación como MatDialog, para poder abrirlo sobre otro diálogo. */
+  private avisoDialog(data: AvisoDialogData): Promise<boolean> {
+    return firstValueFrom(
+      this.dialog.open<AvisoDialogComponent, AvisoDialogData, boolean>(
+        AvisoDialogComponent, { data, autoFocus: 'dialog', restoreFocus: false },
+      ).afterClosed(),
+    ).then(r => r === true);
+  }
+
+  async eliminarProcesoDelHistorial(row: any): Promise<boolean> {
+    const doc = String(
+      row?.numero_documento
+      ?? this.candidatoSeleccionado()?.numero_documento
+      ?? this.numeroDocumento
+      ?? '',
+    ).trim();
+    if (!doc) return false;
+
+    // `id` de la fila = ProcesoCandidato.id (lo trae ProcesoMiniSerializer).
+    // Se manda explícito para borrar ESE registro y no el más reciente.
+    const procesoId = Number(row?.id) || null;
+    const codigo = String(row?.codigo_contrato ?? '').trim();
+
+    // MatDialog y no Swal: esto se dispara DESDE el diálogo del historial y un
+    // Swal ahí queda detrás. El CDK apila por orden de apertura.
+    const isConfirmed = await this.avisoDialog({
+      icono: 'warning',
+      titulo: 'Eliminar el proceso',
+      html:
+        `Se borra la <b>entrevista completa</b> de este registro (<b>${doc}</b>), con su proceso, `
+        + `antecedentes${codigo ? ` y el contrato <b>${codigo}</b>` : ''}.`
+        + `<br><br><b>NO</b> se borra el candidato ni su formulario web: `
+        + `lo que llenó (paso 1 o formulario completo) queda igual.`
+        + `<br><br>Esto no se puede deshacer.`,
+      textoConfirmar: 'Sí, eliminar',
+      textoCancelar: 'Cancelar',
+    });
+    if (!isConfirmed) return false;
+
+    const borrar = (forzar: boolean) =>
+      firstValueFrom(this.registroProceso.eliminarProceso(doc, { procesoId, forzar }));
+
+    try {
+      let res;
+      try {
+        res = await borrar(false);
+      } catch (e: any) {
+        // 409 = contrato activo. Se pregunta una segunda vez, con el código a
+        // la vista, en vez de borrarlo de una.
+        if (e?.status !== 409) throw e;
+        const forzarOk = await this.avisoDialog({
+          icono: 'error',
+          titulo: 'El contrato está ACTIVO',
+          html: `Esta persona tiene el contrato <b>${e?.error?.codigo_contrato || codigo || '—'}</b> vigente.`
+            + `<br><br>Lo normal es darle la baja primero. ¿Aun así quieres borrar el proceso?`,
+          textoConfirmar: 'Borrar de todas formas',
+          textoCancelar: 'Cancelar',
+        });
+        if (!forzarOk) return false;
+        res = await borrar(true);
+      }
+
+      await this.avisoDialog({
+        icono: 'success',
+        titulo: 'Proceso eliminado',
+        html: `Se borró la entrevista <b>${res.eliminado.entrevista_id}</b>`
+          + (res.eliminado.antecedentes ? ` y ${res.eliminado.antecedentes} antecedente(s)` : '')
+          + `.<br><br>El candidato y su formulario siguen ahí.`,
+      });
+      return true;
+    } catch (e: any) {
+      console.error('[pipeline] eliminar proceso', e);
+      await this.avisoDialog({
+        icono: 'error', titulo: 'Error',
+        html: mensajeDeErrorLog('pipeline/eliminar-proceso', e, 'No se pudo eliminar el proceso.'),
+      });
+      return false;
+    }
+  }
+
   async abrirCarnetMasivo(cedulas: string[] = []): Promise<void> {
     const ref = this.dialog.open(CarnetMasivoDialogComponent, {
       maxWidth: '96vw',
@@ -1730,9 +1878,11 @@ export class RecruitmentPipelineComponent {
         updateLoader(88, 'Subiendo PDF consolidado…', mergedName);
         // Pasar tipo_documento para que el backend prefije owner_id con "x"
         // cuando la persona no es CC (evita colisiones entre CC y non-CC).
-        const tipoDoc = (this.candidatoSeleccionado()?.tipo_documento
-                        ?? this.candidatoSeleccionado()?.tipoDocumento
-                        ?? undefined) as string | undefined;
+        // El serializer expone `tipo_doc`; `tipo_documento`/`tipoDocumento` no
+        // existen en la respuesta, asi que esto era SIEMPRE undefined y el
+        // prefijo nunca se aplicaba, mientras `elegirDocDelTitular` si lo
+        // esperaba: los documentos de un CE/PET no se reconocian como suyos.
+        const tipoDoc = (this.candidatoSeleccionado()?.tipo_doc ?? undefined) as string | undefined;
         const obs = this.candidatoSeleccionado()?.codigo_contrato
           ? this.docSvc.guardarDocumento(mergedFile.name, cedula, TYPE_EXAM, mergedFile, this.candidatoSeleccionado()?.codigo_contrato, tipoDoc)
           : this.docSvc.guardarDocumento(mergedFile.name, cedula, TYPE_EXAM, mergedFile, undefined, tipoDoc);
@@ -2019,7 +2169,7 @@ export class RecruitmentPipelineComponent {
           { name: 'fecha_retiro', header: 'Retiro', type: 'date', width: '95px' },
         ];
 
-        this.dialog.open(TableDialogComponent, {
+        const ref = this.dialog.open(TableDialogComponent, {
           maxWidth: '95vw',
           height: '92vh',
           maxHeight: '95vh',
@@ -2030,8 +2180,20 @@ export class RecruitmentPipelineComponent {
             pageSize: 12,
             pageSizeOptions: [12, 24, 36],
             tableTitle: 'Historial laboral',
+            // Borrado por fila: cada registro es una entrevista/proceso.
+            eliminarTooltip: 'Eliminar este proceso (entrevista, contrato y antecedentes). NO borra el candidato ni su formulario.',
+            onEliminar: (row: any) => this.eliminarProcesoDelHistorial(row),
           },
           panelClass: 'table-dialog',
+        });
+
+        // Si se borró algún proceso, el candidato abierto pudo quedarse sin
+        // entrevista o con otra distinta: se recarga para no mostrar datos
+        // de algo que ya no existe.
+        ref.afterClosed().subscribe(huboBorrados => {
+          if (huboBorrados && this.candidatoSeleccionado()?.numero_documento) {
+            this.recargarCandidato();
+          }
         });
       },
       error: (err) => {
@@ -2066,7 +2228,9 @@ export class RecruitmentPipelineComponent {
       return;
     }
 
-    this.fotoDataUrl.set(result.previewUrl);
+    // Se crea una URL PROPIA a partir del archivo. La `result.previewUrl` que
+    // devuelve el diálogo ya no sirve: el diálogo la revoca al cerrarse.
+    this.mostrarPreviewFoto(result.file);
 
     try {
       Swal.fire({ title: 'Subiendo foto...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
@@ -2076,12 +2240,10 @@ export class RecruitmentPipelineComponent {
       await this.refreshBiometriaForCandidate(String(numero));
       await this.refreshFotoForCandidate(String(numero)); // Actualizar también el doc 89
     } catch (err: any) {
-      console.error(err);
       Swal.close();
-      const msg: string =
-        err?.error?.detail || err?.error?.message || err?.message || 'No se pudo subir la foto';
-      const httpStatus = err?.status ?? 0;
-      await Swal.fire('Error', `${msg}<br><br>Estado: ${httpStatus}`, 'error');
+      // Se muestra en lenguaje natural; el detalle técnico va a la consola.
+      await Swal.fire('No se pudo subir la foto', mensajeDeErrorLog('pipeline/foto', err,
+        'No se pudo subir la foto. Intenta de nuevo.'), 'error');
     }
   }
 
@@ -2269,8 +2431,11 @@ export class RecruitmentPipelineComponent {
     if (!Array.isArray(docs) || docs.length === 0) return null;
 
     const ced = String(cedula || '').trim().replace(/^[xX]/, '');
+    // Solo letras antes de comparar: en BD conviven 'CC', 'C.C' y 'C.C.' para
+    // la misma persona, y con comparacion cruda un 'C.C' se tomaba por
+    // extranjero y se le buscaban los documentos con prefijo "x".
     const esperado = String(this.candidatoSeleccionado()?.tipo_doc || 'CC')
-      .trim().toUpperCase() === 'CC' ? ced : `x${ced}`;
+      .toUpperCase().replace(/[^A-Z]/g, '') === 'CC' ? ced : `x${ced}`;
 
     const conOwner = docs.filter(d => (d as any)?.owner_id != null);
     if (conOwner.length === 0) return docs[0];
@@ -2899,7 +3064,7 @@ export class RecruitmentPipelineComponent {
         const codigoContrato = row.CODIGO || cand.contrato?.codigo_contrato;
         
         // tipo_documento del candidato para prefijo "x" en non-CC.
-        const tipoDocCarnet = (cand?.tipo_documento ?? cand?.tipoDocumento ?? undefined) as string | undefined;
+        const tipoDocCarnet = (cand?.tipo_doc ?? undefined) as string | undefined;
         await firstValueFrom(
           codigoContrato
             ? this.docSvc.guardarDocumento(`carnet_${row.CEDULA}.pdf`, cedula, 102, pdfFile, codigoContrato, tipoDocCarnet)
@@ -2962,7 +3127,7 @@ export class RecruitmentPipelineComponent {
     } catch (error: any) {
       console.error('❌ Error generando carnet:', error);
       Swal.close();
-      await Swal.fire({ icon: 'error', title: 'Error', text: error?.message || 'Ocurrió un error al generar carnet.' });
+      await Swal.fire({ icon: 'error', title: 'Error', text: mensajeDeErrorLog('pipeline/carnet', error, 'No se pudo generar el carnet.') });
     }
   }
 }

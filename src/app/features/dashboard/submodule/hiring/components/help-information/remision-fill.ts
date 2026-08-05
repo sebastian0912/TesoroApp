@@ -64,8 +64,33 @@ const OFICINAS =
 
 const s = (v: unknown) => String(v ?? '').trim();
 
+/**
+ * Media carta: el mismo ancho de una carta (215.9 mm) con la mitad del alto
+ * (139.7 mm), o sea una hoja carta cortada por la mitad.
+ *
+ * Va con `orientation: 'landscape'` a propósito: jsPDF le da vuelta al `format`
+ * para que calce con la orientación, así que un formato con ancho > alto
+ * declarado como 'portrait' saldría de 139.7 mm de ancho — justo al revés.
+ */
+const PAGINA: [number, number] = [215.9, 139.7];
+
+/**
+ * El formato original se diseñó sobre una hoja carta completa. Para bajarlo a
+ * media carta se comprime SOLO el eje vertical (`v`) y el tamaño de letra
+ * (`fz`); el ancho de la página no cambia, así que las posiciones en X quedan
+ * igual. Achicar la letra sin mover los anclajes en X es seguro: cada texto
+ * ocupa menos ancho del que ya ocupaba, nunca más.
+ *
+ * Si algún día hay que volver a hoja completa, basta con poner ambas escalas
+ * en 1 y `PAGINA` en 'letter'.
+ */
+const ESC_Y = 0.6;
+const ESC_TEXTO = 0.72;
+const v = (mm: number) => mm * ESC_Y;
+const fz = (pt: number) => pt * ESC_TEXTO;
+
 export function buildRemisionPdf(d: DatosRemision): Blob {
-  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'letter' });
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: PAGINA });
   const W = doc.internal.pageSize.getWidth();
   const mL = 12;
   const mR = W - 12;
@@ -76,28 +101,32 @@ export function buildRemisionPdf(d: DatosRemision): Blob {
 
   // ─────────────────────── Encabezado de calidad ───────────────────────
   // Rejilla: logo | 3 filas de título y metadatos.
-  const hLogo = 22;
-  const xLogo = mL + 42;
+  const yTop = v(12);
+  const hLogo = v(22);
+  // La celda del logo se angosta junto con su alto para no dejar un hueco a la
+  // derecha del logotipo; lo que sobra se lo llevan el título y los metadatos.
+  const xLogo = mL + 30;
   doc.setDrawColor(0).setLineWidth(0.4);
-  doc.rect(mL, 12, ancho, hLogo);
-  doc.line(xLogo, 12, xLogo, 12 + hLogo);
-  doc.line(xLogo, 12 + hLogo / 3, mR, 12 + hLogo / 3);
-  doc.line(xLogo, 12 + (hLogo * 2) / 3, mR, 12 + (hLogo * 2) / 3);
+  doc.rect(mL, yTop, ancho, hLogo);
+  doc.line(xLogo, yTop, xLogo, yTop + hLogo);
+  doc.line(xLogo, yTop + hLogo / 3, mR, yTop + hLogo / 3);
+  doc.line(xLogo, yTop + (hLogo * 2) / 3, mR, yTop + (hLogo * 2) / 3);
 
   if (d.logoDataUrl) {
-    try { doc.addImage(d.logoDataUrl, 'PNG', mL + 2, 14, 38, 18); } catch { /* sin logo */ }
+    // 26 × 12.3 conserva la proporción del original (38 × 18).
+    try { doc.addImage(d.logoDataUrl, 'PNG', mL + 2, yTop + 0.5, 26, 12.3); } catch { /* sin logo */ }
   }
 
-  doc.setFont('helvetica', 'bold').setFontSize(9).setTextColor(0);
-  doc.text('PROCESO DE SELECCIÓN', (xLogo + mR) / 2, 12 + hLogo / 3 - 2.4, { align: 'center' });
-  doc.text('REMISION PARA ENTREVISTA Y/O PRUEBA TECNICA', (xLogo + mR) / 2, 12 + (hLogo * 2) / 3 - 2.4, { align: 'center' });
+  doc.setFont('helvetica', 'bold').setFontSize(fz(9)).setTextColor(0);
+  doc.text('PROCESO DE SELECCIÓN', (xLogo + mR) / 2, yTop + hLogo / 3 - v(2.4), { align: 'center' });
+  doc.text('REMISION PARA ENTREVISTA Y/O PRUEBA TECNICA', (xLogo + mR) / 2, yTop + (hLogo * 2) / 3 - v(2.4), { align: 'center' });
 
   // Fila de metadatos, en 4 celdas.
-  const yMeta = 12 + (hLogo * 2) / 3;
+  const yMeta = yTop + (hLogo * 2) / 3;
   const anchoMeta = mR - xLogo;
   const cortes = [xLogo, xLogo + anchoMeta * 0.3, xLogo + anchoMeta * 0.52, xLogo + anchoMeta * 0.78, mR];
-  for (const x of cortes.slice(1, -1)) doc.line(x, yMeta, x, 12 + hLogo);
-  doc.setFontSize(8);
+  for (const x of cortes.slice(1, -1)) doc.line(x, yMeta, x, yTop + hLogo);
+  doc.setFontSize(fz(8));
   const meta = [
     `Código: ${cfg.codigo}`,
     'Versión: 02',
@@ -105,42 +134,42 @@ export function buildRemisionPdf(d: DatosRemision): Blob {
     'Página: 1 de 1',
   ];
   meta.forEach((txt, i) => {
-    doc.text(txt, (cortes[i] + cortes[i + 1]) / 2, 12 + hLogo - 2.4, { align: 'center' });
+    doc.text(txt, (cortes[i] + cortes[i + 1]) / 2, yTop + hLogo - v(2.4), { align: 'center' });
   });
 
   // Banda del título repetido (como en el formato original).
-  let y = 12 + hLogo;
-  doc.rect(mL, y, ancho, 7);
-  doc.setFontSize(9.5);
-  doc.text('REMISION PARA ENTREVISTA Y/O PRUEBA TECNICA', W / 2, y + 4.8, { align: 'center' });
-  y += 7;
+  let y = yTop + hLogo;
+  doc.rect(mL, y, ancho, v(7));
+  doc.setFontSize(fz(9.5));
+  doc.text('REMISION PARA ENTREVISTA Y/O PRUEBA TECNICA', W / 2, y + v(4.8), { align: 'center' });
+  y += v(7);
 
   // ─────────────────────── Cuerpo ───────────────────────
   const etiqueta = (txt: string, x: number, yy: number, size = 10) => {
-    doc.setFont('helvetica', 'bold').setFontSize(size).text(txt, x, yy);
+    doc.setFont('helvetica', 'bold').setFontSize(fz(size)).text(txt, x, yy);
   };
   const valor = (txt: string, x: number, yy: number, size = 10) => {
-    doc.setFont('helvetica', 'normal').setFontSize(size).text(s(txt), x, yy);
+    doc.setFont('helvetica', 'normal').setFontSize(fz(size)).text(s(txt), x, yy);
   };
   /** Línea sobre la que se escribe (queda visible aunque no haya dato). */
   const linea = (x1: number, x2: number, yy: number) => {
-    doc.setDrawColor(90).setLineWidth(0.2).line(x1, yy + 1.4, x2, yy + 1.4);
+    doc.setDrawColor(90).setLineWidth(0.2).line(x1, yy + v(1.4), x2, yy + v(1.4));
     doc.setDrawColor(0).setLineWidth(0.4);
   };
 
-  y += 11;
+  y += v(11);
   etiqueta('Fecha:', mL + 2, y);
   valor(d.fecha, mL + 30, y);
   linea(mL + 28, mL + 120, y);
 
   // Recuadro del código de contrato, arriba a la derecha.
-  doc.rect(mR - 46, y - 7, 46, 11);
+  doc.rect(mR - 46, y - v(7), 46, v(11));
   if (s(d.consecutivo)) {
-    doc.setFont('helvetica', 'normal').setFontSize(11);
+    doc.setFont('helvetica', 'normal').setFontSize(fz(11));
     doc.text(s(d.consecutivo), mR - 3, y, { align: 'right' });
   }
 
-  y += 11;
+  y += v(11);
   etiqueta('EMPRESA USUARIA', mL + 2, y);
   valor(d.empresaUsuaria, mL + 48, y);
   linea(mL + 46, mL + 118, y);
@@ -148,7 +177,7 @@ export function buildRemisionPdf(d: DatosRemision): Blob {
   valor(d.cargo, mL + 138, y);
   linea(mL + 136, mR - 2, y);
 
-  y += 11;
+  y += v(11);
   etiqueta('Experiencia en el Sector:', mL + 2, y);
   valor(d.experienciaSector, mL + 56, y);
   linea(mL + 54, mL + 78, y);
@@ -156,42 +185,43 @@ export function buildRemisionPdf(d: DatosRemision): Blob {
   valor(d.tiempoExperiencia, mL + 130, y);
   linea(mL + 128, mR - 2, y);
 
-  y += 12;
+  y += v(12);
   etiqueta('Respetados Señores:', mL + 2, y);
 
-  y += 11;
+  y += v(11);
   valor('Muy comedidamente presentamos al señor (a)', mL + 2, y);
   doc.setFont('helvetica', 'bold');
   doc.text(s(d.nombreCandidato), mL + 88, y);
   linea(mL + 86, mR - 2, y);
 
-  y += 7;
+  y += v(7);
   doc.setFont('helvetica', 'normal');
   valor('Identificado (a) con cédula de ciudadania número:', mL + 2, y);
   doc.setFont('helvetica', 'bold');
   doc.text(s(d.cedula), mL + 98, y);
   linea(mL + 96, mR - 2, y);
 
-  y += 7;
+  y += v(7);
   doc.setFont('helvetica', 'normal');
   valor('Para presentar entrevista al area de:', mL + 2, y);
   valor(d.area, mL + 76, y);
   linea(mL + 74, mR - 2, y);
 
-  y += 11;
+  y += v(11);
   etiqueta('EN LAS INSTALACIONES DE LA EMPRESA', mL + 2, y);
 
   // Recuadro de la dirección, a la derecha.
   const xDir = mL + 108;
-  doc.rect(xDir, y - 5, mR - xDir, 8);
-  doc.setFontSize(9.5);
+  doc.rect(xDir, y - v(5), mR - xDir, v(8));
+  doc.setFontSize(fz(9.5));
   doc.text('DIRECCIÓN DE LA EMPRESA', (xDir + mR) / 2, y, { align: 'center' });
-  doc.rect(xDir, y + 3, mR - xDir, 18);
-  doc.setFont('helvetica', 'normal').setFontSize(9);
+  doc.rect(xDir, y + v(3), mR - xDir, v(18));
+  doc.setFont('helvetica', 'normal').setFontSize(fz(9));
   const dirLineas = doc.splitTextToSize(s(d.direccionEmpresa), mR - xDir - 6);
-  doc.text(dirLineas.slice(0, 4), (xDir + mR) / 2, y + 9, { align: 'center' });
+  // 3 líneas: en el recuadro reducido no caben las 4 del formato en carta.
+  doc.text(dirLineas.slice(0, 3), (xDir + mR) / 2, y + v(8), { align: 'center' });
 
-  y += 7;
+  y += v(7);
   etiqueta('EL DIA:', mL + 2, y);
   valor(d.dia, mL + 22, y);
   linea(mL + 20, mL + 54, y);
@@ -199,50 +229,55 @@ export function buildRemisionPdf(d: DatosRemision): Blob {
   valor(d.hora, mL + 76, y);
   linea(mL + 74, mL + 104, y);
 
-  y += 7;
+  y += v(7);
   etiqueta('PREGUNTAR POR:', mL + 2, y);
   valor(d.preguntarPor, mL + 42, y);
   linea(mL + 40, mL + 104, y);
 
   // ─────────────────────── Bloque QR + firma ───────────────────────
-  y += 18;
+  y += v(18);
   const yBloque = y;
   const xQR = mL + 96;
-  doc.setLineWidth(0.4).rect(xQR, yBloque, mR - xQR, 44);
+  doc.setLineWidth(0.4).rect(xQR, yBloque, mR - xQR, v(44));
 
-  doc.setFont('helvetica', 'bold').setFontSize(8.2);
+  // El QR es cuadrado: se escala con el eje vertical para no deformarlo, y el
+  // texto recupera el ancho que el QR deja libre.
+  const ladoQR = v(33);
+  const xQRimg = mR - ladoQR - 3;
+
+  doc.setFont('helvetica', 'bold').setFontSize(fz(8.2));
   const textoQR = doc.splitTextToSize(
     'Para dar inico al proceso de contratación por favor Registrese escaneando el QR o a través de '
     + `facebook o Google así: En el buscador escriba ${cfg.buscar}, dele click en la pestaña de `
     + 'registrarse o más información y diligencie todo el formulario y al final de la página presione '
     + 'click en "siguiente" para terminar.',
-    (mR - xQR) - 40,
+    (xQRimg - xQR) - 6,
   );
-  doc.text(textoQR, xQR + 3, yBloque + 6);
+  doc.text(textoQR, xQR + 3, yBloque + v(6));
 
   if (d.qrDataUrl) {
-    try { doc.addImage(d.qrDataUrl, 'PNG', mR - 36, yBloque + 4, 33, 33); } catch { /* sin QR */ }
+    try { doc.addImage(d.qrDataUrl, 'PNG', xQRimg, yBloque + v(4), ladoQR, ladoQR); } catch { /* sin QR */ }
   } else {
-    doc.setDrawColor(150).rect(mR - 36, yBloque + 4, 33, 33);
+    doc.setDrawColor(150).rect(xQRimg, yBloque + v(4), ladoQR, ladoQR);
     doc.setDrawColor(0);
   }
 
   // Firma de gestión humana, a la izquierda del bloque QR.
-  const yFirma = yBloque + 30;
-  doc.setFont('helvetica', 'bold').setFontSize(11);
+  const yFirma = yBloque + v(30);
+  doc.setFont('helvetica', 'bold').setFontSize(fz(11));
   doc.text(s(d.gestionHumana), mL + 40, yFirma, { align: 'center' });
-  doc.setLineWidth(0.3).line(mL + 6, yFirma + 2, mL + 74, yFirma + 2);
-  doc.setFontSize(9.5);
-  doc.text('GESTIÓN HUMANA (Temporal)', mL + 40, yFirma + 7, { align: 'center' });
+  doc.setLineWidth(0.3).line(mL + 6, yFirma + v(2), mL + 74, yFirma + v(2));
+  doc.setFontSize(fz(9.5));
+  doc.text('GESTIÓN HUMANA (Temporal)', mL + 40, yFirma + v(7), { align: 'center' });
 
   // ─────────────────────── Pie ───────────────────────
-  let yPie = yBloque + 50;
-  doc.setFont('helvetica', 'bold').setFontSize(8.5).setTextColor(60);
+  let yPie = yBloque + v(50);
+  doc.setFont('helvetica', 'bold').setFontSize(fz(8.5)).setTextColor(60);
   doc.text('Horario de Atención: LUNES a VIERNES DE 08:00 am - 12:00 pm y  DE 2:00 pm - 5:00 pm',
     W / 2, yPie, { align: 'center' });
 
-  yPie += 6;
-  doc.setFontSize(7).setTextColor(90);
+  yPie += v(6);
+  doc.setFontSize(fz(7)).setTextColor(90);
   const pie = doc.splitTextToSize(OFICINAS, ancho - 4);
   doc.text(pie, W / 2, yPie, { align: 'center' });
 

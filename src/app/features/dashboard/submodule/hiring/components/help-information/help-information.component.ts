@@ -12,7 +12,7 @@ import { MatDatepickerModule } from '@angular/material/datepicker';
 import { MAT_DATE_FORMATS, MAT_DATE_LOCALE, MatNativeDateModule } from '@angular/material/core';
 import { toSignal, takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { catchError, startWith } from 'rxjs/operators';
-import { of } from 'rxjs';
+import { of, firstValueFrom } from 'rxjs';
 import Swal from 'sweetalert2';
 
 import { UtilityServiceService } from '@/app/shared/services/utilityService/utility-service.service';
@@ -602,7 +602,7 @@ export class HelpInformationComponent implements OnInit {
         didOpen: () => Swal.showLoading(),
       });
 
-      const res = await this.gc.updateProcesoByDocumento(this.withOverride(payload), 'PATCH').toPromise();
+      const res = await firstValueFrom(this.gc.updateProcesoByDocumento(this.withOverride(payload), 'PATCH'));
 
       // El pipeline debe recargar: la vacante recién asignada alimenta el
       // prellenado de "Datos de obra" en Contratación y las píldoras del header.
@@ -680,7 +680,7 @@ export class HelpInformationComponent implements OnInit {
         didOpen: () => Swal.showLoading(),
       });
 
-      await this.gc.updateProcesoByDocumento(this.withOverride(payload), 'PATCH').toPromise();
+      await firstValueFrom(this.gc.updateProcesoByDocumento(this.withOverride(payload), 'PATCH'));
 
       this.limpiarVacante.set(false);
       this.guardado.emit();
@@ -778,7 +778,7 @@ export class HelpInformationComponent implements OnInit {
         didOpen: () => Swal.showLoading(),
       });
 
-      const res = await this.gc.updateProcesoByDocumento(this.withOverride(payload), 'PATCH').toPromise();
+      const res = await firstValueFrom(this.gc.updateProcesoByDocumento(this.withOverride(payload), 'PATCH'));
       const proc: any = res?.proceso;
 
       this.noPasoPrueba.set(true);
@@ -833,7 +833,7 @@ export class HelpInformationComponent implements OnInit {
         didOpen: () => Swal.showLoading(),
       });
 
-      await this.gc.updateProcesoByDocumento(this.withOverride(payload), 'PATCH').toPromise();
+      await firstValueFrom(this.gc.updateProcesoByDocumento(this.withOverride(payload), 'PATCH'));
 
       this.noPasoPrueba.set(false);
       this.noPasoPruebaAt.set(null);
@@ -954,8 +954,13 @@ export class HelpInformationComponent implements OnInit {
       consecutivo: this.codigoContratoDe(cand),
     };
 
+    // El ancho va acá y no en el componente: el default de MatDialog es
+    // maxWidth 80vw, y el diálogo se pintaba a 760px dentro de un panel más
+    // angosto → contenido cortado por la derecha y el botón "Generar remisión"
+    // fuera de pantalla.
     this.dialog.open<RemisionDialogComponent, RemisionDialogData, boolean>(
-      RemisionDialogComponent, { data, autoFocus: 'dialog' },
+      RemisionDialogComponent,
+      { data, autoFocus: 'dialog', width: 'min(760px, 94vw)', maxWidth: '94vw' },
     );
   }
 

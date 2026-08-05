@@ -6,6 +6,7 @@ import { catchError, startWith, map } from 'rxjs/operators';
 import { SharedModule } from '@/app/shared/shared.module';
 import { MatTabsModule } from '@angular/material/tabs';
 import Swal from 'sweetalert2';
+import { mensajeDeErrorLog } from '@/app/shared/utils/mensaje-error';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import type jsPDF from 'jspdf';
 import type { RowInput } from 'jspdf-autotable';
@@ -242,7 +243,11 @@ export class HiringQuestionsComponent implements OnInit {
         // pero el usuario puede modificarlo manualmente si necesita.
         porcentajeARL: [null, Validators.required],
         cesantias: [null, Validators.required],
-        subCentroCostos: [null, Validators.required],
+        // Sub centro, grupo y los clasificadores 2/3 salen del maestro del
+        // centro de costo; cuando el maestro no los trae hay que poder guardar
+        // igual, así que van sin Validators.required (el backend los acepta
+        // null: `subcentro_de_costos`, `grupo`, `categoria`, `operacion`).
+        subCentroCostos: [null],
         // Datos de nomina. Se prellenan desde el centro de costo pero quedan
         // editables; no son obligatorios para no bloquear contrataciones viejas.
         empresaGrupoElite: [null],
@@ -250,9 +255,9 @@ export class HiringQuestionsComponent implements OnInit {
         sucursal: [null],
         ciudadLabor: [null],
         sublabor: [null],
-        grupo: [null, Validators.required],
-        categoria: [null, Validators.required],
-        operacion: [null, Validators.required],
+        grupo: [null],
+        categoria: [null],
+        operacion: [null],
         horasExtras: [false, Validators.required],
         fechaIngreso: [null, Validators.required],
         fechaContrato: [null, Validators.required],
@@ -970,7 +975,7 @@ export class HiringQuestionsComponent implements OnInit {
       Swal.fire({
         icon: 'error',
         title: 'Error',
-        text: err?.error?.detail || 'No se pudieron subir los archivos. Verifique su conexión e intente de nuevo.',
+        text: mensajeDeErrorLog('hiring/subir-archivos', err, 'No se pudieron subir los archivos.'),
         confirmButtonText: 'Ok',
       });
     }

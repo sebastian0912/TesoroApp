@@ -19,7 +19,7 @@
 import { CommonModule } from '@angular/common';
 import { ChangeDetectionStrategy, Component, Inject, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
+import { MAT_DIALOG_DATA, MatDialog, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -29,9 +29,12 @@ import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { firstValueFrom, of } from 'rxjs';
 import { catchError, take } from 'rxjs/operators';
-import Swal from 'sweetalert2';
 
-import { swalEnDialogo } from '@/app/shared/utils/swal-en-dialogo';
+import {
+  CarnetAvisoData,
+  CarnetAvisoDialogComponent,
+  CarnetProgresoDialogComponent,
+} from './carnet-dialogs.component';
 
 import { GestionDocumentalService } from '../../service/gestion-documental/gestion-documental.service';
 import { RegistroProcesoContratacion } from '../../service/registro-proceso-contratacion/registro-proceso-contratacion';
@@ -42,6 +45,17 @@ import {
   buildCarnetApoyoLotePdf,
   buildCarnetApoyoPdf,
 } from '../generate-contracting-documents/carnet-apoyo-fill';
+import {
+  ARL_ALIANZA,
+  CARNETS_POR_HOJA_ALIANZA,
+  CarnetMasivoRow,
+  TELEFONO_COORDINADOR_ALIANZA,
+  buildCarnetsMasivoPdf,
+} from '../generate-contracting-documents/carnet-masivo-fill';
+import QRCode from 'qrcode';
+
+/** Las dos temporales tienen formato, logo, ARL y coordinador distintos. */
+type TemporalCarnet = 'apoyo' | 'alianza';
 
 /** type_id del carnet en el gestor documental. */
 const TIPO_DOC_CARNET = 102;
@@ -63,6 +77,11 @@ interface FilaCarnet {
   error: string | null;
   /** proceso al que hay que marcarle `carnet_generado`. */
   procesoId: number | null;
+  /** Temporal de la vacante: decide formato, logo, ARL y coordinador. */
+  temporal: TemporalCarnet;
+  /** Apellidos y nombres por separado: el carnet de Alianza los pinta en 2 renglones. */
+  apellidos: string;
+  nombres: string;
 }
 
 @Component({
@@ -80,6 +99,32 @@ export class CarnetMasivoDialogComponent {
   private readonly gc = inject(RegistroProcesoContratacion);
   private readonly docsSrv = inject(GestionDocumentalService);
   private readonly vacantesSrv = inject(VacantesService);
+  private readonly dialog = inject(MatDialog);
+
+  /**
+   * Aviso/confirmación. Devuelve true si se confirmó.
+   *
+   * Reemplaza a SweetAlert dentro de este diálogo: un Swal abierto desde un
+   * MatDialog quedaba detrás pese a forzarle target, z-index y orden en el DOM.
+   * Con MatDialog el CDK apila por orden de apertura y siempre queda al frente.
+   */
+  private aviso(data: CarnetAvisoData): Promise<boolean> {
+    return firstValueFrom(
+      this.dialog.open<CarnetAvisoDialogComponent, CarnetAvisoData, boolean>(
+        CarnetAvisoDialogComponent, { data, autoFocus: 'dialog', restoreFocus: false },
+      ).afterClosed(),
+    ).then(r => r === true);
+  }
+
+  /** Progreso bloqueante; el texto se actualiza con `ref.componentInstance`. */
+  private abrirProgreso(titulo: string, mensaje: string) {
+    const ref = this.dialog.open(CarnetProgresoDialogComponent, {
+      disableClose: true, autoFocus: false, restoreFocus: false,
+    });
+    ref.componentInstance.titulo.set(titulo);
+    ref.componentInstance.mensaje.set(mensaje);
+    return ref;
+  }
 
   /** Cédulas escritas/pegadas: una por línea, o separadas por coma/espacio. */
   cedulasTexto = '';
@@ -97,7 +142,25 @@ export class CarnetMasivoDialogComponent {
   readonly seleccionadas = computed(() =>
     this.filas().filter(f => this.marcadas().has(f.cedula) && this.puedeGenerar(f)),
   );
-  readonly hojas = computed(() => Math.ceil(this.seleccionadas().length / CARNETS_POR_HOJA));
+  /** Seleccionadas por temporal: cada una arma sus propias hojas. */
+  readonly porTemporal = computed(() => {
+    const sel = this.seleccionadas();
+    return {
+      apoyo: sel.filter(f => f.temporal === 'apoyo').length,
+      alianza: sel.filter(f => f.temporal === 'alianza').length,
+    };
+  });
+  /**
+   * Hojas totales. Se cuentan POR SEPARADO porque los dos formatos no comparten
+   * hoja: 5 de Apoyo + 5 de Alianza son 2 hojas, no 1.
+   */
+  readonly hojas = computed(() => {
+    const t = this.porTemporal();
+    // Cada formato con SU constante: hoy ambas valen 9, pero si mañana cambia
+    // la grilla de una, este contador tiene que seguirla sin tocar nada más.
+    return Math.ceil(t.apoyo / CARNETS_POR_HOJA)
+      + Math.ceil(t.alianza / CARNETS_POR_HOJA_ALIANZA);
+  });
   readonly bloqueadas = computed(() => this.filas().filter(f => !this.puedeGenerar(f)).length);
   readonly regenerando = computed(() =>
     this.seleccionadas().filter(f => f.yaGenerado).length,
@@ -158,7 +221,7 @@ export class CarnetMasivoDialogComponent {
   async revisar(): Promise<void> {
     const cedulas = this.parsearCedulas();
     if (!cedulas.length) {
-      Swal.fire({ icon: 'info', title: 'Sin cédulas', text: 'Escribe o pega al menos una cédula.', ...swalEnDialogo() });
+      this.aviso({ icono: 'info', titulo: 'Sin cédulas', html: 'Escribe o pega al menos una cédula.' });
       return;
     }
 
@@ -185,6 +248,7 @@ export class CarnetMasivoDialogComponent {
     const base: FilaCarnet = {
       cedula, nombre: '', tipoDoc: null, yaGenerado: false,
       faltantes: [], datos: null, error: null, procesoId: null,
+      temporal: 'apoyo', apellidos: '', nombres: '',
     };
 
     let cand: any;
@@ -247,8 +311,17 @@ export class CarnetMasivoDialogComponent {
       fotoDataUrl: String(cand?.biometria?.foto?.file_url ?? '') || null,
     };
 
+    // La temporal decide FORMATO, logo, ARL y teléfono del coordinador. Si la
+    // vacante no la trae, no hay forma de saber si el carnet es de Apoyo o de
+    // Tu Alianza: antes se asumía Apoyo en silencio y podía salir el carnet
+    // equivocado. Ahora la fila se bloquea y se dice por qué.
+    const temporalVacante = String(vacante?.temporal ?? '').toUpperCase();
+    const esAlianza = temporalVacante.includes('ALIANZA');
+    const esApoyo = temporalVacante.includes('APOYO');
+
     // Todo tiene que estar lleno: si falta algo, esta persona no se genera.
     const faltantes: string[] = [];
+    if (!esAlianza && !esApoyo) faltantes.push('temporal de la vacante (Apoyo / Tu Alianza)');
     if (!datos.nombreCompleto) faltantes.push('nombre');
     if (!datos.consecutivo) faltantes.push('código de contrato');
     if (!datos.centroCostos) faltantes.push('centro de costo');
@@ -269,6 +342,13 @@ export class CarnetMasivoDialogComponent {
       datos,
       error: null,
       procesoId: proc?.id ?? null,
+      // Si no se pudo determinar, la fila ya quedó bloqueada por `faltantes`;
+      // el valor sirve solo para pintar el chip de la tabla.
+      temporal: esAlianza ? 'alianza' : 'apoyo',
+      apellidos: [cand.primer_apellido, cand.segundo_apellido]
+        .map((v: any) => String(v ?? '').trim()).filter(Boolean).join(' '),
+      nombres: [cand.primer_nombre, cand.segundo_nombre]
+        .map((v: any) => String(v ?? '').trim()).filter(Boolean).join(' '),
     };
   }
 
@@ -298,14 +378,89 @@ export class CarnetMasivoDialogComponent {
     }
   }
 
-  /** Descarga logo y fotos una sola vez y devuelve los datos listos para el PDF. */
+  /**
+   * Descarga los logos y las fotos una sola vez y devuelve los datos listos.
+   *
+   * El logo depende de la temporal de CADA fila: antes se usaba `Logo_AL.png`
+   * para todo el mundo y a la gente de Tu Alianza le salía el carnet con el
+   * logo de Apoyo.
+   */
   private async datosConImagenes(filas: FilaCarnet[]): Promise<DatosCarnet[]> {
-    const logo = await this.aDataUrl('logos/Logo_AL.png');
+    const logos: Record<TemporalCarnet, string | null> = {
+      apoyo: await this.aDataUrl('logos/Logo_AL.png'),
+      alianza: await this.aDataUrl('logos/Logo_TA.png'),
+    };
     const out: DatosCarnet[] = [];
     for (const f of filas) {
       const d = f.datos!;
-      out.push({ ...d, logoDataUrl: logo, fotoDataUrl: await this.aDataUrl(d.fotoDataUrl) });
+      out.push({
+        ...d,
+        logoDataUrl: logos[f.temporal],
+        fotoDataUrl: await this.aDataUrl(d.fotoDataUrl),
+      });
     }
+    return out;
+  }
+
+  /** Traduce una fila de Apoyo al shape que pinta el carnet de Tu Alianza. */
+  private async filaAlianza(fila: FilaCarnet, datos: DatosCarnet): Promise<CarnetMasivoRow> {
+    return {
+      CEDULA: datos.cedula,
+      CODIGO: datos.consecutivo,
+      APELLIDOS: fila.apellidos,
+      NOMBRES: fila.nombres,
+      FECHA_INGRESO: datos.fechaIngreso,
+      CENTRO_COSTO: datos.centroCostos,
+      FAMILIAR_EMERGENCIA_NOMBRE: datos.emergenciaNombre,
+      FAMILIAR_EMERGENCIA_TELEFONO: datos.emergenciaTelefono,
+      fotoDataUrl: datos.fotoDataUrl ?? null,
+      // Mismo payload que el QR de la masiva de Home, para que sirva el mismo lector.
+      qrDataUrl: await QRCode.toDataURL(`${datos.cedula}|${datos.consecutivo}`, {
+        errorCorrectionLevel: 'M', margin: 1, width: 300,
+      }).catch(() => null),
+    };
+  }
+
+  /** Opciones fijas del carnet de Tu Alianza (ARL y coordinador propios). */
+  private opcionesAlianza(logoDataUrl: string | null) {
+    return {
+      logoDataUrl,
+      telefonoCoordinador: TELEFONO_COORDINADOR_ALIANZA,
+      arl: ARL_ALIANZA,
+    };
+  }
+
+  /**
+   * Arma un PDF por temporal. NUNCA se mezclan en la misma hoja: los datos
+   * fijos (logo, ARL, teléfono del coordinador) y hasta el formato de la
+   * tarjeta son distintos, así que una hoja compartida saldría mal para una de
+   * las dos.
+   */
+  private async lotesPorTemporal(
+    filas: FilaCarnet[], datos: DatosCarnet[],
+  ): Promise<Array<{ temporal: TemporalCarnet; blob: Blob; cantidad: number }>> {
+    const out: Array<{ temporal: TemporalCarnet; blob: Blob; cantidad: number }> = [];
+
+    const idxApoyo = filas.map((f, i) => ({ f, i })).filter(x => x.f.temporal === 'apoyo');
+    if (idxApoyo.length) {
+      out.push({
+        temporal: 'apoyo',
+        blob: buildCarnetApoyoLotePdf(idxApoyo.map(x => datos[x.i])),
+        cantidad: idxApoyo.length,
+      });
+    }
+
+    const idxAlianza = filas.map((f, i) => ({ f, i })).filter(x => x.f.temporal === 'alianza');
+    if (idxAlianza.length) {
+      const rows: CarnetMasivoRow[] = [];
+      for (const x of idxAlianza) rows.push(await this.filaAlianza(x.f, datos[x.i]));
+      out.push({
+        temporal: 'alianza',
+        blob: buildCarnetsMasivoPdf(rows, this.opcionesAlianza(datos[idxAlianza[0].i].logoDataUrl ?? null)),
+        cantidad: idxAlianza.length,
+      });
+    }
+
     return out;
   }
 
@@ -337,20 +492,29 @@ export class CarnetMasivoDialogComponent {
   async previsualizar(): Promise<void> {
     const sel = this.seleccionadas();
     if (!sel.length) {
-      Swal.fire({ icon: 'info', title: 'Nada seleccionado', text: 'Marca al menos una persona con todos los datos completos.', ...swalEnDialogo() });
+      this.aviso({ icono: 'info', titulo: 'Nada seleccionado', html: 'Marca al menos una persona con todos los datos completos.' });
       return;
     }
     // Antes de cualquier await: si no, el navegador bloquea el popup.
     const ventana = window.open('', '_blank');
     this.generando.set(true);
     this.progreso.set('Armando previsualización…');
+    const progreso = this.abrirProgreso(
+      'Armando previsualización…', `Procesando ${sel.length} carnet(s)…`);
     try {
-      const blob = buildCarnetApoyoLotePdf(await this.datosConImagenes(sel));
-      this.abrirPdf(ventana, blob, `carnets_previsualizacion.pdf`);
+      const datos = await this.datosConImagenes(sel);
+      const lotes = await this.lotesPorTemporal(sel, datos);
+      progreso.close();
+      // La ventana ya abierta se usa para el primero; el resto va a descarga.
+      lotes.forEach((l, i) => this.abrirPdf(
+        i === 0 ? ventana : null, l.blob,
+        `carnets_previsualizacion_${l.temporal}.pdf`,
+      ));
     } catch (e) {
       console.error('[carnet masivo] previsualizar', e);
       ventana?.close();
-      Swal.fire({ icon: 'error', title: 'Error', text: 'No se pudo armar la previsualización.', ...swalEnDialogo() });
+      progreso.close();
+      this.aviso({ icono: 'error', titulo: 'Error', html: 'No se pudo armar la previsualización.' });
     } finally {
       this.generando.set(false);
       this.progreso.set('');
@@ -360,23 +524,23 @@ export class CarnetMasivoDialogComponent {
   async generar(): Promise<void> {
     const sel = this.seleccionadas();
     if (!sel.length) {
-      Swal.fire({ icon: 'info', title: 'Nada seleccionado', text: 'Marca al menos una persona con todos los datos completos.', ...swalEnDialogo() });
+      this.aviso({ icono: 'info', titulo: 'Nada seleccionado', html: 'Marca al menos una persona con todos los datos completos.' });
       return;
     }
 
     const regen = sel.filter(f => f.yaGenerado).length;
-    const { isConfirmed } = await Swal.fire({
-      ...swalEnDialogo(),
-      icon: 'question',
-      title: `Generar ${sel.length} carnet(s)`,
+    const confirmado = await this.aviso({
+      icono: 'question',
+      titulo: `Generar ${sel.length} carnet(s)`,
       html: `Se imprimirán en <b>${this.hojas()}</b> hoja(s) de 9.`
+        + `<br><small>Apoyo: <b>${this.porTemporal().apoyo}</b> · `
+        + `Tu Alianza: <b>${this.porTemporal().alianza}</b> — salen en PDF aparte, `
+        + `no se mezclan en la misma hoja.</small>`
         + (regen ? `<br><br><b>${regen}</b> ya tenían carnet y se van a REGENERAR.` : ''),
-      showCancelButton: true,
-      confirmButtonText: 'Generar',
-      cancelButtonText: 'Cancelar',
-      confirmButtonColor: '#111827',
+      textoConfirmar: 'Generar',
+      textoCancelar: 'Cancelar',
     });
-    if (!isConfirmed) return;
+    if (!confirmado) return;
 
     // Se abre YA, antes de armar nada: pasado el await el navegador bloquea el
     // popup. `abrirPdf` cae a descarga si aun asi viene bloqueada.
@@ -384,20 +548,33 @@ export class CarnetMasivoDialogComponent {
 
     this.generando.set(true);
     const fallidas: string[] = [];
+    let progreso: ReturnType<typeof this.abrirProgreso> | null = null;
     try {
       this.progreso.set('Armando los carnets…');
+      progreso = this.abrirProgreso('Generando carnets…', 'Armando los PDF…');
       const datos = await this.datosConImagenes(sel);
 
-      // 1) El lote para imprimir.
-      const lote = buildCarnetApoyoLotePdf(datos);
-      this.abrirPdf(ventana, lote, `carnets_lote_${sel.length}.pdf`);
+      // 1) Un lote por temporal: hojas de Apoyo aparte de las de Tu Alianza.
+      const lotes = await this.lotesPorTemporal(sel, datos);
+      lotes.forEach((l, i) => this.abrirPdf(
+        i === 0 ? ventana : null, l.blob,
+        `carnets_lote_${l.temporal}_${l.cantidad}.pdf`,
+      ));
 
       // 2) El carnet individual de cada quien al gestor documental + la marca.
       for (let i = 0; i < sel.length; i++) {
         const fila = sel[i];
         this.progreso.set(`Guardando ${i + 1} de ${sel.length} (${fila.cedula})…`);
+        progreso?.componentInstance.mensaje.set(
+          `Guardando <b>${i + 1}</b> de <b>${sel.length}</b><br>${fila.cedula}`);
         try {
-          const individual = buildCarnetApoyoPdf(datos[i]);
+          // Cada quien se guarda con el formato de SU temporal.
+          const individual = fila.temporal === 'alianza'
+            ? buildCarnetsMasivoPdf(
+              [await this.filaAlianza(fila, datos[i])],
+              { ...this.opcionesAlianza(datos[i].logoDataUrl ?? null), posicion: 1 },
+            )
+            : buildCarnetApoyoPdf(datos[i]);
           const archivo = new File([individual], `carnet_${fila.cedula}.pdf`, { type: 'application/pdf' });
           await firstValueFrom(this.docsSrv.guardarDocumento(
             `carnet_${fila.cedula}.pdf`, fila.cedula, TIPO_DOC_CARNET, archivo,
@@ -423,15 +600,18 @@ export class CarnetMasivoDialogComponent {
       this.soloPendientes();
       this.cambios = true;
 
-      await Swal.fire({
-        ...swalEnDialogo(),
-        icon: fallidas.length ? 'warning' : 'success',
-        title: fallidas.length ? 'Generado con errores' : 'Carnets generados',
+      progreso?.close();
+      progreso = null;
+      await this.aviso({
+        icono: fallidas.length ? 'warning' : 'success',
+        titulo: fallidas.length ? 'Generado con errores' : 'Carnets generados',
         html: `Se generaron <b>${sel.length - fallidas.length}</b> de ${sel.length}.`
           + (fallidas.length ? `<br><br>No se pudieron guardar: ${fallidas.join(', ')}` : ''),
-        confirmButtonColor: '#111827',
       });
     } finally {
+      // Si algo revienta a mitad, el loader no puede quedarse abierto para
+      // siempre bloqueando el diálogo.
+      progreso?.close();
       this.generando.set(false);
       this.progreso.set('');
     }

@@ -52,6 +52,14 @@
         @if (regenerando() > 0) {
           <span class="cm-regen"><b>{{ regenerando() }}</b> se van a regenerar</span>
         }
+        <!-- Apoyo y Alianza nunca comparten hoja: el desglose explica por qué
+             pueden salir 2 hojas con pocas personas marcadas. -->
+        @if (porTemporal().apoyo > 0) {
+          <span class="chip chip-apoyo"><b>{{ porTemporal().apoyo }}</b> Apoyo</span>
+        }
+        @if (porTemporal().alianza > 0) {
+          <span class="chip chip-alianza"><b>{{ porTemporal().alianza }}</b> Tu Alianza</span>
+        }
         <span><b>{{ hojas() }}</b> hoja(s)</span>
       </div>
 
@@ -62,6 +70,7 @@
               <th class="col-check"></th>
               <th>Documento</th>
               <th>Nombre</th>
+              <th class="col-temporal">Temporal</th>
               <th class="col-estado">Carnet</th>
               <th>Estado de los datos</th>
             </tr>
@@ -81,6 +90,16 @@
                 </td>
                 <td class="col-doc">{{ f.cedula }}</td>
                 <td>{{ f.nombre || '—' }}</td>
+                <td class="col-temporal">
+                  <span class="chip"
+                    [class.chip-apoyo]="f.temporal === 'apoyo'"
+                    [class.chip-alianza]="f.temporal === 'alianza'"
+                    [matTooltip]="f.temporal === 'alianza'
+                      ? 'Tu Alianza: carnet con QR, logo TA y coordinador 3152306148'
+                      : 'Apoyo Laboral: carnet CR80 con código de barras, logo AL y coordinador 3102518013'">
+                    {{ f.temporal === 'alianza' ? 'Tu Alianza' : 'Apoyo' }}
+                  </span>
+                </td>
                 <td class="col-estado">
                   @if (f.yaGenerado) {
                     <span class="chip chip-generado"><mat-icon>check_circle</mat-icon> Generado</span>

@@ -21,5 +21,18 @@
     [defaultPageSize]="pageSize"
     [pageSizeOptions]="pageSizeOptions"
     (rowClicked)="rowClicked.emit($event)">
+
+    <!-- Solo se proyecta si quien abrió el diálogo pasó `onEliminar`; la
+         columna 'actions' se agrega sola en el constructor. -->
+    @if (onEliminar) {
+      <ng-template #actionsTemplate let-row>
+        <button mat-icon-button class="td-del-btn"
+          [matTooltip]="eliminarTooltip"
+          [disabled]="!!borrando"
+          (click)="$event.stopPropagation(); eliminar(row)">
+          <mat-icon>delete_forever</mat-icon>
+        </button>
+      </ng-template>
+    }
   </app-standard-filter-table>
 </section>

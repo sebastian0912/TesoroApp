@@ -1,7 +1,7 @@
 import { Component, OnDestroy, OnInit, ChangeDetectionStrategy, ChangeDetectorRef, ElementRef, ViewChild, DestroyRef, inject } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { firstValueFrom, interval, Subject, take } from 'rxjs';
-import { startWith, switchMap, takeUntil } from 'rxjs/operators';
+import { filter, startWith, switchMap, takeUntil } from 'rxjs/operators';
 import Swal from 'sweetalert2';
 import { MatButtonModule } from '@angular/material/button';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
@@ -105,7 +105,17 @@ export class SearchForCandidateComponent implements OnInit, OnDestroy {
   /* Lista por orden de llegada (consultados o llenando el formulario) */
   recientes: CandidatoRecienteItem[] = [];
   recientesLoading = false;
-  private readonly RECIENTES_REFRESH_MS = 3000;
+  /**
+   * Cada refresco cuesta caro: `/candidatos/recientes/` consulta candidatos,
+   * sus entrevistas con proceso y contrato, y el estado de los robots por
+   * cédula — 0.3–0.5 s por llamada contra la MySQL remota. A 3 s eran ~1.200
+   * requests/hora por cada TesoroApp abierto.
+   *
+   * La cola de turnos no cambia tan rápido; 15 s es de sobra y hay botón de
+   * refrescar para cuando se quiere ver ya. Además se pausa si la ventana no
+   * está visible (ver `startRecientesPolling`).
+   */
+  private readonly RECIENTES_REFRESH_MS = 15000;
   private readonly RECIENTES_LIMIT = 50;
   /* Cédulas que el usuario marcó "Atender" en este mismo render para refresco optimista. */
   private atendiendoSet = new Set<string>();
@@ -162,6 +172,10 @@ export class SearchForCandidateComponent implements OnInit, OnDestroy {
   private startRecientesPolling(): void {
     interval(this.RECIENTES_REFRESH_MS).pipe(
       startWith(0),
+      // Con la app minimizada o en otra pestaña nadie está mirando la cola:
+      // seguir consultando solo carga la base. Al volver, el `interval` sigue
+      // corriendo y el primer tick que caiga con la ventana visible refresca.
+      filter(() => typeof document === 'undefined' || !document.hidden),
       switchMap(() => {
         this.recientesLoading = true;
         this.cdr.markForCheck();

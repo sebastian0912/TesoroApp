@@ -22,7 +22,7 @@ import {
 import { MatAutocompleteSelectedEvent } from '@angular/material/autocomplete';
 import { DateAdapter } from '@angular/material/core';
 import { ActivatedRoute } from '@angular/router';
-import { Observable, firstValueFrom, map, startWith, take, filter, of, catchError } from 'rxjs';
+import { Observable, firstValueFrom, map, startWith, take, filter, of, catchError, shareReplay } from 'rxjs';
 import { MatIconModule } from '@angular/material/icon';
 import Swal from 'sweetalert2';
 
@@ -75,6 +75,17 @@ export class FormEntrevistaComponent implements OnInit {
   private readonly ngZone = inject(NgZone);
 
   // ====== Catálogos ======
+  /**
+   * Catálogo con la respuesta compartida entre TODOS los `| async`.
+   *
+   * Sin `shareReplay` cada suscripción del template dispara su propia petición,
+   * porque un observable de HttpClient es frío. `parentescosOpciones$` se usa
+   * en las 4 filas de familiares → salían 4 GET idénticos del mismo catálogo
+   * (y 2 de estado civil, 2 de marketing) cada vez que se abría un candidato.
+   *
+   * `refCount: false` a propósito: el valor queda cacheado aunque se queden en
+   * cero suscriptores, así cambiar de pestaña no vuelve a pedir la lista.
+   */
   private safeCatalog(code: string, label: string): Observable<CatalogValue[]> {
     return this.catalogos.listDatosByTablaCodigo(code, { activo: true }).pipe(
       catchError((err) => {
@@ -86,7 +97,8 @@ export class FormEntrevistaComponent implements OnInit {
           confirmButtonColor: '#3085d6',
         });
         return of([] as CatalogValue[]);
-      })
+      }),
+      shareReplay({ bufferSize: 1, refCount: false }),
     );
   }
 
