@@ -40,11 +40,11 @@
   min-height: 100%;
 }
 
-.dashboard-container {
+.reg-pagina {
   padding: 12px 8px 40px;
 }
 
-.dashboard-content {
+.reg-pagina-contenido {
   max-width: 1400px;
   margin: 0 auto;
 }
@@ -63,11 +63,16 @@
 .disab-hero {
   display: flex;
   align-items: center;
-  gap: 18px;
-  padding: 26px 28px;
+  gap: 22px;
+  /* Amplio y con aire: el subtitulo son 2-3 lineas y antes se recortaba contra
+     el `overflow: hidden` que necesita el icono decorativo del ::before. */
+  padding: 34px 36px;
+  min-height: 132px;
   background: var(--disab-gradient);
   color: #fff;
   position: relative;
+  /* Recorta SOLO el ::before decorativo, nunca el texto: el contenido real va en
+     .disab-hero-texts con z-index 1 y sin restriccion de alto. */
   overflow: hidden;
 }
 
@@ -110,8 +115,9 @@
 }
 
 .disab-hero-title {
-  margin: 0 0 4px;
-  font-size: 22px;
+  margin: 0 0 7px;
+  font-size: 25px;
+  line-height: 1.2;
   font-weight: 700;
   letter-spacing: 0.2px;
   color: #fff;
@@ -119,11 +125,15 @@
 
 .disab-hero-sub {
   margin: 0;
-  font-size: 13px;
+  font-size: 13.5px;
   font-weight: 500;
-  color: rgba(255, 255, 255, 0.9);
-  line-height: 1.45;
-  max-width: 72ch;
+  color: rgba(255, 255, 255, 0.92);
+  line-height: 1.5;
+  max-width: 82ch;
+  /* Sin recortes: que crezca lo que necesite. */
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
 }
 
 .disab-card-body {
@@ -1486,7 +1496,7 @@
 }
 
 @media (max-width: 768px) {
-  .dashboard-container {
+  .reg-pagina {
     padding: 8px 4px 32px;
   }
 
