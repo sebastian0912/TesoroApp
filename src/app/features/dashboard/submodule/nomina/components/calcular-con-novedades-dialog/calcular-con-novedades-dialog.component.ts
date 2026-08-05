@@ -42,9 +42,9 @@ type DialogData = {
   template: `
     <div class="cn-dialog">
       <div class="cn-header">
-        <mat-icon>upload_file</mat-icon>
+        <mat-icon>receipt_long</mat-icon>
         <div>
-          <h2>Cargar Base TNL y calcular</h2>
+          <h2>Calcular con plantilla de novedades</h2>
           <p class="cn-sub" *ngIf="data.periodo_descripcion || data.cliente_nombre">
             {{ data.periodo_descripcion }} · {{ data.cliente_nombre }}
           </p>
@@ -57,10 +57,10 @@ type DialogData = {
         <!-- SELECT -->
         <div *ngSwitchCase="'select'" class="cn-body">
           <p class="cn-desc">
-            Sube el archivo <strong>Base TNL</strong> (<code>Cédula</code>, <code>Concepto</code>,
-            <code>Fecha Inicial</code>, <code>Fecha Final</code>, <code>Nro.Dias</code>,
-            <code>Horas</code>). Se guarda como evento con su rango y en el mismo paso se
-            liquida la quincena con el tramo que le corresponde; el resto queda pendiente.
+            Sube la plantilla en formato LONG (una fila por movimiento, con
+            <code>Cedula</code>, <code>Codigo Novedad</code>, <code>Total Novedad</code>,
+            <code>Nombre de Concepto</code>). El cálculo se hace en memoria — no se
+            persisten novedades en la base de datos.
           </p>
 
           <div class="cn-drop"
@@ -68,7 +68,7 @@ type DialogData = {
                (drop)="onDrop($event)"
                (dragover)="onDragOver($event)">
             <mat-icon>cloud_upload</mat-icon>
-            <p class="cn-drop__title">Arrastra el archivo TNL o haz clic para seleccionar</p>
+            <p class="cn-drop__title">Arrastra el archivo o haz clic para seleccionar</p>
             <p class="cn-drop__hint">.xlsx / .xls</p>
             <input #fileInput type="file" accept=".xlsx,.xls" hidden (change)="onFile($event)" />
           </div>
@@ -362,24 +362,17 @@ export class CalcularConNovedadesDialogComponent {
 
   onFile(ev: Event): void {
     const f = (ev.target as HTMLInputElement).files?.[0];
-    if (f) this.importarYCalcular(f);
+    if (f) this.calcular(f);
   }
 
   onDrop(ev: DragEvent): void {
     ev.preventDefault();
     const f = ev.dataTransfer?.files?.[0];
-    if (f) this.importarYCalcular(f);
+    if (f) this.calcular(f);
   }
   onDragOver(ev: DragEvent): void { ev.preventDefault(); }
 
-  /**
-   * Carga el TNL y liquida, en ese orden.
-   *
-   * <p>El cálculo se lanza SIN archivo a propósito: la fuente ya quedó persistida
-   * en `nomina_tnl`. Mandar además la hoja haría que el backend rechace la corrida
-   * por orígenes mixtos (son excluyentes por diseño).
-   */
-  private importarYCalcular(f: File): void {
+  private calcular(f: File): void {
     const ext = f.name.split('.').pop()?.toLowerCase();
     if (ext !== 'xlsx' && ext !== 'xls') {
       this.errorMsg.set('Solo se permiten archivos Excel (.xlsx / .xls).');
@@ -388,21 +381,12 @@ export class CalcularConNovedadesDialogComponent {
     }
     this.fileName.set(f.name);
     this.step.set('calculando');
-
-    this.svc.importarTnl(f, this.data.cliente_id, { periodoId: this.data.periodo_id })
-      .subscribe({
-        next: (imp) => { this.imp.set(imp); this.calcular(); },
-        error: (err: HttpErrorResponse) => {
-          const body = err.error || {};
-          this.hojasDisponibles.set(body.hojas_disponibles || []);
-          this.errorMsg.set(body.error || err.message || 'No se pudo cargar el TNL.');
-          this.step.set('error');
-        },
-      });
+    this.enviar(f);
   }
 
-  private calcular(): void {
-    this.svc.calcularConNovedadesExcel(null, this.data.periodo_id, this.data.cliente_id, {
+  private enviar(f: File | null): void {
+
+    this.svc.calcularConNovedadesExcel(f, this.data.periodo_id, this.data.cliente_id, {
       contratoIds: this.data.contrato_ids,
       cecos: this.data.cecos,
       forzarDiasCompletos: this.data.forzar_dias_completos,

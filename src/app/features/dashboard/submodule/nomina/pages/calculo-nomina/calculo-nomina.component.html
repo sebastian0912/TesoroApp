@@ -84,9 +84,9 @@
             <button mat-raised-button class="btn-large full-width btn-novedades"
                     (click)="abrirCalcularConPlantilla()"
                     [disabled]="!selectedCliente || !periodoControl.value || loading"
-                    matTooltip="Carga el archivo Base TNL y liquida la quincena con él. Cada novedad se guarda con su rango de fechas; el tramo del periodo se liquida y el resto queda pendiente para las siguientes.">
+                    matTooltip="Sube la plantilla de novedades (cédula + concepto + valor). El backend homologa los conceptos vía el Homologador y calcula la nómina.">
               <mat-icon>upload_file</mat-icon>
-              INSERTAR NOVEDADES (TNL)
+              NOVEDADES
             </button>
           </div>
         </div>
