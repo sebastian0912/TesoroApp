@@ -32,6 +32,12 @@ import { Observable, Subject, of } from 'rxjs';
 import { catchError, map, startWith, takeUntil } from 'rxjs/operators';
 
 import { UtilityServiceService } from '@/app/shared/services/utilityService/utility-service.service';
+import {
+  resolverDescripcionObra,
+  esDescripcionGenerada,
+  claveDescripcion,
+  fechaParaDescripcionVacante,
+} from '@/app/shared/data/labores-por-mes.data';
 import { VacantesService } from '../../service/vacantes/vacantes.service';
 import { PositionsService } from '../../../positions/services/positions/positions.service';
 import { FincasService } from '../../service/fincas/fincas.service';
@@ -123,6 +129,9 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
   today: Date = new Date();
 
   private prevMunicipios: string[] = [];
+
+  /** Finca cuyos datos ya se trajeron del maestro; evita recargas repetidas. */
+  private fincaAplicada = '';
 
   constructor(
     private fb: FormBuilder,
@@ -311,6 +320,29 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
       .get('pruebaOContratacion')!
       .valueChanges.pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((v: unknown) => this.applyPruebaContratacion(String(v ?? '')));
+
+    // ====== DESCRIPCIÓN AUTOMÁTICA ======
+    // La labor cambia con el cargo (de ahí sale el área), con el mes de la
+    // fecha, y con la temporal (cada una tiene su hoja de labores).
+    // `pruebaOContratacion` entra porque al cambiarlo se limpia la fecha que se
+    // estaba usando, y `fechadePruebatecnica` porque es la que se conoce al
+    // publicar: ponerla tiene que corregir la descripción en el momento.
+    const disparan = [
+      'cargo',
+      'fechadeIngreso',
+      'fechadePruebatecnica',
+      'fechaPublicado',
+      'temporal',
+      'pruebaOContratacion',
+    ];
+    for (const campo of disparan) {
+      this.vacanteForm
+        .get(campo)!
+        .valueChanges.pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe(() => this.sugerirDescripcion());
+    }
+
+    this.sugerirDescripcion();
   }
 
   ngOnDestroy(): void {  }
@@ -608,6 +640,10 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
       .map((x: any) => String(x ?? '').trim())
       .filter(Boolean);
 
+    // La vacante ya trae empresa y dirección guardadas: no hay que volver a
+    // pedirlas al abrir para editar, solo si se cambia la finca.
+    this.fincaAplicada = String(v?.finca ?? '').trim().toUpperCase();
+
     this.syncFechaIngreso();
     this.applyPruebaContratacion(String(this.vacanteForm.get('pruebaOContratacion')!.value ?? ''));
 
@@ -642,21 +678,98 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
   }
 
   onCentroCostoSelected(event: MatAutocompleteSelectedEvent): void {
-    const nombre = (event.option.value || '').toString();
-    if (!nombre) return;
+    this.aplicarFinca((event.option.value || '').toString());
+  }
+
+  /**
+   * Trae empresa, dirección y temporal del maestro para la finca dada.
+   *
+   * Se llama tanto al elegir del desplegable como al salir del campo escrito a
+   * mano: el input es un autocomplete libre, así que se puede teclear el nombre
+   * completo sin llegar a seleccionar la opción, y antes en ese caso la vacante
+   * quedaba sin empresa ni dirección.
+   */
+  private aplicarFinca(nombre: string): void {
+    const q = (nombre || '').trim();
+    if (!q || q.toUpperCase() === this.fincaAplicada) return;
 
     this.fincasService
-      .getFincaByNombre(nombre)
+      .getFincaByNombre(q)
       .pipe(catchError(() => of(undefined)))
       .subscribe((finca: FincaItem | undefined) => {
-        const temporalCanon = this.canonicalTemporal(finca?.temporal);
+        if (!finca) return;
+
+        // El autocomplete muestra el nombre desambiguado ("SAN CARLOS (FLORES
+        // IPANEMA S.A.S)") pero en la vacante se guarda el nombre limpio: es la
+        // clave con la que la contratación vuelve a cruzar el maestro, y la
+        // empresa usuaria —que queda al lado— ya dice de cuál de las dos es.
+        const limpio = (finca.finca ?? '').trim();
+        this.fincaAplicada = (limpio || q).toUpperCase();
 
         this.vacanteForm.patchValue({
-          empresaUsuariaSolicita: finca?.empresa ?? null,
-          direccion: finca?.direccion ?? null,
-          temporal: temporalCanon,
+          finca: limpio || q,
+          empresaUsuariaSolicita: finca.empresa ?? null,
+          direccion: finca.direccion ?? null,
+          temporal: this.canonicalTemporal(finca.temporal),
         });
+
+        // La temporal del maestro es la que decide de qué hoja sale la labor,
+        // así que la descripción se recalcula después de tenerla.
+        this.sugerirDescripcion();
       });
+  }
+
+  /** Al salir del campo de finca escrito a mano. */
+  onFincaBlur(): void {
+    this.aplicarFinca(String(this.vacanteForm.get('finca')?.value ?? ''));
+  }
+
+  /**
+   * Propone la descripción de la obra con la misma regla de la base de
+   * contratación: la labor depende del MES y del área, y el área sale del
+   * cargo. De qué hoja de "labores por mes" se lee lo decide la temporal, y
+   * Elite Blu tiene la suya aunque sea de Apoyo.
+   *
+   * El mes sale de la fecha de ingreso; si no la hay todavía, de la de prueba
+   * técnica, y solo como último recurso de la de publicación (ver
+   * `fechaParaDescripcionVacante`). Aquí es una aproximación: la definitiva es
+   * la fecha de ingreso de la pantalla de contratación, que la vuelve a
+   * calcular antes de que salga en los documentos.
+   *
+   * Se reescribe cuando el campo está vacío, cuando lo que hay salió de estas
+   * tablas, o cuando quedó de otro mes. Un texto redactado a mano no se pisa.
+   */
+  private sugerirDescripcion(): void {
+    const ctrl = this.vacanteForm.get('descripcion');
+    if (!ctrl) return;
+
+    const actual = String(ctrl.value ?? '').trim();
+    const redactadaAMano =
+      actual !== '' && !esDescripcionGenerada(actual) && !claveDescripcion(actual);
+    if (redactadaAMano) return;
+
+    const v = this.vacanteForm.getRawValue();
+    const fecha = fechaParaDescripcionVacante(
+      v.fechadeIngreso,
+      v.fechadePruebatecnica,
+      v.fechaPublicado,
+    );
+    if (!fecha) return;
+
+    const sugerida = resolverDescripcionObra(
+      v.cargo,
+      fecha,
+      `${v.empresaUsuariaSolicita ?? ''} ${v.finca ?? ''}`,
+      v.temporal,
+      v.empresaUsuariaSolicita,
+    );
+
+    // Si no hay labor para esa combinación se deja lo que haya: el campo es
+    // obligatorio y quien publica la escribe a mano. Pasa con los cargos de
+    // jardinería de Tu Alianza (área JAR), que no tienen labores definidas.
+    if (sugerida && sugerida !== actual) {
+      ctrl.setValue(sugerida);
+    }
   }
 
   actualizarOficinasQueContratan(seleccionadas: any[]): void {

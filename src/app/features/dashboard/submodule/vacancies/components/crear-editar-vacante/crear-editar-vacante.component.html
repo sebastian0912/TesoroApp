@@ -50,7 +50,8 @@
 
     <mat-form-field [ngClass]="{'input-obligatorio': isRequired('finca')}">
       <mat-label>Centro de Costo</mat-label>
-      <input type="text" matInput formControlName="finca" [matAutocomplete]="autoCentroCosto">
+      <input type="text" matInput formControlName="finca" [matAutocomplete]="autoCentroCosto"
+             (blur)="onFincaBlur()">
       <mat-autocomplete #autoCentroCosto="matAutocomplete" (optionSelected)="onCentroCostoSelected($event)">
         @for (centro of (filteredCentrosCostos | async) ?? []; track centro) {
           <mat-option [value]="centro">
