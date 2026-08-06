@@ -60,7 +60,12 @@ describe('RecruitmentPipelineComponent', () => {
         { provide: MatDialog, useValue: dialog },
         {
           provide: GestionDocumentalService,
-          useValue: { getDocuments: () => of([]), guardarDocumento: () => of({}) },
+          useValue: {
+            getDocuments: () => of([]),
+            guardarDocumento: () => of({}),
+            getDocumentosDeCandidato: () => of([]),
+            invalidarDocumentos: () => {},
+          },
         },
         { provide: HiringService, useValue: {} },
         {

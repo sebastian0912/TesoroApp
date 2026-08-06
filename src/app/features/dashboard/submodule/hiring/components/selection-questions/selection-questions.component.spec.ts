@@ -40,8 +40,9 @@ describe('SelectionQuestionsComponent', () => {
 
   beforeEach(async () => {
     docsSrv = jasmine.createSpyObj('GestionDocumentalService',
-      ['getDocuments', 'guardarDocumento']);
+      ['getDocuments', 'guardarDocumento', 'getDocumentosDeCandidato', 'invalidarDocumentos']);
     docsSrv.getDocuments.and.returnValue(of([]));
+    docsSrv.getDocumentosDeCandidato.and.returnValue(of([]));
     docsSrv.guardarDocumento.and.returnValue(of({ id: 1 }));
 
     rpc = jasmine.createSpyObj('RegistroProcesoContratacion',

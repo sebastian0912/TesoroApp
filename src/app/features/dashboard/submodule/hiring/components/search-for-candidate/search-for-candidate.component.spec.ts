@@ -37,7 +37,17 @@ describe('SearchForCandidateComponent', () => {
       imports: [SearchForCandidateComponent, NoopAnimationsModule],
       providers: [
         { provide: RegistroProcesoContratacion, useValue: registro },
-        { provide: VetadosService, useValue: { consultar: () => of(null), list: () => of([]) } },
+        {
+          provide: VetadosService,
+          useValue: {
+            consultar: () => of(null),
+            list: () => of([]),
+            // La búsqueda ahora consulta vetados en CADA búsqueda (antes esa
+            // consulta vivía en un método muerto que nadie invocaba).
+            listarReportesVetadosPorCedula: () => of([]),
+            enviarReporte: () => of({}),
+          },
+        },
         {
           provide: UtilityServiceService,
           useValue: { getUser: () => Promise.resolve({ sede: { nombre: 'FACA_PRIMERA' } }) },
@@ -56,7 +66,9 @@ describe('SearchForCandidateComponent', () => {
     it('con espacios alrededor la recorta antes de buscar', () => {
       comp.cedula = '   1082490391   ';
       comp.buscarCandidato();
-      expect(registro.getCandidatoPorDocumento).toHaveBeenCalledWith('1082490391', true);
+      // El tercer argumento es el tipo de documento del selector: con cédulas
+      // duplicadas (CC vs C.C/CE) desambigua qué titular pide al backend.
+      expect(registro.getCandidatoPorDocumento).toHaveBeenCalledWith('1082490391', true, 'CC');
     });
 
     it('vacía NO dispara ninguna consulta', () => {

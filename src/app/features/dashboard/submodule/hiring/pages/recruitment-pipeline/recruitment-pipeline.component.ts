@@ -27,7 +27,7 @@ import { HelpInformationComponent } from '../../components/help-information/help
 import { CameraDialogComponent } from '../../components/camera-dialog/camera-dialog.component';
 
 import { UtilityServiceService } from '@/app/shared/services/utilityService/utility-service.service';
-import { faltantesDePagoTransporte } from './pago-transporte.rules';
+import { faltantesDePagoTransporte, FALTA_GUARDAR } from './pago-transporte.rules';
 import {
   aplicarResultadoPruebaLocal,
   esVacanteDePruebaTecnica,
@@ -161,6 +161,30 @@ export class RecruitmentPipelineComponent {
    */
   private fotoUrlFallida = signal<string | null>(null);
 
+  /** Última cédula a la que ya se le corrió la cascada completa (docs, bio, historial). */
+  private cedulaAtendida: string | null = null;
+
+  /** Titular (tipo|número) de esa cascada: distingue CC de C.C/CE con el mismo número. */
+  private titularAtendido: string | null = null;
+
+  /** Se incrementa en cada consulta del buscador (ver onCandidatoSeleccionado). */
+  readonly consultaSeq = signal(0);
+
+  /**
+   * Huella de los datos de salud ocupacional ya pintados. El effect que
+   * autollena esa pestaña corre con cada referencia nueva del candidato; si la
+   * huella no cambió, reconstruir borraría los PDFs de exámenes adjuntos.
+   */
+  private saludFingerprint: string | null = null;
+
+  /**
+   * Se pone en true justo antes de un `candidatoSeleccionado.set()` interno
+   * (recargas tras guardar). El effect lo consume y, si la persona es la misma,
+   * se salta la cascada de peticiones. Una consulta desde el buscador nunca lo
+   * marca, así que re-consultar a la misma persona sí recorre todo de nuevo.
+   */
+  private refrescoSilencioso = false;
+
   avatarPhotoUrl = computed<string | null>(() => {
     const url = this.avatarPhotoUrlCandidata();
     // Si esa imagen ya falló, se devuelve null para que el avatar caiga en el
@@ -238,6 +262,13 @@ export class RecruitmentPipelineComponent {
     const img = ev.target as HTMLImageElement | null;
     console.info('[avatar] foto cargada OK:', img?.src);
   }
+  /** Badge "✓" del carnet: mismo proceso que usa generarCarnetIndividual. */
+  carnetGeneradoUI = computed<boolean>(() => {
+    const cand = this.candidatoSeleccionado();
+    const proc = procesoDelContrato(cand) ?? procesoVigente(cand);
+    return proc?.contrato?.carnet_generado === true;
+  });
+
   tieneExamenMedicoUI = computed(() => !!this.examenMedicoDoc());
   /** True si el candidato ya tiene exámenes médicos registrados en el proceso */
   examenesYaCargados = computed(() => {
@@ -399,8 +430,19 @@ export class RecruitmentPipelineComponent {
   }
 
   /** Qué falta de "Pago y Transporte" para poder generar la documentación. */
+  /**
+   * Qué falta de "Pago y Transporte" para poder generar la documentación.
+   *
+   * Se lee de `_procesoContrato()`, la MISMA fuente que el pill de contrato del
+   * header y que `fechaIngresoContrato`. Antes miraba `entrevistas[0].proceso`
+   * a secas y eso bloqueaba el botón de por vida a quien tuviera un turno nuevo:
+   * esa entrevista puede no tener proceso todavía (o ser de otra vacante) y el
+   * contrato sigue en la anterior, así que salían los 11 campos como faltantes
+   * aunque estuvieran guardados. Es el mismo error que ya obligó a escribir
+   * `procesoDelContrato()` (casos CC 1097727446 y CC 1128324722).
+   */
   readonly faltantesPagoTransporte = computed<string[]>(() =>
-    faltantesDePagoTransporte(this.candidatoSeleccionado()?.entrevistas?.[0]?.proceso?.contrato)
+    faltantesDePagoTransporte(this._procesoContrato()?.contrato)
   );
 
   // ───────── Prueba técnica (pill del header) ─────────
@@ -491,16 +533,33 @@ export class RecruitmentPipelineComponent {
     !!this.candidatoSeleccionado()?.numero_documento && this.faltantesPagoTransporte().length === 0
   );
 
+  /**
+   * Lista lo que falta, una cosa por línea.
+   *
+   * En una sola línea eran once etiquetas separadas por comas que nadie leía.
+   * El tooltip se pinta con `white-space: pre-line` (clase `tooltip-faltantes`),
+   * así que los saltos de línea se respetan.
+   */
+  private textoFaltantes(faltan: string[], accion: string): string {
+    // `faltantesDePagoTransporte` devuelve este texto solo cuando NO hay fila de
+    // contrato; ahí no tiene sentido enumerar campos.
+    if (faltan.length === 1 && faltan[0] === FALTA_GUARDAR) {
+      return `No se puede ${accion}.\nAún no se ha guardado "Pago y Transporte".\nVe a Contratación → Pago y Transporte y guarda.`;
+    }
+    const lista = faltan.map(f => `• ${f}`).join('\n');
+    return `No se puede ${accion}.\nFalta ${faltan.length === 1 ? 'este dato' : `estos ${faltan.length} datos`} en "Pago y Transporte":\n${lista}\n\nCompleta y GUARDA en Contratación → Pago y Transporte.`;
+  }
+
   /** El tooltip dice QUÉ falta: un botón gris sin motivo no se puede accionar. */
   readonly tooltipGenerarDocumentacion = computed<string>(() => {
     if (!this.candidatoSeleccionado()?.numero_documento) {
-      return 'Selecciona un candidato';
+      return 'Selecciona primero un candidato';
     }
     const faltan = this.faltantesPagoTransporte();
     if (!faltan.length) {
       return 'Generar o subir documentación';
     }
-    return `Completa y guarda "Pago y Transporte" (tab Contratación). Falta: ${faltan.join(', ')}`;
+    return this.textoFaltantes(faltan, 'generar la documentación');
   });
 
   // ───────── Finalizar contratación ─────────
@@ -515,12 +574,23 @@ export class RecruitmentPipelineComponent {
    */
   readonly arlIndex = signal<ArlIndex | null>(null);
   readonly finalizando = signal(false);
-  /** Cédulas finalizadas en esta sesión, para no repetir el ida y vuelta. */
+  /** Titulares finalizados en esta sesión, para no repetir el ida y vuelta. */
   private readonly finalizadas = signal<Set<string>>(new Set());
 
+  /**
+   * Llave por TITULAR, no por número: una misma cédula puede existir como CC y
+   * como C.C/CE (dos personas). Con el número a secas, finalizar al CC pintaba
+   * el badge "✓ Ya finalizado" también sobre el otro titular.
+   */
+  private claveTitular(cand: any): string | null {
+    const ced = cand?.numero_documento;
+    if (!ced) return null;
+    return `${String(cand?.tipo_doc || 'CC').trim().toUpperCase()}|${String(ced).trim()}`;
+  }
+
   readonly contratacionFinalizada = computed<boolean>(() => {
-    const ced = this.candidatoSeleccionado()?.numero_documento;
-    return !!ced && this.finalizadas().has(String(ced));
+    const clave = this.claveTitular(this.candidatoSeleccionado());
+    return !!clave && this.finalizadas().has(clave);
   });
 
   /**
@@ -556,15 +626,18 @@ export class RecruitmentPipelineComponent {
   });
 
   readonly tooltipFinalizarContratacion = computed<string>(() => {
-    if (!this.candidatoSeleccionado()?.numero_documento) return 'Selecciona un candidato';
+    if (!this.candidatoSeleccionado()?.numero_documento) return 'Selecciona primero un candidato';
     if (this.contratacionFinalizada()) return 'Ya finalizado. Click para volver a enviarlo al reporte';
+    // El botón también se apaga mientras corre el envío; sin esto el tooltip
+    // decía "Finalizar contratación" sobre un botón que no responde.
+    if (this.finalizando()) return 'Finalizando... espera a que termine';
 
     const faltan = this.faltantesPagoTransporte();
     if (faltan.length) {
-      return `Completa y guarda "Pago y Transporte" (tab Contratación). Falta: ${faltan.join(', ')}`;
+      return this.textoFaltantes(faltan, 'finalizar la contratación');
     }
     if (!this.fechaIngresoContrato()) {
-      return 'El contrato no tiene fecha de ingreso. Guárdala en "Pago y Transporte".';
+      return 'No se puede finalizar la contratación.\nEl contrato no tiene fecha de ingreso.\nGuárdala en Contratación → Pago y Transporte.';
     }
     return this.arlIndex()
       ? `Finalizar contratación (ARL: ${this.arlIndex()!.nombreArchivo})`
@@ -715,7 +788,11 @@ export class RecruitmentPipelineComponent {
       if (!docs.sst_individual) faltantes.push('SST');
 
       const totales = resp?.totales ?? {};
-      this.finalizadas.update((prev) => new Set(prev).add(cedula));
+      // La clave sale del candidato CAPTURADO al inicio: leer la selección
+      // actual tras el await marcaba como "finalizado" a quien estuviera en
+      // pantalla en ese momento, no a quien se finalizó.
+      const clave = this.claveTitular(cand);
+      if (clave) this.finalizadas.update((prev) => new Set(prev).add(clave));
 
       await Swal.fire({
         icon: faltantes.length ? 'warning' : 'success',
@@ -843,6 +920,15 @@ export class RecruitmentPipelineComponent {
     this.util.normalizeText(v) === 'NOAPTO';
 
   constructor() {
+    // El toast de faltantes vive colgado de document.body y la preview de la
+    // foto es un blob URL: si el componente se destruye (navegar a generar
+    // documentación, por ejemplo) sin esto, el toast queda pegado sobre la
+    // página nueva y el blob no se libera nunca.
+    this.destroyRef.onDestroy(() => {
+      this._closeToast();
+      this.liberarPreviewFoto();
+    });
+
     const safeJson = <T>(raw: any, fallback: T): T => {
       try {
         if (typeof raw !== 'string') return fallback;
@@ -875,13 +961,15 @@ export class RecruitmentPipelineComponent {
       .pipe(startWith(this.selectedExamsArray.value), takeUntilDestroyed(this.destroyRef))
       .subscribe(() => this.recalcHayNoApto());
 
-    // 1.2) Log de diagnóstico: imprime cuando cambia la URL de la foto del avatar.
-    effect(() => {
-      const url = this.avatarPhotoUrl();
-      console.info('[avatar] URL actual:', url);
-    });
-
     // 2) Cédula + biometría (embebida y refresh opcional)
+    //
+    // OJO con lo que dispara este effect: `candidatoSeleccionado` se re-setea
+    // con una referencia NUEVA tras cada guardado (recargarCandidato y los
+    // flujos de confirmación), no solo cuando cambia la persona. Antes cada
+    // guardado relanzaba biometría + documentos + historial (~13 peticiones y
+    // el diálogo del historial reabriéndose solo). Ahora las recargas internas
+    // se marcan (`refrescoSilencioso`) y solo actualizan lo local; la cascada
+    // completa corre únicamente cuando la consulta viene del buscador.
     effect(() => {
       if (!this.isBrowser()) return;
       this.getFullName();
@@ -890,26 +978,44 @@ export class RecruitmentPipelineComponent {
       const cand = this.candidatoSeleccionado();
       const ced = cand?.numero_documento ? String(cand.numero_documento) : null;
 
+      const silencioso = this.refrescoSilencioso;
+      this.refrescoSilencioso = false;
+      // El cambio de persona se detecta por TITULAR (tipo|número): dos
+      // titulares distintos pueden compartir número (CC vs C.C/CE) y con la
+      // cédula sola pasar de uno al otro se veía como "misma persona".
+      const claveTitular = ced ? this.claveTitular(cand) : null;
+      const cambioPersona = claveTitular !== this.titularAtendido;
+      this.titularAtendido = claveTitular;
+      this.cedulaAtendida = ced;
+
+      // Lo embebido en el payload siempre se refleja: es local y ya está fresco.
       this.setBiometriaFromCandidate(cand);
 
-      const bio = cand?.biometria ?? null;
-      if (ced && (!bio || this.isBioStale(bio))) {
-        this.refreshBiometriaForCandidate(ced).catch(() => this.biometria.set(null));
-      }
-      if (ced) {
-        this.refreshExamenMedicoForCandidate(ced);
-        this.refreshArlForCandidate(ced);
-        this.refreshFotoForCandidate(ced);
-      } else {
+      if (!ced) {
         this.examenMedicoDoc.set(null);
         this.arlDoc.set(null);
         this.fotoDoc.set(null);
+        this.liberarPreviewFoto();
+        this.fotoDataUrl.set(null);
+        return;
       }
+
+      // Recarga interna de la MISMA persona: nada nuevo que pedirle al
+      // servidor, y la vista previa local sigue siendo su foto (soltarla acá
+      // era lo que dejaba el avatar en blanco justo después de subirla).
+      if (silencioso && !cambioPersona) return;
+
+      const bio = cand?.biometria ?? null;
+      if (!bio || this.isBioStale(bio)) {
+        this.refreshBiometriaForCandidate(ced).catch(() => this.biometria.set(null));
+      }
+      this.refreshDocsDelCandidato(ced);
 
       // La vista previa local es del candidato ANTERIOR: si no se suelta, se
       // queda mostrando su foto encima del nuevo (y además fuga el blob).
       this.liberarPreviewFoto();
       this.fotoDataUrl.set(null);
+      this.fotoUrlFallida.set(null);
 
       this.mostrarTabla();
     });
@@ -921,6 +1027,7 @@ export class RecruitmentPipelineComponent {
       const formArray = this.selectedExamsArray;
 
       if (!cand || !cand.entrevistas?.length) {
+        this.saludFingerprint = null;
         this.formGroup3.reset();
         while (formArray.length) formArray.removeAt(0);
         this.examFiles.set([]); // limpiar archivos si no hay entrevista
@@ -931,6 +1038,19 @@ export class RecruitmentPipelineComponent {
       const ent = cand.entrevistas[0];
       const proc = ent?.proceso;
       const em = proc?.examen_medico;
+
+      // Este effect corre con CADA referencia nueva del candidato, y tras
+      // guardar cualquier pestaña el padre recarga (misma persona, referencia
+      // nueva). Si los datos de salud no cambiaron, reconstruir acá borraba
+      // los PDFs de exámenes que el usuario ya había adjuntado sin guardar
+      // (examFiles volvía a quedar en huecos vacíos) y "No hay archivos PDF
+      // de exámenes para unir" aparecía sin explicación.
+      const huella = [
+        cand.numero_documento, cand.tipo_doc,
+        em?.ips ?? '', em?.ips_lab ?? '', em?.examenes ?? '', em?.resultados ?? '',
+      ].join('§');
+      if (huella === this.saludFingerprint) return;
+      this.saludFingerprint = huella;
 
       if (!em) {
         this.formGroup3.patchValue({ ips: '', ipsLab: '', selectedExams: [] }, { emitEvent: false });
@@ -1023,8 +1143,12 @@ export class RecruitmentPipelineComponent {
     // Muestra la auditoría previa si el proceso ya trae un override sellado.
     this.overrideAuditNombre.set(proc?.modificado_por || '');
     this.overrideAuditFecha.set(proc?.modificado_en || null);
+    // Consulta EXTERNA (del buscador): los hijos incluyen este número en sus
+    // llaves de "misma persona", así re-consultar a alguien SÍ re-rellena sus
+    // formularios (las recargas internas tras guardar no lo incrementan y por
+    // eso no pisan lo editado sin guardar).
+    this.consultaSeq.update(v => v + 1);
     this.candidatoSeleccionado.set(candidato);
-    console.log('Candidato seleccionado:', candidato);
   }
 
   /**
@@ -1037,9 +1161,14 @@ export class RecruitmentPipelineComponent {
     const ced = (this.numeroDocumento || this.candidatoSeleccionado()?.numero_documento || '')
       .toString().trim();
     if (!ced) return;
-    this.registroProceso.getCandidatoPorDocumento(ced, true).subscribe({
+    // Se recarga el MISMO titular: con cédula duplicada (CC vs C.C), sin el
+    // tipo el backend podría devolver la otra fila y "saltar" de persona.
+    this.registroProceso.getCandidatoPorDocumento(
+      ced, true, this.candidatoSeleccionado()?.tipo_doc
+    ).subscribe({
       next: (cand: any) => {
         if (cand) {
+          this.refrescoSilencioso = true; // misma persona: sin cascada de peticiones
           this.candidatoSeleccionado.set({ ...cand });
           // Refresca el sello de auditoría del override si el backend lo actualizó.
           const proc = cand?.entrevistas?.[0]?.proceso;
@@ -1262,9 +1391,14 @@ export class RecruitmentPipelineComponent {
     try {
       Swal.fire({ title: 'Guardando confirmación...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
       const resp = await firstValueFrom(this.registroProceso.confirmarContacto(cand.id, { correo_confirmado: true }));
-      cand.contacto = cand.contacto || {};
-      cand.contacto.correo_confirmado = true;
-      this.candidatoSeleccionado.set(cand);
+      // Referencia NUEVA: con la misma referencia la señal no notifica, el
+      // effect nunca consume `refrescoSilencioso` y la bandera queda pegada
+      // (la siguiente consulta real de esta persona se saltaría la cascada).
+      this.refrescoSilencioso = true;
+      this.candidatoSeleccionado.set({
+        ...cand,
+        contacto: { ...(cand.contacto || {}), correo_confirmado: true },
+      });
       Swal.close();
       this.snack.open('Correo confirmado', 'OK', { duration: 3000 });
 
@@ -1303,9 +1437,12 @@ export class RecruitmentPipelineComponent {
     try {
       Swal.fire({ title: 'Guardando confirmación...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
       const resp = await firstValueFrom(this.registroProceso.confirmarContacto(cand.id, { whatsapp_confirmado: true }));
-      cand.contacto = cand.contacto || {};
-      cand.contacto.whatsapp_confirmado = true;
-      this.candidatoSeleccionado.set(cand);
+      // Referencia NUEVA por la misma razón que en confirmarCorreoBienvenida.
+      this.refrescoSilencioso = true;
+      this.candidatoSeleccionado.set({
+        ...cand,
+        contacto: { ...(cand.contacto || {}), whatsapp_confirmado: true },
+      });
       Swal.close();
       this.snack.open('WhatsApp confirmado', 'OK', { duration: 3000 });
 
@@ -1416,6 +1553,7 @@ export class RecruitmentPipelineComponent {
                 }
               : e,
           );
+          this.refrescoSilencioso = true;
           this.candidatoSeleccionado.set({ ...cand, entrevistas });
         }
         Swal.fire('¡Baja exitosa!', `El contrato de ${this.nombreCandidato} ha sido desactivado.`, 'success');
@@ -1469,6 +1607,7 @@ export class RecruitmentPipelineComponent {
       // recalculen (ver aplicarResultadoPruebaLocal).
       const cand = this.candidatoSeleccionado();
       if (cand?.entrevistas?.[0]?.proceso) {
+        this.refrescoSilencioso = true;
         this.candidatoSeleccionado.set(
           aplicarResultadoPruebaLocal(cand, {
             resultado,
@@ -1477,6 +1616,11 @@ export class RecruitmentPipelineComponent {
             ahora: new Date().toISOString(),
           }),
         );
+      } else {
+        // El PATCH fue al proceso VIGENTE (entrevistas[1] cuando entrevistas[0]
+        // es un turno sin proceso), que el update local de arriba no cubre: sin
+        // recargar, el pill seguiría en "Enviado a prueba" tras el éxito.
+        this.recargarCandidato();
       }
 
       const titulos: Record<string, string> = {
@@ -1551,7 +1695,13 @@ export class RecruitmentPipelineComponent {
         };
         const entrevistas = [...(cand!.entrevistas ?? [])];
         entrevistas[0] = { ...entrevistas[0], proceso: procActualizado };
+        this.refrescoSilencioso = true;
         this.candidatoSeleccionado.set({ ...cand, entrevistas });
+      } else {
+        // Mismo respaldo que en registrarResultadoPrueba: el guardado fue al
+        // proceso vigente y el update local no aplicó — recargar para que el
+        // pill del examen refleje el resultado.
+        this.recargarCandidato();
       }
 
       const titulos: Record<string, string> = {
@@ -1582,8 +1732,11 @@ export class RecruitmentPipelineComponent {
   }
 
   private _firstProceso(cand: any): any | null {
-    const ent0 = cand?.entrevistas?.[0];
-    return ent0?.proceso ?? null;
+    // El proceso a evaluar es el VIGENTE (primera entrevista CON proceso), no
+    // entrevistas[0] a secas: un turno nuevo sin proceso es un estado válido
+    // (ver contrato.rules) y con la ruta vieja el toast de "faltan requisitos"
+    // se abría para personas que tenían todo en orden en el proceso real.
+    return procesoVigente(cand) ?? null;
   }
 
   private _antecedenteValor(proc: any, nombre: string): string | null {
@@ -1887,6 +2040,10 @@ export class RecruitmentPipelineComponent {
           ? this.docSvc.guardarDocumento(mergedFile.name, cedula, TYPE_EXAM, mergedFile, this.candidatoSeleccionado()?.codigo_contrato, tipoDoc)
           : this.docSvc.guardarDocumento(mergedFile.name, cedula, TYPE_EXAM, mergedFile, undefined, tipoDoc);
         await firstValueFrom(obs);
+        // Igual que la foto: releer con force para que "Ver examen médico" se
+        // encienda ya (las recargas silenciosas no refrescan documentos).
+        this.docSvc.invalidarDocumentos(cedula);
+        await this.refreshDocsDelCandidato(cedula, true);
         updateLoader(100, 'Finalizando…');
 
         resumenHtml = `PDF consolidado subido: <b>${mergedName}</b>`;
@@ -1993,9 +2150,17 @@ export class RecruitmentPipelineComponent {
       didOpen: () => Swal.showLoading(),
     });
 
-    this.registroProceso.listProcesosMiniByDocumento(String(ced)).subscribe({
+    const cedPedida = String(ced);
+    this.registroProceso.listProcesosMiniByDocumento(cedPedida).subscribe({
       next: (rows: any) => {
         Swal.close();
+
+        // Si mientras respondía el servidor el operador cambió de persona, no
+        // abrir el historial de la anterior con el nombre de la nueva.
+        const cedActual = String(
+          this.candidatoSeleccionado()?.numero_documento || this.numeroDocumento || ''
+        );
+        if (cedActual && cedActual !== cedPedida) return;
 
         const data = Array.isArray(rows) ? rows : (rows ? [rows] : []);
 
@@ -2238,7 +2403,11 @@ export class RecruitmentPipelineComponent {
       Swal.close();
       await Swal.fire('Éxito', 'Foto subida correctamente', 'success');
       await this.refreshBiometriaForCandidate(String(numero));
-      await this.refreshFotoForCandidate(String(numero)); // Actualizar también el doc 89
+      // La foto entró por otro servicio: invalidar el expediente cacheado y
+      // releer con force para que el doc 89 traiga la versión recién subida.
+      this.docSvc.invalidarDocumentos(String(numero));
+      this.fotoUrlFallida.set(null); // la URL nueva merece su propio intento
+      await this.refreshDocsDelCandidato(String(numero), true);
     } catch (err: any) {
       Swal.close();
       // Se muestra en lenguaje natural; el detalle técnico va a la consola.
@@ -2402,6 +2571,9 @@ export class RecruitmentPipelineComponent {
   private async refreshBiometriaForCandidate(cedula: string): Promise<void> {
     try {
       const data: any = await firstValueFrom(this.registroProceso.getBiometriaPorCedula(cedula));
+      // Igual que en refreshDocsDelCandidato: una respuesta tardía del
+      // candidato anterior no debe poner su firma/huella sobre el actual.
+      if (cedula !== this.cedulaAtendida) return;
       this.biometria.set({
         firma: Array.isArray(data?.firma) ? data.firma[0] : data?.firma ?? null,
         huella: Array.isArray(data?.huella) ? data.huella[0] : data?.huella ?? null,
@@ -2410,6 +2582,7 @@ export class RecruitmentPipelineComponent {
         updated_at: data?.updated_at,
       });
     } catch {
+      if (cedula !== this.cedulaAtendida) return;
       this.biometria.set(null);
     }
   }
@@ -2446,33 +2619,35 @@ export class RecruitmentPipelineComponent {
     return propios[0] ?? null;
   }
 
-  private async refreshExamenMedicoForCandidate(cedula: string): Promise<void> {
+  /**
+   * Examen médico (32), ARL (30) y FOTO (89) en UNA petición compartida.
+   *
+   * Antes eran tres GET al mismo endpoint variando solo `type`; ahora se pide
+   * el expediente completo (cacheado por cédula en el servicio, así la lectura
+   * de selection-questions comparte la misma respuesta) y se filtra en local.
+   * La regla del titular se mantiene por tipo: la FOTO sigue siendo el caso más
+   * delicado del trío, mostrar la de otro titular es una confusión de identidad.
+   *
+   * `force` salta el caché (tras subir una foto nueva, por ejemplo).
+   */
+  private async refreshDocsDelCandidato(cedula: string, force = false): Promise<void> {
     try {
-      // 32 es el ID para EXAMENES_MEDICOS según typeMap
-      const docs: ServerDocInfo[] = await firstValueFrom(this.docSvc.getDocuments(cedula, 32));
-      this.examenMedicoDoc.set(this.elegirDocDelTitular(docs, cedula));
+      const docs: ServerDocInfo[] = await firstValueFrom(
+        this.docSvc.getDocumentosDeCandidato(cedula, { force })
+      );
+      // La respuesta pudo demorar y el operador ya cambió de persona: escribir
+      // acá pondría el examen, la ARL y la FOTO de otra cédula en pantalla.
+      if (cedula !== this.cedulaAtendida) return;
+      const delTipo = (t: number) =>
+        this.elegirDocDelTitular(docs.filter((d: any) => Number(d?.type) === t), cedula);
+      this.examenMedicoDoc.set(delTipo(32));
+      this.arlDoc.set(delTipo(30));
+      this.fotoDoc.set(delTipo(89));
     } catch {
+      // El fallo de una consulta vieja tampoco debe borrar lo del candidato actual.
+      if (cedula !== this.cedulaAtendida) return;
       this.examenMedicoDoc.set(null);
-    }
-  }
-
-  private async refreshArlForCandidate(cedula: string): Promise<void> {
-    try {
-      // 30 es el ID para ARL
-      const docs: ServerDocInfo[] = await firstValueFrom(this.docSvc.getDocuments(cedula, 30));
-      this.arlDoc.set(this.elegirDocDelTitular(docs, cedula));
-    } catch {
       this.arlDoc.set(null);
-    }
-  }
-
-  private async refreshFotoForCandidate(cedula: string): Promise<void> {
-    try {
-      // 89 es el ID para FOTO. La foto es el caso más delicado del trío:
-      // mostrar la de otro titular es una confusión de identidad directa.
-      const docs: ServerDocInfo[] = await firstValueFrom(this.docSvc.getDocuments(cedula, 89));
-      this.fotoDoc.set(this.elegirDocDelTitular(docs, cedula));
-    } catch {
       this.fotoDoc.set(null);
     }
   }
@@ -2521,8 +2696,11 @@ export class RecruitmentPipelineComponent {
       return;
     }
 
-    const ent0 = cand?.entrevistas?.[0];
-    const proc0 = ent0?.proceso;
+    // El contrato puede vivir en una entrevista ANTERIOR (entrevistas[0] puede
+    // ser un turno nuevo sin proceso — caso CC 1097727446, ver contrato.rules).
+    // Leer entrevistas[0] a secas decía "sin código de contrato" a personas
+    // contratadas y ofrecía re-generar carnets que ya existían.
+    const proc0 = procesoDelContrato(cand) ?? procesoVigente(cand);
     const contratoBE = proc0?.contrato;
 
     const carnetGenerado = contratoBE?.carnet_generado === true;
@@ -2546,7 +2724,11 @@ export class RecruitmentPipelineComponent {
           const cedulaQuery = String(cand.numero_documento ?? '').trim();
           const docsResp = await firstValueFrom(this.docSvc.getDocuments(cedulaQuery, 102));
           const docs = Array.isArray(docsResp) ? docsResp : (docsResp?.results || []);
-          const carnetDoc = docs.find((d: any) => d.type === 102);
+          // Misma regla del titular que examen/ARL/foto: el GET expande
+          // <ced>/x<ced> y puede traer el carnet del OTRO titular (CC vs CE).
+          const carnetDoc = this.elegirDocDelTitular(
+            docs.filter((d: any) => Number(d?.type) === 102), cedulaQuery,
+          );
 
           Swal.close();
           if (carnetDoc && carnetDoc.file_url) {
@@ -3081,20 +3263,24 @@ export class RecruitmentPipelineComponent {
         try {
           await firstValueFrom(this.registroProceso.updateProcesoByDocumento({
             numero_documento: cedula,
-            contrato: { 
+            // Sin esto el backend resuelve "la última entrevista" y la bandera
+            // puede sellarse en un proceso distinto al del contrato.
+            proceso_id: proc0?.id ?? undefined,
+            contrato: {
               carnet_generado: true,
               carnet_fecha_ingreso: formValues.fecha,
               carnet_codigo: formValues.codigo,
               carnet_centro_costo: formValues.ccosto
             } as any
-          }, 'PATCH'));
-          let proc = cand?.entrevistas?.[0]?.proceso;
+          } as any, 'PATCH'));
+          let proc = proc0;
           if (proc) {
             if (!proc.contrato) proc.contrato = {};
             proc.contrato.carnet_generado = true;
             proc.contrato.carnet_fecha_ingreso = formValues.fecha;
             proc.contrato.carnet_codigo = formValues.codigo;
             proc.contrato.carnet_centro_costo = formValues.ccosto;
+            this.refrescoSilencioso = true;
             this.candidatoSeleccionado.set({ ...cand }); // trigger ui reference update
           }
         } catch (e) {

@@ -1070,3 +1070,15 @@ html.swal2-shown.swal2-shown {
   font-size: 12px !important;
   line-height: 1.35 !important;
 }
+
+/* Tooltip que explica por qué un botón de la barra del pipeline está deshabilitado
+   ("Falta: • Centro de costos • Fecha de ingreso…"). Vive en el overlay del CDK,
+   fuera del componente, por eso es global. `pre-line` respeta los saltos de línea:
+   sin esto las once etiquetas salían pegadas en un párrafo que nadie leía. */
+.tooltip-faltantes {
+  max-width: 380px !important;
+  white-space: pre-line !important;
+  font-size: 12px !important;
+  line-height: 1.45 !important;
+  text-align: left !important;
+}

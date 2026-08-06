@@ -551,6 +551,24 @@ mat-tab-group {
   color: #64748b;
 }
 
+/* ── Tooltip sobre botón deshabilitado ──
+   Un <button disabled> no dispara eventos de puntero, así que un matTooltip
+   puesto sobre él no aparece NUNCA: justo cuando el usuario necesita saber por
+   qué está gris. El tooltip se pone en este <span> envolvente y se le quitan los
+   pointer-events al botón apagado para que el hover atraviese hasta el span. */
+.tt-wrap {
+  display: inline-flex;
+}
+
+.tt-wrap > button[disabled] {
+  pointer-events: none;
+}
+
+/* El span no debe alterar la fila de botones ni tapar el badge del hijo. */
+.premium-toolbar .tt-wrap {
+  border-radius: 10px;
+}
+
 .premium-toolbar button mat-icon {
   font-size: 22px;
   width: 22px;

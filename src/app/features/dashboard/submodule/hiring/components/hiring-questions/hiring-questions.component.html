@@ -271,7 +271,15 @@
           <mat-form-field appearance="outline" class="example-full-width obra-descripcion">
             <mat-label>Descripción de la obra</mat-label>
             <textarea matInput rows="3" formControlName="descripcionObra"></textarea>
+            <mat-hint>Se ajusta sola al mes de la fecha de ingreso de "Pago y Transporte".</mat-hint>
           </mat-form-field>
+
+          @if (avisoDescripcionObra) {
+            <p class="obra-aviso">
+              <mat-icon>warning</mat-icon>
+              {{ avisoDescripcionObra }}
+            </p>
+          }
         </div>
 
         <div class="obra-actions">

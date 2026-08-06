@@ -99,10 +99,20 @@ export class CameraDialogComponent implements OnInit, OnDestroy {
     }
   }
 
+  /**
+   * Sesión de cámara: cada arranque la incrementa y `stopCamera` también.
+   * `getUserMedia` puede resolver DESPUÉS de cerrar el diálogo (el prompt de
+   * permiso o una cámara lenta): sin este guard, el stream que llega tarde no
+   * lo detenía nadie y el LED quedaba encendido hasta reiniciar la app. Lo
+   * mismo con doble clic rápido en "Cambiar cámara".
+   */
+  private camSesion = 0;
+
   async startCamera(): Promise<void> {
     this.loadingCamera = true;
     this.cameraError = '';
     this.stopCamera();
+    const sesion = ++this.camSesion;
 
     try {
       const constraints: MediaStreamConstraints = {
@@ -113,21 +123,33 @@ export class CameraDialogComponent implements OnInit, OnDestroy {
         },
         audio: false
       };
-      this.stream = await navigator.mediaDevices.getUserMedia(constraints);
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      if (sesion !== this.camSesion) {
+        // Llegó tarde (diálogo cerrado u otra cámara arrancando): apagarlo ya.
+        stream.getTracks().forEach(t => t.stop());
+        return;
+      }
+      this.stream = stream;
       if (this.videoEl?.nativeElement) {
         const v = this.videoEl.nativeElement;
         v.srcObject = this.stream;
         await v.play().catch(() => { /* algunos navegadores requieren interacción */ });
       }
     } catch {
-      this.cameraError = 'No fue posible acceder a la cámara. Puedes adjuntar una imagen.';
+      if (sesion === this.camSesion) {
+        this.cameraError = 'No fue posible acceder a la cámara. Puedes adjuntar una imagen.';
+      }
     } finally {
-      this.loadingCamera = false;
-      this.cdr.markForCheck();
+      if (sesion === this.camSesion) {
+        this.loadingCamera = false;
+        this.cdr.markForCheck();
+      }
     }
   }
 
   stopCamera(): void {
+    // Invalida cualquier getUserMedia en vuelo (ver camSesion).
+    this.camSesion++;
     if (this.stream) {
       this.stream.getTracks().forEach(t => t.stop());
       this.stream = undefined;

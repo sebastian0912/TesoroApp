@@ -492,8 +492,13 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       }
 
       // 4) Observables principales
+      // El tipo llega por query param desde el pipeline: con cédula duplicada
+      // (CC vs C.C/CE) el backend devolvería "el más recientemente atendido",
+      // que puede ser el OTRO titular, y todos los documentos saldrían con
+      // los datos equivocados.
+      const tipoDocRuta = this.route.snapshot.queryParamMap.get('tipo_doc') || undefined;
       const datoCandidato$ = this.registroProcesoContratacion
-        .getCandidatoPorDocumento(this.cedula, true)
+        .getCandidatoPorDocumento(this.cedula, true, tipoDocRuta)
         .pipe(take(1), catchError(() => of(null)));
 
       const datoAdministrativo$ = this.user?.numero_de_documento
@@ -507,7 +512,9 @@ export class GenerateContractingDocumentsComponent implements OnInit {
         : of(null);
 
       const docsBackend$ = this.cedula
-        ? this.gestionDocumentalService.getDocuments(this.cedula).pipe(take(1), catchError(() => of([])))
+        // Compartido con el pipeline vía caché por cédula: si este diálogo se
+        // abre justo después de consultar a la persona, no repite la petición.
+        ? this.gestionDocumentalService.getDocumentosDeCandidato(this.cedula).pipe(take(1), catchError(() => of([])))
         : of([]);
 
       // 5) Ejecutar, cargar vacante (si hay), y setear estado
@@ -558,7 +565,18 @@ export class GenerateContractingDocumentsComponent implements OnInit {
                 return Number(t && typeof t === 'object' ? t.id : t);
               };
 
-              docsBackend.forEach((doc: any) => {
+              // Solo documentos del TITULAR abierto: el GET expande <ced>/x<ced>
+              // y puede traer el expediente del OTRO titular con el mismo
+              // número (CC vs C.C/CE). Sin owner_id (payload viejo) se acepta.
+              const ownerEsperado = (
+                String(this.candidato?.tipo_doc || 'CC').trim().toUpperCase() === 'CC'
+                  ? String(this.cedula ?? '').trim()
+                  : `x${String(this.cedula ?? '').trim()}`
+              ).toLowerCase();
+              const docsDelTitular = (docsBackend || []).filter((d: any) =>
+                d?.owner_id == null || String(d.owner_id).trim().toLowerCase() === ownerEsperado);
+
+              docsDelTitular.forEach((doc: any) => {
                 const titles = idToTitles.get(tipoDe(doc));
                 if (!titles?.length) return;
                 // El backend ya recorta a 1 documento por tipo, así que esto es
@@ -921,7 +939,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       let docsServidor: any[] = [];
       try {
         docsServidor = (await firstValueFrom(
-          this.gestionDocumentalService.getDocuments(this.cedula).pipe(take(1), catchError(() => of([])))
+          this.gestionDocumentalService.getDocumentosDeCandidato(this.cedula).pipe(take(1), catchError(() => of([])))
         )) ?? [];
       } catch { docsServidor = []; }
 
@@ -934,10 +952,19 @@ export class GenerateContractingDocumentsComponent implements OnInit {
         const t = x?.type;
         return Number(t && typeof t === 'object' ? t.id : t);
       };
+      // Igual que en existingDocs: nunca meter al paquete legal un PDF del
+      // OTRO titular con el mismo número (el GET expande <ced>/x<ced>).
+      const ownerPaquete = (
+        String(this.candidato?.tipo_doc || 'CC').trim().toUpperCase() === 'CC'
+          ? String(this.cedula ?? '').trim()
+          : `x${String(this.cedula ?? '').trim()}`
+      ).toLowerCase();
+      const docsPropios = (docsServidor || []).filter((x: any) =>
+        x?.owner_id == null || String(x.owner_id).trim().toLowerCase() === ownerPaquete);
       const urlDeTipo = (typeId: number | number[]): string | null => {
         const ids = Array.isArray(typeId) ? typeId : [typeId];
         for (const id of ids) {
-          const d = (docsServidor || []).find((x: any) => idDeTipo(x) === id);
+          const d = docsPropios.find((x: any) => idDeTipo(x) === id);
           if (d) return d.file_url || d.file || d.current_file?.url || null;
         }
         return null;
@@ -1558,7 +1585,10 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     const promesasDeSubida = archivosAEnviar.map(({ key, file, fileName, typeId }) =>
       new Promise<{ key: string }>((resolveSubida, rejectSubida) => {
         this.gestionDocumentalService
-          .guardarDocumento(fileName, this.cedula, typeId, file, this.codigoContratacion)
+          // Sin el tipo, el backend asume CC y los documentos de un CE/PPT
+          // quedarían en el expediente del titular CC con el mismo número.
+          .guardarDocumento(fileName, this.cedula, typeId, file, this.codigoContratacion,
+            String(this.candidato?.tipo_doc || '').trim() || undefined)
           .pipe(take(1))
           .subscribe({
             next: () => resolveSubida({ key }),
@@ -2676,7 +2706,11 @@ export class GenerateContractingDocumentsComponent implements OnInit {
 
       const fmtFechaLocal = (f: any): string => {
         if (!f) return '';
-        const d = new Date(f);
+        // "YYYY-MM-DD" a secas se parsea como medianoche UTC: en Bogotá
+        // (UTC-5) getDate() devolvía el día ANTERIOR y el documento salía
+        // con nacimiento/expedición corridos un día.
+        const s = String(f).slice(0, 10);
+        const d = /^\d{4}-\d{2}-\d{2}$/.test(s) ? new Date(`${s}T00:00:00`) : new Date(f);
         if (isNaN(d.getTime())) return String(f);
         return `${d.getDate().toString().padStart(2, '0')}/${(d.getMonth() + 1).toString().padStart(2, '0')}/${d.getFullYear()}`;
       };
@@ -9559,7 +9593,18 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     }
   }
 
+  /** Señal de cancelación del lote: el for la revisa en cada ítem. */
+  private batchCancelado = false;
+
   cerrarBatch() {
+    // Si el lote sigue corriendo, primero se detiene: sin esto el loop seguía
+    // mutando this.candidato/cedula por debajo de la pantalla normal y un
+    // "Generar PDF" manual salía con el candidato que el lote tuviera cargado.
+    this.batchCancelado = true;
+    // Los object URLs de los PDFs generados no se liberan solos.
+    for (const it of this.batchCedulas) {
+      if (it?.rawBlobUrl) { try { URL.revokeObjectURL(it.rawBlobUrl); } catch { /* ya revocado */ } }
+    }
     this.batchMode = false;
     this.batchCedulas = [];
     this.blockSeleccionado = null;
@@ -9567,6 +9612,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
 
   async ejecutarBatch() {
     this.procesandoBatch = true;
+    this.batchCancelado = false;
 
     // Backup del estado actual
     const bCedula = this.cedula;
@@ -9575,8 +9621,13 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     const bEmpresa = this.empresa;
     const bFirma = this.firma;
     const bCodigo = this.codigoContratacion;
+    // La entrevista elegida TAMBIÉN es estado por candidato: sin respaldarla y
+    // sustituirla por ítem, todos los contratos del lote salían con la empresa
+    // usuaria, la obra y la fecha del candidato originalmente abierto.
+    const bEntrevista = this.entrevistaDoc;
 
     for (let item of this.batchCedulas) {
+      if (this.batchCancelado) break;
       if (item.status === 'Done') continue;
 
       item.status = 'Processing';
@@ -9597,12 +9648,29 @@ export class GenerateContractingDocumentsComponent implements OnInit {
         this.vacante = vacData || {};
         this.empresa = this.vacante?.temporal || '';
         this.firma = datoCandidato?.biometria?.firma?.file_url ?? '';
-        this.codigoContratacion = datoCandidato?.entrevistas?.[0]?.proceso?.contrato?.codigo_contrato ?? '';
+        // Misma regla de selección de entrevista que la carga individual: la
+        // que tiene publicación, si no la que tiene código de contrato, si no
+        // la más reciente. De acá salen obra/empresa/fecha del contrato.
+        const entrevistasItem: any[] = Array.isArray(datoCandidato?.entrevistas) ? datoCandidato.entrevistas : [];
+        this.entrevistaDoc =
+          entrevistasItem.find((e: any) => e?.proceso?.publicacion != null)
+          ?? entrevistasItem.find((e: any) => e?.proceso?.contrato_codigo || e?.proceso?.contrato?.codigo_contrato)
+          ?? entrevistasItem[0]
+          ?? null;
+        this.codigoContratacion =
+          this.entrevistaDoc?.proceso?.contrato_codigo
+          ?? this.entrevistaDoc?.proceso?.contrato?.codigo_contrato ?? '';
 
         const result: any = await this.generarContratoCompletoTrabajoTuAlianza(true);
         if (result && result.file) {
           item.file = result.file;
           item.blobUrl = this.sanitizer.bypassSecurityTrustResourceUrl(result.blobUrl);
+          item.rawBlobUrl = result.blobUrl;
+          // El código y el tipo son POR ÍTEM: al subir el lote ya se restauró
+          // el estado del candidato original y leer this.* archivaba todos
+          // los contratos con el código del candidato equivocado.
+          item.codigoContrato = this.codigoContratacion || '';
+          item.tipoDoc = String(datoCandidato?.tipo_doc || '').trim() || undefined;
           item.status = 'Done';
         } else {
           throw new Error('Retorno vacío al generar PDF');
@@ -9620,6 +9688,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     this.empresa = bEmpresa;
     this.firma = bFirma;
     this.codigoContratacion = bCodigo;
+    this.entrevistaDoc = bEntrevista;
     this.procesandoBatch = false;
     this.todoGenerado = this.batchCedulas.some(x => x.status === 'Done');
   }
@@ -9648,7 +9717,9 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     for (const item of items) {
       try {
         await firstValueFrom(this.gestionDocumentalService.guardarDocumento(
-          item.file.name, item.cedula, typeId, item.file, this.codigoContratacion
+          // Código y tipo POR ÍTEM (capturados al generar): this.codigoContratacion
+          // ya volvió a ser el del candidato original al terminar el lote.
+          item.file.name, item.cedula, typeId, item.file, item.codigoContrato, item.tipoDoc
         ));
         item.guardado = true;
         success++;
@@ -12760,7 +12831,10 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       const fechaNacRaw = String(cand.fecha_nacimiento ?? '').trim();
       let diaNac = '', mesNac = '', anioNac = '';
       if (fechaNacRaw) {
-        const d = new Date(fechaNacRaw);
+        // Parse LOCAL: "YYYY-MM-DD" con new Date() es medianoche UTC y en
+        // Bogotá imprimía el día anterior al real.
+        const s10 = fechaNacRaw.slice(0, 10);
+        const d = /^\d{4}-\d{2}-\d{2}$/.test(s10) ? new Date(`${s10}T00:00:00`) : new Date(fechaNacRaw);
         if (!isNaN(d.getTime())) {
           diaNac = String(d.getDate()).padStart(2, '0');
           mesNac = String(d.getMonth() + 1).padStart(2, '0');

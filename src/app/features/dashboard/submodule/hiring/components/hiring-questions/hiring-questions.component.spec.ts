@@ -48,8 +48,9 @@ describe('HiringQuestionsComponent', () => {
     procesos.getCandidatoPorDocumento.and.returnValue(of(null as any));
 
     docs = jasmine.createSpyObj('GestionDocumentalService',
-      ['getDocuments', 'guardarDocumento', 'obtenerDocumentosPorTipo']);
+      ['getDocuments', 'guardarDocumento', 'obtenerDocumentosPorTipo', 'getDocumentosDeCandidato', 'invalidarDocumentos']);
     docs.getDocuments.and.returnValue(of([]));
+    docs.getDocumentosDeCandidato.and.returnValue(of([]));
     docs.obtenerDocumentosPorTipo.and.returnValue(of([]));
     docs.guardarDocumento.and.returnValue(of({ id: 1 }));
 

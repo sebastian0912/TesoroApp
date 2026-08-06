@@ -14,6 +14,7 @@ import { NoopAnimationsModule } from '@angular/platform-browser/animations';
 import { MatDialog } from '@angular/material/dialog';
 import { provideRouter } from '@angular/router';
 import { of } from 'rxjs';
+import Swal from 'sweetalert2';
 
 import { HelpInformationComponent } from './help-information.component';
 import { RegistroProcesoContratacion } from '../../service/registro-proceso-contratacion/registro-proceso-contratacion';
@@ -55,9 +56,14 @@ describe('HelpInformationComponent', () => {
     fixture = TestBed.createComponent(HelpInformationComponent);
     comp = fixture.componentInstance;
     (comp as any).dialog = dialog;
+
+    // El aviso "temporal por descarte" de generarRemision es un toast real;
+    // sin el spy dejaba DOM y timers de SweetAlert vivos entre tests.
+    spyOn(Swal, 'fire').and.resolveTo({ isConfirmed: false } as any);
   });
 
-  const temporalDe = (v: any) => (comp as any).temporalDeVacante(v);
+  const temporalDe = (v: any) => (comp as any).temporalDeVacante(v).temporal;
+  const temporalRaw = (v: any) => (comp as any).temporalDeVacante(v);
   const aFecha = (v: any) => (comp as any).aDDMMAAAA(v);
 
   // ───────────────────────────────────────────────────────────
@@ -83,18 +89,24 @@ describe('HelpInformationComponent', () => {
       expect(temporalDe({ temporal: null, empresaUsuariaSolicita: 'TU ALIANZA' })).toBe('alianza');
     });
 
-    it('sin nada de información cae en Apoyo', () => {
-      // Es el comportamiento histórico; queda documentado para que un cambio
-      // futuro sea consciente.
-      expect(temporalDe({})).toBe('apoyo');
+    it('sin nada de información cae en Apoyo, marcado como "por descarte"', () => {
+      // Es el comportamiento histórico; el flag avisa al operador que el
+      // membrete no salió de la vacante sino de un default.
+      expect(temporalRaw({})).toEqual({ temporal: 'apoyo', porDefecto: true });
     });
 
     it('una vacante null no revienta', () => {
       expect(() => temporalDe(null)).not.toThrow();
     });
 
-    it('una temporal con nombre inventado cae en Apoyo', () => {
-      expect(temporalDe({ temporal: 'EMPRESA X' })).toBe('apoyo');
+    it('una temporal con nombre inventado cae en Apoyo por descarte', () => {
+      expect(temporalRaw({ temporal: 'EMPRESA X' })).toEqual({ temporal: 'apoyo', porDefecto: true });
+    });
+
+    it('deducir de la temporal o de la empresa usuaria NO es "por descarte"', () => {
+      expect(temporalRaw({ temporal: 'APOYO LABORAL SAS' }).porDefecto).toBeFalse();
+      expect(temporalRaw({ empresaUsuariaSolicita: 'APOYO LABORAL TS' }).porDefecto).toBeFalse();
+      expect(temporalRaw({ empresaUsuariaSolicita: 'TU ALIANZA' }).porDefecto).toBeFalse();
     });
   });
 
@@ -178,6 +190,15 @@ describe('HelpInformationComponent', () => {
       const data = (dialog.open.calls.mostRecent().args[1] as any).data;
       expect(data.cedula).toBe('1082490391');
       expect(data.nombreCandidato).toContain('LEIVIS');
+    });
+
+    it('avisa cuando la temporal salió por descarte, sin bloquear el diálogo', () => {
+      comp.generarRemision(); // sin vacante → porDefecto=true
+
+      expect(dialog.open).toHaveBeenCalled();
+      expect(Swal.fire).toHaveBeenCalled();
+      const arg = (Swal.fire as jasmine.Spy).calls.mostRecent().args[0] as any;
+      expect(arg.title).toContain('Temporal no definida');
     });
 
     it('los campos que se llenan a mano van VACÍOS a propósito', () => {

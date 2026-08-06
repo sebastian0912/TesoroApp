@@ -2,7 +2,7 @@ import { Injectable, Inject, PLATFORM_ID } from '@angular/core';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { isPlatformBrowser } from '@angular/common';
 import { firstValueFrom, Observable, throwError } from 'rxjs';
-import { catchError } from 'rxjs/operators';
+import { catchError, shareReplay } from 'rxjs/operators';
 import { environment } from '@/environments/environment';
 
 export interface UsuarioDetail {
@@ -55,10 +55,24 @@ export class AdminService {
   ) { }
 
 
-  // Traer sucursales
+  // Traer sucursales (cacheadas: las sedes solo cambian desde el admin de
+  // Django y varias pantallas las piden al abrirse; mismo patrón que
+  // UtilityServiceService.traerSucursales).
   traerSucursales(): any {
-    return this.http.get(`${this.apiUrl}/gestion_admin/sedes/`,);
+    const ahora = Date.now();
+    if (!this.sedesCache || ahora - this.sedesCacheTs > AdminService.SEDES_TTL_MS) {
+      this.sedesCache = this.http.get(`${this.apiUrl}/gestion_admin/sedes/`).pipe(
+        shareReplay({ bufferSize: 1, refCount: false }),
+      );
+      this.sedesCacheTs = ahora;
+      this.sedesCache.subscribe({ error: () => { this.sedesCache = null; } });
+    }
+    return this.sedesCache;
   }
+
+  private sedesCache: Observable<any> | null = null;
+  private sedesCacheTs = 0;
+  private static readonly SEDES_TTL_MS = 5 * 60_000;
 
   // Subir cedulas
 

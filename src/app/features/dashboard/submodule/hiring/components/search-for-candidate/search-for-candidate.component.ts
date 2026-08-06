@@ -1,6 +1,6 @@
 import { Component, OnDestroy, OnInit, ChangeDetectionStrategy, ChangeDetectorRef, ElementRef, ViewChild, DestroyRef, inject } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { firstValueFrom, interval, Subject, take } from 'rxjs';
+import { interval, Subject, take } from 'rxjs';
 import { filter, startWith, switchMap, takeUntil } from 'rxjs/operators';
 import Swal from 'sweetalert2';
 import { MatButtonModule } from '@angular/material/button';
@@ -246,6 +246,12 @@ export class SearchForCandidateComponent implements OnInit, OnDestroy {
   seleccionarReciente(item: CandidatoRecienteItem): void {
     if (!item?.numero_documento) return;
     this.cedula = String(item.numero_documento);
+    // El tipo de documento de la FILA manda: sin esto, "Atender" a un CE/PPT
+    // con el selector en su default (CC) aseguraba la fila del robot bajo el
+    // tipo equivocado — el mismo patrón de filas duplicadas (cedula, tipo
+    // distinto) que ya causó bucles de robots y gasto de 2captcha.
+    const tipoFila = String(item.tipo_doc ?? '').trim();
+    if (tipoFila) this.tipoDocSeleccionado = tipoFila;
 
     // Optimismo: marca local y reordena al final mientras llega la respuesta del backend.
     const ced = String(item.numero_documento);
@@ -362,9 +368,26 @@ export class SearchForCandidateComponent implements OnInit, OnDestroy {
     return item.candidato_id;
   }
 
+  /** Secuencia de búsquedas: la respuesta de una búsqueda vieja se descarta. */
+  private _busquedaSeq = 0;
+
   buscarCandidato(): void {
     this.cedula = this.cedula.trim();
     if (!this.cedula) return;
+
+    // TODO congelado al momento de disparar: si el operador busca otra cédula
+    // (o toca el toggle de cola) antes de que responda esta, la respuesta
+    // tardía NO debe emitir al candidato viejo ni encolarlo con el estado
+    // nuevo del toggle.
+    const seq = ++this._busquedaSeq;
+    const cedulaBuscada = this.cedula;
+    const tipoBuscado = this.tipoDocSeleccionado;
+    const encolar = this.encolarEnTabla;
+
+    // La consulta de vetados iba en un método que nada invocaba (buscarCedula):
+    // una persona reportada pasaba por todo el flujo sin ninguna alerta. Corre
+    // en paralelo y no bloquea la búsqueda.
+    this.consultarVetados(cedulaBuscada, seq);
 
     // Asegura/actualiza la fila de antecedentes del robot (EstadosRobots) para
     // el tipo de documento seleccionado + cédula. Crea la fila si el Candidato
@@ -372,60 +395,101 @@ export class SearchForCandidateComponent implements OnInit, OnDestroy {
     // igual que el formulario web. Se hace SIEMPRE al buscar, sin depender del
     // toggle de cola; tolerante a fallos.
     this.registroProcesoContratacion
-      .asegurarEstadoRobot({ tipo_doc: this.tipoDocSeleccionado, numero_documento: this.cedula })
+      .asegurarEstadoRobot({ tipo_doc: tipoBuscado, numero_documento: cedulaBuscada })
       .pipe(take(1), takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: () => {},
         error: (err: any) => console.warn('[asegurarEstadoRobot] no se pudo asegurar', err?.status, err?.error),
       });
 
-    this.registroProcesoContratacion.getCandidatoPorDocumento(this.cedula, true).pipe(take(1)).subscribe({
+    this.registroProcesoContratacion
+      .getCandidatoPorDocumento(cedulaBuscada, true, tipoBuscado)
+      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
       next: (candidato: any) => {
-        if (!candidato) {
-          this.candidatoSeleccionado.emit(null);
-          Swal.fire('No encontrado', 'No se encontró un candidato con esa cédula.', 'info');
-          return;
-        }
-        this.candidatoSeleccionado.emit(candidato);
-
-        // Encolar la cédula en la cola FIFO de mi sede para HOY.
-        // Idempotente en backend: si ya estaba en cola hoy en esta sede, no se
-        // reordena. Si no, queda al final de la cola.
-        // Sólo se encola si el usuario dejó activo el toggle "Agregar a la cola".
-        // Cuando está apagado, la consulta procede pero el candidato no aparece
-        // en la tabla del día.
-        const cedula = String(candidato?.numero_documento || this.cedula || '').trim();
-        const tipoDoc = String(candidato?.tipo_doc || '').trim() || undefined;
-        if (cedula && this.encolarEnTabla) {
+        // Llegó después de que el operador buscó a otra persona: ignorar.
+        if (seq !== this._busquedaSeq) return;
+        if (!candidato && tipoBuscado) {
+          // El selector pudo quedar "pegado" del Atender anterior (CE/PPT) o
+          // la persona existe con otro tipo: reintentar SIN filtro antes de
+          // decir que no existe — un "No encontrado" falso invita a
+          // re-registrarla y a crear justo el duplicado que queremos evitar.
           this.registroProcesoContratacion
-            .encolarCandidato({ tipo_doc: tipoDoc, numero_documento: cedula })
+            .getCandidatoPorDocumento(cedulaBuscada, true)
             .pipe(take(1), takeUntilDestroyed(this.destroyRef))
             .subscribe({
-              next: () => this.refrescarRecientes(),
-              error: (err: any) => {
-                console.warn('[encolar] no se pudo agregar a cola', err?.status, err?.error);
-                // No bloqueamos el flujo: la consulta del candidato igual procede.
+              next: (c2: any) => {
+                if (seq !== this._busquedaSeq) return;
+                this.procesarResultadoBusqueda(c2, cedulaBuscada, encolar);
+              },
+              error: () => {
+                if (seq !== this._busquedaSeq) return;
+                Swal.fire('Error', 'Error al buscar el candidato.', 'error');
               },
             });
+          return;
         }
+        this.procesarResultadoBusqueda(candidato, cedulaBuscada, encolar);
       },
-      error: () => Swal.fire('Error', 'Error al buscar el candidato.', 'error')
+      error: () => {
+        if (seq !== this._busquedaSeq) return;
+        Swal.fire('Error', 'Error al buscar el candidato.', 'error');
+      },
     });
   }
 
-  async buscarCedula(): Promise<void> {
-    if (!this.cedula) return;
-
-    this.cedulaSeleccionada.emit(this.cedula);
-
-    try {
-      const vetado = await firstValueFrom(
-        this.vetadosService.listarReportesVetadosPorCedula(this.cedula).pipe(take(1))
-      );
-      this.procesarVetado(vetado);
-    } catch {
-      Swal.fire('Error', 'Error inesperado al consultar la cédula.', 'error');
+  private procesarResultadoBusqueda(candidato: any, cedulaBuscada: string, encolar: boolean): void {
+    if (!candidato) {
+      this.candidatoSeleccionado.emit(null);
+      Swal.fire('No encontrado', 'No se encontró un candidato con esa cédula.', 'info');
+      return;
     }
+    // El selector refleja al titular REAL encontrado: así no queda pegado en
+    // un tipo viejo para la siguiente búsqueda.
+    const tipoReal = String(candidato?.tipo_doc || '').trim();
+    if (tipoReal) this.tipoDocSeleccionado = tipoReal;
+
+    this.candidatoSeleccionado.emit(candidato);
+
+    // Encolar la cédula en la cola FIFO de mi sede para HOY.
+    // Idempotente en backend: si ya estaba en cola hoy en esta sede, no se
+    // reordena. Si no, queda al final de la cola.
+    // Sólo se encola si el toggle estaba activo AL BUSCAR.
+    const cedula = String(candidato?.numero_documento || cedulaBuscada || '').trim();
+    const tipoDoc = tipoReal || undefined;
+    if (cedula && encolar) {
+      this.registroProcesoContratacion
+        .encolarCandidato({ tipo_doc: tipoDoc, numero_documento: cedula })
+        .pipe(take(1), takeUntilDestroyed(this.destroyRef))
+        .subscribe({
+          next: () => this.refrescarRecientes(),
+          error: (err: any) => {
+            console.warn('[encolar] no se pudo agregar a cola', err?.status, err?.error);
+            // No bloqueamos el flujo: la consulta del candidato igual procede.
+          },
+        });
+    }
+  }
+
+  /** Consulta vetados y avisa. Tolerante a fallos: no frena la búsqueda. */
+  private consultarVetados(cedula: string, seq: number): void {
+    this.procesoValido = false;
+    this.vetadosService.listarReportesVetadosPorCedula(cedula)
+      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (vetado: any[] | null) => {
+          if (seq !== this._busquedaSeq) return;
+          if (!vetado?.length) return;
+          this.procesarVetado(vetado);
+          Swal.fire({
+            icon: 'warning',
+            title: 'Persona con reporte',
+            text: 'Esta cédula tiene reportes en la lista de vetados. Revisa antes de continuar con el proceso.',
+            confirmButtonText: 'Entendido',
+          });
+        },
+        error: (err: any) => console.warn('[vetados] no se pudo consultar', err?.status, err?.error),
+      });
   }
 
   /* vetados */

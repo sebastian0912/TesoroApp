@@ -582,6 +582,10 @@ export class CarnetMasivoDialogComponent {
           ));
           await firstValueFrom(this.gc.updateProcesoByDocumento({
             numero_documento: fila.cedula,
+            // La fila ya resolvió SU proceso: sin esto el backend toma "la
+            // última entrevista" y con cédula duplicada (CC vs C.C) o un turno
+            // nuevo la marca podía sellarse en el proceso equivocado.
+            proceso_id: fila.procesoId ?? undefined,
             contrato: {
               carnet_generado: true,
               carnet_codigo: datos[i].consecutivo,
@@ -607,6 +611,17 @@ export class CarnetMasivoDialogComponent {
         titulo: fallidas.length ? 'Generado con errores' : 'Carnets generados',
         html: `Se generaron <b>${sel.length - fallidas.length}</b> de ${sel.length}.`
           + (fallidas.length ? `<br><br>No se pudieron guardar: ${fallidas.join(', ')}` : ''),
+      });
+    } catch (e: any) {
+      // Sin este catch, un fallo armando los lotes quedaba como unhandled
+      // rejection: la pestaña en blanco pre-abierta se quedaba huérfana y el
+      // usuario no veía ningún aviso (previsualizar() sí lo tenía).
+      try { ventana?.close(); } catch { /* ya cerrada */ }
+      console.error('[carnet masivo] generar() falló:', e);
+      await this.aviso({
+        icono: 'error',
+        titulo: 'No se pudieron generar los carnets',
+        html: 'Ocurrió un error armando los PDF. Intenta de nuevo; si sigue igual, avisa a sistemas.',
       });
     } finally {
       // Si algo revienta a mitad, el loader no puede quedarse abierto para

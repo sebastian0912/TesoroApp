@@ -1,7 +1,7 @@
 import { EventEmitter, Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
-import { map } from 'rxjs/operators';
+import { map, shareReplay } from 'rxjs/operators';
 import { environment } from '@/environments/environment';
 import { getLocalStorageItem, clearLocalStorage } from '../../../core/utils/safe-storage';
 
@@ -35,13 +35,33 @@ export class UtilityServiceService {
     }
   }
 
+  /**
+   * Sedes con caché compartida: al menos siete pantallas (sidebar, reportes,
+   * mercancía, vacantes…) piden `/gestion_admin/sedes/` al abrirse, y las
+   * sedes solo cambian desde el admin de Django. Se cachea la PETICIÓN con
+   * `shareReplay` —quienes lleguen mientras está en vuelo la comparten— y un
+   * TTL corto la refresca si la sesión queda abierta mucho tiempo. Un error
+   * no se cachea: el próximo interesado reintenta.
+   */
   traerSucursales(): Observable<any> {
-    return this.http.get(`${this.apiUrl}/gestion_admin/sedes/`);
+    const ahora = Date.now();
+    if (!this.sedesCache || ahora - this.sedesCacheTs > UtilityServiceService.SEDES_TTL_MS) {
+      this.sedesCache = this.http.get(`${this.apiUrl}/gestion_admin/sedes/`).pipe(
+        shareReplay({ bufferSize: 1, refCount: false }),
+      );
+      this.sedesCacheTs = ahora;
+      this.sedesCache.subscribe({ error: () => { this.sedesCache = null; } });
+    }
+    return this.sedesCache;
   }
 
   traerSucursales2(): Observable<any> {
-    return this.http.get(`${this.apiUrl}/gestion_admin/sedes/`);
+    return this.traerSucursales();
   }
+
+  private sedesCache: Observable<any> | null = null;
+  private sedesCacheTs = 0;
+  private static readonly SEDES_TTL_MS = 5 * 60_000;
 
   // traer empresas
   traerEmpresas(): Observable<any> {

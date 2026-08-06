@@ -25,8 +25,10 @@ describe('SelectionQuestions — uso torpe', () => {
   let rpc: jasmine.SpyObj<RegistroProcesoContratacion>;
 
   beforeEach(async () => {
-    docsSrv = jasmine.createSpyObj('GestionDocumentalService', ['getDocuments', 'guardarDocumento']);
+    docsSrv = jasmine.createSpyObj('GestionDocumentalService',
+      ['getDocuments', 'guardarDocumento', 'getDocumentosDeCandidato', 'invalidarDocumentos']);
     docsSrv.getDocuments.and.returnValue(of([]));
+    docsSrv.getDocumentosDeCandidato.and.returnValue(of([]));
     docsSrv.guardarDocumento.and.returnValue(of({ id: 1 }));
 
     rpc = jasmine.createSpyObj('RegistroProcesoContratacion',

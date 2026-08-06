@@ -847,13 +847,18 @@ export class RegistroProcesoContratacion {
   //
   // 1) Versión PATH: /candidatos/by-document/<numero_documento>?full=1
   //
-  getCandidatoPorDocumento(numeroDocumento: string, full = false) {
+  getCandidatoPorDocumento(numeroDocumento: string, full = false, tipoDoc?: string | null) {
     const safe = encodeURIComponent((numeroDocumento ?? '').trim());
     let params = new HttpParams();
     if (full) {
       params = params.set('full', '1');
       params = params.set('include_queue', '1');
     }
+    // Con cédula duplicada (fila CC y fila C.C/CE), sin este filtro el backend
+    // devuelve "la más recientemente atendida" — que puede ser el titular que
+    // el operador explícitamente NO eligió. El backend ya soporta ?tipo_doc=.
+    const tipo = String(tipoDoc ?? '').trim();
+    if (tipo) params = params.set('tipo_doc', tipo);
 
     return this.http
       .get<any>(this.url(`candidatos/by-document/${safe}`), { params })

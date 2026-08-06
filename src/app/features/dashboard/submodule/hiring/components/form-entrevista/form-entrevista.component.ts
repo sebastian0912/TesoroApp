@@ -46,6 +46,9 @@ import {
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class FormEntrevistaComponent implements OnInit {
+  /** Último titular (tipo|número) rellenado desde el servidor (effect del constructor). */
+  private cedulaRellenada: string | null = null;
+
   // ====== Inputs / Outputs / Servicios ======
   candidatoSeleccionado = input<any | null>(null);
   /**
@@ -57,6 +60,8 @@ export class FormEntrevistaComponent implements OnInit {
    * Con la bandera en true el backend edita la entrevista existente en sitio.
    */
   modificacionForzada = input<boolean>(false);
+  /** Nº de consulta del buscador: re-consultar a la misma persona re-rellena. */
+  consultaSeq = input<number>(0);
   modificadoPor = input<string>('');
   /** Se emite tras guardar la entrevista con éxito, para que el padre recargue
    *  el candidato (y aparezca el proceso nuevo sin re-buscar). */
@@ -388,6 +393,20 @@ export class FormEntrevistaComponent implements OnInit {
     // Cuando cambie el candidato seleccionado, rellenamos el form
     effect(() => {
       const cand = this.candidatoSeleccionado();
+      // Solo se rellena al CAMBIAR de persona. El padre recarga el candidato
+      // (referencia nueva, misma cédula) tras guardar cualquier pestaña; re-
+      // ejecutar acá pisaba media entrevista escrita sin guardar y recortaba
+      // las filas de hijos al conteo del servidor. La llave incluye el tipo:
+      // dos titulares distintos pueden compartir número (CC vs C.C/CE).
+      const ced = cand?.numero_documento ? String(cand.numero_documento) : null;
+      // `consultaSeq` entra en la llave: una consulta NUEVA del buscador (que
+      // lo incrementa) re-rellena aunque sea la misma persona; las recargas
+      // internas tras guardar (mismo seq) no pisan lo editado.
+      const clave = ced
+        ? `${String(cand?.tipo_doc || 'CC').trim().toUpperCase()}|${ced}#${this.consultaSeq()}`
+        : null;
+      if (clave !== null && clave === this.cedulaRellenada) return;
+      this.cedulaRellenada = clave;
       this.rellenarForm(cand);
     });
 
@@ -607,9 +626,14 @@ export class FormEntrevistaComponent implements OnInit {
 
   private buildHijoGroup(): FormGroup {
     return this.fb.group({
+      // Requerido: el backend lo exige (Hijo.numero_de_documento sin blank) y
+      // el servicio filtra las filas sin documento antes de enviar — sin este
+      // required, un hijo con solo fecha pasaba la validación, se descartaba
+      // en silencio y el Swal decía "guardado".
       numero_de_documento: [
         '',
         [
+          Validators.required,
           Validators.pattern(/^\d+$/),
           Validators.minLength(6),
           Validators.maxLength(15),
@@ -619,10 +643,16 @@ export class FormEntrevistaComponent implements OnInit {
     });
   }
 
+  /** Tope duro de filas de hijos: por encima de esto es un error de digitación. */
+  private static readonly MAX_HIJOS = 15;
+
   private setHijosCount(n: number): void {
+    // Sin el tope, teclear "99999" en el número de hijos creaba 99.999
+    // FormGroups síncronos y congelaba la ventana.
+    const objetivo = Math.min(Math.max(0, Math.floor(Number(n) || 0)), FormEntrevistaComponent.MAX_HIJOS);
     const fa = this.hijosFA;
-    while (fa.length < n) fa.push(this.buildHijoGroup());
-    while (fa.length > n) fa.removeAt(fa.length - 1);
+    while (fa.length < objetivo) fa.push(this.buildHijoGroup());
+    while (fa.length > objetivo) fa.removeAt(fa.length - 1);
     this.refreshSteps();
   }
 
@@ -1089,7 +1119,10 @@ export class FormEntrevistaComponent implements OnInit {
     // 1) patchValue sin emitir eventos
     this.formVacante.patchValue(
       {
-        oficina: oficina || '',
+        // Si el servidor no trae oficina se CONSERVA la actual: el query param
+        // `?oficina=` la preasigna en ngOnInit y este patch (que corre después)
+        // la borraba para todos los candidatos nuevos.
+        oficina: oficina || this.formVacante.get('oficina')?.value || '',
         tipo_doc: cand?.tipo_doc || '',
         numero_documento: cand?.numero_documento || '',
         fecha_expedicion: fechaExp,
