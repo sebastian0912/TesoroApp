@@ -12,6 +12,10 @@ import type jsPDF from 'jspdf';
 import type { RowInput } from 'jspdf-autotable';
 import { UtilityServiceService } from '@/app/shared/services/utilityService/utility-service.service';
 import {
+  FORMATO_ENTREGA_APOYO,
+  PLAN_FUNERAL,
+} from '../generate-contracting-documents/formato-entrega-docs.data';
+import {
   resolverDescripcionObra,
   esDescripcionGenerada,
   descripcionEsDeOtroMes,
@@ -1986,9 +1990,9 @@ export class HiringQuestionsComponent implements OnInit {
     doc.line(col2, h2Y, col2, startY + headerHeight);
     doc.line(col3, h2Y, col3, startY + headerHeight);
     doc.setFontSize(7).setFont('helvetica', 'bold');
-    doc.text('Código: AL CO-RE-6', tableStartX + 2, startY + 11.5);
-    doc.text('Versión: 23', col1 + 2, startY + 11.5);
-    doc.text('Fecha Emisión: Julio 9-25', col2 + 5, startY + 11.5);
+    doc.text(`Código: ${FORMATO_ENTREGA_APOYO.codigo}`, tableStartX + 2, startY + 11.5);
+    doc.text(`Versión: ${FORMATO_ENTREGA_APOYO.version}`, col1 + 2, startY + 11.5);
+    doc.text(`Fecha Emisión: ${FORMATO_ENTREGA_APOYO.fechaEmision}`, col2 + 5, startY + 11.5);
     doc.text('Página: 1 de 1', col3 + 6, startY + 11.5);
     y = startY + headerHeight + 7;
 
@@ -2088,7 +2092,7 @@ export class HiringQuestionsComponent implements OnInit {
       { numero: '6)', texto: 'Socialización de las políticas vigentes y aplicables de la Empresa Temporal.' },
       { numero: '7)', texto: 'Curso de Seguridad y Salud en el Trabajo "SST" de la Empresa Temporal.' },
       { numero: '8)', texto: 'Se hace entrega de la documentación requerida para la vinculación de beneficiarios a la Caja de Compensación Familiar y se establece compromiso de 15 días para la entrega sobre la documentación para afiliación de beneficiarios a la Caja de Compensación y EPS si aplica.\nDe lo contrario se entenderá que usted no desea recibir este beneficio, recuerde que es su responsabilidad el registro de los mismos.' },
-      { numero: '9)', texto: 'Plan funeral Coorserpark: AUTORIZO la afiliación y descuento VOLUNTARIO al plan, por un valor de $4.095 descontados quincenalmente por Nómina. La afiliación se hace efectiva a partir del primer descuento.' }
+      { numero: '9)', texto: PLAN_FUNERAL }
     ];
     const bottomSafe = 12;
     const ensureSpace = (need: number) => { if (y + need > pageHeight - bottomSafe) { doc.addPage(); y = 15; } };

@@ -5,6 +5,10 @@ import * as fontkit from 'fontkit';
 import autoTable, { RowInput } from 'jspdf-autotable';
 import Swal from 'sweetalert2';
 import { REFERENCIAS_A, REFERENCIAS_F } from '@/app/shared/model/const';
+import {
+  FORMATO_ENTREGA_APOYO,
+  PLAN_FUNERAL,
+} from '../components/generate-contracting-documents/formato-entrega-docs.data';
 
 // -------------------------------------------------------------
 // Tipos auxiliares del contexto de generación
@@ -254,9 +258,9 @@ export class ContractingPdfService {
 
         doc.setFontSize(7);
         doc.setFont('helvetica', 'bold');
-        doc.text('Código: AL CO-RE-6', tableStartX + 2, startY + 11.5);
-        doc.text('Versión: 23', col1 + 2, startY + 11.5);
-        doc.text('Fecha Emisión: Julio 9-25', col2 + 5, startY + 11.5);
+        doc.text(`Código: ${FORMATO_ENTREGA_APOYO.codigo}`, tableStartX + 2, startY + 11.5);
+        doc.text(`Versión: ${FORMATO_ENTREGA_APOYO.version}`, col1 + 2, startY + 11.5);
+        doc.text(`Fecha Emisión: ${FORMATO_ENTREGA_APOYO.fechaEmision}`, col2 + 5, startY + 11.5);
         doc.text('Página: 1 de 1', col3 + 6, startY + 11.5);
 
         y = startY + headerHeight + 7;
@@ -442,7 +446,7 @@ export class ContractingPdfService {
             },
             {
                 numero: '9)',
-                texto: 'Plan funeral Coorserpark: AUTORIZO la afiliación y descuento VOLUNTARIO al plan, por un valor de $4.095 descontados quincenalmente por Nómina. La afiliación se hace efectiva a partir del primer descuento.'
+                texto: PLAN_FUNERAL
             }
         ];
 
@@ -593,9 +597,9 @@ export class ContractingPdfService {
         let logoPath = '';
         let nit = '';
         let domicilio = '';
-        const codigo = 'AL CO-RE-6';
-        const version = '23';
-        const fechaEmision = 'Julio 9-25';
+        const codigo = FORMATO_ENTREGA_APOYO.codigo;
+        const version = FORMATO_ENTREGA_APOYO.version;
+        const fechaEmision = FORMATO_ENTREGA_APOYO.fechaEmision;
 
         if (empresaSeleccionada === 'APOYO LABORAL TS S.A.S') {
             logoPath = 'logos/Logo_AL.png';

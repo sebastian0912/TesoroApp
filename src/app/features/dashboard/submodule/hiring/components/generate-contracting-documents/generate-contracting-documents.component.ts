@@ -41,6 +41,12 @@ import { of, forkJoin, firstValueFrom, throwError } from 'rxjs';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { isDocumentoVisible, getDocSeccion, SECCION_LABELS, type DocSeccion } from './documentos-por-empresa.config';
 import { resolverEmpresaUsuaria } from './empresas-usuarias.data';
+import {
+  FORMATO_ENTREGA_APOYO,
+  FORMATO_ENTREGA_TU_ALIANZA,
+  PLAN_FUNERAL,
+  PLAN_FUNERAL_FLORES_ANDES,
+} from './formato-entrega-docs.data';
 // Dos formatos de carnet, uno por temporal:
 //   Apoyo    → CR80 horizontal con código de barras (`carnet-apoyo-fill`).
 //   Alianza  → el mismo diseño de la generación masiva de Home
@@ -4656,9 +4662,9 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     // Contenido columnas
     doc.setFontSize(7);
     doc.setFont('helvetica', 'bold');
-    doc.text('Código: AL CO-RE-6', tableStartX + 2, startY + 11.5);
-    doc.text('Versión: 26', col1 + 2, startY + 11.5);
-    doc.text('Fecha de Emisión: Junio 01-26', col2 + 5, startY + 11.5);
+    doc.text(`Código: ${FORMATO_ENTREGA_APOYO.codigo}`, tableStartX + 2, startY + 11.5);
+    doc.text(`Versión: ${FORMATO_ENTREGA_APOYO.version}`, col1 + 2, startY + 11.5);
+    doc.text(`Fecha de Emisión: ${FORMATO_ENTREGA_APOYO.fechaEmision}`, col2 + 5, startY + 11.5);
     doc.text('Página: 1 de 1', col3 + 6, startY + 11.5);
 
     y = startY + headerHeight + 7;
@@ -4831,7 +4837,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       },
       {
         numero: '9)',
-        texto: 'Plan funeral Coorserpark: AUTORIZO la afiliación y descuento VOLUNTARIO al plan, por un valor de $4.095 descontados quincenalmente por Nómina. La afiliación se efectiva a partir del primer descuento.'
+        texto: PLAN_FUNERAL
       }
     ];
 
@@ -5096,9 +5102,9 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     // Contenido columnas
     doc.setFontSize(7);
     doc.setFont('helvetica', 'bold');
-    doc.text('Código: TA CO-RE-6', tableStartX + 2, startY + 11.5);
-    doc.text('Versión: 19', col1 + 2, startY + 11.5);
-    doc.text('Fecha de Emisión: junio 01-26', col2 + 5, startY + 11.5);
+    doc.text(`Código: ${FORMATO_ENTREGA_TU_ALIANZA.codigo}`, tableStartX + 2, startY + 11.5);
+    doc.text(`Versión: ${FORMATO_ENTREGA_TU_ALIANZA.version}`, col1 + 2, startY + 11.5);
+    doc.text(`Fecha de Emisión: ${FORMATO_ENTREGA_TU_ALIANZA.fechaEmision}`, col2 + 5, startY + 11.5);
     doc.text('Página: 1 de 1', col3 + 6, startY + 11.5);
 
     y = startY + headerHeight + 7;
@@ -5280,7 +5286,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       },
       {
         numero: '9)',
-        texto: 'Plan funeral Coorserpark: AUTORIZO la afiliación y descuento VOLUNTARIO al plan, por un valor de $4.095 descontados quincenalmente por Nómina. La afiliación se hace efectiva a partir del primer descuento.'
+        texto: PLAN_FUNERAL
       }
     ];
 
@@ -5547,9 +5553,9 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     // Contenido columnas
     doc.setFontSize(7);
     doc.setFont('helvetica', 'bold');
-    doc.text('Código: TA CO-RE-6', tableStartX + 2, startY + 11.5);
-    doc.text('Versión: 19', col1 + 2, startY + 11.5);
-    doc.text('Fecha de Emisión: Mayo 13-26', col2 + 5, startY + 11.5);
+    doc.text(`Código: ${FORMATO_ENTREGA_TU_ALIANZA.codigo}`, tableStartX + 2, startY + 11.5);
+    doc.text(`Versión: ${FORMATO_ENTREGA_TU_ALIANZA.version}`, col1 + 2, startY + 11.5);
+    doc.text(`Fecha de Emisión: ${FORMATO_ENTREGA_TU_ALIANZA.fechaEmision}`, col2 + 5, startY + 11.5);
     doc.text('Página: 1 de 1', col3 + 6, startY + 11.5);
 
     y = startY + headerHeight + 5;
@@ -5727,7 +5733,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       },
       {
         numero: '9)',
-        texto: 'Plan funeral Coorserpark: AUTORIZO la afiliación y descuento VOLUNTARIO al plan, por un valor de $4.095 descontados quincenalmente por Nómina. La afiliación se hace efectiva a partir del primer descuento.'
+        texto: PLAN_FUNERAL
       }
     ];
 
@@ -5995,9 +6001,9 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     // Contenido columnas
     doc.setFontSize(7);
     doc.setFont('helvetica', 'bold');
-    doc.text('Código: TA CO-RE-6', tableStartX + 2, startY + 11.5);
-    doc.text('Versión: 19', col1 + 2, startY + 11.5);
-    doc.text('Fecha de Emisión: junio 01-26', col2 + 5, startY + 11.5);
+    doc.text(`Código: ${FORMATO_ENTREGA_TU_ALIANZA.codigo}`, tableStartX + 2, startY + 11.5);
+    doc.text(`Versión: ${FORMATO_ENTREGA_TU_ALIANZA.version}`, col1 + 2, startY + 11.5);
+    doc.text(`Fecha de Emisión: ${FORMATO_ENTREGA_TU_ALIANZA.fechaEmision}`, col2 + 5, startY + 11.5);
     doc.text('Página: 1 de 1', col3 + 6, startY + 11.5);
 
     y = startY + headerHeight + 7;
@@ -6156,7 +6162,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       },
       {
         numero: '9)',
-        texto: 'Plan funeral Coorserpark: AUTORIZO la afiliación y descuento VOLUNTARIO al plan, por un valor de $4.095 descontados quincenalmente por Nómina. La afiliación se hace efectiva a partir del primer descuento.'
+        texto: PLAN_FUNERAL
       }
     ];
 
@@ -6423,9 +6429,9 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     // Contenido columnas
     doc.setFontSize(7);
     doc.setFont('helvetica', 'bold');
-    doc.text('Código: TA CO-RE-6', tableStartX + 2, startY + 11.5);
-    doc.text('Versión: 19', col1 + 2, startY + 11.5);
-    doc.text('Fecha de Emisión: junio 01-26', col2 + 5, startY + 11.5);
+    doc.text(`Código: ${FORMATO_ENTREGA_TU_ALIANZA.codigo}`, tableStartX + 2, startY + 11.5);
+    doc.text(`Versión: ${FORMATO_ENTREGA_TU_ALIANZA.version}`, col1 + 2, startY + 11.5);
+    doc.text(`Fecha de Emisión: ${FORMATO_ENTREGA_TU_ALIANZA.fechaEmision}`, col2 + 5, startY + 11.5);
     doc.text('Página: 1 de 1', col3 + 6, startY + 11.5);
 
     y = startY + headerHeight + 7;
@@ -6583,7 +6589,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       },
       {
         numero: '9)',
-        texto: 'Plan funeral Coorserpark: AUTORIZO la afiliación y descuento VOLUNTARIO al plan, por un valor de $12.000 descontados quincenalmente por Nómina. La afiliación se hace efectiva a partir del primer descuento.'
+        texto: PLAN_FUNERAL_FLORES_ANDES
       }
     ];
 
@@ -6850,9 +6856,9 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     // Contenido columnas
     doc.setFontSize(7);
     doc.setFont('helvetica', 'bold');
-    doc.text('Código: TA CO-RE-6', tableStartX + 2, startY + 11.5);
-    doc.text('Versión: 19', col1 + 2, startY + 11.5);
-    doc.text('Fecha de Emisión: junio 01-26', col2 + 5, startY + 11.5);
+    doc.text(`Código: ${FORMATO_ENTREGA_TU_ALIANZA.codigo}`, tableStartX + 2, startY + 11.5);
+    doc.text(`Versión: ${FORMATO_ENTREGA_TU_ALIANZA.version}`, col1 + 2, startY + 11.5);
+    doc.text(`Fecha de Emisión: ${FORMATO_ENTREGA_TU_ALIANZA.fechaEmision}`, col2 + 5, startY + 11.5);
     doc.text('Página: 1 de 1', col3 + 6, startY + 11.5);
 
     y = startY + headerHeight + 7;
@@ -7013,7 +7019,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       },
       {
         numero: '9)',
-        texto: 'Plan funeral Coorserpark: AUTORIZO la afiliación y descuento VOLUNTARIO al plan, por un valor de $4.095 descontados quincenalmente por Nómina. La afiliación se hace efectiva a partir del primer descuento.'
+        texto: PLAN_FUNERAL
       }
     ];
 
@@ -7280,9 +7286,9 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     // Contenido columnas
     doc.setFontSize(7);
     doc.setFont('helvetica', 'bold');
-    doc.text('Código: TA CO-RE-6', tableStartX + 2, startY + 11.5);
-    doc.text('Versión: 19', col1 + 2, startY + 11.5);
-    doc.text('Fecha de Emisión: junio 01-26', col2 + 5, startY + 11.5);
+    doc.text(`Código: ${FORMATO_ENTREGA_TU_ALIANZA.codigo}`, tableStartX + 2, startY + 11.5);
+    doc.text(`Versión: ${FORMATO_ENTREGA_TU_ALIANZA.version}`, col1 + 2, startY + 11.5);
+    doc.text(`Fecha de Emisión: ${FORMATO_ENTREGA_TU_ALIANZA.fechaEmision}`, col2 + 5, startY + 11.5);
     doc.text('Página: 1 de 1', col3 + 6, startY + 11.5);
 
     y = startY + headerHeight + 7;
@@ -7442,7 +7448,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       },
       {
         numero: '9)',
-        texto: 'Plan funeral Coorserpark: AUTORIZO la afiliación y descuento VOLUNTARIO al plan, por un valor de $4.095 descontados quincenalmente por Nómina. La afiliación se hace efectiva a partir del primer descuento.'
+        texto: PLAN_FUNERAL
       }
     ];
 
@@ -7699,9 +7705,9 @@ export class GenerateContractingDocumentsComponent implements OnInit {
 
     doc.setFontSize(7);
     doc.setFont('helvetica', 'bold');
-    doc.text('Código: TA CO-RE-6', tableStartX + 2, startY + 11.5);
-    doc.text('Versión: 19', col1 + 2, startY + 11.5);
-    doc.text('Fecha de Emisión: junio 01-26', col2 + 5, startY + 11.5);
+    doc.text(`Código: ${FORMATO_ENTREGA_TU_ALIANZA.codigo}`, tableStartX + 2, startY + 11.5);
+    doc.text(`Versión: ${FORMATO_ENTREGA_TU_ALIANZA.version}`, col1 + 2, startY + 11.5);
+    doc.text(`Fecha de Emisión: ${FORMATO_ENTREGA_TU_ALIANZA.fechaEmision}`, col2 + 5, startY + 11.5);
     doc.text('Página: 1 de 1', col3 + 6, startY + 11.5);
 
     y = startY + headerHeight + 7;
@@ -7818,7 +7824,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       },
       {
         numero: '9)',
-        texto: 'Plan funeral Coorserpark: AUTORIZO la afiliación y descuento VOLUNTARIO al plan, por un valor de $4.095 descontados quincenalmente por Nómina. La afiliación se hace efectiva a partir del primer descuento.'
+        texto: PLAN_FUNERAL
       }
     ];
 
@@ -8059,9 +8065,9 @@ export class GenerateContractingDocumentsComponent implements OnInit {
 
     doc.setFontSize(7);
     doc.setFont('helvetica', 'bold');
-    doc.text('Código: TA CO-RE-6', tableStartX + 2, startY + 11.5);
-    doc.text('Versión: 19', col1 + 2, startY + 11.5);
-    doc.text('Fecha de Emisión: junio 01-26', col2 + 5, startY + 11.5);
+    doc.text(`Código: ${FORMATO_ENTREGA_TU_ALIANZA.codigo}`, tableStartX + 2, startY + 11.5);
+    doc.text(`Versión: ${FORMATO_ENTREGA_TU_ALIANZA.version}`, col1 + 2, startY + 11.5);
+    doc.text(`Fecha de Emisión: ${FORMATO_ENTREGA_TU_ALIANZA.fechaEmision}`, col2 + 5, startY + 11.5);
     doc.text('Página: 1 de 1', col3 + 6, startY + 11.5);
 
     y = startY + headerHeight + 7;
@@ -8218,7 +8224,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       },
       {
         numero: '9)',
-        texto: 'Plan funeral Coorserpark: AUTORIZO la afiliación y descuento VOLUNTARIO al plan, por un valor de $4.095 descontados quincenalmente por Nómina. La afiliación se hace efectiva a partir del primer descuento.'
+        texto: PLAN_FUNERAL
       }
     ];
 
@@ -8459,9 +8465,9 @@ export class GenerateContractingDocumentsComponent implements OnInit {
 
     doc.setFontSize(7);
     doc.setFont('helvetica', 'bold');
-    doc.text('Código: TA CO-RE-6', tableStartX + 2, startY + 11.5);
-    doc.text('Versión: 19', col1 + 2, startY + 11.5);
-    doc.text('Fecha de Emisión: junio 01-26', col2 + 5, startY + 11.5);
+    doc.text(`Código: ${FORMATO_ENTREGA_TU_ALIANZA.codigo}`, tableStartX + 2, startY + 11.5);
+    doc.text(`Versión: ${FORMATO_ENTREGA_TU_ALIANZA.version}`, col1 + 2, startY + 11.5);
+    doc.text(`Fecha de Emisión: ${FORMATO_ENTREGA_TU_ALIANZA.fechaEmision}`, col2 + 5, startY + 11.5);
     doc.text('Página: 1 de 1', col3 + 6, startY + 11.5);
 
     y = startY + headerHeight + 7;
@@ -8616,7 +8622,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       },
       {
         numero: '9)',
-        texto: 'Plan funeral Coorserpark: AUTORIZO la afiliación y descuento VOLUNTARIO al plan, por un valor de $4.095 descontados quincenalmente por Nómina. La afiliación se hace efectiva a partir del primer descuento.'
+        texto: PLAN_FUNERAL
       }
     ];
 
@@ -8859,9 +8865,9 @@ export class GenerateContractingDocumentsComponent implements OnInit {
 
     doc.setFontSize(7);
     doc.setFont('helvetica', 'bold');
-    doc.text('Código: TA CO-RE-6', tableStartX + 2, startY + 11.5);
-    doc.text('Versión: 19', col1 + 2, startY + 11.5);
-    doc.text('Fecha de Emisión: junio 01-26', col2 + 5, startY + 11.5);
+    doc.text(`Código: ${FORMATO_ENTREGA_TU_ALIANZA.codigo}`, tableStartX + 2, startY + 11.5);
+    doc.text(`Versión: ${FORMATO_ENTREGA_TU_ALIANZA.version}`, col1 + 2, startY + 11.5);
+    doc.text(`Fecha de Emisión: ${FORMATO_ENTREGA_TU_ALIANZA.fechaEmision}`, col2 + 5, startY + 11.5);
     doc.text('Página: 1 de 1', col3 + 6, startY + 11.5);
 
     y = startY + headerHeight + 5;
@@ -9052,7 +9058,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       },
       {
         numero: '9)',
-        texto: 'Plan funeral Coorserpark: AUTORIZO la afiliación y descuento VOLUNTARIO al plan, por un valor de $4.095 descontados quincenalmente por Nómina. La afiliación se hace efectiva a partir del primer descuento.'
+        texto: PLAN_FUNERAL
       }
     ];
 
