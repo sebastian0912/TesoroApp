@@ -588,7 +588,21 @@ export class HiringReportComponent implements OnInit, OnDestroy {
           this.router.navigate(['/dashboard/hiring/hiring-report']);
         });
       } else {
-        Swal.fire('Enviado', 'Reporte enviado correctamente', 'success').then(() => {
+        // El reporte ya quedo guardado con su Excel adjunto. Ahora se baja el
+        // contenido del cruce a la base: hasta aqui el Excel solo se validaba y
+        // se archivaba como documento, y ninguna fila llegaba a
+        // procesoContratacion -- por eso los codigos de contrato del informe no
+        // existian en produccion.
+        let resumen = '';
+        if (checks.contratosHoy === 'si' && this.datoscruced.length) {
+          resumen = await this.guardarCruceEnBase();
+        }
+
+        Swal.fire({
+          icon: 'success',
+          title: 'Enviado',
+          html: 'Reporte enviado correctamente.' + resumen,
+        }).then(() => {
           this.router.navigate(['/dashboard/hiring/hiring-report']);
         });
       }
@@ -617,6 +631,64 @@ export class HiringReportComponent implements OnInit, OnDestroy {
           `Si ves este mensaje varias veces, toma una captura y envíala a soporte.</small>`,
       });
     }
+  }
+
+  /**
+   * Baja las filas ya validadas del cruce a la base de datos.
+   *
+   * Se llama DESPUES de crear el reporte, a proposito: si el guardado masivo
+   * falla, el reporte y su Excel ya quedaron a salvo y se puede reintentar.
+   * Nunca lanza -- devuelve un resumen en HTML para el Swal final.
+   */
+  private async guardarCruceEnBase(): Promise<string> {
+    const BATCH = 500;
+    const rows = this.datoscruced;
+    const chunks = Math.ceil(rows.length / BATCH);
+
+    let creados = 0, actualizados = 0;
+    const omitidos: any[] = [], errores: any[] = [], conflictos: any[] = [];
+    let lotesFallidos = 0;
+
+    Swal.fire({ title: 'Guardando contratación...', didOpen: () => Swal.showLoading() });
+
+    // Secuencial: son escrituras, no conviene que tres lotes toquen las mismas
+    // filas a la vez.
+    for (let i = 0; i < chunks; i++) {
+      this.updateSwalProgress(`Guardando lote ${i + 1} de ${chunks}...`, i + 1, chunks);
+      const chunk = rows.slice(i * BATCH, (i + 1) * BATCH);
+      try {
+        const res: any = await this.hiringService.subirContratacion(chunk);
+        creados += res?.creados ?? 0;
+        actualizados += res?.actualizados ?? 0;
+        if (Array.isArray(res?.omitidos)) omitidos.push(...res.omitidos);
+        if (Array.isArray(res?.errores)) errores.push(...res.errores);
+        if (Array.isArray(res?.conflictos)) conflictos.push(...res.conflictos);
+      } catch (e) {
+        lotesFallidos++;
+        console.error(`[guardarCruceEnBase] lote ${i + 1}/${chunks} falló:`, e);
+      }
+    }
+    this.closeSwal();
+
+    const problemas = [...omitidos, ...errores].map(x => ({
+      cedula: x.cedula || 'SIN_CEDULA',
+      error: `Fila ${x.fila}: ${x.motivo || x.error}`,
+    }));
+    if (problemas.length) {
+      void this.saveErrorsSilently(problemas, 'Cruce Diario - Guardado en base');
+    }
+
+    const guardados = creados + actualizados;
+    let html = `<br><br><b>Contratación guardada:</b> ${guardados} de ${rows.length} `
+      + `(${creados} nuevas, ${actualizados} actualizadas).`;
+    if (omitidos.length) html += `<br><span style="color:#b45309;">${omitidos.length} fila(s) sin cédula o sin código, no se guardaron.</span>`;
+    if (errores.length) html += `<br><span style="color:#b91c1c;">${errores.length} fila(s) con error.</span>`;
+    if (lotesFallidos) html += `<br><span style="color:#b91c1c;">${lotesFallidos} lote(s) no se pudieron enviar. Vuelve a enviar el reporte para reintentar.</span>`;
+    if (conflictos.length) {
+      html += `<br><span style="color:#b45309;">${conflictos.length} código(s) de contrato ya existían a nombre de otra cédula `
+        + `(ej. ${conflictos[0].codigo_contrato} → ${conflictos[0].ya_usado_por?.[0]}). Se guardaron igual; revísalos.</span>`;
+    }
+    return html;
   }
 
   async validarTodo() {
@@ -839,9 +911,18 @@ export class HiringReportComponent implements OnInit, OnDestroy {
     return true;
   }
 
+  /**
+   * Ancho minimo de una fila del cruce.
+   *
+   * El backend (`subidadeusuariosarchivoexcel`) mapea hasta el indice 194, y
+   * `sheet_to_json` recorta las celdas vacias del final de cada fila. Rellenar
+   * solo a 56 dejaba filas cortas que el backend descartaba en silencio.
+   */
+  private static readonly CRUCE_MIN_COLS = 195;
+
   private normalizeRow(row: any[]): string[] {
     const safe = row.map(c => (c === null || c === undefined) ? '-' : String(c).trim());
-    while (safe.length < 56) safe.push('-');
+    while (safe.length < HiringReportComponent.CRUCE_MIN_COLS) safe.push('-');
 
     // Sanitize Critical Columns
     // Col 1 = Cedula, Col 11 = NIT (Indices 1 and 11)
