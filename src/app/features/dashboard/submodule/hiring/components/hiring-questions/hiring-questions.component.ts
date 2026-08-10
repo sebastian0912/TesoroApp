@@ -754,6 +754,7 @@ export class HiringQuestionsComponent implements OnInit {
 
       const empresa = campo(fila, 'Empresa ', 'Empresa', 'empresa');
       const centroCosto = campo(fila, 'Centro de costo', 'centro_de_costo');
+      const temporal = campo(fila, 'Temporal', 'temporal');
 
       poner('empresaGrupoElite', empresa);
       poner('ciudadLabor', campo(fila, 'Ciudad', 'ciudad'));
@@ -769,11 +770,20 @@ export class HiringQuestionsComponent implements OnInit {
 
       this.ccostosAutollenado = cc.toUpperCase();
 
-      // Cambiar de finca puede cambiar la empresa usuaria, y con ella el juego
-      // de labores (Elite Blu tiene el suyo), así que la obra se repropone.
-      if (cambioDeFinca && empresa) {
-        this.empresaVacante = empresa;
-        this.datosObraForm.get('empresaUsuaria')?.setValue(empresa);
+      // Cambiar de finca puede cambiar la empresa usuaria Y la temporal, y con
+      // ellas el juego de labores (Apoyo, Elite Blu y Tu Alianza tienen hojas
+      // distintas), así que la obra se repropone.
+      //
+      // La temporal hay que releerla del maestro, no dejar la de la vacante:
+      // hay fincas con el mismo nombre en las dos temporales (SAN CARLOS está
+      // en Apoyo y en Tu Alianza) y sin esto la obra seguía saliendo de la hoja
+      // de la finca anterior.
+      if (cambioDeFinca && (empresa || temporal)) {
+        if (empresa) {
+          this.empresaVacante = empresa;
+          this.datosObraForm.get('empresaUsuaria')?.setValue(empresa);
+        }
+        if (temporal) this.temporalVacante = temporal;
         this.sugerirDescripcionObra();
       }
     } catch (e) {
@@ -1594,7 +1604,10 @@ export class HiringQuestionsComponent implements OnInit {
       operacion: contr?.operacion ?? null,
       horasExtras: contr?.horas_extras ?? false,
       salario: proc?.vacante_salario != null ? toNum(proc.vacante_salario) : null,
-      auxilioTransporte: 'No',
+      // Vacío, NO 'No': el auxilio lo dice la vacante y se parchea abajo. Con
+      // 'No' fijo, un proceso sin publicación —o una vacante que no se pudo
+      // traer— mostraba "sin auxilio" como si fuera un dato del contrato.
+      auxilioTransporte: null,
       fechaIngreso: contr?.fecha_ingreso ?? null,
       fechaContrato: contr?.fecha_contrato ?? null,
     });

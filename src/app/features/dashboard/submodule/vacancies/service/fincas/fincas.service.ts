@@ -21,6 +21,21 @@ export interface FincaItem {
   empresa: string;
   direccion: string;
   temporal: string;
+
+  /**
+   * Pago y transporte de la finca, tal como los tiene el maestro de centros de
+   * costo. Llegan en `null` cuando NO valen lo mismo en todos los subcentros de
+   * esa finca: ahí no hay un valor que se pueda dar por bueno y lo digita quien
+   * publica la vacante.
+   *
+   * Importan porque el mismo nombre en dos razones sociales es otro sitio y
+   * otro pago: SAN CARLOS de Apoyo y SAN CARLOS de Tu Alianza no comparten ni
+   * salario ni auxilio.
+   */
+  salario?: number | null;
+  auxilio_transporte?: boolean | null;
+  ruta?: boolean | null;
+  valor_transporte?: number | null;
 }
 
 /** Etiqueta a mostrar; cae al nombre si el backend aún no manda `label`. */
@@ -89,19 +104,39 @@ export class FincasService {
   }
 
   /**
+   * TODAS las fincas del maestro que se llaman así (case-insensitive).
+   *
+   * Cruza primero contra `label` —que es único— y solo si eso no da nada contra
+   * `finca`, para que escribir el nombre a mano siga funcionando.
+   *
+   * Devuelve varias cuando el nombre existe en más de una razón social
+   * ("SAN CARLOS" a secas son dos sitios). Quien llama tiene que decidir cuál
+   * es: entre las dos cambia la empresa, la dirección, la temporal —y con ella
+   * la hoja de labores— y el pago; quedarse con la primera llenaba la vacante
+   * con los datos del sitio equivocado.
+   */
+  buscarFincasPorNombre(nombre: string): Observable<FincaItem[]> {
+    const q = (nombre || '').trim().toLowerCase();
+    if (!q) return of([]);
+    return this.listFincas(nombre).pipe(
+      map((items: FincaItem[]) => {
+        const porLabel = items.filter(i => etiquetaFinca(i).toLowerCase() === q);
+        return porLabel.length
+          ? porLabel
+          : items.filter(i => (i.finca || '').trim().toLowerCase() === q);
+      })
+    );
+  }
+
+  /**
    * Busca una finca por lo que se ve en el autocomplete (case-insensitive).
    *
-   * Cruza primero contra `label` —que es único— y solo después contra `finca`,
-   * para que escribir el nombre a mano siga funcionando cuando no hay ambigüedad.
+   * Con un nombre ambiguo devuelve `undefined` en vez de una de las dos: ver
+   * `buscarFincasPorNombre`.
    */
   getFincaByNombre(nombre: string): Observable<FincaItem | undefined> {
-    const q = (nombre || '').trim().toLowerCase();
-    if (!q) return of(undefined);
-    return this.listFincas(nombre).pipe(
-      map((items: FincaItem[]) =>
-        items.find(i => etiquetaFinca(i).toLowerCase() === q)
-        ?? items.find(i => (i.finca || '').trim().toLowerCase() === q)
-      )
+    return this.buscarFincasPorNombre(nombre).pipe(
+      map((items: FincaItem[]) => (items.length === 1 ? items[0] : undefined))
     );
   }
 

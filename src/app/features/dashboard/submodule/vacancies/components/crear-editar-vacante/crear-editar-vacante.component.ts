@@ -1,4 +1,4 @@
-import { FincaItem } from './../../service/fincas/fincas.service';
+import { FincaItem, etiquetaFinca } from './../../service/fincas/fincas.service';
 import { CommonModule } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
 import { COMMA, ENTER } from '@angular/cdk/keycodes';
@@ -190,7 +190,11 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
         personasSolicitadas: [null, [Validators.required, Validators.min(1)]],
         municipiosDistribucion: this.fb.array<DistMunGroup>([]),
 
-        auxilioTransporte: [0, [Validators.required]],
+        // Arranca VACIO y no en 0: con 0 `Validators.required` pasaba (0 no es
+        // "vacío" para Angular), el select se veía en blanco sin marca de error
+        // y el faltante solo salía al guardar, en el Swal de "faltan campos".
+        // Se llena solo desde el maestro al elegir la finca.
+        auxilioTransporte: ['', [Validators.required]],
         area: ['', Validators.required],
 
         // Oficinas
@@ -327,6 +331,10 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
     // `pruebaOContratacion` entra porque al cambiarlo se limpia la fecha que se
     // estaba usando, y `fechadePruebatecnica` porque es la que se conoce al
     // publicar: ponerla tiene que corregir la descripción en el momento.
+    // `finca` y `empresaUsuariaSolicita` entran porque también mandan: la
+    // finca por las áreas fijas (LAS DELICIAS) y la empresa porque Elite Blu
+    // tiene su propia hoja de labores aunque sea de Apoyo. Las dos se pueden
+    // editar a mano después de que el maestro las llenó.
     const disparan = [
       'cargo',
       'fechadeIngreso',
@@ -334,6 +342,8 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
       'fechaPublicado',
       'temporal',
       'pruebaOContratacion',
+      'finca',
+      'empresaUsuariaSolicita',
     ];
     for (const campo of disparan) {
       this.vacanteForm
@@ -345,7 +355,8 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
     this.sugerirDescripcion();
   }
 
-  ngOnDestroy(): void {  }
+  ngOnDestroy(): void {
+  }
 
   // ---------- Validaciones condicionales ----------
   /**
@@ -604,7 +615,7 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
       ubicacionPruebaTecnica: v?.ubicacionPruebaTecnica ?? '',
       tipoContratacion: v?.tipoContratacion ?? '',
       municipio: Array.isArray(v?.municipio) ? v.municipio : [],
-      auxilioTransporte: v?.auxilioTransporte ?? 0,
+      auxilioTransporte: v?.auxilioTransporte ?? '',
       personasSolicitadas: v?.personasSolicitadas ?? null,
     });
 
@@ -682,7 +693,15 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * Trae empresa, dirección y temporal del maestro para la finca dada.
+   * Nombres entre los que hay que escoger cuando la finca escrita es ambigua.
+   * Vacío = no hay ambigüedad pendiente. Lo lee la plantilla para decir cuáles
+   * son las opciones sin que el usuario tenga que adivinar.
+   */
+  fincaAmbiguaOpciones: string[] = [];
+
+  /**
+   * Trae del maestro empresa, dirección, temporal, salario y auxilio de
+   * transporte de la finca dada.
    *
    * Se llama tanto al elegir del desplegable como al salir del campo escrito a
    * mano: el input es un autocomplete libre, así que se puede teclear el nombre
@@ -694,10 +713,13 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
     if (!q || q.toUpperCase() === this.fincaAplicada) return;
 
     this.fincasService
-      .getFincaByNombre(q)
-      .pipe(catchError(() => of(undefined)))
-      .subscribe((finca: FincaItem | undefined) => {
-        if (!finca) return;
+      .buscarFincasPorNombre(q)
+      .pipe(catchError(() => of([] as FincaItem[])))
+      .subscribe((coincidencias: FincaItem[]) => {
+        if (!coincidencias.length) return;
+
+        const finca = this.escogerFinca(coincidencias);
+        if (!finca) return; // ambigua: `escogerFinca` ya dejó el aviso puesto
 
         // El autocomplete muestra el nombre desambiguado ("SAN CARLOS (FLORES
         // IPANEMA S.A.S)") pero en la vacante se guarda el nombre limpio: es la
@@ -706,17 +728,90 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
         const limpio = (finca.finca ?? '').trim();
         this.fincaAplicada = (limpio || q).toUpperCase();
 
-        this.vacanteForm.patchValue({
+        const patch: Record<string, unknown> = {
           finca: limpio || q,
           empresaUsuariaSolicita: finca.empresa ?? null,
           direccion: finca.direccion ?? null,
           temporal: this.canonicalTemporal(finca.temporal),
-        });
+        };
+
+        // Pago y transporte son datos DE LA FINCA, no algo que quien publica
+        // tenga que recordar: el maestro ya los tiene y son distintos entre la
+        // finca de Apoyo y la homónima de Tu Alianza. Solo entran cuando el
+        // maestro los da sin ambigüedad (mismo valor en todos los subcentros);
+        // si difieren llega `null` y se deja lo que haya para digitarlo.
+        if (finca.salario != null && Number(finca.salario) > 0) {
+          patch['salario'] = Number(finca.salario);
+        }
+        if (finca.auxilio_transporte != null) {
+          patch['auxilioTransporte'] = finca.auxilio_transporte ? 'Si' : 'No';
+        }
+
+        this.vacanteForm.patchValue(patch);
 
         // La temporal del maestro es la que decide de qué hoja sale la labor,
         // así que la descripción se recalcula después de tenerla.
         this.sugerirDescripcion();
       });
+  }
+
+  /**
+   * Decide cuál de las fincas homónimas aplicar, o ninguna.
+   *
+   * Con un solo resultado no hay nada que decidir. Cuando el nombre existe en
+   * varias razones sociales —SAN CARLOS está en Apoyo (The Elite Flower) y en
+   * Tu Alianza (Flores Ipanema), y son sitios distintos— primero se intenta con
+   * la empresa que ya tenga la vacante; si eso no la deja en una sola, NO se
+   * escoge: entre las dos cambia la dirección, la temporal (y con ella la hoja
+   * de labores de la que sale la descripción) y el pago, así que tomar la
+   * primera llenaba la vacante con los datos del sitio equivocado sin avisar.
+   *
+   * El error `fincaAmbigua` deja el formulario inválido a propósito: es lo que
+   * evita guardar una vacante con la temporal de la otra finca. Se limpia solo,
+   * porque al escribir en el campo Angular vuelve a correr los validadores.
+   */
+  private escogerFinca(coincidencias: FincaItem[]): FincaItem | null {
+    const fincaCtrl = this.vacanteForm.get('finca')!;
+
+    const aceptar = (f: FincaItem): FincaItem => {
+      this.fincaAmbiguaOpciones = [];
+      this.limpiarError(fincaCtrl, 'fincaAmbigua');
+      return f;
+    };
+
+    if (coincidencias.length === 1) return aceptar(coincidencias[0]);
+
+    const empresa = this.normalizarNombre(this.vacanteForm.get('empresaUsuariaSolicita')?.value);
+    const porEmpresa = empresa
+      ? coincidencias.filter((i) => this.normalizarNombre(i.empresa) === empresa)
+      : [];
+    if (porEmpresa.length === 1) return aceptar(porEmpresa[0]);
+
+    this.fincaAmbiguaOpciones = coincidencias.map(etiquetaFinca).filter(Boolean);
+    this.ponerError(fincaCtrl, 'fincaAmbigua');
+    return null;
+  }
+
+  /** Mayúsculas sin acentos ni espacios de sobra, para comparar nombres. */
+  private normalizarNombre(v: unknown): string {
+    return String(v ?? '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toUpperCase()
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  /** Agrega un error propio sin borrar los nativos (`required`). */
+  private ponerError(ctrl: AbstractControl, clave: string): void {
+    ctrl.setErrors({ ...(ctrl.errors || {}), [clave]: true });
+  }
+
+  /** Quita un error propio dejando los nativos como estén. */
+  private limpiarError(ctrl: AbstractControl, clave: string): void {
+    if (!ctrl.errors || !ctrl.errors[clave]) return;
+    const { [clave]: _, ...resto } = ctrl.errors;
+    ctrl.setErrors(Object.keys(resto).length ? resto : null);
   }
 
   /** Al salir del campo de finca escrito a mano. */

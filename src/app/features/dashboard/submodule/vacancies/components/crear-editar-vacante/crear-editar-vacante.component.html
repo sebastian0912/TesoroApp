@@ -64,6 +64,18 @@
           El centro de costo es obligatorio.
         </mat-error>
       }
+      <!-- Hay nombres de finca que existen en las dos temporales y son sitios
+           distintos (SAN CARLOS). Se pide elegir la opción con la empresa entre
+           paréntesis en vez de escoger una: cambia empresa, dirección, temporal
+           y pago. -->
+      @if (vacanteForm.get('finca')?.hasError('fincaAmbigua')) {
+        <mat-error>
+          Ese nombre existe en más de una empresa. Elige del listado: {{ fincaAmbiguaOpciones.join(' · ') }}
+        </mat-error>
+      }
+      @if (!vacanteForm.get('finca')?.hasError('fincaAmbigua')) {
+        <mat-hint>Al elegirlo se llenan empresa, dirección, temporal, salario y auxilio.</mat-hint>
+      }
     </mat-form-field>
 
     <mat-form-field [ngClass]="{'input-obligatorio': isRequired('direccion')}">
@@ -132,6 +144,7 @@
             Ingrese un valor mayor o igual a 0.
           </mat-error>
         }
+        <mat-hint>Viene del centro de costo. Puede modificarlo.</mat-hint>
       </mat-form-field>
 
       <!-- ===================== Fecha de ingreso (solo Contratación inmediata) =====================
@@ -163,6 +176,9 @@
           <mat-error>
             Indique si incluye auxilio de transporte.
           </mat-error>
+        }
+        @if (!vacanteForm.get('auxilioTransporte')?.hasError('required')) {
+          <mat-hint>Viene del centro de costo. Puede modificarlo.</mat-hint>
         }
       </mat-form-field>
 
