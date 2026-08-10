@@ -219,7 +219,7 @@ function labelValue(doc: jsPDF, label: string, value: string, x: number, y: numb
 // ────────────────────────────────────────────────────────────────
 
 export function buildCartaDescuentoFlorPdf(ctx: CartaTuAlianzaCtx): Blob {
-  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'letter' });
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'letter', compress: true });
   doc.setProperties({ title: `CARTA_DESCUENTO_FLOR_${ctx.cedula}.pdf` });
 
   const pageW = doc.internal.pageSize.getWidth();
@@ -306,7 +306,7 @@ export function buildCartaDescuentoFlorPdf(ctx: CartaTuAlianzaCtx): Blob {
 // ────────────────────────────────────────────────────────────────
 
 export function buildFormatoTimbrePdf(ctx: CartaTuAlianzaCtx): Blob {
-  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'letter' });
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'letter', compress: true });
   doc.setProperties({ title: `FORMATO_TIMBRE_INGRESO_SALIDA_${ctx.cedula}.pdf` });
 
   const pageW = doc.internal.pageSize.getWidth();
@@ -411,7 +411,7 @@ export function buildFormatoTimbrePdf(ctx: CartaTuAlianzaCtx): Blob {
 // ────────────────────────────────────────────────────────────────
 
 export function buildCartaAutorizacionCorreoPdf(ctx: CartaTuAlianzaCtx): Blob {
-  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'letter' });
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'letter', compress: true });
   doc.setProperties({ title: `AUTORIZACION_NOTIFICACION_ELECTRONICA_${ctx.cedula}.pdf` });
 
   const pageW = doc.internal.pageSize.getWidth();

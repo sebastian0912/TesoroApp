@@ -90,7 +90,7 @@ const v = (mm: number) => mm * ESC_Y;
 const fz = (pt: number) => pt * ESC_TEXTO;
 
 export function buildRemisionPdf(d: DatosRemision): Blob {
-  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: PAGINA });
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: PAGINA, compress: true });
   const W = doc.internal.pageSize.getWidth();
   const mL = 12;
   const mR = W - 12;

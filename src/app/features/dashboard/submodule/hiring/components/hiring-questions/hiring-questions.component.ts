@@ -1957,7 +1957,7 @@ export class HiringQuestionsComponent implements OnInit {
 
     const { jsPDF } = await import('jspdf');
     const { default: autoTable } = await import('jspdf-autotable');
-    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'letter' });
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'letter', compress: true });
     const empresaNombre = 'APOYO LABORAL T.S. S.A.S.';
     doc.setProperties({ title: 'Entrega_Documentos.pdf', author: empresaNombre, creator: empresaNombre });
 

@@ -40,7 +40,7 @@ const val = (v: unknown, largo = 28) => {
 };
 
 export function buildCartaReferenciaPdf(d: DatosCartaReferencia): Blob {
-  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'letter' });
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'letter', compress: true });
   const pageW = doc.internal.pageSize.getWidth();
   const pageH = doc.internal.pageSize.getHeight();
   const mL = 25;

@@ -2453,7 +2453,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
   // --- Entrevista de Ingreso ---
   async generarSagaroLockers() {
     try {
-      const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'letter' });
+      const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'letter', compress: true });
       const pageWidth = doc.internal.pageSize.getWidth();
       const marginLeft = 20;
       const marginRigth = 20;
@@ -2605,7 +2605,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
 
   async generarSagaroCelular() {
     try {
-      const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'letter' });
+      const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'letter', compress: true });
       const pageWidth = doc.internal.pageSize.getWidth();
       const marginLeft = 20;
       const marginRigth = 20;
@@ -2880,7 +2880,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       const observaciones = String(evalCand.observaciones ?? 'SIN OBSERVACIONES').substring(0, 300);
 
       // --- Setup del Documento ---
-      const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'letter' });
+      const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'letter', compress: true });
       doc.setProperties({ title: `ENTREVISTA_INGRESO_TU_ALIANZA_${numIdentificacion}.pdf` });
       const pageWidth = doc.internal.pageSize.getWidth();
       const mLeft = 14;
@@ -3165,7 +3165,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       const opcionesFecha: Intl.DateTimeFormatOptions = { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' };
       const fechaFirmaTexto = fechaActual.toLocaleDateString('es-CO', opcionesFecha);
 
-      const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'letter' });
+      const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'letter', compress: true });
       doc.setProperties({ title: `MANEJO_IMAGEN_${nombreTrabajador}.pdf`, author: 'Tu Alianza SAS / Apoyo Laboral' });
 
       const pageWidth = doc.internal.pageSize.getWidth();
@@ -3508,7 +3508,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       }
       cargoTrabajador = String(cargoTrabajador).toUpperCase();
 
-      const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'letter' });
+      const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'letter', compress: true });
       doc.setProperties({ title: `109_SAGARO_IMAGEN_${nombreTrabajador}.pdf` });
 
       const pageWidth = doc.internal.pageSize.getWidth();
@@ -3750,7 +3750,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     const nit = esApoyo ? 'NIT: 900.814.587-1' : 'NIT: 900.864.596-1';
 
     // Documento
-    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'letter' });
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'letter', compress: true });
     doc.setProperties({
       title: `${empresaSeleccionada}_Autorizacion_Datos.pdf`,
       author: empresaSeleccionada,
@@ -4599,7 +4599,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     };
 
     // ───────── PDF base y layout ─────────
-    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'letter' });
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'letter', compress: true });
     doc.setProperties({
       title: 'Apoyo_Laboral_Entrega_Documentos.pdf',
       author: this.empresa,
@@ -5039,7 +5039,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     };
 
     // ───────── PDF base y layout ─────────
-    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'letter' });
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'letter', compress: true });
     doc.setProperties({
       title: 'Apoyo_Laboral_Entrega_Documentos.pdf',
       author: this.empresa,
@@ -5490,7 +5490,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     };
 
     // ───────── PDF base y layout ─────────
-    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'letter' });
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'letter', compress: true });
     doc.setProperties({
       title: 'Apoyo_Laboral_Entrega_Documentos.pdf',
       author: this.empresa,
@@ -5938,7 +5938,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     };
 
     // ───────── PDF base y layout ─────────
-    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'letter' });
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'letter', compress: true });
     doc.setProperties({
       title: 'Tu_Alianza_Entrega_Documentos_Sagaro.pdf',
       author: this.empresa,
@@ -6366,7 +6366,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     };
 
     // ───────── PDF base y layout ─────────
-    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'letter' });
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'letter', compress: true });
     doc.setProperties({
       title: 'Tu_Alianza_Entrega_Documentos_Flores_Andes.pdf',
       author: this.empresa,
@@ -6793,7 +6793,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     };
 
     // ───────── PDF base y layout ─────────
-    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'letter' });
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'letter', compress: true });
     doc.setProperties({
       title: 'Tu_Alianza_Entrega_Documentos_Ipanema.pdf',
       author: this.empresa,
@@ -7223,7 +7223,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     };
 
     // ───────── PDF base y layout ─────────
-    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'letter' });
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'letter', compress: true });
     doc.setProperties({
       title: 'Tu_Alianza_Entrega_Documentos_Ipanema_Foraneos.pdf',
       author: this.empresa,
@@ -7649,7 +7649,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     };
 
     // ───────── PDF base y layout ─────────
-    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'letter' });
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'letter', compress: true });
     doc.setProperties({
       title: 'Tu_Alianza_Entrega_documentos_Administrativos.pdf',
       author: this.empresa,
@@ -8009,7 +8009,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     };
 
     // ───────── PDF base y layout ─────────
-    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'letter' });
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'letter', compress: true });
     doc.setProperties({
       title: 'Tu_Alianza_Entrega_documentos_Rebano.pdf',
       author: this.empresa,
@@ -8409,7 +8409,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     };
 
     // ───────── PDF base y layout ─────────
-    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'letter' });
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'letter', compress: true });
     doc.setProperties({
       title: 'Tu_Alianza_Entrega_documentos_Melody.pdf',
       author: this.empresa,
@@ -8809,7 +8809,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     };
 
     // ───────── PDF base y layout ─────────
-    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'letter' });
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'letter', compress: true });
     doc.setProperties({
       title: 'Tu_Alianza_Entrega_documentos_Sin_Casino.pdf',
       author: this.empresa,
@@ -9246,6 +9246,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       orientation: 'portrait',
       unit: 'mm',
       format: 'letter',
+      compress: true,
     });
 
     doc.setProperties({
@@ -9900,6 +9901,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       orientation: 'portrait',
       unit: 'mm',
       format: 'letter',
+      compress: true,
     });
 
     doc.setProperties({
@@ -10515,6 +10517,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       orientation: 'portrait',
       unit: 'mm',
       format: 'letter',
+      compress: true,
     });
 
     doc.setProperties({
@@ -13144,7 +13147,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       const mes = mesesEs[hoy.getMonth()];
       const anio = hoy.getFullYear();
 
-      const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'letter' });
+      const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'letter', compress: true });
       doc.setProperties({ title: `CONTRATOS_OTROS_SI_${cedula}.pdf` });
 
       const pageW = doc.internal.pageSize.getWidth();   // ~215.9
@@ -13413,7 +13416,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       const mes = mesesEs[f.getMonth()];
       const anio = f.getFullYear();
 
-      const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'letter' });
+      const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'letter', compress: true });
       doc.setProperties({ title: `OTRO_SI_JORNADA_${cedula}.pdf` });
 
       const pageW = doc.internal.pageSize.getWidth();
@@ -13603,7 +13606,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       const mes = mesesEs[fecha.getMonth()];
       const anio = fecha.getFullYear();
 
-      const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'letter' });
+      const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'letter', compress: true });
       doc.setProperties({ title: `OTRO_SI_SAGARO_FUMIGADOR_${cedula}.pdf` });
 
       const pageW = doc.internal.pageSize.getWidth();   // ~215.9
@@ -13896,7 +13899,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       const mes = mesesEs[hoy.getMonth()];
       const anio = hoy.getFullYear();
 
-      const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'letter' });
+      const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'letter', compress: true });
       doc.setProperties({ title: `AUXILIO_ALIMENTACION_${cedula}.pdf` });
 
       const pageW = doc.internal.pageSize.getWidth();
@@ -14143,7 +14146,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       const mes = mesesEs[hoy.getMonth()];
       const anio = hoy.getFullYear();
 
-      const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'letter' });
+      const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'letter', compress: true });
       doc.setProperties({ title: `AUTORIZACION_DANOS_PERDIDAS_${cedula}.pdf` });
 
       const pageW = doc.internal.pageSize.getWidth();

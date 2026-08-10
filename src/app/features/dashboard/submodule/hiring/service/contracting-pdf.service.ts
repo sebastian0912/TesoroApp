@@ -64,7 +64,7 @@ export class ContractingPdfService {
             return null;
         }
 
-        const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'letter' });
+        const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'letter', compress: true });
         doc.setProperties({
             title: `${empresaSeleccionada}_Autorizacion_Datos.pdf`,
             author: empresaSeleccionada,
@@ -211,7 +211,7 @@ export class ContractingPdfService {
         const empresa = 'APOYO LABORAL TS S.A.S';
 
         // Layout
-        const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'letter' });
+        const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'letter', compress: true });
         doc.setProperties({ title: 'Apoyo_Laboral_Entrega_Documentos.pdf', author: empresa, creator: empresa });
 
         const pageWidth = doc.internal.pageSize.getWidth();
@@ -613,7 +613,7 @@ export class ContractingPdfService {
             return null;
         }
 
-        const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'letter' });
+        const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'letter', compress: true });
         const pageWidth = doc.internal.pageSize.getWidth();
         const pageHeight = doc.internal.pageSize.getHeight();
         const leftMargin = 10;

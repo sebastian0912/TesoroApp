@@ -442,7 +442,7 @@ export class AutorizacionesService {
   // ============================================
 
   public async generatePdf(datos: any, valor: number, nuevovalor: string, formaPago: any, celular: any, codigoOH: string, cuotas: string, concepto: string, nombre: string): Promise<void> {
-    const docPdf = new jsPDF({ format: 'letter' });
+    const docPdf = new jsPDF({ format: 'letter', compress: true });
     const margin = 12;
     const pageWidth = docPdf.internal.pageSize.getWidth();
     const usableWidth = pageWidth - 2 * margin;

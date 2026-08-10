@@ -774,7 +774,7 @@ export function buildContratoAdministrativoPdf(
     );
   }
 
-  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'letter' });
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'letter', compress: true });
   doc.setProperties({
     title: 'Contrato_Trabajo_Administrativo.pdf',
     creator: cfg.razonSocial,

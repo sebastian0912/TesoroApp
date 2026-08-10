@@ -295,7 +295,7 @@ export function buildCarnetApoyoLotePdf(
 ): Blob {
   const gente = (lista ?? []).filter(Boolean);
   const cfg = normalizarImpresion(impresion);
-  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'letter' });
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'letter', compress: true });
   doc.setProperties({ title: `Carnets_lote_${gente.length}` });
 
   const hojas = Math.max(1, Math.ceil(gente.length / CARNETS_POR_HOJA));
@@ -345,7 +345,7 @@ export function buildCarnetApoyoPdf(
   d: DatosCarnet, posicion = 0, impresion?: Partial<ConfigImpresionCarnet> | null,
 ): Blob {
   const cfg = normalizarImpresion(impresion);
-  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'letter' });
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'letter', compress: true });
   doc.setProperties({ title: `Carnet_${d.cedula}` });
 
   const celda = Math.min(Math.max(Math.trunc(posicion) || 0, 0), CARNETS_POR_HOJA - 1);
