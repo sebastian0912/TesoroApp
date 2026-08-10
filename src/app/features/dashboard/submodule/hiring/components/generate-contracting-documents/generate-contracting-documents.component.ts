@@ -5410,7 +5410,8 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     doc.text('ACEPTO CAMBIO SIN PREVIO AVISO YA QUE HE SIDO INFORMADO (A) :', marginLeft, y);
     doc.setFont('helvetica', 'normal');
     // Igual que el casino: en blanco, lo marca el trabajador.
-    doc.text('SI (     )', 170, y);
+    // Siempre SI: el trabajador queda informado del cambio en la inducción.
+    doc.text('SI (  x  )', 170, y);
     doc.text('NO (     )', 190, y);
     y += 4; // advance past ACEPTO line
 
@@ -5857,7 +5858,8 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     doc.setFont('helvetica', 'bold').setFontSize(7.5);
     doc.text('ACEPTO CAMBIO SIN PREVIO AVISO YA QUE HE SIDO INFORMADO (A) :', marginLeft, y);
     doc.setFont('helvetica', 'normal');
-    doc.text('SI (     )', 165, y);
+    // Siempre SI: el trabajador queda informado del cambio en la inducción.
+    doc.text('SI (  x  )', 165, y);
     doc.text('NO (     )', 180, y);
     y += 4; // advance past ACEPTO line
 
@@ -6286,7 +6288,8 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     doc.text('ACEPTO CAMBIO SIN PREVIO AVISO YA QUE HE SIDO INFORMADO (A) :', marginLeft, y);
     doc.setFont('helvetica', 'normal');
     // Igual que el casino: en blanco, lo marca el trabajador.
-    doc.text('SI (     )', 170, y);
+    // Siempre SI: el trabajador queda informado del cambio en la inducción.
+    doc.text('SI (  x  )', 170, y);
     doc.text('NO (     )', 190, y);
     y += 4; // advance past ACEPTO line
 
@@ -6713,7 +6716,8 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     doc.text('ACEPTO CAMBIO SIN PREVIO AVISO YA QUE HE SIDO INFORMADO (A) :', marginLeft, y);
     doc.setFont('helvetica', 'normal');
     // Igual que el casino: en blanco, lo marca el trabajador.
-    doc.text('SI (     )', 170, y);
+    // Siempre SI: el trabajador queda informado del cambio en la inducción.
+    doc.text('SI (  x  )', 170, y);
     doc.text('NO (     )', 190, y);
     y += 4; // advance past ACEPTO line
 
@@ -7143,7 +7147,8 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     doc.text('ACEPTO CAMBIO SIN PREVIO AVISO YA QUE HE SIDO INFORMADO (A) :', marginLeft, y);
     doc.setFont('helvetica', 'normal');
     // Igual que el casino: en blanco, lo marca el trabajador.
-    doc.text('SI (     )', 170, y);
+    // Siempre SI: el trabajador queda informado del cambio en la inducción.
+    doc.text('SI (  x  )', 170, y);
     doc.text('NO (     )', 190, y);
     y += 4; // advance past ACEPTO line
 
@@ -7572,7 +7577,8 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     doc.text('ACEPTO CAMBIO SIN PREVIO AVISO YA QUE HE SIDO INFORMADO (A) :', marginLeft, y);
     doc.setFont('helvetica', 'normal');
     // Igual que el casino: en blanco, lo marca el trabajador.
-    doc.text('SI (     )', 170, y);
+    // Siempre SI: el trabajador queda informado del cambio en la inducción.
+    doc.text('SI (  x  )', 170, y);
     doc.text('NO (     )', 190, y);
     y += 4; // advance past ACEPTO line
 
