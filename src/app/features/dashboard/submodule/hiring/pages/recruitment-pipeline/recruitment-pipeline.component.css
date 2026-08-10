@@ -1200,3 +1200,27 @@ mat-tab-group {
   color: #d97706;
 }
 
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Botón "Cerrar contratación": el único con texto en la toolbar. No hereda
+   el tamaño fijo 40x40 de los icon buttons y se distingue como LA acción de
+   cierre del día (siempre habilitado, no depende del candidato).
+   ───────────────────────────────────────────────────────────────────────── */
+.premium-toolbar button.btn-cerrar-contratacion {
+  width: auto;
+  height: 40px;
+  padding: 0 14px;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  color: #fff;
+}
+
+.premium-toolbar button.btn-cerrar-contratacion:hover {
+  background: linear-gradient(135deg, #3b82f6, #2563eb);
+  color: #fff;
+}

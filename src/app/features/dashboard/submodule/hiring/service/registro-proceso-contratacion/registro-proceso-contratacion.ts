@@ -508,6 +508,27 @@ export class RegistroProcesoContratacion {
     return this.http.post<CandidatoUpsertResponse>(url, payload);
   }
 
+  /**
+   * GET /gestion_contratacion/reporte/contratados-del-dia/?fecha=&oficina=
+   * Cédulas con contrato creado ese día (cierre de contratación).
+   */
+  contratadosDelDia(fecha: string, oficina?: string): Observable<any> {
+    let params = new HttpParams().set('fecha', fecha);
+    if (oficina?.trim()) params = params.set('oficina', oficina.trim());
+    return this.http.get(`${this.base}/reporte/contratados-del-dia/`, { params });
+  }
+
+  /**
+   * POST /gestion_contratacion/reporte/candidatos-excel/
+   * Base del cruce (Excel) armada desde gestion_contratacion para esas cédulas
+   * — la misma lógica de "sacar la base por cédula".
+   */
+  exportarBaseCandidatos(cedulas: string[], persona?: string): Observable<Blob> {
+    return this.http.post(`${this.base}/reporte/candidatos-excel/`,
+      { cedulas, persona: persona || '' },
+      { responseType: 'blob' });
+  }
+
   /** Obtiene el Excel como Blob (con filtro opcional por oficina). */
   getEntrevistasExcel(range: RangoFechas, oficina?: string | string[]): Observable<Blob> {
     const start = this.formatDate(range.start);

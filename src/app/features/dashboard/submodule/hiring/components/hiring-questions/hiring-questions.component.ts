@@ -90,7 +90,7 @@ export class HiringQuestionsComponent implements OnInit {
   referenciasForm!: FormGroup;
   trasladosForm!: FormGroup;
   huellaForm!: FormGroup;
-  /** Datos de obra/empresa para documentos (prellenados desde la vacante, editables). */
+  /** Datos de obra/empresa para documentos (siempre desde la vacante, solo lectura). */
   datosObraForm!: FormGroup;
 
   // ───────── Archivos / tipos ─────────
@@ -1649,14 +1649,16 @@ export class HiringQuestionsComponent implements OnInit {
           auxilioTransporte: auxFromVac,
         });
 
-        // Datos de obra/empresa: si el contrato no los tenía, usar los de la vacante.
+        // Datos de obra/empresa: manda SIEMPRE la vacante (los campos son de
+        // solo lectura en la pestaña); lo guardado en el contrato queda solo
+        // de respaldo para cuando la vacante no trae el dato.
         const obraActual = this.datosObraForm.value;
         const orStr = (x: any) => (x == null ? '' : String(x));
         this.datosObraForm.patchValue({
-          empresaUsuaria: obraActual.empresaUsuaria || orStr(vac?.empresaUsuariaSolicita),
-          centroCosto: obraActual.centroCosto || orStr(vac?.finca),
-          direccion: obraActual.direccion || orStr(vac?.direccion),
-          descripcionObra: obraActual.descripcionObra || orStr(vac?.descripcion),
+          empresaUsuaria: orStr(vac?.empresaUsuariaSolicita) || obraActual.empresaUsuaria,
+          centroCosto: orStr(vac?.finca) || obraActual.centroCosto,
+          direccion: orStr(vac?.direccion) || obraActual.direccion,
+          descripcionObra: orStr(vac?.descripcion) || obraActual.descripcionObra,
         });
 
         this.cargoVacante = String(vac?.cargo ?? '').trim();

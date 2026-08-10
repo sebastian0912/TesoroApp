@@ -454,7 +454,8 @@ export function fillFichaTecnicaPdf(
   setText('CÓDIGOCiudad de Labor', upper(contratoNom.ciudad_labor), 6);
   setText('CÓDIGOClasificador 2Categoría', upper(contratoNom.categoria), 6);
   setText('CÓDIGOClasificador 3Operación', upper(contratoNom.operacion), 6);
-  setText('CÓDIGOClasificador 4Sublador', upper(contratoNom.sublabor), 6);
+  // La sublabor suele ser larga y desborda la caja a 6pt: solo este campo va más pequeño.
+  setText('CÓDIGOClasificador 4Sublador', upper(contratoNom.sublabor), 4.5);
   setText('Apoyo Laboral TSClasificador 6Grupo', upper(contratoNom.grupo), 6);
 
   // Domicilio: ambos campos llevan el municipio de residencia.

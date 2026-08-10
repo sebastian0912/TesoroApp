@@ -2139,6 +2139,18 @@ export class RecruitmentPipelineComponent {
   }
 
   // ───────── Tabla ─────────
+  /**
+   * Cerrar contratación del día: el cierre cubre a TODAS las personas
+   * contratadas HOY. Navega al Reporte de Contratación con `auto=hoy`, que
+   * descarga del sistema la base de contratados del día, la adjunta como
+   * Cruce Diario y dispara la validación automáticamente — el usuario solo
+   * agrega ARL/traslados si aplica, elige sede y envía. No depende del
+   * candidato seleccionado en el pipeline.
+   */
+  irACerrarContratacion(): void {
+    this.router.navigate(['/dashboard/hiring/hiring-report'], { queryParams: { auto: 'hoy' } });
+  }
+
   mostrarTabla(): void {
     const ced = this.candidatoSeleccionado()?.numero_documento || this.numeroDocumento;
     if (!ced) return;

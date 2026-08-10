@@ -9,8 +9,9 @@
  * (snake_case nativo). Si un campo del candidato no existe se deja en blanco;
  * NUNCA lanza error.
  *
- * Las firmas (image embeds en `firma_af_image` y `firma_administrativa`) se
- * manejan fuera de este helper porque dependen de servicios del componente.
+ * Las firmas (2 widgets del mismo /Btn `firma_af_image`: autorización y
+ * trabajador, ambas del candidato) se manejan fuera de este helper porque
+ * dependen de servicios del componente.
  */
 
 import type { PDFForm } from 'pdf-lib';

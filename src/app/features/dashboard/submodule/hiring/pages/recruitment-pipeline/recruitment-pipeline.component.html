@@ -145,6 +145,17 @@
       </div>
 
       <div class="botones premium-toolbar">
+        <!-- Cerrar contratación del día: SIEMPRE visible y habilitado (no
+             depende del candidato seleccionado). Lleva al Reporte de
+             Contratación, donde se cierra el día con TODAS las personas
+             contratadas hoy (cruce, cédulas, ARL, traslados...). -->
+        <button mat-flat-button color="primary" class="btn-cerrar-contratacion"
+          matTooltip="Cerrar la contratación de HOY: reporte con todas las personas contratadas en el día"
+          (click)="irACerrarContratacion()">
+          <mat-icon>done_all</mat-icon>
+          Cerrar contratación
+        </button>
+
         <!-- Estos tres solo dependen de que haya candidato. Van igual envueltos en
              .tt-wrap: deshabilitados no mostraban ningún tooltip y quedaban grises
              sin explicar por qué. -->

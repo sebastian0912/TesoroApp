@@ -1,6 +1,6 @@
 import { Component, OnInit, ChangeDetectionStrategy, ChangeDetectorRef, OnDestroy, NgZone, ApplicationRef, DestroyRef, inject } from '@angular/core';
 import { FormBuilder, FormGroup, Validators, FormControl, ReactiveFormsModule } from '@angular/forms';
-import { Router } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { firstValueFrom, Subject } from 'rxjs';
 import { takeUntil } from 'rxjs/operators';
 import * as XLSX from 'xlsx';
@@ -25,7 +25,11 @@ import {
 
 import { UtilityServiceService } from '@/app/shared/services/utilityService/utility-service.service';
 import { isOfflineQueued } from '@/app/core/utils/offline-response';
+import { environment } from '@/environments/environment';
 import { HiringService } from '../../service/hiring.service';
+import { RegistroProcesoContratacion } from '../../service/registro-proceso-contratacion/registro-proceso-contratacion';
+import { GestionDocumentalService } from '../../service/gestion-documental/gestion-documental.service';
+import { TrasladosService } from '../../../eps-transfers/service/traslados.service';
 import { CruceValidationHelper, CruceRow } from './cruce-validation.helper';
 import { ReportesService } from '../../service/reportes/reportes.service';
 
@@ -123,9 +127,13 @@ export class HiringReportComponent implements OnInit, OnDestroy {
     private readonly fb: FormBuilder,
     private readonly utilityService: UtilityServiceService,
     private readonly hiringService: HiringService,
+    private readonly registroProcesoService: RegistroProcesoContratacion,
+    private readonly gestionDocumentalService: GestionDocumentalService,
+    private readonly trasladosService: TrasladosService,
     private readonly reportesService: ReportesService, // Inyectado
     private readonly dialog: MatDialog,
     private readonly router: Router,
+    private readonly route: ActivatedRoute,
     private readonly cdr: ChangeDetectorRef,
     private readonly zone: NgZone,
     private readonly appRef: ApplicationRef
@@ -133,10 +141,202 @@ export class HiringReportComponent implements OnInit, OnDestroy {
     this.initWorker();
   }
 
+  /** Promesa de `loadSedes()`: la precarga automática necesita las sedes listas. */
+  private sedesReady: Promise<void> = Promise.resolve();
+
   ngOnInit(): void {
     this.initForm();
     this.loadUser();
-    this.loadSedes();
+    this.sedesReady = this.loadSedes();
+
+    // Llegada desde el botón "Cerrar contratación" del pipeline: se precarga
+    // el cierre del día automáticamente (base de contratados de HOY).
+    if (this.route.snapshot.queryParamMap.get('auto') === 'hoy') {
+      void this.precargarCierreDeHoy();
+    }
+  }
+
+  /**
+   * Carga automática del cierre del día (botón "Cerrar contratación" del
+   * pipeline). Deja el reporte listo salvo ARL y SST, que siguen manuales:
+   *
+   *  1. Autoselecciona la SEDE del usuario logueado.
+   *  2. Pide a gestion_contratacion las cédulas con contrato generado HOY en
+   *     ESA oficina (`reporte/contratados-del-dia/`) y arma la base del cruce
+   *     con `reporte/candidatos-excel/` (misma lógica de "sacar la base por
+   *     cédula"); la adjunta como Cruce Diario.
+   *  3. Marca "sí hubo contratación" y "es de hoy".
+   *  4. Trae del sistema la CÉDULA escaneada (gestion_documental, tipo 29) y
+   *     el TRASLADO EPS (traslados.TrasladoDocumento) de cada persona, y los
+   *     adjunta con el nombre que exige la validación (CEDULA-Nombre.pdf /
+   *     CEDULA-EPS.pdf).
+   *  5. Dispara la MISMA validación del flujo manual (frontend + backend +
+   *     diálogos de corrección).
+   */
+  private async precargarCierreDeHoy(): Promise<void> {
+    this.showLoading('Preparando cierre...', 'Descargando la contratación de HOY desde el sistema...');
+    try {
+      await this.sedesReady;
+
+      // 1) Sede del logueado (mismo catálogo gestion_admin.Sede en user.sede y
+      //    en traerSucursales(), así que el nombre empata literal).
+      const sedeNombre = String(this.utilityService.getUser()?.sede?.nombre ?? '').trim();
+      const sedeObj = this.sedes.find(s => String(s?.nombre ?? '').trim() === sedeNombre) || null;
+      if (sedeObj) this.reporteForm.patchValue({ sede: sedeObj });
+
+      // 2) Cédulas contratadas HOY según gestion_contratacion (la fuente viva
+      //    del pipeline). procesoContratacion se llena DESPUÉS, con este mismo
+      //    cierre, así que NO sirve como origen.
+      const hoy = new Date();
+      const fecha = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}-${String(hoy.getDate()).padStart(2, '0')}`;
+      const respDia: any = await firstValueFrom(
+        this.registroProcesoService.contratadosDelDia(fecha, sedeNombre || undefined)
+      );
+      const personas: { cedula: string; nombre: string }[] = (respDia?.contratados ?? [])
+        .map((c: any) => ({ cedula: String(c?.cedula ?? '').trim(), nombre: String(c?.nombre ?? '').trim() }))
+        .filter((p: any) => /^\d+$/.test(p.cedula));
+
+      if (!personas.length) {
+        this.closeSwal();
+        Swal.fire({
+          icon: 'info',
+          title: 'Sin contratados hoy',
+          html:
+            (sedeNombre ? `La oficina <b>${sedeNombre}</b> no tiene` : 'El sistema aún no tiene') +
+            ' contratos generados <b>HOY</b>.<br>' +
+            'Puedes adjuntar el Cruce Diario manualmente, o volver cuando haya contratación.',
+        });
+        return;
+      }
+
+      // Base del cruce armada desde gestion_contratacion — misma lógica de
+      // "sacar la base por cédula" (reporte/candidatos-excel, POST masivo).
+      this.updateSwalProgress('Armando la base del cruce...', 0, personas.length);
+      const blob = await firstValueFrom(
+        this.registroProcesoService.exportarBaseCandidatos(personas.map(p => p.cedula), this.nombre)
+      );
+      const file = new File([blob], `cruce_diario_${fecha}.xlsx`, {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      });
+
+      // 3) Adjuntar el cruce como si el usuario lo hubiera seleccionado a mano.
+      this.files.cruceDiario = [file];
+      this.fileNames.cruceDiario = `${file.name} (autocargado: ${personas.length} persona(s))`;
+      this.reporteForm.patchValue({ contratosHoy: 'si', esDeHoy: 'true', cruceDiario: true });
+
+      // 4) Cédulas escaneadas y traslados EPS desde el sistema, por persona.
+      const cedulaFiles: File[] = [];
+      const trasladoFiles: File[] = [];
+      const sinCedula: string[] = [];
+      const sinTraslado: string[] = [];
+      const tipoDe = (d: any): number => { const t = d?.type; return Number(t && typeof t === 'object' ? t.id : t); };
+
+      // Lotes de 5 en paralelo: cada persona son 2 consultas + 2 descargas y en
+      // secuencial el cierre de una oficina grande se hacía eterno.
+      const CONCURRENCIA = 5;
+      const procesarPersona = async (p: { cedula: string; nombre: string }): Promise<void> => {
+        // Cédula escaneada (DocumentType CEDULA = id 29 en gestion_documental).
+        try {
+          const docs: any[] = await firstValueFrom(this.gestionDocumentalService.getDocumentosDeCandidato(p.cedula));
+          const docCedula = (docs || []).find(d => tipoDe(d) === 29);
+          const url = docCedula?.file_url || docCedula?.file || docCedula?.current_file?.url || '';
+          const pdf = url ? await this.descargarArchivo(url) : null;
+          if (pdf) {
+            const nombreArchivo = (p.nombre || 'CEDULA').replace(/[\\/:*?"<>|]/g, ' ').trim();
+            cedulaFiles.push(new File([pdf], `${p.cedula}-${nombreArchivo}.pdf`, { type: 'application/pdf' }));
+          } else {
+            sinCedula.push(`${p.cedula} ${p.nombre}`.trim());
+          }
+        } catch { sinCedula.push(`${p.cedula} ${p.nombre}`.trim()); }
+
+        // Traslado EPS (solicitud vinculada en traslados.TrasladoDocumento).
+        try {
+          const traslados: any[] = await firstValueFrom(this.trasladosService.buscarAfiliacionPorId(p.cedula));
+          const conDoc = (Array.isArray(traslados) ? traslados : []).find(t => t?.solicitud_doc?.file_url);
+          const eps = this.resolveEps(String(conDoc?.eps_a_trasladar || conDoc?.eps_trasladada || ''));
+          const pdf = conDoc && eps ? await this.descargarArchivo(conDoc.solicitud_doc.file_url) : null;
+          if (pdf && eps) {
+            trasladoFiles.push(new File([pdf], `${p.cedula}-${eps}.pdf`, { type: 'application/pdf' }));
+          } else {
+            sinTraslado.push(`${p.cedula} ${p.nombre}`.trim());
+          }
+        } catch { sinTraslado.push(`${p.cedula} ${p.nombre}`.trim()); }
+      };
+
+      for (let i = 0; i < personas.length; i += CONCURRENCIA) {
+        const lote = personas.slice(i, i + CONCURRENCIA);
+        const avance = Math.min(i + CONCURRENCIA, personas.length);
+        this.updateSwalProgress(`Trayendo cédulas y traslados... (${avance}/${personas.length})`, avance, personas.length);
+        await Promise.all(lote.map(procesarPersona));
+      }
+
+      if (cedulaFiles.length) {
+        this.files.cedulasEscaneadas = cedulaFiles;
+        this.fileNames.cedulasEscaneadas = `${cedulaFiles.length} de ${personas.length} cédula(s) autocargada(s)`;
+        this.reporteForm.patchValue({ cedulasEscaneadas: true });
+        this.generateCedulasPreview(cedulaFiles);
+      }
+      if (trasladoFiles.length) {
+        this.files.traslados = trasladoFiles;
+        this.fileNames.traslados = `${trasladoFiles.length} de ${personas.length} traslado(s) autocargado(s)`;
+        this.reporteForm.patchValue({ traslados: true });
+        this.generateTrasladosPreview(trasladoFiles);
+      }
+      this.cdr.markForCheck();
+      this.closeSwal();
+
+      // 5) Resumen de faltantes. ARL y SST siempre quedan manuales.
+      if (sinCedula.length || sinTraslado.length) {
+        const li = (arr: string[]) =>
+          arr.slice(0, 15).map(x => `<li>${x}</li>`).join('') +
+          (arr.length > 15 ? `<li>… y ${arr.length - 15} más</li>` : '');
+        await Swal.fire({
+          icon: 'warning',
+          title: 'Precarga con pendientes',
+          html:
+            `<div style="text-align:left; max-height:320px; overflow:auto;">` +
+            (sinCedula.length ? `<b>Sin cédula escaneada (${sinCedula.length}):</b><ul>${li(sinCedula)}</ul>` : '') +
+            (sinTraslado.length ? `<b>Sin traslado EPS (${sinTraslado.length}):</b><ul>${li(sinTraslado)}</ul>` : '') +
+            `</div>Puedes adjuntarlos manualmente antes de enviar. La <b>ARL</b> y la <b>SST</b> se adjuntan manual.`,
+        });
+      }
+
+      // 6) Misma validación del flujo manual (frontend + backend + diálogos).
+      await this.validarTodo();
+    } catch (e) {
+      this.closeSwal();
+      console.error('[precargarCierreDeHoy] no se pudo precargar:', e);
+      Swal.fire({
+        icon: 'error',
+        title: 'No se pudo precargar el cierre',
+        text: 'No fue posible descargar la contratación de hoy desde el sistema. Adjunta los archivos manualmente.',
+      });
+    }
+  }
+
+  /**
+   * Descarga un archivo de media como Blob.
+   *
+   * Las rutas relativas (`/media/...`, como las devuelve el endpoint de
+   * traslados) se resuelven contra `environment.mediaUrl` — el dominio FIJO de
+   * prod donde viven los archivos físicos — y NUNCA contra `apiUrl`: el Django
+   * de la LAN no sirve /media (eso lo hace nginx en el dominio). Mismo patrón
+   * que `resolveSolicitudUrl` de eps-transfers.
+   */
+  private async descargarArchivo(url: string): Promise<Blob | null> {
+    try {
+      let abs = String(url ?? '').trim().replace(/\\/g, '/');
+      if (!/^https?:\/\//i.test(abs)) {
+        const mediaBase = String((environment as any).mediaUrl || '').replace(/\/+$/, '');
+        const idx = abs.toLowerCase().indexOf('/media/');
+        const path = idx >= 0 ? abs.substring(idx) : (abs.startsWith('/') ? abs : `/${abs}`);
+        abs = `${mediaBase}${path}`;
+      }
+      const resp = await fetch(abs);
+      return resp.ok ? await resp.blob() : null;
+    } catch {
+      return null;
+    }
   }
 
   ngOnDestroy(): void {    this.terminateWorker();
