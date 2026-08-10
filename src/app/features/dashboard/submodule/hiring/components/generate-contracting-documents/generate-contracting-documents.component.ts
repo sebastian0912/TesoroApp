@@ -41,6 +41,7 @@ import { of, forkJoin, firstValueFrom, throwError } from 'rxjs';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { isDocumentoVisible, getDocSeccion, SECCION_LABELS, type DocSeccion } from './documentos-por-empresa.config';
 import { resolverEmpresaUsuaria } from './empresas-usuarias.data';
+import { instalarGuardiaTexto, textoUnaLinea } from './pdf-text-safe';
 import {
   FORMATO_ENTREGA_APOYO,
   FORMATO_ENTREGA_TU_ALIANZA,
@@ -85,6 +86,19 @@ export class GenerateContractingDocumentsComponent implements OnInit {
    * Usa `ContratoCandidato.fecha_contrato` del candidato si está cargada;
    * de lo contrario cae a la fecha actual (compat con flujos viejos).
    * Parseo manual para evitar el shift de zona horaria al usar 'YYYY-MM-DD'.
+   */
+  /**
+   * Fecha con la que se FECHAN los documentos: la del contrato, no la del día
+   * en que se generan.
+   *
+   * Es un dato del contrato, no "hoy": un documento reimpreso la semana
+   * siguiente tiene que seguir diciendo la fecha en que se firmó. Solo cuando
+   * el contrato todavía no tiene `fecha_contrato` se cae a la de hoy, que es lo
+   * más cercano que hay.
+   *
+   * Se lee `YYYY-MM-DD` a mano y no con `new Date(s)` porque esa cadena se
+   * interpreta como medianoche UTC: en Colombia (UTC-5) daría el día anterior,
+   * y el documento saldría fechado un día antes justo en los cambios de mes.
    */
   private getFechaContrato(): Date {
     const raw = this._entrevistaSel?.proceso?.contrato?.fecha_contrato;
@@ -2539,11 +2553,11 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       doc.text(p11Lines, marginLeft, currentY, { maxWidth, align: 'justify' });
       currentY += (p11Lines.length * 5) + 8;
 
-      const fechaActual = this.getFechaContrato();
-      const dia = fechaActual.getDate().toString();
+      const fechaDelContrato = this.getFechaContrato();
+      const dia = fechaDelContrato.getDate().toString();
       const meses = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
-      const mes = meses[fechaActual.getMonth()];
-      const yearStr = fechaActual.getFullYear().toString();
+      const mes = meses[fechaDelContrato.getMonth()];
+      const yearStr = fechaDelContrato.getFullYear().toString();
       const lastDigit = yearStr.substring(3, 4);
 
       const fechaText = `En constancia se firma a los  ${dia}  días del mes de  ${mes}  de 202 ${lastDigit} .`;
@@ -3161,12 +3175,17 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       ).toUpperCase();
       const ccRepresentanteEmpresaUsuaria = datosEU.ccRepresentante || this.limpio(vac.ccRepresentanteEmpresaUsuaria ?? vac.ccRepresentante);
 
-      const fechaActual = this.getFechaContrato();
+      const fechaDelContrato = this.getFechaContrato();
       const opcionesFecha: Intl.DateTimeFormatOptions = { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' };
-      const fechaFirmaTexto = fechaActual.toLocaleDateString('es-CO', opcionesFecha);
+      const fechaFirmaTexto = fechaDelContrato.toLocaleDateString('es-CO', opcionesFecha);
 
       const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'letter', compress: true });
       doc.setProperties({ title: `MANEJO_IMAGEN_${nombreTrabajador}.pdf`, author: 'Tu Alianza SAS / Apoyo Laboral' });
+
+      // Red de seguridad: ningún `doc.text` de este documento puede salirse de
+      // la hoja, pase por donde pase. El encuadre fino (columna por columna) lo
+      // hacen los `textoUnaLinea` de más abajo; esto sólo evita el derrame.
+      instalarGuardiaTexto(doc, { margenIzquierdo: 6, margenDerecho: 6 });
 
       const pageWidth = doc.internal.pageSize.getWidth();
       const pageHeight = doc.internal.pageSize.getHeight();
@@ -3212,71 +3231,163 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       const finalYTabla = (doc as any).lastAutoTable.finalY;
       let currentY = finalYTabla + 6;
 
+      // ── Límites verticales del documento ──
+      // El contenido crece con los datos (razón social de la empresa usuaria,
+      // domicilio, representante legal, nombre del trabajador). Sin un tope,
+      // `currentY` se pasaba del alto de la hoja y el bloque de firmas acababa
+      // pintándose ENCIMA del último párrafo. Todo lo que baja pasa por
+      // `asegurarBloque`, que abre página cuando ya no cabe.
+      const LIMITE_INFERIOR = pageHeight - 14;
+      const TOPE_SUPERIOR = 14;
+
+      /** Reserva `alto` mm de página; si no caben, salta a una hoja nueva. */
+      const asegurarBloque = (alto: number): void => {
+        if (currentY + alto > LIMITE_INFERIOR) {
+          doc.addPage();
+          currentY = TOPE_SUPERIOR;
+        }
+      };
+
       // Mini-renderizador de Negritas justificado simple
       const printFormattedJustified = (textRaw: string, pSize = 7.5, indentLeft = 0) => {
-        const words = textRaw.split(/(\s+)/); // separa espacios manteniendo para ancho
         doc.setFontSize(pSize);
         const espacioW = doc.getTextWidth(' ');
+
+        /**
+         * Parte el texto en piezas (palabras y bloques de espacio) marcando
+         * cuáles van en negrita.
+         *
+         * El marcador `**` se lee por TRAMO y no por palabra. Antes se
+         * preguntaba `palabra.includes('**')`, así que de
+         * `**domingo, 22 de marzo de 2026**` solo salían en negrita "domingo," y
+         * "2026" —las dos palabras que llevaban los asteriscos pegados— y
+         * "22 de marzo de" quedaba en redonda. Lo mismo le pasaba a todos los
+         * tramos de varias palabras del documento: `**EL EMPLEADOR Y LA EMPRESA
+         * USUARIA**` se imprimía con la mitad de las palabras sin negrita.
+         *
+         * Los bloques de 2+ espacios se conservan con su ancho real: en el
+         * formato aprobado el hueco antes de la fecha es un espacio para
+         * diligenciar, no una separación de palabras, así que no se colapsa a
+         * uno ni se estira al justificar.
+         */
+        const partirEnPiezas = (texto: string): Array<{ raw: string; bold: boolean }> => {
+          const piezas: Array<{ raw: string; bold: boolean }> = [];
+          // Los tramos impares son los que iban entre `**`.
+          texto.split('**').forEach((tramo, i) => {
+            const bold = i % 2 === 1;
+            for (const parte of tramo.split(/(\s+)/)) {
+              if (parte !== '') piezas.push({ raw: parte, bold });
+            }
+          });
+          return piezas;
+        };
+
+        const words = partirEnPiezas(textRaw);
 
         let lineWords: any[] = [];
         let lineWidth = 0;
         const lineMaxW = anchoTabla - indentLeft;
+        const altoLinea = pSize * 0.35 + 0.8;
 
         // Medir palabras y aplicar formatos primitivos **texto** para negrita
         let lines: any[][] = [];
 
+        /**
+         * Parte una "palabra" más ancha que el renglón (correos, URLs, NITs o
+         * razones sociales sin espacios) en trozos que sí caben. Sin esto se
+         * pintaba entera desde el margen izquierdo y se metía en lo que hubiera
+         * a la derecha.
+         */
+        const partirPalabraLarga = (w: string): string[] => {
+          const trozos: string[] = [];
+          let actual = '';
+          for (const ch of w) {
+            const tentativa = actual + ch;
+            if (actual && doc.getTextWidth(tentativa) > lineMaxW) {
+              trozos.push(actual);
+              actual = ch;
+            } else {
+              actual = tentativa;
+            }
+          }
+          if (actual) trozos.push(actual);
+          return trozos;
+        };
+
         for (let i = 0; i < words.length; i++) {
-          let word = words[i];
+          const pieza = words[i];
+          const word = pieza.raw;
           if (/^\s+$/.test(word)) {
-            // Es un bloque de espacio
+            // Es un bloque de espacio. Uno solo separa palabras y lo estira la
+            // justificación; dos o más son un hueco del formato y se respeta su
+            // ancho tal cual.
             if (lineWidth > 0) { // no añadir el primer espacio a una linea vacia
-              lineWords.push({ text: ' ', isSpace: true, bold: false, width: espacioW });
-              lineWidth += espacioW;
+              const fijo = word.length > 1;
+              const anchoHueco = espacioW * word.length;
+              lineWords.push({ text: ' ', isSpace: true, fijo, bold: false, width: anchoHueco });
+              lineWidth += anchoHueco;
             }
             continue;
           }
 
-          let isBold = false;
-          let wToPrint = word;
-          if (wToPrint.includes('**')) {
-            isBold = true;
-            wToPrint = wToPrint.replace(/\*\*/g, '');
-          }
+          const isBold = pieza.bold;
+          const wToPrint = word;
 
           doc.setFont('helvetica', isBold ? 'bold' : 'normal');
-          let textW = doc.getTextWidth(wToPrint);
+          const trozos = doc.getTextWidth(wToPrint) > lineMaxW
+            ? partirPalabraLarga(wToPrint)
+            : [wToPrint];
 
-          if (lineWidth + textW > lineMaxW && lineWords.length > 0) {
-            // Remover último espacio si lo hay
-            if (lineWords[lineWords.length - 1].isSpace) lineWords.pop();
-            lines.push([...lineWords]);
-            lineWords = [];
-            lineWidth = 0;
+          for (const trozo of trozos) {
+            const textW = doc.getTextWidth(trozo);
+
+            if (lineWidth + textW > lineMaxW && lineWords.length > 0) {
+              // Remover último espacio si lo hay
+              if (lineWords[lineWords.length - 1].isSpace) lineWords.pop();
+              lines.push([...lineWords]);
+              lineWords = [];
+              lineWidth = 0;
+            }
+
+            lineWords.push({ text: trozo, isSpace: false, bold: isBold, width: textW });
+            lineWidth += textW;
           }
-
-          lineWords.push({ text: wToPrint, isSpace: false, bold: isBold, width: textW });
-          lineWidth += textW;
         }
         if (lineWords.length > 0) lines.push(lineWords);
 
         // Escribir líneas justificadas
         for (let l = 0; l < lines.length; l++) {
+          // Cada renglón comprueba que cabe ANTES de pintarse.
+          asegurarBloque(altoLinea);
+          doc.setFontSize(pSize);
+
           let cLine = lines[l];
           let wordsOnly = cLine.filter(w => !w.isSpace);
           let rawLineWidth = wordsOnly.reduce((acc, curr) => acc + curr.width, 0);
 
-          // Si no es la última línea de párrafo, calcula delta de espacios justificados
+          // Huecos que SÍ se estiran al justificar (los fijos del formato no) y
+          // el ancho que ya se llevan los fijos, que no está disponible para
+          // repartir.
+          const huecosFlexibles = cLine.filter(w => w.isSpace && !w.fijo).length;
+          const anchoFijos = cLine
+            .filter(w => w.isSpace && w.fijo)
+            .reduce((acc, curr) => acc + curr.width, 0);
+
+          // Si no es la última línea de párrafo, calcula delta de espacios
+          // justificados. Nunca por debajo de un espacio normal: un valor
+          // negativo haría RETROCEDER el cursor y pintaría unas palabras
+          // encima de otras.
           let spaceExtraWidth = espacioW;
-          if (l < lines.length - 1 && wordsOnly.length > 1) {
-            const gapTotal = lineMaxW - rawLineWidth;
-            spaceExtraWidth = gapTotal / (wordsOnly.length - 1);
+          if (l < lines.length - 1 && huecosFlexibles > 0) {
+            const gapTotal = lineMaxW - rawLineWidth - anchoFijos;
+            spaceExtraWidth = Math.max(espacioW, gapTotal / huecosFlexibles);
           }
 
           let curX = marginLeft + indentLeft;
           for (let j = 0; j < cLine.length; j++) {
             const itm = cLine[j];
             if (itm.isSpace) {
-              curX += spaceExtraWidth;
+              curX += itm.fijo ? itm.width : spaceExtraWidth;
             } else {
               doc.setFont('helvetica', itm.bold ? 'bold' : 'normal');
               doc.text(itm.text, curX, currentY);
@@ -3284,7 +3395,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
             }
           }
 
-          currentY += (pSize * 0.35 + 0.8);
+          currentY += altoLinea;
         }
         currentY += 1.5; // salto extra párrafo
       };
@@ -3292,9 +3403,19 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       const centerText = (text: string, size = 9) => {
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(size);
-        const split = doc.splitTextToSize(text, anchoTabla);
-        doc.text(split, marginLeft + (anchoTabla / 2), currentY, { align: 'center', maxWidth: anchoTabla });
-        currentY += (split.length * (size * 0.35 + 0.5)) + 1.5;
+        const split: string[] = doc.splitTextToSize(text, anchoTabla);
+        const altoLinea = size * 0.35 + 0.5;
+        // Renglón a renglón (y no el array entero) para poder comprobar el
+        // límite inferior en cada uno: un título largo tampoco puede invadir
+        // lo que venga debajo.
+        for (const linea of split) {
+          asegurarBloque(altoLinea);
+          doc.setFont('helvetica', 'bold');
+          doc.setFontSize(size);
+          doc.text(linea, marginLeft + (anchoTabla / 2), currentY, { align: 'center', maxWidth: anchoTabla });
+          currentY += altoLinea;
+        }
+        currentY += 1.5;
       };
 
       // == Contenido del Documento ==
@@ -3322,13 +3443,24 @@ export class GenerateContractingDocumentsComponent implements OnInit {
 
       printFormattedJustified(`Las Partes suscriben el presente documento en dos (2) originales del mismo tenor y valor, el día      **${fechaFirmaTexto}**.`, 7.5);
 
-      // Agregar sección de firmas, subiendo un poco más para que quepa en la misma plana
+      // ── Sección de firmas ──
+      // Se reserva el alto COMPLETO del bloque antes de empezar: si no cabe en
+      // lo que queda de hoja se abre una nueva. Antes se pintaba a ciegas sobre
+      // `currentY` y, con datos largos, quedaba encima del último párrafo.
+      const ALTO_BLOQUE_FIRMAS = 8 + 22 + 10;
+      asegurarBloque(ALTO_BLOQUE_FIRMAS);
       currentY += 8;
+
+      // Dos columnas que NO se tocan. Todo texto variable se acota a la suya.
+      const xColEmpleador = marginLeft;
+      const xColTrabajador = marginLeft + 90;
+      const anchoColEmpleador = 90 - 4;
+      const anchoColTrabajador = (pageWidth - marginLeft) - xColTrabajador;
 
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(8);
-      doc.text('Por EL EMPLEADOR', marginLeft, currentY);
-      doc.text('Por EL TRABAJADOR', marginLeft + 90, currentY);
+      textoUnaLinea(doc, 'Por EL EMPLEADOR', xColEmpleador, currentY, anchoColEmpleador);
+      textoUnaLinea(doc, 'Por EL TRABAJADOR', xColTrabajador, currentY, anchoColTrabajador);
 
       const yLineaFirma = currentY + 22; // Reducido el salto de la firma
 
@@ -3359,35 +3491,36 @@ export class GenerateContractingDocumentsComponent implements OnInit {
 
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(8);
-      doc.text('MAYRA HUMANÍ LÓPEZ', marginLeft, yLineaFirma + 4);
+      textoUnaLinea(doc, 'MAYRA HUMANÍ LÓPEZ', xColEmpleador, yLineaFirma + 4, anchoColEmpleador);
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(7.5);
-      doc.text('Cedula de extranjería 332.318', marginLeft, yLineaFirma + 8);
+      textoUnaLinea(doc, 'Cedula de extranjería 332.318', xColEmpleador, yLineaFirma + 8, anchoColEmpleador);
 
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(8);
-      doc.text(nombreTrabajador, marginLeft + 90, yLineaFirma + 4);
+      // El nombre del trabajador es el dato más largo del documento (cuatro
+      // componentes en mayúsculas). Acotado a su columna: primero reduce el
+      // cuerpo y, en el extremo, recorta — nunca invade la columna vecina ni
+      // se sale de la hoja.
+      textoUnaLinea(doc, nombreTrabajador, xColTrabajador, yLineaFirma + 4, anchoColTrabajador);
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(7.5);
-      doc.text(`C.C                                            ${numIdentificacion}`, marginLeft + 90, yLineaFirma + 8);
-
-      // Inserción de huella si la hay. La clave del API es `huella`
-      // (DocumentacionBiometricaSerializer); con `huella_dactilar` esto era
-      // siempre undefined y el documento salía sin huella.
-      const huella = await this.fetchAsArrayBufferOrNull(cand?.biometria?.huella?.file_url ?? this.huella);
-      if (huella) {
-        try {
-          const kind = (new Uint8Array(huella)[0] === 0xFF) ? 'JPEG' : 'PNG';
-          doc.addImage(new Uint8Array(huella), kind, marginLeft + 90 + mWidth + 2, yLineaFirma - 20, 16, 22);
-        } catch (e) { console.error('Error insertando huella en Manejo Imagen', e); }
-      }
+      textoUnaLinea(
+        doc,
+        `C.C                                            ${numIdentificacion}`,
+        xColTrabajador,
+        yLineaFirma + 8,
+        anchoColTrabajador,
+      );
 
       // ---------------------------------------------------------
       // --- PÁGINA 2: Autorización de uso de Derechos de Imagen ---
       // ---------------------------------------------------------
       doc.addPage();
       currentY = 10;
-      doc.setPage(2);
+      // Sin `setPage(2)` a pelo: si el cuerpo de la página 1 necesitó paginar,
+      // esta ya no es la hoja 2 y fijarla ahí pintaría el encabezado y las
+      // firmas del anexo encima del contrato.
 
       // Tabla Encabezado Página 2
       autoTable(doc, {
@@ -3456,8 +3589,13 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       const p2_6 = `Para constancia de lo anterior se firma y otorga esta autorización de manera voluntaria en la ciudad de ${this.municipioFirma.toUpperCase()} el día     **${fechaFirmaTexto}**`;
       printFormattedJustified(p2_6, 9);
 
-      // Firma del Trabajador (Pág 2 - Abajo a la izquierda)
-      currentY = pageHeight - 50;
+      // Firma del Trabajador (Pág 2 - Abajo a la izquierda).
+      // `pageHeight - 50` es sólo la posición PREFERIDA. Si el texto llegó más
+      // abajo se respeta el texto (y si ya no cabe el bloque, se abre hoja):
+      // antes se fijaba a ciegas y la firma caía sobre el último párrafo.
+      const ALTO_BLOQUE_FIRMA_2 = 22 + 10;
+      currentY = Math.max(currentY + 6, pageHeight - 50);
+      asegurarBloque(ALTO_BLOQUE_FIRMA_2);
 
       const firmaCand2 = await this.fetchAsArrayBufferOrNull(cand?.biometria?.firma?.file_url ?? this.firma);
       if (firmaCand2) {
@@ -3471,12 +3609,15 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       doc.setLineWidth(0.3);
       doc.line(marginLeft, yLineaFirma2, marginLeft + 75, yLineaFirma2);
 
+      // Mismo criterio que en la página 1: el rótulo con el nombre se acota al
+      // ancho útil de la hoja.
+      const anchoUtil = pageWidth - marginLeft * 2;
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(8);
-      doc.text(`Nombres: ${nombreTrabajador}`, marginLeft, yLineaFirma2 + 4);
+      textoUnaLinea(doc, `Nombres: ${nombreTrabajador}`, marginLeft, yLineaFirma2 + 4, anchoUtil);
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(7.5);
-      doc.text(`C.C ${numIdentificacion}`, marginLeft, yLineaFirma2 + 8);
+      textoUnaLinea(doc, `C.C ${numIdentificacion}`, marginLeft, yLineaFirma2 + 8, anchoUtil);
 
 
       const pdfBlob = doc.output('blob');
@@ -3588,10 +3729,10 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       }
 
       currentY += 5;
-      const fechaActual = this.getFechaContrato();
-      const dia = fechaActual.getDate();
-      const mes = fechaActual.toLocaleString('es-CO', { month: 'long' });
-      const anio = fechaActual.getFullYear();
+      const fechaDelContrato = this.getFechaContrato();
+      const dia = fechaDelContrato.getDate();
+      const mes = fechaDelContrato.toLocaleString('es-CO', { month: 'long' });
+      const anio = fechaDelContrato.getFullYear();
 
       const txtFecha = `En constancia se firma a los ${dia} días del mes de ${mes} de ${anio}.`;
       doc.text(txtFecha, mLeft, currentY);
@@ -3934,9 +4075,9 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     doc.text(`Número de Identificación: ${this.cedula}`, 10, yFirmaBase + 7);
 
 
-    const fechaActual = this.getFechaContrato();
+    const fechaDelContrato = this.getFechaContrato();
     const opcionesFormato: Intl.DateTimeFormatOptions = { year: 'numeric', month: 'long', day: 'numeric' };
-    const fechaFormateada = fechaActual.toLocaleDateString('es-ES', opcionesFormato);
+    const fechaFormateada = fechaDelContrato.toLocaleDateString('es-ES', opcionesFormato);
     doc.text(`Fecha de Autorización: ${fechaFormateada}`, 10, yFirmaBase + 11);
 
     // Guardar y mostrar

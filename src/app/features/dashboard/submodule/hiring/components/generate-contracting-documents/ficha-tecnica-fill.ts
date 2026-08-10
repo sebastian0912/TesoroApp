@@ -16,6 +16,7 @@
 import type { PDFForm, PDFFont } from 'pdf-lib';
 import { esReferenciaFamiliar, separarReferencias } from './referencias.util';
 import { sanitizedString } from './winansi.util';
+import { tituloOUltimoGrado } from './escolaridad.util';
 
 type Cand = any;
 
@@ -247,7 +248,9 @@ export function fillFichaTecnicaPdf(
   const f0 = formaciones[0] || {};
   setText('Seleccione el Grado de Escolaridad', norm(f0.nivel));
   setText('Institución', norm(f0.institucion));
-  setText('Titulo Obtenido o Ultimo año Cursado', norm(f0.titulo_obtenido));
+  // Con nivel 1..11 el titulo suele venir vacio: ahi lo que aplica es el
+  // ultimo grado cursado. Y si hay estudios adicionales reales, se anexan.
+  setText('Titulo Obtenido o Ultimo año Cursado', norm(tituloOUltimoGrado(f0)));
   setText('Año Finalización', s(f0.anio_finalizacion));
 
   // ════════════════════════════════════════════════════════════════════
