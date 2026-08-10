@@ -10,7 +10,11 @@ import {
 import Swal from 'sweetalert2';
 import { separarReferencias } from './referencias.util';
 import { MatDialog } from '@angular/material/dialog';
-import { CarnetPosicionDialogComponent } from './carnet-posicion-dialog.component';
+import {
+  CarnetPosicionDialogComponent,
+  type CarnetPosicionData,
+  type CarnetPosicionResult,
+} from './carnet-posicion-dialog.component';
 import { GestionDocumentalService } from '../../service/gestion-documental/gestion-documental.service';
 import { HiringService } from '../../service/hiring.service';
 import * as fontkit from 'fontkit';
@@ -745,15 +749,40 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     ];
 
   /**
+   * ¿La vacante es de Tu Alianza? Los dos paquetes de Faca Primera cambian de
+   * lista según la temporal: Ficha Social y Manejo de Imagen son documentos del
+   * lado de Apoyo Laboral (matriz Elite) y no van en un expediente de Alianza.
+   */
+  private get esTemporalAlianza(): boolean {
+    return /ALIANZA/i.test(
+      String(this.vacante?.temporal ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '')
+    );
+  }
+
+  /**
    * Faca Primera - paquete "Finca Usuarios": mismo mecanismo que Soacha, otra
-   * lista. Acá el contrato va COMPLETO (Soacha recorta a la hoja 1) y se suman
-   * Manejo de Imagen y la inducción que aplique. La inducción no es fija:
-   * depende de la empresa usuaria de la vacante, así que se resuelve acá.
+   * lista. Acá el contrato va COMPLETO (Soacha recorta a la hoja 1) y se suma la
+   * inducción que aplique. La inducción no es fija: depende de la empresa
+   * usuaria de la vacante, así que se resuelve acá.
    */
   private get PAQUETE_FINCA_USUARIOS(): Array<{
     titulo: string; typeId: number | number[]; soloPrimeraPagina?: boolean; externa?: boolean;
   }> {
     const induccion = this.induccionHabilitada;
+
+    // Tu Alianza: lista corta definida por operaciones. Sin Ficha Social ni
+    // Manejo de Imagen (son de la matriz de Apoyo Laboral / Elite).
+    if (this.esTemporalAlianza) {
+      return [
+        { titulo: 'Ficha Técnica', typeId: 34 },
+        { titulo: 'Cédula', typeId: 29 },
+        { titulo: 'ARL', typeId: 30 },
+        { titulo: 'Contrato', typeId: 25 },
+        ...(induccion ? [{ titulo: induccion, typeId: this.typeMap[induccion] ?? 27 }] : []),
+        { titulo: 'Exámenes médicos', typeId: 32, externa: true },
+      ];
+    }
+
     return [
       { titulo: 'Ficha Técnica', typeId: 34 },
       { titulo: 'Cédula', typeId: 29 },
@@ -783,6 +812,34 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     titulo: string; typeId: number | number[]; soloPrimeraPagina?: boolean; externa?: boolean;
   }> {
     const induccion = this.induccionHabilitada;
+
+    // Tu Alianza: lista y ORDEN definidos por operaciones. Difiere de la de
+    // Apoyo Laboral en más que el orden — acá van la Entrevista de Ingreso y la
+    // Colinesterasa, y NO van Sisbén, Autorización de Ingreso, Manejo de Imagen
+    // ni Semanas cotizadas.
+    if (this.esTemporalAlianza) {
+      // La Colinesterasa se sube desde esta pantalla solo si el perfil de la
+      // empresa la muestra; si no, el aviso de faltantes debe mandar a cargarla
+      // donde corresponda en vez de sugerir que se resuelve aquí.
+      const colinesterasaAqui = this.documentosVisibles.some(d => d.titulo === 'Colinesterasa');
+      return [
+        { titulo: 'Ficha Técnica', typeId: 34 },
+        { titulo: 'Cédula', typeId: 29 },
+        { titulo: 'Policivos', typeId: 6, externa: true },
+        { titulo: 'Procuraduría', typeId: 3, externa: true },
+        { titulo: 'Contraloría', typeId: 4, externa: true },
+        { titulo: 'OFAC', typeId: 5, externa: true },
+        { titulo: 'Entrevista de Ingreso Tu Alianza', typeId: 103 },
+        { titulo: 'Exámenes médicos', typeId: 32, externa: true },
+        { titulo: 'Colinesterasa', typeId: 107, externa: !colinesterasaAqui },
+        { titulo: 'Contrato', typeId: 25 },
+        { titulo: 'ARL', typeId: 30 },
+        ...(induccion ? [{ titulo: induccion, typeId: this.typeMap[induccion] ?? 27 }] : []),
+        { titulo: 'ADRES', typeId: 7, externa: true },
+        { titulo: 'AFP / Fondo de pensión', typeId: [11, 9], externa: true },
+      ];
+    }
+
     return [
       { titulo: 'Ficha Técnica', typeId: 34 },
       { titulo: 'Cédula', typeId: 29 },
@@ -814,6 +871,21 @@ export class GenerateContractingDocumentsComponent implements OnInit {
   get induccionHabilitada(): string | null {
     return this.documentosVisibles
       .find(d => d.titulo.startsWith('Inducción'))?.titulo ?? null;
+  }
+
+  /**
+   * La oficina del usuario logueado, LISTA PARA IMPRIMIR.
+   *
+   * `user.sede.nombre` es el código de sede tal cual lo guarda el backend, con
+   * guion bajo (`FACA_PRIMERA`, `MONTE_VERDE`). Eso sirve como llave —lo usan
+   * `SEDE_A_MUNICIPIO`, `esOficinaSoacha` y `esOficinaFacaPrimera`— pero en un
+   * documento impreso se lee mal, así que acá el guion se vuelve espacio.
+   *
+   * OJO: este getter es solo para pintar. Comparar contra él rompe esas tres
+   * reglas; para comparar se sigue usando `this.sede`.
+   */
+  get oficinaUsuarioImpresa(): string {
+    return String(this.user?.sede?.nombre ?? '').replace(/_/g, ' ').trim();
   }
 
   /** El botón del paquete solo se ofrece a la oficina de Soacha. */
@@ -856,6 +928,9 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       etiqueta: 'Finca Usuarios',
       nombre: 'Paquete-Finca-Usuarios',
       piezas: this.PAQUETE_FINCA_USUARIOS,
+      // Se declaran los generables de AMBAS temporales; `armarPaqueteUnido`
+      // ejecuta solo los que estén en `piezas`, así que Ficha Social y Manejo
+      // Imagen no se tocan cuando la vacante es de Tu Alianza.
       generables: [
         // La ficha técnica va por variante: Tu Alianza tiene formato propio.
         { titulo: 'Ficha Técnica', generar: () => this.runFichaTecnicaVariant('basica') },
@@ -885,6 +960,10 @@ export class GenerateContractingDocumentsComponent implements OnInit {
         { titulo: 'Ficha Técnica', generar: () => this.runFichaTecnicaVariant('basica') },
         { titulo: 'Contrato', generar: () => this.runContratoVariant('basica') },
         { titulo: 'Manejo Imagen', generar: () => this.generarManejoImagen() },
+        // Solo entra en el paquete de Tu Alianza, pero se genera desde acá
+        // (formato TA SE-RE-2): sin esto habría que ir a buscarla al servidor y
+        // el paquete saldría incompleto la primera vez.
+        { titulo: 'Entrevista de Ingreso Tu Alianza', generar: () => this.generarPDF('Entrevista de Ingreso Tu Alianza') },
         ...(induccion ? [{ titulo: induccion, generar: () => this.generarPDF(induccion) }] : []),
       ],
     });
@@ -926,7 +1005,15 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     try {
       // Generar primero lo que se puede generar, para no obligar al usuario a
       // hacerlo documento por documento antes de descargar.
+      //
+      // Solo lo que de verdad va en ESTE paquete: `generables` se declara con
+      // todas las piezas posibles y las listas cambian según la temporal, así
+      // que sin este filtro un candidato de Tu Alianza terminaba con la Ficha
+      // Social y el Manejo de Imagen (documentos de Apoyo Laboral / Elite)
+      // montados en `uploadedFiles`, listos para subirse sin corresponderle.
+      const enElPaquete = new Set(cfg.piezas.map(p => p.titulo));
       for (const g of cfg.generables) {
+        if (!enElPaquete.has(g.titulo)) continue;
         if (this.uploadedFiles[g.titulo]?.file instanceof File) continue; // ya está
         try {
           await g.generar();
@@ -1102,7 +1189,11 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       cand.primer_apellido, cand.segundo_apellido, cand.primer_nombre, cand.segundo_nombre,
     ].map(v => this.limpio(v)).filter(Boolean).join(' ');
 
-    const fIng = this.limpio(contrato.carnet_fecha_ingreso) || this.limpio(contrato.fecha_ingreso);
+    // La fecha del carnet es SIEMPRE `contrato.fecha_ingreso`, el DateField real.
+    // Antes mandaba `carnet_fecha_ingreso`, que es un CharField de texto libre, y
+    // el mismo carnet salía con una fecha desde acá y con otra desde Home —que
+    // nunca lo miró—. Los cuatro caminos usan ahora la misma fuente.
+    const fIng = this.limpio(contrato.fecha_ingreso);
     const fechaIngreso = /^\d{4}-\d{2}-\d{2}/.test(fIng)
       ? `${fIng.slice(8, 10)}/${fIng.slice(5, 7)}/${fIng.slice(0, 4)}`
       : fIng;
@@ -1135,14 +1226,18 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     if (eleccion.isDismissed) return;
     const formatoApoyo = eleccion.isConfirmed;
 
-    // ¿En qué espacio de la hoja? Así se reutiliza una hoja ya recortada en vez
-    // de gastar una nueva por cada carnet. Los dos formatos usan grilla 3x3.
-    const posicion = await firstValueFrom(
-      this.dialog.open<CarnetPosicionDialogComponent, void, number | null>(
-        CarnetPosicionDialogComponent, { autoFocus: 'dialog' },
+    // ¿En qué espacio de la hoja y cómo se voltea? Lo primero reutiliza una hoja
+    // ya recortada en vez de gastar una nueva por cada carnet (los dos formatos
+    // usan grilla 3x3); lo segundo es lo que hace que el reverso caiga detrás
+    // del frente y la tarjeta quede pareja al recortar.
+    const ajustes = await firstValueFrom(
+      this.dialog.open<CarnetPosicionDialogComponent, CarnetPosicionData, CarnetPosicionResult | null>(
+        CarnetPosicionDialogComponent,
+        { data: { formato: formatoApoyo ? 'apoyo' : 'alianza' }, autoFocus: 'dialog' },
       ).afterClosed(),
     );
-    if (posicion === null || posicion === undefined) return;
+    if (!ajustes) return;
+    const { celda: posicion, impresion } = ajustes;
 
     try {
       const cedula = this.limpio(cand.numero_documento);
@@ -1165,7 +1260,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
           emergenciaTelefono: this.limpio(emerg.telefono),
           logoDataUrl: await aDataUrl('logos/Logo_AL.png'),
           fotoDataUrl,
-        }, posicion)
+        }, posicion, impresion)
         // ── Tu Alianza: el diseño de la generación masiva de Home ──
         : buildCarnetsMasivoPdf([{
           CEDULA: cedula,
@@ -1190,7 +1285,11 @@ export class GenerateContractingDocumentsComponent implements OnInit {
           logoDataUrl: await aDataUrl('logos/Logo_TA.png'),
           telefonoCoordinador: TELEFONO_COORDINADOR_ALIANZA,
           arl: ARL_ALIANZA,
-          posicion,
+          // El diálogo numera las celdas 0..8 y este formato las espera 1..9:
+          // sin el +1 el carnet caía una celda antes de la elegida (o sea,
+          // encima de un hueco ya recortado).
+          posicion: posicion + 1,
+          impresion,
         });
 
       // Solo se genera y se muestra en el previsualizador; la descarga la decide
@@ -11110,7 +11209,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       // Cabecera / contrato
       this.setText(form, 'CodContrato', this.safe(codigoContrato), customFont, 7.2);
       try { this.setText(form, 'codigo_contrato', this.safe(codigoContrato), customFont, 7.2); } catch (e) { }
-      this.setText(form, 'sede', this.safe(this.user?.sede?.nombre), customFont, 7.2);
+      this.setText(form, 'sede', this.safe(this.oficinaUsuarioImpresa), customFont, 7.2);
 
       // Llenado completo del formulario (mapping en ficha-tecnica-fill.ts).
       // ctx contiene los datos derivados que el helper necesita y que dependen de
@@ -11118,7 +11217,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       const rutaInfo = this.getRutaInfo(vac.oficinasQueContratan, ds.centro_costo_entrevista || '');
       const ctx = {
         codigoContrato: this.safe(codigoContrato),
-        sedeNombre: this.safe(this.user?.sede?.nombre),
+        sedeNombre: this.safe(this.oficinaUsuarioImpresa),
         empUsuaria: this.safe(empUsuaria),
         temporal: this.safe(vac?.temporal ?? this.empresa),
         personaQueFirma: this.safe(`${this.user?.datos_basicos?.nombres ?? ''} ${this.user?.datos_basicos?.apellidos ?? ''}`.trim()),
@@ -11586,6 +11685,9 @@ export class GenerateContractingDocumentsComponent implements OnInit {
 
       const form = pdfDoc.getForm();
       try { this.setText(form, 'codigo_contrato', this.safe(codigoContrato), customFont); } catch (e) { }
+      // La plantilla trae el campo `oficina` y nadie lo llenaba: sale la oficina
+      // de quien está generando el documento, sin el guion bajo del código.
+      this.setText(form, 'oficina', this.safe(this.oficinaUsuarioImpresa), customFont);
 
       // ✅ Imagen: nunca se voltea, siempre vertical
       await setButtonImageSafe(pdfDoc, form, 'Imagen1_af_image', this.foto, { forcePortrait: true });
@@ -12138,6 +12240,8 @@ export class GenerateContractingDocumentsComponent implements OnInit {
 
       const form = pdfDoc.getForm();
       try { this.setText(form, 'codigo_contrato', this.safe(codigoContrato), customFont); } catch (e) { }
+      // Mismo campo `oficina` que la ficha Tu Alianza básica.
+      this.setText(form, 'oficina', this.safe(this.oficinaUsuarioImpresa), customFont);
 
       // Imagen1_af_image — la foto se endereza antes de entrar, porque este
       // `setButtonImageSafe` no recibe opciones (a diferencia del de la ficha

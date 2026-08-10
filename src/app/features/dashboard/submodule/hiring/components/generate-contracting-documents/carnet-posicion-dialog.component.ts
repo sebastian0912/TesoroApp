@@ -1,5 +1,6 @@
 /**
- * Elige EN QUÉ CELDA de la hoja se imprime el carnet.
+ * Elige EN QUÉ CELDA de la hoja se imprime el carnet y CÓMO se voltea la hoja
+ * para el reverso.
  *
  * La hoja trae una grilla de 9 carnets. Al imprimir de a uno, la hoja queda con
  * 8 espacios sin usar; recortando solo el carnet impreso se puede volver a
@@ -8,16 +9,19 @@
  *
  * Lo usado se guarda en `localStorage` (no en el servidor) porque es un dato
  * del papel que tiene el operador en su escritorio, no del candidato: cada
- * puesto lleva su propia hoja. "Hoja nueva" reinicia el conteo.
+ * puesto lleva su propia hoja. "Hoja nueva" reinicia el conteo. El volteo se
+ * guarda igual, pero es un dato de la impresora del puesto: se elige una vez.
  */
 import { CommonModule } from '@angular/common';
-import { ChangeDetectionStrategy, Component, computed, signal } from '@angular/core';
-import { MatDialogModule, MatDialogRef } from '@angular/material/dialog';
+import { ChangeDetectionStrategy, Component, Inject, Optional, computed, signal } from '@angular/core';
+import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
 
 import { CARNETS_POR_HOJA, CARNET_COLUMNAS } from './carnet-apoyo-fill';
+import { CarnetImpresionComponent } from './carnet-impresion.component';
+import { ConfigImpresionCarnet, FormatoCarnet, leerImpresion } from './carnet-impresion';
 
 const CLAVE_USADAS = 'carnet.hoja.celdas_usadas';
 
@@ -52,11 +56,25 @@ export function reiniciarHoja(): void {
   }
 }
 
+/** Formato que se va a imprimir; solo cambia el texto de ayuda del volteo. */
+export interface CarnetPosicionData {
+  formato?: FormatoCarnet;
+}
+
+/** Lo que devuelve el diálogo: dónde se imprime y cómo se voltea la hoja. */
+export interface CarnetPosicionResult {
+  celda: number;
+  impresion: ConfigImpresionCarnet;
+}
+
 @Component({
   selector: 'app-carnet-posicion-dialog',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, MatDialogModule, MatButtonModule, MatIconModule, MatTooltipModule],
+  imports: [
+    CommonModule, MatDialogModule, MatButtonModule, MatIconModule, MatTooltipModule,
+    CarnetImpresionComponent,
+  ],
   template: `
     <div class="cp-wrap">
       <header class="cp-head">
@@ -101,6 +119,8 @@ export function reiniciarHoja(): void {
             Esta hoja ya se usó completa. Pon una hoja nueva y pulsa "Hoja nueva".
           </p>
         }
+
+        <app-carnet-impresion class="cp-impresion" [formato]="formato"></app-carnet-impresion>
       </mat-dialog-content>
 
       <mat-dialog-actions class="cp-actions">
@@ -118,7 +138,7 @@ export function reiniciarHoja(): void {
   styles: [`
     :host { --azul: #21263c; --linea: #e2e8f0; --muted: #64748b; --ok: #2e7d32; display: block; }
 
-    .cp-wrap { min-width: min(420px, 88vw); }
+    .cp-wrap { min-width: min(480px, 88vw); }
 
     .cp-head {
       display: flex; align-items: center; gap: 12px;
@@ -201,6 +221,8 @@ export function reiniciarHoja(): void {
     }
     .cp-aviso .mat-icon { width: 17px; height: 17px; font-size: 17px; }
 
+    .cp-impresion { display: block; margin-top: 14px; }
+
     .cp-actions { display: flex; align-items: center; gap: 8px; padding: 8px 20px 16px !important; }
     .cp-spacer { flex: 1; }
     .cp-imprimir {
@@ -220,9 +242,14 @@ export class CarnetPosicionDialogComponent {
 
   readonly sinLibres = computed(() => this.usadas().length >= CARNETS_POR_HOJA);
 
+  /** Formato elegido antes de abrir el diálogo; define el nombre del volteo. */
+  readonly formato: FormatoCarnet;
+
   constructor(
-    private readonly ref: MatDialogRef<CarnetPosicionDialogComponent, number | null>,
+    private readonly ref: MatDialogRef<CarnetPosicionDialogComponent, CarnetPosicionResult | null>,
+    @Optional() @Inject(MAT_DIALOG_DATA) data: CarnetPosicionData | null,
   ) {
+    this.formato = data?.formato ?? 'apoyo';
     this.seleccion.set(this.primeraLibre());
   }
 
@@ -243,7 +270,9 @@ export class CarnetPosicionDialogComponent {
     const c = this.seleccion();
     if (c === null) return;
     marcarCeldaUsada(c);
-    this.ref.close(c);
+    // El volteo lo persiste el bloque de impresión al tocarlo; acá se lee el
+    // valor vigente para armar el PDF con él.
+    this.ref.close({ celda: c, impresion: leerImpresion() });
   }
 
   cancelar(): void {

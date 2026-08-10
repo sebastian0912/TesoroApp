@@ -22,6 +22,7 @@ import {
   TELEFONO_COORDINADOR_ALIANZA,
   buildCarnetsMasivoPdf,
 } from '../../hiring/components/generate-contracting-documents/carnet-masivo-fill';
+import { leerImpresion } from '../../hiring/components/generate-contracting-documents/carnet-impresion';
 import { UtilityServiceService } from '../../../../../shared/services/utilityService/utility-service.service';
 import { MerchandisingMerchandiseComponent } from '../components/merchandising-merchandise/merchandising-merchandise.component';
 import { MigrationPanelComponent } from '../components/migration-panel/migration-panel.component';
@@ -1059,7 +1060,10 @@ export class HomeComponent implements OnInit {
           CODIGO: String(r?.codigo ?? '').trim(),
 
           APELLIDOS: String(pickAny(c, ['APELLIDOS', 'apellidos'])).trim(),
-          NOMBRES: String(pickAny(c, ['NOMBRES', 'nombres'])).trim(),
+          // `candidatos-mini` devuelve los nombres en la llave NOMBRE (singular)
+          // —ver ExportCandidatosMiniJsonView—, no en NOMBRES. Buscando solo
+          // NOMBRES esto quedaba vacío y el carnet salía con puro apellido.
+          NOMBRES: String(pickAny(c, ['NOMBRES', 'nombres', 'NOMBRE', 'nombre'])).trim(),
           NOMBRE: String(pickAny(c, ['NOMBRE', 'nombre'])).trim(), // fallback
 
           FECHA_INGRESO: String(pickAny(c, ['FECHA_INGRESO', 'fecha_ingreso'])).trim(),
@@ -1418,7 +1422,10 @@ export class HomeComponent implements OnInit {
             CEDULA: String(rv?.CEDULA ?? ''),
             CODIGO: String(rv?.CODIGO ?? ''),
             APELLIDOS: String(rv?.APELLIDOS ?? ''),
-            NOMBRES: String(rv?.NOMBRES ?? rv?.NOMBRE ?? ''),
+            // `||` y no `??`: cuando la fila trae NOMBRES como cadena VACÍA el
+            // `??` no cae al fallback (solo lo hace con null/undefined) y el
+            // carnet se imprimía sin nombres.
+            NOMBRES: String(rv?.NOMBRES || rv?.NOMBRE || ''),
             FECHA_INGRESO: String(rv?.FECHA_INGRESO ?? ''),
             CENTRO_COSTO: String(rv?.CENTRO_COSTO ?? ''),
             FAMILIAR_EMERGENCIA_NOMBRE: String(rv?.FAMILIAR_EMERGENCIA_NOMBRE ?? ''),
@@ -1432,6 +1439,9 @@ export class HomeComponent implements OnInit {
           logoDataUrl: logoB64,
           telefonoCoordinador: TELEFONO_COORDINADOR_ALIANZA,
           arl: ARL_ALIANZA,
+          // Cómo voltea la hoja la impresora de este puesto; se elige en el
+          // bloque de impresión de los diálogos de carnet y queda guardado.
+          impresion: leerImpresion(),
         });
         const pdfBytes = await pdfBlob.arrayBuffer();
         zip.file(`carnets_${String(fileIdx + 1).padStart(3, '0')}.pdf`, pdfBytes);

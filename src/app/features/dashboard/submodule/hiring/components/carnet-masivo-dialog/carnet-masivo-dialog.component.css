@@ -211,6 +211,9 @@
 
 .cm-hint .mat-icon { width: 16px; height: 16px; font-size: 16px; }
 
+/* Bloque de volteo de la hoja (compartido con la generación individual). */
+.cm-impresion { display: block; margin-top: 12px; }
+
 /* ── Acciones ── */
 .cm-actions {
   display: flex;

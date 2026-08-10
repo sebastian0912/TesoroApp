@@ -5,8 +5,11 @@
  *
  * Home reparte 9 carnets por hoja CARTA VERTICAL en una grilla 3x3, con dos
  * páginas: frente y reverso. El reverso va espejado en columna (`2 - col`) para
- * que, al imprimir a doble cara volteando por el lado corto, cada reverso caiga
- * detrás de su frente.
+ * que, al voltear la hoja de izquierda a derecha, cada reverso caiga detrás de
+ * su frente. Como esta hoja es VERTICAL, ese volteo se llama "lado LARGO" en la
+ * impresora —al contrario del carnet de Apoyo, que es horizontal—; el otro
+ * volteo (de arriba a abajo) lo resuelve `dibujarCaraReverso` girando la página
+ * de reversos 180°.
  *
  * Acá se reusa esa misma grilla: cuando se manda `posicion` (1..9) se dibuja
  * únicamente esa celda y las demás quedan en blanco, así se reaprovecha una
@@ -17,6 +20,11 @@
  * síncrono y no dependa de la red.
  */
 import jsPDF from 'jspdf';
+import {
+  ConfigImpresionCarnet,
+  dibujarCaraReverso,
+  normalizarImpresion,
+} from './carnet-impresion';
 
 /**
  * Datos fijos del carnet de Tu Alianza: son los que imprime la generación
@@ -52,6 +60,11 @@ export interface CarnetMasivoOpts {
    * reparten las filas de arriba a abajo como en la generación masiva.
    */
   posicion?: number | null;
+  /**
+   * Cómo se voltea la hoja para el reverso. Sin valor se asume el volteo de
+   * izquierda a derecha, que es lo que se hacía siempre.
+   */
+  impresion?: Partial<ConfigImpresionCarnet> | null;
 }
 
 // Geometría: idéntica a la de Home para que el recorte calce igual.
@@ -300,15 +313,19 @@ function dibujarHoja(
       MARGIN + Math.floor(si / 3) * (CARD_H + GAP));
   }
 
-  // Reverso: columna espejada para que calce al voltear por el lado corto.
+  // Reverso: columna espejada para que calce al voltear la hoja de izquierda a
+  // derecha. Si el operador la voltea de arriba a abajo, `dibujarCaraReverso`
+  // gira esta página 180° y el reverso cae igual de bien.
   doc.addPage();
-  for (let si = 0; si < SLOTS; si++) {
-    const row = slots[si];
-    if (!row) continue;
-    dibujarReverso(doc, row, opts,
-      MARGIN + (2 - (si % 3)) * (CARD_W + GAP),
-      MARGIN + Math.floor(si / 3) * (CARD_H + GAP));
-  }
+  dibujarCaraReverso(doc, normalizarImpresion(opts.impresion), () => {
+    for (let si = 0; si < SLOTS; si++) {
+      const row = slots[si];
+      if (!row) continue;
+      dibujarReverso(doc, row, opts,
+        MARGIN + (2 - (si % 3)) * (CARD_W + GAP),
+        MARGIN + Math.floor(si / 3) * (CARD_H + GAP));
+    }
+  });
 }
 
 /**

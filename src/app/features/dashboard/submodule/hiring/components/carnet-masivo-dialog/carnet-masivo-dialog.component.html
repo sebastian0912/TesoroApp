@@ -122,10 +122,10 @@
         </table>
       </div>
 
-      <p class="cm-hint">
-        <mat-icon>info</mat-icon>
-        Imprime a doble cara volteando por el <b>lado corto</b>; si no, el reverso queda corrido.
-      </p>
+      <!-- El volteo NO se puede adivinar (depende de la impresora) y encima se
+           llama distinto en cada formato, porque Apoyo imprime en hoja
+           horizontal y Tu Alianza en vertical. Por eso se elige acá. -->
+      <app-carnet-impresion class="cm-impresion" [formato]="formatoImpresion()"></app-carnet-impresion>
     } @else if (!cargando()) {
       <!-- Sin esto el diálogo abre con un textarea gigante y medio cuerpo en
            blanco, que es lo que se veía a medio hacer. -->

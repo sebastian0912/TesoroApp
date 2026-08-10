@@ -2757,7 +2757,11 @@ export class RecruitmentPipelineComponent {
       contratoBE?.codigo_contrato || proc0?.contrato_codigo || contratoBE?.carnet_codigo || ''
     ).trim();
     let centroCosto = String(contratoBE?.carnet_centro_costo || contratoBE?.Ccentro_de_costos || '').trim();
-    let fechaIng = String(contratoBE?.carnet_fecha_ingreso || contratoBE?.fecha_ingreso || '').trim();
+    // Solo `fecha_ingreso`: es un DateField, así que llega en ISO y el
+    // <input type="date"> de abajo lo precarga bien. `carnet_fecha_ingreso` es
+    // texto libre; si venía en DD/MM/YYYY el input salía VACÍO, y encima hacía
+    // que el carnet llevara distinta fecha según desde dónde se generara.
+    let fechaIng = String(contratoBE?.fecha_ingreso || '').trim();
 
     // Consultar HomeService para obtener exactamente los mismos campos que la vista de Home
     let cMini: any = {};
@@ -2777,7 +2781,13 @@ export class RecruitmentPipelineComponent {
     // "Centro de costo carnet" del contrato manda: es el campo que se diligencia
     // en Pago y Transporte para este carnet en concreto.
     if (!centroCosto && cMini?.CARNET_CENTRO_COSTO) centroCosto = String(cMini.CARNET_CENTRO_COSTO).trim();
-    if (cMini?.CARNET_FECHA_INGRESO) fechaIng = String(cMini.CARNET_FECHA_INGRESO).trim();
+    // Si el contrato no trae fecha, se cae a la de Home, que es ESA MISMA
+    // `contrato.fecha_ingreso` pero ya formateada DD/MM/YYYY por el backend; hay
+    // que voltearla a ISO porque el <input type="date"> no acepta otra cosa.
+    if (!fechaIng) {
+      const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(String(cMini?.FECHA_INGRESO ?? '').trim());
+      if (m) fechaIng = `${m[3]}-${m[2]}-${m[1]}`;
+    }
 
     // Replicando la lógica exacta ("pickAny") que usa el Home component
     const pickAny = (obj: any, keys: string[]) => {

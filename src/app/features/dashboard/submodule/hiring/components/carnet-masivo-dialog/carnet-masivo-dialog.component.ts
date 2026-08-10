@@ -52,6 +52,12 @@ import {
   TELEFONO_COORDINADOR_ALIANZA,
   buildCarnetsMasivoPdf,
 } from '../generate-contracting-documents/carnet-masivo-fill';
+import { CarnetImpresionComponent } from '../generate-contracting-documents/carnet-impresion.component';
+import {
+  ConfigImpresionCarnet,
+  FormatoCarnet,
+  leerImpresion,
+} from '../generate-contracting-documents/carnet-impresion';
 import QRCode from 'qrcode';
 
 /** Las dos temporales tienen formato, logo, ARL y coordinador distintos. */
@@ -91,6 +97,7 @@ interface FilaCarnet {
   imports: [
     CommonModule, FormsModule, MatDialogModule, MatButtonModule, MatCheckboxModule,
     MatFormFieldModule, MatIconModule, MatInputModule, MatProgressBarModule, MatTooltipModule,
+    CarnetImpresionComponent,
   ],
   templateUrl: './carnet-masivo-dialog.component.html',
   styleUrl: './carnet-masivo-dialog.component.css',
@@ -162,6 +169,16 @@ export class CarnetMasivoDialogComponent {
       + Math.ceil(t.alianza / CARNETS_POR_HOJA_ALIANZA);
   });
   readonly bloqueadas = computed(() => this.filas().filter(f => !this.puedeGenerar(f)).length);
+  /**
+   * Qué formato(s) se van a imprimir. Importa para el bloque de volteo: los dos
+   * formatos usan hojas de orientación distinta, así que el MISMO volteo se
+   * llama "lado corto" en uno y "lado largo" en el otro.
+   */
+  readonly formatoImpresion = computed<FormatoCarnet | 'ambos'>(() => {
+    const t = this.porTemporal();
+    if (t.apoyo && t.alianza) return 'ambos';
+    return t.alianza ? 'alianza' : 'apoyo';
+  });
   readonly regenerando = computed(() =>
     this.seleccionadas().filter(f => f.yaGenerado).length,
   );
@@ -291,7 +308,10 @@ export class CarnetMasivoDialogComponent {
     ).trim();
 
     const centroCostos = String(contrato.carnet_centro_costo || contrato.Ccentro_de_costos || '').trim();
-    const fIng = String(contrato.carnet_fecha_ingreso || contrato.fecha_ingreso || '').trim();
+    // Solo `fecha_ingreso` (el DateField real). `carnet_fecha_ingreso` es texto
+    // libre y hacía que el carnet saliera con distinta fecha según desde dónde
+    // se generara; ver la misma decisión en generate-contracting-documents.
+    const fIng = String(contrato.fecha_ingreso || '').trim();
     const fechaIngreso = /^\d{4}-\d{2}-\d{2}/.test(fIng)
       ? `${fIng.slice(8, 10)}/${fIng.slice(5, 7)}/${fIng.slice(0, 4)}`
       : fIng;
@@ -422,11 +442,12 @@ export class CarnetMasivoDialogComponent {
   }
 
   /** Opciones fijas del carnet de Tu Alianza (ARL y coordinador propios). */
-  private opcionesAlianza(logoDataUrl: string | null) {
+  private opcionesAlianza(logoDataUrl: string | null, impresion: ConfigImpresionCarnet) {
     return {
       logoDataUrl,
       telefonoCoordinador: TELEFONO_COORDINADOR_ALIANZA,
       arl: ARL_ALIANZA,
+      impresion,
     };
   }
 
@@ -440,12 +461,15 @@ export class CarnetMasivoDialogComponent {
     filas: FilaCarnet[], datos: DatosCarnet[],
   ): Promise<Array<{ temporal: TemporalCarnet; blob: Blob; cantidad: number }>> {
     const out: Array<{ temporal: TemporalCarnet; blob: Blob; cantidad: number }> = [];
+    // Cómo voltea la hoja ESTE puesto: lo eligió el operador en el bloque de
+    // impresión y define cómo se dibuja la cara de reversos.
+    const impresion = leerImpresion();
 
     const idxApoyo = filas.map((f, i) => ({ f, i })).filter(x => x.f.temporal === 'apoyo');
     if (idxApoyo.length) {
       out.push({
         temporal: 'apoyo',
-        blob: buildCarnetApoyoLotePdf(idxApoyo.map(x => datos[x.i])),
+        blob: buildCarnetApoyoLotePdf(idxApoyo.map(x => datos[x.i]), impresion),
         cantidad: idxApoyo.length,
       });
     }
@@ -456,7 +480,8 @@ export class CarnetMasivoDialogComponent {
       for (const x of idxAlianza) rows.push(await this.filaAlianza(x.f, datos[x.i]));
       out.push({
         temporal: 'alianza',
-        blob: buildCarnetsMasivoPdf(rows, this.opcionesAlianza(datos[idxAlianza[0].i].logoDataUrl ?? null)),
+        blob: buildCarnetsMasivoPdf(
+          rows, this.opcionesAlianza(datos[idxAlianza[0].i].logoDataUrl ?? null, impresion)),
         cantidad: idxAlianza.length,
       });
     }
@@ -568,13 +593,15 @@ export class CarnetMasivoDialogComponent {
         progreso?.componentInstance.mensaje.set(
           `Guardando <b>${i + 1}</b> de <b>${sel.length}</b><br>${fila.cedula}`);
         try {
-          // Cada quien se guarda con el formato de SU temporal.
+          // Cada quien se guarda con el formato de SU temporal. Esta copia va al
+          // gestor documental (siempre en la primera celda) con el mismo volteo
+          // del lote, para que reimprimirla desde ahí salga igual de pareja.
           const individual = fila.temporal === 'alianza'
             ? buildCarnetsMasivoPdf(
               [await this.filaAlianza(fila, datos[i])],
-              { ...this.opcionesAlianza(datos[i].logoDataUrl ?? null), posicion: 1 },
+              { ...this.opcionesAlianza(datos[i].logoDataUrl ?? null, leerImpresion()), posicion: 1 },
             )
-            : buildCarnetApoyoPdf(datos[i]);
+            : buildCarnetApoyoPdf(datos[i], 0, leerImpresion());
           const archivo = new File([individual], `carnet_${fila.cedula}.pdf`, { type: 'application/pdf' });
           await firstValueFrom(this.docsSrv.guardarDocumento(
             `carnet_${fila.cedula}.pdf`, fila.cedula, TIPO_DOC_CARNET, archivo,

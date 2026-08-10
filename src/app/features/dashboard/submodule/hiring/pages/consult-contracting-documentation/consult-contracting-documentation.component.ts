@@ -59,6 +59,13 @@ type DocUiCell = {
   contract_number?: string | null;
 };
 
+/** Documento de una columna junto a su dueño (para unir en PDF o comprimir en ZIP) */
+type ColumnDocEntry = {
+  cedula: string;
+  nombre: string;
+  url: string;
+};
+
 /** Fila base (para ZIP/Excel y tu lógica actual) */
 type Row = {
   cedula: string;
@@ -662,44 +669,65 @@ export class ConsultContractingDocumentationComponent implements OnInit {
     this.cdr.markForCheck();
   }
 
-  /** ✅ Visualizar todos los documentos válidos de esta columna (Max 40 para browser merge) */
-  async viewColumnDocs(col: ColumnDefinition): Promise<void> {
-    const validUrls = this.checklistRows
-      .map(r => (r[col.name] as DocUiCell)?.url)
-      .filter((url): url is string => !!url);
+  /** Documentos disponibles de una columna, con su dueño, listos para unir o comprimir. */
+  private collectColumnDocs(col: ColumnDefinition): ColumnDocEntry[] {
+    return this.checklistRows
+      .map(r => {
+        const cell = (r?.[col.name] ?? null) as DocUiCell | null;
+        return {
+          cedula: String(r?.cedula ?? cell?.cedula ?? '').trim(),
+          nombre: String(r?.nombre ?? '').trim(),
+          url: cell?.url || '',
+        };
+      })
+      .filter((e): e is ColumnDocEntry => !!e.url);
+  }
 
-    if (!validUrls.length) {
+  /**
+   * ✅ Ojo del encabezado: pregunta SIEMPRE cómo quiere los documentos de la columna.
+   *  - Unidos    -> un único PDF consolidado.
+   *  - Separados -> un ZIP con un archivo por cédula (sin unir).
+   */
+  async viewColumnDocs(col: ColumnDefinition): Promise<void> {
+    const docs = this.collectColumnDocs(col);
+
+    if (!docs.length) {
       Swal.fire({ icon: 'info', title: 'Vacío', text: `No hay documentos de tipo "${col.header}" en los resultados actuales.` });
       return;
     }
 
-    // El usuario pidió unir "x cantidad que pueda", así que siempre intentaremos unirlos
-    // Puedes comentar la opción de ZIP, pero opcionalmente le preguntamos si son muchos (mayor a 50)
-    // para darle la opción del ZIP, pero la primera será siempre unir.
-    if (validUrls.length > 50) {
-      const resp = await Swal.fire({
-        title: `Se unirán ${validUrls.length} documentos`,
-        text: 'Son bastantes documentos. ¿Deseas generar y abrir un único archivo PDF uniendo todos, o prefieres descargarlos en un ZIP?',
-        icon: 'question',
-        showCancelButton: true,
-        showDenyButton: true,
-        confirmButtonText: 'Sí, Unir en un solo PDF',
-        denyButtonText: 'Descargar en ZIP (Separados)',
-        cancelButtonText: 'Cancelar'
-      });
+    const aviso = docs.length > 50
+      ? `<p style="margin:8px 0 0; font-size:12px; color:#b45309;">Son bastantes archivos: unirlos puede tardar varios minutos.</p>`
+      : '';
 
-      if (resp.isDenied) {
-        // Opción de descargar ZIP (archivos separados, no unidos)
-        const idStr = col.name.replace('type_', '');
-        const id = parseInt(idStr, 10);
-        if (!isNaN(id)) {
-          this.descargarZipConUnion([id]);
-        }
-        return;
-      } else if (!resp.isConfirmed) {
-        return; // Canceló
-      }
+    const resp = await Swal.fire({
+      title: `${docs.length} documento(s) de "${col.header}"`,
+      html: `
+        <p style="margin:8px 0; color:#374151;">¿Cómo deseas descargarlos?</p>
+        <p style="margin:4px 0; font-size:12px; color:#6b7280;">
+          <b>Unidos</b>: un solo PDF con todos los documentos.<br>
+          <b>Separados</b>: un ZIP con un archivo por cédula.
+        </p>
+        ${aviso}
+      `,
+      icon: 'question',
+      showCancelButton: true,
+      showDenyButton: true,
+      confirmButtonText: 'Unir en un solo PDF',
+      denyButtonText: 'Separados (ZIP)',
+      cancelButtonText: 'Cancelar',
+    });
+
+    if (resp.isConfirmed) {
+      await this.unirColumnDocsEnPdf(col, docs);
+    } else if (resp.isDenied) {
+      await this.descargarColumnDocsEnZip(col, docs);
     }
+  }
+
+  /** Une los documentos de la columna en un único PDF y lo descarga. */
+  private async unirColumnDocsEnPdf(col: ColumnDefinition, docs: ColumnDocEntry[]): Promise<void> {
+    const validUrls = docs.map(d => d.url);
 
     Swal.fire({
       title: 'Uniendo Documentos',
@@ -806,6 +834,122 @@ export class ConsultContractingDocumentationComponent implements OnInit {
         text: err?.message || 'No se pudo generar el PDF combinado. Algunos archivos podrían estar corruptos o inaccesibles.',
       });
     }
+  }
+
+  /** Descarga los documentos de la columna SIN unir: un ZIP con un archivo por cédula. */
+  private async descargarColumnDocsEnZip(col: ColumnDefinition, docs: ColumnDocEntry[]): Promise<void> {
+    Swal.fire({
+      title: 'Preparando ZIP',
+      text: `Descargando ${docs.length} archivo(s)...`,
+      allowOutsideClick: false,
+      didOpen: () => Swal.showLoading(),
+    });
+
+    try {
+      const JSZip = (await import('jszip')).default;
+      const zip = new JSZip();
+      const safeType = String(col.header).replace(/[^a-zA-Z0-9]/g, '_');
+      const usados = new Set<string>();
+      let agregados = 0;
+      let fallidos = 0;
+
+      // Mismos bloques que el merge: descarga concurrente sin ahogar el navegador.
+      const CHUNK_SIZE = 15;
+
+      for (let i = 0; i < docs.length; i += CHUNK_SIZE) {
+        const chunk = docs.slice(i, i + CHUNK_SIZE);
+
+        Swal.update({
+          text: `Descargando ${i + 1}-${Math.min(i + CHUNK_SIZE, docs.length)} de ${docs.length}`,
+        });
+
+        const results = await Promise.allSettled(
+          chunk.map(async (d) => {
+            const res = await fetch(d.url);
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            return { d, blob: await res.blob() };
+          }),
+        );
+
+        for (const result of results) {
+          if (result.status !== 'fulfilled') {
+            fallidos++;
+            continue;
+          }
+          const { d, blob } = result.value;
+          zip.file(this.buildZipEntryName(d, safeType, blob.type, usados), blob);
+          agregados++;
+        }
+      }
+
+      if (!agregados) {
+        Swal.fire({ icon: 'error', title: 'Error', text: 'No se pudo descargar ninguno de los documentos.' });
+        return;
+      }
+
+      Swal.update({ text: 'Comprimiendo archivos...' });
+
+      const zipBlob = await zip.generateAsync({
+        type: 'blob',
+        compression: 'DEFLATE',
+        compressionOptions: { level: 6 },
+      });
+
+      const url = URL.createObjectURL(zipBlob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Separados_${safeType}_${new Date().toISOString().slice(0, 10)}.zip`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 10000);
+
+      Swal.fire({
+        icon: fallidos ? 'warning' : 'success',
+        title: 'ZIP generado',
+        text: fallidos
+          ? `Se incluyeron ${agregados} archivo(s). ${fallidos} no se pudieron descargar.`
+          : `Se incluyeron ${agregados} archivo(s).`,
+        timer: fallidos ? undefined : 1800,
+        showConfirmButton: !!fallidos,
+      });
+    } catch (err: any) {
+      console.error('[consult-docs] Error generando ZIP separado:', err);
+      Swal.fire({
+        icon: 'error',
+        title: 'Error al generar el ZIP',
+        text: err?.message || 'No se pudo generar el archivo comprimido.',
+      });
+    }
+  }
+
+  /** Nombre de archivo dentro del ZIP: CEDULA_NOMBRE_TIPO.ext, único dentro del paquete. */
+  private buildZipEntryName(
+    d: ColumnDocEntry,
+    safeType: string,
+    mime: string,
+    usados: Set<string>,
+  ): string {
+    const ext = this.extensionDeDocumento(d.url, mime);
+    const nombre = d.nombre.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_ÑñÁÉÍÓÚáéíóú-]/g, '');
+    const base = [d.cedula || 'SIN_CEDULA', nombre, safeType].filter(Boolean).join('_');
+
+    let name = `${base}.${ext}`;
+    let n = 2;
+    while (usados.has(name.toLowerCase())) {
+      name = `${base}_(${n++}).${ext}`;
+    }
+    usados.add(name.toLowerCase());
+    return name;
+  }
+
+  private extensionDeDocumento(url: string, mime = ''): string {
+    const m = url.split('?')[0].toLowerCase().match(/\.([a-z0-9]{2,5})$/);
+    if (m) return m[1];
+    if (mime.includes('pdf')) return 'pdf';
+    if (mime.includes('png')) return 'png';
+    if (mime.includes('jpeg') || mime.includes('jpg')) return 'jpg';
+    return 'pdf';
   }
 
   /** ---------- BÚSQUEDA INDIVIDUAL ---------- */

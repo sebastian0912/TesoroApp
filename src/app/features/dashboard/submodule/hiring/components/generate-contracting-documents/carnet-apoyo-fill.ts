@@ -11,16 +11,24 @@
  * vertical solo tiene 215,9 mm. Horizontal (279,4 x 215,9) la grilla entra
  * completa (256,8 x 162 mm) sin tener que rotar el contenido.
  *
- * IMPRESIÓN A DOBLE CARA: hay que voltear por el LADO CORTO. Con ese volteo la
- * hoja gira sobre el eje vertical, así que el reverso se dibuja espejado en
- * horizontal —celda de arriba a la DERECHA— para que caiga justo detrás del
- * frente. Si sale corrido, es que la impresora está volteando por el lado largo.
+ * IMPRESIÓN A DOBLE CARA: el reverso se dibuja con las columnas espejadas —celda
+ * de arriba a la DERECHA— porque el volteo base es sobre el eje vertical (como
+ * pasar la hoja de un libro). Si la hoja se voltea de arriba a abajo, la página
+ * de reversos se gira 180° completa; de eso se encarga `dibujarCaraReverso` con
+ * la configuración que elija el operador. Como esta hoja es HORIZONTAL, el
+ * volteo de libro se llama "lado CORTO" en la impresora (al revés que en el
+ * carnet de Tu Alianza, que es vertical).
  *
  * Se dibuja con jsPDF (texto y vectores reales, no una imagen) para que
  * cualquier editor de PDF lo abra y lo pueda editar.
  */
 import jsPDF from 'jspdf';
 import { sanitizedString } from './winansi.util';
+import {
+  ConfigImpresionCarnet,
+  dibujarCaraReverso,
+  normalizarImpresion,
+} from './carnet-impresion';
 
 /** Tamaño del carnet en mm (CR80, el estándar). */
 export const CARNET_ANCHO = 85.6;
@@ -276,14 +284,17 @@ export const CARNETS_POR_HOJA = CARNET_FILAS * CARNET_COLUMNAS;
  * Lote: llena las 9 celdas de cada hoja y agrega hojas mientras haya gente.
  *
  * El reverso se dibuja en la columna espejada (col → COLUMNAS-1-col) por la
- * misma razón que el carnet individual: la impresión a doble cara voltea por
- * el LADO CORTO, así que la hoja gira sobre el eje vertical. Si sale corrido,
- * la impresora está volteando por el lado largo.
+ * misma razón que el carnet individual: es lo que pide el volteo sobre el eje
+ * vertical. `impresion` decide si además hay que girar la cara 180° (volteo de
+ * arriba a abajo) y si lleva corrimiento fino.
  *
  * Las celdas sobrantes de la última hoja quedan en blanco con su contorno.
  */
-export function buildCarnetApoyoLotePdf(lista: readonly DatosCarnet[]): Blob {
+export function buildCarnetApoyoLotePdf(
+  lista: readonly DatosCarnet[], impresion?: Partial<ConfigImpresionCarnet> | null,
+): Blob {
   const gente = (lista ?? []).filter(Boolean);
+  const cfg = normalizarImpresion(impresion);
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'letter' });
   doc.setProperties({ title: `Carnets_lote_${gente.length}` });
 
@@ -305,11 +316,13 @@ export function buildCarnetApoyoLotePdf(lista: readonly DatosCarnet[]): Blob {
 
     // Cara 2 (reversos) de la MISMA hoja, en columna espejada.
     doc.addPage('letter', 'landscape');
-    tanda.forEach((d, i) => {
-      const fila = Math.floor(i / CARNET_COLUMNAS);
-      const col = i % CARNET_COLUMNAS;
-      const { ox, oy } = origenCelda(doc, fila, CARNET_COLUMNAS - 1 - col);
-      dibujarReverso(doc, d, ox, oy);
+    dibujarCaraReverso(doc, cfg, () => {
+      tanda.forEach((d, i) => {
+        const fila = Math.floor(i / CARNET_COLUMNAS);
+        const col = i % CARNET_COLUMNAS;
+        const { ox, oy } = origenCelda(doc, fila, CARNET_COLUMNAS - 1 - col);
+        dibujarReverso(doc, d, ox, oy);
+      });
     });
   }
 
@@ -328,7 +341,10 @@ export function buildCarnetApoyoLotePdf(lista: readonly DatosCarnet[]): Blob {
  * usó la celda 0 y se recortó, el siguiente carnet se manda a la celda 1 y se
  * vuelve a pasar la MISMA hoja por la impresora.
  */
-export function buildCarnetApoyoPdf(d: DatosCarnet, posicion = 0): Blob {
+export function buildCarnetApoyoPdf(
+  d: DatosCarnet, posicion = 0, impresion?: Partial<ConfigImpresionCarnet> | null,
+): Blob {
+  const cfg = normalizarImpresion(impresion);
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'letter' });
   doc.setProperties({ title: `Carnet_${d.cedula}` });
 
@@ -342,10 +358,14 @@ export function buildCarnetApoyoPdf(d: DatosCarnet, posicion = 0): Blob {
 
   // ─────────────────────── CARA 2 (reverso) ───────────────────────
   // Espejo horizontal de la celda del frente: misma fila, columna opuesta. Con
-  // el volteo por lado corto, esta celda cae exactamente detrás de la otra.
+  // el volteo de izquierda a derecha, esta celda cae exactamente detrás de la
+  // otra; si la hoja se voltea de arriba a abajo, `dibujarCaraReverso` gira la
+  // página completa y el resultado físico es el mismo.
   doc.addPage('letter', 'landscape');
-  const reverso = origenCelda(doc, fila, CARNET_COLUMNAS - 1 - columna);
-  dibujarReverso(doc, d, reverso.ox, reverso.oy);
+  dibujarCaraReverso(doc, cfg, () => {
+    const reverso = origenCelda(doc, fila, CARNET_COLUMNAS - 1 - columna);
+    dibujarReverso(doc, d, reverso.ox, reverso.oy);
+  });
 
   return doc.output('blob');
 }
