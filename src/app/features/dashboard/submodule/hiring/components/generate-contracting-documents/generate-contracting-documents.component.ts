@@ -11434,23 +11434,71 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       await inyectarImagenSegura('Image11_af_image', firmaUrl);
       await inyectarImagenSegura('Image10_af_image', huellaUrl);
 
-      // La foto debe llenar todo el recuadro. Se recorta a la proporción del
-      // campo antes de inyectarla; así `setImage` la encaja sin dejar aire.
-      // (Dibujarla sobre la página no sirve: el widget del botón se pinta
-      // encima y la tapaba.) Si el recorte falla, entra la foto tal cual.
+      // La foto tiene que LLENAR el recuadro, sin aire alrededor.
+      //
+      // No sirve `setImage`: pdf-lib encaja la imagen dentro del widget
+      // (escala al MENOR de los dos factores) y ademas el widget de este boton
+      // trae fondo blanco -- /MK /BG [1 1 1] -- que asoma por los lados.
+      // Tampoco basta pre-recortar a la proporcion del campo: ese camino hace
+      // un segundo fetch de la foto y si falla (CORS, red) cae en silencio a
+      // la imagen sin recortar, que es justo como se veia.
+      //
+      // Se dibuja sobre la pagina escalando al MAYOR factor (cubrir), con
+      // recorte al rectangulo para que no invada la hoja, y se quita la
+      // anotacion del widget para que no vuelva a pintar su fondo encima.
+      // El formulario no se aplana (solo enableReadOnly), asi que sin quitarla
+      // el widget gana.
       if (fotoUrl) {
-        let foto = fotoUrl;
+        let dibujada = false;
         try {
-          const rect = (form.getField('Image17_af_image') as any)
-            ?.acroField?.getWidgets?.()[0]?.getRectangle?.();
-          if (rect?.width > 0 && rect?.height > 0) {
-            const recortada = await this.recortarAlAspecto(fotoUrl, rect.width / rect.height);
-            if (recortada) foto = recortada;
+          const img = await embedImageOrNull(pdfDoc, fotoUrl);
+          const field: any = form.getField('Image17_af_image');
+          const widget = field?.acroField?.getWidgets?.()[0];
+          const rect = widget?.getRectangle?.();
+
+          if (img && widget && rect?.width > 0 && rect?.height > 0) {
+            const refPagina = widget.P?.();
+            const paginas = pdfDoc.getPages();
+            const pagina =
+              paginas.find((pg: any) => refPagina && pg.ref === refPagina) ?? paginas[0];
+
+            const dims = img.scale(1);
+            const escala = Math.max(rect.width / dims.width, rect.height / dims.height);
+            const w = dims.width * escala;
+            const h = dims.height * escala;
+
+            pagina.pushOperators(
+              pushGraphicsState(),
+              moveTo(rect.x, rect.y),
+              lineTo(rect.x + rect.width, rect.y),
+              lineTo(rect.x + rect.width, rect.y + rect.height),
+              lineTo(rect.x, rect.y + rect.height),
+              closePath(),
+              clip(),
+              endPath(),
+            );
+            pagina.drawImage(img, {
+              x: rect.x + (rect.width - w) / 2,   // centrado: el recorte se
+              y: rect.y + (rect.height - h) / 2,  // reparte a ambos lados
+              width: w,
+              height: h,
+            });
+            pagina.pushOperators(popGraphicsState());
+
+            // Fuera el widget, o su fondo blanco tapa lo recien dibujado.
+            try {
+              const annots = (pagina as any).node?.Annots?.();
+              const i = annots?.asArray?.().indexOf(widget.dict);
+              if (i != null && i >= 0) annots.remove(i);
+            } catch { /* si no se puede quitar, al menos la foto ya esta */ }
+
+            dibujada = true;
           }
         } catch (e) {
-          console.warn('[ficha] no se pudo medir el recuadro de la foto:', e);
+          console.warn('[ficha] no se pudo dibujar la foto a sangre:', e);
         }
-        await inyectarImagenSegura('Image17_af_image', foto);
+        // Ultimo recurso: el camino de siempre, aunque deje aire.
+        if (!dibujada) await inyectarImagenSegura('Image17_af_image', fotoUrl);
       }
 
       // Bloquear campos
